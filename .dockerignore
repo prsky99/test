@@ -1,0 +1,8 @@
+.venv
+.git
+wallets
+gateway-data
+*.sqlite3
+tests
+scripts
+deploy

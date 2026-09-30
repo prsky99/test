@@ -1,0 +1,24 @@
+# 서버에서: cd deploy && docker compose up -d --build
+services:
+  gateway:
+    build: ..
+    restart: unless-stopped
+    env_file: gateway.env
+    environment:
+      FORWARDED_ALLOW_IPS: "*"   # 같은 도커 네트워크의 Caddy가 넘겨주는 실제 클라이언트 IP를 신뢰 (게이트웨이 포트는 외부에 열지 않음)
+    volumes:
+      - gateway-data:/data
+    expose: ["8200"]
+    ports: ["127.0.0.1:8200:8200"]   # 관리자 API는 서버 안에서만 (ssh 터널)
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    env_file: gateway.env
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on: [gateway]
+volumes:
+  gateway-data:
+  caddy-data:

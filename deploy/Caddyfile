@@ -1,0 +1,6 @@
+{$DOMAIN} {
+	encode gzip
+	@admin path /admin/*
+	respond @admin 404
+	reverse_proxy gateway:8200
+}

@@ -312,7 +312,10 @@ def main() -> None:
     config = GatewayConfig.from_env()
     if not config.network.is_testnet:
         log.warning("메인넷(%s)에서 실제 USDC 수수료를 받습니다.", config.network.name)
-    uvicorn.run(create_app(config), host=os.environ.get("HOST", "127.0.0.1"), port=int(os.environ.get("PORT", "8200")), proxy_headers=True)
+    uvicorn.run(
+        create_app(config), host=os.environ.get("HOST", "127.0.0.1"), port=int(os.environ.get("PORT", "8200")),
+        proxy_headers=True, forwarded_allow_ips=os.environ.get("FORWARDED_ALLOW_IPS", "127.0.0.1"),
+    )
 
 
 if __name__ == "__main__":
