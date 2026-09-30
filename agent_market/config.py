@@ -103,3 +103,33 @@ class BrokerConfig:
             min_fee=usdc(os.environ.get("BROKER_MIN_FEE", "0.001")),
             allow_private_urls=os.environ.get("ALLOW_PRIVATE_AGENT_URLS") == "1",
         )
+
+
+@dataclass(frozen=True)
+class GatewayConfig:
+    network: NetworkConfig
+    pay_to: str  # 소개 수수료를 받을 지갑 주소 (개인키 불필요)
+    db_path: str
+    admin_token: str | None
+    min_confirmations: int
+    crawl_interval: float
+    rescan_interval: float
+    scheduler: bool
+    allow_private_urls: bool
+
+    @classmethod
+    def from_env(cls) -> "GatewayConfig":
+        pay_to = os.environ.get("GATEWAY_WALLET")
+        if not pay_to:
+            raise RuntimeError("GATEWAY_WALLET 환경변수(수수료를 받을 지갑 주소)가 필요합니다.")
+        return cls(
+            network=NetworkConfig.from_env(),
+            pay_to=pay_to,
+            db_path=os.environ.get("GATEWAY_DB", "gateway-data/gateway.sqlite3"),
+            admin_token=os.environ.get("ADMIN_TOKEN"),
+            min_confirmations=int(os.environ.get("MIN_CONFIRMATIONS", "1")),
+            crawl_interval=float(os.environ.get("CRAWL_INTERVAL_HOURS", "6")) * 3600,
+            rescan_interval=float(os.environ.get("RESCAN_INTERVAL_MINUTES", "15")) * 60,
+            scheduler=os.environ.get("SCHEDULER", "1") == "1",
+            allow_private_urls=os.environ.get("ALLOW_PRIVATE_AGENT_URLS") == "1",
+        )
