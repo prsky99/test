@@ -75,3 +75,31 @@ class BuyerConfig:
             budget=usdc(os.environ.get("BUYER_BUDGET", "1.00")),
             allow_mainnet=os.environ.get("ALLOW_MAINNET") == "1",
         )
+
+
+@dataclass(frozen=True)
+class BrokerConfig:
+    network: NetworkConfig
+    pay_to: str  # 중개 수수료를 받을 지갑 주소 (개인키 불필요)
+    db_path: str
+    admin_token: str | None
+    min_confirmations: int
+    fee_bps: int
+    min_fee: int
+    allow_private_urls: bool  # 로컬 개발용: localhost 에이전트 등록 허용
+
+    @classmethod
+    def from_env(cls) -> "BrokerConfig":
+        pay_to = os.environ.get("BROKER_WALLET")
+        if not pay_to:
+            raise RuntimeError("BROKER_WALLET 환경변수(수수료를 받을 지갑 주소)가 필요합니다.")
+        return cls(
+            network=NetworkConfig.from_env(),
+            pay_to=pay_to,
+            db_path=os.environ.get("BROKER_DB", "broker.sqlite3"),
+            admin_token=os.environ.get("ADMIN_TOKEN"),
+            min_confirmations=int(os.environ.get("MIN_CONFIRMATIONS", "1")),
+            fee_bps=int(os.environ.get("BROKER_FEE_BPS", "500")),
+            min_fee=usdc(os.environ.get("BROKER_MIN_FEE", "0.001")),
+            allow_private_urls=os.environ.get("ALLOW_PRIVATE_AGENT_URLS") == "1",
+        )

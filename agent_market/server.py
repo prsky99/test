@@ -49,7 +49,7 @@ def create_app(config: SellerConfig, verifier: PaymentVerifier | None = None, wo
             "name": "claude-worker",
             "description": "Claude가 요약·번역·코드리뷰를 수행하고 USDC로 결제받는 에이전트",
             "services": [
-                {"name": s.name, "description": s.description, "endpoint": f"/services/{s.name}", "payment": requirements(s.name)}
+                {"name": s.name, "category": s.category, "description": s.description, "endpoint": f"/services/{s.name}", "payment": requirements(s.name)}
                 for s in SERVICES.values()
             ],
         }

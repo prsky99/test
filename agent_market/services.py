@@ -15,6 +15,7 @@ class Service:
     description: str
     price: int  # USDC 최소 단위
     system: str
+    category: str = "llm_inference"  # 브로커 카테고리 (broker/categories.py)
     max_input_chars: int = 50_000
 
 

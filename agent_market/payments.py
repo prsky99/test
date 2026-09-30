@@ -23,13 +23,30 @@ class PaymentError(Exception):
         self.retryable = retryable  # 블록 포함/컨펌 대기 등 시간이 지나면 해결되는 경우
 
 
+def request_message(purpose: str, subject: str, body: bytes) -> str:
+    """서명 대상 문자열. purpose로 용도(결제/피드백)를 구분해 서명이 다른 곳에 재사용되지 않게 한다."""
+    return f"{purpose}:{subject.lower()}:{hashlib.sha256(body).hexdigest()}"
+
+
+def sign_request(private_key: str, purpose: str, subject: str, body: bytes) -> str:
+    signed = Account.sign_message(encode_defunct(text=request_message(purpose, subject, body)), private_key=private_key)
+    return "0x" + signed.signature.hex().removeprefix("0x")
+
+
+def recover_signer(purpose: str, subject: str, body: bytes, signature: str) -> str:
+    """서명한 지갑 주소(소문자)를 돌려준다. 서명 형식이 잘못되면 ValueError."""
+    try:
+        return normalize(Account.recover_message(encode_defunct(text=request_message(purpose, subject, body)), signature=signature))
+    except Exception as exc:
+        raise ValueError(f"서명을 해석할 수 없습니다: {exc}") from exc
+
+
 def payment_message(tx_hash: str, body: bytes) -> str:
-    return f"agent-market:{tx_hash.lower()}:{hashlib.sha256(body).hexdigest()}"
+    return request_message("agent-market", tx_hash, body)
 
 
 def sign_payment(private_key: str, tx_hash: str, body: bytes) -> str:
-    signed = Account.sign_message(encode_defunct(text=payment_message(tx_hash, body)), private_key=private_key)
-    return "0x" + signed.signature.hex().removeprefix("0x")
+    return sign_request(private_key, "agent-market", tx_hash, body)
 
 
 @dataclass
@@ -70,9 +87,9 @@ class PaymentVerifier:
             raise PaymentError(f"결제 금액 부족 ({amount} < {price})")
 
         try:
-            signer = Account.recover_message(encode_defunct(text=payment_message(tx_hash, body)), signature=signature)
-        except Exception as exc:  # 형식이 잘못된 서명
-            raise PaymentError(f"결제 서명을 해석할 수 없습니다: {exc}", 400) from exc
-        if normalize(signer) != payer:
+            signer = recover_signer("agent-market", tx_hash, body, signature)
+        except ValueError as exc:
+            raise PaymentError(f"결제 {exc}", 400) from exc
+        if signer != payer:
             raise PaymentError("결제 서명자가 송금자와 다릅니다.", 403)
         return VerifiedPayment(tx_hash.lower(), payer, amount)

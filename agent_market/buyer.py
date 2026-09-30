@@ -14,7 +14,7 @@ from eth_account import Account
 
 from .chain import RPC, encode_transfer
 from .config import BuyerConfig
-from .payments import sign_payment
+from .payments import sign_payment, sign_request
 
 
 class BuyerError(RuntimeError):
@@ -37,25 +37,64 @@ class BuyerAgent:
         return resp.json()
 
     def buy(self, base_url: str, service: str, text: str) -> dict:
-        body = json.dumps({"input": text}).encode()
-        headers = {"content-type": "application/json"}
-        url = f"{base_url}/services/{service}"
-        first = self.http.post(url, content=body, headers=headers)
+        return self.buy_at(f"{base_url}/services/{service}", text)
+
+    def buy_at(self, url: str, text: str, expected_pay_to: str | None = None) -> dict:
+        first = self.http.post(url, json={"input": text})
         if first.status_code != 402:
-            first.raise_for_status()
+            if first.status_code >= 400:
+                raise BuyerError(f"{first.status_code}: {first.text}")
             return first.json()
 
         req = first.json()["payment"]
+        if expected_pay_to and req["pay_to"].lower() != expected_pay_to.lower():
+            raise BuyerError("판매자가 브로커에 등록된 것과 다른 지갑으로 결제를 요구합니다.")
         self._check_terms(req)
+        return self._paid_post(url, {"input": text}, req)
+
+    def hire(self, broker_url: str, task: str, text: str, category: str | None = None, max_price: int | None = None, judge=None) -> dict:
+        """브로커로 적합한 에이전트를 찾아(수수료 결제) 작업을 맡긴다.
+
+        task: 브로커에게 알리는 작업 설명 (분류·매칭용), text: 판매 에이전트에게 보낼 실제 입력.
+        judge: 결과를 받아 1~5 별점을 돌려주는 함수(선택). 없으면 성공/실패만 평가한다.
+        실패한 후보는 평판에 반영하고 다음 후보로 넘어간다.
+        """
+        request = {"task": task, "top_k": 3}
+        if category:
+            request["category"] = category
+        if max_price is not None:
+            request["max_price"] = max_price
+        quote_resp = self.http.post(f"{broker_url}/match", json=request)
+        if quote_resp.status_code != 402:
+            raise BuyerError(f"매칭 실패 {quote_resp.status_code}: {quote_resp.text}")
+        quote = quote_resp.json()
+        cheapest = min(c["price"] for c in quote["candidates"])
+        # 수수료와 최소 한 번의 서비스 대금을 모두 낼 수 있을 때만 진행한다.
+        self._check_terms(quote["payment"], extra=cheapest)
+        match = self._paid_post(broker_url + quote["accept"]["endpoint"], quote["accept"]["body"], quote["payment"])
+
+        errors = []
+        for candidate in match["candidates"]:
+            try:
+                result = self.buy_at(candidate["endpoint"], text, expected_pay_to=candidate["pay_to"])
+            except (BuyerError, httpx.HTTPError) as exc:
+                errors.append(f"{candidate['agent_name']}: {exc}")
+                self._feedback(broker_url, match["match_id"], candidate, success=False, rating=None)
+                continue
+            rating = judge(result["output"]) if judge else None
+            self._feedback(broker_url, match["match_id"], candidate, success=True, rating=rating)
+            return {**result, "match_id": match["match_id"], "agent": candidate}
+        raise BuyerError("모든 후보가 실패했습니다: " + "; ".join(errors))
+
+    def _paid_post(self, url: str, body_obj: dict, req: dict) -> dict:
         tx_hash = self._pay(req["token"], req["pay_to"], req["amount"])
         self.spent += req["amount"]
-
-        # 결제 직후엔 아직 블록에 포함되지 않았을 수 있으므로 잠시 재시도한다.
+        body = json.dumps(body_obj).encode()
         for _ in range(self.confirm_attempts):
             resp = self.http.post(
                 url,
                 content=body,
-                headers={**headers, "X-Payment-Tx": tx_hash, "X-Payment-Signature": sign_payment(self.config.private_key, tx_hash, body)},
+                headers={"content-type": "application/json", "X-Payment-Tx": tx_hash, "X-Payment-Signature": sign_payment(self.config.private_key, tx_hash, body)},
             )
             if resp.status_code == 402 and resp.json().get("retryable"):
                 time.sleep(self.confirm_interval)
@@ -65,7 +104,14 @@ class BuyerAgent:
             return resp.json()
         raise BuyerError(f"결제 확인 대기 시간 초과 (결제 tx: {tx_hash})")
 
-    def _check_terms(self, req: dict) -> None:
+    def _feedback(self, broker_url: str, match_id: str, candidate: dict, success: bool, rating: int | None) -> None:
+        body = json.dumps({"match_id": match_id, "agent_id": candidate["agent_id"], "service": candidate["service"], "success": success, "rating": rating}).encode()
+        sig = sign_request(self.config.private_key, "agent-broker-feedback", match_id, body)
+        resp = self.http.post(f"{broker_url}/match/feedback", content=body, headers={"content-type": "application/json", "X-Signature": sig})
+        if resp.status_code >= 400:
+            print(f"[경고] 평가 전송 실패 {resp.status_code}: {resp.text}", file=sys.stderr)
+
+    def _check_terms(self, req: dict, extra: int = 0) -> None:
         net = self.config.network
         if req["chain_id"] != net.chain_id or req["token"].lower() != net.token.lower():
             raise BuyerError(f"판매자가 요구한 네트워크/토큰이 설정과 다릅니다: {req['network']} {req['token']}")
@@ -76,7 +122,7 @@ class BuyerAgent:
             raise BuyerError("잘못된 결제 금액")
         if amount > self.config.max_per_call:
             raise BuyerError(f"가격 {amount}이 1회 상한 {self.config.max_per_call}을 넘습니다.")
-        if self.spent + amount > self.config.budget:
+        if self.spent + amount + extra > self.config.budget:
             raise BuyerError(f"총 예산 {self.config.budget}을 넘습니다 (이미 {self.spent} 사용).")
 
     def _pay(self, token: str, pay_to: str, amount: int) -> str:
