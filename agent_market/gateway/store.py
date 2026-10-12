@@ -211,11 +211,12 @@ class Store:
 
     # ---------------- 헬스체크 ----------------
     def due_for_check(self, now: float, limit: int) -> list[dict]:
-        """점검 시각이 된 에이전트. 한 번도 점검하지 않은 것(새로 수집된 것)이 먼저."""
+        """점검 시각이 된 에이전트. 한 번도 점검하지 않은 것(새로 수집된 것)이 먼저.
+        같은 순위끼리는 무작위로 섞어, 한 호스트의 엔드포인트 수천 개가 앞을 다 차지하지 않게 한다."""
         rows = self.query(
             """SELECT * FROM resources WHERE active=1 AND health_status != 'retired'
                AND (next_check_at IS NULL OR next_check_at <= ?)
-               ORDER BY next_check_at IS NOT NULL, next_check_at LIMIT ?""",
+               ORDER BY next_check_at IS NOT NULL, next_check_at, random() LIMIT ?""",
             (now, limit),
         )
         return [dict(r) for r in rows]
