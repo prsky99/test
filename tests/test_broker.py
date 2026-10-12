@@ -252,3 +252,28 @@ def test_classification_is_rate_limited(world):
     world.add_seller("seller-a")
     codes = [world.http.post("/match", json={"task": "x"}).status_code for _ in range(25)]
     assert codes.count(429) == 5 and len(world.classifier.calls) == 20
+
+
+
+def test_free_broker_reveals_candidates_without_payment():
+    world = World()
+    world.apps["broker"] = create_broker(
+        BrokerConfig(NET, BROKER.address, ":memory:", "secret", 1, 0, 0, True),
+        verifier=PaymentVerifier(world.chain, NET.token, BROKER.address), classifier=world.classifier,
+        fetcher=CardFetcher(http=world.http, allow_private=True, network={"chain_id": NET.chain_id, "token": NET.token}),
+        registry=world.registry, ledger=Ledger(),
+    )
+    world.router_reset()
+    agent_id = world.add_seller("seller-a")
+    r = world.http.post("/match", json={"task": "요약", "category": "llm_inference"})
+    assert r.status_code == 200 and r.json()["fee"] == 0
+    match = r.json()
+    assert match["candidates"][0]["agent_url"] == "http://seller-a"
+    # 무료 매칭은 서명 없이 평가 가능 (match_id가 접근 토큰)
+    body = {"match_id": match["match_id"], "agent_id": agent_id, "service": match["candidates"][0]["service"], "success": True, "rating": 5}
+    assert world.http.post("/match/feedback", json=body).status_code == 200
+    # 구매 에이전트: 브로커 수수료 없이 서비스 대금만 낸다
+    buyer = world.buyer()
+    result = buyer.hire("http://broker", "요약", "text", max_price=usdc("0.02"))
+    assert result["output"].startswith("[summarize]") and buyer.spent == usdc("0.02")
+    assert world.http.get("/stats", headers={"authorization": "Bearer secret"}).json()["fee_revenue"] == 0

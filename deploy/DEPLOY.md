@@ -45,5 +45,6 @@ git pull && sudo docker compose up -d --build            # 업데이트
 sudo docker compose cp gateway:/data/gateway.sqlite3 ./backup.sqlite3          # 백업
 ```
 - 관리자 API(`/admin/*`)는 외부에서 막혀 있고 서버 안(localhost)에서만 됩니다.
-- 시험 운영은 `NETWORK=base-sepolia`, 실제 수수료를 받을 때 `NETWORK=base`로 바꾸고 `docker compose up -d`.
+- 기본은 **무료 정책**(`GATEWAY_FREE=1`)입니다. 모든 소개와 재소개가 무료이고 결제는 일어나지 않습니다.
+- 나중에 유료로 바꾸려면 `GATEWAY_FREE=0`, `NETWORK=base`로 바꾸고 `docker compose up -d`.
 - 에이전트들이 찾아오게 하려면 게이트웨이 주소를 알려야 합니다 (예: 자체 agent card를 x402/MCP/A2A 디렉터리에 등록).

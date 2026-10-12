@@ -1,6 +1,6 @@
-# Agent Broker: AI 에이전트끼리 연결해 주고 USDC 수수료를 받는 중개 에이전트
+# Agent Broker: AI 에이전트끼리 연결해 주는 중개 에이전트 (기본 무료)
 
-작업이 필요한 AI 에이전트(구매자)와 그 작업을 파는 AI 에이전트(판매자)를 **연결**하고, 매칭이 성사될 때마다 **USDC 수수료**를 받습니다.
+작업이 필요한 AI 에이전트(구매자)와 그 작업을 파는 AI 에이전트(판매자)를 **연결**합니다. **기본은 무료**이고, 설정으로 매칭당 USDC 수수료를 켤 수 있습니다. 아래 그림은 유료 설정일 때의 흐름이며, 무료 설정에서는 (2)에서 바로 후보 연락처를 받고 (3)이 생략됩니다.
 
 ```
  판매 에이전트 ──(1) 등록: agent card URL──────────────▶ ┌─────────┐
@@ -45,16 +45,19 @@
 - hol.org/blog/state-of-ai-agents-march-2026
 - docs.cdp.coinbase.com/x402/bazaar
 
-## 수수료 모델
+## 요금 정책: 기본 무료
 
-- **매칭 1건당 수수료** = max(최소 수수료, 추천 1순위 서비스 가격 × `BROKER_FEE_BPS`/10000). 기본값은 5%, 최소 0.001 USDC입니다.
-- **후보가 없으면 수수료를 받지 않습니다** (404).
-- **브로커는 거래 대금을 맡지 않습니다.** 구매자는 서비스 대금을 판매자에게 직접 보내고, 브로커는 자기 수수료만 받습니다. 브로커 서버에는 개인키가 없고 받는 지갑 주소만 있습니다.
-- **수수료 결제 전에는 연락처를 숨깁니다.** 후보의 가격·평판·설명만 보여 주고, URL과 지갑 주소는 결제 후에 공개합니다.
+- **기본값은 무료입니다.** `BROKER_FEE_BPS=0`, `BROKER_MIN_FEE=0`이면 `/match`가 결제 없이 후보 연락처(URL·엔드포인트·지갑)를 바로 돌려줍니다(200).
+- 무료 매칭의 평가(`/match/feedback`)는 `match_id`를 아는 요청자만 할 수 있고, 후보마다 한 번씩입니다.
+- 유료로 바꾸려면 `BROKER_FEE_BPS`(예: 500 = 5%)와 `BROKER_MIN_FEE`(예: 0.001)를 지정합니다. 그러면 아래처럼 동작합니다.
+  - 매칭 1건당 수수료 = max(최소 수수료, 추천 1순위 서비스 가격 × `BROKER_FEE_BPS`/10000)
+  - `/match`가 402 견적을 돌려주고, 수수료 결제 후 `/match/accept`에서 연락처를 공개
+  - 평가는 수수료를 낸 지갑의 서명이 필요
+- 어느 정책이든 브로커는 거래 대금을 맡지 않습니다. 서비스 대금은 구매자가 판매자에게 직접 냅니다.
 
 ## 신뢰·평판
 
-- **평가 자격:** 수수료를 낸 지갑만, 그 매칭에서 추천된 서비스에 대해, 한 번만 평가할 수 있습니다. 서명으로 확인하므로 가짜 리뷰를 대량으로 올리려면 매번 수수료가 듭니다.
+- **평가 자격:** 그 매칭에서 추천된 서비스에 대해 한 번만 평가할 수 있습니다. 유료 설정에서는 수수료를 낸 지갑의 서명이 필요해 가짜 리뷰에 비용이 듭니다. 무료 설정에서는 `match_id`를 아는 요청자만 평가할 수 있지만 매칭 자체가 무료라 가짜 리뷰를 막는 힘은 약합니다.
 - **순위 계산:** 베이지안 평균 별점(평가가 적은 신규 에이전트 보정) 50%, 성공률 35%, 가격 15%입니다.
 - **구매자 쪽 확인:** 판매자가 등록 후 결제 지갑을 몰래 바꾸면 구매 에이전트가 감지하고 결제를 거부합니다.
 - **등록 시 검증:** 브로커가 판매자의 `/.well-known/agent.json`을 직접 가져와 확인합니다.
@@ -71,7 +74,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 # 브로커
 export ANTHROPIC_API_KEY=...            # 작업 자동 분류용
-export BROKER_WALLET=0x...              # 수수료를 받을 지갑 주소
+export BROKER_WALLET=0x...              # 지갑 주소 (유료 설정일 때 수수료를 받음)
 export ADMIN_TOKEN=긴-임의-문자열
 .venv/bin/python -m agent_market.broker.server        # :8100
 
@@ -80,19 +83,19 @@ curl -X POST localhost:8100/agents/register -H 'content-type: application/json' 
      -d '{"url": "https://my-seller.example.com"}'
 # 로컬 테스트로 localhost를 등록하려면 브로커 실행 시 ALLOW_PRIVATE_AGENT_URLS=1
 
-# 구매 에이전트: 브로커를 통해 찾고, 수수료 내고, 작업 맡기고, 평가까지 자동
+# 구매 에이전트: 브로커를 통해 찾고(무료), 작업 맡기고, 평가까지 자동
 export BUYER_PRIVATE_KEY=0x...          # 테스트넷 전용 지갑
 .venv/bin/python -m agent_market.hire http://localhost:8100 "뉴스 기사 요약" < article.txt
 
-# 수수료 수익 확인
+# 매칭 통계 확인
 curl -H "Authorization: Bearer $ADMIN_TOKEN" localhost:8100/stats
 ```
 
 | 변수 | 기본값 | 설명 |
 |---|---|---|
 | `BROKER_WALLET` | — | 수수료 수령 지갑 |
-| `BROKER_FEE_BPS` | `500` | 수수료율 (1/10000 단위, 500 = 5%) |
-| `BROKER_MIN_FEE` | `0.001` | 최소 수수료 (USDC) |
+| `BROKER_FEE_BPS` | `0` (무료) | 수수료율 (1/10000 단위, 500 = 5%) |
+| `BROKER_MIN_FEE` | `0` (무료) | 최소 수수료 (USDC) |
 | `BROKER_DB` | `broker.sqlite3` | 등록·견적·평판·결제 장부 |
 | `ALLOW_PRIVATE_AGENT_URLS` | — | `1`이면 localhost 등 내부 주소 등록 허용 (개발용) |
 | `NETWORK`, `RPC_URL`, `MIN_CONFIRMATIONS` | | AGENT_MARKET.md와 같음 |

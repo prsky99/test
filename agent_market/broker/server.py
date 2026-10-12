@@ -33,6 +33,7 @@ from .registry import Registry
 log = logging.getLogger("agent_market.broker")
 
 FEEDBACK_PURPOSE = "agent-broker-feedback"
+FREE_PAYER = "free"  # 무료 매칭 표시 (결제 지갑 없음)
 MAX_TASK_CHARS = 4000
 MAX_TOP_K = 5
 CLASSIFY_PER_MINUTE = 20  # 무료인 /match 분류(Claude 호출 비용)를 남용하지 못하게 IP당 제한
@@ -102,7 +103,8 @@ def create_app(
         return {
             "name": "agent-broker",
             "role": "broker",
-            "description": "작업이 필요한 AI 에이전트와 그 작업을 파는 AI 에이전트를 연결합니다. 매칭 수수료는 USDC로 받습니다.",
+            "description": "작업이 필요한 AI 에이전트와 그 작업을 파는 AI 에이전트를 연결합니다. "
+            + ("매칭은 무료입니다." if config.fee_bps == 0 and config.min_fee == 0 else "매칭 수수료는 USDC로 받습니다."),
             "categories": [{"id": c.id, "name": c.name, "description": c.description} for c in CATEGORIES.values()],
             "fee_policy": {"fee_bps": config.fee_bps, "min_fee": config.min_fee, "basis": "추천된 최상위 서비스 가격"},
             "endpoints": {"register": "/agents/register", "match": "/match", "accept": "/match/accept", "feedback": "/match/feedback"},
@@ -165,6 +167,11 @@ def create_app(
             return JSONResponse({"error": "조건에 맞는 에이전트가 없습니다.", "category": category}, status_code=404)
         fee = match_fee(candidates[0].price, config.fee_bps, config.min_fee)
         quote_id = registry.create_quote(category, summary, candidates, fee)
+        if fee == 0:
+            # 무료 정책: 결제 없이 후보 연락처를 바로 공개. match_id는 요청자만 아는 값이라 평가 권한 확인에 쓴다.
+            registry.mark_paid(quote_id, FREE_PAYER, f"free:{quote_id}")
+            quote = registry.get_quote(quote_id)
+            return {"match_id": quote_id, "category": category, "task_summary": summary, "fee": 0, "candidates": quote["candidates"]}
         return JSONResponse(
             {
                 "quote_id": quote_id,
@@ -217,14 +224,15 @@ def create_app(
         quote = registry.get_quote(str(data.get("match_id", "")))
         if quote is None or quote["payer"] is None:
             raise HTTPException(404, "결제된 매칭이 아닙니다.")
-        if not x_signature:
-            raise HTTPException(401, "매칭 결제 지갑의 X-Signature가 필요합니다.")
-        try:
-            signer = recover_signer(FEEDBACK_PURPOSE, quote["quote_id"], body, x_signature)
-        except ValueError as exc:
-            raise HTTPException(400, str(exc))
-        if signer != quote["payer"]:
-            raise HTTPException(403, "매칭 수수료를 낸 지갑만 평가할 수 있습니다.")
+        if quote["payer"] != FREE_PAYER:  # 유료 매칭은 수수료를 낸 지갑의 서명이 필요
+            if not x_signature:
+                raise HTTPException(401, "매칭 결제 지갑의 X-Signature가 필요합니다.")
+            try:
+                signer = recover_signer(FEEDBACK_PURPOSE, quote["quote_id"], body, x_signature)
+            except ValueError as exc:
+                raise HTTPException(400, str(exc))
+            if signer != quote["payer"]:
+                raise HTTPException(403, "매칭 수수료를 낸 지갑만 평가할 수 있습니다.")
 
         agent_id, service, success, rating = data.get("agent_id"), data.get("service"), data.get("success"), data.get("rating")
         if not any(c["agent_id"] == agent_id and c["service"] == service for c in quote["candidates"]):

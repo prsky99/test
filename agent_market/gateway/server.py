@@ -4,12 +4,14 @@
   POST /needs            작업을 알려주면 가장 좋은 에이전트를 찾아 첫 소개는 무료로 공개
                          (클라이언트 지갑 서명 필요: X-Client, X-Signature)
   GET  /needs/{id}       현재 소개받은 에이전트, 대기 중인 재소개 제안 확인 (need_id가 접근 토큰)
-  POST /offers/accept    {"offer_id"} + 수수료 결제 헤더 → 더 좋은 에이전트 공개
+  POST /offers/accept    {"offer_id", "need_id"} → 더 좋은 에이전트로 교체 (무료 정책)
+                         유료 정책이면 {"offer_id"} + 수수료 결제 헤더
   POST /offers/decline   {"offer_id", "need_id"}
   POST /needs/{id}/feedback  {"success", "rating"?} 현재 에이전트 평가 → 이후 추천에 반영
   POST /needs/{id}/cancel
 """
 
+import dataclasses
 import hmac
 import json
 import logging
@@ -97,6 +99,7 @@ def create_app(
     policy: Policy = Policy(),
 ) -> FastAPI:
     net = config.network
+    policy = dataclasses.replace(policy, free=config.free)
     if store is None:
         Path(config.db_path).parent.mkdir(parents=True, exist_ok=True)
         store = Store(config.db_path)
@@ -138,11 +141,13 @@ def create_app(
             "name": "agent-intro-gateway",
             "role": "gateway",
             "description": (
-                "필요한 작업을 알려주면 x402 Bazaar·MCP Registry 등에서 가장 좋은 AI 에이전트를 찾아 소개합니다. "
-                "첫 소개는 무료이고, 이후 더 좋은 에이전트가 나타나면 재소개하며 수수료(USDC)를 받습니다."
+                "필요한 작업을 알려주면 x402 Bazaar·MCP Registry 등에서 가장 좋은 AI 에이전트를 찾아 소개하고, "
+                "관계를 유지하면서 더 좋은 에이전트가 나타나면 다시 소개합니다. "
+                + ("모든 소개는 무료입니다." if policy.free else "첫 소개는 무료, 재소개는 수수료(USDC)를 받습니다.")
             ),
             "categories": [{"id": c.id, "name": c.name} for c in CATEGORIES.values()],
-            "pricing": {"first_intro": 0, "upgrade_fee": {c: service.fee_for(c) for c in CATEGORIES}, "currency": "USDC(6 decimals)"},
+            "pricing": {"model": "free"} if policy.free else {
+                "model": "paid", "first_intro": 0, "upgrade_fee": {c: service.fee_for(c) for c in CATEGORIES}, "currency": "USDC(6 decimals)"},
             "network": {"name": net.name, "chain_id": net.chain_id, "token": net.token, "pay_to": config.pay_to},
             "endpoints": {"create_need": "POST /needs", "need": "GET /needs/{need_id}", "accept": "POST /offers/accept",
                           "decline": "POST /offers/decline", "feedback": "POST /needs/{need_id}/feedback"},
@@ -195,7 +200,7 @@ def create_app(
             result = service.create_need(signer, task.strip(), data.get("category"), max_price, networks, kinds, webhook, ip)
         except NeedError as exc:
             return fail(exc)
-        if result.get("status") == "offer_pending":
+        if result.get("status") == "offer_pending" and result["offer"]["fee"] > 0:
             result["offer"]["payment"] = fee_requirements(result["offer"]["fee"])
         return result
 
@@ -206,7 +211,8 @@ def create_app(
         except NeedError as exc:
             return fail(exc)
         for o in result["pending_offers"]:
-            o["payment"] = fee_requirements(o["fee"])
+            if o["fee"] > 0:
+                o["payment"] = fee_requirements(o["fee"])
         return result
 
     @app.post("/offers/accept")
@@ -217,6 +223,11 @@ def create_app(
         if not rows:
             raise HTTPException(404, "없는 제안입니다.")
         fee = rows[0]["fee"]
+        if fee == 0:  # 무료 제안: 결제 없이 need_id로 소유자 확인
+            try:
+                return service.accept_offer(offer_id, None, need_id=str(data.get("need_id", "")))
+            except NeedError as exc:
+                return fail(exc)
         if not x_payment_tx or not x_payment_signature:
             return JSONResponse({"error": "payment required", "payment": fee_requirements(fee)}, status_code=402)
         try:

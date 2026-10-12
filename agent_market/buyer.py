@@ -53,7 +53,7 @@ class BuyerAgent:
         return self._paid_post(url, {"input": text}, req)
 
     def hire(self, broker_url: str, task: str, text: str, category: str | None = None, max_price: int | None = None, judge=None) -> dict:
-        """브로커로 적합한 에이전트를 찾아(수수료 결제) 작업을 맡긴다.
+        """브로커로 적합한 에이전트를 찾아(무료, 또는 유료 브로커면 수수료 결제) 작업을 맡긴다.
 
         task: 브로커에게 알리는 작업 설명 (분류·매칭용), text: 판매 에이전트에게 보낼 실제 입력.
         judge: 결과를 받아 1~5 별점을 돌려주는 함수(선택). 없으면 성공/실패만 평가한다.
@@ -65,13 +65,16 @@ class BuyerAgent:
         if max_price is not None:
             request["max_price"] = max_price
         quote_resp = self.http.post(f"{broker_url}/match", json=request)
-        if quote_resp.status_code != 402:
+        if quote_resp.status_code == 200:
+            match = quote_resp.json()  # 무료 매칭: 후보가 바로 공개됨
+        elif quote_resp.status_code == 402:
+            quote = quote_resp.json()
+            cheapest = min(c["price"] for c in quote["candidates"])
+            # 수수료와 최소 한 번의 서비스 대금을 모두 낼 수 있을 때만 진행한다.
+            self._check_terms(quote["payment"], extra=cheapest)
+            match = self._paid_post(broker_url + quote["accept"]["endpoint"], quote["accept"]["body"], quote["payment"])
+        else:
             raise BuyerError(f"매칭 실패 {quote_resp.status_code}: {quote_resp.text}")
-        quote = quote_resp.json()
-        cheapest = min(c["price"] for c in quote["candidates"])
-        # 수수료와 최소 한 번의 서비스 대금을 모두 낼 수 있을 때만 진행한다.
-        self._check_terms(quote["payment"], extra=cheapest)
-        match = self._paid_post(broker_url + quote["accept"]["endpoint"], quote["accept"]["body"], quote["payment"])
 
         errors = []
         for candidate in match["candidates"]:

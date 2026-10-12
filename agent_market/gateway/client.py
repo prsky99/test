@@ -2,7 +2,7 @@
 
     python -m agent_market.gateway.client need http://gw:8200 "search the web for company contacts"
     python -m agent_market.gateway.client status http://gw:8200 <need_id>
-    python -m agent_market.gateway.client accept http://gw:8200 <offer_id>     # 수수료 결제 (BUYER_PRIVATE_KEY)
+    python -m agent_market.gateway.client accept http://gw:8200 <need_id>      # 대기 중인 재소개 수락 (무료)
 """
 
 import argparse
@@ -41,6 +41,11 @@ class GatewayClient:
         return resp.json()
 
     def accept(self, offer: dict) -> dict:
+        """제안을 수락해 현재 에이전트를 교체한다. 무료 제안은 결제 없이, 유료 제안은 수수료를 결제한다."""
+        if offer["fee"] == 0:
+            resp = self.http.post(f"{self.url}/offers/accept", json={"offer_id": offer["offer_id"], "need_id": offer["need_id"]})
+            resp.raise_for_status()
+            return resp.json()
         if self.buyer is None:
             raise BuyerError("수수료 결제에는 BuyerAgent(지갑·예산 설정)가 필요합니다.")
         req = offer["payment"]
@@ -71,7 +76,7 @@ def main() -> None:
     p.add_argument("need_id")
     args = parser.parse_args()
 
-    config = BuyerConfig.from_env()
+    config = BuyerConfig.from_env()  # 요청 서명용 지갑 (무료 정책에서는 잔액 불필요)
     client = GatewayClient(args.gateway, config.private_key, buyer=BuyerAgent(config))
     if args.cmd == "need":
         out = client.create_need(args.task, category=args.category, max_price=args.max_price, webhook=args.webhook)

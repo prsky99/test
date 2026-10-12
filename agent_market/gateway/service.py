@@ -1,7 +1,8 @@
-"""게이트웨이 비즈니스 로직: 요청(need) → 무료 첫 소개 → 지속 관찰 → 더 좋은 에이전트 발견 시 유료 재소개.
+"""게이트웨이 비즈니스 로직: 요청(need) → 첫 소개 → 지속 관찰 → 더 좋은 에이전트 발견 시 재소개.
 
-수익 관리: 카테고리별 재소개 제안의 수락률을 보고 수수료를 자동으로 조정한다
-(수락률이 높으면 올리고, 낮으면 내린다. 항상 [min_fee, max_fee] 범위 안).
+무료 정책(Policy.free=True, 기본값): 첫 소개와 재소개 모두 무료이며 상세 정보를 바로 공개한다.
+유료 정책(Policy.free=False): 첫 소개만 무료, 재소개는 USDC 수수료를 받고 공개하며
+카테고리별 수락률을 보고 수수료를 자동 조정한다 (항상 [min_fee, max_fee] 범위 안).
 """
 
 import json
@@ -25,6 +26,7 @@ KINDS = ("x402", "mcp", "a2a")
 
 @dataclass(frozen=True)
 class Policy:
+    free: bool = True  # 무료 정책: 모든 소개·재소개 무료 (수수료 결제 없음)
     base_fee: int = 10_000  # 0.01 USDC: 재소개 1건 기본 수수료
     min_fee: int = 2_000
     max_fee: int = 100_000
@@ -89,7 +91,7 @@ class GatewayService:
         ip_free = self.store.query(
             "SELECT COUNT(*) AS n FROM needs WHERE ip=? AND free_used=1 AND created>?", (ip, now - 86400)
         )[0]["n"]
-        free_eligible = prior == 0 and ip_free < self.policy.free_per_ip_per_day
+        free_eligible = self.policy.free or (prior == 0 and ip_free < self.policy.free_per_ip_per_day)
         need = {
             "need_id": new_id("need"), "client": client, "task": task, "category": category, "max_price": max_price,
             "networks": networks if networks is not None else DEFAULT_NETWORKS, "kinds": kinds, "webhook": webhook,
@@ -105,11 +107,11 @@ class GatewayService:
         return {"need_id": need["need_id"], "category": category, "free_intro": free_eligible, **intro}
 
     def _introduce(self, need: dict) -> dict:
-        """아직 소개받은 에이전트가 없는 요청에 첫 소개를 한다. 무료 자격이 있으면 바로 공개."""
+        """아직 소개받은 에이전트가 없는 요청에 첫 소개를 한다. 무료(정책 또는 첫 소개 자격)면 바로 공개."""
         best, _ = self._best(need, self._cooldown_ids(need["need_id"]))
         if best is None:
             return {"status": "watching", "message": "지금은 맞는 에이전트가 없습니다. 계속 찾아보고 발견하면 알려드립니다."}
-        if need["free_used"] == 0:
+        if self.policy.free or need["free_used"] == 0:
             offer_id = self._create_offer(need, best, None, fee=0, free=True, status="accepted")
             with self.store.tx() as db:
                 db.execute(
@@ -117,11 +119,13 @@ class GatewayService:
                     (best.resource["id"], best.score, time.time(), need["need_id"]),
                 )
             return {"status": "active", "offer_id": offer_id, "agent": reveal(best)}
-        offer = self._offer_paid(need, best, None)
+        offer = self._offer(need, best, None)
         return {"status": "offer_pending", "offer": offer}
 
     # ---------------- 제안 ----------------
     def fee_for(self, category: str) -> int:
+        if self.policy.free:
+            return 0
         rows = self.store.query("SELECT fee FROM fee_state WHERE category=?", (category,))
         if rows:
             return rows[0]["fee"]
@@ -140,9 +144,10 @@ class GatewayService:
             )
         return offer_id
 
-    def _offer_paid(self, need: dict, new: Scored, old: Scored | None) -> dict:
+    def _offer(self, need: dict, new: Scored, old: Scored | None) -> dict:
+        """재소개 제안. 무료 정책이면 상세 정보를 함께 공개하고, 클라이언트가 수락하면 현재 에이전트가 바뀐다."""
         fee = self.fee_for(need["category"])
-        offer_id = self._create_offer(need, new, old, fee=fee, free=False, status="pending")
+        offer_id = self._create_offer(need, new, old, fee=fee, free=fee == 0, status="pending")
         public = self.offer_public(offer_id)
         if need.get("webhook") and self.notifier:
             self.notifier(need["webhook"], {"event": "offer", "need_id": need["need_id"], "offer": public})
@@ -150,10 +155,14 @@ class GatewayService:
 
     def offer_public(self, offer_id: str) -> dict:
         o = self.store.query("SELECT * FROM offers WHERE offer_id=?", (offer_id,))[0]
-        return {
+        public = {
             "offer_id": o["offer_id"], "need_id": o["need_id"], "status": o["status"], "fee": o["fee"], "free": bool(o["free"]),
             "teaser": json.loads(o["teaser"]), "expires_at": o["created"] + self.policy.offer_ttl,
         }
+        if o["fee"] == 0:  # 무료 제안은 결제 없이 바로 공개
+            res = self.store.resource(o["resource_id"])
+            public["agent"] = reveal(Scored(res, o["score"], {}))
+        return public
 
     # ---------------- 지속 관리 ----------------
     def rescan(self) -> dict:
@@ -195,7 +204,7 @@ class GatewayService:
                 return False
             with self.store.tx() as db:  # 더 좋은 후보가 나오면 기존 제안을 대체 (수락률 통계에는 넣지 않음)
                 db.execute("UPDATE offers SET status='superseded', decided_at=? WHERE offer_id=?", (time.time(), pending["offer_id"]))
-        self._offer_paid(need, best, current)
+        self._offer(need, best, current)
         return True
 
     def expire_offers(self) -> int:
@@ -220,7 +229,8 @@ class GatewayService:
             "current_agent": current, "pending_offers": offers,
         }
 
-    def accept_offer(self, offer_id: str, payment: VerifiedPayment | None) -> dict:
+    def accept_offer(self, offer_id: str, payment: VerifiedPayment | None, need_id: str | None = None) -> dict:
+        """제안 수락 → 현재 에이전트 교체. 무료 제안은 need_id(요청 소유자만 아는 값)로, 유료 제안은 결제로 확인한다."""
         rows = self.store.query("SELECT * FROM offers WHERE offer_id=?", (offer_id,))
         if not rows:
             raise NeedError("없는 제안입니다.", 404)
@@ -228,6 +238,8 @@ class GatewayService:
         need = self._load_need(offer["need_id"])
         res = self.store.resource(offer["resource_id"])
         result = {"offer_id": offer_id, "need_id": need["need_id"], "agent": reveal(Scored(res, offer["score"], {}))}
+        if offer["fee"] == 0:
+            return self._accept_free(offer, need, need_id, result)
         if offer["status"] == "accepted":
             if payment is not None and offer["tx_hash"] == payment.tx_hash:
                 return result  # 응답을 못 받은 결제자의 재요청
@@ -256,6 +268,28 @@ class GatewayService:
         self.ledger.settle(payment.tx_hash)
         self._record_outcome(need["category"], accepted=True)
         log.info("offer %s accepted: fee %d from %s", offer_id, payment.amount, payment.payer)
+        return result
+
+    def _accept_free(self, offer: dict, need: dict, need_id: str | None, result: dict) -> dict:
+        if need_id != need["need_id"]:
+            raise NeedError("need_id가 맞지 않습니다.", 403)
+        if offer["status"] == "accepted":
+            return result
+        if offer["status"] != "pending":
+            raise NeedError(f"수락할 수 없는 제안입니다 ({offer['status']}).", 410)
+        if need["status"] == "cancelled":
+            raise NeedError("취소된 요청입니다.", 410)
+        with self.store.tx() as db:
+            updated = db.execute(
+                "UPDATE offers SET status='accepted', decided_at=? WHERE offer_id=? AND status='pending'", (time.time(), offer["offer_id"])
+            ).rowcount
+            if updated:
+                db.execute(
+                    "UPDATE needs SET status='active', current_resource=?, current_score=?, updated=? WHERE need_id=?",
+                    (offer["resource_id"], offer["score"], time.time(), need["need_id"]),
+                )
+        if updated:
+            self._record_outcome(need["category"], accepted=True)
         return result
 
     def decline_offer(self, offer_id: str, need_id: str) -> None:
@@ -296,14 +330,14 @@ class GatewayService:
     # ---------------- 수익 관리 ----------------
     def _record_outcome(self, category: str, accepted: bool) -> None:
         p = self.policy
-        self.fee_for(category)
         with self.store.tx() as db:
+            db.execute("INSERT OR IGNORE INTO fee_state VALUES (?,?,0,0,?)", (category, 0 if p.free else p.base_fee, time.time()))
             db.execute(
                 "UPDATE fee_state SET window_offers=window_offers+1, window_accepted=window_accepted+?, updated=? WHERE category=?",
                 (int(accepted), time.time(), category),
             )
             st = db.execute("SELECT * FROM fee_state WHERE category=?", (category,)).fetchone()
-            if st["window_offers"] < p.fee_window:
+            if p.free or st["window_offers"] < p.fee_window:  # 무료 정책에서는 수락률만 기록하고 수수료는 조정하지 않음
                 return
             conv = st["window_accepted"] / st["window_offers"]
             fee = st["fee"]
@@ -318,29 +352,30 @@ class GatewayService:
 
     def report(self) -> dict:
         q = self.store.query
-        offers = q("""SELECT n.category, o.status, o.free, COUNT(*) AS c, COALESCE(SUM(o.fee),0) AS fees
-                      FROM offers o JOIN needs n ON n.need_id=o.need_id GROUP BY n.category, o.status, o.free""")
+        offers = q("""SELECT n.category, o.status, o.prev_resource_id IS NULL AS intro, COUNT(*) AS c, COALESCE(SUM(o.fee),0) AS fees
+                      FROM offers o JOIN needs n ON n.need_id=o.need_id GROUP BY n.category, o.status, intro""")
         by_cat: dict = {}
         for r in offers:
-            c = by_cat.setdefault(r["category"], {"free_intros": 0, "paid_accepted": 0, "declined_or_expired": 0, "pending": 0, "revenue": 0})
-            if r["free"]:
-                c["free_intros"] += r["c"]
+            c = by_cat.setdefault(r["category"], {"intros": 0, "upgrades_accepted": 0, "upgrades_declined_or_expired": 0, "upgrades_pending": 0, "revenue": 0})
+            if r["intro"] and r["status"] == "accepted":
+                c["intros"] += r["c"]
             elif r["status"] == "accepted":
-                c["paid_accepted"] += r["c"]
+                c["upgrades_accepted"] += r["c"]
                 c["revenue"] += r["fees"]
             elif r["status"] in ("declined", "expired"):
-                c["declined_or_expired"] += r["c"]
+                c["upgrades_declined_or_expired"] += r["c"]
             elif r["status"] == "pending":
-                c["pending"] += r["c"]
+                c["upgrades_pending"] += r["c"]
         for c in by_cat.values():
-            decided = c["paid_accepted"] + c["declined_or_expired"]
-            c["conversion"] = round(c["paid_accepted"] / decided, 3) if decided else None
+            decided = c["upgrades_accepted"] + c["upgrades_declined_or_expired"]
+            c["acceptance_rate"] = round(c["upgrades_accepted"] / decided, 3) if decided else None
         needs = {r["status"]: r["n"] for r in q("SELECT status, COUNT(*) AS n FROM needs GROUP BY status")}
         return {
+            "policy": "free" if self.policy.free else "paid",
             "revenue_total": sum(c["revenue"] for c in by_cat.values()),
             "by_category": by_cat,
             "needs": needs,
-            "fees": {r["category"]: r["fee"] for r in q("SELECT category, fee FROM fee_state")},
+            "fees": {} if self.policy.free else {r["category"]: r["fee"] for r in q("SELECT category, fee FROM fee_state")},
             "fee_changes": [dict(r) for r in q("SELECT * FROM fee_history ORDER BY at DESC LIMIT 20")],
             "resources": self.store.resource_counts(),
             "last_crawl": self.store.get_meta("last_crawl"),

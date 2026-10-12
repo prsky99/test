@@ -52,12 +52,12 @@ class FakeRegistries(httpx.BaseTransport):
 
 
 class GW_World:
-    def __init__(self, policy=Policy()):
+    def __init__(self, policy=Policy(), free=True):
         self.chain = FakeChain()
         self.reg = FakeRegistries()
         self.store = Store()
         ext = httpx.Client(transport=self.reg)
-        config = GatewayConfig(NET, GW.address, ":memory:", "secret", 1, 3600, 900, False, True)
+        config = GatewayConfig(NET, GW.address, ":memory:", "secret", 1, 3600, 900, False, True, free=free)
         self.app = create_app(
             config, store=self.store, verifier=PaymentVerifier(self.chain, NET.token, GW.address),
             crawler=Crawler(self.store, http=ext, page_delay=0), prober=Prober(self.store, http=ext, allow_private=True),
@@ -76,9 +76,8 @@ class GW_World:
         return GatewayClient("http://gw", account.key.hex(), http=self.http, buyer=buyer)
 
 
-@pytest.fixture
-def w():
-    world = GW_World()
+def populated(free=True):
+    world = GW_World(free=free)
     world.reg.x402 = [
         x402_item("https://search-a.example/api", "Web search API returning SERP results for any query", 10_000, 10),
         x402_item("https://chain.example/balance", "ERC20 token balance for any wallet", 3_000, 800),
@@ -89,6 +88,18 @@ def w():
                       "_meta": {"io.modelcontextprotocol.registry/official": {"status": "active", "isLatest": True}}}]
     world.crawl()
     return world
+
+
+@pytest.fixture
+def w():
+    """무료 정책 (기본값)"""
+    return populated(free=True)
+
+
+@pytest.fixture
+def paid():
+    """유료 정책 (GATEWAY_FREE=0)"""
+    return populated(free=False)
 
 
 def test_classifier_keywords():
@@ -126,9 +137,9 @@ def test_first_intro_is_free_and_revealed(w):
     assert out["agent"]["url"] == "https://search-a.example/api"
 
 
-def test_second_need_same_category_is_paid(w):
+def test_second_need_same_category_is_paid(paid):
     acct = Account.create()
-    c = w.client(acct)
+    c = paid.client(acct)
     c.create_need("web search for SERP results", kinds=["x402"])
     out = c.create_need("another web search task", kinds=["x402"])
     assert out["status"] == "offer_pending" and not out["free_intro"]
@@ -158,23 +169,23 @@ def test_no_match_keeps_watching_then_intro_on_rescan(w):
     assert st["status"] == "active" and st["current_agent"]["url"] == "https://oracle.example/forecast"
 
 
-def test_better_agent_triggers_paid_upgrade_and_accept(w):
-    c = w.client()
+def test_better_agent_triggers_paid_upgrade_and_accept(paid):
+    c = paid.client()
     need = c.create_need("web search for SERP results", kinds=["x402"])
     # 더 인기 있고 저렴한 새 에이전트 등장
-    w.reg.x402.append(x402_item("https://search-b.example/api", "Web search API returning SERP results for any query, fast", 5_000, 900))
-    w.crawl()
-    assert w.service.rescan()["offers"] == 1
+    paid.reg.x402.append(x402_item("https://search-b.example/api", "Web search API returning SERP results for any query, fast", 5_000, 900))
+    paid.crawl()
+    assert paid.service.rescan()["offers"] == 1
     offer = c.status(need["need_id"])["pending_offers"][0]
     assert offer["fee"] == Policy().base_fee and offer["teaser"]["reasons"]
     result = c.accept(offer)
     assert result["agent"]["url"] == "https://search-b.example/api"
     st = c.status(need["need_id"])
     assert st["current_agent"]["url"] == "https://search-b.example/api" and st["pending_offers"] == []
-    report = w.http.get("/admin/report", headers={"authorization": "Bearer secret"}).json()
+    report = paid.http.get("/admin/report", headers={"authorization": "Bearer secret"}).json()
     assert report["revenue_total"] == Policy().base_fee
     # 같은 후보를 또 제안하지 않음
-    assert w.service.rescan()["offers"] == 0
+    assert paid.service.rescan()["offers"] == 0
 
 
 def test_small_improvement_not_offered(w):
@@ -191,23 +202,23 @@ def test_down_candidate_skipped(w):
     assert out["status"] == "watching" or out["agent"]["url"] != "https://search-a.example/api"
 
 
-def test_declined_offer_not_repeated_and_counts_for_fee(w):
-    c = w.client()
+def test_declined_offer_not_repeated_and_counts_for_fee(paid):
+    c = paid.client()
     need = c.create_need("web search for SERP results", kinds=["x402"])
-    w.reg.x402.append(x402_item("https://search-b.example/api", "Web search API returning SERP results for any query, fast", 5_000, 900))
-    w.crawl()
-    w.service.rescan()
+    paid.reg.x402.append(x402_item("https://search-b.example/api", "Web search API returning SERP results for any query, fast", 5_000, 900))
+    paid.crawl()
+    paid.service.rescan()
     offer = c.status(need["need_id"])["pending_offers"][0]
     c.decline(offer)
-    assert w.service.rescan()["offers"] == 0
+    assert paid.service.rescan()["offers"] == 0
 
 
-def test_underpaid_accept_rejected(w):
-    c = w.client()
+def test_underpaid_accept_rejected(paid):
+    c = paid.client()
     need = c.create_need("web search for SERP results", kinds=["x402"])
-    w.reg.x402.append(x402_item("https://search-b.example/api", "Web search API returning SERP results for any query, fast", 5_000, 900))
-    w.crawl()
-    w.service.rescan()
+    paid.reg.x402.append(x402_item("https://search-b.example/api", "Web search API returning SERP results for any query, fast", 5_000, 900))
+    paid.crawl()
+    paid.service.rescan()
     offer = c.status(need["need_id"])["pending_offers"][0]
     offer["payment"]["amount"] = offer["fee"] - 1
     with pytest.raises(Exception):
@@ -216,7 +227,7 @@ def test_underpaid_accept_rejected(w):
 
 
 def test_fee_optimizer_raises_on_high_conversion_and_lowers_on_low():
-    world = GW_World(Policy(fee_window=2))
+    world = GW_World(Policy(fee_window=2), free=False)
     svc = world.service
     base = svc.fee_for("web_data")
     svc._record_outcome("web_data", True)
@@ -229,7 +240,7 @@ def test_fee_optimizer_raises_on_high_conversion_and_lowers_on_low():
 
 
 def test_fee_optimizer_bounded():
-    world = GW_World(Policy(fee_window=1, max_fee=12_000))
+    world = GW_World(Policy(fee_window=1, max_fee=12_000), free=False)
     for _ in range(10):
         world.service._record_outcome("web_data", True)
     assert world.service.fee_for("web_data") == 12_000
@@ -246,7 +257,7 @@ def test_feedback_affects_score(w):
 
 
 def test_free_intro_ip_quota():
-    world = GW_World(Policy(free_per_ip_per_day=2))
+    world = GW_World(Policy(free_per_ip_per_day=2), free=False)
     world.reg.x402 = [x402_item("https://search-a.example/api", "Web search API", 10_000, 50)]
     world.crawl()
     frees = [world.client().create_need("web search", kinds=["x402"])["free_intro"] for _ in range(3)]
@@ -256,4 +267,54 @@ def test_free_intro_ip_quota():
 def test_health_and_card(w):
     assert w.http.get("/health").json()["resources"] == 4
     card = w.http.get("/.well-known/agent.json").json()
-    assert card["pricing"]["first_intro"] == 0
+    assert card["pricing"] == {"model": "free"}
+
+
+# ---------------- 무료 정책 ----------------
+
+def better_agent_appears(world):
+    world.reg.x402.append(x402_item("https://search-b.example/api", "Web search API returning SERP results for any query, fast", 5_000, 900))
+    world.crawl()
+    return world.service.rescan()
+
+
+def test_free_repeat_requests_are_free(w):
+    c = w.client()
+    first = c.create_need("web search for SERP results", kinds=["x402"])
+    second = c.create_need("another web search task", kinds=["x402"])
+    assert first["status"] == second["status"] == "active"
+    assert second["free_intro"] and second["agent"]["url"]
+
+
+def test_free_upgrade_revealed_and_accepted_without_payment(w):
+    c = w.client()
+    need = c.create_need("web search for SERP results", kinds=["x402"])
+    assert better_agent_appears(w)["offers"] == 1
+    offer = c.status(need["need_id"])["pending_offers"][0]
+    assert offer["fee"] == 0 and offer["free"] and "payment" not in offer
+    assert offer["agent"]["url"] == "https://search-b.example/api"  # 결제 없이 바로 공개
+    result = c.accept(offer)
+    assert result["agent"]["url"] == "https://search-b.example/api"
+    st = c.status(need["need_id"])
+    assert st["current_agent"]["url"] == "https://search-b.example/api" and st["pending_offers"] == []
+    assert w.chain.receipts == {}  # 돈이 오가지 않음
+    report = w.http.get("/admin/report", headers={"authorization": "Bearer secret"}).json()
+    assert report["policy"] == "free" and report["revenue_total"] == 0
+    assert report["by_category"]["web_data"]["upgrades_accepted"] == 1
+
+
+def test_free_accept_requires_need_id(w):
+    c = w.client()
+    need = c.create_need("web search for SERP results", kinds=["x402"])
+    better_agent_appears(w)
+    offer = c.status(need["need_id"])["pending_offers"][0]
+    r = w.http.post("/offers/accept", json={"offer_id": offer["offer_id"], "need_id": "need_wrong"})
+    assert r.status_code == 403
+    assert c.status(need["need_id"])["current_agent"]["url"] == "https://search-a.example/api"
+
+
+def test_free_policy_never_changes_fee(w):
+    for _ in range(50):
+        w.service._record_outcome("web_data", True)
+    assert w.service.fee_for("web_data") == 0
+    assert w.store.query("SELECT COUNT(*) AS n FROM fee_history")[0]["n"] == 0

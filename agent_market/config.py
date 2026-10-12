@@ -99,8 +99,9 @@ class BrokerConfig:
             db_path=os.environ.get("BROKER_DB", "broker.sqlite3"),
             admin_token=os.environ.get("ADMIN_TOKEN"),
             min_confirmations=int(os.environ.get("MIN_CONFIRMATIONS", "1")),
-            fee_bps=int(os.environ.get("BROKER_FEE_BPS", "500")),
-            min_fee=usdc(os.environ.get("BROKER_MIN_FEE", "0.001")),
+            # 기본은 무료 정책 (수수료 0). 유료로 바꾸려면 BROKER_FEE_BPS / BROKER_MIN_FEE 지정
+            fee_bps=int(os.environ.get("BROKER_FEE_BPS", "0")),
+            min_fee=usdc(os.environ.get("BROKER_MIN_FEE", "0")),
             allow_private_urls=os.environ.get("ALLOW_PRIVATE_AGENT_URLS") == "1",
         )
 
@@ -116,6 +117,7 @@ class GatewayConfig:
     rescan_interval: float
     scheduler: bool
     allow_private_urls: bool
+    free: bool = True  # 무료 정책 (GATEWAY_FREE=0 이면 재소개 유료)
 
     @classmethod
     def from_env(cls) -> "GatewayConfig":
@@ -132,4 +134,5 @@ class GatewayConfig:
             rescan_interval=float(os.environ.get("RESCAN_INTERVAL_MINUTES", "15")) * 60,
             scheduler=os.environ.get("SCHEDULER", "1") == "1",
             allow_private_urls=os.environ.get("ALLOW_PRIVATE_AGENT_URLS") == "1",
+            free=os.environ.get("GATEWAY_FREE", "1") == "1",
         )
