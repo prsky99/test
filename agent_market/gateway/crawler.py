@@ -14,7 +14,6 @@ from urllib.parse import urlparse
 
 import httpx
 
-from ..broker.discovery import DiscoveryError, check_public_url
 from .classify import classify
 from .store import Store
 
@@ -48,6 +47,22 @@ def _name_from_url(url: str) -> str:
     return (p.hostname or url) + (p.path if p.path not in ("", "/") else "")
 
 
+def usdc_price(accepts: list[dict]) -> tuple[int, str | None, str] | None:
+    """결제 조건(accepts) 중 USDC로 비교 가능한 최저 가격 (금액, 받는 주소, 네트워크)."""
+    best = None
+    for a in accepts:
+        if not isinstance(a, dict):
+            continue
+        net = LEGACY_NETWORKS.get(a.get("network"), a.get("network"))
+        try:
+            amount = int(a.get("amount") or a.get("maxAmountRequired"))
+        except (TypeError, ValueError):
+            continue
+        if net and USDC_ASSETS.get(net) == str(a.get("asset", "")).lower() and (best is None or amount < best[0]):
+            best = (amount, a.get("payTo"), net)
+    return best
+
+
 def parse_x402_item(item: dict) -> dict | None:
     url = item.get("resource")
     if not isinstance(url, str) or not url.startswith("https://"):
@@ -55,18 +70,8 @@ def parse_x402_item(item: dict) -> dict | None:
     accepts = [a for a in item.get("accepts") or [] if isinstance(a, dict)]
     if not accepts:
         return None
-    networks, best = set(), None
-    for a in accepts:
-        net = LEGACY_NETWORKS.get(a.get("network"), a.get("network"))
-        if not net:
-            continue
-        networks.add(net)
-        try:
-            amount = int(a.get("amount") or a.get("maxAmountRequired"))
-        except (TypeError, ValueError):
-            continue
-        if USDC_ASSETS.get(net) == str(a.get("asset", "")).lower() and (best is None or amount < best[0]):
-            best = (amount, a.get("payTo"), net)
+    networks = {LEGACY_NETWORKS.get(a.get("network"), a.get("network")) for a in accepts if a.get("network")}
+    best = usdc_price(accepts)
     quality = item.get("quality") or {}
     info = ((item.get("extensions") or {}).get("bazaar") or {}).get("info") or {}
     description = str(item.get("description") or "")
@@ -132,11 +137,14 @@ class Crawler:
             started = time.time()
             try:
                 count = fn()
+                # 이번 수집에서 보이지 않은 에이전트는 목록에서 내려간 것으로 보고 비활성화
                 removed = self.store.deactivate_unseen(name, started - 1)
-                report[name] = {"ok": True, "seen": count, "deactivated": removed, "seconds": round(time.time() - started, 1)}
+                new = self.store.query("SELECT COUNT(*) AS n FROM resources WHERE source=? AND first_seen>=?", (name, started - 1))[0]["n"]
+                report[name] = {"ok": True, "seen": count, "new": new, "deactivated": removed, "seconds": round(time.time() - started, 1)}
             except Exception as exc:  # 한 소스가 실패해도 다른 소스는 계속
                 log.exception("crawl %s failed", name)
-                report[name] = {"ok": False, "error": str(exc)[:300]}
+                report[name] = {"ok": False, "error": str(exc)[:300], "seconds": round(time.time() - started, 1)}
+            self.store.record_crawl_run(name, report[name])
         self.store.set_meta("last_crawl", {"at": time.time(), "report": report})
         return report
 
@@ -188,29 +196,19 @@ class Crawler:
 
 
 class Prober:
-    """추천 직전에 후보 엔드포인트가 응답하는지 확인한다 (5xx·타임아웃이면 실패)."""
+    """게이트웨이가 추천 직전에 쓰는 점검. 수집 에이전트가 최근에 점검했으면 그 결과를 그대로 쓴다."""
 
-    def __init__(self, store: Store, http: httpx.Client | None = None, allow_private: bool = False, max_age: float = 3600):
+    def __init__(self, store: Store, http: httpx.Client | None = None, allow_private: bool = False, max_age: float = 3600, checker=None):
+        from ..collector.health import HealthChecker
+
         self.store = store
-        self.http = http or httpx.Client(timeout=8.0, follow_redirects=False, headers={"user-agent": "agent-gateway/0.1"})
-        self.allow_private = allow_private
         self.max_age = max_age
+        self.checker = checker or HealthChecker(store, http=http, allow_private=allow_private)
 
     def probe(self, resource: dict, force: bool = False) -> bool | None:
-        if not force and resource.get("probed_at") and time.time() - resource["probed_at"] < self.max_age:
-            return None  # 최근에 확인함
-        url = resource["url"]
-        try:
-            if not self.allow_private:
-                check_public_url(url)
-            started = time.monotonic()
-            resp = self.http.get(url)
-            ok = resp.status_code < 500
-            latency = int((time.monotonic() - started) * 1000)
-        except (DiscoveryError, httpx.HTTPError, ValueError):
-            ok, latency = False, None
-        self.store.record_probe(resource["id"], ok, latency)
-        resource.update(probed_at=time.time())
-        resource["probe_ok" if ok else "probe_fail"] = resource.get("probe_ok" if ok else "probe_fail", 0) + 1
-        resource["probe_latency_ms"] = latency
-        return ok
+        """True: 방금 점검해서 정상, False: 지금 사용 불가, None: 최근 점검 결과가 정상이라 생략."""
+        if not force and resource.get("last_check_at") and time.time() - resource["last_check_at"] < self.max_age:
+            return None if resource.get("health_status") in ("healthy", "reachable") else False
+        state = self.checker.check_and_record(resource)
+        resource.update(self.store.resource(resource["id"]) or {})
+        return state.get("status") in ("healthy", "reachable")

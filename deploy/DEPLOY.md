@@ -33,7 +33,7 @@ git clone -b claude/hopeful-darwin-i3qj6n https://github.com/prsky99/test.git &&
 cp gateway.env.example gateway.env && nano gateway.env   # DOMAIN, GATEWAY_WALLET, ADMIN_TOKEN, DUCKDNS_* 입력
 sudo bash setup.sh
 ```
-끝나면 `https://<서브도메인>.duckdns.org/.well-known/agent.json` 이 열립니다. 첫 전체 수집은 몇 분 걸립니다.
+끝나면 `https://<서브도메인>.duckdns.org/.well-known/agent.json` 이 열립니다. 첫 전체 수집은 몇 분 걸리고, 이후 매시간 수집과 헬스체크가 자동으로 돕니다 (`COLLECTOR.md` 참고).
 
 ## 운영
 ```bash

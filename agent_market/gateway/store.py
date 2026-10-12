@@ -48,7 +48,32 @@ CREATE TABLE IF NOT EXISTS fee_history (
     category TEXT NOT NULL, old_fee INTEGER NOT NULL, new_fee INTEGER NOT NULL, conversion REAL NOT NULL, at REAL NOT NULL
 );
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS health_checks (
+    resource_id INTEGER NOT NULL, at REAL NOT NULL, outcome TEXT NOT NULL, status_code INTEGER,
+    latency_ms INTEGER, error TEXT, observed_price INTEGER
+);
+CREATE INDEX IF NOT EXISTS health_checks_res ON health_checks(resource_id, at);
+CREATE INDEX IF NOT EXISTS health_checks_at ON health_checks(at);
+CREATE TABLE IF NOT EXISTS crawl_runs (
+    at REAL NOT NULL, source TEXT NOT NULL, ok INTEGER NOT NULL, seen INTEGER, new INTEGER,
+    deactivated INTEGER, seconds REAL, error TEXT
+);
 """
+
+# 헬스체크 상태 컬럼 (기존 DB에는 ALTER TABLE로 추가)
+HEALTH_COLUMNS = {
+    "health_status": "TEXT NOT NULL DEFAULT 'unknown'",  # unknown | healthy | reachable | failing | down | retired
+    "consecutive_failures": "INTEGER NOT NULL DEFAULT 0",
+    "failing_since": "REAL",  # 연속 실패가 시작된 시각 (성공하면 초기화)
+    "last_check_at": "REAL",
+    "last_ok_at": "REAL",
+    "next_check_at": "REAL",
+    "last_status_code": "INTEGER",
+    "last_error": "TEXT",
+    "health_ok_24h": "INTEGER NOT NULL DEFAULT 0",
+    "health_n_24h": "INTEGER NOT NULL DEFAULT 0",
+}
+HEALTH_UP = ("healthy", "reachable")
 
 RESOURCE_COLS = [
     "id", "key", "source", "kind", "url", "name", "description", "category", "networks", "price_usdc", "pay_to",
@@ -69,6 +94,11 @@ class Store:
         with self._db:
             self._db.execute("PRAGMA journal_mode=WAL") if path != ":memory:" else None
             self._db.executescript(SCHEMA)
+            existing = {r[1] for r in self._db.execute("PRAGMA table_info(resources)")}
+            for col, decl in HEALTH_COLUMNS.items():
+                if col not in existing:
+                    self._db.execute(f"ALTER TABLE resources ADD COLUMN {col} {decl}")
+            self._db.execute("CREATE INDEX IF NOT EXISTS resources_due ON resources(active, next_check_at)")
 
     @contextmanager
     def tx(self):
@@ -86,7 +116,7 @@ class Store:
         now = now or time.time()
         networks = "," + ",".join(sorted(set(r.get("networks") or []))) + ","
         with self.tx() as db:
-            row = db.execute("SELECT id, name, description FROM resources WHERE key=?", (r["key"],)).fetchone()
+            row = db.execute("SELECT id, name, description, url FROM resources WHERE key=?", (r["key"],)).fetchone()
             values = (
                 r["source"], r["kind"], r["url"], r["name"][:200], r["description"][:2000], r["category"], networks,
                 r.get("price_usdc"), (r.get("pay_to") or "").lower() or None, r.get("method"),
@@ -109,6 +139,10 @@ class Store:
                        last_seen=?, active=1 WHERE id=?""",
                     (*values, now, rid),
                 )
+                if row["url"] != r["url"]:  # 주소가 바뀌면 헬스 상태를 새로 시작 (제외됐던 에이전트도 다시 점검)
+                    db.execute(
+                        """UPDATE resources SET health_status='unknown', consecutive_failures=0, failing_since=NULL,
+                           next_check_at=NULL, health_ok_24h=0, health_n_24h=0 WHERE id=?""", (rid,))
                 if row["name"] != r["name"][:200] or row["description"] != r["description"][:2000]:
                     db.execute("DELETE FROM resources_fts WHERE rowid=?", (rid,))
                     db.execute("INSERT INTO resources_fts(rowid, name, description) VALUES (?,?,?)", (rid, r["name"], r["description"]))
@@ -130,7 +164,7 @@ class Store:
     def search(self, text: str, category: str, max_price: int | None, networks: list[str], kinds: list[str], limit: int = 200) -> list[dict]:
         """FTS로 관련 후보를 뽑고, 부족하면 같은 카테고리 인기순으로 채운다."""
         terms = [t for t in dict.fromkeys(tokens(text)) if len(t) > 1][:32]
-        conds = ["r.active=1", f"r.kind IN ({','.join('?' * len(kinds))})"]
+        conds = ["r.active=1", "r.health_status NOT IN ('down','retired')", f"r.kind IN ({','.join('?' * len(kinds))})"]
         params: list = list(kinds)
         if max_price is not None:
             conds.append("(r.price_usdc IS NOT NULL AND r.price_usdc <= ?)")
@@ -174,6 +208,107 @@ class Store:
         for r in rows:
             out.setdefault(r["kind"], {})[r["category"]] = r["n"]
         return out
+
+    # ---------------- 헬스체크 ----------------
+    def due_for_check(self, now: float, limit: int) -> list[dict]:
+        """점검 시각이 된 에이전트. 한 번도 점검하지 않은 것(새로 수집된 것)이 먼저."""
+        rows = self.query(
+            """SELECT * FROM resources WHERE active=1 AND health_status != 'retired'
+               AND (next_check_at IS NULL OR next_check_at <= ?)
+               ORDER BY next_check_at IS NOT NULL, next_check_at LIMIT ?""",
+            (now, limit),
+        )
+        return [dict(r) for r in rows]
+
+    def in_use_ids(self) -> set[int]:
+        """게이트웨이 고객에게 현재 소개됐거나 제안 중인 에이전트 (더 자주 점검)."""
+        rows = self.query(
+            """SELECT current_resource AS id FROM needs WHERE status IN ('watching','active') AND current_resource IS NOT NULL
+               UNION SELECT resource_id FROM offers WHERE status='pending'"""
+        )
+        return {r["id"] for r in rows}
+
+    def record_health(self, rid: int, outcome: str, status_code: int | None, latency_ms: int | None,
+                      error: str | None, next_check_at: float, down_after: int = 3, retire_after: float = 7 * 86400,
+                      observed_price: int | None = None, observed_pay_to: str | None = None) -> dict:
+        """점검 결과 저장. outcome: healthy | reachable | fail. 갱신된 상태를 돌려준다.
+
+        down_after번 연속 실패하면 down, 실패가 retire_after(기본 7일) 넘게 이어지면 retired(점검·추천에서 제외).
+        """
+        now = time.time()
+        with self.tx() as db:
+            row = db.execute("SELECT consecutive_failures, failing_since, health_status, price_usdc FROM resources WHERE id=?",
+                             (rid,)).fetchone()
+            if row is None:
+                return {}
+            if outcome in HEALTH_UP:
+                failures, status, last_ok, failing_since = 0, outcome, now, None
+            else:
+                failures = row["consecutive_failures"] + 1
+                failing_since = row["failing_since"] or now
+                last_ok = None
+                if failures >= down_after and now - failing_since >= retire_after:
+                    status = "retired"
+                else:
+                    status = "down" if failures >= down_after else "failing"
+            db.execute(
+                "INSERT INTO health_checks VALUES (?,?,?,?,?,?,?)",
+                (rid, now, outcome, status_code, latency_ms, (error or "")[:300] or None, observed_price),
+            )
+            agg = db.execute(
+                "SELECT COUNT(*) AS n, SUM(outcome IN ('healthy','reachable')) AS ok FROM health_checks WHERE resource_id=? AND at>?",
+                (rid, now - 86400),
+            ).fetchone()
+            db.execute(
+                """UPDATE resources SET health_status=?, consecutive_failures=?, failing_since=?, last_check_at=?,
+                   last_ok_at=COALESCE(?, last_ok_at), next_check_at=?, last_status_code=?, last_error=?,
+                   health_ok_24h=?, health_n_24h=?, probe_latency_ms=COALESCE(?, probe_latency_ms), probed_at=?
+                   WHERE id=?""",
+                (status, failures, failing_since, now, last_ok, None if status == "retired" else next_check_at, status_code, (error or "")[:300] or None,
+                 agg["ok"] or 0, agg["n"], latency_ms, now, rid),
+            )
+            price_changed = observed_price is not None and observed_price != row["price_usdc"]
+            if price_changed:
+                db.execute("UPDATE resources SET price_usdc=?, pay_to=COALESCE(?, pay_to) WHERE id=?",
+                           (observed_price, (observed_pay_to or "").lower() or None, rid))
+        return {"status": status, "previous": row["health_status"], "consecutive_failures": failures, "failing_since": failing_since,
+                "price_changed": price_changed, "health_ok_24h": agg["ok"] or 0, "health_n_24h": agg["n"]}
+
+    def health_history(self, rid: int, limit: int = 20) -> list[dict]:
+        return [dict(r) for r in self.query(
+            "SELECT at, outcome, status_code, latency_ms, error, observed_price FROM health_checks WHERE resource_id=? ORDER BY at DESC LIMIT ?",
+            (rid, limit))]
+
+    def prune_health(self, before: float) -> int:
+        with self.tx() as db:
+            return db.execute("DELETE FROM health_checks WHERE at<?", (before,)).rowcount
+
+    def record_crawl_run(self, source: str, report: dict) -> None:
+        with self.tx() as db:
+            db.execute(
+                "INSERT INTO crawl_runs VALUES (?,?,?,?,?,?,?,?)",
+                (time.time(), source, int(report.get("ok", False)), report.get("seen"), report.get("new"),
+                 report.get("deactivated"), report.get("seconds"), report.get("error")),
+            )
+
+    def collector_stats(self) -> dict:
+        q = self.query
+        status = {r["health_status"]: r["n"] for r in q(
+            "SELECT health_status, COUNT(*) AS n FROM resources WHERE active=1 GROUP BY health_status")}
+        checked_1h = q("SELECT COUNT(*) AS n, SUM(outcome IN ('healthy','reachable')) AS ok FROM health_checks WHERE at>?",
+                       (time.time() - 3600,))[0]
+        overdue = q("""SELECT COUNT(*) AS n FROM resources WHERE active=1 AND health_status != 'retired'
+                       AND (next_check_at IS NULL OR next_check_at < ?)""",
+                    (time.time() - 3600,))[0]["n"]
+        runs = [dict(r) for r in q("SELECT * FROM crawl_runs ORDER BY at DESC LIMIT 10")]
+        return {
+            "active_agents": sum(status.values()),
+            "by_health": status,
+            "by_kind_category": self.resource_counts(),
+            "checks_last_hour": {"total": checked_1h["n"], "ok": checked_1h["ok"] or 0},
+            "overdue_over_1h": overdue,
+            "recent_crawls": runs,
+        }
 
     # ---------------- meta ----------------
     def get_meta(self, key: str, default=None):

@@ -118,6 +118,8 @@ class GatewayConfig:
     scheduler: bool
     allow_private_urls: bool
     free: bool = True  # 무료 정책 (GATEWAY_FREE=0 이면 재소개 유료)
+    health_interval: float = 3600  # 수집 에이전트 헬스체크 주기
+    health_workers: int = 16
 
     @classmethod
     def from_env(cls) -> "GatewayConfig":
@@ -130,7 +132,9 @@ class GatewayConfig:
             db_path=os.environ.get("GATEWAY_DB", "gateway-data/gateway.sqlite3"),
             admin_token=os.environ.get("ADMIN_TOKEN"),
             min_confirmations=int(os.environ.get("MIN_CONFIRMATIONS", "1")),
-            crawl_interval=float(os.environ.get("CRAWL_INTERVAL_HOURS", "6")) * 3600,
+            crawl_interval=float(os.environ.get("CRAWL_INTERVAL_HOURS", "1")) * 3600,
+            health_interval=float(os.environ.get("HEALTH_INTERVAL_MINUTES", "60")) * 60,
+            health_workers=int(os.environ.get("HEALTH_WORKERS", "16")),
             rescan_interval=float(os.environ.get("RESCAN_INTERVAL_MINUTES", "15")) * 60,
             scheduler=os.environ.get("SCHEDULER", "1") == "1",
             allow_private_urls=os.environ.get("ALLOW_PRIVATE_AGENT_URLS") == "1",

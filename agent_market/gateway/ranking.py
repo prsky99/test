@@ -1,6 +1,6 @@
 """에이전트 점수 계산. API 키 없이 공개 지표와 자체 관측값만 사용한다.
 
-점수(0~1) = 관련도 0.35 + 인기(30일 결제자 수) 0.20 + 가용성(프로브) 0.15 + 가격 0.15 + 최근 사용 0.10 + 고객 평가 0.05
+점수(0~1) = 관련도 0.35 + 인기(30일 결제자 수) 0.20 + 가용성(24시간 헬스체크 성공률) 0.15 + 가격 0.15 + 최근 사용 0.10 + 고객 평가 0.05
 각 항목은 절대 기준으로 계산해, 시간이 지나도 현재 에이전트와 새 후보를 공정하게 비교할 수 있다.
 """
 
@@ -34,8 +34,9 @@ def _relevance(task_terms: list[str], idf: dict[str, float], resource: dict) -> 
 
 
 def _reliability(resource: dict) -> float:
-    ok, fail = resource.get("probe_ok") or 0, resource.get("probe_fail") or 0
-    reliability = (ok + 1) / (ok + fail + 2)
+    """최근 24시간 헬스체크 성공률 (수집 에이전트가 매시간 점검). 점검 기록이 없으면 0.5."""
+    n, ok = resource.get("health_n_24h") or 0, resource.get("health_ok_24h") or 0
+    reliability = (ok + 1) / (n + 2)
     latency = resource.get("probe_latency_ms")
     if latency is not None and latency > 2000:
         reliability *= 0.8

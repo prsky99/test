@@ -16,7 +16,6 @@ import hmac
 import json
 import logging
 import threading
-import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -31,6 +30,8 @@ from ..chain import RPC, normalize
 from ..config import GatewayConfig
 from ..ledger import Ledger
 from ..payments import PaymentError, PaymentVerifier, recover_signer
+from ..collector.agent import CollectorAgent
+from ..collector.health import HealthChecker, Schedule
 from .crawler import Crawler, Prober
 from .service import KINDS, GatewayService, NeedError, Policy
 from .store import Store
@@ -42,26 +43,23 @@ MAX_TASK_CHARS = 4000
 
 
 class Scheduler(threading.Thread):
-    def __init__(self, crawler: Crawler, service: GatewayService, store: Store, crawl_interval: float, rescan_interval: float):
+    """정보 수집 에이전트(매시간 수집 + 지속 헬스체크)를 띄우고, 고객 요청 재평가를 주기적으로 돌린다."""
+
+    def __init__(self, collector: CollectorAgent, service: GatewayService, rescan_interval: float):
         super().__init__(daemon=True, name="gateway-scheduler")
-        self.crawler, self.service, self.store = crawler, service, store
-        self.crawl_interval, self.rescan_interval = crawl_interval, rescan_interval
+        self.collector, self.service = collector, service
+        self.rescan_interval = rescan_interval
         self.stop_event = threading.Event()
 
     def run(self) -> None:
-        next_rescan = 0.0
+        self.collector.start()
         while not self.stop_event.is_set():
-            last = (self.store.get_meta("last_crawl") or {}).get("at", 0)
-            if time.time() - last >= self.crawl_interval:
-                log.info("crawl start")
-                log.info("crawl done: %s", self.crawler.crawl_all())
-            if time.time() >= next_rescan:
-                try:
-                    log.info("rescan: %s", self.service.rescan())
-                except Exception:
-                    log.exception("rescan failed")
-                next_rescan = time.time() + self.rescan_interval
-            self.stop_event.wait(30)
+            try:
+                log.info("rescan: %s", self.service.rescan())
+            except Exception:
+                log.exception("rescan failed")
+            self.stop_event.wait(self.rescan_interval)
+        self.collector.stop()
 
 
 def make_notifier(allow_private: bool):
@@ -106,7 +104,10 @@ def create_app(
     ledger = Ledger(config.db_path if config.db_path != ":memory:" else ":memory:")
     verifier = verifier or PaymentVerifier(RPC(net.rpc_url), net.token, config.pay_to, config.min_confirmations)
     crawler = crawler or Crawler(store)
-    prober = prober or Prober(store, allow_private=config.allow_private_urls)
+    checker = HealthChecker(store, allow_private=config.allow_private_urls, workers=config.health_workers,
+                            schedule=Schedule(interval=config.health_interval))
+    collector = CollectorAgent(store, crawler, checker, crawl_interval=config.crawl_interval)
+    prober = prober or Prober(store, checker=checker)
     fetcher = fetcher or CardFetcher(allow_private=config.allow_private_urls, network={"chain_id": net.chain_id, "token": net.token})
     service = GatewayService(store, prober, ledger, policy, notifier=make_notifier(config.allow_private_urls))
     need_limit = RateLimiter(30)
@@ -115,7 +116,7 @@ def create_app(
     async def lifespan(app: FastAPI):
         scheduler = None
         if config.scheduler:
-            scheduler = Scheduler(crawler, service, store, config.crawl_interval, config.rescan_interval)
+            scheduler = Scheduler(collector, service, config.rescan_interval)
             scheduler.start()
         yield
         if scheduler:

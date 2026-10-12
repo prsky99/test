@@ -4,7 +4,6 @@ import time
 import httpx
 import pytest
 from eth_account import Account
-from fastapi.testclient import TestClient
 
 from agent_market.buyer import BuyerAgent
 from agent_market.config import BuyerConfig, GatewayConfig, usdc
@@ -40,7 +39,7 @@ class FakeRegistries(httpx.BaseTransport):
         self.down = set()
 
     def handle_request(self, request):
-        host, path = request.url.host, request.url.path
+        host = request.url.host
         if host == "api.cdp.coinbase.com":
             offset, limit = int(request.url.params["offset"]), int(request.url.params["limit"])
             return httpx.Response(200, json={"items": self.x402[offset:offset + limit], "pagination": {"total": len(self.x402)}})
@@ -250,7 +249,6 @@ def test_feedback_affects_score(w):
     c = w.client()
     need = c.create_need("web search for SERP results", kinds=["x402"])
     rid = need["agent"]["resource_id"]
-    before = w.service.get_need(need["need_id"])
     c.feedback(need["need_id"], success=False, rating=1)
     n, s, r = w.store.feedback_stats(rid)
     assert n == 1 and s == 0 and r == 1
