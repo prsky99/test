@@ -123,7 +123,7 @@ def create_app(store: Store, agent: CollectorAgent | None, admin_token: str | No
 
 
 def build_agent(store: Store, crawl_interval: float, health_interval: float, allow_private: bool = False,
-                workers: int = 16) -> CollectorAgent:
+                workers: int = 32) -> CollectorAgent:
     checker = HealthChecker(store, allow_private=allow_private, workers=workers,
                             schedule=Schedule(interval=health_interval))
     return CollectorAgent(store, Crawler(store), checker, crawl_interval=crawl_interval)
@@ -141,7 +141,7 @@ def main() -> None:
         crawl_interval=float(os.environ.get("CRAWL_INTERVAL_HOURS", "1")) * 3600,
         health_interval=float(os.environ.get("HEALTH_INTERVAL_MINUTES", "60")) * 60,
         allow_private=os.environ.get("ALLOW_PRIVATE_AGENT_URLS") == "1",
-        workers=int(os.environ.get("HEALTH_WORKERS", "16")),
+        workers=int(os.environ.get("HEALTH_WORKERS", "32")),
     )
     uvicorn.run(create_app(store, agent, os.environ.get("ADMIN_TOKEN")),
                 host=os.environ.get("HOST", "127.0.0.1"), port=int(os.environ.get("PORT", "8300")))

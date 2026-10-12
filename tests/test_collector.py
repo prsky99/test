@@ -214,3 +214,25 @@ def test_collector_api(env):
     assert stats["by_health"]["healthy"] == 1 and stats["checks_last_hour"]["total"] >= 1
     assert client.post(f"/admin/check/{good}").status_code == 401
     assert client.post(f"/admin/check/{good}", headers={"authorization": "Bearer secret"}).json()["status"] == "healthy"
+
+
+def test_batch_caps_endpoints_per_host(env):
+    store, net, checker, _ = env
+    for i in range(30):
+        rid = add(store, f"https://big.example/api/{i}")
+        net.responses[store.resource(rid)["url"]] = x402_ok
+    for i in range(5):
+        rid = add(store, f"https://small{i}.example/api")
+        net.responses[store.resource(rid)["url"]] = x402_ok
+    stats = checker.run_due(100)
+    assert stats["checked"] == checker.per_host_cap + 5  # 큰 호스트는 이번 묶음에 10개만
+    assert len(store.due_for_check(time.time(), 100)) == 30 - checker.per_host_cap
+
+
+def test_interval_stretches_for_hosts_with_many_endpoints(env):
+    _, _, checker, _ = env
+    now = time.time()
+    assert checker.next_check_at(0, False, now, host_size=10) - now < 1.2 * 3600
+    big = checker.next_check_at(0, False, now, host_size=8000) - now
+    assert big > 1.2 * 3600 and big >= 8000 * (checker.per_host_delay + 0.5) * 1.2 * 0.9  # 호스트 한 바퀴보다 길게
+    assert checker.next_check_at(0, True, now, host_size=8000) - now < 20 * 60  # 소개 중인 에이전트는 그대로 15분
