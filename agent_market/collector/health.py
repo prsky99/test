@@ -120,6 +120,9 @@ class HealthChecker:
             result = CheckResult("fail", error="timeout")
         except httpx.HTTPError as exc:
             result = CheckResult("fail", error=f"{type(exc).__name__}: {exc}"[:300])
+        except Exception as exc:  # 잘못된 URL 등: 점검을 멈추지 않고 실패로 기록
+            log.warning("health check error for %s: %s", url, exc)
+            result = CheckResult("fail", error=f"{type(exc).__name__}: {exc}"[:300])
         result.latency_ms = int((time.monotonic() - started) * 1000)
         return result
 

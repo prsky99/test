@@ -65,7 +65,7 @@ def usdc_price(accepts: list[dict]) -> tuple[int, str | None, str] | None:
 
 def parse_x402_item(item: dict) -> dict | None:
     url = item.get("resource")
-    if not isinstance(url, str) or not url.startswith("https://"):
+    if not isinstance(url, str) or not url.startswith("https://") or any(c in url for c in "{}<>"):
         return None
     accepts = [a for a in item.get("accepts") or [] if isinstance(a, dict)]
     if not accepts:
@@ -100,7 +100,9 @@ def parse_mcp_item(item: dict) -> dict | None:
     meta = (item.get("_meta") or {}).get("io.modelcontextprotocol.registry/official") or {}
     if meta.get("status", "active") != "active" or meta.get("isLatest") is False:
         return None
-    remotes = [r for r in server.get("remotes") or [] if str(r.get("url", "")).startswith("https://")]
+    # {tenant} 같은 템플릿 변수가 든 주소는 사용자가 값을 채워야 해서 바로 쓸 수도, 점검할 수도 없다
+    remotes = [r for r in server.get("remotes") or []
+               if str(r.get("url", "")).startswith("https://") and not any(c in str(r["url"]) for c in "{}<>")]
     if not remotes:
         return None
     name = str(server.get("title") or server.get("name") or "")

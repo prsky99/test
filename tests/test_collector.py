@@ -236,3 +236,15 @@ def test_interval_stretches_for_hosts_with_many_endpoints(env):
     big = checker.next_check_at(0, False, now, host_size=8000) - now
     assert big > 1.2 * 3600 and big >= 8000 * (checker.per_host_delay + 0.5) * 1.2 * 0.9  # 호스트 한 바퀴보다 길게
     assert checker.next_check_at(0, True, now, host_size=8000) - now < 20 * 60  # 소개 중인 에이전트는 그대로 15분
+
+
+def test_templated_urls_skipped_and_bad_urls_recorded(env):
+    from agent_market.gateway.crawler import parse_mcp_item
+
+    item = {"server": {"name": "t", "remotes": [{"url": "https://{tenant}.x.ai/mcp"}, {"url": "https://ok.x.ai/mcp"}]}, "_meta": {}}
+    assert parse_mcp_item(item)["url"] == "https://ok.x.ai/mcp"
+    only_template = {"server": {"name": "t2", "remotes": [{"url": "https://{HOST}:{PORT}/mcp"}]}, "_meta": {}}
+    assert parse_mcp_item(only_template) is None
+    store, _, checker, _ = env
+    rid = add(store, "https://exa mple.com:99999/x")  # 잘못된 URL도 점검이 멈추지 않고 실패로 기록
+    assert checker.check_and_record(store.resource(rid))["status"] == "failing"
