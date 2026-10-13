@@ -408,3 +408,43 @@ def test_crawler_retries_page_after_timeout():
     crawler.retry_delay = 0
     report = crawler.crawl_all()
     assert report["mcp-registry"]["ok"] and report["mcp-registry"]["new"] == 1
+
+
+def test_concurrent_health_batches_never_share_agents_or_hosts():
+    import threading as th
+
+    import httpx
+
+    from agent_market.collector.health import HealthChecker
+    from agent_market.gateway.store import Store
+
+    started, release, seen = th.Event(), th.Event(), []
+
+    class Slow(httpx.BaseTransport):
+        def handle_request(self, request):
+            seen.append(str(request.url))
+            if request.url.host == "slow.example":
+                started.set()
+                release.wait(5)
+            return httpx.Response(402, json={"x402Version": 1, "accepts": [{"scheme": "exact", "network": "base",
+                                                                             "maxAmountRequired": "1000", "payTo": "0x" + "a" * 40,
+                                                                             "asset": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"}]})
+
+    store = Store()
+    for host, n in (("slow.example", 3), ("fast.example", 3)):
+        for i in range(n):
+            store.upsert_resource({"key": f"x402:https://{host}/{i}", "source": "x402-bazaar", "kind": "x402", "url": f"https://{host}/{i}",
+                                   "name": f"{host}/{i}", "description": "d", "category": "other", "networks": ["eip155:8453"],
+                                   "price_usdc": 1000, "details": {}})
+    checker = HealthChecker(store, http=httpx.Client(transport=Slow()), allow_private=True, per_host_delay=0)
+    first = {}
+    t = th.Thread(target=lambda: first.update(checker.run_due(limit=4)))
+    t.start()
+    assert started.wait(5)
+    second = checker.run_due(limit=10)  # 첫 묶음이 slow.example을 붙잡고 있는 동안
+    release.set()
+    t.join(5)
+    third = checker.run_due(limit=10)  # 첫 묶음이 끝나 호스트가 풀린 뒤 남은 것
+    assert first["checked"] + second["checked"] + third["checked"] == 6  # 6개가 정확히 한 번씩 (겹침·누락 없음)
+    assert sorted(seen) == sorted(set(seen))  # 같은 에이전트를 두 번 점검하지 않음
+    assert checker.run_due(limit=10)["checked"] == 0  # 모두 다음 점검 시각으로 넘어감

@@ -141,7 +141,7 @@ def create_app(
                                                  config.capability_max_age, config.trials, config.trial_max_age,
                                                  config.erc8004_chains, config.agent_discovery)
     collector = CollectorAgent(store, crawler, checker, min_gap=config.crawl_min_gap, capabilities=caps, auth=auth,
-                               agents=agents, erc8004=erc, wellknown=wellknown)
+                               agents=agents, erc8004=erc, wellknown=wellknown, health_lanes=config.health_lanes)
     prober = prober or Prober(store, checker=checker)
     fetcher = fetcher or CardFetcher(allow_private=config.allow_private_urls, network={"chain_id": net.chain_id, "token": net.token})
     service = GatewayService(store, prober, ledger, policy, notifier=make_notifier(config.allow_private_urls))

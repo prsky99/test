@@ -141,6 +141,7 @@ def test_same_ip_without_token_is_asked_not_told(w):
     chat(c, "find web search API for SERP results")
     stranger = chat(c, "hi")  # 같은 IP·UA지만 토큰이 없음
     assert "Have we talked before?" in stranger["reply"] and "SERP" not in stranger["reply"]
+    assert stranger["reply"].startswith("Hello, agent")  # 에이전트 전용 소개가 언제나 맨 앞
 
 
 # ---------------- 연락처와 추천 알림 ----------------

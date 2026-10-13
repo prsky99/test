@@ -120,6 +120,7 @@ class GatewayConfig:
     free: bool = True  # 무료 정책 (GATEWAY_FREE=0 이면 재소개 유료)
     health_interval: float = 3600  # 수집 에이전트 헬스체크 주기
     health_workers: int = 32
+    health_lanes: int = 3  # 동시에 도는 헬스체크 묶음 수
     crawl_page_delay: float = 1.0  # 수집 페이지 사이 간격 (요청 속도 고정)
     crawl_full_interval: float = 86400  # MCP 전체 수집(삭제 확인) 주기. 그 사이에는 변경분만
     capability_max_age: float = 86400  # MCP 도구 목록 조사 주기
@@ -162,6 +163,7 @@ class GatewayConfig:
             agent_front_url=os.environ.get("AGENT_FRONT_URL") or None,
             health_interval=float(os.environ.get("HEALTH_INTERVAL_MINUTES", "60")) * 60,
             health_workers=int(os.environ.get("HEALTH_WORKERS", "32")),
+            health_lanes=int(os.environ.get("HEALTH_LANES", "3")),
             rescan_interval=float(os.environ.get("RESCAN_INTERVAL_MINUTES", "15")) * 60,
             scheduler=os.environ.get("SCHEDULER", "1") == "1",
             allow_private_urls=os.environ.get("ALLOW_PRIVATE_AGENT_URLS") == "1",

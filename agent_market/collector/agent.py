@@ -33,7 +33,7 @@ class CollectorAgent:
     def __init__(self, store: Store, crawler: Crawler, checker: HealthChecker,
                  min_gap: float = 60, idle_wait: float = 15, batch: int = 500, capabilities: CapabilityProber | None = None,
                  auth: AuthDiscoverer | None = None, agents: AgentProber | None = None,
-                 erc8004: Erc8004Crawler | None = None, wellknown: WellKnownDiscoverer | None = None):
+                 erc8004: Erc8004Crawler | None = None, wellknown: WellKnownDiscoverer | None = None, health_lanes: int = 3):
         self.store, self.crawler, self.checker = store, crawler, checker
         self.capabilities = capabilities
         self.auth = auth
@@ -43,6 +43,7 @@ class CollectorAgent:
         self.min_gap = min_gap
         self.idle_wait = idle_wait
         self.batch = batch
+        self.health_lanes = max(1, health_lanes)  # 동시에 도는 헬스체크 묶음 수 (느린 호스트 하나가 전체를 붙잡지 않게)
         self.stop_event = threading.Event()
         self.paused = threading.Event()  # 관리 화면에서 일시정지: 모든 루프가 쉬고, 수집은 페이지 사이에서 멈춤 (진행 위치 저장)
         self.crawler.should_stop = lambda: self.stop_event.is_set() or self.paused.is_set()
@@ -76,6 +77,7 @@ class CollectorAgent:
                     log.exception("evaluation requeue failed")
         self.started_at = time.time()
         loops = [("collector-crawl", self._crawl_loop), ("collector-health", self._health_loop)]
+        loops += [(f"collector-health-{i + 1}", lambda: self._health_loop(prune=False)) for i in range(1, self.health_lanes)]
         if self.capabilities is not None or self.auth is not None or self.agents is not None:
             loops.append(("collector-capabilities", self._capability_loop))
         if self.erc8004 is not None:
@@ -183,8 +185,8 @@ class CollectorAgent:
                 self.store.set_meta("last_agent_discovery", {"at": time.time(), **report})
             self.stop_event.wait(2 if busy else 120)
 
-    def _health_loop(self) -> None:
-        last_prune = 0.0
+    def _health_loop(self, prune: bool = True) -> None:
+        last_prune = 0.0 if prune else float("inf")
         while not self.stop_event.is_set():
             if self._idle_if_paused():
                 continue

@@ -8,6 +8,7 @@
 import json
 import re
 import time
+from urllib.parse import urlparse
 from dataclasses import dataclass, field
 
 from ..gateway.classify import classify, query_terms
@@ -75,9 +76,15 @@ class Recommender:
         need = {"task": task, "category": classify(task), "max_price": None, "networks": [],
                 "kinds": [kind] if kind in KINDS else list(KINDS), "region": None, "auth_pref": auth_pref, "min_grade": None,
                 "language": None}
-        scored, _ = rank(self.store, need, limit=offset + limit + len(exclude or ()))
-        items = [s for s in scored if s.resource["id"] not in (exclude or set())][offset:offset + limit]
-        return [self.item(s) for s in items]
+        scored, _ = rank(self.store, need, limit=(offset + limit) * 4 + len(exclude or ()))
+        picked, seen_hosts = [], set()
+        for s in scored:  # 한 호스트의 비슷한 엔드포인트가 추천을 다 차지하지 않게 호스트당 하나
+            host = urlparse(s.resource["url"]).hostname
+            if s.resource["id"] in (exclude or set()) or host in seen_hosts:
+                continue
+            seen_hosts.add(host)
+            picked.append(s)
+        return [self.item(s) for s in picked[offset:offset + limit]]
 
     @staticmethod
     def item(s) -> dict:
@@ -302,10 +309,12 @@ class Concierge:
         lang = lang or lang_of(text, v.lang)
         self.book.add_message(v, "agent", channel, text or json.dumps(data, ensure_ascii=False)[:500], data or None)
         reply = self._route(v, text, data, lang)
-        if v.new and reply.intent not in ("greet", "welcome_back"):  # 첫 메시지가 바로 요청이어도 '에이전트 전용'임을 먼저 알린다
-            reply.text = T[lang]["intro"].format(total=self.live_count()) + "\n\n" + reply.text
-        if v.new and v.extra.get("maybe_known"):  # 토큰 없이 같은 IP·UA로 온 경우: 내용은 알려 주지 않고 토큰만 청함
-            reply.text = T[lang]["maybe_known"] + "\n\n" + reply.text
+        if v.new:  # 새 방문자: '에이전트 전용' 소개가 언제나 맨 앞. 같은 IP·UA로 토큰 없이 왔으면 그다음에 토큰만 청함
+            head = [] if reply.intent in ("greet", "welcome_back") else [T[lang]["intro"].format(total=self.live_count())]
+            if v.extra.get("maybe_known") and head:  # 인사(greet)는 greeting() 안에서 소개 바로 다음에 넣음
+                head.append(T[lang]["maybe_known"])
+            if head:
+                reply.text = "\n\n".join(head) + "\n\n" + reply.text
         if v.token:  # 새 방문자: 토큰을 알려 줘야 다음에 기억할 수 있음
             reply.text += "\n\n" + T[lang]["token"].format(token=v.token)
         if v.tier_up == "regular" and reply.intent != "welcome_back":
@@ -354,7 +363,7 @@ class Concierge:
             return self._find(v, task, data.get("kind") if data.get("kind") in KINDS else detect_kind(task),
                               data.get("auth") if data.get("auth") in ("none", "agent") else detect_auth(task), lang)
         if intent == "greet" or (not data.get("task") and not query_terms(task)):
-            greet = self.greeting(v, lang)
+            greet = self.greeting(v, lang, maybe_known=v.new and bool(v.extra.get("maybe_known")))
             if m_name and v.name:
                 greet.text = T[lang]["name_set"].format(name=v.name) + " " + greet.text
             return greet

@@ -42,6 +42,7 @@ MCP_INIT = {
     "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "agent-collector", "version": "0.1"}},
 }
 MAX_BODY = 64 * 1024
+LEASE = 900  # 고른 뒤 결과를 기록할 때까지 '점검 중'으로 잡아 두는 시간
 
 
 @dataclass
@@ -99,6 +100,9 @@ class HealthChecker:
         self.per_host_cap = per_host_cap  # 한 묶음에서 호스트당 최대 점검 수 (한 호스트가 묶음을 붙잡지 않게)
         self._host_sizes: Counter = Counter()
         self._host_sizes_at = 0.0
+        # 여러 묶음을 동시에 돌릴 때: 고르는 순간 '점검 중'으로 잡아 두고(lease), 다른 묶음이 점검 중인 호스트는 고르지 않는다
+        self._claim_lock = threading.Lock()
+        self._busy_hosts: set[str] = set()
 
     def host_sizes(self) -> Counter:
         """호스트별 점검 대상 엔드포인트 수 (10분마다 갱신)."""
@@ -261,10 +265,26 @@ class HealthChecker:
     # ---------------- 일괄 점검 ----------------
     def run_due(self, limit: int = 500) -> dict:
         """점검 시각이 된 에이전트들을 호스트별로 묶어 병렬 점검한다. 호스트당 per_host_cap개까지만 담는다."""
-        due = self.store.due_for_check(time.time(), limit, per_host=self.per_host_cap)
+        def host(r):
+            return r.get("host") or urlparse(r["url"]).hostname or r["url"]
+
+        with self._claim_lock:
+            due = [r for r in self.store.due_for_check(time.time(), limit * 2, per_host=self.per_host_cap)
+                   if host(r) not in self._busy_hosts][:limit]
+            claimed = {host(r) for r in due}
+            self._busy_hosts |= claimed
+            if due:  # 결과를 기록하기 전까지 다른 묶음이 다시 고르지 않게. 프로세스가 죽어도 LEASE 뒤에 다시 점검됨
+                self.store.postpone([r["id"] for r in due], time.time() + LEASE)
+        try:
+            return self._run_batch(due, host)
+        finally:
+            with self._claim_lock:
+                self._busy_hosts -= claimed
+
+    def _run_batch(self, due: list[dict], host) -> dict:
         by_host: dict[str, list[dict]] = defaultdict(list)
         for r in due:
-            by_host[r.get("host") or urlparse(r["url"]).hostname or r["url"]].append(r)
+            by_host[host(r)].append(r)
         if not due:
             return {"checked": 0}
         in_use = self.store.in_use_ids()
