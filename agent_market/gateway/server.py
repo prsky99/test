@@ -33,13 +33,18 @@ from ..collector.agent import CollectorAgent, build_agent_sources
 from ..collector.auth_discovery import AuthDiscoverer
 from ..collector.capabilities import CapabilityProber
 from ..collector.health import HealthChecker, Schedule
+from ..concierge import front as concierge_front
 from .crawler import Crawler, Prober
+from . import sns
+from .dashboard import dashboard_router
 from .service import KINDS, GatewayService, NeedError, Policy
 from .store import Store, host_of
 
 log = logging.getLogger("agent_market.gateway.server")
 
 NEED_PURPOSE = "agent-gateway-need"
+SNS_PURPOSE = "agent-gateway-sns"
+SNS_PER_MINUTE = 10
 MAX_TASK_CHARS = 4000
 REGISTER_PER_MINUTE = 5
 MAX_REGISTERED_PER_HOST = 50  # 한 호스트가 직접 등록할 수 있는 서비스 수
@@ -48,9 +53,9 @@ MAX_REGISTERED_PER_HOST = 50  # 한 호스트가 직접 등록할 수 있는 서
 class Scheduler(threading.Thread):
     """정보 수집 에이전트(연속 수집 + 지속 헬스체크)를 띄우고, 고객 요청 재평가를 주기적으로 돌린다."""
 
-    def __init__(self, collector: CollectorAgent, service: GatewayService, rescan_interval: float):
+    def __init__(self, collector: CollectorAgent, service: GatewayService, rescan_interval: float, digest=None):
         super().__init__(daemon=True, name="gateway-scheduler")
-        self.collector, self.service = collector, service
+        self.collector, self.service, self.digest = collector, service, digest
         self.rescan_interval = rescan_interval
         self.stop_event = threading.Event()
 
@@ -61,6 +66,13 @@ class Scheduler(threading.Thread):
                 log.info("rescan: %s", self.service.rescan())
             except Exception:
                 log.exception("rescan failed")
+            if self.digest is not None:  # 단골에게 '더 좋아진 것' 추천 알림 (AGENT_FRONT.md 6절)
+                try:
+                    stats = self.digest.run_due()
+                    if stats["checked"]:
+                        log.info("concierge digest: %s", stats)
+                except Exception:
+                    log.exception("concierge digest failed")
             self.stop_event.wait(self.rescan_interval)
         self.collector.stop()
 
@@ -98,6 +110,7 @@ def create_app(
     prober: Prober | None = None,
     fetcher: CardFetcher | None = None,
     policy: Policy = Policy(),
+    courier=None,
 ) -> FastAPI:
     net = config.network
     policy = dataclasses.replace(policy, free=config.free)
@@ -124,12 +137,13 @@ def create_app(
     service = GatewayService(store, prober, ledger, policy, notifier=make_notifier(config.allow_private_urls))
     need_limit = RateLimiter(30)
     register_limit = RateLimiter(REGISTER_PER_MINUTE)
+    sns_limit = RateLimiter(SNS_PER_MINUTE)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         scheduler = None
         if config.scheduler:
-            scheduler = Scheduler(collector, service, config.rescan_interval)
+            scheduler = Scheduler(collector, service, config.rescan_interval, front.digest)
             scheduler.start()
         yield
         if scheduler:
@@ -137,6 +151,10 @@ def create_app(
 
     app = FastAPI(title="Agent Introduction Gateway", lifespan=lifespan)
     app.state.service = service
+    app.state.collector = collector
+    front = concierge_front.install(app, store, allow_private=config.allow_private_urls, courier=courier)  # 에이전트 전용 프론트
+    app.state.front = front
+    app.include_router(dashboard_router(store, config.db_path, config.admin_token, collector, service, crawler, front))  # /admin/ui
 
     def fee_requirements(amount: int) -> dict:
         return {
@@ -154,6 +172,9 @@ def create_app(
         return {
             "name": "agent-intro-gateway",
             "role": "gateway",
+            "audience": concierge_front.AUDIENCE,
+            "notice": concierge_front.NOTICE,
+            "concierge": {"chat": "POST /chat", "a2a_card": "/.well-known/agent-card.json", "mcp": "POST /mcp", "guide": "/llms.txt"},
             "description": (
                 "필요한 작업을 알려주면 x402 Bazaar·MCP Registry 등에서 가장 좋은 AI 에이전트를 찾아 소개하고, "
                 "관계를 유지하면서 더 좋은 에이전트가 나타나면 다시 소개합니다. "
@@ -164,8 +185,10 @@ def create_app(
                 "model": "paid", "first_intro": 0, "upgrade_fee": {c: service.fee_for(c) for c in CATEGORIES}, "currency": "USDC(6 decimals)"},
             "network": {"name": net.name, "chain_id": net.chain_id, "token": net.token, "pay_to": config.pay_to},
             "endpoints": {"create_need": "POST /needs", "need": "GET /needs/{need_id}", "accept": "POST /offers/accept",
-                          "decline": "POST /offers/decline", "feedback": "POST /needs/{need_id}/feedback"},
-            "auth": {"create_need": "X-Client: <wallet>, X-Signature: sign('agent-gateway-need:{client}:{sha256(body)}')"},
+                          "decline": "POST /offers/decline", "feedback": "POST /needs/{need_id}/feedback",
+                          "review": "POST /sns/posts (A2A·MCP·x402·에이전트에 대한 의견·평가)"},
+            "auth": {"create_need": "X-Client: <wallet>, X-Signature: sign('agent-gateway-need:{client}:{sha256(body)}')",
+                     "review": "X-Client: <wallet>, X-Signature: sign('agent-gateway-sns:{client}:{sha256(body)}')"},
             "need_options": {
                 "task": "필요한 작업 설명 (필수)", "category": "카테고리 ID (생략 시 자동 분류)", "max_price": "USDC 최소 단위",
                 "language": "원하는 언어 (ko, en, ja ...): 지원하는 에이전트를 우선",
@@ -297,6 +320,31 @@ def create_app(
         except NeedError as exc:
             return fail(exc)
         return {"ok": True}
+
+    @app.post("/sns/posts")
+    async def sns_post(request: Request, x_client: str | None = Header(default=None), x_signature: str | None = Header(default=None)):
+        """에이전트가 A2A·MCP·x402나 특정 에이전트에 대한 의견·평가를 남긴다 (관리 화면 SNS에 '에이전트' 글로 보임).
+
+        body: {"body", "protocol"?, "rating"? 1~5, "resource_id"?, "author"? 표시 이름, "parent_key"? 댓글}
+        서명: X-Client: <지갑>, X-Signature: sign('agent-gateway-sns:{client}:{sha256(body)}')
+        """
+        if not sns_limit.allow(request.client.host if request.client else "unknown"):
+            raise HTTPException(429, "요청이 너무 많습니다.")
+        body, data = await json_body(request)
+        if not x_client or not x_signature:
+            raise HTTPException(401, "X-Client(지갑 주소)와 X-Signature가 필요합니다.")
+        try:
+            signer = recover_signer(SNS_PURPOSE, x_client, body, x_signature)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc))
+        if signer != normalize(x_client):
+            raise HTTPException(403, "서명자가 X-Client와 다릅니다.")
+        author = str(data.get("author") or "")[:40] or f"에이전트 {signer[:6]}…{signer[-4:]}"
+        try:
+            return sns.create_post(store, data.get("body"), author, "agent", f"wallet:{signer}", data.get("protocol") or None,
+                                   data.get("rating"), data.get("parent_key"), data.get("resource_id"), handle=signer)
+        except sns.SnsError as exc:
+            raise HTTPException(400, str(exc))
 
     @app.post("/agents/register")
     async def register(request: Request):

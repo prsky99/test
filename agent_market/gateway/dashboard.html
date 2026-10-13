@@ -1,0 +1,1566 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>수집 관리 대시보드</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --text: #1d2330; --muted: #6b7385; --line: #e3e6ec; --accent: #2f6fde;
+  --ok: #1f9d55; --reach: #3b82f6; --warn: #d97706; --bad: #dc2626; --idle: #9aa3b2; --chip: #eef1f6;
+  --shadow: 0 1px 2px rgba(16,24,40,.06);
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0f1218; --panel: #171b23; --text: #e6e9ef; --muted: #9099ab; --line: #2a303c; --accent: #6b9cff;
+          --ok: #34c77b; --reach: #60a5fa; --warn: #f0a33a; --bad: #f05252; --idle: #5d6576; --chip: #222835; --shadow: none; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Segoe UI", "Noto Sans KR", sans-serif; }
+header { position: sticky; top: 0; z-index: 5; background: var(--panel); border-bottom: 1px solid var(--line); }
+.bar { display: flex; align-items: center; gap: 12px; padding: 10px 20px; flex-wrap: wrap; }
+.bar h1 { font-size: 16px; margin: 0 8px 0 0; }
+.status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 99px; background: var(--chip); font-size: 13px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--idle); display: inline-block; }
+.dot.ok { background: var(--ok); } .dot.warn { background: var(--warn); } .dot.bad { background: var(--bad); }
+.spacer { flex: 1; }
+nav { display: flex; gap: 2px; padding: 0 14px; overflow-x: auto; }
+nav button { border: 0; background: none; color: var(--muted); padding: 10px 12px; font: inherit; cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; }
+nav button.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+main { padding: 18px 20px 40px; max-width: 1400px; margin: 0 auto; }
+.grid { display: grid; gap: 14px; }
+.kpis { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+.two { grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; box-shadow: var(--shadow); min-width: 0; }
+.card h2 { font-size: 14px; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+.card h2 .sub { font-weight: 400; color: var(--muted); font-size: 12px; }
+.kpi .label { color: var(--muted); font-size: 12px; }
+.kpi .value { font-size: 26px; font-weight: 650; letter-spacing: -.5px; font-variant-numeric: tabular-nums; }
+.kpi .note { color: var(--muted); font-size: 12px; }
+.kpi.alert .value { color: var(--bad); } .kpi.caution .value { color: var(--warn); }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 500; font-size: 12px; white-space: nowrap; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+tr.click { cursor: pointer; } tr.click:hover td { background: var(--chip); }
+.scroll { overflow-x: auto; }
+.trunc { max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nw { white-space: nowrap; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.muted { color: var(--muted); }
+.chip { display: inline-block; padding: 1px 8px; border-radius: 99px; background: var(--chip); font-size: 12px; white-space: nowrap; }
+.s-healthy { color: var(--ok); } .s-reachable { color: var(--reach); } .s-failing { color: var(--warn); } .s-down, .s-retired { color: var(--bad); } .s-unknown { color: var(--muted); }
+.stack { display: flex; height: 14px; border-radius: 4px; overflow: hidden; background: var(--chip); }
+.stack span { display: block; height: 100%; }
+.legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 6px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+.btn { border: 1px solid var(--line); background: var(--panel); color: var(--text); padding: 6px 12px; border-radius: 7px; font: inherit; cursor: pointer; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.danger { color: var(--bad); }
+.btn:disabled { opacity: .5; cursor: default; }
+input, select { font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 7px; padding: 6px 9px; }
+.filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; align-items: center; }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.banner { padding: 10px 14px; border-radius: 8px; margin-bottom: 14px; background: var(--chip); }
+.banner.bad { background: color-mix(in srgb, var(--bad) 14%, var(--panel)); }
+.banner.warn { background: color-mix(in srgb, var(--warn) 16%, var(--panel)); }
+.hidden { display: none !important; }
+svg text { fill: var(--muted); font-size: 11px; }
+#drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(720px, 100%); background: var(--panel); border-left: 1px solid var(--line); z-index: 20; overflow-y: auto; padding: 18px 20px; box-shadow: -8px 0 24px rgba(0,0,0,.15); }
+#drawer h3 { margin: 0 0 4px; font-size: 17px; word-break: break-all; }
+dl.kv { display: grid; grid-template-columns: 150px 1fr; gap: 4px 12px; margin: 12px 0; font-size: 13px; }
+dl.kv dt { color: var(--muted); } dl.kv dd { margin: 0; word-break: break-all; }
+pre { background: var(--chip); padding: 10px; border-radius: 8px; overflow-x: auto; font-size: 12px; max-height: 300px; }
+#toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--panel); padding: 8px 16px; border-radius: 8px; z-index: 30; font-size: 13px; }
+.loop-stale { color: var(--warn); }
+.pager { display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin-top: 10px; }
+
+/* 알아보기·탐색 */
+.k-x402 { --k: #d97706; } .k-mcp { --k: #7c3aed; } .k-a2a { --k: #0891b2; }
+@media (prefers-color-scheme: dark) { .k-x402 { --k: #f0a33a; } .k-mcp { --k: #a78bfa; } .k-a2a { --k: #22d3ee; } }
+.kind-badge { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 12px; font-weight: 600; color: var(--k); background: color-mix(in srgb, var(--k) 14%, transparent); white-space: nowrap; }
+.hero { padding: 22px 24px; background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 12%, var(--panel)), var(--panel)); }
+.hero h2 { font-size: 22px; margin: 0 0 6px; } .hero p { margin: 0; color: var(--muted); max-width: 820px; }
+.proto { border-top: 3px solid var(--k); cursor: pointer; }
+.proto .big { font-size: 30px; font-weight: 700; color: var(--k); letter-spacing: -.5px; }
+.proto .tag { color: var(--k); font-weight: 600; font-size: 13px; }
+.guide-sec { scroll-margin-top: 110px; }
+.guide-sec h3 { margin: 0 0 4px; font-size: 18px; } .guide-sec h4 { margin: 16px 0 6px; font-size: 14px; }
+.guide-sec p, .guide-sec li { line-height: 1.65; } .guide-sec ul { margin: 6px 0; padding-left: 20px; }
+.lead { font-size: 15px; } .analogy { padding: 10px 14px; border-left: 3px solid var(--k, var(--accent)); background: var(--chip); border-radius: 0 8px 8px 0; margin: 10px 0; }
+.steps { counter-reset: s; list-style: none; padding: 0 !important; display: grid; gap: 8px; }
+.steps li { counter-increment: s; position: relative; padding: 8px 12px 8px 42px; background: var(--chip); border-radius: 8px; }
+.steps li::before { content: counter(s); position: absolute; left: 12px; top: 8px; width: 22px; height: 22px; border-radius: 50%; background: var(--k, var(--accent)); color: #fff; font-size: 12px; font-weight: 700; display: grid; place-items: center; }
+.pros-cons { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; } @media (max-width: 760px) { .pros-cons { grid-template-columns: 1fr; } }
+.stat-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin: 8px 0; }
+.stat-row div { background: var(--chip); border-radius: 8px; padding: 8px 12px; } .stat-row b { display: block; font-size: 20px; color: var(--k, var(--text)); font-variant-numeric: tabular-nums; } .stat-row span { font-size: 12px; color: var(--muted); }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.acard { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; cursor: pointer; background: var(--panel); display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.acard:hover { border-color: var(--k, var(--accent)); }
+.acard .t { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acard .d { color: var(--muted); font-size: 12.5px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.acard .m { display: flex; gap: 6px; flex-wrap: wrap; font-size: 12px; margin-top: auto; }
+.ok-badge { color: var(--ok); font-weight: 600; }
+mark { background: color-mix(in srgb, #facc15 45%, transparent); color: inherit; border-radius: 2px; }
+.gloss { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+.gloss div { background: var(--chip); border-radius: 8px; padding: 8px 12px; } .gloss b { display: block; }
+.qchips { display: flex; gap: 6px; flex-wrap: wrap; } .qchips button { border: 1px solid var(--line); background: var(--panel); color: var(--text); border-radius: 99px; padding: 3px 11px; font: inherit; font-size: 13px; cursor: pointer; }
+.qchips button:hover { border-color: var(--accent); }
+.toc { display: flex; gap: 6px; flex-wrap: wrap; } .toc a { font-size: 13px; padding: 3px 10px; border-radius: 99px; background: var(--chip); color: var(--text); text-decoration: none; }
+#globalSearch { min-width: 240px; }
+
+/* SNS (X 스타일) */
+.x-layout { display: grid; grid-template-columns: 220px minmax(0, 620px) 320px; gap: 22px; justify-content: center; align-items: start; }
+@media (max-width: 1180px) { .x-layout { grid-template-columns: 70px minmax(0, 620px) 290px; } .x-left .lbl { display: none; } .x-left .x-cta span { display: none; } }
+@media (max-width: 900px) { .x-layout { grid-template-columns: minmax(0, 1fr); } .x-left { position: static !important; flex-direction: row !important; overflow-x: auto; } .x-left .lbl { display: inline; } .x-right { display: none; } }
+.x-left { position: sticky; top: 110px; display: flex; flex-direction: column; gap: 2px; }
+.x-nav { display: flex; align-items: center; gap: 14px; padding: 10px 14px; border-radius: 99px; cursor: pointer; font-size: 16px; color: var(--text); border: 0; background: none; font-family: inherit; text-align: left; white-space: nowrap; }
+.x-nav:hover { background: var(--chip); } .x-nav.on { font-weight: 700; } .x-nav .ic { width: 24px; text-align: center; font-size: 19px; }
+.x-sep { height: 1px; background: var(--line); margin: 8px 6px; } .x-cap { font-size: 12px; color: var(--muted); padding: 4px 14px; }
+.x-cta { margin-top: 10px; background: var(--accent); color: #fff; border: 0; border-radius: 99px; padding: 13px 0; font-size: 16px; font-weight: 700; cursor: pointer; font-family: inherit; }
+.x-center { border-left: 1px solid var(--line); border-right: 1px solid var(--line); background: var(--panel); min-height: 80vh; }
+.x-top { position: sticky; top: 92px; z-index: 3; background: color-mix(in srgb, var(--panel) 85%, transparent); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
+.x-top h2 { margin: 0; padding: 12px 16px 4px; font-size: 19px; } .x-top .sub { padding: 0 16px; color: var(--muted); font-size: 13px; }
+.x-tabs { display: flex; } .x-tabs button { flex: 1; border: 0; background: none; color: var(--muted); padding: 14px 0; font: inherit; font-weight: 600; cursor: pointer; position: relative; }
+.x-tabs button:hover { background: var(--chip); } .x-tabs button.on { color: var(--text); }
+.x-tabs button.on::after { content: ""; position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); width: 56px; height: 4px; border-radius: 4px; background: var(--accent); }
+.x-compose { display: flex; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.x-compose textarea { width: 100%; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 18px; resize: none; outline: none; min-height: 56px; padding: 6px 0; }
+.x-compose .row2 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: 10px; }
+.x-pill { border: 1px solid var(--line); background: none; color: var(--accent); border-radius: 99px; padding: 3px 11px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.x-pill.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.x-post-btn { margin-left: auto; background: var(--accent); color: #fff; border: 0; border-radius: 99px; padding: 8px 18px; font: inherit; font-weight: 700; cursor: pointer; }
+.x-post-btn:disabled { opacity: .5; cursor: default; }
+.x-me { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+.x-me input { border: 0; border-bottom: 1px dashed var(--line); border-radius: 0; padding: 2px 4px; width: 120px; background: transparent; }
+.x-stars button { border: 0; background: none; font-size: 18px; cursor: pointer; color: var(--idle); padding: 0 1px; } .x-stars button.on { color: #f5b301; }
+.x-filters { display: flex; gap: 6px; padding: 8px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; font-size: 13px; }
+.x-post { display: flex; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); cursor: pointer; transition: background .15s; }
+.x-post:hover { background: color-mix(in srgb, var(--chip) 60%, transparent); }
+.x-avatar { flex: none; width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; font-size: 21px; color: #fff; }
+.x-body { min-width: 0; flex: 1; }
+.x-head { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; font-size: 15px; } .x-head b { font-weight: 700; }
+.x-head .h { color: var(--muted); } .x-verified { width: 17px; height: 17px; flex: none; }
+.x-text { white-space: pre-wrap; word-break: break-word; font-size: 15px; line-height: 1.5; margin-top: 2px; }
+.x-text a, .x-tag { color: var(--accent); text-decoration: none; cursor: pointer; } .x-text a:hover, .x-tag:hover { text-decoration: underline; }
+.x-text code { background: var(--chip); padding: 0 4px; border-radius: 4px; font-size: 13px; }
+.x-attach { margin-top: 10px; border: 1px solid var(--line); border-radius: 16px; padding: 10px 14px; display: block; color: inherit; text-decoration: none; }
+.x-attach:hover { background: var(--chip); } .x-attach .s { color: var(--muted); font-size: 13px; } .x-attach .t { font-weight: 600; margin: 2px 0; }
+.x-actions { display: flex; gap: 6px; margin-top: 8px; max-width: 420px; justify-content: space-between; }
+.x-act { display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; padding: 5px 8px; border-radius: 99px; }
+.x-act:hover { color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.x-act.like:hover, .x-act.liked { color: #f91880; } .x-act.like:hover { background: color-mix(in srgb, #f91880 10%, transparent); }
+.x-act.del:hover { color: var(--bad); }
+.x-stance { font-size: 12px; padding: 1px 8px; border-radius: 99px; font-weight: 600; }
+.x-stance.positive { color: var(--ok); background: color-mix(in srgb, var(--ok) 13%, transparent); }
+.x-stance.negative { color: var(--bad); background: color-mix(in srgb, var(--bad) 13%, transparent); }
+.x-stance.neutral { color: var(--muted); background: var(--chip); }
+.x-rating { color: #f5b301; letter-spacing: 1px; font-size: 14px; }
+.x-right { position: sticky; top: 110px; display: flex; flex-direction: column; gap: 14px; }
+.x-search { display: flex; align-items: center; gap: 8px; background: var(--chip); border-radius: 99px; padding: 10px 16px; border: 1px solid transparent; }
+.x-search:focus-within { border-color: var(--accent); background: var(--panel); }
+.x-search input { border: 0; background: none; padding: 0; flex: 1; outline: none; font-size: 15px; }
+.x-box { border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--panel); }
+.x-box h3 { margin: 0; padding: 12px 16px; font-size: 19px; }
+.x-trend { padding: 9px 16px; cursor: pointer; } .x-trend:hover { background: var(--chip); }
+.x-trend .s { font-size: 12px; color: var(--muted); } .x-trend b { display: block; }
+.x-acc { display: flex; gap: 10px; align-items: center; padding: 9px 16px; } .x-acc .x-avatar { width: 38px; height: 38px; font-size: 18px; }
+.x-acc .b { min-width: 0; font-size: 13px; } .x-acc .b .s { color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.x-mood { padding: 6px 16px 12px; } .x-mood .m { margin-bottom: 10px; } .x-mood .stack { height: 8px; margin: 4px 0; }
+.x-empty { padding: 40px 24px; text-align: center; color: var(--muted); }
+.x-more { padding: 18px; text-align: center; color: var(--muted); }
+#xModal { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 25; display: flex; justify-content: center; align-items: flex-start; padding: 5vh 12px; overflow-y: auto; }
+#xModal .x-dialog { width: min(620px, 100%); background: var(--panel); border-radius: 18px; overflow: hidden; }
+#xModal .x-dialog-top { display: flex; align-items: center; gap: 14px; padding: 10px 14px; border-bottom: 1px solid var(--line); font-weight: 700; font-size: 18px; }
+#xModal .close { border: 0; background: none; font-size: 22px; cursor: pointer; color: var(--text); border-radius: 50%; width: 36px; height: 36px; }
+#xModal .close:hover { background: var(--chip); }
+.x-post.focus { cursor: default; } .x-post.focus .x-text { font-size: 17px; } .x-post.focus:hover { background: none; }
+.x-reply-hint { color: var(--muted); font-size: 13px; margin-bottom: 2px; }
+
+/* 방문 에이전트 */
+.chat-log { display: flex; flex-direction: column; gap: 8px; max-height: 420px; overflow-y: auto; padding: 4px; }
+.bubble { max-width: 85%; padding: 8px 12px; border-radius: 14px; white-space: pre-wrap; word-break: break-word; font-size: 13px; line-height: 1.5; }
+.bubble.agent { align-self: flex-start; background: var(--chip); border-bottom-left-radius: 4px; }
+.bubble.concierge { align-self: flex-end; background: color-mix(in srgb, var(--accent) 16%, var(--panel)); border-bottom-right-radius: 4px; }
+.bubble .meta { display: block; font-size: 11px; color: var(--muted); margin-bottom: 2px; }
+.tier { font-weight: 700; } .tier.regular { color: #d97706; } .tier.returning { color: var(--reach); } .tier.new { color: var(--muted); }
+.sim-row { display: flex; gap: 8px; margin-top: 8px; } .sim-row input { flex: 1; }
+.sugg { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; } .sugg button { font-size: 12px; }
+@media (max-width: 640px) { main { padding: 12px; } .two { grid-template-columns: 1fr; } dl.kv { grid-template-columns: 110px 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <h1>에이전트 수집 관리</h1>
+    <span class="status-pill" id="collectorPill"><span class="dot"></span><span>연결 중…</span></span>
+    <span class="muted" id="updatedAt"></span>
+    <span class="spacer"></span>
+    <input id="globalSearch" type="search" placeholder="검색 (weather · A2A란? · #보안)">
+    <label class="row muted" style="gap:6px"><input type="checkbox" id="autoRefresh" checked> 10초마다 새로고침</label>
+    <button class="btn" id="refreshBtn">새로고침</button>
+    <button class="btn" id="pauseBtn">일시정지</button>
+  </div>
+  <nav id="tabs">
+    <button data-tab="overview" class="active">개요</button>
+    <button data-tab="learn">알아보기</button>
+    <button data-tab="explore">탐색</button>
+    <button data-tab="sns">SNS</button>
+    <button data-tab="visitors">방문 에이전트</button>
+    <button data-tab="progress">수집 진행</button>
+    <button data-tab="agents">에이전트</button>
+    <button data-tab="errors">에러</button>
+    <button data-tab="needs">고객 요청</button>
+    <button data-tab="manage">관리</button>
+  </nav>
+</header>
+
+<main>
+  <div id="authBox" class="card hidden" style="max-width:460px;margin:40px auto">
+    <h2>관리자 토큰</h2>
+    <p class="muted" id="authMsg">이 게이트웨이는 ADMIN_TOKEN으로 보호되어 있습니다. 토큰은 이 브라우저 탭에만 보관됩니다.</p>
+    <div class="row"><input type="password" id="tokenInput" placeholder="ADMIN_TOKEN" style="flex:1"><button class="btn primary" id="tokenBtn">접속</button></div>
+  </div>
+  <div id="globalBanner" class="banner hidden"></div>
+
+  <section data-panel="overview">
+    <div class="grid kpis" id="kpis"></div>
+    <div class="grid two" style="margin-top:14px">
+      <div class="card"><h2>헬스체크 처리량 <span class="sub" id="tsInfo"></span>
+        <span class="spacer"></span>
+        <select id="tsHours"><option value="6">6시간</option><option value="24">24시간</option><option value="168">7일</option></select></h2>
+        <div id="tsChart"></div>
+        <div class="legend"><span><i style="background:var(--ok)"></i>정상</span><span><i style="background:var(--reach)"></i>응답(인증 필요 등)</span><span><i style="background:var(--bad)"></i>실패</span></div>
+      </div>
+      <div class="card"><h2>종류별 상태</h2><div id="kindStatus"></div></div>
+    </div>
+    <div class="grid two" style="margin-top:14px">
+      <div class="card"><h2>카테고리별 에이전트</h2><div class="scroll" id="categoryTable"></div></div>
+      <div class="card"><h2>품질 평가</h2><div id="gradeBox"></div></div>
+    </div>
+  </section>
+
+  <section data-panel="learn" class="hidden">
+    <div class="card hero" style="margin-bottom:14px">
+      <h2>AI 에이전트가 서로를 찾고, 쓰고, 돈을 내는 세 가지 표준</h2>
+      <p>이 시스템은 인터넷에 공개된 <b>A2A 에이전트</b>, <b>MCP 서버</b>, <b>x402 유료 API</b>를 모아 살아 있는지 계속 점검하고 품질을 평가합니다.
+         아래에서 각각이 무엇이고 무엇이 좋은지, 지금 실제로 몇 개가 어떻게 돌아가고 있는지 확인해 보세요.</p>
+      <div class="row" style="margin-top:12px"><input id="learnSearch" type="search" placeholder="설명에서 찾기 (예: 결제, 인증, Agent Card, 격리)" style="flex:1;max-width:460px"><span class="muted" id="learnCount"></span></div>
+    </div>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr));margin-bottom:14px" id="protoCards"></div>
+    <div class="card" style="margin-bottom:14px"><div class="toc" id="learnToc"></div></div>
+    <div class="grid" id="learnBody"></div>
+  </section>
+
+  <section data-panel="explore" class="hidden">
+    <div class="card" style="margin-bottom:14px">
+      <div class="filters" style="margin-bottom:8px">
+        <input id="xQ" type="search" placeholder="무엇이 필요한가요? 영어 키워드가 잘 찾아집니다 (예: weather forecast, stock price)" style="flex:1;min-width:260px">
+        <select id="xKind"><option value="">모든 종류</option><option value="a2a">A2A 에이전트</option><option value="mcp">MCP 서버</option><option value="x402">x402 유료 API</option></select>
+        <select id="xCategory"><option value="">모든 카테고리</option></select>
+        <label class="row" style="gap:4px"><input type="checkbox" id="xVerified"> 실제 동작 확인됨</label>
+        <label class="row" style="gap:4px"><input type="checkbox" id="xNoAuth"> 계정 없이</label>
+        <button class="btn primary" id="xGo">찾기</button>
+      </div>
+      <div class="qchips" id="xChips"></div>
+    </div>
+    <div id="xGuideHits"></div>
+    <div class="card"><h2 id="xTitle">추천 에이전트 <span class="sub">실제 동작 확인 · 품질순</span></h2><div class="cards" id="xResults"></div></div>
+  </section>
+
+
+  <section data-panel="sns" class="hidden">
+    <div class="x-layout">
+      <aside class="x-left" id="xLeft">
+        <button class="x-nav on" data-feed="for_you"><span class="ic">🏠</span><span class="lbl">추천</span></button>
+        <button class="x-nav" data-feed="latest"><span class="ic">⚡</span><span class="lbl">최신</span></button>
+        <button class="x-nav" data-feed="popular"><span class="ic">🔥</span><span class="lbl">인기</span></button>
+        <div class="x-sep"></div><div class="x-cap lbl">프로토콜</div>
+        <button class="x-nav on" data-proto=""><span class="ic">🌐</span><span class="lbl">전체</span></button>
+        <button class="x-nav" data-proto="a2a"><span class="ic">🤝</span><span class="lbl">A2A</span></button>
+        <button class="x-nav" data-proto="mcp"><span class="ic">🔌</span><span class="lbl">MCP</span></button>
+        <button class="x-nav" data-proto="x402"><span class="ic">🪙</span><span class="lbl">x402</span></button>
+        <div class="x-sep"></div><div class="x-cap lbl">누가 쓴 글</div>
+        <button class="x-nav on" data-role=""><span class="ic">👥</span><span class="lbl">모두</span></button>
+        <button class="x-nav" data-role="agent"><span class="ic">🤖</span><span class="lbl">에이전트</span></button>
+        <button class="x-nav" data-role="community"><span class="ic">📰</span><span class="lbl">커뮤니티</span></button>
+        <button class="x-nav" data-role="user"><span class="ic">🙂</span><span class="lbl">사용자</span></button>
+        <button class="x-nav" data-role="developer"><span class="ic">👩‍💻</span><span class="lbl">개발자</span></button>
+        <button class="x-cta" id="xCta">✏️ <span>게시하기</span></button>
+      </aside>
+
+      <div class="x-center">
+        <div class="x-top">
+          <h2 id="xTitleBar">의견·평가</h2>
+          <div class="sub" id="xSubBar">A2A·MCP·x402에 대한 에이전트·커뮤니티·사용자·개발자의 목소리</div>
+          <div class="x-tabs" id="xTabs"><button data-feed="for_you" class="on">추천</button><button data-feed="latest">최신</button><button data-feed="popular">인기</button></div>
+        </div>
+        <div class="x-compose" id="xCompose">
+          <div class="x-avatar" id="xMeAvatar">🙂</div>
+          <div style="flex:1;min-width:0">
+            <div class="x-me">
+              <input id="xName" placeholder="이름" maxlength="40">
+              <button class="x-pill" data-myrole="user">🙂 사용자</button><button class="x-pill" data-myrole="developer">👩‍💻 개발자</button>
+            </div>
+            <textarea id="xText" maxlength="500" placeholder="A2A·MCP·x402에 대해 어떤 생각을 하고 계신가요? #태그도 달아 보세요"></textarea>
+            <div class="row2">
+              <button class="x-pill" data-cproto="a2a">A2A</button><button class="x-pill" data-cproto="mcp">MCP</button><button class="x-pill" data-cproto="x402">x402</button>
+              <span class="x-stars" id="xStars" title="별점 (선택)"></span>
+              <span class="muted" id="xCount" style="font-size:13px">0/500</span>
+              <button class="x-post-btn" id="xPost" disabled>게시</button>
+            </div>
+          </div>
+        </div>
+        <div class="x-filters hidden" id="xActive"></div>
+        <div id="xFeed"></div>
+        <div class="x-more" id="xMore"></div>
+      </div>
+
+      <aside class="x-right">
+        <label class="x-search"><span>🔍</span><input id="xSearch" type="search" placeholder="의견 검색 (#태그, @계정, 단어)"></label>
+        <div class="x-box"><h3>지금 뜨는 이야기</h3><div id="xTrends"></div></div>
+        <div class="x-box"><h3>프로토콜별 분위기</h3><div class="x-mood" id="xMood"></div></div>
+        <div class="x-box"><h3>계정</h3><div id="xAccounts"></div></div>
+        <p class="muted" style="font-size:12px;padding:0 6px">에이전트 글은 이 시스템의 실제 수집·평가·호출 결과로 만들어집니다. 커뮤니티 글은 웹 조사에서 출처가 확인된 의견의 한국어 요약이며 원문 링크를 함께 보여 줍니다.</p>
+      </aside>
+    </div>
+  </section>
+
+
+  <section data-panel="visitors" class="hidden">
+    <div class="grid kpis" id="vKpis"></div>
+    <div class="grid two" style="margin-top:14px">
+      <div class="card">
+        <h2>에이전트 전용 프론트 <span class="sub">에이전트가 가장 먼저 읽는 곳</span></h2>
+        <div class="toc" id="vLinks"></div>
+        <p class="muted" style="font-size:13px;margin-top:10px">모든 곳에서 "FOR AI AGENTS ONLY"를 먼저 밝히고 바로 인사합니다. 기획안: AGENT_FRONT.md</p>
+      </div>
+      <div class="card">
+        <h2>에이전트 입장에서 대화해 보기 <span class="sub">POST /chat · 테스트 방문자로 기록됨</span></h2>
+        <div class="chat-log" id="simLog"><p class="muted">아래에 메시지를 보내면 방문 에이전트가 받는 답을 그대로 볼 수 있어요.</p></div>
+        <div class="sugg" id="simSugg"></div>
+        <div class="sim-row"><input id="simText" placeholder="예: find an MCP server for web search / 주식 시세 API 찾아줘"><button class="btn primary" id="simSend">보내기</button><button class="btn" id="simReset" title="새 방문자로 다시 시작">새로</button></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <div class="filters">
+        <input id="vQ" placeholder="이름·ID·User-Agent 검색" style="min-width:220px">
+        <select id="vTier"><option value="">모든 등급</option><option value="regular">단골</option><option value="returning">재방문</option><option value="new">신규</option></select>
+        <button class="btn primary" id="vGo">검색</button>
+      </div>
+      <div class="scroll" id="vTable"></div>
+    </div>
+  </section>
+
+  <section data-panel="progress" class="hidden">
+    <div class="grid two">
+      <div class="card"><h2>수집 루프 <span class="sub">마지막 실행과 결과</span></h2><div class="scroll" id="loopTable"></div></div>
+      <div class="card"><h2>레지스트리 수집 <span class="sub">x402 Bazaar · MCP Registry</span></h2><div id="crawlNow"></div></div>
+    </div>
+    <div class="grid two" style="margin-top:14px">
+      <div class="card"><h2>ERC-8004 온체인 등록부 <span class="sub">체인별 진행</span></h2><div id="ercBox"></div></div>
+      <div class="card"><h2>헬스체크 대기열</h2><div id="queueBox"></div></div>
+    </div>
+    <div class="card" style="margin-top:14px"><h2>수집 기록 <span class="sub">최근 30회</span></h2><div class="scroll" id="crawlRuns"></div></div>
+  </section>
+
+  <section data-panel="agents" class="hidden">
+    <div class="card">
+      <div class="filters">
+        <input id="fQ" placeholder="이름·URL·설명 검색" style="min-width:220px">
+        <select id="fKind"><option value="">모든 종류</option><option>a2a</option><option>mcp</option><option>x402</option></select>
+        <select id="fStatus"><option value="">모든 상태</option><option>healthy</option><option>reachable</option><option>failing</option><option>down</option><option>retired</option><option>unknown</option></select>
+        <select id="fCategory"><option value="">모든 카테고리</option></select>
+        <select id="fGrade"><option value="">모든 등급</option><option>A</option><option>B</option><option>C</option><option>D</option><option>F</option></select>
+        <select id="fActive"><option value="1">활성</option><option value="0">비활성</option><option value="all">전체</option></select>
+        <select id="fSort"><option value="recent">최근 점검순</option><option value="failures">연속 실패순</option><option value="quality">품질 점수순</option><option value="popular">인기순</option><option value="new">새로 수집된 순</option><option value="name">이름순</option></select>
+        <button class="btn primary" id="fGo">검색</button>
+      </div>
+      <div class="scroll" id="agentTable"></div>
+      <div class="pager"><span class="muted" id="pageInfo"></span><button class="btn" id="prevPage">이전</button><button class="btn" id="nextPage">다음</button></div>
+    </div>
+  </section>
+
+  <section data-panel="errors" class="hidden">
+    <div class="row" style="margin-bottom:12px">
+      <span class="muted">기간</span>
+      <select id="errHours"><option value="1">최근 1시간</option><option value="6">6시간</option><option value="24">24시간</option><option value="168">7일</option></select>
+    </div>
+    <div class="grid two">
+      <div class="card"><h2>헬스체크 실패 원인</h2><div class="scroll" id="errHealth"></div></div>
+      <div class="card"><h2>실패가 많은 호스트 <span class="sub">현재 failing·down</span></h2><div class="scroll" id="errHosts"></div></div>
+    </div>
+    <div class="grid two" style="margin-top:14px">
+      <div class="card"><h2>ERC-8004 등록 파일 오류</h2><div class="scroll" id="errErc"></div></div>
+      <div class="card"><h2>도구 목록·인증 조사 오류</h2><div class="scroll" id="errSurvey"></div></div>
+    </div>
+    <div class="card" style="margin-top:14px"><h2>수집 실패</h2><div class="scroll" id="errCrawl"></div></div>
+    <div class="card" style="margin-top:14px"><h2>서버 로그 <span class="sub">경고·오류, 이 프로세스 시작 이후</span><span class="spacer"></span><button class="btn" id="clearLogs">비우기</button></h2><div class="scroll" id="errLogs"></div></div>
+  </section>
+
+  <section data-panel="needs" class="hidden">
+    <div class="card"><h2>고객 요청 <span class="sub">최근 50건</span></h2><div class="scroll" id="needsTable"></div></div>
+  </section>
+
+  <section data-panel="manage" class="hidden">
+    <div class="grid two">
+      <div class="card">
+        <h2>수집기 제어</h2>
+        <p class="muted">일시정지하면 수집·헬스체크·조사가 모두 멈춥니다. 수집 진행 위치는 저장되어 재개하면 이어서 진행합니다.</p>
+        <div class="row"><button class="btn" id="mPause">일시정지</button><button class="btn" id="mResume">재개</button></div>
+      </div>
+      <div class="card">
+        <h2>즉시 실행</h2>
+        <div class="row" style="margin-bottom:8px"><button class="btn" id="mCrawl">지금 레지스트리 수집</button><span class="muted">이미 수집 중이면 건너뜁니다</span></div>
+        <div class="row" style="margin-bottom:8px"><button class="btn" id="mRescan">고객 요청 재평가</button><span class="muted">더 좋은 에이전트를 찾아 재소개</span></div>
+        <div class="row"><button class="btn" id="mErcRetry">ERC-8004 실패 재시도</button><span class="muted">받기 실패한 등록 파일을 지금 다시 받음</span></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:14px"><h2>작업 상태</h2><div id="actionBox" class="muted">아직 실행한 작업이 없습니다.</div></div>
+  </section>
+</main>
+
+<div id="drawer" class="hidden"></div>
+<div id="toast" class="hidden"></div>
+<div id="xModal" class="hidden"></div>
+
+<script>
+"use strict";
+const KIND_ORDER = ["a2a", "mcp", "x402"];  // 화면 표시 순서
+const $ = (id) => document.getElementById(id);
+const state = { tab: "overview", overview: null, offset: 0, limit: 50, total: 0, timer: null };
+let token = "";
+try { token = sessionStorage.getItem("adminToken") || ""; } catch (e) {}
+
+// ---------- 공통 ----------
+function esc(v) {
+  return String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function safeUrl(u) { return /^https?:\/\//i.test(String(u || "")) ? String(u) : null; }
+function link(u, label) {
+  const s = safeUrl(u);
+  return s ? `<a href="${esc(s)}" target="_blank" rel="noopener noreferrer">${esc(label ?? u)}</a>` : esc(label ?? u ?? "");
+}
+const fmt = (n) => (n === null || n === undefined) ? "–" : Number(n).toLocaleString("ko-KR");
+const pct = (a, b) => b ? (100 * a / b).toFixed(1) + "%" : "–";
+function ago(ts) {
+  if (!ts) return "–";
+  const s = Math.max(0, Date.now() / 1000 - ts);
+  if (s < 60) return Math.round(s) + "초 전";
+  if (s < 3600) return Math.round(s / 60) + "분 전";
+  if (s < 86400) return (s / 3600).toFixed(1) + "시간 전";
+  return (s / 86400).toFixed(1) + "일 전";
+}
+function dur(sec) {
+  if (sec === null || sec === undefined) return "–";
+  if (sec < 60) return Math.round(sec) + "초";
+  if (sec < 3600) return Math.round(sec / 60) + "분";
+  return (sec / 3600).toFixed(1) + "시간";
+}
+const when = (ts) => ts ? new Date(ts * 1000).toLocaleString("ko-KR", { hour12: false }) : "–";
+const statusCls = (s) => "s-" + esc(s || "unknown");
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.remove("hidden"); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.add("hidden"), 3000); }
+function table(cols, rows, opts = {}) {
+  if (!rows.length) return `<p class="muted">${esc(opts.empty || "없음")}</p>`;
+  const head = cols.map((c) => `<th class="${c.num ? "num" : ""}">${esc(c.label)}</th>`).join("");
+  const body = rows.map((r, i) => `<tr ${opts.rowAttr ? opts.rowAttr(r, i) : ""}>` +
+    cols.map((c) => `<td class="${c.num ? "num" : ""} ${c.cls || ""}">${c.html ? c.html(r) : esc(c.get ? c.get(r) : r[c.key])}</td>`).join("") + "</tr>").join("");
+  return `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
+async function api(path, opts = {}) {
+  const headers = { "X-Dashboard": "1" };
+  if (token) headers["Authorization"] = "Bearer " + token;
+  if (opts.json !== undefined) { headers["Content-Type"] = "application/json"; opts = { ...opts, body: JSON.stringify(opts.json) }; delete opts.json; }
+  const resp = await fetch(path, { ...opts, headers });
+  if (resp.status === 401 || resp.status === 403) {
+    const body = await resp.json().catch(() => ({}));
+    showAuth(body.detail || "인증이 필요합니다.");
+    throw new Error("unauthorized");
+  }
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}));
+    throw new Error(body.detail || body.error || ("HTTP " + resp.status));
+  }
+  return resp.json();
+}
+function showAuth(msg) {
+  $("authBox").classList.remove("hidden");
+  $("authMsg").textContent = msg;
+  document.querySelectorAll("section[data-panel]").forEach((s) => s.classList.add("hidden"));
+}
+$("tokenBtn").onclick = () => {
+  token = $("tokenInput").value.trim();
+  try { sessionStorage.setItem("adminToken", token); } catch (e) {}
+  $("authBox").classList.add("hidden");
+  switchTab(state.tab);
+};
+
+// ---------- 탭 ----------
+function switchTab(tab) {
+  state.tab = tab;
+  document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
+  document.querySelectorAll("section[data-panel]").forEach((s) => s.classList.toggle("hidden", s.dataset.panel !== tab));
+  try { history.replaceState(null, "", "#" + tab); } catch (e) {}
+  refresh();
+}
+$("tabs").onclick = (e) => { if (e.target.dataset.tab) switchTab(e.target.dataset.tab); };
+
+async function refresh(auto = false) {
+  try {
+    const ov = await api("/admin/api/overview");
+    state.overview = ov;
+    renderHeader(ov);
+    if (state.tab === "overview") { renderOverview(ov); loadTimeseries(); }
+    if (state.tab === "learn" && !auto) renderLearn();  // 읽는 중에 화면이 바뀌지 않게 자동 새로고침에서는 제외
+    if (state.tab === "explore" && !auto) loadExplore();
+    if (state.tab === "sns" && !auto) { loadSns(true); loadSnsSidebar().catch(() => {}); }  // 읽는 중에는 피드를 바꾸지 않음
+    if (state.tab === "visitors") loadVisitors();
+    if (state.tab === "progress") renderProgress(ov);
+    if (state.tab === "agents" && !auto) loadAgents();  // 자동 새로고침 때는 목록 순서가 바뀌지 않게 그대로 둠
+    if (state.tab === "errors") loadErrors();
+    if (state.tab === "needs") loadNeeds();
+    if (state.tab === "manage") renderActions(ov);
+    $("updatedAt").textContent = "갱신 " + new Date().toLocaleTimeString("ko-KR", { hour12: false });
+  } catch (e) {
+    if (e.message !== "unauthorized") { const b = $("globalBanner"); b.className = "banner bad"; b.textContent = "서버에 연결할 수 없습니다: " + e.message; }
+  }
+}
+function schedule() {
+  clearInterval(state.timer);
+  if ($("autoRefresh").checked) state.timer = setInterval(() => { if (!document.hidden && $("drawer").classList.contains("hidden")) refresh(true); }, 10000);
+}
+$("autoRefresh").onchange = schedule;
+$("refreshBtn").onclick = () => refresh();
+
+// ---------- 헤더 ----------
+function totals(ov) {
+  const t = { all: 0, byKind: {}, byStatus: {}, inactive: 0 };
+  for (const r of ov.resources) {
+    if (!r.active) { t.inactive += r.n; continue; }
+    if (r.status === "retired") { t.byStatus.retired = (t.byStatus.retired || 0) + r.n; continue; }
+    t.all += r.n;
+    t.byKind[r.kind] = (t.byKind[r.kind] || 0) + r.n;
+    t.byStatus[r.status] = (t.byStatus[r.status] || 0) + r.n;
+  }
+  return t;
+}
+function renderHeader(ov) {
+  const pill = $("collectorPill"), c = ov.collector;
+  const banner = $("globalBanner");
+  let cls = "ok", text = "수집 중";
+  const dead = c ? c.threads.filter((t) => !t.alive).map((t) => t.name) : [];
+  if (!c) { cls = ""; text = "수집기 없음"; }
+  else if (c.paused) { cls = "warn"; text = "일시정지됨"; }
+  else if (dead.length) { cls = "bad"; text = "루프 중단: " + dead.length; }
+  pill.innerHTML = `<span class="dot ${cls}"></span><span>${esc(text)}</span>`;
+  $("pauseBtn").textContent = c && c.paused ? "재개" : "일시정지";
+  $("pauseBtn").disabled = !c;
+  const msgs = [];
+  if (dead.length) msgs.push("멈춘 수집 루프: " + dead.join(", ") + " — 서버 로그를 확인하고 게이트웨이를 다시 시작하세요.");
+  if (c && c.paused) msgs.push("수집기가 일시정지 상태입니다. 상단 '재개' 버튼으로 다시 시작할 수 있습니다.");
+  banner.className = "banner " + (dead.length ? "bad" : "warn") + (msgs.length ? "" : " hidden");
+  banner.textContent = msgs.join(" ");
+}
+$("pauseBtn").onclick = async () => {
+  const paused = state.overview && state.overview.collector && state.overview.collector.paused;
+  await doAction(paused ? "/admin/api/actions/resume" : "/admin/api/actions/pause", paused ? "재개했습니다." : "일시정지했습니다.");
+};
+
+// ---------- 개요 ----------
+function kpi(label, value, note, level) {
+  return `<div class="card kpi ${level || ""}"><div class="label">${esc(label)}</div><div class="value">${esc(value)}</div><div class="note">${note || ""}</div></div>`;
+}
+function renderOverview(ov) {
+  const t = totals(ov), h = ov.health;
+  const pending = Object.values(ov.erc8004).reduce((a, c) => a + (c.statuses.pending || 0), 0);
+  const evaluated = ov.evaluation.grades.reduce((a, g) => a + g.n, 0);
+  const up = (t.byStatus.healthy || 0) + (t.byStatus.reachable || 0);
+  const quarantine = (ov.evaluation.security.find((s) => s.security === "quarantine") || {}).n || 0;
+  const rate5m = h.checks_5m / 5;
+  $("kpis").innerHTML = [
+    kpi("활성 에이전트", fmt(t.all), `A2A ${fmt(t.byKind.a2a)} · MCP ${fmt(t.byKind.mcp)} · x402 ${fmt(t.byKind.x402)}`),
+    kpi("서비스 가능", pct(up, t.all), `정상 ${fmt(t.byStatus.healthy)} · 응답 ${fmt(t.byStatus.reachable)}`),
+    kpi("장애", fmt((t.byStatus.failing || 0) + (t.byStatus.down || 0)), `failing ${fmt(t.byStatus.failing)} · down ${fmt(t.byStatus.down)} · retired ${fmt(t.byStatus.retired)}`,
+        (t.byStatus.down || 0) > t.all * 0.1 ? "caution" : ""),
+    kpi("최근 1시간 점검", fmt(h.checks_1h), `성공률 ${pct(h.ok_1h, h.checks_1h)} · 분당 ${fmt(Math.round(rate5m))}건`, h.checks_5m === 0 ? "alert" : ""),
+    kpi("1시간 넘게 밀린 점검", fmt(h.overdue_1h), `지금 점검 대상 ${fmt(h.due_now)} · 미점검 ${fmt(h.never_checked)}`, h.overdue_1h > t.all * 0.2 ? "caution" : ""),
+    kpi("ERC-8004 대기", fmt(pending), `well-known ${fmt(ov.wellknown.found)}/${fmt(ov.wellknown.checked)} 호스트 발견`),
+    kpi("품질 평가", fmt(evaluated), `24시간 ${fmt(ov.surveys.evaluations_24h)} · 격리 ${fmt(quarantine)}`, quarantine ? "caution" : ""),
+    kpi("고객 요청", fmt(Object.values(ov.needs).reduce((a, b) => a + b, 0)), `활성 ${fmt(ov.needs.active || 0)} · 대기 ${fmt(ov.needs.watching || 0)} · 정책 ${esc(ov.policy || "–")}`),
+  ].join("");
+
+  const order = ["healthy", "reachable", "unknown", "failing", "down"];
+  const color = { healthy: "var(--ok)", reachable: "var(--reach)", unknown: "var(--idle)", failing: "var(--warn)", down: "var(--bad)" };
+  const per = {};
+  for (const r of ov.resources) if (r.active && r.status !== "retired") (per[r.kind] = per[r.kind] || {})[r.status] = r.n;
+  $("kindStatus").innerHTML = KIND_ORDER.map((k) => {
+    const s = per[k] || {}; const total = Object.values(s).reduce((a, b) => a + b, 0) || 1;
+    return `<div style="margin-bottom:12px"><div class="row" style="justify-content:space-between"><b>${k.toUpperCase()}</b><span class="muted">${fmt(total)}</span></div>
+      <div class="stack">${order.map((st) => s[st] ? `<span title="${st} ${fmt(s[st])}" style="width:${100 * s[st] / total}%;background:${color[st]}"></span>` : "").join("")}</div>
+      <div class="legend">${order.filter((st) => s[st]).map((st) => `<span><i style="background:${color[st]}"></i>${st} ${fmt(s[st])}</span>`).join("")}</div></div>`;
+  }).join("");
+
+  const cats = {};
+  for (const r of ov.categories) { const c = (cats[r.category] = cats[r.category] || { category: r.category, x402: 0, mcp: 0, a2a: 0, total: 0 }); c[r.kind] = r.n; c.total += r.n; }
+  const catRows = Object.values(cats).sort((a, b) => b.total - a.total);
+  $("categoryTable").innerHTML = table([
+    { label: "카테고리", key: "category" }, { label: "합계", key: "total", num: true, get: (r) => fmt(r.total) },
+    { label: "A2A", num: true, get: (r) => fmt(r.a2a) }, { label: "MCP", num: true, get: (r) => fmt(r.mcp) }, { label: "x402", num: true, get: (r) => fmt(r.x402) },
+  ], catRows);
+  const sel = $("fCategory");
+  if (sel.options.length <= 1) catRows.forEach((c) => sel.add(new Option(c.category, c.category)));
+
+  const grades = {};
+  for (const g of ov.evaluation.grades) (grades[g.kind] = grades[g.kind] || {})[g.grade] = g.n;
+  const gColor = { A: "var(--ok)", B: "var(--reach)", C: "var(--warn)", D: "var(--bad)", F: "var(--bad)", static: "var(--idle)" };
+  $("gradeBox").innerHTML = KIND_ORDER.filter((k) => grades[k]).map((k) => [k, grades[k]]).map(([kind, g]) => {
+    const total = Object.values(g).reduce((a, b) => a + b, 0) || 1;
+    const keys = ["A", "B", "C", "D", "F", "static"].filter((k) => g[k]);
+    return `<div style="margin-bottom:12px"><div class="row" style="justify-content:space-between"><b>${esc(kind.toUpperCase())}</b><span class="muted">${fmt(total)}개 평가</span></div>
+      <div class="stack">${keys.map((k) => `<span title="${k} ${fmt(g[k])}" style="width:${100 * g[k] / total}%;background:${gColor[k]}"></span>`).join("")}</div>
+      <div class="legend">${keys.map((k) => `<span><i style="background:${gColor[k]}"></i>${k === "static" ? "정적 점수만" : k + "등급"} ${fmt(g[k])}</span>`).join("")}</div></div>`;
+  }).join("") + `<p class="muted">보안: ${ov.evaluation.security.map((s) => `${esc(s.security || "미상")} ${fmt(s.n)}`).join(" · ")}<br>
+    사용 안내 ${fmt(ov.surveys.usage_guides)} · 실제 호출 성공 ${fmt(ov.surveys.verified_working)} · 실패 ${fmt(ov.surveys.trial_failed)}</p>`;
+}
+
+async function loadTimeseries() {
+  const ts = await api("/admin/api/timeseries?hours=" + $("tsHours").value);
+  const pts = ts.points;
+  $("tsInfo").textContent = `구간 ${dur(ts.bucket_seconds)}`;
+  if (!pts.length) { $("tsChart").innerHTML = `<p class="muted">기록 없음</p>`; return; }
+  const W = 640, H = 200, P = { l: 44, r: 8, t: 8, b: 22 };
+  const max = Math.max(...pts.map((p) => p.healthy + p.reachable + p.fail), 1);
+  const n = Math.max(1, Math.round((Date.now() / 1000 - ts.start) / ts.bucket_seconds));
+  const bw = (W - P.l - P.r) / n;
+  const y = (v) => H - P.b - (H - P.t - P.b) * v / max;
+  let bars = "";
+  for (const p of pts) {
+    const x = P.l + ((p.t - ts.start) / ts.bucket_seconds) * bw;
+    let base = 0;
+    for (const [k, c] of [["healthy", "var(--ok)"], ["reachable", "var(--reach)"], ["fail", "var(--bad)"]]) {
+      if (!p[k]) continue;
+      bars += `<rect x="${x.toFixed(1)}" y="${y(base + p[k]).toFixed(1)}" width="${Math.max(1, bw - 1).toFixed(1)}" height="${(y(base) - y(base + p[k])).toFixed(1)}" fill="${c}"><title>${when(p.t)} ${k} ${p[k]}</title></rect>`;
+      base += p[k];
+    }
+  }
+  const ticks = [0, 0.5, 1].map((f) => `<text x="${P.l - 6}" y="${y(max * f) + 4}" text-anchor="end">${fmt(Math.round(max * f))}</text><line x1="${P.l}" x2="${W - P.r}" y1="${y(max * f)}" y2="${y(max * f)}" stroke="var(--line)"/>`).join("");
+  const labels = [0, 0.5, 1].map((f) => { const t = ts.start + f * n * ts.bucket_seconds; return `<text x="${P.l + f * (W - P.l - P.r)}" y="${H - 6}" text-anchor="${f === 0 ? "start" : f === 1 ? "end" : "middle"}">${new Date(t * 1000).toLocaleString("ko-KR", { hour12: false, month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}</text>`; }).join("");
+  $("tsChart").innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="헬스체크 처리량">${ticks}${bars}${labels}</svg>`;
+}
+$("tsHours").onchange = loadTimeseries;
+
+// ---------- 수집 진행 ----------
+const LOOPS = [
+  ["last_health_batch", "헬스체크", 120], ["last_capabilities_batch", "MCP 도구 목록·사용 검증", 900],
+  ["last_auth_batch", "MCP 인증 방법 조사", 3600], ["last_agents_batch", "A2A 에이전트 조사", 900],
+  ["last_erc8004_scan", "ERC-8004 목록 읽기", 600], ["last_agent_discovery", "등록 파일·well-known 탐색", 900],
+  ["last_rescan", "고객 요청 재평가", 3600],
+];
+function summarize(o) {
+  if (!o) return "";
+  return Object.entries(o).filter(([k]) => k !== "at").map(([k, v]) =>
+    typeof v === "object" && v !== null ? `${k}{${summarize(v)}}` : `${k}=${typeof v === "number" ? fmt(v) : v}`).join(" ");
+}
+function renderProgress(ov) {
+  $("loopTable").innerHTML = table([
+    { label: "작업", cls: "nw", get: (r) => r[1] },
+    { label: "마지막 실행", cls: "nw", html: (r) => { const m = ov.loops[r[0]]; const stale = !m || (Date.now() / 1000 - m.at > r[2]);
+        return `<span class="${stale && !(ov.collector && ov.collector.paused) ? "loop-stale" : ""}">${esc(m ? ago(m.at) : "기록 없음")}</span>`; } },
+    { label: "결과", html: (r) => `<span class="mono">${esc(summarize(ov.loops[r[0]]).slice(0, 220))}</span>` },
+  ], LOOPS);
+
+  const prog = ov.crawl.in_progress, last = ov.crawl.last;
+  const srcs = ["x402-bazaar", "mcp-registry"];
+  $("crawlNow").innerHTML = srcs.map((s) => {
+    const p = prog[s];
+    if (p) return `<div style="margin-bottom:10px"><b>${s}</b> <span class="chip">진행 중 · ${esc(p.mode)}</span>
+      <div class="muted">시작 ${ago(p.started)} · ${fmt(p.pages)}페이지 · 확인 ${fmt(p.seen)} · 새로 ${fmt(p.new)} · 변경 ${fmt(p.changed)} · 그대로 ${fmt(p.unchanged)}</div></div>`;
+    const r = last && last.report && last.report[s];
+    return `<div style="margin-bottom:10px"><b>${s}</b> <span class="chip">대기</span>
+      <div class="muted">${r ? `마지막 ${esc(r.mode || "")} ${r.ok === false ? "실패" : r.interrupted ? "중단(이어서 진행)" : "완료"} · ${fmt(r.seen)}개 · 새로 ${fmt(r.new)} · 변경 ${fmt(r.changed)} · ${dur(r.seconds)}` : "기록 없음"}</div></div>`;
+  }).join("") + `<p class="muted">마지막 바퀴 완료: ${last ? ago(last.at) : "–"}</p>`;
+
+  const st = ["resolved", "pending", "deferred", "error", "no_service", "empty"];
+  const color = { resolved: "var(--ok)", pending: "var(--reach)", deferred: "var(--warn)", error: "var(--bad)", no_service: "var(--idle)", empty: "var(--chip)" };
+  const label = { resolved: "엔드포인트 확인", pending: "받기 대기", deferred: "보류(빈 등록만 있는 호스트)", error: "오류(재시도 예정)", no_service: "엔드포인트 없음", empty: "URI 없음" };
+  $("ercBox").innerHTML = Object.entries(ov.erc8004).map(([chain, c]) => {
+    const total = Object.values(c.statuses).reduce((a, b) => a + b, 0) || 1;
+    return `<div style="margin-bottom:12px"><div class="row" style="justify-content:space-between"><b>${esc(chain)}</b>
+      <span class="muted">읽은 ID ${fmt(total)} · 다음 ID ${fmt(c.next_id)}${c.rescan_cursor ? " · 재확인 위치 " + fmt(c.rescan_cursor) : ""}</span></div>
+      <div class="stack">${st.map((k) => c.statuses[k] ? `<span title="${label[k]} ${fmt(c.statuses[k])}" style="width:${100 * c.statuses[k] / total}%;background:${color[k]}"></span>` : "").join("")}</div>
+      <div class="legend">${st.filter((k) => c.statuses[k]).map((k) => `<span><i style="background:${color[k]}"></i>${label[k]} ${fmt(c.statuses[k])}</span>`).join("")}</div></div>`;
+  }).join("") || `<p class="muted">ERC-8004 수집이 꺼져 있습니다.</p>`;
+
+  const h = ov.health, t = totals(ov);
+  const perMin = h.checks_5m / 5, needPerMin = t.all / 60;
+  const eta = perMin > needPerMin ? h.overdue_1h / (perMin - needPerMin) * 60 : null;
+  $("queueBox").innerHTML = `<dl class="kv">
+    <dt>지금 점검 대상</dt><dd>${fmt(h.due_now)}</dd>
+    <dt>1시간 넘게 밀림</dt><dd>${fmt(h.overdue_1h)}</dd>
+    <dt>한 번도 점검 안 함</dt><dd>${fmt(h.never_checked)}</dd>
+    <dt>처리 속도</dt><dd>분당 ${fmt(Math.round(perMin))}건 (최근 5분)</dd>
+    <dt>필요 속도</dt><dd>분당 약 ${fmt(Math.round(needPerMin))}건 (활성 ${fmt(t.all)}개를 매시간)</dd>
+    <dt>밀린 점검 해소</dt><dd>${h.overdue_1h === 0 ? "밀린 점검 없음" : eta === null ? '<span class="loop-stale">처리 속도가 필요 속도보다 느려 줄지 않습니다</span>' : "약 " + dur(eta) + " 예상"}</dd>
+  </dl>`;
+
+  $("crawlRuns").innerHTML = table([
+    { label: "시각", cls: "nw", get: (r) => when(r.at) }, { label: "출처", key: "source" }, { label: "모드", key: "mode" },
+    { label: "결과", html: (r) => r.ok ? '<span class="s-healthy">성공</span>' : '<span class="s-down">실패</span>' },
+    { label: "페이지", num: true, get: (r) => fmt(r.pages) }, { label: "확인", num: true, get: (r) => fmt(r.seen) },
+    { label: "새로", num: true, get: (r) => fmt(r.new) }, { label: "변경", num: true, get: (r) => fmt(r.changed) },
+    { label: "비활성화", num: true, get: (r) => fmt(r.deactivated) }, { label: "소요", num: true, get: (r) => dur(r.seconds) },
+    { label: "오류", cls: "trunc", get: (r) => r.error || "" },
+  ], ov.crawl.runs, { empty: "수집 기록 없음" });
+}
+
+// ---------- 에이전트 ----------
+function agentQuery() {
+  const p = new URLSearchParams();
+  const v = { q: $("fQ").value.trim(), kind: $("fKind").value, status: $("fStatus").value, category: $("fCategory").value,
+              grade: $("fGrade").value, active: $("fActive").value, sort: $("fSort").value, offset: state.offset, limit: state.limit };
+  for (const [k, x] of Object.entries(v)) if (x !== "") p.set(k, x);
+  return p.toString();
+}
+async function loadAgents() {
+  const data = await api("/admin/api/agents?" + agentQuery());
+  state.total = data.total;
+  $("agentTable").innerHTML = table([
+    { label: "ID", num: true, key: "id" },
+    { label: "종류", html: (r) => kindBadge(r.kind) },
+    { label: "이름", cls: "trunc", html: (r) => `<b>${esc(r.name)}</b><div class="muted trunc mono">${esc(r.url)}</div>` },
+    { label: "카테고리", key: "category" },
+    { label: "상태", html: (r) => `<span class="${statusCls(r.health_status)}">${esc(r.health_status)}</span>${r.consecutive_failures ? ` <span class="muted">×${r.consecutive_failures}</span>` : ""}${r.active ? "" : ' <span class="chip">비활성</span>'}` },
+    { label: "24h 가동", num: true, get: (r) => r.health_n_24h ? pct(r.health_ok_24h, r.health_n_24h) : "–" },
+    { label: "응답", num: true, get: (r) => r.probe_latency_ms ? r.probe_latency_ms + "ms" : "–" },
+    { label: "등급", html: (r) => r.eval_grade ? `<b>${esc(r.eval_grade)}</b> <span class="muted">${Math.round(r.eval_score)}</span>${r.eval_security && r.eval_security !== "ok" ? ` <span class="chip">${esc(r.eval_security)}</span>` : ""}` : "–" },
+    { label: "마지막 점검", cls: "nw", get: (r) => ago(r.last_check_at) },
+    { label: "마지막 오류", cls: "trunc muted", get: (r) => r.last_error || "" },
+  ], data.items, { rowAttr: (r) => `class="click" data-id="${r.id}"`, empty: "조건에 맞는 에이전트가 없습니다." });
+  const end = Math.min(state.offset + state.limit, data.total);
+  $("pageInfo").textContent = data.total ? `${fmt(state.offset + 1)}–${fmt(end)} / ${fmt(data.total)}` : "";
+  $("prevPage").disabled = state.offset === 0;
+  $("nextPage").disabled = end >= data.total;
+}
+$("agentTable").onclick = (e) => { const tr = e.target.closest("tr[data-id]"); if (tr) openAgent(tr.dataset.id); };
+$("fGo").onclick = () => { state.offset = 0; loadAgents(); };
+$("fQ").onkeydown = (e) => { if (e.key === "Enter") { state.offset = 0; loadAgents(); } };
+["fKind", "fStatus", "fCategory", "fGrade", "fActive", "fSort"].forEach((id) => $(id).onchange = () => { state.offset = 0; loadAgents(); });
+$("prevPage").onclick = () => { state.offset = Math.max(0, state.offset - state.limit); loadAgents(); };
+$("nextPage").onclick = () => { state.offset += state.limit; loadAgents(); };
+
+async function openAgent(id) {
+  const d = $("drawer");
+  d.classList.remove("hidden");
+  d.innerHTML = `<p class="muted">불러오는 중…</p>`;
+  const { agent: a, history } = await api("/admin/api/agents/" + encodeURIComponent(id));
+  const ev = a.eval_info || {};
+  const dims = ev.dimensions ? Object.entries(ev.dimensions).map(([k, v]) => `${esc(k)} ${typeof v === "number" ? v.toFixed(2) : esc(JSON.stringify(v))}`).join(" · ") : "";
+  d.innerHTML = `
+    <div class="row" style="justify-content:space-between"><span class="chip">${esc(a.kind)} · ${esc(a.source)}</span><button class="btn" id="closeDrawer">닫기</button></div>
+    <h3 style="margin-top:10px">${esc(a.name)}</h3>
+    <div class="mono">${link(a.url)}</div>
+    <p>${esc(a.description)}</p>
+    <div class="row">
+      <button class="btn primary" id="aCheck">지금 점검</button>
+      ${a.active ? `<button class="btn danger" id="aDeactivate">비활성화</button>` : `<button class="btn" id="aActivate">다시 활성화</button>`}
+      ${a.health_status === "retired" && a.active ? `<button class="btn" id="aActivate">retired 복구</button>` : ""}
+    </div>
+    <dl class="kv">
+      <dt>상태</dt><dd><span class="${statusCls(a.health_status)}">${esc(a.health_status)}</span> · 연속 실패 ${fmt(a.consecutive_failures)}${a.failing_since ? " · 실패 시작 " + when(a.failing_since) : ""}</dd>
+      <dt>마지막 점검</dt><dd>${when(a.last_check_at)} (${ago(a.last_check_at)}) · 다음 ${when(a.next_check_at)}</dd>
+      <dt>마지막 정상</dt><dd>${when(a.last_ok_at)}</dd>
+      <dt>마지막 오류</dt><dd class="mono">${esc(a.last_error || "–")} ${a.last_status_code ? "(HTTP " + esc(a.last_status_code) + ")" : ""}</dd>
+      <dt>24시간 가동률</dt><dd>${a.health_n_24h ? pct(a.health_ok_24h, a.health_n_24h) + ` (${a.health_ok_24h}/${a.health_n_24h})` : "–"}</dd>
+      <dt>카테고리</dt><dd>${esc(a.category)}</dd>
+      <dt>가격</dt><dd>${a.price_usdc === null ? "–" : (a.price_usdc / 1e6) + " USDC"} ${a.pay_to ? `<span class="mono">${esc(a.pay_to)}</span>` : ""}</dd>
+      <dt>인증</dt><dd>${esc(a.auth_method || "–")} · ${esc(a.auth_autonomy || "–")}${a.auth_error ? ` · <span class="s-failing">${esc(a.auth_error)}</span>` : ""}</dd>
+      <dt>도구 수</dt><dd>${fmt(a.cap_tool_count)}${a.cap_error ? ` · <span class="s-failing">${esc(a.cap_error)}</span>` : ""}</dd>
+      <dt>실제 호출 검증</dt><dd>${a.trial_ok === null ? "–" : a.trial_ok ? '<span class="s-healthy">성공</span>' : '<span class="s-down">실패</span>'}</dd>
+      <dt>품질 평가</dt><dd>${a.eval_grade ? `<b>${esc(a.eval_grade)}</b> ${Math.round(a.eval_score)}점 · 보안 ${esc(a.eval_security)} · ${esc(a.eval_coverage)}` : "–"}${dims ? `<div class="muted">${dims}</div>` : ""}</dd>
+      <dt>수집</dt><dd>처음 ${when(a.first_seen)} · 최근 확인 ${when(a.last_seen)}</dd>
+    </dl>
+    ${(ev.findings || []).length ? `<h4>평가 발견 사항</h4>` + table([{ label: "심각도", key: "severity" }, { label: "코드", key: "code" }, { label: "도구", key: "tool" }, { label: "내용", key: "message" }], ev.findings.slice(0, 15)) : ""}
+    <h4>점검 기록 <span class="muted">최근 50건</span></h4>
+    ${table([{ label: "시각", get: (r) => when(r.at) }, { label: "결과", html: (r) => `<span class="${statusCls(r.outcome === "fail" ? "down" : r.outcome)}">${esc(r.outcome)}</span>` },
+             { label: "HTTP", num: true, key: "status_code" }, { label: "응답", num: true, get: (r) => r.latency_ms ? r.latency_ms + "ms" : "–" },
+             { label: "오류", cls: "trunc mono", get: (r) => r.error || "" }], history, { empty: "점검 기록 없음" })}
+    <h4>상세 정보</h4><pre>${esc(JSON.stringify(a.details, null, 2))}</pre>`;
+  $("closeDrawer").onclick = () => d.classList.add("hidden");
+  $("aCheck").onclick = async () => { const r = await doAction(`/admin/api/agents/${a.id}/check`, null); if (r) { toast("점검 결과: " + (r.status || JSON.stringify(r))); openAgent(a.id); } };
+  if ($("aDeactivate")) $("aDeactivate").onclick = async () => { if (confirm("이 에이전트를 비활성화할까요? 추천과 점검에서 빠집니다.")) { await doAction(`/admin/api/agents/${a.id}/deactivate`, "비활성화했습니다."); openAgent(a.id); loadAgents(); } };
+  if ($("aActivate")) $("aActivate").onclick = async () => { await doAction(`/admin/api/agents/${a.id}/activate`, "다시 활성화했습니다. 곧 점검합니다."); openAgent(a.id); loadAgents(); };
+}
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("drawer").classList.add("hidden"); });
+
+// ---------- 에러 ----------
+async function loadErrors() {
+  const e = await api("/admin/api/errors?hours=" + $("errHours").value);
+  $("errHealth").innerHTML = table([
+    { label: "원인", cls: "mono", get: (r) => r.error }, { label: "건수", num: true, get: (r) => fmt(r.n) },
+    { label: "에이전트", num: true, get: (r) => fmt(r.agents) }, { label: "마지막", cls: "nw", get: (r) => ago(r.last_at) },
+    { label: "예", cls: "trunc mono", html: (r) => link(r.sample_url) },
+  ], e.health, { empty: "이 기간에 실패한 점검이 없습니다." });
+  $("errHosts").innerHTML = table([
+    { label: "호스트", cls: "mono", get: (r) => r.host }, { label: "장애 수", num: true, get: (r) => fmt(r.n) },
+    { label: "down", num: true, get: (r) => fmt(r.down) }, { label: "오류 예", cls: "trunc mono muted", get: (r) => r.sample_error || "" },
+  ], e.failing_hosts);
+  $("errErc").innerHTML = table([
+    { label: "오류", cls: "mono", get: (r) => r.error }, { label: "상태", get: (r) => r.status === "error" ? "재시도 예정" : "포기(3회 실패 등)" },
+    { label: "건수", num: true, get: (r) => fmt(r.n) },
+  ], e.erc8004);
+  $("errSurvey").innerHTML = "<b>도구 목록 조사</b>" + table([{ label: "오류", cls: "mono", get: (r) => r.error }, { label: "건수", num: true, get: (r) => fmt(r.n) }], e.capabilities) +
+    "<b style='display:block;margin-top:10px'>인증 방법 조사</b>" + table([{ label: "오류", cls: "mono", get: (r) => r.error }, { label: "건수", num: true, get: (r) => fmt(r.n) }], e.auth);
+  $("errCrawl").innerHTML = table([
+    { label: "시각", get: (r) => when(r.at) }, { label: "출처", key: "source" }, { label: "소요", num: true, get: (r) => dur(r.seconds) },
+    { label: "오류", cls: "mono", get: (r) => r.error || "" },
+  ], e.crawl_failures, { empty: "수집 실패 기록이 없습니다." });
+  $("errLogs").innerHTML = table([
+    { label: "시각", get: (r) => when(r.at) }, { label: "수준", html: (r) => `<span class="${r.level === "WARNING" ? "s-failing" : "s-down"}">${esc(r.level)}</span>` },
+    { label: "모듈", cls: "mono muted", key: "logger" }, { label: "내용", html: (r) => `<pre style="margin:0;max-height:160px;white-space:pre-wrap">${esc(r.message)}</pre>` },
+  ], e.logs, { empty: "경고·오류 로그가 없습니다." });
+}
+$("errHours").onchange = loadErrors;
+$("clearLogs").onclick = async () => { await doAction("/admin/api/logs/clear", "로그를 비웠습니다."); loadErrors(); };
+
+// ---------- 고객 요청 ----------
+async function loadNeeds() {
+  const d = await api("/admin/api/needs");
+  $("needsTable").innerHTML = table([
+    { label: "생성", get: (r) => when(r.created) }, { label: "상태", key: "status" }, { label: "카테고리", key: "category" },
+    { label: "작업", cls: "trunc", get: (r) => r.task }, { label: "소개 중인 에이전트", cls: "trunc", html: (r) => r.current_url ? link(r.current_url, r.current_name) : "–" },
+    { label: "점수", num: true, get: (r) => r.current_score ? r.current_score.toFixed(3) : "–" }, { label: "제안", num: true, get: (r) => fmt(r.offers) },
+    { label: "마지막 재평가", get: (r) => ago(r.rescanned_at) }, { label: "클라이언트", cls: "mono muted", get: (r) => r.client.slice(0, 10) + "…" },
+  ], d.items, { empty: "아직 고객 요청이 없습니다." });
+}
+
+// ---------- 관리 ----------
+async function doAction(path, okMsg) {
+  try {
+    const r = await api(path, { method: "POST" });
+    if (okMsg) toast(r.started === false ? (r.reason || "실행하지 않았습니다.") : okMsg);
+    refresh();
+    return r;
+  } catch (e) { if (e.message !== "unauthorized") toast("실패: " + e.message); return null; }
+}
+$("mPause").onclick = () => doAction("/admin/api/actions/pause", "일시정지했습니다.");
+$("mResume").onclick = () => doAction("/admin/api/actions/resume", "재개했습니다.");
+$("mCrawl").onclick = () => doAction("/admin/api/actions/crawl", "레지스트리 수집을 시작했습니다.");
+$("mRescan").onclick = () => doAction("/admin/api/actions/rescan", "재평가를 시작했습니다.");
+$("mErcRetry").onclick = async () => { const r = await doAction("/admin/api/actions/erc8004-retry", null); if (r) toast(`${fmt(r.requeued)}건을 다시 받기 대기열에 넣었습니다.`); };
+function renderActions(ov) {
+  const names = { crawl: "레지스트리 수집", rescan: "고객 요청 재평가" };
+  const entries = Object.entries(ov.actions || {});
+  $("actionBox").innerHTML = entries.length ? table([
+    { label: "작업", get: (r) => names[r[0]] || r[0] },
+    { label: "상태", html: (r) => r[1].running ? '<span class="s-reachable">실행 중</span>' : r[1].error ? '<span class="s-down">실패</span>' : '<span class="s-healthy">완료</span>' },
+    { label: "시작", get: (r) => ago(r[1].started_at) }, { label: "끝", get: (r) => ago(r[1].finished_at) },
+    { label: "결과", cls: "mono", get: (r) => r[1].error || summarize(r[1].result).slice(0, 300) },
+  ], entries) : "아직 실행한 작업이 없습니다.";
+  const c = ov.collector;
+  $("mPause").disabled = !c || c.paused; $("mResume").disabled = !c || !c.paused;
+  $("mCrawl").disabled = !c;
+}
+
+// ---------- 알아보기 ----------
+const KIND = {
+  x402: { label: "x402 유료 API", short: "x402", tip: "호출할 때마다 USDC로 바로 결제하는 유료 API (HTTP 402)" },
+  mcp: { label: "MCP 서버", short: "MCP", tip: "AI 앱이 외부 도구·데이터에 연결하는 표준 서버 (Model Context Protocol)" },
+  a2a: { label: "A2A 에이전트", short: "A2A", tip: "다른 AI 에이전트에게 일을 맡기고 결과를 받는 표준 (Agent2Agent)" },
+};
+const kindBadge = (k) => `<span class="kind-badge k-${esc(k)}" title="${esc((KIND[k] || {}).tip || "")}">${esc((KIND[k] || {}).short || k)}</span>`;
+// 수집 초기에는 전부 "새로 발견"이라 의미가 없으므로, 전체의 절반 미만일 때만 보여 줌
+const newLabel = (s) => s.new_24h && s.new_24h < s.total / 2 ? `24시간 새로 ${fmt(s.new_24h)}` : s.new_7d && s.new_7d < s.total / 2 ? `7일간 새로 ${fmt(s.new_7d)}` : "";
+const usd = (micro) => micro === null || micro === undefined ? "–" : "$" + (micro / 1e6).toLocaleString("en-US", { maximumFractionDigits: 6 });
+
+const GUIDE = [
+  { id: "a2a", kind: "a2a", title: "A2A — 에이전트끼리 일을 맡기는 공용어", html: `
+    <p class="lead"><b>A2A(Agent2Agent)</b>는 서로 다른 회사·프레임워크로 만든 AI 에이전트가 <b>작업을 맡기고 결과를 주고받는</b> 표준 규약입니다.
+    Google이 2025년 4월 발표했고, 같은 해 Linux Foundation에 기증되어 여러 기업이 함께 발전시키고 있습니다.</p>
+    <div class="analogy">MCP가 에이전트가 <b>도구</b>를 쓰는 방법이라면, A2A는 에이전트가 <b>다른 전문가 에이전트에게 일을 외주</b>하는 방법입니다.
+    상대 에이전트가 안에서 어떤 모델·도구·메모리를 쓰는지는 몰라도 됩니다.</div>
+    <h4>핵심 개념</h4>
+    <ul>
+      <li><b>Agent Card</b> — 에이전트의 명함. <code>/.well-known/agent-card.json</code>에 이름, 할 수 있는 일(<b>Skill</b>), 접속 주소, 인증 방법을 공개</li>
+      <li><b>Task</b> — 맡긴 작업. 접수 → 진행 중 → (추가 입력 요청) → 완료·실패·취소로 상태가 바뀜. 오래 걸리는 일도 다룸</li>
+      <li><b>Message·Part</b> — 텍스트, 파일, 구조화된 데이터를 섞어 주고받음</li>
+      <li><b>Artifact</b> — 작업 결과물(보고서, 이미지, 데이터 등). 스트리밍·푸시 알림도 지원</li>
+    </ul>
+    <h4>어떻게 동작하나</h4>
+    <ol class="steps">
+      <li>Agent Card를 읽어 상대가 무엇을 할 수 있는지, 어디로 어떻게 접속하는지 확인합니다.</li>
+      <li><code>SendMessage</code>(v0.3은 <code>message/send</code>)로 일을 요청합니다.</li>
+      <li>짧은 일은 바로 답이 오고, 긴 일은 Task로 진행되며 <code>GetTask</code>로 상태를 확인합니다.</li>
+      <li>완료되면 Artifact로 결과를 받습니다. 중간에 상대가 추가 정보를 물어볼 수도 있습니다.</li>
+    </ol>
+    <div class="pros-cons">
+      <div><h4>좋은 점</h4><ul>
+        <li><b>벤더 중립</b> — 어떤 프레임워크로 만든 에이전트든 대화 가능</li>
+        <li><b>오래 걸리는 작업</b>과 <b>주고받는 대화</b>(추가 입력 요청)를 자연스럽게 처리</li>
+        <li>상대 내부를 몰라도 되어 <b>회사 간 협업</b>에 적합 (내부 구현 보호)</li>
+        <li>인증 방식을 card에 선언 — 표준 OAuth·API 키, x402 결제 확장도 가능</li>
+      </ul></div>
+      <div><h4>알아 둘 점</h4><ul>
+        <li>공식 공개 목록이 아직 없어 <b>찾기가 어려움</b> — 그래서 이 시스템이 온체인 등록부와 웹을 직접 탐색</li>
+        <li>card에 적힌 주소가 실제로 응답하지 않는 경우가 많음</li>
+        <li>버전(v0.3 / v1.0)마다 메서드 이름·필드가 달라 호환성 확인 필요</li>
+      </ul></div>
+    </div>
+    <h4>이 시스템은 이렇게 확인합니다</h4>
+    <p><b>ERC-8004 온체인 등록부</b>(Base·Ethereum·BSC)와 이미 아는 호스트의 <code>/.well-known/agent-card.json</code>에서 에이전트를 찾습니다.
+    없는 작업 ID로 <code>GetTask</code>를 보내 표준 오류(<code>-32001</code>)가 오면 살아 있다고 봅니다. 에이전트에게 일을 시키지 않는 가장 가벼운 확인입니다.
+    인증이 필요 없으면 구매·전송 같은 행동이 없는 <b>안전한 메시지 하나</b>를 보내 실제로 대답하는지 확인합니다.</p>
+    <h4>숫자로 보는 A2A</h4><div data-live="a2a"></div>
+    <div data-featured="a2a"></div>` },
+
+  { id: "mcp", kind: "mcp", title: "MCP — AI를 위한 USB-C", html: `
+    <p class="lead"><b>MCP(Model Context Protocol)</b>는 AI 앱이 외부 도구와 데이터에 연결하는 <b>표준 플러그</b>입니다.
+    Anthropic이 2024년 11월 공개했고, 지금은 주요 AI 회사와 개발 도구 대부분이 지원합니다.</p>
+    <div class="analogy">기기마다 충전기가 달랐던 시절을 USB-C가 정리했듯, MCP 서버를 <b>한 번 만들면</b> Claude·ChatGPT·Cursor·VS Code 같은
+    <b>모든 MCP 지원 앱에서 그대로</b> 쓸 수 있습니다.</div>
+    <h4>무엇을 제공하나</h4>
+    <ul>
+      <li><b>Tools(도구)</b> — AI가 실행하는 함수. 예: 날씨 조회, DB 질의, 이슈 생성</li>
+      <li><b>Resources(리소스)</b> — AI가 읽을 수 있는 데이터. 예: 파일, 문서, 테이블</li>
+      <li><b>Prompts(프롬프트)</b> — 자주 쓰는 작업 템플릿</li>
+    </ul>
+    <h4>어떻게 동작하나</h4>
+    <ol class="steps">
+      <li><code>initialize</code> — 앱과 서버가 버전과 지원 기능을 맞춥니다.</li>
+      <li><code>tools/list</code> — 서버가 도구 목록과 각 도구의 설명·입력 형식(JSON Schema)을 알려 줍니다.</li>
+      <li>AI 모델이 설명을 읽고, 필요한 도구와 인자를 <b>스스로</b> 고릅니다.</li>
+      <li><code>tools/call</code> — 도구를 실행하고 결과를 받아 답변에 씁니다. (JSON-RPC 2.0, 원격은 Streamable HTTP)</li>
+    </ol>
+    <div class="pros-cons">
+      <div><h4>좋은 점</h4><ul>
+        <li><b>한 번 만들고 어디서나</b> — 앱마다 따로 연동할 필요 없음</li>
+        <li>AI가 도구 설명을 읽고 <b>사용법을 스스로 파악</b></li>
+        <li>로그인이 필요하면 <b>표준 OAuth</b>로 처리, 공식 <b>MCP Registry</b>에서 검색 가능</li>
+        <li>대부분 <b>무료</b>로 공개 — 바로 붙여 써 볼 수 있음</li>
+      </ul></div>
+      <div><h4>알아 둘 점</h4><ul>
+        <li><b>도구 설명에 숨은 지시</b>(tool poisoning)로 AI를 조종하려는 공격이 있음</li>
+        <li>업데이트 후 정의가 몰래 바뀌는 <b>rug pull</b> 위험</li>
+        <li>도구가 많으면 설명만으로 <b>컨텍스트(토큰)를 많이 차지</b></li>
+        <li>상당수는 계정 로그인이 있어야 도구를 쓸 수 있음</li>
+      </ul></div>
+    </div>
+    <h4>이 시스템은 이렇게 확인합니다</h4>
+    <p>공식 MCP Registry에서 원격 서버를 모아 <code>initialize</code>로 살아 있는지 매시간 점검합니다. 하루 한 번 <code>tools/list</code>로 도구를 읽고,
+    <b>읽기 전용으로 보이는 안전한 도구 하나를 실제로 호출</b>해 사용 예제를 검증합니다. 도구 정의를 6개 축으로 채점하고(A~F 등급),
+    숨은 유니코드·하드코딩된 키 같은 확실한 위험 신호가 있으면 <b>격리</b>해 추천에서 뺍니다.</p>
+    <h4>숫자로 보는 MCP</h4><div data-live="mcp"></div>
+    <div data-featured="mcp"></div>` },
+
+  { id: "x402", kind: "x402", title: "x402 — 동전 넣고 쓰는 API", html: `
+    <p class="lead"><b>x402</b>는 웹의 오래된 상태 코드 <b>HTTP 402 Payment Required</b>를 되살려, API를 호출할 때마다
+    스테이블코인(<b>USDC</b>)으로 그 자리에서 결제하는 개방형 결제 프로토콜입니다. Coinbase가 2025년에 공개했고, 지금은 여러 회사가 함께 표준을 키우고 있습니다.</p>
+    <div class="analogy">비유하면 <b>자판기</b>입니다. 회원가입도, API 키도, 월 구독도 없이 "한 번 호출에 0.001달러"를 내고 바로 씁니다.
+    사람이 아니라 <b>AI 에이전트가 혼자 처음 보는 유료 API를 쓸 수 있게</b> 만든 것이 핵심입니다.</div>
+    <h4>어떻게 동작하나</h4>
+    <ol class="steps">
+      <li>에이전트가 평소처럼 API를 호출합니다.</li>
+      <li>서버가 <code>402</code>와 결제 조건을 돌려줍니다: 금액, 토큰(USDC), 네트워크(Base·Solana 등), 받는 지갑 주소.</li>
+      <li>에이전트가 자기 지갑으로 결제에 서명하고, 결제 정보를 헤더에 담아 같은 요청을 다시 보냅니다.</li>
+      <li>서버(또는 검증·정산을 대행하는 <b>facilitator</b>)가 결제를 확인하고 결과를 돌려줍니다. 보통 몇 초 안에 끝납니다.</li>
+    </ol>
+    <div class="pros-cons">
+      <div><h4>좋은 점</h4><ul>
+        <li><b>계정·API 키가 필요 없음</b> — 에이전트가 사람 도움 없이 바로 결제하고 사용</li>
+        <li><b>1센트 미만 소액 결제</b>가 현실적 — 수수료가 낮은 체인(L2)에서 정산</li>
+        <li>판매자는 가입·카드 가맹 없이 <b>지갑 주소 하나로 수익화</b>, 차지백 없음</li>
+        <li><b>Bazaar</b> 같은 공개 목록에 등록하면 에이전트가 검색해서 찾아옴</li>
+      </ul></div>
+      <div><h4>알아 둘 점</h4><ul>
+        <li>쓰는 쪽 지갑에 USDC가 있어야 하고, 1회·총액 <b>지출 한도</b>를 직접 관리해야 함</li>
+        <li>실제 자율 에이전트 거래는 아직 초기 단계 (조사 자료 기준 결제의 일부만 자율 에이전트로 추정)</li>
+        <li>나라에 따라 세무·규제 의무가 생길 수 있음</li>
+      </ul></div>
+    </div>
+    <h4>이 시스템은 이렇게 확인합니다</h4>
+    <p>Coinbase의 <b>x402 Bazaar</b>에서 목록을 모으고, 결제 없이 호출했을 때 <b>유효한 402 결제 조건</b>이 오면 "정상"으로 봅니다.
+    가격이 바뀌면 바로 반영하고, Bazaar가 알려 주는 <b>최근 30일 결제자 수</b>로 인기를 잽니다. 실제 결제는 하지 않습니다.</p>
+    <h4>숫자로 보는 x402</h4><div data-live="x402"></div>
+    <div data-featured="x402"></div>` },
+
+  { id: "compare", title: "한눈에 비교", html: `
+    <div class="scroll"><table>
+      <thead><tr><th></th><th>${kindBadge("a2a")} A2A</th><th>${kindBadge("mcp")} MCP</th><th>${kindBadge("x402")} x402</th></tr></thead>
+      <tbody>
+        <tr><th>한마디로</th><td>에이전트 ↔ 에이전트 협업</td><td>AI ↔ 도구·데이터 연결</td><td>API 호출당 결제</td></tr>
+        <tr><th>비유</th><td>전문가에게 외주</td><td>USB-C 포트</td><td>자판기</td></tr>
+        <tr><th>만든 곳</th><td>Google → Linux Foundation (2025)</td><td>Anthropic (2024)</td><td>Coinbase (2025)</td></tr>
+        <tr><th>통신</th><td>JSON-RPC·gRPC·HTTP+JSON</td><td>JSON-RPC 2.0 (Streamable HTTP·stdio)</td><td>일반 HTTP + 402 응답</td></tr>
+        <tr><th>찾는 곳</th><td>Agent Card, ERC-8004 등록부</td><td>공식 MCP Registry</td><td>x402 Bazaar</td></tr>
+        <tr><th>돈·인증</th><td>card에 선언 (OAuth·API 키·x402 확장)</td><td>대부분 무료, 필요 시 OAuth·API 키</td><td>USDC 건당 결제, 계정 불필요</td></tr>
+        <tr><th>잘 맞는 일</th><td>긴 작업, 여러 단계 위임, 회사 간 협업</td><td>앱에 기능 붙이기, 사내 시스템 연결</td><td>데이터 조회, 유료 AI 기능 단건 구매</td></tr>
+      </tbody>
+    </table></div>` },
+
+  { id: "together", title: "셋을 함께 쓰면", html: `
+    <p>세 표준은 경쟁 관계가 아니라 <b>층이 다릅니다</b>. 예를 들어 여행 계획 에이전트는 이렇게 일할 수 있습니다.</p>
+    <ol class="steps">
+      <li><b>A2A</b>로 항공권 전문 에이전트에게 "다음 주 도쿄 왕복 최저가"를 맡깁니다.</li>
+      <li>항공권 에이전트는 <b>MCP</b>로 날씨·지도·캘린더 도구를 써서 일정을 맞춥니다.</li>
+      <li>실시간 환율이나 좌석 데이터 같은 유료 API는 <b>x402</b>로 호출 한 번에 0.001달러씩 냅니다.</li>
+      <li>결과는 다시 A2A의 Artifact로 여행 계획 에이전트에게 돌아옵니다.</li>
+    </ol>
+    <p class="muted">이 시스템은 이 세 가지를 한곳에 모아, "이 일을 하려면 누구에게 맡기면 되나"에 답하는 <b>소개 서비스(게이트웨이)</b>의 바탕 데이터를 만듭니다.</p>` },
+
+  { id: "discovery", title: "에이전트는 어디서 찾나", html: `
+    <ul>
+      <li><b>x402 Bazaar</b> — Coinbase가 운영하는 x402 서비스 목록. 가격·결제 조건·최근 30일 호출 수가 함께 나옵니다.</li>
+      <li><b>MCP Registry</b> — MCP 공식 등록소. 서버 이름, 원격 주소, 필요한 인증 헤더, 저장소 정보를 공개합니다.</li>
+      <li><b>ERC-8004</b> — 이더리움 표준 "Trustless Agents". 에이전트의 <b>신원(NFT)·평판·검증</b>을 블록체인에 기록합니다.
+          등록 파일 안에 A2A·MCP 주소가 들어 있어, 누구나 키 없이 읽을 수 있습니다. 같은 주소의 등록부가 여러 체인에 있습니다.</li>
+      <li><b>well-known 탐색</b> — 웹사이트의 <code>/.well-known/agent-card.json</code>을 직접 확인합니다. 공개 A2A 에이전트를 찾는 가장 직접적인 방법입니다.</li>
+    </ul>` },
+
+  { id: "quality", title: "상태와 품질은 어떻게 매기나", html: `
+    <h4>헬스 상태</h4>
+    <ul>
+      <li><span class="s-healthy">healthy</span> — 프로토콜대로 정상 응답 (x402는 유효한 402, MCP는 initialize 성공, A2A는 card 열림)</li>
+      <li><span class="s-reachable">reachable</span> — 살아 있지만 확인이 끝까지 안 됨. 대부분 <b>로그인·키가 필요</b>한 경우</li>
+      <li><span class="s-failing">failing</span> — 1~2회 연속 실패. 15분 뒤 다시 확인하고 추천에서는 뺌</li>
+      <li><span class="s-down">down</span> — 3회 이상 연속 실패. 계속 확인하다가 회복하면 바로 복귀</li>
+      <li><span class="s-retired">retired</span> — 7일 넘게 실패. 점검과 추천에서 완전히 제외</li>
+    </ul>
+    <h4>품질 등급 (A ≥ 85, B ≥ 70, C ≥ 55, D ≥ 40, F)</h4>
+    <p>LLM 없이 규칙으로 6개 축을 채점합니다: <b>가용성</b> 25 · <b>도구 정의 품질</b> 20 · <b>보안</b> 20 · <b>컨텍스트 비용</b> 15 · <b>프로토콜 준수</b> 10 · <b>출처·유지보수</b> 10.
+    <b>커버리지</b>는 평가 범위입니다: <code>full</code>(정의+실제 호출), <code>definitions</code>(정의만), <code>static</code>(출처만, 로그인 필요 서버).
+    숨은 유니코드나 하드코딩된 키처럼 확실한 위험이 보이면 <b>격리(quarantine)</b>되어 추천에서 항상 빠집니다.</p>` },
+
+  { id: "glossary", title: "용어 사전", glossary: [
+    ["402 Payment Required", "\"결제가 필요합니다\"라는 HTTP 상태 코드. x402는 여기에 결제 조건을 담아 돌려줍니다."],
+    ["USDC", "미국 달러와 1:1로 움직이는 스테이블코인. 소수점 6자리 단위라 0.000001달러까지 표현합니다."],
+    ["Base", "Coinbase가 만든 이더리움 레이어2 체인. 수수료가 낮아 x402 소액 결제에 많이 씁니다."],
+    ["Facilitator", "x402 결제를 대신 검증·정산해 주는 서비스. 판매자는 블록체인을 직접 다루지 않아도 됩니다."],
+    ["x402 Bazaar", "x402 유료 API를 찾을 수 있는 공개 목록(디스커버리)."],
+    ["Tool (도구)", "MCP 서버가 AI에게 제공하는 실행 가능한 함수. 이름·설명·입력 형식으로 정의됩니다."],
+    ["tools/list · tools/call", "MCP에서 도구 목록을 받는 요청과 도구를 실행하는 요청."],
+    ["JSON-RPC 2.0", "MCP와 A2A가 쓰는 요청·응답 형식. method, params, id로 구성됩니다."],
+    ["Streamable HTTP", "원격 MCP 서버가 쓰는 전송 방식. 일반 HTTP POST에 스트리밍 응답을 더한 것입니다."],
+    ["Agent Card", "A2A 에이전트의 명함 JSON. 이름, 스킬, 접속 주소, 인증 방법이 들어 있습니다."],
+    ["Skill (스킬)", "A2A 에이전트가 할 수 있는 일 하나. 설명·태그·예시 문장으로 소개합니다."],
+    ["Task · Artifact", "A2A에서 맡긴 작업과 그 결과물. Task는 진행 상태를 갖습니다."],
+    ["ERC-8004", "에이전트 신원·평판·검증을 블록체인에 기록하는 이더리움 표준(Trustless Agents)."],
+    ["well-known", "웹사이트가 약속된 경로(/.well-known/…)에 공개하는 정보. A2A card, OAuth 설정 등이 여기에 있습니다."],
+    ["OAuth · DCR", "표준 로그인·권한 위임 방식. DCR(동적 클라이언트 등록)이 있으면 에이전트가 스스로 앱 등록을 할 수 있습니다."],
+    ["client_credentials", "사람 승인 없이 프로그램이 직접 토큰을 받는 OAuth 방식. 에이전트 혼자 쓸 수 있는지 판단할 때 봅니다."],
+    ["Tool poisoning", "도구 설명에 숨은 지시를 넣어 AI를 조종하려는 공격."],
+    ["Rug pull", "처음엔 정상이던 도구 정의가 업데이트 후 악의적으로 바뀌는 것. 정의 변경을 추적해 잡습니다."],
+    ["격리 (quarantine)", "확실한 보안 위험이 발견된 서버. 점수 상한을 두고 추천에서 항상 뺍니다."],
+  ] },
+
+  { id: "faq", title: "자주 묻는 질문", faq: [
+    ["셋 중 무엇을 써야 하나요?", "AI 앱에 기능을 붙이려면 MCP, 다른 에이전트에게 일을 통째로 맡기려면 A2A, 유료 데이터·API를 계정 없이 쓰려면 x402입니다. 함께 쓰는 경우가 많습니다."],
+    ["돈이 드나요?", "MCP 서버는 대부분 무료입니다(로그인 필요한 곳은 있음). x402는 호출할 때마다 표시된 금액을 USDC로 냅니다. 이 시스템의 점검은 결제를 하지 않습니다."],
+    ["reachable은 고장인가요?", "아닙니다. 서버는 살아 있지만 로그인·API 키가 있어야 끝까지 확인되는 상태입니다. 공식 SaaS 서버에 많습니다."],
+    ["추천된 에이전트는 안전한가요?", "확실한 위험 신호가 있는 서버는 격리해 빼고, 실제 호출 검증과 품질 등급을 함께 보여 줍니다. 다만 규칙 기반 점검이라 완벽하지 않으니 민감한 데이터는 신중하게 다루세요."],
+    ["한국어로 검색이 잘 안 돼요.", "수집된 설명이 대부분 영어입니다. 탐색 화면의 빠른 검색 버튼이나 영어 키워드(weather, stock, translate)를 써 보세요."],
+  ] },
+];
+
+let insightsCache = null;
+async function loadInsights(force) {
+  if (!force && insightsCache && Date.now() - insightsCache.loaded < 60000) return insightsCache.data;
+  const data = await api("/admin/api/insights");
+  insightsCache = { data, loaded: Date.now() };
+  const sel = $("xCategory");
+  if (sel.options.length <= 1) Object.entries(data.categories).forEach(([id, name]) => sel.add(new Option(name, id)));
+  return data;
+}
+
+function agentCard(r, cats) {
+  const meta = [];
+  if (r.kind === "x402" && r.price_usdc) meta.push(`<span class="chip">${usd(r.price_usdc)}/회</span>`);
+  if (r.payers_30d) meta.push(`<span class="chip">30일 결제자 ${fmt(r.payers_30d)}</span>`);
+  if (r.cap_tool_count) meta.push(`<span class="chip">도구 ${fmt(r.cap_tool_count)}개</span>`);
+  if (r.eval_grade) meta.push(`<span class="chip">${esc(r.eval_grade)}등급 ${Math.round(r.eval_score)}</span>`);
+  if (r.trial_ok === 1) meta.push(`<span class="chip ok-badge">✓ 실제 동작 확인</span>`);
+  if (r.kind !== "x402" && r.auth_required === 0) meta.push(`<span class="chip">계정 없이</span>`);
+  else if (r.auth_autonomy === "agent_autonomous" && r.kind !== "x402") meta.push(`<span class="chip">에이전트 혼자 인증</span>`);
+  return `<div class="acard k-${esc(r.kind)}" data-id="${esc(r.id)}">
+    <div class="row" style="gap:6px">${kindBadge(r.kind)}<span class="muted" style="font-size:12px">${esc((cats || {})[r.category] || r.category)}</span></div>
+    <div class="t" title="${esc(r.name)}">${esc(r.name)}</div>
+    <div class="d">${esc(r.description || "설명 없음")}</div>
+    <div class="m">${meta.join("")}</div></div>`;
+}
+document.addEventListener("click", (e) => { const c = e.target.closest(".acard[data-id]"); if (c) openAgent(c.dataset.id); });
+
+function liveStats(kind, k) {
+  const s = k.stats, items = [];
+  const add = (v, label) => items.push(`<div><b>${v}</b><span>${esc(label)}</span></div>`);
+  add(fmt(s.total), "지금 수집된 수"); add(pct(s.live, s.total), "서비스 가능");
+  if (newLabel(s)) add(newLabel(s).replace(/^.*새로 /, ""), newLabel(s).replace(/ [\d,]+$/, "") + " 발견");
+  if (kind === "x402") {
+    add(usd(s.median_price), "가격 중앙값 (1회)"); add(usd(s.min_price), "가장 싼 가격");
+    add(pct(s.under_1cent, s.priced), "1센트 이하 비율"); add(fmt(s.payers_30d), "30일 결제자 합계");
+  } else {
+    add(fmt(s.verified), "실제 호출 성공"); add(fmt(s.no_auth), "계정 없이 사용");
+    add(fmt(s.grade_a), "A등급");
+    if (kind === "mcp") add(fmt(s.tools), "제공 도구 합계");
+    if (kind === "a2a") add(fmt(s.agent_autonomous), "에이전트 혼자 인증 가능");
+  }
+  const cats = k.top_categories.map((c) => `<span class="chip">${esc(insightsCache.data.categories[c.category] || c.category)} ${fmt(c.n)}</span>`).join(" ");
+  const src = k.sources.map((c) => `${esc(c.source)} ${fmt(c.n)}`).join(" · ");
+  return `<div class="stat-row">${items.join("")}</div><p class="muted" style="font-size:13px">많은 분야: ${cats}<br>출처: ${src}</p>`;
+}
+function featured(kind, k, cats) {
+  return k.featured.filter((f) => f.items.length).map((f) =>
+    `<h4>${esc(f.title)}</h4><div class="cards">${f.items.map((r) => agentCard(r, cats)).join("")}</div>`).join("") +
+    `<p style="margin-top:10px"><a href="#explore" data-explore-kind="${esc(kind)}">${esc(KIND[kind].label)} 더 찾아보기 →</a></p>`;
+}
+
+function normQuery(q) {
+  return q.toLowerCase().replace(/(이란|란|이 뭐야|가 뭐야|뭐야|무엇인가요|이란\?)/g, " ").replace(/[?？!.,]/g, " ").split(/\s+/).filter((t) => t.length > 0);
+}
+const plain = (html) => { const d = document.createElement("div"); d.innerHTML = html; return d.textContent.toLowerCase(); };
+function guideText(sec) {
+  if (sec.glossary) return (sec.title + " " + sec.glossary.flat().join(" ")).toLowerCase();
+  if (sec.faq) return (sec.title + " " + sec.faq.flat().join(" ")).toLowerCase();
+  return (sec.title + " " + plain(sec.html)).toLowerCase();
+}
+function guideMatches(q) {
+  const terms = normQuery(q);
+  if (!terms.length) return [];
+  return GUIDE.filter((sec) => terms.every((t) => guideText(sec).includes(t)));
+}
+function highlight(root, terms) {
+  if (!terms.length) return;
+  const re = new RegExp("(" + terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")", "gi");
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: (n) => n.parentNode.closest("script,style,mark,.acard") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
+  const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);
+  for (const n of nodes) {
+    if (!re.test(n.nodeValue)) continue; re.lastIndex = 0;
+    const span = document.createElement("span");
+    span.innerHTML = esc(n.nodeValue).replace(re, "<mark>$1</mark>");
+    n.replaceWith(span);
+  }
+}
+
+async function renderLearn() {
+  if (!insightsCache) $("protoCards").innerHTML = `<div class="card muted">수집 현황을 불러오는 중…</div>`;
+  const data = await loadInsights();
+  const cats = data.categories;
+  $("protoCards").innerHTML = KIND_ORDER.map((k) => {
+    const s = data.kinds[k].stats;
+    return `<div class="card proto k-${k}" data-goto="${k}"><div class="tag">${esc(KIND[k].label)}</div>
+      <div class="big">${fmt(s.total)}</div><div class="muted" style="font-size:13px">${esc(KIND[k].tip)}</div>
+      <div class="muted" style="font-size:12px;margin-top:6px">서비스 가능 ${pct(s.live, s.total)}${newLabel(s) ? " · " + newLabel(s) : ""}</div></div>`;
+  }).join("");
+  const q = $("learnSearch").value.trim(), terms = normQuery(q);
+  const shown = q ? guideMatches(q) : GUIDE;
+  $("learnToc").innerHTML = GUIDE.map((s) => `<a href="#learn" data-goto="${s.id}" style="${shown.includes(s) ? "" : "opacity:.4"}">${esc(s.title.split(" — ")[0])}</a>`).join("");
+  $("learnCount").textContent = q ? `${shown.length}개 항목에서 찾음` : "";
+  $("learnBody").innerHTML = shown.length ? shown.map((sec) => {
+    let body;
+    if (sec.glossary) body = `<div class="gloss">${sec.glossary.filter(([t, d]) => !terms.length || terms.every((x) => (t + " " + d).toLowerCase().includes(x)) || terms.every((x) => sec.title.toLowerCase().includes(x)))
+      .map(([t, d]) => `<div><b>${esc(t)}</b>${esc(d)}</div>`).join("")}</div>`;
+    else if (sec.faq) body = sec.faq.map(([qq, a]) => `<h4>${esc(qq)}</h4><p>${esc(a)}</p>`).join("");
+    else body = sec.html;
+    return `<div class="card guide-sec ${sec.kind ? "k-" + sec.kind : ""}" id="g-${sec.id}"><h3>${sec.kind ? kindBadge(sec.kind) + " " : ""}${esc(sec.title)}</h3>${body}</div>`;
+  }).join("") : `<div class="card"><p class="muted">설명에서 "${esc(q)}"을(를) 찾지 못했습니다. <a href="#explore" id="learnToExplore">에이전트에서 찾아보기 →</a></p></div>`;
+  for (const k of KIND_ORDER) {
+    const live = $("learnBody").querySelector(`[data-live="${k}"]`); if (live) live.innerHTML = liveStats(k, data.kinds[k]);
+    const feat = $("learnBody").querySelector(`[data-featured="${k}"]`); if (feat) feat.innerHTML = featured(k, data.kinds[k], cats);
+  }
+  highlight($("learnBody"), terms);
+  const lte = $("learnToExplore"); if (lte) lte.onclick = (e) => { e.preventDefault(); runExplore(q); };
+}
+let learnTimer = null;
+$("learnSearch").oninput = () => { clearTimeout(learnTimer); learnTimer = setTimeout(renderLearn, 200); };
+document.addEventListener("click", (e) => {
+  const g = e.target.closest("[data-goto]");
+  if (g) { e.preventDefault(); const go = () => { const el = $("g-" + g.dataset.goto); if (el) el.scrollIntoView({ behavior: "smooth" }); };
+    if (!g.dataset.learnQ) $("learnSearch").value = "";
+    if (state.tab !== "learn") { switchTab("learn"); setTimeout(go, 500); } else if (!$("g-" + g.dataset.goto)) { renderLearn().then(go); } else go(); }
+  const x = e.target.closest("[data-explore-kind]");
+  if (x) { e.preventDefault(); $("xKind").value = x.dataset.exploreKind; runExplore(""); }
+});
+
+// ---------- 탐색 ----------
+const QUICK = [["날씨", "weather forecast"], ["주식 시세", "stock price"], ["암호화폐 가격", "crypto token price"], ["웹 검색", "web search"],
+  ["뉴스", "news"], ["번역", "translate"], ["이미지 생성", "image generation"], ["지도·장소", "maps places"], ["PDF·문서", "pdf document"],
+  ["이메일", "email"], ["GitHub", "github"], ["법률·판례", "legal court"], ["항공·여행", "flight travel"], ["에이전트 디렉터리", "agent directory registry"]];
+$("xChips").innerHTML = QUICK.map(([label, q]) => `<button data-q="${esc(q)}" title="${esc(q)}">${esc(label)}</button>`).join("");
+$("xChips").onclick = (e) => { const b = e.target.closest("button[data-q]"); if (b) { $("xQ").value = b.dataset.q; loadExplore(); } };
+function runExplore(q) { $("xQ").value = q; if (state.tab !== "explore") switchTab("explore"); else loadExplore(); }
+async function loadExplore() {
+  $("xResults").innerHTML = `<p class="muted">찾는 중…</p>`;
+  const data = await loadInsights();
+  const q = $("xQ").value.trim();
+  const p = new URLSearchParams({ q, limit: "45" });
+  if ($("xKind").value) p.set("kind", $("xKind").value);
+  if ($("xCategory").value) p.set("category", $("xCategory").value);
+  if ($("xVerified").checked) p.set("verified", "true");
+  if ($("xNoAuth").checked) p.set("no_auth", "true");
+  const hits = guideMatches(q);
+  $("xGuideHits").innerHTML = q && hits.length ? `<div class="card" style="margin-bottom:14px"><h2>설명에서 찾음</h2><div class="toc">${hits.map((h) =>
+    `<a href="#learn" data-learn-q="${esc(q)}" data-goto="${h.id}">${esc(h.title)}</a>`).join("")}</div></div>` : "";
+  const res = await api("/admin/api/explore?" + p);
+  $("xTitle").innerHTML = q ? `"${esc(q)}" 검색 결과 <span class="sub">${fmt(res.items.length)}개 · 관련도·품질순</span>`
+    : `추천 에이전트 <span class="sub">실제 동작 확인 · 품질순</span>`;
+  $("xResults").innerHTML = res.items.length ? res.items.map((r) => agentCard(r, data.categories)).join("")
+    : `<p class="muted">찾지 못했습니다.${/[가-힣]/.test(q) ? " 수집된 설명이 대부분 영어라 영어 키워드로 찾아보세요." : ""}</p>`;
+}
+document.addEventListener("click", (e) => { const l = e.target.closest("[data-learn-q]"); if (l) $("learnSearch").value = l.dataset.learnQ; }, true);
+$("xGo").onclick = loadExplore;
+$("xQ").onkeydown = (e) => { if (e.key === "Enter") loadExplore(); };
+["xKind", "xCategory", "xVerified", "xNoAuth"].forEach((id) => $(id).onchange = loadExplore);
+$("globalSearch").onkeydown = (e) => {
+  if (e.key !== "Enter") return;
+  const q = $("globalSearch").value.trim();
+  if (/^[#@]/.test(q)) { sns.q = q; if (state.tab !== "sns") switchTab("sns"); else loadSns(true); return; }  // #태그·@계정은 SNS에서
+  const hits = guideMatches(q);
+  const looksLikeTerm = /(란|뭐야|\?|무엇)/.test(q) || (hits.length && hits.some((h) => normQuery(q).some((t) => h.title.toLowerCase().includes(t))));
+  if (looksLikeTerm && hits.length) { $("learnSearch").value = normQuery(q).join(" "); switchTab("learn"); }
+  else runExplore(q);
+};
+
+// ---------- SNS ----------
+const sns = { tab: "for_you", proto: "", role: "", q: "", offset: 0, done: false, loading: false, seq: 0 };
+let snsClient = "";
+try {
+  snsClient = localStorage.getItem("snsClient") || "";
+  if (!snsClient) { snsClient = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2); localStorage.setItem("snsClient", snsClient); }
+} catch (e) { snsClient = "tab-" + Math.random().toString(36).slice(2); }
+const me = { name: "", role: "user", proto: "", rating: 0 };
+try { me.name = localStorage.getItem("snsName") || ""; me.role = localStorage.getItem("snsRole") || "user"; } catch (e) {}
+
+const AVATAR = { collector: "🛰️", evaluator: "📊", tester: "🧪", guardian: "🛡️", community: "📰" };
+const ROLE_ICON = { user: "🙂", developer: "👩‍💻", agent: "🤖", community: "📰" };
+const ROLE_LABEL = { agent: "에이전트", community: "커뮤니티", user: "사용자", developer: "개발자" };
+const STANCE = { positive: "긍정", negative: "비판", neutral: "중립" };
+const VERIFIED = `<svg class="x-verified" viewBox="0 0 24 24" role="img" aria-label="인증된 계정"><path fill="var(--accent)" d="M22.25 12c0-1.43-.88-2.67-2.19-3.34.46-1.39.2-2.9-.81-3.91s-2.52-1.27-3.91-.81c-.66-1.31-1.91-2.19-3.34-2.19s-2.67.88-3.33 2.19c-1.4-.46-2.91-.2-3.92.81s-1.26 2.52-.8 3.91c-1.31.67-2.2 1.91-2.2 3.34s.89 2.67 2.2 3.34c-.46 1.39-.21 2.9.8 3.91s2.52 1.26 3.91.81c.67 1.31 1.91 2.19 3.34 2.19s2.68-.88 3.34-2.19c1.39.45 2.9.2 3.91-.81s1.27-2.52.81-3.91c1.31-.67 2.19-1.91 2.19-3.34z"/><path fill="#fff" d="M10.1 16.5l-3.8-3.8 1.4-1.4 2.4 2.4 5.6-5.6 1.4 1.4z"/></svg>`;
+function hue(s) { let h = 7; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; }
+function avatar(a) { return `<div class="x-avatar" style="background:hsl(${hue(a.handle)} 55% 45%)">${AVATAR[a.handle] || ROLE_ICON[a.role] || "🙂"}</div>`; }
+function snsTime(p) {
+  const s = Date.now() / 1000 - p.created;
+  if (s < 7 * 86400) return ago(p.created);
+  return p.date_label || new Date(p.created * 1000).toLocaleDateString("ko-KR");
+}
+function richText(t) {
+  let h = esc(t);
+  h = h.replace(/`([^`]{1,80})`/g, "<code>$1</code>");
+  h = h.replace(/(https?:\/\/[^\s<]+)/g, (u) => `<a href="${u}" target="_blank" rel="noopener noreferrer">${u.length > 48 ? u.slice(0, 48) + "…" : u}</a>`);
+  return h.replace(/(^|[\s(·])#([0-9A-Za-z가-힣_]{1,40})/g, (m, pre, tag) => `${pre}<span class="x-tag" data-tag="${tag}">#${tag}</span>`);
+}
+function postHtml(p, opts = {}) {
+  const a = p.author, cats = insightsCache ? insightsCache.data.categories : {};
+  const stars = p.rating ? `<div class="x-rating" title="${p.rating}점">${"★".repeat(p.rating)}${"☆".repeat(5 - p.rating)}</div>` : "";
+  const r = p.resource;
+  const res = r ? `<div class="x-attach" data-agent="${esc(r.id)}"><div class="s">${kindBadge(r.kind)} ${esc(cats[r.category] || r.category)}${r.grade ? " · " + esc(r.grade) + "등급" : ""}</div>
+      <div class="t">${esc(r.name)}</div><div class="s">${esc(r.description || r.url)}</div></div>` : "";
+  let src = "";
+  if (p.link && safeUrl(p.link)) {
+    let host = ""; try { host = new URL(p.link).hostname; } catch (e) {}
+    src = `<a class="x-attach" href="${esc(p.link)}" target="_blank" rel="noopener noreferrer"><div class="s">${esc(p.platform)} · ${esc(p.date_label || "")}</div>
+      <div class="t">${esc(p.source_label)}</div><div class="s">${esc(host)} · 원문 보기 ↗</div></a>`;
+  }
+  return `<article class="x-post ${opts.focus ? "focus" : ""}" data-key="${esc(p.key)}">
+    ${avatar(a)}
+    <div class="x-body">
+      <div class="x-head"><b>${esc(a.name)}</b>${a.verified ? VERIFIED : ""}<span class="h">@${esc(a.handle)} · ${esc(snsTime(p))}</span>
+        ${p.protocol ? kindBadge(p.protocol) : ""}${p.stance ? `<span class="x-stance ${esc(p.stance)}">${STANCE[p.stance] || ""}</span>` : ""}
+        <span class="chip" title="${esc(a.bio || "")}">${esc(ROLE_LABEL[a.role] || a.role)}</span></div>
+      <div class="x-text">${richText(p.body)}</div>${stars}${res}${src}
+      <div class="x-actions">
+        <button class="x-act" data-act="reply" title="답글">💬 <span>${p.replies || ""}</span></button>
+        <button class="x-act like ${p.liked ? "liked" : ""}" data-act="like" title="좋아요">${p.liked ? "♥" : "♡"} <span>${p.likes || ""}</span></button>
+        <button class="x-act" data-act="share" title="복사">↗ 공유</button>
+        ${p.mine ? `<button class="x-act del" data-act="delete" title="삭제">🗑</button>` : ""}
+      </div>
+    </div></article>`;
+}
+
+function syncSnsNav() {
+  document.querySelectorAll("#xLeft [data-feed], #xTabs [data-feed]").forEach((b) => b.classList.toggle("on", b.dataset.feed === sns.tab));
+  document.querySelectorAll("#xLeft [data-proto]").forEach((b) => b.classList.toggle("on", b.dataset.proto === sns.proto));
+  document.querySelectorAll("#xLeft [data-role]").forEach((b) => b.classList.toggle("on", b.dataset.role === sns.role));
+  const parts = [sns.proto ? (KIND[sns.proto] || {}).short : "", sns.role ? ROLE_LABEL[sns.role] : ""].filter(Boolean);
+  $("xTitleBar").textContent = parts.length ? parts.join(" · ") + " 의견·평가" : "의견·평가";
+  const chips = [];
+  if (sns.q) chips.push(`<span class="chip">🔍 ${esc(sns.q)} <a href="#" data-clear="q">✕</a></span>`);
+  if (sns.proto) chips.push(`<span class="chip">${esc(KIND[sns.proto].short)} <a href="#" data-clear="proto">✕</a></span>`);
+  if (sns.role) chips.push(`<span class="chip">${esc(ROLE_LABEL[sns.role])} <a href="#" data-clear="role">✕</a></span>`);
+  $("xActive").innerHTML = chips.join("") + (chips.length > 1 ? ` <a href="#" data-clear="all">모두 지우기</a>` : "");
+  $("xActive").classList.toggle("hidden", !chips.length);
+  $("xSearch").value = sns.q;
+}
+async function loadSns(reset) {
+  // 필터가 바뀌면(reset) 진행 중인 요청을 기다리지 않고 새로 불러오며, 늦게 도착한 이전 응답은 버린다
+  if (reset) { sns.offset = 0; sns.done = false; sns.seq += 1; sns.loading = false; $("xFeed").innerHTML = ""; syncSnsNav(); }
+  if (sns.loading || sns.done) return;
+  const seq = sns.seq;
+  sns.loading = true;
+  $("xMore").textContent = "불러오는 중…";
+  try {
+    if (!insightsCache) await loadInsights().catch(() => null);
+    const p = new URLSearchParams({ tab: sns.tab, offset: sns.offset, limit: 20, client: snsClient });
+    if (sns.proto) p.set("protocol", sns.proto);
+    if (sns.role) p.set("role", sns.role);
+    if (sns.q) p.set("q", sns.q);
+    const d = await api("/admin/api/sns/feed?" + p);
+    if (seq !== sns.seq) return;  // 그사이 필터가 바뀜
+    $("xFeed").insertAdjacentHTML("beforeend", d.items.map((x) => postHtml(x)).join(""));
+    sns.offset += d.items.length;
+    sns.done = !d.has_more;
+    if (!sns.offset) $("xFeed").innerHTML = `<div class="x-empty">${sns.q ? `"${esc(sns.q)}"에 대한 글이 없어요.` : "아직 글이 없어요."}<br>첫 의견을 남겨 보세요!</div>`;
+    $("xMore").textContent = sns.done && sns.offset ? "모두 봤어요 ✨" : "";
+  } catch (e) {
+    if (seq === sns.seq) $("xMore").textContent = "불러오지 못했어요: " + e.message;
+  } finally { if (seq === sns.seq) sns.loading = false; }
+}
+new IntersectionObserver((es) => { if (es[0].isIntersecting && state.tab === "sns" && sns.offset) loadSns(false); }, { rootMargin: "400px" }).observe($("xMore"));
+
+async function loadSnsSidebar() {
+  const d = await api("/admin/api/sns/sidebar");
+  $("xTrends").innerHTML = d.trends.map((t, i) => `<div class="x-trend" data-tag="${esc(t.tag)}"><span class="s">${i + 1} · 트렌드</span><b>#${esc(t.tag)}</b><span class="s">${fmt(t.score)}회 언급·활동</span></div>`).join("")
+    || `<div class="x-trend"><span class="s">아직 없어요</span></div>`;
+  $("xMood").innerHTML = KIND_ORDER.map((k) => {
+    const m = d.mood[k], c = m.community, total = c.positive + c.neutral + c.negative || 1;
+    return `<div class="m"><div class="row" style="justify-content:space-between">${kindBadge(k)}<span class="muted" style="font-size:12px">커뮤니티 ${fmt(c.positive + c.neutral + c.negative)}건</span></div>
+      <div class="stack"><span style="width:${100 * c.positive / total}%;background:var(--ok)" title="긍정 ${c.positive}"></span><span style="width:${100 * c.neutral / total}%;background:var(--idle)" title="중립 ${c.neutral}"></span><span style="width:${100 * c.negative / total}%;background:var(--bad)" title="비판 ${c.negative}"></span></div>
+      <div class="muted" style="font-size:12px">긍정 ${c.positive} · 중립 ${c.neutral} · 비판 ${c.negative}${m.user_ratings ? ` · 사용자 ★${m.user_avg} (${m.user_ratings})` : ""}<br>7일간 실제 호출 ${fmt(m.trials_7d)}건 중 성공 ${pct(m.trial_ok_7d, m.trials_7d)}</div></div>`;
+  }).join("");
+  $("xAccounts").innerHTML = d.accounts.map((a) => `<div class="x-acc x-trend" data-handle="${esc(a.handle)}">${avatar(a)}<div class="b"><b>${esc(a.name)}</b> ${a.verified ? VERIFIED : ""}
+    <div class="s">@${esc(a.handle)} · ${esc(a.bio)}</div></div></div>`).join("");
+}
+
+// 글쓰기
+function syncComposer() {
+  $("xName").value = me.name;
+  document.querySelectorAll("[data-myrole]").forEach((b) => b.classList.toggle("on", b.dataset.myrole === me.role));
+  document.querySelectorAll("[data-cproto]").forEach((b) => b.classList.toggle("on", b.dataset.cproto === me.proto));
+  $("xStars").innerHTML = [1, 2, 3, 4, 5].map((n) => `<button data-star="${n}" class="${n <= me.rating ? "on" : ""}" title="${n}점">★</button>`).join("");
+  $("xMeAvatar").textContent = ROLE_ICON[me.role];
+  $("xMeAvatar").style.background = `hsl(${hue(me.name || "me")} 55% 45%)`;
+  const len = $("xText").value.trim().length;
+  $("xCount").textContent = `${$("xText").value.length}/500`;
+  $("xPost").disabled = !len || !me.name.trim();
+  $("xPost").title = me.name.trim() ? "" : "이름을 먼저 적어 주세요";
+}
+$("xName").oninput = () => { me.name = $("xName").value; try { localStorage.setItem("snsName", me.name); } catch (e) {} syncComposer(); };
+$("xText").oninput = syncComposer;
+$("xCompose").addEventListener("click", (e) => {
+  const r = e.target.closest("[data-myrole]"), c = e.target.closest("[data-cproto]"), s = e.target.closest("[data-star]");
+  if (r) { me.role = r.dataset.myrole; try { localStorage.setItem("snsRole", me.role); } catch (x) {} }
+  if (c) me.proto = me.proto === c.dataset.cproto ? "" : c.dataset.cproto;
+  if (s) me.rating = me.rating === +s.dataset.star ? 0 : +s.dataset.star;
+  if (r || c || s) syncComposer();
+});
+$("xPost").onclick = async () => {
+  $("xPost").disabled = true;
+  try {
+    await api("/admin/api/sns/posts", { method: "POST", json: { body: $("xText").value, author: me.name, role: me.role,
+      protocol: me.proto || null, rating: me.rating || null, client: snsClient } });
+    $("xText").value = ""; me.rating = 0; syncComposer();
+    toast("게시했어요!");
+    sns.tab = "latest"; loadSns(true); loadSnsSidebar();
+  } catch (e) { if (e.message !== "unauthorized") toast("게시하지 못했어요: " + e.message); syncComposer(); }
+};
+$("xCta").onclick = () => { window.scrollTo({ top: 0, behavior: "smooth" }); setTimeout(() => $("xText").focus(), 300); };
+
+// 피드·스레드 공통 동작
+async function onPostClick(e) {
+  const tag = e.target.closest("[data-tag]");
+  if (tag) { e.stopPropagation(); closeModal(); sns.q = "#" + tag.dataset.tag; if (state.tab !== "sns") switchTab("sns"); else loadSns(true); return; }
+  const ag = e.target.closest("[data-agent]");
+  if (ag) { closeModal(); openAgent(ag.dataset.agent); return; }
+  if (e.target.closest("a[href]")) return;
+  const post = e.target.closest(".x-post");
+  if (!post) return;
+  const key = post.dataset.key, act = e.target.closest("[data-act]");
+  if (!act) { if (!post.classList.contains("focus")) openThread(key); return; }
+  if (act.dataset.act === "reply") return openThread(key, true);
+  if (act.dataset.act === "like") {
+    try {
+      const r = await api("/admin/api/sns/like", { method: "POST", json: { key, client: snsClient } });
+      document.querySelectorAll(`.x-post[data-key="${CSS.escape(key)}"] [data-act="like"]`).forEach((b) => {
+        b.classList.toggle("liked", r.liked); b.innerHTML = `${r.liked ? "♥" : "♡"} <span>${r.likes || ""}</span>`; });
+    } catch (x) { if (x.message !== "unauthorized") toast("실패: " + x.message); }
+  }
+  if (act.dataset.act === "share") {
+    const text = post.querySelector(".x-head b").textContent + ": " + post.querySelector(".x-text").textContent + ((post.querySelector("a.x-attach") || {}).href ? "\n" + post.querySelector("a.x-attach").href : "");
+    try { await navigator.clipboard.writeText(text); toast("내용을 복사했어요"); } catch (x) { toast("복사할 수 없어요"); }
+  }
+  if (act.dataset.act === "delete" && confirm("이 글을 삭제할까요?")) {
+    try { await api("/admin/api/sns/delete", { method: "POST", json: { key, client: snsClient } });
+      document.querySelectorAll(`.x-post[data-key="${CSS.escape(key)}"]`).forEach((n) => n.remove()); toast("삭제했어요");
+      if ($("xModal").querySelector(`[data-thread="${CSS.escape(key)}"]`)) closeModal();
+    } catch (x) { toast("실패: " + x.message); }
+  }
+}
+$("xFeed").addEventListener("click", onPostClick);
+$("xModal").addEventListener("click", (e) => { if (e.target.id === "xModal" || e.target.closest("[data-close]")) return closeModal(); onPostClick(e); });
+function closeModal() { $("xModal").classList.add("hidden"); $("xModal").innerHTML = ""; }
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+
+async function openThread(key, focusReply) {
+  const m = $("xModal");
+  m.classList.remove("hidden");
+  m.innerHTML = `<div class="x-dialog"><div class="x-dialog-top"><button class="close" data-close>✕</button>게시물</div><div class="x-empty">불러오는 중…</div></div>`;
+  let d;
+  try { d = await api(`/admin/api/sns/thread?key=${encodeURIComponent(key)}&client=${encodeURIComponent(snsClient)}`); }
+  catch (e) { m.querySelector(".x-empty").textContent = "불러오지 못했어요: " + e.message; return; }
+  m.innerHTML = `<div class="x-dialog" data-thread="${esc(key)}"><div class="x-dialog-top"><button class="close" data-close>✕</button>게시물</div>
+    ${postHtml(d.post, { focus: true })}
+    <div class="x-compose"><div class="x-avatar" style="background:hsl(${hue(me.name || "me")} 55% 45%)">${ROLE_ICON[me.role]}</div><div style="flex:1;min-width:0">
+      <div class="x-reply-hint">@${esc(d.post.author.handle)} 님에게 답글</div>
+      ${me.name.trim() ? "" : `<div class="x-me"><input id="xReplyName" placeholder="이름" maxlength="40"></div>`}
+      <textarea id="xReplyText" maxlength="500" placeholder="답글을 남겨 보세요"></textarea>
+      <div class="row2"><span class="muted" style="font-size:13px">${me.name.trim() ? esc(me.name) + " · " + ROLE_LABEL[me.role] : ""}</span><button class="x-post-btn" id="xReplyBtn">답글</button></div></div></div>
+    <div>${d.replies.map((r) => postHtml(r)).join("") || `<div class="x-empty">아직 답글이 없어요. 첫 답글을 남겨 보세요.</div>`}</div></div>`;
+  if (focusReply) $("xReplyText").focus();
+  $("xReplyBtn").onclick = async () => {
+    if ($("xReplyName")) { me.name = $("xReplyName").value.trim(); try { localStorage.setItem("snsName", me.name); } catch (e) {} syncComposer(); }
+    if (!me.name.trim()) return toast("이름을 적어 주세요");
+    try {
+      await api("/admin/api/sns/posts", { method: "POST", json: { body: $("xReplyText").value, author: me.name, role: me.role,
+        protocol: d.post.protocol || null, client: snsClient, parent_key: key } });
+      toast("답글을 남겼어요");
+      openThread(key);
+      document.querySelectorAll(`#xFeed .x-post[data-key="${CSS.escape(key)}"] [data-act="reply"] span`).forEach((s) => s.textContent = (+s.textContent || 0) + 1);
+    } catch (e) { if (e.message !== "unauthorized") toast("실패: " + e.message); }
+  };
+}
+
+// 필터·검색
+$("xLeft").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b || b.id === "xCta") return;
+  if (b.dataset.feed !== undefined) sns.tab = b.dataset.feed;
+  if (b.dataset.proto !== undefined) sns.proto = b.dataset.proto;
+  if (b.dataset.role !== undefined) sns.role = b.dataset.role;
+  loadSns(true);
+});
+$("xTabs").addEventListener("click", (e) => { const b = e.target.closest("[data-feed]"); if (b) { sns.tab = b.dataset.feed; loadSns(true); } });
+$("xActive").addEventListener("click", (e) => {
+  const c = e.target.closest("[data-clear]"); if (!c) return; e.preventDefault();
+  const w = c.dataset.clear;
+  if (w === "q" || w === "all") sns.q = "";
+  if (w === "proto" || w === "all") sns.proto = "";
+  if (w === "role" || w === "all") sns.role = "";
+  loadSns(true);
+});
+let snsSearchTimer = null;
+$("xSearch").oninput = () => { clearTimeout(snsSearchTimer); snsSearchTimer = setTimeout(() => { sns.q = $("xSearch").value.trim(); loadSns(true); }, 350); };
+document.querySelector(".x-right").addEventListener("click", (e) => {
+  const t = e.target.closest("[data-tag]"), h = e.target.closest("[data-handle]");
+  if (t) { sns.q = "#" + t.dataset.tag; loadSns(true); }
+  if (h) { sns.q = "@" + h.dataset.handle; sns.role = ""; loadSns(true); }
+});
+syncComposer();
+
+// ---------- 방문 에이전트 ----------
+const TIER = { regular: "단골", returning: "재방문", new: "신규" };
+const tierHtml = (t) => `<span class="tier ${esc(t)}">${esc(TIER[t] || t)}</span>`;
+$("vLinks").innerHTML = [["/", "GET / (인사)"], ["/llms.txt", "llms.txt"], ["/robots.txt", "robots.txt"],
+  ["/.well-known/agent-card.json", "A2A Agent Card"], ["/.well-known/agent.json", "agent.json"], ["/openapi.json", "OpenAPI"]]
+  .map(([u, l]) => `<a href="${u}" target="_blank" rel="noopener">${esc(l)}</a>`).join("") + `<span class="chip">MCP: POST /mcp</span><span class="chip">A2A: POST /a2a</span>`;
+
+async function loadVisitors() {
+  const p = new URLSearchParams();
+  if ($("vQ").value.trim()) p.set("q", $("vQ").value.trim());
+  if ($("vTier").value) p.set("tier", $("vTier").value);
+  const d = await api("/admin/api/visitors?" + p);
+  const s = d.stats;
+  $("vKpis").innerHTML = [
+    kpi("방문 에이전트", fmt(s.total), `24시간 새로 ${fmt(s.new_24h)} · 활동 ${fmt(s.active_24h)}`),
+    kpi("단골", fmt(s.regular), `재방문 ${fmt(s.returning)} · 신규 ${fmt(s.new)}`),
+    kpi("다시 온 비율", pct(s.came_back, s.total), `2회 이상 방문 ${fmt(s.came_back)}`),
+    kpi("24시간 받은 메시지", fmt(s.messages_24h), Object.entries(s.channels || {}).map(([k, v]) => `${esc(k)} ${fmt(v)}`).join(" · ") || "–"),
+    kpi("인증된 연락처", fmt(s.verified_contacts), `7일간 보낸 추천 ${fmt(s.digests_7d)}`),
+    kpi("읽기만 한 방문", fmt(s.anonymous_reads), `서로 다른 방문자 ${fmt(s.anonymous_readers)}`),
+  ].join("");
+  $("vTable").innerHTML = table([
+    { label: "에이전트", html: (r) => `<b>${esc(r.name || "(이름 없음)")}</b><div class="muted mono" style="font-size:11px">${esc(r.id)}</div>` },
+    { label: "등급", html: (r) => tierHtml(r.tier) },
+    { label: "방문", num: true, get: (r) => `${fmt(r.visits)}회 · ${fmt(r.visit_days)}일` },
+    { label: "메시지", num: true, get: (r) => fmt(r.messages) },
+    { label: "최근 관심사", cls: "trunc", get: (r) => r.last_task || "–" },
+    { label: "연락처", html: (r) => r.contact_status ? `<span class="chip">${esc(r.contact_status)}</span>` : "–" },
+    { label: "추천 발송", num: true, get: (r) => fmt(r.digests) },
+    { label: "채널", get: (r) => r.channel || "–" },
+    { label: "마지막 방문", cls: "nw", get: (r) => ago(r.last_seen) },
+  ], d.items, { rowAttr: (r) => `class="click" data-vid="${esc(r.id)}"`, empty: "아직 대화한 에이전트가 없습니다. 오른쪽 위 체험 창으로 먼저 대화해 보세요." });
+}
+$("vTable").onclick = (e) => { const tr = e.target.closest("tr[data-vid]"); if (tr) openVisitor(tr.dataset.vid); };
+$("vGo").onclick = loadVisitors;
+$("vQ").onkeydown = (e) => { if (e.key === "Enter") loadVisitors(); };
+$("vTier").onchange = loadVisitors;
+
+function bubbles(msgs) {
+  return msgs.map((m) => `<div class="bubble ${m.role === "agent" ? "agent" : "concierge"}"><span class="meta">${m.role === "agent" ? "🤖 방문 에이전트" : "🛎 컨시어지"} · ${esc(m.channel || "")} · ${esc(when(m.at))}</span>${esc(m.text)}</div>`).join("");
+}
+async function openVisitor(vid) {
+  const d = $("drawer");
+  d.classList.remove("hidden");
+  d.innerHTML = `<p class="muted">불러오는 중…</p>`;
+  const x = await api("/admin/api/visitors/" + encodeURIComponent(vid));
+  const v = x.visitor;
+  d.innerHTML = `
+    <div class="row" style="justify-content:space-between"><span class="chip">${tierHtml(v.tier)} · ${esc(v.channel || "")}</span><button class="btn" id="closeDrawer">닫기</button></div>
+    <h3 style="margin-top:10px">${esc(v.name || "(이름 없음)")}</h3>
+    <div class="mono muted">${esc(v.id)} · ${esc(v.user_agent || "")}</div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn primary" id="vDigest">지금 추천 보내기</button>
+      <button class="btn" id="vNotify">${v.notify ? "알림 끄기" : "알림 켜기"}</button>
+    </div>
+    <dl class="kv">
+      <dt>방문</dt><dd>${fmt(v.visits)}회 · ${fmt(v.visit_days)}일 · 메시지 ${fmt(v.messages)}</dd>
+      <dt>처음·마지막</dt><dd>${when(v.first_seen)} · ${when(v.last_seen)} (${ago(v.last_seen)})</dd>
+      <dt>언어</dt><dd>${esc(v.lang || "–")}</dd>
+      <dt>알림</dt><dd>${v.notify ? "켜짐" : "꺼짐"} · 마지막 추천 ${v.last_notified ? ago(v.last_notified) : "없음"}</dd>
+    </dl>
+    <h4>대화 <span class="muted">최근 100개</span></h4><div class="chat-log">${bubbles(x.messages) || '<p class="muted">없음</p>'}</div>
+    <h4>관심사</h4>${table([{ label: "작업", key: "task" }, { label: "종류", get: (r) => r.kind || "전체" },
+      { label: "최고점", num: true, get: (r) => r.best_score ? r.best_score.toFixed(3) : "–" }, { label: "추천 수", num: true, get: (r) => r.recommended.length },
+      { label: "갱신", get: (r) => ago(r.updated) }], x.interests, { empty: "없음" })}
+    <h4>연락처</h4>${table([{ label: "종류", key: "type" }, { label: "주소", cls: "mono", get: (r) => r.url }, { label: "상태", key: "status" },
+      { label: "실패", num: true, key: "failures" }, { label: "오류", cls: "muted", get: (r) => r.last_error || "" }], x.contacts, { empty: "없음" })}
+    <h4>알림 기록</h4>${table([{ label: "시각", get: (r) => when(r.at) }, { label: "종류", key: "kind" }, { label: "결과", key: "status" },
+      { label: "내용", cls: "muted", get: (r) => r.detail || "" }], x.notifications, { empty: "없음" })}
+    <h4>써 본 결과</h4>${table([{ label: "에이전트", get: (r) => r.name || r.resource_id }, { label: "결과", get: (r) => r.success ? "성공" : "실패" },
+      { label: "시각", get: (r) => ago(r.at) }], x.outcomes, { empty: "없음" })}`;
+  $("closeDrawer").onclick = () => d.classList.add("hidden");
+  $("vDigest").onclick = async () => { const r = await doAction(`/admin/api/visitors/${encodeURIComponent(vid)}/digest`, null);
+    if (r) toast(r.sent ? "추천을 보냈어요" : r.checked ? (r.failed ? "전달에 실패했어요" : "지금은 더 좋아진 게 없어요") : "인증된 연락처가 없어요"); openVisitor(vid); };
+  $("vNotify").onclick = async () => { await api(`/admin/api/visitors/${encodeURIComponent(vid)}/notify`, { method: "POST", json: { enabled: !v.notify } });
+    toast(v.notify ? "알림을 껐어요" : "알림을 켰어요"); openVisitor(vid); loadVisitors(); };
+  const log = d.querySelector(".chat-log"); if (log) log.scrollTop = log.scrollHeight;
+}
+
+// 에이전트 입장에서 대화해 보기 (공개 /chat을 그대로 호출)
+let simToken = "";
+try { simToken = sessionStorage.getItem("simToken") || ""; } catch (e) {}
+async function simSend(text) {
+  const log = $("simLog");
+  if (log.querySelector("p.muted")) log.innerHTML = "";
+  log.insertAdjacentHTML("beforeend", `<div class="bubble agent"><span class="meta">🤖 나(테스트 에이전트)</span>${esc(text)}</div>`);
+  const headers = { "Content-Type": "application/json" };
+  if (simToken) headers["X-Visitor-Token"] = simToken;
+  try {
+    const resp = await fetch("/chat", { method: "POST", headers, body: JSON.stringify({ message: text, name: simToken ? undefined : "관리자 테스트" }) });
+    const d = await resp.json();
+    if (!resp.ok) throw new Error(d.error || "HTTP " + resp.status);
+    if (d.visitor && d.visitor.token) { simToken = d.visitor.token; try { sessionStorage.setItem("simToken", simToken); } catch (e) {} }
+    log.insertAdjacentHTML("beforeend", `<div class="bubble concierge"><span class="meta">🛎 컨시어지 · ${esc(d.intent)} · ${esc(TIER[d.visitor.tier] || "")}</span>${esc(d.reply)}</div>`);
+    $("simSugg").innerHTML = (d.suggested_replies || []).map((sug) => `<button class="btn" data-sug="${esc(sug)}">${esc(sug)}</button>`).join("");
+  } catch (e) { log.insertAdjacentHTML("beforeend", `<div class="bubble concierge">오류: ${esc(e.message)}</div>`); }
+  log.scrollTop = log.scrollHeight;
+}
+$("simSend").onclick = () => { const t = $("simText").value.trim(); if (t) { $("simText").value = ""; simSend(t); } };
+$("simText").onkeydown = (e) => { if (e.key === "Enter") $("simSend").click(); };
+$("simSugg").onclick = (e) => { const b = e.target.closest("[data-sug]"); if (b) simSend(b.dataset.sug); };
+$("simReset").onclick = () => { simToken = ""; try { sessionStorage.removeItem("simToken"); } catch (e) {} $("simLog").innerHTML = `<p class="muted">새 방문자로 시작합니다. 인사해 보세요.</p>`; $("simSugg").innerHTML = ""; };
+
+// ---------- 시작 ----------
+const TABS = ["overview", "learn", "explore", "sns", "visitors", "progress", "agents", "errors", "needs", "manage"];
+const hashTab = () => { const t = (location.hash || "").slice(1); return TABS.includes(t) ? t : "overview"; };
+window.addEventListener("hashchange", () => { if (hashTab() !== state.tab) switchTab(hashTab()); });
+switchTab(hashTab());
+schedule();
+</script>
+</body>
+</html>

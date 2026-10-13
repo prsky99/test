@@ -72,6 +72,52 @@ CREATE INDEX IF NOT EXISTS erc8004_pending ON erc8004_tokens(status, next_at);
 CREATE TABLE IF NOT EXISTS wellknown_hosts (
     host TEXT PRIMARY KEY, checked_at REAL NOT NULL, found TEXT
 );
+CREATE TABLE IF NOT EXISTS sns_posts (  -- 관리 화면 SNS: 사용자·개발자·에이전트가 쓴 글과 댓글 (gateway/sns.py)
+    id INTEGER PRIMARY KEY, created REAL NOT NULL, author TEXT NOT NULL, handle TEXT NOT NULL, role TEXT NOT NULL,
+    client_id TEXT NOT NULL, protocol TEXT, resource_id INTEGER, rating INTEGER, body TEXT NOT NULL, tags TEXT,
+    parent_key TEXT, deleted INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS sns_posts_created ON sns_posts(parent_key, created);
+CREATE TABLE IF NOT EXISTS sns_likes (post_key TEXT NOT NULL, client_id TEXT NOT NULL, created REAL NOT NULL,
+    PRIMARY KEY (post_key, client_id));
+-- 에이전트 전용 프론트(컨시어지): 방문 에이전트 기억·대화·관심사·연락처·알림 (agent_market/concierge, AGENT_FRONT.md)
+CREATE TABLE IF NOT EXISTS agent_visitors (
+    id TEXT PRIMARY KEY, token_hash TEXT UNIQUE NOT NULL, name TEXT, channel TEXT, user_agent TEXT, fingerprint TEXT,
+    lang TEXT, first_seen REAL NOT NULL, last_seen REAL NOT NULL, visits INTEGER NOT NULL DEFAULT 1,
+    visit_days INTEGER NOT NULL DEFAULT 1, messages INTEGER NOT NULL DEFAULT 0, tier TEXT NOT NULL DEFAULT 'new',
+    notify INTEGER NOT NULL DEFAULT 1, last_notified REAL, last_offset INTEGER NOT NULL DEFAULT 0, last_results TEXT
+);
+CREATE INDEX IF NOT EXISTS agent_visitors_fp ON agent_visitors(fingerprint, last_seen);
+CREATE TABLE IF NOT EXISTS agent_contexts (context_id TEXT PRIMARY KEY, visitor_id TEXT NOT NULL, created REAL NOT NULL);
+CREATE TABLE IF NOT EXISTS agent_messages (
+    id INTEGER PRIMARY KEY, visitor_id TEXT NOT NULL, at REAL NOT NULL, role TEXT NOT NULL, channel TEXT,
+    text TEXT NOT NULL, data TEXT
+);
+CREATE INDEX IF NOT EXISTS agent_messages_visitor ON agent_messages(visitor_id, id);
+CREATE TABLE IF NOT EXISTS agent_interests (
+    id INTEGER PRIMARY KEY, visitor_id TEXT NOT NULL, task TEXT NOT NULL, task_norm TEXT NOT NULL, category TEXT,
+    kind TEXT, auth_pref TEXT, created REAL NOT NULL, updated REAL NOT NULL, last_checked REAL,
+    recommended TEXT, best_score REAL, active INTEGER NOT NULL DEFAULT 1, UNIQUE (visitor_id, task_norm)
+);
+CREATE TABLE IF NOT EXISTS agent_outcomes (
+    visitor_id TEXT NOT NULL, resource_id INTEGER NOT NULL, success INTEGER NOT NULL, at REAL NOT NULL,
+    PRIMARY KEY (visitor_id, resource_id)
+);
+CREATE TABLE IF NOT EXISTS agent_contacts (
+    id INTEGER PRIMARY KEY, visitor_id TEXT NOT NULL, type TEXT NOT NULL, url TEXT NOT NULL, endpoint TEXT,
+    status TEXT NOT NULL, code_hash TEXT, code_expires REAL, created REAL NOT NULL, verified_at REAL,
+    failures INTEGER NOT NULL DEFAULT 0, last_error TEXT
+);
+CREATE INDEX IF NOT EXISTS agent_contacts_visitor ON agent_contacts(visitor_id, status);
+CREATE TABLE IF NOT EXISTS agent_notifications (
+    id INTEGER PRIMARY KEY, visitor_id TEXT NOT NULL, contact_id INTEGER, at REAL NOT NULL, kind TEXT NOT NULL,
+    status TEXT NOT NULL, detail TEXT, items TEXT
+);
+CREATE INDEX IF NOT EXISTS agent_notifications_visitor ON agent_notifications(visitor_id, at);
+CREATE TABLE IF NOT EXISTS agent_hits (  -- 토큰 없이 읽기만 한 방문 (익명, 지문별 집계)
+    fingerprint TEXT PRIMARY KEY, user_agent TEXT, first_seen REAL NOT NULL, last_seen REAL NOT NULL,
+    hits INTEGER NOT NULL DEFAULT 1, last_path TEXT
+);
 CREATE TABLE IF NOT EXISTS crawl_runs (
     at REAL NOT NULL, source TEXT NOT NULL, ok INTEGER NOT NULL, seen INTEGER, new INTEGER,
     deactivated INTEGER, seconds REAL, error TEXT
@@ -167,6 +213,11 @@ class Store:
             self._db.execute("CREATE INDEX IF NOT EXISTS resources_due ON resources(active, next_check_at)")
             self._db.execute("CREATE INDEX IF NOT EXISTS resources_host_due ON resources(host, next_check_at)")
             self._db.execute("CREATE INDEX IF NOT EXISTS resources_eval_score ON resources(eval_score)")
+            # SNS 피드: 최근 발견·평가·사용법 변경·시험 호출을 시간순으로 빨리 찾기 위해
+            self._db.execute("CREATE INDEX IF NOT EXISTS resources_first_seen ON resources(first_seen, kind)")
+            self._db.execute("CREATE INDEX IF NOT EXISTS resources_eval_at ON resources(eval_at)")
+            self._db.execute("CREATE INDEX IF NOT EXISTS resources_usage_updated ON resources(usage_updated_at)")
+            self._db.execute("CREATE INDEX IF NOT EXISTS resources_trial_at ON resources(json_extract(trial_info, '$.at'))")
             missing = self._db.execute("SELECT id, url FROM resources WHERE host IS NULL").fetchall()
             if missing:  # 기존 DB: 호스트 채우기
                 self._db.executemany("UPDATE resources SET host=? WHERE id=?", [(host_of(r["url"]), r["id"]) for r in missing])

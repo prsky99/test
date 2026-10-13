@@ -44,8 +44,28 @@ class CollectorAgent:
         self.idle_wait = idle_wait
         self.batch = batch
         self.stop_event = threading.Event()
-        self.crawler.should_stop = self.stop_event.is_set  # 종료 요청 시 페이지 사이에서 멈춤 (진행 위치는 저장됨)
+        self.paused = threading.Event()  # 관리 화면에서 일시정지: 모든 루프가 쉬고, 수집은 페이지 사이에서 멈춤 (진행 위치 저장)
+        self.crawler.should_stop = lambda: self.stop_event.is_set() or self.paused.is_set()
         self._threads: list[threading.Thread] = []
+        self.started_at: float | None = None
+
+    def pause(self) -> None:
+        self.paused.set()
+        log.info("collector paused")
+
+    def resume(self) -> None:
+        self.paused.clear()
+        log.info("collector resumed")
+
+    def _idle_if_paused(self) -> bool:
+        """일시정지 중이면 잠깐 기다리고 True (루프는 다시 처음으로)."""
+        if self.paused.is_set():
+            self.stop_event.wait(2)
+            return True
+        return False
+
+    def thread_status(self) -> list[dict]:
+        return [{"name": t.name, "alive": t.is_alive()} for t in self._threads]
 
     def start(self) -> None:
         for prober in (self.capabilities, self.agents):
@@ -54,6 +74,7 @@ class CollectorAgent:
                     prober.requeue_outdated_evaluations()
                 except Exception:
                     log.exception("evaluation requeue failed")
+        self.started_at = time.time()
         loops = [("collector-crawl", self._crawl_loop), ("collector-health", self._health_loop)]
         if self.capabilities is not None or self.auth is not None or self.agents is not None:
             loops.append(("collector-capabilities", self._capability_loop))
@@ -71,6 +92,8 @@ class CollectorAgent:
 
     def _crawl_loop(self) -> None:
         while not self.stop_event.is_set():
+            if self._idle_if_paused():
+                continue
             log.info("crawl pass start")
             try:
                 report = self.crawler.crawl_all()
@@ -84,6 +107,8 @@ class CollectorAgent:
 
     def _capability_loop(self) -> None:
         while not self.stop_event.is_set():
+            if self._idle_if_paused():
+                continue
             stats = {"checked": 0}
             for name, prober in (("capabilities", self.capabilities), ("auth", self.auth), ("agents", self.agents)):
                 if prober is None:
@@ -138,6 +163,8 @@ class CollectorAgent:
 
     def _erc8004_scan_loop(self) -> None:
         while not self.stop_event.is_set():
+            if self._idle_if_paused():
+                continue
             report = self.erc8004_scan_round()
             busy = any(v.get("batches", 0) > 2 or v.get("rescan_batches") for v in report.values())
             if any(v.get("new") or v.get("changed") or v.get("error") for v in report.values()):
@@ -147,6 +174,8 @@ class CollectorAgent:
 
     def _agent_resolve_loop(self) -> None:
         while not self.stop_event.is_set():
+            if self._idle_if_paused():
+                continue
             report = self.agent_resolve_round()
             busy = any(v.get("resolved") or v.get("checked") for v in report.values() if isinstance(v, dict))
             if busy:
@@ -157,6 +186,8 @@ class CollectorAgent:
     def _health_loop(self) -> None:
         last_prune = 0.0
         while not self.stop_event.is_set():
+            if self._idle_if_paused():
+                continue
             try:
                 stats = self.checker.run_due(self.batch)
                 if stats["checked"]:
