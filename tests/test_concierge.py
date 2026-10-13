@@ -237,8 +237,15 @@ def test_mcp_initialize_tools_and_calls(w):
 
 def test_chat_rate_limit(w):
     _, c, _ = w
-    codes = [c.post("/chat", json={"message": "hi"}).status_code for _ in range(62)]
+    token = chat(c, "hi")["visitor"]["token"]
+    codes = [c.post("/chat", json={"message": "hi"}, headers={"X-Visitor-Token": token}).status_code for _ in range(61)]
     assert codes.count(429) == 2 and time.time()
+
+
+def test_new_visitors_per_ip_are_capped(w):
+    _, c, _ = w
+    codes = [c.post("/chat", json={"message": "hi"}).status_code for _ in range(22)]
+    assert codes.count(200) == 20 and codes[-1] == 429  # one address cannot fill the visitor table
 
 
 def test_front_and_admin_are_isolated(w):

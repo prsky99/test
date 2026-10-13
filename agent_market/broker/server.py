@@ -40,10 +40,11 @@ CLASSIFY_PER_MINUTE = 20  # 무료인 /match 분류(Claude 호출 비용)를 남
 
 
 class RateLimiter:
-    WINDOW = 60.0
+    """슬라이딩 윈도: 키마다 window초(기본 1분) 안에 최대 per_minute번."""
 
-    def __init__(self, per_minute: int):
+    def __init__(self, per_minute: int, window: float = 60.0):
         self.per_minute = per_minute
+        self.WINDOW = window
         self._hits: dict[str, deque] = defaultdict(deque)
         self._lock = threading.Lock()
         self._swept = time.monotonic()

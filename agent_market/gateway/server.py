@@ -176,7 +176,8 @@ def create_app(
     app.state.service = service
     app.state.collector = collector
     # 에이전트 전용 프론트: 이 앱(관리·게이트웨이 API)에는 경로를 붙이지 않고, main()이 별도 포트의 별도 앱으로 띄운다
-    front = Front(store, allow_private=config.allow_private_urls, courier=courier, llm=concierge_llm(config))
+    front = Front(store, allow_private=config.allow_private_urls, courier=courier, llm=concierge_llm(config),
+                  public_url=config.agent_front_url)
     app.state.front = front
     app.include_router(dashboard_router(store, config.db_path, config.admin_token, collector, service, crawler, front,
                                         front_url=front_url(config)))  # /admin/ui

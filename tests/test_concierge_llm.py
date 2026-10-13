@@ -51,9 +51,9 @@ def test_extract_drops_bad_values():
 
 def test_lead_strips_urls_and_rejects_long_text():
     llm, _ = llm_with(lead_reply="Great choice! Check https://evil.example/now for more.")
-    assert "http" not in llm.lead({"intent": "find"}, "en")
+    assert "http" not in llm.lead({"intent": "find"})
     llm, _ = llm_with(lead_reply="x" * 400)
-    assert llm.lead({"intent": "find"}, "en") is None
+    assert llm.lead({"intent": "find"}) is None
 
 
 def test_failure_pauses_and_returns_none():
@@ -114,6 +114,6 @@ def test_llm_down_falls_back_to_rules(front_with):
 
 def test_lead_drops_leading_greeting():
     llm, _ = llm_with(lead_reply="Welcome back! Here is what I found for PDF conversion.")
-    assert llm.lead({"intent": "find"}, "en") == "Here is what I found for PDF conversion."
-    llm, _ = llm_with(lead_reply="안녕하세요. 날씨 예보를 찾으시는군요.")
-    assert llm.lead({"intent": "find"}, "ko") == "날씨 예보를 찾으시는군요."
+    assert llm.lead({"intent": "find"}) == "Here is what I found for PDF conversion."
+    llm, _ = llm_with(lead_reply="Hi there. You are looking for a weather forecast.")
+    assert llm.lead({"intent": "find"}) == "You are looking for a weather forecast."

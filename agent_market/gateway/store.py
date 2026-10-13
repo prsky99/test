@@ -88,7 +88,8 @@ CREATE TABLE IF NOT EXISTS agent_visitors (
     notify INTEGER NOT NULL DEFAULT 1, last_notified REAL, last_offset INTEGER NOT NULL DEFAULT 0, last_results TEXT
 );
 CREATE INDEX IF NOT EXISTS agent_visitors_fp ON agent_visitors(fingerprint, last_seen);
-CREATE TABLE IF NOT EXISTS agent_contexts (context_id TEXT PRIMARY KEY, visitor_id TEXT NOT NULL, created REAL NOT NULL);
+CREATE TABLE IF NOT EXISTS agent_contexts (context_id TEXT PRIMARY KEY, visitor_id TEXT NOT NULL, created REAL NOT NULL,
+    fingerprint TEXT, issued INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS agent_messages (
     id INTEGER PRIMARY KEY, visitor_id TEXT NOT NULL, at REAL NOT NULL, role TEXT NOT NULL, channel TEXT,
     text TEXT NOT NULL, data TEXT
@@ -228,6 +229,10 @@ class Store:
                 if col not in need_cols:
                     self._db.execute(f"ALTER TABLE needs ADD COLUMN {col} {decl}")
             self._db.execute("CREATE INDEX IF NOT EXISTS needs_rescan ON needs(status, rescanned_at)")
+            ctx_cols = {r[1] for r in self._db.execute("PRAGMA table_info(agent_contexts)")}
+            if "issued" not in ctx_cols:  # 기존 DB: 가로채기 방지 이전에 기록된 contextId는 더 이상 그것만으로 신뢰하지 않음
+                self._db.execute("ALTER TABLE agent_contexts ADD COLUMN fingerprint TEXT")
+                self._db.execute("ALTER TABLE agent_contexts ADD COLUMN issued INTEGER NOT NULL DEFAULT 0")
             if "hint" not in {r[1] for r in self._db.execute("PRAGMA table_info(agent_interests)")}:  # 기존 DB
                 self._db.execute("ALTER TABLE agent_interests ADD COLUMN hint TEXT")
             runs = {r[1] for r in self._db.execute("PRAGMA table_info(crawl_runs)")}

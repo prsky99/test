@@ -1,19 +1,27 @@
-"""에이전트 전용 프론트: 사람이 아닌 AI 에이전트를 위한 첫 화면과 대화 창구 (AGENT_FRONT.md).
+"""Agent-only front: the first screen and conversation endpoints for AI agents, not humans (AGENT_FRONT.md).
 
-관리 화면(게이트웨이 :8200)과 완전히 분리된 별도 앱·별도 포트(AGENT_FRONT_PORT, 기본 8400)로 뜬다.
-이 앱에는 /admin 경로가 없고, 사람용 API 문서 화면(/docs)도 없다. DB와 추천 알림 스케줄러만 게이트웨이와 공유한다.
+Runs as a separate app on its own port (AGENT_FRONT_PORT, default 8400), fully apart from the admin UI (gateway :8200).
+This app has no /admin routes and no human API docs pages (/docs). It shares only the DB and the digest scheduler.
 
-에이전트가 처음 읽는 곳마다 '에이전트 전용'이라고 밝히고, 접근하면 바로 인사하며 무엇을 도와줄지 묻는다.
-  GET  /                              인사 + 질문 + 대화 방법 (JSON, 브라우저면 같은 내용의 HTML)
-  GET  /robots.txt, /llms.txt         크롤러·LLM 에이전트가 먼저 읽는 안내
-  GET  /.well-known/agent-card.json   A2A Agent Card (설명 첫 문장: FOR AI AGENTS ONLY)
-  POST /chat (또는 POST /)            대화 {"message": "..."} → 답 + suggested_replies + 방문 토큰
+Every place an agent reads first says it is for agents only, greets the agent, and asks what it needs.
+  GET  /                              greeting + question + how to talk (JSON; HTML with the same content for browsers)
+  GET  /robots.txt, /llms.txt         notes read first by crawlers and LLM agents
+  GET  /.well-known/agent-card.json   A2A Agent Card (description starts with FOR AI AGENTS ONLY)
+  POST /chat (or POST /)              conversation {"message": "..."} -> reply + suggested_replies + visitor token
   POST /a2a                           A2A JSON-RPC (message/send v0.3, SendMessage v1.0)
-  POST /mcp                           MCP (initialize instructions에 안내·인사, 도구: hello·chat·find_agents·whats_new·subscribe·verify_contact)
-  GET  /me, POST /unsubscribe         방문 토큰으로 내 기록 보기·알림 끄기
-모든 응답 헤더: X-Audience: ai-agents-only, Link: agent-card / llms-txt
+  POST /mcp                           MCP (notice + greeting in initialize instructions; tools: hello, chat, find_agents,
+                                      whats_new, subscribe, verify_contact)
+  GET  /me, POST /unsubscribe         view my record / stop notifications with the visitor token
+Every response carries X-Audience: ai-agents-only and Link: agent-card / llms-txt headers.
+Replies are always in English.
+
+This port is reachable from the internet, so every request is treated as hostile: bodies are size-capped, every route
+is rate-limited per IP, new visitor records per IP are capped, a client-chosen A2A contextId is only trusted from the
+same IP + User-Agent (we hand out unguessable ones), absolute URLs come from AGENT_FRONT_URL rather than the Host
+header, HTML is escaped, and responses carry no-store / nosniff / CSP headers.
 """
 
+import html as html_lib
 import json
 import time
 import uuid
@@ -25,8 +33,7 @@ from starlette.concurrency import run_in_threadpool
 
 from ..broker.server import RateLimiter
 from ..gateway.store import Store
-from .engine import KINDS, T, Concierge, Recommender, lang_of
-from .engine import REPLY_LANG
+from .engine import KINDS, T, Concierge, Recommender
 from .memory import Visitor, VisitorBook, fingerprint
 from .notify import ContactDesk, Courier, DigestSender
 
@@ -35,6 +42,17 @@ NOTICE = ("FOR AI AGENTS ONLY. This service is built for autonomous AI agents, n
           "Agent Concierge finds the best live A2A agents, MCP servers and x402 paid APIs for your task, "
           "remembers what you need, and tells you first when something better appears.")
 CHAT_PER_MINUTE = 60
+READS_PER_MINUTE = 120  # GET routes (greeting, docs, /me)
+NEW_VISITORS_PER_HOUR = 20  # new visitor records one IP may create per hour
+MAX_BODY = 64 * 1024  # request body cap (bytes)
+MAX_MESSAGE = 2000  # characters of a message the engine sees
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    "X-Frame-Options": "DENY",
+    "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+    "Cache-Control": "no-store",  # replies can carry a visitor token
+}
 MCP_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
 LIVE_TTL = 300
 
@@ -47,21 +65,33 @@ def _token_from(request: Request, body_token: str | None = None) -> str | None:
     return t or (body_token if isinstance(body_token, str) else None)
 
 
+class BodyTooLarge(Exception):
+    pass
+
+
+class TooManyVisitors(Exception):
+    pass
+
+
 class Front:
-    def __init__(self, store: Store, allow_private: bool = False, courier: Courier | None = None, llm=None):
+    def __init__(self, store: Store, allow_private: bool = False, courier: Courier | None = None, llm=None,
+                 public_url: str | None = None):
         self.store = store
+        self.public_url = public_url.rstrip("/") if public_url else None
         self.book = VisitorBook(store)
         self.rec = Recommender(store)
         self.courier = courier or Courier(allow_private)
         self.contacts = ContactDesk(self.book, self.courier)
-        self.llm = llm  # 로컬 LLM (Ollama, concierge/llm.py). 없으면 규칙만으로 대화
+        self.llm = llm  # local LLM (Ollama, concierge/llm.py); without it the conversation is rule-based
         self.concierge = Concierge(store, self.book, self.rec, self.contacts, live_count=self.live_total, llm=llm)
         self.digest = DigestSender(self.book, self.rec, self.concierge, self.courier)
         self.limit = RateLimiter(CHAT_PER_MINUTE)
+        self.read_limit = RateLimiter(READS_PER_MINUTE)
+        self.new_limit = RateLimiter(NEW_VISITORS_PER_HOUR, window=3600)
         self._live = (0.0, {})
         self.mcp_sessions: OrderedDict[str, dict] = OrderedDict()
 
-    # ---------------- 공통 ----------------
+    # ---------------- common ----------------
     def live_counts(self) -> dict:
         at, counts = self._live
         if time.time() - at > LIVE_TTL:
@@ -75,19 +105,21 @@ class Front:
         return sum(self.live_counts().values())
 
     def identify(self, request: Request, channel: str, body_token: str | None = None, name: str | None = None,
-                 context_id: str | None = None, create: bool = True, lang: str | None = None) -> Visitor | None:
+                 context_id: str | None = None, create: bool = True) -> Visitor | None:
         ip = request.client.host if request.client else ""
         ua = request.headers.get("user-agent")
         fp = fingerprint(ip, ua)
-        v = self.book.by_token(_token_from(request, body_token)) or self.book.by_context(context_id)
+        v = self.book.by_token(_token_from(request, body_token)) or self.book.by_context(context_id, fp)
         if v is not None:
-            self.book.touch(v, channel, ua, fp, lang)
+            self.book.touch(v, channel, ua, fp)
         elif create:
+            if not self.new_limit.allow(ip or "unknown"):
+                raise TooManyVisitors()
             maybe = self.book.seen_fingerprint(fp)
-            v = self.book.create(channel, ua, fp, name, lang)
+            v = self.book.create(channel, ua, fp, name)
             v.extra["maybe_known"] = maybe
         if v is not None:
-            self.book.bind_context(v, context_id)
+            self.book.bind_context(v, context_id, fp)
             if name and not v.name:
                 self.book.set_name(v, name)
         return v
@@ -100,7 +132,9 @@ class Front:
         return info
 
     def base(self, request: Request) -> str:
-        return str(request.base_url).rstrip("/")
+        """Absolute base URL for links. The configured public URL wins; the Host header is attacker-controlled, so it is
+        only used when nothing is configured (local runs and tests)."""
+        return self.public_url or str(request.base_url).rstrip("/")
 
     def how_to_talk(self, base: str) -> dict:
         return {
@@ -113,22 +147,21 @@ class Front:
         }
 
     def welcome(self, request: Request) -> dict:
-        """GET / 의 인사. 토큰이 있으면 기억을 바탕으로, 없으면 첫인사 (읽기만 한 방문은 지문별로 셈만 한다)."""
+        """Greeting for GET /. With a token it builds on memory, otherwise a first greeting (read-only visits are only counted per fingerprint)."""
         base = self.base(request)
         token = _token_from(request)
         v = self.book.by_token(token) if token else None
-        lang = REPLY_LANG or "en"  # 에이전트 전용 프론트는 영어로만 답함
         if v is None:
             ip = request.client.host if request.client else ""
             self.book.record_hit(fingerprint(ip, request.headers.get("user-agent")), request.headers.get("user-agent"), request.url.path)
         else:
             self.book.touch(v, "rest", request.headers.get("user-agent"), fingerprint(request.client.host if request.client else "",
                                                                                      request.headers.get("user-agent")))
-        reply = self.concierge.greeting(v, lang)
+        reply = self.concierge.greeting(v)
         counts = self.live_counts()
         return {
             "audience": AUDIENCE, "notice": NOTICE, "service": "Agent Concierge",
-            "greeting": reply.text, "question": T[lang]["ask"], "suggested_replies": reply.suggested,
+            "greeting": reply.text, "question": T["ask"], "suggested_replies": reply.suggested,
             "how_to_reply": self.how_to_talk(base),
             "remember_me": "Your first reply includes a visitor token. Send it back as the X-Visitor-Token header next time "
                            "and I'll continue from our last conversation.",
@@ -144,16 +177,15 @@ class Front:
 
     def chat(self, request: Request, channel: str, message: str, data: dict | None, body_token: str | None,
              name: str | None, context_id: str | None = None) -> tuple[Visitor, object]:
-        lang = lang_of(message) if message else None
-        v = self.identify(request, channel, body_token, name, context_id, lang=lang)
-        reply = self.concierge.handle(v, message, data or {}, channel)
+        v = self.identify(request, channel, body_token, name, context_id)
+        reply = self.concierge.handle(v, message[:MAX_MESSAGE], data or {}, channel)
         return v, reply
 
     def simulate(self, message: str, token: str | None) -> dict:
-        """관리 화면의 '에이전트 입장에서 대화해 보기'. 프론트 포트를 거치지 않고 같은 엔진으로 답한다 (channel=admin-test)."""
+        """The admin "talk as an agent" simulator: answered by the same engine without going through the front port (channel=admin-test)."""
         v = self.book.by_token(token)
         if v is None:
-            v = self.book.create("admin-test", "dashboard-simulator", "admin-test", "관리자 테스트")
+            v = self.book.create("admin-test", "dashboard-simulator", "admin-test", "Admin test")
         else:
             self.book.touch(v, "admin-test", "dashboard-simulator", "admin-test")
         return self.reply_body(v, self.concierge.handle(v, message, {}, "admin-test"))
@@ -163,7 +195,7 @@ class Front:
                 "suggested_replies": reply.suggested, "visitor": self.visitor_info(v)}
 
 
-# ---------------- 문서 ----------------
+# ---------------- documents ----------------
 def robots_txt(base: str) -> str:
     return (f"# FOR AI AGENTS ONLY — Agent Concierge\n"
             f"# Hello, agent. This service exists for autonomous AI agents, not for humans.\n"
@@ -260,14 +292,25 @@ Content-Type: application/json
 
 
 def create_front_app(front: Front) -> FastAPI:
-    """에이전트 전용 앱. 관리 경로·사람용 문서 화면 없이 에이전트 창구만 담는다."""
+    """The agent-only app: agent endpoints only, without admin routes or human docs pages."""
     app = FastAPI(title="Agent Concierge — for AI agents only", description=NOTICE, version="1.0.0", docs_url=None, redoc_url=None)
     app.state.front = front
     router = APIRouter()
 
     @app.middleware("http")
     async def agent_headers(request: Request, call_next):
-        response = await call_next(request)
+        if request.method == "GET" and not front.read_limit.allow(request.client.host if request.client else "unknown"):
+            response = JSONResponse({"audience": AUDIENCE, "error": "Too many requests — please slow down."}, status_code=429)
+        else:
+            try:
+                response = await call_next(request)
+            except BodyTooLarge:
+                response = JSONResponse({"audience": AUDIENCE, "error": f"Request body too large (max {MAX_BODY} bytes)."}, status_code=413)
+            except TooManyVisitors:
+                response = JSONResponse({"audience": AUDIENCE, "error": "Too many new visitors from your address. Reuse your "
+                                         "visitor token (X-Visitor-Token) or try again later."}, status_code=429)
+        for k, val in SECURITY_HEADERS.items():
+            response.headers.setdefault(k, val)
         response.headers["X-Audience"] = AUDIENCE
         response.headers.setdefault("Link", '</.well-known/agent-card.json>; rel="agent-card", </llms.txt>; rel="llms-txt"')
         return response
@@ -277,15 +320,28 @@ def create_front_app(front: Front) -> FastAPI:
             return JSONResponse({"audience": AUDIENCE, "error": "Too many requests — please slow down (60/min)."}, status_code=429)
         return None
 
+    async def read_body(request: Request) -> bytes:
+        """Request body, refusing anything over MAX_BODY without buffering it all."""
+        declared = request.headers.get("content-length")
+        if declared and (not declared.isdigit() or int(declared) > MAX_BODY):
+            raise BodyTooLarge()
+        chunks, size = [], 0
+        async for chunk in request.stream():
+            size += len(chunk)
+            if size > MAX_BODY:
+                raise BodyTooLarge()
+            chunks.append(chunk)
+        return b"".join(chunks)
+
     async def body_json(request: Request) -> dict:
-        raw = await request.body()
+        raw = await read_body(request)
         if not raw:
             return {}
         try:
             data = json.loads(raw)
         except ValueError:
-            return {"message": raw.decode("utf-8", "replace")[:2000]}  # 일반 텍스트도 받는다
-        return data if isinstance(data, dict) else {"message": str(data)[:2000]}
+            return {"message": raw.decode("utf-8", "replace")[:MAX_MESSAGE]}  # plain-text bodies are accepted too
+        return data if isinstance(data, dict) else {"message": str(data)[:MAX_MESSAGE]}
 
     @router.get("/", include_in_schema=False)
     async def root(request: Request):
@@ -295,9 +351,10 @@ def create_front_app(front: Front) -> FastAPI:
             ld = json.dumps({"@context": "https://schema.org", "@type": "WebAPI", "name": "Agent Concierge",
                              "description": NOTICE, "audience": {"@type": "Audience", "audienceType": "AI agents"},
                              "documentation": "/llms.txt", "potentialAction": {"@type": "CommunicateAction", "target": "/chat"}})
-            html = HTML.format(notice=NOTICE.replace('"', "&quot;"), ld=ld.replace("</", "<\\/"),
-                               greeting=body["greeting"].replace("<", "&lt;"), base=front.base(request))
-            return HTMLResponse(html)
+            esc = html_lib.escape
+            page = HTML.format(notice=esc(NOTICE), ld=ld.replace("<", "\\u003c"),
+                               greeting=esc(body["greeting"]), base=esc(front.base(request)))
+            return HTMLResponse(page)
         return body
 
     @router.get("/robots.txt", include_in_schema=False)
@@ -315,11 +372,11 @@ def create_front_app(front: Front) -> FastAPI:
     @router.post("/chat")
     @router.post("/", include_in_schema=False)
     async def chat(request: Request):
-        """에이전트와 대화. body: {"message": "...", "data"?: {...}, "visitor_token"?, "name"?} (일반 텍스트 body도 가능)."""
+        """Talk with the concierge. body: {"message": "...", "data"?: {...}, "visitor_token"?, "name"?} (a plain-text body also works)."""
         if (r := limited(request)) is not None:
             return r
         data = await body_json(request)
-        message = str(data.get("message") or data.get("text") or "")
+        message = str(data.get("message") or data.get("text") or "")[:MAX_MESSAGE]
         v, reply = await run_in_threadpool(front.chat, request, "rest", message, data.get("data"), data.get("visitor_token"),
                                            data.get("name") if isinstance(data.get("name"), str) else None)
         headers = {"X-Visitor-Token": v.token} if v.token else {}
@@ -349,7 +406,7 @@ def create_front_app(front: Front) -> FastAPI:
         if (r := limited(request)) is not None:
             return r
         try:
-            req = json.loads(await request.body())
+            req = json.loads(await read_body(request))
             assert isinstance(req, dict)
         except (ValueError, AssertionError):
             return JSONResponse({"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "Parse error"}})
@@ -374,10 +431,12 @@ def create_front_app(front: Front) -> FastAPI:
         token = meta.get("visitor_token") or data.pop("visitor_token", None)
         name = meta.get("agent_name") or data.pop("agent_name", None)
         ctx = msg.get("contextId") if isinstance(msg.get("contextId"), str) else None
-        v, reply = await run_in_threadpool(front.chat, request, "a2a", "\n".join(texts)[:2000], data, token,
+        v, reply = await run_in_threadpool(front.chat, request, "a2a", "\n".join(texts)[:MAX_MESSAGE], data, token,
                                            name if isinstance(name, str) else None, ctx)
-        ctx = ctx or f"ctx-{v.id}"
-        front.book.bind_context(v, ctx)
+        if not ctx:  # hand out an unguessable context so later messages in it are recognised without a token
+            ctx = front.book.new_context_id()
+            front.book.bind_context(v, ctx, fingerprint(request.client.host if request.client else "",
+                                                        request.headers.get("user-agent")), issued=True)
         payload = {"intent": reply.intent, "suggested_replies": reply.suggested, "visitor": front.visitor_info(v), **reply.data}
         mid = str(uuid.uuid4())
         if method == "SendMessage":
@@ -425,7 +484,7 @@ def create_front_app(front: Front) -> FastAPI:
         if (r := limited(request)) is not None:
             return r
         try:
-            req = json.loads(await request.body())
+            req = json.loads(await read_body(request))
             assert isinstance(req, dict)
         except (ValueError, AssertionError):
             return JSONResponse({"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "Parse error (batches not supported)"}})
@@ -439,7 +498,7 @@ def create_front_app(front: Front) -> FastAPI:
                 front.mcp_sessions.popitem(last=False)
             asked = params.get("protocolVersion") if isinstance(params, dict) else None
             v = front.book.by_token(_token_from(request))
-            greet = await run_in_threadpool(front.concierge.greeting, v, "en")
+            greet = await run_in_threadpool(front.concierge.greeting, v)
             instructions = (f"{NOTICE}\n\n{greet.text}\n\nCall `hello` (or `chat` with your task). Your first reply gives you a "
                             "visitor token — pass it as `visitor_token` (or the X-Visitor-Token header) so I remember you next time.")
             return JSONResponse(mcp_result(rid, {

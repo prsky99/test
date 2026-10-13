@@ -1,1 +1,1 @@
-"""에이전트 전용 프론트(컨시어지): AI 에이전트만을 위한 첫 화면·대화·기억·추천 알림 (AGENT_FRONT.md)."""
+"""Agent-only front (concierge): first screen, conversation, memory and recommendation notifications for AI agents (AGENT_FRONT.md)."""

@@ -1,10 +1,12 @@
-"""연락처와 추천 알림: 방문 에이전트가 남긴 연락처로, 관심사에 대해 더 좋아진 에이전트가 나오면 먼저 알린다.
+"""Contacts and recommendation notifications: when something better appears for a visitor's interests, tell them
+first at the contact they left.
 
-- 연락처 종류: webhook(JSON을 POST로 받는 https 주소), a2a(A2A 에이전트 주소 또는 agent card → message/send로 보냄)
-- 인증: 등록하면 6자리 코드를 그 주소로 보내고, 대화에서 'verify <코드>'를 받아야 알림을 시작한다.
-  남의 주소를 등록해 이 서비스를 스팸 통로로 쓰는 것을 막는다.
-- 빈도: 단골은 24시간, 그 외는 72시간에 한 번까지. 좋아진 것이 있을 때만 보낸다. 5번 연속 실패하면 멈춘다.
-- 주소는 공인 주소만, 접속 순간에도 다시 확인한다(public_client). 리다이렉트는 따라가지 않는다.
+- Contact types: webhook (an https URL that accepts POST JSON), a2a (an A2A endpoint or agent card; sent with message/send)
+- Verification: registering sends a 6-digit code to that address; notifications start only after "verify <code>"
+  arrives in the conversation. This stops anyone from registering someone else's address and using us to spam it.
+- Frequency: at most once per 24 h for regulars, 72 h otherwise, and only when something improved. Stops after 5
+  consecutive delivery failures.
+- Only public addresses, re-checked at connect time (public_client). Redirects are not followed.
 """
 
 import hashlib
@@ -13,19 +15,24 @@ import logging
 import secrets
 import time
 import uuid
+from urllib.parse import urlparse
 
 import httpx
 
 from ..broker.discovery import DiscoveryError, check_public_url, public_client
 from ..collector.a2a import endpoint as a2a_endpoint
 from ..collector.a2a import normalize_card
-from .engine import REPLY_LANG, Concierge, Recommender
+from .engine import Concierge, Recommender
 from .memory import VisitorBook
 
 log = logging.getLogger("agent_market.concierge.notify")
 
 CODE_TTL = 3600
 MAX_CONTACT_ATTEMPTS_PER_HOUR = 5
+MAX_SENDS_PER_HOST_PER_HOUR = 10  # verification messages to one host, across all visitors (no one can make us spam a host)
+MAX_VERIFY_TRIES = 5  # wrong codes before a pending contact is dropped (no brute-forcing the 6-digit code)
+MAX_CARD_BYTES = 256 * 1024
+MAX_REPLY_BYTES = 64 * 1024
 MAX_FAILURES = 5
 CADENCE = {"regular": 86400, "returning": 3 * 86400, "new": 3 * 86400}
 UA = "agent-concierge/1.0 (+notifications for AI agents; reply STOP to opt out)"
@@ -36,15 +43,26 @@ def _hash(code: str) -> str:
 
 
 class Courier:
-    """텍스트 메시지 배달: webhook은 JSON POST, a2a는 JSON-RPC message/send(v0.3) 또는 SendMessage(v1.0)."""
+    """Delivers text messages: JSON POST for webhooks, JSON-RPC message/send (v0.3) or SendMessage (v1.0) for A2A."""
 
     def __init__(self, allow_private: bool = False, http: httpx.Client | None = None):
         self.allow_private = allow_private
         self.http = http or public_client(allow_private, timeout=httpx.Timeout(10.0, connect=5.0), follow_redirects=False,
                                           headers={"user-agent": UA})
 
+    def _request(self, method: str, url: str, limit: int, **kw) -> tuple[int, bytes]:
+        """One request whose response body is read only up to `limit` bytes (a hostile server cannot make us buffer more)."""
+        with self.http.stream(method, url, **kw) as resp:
+            chunks, size = [], 0
+            for chunk in resp.iter_bytes():
+                size += len(chunk)
+                if size > limit:
+                    raise DiscoveryError(f"response larger than {limit} bytes")
+                chunks.append(chunk)
+            return resp.status_code, b"".join(chunks)
+
     def resolve(self, ctype: str, url: str) -> dict:
-        """연락처를 검사하고 보낼 곳을 정한다. a2a는 agent card를 읽어 JSON-RPC 주소와 버전을 찾는다."""
+        """Validate a contact and decide where to send. For a2a, read the agent card to find the JSON-RPC endpoint and version."""
         if ctype not in ("webhook", "a2a"):
             raise DiscoveryError("contact type must be webhook or a2a")
         if not url.startswith("https://") and not (self.allow_private and url.startswith("http://")):
@@ -56,10 +74,10 @@ class Courier:
         if ctype == "webhook":
             return {"url": url, "v1": False}
         if url.rstrip("/").endswith((".json", "agent-card", "agent")) or "/.well-known/" in url:
-            resp = self.http.get(url, headers={"accept": "application/json"})
-            if resp.status_code != 200:
-                raise DiscoveryError(f"agent card returned HTTP {resp.status_code}")
-            card = normalize_card(resp.json(), url)
+            status, raw = self._request("GET", url, MAX_CARD_BYTES, headers={"accept": "application/json"})
+            if status != 200:
+                raise DiscoveryError(f"agent card returned HTTP {status}")
+            card = normalize_card(json.loads(raw), url)
             ep = a2a_endpoint(card) if card else None
             if not ep or ep["binding"] != "JSONRPC":
                 raise DiscoveryError("agent card has no JSON-RPC endpoint")
@@ -73,28 +91,29 @@ class Courier:
         payload = {"type": kind, "from": "agent-concierge", "audience": "ai-agents-only", "text": text, "data": data}
         try:
             if contact["type"] == "webhook":
-                resp = self.http.post(target["url"], json=payload)
+                status, raw = self._request("POST", target["url"], MAX_REPLY_BYTES, json=payload)
             else:
                 mid = str(uuid.uuid4())
                 if target.get("v1"):
                     body = {"jsonrpc": "2.0", "id": 1, "method": "SendMessage", "params": {"message": {
                         "role": "ROLE_AGENT", "messageId": mid, "parts": [{"text": text}, {"data": {"data": payload}}]}}}
-                    resp = self.http.post(target["url"], json=body, headers={"A2A-Version": "1.0"})
+                    status, raw = self._request("POST", target["url"], MAX_REPLY_BYTES, json=body, headers={"A2A-Version": "1.0"})
                 else:
                     body = {"jsonrpc": "2.0", "id": 1, "method": "message/send", "params": {"message": {
                         "kind": "message", "role": "agent", "messageId": mid,
                         "parts": [{"kind": "text", "text": text}, {"kind": "data", "data": payload}]}}}
-                    resp = self.http.post(target["url"], json=body)
-                if resp.status_code < 300:
+                    status, raw = self._request("POST", target["url"], MAX_REPLY_BYTES, json=body)
+                if status < 300:
                     try:
-                        err = resp.json().get("error")
+                        reply = json.loads(raw)
+                        err = reply.get("error") if isinstance(reply, dict) else None
                     except ValueError:
                         err = None
                     if err:
                         return False, f"A2A error: {str(err)[:150]}"
-        except (httpx.HTTPError, ValueError) as exc:
+        except (httpx.HTTPError, ValueError, DiscoveryError) as exc:
             return False, f"{type(exc).__name__}: {exc}"[:200]
-        return (True, None) if resp.status_code < 300 else (False, f"HTTP {resp.status_code}")
+        return (True, None) if status < 300 else (False, f"HTTP {status}")
 
 
 class ContactDesk:
@@ -105,6 +124,12 @@ class ContactDesk:
         store = self.book.store
         recent = store.query("SELECT COUNT(*) AS n FROM agent_contacts WHERE visitor_id=? AND created>?", (v.id, time.time() - 3600))[0]["n"]
         if recent >= MAX_CONTACT_ATTEMPTS_PER_HOUR:
+            return {"status": "limited"}
+        host = (urlparse(url).hostname or "").lower()
+        to_host = store.query("""SELECT COUNT(*) AS n FROM agent_notifications n JOIN agent_contacts c ON c.id=n.contact_id
+                                 WHERE n.kind='verification' AND n.at>? AND c.url LIKE ?""",
+                              (time.time() - 3600, f"%://{host}%"))[0]["n"] if host else 0
+        if to_host >= MAX_SENDS_PER_HOST_PER_HOUR:
             return {"status": "limited"}
         try:
             target = self.courier.resolve(ctype, url)
@@ -135,6 +160,10 @@ class ContactDesk:
         rows = store.query("""SELECT * FROM agent_contacts WHERE visitor_id=? AND status='pending' AND code_hash=? AND code_expires>?
                               ORDER BY id DESC LIMIT 1""", (v.id, _hash(code), time.time()))
         if not rows:
+            with store.tx() as db:  # count the miss; too many and the pending contact is dropped
+                db.execute("UPDATE agent_contacts SET failures=failures+1 WHERE visitor_id=? AND status='pending'", (v.id,))
+                db.execute("""UPDATE agent_contacts SET status='failed', code_hash=NULL, last_error='too many wrong codes'
+                              WHERE visitor_id=? AND status='pending' AND failures>=?""", (v.id, MAX_VERIFY_TRIES))
             return None
         with store.tx() as db:
             db.execute("UPDATE agent_contacts SET status='disabled' WHERE visitor_id=? AND status='verified'", (v.id,))
@@ -143,7 +172,7 @@ class ContactDesk:
 
 
 class DigestSender:
-    """연락처가 인증된 방문자에게, 관심사에 대해 더 좋아진 것이 있을 때만 추천을 보낸다."""
+    """Sends recommendations to visitors with a verified contact, only when something improved for their interests."""
 
     def __init__(self, book: VisitorBook, recommender: Recommender, concierge: Concierge, courier: Courier):
         self.book, self.rec, self.concierge, self.courier = book, recommender, concierge, courier
@@ -178,14 +207,10 @@ class DigestSender:
         improved = self.rec.improvements(vid, interests[:10], self.book.failed_resources(vid))
         if not improved:
             return "nothing_new"
-        lang = REPLY_LANG or row["lang"] or "en"  # 에이전트 전용 프론트는 영어로만
         name = f", {row['name']}" if row["name"] else ""
-        head = (f"안녕하세요{name}! 찾으시던 것에 대해 더 좋은 곳이 나왔어요:" if lang == "ko"
-                else f"Hi{name}! Something better appeared for what you were looking for:")
-        tail = ("대화를 이어 가려면 방문 토큰과 함께 POST /chat (또는 /a2a)으로 \"1번 자세히\"라고 보내 주세요. 알림을 끄려면 \"그만\"이라고 답하세요."
-                if lang == "ko" else
-                "To continue, send \"details 1\" to POST /chat (or /a2a) with your visitor token. Reply \"stop\" to opt out.")
-        text = f"{head}\n{self.concierge.improvement_text(improved, lang)}\n{tail}"
+        head = f"Hi{name}! Something better appeared for what you were looking for:"
+        tail = "To continue, send \"details 1\" to POST /chat (or /a2a) with your visitor token. Reply \"stop\" to opt out."
+        text = f"{head}\n{self.concierge.improvement_text(improved)}\n{tail}"
         items = [{"task": imp["task"], "items": imp["items"]} for imp in improved]
         contact = dict(self.book.store.query("SELECT * FROM agent_contacts WHERE id=?", (row["contact_id"],))[0])
         ok, err = self.courier.send(contact, "recommendation", text, {"improvements": items, "visitor_id": vid,
@@ -200,7 +225,7 @@ class DigestSender:
                            (err, MAX_FAILURES, contact["id"]))
         if not ok:
             return "failed"
-        for imp in improved:  # 보낸 것은 '이미 추천한 것'이 되어 같은 소식을 반복하지 않음
+        for imp in improved:  # what was sent now counts as "already recommended", so the same news is not repeated
             self.book.update_recommended(imp["interest_id"], imp["all"][:5])
         flat = [{**i, "task": imp["task"], "kind_pref": None, "auth_pref": None} for imp in improved for i in imp["items"]]
         v = self.book.by_id(vid)

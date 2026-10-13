@@ -1,22 +1,27 @@
-"""방문 에이전트 기억: 누가 왔는지, 무슨 얘기를 했는지, 무엇을 찾았는지, 어디로 연락하면 되는지.
+"""Visitor memory: who came, what was said, what they looked for, and where to reach them.
 
-식별은 방문 토큰(vt_…)으로 한다. 토큰은 해시로만 저장하고, 지난 대화는 토큰을 가진 쪽에게만 보여 준다.
-같은 IP·User-Agent(지문)로 토큰 없이 오면 '혹시 전에 오셨나요?'라고만 묻는다 (같은 IP를 쓰는 다른 에이전트에게 새지 않게).
+Visitors are identified by a visitor token (vt_...). Tokens are stored only as hashes, and past conversations are
+shown only to the token holder. A visitor that comes back without a token from the same IP and User-Agent
+(fingerprint) is only asked "have we talked before?", so nothing leaks to another agent behind the same IP.
 """
 
 import hashlib
 import json
+import re
 import secrets
 import time
 from dataclasses import dataclass, field
 
 from ..gateway.store import Store
 
-SESSION_GAP = 30 * 60  # 마지막 활동 후 30분이 지나면 새 방문
+SESSION_GAP = 30 * 60  # 30 minutes after the last activity, the next request starts a new visit
 MAX_TEXT = 2000
-MAX_MESSAGES = 200  # 방문자당 보관하는 대화 수
+MAX_MESSAGES = 200  # messages kept per visitor
 MAX_INTERESTS = 20
 HIT_RETENTION = 90 * 86400
+MAX_HITS = 100_000  # anonymous read records kept at most (oldest dropped first)
+IDLE_VISITOR_RETENTION = 30 * 86400  # visitors with almost no conversation are dropped after 30 idle days
+ISSUED_CONTEXT = re.compile(r"^ctx_[0-9a-f]{32}$")  # context IDs we issue: random, unguessable
 
 
 def token_hash(token: str) -> str:
@@ -49,11 +54,11 @@ class Visitor:
     last_seen: float
     lang: str | None
     notify: bool
-    token: str | None = None  # 이번 응답에서 새로 발급한 경우에만
-    new: bool = False  # 이번에 처음 만든 방문자
-    new_visit: bool = False  # 이번 요청이 새 방문(세션)의 시작
-    previous_seen: float | None = None  # 이번 방문 전 마지막 활동 시각
-    tier_up: str | None = None  # 이번에 올라간 등급
+    token: str | None = None  # set only when issued in this response
+    new: bool = False  # visitor created by this request
+    new_visit: bool = False  # this request starts a new visit (session)
+    previous_seen: float | None = None  # last activity before this visit
+    tier_up: str | None = None  # tier reached by this request
     extra: dict = field(default_factory=dict)
 
 
@@ -61,7 +66,7 @@ class VisitorBook:
     def __init__(self, store: Store):
         self.store = store
 
-    # ---------------- 식별 ----------------
+    # ---------------- identification ----------------
     def _load(self, row) -> Visitor:
         return Visitor(row["id"], row["name"], row["tier"], row["visits"], row["visit_days"], row["messages"],
                        row["first_seen"], row["last_seen"], row["lang"], bool(row["notify"]))
@@ -72,19 +77,31 @@ class VisitorBook:
         rows = self.store.query("SELECT * FROM agent_visitors WHERE token_hash=?", (token_hash(token),))
         return self._load(rows[0]) if rows else None
 
-    def by_context(self, context_id: str | None) -> Visitor | None:
+    def by_context(self, context_id: str | None, fp: str) -> Visitor | None:
+        """Visitor bound to an A2A contextId. A context we issued (random, unguessable) identifies its visitor on its own.
+        A context the client chose (e.g. "session-1") could be guessed by another agent, so it only counts when it
+        comes from the same fingerprint (IP + User-Agent) that first used it; otherwise the visitor token is needed."""
         if not context_id or len(context_id) > 200:
             return None
-        rows = self.store.query("""SELECT v.* FROM agent_contexts c JOIN agent_visitors v ON v.id=c.visitor_id
-                                   WHERE c.context_id=?""", (context_id,))
-        return self._load(rows[0]) if rows else None
+        rows = self.store.query("""SELECT v.*, c.fingerprint AS ctx_fp, c.issued AS ctx_issued FROM agent_contexts c
+                                   JOIN agent_visitors v ON v.id=c.visitor_id WHERE c.context_id=?""", (context_id,))
+        if not rows:
+            return None
+        row = rows[0]
+        if row["ctx_issued"] and ISSUED_CONTEXT.match(context_id):
+            return self._load(row)
+        return self._load(row) if row["ctx_fp"] and row["ctx_fp"] == fp else None
+
+    @staticmethod
+    def new_context_id() -> str:
+        return "ctx_" + secrets.token_hex(16)
 
     def by_id(self, vid: str) -> Visitor | None:
         rows = self.store.query("SELECT * FROM agent_visitors WHERE id=?", (vid,))
         return self._load(rows[0]) if rows else None
 
     def seen_fingerprint(self, fp: str, within: float = 30 * 86400) -> bool:
-        """토큰 없이 왔지만 같은 IP·User-Agent의 방문자가 최근에 있었는지 (내용은 알려 주지 않음)."""
+        """Whether a visitor with the same IP and User-Agent came recently (contents are never revealed)."""
         return bool(self.store.query("SELECT 1 FROM agent_visitors WHERE fingerprint=? AND last_seen>? LIMIT 1",
                                      (fp, time.time() - within)))
 
@@ -96,12 +113,26 @@ class VisitorBook:
             db.execute("""INSERT INTO agent_visitors (id, token_hash, name, channel, user_agent, fingerprint, lang, first_seen, last_seen)
                           VALUES (?,?,?,?,?,?,?,?,?)""",
                        (vid, token_hash(token), (name or None) and name[:80], channel, (user_agent or "")[:300], fp, lang, now, now))
+        if secrets.randbelow(100) == 0:
+            self.prune()
         v = self.by_id(vid)
         v.token, v.new, v.new_visit = token, True, True
         return v
 
+    def prune(self) -> int:
+        """Drop visitors that barely talked and have been idle for a while (keeps the table from being filled by drive-bys)."""
+        cutoff = time.time() - IDLE_VISITOR_RETENTION
+        with self.store.tx() as db:
+            ids = [r[0] for r in db.execute(
+                "SELECT id FROM agent_visitors WHERE messages <= 2 AND last_seen < ? AND id NOT IN (SELECT visitor_id FROM agent_contacts)",
+                (cutoff,))]
+            for table in ("agent_messages", "agent_interests", "agent_contexts", "agent_outcomes"):
+                db.executemany(f"DELETE FROM {table} WHERE visitor_id=?", [(i,) for i in ids])
+            db.executemany("DELETE FROM agent_visitors WHERE id=?", [(i,) for i in ids])
+        return len(ids)
+
     def touch(self, v: Visitor, channel: str, user_agent: str | None, fp: str, lang: str | None = None) -> Visitor:
-        """활동 기록: 30분 넘게 쉬었다 오면 새 방문, 날짜가 바뀌면 방문한 날 +1, 등급을 다시 계산."""
+        """Record activity: a new visit after 30 idle minutes, one more visit day when the date changes, tier recomputed."""
         now = time.time()
         if v.new:
             return v
@@ -119,13 +150,15 @@ class VisitorBook:
         v.visits, v.visit_days, v.tier = visits, days, tier
         return v
 
-    def bind_context(self, v: Visitor, context_id: str | None) -> None:
+    def bind_context(self, v: Visitor, context_id: str | None, fp: str, issued: bool = False) -> None:
+        """Remember which visitor a contextId belongs to (first use wins; a context is never moved to another visitor)."""
         if context_id and len(context_id) <= 200:
             with self.store.tx() as db:
-                db.execute("INSERT OR IGNORE INTO agent_contexts VALUES (?,?,?)", (context_id, v.id, time.time()))
+                db.execute("INSERT OR IGNORE INTO agent_contexts (context_id, visitor_id, created, fingerprint, issued) VALUES (?,?,?,?,?)",
+                           (context_id, v.id, time.time(), fp, int(issued)))
 
     def set_name(self, v: Visitor, name: str) -> None:
-        name = name.strip()[:80]
+        name = re.sub(r"\s+", " ", "".join(ch for ch in name if ch.isprintable())).strip()[:80]  # no control/invisible characters
         if name:
             with self.store.tx() as db:
                 db.execute("UPDATE agent_visitors SET name=? WHERE id=?", (name, v.id))
@@ -136,16 +169,18 @@ class VisitorBook:
             db.execute("UPDATE agent_visitors SET notify=? WHERE id=?", (int(enabled), vid))
 
     def record_hit(self, fp: str, user_agent: str | None, path: str) -> None:
-        """토큰 없는 읽기 방문(GET /, /llms.txt 등)은 지문별로 묶어 셈만 한다."""
+        """Read-only visits without a token (GET /, /llms.txt, ...) are only counted per fingerprint."""
         now = time.time()
         with self.store.tx() as db:
             db.execute("""INSERT INTO agent_hits VALUES (?,?,?,?,1,?) ON CONFLICT(fingerprint) DO UPDATE SET
                           hits=hits+1, last_seen=excluded.last_seen, last_path=excluded.last_path""",
                        (fp, (user_agent or "")[:300], now, now, path[:200]))
-            if secrets.randbelow(200) == 0:  # 가끔 오래된 익명 기록 정리
+            if secrets.randbelow(200) == 0:  # occasionally prune old anonymous records and cap the table
                 db.execute("DELETE FROM agent_hits WHERE last_seen<?", (now - HIT_RETENTION,))
+                db.execute("""DELETE FROM agent_hits WHERE fingerprint IN (SELECT fingerprint FROM agent_hits ORDER BY last_seen DESC
+                              LIMIT -1 OFFSET ?)""", (MAX_HITS,))
 
-    # ---------------- 대화 ----------------
+    # ---------------- conversation ----------------
     def add_message(self, v: Visitor, role: str, channel: str, text: str, data: dict | None = None) -> None:
         with self.store.tx() as db:
             db.execute("INSERT INTO agent_messages (visitor_id, at, role, channel, text, data) VALUES (?,?,?,?,?,?)",
@@ -166,7 +201,7 @@ class VisitorBook:
         return [dict(r) for r in reversed(rows)]
 
     def save_results(self, v: Visitor, results: list[dict], offset: int) -> None:
-        """'2번 자세히', '더 보기'를 위해 마지막 추천 목록을 기억한다."""
+        """Remember the last recommendation list for "details 2" and "more"."""
         with self.store.tx() as db:
             db.execute("UPDATE agent_visitors SET last_results=?, last_offset=? WHERE id=?",
                        (json.dumps(results, ensure_ascii=False), offset, v.id))
@@ -177,7 +212,7 @@ class VisitorBook:
             return [], 0
         return json.loads(rows[0]["last_results"]), rows[0]["last_offset"]
 
-    # ---------------- 관심사 ----------------
+    # ---------------- interests ----------------
     def remember_interest(self, v: Visitor, task: str, category: str, kind: str | None, auth_pref: str | None,
                           recommended: list[dict], hint: str | None = None) -> int:
         norm = " ".join(task.lower().split())[:200]
@@ -221,7 +256,7 @@ class VisitorBook:
         return {r["resource_id"] for r in self.store.query(
             "SELECT resource_id FROM agent_outcomes WHERE visitor_id=? AND success=0", (vid,))}
 
-    # ---------------- 연락처·알림 ----------------
+    # ---------------- contacts and notifications ----------------
     def contacts(self, vid: str) -> list[dict]:
         return [dict(r) for r in self.store.query("SELECT * FROM agent_contacts WHERE visitor_id=? ORDER BY id DESC", (vid,))]
 
