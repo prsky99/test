@@ -199,3 +199,20 @@ def test_non_standard_tool_responses_do_not_break_batch(bad_response):
     prober = CapabilityProber(store, http=httpx.Client(transport=Odd([WEATHER])), allow_private=True, per_host_delay=0)
     stats = prober.run_due()
     assert stats["checked"] == 1 and stats["trial_failed"] == 1 and store.resource(rid)["usage_guide"]
+
+
+
+def test_tool_level_auth_is_detected_and_not_reset_by_auth_discovery():
+    from agent_market.collector.auth_discovery import AuthDiscoverer
+    store, rid, server, prober = setup([WEATHER], tool_result={"isError": True, "content": [
+        {"type": "text", "text": "Authentication required: provide your API key in the X-API-Key header. Get one at https://w.example/keys"}]})
+    prober.run_due()
+    r = store.resource(rid)
+    assert r["auth_observed"] == 1 and r["auth_scope"] == "tool" and r["auth_checked_at"] is None
+    disc = AuthDiscoverer(store, http=httpx.Client(transport=server), allow_private=True, per_host_delay=0)
+    stats = disc.run_due()  # initialize는 200이지만 '인증 불필요'로 되돌리지 않음
+    r = store.resource(rid)
+    info = json.loads(r["auth_info"])
+    assert stats["checked"] == 1 and r["auth_method"] == "api_key" and r["auth_observed"] == 1
+    assert info["scope"] == "tool" and info["api_key"]["where_to_get"] == ["https://w.example/keys"]
+    assert any("tool calls are rejected" in step for step in info["instructions"])

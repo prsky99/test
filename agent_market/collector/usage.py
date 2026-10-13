@@ -166,6 +166,14 @@ def pick_trial(tools: list[dict], category: str | None = None) -> tuple[dict, di
     return candidates[0][3], candidates[0][4]
 
 
+_AUTH_ERROR = re.compile(r"(unauthori[sz]ed|authenticat|sign[ -]?in|log[ -]?in|api[ _-]?key|access token|bearer|\b401\b|"
+                         r"forbidden|not authorized|missing token|invalid token|link your .* account|connect your .* account)", re.I)
+
+
+def is_auth_error(text: str | None) -> bool:
+    return bool(text and _AUTH_ERROR.search(text))
+
+
 def result_text(result: dict) -> str:
     if not isinstance(result, dict):
         return str(result)[:SAMPLE_CHARS]

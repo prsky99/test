@@ -145,6 +145,8 @@ class CapabilityProber:
                                   last_trial, changes, probed.get("server_info"), probed.get("instructions"))
         guide["updated_at"] = time.time()
         changed = self.store.record_usage(r["id"], tools, digest, guide, changes, trial)
+        if trial and not trial.get("ok") and usage.is_auth_error(trial.get("error")):
+            self.store.mark_tool_level_auth(r["id"])  # 도구 단계 인증 → 인증 방법 조사로 넘김
         return changed and old is not None, trial
 
     def run_due(self, limit: int = 100) -> dict:

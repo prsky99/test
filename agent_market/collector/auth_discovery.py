@@ -133,6 +133,8 @@ def instructions(method: str, info: dict) -> list[str]:
         fmt = "Bearer <key>" if header.lower() == "authorization" and method != "basic" else "<key>"
         steps = ["Get an API key from the provider" + (f": {', '.join(k['where_to_get'][:2])}" if k.get("where_to_get") else ".")]
         steps.append(f"Send it as '{header}: {fmt}' on every MCP request.")
+        if info.get("scope") == "tool":
+            steps.append("Note: initialize/tools/list work without it, but tool calls are rejected until you authenticate.")
         if k.get("query_param"):
             steps.append("The server also accepts the key as a query parameter (prefer the header).")
         return steps
@@ -178,6 +180,12 @@ class AuthDiscoverer:
         status, body = resp.status_code, resp.text[:2000]
         if status == 200 and not (parse_jsonrpc(resp) or {}).get("result"):
             status = None  # 200이지만 MCP 응답이 아님
+        tool_level = resource.get("auth_scope") == "tool"
+        if tool_level and status == 200:
+            # 연결은 되지만 도구 호출에서 인증 요구: 도구 호출 때 받은 오류 메시지로 판단
+            status = None
+            trial = json.loads(resource.get("trial_info") or "null") or {}
+            body = str(trial.get("error") or "")[:2000]
         www = parse_www_authenticate(resp.headers.get("www-authenticate"))
 
         prm, prm_url = None, None
@@ -205,7 +213,8 @@ class AuthDiscoverer:
         headers = [h for r in details.get("remotes") or [] for h in (r.get("headers") or [])]
         method, autonomy = classify_auth(status, www, prm, asm, headers, body)
 
-        info: dict = {"http_status": status, "www_authenticate": {k: v for k, v in www.items() if k != "resource_metadata"} or None}
+        info: dict = {"http_status": status, "www_authenticate": {k: v for k, v in www.items() if k != "resource_metadata"} or None,
+                      "scope": "tool" if tool_level else "connection"}
         if method == "oauth2":
             info["oauth"] = {
                 "resource": (prm or {}).get("resource"),
@@ -224,7 +233,7 @@ class AuthDiscoverer:
                 "where_to_get": urls_in(*(h.get("description") for h in headers), body) or
                                 [u for u in (details.get("website"),) if u],
                 "query_param": bool(re.search(r"query param", body, re.I)),
-                "server_message": body[:300] if status in (401, 403) else None,
+                "server_message": body[:300] if status in (401, 403) or tool_level else None,
             }
         info["website"] = details.get("website")
         info["instructions"] = instructions(method, info)

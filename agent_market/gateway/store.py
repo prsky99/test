@@ -99,6 +99,7 @@ HEALTH_COLUMNS = {
     "auth_info": "TEXT",  # JSON: OAuth 주소·지원 방식, API 키 헤더·발급처, 안내 단계
     "auth_checked_at": "REAL",
     "auth_error": "TEXT",
+    "auth_scope": "TEXT",  # connection(연결부터 인증) | tool(연결은 되지만 도구 호출에 인증 필요)
     # 사용 안내 (collector/usage.py)
     "usage_tools": "TEXT",  # 정리된 도구 정의 JSON (변경 비교용)
     "usage_tools_hash": "TEXT",
@@ -465,8 +466,13 @@ class Store:
             db.execute(
                 "UPDATE resources SET auth_method=?, auth_autonomy=?, auth_info=?, auth_checked_at=?, auth_error=NULL WHERE id=?",
                 (found["method"], found["autonomy"], json.dumps(found["info"]), time.time(), rid))  # 자르지 않음 (조사 단계에서 줄임)
-            if found["method"] == "none":  # 실제로는 인증 없이 동작
-                db.execute("UPDATE resources SET auth_observed=0 WHERE id=?", (rid,))
+            if found["method"] == "none":  # 실제로는 인증 없이 동작 (도구 단계 인증이 확인된 경우는 제외)
+                db.execute("UPDATE resources SET auth_observed=0 WHERE id=? AND COALESCE(auth_scope,'') != 'tool'", (rid,))
+
+    def mark_tool_level_auth(self, rid: int) -> None:
+        """연결은 인증 없이 되지만 도구 호출에서 인증을 요구함 → 인증 필요로 표시하고 인증 방법을 다시 조사."""
+        with self.tx() as db:
+            db.execute("UPDATE resources SET auth_observed=1, auth_scope='tool', auth_checked_at=NULL WHERE id=?", (rid,))
 
     # ---------------- 사용 안내 ----------------
     def record_usage(self, rid: int, tools: list[dict], digest: str, guide: dict, changes: dict | None,
