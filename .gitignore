@@ -8,3 +8,4 @@ wallets/
 *.keystore.json
 gateway-data/
 deploy/gateway.env
+exports/
