@@ -318,7 +318,7 @@ def test_mcp_incremental_after_full_and_full_again_when_due():
     store, crawler = crawler_with(reg, full_interval=3600)
     first = crawler.crawl_all()["mcp-registry"]
     assert first["mode"] == "full" and first["pages"] == 2 and first["new"] == 150
-    assert all("updated_since" not in p for p in reg.mcp_params)
+    assert all("updated_since" not in p and p["version"] == "latest" for p in reg.mcp_params)
     reg.mcp_params.clear()
     second = crawler.crawl_all()["mcp-registry"]
     assert second["mode"] == "incremental" and "updated_since" in reg.mcp_params[0]

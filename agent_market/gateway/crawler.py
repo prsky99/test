@@ -249,7 +249,7 @@ class Crawler:
         return records, (offset if items and offset < total else None)
 
     def _mcp_page(self, state: dict) -> tuple[list[dict], str | None]:
-        params = {"limit": 100}
+        params = {"limit": 100, "version": "latest"}  # 서버마다 최신 버전만 (전체 버전 목록은 5배 이상 길다)
         if state["position"]:
             params["cursor"] = state["position"]
         if state.get("since"):
