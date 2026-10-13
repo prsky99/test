@@ -5,6 +5,7 @@
   MCP는 바뀐 것만, x402는 전체를 훑고, 바뀌지 않은 항목은 DB에 다시 쓰지 않는다 (crawler.Crawler 참고).
 - 헬스체크 루프: 점검 시각이 된 에이전트를 계속 점검 (기본 매시간, 소개 중인 에이전트는 15분, down은 점점 드물게)
   하루에 한 번 7일이 지난 점검 기록을 정리한다.
+- 기능 조사 루프: 인증 없이 응답하는 MCP의 도구 목록을 하루 한 번 받아 지원 언어·나라·통화를 기록한다.
 """
 
 import logging
@@ -13,6 +14,7 @@ import time
 
 from ..gateway.crawler import Crawler
 from ..gateway.store import Store
+from .capabilities import CapabilityProber
 from .health import HealthChecker
 
 log = logging.getLogger("agent_market.collector")
@@ -22,8 +24,9 @@ HISTORY_DAYS = 7
 
 class CollectorAgent:
     def __init__(self, store: Store, crawler: Crawler, checker: HealthChecker,
-                 min_gap: float = 60, idle_wait: float = 15, batch: int = 500):
+                 min_gap: float = 60, idle_wait: float = 15, batch: int = 500, capabilities: CapabilityProber | None = None):
         self.store, self.crawler, self.checker = store, crawler, checker
+        self.capabilities = capabilities
         self.min_gap = min_gap
         self.idle_wait = idle_wait
         self.batch = batch
@@ -32,7 +35,10 @@ class CollectorAgent:
         self._threads: list[threading.Thread] = []
 
     def start(self) -> None:
-        for name, target in (("collector-crawl", self._crawl_loop), ("collector-health", self._health_loop)):
+        loops = [("collector-crawl", self._crawl_loop), ("collector-health", self._health_loop)]
+        if self.capabilities is not None:
+            loops.append(("collector-capabilities", self._capability_loop))
+        for name, target in loops:
             t = threading.Thread(target=target, name=name, daemon=True)
             t.start()
             self._threads.append(t)
@@ -52,6 +58,21 @@ class CollectorAgent:
                 failed = True
             # 다음 바퀴 바로 시작. 실패했으면 레지스트리 부담을 줄이려고 더 오래 쉼
             self.stop_event.wait(self.min_gap * (5 if failed else 1))
+
+    def _capability_loop(self) -> None:
+        while not self.stop_event.is_set():
+            try:
+                stats = self.capabilities.run_due()
+                if stats["checked"]:
+                    log.info("capabilities: %s", stats)
+                    self.store.set_meta("last_capability_batch", {"at": time.time(), **stats})
+            except Exception:
+                log.exception("capability loop error")
+                stats = {"checked": 0}
+            if not stats["checked"]:
+                self.stop_event.wait(300)  # 조사할 게 없으면 5분 쉼
+            elif stats.get("local_network_problem"):
+                self.stop_event.wait(120)
 
     def _health_loop(self) -> None:
         last_prune = 0.0

@@ -7,7 +7,8 @@
 
 API
   GET  /health                         수집 에이전트 자체 상태
-  GET  /agents?q=&category=&kind=&status=&limit=   에이전트 검색 (헬스 상태 포함, retired는 status=retired로만)
+  GET  /agents?q=&category=&kind=&status=&language=&region=&auth=none&limit=
+                                       에이전트 검색 (헬스 상태·제약 정보 포함, retired는 status=retired로만)
   GET  /agents/{id}                    상세 + 최근 점검 기록
   GET  /stats                          헬스 상태별 개수, 최근 1시간 점검 수, 최근 수집 기록
   POST /admin/crawl, /admin/check/{id} 즉시 수집 / 즉시 점검 (ADMIN_TOKEN)
@@ -23,10 +24,13 @@ from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException, Query
 
+from ..gateway import constraints as cons
 from ..gateway.classify import query_terms
+from ..gateway.ranking import agent_languages, agent_regions, auth_required
 from ..gateway.crawler import Crawler
 from ..gateway.store import Store
 from .agent import CollectorAgent
+from .capabilities import CapabilityProber
 from .health import HealthChecker, Schedule
 
 log = logging.getLogger("agent_market.collector.server")
@@ -42,6 +46,11 @@ def public(r: dict) -> dict:
     out = {k: r.get(k) for k in PUBLIC_FIELDS}
     out["networks"] = [n for n in (r.get("networks") or "").strip(",").split(",") if n]
     out["uptime_24h"] = round(r["health_ok_24h"] / r["health_n_24h"], 3) if r.get("health_n_24h") else None
+    out["constraints"] = {
+        "auth_required": auth_required(r), "languages": agent_languages(r), "regions": agent_regions(r),
+        "currencies": cons.unpack(r.get("cap_currencies")), "tool_count": r.get("cap_tool_count"),
+        "capabilities_checked_at": r.get("cap_checked_at"),
+    }
     return out
 
 
@@ -70,8 +79,21 @@ def create_app(store: Store, agent: CollectorAgent | None, admin_token: str | No
 
     @app.get("/agents")
     def agents(q: str | None = None, category: str | None = None, kind: str | None = None,
-               status: str | None = None, limit: int = Query(20, ge=1, le=100)):
+               status: str | None = None, language: str | None = None, region: str | None = None,
+               auth: str | None = None, limit: int = Query(20, ge=1, le=100)):
         conds, params = ["r.active=1"], []
+        if language:
+            lang = cons.normalize_language(language)
+            if lang is None:
+                raise HTTPException(400, "알 수 없는 language")
+            conds.append("(r.cap_languages LIKE ? OR r.desc_lang = ?)"); params += [f"%,{lang},%", lang]
+        if region:
+            reg = cons.normalize_region(region)
+            if reg is None:
+                raise HTTPException(400, "알 수 없는 region")
+            conds.append("(r.regions LIKE ? OR r.cap_regions LIKE ?)"); params += [f"%,{reg},%"] * 2
+        if auth == "none":
+            conds.append("COALESCE(r.auth_observed, r.auth_declared, 0) = 0")
         if category:
             conds.append("r.category=?"); params.append(category)
         if kind:
@@ -124,11 +146,13 @@ def create_app(store: Store, agent: CollectorAgent | None, admin_token: str | No
 
 
 def build_agent(store: Store, health_interval: float, allow_private: bool = False, workers: int = 32,
-                min_gap: float = 60, page_delay: float = 1.0, full_interval: float = 86400) -> CollectorAgent:
+                min_gap: float = 60, page_delay: float = 1.0, full_interval: float = 86400,
+                capability_max_age: float = 86400, capability_workers: int = 8) -> CollectorAgent:
     checker = HealthChecker(store, allow_private=allow_private, workers=workers,
                             schedule=Schedule(interval=health_interval))
     crawler = Crawler(store, page_delay=page_delay, full_interval=full_interval)
-    return CollectorAgent(store, crawler, checker, min_gap=min_gap)
+    caps = CapabilityProber(store, allow_private=allow_private, max_age=capability_max_age, workers=capability_workers)
+    return CollectorAgent(store, crawler, checker, min_gap=min_gap, capabilities=caps)
 
 
 def main() -> None:
@@ -146,6 +170,8 @@ def main() -> None:
         health_interval=float(os.environ.get("HEALTH_INTERVAL_MINUTES", "60")) * 60,
         allow_private=os.environ.get("ALLOW_PRIVATE_AGENT_URLS") == "1",
         workers=int(os.environ.get("HEALTH_WORKERS", "32")),
+        capability_max_age=float(os.environ.get("CAPABILITY_MAX_AGE_HOURS", "24")) * 3600,
+        capability_workers=int(os.environ.get("CAPABILITY_WORKERS", "8")),
     )
     uvicorn.run(create_app(store, agent, os.environ.get("ADMIN_TOKEN")),
                 host=os.environ.get("HOST", "127.0.0.1"), port=int(os.environ.get("PORT", "8300")))

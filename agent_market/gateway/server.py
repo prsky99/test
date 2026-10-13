@@ -31,6 +31,7 @@ from ..config import GatewayConfig
 from ..ledger import Ledger
 from ..payments import PaymentError, PaymentVerifier, recover_signer
 from ..collector.agent import CollectorAgent
+from ..collector.capabilities import CapabilityProber
 from ..collector.health import HealthChecker, Schedule
 from .crawler import Crawler, Prober
 from .service import KINDS, GatewayService, NeedError, Policy
@@ -106,7 +107,9 @@ def create_app(
     crawler = crawler or Crawler(store, page_delay=config.crawl_page_delay, full_interval=config.crawl_full_interval)
     checker = HealthChecker(store, allow_private=config.allow_private_urls, workers=config.health_workers,
                             schedule=Schedule(interval=config.health_interval))
-    collector = CollectorAgent(store, crawler, checker, min_gap=config.crawl_min_gap)
+    caps = CapabilityProber(store, allow_private=config.allow_private_urls, max_age=config.capability_max_age,
+                            workers=config.capability_workers)
+    collector = CollectorAgent(store, crawler, checker, min_gap=config.crawl_min_gap, capabilities=caps)
     prober = prober or Prober(store, checker=checker)
     fetcher = fetcher or CardFetcher(allow_private=config.allow_private_urls, network={"chain_id": net.chain_id, "token": net.token})
     service = GatewayService(store, prober, ledger, policy, notifier=make_notifier(config.allow_private_urls))
@@ -153,6 +156,13 @@ def create_app(
             "endpoints": {"create_need": "POST /needs", "need": "GET /needs/{need_id}", "accept": "POST /offers/accept",
                           "decline": "POST /offers/decline", "feedback": "POST /needs/{need_id}/feedback"},
             "auth": {"create_need": "X-Client: <wallet>, X-Signature: sign('agent-gateway-need:{client}:{sha256(body)}')"},
+            "need_options": {
+                "task": "필요한 작업 설명 (필수)", "category": "카테고리 ID (생략 시 자동 분류)", "max_price": "USDC 최소 단위",
+                "language": "원하는 언어 (ko, en, ja ...): 지원하는 에이전트를 우선",
+                "region": "대상 나라·지역 (kr, us, eu, br ...): 다른 나라 전용 에이전트는 제외, 전 세계 공통은 포함",
+                "auth": "'none'이면 계정·API 키 없이 바로 쓸 수 있는 에이전트만",
+                "kinds": "['x402','mcp','a2a'] 중 일부", "networks": "x402 결제 네트워크", "webhook": "알림 받을 URL",
+            },
         }
 
     @app.get("/health")
@@ -198,7 +208,8 @@ def create_app(
                 except DiscoveryError as exc:
                     raise HTTPException(400, f"webhook: {exc}")
         try:
-            result = service.create_need(signer, task.strip(), data.get("category"), max_price, networks, kinds, webhook, ip)
+            result = service.create_need(signer, task.strip(), data.get("category"), max_price, networks, kinds, webhook, ip,
+                                         language=data.get("language"), region=data.get("region"), auth=data.get("auth"))
         except NeedError as exc:
             return fail(exc)
         if result.get("status") == "offer_pending" and result["offer"]["fee"] > 0:

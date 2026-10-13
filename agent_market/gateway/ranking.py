@@ -1,6 +1,7 @@
 """에이전트 점수 계산. API 키 없이 공개 지표와 자체 관측값만 사용한다.
 
-점수(0~1) = 관련도 0.35 + 인기(30일 결제자 수) 0.20 + 가용성(24시간 헬스체크 성공률) 0.15 + 가격 0.15 + 최근 사용 0.10 + 고객 평가 0.05
+점수(0~1) = 관련도 0.30 + 인기(30일 결제자 수) 0.15 + 가용성(24시간 헬스체크 성공률) 0.15 + 가격 0.15 + 최근 사용 0.10
+           + 조건 적합도(언어·지역·인증 없이 사용 가능) 0.10 + 고객 평가 0.05
 각 항목은 절대 기준으로 계산해, 시간이 지나도 현재 에이전트와 새 후보를 공정하게 비교할 수 있다.
 """
 
@@ -9,10 +10,12 @@ import math
 import time
 from dataclasses import dataclass, field
 
+from . import constraints as cons
 from .classify import query_terms, tokens
 from .store import Store
 
-WEIGHTS = {"relevance": 0.35, "popularity": 0.20, "reliability": 0.15, "price": 0.15, "recency": 0.10, "feedback": 0.05}
+WEIGHTS = {"relevance": 0.30, "popularity": 0.15, "reliability": 0.15, "price": 0.15, "recency": 0.10, "fit": 0.10,
+           "feedback": 0.05}
 POPULARITY_SATURATION = 1000  # 30일 결제자 1000명이면 만점
 REFERENCE_PRICE = 10_000  # 0.01 USDC 이하면 가격 만점
 MIN_RELEVANCE_OTHER_CATEGORY = 0.5  # 카테고리가 다르면 작업 설명과 이만큼은 겹쳐야 후보로 인정
@@ -51,7 +54,37 @@ def refresh_reliability(s: Scored) -> None:
     s.parts["reliability"] = round(new, 3)
 
 
-def score_resource(resource: dict, task_terms: list[str], idf: dict[str, float], category: str, store: Store, now: float | None = None) -> Scored:
+def agent_languages(resource: dict) -> list[str]:
+    return list(dict.fromkeys(cons.unpack(resource.get("cap_languages")) + ([resource["desc_lang"]] if resource.get("desc_lang") else [])))
+
+
+def agent_regions(resource: dict) -> list[str]:
+    return list(dict.fromkeys(cons.unpack(resource.get("regions")) + cons.unpack(resource.get("cap_regions"))))
+
+
+def auth_required(resource: dict) -> bool | None:
+    v = resource.get("auth_observed")
+    v = resource.get("auth_declared") if v is None else v
+    return None if v is None else bool(v)
+
+
+def _fit(resource: dict, need: dict | None) -> float:
+    """요청 조건과 얼마나 맞는지. 언어(요청 시), 지역(요청 시), 계정 없이 바로 쓸 수 있는지의 평균."""
+    need = need or {}
+    parts = []
+    if need.get("language"):
+        langs = agent_languages(resource)
+        parts.append(1.0 if need["language"] in langs else 0.5 if not langs else 0.4 if "en" in langs else 0.2)
+    if need.get("region"):
+        regions = agent_regions(resource)
+        parts.append(1.0 if need["region"] in regions else 0.6)  # 지역 표시 없음 = 전 세계 공통
+    auth = auth_required(resource)
+    parts.append(0.6 if auth is None else 0.4 if auth else 1.0)
+    return sum(parts) / len(parts)
+
+
+def score_resource(resource: dict, task_terms: list[str], idf: dict[str, float], category: str, store: Store,
+                   now: float | None = None, need: dict | None = None) -> Scored:
     now = now or time.time()
     parts = {}
     rel = _relevance(task_terms, idf, resource)
@@ -72,6 +105,8 @@ def score_resource(resource: dict, task_terms: list[str], idf: dict[str, float],
         days = max(0.0, (now - last) / 86400)
         parts["recency"] = 1.0 if days <= 7 else max(0.0, 1 - (days - 7) / 53)
 
+    parts["fit"] = _fit(resource, need)
+
     n, successes, avg_rating = store.feedback_stats(resource["id"])
     success_rate = (successes + 1) / (n + 2)
     rating = ((avg_rating or 3.5) - 1) / 4
@@ -85,16 +120,17 @@ def rank(store: Store, need: dict, limit: int = 5, include: int | None = None) -
     """need에 맞는 후보를 점수순으로. include(현재 에이전트 id)도 같은 기준으로 점수를 매겨 돌려준다."""
     terms = query_terms(need["task"])
     idf = store.idf(terms)
-    candidates = store.search(need["task"], need["category"], need.get("max_price"), need["networks"], need["kinds"])
+    candidates = store.search(need["task"], need["category"], need.get("max_price"), need["networks"], need["kinds"],
+                              region=need.get("region"), auth_free=need.get("auth_pref") == "none")
     scored = sorted(
-        (s for s in (score_resource(r, terms, idf, need["category"], store) for r in candidates)
+        (s for s in (score_resource(r, terms, idf, need["category"], store, need=need) for r in candidates)
          if s.resource["category"] == need["category"] or s.parts["relevance"] >= MIN_RELEVANCE_OTHER_CATEGORY),
         key=lambda s: s.score, reverse=True)
     current = None
     if include is not None:
         res = store.resource(include)
         if res is not None:
-            current = score_resource(res, terms, idf, need["category"], store)
+            current = score_resource(res, terms, idf, need["category"], store, need=need)
             if not res["active"]:
                 current.score = 0.0  # 목록에서 사라진 에이전트는 교체 대상
     return scored[:limit], current
@@ -144,6 +180,13 @@ def reveal(s: Scored) -> dict:
         "calls_30d": r.get("calls_30d"),
         "payers_30d": r.get("payers_30d"),
         "details": json.loads(r["details"]),
+        "constraints": {
+            "auth_required": auth_required(r),  # None = 모름
+            "languages": agent_languages(r),  # 도구 파라미터 + 설명문 언어
+            "regions": agent_regions(r),  # 비어 있으면 전 세계 공통
+            "currencies": cons.unpack(r.get("cap_currencies")),
+            "tool_count": r.get("cap_tool_count"),
+        },
         "score": s.score,
         "score_parts": s.parts,
     }

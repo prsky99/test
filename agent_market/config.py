@@ -122,6 +122,8 @@ class GatewayConfig:
     health_workers: int = 32
     crawl_page_delay: float = 1.0  # 수집 페이지 사이 간격 (요청 속도 고정)
     crawl_full_interval: float = 86400  # MCP 전체 수집(삭제 확인) 주기. 그 사이에는 변경분만
+    capability_max_age: float = 86400  # MCP 도구 목록 조사 주기
+    capability_workers: int = 8
 
     @classmethod
     def from_env(cls) -> "GatewayConfig":
@@ -137,6 +139,8 @@ class GatewayConfig:
             crawl_min_gap=float(os.environ.get("CRAWL_MIN_GAP_SECONDS", "60")),
             crawl_page_delay=float(os.environ.get("CRAWL_PAGE_DELAY", "1.0")),
             crawl_full_interval=float(os.environ.get("CRAWL_FULL_INTERVAL_HOURS", "24")) * 3600,
+            capability_max_age=float(os.environ.get("CAPABILITY_MAX_AGE_HOURS", "24")) * 3600,
+            capability_workers=int(os.environ.get("CAPABILITY_WORKERS", "8")),
             health_interval=float(os.environ.get("HEALTH_INTERVAL_MINUTES", "60")) * 60,
             health_workers=int(os.environ.get("HEALTH_WORKERS", "32")),
             rescan_interval=float(os.environ.get("RESCAN_INTERVAL_MINUTES", "15")) * 60,

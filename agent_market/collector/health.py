@@ -53,6 +53,7 @@ class CheckResult:
     observed_price: int | None = None
     observed_pay_to: str | None = None
     local: bool = False  # 우리 쪽 문제 (에이전트 실패로 기록하지 않음)
+    auth: bool | None = None  # MCP: 인증이 필요한지 (401/403 → True, 인증 없이 initialize 성공 → False)
 
 
 def parse_payment_required(resp: httpx.Response, body: bytes) -> list[dict] | None:
@@ -193,9 +194,9 @@ class HealthChecker:
             except httpx.HTTPError:
                 pass
         if code == 200 and b'"result"' in body:
-            return CheckResult("healthy", code)
+            return CheckResult("healthy", code, auth=False)
         if code in (401, 403):
-            return CheckResult("reachable", code, error="auth required")
+            return CheckResult("reachable", code, error="auth required", auth=True)
         if code in (404, 410) or code >= 500:
             return CheckResult("fail", code, error=f"HTTP {code}")
         return CheckResult("reachable", code, error=f"HTTP {code}")
@@ -237,7 +238,7 @@ class HealthChecker:
             resource["id"], result.outcome, result.status_code, result.latency_ms, result.error,
             next_check_at=self.next_check_at(failures, in_use, time.time(), host_size), down_after=self.schedule.down_after,
             retire_after=self.schedule.retire_after,
-            observed_price=result.observed_price, observed_pay_to=result.observed_pay_to,
+            observed_price=result.observed_price, observed_pay_to=result.observed_pay_to, auth_observed=result.auth,
         )
         if state.get("previous") not in (None, "unknown") and state.get("status") != state.get("previous"):
             log.info("agent %s (%s): %s -> %s", resource["id"], resource["url"], state["previous"], state["status"])

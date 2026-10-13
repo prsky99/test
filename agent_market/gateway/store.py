@@ -13,6 +13,9 @@ from urllib.parse import urlparse
 from ..broker.categories import LEGACY_ALIASES
 from .classify import VERSION as CLASSIFIER_VERSION
 from .classify import classify, query_terms
+from . import constraints as cons
+
+CONSTRAINTS_VERSION = 1  # 추출 규칙이 바뀌면 올린다 → 저장된 에이전트의 제약 정보를 다시 채움
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS resources (
@@ -78,6 +81,18 @@ HEALTH_COLUMNS = {
     "health_n_24h": "INTEGER NOT NULL DEFAULT 0",
     "content_hash": "TEXT",  # 수집한 내용의 지문. 같으면 다시 쓰지 않고 last_seen만 갱신
     "host": "TEXT",  # URL의 호스트 (호스트별로 나눠 점검하기 위해)
+    # 제약 정보 (gateway/constraints.py)
+    "desc_lang": "TEXT",  # 설명문 언어
+    "regions": "TEXT",  # 설명문에 나온 대상 나라·지역 (',br,us,')
+    "auth_declared": "INTEGER",  # 레지스트리 헤더로 본 인증 필요 여부 (1/0/NULL=모름)
+    "auth_observed": "INTEGER",  # 헬스체크로 본 인증 필요 여부 (MCP 401/403 → 1, 200 → 0)
+    "cap_languages": "TEXT",  # 도구 파라미터로 본 지원 언어
+    "cap_regions": "TEXT",  # 도구 파라미터로 본 지원 나라·지역
+    "cap_currencies": "TEXT",
+    "cap_tool_count": "INTEGER",
+    "cap_tool_names": "TEXT",
+    "cap_checked_at": "REAL",
+    "cap_error": "TEXT",
 }
 
 
@@ -86,6 +101,7 @@ def host_of(url: str) -> str:
         return urlparse(url).hostname or url
     except ValueError:
         return url
+NEEDS_COLUMNS = {"language": "TEXT", "region": "TEXT", "auth_pref": "TEXT"}  # 요청 조건 (언어·지역·인증)
 CRAWL_RUN_COLUMNS = {"mode": "TEXT", "changed": "INTEGER", "unchanged": "INTEGER", "pages": "INTEGER"}
 HEALTH_UP = ("healthy", "reachable")
 
@@ -118,10 +134,43 @@ class Store:
             if missing:  # 기존 DB: 호스트 채우기
                 self._db.executemany("UPDATE resources SET host=? WHERE id=?", [(host_of(r["url"]), r["id"]) for r in missing])
             self._reclassify_if_needed()
+            self._backfill_constraints_if_needed()
+            need_cols = {r[1] for r in self._db.execute("PRAGMA table_info(needs)")}
+            for col, decl in NEEDS_COLUMNS.items():
+                if col not in need_cols:
+                    self._db.execute(f"ALTER TABLE needs ADD COLUMN {col} {decl}")
             runs = {r[1] for r in self._db.execute("PRAGMA table_info(crawl_runs)")}
             for col, decl in CRAWL_RUN_COLUMNS.items():
                 if col not in runs:
                     self._db.execute(f"ALTER TABLE crawl_runs ADD COLUMN {col} {decl}")
+
+    @staticmethod
+    def _text_constraints(kind: str, name: str, description: str, details: dict | str | None) -> tuple:
+        if isinstance(details, str):
+            try:
+                details = json.loads(details)
+            except ValueError:
+                details = {}
+        details = details or {}
+        text = f"{name} {description}"
+        if kind == "mcp":
+            auth = cons.declared_auth(details.get("remotes"))
+        elif kind == "x402":
+            auth = False  # 결제는 필요하지만 계정·API 키는 필요 없음
+        else:
+            auth = None
+        return cons.detect_language(text), cons.pack(cons.regions_in_text(text)), None if auth is None else int(auth)
+
+    def _backfill_constraints_if_needed(self) -> None:
+        row = self._db.execute("SELECT value FROM meta WHERE key='constraints_version'").fetchone()
+        if row and json.loads(row["value"]) == CONSTRAINTS_VERSION:
+            return
+        rows = self._db.execute("SELECT id, kind, name, description, details FROM resources").fetchall()
+        self._db.executemany(
+            "UPDATE resources SET desc_lang=?, regions=?, auth_declared=? WHERE id=?",
+            [(*self._text_constraints(r["kind"], r["name"], r["description"], r["details"]), r["id"]) for r in rows],
+        )
+        self._db.execute("INSERT OR REPLACE INTO meta VALUES ('constraints_version', ?)", (json.dumps(CONSTRAINTS_VERSION),))
 
     def _reclassify_if_needed(self) -> None:
         """분류 기준(카테고리·키워드)이 바뀌었으면 저장된 에이전트를 다시 분류한다 (한 번만)."""
@@ -175,13 +224,15 @@ class Store:
             json.dumps(r.get("details") or {}, sort_keys=True)[:8000], r.get("calls_30d"), r.get("payers_30d"), r.get("last_called"),
         )
         digest = hashlib.sha1(json.dumps(values, default=str).encode()).hexdigest()
+        lang, regions, auth = self._text_constraints(r["kind"], r["name"], r["description"], r.get("details"))
         row = db.execute("SELECT id, name, description, url, content_hash FROM resources WHERE key=?", (r["key"],)).fetchone()
         if row is None:
             cur = db.execute(
                 """INSERT INTO resources (source, kind, url, name, description, category, networks, price_usdc, pay_to,
-                   method, details, calls_30d, payers_30d, last_called, key, first_seen, last_seen, active, content_hash, host)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)""",
-                (*values, r["key"], now, now, digest, host_of(r["url"])),
+                   method, details, calls_30d, payers_30d, last_called, key, first_seen, last_seen, active, content_hash, host,
+                   desc_lang, regions, auth_declared)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,?,?)""",
+                (*values, r["key"], now, now, digest, host_of(r["url"]), lang, regions, auth),
             )
             rid = cur.lastrowid
             db.execute("INSERT INTO resources_fts(rowid, name, description) VALUES (?,?,?)", (rid, r["name"], r["description"]))
@@ -193,8 +244,8 @@ class Store:
         db.execute(
             """UPDATE resources SET source=?, kind=?, url=?, name=?, description=?, category=?, networks=?,
                price_usdc=?, pay_to=?, method=?, details=?, calls_30d=?, payers_30d=?, last_called=?,
-               last_seen=?, active=1, content_hash=?, host=? WHERE id=?""",
-            (*values, now, digest, host_of(r["url"]), rid),
+               last_seen=?, active=1, content_hash=?, host=?, desc_lang=?, regions=?, auth_declared=? WHERE id=?""",
+            (*values, now, digest, host_of(r["url"]), lang, regions, auth, rid),
         )
         if row["url"] != r["url"]:  # 주소가 바뀌면 헬스 상태를 새로 시작 (제외됐던 에이전트도 다시 점검)
             db.execute(
@@ -218,11 +269,21 @@ class Store:
         with self.tx() as db:
             db.execute(f"UPDATE resources SET {col}={col}+1, probe_latency_ms=?, probed_at=? WHERE id=?", (latency_ms, time.time(), rid))
 
-    def search(self, text: str, category: str, max_price: int | None, networks: list[str], kinds: list[str], limit: int = 200) -> list[dict]:
-        """FTS로 관련 후보를 뽑고, 부족하면 같은 카테고리 인기순으로 채운다."""
+    def search(self, text: str, category: str, max_price: int | None, networks: list[str], kinds: list[str], limit: int = 200,
+               region: str | None = None, auth_free: bool = False) -> list[dict]:
+        """FTS로 관련 후보를 뽑고, 부족하면 같은 카테고리 인기순으로 채운다.
+
+        region: 다른 나라·지역 전용 데이터를 다루는 에이전트는 뺀다 (지역 표시가 없는 전 세계 공통 에이전트는 남김).
+        auth_free: 계정·API 키가 필요한 것으로 확인된 에이전트는 뺀다 (모르는 것은 남김).
+        """
         terms = query_terms(text)
         conds = ["r.active=1", "r.health_status NOT IN ('down','retired')", f"r.kind IN ({','.join('?' * len(kinds))})"]
         params: list = list(kinds)
+        if region:
+            conds.append("((r.regions IS NULL AND r.cap_regions IS NULL) OR r.regions LIKE ? OR r.cap_regions LIKE ?)")
+            params += [f"%,{region},%"] * 2
+        if auth_free:
+            conds.append("COALESCE(r.auth_observed, r.auth_declared, 0) = 0")
         if max_price is not None:
             conds.append("(r.price_usdc IS NOT NULL AND r.price_usdc <= ?)")
             params.append(max_price)
@@ -295,7 +356,8 @@ class Store:
 
     def record_health(self, rid: int, outcome: str, status_code: int | None, latency_ms: int | None,
                       error: str | None, next_check_at: float, down_after: int = 3, retire_after: float = 7 * 86400,
-                      observed_price: int | None = None, observed_pay_to: str | None = None) -> dict:
+                      observed_price: int | None = None, observed_pay_to: str | None = None,
+                      auth_observed: bool | None = None) -> dict:
         """점검 결과 저장. outcome: healthy | reachable | fail. 갱신된 상태를 돌려준다.
 
         down_after번 연속 실패하면 down, 실패가 retire_after(기본 7일) 넘게 이어지면 retired(점검·추천에서 제외).
@@ -332,12 +394,37 @@ class Store:
                 (status, failures, failing_since, now, last_ok, None if status == "retired" else next_check_at, status_code, (error or "")[:300] or None,
                  agg["ok"] or 0, agg["n"], latency_ms, now, rid),
             )
+            if auth_observed is not None:
+                db.execute("UPDATE resources SET auth_observed=? WHERE id=?", (int(auth_observed), rid))
             price_changed = observed_price is not None and observed_price != row["price_usdc"]
             if price_changed:
                 db.execute("UPDATE resources SET price_usdc=?, pay_to=COALESCE(?, pay_to) WHERE id=?",
                            (observed_price, (observed_pay_to or "").lower() or None, rid))
         return {"status": status, "previous": row["health_status"], "consecutive_failures": failures, "failing_since": failing_since,
                 "price_changed": price_changed, "health_ok_24h": agg["ok"] or 0, "health_n_24h": agg["n"]}
+
+    # ---------------- 기능 조사 (tools/list) ----------------
+    def due_for_capability(self, now: float, max_age: float, limit: int, per_host: int = 2) -> list[dict]:
+        """도구 목록을 조사할 MCP: 인증 없이 응답하는(healthy) 서버 중 조사한 지 max_age가 지난 것. 호스트당 per_host개."""
+        rows = self.query(
+            """SELECT * FROM (
+                 SELECT *, ROW_NUMBER() OVER (PARTITION BY host ORDER BY cap_checked_at IS NOT NULL, cap_checked_at) AS rn
+                 FROM resources WHERE active=1 AND kind='mcp' AND health_status='healthy'
+                 AND (cap_checked_at IS NULL OR cap_checked_at < ?))
+               WHERE rn <= ? ORDER BY cap_checked_at IS NOT NULL, cap_checked_at, random() LIMIT ?""",
+            (now - max_age, per_host, limit))
+        return [{k: r[k] for k in r.keys() if k != "rn"} for r in rows]
+
+    def record_capability(self, rid: int, caps: dict | None, error: str | None = None) -> None:
+        with self.tx() as db:
+            if caps is None:
+                db.execute("UPDATE resources SET cap_checked_at=?, cap_error=? WHERE id=?", (time.time(), (error or "")[:300], rid))
+                return
+            db.execute(
+                """UPDATE resources SET cap_languages=?, cap_regions=?, cap_currencies=?, cap_tool_count=?, cap_tool_names=?,
+                   cap_checked_at=?, cap_error=NULL WHERE id=?""",
+                (cons.pack(caps["languages"]), cons.pack(caps["regions"]), cons.pack(caps["currencies"]), caps["tool_count"],
+                 json.dumps(caps["tool_names"]), time.time(), rid))
 
     def postpone(self, ids: list[int], at: float) -> None:
         """점검 결과를 기록하지 않고 나중에 다시 점검하도록 미룬다 (우리 쪽 네트워크 문제일 때)."""
@@ -373,6 +460,16 @@ class Store:
                        AND (next_check_at IS NULL OR next_check_at < ?)""",
                     (time.time() - 3600,))[0]["n"]
         runs = [dict(r) for r in q("SELECT * FROM crawl_runs ORDER BY at DESC LIMIT 10")]
+        c = q("""SELECT
+                   SUM(COALESCE(auth_observed, auth_declared) = 1) AS auth_required,
+                   SUM(COALESCE(auth_observed, auth_declared) = 0) AS auth_free,
+                   SUM(COALESCE(auth_observed, auth_declared) IS NULL) AS auth_unknown,
+                   SUM(regions IS NOT NULL OR cap_regions IS NOT NULL) AS region_specific,
+                   SUM(cap_checked_at IS NOT NULL AND cap_error IS NULL) AS capabilities_checked,
+                   SUM(cap_languages IS NOT NULL) AS with_language_options
+                 FROM resources WHERE active=1 AND health_status != 'retired'""")[0]
+        langs = {r["desc_lang"]: r["n"] for r in q(
+            "SELECT desc_lang, COUNT(*) AS n FROM resources WHERE active=1 AND desc_lang IS NOT NULL GROUP BY desc_lang ORDER BY n DESC LIMIT 10")}
         return {
             "active_agents": sum(status.values()),
             "by_health": status,
@@ -380,6 +477,7 @@ class Store:
             "checks_last_hour": {"total": checked_1h["n"], "ok": checked_1h["ok"] or 0},
             "overdue_over_1h": overdue,
             "recent_crawls": runs,
+            "constraints": {**{k: c[k] or 0 for k in c.keys()}, "description_languages": langs},
         }
 
     # ---------------- meta ----------------
