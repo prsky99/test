@@ -1,7 +1,9 @@
-"""게이트웨이·브로커·수집 에이전트가 함께 쓰는 서비스 카테고리 (13개 주제).
+"""게이트웨이·브로커·수집 에이전트가 함께 쓰는 서비스 카테고리 (14개 주제).
 
 수집 에이전트가 모은 실제 MCP 서버 2.7만 개와 x402 유료 엔드포인트 3.3만 개의 설명을 분석해
 에이전트가 실제로 제공·탐색하는 주제 13개로 나눴다 (2026-10, COLLECTOR.md / AGENT_BROKER.md 참고).
+A2A 에이전트를 모은 뒤, 미분류의 큰 부분을 차지한 '에이전트를 위한 에이전트'(탐색·등록부·게시판·중개·신원·평판·
+게이트웨이·오케스트레이션)를 14번째 주제 agent_infra로 추가했다.
 어느 주제에도 맞지 않으면 'other'.
 
 이전 6개 카테고리 ID는 LEGACY_ALIASES로 새 ID에 대응시켜, 예전 클라이언트·판매자 agent card도 그대로 동작한다.
@@ -54,12 +56,16 @@ CATEGORIES = {
                  "Databases and SQL, data warehouses, analytics dashboards and metrics.", "-"),
         Category("travel_maps_weather", "여행·지도·날씨",
                  "Weather, maps and geocoding, places, flights, hotels and travel booking data.", "-"),
+        Category("agent_infra", "에이전트 인프라",
+                 "Services for other agents: agent discovery, registries and directories, agent marketplaces and boards, "
+                 "A2A/MCP gateways and bridges, orchestration and multi-agent coordination, agent identity, trust and "
+                 "reputation, agent-to-agent messaging and negotiation, agent hosting and observability.", "-"),
         Category("security", "보안",
                  "Security scanning, vulnerabilities and CVEs, threat intelligence, OSINT, phishing and malware analysis.", "-"),
     ]
 }
 
-# 이전 6개 카테고리 → 새 13개 주제
+# 이전 6개 카테고리 → 새 주제
 LEGACY_ALIASES = {
     "web_data": "web_search",
     "llm_inference": "ai_models",

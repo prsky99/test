@@ -475,3 +475,33 @@ def test_rpc_rate_limit_is_retried_not_treated_as_end():
     crawler = Erc8004Crawler(store, chains={"t": (1, "https://rpc.example")}, http=httpx.Client(transport=Limited(uris, {})),
                              allow_private=True, batch_delay=0)
     assert crawler.scan("t")["new"] == 50 and store.get_meta("erc8004_next:t") == 51
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("Agent discovery index: search 15K+ MCP servers and A2A agents", "agent_infra"),
+    ("Agent-to-agent marketplace with escrow payments", "agent_infra"),
+    ("Identity oracle and trust layer for autonomous AI agents (Know Your Agent)", "agent_infra"),
+    ("Free public message board where AI agents coordinate", "agent_infra"),
+    # 넓은 단어(평판·위임·인계)만 겹치는 다른 서비스는 에이전트 인프라가 아니다 (실측 오분류)
+    ("IP reputation check against public threat blocklists", "!agent_infra"),
+    ("Lido staking, delegation and rewards data", "!agent_infra"),
+    ("Site's own MCP server: enquiry (a human handoff)", "!agent_infra"),
+    ("Composite trust score for a domain: SSL, DNS health", "!agent_infra"),
+])
+def test_agent_infra_category(text, expected):
+    from agent_market.gateway.classify import classify
+    if expected.startswith("!"):
+        assert classify(text) != expected[1:]
+    else:
+        assert classify(text) == expected
+
+
+def test_a2a_agent_is_reclassified_from_card_skills():
+    card = {**CARD_V03, "name": "Hub", "description": "A network for autonomous agents.",
+            "skills": [{"id": "find", "name": "Find agents", "description": "Agent discovery across registries and agent cards.",
+                        "tags": ["agent-directory"]}]}
+    url = "https://agent.example/.well-known/agent-card.json"
+    store, server, prober = world({url: card})
+    rid = a2a_resource(store, "https://agent.example")
+    prober.run_due()
+    assert store.resource(rid)["category"] == "agent_infra"

@@ -1,4 +1,4 @@
-"""API 키 없이 동작하는 키워드 기반 카테고리 분류기 (영어·한국어, 13개 주제).
+"""API 키 없이 동작하는 키워드 기반 카테고리 분류기 (영어·한국어, 14개 주제).
 
 설명에 등장한 주제별 키워드 수로 점수를 매겨 가장 높은 주제를 고른다. 동점이면 더 구체적인 주제가 이긴다
 (PRIORITY 순서). "for AI agents"처럼 거의 모든 설명에 붙는 일반어는 AI 모델 주제의 키워드로 쓰지 않는다.
@@ -9,9 +9,29 @@ import re
 from ..broker.categories import CATEGORIES
 
 OTHER = "other"
-VERSION = 2  # 키워드가 바뀌면 올린다 → 저장된 에이전트를 다시 분류
+VERSION = 3  # 키워드가 바뀌면 올린다 → 저장된 에이전트를 다시 분류 (3: agent_infra 추가)
 
 KEYWORDS: dict[str, list[str]] = {
+    # 에이전트 인프라: 'agents', 'discovery', 'x402' 같은 일반어는 거의 모든 설명에 있어 쓰지 않고 구체적인 표현만 쓴다.
+    # 가장 앞에 둬서 동점이면 이 주제가 이긴다 (예: "agent discovery and search" → web_search가 아니라 agent_infra)
+    "agent_infra": [
+        "agent discovery", "discover agents", "discover ai agents", "find agents", "agent registry", "agent registries",
+        "agent directory", "agent index", "agent catalog", "agent marketplace", "agents marketplace", "agent-to-agent",
+        "agent to agent", "a2a gateway", "a2a registry", "a2a directory", "a2a marketplace", "agent card", "agent cards",
+        "agent network", "agent economy", "agentic economy", "agent commerce", "agentic commerce",
+        "mcp gateway", "mcp bridge", "mcp proxy", "mcp hub", "mcp registry", "mcp router", "mcp server discovery",
+        "tool discovery", "tool registry", "capability discovery", "capability registry",
+        "agent orchestration", "multi-agent orchestration", "multi-agent", "multi agent", "agent swarm", "agent swarms",
+        "agent coordination", "coordination layer", "coordination service", "agent handoff", "agent delegation",
+        "agent identity", "agent identities", "agent reputation", "on-chain reputation", "reputation registry",
+        "reputation oracle", "agent trust", "trust layer", "trust registry", "trust engine", "agent attestation",
+        "erc-8004 identity", "erc-8004 registry", "erc-8004 agents", "erc-8004 registration", "register your ai agent",
+        "know your agent", "kya", "verifiable credential", "verifiable credentials", "agent negotiation",
+        "agent matchmaking", "agent messaging", "agent inbox", "message board", "bulletin board",
+        "agent hosting", "agent runtime", "agent sandbox", "agent observability", "agent monitoring", "agent analytics",
+        "agent memory", "agent payments", "agent gateway", "agent router", "agent escrow",
+        "에이전트 인프라", "에이전트 검색", "에이전트 등록", "에이전트 마켓", "오케스트레이션", "멀티 에이전트", "에이전트 평판", "에이전트 신원",
+    ],
     "security": [
         "security", "vulnerability", "vulnerabilities", "cve", "threat", "threats", "malware", "pentest", "osint",
         "phishing", "exploit", "firewall", "보안", "취약점", "해킹", "악성코드",
@@ -69,7 +89,7 @@ KEYWORDS: dict[str, list[str]] = {
     "ai_models": [
         "llm", "llms", "gpt", "claude", "openai", "anthropic", "gemini", "model", "models", "prompt", "prompts",
         "inference", "embedding", "embeddings", "reasoning", "summarize", "summary", "translate", "translation",
-        "memory", "multi-agent", "chatbot", "요약", "번역", "추론", "언어모델",
+        "memory", "chatbot", "요약", "번역", "추론", "언어모델",
     ],
 }
 # 동점일 때 우선순위 (구체적인 주제 → 일반적인 주제)

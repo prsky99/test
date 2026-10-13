@@ -498,6 +498,10 @@ class Store:
             if found["method"] == "none":  # 실제로는 인증 없이 동작 (도구 단계 인증이 확인된 경우는 제외)
                 db.execute("UPDATE resources SET auth_observed=0 WHERE id=? AND COALESCE(auth_scope,'') != 'tool'", (rid,))
 
+    def set_category(self, rid: int, category: str) -> None:
+        with self.tx() as db:
+            db.execute("UPDATE resources SET category=? WHERE id=?", (category, rid))
+
     def set_auth_observed(self, rid: int, required: bool) -> None:
         with self.tx() as db:
             db.execute("UPDATE resources SET auth_observed=?, auth_scope='connection' WHERE id=?", (int(required), rid))

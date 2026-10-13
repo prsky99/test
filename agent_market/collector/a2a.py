@@ -26,6 +26,7 @@ import httpx
 
 from ..broker.discovery import DiscoveryError, check_public_url
 from ..gateway import constraints as cons
+from ..gateway.classify import OTHER, classify
 from ..gateway.store import Store
 from . import evaluation, usage
 from .auth_discovery import compact, instructions
@@ -689,6 +690,11 @@ class AgentProber:
         caps = {"languages": langs, "regions": sorted(cons.regions_in_text(text))[:10], "currencies": [],
                 "tool_count": len(card["skills"]), "tool_names": [k["name"] for k in card["skills"]][:50]}
         self.store.record_capability(r["id"], caps)
+        # 등록부의 짧은 설명보다 card(설명·스킬·태그)가 훨씬 자세하므로 card 기준으로 다시 분류
+        category = classify(f"{card['name']} {text}")
+        if category != OTHER and category != r.get("category") and r.get("source") != "registered":
+            self.store.set_category(r["id"], category)
+            r = {**r, "category": category}
         for url in card["mcp_interfaces"]:  # card에 적힌 MCP 인터페이스 → MCP 수집 대상으로 (이미 알면 건너뜀)
             if not self.store.query("SELECT 1 FROM resources WHERE url=? LIMIT 1", (url,)):
                 self.store.upsert_resource({
