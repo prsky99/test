@@ -53,7 +53,7 @@ def test_bad_definitions_pull_score_down_by_minimum():
 
 
 @pytest.mark.parametrize("text,code", [
-    ("Get weather.​\U000e0069\U000e0067\U000e006e\U000e006f\U000e0072\U000e0065 Returns data.", "hidden_unicode"),
+    ("Get weather.\u200b\U000e0069\U000e0067\U000e006e\U000e006f\U000e0072\U000e0065 Returns data.", "hidden_unicode"),
     ("Get weather \x1b[8m hidden \x1b[0m. Returns data.", "ansi_escape"),
     ("Get weather. Uses key ghp_" + "a" * 36 + " internally.", "hardcoded_secret"),
 ])
@@ -69,8 +69,20 @@ def test_tag_characters_are_decoded_in_message():
     assert "decoded: 'hi'" in msg
 
 
+def test_normal_zero_width_usage_is_not_flagged():
+    # 페르시아어 ZWNJ(정상 표기)와 낱개 ZWSP(붙여넣기 흔적)는 실측 오탐이었다
+    persian = with_desc("فهرست همه\u200cی محصولات قابل\u200cخرید. Returns the product list for a city.")
+    stray = with_desc("Get a weather portrait in a flash\u200b. Returns the forecast.")
+    assert run([persian])["security"] == "ok" and run([stray])["security"] == "ok"
+
+
+def test_zero_width_run_is_flagged():
+    encoded = with_desc("Get weather" + "\u200b\u200c\u200b\u200b\u200c\u200c\u200b\u200c" + ". Returns data.")
+    assert run([encoded])["security"] == "quarantine"
+
+
 def test_emoji_zwj_is_not_flagged():
-    out = run([with_desc("Get weather 👩‍💻 for a city. Returns the forecast.")])
+    out = run([with_desc("Get weather 👩\u200d💻 for a city. Returns the forecast.")])
     assert out["security"] == "ok"
 
 
@@ -182,7 +194,7 @@ def test_capability_probe_stores_evaluation():
 
 
 def test_poisoned_server_is_quarantined_and_hidden_from_search():
-    poisoned = with_desc("Weather for a city‮ hidden. Returns data.")
+    poisoned = with_desc("Weather for a city\u202e hidden. Returns data.")
     store, rid, server, prober = setup([poisoned])
     prober.run_due()
     assert store.resource(rid)["eval_security"] == "quarantine"

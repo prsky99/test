@@ -17,7 +17,7 @@ import json
 import re
 import time
 
-VERSION = 3  # 3: 실측 오탐 정리 (system prompt 문구·system_prompt 파라미터·이름 기반 주석 모순 제외)
+VERSION = 4  # 3: system prompt 문구·system_prompt 파라미터·이름 기반 주석 모순 제외, 4: 낱개 제로폭 문자 제외 (실측 오탐)
 WEIGHTS = {"availability": 25, "definitions": 20, "security": 20, "context": 15, "protocol": 10, "provenance": 10}
 GRADES = [(85, "A"), (70, "B"), (55, "C"), (40, "D"), (0, "F")]
 GRADE_ORDER = "ABCDF"
@@ -42,8 +42,9 @@ _GUIDANCE = re.compile(r"\b(use (this|when|it|for)|when (you|to)|before|after|in
                        r"example|e\.g\.|for instance|best for|ideal for)\b", re.I)
 _PLACEHOLDER = re.compile(r"\b(todo|tbd|lorem ipsum|fixme|placeholder|description here)\b", re.I)
 
-# 고정밀 신호. ZWJ(U+200D)·변이 선택자는 이모지에 정상적으로 쓰이므로 제외
-_HIDDEN_CHARS = re.compile("[​‌‎‏‪-‮⁠-⁤⁦-⁩﻿\U000e0000-\U000e007f]")
+# 고정밀 신호: 태그 문자(숨은 ASCII 메시지)와 양방향 재배치 제어(Trojan Source), 그리고 제로폭 문자의 연속(비트 인코딩).
+# 낱개 제로폭 문자는 제외: ZWNJ는 페르시아어·인도계 문자의 정상 표기, ZWSP는 복사·붙여넣기 흔적, ZWJ는 이모지 (실측 오탐)
+_HIDDEN_CHARS = re.compile("[\u202a-\u202e\u2066-\u2069\U000e0000-\U000e007f]|[\u200b-\u200f\u2060-\u2064\ufeff]{4,}")
 _TAG_CHARS = re.compile("[\U000e0020-\U000e007e]+")
 _ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07]*\x07")
 _SECRET = re.compile(r"\b(sk-(?:proj-|ant-)?[A-Za-z0-9_\-]{24,}|gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{40,}|"
