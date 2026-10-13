@@ -24,6 +24,7 @@ from tests.test_gateway import GW_World, x402_item
     ("한국 공시 DART 조회", ["kr"], "ko"),
     ("Consulta de dados da empresa por CNPJ", ["br"], "pt"),
     ("Swiss weather from MeteoSwiss", ["ch"], "en"),
+    ("Get user ID and MX records, P/E ratio via the PE field", [], "en"),  # 약어 오탐 없음
 ])
 def test_text_extraction(text, regions, lang):
     assert cons.regions_in_text(text) == regions

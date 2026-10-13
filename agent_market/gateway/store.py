@@ -15,7 +15,7 @@ from .classify import VERSION as CLASSIFIER_VERSION
 from .classify import classify, query_terms
 from . import constraints as cons
 
-CONSTRAINTS_VERSION = 1  # 추출 규칙이 바뀌면 올린다 → 저장된 에이전트의 제약 정보를 다시 채움
+CONSTRAINTS_VERSION = 2  # 추출 규칙이 바뀌면 올린다 → 저장된 에이전트의 제약 정보를 다시 채움
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS resources (

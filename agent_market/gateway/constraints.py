@@ -11,6 +11,8 @@ import re
 
 # 지역 코드 → (표시 이름, 대소문자 구분 패턴, 소문자 패턴)
 # "US"/"EU"처럼 짧은 코드는 "contact us" 같은 오탐을 피하려고 대문자로만 인식한다.
+# 실제 데이터에서 오탐이 많았던 약어는 코드로 인식하지 않는다:
+# ID(user ID), MX(DNS MX 레코드), PE(P/E 비율), AR(증강현실), CO, CA(캘리포니아·인증기관) → 나라 이름으로만 인식
 REGIONS = {
     "us": ("미국", r"\b(US|USA|U\.S\.A?\.?)\b", r"\b(united states|american|sec filings?|edgar|irs|fda|nasdaq|nyse|us-only)\b"),
     "eu": ("EU·유럽", r"\bEU\b", r"\b(european union|european|europe|esma|gdpr|eur-lex|eurostat|mifid)\b"),
@@ -23,11 +25,11 @@ REGIONS = {
     "de": ("독일", r"\bDE\b", r"\b(germany|german|deutschland)\b"),
     "fr": ("프랑스", r"\bFR\b", r"\b(france|french)\b"),
     "ch": ("스위스", r"\bCH\b", r"\b(switzerland|swiss)\b"),
-    "ca": ("캐나다", r"\bCA\b(?!\s*\d)", r"\b(canada|canadian)\b"),
+    "ca": ("캐나다", r"(?!x)x", r"\b(canada|canadian)\b"),
     "au": ("호주", r"\b(AU|ASX)\b", r"\b(australia|australian)\b"),
-    "latam": ("중남미", r"\b(MX|AR|CL|CO|PE)\b", r"\b(mexico|mexican|latam|latin america|argentina|chile|colombia|peru)\b"),
+    "latam": ("중남미", r"(?!x)x", r"\b(mexico|mexican|latam|latin america|argentina|chile|colombia|peru)\b"),
     "africa": ("아프리카", r"\b(NG|KE|ZA)\b", r"\b(nigeria|kenya|south africa|africa|african)\b"),
-    "sea": ("동남아", r"\b(SG|ID|VN|TH|PH|MY)\b(?=[\s,).]|$)", r"\b(singapore|indonesia|vietnam|thailand|philippines|malaysia)\b"),
+    "sea": ("동남아", r"\b(SGX)\b", r"\b(singapore|indonesia|vietnam|thailand|philippines|malaysia)\b"),
     "me": ("중동", r"\b(UAE|KSA)\b", r"\b(dubai|saudi|qatar|abu dhabi|emirates)\b"),
 }
 _REGION_PATTERNS = {code: (re.compile(cs), re.compile(ci, re.I)) for code, (_, cs, ci) in REGIONS.items()}
