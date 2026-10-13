@@ -167,6 +167,8 @@ def pick_trial(tools: list[dict], category: str | None = None) -> tuple[dict, di
 
 
 def result_text(result: dict) -> str:
+    if not isinstance(result, dict):
+        return str(result)[:SAMPLE_CHARS]
     parts = []
     for item in (result or {}).get("content") or []:
         if isinstance(item, dict):

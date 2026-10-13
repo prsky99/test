@@ -336,6 +336,7 @@ def main() -> None:
     import uvicorn
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    logging.getLogger("httpx").setLevel(logging.WARNING)  # 요청마다 찍히는 로그는 끔
     config = GatewayConfig.from_env()
     if not config.network.is_testnet:
         log.warning("메인넷(%s)에서 실제 USDC 수수료를 받습니다.", config.network.name)

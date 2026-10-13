@@ -250,6 +250,9 @@ class AuthDiscoverer:
                     found, err = None, "local"
                 except (httpx.HTTPError, DiscoveryError, ValueError) as exc:
                     found, err = None, f"{type(exc).__name__}: {exc}"[:300]
+                except Exception as exc:  # 비표준 메타데이터 등: 이 서버만 실패로 기록
+                    log.warning("auth discovery error for %s: %r", r["url"], exc)
+                    found, err = None, f"{type(exc).__name__}: {exc}"[:300]
                 with lock:
                     results.append((r, found, err))
 

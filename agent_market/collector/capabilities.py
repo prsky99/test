@@ -103,10 +103,11 @@ class CapabilityProber:
             resp = http.post(url, json=usage.jsonrpc_call(tool["name"], arguments), headers=headers,
                              timeout=httpx.Timeout(20.0, connect=5.0))
             data = parse_jsonrpc(resp) or {}
-            if data.get("error"):
-                out.update(ok=False, error=str(data["error"].get("message") or data["error"])[:300])
+            err = data.get("error")
+            if err:  # 표준은 {"code","message"}지만 문자열로 주는 서버도 있음
+                out.update(ok=False, error=str(err.get("message") or err if isinstance(err, dict) else err)[:300])
             else:
-                res = data.get("result") or {}
+                res = data.get("result") if isinstance(data.get("result"), dict) else {}
                 out.update(ok=not res.get("isError") and bool(res), sample_output=usage.result_text(res) or None)
                 if res.get("isError"):
                     out["error"] = (usage.result_text(res) or "tool returned an error")[:300]
@@ -165,6 +166,9 @@ class CapabilityProber:
                 except (httpx.PoolTimeout, httpx.ProxyError):
                     probed, err = None, "local"
                 except (httpx.HTTPError, DiscoveryError, ValueError) as exc:
+                    probed, err = None, f"{type(exc).__name__}: {exc}"[:300]
+                except Exception as exc:  # 비표준 응답 등: 이 서버만 실패로 기록하고 묶음은 계속
+                    log.warning("capability probe error for %s: %r", r["url"], exc)
                     probed, err = None, f"{type(exc).__name__}: {exc}"[:300]
                 with lock:
                     results.append((r, probed, err))

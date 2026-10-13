@@ -175,6 +175,7 @@ def main() -> None:
     import uvicorn
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    logging.getLogger("httpx").setLevel(logging.WARNING)  # 요청마다 찍히는 로그는 끔
     db = os.environ.get("COLLECTOR_DB", "gateway-data/gateway.sqlite3")
     Path(db).parent.mkdir(parents=True, exist_ok=True)
     store = Store(db)

@@ -178,3 +178,24 @@ def test_client_notified_when_current_agent_usage_changes(world):
     event = next(p for p in sent if p["event"] == "usage_updated")
     assert event["need_id"] == need["need_id"] and event["changes"]["added"] == ["get_order"] and event["usage"]["tool_count"] == 2
     assert world.service.rescan()["usage_updates"] == 0  # 한 번만 알림
+
+
+
+@pytest.mark.parametrize("bad_response", [
+    {"jsonrpc": "2.0", "id": 3, "error": "rate limited"},  # error가 문자열
+    {"jsonrpc": "2.0", "id": 3, "result": ["not", "a", "dict"]},  # result가 객체가 아님
+])
+def test_non_standard_tool_responses_do_not_break_batch(bad_response):
+    class Odd(FakeToolServer):
+        def handle_request(self, request):
+            body = json.loads(request.content or b"{}") if request.method != "DELETE" else {}
+            if body.get("method") == "tools/call":
+                return httpx.Response(200, json=bad_response)
+            return super().handle_request(request)
+    store = Store()
+    rid = mcp_resource(store, "https://odd.example/mcp")
+    with store.tx() as db:
+        db.execute("UPDATE resources SET health_status='healthy' WHERE id=?", (rid,))
+    prober = CapabilityProber(store, http=httpx.Client(transport=Odd([WEATHER])), allow_private=True, per_host_delay=0)
+    stats = prober.run_due()
+    assert stats["checked"] == 1 and stats["trial_failed"] == 1 and store.resource(rid)["usage_guide"]
