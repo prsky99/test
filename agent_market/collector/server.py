@@ -30,7 +30,7 @@ from ..gateway.classify import query_terms
 from ..gateway.ranking import agent_languages, agent_regions, auth_details, auth_required
 from ..gateway.crawler import Crawler
 from ..gateway.store import Store
-from .agent import CollectorAgent
+from .agent import CollectorAgent, build_agent_sources
 from .auth_discovery import AuthDiscoverer
 from .capabilities import CapabilityProber
 from .health import HealthChecker, Schedule
@@ -184,14 +184,18 @@ def create_app(store: Store, agent: CollectorAgent | None, admin_token: str | No
 def build_agent(store: Store, health_interval: float, allow_private: bool = False, workers: int = 32,
                 min_gap: float = 60, page_delay: float = 1.0, full_interval: float = 86400,
                 capability_max_age: float = 86400, capability_workers: int = 8,
-                auth_max_age: float = 7 * 86400, trials: bool = True, trial_max_age: float = 7 * 86400) -> CollectorAgent:
+                auth_max_age: float = 7 * 86400, trials: bool = True, trial_max_age: float = 7 * 86400,
+                erc8004_chains: str | None = None, agent_discovery: bool = True) -> CollectorAgent:
     checker = HealthChecker(store, allow_private=allow_private, workers=workers,
                             schedule=Schedule(interval=health_interval))
     crawler = Crawler(store, page_delay=page_delay, full_interval=full_interval)
     caps = CapabilityProber(store, allow_private=allow_private, max_age=capability_max_age, workers=capability_workers,
                             trials=trials, trial_max_age=trial_max_age)
     auth = AuthDiscoverer(store, allow_private=allow_private, max_age=auth_max_age, workers=capability_workers)
-    return CollectorAgent(store, crawler, checker, min_gap=min_gap, capabilities=caps, auth=auth)
+    agents, erc, wellknown = build_agent_sources(store, allow_private, capability_workers, capability_max_age, trials,
+                                                 trial_max_age, erc8004_chains, agent_discovery)
+    return CollectorAgent(store, crawler, checker, min_gap=min_gap, capabilities=caps, auth=auth, agents=agents,
+                          erc8004=erc, wellknown=wellknown)
 
 
 def main() -> None:
@@ -215,6 +219,8 @@ def main() -> None:
         auth_max_age=float(os.environ.get("AUTH_DISCOVERY_MAX_AGE_DAYS", "7")) * 86400,
         trials=os.environ.get("USAGE_TRIALS", "1") == "1",
         trial_max_age=float(os.environ.get("USAGE_TRIAL_MAX_AGE_DAYS", "7")) * 86400,
+        erc8004_chains=os.environ.get("ERC8004_CHAINS"),
+        agent_discovery=os.environ.get("AGENT_DISCOVERY", "1") == "1",
     )
     uvicorn.run(create_app(store, agent, os.environ.get("ADMIN_TOKEN")),
                 host=os.environ.get("HOST", "127.0.0.1"), port=int(os.environ.get("PORT", "8300")))

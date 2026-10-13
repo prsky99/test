@@ -165,6 +165,49 @@ MCP와 x402에는 언어·지역을 적는 표준 필드가 없습니다(2026-10
   - 검토 필요 신호의 진위 판정
   - 상위 서버의 읽기 전용 실작업 pass^3 검증
 
+**7. AI 에이전트(A2A) 수집** (MCP와 같은 단계: 수집 → 상태 확인 → 인증 → 사용 안내·검증 → 평가, `collector/a2a.py`, `collector/registries.py`)
+
+공개 A2A 에이전트를 모아 둔 표준 레지스트리는 아직 없습니다. 그래서 키 없이 읽을 수 있는 두 곳에서 모읍니다.
+
+- **ERC-8004 온체인 등록부:**
+  - Identity Registry `0x8004A169…a432`를 Base·Ethereum·BSC에서 읽습니다. 주소는 모든 메인넷에서 같습니다.
+  - 등록된 에이전트 ID는 약 54만 개입니다(2026-10 기준 Base 11만, Ethereum 5.4만, BSC 37만).
+  - 공개 RPC로 `tokenURI`를 100개씩 묶어 읽습니다. 새 ID는 이어서 읽고, 기존 ID는 하루에 한 바퀴씩 다시 읽어 agentURI가 바뀐 것만 반영합니다.
+  - 등록 파일은 `data:`, `https://`, `ipfs://`에 있습니다. `https`는 호스트별로 나눠 1초 간격으로 받습니다.
+  - 등록 파일의 `services`에서 다음 두 가지만 가져옵니다.
+    - `A2A` → A2A 에이전트
+    - `MCP` → MCP 서버. 이미 수집한 주소면 건너뜁니다.
+  - 여러 토큰이 같은 엔드포인트를 등록하면(중복·스팸 등록이 많습니다) 하나로 묶고, 등록 목록은 5개까지만 기록합니다.
+  - `active: false`가 되거나 엔드포인트가 빠지면 목록에서 내립니다.
+  - 체인은 `ERC8004_CHAINS`로 고르고, `AGENT_DISCOVERY=0`이면 A2A 수집을 끕니다.
+- **well-known 탐색:** 이미 아는 호스트(MCP·x402·에이전트)마다 `/.well-known/agent-card.json`(구 `agent.json`)을 30일에 한 번 확인합니다. 같은 경로에 A2A가 아닌 JSON을 두는 곳이 많아서, `name`·`skills`·인터페이스가 있는 card만 인정합니다.
+
+조사 단계(하루 한 번, 에이전트당 요청 2~4개):
+
+| 단계 | 방법 |
+|---|---|
+| 상태 확인 (헬스체크) | 매시간 agent card가 열리고 A2A card 모양이면 정상. MCP와 같은 down(3회 연속 실패)·retired(7일) 규칙을 씁니다 |
+| card 해석 | A2A v1.0(`supportedInterfaces`, `securityRequirements`, PascalCase 메서드)과 v0.3(`url`·`preferredTransport`, OpenAPI식 `securitySchemes`, `message/send`)을 같은 모양으로 정리합니다 |
+| 엔드포인트 확인 | 없는 작업 ID로 `GetTask`(`tasks/get`)를 보냅니다. `-32001 TaskNotFound`가 오면 정상이고, 401/403이면 인증이 필요합니다. 에이전트에게 일을 시키지 않는 가장 가벼운 확인입니다. card의 `url`이 홈페이지를 가리켜 응답하지 않으면 `/a2a` 같은 흔한 경로를 더 보고, 찾으면 사용 안내에 그 주소를 쓰고 평가에 표시합니다 |
+| 인증 | card의 `securitySchemes`와 `security`를 읽습니다. 종류는 apiKey(헤더·쿼리·쿠키), http bearer·basic, OAuth2 흐름(clientCredentials·authorizationCode·deviceCode), OIDC, mTLS입니다. OAuth 메타데이터가 있으면 자동 등록 여부를 읽어, 에이전트 혼자 토큰을 받을 수 있는지(`agent_autonomous`) 판정합니다. 따라 할 단계는 MCP와 같은 형식입니다 |
+| 사용 안내 | 엔드포인트, 바인딩, 메서드 이름(버전별), 스킬별 설명·태그·예시, 예시마다 바로 보낼 수 있는 JSON-RPC 요청, 인증 단계, 결제 확장(x402) 여부를 만듭니다. card가 바뀌면(해시 비교) 다시 만들고 스킬 추가·삭제·변경 내역을 남깁니다 |
+| 실제 사용 검증 | 인증이 필요 없을 때만 메시지 1개를 보냅니다(일주일에 한 번, card가 바뀌면 바로). 고르는 순서: card의 스킬 예시 중 구매·전송·예약·삭제 같은 행동이 없고 개인정보가 없는 것 → 없으면 "무엇을 도와줄 수 있는지" 질문. 작업이 끝나지 않고 남으면 바로 취소(`CancelTask`)합니다 |
+| 평가 | MCP와 같은 6개 축·가중치·등급을 씁니다. 다른 점은 아래와 같습니다 |
+
+평가가 MCP와 다른 점:
+- **정의 품질:** 스킬의 설명·목적·태그·예시·이름(0.6·평균 + 0.4·최솟값)과 card 수준의 설명·입출력 형식을 봅니다.
+- **보안:** 숨은 유니코드·주입 문구 같은 텍스트 검사는 MCP와 같습니다. 여기에 평문 HTTP 인터페이스, 쿼리로 보내는 API 키, 폐기된 OAuth 흐름(implicit·password)을 더 봅니다.
+- **프로토콜:** 버전별 필수 필드, 바인딩 이름, 스킬 id 중복, well-known 경로와 JSON content-type, 알 수 없는 작업에 표준 오류 코드(-32001)를 주는지, 선언된 주소가 실제 엔드포인트인지 봅니다.
+- **출처:** 제공자(조직·URL)와 card 도메인의 일치, 문서, card 서명(JWS), ERC-8004 등록과 도메인 검증(`/.well-known/agent-registration.json`이 같은 등록을 가리키는지)을 봅니다.
+- **컨텍스트:** card 크기와 스킬 수로 봅니다.
+- **인증이 필요해도 평가합니다.** card는 항상 공개되므로 시험 메시지만 빠지고 나머지 축은 모두 평가합니다(`coverage: definitions`).
+
+조회 방법은 MCP와 같습니다.
+- `GET /agents?kind=a2a`: `&auth=agent`, `&min_grade=B`, `&verified=true`, `&sort=quality` 조건을 붙일 수 있습니다.
+- `GET /agents/{id}`: 사용 안내(`usage.protocol = "A2A"`), 평가, 시험 결과가 나옵니다.
+- `GET /stats`의 `agent_sources`: 출처별 수와 체인별 진행 상황이 나옵니다. `evaluation_by_kind.a2a`에는 등급 분포가 나옵니다.
+- 게이트웨이: `POST /needs`에 `kinds: ["a2a"]`를 주면 A2A 에이전트도 같은 방식으로 소개합니다.
+
 ## 상태와 점검 주기
 
 | 상태 | 조건 | 다음 점검 | 게이트웨이 추천 |

@@ -7,6 +7,9 @@
   하루에 한 번 7일이 지난 점검 기록을 정리한다.
 - 기능 조사 루프: 인증 없이 응답하는 MCP의 도구 목록을 하루 한 번 받아 지원 언어·나라·통화를 기록하고,
   인증이 필요한 MCP는 일주일에 한 번 인증 방법(OAuth 메타데이터·API 키 발급처 등)을 조사한다.
+  A2A 에이전트는 하루 한 번 agent card·인증·엔드포인트·안전한 시험 메시지·평가를 한 번에 조사한다 (collector/a2a.py).
+- AI 에이전트 수집 루프: ERC-8004 온체인 등록부(체인별 tokenURI 배치 조회 → 등록 파일 → A2A·MCP 엔드포인트)와
+  이미 아는 호스트의 /.well-known/agent-card.json 탐색을 쉬지 않고 천천히 돈다 (collector/registries.py).
 """
 
 import logging
@@ -15,9 +18,11 @@ import time
 
 from ..gateway.crawler import Crawler
 from ..gateway.store import Store
+from .a2a import AgentProber
 from .auth_discovery import AuthDiscoverer
 from .capabilities import CapabilityProber
 from .health import HealthChecker
+from .registries import DEFAULT_CHAINS, Erc8004Crawler, WellKnownDiscoverer
 
 log = logging.getLogger("agent_market.collector")
 
@@ -27,10 +32,14 @@ HISTORY_DAYS = 7
 class CollectorAgent:
     def __init__(self, store: Store, crawler: Crawler, checker: HealthChecker,
                  min_gap: float = 60, idle_wait: float = 15, batch: int = 500, capabilities: CapabilityProber | None = None,
-                 auth: AuthDiscoverer | None = None):
+                 auth: AuthDiscoverer | None = None, agents: AgentProber | None = None,
+                 erc8004: Erc8004Crawler | None = None, wellknown: WellKnownDiscoverer | None = None):
         self.store, self.crawler, self.checker = store, crawler, checker
         self.capabilities = capabilities
         self.auth = auth
+        self.agents = agents
+        self.erc8004 = erc8004
+        self.wellknown = wellknown
         self.min_gap = min_gap
         self.idle_wait = idle_wait
         self.batch = batch
@@ -39,14 +48,19 @@ class CollectorAgent:
         self._threads: list[threading.Thread] = []
 
     def start(self) -> None:
-        if self.capabilities is not None:
-            try:
-                self.capabilities.requeue_outdated_evaluations()
-            except Exception:
-                log.exception("evaluation requeue failed")
+        for prober in (self.capabilities, self.agents):
+            if prober is not None:
+                try:
+                    prober.requeue_outdated_evaluations()
+                except Exception:
+                    log.exception("evaluation requeue failed")
         loops = [("collector-crawl", self._crawl_loop), ("collector-health", self._health_loop)]
-        if self.capabilities is not None or self.auth is not None:
+        if self.capabilities is not None or self.auth is not None or self.agents is not None:
             loops.append(("collector-capabilities", self._capability_loop))
+        if self.erc8004 is not None:
+            loops.append(("collector-erc8004-scan", self._erc8004_scan_loop))
+        if self.erc8004 is not None or self.wellknown is not None:
+            loops.append(("collector-agent-resolve", self._agent_resolve_loop))
         for name, target in loops:
             t = threading.Thread(target=target, name=name, daemon=True)
             t.start()
@@ -71,7 +85,7 @@ class CollectorAgent:
     def _capability_loop(self) -> None:
         while not self.stop_event.is_set():
             stats = {"checked": 0}
-            for name, prober in (("capabilities", self.capabilities), ("auth", self.auth)):
+            for name, prober in (("capabilities", self.capabilities), ("auth", self.auth), ("agents", self.agents)):
                 if prober is None:
                     continue
                 try:
@@ -94,6 +108,52 @@ class CollectorAgent:
             elif stats.get("local_network_problem"):
                 self.stop_event.wait(120)
 
+    def erc8004_scan_round(self) -> dict:
+        """체인마다 새 등록을 이어서 읽고, 남는 배치로 기존 등록을 다시 읽는다 (agentURI 변경 반영)."""
+        report = {}
+        for chain in self.erc8004.chains:
+            if self.stop_event.is_set():
+                break
+            try:
+                report[chain] = self.erc8004.scan(chain)
+            except Exception as exc:
+                log.warning("erc8004 scan %s failed: %r", chain, exc)
+                report[chain] = {"error": str(exc)[:200]}
+        return report
+
+    def agent_resolve_round(self) -> dict:
+        """등록 파일 받기(호스트별로 나눠 병렬) + 아는 호스트의 well-known agent card 탐색."""
+        report = {}
+        if self.erc8004 is not None:
+            try:
+                report["erc8004_resolve"] = self.erc8004.resolve_pending()
+            except Exception:
+                log.exception("erc8004 resolve failed")
+        if self.wellknown is not None:
+            try:
+                report["well_known"] = self.wellknown.run_due()
+            except Exception:
+                log.exception("well-known discovery failed")
+        return report
+
+    def _erc8004_scan_loop(self) -> None:
+        while not self.stop_event.is_set():
+            report = self.erc8004_scan_round()
+            busy = any(v.get("batches", 0) > 2 or v.get("rescan_batches") for v in report.values())
+            if any(v.get("new") or v.get("changed") or v.get("error") for v in report.values()):
+                log.info("erc8004 scan: %s", report)
+            self.store.set_meta("last_erc8004_scan", {"at": time.time(), **report})
+            self.stop_event.wait(5 if busy else 120)  # 따라잡은 뒤에는 2분마다 새 등록 확인
+
+    def _agent_resolve_loop(self) -> None:
+        while not self.stop_event.is_set():
+            report = self.agent_resolve_round()
+            busy = any(v.get("resolved") or v.get("checked") for v in report.values() if isinstance(v, dict))
+            if busy:
+                log.info("agent discovery: %s", report)
+                self.store.set_meta("last_agent_discovery", {"at": time.time(), **report})
+            self.stop_event.wait(2 if busy else 120)
+
     def _health_loop(self) -> None:
         last_prune = 0.0
         while not self.stop_event.is_set():
@@ -113,3 +173,22 @@ class CollectorAgent:
                 self.stop_event.wait(self.idle_wait)  # 할 일이 없으면 잠시 쉼
             elif stats.get("local_network_problem"):
                 self.stop_event.wait(60)  # 우리 쪽 네트워크 문제: 잠시 쉬었다가 새 연결로 재시도
+
+
+def chains_from(value: str | None) -> dict:
+    """'base,ethereum,bsc' → 체인 설정. 빈 문자열이면 ERC-8004 수집을 끈다."""
+    if value is None:
+        return dict(DEFAULT_CHAINS)
+    return {c.strip(): DEFAULT_CHAINS[c.strip()] for c in value.split(",") if c.strip() in DEFAULT_CHAINS}
+
+
+def build_agent_sources(store: Store, allow_private: bool, workers: int, max_age: float, trials: bool,
+                        trial_max_age: float, chains: str | None = None, discovery: bool = True):
+    """A2A 조사기와 수집 출처 (ERC-8004, well-known)."""
+    prober = AgentProber(store, allow_private=allow_private, max_age=max_age, workers=workers, trials=trials,
+                         trial_max_age=trial_max_age)
+    if not discovery:
+        return prober, None, None
+    picked = chains_from(chains)
+    erc = Erc8004Crawler(store, chains=picked, allow_private=allow_private) if picked else None
+    return prober, erc, WellKnownDiscoverer(store, allow_private=allow_private)

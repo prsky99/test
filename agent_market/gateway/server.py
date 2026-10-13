@@ -30,7 +30,7 @@ from ..chain import RPC, normalize
 from ..config import GatewayConfig
 from ..ledger import Ledger
 from ..payments import PaymentError, PaymentVerifier, recover_signer
-from ..collector.agent import CollectorAgent
+from ..collector.agent import CollectorAgent, build_agent_sources
 from ..collector.auth_discovery import AuthDiscoverer
 from ..collector.capabilities import CapabilityProber
 from ..collector.health import HealthChecker, Schedule
@@ -112,7 +112,11 @@ def create_app(
                             workers=config.capability_workers, trials=config.trials, trial_max_age=config.trial_max_age)
     auth = AuthDiscoverer(store, allow_private=config.allow_private_urls, max_age=config.auth_max_age,
                           workers=config.capability_workers)
-    collector = CollectorAgent(store, crawler, checker, min_gap=config.crawl_min_gap, capabilities=caps, auth=auth)
+    agents, erc, wellknown = build_agent_sources(store, config.allow_private_urls, config.capability_workers,
+                                                 config.capability_max_age, config.trials, config.trial_max_age,
+                                                 config.erc8004_chains, config.agent_discovery)
+    collector = CollectorAgent(store, crawler, checker, min_gap=config.crawl_min_gap, capabilities=caps, auth=auth,
+                               agents=agents, erc8004=erc, wellknown=wellknown)
     prober = prober or Prober(store, checker=checker)
     fetcher = fetcher or CardFetcher(allow_private=config.allow_private_urls, network={"chain_id": net.chain_id, "token": net.token})
     service = GatewayService(store, prober, ledger, policy, notifier=make_notifier(config.allow_private_urls))

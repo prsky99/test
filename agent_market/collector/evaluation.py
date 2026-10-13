@@ -16,6 +16,7 @@ Base = 0.25·가용성 + 0.20·정의 품질 + 0.20·보안 + 0.15·컨텍스트
 import json
 import re
 import time
+from urllib.parse import urlparse
 
 VERSION = 5  # 3: system prompt 문구·system_prompt 파라미터·이름 기반 주석 모순 제외, 4: 낱개 제로폭 문자 제외 (실측 오탐)
 #           5: 점검 3회 이상이면 실제 성공률 사용 (라플라스 보정이 4/4를 0.83으로 낮춰 거의 모든 서버가 low_uptime이었음)
@@ -30,7 +31,11 @@ PRECISION = {"hidden_unicode": 1.0, "ansi_escape": 1.0, "hardcoded_secret": 1.0,
              "instruction_injection": 0.2, "sensitive_path": 0.2, "script_tag": 0.2, "encoded_blob": 0.2,
              "exfiltration_param": 0.2}
 QUARANTINE_CODES = {"hidden_unicode", "ansi_escape", "hardcoded_secret", "rug_pull_suspect"}
+# A2A 전용 결정론적 신호 (card 선언만 보고 판단)
+PRECISION.update({"insecure_endpoint": 1.0, "api_key_in_query": 1.0, "deprecated_oauth_flow": 1.0})
+AGENT_VERSION = 1  # A2A 평가 규칙 버전
 
+_VALID_BINDINGS = {"JSONRPC", "GRPC", "HTTP+JSON", "REST"}
 _TOOL_NAME = re.compile(r"^[A-Za-z0-9_.\-]{1,128}$")  # MCP 사양의 도구 이름 형식
 _KNOWN_TYPES = {"string", "number", "integer", "boolean", "array", "object", "null"}
 _PURPOSE_VERB = re.compile(r"^\s*(get|gets|fetch|fetches|search|searches|list|lists|create|creates|return|returns|find|finds|"
@@ -391,3 +396,207 @@ def evaluate_static(resource: dict, now: float | None = None) -> dict:
     return {"version": VERSION, "status": "auth_required", "coverage": "static", "task_verified": False,
             "score": None, "grade": None, "static_score": round(m * 100, 1), "security": "unknown",
             "dimensions": {"provenance": m}, "stats": {}, "findings": _sort_findings(findings), "at": now or time.time()}
+
+
+# ---------------- A2A 에이전트 ----------------
+
+def _skill_score(skill: dict) -> tuple[float, list[str]]:
+    """스킬 하나의 정의 품질. 다른 에이전트가 고를 때 쓰는 것은 설명·태그·예시·입출력 형식이다."""
+    desc = (skill.get("description") or "").strip()
+    name_words = set(re.findall(r"[a-z]+", f"{skill['name']} {skill.get('title', '')}".lower()))
+    desc_words = set(re.findall(r"[a-z]+", desc.lower()))
+    checks = {
+        "has_description": len(desc) >= 20,
+        "not_too_long": len(desc) <= 1500,
+        "states_purpose": len(desc_words - name_words) >= 3 or bool(re.search(r"[^\x00-\x7f]{6,}", desc)),
+        "no_placeholder": not _PLACEHOLDER.search(desc),
+        "has_tags": bool(skill.get("tags")),
+        "has_examples": bool(skill.get("examples")),
+        "has_title": bool(skill.get("title")),
+    }
+    weights = {"has_description": 0.3, "states_purpose": 0.15, "has_examples": 0.25, "has_tags": 0.1, "has_title": 0.1,
+               "no_placeholder": 0.05, "not_too_long": 0.05}
+    return sum(weights[k] for k, ok in checks.items() if ok), [k for k, ok in checks.items() if not ok]
+
+
+def _registrable(host: str) -> str:
+    parts = (host or "").lower().split(".")
+    return ".".join(parts[-3:] if len(parts) >= 3 and len(parts[-1]) == 2 and len(parts[-2]) <= 3 else parts[-2:])
+
+
+def agent_protocol_findings(card: dict, meta: dict, live: dict) -> tuple[float, list[dict]]:
+    findings, checks = [], []
+
+    def check(ok, code, message, severity="low"):
+        checks.append(bool(ok))
+        if not ok:
+            findings.append({"severity": severity, "code": code, "tool": None, "message": message})
+
+    keys = set(meta.get("raw_keys") or [])
+    v1 = card["spec_version"].startswith("1")
+    required = ["name", "description", "version", "capabilities", "defaultInputModes", "defaultOutputModes", "skills"]
+    required += ["supportedInterfaces"] if v1 else ["url"]
+    missing = [k for k in required if k not in keys]
+    check(not missing, "card_missing_fields", f"Agent card lacks required fields: {missing[:6]}", "medium")
+    check(card["interfaces"], "no_interfaces", "No interface URL to call", "medium")
+    check(all(i["binding"] in _VALID_BINDINGS for i in card["interfaces"]), "unknown_binding",
+          f"Unknown protocol binding: {[i['binding'] for i in card['interfaces']][:3]}")
+    ids = [k["name"] for k in card["skills"]]
+    check(ids and all(ids), "skill_without_id", "Skill without id")
+    check(len(ids) == len(set(ids)), "duplicate_skill_ids", "Duplicate skill ids", "medium")
+    check(card["skills"], "no_skills", "Agent card lists no skills", "medium")
+    check(meta.get("well_known"), "not_at_well_known_path", "Card is not served at /.well-known/agent-card.json")
+    check("json" in str(meta.get("content_type") or ""), "card_content_type", "Card is not served as application/json")
+    check(not live.get("declared_endpoint"), "declared_endpoint_wrong",
+          f"Card url {str(live.get('declared_endpoint'))[:60]} does not answer A2A; found the endpoint at {live.get('endpoint')}",
+          "medium")
+    if live.get("ok") and not live.get("auth") and live.get("binding") == "JSONRPC":
+        check(live.get("conformant"), "nonstandard_jsonrpc_errors",
+              f"GetTask for an unknown task returned code {live.get('jsonrpc_error')} instead of -32001 (TaskNotFound)")
+    return (sum(checks) / len(checks) if checks else 0.0), findings
+
+
+def agent_security_findings(card: dict) -> list[dict]:
+    as_tools = [{"name": k["name"], "description": " ".join([k["description"]] + k["examples"]), "params": {},
+                 "annotations": {}} for k in card["skills"]]
+    as_tools.append({"name": "<agent card>", "description": card["description"], "params": {}, "annotations": {}})
+    findings = security_findings(as_tools)
+    for i in card["interfaces"]:
+        if i["url"].startswith("http://"):
+            findings.append({"severity": "high", "code": "insecure_endpoint", "tool": None, "precision": "high",
+                             "message": f"Interface is plain HTTP: {i['url'][:80]}"})
+            break
+    for name, sch in card["security_schemes"].items():
+        if sch["type"] == "apiKey" and sch.get("location") == "query":
+            findings.append({"severity": "medium", "code": "api_key_in_query", "tool": None, "precision": "high",
+                             "message": f"Scheme '{name}' sends the API key in the URL query (leaks into logs)"})
+        if sch["type"] == "oauth2" and set(sch.get("flows") or {}) & {"implicit", "password"}:
+            findings.append({"severity": "medium", "code": "deprecated_oauth_flow", "tool": None, "precision": "high",
+                             "message": f"Scheme '{name}' offers deprecated OAuth implicit/password flows"})
+    return findings
+
+
+def agent_provenance(resource: dict, card: dict, domain_verified: bool | None) -> tuple[float, list[dict]]:
+    findings, score = [], 0.0
+    host = urlparse(card["card_url"]).hostname or ""
+    org, purl = card["provider"].get("organization"), card["provider"].get("url")
+    if org and purl:
+        score += 0.2
+    else:
+        findings.append({"severity": "low", "code": "no_provider", "tool": None, "message": "Agent card names no provider"})
+    if purl and _registrable(urlparse(purl).hostname or "") == _registrable(host):
+        score += 0.2
+    elif purl:
+        findings.append({"severity": "low", "code": "provider_domain_mismatch", "tool": None,
+                         "message": "Provider URL is on a different domain than the agent card"})
+    if card.get("documentation_url"):
+        score += 0.1
+    if card.get("signed"):
+        score += 0.2
+    if re.match(r"^\d+\.\d+", card.get("version") or ""):
+        score += 0.1
+    regs = json.loads(resource.get("details") or "{}").get("erc8004") or []
+    if regs:
+        score += 0.1
+        if domain_verified:
+            score += 0.1
+        elif domain_verified is False:
+            findings.append({"severity": "low", "code": "erc8004_domain_unverified", "tool": None,
+                             "message": "Registered on ERC-8004 but the endpoint domain does not confirm the registration"})
+    else:
+        score += 0.05 if card.get("icon_url") else 0.0
+    return round(min(score, 1.0), 3), findings
+
+
+def evaluate_agent(resource: dict, card: dict, meta: dict, live: dict, trial: dict | None = None,
+                   changes: dict | None = None, domain_verified: bool | None = None, now: float | None = None) -> dict:
+    """A2A 에이전트 평가. MCP와 같은 6개 축·가중치·등급을 쓰되, 정의 품질은 스킬, 컨텍스트는 card 크기로 본다.
+    인증이 필요해도 card는 공개되므로 정의·보안·프로토콜·출처는 항상 평가한다 (시험 호출만 빠짐)."""
+    from .usage import is_auth_error
+    dims, findings = {}, []
+
+    # 1) 가용성: card 헬스체크 0.45 + 엔드포인트 응답 0.15 + 시험 메시지 0.25 + 지연 0.15
+    n, ok = resource.get("health_n_24h") or 0, resource.get("health_ok_24h") or 0
+    uptime = ok / n if n >= 3 else (ok + 1) / (n + 2)
+    latency = max(live.get("latency_ms") or 0, (trial or {}).get("latency_ms") or 0) or None
+    speed = 1.0 if latency is None or latency <= 2000 else 0.8 if latency <= 6000 else 0.5 if latency <= 15000 else 0.2
+    endpoint_ok = 1.0 if live.get("ok") else 0.0 if live.get("ok") is False else 0.5
+    trial_auth = bool(trial and not trial.get("ok") and is_auth_error(trial.get("error")))
+    parts = [(0.45, uptime), (0.15, endpoint_ok), (0.15, speed)]
+    if trial and not trial_auth and not trial.get("skipped"):
+        parts.append((0.25, 1.0 if trial.get("ok") else 0.2))
+    dims["availability"] = round(sum(w * v for w, v in parts) / sum(w for w, _ in parts), 3)
+    if live.get("ok") is False:
+        findings.append({"severity": "high", "code": "endpoint_unreachable", "tool": None,
+                         "message": f"Agent card is up but the endpoint did not answer: {str(live.get('error'))[:100]}"})
+    if uptime < 0.9 and n >= 3:
+        findings.append({"severity": "medium", "code": "low_uptime", "tool": None, "message": f"24h uptime {ok}/{n}"})
+    if trial and not trial.get("ok") and not trial_auth and not trial.get("skipped"):
+        findings.append({"severity": "medium", "code": "trial_failed", "tool": trial.get("skill"),
+                         "message": f"Test message failed: {str(trial.get('error') or '')[:120]}"})
+
+    # 2) 정의 품질: 스킬별 점수 0.6·평균 + 0.4·최솟값 (70%) + card 수준 (30%)
+    per = [_skill_score(k) for k in card["skills"]]
+    card_level = sum([0.4 * (len(card["description"]) >= 30), 0.3 * bool(card["default_input_modes"]),
+                      0.3 * bool(card["default_output_modes"])])
+    if per:
+        sc = [x for x, _ in per]
+        skill_part = 0.6 * sum(sc) / len(sc) + 0.4 * min(sc)
+        counts: dict[str, int] = {}
+        for _, issues in per:
+            for i in issues:
+                counts[i] = counts.get(i, 0) + 1
+        for issue, c in sorted(counts.items(), key=lambda x: -x[1])[:4]:
+            if c / len(per) >= 0.5:
+                findings.append({"severity": "low", "code": f"skill_{issue}", "tool": None,
+                                 "message": f"{c}/{len(per)} skills fail '{issue}'"})
+        if _near_duplicates(card["skills"]):
+            skill_part *= 0.9
+            findings.append({"severity": "low", "code": "near_duplicate_skills", "tool": None,
+                             "message": "Skills with nearly identical descriptions"})
+    else:
+        skill_part = 0.0
+    dims["definitions"] = round(0.7 * skill_part + 0.3 * card_level, 3)
+
+    # 3) 보안
+    sec = agent_security_findings(card)
+    changed = set((changes or {}).get("changed") or [])
+    for f in list(sec):
+        if changed and f.get("tool") in changed and f.get("precision") == "review":
+            sec.append({"severity": "critical", "code": "rug_pull_suspect", "tool": f["tool"], "precision": "high",
+                        "message": f"Skill changed since last survey and now has '{f['code']}'"})
+    findings += sec
+    penalty = sum(SEVERITY_PENALTY[f["severity"]] * PRECISION[f["code"]] for f in sec)
+    dims["security"] = round(max(0.0, 100 - penalty) / 100, 3)
+    quarantined = any(f["code"] in QUARANTINE_CODES for f in sec)
+    security_level = "quarantine" if quarantined else "review" if sec else "ok"
+
+    # 4) 컨텍스트: card 크기(다른 에이전트가 읽어야 하는 양)와 스킬 수
+    size_tokens = (meta.get("size") or len(json.dumps(card))) // 4
+    count = len(card["skills"])
+    dims["context"] = round(0.6 * _linear(size_tokens, 3000, 20000, 0.2)
+                            + 0.4 * (1.0 if 1 <= count <= 20 else 0.6 if count <= 50 else 0.3), 3)
+    if size_tokens > 15000:
+        findings.append({"severity": "low", "code": "large_agent_card", "tool": None,
+                         "message": f"Agent card is ~{size_tokens} tokens"})
+
+    # 5) 프로토콜 준수, 6) 출처
+    p, pf = agent_protocol_findings(card, meta, live)
+    dims["protocol"] = round(p, 3)
+    findings += pf
+    dims["provenance"], mf = agent_provenance(resource, card, domain_verified)
+    findings += mf
+
+    score = sum(WEIGHTS[k] * v for k, v in dims.items())
+    if quarantined:
+        score = min(score, QUARANTINE_CAP)
+    return {
+        "version": AGENT_VERSION, "kind": "a2a", "status": "scored",
+        "coverage": "full" if trial and not trial_auth and not trial.get("skipped") else "definitions",
+        "task_verified": False, "score": round(score, 1), "grade": grade_for(score), "security": security_level,
+        "dimensions": dims,
+        "stats": {"skill_count": count, "card_tokens": size_tokens, "spec_version": card["spec_version"],
+                  "auth_schemes": sorted({s["type"] for s in card["security_schemes"].values()}),
+                  "signed": card.get("signed"), "security_signals": len(sec)},
+        "findings": _sort_findings(findings), "at": now or time.time(),
+    }

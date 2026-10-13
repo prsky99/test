@@ -101,10 +101,11 @@ def classify_auth(status: int | None, www: dict, prm: dict | None, asm: dict | N
     return "unknown", "unknown"
 
 
-def instructions(method: str, info: dict) -> list[str]:
-    """요청한 에이전트가 따라 할 수 있는 짧은 안내 (영어: 에이전트 간 공용어)."""
+def instructions(method: str, info: dict, protocol: str = "MCP") -> list[str]:
+    """요청한 에이전트가 따라 할 수 있는 짧은 안내 (영어: 에이전트 간 공용어). protocol: MCP | A2A"""
     if method == "none":
-        return ["No authentication needed: connect and call initialize directly."]
+        return ["No authentication needed: connect and call initialize directly." if protocol == "MCP"
+                else f"No authentication needed: send {protocol} requests directly."]
     if method == "oauth2":
         o = info.get("oauth", {})
         steps = []
@@ -125,17 +126,19 @@ def instructions(method: str, info: dict) -> list[str]:
                          f"then exchange the code at {o.get('token_endpoint')}.")
         if o.get("resource"):
             steps.append(f"Request the token for resource={o['resource']}" + (f" with scope '{' '.join(o['scopes'])}'." if o.get("scopes") else "."))
-        steps.append("Send it as 'Authorization: Bearer <access_token>' on every MCP request.")
+        steps.append(f"Send it as 'Authorization: Bearer <access_token>' on every {protocol} request.")
         return steps
     if method in ("api_key", "bearer", "basic"):
         k = info.get("api_key", {})
         header = k.get("header") or "Authorization"
         fmt = "Bearer <key>" if header.lower() == "authorization" and method != "basic" else "<key>"
         steps = ["Get an API key from the provider" + (f": {', '.join(k['where_to_get'][:2])}" if k.get("where_to_get") else ".")]
-        steps.append(f"Send it as '{header}: {fmt}' on every MCP request.")
+        steps.append(f"Send it as '{header}: {fmt}' on every {protocol} request.")
         if info.get("scope") == "tool":
             steps.append("Note: initialize/tools/list work without it, but tool calls are rejected until you authenticate.")
-        if k.get("query_param"):
+        if k.get("query_param") and protocol == "A2A" and not k.get("header"):
+            steps[-1] = f"Send it as the query parameter '{k.get('param_name')}' on every {protocol} request."
+        elif k.get("query_param"):
             steps.append("The server also accepts the key as a query parameter (prefer the header).")
         return steps
     return ["Authentication is required but the method could not be determined; check the provider's documentation."]

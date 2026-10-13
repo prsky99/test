@@ -127,6 +127,8 @@ class GatewayConfig:
     auth_max_age: float = 7 * 86400  # MCP 인증 방법 조사 주기
     trials: bool = True  # 활성 MCP의 안전한 도구를 실제로 호출해 사용 예제를 검증할지
     trial_max_age: float = 7 * 86400  # 도구 목록이 그대로면 이 주기로만 다시 호출
+    erc8004_chains: str | None = None  # ERC-8004 수집 체인 (None=base,ethereum,bsc, ""=끔)
+    agent_discovery: bool = True  # A2A 에이전트 수집 (ERC-8004·well-known)
 
     @classmethod
     def from_env(cls) -> "GatewayConfig":
@@ -147,6 +149,8 @@ class GatewayConfig:
             auth_max_age=float(os.environ.get("AUTH_DISCOVERY_MAX_AGE_DAYS", "7")) * 86400,
             trials=os.environ.get("USAGE_TRIALS", "1") == "1",
             trial_max_age=float(os.environ.get("USAGE_TRIAL_MAX_AGE_DAYS", "7")) * 86400,
+            erc8004_chains=os.environ.get("ERC8004_CHAINS"),
+            agent_discovery=os.environ.get("AGENT_DISCOVERY", "1") == "1",
             health_interval=float(os.environ.get("HEALTH_INTERVAL_MINUTES", "60")) * 60,
             health_workers=int(os.environ.get("HEALTH_WORKERS", "32")),
             rescan_interval=float(os.environ.get("RESCAN_INTERVAL_MINUTES", "15")) * 60,

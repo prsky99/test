@@ -3,7 +3,7 @@
 프로토콜별로 "실제로 서비스할 수 있는지"를 확인한다.
 - x402: 결제 없이 요청하면 402와 유효한 결제 조건(accepts)을 돌려줘야 정상(healthy). 가격이 바뀌었으면 갱신.
 - MCP(streamable HTTP): JSON-RPC initialize에 result로 응답하면 정상. 401/403(인증 필요)은 응답 가능(reachable).
-- A2A(직접 등록): agent card(/.well-known/agent.json)가 열리면 정상.
+- A2A: agent card(/.well-known/agent-card.json, 구 agent.json)가 열리고 A2A card 모양이면 정상.
 5xx·타임아웃·연결 실패·404/410은 실패. 3번 연속 실패하면 down(추천에서 제외)으로 표시한다.
 down 에이전트도 계속 같은 주기로 점검해 회복되면 바로 healthy로 되돌린다.
 실패가 7일 넘게 이어지면 retired로 표시하고 점검·추천에서 완전히 제외한다.
@@ -155,11 +155,11 @@ class HealthChecker:
         result.latency_ms = int((time.monotonic() - started) * 1000)
         return result
 
-    def _read(self, resp: httpx.Response) -> bytes:
+    def _read(self, resp: httpx.Response, limit: int = MAX_BODY) -> bytes:
         body = b""
         for chunk in resp.iter_bytes():
             body += chunk
-            if len(body) >= MAX_BODY:
+            if len(body) >= limit:
                 break
         return body
 
@@ -202,14 +202,28 @@ class HealthChecker:
         return CheckResult("reachable", code, error=f"HTTP {code}")
 
     def _check_a2a(self, http: httpx.Client, resource: dict) -> CheckResult:
-        card = json.loads(resource.get("details") or "{}").get("agent_card")
-        if not card:
-            return self._check_x402(http, resource)
-        resp = http.get(card)
-        if resp.status_code == 200:
-            return CheckResult("healthy", 200)
-        return CheckResult("fail" if resp.status_code >= 500 or resp.status_code in (404, 410) else "reachable",
-                           resp.status_code, error=f"HTTP {resp.status_code}")
+        """agent card가 열리고 A2A card 모양(name·skills)이면 정상. 조사에서 찾은 card 주소가 있으면 그것만 본다."""
+        from .a2a import card_candidates
+        details = json.loads(resource.get("details") or "{}")
+        found = (json.loads(resource.get("usage_guide") or "{}") or {}).get("agent_card")
+        urls = [found] if found else card_candidates(resource["url"], details.get("agent_card"))[:3]
+        last = None
+        for url in urls:
+            if not self.allow_private:
+                check_public_url(url)
+            with http.stream("GET", url, headers={"accept": "application/json"}) as resp:
+                body = self._read(resp, 512 * 1024)
+            last = resp.status_code
+            if resp.status_code == 200:
+                try:
+                    data = json.loads(body)
+                except ValueError:
+                    continue
+                if isinstance(data, dict) and data.get("name") and isinstance(data.get("skills"), list):
+                    return CheckResult("healthy", 200)
+        if last is not None and (last >= 500 or last in (404, 410) or last == 200):
+            return CheckResult("fail", last, error="no A2A agent card" if last == 200 else f"HTTP {last}")
+        return CheckResult("reachable", last, error=f"HTTP {last}")
 
     # ---------------- 기록·일정 ----------------
     def next_check_at(self, state_failures: int, in_use: bool, now: float, host_size: int = 1) -> float:

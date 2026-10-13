@@ -61,6 +61,16 @@ CREATE TABLE IF NOT EXISTS health_checks (
 );
 CREATE INDEX IF NOT EXISTS health_checks_res ON health_checks(resource_id, at);
 CREATE INDEX IF NOT EXISTS health_checks_at ON health_checks(at);
+CREATE TABLE IF NOT EXISTS erc8004_tokens (
+    chain TEXT NOT NULL, agent_id INTEGER NOT NULL, uri_hash TEXT, uri TEXT, host TEXT,
+    status TEXT NOT NULL,  -- pending | resolved | no_service | error | empty
+    services TEXT, checked_at REAL, next_at REAL, error TEXT,
+    PRIMARY KEY (chain, agent_id)
+);
+CREATE INDEX IF NOT EXISTS erc8004_pending ON erc8004_tokens(status, next_at);
+CREATE TABLE IF NOT EXISTS wellknown_hosts (
+    host TEXT PRIMARY KEY, checked_at REAL NOT NULL, found TEXT
+);
 CREATE TABLE IF NOT EXISTS crawl_runs (
     at REAL NOT NULL, source TEXT NOT NULL, ok INTEGER NOT NULL, seen INTEGER, new INTEGER,
     deactivated INTEGER, seconds REAL, error TEXT
@@ -272,7 +282,7 @@ class Store:
                last_seen=?, active=1, content_hash=?, host=?, desc_lang=?, regions=?, auth_declared=? WHERE id=?""",
             (*values, now, digest, host_of(r["url"]), lang, regions, auth, rid),
         )
-        if r["kind"] == "mcp":  # 레지스트리 항목(버전·저장소 등)이 바뀌면 도구 조사·품질 평가를 다시
+        if r["kind"] in ("mcp", "a2a"):  # 레지스트리 항목(버전·저장소 등)이 바뀌면 기능 조사·품질 평가를 다시
             db.execute("UPDATE resources SET cap_checked_at=NULL, eval_at=NULL WHERE id=?", (rid,))
         if row["url"] != r["url"]:  # 주소가 바뀌면 헬스 상태를 새로 시작 (제외됐던 에이전트도 다시 점검)
             db.execute(
@@ -441,15 +451,16 @@ class Store:
                 "price_changed": price_changed, "health_ok_24h": agg["ok"] or 0, "health_n_24h": agg["n"]}
 
     # ---------------- 기능 조사 (tools/list) ----------------
-    def due_for_capability(self, now: float, max_age: float, limit: int, per_host: int = 2) -> list[dict]:
-        """도구 목록을 조사할 MCP: 인증 없이 응답하는(healthy) 서버 중 조사한 지 max_age가 지난 것. 호스트당 per_host개."""
+    def due_for_capability(self, now: float, max_age: float, limit: int, per_host: int = 2, kind: str = "mcp") -> list[dict]:
+        """기능을 조사할 에이전트: MCP는 인증 없이 응답하는(healthy) 서버, A2A는 agent card가 열리는(healthy) 에이전트 중
+        조사한 지 max_age가 지난 것. 호스트당 per_host개."""
         rows = self.query(
             """SELECT * FROM (
                  SELECT *, ROW_NUMBER() OVER (PARTITION BY host ORDER BY cap_checked_at IS NOT NULL, cap_checked_at) AS rn
-                 FROM resources WHERE active=1 AND kind='mcp' AND health_status='healthy'
+                 FROM resources WHERE active=1 AND kind=? AND health_status='healthy'
                  AND (cap_checked_at IS NULL OR cap_checked_at < ?))
                WHERE rn <= ? ORDER BY cap_checked_at IS NOT NULL, cap_checked_at, random() LIMIT ?""",
-            (now - max_age, per_host, limit))
+            (kind, now - max_age, per_host, limit))
         return [{k: r[k] for k in r.keys() if k != "rn"} for r in rows]
 
     def record_capability(self, rid: int, caps: dict | None, error: str | None = None) -> None:
@@ -487,6 +498,10 @@ class Store:
             if found["method"] == "none":  # 실제로는 인증 없이 동작 (도구 단계 인증이 확인된 경우는 제외)
                 db.execute("UPDATE resources SET auth_observed=0 WHERE id=? AND COALESCE(auth_scope,'') != 'tool'", (rid,))
 
+    def set_auth_observed(self, rid: int, required: bool) -> None:
+        with self.tx() as db:
+            db.execute("UPDATE resources SET auth_observed=?, auth_scope='connection' WHERE id=?", (int(required), rid))
+
     def mark_tool_level_auth(self, rid: int) -> None:
         """연결은 인증 없이 되지만 도구 호출에서 인증을 요구함 → 인증 필요로 표시하고 인증 방법을 다시 조사."""
         with self.tx() as db:
@@ -518,10 +533,10 @@ class Store:
                        (ev.get("score"), ev.get("grade"), ev.get("security"), ev.get("coverage"),
                         json.dumps(ev, ensure_ascii=False), ev.get("at") or time.time(), rid))
 
-    def score_percentile(self, score: float) -> float | None:
-        """평가 점수가 이보다 낮은 서버의 비율 (0~1). 등급이 A에 몰려도 상대 위치를 알 수 있게."""
+    def score_percentile(self, score: float, kind: str = "mcp") -> float | None:
+        """같은 종류에서 평가 점수가 이보다 낮은 비율 (0~1). 등급이 A에 몰려도 상대 위치를 알 수 있게."""
         row = self.query("""SELECT COUNT(*) AS n, SUM(eval_score < ?) AS lower FROM resources
-                            WHERE active=1 AND eval_score IS NOT NULL""", (score,))[0]
+                            WHERE active=1 AND kind=? AND eval_score IS NOT NULL""", (score, kind))[0]
         return round((row["lower"] or 0) / row["n"], 3) if row["n"] >= 20 else None
 
     def due_for_static_evaluation(self, now: float, max_age: float, limit: int) -> list[dict]:
@@ -593,11 +608,14 @@ class Store:
                             "auth_methods": {r["auth_method"]: r["n"] for r in q(
                                 "SELECT auth_method, COUNT(*) AS n FROM resources WHERE active=1 AND auth_method IS NOT NULL GROUP BY auth_method")}},
             "evaluation": self.evaluation_stats(),
+            "evaluation_by_kind": {k: self.evaluation_stats(k) for k in ("mcp", "a2a")},
+            "agent_sources": self.agent_source_stats(),
         }
 
-    def evaluation_stats(self) -> dict:
+    def evaluation_stats(self, kind: str | None = None) -> dict:
         q = self.query
-        base = "FROM resources WHERE active=1 AND health_status != 'retired' AND eval_at IS NOT NULL"
+        base = "FROM resources WHERE active=1 AND health_status != 'retired' AND eval_at IS NOT NULL" + \
+            (f" AND kind='{kind}'" if kind in ("mcp", "a2a") else "")
         avg = q(f"SELECT COUNT(*) AS n, AVG(eval_score) AS avg, SUM(eval_at > strftime('%s','now') - 86400) AS last_24h {base}")[0]
         return {
             "evaluated": avg["n"],
@@ -606,6 +624,18 @@ class Store:
             "by_grade": {r["g"]: r["n"] for r in q(f"SELECT COALESCE(eval_grade, 'static') AS g, COUNT(*) AS n {base} GROUP BY g ORDER BY g")},
             "by_security": {r["eval_security"]: r["n"] for r in q(f"SELECT eval_security, COUNT(*) AS n {base} GROUP BY eval_security")},
             "by_coverage": {r["eval_coverage"]: r["n"] for r in q(f"SELECT eval_coverage, COUNT(*) AS n {base} GROUP BY eval_coverage")},
+        }
+
+    def agent_source_stats(self) -> dict:
+        """A2A 에이전트 수집 현황: 출처별 수, ERC-8004 체인별 조사 진행."""
+        q = self.query
+        return {
+            "a2a_by_source": {r["source"]: r["n"] for r in q(
+                "SELECT source, COUNT(*) AS n FROM resources WHERE active=1 AND kind='a2a' GROUP BY source")},
+            "erc8004": {f"{r['chain']}:{r['status']}": r["n"] for r in q(
+                "SELECT chain, status, COUNT(*) AS n FROM erc8004_tokens GROUP BY chain, status")},
+            "wellknown_hosts_checked": q("SELECT COUNT(*) AS n FROM wellknown_hosts")[0]["n"],
+            "wellknown_hosts_found": q("SELECT COUNT(*) AS n FROM wellknown_hosts WHERE found IS NOT NULL")[0]["n"],
         }
 
     # ---------------- meta ----------------
