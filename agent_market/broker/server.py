@@ -40,16 +40,22 @@ CLASSIFY_PER_MINUTE = 20  # 무료인 /match 분류(Claude 호출 비용)를 남
 
 
 class RateLimiter:
+    WINDOW = 60.0
+
     def __init__(self, per_minute: int):
         self.per_minute = per_minute
         self._hits: dict[str, deque] = defaultdict(deque)
         self._lock = threading.Lock()
+        self._swept = time.monotonic()
 
     def allow(self, key: str) -> bool:
         now = time.monotonic()
         with self._lock:
+            if now - self._swept > self.WINDOW:  # 1분 넘게 요청이 없던 키는 지워 메모리가 계속 늘지 않게
+                self._hits = defaultdict(deque, {k: h for k, h in self._hits.items() if h and now - h[-1] <= self.WINDOW})
+                self._swept = now
             hits = self._hits[key]
-            while hits and now - hits[0] > 60:
+            while hits and now - hits[0] > self.WINDOW:
                 hits.popleft()
             if len(hits) >= self.per_minute:
                 return False

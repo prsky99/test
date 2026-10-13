@@ -109,7 +109,9 @@ def _fit(resource: dict, need: dict | None) -> float:
 
 
 def score_resource(resource: dict, task_terms: list[str], idf: dict[str, float], category: str, store: Store,
-                   now: float | None = None, need: dict | None = None) -> Scored:
+                   now: float | None = None, need: dict | None = None,
+                   feedback: tuple[int, int, float | None] | None = None) -> Scored:
+    """feedback: 미리 모아 둔 (평가 수, 성공 수, 평균 별점). 없으면 이 에이전트만 따로 조회한다."""
     now = now or time.time()
     parts = {}
     rel = _relevance(task_terms, idf, resource)
@@ -135,7 +137,7 @@ def score_resource(resource: dict, task_terms: list[str], idf: dict[str, float],
     # 규칙 기반 품질 평가 점수. 평가가 없거나 인증이 필요해 정적 평가만 있으면 중립
     parts["quality"] = 0.5 if resource.get("eval_score") is None else resource["eval_score"] / 100
 
-    n, successes, avg_rating = store.feedback_stats(resource["id"])
+    n, successes, avg_rating = feedback if feedback is not None else store.feedback_stats(resource["id"])
     success_rate = (successes + 1) / (n + 2)
     rating = ((avg_rating or 3.5) - 1) / 4
     parts["feedback"] = (success_rate + rating) / 2 if n else 0.5
@@ -151,8 +153,11 @@ def rank(store: Store, need: dict, limit: int = 5, include: int | None = None) -
     candidates = store.search(need["task"], need["category"], need.get("max_price"), need["networks"], need["kinds"],
                               region=need.get("region"), auth_free=need.get("auth_pref") == "none",
                               agent_usable=need.get("auth_pref") == "agent", min_grade=need.get("min_grade"))
+    feedback = store.feedback_stats_many([r["id"] for r in candidates])  # 후보마다 쿼리하지 않게 한 번에
+    no_feedback = (0, 0, None)
     scored = sorted(
-        (s for s in (score_resource(r, terms, idf, need["category"], store, need=need) for r in candidates)
+        (s for s in (score_resource(r, terms, idf, need["category"], store, need=need,
+                                    feedback=feedback.get(r["id"], no_feedback)) for r in candidates)
          if s.resource["category"] == need["category"] or s.parts["relevance"] >= MIN_RELEVANCE_OTHER_CATEGORY),
         key=lambda s: s.score, reverse=True)
     current = None

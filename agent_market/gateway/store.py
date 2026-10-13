@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS feedback (
     need_id TEXT NOT NULL, resource_id INTEGER NOT NULL, success INTEGER NOT NULL, rating INTEGER,
     created REAL NOT NULL, PRIMARY KEY (need_id, resource_id)
 );
+CREATE INDEX IF NOT EXISTS feedback_res ON feedback(resource_id);
 CREATE TABLE IF NOT EXISTS fee_state (
     category TEXT PRIMARY KEY, fee INTEGER NOT NULL, window_offers INTEGER NOT NULL DEFAULT 0,
     window_accepted INTEGER NOT NULL DEFAULT 0, updated REAL NOT NULL
@@ -135,7 +136,8 @@ def host_of(url: str) -> str:
         return url
 NEEDS_COLUMNS = {"language": "TEXT", "region": "TEXT", "auth_pref": "TEXT",  # 요청 조건 (언어·지역·인증)
                  "min_grade": "TEXT",  # 요청 조건: 최소 품질 등급 (A~F)
-                 "usage_seen_at": "REAL"}  # 고객에게 사용법 변경을 마지막으로 알린 시각
+                 "usage_seen_at": "REAL",  # 고객에게 사용법 변경을 마지막으로 알린 시각
+                 "rescanned_at": "REAL"}  # 마지막 재평가 시각 (오래된 것부터 나눠서 재평가)
 CRAWL_RUN_COLUMNS = {"mode": "TEXT", "changed": "INTEGER", "unchanged": "INTEGER", "pages": "INTEGER"}
 HEALTH_UP = ("healthy", "reachable")
 
@@ -174,6 +176,7 @@ class Store:
             for col, decl in NEEDS_COLUMNS.items():
                 if col not in need_cols:
                     self._db.execute(f"ALTER TABLE needs ADD COLUMN {col} {decl}")
+            self._db.execute("CREATE INDEX IF NOT EXISTS needs_rescan ON needs(status, rescanned_at)")
             runs = {r[1] for r in self._db.execute("PRAGMA table_info(crawl_runs)")}
             for col, decl in CRAWL_RUN_COLUMNS.items():
                 if col not in runs:
@@ -373,6 +376,14 @@ class Store:
     def feedback_stats(self, rid: int) -> tuple[int, int, float | None]:
         row = self.query("SELECT COUNT(*) AS n, COALESCE(SUM(success),0) AS s, AVG(rating) AS r FROM feedback WHERE resource_id=?", (rid,))[0]
         return row["n"], row["s"], row["r"]
+
+    def feedback_stats_many(self, rids: list[int]) -> dict[int, tuple[int, int, float | None]]:
+        """여러 후보의 고객 평가를 한 번에 (후보마다 쿼리하지 않게). 평가가 없는 후보는 결과에 없다."""
+        if not rids:
+            return {}
+        rows = self.query(f"""SELECT resource_id, COUNT(*) AS n, COALESCE(SUM(success),0) AS s, AVG(rating) AS r FROM feedback
+                              WHERE resource_id IN ({','.join('?' * len(rids))}) GROUP BY resource_id""", list(rids))
+        return {r["resource_id"]: (r["n"], r["s"], r["r"]) for r in rows}
 
     def resource_counts(self) -> dict:
         rows = self.query("SELECT kind, category, COUNT(*) AS n FROM resources WHERE active=1 GROUP BY kind, category")

@@ -19,12 +19,11 @@ import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-import httpx
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from ..broker.categories import CATEGORIES
-from ..broker.discovery import CardFetcher, DiscoveryError, check_public_url
+from ..broker.discovery import CardFetcher, DiscoveryError, check_public_url, public_client
 from ..broker.server import RateLimiter
 from ..chain import RPC, normalize
 from ..config import GatewayConfig
@@ -36,16 +35,18 @@ from ..collector.capabilities import CapabilityProber
 from ..collector.health import HealthChecker, Schedule
 from .crawler import Crawler, Prober
 from .service import KINDS, GatewayService, NeedError, Policy
-from .store import Store
+from .store import Store, host_of
 
 log = logging.getLogger("agent_market.gateway.server")
 
 NEED_PURPOSE = "agent-gateway-need"
 MAX_TASK_CHARS = 4000
+REGISTER_PER_MINUTE = 5
+MAX_REGISTERED_PER_HOST = 50  # 한 호스트가 직접 등록할 수 있는 서비스 수
 
 
 class Scheduler(threading.Thread):
-    """정보 수집 에이전트(매시간 수집 + 지속 헬스체크)를 띄우고, 고객 요청 재평가를 주기적으로 돌린다."""
+    """정보 수집 에이전트(연속 수집 + 지속 헬스체크)를 띄우고, 고객 요청 재평가를 주기적으로 돌린다."""
 
     def __init__(self, collector: CollectorAgent, service: GatewayService, rescan_interval: float):
         super().__init__(daemon=True, name="gateway-scheduler")
@@ -65,7 +66,7 @@ class Scheduler(threading.Thread):
 
 
 def make_notifier(allow_private: bool):
-    http = httpx.Client(timeout=5.0, follow_redirects=False)
+    http = public_client(allow_private, timeout=5.0, follow_redirects=False)
 
     def notify(url: str, payload: dict) -> None:
         try:
@@ -103,7 +104,7 @@ def create_app(
     if store is None:
         Path(config.db_path).parent.mkdir(parents=True, exist_ok=True)
         store = Store(config.db_path)
-    ledger = Ledger(config.db_path if config.db_path != ":memory:" else ":memory:")
+    ledger = Ledger(config.db_path)
     if verifier is None and config.pay_to:  # 지갑이 없으면(무료 정책) 수수료 결제를 받지 않는다
         verifier = PaymentVerifier(RPC(net.rpc_url), net.token, config.pay_to, config.min_confirmations)
     crawler = crawler or Crawler(store, page_delay=config.crawl_page_delay, full_interval=config.crawl_full_interval)
@@ -122,6 +123,7 @@ def create_app(
     fetcher = fetcher or CardFetcher(allow_private=config.allow_private_urls, network={"chain_id": net.chain_id, "token": net.token})
     service = GatewayService(store, prober, ledger, policy, notifier=make_notifier(config.allow_private_urls))
     need_limit = RateLimiter(30)
+    register_limit = RateLimiter(REGISTER_PER_MINUTE)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -298,7 +300,13 @@ def create_app(
 
     @app.post("/agents/register")
     async def register(request: Request):
-        """에이전트가 직접 등록할 수도 있다 (agent card 형식, 기존 브로커와 같음)."""
+        """에이전트가 직접 등록할 수도 있다 (agent card 형식, 기존 브로커와 같음).
+
+        인증 없이 열려 있으므로 IP당 요청 수와 호스트당 등록 수를 제한한다. 등록된 에이전트는 수집 에이전트가
+        계속 헬스체크하고, card에서 빠진 서비스는 다시 등록할 때 비활성화한다.
+        """
+        if not register_limit.allow(request.client.host if request.client else "unknown"):
+            raise HTTPException(429, "요청이 너무 많습니다.")
         _, data = await json_body(request)
         url = data.get("url")
         if not isinstance(url, str):
@@ -307,15 +315,26 @@ def create_app(
             card = fetcher.fetch(url)
         except DiscoveryError as exc:
             raise HTTPException(422, str(exc))
-        ids = []
+        card_url = url.rstrip("/") + "/.well-known/agent.json"
+        rows = store.query("SELECT id, key, details FROM resources WHERE source='registered' AND active=1 AND host=?",
+                           (host_of(url),))
+        same_card = {r["key"]: r["id"] for r in rows if json.loads(r["details"]).get("agent_card") == card_url}
+        if len(rows) - len(same_card) + len(card["services"]) > MAX_REGISTERED_PER_HOST:
+            raise HTTPException(422, f"한 호스트에서 등록할 수 있는 서비스는 최대 {MAX_REGISTERED_PER_HOST}개입니다.")
+        ids, keys = [], set()
         for s in card["services"]:
+            keys.add(key := f"a2a:{s['endpoint']}")
             ids.append(store.upsert_resource({
-                "key": f"a2a:{s['endpoint']}", "source": "registered", "kind": "a2a", "url": s["endpoint"],
+                "key": key, "source": "registered", "kind": "a2a", "url": s["endpoint"],
                 "name": f"{card['name']}/{s['name']}", "description": s["description"], "category": s["category"],
                 "networks": [f"eip155:{net.chain_id}"], "price_usdc": s["price"], "pay_to": card["pay_to"],
-                "method": "POST", "details": {"agent_card": url.rstrip("/") + "/.well-known/agent.json"},
+                "method": "POST", "details": {"agent_card": card_url},
             }))
-        return {"registered": len(ids), "resource_ids": ids}
+        removed = [rid for key, rid in same_card.items() if key not in keys]  # card에서 빠진 서비스
+        if removed:
+            with store.tx() as db:
+                db.executemany("UPDATE resources SET active=0 WHERE id=?", [(rid,) for rid in removed])
+        return {"registered": len(ids), "resource_ids": ids, "deactivated": len(removed)}
 
     def require_admin(authorization: str | None):
         expected = f"Bearer {config.admin_token}" if config.admin_token else None

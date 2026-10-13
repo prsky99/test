@@ -1,15 +1,22 @@
 """판매 에이전트의 agent card(/.well-known/agent.json)를 가져와 검증한다.
 
 브로커가 임의 URL에 요청을 보내므로 SSRF(내부망 접근)를 막는다.
+- check_public_url: 요청 전에 호스트 주소를 확인해 빠르게 거절 (명확한 오류 메시지)
+- public_client: 실제 접속 순간에 다시 확인한 주소로만 연결. 검사와 접속 사이에 DNS 응답을 바꿔치기하는
+  DNS rebinding을 막는다. 프록시를 거치는 요청은 프록시가 주소를 해석하므로 사전 검사만 적용된다.
 """
 
 import ipaddress
+import logging
 import socket
 from urllib.parse import urlparse
 
+import httpcore
 import httpx
 
 from .categories import CATEGORIES, normalize_category
+
+log = logging.getLogger("agent_market.broker.discovery")
 
 MAX_CARD_BYTES = 256 * 1024
 MAX_SERVICES = 50
@@ -33,9 +40,41 @@ def check_public_url(url: str) -> None:
             raise DiscoveryError("사설/내부 주소는 등록할 수 없습니다.")
 
 
+class PublicOnlyBackend(httpcore.SyncBackend):
+    """접속할 때 주소를 직접 해석하고, 공인 주소일 때만 그 IP로 연결한다 (TLS SNI·인증서 확인은 원래 호스트 이름으로)."""
+
+    def connect_tcp(self, host, port, timeout=None, local_address=None, socket_options=None):
+        try:
+            infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+        except OSError as exc:
+            raise httpcore.ConnectError(str(exc)) from exc
+        addresses = list(dict.fromkeys(info[4][0] for info in infos))
+        if not addresses or any(not ipaddress.ip_address(a.split("%")[0]).is_global for a in addresses):
+            raise httpcore.ConnectError(f"blocked non-public address for {host}")
+        error = None
+        for address in addresses:
+            try:
+                return super().connect_tcp(address, port, timeout, local_address, socket_options)
+            except (httpcore.ConnectError, httpcore.ConnectTimeout) as exc:
+                error = exc
+        raise error
+
+
+def public_client(allow_private: bool = False, **kwargs) -> httpx.Client:
+    """임의 URL에 요청하는 httpx 클라이언트. allow_private가 아니면 직접 연결은 공인 주소로만 한다."""
+    client = httpx.Client(**kwargs)
+    if not allow_private:
+        pool = getattr(client._transport, "_pool", None)
+        if isinstance(pool, httpcore.ConnectionPool) and hasattr(pool, "_network_backend"):
+            pool._network_backend = PublicOnlyBackend()
+        else:  # httpx 내부 구조가 바뀐 경우: 사전 검사(check_public_url)만 적용
+            log.warning("connect-time address check unavailable; relying on pre-request checks only")
+    return client
+
+
 class CardFetcher:
     def __init__(self, http: httpx.Client | None = None, allow_private: bool = False, network: dict | None = None):
-        self.http = http or httpx.Client(timeout=10.0, follow_redirects=False)
+        self.http = http or public_client(allow_private, timeout=10.0, follow_redirects=False)
         self.allow_private = allow_private
         self.network = network or {}  # {"chain_id": ..., "token": ...} 브로커와 같은 네트워크만 허용
 

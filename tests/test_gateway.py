@@ -368,3 +368,78 @@ def test_stored_agents_reclassified_when_taxonomy_changes(tmp_path):
     reopened = Store(path)
     assert reopened.resource(rid)["category"] == "security"
     assert reopened.query("SELECT category FROM needs WHERE need_id='n1'")[0]["category"] == "finance_crypto"
+
+
+# ---------------- 직접 등록 ----------------
+
+class CardHost(httpx.BaseTransport):
+    def __init__(self):
+        self.cards = {}
+
+    def handle_request(self, request):
+        card = self.cards.get(str(request.url))
+        return httpx.Response(200, json=card) if card else httpx.Response(404)
+
+
+def seller_card(names):
+    pay = {"amount": 20_000, "pay_to": "0x" + "cd" * 20, "chain_id": NET.chain_id, "token": NET.token}
+    return {"name": "seller", "services": [{"name": n, "category": "ai_models", "description": f"{n} service",
+                                             "endpoint": f"/services/{n}", "payment": pay} for n in names]}
+
+
+@pytest.fixture
+def reg():
+    from agent_market.broker.discovery import CardFetcher
+    host, store = CardHost(), Store()
+    config = GatewayConfig(NET, GW.address, ":memory:", "secret", 1, 3600, 900, False, True)
+    fetcher = CardFetcher(http=httpx.Client(transport=host), allow_private=True, network={"chain_id": NET.chain_id, "token": NET.token})
+    return host, store, TestClient(create_app(config, store=store, fetcher=fetcher))
+
+
+def test_register_deactivates_services_dropped_from_card(reg):
+    host, store, client = reg
+    host.cards["https://s.example/a/.well-known/agent.json"] = seller_card(["sum", "tr"])
+    assert client.post("/agents/register", json={"url": "https://s.example/a"}).json()["registered"] == 2
+    host.cards["https://s.example/a/.well-known/agent.json"] = seller_card(["sum"])
+    assert client.post("/agents/register", json={"url": "https://s.example/a"}).json()["deactivated"] == 1
+    active = {r["url"]: r["active"] for r in store.query("SELECT url, active FROM resources")}
+    assert active == {"https://s.example/a/services/sum": 1, "https://s.example/a/services/tr": 0}
+
+
+def test_register_caps_services_per_host(reg, monkeypatch):
+    import agent_market.gateway.server as gw_server
+    monkeypatch.setattr(gw_server, "MAX_REGISTERED_PER_HOST", 3)
+    host, store, client = reg
+    host.cards["https://s.example/a/.well-known/agent.json"] = seller_card(["x", "y"])
+    host.cards["https://s.example/b/.well-known/agent.json"] = seller_card(["x", "y"])  # 같은 호스트의 다른 경로
+    assert client.post("/agents/register", json={"url": "https://s.example/a"}).status_code == 200
+    assert client.post("/agents/register", json={"url": "https://s.example/a"}).status_code == 200  # 다시 등록은 그대로 허용
+    assert client.post("/agents/register", json={"url": "https://s.example/b"}).status_code == 422
+
+
+def test_register_is_rate_limited(reg):
+    host, _, client = reg
+    host.cards["https://s.example/a/.well-known/agent.json"] = seller_card(["x"])
+    codes = [client.post("/agents/register", json={"url": "https://s.example/a"}).status_code for _ in range(6)]
+    assert codes == [200] * 5 + [429]
+
+
+def test_feedback_stats_many_matches_single(w):
+    rid = w.store.query("SELECT id FROM resources LIMIT 1")[0]["id"]
+    with w.store.tx() as db:
+        db.execute("INSERT INTO feedback VALUES ('n1', ?, 1, 5, 0)", (rid,))
+        db.execute("INSERT INTO feedback VALUES ('n2', ?, 0, 1, 0)", (rid,))
+    assert w.store.feedback_stats_many([rid, 999_999]) == {rid: w.store.feedback_stats(rid)}
+
+
+def test_rescan_processes_oldest_needs_first_in_batches():
+    import dataclasses
+    world = GW_World(policy=dataclasses.replace(Policy(), rescan_batch=2))
+    world.crawl()
+    c = world.client()
+    ids = [c.create_need(f"web search task {i}", kinds=["x402"])["need_id"] for i in range(3)]
+    assert world.service.rescan()["checked"] == 2
+    seen = {r["need_id"] for r in world.store.query("SELECT need_id FROM needs WHERE rescanned_at IS NOT NULL")}
+    assert seen == set(ids[:2])
+    assert world.service.rescan()["checked"] == 2  # 이번에는 아직 안 본 요청부터
+    assert world.store.query("SELECT COUNT(*) AS n FROM needs WHERE rescanned_at IS NOT NULL")[0]["n"] == 3

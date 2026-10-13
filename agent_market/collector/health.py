@@ -30,7 +30,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-from ..broker.discovery import DiscoveryError, check_public_url
+from ..broker.discovery import DiscoveryError, check_public_url, public_client
 from ..gateway.crawler import usdc_price
 from ..gateway.store import Store
 
@@ -111,8 +111,8 @@ class HealthChecker:
     def _new_client(self) -> httpx.Client:
         if self._fixed_http is not None:
             return self._fixed_http
-        return httpx.Client(timeout=httpx.Timeout(8.0, connect=5.0, pool=30.0), follow_redirects=False,
-                            headers={"user-agent": USER_AGENT}, limits=httpx.Limits(max_connections=200, max_keepalive_connections=50))
+        return public_client(self.allow_private, timeout=httpx.Timeout(8.0, connect=5.0, pool=30.0), follow_redirects=False,
+                             headers={"user-agent": USER_AGENT}, limits=httpx.Limits(max_connections=200, max_keepalive_connections=50))
 
     def _close(self, client: httpx.Client) -> None:
         if client is not self._fixed_http:

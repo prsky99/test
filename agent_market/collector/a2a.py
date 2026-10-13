@@ -24,7 +24,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-from ..broker.discovery import DiscoveryError, check_public_url
+from ..broker.discovery import DiscoveryError, check_public_url, public_client
 from ..gateway import constraints as cons
 from ..gateway.classify import OTHER, classify
 from ..gateway.store import Store
@@ -724,7 +724,7 @@ class AgentProber:
         by_host: dict[str, list[dict]] = defaultdict(list)
         for r in due:
             by_host[r.get("host") or r["url"]].append(r)
-        http = self._fixed_http or httpx.Client(timeout=httpx.Timeout(12.0, connect=5.0, pool=30.0), follow_redirects=False)
+        http = self._fixed_http or public_client(self.allow_private, timeout=httpx.Timeout(12.0, connect=5.0, pool=30.0), follow_redirects=False)
         results, lock = [], threading.Lock()
 
         def work(resources: list[dict]) -> None:

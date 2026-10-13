@@ -36,6 +36,7 @@ class Policy:
     redo_cooldown: float = 30 * 86400  # 거절·만료된 후보는 30일간 다시 제안하지 않음
     free_per_ip_per_day: int = 5
     probe_top: int = 3
+    rescan_batch: int = 500  # 재평가 한 번에 볼 요청 수. 요청이 많으면 오래 안 본 것부터 여러 번에 나눠 본다
     fee_window: int = 20  # 제안 20건마다 수수료 재조정
     raise_above: float = 0.5
     lower_below: float = 0.15
@@ -185,11 +186,18 @@ class GatewayService:
 
     # ---------------- 지속 관리 ----------------
     def rescan(self) -> dict:
-        """모든 활성 요청에 대해 더 좋은 에이전트가 있는지 확인하고 제안한다. 스케줄러가 주기적으로 호출."""
+        """활성 요청에 대해 더 좋은 에이전트가 있는지 확인하고 제안한다. 스케줄러가 주기적으로 호출.
+
+        요청마다 후보 검색·점수 계산·점검을 하므로, 한 번에 rescan_batch개까지만 오래 안 본 것부터 처리한다.
+        """
         stats = {"checked": 0, "intros": 0, "offers": 0, "usage_updates": 0, "expired": self.expire_offers()}
-        for row in self.store.query("SELECT need_id FROM needs WHERE status IN ('watching','active')"):
+        rows = self.store.query("""SELECT need_id FROM needs WHERE status IN ('watching','active')
+                                   ORDER BY COALESCE(rescanned_at, 0) LIMIT ?""", (self.policy.rescan_batch,))
+        for row in rows:
             need = self._load_need(row["need_id"])
             stats["checked"] += 1
+            with self.store.tx() as db:
+                db.execute("UPDATE needs SET rescanned_at=? WHERE need_id=?", (time.time(), need["need_id"]))
             try:
                 if need["current_resource"] is None:
                     if not self._pending(need["need_id"]):

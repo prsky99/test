@@ -21,7 +21,7 @@ from urllib.parse import unquote, urlparse
 
 import httpx
 
-from ..broker.discovery import DiscoveryError, check_public_url
+from ..broker.discovery import DiscoveryError, check_public_url, public_client
 from ..gateway.classify import classify
 from ..gateway.store import Store
 from .a2a import CARD_PATHS, normalize_card
@@ -101,7 +101,7 @@ class Erc8004Crawler:
         self.rescan_interval = rescan_interval
 
     def _http(self) -> httpx.Client:
-        return self._fixed_http or httpx.Client(timeout=httpx.Timeout(20.0, connect=8.0), follow_redirects=False,
+        return self._fixed_http or public_client(self.allow_private, timeout=httpx.Timeout(20.0, connect=8.0), follow_redirects=False,
                                                 headers={"user-agent": USER_AGENT})
 
     # ---------------- 온체인 목록 ----------------
@@ -399,7 +399,7 @@ class WellKnownDiscoverer:
         hosts = self.due_hosts(limit)
         if not hosts:
             return {"checked": 0}
-        http = self._fixed_http or httpx.Client(timeout=httpx.Timeout(8.0, connect=5.0), follow_redirects=False)
+        http = self._fixed_http or public_client(self.allow_private, timeout=httpx.Timeout(8.0, connect=5.0), follow_redirects=False)
         found = []
         try:
             with ThreadPoolExecutor(max_workers=self.workers) as pool:

@@ -6,8 +6,9 @@ from eth_account import Account
 from fastapi.testclient import TestClient
 
 from agent_market.broker.categories import match_fee
-from agent_market.broker.discovery import CardFetcher, DiscoveryError, check_public_url
+from agent_market.broker.discovery import CardFetcher, DiscoveryError, check_public_url, public_client
 from agent_market.broker.registry import Registry
+from agent_market.broker.server import RateLimiter
 from agent_market.broker.server import create_app as create_broker
 from agent_market.buyer import BuyerAgent, BuyerError
 from agent_market.config import BrokerConfig, BuyerConfig, SellerConfig, usdc
@@ -246,6 +247,50 @@ def test_ssrf_guard_blocks_private_hosts():
     for url in ["http://127.0.0.1:8000", "http://localhost", "http://10.0.0.5", "http://169.254.169.254", "file:///etc/passwd"]:
         with pytest.raises(DiscoveryError):
             check_public_url(url)
+
+
+def test_dns_rebinding_blocked_at_connect(monkeypatch):
+    """검사 때는 공인 주소, 접속 때는 내부 주소로 바뀌는 DNS 응답(rebinding)을 접속 단계에서 막는다."""
+    import socket
+
+    answers = iter(["93.184.216.34", "127.0.0.1"])
+    monkeypatch.setattr(socket, "getaddrinfo", lambda host, port, *a, **kw: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (next(answers), port))])
+    check_public_url("http://rebind.example/")  # 첫 응답: 공인 주소라 통과
+    with pytest.raises(httpx.ConnectError, match="blocked non-public"):
+        public_client().get("http://rebind.example/")  # 두 번째 응답: 127.0.0.1
+
+
+def test_public_client_connects_to_checked_ip(monkeypatch):
+    import socket
+
+    import httpcore
+
+    connected = []
+    monkeypatch.setattr(socket, "getaddrinfo", lambda host, port, *a, **kw: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", port))])
+
+    def fake_connect(self, host, port, *a, **kw):
+        connected.append((host, port))
+        raise httpcore.ConnectError("stop here")
+
+    monkeypatch.setattr(httpcore.SyncBackend, "connect_tcp", fake_connect)
+    with pytest.raises(httpx.ConnectError):
+        public_client().get("http://agent.example:8080/")
+    assert connected == [("93.184.216.34", 8080)]  # 호스트 이름이 아니라 검사한 IP로 접속
+
+
+def test_rate_limiter_forgets_idle_keys(monkeypatch):
+    import agent_market.broker.server as broker_server
+
+    now = [1000.0]
+    monkeypatch.setattr(broker_server.time, "monotonic", lambda: now[0])
+    limiter = RateLimiter(2)
+    for i in range(100):
+        limiter.allow(f"10.0.0.{i}")
+    assert len(limiter._hits) == 100
+    now[0] += 61
+    assert limiter.allow("10.0.0.200")
+    assert list(limiter._hits) == ["10.0.0.200"]
+    assert limiter.allow("10.0.0.200") and not limiter.allow("10.0.0.200")  # 제한 자체는 그대로
 
 
 def test_classification_is_rate_limited(world):
