@@ -439,3 +439,20 @@ def test_method_style_mismatch_and_payment_required():
     r = store.resource(rid)
     assert json.loads(r["trial_info"])["payment_required"] and json.loads(r["usage_guide"])["payment"] == "required"
     assert "trial_failed" not in {f["code"] for f in json.loads(r["eval_info"])["findings"]}
+
+
+def test_card_variants_and_mcp_interfaces():
+    card = a2a.normalize_card({**CARD_V1, "securitySchemes": [{"type": "http"}], "supportedInterfaces": [
+        {"url": "https://docs.example/a2a", "protocolBinding": "jsonrpc 2.0", "protocolVersion": "1.0"},
+        {"url": "https://docs.example/mcp", "protocolBinding": "https://modelcontextprotocol.io/specification/2025-06-18"},
+        {"url": "https://docs.example/rest", "protocolBinding": "HTTP"}]}, "u")
+    assert card["security_schemes"] == {} and [i["binding"] for i in card["interfaces"]] == ["JSONRPC", "HTTP+JSON"]
+    assert card["mcp_interfaces"] == ["https://docs.example/mcp"]
+    url = "https://docs.example/.well-known/agent-card.json"
+    raw = {**{k: v for k, v in CARD_V1.items() if k not in ("securitySchemes", "securityRequirements")},
+           "supportedInterfaces": CARD_V1["supportedInterfaces"] + [{"url": "https://docs.example/mcp", "protocolBinding": "MCP"}]}
+    store, server, prober = world({url: raw})
+    a2a_resource(store, "https://docs.example")
+    prober.run_due()
+    mcp = store.query("SELECT source FROM resources WHERE kind='mcp' AND url='https://docs.example/mcp'")
+    assert mcp and mcp[0]["source"] == "a2a-card"

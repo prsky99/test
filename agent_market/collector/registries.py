@@ -380,6 +380,13 @@ class WellKnownDiscoverer:
                     return url, card
         return None
 
+    def _probe_safe(self, http: httpx.Client, host: str):
+        try:
+            return self.probe(http, host)
+        except Exception as exc:  # 비표준 응답 하나가 묶음 전체를 멈추지 않게
+            log.warning("well-known probe %s failed: %r", host, exc)
+            return None
+
     def run_due(self, limit: int = 200) -> dict:
         hosts = self.due_hosts(limit)
         if not hosts:
@@ -388,7 +395,7 @@ class WellKnownDiscoverer:
         found = []
         try:
             with ThreadPoolExecutor(max_workers=self.workers) as pool:
-                results = list(pool.map(lambda h: (h, self.probe(http, h)), hosts))
+                results = list(pool.map(lambda h: (h, self._probe_safe(http, h)), hosts))
         finally:
             if http is not self._fixed_http:
                 http.close()

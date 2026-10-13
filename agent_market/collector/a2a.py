@@ -136,24 +136,42 @@ def _text_list(v, limit=10, size=300) -> list[str]:
     return [str(x)[:size] for x in v[:limit]] if isinstance(v, list) else []
 
 
+def _binding(value) -> str:
+    """protocolBinding/transport 이름 정리: 'jsonrpc 2.0'·'HTTP'·'REST' 같은 변형과 MCP 인터페이스."""
+    b = str(value or "JSONRPC").strip().upper()
+    if "MODELCONTEXTPROTOCOL" in b or b.startswith("MCP") or "STREAMABLE" in b or b == "SSE":
+        return "MCP"
+    if b.replace("-", "").replace(" ", "").startswith("JSONRPC"):
+        return "JSONRPC"
+    if b in ("HTTP", "REST", "HTTP+JSON", "HTTP/JSON", "HTTPJSON", "JSON"):
+        return "HTTP+JSON"
+    return b
+
+
 def normalize_card(raw, card_url: str) -> dict | None:
     """agent card → 정리본. A2A card가 아니면 None (같은 경로에 다른 형식의 JSON을 두는 곳이 많다)."""
     if not isinstance(raw, dict) or not raw.get("name") or not isinstance(raw.get("skills"), list):
         return None
     if not (raw.get("supportedInterfaces") or raw.get("url") or isinstance(raw.get("capabilities"), dict)):
         return None
-    interfaces = []
-    for i in raw.get("supportedInterfaces") or []:
+    interfaces, mcp = [], []
+    for i in raw.get("supportedInterfaces") or [] if isinstance(raw.get("supportedInterfaces"), list) else []:
         if isinstance(i, dict) and i.get("url"):
-            interfaces.append({"url": str(i["url"]), "binding": str(i.get("protocolBinding") or "JSONRPC").upper(),
-                               "version": str(i.get("protocolVersion") or "1.0")})
+            binding = _binding(i.get("protocolBinding"))
+            if binding == "MCP":  # A2A card에 MCP 인터페이스를 함께 적는 곳이 많다 → MCP 수집으로 넘김
+                mcp.append(str(i["url"])[:500])
+                continue
+            interfaces.append({"url": str(i["url"]), "binding": binding, "version": str(i.get("protocolVersion") or "1.0")})
     spec = "1.0" if interfaces else str(raw.get("protocolVersion") or "0.3")
     if not interfaces and raw.get("url"):
-        interfaces.append({"url": str(raw["url"]), "binding": str(raw.get("preferredTransport") or "JSONRPC").upper(),
-                           "version": spec})
-        for i in raw.get("additionalInterfaces") or []:
+        interfaces.append({"url": str(raw["url"]), "binding": _binding(raw.get("preferredTransport")), "version": spec})
+        for i in raw.get("additionalInterfaces") or [] if isinstance(raw.get("additionalInterfaces"), list) else []:
             if isinstance(i, dict) and i.get("url") and i.get("url") != raw["url"]:
-                interfaces.append({"url": str(i["url"]), "binding": str(i.get("transport") or "JSONRPC").upper(), "version": spec})
+                binding = _binding(i.get("transport"))
+                if binding == "MCP":
+                    mcp.append(str(i["url"])[:500])
+                else:
+                    interfaces.append({"url": str(i["url"]), "binding": binding, "version": spec})
     skills = []
     for s in raw["skills"][:50]:
         if not isinstance(s, dict):
@@ -168,8 +186,8 @@ def normalize_card(raw, card_url: str) -> dict | None:
             "output_modes": _text_list(s.get("outputModes"), 10, 80),
             "params": {},
         })
-    schemes = {str(k): v for k, v in ((k, _scheme(s)) for k, s in (raw.get("securitySchemes") or {}).items()
-                                      if isinstance(raw.get("securitySchemes"), dict)) if v}
+    declared = raw.get("securitySchemes") if isinstance(raw.get("securitySchemes"), dict) else {}  # 목록으로 주는 card도 있다
+    schemes = {str(k): v for k, v in ((k, _scheme(s)) for k, s in declared.items()) if v}
     caps = raw.get("capabilities") if isinstance(raw.get("capabilities"), dict) else {}
     provider = raw.get("provider") if isinstance(raw.get("provider"), dict) else {}
     extensions = [str(e.get("uri"))[:200] for e in caps.get("extensions") or [] if isinstance(e, dict) and e.get("uri")]
@@ -180,6 +198,7 @@ def normalize_card(raw, card_url: str) -> dict | None:
         "version": str(raw.get("version") or "")[:50],
         "spec_version": spec,
         "interfaces": interfaces[:5],
+        "mcp_interfaces": [u for u in dict.fromkeys(mcp) if u.startswith("https://")][:3],
         "provider": {"organization": str(provider.get("organization") or "")[:200] or None,
                      "url": str(provider.get("url") or "")[:300] or None},
         "documentation_url": raw.get("documentationUrl"),
@@ -670,6 +689,13 @@ class AgentProber:
         caps = {"languages": langs, "regions": sorted(cons.regions_in_text(text))[:10], "currencies": [],
                 "tool_count": len(card["skills"]), "tool_names": [k["name"] for k in card["skills"]][:50]}
         self.store.record_capability(r["id"], caps)
+        for url in card["mcp_interfaces"]:  # card에 적힌 MCP 인터페이스 → MCP 수집 대상으로 (이미 알면 건너뜀)
+            if not self.store.query("SELECT 1 FROM resources WHERE url=? LIMIT 1", (url,)):
+                self.store.upsert_resource({
+                    "key": f"a2a-card-mcp:{url}", "source": "a2a-card", "kind": "mcp", "url": url, "name": card["name"],
+                    "description": card["description"], "category": r.get("category") or "other", "networks": [],
+                    "price_usdc": 0, "details": {"remotes": [{"type": "streamable-http", "url": url}],
+                                                 "agent_card": card["card_url"]}})
         self.store.record_auth(r["id"], s["auth"])
         self.store.set_auth_observed(r["id"], s["auth_required"])
         trial = s["trial"]

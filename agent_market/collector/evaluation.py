@@ -33,7 +33,7 @@ PRECISION = {"hidden_unicode": 1.0, "ansi_escape": 1.0, "hardcoded_secret": 1.0,
 QUARANTINE_CODES = {"hidden_unicode", "ansi_escape", "hardcoded_secret", "rug_pull_suspect"}
 # A2A 전용 결정론적 신호 (card 선언만 보고 판단)
 PRECISION.update({"insecure_endpoint": 1.0, "api_key_in_query": 1.0, "deprecated_oauth_flow": 1.0})
-AGENT_VERSION = 2  # A2A 평가 규칙 버전 (2: 결제 필요 시험은 실패로 치지 않음)
+AGENT_VERSION = 3  # A2A 평가 규칙 버전 (2: 결제 필요 시험은 실패로 치지 않음, 3: 바인딩 이름 정리·GetTask 미구현 구분)
 
 _VALID_BINDINGS = {"JSONRPC", "GRPC", "HTTP+JSON", "REST"}
 _TOOL_NAME = re.compile(r"^[A-Za-z0-9_.\-]{1,128}$")  # MCP 사양의 도구 이름 형식
@@ -451,8 +451,12 @@ def agent_protocol_findings(card: dict, meta: dict, live: dict) -> tuple[float, 
           f"Card url {str(live.get('declared_endpoint'))[:60]} does not answer A2A; found the endpoint at {live.get('endpoint')}",
           "medium")
     if live.get("ok") and not live.get("auth") and live.get("binding") == "JSONRPC":
-        check(live.get("conformant"), "nonstandard_jsonrpc_errors",
-              f"GetTask for an unknown task returned code {live.get('jsonrpc_error')} instead of -32001 (TaskNotFound)")
+        if live.get("jsonrpc_error") == -32601:
+            check(False, "get_task_not_implemented", "The agent does not implement GetTask / tasks/get (Method not found)")
+        else:
+            check(live.get("conformant"), "nonstandard_jsonrpc_errors",
+                  "GetTask for an unknown task returned " + (f"code {live['jsonrpc_error']}" if live.get("jsonrpc_error")
+                                                            else "no JSON-RPC error") + " instead of -32001 (TaskNotFound)")
     return (sum(checks) / len(checks) if checks else 0.0), findings
 
 
