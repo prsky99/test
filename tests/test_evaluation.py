@@ -132,6 +132,11 @@ def test_protocol_violations():
     assert out["dimensions"]["protocol"] < 0.5
 
 
+def test_numeric_protocol_version_is_flagged():
+    out = run([GOOD], init={"protocol_version": 1, "server_info": {"name": "x"}})
+    assert "invalid_protocol_version" in {f["code"] for f in out["findings"]}
+
+
 def test_tool_level_auth_trial_failure_is_not_availability_failure():
     auth_fail = run([GOOD], trial={"ok": False, "error": "401 Unauthorized: missing API key"})
     real_fail = run([GOOD], trial={"ok": False, "error": "TypeError: city is undefined"})

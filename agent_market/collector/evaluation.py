@@ -193,7 +193,11 @@ def protocol_findings(tools_raw: list, init: dict | None) -> tuple[float, list[d
         if not ok:
             findings.append({"severity": severity, "code": code, "tool": tool, "message": message})
 
-    check(init.get("protocol_version"), "no_protocol_version", "initialize did not return protocolVersion", severity="medium")
+    pv = init.get("protocol_version")
+    check(pv, "no_protocol_version", "initialize did not return protocolVersion", severity="medium")
+    if pv:
+        check(isinstance(pv, str) and re.match(r"^\d{4}-\d{2}-\d{2}$", pv), "invalid_protocol_version",
+              f"protocolVersion '{str(pv)[:20]}' is not a YYYY-MM-DD revision", severity="medium")
     check((init.get("server_info") or {}).get("name"), "no_server_info", "initialize did not return serverInfo.name")
     names = [t.get("name") for t in tools_raw if isinstance(t, dict)]
     check(len(names) == len(set(names)), "duplicate_tool_names", "Duplicate tool names", severity="medium")

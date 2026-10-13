@@ -385,3 +385,26 @@ def test_existing_rows_get_host_backfilled(tmp_path):
     with store.tx() as db:
         db.execute("UPDATE resources SET host=NULL")
     assert Store(path).resource(rid)["host"] == "backfill.example"
+
+
+def test_crawler_retries_page_after_timeout():
+    from agent_market.gateway.crawler import Crawler
+    from agent_market.gateway.store import Store
+    from tests.test_gateway import FakeRegistries
+
+    class Flaky(FakeRegistries):
+        timeouts = 2
+
+        def handle_request(self, request):
+            if request.url.host == "registry.modelcontextprotocol.io" and self.timeouts:
+                self.timeouts -= 1
+                raise httpx.ReadTimeout("The read operation timed out", request=request)
+            return super().handle_request(request)
+
+    reg = Flaky()
+    reg.mcp = [{"server": {"name": "io.ex/w", "title": "W", "description": "Weather",
+                           "remotes": [{"type": "streamable-http", "url": "https://w.example/mcp"}]}, "_meta": {}}]
+    crawler = Crawler(Store(), http=httpx.Client(transport=reg), page_delay=0)
+    crawler.retry_delay = 0
+    report = crawler.crawl_all()
+    assert report["mcp-registry"]["ok"] and report["mcp-registry"]["new"] == 1

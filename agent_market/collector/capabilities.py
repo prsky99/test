@@ -76,7 +76,7 @@ class CapabilityProber:
         if sid := init.headers.get("mcp-session-id"):
             headers["mcp-session-id"] = sid
         if pv := result.get("protocolVersion"):
-            headers["mcp-protocol-version"] = pv
+            headers["mcp-protocol-version"] = str(pv)  # 숫자로 주는 비표준 서버도 있음
         trial = None
         try:
             http.post(url, json={"jsonrpc": "2.0", "method": "notifications/initialized"}, headers=headers)

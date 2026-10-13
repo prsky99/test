@@ -151,6 +151,7 @@ class Crawler:
         self.page_delay = page_delay
         self.max_pages = max_pages
         self.full_interval = full_interval
+        self.retry_delay = 2.0
         self.should_stop = should_stop or (lambda: False)
         self._lock = threading.Lock()
 
@@ -181,7 +182,13 @@ class Crawler:
 
     def _get(self, url: str, params: dict) -> dict:
         for attempt in range(4):
-            resp = self.http.get(url, params=params)
+            try:
+                resp = self.http.get(url, params=params)
+            except httpx.TransportError:  # 시간 초과·연결 끊김: 한 페이지 때문에 바퀴 전체를 버리지 않도록 재시도
+                if attempt == 3:
+                    raise
+                time.sleep(self.retry_delay * 2 ** attempt)
+                continue
             if resp.status_code == 429 or resp.status_code >= 500:
                 time.sleep(2 ** attempt)
                 continue
