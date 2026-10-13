@@ -99,6 +99,14 @@ HEALTH_COLUMNS = {
     "auth_info": "TEXT",  # JSON: OAuth 주소·지원 방식, API 키 헤더·발급처, 안내 단계
     "auth_checked_at": "REAL",
     "auth_error": "TEXT",
+    # 사용 안내 (collector/usage.py)
+    "usage_tools": "TEXT",  # 정리된 도구 정의 JSON (변경 비교용)
+    "usage_tools_hash": "TEXT",
+    "usage_guide": "TEXT",  # 연결 방법·도구별 사용법·검증된 예제 JSON
+    "usage_updated_at": "REAL",  # 도구 목록(사용법)이 처음 만들어졌거나 바뀐 시각
+    "usage_changes": "TEXT",  # 마지막 변경 내역 JSON (추가·삭제·변경된 도구)
+    "trial_info": "TEXT",  # 마지막 실제 호출 결과 JSON
+    "trial_ok": "INTEGER",
 }
 
 
@@ -107,7 +115,8 @@ def host_of(url: str) -> str:
         return urlparse(url).hostname or url
     except ValueError:
         return url
-NEEDS_COLUMNS = {"language": "TEXT", "region": "TEXT", "auth_pref": "TEXT"}  # 요청 조건 (언어·지역·인증)
+NEEDS_COLUMNS = {"language": "TEXT", "region": "TEXT", "auth_pref": "TEXT",  # 요청 조건 (언어·지역·인증)
+                 "usage_seen_at": "REAL"}  # 고객에게 사용법 변경을 마지막으로 알린 시각
 CRAWL_RUN_COLUMNS = {"mode": "TEXT", "changed": "INTEGER", "unchanged": "INTEGER", "pages": "INTEGER"}
 HEALTH_UP = ("healthy", "reachable")
 
@@ -459,6 +468,24 @@ class Store:
             if found["method"] == "none":  # 실제로는 인증 없이 동작
                 db.execute("UPDATE resources SET auth_observed=0 WHERE id=?", (rid,))
 
+    # ---------------- 사용 안내 ----------------
+    def record_usage(self, rid: int, tools: list[dict], digest: str, guide: dict, changes: dict | None,
+                     trial: dict | None) -> bool:
+        """사용 안내 저장. 도구 목록이 바뀌었으면 usage_updated_at을 갱신하고 True를 돌려준다."""
+        now = time.time()
+        with self.tx() as db:
+            row = db.execute("SELECT usage_tools_hash FROM resources WHERE id=?", (rid,)).fetchone()
+            changed = row is not None and row["usage_tools_hash"] != digest
+            db.execute(
+                """UPDATE resources SET usage_tools=?, usage_tools_hash=?, usage_guide=?,
+                   usage_updated_at=CASE WHEN ? THEN ? ELSE usage_updated_at END,
+                   usage_changes=CASE WHEN ? THEN ? ELSE usage_changes END WHERE id=?""",
+                (json.dumps(tools), digest, json.dumps(guide), changed, now, changed and changes is not None,
+                 json.dumps(changes) if changes else None, rid))
+            if trial is not None:
+                db.execute("UPDATE resources SET trial_info=?, trial_ok=? WHERE id=?", (json.dumps(trial), int(bool(trial.get("ok"))), rid))
+        return changed
+
     def postpone(self, ids: list[int], at: float) -> None:
         """점검 결과를 기록하지 않고 나중에 다시 점검하도록 미룬다 (우리 쪽 네트워크 문제일 때)."""
         with self.tx() as db:
@@ -501,7 +528,11 @@ class Store:
                    SUM(cap_checked_at IS NOT NULL AND cap_error IS NULL) AS capabilities_checked,
                    SUM(cap_languages IS NOT NULL) AS with_language_options,
                    SUM(auth_method IS NOT NULL) AS auth_method_known,
-                   SUM(auth_autonomy = 'agent_autonomous') AS auth_agent_autonomous
+                   SUM(auth_autonomy = 'agent_autonomous') AS auth_agent_autonomous,
+                   SUM(usage_guide IS NOT NULL) AS usage_guides,
+                   SUM(trial_ok = 1) AS verified_working,
+                   SUM(trial_ok = 0) AS trial_failed,
+                   SUM(usage_changes IS NOT NULL AND usage_updated_at > strftime('%s','now') - 86400) AS usage_changed_24h
                  FROM resources WHERE active=1 AND health_status != 'retired'""")[0]
         langs = {r["desc_lang"]: r["n"] for r in q(
             "SELECT desc_lang, COUNT(*) AS n FROM resources WHERE active=1 AND desc_lang IS NOT NULL GROUP BY desc_lang ORDER BY n DESC LIMIT 10")}

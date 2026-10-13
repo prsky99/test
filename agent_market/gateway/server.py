@@ -109,7 +109,7 @@ def create_app(
     checker = HealthChecker(store, allow_private=config.allow_private_urls, workers=config.health_workers,
                             schedule=Schedule(interval=config.health_interval))
     caps = CapabilityProber(store, allow_private=config.allow_private_urls, max_age=config.capability_max_age,
-                            workers=config.capability_workers)
+                            workers=config.capability_workers, trials=config.trials, trial_max_age=config.trial_max_age)
     auth = AuthDiscoverer(store, allow_private=config.allow_private_urls, max_age=config.auth_max_age,
                           workers=config.capability_workers)
     collector = CollectorAgent(store, crawler, checker, min_gap=config.crawl_min_gap, capabilities=caps, auth=auth)

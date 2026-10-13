@@ -128,8 +128,8 @@ class GatewayService:
             offer_id = self._create_offer(need, best, None, fee=0, free=True, status="accepted")
             with self.store.tx() as db:
                 db.execute(
-                    "UPDATE needs SET status='active', current_resource=?, current_score=?, free_used=1, updated=? WHERE need_id=?",
-                    (best.resource["id"], best.score, time.time(), need["need_id"]),
+                    "UPDATE needs SET status='active', current_resource=?, current_score=?, free_used=1, updated=?, usage_seen_at=? WHERE need_id=?",
+                    (best.resource["id"], best.score, time.time(), time.time(), need["need_id"]),
                 )
             return {"status": "active", "offer_id": offer_id, "agent": reveal(best)}
         offer = self._offer(need, best, None)
@@ -180,7 +180,7 @@ class GatewayService:
     # ---------------- 지속 관리 ----------------
     def rescan(self) -> dict:
         """모든 활성 요청에 대해 더 좋은 에이전트가 있는지 확인하고 제안한다. 스케줄러가 주기적으로 호출."""
-        stats = {"checked": 0, "intros": 0, "offers": 0, "expired": self.expire_offers()}
+        stats = {"checked": 0, "intros": 0, "offers": 0, "usage_updates": 0, "expired": self.expire_offers()}
         for row in self.store.query("SELECT need_id FROM needs WHERE status IN ('watching','active')"):
             need = self._load_need(row["need_id"])
             stats["checked"] += 1
@@ -193,12 +193,32 @@ class GatewayService:
                             if r["status"] == "active" and need.get("webhook") and self.notifier:
                                 self.notifier(need["webhook"], {"event": "intro", "need_id": need["need_id"], "agent": r["agent"]})
                     continue
+                if self._notify_usage_change(need):
+                    stats["usage_updates"] += 1
                 if self._upgrade(need):
                     stats["offers"] += 1
             except Exception:
                 log.exception("rescan failed for %s", need["need_id"])
         self.store.set_meta("last_rescan", {"at": time.time(), **stats})
         return stats
+
+    def _notify_usage_change(self, need: dict) -> bool:
+        """소개 중인 에이전트의 사용법(도구 목록)이 바뀌었으면 고객에게 새 안내를 알린다."""
+        res = self.store.resource(need["current_resource"])
+        if not res or not res.get("usage_updated_at"):
+            return False
+        seen = need.get("usage_seen_at") or 0
+        if res["usage_updated_at"] <= seen:
+            return False
+        with self.store.tx() as db:
+            db.execute("UPDATE needs SET usage_seen_at=? WHERE need_id=?", (res["usage_updated_at"], need["need_id"]))
+        if need.get("webhook") and self.notifier:
+            self.notifier(need["webhook"], {
+                "event": "usage_updated", "need_id": need["need_id"],
+                "changes": json.loads(res.get("usage_changes") or "null"),
+                "usage": json.loads(res.get("usage_guide") or "null"),
+            })
+        return True
 
     def _pending(self, need_id: str) -> dict | None:
         rows = self.store.query("SELECT * FROM offers WHERE need_id=? AND status='pending'", (need_id,))
@@ -272,8 +292,8 @@ class GatewayService:
             ).rowcount
             if updated:
                 db.execute(
-                    "UPDATE needs SET status='active', current_resource=?, current_score=?, updated=? WHERE need_id=?",
-                    (offer["resource_id"], offer["score"], time.time(), need["need_id"]),
+                    "UPDATE needs SET status='active', current_resource=?, current_score=?, updated=?, usage_seen_at=? WHERE need_id=?",
+                    (offer["resource_id"], offer["score"], time.time(), time.time(), need["need_id"]),
                 )
         if not updated:
             self.ledger.release(payment.tx_hash)
@@ -298,8 +318,8 @@ class GatewayService:
             ).rowcount
             if updated:
                 db.execute(
-                    "UPDATE needs SET status='active', current_resource=?, current_score=?, updated=? WHERE need_id=?",
-                    (offer["resource_id"], offer["score"], time.time(), need["need_id"]),
+                    "UPDATE needs SET status='active', current_resource=?, current_score=?, updated=?, usage_seen_at=? WHERE need_id=?",
+                    (offer["resource_id"], offer["score"], time.time(), time.time(), need["need_id"]),
                 )
         if updated:
             self._record_outcome(need["category"], accepted=True)

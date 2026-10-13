@@ -103,6 +103,8 @@ def _fit(resource: dict, need: dict | None) -> float:
         parts.append(0.8)  # 인증은 필요하지만 에이전트 혼자 할 수 있음
     else:
         parts.append(0.6 if auth is None else 0.4 if auth else 1.0)
+    if resource.get("trial_ok") is not None:  # 실제로 호출해 봤으면 반영 (실패는 예제 인자 탓일 수도 있어 약하게)
+        parts.append(1.0 if resource["trial_ok"] else 0.5)
     return sum(parts) / len(parts)
 
 
@@ -204,6 +206,9 @@ def reveal(s: Scored) -> dict:
         "calls_30d": r.get("calls_30d"),
         "payers_30d": r.get("payers_30d"),
         "details": json.loads(r["details"]),
+        "usage": json.loads(r["usage_guide"]) if r.get("usage_guide") else None,  # 연결 방법·도구별 사용법·검증된 예제
+        "usage_updated_at": r.get("usage_updated_at"),
+        "verified_working": None if r.get("trial_ok") is None else bool(r["trial_ok"]),  # 실제 호출 시험 결과
         "constraints": {
             "auth_required": auth_required(r),  # None = 모름
             "auth": auth_details(r),  # 인증 방법과 따라 할 단계

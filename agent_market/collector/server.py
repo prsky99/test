@@ -7,9 +7,9 @@
 
 API
   GET  /health                         수집 에이전트 자체 상태
-  GET  /agents?q=&category=&kind=&status=&language=&region=&auth=none|agent|oauth2|api_key&limit=
+  GET  /agents?q=&category=&kind=&status=&language=&region=&auth=none|agent|oauth2|api_key&verified=true&limit=
                                        에이전트 검색 (헬스 상태·제약 정보 포함, retired는 status=retired로만)
-  GET  /agents/{id}                    상세 + 최근 점검 기록
+  GET  /agents/{id}                    상세 + 최근 점검 기록 + 사용 안내(도구별 사용법·검증된 예제)·변경 내역
   GET  /stats                          헬스 상태별 개수, 최근 1시간 점검 수, 최근 수집 기록
   POST /admin/crawl, /admin/check/{id} 즉시 수집 / 즉시 점검 (ADMIN_TOKEN)
 """
@@ -47,6 +47,8 @@ def public(r: dict) -> dict:
     out = {k: r.get(k) for k in PUBLIC_FIELDS}
     out["networks"] = [n for n in (r.get("networks") or "").strip(",").split(",") if n]
     out["uptime_24h"] = round(r["health_ok_24h"] / r["health_n_24h"], 3) if r.get("health_n_24h") else None
+    out["verified_working"] = None if r.get("trial_ok") is None else bool(r["trial_ok"])
+    out["has_usage_guide"] = bool(r.get("usage_guide"))
     out["constraints"] = {
         "auth_required": auth_required(r), "languages": agent_languages(r), "regions": agent_regions(r),
         "currencies": cons.unpack(r.get("cap_currencies")), "tool_count": r.get("cap_tool_count"),
@@ -81,7 +83,7 @@ def create_app(store: Store, agent: CollectorAgent | None, admin_token: str | No
     @app.get("/agents")
     def agents(q: str | None = None, category: str | None = None, kind: str | None = None,
                status: str | None = None, language: str | None = None, region: str | None = None,
-               auth: str | None = None, limit: int = Query(20, ge=1, le=100)):
+               auth: str | None = None, verified: bool | None = None, limit: int = Query(20, ge=1, le=100)):
         conds, params = ["r.active=1"], []
         if language:
             lang = cons.normalize_language(language)
@@ -93,6 +95,8 @@ def create_app(store: Store, agent: CollectorAgent | None, admin_token: str | No
             if reg is None:
                 raise HTTPException(400, "알 수 없는 region")
             conds.append("(r.regions LIKE ? OR r.cap_regions LIKE ?)"); params += [f"%,{reg},%"] * 2
+        if verified is not None:
+            conds.append("r.trial_ok = ?"); params.append(int(verified))
         if auth == "none":
             conds.append("COALESCE(r.auth_observed, r.auth_declared, 0) = 0")
         elif auth == "agent":
@@ -126,7 +130,11 @@ def create_app(store: Store, agent: CollectorAgent | None, admin_token: str | No
         if r is None:
             raise HTTPException(404, "없는 에이전트")
         return {**public(r), "active": bool(r["active"]), "details": json.loads(r["details"]),
-                "last_error": r.get("last_error"), "history": store.health_history(rid)}
+                "last_error": r.get("last_error"), "history": store.health_history(rid),
+                "usage": json.loads(r["usage_guide"]) if r.get("usage_guide") else None,
+                "usage_updated_at": r.get("usage_updated_at"),
+                "usage_changes": json.loads(r["usage_changes"]) if r.get("usage_changes") else None,
+                "trial": json.loads(r["trial_info"]) if r.get("trial_info") else None}
 
     @app.get("/stats")
     def stats():
@@ -153,11 +161,12 @@ def create_app(store: Store, agent: CollectorAgent | None, admin_token: str | No
 def build_agent(store: Store, health_interval: float, allow_private: bool = False, workers: int = 32,
                 min_gap: float = 60, page_delay: float = 1.0, full_interval: float = 86400,
                 capability_max_age: float = 86400, capability_workers: int = 8,
-                auth_max_age: float = 7 * 86400) -> CollectorAgent:
+                auth_max_age: float = 7 * 86400, trials: bool = True, trial_max_age: float = 7 * 86400) -> CollectorAgent:
     checker = HealthChecker(store, allow_private=allow_private, workers=workers,
                             schedule=Schedule(interval=health_interval))
     crawler = Crawler(store, page_delay=page_delay, full_interval=full_interval)
-    caps = CapabilityProber(store, allow_private=allow_private, max_age=capability_max_age, workers=capability_workers)
+    caps = CapabilityProber(store, allow_private=allow_private, max_age=capability_max_age, workers=capability_workers,
+                            trials=trials, trial_max_age=trial_max_age)
     auth = AuthDiscoverer(store, allow_private=allow_private, max_age=auth_max_age, workers=capability_workers)
     return CollectorAgent(store, crawler, checker, min_gap=min_gap, capabilities=caps, auth=auth)
 
@@ -180,6 +189,8 @@ def main() -> None:
         capability_max_age=float(os.environ.get("CAPABILITY_MAX_AGE_HOURS", "24")) * 3600,
         capability_workers=int(os.environ.get("CAPABILITY_WORKERS", "8")),
         auth_max_age=float(os.environ.get("AUTH_DISCOVERY_MAX_AGE_DAYS", "7")) * 86400,
+        trials=os.environ.get("USAGE_TRIALS", "1") == "1",
+        trial_max_age=float(os.environ.get("USAGE_TRIAL_MAX_AGE_DAYS", "7")) * 86400,
     )
     uvicorn.run(create_app(store, agent, os.environ.get("ADMIN_TOKEN")),
                 host=os.environ.get("HOST", "127.0.0.1"), port=int(os.environ.get("PORT", "8300")))
