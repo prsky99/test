@@ -530,3 +530,86 @@ def test_a2a_agent_is_reclassified_from_card_skills():
     rid = a2a_resource(store, "https://agent.example")
     prober.run_due()
     assert store.resource(rid)["category"] == "agent_infra"
+
+
+# ---------------- 등록 파일 받기: 요청 제한·리다이렉트·빈 호스트 ----------------
+class RegFiles(httpx.BaseTransport):
+    def __init__(self, routes):
+        self.routes, self.calls = routes, []
+
+    def handle_request(self, request):
+        url = str(request.url)
+        self.calls.append(url)
+        r = self.routes.get(url)
+        if r is None:
+            return httpx.Response(404)
+        return r() if callable(r) else r
+
+
+def _pending(store, rows):
+    with store.tx() as db:
+        db.executemany("INSERT INTO erc8004_tokens (chain, agent_id, uri, host, status, next_at) VALUES ('t',?,?,?,'pending',0)", rows)
+
+
+def test_ipfs_lane_rotates_gateways_and_rate_limit_is_not_a_strike():
+    from agent_market.collector.registries import host_lane
+    assert host_lane("ipfs://bafyX/meta.json") == host_lane("https://ipfs.io/ipfs/bafyX") == "ipfs"
+    reg = registration("Alpha", [{"name": "A2A", "endpoint": "https://a.example/card.json"}])
+    files = RegFiles({"https://ipfs.io/ipfs/bafyA": httpx.Response(429), "https://dweb.link/ipfs/bafyA": httpx.Response(200, json=reg),
+                      "https://ipfs.io/ipfs/bafyB": httpx.Response(429), "https://dweb.link/ipfs/bafyB": httpx.Response(429),
+                      "https://w3s.link/ipfs/bafyB": httpx.Response(429)})
+    store = Store()
+    crawler = Erc8004Crawler(store, chains={"t": (1, "https://rpc.example")}, http=httpx.Client(transport=files),
+                             allow_private=True, per_host_delay=0)
+    crawler._gateway = 2  # 다음 차례가 ipfs.io (0번)부터
+    _pending(store, [(1, "ipfs://bafyA", "ipfs"), (2, "https://ipfs.io/ipfs/bafyB", "ipfs")])
+    stats = crawler.resolve_pending()
+    status = {r["agent_id"]: (r["status"], r["error"]) for r in store.query("SELECT agent_id, status, error FROM erc8004_tokens")}
+    assert status[1][0] == "resolved" and stats["rate_limited"] == 1
+    assert status[2] == ("error", None)  # 429는 실패 횟수('|')로 세지 않음
+
+
+def test_same_site_redirect_is_followed_once():
+    reg = registration("Beta", [{"name": "MCP", "endpoint": "https://b.example/mcp"}])
+    files = RegFiles({"https://arweave.net/abc": httpx.Response(302, headers={"location": "https://xyz.arweave.net/abc"}),
+                      "https://xyz.arweave.net/abc": httpx.Response(200, json=reg),
+                      "https://evil.example/r": httpx.Response(302, headers={"location": "https://other.example/x"})})
+    store = Store()
+    crawler = Erc8004Crawler(store, chains={"t": (1, "https://rpc.example")}, http=httpx.Client(transport=files),
+                             allow_private=True, per_host_delay=0)
+    _pending(store, [(1, "https://arweave.net/abc", "arweave.net"), (2, "https://evil.example/r", "evil.example")])
+    crawler.resolve_pending()
+    status = {r["agent_id"]: r for r in store.query("SELECT agent_id, status, error FROM erc8004_tokens")}
+    assert status[1]["status"] == "resolved"
+    assert status[2]["status"] == "error" and "another site" in status[2]["error"]
+    assert "https://other.example/x" not in files.calls
+
+
+def test_hosts_without_endpoints_are_deferred():
+    import agent_market.collector.registries as regs
+    store = Store()
+    crawler = Erc8004Crawler(store, chains={"t": (1, "https://rpc.example")}, http=httpx.Client(transport=RegFiles({})),
+                             allow_private=True, per_host_delay=0)
+    with store.tx() as db:  # spam.example: 200개 받아 봤는데 전부 엔드포인트 없음, 대기 50개
+        db.executemany("INSERT INTO erc8004_tokens (chain, agent_id, uri, host, status) VALUES ('t',?,NULL,'spam.example','no_service')",
+                       [(i,) for i in range(regs.DEAD_HOST_SAMPLE)])
+        db.executemany("INSERT INTO erc8004_tokens (chain, agent_id, uri, host, status, next_at) VALUES ('t',?,?, 'spam.example','pending',0)",
+                       [(1000 + i, f"https://spam.example/{i}.json") for i in range(50)])
+        db.execute("INSERT INTO erc8004_tokens (chain, agent_id, uri, host, status, next_at) VALUES ('t',9999,'https://good.example/1.json','good.example','pending',0)")
+    assert crawler.defer_dead_hosts(force=True) == 50
+    counts = {r["status"]: r["n"] for r in store.query("SELECT status, COUNT(*) AS n FROM erc8004_tokens WHERE host='spam.example' GROUP BY status")}
+    assert counts == {"no_service": regs.DEAD_HOST_SAMPLE, "deferred": 50}
+    assert store.query("SELECT status FROM erc8004_tokens WHERE agent_id=9999")[0]["status"] == "pending"
+
+
+def test_migration_merges_ipfs_lane_and_retries_rate_limited():
+    store = Store()
+    with store.tx() as db:
+        db.execute("INSERT INTO erc8004_tokens (chain, agent_id, uri, host, status, error, next_at) VALUES "
+                   "('t',1,'https://ipfs.io/ipfs/bafyZ','ipfs.io','error','|ValueError: HTTP 429',9e9)")
+        db.execute("INSERT INTO erc8004_tokens (chain, agent_id, uri, host, status, error, next_at) VALUES "
+                   "('t',2,'https://arweave.net/q','arweave.net','error','|ValueError: HTTP 302',9e9)")
+    Erc8004Crawler(store, chains={"t": (1, "https://rpc.example")}, http=httpx.Client(transport=RegFiles({})), allow_private=True)
+    rows = {r["agent_id"]: dict(r) for r in store.query("SELECT agent_id, host, status, error, next_at FROM erc8004_tokens")}
+    assert rows[1]["host"] == "ipfs" and rows[1]["status"] == "pending" and rows[1]["error"] is None
+    assert rows[2]["status"] == "pending" and rows[2]["next_at"] is None

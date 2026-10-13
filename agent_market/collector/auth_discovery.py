@@ -155,12 +155,26 @@ class AuthDiscoverer:
         self.per_host_delay = per_host_delay
         self._cache: dict[str, tuple[float, dict | None]] = {}  # 메타데이터 URL → (시각, JSON) — 같은 인증 서버를 여러 MCP가 공유
         self._cache_lock = threading.Lock()
+        self._inflight: dict[str, threading.Lock] = {}  # 같은 URL은 한 스레드만 받고 나머지는 그 결과를 기다림
 
     def _json(self, http: httpx.Client, url: str) -> dict | None:
         with self._cache_lock:
             hit = self._cache.get(url)
             if hit and time.time() - hit[0] < 3600:
                 return hit[1]
+            lock = self._inflight.setdefault(url, threading.Lock())
+        with lock:  # 병렬 조사 중 두 스레드가 동시에 캐시를 놓쳐 같은 메타데이터를 두 번 받지 않게
+            with self._cache_lock:
+                hit = self._cache.get(url)
+                if hit and time.time() - hit[0] < 3600:
+                    return hit[1]
+            data = self._fetch_json(http, url)
+            with self._cache_lock:
+                self._cache[url] = (time.time(), data)
+                self._inflight.pop(url, None)
+            return data
+
+    def _fetch_json(self, http: httpx.Client, url: str) -> dict | None:
         data = None
         try:
             if not self.allow_private:
@@ -171,8 +185,6 @@ class AuthDiscoverer:
                 data = parsed if isinstance(parsed, dict) else None
         except (httpx.HTTPError, DiscoveryError, ValueError):
             data = None
-        with self._cache_lock:
-            self._cache[url] = (time.time(), data)
         return data
 
     def discover(self, resource: dict, http: httpx.Client) -> dict:

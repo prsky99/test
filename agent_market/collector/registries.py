@@ -17,7 +17,7 @@ import logging
 import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
-from urllib.parse import unquote, urlparse
+from urllib.parse import unquote, urljoin, urlparse
 
 import httpx
 
@@ -36,9 +36,40 @@ DEFAULT_CHAINS = {  # 이름: (chain id, 키 없는 공개 RPC)
     "ethereum": (1, "https://ethereum-rpc.publicnode.com"),
     "bsc": (56, "https://bsc-rpc.publicnode.com"),
 }
-IPFS_GATEWAY = "https://ipfs.io/ipfs/"
+IPFS_GATEWAYS = ("https://ipfs.io/ipfs/", "https://dweb.link/ipfs/", "https://w3s.link/ipfs/")  # 돌아가며 쓰고, 429면 다음 곳
+IPFS_HOSTS = {"ipfs.io", "dweb.link", "w3s.link"}
+DEAD_HOST_SAMPLE = 200  # 한 호스트에서 이만큼 받아 봤는데 엔드포인트가 하나도 없으면 나머지는 보류
+DEFER = 7 * 86400  # 보류 기간 (지나면 다시 표본을 받아 본다)
+RATE_LIMIT_RETRY = 1800  # 429(요청 제한)는 실패로 세지 않고 이만큼 뒤에 다시
+DEAD_HOST_REFRESH = 600
 MAX_REGISTRATION = 256 * 1024
 BATCH = 100
+
+
+class RateLimited(ValueError):
+    """상대가 요청 제한(429)을 걸었다: 등록 파일 문제가 아니므로 실패 횟수로 세지 않는다."""
+
+
+def ipfs_path(uri: str) -> str | None:
+    """ipfs://CID/… 또는 https://<IPFS 게이트웨이>/ipfs/CID/… → 'CID/…' (게이트웨이를 골라 받기 위해)."""
+    if uri.startswith("ipfs://"):
+        return uri[len("ipfs://"):].lstrip("/").removeprefix("ipfs/")
+    if uri.startswith("https://"):
+        parsed = urlparse(uri)
+        if parsed.hostname in IPFS_HOSTS and parsed.path.startswith("/ipfs/"):
+            return parsed.path[len("/ipfs/"):] + (f"?{parsed.query}" if parsed.query else "")
+    return None
+
+
+def host_lane(uri: str) -> str | None:
+    """등록 파일을 받는 줄(호스트). IPFS는 어느 게이트웨이 주소로 적혀 있든 한 줄로 묶어 요청이 겹치지 않게 한다."""
+    if ipfs_path(uri) is not None:
+        return "ipfs"
+    return urlparse(uri).hostname if uri.startswith("https://") else None
+
+
+def _site(host: str) -> str:
+    return ".".join(host.split(".")[-2:])
 
 
 def _decode_string(hexdata: str) -> str | None:
@@ -99,6 +130,17 @@ class Erc8004Crawler:
         self.per_host = per_host
         self.per_host_delay = per_host_delay
         self.rescan_interval = rescan_interval
+        self._gateway = 0
+        self._dead_checked = 0.0
+        self._migrate()
+
+    def _migrate(self) -> None:
+        """예전 규칙으로 저장된 대기열 정리: IPFS 게이트웨이 주소를 한 줄로 묶고, 429·리다이렉트로만 실패한 것은 다시 시도."""
+        with self.store.tx() as db:
+            db.execute("""UPDATE erc8004_tokens SET host='ipfs' WHERE host IN ('ipfs.io','dweb.link','w3s.link')
+                          AND uri LIKE 'https://%/ipfs/%'""")
+            db.execute("""UPDATE erc8004_tokens SET status='pending', error=NULL, next_at=NULL WHERE status='error' AND uri IS NOT NULL
+                          AND (error LIKE '%HTTP 429%' OR error LIKE '%HTTP 30_%')""")
 
     def _http(self) -> httpx.Client:
         return self._fixed_http or public_client(self.allow_private, timeout=httpx.Timeout(20.0, connect=8.0), follow_redirects=False,
@@ -188,11 +230,7 @@ class Erc8004Crawler:
                     stats["unchanged"] += 1
                     continue
                 stats["changed" if row else "new"] += 1
-                host = None
-                if uri.startswith("https://"):
-                    host = urlparse(uri).hostname
-                elif uri.startswith("ipfs://"):
-                    host = "ipfs"
+                host = host_lane(uri)
                 status = "empty" if not uri else "pending"
                 # services(지난번 등록 엔드포인트)는 남겨 둔다: 빠진 엔드포인트를 비활성화하는 데 쓴다
                 db.execute("""INSERT INTO erc8004_tokens (chain, agent_id, uri_hash, uri, host, status, services,
@@ -295,25 +333,68 @@ class Erc8004Crawler:
             stats[f"{s['kind']}_upserted"] += 1
         self._mark(chain, agent_id, "resolved", services, None)
 
+    def _get(self, http: httpx.Client, url: str) -> httpx.Response:
+        return http.get(url, headers={"accept": "application/json", "user-agent": USER_AGENT})
+
     def _fetch_registration(self, http: httpx.Client, uri: str):
-        url = IPFS_GATEWAY + uri[len("ipfs://"):].lstrip("/").removeprefix("ipfs/") if uri.startswith("ipfs://") else uri
-        if not self.allow_private and not uri.startswith("ipfs://"):
-            check_public_url(url)
-        resp = http.get(url, headers={"accept": "application/json", "user-agent": USER_AGENT})
+        path = ipfs_path(uri)
+        if path is not None:  # IPFS: 게이트웨이를 돌아가며 쓰고, 요청 제한이면 다음 게이트웨이
+            start = self._gateway = (self._gateway + 1) % len(IPFS_GATEWAYS)
+            for k in range(len(IPFS_GATEWAYS)):
+                resp = self._get(http, IPFS_GATEWAYS[(start + k) % len(IPFS_GATEWAYS)] + path)
+                if resp.status_code not in (429, 503):
+                    break
+            else:
+                raise RateLimited("HTTP 429 (all IPFS gateways)")
+        else:
+            if not self.allow_private:
+                check_public_url(uri)
+            resp = self._get(http, uri)
+            if resp.status_code in (301, 302, 303, 307, 308):  # 같은 사이트 안의 리다이렉트만 한 번 따라감 (예: arweave.net → <id>.arweave.net)
+                target = urljoin(uri, resp.headers.get("location", ""))
+                host, to = urlparse(uri).hostname or "", urlparse(target).hostname or ""
+                if not target.startswith("https://") or _site(to) != _site(host):
+                    raise ValueError(f"HTTP {resp.status_code} to another site")
+                if not self.allow_private:
+                    check_public_url(target)
+                resp = self._get(http, target)
+        if resp.status_code == 429:
+            raise RateLimited("HTTP 429")
         if resp.status_code != 200:
             raise ValueError(f"HTTP {resp.status_code}")
         if len(resp.content) > MAX_REGISTRATION:
             raise ValueError("registration file too large")
         return resp.json()
 
+    def defer_dead_hosts(self, force: bool = False) -> int:
+        """표본 DEAD_HOST_SAMPLE개 넘게 받아 봤는데 엔드포인트가 하나도 없는 호스트의 대기는 DEFER 동안 보류한다.
+        (예: 한 서비스가 같은 형식의 빈 등록을 수만 개 올린 경우. 1초에 1개씩 받느라 다른 등록이 밀리지 않게)
+        보류가 끝나면 다시 표본을 받아 보고, 그사이 엔드포인트가 생겼으면 다시 정상적으로 받는다."""
+        if not force and time.time() - self._dead_checked < DEAD_HOST_REFRESH:
+            return 0
+        self._dead_checked = time.time()
+        dead = [r["host"] for r in self.store.query(
+            """SELECT host FROM erc8004_tokens WHERE host IS NOT NULL AND host != 'ipfs' GROUP BY host
+               HAVING SUM(status='resolved') = 0
+                  AND SUM(status='no_service' AND (error IS NULL OR error NOT LIKE 'unreachable%')) >= ?""", (DEAD_HOST_SAMPLE,))]
+        moved = 0
+        for host in dead:
+            with self.store.tx() as db:
+                moved += db.execute("UPDATE erc8004_tokens SET status='deferred', next_at=? WHERE host=? AND status='pending'",
+                                    (time.time() + DEFER, host)).rowcount
+        if moved:
+            log.info("erc8004: deferred %d registrations on %d host(s) with no service endpoints: %s", moved, len(dead), dead[:5])
+        return moved
+
     def resolve_pending(self, limit: int = 200) -> dict:
         """https·ipfs 등록 파일을 받는다. 호스트당 per_host개씩, 호스트 사이는 병렬."""
+        deferred = self.defer_dead_hosts()
         rows = self.store.query(
             """SELECT * FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY host ORDER BY next_at) AS rn FROM erc8004_tokens
-                 WHERE status IN ('pending','error') AND uri IS NOT NULL AND (next_at IS NULL OR next_at <= ?))
+                 WHERE status IN ('pending','error','deferred') AND uri IS NOT NULL AND (next_at IS NULL OR next_at <= ?))
                WHERE rn <= ? ORDER BY next_at LIMIT ?""", (time.time(), self.per_host, limit))
         if not rows:
-            return {"resolved": 0}
+            return {"resolved": 0, **({"deferred": deferred} if deferred else {})}
         by_host = defaultdict(list)
         for r in rows:
             by_host[r["host"]].append(dict(r))
@@ -336,6 +417,10 @@ class Erc8004Crawler:
             if http is not self._fixed_http:
                 http.close()
         for r, doc, err in results:
+            if err and err.startswith("RateLimited"):  # 상대의 요청 제한: 실패로 세지 않고 나중에 다시
+                self._mark(r["chain"], r["agent_id"], "error", None, r.get("error") or None, retry_after=RATE_LIMIT_RETRY)
+                stats["rate_limited"] += 1
+                continue
             if err:
                 tries = (r.get("error") or "").count("|") + 1
                 if tries >= 3:
@@ -348,7 +433,7 @@ class Erc8004Crawler:
             chain_id = self.chains[r["chain"]][0]
             self._apply_safe(r["chain"], chain_id, r["agent_id"], doc, stats)
             stats["fetched"] += 1
-        return {"resolved": len(results), **stats}
+        return {"resolved": len(results), **({"deferred": deferred} if deferred else {}), **stats}
 
 
 class WellKnownDiscoverer:
