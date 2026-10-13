@@ -97,7 +97,7 @@ CREATE INDEX IF NOT EXISTS agent_messages_visitor ON agent_messages(visitor_id, 
 CREATE TABLE IF NOT EXISTS agent_interests (
     id INTEGER PRIMARY KEY, visitor_id TEXT NOT NULL, task TEXT NOT NULL, task_norm TEXT NOT NULL, category TEXT,
     kind TEXT, auth_pref TEXT, created REAL NOT NULL, updated REAL NOT NULL, last_checked REAL,
-    recommended TEXT, best_score REAL, active INTEGER NOT NULL DEFAULT 1, UNIQUE (visitor_id, task_norm)
+    recommended TEXT, best_score REAL, active INTEGER NOT NULL DEFAULT 1, hint TEXT, UNIQUE (visitor_id, task_norm)
 );
 CREATE TABLE IF NOT EXISTS agent_outcomes (
     visitor_id TEXT NOT NULL, resource_id INTEGER NOT NULL, success INTEGER NOT NULL, at REAL NOT NULL,
@@ -228,6 +228,8 @@ class Store:
                 if col not in need_cols:
                     self._db.execute(f"ALTER TABLE needs ADD COLUMN {col} {decl}")
             self._db.execute("CREATE INDEX IF NOT EXISTS needs_rescan ON needs(status, rescanned_at)")
+            if "hint" not in {r[1] for r in self._db.execute("PRAGMA table_info(agent_interests)")}:  # 기존 DB
+                self._db.execute("ALTER TABLE agent_interests ADD COLUMN hint TEXT")
             runs = {r[1] for r in self._db.execute("PRAGMA table_info(crawl_runs)")}
             for col, decl in CRAWL_RUN_COLUMNS.items():
                 if col not in runs:

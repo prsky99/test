@@ -48,13 +48,14 @@ def _token_from(request: Request, body_token: str | None = None) -> str | None:
 
 
 class Front:
-    def __init__(self, store: Store, allow_private: bool = False, courier: Courier | None = None):
+    def __init__(self, store: Store, allow_private: bool = False, courier: Courier | None = None, llm=None):
         self.store = store
         self.book = VisitorBook(store)
         self.rec = Recommender(store)
         self.courier = courier or Courier(allow_private)
         self.contacts = ContactDesk(self.book, self.courier)
-        self.concierge = Concierge(store, self.book, self.rec, self.contacts, live_count=self.live_total)
+        self.llm = llm  # 로컬 LLM (Ollama, concierge/llm.py). 없으면 규칙만으로 대화
+        self.concierge = Concierge(store, self.book, self.rec, self.contacts, live_count=self.live_total, llm=llm)
         self.digest = DigestSender(self.book, self.rec, self.concierge, self.courier)
         self.limit = RateLimiter(CHAT_PER_MINUTE)
         self._live = (0.0, {})

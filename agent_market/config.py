@@ -134,6 +134,11 @@ class GatewayConfig:
     agent_front_host: str | None = None  # 없으면 HOST와 같음
     agent_front_port: int = 8400
     agent_front_url: str | None = None  # 에이전트에게 알려 줄 공개 주소 (예: https://agents.example.com)
+    concierge_llm: str = "off"  # 컨시어지 로컬 LLM: auto(Ollama가 있으면 사용) | ollama(항상) | off  — from_env 기본은 auto
+    ollama_url: str = "http://127.0.0.1:11434"
+    concierge_model: str = "gemma4:e4b-mlx"
+    concierge_llm_timeout: float = 20.0
+    concierge_llm_lead: bool = True  # 답 앞에 모델이 쓴 한두 문장을 붙일지 (끄면 의도 파악에만 사용)
 
     @classmethod
     def from_env(cls) -> "GatewayConfig":
@@ -161,6 +166,11 @@ class GatewayConfig:
             agent_front_host=os.environ.get("AGENT_FRONT_HOST") or None,
             agent_front_port=int(os.environ.get("AGENT_FRONT_PORT", "8400")),
             agent_front_url=os.environ.get("AGENT_FRONT_URL") or None,
+            concierge_llm=os.environ.get("CONCIERGE_LLM", "auto"),
+            ollama_url=os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434"),
+            concierge_model=os.environ.get("CONCIERGE_MODEL", "gemma4:e4b-mlx"),
+            concierge_llm_timeout=float(os.environ.get("CONCIERGE_LLM_TIMEOUT", "20")),
+            concierge_llm_lead=os.environ.get("CONCIERGE_LLM_LEAD", "1") == "1",
             health_interval=float(os.environ.get("HEALTH_INTERVAL_MINUTES", "60")) * 60,
             health_workers=int(os.environ.get("HEALTH_WORKERS", "32")),
             health_lanes=int(os.environ.get("HEALTH_LANES", "3")),

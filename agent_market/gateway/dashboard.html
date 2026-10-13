@@ -1469,6 +1469,10 @@ async function loadVisitors() {
   if ($("vTier").value) p.set("tier", $("vTier").value);
   const d = await api("/admin/api/visitors?" + p);
   renderFrontLinks(d.front_url);
+  const L = d.llm;
+  $("vLinks").insertAdjacentHTML("beforeend", L
+    ? `<span class="chip" title="${esc(L.url)}">🧠 ${esc(L.model)} · ${L.paused ? "일시 중지(규칙으로 대화)" : "사용 중"} · 호출 ${fmt(L.calls)} · 평균 ${L.avg_ms ? fmt(L.avg_ms) + "ms" : "–"} · 실패 ${fmt(L.failed)}</span>`
+    : `<span class="chip">🧠 로컬 LLM 꺼짐 (규칙으로 대화)</span>`);
   const s = d.stats;
   $("vKpis").innerHTML = [
     kpi("방문 에이전트", fmt(s.total), `24시간 새로 ${fmt(s.new_24h)} · 활동 ${fmt(s.active_24h)}`),

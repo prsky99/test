@@ -493,7 +493,8 @@ def dashboard_router(store: Store, db_path: str, admin_token: str | None, collec
                        (SELECT COUNT(*) FROM agent_hits) AS anonymous_readers,
                        (SELECT COALESCE(SUM(hits), 0) FROM agent_hits) AS anonymous_reads""", (now - 86400, now - 7 * 86400)).fetchone()
             channels = {r["channel"]: r["n"] for r in db.execute("SELECT channel, COUNT(*) AS n FROM agent_visitors GROUP BY channel")}
-        return {"stats": {**dict(stats), **dict(extra), "channels": channels}, "items": rows, "front_url": front_url}
+        llm = front.llm.status() if front is not None and front.llm is not None else None
+        return {"stats": {**dict(stats), **dict(extra), "channels": channels}, "items": rows, "front_url": front_url, "llm": llm}
 
     @router.post("/admin/api/visitors/simulate", dependencies=auth)
     async def visitor_simulate(request: Request):

@@ -179,18 +179,18 @@ class VisitorBook:
 
     # ---------------- 관심사 ----------------
     def remember_interest(self, v: Visitor, task: str, category: str, kind: str | None, auth_pref: str | None,
-                          recommended: list[dict]) -> int:
+                          recommended: list[dict], hint: str | None = None) -> int:
         norm = " ".join(task.lower().split())[:200]
         now = time.time()
         rec = json.dumps([{k: r.get(k) for k in ("id", "score", "grade", "verified")} for r in recommended])
         best = max((r["score"] for r in recommended), default=None)
         with self.store.tx() as db:
             db.execute("""INSERT INTO agent_interests (visitor_id, task, task_norm, category, kind, auth_pref, created, updated,
-                          last_checked, recommended, best_score) VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                          last_checked, recommended, best_score, hint) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
                           ON CONFLICT(visitor_id, task_norm) DO UPDATE SET updated=excluded.updated, last_checked=excluded.last_checked,
                           recommended=excluded.recommended, best_score=MAX(COALESCE(best_score,0), COALESCE(excluded.best_score,0)),
-                          kind=excluded.kind, auth_pref=excluded.auth_pref, active=1""",
-                       (v.id, task[:300], norm, category, kind, auth_pref, now, now, now, rec, best))
+                          kind=excluded.kind, auth_pref=excluded.auth_pref, hint=COALESCE(excluded.hint, hint), active=1""",
+                       (v.id, task[:300], norm, category, kind, auth_pref, now, now, now, rec, best, (hint or None) and hint[:120]))
             row = db.execute("SELECT id FROM agent_interests WHERE visitor_id=? AND task_norm=?", (v.id, norm)).fetchone()
             db.execute("""UPDATE agent_interests SET active=0 WHERE visitor_id=? AND id NOT IN
                           (SELECT id FROM agent_interests WHERE visitor_id=? ORDER BY updated DESC LIMIT ?)""", (v.id, v.id, MAX_INTERESTS))

@@ -87,6 +87,19 @@ def front_url(config: GatewayConfig) -> str:
     return f"http://{'127.0.0.1' if host in ('0.0.0.0', '::') else host}:{config.agent_front_port}"
 
 
+def concierge_llm(config: GatewayConfig):
+    """컨시어지용 로컬 LLM. auto면 Ollama에 모델이 있을 때만 쓰고, 없으면 규칙만으로 대화한다."""
+    if config.concierge_llm == "off":
+        return None
+    from ..concierge.llm import LocalLLM
+    llm = LocalLLM(config.ollama_url, config.concierge_model, config.concierge_llm_timeout, lead=config.concierge_llm_lead)
+    if config.concierge_llm == "auto" and not llm.available():
+        log.info("concierge LLM: %s not found at %s — using rules only", config.concierge_model, config.ollama_url)
+        return None
+    log.info("concierge LLM: %s via %s", config.concierge_model, config.ollama_url)
+    return llm
+
+
 def make_notifier(allow_private: bool):
     http = public_client(allow_private, timeout=5.0, follow_redirects=False)
 
@@ -163,7 +176,7 @@ def create_app(
     app.state.service = service
     app.state.collector = collector
     # 에이전트 전용 프론트: 이 앱(관리·게이트웨이 API)에는 경로를 붙이지 않고, main()이 별도 포트의 별도 앱으로 띄운다
-    front = Front(store, allow_private=config.allow_private_urls, courier=courier)
+    front = Front(store, allow_private=config.allow_private_urls, courier=courier, llm=concierge_llm(config))
     app.state.front = front
     app.include_router(dashboard_router(store, config.db_path, config.admin_token, collector, service, crawler, front,
                                         front_url=front_url(config)))  # /admin/ui
@@ -438,6 +451,8 @@ def main() -> None:
     host = os.environ.get("HOST", "127.0.0.1")
     proxy = {"proxy_headers": True, "forwarded_allow_ips": os.environ.get("FORWARDED_ALLOW_IPS", "127.0.0.1")}
     app = create_app(config)
+    if app.state.front.llm is not None:
+        app.state.front.llm.warm()  # 첫 에이전트가 모델 로딩을 기다리지 않게
     servers = [uvicorn.Server(uvicorn.Config(app, host=host, port=int(os.environ.get("PORT", "8200")), **proxy))]
     if config.agent_front:
         front_app = create_front_app(app.state.front)

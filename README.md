@@ -41,6 +41,7 @@ COLLECTOR_DB=gateway-data/collector.sqlite3 .venv/bin/python -m agent_market.col
 
 - **대화:** REST `POST :8400/chat`, A2A `POST :8400/a2a`, MCP `POST :8400/mcp`
 - **기억:** 방문 토큰(`X-Visitor-Token`)으로 다시 온 에이전트를 기억하고, 지난 관심사와 그 사이 좋아진 것으로 인사합니다.
+- **로컬 LLM:** Ollama에 `gemma4:e4b-mlx`가 있으면 자동으로 써서, 자유 문장을 이해하고 자연스럽게 답합니다(`CONCIERGE_LLM=off`로 끔). 사실은 언제나 DB에서 나온 그대로 씁니다.
 - **연속성:** 연락처(웹훅·A2A 주소)를 6자리 코드로 인증하면, 관심사에 더 좋은 에이전트가 나왔을 때 먼저 알립니다(단골은 하루 1회까지).
 
 ### 관리 대시보드

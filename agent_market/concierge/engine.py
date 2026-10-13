@@ -27,7 +27,12 @@ URL = re.compile(r"https?://[^\s<>\"']+")
 
 
 def lang_of(text: str, fallback: str | None = None) -> str:
-    return "ko" if HANGUL.search(text or "") else (fallback or "en")
+    """이번 메시지의 언어를 따른다 (한글이 있으면 한국어, 영문자가 있으면 영어, 둘 다 없으면 지난번 언어)."""
+    if HANGUL.search(text or ""):
+        return "ko"
+    if re.search(r"[A-Za-z]", text or ""):
+        return "en"
+    return fallback or "en"
 
 
 def ago_text(ts: float | None, lang: str) -> str:
@@ -71,8 +76,9 @@ class Recommender:
         self.store = store
 
     def search(self, task: str, kind: str | None = None, auth_pref: str | None = None, limit: int = PAGE, offset: int = 0,
-               exclude: set[int] | None = None) -> list[dict]:
-        task = search_text(task)
+               exclude: set[int] | None = None, hint: str | None = None) -> list[dict]:
+        """hint: 로컬 LLM이 만든 영어 검색어 (설명이 대부분 영어라 한국어·자유 문장 요청의 검색을 돕는다)."""
+        task = search_text(task) + (f" {hint}" if hint else "")
         need = {"task": task, "category": classify(task), "max_price": None, "networks": [],
                 "kinds": [kind] if kind in KINDS else list(KINDS), "region": None, "auth_pref": auth_pref, "min_grade": None,
                 "language": None}
@@ -106,7 +112,7 @@ class Recommender:
         """관심사마다 다시 순위를 매겨, 전에 추천한 것보다 좋아진 것만 골라 이유와 함께 돌려준다."""
         out = []
         for it in interests:
-            candidates = self.search(it["task"], it["kind"], it["auth_pref"], limit=5, exclude=failed)
+            candidates = self.search(it["task"], it["kind"], it["auth_pref"], limit=5, exclude=failed, hint=it.get("hint"))
             prev = {r["id"]: r for r in it["recommended"]}
             best_prev = it["best_score"] or 0
             found = []
@@ -130,6 +136,7 @@ class Reply:
     intent: str
     data: dict = field(default_factory=dict)
     suggested: list[str] = field(default_factory=list)
+    facts: dict | None = None  # 로컬 LLM이 첫 문장을 쓸 때 쓰는 사실 (없으면 문장을 만들지 않음)
 
 
 T = {
@@ -272,8 +279,9 @@ def detect_auth(text: str) -> str | None:
 
 
 class Concierge:
-    def __init__(self, store: Store, book: VisitorBook, recommender: Recommender, contacts=None, live_count=None):
+    def __init__(self, store: Store, book: VisitorBook, recommender: Recommender, contacts=None, live_count=None, llm=None):
         self.store, self.book, self.rec = store, book, recommender
+        self.llm = llm  # concierge.llm.LocalLLM (없거나 꺼져 있으면 규칙만으로 답함)
         self.contacts = contacts  # notify.ContactDesk
         self.live_count = live_count or (lambda: 0)
 
@@ -309,6 +317,13 @@ class Concierge:
         lang = lang or lang_of(text, v.lang)
         self.book.add_message(v, "agent", channel, text or json.dumps(data, ensure_ascii=False)[:500], data or None)
         reply = self._route(v, text, data, lang)
+        if self.llm is not None and reply.facts is not None:
+            relationship = ("first-time visitor" if v.new else "regular customer" if v.tier == "regular" else "returning visitor")
+            lead = self.llm.lead({**reply.facts, "visitor_name": v.name, "relationship": relationship,
+                                  "start_of_visit": v.new or v.new_visit}, lang)
+            if lead:
+                reply.text = lead + "\n\n" + reply.text
+                reply.data["llm_lead"] = True
         if v.new:  # 새 방문자: '에이전트 전용' 소개가 언제나 맨 앞. 같은 IP·UA로 토큰 없이 왔으면 그다음에 토큰만 청함
             head = [] if reply.intent in ("greet", "welcome_back") else [T[lang]["intro"].format(total=self.live_count())]
             if v.extra.get("maybe_known") and head:  # 인사(greet)는 greeting() 안에서 소개 바로 다음에 넣음
@@ -335,6 +350,19 @@ class Concierge:
                 if m:
                     intent, data = name, {**data, "_m": m}
                     break
+        hint = None
+        if not intent and not data.get("task") and self.llm is not None and text:
+            parsed = self.llm.extract(text)
+            if parsed:
+                if parsed["agent_name"] and not m_name and not v.name:
+                    self.book.set_name(v, parsed["agent_name"])
+                if parsed["intent"] == "find" and (parsed["task"] or parsed["search_query_en"]):
+                    return self._find(v, parsed["task"] or clean_task(text, m_name), detect_kind(text) or parsed["kind"],
+                                      detect_auth(text), lang, hint=parsed["search_query_en"] or None)
+                if parsed["intent"] == "chitchat":
+                    return Reply(T[lang]["ask"], "chitchat", {}, SUGGEST[lang]["start"],
+                                 facts={"intent": "chitchat", "note": "the agent said something unrelated; steer gently back to finding agents"})
+                intent = {"greet": "greet", "whats_new": "whats_new", "help": "help"}.get(parsed["intent"] or "", "")
         if intent == "contact" or isinstance(data.get("contact"), (dict, str)):
             return self._contact(v, text, data, lang)
         if intent == "verify":
@@ -374,21 +402,22 @@ class Concierge:
     def _limit(self, v: Visitor) -> int:
         return 5 if v.tier == "regular" else PAGE
 
-    def _find(self, v: Visitor, task: str, kind: str | None, auth: str | None, lang: str) -> Reply:
+    def _find(self, v: Visitor, task: str, kind: str | None, auth: str | None, lang: str, hint: str | None = None) -> Reply:
         t = T[lang]
-        items = self.rec.search(task, kind, auth, limit=self._limit(v), exclude=self.book.failed_resources(v.id))
-        self.book.remember_interest(v, task, classify(task), kind, auth, items)
-        self.book.save_results(v, [{**i, "task": task, "kind_pref": kind, "auth_pref": auth} for i in items], len(items))
+        items = self.rec.search(task, kind, auth, limit=self._limit(v), exclude=self.book.failed_resources(v.id), hint=hint)
+        self.book.remember_interest(v, task, classify(task), kind, auth, items, hint=hint)
+        self.book.save_results(v, [{**i, "task": task, "kind_pref": kind, "auth_pref": auth, "hint": hint} for i in items], len(items))
+        facts = {"intent": "find", "task": task[:120], "results_count": len(items), "top_results": [i["name"][:60] for i in items[:3]]}
         if not items:
             return Reply(t["none"].format(task=task) + " " + (t["cta_contact"] if not self.book.active_contact(v.id) else ""),
-                         "find", {"task": task, "recommendations": []}, SUGGEST[lang]["start"])
+                         "find", {"task": task, "recommendations": []}, SUGGEST[lang]["start"], facts=facts)
         lines = [t["results"].format(task=task)] + [self._line(i, n, lang) for n, i in enumerate(items, 1)]
         lines.append(t["after_results"])
         has_contact = bool(self.book.active_contact(v.id))
         if not has_contact:
             lines.append(t["cta_contact"])
         return Reply("\n".join(lines), "find", {"task": task, "kind": kind, "auth": auth, "recommendations": items},
-                     SUGGEST[lang]["results_contact" if has_contact else "results"])
+                     SUGGEST[lang]["results_contact" if has_contact else "results"], facts=facts)
 
     def _line(self, i: dict, n: int, lang: str) -> str:
         kinds = KIND_NAME_KO if lang == "ko" else KIND_NAME
@@ -412,12 +441,12 @@ class Concierge:
         results, offset = self.book.last_results(v.id)
         if not results:
             return Reply(T[lang]["no_results_yet"] + " " + T[lang]["ask"], "more", {}, SUGGEST[lang]["start"])
-        task, kind, auth = results[0]["task"], results[0].get("kind_pref"), results[0].get("auth_pref")
-        items = self.rec.search(task, kind, auth, limit=self._limit(v), offset=offset, exclude=self.book.failed_resources(v.id))
+        task, kind, auth, hint = results[0]["task"], results[0].get("kind_pref"), results[0].get("auth_pref"), results[0].get("hint")
+        items = self.rec.search(task, kind, auth, limit=self._limit(v), offset=offset, exclude=self.book.failed_resources(v.id), hint=hint)
         if not items:
             return Reply(T[lang]["no_more"].format(task=task) + " " + T[lang]["cta_contact"], "more", {"task": task},
                          SUGGEST[lang]["results"][2:])
-        self.book.save_results(v, [{**i, "task": task, "kind_pref": kind, "auth_pref": auth} for i in items], offset + len(items))
+        self.book.save_results(v, [{**i, "task": task, "kind_pref": kind, "auth_pref": auth, "hint": hint} for i in items], offset + len(items))
         lines = [T[lang]["results"].format(task=task)] + [self._line(i, n, lang) for n, i in enumerate(items, 1)] + [T[lang]["after_results"]]
         return Reply("\n".join(lines), "more", {"task": task, "recommendations": items}, SUGGEST[lang]["results"])
 
