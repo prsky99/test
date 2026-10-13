@@ -17,7 +17,7 @@ import json
 import re
 import time
 
-VERSION = 2
+VERSION = 3  # 3: 실측 오탐 정리 (system prompt 문구·system_prompt 파라미터·이름 기반 주석 모순 제외)
 WEIGHTS = {"availability": 25, "definitions": 20, "security": 20, "context": 15, "protocol": 10, "provenance": 10}
 GRADES = [(85, "A"), (70, "B"), (55, "C"), (40, "D"), (0, "F")]
 GRADE_ORDER = "ABCDF"
@@ -49,17 +49,17 @@ _ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07]*\x07")
 _SECRET = re.compile(r"\b(sk-(?:proj-|ant-)?[A-Za-z0-9_\-]{24,}|gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{40,}|"
                      r"AKIA[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9\-]{20,}|AIza[0-9A-Za-z_\-]{35}|"
                      r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----)")
-_DESTRUCTIVE_NAME = re.compile(r"(^|[_\-.])(delete|drop|remove|destroy|purge|truncate|wipe|erase)([_\-.]|$)", re.I)
 # 검토 필요 신호 (regex 문구 탐지)
 _INJECTION = re.compile(
     r"(<\s*important\s*>|ignore (all |any )?(previous|prior|above) instructions|disregard (the |all )?(previous|prior|above)|"
     r"do not (tell|inform|mention|reveal)( this)? to the user|without (telling|informing|asking) the user|"
     r"(the )?user (must|should) not (know|see)|"
-    r"system prompt|override (your|the) instructions|<\s*/?\s*(system|instructions?)\s*>)", re.I)
+    r"override (your|the) instructions|<\s*/?\s*(system|instructions?)\s*>)", re.I)  # 'system prompt'는 프롬프트 도구에서 오탐
 _SENSITIVE = re.compile(r"(~/\.ssh|id_rsa|\.aws/credentials|mcp\.json|claude_desktop_config|\.npmrc|\.netrc|"
                         r"/etc/passwd|seed phrase|wallet\.dat)", re.I)
+# system_prompt는 봇 생성 도구의 정상 파라미터라 제외 (실측 오탐)
 _EXFIL_PARAM = re.compile(r"^(sidenote|side_note|note_to_self|hidden|secret_?notes?|context_?dump|conversation(_history)?|"
-                          r"chat_?history|system_?prompt|previous_?messages)$", re.I)
+                          r"chat_?history|previous_?messages)$", re.I)
 _SCRIPT = re.compile(r"<\s*script\b|javascript:", re.I)
 _BASE64_BLOB = re.compile(r"[A-Za-z0-9+/]{200,}={0,2}")
 
@@ -135,8 +135,9 @@ def security_findings(tools: list[dict], instructions: str | None = None, change
             if _EXFIL_PARAM.match(name):
                 add("high", "exfiltration_param", t["name"], f"Parameter '{name}' asks for conversation or hidden context")
         ann = t.get("annotations") or {}
-        if ann.get("readOnlyHint") is True and (_DESTRUCTIVE_NAME.search(t["name"]) or ann.get("destructiveHint") is True):
-            add("medium", "annotation_contradiction", t["name"], "Marked readOnlyHint but the name/annotations say destructive")
+        # 주석끼리 모순일 때만 (이름 기반은 remove_duplicate_lines 같은 텍스트 변환 도구에서 오탐)
+        if ann.get("readOnlyHint") is True and ann.get("destructiveHint") is True:
+            add("medium", "annotation_contradiction", t["name"], "Annotated both readOnlyHint and destructiveHint")
     # 이미 있던 도구의 정의가 바뀌면서 검토 필요 신호가 새로 생겼다면 승인 후 바꿔치기(러그 풀) 의심
     for f in list(findings):
         if changed and f["tool"] in changed and f["precision"] == "review":

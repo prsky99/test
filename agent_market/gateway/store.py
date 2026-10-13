@@ -271,6 +271,8 @@ class Store:
                last_seen=?, active=1, content_hash=?, host=?, desc_lang=?, regions=?, auth_declared=? WHERE id=?""",
             (*values, now, digest, host_of(r["url"]), lang, regions, auth, rid),
         )
+        if r["kind"] == "mcp":  # 레지스트리 항목(버전·저장소 등)이 바뀌면 도구 조사·품질 평가를 다시
+            db.execute("UPDATE resources SET cap_checked_at=NULL, eval_at=NULL WHERE id=?", (rid,))
         if row["url"] != r["url"]:  # 주소가 바뀌면 헬스 상태를 새로 시작 (제외됐던 에이전트도 다시 점검)
             db.execute(
                 """UPDATE resources SET health_status='unknown', consecutive_failures=0, failing_since=NULL,

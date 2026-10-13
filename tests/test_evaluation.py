@@ -97,8 +97,17 @@ def test_changed_definition_with_new_injection_is_rug_pull():
 
 
 def test_annotation_contradiction():
-    out = run([{**GOOD, "name": "delete_file", "annotations": {"readOnlyHint": True}}])
+    out = run([{**GOOD, "name": "delete_file", "annotations": {"readOnlyHint": True, "destructiveHint": True}}])
     assert "annotation_contradiction" in {f["code"] for f in out["findings"]}
+    # 이름만 삭제형인 텍스트 변환 도구는 모순이 아님 (실측 오탐)
+    out = run([{**GOOD, "name": "remove_duplicate_lines", "annotations": {"readOnlyHint": True}}])
+    assert "annotation_contradiction" not in {f["code"] for f in out["findings"]}
+
+
+def test_prompt_tools_are_not_flagged():
+    tool = {**GOOD, "name": "create_bot", "description": "Create a chatbot with a custom system prompt. Returns the bot id.",
+            "inputSchema": {"type": "object", "properties": {"system_prompt": {"type": "string", "description": "Bot persona"}}}}
+    assert run([tool])["security"] == "ok"
 
 
 def test_exfiltration_parameter():
@@ -255,3 +264,16 @@ def test_rule_version_change_requeues_surveyed_servers():
     assert store.resource(rid)["cap_checked_at"] is None
     prober.run_due()
     assert prober.requeue_outdated_evaluations() == 0  # 같은 버전이면 그대로
+
+
+def test_registry_change_requeues_evaluation():
+    store, rid, _, prober = setup([GOOD])
+    prober.run_due()
+    assert store.resource(rid)["cap_checked_at"] is not None
+    r = store.resource(rid)
+    store.upsert_resource({"key": r["key"], "source": "mcp-registry", "kind": "mcp", "url": r["url"], "name": r["name"],
+                           "description": r["description"], "category": r["category"], "networks": [], "price_usdc": 0,
+                           "details": {"remotes": [{"type": "streamable-http", "url": r["url"]}],
+                                       "repository": "https://github.com/acme/weather"}})
+    r = store.resource(rid)
+    assert r["cap_checked_at"] is None and r["eval_at"] is None
