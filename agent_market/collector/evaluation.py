@@ -17,7 +17,8 @@ import json
 import re
 import time
 
-VERSION = 4  # 3: system prompt 문구·system_prompt 파라미터·이름 기반 주석 모순 제외, 4: 낱개 제로폭 문자 제외 (실측 오탐)
+VERSION = 5  # 3: system prompt 문구·system_prompt 파라미터·이름 기반 주석 모순 제외, 4: 낱개 제로폭 문자 제외 (실측 오탐)
+#           5: 점검 3회 이상이면 실제 성공률 사용 (라플라스 보정이 4/4를 0.83으로 낮춰 거의 모든 서버가 low_uptime이었음)
 WEIGHTS = {"availability": 25, "definitions": 20, "security": 20, "context": 15, "protocol": 10, "provenance": 10}
 GRADES = [(85, "A"), (70, "B"), (55, "C"), (40, "D"), (0, "F")]
 GRADE_ORDER = "ABCDF"
@@ -289,9 +290,9 @@ def evaluate(resource: dict, tools_raw: list, tools: list[dict], init: dict | No
     from .usage import is_auth_error
     dims, findings = {}, []
 
-    # 1) 가용성 A = 0.45·initialize 성공률(헬스체크, 라플라스 보정) + 0.15·tools/list 성공 + 0.25·시험 호출 + 0.15·지연
+    # 1) 가용성 A = 0.45·initialize 성공률(헬스체크) + 0.15·tools/list 성공 + 0.25·시험 호출 + 0.15·지연
     n, ok = resource.get("health_n_24h") or 0, resource.get("health_ok_24h") or 0
-    uptime = (ok + 1) / (n + 2)
+    uptime = ok / n if n >= 3 else (ok + 1) / (n + 2)  # 점검이 적을 때만 라플라스 보정
     latency = resource.get("probe_latency_ms")
     if trial and trial.get("latency_ms"):
         latency = max(latency or 0, trial["latency_ms"])

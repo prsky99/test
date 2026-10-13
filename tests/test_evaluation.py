@@ -144,6 +144,14 @@ def test_protocol_violations():
     assert out["dimensions"]["protocol"] < 0.5
 
 
+def test_uptime_uses_observed_ratio_after_three_checks():
+    perfect = run([GOOD], resource={"health_n_24h": 4, "health_ok_24h": 4})
+    flaky = run([GOOD], resource={"health_n_24h": 4, "health_ok_24h": 2})
+    assert "low_uptime" not in {f["code"] for f in perfect["findings"]}
+    assert "low_uptime" in {f["code"] for f in flaky["findings"]}
+    assert perfect["dimensions"]["availability"] > flaky["dimensions"]["availability"]
+
+
 def test_numeric_protocol_version_is_flagged():
     out = run([GOOD], init={"protocol_version": 1, "server_info": {"name": "x"}})
     assert "invalid_protocol_version" in {f["code"] for f in out["findings"]}
