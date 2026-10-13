@@ -9,7 +9,7 @@ import re
 from ..broker.categories import CATEGORIES
 
 OTHER = "other"
-VERSION = 3  # 키워드가 바뀌면 올린다 → 저장된 에이전트를 다시 분류 (3: agent_infra 추가)
+VERSION = 4  # 키워드가 바뀌면 올린다 → 저장된 에이전트를 다시 분류 (3: agent_infra 추가, 4: A2A는 스킬 포함)
 
 KEYWORDS: dict[str, list[str]] = {
     # 에이전트 인프라: 'agents', 'discovery', 'x402' 같은 일반어는 거의 모든 설명에 있어 쓰지 않고 구체적인 표현만 쓴다.

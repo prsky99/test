@@ -212,13 +212,20 @@ class Store:
         row = self._db.execute("SELECT value FROM meta WHERE key='classifier_version'").fetchone()
         if row and json.loads(row["value"]) == CLASSIFIER_VERSION:
             return
-        rows = self._db.execute("SELECT id, source, name, description, category FROM resources").fetchall()
+        rows = self._db.execute("SELECT id, source, kind, name, description, category, usage_tools FROM resources").fetchall()
         updates = []
         for r in rows:
             if r["source"] == "registered":  # 직접 등록한 에이전트는 자기가 밝힌 카테고리를 유지 (예전 ID만 변환)
                 new = LEGACY_ALIASES.get(r["category"], r["category"])
             else:
-                new = classify(f"{r['name']} {r['description']}")
+                text = f"{r['name']} {r['description']}"
+                if r["kind"] == "a2a" and r["usage_tools"]:  # A2A는 조사한 card의 스킬까지 (등록부 설명은 짧다)
+                    try:
+                        text += " " + " ".join(f"{s.get('title', '')} {s.get('description', '')} {' '.join(s.get('tags') or [])}"
+                                               for s in json.loads(r["usage_tools"]))
+                    except (ValueError, AttributeError, TypeError):
+                        pass
+                new = classify(text)
             if new != r["category"]:
                 updates.append((new, r["id"]))
         self._db.executemany("UPDATE resources SET category=? WHERE id=?", updates)
