@@ -68,6 +68,26 @@ def auth_required(resource: dict) -> bool | None:
     return None if v is None else bool(v)
 
 
+def auth_details(resource: dict) -> dict:
+    """소개할 때 함께 알려 주는 인증 정보: 필요 여부, 방법, 사람 개입 필요 여부, 따라 할 단계."""
+    info = {}
+    if resource.get("auth_info"):
+        try:
+            info = json.loads(resource["auth_info"])
+        except ValueError:
+            info = {}
+    required = auth_required(resource)
+    out = {"required": required, "method": resource.get("auth_method"), "autonomy": resource.get("auth_autonomy")}
+    if resource.get("kind") == "x402":
+        out.update(method="x402_payment", autonomy="agent_autonomous",
+                   instructions=["No account needed: pay per call with USDC via the x402 protocol (HTTP 402)."])
+    elif info:
+        out.update({k: info[k] for k in ("instructions", "oauth", "api_key", "website") if info.get(k)})
+    elif required:
+        out["instructions"] = ["Authentication required; method not yet discovered."]
+    return out
+
+
 def _fit(resource: dict, need: dict | None) -> float:
     """요청 조건과 얼마나 맞는지. 언어(요청 시), 지역(요청 시), 계정 없이 바로 쓸 수 있는지의 평균."""
     need = need or {}
@@ -79,7 +99,10 @@ def _fit(resource: dict, need: dict | None) -> float:
         regions = agent_regions(resource)
         parts.append(1.0 if need["region"] in regions else 0.6)  # 지역 표시 없음 = 전 세계 공통
     auth = auth_required(resource)
-    parts.append(0.6 if auth is None else 0.4 if auth else 1.0)
+    if auth and resource.get("auth_autonomy") == "agent_autonomous":
+        parts.append(0.8)  # 인증은 필요하지만 에이전트 혼자 할 수 있음
+    else:
+        parts.append(0.6 if auth is None else 0.4 if auth else 1.0)
     return sum(parts) / len(parts)
 
 
@@ -121,7 +144,8 @@ def rank(store: Store, need: dict, limit: int = 5, include: int | None = None) -
     terms = query_terms(need["task"])
     idf = store.idf(terms)
     candidates = store.search(need["task"], need["category"], need.get("max_price"), need["networks"], need["kinds"],
-                              region=need.get("region"), auth_free=need.get("auth_pref") == "none")
+                              region=need.get("region"), auth_free=need.get("auth_pref") == "none",
+                              agent_usable=need.get("auth_pref") == "agent")
     scored = sorted(
         (s for s in (score_resource(r, terms, idf, need["category"], store, need=need) for r in candidates)
          if s.resource["category"] == need["category"] or s.parts["relevance"] >= MIN_RELEVANCE_OTHER_CATEGORY),
@@ -182,6 +206,7 @@ def reveal(s: Scored) -> dict:
         "details": json.loads(r["details"]),
         "constraints": {
             "auth_required": auth_required(r),  # None = 모름
+            "auth": auth_details(r),  # 인증 방법과 따라 할 단계
             "languages": agent_languages(r),  # 도구 파라미터 + 설명문 언어
             "regions": agent_regions(r),  # 비어 있으면 전 세계 공통
             "currencies": cons.unpack(r.get("cap_currencies")),

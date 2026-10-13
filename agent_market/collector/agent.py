@@ -5,7 +5,8 @@
   MCP는 바뀐 것만, x402는 전체를 훑고, 바뀌지 않은 항목은 DB에 다시 쓰지 않는다 (crawler.Crawler 참고).
 - 헬스체크 루프: 점검 시각이 된 에이전트를 계속 점검 (기본 매시간, 소개 중인 에이전트는 15분, down은 점점 드물게)
   하루에 한 번 7일이 지난 점검 기록을 정리한다.
-- 기능 조사 루프: 인증 없이 응답하는 MCP의 도구 목록을 하루 한 번 받아 지원 언어·나라·통화를 기록한다.
+- 기능 조사 루프: 인증 없이 응답하는 MCP의 도구 목록을 하루 한 번 받아 지원 언어·나라·통화를 기록하고,
+  인증이 필요한 MCP는 일주일에 한 번 인증 방법(OAuth 메타데이터·API 키 발급처 등)을 조사한다.
 """
 
 import logging
@@ -14,6 +15,7 @@ import time
 
 from ..gateway.crawler import Crawler
 from ..gateway.store import Store
+from .auth_discovery import AuthDiscoverer
 from .capabilities import CapabilityProber
 from .health import HealthChecker
 
@@ -24,9 +26,11 @@ HISTORY_DAYS = 7
 
 class CollectorAgent:
     def __init__(self, store: Store, crawler: Crawler, checker: HealthChecker,
-                 min_gap: float = 60, idle_wait: float = 15, batch: int = 500, capabilities: CapabilityProber | None = None):
+                 min_gap: float = 60, idle_wait: float = 15, batch: int = 500, capabilities: CapabilityProber | None = None,
+                 auth: AuthDiscoverer | None = None):
         self.store, self.crawler, self.checker = store, crawler, checker
         self.capabilities = capabilities
+        self.auth = auth
         self.min_gap = min_gap
         self.idle_wait = idle_wait
         self.batch = batch
@@ -36,7 +40,7 @@ class CollectorAgent:
 
     def start(self) -> None:
         loops = [("collector-crawl", self._crawl_loop), ("collector-health", self._health_loop)]
-        if self.capabilities is not None:
+        if self.capabilities is not None or self.auth is not None:
             loops.append(("collector-capabilities", self._capability_loop))
         for name, target in loops:
             t = threading.Thread(target=target, name=name, daemon=True)
@@ -61,14 +65,20 @@ class CollectorAgent:
 
     def _capability_loop(self) -> None:
         while not self.stop_event.is_set():
-            try:
-                stats = self.capabilities.run_due()
-                if stats["checked"]:
-                    log.info("capabilities: %s", stats)
-                    self.store.set_meta("last_capability_batch", {"at": time.time(), **stats})
-            except Exception:
-                log.exception("capability loop error")
-                stats = {"checked": 0}
+            stats = {"checked": 0}
+            for name, prober in (("capabilities", self.capabilities), ("auth", self.auth)):
+                if prober is None:
+                    continue
+                try:
+                    s = prober.run_due()
+                except Exception:
+                    log.exception("%s loop error", name)
+                    continue
+                if s["checked"]:
+                    log.info("%s: %s", name, s)
+                    self.store.set_meta(f"last_{name}_batch", {"at": time.time(), **s})
+                    stats["checked"] += s["checked"]
+                    stats["local_network_problem"] = stats.get("local_network_problem") or s.get("local_network_problem")
             if not stats["checked"]:
                 self.stop_event.wait(300)  # 조사할 게 없으면 5분 쉼
             elif stats.get("local_network_problem"):

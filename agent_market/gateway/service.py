@@ -81,14 +81,15 @@ class GatewayService:
     def create_need(self, client: str, task: str, category: str | None, max_price: int | None,
                     networks: list[str] | None, kinds: list[str] | None, webhook: str | None, ip: str,
                     language: str | None = None, region: str | None = None, auth: str | None = None) -> dict:
-        """language: 원하는 언어(ko, en ...), region: 대상 나라·지역(kr, us, eu ...), auth: 'none'이면 계정·API 키 없이 쓸 수 있는 것만."""
+        """language: 원하는 언어(ko, en ...), region: 대상 나라·지역(kr, us, eu ...), auth: 'none'이면 계정·API 키 없이 쓸 수 있는 것만,
+        'agent'면 사람 개입 없이 에이전트 혼자 인증까지 할 수 있는 것만."""
         category = normalize_category(category) or classify(task)
         if language is not None and (language := cons.normalize_language(language)) is None:
             raise NeedError(f"알 수 없는 language. 예: {', '.join(list(cons.LANGUAGES)[:8])}")
         if region is not None and (region := cons.normalize_region(region)) is None:
             raise NeedError(f"알 수 없는 region. 가능한 값: {', '.join(cons.REGIONS)} (또는 ISO 국가 코드)")
-        if auth not in (None, "any", "none"):
-            raise NeedError("auth는 'any' 또는 'none'입니다.")
+        if auth not in (None, "any", "none", "agent"):
+            raise NeedError("auth는 'any', 'none', 'agent' 중 하나입니다.")
         if category != OTHER and category not in CATEGORIES:
             raise NeedError(f"알 수 없는 category. 가능한 값: {', '.join(CATEGORIES)}")
         kinds = kinds or list(KINDS)

@@ -124,6 +124,7 @@ class GatewayConfig:
     crawl_full_interval: float = 86400  # MCP 전체 수집(삭제 확인) 주기. 그 사이에는 변경분만
     capability_max_age: float = 86400  # MCP 도구 목록 조사 주기
     capability_workers: int = 8
+    auth_max_age: float = 7 * 86400  # MCP 인증 방법 조사 주기
 
     @classmethod
     def from_env(cls) -> "GatewayConfig":
@@ -141,6 +142,7 @@ class GatewayConfig:
             crawl_full_interval=float(os.environ.get("CRAWL_FULL_INTERVAL_HOURS", "24")) * 3600,
             capability_max_age=float(os.environ.get("CAPABILITY_MAX_AGE_HOURS", "24")) * 3600,
             capability_workers=int(os.environ.get("CAPABILITY_WORKERS", "8")),
+            auth_max_age=float(os.environ.get("AUTH_DISCOVERY_MAX_AGE_DAYS", "7")) * 86400,
             health_interval=float(os.environ.get("HEALTH_INTERVAL_MINUTES", "60")) * 60,
             health_workers=int(os.environ.get("HEALTH_WORKERS", "32")),
             rescan_interval=float(os.environ.get("RESCAN_INTERVAL_MINUTES", "15")) * 60,

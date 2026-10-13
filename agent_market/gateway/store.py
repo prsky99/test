@@ -93,6 +93,12 @@ HEALTH_COLUMNS = {
     "cap_tool_names": "TEXT",
     "cap_checked_at": "REAL",
     "cap_error": "TEXT",
+    # 인증 방법 (collector/auth_discovery.py)
+    "auth_method": "TEXT",  # oauth2 | api_key | bearer | basic | none | unknown
+    "auth_autonomy": "TEXT",  # agent_autonomous | human_once | none_needed | unknown
+    "auth_info": "TEXT",  # JSON: OAuth 주소·지원 방식, API 키 헤더·발급처, 안내 단계
+    "auth_checked_at": "REAL",
+    "auth_error": "TEXT",
 }
 
 
@@ -270,11 +276,12 @@ class Store:
             db.execute(f"UPDATE resources SET {col}={col}+1, probe_latency_ms=?, probed_at=? WHERE id=?", (latency_ms, time.time(), rid))
 
     def search(self, text: str, category: str, max_price: int | None, networks: list[str], kinds: list[str], limit: int = 200,
-               region: str | None = None, auth_free: bool = False) -> list[dict]:
+               region: str | None = None, auth_free: bool = False, agent_usable: bool = False) -> list[dict]:
         """FTS로 관련 후보를 뽑고, 부족하면 같은 카테고리 인기순으로 채운다.
 
         region: 다른 나라·지역 전용 데이터를 다루는 에이전트는 뺀다 (지역 표시가 없는 전 세계 공통 에이전트는 남김).
         auth_free: 계정·API 키가 필요한 것으로 확인된 에이전트는 뺀다 (모르는 것은 남김).
+        agent_usable: 사람 없이 에이전트 혼자 쓸 수 있는 것만 (인증 불필요 또는 OAuth client_credentials + 자동 등록).
         """
         terms = query_terms(text)
         conds = ["r.active=1", "r.health_status NOT IN ('down','retired')", f"r.kind IN ({','.join('?' * len(kinds))})"]
@@ -284,6 +291,8 @@ class Store:
             params += [f"%,{region},%"] * 2
         if auth_free:
             conds.append("COALESCE(r.auth_observed, r.auth_declared, 0) = 0")
+        if agent_usable:
+            conds.append("(COALESCE(r.auth_observed, r.auth_declared, 0) = 0 OR r.auth_autonomy = 'agent_autonomous')")
         if max_price is not None:
             conds.append("(r.price_usdc IS NOT NULL AND r.price_usdc <= ?)")
             params.append(max_price)
@@ -426,6 +435,30 @@ class Store:
                 (cons.pack(caps["languages"]), cons.pack(caps["regions"]), cons.pack(caps["currencies"]), caps["tool_count"],
                  json.dumps(caps["tool_names"]), time.time(), rid))
 
+    # ---------------- 인증 방법 조사 ----------------
+    def due_for_auth(self, now: float, max_age: float, limit: int, per_host: int = 1) -> list[dict]:
+        """인증이 필요한 것으로 보이는 MCP 중 인증 방법을 조사한 지 max_age가 지난 것. 호스트당 per_host개."""
+        rows = self.query(
+            """SELECT * FROM (
+                 SELECT *, ROW_NUMBER() OVER (PARTITION BY host ORDER BY auth_checked_at IS NOT NULL, auth_checked_at) AS rn
+                 FROM resources WHERE active=1 AND kind='mcp' AND health_status NOT IN ('down','retired')
+                 AND COALESCE(auth_observed, auth_declared) = 1
+                 AND (auth_checked_at IS NULL OR auth_checked_at < ?))
+               WHERE rn <= ? ORDER BY auth_checked_at IS NOT NULL, auth_checked_at, random() LIMIT ?""",
+            (now - max_age, per_host, limit))
+        return [{k: r[k] for k in r.keys() if k != "rn"} for r in rows]
+
+    def record_auth(self, rid: int, found: dict | None, error: str | None = None) -> None:
+        with self.tx() as db:
+            if found is None:
+                db.execute("UPDATE resources SET auth_checked_at=?, auth_error=? WHERE id=?", (time.time(), (error or "")[:300], rid))
+                return
+            db.execute(
+                "UPDATE resources SET auth_method=?, auth_autonomy=?, auth_info=?, auth_checked_at=?, auth_error=NULL WHERE id=?",
+                (found["method"], found["autonomy"], json.dumps(found["info"])[:8000], time.time(), rid))
+            if found["method"] == "none":  # 실제로는 인증 없이 동작
+                db.execute("UPDATE resources SET auth_observed=0 WHERE id=?", (rid,))
+
     def postpone(self, ids: list[int], at: float) -> None:
         """점검 결과를 기록하지 않고 나중에 다시 점검하도록 미룬다 (우리 쪽 네트워크 문제일 때)."""
         with self.tx() as db:
@@ -466,7 +499,9 @@ class Store:
                    SUM(COALESCE(auth_observed, auth_declared) IS NULL) AS auth_unknown,
                    SUM(regions IS NOT NULL OR cap_regions IS NOT NULL) AS region_specific,
                    SUM(cap_checked_at IS NOT NULL AND cap_error IS NULL) AS capabilities_checked,
-                   SUM(cap_languages IS NOT NULL) AS with_language_options
+                   SUM(cap_languages IS NOT NULL) AS with_language_options,
+                   SUM(auth_method IS NOT NULL) AS auth_method_known,
+                   SUM(auth_autonomy = 'agent_autonomous') AS auth_agent_autonomous
                  FROM resources WHERE active=1 AND health_status != 'retired'""")[0]
         langs = {r["desc_lang"]: r["n"] for r in q(
             "SELECT desc_lang, COUNT(*) AS n FROM resources WHERE active=1 AND desc_lang IS NOT NULL GROUP BY desc_lang ORDER BY n DESC LIMIT 10")}
@@ -477,7 +512,9 @@ class Store:
             "checks_last_hour": {"total": checked_1h["n"], "ok": checked_1h["ok"] or 0},
             "overdue_over_1h": overdue,
             "recent_crawls": runs,
-            "constraints": {**{k: c[k] or 0 for k in c.keys()}, "description_languages": langs},
+            "constraints": {**{k: c[k] or 0 for k in c.keys()}, "description_languages": langs,
+                            "auth_methods": {r["auth_method"]: r["n"] for r in q(
+                                "SELECT auth_method, COUNT(*) AS n FROM resources WHERE active=1 AND auth_method IS NOT NULL GROUP BY auth_method")}},
         }
 
     # ---------------- meta ----------------

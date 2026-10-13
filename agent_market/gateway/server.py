@@ -31,6 +31,7 @@ from ..config import GatewayConfig
 from ..ledger import Ledger
 from ..payments import PaymentError, PaymentVerifier, recover_signer
 from ..collector.agent import CollectorAgent
+from ..collector.auth_discovery import AuthDiscoverer
 from ..collector.capabilities import CapabilityProber
 from ..collector.health import HealthChecker, Schedule
 from .crawler import Crawler, Prober
@@ -109,7 +110,9 @@ def create_app(
                             schedule=Schedule(interval=config.health_interval))
     caps = CapabilityProber(store, allow_private=config.allow_private_urls, max_age=config.capability_max_age,
                             workers=config.capability_workers)
-    collector = CollectorAgent(store, crawler, checker, min_gap=config.crawl_min_gap, capabilities=caps)
+    auth = AuthDiscoverer(store, allow_private=config.allow_private_urls, max_age=config.auth_max_age,
+                          workers=config.capability_workers)
+    collector = CollectorAgent(store, crawler, checker, min_gap=config.crawl_min_gap, capabilities=caps, auth=auth)
     prober = prober or Prober(store, checker=checker)
     fetcher = fetcher or CardFetcher(allow_private=config.allow_private_urls, network={"chain_id": net.chain_id, "token": net.token})
     service = GatewayService(store, prober, ledger, policy, notifier=make_notifier(config.allow_private_urls))
@@ -160,7 +163,8 @@ def create_app(
                 "task": "필요한 작업 설명 (필수)", "category": "카테고리 ID (생략 시 자동 분류)", "max_price": "USDC 최소 단위",
                 "language": "원하는 언어 (ko, en, ja ...): 지원하는 에이전트를 우선",
                 "region": "대상 나라·지역 (kr, us, eu, br ...): 다른 나라 전용 에이전트는 제외, 전 세계 공통은 포함",
-                "auth": "'none'이면 계정·API 키 없이 바로 쓸 수 있는 에이전트만",
+                "auth": "'none': 계정·API 키 없이 바로 쓸 수 있는 것만, 'agent': 사람 없이 에이전트 혼자 쓸 수 있는 것만"
+                        " (인증 불필요 또는 OAuth client_credentials + 자동 등록), 'any'(기본)",
                 "kinds": "['x402','mcp','a2a'] 중 일부", "networks": "x402 결제 네트워크", "webhook": "알림 받을 URL",
             },
         }

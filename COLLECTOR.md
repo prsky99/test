@@ -44,6 +44,33 @@ MCP와 x402에는 언어·지역을 적는 표준 필드가 없습니다(2026-10
 - **기존 데이터 채우기:** 추출 규칙이 바뀌면 저장된 에이전트의 설명문 기반 정보를 시작할 때 한 번 다시 채웁니다.
 - **조회:** `GET /agents?language=ko&region=kr&auth=none`으로 걸러 볼 수 있습니다. `GET /stats`의 `constraints`에서 전체 현황(인증 필요·불필요·모름, 지역 특정, 언어 옵션 보유 수)을 볼 수 있습니다.
 
+**4. 인증 방법 조사** (인증이 필요한 MCP, 일주일에 한 번, `AUTH_DISCOVERY_MAX_AGE_DAYS`)
+
+인증이 필요한 MCP가 어떻게 인증받는지 알아내 저장합니다. 자격 증명은 보내지 않고, 서버가 공개한 정보만 읽습니다(MCP Authorization 표준, RFC 9728 / 8414 / 7591).
+
+| 단계 | 읽는 것 |
+|---|---|
+| 1 | 인증 없이 `initialize` → 401 응답의 `WWW-Authenticate` 헤더(`resource_metadata`, `scope`)와 본문 메시지 |
+| 2 | 보호 리소스 메타데이터 `/.well-known/oauth-protected-resource[/경로]` → 인증 서버, 지원 scope, 문서 |
+| 3 | 인증 서버 메타데이터 `/.well-known/oauth-authorization-server`, `openid-configuration` → 인가·토큰 주소, 클라이언트 자동 등록(DCR) 주소, 지원 grant, PKCE, CIMD |
+| 4 | 레지스트리에 선언된 헤더(이름·설명), 401 본문·헤더 설명·웹사이트에 적힌 API 키 발급처 URL |
+
+**판별 결과:**
+- **방법:** `oauth2` / `api_key` / `bearer` / `basic` / `none`(실제로는 인증 없이 동작) / `unknown`
+- **자율성:**
+  - `agent_autonomous`: 에이전트 혼자 클라이언트 등록부터 토큰 발급까지 할 수 있습니다(client_credentials + 자동 등록 또는 CIMD). x402 유료 에이전트도 여기에 해당하며, 계정 없이 USDC로 건당 결제합니다.
+  - `human_once`: 사람이 한 번 승인하거나 API 키를 발급받아야 합니다(authorization_code, device_code, API 키).
+- **안내 단계:** 에이전트가 따라 할 수 있는 영어 안내 단계(`instructions`)도 만듭니다. 예: "DCR로 `POST …/register` → PKCE로 사람이 한 번 승인 → `Authorization: Bearer <token>`"
+
+**효율과 안전:**
+- 같은 인증 서버를 쓰는 MCP가 많아서(예: Apify), 메타데이터는 1시간 동안 재사용합니다.
+- 메타데이터 URL도 사설·내부 주소면 읽지 않습니다.
+
+**실제 표본 조사 (인증 필요 MCP 200곳, 2026-10-13):**
+- 표준 OAuth 메타데이터를 공개한 곳이 72%, 클라이언트 자동 등록(DCR)을 지원하는 곳이 70%였습니다.
+- client_credentials는 6%, device_code는 6.5%, API 키 방식은 약 26%였습니다.
+- 8%는 실제로는 인증 없이 동작했습니다.
+
 ## 상태와 점검 주기
 
 | 상태 | 조건 | 다음 점검 | 게이트웨이 추천 |

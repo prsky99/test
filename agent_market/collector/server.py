@@ -7,7 +7,7 @@
 
 API
   GET  /health                         수집 에이전트 자체 상태
-  GET  /agents?q=&category=&kind=&status=&language=&region=&auth=none&limit=
+  GET  /agents?q=&category=&kind=&status=&language=&region=&auth=none|agent|oauth2|api_key&limit=
                                        에이전트 검색 (헬스 상태·제약 정보 포함, retired는 status=retired로만)
   GET  /agents/{id}                    상세 + 최근 점검 기록
   GET  /stats                          헬스 상태별 개수, 최근 1시간 점검 수, 최근 수집 기록
@@ -26,10 +26,11 @@ from fastapi import FastAPI, Header, HTTPException, Query
 
 from ..gateway import constraints as cons
 from ..gateway.classify import query_terms
-from ..gateway.ranking import agent_languages, agent_regions, auth_required
+from ..gateway.ranking import agent_languages, agent_regions, auth_details, auth_required
 from ..gateway.crawler import Crawler
 from ..gateway.store import Store
 from .agent import CollectorAgent
+from .auth_discovery import AuthDiscoverer
 from .capabilities import CapabilityProber
 from .health import HealthChecker, Schedule
 
@@ -49,7 +50,7 @@ def public(r: dict) -> dict:
     out["constraints"] = {
         "auth_required": auth_required(r), "languages": agent_languages(r), "regions": agent_regions(r),
         "currencies": cons.unpack(r.get("cap_currencies")), "tool_count": r.get("cap_tool_count"),
-        "capabilities_checked_at": r.get("cap_checked_at"),
+        "capabilities_checked_at": r.get("cap_checked_at"), "auth": auth_details(r),
     }
     return out
 
@@ -94,6 +95,10 @@ def create_app(store: Store, agent: CollectorAgent | None, admin_token: str | No
             conds.append("(r.regions LIKE ? OR r.cap_regions LIKE ?)"); params += [f"%,{reg},%"] * 2
         if auth == "none":
             conds.append("COALESCE(r.auth_observed, r.auth_declared, 0) = 0")
+        elif auth == "agent":
+            conds.append("(COALESCE(r.auth_observed, r.auth_declared, 0) = 0 OR r.auth_autonomy = 'agent_autonomous')")
+        elif auth in ("oauth2", "api_key", "bearer", "basic"):
+            conds.append("r.auth_method = ?"); params.append(auth)
         if category:
             conds.append("r.category=?"); params.append(category)
         if kind:
@@ -147,12 +152,14 @@ def create_app(store: Store, agent: CollectorAgent | None, admin_token: str | No
 
 def build_agent(store: Store, health_interval: float, allow_private: bool = False, workers: int = 32,
                 min_gap: float = 60, page_delay: float = 1.0, full_interval: float = 86400,
-                capability_max_age: float = 86400, capability_workers: int = 8) -> CollectorAgent:
+                capability_max_age: float = 86400, capability_workers: int = 8,
+                auth_max_age: float = 7 * 86400) -> CollectorAgent:
     checker = HealthChecker(store, allow_private=allow_private, workers=workers,
                             schedule=Schedule(interval=health_interval))
     crawler = Crawler(store, page_delay=page_delay, full_interval=full_interval)
     caps = CapabilityProber(store, allow_private=allow_private, max_age=capability_max_age, workers=capability_workers)
-    return CollectorAgent(store, crawler, checker, min_gap=min_gap, capabilities=caps)
+    auth = AuthDiscoverer(store, allow_private=allow_private, max_age=auth_max_age, workers=capability_workers)
+    return CollectorAgent(store, crawler, checker, min_gap=min_gap, capabilities=caps, auth=auth)
 
 
 def main() -> None:
@@ -172,6 +179,7 @@ def main() -> None:
         workers=int(os.environ.get("HEALTH_WORKERS", "32")),
         capability_max_age=float(os.environ.get("CAPABILITY_MAX_AGE_HOURS", "24")) * 3600,
         capability_workers=int(os.environ.get("CAPABILITY_WORKERS", "8")),
+        auth_max_age=float(os.environ.get("AUTH_DISCOVERY_MAX_AGE_DAYS", "7")) * 86400,
     )
     uvicorn.run(create_app(store, agent, os.environ.get("ADMIN_TOKEN")),
                 host=os.environ.get("HOST", "127.0.0.1"), port=int(os.environ.get("PORT", "8300")))
