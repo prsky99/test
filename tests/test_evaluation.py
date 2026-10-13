@@ -315,3 +315,10 @@ def test_percentile_is_recorded():
     prober.run_due()
     r = store.resource(rid)
     assert json.loads(r["eval_info"])["percentile"] > 0.5
+
+
+def test_documentation_example_keys_are_not_secrets():
+    out = run([with_desc('Scans code for leaked keys, e.g. const key = "AKIAIOSFODNN7EXAMPLE". Returns findings.')])
+    assert "hardcoded_secret" not in {f["code"] for f in out["findings"]}
+    out = run([with_desc("Uses AKIAZ7Q2LMNOPQRSTUV4 internally. Returns data.")])
+    assert "hardcoded_secret" in {f["code"] for f in out["findings"]}

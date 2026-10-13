@@ -33,7 +33,8 @@ PRECISION = {"hidden_unicode": 1.0, "ansi_escape": 1.0, "hardcoded_secret": 1.0,
 QUARANTINE_CODES = {"hidden_unicode", "ansi_escape", "hardcoded_secret", "rug_pull_suspect"}
 # A2A 전용 결정론적 신호 (card 선언만 보고 판단)
 PRECISION.update({"insecure_endpoint": 1.0, "api_key_in_query": 1.0, "deprecated_oauth_flow": 1.0})
-AGENT_VERSION = 3  # A2A 평가 규칙 버전 (2: 결제 필요 시험은 실패로 치지 않음, 3: 바인딩 이름 정리·GetTask 미구현 구분)
+AGENT_VERSION = 4  # A2A 평가 규칙 버전 (2: 결제 필요 시험은 실패로 치지 않음, 3: 바인딩 이름 정리·GetTask 미구현 구분,
+#                    4: 문서용 예시 키 제외)
 
 _VALID_BINDINGS = {"JSONRPC", "GRPC", "HTTP+JSON", "REST"}
 _TOOL_NAME = re.compile(r"^[A-Za-z0-9_.\-]{1,128}$")  # MCP 사양의 도구 이름 형식
@@ -127,7 +128,8 @@ def security_findings(tools: list[dict], instructions: str | None = None, change
                 + (f" (decoded: '{hidden[:80]}')" if hidden else ""))
         if _ANSI.search(text):
             add("high", "ansi_escape", tool, f"ANSI terminal escape codes in {field}")
-        if m := _SECRET.search(text):
+        # 문서용 예시 키(AWS의 AKIAIOSFODNN7EXAMPLE 등)는 비밀 탐지 도구의 예시에 흔하다 (실측 오탐)
+        if (m := _SECRET.search(text)) and "EXAMPLE" not in m.group(0).upper() and "XXXX" not in m.group(0).upper():
             add("critical", "hardcoded_secret", tool, f"Hardcoded credential-like string '{m.group(0)[:8]}…' in {field}")
         if m := _INJECTION.search(text):
             add("high", "instruction_injection", tool, f"Instruction-like text aimed at the model in {field}: '{m.group(0)[:60]}'")
