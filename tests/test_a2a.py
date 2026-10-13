@@ -406,3 +406,36 @@ def test_deactivated_registration_withdraws_agent():
     stats = crawler.scan("t")
     assert stats.get("withdrawn") == 1
     assert store.query("SELECT active FROM resources WHERE key=?", (f"a2a:{card}",))[0]["active"] == 0
+
+
+def test_method_style_mismatch_and_payment_required():
+    class V1Server(FakeA2A):  # card는 v0.3이라고 하지만 서버는 v1 메서드만 안다
+        def handle_request(self, request):
+            if request.method == "POST":
+                body = json.loads(request.content)
+                if body["method"] in ("tasks/get", "message/send"):
+                    return httpx.Response(200, json={"jsonrpc": "2.0", "id": 1, "error": {"code": -32601, "message": "Method not found"}})
+            return super().handle_request(request)
+
+    url = "https://agent.example/.well-known/agent-card.json"
+    store = Store()
+    server = V1Server({url: CARD_V03})
+    rid = a2a_resource(store, "https://agent.example")
+    AgentProber(store, http=httpx.Client(transport=server), allow_private=True, per_host_delay=0).run_due()
+    r = store.resource(rid)
+    assert r["trial_ok"] == 1 and ("agent.example", "SendMessage") in server.calls
+    guide = json.loads(r["usage_guide"])
+    assert guide["methods"]["send"] == "SendMessage" and any("declares A2A" in s for s in guide["steps"])
+
+    class PaidServer(FakeA2A):
+        def handle_request(self, request):
+            if request.method == "POST" and json.loads(request.content)["method"] == "message/send":
+                return httpx.Response(200, json={"jsonrpc": "2.0", "id": 1, "error": {"code": -32000, "message": "Payment required"}})
+            return super().handle_request(request)
+
+    store = Store()
+    rid = a2a_resource(store, "https://agent.example")
+    AgentProber(store, http=httpx.Client(transport=PaidServer({url: CARD_V03})), allow_private=True, per_host_delay=0).run_due()
+    r = store.resource(rid)
+    assert json.loads(r["trial_info"])["payment_required"] and json.loads(r["usage_guide"])["payment"] == "required"
+    assert "trial_failed" not in {f["code"] for f in json.loads(r["eval_info"])["findings"]}

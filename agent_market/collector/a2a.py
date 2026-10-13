@@ -294,17 +294,30 @@ def classify_card_auth(card: dict, observed_status: int | None, oauth_meta: dict
 
 # ---------------- JSON-RPC ----------------
 
+_PAYMENT = re.compile(r"payment required|x402|insufficient (funds|credit)|\b402\b|pay(ment)? (is )?needed|requires? payment", re.I)
+
+
+def _v1(card: dict) -> bool:
+    """메서드 형식: card가 선언한 버전, 실제 서버가 다른 형식으로 응답하면(method_style) 그것을 따른다."""
+    style = card.get("method_style")
+    return style == "1.0" if style else card["spec_version"].startswith("1")
+
+
 def _methods(card: dict) -> dict:
-    if card["spec_version"].startswith("1"):
+    if _v1(card):
         return {"send": "SendMessage", "get": "GetTask", "cancel": "CancelTask"}
     return {"send": "message/send", "get": "tasks/get", "cancel": "tasks/cancel"}
 
 
 def _headers(card: dict) -> dict:
     h = {"content-type": "application/json", "accept": "application/json, text/event-stream", "user-agent": USER_AGENT}
-    if card["spec_version"].startswith("1"):
+    if _v1(card):
         h["A2A-Version"] = "1.0"
     return h
+
+
+def is_payment_error(text: str | None) -> bool:
+    return bool(text and _PAYMENT.search(text))
 
 
 def _parse(resp: httpx.Response) -> dict | None:
@@ -329,7 +342,7 @@ def _parse(resp: httpx.Response) -> dict | None:
 def message_request(card: dict, text: str, request_id: int = 1) -> dict:
     """사용 안내와 시험 호출에 쓰는 메시지 전송 요청 (버전별 형식)."""
     mid = str(uuid.uuid4())
-    if card["spec_version"].startswith("1"):
+    if _v1(card):
         return {"jsonrpc": "2.0", "id": request_id, "method": "SendMessage",
                 "params": {"message": {"role": "ROLE_USER", "parts": [{"text": text}], "messageId": mid},
                            "configuration": {"acceptedOutputModes": ["text/plain"], "returnImmediately": False}}}
@@ -398,7 +411,10 @@ def build_guide(card: dict, auth: dict, trial: dict | None, changes: dict | None
     if ep:
         auth_hint = " with your credentials (see auth)" if auth.get("method") not in (None, "none") else ""
         steps.append(f"2) POST a JSON-RPC '{_methods(card)['send']}' request to {ep['url']}{auth_hint}"
-                     + (" with header 'A2A-Version: 1.0'" if card["spec_version"].startswith("1") else "") + ".")
+                     + (" with header 'A2A-Version: 1.0'" if _v1(card) else "") + ".")
+        if card.get("method_style") and card["method_style"][0] != card["spec_version"][0]:
+            steps.append(f"Note: the card declares A2A {card['spec_version']} but the server answers "
+                         f"{card['method_style']}-style methods; use the method names above.")
         steps.append(f"3) If the result is a Task that is not finished, poll '{_methods(card)['get']}' with the task id"
                      + (" or use streaming." if card["capabilities"].get("streaming") else "."))
     else:
@@ -409,7 +425,8 @@ def build_guide(card: dict, auth: dict, trial: dict | None, changes: dict | None
         "interfaces": card["interfaces"], "methods": _methods(card),
         "capabilities": card["capabilities"], "input_modes": card["default_input_modes"], "output_modes": card["default_output_modes"],
         "auth": {"method": auth.get("method"), "autonomy": auth.get("autonomy"), "steps": auth.get("instructions")},
-        "payment": card.get("payment"), "extensions": card["extensions"],
+        "payment": card.get("payment") or ("required" if (trial or {}).get("payment_required") else None),
+        "extensions": card["extensions"],
         "skills": skills, "skill_count": len(card["skills"]), "steps": steps,
         "provider": card["provider"], "documentation": card.get("documentation_url"),
         "endpoint_check": live,
@@ -492,8 +509,15 @@ class AgentProber:
         return None, meta, "no valid A2A agent card" + (" (JSON found but not an A2A card)" if meta.get("not_a2a") else "")
 
     def check_endpoint(self, http: httpx.Client, card: dict) -> dict:
-        """선언된 엔드포인트를 확인하고, A2A로 응답하지 않으면(홈페이지 주소를 적은 card가 많다) 흔한 경로 몇 개를 더 본다."""
+        """선언된 엔드포인트를 확인하고, A2A로 응답하지 않으면(홈페이지 주소를 적은 card가 많다) 흔한 경로 몇 개를 더 본다.
+        메서드가 없다(-32601)고 하면 다른 버전의 메서드 이름(v0.3 tasks/get ↔ v1.0 GetTask)으로 한 번 더 확인한다."""
         live = self._check_one(http, card, endpoint(card))
+        if live.get("jsonrpc_error") == -32601:
+            card["method_style"] = "0.3" if _v1(card) else "1.0"
+            other = self._check_one(http, card, endpoint(card))
+            if other.get("ok") and other.get("jsonrpc_error") != -32601:
+                return {**other, "method_style": card["method_style"]}
+            card.pop("method_style")
         ep = endpoint(card)
         if live.get("ok") is False and ep and ep["binding"] == "JSONRPC" and live.get("status") in (200, 301, 302, 307, 308, 404, 405):
             p = urlparse(ep["url"])
@@ -554,16 +578,31 @@ class AgentProber:
             resp = http.post(ep["url"], json=message_request(card, text), headers=_headers(card),
                              timeout=httpx.Timeout(45.0, connect=5.0))
             data = _parse(resp) or {}
-            if data.get("error"):
+            err = data.get("error")
+            if isinstance(err, dict) and err.get("code") == -32601 and not card.get("method_style"):
+                card["method_style"] = "0.3" if _v1(card) else "1.0"  # 선언과 다른 버전의 메서드 이름으로 한 번 더
+                resp = http.post(ep["url"], json=message_request(card, text), headers=_headers(card),
+                                 timeout=httpx.Timeout(45.0, connect=5.0))
+                data = _parse(resp) or {}
+                if isinstance(data.get("error"), dict) and data["error"].get("code") == -32601:
+                    card.pop("method_style")
+            if resp.status_code == 402:
+                out.update(ok=False, payment_required=True, error="Payment required (HTTP 402)")
+            elif data.get("error"):
                 err = data["error"]
                 out.update(ok=False, error=str(err.get("message") if isinstance(err, dict) else err)[:300])
+                if is_payment_error(out["error"]):
+                    out["payment_required"] = True
             elif "result" in data:
                 summary = response_summary(data["result"])
                 out.update(state=summary["state"], sample_output=summary["text"] or None,
                            output_chars=len(json.dumps(data["result"], ensure_ascii=False)))
-                out["ok"] = bool(summary["text"]) and summary["state"] not in ("failed", "rejected", "auth-required")
+                out["ok"] = bool(summary["text"]) and summary["state"] not in ("failed", "rejected", "auth-required",
+                                                                                "payment-required")
                 if not out["ok"]:
                     out["error"] = f"task {summary['state'] or 'returned no text'}"
+                    if summary["state"] == "payment-required" or is_payment_error(summary["text"]):
+                        out["payment_required"] = True
                 if summary.get("task_id") and summary["state"] not in TERMINAL:  # 남은 작업은 정리
                     try:
                         http.post(ep["url"], json={"jsonrpc": "2.0", "id": 2, "method": _methods(card)["cancel"],
@@ -611,7 +650,8 @@ class AgentProber:
         trial = None
         if self.trials and not auth_required and live.get("ok"):
             last = json.loads(resource.get("trial_info") or "null") or {}
-            stale = not last or time.time() - last.get("at", 0) > self.trial_max_age
+            # 실패한 시험은 하루 뒤 다시 (일시 오류·버전 불일치 수정 반영), 성공했으면 trial_max_age(기본 7일)마다
+            stale = not last or time.time() - last.get("at", 0) > (self.trial_max_age if last.get("ok") else 86400 - 3600)
             if stale or card_hash(card) != resource.get("usage_tools_hash"):
                 picked = pick_message(card)
                 if picked:

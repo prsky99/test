@@ -33,7 +33,7 @@ PRECISION = {"hidden_unicode": 1.0, "ansi_escape": 1.0, "hardcoded_secret": 1.0,
 QUARANTINE_CODES = {"hidden_unicode", "ansi_escape", "hardcoded_secret", "rug_pull_suspect"}
 # A2A 전용 결정론적 신호 (card 선언만 보고 판단)
 PRECISION.update({"insecure_endpoint": 1.0, "api_key_in_query": 1.0, "deprecated_oauth_flow": 1.0})
-AGENT_VERSION = 1  # A2A 평가 규칙 버전
+AGENT_VERSION = 2  # A2A 평가 규칙 버전 (2: 결제 필요 시험은 실패로 치지 않음)
 
 _VALID_BINDINGS = {"JSONRPC", "GRPC", "HTTP+JSON", "REST"}
 _TOOL_NAME = re.compile(r"^[A-Za-z0-9_.\-]{1,128}$")  # MCP 사양의 도구 이름 형식
@@ -521,7 +521,8 @@ def evaluate_agent(resource: dict, card: dict, meta: dict, live: dict, trial: di
     latency = max(live.get("latency_ms") or 0, (trial or {}).get("latency_ms") or 0) or None
     speed = 1.0 if latency is None or latency <= 2000 else 0.8 if latency <= 6000 else 0.5 if latency <= 15000 else 0.2
     endpoint_ok = 1.0 if live.get("ok") else 0.0 if live.get("ok") is False else 0.5
-    trial_auth = bool(trial and not trial.get("ok") and is_auth_error(trial.get("error")))
+    # 인증·결제가 필요해 거절된 시험은 실패로 치지 않는다 (서비스는 정상, 조건이 있을 뿐)
+    trial_auth = bool(trial and not trial.get("ok") and (is_auth_error(trial.get("error")) or trial.get("payment_required")))
     parts = [(0.45, uptime), (0.15, endpoint_ok), (0.15, speed)]
     if trial and not trial_auth and not trial.get("skipped"):
         parts.append((0.25, 1.0 if trial.get("ok") else 0.2))
