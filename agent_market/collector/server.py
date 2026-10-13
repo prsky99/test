@@ -52,7 +52,8 @@ def public(r: dict) -> dict:
     out["has_usage_guide"] = bool(r.get("usage_guide"))
     out["quality"] = None if not r.get("eval_at") else {
         "score": r.get("eval_score"), "grade": r.get("eval_grade"), "security": r.get("eval_security"),
-        "coverage": r.get("eval_coverage"), "evaluated_at": r.get("eval_at")}
+        "coverage": r.get("eval_coverage"), "percentile": (json.loads(r["eval_info"]) if r.get("eval_info") else {}).get("percentile"),
+        "evaluated_at": r.get("eval_at")}
     out["constraints"] = {
         "auth_required": auth_required(r), "languages": agent_languages(r), "regions": agent_regions(r),
         "currencies": cons.unpack(r.get("cap_currencies")), "tool_count": r.get("cap_tool_count"),

@@ -157,6 +157,7 @@ class CapabilityProber:
             {"protocol_version": probed.get("protocol_version"), "server_info": probed.get("server_info"),
              "instructions": probed.get("instructions")},
             trial=last_trial, changes=changes)
+        ev["percentile"] = self.store.score_percentile(ev["score"])  # 평가된 서버 중 이보다 점수가 낮은 비율
         self.store.record_evaluation(r["id"], ev)
         return ev
 

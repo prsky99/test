@@ -203,7 +203,8 @@ def evaluation_summary(r: dict, findings: int = 5) -> dict | None:
         ev = json.loads(r["eval_info"])
     except ValueError:
         return None
-    return {k: ev.get(k) for k in ("score", "grade", "static_score", "security", "coverage", "task_verified", "dimensions", "at")} | {
+    return {k: ev.get(k) for k in ("score", "grade", "percentile", "static_score", "security", "coverage", "task_verified",
+                                   "dimensions", "at")} | {
         "findings": [{k: f.get(k) for k in ("severity", "code", "tool", "message")} for f in (ev.get("findings") or [])[:findings]]}
 
 

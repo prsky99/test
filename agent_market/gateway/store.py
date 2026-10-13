@@ -154,6 +154,7 @@ class Store:
                     self._db.execute(f"ALTER TABLE resources ADD COLUMN {col} {decl}")
             self._db.execute("CREATE INDEX IF NOT EXISTS resources_due ON resources(active, next_check_at)")
             self._db.execute("CREATE INDEX IF NOT EXISTS resources_host_due ON resources(host, next_check_at)")
+            self._db.execute("CREATE INDEX IF NOT EXISTS resources_eval_score ON resources(eval_score)")
             missing = self._db.execute("SELECT id, url FROM resources WHERE host IS NULL").fetchall()
             if missing:  # 기존 DB: 호스트 채우기
                 self._db.executemany("UPDATE resources SET host=? WHERE id=?", [(host_of(r["url"]), r["id"]) for r in missing])
@@ -516,6 +517,12 @@ class Store:
                           WHERE id=?""",
                        (ev.get("score"), ev.get("grade"), ev.get("security"), ev.get("coverage"),
                         json.dumps(ev, ensure_ascii=False), ev.get("at") or time.time(), rid))
+
+    def score_percentile(self, score: float) -> float | None:
+        """평가 점수가 이보다 낮은 서버의 비율 (0~1). 등급이 A에 몰려도 상대 위치를 알 수 있게."""
+        row = self.query("""SELECT COUNT(*) AS n, SUM(eval_score < ?) AS lower FROM resources
+                            WHERE active=1 AND eval_score IS NOT NULL""", (score,))[0]
+        return round((row["lower"] or 0) / row["n"], 3) if row["n"] >= 20 else None
 
     def due_for_static_evaluation(self, now: float, max_age: float, limit: int) -> list[dict]:
         """연결부터 인증이 필요해 도구를 볼 수 없는 MCP: 출처 정적 평가만 (네트워크 요청 없음)."""

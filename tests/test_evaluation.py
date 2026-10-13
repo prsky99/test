@@ -1,3 +1,4 @@
+import json
 import time
 
 import httpx
@@ -302,3 +303,15 @@ def test_registry_change_requeues_evaluation():
                                        "repository": "https://github.com/acme/weather"}})
     r = store.resource(rid)
     assert r["cap_checked_at"] is None and r["eval_at"] is None
+
+
+def test_percentile_is_recorded():
+    store, rid, _, prober = setup([GOOD])
+    with store.tx() as db:  # 비교 대상 평가 30개
+        for i in range(30):
+            db.execute("""INSERT INTO resources (key, source, kind, url, name, description, category, networks, details,
+                          first_seen, last_seen, eval_score) VALUES (?, 'mcp-registry', 'mcp', ?, 'x', 'x', 'web_search', '',
+                          '{}', 0, 0, ?)""", (f"k{i}", f"https://x{i}.example/mcp", 50 + i))
+    prober.run_due()
+    r = store.resource(rid)
+    assert json.loads(r["eval_info"])["percentile"] > 0.5
