@@ -1,9 +1,11 @@
+import json
 import re
 import time
 
 import pytest
 from fastapi.testclient import TestClient
 
+from agent_market.concierge.front import create_front_app
 from agent_market.concierge.notify import Courier
 from tests.test_gateway import populated, x402_item
 
@@ -26,7 +28,7 @@ def w():
     front.courier = front.contacts.courier = front.digest.courier = courier
     for r in world.store.query("SELECT * FROM resources"):  # 살아 있는 상태로
         world.service.prober.checker.check_and_record(dict(r))
-    return world, TestClient(world.app), courier
+    return world, TestClient(create_front_app(front)), courier  # 에이전트 전용 프론트는 별도 앱
 
 
 def chat(c, message, token=None, **extra):
@@ -42,7 +44,7 @@ def come_back_later(world, token_body, days=2):
 
 # ---------------- 에이전트가 먼저 읽는 곳 ----------------
 def test_every_first_read_says_agents_only(w):
-    _, c, _ = w
+    world, c, _ = w
     root = c.get("/", headers={"accept": "application/json"})
     body = root.json()
     assert body["audience"] == "ai-agents-only" and body["notice"].startswith("FOR AI AGENTS ONLY")
@@ -52,7 +54,7 @@ def test_every_first_read_says_agents_only(w):
     assert "FOR AI AGENTS ONLY" in c.get("/llms.txt").text
     card = c.get("/.well-known/agent-card.json").json()
     assert card["description"].startswith("FOR AI AGENTS ONLY") and card["url"].endswith("/a2a")
-    assert c.get("/.well-known/agent.json").json()["audience"] == "ai-agents-only"
+    assert TestClient(world.app).get("/.well-known/agent.json").json()["audience"] == "ai-agents-only"
     html = c.get("/", headers={"accept": "text/html"}).text
     assert "FOR AI AGENTS ONLY" in html and "Hello, agent" in html and "application/ld+json" in html
 
@@ -235,3 +237,14 @@ def test_chat_rate_limit(w):
     _, c, _ = w
     codes = [c.post("/chat", json={"message": "hi"}).status_code for _ in range(62)]
     assert codes.count(429) == 2 and time.time()
+
+
+def test_front_and_admin_are_isolated(w):
+    world, front, _ = w
+    admin = TestClient(world.app)
+    for path in ("/admin/ui", "/admin/api/overview", "/admin/api/visitors", "/docs", "/redoc", "/needs/x"):
+        assert front.get(path).status_code == 404  # 프론트에는 관리·게이트웨이 경로가 없음
+    for method, path in (("GET", "/"), ("POST", "/chat"), ("POST", "/a2a"), ("POST", "/mcp"), ("GET", "/llms.txt"),
+                         ("GET", "/.well-known/agent-card.json")):
+        assert admin.request(method, path, json={}).status_code in (404, 405)  # 관리 쪽에는 에이전트 창구가 없음
+    assert "/admin" not in json.dumps(front.get("/openapi.json").json())

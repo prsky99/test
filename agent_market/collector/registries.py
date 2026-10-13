@@ -37,7 +37,9 @@ DEFAULT_CHAINS = {  # 이름: (chain id, 키 없는 공개 RPC)
     "bsc": (56, "https://bsc-rpc.publicnode.com"),
 }
 IPFS_GATEWAYS = ("https://ipfs.io/ipfs/", "https://dweb.link/ipfs/", "https://w3s.link/ipfs/")  # 돌아가며 쓰고, 429면 다음 곳
-IPFS_HOSTS = {"ipfs.io", "dweb.link", "w3s.link"}
+IPFS_HOSTS = {"ipfs.io", "dweb.link", "w3s.link", "gateway.pinata.cloud", "nftstorage.link", "cloudflare-ipfs.com", "4everland.io"}
+# 여러 프로젝트가 함께 쓰는 저장소: 한 프로젝트의 빈 등록이 많아도 호스트 전체를 보류하면 안 된다
+SHARED_HOSTS = {"ipfs", "arweave.net", "raw.githubusercontent.com", "gist.githubusercontent.com", "storage.googleapis.com"}
 DEAD_HOST_SAMPLE = 200  # 한 호스트에서 이만큼 받아 봤는데 엔드포인트가 하나도 없으면 나머지는 보류
 DEFER = 7 * 86400  # 보류 기간 (지나면 다시 표본을 받아 본다)
 RATE_LIMIT_RETRY = 1800  # 429(요청 제한)는 실패로 세지 않고 이만큼 뒤에 다시
@@ -137,8 +139,12 @@ class Erc8004Crawler:
     def _migrate(self) -> None:
         """예전 규칙으로 저장된 대기열 정리: IPFS 게이트웨이 주소를 한 줄로 묶고, 429·리다이렉트로만 실패한 것은 다시 시도."""
         with self.store.tx() as db:
-            db.execute("""UPDATE erc8004_tokens SET host='ipfs' WHERE host IN ('ipfs.io','dweb.link','w3s.link')
-                          AND uri LIKE 'https://%/ipfs/%'""")
+            gateways = sorted(IPFS_HOSTS)
+            db.execute(f"""UPDATE erc8004_tokens SET host='ipfs' WHERE host IN ({','.join('?' * len(gateways))})
+                           AND uri LIKE 'https://%/ipfs/%'""", gateways)
+            shared = sorted(SHARED_HOSTS)  # 공용 저장소에 잘못 걸린 보류는 풀어 준다
+            db.execute(f"""UPDATE erc8004_tokens SET status='pending', next_at=NULL WHERE status='deferred'
+                           AND host IN ({','.join('?' * len(shared))})""", shared)
             db.execute("""UPDATE erc8004_tokens SET status='pending', error=NULL, next_at=NULL WHERE status='error' AND uri IS NOT NULL
                           AND (error LIKE '%HTTP 429%' OR error LIKE '%HTTP 30_%')""")
 
@@ -374,9 +380,10 @@ class Erc8004Crawler:
             return 0
         self._dead_checked = time.time()
         dead = [r["host"] for r in self.store.query(
-            """SELECT host FROM erc8004_tokens WHERE host IS NOT NULL AND host != 'ipfs' GROUP BY host
+            f"""SELECT host FROM erc8004_tokens WHERE host IS NOT NULL AND host NOT IN ({','.join('?' * len(SHARED_HOSTS))}) GROUP BY host
                HAVING SUM(status='resolved') = 0
-                  AND SUM(status='no_service' AND (error IS NULL OR error NOT LIKE 'unreachable%')) >= ?""", (DEAD_HOST_SAMPLE,))]
+                  AND SUM(status='no_service' AND (error IS NULL OR error NOT LIKE 'unreachable%')) >= ?""",
+            (*sorted(SHARED_HOSTS), DEAD_HOST_SAMPLE))]
         moved = 0
         for host in dead:
             with self.store.tx() as db:

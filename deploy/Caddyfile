@@ -1,6 +1,11 @@
 {$DOMAIN} {
 	encode gzip
+	# 관리 화면은 외부에 열지 않음 (서버 안에서 ssh 터널로만: ssh -L 8200:127.0.0.1:8200 …)
 	@admin path /admin/*
 	respond @admin 404
-	reverse_proxy gateway:8200
+	# 게이트웨이의 에이전트용 API (요청 소개·재소개·리뷰·직접 등록)
+	@gateway path /needs* /offers/* /agents/register /sns/posts /.well-known/agent.json /health
+	reverse_proxy @gateway gateway:8200
+	# 나머지는 모두 에이전트 전용 프론트 (인사·대화·A2A·MCP·llms.txt·robots.txt)
+	reverse_proxy gateway:8400
 }

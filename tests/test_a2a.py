@@ -613,3 +613,19 @@ def test_migration_merges_ipfs_lane_and_retries_rate_limited():
     rows = {r["agent_id"]: dict(r) for r in store.query("SELECT agent_id, host, status, error, next_at FROM erc8004_tokens")}
     assert rows[1]["host"] == "ipfs" and rows[1]["status"] == "pending" and rows[1]["error"] is None
     assert rows[2]["status"] == "pending" and rows[2]["next_at"] is None
+
+
+def test_shared_storage_is_never_deferred_and_pinata_joins_ipfs_lane():
+    import agent_market.collector.registries as regs
+    assert regs.host_lane("https://gateway.pinata.cloud/ipfs/bafyQ") == "ipfs"
+    store = Store()
+    with store.tx() as db:  # arweave.net: 공용 저장소. 빈 등록이 많아도 호스트 전체를 보류하지 않음
+        db.executemany("INSERT INTO erc8004_tokens (chain, agent_id, uri, host, status) VALUES ('t',?,NULL,'arweave.net','no_service')",
+                       [(i,) for i in range(regs.DEAD_HOST_SAMPLE)])
+        db.execute("INSERT INTO erc8004_tokens (chain, agent_id, uri, host, status, next_at) VALUES ('t',5000,'https://arweave.net/z','arweave.net','pending',0)")
+        db.execute("INSERT INTO erc8004_tokens (chain, agent_id, uri, host, status, next_at) VALUES "
+                   "('t',5001,'https://gateway.pinata.cloud/ipfs/bafyQ','gateway.pinata.cloud','deferred',9e9)")
+    crawler = Erc8004Crawler(store, chains={"t": (1, "https://rpc.example")}, http=httpx.Client(transport=RegFiles({})), allow_private=True)
+    assert crawler.defer_dead_hosts(force=True) == 0
+    row = store.query("SELECT host, status FROM erc8004_tokens WHERE agent_id=5001")[0]
+    assert (row["host"], row["status"]) == ("ipfs", "pending")  # 잘못 걸린 보류가 풀림

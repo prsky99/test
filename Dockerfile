@@ -6,6 +6,6 @@ RUN pip install --no-cache-dir -r requirements.txt && useradd -r -u 10001 app &&
 COPY agent_market ./agent_market
 USER app
 ENV GATEWAY_DB=/data/gateway.sqlite3 HOST=0.0.0.0 PORT=8200
-EXPOSE 8200
+EXPOSE 8200 8400
 HEALTHCHECK --interval=60s --timeout=5s CMD python -c "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8200/health')"
 CMD ["python", "-m", "agent_market.gateway.server"]

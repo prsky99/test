@@ -333,10 +333,10 @@ mark { background: color-mix(in srgb, #facc15 45%, transparent); color: inherit;
       <div class="card">
         <h2>에이전트 전용 프론트 <span class="sub">에이전트가 가장 먼저 읽는 곳</span></h2>
         <div class="toc" id="vLinks"></div>
-        <p class="muted" style="font-size:13px;margin-top:10px">모든 곳에서 "FOR AI AGENTS ONLY"를 먼저 밝히고 바로 인사합니다. 기획안: AGENT_FRONT.md</p>
+        <p class="muted" style="font-size:13px;margin-top:10px">관리 화면과 다른 포트의 별도 앱으로 실행됩니다 (관리 경로 없음). 모든 곳에서 "FOR AI AGENTS ONLY"를 먼저 밝히고 바로 인사합니다. 기획안: AGENT_FRONT.md</p>
       </div>
       <div class="card">
-        <h2>에이전트 입장에서 대화해 보기 <span class="sub">POST /chat · 테스트 방문자로 기록됨</span></h2>
+        <h2>에이전트 입장에서 대화해 보기 <span class="sub">같은 대화 엔진 · "관리자 테스트" 방문자로 기록됨</span></h2>
         <div class="chat-log" id="simLog"><p class="muted">아래에 메시지를 보내면 방문 에이전트가 받는 답을 그대로 볼 수 있어요.</p></div>
         <div class="sugg" id="simSugg"></div>
         <div class="sim-row"><input id="simText" placeholder="예: find an MCP server for web search / 주식 시세 API 찾아줘"><button class="btn primary" id="simSend">보내기</button><button class="btn" id="simReset" title="새 방문자로 다시 시작">새로</button></div>
@@ -1455,15 +1455,20 @@ syncComposer();
 // ---------- 방문 에이전트 ----------
 const TIER = { regular: "단골", returning: "재방문", new: "신규" };
 const tierHtml = (t) => `<span class="tier ${esc(t)}">${esc(TIER[t] || t)}</span>`;
-$("vLinks").innerHTML = [["/", "GET / (인사)"], ["/llms.txt", "llms.txt"], ["/robots.txt", "robots.txt"],
-  ["/.well-known/agent-card.json", "A2A Agent Card"], ["/.well-known/agent.json", "agent.json"], ["/openapi.json", "OpenAPI"]]
-  .map(([u, l]) => `<a href="${u}" target="_blank" rel="noopener">${esc(l)}</a>`).join("") + `<span class="chip">MCP: POST /mcp</span><span class="chip">A2A: POST /a2a</span>`;
+function renderFrontLinks(base) {
+  const b = safeUrl(base) ? base : "";
+  $("vLinks").innerHTML = (b ? `<span class="chip">프론트 주소: ${esc(b)}</span>` : `<span class="chip">에이전트 프론트가 꺼져 있음 (AGENT_FRONT=0)</span>`) +
+    (b ? [["/", "GET / (인사)"], ["/llms.txt", "llms.txt"], ["/robots.txt", "robots.txt"], ["/.well-known/agent-card.json", "A2A Agent Card"], ["/openapi.json", "OpenAPI"]]
+      .map(([u, l]) => `<a href="${esc(b + u)}" target="_blank" rel="noopener noreferrer">${esc(l)}</a>`).join("") +
+      `<span class="chip">MCP: POST ${esc(b)}/mcp</span><span class="chip">A2A: POST ${esc(b)}/a2a</span>` : "");
+}
 
 async function loadVisitors() {
   const p = new URLSearchParams();
   if ($("vQ").value.trim()) p.set("q", $("vQ").value.trim());
   if ($("vTier").value) p.set("tier", $("vTier").value);
   const d = await api("/admin/api/visitors?" + p);
+  renderFrontLinks(d.front_url);
   const s = d.stats;
   $("vKpis").innerHTML = [
     kpi("방문 에이전트", fmt(s.total), `24시간 새로 ${fmt(s.new_24h)} · 활동 ${fmt(s.active_24h)}`),
@@ -1538,12 +1543,8 @@ async function simSend(text) {
   const log = $("simLog");
   if (log.querySelector("p.muted")) log.innerHTML = "";
   log.insertAdjacentHTML("beforeend", `<div class="bubble agent"><span class="meta">🤖 나(테스트 에이전트)</span>${esc(text)}</div>`);
-  const headers = { "Content-Type": "application/json" };
-  if (simToken) headers["X-Visitor-Token"] = simToken;
-  try {
-    const resp = await fetch("/chat", { method: "POST", headers, body: JSON.stringify({ message: text, name: simToken ? undefined : "관리자 테스트" }) });
-    const d = await resp.json();
-    if (!resp.ok) throw new Error(d.error || "HTTP " + resp.status);
+  try {  // 프론트는 다른 포트의 별도 앱이라, 관리 API가 같은 엔진으로 대신 답한다
+    const d = await api("/admin/api/visitors/simulate", { method: "POST", json: { message: text, token: simToken || null } });
     if (d.visitor && d.visitor.token) { simToken = d.visitor.token; try { sessionStorage.setItem("simToken", simToken); } catch (e) {} }
     log.insertAdjacentHTML("beforeend", `<div class="bubble concierge"><span class="meta">🛎 컨시어지 · ${esc(d.intent)} · ${esc(TIER[d.visitor.tier] || "")}</span>${esc(d.reply)}</div>`);
     $("simSugg").innerHTML = (d.suggested_replies || []).map((sug) => `<button class="btn" data-sug="${esc(sug)}">${esc(sug)}</button>`).join("");

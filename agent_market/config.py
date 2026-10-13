@@ -129,6 +129,10 @@ class GatewayConfig:
     trial_max_age: float = 7 * 86400  # 도구 목록이 그대로면 이 주기로만 다시 호출
     erc8004_chains: str | None = None  # ERC-8004 수집 체인 (None=base,ethereum,bsc, ""=끔)
     agent_discovery: bool = True  # A2A 에이전트 수집 (ERC-8004·well-known)
+    agent_front: bool = True  # 에이전트 전용 프론트를 관리 화면과 다른 포트로 함께 띄울지 (AGENT_FRONT.md)
+    agent_front_host: str | None = None  # 없으면 HOST와 같음
+    agent_front_port: int = 8400
+    agent_front_url: str | None = None  # 에이전트에게 알려 줄 공개 주소 (예: https://agents.example.com)
 
     @classmethod
     def from_env(cls) -> "GatewayConfig":
@@ -152,6 +156,10 @@ class GatewayConfig:
             trial_max_age=float(os.environ.get("USAGE_TRIAL_MAX_AGE_DAYS", "7")) * 86400,
             erc8004_chains=os.environ.get("ERC8004_CHAINS"),
             agent_discovery=os.environ.get("AGENT_DISCOVERY", "1") == "1",
+            agent_front=os.environ.get("AGENT_FRONT", "1") == "1",
+            agent_front_host=os.environ.get("AGENT_FRONT_HOST") or None,
+            agent_front_port=int(os.environ.get("AGENT_FRONT_PORT", "8400")),
+            agent_front_url=os.environ.get("AGENT_FRONT_URL") or None,
             health_interval=float(os.environ.get("HEALTH_INTERVAL_MINUTES", "60")) * 60,
             health_workers=int(os.environ.get("HEALTH_WORKERS", "32")),
             rescan_interval=float(os.environ.get("RESCAN_INTERVAL_MINUTES", "15")) * 60,

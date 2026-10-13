@@ -98,7 +98,7 @@ def _meta(value: str | None):
 
 
 def dashboard_router(store: Store, db_path: str, admin_token: str | None, collector: CollectorAgent | None,
-                     service=None, crawler=None, front=None) -> APIRouter:
+                     service=None, crawler=None, front=None, front_url: str | None = None) -> APIRouter:
     router = APIRouter()
     logs = log_buffer()
     started = time.time()
@@ -493,7 +493,16 @@ def dashboard_router(store: Store, db_path: str, admin_token: str | None, collec
                        (SELECT COUNT(*) FROM agent_hits) AS anonymous_readers,
                        (SELECT COALESCE(SUM(hits), 0) FROM agent_hits) AS anonymous_reads""", (now - 86400, now - 7 * 86400)).fetchone()
             channels = {r["channel"]: r["n"] for r in db.execute("SELECT channel, COUNT(*) AS n FROM agent_visitors GROUP BY channel")}
-        return {"stats": {**dict(stats), **dict(extra), "channels": channels}, "items": rows}
+        return {"stats": {**dict(stats), **dict(extra), "channels": channels}, "items": rows, "front_url": front_url}
+
+    @router.post("/admin/api/visitors/simulate", dependencies=auth)
+    async def visitor_simulate(request: Request):
+        """에이전트 입장에서 대화해 보기: 에이전트 전용 프론트(다른 포트)를 거치지 않고 같은 엔진으로 답한다."""
+        if front is None:
+            raise HTTPException(503, "에이전트 프론트가 없습니다.")
+        data = await request.json()
+        message = str(data.get("message") or "")[:2000]
+        return front.simulate(message, data.get("token") if isinstance(data.get("token"), str) else None)
 
     @router.get("/admin/api/visitors/{vid}", dependencies=auth)
     def visitor(vid: str):

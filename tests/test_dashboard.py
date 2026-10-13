@@ -160,9 +160,11 @@ def test_explore_full_text_and_filters(dash):
 
 def test_visitors_admin_api(dash):
     world, c = dash
-    first = c.post("/chat", json={"message": "Hi, I am TravelBot"}).json()
-    c.post("/chat", json={"message": "find web search API"}, headers={"X-Visitor-Token": first["visitor"]["token"]})
-    c.get("/")
+    from agent_market.concierge.front import create_front_app
+    front = TestClient(create_front_app(world.app.state.front))  # 에이전트는 별도 포트의 프론트로 들어옴
+    first = front.post("/chat", json={"message": "Hi, I am TravelBot"}).json()
+    front.post("/chat", json={"message": "find web search API"}, headers={"X-Visitor-Token": first["visitor"]["token"]})
+    front.get("/")
     d = c.get("/admin/api/visitors", headers=H).json()
     assert d["stats"]["total"] == 1 and d["stats"]["anonymous_reads"] == 1 and d["items"][0]["name"] == "TravelBot"
     assert d["items"][0]["last_task"] == "find web search API"
@@ -173,3 +175,15 @@ def test_visitors_admin_api(dash):
     assert c.post(f"/admin/api/visitors/{vid}/notify", json={"enabled": False}, headers=H).json() == {"notify": False}
     assert c.post(f"/admin/api/visitors/{vid}/digest", headers=H).json()["checked"] == 0  # 인증된 연락처 없음
     assert c.get("/admin/api/visitors", headers={"X-Dashboard": "1"}).status_code == 401
+
+
+
+def test_admin_simulator_uses_engine_without_front_port(dash):
+    _, c = dash
+    first = c.post("/admin/api/visitors/simulate", json={"message": "hello"}, headers=H).json()
+    assert first["intent"] == "greet" and first["visitor"]["token"].startswith("vt_")
+    again = c.post("/admin/api/visitors/simulate", json={"message": "find web search API", "token": first["visitor"]["token"]},
+                   headers=H).json()
+    assert again["intent"] == "find" and again["visitor"]["id"] == first["visitor"]["id"]
+    assert c.get("/admin/api/visitors", headers=H).json()["items"][0]["channel"] == "admin-test"
+    assert c.post("/admin/api/visitors/simulate", json={"message": "hi"}, headers={"X-Dashboard": "1"}).status_code == 401

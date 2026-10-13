@@ -34,6 +34,7 @@ from ..collector.auth_discovery import AuthDiscoverer
 from ..collector.capabilities import CapabilityProber
 from ..collector.health import HealthChecker, Schedule
 from ..concierge import front as concierge_front
+from ..concierge.front import Front, create_front_app
 from .crawler import Crawler, Prober
 from . import sns
 from .dashboard import dashboard_router
@@ -75,6 +76,15 @@ class Scheduler(threading.Thread):
                     log.exception("concierge digest failed")
             self.stop_event.wait(self.rescan_interval)
         self.collector.stop()
+
+
+def front_url(config: GatewayConfig) -> str:
+    """에이전트 전용 프론트의 주소 (공개 주소를 지정하지 않았으면 같은 호스트의 프론트 포트)."""
+    if config.agent_front_url:
+        return config.agent_front_url.rstrip("/")
+    import os
+    host = config.agent_front_host or os.environ.get("HOST", "127.0.0.1")
+    return f"http://{'127.0.0.1' if host in ('0.0.0.0', '::') else host}:{config.agent_front_port}"
 
 
 def make_notifier(allow_private: bool):
@@ -152,9 +162,11 @@ def create_app(
     app = FastAPI(title="Agent Introduction Gateway", lifespan=lifespan)
     app.state.service = service
     app.state.collector = collector
-    front = concierge_front.install(app, store, allow_private=config.allow_private_urls, courier=courier)  # 에이전트 전용 프론트
+    # 에이전트 전용 프론트: 이 앱(관리·게이트웨이 API)에는 경로를 붙이지 않고, main()이 별도 포트의 별도 앱으로 띄운다
+    front = Front(store, allow_private=config.allow_private_urls, courier=courier)
     app.state.front = front
-    app.include_router(dashboard_router(store, config.db_path, config.admin_token, collector, service, crawler, front))  # /admin/ui
+    app.include_router(dashboard_router(store, config.db_path, config.admin_token, collector, service, crawler, front,
+                                        front_url=front_url(config)))  # /admin/ui
 
     def fee_requirements(amount: int) -> dict:
         return {
@@ -174,7 +186,8 @@ def create_app(
             "role": "gateway",
             "audience": concierge_front.AUDIENCE,
             "notice": concierge_front.NOTICE,
-            "concierge": {"chat": "POST /chat", "a2a_card": "/.well-known/agent-card.json", "mcp": "POST /mcp", "guide": "/llms.txt"},
+            "concierge": {"url": front_url(config), "chat": "POST /chat", "a2a_card": "/.well-known/agent-card.json",
+                          "mcp": "POST /mcp", "guide": "/llms.txt"} if config.agent_front else None,
             "description": (
                 "필요한 작업을 알려주면 x402 Bazaar·MCP Registry 등에서 가장 좋은 AI 에이전트를 찾아 소개하고, "
                 "관계를 유지하면서 더 좋은 에이전트가 나타나면 다시 소개합니다. "
@@ -408,7 +421,12 @@ def create_app(
 
 
 def main() -> None:
+    """관리·게이트웨이 API(:PORT, 기본 8200)와 에이전트 전용 프론트(:AGENT_FRONT_PORT, 기본 8400)를 한 프로세스에서 다른 포트로 띄운다.
+    두 앱은 경로를 공유하지 않는다 (프론트에는 /admin이 없고, 관리 쪽에는 에이전트 대화 창구가 없다)."""
+    import asyncio
+    import contextlib
     import os
+    import signal
 
     import uvicorn
 
@@ -417,10 +435,26 @@ def main() -> None:
     config = GatewayConfig.from_env()
     if not config.network.is_testnet:
         log.warning("메인넷(%s)에서 실제 USDC 수수료를 받습니다.", config.network.name)
-    uvicorn.run(
-        create_app(config), host=os.environ.get("HOST", "127.0.0.1"), port=int(os.environ.get("PORT", "8200")),
-        proxy_headers=True, forwarded_allow_ips=os.environ.get("FORWARDED_ALLOW_IPS", "127.0.0.1"),
-    )
+    host = os.environ.get("HOST", "127.0.0.1")
+    proxy = {"proxy_headers": True, "forwarded_allow_ips": os.environ.get("FORWARDED_ALLOW_IPS", "127.0.0.1")}
+    app = create_app(config)
+    servers = [uvicorn.Server(uvicorn.Config(app, host=host, port=int(os.environ.get("PORT", "8200")), **proxy))]
+    if config.agent_front:
+        front_app = create_front_app(app.state.front)
+        servers.append(uvicorn.Server(uvicorn.Config(front_app, host=config.agent_front_host or host, port=config.agent_front_port,
+                                                     lifespan="off", **proxy)))
+        log.info("agent-only front on %s (admin stays on its own port)", front_url(config))
+
+    async def serve():
+        for s in servers:  # Ctrl+C 한 번에 두 서버가 함께 멈추도록 신호는 여기서 처리
+            s.capture_signals = contextlib.nullcontext
+            s.install_signal_handlers = lambda: None
+        loop = asyncio.get_running_loop()
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            loop.add_signal_handler(sig, lambda: [setattr(s, "should_exit", True) for s in servers])
+        await asyncio.gather(*(s.serve() for s in servers))
+
+    asyncio.run(serve())
 
 
 if __name__ == "__main__":

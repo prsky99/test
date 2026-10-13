@@ -1,5 +1,8 @@
 """에이전트 전용 프론트: 사람이 아닌 AI 에이전트를 위한 첫 화면과 대화 창구 (AGENT_FRONT.md).
 
+관리 화면(게이트웨이 :8200)과 완전히 분리된 별도 앱·별도 포트(AGENT_FRONT_PORT, 기본 8400)로 뜬다.
+이 앱에는 /admin 경로가 없고, 사람용 API 문서 화면(/docs)도 없다. DB와 추천 알림 스케줄러만 게이트웨이와 공유한다.
+
 에이전트가 처음 읽는 곳마다 '에이전트 전용'이라고 밝히고, 접근하면 바로 인사하며 무엇을 도와줄지 묻는다.
   GET  /                              인사 + 질문 + 대화 방법 (JSON, 브라우저면 같은 내용의 HTML)
   GET  /robots.txt, /llms.txt         크롤러·LLM 에이전트가 먼저 읽는 안내
@@ -145,6 +148,15 @@ class Front:
         reply = self.concierge.handle(v, message, data or {}, channel)
         return v, reply
 
+    def simulate(self, message: str, token: str | None) -> dict:
+        """관리 화면의 '에이전트 입장에서 대화해 보기'. 프론트 포트를 거치지 않고 같은 엔진으로 답한다 (channel=admin-test)."""
+        v = self.book.by_token(token)
+        if v is None:
+            v = self.book.create("admin-test", "dashboard-simulator", "admin-test", "관리자 테스트")
+        else:
+            self.book.touch(v, "admin-test", "dashboard-simulator", "admin-test")
+        return self.reply_body(v, self.concierge.handle(v, message, {}, "admin-test"))
+
     def reply_body(self, v: Visitor, reply) -> dict:
         return {"audience": AUDIENCE, "reply": reply.text, "intent": reply.intent, "data": reply.data,
                 "suggested_replies": reply.suggested, "visitor": self.visitor_info(v)}
@@ -246,16 +258,17 @@ Content-Type: application/json
 </body></html>"""
 
 
-def install(app: FastAPI, store: Store, allow_private: bool = False, courier: Courier | None = None) -> Front:
-    front = Front(store, allow_private, courier)
+def create_front_app(front: Front) -> FastAPI:
+    """에이전트 전용 앱. 관리 경로·사람용 문서 화면 없이 에이전트 창구만 담는다."""
+    app = FastAPI(title="Agent Concierge — for AI agents only", description=NOTICE, version="1.0.0", docs_url=None, redoc_url=None)
+    app.state.front = front
     router = APIRouter()
 
     @app.middleware("http")
     async def agent_headers(request: Request, call_next):
         response = await call_next(request)
-        if not request.url.path.startswith("/admin"):
-            response.headers["X-Audience"] = AUDIENCE
-            response.headers.setdefault("Link", '</.well-known/agent-card.json>; rel="agent-card", </llms.txt>; rel="llms-txt"')
+        response.headers["X-Audience"] = AUDIENCE
+        response.headers.setdefault("Link", '</.well-known/agent-card.json>; rel="agent-card", </llms.txt>; rel="llms-txt"')
         return response
 
     def limited(request: Request) -> JSONResponse | None:
@@ -466,4 +479,4 @@ def install(app: FastAPI, store: Store, allow_private: bool = False, courier: Co
         return mcp_result(rid, {"content": [{"type": "text", "text": reply.text}], "structuredContent": structured, "isError": False})
 
     app.include_router(router)
-    return front
+    return app
