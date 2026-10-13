@@ -102,10 +102,26 @@ def paid():
 
 
 def test_classifier_keywords():
-    assert classify("Web search API for company leads") == "web_data"
-    assert classify("ERC20 token balance for any wallet") == "onchain_intel"
-    assert classify("이미지 생성해줘") == "media_generation"
-    assert classify("zzz") == "other"
+    cases = {
+        "Web search API for company leads": "web_search",
+        "ERC20 token balance for any wallet": "finance_crypto",
+        "Forecast probability for prediction market questions": "finance_crypto",
+        "이미지 생성해줘": "media_generation",
+        "GitHub repository management for AI agents": "dev_tools",  # 'for AI agents'는 AI 주제로 끌고 가지 않음
+        "코드 리뷰해줘": "dev_tools",
+        "Summarize long documents with an LLM": "ai_models",
+        "EPA Regulations — US Environmental Protection Agency regulations": "public_legal",
+        "Shopify store product catalog": "commerce_marketing",
+        "Send email and manage calendar": "productivity",
+        "Search the Notion knowledge base": "docs_knowledge",
+        "X/Twitter search for agents": "social",
+        "Postgres database query tool": "database_analytics",
+        "Weather forecast for any city": "travel_maps_weather",
+        "CVE vulnerability lookup": "security",
+        "zzz": "other",
+    }
+    for text, expected in cases.items():
+        assert classify(text) == expected, text
 
 
 def test_parse_x402_picks_usdc_price():
@@ -123,7 +139,7 @@ def test_parse_mcp_skips_non_latest():
 
 def test_crawl_indexes_sources_and_deactivates_removed(w):
     counts = w.store.resource_counts()
-    assert counts["x402"]["web_data"] == 1 and counts["mcp"]["web_data"] == 1
+    assert counts["x402"]["web_search"] == 1 and counts["mcp"]["web_search"] == 1
     w.reg.x402 = w.reg.x402[1:]
     time.sleep(0.05)
     assert w.crawl()["x402-bazaar"]["deactivated"] == 0  # 한 번 안 보인 것만으로는 비활성화하지 않음
@@ -159,9 +175,9 @@ def test_unsigned_or_forged_need_rejected(w):
 
 def test_no_match_keeps_watching_then_intro_on_rescan(w):
     c = w.client()
-    out = c.create_need("predict the probability of rain tomorrow", category="prediction", kinds=["x402"], max_price=5000)
+    out = c.create_need("weather forecast for tomorrow", category="travel_maps_weather", kinds=["x402"], max_price=5000)
     assert out["status"] == "watching"
-    w.reg.x402.append(x402_item("https://oracle.example/forecast", "Forecast probability for prediction market questions", 4000, 20))
+    w.reg.x402.append(x402_item("https://oracle.example/forecast", "Weather forecast API for any city", 4000, 20))
     w.crawl()
     stats = w.service.rescan()
     assert stats["intros"] == 1
@@ -229,21 +245,21 @@ def test_underpaid_accept_rejected(paid):
 def test_fee_optimizer_raises_on_high_conversion_and_lowers_on_low():
     world = GW_World(Policy(fee_window=2), free=False)
     svc = world.service
-    base = svc.fee_for("web_data")
-    svc._record_outcome("web_data", True)
-    svc._record_outcome("web_data", True)
-    assert svc.fee_for("web_data") > base
-    raised = svc.fee_for("web_data")
-    svc._record_outcome("web_data", False)
-    svc._record_outcome("web_data", False)
-    assert svc.fee_for("web_data") < raised
+    base = svc.fee_for("web_search")
+    svc._record_outcome("web_search", True)
+    svc._record_outcome("web_search", True)
+    assert svc.fee_for("web_search") > base
+    raised = svc.fee_for("web_search")
+    svc._record_outcome("web_search", False)
+    svc._record_outcome("web_search", False)
+    assert svc.fee_for("web_search") < raised
 
 
 def test_fee_optimizer_bounded():
     world = GW_World(Policy(fee_window=1, max_fee=12_000), free=False)
     for _ in range(10):
-        world.service._record_outcome("web_data", True)
-    assert world.service.fee_for("web_data") == 12_000
+        world.service._record_outcome("web_search", True)
+    assert world.service.fee_for("web_search") == 12_000
 
 
 def test_feedback_affects_score(w):
@@ -299,7 +315,7 @@ def test_free_upgrade_revealed_and_accepted_without_payment(w):
     assert w.chain.receipts == {}  # 돈이 오가지 않음
     report = w.http.get("/admin/report", headers={"authorization": "Bearer secret"}).json()
     assert report["policy"] == "free" and report["revenue_total"] == 0
-    assert report["by_category"]["web_data"]["upgrades_accepted"] == 1
+    assert report["by_category"]["web_search"]["upgrades_accepted"] == 1
 
 
 def test_free_accept_requires_need_id(w):
@@ -314,6 +330,27 @@ def test_free_accept_requires_need_id(w):
 
 def test_free_policy_never_changes_fee(w):
     for _ in range(50):
-        w.service._record_outcome("web_data", True)
-    assert w.service.fee_for("web_data") == 0
+        w.service._record_outcome("web_search", True)
+    assert w.service.fee_for("web_search") == 0
     assert w.store.query("SELECT COUNT(*) AS n FROM fee_history")[0]["n"] == 0
+
+
+
+def test_legacy_category_ids_still_accepted(w):
+    out = w.client().create_need("web search for SERP results", category="web_data", kinds=["x402"])
+    assert out["category"] == "web_search" and out["status"] == "active"
+
+
+def test_stored_agents_reclassified_when_taxonomy_changes(tmp_path):
+    path = str(tmp_path / "gw.sqlite3")
+    store = Store(path)
+    rid = store.upsert_resource({"key": "x402:https://a.example/x", "source": "x402-bazaar", "kind": "x402",
+                                 "url": "https://a.example/x", "name": "a", "description": "CVE vulnerability lookup",
+                                 "category": "web_data", "networks": [], "details": {}})
+    with store.tx() as db:
+        db.execute("INSERT INTO needs (need_id, client, task, category, networks, kinds, status, free_used, created, updated)"
+                   " VALUES ('n1','0x1','t','onchain_intel','[]','[]','active',1,0,0)")
+        db.execute("UPDATE meta SET value='1' WHERE key='classifier_version'")
+    reopened = Store(path)
+    assert reopened.resource(rid)["category"] == "security"
+    assert reopened.query("SELECT category FROM needs WHERE need_id='n1'")[0]["category"] == "finance_crypto"

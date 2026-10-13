@@ -25,7 +25,7 @@ from ..chain import RPC
 from ..config import BrokerConfig
 from ..ledger import Ledger
 from ..payments import PaymentError, PaymentVerifier, recover_signer
-from .categories import CATEGORIES, match_fee
+from .categories import CATEGORIES, match_fee, normalize_category
 from .classifier import ClassificationError, ClaudeClassifier
 from .discovery import CardFetcher, DiscoveryError
 from .registry import Registry
@@ -144,7 +144,7 @@ def create_app(
         if not isinstance(top_k, int) or not 1 <= top_k <= MAX_TOP_K:
             raise HTTPException(400, f"top_k는 1~{MAX_TOP_K} 사이여야 합니다.")
 
-        category = data.get("category")
+        category = normalize_category(data.get("category"))
         summary = task.strip()[:200]
         if category is None:
             if not classify_limit.allow(request.client.host if request.client else "unknown"):

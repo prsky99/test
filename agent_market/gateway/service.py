@@ -10,7 +10,7 @@ import logging
 import time
 from dataclasses import dataclass
 
-from ..broker.categories import CATEGORIES
+from ..broker.categories import CATEGORIES, normalize_category
 from ..ledger import Ledger
 from ..payments import VerifiedPayment
 from .classify import OTHER, classify
@@ -79,7 +79,7 @@ class GatewayService:
     # ---------------- 요청 등록 ----------------
     def create_need(self, client: str, task: str, category: str | None, max_price: int | None,
                     networks: list[str] | None, kinds: list[str] | None, webhook: str | None, ip: str) -> dict:
-        category = category or classify(task)
+        category = normalize_category(category) or classify(task)
         if category != OTHER and category not in CATEGORIES:
             raise NeedError(f"알 수 없는 category. 가능한 값: {', '.join(CATEGORIES)}")
         kinds = kinds or list(KINDS)

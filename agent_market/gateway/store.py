@@ -10,7 +10,9 @@ import time
 from contextlib import contextmanager
 from urllib.parse import urlparse
 
-from .classify import tokens
+from ..broker.categories import LEGACY_ALIASES
+from .classify import VERSION as CLASSIFIER_VERSION
+from .classify import classify, query_terms
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS resources (
@@ -115,10 +117,30 @@ class Store:
             missing = self._db.execute("SELECT id, url FROM resources WHERE host IS NULL").fetchall()
             if missing:  # 기존 DB: 호스트 채우기
                 self._db.executemany("UPDATE resources SET host=? WHERE id=?", [(host_of(r["url"]), r["id"]) for r in missing])
+            self._reclassify_if_needed()
             runs = {r[1] for r in self._db.execute("PRAGMA table_info(crawl_runs)")}
             for col, decl in CRAWL_RUN_COLUMNS.items():
                 if col not in runs:
                     self._db.execute(f"ALTER TABLE crawl_runs ADD COLUMN {col} {decl}")
+
+    def _reclassify_if_needed(self) -> None:
+        """분류 기준(카테고리·키워드)이 바뀌었으면 저장된 에이전트를 다시 분류한다 (한 번만)."""
+        row = self._db.execute("SELECT value FROM meta WHERE key='classifier_version'").fetchone()
+        if row and json.loads(row["value"]) == CLASSIFIER_VERSION:
+            return
+        rows = self._db.execute("SELECT id, source, name, description, category FROM resources").fetchall()
+        updates = []
+        for r in rows:
+            if r["source"] == "registered":  # 직접 등록한 에이전트는 자기가 밝힌 카테고리를 유지 (예전 ID만 변환)
+                new = LEGACY_ALIASES.get(r["category"], r["category"])
+            else:
+                new = classify(f"{r['name']} {r['description']}")
+            if new != r["category"]:
+                updates.append((new, r["id"]))
+        self._db.executemany("UPDATE resources SET category=? WHERE id=?", updates)
+        for old, new in LEGACY_ALIASES.items():
+            self._db.execute("UPDATE needs SET category=? WHERE category=?", (new, old))
+        self._db.execute("INSERT OR REPLACE INTO meta VALUES ('classifier_version', ?)", (json.dumps(CLASSIFIER_VERSION),))
 
     @contextmanager
     def tx(self):
@@ -198,7 +220,7 @@ class Store:
 
     def search(self, text: str, category: str, max_price: int | None, networks: list[str], kinds: list[str], limit: int = 200) -> list[dict]:
         """FTS로 관련 후보를 뽑고, 부족하면 같은 카테고리 인기순으로 채운다."""
-        terms = [t for t in dict.fromkeys(tokens(text)) if len(t) > 1][:32]
+        terms = query_terms(text)
         conds = ["r.active=1", "r.health_status NOT IN ('down','retired')", f"r.kind IN ({','.join('?' * len(kinds))})"]
         params: list = list(kinds)
         if max_price is not None:

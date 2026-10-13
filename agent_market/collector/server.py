@@ -23,7 +23,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException, Query
 
-from ..gateway.classify import tokens
+from ..gateway.classify import query_terms
 from ..gateway.crawler import Crawler
 from ..gateway.store import Store
 from .agent import CollectorAgent
@@ -81,7 +81,7 @@ def create_app(store: Store, agent: CollectorAgent | None, admin_token: str | No
         else:
             conds.append("r.health_status != 'retired'")  # 7일 넘게 다운된 에이전트는 기본 목록에서 제외
         where = " AND ".join(conds)
-        terms = [t for t in dict.fromkeys(tokens(q or "")) if len(t) > 1][:16]
+        terms = query_terms(q or "", limit=16)
         if terms:
             match = " OR ".join('"' + t.replace('"', "") + '"' for t in terms)
             rows = store.query(

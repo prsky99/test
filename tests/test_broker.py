@@ -33,7 +33,7 @@ class Router(httpx.BaseTransport):
 
 
 class FakeClassifier:
-    def __init__(self, category="llm_inference"):
+    def __init__(self, category="ai_models"):
         self.category = category
         self.calls = []
 
@@ -97,8 +97,8 @@ def world():
 
 def test_register_reads_seller_card(world):
     world.add_seller("seller-a")
-    listings = world.registry.find("llm_inference", None, 10)
-    assert {l.service for l in listings} == {"summarize", "translate", "code_review"}
+    assert {l.service for l in world.registry.find("ai_models", None, 10)} == {"summarize", "translate"}
+    assert {l.service for l in world.registry.find("dev_tools", None, 10)} == {"code_review"}
 
 
 def test_match_returns_quote_without_contact_info(world):
@@ -106,31 +106,31 @@ def test_match_returns_quote_without_contact_info(world):
     r = world.http.post("/match", json={"task": "이 글을 요약해줘"})
     assert r.status_code == 402
     q = r.json()
-    assert q["category"] == "llm_inference" and q["candidates"]
+    assert q["category"] == "ai_models" and q["candidates"]
     assert "agent_url" not in q["candidates"][0] and "pay_to" not in q["candidates"][0]
     assert q["payment"]["pay_to"] == BROKER.address and q["fee"] == match_fee(q["candidates"][0]["price"])
 
 
 def test_no_candidates_means_no_fee(world):
-    r = world.http.post("/match", json={"task": "x", "category": "prediction"})
+    r = world.http.post("/match", json={"task": "x", "category": "travel_maps_weather"})
     assert r.status_code == 404
 
 
 def test_explicit_category_skips_classifier(world):
     world.add_seller("seller-a")
-    world.http.post("/match", json={"task": "x", "category": "llm_inference"})
+    world.http.post("/match", json={"task": "x", "category": "ai_models"})
     assert world.classifier.calls == []
 
 
 def test_max_price_filters(world):
     world.add_seller("seller-a")
-    q = world.http.post("/match", json={"task": "x", "category": "llm_inference", "max_price": usdc("0.02")}).json()
+    q = world.http.post("/match", json={"task": "x", "category": "ai_models", "max_price": usdc("0.02")}).json()
     assert [c["service"] for c in q["candidates"]] == ["summarize"]
 
 
 def test_paid_accept_reveals_contacts_and_counts_revenue(world):
     world.add_seller("seller-a")
-    q = world.http.post("/match", json={"task": "x", "category": "llm_inference"}).json()
+    q = world.http.post("/match", json={"task": "x", "category": "ai_models"}).json()
     tx, r = world.paid_accept(q["quote_id"], amount=q["fee"])
     assert r.status_code == 200, r.text
     assert r.json()["candidates"][0]["agent_url"] == "http://seller-a"
@@ -139,20 +139,20 @@ def test_paid_accept_reveals_contacts_and_counts_revenue(world):
     again = world.http.post("/match/accept", content=body, headers={"content-type": "application/json", "X-Payment-Tx": tx, "X-Payment-Signature": sign_payment(BUYER.key, tx, body)})
     assert again.status_code == 200
     stats = world.http.get("/stats", headers={"authorization": "Bearer secret"}).json()
-    assert stats["fee_revenue"] == q["fee"] and stats["by_category"]["llm_inference"]["paid_matches"] == 1
+    assert stats["fee_revenue"] == q["fee"] and stats["by_category"]["ai_models"]["paid_matches"] == 1
 
 
 def test_underpaid_fee_rejected(world):
     world.add_seller("seller-a")
-    q = world.http.post("/match", json={"task": "x", "category": "llm_inference"}).json()
+    q = world.http.post("/match", json={"task": "x", "category": "ai_models"}).json()
     _, r = world.paid_accept(q["quote_id"], amount=q["fee"] - 1)
     assert r.status_code == 402
 
 
 def test_quote_cannot_be_paid_twice_and_fee_tx_not_reusable(world):
     world.add_seller("seller-a")
-    q1 = world.http.post("/match", json={"task": "x", "category": "llm_inference"}).json()
-    q2 = world.http.post("/match", json={"task": "y", "category": "llm_inference"}).json()
+    q1 = world.http.post("/match", json={"task": "x", "category": "ai_models"}).json()
+    q2 = world.http.post("/match", json={"task": "y", "category": "ai_models"}).json()
     tx, r = world.paid_accept(q1["quote_id"], amount=q1["fee"])
     assert r.status_code == 200
     _, r = world.paid_accept(q1["quote_id"], amount=q1["fee"])
@@ -164,7 +164,7 @@ def test_quote_cannot_be_paid_twice_and_fee_tx_not_reusable(world):
 
 def test_feedback_only_from_payer_and_once(world):
     agent_id = world.add_seller("seller-a")
-    q = world.http.post("/match", json={"task": "x", "category": "llm_inference"}).json()
+    q = world.http.post("/match", json={"task": "x", "category": "ai_models"}).json()
     _, r = world.paid_accept(q["quote_id"], amount=q["fee"])
     cand = r.json()["candidates"][0]
     body = json.dumps({"match_id": q["quote_id"], "agent_id": agent_id, "service": cand["service"], "success": True, "rating": 5}).encode()
@@ -182,13 +182,13 @@ def test_reputation_changes_ranking(world):
     a = world.add_seller("seller-a")
     b = world.add_seller("seller-b")
     for good, bad in [(b, a)] * 3:
-        q = world.http.post("/match", json={"task": "x", "category": "llm_inference", "max_price": usdc("0.02")}).json()
+        q = world.http.post("/match", json={"task": "x", "category": "ai_models", "max_price": usdc("0.02")}).json()
         _, r = world.paid_accept(q["quote_id"], amount=q["fee"])
         for agent_id, success, rating in [(good, True, 5), (bad, False, 1)]:
             body = json.dumps({"match_id": q["quote_id"], "agent_id": agent_id, "service": "summarize", "success": success, "rating": rating}).encode()
             sig = sign_request(BUYER.key, "agent-broker-feedback", q["quote_id"], body)
             assert world.http.post("/match/feedback", content=body, headers={"content-type": "application/json", "X-Signature": sig}).status_code == 200
-    top = world.registry.find("llm_inference", usdc("0.02"), 2)
+    top = world.registry.find("ai_models", usdc("0.02"), 2)
     assert [l.agent_id for l in top] == [b, a]
 
 
@@ -199,13 +199,13 @@ def test_buyer_hire_end_to_end(world):
     assert result["output"].startswith("[summarize]")
     fee = match_fee(usdc("0.02"))
     assert buyer.spent == fee + usdc("0.02")
-    assert world.registry.find("llm_inference", usdc("0.02"), 1)[0].ratings == 1
+    assert world.registry.find("ai_models", usdc("0.02"), 1)[0].ratings == 1
 
 
 def test_buyer_hire_falls_back_to_next_candidate(world):
     world.add_seller("seller-a")
     world.add_seller("seller-b")
-    first = world.registry.find("llm_inference", usdc("0.02"), 1)[0]
+    first = world.registry.find("ai_models", usdc("0.02"), 1)[0]
     host = first.agent_url.removeprefix("http://")
     world.sellers[host][1].fail = ServiceError("down")
     result = world.buyer().hire("http://broker", "요약", "text", max_price=usdc("0.02"))
@@ -235,7 +235,7 @@ def test_seller_pay_to_swap_detected(world):
 
 def test_card_parse_rejects_other_network_and_unknown_categories():
     fetcher = CardFetcher(http=httpx.Client(), allow_private=True, network={"chain_id": NET.chain_id, "token": NET.token})
-    svc = {"name": "s", "category": "llm_inference", "endpoint": "/s", "payment": {"amount": 1, "pay_to": "0xabc", "chain_id": 1, "token": NET.token}}
+    svc = {"name": "s", "category": "ai_models", "endpoint": "/s", "payment": {"amount": 1, "pay_to": "0xabc", "chain_id": 1, "token": NET.token}}
     with pytest.raises(DiscoveryError, match="네트워크"):
         fetcher.parse("http://x", {"name": "a", "services": [svc]})
     with pytest.raises(DiscoveryError, match="지원 카테고리"):
@@ -265,7 +265,7 @@ def test_free_broker_reveals_candidates_without_payment():
     )
     world.router_reset()
     agent_id = world.add_seller("seller-a")
-    r = world.http.post("/match", json={"task": "요약", "category": "llm_inference"})
+    r = world.http.post("/match", json={"task": "요약", "category": "ai_models"})
     assert r.status_code == 200 and r.json()["fee"] == 0
     match = r.json()
     assert match["candidates"][0]["agent_url"] == "http://seller-a"
@@ -277,3 +277,14 @@ def test_free_broker_reveals_candidates_without_payment():
     result = buyer.hire("http://broker", "요약", "text", max_price=usdc("0.02"))
     assert result["output"].startswith("[summarize]") and buyer.spent == usdc("0.02")
     assert world.http.get("/stats", headers={"authorization": "Bearer secret"}).json()["fee_revenue"] == 0
+
+
+
+def test_legacy_category_in_seller_card_and_match(world):
+    svc = {"name": "s", "category": "llm_inference", "endpoint": "/s",
+           "payment": {"amount": 1, "pay_to": "0xabc", "chain_id": NET.chain_id, "token": NET.token}}
+    fetcher = CardFetcher(http=httpx.Client(), allow_private=True, network={"chain_id": NET.chain_id, "token": NET.token})
+    assert fetcher.parse("http://x", {"name": "a", "services": [svc]})["services"][0]["category"] == "ai_models"
+    world.add_seller("seller-a")
+    r = world.http.post("/match", json={"task": "x", "category": "llm_inference"})
+    assert r.status_code == 402 and r.json()["category"] == "ai_models"

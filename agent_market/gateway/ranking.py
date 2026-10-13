@@ -9,12 +9,13 @@ import math
 import time
 from dataclasses import dataclass, field
 
-from .classify import tokens
+from .classify import query_terms, tokens
 from .store import Store
 
 WEIGHTS = {"relevance": 0.35, "popularity": 0.20, "reliability": 0.15, "price": 0.15, "recency": 0.10, "feedback": 0.05}
 POPULARITY_SATURATION = 1000  # 30일 결제자 1000명이면 만점
 REFERENCE_PRICE = 10_000  # 0.01 USDC 이하면 가격 만점
+MIN_RELEVANCE_OTHER_CATEGORY = 0.5  # 카테고리가 다르면 작업 설명과 이만큼은 겹쳐야 후보로 인정
 
 
 @dataclass
@@ -82,10 +83,13 @@ def score_resource(resource: dict, task_terms: list[str], idf: dict[str, float],
 
 def rank(store: Store, need: dict, limit: int = 5, include: int | None = None) -> tuple[list[Scored], Scored | None]:
     """need에 맞는 후보를 점수순으로. include(현재 에이전트 id)도 같은 기준으로 점수를 매겨 돌려준다."""
-    terms = [t for t in dict.fromkeys(tokens(need["task"])) if len(t) > 1][:32]
+    terms = query_terms(need["task"])
     idf = store.idf(terms)
     candidates = store.search(need["task"], need["category"], need.get("max_price"), need["networks"], need["kinds"])
-    scored = sorted((score_resource(r, terms, idf, need["category"], store) for r in candidates), key=lambda s: s.score, reverse=True)
+    scored = sorted(
+        (s for s in (score_resource(r, terms, idf, need["category"], store) for r in candidates)
+         if s.resource["category"] == need["category"] or s.parts["relevance"] >= MIN_RELEVANCE_OTHER_CATEGORY),
+        key=lambda s: s.score, reverse=True)
     current = None
     if include is not None:
         res = store.resource(include)

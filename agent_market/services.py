@@ -15,7 +15,7 @@ class Service:
     description: str
     price: int  # USDC 최소 단위
     system: str
-    category: str = "llm_inference"  # 브로커 카테고리 (broker/categories.py)
+    category: str = "ai_models"  # 브로커·게이트웨이 카테고리 (broker/categories.py)
     max_input_chars: int = 50_000
 
 
@@ -40,6 +40,7 @@ SERVICES = {
             "코드의 버그와 개선점을 리뷰합니다.",
             usdc("0.05"),
             "You are a senior engineer reviewing code. List concrete bugs first, then important improvements. Be brief.",
+            category="dev_tools",
         ),
     ]
 }

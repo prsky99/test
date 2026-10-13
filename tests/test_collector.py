@@ -51,7 +51,7 @@ def env():
 def add(store, url, kind="x402", method="GET", price=5000):
     return store.upsert_resource({
         "key": f"{kind}:{url}", "source": "x402-bazaar" if kind == "x402" else "mcp-registry", "kind": kind, "url": url,
-        "name": url, "description": "web search api", "category": "web_data", "networks": ["eip155:8453"],
+        "name": url, "description": "web search api", "category": "web_search", "networks": ["eip155:8453"],
         "price_usdc": price, "pay_to": "0x" + "ab" * 20, "method": method, "details": {},
     })
 
@@ -103,11 +103,11 @@ def test_down_after_three_failures_still_checked_and_recovers(env):
     r = store.resource(rid)
     # down이어도 정상 주기(1시간)로 계속 점검 예정
     assert 0.8 * 3600 < r["next_check_at"] - time.time() < 1.2 * 3600
-    assert rid not in [x["id"] for x in store.search("web search", "web_data", None, [], ["x402"])]
+    assert rid not in [x["id"] for x in store.search("web search", "web_search", None, [], ["x402"])]
     net.responses["https://c.example/api"] = x402_ok
     state = checker.check_and_record(store.resource(rid))
     assert state["status"] == "healthy" and store.resource(rid)["failing_since"] is None
-    assert rid in [x["id"] for x in store.search("web search", "web_data", None, [], ["x402"])]
+    assert rid in [x["id"] for x in store.search("web search", "web_search", None, [], ["x402"])]
 
 
 def test_down_over_a_week_is_retired_and_excluded(env):
@@ -123,7 +123,7 @@ def test_down_over_a_week_is_retired_and_excluded(env):
     r = store.resource(rid)
     assert r["next_check_at"] is None
     assert rid not in [x["id"] for x in store.due_for_check(time.time() + 10 * 86400, 100)]
-    assert rid not in [x["id"] for x in store.search("web search", "web_data", None, [], ["x402"])]
+    assert rid not in [x["id"] for x in store.search("web search", "web_search", None, [], ["x402"])]
 
 
 def test_down_less_than_a_week_not_retired(env):
@@ -176,7 +176,7 @@ def test_run_due_checks_new_first_and_schedules_in_use_sooner(env):
         net.responses[store.resource(i)["url"]] = x402_ok
     with store.tx() as db:  # 첫 번째 에이전트를 고객에게 소개된 상태로
         db.execute("INSERT INTO needs (need_id, client, task, category, networks, kinds, status, current_resource, free_used, created, updated)"
-                   " VALUES ('n1','0x1','t','web_data','[]','[]','active',?,1,0,0)", (ids[0],))
+                   " VALUES ('n1','0x1','t','web_search','[]','[]','active',?,1,0,0)", (ids[0],))
     stats = checker.run_due(100)
     assert stats["checked"] == 5 and stats["healthy"] == 5
     assert store.due_for_check(time.time(), 100) == []

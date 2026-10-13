@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-from .categories import CATEGORIES
+from .categories import CATEGORIES, normalize_category
 
 MAX_CARD_BYTES = 256 * 1024
 MAX_SERVICES = 50
@@ -70,7 +70,7 @@ class CardFetcher:
         for s in raw_services[:MAX_SERVICES]:
             try:
                 payment = s["payment"]
-                category = s.get("category")
+                category = normalize_category(s.get("category"))
                 entry = {
                     "name": str(s["name"])[:64],
                     "category": category,

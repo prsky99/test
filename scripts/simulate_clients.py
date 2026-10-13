@@ -28,7 +28,7 @@ TASKS = [
     ("call an LLM to summarize a long document", None),
     ("generate an image from a text prompt", None),
     ("twitter / X posts and sentiment for a keyword", None),
-    ("forecast probability for a prediction market question", "prediction"),
+    ("forecast probability for a prediction market question", "finance_crypto"),
 ]
 
 
