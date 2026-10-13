@@ -38,18 +38,18 @@ def compact_tools(tools: list[dict]) -> list[dict]:
     for t in tools or []:
         if not isinstance(t, dict) or not t.get("name"):
             continue
-        schema = t.get("inputSchema") or {}
-        props = schema.get("properties") or {}
+        schema = t.get("inputSchema") if isinstance(t.get("inputSchema"), dict) else {}  # 비표준 서버 방어
+        props = schema.get("properties") if isinstance(schema.get("properties"), dict) else {}
         out.append({
             "name": str(t["name"])[:100],
             "description": str(t.get("description") or "")[:400],
-            "required": [str(r) for r in (schema.get("required") or [])][:20],
+            "required": [str(r) for r in (schema.get("required") if isinstance(schema.get("required"), list) else [])][:20],
             "params": {
                 str(k): {key: v[key] for key in ("type", "description", "enum", "default", "examples", "minimum", "format")
                          if isinstance(v, dict) and key in v}
                 for k, v in list(props.items())[:25]
             },
-            "annotations": {k: v for k, v in (t.get("annotations") or {}).items()
+            "annotations": {k: v for k, v in (t.get("annotations") if isinstance(t.get("annotations"), dict) else {}).items()
                             if k in ("readOnlyHint", "destructiveHint", "idempotentHint", "openWorldHint", "title")},
         })
     for t in out:  # 긴 enum·설명 정리

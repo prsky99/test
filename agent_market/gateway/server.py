@@ -165,6 +165,8 @@ def create_app(
                 "region": "대상 나라·지역 (kr, us, eu, br ...): 다른 나라 전용 에이전트는 제외, 전 세계 공통은 포함",
                 "auth": "'none': 계정·API 키 없이 바로 쓸 수 있는 것만, 'agent': 사람 없이 에이전트 혼자 쓸 수 있는 것만"
                         " (인증 불필요 또는 OAuth client_credentials + 자동 등록), 'any'(기본)",
+                "min_grade": "최소 품질 등급 A~F (규칙 기반 MCP 평가: 가용성·도구 정의·보안·컨텍스트·프로토콜·출처)."
+                             " 평가가 없는 에이전트는 포함, 보안 격리된 MCP는 항상 제외",
                 "kinds": "['x402','mcp','a2a'] 중 일부", "networks": "x402 결제 네트워크", "webhook": "알림 받을 URL",
             },
         }
@@ -213,7 +215,8 @@ def create_app(
                     raise HTTPException(400, f"webhook: {exc}")
         try:
             result = service.create_need(signer, task.strip(), data.get("category"), max_price, networks, kinds, webhook, ip,
-                                         language=data.get("language"), region=data.get("region"), auth=data.get("auth"))
+                                         language=data.get("language"), region=data.get("region"), auth=data.get("auth"),
+                                         min_grade=data.get("min_grade"))
         except NeedError as exc:
             return fail(exc)
         if result.get("status") == "offer_pending" and result["offer"]["fee"] > 0:

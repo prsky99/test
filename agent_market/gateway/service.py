@@ -80,9 +80,10 @@ class GatewayService:
     # ---------------- 요청 등록 ----------------
     def create_need(self, client: str, task: str, category: str | None, max_price: int | None,
                     networks: list[str] | None, kinds: list[str] | None, webhook: str | None, ip: str,
-                    language: str | None = None, region: str | None = None, auth: str | None = None) -> dict:
+                    language: str | None = None, region: str | None = None, auth: str | None = None,
+                    min_grade: str | None = None) -> dict:
         """language: 원하는 언어(ko, en ...), region: 대상 나라·지역(kr, us, eu ...), auth: 'none'이면 계정·API 키 없이 쓸 수 있는 것만,
-        'agent'면 사람 개입 없이 에이전트 혼자 인증까지 할 수 있는 것만."""
+        'agent'면 사람 개입 없이 에이전트 혼자 인증까지 할 수 있는 것만. min_grade: 품질 평가 등급 하한 (A~F, 평가 없는 것은 포함)."""
         category = normalize_category(category) or classify(task)
         if language is not None and (language := cons.normalize_language(language)) is None:
             raise NeedError(f"알 수 없는 language. 예: {', '.join(list(cons.LANGUAGES)[:8])}")
@@ -90,6 +91,10 @@ class GatewayService:
             raise NeedError(f"알 수 없는 region. 가능한 값: {', '.join(cons.REGIONS)} (또는 ISO 국가 코드)")
         if auth not in (None, "any", "none", "agent"):
             raise NeedError("auth는 'any', 'none', 'agent' 중 하나입니다.")
+        if min_grade is not None:
+            if not isinstance(min_grade, str) or min_grade.upper() not in ("A", "B", "C", "D", "F"):
+                raise NeedError("min_grade는 A, B, C, D, F 중 하나입니다.")
+            min_grade = min_grade.upper()
         if category != OTHER and category not in CATEGORIES:
             raise NeedError(f"알 수 없는 category. 가능한 값: {', '.join(CATEGORIES)}")
         kinds = kinds or list(KINDS)
@@ -110,14 +115,15 @@ class GatewayService:
         with self.store.tx() as db:
             db.execute(
                 """INSERT INTO needs (need_id, client, task, category, max_price, networks, kinds, webhook, status,
-                   current_resource, current_score, free_used, created, updated, ip, language, region, auth_pref)
-                   VALUES (?,?,?,?,?,?,?,?,'watching',NULL,NULL,?,?,?,?,?,?,?)""",
+                   current_resource, current_score, free_used, created, updated, ip, language, region, auth_pref, min_grade)
+                   VALUES (?,?,?,?,?,?,?,?,'watching',NULL,NULL,?,?,?,?,?,?,?,?)""",
                 (need["need_id"], client, task, category, max_price, json.dumps(need["networks"]), json.dumps(kinds),
-                 webhook, 0 if free_eligible else 2, now, now, ip, language, region, auth),
+                 webhook, 0 if free_eligible else 2, now, now, ip, language, region, auth, min_grade),
             )
         intro = self._introduce(self._load_need(need["need_id"]))
         return {"need_id": need["need_id"], "category": category, "free_intro": free_eligible,
-                "conditions": {"language": language, "region": region, "auth": auth or "any"}, **intro}
+                "conditions": {"language": language, "region": region, "auth": auth or "any", "min_grade": min_grade},
+                **intro}
 
     def _introduce(self, need: dict) -> dict:
         """아직 소개받은 에이전트가 없는 요청에 첫 소개를 한다. 무료(정책 또는 첫 소개 자격)면 바로 공개."""

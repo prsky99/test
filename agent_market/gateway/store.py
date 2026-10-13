@@ -108,6 +108,13 @@ HEALTH_COLUMNS = {
     "usage_changes": "TEXT",  # 마지막 변경 내역 JSON (추가·삭제·변경된 도구)
     "trial_info": "TEXT",  # 마지막 실제 호출 결과 JSON
     "trial_ok": "INTEGER",
+    # 품질 평가 (collector/evaluation.py)
+    "eval_score": "REAL",  # 0~100 (정적 평가만 있으면 NULL)
+    "eval_grade": "TEXT",  # A~F
+    "eval_security": "TEXT",  # ok | review | quarantine | unknown
+    "eval_coverage": "TEXT",  # full | definitions | static
+    "eval_info": "TEXT",  # 축별 점수·발견 사항 JSON
+    "eval_at": "REAL",
 }
 
 
@@ -117,6 +124,7 @@ def host_of(url: str) -> str:
     except ValueError:
         return url
 NEEDS_COLUMNS = {"language": "TEXT", "region": "TEXT", "auth_pref": "TEXT",  # 요청 조건 (언어·지역·인증)
+                 "min_grade": "TEXT",  # 요청 조건: 최소 품질 등급 (A~F)
                  "usage_seen_at": "REAL"}  # 고객에게 사용법 변경을 마지막으로 알린 시각
 CRAWL_RUN_COLUMNS = {"mode": "TEXT", "changed": "INTEGER", "unchanged": "INTEGER", "pages": "INTEGER"}
 HEALTH_UP = ("healthy", "reachable")
@@ -286,16 +294,23 @@ class Store:
             db.execute(f"UPDATE resources SET {col}={col}+1, probe_latency_ms=?, probed_at=? WHERE id=?", (latency_ms, time.time(), rid))
 
     def search(self, text: str, category: str, max_price: int | None, networks: list[str], kinds: list[str], limit: int = 200,
-               region: str | None = None, auth_free: bool = False, agent_usable: bool = False) -> list[dict]:
+               region: str | None = None, auth_free: bool = False, agent_usable: bool = False,
+               min_grade: str | None = None) -> list[dict]:
         """FTS로 관련 후보를 뽑고, 부족하면 같은 카테고리 인기순으로 채운다.
 
         region: 다른 나라·지역 전용 데이터를 다루는 에이전트는 뺀다 (지역 표시가 없는 전 세계 공통 에이전트는 남김).
         auth_free: 계정·API 키가 필요한 것으로 확인된 에이전트는 뺀다 (모르는 것은 남김).
         agent_usable: 사람 없이 에이전트 혼자 쓸 수 있는 것만 (인증 불필요 또는 OAuth client_credentials + 자동 등록).
+        min_grade: 품질 평가 등급이 이 이상인 것만 (평가가 없는 x402 등은 남김). 보안 격리된 서버는 항상 뺀다.
         """
         terms = query_terms(text)
-        conds = ["r.active=1", "r.health_status NOT IN ('down','retired')", f"r.kind IN ({','.join('?' * len(kinds))})"]
+        conds = ["r.active=1", "r.health_status NOT IN ('down','retired')", f"r.kind IN ({','.join('?' * len(kinds))})",
+                 "COALESCE(r.eval_security, '') != 'quarantine'"]
         params: list = list(kinds)
+        if min_grade and min_grade.upper() in "ABCDF":
+            allowed = "ABCDF"[:"ABCDF".index(min_grade.upper()) + 1]
+            conds.append(f"(r.eval_grade IS NULL OR r.eval_grade IN ({','.join('?' * len(allowed))}))")
+            params += list(allowed)
         if region:
             conds.append("((r.regions IS NULL AND r.cap_regions IS NULL) OR r.regions LIKE ? OR r.cap_regions LIKE ?)")
             params += [f"%,{region},%"] * 2
@@ -492,6 +507,22 @@ class Store:
                 db.execute("UPDATE resources SET trial_info=?, trial_ok=? WHERE id=?", (json.dumps(trial), int(bool(trial.get("ok"))), rid))
         return changed
 
+    # ---------------- 품질 평가 ----------------
+    def record_evaluation(self, rid: int, ev: dict) -> None:
+        with self.tx() as db:
+            db.execute("""UPDATE resources SET eval_score=?, eval_grade=?, eval_security=?, eval_coverage=?, eval_info=?, eval_at=?
+                          WHERE id=?""",
+                       (ev.get("score"), ev.get("grade"), ev.get("security"), ev.get("coverage"),
+                        json.dumps(ev, ensure_ascii=False), ev.get("at") or time.time(), rid))
+
+    def due_for_static_evaluation(self, now: float, max_age: float, limit: int) -> list[dict]:
+        """연결부터 인증이 필요해 도구를 볼 수 없는 MCP: 출처 정적 평가만 (네트워크 요청 없음)."""
+        return [dict(r) for r in self.query(
+            """SELECT * FROM resources WHERE active=1 AND kind='mcp' AND health_status NOT IN ('down','retired')
+               AND COALESCE(auth_observed, auth_declared, 0) = 1 AND COALESCE(auth_scope, 'connection') != 'tool'
+               AND (eval_at IS NULL OR eval_at < ?) ORDER BY eval_at IS NOT NULL, eval_at LIMIT ?""",
+            (now - max_age, limit))]
+
     def postpone(self, ids: list[int], at: float) -> None:
         """점검 결과를 기록하지 않고 나중에 다시 점검하도록 미룬다 (우리 쪽 네트워크 문제일 때)."""
         with self.tx() as db:
@@ -552,6 +583,20 @@ class Store:
             "constraints": {**{k: c[k] or 0 for k in c.keys()}, "description_languages": langs,
                             "auth_methods": {r["auth_method"]: r["n"] for r in q(
                                 "SELECT auth_method, COUNT(*) AS n FROM resources WHERE active=1 AND auth_method IS NOT NULL GROUP BY auth_method")}},
+            "evaluation": self.evaluation_stats(),
+        }
+
+    def evaluation_stats(self) -> dict:
+        q = self.query
+        base = "FROM resources WHERE active=1 AND health_status != 'retired' AND eval_at IS NOT NULL"
+        avg = q(f"SELECT COUNT(*) AS n, AVG(eval_score) AS avg, SUM(eval_at > strftime('%s','now') - 86400) AS last_24h {base}")[0]
+        return {
+            "evaluated": avg["n"],
+            "evaluated_24h": avg["last_24h"] or 0,
+            "average_score": round(avg["avg"], 1) if avg["avg"] is not None else None,
+            "by_grade": {r["g"]: r["n"] for r in q(f"SELECT COALESCE(eval_grade, 'static') AS g, COUNT(*) AS n {base} GROUP BY g ORDER BY g")},
+            "by_security": {r["eval_security"]: r["n"] for r in q(f"SELECT eval_security, COUNT(*) AS n {base} GROUP BY eval_security")},
+            "by_coverage": {r["eval_coverage"]: r["n"] for r in q(f"SELECT eval_coverage, COUNT(*) AS n {base} GROUP BY eval_coverage")},
         }
 
     # ---------------- meta ----------------

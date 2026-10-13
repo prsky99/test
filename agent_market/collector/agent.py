@@ -39,6 +39,11 @@ class CollectorAgent:
         self._threads: list[threading.Thread] = []
 
     def start(self) -> None:
+        if self.capabilities is not None:
+            try:
+                self.capabilities.requeue_outdated_evaluations()
+            except Exception:
+                log.exception("evaluation requeue failed")
         loops = [("collector-crawl", self._crawl_loop), ("collector-health", self._health_loop)]
         if self.capabilities is not None or self.auth is not None:
             loops.append(("collector-capabilities", self._capability_loop))
@@ -79,6 +84,11 @@ class CollectorAgent:
                     self.store.set_meta(f"last_{name}_batch", {"at": time.time(), **s})
                     stats["checked"] += s["checked"]
                     stats["local_network_problem"] = stats.get("local_network_problem") or s.get("local_network_problem")
+            if self.capabilities is not None:
+                try:  # 인증이 필요한 서버: 네트워크 요청 없이 출처 정적 평가
+                    stats["checked"] += self.capabilities.evaluate_static_due()
+                except Exception:
+                    log.exception("static evaluation error")
             if not stats["checked"]:
                 self.stop_event.wait(300)  # 조사할 게 없으면 5분 쉼
             elif stats.get("local_network_problem"):

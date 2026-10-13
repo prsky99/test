@@ -1,7 +1,7 @@
 """에이전트 점수 계산. API 키 없이 공개 지표와 자체 관측값만 사용한다.
 
-점수(0~1) = 관련도 0.30 + 인기(30일 결제자 수) 0.15 + 가용성(24시간 헬스체크 성공률) 0.15 + 가격 0.15 + 최근 사용 0.10
-           + 조건 적합도(언어·지역·인증 없이 사용 가능) 0.10 + 고객 평가 0.05
+점수(0~1) = 관련도 0.30 + 인기(30일 결제자 수) 0.15 + 가용성(24시간 헬스체크 성공률) 0.15 + 가격 0.10 + 최근 사용 0.05
+           + 조건 적합도(언어·지역·인증 없이 사용 가능) 0.10 + 품질 평가(collector/evaluation.py) 0.10 + 고객 평가 0.05
 각 항목은 절대 기준으로 계산해, 시간이 지나도 현재 에이전트와 새 후보를 공정하게 비교할 수 있다.
 """
 
@@ -14,8 +14,8 @@ from . import constraints as cons
 from .classify import query_terms, tokens
 from .store import Store
 
-WEIGHTS = {"relevance": 0.30, "popularity": 0.15, "reliability": 0.15, "price": 0.15, "recency": 0.10, "fit": 0.10,
-           "feedback": 0.05}
+WEIGHTS = {"relevance": 0.30, "popularity": 0.15, "reliability": 0.15, "price": 0.10, "recency": 0.05, "fit": 0.10,
+           "quality": 0.10, "feedback": 0.05}
 POPULARITY_SATURATION = 1000  # 30일 결제자 1000명이면 만점
 REFERENCE_PRICE = 10_000  # 0.01 USDC 이하면 가격 만점
 MIN_RELEVANCE_OTHER_CATEGORY = 0.5  # 카테고리가 다르면 작업 설명과 이만큼은 겹쳐야 후보로 인정
@@ -132,6 +132,9 @@ def score_resource(resource: dict, task_terms: list[str], idf: dict[str, float],
 
     parts["fit"] = _fit(resource, need)
 
+    # 규칙 기반 품질 평가 점수. 평가가 없거나 인증이 필요해 정적 평가만 있으면 중립
+    parts["quality"] = 0.5 if resource.get("eval_score") is None else resource["eval_score"] / 100
+
     n, successes, avg_rating = store.feedback_stats(resource["id"])
     success_rate = (successes + 1) / (n + 2)
     rating = ((avg_rating or 3.5) - 1) / 4
@@ -147,7 +150,7 @@ def rank(store: Store, need: dict, limit: int = 5, include: int | None = None) -
     idf = store.idf(terms)
     candidates = store.search(need["task"], need["category"], need.get("max_price"), need["networks"], need["kinds"],
                               region=need.get("region"), auth_free=need.get("auth_pref") == "none",
-                              agent_usable=need.get("auth_pref") == "agent")
+                              agent_usable=need.get("auth_pref") == "agent", min_grade=need.get("min_grade"))
     scored = sorted(
         (s for s in (score_resource(r, terms, idf, need["category"], store, need=need) for r in candidates)
          if s.resource["category"] == need["category"] or s.parts["relevance"] >= MIN_RELEVANCE_OTHER_CATEGORY),
@@ -176,6 +179,8 @@ def teaser(new: Scored, old: Scored | None) -> dict:
             reasons.append(f"가격 {round((1 - r['price_usdc'] / o['price_usdc']) * 100)}% 저렴")
         if new.parts["reliability"] > old.parts["reliability"] + 0.1:
             reasons.append("응답 안정성 높음")
+        if r.get("eval_grade") and (not o.get("eval_grade") or r["eval_grade"] < o["eval_grade"]):
+            reasons.append(f"품질 평가 {r['eval_grade']}등급" + (f" (현재 {o['eval_grade']})" if o.get("eval_grade") else ""))
         if not o.get("active"):
             reasons.append("현재 에이전트가 목록에서 사라짐")
     return {
@@ -184,10 +189,22 @@ def teaser(new: Scored, old: Scored | None) -> dict:
         "price_usdc": r.get("price_usdc"),
         "networks": [n for n in r["networks"].strip(",").split(",") if n],
         "payers_30d": r.get("payers_30d"),
+        "quality_grade": r.get("eval_grade"),
         "score": new.score,
         "previous_score": old.score if old else None,
         "reasons": reasons,
     }
+
+
+def evaluation_summary(r: dict, findings: int = 5) -> dict | None:
+    if not r.get("eval_info"):
+        return None
+    try:
+        ev = json.loads(r["eval_info"])
+    except ValueError:
+        return None
+    return {k: ev.get(k) for k in ("score", "grade", "static_score", "security", "coverage", "task_verified", "dimensions", "at")} | {
+        "findings": [{k: f.get(k) for k in ("severity", "code", "tool", "message")} for f in (ev.get("findings") or [])[:findings]]}
 
 
 def reveal(s: Scored) -> dict:
@@ -209,6 +226,7 @@ def reveal(s: Scored) -> dict:
         "usage": json.loads(r["usage_guide"]) if r.get("usage_guide") else None,  # 연결 방법·도구별 사용법·검증된 예제
         "usage_updated_at": r.get("usage_updated_at"),
         "verified_working": None if r.get("trial_ok") is None else bool(r["trial_ok"]),  # 실제 호출 시험 결과
+        "evaluation": evaluation_summary(r),  # 규칙 기반 품질 평가 (축별 점수·주요 발견 사항)
         "constraints": {
             "auth_required": auth_required(r),  # None = 모름
             "auth": auth_details(r),  # 인증 방법과 따라 할 단계

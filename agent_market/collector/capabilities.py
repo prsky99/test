@@ -17,7 +17,7 @@ import httpx
 from ..broker.discovery import DiscoveryError, check_public_url
 from ..gateway import constraints as cons
 from ..gateway.store import Store
-from . import usage
+from . import evaluation, usage
 
 log = logging.getLogger("agent_market.collector.capabilities")
 
@@ -108,7 +108,8 @@ class CapabilityProber:
                 out.update(ok=False, error=str(err.get("message") or err if isinstance(err, dict) else err)[:300])
             else:
                 res = data.get("result") if isinstance(data.get("result"), dict) else {}
-                out.update(ok=not res.get("isError") and bool(res), sample_output=usage.result_text(res) or None)
+                out.update(ok=not res.get("isError") and bool(res), sample_output=usage.result_text(res) or None,
+                           output_chars=len(json.dumps(res, ensure_ascii=False)))
                 if res.get("isError"):
                     out["error"] = (usage.result_text(res) or "tool returned an error")[:300]
                 elif not res:
@@ -131,7 +132,8 @@ class CapabilityProber:
             return usage.pick_trial(tools, resource.get("category"))
         return decide
 
-    def _record_usage(self, r: dict, probed: dict) -> tuple[bool, dict | None]:
+    def _record_usage(self, r: dict, probed: dict) -> tuple[bool, dict | None, dict | None, dict | None]:
+        """사용 안내 저장. (도구 목록 변경 여부, 이번 시험 호출, 변경 내역, 안내에 쓴 마지막 시험 호출)"""
         tools = usage.compact_tools(probed["tools"])
         digest = usage.tools_hash(tools)
         old = json.loads(r.get("usage_tools") or "null")
@@ -147,7 +149,36 @@ class CapabilityProber:
         changed = self.store.record_usage(r["id"], tools, digest, guide, changes, trial)
         if trial and not trial.get("ok") and usage.is_auth_error(trial.get("error")):
             self.store.mark_tool_level_auth(r["id"])  # 도구 단계 인증 → 인증 방법 조사로 넘김
-        return changed and old is not None, trial
+        return changed and old is not None, trial, changes, last_trial
+
+    def _evaluate(self, r: dict, probed: dict, changes: dict | None, last_trial: dict | None) -> dict:
+        ev = evaluation.evaluate(
+            r, probed["tools"], usage.compact_tools(probed["tools"]),
+            {"protocol_version": probed.get("protocol_version"), "server_info": probed.get("server_info"),
+             "instructions": probed.get("instructions")},
+            trial=last_trial, changes=changes)
+        self.store.record_evaluation(r["id"], ev)
+        return ev
+
+    def requeue_outdated_evaluations(self) -> int:
+        """평가 규칙(evaluation.VERSION)이 바뀌었으면 이미 조사한 서버를 다시 조사 대상으로 돌린다.
+        도구 원본은 저장하지 않으므로(설명이 잘린 정리본만 저장) 다시 받아서 평가한다."""
+        if self.store.get_meta("evaluation_version") == evaluation.VERSION:
+            return 0
+        with self.store.tx() as db:
+            n = db.execute("""UPDATE resources SET cap_checked_at=NULL WHERE kind='mcp' AND cap_checked_at IS NOT NULL
+                              AND cap_error IS NULL""").rowcount
+            db.execute("UPDATE resources SET eval_at=NULL WHERE eval_coverage='static'")
+        self.store.set_meta("evaluation_version", evaluation.VERSION)
+        log.info("evaluation rules v%s: %d servers queued for re-evaluation", evaluation.VERSION, n)
+        return n
+
+    def evaluate_static_due(self, limit: int = 500) -> int:
+        """인증이 필요한 서버는 네트워크 요청 없이 출처 정적 평가만 한다."""
+        due = self.store.due_for_static_evaluation(time.time(), self.max_age, limit)
+        for r in due:
+            self.store.record_evaluation(r["id"], evaluation.evaluate_static(r))
+        return len(due)
 
     def run_due(self, limit: int = 100) -> dict:
         due = self.store.due_for_capability(time.time(), self.max_age, limit)
@@ -195,8 +226,15 @@ class CapabilityProber:
             if caps and (caps["languages"] or caps["regions"]):
                 stats["with_language_or_region"] += 1
             if probed:
-                changed, trial = self._record_usage(r, probed)
+                changed, trial, changes, last_trial = self._record_usage(r, probed)
                 stats["usage_changed"] += int(changed)
                 if trial:
                     stats["trial_ok" if trial.get("ok") else "trial_failed"] += 1
+                try:
+                    ev = self._evaluate(r, probed, changes, last_trial)
+                    stats[f"grade_{ev['grade']}"] += 1
+                    if ev["security"] == "quarantine":
+                        stats["quarantined"] += 1
+                except Exception as exc:  # 평가 오류가 조사 기록을 막지 않게
+                    log.warning("evaluation error for %s: %r", r["url"], exc)
         return {"checked": len(results), "local_network_problem": outage, **stats}

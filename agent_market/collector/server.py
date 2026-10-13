@@ -7,10 +7,11 @@
 
 API
   GET  /health                         수집 에이전트 자체 상태
-  GET  /agents?q=&category=&kind=&status=&language=&region=&auth=none|agent|oauth2|api_key&verified=true&limit=
-                                       에이전트 검색 (헬스 상태·제약 정보 포함, retired는 status=retired로만)
-  GET  /agents/{id}                    상세 + 최근 점검 기록 + 사용 안내(도구별 사용법·검증된 예제)·변경 내역
-  GET  /stats                          헬스 상태별 개수, 최근 1시간 점검 수, 최근 수집 기록
+  GET  /agents?q=&category=&kind=&status=&language=&region=&auth=none|agent|oauth2|api_key&verified=true
+              &min_grade=A..F&security=ok|review|quarantine&sort=quality&limit=
+                                       에이전트 검색 (헬스 상태·제약 정보·품질 등급 포함, retired는 status=retired로만)
+  GET  /agents/{id}                    상세 + 최근 점검 기록 + 사용 안내(도구별 사용법·검증된 예제)·변경 내역 + 품질 평가 전체
+  GET  /stats                          헬스 상태별 개수, 최근 1시간 점검 수, 최근 수집 기록, 품질 등급 분포
   POST /admin/crawl, /admin/check/{id} 즉시 수집 / 즉시 점검 (ADMIN_TOKEN)
 """
 
@@ -49,6 +50,9 @@ def public(r: dict) -> dict:
     out["uptime_24h"] = round(r["health_ok_24h"] / r["health_n_24h"], 3) if r.get("health_n_24h") else None
     out["verified_working"] = None if r.get("trial_ok") is None else bool(r["trial_ok"])
     out["has_usage_guide"] = bool(r.get("usage_guide"))
+    out["quality"] = None if not r.get("eval_at") else {
+        "score": r.get("eval_score"), "grade": r.get("eval_grade"), "security": r.get("eval_security"),
+        "coverage": r.get("eval_coverage"), "evaluated_at": r.get("eval_at")}
     out["constraints"] = {
         "auth_required": auth_required(r), "languages": agent_languages(r), "regions": agent_regions(r),
         "currencies": cons.unpack(r.get("cap_currencies")), "tool_count": r.get("cap_tool_count"),
@@ -83,8 +87,18 @@ def create_app(store: Store, agent: CollectorAgent | None, admin_token: str | No
     @app.get("/agents")
     def agents(q: str | None = None, category: str | None = None, kind: str | None = None,
                status: str | None = None, language: str | None = None, region: str | None = None,
-               auth: str | None = None, verified: bool | None = None, limit: int = Query(20, ge=1, le=100)):
+               auth: str | None = None, verified: bool | None = None, min_grade: str | None = None,
+               security: str | None = None, sort: str | None = None, limit: int = Query(20, ge=1, le=100)):
         conds, params = ["r.active=1"], []
+        if min_grade:
+            if min_grade.upper() not in ("A", "B", "C", "D", "F"):
+                raise HTTPException(400, "min_grade는 A~F")
+            allowed = "ABCDF"[:"ABCDF".index(min_grade.upper()) + 1]
+            conds.append(f"r.eval_grade IN ({','.join('?' * len(allowed))})"); params += list(allowed)
+        if security:
+            if security not in ("ok", "review", "quarantine", "unknown"):
+                raise HTTPException(400, "security는 ok|review|quarantine|unknown")
+            conds.append("r.eval_security = ?"); params.append(security)
         if language:
             lang = cons.normalize_language(language)
             if lang is None:
@@ -113,6 +127,13 @@ def create_app(store: Store, agent: CollectorAgent | None, admin_token: str | No
             conds.append("r.health_status != 'retired'")  # 7일 넘게 다운된 에이전트는 기본 목록에서 제외
         where = " AND ".join(conds)
         terms = query_terms(q or "", limit=16)
+        if sort == "quality":  # 품질 점수순 (검색어가 있으면 그중에서)
+            if terms:
+                conds.append("r.id IN (SELECT rowid FROM resources_fts WHERE resources_fts MATCH ?)")
+                params.append(" OR ".join('"' + t.replace('"', "") + '"' for t in terms))
+            rows = store.query(f"""SELECT r.* FROM resources r WHERE {" AND ".join(conds)} AND r.eval_score IS NOT NULL
+                                   ORDER BY r.eval_score DESC, COALESCE(r.payers_30d,0) DESC LIMIT ?""", (*params, limit))
+            return [public(dict(r)) for r in rows]
         if terms:
             match = " OR ".join('"' + t.replace('"', "") + '"' for t in terms)
             rows = store.query(
@@ -134,7 +155,8 @@ def create_app(store: Store, agent: CollectorAgent | None, admin_token: str | No
                 "usage": json.loads(r["usage_guide"]) if r.get("usage_guide") else None,
                 "usage_updated_at": r.get("usage_updated_at"),
                 "usage_changes": json.loads(r["usage_changes"]) if r.get("usage_changes") else None,
-                "trial": json.loads(r["trial_info"]) if r.get("trial_info") else None}
+                "trial": json.loads(r["trial_info"]) if r.get("trial_info") else None,
+                "evaluation": json.loads(r["eval_info"]) if r.get("eval_info") else None}
 
     @app.get("/stats")
     def stats():
