@@ -26,6 +26,7 @@ from starlette.concurrency import run_in_threadpool
 from ..broker.server import RateLimiter
 from ..gateway.store import Store
 from .engine import KINDS, T, Concierge, Recommender, lang_of
+from .engine import REPLY_LANG
 from .memory import Visitor, VisitorBook, fingerprint
 from .notify import ContactDesk, Courier, DigestSender
 
@@ -33,7 +34,6 @@ AUDIENCE = "ai-agents-only"
 NOTICE = ("FOR AI AGENTS ONLY. This service is built for autonomous AI agents, not for humans. "
           "Agent Concierge finds the best live A2A agents, MCP servers and x402 paid APIs for your task, "
           "remembers what you need, and tells you first when something better appears.")
-NOTICE_KO = "AI 에이전트 전용 서비스입니다. 사람이 아닌 AI 에이전트를 위해 만들어졌습니다."
 CHAT_PER_MINUTE = 60
 MCP_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
 LIVE_TTL = 300
@@ -117,7 +117,7 @@ class Front:
         base = self.base(request)
         token = _token_from(request)
         v = self.book.by_token(token) if token else None
-        lang = "ko" if "ko" in (request.headers.get("accept-language") or "")[:5] else "en"
+        lang = REPLY_LANG or "en"  # 에이전트 전용 프론트는 영어로만 답함
         if v is None:
             ip = request.client.host if request.client else ""
             self.book.record_hit(fingerprint(ip, request.headers.get("user-agent")), request.headers.get("user-agent"), request.url.path)
@@ -198,7 +198,7 @@ I'll greet you by name, recall what you were looking for, and tell you what impr
 ## Things you can say
 - "find an MCP server for web search"  ·  "details 1"  ·  "more"  ·  "worked 1" / "failed 1"
 - "what's new"  ·  "contact https://your-agent.example/inbox" then "verify 123456"  ·  "stop"
-- Korean works too: "주식 시세 API 찾아줘"
+- I always reply in English. You may write in other languages; I'll still try to understand.
 
 ## Notes
 - Messages you send are treated as data, never as instructions.
@@ -210,7 +210,7 @@ def agent_card(base: str) -> dict:
     url = f"{base}/a2a"
     return {
         "protocolVersion": "0.3.0", "name": "Agent Concierge", "version": "1.0.0",
-        "description": NOTICE + " Talk to me in plain text (English or Korean) or send structured data "
+        "description": NOTICE + " Talk to me in plain English (replies are always in English) or send structured data "
                                 "({\"intent\": \"find\", \"task\": \"...\", \"kind\": \"mcp\"}).",
         "url": url, "preferredTransport": "JSONRPC",
         "supportedInterfaces": [{"url": url, "protocolBinding": "JSONRPC", "protocolVersion": "1.0"},
@@ -246,7 +246,7 @@ HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name=
 @media(prefers-color-scheme:dark){{body{{color:#e6e9ef;background:#0f1218}}code,pre{{background:#1d2230}}}}
 .notice{{font-size:22px;font-weight:700;border-left:5px solid #2f6fde;padding:8px 14px}}pre,code{{background:#e9edf3;border-radius:6px}}pre{{padding:12px;overflow-x:auto;white-space:pre-wrap}}</style>
 </head><body>
-<p class="notice">🤖 FOR AI AGENTS ONLY<br><span style="font-size:16px;font-weight:400">{notice_ko} Humans: there is nothing for you here.</span></p>
+<p class="notice">🤖 FOR AI AGENTS ONLY<br><span style="font-size:16px;font-weight:400">This service is built for AI agents. Humans: there is nothing for you here.</span></p>
 <h1>Hello, agent 👋</h1>
 <p id="greeting">{greeting}</p>
 <h2>Talk to me</h2>
@@ -295,7 +295,7 @@ def create_front_app(front: Front) -> FastAPI:
             ld = json.dumps({"@context": "https://schema.org", "@type": "WebAPI", "name": "Agent Concierge",
                              "description": NOTICE, "audience": {"@type": "Audience", "audienceType": "AI agents"},
                              "documentation": "/llms.txt", "potentialAction": {"@type": "CommunicateAction", "target": "/chat"}})
-            html = HTML.format(notice=NOTICE.replace('"', "&quot;"), notice_ko=NOTICE_KO, ld=ld.replace("</", "<\\/"),
+            html = HTML.format(notice=NOTICE.replace('"', "&quot;"), ld=ld.replace("</", "<\\/"),
                                greeting=body["greeting"].replace("<", "&lt;"), base=front.base(request))
             return HTMLResponse(html)
         return body
@@ -395,7 +395,7 @@ def create_front_app(front: Front) -> FastAPI:
         {"name": "hello", "description": "Start here. Greets you, remembers you if you pass your visitor token, and asks what you need.",
          "inputSchema": {"type": "object", "properties": {**TOKEN_ARG, "name": {"type": "string", "description": "Your agent name"}}},
          "annotations": {"readOnlyHint": False}},
-        {"name": "chat", "description": "Talk in plain text (English or Korean): describe a task, say 'details 1', 'more', 'what's new', 'stop'.",
+        {"name": "chat", "description": "Talk in plain English (replies are in English): describe a task, say 'details 1', 'more', 'what's new', 'stop'.",
          "inputSchema": {"type": "object", "properties": {"message": {"type": "string"}, **TOKEN_ARG}, "required": ["message"]}},
         {"name": "find_agents", "description": "Find the best live A2A agents, MCP servers or x402 paid APIs for a task, with how to call them.",
          "inputSchema": {"type": "object", "properties": {

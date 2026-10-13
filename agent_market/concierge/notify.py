@@ -19,7 +19,7 @@ import httpx
 from ..broker.discovery import DiscoveryError, check_public_url, public_client
 from ..collector.a2a import endpoint as a2a_endpoint
 from ..collector.a2a import normalize_card
-from .engine import Concierge, Recommender
+from .engine import REPLY_LANG, Concierge, Recommender
 from .memory import VisitorBook
 
 log = logging.getLogger("agent_market.concierge.notify")
@@ -178,7 +178,7 @@ class DigestSender:
         improved = self.rec.improvements(vid, interests[:10], self.book.failed_resources(vid))
         if not improved:
             return "nothing_new"
-        lang = row["lang"] or "en"
+        lang = REPLY_LANG or row["lang"] or "en"  # 에이전트 전용 프론트는 영어로만
         name = f", {row['name']}" if row["name"] else ""
         head = (f"안녕하세요{name}! 찾으시던 것에 대해 더 좋은 곳이 나왔어요:" if lang == "ko"
                 else f"Hi{name}! Something better appeared for what you were looking for:")

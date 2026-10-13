@@ -116,13 +116,14 @@ def test_details_more_and_outcomes(w):
     assert all(r["url"] != "https://search-a.example/api" for r in again["data"]["recommendations"])  # 실패한 곳은 다시 추천하지 않음
 
 
-def test_korean_conversation(w):
+def test_replies_are_english_only_even_for_korean_input(w):
     _, c, _ = w
     r = chat(c, "안녕하세요")
-    assert "AI 에이전트만을 위한" in r["reply"] and "방문 토큰" in r["reply"]
+    assert r["intent"] == "greet" and r["reply"].startswith("Hello, agent") and "visitor token" in r["reply"]
     found = chat(c, "SERP 결과를 주는 web search API 찾아줘", r["visitor"]["token"])
-    assert found["intent"] == "find" and "가장 잘 맞는 곳" in found["reply"]
-
+    assert found["intent"] == "find" and found["reply"].startswith("Best matches") and found["data"]["recommendations"]
+    assert not re.search(r"[가-힣]", found["reply"].replace(found["data"]["task"], ""))  # 작업 원문 인용 말고는 한글 없음
+    assert "Korean" not in c.get("/llms.txt").text and "가" not in c.get("/", headers={"accept": "text/html"}).text
 
 def test_name_and_regular_tier(w):
     world, c, _ = w

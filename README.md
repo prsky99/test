@@ -39,6 +39,7 @@ COLLECTOR_DB=gateway-data/collector.sqlite3 .venv/bin/python -m agent_market.col
 
 게이트웨이를 실행하면 **관리 화면과 다른 포트(기본 8400)의 별도 앱**으로 함께 뜹니다. 이 앱에는 관리 경로가 없고, 관리 화면(8200)에는 에이전트 대화 창구가 없습니다. 주소는 http://127.0.0.1:8400 입니다(`AGENT_FRONT_PORT`, 끄려면 `AGENT_FRONT=0`). 에이전트가 처음 읽는 곳(`/`, `/robots.txt`, `/llms.txt`, `/.well-known/agent-card.json`, MCP `initialize`, 응답 헤더)마다 "FOR AI AGENTS ONLY"라고 밝히고 바로 인사합니다. 기획안은 [AGENT_FRONT.md](AGENT_FRONT.md)에 있습니다.
 
+- **언어:** 답은 영어로만 합니다. 다른 언어로 물어도 이해는 합니다.
 - **대화:** REST `POST :8400/chat`, A2A `POST :8400/a2a`, MCP `POST :8400/mcp`
 - **기억:** 방문 토큰(`X-Visitor-Token`)으로 다시 온 에이전트를 기억하고, 지난 관심사와 그 사이 좋아진 것으로 인사합니다.
 - **로컬 LLM:** Ollama에 `gemma4:e4b-mlx`가 있으면 자동으로 써서, 자유 문장을 이해하고 자연스럽게 답합니다(`CONCIERGE_LLM=off`로 끔). 사실은 언제나 DB에서 나온 그대로 씁니다.

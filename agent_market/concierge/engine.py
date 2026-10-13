@@ -26,8 +26,15 @@ HANGUL = re.compile(r"[가-힣]")
 URL = re.compile(r"https?://[^\s<>\"']+")
 
 
+# 에이전트 전용 프론트는 영어로만 답한다 (고정). 다른 언어로 온 요청도 이해는 하지만(한국어 단어 대응·로컬 LLM) 답은 영어.
+# None으로 바꾸면 상대 메시지의 언어를 따라간다.
+REPLY_LANG: str | None = "en"
+
+
 def lang_of(text: str, fallback: str | None = None) -> str:
-    """이번 메시지의 언어를 따른다 (한글이 있으면 한국어, 영문자가 있으면 영어, 둘 다 없으면 지난번 언어)."""
+    """답할 언어. REPLY_LANG가 정해져 있으면 그것, 아니면 이번 메시지의 언어(한글→한국어, 영문자→영어, 없으면 지난번 언어)."""
+    if REPLY_LANG:
+        return REPLY_LANG
     if HANGUL.search(text or ""):
         return "ko"
     if re.search(r"[A-Za-z]", text or ""):
@@ -65,9 +72,16 @@ KO_EN = {"주식": "stock equity ticker", "시세": "quote", "주가": "stock qu
          "음악": "music", "게임": "game", "스포츠": "sports", "보안": "security", "에이전트": "agent"}
 
 
-def search_text(task: str) -> str:
-    extra = [en for ko, en in KO_EN.items() if ko in task]
-    return f"{task} {' '.join(extra)}" if extra else task
+def search_text(task: str, hint: str | None = None) -> str:
+    """검색에 쓸 문장. 한국어 요청은 영어로 된 설명과 맞지 않는 한국어 단어가 관련도를 고르게 깎아 순위가 흐려지므로,
+    영어 검색어(LLM이 만든 hint, 한국어 단어 대응, 원문의 영어 단어)만으로 찾는다. hint를 앞에 둬서 구절('web search') 순서를 살린다."""
+    extra = " ".join(en for ko, en in KO_EN.items() if ko in task)
+    if HANGUL.search(task):
+        english = " ".join(re.findall(r"[A-Za-z][A-Za-z0-9\-]*", task))
+        query = " ".join(x for x in (hint, english, extra) if x)
+        if query.strip():
+            return query
+    return " ".join(x for x in (task, extra, hint) if x)
 
 
 # ---------------- 추천 ----------------
@@ -78,7 +92,7 @@ class Recommender:
     def search(self, task: str, kind: str | None = None, auth_pref: str | None = None, limit: int = PAGE, offset: int = 0,
                exclude: set[int] | None = None, hint: str | None = None) -> list[dict]:
         """hint: 로컬 LLM이 만든 영어 검색어 (설명이 대부분 영어라 한국어·자유 문장 요청의 검색을 돕는다)."""
-        task = search_text(task) + (f" {hint}" if hint else "")
+        task = search_text(task, hint)
         need = {"task": task, "category": classify(task), "max_price": None, "networks": [],
                 "kinds": [kind] if kind in KINDS else list(KINDS), "region": None, "auth_pref": auth_pref, "min_grade": None,
                 "language": None}
@@ -314,7 +328,7 @@ class Concierge:
     def handle(self, v: Visitor, text: str, data: dict | None = None, channel: str = "rest", lang: str | None = None) -> Reply:
         text = (text or "").strip()[:2000]
         data = data if isinstance(data, dict) else {}
-        lang = lang or lang_of(text, v.lang)
+        lang = REPLY_LANG or lang or lang_of(text, v.lang)
         self.book.add_message(v, "agent", channel, text or json.dumps(data, ensure_ascii=False)[:500], data or None)
         reply = self._route(v, text, data, lang)
         if self.llm is not None and reply.facts is not None:

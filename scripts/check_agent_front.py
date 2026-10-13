@@ -70,9 +70,10 @@ check("새 소식", d["intent"] == "whats_new")
 _, d = chat("help", token)
 check("도움말", d["intent"] == "help")
 
-# 4. 한국어
+# 4. 한국어로 물어도 답은 영어로만
 _, d = chat("주식 시세 API 찾아줘", token)
-check("한국어 대화·검색", "가장 잘 맞는 곳" in d["reply"] and d["data"]["recommendations"], ", ".join(x["name"][:30] for x in d["data"]["recommendations"]))
+check("한국어 질문 이해 + 영어로만 답", d["reply"].startswith("Best matches") or "Best matches" in d["reply"] and d["data"]["recommendations"],
+      ", ".join(x["name"][:30] for x in d["data"]["recommendations"]))
 
 # 5. 기억: 토큰으로 다시 / 토큰 없이 같은 지문
 d = http.get(f"{B}/", headers={"X-Visitor-Token": token, "accept": "application/json"}).json()

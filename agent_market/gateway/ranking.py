@@ -14,11 +14,13 @@ from . import constraints as cons
 from .classify import query_terms, tokens
 from .store import Store
 
-WEIGHTS = {"relevance": 0.30, "popularity": 0.15, "reliability": 0.15, "price": 0.10, "recency": 0.05, "fit": 0.10,
+# 관련도가 가장 무겁다: 품질·인기가 높아도 작업과 관계없는 에이전트가 앞에 오지 않게 (2026-10 실측으로 0.30 → 0.45)
+WEIGHTS = {"relevance": 0.45, "popularity": 0.10, "reliability": 0.12, "price": 0.07, "recency": 0.03, "fit": 0.08,
            "quality": 0.10, "feedback": 0.05}
 POPULARITY_SATURATION = 1000  # 30일 결제자 1000명이면 만점
 REFERENCE_PRICE = 10_000  # 0.01 USDC 이하면 가격 만점
-MIN_RELEVANCE_OTHER_CATEGORY = 0.5  # 카테고리가 다르면 작업 설명과 이만큼은 겹쳐야 후보로 인정
+MIN_RELEVANCE_OTHER_CATEGORY = 0.4  # 카테고리가 다르면 작업 설명과 이만큼은 겹쳐야 후보로 인정 (단어 겹침 50%에 해당)
+PHRASE_SHARE = 0.25  # 관련도 중 구절 일치(질문의 이어진 두 단어가 설명에서도 이어져 나옴)의 몫
 
 
 @dataclass
@@ -28,13 +30,30 @@ class Scored:
     parts: dict = field(default_factory=dict)
 
 
+def _stem(word: str) -> str:
+    """관련도 비교용 아주 가벼운 어간: 영어 복수형만 묶는다 (rates→rate, quotes→quote, searches→search)."""
+    if len(word) > 4 and word.endswith(("ches", "shes", "sses", "xes")):
+        return word[:-2]
+    if len(word) > 3 and word.endswith("s") and not word.endswith(("ss", "us", "is")):
+        return word[:-1]
+    return word
+
+
 def _relevance(task_terms: list[str], idf: dict[str, float], resource: dict) -> float:
+    """작업 단어가 설명에 얼마나 들어 있는지(드문 단어일수록 무겁게) + 구절이 그대로 나오는지.
+    'exchange rate'처럼 두 단어가 붙어 있어야 뜻이 되는 경우, 'Coinbase Exchange ... spot rate'처럼 따로 흩어진 설명과 구분한다."""
     if not task_terms:
         return 0.5
-    doc = set(tokens(f"{resource['name']} {resource['description']}"))
+    words = [_stem(t) for t in tokens(f"{resource['name']} {resource['description']}")]
+    doc, bigrams = set(words), set(zip(words, words[1:]))
     total = sum(idf.get(t, 1.0) for t in task_terms)
-    hit = sum(idf.get(t, 1.0) for t in task_terms if t in doc)
-    return hit / total if total else 0.0
+    overlap = sum(idf.get(t, 1.0) for t in task_terms if _stem(t) in doc) / total if total else 0.0
+    stems = [_stem(t) for t in task_terms]
+    pairs = list(zip(stems, stems[1:]))
+    if not pairs:
+        return overlap
+    phrase = sum(1 for pair in pairs if pair in bigrams) / len(pairs)
+    return (1 - PHRASE_SHARE) * overlap + PHRASE_SHARE * phrase
 
 
 def _reliability(resource: dict) -> float:
@@ -115,7 +134,8 @@ def score_resource(resource: dict, task_terms: list[str], idf: dict[str, float],
     now = now or time.time()
     parts = {}
     rel = _relevance(task_terms, idf, resource)
-    parts["relevance"] = min(1.0, rel + (0.2 if resource["category"] == category else 0.0))
+    # 같은 카테고리 보너스는 더하되 1.0에서 자르지 않게 비율로 섞는다 (자르면 0.85와 1.0이 같은 점수가 됨)
+    parts["relevance"] = 0.8 * rel + (0.2 if resource["category"] == category else 0.0)
 
     payers = resource.get("payers_30d")
     parts["popularity"] = 0.3 if payers is None else min(1.0, math.log1p(payers) / math.log1p(POPULARITY_SATURATION))

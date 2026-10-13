@@ -31,7 +31,7 @@ class Policy:
     base_fee: int = 10_000  # 0.01 USDC: 재소개 1건 기본 수수료
     min_fee: int = 2_000
     max_fee: int = 100_000
-    upgrade_threshold: float = 0.10  # 새 후보가 현재보다 10% 이상 좋아야 제안
+    upgrade_threshold: float = 0.08  # 새 후보가 현재보다 8% 이상 좋아야 제안 (관련도 비중을 0.45로 올리며 다른 항목 몫이 줄어 10%→8%)
     offer_ttl: float = 7 * 86400
     redo_cooldown: float = 30 * 86400  # 거절·만료된 후보는 30일간 다시 제안하지 않음
     free_per_ip_per_day: int = 5

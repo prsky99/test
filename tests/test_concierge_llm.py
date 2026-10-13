@@ -84,7 +84,7 @@ def test_free_text_uses_llm_hint_and_name(front_with):
     d = c.post("/chat", json={"message": "안녕! 나는 여행봇이야. 검색 결과 페이지 데이터를 뽑아 줄 곳 있을까?"}).json()
     assert d["intent"] == "find" and d["visitor"]["name"] == "여행봇"
     assert d["data"]["recommendations"][0]["url"] == "https://search-a.example/api"  # 한국어 문장인데 영어 검색어로 찾음
-    assert d["reply"].startswith("안녕하세요, 에이전트님")  # 에이전트 전용 소개가 맨 앞
+    assert d["reply"].startswith("Hello, agent")  # 에이전트 전용 소개가 맨 앞, 답은 영어로만
     assert "Got it — here is what I found" in d["reply"] and d["data"]["llm_lead"] is True
     interest = world.store.query("SELECT hint FROM agent_interests")[0]
     assert interest["hint"] == "web search SERP results"  # 다음 '새 소식' 확인에도 같은 검색어를 씀
