@@ -125,9 +125,10 @@ def test_crawl_indexes_sources_and_deactivates_removed(w):
     counts = w.store.resource_counts()
     assert counts["x402"]["web_data"] == 1 and counts["mcp"]["web_data"] == 1
     w.reg.x402 = w.reg.x402[1:]
-    time.sleep(1.1)
-    report = w.crawl()
-    assert report["x402-bazaar"]["deactivated"] == 1
+    time.sleep(0.05)
+    assert w.crawl()["x402-bazaar"]["deactivated"] == 0  # 한 번 안 보인 것만으로는 비활성화하지 않음
+    time.sleep(0.05)
+    assert w.crawl()["x402-bazaar"]["deactivated"] == 1  # 전체 수집 2번 연속 안 보이면 비활성화
 
 
 def test_first_intro_is_free_and_revealed(w):

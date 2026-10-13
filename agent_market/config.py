@@ -113,13 +113,15 @@ class GatewayConfig:
     db_path: str
     admin_token: str | None
     min_confirmations: int
-    crawl_interval: float
+    crawl_min_gap: float  # 한 바퀴 수집이 끝난 뒤 다음 바퀴까지 쉬는 시간 (연속 수집)
     rescan_interval: float
     scheduler: bool
     allow_private_urls: bool
     free: bool = True  # 무료 정책 (GATEWAY_FREE=0 이면 재소개 유료)
     health_interval: float = 3600  # 수집 에이전트 헬스체크 주기
     health_workers: int = 32
+    crawl_page_delay: float = 1.0  # 수집 페이지 사이 간격 (요청 속도 고정)
+    crawl_full_interval: float = 86400  # MCP 전체 수집(삭제 확인) 주기. 그 사이에는 변경분만
 
     @classmethod
     def from_env(cls) -> "GatewayConfig":
@@ -132,7 +134,9 @@ class GatewayConfig:
             db_path=os.environ.get("GATEWAY_DB", "gateway-data/gateway.sqlite3"),
             admin_token=os.environ.get("ADMIN_TOKEN"),
             min_confirmations=int(os.environ.get("MIN_CONFIRMATIONS", "1")),
-            crawl_interval=float(os.environ.get("CRAWL_INTERVAL_HOURS", "1")) * 3600,
+            crawl_min_gap=float(os.environ.get("CRAWL_MIN_GAP_SECONDS", "60")),
+            crawl_page_delay=float(os.environ.get("CRAWL_PAGE_DELAY", "1.0")),
+            crawl_full_interval=float(os.environ.get("CRAWL_FULL_INTERVAL_HOURS", "24")) * 3600,
             health_interval=float(os.environ.get("HEALTH_INTERVAL_MINUTES", "60")) * 60,
             health_workers=int(os.environ.get("HEALTH_WORKERS", "32")),
             rescan_interval=float(os.environ.get("RESCAN_INTERVAL_MINUTES", "15")) * 60,

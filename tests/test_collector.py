@@ -191,8 +191,8 @@ def test_crawl_records_new_agents(env):
     report = agent.crawler.crawl_all()
     assert report["x402-bazaar"]["new"] == 2
     net.registry_items.append(x402_item("https://n3.example/api", "web search", 1000, 5))
-    time.sleep(1.1)
-    assert agent.crawler.crawl_all()["x402-bazaar"]["new"] == 1
+    second = agent.crawler.crawl_all()["x402-bazaar"]
+    assert second["new"] == 1 and second["unchanged"] == 2  # 바뀌지 않은 2개는 다시 쓰지 않음
     assert len(store.collector_stats()["recent_crawls"]) == 4
 
 
@@ -278,3 +278,89 @@ def test_partial_failures_still_recorded(env):
         net.responses[store.resource(i)["url"]] = (lambda r: httpx.Response(503)) if n < 5 else x402_ok
     stats = checker.run_due(100)
     assert not stats["local_network_problem"] and stats["failing"] == 5 and stats["healthy"] == 20
+
+
+
+# ---------------- 연속·증분·이어서 수집 ----------------
+
+class PagedRegistries(httpx.BaseTransport):
+    """페이지 단위로 응답하고 받은 파라미터를 기록하는 가짜 레지스트리."""
+
+    def __init__(self, x402_items, mcp_items):
+        self.x402, self.mcp = x402_items, mcp_items
+        self.x402_offsets, self.mcp_params = [], []
+
+    def handle_request(self, request):
+        q = dict(request.url.params)
+        if request.url.host == "api.cdp.coinbase.com":
+            off, lim = int(q["offset"]), int(q["limit"])
+            self.x402_offsets.append(off)
+            return httpx.Response(200, json={"items": self.x402[off:off + lim], "pagination": {"total": len(self.x402)}})
+        self.mcp_params.append(q)
+        start = int(q.get("cursor", 0))
+        page = self.mcp[start:start + 100]
+        nxt = str(start + 100) if start + 100 < len(self.mcp) else None
+        return httpx.Response(200, json={"servers": page, "metadata": {"nextCursor": nxt} if nxt else {}})
+
+
+def mcp_item(i):
+    return {"server": {"name": f"io.ex/s{i}", "title": f"s{i}", "description": "web search",
+                       "remotes": [{"url": f"https://s{i}.example/mcp"}]}, "_meta": {}}
+
+
+def crawler_with(reg, **kw):
+    store = Store()
+    return store, Crawler(store, http=httpx.Client(transport=reg), page_delay=0, **kw)
+
+
+def test_mcp_incremental_after_full_and_full_again_when_due():
+    reg = PagedRegistries([], [mcp_item(i) for i in range(150)])
+    store, crawler = crawler_with(reg, full_interval=3600)
+    first = crawler.crawl_all()["mcp-registry"]
+    assert first["mode"] == "full" and first["pages"] == 2 and first["new"] == 150
+    assert all("updated_since" not in p for p in reg.mcp_params)
+    reg.mcp_params.clear()
+    second = crawler.crawl_all()["mcp-registry"]
+    assert second["mode"] == "incremental" and "updated_since" in reg.mcp_params[0]
+    store.set_meta("crawl_last_full:mcp-registry", time.time() - 7200)  # 전체 수집 주기가 지남
+    assert crawler.crawl_all()["mcp-registry"]["mode"] == "full"
+
+
+def test_crawl_resumes_from_saved_position():
+    reg = PagedRegistries([x402_item(f"https://r{i}.example/api", "web search", 1000, 5) for i in range(350)], [])
+    store, crawler = crawler_with(reg)
+    pages = {"n": 0}
+
+    def stop_after_two_pages():
+        pages["n"] += 1
+        return pages["n"] >= 2
+
+    crawler.should_stop = stop_after_two_pages
+    report = crawler.crawl_all()["x402-bazaar"]
+    assert report["interrupted"] and report["pages"] == 2
+    crawler.should_stop = lambda: False
+    reg.x402_offsets.clear()
+    resumed = crawler.crawl_all()["x402-bazaar"]
+    assert resumed["resumed"] and reg.x402_offsets[0] == 200  # 처음이 아니라 3번째 페이지부터
+    assert resumed["seen"] == 350 and store.get_meta("crawl_pass:x402-bazaar") is None
+
+
+def test_concurrent_crawl_is_rejected():
+    reg = PagedRegistries([], [])
+    _, crawler = crawler_with(reg)
+    crawler._lock.acquire()
+    assert crawler.crawl_all() == {"busy": True}
+    crawler._lock.release()
+
+
+def test_collector_crawls_continuously():
+    reg = PagedRegistries([x402_item("https://c1.example/api", "web search", 1000, 5)], [mcp_item(1)])
+    store, crawler = crawler_with(reg)
+    checker = HealthChecker(store, http=httpx.Client(transport=Endpoints()), allow_private=True)
+    agent = CollectorAgent(store, crawler, checker, min_gap=0.05)
+    agent.start()
+    deadline = time.time() + 5
+    while time.time() < deadline and store.query("SELECT COUNT(*) AS n FROM crawl_runs WHERE source='x402-bazaar'")[0]["n"] < 3:
+        time.sleep(0.05)
+    agent.stop()
+    assert store.query("SELECT COUNT(*) AS n FROM crawl_runs WHERE source='x402-bazaar'")[0]["n"] >= 3  # 끝나면 바로 다시 시작

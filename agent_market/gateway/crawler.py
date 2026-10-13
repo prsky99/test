@@ -8,8 +8,9 @@
 """
 
 import logging
+import threading
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from urllib.parse import urlparse
 
 import httpx
@@ -127,38 +128,55 @@ def parse_mcp_item(item: dict) -> dict | None:
 
 
 class Crawler:
-    def __init__(self, store: Store, http: httpx.Client | None = None, page_delay: float = 0.3, max_pages: int = 400):
+    """레지스트리를 한 바퀴씩 수집한다. 수집 에이전트는 한 바퀴가 끝나면 바로 다음 바퀴를 시작한다.
+
+    부하 관리
+    - 페이지 사이에 page_delay(기본 1초)를 둬서 초당 요청 수를 일정하게 유지한다. 에이전트가 늘면
+      한 바퀴가 길어질 뿐 순간 부하는 늘지 않는다.
+    - MCP Registry는 updated_since로 바뀐 것만 받고(증분), 삭제 확인용 전체 수집은 full_interval(기본 24시간)마다.
+      x402 Bazaar는 변경분 조회를 지원하지 않아 매 바퀴 전체를 훑는다.
+    - 내용이 그대로인 항목은 DB에 다시 쓰지 않는다(확인 시각만 갱신). 페이지 단위로 한 번에 커밋한다.
+    - 진행 위치를 저장해 재시작해도 이어서 수집한다.
+    - 전체 수집 2번 연속으로 보이지 않은 에이전트만 비활성화한다(수집 중 목록 순서가 바뀌어 한 번 놓친 것은 무시).
+    """
+
+    RESUME_WINDOW = 6 * 3600  # 이보다 오래된 진행 위치는 버리고 새로 시작
+
+    def __init__(self, store: Store, http: httpx.Client | None = None, page_delay: float = 1.0, max_pages: int = 5000,
+                 full_interval: float = 86400, should_stop=None):
         self.store = store
-        self._fixed_http = http  # 없으면 수집할 때마다 새 연결을 만든다 (오래된 연결이 망가지는 것 방지)
+        self._fixed_http = http  # 없으면 바퀴마다 새 연결을 만든다 (오래된 연결이 망가지는 것 방지)
         self.http = http
         self.page_delay = page_delay
         self.max_pages = max_pages
+        self.full_interval = full_interval
+        self.should_stop = should_stop or (lambda: False)
+        self._lock = threading.Lock()
 
     def crawl_all(self) -> dict:
-        if self._fixed_http is None:
-            self.http = httpx.Client(timeout=30.0, headers={"user-agent": "agent-gateway/0.1"})
+        """모든 소스를 한 바퀴 수집. 이미 수집 중이면 {"busy": True}."""
+        if not self._lock.acquire(blocking=False):
+            return {"busy": True}
         try:
-            return self._crawl_all()
-        finally:
             if self._fixed_http is None:
+                self.http = httpx.Client(timeout=30.0, headers={"user-agent": "agent-gateway/0.1"})
+            report = {}
+            for name in ("x402-bazaar", "mcp-registry"):
+                started = time.time()
+                try:
+                    report[name] = self._pass(name)
+                except Exception as exc:  # 한 소스가 실패해도 다른 소스는 계속 (진행 위치는 남아 다음에 이어 감)
+                    log.exception("crawl %s failed", name)
+                    report[name] = {"ok": False, "error": str(exc)[:300], "seconds": round(time.time() - started, 1)}
+                self.store.record_crawl_run(name, report[name])
+                if self.should_stop():
+                    break
+            self.store.set_meta("last_crawl", {"at": time.time(), "report": report})
+            return report
+        finally:
+            if self._fixed_http is None and self.http is not None:
                 self.http.close()
-
-    def _crawl_all(self) -> dict:
-        report = {}
-        for name, fn in (("x402-bazaar", self.crawl_x402), ("mcp-registry", self.crawl_mcp)):
-            started = time.time()
-            try:
-                count = fn()
-                # 이번 수집에서 보이지 않은 에이전트는 목록에서 내려간 것으로 보고 비활성화
-                removed = self.store.deactivate_unseen(name, started - 1)
-                new = self.store.query("SELECT COUNT(*) AS n FROM resources WHERE source=? AND first_seen>=?", (name, started - 1))[0]["n"]
-                report[name] = {"ok": True, "seen": count, "new": new, "deactivated": removed, "seconds": round(time.time() - started, 1)}
-            except Exception as exc:  # 한 소스가 실패해도 다른 소스는 계속
-                log.exception("crawl %s failed", name)
-                report[name] = {"ok": False, "error": str(exc)[:300], "seconds": round(time.time() - started, 1)}
-            self.store.record_crawl_run(name, report[name])
-        self.store.set_meta("last_crawl", {"at": time.time(), "report": report})
-        return report
+            self._lock.release()
 
     def _get(self, url: str, params: dict) -> dict:
         for attempt in range(4):
@@ -171,40 +189,74 @@ class Crawler:
         resp.raise_for_status()
         return resp.json()
 
-    def crawl_x402(self) -> int:
-        seen, offset, limit = 0, 0, 100
-        for _ in range(self.max_pages):
-            data = self._get(X402_DISCOVERY, {"limit": limit, "offset": offset})
-            items = data.get("items") or []
-            for item in items:
-                parsed = parse_x402_item(item)
-                if parsed:
-                    self.store.upsert_resource(parsed)
-                    seen += 1
-            total = (data.get("pagination") or {}).get("total", 0)
-            offset += limit
-            if not items or offset >= total:
-                break
-            time.sleep(self.page_delay)
-        return seen
+    def _mode(self, name: str) -> str:
+        if name == "x402-bazaar":
+            return "full"
+        last_full = self.store.get_meta(f"crawl_last_full:{name}")
+        return "incremental" if last_full and time.time() - last_full < self.full_interval else "full"
 
-    def crawl_mcp(self) -> int:
-        seen, cursor = 0, None
-        for _ in range(self.max_pages):
-            params = {"limit": 100}
-            if cursor:
-                params["cursor"] = cursor
-            data = self._get(MCP_REGISTRY, params)
-            for item in data.get("servers") or []:
-                parsed = parse_mcp_item(item)
-                if parsed:
-                    self.store.upsert_resource(parsed)
-                    seen += 1
-            cursor = (data.get("metadata") or {}).get("nextCursor")
-            if not cursor:
+    def _pass(self, name: str) -> dict:
+        key = f"crawl_pass:{name}"
+        mode = self._mode(name)
+        state = self.store.get_meta(key)
+        resumed = bool(state and state.get("mode") == mode and time.time() - state["started"] < self.RESUME_WINDOW)
+        if not resumed:
+            state = {"mode": mode, "started": time.time(), "position": None, "pages": 0,
+                     "seen": 0, "new": 0, "changed": 0, "unchanged": 0}
+            if mode == "incremental":  # 지난번 수집 시작 5분 전부터 바뀐 것 (겹쳐서 놓치지 않게)
+                since = (self.store.get_meta(f"crawl_last_start:{name}") or time.time() - self.full_interval) - 300
+                state["since"] = datetime.fromtimestamp(since, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        fetch = self._x402_page if name == "x402-bazaar" else self._mcp_page
+
+        while state["pages"] < self.max_pages:
+            records, next_position = fetch(state)
+            counts = self.store.upsert_page(records)
+            state["pages"] += 1
+            state["seen"] += len(records)
+            for k, v in counts.items():
+                state[k] += v
+            state["position"] = next_position
+            self.store.set_meta(key, state)  # 진행 위치 저장 (재시작 시 이어서)
+            if next_position is None:
                 break
+            if self.should_stop():
+                return {"ok": True, "interrupted": True, **self._summary(state, resumed)}
             time.sleep(self.page_delay)
-        return seen
+
+        deactivated = 0
+        if mode == "full":
+            previous = self.store.get_meta(f"crawl_prev_full_start:{name}")
+            if previous:  # 이전 전체 수집 시작 이후 한 번도 안 보임 = 2번 연속 안 보임
+                deactivated = self.store.deactivate_unseen(name, previous)
+            self.store.set_meta(f"crawl_prev_full_start:{name}", state["started"])
+            self.store.set_meta(f"crawl_last_full:{name}", time.time())
+        self.store.set_meta(f"crawl_last_start:{name}", state["started"])
+        self.store.set_meta(key, None)
+        return {"ok": True, "deactivated": deactivated, **self._summary(state, resumed)}
+
+    @staticmethod
+    def _summary(state: dict, resumed: bool) -> dict:
+        return {"mode": state["mode"], "resumed": resumed, "pages": state["pages"], "seen": state["seen"], "new": state["new"],
+                "changed": state["changed"], "unchanged": state["unchanged"], "seconds": round(time.time() - state["started"], 1)}
+
+    def _x402_page(self, state: dict) -> tuple[list[dict], int | None]:
+        offset, limit = state["position"] or 0, 100
+        data = self._get(X402_DISCOVERY, {"limit": limit, "offset": offset})
+        items = data.get("items") or []
+        records = [p for p in (parse_x402_item(i) for i in items) if p]
+        total = (data.get("pagination") or {}).get("total", 0)
+        offset += limit
+        return records, (offset if items and offset < total else None)
+
+    def _mcp_page(self, state: dict) -> tuple[list[dict], str | None]:
+        params = {"limit": 100}
+        if state["position"]:
+            params["cursor"] = state["position"]
+        if state.get("since"):
+            params["updated_since"] = state["since"]
+        data = self._get(MCP_REGISTRY, params)
+        records = [p for p in (parse_mcp_item(i) for i in data.get("servers") or []) if p]
+        return records, (data.get("metadata") or {}).get("nextCursor") or None
 
 
 class Prober:

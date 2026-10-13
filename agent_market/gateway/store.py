@@ -1,5 +1,6 @@
 """게이트웨이 저장소 (SQLite + FTS5 검색 색인)."""
 
+import hashlib
 import json
 import math
 import secrets
@@ -72,7 +73,9 @@ HEALTH_COLUMNS = {
     "last_error": "TEXT",
     "health_ok_24h": "INTEGER NOT NULL DEFAULT 0",
     "health_n_24h": "INTEGER NOT NULL DEFAULT 0",
+    "content_hash": "TEXT",  # 수집한 내용의 지문. 같으면 다시 쓰지 않고 last_seen만 갱신
 }
+CRAWL_RUN_COLUMNS = {"mode": "TEXT", "changed": "INTEGER", "unchanged": "INTEGER", "pages": "INTEGER"}
 HEALTH_UP = ("healthy", "reachable")
 
 RESOURCE_COLS = [
@@ -99,6 +102,10 @@ class Store:
                 if col not in existing:
                     self._db.execute(f"ALTER TABLE resources ADD COLUMN {col} {decl}")
             self._db.execute("CREATE INDEX IF NOT EXISTS resources_due ON resources(active, next_check_at)")
+            runs = {r[1] for r in self._db.execute("PRAGMA table_info(crawl_runs)")}
+            for col, decl in CRAWL_RUN_COLUMNS.items():
+                if col not in runs:
+                    self._db.execute(f"ALTER TABLE crawl_runs ADD COLUMN {col} {decl}")
 
     @contextmanager
     def tx(self):
@@ -113,40 +120,55 @@ class Store:
     def upsert_resource(self, r: dict, now: float | None = None) -> int:
         """r: key, source, kind, url, name, description, category, networks(list), price_usdc, pay_to, method,
         details(dict), calls_30d, payers_30d, last_called"""
-        now = now or time.time()
-        networks = "," + ",".join(sorted(set(r.get("networks") or []))) + ","
         with self.tx() as db:
-            row = db.execute("SELECT id, name, description, url FROM resources WHERE key=?", (r["key"],)).fetchone()
-            values = (
-                r["source"], r["kind"], r["url"], r["name"][:200], r["description"][:2000], r["category"], networks,
-                r.get("price_usdc"), (r.get("pay_to") or "").lower() or None, r.get("method"),
-                json.dumps(r.get("details") or {})[:8000], r.get("calls_30d"), r.get("payers_30d"), r.get("last_called"),
+            return self._upsert(db, r, now or time.time())[1]
+
+    def upsert_page(self, records: list[dict], now: float | None = None) -> dict:
+        """수집한 한 페이지를 한 트랜잭션으로 반영. {"new": n, "changed": n, "unchanged": n}"""
+        now = now or time.time()
+        counts = {"new": 0, "changed": 0, "unchanged": 0}
+        with self.tx() as db:
+            for r in records:
+                counts[self._upsert(db, r, now)[0]] += 1
+        return counts
+
+    def _upsert(self, db, r: dict, now: float) -> tuple[str, int]:
+        networks = "," + ",".join(sorted(set(r.get("networks") or []))) + ","
+        values = (
+            r["source"], r["kind"], r["url"], r["name"][:200], r["description"][:2000], r["category"], networks,
+            r.get("price_usdc"), (r.get("pay_to") or "").lower() or None, r.get("method"),
+            json.dumps(r.get("details") or {}, sort_keys=True)[:8000], r.get("calls_30d"), r.get("payers_30d"), r.get("last_called"),
+        )
+        digest = hashlib.sha1(json.dumps(values, default=str).encode()).hexdigest()
+        row = db.execute("SELECT id, name, description, url, content_hash FROM resources WHERE key=?", (r["key"],)).fetchone()
+        if row is None:
+            cur = db.execute(
+                """INSERT INTO resources (source, kind, url, name, description, category, networks, price_usdc, pay_to,
+                   method, details, calls_30d, payers_30d, last_called, key, first_seen, last_seen, active, content_hash)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?)""",
+                (*values, r["key"], now, now, digest),
             )
-            if row is None:
-                cur = db.execute(
-                    """INSERT INTO resources (source, kind, url, name, description, category, networks, price_usdc, pay_to,
-                       method, details, calls_30d, payers_30d, last_called, key, first_seen, last_seen, active)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)""",
-                    (*values, r["key"], now, now),
-                )
-                rid = cur.lastrowid
-                db.execute("INSERT INTO resources_fts(rowid, name, description) VALUES (?,?,?)", (rid, r["name"], r["description"]))
-            else:
-                rid = row["id"]
-                db.execute(
-                    """UPDATE resources SET source=?, kind=?, url=?, name=?, description=?, category=?, networks=?,
-                       price_usdc=?, pay_to=?, method=?, details=?, calls_30d=?, payers_30d=?, last_called=?,
-                       last_seen=?, active=1 WHERE id=?""",
-                    (*values, now, rid),
-                )
-                if row["url"] != r["url"]:  # 주소가 바뀌면 헬스 상태를 새로 시작 (제외됐던 에이전트도 다시 점검)
-                    db.execute(
-                        """UPDATE resources SET health_status='unknown', consecutive_failures=0, failing_since=NULL,
-                           next_check_at=NULL, health_ok_24h=0, health_n_24h=0 WHERE id=?""", (rid,))
-                if row["name"] != r["name"][:200] or row["description"] != r["description"][:2000]:
-                    db.execute("DELETE FROM resources_fts WHERE rowid=?", (rid,))
-                    db.execute("INSERT INTO resources_fts(rowid, name, description) VALUES (?,?,?)", (rid, r["name"], r["description"]))
-        return rid
+            rid = cur.lastrowid
+            db.execute("INSERT INTO resources_fts(rowid, name, description) VALUES (?,?,?)", (rid, r["name"], r["description"]))
+            return "new", rid
+        rid = row["id"]
+        if row["content_hash"] == digest:  # 바뀐 게 없으면 확인 시각만 갱신
+            db.execute("UPDATE resources SET last_seen=?, active=1 WHERE id=?", (now, rid))
+            return "unchanged", rid
+        db.execute(
+            """UPDATE resources SET source=?, kind=?, url=?, name=?, description=?, category=?, networks=?,
+               price_usdc=?, pay_to=?, method=?, details=?, calls_30d=?, payers_30d=?, last_called=?,
+               last_seen=?, active=1, content_hash=? WHERE id=?""",
+            (*values, now, digest, rid),
+        )
+        if row["url"] != r["url"]:  # 주소가 바뀌면 헬스 상태를 새로 시작 (제외됐던 에이전트도 다시 점검)
+            db.execute(
+                """UPDATE resources SET health_status='unknown', consecutive_failures=0, failing_since=NULL,
+                   next_check_at=NULL, health_ok_24h=0, health_n_24h=0 WHERE id=?""", (rid,))
+        if row["name"] != r["name"][:200] or row["description"] != r["description"][:2000]:
+            db.execute("DELETE FROM resources_fts WHERE rowid=?", (rid,))
+            db.execute("INSERT INTO resources_fts(rowid, name, description) VALUES (?,?,?)", (rid, r["name"], r["description"]))
+        return "changed", rid
 
     def deactivate_unseen(self, source: str, before: float) -> int:
         with self.tx() as db:
@@ -292,9 +314,11 @@ class Store:
     def record_crawl_run(self, source: str, report: dict) -> None:
         with self.tx() as db:
             db.execute(
-                "INSERT INTO crawl_runs VALUES (?,?,?,?,?,?,?,?)",
+                """INSERT INTO crawl_runs (at, source, ok, seen, new, deactivated, seconds, error, mode, changed, unchanged, pages)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (time.time(), source, int(report.get("ok", False)), report.get("seen"), report.get("new"),
-                 report.get("deactivated"), report.get("seconds"), report.get("error")),
+                 report.get("deactivated"), report.get("seconds"), report.get("error"), report.get("mode"),
+                 report.get("changed"), report.get("unchanged"), report.get("pages")),
             )
 
     def collector_stats(self) -> dict:

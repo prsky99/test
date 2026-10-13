@@ -64,8 +64,9 @@ def create_app(store: Store, agent: CollectorAgent | None, admin_token: str | No
     @app.get("/health")
     def health():
         crawl = store.get_meta("last_crawl") or {}
-        return {"ok": True, "last_crawl_at": crawl.get("at"), "last_health_batch": store.get_meta("last_health_batch"),
-                "now": time.time()}
+        progress = {n: store.get_meta(f"crawl_pass:{n}") for n in ("x402-bazaar", "mcp-registry")}
+        return {"ok": True, "last_crawl_at": crawl.get("at"), "crawl_in_progress": {k: v for k, v in progress.items() if v},
+                "last_health_batch": store.get_meta("last_health_batch"), "now": time.time()}
 
     @app.get("/agents")
     def agents(q: str | None = None, category: str | None = None, kind: str | None = None,
@@ -109,7 +110,7 @@ def create_app(store: Store, agent: CollectorAgent | None, admin_token: str | No
         require_admin(authorization)
         if agent is None:
             raise HTTPException(503, "수집기가 없습니다.")
-        return agent.crawler.crawl_all()
+        return agent.crawler.crawl_all()  # 이미 수집 중이면 {"busy": true}
 
     @app.post("/admin/check/{rid}")
     def check_now(rid: int, authorization: str | None = Header(default=None)):
@@ -122,11 +123,12 @@ def create_app(store: Store, agent: CollectorAgent | None, admin_token: str | No
     return app
 
 
-def build_agent(store: Store, crawl_interval: float, health_interval: float, allow_private: bool = False,
-                workers: int = 32) -> CollectorAgent:
+def build_agent(store: Store, health_interval: float, allow_private: bool = False, workers: int = 32,
+                min_gap: float = 60, page_delay: float = 1.0, full_interval: float = 86400) -> CollectorAgent:
     checker = HealthChecker(store, allow_private=allow_private, workers=workers,
                             schedule=Schedule(interval=health_interval))
-    return CollectorAgent(store, Crawler(store), checker, crawl_interval=crawl_interval)
+    crawler = Crawler(store, page_delay=page_delay, full_interval=full_interval)
+    return CollectorAgent(store, crawler, checker, min_gap=min_gap)
 
 
 def main() -> None:
@@ -138,7 +140,9 @@ def main() -> None:
     store = Store(db)
     agent = build_agent(
         store,
-        crawl_interval=float(os.environ.get("CRAWL_INTERVAL_HOURS", "1")) * 3600,
+        min_gap=float(os.environ.get("CRAWL_MIN_GAP_SECONDS", "60")),
+        page_delay=float(os.environ.get("CRAWL_PAGE_DELAY", "1.0")),
+        full_interval=float(os.environ.get("CRAWL_FULL_INTERVAL_HOURS", "24")) * 3600,
         health_interval=float(os.environ.get("HEALTH_INTERVAL_MINUTES", "60")) * 60,
         allow_private=os.environ.get("ALLOW_PRIVATE_AGENT_URLS") == "1",
         workers=int(os.environ.get("HEALTH_WORKERS", "32")),

@@ -103,10 +103,10 @@ def create_app(
         store = Store(config.db_path)
     ledger = Ledger(config.db_path if config.db_path != ":memory:" else ":memory:")
     verifier = verifier or PaymentVerifier(RPC(net.rpc_url), net.token, config.pay_to, config.min_confirmations)
-    crawler = crawler or Crawler(store)
+    crawler = crawler or Crawler(store, page_delay=config.crawl_page_delay, full_interval=config.crawl_full_interval)
     checker = HealthChecker(store, allow_private=config.allow_private_urls, workers=config.health_workers,
                             schedule=Schedule(interval=config.health_interval))
-    collector = CollectorAgent(store, crawler, checker, crawl_interval=config.crawl_interval)
+    collector = CollectorAgent(store, crawler, checker, min_gap=config.crawl_min_gap)
     prober = prober or Prober(store, checker=checker)
     fetcher = fetcher or CardFetcher(allow_private=config.allow_private_urls, network={"chain_id": net.chain_id, "token": net.token})
     service = GatewayService(store, prober, ledger, policy, notifier=make_notifier(config.allow_private_urls))
