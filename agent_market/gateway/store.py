@@ -455,7 +455,7 @@ class Store:
                 return
             db.execute(
                 "UPDATE resources SET auth_method=?, auth_autonomy=?, auth_info=?, auth_checked_at=?, auth_error=NULL WHERE id=?",
-                (found["method"], found["autonomy"], json.dumps(found["info"])[:8000], time.time(), rid))
+                (found["method"], found["autonomy"], json.dumps(found["info"]), time.time(), rid))  # 자르지 않음 (조사 단계에서 줄임)
             if found["method"] == "none":  # 실제로는 인증 없이 동작
                 db.execute("UPDATE resources SET auth_observed=0 WHERE id=?", (rid,))
 

@@ -40,6 +40,17 @@ AS_FIELDS = ("issuer", "authorization_endpoint", "token_endpoint", "registration
              "scopes_supported", "client_id_metadata_document_supported")
 
 
+def compact(value, max_list: int = 20, max_str: int = 500):
+    """저장용으로 줄인다: 긴 목록(예: scope 수백 개)과 긴 문자열을 잘라 JSON이 항상 온전하게 남도록."""
+    if isinstance(value, dict):
+        return {k: compact(v, max_list, max_str) for k, v in value.items()}
+    if isinstance(value, list):
+        return [compact(v, max_list, max_str) for v in value[:max_list]]
+    if isinstance(value, str):
+        return value[:max_str]
+    return value
+
+
 def parse_www_authenticate(value: str | None) -> dict:
     """'Bearer resource_metadata="...", scope="a b", error="invalid_token"' → {"scheme": "Bearer", "resource_metadata": ...}"""
     if not value:
@@ -217,7 +228,7 @@ class AuthDiscoverer:
             }
         info["website"] = details.get("website")
         info["instructions"] = instructions(method, info)
-        return {"method": method, "autonomy": autonomy, "info": info}
+        return {"method": method, "autonomy": autonomy, "info": compact(info)}
 
     def run_due(self, limit: int = 100) -> dict:
         due = self.store.due_for_auth(time.time(), self.max_age, limit)

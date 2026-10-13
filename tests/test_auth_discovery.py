@@ -153,3 +153,15 @@ def test_x402_agents_explain_payment_instead_of_login():
     auth = w.client().create_need("company news search", kinds=["x402"], auth="agent")["agent"]["constraints"]["auth"]
     assert auth["method"] == "x402_payment" and auth["required"] is False
     assert json.dumps(auth).count("USDC") == 1
+
+
+
+def test_huge_metadata_is_compacted_not_truncated(env):
+    store, web, disc = env
+    big = {**AS_META, "scopes_supported": [f"scope:{i}:" + "x" * 50 for i in range(500)]}
+    oauth_server(web, "https://big.example/mcp", as_meta=big)
+    rid = mcp_resource(store, "https://big.example/mcp")
+    mark_auth_required(store, rid)
+    disc.run_due()
+    info = json.loads(store.resource(rid)["auth_info"])  # 깨지지 않은 JSON
+    assert len(info["oauth"]["scopes_supported"]) == 20
