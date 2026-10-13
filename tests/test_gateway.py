@@ -4,6 +4,7 @@ import time
 import httpx
 import pytest
 from eth_account import Account
+from fastapi.testclient import TestClient
 
 from agent_market.buyer import BuyerAgent
 from agent_market.config import BuyerConfig, GatewayConfig, usdc
@@ -283,6 +284,19 @@ def test_health_and_card(w):
     assert w.http.get("/health").json()["resources"] == 4
     card = w.http.get("/.well-known/agent.json").json()
     assert card["pricing"] == {"model": "free"}
+
+
+def test_wallet_required_only_for_paid_policy(monkeypatch):
+    monkeypatch.delenv("GATEWAY_WALLET", raising=False)
+    monkeypatch.delenv("GATEWAY_FREE", raising=False)
+    monkeypatch.setenv("GATEWAY_DB", ":memory:")
+    config = GatewayConfig.from_env()
+    assert config.free and config.pay_to is None
+    card = TestClient(create_app(config, store=Store())).get("/.well-known/agent.json").json()
+    assert card["pricing"] == {"model": "free"}
+    monkeypatch.setenv("GATEWAY_FREE", "0")
+    with pytest.raises(RuntimeError, match="GATEWAY_WALLET"):
+        GatewayConfig.from_env()
 
 
 # ---------------- 무료 정책 ----------------

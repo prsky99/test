@@ -46,7 +46,8 @@ def _decode_string(hexdata: str) -> str | None:
         b = bytes.fromhex(hexdata[2:])
         off = int.from_bytes(b[:32], "big")
         ln = int.from_bytes(b[off:off + 32], "big")
-        return b[off + 32:off + 32 + ln].decode("utf-8", errors="replace")
+        # NUL로 고정 길이를 채운 URI가 있다 (예: base#17430). 그대로 두면 잘못된 URL이 된다
+        return b[off + 32:off + 32 + ln].decode("utf-8", errors="replace").strip("\x00 \t\r\n")
     except (ValueError, IndexError):
         return None
 
@@ -325,7 +326,7 @@ class Erc8004Crawler:
                     time.sleep(self.per_host_delay)
                 try:
                     results.append((r, self._fetch_registration(http, r["uri"]), None))
-                except (httpx.HTTPError, DiscoveryError, ValueError) as exc:
+                except Exception as exc:  # 잘못된 URL(httpx.InvalidURL은 HTTPError가 아님) 등 하나가 묶음 전체를 멈추지 않게
                     results.append((r, None, f"{type(exc).__name__}: {exc}"[:200]))
 
         try:

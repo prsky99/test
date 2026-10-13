@@ -104,7 +104,8 @@ def create_app(
         Path(config.db_path).parent.mkdir(parents=True, exist_ok=True)
         store = Store(config.db_path)
     ledger = Ledger(config.db_path if config.db_path != ":memory:" else ":memory:")
-    verifier = verifier or PaymentVerifier(RPC(net.rpc_url), net.token, config.pay_to, config.min_confirmations)
+    if verifier is None and config.pay_to:  # 지갑이 없으면(무료 정책) 수수료 결제를 받지 않는다
+        verifier = PaymentVerifier(RPC(net.rpc_url), net.token, config.pay_to, config.min_confirmations)
     crawler = crawler or Crawler(store, page_delay=config.crawl_page_delay, full_interval=config.crawl_full_interval)
     checker = HealthChecker(store, allow_private=config.allow_private_urls, workers=config.health_workers,
                             schedule=Schedule(interval=config.health_interval))
@@ -251,6 +252,8 @@ def create_app(
                 return service.accept_offer(offer_id, None, need_id=str(data.get("need_id", "")))
             except NeedError as exc:
                 return fail(exc)
+        if verifier is None:  # 예전 유료 정책 때 만든 제안이 남아 있지만 지금은 지갑이 없음
+            raise HTTPException(503, "수수료를 받을 지갑(GATEWAY_WALLET)이 설정되지 않아 유료 제안을 수락할 수 없습니다.")
         if not x_payment_tx or not x_payment_signature:
             return JSONResponse({"error": "payment required", "payment": fee_requirements(fee)}, status_code=402)
         try:

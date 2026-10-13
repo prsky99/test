@@ -30,7 +30,7 @@ keystore 파일과 비밀번호는 따로 백업하세요. 서버에는 **주소
 ```bash
 ssh ubuntu@<공인 IP>
 git clone -b claude/hopeful-darwin-i3qj6n https://github.com/prsky99/test.git && cd test/deploy
-cp gateway.env.example gateway.env && nano gateway.env   # DOMAIN, GATEWAY_WALLET, ADMIN_TOKEN, DUCKDNS_* 입력
+cp gateway.env.example gateway.env && nano gateway.env   # DOMAIN, ADMIN_TOKEN, DUCKDNS_* 입력 (GATEWAY_WALLET은 유료 정책일 때만)
 sudo bash setup.sh
 ```
 끝나면 `https://<서브도메인>.duckdns.org/.well-known/agent.json` 이 열립니다. 첫 전체 수집은 몇 분 걸리고, 이후 매시간 수집과 헬스체크가 자동으로 돕니다 (`COLLECTOR.md` 참고).

@@ -7,9 +7,11 @@ cd "$(dirname "$0")"
 [ -f gateway.env ] || { echo "gateway.env 가 없습니다 (gateway.env.example 복사 후 작성)"; exit 1; }
 chmod 600 gateway.env
 set -a; . ./gateway.env; set +a
-for v in DOMAIN GATEWAY_WALLET ADMIN_TOKEN DUCKDNS_SUBDOMAIN DUCKDNS_TOKEN; do
+for v in DOMAIN ADMIN_TOKEN DUCKDNS_SUBDOMAIN DUCKDNS_TOKEN; do
   [ -n "${!v:-}" ] || { echo "gateway.env 에 $v 값이 필요합니다"; exit 1; }
 done
+# 지갑은 유료 정책(GATEWAY_FREE=0)일 때만 필요
+[ "${GATEWAY_FREE:-1}" = "1" ] || [ -n "${GATEWAY_WALLET:-}" ] || { echo "유료 정책에는 gateway.env 에 GATEWAY_WALLET 값이 필요합니다"; exit 1; }
 
 if ! command -v docker >/dev/null; then
   curl -fsSL https://get.docker.com | sh

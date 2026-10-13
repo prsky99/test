@@ -302,6 +302,31 @@ def test_erc8004_crawl_resolves_and_dedupes():
     assert store.query("SELECT COUNT(*) AS n FROM resources WHERE kind='a2a'")[0]["n"] == 2
 
 
+def test_erc8004_nul_padded_uri_is_trimmed():
+    files = {"https://reg.example/agents/1.json": registration("Alpha", [{"name": "A2A", "endpoint": "https://a.example/card.json"}])}
+    store = Store()
+    crawler = Erc8004Crawler(store, chains={"t": (1, "https://rpc.example")},
+                             http=httpx.Client(transport=FakeChain({1: "https://reg.example/agents/1.json" + "\x00" * 11}, files)),
+                             allow_private=True, batch_delay=0, per_host_delay=0)
+    crawler.scan("t")
+    crawler.resolve_pending()
+    assert store.query("SELECT status FROM erc8004_tokens WHERE agent_id=1")[0]["status"] == "resolved"
+
+
+def test_erc8004_invalid_url_does_not_stop_resolve_round():
+    files = {"https://reg.example/agents/2.json": registration("Beta", [{"name": "A2A", "endpoint": "https://b.example/card.json"}])}
+    store = Store()
+    crawler = Erc8004Crawler(store, chains={"t": (1, "https://rpc.example")}, http=httpx.Client(transport=FakeChain({}, files)),
+                             allow_private=True, batch_delay=0, per_host_delay=0)
+    with store.tx() as db:  # 수정 전에 NUL이 붙은 채로 저장된 URI (httpx.InvalidURL)
+        db.executemany("INSERT INTO erc8004_tokens (chain, agent_id, uri, host, status, next_at) VALUES ('t',?,?,?,'pending',0)",
+                       [(1, "https://reg.example/agents/1\x00.json", "reg.example"), (2, "https://reg.example/agents/2.json", "reg.example")])
+    stats = crawler.resolve_pending()
+    assert stats["fetched"] == 1 and stats["fetch_failed"] == 1
+    status = {r["agent_id"]: r["status"] for r in store.query("SELECT agent_id, status FROM erc8004_tokens")}
+    assert status == {1: "error", 2: "resolved"}
+
+
 def test_erc8004_uri_change_is_reapplied():
     uris = {1: data_uri(registration("Alpha", [{"name": "A2A", "endpoint": "https://a.example/card.json"}]))}
     store = Store()

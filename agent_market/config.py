@@ -109,7 +109,7 @@ class BrokerConfig:
 @dataclass(frozen=True)
 class GatewayConfig:
     network: NetworkConfig
-    pay_to: str  # 소개 수수료를 받을 지갑 주소 (개인키 불필요)
+    pay_to: str | None  # 소개 수수료를 받을 지갑 주소 (개인키 불필요). 무료 정책이면 없어도 됨
     db_path: str
     admin_token: str | None
     min_confirmations: int
@@ -132,9 +132,10 @@ class GatewayConfig:
 
     @classmethod
     def from_env(cls) -> "GatewayConfig":
-        pay_to = os.environ.get("GATEWAY_WALLET")
-        if not pay_to:
-            raise RuntimeError("GATEWAY_WALLET 환경변수(수수료를 받을 지갑 주소)가 필요합니다.")
+        free = os.environ.get("GATEWAY_FREE", "1") == "1"
+        pay_to = os.environ.get("GATEWAY_WALLET") or None
+        if not pay_to and not free:  # 무료 정책은 수수료를 받지 않으므로 지갑이 없어도 된다
+            raise RuntimeError("유료 정책(GATEWAY_FREE=0)에는 GATEWAY_WALLET 환경변수(수수료를 받을 지갑 주소)가 필요합니다.")
         return cls(
             network=NetworkConfig.from_env(),
             pay_to=pay_to,
@@ -156,5 +157,5 @@ class GatewayConfig:
             rescan_interval=float(os.environ.get("RESCAN_INTERVAL_MINUTES", "15")) * 60,
             scheduler=os.environ.get("SCHEDULER", "1") == "1",
             allow_private_urls=os.environ.get("ALLOW_PRIVATE_AGENT_URLS") == "1",
-            free=os.environ.get("GATEWAY_FREE", "1") == "1",
+            free=free,
         )
