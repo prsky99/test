@@ -456,3 +456,22 @@ def test_card_variants_and_mcp_interfaces():
     prober.run_due()
     mcp = store.query("SELECT source FROM resources WHERE kind='mcp' AND url='https://docs.example/mcp'")
     assert mcp and mcp[0]["source"] == "a2a-card"
+
+
+def test_rpc_rate_limit_is_retried_not_treated_as_end():
+    class Limited(FakeChain):
+        limited = 2
+
+        def handle_request(self, request):
+            if request.url.host == "rpc.example" and self.limited:
+                self.limited -= 1
+                calls = json.loads(request.content)
+                return httpx.Response(200, json=[{"jsonrpc": "2.0", "id": c["id"], "error": {"code": -32005, "message": "rate limit"}}
+                                                 for c in calls])
+            return super().handle_request(request)
+
+    uris = {i: "" for i in range(1, 51)}
+    store = Store()
+    crawler = Erc8004Crawler(store, chains={"t": (1, "https://rpc.example")}, http=httpx.Client(transport=Limited(uris, {})),
+                             allow_private=True, batch_delay=0)
+    assert crawler.scan("t")["new"] == 50 and store.get_meta("erc8004_next:t") == 51

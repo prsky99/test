@@ -80,6 +80,11 @@ def services_of(doc) -> list[dict]:
     return out
 
 
+def _is_revert(error) -> bool:
+    msg = str(error.get("message") if isinstance(error, dict) else error).lower()
+    return "revert" in msg or "nonexistent" in msg or "invalid token" in msg or (isinstance(error, dict) and error.get("code") == 3)
+
+
 class Erc8004Crawler:
     def __init__(self, store: Store, chains: dict | None = None, http: httpx.Client | None = None,
                  allow_private: bool = False, batch_delay: float = 1.0, workers: int = 8, per_host: int = 5,
@@ -103,17 +108,19 @@ class Erc8004Crawler:
         """{id: uri}. 없는 토큰(되돌림)은 결과에서 빠지고, URI가 비어 있으면 ''."""
         batch = [{"jsonrpc": "2.0", "id": i, "method": "eth_call",
                   "params": [{"to": IDENTITY_REGISTRY, "data": TOKEN_URI + hex(i)[2:].rjust(64, "0")}, "latest"]} for i in ids]
-        for attempt in range(4):
+        for attempt in range(5):
             try:
                 resp = http.post(rpc, json=batch)
                 data = resp.json()
-                if isinstance(data, list):
+                # 없는 토큰은 'execution reverted'. 그 밖의 오류(요청 한도 등)가 섞이면 배치 전체를 다시 요청한다
+                if isinstance(data, list) and not any(
+                        isinstance(x, dict) and x.get("error") and not _is_revert(x["error"]) for x in data):
                     break
             except (httpx.HTTPError, ValueError):
                 data = None
-            time.sleep(self.batch_delay * 2 ** attempt)
+            time.sleep(max(self.batch_delay, 0.01) * 2 ** (attempt + 1))
         else:
-            raise RuntimeError(f"RPC batch failed: {rpc}")
+            raise RuntimeError(f"RPC batch failed (rate limited or unavailable): {rpc}")
         out = {}
         for item in data:
             if isinstance(item, dict) and isinstance(item.get("result"), str) and len(item["result"]) > 2:
