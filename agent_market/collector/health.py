@@ -8,6 +8,11 @@
 down 에이전트도 계속 같은 주기로 점검해 회복되면 바로 healthy로 되돌린다.
 실패가 7일 넘게 이어지면 retired로 표시하고 점검·추천에서 완전히 제외한다.
 
+우리 쪽 네트워크 문제(연결 풀 대기 초과, 프록시 오류)는 에이전트 실패로 기록하지 않는다.
+한 묶음에서 대부분(80% 이상)이 동시에 실패하면 서로 다른 수백 개 호스트가 한꺼번에 죽었다기보다
+우리 쪽 문제로 보고, 실패 결과를 버리고 잠시 뒤 다시 점검한다. 묶음마다 새 HTTP 연결을 써서
+망가진 연결(죽은 프록시 터널 등)이 계속 남지 않게 한다.
+
 예의: 같은 호스트에는 동시에 하나씩, 요청 사이에 간격을 두고, User-Agent로 신원을 밝힌다.
 엔드포인트가 아주 많은 호스트(한 곳에 수천 개)는 그 간격으로 한 바퀴 도는 데 걸리는 시간만큼 점검 주기를 늘린다.
 """
@@ -47,6 +52,7 @@ class CheckResult:
     error: str | None = None
     observed_price: int | None = None
     observed_pay_to: str | None = None
+    local: bool = False  # 우리 쪽 문제 (에이전트 실패로 기록하지 않음)
 
 
 def parse_payment_required(resp: httpx.Response, body: bytes) -> list[dict] | None:
@@ -79,11 +85,12 @@ class Schedule:
 
 class HealthChecker:
     def __init__(self, store: Store, http: httpx.Client | None = None, allow_private: bool = False,
-                 schedule: Schedule = Schedule(), workers: int = 32, per_host_delay: float = 1.0, per_host_cap: int = 10):
+                 schedule: Schedule = Schedule(), workers: int = 32, per_host_delay: float = 1.0, per_host_cap: int = 10,
+                 outage_ratio: float = 0.8, outage_min: int = 20):
         self.store = store
-        self.http = http or httpx.Client(
-            timeout=httpx.Timeout(8.0, connect=5.0), follow_redirects=False, headers={"user-agent": USER_AGENT}
-        )
+        self._fixed_http = http  # 테스트 등에서 주입한 클라이언트. 없으면 묶음마다 새로 만든다.
+        self.outage_ratio = outage_ratio
+        self.outage_min = outage_min
         self.allow_private = allow_private
         self.schedule = schedule
         self.workers = workers
@@ -100,8 +107,27 @@ class HealthChecker:
             self._host_sizes_at = time.time()
         return self._host_sizes
 
+    def _new_client(self) -> httpx.Client:
+        if self._fixed_http is not None:
+            return self._fixed_http
+        return httpx.Client(timeout=httpx.Timeout(8.0, connect=5.0, pool=30.0), follow_redirects=False,
+                            headers={"user-agent": USER_AGENT}, limits=httpx.Limits(max_connections=200, max_keepalive_connections=50))
+
+    def _close(self, client: httpx.Client) -> None:
+        if client is not self._fixed_http:
+            client.close()
+
     # ---------------- 단건 점검 ----------------
-    def check(self, resource: dict) -> CheckResult:
+    def check(self, resource: dict, http: httpx.Client | None = None) -> CheckResult:
+        own = http is None
+        http = http or self._new_client()
+        try:
+            return self._check(resource, http)
+        finally:
+            if own:
+                self._close(http)
+
+    def _check(self, resource: dict, http: httpx.Client) -> CheckResult:
         url = resource["url"]
         if not self.allow_private:
             try:
@@ -111,11 +137,13 @@ class HealthChecker:
         started = time.monotonic()
         try:
             if resource["kind"] == "mcp":
-                result = self._check_mcp(url)
+                result = self._check_mcp(http, url)
             elif resource["kind"] == "a2a":
-                result = self._check_a2a(resource)
+                result = self._check_a2a(http, resource)
             else:
-                result = self._check_x402(resource)
+                result = self._check_x402(http, resource)
+        except (httpx.PoolTimeout, httpx.ProxyError) as exc:
+            result = CheckResult("fail", error=f"local: {type(exc).__name__}", local=True)
         except httpx.TimeoutException:
             result = CheckResult("fail", error="timeout")
         except httpx.HTTPError as exc:
@@ -134,10 +162,10 @@ class HealthChecker:
                 break
         return body
 
-    def _check_x402(self, resource: dict) -> CheckResult:
+    def _check_x402(self, http: httpx.Client, resource: dict) -> CheckResult:
         method = (resource.get("method") or "GET").upper()
         kwargs = {"json": {}} if method in ("POST", "PUT", "PATCH") else {}
-        with self.http.stream(method if method in ("GET", "POST", "PUT", "PATCH") else "GET", resource["url"], **kwargs) as resp:
+        with http.stream(method if method in ("GET", "POST", "PUT", "PATCH") else "GET", resource["url"], **kwargs) as resp:
             body = self._read(resp)
         code = resp.status_code
         if code == 402:
@@ -153,15 +181,15 @@ class HealthChecker:
             return CheckResult("fail", code, error=f"HTTP {code}")
         return CheckResult("reachable", code, error=f"HTTP {code}")  # 400/405 등: 살아 있지만 결제 조건 확인 불가
 
-    def _check_mcp(self, url: str) -> CheckResult:
+    def _check_mcp(self, http: httpx.Client, url: str) -> CheckResult:
         headers = {"accept": "application/json, text/event-stream", "content-type": "application/json"}
-        with self.http.stream("POST", url, json=MCP_INIT, headers=headers) as resp:
+        with http.stream("POST", url, json=MCP_INIT, headers=headers) as resp:
             body = self._read(resp)
             session = resp.headers.get("mcp-session-id")
         code = resp.status_code
         if session:  # 점검용으로 만든 세션은 바로 정리
             try:
-                self.http.delete(url, headers={"mcp-session-id": session})
+                http.delete(url, headers={"mcp-session-id": session})
             except httpx.HTTPError:
                 pass
         if code == 200 and b'"result"' in body:
@@ -172,11 +200,11 @@ class HealthChecker:
             return CheckResult("fail", code, error=f"HTTP {code}")
         return CheckResult("reachable", code, error=f"HTTP {code}")
 
-    def _check_a2a(self, resource: dict) -> CheckResult:
+    def _check_a2a(self, http: httpx.Client, resource: dict) -> CheckResult:
         card = json.loads(resource.get("details") or "{}").get("agent_card")
         if not card:
-            return self._check_x402(resource)
-        resp = self.http.get(card)
+            return self._check_x402(http, resource)
+        resp = http.get(card)
         if resp.status_code == 200:
             return CheckResult("healthy", 200)
         return CheckResult("fail" if resp.status_code >= 500 or resp.status_code in (404, 410) else "reachable",
@@ -197,6 +225,12 @@ class HealthChecker:
 
     def check_and_record(self, resource: dict, in_use: bool = False) -> dict:
         result = self.check(resource)
+        if result.local:
+            self.store.postpone([resource["id"]], time.time() + 300)
+            return {"status": resource.get("health_status"), "previous": resource.get("health_status"), "postponed": True}
+        return self.record(resource, result, in_use)
+
+    def record(self, resource: dict, result: CheckResult, in_use: bool = False) -> dict:
         failures = 0 if result.outcome != "fail" else (resource.get("consecutive_failures") or 0) + 1
         host_size = self.host_sizes().get(urlparse(resource["url"]).hostname or resource["url"], 1)
         state = self.store.record_health(
@@ -224,32 +258,49 @@ class HealthChecker:
         if not due:
             return {"checked": 0}
         in_use = self.store.in_use_ids()
-        stats = defaultdict(int)
+        results: list[tuple[dict, CheckResult]] = []
         lock = threading.Lock()
-
-        def bump(key: str) -> None:
-            with lock:
-                stats[key] += 1
+        http = self._new_client()
 
         def work(resources: list[dict]) -> None:
             for i, r in enumerate(resources):
                 if i:
                     time.sleep(self.per_host_delay)
                 try:
-                    state = self.check_and_record(r, in_use=r["id"] in in_use)
+                    result = self.check(r, http)
                 except Exception:
                     log.exception("health check crashed for %s", r["url"])
-                    continue
-                bump(state.get("status", "error"))
-                if state.get("price_changed"):
-                    bump("price_changed")
-                if state.get("previous") in ("healthy", "reachable") and state.get("status") == "down":
-                    bump("went_down")
-                if state.get("previous") == "down" and state.get("status") in ("healthy", "reachable"):
-                    bump("recovered")
-                if state.get("status") == "retired" and state.get("previous") != "retired":
-                    bump("retired")
+                    result = CheckResult("fail", error="checker crashed", local=True)
+                with lock:
+                    results.append((r, result))
 
-        with ThreadPoolExecutor(max_workers=self.workers) as pool:
-            list(pool.map(work, by_host.values()))
-        return {"checked": len(due), "hosts": len(by_host), **stats}
+        try:
+            with ThreadPoolExecutor(max_workers=self.workers) as pool:
+                list(pool.map(work, by_host.values()))
+        finally:
+            self._close(http)
+
+        fails = sum(1 for _, res in results if res.outcome == "fail")
+        outage = len(results) >= self.outage_min and fails / len(results) >= self.outage_ratio
+        if outage:
+            log.warning("local network problem suspected: %d/%d checks failed in one batch; not recording failures", fails, len(results))
+        stats = defaultdict(int)
+        postponed = []
+        for r, res in results:
+            if res.local or (outage and res.outcome == "fail"):
+                postponed.append(r["id"])
+                continue
+            state = self.record(r, res, in_use=r["id"] in in_use)
+            stats[state.get("status", "error")] += 1
+            if state.get("price_changed"):
+                stats["price_changed"] += 1
+            if state.get("previous") in ("healthy", "reachable") and state.get("status") == "down":
+                stats["went_down"] += 1
+            if state.get("previous") == "down" and state.get("status") in ("healthy", "reachable"):
+                stats["recovered"] += 1
+            if state.get("status") == "retired" and state.get("previous") != "retired":
+                stats["retired"] += 1
+        if postponed:
+            self.store.postpone(postponed, time.time() + 300)
+            stats["postponed"] = len(postponed)
+        return {"checked": len(due), "hosts": len(by_host), "local_network_problem": outage, **stats}

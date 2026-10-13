@@ -69,3 +69,5 @@ class CollectorAgent:
                 stats = {"checked": 0}
             if not stats["checked"]:
                 self.stop_event.wait(self.idle_wait)  # 할 일이 없으면 잠시 쉼
+            elif stats.get("local_network_problem"):
+                self.stop_event.wait(60)  # 우리 쪽 네트워크 문제: 잠시 쉬었다가 새 연결로 재시도

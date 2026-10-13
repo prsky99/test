@@ -248,3 +248,33 @@ def test_templated_urls_skipped_and_bad_urls_recorded(env):
     store, _, checker, _ = env
     rid = add(store, "https://exa mple.com:99999/x")  # 잘못된 URL도 점검이 멈추지 않고 실패로 기록
     assert checker.check_and_record(store.resource(rid))["status"] == "failing"
+
+
+def test_mass_failure_treated_as_local_problem(env):
+    store, net, checker, _ = env
+    ids = [add(store, f"https://m{i}.example/api") for i in range(25)]
+    for i in ids:  # 모든 호스트가 동시에 실패 = 우리 쪽 네트워크 문제로 판단
+        net.responses[store.resource(i)["url"]] = lambda r: (_ for _ in ()).throw(httpx.ConnectTimeout("boom"))
+    stats = checker.run_due(100)
+    assert stats["local_network_problem"] and stats["postponed"] == 25
+    assert all(store.resource(i)["consecutive_failures"] == 0 for i in ids)
+    assert store.query("SELECT COUNT(*) AS n FROM health_checks")[0]["n"] == 0
+    assert store.due_for_check(time.time(), 100) == []  # 5분 뒤 재점검
+    assert len(store.due_for_check(time.time() + 400, 100)) == 25
+
+
+def test_pool_timeout_not_recorded_as_agent_failure(env):
+    store, net, checker, _ = env
+    rid = add(store, "https://pool.example/api")
+    net.responses["https://pool.example/api"] = lambda r: (_ for _ in ()).throw(httpx.PoolTimeout("pool"))
+    state = checker.check_and_record(store.resource(rid))
+    assert state["postponed"] and store.resource(rid)["consecutive_failures"] == 0
+
+
+def test_partial_failures_still_recorded(env):
+    store, net, checker, _ = env
+    ids = [add(store, f"https://p{i}.example/api") for i in range(25)]
+    for n, i in enumerate(ids):
+        net.responses[store.resource(i)["url"]] = (lambda r: httpx.Response(503)) if n < 5 else x402_ok
+    stats = checker.run_due(100)
+    assert not stats["local_network_problem"] and stats["failing"] == 5 and stats["healthy"] == 20

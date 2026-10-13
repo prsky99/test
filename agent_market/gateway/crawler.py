@@ -129,11 +129,21 @@ def parse_mcp_item(item: dict) -> dict | None:
 class Crawler:
     def __init__(self, store: Store, http: httpx.Client | None = None, page_delay: float = 0.3, max_pages: int = 400):
         self.store = store
-        self.http = http or httpx.Client(timeout=30.0, headers={"user-agent": "agent-gateway/0.1"})
+        self._fixed_http = http  # 없으면 수집할 때마다 새 연결을 만든다 (오래된 연결이 망가지는 것 방지)
+        self.http = http
         self.page_delay = page_delay
         self.max_pages = max_pages
 
     def crawl_all(self) -> dict:
+        if self._fixed_http is None:
+            self.http = httpx.Client(timeout=30.0, headers={"user-agent": "agent-gateway/0.1"})
+        try:
+            return self._crawl_all()
+        finally:
+            if self._fixed_http is None:
+                self.http.close()
+
+    def _crawl_all(self) -> dict:
         report = {}
         for name, fn in (("x402-bazaar", self.crawl_x402), ("mcp-registry", self.crawl_mcp)):
             started = time.time()

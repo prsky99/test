@@ -275,6 +275,11 @@ class Store:
         return {"status": status, "previous": row["health_status"], "consecutive_failures": failures, "failing_since": failing_since,
                 "price_changed": price_changed, "health_ok_24h": agg["ok"] or 0, "health_n_24h": agg["n"]}
 
+    def postpone(self, ids: list[int], at: float) -> None:
+        """점검 결과를 기록하지 않고 나중에 다시 점검하도록 미룬다 (우리 쪽 네트워크 문제일 때)."""
+        with self.tx() as db:
+            db.executemany("UPDATE resources SET next_check_at=? WHERE id=?", [(at, i) for i in ids])
+
     def health_history(self, rid: int, limit: int = 20) -> list[dict]:
         return [dict(r) for r in self.query(
             "SELECT at, outcome, status_code, latency_ms, error, observed_price FROM health_checks WHERE resource_id=? ORDER BY at DESC LIMIT ?",
