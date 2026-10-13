@@ -102,8 +102,8 @@ class HealthChecker:
     def host_sizes(self) -> Counter:
         """호스트별 점검 대상 엔드포인트 수 (10분마다 갱신)."""
         if time.time() - self._host_sizes_at > 600:
-            rows = self.store.query("SELECT url FROM resources WHERE active=1 AND health_status != 'retired'")
-            self._host_sizes = Counter(urlparse(r["url"]).hostname or r["url"] for r in rows)
+            rows = self.store.query("SELECT host, COUNT(*) AS n FROM resources WHERE active=1 AND health_status != 'retired' GROUP BY host")
+            self._host_sizes = Counter({r["host"]: r["n"] for r in rows})
             self._host_sizes_at = time.time()
         return self._host_sizes
 
@@ -232,7 +232,7 @@ class HealthChecker:
 
     def record(self, resource: dict, result: CheckResult, in_use: bool = False) -> dict:
         failures = 0 if result.outcome != "fail" else (resource.get("consecutive_failures") or 0) + 1
-        host_size = self.host_sizes().get(urlparse(resource["url"]).hostname or resource["url"], 1)
+        host_size = self.host_sizes().get(resource.get("host") or urlparse(resource["url"]).hostname, 1)
         state = self.store.record_health(
             resource["id"], result.outcome, result.status_code, result.latency_ms, result.error,
             next_check_at=self.next_check_at(failures, in_use, time.time(), host_size), down_after=self.schedule.down_after,
@@ -246,15 +246,10 @@ class HealthChecker:
     # ---------------- 일괄 점검 ----------------
     def run_due(self, limit: int = 500) -> dict:
         """점검 시각이 된 에이전트들을 호스트별로 묶어 병렬 점검한다. 호스트당 per_host_cap개까지만 담는다."""
-        candidates = self.store.due_for_check(time.time(), limit * 4)
+        due = self.store.due_for_check(time.time(), limit, per_host=self.per_host_cap)
         by_host: dict[str, list[dict]] = defaultdict(list)
-        due = []
-        for r in candidates:
-            host = urlparse(r["url"]).hostname or r["url"]
-            if len(by_host[host]) < self.per_host_cap and len(due) < limit:
-                by_host[host].append(r)
-                due.append(r)
-        by_host = {h: rs for h, rs in by_host.items() if rs}
+        for r in due:
+            by_host[r.get("host") or urlparse(r["url"]).hostname or r["url"]].append(r)
         if not due:
             return {"checked": 0}
         in_use = self.store.in_use_ids()

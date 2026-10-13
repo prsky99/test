@@ -8,6 +8,7 @@ import sqlite3
 import threading
 import time
 from contextlib import contextmanager
+from urllib.parse import urlparse
 
 from .classify import tokens
 
@@ -74,7 +75,15 @@ HEALTH_COLUMNS = {
     "health_ok_24h": "INTEGER NOT NULL DEFAULT 0",
     "health_n_24h": "INTEGER NOT NULL DEFAULT 0",
     "content_hash": "TEXT",  # 수집한 내용의 지문. 같으면 다시 쓰지 않고 last_seen만 갱신
+    "host": "TEXT",  # URL의 호스트 (호스트별로 나눠 점검하기 위해)
 }
+
+
+def host_of(url: str) -> str:
+    try:
+        return urlparse(url).hostname or url
+    except ValueError:
+        return url
 CRAWL_RUN_COLUMNS = {"mode": "TEXT", "changed": "INTEGER", "unchanged": "INTEGER", "pages": "INTEGER"}
 HEALTH_UP = ("healthy", "reachable")
 
@@ -102,6 +111,10 @@ class Store:
                 if col not in existing:
                     self._db.execute(f"ALTER TABLE resources ADD COLUMN {col} {decl}")
             self._db.execute("CREATE INDEX IF NOT EXISTS resources_due ON resources(active, next_check_at)")
+            self._db.execute("CREATE INDEX IF NOT EXISTS resources_host_due ON resources(host, next_check_at)")
+            missing = self._db.execute("SELECT id, url FROM resources WHERE host IS NULL").fetchall()
+            if missing:  # 기존 DB: 호스트 채우기
+                self._db.executemany("UPDATE resources SET host=? WHERE id=?", [(host_of(r["url"]), r["id"]) for r in missing])
             runs = {r[1] for r in self._db.execute("PRAGMA table_info(crawl_runs)")}
             for col, decl in CRAWL_RUN_COLUMNS.items():
                 if col not in runs:
@@ -144,9 +157,9 @@ class Store:
         if row is None:
             cur = db.execute(
                 """INSERT INTO resources (source, kind, url, name, description, category, networks, price_usdc, pay_to,
-                   method, details, calls_30d, payers_30d, last_called, key, first_seen, last_seen, active, content_hash)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?)""",
-                (*values, r["key"], now, now, digest),
+                   method, details, calls_30d, payers_30d, last_called, key, first_seen, last_seen, active, content_hash, host)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)""",
+                (*values, r["key"], now, now, digest, host_of(r["url"])),
             )
             rid = cur.lastrowid
             db.execute("INSERT INTO resources_fts(rowid, name, description) VALUES (?,?,?)", (rid, r["name"], r["description"]))
@@ -158,8 +171,8 @@ class Store:
         db.execute(
             """UPDATE resources SET source=?, kind=?, url=?, name=?, description=?, category=?, networks=?,
                price_usdc=?, pay_to=?, method=?, details=?, calls_30d=?, payers_30d=?, last_called=?,
-               last_seen=?, active=1, content_hash=? WHERE id=?""",
-            (*values, now, digest, rid),
+               last_seen=?, active=1, content_hash=?, host=? WHERE id=?""",
+            (*values, now, digest, host_of(r["url"]), rid),
         )
         if row["url"] != r["url"]:  # 주소가 바뀌면 헬스 상태를 새로 시작 (제외됐던 에이전트도 다시 점검)
             db.execute(
@@ -232,16 +245,23 @@ class Store:
         return out
 
     # ---------------- 헬스체크 ----------------
-    def due_for_check(self, now: float, limit: int) -> list[dict]:
-        """점검 시각이 된 에이전트. 한 번도 점검하지 않은 것(새로 수집된 것)이 먼저.
-        같은 순위끼리는 무작위로 섞어, 한 호스트의 엔드포인트 수천 개가 앞을 다 차지하지 않게 한다."""
-        rows = self.query(
-            """SELECT * FROM resources WHERE active=1 AND health_status != 'retired'
-               AND (next_check_at IS NULL OR next_check_at <= ?)
-               ORDER BY next_check_at IS NOT NULL, next_check_at, random() LIMIT ?""",
-            (now, limit),
-        )
-        return [dict(r) for r in rows]
+    def due_for_check(self, now: float, limit: int, per_host: int | None = None) -> list[dict]:
+        """점검 시각이 된 에이전트. 한 번도 점검하지 않은 것(새로 수집된 것)이 먼저, 그다음 오래 기다린 순.
+        per_host를 주면 호스트마다 그 개수까지만 뽑는다 (엔드포인트가 수천 개인 호스트가 앞을 다 차지하지 않게)."""
+        order = "next_check_at IS NOT NULL, next_check_at"
+        if per_host is None:
+            rows = self.query(
+                f"""SELECT * FROM resources WHERE active=1 AND health_status != 'retired'
+                    AND (next_check_at IS NULL OR next_check_at <= ?) ORDER BY {order}, random() LIMIT ?""",
+                (now, limit))
+        else:
+            rows = self.query(
+                f"""SELECT * FROM (
+                      SELECT *, ROW_NUMBER() OVER (PARTITION BY host ORDER BY {order}) AS rn FROM resources
+                      WHERE active=1 AND health_status != 'retired' AND (next_check_at IS NULL OR next_check_at <= ?))
+                    WHERE rn <= ? ORDER BY {order}, random() LIMIT ?""",
+                (now, per_host, limit))
+        return [{k: r[k] for k in r.keys() if k != "rn"} for r in rows]
 
     def in_use_ids(self) -> set[int]:
         """게이트웨이 고객에게 현재 소개됐거나 제안 중인 에이전트 (더 자주 점검)."""

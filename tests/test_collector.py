@@ -364,3 +364,24 @@ def test_collector_crawls_continuously():
         time.sleep(0.05)
     agent.stop()
     assert store.query("SELECT COUNT(*) AS n FROM crawl_runs WHERE source='x402-bazaar'")[0]["n"] >= 3  # 끝나면 바로 다시 시작
+
+
+def test_due_selection_spreads_across_hosts_even_when_big_host_is_oldest(env):
+    store, net, checker, _ = env
+    big = [add(store, f"https://huge.example/api/{i}") for i in range(300)]
+    small = [add(store, f"https://h{i}.example/api") for i in range(40)]
+    with store.tx() as db:  # 큰 호스트 쪽이 훨씬 오래 기다린 상태
+        db.executemany("UPDATE resources SET next_check_at=? WHERE id=?", [(1000.0, i) for i in big])
+        db.executemany("UPDATE resources SET next_check_at=? WHERE id=?", [(time.time() - 60, i) for i in small])
+    due = store.due_for_check(time.time(), 500, per_host=10)
+    hosts = {r["host"] for r in due}
+    assert len(due) == 50 and len(hosts) == 41  # 큰 호스트 10개 + 작은 호스트 40곳
+
+
+def test_existing_rows_get_host_backfilled(tmp_path):
+    path = str(tmp_path / "db.sqlite3")
+    store = Store(path)
+    rid = add(store, "https://backfill.example/x")
+    with store.tx() as db:
+        db.execute("UPDATE resources SET host=NULL")
+    assert Store(path).resource(rid)["host"] == "backfill.example"
