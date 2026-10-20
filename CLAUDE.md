@@ -58,14 +58,11 @@ GATEWAY_DB=gateway-data/collector.sqlite3 .venv/bin/python -m agent_market.gatew
   - 푸시 전에 `git fetch` 후 `git rebase`한다(남의 커밋을 덮어쓰지 않기).
 - 새 기능에는 테스트를 붙이고, 실제 데이터로 한 번 돌려 본 뒤 문서(COLLECTOR.md 등)에 결과를 남긴다.
 
-## 토큰 절약 작업 방식 (한 세션을 오래 쓰므로)
-- 명령 출력은 필요한 만큼만 본다.
-  - `| tail -20`, `| head`, `grep -c`, `pytest -q | tail -3`
-  - 큰 결과(DB 표본, 목록, 로그)는 scratchpad 파일로 쓰고 요약만 출력한다.
-- 넓은 탐색·조사·대량 판정은 서브에이전트에 맡기고 요약만 받는다.
-- 이미 읽은 파일을 다시 통째로 읽지 않는다. 필요한 부분만 `sed -n`이나 `grep -n`으로 본다.
-- 답변은 짧게: 결과, 수치, 남은 문제만.
-- 기다릴 때는 백그라운드 실행과 알림을 쓴다. 짧은 간격의 폴링 루프는 쓰지 않는다.
+## 토큰 절약 작업 방식
+`docs/claude/global-CLAUDE.md`의 6가지 규칙을 따른다(사용자 전역 `~/.claude/CLAUDE.md`와 같은 내용). 이 프로젝트에서 덧붙일 것:
+- 작업 기록은 `WORKLOG.md`. 압축 뒤에는 이것부터 보고, 작업이 끝나면 몇 줄 갱신한다.
+- 테스트는 바뀐 부분의 테스트 파일 먼저, 커밋 전에 전체 `pytest -q | tail -3`을 한 번.
+- 수집 DB 조회는 집계(`count`, `group by`)로 보고, 행 덤프는 scratchpad 파일로.
 
 ## Compact instructions
 압축할 때 남길 것:
