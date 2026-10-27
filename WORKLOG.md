@@ -22,6 +22,7 @@
 - Chat 재시험(2026-10-27): 14건 중 개선 6·일부 4·그대로 4, 속도 7.3s→4.9s(화면), 도구 매칭 도입·집합형 서비스 쏠림·서울 날씨 오답 → `reports/Chat 재시험.md`
 - 개선 확인 종합(2026-10-27): 107건 중 개선 43·일부 18·남음 28·미확인 18 → `reports/개선 확인 종합.md`. 재확인 중 생긴 데이터: 문의 inq_aavyTwAl3VU17-qgKkXlZU8m 1건
 - 개선 확인 2차(2026-10-27): 남은 22건 중 개선 1·일부 5·그대로 16, 회귀 4(Chat 다국어·속도, Explore 체크박스, 새 라벨) → `reports/개선 확인 2차.md`. 생긴 데이터: 문의 inq_LPrDvXkFp4nTjCVT_T2A7jtc
+- 개선 확인 3차(2026-10-27): /api/agents/{id} 전부 500(Test 실행·Explore 상세 막힘), Chat 다국어·속도 복구, Explore 속도 개선(API p50 0.95s) → `reports/개선 확인 3차.md`. 생긴 데이터: 문의 inq_ObOcUR50djvGsukLwApp8UJi
 
 ## 진행 중
 - 워크스페이스 워크플로우 자연어 생성 테스트: 계획 `docs/qa/workflow-test-plan.md` 작성. 로그인된 맥 Chrome이 필요해 맥 로컬 세션에서 실행 대기
