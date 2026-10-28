@@ -23,6 +23,8 @@
 - 개선 확인 종합(2026-10-27): 107건 중 개선 43·일부 18·남음 28·미확인 18 → `reports/개선 확인 종합.md`. 재확인 중 생긴 데이터: 문의 inq_aavyTwAl3VU17-qgKkXlZU8m 1건
 - 개선 확인 2차(2026-10-27): 남은 22건 중 개선 1·일부 5·그대로 16, 회귀 4(Chat 다국어·속도, Explore 체크박스, 새 라벨) → `reports/개선 확인 2차.md`. 생긴 데이터: 문의 inq_LPrDvXkFp4nTjCVT_T2A7jtc
 - 개선 확인 3차(2026-10-27): /api/agents/{id} 전부 500(Test 실행·Explore 상세 막힘), Chat 다국어·속도 복구, Explore 속도 개선(API p50 0.95s) → `reports/개선 확인 3차.md`. 생긴 데이터: 문의 inq_ObOcUR50djvGsukLwApp8UJi
+- 개선 확인 4차(2026-10-28): 상세 API·Test 예제 복구, A2A·MCP 규격 일부 개선, 정적 파일 no-store로 첫 화면 느림 → `reports/개선 확인 4차.md`
+- UI/UX 평가(2026-10-28): 기준 `docs/qa/uiux-evaluation-criteria.md`, 측정 `scripts/uiux_audit.js`(axe·Web Vitals·키보드), 종합 64(C) 사람 62·에이전트 62·접근성 69, 개선 20건 → `reports/UI UX 평가.md`
 
 ## 진행 중
 - 워크스페이스 워크플로우 자연어 생성 테스트: 계획 `docs/qa/workflow-test-plan.md` 작성. 로그인된 맥 Chrome이 필요해 맥 로컬 세션에서 실행 대기
