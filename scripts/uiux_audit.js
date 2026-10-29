@@ -42,8 +42,11 @@ async function measurePage(p, url) {
       transferKB: Math.round((rs.reduce((s, x) => s + (x.transferSize || 0), 0) + n.transferSize) / 1024) };
   });
   const btn = p.locator("main button:visible").first();
-  if (await btn.count()) await btn.click({ timeout: 3000 }).catch(() => {});
+  // INP 근사용 클릭. 로그인 버튼처럼 다른 사이트로 넘어가는 버튼은 누르지 않는다
+  const leaves = await btn.evaluate(e => /sign in|log in|continue with|google|github/i.test(e.innerText)).catch(() => true);
+  if ((await btn.count()) && !leaves) await btn.click({ timeout: 3000 }).catch(() => {});
   await p.waitForTimeout(800);
+  if (new URL(p.url()).origin !== new URL(url).origin) await p.goto(url, { waitUntil: "load", timeout: 90000 });
   const vitals = await p.evaluate(() => window.__v || {});
   await p.evaluate(AXE); // CSP가 있어도 동작하도록 주입 대신 평가
   const axe = await p.evaluate(async () => {
