@@ -30,6 +30,7 @@
 - 개선 확인 7차(2026-10-29): UI/UX 71(B), CLS 0.104·검색 최대 1.49s·날씨 분류·오타 개선, 새 문제 모바일 가로 넘침(select#chatProtocol 533px)·Test 예제 전부 502/비활성·Chat 추천 흔들림 → `reports/개선 확인 7차.md`
 - 개선 확인 8차(2026-10-29): UI/UX 73(B), 가로 넘침·Test 예제·Chat GitHub/번역 해결, 회귀 MCP readOnlyHint 4개 false. uiux_audit.js가 로그인 버튼을 눌러 Google 페이지를 재던 문제 수정 → `reports/개선 확인 8차.md`
 - 개선 확인 9차(2026-10-29): UI/UX 74(B), 속도 개선(Chat 1.9s, Explore 0.71s), 나머지 남은 작업 그대로(readOnlyHint, x402 402 표시, Chat 날씨·지시어) → `reports/개선 확인 9차.md`
+- 개선 확인 10차(2026-10-29): UI/UX 75(B), Chat 영어 날씨·계약서 번역, Explore translate 개선. 나머지 그대로 → `reports/개선 확인 10차.md`
 
 ## 진행 중
 - 워크스페이스 워크플로우 자연어 생성 테스트: 계획 `docs/qa/workflow-test-plan.md` 작성. 로그인된 맥 Chrome이 필요해 맥 로컬 세션에서 실행 대기
