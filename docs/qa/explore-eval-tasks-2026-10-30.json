@@ -1,0 +1,3267 @@
+{
+ "version": 1,
+ "created": "2026-10-30",
+ "status": "reviewed",
+ "count": 201,
+ "tasks": [
+  {
+   "group": "capability",
+   "query": "weather forecast for a city",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "weather"
+    ],
+    "forbidden": [
+     "crypto",
+     "token"
+    ],
+    "top": 10
+   },
+   "id": "t001",
+   "review": {
+    "decision": "edited",
+    "note": "forecast also matches prediction markets"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "hourly temperature forecast",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "temperature",
+     "weather"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t002",
+   "review": {
+    "decision": "edited",
+    "note": "forecast also matches prediction markets"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "severe weather alerts",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "weather",
+     "severe",
+     "storm"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t003",
+   "review": {
+    "decision": "edited",
+    "note": "alert also matches price alerts"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "air quality index",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "air quality",
+     "aqi",
+     "pollution"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t004",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "pollen levels today",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "pollen"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t005",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "ocean tide times",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "tide"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t006",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "earthquake reports",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "earthquake",
+     "seismic"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t007",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "sunrise and sunset times",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "sunrise",
+     "sunset"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t008",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "translate text between languages",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "translat"
+    ],
+    "forbidden": [
+     "crypto"
+    ],
+    "top": 10
+   },
+   "id": "t009",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "translate a document to Japanese",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "translat"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t010",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "detect the language of a sentence",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "language detect",
+     "detect language",
+     "language identification"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t011",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "summarize a long article",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "summar"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t012",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "extract text from a pdf",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "pdf"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t013",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "ocr scanned receipts",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "ocr",
+     "receipt"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t014",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "convert html to markdown",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "markdown"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t015",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "convert currency amounts",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "currency",
+     "exchange rate",
+     "forex"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t016",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "euro to dollar exchange rate",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "exchange rate",
+     "currency",
+     "forex"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t017",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "stock price quote",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "stock",
+     "quote",
+     "equity"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t018",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "company earnings reports",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "earnings"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t019",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "bitcoin price",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "bitcoin",
+     "btc",
+     "crypto"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t020",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "ethereum gas fees",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "gas",
+     "ethereum"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t021",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "token holder analytics",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "holder",
+     "token holder"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t022",
+   "review": {
+    "decision": "edited",
+    "note": "token alone matches most crypto listings"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "wallet balance lookup",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "wallet",
+     "balance"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t023",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "defi yield rates",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "yield",
+     "defi",
+     "apy"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t024",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "prediction market odds",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "prediction market",
+     "odds",
+     "polymarket",
+     "kalshi"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t025",
+   "review": {
+    "decision": "edited",
+    "note": "market alone matches any market"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "search github issues",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "github"
+    ],
+    "forbidden": [
+     "insurance"
+    ],
+    "top": 10
+   },
+   "id": "t026",
+   "review": {
+    "decision": "edited",
+    "note": "issue is too common"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "find pull requests that fix memory leaks",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "pull request",
+     "github"
+    ],
+    "forbidden": [
+     "insurance"
+    ],
+    "top": 10
+   },
+   "id": "t027",
+   "review": {
+    "decision": "edited",
+    "note": "'pr ' is not a reliable signal"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "npm package security advisories",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "npm",
+     "advisor",
+     "vulnerab"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t028",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "python library documentation",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "python",
+     "pypi"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t029",
+   "review": {
+    "decision": "edited",
+    "note": "docs alone does not show Python documentation"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "search technical documentation",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "documentation",
+     "docs"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t030",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "code review for a pull request",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "code review",
+     "pull request",
+     "code quality",
+     "lint"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t031",
+   "review": {
+    "decision": "edited",
+    "note": "review also matches product reviews"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "run sql queries on a database",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "sql",
+     "database"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t032",
+   "review": {
+    "decision": "edited",
+    "note": "query is too common"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "postgres schema inspection",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "postgres"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t033",
+   "review": {
+    "decision": "edited",
+    "note": "schema is too common"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "web search for recent news",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "news",
+     "web search"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t034",
+   "review": {
+    "decision": "edited",
+    "note": "search alone is too common"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "scrape a website",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "scrap",
+     "crawl"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t035",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "take a screenshot of a web page",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "screenshot"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t036",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "technology news headlines",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "news"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t037",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "ai research papers",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "paper",
+     "arxiv"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t038",
+   "review": {
+    "decision": "edited",
+    "note": "research is too common"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "academic citation lookup",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "citation",
+     "scholar",
+     "paper"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t039",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "patent search",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "patent"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t040",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "legal case law search",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "case law",
+     "court",
+     "legal"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t041",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "government contract awards",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "procurement",
+     "contract award",
+     "government contract",
+     "tender",
+     "usaspending"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t042",
+   "review": {
+    "decision": "edited",
+    "note": "contract also matches smart contracts"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "company registry lookup",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "company registry",
+     "business registry",
+     "corporate registry",
+     "companies house",
+     "opencorporates"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t043",
+   "review": {
+    "decision": "edited",
+    "note": "company/business are too common"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "domain whois lookup",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "whois",
+     "rdap",
+     "domain lookup"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t044",
+   "review": {
+    "decision": "edited",
+    "note": "domain is too common"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "dns record check",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "dns"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t045",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "ssl certificate expiry",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "ssl",
+     "certificate",
+     "tls"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t046",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "ip geolocation",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "geolocation",
+     "ip address",
+     "ip lookup"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t047",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "geocode an address",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "geocod"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t048",
+   "review": {
+    "decision": "edited",
+    "note": "address also matches wallet addresses"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "driving directions between two cities",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "route",
+     "directions",
+     "navigation"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t049",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "flight status",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "flight"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t050",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "hotel availability",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "hotel"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t051",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "public transit schedules",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "transit",
+     "bus",
+     "train",
+     "gtfs"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t052",
+   "review": {
+    "decision": "edited",
+    "note": "schedule is too common"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "restaurant recommendations",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "restaurant"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t053",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "recipe nutrition facts",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "nutrition",
+     "recipe",
+     "calorie"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t054",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "food barcode lookup",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "barcode",
+     "upc",
+     "ean",
+     "open food facts"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t055",
+   "review": {
+    "decision": "edited",
+    "note": "food/product are too common"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "product price comparison",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "price comparison",
+     "compare prices",
+     "shopping"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t056",
+   "review": {
+    "decision": "edited",
+    "note": "price/product are too common"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "ecommerce order tracking",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "order tracking",
+     "shipment",
+     "tracking number"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t057",
+   "review": {
+    "decision": "edited",
+    "note": "order also matches order books"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "package shipment tracking",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "shipment",
+     "parcel",
+     "package tracking",
+     "courier"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t058",
+   "review": {
+    "decision": "edited",
+    "note": "tracking also matches analytics tracking"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "send an email",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "email"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t059",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "send an sms message",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "sms",
+     "text message"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t060",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "post a message to slack",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "slack"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t061",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "schedule a calendar meeting",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "calendar",
+     "meeting"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t062",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "create a task in a todo list",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "todo",
+     "to-do",
+     "task manager",
+     "task list"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t063",
+   "review": {
+    "decision": "edited",
+    "note": "task matches almost every listing"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "transcribe audio to text",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "transcri",
+     "speech"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t064",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "text to speech voice",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "text to speech",
+     "tts",
+     "voice"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t065",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "generate an image from text",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "image generat",
+     "text to image",
+     "text-to-image"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t066",
+   "review": {
+    "decision": "edited",
+    "note": "image alone matches image analysis"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "remove image background",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "background"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t067",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "resize and compress images",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "resize",
+     "compress"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t068",
+   "review": {
+    "decision": "edited",
+    "note": "image alone matches unrelated image tools"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "generate a qr code",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "qr"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t069",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "video transcript from youtube",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "youtube",
+     "transcript"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t070",
+   "review": {
+    "decision": "edited",
+    "note": "video alone is broad"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "sentiment analysis of reviews",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "sentiment"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t071",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "named entity extraction",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "entity",
+     "entities"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t072",
+   "review": {
+    "decision": "edited",
+    "note": "'ner' matches owner/partner, extract is too common"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "classify text topics",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "classif"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t073",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "embedding vectors for text",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "embedding"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t074",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "chat with a language model",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "llm",
+     "language model",
+     "gpt",
+     "claude"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t075",
+   "review": {
+    "decision": "edited",
+    "note": "chat matches most agents"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "json schema validation",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "json schema",
+     "validat"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t076",
+   "review": {
+    "decision": "edited",
+    "note": "json/schema are too common"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "csv data cleaning",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "csv"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t077",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "spreadsheet formula help",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "spreadsheet",
+     "excel",
+     "google sheets"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t078",
+   "review": {
+    "decision": "edited",
+    "note": "sheet matches cheat sheet/datasheet"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "unit conversion",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "unit conver",
+     "convert units"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t079",
+   "review": {
+    "decision": "edited",
+    "note": "'unit' matches community, convert is too common"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "timezone conversion",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "timezone",
+     "time zone"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t080",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "public holiday calendar",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "holiday"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t081",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "random number generator",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "random"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t082",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "password strength check",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "password"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t083",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "malware url scan",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "malware",
+     "phishing",
+     "url scan",
+     "threat"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t084",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "email address verification",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "email verif",
+     "email validat",
+     "verify email"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t085",
+   "review": {
+    "decision": "edited",
+    "note": "email/verif alone pass unrelated listings"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "phone number validation",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "phone"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t086",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "job listings search",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "job"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t087",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "real estate listings",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "real estate",
+     "property listing",
+     "realtor",
+     "zillow"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t088",
+   "review": {
+    "decision": "edited",
+    "note": "property is a common JSON word"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "sports scores",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "sports",
+     "nba",
+     "nfl",
+     "soccer",
+     "football"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t089",
+   "review": {
+    "decision": "edited",
+    "note": "score/match are too common"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "football match results",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "football",
+     "soccer"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t090",
+   "review": {
+    "decision": "edited",
+    "note": "match is too common"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "movie information lookup",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "movie",
+     "film"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t091",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "music track search",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "music",
+     "song",
+     "spotify"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t092",
+   "review": {
+    "decision": "edited",
+    "note": "track is too common"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "book search by isbn",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "isbn",
+     "book"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t093",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "wikipedia article summary",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "wikipedia",
+     "wiki"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t094",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "dictionary word definitions",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "dictionary",
+     "definition"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t095",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "country facts and statistics",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "country"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t096",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "gdp economic indicators",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "gdp",
+     "economic"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t097",
+   "review": {
+    "decision": "edited",
+    "note": "indicator also matches trading indicators"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "inflation data",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "inflation",
+     "cpi"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t098",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "covid health statistics",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "covid",
+     "disease",
+     "epidemiolog",
+     "public health"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t099",
+   "review": {
+    "decision": "edited",
+    "note": "health also matches health checks"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "drug interaction lookup",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "drug",
+     "medication"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t100",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "medical symptom information",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "symptom",
+     "medical"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t101",
+   "review": {
+    "decision": "edited",
+    "note": "health also matches health checks"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "fitness workout plans",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "fitness",
+     "workout",
+     "exercise"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t102",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "astronomy space data",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "astronomy",
+     "nasa",
+     "planet",
+     "asteroid"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t103",
+   "review": {
+    "decision": "edited",
+    "note": "space matches namespace/workspace"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "satellite imagery",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "satellite"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t104",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "energy grid demand",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "energy",
+     "grid",
+     "electricity"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t105",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "carbon emissions data",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "carbon",
+     "emission"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t106",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "agriculture crop prices",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "crop",
+     "agricultur"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t107",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "social media profile lookup",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "social media",
+     "twitter",
+     "reddit",
+     "linkedin",
+     "instagram"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t108",
+   "review": {
+    "decision": "edited",
+    "note": "profile is too common"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "reddit post search",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "reddit"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t109",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "seo keyword research",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "seo"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t110",
+   "review": {
+    "decision": "edited",
+    "note": "keyword is too common"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "website uptime monitoring",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "uptime"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t111",
+   "review": {
+    "decision": "edited",
+    "note": "monitor is too common"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "kubernetes cluster monitoring",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "kubernetes",
+     "k8s"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t112",
+   "review": {
+    "decision": "edited",
+    "note": "cluster is too common"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "cloud cost analysis",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "cloud cost",
+     "finops",
+     "aws cost",
+     "cloud billing"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t113",
+   "review": {
+    "decision": "edited",
+    "note": "cloud/cost are too common"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "invoice generation",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "invoice"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t114",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "payment link creation",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "payment"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t115",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "capability",
+   "query": "translate and summarize a news article",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "translat",
+     "summar"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t116",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "exact_name",
+   "query": "Technology News",
+   "expect": {
+    "type": "first_name",
+    "name": "Technology News"
+   },
+   "id": "t117",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "exact_name",
+   "query": "Research Papers",
+   "expect": {
+    "type": "first_name",
+    "name": "Research Papers"
+   },
+   "id": "t118",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "exact_name",
+   "query": "Paper Finder",
+   "expect": {
+    "type": "first_name",
+    "name": "Paper Finder"
+   },
+   "id": "t119",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "exact_name",
+   "query": "Faceabot Weather",
+   "expect": {
+    "type": "first_name",
+    "name": "Faceabot Weather"
+   },
+   "id": "t120",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "exact_name",
+   "query": "Japan Weather API",
+   "expect": {
+    "type": "first_name",
+    "name": "Japan Weather API"
+   },
+   "id": "t121",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "exact_name",
+   "query": "Smarter Weather",
+   "expect": {
+    "type": "first_name",
+    "name": "Smarter Weather"
+   },
+   "id": "t122",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "exact_name",
+   "query": "PixelGust Environmental Data",
+   "expect": {
+    "type": "first_name",
+    "name": "PixelGust Environmental Data"
+   },
+   "id": "t123",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "exact_name",
+   "query": "NWS Weather Alerts",
+   "expect": {
+    "type": "first_name",
+    "name": "NWS Weather Alerts"
+   },
+   "id": "t124",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "exact_name",
+   "query": "Agent Tollgate",
+   "expect": {
+    "type": "first_name",
+    "name": "Agent Tollgate"
+   },
+   "id": "t125",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "exact_name",
+   "query": "Country Profile",
+   "expect": {
+    "type": "first_name",
+    "name": "Country Profile"
+   },
+   "id": "t126",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "generic",
+   "query": "data",
+   "expect": {
+    "type": "browse"
+   },
+   "id": "t127",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "generic",
+   "query": "api",
+   "expect": {
+    "type": "browse"
+   },
+   "id": "t128",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "generic",
+   "query": "agent",
+   "expect": {
+    "type": "browse"
+   },
+   "id": "t129",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "generic",
+   "query": "mcp",
+   "expect": {
+    "type": "browse"
+   },
+   "id": "t130",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "generic",
+   "query": "a2a",
+   "expect": {
+    "type": "browse"
+   },
+   "id": "t131",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "generic",
+   "query": "tools",
+   "expect": {
+    "type": "browse"
+   },
+   "id": "t132",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "generic",
+   "query": "service",
+   "expect": {
+    "type": "browse"
+   },
+   "id": "t133",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "generic",
+   "query": "ai",
+   "expect": {
+    "type": "browse"
+   },
+   "id": "t134",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "generic",
+   "query": "search",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "web search",
+     "search engine",
+     "search api"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t135",
+   "review": {
+    "decision": "edited",
+    "note": "a bare \"search\" names a capability (web search), not a catalog browse"
+   }
+  },
+  {
+   "group": "generic",
+   "query": "agents",
+   "expect": {
+    "type": "browse"
+   },
+   "id": "t136",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "generic",
+   "query": "server",
+   "expect": {
+    "type": "browse"
+   },
+   "id": "t137",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "generic",
+   "query": "x402",
+   "expect": {
+    "type": "browse"
+   },
+   "id": "t138",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "generic",
+   "query": "assistant",
+   "expect": {
+    "type": "browse"
+   },
+   "id": "t139",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "generic",
+   "query": "bot",
+   "expect": {
+    "type": "browse"
+   },
+   "id": "t140",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "generic",
+   "query": "automation",
+   "expect": {
+    "type": "browse"
+   },
+   "id": "t141",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "nonsense",
+   "query": "asdfghjkl",
+   "expect": {
+    "type": "empty"
+   },
+   "id": "t142",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "nonsense",
+   "query": "qwertyuiop zxcv",
+   "expect": {
+    "type": "empty"
+   },
+   "id": "t143",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "nonsense",
+   "query": "xyzzy plugh",
+   "expect": {
+    "type": "empty"
+   },
+   "id": "t144",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "nonsense",
+   "query": "zzzzzz",
+   "expect": {
+    "type": "empty"
+   },
+   "id": "t145",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "nonsense",
+   "query": "lorem ipsum dolor",
+   "expect": {
+    "type": "relevant_or_suggestion",
+    "required_any": [
+     "lorem"
+    ]
+   },
+   "id": "t146",
+   "review": {
+    "decision": "edited",
+    "note": "placeholder-text generators are real listings, so this is not nonsense"
+   }
+  },
+  {
+   "group": "nonsense",
+   "query": "kjhkjh kjh",
+   "expect": {
+    "type": "empty"
+   },
+   "id": "t147",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "nonsense",
+   "query": "!!!???",
+   "expect": {
+    "type": "empty"
+   },
+   "id": "t148",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "nonsense",
+   "query": "0000000",
+   "expect": {
+    "type": "empty"
+   },
+   "id": "t149",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "nonsense",
+   "query": "ffffff ffff",
+   "expect": {
+    "type": "empty"
+   },
+   "id": "t150",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "nonsense",
+   "query": "qpwoeiruty",
+   "expect": {
+    "type": "empty"
+   },
+   "id": "t151",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "multilingual",
+   "query": "날씨 예보",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "weather"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t152",
+   "review": {
+    "decision": "edited",
+    "note": "forecast also matches prediction markets"
+   }
+  },
+  {
+   "group": "multilingual",
+   "query": "텍스트 번역",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "translat"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t153",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "multilingual",
+   "query": "기술 뉴스",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "news"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t154",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "multilingual",
+   "query": "논문 검색",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "paper",
+     "arxiv"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t155",
+   "review": {
+    "decision": "edited",
+    "note": "research is too common"
+   }
+  },
+  {
+   "group": "multilingual",
+   "query": "환율 변환",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "currency",
+     "exchange rate",
+     "forex"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t156",
+   "review": {
+    "decision": "edited",
+    "note": "exchange also matches crypto exchanges"
+   }
+  },
+  {
+   "group": "multilingual",
+   "query": "天気予報",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "weather"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t157",
+   "review": {
+    "decision": "edited",
+    "note": "forecast also matches prediction markets"
+   }
+  },
+  {
+   "group": "multilingual",
+   "query": "翻訳",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "translat"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t158",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "multilingual",
+   "query": "ニュース 検索",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "news"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t159",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "multilingual",
+   "query": "pronóstico del tiempo",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "weather"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t160",
+   "review": {
+    "decision": "edited",
+    "note": "forecast also matches prediction markets"
+   }
+  },
+  {
+   "group": "multilingual",
+   "query": "traducir texto",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "translat"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t161",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "multilingual",
+   "query": "noticias de tecnología",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "news"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t162",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "multilingual",
+   "query": "prévisions météo",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "weather"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t163",
+   "review": {
+    "decision": "edited",
+    "note": "forecast also matches prediction markets"
+   }
+  },
+  {
+   "group": "multilingual",
+   "query": "traduction de texte",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "translat"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t164",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "multilingual",
+   "query": "Wettervorhersage",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "weather"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t165",
+   "review": {
+    "decision": "edited",
+    "note": "forecast also matches prediction markets"
+   }
+  },
+  {
+   "group": "multilingual",
+   "query": "Übersetzung",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "translat"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t166",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "typo",
+   "query": "wether forcast",
+   "expect": {
+    "type": "relevant_or_suggestion",
+    "required_any": [
+     "weather"
+    ],
+    "top": 10
+   },
+   "id": "t167",
+   "review": {
+    "decision": "edited",
+    "note": "forecast also matches prediction markets"
+   }
+  },
+  {
+   "group": "typo",
+   "query": "transalte text",
+   "expect": {
+    "type": "relevant_or_suggestion",
+    "required_any": [
+     "translat"
+    ],
+    "top": 10
+   },
+   "id": "t168",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "typo",
+   "query": "githb issues",
+   "expect": {
+    "type": "relevant_or_suggestion",
+    "required_any": [
+     "github"
+    ],
+    "top": 10
+   },
+   "id": "t169",
+   "review": {
+    "decision": "edited",
+    "note": "issue is too common"
+   }
+  },
+  {
+   "group": "typo",
+   "query": "reserch papers",
+   "expect": {
+    "type": "relevant_or_suggestion",
+    "required_any": [
+     "paper",
+     "arxiv"
+    ],
+    "top": 10
+   },
+   "id": "t170",
+   "review": {
+    "decision": "edited",
+    "note": "research is too common"
+   }
+  },
+  {
+   "group": "typo",
+   "query": "curency exchange",
+   "expect": {
+    "type": "relevant_or_suggestion",
+    "required_any": [
+     "currency",
+     "exchange rate",
+     "forex"
+    ],
+    "top": 10
+   },
+   "id": "t171",
+   "review": {
+    "decision": "edited",
+    "note": "exchange also matches crypto exchanges"
+   }
+  },
+  {
+   "group": "typo",
+   "query": "emial sender",
+   "expect": {
+    "type": "relevant_or_suggestion",
+    "required_any": [
+     "email"
+    ],
+    "top": 10
+   },
+   "id": "t172",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "typo",
+   "query": "stok quotes",
+   "expect": {
+    "type": "relevant_or_suggestion",
+    "required_any": [
+     "stock",
+     "quote"
+    ],
+    "top": 10
+   },
+   "id": "t173",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "typo",
+   "query": "pdf extrction",
+   "expect": {
+    "type": "relevant_or_suggestion",
+    "required_any": [
+     "pdf"
+    ],
+    "top": 10
+   },
+   "id": "t174",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "typo",
+   "query": "imgae generation",
+   "expect": {
+    "type": "relevant_or_suggestion",
+    "required_any": [
+     "image"
+    ],
+    "top": 10
+   },
+   "id": "t175",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "typo",
+   "query": "translte",
+   "expect": {
+    "type": "relevant_or_suggestion",
+    "required_any": [
+     "translat"
+    ],
+    "top": 10
+   },
+   "id": "t176",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "protocol",
+   "query": "weather forecast",
+   "params": {
+    "kind": "mcp"
+   },
+   "expect": {
+    "type": "protocol_only",
+    "kind": "mcp"
+   },
+   "id": "t177",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "protocol",
+   "query": "weather forecast",
+   "params": {
+    "kind": "a2a"
+   },
+   "expect": {
+    "type": "protocol_only",
+    "kind": "a2a"
+   },
+   "id": "t178",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "protocol",
+   "query": "translate text",
+   "params": {
+    "kind": "mcp"
+   },
+   "expect": {
+    "type": "protocol_only",
+    "kind": "mcp"
+   },
+   "id": "t179",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "protocol",
+   "query": "translate text",
+   "params": {
+    "kind": "a2a"
+   },
+   "expect": {
+    "type": "protocol_only",
+    "kind": "a2a"
+   },
+   "id": "t180",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "protocol",
+   "query": "crypto price",
+   "params": {
+    "kind": "x402"
+   },
+   "expect": {
+    "type": "protocol_only",
+    "kind": "x402"
+   },
+   "id": "t181",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "protocol",
+   "query": "weather forecast",
+   "params": {
+    "kind": "x402"
+   },
+   "expect": {
+    "type": "protocol_only",
+    "kind": "x402"
+   },
+   "id": "t182",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "protocol",
+   "query": "research papers",
+   "params": {
+    "kind": "mcp"
+   },
+   "expect": {
+    "type": "protocol_only",
+    "kind": "mcp"
+   },
+   "id": "t183",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "protocol",
+   "query": "technology news",
+   "params": {
+    "kind": "a2a"
+   },
+   "expect": {
+    "type": "protocol_only",
+    "kind": "a2a"
+   },
+   "id": "t184",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "filter",
+   "query": "weather forecast",
+   "params": {
+    "verified": "true"
+   },
+   "expect": {
+    "type": "filter_respected"
+   },
+   "id": "t185",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "filter",
+   "query": "translate text",
+   "params": {
+    "no_auth": "true"
+   },
+   "expect": {
+    "type": "filter_respected"
+   },
+   "id": "t186",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "filter",
+   "query": "weather",
+   "params": {
+    "has_report": "true"
+   },
+   "expect": {
+    "type": "filter_respected"
+   },
+   "id": "t187",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "filter",
+   "query": "research papers",
+   "params": {
+    "verified": "true"
+   },
+   "expect": {
+    "type": "filter_respected"
+   },
+   "id": "t188",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "filter",
+   "query": "github issues",
+   "params": {
+    "no_auth": "true"
+   },
+   "expect": {
+    "type": "filter_respected"
+   },
+   "id": "t189",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "registry",
+   "query": "8004",
+   "expect": {
+    "type": "registry",
+    "source": "erc8004"
+   },
+   "id": "t190",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "registry",
+   "query": "ERC-8004 agents",
+   "expect": {
+    "type": "registry",
+    "source": "erc8004"
+   },
+   "id": "t191",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "compound",
+   "query": "weather forecast and air quality for seoul",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "weather",
+     "air quality"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t192",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "compound",
+   "query": "translate a webpage and extract its text",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "translat",
+     "scrap"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t193",
+   "review": {
+    "decision": "edited",
+    "note": "extract is too common"
+   }
+  },
+  {
+   "group": "compound",
+   "query": "github issue triage with labels",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "github",
+     "issue"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t194",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "compound",
+   "query": "crypto price alerts by email",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "crypto",
+     "bitcoin"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t195",
+   "review": {
+    "decision": "edited",
+    "note": "price/alert are too common"
+   }
+  },
+  {
+   "group": "compound",
+   "query": "search papers and summarize abstracts",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "paper",
+     "summar"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t196",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "compound",
+   "query": "flight and hotel booking search",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "flight",
+     "hotel"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t197",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "compound",
+   "query": "news sentiment for a stock ticker",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "sentiment",
+     "stock"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t198",
+   "review": {
+    "decision": "edited",
+    "note": "news alone does not show the task"
+   }
+  },
+  {
+   "group": "compound",
+   "query": "ocr then translate an image",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "ocr",
+     "translat"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t199",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "compound",
+   "query": "geocode addresses and show weather",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "geocod",
+     "weather"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t200",
+   "review": {
+    "decision": "accepted"
+   }
+  },
+  {
+   "group": "compound",
+   "query": "transcribe a meeting and send notes by email",
+   "expect": {
+    "type": "relevant",
+    "required_any": [
+     "transcri",
+     "email"
+    ],
+    "forbidden": [],
+    "top": 10
+   },
+   "id": "t201",
+   "review": {
+    "decision": "accepted"
+   }
+  }
+ ],
+ "review_notes": "Expectations are draft heuristics written without looking at current results. A reviewer marks each task accepted/edited/dropped before it is used as a gate. required_any matches name, description or tool text (case-insensitive substring) in the top N; empty means no listing should be shown or a suggestion instead.",
+ "reviewed": {
+  "date": "2026-10-31",
+  "by": "Claude (at the operator's request, instead of a human review)",
+  "accepted": 140,
+  "edited": 61,
+  "dropped": 0,
+  "rule": "required_any terms must name the task itself; words that also match unrelated listings (market, address, forecast, task, health, space) were narrowed. Compound tasks still pass on any one part; a stricter both-parts check is a later change."
+ }
+}

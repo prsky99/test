@@ -582,7 +582,197 @@ OpenSearch는 후보 검색을 빠르게 하는 재생성 가능한 보조 색�
   - 새 시험 `tests/test_explore_complete_reuse.py` 4건
   - 관련 32개 파일 773개 통과
 - **패키지:** `explore-a1-frontend-20261031-r17`. 활성 `qa12-frontend-20261030-vary-r1`에 네 파일만 얹었고 검증을 통과했다. 정책 값은 그대로다.
-- **배포:** 자동 모드 분류기가 막아 사용자 승인 대기다.
-- **주의:** 다른 세션의 `qa13-frontend-20261030-r1`(미배포)은 정책 파일 `selection.py`를 바꾼다.
-  - frontend에만 배포하면 검색 문서가 모두 불일치해 느린 경로로 돌아간다.
-  - jobs도 함께 배포해 문서를 다시 만들어야 하고, 그 위에 r17의 네 파일도 다시 얹어야 한다.
+- **배포 (05:37 KST):** r17은 배포하지 않았다.
+  - 그 사이 다른 세션이 `qa13-frontend-20261030-r1`(정책 파일 `selection.py` 변경)을 frontend에만 배포했다(05:32). frontend 정책 `189af1c9…`와 문서 227,324건의 `57e5ebe0…`가 어긋나 검색 문서를 하나도 쓰지 못하는 상태였다.
+  - frontend `explore-a1-frontend-20261031-r18` = qa13 + 네 파일
+  - jobs `explore-a1-jobs-20261031-r7` = jobs r6 + qa13 `selection.py`
+  - 두 릴리스 모두 정책 `189af1c9…`. 문서 재생성은 분당 약 2,400건(약 07:12 완료 예상).
+- **운영 측정 (05:41, 문서 재생성 2% 시점, 서버 직접):**
+  - 더 보기: 결과가 한 쪽에 다 들어간 검색은 0.02~0.04초 (이전 1.5~2.5초). 45건을 넘는 검색은 아직 1.3~1.9초다.
+  - 첫 검색: 2.2~7.1초. 문서가 대부분 옛 정책이라 느린 경로로 돈다. 재생성이 끝난 뒤 다시 잰다.
+- **다음 쪽 미리 계산 (r19, 미배포):** 결과가 한 쪽을 넘는 검색(위 1.3~1.9초)용이다.
+  - 첫 쪽을 보낸 뒤 더 보기 창(offset+2×limit+1)을 백그라운드 작업자 1개가 계산한다.
+  - 대기열은 8개이고, 가득 차면 버린다. PostgreSQL에서만 동작한다.
+  - 더 보기 요청은 캐시에서 받거나, 진행 중인 계산에 합류한다.
+  - 시험: `tests/test_explore_next_page_prefetch.py` 3건, 관련 192건 통과.
+  - 패키지: `explore-a1-frontend-20261031-r19` = 다른 세션이 배포한 `qa13-frontend-20261031-r2`(r18 기반) + `front.py`. 정책 `189af1c9…`.
+  - 배포(06:2x KST, 사용자 승인). 운영 측정(첫 쪽 뒤 3초 쉬고 더 보기):
+    - 대부분 0.15~0.75초
+    - 첫 쪽이 8.7초 걸린 검색은 미리 계산이 덜 끝나 3.3초
+    - 첫 쪽은 2.4~12.2초. 문서 재생성 중이고 재시작 직후라 캐시가 비어 있다.
+  - 주의: 다른 세션의 미배포 `qa14-frontend-20261031-r1`은 `front.py`·`hybrid_explore.py`를 바꾸지만, 이 미리 계산은 들어 있지 않다. qa14를 배포할 때는 r19 변경을 얹어야 한다.
+- **독립 정답 집합 검토 (06:00):** `docs/qa/explore-eval-tasks-2026-10-30.json`
+  - 승인 140개, 수정 61개(사용자 요청으로 Claude가 대신 검토).
+  - 수정한 것은 대부분 `required_any`가 무관한 결과도 통과시키던 넓은 낱말이다. 예: market, address, forecast, task, health, space, `ner`.
+  - "search"는 탐색 범위 보기가 아니라 기능 요청으로, "lorem ipsum"은 실제 목록이 있을 수 있어 무의미 입력에서 바꿨다.
+
+### 8.23 분류 VERSION 9 재분석 (2026-10-31, 읽기 전용)
+- 비교한 세 가지:
+  - 저장된 분류
+  - 배포 규칙: frontend r16. 다른 작업자의 단독 "forecast"가 이미 포함돼 있다.
+  - 준비해 둔 VERSION 9 파일: 단독 "forecast" 제외, ping·날씨 어휘 수정.
+- **저장 vs 배포 규칙: 2,453건 차이.**
+  - 가장 큰 것은 finance_crypto → travel_maps_weather 323건이다. 단독 "forecast"가 예측 시장을 날씨로 옮긴다.
+  - 그 밖에 여러 분야 → docs_knowledge 이동이 수백 건 있다(그동안 쌓인 규칙 변경).
+- **배포 규칙 vs VERSION 9: 471건 차이.**
+  - 대부분은 travel → finance 314건으로, 단독 "forecast"를 되돌린 것이다.
+  - 하지만 NHC 허리케인·SPC 예보 같은 실제 날씨 항목이 communication_messaging으로 가는 역회귀도 섞여 있다.
+- **저장 vs VERSION 9: 2,103건이 바뀐다(활성 2,034건).** 교정과 역회귀가 섞여 있어 일괄 적용하지 않았다.
+- 다음 단계:
+  - "forecast"는 날씨 문맥 구("weather forecast", "hurricane", "storm outlook" 등)로 좁힌다.
+  - 이동 상위 묶음별로 표본을 판정한 뒤 적용한다.
+
+### 8.24 OpenSearch 어휘 PoC와 A1 비교 (2026-10-31 06:45~07:42 KST)
+7절 3단계(로컬 OpenSearch 어휘 전용 PoC)와 6절 비교의 첫 회차다. 운영 경로는 바꾸지 않았다.
+
+- **설치·실행:**
+  - Homebrew `opensearch` 3.9.0(core, 플러그인 없음)을 썼다.
+  - `127.0.0.1:9200`에서만 받고, JVM 힙은 1GB, 데이터는 `gateway-data/opensearch`에 둔다.
+  - launchd 서비스로 등록하지 않고 직접 실행했다. 운영 `agentcon` 재시작과 수명주기가 분리돼 있다.
+- **색인:**
+  - 운영 DB를 읽기 전용으로 읽었다. `public.resources_fts`의 name·description과 `resources`의 필터 열(활성·상태·보안·kind·category·last_ok_at)이다.
+  - 227,941건을 18.9초에 색인했다(인덱스 316MB).
+  - 분석기는 standard + lowercase + asciifolding으로, PostgreSQL의 `simple`+unaccent에 맞췄다.
+- **엔진 단독(결과 300개, 1,000요청씩):**
+
+  | 동시 | 처리량 | p50 | p95 | p99 |
+  |---|---|---|---|---|
+  | 1 | 84/초 | 11ms | 21ms | 51ms |
+  | 4 | 301/초 | 14ms | 21ms | 27ms |
+  | 8 | 419/초 | 17ms | 42ms | 56ms |
+  | 16 | 436/초 | 27ms | 100ms | 142ms |
+
+- **A1 vs B 전체 탐색 비교:**
+  - 방법:
+    - 운영 `qa15-frontend-20261031-r1` 코드를 그대로 쓰고, `discovery.candidates()`의 어휘 SQL만 가로챘다. B는 같은 낱말·어형(`LEXICAL_FORMS`)·AND/OR 두 단계·필터로 OpenSearch BM25(name^2) 상위 300개를 쓴다.
+    - 벡터(ANN)·확장·투영·적합성 검사·카드는 같다.
+    - 매 검색 전에 프로세스 캐시를 비웠다. 연결 1개, 프로토콜 순차, 실행 순서는 A·B를 번갈아 했다.
+  - 정답 집합: 검토된 201개 중 보고서 필터 1개를 뺀 200개.
+
+  | | A1 (PostgreSQL, 최근 순 300) | B (OpenSearch BM25 순 300) |
+  |---|---|---|
+  | 전체 p50 | 1.89초 | **1.38초 (-27%)** |
+  | 전체 p90 | 3.51초 | **2.43초 (-31%)** |
+  | 전체 p95 | 4.41초 | **2.70초 (-39%)** |
+  | 200건 합계 | 404초 | 288초 |
+  | 어휘 단계 p95 | 0.40초 | 0.20초 |
+  | 판정 통과 | 124/180 | 124/180(아래 참고) |
+  | 관련 검색 P@10 평균 | 0.540 | 0.545 |
+  | 첫 결과 적중 | 112/153 | 113/153 |
+
+  - B가 빠른 검색은 136/200이다. 상위 10개가 완전히 같은 검색은 85/200이다.
+  - 엇갈린 판정:
+    - A1만 통과: SMS 발송, 음성 합성, LLM 대화, 위키백과 요약, 정확한 이름 "Research Papers".
+    - B만 통과: 시간별 기온 예보, 웹 스크래핑, 택배 추적, 탄소 배출 데이터.
+    - "Research Papers"는 B가 같은 이름의 "Research papers"(대소문자만 다름)를 먼저 둔 것으로, 판정이 대소문자를 구분한 탓이다. 실제 품질 차이로 보지 않는다.
+  - 빨라진 이유:
+    - 어휘 단계 자체의 차이는 작다(p95 0.2초).
+    - 일치 목록을 관련도 순으로 자르면 관련 후보가 앞에 와서, 적합성 검사가 페이지를 일찍 채운다.
+- **A2(PostgreSQL에서 관련도 순으로 자르기)는 불가:**
+  - 이름 가중 `ts_rank`로 정렬하면 어휘 단계 하나가 7.7~17.6초 걸렸다.
+  - 1건은 문장 시간 한도로 실패했다(일치 목록마다 tsvector 재계산).
+  - 관련도 순 자르기는 OpenSearch가 아니면 비용이 맞지 않는다.
+- **6절 기준 대비:**
+  - 캐시 미스 p95 -39%로 30% 기준을 넘는다(프로세스 내부, 순차 실행 기준). 운영 API(프로토콜 병렬)에서 다시 확인해야 한다.
+  - 품질은 비열등이다(통과 같음, P@10 +0.005). NDCG@10·Recall@45와 신뢰구간은 아직 계산하지 않았다.
+  - 아직 하지 않은 것: 16동시 + 색인 병행 시 웹/DB 영향, writer·outbox 연결과 순서 역전·삭제·catch-up, 장애·지연 시 PostgreSQL 경로로 되돌리기, shadow 비교.
+- **사고 기록:**
+  - 07:25에 비교 스크립트가 런타임 읽기 풀을 써서 DB 연결(한도 24, 관리자 예약 3)을 고갈시켰다. 운영 탐색이 500을 냈고, 기록된 것은 측정 요청 3건이다.
+  - 스크립트를 멈추자 즉시 복구됐다.
+  - 이후에는 연결 1개(`_admin_read_pool=None`)만 쓰고, 앱 연결이 3초 연속 20개 이상이면 스스로 멈추게 했다. 비교 중 운영 5xx는 0건이다.
+- **스크립트:** scratchpad의 `os_index.py`(색인), `os_compare.py`(A/B/C 비교), `os_load.py`(동시성), `os_report.py`(집계). 채택하면 저장소로 옮겨 시험을 붙인다.
+- **다음(채택 시 7절 4~6단계):**
+  1. 목록 변경을 색인에 반영한다(outbox 또는 주기 동기화). 삭제·비활성화는 즉시 반영한다.
+  2. frontend에 OpenSearch 어휘 어댑터를 둔다. 시간 한도(예: 300ms) 안에 응답이 없거나 실패하면 지금의 PostgreSQL 경로로 돌아간다.
+  3. shadow 비교로 실제 트래픽 일부를 견준 뒤 5%→25%→100%로 전환한다.
+  4. OpenSearch를 launchd 서비스로 분리 운영한다(힙 1GB, 127.0.0.1).
+
+### 8.25 OpenSearch 연결: 어댑터·동기화·shadow 준비 (2026-10-31 07:45~07:55 KST)
+7절 4~5단계다. 사용자는 계속 PostgreSQL 결과를 받는다.
+
+- **어댑터 `agent_market/concierge/opensearch_lexical.py`:**
+  - `discovery.candidates()`의 어휘 SQL 한 곳만 `lexical_ids()`로 감쌌다. 정책 해시 대상 파일이 아니라 검색 문서를 다시 만들지 않는다.
+  - 설정은 `gateway-data/explore-opensearch.json`이다.
+    - 소유자 전용 0600/0400이어야 한다.
+    - 루프백 `http`만 받는다. 시간 한도는 50~2000ms다.
+    - 5초마다 다시 읽으므로 재배포 없이 모드를 바꾼다.
+    - 파일이 없거나 잘못되면 `off`다.
+  - 모드:
+    - `off`: PostgreSQL만 쓴다.
+    - `shadow`: PostgreSQL이 결과를 낸다. 표본 비율만큼 백그라운드 작업자 1개가 OpenSearch에 같은 질의를 보낸다. 겹침(Jaccard)·건수·지연을 50건마다 로그에 남긴다. 대기열은 32개이고, 가득 차면 버린다.
+    - `on`: OpenSearch가 결과를 낸다. 실패·시간 초과·이상 응답이면 PostgreSQL을 쓰고 30초 동안 OpenSearch를 건너뛴다.
+  - 안전: 후보 뒤의 `ranking_rows()`가 활성·상태·보안을 PostgreSQL에서 다시 거른다. 색인이 늦어도 철회된 목록은 노출되지 않는다.
+- **동기화 `scripts/explore_opensearch_sync.py`:**
+  - 앱 DB 계정으로 연결 1개, 읽기 전용, 서버 쪽 커서로 읽는다.
+  - 새 인덱스 `agentcon-lexical-<UTC시각>`에 전체를 넣고, 건수를 확인한 뒤 별칭 `agentcon-lexical`을 한 번에 옮긴다. 이전 빌드는 지운다.
+  - 새 건수가 0이거나, 보낸 수와 다르거나, 기존의 90% 미만이면 교체하지 않고 새 인덱스를 지운다.
+  - 실측: 228,172건을 14.1초·13.2초에 처리했고, 별칭 교체와 옛 인덱스 삭제를 확인했다. 지금 `--loop 600`(10분마다)으로 돌고 있다.
+- **시험:**
+  - `tests/test_explore_opensearch_lexical.py` 21건: 설정 검증, 권한, 질의 모양, off·on·되돌리기·차단, shadow 기록, 응답 검증, 별칭 교체·짧은 빌드 거부, 비루프백 거부.
+  - 탐색·후보 관련 시험 482건 통과.
+- **실경로 확인(r20 코드, 운영 DB 읽기 전용, 연결 1개):**
+  - `on` + 정상: PostgreSQL 어휘 SQL 0회, 결과 46개.
+  - `on` + 엔진 없음: SQL 4회로 되돌렸고, 결과 46개에 차단이 켜졌다.
+- **릴리스:**
+  - r20(qa16-r1 기반)은 배포하지 않았다.
+  - 다른 세션이 `qa16-frontend-20261031-r2`를 배포한 것을 기다린 뒤(07:51), 그 위에 다시 얹은 `explore-os-frontend-20261031-r21`을 사용자 승인으로 배포했다(07:52, 활성 b). 정책 `189af1c9…`.
+- **shadow 운영 관찰 (07:52~08:01):**
+  - 150건을 비교했다. 실패 0, 버림 0.
+  - 평균 지연: OpenSearch 35ms, PostgreSQL 38ms. 평균 후보 수는 둘 다 200개다.
+  - 평균 Jaccard 0.53. 같은 일치 목록을 관련도 순과 최근 순으로 300개씩 자르므로 예상한 값이다.
+  - shadow on/off를 번갈아 잰 탐색 지연(각 28건):
+    - shadow: p50 2.86초, 평균 2.86초
+    - off: p50 2.65초, 평균 3.35초
+    - 차이는 오차 범위로, shadow의 부담은 측정되지 않았다.
+  - 재시작 직후 첫 60건은 p50 3.96초였다(캐시가 빈 상태).
+  - 관찰 중 탐색 5xx는 0건이다. 5xx는 이전부터 있던 x402 게이트웨이 501 응답 1건뿐이다. 앱 DB 연결은 17개다.
+  - 10분 주기 동기화도 정상이다(07:58, 228,199건, 16.3초).
+- **설정:** `gateway-data/explore-opensearch.json`을 `shadow`(표본 20%, 300ms)로 만들어 두었다. 지금 운영 릴리스는 이 파일을 읽지 않는다.
+- **남은 것(전환 전):**
+  - shadow 로그로 겹침·지연을 확인한다.
+  - OpenSearch와 동기화를 launchd 상시 서비스로 등록한다. 지금은 이 작업 세션의 백그라운드 프로세스다.
+  - 16동시 + 동기화 병행 시험을 한다.
+  - `on` 전환은 사용자 확인 뒤 설정 파일만 바꾼다.
+
+### 8.26 OpenSearch·동기화 상시 서비스 등록과 부하·복구 시험 (2026-10-31 08:02~08:12 KST)
+- **launchd 등록** (`~/Library/LaunchAgents`, postgres18과 같은 형식):
+  - `biz.agentconcierge.opensearch`
+    - `/opt/homebrew/opt/opensearch/bin/opensearch`를 127.0.0.1:9200, 힙 1GB(`OPENSEARCH_JAVA_OPTS`)로 띄운다.
+    - 데이터·로그는 `gateway-data/opensearch`에 둔다.
+    - `KeepAlive.SuccessfulExit=false`로, 비정상 종료 시 다시 띄운다.
+  - `biz.agentconcierge.opensearch-sync`
+    - `.venv/bin/python scripts/explore_opensearch_sync.py --loop 600`, `KeepAlive=true`.
+    - 로그는 `gateway-data/opensearch/logs/sync.log`다.
+  - agentcon 관리 접두어(`498590e0b3`)를 쓰지 않아, agentcon 배포·재시작과 수명주기가 분리된다.
+  - 동기화는 작업 트리의 `scripts/`와 `agent_market/application_runtime.py`를 직접 쓴다. 작업 트리가 깨지면 동기화도 멈춘다. 그래도 `on`에서는 PostgreSQL로 돌아간다.
+- **자동 복구 시험:**
+  - OpenSearch를 `kill -9`로 죽이자 launchd가 10초 만에 다시 띄웠고, 27초 만에 green이 됐다. 228,215건이 그대로였다.
+  - 엔진이 내려간 동안 탐색은 200(4.0초)이었다. red 동안의 503도 어댑터가 실패로 처리한다.
+- **부하 시험 (엔진만, 2,000요청, 동시 16):**
+  - 동기화 없음: 139/초, p95 118ms, p99 185ms.
+  - 동기화 병행(3회): 146~166/초, p95 93~104ms, p99 120~137ms. 병행으로 나빠지지 않았다.
+  - 동기화 한 번은 부하 중 35.6초, 평소 14~24초다.
+  - 처리량이 PoC(436/초)보다 낮은 것은 기기 경쟁 때문이다. 08:10 부하 평균은 12.4(8코어)였고, 다른 세션의 시험 프로세스가 CPU 91%를 쓰고 있었다.
+  - 세그먼트를 하나로 합쳐 봤지만 104~110/초, p95 151~178ms로 개선되지 않아 되돌렸다.
+  - 경쟁이 가장 심할 때 엔진 p99는 250ms로, 어댑터 시간 한도 300ms에 가깝다. 한도를 넘으면 PostgreSQL로 돌아가고 30초 쉰다.
+- **운영 방법:**
+  - 끄기(즉시, 재배포 없음): `gateway-data/explore-opensearch.json`의 `mode`를 `off`로 바꾼다. 5초 안에 반영된다.
+  - 켜기: `mode`를 `on`으로 바꾼다. 실패 시 자동으로 PostgreSQL을 쓴다.
+  - 서비스 정지: `launchctl bootout gui/$(id -u)/biz.agentconcierge.opensearch-sync`, 이어서 `…/biz.agentconcierge.opensearch`.
+  - 상태 확인: `curl -s 127.0.0.1:9200/_cluster/health`, `tail gateway-data/opensearch/logs/sync.log`, frontend 로그의 `Explore OpenSearch shadow:` 줄.
+
+### 8.27 운영 전환: OpenSearch `on` (2026-10-31 08:27~08:33 KST, 사용자 승인)
+- **활성 frontend:** 다른 세션이 r21을 바탕으로 만든 `typed-dispatch-frontend-20261031-r1`이다(고객 워크플로 실행 수정 포함). 어댑터가 들어 있는 것을 확인했다. 대기 슬롯의 `qa17-frontend-20261031-r1`에도 들어 있다.
+- **전환:** `gateway-data/explore-opensearch.json`의 `mode`를 `on`으로 바꿨다(시간 한도 300ms). 재배포는 하지 않았다.
+- **같은 조건 번갈아 측정** (운영 API 8402, 처음 보는 검색어 각 60건, 6회 교대):
+
+  | | shadow(PostgreSQL 어휘) | on(OpenSearch 어휘) |
+  |---|---|---|
+  | p50 | 2.01초 | **1.47초 (-27%)** |
+  | p90 | 3.63초 | **2.55초 (-30%)** |
+  | p95 | 4.03초 | **2.81초 (-30%)** |
+  | 평균 | 2.11초 | 1.62초 |
+
+  - 120건 모두 200이고, PostgreSQL로 되돌린 경우는 0건이다.
+  - 운영 API(프로토콜 병렬)에서도 6절 기준인 캐시 미스 p95 30% 개선을 충족한다.
+- **되돌리기:** `mode`를 `off`(또는 `shadow`)로 바꾸면 5초 안에 PostgreSQL 경로로 돌아간다. 엔진이 실패하면 자동으로 PostgreSQL을 쓴다.
