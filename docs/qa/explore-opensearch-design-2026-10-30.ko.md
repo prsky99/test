@@ -776,3 +776,131 @@ OpenSearch는 후보 검색을 빠르게 하는 재생성 가능한 보조 색�
   - 120건 모두 200이고, PostgreSQL로 되돌린 경우는 0건이다.
   - 운영 API(프로토콜 병렬)에서도 6절 기준인 캐시 미스 p95 30% 개선을 충족한다.
 - **되돌리기:** `mode`를 `off`(또는 `shadow`)로 바꾸면 5초 안에 PostgreSQL 경로로 돌아간다. 엔진이 실패하면 자동으로 PostgreSQL을 쓴다.
+
+### 8.28 전환 후 실측 정리와 남은 이슈 (2026-10-31 11:05 KST)
+- **전환 후 운영 상태 (08:27~11:04):**
+  - 활성 frontend는 다른 세션의 `qa17-frontend-20261031-r3`이다. 어댑터와 더 보기 개선이 들어 있고, 정책 `189af1c9…`이다.
+  - PostgreSQL 되돌림 0건, 탐색 5xx 0건이다.
+  - 엔진 평균은 2.5ms다.
+  - 동기화는 10분 주기로 정상이다(10:55, 228,805건, 23.6초).
+  - 앱 DB 연결은 17개다.
+- **11:04 재측정 (처음 보는 검색어 12개, 순차):**
+  - 첫 쪽 1.24~3.89초(중앙값 약 2.0초). 같은 시각에 분류 재분석 스크립트가 돌고 있었다.
+  - 더 보기 0.01~0.12초.
+
+### 8.29 PostgreSQL·OpenSearch·Redis 최적화와 AI 안내 (2026-10-31 11:40~12:20 KST)
+근거:
+- PostgreSQL 공식 자원 설정 문서와 실무 권장: `shared_buffers` 약 25%, OLTP는 `jit=off`, SSD는 `random_page_cost≈1.1`, `effective_io_concurrency` 상향
+- OtterTune(SIGMOD'17): 작업 부하별로 영향이 큰 설정부터 조정
+- OpenSearch 공식 문서: index sorting, query cache, doc values, 세그먼트, 웜업
+- Redis 앞단 캐시 실무 글: 질의 해시 키, TTL, 장애 시 통과
+
+- **PostgreSQL (재시작 없이 `ALTER SYSTEM` + `pg_reload_conf()`, 원래 `postgresql.auto.conf` 백업):**
+  - 진단 결과:
+    - 캐시 적중률 81.7%(권장 95% 이상)
+    - 임시 파일 195,278개, 누적 4.6TB
+    - `shared_buffers` 1GB(DB 9.2GB), `jit` on, `random_page_cost` 4
+  - 적용 값:
+    - `jit=off`
+    - `random_page_cost=1.1`
+    - `effective_io_concurrency=200`
+    - `effective_cache_size=6GB`
+    - `log_temp_files=16MB`
+    - `work_mem` 16MB→48MB
+  - 임시 파일은 jobs 연결의 8초 주기 질의(`explore_document_queue` 적재 INSERT의 22.8만 행 LEFT JOIN, 벡터 작업 제외 CTE)가 20~30MB씩 넘친 것이었다. `work_mem` 48MB 적용 전후 2분에 35건→0건이 됐다.
+  - 남은 것(재시작 필요, 승인 대기):
+    - `shared_buffers` 1→2GB(여유 메모리 54%, 스왑 2GB 사용 중)
+    - 질의 통계용 `pg_stat_statements`
+- **OpenSearch:**
+  - 힙 1GB→768MB. 사용률은 평소 38%, 재색인 직후 72%다.
+  - `_source` 저장 끔(어댑터는 ID만 씀). 필터 전용 필드의 doc_values 끔.
+  - `index.store.preload`를 켜고, 별칭 교체 전에 대표 질의 96회로 데운다.
+  - 결과:
+    - 인덱스 168MB→138MB(-18%).
+    - 엔진 속도는 같다: 동시 1에서 p95 16~17ms, 동시 16에서 124~152ms.
+    - 필터 캐시 적중은 0이다. 단순 term 필터는 캐시 대상이 아닌 것으로 본다.
+  - 시험 22건 통과.
+- **Redis 공유 탐색 캐시 (`front._shared_explore`):**
+  - 운영 경로의 프로세스 캐시 아래에 Redis 2단 캐시를 둔다.
+  - 키: 검색 조건(프로세스 ID 제외)의 해시. 후보를 다 본 결과는 창 크기를 뺀 키로도 저장한다. TTL은 10분이다.
+  - Redis에서 온 결과도 `revalidated_page`로 목록 상태를 다시 읽는다.
+  - JSON으로 바꿀 수 없거나 2MB를 넘는 값은 저장하지 않는다(Redis 장애로 오인되지 않게). Redis가 없으면 통과한다.
+  - 실데이터 6건에서 JSON 왕복 뒤 응답이 원본과 같았다(6/6, 17~47KB).
+  - 시험 4건. 관련 시험 2,473건 통과.
+  - Redis `maxmemory`(현재 무제한·noeviction) 설정은 분류기 차단으로 승인 대기다. 권장은 256MB·volatile-lru다.
+- **채팅 RAG:** 채팅도 같은 `candidates()`를 거친다. 채팅 1회에 OpenSearch 질의 5건이 들어오는 것을 확인했다(OpenSearch 어휘 + pgvector 벡터 + 확장).
+- **AI 안내 문구 (영어, 공개 화면):**
+  - 채팅 안내: "replies can take a little longer. AI can make mistakes; verify important details before you act."
+  - 워크스페이스 Create with AI: "AI suggestions can take a few seconds and can be wrong, so review each step before you save."
+  - `front.py` HTML, `extracted_html.txt`, `new/en/*.html` 9개, `workspace-studio.js`를 고쳤다.
+- **릴리스:**
+  - `explore-redis-frontend-20261031-r22` = 활성 `qa17-frontend-20261031-r4`에 이번 변경만 문자열 단위로 적용(작업 트리의 다른 작업자 변경 제외). 검증을 통과했고 정책 `189af1c9…`다.
+  - 배포는 분류기 차단으로 승인 대기다. 미배포 `qa18-frontend-20261031-r1`에는 이 변경이 없다.
+- **분류 v9d** (부분 집합 8.6만 건, 배포 규칙 대비 505건 변경):
+  - 단독 forecast 제거, 날씨 전용 낱말 추가, "meteo" 제외.
+  - 데이터 유틸리티 → 날씨 오분류(v9b의 77건)가 없어졌다.
+  - 적용하면 운영 약 2,100건이 다시 분류되므로, 승인 전에는 트리에 넣지 않았다(`classify_v9d.py`는 scratchpad).
+
+### 8.30 frontend r22 배포와 Redis 접두어 문제 (2026-10-31 12:30 KST)
+- **배포:** r22를 사용자 승인으로 배포했다(활성 b, qa17-r4 기반).
+- **확인:**
+  - 채팅 화면에 새 AI 안내 문구가 나온다.
+  - 탐색 5xx 0건.
+  - 처음 보는 검색어 8개의 첫 쪽이 0.82~1.10초, 더 보기가 0.01~0.04초다. 11:04의 1.24~3.89초보다 빠르다. PostgreSQL 조정 효과로 보이며, 측정 수가 적어 추가 확인이 필요하다.
+- **문제:**
+  - Redis 키 접두어가 `a2a:test:<id(store)>:`였다. `_redis_cache_prefix()`가 PostgreSQL 저장소의 경로를 찾지 못해 시험용 접두어를 붙이기 때문이다.
+  - 그래서 슬롯 간 공유와 재시작 후 재사용이 되지 않았다. 기존 overview·insights Redis 캐시도 같은 이유로 프로세스별이다.
+- **수정 (r23):**
+  - 운영 서비스(`AGENTCON_PROJECT_ROOT` 있음)의 PostgreSQL 저장소는 `a2a:shared:<프로젝트 경로 해시>:` 접두어를 쓴다.
+  - 시험용 PostgreSQL(같은 Redis, 환경 변수 없음)과는 섞이지 않는다. 시험 5건.
+  - `explore-redis-frontend-20261031-r23` = r22 + 접두어 수정. 검증을 통과했고 정책은 같다.
+  - 배포는 분류기 차단으로 승인 대기다.
+
+### 8.31 승인 항목 처리 (2026-10-31 12:40~12:55 KST, 사용자 전체 승인)
+- **frontend r23 배포 (활성 a):**
+  - Redis 공유 키 `a2a:shared:<프로젝트 해시>:cache:explore-result:v1:*`가 생겼다(TTL 600초).
+  - 다른 프로세스(같은 릴리스 코드)가 계산 없이 Redis에서 결과를 받는 것을 확인했다.
+  - 첫 쪽 0.98~1.07초, 탐색 5xx 0건.
+- **Redis:** `maxmemory 256mb`, `maxmemory-policy volatile-lru`. `/opt/homebrew/etc/redis.conf`에 반영했다(백업은 scratchpad).
+- **분류 v9:**
+  - 트리 `agent_market/gateway/classify.py`를 VERSION 9로 올렸다. 단독 forecast 제거, 날씨 전용 낱말 추가, meteo 제외.
+  - 회귀 시험 `tests/test_classify_forecast.py` 5건. 분류 시험 44건과 forecast 관련 시험 1,689건이 통과했다.
+  - jobs `classify-v9-jobs-20261031-r8` = r7 + `classify.py`를 배포했다(정책 해시 동일). 새로 수집되는 목록은 v9 규칙으로 분류된다.
+  - 기존 목록 일괄 갱신(`scripts/apply_category_refresh.py`)은 dry run조차 분류기가 막아 실행하지 못했다. 사용자가 직접 실행해야 한다.
+- **PostgreSQL:**
+  - `ALTER SYSTEM`으로 `shared_buffers=2GB`, `shared_preload_libraries=pg_stat_statements`를 넣었다(재시작 대기, `pending_restart=t`).
+  - 재시작은 분류기가 막아 실행하지 못했다. 실행 전에 막혀 운영 변화는 없다.
+  - 재시작 스크립트: `gateway-data/maintenance/pg-restart-shared-buffers-20261031.sh`. 앱 중지→DB 재시작→앱 시작 순서이고, DB가 60초 안에 뜨지 않으면 두 설정을 되돌린다. 예상 중단은 80~100초다.
+  - 다른 이유로 DB가 재시작돼도 새 설정이 적용된다.
+
+### 8.32 분류 v10: 공통 도구 묶음 오분류 수정 (2026-10-31 오후)
+- **v9 드라이런:** 사용자가 실행했고, 변경 2,110건이 나왔다. 표본을 읽기 전용으로 보니 `→ docs_knowledge` 이동이 대량으로 잘못돼 있어 적용하지 않았다.
+  - 예: Twilio(SMS), 전화번호 검증, 암호화폐 공포·탐욕 지수, OpenFIGI, PACER, GovInfo가 모두 `docs_knowledge`로 갔다.
+  - 원인: 한 게시자의 MCP 묶음(이름이 `Twilio`, `Pacer` 같은 짧은 것들, id 약 50k~52k)에 공통 도구 설명이 약 1만 4천 자씩 붙어 있다. 그 안의 research·citation·papers 등이 한 줄 설명의 단서를 압도했다.
+- **v10 (`classify.py` VERSION 10):**
+  - `classify_listing(text, tool_text)`를 새로 만들었다. 도구 설명이 8,000자(`BUNDLE_TOOL_CHARS`)를 넘으면 이름·설명이 판단하고, 도구 설명은 동점을 가를 때만 쓴다. 설명에 단서가 없으면 예전처럼 합쳐서 판단한다. 그 밖의 목록은 v9와 똑같다.
+  - 호출부 3곳을 바꿨다: `store.py`의 일괄 갱신과 사용 안내 갱신, `scripts/apply_category_refresh.py`.
+  - 보안 권고 어휘(`osv`, `security advisory`)를 추가했다. PyPI `tornado` 권고가 날씨로 가지 않는다.
+  - 시험 `tests/test_classify_listing.py`를 추가했다. 분류 시험 48건과 관련 묶음 229건이 통과했다.
+- **채택하지 않은 안 (모두 20% 표본 45,892건, v9 변경은 439건):**
+
+  | 안 | 표본 변경 | 결과 |
+  |---|---|---|
+  | 모든 목록에서 설명 우선 | 1,854 | 한 낱말 설명이 도구 근거를 이김(`US state AL → dev_tools`) |
+  | 설명에 가중치 2배·3배 | 1,339 / 1,399 | 판정 데이터 없이 수천 건이 흔들림 |
+  | 식별자 안 낱말(`list_places`) 제외 | 1,394 | 설명 속 정당한 단서까지 지워짐(datapackvibe 목록이 `finance_crypto`로 대량 이동) |
+  | 둘 다 | 2,707 | — |
+
+- **v10 전체 측정 (229,540건):** 변경 2,030건(v9는 2,215건). `public_legal`·`health_science`·`web_search`·`database_analytics` 등에서 `docs_knowledge`로 가던 묶음 이동이 모두 사라졌다.
+  - 남은 상위 이동 중 맞는 것: `public_legal → security` 80건(OSV 권고), 날씨로 가는 이동 약 150건(NWS·NOAA).
+  - 남은 상위 이동 중 섞인 것: `finance_crypto → commerce_marketing`·`dev_tools` 등. 이건 v9에도 있던, 예전 규칙으로 저장된 차이다. 예를 들어 `agent_infra → finance_crypto` 29건은 도구 설명의 결제 낱말 때문이다(v9도 같음).
+- **함정:** 마침표 없는 수만 자 문자열에서는 `_BILLING` 정규식이 2제곱 역추적에 빠진다(시험용 문자열에서 재현됨). 실제 묶음은 문장으로 끊겨 있어 문제가 없었다.
+- **남은 일:**
+  - 적용할지는 사용자가 정한다(`scripts/apply_category_refresh.py --apply`, 백업·`--revert` 있음).
+  - jobs 배포가 필요하다(지금 운영 jobs r8은 v9).
+- **적용 (2026-10-31 16:02, 사용자 실행):**
+  - `--apply` 결과: 변경 대상 2,017건 중 1,966건 갱신. 51건은 그사이 카테고리가 바뀌어, 비교 후 갱신 규칙에 따라 건너뛰었다.
+  - 백업: `gateway-data/backups/category-refresh-20261031-160200.jsonl` (2,017줄). `--revert`로 되돌릴 수 있다.
+  - 탐색 문서: 10분 사이 2,732건이 다시 만들어졌고, 대기열에 173건이 남아 있었다.
+  - 탐색 응답: 모두 200. 처음 묻는 검색은 그동안 1.5~4.6초로 느렸고, 같은 검색을 다시 하면 0.1초였다.
+  - jobs `classify-v10-jobs-20261031-r9` = r8 + `classify.py`. 검증을 통과했고 정책 해시는 같다(`189af1c9`). 17:25에 배포했다. 프론트 `qa19-frontend-20261031-r3` 배포가 잠금을 쥐고 있어 그것이 끝난 뒤 진행했다. 배포 뒤 jobs 프로세스는 정상이고 탐색 문서 갱신도 계속 돈다. PostgreSQL 잠금 시간 초과는 배포 전과 같은 빈도(몇 분에 한두 번)다.

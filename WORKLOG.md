@@ -1,6 +1,7 @@
 # 작업 기록 (짧게 유지: 끝날 때마다 몇 줄 갱신)
 
 ## 완료 (최근 것만)
+- 분류 v10(2026-10-31 오후): v9 드라이런 2,110건 중 `→docs_knowledge`가 공통 도구 묶음(1만 4천 자) 탓에 대량 오분류(Twilio·PACER 등)여서 적용하지 않음. `classify_listing`: 도구 설명이 8,000자를 넘을 때만 설명 우선, osv 보안 권고 추가. 전체 변경 2,030건, 묶음 오분류 사라짐. 넓은 안(설명 우선·가중치·식별자 제외)은 20% 표본 변경이 3~6배여서 기각. 16:02 사용자 적용 1,966건(백업 category-refresh-20261031-160200.jsonl). jobs r9(r8+classify.py) 17:25 배포, 정상. 미커밋 → 설계 문서 8.32
 - 개선 확인 12차 대응(2026-10-30, Explore 항목 제외): 24px 타깃(헤더 Test 탭·숨긴 select), Chat PostgreSQL 0건·`sending` 보정(Chat 전용 `retrieval_text`), 주 OpenAPI에 v1 entry·badge·openapi. 시험 통과, frontend `qa12-frontend-20261030-r2` 배포(r9 위 오버레이, Explore 세션은 r2 기준으로 다음 릴리스를 만들어야 함). CORS는 설계상 제한이라 사용자 결정 대기 → `reports/improvement-check-12-2026-10-30/README.md`
 - CORS 절충안(2026-10-30, 사용자 결정): `/chat`·`/mcp` 읽기 전용 도구를 모든 사이트에 `*`로 개방(쿠키·Authorization 제거, Origin별 분당 60회), 실행·연락처·피드백·`/a2a`는 허용 목록만. frontend `qa12-cors-frontend-20261030-r2` 배포(r11 위). Explore 세션은 이 릴리스 기준으로 다음 릴리스를 만들어야 함
 - 12차 남은 항목(2026-10-30 오후): 크롤러 본문은 이미 해결, 카테고리 페이지 본문 보강, Chat 사이트 감시+텔레그램(채널 표현·부분 채우기), 감사 스크립트 CORS 기준 갱신. 시험 통과, rest r1~r3 배포 후 Explore r15(내 변경 포함)가 활성. 재측정: 24px 0·axe 0·포커스 0, 시나리오 PASS 69/WARN 7. 엣지 워커가 다른 출처 `call`을 원 서버 검사 없이 처리 → worker.mjs 수정·시험 통과, 엣지 `05579c7d…` 배포·운영 확인(다른 출처 call 403)
