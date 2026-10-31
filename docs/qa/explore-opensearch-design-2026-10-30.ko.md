@@ -942,3 +942,19 @@ OpenSearch는 후보 검색을 빠르게 하는 재생성 가능한 보조 색�
   - 대기열 쿼리 합계: 10분에 약 15초. 배포 전 추정치는 약 5분 25초(30분에 약 16분)다.
   - jobs 오류는 배포 뒤 0건이다.
   - 다음 후보: 백필 후보를 고르는 `WITH exclusions AS MATERIALIZED` 쿼리(98회, 평균 615ms, 10분 60초)와 provenance SELECT(232회, 평균 40ms, 9.4초).
+
+### 8.34 남은 작업 처리 (2026-10-31 밤)
+- **백필 후보 쿼리(`WITH exclusions AS MATERIALIZED`):** 운영 실행 계획에서 673ms가 걸렸고 결과는 0건이었다. 제외 목록 21.4만 건을 만들고 `resources` 21.4만 건을 기본키 순서로 훑는다. 10분에 98회(약 6초마다)였다.
+  - 새로 들어오거나 바뀐 항목은 `resources` 트리거(`application_vector_invalidate`)로 대기열에 들어간다. 그래서 백필은 빠진 항목을 잡는 안전망이다.
+  - 변경(`application_store_vector.PostgresVectorIndex.ensure_jobs`): 후보 0건을 찾았으면 `BACKFILL_PAUSE`(300초) 동안 다시 훑지 않는다. 후보가 있었으면 다음 호출에서 바로 이어서 훑는다. 특정 항목을 지정한 요청은 기다리지 않는다. SQL은 바꾸지 않았다.
+  - 시험 중 쉬는 동안의 호출이 쉬는 시간을 다시 늘려 백필이 영원히 멈추는 실수를 테스트가 잡아 고쳤다(`tests/test_postgres_backfill_pause.py`). 관련 테스트 141개 통과.
+  - 예상: 10분 60초 → 약 1.4초. 릴리스 `backfill-pause-jobs-20261031-r1` = 활성 `docs-jobs-20261031-r4` + `application_store_vector.py`. 검증을 통과했고 배포는 승인 대기다.
+- **대비 릴리스 정리:** 다른 세션이 `vector-queue-jobs-20261031-r2`는 재검증기 수정 전 버전이니 쓰지 말고 `docs-jobs-20261031-r4`를 기준으로 하라고 알려 왔다. r4에는 대기열 변경(`RETENTION_PAUSE`)과 분류 v10이 모두 들어 있다. 어느 슬롯에서도 쓰지 않음을 확인하고 r2 디렉터리를 지웠다.
+- **실패 테스트 2개:**
+  - `test_agent_http_interoperability_browser`: 다른 작업자가 22:12에 테스트를 다시 써서 이제 통과한다.
+  - `test_log_retention_policy`: 단독으로는 통과하고, 브라우저 테스트 뒤에서만 실패했다. 테스트용 TLS 서버(`scripts/notification_test_inbox.running_inbox`)의 uvicorn `configure_logging`이 원인이다. `access_log=False`, `log_level='error'` 때문에 프로세스 전체의 `uvicorn.access` 핸들러를 비우고 상위 전달을 끄고 수준을 ERROR로 올렸다. 그래서 뒤의 404·500 접속 기록이 관리 로그에서 빠졌다. `log_config=None`만으로는 막히지 않아서, 로그 설정을 건너뛰는 `_ProcessLoggingUntouched` 설정을 쓰게 했다. 세 파일 27개 테스트가 통과한다. 운영 서버(gateway, service_host)는 `log_config=None`이고 접속 기록을 끄지 않으므로 해당 없다.
+- **분류 v10 남은 오분류(`agent_infra → finance_crypto` 29건):** 도구 설명에 실제 금융 낱말(wallet, token, fx, bitcoin, payment)이 있어서 결제 문장을 빼는 방식으로는 고쳐지지 않는다. 전체 23.1만 건에 두 규칙을 시험했다(기준 v10 자체 차이는 414건으로, 갱신 뒤 바뀐 항목이다).
+  - infra1(설명의 최고 분야가 agent_infra면 따름): 29건 중 15건을 바로잡지만 약 295건을 더 옮기고 오분류가 섞인다(창업자 네트워킹, 결혼 중개, iGaming 등).
+  - infra2(agent_infra 점수 2 이상): 약 38건만 옮기고, 29건 중 4건을 바로잡는다(토큰 위험 검사처럼 금융이 맞는 항목도 옮김).
+  - RAPP, ACK, Yawplet처럼 설명 점수가 0인 항목은 두 규칙 모두 못 고친다. 낱말 사전 보강을 판정 데이터(`tests/data/agent_infra_labels.json`) 기준으로 따로 하기로 하고 이번에는 규칙을 바꾸지 않았다.
+- **커밋 범위:** 이번 코드 변경(`application_store_vector.py`, `scripts/notification_test_inbox.py`)도 아직 git에 없는 다른 작업의 파일 안에 있다. 그래서 앞선 결정대로 문서만 커밋한다. 이 폴더의 로컬 브랜치와 원격 브랜치 맞추기는 그 파일들이 커밋된 뒤에 한다.
