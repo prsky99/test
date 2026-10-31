@@ -904,3 +904,41 @@ OpenSearch는 후보 검색을 빠르게 하는 재생성 가능한 보조 색�
   - 탐색 문서: 10분 사이 2,732건이 다시 만들어졌고, 대기열에 173건이 남아 있었다.
   - 탐색 응답: 모두 200. 처음 묻는 검색은 그동안 1.5~4.6초로 느렸고, 같은 검색을 다시 하면 0.1초였다.
   - jobs `classify-v10-jobs-20261031-r9` = r8 + `classify.py`. 검증을 통과했고 정책 해시는 같다(`189af1c9`). 17:25에 배포했다. 프론트 `qa19-frontend-20261031-r3` 배포가 잠금을 쥐고 있어 그것이 끝난 뒤 진행했다. 배포 뒤 jobs 프로세스는 정상이고 탐색 문서 갱신도 계속 돈다. PostgreSQL 잠금 시간 초과는 배포 전과 같은 빈도(몇 분에 한두 번)다.
+- **PostgreSQL 재시작 전 기준치(2026-10-31 19:50 KST, 탐색 문서 대기열 빈 뒤):**
+  - 설정: `shared_buffers` 1GB, `shared_preload_libraries` 비어 있음. DB 접속 18개. 통계 초기화 뒤 누적 캐시 적중률 82.08%.
+  - Explore(`/api/explore`, 포트 8401, 질의 8종, `prodmeasure.py`): 첫 검색 1.20~3.00초(중앙값 약 1.8초), 더 보기 0.02~1.72초, 반복 0.02~0.30초.
+- **커밋·푸시:** 분류 v10을 `classify.py`·스크립트·테스트·문서만 골라 커밋했다(`store.py` 호출부는 다른 작업과 섞여 미커밋). 원격에 맥 커밋 34개가 있어 임시 worktree에서 그 위에 로컬 커밋 3개를 다시 얹고 푸시했다(`59a1a795`, WORKLOG는 양쪽 항목을 모두 남김). 이 작업 폴더의 로컬 브랜치는 아직 원격과 갈라진 상태다.
+- **전체 테스트:** 10,192개 중 10,160 통과, 5 실패(1시간 25분). 따로 돌리면 3개는 통과(부하 탓). 남은 2개(`test_agent_http_interoperability_browser`의 세션 헤더 출처 검사, `test_log_retention_policy`의 200/304 숨김)는 아직 git에 없는 다른 작업의 새 테스트이고 분류와 무관하다.
+- **PostgreSQL 재시작(2026-10-31 20:20~20:22 KST, 사용자 실행):** 중단 113초. `shared_buffers` 2GB, `shared_preload_libraries=pg_stat_statements`, 확장 생성. 서비스 전부 재기동, 앱 접속 9개 재연결. jobs는 그사이 다른 작업자가 배포한 `docs-jobs-20261031-r1`(분류 `classify.py`는 r9와 같음, v10 유지).
+  - 직후(캐시 빈 상태) Explore 첫 검색 1.63~3.35초(중앙값 약 2.2초).
+  - 30분 뒤(20:23~20:53): 구간 캐시 적중률 **99.1%**(hit 8.35억, read 760만. 재시작 전 누적값 82%는 구간값이 아니라 직접 비교는 어렵다). Explore 첫 검색 0.91~2.25초(중앙값 약 **1.36초**, 재시작 전 약 1.8초), 반복 0.02~0.12초.
+  - `pg_stat_statements` 30분 상위: `legacy_vector_jobs` 대기열 UPDATE·SELECT·DELETE가 각 4,055회·평균 51~60ms(합계 약 11분), capability 검색 SELECT 783회·평균 193ms, 제외 목록 CTE 118회·평균 724ms. 다음 최적화 후보는 벡터 작업 대기열 쿼리다.
+
+### 8.33 벡터 작업 대기열 쿼리 최적화 (2026-10-31 밤)
+- **진단:** `claim_batch`가 30분에 4,055회(초당 약 2회) 불리고, 매번 대기열 쿼리 4개를 실행했다. 합계 약 16분/30분.
+  - `legacy_vector_jobs` 214만 건이 모두 끝난 작업(indexed 106만, superseded 108만)이다. 찾는 대상인 pending·claimed는 0~400여 건이다.
+  - 대기·처리 중 작업을 찾는 쿼리 3개: 상태 전용 인덱스가 없어 `(resource_id,status)` 인덱스를 수백 번 건너뛰며 훑었다(30~66ms). `legacy_vector_heads`(22.8만)는 `job_id` 인덱스가 없어 매번 통째로 읽었다. SQLite 정의의 `legacy_vector_heads_job`이 운영 PostgreSQL에는 없었다.
+  - 7일 지난 작업 삭제: 지울 행이 0건이어도 오래된 후보 3.6만~4.6만 건마다 heads·provenance를 확인했다(79ms).
+- **변경:**
+  - `admin_query_indexes.QUEUE_INDEXES`: `legacy_vector_jobs_open (created, job_id) WHERE status IN ('pending','claimed')`, `legacy_vector_heads_job (job_id, resource_id)`. 운영 DB에는 `scripts.search_indexes --apply`가 `CONCURRENTLY`로 만든다. 새 DB는 설치할 때 함께 만든다. SQL 문장은 바꾸지 않아 등록 SQL 목록은 그대로다.
+  - `claim_batch` 삭제: 한 번에 500건을 채워 지웠을 때만 다음 호출에서도 이어서 지운다. 덜 지웠으면 `RETENTION_PAUSE`(60초) 동안 쉰다.
+- **운영 사본 측정(폐기용 PG18, 214만 건 복사, PREPARE 후 일반 계획 확인):**
+
+  | 쿼리 | 전 | 후 |
+  |---|---|---|
+  | 작업 가져오기 SELECT | 50~66ms | 3.6~4.1ms |
+  | 오래된 대기 작업 정리 UPDATE | 62~66ms | 0.4ms |
+  | 시도 3회 넘은 작업 실패 처리 | 30ms | 0.06ms |
+  | 오래된 작업 삭제 | 59~79ms(매 호출) | 113~138ms(평소 1분에 1회. heads 인덱스로 계획이 중첩 반복으로 바뀜) |
+
+  - 예상: 30분 약 16분 → 30초 안쪽. 인덱스 크기는 48kB와 15MB다. provenance `job_id` 인덱스는 삭제를 242ms로 늦춰서 넣지 않았다.
+- **패키징:** jobs `vector-queue-jobs-20261031-r1` = 활성 `docs-jobs-20261031-r1` + `legacy_vector_index.py`. 검증을 통과했다. 운영 인덱스 확인 전용 결과: 새 인덱스 2개 missing, `resources_search_lookup` valid. 사용자가 인덱스 생성과 배포를 모두 승인했다.
+- **운영 적용(2026-10-31 22:35~22:43 KST):**
+  - 22:35 `scripts.search_indexes --apply`: `legacy_vector_jobs_open` 1.24초, `legacy_vector_heads_job` 0.18초, 이어서 `resources` 일반 VACUUM 3.15초. 세 인덱스 모두 valid.
+  - 그사이 다른 작업자가 `docs-jobs-20261031-r2`(r1 + `model_contract_reverify.py`)를 만들었다. 5분 지켜봐도 배포되지 않아, 22:42에 승인받은 `vector-queue-jobs-20261031-r1`을 배포했다. r2를 배포하면 이 변경이 빠지므로, 대신 쓸 `vector-queue-jobs-20261031-r2`(r2 + `legacy_vector_index.py`, 검증 통과)를 만들어 두었다.
+- **배포 10분 측정(`pg_stat_statements` 초기화 뒤):**
+  - 대기열 쿼리 평균: 작업 가져오기 SELECT 0.22ms, 오래된 대기 작업 정리 UPDATE 0.38ms, 시도 3회 넘은 작업 실패 처리 0.05ms. 각 1,699회(처리량이 늘어 10분에 1,625건 색인).
+  - 삭제는 10회(1분에 1회), 한 번에 평균 415ms. 사본 측정(113~138ms)보다 느리지만 10분 합계 4.1초다.
+  - 대기열 쿼리 합계: 10분에 약 15초. 배포 전 추정치는 약 5분 25초(30분에 약 16분)다.
+  - jobs 오류는 배포 뒤 0건이다.
+  - 다음 후보: 백필 후보를 고르는 `WITH exclusions AS MATERIALIZED` 쿼리(98회, 평균 615ms, 10분 60초)와 provenance SELECT(232회, 평균 40ms, 9.4초).
