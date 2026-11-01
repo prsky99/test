@@ -30,13 +30,15 @@ AI 에이전트(A2A)·MCP 서버·x402 유료 API를 키 없이 수집·헬스�
 
 ## 실행·테스트
 ```bash
-.venv/bin/python -m pytest -q          # 전부 통과해야 커밋
-.venv/bin/python -m pyflakes agent_market tests
+.venv-tests/bin/python -m pytest -q    # 전부 통과해야 커밋
 COLLECTOR_DB=gateway-data/collector.sqlite3 .venv/bin/python -m agent_market.collector.server
 GATEWAY_DB=gateway-data/collector.sqlite3 .venv/bin/python -m agent_market.gateway.server
 ```
+- 시험은 `.venv-tests`로 돌린다. `.venv`에는 pytest가 없다(11-02 확인).
+  - pyflakes는 어느 환경에도 설치돼 있지 않고 `requirements-dev.txt`에도 없다. 설치 여부는 사용자가 정한다.
+- frontend 릴리스는 배포 전에 `.venv-tests/bin/python -m scripts.release_gate <release>`로 사본 시험을 한다(`deploy/DEPLOY.md`).
 - 이 맥은 운영 서버이기도 하다. 큰 테스트(전체 pytest, playwright)는 낮은 우선순위로 돌린다(사용자 결정 2026-11-02).
-  - 예: `nice -n 10 .venv/bin/python -m pytest -q`
+  - 예: `nice -n 10 .venv-tests/bin/python -m pytest -q`
   - 11-01에 여러 세션이 테스트를 동시에 돌려 CPU를 300% 쓰자, 탐색 서버 시간이 0.96초에서 2.59초(중앙값)로 늘었다.
 - 수집 DB `gateway-data/`와 스냅샷 `exports/`는 git에 넣지 않는다.
 - 실행 중인 수집기 끄기: `for p in $(ps -eo pid,args | grep "[p]ython -m agent_market" | awk '{print $1}'); do kill $p; done`

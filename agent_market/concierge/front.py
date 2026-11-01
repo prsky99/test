@@ -209,14 +209,37 @@ class Front:
             "testbench_examples": measured('examples', lambda: live_examples(self.store)),
         }
         json_str = json.dumps(data, separators=(",", ":")).replace("<", "\\u003c")
+        agents = measured('example_agents', lambda: self._example_agents(data["testbench_examples"]))
         with _bootstrap_snapshot_cache["lock"]:
             _bootstrap_snapshot_cache["data"] = data
+            _bootstrap_snapshot_cache["example_agents"] = agents
             _bootstrap_snapshot_cache["json"] = json_str
             _bootstrap_snapshot_cache["store_id"] = id(self.store)
             _bootstrap_snapshot_cache["at"] = now
             _bootstrap_snapshot_cache["revalidating"] = False
             self._bootstrap_timings_ms = stages
         return data
+
+    def _example_agents(self, examples) -> dict:
+        """Connection details for the Test page's examples, so a new example opens without a request.
+
+        Kept beside the bootstrap data (not in it: the home page never sends them) and looked up
+        again only when the example set changes.
+        """
+        from .pearl_view import TEST_AGENT_FIELDS
+        ids = sorted({e["resource_id"] for e in examples or [] if e.get("available") and e.get("resource_id")})
+        with _bootstrap_snapshot_cache["lock"]:
+            known = _bootstrap_snapshot_cache.get("example_agents") or {}
+        if sorted(known) == ids:
+            return known
+        agents = {}
+        for rid in ids:
+            try:
+                agent = get_safe_agent_detail(self.store, rid)["agent"]
+            except Exception:
+                continue
+            agents[rid] = {k: agent[k] for k in TEST_AGENT_FIELDS if k in agent}
+        return agents
 
     def bootstrap_snapshot(self) -> dict:
         now = time.time()

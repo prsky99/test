@@ -129,6 +129,11 @@ def catalog_status(store):
         return _catalog_status(reader)
 
 
+# Only what the Test form renders; counters and report history stay on the server.
+TEST_AGENT_FIELDS = ('id', 'kind', 'name', 'description', 'url', 'category', 'tools', 'auth_method',
+                     'eval_grade', 'health_status', 'connection_available', 'connection_readiness')
+
+
 def current_fixed_content(value, filename):
     """Refresh the page's shipped examples or workflows from the frontend's warm bootstrap cache.
 
@@ -137,7 +142,7 @@ def current_fixed_content(value, filename):
     """
     from .front import _bootstrap_snapshot_cache as cache
     with cache['lock']:
-        data = cache.get('data')
+        data, fresh_agents = cache.get('data'), cache.get('example_agents') or {}
     if not isinstance(data, dict):
         return value
     match = re.search(r'(<script\b[^>]*\bid="appBootstrapData"[^>]*>)(.*?)(</script>)', value, flags=re.S)
@@ -150,11 +155,13 @@ def current_fixed_content(value, filename):
     if filename == 'workflows.html' and data.get('workflow_templates'):
         shipped['workflow_templates'] = data['workflow_templates']
     elif filename == 'test.html' and data.get('testbench_examples'):
-        known = {agent.get('id') for agent in shipped.get('testbench_agents', [])}
+        agents = {agent.get('id'): agent for agent in shipped.get('testbench_agents', [])}
+        agents.update(fresh_agents)
         examples = [e for e in data['testbench_examples'] if e.get('available') and e.get('resource_id')]
-        # Only examples whose connection details are shipped can open without a request.
-        if examples and all(e['resource_id'] in known for e in examples):
+        # Only examples whose connection details are on the page can open without a request.
+        if examples and all(e['resource_id'] in agents for e in examples):
             shipped['testbench_examples'] = examples
+            shipped['testbench_agents'] = [agents[rid] for rid in dict.fromkeys(e['resource_id'] for e in examples)]
     else:
         return value
     text = json.dumps(shipped, separators=(',', ':')).replace('<', '\\u003c')

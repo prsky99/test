@@ -14,9 +14,7 @@ from pathlib import Path
 
 PAGES = Path(__file__).resolve().parents[1] / 'new/en'
 MARK = re.compile(r'<script id="appBootstrapData" type="application/json">.*?</script>', re.S)
-# Only what the Test form renders; counters and report history stay on the server.
-AGENT_FIELDS = ('id', 'kind', 'name', 'description', 'url', 'category', 'tools', 'auth_method',
-                'eval_grade', 'health_status', 'connection_available', 'connection_readiness')
+from agent_market.concierge.pearl_view import TEST_AGENT_FIELDS as AGENT_FIELDS
 
 
 def fetch(origin, path):
