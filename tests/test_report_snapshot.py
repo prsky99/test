@@ -175,3 +175,30 @@ def test_serving_slot_reads_the_deployment_state(tmp_path, monkeypatch):
     monkeypatch.setenv('AGENTCON_SERVICE_STATE_DIR', str(tmp_path))
     assert serving_slot('frontend', 'r2') and not serving_slot('frontend', 'r1')
     assert serving_slot('jobs', 'anything')  # a role without slots
+
+
+def test_explore_keep_warm_skips_rounds_in_a_standby_slot(monkeypatch):
+    from agent_market import service_host
+    from agent_market.concierge import front as front_module
+    rounds = []
+    monkeypatch.setattr(front_module, 'warm_explore', lambda front, stop=None, pause=0.0: rounds.append(front))
+
+    class Stop:
+        def __init__(self, waits):
+            self.left = waits
+        def is_set(self):
+            return self.left <= 0
+        def wait(self, seconds):
+            self.left -= 1
+            return self.is_set()
+
+    service_host.keep_explore_warm('front', Stop(3), pause=8.0, serving=lambda: False)
+    assert rounds == []  # standby: no Explore searches, so no database load
+    service_host.keep_explore_warm('front', Stop(3), pause=8.0, serving=lambda: True)
+    assert len(rounds) == 3
+    rounds.clear()
+    service_host.keep_explore_warm('front', Stop(2), pause=8.0, serving=lambda: (_ for _ in ()).throw(OSError('state')))
+    assert len(rounds) == 2  # an unreadable state keeps warming
+    rounds.clear()
+    service_host.keep_explore_warm('front', Stop(2), pause=8.0)
+    assert len(rounds) == 2  # no slot check (tests, a direct start): always warm

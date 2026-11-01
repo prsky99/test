@@ -33,12 +33,18 @@ def warm_models(front):
     return embedding, generation
 
 
-def keep_explore_warm(front, stop, pause=8.0):
-    """Keep public Explore chip searches computed; one query at a time with a pause between."""
+def keep_explore_warm(front, stop, pause=8.0, serving=None):
+    """Keep public Explore chip searches computed; one query at a time with a pause between.
+
+    A retained standby slot receives no visitors, so it skips rounds while SERVING says
+    so; its searches only added database load and kept pooled sessions busy (11-02)."""
     from .concierge.front import warm_explore
+    from .concierge.report_snapshot import _serving
     while not stop.is_set():
         try:
-            warm_explore(front, stop=stop, pause=pause)
+            # An unreadable deployment state counts as serving, as for the report snapshot.
+            if _serving(serving):
+                warm_explore(front, stop=stop, pause=pause)
         except Exception:
             log.warning('Explore keep-warm round failed', exc_info=False)
         stop.wait(pause)
@@ -155,7 +161,8 @@ def create_service_app(config, role, *, store=None, control=None, release='test'
                 stop = threading.Event()
                 if warm and role == 'frontend':
                     threading.Thread(target=keep_models_warm, args=(front, stop), name='model-keep-warm', daemon=True).start()
-                    threading.Thread(target=keep_explore_warm, args=(front, stop), name='explore-keep-warm', daemon=True).start()
+                    threading.Thread(target=keep_explore_warm, args=(front, stop), name='explore-keep-warm', daemon=True,
+                                     kwargs={'serving': lambda: serving_slot(role, release)}).start()
                     if getattr(front.store, 'backend', None) == 'postgresql':
                         from .concierge.report_snapshot import keep_fresh
                         threading.Thread(target=keep_fresh, args=(front.store, stop), name='report-snapshot', daemon=True,
