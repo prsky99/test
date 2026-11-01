@@ -2616,6 +2616,12 @@ function renderExplore(items, q, total = null, estimated = false, matchedReportC
   }
 }
 
+// The status line is a live region, so the count reaches screen readers when results change.
+function exploreFoundText(count, q) {
+  if (!q) return "";
+  return `${fmt(count)} ${count === 1 ? "agent" : "agents"} shown for “${q.slice(0, 80)}”. `;
+}
+
 let lastExploreKey = null;
 let exploreRequestRevision = 0;
 let exploreRequestedKey = null;
@@ -2727,6 +2733,9 @@ async function loadExplore(force = false, isLoadMore = false, userInitiated = fa
     if (userInitiated && !isLoadMore && matchMedia("(max-width:700px)").matches) {
       $("xTitle").tabIndex=-1; $("xTitle").focus({preventScroll:true});
       $("xTitle").scrollIntoView({block:"start",behavior:"instant"});
+    } else if (userInitiated && !isLoadMore && $("xTitle").getBoundingClientRect().top > innerHeight * 0.6) {
+      // Results below the fold changed out of sight; bring their heading up and keep focus in the search box.
+      $("xTitle").scrollIntoView({block:"start",behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"instant":"smooth"});
     }
   } catch(err) {
     if(revision!==exploreRequestRevision || err?.error_code==="REQUEST_CANCELLED")return;
@@ -2752,7 +2761,7 @@ async function loadExplore(force = false, isLoadMore = false, userInitiated = fa
       if($("xLoadMore"))$("xLoadMore").disabled=false;
       if($("uxExploreStatus"))$("uxExploreStatus").textContent=failed
         ? (hint.hidden ? "Search is unavailable. Try again." : hint.textContent)
-        : resultsEl.querySelector(".acard:not(.skeleton-card)") ? "Open an agent to review its connection and recorded evidence." : resultsEl.querySelector(".explore-suggestions button") ? "No matching agents found. Try the suggested search below." : "No matching agents found. Try another search.";
+        : resultsEl.querySelector(".acard:not(.skeleton-card)") ? exploreFoundText(resultsEl.querySelectorAll(".acard:not(.skeleton-card)").length, q) + "Open an agent to review its connection and recorded evidence." :resultsEl.querySelector(".explore-suggestions button") ? "No matching agents found. Try the suggested search below." : "No matching agents found. Try another search.";
     }
   }
 }
@@ -3764,6 +3773,7 @@ function appendChatBubble(role, contentText, data, requestNote=null) {
   if (role === "user") {
     const question=document.createElement("p");question.className="chat-request";
     question.textContent="Your request: "+displayChatQuestion(contentText);
+    question.dataset.request=String(contentText??"").slice(0,500);
     question.style.cssText="white-space:pre-wrap;overflow-wrap:anywhere;margin:0 0 16px;padding:12px;border-left:3px solid var(--accent);font-size:14px";
     chatMessages.prepend(question);return question;
   }
@@ -3880,6 +3890,16 @@ function appendChatBubble(role, contentText, data, requestNote=null) {
       bubble.append(list);
     }
     const exploreQuery = typeof data?.data?.explore_query === "string" ? data.data.explore_query.trim().slice(0, 120) : "";
+    if (outcome === "no_eligible_match") {
+      // An empty answer still offers a next step: refine the same request without retyping it.
+      const tip = document.createElement("p"); tip.className = "chat-next-tip";
+      tip.textContent = "Tip: name the input you have and the result you need, or drop a requirement such as a region or free use.";
+      const edit = document.createElement("button"); edit.type = "button"; edit.className = "btn sm chat-edit-request";
+      edit.textContent = "Edit this request";
+      const original = requestNote instanceof HTMLElement && requestNote.dataset.request ? requestNote.dataset.request : exploreQuery;
+      edit.onclick = () => { const input = $("chatInput"); if (!input) return; input.value = original; input.focus(); input.setSelectionRange(input.value.length, input.value.length); };
+      bubble.append(tip, edit);
+    }
     if (outcome === "no_eligible_match" && exploreQuery) {
       // Explore also lists agents that have not passed a recent check; Chat recommends checked ones only.
       const browse = document.createElement("button"); browse.type = "button"; browse.className = "btn sm chat-explore-link";

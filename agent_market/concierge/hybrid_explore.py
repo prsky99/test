@@ -20,6 +20,29 @@ from .retrieval_metrics import timed
 FOCUS_FILL = 12  # MCP listings checked for a task-led match when A2A already fills the page
 ERC8004_QUERY = re.compile(r'(?:erc[- ]?)?8004(?:\s+(?:agents?|registry|registered(?: agents?)?|identity))?', re.I)
 _parallel_explore = threading.BoundedSemaphore(1)
+BROWSE_TEMPLATE_READ = 3  # listings read per browse slot so collapsed templates still fill the page
+
+
+def _template_key(record):
+    """Descriptions that differ only by the listing's own name, as when one registry mints many agents."""
+    text = ' '.join(str(record.get('description') or '').split())
+    name = str(record.get('name') or '').strip()
+    if len(text) < 40 or not name:
+        return None
+    return re.sub(re.escape(name), '\0', text, flags=re.I).casefold()[:160]
+
+
+def _collapse_templates(records):
+    """Keep the first listing of each templated description so one registry cannot fill the browse page."""
+    kept, seen = [], set()
+    for record in records:
+        key = _template_key(record)
+        if key is not None:
+            if key in seen:
+                continue
+            seen.add(key)
+        kept.append(record)
+    return kept
 
 
 @observed('explore')
@@ -108,14 +131,15 @@ def _browse(store, kind, category, no_auth, *, limit=None, registry=None):
             from .explore_search import identity
             selected, seen = [], set()
             for rid in ids:
-                if len(selected) >= limit: break
+                if len(selected) >= min(600, limit * BROWSE_TEMPLATE_READ): break
                 protocol, endpoint = endpoints[rid]
                 key = identity({'id': rid, 'kind': protocol, 'url': endpoint})
                 if key not in seen:
                     selected.append(rid); seen.add(key)
             ids = selected
         found = {r["id"]: dict(r) for r in resources(store, ids, "active=1", (), hydrate_contracts=True)}
-    return [found[rid] for rid in ids if rid in found], total
+    listed = _collapse_templates([found[rid] for rid in ids if rid in found])
+    return (listed if limit is None else listed[:limit]), total
 
 
 def _in_ranked_batches(store, ranked, size=100, *, documents=True):
