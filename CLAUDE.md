@@ -35,6 +35,9 @@ AI 에이전트(A2A)·MCP 서버·x402 유료 API를 키 없이 수집·헬스�
 COLLECTOR_DB=gateway-data/collector.sqlite3 .venv/bin/python -m agent_market.collector.server
 GATEWAY_DB=gateway-data/collector.sqlite3 .venv/bin/python -m agent_market.gateway.server
 ```
+- 이 맥은 운영 서버이기도 하다. 큰 테스트(전체 pytest, playwright)는 낮은 우선순위로 돌린다(사용자 결정 2026-11-02).
+  - 예: `nice -n 10 .venv/bin/python -m pytest -q`
+  - 11-01에 여러 세션이 테스트를 동시에 돌려 CPU를 300% 쓰자, 탐색 서버 시간이 0.96초에서 2.59초(중앙값)로 늘었다.
 - 수집 DB `gateway-data/`와 스냅샷 `exports/`는 git에 넣지 않는다.
 - 실행 중인 수집기 끄기: `for p in $(ps -eo pid,args | grep "[p]ython -m agent_market" | awk '{print $1}'); do kill $p; done`
   - `pkill -f`는 쓰지 않는다. 자기 셸까지 죽인다.
