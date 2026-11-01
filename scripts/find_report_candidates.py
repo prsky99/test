@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """List registered agents that have current successful execution evidence but no report yet (read-only)."""
+from pathlib import Path
 import json, sqlite3, sys, collections
 sys.path.insert(0, '.')
 from agent_market.gateway.store import Store
@@ -29,5 +30,5 @@ for row in rows:
     out.append(dict(rid=rid, kind=res['kind'], name=res['name'], url=res['url'], vid=row['vid'],
                     started=row['started'], finished=row['finished'], cases=row['cases'], succ=row['successes'], op=row['operation_ref']))
 print('candidates', len(out), dict(skipped), collections.Counter(o['kind'] for o in out))
-json.dump(out, open('/Users/kingstonelee/.gemini/antigravity/brain/c483b1b9-b552-4e83-b78d-d6f36bf0128d/scratch/candidates.json', 'w'), indent=1)
+json.dump(out, open(str(Path.home() / '.gemini/antigravity/brain/c483b1b9-b552-4e83-b78d-d6f36bf0128d/scratch/candidates.json'), 'w'), indent=1)
 for o in out[:10]: print(o)

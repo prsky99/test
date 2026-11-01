@@ -9,7 +9,7 @@ import pytest
 from playwright.sync_api import expect
 from tests.test_pearl_frontend import ORIGIN,client,pearl_page,browser
 
-OUT=Path('/Users/kingstonelee/workspace/A2A_Discovery/reports/workflow-template-discovery-redesign-2026-10-25')
+OUT=Path(__file__).resolve().parents[1] / 'reports/workflow-template-discovery-redesign-2026-10-25'
 
 @pytest.mark.parametrize('width,count',[(1440,25),(390,25),(1440,1000),(390,1000),(320,1000),(768,1000)])
 def test_find_by_task_preview_cancel_choose_jump_and_recover(pearl_page,client,width,count):

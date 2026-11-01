@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 """Wait for scheduled batch to trigger at 03:58:54 and finish, then output details."""
+import getpass
+from pathlib import Path
 import os, sys, time, psycopg
 
-LOG_FILE = '/Users/kingstonelee/workspace/A2A_Discovery/gateway-data/daemon_report_loop.log'
+LOG_FILE = str(Path(__file__).resolve().parents[1] / 'gateway-data/daemon_report_loop.log')
 
 def main():
     print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Monitoring daemon log for next batch execution...")
     
     conn = psycopg.connect(
-        host='/Users/kingstonelee/workspace/A2A_Discovery/gateway-data/postgres18/run',
+        host=str(Path(__file__).resolve().parents[1] / 'gateway-data/postgres18/run'),
         port=55432,
         dbname='agentcon_cutover_20261020_191757',
-        user='kingstonelee'
+        user=getpass.getuser()
     )
     with conn.cursor() as cur:
         cur.execute("SELECT COALESCE(MAX(id), 0) FROM agent_test_reports")
@@ -50,10 +52,10 @@ def main():
 
     print("\nBatch execution completed! Querying PostgreSQL for new reports...")
     conn = psycopg.connect(
-        host='/Users/kingstonelee/workspace/A2A_Discovery/gateway-data/postgres18/run',
+        host=str(Path(__file__).resolve().parents[1] / 'gateway-data/postgres18/run'),
         port=55432,
         dbname='agentcon_cutover_20261020_191757',
-        user='kingstonelee'
+        user=getpass.getuser()
     )
     with conn.cursor() as cur:
         cur.execute("""

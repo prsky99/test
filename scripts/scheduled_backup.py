@@ -116,7 +116,7 @@ if __name__ == '__main__':
     parser.add_argument('--settings', default='gateway-data/agentcon.env')
     parser.add_argument('--keep', type=int, default=7)
     parser.add_argument('--max-app-connections', type=int, default=19)
-    parser.add_argument('--copy-to', help='folder on a mounted share, e.g. /Volumes/kingstone/agentconcierge-backups')
+    parser.add_argument('--copy-to', help='folder on a mounted share, e.g. /Volumes/<share>/agentconcierge-backups')
     parser.add_argument('--copy-only', action='store_true', help='copy the newest local snapshot without taking one')
     args = parser.parse_args()
     started = time.strftime('%Y-%m-%dT%H:%M:%S')

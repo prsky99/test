@@ -5,8 +5,8 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path("/Users/kingstonelee/workspace/A2A_Discovery")
-SCRATCH = Path("/Users/kingstonelee/.gemini/antigravity/brain/9a3ab66c-938e-4d44-be9e-74ab6aa809c5/scratch")
+ROOT = Path(__file__).resolve().parents[1]
+SCRATCH = Path.home() / '.gemini/antigravity/brain/9a3ab66c-938e-4d44-be9e-74ab6aa809c5/scratch'
 
 def main():
     # 1. Read extracted_html.txt

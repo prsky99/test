@@ -8,16 +8,18 @@
 6. Add target status alert banner for down/retired/inactive agents
 7. Verify all reports against R1~R8 quality rules
 """
+import getpass
+from pathlib import Path
 import json, os, re, sys, time, psycopg
 sys.path.insert(0, os.path.dirname(__file__))
 from report_pipeline_common import (
     lint, normalize_test_method, normalize_eval_grade, english_clean, CANONICAL_TEST_METHODS, CANONICAL_GRADES
 )
 
-PG_HOST = '/Users/kingstonelee/workspace/A2A_Discovery/gateway-data/postgres18/run'
+PG_HOST = str(Path(__file__).resolve().parents[1] / 'gateway-data/postgres18/run')
 PG_PORT = 55432
 PG_DB = 'agentcon_cutover_20261020_191757'
-PG_USER = 'kingstonelee'
+PG_USER = getpass.getuser()
 
 
 def connect():

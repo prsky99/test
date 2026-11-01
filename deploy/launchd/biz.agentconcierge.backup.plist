@@ -6,14 +6,14 @@
   <string>biz.agentconcierge.backup</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/Users/kingstonelee/workspace/A2A_Discovery/.venv/bin/python</string>
+    <string>__REPO__/.venv/bin/python</string>
     <string>-m</string>
     <string>scripts.scheduled_backup</string>
     <string>--copy-to</string>
-    <string>/Volumes/kingstone/agentconcierge-backups</string>
+    <string>__BACKUP_COPY_TO__</string>
   </array>
   <key>WorkingDirectory</key>
-  <string>/Users/kingstonelee/workspace/A2A_Discovery</string>
+  <string>__REPO__</string>
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
@@ -41,8 +41,8 @@
   <key>Umask</key>
   <integer>63</integer>
   <key>StandardOutPath</key>
-  <string>/Users/kingstonelee/workspace/A2A_Discovery/logs/services/biz.agentconcierge.backup.log</string>
+  <string>__REPO__/logs/services/biz.agentconcierge.backup.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/kingstonelee/workspace/A2A_Discovery/logs/services/biz.agentconcierge.backup.log</string>
+  <string>__REPO__/logs/services/biz.agentconcierge.backup.log</string>
 </dict>
 </plist>

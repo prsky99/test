@@ -6,6 +6,8 @@ It audits the resources catalog, marks policy-violating agents as inactive/quara
 and purges any associated test reports to guarantee zero contaminated reports.
 """
 
+import getpass
+from pathlib import Path
 import argparse
 import os
 import re
@@ -75,10 +77,10 @@ def main():
     args = parser.parse_args()
 
     conn = psycopg.connect(
-        host='/Users/kingstonelee/workspace/A2A_Discovery/gateway-data/postgres18/run',
+        host=str(Path(__file__).resolve().parents[1] / 'gateway-data/postgres18/run'),
         port=55432,
         dbname='agentcon_cutover_20261020_191757',
-        user='kingstonelee'
+        user=getpass.getuser()
     )
 
     t0 = time.time()

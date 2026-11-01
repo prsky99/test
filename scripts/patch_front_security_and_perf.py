@@ -9,7 +9,7 @@ import sys
 import tempfile
 
 def main():
-    root = Path("/Users/kingstonelee/workspace/A2A_Discovery")
+    root = Path(__file__).resolve().parents[1]
     html_path = root / "extracted_html.txt"
     html = html_path.read_text(encoding="utf-8")
 

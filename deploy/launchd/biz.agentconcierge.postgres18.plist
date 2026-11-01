@@ -24,19 +24,19 @@
 	<array>
 		<string>/opt/homebrew/opt/postgresql@18/bin/postgres</string>
 		<string>-D</string>
-		<string>/Users/kingstonelee/workspace/A2A_Discovery/gateway-data/postgres18/data</string>
+		<string>__REPO__/gateway-data/postgres18/data</string>
 	</array>
 	<key>RunAtLoad</key>
 	<true/>
 	<key>StandardErrorPath</key>
-	<string>/Users/kingstonelee/workspace/A2A_Discovery/gateway-data/postgres18/server.log</string>
+	<string>__REPO__/gateway-data/postgres18/server.log</string>
 	<key>StandardOutPath</key>
-	<string>/Users/kingstonelee/workspace/A2A_Discovery/gateway-data/postgres18/server.log</string>
+	<string>__REPO__/gateway-data/postgres18/server.log</string>
 	<key>ThrottleInterval</key>
 	<integer>10</integer>
 	<key>Umask</key>
 	<integer>63</integer>
 	<key>WorkingDirectory</key>
-	<string>/Users/kingstonelee/workspace/A2A_Discovery</string>
+	<string>__REPO__</string>
 </dict>
 </plist>

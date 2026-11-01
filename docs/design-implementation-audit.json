@@ -56,27 +56,27 @@
       "audit_evidence_file": "reports/design-implementation-audit-2026-10-19/evidence-reliability.json",
       "source_evidence": [
         {
-          "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/workspace_reliability.py",
+          "path": "agent_market/workspace_reliability.py",
           "line": 166,
           "reason": "Allowed evidence environments exclude operating."
         },
         {
-          "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/workspace_reliability.py",
+          "path": "agent_market/workspace_reliability.py",
           "line": 612,
           "reason": "Current projection fixes qualified_operating_evidence=False."
         },
         {
-          "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/reliability_admission.py",
+          "path": "agent_market/reliability_admission.py",
           "line": 189,
           "reason": "Operating admission rejects absence of operating evidence."
         },
         {
-          "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/reliability_circuit.py",
+          "path": "agent_market/reliability_circuit.py",
           "line": 147,
           "reason": "Operating circuit configuration also needs qualified operating evidence."
         },
         {
-          "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/workspace_platform.py",
+          "path": "agent_market/workspace_platform.py",
           "line": 112,
           "reason": "Real graph uses this evidence producer for circuit, routing and admission."
         }
@@ -90,27 +90,27 @@
         "details": "The actual platform wires ReliabilityEvidence.current_projection_in_transaction into circuit and admission. Evidence plan validation permits only synthetic, isolated or approved_external, and the final projection always returns qualified_operating_evidence=False. SingleAdmission configured with environment=operating requires source.environment=operating and qualified_operating_evidence=True; circuit operating configuration requires the same qualification. Installing an evaluator or setting an enable flag alone cannot satisfy this path. The present fail-closed denial is intentional and safe, but the remaining work must explicitly include a trusted operating-qualification/promotion source contract rather than describing it solely as external acceptance. No flag should be relaxed to bypass this requirement.",
         "evidence": [
           {
-            "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/workspace_reliability.py",
+            "path": "agent_market/workspace_reliability.py",
             "line": 166,
             "reason": "Allowed evidence environments exclude operating."
           },
           {
-            "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/workspace_reliability.py",
+            "path": "agent_market/workspace_reliability.py",
             "line": 612,
             "reason": "Current projection fixes qualified_operating_evidence=False."
           },
           {
-            "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/reliability_admission.py",
+            "path": "agent_market/reliability_admission.py",
             "line": 189,
             "reason": "Operating admission rejects absence of operating evidence."
           },
           {
-            "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/reliability_circuit.py",
+            "path": "agent_market/reliability_circuit.py",
             "line": 147,
             "reason": "Operating circuit configuration also needs qualified operating evidence."
           },
           {
-            "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/workspace_platform.py",
+            "path": "agent_market/workspace_platform.py",
             "line": 112,
             "reason": "Real graph uses this evidence producer for circuit, routing and admission."
           }
@@ -153,27 +153,27 @@
       "audit_evidence_file": "reports/design-implementation-audit-2026-10-19/evidence-reliability.json",
       "source_evidence": [
         {
-          "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/gateway/workspace-reliability-research-admin.js",
+          "path": "agent_market/gateway/workspace-reliability-research-admin.js",
           "line": 16,
           "reason": "Dialog leave clears latest."
         },
         {
-          "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/gateway/workspace-reliability-research-admin.js",
+          "path": "agent_market/gateway/workspace-reliability-research-admin.js",
           "line": 53,
           "reason": "Only new manifest creation assigns latest."
         },
         {
-          "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/gateway/workspace-reliability-research-admin.js",
+          "path": "agent_market/gateway/workspace-reliability-research-admin.js",
           "line": 59,
           "reason": "Plan save rejects without latest."
         },
         {
-          "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/gateway/workspace-reliability-research-admin.js",
+          "path": "agent_market/gateway/workspace-reliability-research-admin.js",
           "line": 70,
           "reason": "Persistent manifest rows have no select-for-plan control."
         },
         {
-          "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/reliability_control_service.py",
+          "path": "agent_market/reliability_control_service.py",
           "line": 76,
           "reason": "Existing plan configure endpoint can reuse a corpus."
         }
@@ -187,27 +187,27 @@
         "details": "The research dialog clears latest on leave and sets it only after creating a new manifest. Save research evaluation plan requires latest. The persistent manifest list provides analyze, withdraw and shadow but no select/reuse action. After close/reload, a valid approved corpus cannot be reused through this dialog, encouraging unnecessary new manifests. The backend existing corpus/plan API is present; this is a desktop connection omission, not a missing scheduler.",
         "evidence": [
           {
-            "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/gateway/workspace-reliability-research-admin.js",
+            "path": "agent_market/gateway/workspace-reliability-research-admin.js",
             "line": 16,
             "reason": "Dialog leave clears latest."
           },
           {
-            "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/gateway/workspace-reliability-research-admin.js",
+            "path": "agent_market/gateway/workspace-reliability-research-admin.js",
             "line": 53,
             "reason": "Only new manifest creation assigns latest."
           },
           {
-            "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/gateway/workspace-reliability-research-admin.js",
+            "path": "agent_market/gateway/workspace-reliability-research-admin.js",
             "line": 59,
             "reason": "Plan save rejects without latest."
           },
           {
-            "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/gateway/workspace-reliability-research-admin.js",
+            "path": "agent_market/gateway/workspace-reliability-research-admin.js",
             "line": 70,
             "reason": "Persistent manifest rows have no select-for-plan control."
           },
           {
-            "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/reliability_control_service.py",
+            "path": "agent_market/reliability_control_service.py",
             "line": 76,
             "reason": "Existing plan configure endpoint can reuse a corpus."
           }
@@ -254,32 +254,32 @@
       "audit_evidence_file": "reports/design-implementation-audit-2026-10-19/evidence-reliability.json",
       "source_evidence": [
         {
-          "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/reliability_research.py",
+          "path": "agent_market/reliability_research.py",
           "line": 328,
           "reason": "Analysis resolves requested manifest and current evaluation plan."
         },
         {
-          "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/reliability_research.py",
+          "path": "agent_market/reliability_research.py",
           "line": 332,
           "reason": "Entry check compares only corpus_hash, not plan.corpus_id."
         },
         {
-          "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/reliability_research.py",
+          "path": "agent_market/reliability_research.py",
           "line": 353,
           "reason": "Per-job observation ID mismatch is later rendered unassessable."
         },
         {
-          "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/reliability_research.py",
+          "path": "agent_market/reliability_research.py",
           "line": 404,
           "reason": "Plan-wide scheduled/expected figures are still returned."
         },
         {
-          "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/reliability_research.py",
+          "path": "agent_market/reliability_research.py",
           "line": 248,
           "reason": "Dispatch lookup correctly matches exact corpus_id and corpus_hash."
         },
         {
-          "path": "/Users/kingstonelee/workspace/A2A_Discovery/tests/test_reliability_research.py",
+          "path": "tests/test_reliability_research.py",
           "line": 107,
           "reason": "Existing equal-content test withdraws second manifest; it does not exercise two active manifest analysis mismatch."
         }
@@ -293,32 +293,32 @@
         "details": "analyze resolves the requested manifest and its corpus, then compares the current evaluation plan only by corpus_hash. Two active manifests may legally have identical corpus contents and different corpus IDs. Analyzing the non-plan manifest can therefore use another manifest plan/job count and expected denominator, while individual observations are later relabeled unassessable because manifest IDs differ. It does not falsely grant independent quality, but can produce a misleading cross-manifest scheduled/coverage report instead of rejecting the mismatched plan. Dispatch-side _for_corpus already binds both ID and hash, so the analysis entry check should match that rule.",
         "evidence": [
           {
-            "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/reliability_research.py",
+            "path": "agent_market/reliability_research.py",
             "line": 328,
             "reason": "Analysis resolves requested manifest and current evaluation plan."
           },
           {
-            "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/reliability_research.py",
+            "path": "agent_market/reliability_research.py",
             "line": 332,
             "reason": "Entry check compares only corpus_hash, not plan.corpus_id."
           },
           {
-            "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/reliability_research.py",
+            "path": "agent_market/reliability_research.py",
             "line": 353,
             "reason": "Per-job observation ID mismatch is later rendered unassessable."
           },
           {
-            "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/reliability_research.py",
+            "path": "agent_market/reliability_research.py",
             "line": 404,
             "reason": "Plan-wide scheduled/expected figures are still returned."
           },
           {
-            "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/reliability_research.py",
+            "path": "agent_market/reliability_research.py",
             "line": 248,
             "reason": "Dispatch lookup correctly matches exact corpus_id and corpus_hash."
           },
           {
-            "path": "/Users/kingstonelee/workspace/A2A_Discovery/tests/test_reliability_research.py",
+            "path": "tests/test_reliability_research.py",
             "line": 107,
             "reason": "Existing equal-content test withdraws second manifest; it does not exercise two active manifest analysis mismatch."
           }
@@ -365,27 +365,27 @@
       "audit_evidence_file": "reports/design-implementation-audit-2026-10-19/evidence-reliability.json",
       "source_evidence": [
         {
-          "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/gateway/workspace-research-controls-admin.js",
+          "path": "agent_market/gateway/workspace-research-controls-admin.js",
           "line": 65,
           "reason": "Retained admissions are text-only history."
         },
         {
-          "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/gateway/workspace-research-controls-admin.js",
+          "path": "agent_market/gateway/workspace-research-controls-admin.js",
           "line": 75,
           "reason": "Executable admission starts as a local null variable."
         },
         {
-          "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/gateway/workspace-research-controls-admin.js",
+          "path": "agent_market/gateway/workspace-research-controls-admin.js",
           "line": 80,
           "reason": "Each new preparation creates a fresh logical ID; only this response enables execution."
         },
         {
-          "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/reliability_admission.py",
+          "path": "agent_market/reliability_admission.py",
           "line": 144,
           "reason": "Backend status retains current scoped admissions."
         },
         {
-          "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/reliability_admission.py",
+          "path": "agent_market/reliability_admission.py",
           "line": 267,
           "reason": "Existing explicit execute route can run or inspect a retained admission."
         }
@@ -399,27 +399,27 @@
         "details": "The server retains prepared admissions and exposes a one-shot execute path, but the desktop history renders only text. The execute button refers exclusively to the local admission variable filled by a new Prepare one task action. Closing/reopening resets that variable; an administrator cannot select the retained prepared admission for exact-input review and execution. Preparing again generates a new logical ID and consumes a new retained admission/decision slot. This creates avoidable repeated preparation; it must not be solved by automatic execution or reusing an unreviewed input.",
         "evidence": [
           {
-            "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/gateway/workspace-research-controls-admin.js",
+            "path": "agent_market/gateway/workspace-research-controls-admin.js",
             "line": 65,
             "reason": "Retained admissions are text-only history."
           },
           {
-            "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/gateway/workspace-research-controls-admin.js",
+            "path": "agent_market/gateway/workspace-research-controls-admin.js",
             "line": 75,
             "reason": "Executable admission starts as a local null variable."
           },
           {
-            "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/gateway/workspace-research-controls-admin.js",
+            "path": "agent_market/gateway/workspace-research-controls-admin.js",
             "line": 80,
             "reason": "Each new preparation creates a fresh logical ID; only this response enables execution."
           },
           {
-            "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/reliability_admission.py",
+            "path": "agent_market/reliability_admission.py",
             "line": 144,
             "reason": "Backend status retains current scoped admissions."
           },
           {
-            "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/reliability_admission.py",
+            "path": "agent_market/reliability_admission.py",
             "line": 267,
             "reason": "Existing explicit execute route can run or inspect a retained admission."
           }
@@ -468,22 +468,22 @@
       "audit_evidence_file": "reports/design-implementation-audit-2026-10-19/evidence-reliability.json",
       "source_evidence": [
         {
-          "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/workspace_app_factory.py",
+          "path": "agent_market/workspace_app_factory.py",
           "line": 193,
           "reason": "Core calculates added/removed/changed fields."
         },
         {
-          "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/workspace_app_factory.py",
+          "path": "agent_market/workspace_app_factory.py",
           "line": 210,
           "reason": "Response includes base_flow and changes."
         },
         {
-          "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/gateway/workspace-research-controls-admin.js",
+          "path": "agent_market/gateway/workspace-research-controls-admin.js",
           "line": 55,
           "reason": "UI renders proposal introduction, destinations and JSON only."
         },
         {
-          "path": "/Users/kingstonelee/workspace/A2A_Discovery/tests/test_workspace_plan_reviews.py",
+          "path": "tests/test_workspace_plan_reviews.py",
           "line": 40,
           "reason": "Core test verifies input change and original unchanged; browser tests do not assert visible diff."
         }
@@ -497,22 +497,22 @@
         "details": "prepare_plan computes added/removed and changed resource/contract/input/bindings/ordering/condition fields plus base revision. The UI renders exact destinations and the full proposed graph, so explicit new-draft review still works, but it never displays result.changes or the base revision. The design promise of an easily reviewable change comparison is only partly delivered to the administrator.",
         "evidence": [
           {
-            "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/workspace_app_factory.py",
+            "path": "agent_market/workspace_app_factory.py",
             "line": 193,
             "reason": "Core calculates added/removed/changed fields."
           },
           {
-            "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/workspace_app_factory.py",
+            "path": "agent_market/workspace_app_factory.py",
             "line": 210,
             "reason": "Response includes base_flow and changes."
           },
           {
-            "path": "/Users/kingstonelee/workspace/A2A_Discovery/agent_market/gateway/workspace-research-controls-admin.js",
+            "path": "agent_market/gateway/workspace-research-controls-admin.js",
             "line": 55,
             "reason": "UI renders proposal introduction, destinations and JSON only."
           },
           {
-            "path": "/Users/kingstonelee/workspace/A2A_Discovery/tests/test_workspace_plan_reviews.py",
+            "path": "tests/test_workspace_plan_reviews.py",
             "line": 40,
             "reason": "Core test verifies input change and original unchanged; browser tests do not assert visible diff."
           }

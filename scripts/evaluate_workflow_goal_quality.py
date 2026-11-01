@@ -7,7 +7,7 @@ usage: python -m scripts.evaluate_workflow_goal_quality <release_or_repo_dir> te
 (2026-11-01, docs/qa/workflow-goal-quality-2026-11-01.ko.md)"""
 import json, os, re, sys, time, types
 REL, CASES, OUT = sys.argv[1], sys.argv[2], sys.argv[3]
-ROOT = '/Users/kingstonelee/workspace/A2A_Discovery'
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REL); os.chdir(ROOT)
 from pathlib import Path as _P
 from scripts.agentcon_config import (read_settings, read_local_model_settings, read_local_model_fallback_settings,

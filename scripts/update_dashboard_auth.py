@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-ROOT = Path("/Users/kingstonelee/workspace/A2A_Discovery")
+ROOT = Path(__file__).resolve().parents[1]
 DASHBOARD_HTML = ROOT / "agent_market" / "gateway" / "dashboard.html"
 
 def main():

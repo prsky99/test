@@ -16,7 +16,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-ROOT = Path("/Users/kingstonelee/workspace/A2A_Discovery")
+ROOT = Path(__file__).resolve().parents[1]
 EXTRACTED_PATH = ROOT / "extracted_html.txt"
 FRONT_PY_PATH = ROOT / "agent_market" / "concierge" / "front.py"
 

@@ -48,7 +48,7 @@ def test_shared_catalog_fixed_workflow_journey(hub_world,browser,width):
         assert event.value.suggested_filename=='my-workflow.zip'
         assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
         assert not errors and not external
-        dest=Path('/Users/kingstonelee/workspace/A2A_Discovery/reports/workflow-compact-picker-2026-10-25')
+        dest=Path(__file__).resolve().parents[1] / 'reports/workflow-compact-picker-2026-10-25'
         page.screenshot(path=str(dest/f'after-workspace-saved-{width}.png'),full_page=True)
         page.locator('#human-nav-templates').click();page.locator('#hub-search').fill('');page.locator('#hub-category').select_option('docs_knowledge')
         expect(page.locator('#hub-page')).to_contain_text('Page 1')

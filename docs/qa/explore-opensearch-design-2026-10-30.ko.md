@@ -177,8 +177,8 @@ OpenSearch는 후보 검색을 빠르게 하는 재생성 가능한 보조 색�
 1. 맥 터미널에서 아래 읽기 전용 명령을 10분 간격으로 두 번 실행한다. `documents`가 늘면 진행 중이다. `queued>0`인데 그대로면 8.4의 정체다.
 
    ```sh
-   cd /Users/kingstonelee/workspace/A2A_Discovery/gateway-data/services/releases/explore-a1-jobs-20261030-r2
-   ./.venv/bin/python -B -m scripts.explore_search_documents status --root /Users/kingstonelee/workspace/A2A_Discovery
+   cd <저장소>/gateway-data/services/releases/explore-a1-jobs-20261030-r2
+   ./.venv/bin/python -B -m scripts.explore_search_documents status --root <저장소>
    ```
 
 2. 정체이거나 진행이 너무 느리면 8.4 수정안으로 jobs r3를 만든다(웹 교체는 필요 없음).

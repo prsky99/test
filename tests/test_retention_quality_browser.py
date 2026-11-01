@@ -19,7 +19,7 @@ def test_a2a_task_survives_review_and_delayed_presets(chat_page,catalog,request)
     page.locator('#chatInput').fill(task);page.locator('#chatSubmit').click()
     button=page.locator('.chat-review-task').first
     playwright.expect(button).to_be_visible()
-    evidence=Path('/Users/kingstonelee/workspace/A2A_Discovery/reports/frontend-retention-quality-2026-10-25')
+    evidence=Path(__file__).resolve().parents[1] / 'reports/frontend-retention-quality-2026-10-25'
     page.screenshot(path=str(evidence/'chat-before-task-review.png'),full_page=True)
     button.click()
     playwright.expect(page.locator('#tbA2aMessage')).to_have_value(task)
@@ -90,7 +90,7 @@ def test_mobile_handoff_and_replacement_do_not_keep_a_stale_ready_notice(chat_pa
     page.locator('.chat-review-task').first.click()
     playwright.expect(page.locator('#chatTaskReview')).to_be_visible()
     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
-    page.screenshot(path='/Users/kingstonelee/workspace/A2A_Discovery/reports/frontend-retention-quality-2026-10-25/mobile-task-review.png',full_page=True)
+    page.screenshot(path=str(Path(__file__).resolve().parents[1] / 'reports/frontend-retention-quality-2026-10-25/mobile-task-review.png'),full_page=True)
     page.evaluate('id=>onTestbenchAgentChange(id)',other)
     playwright.expect(page.locator('#chatTaskReview')).to_have_count(0)
     assert not errors

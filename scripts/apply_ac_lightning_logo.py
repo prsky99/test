@@ -4,7 +4,7 @@ import py_compile
 import re
 from pathlib import Path
 
-ROOT = Path("/Users/kingstonelee/workspace/A2A_Discovery")
+ROOT = Path(__file__).resolve().parents[1]
 
 HEADER_SVG = '''<svg width="26" height="26" viewBox="0 0 32 32" fill="none" class="ac-logo-svg" aria-label="Agent Concierge Logo">
         <defs>

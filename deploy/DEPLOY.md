@@ -58,14 +58,16 @@ sudo docker compose cp gateway:/data/gateway.sqlite3 ./backup.sqlite3          #
 - 완료된 스냅샷은 최근 7개만 남깁니다. 실패하고 남은 폴더는 다음 성공 뒤에 지웁니다.
 - 앱 연결(`agentcon_app`)이 19개를 넘으면 5분 간격으로 6번까지 기다리고, 그래도 많으면 건너뜁니다. `pg_dump`는 연결을 하나만 씁니다.
 - 로그: `logs/services/biz.agentconcierge.backup.log` (JSON 한 줄, 실패하면 종료 코드 1, 건너뛰면 2)
-- 설치: `cp deploy/launchd/biz.agentconcierge.backup.plist ~/Library/LaunchAgents/ && launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/biz.agentconcierge.backup.plist`
+- 설치: plist는 템플릿입니다. `__REPO__`를 저장소 절대 경로로, `__BACKUP_COPY_TO__`를 복사할 공유 폴더로 바꿔 설치합니다.
+  `sed -e "s#__REPO__#$PWD#g" -e "s#__BACKUP_COPY_TO__#/Volumes/<공유>/agentconcierge-backups#g" deploy/launchd/biz.agentconcierge.backup.plist > ~/Library/LaunchAgents/biz.agentconcierge.backup.plist && launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/biz.agentconcierge.backup.plist`
+  `deploy/launchd/biz.agentconcierge.postgres18.plist`도 같은 방법으로 `__REPO__`를 바꿔 설치합니다.
 - 바로 한 번 실행: `launchctl kickstart gui/$(id -u)/biz.agentconcierge.backup`
 - 2026-11-01 실측: DB 10.3GB → 덤프 2.7GB, 소스 0.46GB, 343초, 테이블 데이터 270개, 서비스 영향 없음.
-- 다른 기기 복사(2026-11-01 사용자 결정): `--copy-to /Volumes/kingstone/agentconcierge-backups`(Mac mini KSMM01의 SMB 공유)에도 같은 스냅샷을 복사합니다. 키도 함께 복사됩니다.
+- 다른 기기 복사(2026-11-01 사용자 결정): `--copy-to /Volumes/<공유>/agentconcierge-backups`(다른 Mac mini의 SMB 공유)에도 같은 스냅샷을 복사합니다. 키도 함께 복사됩니다.
   - 먼저 `.partial-` 이름으로 복사하고, 파일 크기를 확인한 뒤 이름을 바꿉니다. 그쪽에도 최근 7개만 남깁니다.
-  - 공유가 마운트되어 있지 않으면(`/Volumes/kingstone`이 마운트 지점이 아니면) 복사를 건너뜁니다. 로컬 디스크에 엉뚱한 폴더를 만들지 않습니다.
+  - 공유가 마운트되어 있지 않으면(`/Volumes/<공유>`가 마운트 지점이 아니면) 복사를 건너뜁니다. 로컬 디스크에 엉뚱한 폴더를 만들지 않습니다.
   - 복사가 실패해도 로컬 스냅샷은 그대로 둡니다. 로그의 `offsite`에서 결과를 확인합니다.
-  - 최신 것만 다시 복사: `.venv/bin/python -m scripts.scheduled_backup --copy-only --copy-to /Volumes/kingstone/agentconcierge-backups`
+  - 최신 것만 다시 복사: `.venv/bin/python -m scripts.scheduled_backup --copy-only --copy-to /Volumes/<공유>/agentconcierge-backups`
   - 실측: launchd 환경에서 3.2GB를 약 198초에 복사했고, sha256이 원본과 일치했습니다.
   - 재부팅 뒤에는 공유를 다시 마운트해야 복사됩니다. 로그인 항목에 공유 폴더를 넣어 두면 자동으로 마운트됩니다.
 

@@ -9,7 +9,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-ROOT = Path("/Users/kingstonelee/workspace/A2A_Discovery")
+ROOT = Path(__file__).resolve().parents[1]
 
 def main():
     front_py_path = ROOT / "agent_market" / "concierge" / "front.py"

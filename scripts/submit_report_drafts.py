@@ -7,13 +7,14 @@ printed). Each draft is linted, checked for an existing report, then POSTed; the
   export ADMIN_SESSION_TOKEN='<personal admin session token>'   # from your logged-in admin session
   python3 scripts/submit_report_drafts.py [drafts_dir] [--dry-run]
 """
+from pathlib import Path
 import glob, json, os, sys, time, urllib.error, urllib.request
 
 sys.path.insert(0, os.path.dirname(__file__))
 from report_pipeline_common import lint
 
 BASE = os.environ.get('REPORT_API_BASE', 'http://127.0.0.1:8200')
-DEFAULT_DIR = '/Users/kingstonelee/.gemini/antigravity/brain/c483b1b9-b552-4e83-b78d-d6f36bf0128d/scratch/drafts'
+DEFAULT_DIR = str(Path.home() / '.gemini/antigravity/brain/c483b1b9-b552-4e83-b78d-d6f36bf0128d/scratch/drafts')
 
 
 def call(token, method, path, body=None):

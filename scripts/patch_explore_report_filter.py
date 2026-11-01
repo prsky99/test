@@ -3,7 +3,7 @@
 import re
 from pathlib import Path
 
-ROOT = Path("/Users/kingstonelee/workspace/A2A_Discovery")
+ROOT = Path(__file__).resolve().parents[1]
 
 def patch_html():
     p = ROOT / "extracted_html.txt"
