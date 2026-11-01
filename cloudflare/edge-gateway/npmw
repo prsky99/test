@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+project_root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
+node_directory="$project_root/gateway-data/toolchains/node-v26.12.1-darwin-arm64/bin"
+npm_cli="$project_root/gateway-data/toolchains/npm-12.2.1/bin/npm-cli.js"
+if [ ! -x "$node_directory/node" ] || [ ! -f "$npm_cli" ]; then
+  echo 'Prepare the reviewed local toolchain: python scripts/prepare_secure_toolchain.py --build' >&2
+  exit 1
+fi
+PATH="$node_directory:$PATH"
+export PATH
+cd "$project_root/cloudflare/edge-gateway"
+exec "$node_directory/node" "$npm_cli" "$@"

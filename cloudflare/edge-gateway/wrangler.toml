@@ -1,0 +1,14 @@
+name = "agentconcierge-edge-gateway"
+main = "worker.mjs"
+compatibility_date = "2026-10-23"
+compatibility_flags = ["enable_request_signal"]
+workers_dev = false
+preview_urls = false
+
+# Add the production route only after Origin authorization and bypass tests.
+# Configure route fail-open explicitly in Cloudflare; it is not a CPU-error retry.
+# No paid plan, KV, Queue, Durable Object or storage binding is required.
+[vars]
+PUBLIC_ORIGIN = "https://agentconcierge.biz"
+DIRECT_RESULTS_ENABLED = "true"
+# CONTROL_ORIGIN and SHARED_SECRET must be configured as encrypted secrets.
