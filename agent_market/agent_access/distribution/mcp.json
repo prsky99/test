@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "agent-concierge": {
+      "type": "http",
+      "url": "https://agentconcierge.biz/mcp/compact"
+    }
+  }
+}
