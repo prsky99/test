@@ -1,0 +1,4 @@
+# Audit/lock maintenance only; never install into a production release.
+-r requirements-build.txt
+pip-audit==2.10.1
+pip-tools==7.6.2

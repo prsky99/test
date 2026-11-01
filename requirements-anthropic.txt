@@ -1,0 +1,2 @@
+# Optional Claude seller/broker integrations; not used by the local LLM runtime.
+anthropic==2.3.0

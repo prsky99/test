@@ -1,0 +1,3 @@
+# Optional only: SQLite vector migration/rollback tools and isolated parity tests.
+# Python's sqlite3 module is part of the interpreter, not a pip dependency.
+sqlite-vec==0.1.9

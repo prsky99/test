@@ -1,0 +1,4 @@
+# Reproducible build tools for the reviewed http-ece and Psycopg C source distributions.
+pip==26.2.2
+setuptools==84.2.1
+wheel==0.48.0

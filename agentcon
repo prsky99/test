@@ -1,0 +1,337 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Resolve the absolute directory containing the real agentcon script (follows symlinks)
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ "$SOURCE" != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+PROJECT_DIR="$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd)"
+
+PYTHON_BIN="${PYTHON_BIN:-$PROJECT_DIR/.venv/bin/python}"
+# Once explicitly cut over, ordinary web restarts use independent A/B slots.
+# The explicit legacy escape hatch is reserved for initial-transition recovery.
+if [ "${2:-}" != "--legacy" ] && [ -f "$PROJECT_DIR/gateway-data/services/state.json" ]; then
+  managed="$("$PYTHON_BIN" -c 'import json,sys; print("yes" if json.load(open(sys.argv[1])).get("managed") else "no")' "$PROJECT_DIR/gateway-data/services/state.json")"
+  if [ "$managed" = "yes" ]; then
+    case "${1:-}" in
+      start|stop|restart|status|deploy|rollback|recover|package|worker-deploy)
+        cd "$PROJECT_DIR"
+        exec "$PYTHON_BIN" -m scripts.service_deploy --root "$PROJECT_DIR" "$@"
+        ;;
+    esac
+  fi
+fi
+RUNTIME_ENV_FILE="${AGENTCON_ENV_FILE-$PROJECT_DIR/gateway-data/agentcon.env}"
+if [ -n "$RUNTIME_ENV_FILE" ] && [[ "$RUNTIME_ENV_FILE" != /* ]]; then
+  RUNTIME_ENV_FILE="$PWD/$RUNTIME_ENV_FILE"
+fi
+
+load_runtime_environment() {
+  # Read literal assignments through a private-file parser; never execute an env file.
+  local settings entry
+  settings="$("$PYTHON_BIN" "$PROJECT_DIR/scripts/agentcon_config.py" --env-file "$RUNTIME_ENV_FILE" --export)" || return 1
+  while IFS= read -r entry; do
+    [ -n "$entry" ] && export "$entry"
+  done <<< "$settings"
+  return 0
+}
+
+# Stop/log/help commands remain available even if a proposed profile is invalid.
+case "${1:-}" in
+  start|restart|check|status) load_runtime_environment ;;
+esac
+
+# Default configuration (can be overridden via environment variables)
+export HOST="${HOST:-127.0.0.1}"
+export AGENT_FRONT_HOST="${AGENT_FRONT_HOST:-127.0.0.1}"
+export AGENT_FRONT_URL="${AGENT_FRONT_URL:-https://agentconcierge.biz}"
+export GATEWAY_DB="${GATEWAY_DB:-gateway-data/collector.sqlite3}"
+export PORT="${PORT:-8200}"
+export AGENT_FRONT_PORT="${AGENT_FRONT_PORT:-8400}"
+export FORWARDED_ALLOW_IPS="${FORWARDED_ALLOW_IPS-127.0.0.1,::1}"
+
+PID_FILE="${AGENTCON_PID_FILE:-$PROJECT_DIR/gateway-data/agentcon.pid}"
+LOG_FILE="${AGENTCON_LOG_FILE:-$PROJECT_DIR/logs/agentcon.log}"
+# The server drains collector/scheduler threads for up to 30s, then the workers; leave room before SIGKILL.
+STOP_TIMEOUT="${AGENTCON_STOP_TIMEOUT:-45}"
+STRICT_PID="${AGENTCON_STRICT_PID:-0}"
+
+mkdir -p "$(dirname "$PID_FILE")" "$(dirname "$LOG_FILE")"
+
+is_gateway_process() {
+  local pid="$1"
+  if ! kill -0 "$pid" 2>/dev/null; then
+    return 1
+  fi
+  local cmd
+  cmd="$(ps -p "$pid" -o command= 2>/dev/null || true)"
+  if [[ "$cmd" == *"agent_market.gateway.server"* ]]; then
+    return 0
+  fi
+  return 1
+}
+
+find_running_pids() {
+  local found=()
+
+  # 1. Check PID file first
+  if [ -f "$PID_FILE" ]; then
+    local pid
+    pid="$(tr -d '[:space:]' < "$PID_FILE" 2>/dev/null || true)"
+    if [ -n "$pid" ] && is_gateway_process "$pid"; then
+      found+=("$pid")
+    else
+      rm -f "$PID_FILE"
+    fi
+  fi
+
+  # 2. Fall back to process scan if not in strict PID mode and no PID file match
+  if [ "${#found[@]}" -eq 0 ] && [ "$STRICT_PID" != "1" ]; then
+    while IFS= read -r line; do
+      [ -z "$line" ] && continue
+      local pid cmd
+      pid="$(awk '{print $1}' <<< "$line")"
+      cmd="$( cut -d' ' -f2- <<< "$line" )"
+      if [[ "$cmd" == *"$PROJECT_DIR/.venv/bin/python"* && "$cmd" == *"-m agent_market.gateway.server"* ]] || \
+         [[ "$cmd" == *".venv/bin/python -m agent_market.gateway.server"* ]]; then
+        if kill -0 "$pid" 2>/dev/null; then
+          found+=("$pid")
+        fi
+      fi
+    done < <(ps ax -o pid=,command= 2>/dev/null || true)
+  fi
+
+  if [ "${#found[@]}" -gt 0 ]; then
+    printf "%s\n" "${found[@]}"
+  fi
+}
+
+do_status() {
+  local pids=()
+  while IFS= read -r p; do
+    [ -n "$p" ] && pids+=("$p")
+  done < <(find_running_pids)
+
+  if [ "${#pids[@]}" -gt 0 ]; then
+    local primary_pid="${pids[0]}"
+    local etime
+    etime="$(ps -p "$primary_pid" -o etime= 2>/dev/null | tr -d '[:space:]' || echo "unknown")"
+    echo "[agentcon] Status  : RUNNING (PID: ${pids[*]}, Uptime: ${etime})"
+    echo "[agentcon] Admin   : http://127.0.0.1:${PORT}/admin/ui"
+    echo "[agentcon] Front   : http://${AGENT_FRONT_HOST}:${AGENT_FRONT_PORT} (${AGENT_FRONT_URL})"
+    echo "[agentcon] Database: ${GATEWAY_DB}"
+    echo "[agentcon] Log     : ${LOG_FILE}"
+    return 0
+  else
+    echo "[agentcon] Status  : STOPPED"
+    return 1
+  fi
+}
+
+do_start() {
+  local fg_mode=0
+  if [[ "${1:-}" == "--fg" || "${1:-}" == "-f" ]]; then
+    fg_mode=1
+  fi
+
+  local pids=()
+  while IFS= read -r p; do
+    [ -n "$p" ] && pids+=("$p")
+  done < <(find_running_pids)
+
+  if [ "${#pids[@]}" -gt 0 ]; then
+    echo "[agentcon] Server is already running (PID: ${pids[*]})."
+    echo "[agentcon] Use 'agentcon restart' to restart it."
+    return 0
+  fi
+
+  if [ ! -x "$PYTHON_BIN" ]; then
+    echo "[agentcon] Error: Python executable not found at $PYTHON_BIN" >&2
+    return 1
+  fi
+
+  do_check || return 1
+  cd "$PROJECT_DIR"
+
+  echo "[agentcon] Starting Agent Concierge Gateway..."
+  echo "  AGENT_FRONT_HOST=${AGENT_FRONT_HOST}"
+  echo "  AGENT_FRONT_URL=${AGENT_FRONT_URL}"
+  echo "  GATEWAY_DB=${GATEWAY_DB}"
+
+  if [ "$fg_mode" -eq 1 ]; then
+    echo "$$" > "$PID_FILE"
+    trap 'rm -f "$PID_FILE"' EXIT
+    exec "$PYTHON_BIN" -m agent_market.gateway.server
+  fi
+
+  # Keep application logs on a rotating handler; bootstrap errors use a separate stream.
+  LOG_CONSOLE_FILE="$LOG_FILE" nohup "$PYTHON_BIN" -m agent_market.gateway.server >> "${LOG_FILE}.startup" 2>&1 < /dev/null &
+  local new_pid=$!
+  echo "$new_pid" > "$PID_FILE"
+
+  # Wait briefly to verify process stays alive and binds
+  local attempts=0
+  local max_attempts=20
+  while [ "$attempts" -lt "$max_attempts" ]; do
+    if ! kill -0 "$new_pid" 2>/dev/null; then
+      rm -f "$PID_FILE"
+      echo "[agentcon] Error: Server exited unexpectedly during startup. Last log lines:" >&2
+      tail -n 25 "${LOG_FILE}.startup" "$LOG_FILE" >&2 || true
+      return 1
+    fi
+    if lsof -Pan -p "$new_pid" -iTCP -sTCP:LISTEN >/dev/null 2>&1; then
+      break
+    fi
+    sleep 0.2
+    attempts=$((attempts + 1))
+  done
+
+  echo "[agentcon] Server started in background (PID: ${new_pid})."
+  echo "[agentcon] Admin UI : http://127.0.0.1:${PORT}/admin/ui"
+  echo "[agentcon] Admin new: http://127.0.0.1:${PORT}/admin/next (renewal, individual login)"
+  echo "[agentcon] Front UI : http://${AGENT_FRONT_HOST}:${AGENT_FRONT_PORT} (${AGENT_FRONT_URL})"
+  echo "[agentcon] Logs     : ${LOG_FILE}"
+}
+
+do_stop() {
+  local pids=()
+  while IFS= read -r p; do
+    [ -n "$p" ] && pids+=("$p")
+  done < <(find_running_pids)
+
+  if [ "${#pids[@]}" -eq 0 ]; then
+    rm -f "$PID_FILE"
+    echo "[agentcon] Server is not running."
+    return 0
+  fi
+
+  echo "[agentcon] Stopping server (PID: ${pids[*]})..."
+  for pid in "${pids[@]}"; do
+    kill -TERM "$pid" 2>/dev/null || true
+  done
+
+  local elapsed=0
+  local max_ticks=$((STOP_TIMEOUT * 5))
+  while [ "$elapsed" -lt "$max_ticks" ]; do
+    local alive=0
+    for pid in "${pids[@]}"; do
+      if kill -0 "$pid" 2>/dev/null; then
+        alive=1
+        break
+      fi
+    done
+    if [ "$alive" -eq 0 ]; then
+      break
+    fi
+    sleep 0.2
+    elapsed=$((elapsed + 1))
+  done
+
+  # Force kill if any process did not exit within timeout
+  for pid in "${pids[@]}"; do
+    if kill -0 "$pid" 2>/dev/null; then
+      echo "[agentcon] Process $pid did not exit in ${STOP_TIMEOUT}s; sending SIGKILL..."
+      kill -9 "$pid" 2>/dev/null || true
+    fi
+  done
+
+  rm -f "$PID_FILE"
+  echo "[agentcon] Server stopped."
+}
+
+do_restart() {
+  # A bad proposed profile must never stop the currently serving process.
+  do_check || return 1
+  do_stop
+  sleep 0.3
+  do_start "${1:-}"
+}
+
+do_check() {
+  (cd "$PROJECT_DIR" && "$PYTHON_BIN" "$PROJECT_DIR/scripts/agentcon_config.py" --env-file "$RUNTIME_ENV_FILE" --check)
+}
+
+do_logs() {
+  local lines="${1:-50}"
+  if [ -f "$LOG_FILE" ]; then
+    tail -n "$lines" -F "$LOG_FILE"
+  elif [ -f "$PROJECT_DIR/logs/all/all.log" ]; then
+    tail -n "$lines" -f "$PROJECT_DIR/logs/all/all.log"
+  else
+    echo "[agentcon] Log file not found at $LOG_FILE"
+    return 1
+  fi
+}
+
+usage() {
+  cat <<EOF
+Usage: agentcon <command> [options]
+
+Commands:
+  start             Start the recorded services
+  stop              Stop all services, including workers (service interruption)
+  restart [frontend|admin|all]
+                    Managed mode: replace web slots; keep workers running
+  rollback frontend|admin
+                    Managed mode: route to the previous web release
+  package <release> Prepare a fixed release without switching traffic
+  deploy frontend|admin <release>
+                    Managed mode: verify and activate a prepared web release
+  worker-deploy jobs|execution <release>
+                    Managed mode: drain and replace one background service
+  recover [--worker jobs|execution --release <release>]
+                    Managed mode: recover an interrupted web/worker deployment
+  check             Validate the proposed runtime settings without starting a server
+  status            Show current server status, PID, and endpoints
+  logs [lines]      Tail server logs (default: 50 lines)
+
+Before initial managed cutover, start/restart retain legacy behavior and accept
+--fg. Managed deployment commands require gateway-data/services/state.json.
+Managed role logs and recovery instructions: deploy/NATIVE_SERVICES.ko.md.
+
+Default Environment:
+  HOST=127.0.0.1
+  AGENT_FRONT_HOST=127.0.0.1
+  AGENT_FRONT_URL=https://agentconcierge.biz
+  GATEWAY_DB=gateway-data/collector.sqlite3
+  AGENTCON_ENV_FILE=gateway-data/agentcon.env (private literal assignments)
+  Parent environment overrides the file; set AGENTCON_ENV_FILE= to skip it.
+  .venv/bin/python -m agent_market.gateway.server
+EOF
+}
+
+cmd="${1:-}"
+shift || true
+
+case "$cmd" in
+  start)
+    do_start "${1:-}"
+    ;;
+  stop)
+    do_stop
+    ;;
+  restart)
+    do_restart "${1:-}"
+    ;;
+  status)
+    do_status
+    ;;
+  check)
+    do_check
+    ;;
+  logs)
+    do_logs "${1:-50}"
+    ;;
+  -h|--help|help|"")
+    usage
+    [[ -n "$cmd" ]] && exit 0 || exit 1
+    ;;
+  *)
+    echo "[agentcon] Unknown command: $cmd" >&2
+    usage >&2
+    exit 1
+    ;;
+esac
