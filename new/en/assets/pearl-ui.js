@@ -486,8 +486,10 @@
         if(item.eval_grade)items.push(['Grade '+String(item.eval_grade),'']);
         if(item.report_count>0||item.has_report||item.test_report||item.test_reports?.length)items.push(['Recorded report','chip-report']);
         if(item.catalog_status!=='historical'&&item.connection_readiness?.verified_callable===true)items.push(['Execution checked','ux-checked']);
+        // Whether a listing can be used right away decides the choice, so access and price always show.
+        if(item.auth_required===0&&item.kind!=='x402')items.push(['No account required','']);
+        if(item.kind==='x402'&&item.price_usdc)items.push([usd(item.price_usdc)+' per call','']);
         if(item.cap_tool_count)items.push([String(item.cap_tool_count)+' tools','']);
-        if(!items.length&&item.auth_required===0&&item.kind!=='x402')items.push(['No account required','']);
         facts.replaceChildren(...items.map(([label,cls])=>node('span','chip '+cls,label)));
       }
     }
@@ -496,6 +498,22 @@
   const originalExplore=renderExplore;
   renderExplore=function(...args){const value=originalExplore(...args);compactResults();return value;};
   compactResults();
+  // Phones: evidence filters and common tasks fold behind one button so results start on the first screen.
+  (()=>{
+    const box=q('#secExplore .pearl-filter-bottom');if(!box)return;
+    const phone=matchMedia('(max-width:700px)');
+    box.id=box.id||'uxFilterOptions';
+    const toggle=node('button','btn sm ux-filter-toggle');toggle.type='button';
+    toggle.setAttribute('aria-controls',box.id);toggle.setAttribute('aria-expanded','false');
+    const apply=()=>{
+      const on=['xVerified','xNoAuth','xHasReport'].filter(id=>q('#'+id)?.checked).length;
+      const open=!phone.matches||toggle.getAttribute('aria-expanded')==='true';
+      box.style.display=open?'':'none';toggle.hidden=!phone.matches;
+      toggle.textContent=(open?'Hide':'Show')+' filters and common tasks'+(on?' ('+on+' on)':'');
+    };
+    toggle.addEventListener('click',()=>{toggle.setAttribute('aria-expanded',String(toggle.getAttribute('aria-expanded')!=='true'));apply();});
+    box.before(toggle);box.addEventListener('change',apply);phone.addEventListener('change',apply);apply();
+  })();
   q('#uxClearSearch')?.addEventListener('click',()=>{
     q('#xQ').value='';q('#xKind').value='';q('#xCategory').value='';
     for(const id of ['xVerified','xNoAuth','xHasReport'])q('#'+id).checked=false;

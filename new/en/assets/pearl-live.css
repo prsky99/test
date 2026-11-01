@@ -774,3 +774,16 @@ label:has(> #pearlRegAuthority){display:flex;align-items:center;gap:8px;min-heig
    native select mirrors are clipped so they are neither painted nor counted as targets. */
 .pearl-header .nav-tab{min-width:24px;justify-content:center}
 .pearl-native-select{min-width:0!important;clip-path:inset(50%)}
+
+/* Web award stage 4 (2026-11-02): no public text below 12px, and form checkboxes reach the 24px target size.
+   Earlier rules set 10-11.5px at several specificities, so each is matched here one step stronger. */
+body .chip,body .kind-badge,body th,body .badge-agents,body .ux-agent-category,body .pearl-example-state,body .reg-blueprint-chip{font-size:12px}
+body #secExplore .pearl-search-results .acard .m .chip,body #secExplore .ux-agent-category{font-size:12px}
+body .eyebrow,body .hero .eyebrow,body .page-heading .eyebrow,body .snapshot-heading .eyebrow,body .pearl-menu-page .eyebrow,body #secTest .pearl-selected-example .eyebrow{font-size:12px}
+body .necklace-center small,body .necklace-center .badge,body .wf-library-card-meta .badge,body .reference-connection-preview small,body .metric-card small{font-size:12px}
+body #secExplore .pearl-result-heading .kind-badge{font-size:12px!important}
+body .pearl-menu-page input[type=checkbox],body .pearl-evidence-filter input[type=checkbox]{height:24px!important;min-height:24px!important;width:24px!important;min-width:24px!important}
+body .reg-blueprint-chip,body .reg-blueprint-chip span,body .pearl-example-state{font-size:12px!important}
+/* Inline styles in page markup and scripts still name 10-11.5px; they outrank class rules, so lift them here. */
+body [style*="font-size:10px"],body [style*="font-size: 10px"],body [style*="font-size:10.5px"],body [style*="font-size: 10.5px"],
+body [style*="font-size:11px"],body [style*="font-size: 11px"],body [style*="font-size:11.5px"],body [style*="font-size: 11.5px"]{font-size:12px!important}
