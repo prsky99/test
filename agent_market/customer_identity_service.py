@@ -276,4 +276,7 @@ def router_for(store, key, config=None, http=None, *, identity=None, github_conf
     if public:
         from .customer_organization_service import router_for as organizations
         router.include_router(organizations(core, access))
+        # Wherever the customer API is served, its opening reads can share one round trip (11-01).
+        from .customer_batch import router_for as batch
+        router.include_router(batch())
     return router

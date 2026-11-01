@@ -20,7 +20,7 @@ def test_pearl_studio_actual_ai_nodes_themes_mobile_and_csp(customer_flow,browse
     def handler(route):
         r=route.request;u=urlsplit(r.url)
         if u.hostname!='customer.test':external.append(r.url);route.abort();return
-        response=x.client.request(r.method,u.path,content=r.post_data,headers=r.headers,follow_redirects=False)
+        response=x.client.request(r.method,u.path+('?'+u.query if u.query else ''),content=r.post_data,headers=r.headers,follow_redirects=False)
         if response.status_code>=400:errors.append(str(response.status_code)+':'+u.path)
         route.fulfill(status=response.status_code,body=response.content,headers={k:v for k,v in response.headers.items() if k not in ('set-cookie','content-length','content-encoding','transfer-encoding')})
     context.route('**/*',handler)

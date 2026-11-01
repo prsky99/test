@@ -30,7 +30,7 @@ def test_signin_is_visible_while_session_is_checked(customer_flow, browser):
     x = customer_flow; context, page, errors, calls = entry_page(x, browser)
     held = []
     page.route('**/api/customer-auth/status', lambda route: held.append(route))
-    page.route('**/api/customer-auth/session', lambda route: held.append(route))
+    hold(page, held, '/api/customer-auth/session')
     try:
         page.goto('https://customer.test/customer/sign-in')
         expect(page.locator('#google')).to_be_visible()
@@ -45,8 +45,7 @@ def test_signin_is_visible_while_session_is_checked(customer_flow, browser):
         expect(page.locator('#workspace-entry-progress')).to_have_count(0)
         expect(page.locator('body')).to_have_attribute('data-workspace-loading', 'true')
         assert len(held) == 1
-        response = x.client.get('/api/customer-auth/session')
-        held.pop().fulfill(status=200, body=response.content, content_type='application/json')
+        release(x, held.pop())
         expect(page.locator('body')).not_to_have_attribute('data-workspace-loading', 'true')
         expect(page.locator('#manage')).to_be_visible()
         assert not errors
@@ -60,12 +59,17 @@ def test_shell_shows_at_once_and_reads_run_beside_the_session_check(customer_flo
     x = customer_flow; context, page, errors, calls = entry_page(x, browser, 390)
     session = []; drafts = []
     path = '/api/customer-organizations/' + x.ws
-    page.route('**/api/customer-auth/session', lambda route: session.append(route))
-    page.route('**' + path, lambda route: drafts.append(route))
+    hold(page, session, '/api/customer-auth/session')
     try:
-        with page.expect_request('**' + path):
-            page.goto('https://customer.test/customer/organizations')
-        assert len(session) == 1, 'organization reads start without waiting for the session check'
+        page.goto('https://customer.test/customer/organizations')
+        expect(page.locator('#status')).to_be_visible()
+        page.wait_for_timeout(300)
+        assert len(session) == 1
+        opening = urlsplit(session[0].request.url)
+        # The session check and the organization reads share one opening request (UI policy 11-01).
+        from urllib.parse import parse_qs
+        assert opening.path == '/api/customer-batch'
+        assert {'/api/customer-auth/session', '/api/customer-organizations'} <= set(parse_qs(opening.query)['p'])
         expect(page.locator('#workspace-entry-progress')).to_have_count(0)
         expect(page.locator('#workspace-main h1')).to_be_visible()
         expect(page.locator('#status')).to_be_visible()
@@ -73,8 +77,9 @@ def test_shell_shows_at_once_and_reads_run_beside_the_session_check(customer_flo
         expect(page.locator('.workspace-sidebar')).to_be_visible()
         page.locator('#workspace-menu').click()
         expect(page.locator('#content')).not_to_be_visible()
-        response = x.client.get('/api/customer-auth/session')
-        session.pop().fulfill(status=200, body=response.content, content_type='application/json')
+        hold(page, drafts, path)
+        with page.expect_request('**' + path):
+            release(x, session.pop())
         expect(page.locator('body')).to_have_attribute('data-workspace-loading', 'true')
         response = x.client.get(path)
         proof = Path('reports/workspace-login-loading-2026-10-22'); proof.mkdir(parents=True, exist_ok=True)
@@ -100,7 +105,7 @@ def test_studio_shows_without_waiting_for_fonts_and_defers_history(customer_flow
     page.add_init_script("Object.defineProperty(document.fonts,'ready',{value:new Promise(()=>{})})")
     held = []
     path = '/api/customer-organizations/' + x.ws + '/authoring/typed/flows/' + flow['id'] + '/runs'
-    page.route('**' + path, lambda route: held.append(route))
+    hold(page, held, path)
     try:
         page.goto('https://customer.test/customer/organizations/' + x.ws + '/flows')
         expect(page.locator('#status')).to_have_text('Review a workflow or inspect retained tests.')
@@ -110,14 +115,33 @@ def test_studio_shows_without_waiting_for_fonts_and_defers_history(customer_flow
         expect(page.locator('body')).not_to_have_attribute('data-workspace-loading', 'true')
         expect(page.locator('#workflow-cards .card-strand i')).to_have_count(2)
         page.locator('#human-nav-library').click()
-        with page.expect_request('**' + path):page.locator('.workflow-card').first.click()
+        page.locator('.workflow-card').first.click()
         expect(page.locator('#workspace-progress')).to_be_visible()
-        response=x.client.get(path)
-        held.pop().fulfill(status=response.status_code,body=response.content,content_type='application/json')
+        page.wait_for_timeout(300)
+        release(x, held.pop())
         expect(page.locator('#results')).to_contain_text('Current documentation')
         assert not errors and not any(method != 'GET' for method, _ in calls)
     finally:
         context.close()
+
+
+def hold(page, held, path):
+    """Hold a read whether it travels alone or inside the page's batched opening request (11-01)."""
+    from urllib.parse import parse_qs
+    def route(r):
+        url = urlsplit(r.request.url)
+        if url.path == path or url.path == '/api/customer-batch' and path in parse_qs(url.query).get('p', []):
+            held.append(r)
+        else:
+            r.fallback()
+    page.route('**/api/**', route)
+
+
+def release(x, route, status=None, body=None):
+    url = urlsplit(route.request.url)
+    reply = x.client.get(url.path + ('?' + url.query if url.query else ''), headers=route.request.headers)
+    route.fulfill(status=status or reply.status_code, body=reply.content if body is None else body,
+                  content_type='application/json')
 
 
 def entry_page(x, browser, width=1440):

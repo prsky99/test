@@ -20,7 +20,7 @@ def test_ten_step_output_rendering_escapes_markup_and_survives_history_reload(te
     def forward(route):
         request=route.request; url=urlsplit(request.url)
         if url.hostname!='customer.test':external.append(request.url);route.abort();return
-        response=x.client.request(request.method,url.path,headers=request.headers,content=request.post_data,follow_redirects=False)
+        response=x.client.request(request.method,url.path+('?'+url.query if url.query else ''),headers=request.headers,content=request.post_data,follow_redirects=False)
         if response.status_code>=400:errors.append(str(response.status_code)+':'+url.path)
         route.fulfill(status=response.status_code,body=response.content,headers={k:v for k,v in response.headers.items()
             if k not in ('content-length','content-encoding','transfer-encoding','set-cookie')})

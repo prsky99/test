@@ -133,3 +133,18 @@ def test_invitations_take_the_writer_lock_only_to_expire(monkeypatch):
     from types import SimpleNamespace
     orgs.invitations(SimpleNamespace(customer_id='cu_x'))
     assert calls == ['read', 'write', 'update']
+
+
+def test_customer_options_label_candidates_without_the_writer_lock():
+    body = _body('customer_authoring.py', 'CustomerOwnedTypedFlows', 'options')
+    assert 'self.access._tx(actor, readonly=True)' in body
+    assert not any(word in body for word in ('INSERT', 'UPDATE', 'DELETE', '_audit(', 'emit('))
+
+
+def test_every_typed_flow_engine_names_its_executor():
+    """11-01: a release once shipped without EXECUTOR; runs must record which engine re-checks them."""
+    from agent_market.workspace_typed_flows import TypedFlows
+    from agent_market.customer_authoring import CustomerOwnedTypedFlows
+    from agent_market.workspace_typed_release import CustomerTypedFlows as ReleaseTypedFlows
+    assert (TypedFlows.EXECUTOR, CustomerOwnedTypedFlows.EXECUTOR, ReleaseTypedFlows.EXECUTOR) == ('admin', 'customer', 'customer_app')
+    assert "run['executor'] = self.EXECUTOR" in (ROOT / 'workspace_typed_flows.py').read_text()

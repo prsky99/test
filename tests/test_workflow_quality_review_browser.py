@@ -20,7 +20,7 @@ def quality_page(quality_api,browser):
         if url.hostname!='admin.test':w.external.append(req.url);return route.abort()
         w.requests.append((req.method,url.path,req.post_data))
         if url.path=='/admin/assets/workflow-quality-admin.js':return route.fulfill(status=200,content_type='application/javascript',body=Path('agent_market/gateway/workflow-quality-admin.js').read_text())
-        response=w.client.request(req.method,url.path,headers=req.headers,content=req.post_data)
+        response=w.client.request(req.method,url.path+('?'+url.query if url.query else ''),headers=req.headers,content=req.post_data)
         route.fulfill(status=response.status_code,body=response.content,headers={k:v for k,v in response.headers.items() if k not in ('content-length','content-encoding','transfer-encoding')})
     context.route('**/*',serve);w.page.on('pageerror',lambda error:w.errors.append(str(error)))
     yield w

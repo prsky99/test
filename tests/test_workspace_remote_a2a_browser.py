@@ -31,7 +31,7 @@ def task_page(remote, browser):
         if url.path == '/admin/assets/workspace-remote-a2a-admin.js':
             route.fulfill(status=200, body=script, headers={'Content-Type': 'application/javascript'}); return
         (x.browser_reads if request.method == 'GET' else x.browser_writes).append({'path': url.path, 'body': request.post_data_json if request.method == 'POST' else None})
-        response = x.client.request(request.method, url.path, headers=request.headers, content=request.post_data)
+        response = x.client.request(request.method, url.path+('?'+url.query if url.query else ''), headers=request.headers, content=request.post_data)
         result = {'status': response.status_code, 'body': response.content, 'headers': {k:v for k,v in response.headers.items() if k not in ('content-length', 'content-encoding', 'transfer-encoding')}}
         if x.hold and request.method == 'POST': x.pending.append((route, result)); return
         route.fulfill(**result)

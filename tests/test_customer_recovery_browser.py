@@ -29,7 +29,7 @@ def open_page(w, browser, index):
         request = route.request; part = urlsplit(request.url)
         if part.hostname != 'customer.test':
             unexpected.append(request.url); route.abort(); return
-        result = client.request(request.method, part.path, content=request.post_data,
+        result = client.request(request.method, part.path+('?'+part.query if part.query else ''), content=request.post_data,
                                 headers=request.headers, follow_redirects=False)
         route.fulfill(status=result.status_code, body=result.content,
                       headers={key: value for key, value in result.headers.items()

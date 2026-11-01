@@ -19,7 +19,7 @@ def test_template_hub_select_customize_credit_save_run_and_keyboard(hub_world,br
     def serve(route):
         request=route.request;u=urlsplit(request.url)
         if u.hostname!='customer.test':external.append(request.url);return route.abort()
-        r=x.client.request(request.method,u.path,headers=request.headers,content=request.post_data,follow_redirects=False)
+        r=x.client.request(request.method,u.path+('?'+u.query if u.query else ''),headers=request.headers,content=request.post_data,follow_redirects=False)
         route.fulfill(status=r.status_code,body=r.content,headers={k:v for k,v in r.headers.items() if k not in ('set-cookie','content-length','content-encoding','transfer-encoding')})
     context.route('**/*',serve)
     try:
@@ -70,7 +70,7 @@ def test_editable_starter_uses_reviewed_connections_without_inheriting_fallback(
     def serve(route):
         r=route.request;url=urlsplit(r.url)
         if url.hostname!='customer.test':return route.abort()
-        response=x.client.request(r.method,url.path,headers=r.headers,content=r.post_data)
+        response=x.client.request(r.method,url.path+('?'+url.query if url.query else ''),headers=r.headers,content=r.post_data)
         route.fulfill(status=response.status_code,body=response.content,headers={k:v for k,v in response.headers.items() if k not in ('set-cookie','content-length','content-encoding','transfer-encoding')})
     context.route('**/*',serve)
     try:

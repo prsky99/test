@@ -53,7 +53,8 @@
 - **Test 화면**
   - 예시 5개와 연결 정보를 `new/en/test.html`의 `appBootstrapData`에 넣었다.
     - 접속 시 API 호출은 0회다(이전에는 presets, agents, explore 100을 차례로 불러 약 2.7초 걸렸다).
-    - 예시를 고치면 `python -m scripts.build_public_page_snapshots`로 다시 만든다.
+    - 서버가 페이지를 내보낼 때 frontend의 따뜻한 부트스트랩 캐시(홈 화면용으로 백그라운드에서 갱신됨)가 있으면 그 예시와 워크플로로 바꿔 넣는다(`pearl_view.current_fixed_content`). 그래서 손으로 다시 만들 필요가 없다. 요청 경로에서 DB를 읽지 않는다.
+    - 캐시가 없을 때 쓰는 파일 속 값은 `python -m scripts.build_public_page_snapshots`로 다시 만든다.
   - 등록 에이전트 목록은 "Choose another agent"를 열 때 불러온다.
   - 페이지에 데이터가 없으면 예전 방식(서버 확인 후 다시 시도 버튼)으로 동작한다.
 - **워크스페이스**

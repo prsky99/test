@@ -56,7 +56,7 @@ def launch(x,browser,*,hold_prepare=False):
         if url.hostname!='admin.test':return route.abort()
         if hold_prepare and url.path.endswith('/product-composer/prepare'):
             held.append(route);return
-        response=x.w.client.request(request.method,url.path,headers=request.headers,content=request.post_data)
+        response=x.w.client.request(request.method,url.path+('?'+url.query if url.query else ''),headers=request.headers,content=request.post_data)
         route.fulfill(status=response.status_code,headers={k:v for k,v in response.headers.items() if k not in ('content-length','content-encoding','transfer-encoding')},body=response.content)
     context.route('**/*',serve);page.on('pageerror',lambda value:errors.append(str(value)));page.goto('https://admin.test/admin/ui#workspaces')
     expect(page.locator('#workspaceSelect')).to_be_enabled();page.locator('#workspaceSelect').select_option(x.ws)

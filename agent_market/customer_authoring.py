@@ -34,12 +34,15 @@ class CustomerAuthoringAccess(CustomerWorkspaceAccess):
 
 class CustomerOwnedTypedFlows(CustomerTypedFlows):
     """Current customer editors author; runners execute a reviewed graph only."""
+    EXECUTOR = 'customer'
+
     def options(self, ws, actor):
         from .workspace_provider_connections import profile
         from .workspace_access import WorkspaceConflict, WorkspaceInvalid
         from .workspace_app_factory import AppFactory
         value = super().options(ws, actor)
-        with self.access._tx(actor) as (db, _):
+        # Labelling candidates only reads, so it skips the global writer lock (11-01: slowest opening read).
+        with self.access._tx(actor, readonly=True) as (db, _):
             self._authority(ws, actor, write=False)
             for candidate in value['candidates']:
                 resource = self.store.resource(candidate['resource_id'])
@@ -83,6 +86,9 @@ class CustomerOwnedTypedFlows(CustomerTypedFlows):
 
 
 class CustomerAppFactory(AppFactory):
+    # 11-01: "Save changes" in the customer studio records the next revision of the same workflow.
+    REVISE_BASE = True
+
     def __init__(self,*args,model_source=None,**kwargs):
         self.model_source,self._source_generation=model_source,None
         super().__init__(*args,**kwargs)

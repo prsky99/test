@@ -35,7 +35,7 @@ def launch(x,browser,width=1440,real_model=False):
         r=route.request;u=urlsplit(r.url)
         if u.hostname!='customer.test':errors.append('Unexpected destination');return route.abort()
         requests.append((r.method,u.path))
-        response=x.client.request(r.method,u.path,headers=r.headers,content=r.post_data,follow_redirects=False)
+        response=x.client.request(r.method,u.path+('?'+u.query if u.query else ''),headers=r.headers,content=r.post_data,follow_redirects=False)
         route.fulfill(status=response.status_code,body=response.content,headers={k:v for k,v in response.headers.items() if k not in ('set-cookie','content-length','content-encoding','transfer-encoding')})
     context.route('**/*',serve)
     page.goto('https://customer.test/customer/organizations/'+x.ws+'/flows')

@@ -122,7 +122,7 @@ def retained_controls_page(pilot, browser):
         if url.path == '/admin/assets/workspace-research-controls-admin.js':
             route.fulfill(status=200, body=script, headers={'Content-Type': 'application/javascript'}); return
         (w.browser_reads if request.method == 'GET' else w.browser_writes).append(url.path)
-        response = w.pilot_client.request(request.method, url.path, headers=request.headers, content=request.post_data)
+        response = w.pilot_client.request(request.method, url.path+('?'+url.query if url.query else ''), headers=request.headers, content=request.post_data)
         route.fulfill(status=response.status_code, body=response.content, headers={k:v for k,v in response.headers.items() if k not in ('content-length','content-encoding','transfer-encoding')})
     context.route('**/*', serve); page.on('pageerror', lambda error: w.errors.append(str(error)))
     page.goto('https://pilot.test/component'); page.evaluate('(ws)=>WorkspaceResearchControlsAdmin.open(ws)', w.ws['id'])

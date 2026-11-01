@@ -21,7 +21,7 @@ def advancement_page(advancement_api,browser):
         w.requests.append((req.method,url.path,req.post_data))
         if url.path=='/admin/assets/advancement-admin.js':
             return route.fulfill(status=200,content_type='application/javascript',body=Path('agent_market/gateway/advancement-admin.js').read_text())
-        response=w.client.request(req.method,url.path,headers=req.headers,content=req.post_data)
+        response=w.client.request(req.method,url.path+('?'+url.query if url.query else ''),headers=req.headers,content=req.post_data)
         route.fulfill(status=response.status_code,body=response.content,headers={k:v for k,v in response.headers.items() if k not in ('content-length','content-encoding','transfer-encoding')})
     context.route('**/*',serve);w.page.on('pageerror',lambda error:w.errors.append(str(error)))
     sign_in(w);select_space(w,w.ws)

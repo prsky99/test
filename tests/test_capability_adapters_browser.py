@@ -19,7 +19,7 @@ def test_customer_prepares_adapter_notice_and_sees_chained_confirmed_results(ada
     def handle(route):
         req=route.request;url=urlsplit(req.url)
         if url.hostname!='customer.test':external.append(req.url);route.abort();return
-        response=x.client.request(req.method,url.path,headers=req.headers,content=req.post_data,follow_redirects=False)
+        response=x.client.request(req.method,url.path+('?'+url.query if url.query else ''),headers=req.headers,content=req.post_data,follow_redirects=False)
         if response.status_code>=400:errors.append(response.status_code)
         route.fulfill(status=response.status_code,body=response.content,headers={k:v for k,v in response.headers.items()
             if k not in ('content-length','content-encoding','transfer-encoding','set-cookie')})

@@ -66,6 +66,8 @@ SCHEMA = (
 
 
 class AppFactory(SignedWorkspaceModule):
+    # Surfaces that promise "a new draft" keep it; the customer studio saves edits as the next revision.
+    REVISE_BASE = False
     def __init__(self, typed_flows, *, releases=None, typed_releases=None, model_proposer=None):
         if model_proposer is not None and not callable(model_proposer):
             raise WorkspaceInvalid()
@@ -247,7 +249,7 @@ class AppFactory(SignedWorkspaceModule):
             # An edited workflow becomes the next revision of the same workflow (11-01), so edits no longer
             # pile up copies; runs stay pinned to their own version. A workflow at its version limit starts anew.
             base_flow = value.get('base_flow')
-            if base_flow and base_flow['revision'] < TYPED_LIMITS['versions']:
+            if self.REVISE_BASE and base_flow and base_flow['revision'] < TYPED_LIMITS['versions']:
                 command = {'flow_id': base_flow['id'], 'revision': base_flow['revision'], 'name': value['name'], 'definition': value['definition']}
             else:
                 command = {'flow_id': None, 'revision': 0, 'name': value['name'], 'definition': value['definition']}
@@ -311,7 +313,7 @@ class AppFactory(SignedWorkspaceModule):
             db.execute('INSERT INTO workspace_factory_reviews VALUES(?,?,?,?)', (identity, ws, _canonical(value), self.sign(value)))
             self.access._audit(db, actor, ws, 'factory.plan_review', identity, 1)
             return {**({'credit_charge':value['credit_charge']} if 'credit_charge' in value else {}), 'profile': PROFILE, 'review_id': identity, 'notice': NOTICE, 'expires': value['expires'],
-                    'definition': definition, 'base_flow': base, 'changes': changes, 'new_draft_only': not base or base['revision'] >= TYPED_LIMITS['versions'],
+                    'definition': definition, 'base_flow': base, 'changes': changes, 'new_draft_only': not (self.REVISE_BASE and base and base['revision'] < TYPED_LIMITS['versions']),
                     'definition_hash': _hash(definition), 'provider_calls': 0, 'automatic_replanning': False,
                     'destinations': [{'node_id': node['id'], 'resource_id': node['resource_id'],
                                       'contract_id': node['contract_id'], 'tool': pins[node['id']]['tool']} for node in definition['nodes']],

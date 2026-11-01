@@ -43,7 +43,7 @@ def edge_page(browser, edge):
             route.fulfill(body=delta + 'event: result\ndata: ' + json.dumps({'state': state, 'error_code': code, 'output': None}) + '\n\n',
                           headers={'Content-Type': 'text/event-stream', 'Cache-Control': 'private, no-store'})
             return
-        response = edge.client.request(req.method, u.path, content=req.post_data,
+        response = edge.client.request(req.method, u.path+('?'+u.query if u.query else ''), content=req.post_data,
             headers={k: v for k, v in req.headers.items() if k in ('content-type', 'authorization', 'origin', 'x-visitor-token')})
         route.fulfill(status=response.status_code, body=response.content,
             headers={k: v for k, v in response.headers.items() if k not in ('content-length', 'content-encoding', 'transfer-encoding')})

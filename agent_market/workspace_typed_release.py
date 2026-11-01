@@ -19,6 +19,8 @@ RUN_NOTICE = 'workspace-sdk-whole-graph-run-v2'
 
 class CustomerTypedFlows(TypedFlows):
     """Execution adapter only; no customer provisioning or edit transport."""
+    EXECUTOR = 'customer_app'
+
     def _authority(self, ws, actor, *, write=True):
         if type(actor) is not CustomerRuntimeActor or actor.workspace_id != ws:
             raise WorkspaceDenied()

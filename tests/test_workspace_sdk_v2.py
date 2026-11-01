@@ -130,7 +130,7 @@ def test_owner_native_management_grants_and_download_remain_separate_from_custom
     def serve(route):
         request=route.request;url=urlsplit(request.url)
         if url.hostname!='admin.test':return route.abort()
-        response=w.client.request(request.method,url.path,headers=request.headers,content=request.post_data)
+        response=w.client.request(request.method,url.path+('?'+url.query if url.query else ''),headers=request.headers,content=request.post_data)
         headers={k:v for k,v in response.headers.items() if k not in ('content-length','content-encoding','transfer-encoding')}
         if response.headers.get_list('set-cookie'):headers['set-cookie']='\n'.join(response.headers.get_list('set-cookie'))
         route.fulfill(status=response.status_code,headers=headers,body=response.content)

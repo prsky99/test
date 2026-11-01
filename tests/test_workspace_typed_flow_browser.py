@@ -31,7 +31,7 @@ def launch(x, browser, *, hold=False):
         if url.hostname != 'admin.test': external.append(request.url); return route.abort()
         if hold and url.path.endswith('/prepare') and '/typed-flows/' in url.path:
             held.append(route); return
-        response = x.w.client.request(request.method, url.path, headers=request.headers, content=request.post_data)
+        response = x.w.client.request(request.method, url.path+('?'+url.query if url.query else ''), headers=request.headers, content=request.post_data)
         route.fulfill(status=response.status_code, headers={k: v for k, v in response.headers.items() if k not in ('content-length', 'content-encoding', 'transfer-encoding')}, body=response.content)
     context.route('**/*', serve); page.on('pageerror', lambda error: errors.append(str(error)))
     page.goto('https://admin.test/admin/ui#workspaces'); expect(page.locator('#workspaceSelect')).to_be_enabled()

@@ -36,7 +36,7 @@ def test_saved_workflow_pearls_match_actual_steps_and_fit_cards(customer_flow, b
     def handler(route):
         request = route.request; url = urlsplit(request.url)
         assert url.hostname == 'customer.test'
-        response = x.client.request(request.method, url.path, headers=request.headers,
+        response = x.client.request(request.method, url.path+('?'+url.query if url.query else ''), headers=request.headers,
                                     content=request.post_data, follow_redirects=False)
         route.fulfill(status=response.status_code, body=response.content,
             headers={k: v for k, v in response.headers.items()
@@ -75,7 +75,7 @@ def test_private_customer_branch_review_test_release_feedback_and_withdrawal(cus
         request=route.request;url=urlsplit(request.url)
         if url.hostname!='customer.test':
             external.append(request.url);route.abort();return
-        response=x.client.request(request.method,url.path,headers=request.headers,content=request.post_data,follow_redirects=False)
+        response=x.client.request(request.method,url.path+('?'+url.query if url.query else ''),headers=request.headers,content=request.post_data,follow_redirects=False)
         if response.status_code>=400:errors.append(str(response.status_code)+':'+url.path)
         route.fulfill(status=response.status_code,body=response.content,headers={k:v for k,v in response.headers.items()
             if k not in ('content-length','content-encoding','set-cookie','transfer-encoding')})
@@ -171,7 +171,7 @@ def test_customer_concrete_model_requires_consent_and_support_patch_becomes_new_
     def handler(route):
         request=route.request;url=urlsplit(request.url)
         if url.hostname!='customer.test':external.append(request.url);route.abort();return
-        response=x.client.request(request.method,url.path,headers=request.headers,content=request.post_data,follow_redirects=False)
+        response=x.client.request(request.method,url.path+('?'+url.query if url.query else ''),headers=request.headers,content=request.post_data,follow_redirects=False)
         if response.status_code>=400:errors.append(str(response.status_code)+':'+url.path)
         route.fulfill(status=response.status_code,body=response.content,headers={k:v for k,v in response.headers.items()
             if k not in ('content-length','content-encoding','set-cookie','transfer-encoding')})

@@ -52,7 +52,7 @@ def test_expired_typed_session_discards_results_and_never_dispatches(customer_fl
         req = route.request
         url = urlsplit(req.url)
         assert url.hostname == 'customer.test'
-        response = x.client.request(req.method, url.path, headers=req.headers,
+        response = x.client.request(req.method, url.path+('?'+url.query if url.query else ''), headers=req.headers,
                                     content=req.post_data, follow_redirects=False)
         route.fulfill(status=response.status_code, body=response.content,
                       headers={k: v for k, v in response.headers.items()

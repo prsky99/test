@@ -1,4 +1,5 @@
 """Chromium task review/export uses isolated real handlers and no network."""
+import re
 from urllib.parse import urlsplit
 from pathlib import Path
 
@@ -22,7 +23,7 @@ def open_page(x, browser):
         request = route.request; url = urlsplit(request.url)
         if url.hostname != 'customer.test':
             external.append(request.url); route.abort(); return
-        response = x.customer_client.request(request.method, url.path, content=request.post_data,
+        response = x.customer_client.request(request.method, url.path+('?'+url.query if url.query else ''), content=request.post_data,
             headers=request.headers, follow_redirects=False)
         if response.status_code >= 400:
             errors.append(str(response.status_code) + ':' + url.path)
@@ -82,7 +83,7 @@ def test_unknown_response_and_session_loss_do_not_silently_repeat(authoring, bro
         assert x.calls.count('tools/call') == calls
         x.identity.logout(x.raw_cookie)
         page.locator('#prepare').click()
-        expect(page).to_have_url('https://customer.test/customer/sign-in')
+        expect(page).to_have_url(re.compile(r'^https://customer\.test/customer/sign-in(\?next=.*)?$'))
         expect(page.locator('#run')).to_have_count(0)
         assert x.calls.count('tools/call') == calls
         assert not [error for error in errors if not error.startswith('401:')] and not external

@@ -38,7 +38,7 @@ def pearl_response(response, nonce, section="overview", workspace=None, auth=Fal
         else "/customer/workflows"
     )
     nav = [
-        ("overview", "Overview", "/customer/organizations"),
+        ("overview", "Overview", "/customer/organizations" + ("?workspace=" + escape(workspace, quote=True) if workspace else "")),
         ("flows", "Workflows", flow),
         ("connections", "Provider connections", "/customer/organizations/" + escape(workspace, quote=True) + "/connections" if workspace else "/customer/provider-connections"),
         ("members", "Members & invitations", "/customer/organizations" + ("?workspace=" + escape(workspace, quote=True) if workspace else "") + "#detail"),

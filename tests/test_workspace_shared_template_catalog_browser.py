@@ -18,7 +18,7 @@ def test_shared_catalog_fixed_workflow_journey(hub_world,browser,width):
     def serve(route):
         req=route.request;u=urlsplit(req.url)
         if u.hostname!='customer.test':external.append(req.url);return route.abort()
-        r=x.client.request(req.method,u.path,headers=req.headers,content=req.post_data,follow_redirects=False)
+        r=x.client.request(req.method,u.path+('?'+u.query if u.query else ''),headers=req.headers,content=req.post_data,follow_redirects=False)
         route.fulfill(status=r.status_code,body=r.content,headers={k:v for k,v in r.headers.items() if k not in ('set-cookie','content-length','content-encoding','transfer-encoding')})
     context.route('**/*',serve)
     try:

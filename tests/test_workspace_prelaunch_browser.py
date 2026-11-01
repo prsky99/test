@@ -29,6 +29,9 @@ def open_studio(x, browser, *, role=None, fail_session=False):
         assert u.hostname=='customer.test'
         requests.append((r.method,u.path))
         # Retry a transient outage; 401 concealment has separate privacy regressions.
+        if fail[0] and u.path=='/api/customer-batch' and 'customer-auth%2Fsession' in u.query:
+            # The opening batch fails as a whole; the page then retries each read, and the session fails once.
+            route.fulfill(status=503,content_type='application/json',body='{}');return
         if fail[0] and u.path=='/api/customer-auth/session':
             fail[0]=False;route.fulfill(status=503,content_type='application/json',body='{}');return
         response=x.client.request(r.method,u.path+('?' + u.query if u.query else ''),headers=r.headers,content=r.post_data,follow_redirects=False)
@@ -260,14 +263,16 @@ def test_credit_agreement_form_waits_for_confirmed_terms_and_account_state(custo
     try:
         ready(page)
         page.route('**/api/customer-credits',lambda route:held.append(route))
-        with page.expect_request('**/api/customer-credits'):
+        page.route('**/api/customer-batch*',lambda route:held.append(route) if 'customer-credits' in route.request.url else route.fallback())
+        with page.expect_request(lambda r:'customer-credits' in r.url):
             page.goto('https://customer.test/customer/plan?workspace='+x.ws)
         expect(page.locator('#status')).to_have_text('Checking your current plan.')
         expect(page.locator('#enroll')).to_be_hidden()
         expect(page.locator('#join')).to_be_disabled()
         expect(page.locator('#terms-check')).to_be_disabled()
-        response=x.client.get('/api/customer-credits')
         assert held
+        opening=urlsplit(held[-1].request.url)
+        response=x.client.get(opening.path+('?'+opening.query if opening.query else ''),headers=held[-1].request.headers)
         held.pop().fulfill(status=response.status_code,content_type='application/json',body=response.text)
         expect(page.locator('#status')).to_have_text('Your plan and credit history are current.')
         expect(page.locator('#enroll')).to_be_hidden()

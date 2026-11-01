@@ -1,4 +1,5 @@
 """Isolated Chromium enrollment tests; no customer or provider network calls."""
+import re
 from urllib.parse import urlsplit
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -17,7 +18,7 @@ def test_enrollment_separate_unchecked_choices_close_and_rejoin(credits,browser,
     with TestClient(app,base_url='https://customer.test') as client:
         def handler(route):
             r=route.request;u=urlsplit(r.url);assert u.hostname=='customer.test'
-            response=client.request(r.method,u.path,content=r.post_data,headers=r.headers)
+            response=client.request(r.method,u.path+('?'+u.query if u.query else ''),content=r.post_data,headers=r.headers)
             requests.append((r.method,u.path,response.status_code))
             route.fulfill(status=response.status_code,body=response.content,headers={k:v for k,v in response.headers.items() if k not in ('set-cookie','content-length','content-encoding','transfer-encoding')})
         context.route('**/*',handler)
@@ -54,7 +55,8 @@ def test_enrollment_separate_unchecked_choices_close_and_rejoin(credits,browser,
         # A rejected credit mutation must conceal the retained account balance.
         w.core.logout(w.auths[0]['session_token'])
         page.locator('#close-check').check();page.locator('#close').click()
-        expect(page).to_have_url('https://customer.test/customer/sign-in')
+        # The relay now forwards the query, so sign-in keeps the destination (?next=...).
+        expect(page).to_have_url(re.compile(r'^https://customer\.test/customer/sign-in(\?next=.*)?$'))
         expect(page.locator('#balance')).to_have_count(0)
         assert any(method=='POST' and path.endswith('/close') and status==401
                    for method,path,status in requests)

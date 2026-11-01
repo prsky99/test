@@ -24,7 +24,7 @@ def product_page(browser,routing):
         req=route.request;url=urlsplit(req.url)
         if url.hostname!='agentconcierge.biz':return route.abort()
         if url.path=='/api/workflows/run':bodies.append(req.post_data_json)
-        response=client.request(req.method,url.path,content=req.post_data,headers=req.headers)
+        response=client.request(req.method,url.path+('?'+url.query if url.query else ''),content=req.post_data,headers=req.headers)
         route.fulfill(status=response.status_code,body=response.content,headers={k:v for k,v in response.headers.items() if k not in ('content-length','content-encoding','transfer-encoding')})
     context.route('**/*',serve)
     yield page,client,wf,errors,bodies

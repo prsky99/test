@@ -33,7 +33,7 @@ def test_customer_native_generation_review_save_run_or_clarification(matrix_worl
         nonlocal review
         req=route.request;url=urlsplit(req.url)
         if url.hostname!='customer.test':errors.append('Unexpected destination');route.abort();return
-        res=x.client.request(req.method,url.path,headers=req.headers,content=req.post_data,follow_redirects=False)
+        res=x.client.request(req.method,url.path+('?'+url.query if url.query else ''),headers=req.headers,content=req.post_data,follow_redirects=False)
         responses.append({'method':req.method,'path':url.path,'status':res.status_code})
         if url.path.endswith('/reviews/model'):review=res.json()
         route.fulfill(status=res.status_code,body=res.content,headers={k:v for k,v in res.headers.items() if k not in ('set-cookie','content-length','content-encoding','transfer-encoding')})
