@@ -214,8 +214,9 @@ def test_customer_concrete_model_requires_consent_and_support_patch_becomes_new_
         # The status names what finished instead of a generic completion line.
         expect(page.locator('#status')).to_have_text(re.compile(r'^Workflow (?:saved\. \d+ credits? used|changes saved)\.$'))
         flows=x.core.typed.listing(x.ws,x.actor)
-        assert len(flows)==2 and first['id'] in {f['id'] for f in flows}
-        assert x.core.typed.detail(x.ws,first['id'],x.actor)['definition']==graph(x.w)
+        # 11-01: the support patch is the next revision of the same workflow, not a second copy.
+        assert len(flows)==1 and flows[0]['id']==first['id'] and flows[0]['revision']==2
+        assert x.core.typed.detail(x.ws,first['id'],x.actor)['definition']!=graph(x.w)
         assert len(calls)==1 and len(x.w.calls)==before and not errors and not external
     finally:
         context.close();client.close()

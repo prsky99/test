@@ -1,0 +1,38 @@
+{
+ "clipped": [
+  {
+   "el": "div#workflowCanvasContainer.wf-canvas-container",
+   "overY": 2342,
+   "overX": 1762,
+   "lost": [
+    "h3 새로운 워크플로우 캔버스",
+    "p.muted 산업별 자동화 템플릿을 탐색하거나, 카탈로그 초안을 생성하거나,\n새 노드",
+    "strong 템플릿 갤러리"
+   ]
+  }
+ ],
+ "traps": [],
+ "covered": [],
+ "offscreen": [
+  {
+   "el": "button#btnCloseInspector.btn.sm",
+   "left": 1549,
+   "top": 659
+  },
+  {
+   "el": "button#btnInspInsertJsonTmpl.btn.sm",
+   "left": 1468,
+   "top": 1171
+  },
+  {
+   "el": "button#btnTestSingleNode.btn.sm",
+   "left": 1380,
+   "top": 1264
+  },
+  {
+   "el": "button#btnApplyInspector.btn.sm",
+   "left": 1514,
+   "top": 1264
+  }
+ ]
+}

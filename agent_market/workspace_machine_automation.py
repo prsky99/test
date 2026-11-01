@@ -30,7 +30,8 @@ class GrantAccess:
         self.store, self.key = automation.core.store, automation.core.access.key
 
     @contextmanager
-    def _tx(self, actor, write=False, highest=False):
+    def _tx(self, actor, write=False, highest=False, readonly=False):
+        # Machine grants keep their write transaction; readonly is accepted for a shared call shape.
         if highest or type(actor) is not GrantActor:
             raise WorkspaceDenied()
         with self.store._lock:

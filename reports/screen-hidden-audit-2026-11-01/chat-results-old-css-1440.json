@@ -1,0 +1,74 @@
+{
+ "clipped": [],
+ "traps": [
+  {
+   "el": "div#chatMessages.chat-results.has-results",
+   "visible": 384,
+   "content": 2199,
+   "overscroll": "contain"
+  }
+ ],
+ "covered": [],
+ "offscreen": [
+  {
+   "el": "button.btn.sm",
+   "left": 233,
+   "top": 1770
+  },
+  {
+   "el": "summary",
+   "left": 233,
+   "top": 1956
+  },
+  {
+   "el": "a",
+   "left": 267,
+   "top": 2360
+  },
+  {
+   "el": "button.chat-grade.chat-grade-button",
+   "left": 252,
+   "top": 2436
+  },
+  {
+   "el": "button.btn.sm",
+   "left": 1042,
+   "top": 2497
+  },
+  {
+   "el": "button.btn.sm",
+   "left": 325,
+   "top": 2568
+  },
+  {
+   "el": "button.btn.sm",
+   "left": 415,
+   "top": 2568
+  },
+  {
+   "el": "button.btn.sm",
+   "left": 252,
+   "top": 2642
+  },
+  {
+   "el": "button.btn.sm",
+   "left": 372,
+   "top": 2642
+  },
+  {
+   "el": "button.btn.sm",
+   "left": 533,
+   "top": 2642
+  },
+  {
+   "el": "button.btn.sm",
+   "left": 252,
+   "top": 2715
+  },
+  {
+   "el": "button.btn.sm",
+   "left": 233,
+   "top": 2788
+  }
+ ]
+}

@@ -69,7 +69,17 @@ class CustomerWorkspaceAccess:
                 'expires_at': scope['session_expires']}
 
     @contextmanager
-    def _tx(self, actor, write=False, highest=False):
+    def _tx(self, actor, write=False, highest=False, readonly=False):
+        # readonly: customer pages that only read skip the global writer lock on PostgreSQL (11-01).
+        if readonly and getattr(self.store, 'backend', '') == 'postgresql':
+            try:
+                with self.store.tx(readonly=True) as db:
+                    user = self._actor(actor, write, highest)
+                    yield db, user
+                    self._actor(actor, write, highest)
+            except sqlite3.Error:
+                raise WorkspaceConflict() from None
+            return
         with self.store._lock:
             db = self.store._db
             if db.in_transaction:

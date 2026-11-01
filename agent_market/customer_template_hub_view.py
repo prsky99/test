@@ -16,6 +16,8 @@ MARKUP = r'''<section id="template-hub" aria-labelledby="template-hub-title">
 SCRIPT = r'''
 let hubCatalog=[],hubDrafts=[],hubProduct=null,hubDraft=null,hubReview=null,hubTesting=false,hubSuccess=false,hubDirty=false,hubTimer=null,hubInitial=null;
 const hubBase=base+'/templates';
+// Saved template workflows load beside the session check instead of after it (UI policy 11-01).
+let hubDraftsEarly=null;setTimeout(()=>{hubDraftsEarly=api(hubBase+'/drafts');hubDraftsEarly.catch(()=>{})},0);
 function templateText(value){/* Provenance shows as a label; the description reads as plain language. */const text=String(value||'').replace(/^Operator-provided workflow:\s*/,'');return text.charAt(0).toUpperCase()+text.slice(1);}
 function syncHub(){for(const input of document.querySelectorAll('#hub-editor input'))input.disabled=busy||!loaded||(!canEdit&&input.id!=='hub-run-consent');for(const b of document.querySelectorAll('#hub-cards button,#hub-starters button'))b.disabled=busy||!loaded||!canEdit||b.dataset.needsConnection==='true'||b.dataset.unavailable==='true';$('hub-refresh').disabled=busy||!loaded;$('hub-load').disabled=busy||!loaded||!$('hub-saved').value;$('hub-review').disabled=busy||!loaded||!canEdit||uncertain||!hubProduct;$('hub-save').disabled=busy||!canEdit||uncertain||!hubReview||!$('hub-save-consent').checked||!creditReady||creditBalance<(hubReview.credit_charge??1);$('hub-run').disabled=busy||!canRun||!hubDraft||hubDirty||hubTesting||uncertain||!$('hub-run-consent').checked;$('hub-history').disabled=busy||!hubDraft;$('hub-download').disabled=busy||!canManage||!hubSuccess||hubDirty||uncertain}
 function hubMessage(text){$('hub-state').textContent=text}
@@ -45,7 +47,7 @@ function renderHubCatalog(){
  hubMessage(matches.length+' of '+hubCatalog.length+' templates');syncHub();
 }
 async function loadHub(){
- const ready=hubInitial;hubInitial=null;const [catalog,drafts]=await Promise.all([ready?Promise.resolve({hub:ready}):api(hubBase),api(hubBase+'/drafts')]);hubCatalog=catalog.hub.templates;hubDrafts=drafts.drafts;
+ const ready=hubInitial,early=hubDraftsEarly;hubInitial=null;hubDraftsEarly=null;const [catalog,drafts]=await Promise.all([ready?Promise.resolve({hub:ready}):api(hubBase),early||api(hubBase+'/drafts')]);hubCatalog=catalog.hub.templates;hubDrafts=drafts.drafts;
  const category=$('hub-category').value;$('hub-category').replaceChildren(new Option('All categories',''),...[...new Set(hubCatalog.map(p=>p.category).filter(Boolean))].map(c=>new Option(hubCategoryNames[c]||c.replaceAll('_',' '),c)));$('hub-category').value=category;
  renderHubCatalog();$('hub-saved').replaceChildren(new Option('Choose a saved template workflow',''),...hubDrafts.map(d=>new Option(d.name+' · Revision '+d.revision,d.id)));if(hubDraft)$('hub-saved').value=hubDraft.id;
  if(!hubCatalog.length)hubMessage('No published templates are available. Refresh later or use an editable starter.');syncHub();

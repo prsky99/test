@@ -49,6 +49,11 @@ GATEWAY_DB=gateway-data/collector.sqlite3 .venv/bin/python -m agent_market.gatew
 - `gateway/store.py` `CONSTRAINTS_VERSION`: 언어·지역 다시 추출
 
 ## 지켜야 할 것
+- 사용자 화면은 `docs/FRONTEND_SCREEN_POLICY.md`를 따른다(11-01 사용자 결정).
+  - 고정 내용은 HTML로 바로 보인다.
+  - 전체 화면 로딩, 가운데 팝업은 쓰지 않는다.
+  - 로딩은 해당 영역에만 표시하고, 데이터는 사용자가 누를 때 불러온다.
+  - 독립 요청은 병렬로 보낸다.
 - 남의 서버에 자격 증명·결제를 보내지 않는다.
 - 파괴적 도구는 호출하지 않는다. 시험 호출은 읽기 전용만.
 - 사설 주소는 막는다(`check_public_url`).

@@ -256,3 +256,30 @@ def test_delayed_data_never_hides_the_initial_menu_or_blocks_input(cold_page, fi
         expect(page.locator('#regUrl')).to_have_value('https://public.example/mcp')
     assert not any(method == 'POST' for method, _ in calls)
     assert not errors
+
+
+def test_fixed_pages_follow_the_warm_bootstrap_cache():
+    """11-01: shipped examples and workflows refresh from memory, never from a request-path query."""
+    import json as _json
+    from agent_market.concierge import front as front_module
+    from agent_market.concierge.pearl_view import current_fixed_content
+    page = (ROOT / 'new/en/workflows.html').read_text()
+    cache = front_module._bootstrap_snapshot_cache
+    with cache['lock']:
+        saved = cache.get('data')
+        cache['data'] = None
+    try:
+        assert current_fixed_content(page, 'workflows.html') == page  # cold cache: shipped snapshot stays
+        with cache['lock']:
+            cache['data'] = {'workflow_templates': [{'id': 1, 'name': 'Fresh <workflow>'}]}
+        served = current_fixed_content(page, 'workflows.html')
+        body = served.split('id="appBootstrapData" type="application/json">', 1)[1].split('</script>', 1)[0]
+        assert _json.loads(body)['workflow_templates'] == [{'id': 1, 'name': 'Fresh <workflow>'}]
+        assert '<workflow>' not in body
+        test_page = (ROOT / 'new/en/test.html').read_text()
+        with cache['lock']:
+            cache['data'] = {'testbench_examples': [{'id': 'x', 'available': True, 'resource_id': 999999999}]}
+        assert current_fixed_content(test_page, 'test.html') == test_page  # unknown connection: keep shipped
+    finally:
+        with cache['lock']:
+            cache['data'] = saved

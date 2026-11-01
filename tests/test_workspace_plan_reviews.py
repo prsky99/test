@@ -37,16 +37,19 @@ def test_ambiguous_or_unsupported_intent_requests_details_without_guessing(growt
     assert g.w.store.query('SELECT COUNT(*) FROM workspace_factory_reviews')[0][0] == before
 
 
-def test_replanning_saves_a_new_flow_and_preserves_original_version(growth):
+def test_replanning_saves_the_next_revision_and_preserves_the_original_version(growth):
+    """11-01: an edit is the next revision of the same workflow; the earlier version stays as it was."""
     g = growth; original = save(g.w); before = g.w.core.detail(g.w.ws, original['id'], g.w.actor)
     definition = copy.deepcopy(before['definition']); definition['nodes'][1]['bindings'].pop('query', None)
     definition['nodes'][1]['input']['query'] = 'Reviewed new request'
     review = g.factory.prepare_plan(g.w.ws, {'name': 'Reviewed new draft', 'definition': definition,
         'base_flow_id': original['id'], 'base_revision': original['revision']}, g.w.actor)
-    assert review['new_draft_only'] and {'node_id': definition['nodes'][1]['id'], 'change': 'input'} in review['changes']
+    assert not review['new_draft_only'] and {'node_id': definition['nodes'][1]['id'], 'change': 'input'} in review['changes']
     saved = commit(g, review)
-    assert saved['id'] != original['id']
-    assert g.w.core.detail(g.w.ws, original['id'], g.w.actor) == before and not g.w.calls
+    assert saved['id'] == original['id'] and saved['revision'] == original['revision'] + 1
+    assert saved['version_id'] != before['version_id'] and not g.w.calls
+    listed = [flow for flow in g.w.core.listing(g.w.ws, g.w.actor) if flow['id'] == original['id']]
+    assert len(listed) == 1
 
 
 def test_stale_base_revision_cannot_commit_a_review(growth):

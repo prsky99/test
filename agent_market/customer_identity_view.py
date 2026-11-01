@@ -126,6 +126,8 @@ const status=document.getElementById('status'),button=document.getElementById('l
 function clear(){csrf=null;document.getElementById('customer').textContent='';document.getElementById('workspaces').replaceChildren();button.hidden=true;document.getElementById('manage').hidden=true;}
 async function load(){
   clear();document.getElementById('signin').hidden=true;
+  // Workspace names load beside the session check (UI policy 11-01); a failure keeps the numbered list.
+  const names=fetch('/api/customer-organizations',{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(15000)}).catch(()=>null);
   try{
     const r=await fetch('/api/customer-auth/session',{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(15000)});
     if(r.status===401){window.workspaceUI.redirect('/customer/sign-in');return;}if(!r.ok)throw Error();const v=await r.json();
@@ -134,8 +136,8 @@ async function load(){
     for(const [index,w]of v.session.workspaces.entries()){const li=document.createElement('li');li.textContent='Workspace '+(index+1)+' · '+w.role;document.getElementById('workspaces').append(li);}
     if(!v.session.workspaces.length)status.textContent+=' Create a workspace or accept an invitation to get started.';
     // Show the same workspace names as the overview; the numbered list stays if they cannot be read.
-    try{const o=await fetch('/api/customer-organizations',{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(15000)});
-      if(o.ok){const named=(await o.json()).account?.organizations||[];if(named.length){document.getElementById('workspaces').replaceChildren(...named.map(w=>{const li=document.createElement('li'),label=String(w.name||'Workspace')+(w.role?' · '+w.role:'');if(/^ws_[a-f0-9]{32}$/.test(w.id||'')){const link=document.createElement('a');link.href='/customer/organizations?workspace='+w.id;link.textContent=label;li.append(link)}else li.textContent=label;return li;}));}}}catch{}
+    try{const o=await names;
+      if(o&&o.ok){const named=(await o.json()).account?.organizations||[];if(named.length){document.getElementById('workspaces').replaceChildren(...named.map(w=>{const li=document.createElement('li'),label=String(w.name||'Workspace')+(w.role?' · '+w.role:'');if(/^ws_[a-f0-9]{32}$/.test(w.id||'')){const link=document.createElement('a');link.href='/customer/organizations?workspace='+w.id;link.textContent=label;li.append(link)}else li.textContent=label;return li;}));}}}catch{}
     document.getElementById('manage').hidden=false;button.hidden=false;button.disabled=false;
   }catch{clear();status.textContent='Your session could not be checked. Sign in again to continue.';document.getElementById('signin').hidden=false;}
   finally{await window.workspaceUI.ready();}

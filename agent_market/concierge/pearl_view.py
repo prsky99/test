@@ -129,6 +129,38 @@ def catalog_status(store):
         return _catalog_status(reader)
 
 
+def current_fixed_content(value, filename):
+    """Refresh the page's shipped examples or workflows from the frontend's warm bootstrap cache.
+
+    UI policy 11-01: these pages open without any API call. The cache is rebuilt in the background
+    for the home page, so this reads memory only; without a warm cache the shipped snapshot stays.
+    """
+    from .front import _bootstrap_snapshot_cache as cache
+    with cache['lock']:
+        data = cache.get('data')
+    if not isinstance(data, dict):
+        return value
+    match = re.search(r'(<script\b[^>]*\bid="appBootstrapData"[^>]*>)(.*?)(</script>)', value, flags=re.S)
+    if not match:
+        return value
+    try:
+        shipped = json.loads(match[2])
+    except ValueError:
+        return value
+    if filename == 'workflows.html' and data.get('workflow_templates'):
+        shipped['workflow_templates'] = data['workflow_templates']
+    elif filename == 'test.html' and data.get('testbench_examples'):
+        known = {agent.get('id') for agent in shipped.get('testbench_agents', [])}
+        examples = [e for e in data['testbench_examples'] if e.get('available') and e.get('resource_id')]
+        # Only examples whose connection details are shipped can open without a request.
+        if examples and all(e['resource_id'] in known for e in examples):
+            shipped['testbench_examples'] = examples
+    else:
+        return value
+    text = json.dumps(shipped, separators=(',', ':')).replace('<', '\\u003c')
+    return value[:match.start(2)] + text + value[match.end(2):]
+
+
 def install(app, front, *, workspace_access_enabled=False, workspace_link_enabled=False, root=None):
     """Register only reviewed static files; reuse existing API and request defenses."""
     directory = Path(root) if root is not None else ROOT
@@ -172,6 +204,8 @@ def install(app, front, *, workspace_access_enabled=False, workspace_link_enable
             snapshot = front.daily_statistics.read()
             value = (apply_daily_home(value, snapshot) if filename == 'index.html'
                      else daily_home_text(home_metadata_payload(value, snapshot), snapshot))
+        if filename in ('test.html', 'workflows.html'):
+            value = current_fixed_content(value, filename)
         return page_response(value, public=filename in manifest['live_pages'])
 
     @app.get('/new/en/assets/{filename:path}', include_in_schema=False)

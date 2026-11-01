@@ -107,6 +107,9 @@ class _AdapterOutputRejected(WorkspaceInvalid):
 
 
 class TypedFlows:
+    # Names the engine whose authority check the execution worker must reuse.
+    EXECUTOR = 'admin'
+
     def __init__(self, execution, registry=None):
         self.execution, self.access, self.store = execution, execution.access, execution.store
         self.registry = registry or Registry(self.store)
@@ -258,7 +261,7 @@ class TypedFlows:
         return value
 
     def options(self, ws, actor):
-        with self.access._tx(actor) as (db, _):
+        with self.access._tx(actor, readonly=True) as (db, _):
             authority = self._authority(ws, actor, write=False); candidates = []
             rows = _rows(db, 'SELECT DISTINCT v.resource_id,a.contract_id FROM connection_versions v JOIN capability_approvals a ON a.version_id=v.id ORDER BY v.resource_id,a.contract_id LIMIT 100')
             for row in rows:
@@ -309,7 +312,7 @@ class TypedFlows:
     def listing(self, ws, actor):
         # Every workflow is listed, retired ones included, so it can be found again (QA 19).
         # Workspaces have no workflow cap (11-01): read 500 at a time along workspace_typed_flow_scope.
-        with self.access._tx(actor) as (db, _):
+        with self.access._tx(actor, readonly=True) as (db, _):
             self._authority(ws, actor, write=False)
             values, versions, after = [], {}, ''
             while True:
@@ -632,6 +635,7 @@ class TypedFlows:
                        'dispatched': False, 'finished': None, 'error_code': None}
                 if remote:
                     run['worker_execution'] = True
+                    run['executor'] = self.EXECUTOR
                 db.execute('INSERT INTO workspace_typed_flow_runs VALUES(?,?,?,?,?,?,?,?,?)',
                            (run['id'], ticket['id'], ws, flow, 'running', now, run['deadline'], _canonical(run), self.signer.sign(run)))
                 if self.execution.meter is not None:
@@ -706,7 +710,7 @@ class TypedFlows:
             return self._dto(db, value)
 
     def runs(self, ws, flow, actor):
-        with self.access._tx(actor) as (db, _):
+        with self.access._tx(actor, readonly=True) as (db, _):
             self._authority(ws, actor, write=False); self._flow(db, ws, flow, active=False)
             rows = _rows(db, 'SELECT id FROM workspace_typed_flow_runs WHERE workspace_id=? AND flow_id=? ORDER BY created DESC,id LIMIT 30', (ws, flow))
             return [self._dto(db, self._run(db, ws, flow, row['id'])[0]) for row in rows]

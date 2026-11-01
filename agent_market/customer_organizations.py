@@ -279,18 +279,30 @@ class CustomerOrganizations:
             self._audit(db, actor, ws, 'invitation.create', identity, 1)
             return {'id': identity, 'role': body['role'], 'status': 'pending', 'revision': 1, 'expires': now + LIMITS['invitation_seconds']}
 
+    def _invitation_rows(self, db, actor, ws):
+        if ws is not None:
+            return _rows(db, '''SELECT id,recipient_customer_id,role,status,revision,expires
+                    FROM customer_organization_invitations WHERE workspace_id=? ORDER BY created DESC LIMIT 100''', (ws,))
+        return _rows(db, '''SELECT i.id,i.workspace_id,w.name,i.role,i.status,i.revision,i.expires
+                FROM customer_organization_invitations i JOIN customer_organizations o ON o.workspace_id=i.workspace_id
+                JOIN organization_workspaces w ON w.id=i.workspace_id WHERE i.recipient_customer_id=?
+                AND o.active=1 AND w.active=1 ORDER BY i.created DESC LIMIT 100''', (actor.customer_id,))
+
     def invitations(self, actor, ws=None):
+        # Most reads find nothing to expire, so they skip the writer lock; a lapsed invitation is expired below.
+        with self._read(actor) as db:
+            if ws is not None:
+                self._scope(db, ws, actor, 'manage')
+            rows = self._invitation_rows(db, actor, ws)
+        if not any(row['status'] == 'pending' and row['expires'] <= _time() for row in rows):
+            return rows
         with self._tx(actor) as db:
             if ws is not None:
                 self._scope(db, ws, actor, 'manage')
                 self._expire(db, ws)
-                return _rows(db, '''SELECT id,recipient_customer_id,role,status,revision,expires
-                    FROM customer_organization_invitations WHERE workspace_id=? ORDER BY created DESC LIMIT 100''', (ws,))
-            db.execute("UPDATE customer_organization_invitations SET status='expired',revision=revision+1,resolved=? WHERE recipient_customer_id=? AND status='pending' AND expires<=?", (_time(), actor.customer_id, _time()))
-            return _rows(db, '''SELECT i.id,i.workspace_id,w.name,i.role,i.status,i.revision,i.expires
-                FROM customer_organization_invitations i JOIN customer_organizations o ON o.workspace_id=i.workspace_id
-                JOIN organization_workspaces w ON w.id=i.workspace_id WHERE i.recipient_customer_id=?
-                AND o.active=1 AND w.active=1 ORDER BY i.created DESC LIMIT 100''', (actor.customer_id,))
+            else:
+                db.execute("UPDATE customer_organization_invitations SET status='expired',revision=revision+1,resolved=? WHERE recipient_customer_id=? AND status='pending' AND expires<=?", (_time(), actor.customer_id, _time()))
+            return self._invitation_rows(db, actor, ws)
 
     def resolve_invitation(self, invitation, body, actor):
         _identity(invitation, 'coi')

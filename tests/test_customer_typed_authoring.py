@@ -119,7 +119,7 @@ def test_customer_api_csrf_review_support_patch_new_draft_and_no_implicit_dispat
         'documents':['safe-change-review']}
     r=x.client.post(x.base+'/typed/reviews/support',json=change,headers=x.headers)
     assert r.status_code==200,r.text
-    assert r.json()['review']['patch']==change['patch'] and r.json()['review']['new_draft_only']
+    assert r.json()['review']['patch']==change['patch'] and not r.json()['review']['new_draft_only']  # 11-01: edits update the same workflow
     assert len(x.w.calls)==before
     assert x.client.get('/customer/organizations/'+x.ws+'/flows').status_code==200
     assert x.client.get(x.base.replace(x.ws,'ws_'+'a'*32)+'/typed/options').status_code==403

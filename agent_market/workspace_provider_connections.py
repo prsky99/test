@@ -171,7 +171,7 @@ class ProviderConnections:
                 'workflow_execution': p['workflow_execution'], 'readiness': readiness}
 
     def listing(self, ws, actor):
-        with self.access._tx(actor) as (db, _):
+        with self.access._tx(actor, readonly=True) as (db, _):
             self._authorize(ws, actor)
             data = self._load(db, ws)
             records = []
