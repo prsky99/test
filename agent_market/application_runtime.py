@@ -9,6 +9,10 @@ from dataclasses import dataclass, field
 import os
 import stat
 
+# Pooled sessions unused this long are closed. A busy active slot keeps its sessions;
+# a retained standby slot releases them within about five minutes.
+IDLE_SESSION_SECONDS = 300
+
 
 class RuntimeStorageError(ValueError):
     pass
@@ -163,10 +167,11 @@ def open_runtime_storage(sqlite_path, *, values=None, connector=None):
             except BaseException:
                 session.close()
                 raise
-        store._admin_read_pool = AdminReaderPool(create_admin_reader,max_idle=1)
+        store._admin_read_pool = AdminReaderPool(create_admin_reader,max_idle=1,idle_seconds=IDLE_SESSION_SECONDS)
         # Chat has visitor writes, so it uses separate bounded sessions rather
         # than borrowing read-only metrics sessions or a collector's Python lock.
-        store._interactive_pool = AdminReaderPool(create_interactive_session,maximum=4,wait_seconds=8,max_idle=1)
+        store._interactive_pool = AdminReaderPool(create_interactive_session,maximum=4,wait_seconds=8,max_idle=1,
+            idle_seconds=IDLE_SESSION_SECONDS)
         return RuntimeStorage(store, connection)
     except BaseException as error:
         if connection is not None:

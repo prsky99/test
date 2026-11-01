@@ -92,3 +92,48 @@ def test_burst_pool_closes_surplus_idle_connections_after_errors():
     assert all(store.closed==conn.closed for store,conn in made)
     pool.close()
     assert all(conn.closed for _,conn in made)
+
+
+def test_idle_sessions_close_after_their_lifetime_and_pool_recovers():
+    made=[]
+    def factory():
+        store=SimpleNamespace(_broken=False,closed=False)
+        store.close=lambda:setattr(store,'closed',True)
+        conn=SimpleNamespace(closed=False)
+        conn.close=lambda:setattr(conn,'closed',True)
+        made.append((store,conn));return store,conn
+    with pytest.raises(ValueError,match='lifetime'):AdminReaderPool(factory,idle_seconds=0)
+    pool=AdminReaderPool(factory,maximum=2,max_idle=2,idle_seconds=60)
+    with pool.lease_store():
+        with pool.lease_store():pass
+    assert pool.total==2 and len(pool.idle)==2 and pool.close_expired()==0
+    pool.released[0]-=61
+    assert pool.close_expired()==1
+    assert pool.total==1 and len(pool.idle)==1 and len(pool.released)==1
+    # The inner lease was returned first, so it is the oldest idle session.
+    assert made[1][0].closed and made[1][1].closed and not made[0][1].closed
+    pool.released[0]-=61
+    assert pool.close_expired()==1 and pool.total==0 and not pool.idle
+    with pool.lease_store():pass
+    assert len(made)==3 and pool.total==1
+    pool.close()
+    assert pool.reaper is None or not pool.reaper.is_alive() or pool.closed
+    assert all(conn.closed for _,conn in made)
+
+
+def test_background_reaper_releases_a_quiet_pool():
+    import time
+    made=[]
+    def factory():
+        conn=SimpleNamespace(closed=False)
+        conn.close=lambda:setattr(conn,'closed',True)
+        store=SimpleNamespace(_broken=False,close=lambda:None)
+        made.append(conn);return store,conn
+    pool=AdminReaderPool(factory,maximum=1,idle_seconds=0.05)
+    with pool.lease_store():pass
+    deadline=time.monotonic()+3
+    while pool.total and time.monotonic()<deadline:time.sleep(.02)
+    assert pool.total==0 and made[0].closed
+    pool.close()
+    pool.reaper and pool.reaper.join(2)
+    assert pool.reaper is None
