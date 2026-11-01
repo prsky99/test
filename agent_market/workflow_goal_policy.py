@@ -59,7 +59,9 @@ def _mentions(objective):
         raise GoalNeedsDetails('Write the searches in execution order, separated by then.')
     stages=[]
     # "news about X and research on Y" names two tasks; split before a task word as well as at then.
-    for clause in re.split(r'\b(?:then|followed by|next|after that)\b|\band\b(?=\s+(?:(?:the\s+)?(?:latest|recent)\s+)?(?:news|research|papers?|documentation|docs)\b)',text,flags=re.I):
+    # "...and also find related papers" names a second task as plainly as "...and papers on Y".
+    for clause in re.split(r'\b(?:then|followed by|next|after that)\b|\band\b(?=\s+(?:also\s+)?(?:please\s+)?(?:(?:find|search(?:\s+for)?|get|look\s+up)\s+)?'
+                           r'(?:(?:the|some)\s+)?(?:(?:latest|recent|related|relevant|supporting)\s+)*(?:news|research|papers?|documentation|docs)\b)',text,flags=re.I):
         task=re.split(r'\b(?:about|on|regarding|concerning)\b',clause,maxsplit=1,flags=re.I)[0]
         matches=list(_KIND.finditer(task))
         # Research can describe a news task without requesting a document task.

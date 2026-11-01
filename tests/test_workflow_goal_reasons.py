@@ -65,8 +65,8 @@ def test_harmful_goals_are_refused_and_defensive_study_is_not(goal, refused):
     ('Find news about electric vehicles and research papers on EV batteries separately.', ['electric vehicles', 'EV batteries']),
     ('Find Rust documentation for async, then Tokio documentation.', ['Rust async', 'Tokio']),
     ('Find the latest news and research papers on battery fires', ['battery fires', 'battery fires']),
-    ('Find recent battery recycling research, then find supporting sources.', None),
-    ('Find Kubernetes documentation, then related research papers.', None),
+    ('Find recent battery recycling research, then find supporting sources.', ['recent battery recycling', None]),
+    ('Find Kubernetes documentation, then related research papers.', ['Kubernetes', None]),
 ])
 def test_each_step_keeps_its_own_subject(goal, expected):
     assert wgc.step_subjects(goal, 2) == expected
@@ -86,3 +86,17 @@ def test_validation_accepts_a_steps_own_subject():
     nodes[1]['input']['query'] = 'gardening tips'
     with pytest.raises(GoalQueryMismatch):
         validate_goal(context, nodes)
+
+
+def test_a_follow_up_step_keeps_the_proposed_queries_unless_the_first_mixes_kinds():
+    def nodes(first):
+        return [{'contract_id': 'news.search.v1', 'input': {'query': first}, 'bindings': {}},
+                {'contract_id': 'docs.search.v1', 'input': {'query': None}, 'bindings': {}}]
+    goal = 'Find the latest news on quantum computing, then please find related papers as well'
+    kept = wgc.apply_step_subjects(goal, nodes('quantum computing news'))
+    assert [n['input']['query'] for n in kept] == ['quantum computing news', None]
+    fixed = wgc.apply_step_subjects(goal, nodes('latest news and research papers on quantum computing'))
+    assert fixed[0]['input']['query'] == 'quantum computing' and fixed[1]['input']['query'] is None
+    both = wgc.apply_step_subjects('Find news about Bitcoin prices, then research papers on cryptocurrency volatility.',
+                                   nodes('Bitcoin prices news'))
+    assert [n['input']['query'] for n in both] == ['Bitcoin prices', 'cryptocurrency volatility']

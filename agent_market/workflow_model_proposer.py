@@ -184,6 +184,28 @@ class OllamaGraphProposer:
         """
         if type(objective) is not str or not objective.strip() or re.fullmatch(r'[\x20-\x7e]*', objective):
             return objective
+        started = time.monotonic()
+        translated = self._translate(objective, seconds)
+        if translated:
+            return translated
+        # The model sometimes covers only the first clause of a Korean "find the news, and also the
+        # related papers" goal (2026-11-01), which the coverage check rejects. Clauses joined by the
+        # -go ending or geurigo are translated one at a time; every clause must pass the same check.
+        parts = [part for part in re.split(r'(?<=[\uac00-\ud7a3]\uace0)\s+|\s+(?=\uadf8\ub9ac\uace0\s)', objective.strip()) if part]
+        if not 2 <= len(parts) <= 4:
+            return objective
+        english = []
+        for part in parts:
+            remaining = seconds - (time.monotonic() - started)
+            translated = self._translate(part, min(4.0, remaining)) if remaining > 0.5 else None
+            if not translated:
+                return objective
+            english.append(re.sub(r'(?:[\s,;.]+|\s+(?:and|then))+$', '', translated, flags=re.I))
+        # The -go ending joins tasks in order, which the goal policy reads as "then".
+        return _safe_text(', then '.join(english), 500)
+
+    def _translate(self, objective, seconds):
+        """One validated translation of OBJECTIVE, or None."""
         from .concierge.chat_query_rewrite import SYSTEM as TRANSLATE, validate
         request = {'model':self.model,'stream':False,'think':False,'format':'json',
             'messages':[{'role':'system','content':TRANSLATE},{'role':'user','content':objective}],
@@ -198,9 +220,9 @@ class OllamaGraphProposer:
                 return objective
             message = completion(strict_json(response.content), self.provider, self.model).get('message') or {}
             translated = validate(objective, message.get('content'))
-            return _safe_text(translated, 500) if translated else objective
+            return _safe_text(translated, 500) if translated else None
         except (httpx.HTTPError, ValueError, KeyError, TypeError, UnicodeError, WorkspaceInvalid):
-            return objective
+            return None
         finally:
             if owned: client.close()
 

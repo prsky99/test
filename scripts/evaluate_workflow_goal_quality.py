@@ -103,13 +103,8 @@ def propose(objective):
     if len(listed) >= 2 and doc_nodes:
         tpl = {k: v for k, v in doc_nodes[0]['input'].items() if k != 'query'}; tpl = {'language': tpl.get('language', 'en'), 'limit': tpl.get('limit', 1)}
         nodes = [{'id': 'step_'+str(i+1), 'resource_id': doc_nodes[i % len(doc_nodes)]['resource_id'], 'contract_id': 'docs.search.v1', 'input': {**tpl, 'query': s}, 'bindings': {}, 'after': [], 'when': None} for i, s in enumerate(listed)]
-    if hasattr(wgc, 'step_subjects'):
-        subjects = wgc.step_subjects(objective, len(nodes))
-        if len(listed) >= 2 and not (subjects and all(subjects)):
-            subjects = None
-        for node, subject in zip(nodes, subjects or ()):
-            if subject and 'query' not in (node.get('bindings') or {}) and type(node.get('input')) is dict:
-                node['input'] = {**node['input'], 'query': subject}
+    if hasattr(wgc, 'apply_step_subjects'):
+        wgc.apply_step_subjects(objective, nodes, listed)
     try:
         validate_goal(envelope, nodes)
     except GoalNeedsDetails as e: return incomplete([e.requirement], 1), objective

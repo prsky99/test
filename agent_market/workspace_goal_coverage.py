@@ -187,7 +187,32 @@ def step_subjects(objective, count):
     # "news and research papers on X": the subject stated once at the end belongs to every step.
     if subjects[0] is None and subjects[-1] and all(subject in (None, subjects[-1]) for subject in subjects):
         subjects = [subjects[-1]] * len(subjects)
-    return subjects if subjects[0] and any(subjects[1:]) else None
+    return subjects if subjects[0] else None
+
+
+_OTHER_KIND = {'news.search.v1': re.compile(r'\b(?:research|papers?|studies|documentation|docs|literature)\b', re.I),
+               'docs.search.v1': re.compile(r'\b(?:news|headlines)\b', re.I)}
+
+
+def apply_step_subjects(objective, nodes, listed=()):
+    """Write each step's own subject into its literal query; returns NODES.
+
+    A follow-up step ("then related papers") keeps the proposed query. The first step is
+    rewritten only when later steps name their own subjects, or when its query carries the
+    other step's request ("latest news and research papers on X" for the news step)."""
+    subjects = step_subjects(objective, len(nodes))
+    if not subjects or len(listed) >= 2 and not all(subjects):
+        return nodes  # an explicit list already gave every step its subject
+    later = any(subjects[1:])
+    for index, (node, subject) in enumerate(zip(nodes, subjects)):
+        if not subject or 'query' in (node.get('bindings') or {}) or type(node.get('input')) is not dict:
+            continue
+        query = str(node['input'].get('query') or '')
+        mixed = _OTHER_KIND.get(node.get('contract_id'))
+        if index == 0 and not later and not (mixed and mixed.search(query)):
+            continue
+        node['input'] = {**node['input'], 'query': subject}
+    return nodes
 
 
 def topics(objective, limit=10):

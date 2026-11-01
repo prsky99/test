@@ -455,13 +455,8 @@ class AppFactory(SignedWorkspaceModule):
                 'after': [], 'when': None} for index, subject in enumerate(listed)]}
         # Each step of "news about X, then papers on Y" searches its own subject; the model
         # proposes one query, for the first subject only.
-        from .workspace_goal_coverage import step_subjects
-        subjects = step_subjects(objective, len(definition['nodes']))
-        if len(listed) >= 2 and not (subjects and all(subjects)):
-            subjects = None  # an explicit list already gave every step its subject
-        for node, subject in zip(definition['nodes'], subjects or ()):
-            if subject and 'query' not in (node.get('bindings') or {}) and type(node.get('input')) is dict:
-                node['input'] = {**node['input'], 'query': subject}
+        from .workspace_goal_coverage import apply_step_subjects
+        apply_step_subjects(objective, definition['nodes'], listed)
         try:
             validate_goal(envelope,definition['nodes'])
         except GoalNeedsDetails as error:
