@@ -72,3 +72,16 @@ sudo docker compose cp gateway:/data/gateway.sqlite3 ./backup.sqlite3          #
   - 재부팅 뒤에는 공유를 다시 마운트해야 복사됩니다. 로그인 항목에 공유 폴더를 넣어 두면 자동으로 마운트됩니다.
 
 의존성 프로필과 선택형 Claude SDK/레거시 SQLite 벡터 설치는 [의존성 관리 안내](DEPENDENCY_MAINTENANCE.md)를 참고하세요.
+
+## frontend 릴리스 배포 전 점검 (2026-11-02)
+릴리스는 활성 릴리스에 파일을 얹어 만들기 때문에, 작업본에서 시험이 통과해도 릴리스가 맞다는 보장은 없다. 배포 전에 릴리스 사본에서 첫 화면 경로 시험을 돌린다(약 40초, `nice -n 10`).
+
+```bash
+.venv-tests/bin/python -m scripts.release_gate <release>
+```
+
+- 마지막 줄이 `passed`일 때만 배포한다.
+- 시험 목록은 `scripts/release_gate.py`의 `TESTS`에 있다.
+  - 묶음 읽기, 실행 엔진 선택, 읽기 전용 경로, 공개·워크스페이스 첫 화면 브라우저 시험이 들어 있다.
+- 11-02 07:01 장애 버전 `batch-reads-frontend-20261101-r5`는 이 점검에서 실패로 걸린다(gzip 시험).
+- 배포 뒤 점검(`verify_web`)은 로그인하지 않으므로 고객 화면의 데이터 읽기를 확인하지 못한다. 그래서 배포 전 점검이 필요하다.
