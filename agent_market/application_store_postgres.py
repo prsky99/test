@@ -153,6 +153,15 @@ class ApplicationStoreError(StorageError, sqlite3.DatabaseError):
         ValueError.__init__(self, code)
 
 
+class WriterBusy(ApplicationStoreError):
+    """The writer lock was not granted within lock_timeout; nothing was written.
+
+    The code stays 'statement_failed' for every existing caller; a caller that can
+    safely start the same transaction again may catch this subclass."""
+    def __init__(self):
+        super().__init__('statement_failed')
+
+
 class _Cursor:
     def __init__(self, rows=(), rowcount=0, lastrowid=None, columns=None):
         self._rows, self._offset = tuple(rows), 0
@@ -340,6 +349,15 @@ class PostgresApplicationStore(PostgresCollectorMixin, PostgresFinanceMixin, Pos
     def _writer_identity(self):
         return WRITER_LOCK
 
+    def _writer_lock(self):
+        try:
+            self._native('SELECT pg_advisory_xact_lock(%s)', (self._writer_identity(),)).close()
+        except ApplicationStoreError as error:
+            # Only lock_timeout (or a cancel) stops this statement; the caller rolls back.
+            if error.code == 'statement_failed':
+                raise WriterBusy() from None
+            raise
+
     def _connection_lost(self):
         connection = self._connection
         return bool(connection.closed or getattr(connection, 'broken', False))
@@ -383,7 +401,7 @@ class PostgresApplicationStore(PostgresCollectorMixin, PostgresFinanceMixin, Pos
         self._begin('BEGIN')
         try:
             self._transaction_controls()
-            self._native('SELECT pg_advisory_xact_lock(%s)', (self._writer_identity(),)).close()
+            self._writer_lock()
             self._assert_deployment_gates()
             self._native('LOCK TABLE resources,resources_fts,vec_outbox IN ROW EXCLUSIVE MODE').close()
         except BaseException:
@@ -583,7 +601,7 @@ class PostgresApplicationStore(PostgresCollectorMixin, PostgresFinanceMixin, Pos
                 self._transaction_controls()
                 if readonly: self._native('SET TRANSACTION READ ONLY').close()
                 else:
-                    self._native('SELECT pg_advisory_xact_lock(%s)', (self._writer_identity(),)).close()
+                    self._writer_lock()
                     if not self._bootstrapping:
                         self._native('LOCK TABLE resources,resources_fts,vec_outbox IN ROW EXCLUSIVE MODE').close()
                 self._assert_deployment_gates()

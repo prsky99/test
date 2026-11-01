@@ -133,3 +133,45 @@ def test_rebuild_releases_the_front_store_lock_between_short_chunks(monkeypatch)
     assert len(snapshot.entries) == 60
     assert max(chunk_sizes) <= rs.CHUNK <= 50
     assert held_while_pausing == [False] * (len(chunk_sizes) - 1)  # a pause between every pair of chunks
+
+
+def test_only_the_serving_slot_keeps_refreshing(monkeypatch):
+    """Both web slots rebuilt every ten minutes; the standby slot now builds once, at start."""
+    builds, clock, waits = [], [1000.0], []
+    store = object()
+
+    class Stop:
+        def is_set(self):
+            return len(waits) >= 6
+
+        def wait(self, seconds):
+            waits.append(seconds)
+            clock[0] += 400
+
+    def fake_refresh(store, stop):
+        builds.append(clock[0])
+        rs._snapshots[id(store)] = rs.Snapshot([], clock[0])
+    monkeypatch.setattr(rs, 'refresh', fake_refresh)
+    monkeypatch.setattr(rs.time, 'time', lambda: clock[0])
+    serving = [False]
+    rs._snapshots.clear()
+    rs.keep_fresh(store, Stop(), interval=600, serving=lambda: serving[0])
+    assert builds == [1000.0]  # standby: the start-up build only
+    waits.clear(); builds.clear(); serving[0] = True
+    rs.keep_fresh(store, Stop(), interval=600, serving=lambda: serving[0])
+    assert len(builds) >= 3  # serving: start-up build, then whenever the snapshot is ten minutes old
+    waits.clear(); builds.clear()
+    rs.keep_fresh(store, Stop(), interval=600, serving=lambda: (_ for _ in ()).throw(OSError('state')))
+    assert len(builds) >= 3  # an unreadable state keeps refreshing
+    rs._snapshots.clear()
+
+
+def test_serving_slot_reads_the_deployment_state(tmp_path, monkeypatch):
+    import json
+    from agent_market.service_host import serving_slot
+    monkeypatch.delenv('AGENTCON_SERVICE_STATE_DIR', raising=False)
+    assert serving_slot('frontend', 'r1')  # no state: every process serves
+    (tmp_path / 'state.json').write_text(json.dumps({'services': {'frontend': {'active': 'a', 'slots': {'a': 'r2', 'b': 'r1'}}}}))
+    monkeypatch.setenv('AGENTCON_SERVICE_STATE_DIR', str(tmp_path))
+    assert serving_slot('frontend', 'r2') and not serving_slot('frontend', 'r1')
+    assert serving_slot('jobs', 'anything')  # a role without slots

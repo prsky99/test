@@ -1,6 +1,7 @@
 # 작업 기록 (짧게 유지: 끝날 때마다 몇 줄 갱신)
 
 ## 완료 (최근 것만)
+- 스냅샷 이중 실행(2026-11-02 0시): 대기 슬롯은 시작 때 한 번만 만들고 활성 슬롯만 10분마다 갱신(report_snapshot.keep_fresh serving, service_host.serving_slot + AGENTCON_SERVICE_STATE_DIR). r5가 07:01 먼저 배포되어 그 위 standby-snapshot-frontend-20261102-r2를 07:03:47 배포(활성 a). r5의 customer_batch.py gzip 버그로 고객 워크스페이스 첫 화면 장애, 프론트 세션이 r6(이 위 + customer_batch.py) 준비.
 - Chat 503 조사(2026-11-01 20시): 원인은 전역 쓰기 잠금(pg_advisory_xact_lock, lock_timeout 1s)과 Chat 쓰기 5개 이상. 표본 결과 jobs 벡터 대기열 정리 DELETE(LIMIT 500)가 잠금을 0.91초 보유. jobs vector-retention-r1(정리 검색을 읽기 스냅샷으로) 21:09 배포. 판정 경계 버그로 옛 in-lock 정리가 가끔 돎 → r2 패키징·승인 대기. frontend는 활성이 centre-progress-r3로 바뀌어 writer-retry-frontend-20261101-r3(그 위 2개 파일)로 다시 만듦. 넓은 비교(r1 기준 351개 파일)에서 새 실패 0(탐색 브라우저 시험 1건은 기준도 1/8 흔들림), r3 사본 핵심 158건 통과. jobs r2(22:58)·frontend r3(22:59) 배포. 배포 뒤 옛 in-lock 정리 0회, 0.5초 이상 보유 12→2, lock timeout 0, 5xx 0. 남은 최장 보유는 capability_text 정리 DELETE 0.81초. → docs/qa/chat-write-lock-503-2026-11-01.ko.md
 - 워크플로 생성 품질(2026-11-01 밤): 읽기 전용 평가 `scripts/evaluate_workflow_goal_quality.py` + 사례 73건(`tests/data/workflow_goal_quality_cases.json`). 41.1% → 97.3%(holdout 30/30): 없는 기능 이름 붙이기·모호하면 되묻기·해로운 목표 거절·단계마다 자기 주제·번역 실패 시 영어 재작성 요청·한국어 연결어 (workspace_goal_coverage/workspace_app_factory/workflow_goal_policy, 정책 해시 아님). r1은 기준 read-only-r1의 버그(CustomerWorkspaceAccess._tx readonly TypeError, 프론트 세션 발견)로 폐기. r2·r3는 기준 변경으로 쓰지 않음. workflow-goals-frontend-20261101-r4(활성 read-only-r3 + 워크플로 3개 + fast_chat 엔진 활성 조건 수정)를 활성 사본과 비교(새 실패 0, 탐색 브라우저 시험 1건은 단독 0/8로 흔들림) 후 19:52 배포(활성 a). 19:49 첫 시도는 이전 슬롯이 스냅샷 중이라 timeout, 19:50 배포 뒤 내 확인 스크립트 파싱 오류로 잘못 롤백했다가 19:52 재배포. 배포 뒤 5xx 0. 다음: 소스 분석 snapshot-pause-r2를 r4 위로, /chat 쓰기 잠금 503 조사. → docs/qa/workflow-goal-quality-2026-11-01.ko.md
 - Chat 답변 품질(2026-11-01 저녁): 읽기 전용 평가 `scripts/evaluate_chat_answer_quality.py` + 사례 159건(tuning 105·holdout 54, `tests/data/chat_answer_quality_cases.json`). 운영 88.1% → 92.5%(결과 0건일 때만 도는 후보 공유어 재검색·요약 기준 100자·오타 재작성·비밀번호 노출 감지, fast_chat/chat_guidance/chat_query_rewrite/chat_progress). 릴리스 chat-recovery-frontend-20261101-r1(support-lock-r1 기준, 정책 파일 없음 → jobs 불필요) 16:32 배포(활성 a, b=snapshot-progress-r2). 운영 확인: 원격 일자리·오타·식당·번역 추천, 비밀번호 노출 차단, 진행 스트림 정상, 응답 0.8~4.4초, 5xx 0건. 남음: selection.py 핵심어(정책 파일, jobs 동반), 검색 흔들림, 워크플로 생성. → docs/qa/chat-answer-quality-2026-11-01.ko.md
@@ -132,3 +133,12 @@
   - `AdminReaderPool`에 `idle_seconds`를 추가했다(운영값 300초). 쉬는 세션을 백그라운드 스레드가 닫아, 롤백용 대기 슬롯이 연결을 반납한다.
     - admin 릴리스 `idle-reaper-admin-20261101-r1`은 패키징·검증까지 했고, 배포는 승인 대기다. frontend는 프론트앤드 세션의 다음 릴리스에 들어간다.
   - 공개 저장소의 개인 경로·맥 이름을 일반화했다. 스크립트는 `Path(__file__)`, launchd plist는 `__REPO__`·`__BACKUP_COPY_TO__` 템플릿으로 바꿨고, 이전 커밋 이력에는 남는다.
+  - 23:35~23:47 탐색 측정(로컬 :8400, 연결 재사용, 처음 보는 검색어 178개): 중간값 1.57초, 상위 10% 3.24초, 최대 6.9초, 3초 초과 21개(12%), 오류 0.
+    - 이때 다른 세션의 pytest 10개가 돌아 load average가 9 안팎이었다.
+    - 3초 초과 요청은 12분 내내 고르게 흩어졌고 스냅샷 시간대에 몰리지 않았다. 앱 시간(`Server-Timing`)도 같은 값이라, 원인은 머신 부하로 본다.
+    - 운영 맥에서 큰 시험을 돌리면 탐색 3초 정책이 깨진다. 부하가 낮을 때 다시 재야 한다.
+
+- 11-02 07:01~07:10 묶음 읽기 장애와 복구
+  - r5 배포 직후 하위 응답이 gzip으로 돌아와 고객 첫 화면이 모두 실패했다. 하위 요청에서 `accept-encoding`을 빼서 고쳤다(5c233610).
+  - 07:06:33에 r6을 배포했다(frontend active b). Workflows·Overview·Plan·Support 확인, 로그 오류 0.
+  - 다음 frontend 릴리스는 r6을 바탕으로 만든다. 테스트는 `.venv-tests/bin/python`으로 돌린다(`.venv`에는 pytest가 없다).

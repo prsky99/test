@@ -79,6 +79,30 @@ class PostgresVectorIndex(VectorIndex):
             cleanup(self.store)
         return result
 
+    def _expired_jobs(self, cutoff):
+        # The sweep reads every week-old head and provenance job (80-370 ms on 2.1M jobs) even
+        # when nothing is deletable. Inside the claim it held the writer lock every visitor
+        # write waits on, 0.91 s at most (2026-11-01 /chat 503), so search a read snapshot.
+        from .legacy_vector_index import RETENTION_BATCH
+        with self.read_snapshot():
+            rows = self.store._execute('''SELECT j.job_id FROM legacy_vector_jobs j
+                LEFT JOIN legacy_vector_heads h ON h.job_id=j.job_id
+                LEFT JOIN legacy_vector_provenance p ON p.job_id=j.job_id
+                WHERE j.status IN ('indexed','failed','superseded') AND j.finished<%s
+                AND h.job_id IS NULL AND p.job_id IS NULL ORDER BY j.finished,j.job_id LIMIT %s''',
+                (cutoff, RETENTION_BATCH), max_rows=RETENTION_BATCH).fetchall()
+        return [row[0] for row in rows]
+
+    def _delete_expired(self, job_ids, cutoff):
+        import json
+        # Each id is checked again: a job may have become a head or gained provenance since.
+        return self.store._execute('''DELETE FROM legacy_vector_jobs j
+            WHERE j.job_id IN (SELECT value FROM jsonb_array_elements_text(%s::jsonb))
+            AND j.status IN ('indexed','failed','superseded') AND j.finished<%s
+            AND NOT EXISTS (SELECT 1 FROM legacy_vector_heads h WHERE h.job_id=j.job_id)
+            AND NOT EXISTS (SELECT 1 FROM legacy_vector_provenance p WHERE p.job_id=j.job_id)''',
+            (json.dumps(job_ids), cutoff)).rowcount
+
     def _backfill_candidates(self, descriptor, limit):
         from .legacy_vector_index import MAX_BATCH
         if type(limit) is not int or not 1 <= limit <= MAX_BATCH:

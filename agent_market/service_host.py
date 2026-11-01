@@ -44,6 +44,20 @@ def keep_explore_warm(front, stop, pause=8.0):
         stop.wait(pause)
 
 
+def serving_slot(role, release):
+    """Whether this process's release is the active slot of ROLE in the deployment state.
+
+    Without a readable state (tests, a direct start) every process counts as serving."""
+    import json
+    directory = os.environ.get('AGENTCON_SERVICE_STATE_DIR')
+    if not directory:
+        return True
+    state = json.loads((Path(directory) / 'state.json').read_text())
+    service = (state.get('services') or {}).get(role) or {}
+    slots, active = service.get('slots') or {}, service.get('active')
+    return active not in slots or slots[active] == release
+
+
 def keep_models_warm(front, stop, interval=KEEP_WARM_SECONDS):
     while not stop.wait(interval):
         try:
@@ -147,7 +161,8 @@ def create_service_app(config, role, *, store=None, control=None, release='test'
                     threading.Thread(target=keep_explore_warm, args=(front, stop), name='explore-keep-warm', daemon=True).start()
                     if getattr(front.store, 'backend', None) == 'postgresql':
                         from .concierge.report_snapshot import keep_fresh
-                        threading.Thread(target=keep_fresh, args=(front.store, stop), name='report-snapshot', daemon=True).start()
+                        threading.Thread(target=keep_fresh, args=(front.store, stop), name='report-snapshot', daemon=True,
+                                         kwargs={'serving': lambda: serving_slot(role, release)}).start()
                 app.state.ready = True
                 try:
                     yield
@@ -381,6 +396,7 @@ def main():
             settings[key] = str(root / settings[key])
     os.environ.update(settings)
     os.environ["AGENTCON_PROJECT_ROOT"] = str(root)
+    os.environ['AGENTCON_SERVICE_STATE_DIR'] = str(Path(args.state_dir).resolve())
     os.environ['LOG_DIR'] = str(root / 'logs' / ('service-' + args.role))
     os.environ['LOG_ARCHIVE_DIR'] = str(root / 'logs' / 'archive' / args.role)
     config = GatewayConfig.from_env()

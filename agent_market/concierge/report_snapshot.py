@@ -249,11 +249,33 @@ def refresh(store, stop=None):
         return snapshot
 
 
-def keep_fresh(store, stop, interval=REFRESH_SECONDS):
+STANDBY_CHECK_SECONDS = 30
+
+
+def keep_fresh(store, stop, interval=REFRESH_SECONDS, serving=None):
+    """Build once at start, then refresh only while SERVING() says this process takes traffic.
+
+    Both web slots rebuilt every ten minutes, so the database did the three-minute check twice
+    and a deploy waited on the standby slot's build (2026-11-01). A slot that is about to be
+    activated still builds at start, and one activated later refreshes within half a minute."""
+    first = True
     while not stop.is_set():
-        try:
-            refresh(store, stop)
-        except Exception:
-            log.warning('Report snapshot refresh failed', exc_info=False)
-        stop.wait(interval)
+        snapshot = _snapshots.get(id(store))
+        due = snapshot is None or time.time() - snapshot.built_at >= interval
+        if first or due and _serving(serving):
+            first = False
+            try:
+                refresh(store, stop)
+            except Exception:
+                log.warning('Report snapshot refresh failed', exc_info=False)
+        stop.wait(STANDBY_CHECK_SECONDS)
+
+
+def _serving(serving):
+    if serving is None:
+        return True
+    try:
+        return bool(serving())
+    except Exception:
+        return True  # an unreadable deployment state keeps the previous behavior
 

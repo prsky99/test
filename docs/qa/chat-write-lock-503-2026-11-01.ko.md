@@ -68,3 +68,21 @@
   - 0.5초 이상 보유한 표본은 2개다(배포 전 12개). 1.07초 정리, 1.07초 통계, 0.82초 ERC-8004 갱신은 보이지 않았다.
   - 가장 긴 보유는 0.81초였다. `DELETE FROM agentcon_search.capability_text ... NOT EXISTS`(capability_text Refresher의 정리)이고, 다음 후보다.
   - 배포 뒤 잠금 대기 초과 0건, frontend 5xx 0건이다.
+
+## 스냅샷 이중 실행 (11-02 0시)
+- **현상:** frontend 두 슬롯이 모두 'Recorded reports' 스냅샷(170~205초)을 10분마다 만들었다. DB 부하가 두 배였다. 대기 슬롯이 스냅샷을 만드는 중이면 배포가 timeout으로 멈췄다(11-01 19:49). 프론트엔드 세션이 알려 왔다.
+- **변경:** `report_snapshot.keep_fresh(serving=...)`
+  - 시작할 때는 늘 한 번 만든다. 곧 활성이 될 새 슬롯이 스냅샷을 가진 채 트래픽을 받게 하려는 것이다.
+  - 그 뒤에는 30초마다 확인한다. 이 프로세스의 릴리스가 `state.json`의 활성 슬롯 릴리스일 때만, 스냅샷이 10분을 넘었으면 다시 만든다.
+  - 상태 파일을 읽지 못하면 예전처럼 갱신한다.
+  - `service_host.serving_slot(role, release)`가 판단하고, 상태 디렉터리는 `AGENTCON_SERVICE_STATE_DIR`로 받는다.
+- **릴리스:** `standby-snapshot-frontend-20261102-r1`
+  - 구성: 활성 `writer-retry-frontend-20261101-r3` 위에 2개 파일을 얹었다. `service_host.py`는 작업본이 활성보다 오래된 부분이 있어 문자열 패치로 얹었다.
+  - 시험: 관련 10개 파일(108건)을 돌렸고, 기준 사본에서만 실패한 2건은 이번에 새로 넣은 시험이다.
+- **배포 (11-02 07:03:47):**
+  - 프론트엔드 세션이 07:01에 `batch-reads-frontend-20261101-r5`를 배포했다.
+  - 그래서 그 위에 2개 파일만 다시 얹은 `standby-snapshot-frontend-20261102-r2`를 배포했다(활성 a, 대기 b=r5).
+  - r5 사본과 비교한 시험 108건이 통과했다.
+  - 배포 뒤 Chat·스트림·탐색은 200, 5xx 0건, 잠금 대기 초과 0건이다.
+  - 배포는 대기 슬롯 a의 스냅샷이 끝난 06:59:44 직후에 해서 timeout이 없었다.
+- **같은 시각 다른 세션이 발견한 장애:** r5의 `customer_batch.py`가 하위 요청에 Accept-Encoding을 그대로 넘긴다. 그래서 gzip 바이트가 JSON 안에 들어가 고객 워크스페이스 첫 화면이 "Workspace access could not be loaded"로 깨진다. 이 릴리스에도 들어 있다. 프론트엔드 세션이 이 위에 수정만 얹은 r6을 준비한다.

@@ -32,6 +32,7 @@ MAX_ATTEMPTS = 3
 BACKOFF_SECONDS = 60
 MAX_BATCH = 50
 RETENTION_PAUSE = 60  # seconds between retention sweeps that found less than a full batch
+RETENTION_BATCH = 200  # expired jobs one snapshot sweep removes
 MAX_SOURCE_BYTES = 65536
 MAX_VALUE_BYTES = 16384
 ERRORS = ('invalid_model', 'invalid_source', 'invalid_vector', 'invalid_claim',
@@ -516,8 +517,20 @@ class VectorIndex:
         for row in rows:
             self.db.execute('UPDATE vec_outbox SET reason=reason WHERE resource_id=?', (row['resource_id'],))
 
+    def _expired_jobs(self, cutoff):
+        """Expired job ids found outside the writer transaction, or None to sweep inside it."""
+        return None
+
+    def _delete_expired(self, job_ids, cutoff):
+        raise NotImplementedError
+
     def claim_batch(self, descriptor, limit=1, resource_ids=None, expected_resources=None):
         ids, expected = self._request(limit, resource_ids, expected_resources)
+        start = _now()
+        # Decided once, before the transaction: deciding again inside it let a pause that
+        # ended in between run the full sweep under the writer lock (2026-11-01 21:15, 1.07 s).
+        due = bool(_time(start) and start >= self._retention_after)
+        expired = self._expired_jobs(start - 7 * 86400) if due else None
         with self._tx():
             value = self._pin(descriptor)
             self._bootstrap(limit)
@@ -530,7 +543,11 @@ class VectorIndex:
             # The sweep scans every week-old head and provenance job even when nothing is
             # deletable (79 ms on 2M jobs, twice a second). Keep sweeping while batches come
             # back full; after a short one, look again only after RETENTION_PAUSE.
-            if now >= self._retention_after:
+            if due and expired is not None:
+                # Found by a read snapshot; the delete re-checks each id under the writer lock.
+                deleted = self._delete_expired(expired, start - 7 * 86400) if expired else 0
+                self._retention_after = 0.0 if len(expired) >= RETENTION_BATCH else now + RETENTION_PAUSE
+            elif due:
                 deleted = self.db.execute('''DELETE FROM legacy_vector_jobs WHERE job_id IN (
                 SELECT j.job_id FROM legacy_vector_jobs j
                 LEFT JOIN legacy_vector_heads h ON h.job_id=j.job_id
