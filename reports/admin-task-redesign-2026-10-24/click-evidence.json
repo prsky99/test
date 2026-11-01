@@ -1,0 +1,22 @@
+[
+  {
+    "action": "충전 입력 열기",
+    "before": "reports/admin-task-redesign-2026-10-24/screenshots/deposit-01-before.png",
+    "after": "reports/admin-task-redesign-2026-10-24/screenshots/deposit-02-input.png"
+  },
+  {
+    "action": "최신 금액 검토",
+    "before": "reports/admin-task-redesign-2026-10-24/screenshots/deposit-02-input.png",
+    "after": "reports/admin-task-redesign-2026-10-24/screenshots/deposit-03-review.png"
+  },
+  {
+    "action": "요청 접수: 장부 미변경",
+    "before": "reports/admin-task-redesign-2026-10-24/screenshots/deposit-03-review.png",
+    "after": "reports/admin-task-redesign-2026-10-24/screenshots/deposit-04-pending.png"
+  },
+  {
+    "action": "승인·장부 적용·증빙 확인",
+    "before": "reports/admin-task-redesign-2026-10-24/screenshots/deposit-04-pending.png",
+    "after": "reports/admin-task-redesign-2026-10-24/screenshots/deposit-05-applied.png"
+  }
+]

@@ -1,0 +1,45 @@
+---
+description: Public Agent Concierge frontend language, content, metadata, and Chat presentation policy
+globs: agent_market/concierge/**,extracted_html.txt,scripts/*front*.py
+alwaysApply: true
+---
+
+# Public frontend content
+
+Apply this policy to public frontend changes and their maintenance scripts.
+
+- Write product text and frontend source comments in English; no literal Hangul.
+- Use a modern, uncluttered design with Lucide icons, consistent spacing and
+  typography, responsive layouts, and accessible light/dark theme styling.
+  Prefer local SVGs, visible keyboard focus, and reduced-motion support.
+- Escaped non-English input aliases and language-support test inputs may remain.
+- Do not publish internal system/deployment/model information, developer
+  diagnostics, personal data, credentials, or visitor profiles.
+- Retain public agent connection facts and official service contacts only when
+  useful to the user. Preserve security and privacy controls.
+- Update Home and all applicable page/social/agent metadata with feature changes.
+- Chat presents one relevant agent ranked by recent successful verification,
+  recent activity, then quality grade, with newest replies first and connection/verification
+  information. Never show free/paid, payment, billing, pricing, fees, cost,
+  plan promotions, provider amounts, or wallet details in Chat or its detail view.
+- Honor explicit A2A/MCP/x402 selection or a single protocol in the question;
+  rank within that protocol. Default unspecified new requests to A2A; retain
+  protocol context for details/alternatives. Explicit Any searches all three.
+  Keep protocol preference separate from delivery.
+- Align global English-first UX with factual footer policies. Link optional task
+  updates to admin Visiting Agents without inferring marketing permission.
+- Browser notifications require native permission, a native PushSubscription, and
+  confirmation by clicking the delivered test notification. Manual polling is
+  explicitly separate. Declining pending verification deletes the request.
+- Record optional marketing permission separately, unchecked by default, and expose
+  eligibility only after destination verification. Support independent withdrawal
+  and admin inspection/filtering; advertising delivery remains disabled.
+- Run secure-coding and isolated dynamic API/browser security checks after work.
+- The user operates the server in their terminal; do not stop/restart it or run
+  a competing server without an explicit request. Use isolated test apps/data.
+- Keep tokens in session transport and hide raw response JSON, visitor identity,
+  and developer examples from the Chat interface.
+- Preserve truthful machine API fields; presentation restrictions must not
+  misrepresent provider capabilities or alter the selection priority.
+- Keep embedded HTML and extracted_html.txt synchronized and run frontend
+  content, browser, and security checks after changes.

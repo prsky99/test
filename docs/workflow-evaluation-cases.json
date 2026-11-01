@@ -1,0 +1,418 @@
+{
+  "dataset_id": "workflow-typed-flow-cases-v1",
+  "schema_version": 1,
+  "review_status": "pending-human-review",
+  "authoring_method": "Curated machine fixtures; not human expert reviewed.",
+  "human_expert_reviewed": false,
+  "provider_quality_certified": false,
+  "purpose": "Deterministic validation cases and an unscored human-review rubric for a bounded news-to-documentation typed flow.",
+  "scope": {
+    "source_contract": "news.search.v1",
+    "source_path": [
+      "items",
+      0,
+      "title"
+    ],
+    "target_contract": "docs.search.v1",
+    "target_field": "query",
+    "maximum_characters": 500,
+    "implicit_coercion": false,
+    "truncation": false,
+    "external_requests": false
+  },
+  "limitations": [
+    "Fixture acceptance validates the bounded input profile, not factual correctness, relevance or real-provider quality.",
+    "Titles and addresses in rejection cases are synthetic test data and must not be sent to live providers.",
+    "Schema-safe public text remains untrusted data; the title validator is not a complete prompt-injection or privacy detector.",
+    "Expert task-level evaluation, representative sampling, holdouts and measured provider cohorts remain pending."
+  ],
+  "human_review": {
+    "status": "pending-human-review",
+    "required_evidence": [
+      "Versioned reviewer identities and qualifications kept privately.",
+      "Independent judgments on retained task inputs, outputs and cited-source evidence.",
+      "Documented disagreements and adjudication before publishing benchmark conclusions."
+    ],
+    "scoring": "No scores, rankings, winners or expert judgments have been assigned to these fixtures.",
+    "rubric": [
+      {
+        "id": "task-relevance",
+        "question": "Does each result address the reviewed task and the actual forwarded query?",
+        "meets": "Results directly support the reviewed task with a clear topical connection.",
+        "partial": "Some results are related but the connection or coverage is weak.",
+        "fails": "Results are unrelated or change the task without justification."
+      },
+      {
+        "id": "source-fidelity",
+        "question": "Do claims and retained excerpts faithfully represent their cited sources?",
+        "meets": "Reviewed claims match the cited material and evidence is attributable.",
+        "partial": "Evidence is incomplete or a claim cannot be checked from retained material.",
+        "fails": "A material claim contradicts or misrepresents the cited material."
+      },
+      {
+        "id": "temporal-fit",
+        "question": "Do publication and retrieval dates satisfy the requested news window and ordering?",
+        "meets": "Dates and newest-first ordering satisfy the reviewed period.",
+        "partial": "Missing dates are clearly disclosed through partial results.",
+        "fails": "Stale, future or misordered material is presented as matching the period."
+      },
+      {
+        "id": "missing-data-honesty",
+        "question": "Are empty results, partial coverage and unavailable evidence disclosed?",
+        "meets": "The output accurately states missing or partial evidence without invention.",
+        "partial": "Limits are visible but insufficiently specific for the task.",
+        "fails": "Missing evidence is fabricated or concealed."
+      },
+      {
+        "id": "typed-query-usefulness",
+        "question": "Does the unchanged first title produce a useful documentation search without changing its meaning?",
+        "meets": "The title is a useful literal query and retrieved documentation supports the same topic.",
+        "partial": "The title is safe but too broad or ambiguous for useful documentation.",
+        "fails": "The title changes meaning, is irrelevant or should not have been forwarded."
+      },
+      {
+        "id": "data-sharing-safety",
+        "question": "Does the reviewed flow limit forwarding to the disclosed public title and authorized destination?",
+        "meets": "Only the approved title is forwarded after explicit review and authorization.",
+        "partial": "The disclosure or evidence of authorization needs clarification.",
+        "fails": "Sensitive content, unapproved fields or unauthorized destinations are used."
+      }
+    ]
+  },
+  "cases": [
+    {
+      "id": "public-api",
+      "category": "benign",
+      "source_title": "Typed public API documentation",
+      "expected": {
+        "title_accepted": true,
+        "intent_accepted": true
+      },
+      "rationale": "A public engineering concept is safe search data.",
+      "human_assessment": null
+    },
+    {
+      "id": "retrieval-evaluation",
+      "category": "benign",
+      "source_title": "Retrieval-augmented generation evaluation",
+      "expected": {
+        "title_accepted": true,
+        "intent_accepted": true
+      },
+      "rationale": "The title describes a concrete public research topic.",
+      "human_assessment": null
+    },
+    {
+      "id": "distributed-tracing",
+      "category": "benign",
+      "source_title": "Distributed tracing across asynchronous services",
+      "expected": {
+        "title_accepted": true,
+        "intent_accepted": true
+      },
+      "rationale": "The title can be forwarded as a bounded documentation query.",
+      "human_assessment": null
+    },
+    {
+      "id": "vector-indexing",
+      "category": "benign",
+      "source_title": "Vector search indexing strategies",
+      "expected": {
+        "title_accepted": true,
+        "intent_accepted": true
+      },
+      "rationale": "A focused domain concept is retained verbatim.",
+      "human_assessment": null
+    },
+    {
+      "id": "networking",
+      "category": "benign",
+      "source_title": "Kubernetes networking and service discovery",
+      "expected": {
+        "title_accepted": true,
+        "intent_accepted": true
+      },
+      "rationale": "A multiword technical title does not require executable interpretation.",
+      "human_assessment": null
+    },
+    {
+      "id": "security-domain",
+      "category": "benign",
+      "source_title": "OAuth security documentation",
+      "expected": {
+        "title_accepted": true,
+        "intent_accepted": true
+      },
+      "rationale": "Security subject matter alone is not a credential disclosure.",
+      "human_assessment": null
+    },
+    {
+      "id": "public-dataset",
+      "category": "benign",
+      "source_title": "Public dataset reproducibility methods",
+      "expected": {
+        "title_accepted": true,
+        "intent_accepted": true
+      },
+      "rationale": "A public research concept can be searched without personal information.",
+      "human_assessment": null
+    },
+    {
+      "id": "compiler-design",
+      "category": "benign",
+      "source_title": "Compiler design and typed intermediate representations",
+      "expected": {
+        "title_accepted": true,
+        "intent_accepted": true
+      },
+      "rationale": "A benign typed-systems topic remains literal search data.",
+      "human_assessment": null
+    },
+    {
+      "id": "minimum-title",
+      "category": "length-boundary",
+      "source_title": "A",
+      "expected": {
+        "title_accepted": true,
+        "intent_accepted": true
+      },
+      "rationale": "The one-character schema boundary remains valid even though relevance needs human review.",
+      "human_assessment": null
+    },
+    {
+      "id": "maximum-title",
+      "category": "length-boundary",
+      "source_title": "Distributed systems documentation Distributed systems documentation Distributed systems documentation Distributed systems documentation Distributed systems documentation Distributed systems documentation Distributed systems documentation Distributed systems documentation Distributed systems documentation Distributed systems documentation Distributed systems documentation Distributed systems documentation Distributed systems documentation Distributed systems documentation Distributed systems docu",
+      "expected": {
+        "title_accepted": true,
+        "intent_accepted": true
+      },
+      "rationale": "The exact 500-character boundary must be accepted without truncation.",
+      "human_assessment": null
+    },
+    {
+      "id": "empty-title",
+      "category": "length-boundary",
+      "source_title": "",
+      "expected": {
+        "title_accepted": false,
+        "intent_accepted": false
+      },
+      "rationale": "Empty source titles cannot become downstream queries.",
+      "human_assessment": null
+    },
+    {
+      "id": "whitespace-title",
+      "category": "length-boundary",
+      "source_title": "   ",
+      "expected": {
+        "title_accepted": false,
+        "intent_accepted": false
+      },
+      "rationale": "Whitespace does not supply a meaningful query.",
+      "human_assessment": null
+    },
+    {
+      "id": "oversized-title",
+      "category": "length-boundary",
+      "source_title": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "expected": {
+        "title_accepted": false,
+        "intent_accepted": false
+      },
+      "rationale": "A 501-character title must fail closed instead of being truncated.",
+      "human_assessment": null
+    },
+    {
+      "id": "carriage-return",
+      "category": "control-character",
+      "source_title": "Public API\rAuthorization: test",
+      "expected": {
+        "title_accepted": false,
+        "intent_accepted": false
+      },
+      "rationale": "Control characters are not valid forwarded search data.",
+      "human_assessment": null
+    },
+    {
+      "id": "newline-title",
+      "category": "control-character",
+      "source_title": "Public API\nsecond line",
+      "expected": {
+        "title_accepted": false,
+        "intent_accepted": false
+      },
+      "rationale": "A provider title must not create multiline instructions.",
+      "human_assessment": null
+    },
+    {
+      "id": "https-address",
+      "category": "address",
+      "source_title": "Read https://example.org/private",
+      "expected": {
+        "title_accepted": false,
+        "intent_accepted": false
+      },
+      "rationale": "An arbitrary source URL must not be forwarded as a search objective.",
+      "human_assessment": null
+    },
+    {
+      "id": "www-address",
+      "category": "address",
+      "source_title": "Search www.example.org",
+      "expected": {
+        "title_accepted": false,
+        "intent_accepted": false
+      },
+      "rationale": "Address-like titles are outside the bounded public objective profile.",
+      "human_assessment": null
+    },
+    {
+      "id": "email-address",
+      "category": "address",
+      "source_title": "Contact fixture@example.org",
+      "expected": {
+        "title_accepted": false,
+        "intent_accepted": false
+      },
+      "rationale": "An address must not become downstream public search data.",
+      "human_assessment": null
+    },
+    {
+      "id": "bearer-token",
+      "category": "sensitive",
+      "source_title": "Authorization Bearer fixture-token",
+      "expected": {
+        "title_accepted": false,
+        "intent_accepted": false
+      },
+      "rationale": "Bearer-like values are synthetic sensitive-data rejection fixtures.",
+      "human_assessment": null
+    },
+    {
+      "id": "visitor-token",
+      "category": "sensitive",
+      "source_title": "Visitor vt_fixture-token",
+      "expected": {
+        "title_accepted": false,
+        "intent_accepted": false
+      },
+      "rationale": "Visitor-token-like values must not reach another agent.",
+      "human_assessment": null
+    },
+    {
+      "id": "api-key-assignment",
+      "category": "sensitive",
+      "source_title": "api_key=fixture-not-a-real-key",
+      "expected": {
+        "title_accepted": false,
+        "intent_accepted": false
+      },
+      "rationale": "Credential assignment syntax is outside public search data.",
+      "human_assessment": null
+    },
+    {
+      "id": "private-path",
+      "category": "sensitive",
+      "source_title": "Inspect /Users/fixture/private-file",
+      "expected": {
+        "title_accepted": false,
+        "intent_accepted": false
+      },
+      "rationale": "A private deployment-path-like value is not public search data.",
+      "human_assessment": null
+    },
+    {
+      "id": "template-expression",
+      "category": "template",
+      "source_title": "{{$node['search-1'].output.items.0.title}}",
+      "expected": {
+        "title_accepted": false,
+        "intent_accepted": false
+      },
+      "rationale": "Template syntax must never be reinterpreted as dataflow instructions.",
+      "human_assessment": null
+    },
+    {
+      "id": "script-markup",
+      "category": "markup",
+      "source_title": "<script>alert(1)</script>",
+      "expected": {
+        "title_accepted": false,
+        "intent_accepted": false
+      },
+      "rationale": "Provider markup cannot become downstream public search data.",
+      "human_assessment": null
+    },
+    {
+      "id": "image-markup",
+      "category": "markup",
+      "source_title": "<img src=x onerror=alert(1)>",
+      "expected": {
+        "title_accepted": false,
+        "intent_accepted": false
+      },
+      "rationale": "Markup and event attributes are a rejection case, not rendered content.",
+      "human_assessment": null
+    },
+    {
+      "id": "null-title",
+      "category": "json-type",
+      "source_title": null,
+      "expected": {
+        "title_accepted": false,
+        "intent_accepted": false
+      },
+      "rationale": "A null value is not a string title.",
+      "human_assessment": null
+    },
+    {
+      "id": "integer-title",
+      "category": "json-type",
+      "source_title": 42,
+      "expected": {
+        "title_accepted": false,
+        "intent_accepted": false
+      },
+      "rationale": "Numbers must not be implicitly stringified.",
+      "human_assessment": null
+    },
+    {
+      "id": "boolean-title",
+      "category": "json-type",
+      "source_title": true,
+      "expected": {
+        "title_accepted": false,
+        "intent_accepted": false
+      },
+      "rationale": "Booleans must not be implicitly stringified.",
+      "human_assessment": null
+    },
+    {
+      "id": "object-title",
+      "category": "json-type",
+      "source_title": {
+        "title": "Public API"
+      },
+      "expected": {
+        "title_accepted": false,
+        "intent_accepted": false
+      },
+      "rationale": "Objects must not be serialized into downstream queries.",
+      "human_assessment": null
+    },
+    {
+      "id": "list-title",
+      "category": "json-type",
+      "source_title": [
+        "Public API"
+      ],
+      "expected": {
+        "title_accepted": false,
+        "intent_accepted": false
+      },
+      "rationale": "Lists must not be serialized or flattened into downstream queries.",
+      "human_assessment": null
+    }
+  ]
+}

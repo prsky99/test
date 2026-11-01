@@ -1,0 +1,52 @@
+# Recorded informational test comparison
+
+The v1.13 private `news-title-to-docs-v1` profile is explicitly excluded from this evaluator and its recent-test inventory, including the upstream news node. Its documentation query is a resolved value with source provenance, so comparing the original literal objective would be misleading. The v1.14 [retained-input inspector](WORKFLOW_RESOLVED_EVIDENCE.md) now verifies one connected run's actual documentation input and source proof through a separate API/UI; it does not admit that run to this comparison profile or establish pair eligibility. A future paired profile must additionally verify identical complete actual inputs and compatible source input/pin/output context. See [the typed-connection contract](WORKFLOW_TYPED_FLOW.md).
+
+2026-10-18 · v1.12 literal-comparison profile; documentation updated for the separate v1.14 retained-input inspector.
+
+## Scope and operator flow
+
+In the private workflow menu, **Compare completed tests** opens a centered native dialog. Test A determines the compatible Test B choices: same supported contract, identical literal inputs and a different registered agent. The result shows recorded contract assessment, workflow/external outcome, node latency, result count, distinct source-URL count, partial status, retained source titles/hosts/timestamps and document versions. News also shows dated-item count and latest publication. Source overlap is the Jaccard ratio of the recorded URL sets after host casing/fragment normalization; it is unavailable for two empty sets.
+
+The comparison makes no agent/model calls, creates no runs, stores no new quality evidence and cannot save/publish/promote a candidate. First explicitly test a compiled draft, select a replacement within that same draft review, save and explicitly test the replacement. That preserves the exact input and news period. Close the draft review and compare those completed tests. An independent newly generated news request may have a different `from_utc` even if its query text is identical, and must not be treated as a controlled pair.
+
+For a connected test, choose **Inspect connected test** instead. Its highest-admin-only `GET /admin/api/workflow-composer/resolved-input/runs` and `POST /admin/api/workflow-composer/resolved-input` with exactly `{run_id}` provide single-run proof inspection. That separate profile verifies historical principal expiry after admission and successful node starts, the complete source output, actual target argument object and exact source-checkpoint provenance hash. Later present-day expiry does not erase valid history; current approval/readiness is shown separately. A provider response may complete after authority expiry; the inspector checks the recorded start boundary and the runtime retains its own dispatch guard. Missing/unknown/failed evidence remains explicit and unscored. Neither view calls providers/models or creates a grade, evidence record, automatic winner or publication.
+
+Node latency includes gateway/node processing and transport observed by the runtime; it is not provider CPU time. Larger result counts, lower latency, source overlap and schema validity are not factual accuracy or task-specific quality grades. There is no automatic winner, ranking update or publication. Relevance and factual/source fidelity need human/expert review. This is the first recorded comparison/evaluation surface; full R-07 typed dataflow, larger DAGs, expert/holdout datasets and active paired-test orchestration remain later work.
+
+## Private APIs
+
+Both routes require current highest-admin authorization and use `Cache-Control: no-store` for successful responses and comparison-validation errors. There is no public comparison route.
+
+- `GET /admin/api/workflow-composer/comparison/runs`: considers at most 100 selected most-recent completed `admin` runs and returns at most 30 compiled news/docs entries. Returns bounded references, input fingerprints and fixed labels, not prompts, provider endpoints, raw snapshots or output bodies. This bounded recent inventory is not a complete historical search. Missing/pruned/corrupt authority is excluded. A checkpoint removed under retention is unavailable, not a successful comparison.
+- `POST /admin/api/workflow-composer/comparison`: exactly `left_run_id`, `right_run_id`, `contract`. Accepts distinct `wr_` IDs and `news.search.v1` or `docs.search.v1`. Requires exactly one compiled node for the requested contract on each side, two different registered agents and identical reviewed inputs. It cannot accept URL/tool/input/graph replacements or execution authority options.
+
+Comparison is a read operation despite using POST to keep identifiers out of query-string request logs. It adds no database table or persisted comparison record. Normal runtime initialization adds a SQLite `(source, created DESC)` metadata index so selecting recent administrator runs does not require sorting the full run history. Its deterministic `cmp_` reference binds evaluator version, run references and signed checkpoint hashes; reconstructing a comparison requires its original run IDs and retained evidence. Current-readiness observations can change without changing the historical reference. Existing state-table inventory remains 27; no PostgreSQL/backup schema extension is required.
+
+## Evidence and evaluation boundaries
+
+The evaluator checks the immutable snapshot digest and workflow identity, the signed node contract/input/full-connection/tool-approval binding, the signed stored execution authority and its nested principal signature/scope. This verifies what authority was recorded at execution time. Historical principal expiry or later role revocation does not erase history; current request authorization is enforced independently by the highest-admin API guard.
+
+Each available checkpoint must verify its HMAC, audience, run/definition/node scope, selected node ID and reviewed input. A successful result is validated with the existing contract using the signed node start/elapsed time as its observation time. This prevents a previously valid result from failing solely because the record is now more than 24 hours old. Current definition/approval equality and current eligibility are computed separately from the same read snapshot. Neither historical validity nor a passing comparison grants present execution authority.
+
+Failure, cancellation, unknown outcome, missing certainty and missing checkpoint do not become zero-quality scores or successful results. They return explicit assessment/unavailability and no success metrics. A successful selected node in an otherwise failed workflow can retain a valid node-level assessment; the workflow outcome remains visible. Malformed or mismatched signed evidence is rejected, not silently scored. A single side's invalid proof prevents producing a misleading paired result.
+
+The read-only service opens a consistent SQLite `mode=ro` transaction for file databases. In-memory test stores use a scoped savepoint under the existing lock and release it without data changes. SQL uses fixed names and bound IDs. Definition and checkpoint reads are bounded, and the recent inventory reads only required metadata through the recent-run index. Current projections use a read-only store adapter rather than version creation/recovery helpers. This service does not instantiate a queue worker, mutate evidence, recover leases, send delivery, query a model, fetch source URLs or initialize schemas/keys.
+
+Returned sources contain title, host, publication/retrieval time and version; the interface renders them with text nodes. It does not return full source URLs, excerpts/summaries, input text, private binding hashes, signatures, execution-authority envelopes, contacts or raw responses. There are no remote images, clickable untrusted URLs or HTML sinks. The highest-admin interface is separate from the public frontend and does not alter Chat, footer, public metadata, SDK or downloadable-app implementations.
+
+## UI/session behavior
+
+The native dialog preserves unsaved builder state and remains independent of the existing ten-second page refresh. Selectors restrict compatible pairs; the server repeats all checks. Changing a selection, refreshing, closing or expiring the session invalidates pending responses. Close/logout/authentication expiry clears the private inventory and result. Proposals/comparisons are not persisted in browser storage. Errors use bounded messages, never raw stack traces or provider payloads.
+
+The UI does not submit a second test or retry any uncertain execution. Actual live tests remain explicit actions in the existing draft/run workflow. No consent or delivery/marketing authorization is inferred from viewing a comparison.
+
+## Restart and acceptance
+
+After the user's restart, read-only local checks observed a new listener, Home/admin HTTP 200 with CSP, existing composer/maintenance/control API anonymous 403 and fallback disabled with zero policies. These checks do not establish authenticated functional acceptance. New comparison Python routes require the user's next frontend/admin restart. The admin HTML is read from disk and may appear before the updated Python routes are loaded.
+
+Verification evidence is in [the v1.12 report](../reports/advancement-r07-comparison-2026-10-18/README.md) and the separate [v1.14 retained-input report](../reports/advancement-r07-resolved-evidence-2026-10-18/README.md). Actual production provider/model execution, new evidence writes, publication, notifications, automatic maintenance, policy activation, direct live DB writes and server operations were not performed. Full R-07/AC-08 and G0/G1, authenticated live inspection, broader real-provider/expert evaluation, hosted CI, external app hosting and capacity/HA acceptance remain separate.
+
+## Separate controlled-pair execution
+
+The [private controlled-pair profile](WORKFLOW_CONTROLLED_PAIRS.md) now provides an independently authorized four-node test with one news call and two distinct documentation targets. Its own historical inspection verifies the common signed source checkpoint, identical resolved arguments, successful attempt certainty and target order. It does not add connected runs to this literal-input comparison or change this evaluator's read-only behavior. Explicit pair execution is a separate action; neither view selects an automatic winner or permits publication.

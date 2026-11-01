@@ -1,0 +1,67 @@
+{
+  "python": {
+    "version": "3.11.18",
+    "directory": "python-3.11.18",
+    "url": "https://www.python.org/ftp/python/3.11.18/Python-3.11.18.tgz",
+    "digest": "5f62711b12470fd435f83f1451c1b1ef4a179aebc715c716874b0967567d814e"
+  },
+  "openssl": {
+    "version": "3.5.9",
+    "directory": "openssl-3.5.9",
+    "url": "https://github.com/openssl/openssl/releases/download/openssl-3.5.9/openssl-3.5.9.tar.gz",
+    "digest": "603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a"
+  },
+  "sqlite": {
+    "version": "3.54.1",
+    "directory": "sqlite-3.54.1",
+    "url": "https://www.sqlite.org/2026/sqlite-autoconf-3540100.tar.gz",
+    "algorithm": "sha3_256",
+    "digest": "b6ced585c750916b1052667239a12c25a7ff34e7f06e1e6e01ecb0427657d9c4"
+  },
+  "node": {
+    "version": "26.12.1",
+    "directory": "node-v26.12.1-darwin-arm64",
+    "url": "https://nodejs.org/dist/v26.12.1/node-v26.12.1-darwin-arm64.tar.gz",
+    "digest": "1901d539912c02afa10d1cc126943a8855a7eedebe830119463470db5e6c59e8"
+  },
+  "trust_bundle": {
+    "version": "2026.10.23",
+    "url": "https://files.pythonhosted.org/packages/32/d1/a3652fe2c19134d0d15922177821d863cbd7e842d53a21bbe7e8e3a1b5ac/certifi-2026.10.23-py3-none-any.whl",
+    "digest": "e9b54de76e530bb6cf0ccd036787103acb58fd42ba930ea8bf948ddbaa2f61d1"
+  },
+  "npm": {
+    "version": "12.2.1",
+    "directory": "npm-12.2.1",
+    "url": "https://registry.npmjs.org/npm/-/npm-12.2.1.tgz",
+    "algorithm": "sha512",
+    "digest": "6ca0a6151553fc107e60f1186d9c10d57508dcde6de31292a54d4cc4e8e8ef3de25b3281274657442d7115d10df930bb3794ddcb0681cdfd9d317189abf7b63d"
+  },
+  "bootstrap": [
+    {
+      "name": "pip",
+      "version": "26.2.2",
+      "filename": "pip-26.2.2-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl",
+      "digest": "fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70"
+    },
+    {
+      "name": "setuptools",
+      "version": "84.2.1",
+      "filename": "setuptools-84.2.1-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/ef/55/6dc6d6bb953bdfc52519a0059592c52b6e3b8ad51cf8256dffceb55b0610/setuptools-84.2.1-py3-none-any.whl",
+      "digest": "ca140b45d5325a9478f880e351484f62fef15f336462e449ca0c03c873d589c2"
+    }
+  ],
+  "libpq": {
+    "version": "18.6",
+    "directory": "libpq-18.6-openssl-3.5.9",
+    "url": "https://ftp.postgresql.org/pub/source/v18.6/postgresql-18.6.tar.gz",
+    "digest": "983ee554ec53dbeb9b70797bef9fcf4e67e117e7e48ca1463cc80b3ff8e8ff3f"
+  },
+  "openssl_libpq": {
+    "version": "3.5.9",
+    "directory": "openssl-3.5.9-shared",
+    "url": "https://github.com/openssl/openssl/releases/download/openssl-3.5.9/openssl-3.5.9.tar.gz",
+    "digest": "603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a"
+  }
+}

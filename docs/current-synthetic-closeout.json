@@ -1,0 +1,100 @@
+{
+  "profile": "user-authorized-synthetic-closeout-2026-10-20",
+  "original_requirement_ids_preserved": 42,
+  "scope_basis": "User explicitly substituted virtual customers and a separate local PostgreSQL database; ChatGPT held, Gemini/Claude subscription login excluded, payment/hosted CI/peer approval held.",
+  "development_validation_complete": true,
+  "current_request_complete": true,
+  "source_changes": "Portable test tooling, tests, private runbook and scope records only. No application runtime changes or restart required.",
+  "work_items": [
+    {
+      "order": 1,
+      "area": "latest_frontend_changes",
+      "state": "verified",
+      "evidence": [
+        "reports/synthetic-closeout-2026-10-20/delta.xml",
+        "reports/synthetic-closeout-2026-10-20/late-ui-impact.xml",
+        "reports/synthetic-closeout-2026-10-20/late-source-change.json"
+      ]
+    },
+    {
+      "order": 2,
+      "area": "public_gateway_client_compatibility",
+      "state": "user_approved_deployed_and_verified",
+      "evidence": [
+        "reports/synthetic-closeout-2026-10-20/gateway-edge.json",
+        "reports/synthetic-closeout-2026-10-20/cloudflare-rule-review.png",
+        "reports/synthetic-closeout-2026-10-20/gateway-edge-after.json",
+        "reports/synthetic-closeout-2026-10-20/cloudflare-rule-active.png"
+      ],
+      "prepared_rule": {
+        "host": "agentconcierge.biz",
+        "method": "GET",
+        "paths": [
+          "/.well-known/agent-card.json",
+          "/api/test/presets"
+        ],
+        "only_setting": "Browser Integrity Check off",
+        "saved": true,
+        "deployed": true
+      }
+    },
+    {
+      "order": 3,
+      "area": "customers_agents_delivery_quality_recovery",
+      "state": "verified_with_virtual_customers_and_controlled_providers",
+      "evidence": [
+        "reports/synthetic-closeout-2026-10-20/synthetic-customer.xml",
+        "reports/synthetic-closeout-2026-10-20/security.xml",
+        "reports/synthetic-closeout-2026-10-20/synthetic-evidence.xml"
+      ],
+      "not_claimed": [
+        "real external customers",
+        "physical device Push",
+        "independent external reviewer custody",
+        "real long-task provider acceptance"
+      ]
+    },
+    {
+      "order": 4,
+      "area": "postgresql",
+      "state": "verified_on_separate_local_databases",
+      "evidence": [
+        "reports/synthetic-closeout-2026-10-20/postgres-final/result.json",
+        "docs/SYNTHETIC_ACCEPTANCE_RUNBOOK.md"
+      ],
+      "portable_command": "python -m scripts.validate_postgres_acceptance --connection-file /private/path/postgres-test.json --run --output reports/remote-pg-acceptance-001",
+      "not_claimed": [
+        "HA standby failover",
+        "WAL/PITR",
+        "production capacity",
+        "full outage RTO or operating RPO guarantee"
+      ]
+    },
+    {
+      "order": 5,
+      "area": "ai_providers",
+      "state": "recorded_no_new_login_or_inference",
+      "providers": {
+        "chatgpt": "held_by_user_until_quota_recovers_and_user_requests_retry",
+        "gemini": "subscription_login_excluded; previous UNSUPPORTED_CLIENT retained, quota exhaustion unconfirmed",
+        "claude": "subscription_login_excluded; previous personal CLI fixture success is not hosted integration"
+      }
+    },
+    {
+      "order": 6,
+      "area": "release_and_publication",
+      "state": "holds_recorded_publication_decision_reviewed",
+      "user_holds": [
+        "Stripe TEST/Connect onboarding and payment validation",
+        "hosted CI",
+        "human peer signoff"
+      ],
+      "workspace_decision": "Keep navigation hidden; controlled tests do not automatically authorize public activation. Explicit activation instruction required. No paid feature or provider signup is a prerequisite added by this run."
+    }
+  ],
+  "next_automatic_development_tasks": [],
+  "production_and_original_actual_acceptance_flags_not_promoted": true,
+  "pending_approval": null,
+  "evidence": "reports/synthetic-closeout-2026-10-20/verification.json",
+  "late_ui_changes_verified": "CSS2/test1 changed after original tests; 65 replacement cases and 477 retained cases = 542 unique."
+}

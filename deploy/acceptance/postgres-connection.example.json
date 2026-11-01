@@ -1,0 +1,8 @@
+{
+  "host": "postgres-test.example.invalid",
+  "port": 5432,
+  "user": "acceptance_operator",
+  "dbname": "postgres",
+  "sslmode": "verify-full",
+  "sslrootcert": "/replace/with/test-server-ca.pem"
+}

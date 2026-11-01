@@ -1,0 +1,1690 @@
+{
+  "profile": "platform-rnd-refinement-v1",
+  "revision": "RND-2026-10-19-r4-v141-integrated",
+  "date": "2026-10-19",
+  "state": "bounded_source_integrated_verified_actual_acceptance_and_conditional_source_open",
+  "product_baseline": "1.41",
+  "phase_two_design_revision": "2.0-draft.3",
+  "canonical_file": "docs/platform-rnd-refinement.json",
+  "document": "docs/PLATFORM_RND_REFINEMENT.md",
+  "canonical_order": "docs/design-implementation-audit.json#/recommended_order",
+  "attachment": {
+    "sha256": "edf05b7274ba61f4d7a31d725e8901fd45e7f0b0ac4eb2bdabcfa67f554003df",
+    "read_completely": true
+  },
+  "scope": {
+    "product_source_changed": true,
+    "server_operations": 0,
+    "live_provider_calls": 0,
+    "notifications_sent": 0,
+    "financial_transactions": 0,
+    "additional_restart_required": false,
+    "full_suite_rerun": false,
+    "actual_environment_designated": false,
+    "restart_after_integrated_source_closure": true,
+    "final_source_freeze_complete": true,
+    "final_security_integration_complete": true,
+    "coordination_hold": null,
+    "common_source_completion_report": "reports/advancement-rnd-integration-2026-10-19/common-source-completion.json",
+    "common_source_changes_preserved": true,
+    "user_server_restart_required": false,
+    "admin_refresh_required": false,
+    "verification_scope": "Frozen affected-source selection, not the entire repository or operating environment.",
+    "user_restart_reported": true,
+    "user_admin_refresh_reported": true
+  },
+  "baseline": {
+    "version": "1.40",
+    "verification": "reports/advancement-rnd-integration-2026-10-19/verification.json",
+    "source_inputs": 700,
+    "modules": 78,
+    "unique_tests_passed": 1313,
+    "native_contracts": 80,
+    "native_contracts_are_additional_pytest_cases": false,
+    "historical_counts_added": false,
+    "user_server_restart_required": false,
+    "authenticated_operating_acceptance": false,
+    "read_only_restart_report": "reports/advancement-rnd-integration-2026-10-19/post-restart-readonly.json",
+    "read_only_restart_checks": 38,
+    "user_restart_reported": true,
+    "scope": "Historical accepted v1.40 snapshot only; not current candidate tests or actual operating acceptance."
+  },
+  "source_audits": [
+    "reports/rnd-design-refinement-2026-10-19/reliability-source-audit.json",
+    "reports/rnd-design-refinement-2026-10-19/protocol-security-source-audit.json",
+    "reports/rnd-design-refinement-2026-10-19/reuse-gap-review.json",
+    "reports/advancement-rnd-integration-2026-10-19/root-security-review.json"
+  ],
+  "research_classification": {
+    "RQ1": "Action-MR/oracle/discrete reliability analysis; not a parallel work queue.",
+    "RQ2": "Observable staged supervision/reviewed planning; no hidden CoT or uncontrolled replay.",
+    "RQ3": "Protocol/contract/contribution/settlement separation; actual money last.",
+    "RQ4": "Existing SDK2 threat-model delta and server authority; no browser secrecy promise."
+  },
+  "shared_lineage_contract": {
+    "owner_package": "P2-01-TYPED-EVIDENCE",
+    "schema_state": "existing_store_adapter_implemented_no_duplicate_tables",
+    "fields": [
+      "workspace/purpose/current-authority references",
+      "logical_run/node/attempt and parent lineage",
+      "graph/release/policy/schema/agent/semantic-contract revisions",
+      "actual resolved input/output encrypted-source references",
+      "branch/projection field paths and skipped reasons",
+      "prepared/dispatched/confirmed_response/checkpoint/terminal/unknown",
+      "observed event sequence/optional closed-action sequence/evaluation revision",
+      "corpus/case/episode/mutator/fault/oracle/milestone versions",
+      "retention/withdrawal/deletion/expiry and provenance hashes"
+    ],
+    "separate_axes": [
+      "technical_result",
+      "independent_quality",
+      "source_fidelity",
+      "business_outcome",
+      "delivery_acceptance",
+      "payment_status"
+    ],
+    "consumers": [
+      "P2-02-ACTION-MR-ORACLE",
+      "P2-02-SURFACE-OFFLINE",
+      "P2-05-DUAL-CLOCK-SHADOW",
+      "P2-04-SINGLE-ADMISSION",
+      "P2-05-REVIEWED-REPLAN",
+      "P2-08-FIRST-PARTY-OUTCOMES",
+      "P2-10-PROTOCOL-SANDBOX",
+      "P2-10-SETTLEMENT-RECONCILIATION"
+    ],
+    "invariants": [
+      "Reference existing execution/checkpoint journals; no duplicate pipeline.",
+      "Hash-only deleted source is unassessable, not independently verified quality.",
+      "Scoped current-purpose resolver, no raw ID/URL authority or public diagnostic leakage.",
+      "Unknown after dispatch is never repaired by implicit replay/fallback/payment."
+    ]
+  },
+  "packages": [
+    {
+      "id": "P2-01-TYPED-EVIDENCE",
+      "title": "공통 typed 실행 증거·lineage",
+      "parent_track": "P2-01",
+      "current_order_id": "POST139R-03",
+      "attachment_tags": [
+        "RQ1",
+        "RQ2",
+        "RQ3"
+      ],
+      "state": "bounded_source_integrated_verified_actual_acceptance_and_conditional_source_open",
+      "source_work_can_start_with_isolated_fixtures": true,
+      "implementation_owner": "P2-01 contract/core owner; shared services remain with their existing owner",
+      "artifact_identity": "p2-01-typed-evidence-profile-v1",
+      "reuse_components": [
+        "agent_market/workspace_typed_flows.py",
+        "agent_market/workspace_reliability.py",
+        "agent_market/evidence_rollups.py",
+        "agent_market/workflow_persistence.py",
+        "agent_market/observability.py"
+      ],
+      "reuse_verification": "reports/advancement-phase2-integration-2026-10-19/verification.json",
+      "source_delta": "Bind existing 2–6-node runs/steps and resolved input/output sources to one purpose-bound lineage profile; distinguish branch/projection, attempt and logical run.",
+      "source_dependencies": [],
+      "entry_conditions": [
+        "Existing typed source/profile and raw retention/purpose contracts identified."
+      ],
+      "exit_criteria": [
+        "Reproduce source lineage for linear/branch/projection/partial/failed/unknown without filling missing evidence by new calls.",
+        "Enforce current tenant/authority/consent, expiry/withdrawal/deletion/restore and ETag; no quality from hash-only erased sources."
+      ],
+      "actual_acceptance_dependencies": [
+        "Explicit consent and approved independent evaluator before actual retained-data quality acceptance."
+      ],
+      "validation_focus": [
+        "IDOR, stale authority, late/reordered events, duplicate attempts, restore and source deletion."
+      ],
+      "stop_conditions": [
+        "Current purpose/authority, version pin, retention or call budget cannot be established.",
+        "Unknown external outcome: preserve uncertainty and reconcile; no automatic business replay.",
+        "Promotion thresholds, actual targets or required approval are absent."
+      ],
+      "non_goals": [
+        "No second DAG executor, evidence store, execution journal or public diagnostic endpoint."
+      ],
+      "public_activation": false,
+      "actual_acceptance_complete": false,
+      "deliverables": [
+        "One versioned contract and source delta against the reused components.",
+        "Scoped isolated security/API/browser/native-parity/restore evidence where affected; documentation and acceptance limits."
+      ],
+      "source_artifacts": [
+        "agent_market/workspace_typed_evidence.py",
+        "agent_market/workspace_typed_evidence_service.py"
+      ],
+      "implemented_slice": "Existing typed lineage reused; signed trusted operating qualification and explicitly prepared local current verdict cache added. Generation/purpose/version/expiry/new failure/withdraw/delete/restore invalidate qualification; independent approval absent means off.",
+      "remaining_source_and_acceptance": "Signed operating qualification/local verdict source is present; actual independently approved quality and extra protocol evidence profiles remain separate. Cold/missing local verdict is unassessed; no dispatch-time remote judge.",
+      "integrated_source_verification_complete": true,
+      "integration_report": "reports/advancement-completion-2026-10-19/verification.json",
+      "verification_covers_implemented_slice_only": true,
+      "current_completeness_audit": "docs/design-implementation-audit.json",
+      "current_order_rank": 4,
+      "current_candidate_version": "1.41",
+      "historical_v140_state": "bounded_source_integrated_verified",
+      "candidate_reports": {
+        "readme": "reports/advancement-completion-2026-10-19/README.md",
+        "verification": "reports/advancement-completion-2026-10-19/verification.json",
+        "source_snapshot": "reports/advancement-completion-2026-10-19/accepted-source-snapshot.json",
+        "selected_regression": "reports/advancement-completion-2026-10-19/selected-regression.json",
+        "final_summary": "reports/advancement-completion-2026-10-19/accepted-summary.json",
+        "native": "reports/advancement-completion-2026-10-19/native-application.xml",
+        "evidence": "reports/advancement-completion-2026-10-19/evidence-work.json",
+        "model": "reports/advancement-completion-2026-10-19/model-proposal-work.json",
+        "remote_ui": "reports/advancement-completion-2026-10-19/remote-a2a-ui-work.json",
+        "customer": "reports/advancement-completion-2026-10-19/customer-private-work.json",
+        "storage": "reports/advancement-completion-2026-10-19/storage-profiles-work.json",
+        "public_receipt": "reports/advancement-completion-2026-10-19/public-receipt-work.json",
+        "crypto": "reports/advancement-completion-2026-10-19/x402-eip3009-work.json",
+        "benchmark": "reports/advancement-completion-2026-10-19/representative-html.json",
+        "privacy": "reports/advancement-completion-2026-10-19/privacy-browser.xml",
+        "initial_failed_summary": "reports/advancement-completion-2026-10-19/final/summary.json"
+      },
+      "full_design_complete": false
+    },
+    {
+      "id": "P2-02-ACTION-MR-ORACLE",
+      "title": "Action-MR·상태 oracle",
+      "parent_track": "P2-02",
+      "current_order_id": "POST139R-04",
+      "attachment_tags": [
+        "RQ1"
+      ],
+      "state": "bounded_source_integrated_verified_actual_acceptance_and_conditional_source_open",
+      "source_work_can_start_with_isolated_fixtures": true,
+      "implementation_owner": "P2-02 contract/core owner; shared services remain with their existing owner",
+      "artifact_identity": "p2-02-action-mr-oracle-profile-v1",
+      "reuse_components": [
+        "agent_market/reliability_evaluation.py",
+        "agent_market/reliability_evaluation_worker.py",
+        "agent_market/workspace_reliability.py"
+      ],
+      "reuse_verification": "reports/advancement-phase2-integration-2026-10-19/verification.json",
+      "source_delta": "Add versioned semantic-preserving paired transformations, seeded fault fixtures and goal/state oracle to existing approved corpus jobs.",
+      "source_dependencies": [
+        "P2-01-TYPED-EVIDENCE"
+      ],
+      "entry_conditions": [
+        "Version seed/reference time/timezone/locale/dataset/mutator/fault/oracle/rubric and approve transformation semantics."
+      ],
+      "exit_criteria": [
+        "Start with a small docs/news set; distinguish both-fail, MR violation, invalid transform, oracle error and unassessable source.",
+        "Both original and transformed outcomes must meet the goal; report admitted/completed/unknown/coverage without favorable omissions."
+      ],
+      "actual_acceptance_dependencies": [
+        "Approved read providers/corpus, independent rubric/evaluator and budget for actual quality acceptance."
+      ],
+      "validation_focus": [
+        "No production fault injection, no customer/unknown replay, schema success is not factual quality."
+      ],
+      "stop_conditions": [
+        "Current purpose/authority, version pin, retention or call budget cannot be established.",
+        "Unknown external outcome: preserve uncertainty and reconcile; no automatic business replay.",
+        "Promotion thresholds, actual targets or required approval are absent."
+      ],
+      "non_goals": [
+        "No new scheduler; no mandatory nine transforms or universal epsilon=.3."
+      ],
+      "public_activation": false,
+      "actual_acceptance_complete": false,
+      "deliverables": [
+        "One versioned contract and source delta against the reused components.",
+        "Scoped isolated security/API/browser/native-parity/restore evidence where affected; documentation and acceptance limits."
+      ],
+      "source_artifacts": [
+        "agent_market/reliability_research.py",
+        "agent_market/reliability_evaluation_worker.py"
+      ],
+      "implemented_slice": "Existing approved paired worker retained; exact corpus ID and hash enforced, retained approved manifest reselected without inventing new approval.",
+      "remaining_source_and_acceptance": "Exact corpus ID+hash and retained manifest UI are present. Representative approved corpora, independent rubric/holdout, wider MR cells and operating latency remain actual acceptance; broader domain/oracle/MR and predictive models require additional selected source.",
+      "integrated_source_verification_complete": true,
+      "integration_report": "reports/advancement-completion-2026-10-19/verification.json",
+      "verification_covers_implemented_slice_only": true,
+      "current_completeness_audit": "docs/design-implementation-audit.json",
+      "current_order_rank": 5,
+      "current_candidate_version": "1.41",
+      "historical_v140_state": "bounded_source_integrated_verified",
+      "candidate_reports": {
+        "readme": "reports/advancement-completion-2026-10-19/README.md",
+        "verification": "reports/advancement-completion-2026-10-19/verification.json",
+        "source_snapshot": "reports/advancement-completion-2026-10-19/accepted-source-snapshot.json",
+        "selected_regression": "reports/advancement-completion-2026-10-19/selected-regression.json",
+        "final_summary": "reports/advancement-completion-2026-10-19/accepted-summary.json",
+        "native": "reports/advancement-completion-2026-10-19/native-application.xml",
+        "evidence": "reports/advancement-completion-2026-10-19/evidence-work.json",
+        "model": "reports/advancement-completion-2026-10-19/model-proposal-work.json",
+        "remote_ui": "reports/advancement-completion-2026-10-19/remote-a2a-ui-work.json",
+        "customer": "reports/advancement-completion-2026-10-19/customer-private-work.json",
+        "storage": "reports/advancement-completion-2026-10-19/storage-profiles-work.json",
+        "public_receipt": "reports/advancement-completion-2026-10-19/public-receipt-work.json",
+        "crypto": "reports/advancement-completion-2026-10-19/x402-eip3009-work.json",
+        "benchmark": "reports/advancement-completion-2026-10-19/representative-html.json",
+        "privacy": "reports/advancement-completion-2026-10-19/privacy-browser.xml",
+        "initial_failed_summary": "reports/advancement-completion-2026-10-19/final/summary.json"
+      },
+      "full_design_complete": false
+    },
+    {
+      "id": "P2-02-SURFACE-OFFLINE",
+      "title": "신뢰성 표면 offline 분석",
+      "parent_track": "P2-02",
+      "current_order_id": "POST139R-04",
+      "attachment_tags": [
+        "RQ1"
+      ],
+      "state": "bounded_source_integrated_verified_actual_acceptance_and_conditional_source_open",
+      "source_work_can_start_with_isolated_fixtures": true,
+      "implementation_owner": "P2-02 contract/core owner; shared services remain with their existing owner",
+      "artifact_identity": "p2-02-surface-offline-profile-v1",
+      "reuse_components": [
+        "agent_market/evidence_rollups.py",
+        "agent_market/reliability_evaluation.py",
+        "agent_market/reliability_routing.py"
+      ],
+      "reuse_verification": "reports/advancement-phase2-integration-2026-10-19/verification.json",
+      "source_delta": "Analyze discrete contract/version cells of k-consistency, approved perturbation and fault intensity with denominators and uncertainty.",
+      "source_dependencies": [
+        "P2-02-ACTION-MR-ORACLE"
+      ],
+      "entry_conditions": [
+        "Pre-register analysis plan, repeat grouping, cluster/host handling and minimum samples; retain source lineage."
+      ],
+      "exit_criteria": [
+        "Distinguish pass-all-k from pass@k; report unevaluated/unknown/missing coverage and paired uncertainty.",
+        "Time-split calibration/false-quarantine/lead-time baseline required before any predictive routing claim."
+      ],
+      "actual_acceptance_dependencies": [
+        "Representative current evidence and independent quality acceptance for operational conclusions."
+      ],
+      "validation_focus": [
+        "Sparse cells, correlated runs/hosts, version drift and holdout leakage."
+      ],
+      "stop_conditions": [
+        "Current purpose/authority, version pin, retention or call budget cannot be established.",
+        "Unknown external outcome: preserve uncertainty and reconcile; no automatic business replay.",
+        "Promotion thresholds, actual targets or required approval are absent."
+      ],
+      "non_goals": [
+        "No sparse-cell precise derivatives, predictive SLA or recommended-agent hot-path judge."
+      ],
+      "public_activation": false,
+      "actual_acceptance_complete": false,
+      "deliverables": [
+        "One versioned contract and source delta against the reused components.",
+        "Scoped isolated security/API/browser/native-parity/restore evidence where affected; documentation and acceptance limits."
+      ],
+      "source_artifacts": [
+        "agent_market/reliability_research.py",
+        "scripts/rehearse_reliability_experiment.py"
+      ],
+      "implemented_slice": "Existing research API k/transform cells retain baseline lambda=0. A separate offline CLI measured sparse categorical fault cells in eight controlled paired episodes through sixteen existing evaluation calls; goal failures, unknown and unassessable coverage remain distinct. All-k is separate from pass-at-k.",
+      "remaining_source_and_acceptance": "Exact corpus ID+hash and retained manifest UI are present. Representative approved corpora, independent rubric/holdout, wider MR cells and operating latency remain actual acceptance; broader domain/oracle/MR and predictive models require additional selected source.",
+      "integrated_source_verification_complete": true,
+      "integration_report": "reports/advancement-completion-2026-10-19/verification.json",
+      "verification_covers_implemented_slice_only": true,
+      "current_completeness_audit": "docs/design-implementation-audit.json",
+      "current_order_rank": 5,
+      "current_candidate_version": "1.41",
+      "historical_v140_state": "bounded_source_integrated_verified",
+      "candidate_reports": {
+        "readme": "reports/advancement-completion-2026-10-19/README.md",
+        "verification": "reports/advancement-completion-2026-10-19/verification.json",
+        "source_snapshot": "reports/advancement-completion-2026-10-19/accepted-source-snapshot.json",
+        "selected_regression": "reports/advancement-completion-2026-10-19/selected-regression.json",
+        "final_summary": "reports/advancement-completion-2026-10-19/accepted-summary.json",
+        "native": "reports/advancement-completion-2026-10-19/native-application.xml",
+        "evidence": "reports/advancement-completion-2026-10-19/evidence-work.json",
+        "model": "reports/advancement-completion-2026-10-19/model-proposal-work.json",
+        "remote_ui": "reports/advancement-completion-2026-10-19/remote-a2a-ui-work.json",
+        "customer": "reports/advancement-completion-2026-10-19/customer-private-work.json",
+        "storage": "reports/advancement-completion-2026-10-19/storage-profiles-work.json",
+        "public_receipt": "reports/advancement-completion-2026-10-19/public-receipt-work.json",
+        "crypto": "reports/advancement-completion-2026-10-19/x402-eip3009-work.json",
+        "benchmark": "reports/advancement-completion-2026-10-19/representative-html.json",
+        "privacy": "reports/advancement-completion-2026-10-19/privacy-browser.xml",
+        "initial_failed_summary": "reports/advancement-completion-2026-10-19/final/summary.json"
+      },
+      "full_design_complete": false
+    },
+    {
+      "id": "P2-05-DUAL-CLOCK-SHADOW",
+      "title": "관측 가능한 Dual-Clock shadow",
+      "parent_track": "P2-05",
+      "current_order_id": "POST139R-04",
+      "attachment_tags": [
+        "RQ2"
+      ],
+      "state": "bounded_source_integrated_verified_actual_acceptance_and_conditional_source_open",
+      "source_work_can_start_with_isolated_fixtures": true,
+      "implementation_owner": "P2-05 contract/core owner; shared services remain with their existing owner",
+      "artifact_identity": "p2-05-dual-clock-shadow-profile-v1",
+      "reuse_components": [
+        "agent_market/workspace_typed_flows.py",
+        "agent_market/workflow_persistence.py",
+        "agent_market/observability.py"
+      ],
+      "reuse_verification": "reports/advancement-phase2-integration-2026-10-19/verification.json",
+      "source_delta": "Extend the common lineage with observed raw-event sequence, closed-action sequence and separate evaluation revision/milestone references.",
+      "source_dependencies": [
+        "P2-01-TYPED-EVIDENCE"
+      ],
+      "entry_conditions": [
+        "Profile-specific observable event boundaries and source-grounded milestone specification fixed."
+      ],
+      "exit_criteria": [
+        "Replay/shadow only: no business calls or stop authority; compare detection latency/false positives/overhead with trajectory baseline.",
+        "Unknown/partial/lost response is never a successful closed milestone; MCP and long-task events remain distinct."
+      ],
+      "actual_acceptance_dependencies": [
+        "Approved actual pilot and precommitted quality-loss/false-positive thresholds before intervention."
+      ],
+      "validation_focus": [
+        "Hidden CoT excluded, causal ordering/late events, no answer-path leakage to planner, deterministic policy fence retained."
+      ],
+      "stop_conditions": [
+        "Current purpose/authority, version pin, retention or call budget cannot be established.",
+        "Unknown external outcome: preserve uncertainty and reconcile; no automatic business replay.",
+        "Promotion thresholds, actual targets or required approval are absent."
+      ],
+      "non_goals": [
+        "No second logger; no inferred remote reasoning/yield events or synchronous judge on every action."
+      ],
+      "public_activation": false,
+      "actual_acceptance_complete": false,
+      "deliverables": [
+        "One versioned contract and source delta against the reused components.",
+        "Scoped isolated security/API/browser/native-parity/restore evidence where affected; documentation and acceptance limits."
+      ],
+      "source_artifacts": [
+        "agent_market/reliability_research.py",
+        "agent_market/workspace_typed_evidence.py",
+        "scripts/rehearse_reliability_experiment.py"
+      ],
+      "implemented_slice": "Trusted typed event/closed-action metadata and controlled single-read milestone/prefix shadow with two/three-event counterfactual replay; no extra business call or hidden trace.",
+      "remaining_source_and_acceptance": "Exact replan diff/base revision and optional minimal public-objective news/docs model proposal reuse the existing compiler/review/new draft. General branching/domain synthesis and actual opt-in early-stop controller, threshold validator and baseline/intervention evidence remain conditional source; actual_interventions=0.",
+      "integrated_source_verification_complete": true,
+      "integration_report": "reports/advancement-completion-2026-10-19/verification.json",
+      "verification_covers_implemented_slice_only": true,
+      "current_completeness_audit": "docs/design-implementation-audit.json",
+      "current_order_rank": 5,
+      "current_candidate_version": "1.41",
+      "historical_v140_state": "bounded_source_integrated_verified",
+      "candidate_reports": {
+        "readme": "reports/advancement-completion-2026-10-19/README.md",
+        "verification": "reports/advancement-completion-2026-10-19/verification.json",
+        "source_snapshot": "reports/advancement-completion-2026-10-19/accepted-source-snapshot.json",
+        "selected_regression": "reports/advancement-completion-2026-10-19/selected-regression.json",
+        "final_summary": "reports/advancement-completion-2026-10-19/accepted-summary.json",
+        "native": "reports/advancement-completion-2026-10-19/native-application.xml",
+        "evidence": "reports/advancement-completion-2026-10-19/evidence-work.json",
+        "model": "reports/advancement-completion-2026-10-19/model-proposal-work.json",
+        "remote_ui": "reports/advancement-completion-2026-10-19/remote-a2a-ui-work.json",
+        "customer": "reports/advancement-completion-2026-10-19/customer-private-work.json",
+        "storage": "reports/advancement-completion-2026-10-19/storage-profiles-work.json",
+        "public_receipt": "reports/advancement-completion-2026-10-19/public-receipt-work.json",
+        "crypto": "reports/advancement-completion-2026-10-19/x402-eip3009-work.json",
+        "benchmark": "reports/advancement-completion-2026-10-19/representative-html.json",
+        "privacy": "reports/advancement-completion-2026-10-19/privacy-browser.xml",
+        "initial_failed_summary": "reports/advancement-completion-2026-10-19/final/summary.json"
+      },
+      "full_design_complete": false
+    },
+    {
+      "id": "P2-06-SDK-THREAT-DELTA",
+      "title": "기존 SDK2 위협모델 차이·호환 행렬",
+      "parent_track": "P2-06",
+      "current_order_id": "POST139R-05",
+      "attachment_tags": [
+        "RQ4"
+      ],
+      "state": "bounded_source_integrated_verified_actual_acceptance_and_conditional_source_open",
+      "source_work_can_start_with_isolated_fixtures": true,
+      "implementation_owner": "P2-06 contract/core owner; shared services remain with their existing owner",
+      "artifact_identity": "p2-06-sdk-threat-delta-profile-v1",
+      "reuse_components": [
+        "agent_market/workspace_release.py",
+        "agent_market/workspace_typed_release.py",
+        "agent_market/workspace_sdk_bff.py",
+        "agent_market/gateway/webapp/sdk-v2.js"
+      ],
+      "reuse_verification": "reports/advancement-phase2-integration-2026-10-19/verification.json",
+      "source_delta": "Audit existing BFF/PKCE/capability/quota artifacts first; implement only demonstrated client/server gaps and versioned compatibility fixtures.",
+      "source_dependencies": [],
+      "entry_conditions": [
+        "Threat model and exported artifacts compared against existing scoped server authority."
+      ],
+      "exit_criteria": [
+        "Keep provider secrets/long bearer out of ZIP/browser/query; verify atomic quota, revoke/expiry/restore and org/origin/audience.",
+        "If defensive copy/freeze is needed, bound depth/nodes/bytes and reject prototype/getter/cycle hazards; no global locking.",
+        "Record SDK vs gateway vs MCP revision vs A2A vs x402 scheme/network independently; preserve existing public SDK1.x."
+      ],
+      "actual_acceptance_dependencies": [
+        "Designated Google/GitHub accounts, HTTPS/BFF deployment and recovery owner for actual acceptance."
+      ],
+      "validation_focus": [
+        "XSS/client tampering, concurrent/replay quota, current session/policy, PKCE and non-browser CORS bypass assumptions."
+      ],
+      "stop_conditions": [
+        "Current purpose/authority, version pin, retention or call budget cannot be established.",
+        "Unknown external outcome: preserve uncertainty and reconcile; no automatic business replay.",
+        "Promotion thresholds, actual targets or required approval are absent."
+      ],
+      "non_goals": [
+        "No full SDK rewrite; #private/GC/toString is not a DevTools or credential security boundary."
+      ],
+      "public_activation": false,
+      "actual_acceptance_complete": false,
+      "deliverables": [
+        "One versioned contract and source delta against the reused components.",
+        "Scoped isolated security/API/browser/native-parity/restore evidence where affected; documentation and acceptance limits."
+      ],
+      "source_artifacts": [
+        "agent_market/workspace_sdk_bff.py",
+        "tests/test_workspace_sdk_threat_delta.py"
+      ],
+      "implemented_slice": "Existing SDK1.x/SDK2 threat delta reused with private customer exact-input test, immutable release and exact HTTPS origin deploy/export journey; actual IdP/HTTPS roundtrip remains pending.",
+      "remaining_source_and_acceptance": "Private customer draft/test/release/deploy/export and staff-only bounded A2A0.3 polling/cancel UI/API exist. Real frontend Google/GitHub/HTTPS SDK2 acceptance remains. Remote session/multi-turn/SSE/resume and selected sole-owner recovery require additional source; no customer-to-staff conversion.",
+      "integrated_source_verification_complete": true,
+      "integration_report": "reports/advancement-completion-2026-10-19/verification.json",
+      "verification_covers_implemented_slice_only": true,
+      "current_completeness_audit": "docs/design-implementation-audit.json",
+      "current_order_rank": 6,
+      "current_candidate_version": "1.41",
+      "historical_v140_state": "bounded_source_integrated_verified",
+      "candidate_reports": {
+        "readme": "reports/advancement-completion-2026-10-19/README.md",
+        "verification": "reports/advancement-completion-2026-10-19/verification.json",
+        "source_snapshot": "reports/advancement-completion-2026-10-19/accepted-source-snapshot.json",
+        "selected_regression": "reports/advancement-completion-2026-10-19/selected-regression.json",
+        "final_summary": "reports/advancement-completion-2026-10-19/accepted-summary.json",
+        "native": "reports/advancement-completion-2026-10-19/native-application.xml",
+        "evidence": "reports/advancement-completion-2026-10-19/evidence-work.json",
+        "model": "reports/advancement-completion-2026-10-19/model-proposal-work.json",
+        "remote_ui": "reports/advancement-completion-2026-10-19/remote-a2a-ui-work.json",
+        "customer": "reports/advancement-completion-2026-10-19/customer-private-work.json",
+        "storage": "reports/advancement-completion-2026-10-19/storage-profiles-work.json",
+        "public_receipt": "reports/advancement-completion-2026-10-19/public-receipt-work.json",
+        "crypto": "reports/advancement-completion-2026-10-19/x402-eip3009-work.json",
+        "benchmark": "reports/advancement-completion-2026-10-19/representative-html.json",
+        "privacy": "reports/advancement-completion-2026-10-19/privacy-browser.xml",
+        "initial_failed_summary": "reports/advancement-completion-2026-10-19/final/summary.json"
+      },
+      "full_design_complete": false
+    },
+    {
+      "id": "P2-04-SINGLE-ADMISSION",
+      "title": "단일 business-call admission",
+      "parent_track": "P2-04",
+      "current_order_id": "POST139R-07",
+      "attachment_tags": [
+        "RQ1",
+        "RQ2"
+      ],
+      "state": "bounded_source_integrated_verified_actual_acceptance_and_conditional_source_open",
+      "source_work_can_start_with_isolated_fixtures": true,
+      "implementation_owner": "P2-04 contract/core owner; shared services remain with their existing owner",
+      "artifact_identity": "p2-04-single-admission-profile-v1",
+      "reuse_components": [
+        "agent_market/reliability_routing.py",
+        "agent_market/workflow_persistence.py",
+        "agent_market/execution_authority.py"
+      ],
+      "reuse_verification": "reports/advancement-phase2-integration-2026-10-19/verification.json",
+      "source_delta": "Add current-policy single-provider admission, explicit pilot canary, circuit state and separately authorized evaluation probes.",
+      "source_dependencies": [
+        "P2-01-TYPED-EVIDENCE",
+        "P2-02-ACTION-MR-ORACLE"
+      ],
+      "entry_conditions": [
+        "Current version/contract and independent quality/latency baseline; input-sharing scope and owner approval established."
+      ],
+      "exit_criteria": [
+        "Maximum one selected business call and zero replacement; mutually exclusive with R-06 primary/alternate budget.",
+        "Only pre-admission quarantine; unknown after dispatch holds and never triggers a second provider or payment."
+      ],
+      "actual_acceptance_dependencies": [
+        "POST139R-04/05 actual evidence and separate execution promotion approval."
+      ],
+      "validation_focus": [
+        "Concurrent claims, stale pins/evidence, shared host failure, current revocation, unknown and recovery."
+      ],
+      "stop_conditions": [
+        "Current purpose/authority, version pin, retention or call budget cannot be established.",
+        "Unknown external outcome: preserve uncertainty and reconcile; no automatic business replay.",
+        "Promotion thresholds, actual targets or required approval are absent."
+      ],
+      "non_goals": [
+        "No parallel customer duplicates, arbitrary state migration or unbounded online learning."
+      ],
+      "public_activation": false,
+      "actual_acceptance_complete": false,
+      "deliverables": [
+        "One versioned contract and source delta against the reused components.",
+        "Scoped isolated security/API/browser/native-parity/restore evidence where affected; documentation and acceptance limits."
+      ],
+      "source_artifacts": [
+        "agent_market/reliability_admission.py",
+        "agent_market/reliability_admission_service.py",
+        "agent_market/reliability_circuit.py",
+        "agent_market/reliability_evaluation.py",
+        "agent_market/reliability_evaluation_worker.py"
+      ],
+      "implemented_slice": "Existing one-provider admission/ticket reviewed from exact retained snapshot with fresh run consent. Circuit private API/UI adds manual configure/ingest and separately approved probe bind/refresh, no automatic dispatch.",
+      "remaining_source_and_acceptance": "Circuit service/UI and manual retained-observation ingest/separately approved probe bind/refresh are present. Automatic trusted observation consumption/probe scheduling, predictive routing, actual thresholds and operating comparison remain conditional source/evidence. One-call/replacement0 and unknown-no-replay remain.",
+      "integrated_source_verification_complete": true,
+      "integration_report": "reports/advancement-completion-2026-10-19/verification.json",
+      "verification_covers_implemented_slice_only": true,
+      "current_completeness_audit": "docs/design-implementation-audit.json",
+      "current_order_rank": 7,
+      "current_candidate_version": "1.41",
+      "historical_v140_state": "bounded_source_integrated_verified_default_off",
+      "candidate_reports": {
+        "readme": "reports/advancement-completion-2026-10-19/README.md",
+        "verification": "reports/advancement-completion-2026-10-19/verification.json",
+        "source_snapshot": "reports/advancement-completion-2026-10-19/accepted-source-snapshot.json",
+        "selected_regression": "reports/advancement-completion-2026-10-19/selected-regression.json",
+        "final_summary": "reports/advancement-completion-2026-10-19/accepted-summary.json",
+        "native": "reports/advancement-completion-2026-10-19/native-application.xml",
+        "evidence": "reports/advancement-completion-2026-10-19/evidence-work.json",
+        "model": "reports/advancement-completion-2026-10-19/model-proposal-work.json",
+        "remote_ui": "reports/advancement-completion-2026-10-19/remote-a2a-ui-work.json",
+        "customer": "reports/advancement-completion-2026-10-19/customer-private-work.json",
+        "storage": "reports/advancement-completion-2026-10-19/storage-profiles-work.json",
+        "public_receipt": "reports/advancement-completion-2026-10-19/public-receipt-work.json",
+        "crypto": "reports/advancement-completion-2026-10-19/x402-eip3009-work.json",
+        "benchmark": "reports/advancement-completion-2026-10-19/representative-html.json",
+        "privacy": "reports/advancement-completion-2026-10-19/privacy-browser.xml",
+        "initial_failed_summary": "reports/advancement-completion-2026-10-19/final/summary.json"
+      },
+      "full_design_complete": false
+    },
+    {
+      "id": "P2-05-EARLY-STOP-PILOT",
+      "title": "조기 종료 opt-in pilot",
+      "parent_track": "P2-05",
+      "current_order_id": "POST139R-07",
+      "attachment_tags": [
+        "RQ2"
+      ],
+      "state": "bounded_offline_preparation_integrated_verified_actual_controller_unimplemented",
+      "source_work_can_start_with_isolated_fixtures": true,
+      "implementation_owner": "P2-05 contract/core owner; shared services remain with their existing owner",
+      "artifact_identity": "p2-05-early-stop-pilot-profile-v1",
+      "reuse_components": [
+        "agent_market/workspace_typed_flows.py",
+        "agent_market/workflow_persistence.py",
+        "agent_market/reliability_routing.py"
+      ],
+      "reuse_verification": "reports/advancement-phase2-integration-2026-10-19/verification.json",
+      "source_delta": "Promote only a narrow validated would_stop rule from shadow to explicit intervention after paired evaluation.",
+      "source_dependencies": [
+        "P2-05-DUAL-CLOCK-SHADOW",
+        "P2-02-ACTION-MR-ORACLE"
+      ],
+      "entry_conditions": [
+        "Precommitted false-stop, successful-outcome loss and overhead thresholds passed against baseline."
+      ],
+      "exit_criteria": [
+        "Separate counterfactual replay savings from measured actual interventions and quality losses.",
+        "Local cancellation is not provider cancellation; post-dispatch unknown never replays."
+      ],
+      "actual_acceptance_dependencies": [
+        "Approved actual opt-in task profile, known provider cancel/status semantics and rollback owner."
+      ],
+      "validation_focus": [
+        "False positives, delayed responses, cancellation races, absolute deadlines and no remote-cancel claims."
+      ],
+      "stop_conditions": [
+        "Current purpose/authority, version pin, retention or call budget cannot be established.",
+        "Unknown external outcome: preserve uncertainty and reconcile; no automatic business replay.",
+        "Promotion thresholds, actual targets or required approval are absent."
+      ],
+      "non_goals": [],
+      "public_activation": false,
+      "actual_acceptance_complete": false,
+      "deliverables": [
+        "One versioned contract and source delta against the reused components.",
+        "Scoped isolated security/API/browser/native-parity/restore evidence where affected; documentation and acceptance limits."
+      ],
+      "source_artifacts": [
+        "agent_market/reliability_research.py",
+        "scripts/rehearse_reliability_experiment.py"
+      ],
+      "implemented_slice": "Immutable seeded eight-pair offline fault preparation and milestone/prefix replay sensitivity are available on the existing evaluation worker; actual interventions are zero, actual intervention metrics null, controller and promotion off.",
+      "remaining_source_and_acceptance": "Exact replan diff/base revision and optional minimal public-objective news/docs model proposal reuse the existing compiler/review/new draft. General branching/domain synthesis and actual opt-in early-stop controller, threshold validator and baseline/intervention evidence remain conditional source; actual_interventions=0.",
+      "integrated_source_verification_complete": true,
+      "integration_report": "reports/advancement-completion-2026-10-19/verification.json",
+      "verification_covers_implemented_slice_only": true,
+      "current_completeness_audit": "docs/design-implementation-audit.json",
+      "current_order_rank": 7,
+      "current_candidate_version": "1.41",
+      "historical_v140_state": "offline_preparation_integrated_verified_actual_controller_unimplemented",
+      "candidate_reports": {
+        "readme": "reports/advancement-completion-2026-10-19/README.md",
+        "verification": "reports/advancement-completion-2026-10-19/verification.json",
+        "source_snapshot": "reports/advancement-completion-2026-10-19/accepted-source-snapshot.json",
+        "selected_regression": "reports/advancement-completion-2026-10-19/selected-regression.json",
+        "final_summary": "reports/advancement-completion-2026-10-19/accepted-summary.json",
+        "native": "reports/advancement-completion-2026-10-19/native-application.xml",
+        "evidence": "reports/advancement-completion-2026-10-19/evidence-work.json",
+        "model": "reports/advancement-completion-2026-10-19/model-proposal-work.json",
+        "remote_ui": "reports/advancement-completion-2026-10-19/remote-a2a-ui-work.json",
+        "customer": "reports/advancement-completion-2026-10-19/customer-private-work.json",
+        "storage": "reports/advancement-completion-2026-10-19/storage-profiles-work.json",
+        "public_receipt": "reports/advancement-completion-2026-10-19/public-receipt-work.json",
+        "crypto": "reports/advancement-completion-2026-10-19/x402-eip3009-work.json",
+        "benchmark": "reports/advancement-completion-2026-10-19/representative-html.json",
+        "privacy": "reports/advancement-completion-2026-10-19/privacy-browser.xml",
+        "initial_failed_summary": "reports/advancement-completion-2026-10-19/final/summary.json"
+      },
+      "full_design_complete": false
+    },
+    {
+      "id": "P2-05-REVIEWED-REPLAN",
+      "title": "검토 가능한 재계획 proposal",
+      "parent_track": "P2-05",
+      "current_order_id": "POST139R-07",
+      "attachment_tags": [
+        "RQ2"
+      ],
+      "state": "bounded_source_integrated_verified_actual_acceptance_and_conditional_source_open",
+      "source_work_can_start_with_isolated_fixtures": true,
+      "implementation_owner": "P2-05 contract/core owner; shared services remain with their existing owner",
+      "artifact_identity": "p2-05-reviewed-replan-profile-v1",
+      "reuse_components": [
+        "agent_market/workspace_app_factory.py",
+        "agent_market/workspace_typed_flows.py",
+        "agent_market/workspace_typed_release.py"
+      ],
+      "reuse_verification": "reports/advancement-phase2-integration-2026-10-19/verification.json",
+      "source_delta": "Propose reviewed pure contract-preserving transforms and new graph revisions using the existing deterministic compiler.",
+      "source_dependencies": [
+        "P2-01-TYPED-EVIDENCE",
+        "P2-05-DUAL-CLOCK-SHADOW"
+      ],
+      "entry_conditions": [
+        "Supported transform registry and allowed intent/input-sharing/output constraints identified."
+      ],
+      "exit_criteria": [
+        "New draft/revision, deterministic validation, explicit change review and separately authorized test/release.",
+        "In-flight run retains original pins; schema/tool/provider/sharing/amount/budget/signature are never silently repaired."
+      ],
+      "actual_acceptance_dependencies": [
+        "Approved user task and explicit review for changed data sharing or release."
+      ],
+      "validation_focus": [
+        "Prompt injection, cyclic/schema-invalid proposal, protected fields, stale revision and partial-result disclosure."
+      ],
+      "stop_conditions": [
+        "Current purpose/authority, version pin, retention or call budget cannot be established.",
+        "Unknown external outcome: preserve uncertainty and reconcile; no automatic business replay.",
+        "Promotion thresholds, actual targets or required approval are absent."
+      ],
+      "non_goals": [
+        "No hot-swap of unknown external sessions, no generic remote-agent sandbox from local folders."
+      ],
+      "public_activation": false,
+      "actual_acceptance_complete": false,
+      "deliverables": [
+        "One versioned contract and source delta against the reused components.",
+        "Scoped isolated security/API/browser/native-parity/restore evidence where affected; documentation and acceptance limits."
+      ],
+      "source_artifacts": [
+        "agent_market/workspace_app_factory.py",
+        "agent_market/workspace_growth_service.py"
+      ],
+      "implemented_slice": "Existing exact plan changes/base version and stale-base compiler shown in staff UI. Optional minimal metadata model proposal still commits only a separately reviewed new draft.",
+      "remaining_source_and_acceptance": "Exact replan diff/base revision and optional minimal public-objective news/docs model proposal reuse the existing compiler/review/new draft. General branching/domain synthesis and actual opt-in early-stop controller, threshold validator and baseline/intervention evidence remain conditional source; actual_interventions=0.",
+      "integrated_source_verification_complete": true,
+      "integration_report": "reports/advancement-completion-2026-10-19/verification.json",
+      "verification_covers_implemented_slice_only": true,
+      "current_completeness_audit": "docs/design-implementation-audit.json",
+      "current_order_rank": 7,
+      "current_candidate_version": "1.41",
+      "historical_v140_state": "bounded_source_integrated_verified",
+      "candidate_reports": {
+        "readme": "reports/advancement-completion-2026-10-19/README.md",
+        "verification": "reports/advancement-completion-2026-10-19/verification.json",
+        "source_snapshot": "reports/advancement-completion-2026-10-19/accepted-source-snapshot.json",
+        "selected_regression": "reports/advancement-completion-2026-10-19/selected-regression.json",
+        "final_summary": "reports/advancement-completion-2026-10-19/accepted-summary.json",
+        "native": "reports/advancement-completion-2026-10-19/native-application.xml",
+        "evidence": "reports/advancement-completion-2026-10-19/evidence-work.json",
+        "model": "reports/advancement-completion-2026-10-19/model-proposal-work.json",
+        "remote_ui": "reports/advancement-completion-2026-10-19/remote-a2a-ui-work.json",
+        "customer": "reports/advancement-completion-2026-10-19/customer-private-work.json",
+        "storage": "reports/advancement-completion-2026-10-19/storage-profiles-work.json",
+        "public_receipt": "reports/advancement-completion-2026-10-19/public-receipt-work.json",
+        "crypto": "reports/advancement-completion-2026-10-19/x402-eip3009-work.json",
+        "benchmark": "reports/advancement-completion-2026-10-19/representative-html.json",
+        "privacy": "reports/advancement-completion-2026-10-19/privacy-browser.xml",
+        "initial_failed_summary": "reports/advancement-completion-2026-10-19/final/summary.json"
+      },
+      "full_design_complete": false
+    },
+    {
+      "id": "P2-03-PUBLIC-RECEIPT",
+      "title": "조건부 공개 offline receipt",
+      "parent_track": "P2-03",
+      "current_order_id": "POST139R-07",
+      "attachment_tags": [
+        "RQ2",
+        "RQ3"
+      ],
+      "state": "bounded_source_integrated_verified_actual_acceptance_and_conditional_source_open",
+      "source_work_can_start_with_isolated_fixtures": true,
+      "implementation_owner": "P2-03 contract/core owner; shared services remain with their existing owner",
+      "artifact_identity": "p2-03-public-receipt-profile-v1",
+      "reuse_components": [
+        "agent_market/reliability_trust.py",
+        "agent_market/workspace_machine_receiver.py",
+        "agent_market/workspace_machine_adapters.py",
+        "agent_market/private_artifact_keys.py"
+      ],
+      "reuse_verification": "reports/advancement-phase2-integration-2026-10-19/verification.json",
+      "source_delta": "If third-party portable verification is needed, design a new asymmetric canonical-payload signature/trust-key lifecycle profile.",
+      "source_dependencies": [
+        "P2-01-TYPED-EVIDENCE"
+      ],
+      "entry_conditions": [
+        "Real public portable-verification demand and sanitized disclosure scope established."
+      ],
+      "exit_criteria": [
+        "Define issuer/key ID/algorithm/trust distribution/rotation/expiry/revocation limits; offline validation cannot assert current revocation.",
+        "Explicitly distinguish existing HMAC receipt, hash integrity, delivery acceptance, independent quality and legal payment evidence."
+      ],
+      "actual_acceptance_dependencies": [
+        "Signing owner/key distribution, public exposure approval and threat review."
+      ],
+      "validation_focus": [
+        "Canonicalization/substitution, wrong issuer/key, expiry/rotation, minimal non-personal payload and revocation limits."
+      ],
+      "stop_conditions": [
+        "Current purpose/authority, version pin, retention or call budget cannot be established.",
+        "Unknown external outcome: preserve uncertainty and reconcile; no automatic business replay.",
+        "Promotion thresholds, actual targets or required approval are absent."
+      ],
+      "non_goals": [
+        "Existing internal HMAC is not an asymmetric public signature; no new signing module claimed implemented."
+      ],
+      "public_activation": false,
+      "actual_acceptance_complete": false,
+      "deliverables": [
+        "One versioned contract and source delta against the reused components.",
+        "Scoped isolated security/API/browser/native-parity/restore evidence where affected; documentation and acceptance limits."
+      ],
+      "source_artifacts": [
+        "agent_market/reliability_portable_receipt.py"
+      ],
+      "implemented_slice": "Existing offline Ed25519 receipt helper reused by separate opt-in create_trust_app with exact host, current disclosure/projection/key authority, bounded rate and final current approval. No main public mount or automatic key generation/publication.",
+      "remaining_source_and_acceptance": "Separate explicit opt-in trust app factory/public minimal receipt profile exists. It is not mounted on main public app. Actual disclosure/key authorizer, key publication/discovery/custody/rotation/current revocation integration and exposure acceptance remain conditional source and approval.",
+      "integrated_source_verification_complete": true,
+      "integration_report": "reports/advancement-completion-2026-10-19/verification.json",
+      "verification_covers_implemented_slice_only": true,
+      "current_completeness_audit": "docs/design-implementation-audit.json",
+      "current_order_rank": 7,
+      "current_candidate_version": "1.41",
+      "historical_v140_state": "offline_helper_integrated_verified_publication_unimplemented",
+      "candidate_reports": {
+        "readme": "reports/advancement-completion-2026-10-19/README.md",
+        "verification": "reports/advancement-completion-2026-10-19/verification.json",
+        "source_snapshot": "reports/advancement-completion-2026-10-19/accepted-source-snapshot.json",
+        "selected_regression": "reports/advancement-completion-2026-10-19/selected-regression.json",
+        "final_summary": "reports/advancement-completion-2026-10-19/accepted-summary.json",
+        "native": "reports/advancement-completion-2026-10-19/native-application.xml",
+        "evidence": "reports/advancement-completion-2026-10-19/evidence-work.json",
+        "model": "reports/advancement-completion-2026-10-19/model-proposal-work.json",
+        "remote_ui": "reports/advancement-completion-2026-10-19/remote-a2a-ui-work.json",
+        "customer": "reports/advancement-completion-2026-10-19/customer-private-work.json",
+        "storage": "reports/advancement-completion-2026-10-19/storage-profiles-work.json",
+        "public_receipt": "reports/advancement-completion-2026-10-19/public-receipt-work.json",
+        "crypto": "reports/advancement-completion-2026-10-19/x402-eip3009-work.json",
+        "benchmark": "reports/advancement-completion-2026-10-19/representative-html.json",
+        "privacy": "reports/advancement-completion-2026-10-19/privacy-browser.xml",
+        "initial_failed_summary": "reports/advancement-completion-2026-10-19/final/summary.json"
+      },
+      "full_design_complete": false
+    },
+    {
+      "id": "P2-05-INTENT-EXTENSION",
+      "title": "수요 기반 intent 확장",
+      "parent_track": "P2-05",
+      "current_order_id": "POST139R-08",
+      "attachment_tags": [
+        "RQ2"
+      ],
+      "state": "bounded_source_integrated_verified_actual_acceptance_and_conditional_source_open",
+      "source_work_can_start_with_isolated_fixtures": true,
+      "implementation_owner": "P2-05 contract/core owner; shared services remain with their existing owner",
+      "artifact_identity": "p2-05-intent-extension-profile-v1",
+      "reuse_components": [
+        "agent_market/workspace_app_factory.py",
+        "agent_market/workspace_typed_flows.py",
+        "agent_market/workspace_typed_release.py"
+      ],
+      "reuse_verification": "reports/advancement-phase2-integration-2026-10-19/verification.json",
+      "source_delta": "Add demand-proven intent candidates/contracts and reviewed compiler plans beyond three fixed English-keyword templates.",
+      "source_dependencies": [
+        "P2-01-TYPED-EVIDENCE"
+      ],
+      "entry_conditions": [
+        "Actual requested tasks, unsupported-case taxonomy and review rubric identified."
+      ],
+      "exit_criteria": [
+        "Measure accepted plans, required edits, completed business outcomes and time-to-result separately.",
+        "Unknown tasks ask for necessary intent details; explicit user review precedes test/release/data-sharing changes."
+      ],
+      "actual_acceptance_dependencies": [
+        "Real opt-in tasks and purpose-bound feedback."
+      ],
+      "validation_focus": [
+        "Untrusted content, schema/cycle/type constraints, current pins and English public copy."
+      ],
+      "stop_conditions": [
+        "Current purpose/authority, version pin, retention or call budget cannot be established.",
+        "Unknown external outcome: preserve uncertainty and reconcile; no automatic business replay.",
+        "Promotion thresholds, actual targets or required approval are absent."
+      ],
+      "non_goals": [],
+      "public_activation": false,
+      "actual_acceptance_complete": false,
+      "deliverables": [
+        "One versioned contract and source delta against the reused components.",
+        "Scoped isolated security/API/browser/native-parity/restore evidence where affected; documentation and acceptance limits."
+      ],
+      "source_artifacts": [
+        "agent_market/workspace_app_factory.py"
+      ],
+      "implemented_slice": "Existing bounded English clause parser remains. Separate optional model_proposer shares only attested public objective, approved candidate IDs/contracts and news/docs schemas, then strict2–6-step compile/exact review/new draft; configured None means off.",
+      "remaining_source_and_acceptance": "Exact replan diff/base revision and optional minimal public-objective news/docs model proposal reuse the existing compiler/review/new draft. General branching/domain synthesis and actual opt-in early-stop controller, threshold validator and baseline/intervention evidence remain conditional source; actual_interventions=0.",
+      "integrated_source_verification_complete": true,
+      "integration_report": "reports/advancement-completion-2026-10-19/verification.json",
+      "verification_covers_implemented_slice_only": true,
+      "current_completeness_audit": "docs/design-implementation-audit.json",
+      "current_order_rank": 8,
+      "current_candidate_version": "1.41",
+      "historical_v140_state": "bounded_source_integrated_verified",
+      "candidate_reports": {
+        "readme": "reports/advancement-completion-2026-10-19/README.md",
+        "verification": "reports/advancement-completion-2026-10-19/verification.json",
+        "source_snapshot": "reports/advancement-completion-2026-10-19/accepted-source-snapshot.json",
+        "selected_regression": "reports/advancement-completion-2026-10-19/selected-regression.json",
+        "final_summary": "reports/advancement-completion-2026-10-19/accepted-summary.json",
+        "native": "reports/advancement-completion-2026-10-19/native-application.xml",
+        "evidence": "reports/advancement-completion-2026-10-19/evidence-work.json",
+        "model": "reports/advancement-completion-2026-10-19/model-proposal-work.json",
+        "remote_ui": "reports/advancement-completion-2026-10-19/remote-a2a-ui-work.json",
+        "customer": "reports/advancement-completion-2026-10-19/customer-private-work.json",
+        "storage": "reports/advancement-completion-2026-10-19/storage-profiles-work.json",
+        "public_receipt": "reports/advancement-completion-2026-10-19/public-receipt-work.json",
+        "crypto": "reports/advancement-completion-2026-10-19/x402-eip3009-work.json",
+        "benchmark": "reports/advancement-completion-2026-10-19/representative-html.json",
+        "privacy": "reports/advancement-completion-2026-10-19/privacy-browser.xml",
+        "initial_failed_summary": "reports/advancement-completion-2026-10-19/final/summary.json"
+      },
+      "full_design_complete": false
+    },
+    {
+      "id": "P2-06-LONG-TASK-PROFILE",
+      "title": "장기 A2A/session profile",
+      "parent_track": "P2-06",
+      "current_order_id": "POST139R-08",
+      "attachment_tags": [
+        "RQ2",
+        "RQ4"
+      ],
+      "state": "bounded_source_integrated_verified_actual_acceptance_and_conditional_source_open",
+      "source_work_can_start_with_isolated_fixtures": true,
+      "implementation_owner": "P2-06 contract/core owner; shared services remain with their existing owner",
+      "artifact_identity": "p2-06-long-task-profile-profile-v1",
+      "reuse_components": [
+        "agent_market/workspace_sdk_bff.py",
+        "agent_market/workspace_typed_release.py",
+        "agent_market/workflow_persistence.py"
+      ],
+      "reuse_verification": "reports/advancement-phase2-integration-2026-10-19/verification.json",
+      "source_delta": "Add a separately versioned status/cancel/idempotency/session/stream profile only for demonstrated supported-provider needs.",
+      "source_dependencies": [
+        "P2-01-TYPED-EVIDENCE"
+      ],
+      "entry_conditions": [
+        "Protocol revision, actual remote task lifecycle and deadline/lease/cancel/idempotency guarantees documented."
+      ],
+      "exit_criteria": [
+        "Unknown, remote acceptance, status reconciliation and cancellation certainty remain explicit; no deadline reset or duplicate dispatch.",
+        "Existing MCP stateless/receipt-only A2A and public SDK downloads remain compatible."
+      ],
+      "actual_acceptance_dependencies": [
+        "Designated approved provider, HTTPS deployment and failure/rollback window."
+      ],
+      "validation_focus": [
+        "Reconnect/reorder/duplicate stream, expired authority, lost acknowledgement, cancellation and restoration."
+      ],
+      "stop_conditions": [
+        "Current purpose/authority, version pin, retention or call budget cannot be established.",
+        "Unknown external outcome: preserve uncertainty and reconcile; no automatic business replay.",
+        "Promotion thresholds, actual targets or required approval are absent."
+      ],
+      "non_goals": [],
+      "public_activation": false,
+      "actual_acceptance_complete": false,
+      "deliverables": [
+        "One versioned contract and source delta against the reused components.",
+        "Scoped isolated security/API/browser/native-parity/restore evidence where affected; documentation and acceptance limits."
+      ],
+      "source_artifacts": [],
+      "implemented_slice": "Selected private A2A0.3 JSON-RPC send/get/cancel profile with trusted pinned TaskBinding, bounded global dispatch, encrypted text retention, explicit staff desktop action consent and retained list/detail. No automatic polling/resubmission; unknown retained; streaming=False.",
+      "remaining_source_and_acceptance": "Private customer draft/test/release/deploy/export and staff-only bounded A2A0.3 polling/cancel UI/API exist. Real frontend Google/GitHub/HTTPS SDK2 acceptance remains. Remote session/multi-turn/SSE/resume and selected sole-owner recovery require additional source; no customer-to-staff conversion.",
+      "integrated_source_verification_complete": true,
+      "integration_report": "reports/advancement-completion-2026-10-19/verification.json",
+      "verification_covers_implemented_slice_only": true,
+      "current_completeness_audit": "docs/design-implementation-audit.json",
+      "current_order_rank": 8,
+      "current_candidate_version": "1.41",
+      "historical_v140_state": "conditional_source_not_implemented",
+      "candidate_reports": {
+        "readme": "reports/advancement-completion-2026-10-19/README.md",
+        "verification": "reports/advancement-completion-2026-10-19/verification.json",
+        "source_snapshot": "reports/advancement-completion-2026-10-19/accepted-source-snapshot.json",
+        "selected_regression": "reports/advancement-completion-2026-10-19/selected-regression.json",
+        "final_summary": "reports/advancement-completion-2026-10-19/accepted-summary.json",
+        "native": "reports/advancement-completion-2026-10-19/native-application.xml",
+        "evidence": "reports/advancement-completion-2026-10-19/evidence-work.json",
+        "model": "reports/advancement-completion-2026-10-19/model-proposal-work.json",
+        "remote_ui": "reports/advancement-completion-2026-10-19/remote-a2a-ui-work.json",
+        "customer": "reports/advancement-completion-2026-10-19/customer-private-work.json",
+        "storage": "reports/advancement-completion-2026-10-19/storage-profiles-work.json",
+        "public_receipt": "reports/advancement-completion-2026-10-19/public-receipt-work.json",
+        "crypto": "reports/advancement-completion-2026-10-19/x402-eip3009-work.json",
+        "benchmark": "reports/advancement-completion-2026-10-19/representative-html.json",
+        "privacy": "reports/advancement-completion-2026-10-19/privacy-browser.xml",
+        "initial_failed_summary": "reports/advancement-completion-2026-10-19/final/summary.json"
+      },
+      "full_design_complete": false
+    },
+    {
+      "id": "P2-02-ADAPTIVE-PRIORITY",
+      "title": "기존 평가 scheduler 우선순위 확장",
+      "parent_track": "P2-02",
+      "current_order_id": "POST139R-08",
+      "attachment_tags": [
+        "RQ1"
+      ],
+      "state": "bounded_source_integrated_verified_actual_acceptance_and_conditional_source_open",
+      "source_work_can_start_with_isolated_fixtures": true,
+      "implementation_owner": "P2-02 contract/core owner; shared services remain with their existing owner",
+      "artifact_identity": "p2-02-adaptive-priority-profile-v1",
+      "reuse_components": [
+        "agent_market/reliability_evaluation.py",
+        "agent_market/reliability_evaluation_worker.py",
+        "agent_market/evidence_rollups.py"
+      ],
+      "reuse_verification": "reports/advancement-phase2-integration-2026-10-19/verification.json",
+      "source_delta": "Rank existing evaluation jobs by approved usage/change/failure/expiry signals if actual coverage/budget data justifies it.",
+      "source_dependencies": [
+        "P2-02-ACTION-MR-ORACLE"
+      ],
+      "entry_conditions": [
+        "Fixed scheduler coverage and host-budget baseline recorded."
+      ],
+      "exit_criteria": [
+        "No duplicate scheduler; preserve jitter/host limits/current purpose/single dispatch/unknown and expose starvation/missing coverage."
+      ],
+      "actual_acceptance_dependencies": [
+        "Approved actual corpus/signals, budgets and operating owner."
+      ],
+      "validation_focus": [
+        "Fairness/starvation, noisy host signals, cooldown/coverage and revoked consent."
+      ],
+      "stop_conditions": [
+        "Current purpose/authority, version pin, retention or call budget cannot be established.",
+        "Unknown external outcome: preserve uncertainty and reconcile; no automatic business replay.",
+        "Promotion thresholds, actual targets or required approval are absent."
+      ],
+      "non_goals": [],
+      "public_activation": false,
+      "actual_acceptance_complete": false,
+      "deliverables": [
+        "One versioned contract and source delta against the reused components.",
+        "Scoped isolated security/API/browser/native-parity/restore evidence where affected; documentation and acceptance limits."
+      ],
+      "source_artifacts": [
+        "agent_market/reliability_evaluation_worker.py",
+        "agent_market/reliability_research.py",
+        "agent_market/reliability_evaluation.py"
+      ],
+      "implemented_slice": "Optional coverage-first case ordering within the existing host budget/jitter and one-shot worker; restored/expired jobs no longer hold new host capacity.",
+      "remaining_source_and_acceptance": "Exact corpus ID+hash and retained manifest UI are present. Representative approved corpora, independent rubric/holdout, wider MR cells and operating latency remain actual acceptance; broader domain/oracle/MR and predictive models require additional selected source.",
+      "integrated_source_verification_complete": true,
+      "integration_report": "reports/advancement-completion-2026-10-19/verification.json",
+      "verification_covers_implemented_slice_only": true,
+      "current_completeness_audit": "docs/design-implementation-audit.json",
+      "current_order_rank": 8,
+      "current_candidate_version": "1.41",
+      "historical_v140_state": "bounded_source_integrated_verified",
+      "candidate_reports": {
+        "readme": "reports/advancement-completion-2026-10-19/README.md",
+        "verification": "reports/advancement-completion-2026-10-19/verification.json",
+        "source_snapshot": "reports/advancement-completion-2026-10-19/accepted-source-snapshot.json",
+        "selected_regression": "reports/advancement-completion-2026-10-19/selected-regression.json",
+        "final_summary": "reports/advancement-completion-2026-10-19/accepted-summary.json",
+        "native": "reports/advancement-completion-2026-10-19/native-application.xml",
+        "evidence": "reports/advancement-completion-2026-10-19/evidence-work.json",
+        "model": "reports/advancement-completion-2026-10-19/model-proposal-work.json",
+        "remote_ui": "reports/advancement-completion-2026-10-19/remote-a2a-ui-work.json",
+        "customer": "reports/advancement-completion-2026-10-19/customer-private-work.json",
+        "storage": "reports/advancement-completion-2026-10-19/storage-profiles-work.json",
+        "public_receipt": "reports/advancement-completion-2026-10-19/public-receipt-work.json",
+        "crypto": "reports/advancement-completion-2026-10-19/x402-eip3009-work.json",
+        "benchmark": "reports/advancement-completion-2026-10-19/representative-html.json",
+        "privacy": "reports/advancement-completion-2026-10-19/privacy-browser.xml",
+        "initial_failed_summary": "reports/advancement-completion-2026-10-19/final/summary.json"
+      },
+      "full_design_complete": false
+    },
+    {
+      "id": "P2-08-FIRST-PARTY-OUTCOMES",
+      "title": "자체 agent·실제 업무 성과",
+      "parent_track": "P2-08",
+      "current_order_id": "POST139R-08",
+      "attachment_tags": [
+        "RQ1",
+        "RQ2"
+      ],
+      "state": "existing_guidance_integrated_verified_actual_business_outcome_source_open",
+      "source_work_can_start_with_isolated_fixtures": true,
+      "implementation_owner": "P2-08 contract/core owner; shared services remain with their existing owner",
+      "artifact_identity": "p2-08-first-party-outcomes-profile-v1",
+      "reuse_components": [
+        "agent_market/first_party_guides.py",
+        "agent_market/workspace_ai_support.py",
+        "agent_market/workspace_support_outcomes.py",
+        "agent_market/workspace_growth_service.py"
+      ],
+      "reuse_verification": "reports/advancement-phase2-integration-2026-10-19/verification.json",
+      "source_delta": "Choose a few demand-backed first-party contracts and link independent business outcomes/support/reuse cohorts.",
+      "source_dependencies": [
+        "P2-01-TYPED-EVIDENCE",
+        "P2-02-ACTION-MR-ORACLE"
+      ],
+      "entry_conditions": [
+        "Data-use rights, actual need, independent rubric and bounded operating cost/error baseline."
+      ],
+      "exit_criteria": [
+        "Use equal provider evaluation/ranking; separate staff-resolved, technical success, quality and retention.",
+        "OCR/scraping needs file/SSRF/privacy/source-rights review; no guaranteed 100% margin."
+      ],
+      "actual_acceptance_dependencies": [
+        "Actual opted-in customer tasks and independent outcome review."
+      ],
+      "validation_focus": [
+        "Purpose/privacy, malicious files, SSRF, source fidelity and no preferential own-agent ranking."
+      ],
+      "stop_conditions": [
+        "Current purpose/authority, version pin, retention or call budget cannot be established.",
+        "Unknown external outcome: preserve uncertainty and reconcile; no automatic business replay.",
+        "Promotion thresholds, actual targets or required approval are absent."
+      ],
+      "non_goals": [],
+      "public_activation": false,
+      "actual_acceptance_complete": false,
+      "deliverables": [
+        "One versioned contract and source delta against the reused components.",
+        "Scoped isolated security/API/browser/native-parity/restore evidence where affected; documentation and acceptance limits."
+      ],
+      "source_artifacts": [
+        "agent_market/workspace_support_outcomes.py",
+        "agent_market/first_party_guides.py"
+      ],
+      "implemented_slice": "Existing staff support observations and first-party guidance remain usable, with business quality unassessed.",
+      "remaining_source_and_acceptance": "Optional bounded model proposal and existing first-party guides/staff-reported support ledger are present. New business agents, independent task quality and purpose-consented customer outcome/cohort/reuse/economics/predictive models remain source and actual-evidence work.",
+      "integrated_source_verification_complete": true,
+      "integration_report": "reports/advancement-completion-2026-10-19/verification.json",
+      "verification_covers_implemented_slice_only": true,
+      "current_completeness_audit": "docs/design-implementation-audit.json",
+      "current_order_rank": 8,
+      "current_candidate_version": "1.41",
+      "historical_v140_state": "conditional_source_not_implemented",
+      "candidate_reports": {
+        "readme": "reports/advancement-completion-2026-10-19/README.md",
+        "verification": "reports/advancement-completion-2026-10-19/verification.json",
+        "source_snapshot": "reports/advancement-completion-2026-10-19/accepted-source-snapshot.json",
+        "selected_regression": "reports/advancement-completion-2026-10-19/selected-regression.json",
+        "final_summary": "reports/advancement-completion-2026-10-19/accepted-summary.json",
+        "native": "reports/advancement-completion-2026-10-19/native-application.xml",
+        "evidence": "reports/advancement-completion-2026-10-19/evidence-work.json",
+        "model": "reports/advancement-completion-2026-10-19/model-proposal-work.json",
+        "remote_ui": "reports/advancement-completion-2026-10-19/remote-a2a-ui-work.json",
+        "customer": "reports/advancement-completion-2026-10-19/customer-private-work.json",
+        "storage": "reports/advancement-completion-2026-10-19/storage-profiles-work.json",
+        "public_receipt": "reports/advancement-completion-2026-10-19/public-receipt-work.json",
+        "crypto": "reports/advancement-completion-2026-10-19/x402-eip3009-work.json",
+        "benchmark": "reports/advancement-completion-2026-10-19/representative-html.json",
+        "privacy": "reports/advancement-completion-2026-10-19/privacy-browser.xml",
+        "initial_failed_summary": "reports/advancement-completion-2026-10-19/final/summary.json"
+      },
+      "full_design_complete": false
+    },
+    {
+      "id": "P2-10-PROTOCOL-SANDBOX",
+      "title": "프로토콜별 결제 conformance sandbox",
+      "parent_track": "P2-10",
+      "current_order_id": "POST139R-09",
+      "attachment_tags": [
+        "RQ3"
+      ],
+      "state": "bounded_source_integrated_verified_actual_acceptance_and_conditional_source_open",
+      "source_work_can_start_with_isolated_fixtures": true,
+      "implementation_owner": "P2-10 contract/core owner; shared services remain with their existing owner",
+      "artifact_identity": "p2-10-protocol-sandbox-profile-v1",
+      "reuse_components": [
+        "agent_market/workspace_sandbox_payments.py",
+        "agent_market/workspace_agreements.py",
+        "agent_market/workspace_metering.py"
+      ],
+      "reuse_verification": "reports/advancement-phase2-integration-2026-10-19/verification.json",
+      "source_delta": "Version-pin synthetic conformance fixtures for payment headers, mandate/quote, exact/batch/MPP binding and state transitions.",
+      "source_dependencies": [
+        "P2-01-TYPED-EVIDENCE"
+      ],
+      "entry_conditions": [
+        "Select exact protocol/transport/scheme/network/asset/facilitator revision and reviewed implementation commit."
+      ],
+      "exit_criteria": [
+        "Separate authorization/commitment/claim/settlement/finality/refund/payout from execution/quality/delivery.",
+        "Synthetic parse/state tests confer no spending authority or live settlement readiness."
+      ],
+      "actual_acceptance_dependencies": [
+        "Selected provider sandbox/account, legal/jurisdiction/asset terms for actual sandbox acceptance."
+      ],
+      "validation_focus": [
+        "Wrong scope/network/amount, duplicate event, lost ack, expiry, finality and refund semantics."
+      ],
+      "stop_conditions": [
+        "Current purpose/authority, version pin, retention or call budget cannot be established.",
+        "Unknown external outcome: preserve uncertainty and reconcile; no automatic business replay.",
+        "Promotion thresholds, actual targets or required approval are absent."
+      ],
+      "non_goals": [
+        "No protocol-wide free fallback, automatic refund or instant sub-cent settlement promise."
+      ],
+      "public_activation": false,
+      "actual_acceptance_complete": false,
+      "deliverables": [
+        "One versioned contract and source delta against the reused components.",
+        "Scoped isolated security/API/browser/native-parity/restore evidence where affected; documentation and acceptance limits."
+      ],
+      "source_artifacts": [
+        "agent_market/workspace_protocol_conformance.py",
+        "agent_market/workspace_protocol_conformance_service.py"
+      ],
+      "implemented_slice": "Existing TEST_UNIT synthetic envelopes reused; offline pinned exact EOA EIP-3009 Base Sepolia USDC public-signature inspection added. It does not sign, broadcast, call RPC/facilitator, settle or grant ledger authority.",
+      "remaining_source_and_acceptance": "Offline exact EOA EIP-3009/Base Sepolia USDC public-envelope checks and TEST_UNIT reconciliation exist. Actual selected PSP/network/facilitator verification/settlement/finality/reorg/refund/payout adapters, legal/tax/base-amount terms and sandbox acceptance remain source and external conditions; real money off.",
+      "integrated_source_verification_complete": true,
+      "integration_report": "reports/advancement-completion-2026-10-19/verification.json",
+      "verification_covers_implemented_slice_only": true,
+      "current_completeness_audit": "docs/design-implementation-audit.json",
+      "current_order_rank": 9,
+      "current_candidate_version": "1.41",
+      "historical_v140_state": "bounded_source_integrated_verified",
+      "candidate_reports": {
+        "readme": "reports/advancement-completion-2026-10-19/README.md",
+        "verification": "reports/advancement-completion-2026-10-19/verification.json",
+        "source_snapshot": "reports/advancement-completion-2026-10-19/accepted-source-snapshot.json",
+        "selected_regression": "reports/advancement-completion-2026-10-19/selected-regression.json",
+        "final_summary": "reports/advancement-completion-2026-10-19/accepted-summary.json",
+        "native": "reports/advancement-completion-2026-10-19/native-application.xml",
+        "evidence": "reports/advancement-completion-2026-10-19/evidence-work.json",
+        "model": "reports/advancement-completion-2026-10-19/model-proposal-work.json",
+        "remote_ui": "reports/advancement-completion-2026-10-19/remote-a2a-ui-work.json",
+        "customer": "reports/advancement-completion-2026-10-19/customer-private-work.json",
+        "storage": "reports/advancement-completion-2026-10-19/storage-profiles-work.json",
+        "public_receipt": "reports/advancement-completion-2026-10-19/public-receipt-work.json",
+        "crypto": "reports/advancement-completion-2026-10-19/x402-eip3009-work.json",
+        "benchmark": "reports/advancement-completion-2026-10-19/representative-html.json",
+        "privacy": "reports/advancement-completion-2026-10-19/privacy-browser.xml",
+        "initial_failed_summary": "reports/advancement-completion-2026-10-19/final/summary.json"
+      },
+      "full_design_complete": false
+    },
+    {
+      "id": "P2-10-SETTLEMENT-RECONCILIATION",
+      "title": "계약 기반 정산·환불·기여도 대사",
+      "parent_track": "P2-10",
+      "current_order_id": "POST139R-09",
+      "attachment_tags": [
+        "RQ3"
+      ],
+      "state": "bounded_source_integrated_verified_actual_acceptance_and_conditional_source_open",
+      "source_work_can_start_with_isolated_fixtures": true,
+      "implementation_owner": "P2-10 contract/core owner; shared services remain with their existing owner",
+      "artifact_identity": "p2-10-settlement-reconciliation-profile-v1",
+      "reuse_components": [
+        "agent_market/workspace_sandbox_payments.py",
+        "agent_market/workspace_agreements.py",
+        "agent_market/workspace_metering.py"
+      ],
+      "reuse_verification": "reports/advancement-phase2-integration-2026-10-19/verification.json",
+      "source_delta": "Extend the existing ledger with approved actual external-event reconciliation and contractual allocation basis, not a second ledger.",
+      "source_dependencies": [
+        "P2-10-PROTOCOL-SANDBOX"
+      ],
+      "entry_conditions": [
+        "70:30 basis, taxes/fees/upstream failure cost, partial outcomes, dispute/refund/payee/rounding terms fixed."
+      ],
+      "exit_criteria": [
+        "One logical order links all attempted providers and immutable correction/refund/payout facts; unknown holds, never repays.",
+        "Reconcile actual external amount/event/finality and rollback before separately authorized real transactions."
+      ],
+      "actual_acceptance_dependencies": [
+        "POST139R-04/05/06 actual acceptance, G2, legal/tax/provider contracts and separate real-transaction authorization."
+      ],
+      "validation_focus": [
+        "Balanced integer-asset postings, partial refunds, duplicate/lost settlement events and authority restoration."
+      ],
+      "stop_conditions": [
+        "Current purpose/authority, version pin, retention or call budget cannot be established.",
+        "Unknown external outcome: preserve uncertainty and reconcile; no automatic business replay.",
+        "Promotion thresholds, actual targets or required approval are absent."
+      ],
+      "non_goals": [
+        "No automatic 70% to final successful provider; failed upstream charges do not disappear."
+      ],
+      "public_activation": false,
+      "actual_acceptance_complete": false,
+      "deliverables": [
+        "One versioned contract and source delta against the reused components.",
+        "Scoped isolated security/API/browser/native-parity/restore evidence where affected; documentation and acceptance limits."
+      ],
+      "source_artifacts": [
+        "agent_market/workspace_sandbox_payments.py",
+        "agent_market/workspace_protocol_conformance.py"
+      ],
+      "implemented_slice": "Reuses original signed capture/refund/70:30 TEST_UNIT ledger and dedupe; reports create no financial events. Missing receipt/unknown remains held, restore blocks old authorities.",
+      "remaining_source_and_acceptance": "Offline exact EOA EIP-3009/Base Sepolia USDC public-envelope checks and TEST_UNIT reconciliation exist. Actual selected PSP/network/facilitator verification/settlement/finality/reorg/refund/payout adapters, legal/tax/base-amount terms and sandbox acceptance remain source and external conditions; real money off.",
+      "integrated_source_verification_complete": true,
+      "integration_report": "reports/advancement-completion-2026-10-19/verification.json",
+      "verification_covers_implemented_slice_only": true,
+      "current_completeness_audit": "docs/design-implementation-audit.json",
+      "current_order_rank": 9,
+      "current_candidate_version": "1.41",
+      "historical_v140_state": "existing_sandbox_ledger_reused_integrated_verified",
+      "candidate_reports": {
+        "readme": "reports/advancement-completion-2026-10-19/README.md",
+        "verification": "reports/advancement-completion-2026-10-19/verification.json",
+        "source_snapshot": "reports/advancement-completion-2026-10-19/accepted-source-snapshot.json",
+        "selected_regression": "reports/advancement-completion-2026-10-19/selected-regression.json",
+        "final_summary": "reports/advancement-completion-2026-10-19/accepted-summary.json",
+        "native": "reports/advancement-completion-2026-10-19/native-application.xml",
+        "evidence": "reports/advancement-completion-2026-10-19/evidence-work.json",
+        "model": "reports/advancement-completion-2026-10-19/model-proposal-work.json",
+        "remote_ui": "reports/advancement-completion-2026-10-19/remote-a2a-ui-work.json",
+        "customer": "reports/advancement-completion-2026-10-19/customer-private-work.json",
+        "storage": "reports/advancement-completion-2026-10-19/storage-profiles-work.json",
+        "public_receipt": "reports/advancement-completion-2026-10-19/public-receipt-work.json",
+        "crypto": "reports/advancement-completion-2026-10-19/x402-eip3009-work.json",
+        "benchmark": "reports/advancement-completion-2026-10-19/representative-html.json",
+        "privacy": "reports/advancement-completion-2026-10-19/privacy-browser.xml",
+        "initial_failed_summary": "reports/advancement-completion-2026-10-19/final/summary.json"
+      },
+      "full_design_complete": false
+    }
+  ],
+  "batch_policy": {
+    "authority": "Existing POST139R-01~09; RQ tags and package IDs do not create another execution queue.",
+    "artifact_ownership": "One owner/profile/artifact identity and status; consumers reference the same lineage/projection.",
+    "atomic_completion": "Contract+core+affected API/admin desktop+authority/consent+withdrawal/deletion/restore+fixed SQL/native parity+security/dynamic regressions+docs.",
+    "source_freeze": "One scoped final regression after source freeze; repeat only after new source, failure or unresolved concern.",
+    "docs_only": "Historical r1 was documentation-only; v1.41 reflects bounded source implementation and final frozen integration, not full design or actual acceptance.",
+    "server": "User controls the operating server. Group one user-owned restart/refresh for the accepted v1.41 source, then scoped authenticated/private acceptance; no agent server operation.",
+    "gating": "External target absence blocks dependent actual acceptance only; not fixture source research. All R&D/full PostgreSQL is not prerequisite to a narrow read pilot.",
+    "current_batch": "Selected bounded v1.41 source integration verified; one stable POST queue retains actual acceptance and conditional additional source."
+  },
+  "funding": {
+    "state": "scenario_not_committed_product_dependency",
+    "official_notice": "https://www.mss.go.kr/site/smba/ex/bbs/View.do?bcIdx=1066440&cbIdx=310&parentSeq=1066440",
+    "official_summary": "https://www.bizinfo.go.kr/sii/siia/selectSIIA200Detail.do?pblancId=PBLN_000000000119754",
+    "full_attachment_eligibility_verified": false,
+    "conditions": "General/deeptech/non-R&D have distinct eligibility. Summary non-R&D condition includes R&D agreements completed by 2025; do not automatically total 8+3 for a new 2026 applicant.",
+    "schedule": "24/36 months are funding scenarios; re-estimate technology scope after actual team, samples and gates.",
+    "application_recheck": [
+      "Full latest notice/appendices",
+      "company age/ownership/overseas sales and investment",
+      "follow-on/duplicate funding/own contribution",
+      "operator selection and budget/application dates"
+    ]
+  },
+  "public_workspace_access_enabled": false,
+  "advertising_delivery_enabled": false,
+  "actual_money_authorized": false,
+  "research_to_operating_claim_promotion": false,
+  "source_audit_roles": {
+    "reliability-source-audit.json": "Primary-source/version audit; research is not own platform verification.",
+    "protocol-security-source-audit.json": "Official protocol/security scope and mutable-specification limits.",
+    "reuse-gap-review.json": "Initial read-only reuse comparison and proposed aliases; alias proposals are historical/non-authoritative. Final package/order ownership is this canonical contract."
+  },
+  "source_candidate": {
+    "version": "1.41",
+    "status": "bounded_source_integrated_verified",
+    "integration_pending": false,
+    "integrated_source_verification_complete": true,
+    "actual_acceptance_complete": false,
+    "full_design_complete": false,
+    "reports": {
+      "readme": "reports/advancement-completion-2026-10-19/README.md",
+      "verification": "reports/advancement-completion-2026-10-19/verification.json",
+      "source_snapshot": "reports/advancement-completion-2026-10-19/accepted-source-snapshot.json",
+      "selected_regression": "reports/advancement-completion-2026-10-19/selected-regression.json",
+      "final_summary": "reports/advancement-completion-2026-10-19/accepted-summary.json",
+      "native": "reports/advancement-completion-2026-10-19/native-application.xml",
+      "evidence": "reports/advancement-completion-2026-10-19/evidence-work.json",
+      "model": "reports/advancement-completion-2026-10-19/model-proposal-work.json",
+      "remote_ui": "reports/advancement-completion-2026-10-19/remote-a2a-ui-work.json",
+      "customer": "reports/advancement-completion-2026-10-19/customer-private-work.json",
+      "storage": "reports/advancement-completion-2026-10-19/storage-profiles-work.json",
+      "public_receipt": "reports/advancement-completion-2026-10-19/public-receipt-work.json",
+      "crypto": "reports/advancement-completion-2026-10-19/x402-eip3009-work.json",
+      "benchmark": "reports/advancement-completion-2026-10-19/representative-html.json",
+      "privacy": "reports/advancement-completion-2026-10-19/privacy-browser.xml",
+      "native_contracts": "reports/advancement-completion-2026-10-19/native/application-contracts.json",
+      "privacy_api": "reports/advancement-completion-2026-10-19/privacy-ci-final.xml",
+      "initial_source_snapshot": "reports/advancement-completion-2026-10-19/source-snapshot.json",
+      "initial_failed_summary": "reports/advancement-completion-2026-10-19/final/summary.json"
+    },
+    "source_inputs": 957,
+    "regression_modules": 142,
+    "unique_regressions_passed": 2206,
+    "new_test_total": 2206,
+    "final_source_snapshot": "reports/advancement-completion-2026-10-19/accepted-source-snapshot.json",
+    "source_snapshot_status": "final_frozen_source_accepted",
+    "component_evidence_is_final_integration": false,
+    "native_component": {
+      "checks_passed": 93,
+      "pytest_module_cases": 26,
+      "report": "reports/advancement-completion-2026-10-19/native-application.xml",
+      "native_checks_are_additional_pytest_cases": false,
+      "actual_target_acceptance": false,
+      "scope": "Root-run isolated native PostgreSQL contract checks; synthetic fixtures, not production cutover or independent operating quality.",
+      "contract_report": "reports/advancement-completion-2026-10-19/native/application-contracts.json",
+      "final_frozen_source_revalidated": true
+    },
+    "isolated_html_benchmark": {
+      "resources": 115009,
+      "execution_evidence_rows": 1000,
+      "canonical_reports": 200,
+      "html_request_ms": [
+        181.533,
+        27.955
+      ],
+      "provider_calls": 0,
+      "operating_data_used": false,
+      "operating_sla_acceptance": false,
+      "collector_contention_modeled": false,
+      "report": "reports/advancement-completion-2026-10-19/representative-html.json"
+    },
+    "public_workspace_access_enabled": false,
+    "advertising_delivery_enabled": false,
+    "actual_money_authorized": false,
+    "customer_login_frontend_only": true,
+    "admin_usage": "desktop_only",
+    "operating_qualified_without_independent_approval": false,
+    "operating_server_actions_by_agent": 0,
+    "user_restart_required_after_final_source_closure": true,
+    "prior_user_restart_does_not_load_new_sources": true,
+    "source_freeze_complete": true,
+    "ci_selection_component": {
+      "selected_modules": 280,
+      "four_shard_sizes": [
+        70,
+        70,
+        70,
+        70
+      ],
+      "required_modules": 23,
+      "hosted_ci_execution_accepted": false
+    },
+    "public_content_component": {
+      "files": 87,
+      "violations": 0,
+      "final_integrated_security_acceptance": true,
+      "scope": "Selected bounded content/security regressions; not whole-platform certification."
+    },
+    "sql_catalog_component": {
+      "entries": 3238,
+      "tables": 205,
+      "fixed_catalog_check_passed": true,
+      "production_postgres_cutover": false
+    },
+    "current_whole_tree_verified": false,
+    "modules": 142,
+    "source_files": 957,
+    "passed": 2206,
+    "tests": 2206,
+    "final_aggregate_verified": true,
+    "current_source_inputs_frozen_and_affected_verified": true,
+    "verification_scope": "Accepted frozen source inputs and selected bounded regressions; not full-design completion, whole-platform security certification or actual target acceptance.",
+    "verification_report_sha256": "0ab2917b94ffa0f2a473198489986950c539ee5d9296fb24288c3d232c922b5e",
+    "accepted_snapshot_sha256": "ad969e572edc6d46207ec6ff510b23e4649066d90151e30c1eff6c148f9a8c0f",
+    "finalized_kst": "2026-10-19T14:11:40.603034+09:00"
+  },
+  "accepted_product_baseline": "1.41",
+  "implementation_report": "reports/advancement-completion-2026-10-19/README.md",
+  "previous_product_baseline": "1.39",
+  "previous_v139_baseline": {
+    "verification": "reports/advancement-phase2-integration-2026-10-19/verification.json",
+    "source_inputs": 649,
+    "modules": 32,
+    "unique_tests_passed": 483,
+    "native_contracts": 63,
+    "native_contracts_are_additional_pytest_cases": false,
+    "restart_readonly_report": "reports/remaining-work-plan-2026-10-19/post-v139-restart-readonly.json",
+    "restart_readonly_checks": 22,
+    "historical_counts_added": false
+  },
+  "post_restart_verification": {
+    "version": "1.41",
+    "status": "read_only_restart_passed_additional_source_not_loaded",
+    "user_restart_reported": true,
+    "user_refresh_reported": true,
+    "user_reported_latest_source_applied": true,
+    "user_restart_reported_for_current_source": false,
+    "user_admin_refresh_reported_for_current_source": false,
+    "read_only_checks_passed": true,
+    "read_only_checks_passed_count": 46,
+    "read_only_checks_total": 46,
+    "authenticated_operating_acceptance": false,
+    "latest_served_front_source_matches_disk": false,
+    "concurrent_source_changes_observed": true,
+    "current_whole_tree_accepted": false,
+    "additional_restart_after_source_freeze_required": true,
+    "affected_frozen_regression_passed": 270,
+    "affected_modules": 15,
+    "prior_2206_counts_added": false,
+    "remaining_before_next_restart": [
+      "Finish concurrent changes.",
+      "Regenerate/check the deterministic catalog manifest against final source.",
+      "Validate the final affected source without adding repeated case counts."
+    ],
+    "report": "reports/advancement-completion-2026-10-19/POST_RESTART_VERIFICATION.md",
+    "verification": "reports/advancement-completion-2026-10-19/post-restart-verification.json",
+    "served_front_signature": "reports/advancement-completion-2026-10-19/post-restart-served-front.json",
+    "old_restart_results_are_historical": true,
+    "project_server_actions_by_agent": 0
+  },
+  "design_implementation_audit": {
+    "date": "2026-10-19",
+    "report": "reports/design-implementation-audit-2026-10-19/README.md",
+    "traceability": "docs/design-implementation-audit.json",
+    "full_design_complete": false,
+    "current_whole_tree_verified": false,
+    "product_edits_by_audit": false,
+    "candidate_implementation_present": true,
+    "new_delta_verified": true,
+    "integration_pending": false,
+    "candidate_version": "1.41",
+    "candidate_report": "reports/advancement-completion-2026-10-19/README.md",
+    "candidate_verification": "reports/advancement-completion-2026-10-19/verification.json",
+    "queue_ids_in_priority_order": [
+      "POST139R-01",
+      "POST139R-06",
+      "POST139R-02",
+      "POST139R-03",
+      "POST139R-04",
+      "POST139R-05",
+      "POST139R-07",
+      "POST139R-08",
+      "POST139R-09"
+    ],
+    "source_frozen": true,
+    "current_source_inputs_frozen_and_affected_verified": true,
+    "current_status": "bounded_source_integrated_verified_actual_acceptance_and_conditional_source_open",
+    "current_implementation_product_edits": true,
+    "initial_audit_product_edits_are_historical": true,
+    "current_report": "reports/advancement-completion-2026-10-19/README.md"
+  },
+  "current_execution_priority_ids": [
+    "POST139R-01",
+    "POST139R-06",
+    "POST139R-02",
+    "POST139R-03",
+    "POST139R-04",
+    "POST139R-05",
+    "POST139R-07",
+    "POST139R-08",
+    "POST139R-09"
+  ],
+  "accepted_product_baseline_scope": "Frozen v1.41 selected bounded source integration only. Historical v1.40 1313 regressions/native80/restart38 are preserved separately and not added. No actual operating quality or full design acceptance.",
+  "historical_v140_package_states": {
+    "P2-01-TYPED-EVIDENCE": {
+      "state": "bounded_source_integrated_verified",
+      "implemented_slice": "Existing typed run/step lineage and purpose-bound encrypted evidence; resolved inputs reconstructed only when immutable parents and signed input hashes agree. Missing/deleted sources remain unassessable.",
+      "remaining_source_and_acceptance": "Actual independent multi-node quality acceptance and additional protocol source profiles remain separate.",
+      "integrated_source_verification_complete": true,
+      "integration_report": "reports/advancement-rnd-integration-2026-10-19/verification.json"
+    },
+    "P2-02-ACTION-MR-ORACLE": {
+      "state": "bounded_source_integrated_verified",
+      "implemented_slice": "Immutable docs/news whitespace-pair manifest, exact approved-item fixture oracle and seeded offline fault helper; existing worker/jobs retained.",
+      "remaining_source_and_acceptance": "Independent factual evaluator/rubric and approved actual corpus/provider acceptance; broader semantic transforms remain conditional source.",
+      "integrated_source_verification_complete": true,
+      "integration_report": "reports/advancement-rnd-integration-2026-10-19/verification.json"
+    },
+    "P2-02-SURFACE-OFFLINE": {
+      "state": "bounded_source_integrated_verified",
+      "implemented_slice": "Existing research API k/transform cells retain baseline lambda=0. A separate offline CLI measured sparse categorical fault cells in eight controlled paired episodes through sixteen existing evaluation calls; goal failures, unknown and unassessable coverage remain distinct. All-k is separate from pass-at-k.",
+      "remaining_source_and_acceptance": "Not a full three-axis measured surface, independent operating quality, predictive model or SLA. Two synthetic task clusters do not establish independent samples; broader cells need approved corpora and evaluator.",
+      "integrated_source_verification_complete": true,
+      "integration_report": "reports/advancement-rnd-integration-2026-10-19/verification.json"
+    },
+    "P2-05-DUAL-CLOCK-SHADOW": {
+      "state": "bounded_source_integrated_verified",
+      "implemented_slice": "Trusted typed event/closed-action metadata and controlled single-read milestone/prefix shadow with two/three-event counterfactual replay; no extra business call or hidden trace.",
+      "remaining_source_and_acceptance": "General multi-node milestone/frontier evidence and actual intervention remain absent. Counterfactual replay metrics and local analyzer timing are separate from actual quality loss, false-stop rate and live intervention overhead, which stay null.",
+      "integrated_source_verification_complete": true,
+      "integration_report": "reports/advancement-rnd-integration-2026-10-19/verification.json"
+    },
+    "P2-06-SDK-THREAT-DELTA": {
+      "state": "bounded_source_integrated_verified",
+      "implemented_slice": "Strict duplicate-key/nonfinite/depth gateway response checks and final PKCE callback session-cap enforcement; existing SDK1.x/private SDK2 kept.",
+      "remaining_source_and_acceptance": "Actual Google/GitHub and HTTPS/BFF hosting, scoped SDK execution/revocation and receiver/Push round trips still need designated targets.",
+      "integrated_source_verification_complete": true,
+      "integration_report": "reports/advancement-rnd-integration-2026-10-19/verification.json"
+    },
+    "P2-04-SINGLE-ADMISSION": {
+      "state": "bounded_source_integrated_verified_default_off",
+      "implemented_slice": "Explicit owner CAS, purpose/run consent and one selected provider/call with zero replacements on the existing executor/meter. Signed provenance, output contracts and current-source fence apply. Configured default-off sticky circuit/probe core uses original signed trusted-adapter response proof and the same current-transaction routing/admission composer.",
+      "remaining_source_and_acceptance": "Circuit core has no route/UI/scheduler, automatic observation ingestion/trip or probe dispatch. It binds only an existing separately approved evaluation job. Predictive routing, threshold qualification and operating comparison remain conditional source/evidence; technical response proof is not independent business quality.",
+      "integrated_source_verification_complete": true,
+      "integration_report": "reports/advancement-rnd-integration-2026-10-19/verification.json"
+    },
+    "P2-05-EARLY-STOP-PILOT": {
+      "state": "offline_preparation_integrated_verified_actual_controller_unimplemented",
+      "implemented_slice": "Immutable seeded eight-pair offline fault preparation and milestone/prefix replay sensitivity are available on the existing evaluation worker; actual interventions are zero, actual intervention metrics null, controller and promotion off.",
+      "remaining_source_and_acceptance": "Authority/threshold-bound promotion validator, precommitted operating thresholds, approved baseline versus actual intervention experiment, false-stop/quality-loss/overhead evidence and opt-in intervention controller remain before actual early-stop implementation/activation.",
+      "integrated_source_verification_complete": true,
+      "integration_report": "reports/advancement-rnd-integration-2026-10-19/verification.json"
+    },
+    "P2-05-REVIEWED-REPLAN": {
+      "state": "bounded_source_integrated_verified",
+      "implemented_slice": "Explicit 2–6-node plan review with current pins, per-field changes and stale-base checks; commit creates a new typed draft and preserves original/in-flight graph.",
+      "remaining_source_and_acceptance": "Automatic general replanning, remote state migration and arbitrary provider repair are outside this implementation.",
+      "integrated_source_verification_complete": true,
+      "integration_report": "reports/advancement-rnd-integration-2026-10-19/verification.json"
+    },
+    "P2-03-PUBLIC-RECEIPT": {
+      "state": "offline_helper_integrated_verified_publication_unimplemented",
+      "implemented_slice": "Explicit-key Ed25519 short-lived minimal offline receipt issuer/verifier; no key generation/persistence and no public route.",
+      "remaining_source_and_acceptance": "Public projection/badge route, actual key custody/trust publication/current revocation semantics and exposure acceptance remain conditional source and approval.",
+      "integrated_source_verification_complete": true,
+      "integration_report": "reports/advancement-rnd-integration-2026-10-19/verification.json"
+    },
+    "P2-05-INTENT-EXTENSION": {
+      "state": "bounded_source_integrated_verified",
+      "implemented_slice": "Two to six bounded English clauses map to existing docs/news/products-v2 contracts; ambiguous intent requests details, then explicit review/new draft.",
+      "remaining_source_and_acceptance": "Not a general natural-language AI planner; additional contracts/intent generation need demand, evaluation and further source.",
+      "integrated_source_verification_complete": true,
+      "integration_report": "reports/advancement-rnd-integration-2026-10-19/verification.json"
+    },
+    "P2-06-LONG-TASK-PROFILE": {
+      "state": "conditional_source_not_implemented",
+      "implemented_slice": "Existing local status and short MCP SDK profiles are preserved.",
+      "remaining_source_and_acceptance": "A2A remote task/session/streaming adapter, status/cancel/idempotency profile and conformance require selected provider contracts; no new remote long-task profile is claimed.",
+      "integrated_source_verification_complete": false,
+      "integration_report": "reports/advancement-rnd-integration-2026-10-19/verification.json"
+    },
+    "P2-02-ADAPTIVE-PRIORITY": {
+      "state": "bounded_source_integrated_verified",
+      "implemented_slice": "Optional coverage-first case ordering within the existing host budget/jitter and one-shot worker; restored/expired jobs no longer hold new host capacity.",
+      "remaining_source_and_acceptance": "Usage/change/fault-predictive priority is not implemented; no new scheduler or operating overhead claim.",
+      "integrated_source_verification_complete": true,
+      "integration_report": "reports/advancement-rnd-integration-2026-10-19/verification.json"
+    },
+    "P2-08-FIRST-PARTY-OUTCOMES": {
+      "state": "conditional_source_not_implemented",
+      "implemented_slice": "Existing staff support observations and first-party guidance remain usable, with business quality unassessed.",
+      "remaining_source_and_acceptance": "New first-party provider/profile plus independent quality, purpose-consented real customer success/support/reuse cohorts and economics remain source and actual-evidence work.",
+      "integrated_source_verification_complete": false,
+      "integration_report": "reports/advancement-rnd-integration-2026-10-19/verification.json"
+    },
+    "P2-10-PROTOCOL-SANDBOX": {
+      "state": "bounded_source_integrated_verified",
+      "implemented_slice": "Versioned synthetic x402-v2 exact/batch HTTP envelopes and quote-bound local HMAC mandate checks against the existing TEST_UNIT capture/refund/events.",
+      "remaining_source_and_acceptance": "Not official EVM/facilitator/MPP/AP2 credential or finality conformance; actual selected binding/cryptographic integration remains conditional source.",
+      "integrated_source_verification_complete": true,
+      "integration_report": "reports/advancement-rnd-integration-2026-10-19/verification.json"
+    },
+    "P2-10-SETTLEMENT-RECONCILIATION": {
+      "state": "existing_sandbox_ledger_reused_integrated_verified",
+      "implemented_slice": "Reuses original signed capture/refund/70:30 TEST_UNIT ledger and dedupe; reports create no financial events. Missing receipt/unknown remains held, restore blocks old authorities.",
+      "remaining_source_and_acceptance": "Actual PSP refund/payout adapters, supplier/legal/tax/base-amount terms and external reconciliation/sandbox acceptance remain source and external conditions; real money is off.",
+      "integrated_source_verification_complete": true,
+      "integration_report": "reports/advancement-rnd-integration-2026-10-19/verification.json"
+    }
+  },
+  "historical_v140_implementation_report": "reports/advancement-rnd-integration-2026-10-19/implementation-status.json",
+  "historical_v140_post_restart_verification": {
+    "user_restart_reported": true,
+    "user_admin_refresh_reported": true,
+    "read_only_report": "reports/advancement-rnd-integration-2026-10-19/post-restart-readonly.json",
+    "checks_passed": 38,
+    "total": 38,
+    "source_inputs_unchanged": 700,
+    "authenticated_operating_acceptance": false,
+    "html_latency_followup_open": true,
+    "additional_restart_required_for_current_source": false,
+    "project_server_actions_by_agent": 0
+  },
+  "full_design_complete": false,
+  "final_development_completion_plan": {
+    "document": "docs/DEVELOPMENT_COMPLETION_PLAN.md",
+    "data": "docs/development-completion-plan.json",
+    "revision": "2026-10-19-final.1",
+    "role": "authoritative_existing_design_closeout_execution_order",
+    "legacy_order_arrays_role": "requirement_and_implementation_history_cross_reference",
+    "scope_not_reduced": true,
+    "state": "planned_not_executed"
+  }
+}

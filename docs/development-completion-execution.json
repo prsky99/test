@@ -1,0 +1,1707 @@
+{
+  "profile": "development-completion-execution-v1",
+  "plan_revision": "2026-10-19-final.1",
+  "plan_scope_sha256": "c860ca91a7ad8a185fc7a357360405246fb9f849e1c5a6f0a9ea313db2b74aab",
+  "scope_expansion_allowed": false,
+  "full_design_complete": false,
+  "actual_acceptance_complete": false,
+  "project_server_actions": 0,
+  "supported_profiles": {
+    "workflow": {
+      "max_nodes": 6,
+      "mapping": [
+        "literal",
+        "projection"
+      ],
+      "branches": "existing typed predicate contract",
+      "new_capability_contracts": false
+    },
+    "agent_protocol": "A2A 0.3 JSON-RPC context continuation + bounded SSE resume; existing polling profile retained",
+    "first_party": "docs.search.v1 over explicitly approved public source snapshots; no first-party ranking boost",
+    "recovery": "pre-enrolled offline Ed25519 key + independent Ed25519 reviewer + 24-hour dispute window",
+    "payment_development": "Stripe Connect test keys only; USD minor units; manual capture; separate charges/transfers; gross70/30 with platform-borne processing fees; no live calls",
+    "public_workspace": "public_link_hidden_direct_development_signin_verified",
+    "admin_identity": "unchanged",
+    "server_control": "user terminal only",
+    "routing": "First-version fixed RULE_VERSION freshness/errors/correlation; offline, zero-dispatch decision-shadow, explicit single-admission canary; no learned model/calibration claim.",
+    "model_proposals": "Concrete explicitly configured existing Ollama HTTP adapter; default off; approved public objective and contract metadata only; review then immutable new draft."
+  },
+  "steps": [
+    {
+      "order": 1,
+      "title": "최종 범위·변경분·완료 판정 고정",
+      "work_ids": [
+        "POST139R-01"
+      ],
+      "p2": [
+        "P2-01",
+        "P2-09"
+      ],
+      "state": "scope_frozen_local_verification_recorded",
+      "source_complete": true,
+      "actual_acceptance_complete": false,
+      "requirements": [
+        {
+          "id": "FINAL-01.01",
+          "text": "R-01~10/G0·P2-01~10·기존 R&D 계약을 요구 ID별로 한 번 대조하고, 원래 필수·조건부 요구를 빠짐없이 이번 마감표에 연결한다. 이미 종결한 제한 구현은 재개발하지 않는다.",
+          "state": "scope_and_evidence_documented",
+          "evidence": [
+            "docs/DEVELOPMENT_COMPLETION_PLAN.md",
+            "docs/development-completion-plan.json",
+            "docs/design-implementation-audit.json",
+            "reports/development-completion-2026-10-19/final-candidate-3/verification.json",
+            "reports/development-completion-2026-10-19/final-candidate-3/source-final.json",
+            "reports/development-completion-2026-10-19/continuation/provider-account-status.json"
+          ],
+          "implementation_groups": [
+            "scope"
+          ],
+          "external_dependencies": [],
+          "source_state": "documented",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Scope/evidence mapping is prepared; this is not whole-release acceptance."
+        },
+        {
+          "id": "FINAL-01.02",
+          "text": "다른 작업의 완료된 변경을 통합하고 최근 schema 차단·보고서 이력·로딩·관리자 화면·개인정보 요청 변경의 최종본을 정한다. 생성 SQL catalog와 HTML mirror의 정합성을 맞춘다.",
+          "state": "source_frozen_local_verified",
+          "evidence": [
+            "docs/DEVELOPMENT_COMPLETION_PLAN.md",
+            "docs/development-completion-plan.json",
+            "docs/design-implementation-audit.json",
+            "scripts/check_front_content.py",
+            "scripts/run_frontend_regressions.py",
+            "reports/development-completion-2026-10-19/scoped-selection.json",
+            "reports/development-completion-2026-10-19/scoped-security.json",
+            "reports/development-completion-2026-10-19/final-candidate-3/verification.json",
+            "reports/development-completion-2026-10-19/final-candidate-3/source-final.json",
+            "reports/development-completion-2026-10-19/continuation/provider-account-status.json",
+            "reports/development-completion-2026-10-19/final-whole/verification.json",
+            "reports/development-completion-2026-10-19/final-whole/source-after.json",
+            "reports/development-completion-2026-10-19/final-whole/medium-warning-triage.json",
+            "reports/development-completion-2026-10-19/final-whole/public-tls-headers.json",
+            "reports/development-completion-2026-10-19/final-whole/public-header-freshness.json",
+            "reports/development-completion-2026-10-19/final-whole/public-static-scripts.json",
+            "reports/development-completion-2026-10-19/final-whole/README.md"
+          ],
+          "implementation_groups": [
+            "scope",
+            "verification"
+          ],
+          "external_dependencies": [],
+          "source_state": "implemented_verified",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "User released the concurrency hold. Catalog and HTML mirror match; the baseline and affected replacements are linked with exact source hashes."
+        },
+        {
+          "id": "FINAL-01.03",
+          "text": "지원 업무 계약·프로토콜 profile·최대6노드·허용 분기/field mapping·자체 agent 납품 대상·호환 SDK를 유한하게 고정한다. 설계에 없던 계약·지갑·모델·기능을 추가하지 않는다.",
+          "state": "scope_and_evidence_documented",
+          "evidence": [
+            "docs/DEVELOPMENT_COMPLETION_PLAN.md",
+            "docs/development-completion-plan.json",
+            "docs/design-implementation-audit.json",
+            "agent_market/workspace_remote_a2a.py",
+            "agent_market/customer_authoring_service.py",
+            "tests/test_workspace_a2a_sessions.py",
+            "tests/test_workspace_a2a_sessions_browser.py",
+            "tests/test_customer_a2a_sessions.py",
+            "tests/test_customer_a2a_sessions_browser.py",
+            "agent_market/customer_authoring.py",
+            "agent_market/customer_typed_authoring_view.py",
+            "agent_market/workspace_app_factory.py",
+            "tests/test_customer_typed_authoring.py",
+            "tests/test_customer_typed_authoring_browser.py",
+            "agent_market/first_party_corpus.py",
+            "agent_market/first_party_guides.py",
+            "tests/test_first_party_corpus.py",
+            "agent_market/stripe_sandbox.py",
+            "agent_market/stripe_sandbox_service.py",
+            "tests/test_stripe_sandbox.py",
+            "reports/development-completion-2026-10-19/final-candidate-3/verification.json",
+            "reports/development-completion-2026-10-19/final-candidate-3/source-final.json",
+            "reports/development-completion-2026-10-19/continuation/provider-account-status.json"
+          ],
+          "implementation_groups": [
+            "scope",
+            "a2a",
+            "typed",
+            "corpus",
+            "finance"
+          ],
+          "external_dependencies": [],
+          "source_state": "documented",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Original finite support profile retained historically. Later user-authorized customer typed graphs support ten nodes/60 seconds with actual ten-step acceptance; this does not expand every public/admin runtime or arbitrary AI synthesis.",
+          "historical_acceptance_note_before_latest_review": "Scope/evidence mapping is prepared; this is not whole-release acceptance.",
+          "latest_review_evidence": [
+            "docs/REMAINING_DEVELOPMENT_REVIEW.md",
+            "reports/workspace-social-launch-2026-10-19/README.md",
+            "reports/workspace-account-samples-2026-10-19/README.md",
+            "reports/workspace-ai-providers-2026-10-19/README.md",
+            "reports/chatgpt-model-selection-2026-10-19/README.md"
+          ]
+        },
+        {
+          "id": "FINAL-01.04",
+          "text": "각 하위 요구에 현재 코드·남은 변경·검사·외부 의존·종료 증거를 배정한다. 이 목록 확정 이후 새 개선 제안을 자동 편입하지 않는다.",
+          "state": "scope_and_evidence_documented",
+          "evidence": [
+            "docs/DEVELOPMENT_COMPLETION_PLAN.md",
+            "docs/development-completion-plan.json",
+            "docs/design-implementation-audit.json",
+            "reports/development-completion-2026-10-19/peer-handoff.md",
+            "docs/development-completion-execution.json",
+            "reports/development-completion-2026-10-19/final-candidate-3/verification.json",
+            "reports/development-completion-2026-10-19/final-candidate-3/source-final.json",
+            "reports/development-completion-2026-10-19/continuation/provider-account-status.json"
+          ],
+          "implementation_groups": [
+            "scope",
+            "handoff"
+          ],
+          "external_dependencies": [],
+          "source_state": "documented",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Scope/evidence mapping is prepared; this is not whole-release acceptance."
+        }
+      ],
+      "acceptance_criteria": [
+        "필수 요구에 미분류·누락·중복이 없고 모든 잔여가 3~8번의 구체적인 소스 작업 또는 2/9번의 외부 수용에 연결된다.",
+        "원래 필수 범위의 임의 차기 이관 없이, 구현 지원 범위와 최종 검사가 고정된다."
+      ],
+      "external_dependencies": []
+    },
+    {
+      "order": 2,
+      "title": "실제 연동 사양·시험 환경·책임자 일괄 확정",
+      "work_ids": [
+        "POST139R-02",
+        "POST139R-03",
+        "POST139R-04",
+        "POST139R-05",
+        "POST139R-06",
+        "POST139R-07",
+        "POST139R-08",
+        "POST139R-09"
+      ],
+      "p2": [
+        "P2-01",
+        "P2-02",
+        "P2-03",
+        "P2-06",
+        "P2-07",
+        "P2-09",
+        "P2-10"
+      ],
+      "state": "waiting_final_source_or_external_acceptance",
+      "source_complete": false,
+      "actual_acceptance_complete": false,
+      "requirements": [
+        {
+          "id": "FINAL-02.01",
+          "text": "Google/GitHub 고객 로그인 client·redirect·시험 계정과 비공개 HTTPS customer/receiver origin, 보호된 agentconcierge.biz gateway 시험 라우팅을 확정한다.",
+          "state": "acceptance_pending",
+          "evidence": [
+            "agent_market/customer_identity.py",
+            "agent_market/customer_identity_service.py",
+            "scripts/agentcon_config.py",
+            "tests/test_customer_identity.py",
+            "tests/test_agentcon_config.py"
+          ],
+          "implementation_groups": [
+            "identity"
+          ],
+          "external_dependencies": [
+            "EXT-IDP",
+            "EXT-CUSTOMER"
+          ],
+          "source_state": "documented",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Later actual Google/GitHub basic frontend account creation/sign-in/sign-out acceptance passed. Exact customer callback acceptance is no longer pending. Other receiver/SDK/recovery acceptance remains separate.",
+          "historical_acceptance_note_before_latest_review": "Provider registrations and safe literal-parser validation exist; protected actual callback acceptance is not executed.",
+          "latest_review_evidence": [
+            "docs/REMAINING_DEVELOPMENT_REVIEW.md",
+            "reports/workspace-social-launch-2026-10-19/README.md",
+            "reports/workspace-account-samples-2026-10-19/README.md",
+            "reports/workspace-ai-providers-2026-10-19/README.md",
+            "reports/chatgpt-model-selection-2026-10-19/README.md"
+          ]
+        },
+        {
+          "id": "FINAL-02.02",
+          "text": "DB/HA·백업·복구 대상과 writer/rollback 책임자, 키 보관·회전·신원 복구 권한의 소유자를 정한다.",
+          "state": "acceptance_pending",
+          "evidence": [
+            "agent_market/application_runtime.py",
+            "agent_market/gateway/server.py",
+            "agent_market/collector/server.py",
+            "agent_market/workflow_worker.py",
+            "tests/test_application_runtime.py",
+            "tests/test_workflow_worker_composition.py",
+            "agent_market/application_writer_fence.py",
+            "agent_market/application_store_migration.py",
+            "tests/test_application_store_migration.py",
+            "reports/final-development-step3-2026-10-19/native-provisional.json",
+            "agent_market/customer_recovery.py",
+            "agent_market/customer_recovery_service.py",
+            "agent_market/customer_recovery_view.py",
+            "tests/test_customer_recovery.py",
+            "tests/test_customer_recovery_browser.py"
+          ],
+          "implementation_groups": [
+            "runtime",
+            "migration",
+            "recovery"
+          ],
+          "external_dependencies": [
+            "EXT-DB",
+            "EXT-CUSTOMER",
+            "EXT-TRUST"
+          ],
+          "source_state": "documented",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Local disposable PG and source-level ownership/restore profiles exist. A designated HA/load/DR target and named actual custodians are not supplied."
+        },
+        {
+          "id": "FINAL-02.03",
+          "text": "독립 corpus·rubric/holdout·평가자/qualifier, 승인 model/A2A endpoint, 수신 webhook/A2A inbox·Push 장치와 호출/전달 동의를 정한다.",
+          "state": "acceptance_pending",
+          "evidence": [
+            "agent_market/reliability_judges.py",
+            "agent_market/reliability_evaluation.py",
+            "agent_market/reliability_evaluation_worker.py",
+            "agent_market/reliability_research.py",
+            "tests/test_reliability_closeout_controllers.py",
+            "agent_market/workspace_remote_a2a.py",
+            "agent_market/customer_authoring_service.py",
+            "tests/test_workspace_a2a_sessions.py",
+            "tests/test_workspace_a2a_sessions_browser.py",
+            "tests/test_customer_a2a_sessions.py",
+            "tests/test_customer_a2a_sessions_browser.py",
+            "agent_market/workspace_machine_adapters.py",
+            "agent_market/workspace_machine_receiver.py",
+            "agent_market/workspace_machine_automation.py",
+            "tests/test_workspace_machine_adapters.py",
+            "tests/test_workspace_machine_receiver.py",
+            "tests/test_workspace_machine_automation.py",
+            "agent_market/concierge/browser_push.py",
+            "agent_market/concierge/task_updates.py",
+            "agent_market/concierge/task_updates_sw.js",
+            "tests/test_task_updates_security.py",
+            "tests/test_destination_verification.py"
+          ],
+          "implementation_groups": [
+            "evaluation",
+            "a2a",
+            "delivery",
+            "push"
+          ],
+          "external_dependencies": [
+            "EXT-EVAL",
+            "EXT-A2A",
+            "EXT-CUSTOMER"
+          ],
+          "source_state": "documented",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Concrete adapters exist. Approved independent corpus/evaluator/qualifier, A2A/model endpoint and physical Push device are not supplied."
+        },
+        {
+          "id": "FINAL-02.04",
+          "text": "PSP/facilitator·network/asset·sandbox·event/finality/refund/payout 사양과 7:3 기준액·정산 책임을 고정한다. 원래 조건부 항목은 조건을 충족시켜 닫으며 조용히 제외하지 않는다.",
+          "state": "acceptance_pending",
+          "evidence": [
+            "agent_market/stripe_sandbox.py",
+            "agent_market/stripe_sandbox_service.py",
+            "tests/test_stripe_sandbox.py",
+            "reports/development-completion-2026-10-19/final-candidate-3/verification.json",
+            "reports/development-completion-2026-10-19/final-candidate-3/source-final.json",
+            "reports/development-completion-2026-10-19/continuation/provider-account-status.json"
+          ],
+          "implementation_groups": [
+            "finance"
+          ],
+          "external_dependencies": [
+            "EXT-PSP"
+          ],
+          "source_state": "documented",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Stripe account preparation attempted. User states pre-business individual in Korea; observed country selector has no Korea. No substitute country/entity, personal signup submission, account, API keys or funds. Actual sandbox acceptance remains unmet."
+        },
+        {
+          "id": "FINAL-02.05",
+          "text": "필요한 입력은 한 번의 목록으로 모으고 설정 저장 위치를 사용한다. 비밀값을 문서·공개 소스·채팅에 기록하지 않는다.",
+          "state": "scope_and_evidence_documented",
+          "evidence": [
+            "reports/development-completion-2026-10-19/peer-handoff.md",
+            "docs/development-completion-execution.json"
+          ],
+          "implementation_groups": [
+            "handoff"
+          ],
+          "external_dependencies": [],
+          "source_state": "documented",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Scope/evidence mapping is prepared; this is not whole-release acceptance."
+        }
+      ],
+      "acceptance_criteria": [
+        "각 외부 의존에 대상·담당·필요 입력·수용 검사·진행 상태가 지정된다.",
+        "제공자별 소스 구현에 필요한 사양은 해당 구현 착수 전에 확정된다. 미선정 항목은 명명된 대기로 기록하며 전체 완료로 표시하지 않는다."
+      ],
+      "external_dependencies": [
+        "EXT-IDP",
+        "EXT-DB",
+        "EXT-EVAL",
+        "EXT-A2A",
+        "EXT-CUSTOMER",
+        "EXT-PSP",
+        "EXT-TRUST"
+      ]
+    },
+    {
+      "order": 3,
+      "title": "전체 저장소·서버·워커·보존·복구 구현 마감",
+      "work_ids": [
+        "POST139R-06"
+      ],
+      "p2": [
+        "P2-09"
+      ],
+      "state": "selected_source_verified_external_acceptance_pending",
+      "source_complete": true,
+      "actual_acceptance_complete": false,
+      "requirements": [
+        {
+          "id": "FINAL-03.01",
+          "text": "기존 native Store·SQL catalog·migration을 재사용해 main server·collector·scheduler·worker의 backend 선택을 일관되게 연결한다. SQLite 전용 CLI 경계를 포함한다.",
+          "state": "source_implemented_verified_external_acceptance_pending",
+          "evidence": [
+            "agent_market/application_runtime.py",
+            "agent_market/gateway/server.py",
+            "agent_market/collector/server.py",
+            "agent_market/workflow_worker.py",
+            "tests/test_application_runtime.py",
+            "tests/test_workflow_worker_composition.py",
+            "reports/development-completion-2026-10-19/scoped-verification.json",
+            "reports/development-completion-2026-10-19/final-candidate-3/verification.json",
+            "reports/development-completion-2026-10-19/final-candidate-3/source-final.json",
+            "reports/development-completion-2026-10-19/continuation/provider-account-status.json"
+          ],
+          "implementation_groups": [
+            "runtime"
+          ],
+          "external_dependencies": [
+            "EXT-DB"
+          ],
+          "source_state": "implemented_verified",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Canonical catalog rebuilt and check reports unchanged: 223 tables, 3472 statements. Native selection/migration fixtures corrected without weakening production guards."
+        },
+        {
+          "id": "FINAL-03.02",
+          "text": "writer drain/fence·단일 소유권 승격·변경 캡처 대사·rollback·종료/재기동을 완성한다. PA-04/PA-05는 같은 구현으로 한 번만 처리한다.",
+          "state": "source_implemented_scoped_verified_external_acceptance_pending",
+          "evidence": [
+            "agent_market/application_writer_fence.py",
+            "agent_market/application_store_migration.py",
+            "tests/test_application_store_migration.py",
+            "reports/final-development-step3-2026-10-19/native-provisional.json",
+            "reports/development-completion-2026-10-19/scoped-verification.json",
+            "reports/development-completion-2026-10-19/final-candidate-3/verification.json",
+            "reports/development-completion-2026-10-19/final-candidate-3/source-final.json",
+            "reports/development-completion-2026-10-19/continuation/provider-account-status.json"
+          ],
+          "implementation_groups": [
+            "migration"
+          ],
+          "external_dependencies": [
+            "EXT-DB"
+          ],
+          "source_state": "implemented_scoped_verified",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Selected source paths are covered by isolated checks; original external acceptance is tracked separately."
+        },
+        {
+          "id": "FINAL-03.03",
+          "text": "실행/체크포인트·평가·routing/shadow·admission/circuit 상태의 보존/정리와 replay tombstone 수명을 맞춘다. 진행/unknown 작업의 근거를 지우거나 재전송하지 않는다.",
+          "state": "source_implemented_scoped_verified_external_acceptance_pending",
+          "evidence": [
+            "agent_market/application_control_retention.py",
+            "agent_market/workflow_maintenance.py",
+            "agent_market/workflow_storage.py",
+            "tests/test_application_control_retention.py",
+            "tests/test_workflow_storage.py",
+            "reports/development-completion-2026-10-19/scoped-verification.json",
+            "reports/development-completion-2026-10-19/final-candidate-3/verification.json",
+            "reports/development-completion-2026-10-19/final-candidate-3/source-final.json",
+            "reports/development-completion-2026-10-19/continuation/provider-account-status.json"
+          ],
+          "implementation_groups": [
+            "retention"
+          ],
+          "external_dependencies": [
+            "EXT-DB"
+          ],
+          "source_state": "implemented_scoped_verified",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Selected source paths are covered by isolated checks; original external acceptance is tracked separately."
+        },
+        {
+          "id": "FINAL-03.04",
+          "text": "선정 저장소/HA profile의 백업·암호화 복원·권한 철회·fresh ownership·복구 후 재활성화 경계를 연결하고 대표 부하/DR 시험 경로를 준비한다.",
+          "state": "source_implemented_scoped_verified_external_acceptance_pending",
+          "evidence": [
+            "agent_market/workflow_backup.py",
+            "agent_market/workflow_postgres_archive.py",
+            "tests/test_phase2_restore_quarantine.py",
+            "docs/APPLICATION_RUNTIME.md",
+            "reports/development-completion-2026-10-19/scoped-verification.json",
+            "reports/development-completion-2026-10-19/final-candidate-3/verification.json",
+            "reports/development-completion-2026-10-19/final-candidate-3/source-final.json",
+            "reports/development-completion-2026-10-19/continuation/provider-account-status.json"
+          ],
+          "implementation_groups": [
+            "restore"
+          ],
+          "external_dependencies": [
+            "EXT-DB"
+          ],
+          "source_state": "implemented_scoped_verified",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Actual disposable native restoration is checked; designated environment HA/load/RPO/RTO is not established."
+        }
+      ],
+      "acceptance_criteria": [
+        "지원 backend에서 실제 서버/수집기/스케줄러/워커 진입점과 검색·권한·실행 의미가 일치한다.",
+        "전환·rollback·재기동·복원 격리·정리/재생방지 시험이 통과하고, 지정 환경의 RPO/RTO·부하 수용 결과가 따로 연결된다."
+      ],
+      "external_dependencies": [
+        "EXT-DB"
+      ]
+    },
+    {
+      "order": 4,
+      "title": "평가·독립 품질·운영 증거·적응형 우선순위 연결 마감",
+      "work_ids": [
+        "POST139R-03",
+        "POST139R-04"
+      ],
+      "p2": [
+        "P2-01",
+        "P2-02"
+      ],
+      "state": "selected_source_scoped_verified_external_acceptance_pending",
+      "source_complete": true,
+      "actual_acceptance_complete": false,
+      "requirements": [
+        {
+          "id": "FINAL-04.01",
+          "text": "기존 typed lineage·평가 worker·qualification·로컬 verdict를 실제 선정 evaluator/qualifier에 연결한다. dispatch의 DB fence 안에서는 원격 심판을 호출하지 않는다.",
+          "state": "source_implemented_scoped_verified_external_acceptance_pending",
+          "evidence": [
+            "agent_market/reliability_judges.py",
+            "agent_market/reliability_evaluation.py",
+            "agent_market/reliability_evaluation_worker.py",
+            "agent_market/reliability_research.py",
+            "tests/test_reliability_closeout_controllers.py",
+            "reports/development-completion-2026-10-19/scoped-verification.json"
+          ],
+          "implementation_groups": [
+            "evaluation"
+          ],
+          "external_dependencies": [
+            "EXT-EVAL"
+          ],
+          "source_state": "implemented_scoped_verified",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Selected source paths are covered by isolated checks; original external acceptance is tracked separately."
+        },
+        {
+          "id": "FINAL-04.02",
+          "text": "고정한 업무별 validator·oracle/MR·corpus/rubric/holdout과 반복/fault 평가·coverage/불확실성·지연 집계를 연결한다.",
+          "state": "source_implemented_scoped_verified_external_acceptance_pending",
+          "evidence": [
+            "agent_market/reliability_judges.py",
+            "agent_market/reliability_evaluation.py",
+            "agent_market/reliability_evaluation_worker.py",
+            "agent_market/reliability_research.py",
+            "tests/test_reliability_closeout_controllers.py",
+            "reports/development-completion-2026-10-19/scoped-verification.json"
+          ],
+          "implementation_groups": [
+            "evaluation"
+          ],
+          "external_dependencies": [
+            "EXT-EVAL"
+          ],
+          "source_state": "implemented_scoped_verified",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Selected source paths are covered by isolated checks; original external acceptance is tracked separately."
+        },
+        {
+          "id": "FINAL-04.03",
+          "text": "설계된 적응형 평가 우선순위를 현재 사용·실패·변경·증거 만료·제공자 budget에 묶어 구현하고, 근거 없는 예측값이나 성공 날짜를 만들지 않는다.",
+          "state": "source_implemented_scoped_verified_external_acceptance_pending",
+          "evidence": [
+            "agent_market/reliability_judges.py",
+            "agent_market/reliability_evaluation.py",
+            "agent_market/reliability_evaluation_worker.py",
+            "agent_market/reliability_research.py",
+            "tests/test_reliability_closeout_controllers.py",
+            "reports/development-completion-2026-10-19/scoped-verification.json"
+          ],
+          "implementation_groups": [
+            "evaluation"
+          ],
+          "external_dependencies": [
+            "EXT-EVAL"
+          ],
+          "source_state": "implemented_scoped_verified",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Selected source paths are covered by isolated checks; original external acceptance is tracked separately."
+        },
+        {
+          "id": "FINAL-04.04",
+          "text": "현재 버전·목적·승인·만료·철회에 따른 운영 자격의 생성/소비를 끝까지 확인한다. 실제 업무 성공, schema 통과, 전달 수락을 분리한다.",
+          "state": "source_implemented_scoped_verified_external_acceptance_pending",
+          "evidence": [
+            "agent_market/reliability_judges.py",
+            "agent_market/reliability_evaluation.py",
+            "agent_market/reliability_evaluation_worker.py",
+            "agent_market/reliability_research.py",
+            "tests/test_reliability_closeout_controllers.py",
+            "reports/development-completion-2026-10-19/scoped-verification.json"
+          ],
+          "implementation_groups": [
+            "evaluation"
+          ],
+          "external_dependencies": [
+            "EXT-EVAL"
+          ],
+          "source_state": "implemented_scoped_verified",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Selected source paths are covered by isolated checks; original external acceptance is tracked separately."
+        }
+      ],
+      "acceptance_criteria": [
+        "지원 계약의 정확한 입력·버전·결과에 독립 판정과 평가 provenance가 연결된다.",
+        "실패/unknown/미평가·holdout 오염·철회·만료·budget·지연 검사가 통과하고 실제 평가 결과와 합성 결과가 구분된다."
+      ],
+      "external_dependencies": [
+        "EXT-EVAL"
+      ]
+    },
+    {
+      "order": 5,
+      "title": "장기 A2A·분기 워크플로우·자체 agent·개발 지원 완성",
+      "work_ids": [
+        "POST139R-08"
+      ],
+      "p2": [
+        "P2-05",
+        "P2-06",
+        "P2-08"
+      ],
+      "state": "selected_source_scoped_verified_external_acceptance_pending",
+      "source_complete": true,
+      "actual_acceptance_complete": false,
+      "requirements": [
+        {
+          "id": "FINAL-05.01",
+          "text": "선정된 장기 A2A profile의 session/multi-turn·status/cancel·streaming/resume·idempotency·장기 lease·절대 deadline·late artifact 처리를 구현한다. 기존 단발 polling을 다시 만들지 않는다.",
+          "state": "source_implemented_scoped_verified_external_acceptance_pending",
+          "evidence": [
+            "agent_market/workspace_remote_a2a.py",
+            "agent_market/customer_authoring_service.py",
+            "tests/test_workspace_a2a_sessions.py",
+            "tests/test_workspace_a2a_sessions_browser.py",
+            "tests/test_customer_a2a_sessions.py",
+            "tests/test_customer_a2a_sessions_browser.py",
+            "reports/development-completion-2026-10-19/scoped-verification.json"
+          ],
+          "implementation_groups": [
+            "a2a"
+          ],
+          "external_dependencies": [
+            "EXT-A2A"
+          ],
+          "source_state": "implemented_scoped_verified",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "A2A0.3 context/stream/resume is separate asynchronous history, not an embedded typed-DAG or exported long-task SDK node."
+        },
+        {
+          "id": "FINAL-05.02",
+          "text": "기존 typed DAG·최대6노드·literal/projection·허용 branch를 모델 제안/고객 authoring까지 연결한다. 목적→계약/후보→입력·차이 검토→새 revision→명시 시험/릴리스 흐름을 완성한다.",
+          "state": "source_implemented_scoped_verified_external_acceptance_pending",
+          "evidence": [
+            "agent_market/customer_authoring.py",
+            "agent_market/customer_typed_authoring_view.py",
+            "agent_market/workspace_app_factory.py",
+            "tests/test_customer_typed_authoring.py",
+            "tests/test_customer_typed_authoring_browser.py",
+            "agent_market/workflow_model_proposer.py",
+            "agent_market/workflow_support.py",
+            "tests/test_workflow_model_ollama.py",
+            "tests/test_workflow_model_typed_proposal.py",
+            "reports/development-completion-2026-10-19/scoped-verification.json",
+            "reports/development-completion-2026-10-19/final-candidate-3/verification.json",
+            "reports/development-completion-2026-10-19/final-candidate-3/source-final.json",
+            "reports/development-completion-2026-10-19/continuation/provider-account-status.json"
+          ],
+          "implementation_groups": [
+            "typed",
+            "model"
+          ],
+          "external_dependencies": [
+            "EXT-A2A"
+          ],
+          "source_state": "implemented_scoped_verified",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Later local Ollama constrained planning passed three actual account proposal/review/save/execute journeys. This supersedes the earlier local timeout failure as the current local acceptance status. ChatGPT account authorization passed but completed inference is deferred by the user after weekly quota failure; hosted customer integration is not wired.",
+          "historical_acceptance_note_before_latest_review": "Bounded concrete adapter remains implemented/default off. Actual existing local inference was tried cold and after successful preload; both exceeded the two-second response limit. No review/draft was created and real model acceptance remains unmet.",
+          "latest_review_evidence": [
+            "docs/REMAINING_DEVELOPMENT_REVIEW.md",
+            "reports/workspace-social-launch-2026-10-19/README.md",
+            "reports/workspace-account-samples-2026-10-19/README.md",
+            "reports/workspace-ai-providers-2026-10-19/README.md",
+            "reports/chatgpt-model-selection-2026-10-19/README.md"
+          ]
+        },
+        {
+          "id": "FINAL-05.03",
+          "text": "에이전트 교체는 새 revision의 비교 시험으로 처리하고, 실행 중 pin이나 입력 공유·권한·예산을 자동 변경하지 않는다.",
+          "state": "source_implemented_scoped_verified_external_acceptance_pending",
+          "evidence": [
+            "agent_market/customer_authoring.py",
+            "agent_market/customer_typed_authoring_view.py",
+            "agent_market/workspace_app_factory.py",
+            "tests/test_customer_typed_authoring.py",
+            "tests/test_customer_typed_authoring_browser.py",
+            "reports/development-completion-2026-10-19/scoped-verification.json"
+          ],
+          "implementation_groups": [
+            "typed"
+          ],
+          "external_dependencies": [
+            "EXT-A2A"
+          ],
+          "source_state": "implemented_scoped_verified",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Selected source paths are covered by isolated checks; original external acceptance is tracked separately."
+        },
+        {
+          "id": "FINAL-05.04",
+          "text": "지원센터의 승인 corpus 검색·설명·검증 가능한 JSON patch 제안·검토 후 새 초안/시험을 연결한다. 자동 shell·권한 증설·게시를 추가하지 않는다.",
+          "state": "source_implemented_scoped_verified_external_acceptance_pending",
+          "evidence": [
+            "agent_market/workflow_model_proposer.py",
+            "agent_market/workspace_app_factory.py",
+            "agent_market/workflow_support.py",
+            "tests/test_workflow_model_ollama.py",
+            "tests/test_workflow_model_typed_proposal.py",
+            "agent_market/first_party_corpus.py",
+            "agent_market/first_party_guides.py",
+            "tests/test_first_party_corpus.py",
+            "reports/development-completion-2026-10-19/scoped-verification.json"
+          ],
+          "implementation_groups": [
+            "model",
+            "corpus"
+          ],
+          "external_dependencies": [
+            "EXT-A2A",
+            "EXT-EVAL"
+          ],
+          "source_state": "implemented_scoped_verified",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Selected source paths are covered by isolated checks; original external acceptance is tracked separately."
+        },
+        {
+          "id": "FINAL-05.05",
+          "text": "설계의 좁은 읽기 업무 중 1번에서 고정한 자체 agent를 실제 업무 구현으로 납품하고 공통 품질 평가·추천 순위를 적용한다. 안내 문서만으로 대체하지 않는다.",
+          "state": "source_implemented_scoped_verified_external_acceptance_pending",
+          "evidence": [
+            "agent_market/first_party_corpus.py",
+            "agent_market/first_party_guides.py",
+            "tests/test_first_party_corpus.py",
+            "agent_market/reliability_judges.py",
+            "agent_market/reliability_evaluation.py",
+            "agent_market/reliability_evaluation_worker.py",
+            "agent_market/reliability_research.py",
+            "tests/test_reliability_closeout_controllers.py",
+            "reports/development-completion-2026-10-19/scoped-verification.json"
+          ],
+          "implementation_groups": [
+            "corpus",
+            "evaluation"
+          ],
+          "external_dependencies": [
+            "EXT-EVAL",
+            "EXT-A2A"
+          ],
+          "source_state": "implemented_scoped_verified",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Real approved-snapshot document retrieval returns task artifacts; no self-qualification/ranking boost. Deployment and independent qualification pending."
+        },
+        {
+          "id": "FINAL-05.06",
+          "text": "동의된 지원 해결·업무 성공·수정 횟수·재사용/cohort·운영 부담의 수집/분석을 구현한다. 장기 성과는 실제 자료가 쌓인 뒤 측정하며 결과를 꾸미지 않는다.",
+          "state": "source_implemented_scoped_verified",
+          "evidence": [
+            "agent_market/customer_task_outcomes.py",
+            "agent_market/workspace_support_outcomes.py",
+            "tests/test_customer_typed_authoring.py",
+            "reports/development-completion-2026-10-19/scoped-verification.json"
+          ],
+          "implementation_groups": [
+            "outcomes"
+          ],
+          "external_dependencies": [],
+          "source_state": "implemented_scoped_verified",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Purpose-consented customer-reported collection/analysis implemented. Real four-week outcomes are not manufactured or required to keep code open indefinitely."
+        }
+      ],
+      "acceptance_criteria": [
+        "고정된 지원 profile과 분기 그래프를 실제 실행·취소/복구·비교 시험·릴리스까지 왕복 검증한다.",
+        "자체 agent는 정의된 업무 산출물을 내고 독립 평가 대상이 된다. 성과 수집/분석 기능은 시험되며 4주 실고객 성과는 별도 운영 관측으로 표시한다."
+      ],
+      "external_dependencies": [
+        "EXT-A2A"
+      ]
+    },
+    {
+      "order": 6,
+      "title": "고객·SDK·신원 복구·수신/알림 사용자 여정 완성",
+      "work_ids": [
+        "POST139R-05"
+      ],
+      "p2": [
+        "P2-06",
+        "P2-07"
+      ],
+      "state": "selected_source_scoped_verified_external_acceptance_pending",
+      "source_complete": true,
+      "actual_acceptance_complete": false,
+      "requirements": [
+        {
+          "id": "FINAL-06.01",
+          "text": "Google/GitHub 고객 로그인과 조직 owner/editor/runner 권한으로 여러 노드 작성→시험→불변 릴리스→배포/ZIP→철회/rollback을 연결한다. 기존 제한 경로·SDK/BFF를 재사용한다.",
+          "state": "source_implemented_scoped_verified_external_acceptance_pending",
+          "evidence": [
+            "agent_market/customer_identity.py",
+            "agent_market/customer_identity_service.py",
+            "scripts/agentcon_config.py",
+            "tests/test_customer_identity.py",
+            "tests/test_agentcon_config.py",
+            "agent_market/customer_organizations.py",
+            "agent_market/customer_authoring_service.py",
+            "agent_market/workspace_typed_release.py",
+            "agent_market/workspace_private_bootstrap.py",
+            "tests/test_customer_organizations.py",
+            "tests/test_customer_authoring.py",
+            "agent_market/customer_authoring.py",
+            "agent_market/customer_typed_authoring_view.py",
+            "agent_market/workspace_app_factory.py",
+            "tests/test_customer_typed_authoring.py",
+            "tests/test_customer_typed_authoring_browser.py",
+            "agent_market/workspace_sdk_bff.py",
+            "tests/test_workspace_sdk_v2.py",
+            "reports/development-completion-2026-10-19/scoped-verification.json"
+          ],
+          "implementation_groups": [
+            "identity",
+            "customer",
+            "typed",
+            "sdk"
+          ],
+          "external_dependencies": [
+            "EXT-IDP",
+            "EXT-CUSTOMER"
+          ],
+          "source_state": "implemented_scoped_verified",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Later basic Google/GitHub frontend login/logout and ten saved customer workflows passed real-account acceptance. Customer release/export/external SDK/rollback acceptance and other original full-journey conditions are not established by those sample runs.",
+          "historical_acceptance_note_before_latest_review": "Selected source paths are covered by isolated checks; original external acceptance is tracked separately.",
+          "latest_review_evidence": [
+            "docs/REMAINING_DEVELOPMENT_REVIEW.md",
+            "reports/workspace-social-launch-2026-10-19/README.md",
+            "reports/workspace-account-samples-2026-10-19/README.md",
+            "reports/workspace-ai-providers-2026-10-19/README.md",
+            "reports/chatgpt-model-selection-2026-10-19/README.md"
+          ]
+        },
+        {
+          "id": "FINAL-06.02",
+          "text": "유일 소유자 신원 분실 복구를 선정 독립 authority·증거·검토·이의/취소·기존 세션/권한 철회에 연결한다. 기존 공동 소유자 이관으로 대신하지 않는다.",
+          "state": "source_implemented_scoped_verified_external_acceptance_pending",
+          "evidence": [
+            "agent_market/customer_recovery.py",
+            "agent_market/customer_recovery_service.py",
+            "agent_market/customer_recovery_view.py",
+            "tests/test_customer_recovery.py",
+            "tests/test_customer_recovery_browser.py",
+            "reports/development-completion-2026-10-19/scoped-verification.json"
+          ],
+          "implementation_groups": [
+            "recovery"
+          ],
+          "external_dependencies": [
+            "EXT-CUSTOMER"
+          ],
+          "source_state": "implemented_scoped_verified",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Selected source paths are covered by isolated checks; original external acceptance is tracked separately."
+        },
+        {
+          "id": "FINAL-06.03",
+          "text": "비공개 receiver·목적별 grant·변경 consumer를 실제 HTTPS 수신처와 연결하고 webhook/A2A inbox 검증·서명·재생 방지·수락/unknown·철회를 확인한다.",
+          "state": "source_implemented_scoped_verified_external_acceptance_pending",
+          "evidence": [
+            "agent_market/workspace_machine_adapters.py",
+            "agent_market/workspace_machine_receiver.py",
+            "agent_market/workspace_machine_automation.py",
+            "tests/test_workspace_machine_adapters.py",
+            "tests/test_workspace_machine_receiver.py",
+            "tests/test_workspace_machine_automation.py",
+            "reports/development-completion-2026-10-19/scoped-verification.json"
+          ],
+          "implementation_groups": [
+            "delivery"
+          ],
+          "external_dependencies": [
+            "EXT-CUSTOMER"
+          ],
+          "source_state": "implemented_scoped_verified",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Selected source paths are covered by isolated checks; original external acceptance is tracked separately."
+        },
+        {
+          "id": "FINAL-06.04",
+          "text": "브라우저 알림은 native permission·PushSubscription·전달된 시험 알림 클릭까지 확인하며, 미확인/거부 요청 처리와 별도 광고 동의/철회를 유지한다.",
+          "state": "source_implemented_scoped_verified_external_acceptance_pending",
+          "evidence": [
+            "agent_market/concierge/browser_push.py",
+            "agent_market/concierge/task_updates.py",
+            "agent_market/concierge/task_updates_sw.js",
+            "tests/test_task_updates_security.py",
+            "tests/test_destination_verification.py",
+            "reports/development-completion-2026-10-19/scoped-verification.json"
+          ],
+          "implementation_groups": [
+            "push"
+          ],
+          "external_dependencies": [
+            "EXT-CUSTOMER"
+          ],
+          "source_state": "implemented_scoped_verified",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Native permission/subscription/test-click requirements remain enforced; no real browser/device delivery acceptance performed."
+        },
+        {
+          "id": "FINAL-06.05",
+          "text": "보호된 agentconcierge.biz gateway와 외부 배포 앱의 실제 SDK 왕복·현재 origin/audience/권한·버전/철회를 검증한다. 기존 공개 SDK1/다운로드를 강제 교체하지 않는다.",
+          "state": "source_implemented_scoped_verified_external_acceptance_pending",
+          "evidence": [
+            "agent_market/workspace_sdk_bff.py",
+            "agent_market/workspace_app_factory.py",
+            "agent_market/customer_authoring.py",
+            "tests/test_workspace_sdk_v2.py",
+            "tests/test_customer_typed_authoring.py",
+            "reports/development-completion-2026-10-19/scoped-verification.json"
+          ],
+          "implementation_groups": [
+            "sdk"
+          ],
+          "external_dependencies": [
+            "EXT-CUSTOMER"
+          ],
+          "source_state": "implemented_scoped_verified",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Selected source paths are covered by isolated checks; original external acceptance is tracked separately."
+        }
+      ],
+      "acceptance_criteria": [
+        "고객 권한으로 작성·시험·배포·실행·철회가 왕복하고 조직 간 격리가 유지된다.",
+        "신원 복구와 수신처/Push 검증·철회가 지정 시험 환경에서 확인된다. 관리자 계정 체계는 바꾸지 않고 공개 Workspace는 닫아 둔다."
+      ],
+      "external_dependencies": [
+        "EXT-IDP",
+        "EXT-CUSTOMER"
+      ]
+    },
+    {
+      "order": 7,
+      "title": "자동 circuit·예측 라우팅·실제 조기 종료·신뢰 게시 완성",
+      "work_ids": [
+        "POST139R-07"
+      ],
+      "p2": [
+        "P2-03",
+        "P2-04",
+        "P2-05"
+      ],
+      "state": "selected_source_scoped_verified_external_acceptance_pending",
+      "source_complete": true,
+      "actual_acceptance_complete": false,
+      "requirements": [
+        {
+          "id": "FINAL-07.01",
+          "text": "기존 circuit core 위에 현재 관측 자동 소비·별도 승인 half-open probe 예약·한도·dedupe·철회 경계를 연결한다.",
+          "state": "source_implemented_scoped_verified_external_acceptance_pending",
+          "evidence": [
+            "agent_market/reliability_automation.py",
+            "agent_market/reliability_circuit.py",
+            "agent_market/reliability_evaluation_worker.py",
+            "tests/test_reliability_closeout_controllers.py",
+            "reports/development-completion-2026-10-19/scoped-verification.json"
+          ],
+          "implementation_groups": [
+            "circuit"
+          ],
+          "external_dependencies": [
+            "EXT-EVAL"
+          ],
+          "source_state": "implemented_scoped_verified",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Selected source paths are covered by isolated checks; original external acceptance is tracked separately."
+        },
+        {
+          "id": "FINAL-07.02",
+          "text": "고정 특징/모델의 offline 비교→대체 호출 없는 shadow→명시 opt-in canary를 구현한다. 최초 admission의 business call≤1·추가 교체0과 R-06 상호 배타를 유지한다.",
+          "state": "source_implemented_scoped_verified_external_acceptance_pending",
+          "evidence": [
+            "agent_market/reliability_routing.py",
+            "agent_market/reliability_admission.py",
+            "tests/test_reliability_admission.py",
+            "tests/test_reliability_controls.py",
+            "reports/development-completion-2026-10-19/scoped-verification.json"
+          ],
+          "implementation_groups": [
+            "routing"
+          ],
+          "external_dependencies": [
+            "EXT-EVAL"
+          ],
+          "source_state": "implemented_scoped_verified",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Canonical first-version RULE_VERSION freshness/errors/correlation profile retained; no learned probability, online learning or new routing model claimed."
+        },
+        {
+          "id": "FINAL-07.03",
+          "text": "threshold-bound 실제 opt-in early-stop controller와 지원 제공자의 cancel 확인·늦은 결과·unknown 처리를 연결한다. would_stop replay를 실제 개입으로 세지 않는다.",
+          "state": "source_implemented_scoped_verified_external_acceptance_pending",
+          "evidence": [
+            "agent_market/reliability_early_stop.py",
+            "agent_market/reliability_control_service.py",
+            "tests/test_reliability_closeout_controllers.py",
+            "reports/development-completion-2026-10-19/scoped-verification.json"
+          ],
+          "implementation_groups": [
+            "early"
+          ],
+          "external_dependencies": [
+            "EXT-A2A",
+            "EXT-EVAL"
+          ],
+          "source_state": "implemented_scoped_verified",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Selected source paths are covered by isolated checks; original external acceptance is tracked separately."
+        },
+        {
+          "id": "FINAL-07.04",
+          "text": "baseline/개입 lineage에서 오중단·성공 손실·탐지 지연·판정 overhead를 수집하고 기준 미달 시 승격을 차단한다.",
+          "state": "source_implemented_scoped_verified_external_acceptance_pending",
+          "evidence": [
+            "agent_market/reliability_early_stop.py",
+            "agent_market/reliability_control_service.py",
+            "tests/test_reliability_closeout_controllers.py",
+            "agent_market/reliability_judges.py",
+            "agent_market/reliability_evaluation.py",
+            "agent_market/reliability_evaluation_worker.py",
+            "agent_market/reliability_research.py",
+            "reports/development-completion-2026-10-19/scoped-verification.json"
+          ],
+          "implementation_groups": [
+            "early",
+            "evaluation"
+          ],
+          "external_dependencies": [
+            "EXT-A2A",
+            "EXT-EVAL"
+          ],
+          "source_state": "implemented_scoped_verified",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Precommitted distinct paired tasks and independent artifact comparison implemented; canceled outputless tasks remain unassessed. Real benchmark acceptance pending."
+        },
+        {
+          "id": "FINAL-07.05",
+          "text": "신뢰 페이지/배지·공개 receipt의 실제 disclosure/key authorizer·키 보관/게시·discovery·회전/철회를 연결한다. 만료/철회 즉시 중립화하고 공개 노출은 별도 승인 전 off로 둔다.",
+          "state": "source_implemented_scoped_verified_external_acceptance_pending",
+          "evidence": [
+            "agent_market/reliability_publication.py",
+            "agent_market/reliability_public_receipt.py",
+            "agent_market/reliability_trust.py",
+            "tests/test_reliability_closeout_controllers.py",
+            "reports/development-completion-2026-10-19/scoped-verification.json"
+          ],
+          "implementation_groups": [
+            "publication"
+          ],
+          "external_dependencies": [
+            "EXT-TRUST"
+          ],
+          "source_state": "implemented_scoped_verified",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Selected source paths are covered by isolated checks; original external acceptance is tracked separately."
+        }
+      ],
+      "acceptance_criteria": [
+        "지원 profile의 자동 circuit·단일 admission·실제 개입/취소·unknown/kill switch 시험과 독립 비교가 통과한다.",
+        "실제 키/노출 권한 경로가 작동하고 배지·receipt의 현재성/철회·비밀 비노출을 검증한다. 단순 callback 설치를 전체 완료로 간주하지 않는다."
+      ],
+      "external_dependencies": [
+        "EXT-EVAL",
+        "EXT-TRUST"
+      ]
+    },
+    {
+      "order": 8,
+      "title": "선정 결제사의 sandbox·정산·환불·지급 adapter 완성",
+      "work_ids": [
+        "POST139R-09"
+      ],
+      "p2": [
+        "P2-10"
+      ],
+      "state": "selected_source_scoped_verified_external_acceptance_pending",
+      "source_complete": true,
+      "actual_acceptance_complete": false,
+      "requirements": [
+        {
+          "id": "FINAL-08.01",
+          "text": "2번에서 선정한 PSP/facilitator·scheme/network/asset profile의 quote/reserve/verify/execute/confirm/settle 경로를 실제 adapter로 구현한다.",
+          "state": "source_implemented_scoped_verified_external_acceptance_pending",
+          "evidence": [
+            "agent_market/stripe_sandbox.py",
+            "agent_market/stripe_sandbox_service.py",
+            "tests/test_stripe_sandbox.py",
+            "reports/development-completion-2026-10-19/scoped-verification.json"
+          ],
+          "implementation_groups": [
+            "finance"
+          ],
+          "external_dependencies": [
+            "EXT-PSP"
+          ],
+          "source_state": "implemented_scoped_verified",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Selected source paths are covered by isolated checks; original external acceptance is tracked separately."
+        },
+        {
+          "id": "FINAL-08.02",
+          "text": "인증된 외부 event·unique ID·finality/reorg·부분 실패·응답 유실·중복 callback과 원래 거래 ID 기반 대사를 연결한다. unknown에서 새 결제를 만들지 않는다.",
+          "state": "source_implemented_scoped_verified_external_acceptance_pending",
+          "evidence": [
+            "agent_market/stripe_sandbox.py",
+            "agent_market/stripe_sandbox_service.py",
+            "tests/test_stripe_sandbox.py",
+            "reports/development-completion-2026-10-19/scoped-verification.json"
+          ],
+          "implementation_groups": [
+            "finance"
+          ],
+          "external_dependencies": [
+            "EXT-PSP"
+          ],
+          "source_state": "implemented_scoped_verified",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Selected source paths are covered by isolated checks; original external acceptance is tracked separately."
+        },
+        {
+          "id": "FINAL-08.03",
+          "text": "계약에 고정된 7:3 기준액·attempt별 기여·환불/지급·정정 역분개·원장 잔액 대사를 구현한다. 마지막 성공 공급자에게 무조건 총액70%를 지급하지 않는다.",
+          "state": "source_implemented_scoped_verified_external_acceptance_pending",
+          "evidence": [
+            "agent_market/stripe_sandbox.py",
+            "agent_market/stripe_sandbox_service.py",
+            "tests/test_stripe_sandbox.py",
+            "reports/development-completion-2026-10-19/scoped-verification.json"
+          ],
+          "implementation_groups": [
+            "finance"
+          ],
+          "external_dependencies": [
+            "EXT-PSP"
+          ],
+          "source_state": "implemented_scoped_verified",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Gross allocation follows actual immutable successful-run contributions, refunds/reversals and platform fees. Connect account credit is not bank withdrawal."
+        },
+        {
+          "id": "FINAL-08.04",
+          "text": "선정 sandbox에서 정상/실패/중복/유실/부분 환불·지급·대사를 검증한다. TEST_UNIT·offline signature 검사를 실제 결제 성공으로 대체하지 않는다.",
+          "state": "source_implemented_scoped_verified_external_acceptance_pending",
+          "evidence": [
+            "agent_market/stripe_sandbox.py",
+            "agent_market/stripe_sandbox_service.py",
+            "tests/test_stripe_sandbox.py",
+            "reports/development-completion-2026-10-19/scoped-verification.json",
+            "reports/development-completion-2026-10-19/final-candidate-3/verification.json",
+            "reports/development-completion-2026-10-19/final-candidate-3/source-final.json",
+            "reports/development-completion-2026-10-19/continuation/provider-account-status.json"
+          ],
+          "implementation_groups": [
+            "finance"
+          ],
+          "external_dependencies": [
+            "EXT-PSP"
+          ],
+          "source_state": "implemented_scoped_verified",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Synthetic Stripe tests pass; approved real sandbox account is unavailable under the currently established eligibility. Original acceptance requirement remains open."
+        }
+      ],
+      "acceptance_criteria": [
+        "선정 profile의 실제 sandbox adapter와 환불·지급·대사 시험이 통과한다.",
+        "실제 금전·지급·광고는 별도 명시 승인 전 비활성이다. 제공자 미선정이면 이 단계와 전체 개발 완료를 닫지 않는다."
+      ],
+      "external_dependencies": [
+        "EXT-PSP"
+      ]
+    },
+    {
+      "order": 9,
+      "title": "동일 버전 최종 검증·한 번 반영·동료 인계",
+      "work_ids": [
+        "POST139R-01",
+        "POST139R-02",
+        "POST139R-03",
+        "POST139R-04",
+        "POST139R-05",
+        "POST139R-06",
+        "POST139R-07",
+        "POST139R-08",
+        "POST139R-09"
+      ],
+      "p2": [
+        "P2-01",
+        "P2-02",
+        "P2-03",
+        "P2-04",
+        "P2-05",
+        "P2-06",
+        "P2-07",
+        "P2-08",
+        "P2-09",
+        "P2-10"
+      ],
+      "state": "fresh_whole_local_verification_passed_external_acceptance_pending",
+      "source_complete": false,
+      "actual_acceptance_complete": false,
+      "requirements": [
+        {
+          "id": "FINAL-09.01",
+          "text": "릴리스 후보 소스를 한 버전/commit 또는 SHA manifest로 고정한다. 다른 개발은 분리하고 필수 요구 불일치·확인된 보안 결함만 후보에 수정 반영한다.",
+          "state": "source_frozen_local_verified",
+          "evidence": [
+            "docs/DEVELOPMENT_COMPLETION_PLAN.md",
+            "docs/development-completion-plan.json",
+            "docs/design-implementation-audit.json",
+            "scripts/check_front_content.py",
+            "scripts/run_frontend_regressions.py",
+            "reports/development-completion-2026-10-19/scoped-selection.json",
+            "reports/development-completion-2026-10-19/scoped-security.json",
+            "reports/development-completion-2026-10-19/final-candidate-3/verification.json",
+            "reports/development-completion-2026-10-19/final-candidate-3/source-final.json",
+            "reports/development-completion-2026-10-19/continuation/provider-account-status.json",
+            "reports/development-completion-2026-10-19/final-whole/verification.json",
+            "reports/development-completion-2026-10-19/final-whole/source-after.json",
+            "reports/development-completion-2026-10-19/final-whole/medium-warning-triage.json",
+            "reports/development-completion-2026-10-19/final-whole/public-tls-headers.json",
+            "reports/development-completion-2026-10-19/final-whole/public-header-freshness.json",
+            "reports/development-completion-2026-10-19/final-whole/public-static-scripts.json",
+            "reports/development-completion-2026-10-19/final-whole/README.md"
+          ],
+          "implementation_groups": [
+            "scope",
+            "verification"
+          ],
+          "external_dependencies": [
+            "EXT-RELEASE"
+          ],
+          "source_state": "documented_verified",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Current complete source inventory is1019 files. Initial inherited1015-file pin and the four-file supplemental pin are retained with their exact timing; the affected supplemental modules were separately rerun. No source drift was detected."
+        },
+        {
+          "id": "FINAL-09.02",
+          "text": "요구 대조표의 기능/API/Chromium·보안 정적/동적·콘텐츠·조직/권한·실행/알림·금융 sandbox·대표 부하/DR·hosted CI를 같은 소스에서 마감한다. 변경 모듈 결과를 교체하고 중복 합산하지 않는다.",
+          "state": "fresh_whole_local_verification_passed_external_acceptance_pending",
+          "evidence": [
+            "scripts/check_front_content.py",
+            "scripts/run_frontend_regressions.py",
+            "reports/development-completion-2026-10-19/scoped-selection.json",
+            "reports/development-completion-2026-10-19/scoped-security.json",
+            "reports/development-completion-2026-10-19/final-candidate-3/verification.json",
+            "reports/development-completion-2026-10-19/final-candidate-3/source-final.json",
+            "reports/development-completion-2026-10-19/continuation/provider-account-status.json",
+            "reports/development-completion-2026-10-19/final-whole/verification.json",
+            "reports/development-completion-2026-10-19/final-whole/source-after.json",
+            "reports/development-completion-2026-10-19/final-whole/medium-warning-triage.json",
+            "reports/development-completion-2026-10-19/final-whole/public-tls-headers.json",
+            "reports/development-completion-2026-10-19/final-whole/public-header-freshness.json",
+            "reports/development-completion-2026-10-19/final-whole/public-static-scripts.json",
+            "reports/development-completion-2026-10-19/final-whole/README.md"
+          ],
+          "implementation_groups": [
+            "verification"
+          ],
+          "external_dependencies": [
+            "EXT-RELEASE",
+            "EXT-DB",
+            "EXT-EVAL",
+            "EXT-CUSTOMER",
+            "EXT-PSP"
+          ],
+          "source_state": "implemented_verified",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Historical5570-case/309-module whole run remains valid for its1019-file pinned cohort. Latest review selects314 modules and finds30 changed baseline source files plus14 additional inventoried paths. Later scoped results are separate; a fresh latest whole candidate run remains required.",
+          "historical_acceptance_note_before_latest_review": "All5570 unique cases across the whole selected309-module corpus executed in this cohort and passed, with no error/skip or previous result reuse. Supplemental27 tests are not added to that count. Hosted/private/real provider acceptance remains open.",
+          "latest_review_evidence": [
+            "docs/REMAINING_DEVELOPMENT_REVIEW.md",
+            "reports/workspace-social-launch-2026-10-19/README.md",
+            "reports/workspace-account-samples-2026-10-19/README.md",
+            "reports/workspace-ai-providers-2026-10-19/README.md",
+            "reports/chatgpt-model-selection-2026-10-19/README.md"
+          ]
+        },
+        {
+          "id": "FINAL-09.03",
+          "text": "공개 Chat/Test/게시 workflow·웹앱 ZIP/List Your Agent/About/푸터와 관리자 방문 에이전트·고객 요청·워크플로우의 기존 사용자 시나리오를 회귀 확인한다.",
+          "state": "existing_local_journeys_verified",
+          "evidence": [
+            "scripts/check_front_content.py",
+            "scripts/run_frontend_regressions.py",
+            "reports/development-completion-2026-10-19/scoped-selection.json",
+            "reports/development-completion-2026-10-19/scoped-security.json",
+            "reports/development-completion-2026-10-19/final-candidate-3/verification.json",
+            "reports/development-completion-2026-10-19/final-candidate-3/source-final.json",
+            "reports/development-completion-2026-10-19/continuation/provider-account-status.json",
+            "reports/development-completion-2026-10-19/final-whole/verification.json",
+            "reports/development-completion-2026-10-19/final-whole/source-after.json",
+            "reports/development-completion-2026-10-19/final-whole/medium-warning-triage.json",
+            "reports/development-completion-2026-10-19/final-whole/public-tls-headers.json",
+            "reports/development-completion-2026-10-19/final-whole/public-header-freshness.json",
+            "reports/development-completion-2026-10-19/final-whole/public-static-scripts.json",
+            "reports/development-completion-2026-10-19/final-whole/README.md"
+          ],
+          "implementation_groups": [
+            "verification"
+          ],
+          "external_dependencies": [
+            "EXT-RELEASE"
+          ],
+          "source_state": "implemented_verified",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Existing public/admin API and Chromium journeys passed in the fresh whole corpus. Public TLS/security headers, no-store/nonce variation and three nonempty script bodies were separately confirmed with read-only GETs. Actual protected/private/provider journeys remain distinct."
+        },
+        {
+          "id": "FINAL-09.04",
+          "text": "중간 단계마다 프로젝트 서버를 재시작하지 않는다. 최종 후보 검증 후 사용자 터미널의 재시작·새로고침을 한 번 묶고 실제 버전/HTML·인증된 관리자/비공개 여정을 확인한다.",
+          "state": "user_restart_observed_readonly_smoke_verified_private_acceptance_pending",
+          "evidence": [
+            "agent_market/application_runtime.py",
+            "agent_market/gateway/server.py",
+            "agent_market/collector/server.py",
+            "agent_market/workflow_worker.py",
+            "tests/test_application_runtime.py",
+            "tests/test_workflow_worker_composition.py",
+            "reports/development-completion-2026-10-19/peer-handoff.md",
+            "docs/development-completion-execution.json",
+            "reports/development-completion-2026-10-19/final-candidate-3/verification.json",
+            "reports/development-completion-2026-10-19/final-candidate-3/source-final.json",
+            "reports/development-completion-2026-10-19/continuation/provider-account-status.json",
+            "reports/development-completion-2026-10-19/final-whole/verification.json",
+            "reports/development-completion-2026-10-19/final-whole/source-after.json",
+            "reports/development-completion-2026-10-19/final-whole/medium-warning-triage.json",
+            "reports/development-completion-2026-10-19/final-whole/public-tls-headers.json",
+            "reports/development-completion-2026-10-19/final-whole/public-header-freshness.json",
+            "reports/development-completion-2026-10-19/final-whole/public-static-scripts.json",
+            "reports/development-completion-2026-10-19/final-whole/README.md",
+            "reports/development-completion-2026-10-19/post-user-restart/verification.json"
+          ],
+          "implementation_groups": [
+            "runtime",
+            "handoff"
+          ],
+          "external_dependencies": [
+            "EXT-RELEASE"
+          ],
+          "source_state": "documented",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "User reported restart/refresh. Read-only process checks match project entrypoint, interpreter and working directory; start follows latest product source update. Authenticated admin overview and public Home were observed; gateway health, four test presets/live examples and three workflow templates returned HTTP 200/ok. TLS/CSP/HSTS checks passed. Exact in-memory module attestation and protected/private/provider acceptance remain separate. No project server control or live business execution was performed."
+        },
+        {
+          "id": "FINAL-09.05",
+          "text": "코드/버전·요구별 완료 증거·검사 결과·설정 항목명·실행/rollback·동료 검토 시나리오를 인계한다. 비밀·개인정보는 넣지 않는다.",
+          "state": "peer_handoff_updated_actual_acceptance_pending",
+          "evidence": [
+            "reports/development-completion-2026-10-19/peer-handoff.md",
+            "docs/development-completion-execution.json",
+            "reports/development-completion-2026-10-19/final-candidate-3/verification.json",
+            "reports/development-completion-2026-10-19/final-candidate-3/source-final.json",
+            "reports/development-completion-2026-10-19/continuation/provider-account-status.json",
+            "reports/development-completion-2026-10-19/final-whole/verification.json",
+            "reports/development-completion-2026-10-19/final-whole/source-after.json",
+            "reports/development-completion-2026-10-19/final-whole/medium-warning-triage.json",
+            "reports/development-completion-2026-10-19/final-whole/public-tls-headers.json",
+            "reports/development-completion-2026-10-19/final-whole/public-header-freshness.json",
+            "reports/development-completion-2026-10-19/final-whole/public-static-scripts.json",
+            "reports/development-completion-2026-10-19/final-whole/README.md"
+          ],
+          "implementation_groups": [
+            "handoff"
+          ],
+          "external_dependencies": [
+            "EXT-RELEASE"
+          ],
+          "source_state": "documented_verified",
+          "actual_acceptance_complete": false,
+          "acceptance_note": "Peer handoff now links fresh whole-corpus evidence, source inventory timing, warning triage and read-only public checks. Original external acceptance and peer release signoff remain pending."
+        }
+      ],
+      "acceptance_criteria": [
+        "고정 범위의 필수 소스 미구현·필수 검사 실패·확인된 차단 보안 결함이 남지 않고 동일 버전 반영이 확인된다.",
+        "개발 필수 비공개/선정 제공자 연동·독립 비교·Push·DB/DR·sandbox 시험의 미실행은 개발 완료로 닫지 않는다. 운영 활성화·실거래·장기 성과는 별도로 구분해 동료 검토 가능한 개발 완료본을 인계한다."
+      ],
+      "external_dependencies": [
+        "EXT-IDP",
+        "EXT-DB",
+        "EXT-EVAL",
+        "EXT-A2A",
+        "EXT-CUSTOMER",
+        "EXT-PSP",
+        "EXT-TRUST",
+        "EXT-RELEASE"
+      ]
+    }
+  ],
+  "external_acceptance": [
+    {
+      "id": "EXT-IDP",
+      "target": "Registered Google/GitHub clients and exact callbacks",
+      "owner_role": "service operator",
+      "state": "registered_google_github_exact_https_callbacks_and_basic_auth_verified",
+      "needed": "No additional input for registered clients, exact callbacks and the requested basic frontend sign-in/sign-out. Other original workspace, receiver, DR, financial and release acceptance remain their own scope.",
+      "steps": [
+        2,
+        6,
+        9
+      ],
+      "actual_acceptance_complete": true,
+      "evidence": [
+        "reports/workspace-social-launch-2026-10-19/README.md",
+        "reports/workspace-social-launch-2026-10-19/verification.json"
+      ]
+    },
+    {
+      "id": "EXT-DB",
+      "target": "Selected database/backup/HA topology",
+      "owner_role": "database and rollback operator",
+      "state": "disposable_native_postgres_available_operating_target_pending",
+      "needed": "designated target, representative load and RPO/RTO acceptance",
+      "steps": [
+        2,
+        3,
+        9
+      ]
+    },
+    {
+      "id": "EXT-EVAL",
+      "target": "Signed independent evaluator/qualifier and approved corpus",
+      "owner_role": "independent evaluator and corpus custodian",
+      "state": "target_and_custody_pending",
+      "needed": "fixed HTTPS endpoint, public verification key, corpus/rubric/holdout provenance and approval",
+      "steps": [
+        2,
+        4,
+        7,
+        9
+      ]
+    },
+    {
+      "id": "EXT-A2A",
+      "target": "Approved A2A session/stream and objective model providers",
+      "owner_role": "provider operator and data-sharing reviewer",
+      "state": "local_ollama_actual_acceptance_passed_remote_a2a_pending_chatgpt_deferred",
+      "needed": "Designated actual long-task A2A target remains pending. Local Ollama planning succeeded. ChatGPT authorization/catalog passed; completed inference deferred by user after weekly usage limit. Hosted ChatGPT remains unintegrated pending its approved profile.",
+      "steps": [
+        2,
+        5,
+        9
+      ],
+      "historical_state_before_latest_review": "local_model_attempt_failed_other_targets_pending",
+      "evidence": [
+        "reports/workspace-ai-providers-2026-10-19/README.md",
+        "reports/chatgpt-model-selection-2026-10-19/README.md"
+      ]
+    },
+    {
+      "id": "EXT-CUSTOMER",
+      "target": "Private customer/receiver/SDK gateway, recovery authority and Push device",
+      "owner_role": "identity, delivery and recovery custodians",
+      "state": "private_target_and_native_push_pending",
+      "needed": "protected TLS routing, receiver bindings, independently held recovery keys, native PushSubscription and delivered test click",
+      "steps": [
+        2,
+        6,
+        9
+      ]
+    },
+    {
+      "id": "EXT-PSP",
+      "target": "Stripe Connect test-mode development profile",
+      "owner_role": "sandbox account and settlement reviewer",
+      "state": "signup_eligibility_not_established_no_account_created",
+      "needed": "An actually eligible supported-country account/profile or an explicitly approved provider/design decision. No fabricated business/country; no change to the original acceptance criteria.",
+      "steps": [
+        2,
+        8,
+        9
+      ]
+    },
+    {
+      "id": "EXT-TRUST",
+      "target": "Separately mounted trust publication and offline key custody",
+      "owner_role": "disclosure and signing-key custodian",
+      "state": "custody_acceptance_pending_publication_off",
+      "needed": "approved issuer/keys, independent comparison and explicit disclosure approval; no public activation in this task",
+      "steps": [
+        2,
+        7,
+        9
+      ]
+    },
+    {
+      "id": "EXT-RELEASE",
+      "target": "Same-version hosted CI and user-controlled server reload",
+      "owner_role": "release operator and peer reviewer",
+      "state": "fresh_local_whole_and_user_restart_smoke_verified_private_hosted_signoff_pending",
+      "needed": "Hosted CI, actual protected/private/provider acceptance and peer signoff remain. User restart/refresh and authenticated admin overview smoke are observed; process start follows source changes and matches project checkout/interpreter. Exact in-memory module attestation is not inferred from process timing. No additional restart is requested.",
+      "steps": [
+        9
+      ]
+    }
+  ],
+  "limitations": [
+    "External provider acceptance is not inferred from isolated fixtures.",
+    "No new improvement is automatically appended to the frozen nine-step scope."
+  ],
+  "state": "fresh_whole_local_regression_verified_external_acceptance_unmet",
+  "global_integration_wait": {
+    "active": false,
+    "released_by_user": true,
+    "reason": "Source hold explicitly released. Fixed review candidate validation finished; later working/public changes are separate versions."
+  },
+  "verification_artifacts": [
+    "reports/development-completion-2026-10-19/scoped-selection.json",
+    "reports/development-completion-2026-10-19/scoped-security.json",
+    "reports/final-development-step3-2026-10-19/native-provisional.json",
+    "reports/development-completion-2026-10-19/peer-handoff.md",
+    "reports/development-completion-2026-10-19/scoped-verification.json",
+    "reports/development-completion-2026-10-19/scoped-regressions.xml",
+    "reports/development-completion-2026-10-19/secure-coding-review.md",
+    "reports/development-completion-2026-10-19/README.md",
+    "reports/development-completion-2026-10-19/final-candidate-3/verification.json",
+    "reports/development-completion-2026-10-19/final-candidate-3/source-final.json",
+    "reports/development-completion-2026-10-19/continuation/provider-account-status.json",
+    "reports/development-completion-2026-10-19/final-whole/verification.json",
+    "reports/development-completion-2026-10-19/final-whole/source-after.json",
+    "reports/development-completion-2026-10-19/final-whole/medium-warning-triage.json",
+    "reports/development-completion-2026-10-19/final-whole/public-tls-headers.json",
+    "reports/development-completion-2026-10-19/final-whole/public-header-freshness.json",
+    "reports/development-completion-2026-10-19/final-whole/public-static-scripts.json",
+    "reports/development-completion-2026-10-19/final-whole/README.md"
+  ],
+  "requirement_state_meaning": {
+    "source_state": "Finite selected source/profile implementation status, separate from real target acceptance.",
+    "actual_acceptance_complete": "Original development exit evidence, never inferred from fixtures.",
+    "scope": "All 42 original work texts remain identical; no new work IDs."
+  },
+  "requirement_count": 42,
+  "verification_summary": {
+    "method": "fresh whole selected corpus; 4 nonoverlapping file shards; no prior test results reused",
+    "selected_modules": 309,
+    "unique_test_cases": 5570,
+    "pytest_passed": 5570,
+    "pytest_failed": 0,
+    "pytest_errors": 0,
+    "pytest_skipped": 0,
+    "prior_case_results_reused": false,
+    "supplemental_test_passed": 27,
+    "supplemental_tests_added_to_main_count": false,
+    "public_content_files": 91,
+    "public_content_violations": 0,
+    "ruff_critical_errors": 0,
+    "bandit_high": 0,
+    "bandit_medium_warnings": 231,
+    "bandit_low_warnings": 1406,
+    "bandit_scan_errors": 0,
+    "medium_context_triage_entries": 231,
+    "catalog_tables": 223,
+    "catalog_statements": 3472,
+    "complete_source_files": 1019,
+    "source_drift_detected": 0,
+    "new_unpinned_source_files": 0,
+    "public_tls_and_security_headers_verified": true,
+    "public_no_store_and_nonce_variation_verified": true,
+    "public_static_nonempty_script_bodies_match": true,
+    "backend_loaded_version_verified": false,
+    "project_server_actions": 0,
+    "real_external_acceptance_complete": false,
+    "applies_to_current_source": false,
+    "subsequent_user_requested_change": "reports/workspace-social-launch-2026-10-19/README.md"
+  },
+  "previous_scoped_verification_summary": {
+    "scope": "36 affected modules; not whole-release acceptance",
+    "pytest_passed": 607,
+    "pytest_failed": 0,
+    "pytest_errors": 0,
+    "pytest_skipped": 0,
+    "pytest_explicit_deselections": 5,
+    "deselection_detail": "4 native tests await final canonical catalog; actual provisional native rehearsal separately passed54. 1 whole frontend mirror test waits other edits.",
+    "native_postgres_provisional_checks_passed": 54,
+    "unique_pytest_cases": 607,
+    "static_python_files": 55,
+    "ruff_critical_errors": 0,
+    "bandit_high": 0,
+    "bandit_medium_warnings": 87,
+    "bandit_low_warnings": 14,
+    "owned_public_content_files": 10,
+    "literal_hangul_findings": 0,
+    "project_server_actions": 0
+  },
+  "previous_composed_verification_summary": {
+    "method": "whole baseline plus affected module replacements; no overlapping count summation",
+    "whole_baseline": {
+      "passed": 5541,
+      "failed": 13,
+      "source_drift": 0
+    },
+    "composed_unique_cases": 5554,
+    "composed_passed": 5554,
+    "composed_failed": 0,
+    "composed_errors": 0,
+    "composed_skipped": 0,
+    "unique_cases_retested_after_fixes": 736,
+    "unchanged_baseline_cases_retained": 4818,
+    "single_full_final_source_invocation": false,
+    "impact_run_passed": 632,
+    "sdk_bridge_final_module_passed": 11,
+    "public_content_files": 91,
+    "public_content_violations": 0,
+    "ruff_critical_errors": 0,
+    "bandit_high": 0,
+    "bandit_medium_warnings": 231,
+    "bandit_low_warnings": 1406,
+    "bandit_scan_errors": 0,
+    "catalog_tables": 223,
+    "catalog_statements": 3472,
+    "project_server_actions": 0
+  },
+  "post_user_restart_verification": {
+    "profile": "post-user-restart-readonly-verification-v1",
+    "checked_at_utc": "2026-10-19T08:40:10.117871+00:00",
+    "source_manifest_sha256": "99edc72d1fd330d7e3ca27ce80a34335a107a161af367631ceaea1192b95a138",
+    "source_files_compared": 1019,
+    "source_changes_since_whole_verification": [],
+    "user_reported_restart_and_refresh": true,
+    "process_started_after_product_source_updates": true,
+    "project_entrypoint_interpreter_and_working_directory_match": true,
+    "authenticated_admin_overview_observed": true,
+    "admin_overview_refreshed_display_kst": "17:36:46",
+    "admin_recent_collector_activity_observed": true,
+    "public_home_and_navigation_observed": true,
+    "about_navigation_visible": true,
+    "workspace_access_navigation_visible": false,
+    "api_smoke_passed": true,
+    "public_tls_and_security_headers_passed": true,
+    "project_server_actions": 0,
+    "provider_execution_requests": 0,
+    "notification_sends": 0,
+    "exact_in_memory_backend_version_attested": false,
+    "actual_external_acceptance_complete": false,
+    "scope_limits": [
+      "Authenticated admin overview only; no complete admin interaction acceptance.",
+      "GET API timings are individual observations, not a performance acceptance result.",
+      "Process start after source update does not attest exact loaded modules.",
+      "Existing real-provider, private-environment, hosted CI and peer signoff gates remain."
+    ]
+  },
+  "user_requested_workspace_launch": {
+    "report": "reports/workspace-social-launch-2026-10-19/README.md",
+    "source_implemented": true,
+    "runtime_settings_prepared": true,
+    "scoped_unique_tests_passed": 305,
+    "actual_provider_login_verified": true,
+    "project_server_actions": 0,
+    "state": "requested_basic_social_auth_verified_public_link_hidden",
+    "google_actual_login_and_logout_verified": true,
+    "github_actual_login_verified": true,
+    "public_link_configured": false,
+    "direct_routes_configured": true,
+    "github_actual_logout_verified": true,
+    "github_actual_returning_login_verified": true,
+    "public_link_hidden_verified": true,
+    "requested_feature_verification_complete": true
+  },
+  "latest_current_review": "docs/REMAINING_DEVELOPMENT_REVIEW.md",
+  "latest_current_review_evidence": "reports/remaining-development-audit-2026-10-19/audit.json",
+  "latest_current_review_note": "Later actual-account acceptance supersedes older failed-login/local-model notes. Whole-design acceptance remains incomplete. Latest regression selection is314 modules; no fresh whole run in this review.",
+  "latest_execution": {
+    "report": "reports/final-frozen-validation-2026-10-19/README.md",
+    "verification": "reports/final-frozen-validation-2026-10-19/verification.json",
+    "peer_handoff": "reports/final-frozen-validation-2026-10-19/peer-handoff.md",
+    "candidate_source_archive": "reports/final-frozen-validation-2026-10-19/candidate-source.zip",
+    "candidate_source_id": "c0b3b72e4d0504a68813182ac5a3ec22e80d1d4ee0434c4d6ccf7bb106aa680c",
+    "original_requirement_count": 42,
+    "user_final_source_hold": false,
+    "code_verification_complete": true,
+    "whole_design_complete": false,
+    "actual_external_acceptance_complete": false,
+    "candidate_selected_modules": 320,
+    "candidate_unique_cases": 5796,
+    "composed_passed": 5796,
+    "remaining_failed": 0,
+    "remaining_errors": 0,
+    "remaining_skipped": 0,
+    "single_fresh_whole_final_source_invocation": false,
+    "snapshot_target_cases_retested": 409,
+    "retained_baseline_cases": 5387,
+    "extra_dependency_cases_not_added": 19,
+    "candidate_source_drift": 0,
+    "working_publication_matches_verified_candidate": false,
+    "production_acceptance_complete": false,
+    "project_server_actions": 0,
+    "provider_inference_requests": 0
+  },
+  "current_user_scope_override": {
+    "record": "docs/current-synthetic-closeout.json",
+    "evidence": "reports/synthetic-closeout-2026-10-20/verification.json",
+    "synthetic_local_validation_complete": true,
+    "original_actual_acceptance_not_promoted": true,
+    "user_holds": [
+      "ChatGPT actual inference",
+      "Gemini/Claude subscription login excluded",
+      "Stripe TEST/Connect",
+      "hosted CI",
+      "human peer approval"
+    ],
+    "public_workspace_link": "hidden_pending_explicit_activation",
+    "edge_rule": "approved_deployed_verified_two_get_routes_only",
+    "automatic_new_scope_allowed": false,
+    "current_request_complete": true
+  }
+}

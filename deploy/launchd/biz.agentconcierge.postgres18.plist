@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>LANG</key>
+		<string>en_US.UTF-8</string>
+		<key>LC_ALL</key>
+		<string>en_US.UTF-8</string>
+		<key>PATH</key>
+		<string>/opt/homebrew/bin:/usr/bin:/bin</string>
+	</dict>
+	<key>ExitTimeOut</key>
+	<integer>120</integer>
+	<key>KeepAlive</key>
+	<dict>
+		<key>SuccessfulExit</key>
+		<false/>
+	</dict>
+	<key>Label</key>
+	<string>biz.agentconcierge.postgres18</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/opt/homebrew/opt/postgresql@18/bin/postgres</string>
+		<string>-D</string>
+		<string>/Users/kingstonelee/workspace/A2A_Discovery/gateway-data/postgres18/data</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/Users/kingstonelee/workspace/A2A_Discovery/gateway-data/postgres18/server.log</string>
+	<key>StandardOutPath</key>
+	<string>/Users/kingstonelee/workspace/A2A_Discovery/gateway-data/postgres18/server.log</string>
+	<key>ThrottleInterval</key>
+	<integer>10</integer>
+	<key>Umask</key>
+	<integer>63</integer>
+	<key>WorkingDirectory</key>
+	<string>/Users/kingstonelee/workspace/A2A_Discovery</string>
+</dict>
+</plist>

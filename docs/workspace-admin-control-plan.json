@@ -1,0 +1,365 @@
+{
+  "design_id": "WAC-1.0",
+  "date": "2026-10-21",
+  "status": "implementation_verified_operating_read_smoke_passed",
+  "document": "WORKSPACE_ADMIN_CONTROL_DESIGN.md",
+  "baseline": "Current PostgreSQL application store; existing customer identity, authoring, signed credits and individual staff session boundaries",
+  "execution_policy": {
+    "server_operation": "User-controlled terminal restart; no competing project server",
+    "customer_data": "Synthetic customers and separate PostgreSQL database for mutation tests",
+    "frontend_parallel_work": "Freeze event and authorization contracts first; final integration source fingerprint at WAC-09",
+    "completion": "WAC-01 through WAC-09 accepted; zero blocking security, integrity or regression defects",
+    "scope_changes": "Blocking defects stay in scope; unrelated convenience improvements go to a subsequent release",
+    "real_commerce": "Coming soon; activation is a separate commercial gate, not a blocker for this implementation"
+  },
+  "stages": [
+    {
+      "id": "WAC-01",
+      "title": "Reuse inventory, permissions and event contracts",
+      "status": "source_verified",
+      "owner_role": "Backend architecture and security",
+      "depends_on": [],
+      "reuse": [
+        "customer_identity.py",
+        "customer_organizations.py",
+        "customer_authoring_service.py",
+        "customer_credits.py",
+        "workspace_access.py",
+        "observability.py"
+      ],
+      "deliverables": [
+        "Requirement-to-source inventory",
+        "Allowlisted versioned event and command DTOs",
+        "Individual staff capability policy",
+        "Critical versus best-effort recording policy"
+      ],
+      "acceptance": [
+        "Every required business domain has an authoritative source and attribution key",
+        "No implicit private content access or system-token escalation"
+      ],
+      "scenario_ids": [
+        1,
+        2,
+        10
+      ],
+      "evidence": [
+        "../reports/workspace-admin-control-2026-10-21/README.md",
+        "../reports/workspace-admin-control-2026-10-21/verification-summary.json"
+      ]
+    },
+    {
+      "id": "WAC-02",
+      "title": "PostgreSQL migration and transactional event collection",
+      "status": "source_verified",
+      "owner_role": "Backend and storage",
+      "depends_on": [
+        "WAC-01"
+      ],
+      "reuse": [
+        "application_store_postgres.py",
+        "customer_credits.py",
+        "customer_organizations.py",
+        "observability.py"
+      ],
+      "deliverables": [
+        "Explicit schema migration",
+        "Transactional audit/outbox and private operation links",
+        "Fenced projection worker",
+        "Bounded historical backfill and ingestion health"
+      ],
+      "acceptance": [
+        "Business and required audit/outbox commit or roll back together",
+        "Worker restart and duplicate delivery do not duplicate effects",
+        "No invented historical auth or AI events"
+      ],
+      "scenario_ids": [
+        1,
+        3,
+        5,
+        9,
+        11
+      ],
+      "evidence": [
+        "../reports/workspace-admin-control-2026-10-21/README.md",
+        "../reports/workspace-admin-control-2026-10-21/verification-summary.json"
+      ]
+    },
+    {
+      "id": "WAC-03",
+      "title": "Unified overview, customer detail and organization timeline",
+      "status": "source_verified",
+      "owner_role": "Admin frontend and backend",
+      "depends_on": [
+        "WAC-02"
+      ],
+      "reuse": [
+        "gateway/dashboard.html",
+        "gateway/dashboard.py",
+        "workspace_service.py",
+        "customer_organizations.py"
+      ],
+      "deliverables": [
+        "Workspace administration entry point",
+        "Customer and organization read models",
+        "Cursor-based timeline",
+        "Authorized links to existing specialist menus"
+      ],
+      "acceptance": [
+        "Current source state agrees across linked menus",
+        "Session revocation and tenant boundaries apply to list, detail, cursor and cache paths",
+        "No private prompts or outputs in default views"
+      ],
+      "scenario_ids": [
+        1,
+        2,
+        3,
+        10
+      ],
+      "evidence": [
+        "../reports/workspace-admin-control-2026-10-21/README.md",
+        "../reports/workspace-admin-control-2026-10-21/verification-summary.json"
+      ]
+    },
+    {
+      "id": "WAC-04",
+      "title": "AI generation, workflow and package lifecycle monitoring",
+      "status": "source_verified",
+      "owner_role": "Workflow backend and admin frontend",
+      "depends_on": [
+        "WAC-03"
+      ],
+      "reuse": [
+        "workspace_ai_support.py",
+        "workspace_app_factory.py",
+        "workspace_execution.py",
+        "workspace_typed_flows.py",
+        "customer_authoring_service.py"
+      ],
+      "deliverables": [
+        "Logical-operation and attempt correlation",
+        "Generation latency, cache and failure status",
+        "Saved version to execution, release, deployment and package links",
+        "Safe support references"
+      ],
+      "acceptance": [
+        "Retry attempts and cache hits do not inflate business success counts",
+        "Unknown is preserved and cannot trigger unsafe redispatch",
+        "Package issuance is not described as recipient download completion"
+      ],
+      "scenario_ids": [
+        4,
+        5,
+        6,
+        7
+      ],
+      "evidence": [
+        "../reports/workspace-admin-control-2026-10-21/README.md",
+        "../reports/workspace-admin-control-2026-10-21/verification-summary.json"
+      ]
+    },
+    {
+      "id": "WAC-05",
+      "title": "Credit reconciliation and reviewed corrections",
+      "status": "source_verified",
+      "owner_role": "Credit backend and security",
+      "depends_on": [
+        "WAC-04"
+      ],
+      "reuse": [
+        "customer_credits.py",
+        "customer_credit_service.py",
+        "workspace_metering.py",
+        "stripe_sandbox.py"
+      ],
+      "deliverables": [
+        "Signed ledger and entitlement reconciliation",
+        "Correction request and approval workflow",
+        "Existing adjustment service integration",
+        "Coming-soon payment/subscription state and sandbox isolation"
+      ],
+      "acceptance": [
+        "Welcome grant, save and post-download revision policies remain unchanged",
+        "Duplicate or concurrent corrections have one effect",
+        "Restore review blocks cannot be bypassed",
+        "No real commerce activation or TEST_UNIT/customer-credit mixing"
+      ],
+      "scenario_ids": [
+        3,
+        5,
+        6,
+        8,
+        11,
+        12
+      ],
+      "evidence": [
+        "../reports/workspace-admin-control-2026-10-21/README.md",
+        "../reports/workspace-admin-control-2026-10-21/verification-summary.json"
+      ]
+    },
+    {
+      "id": "WAC-06",
+      "title": "Customer cases, constrained actions and support disclosures",
+      "status": "source_verified",
+      "owner_role": "Customer support product, backend and security",
+      "depends_on": [
+        "WAC-05"
+      ],
+      "reuse": [
+        "gateway/dashboard.py",
+        "workspace_support_outcomes.py",
+        "workspace_growth_service.py",
+        "customer_identity.py"
+      ],
+      "deliverables": [
+        "Existing inquiry to case links",
+        "Assignment, internal notes, reply drafts and case lifecycle",
+        "Scoped session revocation and access restriction commands",
+        "Purpose-limited support disclosure grants"
+      ],
+      "acceptance": [
+        "General tickets remain distinct from execution support evaluations",
+        "Internal notes and private content cannot leak through customer replies",
+        "Every mutation has current authorization, revision, reason and idempotency",
+        "External delivery requires verified destination and purpose authorization"
+      ],
+      "scenario_ids": [
+        1,
+        2,
+        8,
+        10
+      ],
+      "evidence": [
+        "../reports/workspace-admin-control-2026-10-21/README.md",
+        "../reports/workspace-admin-control-2026-10-21/verification-summary.json"
+      ]
+    },
+    {
+      "id": "WAC-07",
+      "title": "Incidents, ingestion health and operational audit",
+      "status": "source_verified",
+      "owner_role": "Operations and observability",
+      "depends_on": [
+        "WAC-06"
+      ],
+      "reuse": [
+        "observability.py",
+        "gateway/dashboard.py",
+        "workflow_persistence.py"
+      ],
+      "deliverables": [
+        "Safe error grouping and affected-customer counts",
+        "Incident ownership and mitigation history",
+        "Ingestion lag, loss and reconciliation alerts",
+        "Auditable action history"
+      ],
+      "acceptance": [
+        "Missing observations cannot appear as zero activity or healthy operation",
+        "Incident resolution does not silently close customer cases",
+        "Unknown execution outcomes remain distinct from failure and success"
+      ],
+      "scenario_ids": [
+        4,
+        7,
+        8,
+        9,
+        11
+      ],
+      "evidence": [
+        "../reports/workspace-admin-control-2026-10-21/README.md",
+        "../reports/workspace-admin-control-2026-10-21/verification-summary.json"
+      ]
+    },
+    {
+      "id": "WAC-08",
+      "title": "Performance, retention, restoration and security verification",
+      "status": "source_verified",
+      "owner_role": "Storage, QA and security",
+      "depends_on": [
+        "WAC-07"
+      ],
+      "reuse": [
+        "application_store_postgres.py",
+        "workflow_backup.py",
+        "gateway/dashboard.html"
+      ],
+      "deliverables": [
+        "Representative PostgreSQL query and worker measurements",
+        "Deletion and disclosure revocation propagation",
+        "Restore quarantine and reconciliation drills",
+        "Static and isolated dynamic security evidence"
+      ],
+      "acceptance": [
+        "Existing and fresh database migrations pass",
+        "No tenant, session, CSRF, XSS, export or command privilege bypass",
+        "Restore cannot replay commands or resurrect credits/approvals",
+        "Latency and completeness measurements show actual values and limits"
+      ],
+      "scenario_ids": [
+        1,
+        2,
+        5,
+        7,
+        9,
+        10,
+        11,
+        12
+      ],
+      "evidence": [
+        "../reports/workspace-admin-control-2026-10-21/README.md",
+        "../reports/workspace-admin-control-2026-10-21/verification-summary.json"
+      ]
+    },
+    {
+      "id": "WAC-09",
+      "title": "Final integration, operating acceptance and scope closure",
+      "status": "source_and_operating_read_verified",
+      "owner_role": "Release owner and operator",
+      "depends_on": [
+        "WAC-08"
+      ],
+      "reuse": [
+        "gateway/dashboard.py",
+        "gateway/dashboard.html",
+        "customer_identity_service.py",
+        "customer_authoring_service.py",
+        "customer_credit_service.py"
+      ],
+      "deliverables": [
+        "Final source and migration fingerprint",
+        "Deduplicated affected integration results",
+        "User-controlled restart and operating read smoke",
+        "Acceptance record and separate future-commerce gates"
+      ],
+      "acceptance": [
+        "All required scenarios accepted with zero blocking defects",
+        "No regression in login, authoring, credits or existing admin menus",
+        "No real-customer mutation without scoped approval",
+        "WAC-1.0 marked complete only with implementation and acceptance evidence"
+      ],
+      "scenario_ids": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "evidence": [
+        "../reports/workspace-admin-control-2026-10-21/README.md",
+        "../reports/workspace-admin-control-2026-10-21/verification-summary.json",
+        "../reports/workspace-admin-control-2026-10-21/operating-restart-smoke.json"
+      ]
+    }
+  ],
+  "operating_schema_applied": true,
+  "historical_events_projected": 265,
+  "operating_restart_verified": true,
+  "operating_read_smoke": "../reports/workspace-admin-control-2026-10-21/operating-restart-smoke.json",
+  "operating_individual_staff_browser_exercised": false
+}
