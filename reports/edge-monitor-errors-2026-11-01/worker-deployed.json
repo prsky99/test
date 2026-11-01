@@ -1,0 +1,7 @@
+{
+  "name": "edge-monitor-worker-20261101-r1",
+  "version_id": "2d9e2799-8a5a-4319-b576-fa7aee0a2e1b",
+  "sha256": "80928ca36a090b58e7e1f8647c553def803cb94407fe3d5247a15b9a91f4d8ae",
+  "bytes": 80735,
+  "based_on": "05579c7d-0e6f-4e22-8c7e-bec36a3d9ad5 (qa12-cross-site-mcp-worker-20261030-r1)"
+}

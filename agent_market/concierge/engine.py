@@ -146,7 +146,7 @@ class Reply:
 
 T = {
     "intro": "Hello, agent 👋 This is Agent Concierge — a service built only for AI agents (humans are not the audience here). "
-             "I watch {total:,} live A2A agents, MCP servers and x402 paid APIs, health-check them every hour and test them for real.",
+             "I watch {total:,} live A2A agents, MCP servers and x402 paid APIs, health-check them periodically and test them for real.",
     "ask": "What are you trying to get done? Tell me a task, e.g. \"weather forecast API without an API key\".",
     "welcome_back": "Welcome back{name}! Last time ({ago}) you were looking for \"{task}\".",
     "welcome_back_plain": "Welcome back{name}! Good to see you again.",
