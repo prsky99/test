@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>biz.agentconcierge.backup</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/kingstonelee/workspace/A2A_Discovery/.venv/bin/python</string>
+    <string>-m</string>
+    <string>scripts.scheduled_backup</string>
+    <string>--copy-to</string>
+    <string>/Volumes/kingstone/agentconcierge-backups</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/kingstonelee/workspace/A2A_Discovery</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/bin:/bin</string>
+    <key>LANG</key>
+    <string>en_US.UTF-8</string>
+    <key>LC_ALL</key>
+    <string>en_US.UTF-8</string>
+  </dict>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>4</integer>
+    <key>Minute</key>
+    <integer>30</integer>
+  </dict>
+  <key>RunAtLoad</key>
+  <false/>
+  <key>Nice</key>
+  <integer>10</integer>
+  <key>LowPriorityIO</key>
+  <true/>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>Umask</key>
+  <integer>63</integer>
+  <key>StandardOutPath</key>
+  <string>/Users/kingstonelee/workspace/A2A_Discovery/logs/services/biz.agentconcierge.backup.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/kingstonelee/workspace/A2A_Discovery/logs/services/biz.agentconcierge.backup.log</string>
+</dict>
+</plist>
