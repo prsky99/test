@@ -1,0 +1,177 @@
+/* Reviewed private application composition, SDK policy and support observations. */
+(() => {
+  'use strict';
+  let dialog = null, content = null, status = null, workspace = '', session = '', epoch = 0, busy = false, locked = false;
+  let options = null, review = null, sdkCatalog = null, supportReport = null, active = 'factory', expiryTimer = null;
+  const node = (tag, text) => { const value = document.createElement(tag); if (text !== undefined) value.textContent = text; return value; };
+  const identity = () => typeof token === 'string' && typeof currentUser !== 'undefined' && currentUser ? `${token}|${currentUser.user_id}|${currentUser.role}` : '';
+  const button = (text, action) => { const value = node('button', text); value.type = 'button'; value.className = 'btn'; value.addEventListener('click', action); return value; };
+  const field = (parent, label, element) => { const row = node('label'); row.style.display = 'block'; row.style.margin = '10px 0'; row.append(node('span', label+' '), element); parent.append(row); return element; };
+  const input = (id, value = '') => { const element = node('input'); element.id = id; element.value = value; return element; };
+  const select = (id, items) => { const element = node('select'); element.id = id; for (const [value, label] of items) element.append(new Option(label, value)); return element; };
+  const consent = (parent, id, label) => { const element = input(id); element.type = 'checkbox'; element.checked = false; field(parent, label, element); return element; };
+  const stamp = () => ({epoch, workspace, session, active});
+  const valid = captured => Boolean(dialog?.open && captured.epoch === epoch && captured.workspace === workspace && captured.session === identity() && captured.active === active);
+  const tell = text => { if (status) status.textContent = text; };
+  function leave() { epoch++; clearTimeout(expiryTimer); expiryTimer = null; busy = locked = false; review = options = sdkCatalog = supportReport = null; workspace = session = ''; if (dialog) { dialog.close(); dialog.remove(); } dialog = content = status = null; }
+  function onSession() { if (session && (identity() !== session || document.getElementById('workspaceSelect')?.value !== workspace)) leave(); }
+  async function request(path, value) {
+    const answer = await api(`/admin/api/workflow-workspaces/${encodeURIComponent(workspace)}${path}`,
+      value === undefined ? {silent: true} : {method: 'POST', json: value, silent: true});
+    if (answer?.ok !== true || !answer.result) throw Error('unconfirmed_private_result');
+    return answer.result;
+  }
+  function uncertain() { locked = true; tell('This command could not be confirmed. Inspect current workflow or retained state before another action. No command is retried automatically.'); }
+  async function readCurrent() {
+    if (busy) return;
+    const captured = stamp(); busy = true; tell('Reading current private state.');
+    try {
+      const result = await request(active === 'sdk' ? '/sdk-lifecycle' : active === 'support' ? '/support-outcomes' : '/app-factory/options');
+      if (!valid(captured)) return;
+      locked = false;
+      if (active === 'sdk') sdkCatalog = result;
+      else if (active === 'support') supportReport = result;
+      else options = result;
+      render(); tell('Current private state loaded. No provider was called.');
+    } catch { if (valid(captured)) tell('Current private state is unavailable for this session.'); }
+    finally { if (valid(captured)) busy = false; }
+  }
+  function factoryView() {
+    let inputRevision = 0;
+    content.append(node('p', 'Use a public task description without credentials or personal information. Preparation and saving do not call an agent or issue a deployment grant.'));
+    if (!options?.can_edit) { content.append(node('p', 'A current workspace editor or owner is required to compose an app.')); return; }
+    const template = select('factoryTemplate', [['auto', 'Choose a supported contract template from the purpose'], ...options.templates.map(item => [item.id, item.name])]);
+    const purpose = input('factoryPurpose'), name = input('factoryName', 'Reviewed application workflow');
+    const first = input('factoryAgentFirst'), second = input('factoryAgentSecond'); first.type = second.type = 'number'; first.min = second.min = '1';
+    const date = input('factoryFromUTC', new Date(Date.now()-86400000).toISOString().replace(/\.\d{3}Z$/, 'Z'));
+    const dimension = select('factoryDimension', ['storage', 'mass', 'length', 'duration', 'power', 'energy', 'volume'].map(value => [value, value]));
+    field(content, 'Template', template); field(content, 'Task purpose', purpose); field(content, 'Workflow name', name);
+    field(content, 'First agent reference (optional; leave both blank for current candidates)', first); field(content, 'Second agent reference (optional)', second);
+    field(content, 'News start time (UTC, used only by a news template)', date); field(content, 'Product measurement dimension (used only by a product template)', dimension);
+    const preview = node('section'); preview.id = 'factoryReview'; content.append(preview);
+    const saveConsent = consent(content, 'factorySaveConsent', 'I authorize saving this exact reviewed graph as a new private workflow. Execution requires separate consent.');
+    const save = button('Save reviewed workflow', async () => {
+      if (busy || locked || !review || !saveConsent.checked || review.expires*1000 <= Date.now()) return;
+      const captured = stamp(), current = review; clearTimeout(expiryTimer); expiryTimer = null; busy = true; locked = true; review = null; saveConsent.checked = false; save.disabled = true;
+      try {
+        const result = await request('/app-factory/commits', {review_id: current.review_id, authorized: true, notice: current.notice});
+        if (!valid(captured)) return;
+        locked = false; tell(`Saved private workflow ${result.id}, revision ${result.revision}. Run it separately after reviewing every input and destination.`);
+      } catch { if (valid(captured)) uncertain(); }
+      finally { if (valid(captured)) busy = false; }
+    }); save.id = 'factorySave'; save.disabled = true;
+    saveConsent.addEventListener('change', () => { save.disabled = !review || review.expires*1000 <= Date.now() || !saveConsent.checked || busy || locked; });
+    function invalidate() { inputRevision++; clearTimeout(expiryTimer); expiryTimer = null; review = null; saveConsent.checked = false; save.disabled = true; preview.replaceChildren(); }
+    for (const element of [template, purpose, name, first, second, date, dimension]) element.addEventListener('input', invalidate);
+    const prepare = button('Prepare contract workflow', async () => {
+      if (busy || locked) return;
+      invalidate(); const captured = stamp(), reviewedRevision = inputRevision; busy = true;
+      const chosen = template.value === 'auto' ? (/\b(compare|product|capacity)\b/i.test(purpose.value) ? 'product_brief' : /\b(news|digest|research)\b/i.test(purpose.value) ? 'research_digest' : 'documentation_crosscheck') : template.value;
+      try {
+        const result = await request('/app-factory/reviews', {template_id: template.value, purpose: purpose.value, name: name.value,
+          resource_ids: !first.value && !second.value ? null : [Number(first.value), Number(second.value)],
+          from_utc: chosen === 'research_digest' ? date.value : null,
+          criteria: chosen === 'product_brief' ? [{criterion_id: 'capacity', dimension: dimension.value}] : []});
+        if (!valid(captured) || reviewedRevision !== inputRevision) return;
+        if (!Number.isFinite(result.expires) || result.expires*1000 <= Date.now()) throw Error('expired_review');
+        review = result; preview.append(node('h3', 'Exact private graph review'));
+        for (const destination of result.destinations) preview.append(node('p', `${destination.node_id}: resource ${destination.resource_id}, ${destination.contract_id}, tool ${destination.tool}`));
+        const definition = node('pre', JSON.stringify(result.definition, null, 2)); definition.style.whiteSpace = 'pre-wrap'; preview.append(definition);
+        tell('Review ready. Saving creates design data only; no provider was called.');
+        expiryTimer = setTimeout(() => { if (valid(captured)) { invalidate(); tell('The graph review expired. Prepare it again before saving.'); } }, Math.min(2147483647, result.expires*1000-Date.now()));
+      } catch { if (valid(captured)) uncertain(); }
+      finally { if (valid(captured)) busy = false; }
+    }); prepare.id = 'factoryPrepare'; content.append(prepare, save);
+  }
+  function sdkView() {
+    content.append(node('p', 'SDK policy controls new private executions only. Retained status reads still require current customer authority. Existing public SDK 1 downloads remain separate.'));
+    if (!sdkCatalog) return;
+    for (const policy of sdkCatalog.policies) content.append(node('p', `${policy.sdk_profile}: revision ${policy.revision}, ${policy.accepting_runs && policy.current_owner && !policy.restored_block ? 'current policy' : 'paused or needs current owner review'}, sunset ${policy.sunset_at ? new Date(policy.sunset_at*1000).toISOString() : 'no configured sunset'}.`));
+    if (options?.can_manage_sdk) {
+      const profile = select('sdkPolicyProfile', sdkCatalog.policies.map(item => [item.sdk_profile, item.sdk_profile]));
+      const accepting = input('sdkPolicyAccepting'); accepting.type = 'checkbox'; accepting.checked = true;
+      const minutes = input('sdkPolicyMinutes', '1440'); minutes.type = 'number'; minutes.min = '5'; minutes.max = '43200';
+      field(content, 'Private SDK profile', profile); field(content, 'Accept new executions', accepting); field(content, 'Policy sunset in minutes', minutes);
+      const approve = consent(content, 'sdkPolicyConsent', 'I authorize this exact private SDK policy and understand that it can prevent existing apps from starting new tasks.');
+      const apply = button('Apply SDK lifecycle policy', async () => {
+        if (busy || locked || !approve.checked) return;
+        const current = sdkCatalog.policies.find(item => item.sdk_profile === profile.value), captured = stamp();
+        if (!current) return;
+        busy = locked = true; approve.checked = false;
+        try {
+          await request('/sdk-lifecycle', {sdk_profile: current.sdk_profile, revision: current.revision, accepting_runs: accepting.checked,
+            minimum_sdk_version: current.minimum_sdk_version, sunset_seconds: Number(minutes.value)*60, authorized: true, notice: options.sdk_notice});
+          if (!valid(captured)) return; busy = false; locked = false; await readCurrent();
+        } catch { if (valid(captured)) uncertain(); }
+        finally { if (valid(captured)) busy = false; }
+      }); apply.id = 'sdkPolicyApply'; content.append(apply);
+      for (const element of [profile, accepting, minutes]) element.addEventListener('input', () => { approve.checked = false; });
+    }
+    for (const release of sdkCatalog.releases) {
+      const section = node('section'); section.className = 'card'; section.style.padding = '14px'; section.style.margin = '12px 0';
+      section.append(node('h3', `Private release ${release.id}`), node('p', `${release.sdk_profile} ${release.sdk_version}. ${release.blocked_by_sdk_policy ? 'New execution is blocked by SDK policy.' : 'Every new execution still requires current review and authority.'}`));
+      for (const app of release.deployments) section.append(node('p', `App ${app.app_id}: ${app.active ? 'issued' : 'revoked'}, expires ${new Date(app.expires*1000).toISOString()}; approved origins: ${app.allowed_origins.join(', ')}`));
+      content.append(section);
+    }
+  }
+  function supportView() {
+    if (!supportReport) return;
+    content.append(node('p', `Retained private support cases: ${supportReport.cases.length}; distinct logical runs: ${supportReport.logical_run_samples}. Resolution is staff-reported. Business outcome and provider quality remain unassessed.`));
+    content.append(node('p', `Observed subjects reused after 28 days: ${supportReport.observed_subject_repeat_after_28_days}. This does not establish customer retention or marketing permission.`));
+    if (supportReport.can_edit) {
+      const kind = select('supportSourceKind', [['typed', 'Private typed workflow'], ['single', 'Private single-tool snapshot']]);
+      const subject = input('supportSubject'), version = input('supportVersion'), run = input('supportRun');
+      const category = select('supportCategory', supportReport.categories.map(value => [value, value]));
+      const resolution = select('supportResolution', ['open', 'resolved', 'unresolved', 'unknown'].map(value => [value, value]));
+      const iterations = input('supportIterations', '0'); iterations.type = 'number'; iterations.min = '0'; iterations.max = '100';
+      const revision = input('supportRevision', '0'); revision.type = 'number'; revision.min = '0'; revision.max = '99';
+      for (const [label, element] of [['Retained source', kind], ['Workflow or draft reference', subject], ['Version or snapshot reference', version], ['Run reference', run], ['Issue category', category], ['Staff support resolution', resolution], ['Staff-reported iterations', iterations], ['Current case revision (zero for a new case)', revision]]) field(content, label, element);
+      const approve = consent(content, 'supportRecordConsent', 'I authorize this retained-run support observation for this workspace only. This does not grant marketing or model-training permission.');
+      const record = button('Record support observation', async () => {
+        if (busy || locked || !approve.checked) return;
+        const captured = stamp(); busy = locked = true; approve.checked = false;
+        try {
+          await request('/support-outcomes/records', {source_kind: kind.value, subject_id: subject.value, version_id: version.value, run_id: run.value,
+            category: category.value, resolution: resolution.value, iterations: Number(iterations.value), revision: Number(revision.value), authorized: true, notice: supportReport.notice});
+          if (!valid(captured)) return; busy = false; locked = false; await readCurrent();
+        } catch { if (valid(captured)) uncertain(); }
+        finally { if (valid(captured)) busy = false; }
+      }); record.id = 'supportRecord'; content.append(record);
+      for (const element of [kind, subject, version, run, category, resolution, iterations, revision]) element.addEventListener('input', () => { approve.checked = false; });
+    }
+    for (const item of supportReport.cases) {
+      const section = node('section'); section.className = 'card'; section.style.padding = '14px'; section.style.margin = '12px 0';
+      section.append(node('p', `${item.case_id}, revision ${item.revision}: ${item.category}, ${item.resolution}, ${item.state}. Retained execution: ${item.execution_status}; business outcome: unassessed.`));
+      section.append(node('p', `Source ${item.source_kind}; run ${item.run_id}; subject ${item.subject_id}; version ${item.version_id}.`));
+      if (supportReport.can_withdraw && item.state === 'retained') {
+        const approve = consent(section, `supportWithdraw-${item.case_id}`, 'Permanently withdraw this support observation from this workspace report. The original execution record is not erased.');
+        section.append(button('Withdraw support observation', async () => {
+          if (busy || locked || !approve.checked) return;
+          const captured = stamp(); busy = locked = true; approve.checked = false;
+          try {
+            await request('/support-outcomes/withdrawals', {case_id: item.case_id, revision: item.revision, authorized: true, notice: supportReport.withdrawal_notice});
+            if (!valid(captured)) return; busy = false; locked = false; await readCurrent();
+          } catch { if (valid(captured)) uncertain(); }
+          finally { if (valid(captured)) busy = false; }
+        }));
+      }
+      content.append(section);
+    }
+  }
+  function render() { clearTimeout(expiryTimer); expiryTimer = null; review = null; content.replaceChildren(); if (active === 'factory') factoryView(); else if (active === 'sdk') sdkView(); else supportView(); }
+  async function switchView(value) { if (busy) return; epoch++; clearTimeout(expiryTimer); expiryTimer = null; active = value; review = null; locked = false; content.replaceChildren(); await readCurrent(); }
+  async function open(ws) {
+    leave(); if (typeof ws !== 'string' || !/^ws_[0-9a-f]{32}$/.test(ws) || !identity()) return;
+    workspace = ws; session = identity(); active = 'factory'; dialog = node('dialog'); dialog.id = 'workspaceGrowthDialog';
+    Object.assign(dialog.style, {width: 'min(1000px,94vw)', maxWidth: '94vw', maxHeight: '86vh', boxSizing: 'border-box', borderRadius: '18px', padding: '22px', overflow: 'auto', color: 'var(--text,#172235)', background: 'var(--card,#fff)', border: '1px solid var(--border,#dce3ee)'});
+    const heading = node('h2', 'App factory and support'); heading.id = 'workspaceGrowthTitle'; dialog.setAttribute('aria-labelledby', heading.id);
+    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); icon.setAttribute('viewBox', '0 0 24 24'); icon.setAttribute('width', '22'); icon.setAttribute('height', '22'); icon.setAttribute('fill', 'none'); icon.setAttribute('stroke', 'currentColor'); icon.setAttribute('stroke-width', '2'); icon.setAttribute('aria-hidden', 'true'); icon.style.marginRight = '8px';
+    const iconPath = document.createElementNS('http://www.w3.org/2000/svg', 'path'); iconPath.setAttribute('d', 'M8 3 4 7v10l4 4h8l4-4V7l-4-4H8Z M9 9h6v6H9Z M12 3v6 M12 15v6 M4 12h5 M15 12h5'); icon.append(iconPath); heading.prepend(icon);
+    const header = node('div'); header.className = 'row'; header.style.justifyContent = 'space-between'; header.append(heading, button('Close app tools', leave));
+    status = node('p', 'Reading private app tools.'); status.setAttribute('role', 'status'); content = node('div'); content.style.overflowWrap = 'anywhere';
+    const tabs = node('div'); tabs.className = 'row'; tabs.append(button('Contract app factory', () => switchView('factory')), button('SDK lifecycle', () => switchView('sdk')), button('Support outcomes', () => switchView('support')), button('Read current state', readCurrent));
+    dialog.append(header, tabs, status, content); document.body.append(dialog); dialog.addEventListener('cancel', leave); dialog.showModal();
+    await readCurrent();
+  }
+  window.WorkspaceGrowthAdmin = {open, leave, onSession};
+})();
