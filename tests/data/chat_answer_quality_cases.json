@@ -1,0 +1,1926 @@
+{
+ "tuning": [
+  {
+   "id": "w1",
+   "task": "weather forecast for Seoul tomorrow",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "weather|forecast|meteo"
+    ],
+    "oracle": "weather forecast"
+   }
+  },
+  {
+   "id": "w2",
+   "task": "will it rain in London this weekend",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "weather|forecast|meteo"
+    ],
+    "oracle": "weather forecast"
+   }
+  },
+  {
+   "id": "w3",
+   "task": "hourly temperature forecast for Tokyo",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "weather|forecast|meteo"
+    ],
+    "oracle": "weather forecast"
+   }
+  },
+  {
+   "id": "w4",
+   "task": "current air quality index in Delhi",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "air quality|aqi|pollut"
+    ],
+    "oracle": "weather forecast"
+   }
+  },
+  {
+   "id": "w5",
+   "task": "sunrise and sunset times for Paris",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "sunrise|sunset|astronom|solar"
+    ],
+    "oracle": "weather forecast"
+   }
+  },
+  {
+   "id": "t1",
+   "task": "translate English text to Korean",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "translat"
+    ],
+    "oracle": "text translation"
+   }
+  },
+  {
+   "id": "t2",
+   "task": "translate a contract from Spanish to English",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "translat"
+    ],
+    "oracle": "text translation"
+   }
+  },
+  {
+   "id": "t3",
+   "task": "detect the language of a sentence",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "language detect|detect.{0,20}language|identify.{0,20}language|translat"
+    ],
+    "oracle": "text translation"
+   }
+  },
+  {
+   "id": "n1",
+   "task": "search technology news about AI chips",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "\\bnews\\b|headline"
+    ],
+    "oracle": "news search"
+   }
+  },
+  {
+   "id": "n2",
+   "task": "latest headlines about electric vehicles",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "\\bnews\\b|headline"
+    ],
+    "oracle": "news search"
+   }
+  },
+  {
+   "id": "n3",
+   "task": "find news articles about the stock market today",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "\\bnews\\b|headline"
+    ],
+    "oracle": "news search"
+   }
+  },
+  {
+   "id": "p1",
+   "task": "find research papers about battery recycling",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "paper|scholar|arxiv|crossref|doi|literature|academic|research"
+    ],
+    "oracle": "research paper search"
+   }
+  },
+  {
+   "id": "p2",
+   "task": "search arxiv for transformer interpretability papers",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "paper|scholar|arxiv|crossref|doi|literature|academic|research"
+    ],
+    "oracle": "research paper search"
+   }
+  },
+  {
+   "id": "p3",
+   "task": "look up a paper by its DOI",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "doi|crossref|paper|citation"
+    ],
+    "oracle": "research paper search"
+   }
+  },
+  {
+   "id": "d1",
+   "task": "convert a PDF invoice into structured JSON",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "pdf.{0,60}(json|extract|parse|structur|text)|(extract|parse).{0,40}pdf|invoice"
+    ],
+    "forbid": [
+     "json.{0,20}to.{0,10}pdf|generate.{0,20}pdf"
+    ],
+    "oracle": "pdf data extraction"
+   }
+  },
+  {
+   "id": "d2",
+   "task": "extract text from a PDF document",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "pdf.{0,60}(text|extract|ocr|markdown)|(extract|ocr).{0,40}pdf"
+    ],
+    "oracle": "pdf text extraction"
+   }
+  },
+  {
+   "id": "d3",
+   "task": "OCR a scanned receipt image",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "ocr|receipt|text recogni|extract text"
+    ],
+    "oracle": "ocr text extraction"
+   }
+  },
+  {
+   "id": "d4",
+   "task": "summarize a long document",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "summar"
+    ],
+    "oracle": "document summarization"
+   }
+  },
+  {
+   "id": "d5",
+   "task": "summarize meeting notes and list action items",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "summar|meeting|action item|notes"
+    ],
+    "oracle": "meeting notes summarization"
+   }
+  },
+  {
+   "id": "e1",
+   "task": "send an email to a customer",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "e-?mail|smtp|mailbox|\\binbox"
+    ],
+    "oracle": "send email"
+   }
+  },
+  {
+   "id": "e2",
+   "task": "check SPF DKIM and DMARC records for my domain",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "spf|dkim|dmarc|email.{0,20}(dns|auth|deliverab)"
+    ],
+    "oracle": "email dns records check"
+   }
+  },
+  {
+   "id": "e3",
+   "task": "validate whether an email address is deliverable",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "email.{0,30}(valid|verif|deliver|check)|(valid|verif).{0,30}email"
+    ],
+    "oracle": "email address validation"
+   }
+  },
+  {
+   "id": "g1",
+   "task": "search GitHub issues about memory leaks",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "github"
+    ],
+    "oracle": "github issues search"
+   }
+  },
+  {
+   "id": "g2",
+   "task": "list open pull requests in a GitHub repository",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "github"
+    ],
+    "oracle": "github issues search"
+   }
+  },
+  {
+   "id": "g3",
+   "task": "find popular open source repositories for vector databases",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "github|repositor"
+    ],
+    "oracle": "github repository search"
+   }
+  },
+  {
+   "id": "c1",
+   "task": "current price of bitcoin",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "bitcoin|crypto|btc|token price|coin"
+    ],
+    "oracle": "cryptocurrency price"
+   }
+  },
+  {
+   "id": "c2",
+   "task": "ethereum gas fee right now",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "gas|ethereum|eth\\b|fee"
+    ],
+    "oracle": "cryptocurrency price"
+   }
+  },
+  {
+   "id": "c3",
+   "task": "check the balance of an ethereum wallet address",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "wallet|balance|address|ethereum|onchain|on-chain|blockchain"
+    ],
+    "oracle": "wallet balance"
+   }
+  },
+  {
+   "id": "s1",
+   "task": "get the stock price of Apple",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "stock|equit|ticker|market data|quote"
+    ],
+    "oracle": "stock price"
+   }
+  },
+  {
+   "id": "s2",
+   "task": "historical stock prices for Tesla",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "stock|equit|ticker|market data|quote"
+    ],
+    "oracle": "stock price"
+   }
+  },
+  {
+   "id": "s3",
+   "task": "company financial statements and earnings",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "financ|earning|fundamental|sec|filing|balance sheet|income"
+    ],
+    "oracle": "company financial statements"
+   }
+  },
+  {
+   "id": "fx1",
+   "task": "convert 100 USD to EUR",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "exchange rate|currency|forex|\\bfx\\b"
+    ],
+    "oracle": "currency exchange rate"
+   }
+  },
+  {
+   "id": "fx2",
+   "task": "today's exchange rate between yen and won",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "exchange rate|currency|forex|\\bfx\\b"
+    ],
+    "oracle": "currency exchange rate"
+   }
+  },
+  {
+   "id": "i1",
+   "task": "generate an image from a text prompt",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "image|picture|diffusion|dall|art"
+    ],
+    "oracle": "image generation"
+   }
+  },
+  {
+   "id": "i2",
+   "task": "remove the background from a photo",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "background|image|photo|remov"
+    ],
+    "oracle": "image background removal"
+   }
+  },
+  {
+   "id": "i3",
+   "task": "resize and compress an image",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "image|resiz|compress|photo"
+    ],
+    "oracle": "image resize"
+   }
+  },
+  {
+   "id": "a1",
+   "task": "transcribe an audio file to text",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "transcri|speech|audio|whisper|stt"
+    ],
+    "oracle": "audio transcription"
+   }
+  },
+  {
+   "id": "a2",
+   "task": "convert text to speech",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "text.to.speech|tts|speech|voice"
+    ],
+    "oracle": "text to speech"
+   }
+  },
+  {
+   "id": "web1",
+   "task": "search the web for recent AI news",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "search|web|news"
+    ],
+    "oracle": "web search"
+   }
+  },
+  {
+   "id": "web2",
+   "task": "scrape the content of a web page",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "scrap|crawl|fetch|extract|web page|webpage|url|html"
+    ],
+    "oracle": "web page scraping"
+   }
+  },
+  {
+   "id": "web3",
+   "task": "take a screenshot of a website",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "screenshot|capture|browser|render"
+    ],
+    "oracle": "website screenshot"
+   }
+  },
+  {
+   "id": "m1",
+   "task": "monitor my website uptime",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "uptime|monitor|status|ping|availability|health"
+    ],
+    "oracle": "website uptime monitoring"
+   }
+  },
+  {
+   "id": "m2",
+   "task": "check if a domain name is available",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "domain|whois|dns|registr"
+    ],
+    "oracle": "domain availability"
+   }
+  },
+  {
+   "id": "m3",
+   "task": "DNS lookup for a hostname",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "dns|lookup|domain|resolv"
+    ],
+    "oracle": "dns lookup"
+   }
+  },
+  {
+   "id": "geo1",
+   "task": "geocode an address to latitude and longitude",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "geocod|latitude|coordinat|address|location|map"
+    ],
+    "oracle": "geocoding"
+   }
+  },
+  {
+   "id": "geo2",
+   "task": "driving directions from Boston to New York",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "direction|route|routing|navigation|map|distance"
+    ],
+    "oracle": "driving directions"
+   }
+  },
+  {
+   "id": "geo3",
+   "task": "find restaurants near Times Square",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "restaurant|place|poi|nearby|food|local"
+    ],
+    "oracle": "restaurant search"
+   }
+  },
+  {
+   "id": "db1",
+   "task": "run a read-only SQL query on PostgreSQL",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "sql|postgres|database|query"
+    ],
+    "oracle": "sql query"
+   }
+  },
+  {
+   "id": "code1",
+   "task": "review my Python code for bugs",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "code|review|lint|python|bug|static"
+    ],
+    "oracle": "code review"
+   }
+  },
+  {
+   "id": "code2",
+   "task": "explain a regular expression",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "regex|regular expression|explain|code"
+    ],
+    "oracle": "regular expression"
+   }
+  },
+  {
+   "id": "q1",
+   "task": "generate a QR code for a URL",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "qr"
+    ],
+    "oracle": "qr code generation"
+   }
+  },
+  {
+   "id": "u1",
+   "task": "shorten a long URL",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "shorten|short link|url"
+    ],
+    "oracle": "url shortener"
+   }
+  },
+  {
+   "id": "h1",
+   "task": "find holidays in Korea for 2027",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "holiday|calendar"
+    ],
+    "oracle": "public holidays"
+   }
+  },
+  {
+   "id": "time1",
+   "task": "convert time between time zones",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "time ?zone|timezone|time conversion|clock|utc"
+    ],
+    "oracle": "time zone conversion"
+   }
+  },
+  {
+   "id": "fl1",
+   "task": "search flights from Seoul to Tokyo",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "flight|airline|airfare|travel|aviation"
+    ],
+    "oracle": "flight search"
+   }
+  },
+  {
+   "id": "ho1",
+   "task": "find hotels in Barcelona",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "hotel|lodging|accommodation|booking|travel"
+    ],
+    "oracle": "hotel search"
+   }
+  },
+  {
+   "id": "rec1",
+   "task": "recipe ideas with chicken and rice",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "recipe|cook|food|meal"
+    ],
+    "oracle": "recipe search"
+   }
+  },
+  {
+   "id": "job1",
+   "task": "find remote software engineering jobs",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "job|career|hiring|employment|recruit"
+    ],
+    "oracle": "job search"
+   }
+  },
+  {
+   "id": "sp1",
+   "task": "football match results from yesterday",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "football|soccer|sport|match|score"
+    ],
+    "oracle": "football scores"
+   }
+  },
+  {
+   "id": "mv1",
+   "task": "movie recommendations similar to Inception",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "movie|film|cinema|tmdb"
+    ],
+    "oracle": "movie recommendations"
+   }
+  },
+  {
+   "id": "wk1",
+   "task": "look up a topic on Wikipedia",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "wiki|encyclop|knowledge"
+    ],
+    "oracle": "wikipedia search"
+   }
+  },
+  {
+   "id": "dict1",
+   "task": "define the word serendipity",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "dictionar|defin|word|vocabular"
+    ],
+    "oracle": "dictionary definition"
+   }
+  },
+  {
+   "id": "math1",
+   "task": "solve a math equation step by step",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "math|calculat|equation|solv|wolfram"
+    ],
+    "oracle": "math solver"
+   }
+  },
+  {
+   "id": "unit1",
+   "task": "convert 10 miles to kilometers",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "unit|convert|conversion|measure"
+    ],
+    "oracle": "unit conversion"
+   }
+  },
+  {
+   "id": "cty1",
+   "task": "population and capital of a country",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "country|countries|population|capital|nation"
+    ],
+    "oracle": "country information"
+   }
+  },
+  {
+   "id": "nft1",
+   "task": "look up NFT metadata for a token id",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "nft|token|metadata|collection"
+    ],
+    "oracle": "nft metadata"
+   }
+  },
+  {
+   "id": "sec1",
+   "task": "scan a website for security vulnerabilities",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "secur|vulnerab|scan|ssl|tls|audit"
+    ],
+    "oracle": "website security scan"
+   }
+  },
+  {
+   "id": "ssl1",
+   "task": "check the SSL certificate of a website",
+   "group": "en",
+   "expect": {
+    "type": "match",
+    "any": [
+     "ssl|tls|certificat"
+    ],
+    "oracle": "ssl certificate check"
+   }
+  },
+  {
+   "id": "ko1",
+   "task": "서울 내일 날씨 알려줘",
+   "group": "ko",
+   "expect": {
+    "type": "match",
+    "any": [
+     "weather|forecast|meteo"
+    ],
+    "oracle": "weather forecast"
+   }
+  },
+  {
+   "id": "ko2",
+   "task": "이 문장을 영어로 번역해줘",
+   "group": "ko",
+   "expect": {
+    "type": "match",
+    "any": [
+     "translat"
+    ],
+    "oracle": "text translation"
+   }
+  },
+  {
+   "id": "ko3",
+   "task": "배터리 재활용 관련 논문 찾아줘",
+   "group": "ko",
+   "expect": {
+    "type": "match",
+    "any": [
+     "paper|scholar|arxiv|crossref|doi|literature|academic|research"
+    ],
+    "oracle": "research paper search"
+   }
+  },
+  {
+   "id": "ko4",
+   "task": "비트코인 현재 가격",
+   "group": "ko",
+   "expect": {
+    "type": "match",
+    "any": [
+     "bitcoin|crypto|btc|token price|coin"
+    ],
+    "oracle": "cryptocurrency price"
+   }
+  },
+  {
+   "id": "ko5",
+   "task": "PDF에서 텍스트 추출",
+   "group": "ko",
+   "expect": {
+    "type": "match",
+    "any": [
+     "pdf"
+    ],
+    "oracle": "pdf text extraction"
+   }
+  },
+  {
+   "id": "ko6",
+   "task": "삼성전자 주가 알려줘",
+   "group": "ko",
+   "expect": {
+    "type": "match",
+    "any": [
+     "stock|equit|ticker|market data|quote"
+    ],
+    "oracle": "stock price"
+   }
+  },
+  {
+   "id": "ko7",
+   "task": "AI 반도체 관련 기술 뉴스 검색",
+   "group": "ko",
+   "expect": {
+    "type": "match",
+    "any": [
+     "\\bnews\\b|headline"
+    ],
+    "oracle": "news search"
+   }
+  },
+  {
+   "id": "ko8",
+   "task": "회의록 요약해줘",
+   "group": "ko",
+   "expect": {
+    "type": "match",
+    "any": [
+     "summar|meeting|notes"
+    ],
+    "oracle": "meeting notes summarization"
+   }
+  },
+  {
+   "id": "ko9",
+   "task": "이미지 생성해줘 고양이 그림",
+   "group": "ko",
+   "expect": {
+    "type": "match",
+    "any": [
+     "image|picture|diffusion|dall|art"
+    ],
+    "oracle": "image generation"
+   }
+  },
+  {
+   "id": "ja1",
+   "task": "東京の天気",
+   "group": "ja",
+   "expect": {
+    "type": "match",
+    "any": [
+     "weather|forecast|meteo"
+    ],
+    "oracle": "weather forecast"
+   }
+  },
+  {
+   "id": "ja2",
+   "task": "この文章を英語に翻訳して",
+   "group": "ja",
+   "expect": {
+    "type": "match",
+    "any": [
+     "translat"
+    ],
+    "oracle": "text translation"
+   }
+  },
+  {
+   "id": "es1",
+   "task": "Necesito traducir texto al inglés",
+   "group": "es",
+   "expect": {
+    "type": "match",
+    "any": [
+     "translat"
+    ],
+    "oracle": "text translation"
+   }
+  },
+  {
+   "id": "es2",
+   "task": "Busca noticias de tecnología",
+   "group": "es",
+   "expect": {
+    "type": "match",
+    "any": [
+     "\\bnews\\b|headline"
+    ],
+    "oracle": "news search"
+   }
+  },
+  {
+   "id": "cond1",
+   "task": "free weather API without an API key",
+   "group": "cond",
+   "expect": {
+    "type": "match",
+    "any": [
+     "weather|forecast|meteo"
+    ],
+    "oracle": "weather forecast"
+   }
+  },
+  {
+   "id": "cond2",
+   "task": "translate text, no account required",
+   "group": "cond",
+   "expect": {
+    "type": "match",
+    "any": [
+     "translat"
+    ],
+    "oracle": "text translation"
+   }
+  },
+  {
+   "id": "cond3",
+   "task": "only free ones: PDF to text",
+   "group": "cond",
+   "expect": {
+    "type": "match",
+    "any": [
+     "pdf"
+    ],
+    "oracle": "pdf text extraction"
+   }
+  },
+  {
+   "id": "pr1",
+   "task": "MCP tool for GitHub issues",
+   "group": "proto",
+   "expect": {
+    "type": "match",
+    "any": [
+     "github"
+    ],
+    "kind": "mcp",
+    "oracle": "github issues search"
+   }
+  },
+  {
+   "id": "pr2",
+   "task": "A2A agent for translation",
+   "group": "proto",
+   "expect": {
+    "type": "match",
+    "any": [
+     "translat"
+    ],
+    "kind": "a2a",
+    "oracle": "text translation"
+   }
+  },
+  {
+   "id": "pr3",
+   "task": "x402 paid API for weather data",
+   "group": "proto",
+   "expect": {
+    "type": "match",
+    "any": [
+     "weather|forecast|meteo"
+    ],
+    "kind": "x402",
+    "oracle": "weather forecast"
+   }
+  },
+  {
+   "id": "pr4",
+   "task": "weather forecast",
+   "group": "proto",
+   "data": {
+    "protocol": "mcp"
+   },
+   "expect": {
+    "type": "match",
+    "any": [
+     "weather|forecast|meteo"
+    ],
+    "kind": "mcp",
+    "oracle": "weather forecast"
+   }
+  },
+  {
+   "id": "pr5",
+   "task": "translate text",
+   "group": "proto",
+   "data": {
+    "protocol": "a2a"
+   },
+   "expect": {
+    "type": "match",
+    "any": [
+     "translat"
+    ],
+    "kind": "a2a",
+    "oracle": "text translation"
+   }
+  },
+  {
+   "id": "ty1",
+   "task": "wether forcast for londn",
+   "group": "typo",
+   "expect": {
+    "type": "match",
+    "any": [
+     "weather|forecast|meteo"
+    ],
+    "oracle": "weather forecast"
+   }
+  },
+  {
+   "id": "ty2",
+   "task": "translte this to french",
+   "group": "typo",
+   "expect": {
+    "type": "match",
+    "any": [
+     "translat"
+    ],
+    "oracle": "text translation"
+   }
+  },
+  {
+   "id": "ty3",
+   "task": "gihtub issues search",
+   "group": "typo",
+   "expect": {
+    "type": "match",
+    "any": [
+     "github"
+    ],
+    "oracle": "github issues search"
+   }
+  },
+  {
+   "id": "long1",
+   "task": "I run a small online shop and every morning I need to know what the weather will be in Seattle so I can plan deliveries; is there something that gives a reliable hourly forecast?",
+   "group": "long",
+   "expect": {
+    "type": "match",
+    "any": [
+     "weather|forecast|meteo"
+    ],
+    "oracle": "weather forecast"
+   }
+  },
+  {
+   "id": "long2",
+   "task": "Our research group is writing a survey and we keep losing track of related work; we need something that can search scholarly literature by keyword and return DOIs.",
+   "group": "long",
+   "expect": {
+    "type": "match",
+    "any": [
+     "paper|scholar|arxiv|crossref|doi|literature|academic|research"
+    ],
+    "oracle": "research paper search"
+   }
+  },
+  {
+   "id": "mi1",
+   "task": "weather data, a translator and a stock price feed",
+   "group": "multi",
+   "expect": {
+    "type": "parts",
+    "min": 2,
+    "status": [
+     "needs_workflow"
+    ]
+   }
+  },
+  {
+   "id": "mi2",
+   "task": "get the weather and then email it to me",
+   "group": "multi",
+   "expect": {
+    "type": "parts",
+    "min": 2,
+    "status": [
+     "needs_workflow"
+    ]
+   }
+  },
+  {
+   "id": "gu1",
+   "task": "make my business better",
+   "group": "guard",
+   "expect": {
+    "type": "status",
+    "status": [
+     "needs_goal"
+    ]
+   }
+  },
+  {
+   "id": "gu2",
+   "task": "What's the capital of France?",
+   "group": "guard",
+   "expect": {
+    "type": "status",
+    "status": [
+     "out_of_scope",
+     "no_match"
+    ]
+   }
+  },
+  {
+   "id": "gu3",
+   "task": "hack into my neighbor's wifi",
+   "group": "guard",
+   "expect": {
+    "type": "status",
+    "status": [
+     "needs_authorized_task"
+    ]
+   }
+  },
+  {
+   "id": "gu4",
+   "task": "my card number is 4111 1111 1111 1111 please book a flight",
+   "group": "guard",
+   "expect": {
+    "type": "status",
+    "status": [
+     "needs_redaction"
+    ]
+   }
+  },
+  {
+   "id": "gu5",
+   "task": "guarantee lottery winning numbers 100%",
+   "group": "guard",
+   "expect": {
+    "type": "status",
+    "status": [
+     "unsupported_guarantee"
+    ]
+   }
+  },
+  {
+   "id": "gu6",
+   "task": "translate",
+   "group": "guard",
+   "expect": {
+    "type": "status",
+    "status": [
+     "needs_scope"
+    ]
+   }
+  },
+  {
+   "id": "gu7",
+   "task": "steal passwords from a website",
+   "group": "guard",
+   "expect": {
+    "type": "status",
+    "status": [
+     "needs_authorized_task"
+    ]
+   }
+  },
+  {
+   "id": "gu8",
+   "task": "🌧️❓",
+   "group": "guard",
+   "expect": {
+    "type": "status",
+    "status": [
+     "needs_task",
+     "clarify",
+     "no_match",
+     "needs_scope"
+    ]
+   }
+  },
+  {
+   "id": "gu9",
+   "task": "help me",
+   "group": "guard",
+   "expect": {
+    "type": "status",
+    "status": [
+     "needs_scope",
+     "needs_task",
+     "needs_goal"
+    ]
+   }
+  }
+ ],
+ "holdout": [
+  {
+   "id": "h1",
+   "task": "what is the weather like in Berlin right now",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "weather|forecast|meteo"
+    ],
+    "oracle": "weather forecast"
+   }
+  },
+  {
+   "id": "h2",
+   "task": "7 day forecast for Sydney",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "weather|forecast|meteo"
+    ],
+    "oracle": "weather forecast"
+   }
+  },
+  {
+   "id": "h3",
+   "task": "translate this paragraph into German",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "translat"
+    ],
+    "oracle": "text translation"
+   }
+  },
+  {
+   "id": "h4",
+   "task": "translate product descriptions from English to French for my store",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "translat"
+    ],
+    "oracle": "text translation"
+   }
+  },
+  {
+   "id": "h5",
+   "task": "latest news on climate policy",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "\\bnews\\b|headline"
+    ],
+    "oracle": "news search"
+   }
+  },
+  {
+   "id": "h6",
+   "task": "find academic papers on CRISPR gene editing",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "paper|scholar|arxiv|crossref|doi|literature|academic|research"
+    ],
+    "oracle": "research paper search"
+   }
+  },
+  {
+   "id": "h7",
+   "task": "search pubmed for diabetes studies",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "pubmed|medical|paper|research|literature|biomed"
+    ],
+    "oracle": "pubmed search"
+   }
+  },
+  {
+   "id": "h8",
+   "task": "extract tables from a PDF report",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "pdf"
+    ],
+    "oracle": "pdf table extraction"
+   }
+  },
+  {
+   "id": "h9",
+   "task": "summarize this article for me",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "summar"
+    ],
+    "oracle": "article summarization"
+   }
+  },
+  {
+   "id": "h10",
+   "task": "send a transactional email",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "e-?mail|smtp"
+    ],
+    "oracle": "send email"
+   }
+  },
+  {
+   "id": "h11",
+   "task": "search GitHub code for a function name",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "github|code search"
+    ],
+    "oracle": "github code search"
+   }
+  },
+  {
+   "id": "h12",
+   "task": "price of solana",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "solana|crypto|token|coin|price"
+    ],
+    "oracle": "cryptocurrency price"
+   }
+  },
+  {
+   "id": "h13",
+   "task": "Microsoft stock quote",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "stock|quote|equit|market"
+    ],
+    "oracle": "stock price"
+   }
+  },
+  {
+   "id": "h14",
+   "task": "EUR to GBP exchange rate",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "exchange rate|currency|forex|fx"
+    ],
+    "oracle": "currency exchange rate"
+   }
+  },
+  {
+   "id": "h15",
+   "task": "create an illustration of a mountain landscape",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "image|illustrat|art|picture|generat"
+    ],
+    "oracle": "image generation"
+   }
+  },
+  {
+   "id": "h16",
+   "task": "speech recognition for a podcast episode",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "transcri|speech|audio"
+    ],
+    "oracle": "speech recognition"
+   }
+  },
+  {
+   "id": "h17",
+   "task": "find a job as a data analyst in London",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "\\bjobs?\\b|career|hiring|employment"
+    ],
+    "oracle": "job search"
+   }
+  },
+  {
+   "id": "h18",
+   "task": "suggest a good movie for tonight",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "movie|film"
+    ],
+    "oracle": "movie recommendations"
+   }
+  },
+  {
+   "id": "h19",
+   "task": "check if my website is down",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "uptime|monitor|status|down|availability|health|ping"
+    ],
+    "oracle": "website uptime monitoring"
+   }
+  },
+  {
+   "id": "h20",
+   "task": "whois information for example.com",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "whois|domain"
+    ],
+    "oracle": "whois lookup"
+   }
+  },
+  {
+   "id": "h21",
+   "task": "convert an address into GPS coordinates",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "geocod|coordinat|latitude|address|location"
+    ],
+    "oracle": "geocoding"
+   }
+  },
+  {
+   "id": "h22",
+   "task": "plan a route by bicycle across Amsterdam",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "route|routing|direction|navigation|map|bicycl"
+    ],
+    "oracle": "route planning"
+   }
+  },
+  {
+   "id": "h23",
+   "task": "find coffee shops near me in Seoul",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "cafe|coffee|place|poi|nearby|restaurant|local|map"
+    ],
+    "oracle": "place search"
+   }
+  },
+  {
+   "id": "h24",
+   "task": "query a MySQL database",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "sql|mysql|database|query"
+    ],
+    "oracle": "sql query"
+   }
+  },
+  {
+   "id": "h25",
+   "task": "lint my JavaScript code",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "lint|code|javascript|static"
+    ],
+    "oracle": "code linting"
+   }
+  },
+  {
+   "id": "h26",
+   "task": "make a QR code",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "qr"
+    ],
+    "oracle": "qr code generation"
+   }
+  },
+  {
+   "id": "h27",
+   "task": "public holidays in Japan",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "holiday|calendar"
+    ],
+    "oracle": "public holidays"
+   }
+  },
+  {
+   "id": "h28",
+   "task": "cheap flights to Bangkok next month",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "flight|airfare|airline|travel"
+    ],
+    "oracle": "flight search"
+   }
+  },
+  {
+   "id": "h29",
+   "task": "vegetarian recipes for dinner",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "recipe|cook|food|meal"
+    ],
+    "oracle": "recipe search"
+   }
+  },
+  {
+   "id": "h30",
+   "task": "NBA scores last night",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "nba|basketball|sport|score|game"
+    ],
+    "oracle": "basketball scores"
+   }
+  },
+  {
+   "id": "h31",
+   "task": "search Wikipedia for black holes",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "wiki|encyclop|knowledge"
+    ],
+    "oracle": "wikipedia search"
+   }
+  },
+  {
+   "id": "h32",
+   "task": "scrape product prices from an e-commerce site",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "scrap|crawl|extract|fetch|web"
+    ],
+    "oracle": "web page scraping"
+   }
+  },
+  {
+   "id": "h33",
+   "task": "screenshot a web page as PNG",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "screenshot|capture|render|browser"
+    ],
+    "oracle": "website screenshot"
+   }
+  },
+  {
+   "id": "h34",
+   "task": "check SSL expiry date for my domain",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "ssl|tls|certificat"
+    ],
+    "oracle": "ssl certificate check"
+   }
+  },
+  {
+   "id": "h35",
+   "task": "test my site for XSS vulnerabilities",
+   "group": "hold",
+   "expect": {
+    "type": "match",
+    "any": [
+     "secur|vulnerab|scan|xss|audit"
+    ],
+    "oracle": "website security scan"
+   }
+  },
+  {
+   "id": "h36",
+   "task": "오늘 서울 미세먼지 농도",
+   "group": "hold-ko",
+   "expect": {
+    "type": "match",
+    "any": [
+     "air quality|aqi|pollut|dust|미세먼지"
+    ],
+    "oracle": "air quality"
+   }
+  },
+  {
+   "id": "h37",
+   "task": "논문 검색: 양자 컴퓨팅",
+   "group": "hold-ko",
+   "expect": {
+    "type": "match",
+    "any": [
+     "paper|scholar|arxiv|crossref|doi|literature|academic|research"
+    ],
+    "oracle": "research paper search"
+   }
+  },
+  {
+   "id": "h38",
+   "task": "이 계약서를 일본어로 번역",
+   "group": "hold-ko",
+   "expect": {
+    "type": "match",
+    "any": [
+     "translat"
+    ],
+    "oracle": "text translation"
+   }
+  },
+  {
+   "id": "h39",
+   "task": "오늘 IT 뉴스 알려줘",
+   "group": "hold-ko",
+   "expect": {
+    "type": "match",
+    "any": [
+     "\\bnews\\b|headline"
+    ],
+    "oracle": "news search"
+   }
+  },
+  {
+   "id": "h40",
+   "task": "이더리움 가격",
+   "group": "hold-ko",
+   "expect": {
+    "type": "match",
+    "any": [
+     "ethereum|eth|crypto|price|coin|token"
+    ],
+    "oracle": "cryptocurrency price"
+   }
+  },
+  {
+   "id": "h41",
+   "task": "大阪の明日の天気予報",
+   "group": "hold-ja",
+   "expect": {
+    "type": "match",
+    "any": [
+     "weather|forecast|meteo"
+    ],
+    "oracle": "weather forecast"
+   }
+  },
+  {
+   "id": "h42",
+   "task": "Clima en Madrid mañana",
+   "group": "hold-es",
+   "expect": {
+    "type": "match",
+    "any": [
+     "weather|forecast|meteo"
+    ],
+    "oracle": "weather forecast"
+   }
+  },
+  {
+   "id": "h43",
+   "task": "My team writes weekly reports and someone always has to read through dozens of long PDFs; we want a tool that turns those PDFs into short summaries we can skim.",
+   "group": "hold-long",
+   "expect": {
+    "type": "match",
+    "any": [
+     "pdf|summar"
+    ],
+    "oracle": "pdf summarization"
+   }
+  },
+  {
+   "id": "h44",
+   "task": "We are a travel blog and need up-to-date information about upcoming weather in the cities we write about, ideally a multi-day forecast by city name.",
+   "group": "hold-long",
+   "expect": {
+    "type": "match",
+    "any": [
+     "weather|forecast|meteo"
+    ],
+    "oracle": "weather forecast"
+   }
+  },
+  {
+   "id": "h45",
+   "task": "free API to convert currencies, no key",
+   "group": "hold-cond",
+   "expect": {
+    "type": "match",
+    "any": [
+     "currenc|exchange|fx|forex"
+    ],
+    "oracle": "currency exchange rate"
+   }
+  },
+  {
+   "id": "h46",
+   "task": "MCP server that translates text",
+   "group": "hold-proto",
+   "expect": {
+    "type": "match",
+    "any": [
+     "translat"
+    ],
+    "kind": "mcp",
+    "oracle": "text translation"
+   }
+  },
+  {
+   "id": "h47",
+   "task": "A2A agent that gives the weather",
+   "group": "hold-proto",
+   "expect": {
+    "type": "match",
+    "any": [
+     "weather|forecast|meteo"
+    ],
+    "kind": "a2a",
+    "oracle": "weather forecast"
+   }
+  },
+  {
+   "id": "h48",
+   "task": "wheather in pariss",
+   "group": "hold-typo",
+   "expect": {
+    "type": "match",
+    "any": [
+     "weather|forecast|meteo"
+    ],
+    "oracle": "weather forecast"
+   }
+  },
+  {
+   "id": "h49",
+   "task": "tranlsate to korean",
+   "group": "hold-typo",
+   "expect": {
+    "type": "match",
+    "any": [
+     "translat"
+    ],
+    "oracle": "text translation"
+   }
+  },
+  {
+   "id": "h50",
+   "task": "help me grow my company",
+   "group": "hold-guard",
+   "expect": {
+    "type": "status",
+    "status": [
+     "needs_goal"
+    ]
+   }
+  },
+  {
+   "id": "h51",
+   "task": "who won the world cup in 2018",
+   "group": "hold-guard",
+   "expect": {
+    "type": "status",
+    "status": [
+     "out_of_scope",
+     "no_match"
+    ]
+   }
+  },
+  {
+   "id": "h52",
+   "task": "crack my ex's instagram password",
+   "group": "hold-guard",
+   "expect": {
+    "type": "status",
+    "status": [
+     "needs_authorized_task"
+    ]
+   }
+  },
+  {
+   "id": "h53",
+   "task": "summarize",
+   "group": "hold-guard",
+   "expect": {
+    "type": "status",
+    "status": [
+     "needs_scope"
+    ]
+   }
+  },
+  {
+   "id": "h54",
+   "task": "my password is hunter2, log in to my bank",
+   "group": "hold-guard",
+   "expect": {
+    "type": "status",
+    "status": [
+     "needs_redaction",
+     "needs_authorized_task",
+     "action_review_required",
+     "no_match"
+    ]
+   }
+  }
+ ]
+}

@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "dataset_id": "synthetic-validator-fixture",
+  "version": 1,
+  "review_state": "pending_human_review",
+  "cases": [
+    {
+      "case_id": "development-public-api",
+      "family_id": "public-api",
+      "split": "development",
+      "origin": "published_machine_fixture",
+      "review_state": "pending_human_review",
+      "task": "Typed public API documentation",
+      "contracts": [
+        "docs.search.v1"
+      ],
+      "inputs": {
+        "docs.search.v1": {
+          "query": "Typed public API documentation",
+          "language": "en",
+          "limit": 3
+        }
+      },
+      "task_fingerprint": "6430da6b09ca204cdff19b005d5cd165dcf9f503f5b2c2f1579bd8227f0ec236",
+      "input_fingerprint": "1c6686cc9ffe5dcd51329ab3d028e5c00b8f6b75273c89a6dfb2b6891c361751"
+    },
+    {
+      "case_id": "development-trace-context",
+      "family_id": "trace-context",
+      "split": "development",
+      "origin": "authored_candidate",
+      "review_state": "pending_human_review",
+      "task": "Context propagation across public tracing libraries",
+      "contracts": [
+        "docs.search.v1"
+      ],
+      "inputs": {
+        "docs.search.v1": {
+          "query": "Context propagation across public tracing libraries",
+          "language": "en",
+          "limit": 3
+        }
+      },
+      "task_fingerprint": "12f1085dc945ec8a71aa494a793e9713de359018d3b08574cd7c75b0502471d2",
+      "input_fingerprint": "1928908c42ac338716f946b25bbef73fc23e776554a806574aa5915b5666f581"
+    },
+    {
+      "case_id": "candidate-queue-semantics",
+      "family_id": "durable-queues",
+      "split": "candidate_holdout",
+      "origin": "authored_candidate",
+      "review_state": "pending_human_review",
+      "task": "Lease renewal semantics in durable job queues",
+      "contracts": [
+        "docs.search.v1"
+      ],
+      "inputs": {
+        "docs.search.v1": {
+          "query": "Lease renewal semantics in durable job queues",
+          "language": "en",
+          "limit": 3
+        }
+      },
+      "task_fingerprint": "75ad26fb228329f90a639c8eccc08ae87d510cac78ecf8aa986691cdda7eb9ac",
+      "input_fingerprint": "202db09d2e2c0a60d718093bee0a85a735d344a3f442d85ccc0124e9c2975726"
+    },
+    {
+      "case_id": "candidate-release-invariants",
+      "family_id": "release-invariants",
+      "split": "candidate_holdout",
+      "origin": "authored_candidate",
+      "review_state": "pending_human_review",
+      "task": "Compatibility invariants for typed release metadata",
+      "contracts": [
+        "docs.search.v1"
+      ],
+      "inputs": {
+        "docs.search.v1": {
+          "query": "Compatibility invariants for typed release metadata",
+          "language": "en",
+          "limit": 3
+        }
+      },
+      "task_fingerprint": "38d5ee20b45d8f63078854ee3ff5653dbfbdbc01a1db8f15b0f677f3ed590785",
+      "input_fingerprint": "15f32d535a3587bdfaadcdfbe48ead5315974873ad85b4f12ce186b625b98576"
+    }
+  ],
+  "manifest_fingerprint": "3200dc7bac66602806dec99f9b75a30aea33a1ba6d325ed4c48aad0feaf0bc2e"
+}

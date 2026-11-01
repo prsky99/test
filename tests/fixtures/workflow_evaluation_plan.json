@@ -1,0 +1,273 @@
+{
+  "schema_version": 1,
+  "profile": "offline-evaluation-governance-v1",
+  "plan_id": "synthetic-governance-validator-fixture",
+  "version": 1,
+  "stage": "pre_execution",
+  "manifest_binding": {
+    "dataset_id": "synthetic-validator-fixture",
+    "version": 1,
+    "manifest_fingerprint": "3200dc7bac66602806dec99f9b75a30aea33a1ba6d325ed4c48aad0feaf0bc2e"
+  },
+  "rubric_binding": {
+    "version": "workflow-review-rubric-v1",
+    "sha256": "8feda26ea73dce348bd3b101cb6147e0e59e62f4a68907fc4cac6d0364c8b8dd"
+  },
+  "slots": [
+    {
+      "slot_id": "synthetic-curator",
+      "role": "curator",
+      "identity_status": "pending",
+      "identity_commitment": null,
+      "qualification_status": "pending",
+      "qualification_record": null,
+      "conflict_status": "pending",
+      "conflict_record": null
+    },
+    {
+      "slot_id": "synthetic-custodian",
+      "role": "custodian",
+      "identity_status": "pending",
+      "identity_commitment": null,
+      "qualification_status": "pending",
+      "qualification_record": null,
+      "conflict_status": "pending",
+      "conflict_record": null
+    },
+    {
+      "slot_id": "synthetic-executor",
+      "role": "executor",
+      "identity_status": "pending",
+      "identity_commitment": null,
+      "qualification_status": "pending",
+      "qualification_record": null,
+      "conflict_status": "pending",
+      "conflict_record": null
+    },
+    {
+      "slot_id": "synthetic-source-reviewer",
+      "role": "source_reviewer",
+      "identity_status": "pending",
+      "identity_commitment": null,
+      "qualification_status": "pending",
+      "qualification_record": null,
+      "conflict_status": "pending",
+      "conflict_record": null
+    },
+    {
+      "slot_id": "synthetic-reviewer-one",
+      "role": "reviewer",
+      "identity_status": "pending",
+      "identity_commitment": null,
+      "qualification_status": "pending",
+      "qualification_record": null,
+      "conflict_status": "pending",
+      "conflict_record": null
+    },
+    {
+      "slot_id": "synthetic-reviewer-two",
+      "role": "reviewer",
+      "identity_status": "pending",
+      "identity_commitment": null,
+      "qualification_status": "pending",
+      "qualification_record": null,
+      "conflict_status": "pending",
+      "conflict_record": null
+    },
+    {
+      "slot_id": "synthetic-adjudicator",
+      "role": "adjudicator",
+      "identity_status": "pending",
+      "identity_commitment": null,
+      "qualification_status": "pending",
+      "qualification_record": null,
+      "conflict_status": "pending",
+      "conflict_record": null
+    }
+  ],
+  "procedures": {
+    "identity_and_qualification": {
+      "state": "pending",
+      "record": null
+    },
+    "conflict_and_independence": {
+      "state": "pending",
+      "record": null
+    },
+    "source_material_review": {
+      "state": "pending",
+      "record": null
+    },
+    "candidate_access_control": {
+      "state": "pending",
+      "record": null
+    },
+    "pre_execution_reservation": {
+      "state": "pending",
+      "record": null
+    },
+    "disagreement_adjudication": {
+      "state": "pending",
+      "record": null
+    }
+  },
+  "allocations": [
+    {
+      "family_id": "public-api",
+      "split": "development",
+      "case_ids": [
+        "development-public-api"
+      ],
+      "roles": {
+        "curator": "synthetic-curator",
+        "custodian": "synthetic-custodian",
+        "executor": "synthetic-executor",
+        "source_reviewer": "synthetic-source-reviewer",
+        "adjudicator": "synthetic-adjudicator",
+        "reviewer": [
+          "synthetic-reviewer-one",
+          "synthetic-reviewer-two"
+        ]
+      },
+      "access": {
+        "before_execution": [
+          "synthetic-curator",
+          "synthetic-custodian"
+        ],
+        "during_review": [
+          "synthetic-source-reviewer",
+          "synthetic-reviewer-one",
+          "synthetic-reviewer-two",
+          "synthetic-adjudicator"
+        ]
+      },
+      "source_materials": [
+        {
+          "case_id": "development-public-api",
+          "availability": "pending",
+          "bundle": null,
+          "review_state": "pending",
+          "review_record": null
+        }
+      ]
+    },
+    {
+      "family_id": "trace-context",
+      "split": "development",
+      "case_ids": [
+        "development-trace-context"
+      ],
+      "roles": {
+        "curator": "synthetic-curator",
+        "custodian": "synthetic-custodian",
+        "executor": "synthetic-executor",
+        "source_reviewer": "synthetic-source-reviewer",
+        "adjudicator": "synthetic-adjudicator",
+        "reviewer": [
+          "synthetic-reviewer-one",
+          "synthetic-reviewer-two"
+        ]
+      },
+      "access": {
+        "before_execution": [
+          "synthetic-curator",
+          "synthetic-custodian"
+        ],
+        "during_review": [
+          "synthetic-source-reviewer",
+          "synthetic-reviewer-one",
+          "synthetic-reviewer-two",
+          "synthetic-adjudicator"
+        ]
+      },
+      "source_materials": [
+        {
+          "case_id": "development-trace-context",
+          "availability": "pending",
+          "bundle": null,
+          "review_state": "pending",
+          "review_record": null
+        }
+      ]
+    },
+    {
+      "family_id": "durable-queues",
+      "split": "candidate_holdout",
+      "case_ids": [
+        "candidate-queue-semantics"
+      ],
+      "roles": {
+        "curator": "synthetic-curator",
+        "custodian": "synthetic-custodian",
+        "executor": "synthetic-executor",
+        "source_reviewer": "synthetic-source-reviewer",
+        "adjudicator": "synthetic-adjudicator",
+        "reviewer": [
+          "synthetic-reviewer-one",
+          "synthetic-reviewer-two"
+        ]
+      },
+      "access": {
+        "before_execution": [
+          "synthetic-curator",
+          "synthetic-custodian"
+        ],
+        "during_review": [
+          "synthetic-source-reviewer",
+          "synthetic-reviewer-one",
+          "synthetic-reviewer-two",
+          "synthetic-adjudicator"
+        ]
+      },
+      "source_materials": [
+        {
+          "case_id": "candidate-queue-semantics",
+          "availability": "pending",
+          "bundle": null,
+          "review_state": "pending",
+          "review_record": null
+        }
+      ]
+    },
+    {
+      "family_id": "release-invariants",
+      "split": "candidate_holdout",
+      "case_ids": [
+        "candidate-release-invariants"
+      ],
+      "roles": {
+        "curator": "synthetic-curator",
+        "custodian": "synthetic-custodian",
+        "executor": "synthetic-executor",
+        "source_reviewer": "synthetic-source-reviewer",
+        "adjudicator": "synthetic-adjudicator",
+        "reviewer": [
+          "synthetic-reviewer-one",
+          "synthetic-reviewer-two"
+        ]
+      },
+      "access": {
+        "before_execution": [
+          "synthetic-curator",
+          "synthetic-custodian"
+        ],
+        "during_review": [
+          "synthetic-source-reviewer",
+          "synthetic-reviewer-one",
+          "synthetic-reviewer-two",
+          "synthetic-adjudicator"
+        ]
+      },
+      "source_materials": [
+        {
+          "case_id": "candidate-release-invariants",
+          "availability": "pending",
+          "bundle": null,
+          "review_state": "pending",
+          "review_record": null
+        }
+      ]
+    }
+  ],
+  "plan_fingerprint": "405cc28bb6406e78e7ace8c5a0d08f7a5f115dc5febd1d0ae5aca013a842325b"
+}
