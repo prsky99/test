@@ -46,6 +46,9 @@ async def _replay(request, path, query):
     for key in [k for k in scope if k in ('route', 'endpoint', 'path_params') or k.startswith('fastapi_')]:
         scope.pop(key)
     scope['state'] = {}
+    # Each answer is embedded in one JSON reply, so it must come back uncompressed: the outer
+    # response is compressed once by the same middleware (11-02: gzip bytes broke every page).
+    scope['headers'] = [(k, v) for k, v in scope.get('headers', []) if k.lower() != b'accept-encoding']
     status, headers, chunks = 500, [], []
 
     async def receive():

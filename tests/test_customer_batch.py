@@ -75,3 +75,24 @@ def test_overview_reads_a_named_workspace_in_the_first_request(customer_flow, br
         assert not errors
     finally:
         context.close()
+
+
+def test_answers_stay_readable_behind_compression():
+    """11-02: with GZip in front, replayed reads came back compressed and every opening page failed."""
+    from fastapi import FastAPI
+    from fastapi.middleware.gzip import GZipMiddleware
+    from fastapi.testclient import TestClient
+    from agent_market.customer_batch import router_for
+    app = FastAPI()
+    app.add_middleware(GZipMiddleware, minimum_size=1)
+
+    @app.get('/api/customer-sample')
+    def sample():
+        return {'items': ['x' * 50] * 40}
+    app.include_router(router_for())
+    client = TestClient(app)
+    reply = client.get('/api/customer-batch', params=[('p', '/api/customer-sample')] * 2,
+                       headers={'Accept-Encoding': 'gzip'})
+    assert reply.status_code == 200 and reply.headers.get('content-encoding') == 'gzip'
+    answers = reply.json()['responses']
+    assert [a['json'] for a in answers] == [{'items': ['x' * 50] * 40}] * 2
