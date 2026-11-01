@@ -67,17 +67,14 @@ def keep_models_warm(front, stop, interval=KEEP_WARM_SECONDS):
 ROLES = ('frontend', 'admin', 'jobs', 'execution')
 
 
-
 def execute_typed(platform, identity, ws, flow):
     """Run an admitted typed flow under the authority that admitted it.
 
-    The web roles admit customer workspace runs too; the staff adapter rejects
-    their opaque customer identity, so those runs use the customer adapter."""
-    flows = platform.typed_flows
-    if flows.admitted_actor_kind(identity, ws, flow) == 'customer':
-        from .customer_authoring import authoring_for
-        flows = authoring_for(platform).typed
-    return flows.execute_admitted(identity, ws, flow)
+    The web roles admit customer workspace and customer app runs too; the staff
+    adapter rejects their opaque customer identity, so each run returns to the
+    engine that admitted it (see typed_engine_for)."""
+    from .workspace_platform import typed_engine_for
+    return typed_engine_for(platform, identity, ws, flow).execute_admitted(identity, ws, flow)
 
 class ActiveRequests:
     def __init__(self, app, state):
@@ -265,7 +262,7 @@ class BackgroundLoop:
             log.exception('Capability text refresh round failed')
 
     def run(self):
-        from .workspace_platform import platform_for
+        from .workspace_platform import platform_for, typed_engine_for
         front = self.app.state.front
         platform = platform_for(front)
         self.heartbeat_thread = threading.Thread(target=self.heartbeat, name='service-heartbeat', daemon=True)
@@ -324,7 +321,7 @@ class BackgroundLoop:
                                 continue
                             try:
                                 if kind == 'typed':
-                                    platform.typed_flows.reconcile_interrupted(*item)
+                                    typed_engine_for(platform, *item).reconcile_interrupted(*item)
                                 else:
                                     platform.execution._finish(*item, 'unknown', 'INTERRUPTED')
                             except Exception:

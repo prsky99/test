@@ -210,6 +210,36 @@ def platform_for(front, *, store=None, runtime=None):
         return value
 
 
+def typed_engine_for(platform, identity, ws, flow):
+    """Engine whose authority check matches the actor that admitted a typed run.
+
+    Customer runs must be revalidated against the customer session, never the
+    staff membership check of the administrator engine.
+    """
+    from .workspace_access import WorkspaceDenied
+    admin = platform.typed_flows
+    with admin.execution._internal() as db:
+        run, ticket, claims = admin._run(db, ws, flow, identity)
+        executor = run.get('executor')
+        if executor is None:
+            # Runs admitted before the engine was recorded on the signed run.
+            if claims.get('actor_kind') != 'customer':
+                executor = 'admin'
+            # Reuses the registered statement; the PostgreSQL store rejects unlisted SQL.
+            elif db.execute('SELECT * FROM workspace_app_run_links WHERE ticket_id=?', (ticket['id'],)).fetchone():
+                executor = 'customer_app'
+            else:
+                executor = 'customer'
+    if executor == 'admin':
+        return admin
+    if executor == 'customer_app':
+        return platform.app_typed_flows
+    if executor == 'customer':
+        from .customer_authoring import authoring_for
+        return authoring_for(platform).typed
+    raise WorkspaceDenied()
+
+
 def admin_router_for(front, *, store=None, runtime=None):
     from fastapi import APIRouter
     from .workspace_service import router_for as workspaces
