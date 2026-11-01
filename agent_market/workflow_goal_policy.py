@@ -88,7 +88,8 @@ def contract_sequence(objective,count):
     if not stages:return None
     if len(stages)==1:return stages*count
     if len(stages)!=count:raise GoalNeedsDetails('Specify a supported search type for every requested step.')
-    if not re.search(r'\b(?:then|followed by|next|after that|and)\b|\ub2e4\uc74c|\uc774\uc5b4|\ud6c4',text,re.I):
+    # Korean joins two searches with geurigo, chatgo or hago ("find the news and also the related papers").
+    if not re.search(r'\b(?:then|followed by|next|after that|and)\b|\ub2e4\uc74c|\uc774\uc5b4|\ud6c4|\uadf8\ub9ac\uace0|\ucc3e\uace0|\ud558\uace0',text,re.I):
         raise GoalNeedsDetails('State whether the different searches are independent or connected.')
     return stages
 
@@ -130,7 +131,7 @@ def validate_goal(context, nodes):
     if count is not None and len(nodes)!=count:raise WorkspaceInvalid()
     if sequence is not None and (any(type(node) is not dict or 'contract_id' not in node for node in nodes)
             or [node['contract_id'] for node in nodes]!=sequence):raise WorkspaceInvalid()
-    from .workspace_goal_coverage import topics
+    from .workspace_goal_coverage import topics, step_subjects
     listed=topics(context['objective'])
     if independent(context):
         if any(node.get('bindings') or node.get('after') for node in nodes):raise WorkspaceInvalid()
@@ -154,8 +155,19 @@ def validate_goal(context, nodes):
             # Every literal search must retain its subject, not only step one.
             # Reviewed bindings are checked separately; a future title is not a
             # fact available to the proposal validator.
-            subject = {'objective':listed[index]} if listed and independent(context) else context
-            validate_query(subject,query)
+            own = step_subjects(context['objective'], len(nodes))
+            if listed and independent(context):
+                try:validate_query({'objective':listed[index]},query)
+                except GoalQueryMismatch:
+                    if not (own and own[index]):raise
+                    validate_query({'objective':own[index]},query)
+            elif own and own[index]:
+                # The model proposes the first subject for every step; the service then writes
+                # each step's own subject, so either one is accepted at this point.
+                try:validate_query({'objective':own[index]},query)
+                except GoalQueryMismatch:validate_query(context,query)
+            else:
+                validate_query(context,query)
     from .workflow_goal_evaluation import title_dependency_preserved
     if not title_dependency_preserved(positive_text(context['objective']), nodes):
         raise GoalNeedsDetails('Connect the next search to the returned title using a reviewed input binding.')

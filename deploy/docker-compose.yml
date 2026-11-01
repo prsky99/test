@@ -1,11 +1,18 @@
-# 서버에서: cd deploy && docker compose up -d --build
+# Run from deploy: docker compose --env-file gateway.env up -d --build.
 services:
   gateway:
     build: ..
     restart: unless-stopped
     env_file: gateway.env
     environment:
-      FORWARDED_ALLOW_IPS: "*"   # 같은 도커 네트워크의 Caddy가 넘겨주는 실제 클라이언트 IP를 신뢰 (게이트웨이 포트는 외부에 열지 않음)
+      DEPLOYMENT_MODE: production
+      PUBLIC_TLS_TERMINATION: proxy
+      FORWARDED_ALLOW_IPS: "${CADDY_PROXY_IP:-172.30.90.2}"
+      SSL_ENABLED: "0"
+      ALLOW_PRIVATE_AGENT_URLS: "0"
+    networks: [proxy]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
     volumes:
       - gateway-data:/data
     expose: ["8200", "8400"]   # 8200: 관리·게이트웨이 API, 8400: 에이전트 전용 프론트 (둘 다 Caddy를 거쳐서만 공개)
@@ -14,7 +21,12 @@ services:
     image: caddy:2
     restart: unless-stopped
     ports: ["80:80", "443:443"]
-    env_file: gateway.env
+    environment:
+      DOMAIN: "${DOMAIN:-agentconcierge.biz}"
+      CADDY_TRUSTED_UPSTREAMS: "${CADDY_TRUSTED_UPSTREAMS:-127.0.0.1/32 ::1/128}"
+    networks:
+      proxy:
+        ipv4_address: "${CADDY_PROXY_IP:-172.30.90.2}"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
@@ -22,3 +34,8 @@ services:
 volumes:
   gateway-data:
   caddy-data:
+networks:
+  proxy:
+    ipam:
+      config:
+        - subnet: "${PROXY_SUBNET:-172.30.90.0/24}"

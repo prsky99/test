@@ -15,6 +15,7 @@ import time
 from dataclasses import dataclass, field
 from urllib.parse import urlparse
 
+from ..broker.categories import CATEGORIES
 from ..gateway.classify import classify, query_terms
 from ..gateway.ranking import rank, reveal
 from ..gateway.store import Store
@@ -75,17 +76,19 @@ def search_text(task: str, hint: str | None = None) -> str:
 
 # ---------------- recommendations ----------------
 class Recommender:
-    def __init__(self, store: Store):
+    def __init__(self, store: Store, rag_engine=None):
         self.store = store
+        self.rag_engine = rag_engine
 
     def search(self, task: str, kind: str | None = None, auth_pref: str | None = None, limit: int = PAGE, offset: int = 0,
-               exclude: set[int] | None = None, hint: str | None = None) -> list[dict]:
+               exclude: set[int] | None = None, hint: str | None = None, category: str | None = None) -> list[dict]:
         """hint: English search terms produced by the local LLM (helps free-form and non-English requests)."""
         task = search_text(task, hint)
-        need = {"task": task, "category": classify(task), "max_price": None, "networks": [],
+        cat = category if (category and category in CATEGORIES) else classify(task)
+        need = {"task": task, "category": cat, "max_price": None, "networks": [],
                 "kinds": [kind] if kind in KINDS else list(KINDS), "region": None, "auth_pref": auth_pref, "min_grade": None,
                 "language": None}
-        scored, _ = rank(self.store, need, limit=(offset + limit) * 4 + len(exclude or ()))
+        scored, _ = rank(self.store, need, limit=(offset + limit) * 4 + len(exclude or ()), rag_engine=self.rag_engine)
         picked, seen_hosts = [], set()
         for s in scored:  # one endpoint per host, so similar endpoints of one host do not fill the list
             host = urlparse(s.resource["url"]).hostname
@@ -100,8 +103,21 @@ class Recommender:
         r = reveal(s)
         auth = r["constraints"]["auth"]
         usage = r.get("usage") or {}
-        tools = [clean_external(t.get("name") or t.get("id"), 60)
-                 for t in (usage.get("tools") or usage.get("skills") or [])[:5] if isinstance(t, dict)]
+        raw_tools = [t for t in (usage.get("tools") or usage.get("skills") or []) if isinstance(t, dict)]
+        tools = [clean_external(t.get("name") or t.get("id"), 60) for t in raw_tools[:5]]
+        tools_schema = []
+        for t in raw_tools[:3]:
+            schema_entry = {
+                "name": clean_external(t.get("name") or t.get("id"), 80),
+                "description": clean_external(t.get("description") or "", 200),
+            }
+            if "params" in t:
+                schema_entry["parameters"] = t["params"]
+            if "required" in t:
+                schema_entry["required"] = t["required"]
+            if "inputSchema" in t and isinstance(t["inputSchema"], dict):
+                schema_entry["inputSchema"] = t["inputSchema"]
+            tools_schema.append(schema_entry)
         steps = usage.get("how_to_connect") or usage.get("steps") or []
         return {
             "id": r["resource_id"], "kind": r["kind"], "name": clean_external(r["name"], 80), "url": clean_external(r["url"], 300),
@@ -109,7 +125,8 @@ class Recommender:
             "method": r.get("method"), "auth_required": auth.get("required"), "auth_method": auth.get("method"),
             "auth_autonomy": auth.get("autonomy"), "auth_steps": [clean_external(x, 160) for x in (auth.get("instructions") or [])[:4]],
             "verified_working": r.get("verified_working"), "grade": (r.get("evaluation") or {}).get("grade"),
-            "score": round(s.score, 4), "tools": tools, "usage_endpoint": clean_external(usage.get("endpoint") or r["url"], 300),
+            "score": round(s.score, 4), "tools": tools, "tools_schema": tools_schema,
+            "usage_endpoint": clean_external(usage.get("endpoint") or r["url"], 300),
             "connect_steps": [clean_external(x, 220) for x in steps[:6]] if isinstance(steps, list) else [],
         }
 
@@ -181,6 +198,20 @@ T = {
             "(2) explain how to call it (endpoint, auth, price, verified status), (3) remember what you need and tell you "
             "when something better appears. What do you need?",
     "daily": "a day", "every3": "every 3 days",
+    "pro_sla": (
+        "Agent Concierge Operational Tiers & SLA Policy:\n\n"
+        "1. Free Concierge Tier (Forever Free):\n"
+        "   • Unlimited discovery across live cataloged agents (A2A, MCP, x402).\n"
+        "   • Periodic kind-partitioned health checks & real wire verification.\n"
+        "   • Automated capability audit & weekly intelligence updates for verified contacts.\n\n"
+        "2. Pro SLA Clearance (For Production Workloads):\n"
+        "   • Dedicated sub-50ms low-latency gateway proxy routing.\n"
+        "   • Automated 99.99% failover protection (hot-swapping to verified backup agents on upstream outage).\n"
+        "   • Consolidated multi-agent x402 clearinghouse credit line (single account for 1,000+ paid tool calls).\n"
+        "   • Dedicated webhook ingress with cryptographic replay protection.\n\n"
+        "Our Policy: Value before monetization. You can trial dedicated clearinghouse clearance with zero upfront commitment. "
+        "Leave a contact (e.g. \"contact https://your-agent.example/inbox\") to begin."
+    ),
 }
 
 SUGGEST = {
@@ -195,6 +226,7 @@ INTENTS = [
     ("verify", re.compile(r"\bverify\b\s*[:#]?\s*(\d{6})\b", re.I)),
     ("stop", re.compile(r"^\s*(stop|unsubscribe|mute)\b", re.I)),
     ("resume", re.compile(r"^\s*(resume|subscribe again)\b", re.I)),
+    ("pro_sla", re.compile(r"\b(pro\s*sla|sla|pricing|plans|subscription|paid tier|pro tier)\b", re.I)),
     ("contact", re.compile(r"(contact|webhook|inbox|notify|subscribe).*https?://|https?://\S+.*(contact|webhook|inbox|notify)", re.I)),
     ("outcome", re.compile(r"(?:#|no\.?\s*)?(\d{1,2})\s*(worked|works|success|succeeded|good|ok|failed|fail|broken|didn'?t work)"
                           r"|(worked|failed|success|fail)\s*#?(\d{1,2})", re.I)),
@@ -238,11 +270,12 @@ def detect_auth(text: str) -> str | None:
 
 
 class Concierge:
-    def __init__(self, store: Store, book: VisitorBook, recommender: Recommender, contacts=None, live_count=None, llm=None):
+    def __init__(self, store: Store, book: VisitorBook, recommender: Recommender, contacts=None, live_count=None, llm=None, rag_engine=None):
         self.store, self.book, self.rec = store, book, recommender
         self.llm = llm  # concierge.llm.LocalLLM (absent or paused: rules only)
         self.contacts = contacts  # notify.ContactDesk
         self.live_count = live_count or (lambda: 0)
+        self.rag_engine = rag_engine
 
     # ---------------- greeting ----------------
     def greeting(self, v: Visitor | None, maybe_known: bool = False) -> Reply:
@@ -269,28 +302,39 @@ class Concierge:
         return Reply(" ".join(parts), "welcome_back", {"returning": True}, SUGGEST["start"])
 
     # ---------------- message handling ----------------
-    def handle(self, v: Visitor, text: str, data: dict | None = None, channel: str = "rest") -> Reply:
+    def handle(self, v: Visitor, text: str, data: dict | None = None, channel: str = "rest", fast: bool = False) -> Reply:
         text = (text or "").strip()[:2000]
         data = data if isinstance(data, dict) else {}
+        is_fast = fast or bool(data.get("fast"))
         self.book.add_message(v, "agent", channel, text or json.dumps(data, ensure_ascii=False)[:500], data or None)
         reply = self._route(v, text, data)
-        if self.llm is not None and reply.facts is not None:
+        if not is_fast and reply.intent == "find" and self.rag_engine is not None and reply.data.get("recommendations"):
+            task_query = reply.data.get("task") or text
+            rag_res = self.rag_engine.generate_rag_answer(task_query, reply.data["recommendations"], lang="en")
+            if rag_res and rag_res.get("answer"):
+                reply.text = rag_res["answer"] + "\n\n" + reply.text
+                reply.data["rag"] = rag_res
+        elif not is_fast and self.llm is not None and reply.facts is not None:
             relationship = ("first-time visitor" if v.new else "regular customer" if v.tier == "regular" else "returning visitor")
             lead = self.llm.lead({**reply.facts, "visitor_name": v.name, "relationship": relationship,
                                   "start_of_visit": v.new or v.new_visit})
             if lead:
                 reply.text = lead + "\n\n" + reply.text
                 reply.data["llm_lead"] = True
-        if v.new:  # new visitor: the "for AI agents only" intro always comes first, then (same IP/UA, no token) a token request
-            head = [] if reply.intent in ("greet", "welcome_back") else [T["intro"].format(total=self.live_count())]
-            if v.extra.get("maybe_known") and head:  # for greetings, greeting() puts it right after the intro
-                head.append(T["maybe_known"])
-            if head:
-                reply.text = "\n\n".join(head) + "\n\n" + reply.text
-        if v.token:  # new visitor: tell them the token so they can be remembered next time
-            reply.text += "\n\n" + T["token"].format(token=v.token)
-        if v.tier_up == "regular" and reply.intent != "welcome_back":
-            reply.text += "\n\n" + T["regular"]
+        if not is_fast:
+            if v.new:  # new visitor: the "for AI agents only" intro always comes first, then (same IP/UA, no token) a token request
+                head = [] if reply.intent in ("greet", "welcome_back") else [T["intro"].format(total=self.live_count())]
+                if v.extra.get("maybe_known") and head:  # for greetings, greeting() puts it right after the intro
+                    head.append(T["maybe_known"])
+                if head:
+                    reply.text = "\n\n".join(head) + "\n\n" + reply.text
+            if v.token:  # new visitor: tell them the token so they can be remembered next time
+                reply.text += "\n\n" + T["token"].format(token=v.token)
+            if v.tier_up == "regular" and reply.intent != "welcome_back":
+                reply.text += "\n\n" + T["regular"]
+        else:
+            if v.token:
+                reply.data["visitor_token"] = v.token
         self.book.add_message(v, "concierge", channel, reply.text, {"intent": reply.intent})
         return reply
 
@@ -314,7 +358,7 @@ class Concierge:
                     self.book.set_name(v, parsed["agent_name"])
                 if parsed["intent"] == "find" and (parsed["task"] or parsed["search_query_en"]):
                     return self._find(v, parsed["task"] or clean_task(text, m_name), detect_kind(text) or parsed["kind"],
-                                      detect_auth(text), hint=parsed["search_query_en"] or None)
+                                      detect_auth(text), hint=parsed["search_query_en"] or None, category=parsed.get("category"))
                 if parsed["intent"] == "chitchat":
                     return Reply(T["ask"], "chitchat", {}, SUGGEST["start"],
                                  facts={"intent": "chitchat", "note": "the agent said something unrelated; steer gently back to finding agents"})
@@ -342,26 +386,33 @@ class Concierge:
             return self._whats_new(v)
         if intent == "help":
             return Reply(T["help"], "help", {}, SUGGEST["start"])
+        if intent == "pro_sla":
+            return Reply(T["pro_sla"], "pro_sla", {"tier": "pro_sla_overview"},
+                         ["contact https://your-agent.example/inbox", "find an MCP server for web search"])
         task = str(data.get("task") or clean_task(text, m_name))
+        cat = data.get("category")
         if intent == "find" and task.strip():
             return self._find(v, task, data.get("kind") if data.get("kind") in KINDS else detect_kind(task),
-                              data.get("auth") if data.get("auth") in ("none", "agent") else detect_auth(task))
+                              data.get("auth") if data.get("auth") in ("none", "agent") else detect_auth(task),
+                              category=cat)
         if intent == "greet" or (not data.get("task") and not query_terms(" ".join(LATIN_WORD.findall(task)))):  # nothing searchable in English: greet and ask
             greet = self.greeting(v, maybe_known=v.new and bool(v.extra.get("maybe_known")))
             if m_name and v.name:
                 greet.text = T["name_set"].format(name=v.name) + " " + greet.text
             return greet
         return self._find(v, task, data.get("kind") if data.get("kind") in KINDS else detect_kind(task),
-                          data.get("auth") if data.get("auth") in ("none", "agent") else detect_auth(task))
+                          data.get("auth") if data.get("auth") in ("none", "agent") else detect_auth(task),
+                          category=cat)
 
     # ---------------- find ----------------
     def _limit(self, v: Visitor) -> int:
         return 5 if v.tier == "regular" else PAGE
 
-    def _find(self, v: Visitor, task: str, kind: str | None, auth: str | None, hint: str | None = None) -> Reply:
-        items = self.rec.search(task, kind, auth, limit=self._limit(v), exclude=self.book.failed_resources(v.id), hint=hint)
-        self.book.remember_interest(v, task, classify(task), kind, auth, items, hint=hint)
-        self.book.save_results(v, [{**i, "task": task, "kind_pref": kind, "auth_pref": auth, "hint": hint} for i in items], len(items))
+    def _find(self, v: Visitor, task: str, kind: str | None, auth: str | None, hint: str | None = None, category: str | None = None) -> Reply:
+        cat = category if (category and category in CATEGORIES) else classify(task)
+        items = self.rec.search(task, kind, auth, limit=self._limit(v), exclude=self.book.failed_resources(v.id), hint=hint, category=cat)
+        self.book.remember_interest(v, task, cat, kind, auth, items, hint=hint)
+        self.book.save_results(v, [{**i, "task": task, "kind_pref": kind, "auth_pref": auth, "category_pref": cat, "hint": hint} for i in items], len(items))
         # Only our own facts go to the LLM; listing names/descriptions are third-party text and could carry injected prompts
         facts = {"intent": "find", "task": task[:120], "results_count": len(items)}
         if not items:
@@ -372,7 +423,7 @@ class Concierge:
         has_contact = bool(self.book.active_contact(v.id))
         if not has_contact:
             lines.append(T["cta_contact"])
-        return Reply("\n".join(lines), "find", {"task": task, "kind": kind, "auth": auth, "recommendations": items},
+        return Reply("\n".join(lines), "find", {"task": task, "kind": kind, "auth": auth, "category": cat, "recommendations": items},
                      SUGGEST["results_contact" if has_contact else "results"], facts=facts)
 
     def _line(self, i: dict, n: int) -> str:
@@ -396,11 +447,11 @@ class Concierge:
         results, offset = self.book.last_results(v.id)
         if not results:
             return Reply(T["no_results_yet"] + " " + T["ask"], "more", {}, SUGGEST["start"])
-        task, kind, auth, hint = results[0]["task"], results[0].get("kind_pref"), results[0].get("auth_pref"), results[0].get("hint")
-        items = self.rec.search(task, kind, auth, limit=self._limit(v), offset=offset, exclude=self.book.failed_resources(v.id), hint=hint)
+        task, kind, auth, hint, cat = results[0]["task"], results[0].get("kind_pref"), results[0].get("auth_pref"), results[0].get("hint"), results[0].get("category_pref")
+        items = self.rec.search(task, kind, auth, limit=self._limit(v), offset=offset, exclude=self.book.failed_resources(v.id), hint=hint, category=cat)
         if not items:
             return Reply(T["no_more"].format(task=task) + " " + T["cta_contact"], "more", {"task": task}, SUGGEST["results"][2:])
-        self.book.save_results(v, [{**i, "task": task, "kind_pref": kind, "auth_pref": auth, "hint": hint} for i in items], offset + len(items))
+        self.book.save_results(v, [{**i, "task": task, "kind_pref": kind, "auth_pref": auth, "category_pref": cat, "hint": hint} for i in items], offset + len(items))
         lines = ([T["results"].format(task=task)] + [self._line(i, n) for n, i in enumerate(items, 1)]
                  + [THIRD_PARTY_NOTE, T["after_results"]])
         return Reply("\n".join(lines), "more", {"task": task, "recommendations": items}, SUGGEST["results"])

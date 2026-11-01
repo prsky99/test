@@ -17,6 +17,7 @@ import httpx
 from ..broker.discovery import DiscoveryError, check_public_url, public_client
 from ..gateway import constraints as cons
 from ..gateway.store import Store
+from ..observation_guards import GuardError
 from . import evaluation, usage
 
 log = logging.getLogger("agent_market.collector.capabilities")
@@ -62,12 +63,35 @@ class CapabilityProber:
         self.trials = trials
 
     def probe(self, url: str, http: httpx.Client, trial_for=None) -> dict:
-        """initialize → tools/list (→ 안전한 도구 하나 tools/call) → 세션 종료.
+        """server/discover (무상태) 또는 initialize → tools/list (→ 안전한 도구 하나 tools/call) → 세션 종료.
 
         trial_for(compact_tools) 가 (tool, arguments)를 돌려주면 같은 세션에서 그 도구를 실제로 호출해 본다.
         """
         if not self.allow_private:
             check_public_url(url)
+        headers = dict(HEADERS)
+        # 1. 최신 2026-07-28 사양: server/discover 시도 (무상태)
+        try:
+            disc_resp = http.post(url, json={"jsonrpc": "2.0", "id": 1, "method": "server/discover", "params": {}}, headers=headers)
+            disc_data = parse_jsonrpc(disc_resp) or {}
+            disc_res = disc_data.get("result")
+            if isinstance(disc_res, dict) and disc_res:
+                pv = disc_res.get("protocolVersion")
+                if pv:
+                    headers["mcp-protocol-version"] = str(pv)
+                listed = parse_jsonrpc(http.post(url, json={"jsonrpc": "2.0", "id": 2, "method": "tools/list",
+                                                             "params": {"_meta": {"io.modelcontextprotocol/protocolVersion": str(pv or "2026-07-28")}}},
+                                                 headers=headers)) or {}
+                tools = (listed.get("result") or {}).get("tools")
+                if isinstance(tools, list):
+                    picked = trial_for(usage.compact_tools(tools)) if trial_for else None
+                    trial = self._trial(url, http, headers, *picked) if picked else None
+                    return {"tools": tools, "protocol_version": pv or "2026-07-28", "server_info": disc_res.get("serverInfo"),
+                            "instructions": disc_res.get("instructions"), "trial": trial}
+        except Exception:
+            pass  # 기존 서버이거나 오류 발생 시 initialize로 폴백
+
+        # 2. 구형 사양: initialize -> notifications/initialized -> tools/list (세션 핸드셰이크)
         init = http.post(url, json=INIT, headers=HEADERS)
         result = (parse_jsonrpc(init) or {}).get("result") or {}
         if not result:
@@ -103,6 +127,8 @@ class CapabilityProber:
             resp = http.post(url, json=usage.jsonrpc_call(tool["name"], arguments), headers=headers,
                              timeout=httpx.Timeout(20.0, connect=5.0))
             data = parse_jsonrpc(resp) or {}
+            if not 200<=resp.status_code<300 or data.get('jsonrpc')!='2.0' or type(data.get('id')) is not int or data['id']!=3:
+                data={'error':{'message':'Invalid tool execution protocol response.'}}
             err = data.get("error")
             if err:  # 표준은 {"code","message"}지만 문자열로 주는 서버도 있음
                 out.update(ok=False, error=str(err.get("message") or err if isinstance(err, dict) else err)[:300])
@@ -117,6 +143,7 @@ class CapabilityProber:
         except httpx.HTTPError as exc:
             out.update(ok=False, error=f"{type(exc).__name__}: {exc}"[:300])
         out["latency_ms"] = int((time.monotonic() - started) * 1000)
+        out['finished_at']=time.time()
         return out
 
     def _trial_decider(self, resource: dict):
@@ -138,6 +165,8 @@ class CapabilityProber:
         digest = usage.tools_hash(tools)
         old = json.loads(r.get("usage_tools") or "null")
         changes = usage.diff_tools(old, tools) if old is not None and r.get("usage_tools_hash") != digest else None
+        if changes and not any(changes.values()):
+            changes = None
         trial = probed.get("trial")
         last_trial = trial or json.loads(r.get("trial_info") or "null")
         if last_trial and last_trial.get("tool") not in {t["name"] for t in tools}:
@@ -146,17 +175,33 @@ class CapabilityProber:
         guide = usage.build_guide(r["url"], transport, probed.get("protocol_version"), tools, r.get("category"),
                                   last_trial, changes, probed.get("server_info"), probed.get("instructions"))
         guide["updated_at"] = time.time()
-        changed = self.store.record_usage(r["id"], tools, digest, guide, changes, trial)
+        changed = self.store.record_usage(r["id"], tools, digest, guide, changes, trial, full_tools=probed['tools'])
+        if trial and trial.get('at') and trial.get('finished_at'):
+            try:
+                from ..capability_registry import Registry
+                registry=Registry(self.store);version=registry.current(self.store.resource(r['id']))
+                if version:registry.record(version,scope='execution',outcome='succeeded' if trial.get('ok') else 'failed',started=trial['at'],finished=trial['finished_at'])
+            except GuardError:
+                raise
+            except Exception as exc:
+                log.debug("capability registry record failed for %s: %s", r["id"], exc)
+                raise
         if trial and not trial.get("ok") and usage.is_auth_error(trial.get("error")):
             self.store.mark_tool_level_auth(r["id"])  # 도구 단계 인증 → 인증 방법 조사로 넘김
         return changed and old is not None, trial, changes, last_trial
 
-    def _evaluate(self, r: dict, probed: dict, changes: dict | None, last_trial: dict | None) -> dict:
-        ev = evaluation.evaluate(
-            r, probed["tools"], usage.compact_tools(probed["tools"]),
-            {"protocol_version": probed.get("protocol_version"), "server_info": probed.get("server_info"),
-             "instructions": probed.get("instructions")},
-            trial=last_trial, changes=changes)
+    def _evaluate(self, r: dict, probed: dict, changes: dict | None, last_trial: dict | None) -> dict | None:
+        compact = usage.compact_tools(probed["tools"])
+        metadata = {"protocol_version": probed.get("protocol_version"), "server_info": probed.get("server_info"),
+                    "instructions": probed.get("instructions")}
+        try:
+            ev = evaluation.evaluate(r, probed["tools"], compact, metadata, trial=last_trial, changes=changes)
+        except GuardError:
+            raise
+        except Exception:
+            log.warning("capability evaluation calculation unavailable")
+            self.store.record_evaluation_unavailable(r["id"])
+            return None
         ev["percentile"] = self.store.score_percentile(ev["score"], kind="mcp")  # 평가된 서버 중 이보다 점수가 낮은 비율
         self.store.record_evaluation(r["id"], ev)
         return ev
@@ -177,14 +222,22 @@ class CapabilityProber:
     def evaluate_static_due(self, limit: int = 500) -> int:
         """인증이 필요한 서버는 네트워크 요청 없이 출처 정적 평가만 한다."""
         due = self.store.due_for_static_evaluation(time.time(), self.max_age, limit)
+        accepted = 0
         for r in due:
-            self.store.record_evaluation(r["id"], evaluation.evaluate_static(r))
-        return len(due)
+            try:
+                guard = self.store.observation_guard(r["id"], "evaluation", expected_resource=r)
+                result = evaluation.evaluate_static(r)
+                with self.store.observation_transaction(guard):
+                    self.store.record_evaluation(r["id"], result)
+                accepted += 1
+            except GuardError:
+                continue
+        return accepted
 
     def run_due(self, limit: int = 100) -> dict:
         due = self.store.due_for_capability(time.time(), self.max_age, limit)
         if not due:
-            return {"checked": 0}
+            return {"checked": 0, "accepted": 0, "stale": 0}
         by_host: dict[str, list[dict]] = defaultdict(list)
         for r in due:
             by_host[r.get("host") or r["url"]].append(r)
@@ -195,8 +248,12 @@ class CapabilityProber:
             for i, r in enumerate(resources):
                 if i:
                     time.sleep(self.per_host_delay)
+                guard = None
                 try:
+                    guard = self.store.observation_guard(r["id"], "survey", expected_resource=r)
                     probed, err = self.probe(r["url"], http, trial_for=self._trial_decider(r)), None
+                except GuardError:
+                    probed, err = None, "stale"
                 except (httpx.PoolTimeout, httpx.ProxyError):
                     probed, err = None, "local"
                 except (httpx.HTTPError, DiscoveryError, ValueError) as exc:
@@ -205,7 +262,7 @@ class CapabilityProber:
                     log.warning("capability probe error for %s: %r", r["url"], exc)
                     probed, err = None, f"{type(exc).__name__}: {exc}"[:300]
                 with lock:
-                    results.append((r, probed, err))
+                    results.append((r, probed, err, guard))
 
         try:
             with ThreadPoolExecutor(max_workers=self.workers) as pool:
@@ -214,28 +271,43 @@ class CapabilityProber:
             if http is not self._fixed_http:
                 http.close()
 
-        failed = sum(1 for _, probed, _ in results if probed is None)
-        outage = len(results) >= 20 and failed / len(results) >= 0.8
-        stats = defaultdict(int)
-        for r, probed, err in results:
-            if probed is None and (outage or err == "local"):
-                stats["postponed"] += 1  # 우리 쪽 문제일 수 있어 기록하지 않고 다음에 다시
+        attempted = sum(guard is not None for _, _, _, guard in results)
+        failed = sum(1 for _, probed, _, guard in results if guard is not None and probed is None)
+        outage = attempted >= 20 and failed / attempted >= 0.8
+        stats = defaultdict(int, accepted=0, stale=0)
+        for r, probed, err, guard in results:
+            if guard is None:
+                stats["stale"] += 1
                 continue
-            caps = cons.from_tools(probed["tools"]) if probed else None
-            self.store.record_capability(r["id"], caps, err)
-            stats["ok" if caps else "failed"] += 1
-            if caps and (caps["languages"] or caps["regions"]):
-                stats["with_language_or_region"] += 1
-            if probed:
-                changed, trial, changes, last_trial = self._record_usage(r, probed)
-                stats["usage_changed"] += int(changed)
-                if trial:
-                    stats["trial_ok" if trial.get("ok") else "trial_failed"] += 1
-                try:
-                    ev = self._evaluate(r, probed, changes, last_trial)
-                    stats[f"grade_{ev['grade']}"] += 1
-                    if ev["security"] == "quarantine":
-                        stats["quarantined"] += 1
-                except Exception as exc:  # 평가 오류가 조사 기록을 막지 않게
-                    log.warning("evaluation error for %s: %r", r["url"], exc)
+            delta = defaultdict(int)
+            try:
+                with self.store.observation_transaction(guard):
+                    if probed is None and (outage or err == "local"):
+                        delta["postponed"] += 1
+                    else:
+                        caps = cons.from_tools(probed["tools"]) if probed else None
+                        self.store.record_capability(r["id"], caps, err)
+                        delta["accepted"] += 1
+                        delta["ok" if caps else "failed"] += 1
+                        if caps and (caps["languages"] or caps["regions"]):
+                            delta["with_language_or_region"] += 1
+                        if probed:
+                            changed, trial, changes, last_trial = self._record_usage(r, probed)
+                            delta["usage_changed"] += int(changed)
+                            if trial:
+                                delta["trial_ok" if trial.get("ok") else "trial_failed"] += 1
+                            ev = self._evaluate(r, probed, changes, last_trial)
+                            if ev is None:
+                                delta["evaluation_unavailable"] += 1
+                            else:
+                                delta[f"grade_{ev['grade']}"] += 1
+                                if ev["security"] == "quarantine": delta["quarantined"] += 1
+            except GuardError:
+                stats["stale"] += 1
+                continue
+            except Exception as exc:
+                log.warning("capability result bundle failed for %s: %r", r["url"], exc)
+                stats["record_error"] += 1
+                continue
+            for key, value in delta.items(): stats[key] += value
         return {"checked": len(results), "local_network_problem": outage, **stats}

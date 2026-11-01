@@ -62,7 +62,7 @@ def compact_tools(tools: list[dict]) -> list[dict]:
 
 
 def tools_hash(tools: list[dict]) -> str:
-    return hashlib.sha1(json.dumps(tools, sort_keys=True, default=str).encode()).hexdigest()
+    return hashlib.sha256(json.dumps(tools, sort_keys=True, default=str).encode()).hexdigest()
 
 
 def diff_tools(old: list[dict] | None, new: list[dict]) -> dict:

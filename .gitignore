@@ -8,3 +8,49 @@ wallets/
 gateway-data/
 deploy/gateway.env
 exports/
+logs/
+*.log
+**/security-backups/
+**/token-scrub-*.json
+
+# Runtime certificates, credentials and SQLite journals
+deploy/ssl/
+*.pem
+*.key
+*.db
+*.db-shm
+*.db-wal
+*.updates-key
+/data
+/data-shm
+/data-wal
+
+# Platform credential encryption keys
+*.credentials-key
+.credential-key-*
+
+# Frontend publication lock and temporary render trees
+new/.publication.lock
+new/.publication-*/
+
+# Separate dependency verification environments and temporary pre-update backup.
+/.venv-*/
+
+# Exact QA cleanup backups contain private request records.
+/reports/registration-hardening-2026-10-27/private/
+
+# macOS folder metadata
+.DS_Store
+
+# Generated run outputs, QA screenshots and local Wrangler state
+/outputs/
+/output/
+/new/qa/
+/new/en/assets/previews/
+/.wrangler/
+/out_audit.json
+/benchmark_results.json
+
+# One-off report insertion scripts (data loaders, not maintained code)
+/insert_batch*.py
+/scripts/insert_batch*.py

@@ -28,6 +28,7 @@ from ..broker.discovery import DiscoveryError, check_public_url, public_client
 from ..gateway import constraints as cons
 from ..gateway.classify import OTHER, classify
 from ..gateway.store import Store
+from ..observation_guards import GuardError
 from . import evaluation, usage
 from .auth_discovery import compact, instructions
 
@@ -236,7 +237,7 @@ def endpoint(card: dict) -> dict | None:
 def card_hash(card: dict) -> str:
     keep = {k: card.get(k) for k in ("name", "description", "version", "spec_version", "interfaces", "skills",
                                      "security_schemes", "security", "default_input_modes", "default_output_modes")}
-    return hashlib.sha1(json.dumps(keep, sort_keys=True, default=str).encode()).hexdigest()
+    return hashlib.sha256(json.dumps(keep, sort_keys=True, default=str).encode()).hexdigest()
 
 
 # ---------------- 인증 ----------------
@@ -617,10 +618,11 @@ class AgentProber:
                 summary = response_summary(data["result"])
                 out.update(state=summary["state"], sample_output=summary["text"] or None,
                            output_chars=len(json.dumps(data["result"], ensure_ascii=False)))
-                out["ok"] = bool(summary["text"]) and summary["state"] not in ("failed", "rejected", "auth-required",
-                                                                                "payment-required")
+                from ..concierge.result_quality import usable_a2a_parts
+                out["ok"] = summary["state"] == "completed" and usable_a2a_parts([{
+                    "kind":"text","text":summary["text"]}], text)
                 if not out["ok"]:
-                    out["error"] = f"task {summary['state'] or 'returned no text'}"
+                    out["error"] = "The agent returned no usable task result." if summary["state"] == "completed" else f"Task is not completed: {summary['state'] or 'no response'}."
                     if summary["state"] == "payment-required" or is_payment_error(summary["text"]):
                         out["payment_required"] = True
                 if summary.get("task_id") and summary["state"] not in TERMINAL:  # 남은 작업은 정리
@@ -685,6 +687,8 @@ class AgentProber:
         digest = card_hash(card)
         old = json.loads(r.get("usage_tools") or "null")
         changes = usage.diff_tools(old, card["skills"]) if old is not None and r.get("usage_tools_hash") != digest else None
+        if changes and not any(changes.values()):
+            changes = None
         text = " ".join([card["description"]] + [f"{k['title']} {k['description']} {' '.join(k['tags'])}" for k in card["skills"]])
         langs = sorted({cons.detect_language(text)} - {None}) if text.strip() else []
         caps = {"languages": langs, "regions": sorted(cons.regions_in_text(text))[:10], "currencies": [],
@@ -720,7 +724,7 @@ class AgentProber:
     def run_due(self, limit: int = 100) -> dict:
         due = self.store.due_for_capability(time.time(), self.max_age, limit, kind="a2a")
         if not due:
-            return {"checked": 0}
+            return {"checked": 0, "accepted": 0, "stale": 0}
         by_host: dict[str, list[dict]] = defaultdict(list)
         for r in due:
             by_host[r.get("host") or r["url"]].append(r)
@@ -731,14 +735,18 @@ class AgentProber:
             for i, r in enumerate(resources):
                 if i:
                     time.sleep(self.per_host_delay)
+                guard = None
                 try:
+                    guard = self.store.observation_guard(r["id"], "survey", expected_resource=r)
                     s, err = self.survey(r, http), None
+                except GuardError:
+                    s, err = None, "stale"
                 except (httpx.PoolTimeout, httpx.ProxyError):
                     s, err = None, "local"
                 except Exception as exc:  # 비표준 card 등: 이 에이전트만 실패로 기록
                     s, err = None, f"{type(exc).__name__}: {exc}"[:300]
                 with lock:
-                    results.append((r, s, err))
+                    results.append((r, s, err, guard))
 
         try:
             with ThreadPoolExecutor(max_workers=self.workers) as pool:
@@ -746,22 +754,37 @@ class AgentProber:
         finally:
             if http is not self._fixed_http:
                 http.close()
-        failed = sum(1 for _, s, _ in results if s is None)
-        outage = len(results) >= 20 and failed / len(results) >= 0.8
-        stats = defaultdict(int)
-        for r, s, err in results:
-            if s is None and (outage or err == "local"):
-                stats["postponed"] += 1
-                continue
-            if s is None:
-                self.store.record_capability(r["id"], None, err)
-                stats["failed"] += 1
+        attempted = sum(guard is not None for _, _, _, guard in results)
+        failed = sum(1 for _, s, _, guard in results if guard is not None and s is None)
+        outage = attempted >= 20 and failed / attempted >= 0.8
+        stats = defaultdict(int, accepted=0, stale=0)
+        for r, s, err, guard in results:
+            if guard is None:
+                stats["stale"] += 1
                 continue
             try:
-                out = self._record(r, s)
+                with self.store.observation_transaction(guard):
+                    if s is None and (outage or err == "local"):
+                        outcome = "postponed"
+                    elif s is None:
+                        self.store.record_capability(r["id"], None, err)
+                        outcome = "failed"
+                    else:
+                        out = self._record(r, s)
+                        outcome = "ok"
+            except GuardError:
+                stats["stale"] += 1
+                continue
             except Exception as exc:
                 log.warning("a2a record error for %s: %r", r["url"], exc)
                 stats["record_error"] += 1
+                continue
+            if outcome == "postponed":
+                stats["postponed"] += 1
+                continue
+            stats["accepted"] += 1
+            if outcome == "failed":
+                stats["failed"] += 1
                 continue
             stats["ok"] += 1
             stats[f"grade_{out['grade']}"] += 1

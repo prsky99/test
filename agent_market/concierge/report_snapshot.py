@@ -16,7 +16,17 @@ import unicodedata
 
 log = logging.getLogger(__name__)
 REFRESH_SECONDS = 600
-CHUNK = 200  # candidates checked per short read transaction, so visitors never wait on the lock
+# Each chunk holds the front store lock that every visitor request also takes. 200 rows held it
+# about 1.1 s at a time, and Python locks are not fair, so a waiting Explore request took 14 s
+# (2026-11-01 18:34). Short chunks and a pause let waiting requests in between. A session of
+# its own is not an option: the database allows 21 sessions and the services already use 19-20.
+CHUNK = 25
+YIELD_SECONDS = 0.02
+# The rebuild's Python work (cards, text vectors) shares the interpreter with visitor requests.
+# Working without pauses, it made 2 s first-seen searches take 3.2 to 4.2 s (2026-11-01 19:03).
+# Pausing twice as long as each chunk took keeps the rebuild to about a third of the time;
+# a rebuild then took 175 s instead of 52 s, well inside the 10-minute refresh period.
+PAUSE_RATIO = 2.0
 KINDS = ('a2a', 'mcp', 'x402')
 WEIGHT_A, WEIGHT_D = 1.0, 0.1
 MAX_POSITIONS = 256  # PostgreSQL keeps at most this many positions per lexeme
@@ -195,6 +205,10 @@ def build(store, stop=None):
         for start in range(0, len(candidates), CHUNK):
             if stop is not None and stop.is_set():
                 return None
+            if start:
+                # Outside the lock, so a waiting visitor request takes it first.
+                time.sleep(max(YIELD_SECONDS, PAUSE_RATIO * worked))
+            began = time.perf_counter()
             chunk = candidates[start:start + CHUNK]
             with store._lock, store.tx(readonly=True):
                 current, report_rows = _report_prefetch(store, [row['id'] for row in chunk])
@@ -213,6 +227,7 @@ def build(store, stop=None):
                                     and bool(card.get('connection_readiness', {}).get('verified_callable')),
                         'no_auth': not row.get('auth_required') or row['kind'] == 'x402',
                         'adult': adult_listing(resource), 'name': resource.get('name')})
+            worked = time.perf_counter() - began
     return Snapshot(entries, time.time())
 
 

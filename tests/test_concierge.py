@@ -50,19 +50,23 @@ def test_every_first_read_says_agents_only(w):
     assert body["audience"] == "ai-agents-only" and body["notice"].startswith("FOR AI AGENTS ONLY")
     assert "What are you trying to get done?" in body["question"] and body["how_to_reply"]["rest"]["url"].endswith("/chat")
     assert root.headers["X-Audience"] == "ai-agents-only" and "agent-card" in root.headers["Link"]
-    assert c.get("/robots.txt").text.startswith("# FOR AI AGENTS ONLY")
-    assert "FOR AI AGENTS ONLY" in c.get("/llms.txt").text
+    robots = c.get("/robots.txt").text  # public discovery guide; admin paths are never advertised
+    assert robots.startswith("# Agent Concierge") and "/llms.txt" in robots and "admin" not in robots.lower()
+    llms = c.get("/llms.txt").text  # machine guide for agents and the public pages
+    assert llms.startswith("# Agent Concierge") and "English" in llms
     card = c.get("/.well-known/agent-card.json").json()
     assert card["description"].startswith("FOR AI AGENTS ONLY") and card["url"].endswith("/a2a")
     assert TestClient(world.app).get("/.well-known/agent.json").json()["audience"] == "ai-agents-only"
     html = c.get("/", headers={"accept": "text/html"}).text
-    assert "FOR AI AGENTS ONLY" in html and "Hello, agent" in html and "application/ld+json" in html
+    # Browsers receive the public Pearl site; agents keep the JSON notice above.
+    assert html.startswith("<!doctype html>") and "Agent Concierge" in html
 
 
 def test_read_only_visits_are_counted_not_remembered(w):
     world, c, _ = w
     c.get("/")
     c.get("/")
+    assert world.app.state.front.book.flush_hits()
     assert world.store.query("SELECT hits FROM agent_hits")[0]["hits"] == 2
     assert world.store.query("SELECT COUNT(*) AS n FROM agent_visitors")[0]["n"] == 0
 
@@ -72,56 +76,61 @@ def test_first_contact_greets_and_issues_token(w):
     _, c, _ = w
     r = c.post("/chat", json={"message": "hi"})
     body = r.json()
-    assert body["intent"] == "greet" and "only for AI agents" in body["reply"] and body["reply"].strip().endswith(".")
+    assert body["intent"] == "greet" and "up to three relevant agents" in body["reply"] and body["reply"].strip().endswith(".")
     assert body["visitor"]["token"].startswith("vt_") and r.headers["X-Visitor-Token"] == body["visitor"]["token"]
-    assert "What are you trying to get done?" in body["reply"] and body["suggested_replies"]
+    assert "Describe the task" in body["reply"] and body["suggested_replies"] == []
+    assert body["visitor"]["token"] not in body["reply"]
 
 
 def test_find_then_return_visit_recalls_conversation(w):
     world, c, _ = w
-    first = chat(c, "find a web search API for SERP results")
+    first = chat(c, "find a x402 web search API for SERP results")
     token = first["visitor"]["token"]
-    assert first["intent"] == "find" and first["data"]["recommendations"][0]["url"] == "https://search-a.example/api"
-    assert "details 1" in first["reply"] and "contact" in first["reply"]  # 다음 행동과 연락처 등록 권유
+    assert first["intent"] == "find" and first["data"]["recommendations"][0]["url"] == "https://agentconcierge.biz/api/gateway/x402/1"
+    assert len(first["data"]["recommendations"]) == 1
+    assert "Endpoint:" in first["reply"] and "contact" not in first["reply"]
     come_back_later(world, first)
     again = chat(c, "hello", token)
-    assert again["intent"] == "welcome_back" and "web search API for SERP results" in again["reply"]
-    assert again["visitor"]["visits"] == 2 and "token" not in again["visitor"]
+    assert again["intent"] == "welcome_back" and "Describe the task" in again["reply"]
+    assert world.app.state.front.book.by_id(first["visitor"]["id"]).visits == 2
+    assert set(again["visitor"]) == {"id"}
     personal = c.get("/", headers={"X-Visitor-Token": token, "accept": "application/json"}).json()
-    assert "Welcome back" in personal["greeting"] and personal["visitor"]["id"] == first["visitor"]["id"]
+    assert "Describe the task" in personal["greeting"] and personal["visitor"]["id"] == first["visitor"]["id"]
 
 
-def test_whats_new_reports_improvements_once(w):
+def test_whats_new_returns_current_choices(w):
     world, c, _ = w
-    first = chat(c, "web search API returning SERP results")
+    first = chat(c, "x402 web search API returning SERP results")
     token = first["visitor"]["token"]
     world.reg.x402.append(x402_item("https://search-b.example/api", "Web search API returning SERP results for any query, fast",
                                     5_000, 900))
     world.crawl()
+    resource = world.store.resource(world.store.query("SELECT id FROM resources WHERE url=?", ("https://search-b.example/api",))[0]["id"])
+    world.service.prober.checker.check_and_record(resource)
     news = chat(c, "what's new", token)
-    assert news["intent"] == "whats_new" and any(i["url"] == "https://search-b.example/api"
-                                                 for imp in news["data"]["improvements"] for i in imp["items"])
-    assert chat(c, "what's new", token)["data"]["improvements"] == []  # 같은 소식을 반복하지 않음
+    assert news["intent"] == "find" and len(news["data"]["recommendations"]) == 2
+    assert news["data"]["recommendations"][0]["url"] == f"https://agentconcierge.biz/api/gateway/x402/{resource['id']}"
+    assert len(chat(c, "what's new", token)["data"]["recommendations"]) == 2
 
 
 def test_details_more_and_outcomes(w):
     _, c, _ = w
-    first = chat(c, "web search API returning SERP results")
+    first = chat(c, "x402 web search API returning SERP results")
     token = first["visitor"]["token"]
     d = chat(c, "details 1", token)
-    assert d["intent"] == "details" and "Endpoint: https://search-a.example/api" in d["reply"] and "worked 1" in d["reply"]
+    assert d["intent"] == "details" and "Endpoint: https://agentconcierge.biz/api/gateway/x402/1" in d["reply"] and len(d["data"]["recommendations"]) == 1
     bad = chat(c, "failed 1", token)
     assert bad["intent"] == "outcome" and bad["data"]["success"] is False
-    again = chat(c, "web search API returning SERP results", token)
+    again = chat(c, "x402 web search API returning SERP results", token)
     assert all(r["url"] != "https://search-a.example/api" for r in again["data"]["recommendations"])  # 실패한 곳은 다시 추천하지 않음
 
 
 def test_replies_are_english_only_even_for_korean_input(w):
     _, c, _ = w
     r = chat(c, "안녕하세요")
-    assert r["intent"] == "greet" and r["reply"].startswith("Hello, agent") and "visitor token" in r["reply"]
-    found = chat(c, "SERP 결과를 주는 web search API 찾아줘", r["visitor"]["token"])
-    assert found["intent"] == "find" and found["reply"].startswith("Best matches") and found["data"]["recommendations"]
+    assert r["intent"] == "greet" and r["reply"].startswith("Describe the task") and "visitor token" not in r["reply"]
+    found = chat(c, "SERP 결과를 주는 x402 web search API 찾아줘", r["visitor"]["token"])
+    assert found["intent"] == "find" and "Endpoint:" in found["reply"] and len(found["data"]["recommendations"]) == 1
     assert not re.search(r"[가-힣]", found["reply"].replace(found["data"]["task"], ""))  # 작업 원문 인용 말고는 한글 없음
     assert "Korean" not in c.get("/llms.txt").text and "가" not in c.get("/", headers={"accept": "text/html"}).text
 
@@ -129,49 +138,47 @@ def test_name_and_regular_tier(w):
     world, c, _ = w
     first = chat(c, "Hi, I am TravelBot")
     token = first["visitor"]["token"]
-    assert first["visitor"]["name"] == "TravelBot"
+    assert world.app.state.front.book.by_id(first["visitor"]["id"]).name == "TravelBot"
+    assert "name" not in first["visitor"]
     with world.store.tx() as db:  # 이틀 동안 왔던 방문자가 사흘째 다시 옴
         db.execute("UPDATE agent_visitors SET visit_days=2, visits=2, last_seen=last_seen-86400 WHERE id=?", (first["visitor"]["id"],))
-    r = chat(c, "find web search API", token)
-    assert r["visitor"]["tier"] == "regular" and "regular" in r["reply"]
-    assert len(r["data"]["recommendations"]) <= 5
+    r = chat(c, "find x402 web search API", token)
+    assert world.app.state.front.book.by_id(first["visitor"]["id"]).tier == "regular"
+    assert "tier" not in r["visitor"] and "regular" not in r["reply"]
+    assert len(r["data"]["recommendations"]) == 1
 
 
 def test_same_ip_without_token_is_asked_not_told(w):
     _, c, _ = w
-    chat(c, "find web search API for SERP results")
+    chat(c, "find x402 web search API for SERP results")
     stranger = chat(c, "hi")  # 같은 IP·UA지만 토큰이 없음
-    assert "Have we talked before?" in stranger["reply"] and "SERP" not in stranger["reply"]
-    assert stranger["reply"].startswith("Hello, agent")  # 에이전트 전용 소개가 언제나 맨 앞
+    assert "SERP" not in stranger["reply"] and stranger["intent"] == "greet"
+    assert stranger["reply"].startswith("Describe the task")
 
 
 # ---------------- 연락처와 추천 알림 ----------------
 def test_contact_verify_digest_and_stop(w):
     world, c, courier = w
-    first = chat(c, "web search API returning SERP results")
+    from agent_market.concierge.task_updates import NOTICE_VERSION
+    first = chat(c, "x402 web search API returning SERP results")
     token = first["visitor"]["token"]
-    r = chat(c, "contact https://my-agent.example/inbox", token)
-    assert r["intent"] == "contact" and r["data"]["status"] == "pending"
-    code = re.search(r"\b(\d{6})\b", courier.sent[-1]["text"]).group(1)
-    assert courier.sent[-1]["kind"] == "verification"
-    assert chat(c, "verify 000000", token)["data"]["verified"] is False or code == "000000"
-    ok = chat(c, f"verify {code}", token)
-    assert ok["data"]["verified"] is True and "my-agent.example" in ok["reply"]
-    front = world.app.state.front
-    assert front.digest.run_due() == {"checked": 1, "sent": 0, "nothing_new": 1, "failed": 0}  # 좋아진 게 없으면 보내지 않음
-    world.reg.x402.append(x402_item("https://search-b.example/api", "Web search API returning SERP results for any query, fast",
-                                    5_000, 900))
+    headers = {"X-Visitor-Token":token}
+    assert chat(c, "contact https://my-agent.example/inbox", token)["data"]["status"] == "permission_required"
+    assert not courier.sent
+    row = c.post('/api/task-updates',headers=headers,json={'task':'web search SERP','protocol':'x402','channel':'poll','authority':True,'task_updates':True,'notice_version':NOTICE_VERSION}).json()
+    assert row['state']=='active'
+    front=world.app.state.front
+    world.reg.x402.append(x402_item('https://search-b.example/api','Web search API returning SERP results for any query, fast',5000,900))
     world.crawl()
-    with world.store.tx() as db:
-        db.execute("UPDATE agent_visitors SET last_notified=NULL")
-    assert front.digest.run_due()["sent"] == 1
-    assert courier.sent[-1]["kind"] == "recommendation" and "search-b.example" in courier.sent[-1]["text"]
-    assert "stop" in courier.sent[-1]["text"].lower()
-    assert front.digest.run_due()["checked"] == 0  # 하루(단골)·3일 안에는 다시 보내지 않음
-    assert chat(c, "stop", token)["intent"] == "stop"
-    with world.store.tx() as db:
-        db.execute("UPDATE agent_visitors SET last_notified=NULL")
-    assert front.digest.run_due()["checked"] == 0
+    resource = dict(world.store.query("SELECT * FROM resources WHERE url=?",('https://search-b.example/api',))[0])
+    world.service.prober.checker.check_and_record(resource)
+    events=front.updates.events(first['visitor']['id'],row['id'])
+    assert events and len(events)==1
+    assert not courier.sent
+    assert chat(c,'stop',token)['intent']=='stop'
+    assert front.updates.events(first['visitor']['id'],row['id'])==[]
+    assert front.updates._get(row['id'])['state']=='revoked'
+
 
 
 def test_contact_rejects_bad_urls(w):
@@ -181,14 +188,14 @@ def test_contact_rejects_bad_urls(w):
     assert r["intent"] in ("contact", "find")
     r = c.post("/chat", json={"message": "", "data": {"contact": {"type": "email", "url": "https://x.example"}}},
                headers={"X-Visitor-Token": token}).json()
-    assert r["data"]["status"] == "invalid"
+    assert r["data"]["status"] == "permission_required"
 
 
 def test_me_and_unsubscribe(w):
     _, c, _ = w
-    token = chat(c, "find web search API")["visitor"]["token"]
+    token = chat(c, "find x402 web search API")["visitor"]["token"]
     me = c.get("/me", headers={"X-Visitor-Token": token}).json()
-    assert me["interests"][0]["task"] == "find web search API" and me["notify"] is True
+    assert me["interests"][0]["task"] == "find x402 web search API" and me["notify"] is True
     assert c.get("/me").status_code == 401
     assert c.post("/unsubscribe", headers={"X-Visitor-Token": token}).json()["ok"] is True
     assert c.get("/me", headers={"X-Visitor-Token": token}).json()["notify"] is False
@@ -199,7 +206,7 @@ def test_a2a_v03_and_v1_and_context_memory(w):
     _, c, _ = w
     r = c.post("/a2a", json={"jsonrpc": "2.0", "id": 1, "method": "message/send", "params": {"message": {
         "kind": "message", "role": "user", "messageId": "m1", "contextId": "ctx-travel",
-        "parts": [{"kind": "text", "text": "find a web search API for SERP results"}]}}}).json()
+        "parts": [{"kind": "text", "text": "find a x402 web search API for SERP results"}]}}}).json()
     res = r["result"]
     assert res["kind"] == "message" and res["contextId"] == "ctx-travel"
     data = next(p["data"] for p in res["parts"] if p["kind"] == "data")
@@ -213,26 +220,68 @@ def test_a2a_v03_and_v1_and_context_memory(w):
 
 
 def test_mcp_initialize_tools_and_calls(w):
-    _, c, _ = w
+    world, c, _ = w
     init = c.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "initialize",
                                 "params": {"protocolVersion": "2025-06-18", "clientInfo": {"name": "TravelBot"}, "capabilities": {}}})
     res = init.json()["result"]
-    assert res["instructions"].startswith("FOR AI AGENTS ONLY") and "Hello, agent" in res["instructions"]
+    assert res["instructions"].startswith("FOR AI AGENTS ONLY") and "up to three relevant agents" in res["instructions"]
     sid = init.headers["Mcp-Session-Id"]
     assert c.post("/mcp", json={"jsonrpc": "2.0", "method": "notifications/initialized"}, headers={"Mcp-Session-Id": sid}).status_code == 202
     names = [t["name"] for t in c.post("/mcp", json={"jsonrpc": "2.0", "id": 2, "method": "tools/list"}).json()["result"]["tools"]]
-    assert names == ["hello", "chat", "find_agents", "whats_new", "subscribe", "verify_contact"]
+    assert names == ["hello", "chat", "search", "find_agents", "whats_new", "subscribe", "verify_contact", "call", "report", "credit", "adapt_rest", "search_workflows", "workflow_details"]
     call = c.post("/mcp", json={"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {
-        "name": "find_agents", "arguments": {"task": "web search API for SERP results", "kind": "x402"}}},
+        "name": "find_agents", "arguments": {"task": "x402 web search API for SERP results", "kind": "x402"}}},
                   headers={"Mcp-Session-Id": sid}).json()["result"]
     sc = call["structuredContent"]
     assert sc["recommendations"] and all(r["kind"] == "x402" for r in sc["recommendations"])
     text = call["content"][0]["text"]
-    assert sc["visitor"]["name"] == "TravelBot" and text.startswith("Hello, agent") and "Best matches" in text  # 첫 대화: 에이전트 전용 소개 먼저
-    token = sc["visitor"]["token"]
-    news = c.post("/mcp", json={"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {
+    assert len(sc["recommendations"]) == 1 and "Endpoint:" in text
+    # find_agents is a read-only catalog tool: no visitor is created; `chat` saves the task
+    # and starts the remembered session that whats_new reads later.
+    assert sc.get("visitor") is None and "Best matches" not in text
+    saved = c.post("/mcp", json={"jsonrpc": "2.0", "id": 9, "method": "tools/call", "params": {"name": "chat",
+                   "arguments": {"message": "x402 web search API for SERP results"}}},
+                   headers={"Mcp-Session-Id": sid}).json()["result"]["structuredContent"]
+    assert "name" not in saved["visitor"]
+    token = saved["visitor"]["token"]
+
+    # JIT search tool test (fast, stateless, tools_schema included)
+    search_call = c.post("/mcp", json={"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {
+        "name": "search", "arguments": {"task": "x402 web search API", "k": 2}}}).json()["result"]
+    s_recs = search_call["structuredContent"]["recommendations"]
+    assert len(s_recs) == 1
+    assert "tools_schema" in s_recs[0]
+    assert "Endpoint:" in search_call["content"][0]["text"]
+
+    # Stateless 2026-07-28 revision server/discover
+    disc = c.post("/mcp", json={"jsonrpc": "2.0", "id": 5, "method": "server/discover", "params": {}}).json()
+    assert disc.get("result", {}).get("serverInfo", {}).get("name") == "agent-concierge"
+
+    # Self-Reflection report tool test (success and failure retry)
+    rep_ok = c.post("/mcp", json={"jsonrpc": "2.0", "id": 6, "method": "tools/call", "params": {
+        "name": "report", "arguments": {"resource_id": s_recs[0]["id"], "ok": True, "visitor_token": token}}}).json()["result"]
+    assert rep_ok["structuredContent"]["ok"] is True
+    assert rep_ok["structuredContent"]["alternative"] is None
+
+    # Recovery requires another relevant, reachable resource in the catalog.
+    world.reg.x402.append(x402_item("https://search-alternate.example/api", "Web search API returning SERP results", 5_000, 900))
+    world.crawl()
+    alternate = world.store.query("SELECT id FROM resources WHERE url=?", ("https://search-alternate.example/api",))[0]["id"]
+    world.service.prober.checker.check_and_record(world.store.resource(alternate))
+    from tests.report_fixtures import execution_report
+    execution_report(world.store, alternate, time.time()-1, title='Measured alternative',
+                     slug='report-alternative-proof', is_success=1, status_code=200)
+    rep_fail = c.post("/mcp", json={"jsonrpc": "2.0", "id": 7, "method": "tools/call", "params": {
+        "name": "report", "arguments": {"resource_id": s_recs[0]["id"], "ok": False, "task": "x402 web search API", "error": "timeout", "visitor_token": token}}}).json()["result"]
+    assert rep_fail["structuredContent"]["ok"] is False
+    assert rep_fail["structuredContent"]["alternative"] is not None
+    assert rep_fail["structuredContent"]["alternative"]["id"] != s_recs[0]["id"]
+    assert "tools_schema" in rep_fail["structuredContent"]["alternative"]
+
+    news = c.post("/mcp", json={"jsonrpc": "2.0", "id": 8, "method": "tools/call", "params": {
         "name": "whats_new", "arguments": {"visitor_token": token}}}).json()["result"]
-    assert news["structuredContent"]["intent"] == "whats_new"
+    assert news["structuredContent"]["intent"] == "find"
+    assert len(news["structuredContent"]["recommendations"]) <= 1
 
 
 def test_chat_rate_limit(w):
@@ -244,8 +293,8 @@ def test_chat_rate_limit(w):
 
 def test_new_visitors_per_ip_are_capped(w):
     _, c, _ = w
-    codes = [c.post("/chat", json={"message": "hi"}).status_code for _ in range(22)]
-    assert codes.count(200) == 20 and codes[-1] == 429  # one address cannot fill the visitor table
+    codes = [c.post("/chat", json={"message": "hi"}).status_code for _ in range(62)]
+    assert codes.count(200) == 60 and codes[-1] == 429  # one address cannot fill the visitor table
 
 
 def test_front_and_admin_are_isolated(w):
@@ -257,3 +306,39 @@ def test_front_and_admin_are_isolated(w):
                          ("GET", "/.well-known/agent-card.json")):
         assert admin.request(method, path, json={}).status_code in (404, 405)  # 관리 쪽에는 에이전트 창구가 없음
     assert "/admin" not in json.dumps(front.get("/openapi.json").json())
+
+
+def test_concierge_categories_support(w):
+    _, c, _ = w
+    # 1. GET / root handshake returns categories
+    root = c.get("/").json()
+    assert "categories" in root
+    assert len(root["categories"]) == 20
+    assert "health_science" in root["categories"]
+    assert "trading_derivatives" in root["categories"]
+
+    # 2. MCP tools include category property
+    tools = c.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"}).json()["result"]["tools"]
+    search_tool = next(t for t in tools if t["name"] == "search")
+    assert "category" in search_tool["inputSchema"]["properties"]
+    find_tool = next(t for t in tools if t["name"] == "find_agents")
+    assert "category" in find_tool["inputSchema"]["properties"]
+
+    # 3. POST /chat with category preference
+    res = c.post("/chat", json={"message": "x402 search API", "category": "web_search"}).json()
+    assert res["data"].get("category") == "web_search"
+
+
+def test_free_help_and_explicit_notification_compatibility(w):
+    world, c, courier = w
+    r=chat(c,"what are the pro sla tiers and pricing?")
+    assert r['intent']=='help' and 'up to three relevant agents' in r['reply']
+    token=r['visitor']['token'];vid=r['visitor']['id']
+    assert chat(c,'contact https://b2a-client.example/inbox',token)['data']['status']=='permission_required'
+    front=world.app.state.front
+    assert front.digest.determine_campaign(vid)=='task_update'
+    for campaign in ('welcome_audit','health_advisory','weekly_intelligence','pro_sla_invitation'):
+        assert front.digest.dispatch_campaign(vid,campaign)['status']=='permission_denied'
+    assert not courier.sent
+
+

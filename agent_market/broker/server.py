@@ -63,6 +63,15 @@ class RateLimiter:
             hits.append(now)
             return True
 
+    def retry_after(self, key: str) -> int:
+        """Seconds until KEY may succeed again (at least 1)."""
+        now = time.monotonic()
+        with self._lock:
+            hits = self._hits.get(key)
+            if not hits or len(hits) < self.per_minute:
+                return 1
+            return max(1, int(self.WINDOW - (now - hits[0])) + 1)
+
 
 async def json_body(request: Request) -> tuple[bytes, dict]:
     body = await request.body()
@@ -255,7 +264,7 @@ def create_app(
     @app.get("/stats")
     def stats(authorization: str | None = Header(default=None)):
         expected = f"Bearer {config.admin_token}" if config.admin_token else None
-        if expected is None or authorization is None or not hmac.compare_digest(authorization, expected):
+        if expected is None or authorization is None or not hmac.compare_digest(authorization.encode(), expected.encode()):
             raise HTTPException(401, "ADMIN_TOKEN 필요")
         return registry.stats()
 

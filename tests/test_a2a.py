@@ -430,7 +430,11 @@ def test_deactivated_registration_withdraws_agent():
     store.set_meta("erc8004_rescan:t", 1)
     stats = crawler.scan("t")
     assert stats.get("withdrawn") == 1
-    assert store.query("SELECT active FROM resources WHERE key=?", (f"a2a:{card}",))[0]["active"] == 0
+    # Registry withdrawal records membership only; local health checks decide activity
+    # (a registry outage must never mass-deactivate working agents).
+    row = store.query("SELECT active, registry_missing_since, details FROM resources WHERE key=?", (f"a2a:{card}",))[0]
+    assert row["active"] == 1 and row["registry_missing_since"] is not None
+    assert json.loads(row["details"])["erc8004"] == []
 
 
 def test_method_style_mismatch_and_payment_required():

@@ -175,7 +175,8 @@ def _trials(db, protocol, terms, n, rid=None):
     tc, tp = _text_cond(terms, {"실사용검증", "검증", "호출", "시험", "tester", "성공", "실패"})
     rows = db.execute(
         f"""SELECT {RES_COLS}, r.trial_info, json_extract(r.trial_info, '$.at') AS at FROM resources r
-            WHERE json_extract(r.trial_info, '$.at') IS NOT NULL{kc}{tc}
+            WHERE json_type(r.trial_info, '$.at') IN ('integer','real')
+              AND json_extract(r.trial_info, '$.at') IS NOT NULL{kc}{tc}
             ORDER BY json_extract(r.trial_info, '$.at') DESC LIMIT ?""", (*kp, *tp, n)).fetchall()
     out = []
     for r in rows:
@@ -278,6 +279,9 @@ def _resources_by_id(db, ids) -> dict:
     ids = list(dict.fromkeys(i for i in ids if i))
     if not ids:
         return {}
+    native = getattr(db, 'sns_resources_by_id', None)
+    if callable(native):
+        return {r['id']: _resource(dict(r)) for r in native(ids)}
     return {r["id"]: _resource(dict(r)) for r in db.execute(
         f"SELECT {RES_COLS} FROM resources r WHERE r.id IN ({','.join('?' * len(ids))})", ids)}
 
@@ -295,6 +299,9 @@ def _stored_post(r: dict, res: dict) -> dict:
 def _engagement(db, keys: list[str], client_id: str | None) -> dict:
     if not keys:
         return {}
+    native = getattr(db, 'sns_engagement', None)
+    if callable(native):
+        return native(keys, client_id)
     marks = ",".join("?" * len(keys))
     likes = {r[0]: r[1] for r in db.execute(f"SELECT post_key, COUNT(*) FROM sns_likes WHERE post_key IN ({marks}) GROUP BY post_key", keys)}
     replies = {r[0]: r[1] for r in db.execute(
@@ -482,7 +489,9 @@ def sidebar(db) -> dict:
         for t in c["tags"]:
             trends[t] = trends.get(t, 0) + 1
     activity = db.execute(
-        """SELECT SUM(json_extract(trial_info, '$.at') > ?) AS trials, SUM(eval_at > ?) AS evals,
+        """SELECT SUM(CASE WHEN json_type(trial_info, '$.at') IN ('integer','real')
+                    THEN CASE WHEN json_extract(trial_info, '$.at') > ? THEN 1 ELSE 0 END ELSE 0 END) AS trials,
+                  SUM(eval_at > ?) AS evals,
                   SUM(first_seen > ?) AS found, SUM(usage_updated_at > ?) AS updates,
                   SUM(eval_security = 'quarantine') AS quarantined FROM resources""", (day, day, day, day)).fetchone()
     for tag, v in (("실사용검증", activity["trials"]), ("품질평가", activity["evals"]), ("새로발견", activity["found"]),
@@ -498,7 +507,8 @@ def sidebar(db) -> dict:
         ratings = db.execute("SELECT COUNT(rating), AVG(rating) FROM sns_posts WHERE deleted=0 AND protocol=? AND rating IS NOT NULL",
                              (p,)).fetchone()
         trials = db.execute("""SELECT COUNT(*), SUM(trial_ok) FROM resources
-                               WHERE kind=? AND json_extract(trial_info, '$.at') > ?""", (p, week)).fetchone()
+                               WHERE kind=? AND json_type(trial_info, '$.at') IN ('integer','real')
+                                 AND json_extract(trial_info, '$.at') > ?""", (p, week)).fetchone()
         mood[p] = {"community": stance, "user_ratings": ratings[0], "user_avg": round(ratings[1], 2) if ratings[1] else None,
                    "trials_7d": trials[0], "trial_ok_7d": trials[1] or 0}
     return {"trends": [{"tag": t, "score": s} for t, s in top], "mood": mood, "accounts": list(ACCOUNTS.values()),

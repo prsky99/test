@@ -8,6 +8,7 @@
 연속 요청은 10건까지만 보낸다. 대화 내용은 방문 기록에 남는다(User-Agent AgentScenarioQA/1.0).
 """
 import argparse
+from urllib.parse import urlparse
 import base64
 import html
 import json
@@ -17,6 +18,10 @@ import time
 import uuid
 
 import httpx
+
+# The discovery-only interoperability audit (documents, MCP metadata, recommendations) lives in its
+# own module; it is re-exported here because its tests and reports name this module.
+from scripts.agent_discovery_audit import Audit  # noqa: F401
 
 UA = "AgentScenarioQA/1.0 (+site owner QA)"
 CRAWLER_UAS = {
@@ -66,7 +71,8 @@ class Runner:
 
 def text_of(page):
     """자바스크립트를 실행하지 않는 수집기가 보는 본문 글자."""
-    page = re.sub(r"(?is)<(script|style|noscript|svg)[^>]*>.*?</\1>", " ", page)
+    # <template> 내용은 렌더링되지 않는 문서 조각이라 수집기 본문이 아니다.
+    page = re.sub(r"(?is)<(script|style|noscript|svg|template)[^>]*>.*?</\1>", " ", page)
     return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", page))).strip()
 
 
@@ -162,8 +168,9 @@ def llm_fetcher(R):
     for p in ["/llms.txt", "/new/en/agent-status.html"]:
         found = re.findall(r"\b\d{3},\d{3}\b", R.get(p).text)
         nums[p] = sorted(set(found))[:4]
-    flat = {n for v in nums.values() for n in v}
-    R.check(k, "문서마다 카탈로그 수가 같음", "PASS" if len(flat) <= 1 else "WARN", json.dumps(nums, ensure_ascii=False))
+    # 한 문서에 지표가 여럿(전체·도달 가능·상태 기록·종류별) 있으니 문서끼리 같은 숫자 묶음인지 본다.
+    same = len({tuple(v) for v in nums.values()}) == 1 and all(nums.values())
+    R.check(k, "문서마다 카탈로그 수가 같음", "PASS" if same else "WARN", json.dumps(nums, ensure_ascii=False))
 
 
 # ---------- 3. 코딩 에이전트(Claude Code, Codex, Cursor): 문서·스킬을 읽고 연동 ----------
@@ -181,7 +188,8 @@ def coding_agent(R):
         paths = spec.json().get("paths", {})
         llms = R.get("/llms.txt").text
         documented = set(re.findall(r"/api/agent/v1/[a-z]+", llms))
-        missing = sorted(p for p in documented if p not in paths)
+        # "badge/{resource_id}.svg", "openapi.json"처럼 뒤가 이어지는 경로도 같은 문서로 본다.
+        missing = sorted(p for p in documented if not any(q == p or q.startswith(p + "/") or q.startswith(p + ".") for q in paths))
         R.check(k, "llms.txt의 /api/agent/v1 경로가 OpenAPI에 있음", "PASS" if not missing else "WARN", ", ".join(missing))
         servers = [x.get("url", "") for x in spec.json().get("servers", [])]
         R.check(k, "OpenAPI servers가 https 절대 주소", "PASS" if servers and all(u.startswith("https://") for u in servers) else "WARN", str(servers)[:80])
@@ -203,8 +211,12 @@ def mcp_client(R):
     r, j, dt = R.rpc("/mcp", "tools/list", {}, headers=h)
     tools = (j.get("result") or {}).get("tools", [])
     R.check(k, "tools/list", bool(tools), f"{len(tools)}개")
-    no_hint = [t["name"] for t in tools if not (t.get("annotations") or {}).get("readOnlyHint") and t["name"] in ("search", "find_agents", "whats_new", "credit")]
-    R.check(k, "조회 도구에 readOnlyHint", "PASS" if not no_hint else "WARN", "없음: " + ", ".join(no_hint))
+    # A recorded conversation changes session state even without a provider call.
+    read_only = {"credit", "workflow_details", "search", "find_agents", "whats_new", "search_workflows"}
+    stateful = {"chat", "hello"}
+    wrong_hint = [t["name"] for t in tools if t["name"] in read_only | stateful
+                  and (t.get("annotations") or {}).get("readOnlyHint") is not (t["name"] in read_only)]
+    R.check(k, "조회·대화 도구의 readOnlyHint가 실제 상태 변경과 일치", "PASS" if not wrong_hint else "WARN", ", ".join(wrong_hint))
     exec_tools = [t for t in tools if t["name"] in ("call", "adapt_rest", "subscribe")]
     no_risk = [t["name"] for t in exec_tools if not (t.get("annotations") or {}).get("openWorldHint") and not (t.get("annotations") or {}).get("destructiveHint")]
     R.check(k, "실행·외부 호출 도구에 위험 표시(openWorldHint 등)", "PASS" if not no_risk else "WARN", "없음: " + ", ".join(no_risk))
@@ -214,8 +226,12 @@ def mcp_client(R):
     R.check(k, "tools/list 순서가 매번 같음", [t["name"] for t in tools] == [t["name"] for t in (j2.get("result") or {}).get("tools", [])])
     r2, j2, _ = R.rpc("/mcp", "tools/list", {}, headers={**h, "MCP-Protocol-Version": "1999-01-01"})
     R.check(k, "지원하지 않는 MCP-Protocol-Version 헤더는 400", "PASS" if r2.status_code == 400 else "WARN", f"{r2.status_code}")
+    # 정책(2026-10-30): 다른 사이트는 읽기 전용 도구만 익명으로 쓰고, 실행 도구는 403.
     r2, j2, _ = R.rpc("/mcp", "tools/list", {}, headers={**h, "Origin": "https://evil.example"})
-    R.check(k, "Origin 검사(DNS rebinding 방어)", "PASS" if r2.status_code == 403 else "WARN", f"Origin evil.example → {r2.status_code}")
+    r3, j3, _ = R.rpc("/mcp", "tools/call", {"name": "call", "arguments": {}}, headers={**h, "Origin": "https://evil.example"})
+    ok = (r2.status_code == 200 and "access-control-allow-credentials" not in r2.headers and r3.status_code == 403)
+    R.check(k, "Origin 검사(다른 사이트는 읽기 전용만, 실행은 거절)", "PASS" if ok else "WARN",
+            f"Origin evil.example tools/list → {r2.status_code}, call → {r3.status_code}")
     r2, j2, _ = R.rpc("/mcp", "server/discover", {})
     R.check(k, "2026-07-28판 server/discover", "PASS" if "result" in j2 else "WARN", json.dumps(j2.get("error"))[:80])
     r2 = R.get("/.well-known/mcp/server.json")
@@ -241,7 +257,7 @@ def a2a_client(R):
     r = R.get("/.well-known/agent-card.json")
     card = r.json() if r.status_code == 200 else {}
     R.check(k, "에이전트 카드", bool(card.get("url") and card.get("skills")), card.get("protocolVersion", ""))
-    url = card.get("url", R.base + "/a2a").replace(R.base, "")
+    url = urlparse(card.get("url", "/a2a")).path or "/a2a"
 
     def send(text, ctx=None):
         msg = {"role": "user", "parts": [{"kind": "text", "text": text}], "messageId": str(uuid.uuid4())}
@@ -371,8 +387,11 @@ def adversarial(R):
     R.check(k, "깊이 1,000 중첩 JSON에 5xx 없음", r.status_code < 500, f"{r.status_code} {dt}s")
     r = R.get("/api/explore", params={"q": "weather"}, headers={"User-Agent": CRAWLER_UAS["GPTBot"], "Signature-Agent": '"https://chatgpt.com"', "Signature-Input": 'sig1=("@authority");keyid="fake"', "Signature": "sig1=:AAAA:"})
     R.check(k, "가짜 Web Bot Auth 서명에 특별 대우 없음(정상 200)", r.status_code == 200, f"{r.status_code}")
-    sizes = [len(R.get(f"/api/agents/{i}").content) for i in (1, 2, 3)]
-    R.check(k, "연속 ID로 상세 전체를 긁을 수 있음(대역폭 남용)", "WARN" if all(s > 5000 for s in sizes) else "PASS", f"ID 1~3 각 {sizes} bytes, 한도 헤더 없음")
+    replies = [R.get(f"/api/agents/{i}") for i in (1, 2, 3)]
+    sizes = [len(x.content) for x in replies]
+    limited = all(x.headers.get("ratelimit-policy") or x.headers.get("x-ratelimit-limit") for x in replies)
+    R.check(k, "연속 ID로 상세 전체를 긁을 수 있음(대역폭 남용)", "WARN" if all(s > 5000 for s in sizes) and not limited else "PASS",
+            f"ID 1~3 각 {sizes} bytes, 한도 헤더 " + (replies[0].headers.get("ratelimit-policy", "") if limited else "없음"))
 
 
 KINDS = {"crawler": crawler, "llm_fetcher": llm_fetcher, "coding_agent": coding_agent, "mcp": mcp_client,
@@ -397,7 +416,12 @@ def main():
     ap.add_argument("base", nargs="?", default="https://agentconcierge.biz")
     ap.add_argument("--only", help="쉼표로 구분: " + ",".join(KINDS))
     ap.add_argument("--json", help="결과를 JSON 파일로 저장")
+    ap.add_argument("--list-scenarios", action="store_true", help="76개 계획 목록만 출력(네트워크 사용 안 함)")
     a = ap.parse_args()
+    if a.list_scenarios:
+        from scripts.agent_scenario_catalog import scenarios
+        print(json.dumps(scenarios(), indent=2))
+        return 0
     client = httpx.Client(timeout=60, headers={"User-Agent": UA})
     results = run(a.base, client, set(a.only.split(",")) if a.only else None)
     counts = {s: sum(r["status"] == s for r in results) for s in ("PASS", "WARN", "FAIL")}

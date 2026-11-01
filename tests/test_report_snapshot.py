@@ -96,3 +96,40 @@ def test_front_uses_a_fresh_snapshot_and_falls_back_without_one(monkeypatch):
     rs._snapshots[id(store)] = rs.Snapshot([], time.time() - 3 * rs.REFRESH_SECONDS)
     assert rs.current(store) is None  # a snapshot older than two refresh periods is not used
     rs._snapshots.clear()
+
+
+
+def test_rebuild_releases_the_front_store_lock_between_short_chunks(monkeypatch):
+    """Visitor requests share the front store lock; the rebuild must not hold it for long stretches."""
+    import contextlib
+    import threading
+    from agent_market.concierge import front, content_policy
+
+    class Store:
+        _lock = threading.RLock()
+
+        def tx(self, readonly=False):
+            assert readonly
+            return contextlib.nullcontext()
+    store, held_while_pausing, chunk_sizes = Store(), [], []
+    rows = [{'id': i, 'kind': 'mcp', 'name': f'n{i}', 'description': 'd'} for i in range(60)]
+    monkeypatch.setattr(rs, 'KINDS', ('mcp',))
+    monkeypatch.setattr(front, '_report_candidate_sql', lambda *a: ('', []))
+    monkeypatch.setattr(front, '_report_candidates', lambda *a: (list(rows), len(rows)))
+    monkeypatch.setattr(front, '_report_prefetch', lambda s, ids: chunk_sizes.append(len(ids)) or ({}, {}))
+    monkeypatch.setattr(front, '_report_listing', lambda s, row, current, reports: (row, {'name': row['name']}))
+    monkeypatch.setattr(front, '_card_data', lambda row, s, create_connections=True: {})
+    monkeypatch.setattr(rs, '_indexed_text', lambda s, ids: {})
+    monkeypatch.setattr(content_policy, 'adult_listing', lambda resource: False)
+
+    def pause(seconds):
+        # A lock another thread can take is free; the rebuild thread itself must not be holding it.
+        got = []
+        t = threading.Thread(target=lambda: got.append(store._lock.acquire(timeout=0.5)) or store._lock.release())
+        t.start(); t.join()
+        held_while_pausing.append(not got[0])
+    monkeypatch.setattr(rs.time, 'sleep', pause)
+    snapshot = rs.build(store)
+    assert len(snapshot.entries) == 60
+    assert max(chunk_sizes) <= rs.CHUNK <= 50
+    assert held_while_pausing == [False] * (len(chunk_sizes) - 1)  # a pause between every pair of chunks

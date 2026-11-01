@@ -230,7 +230,7 @@ class Erc8004Crawler:
         now = time.time()
         with self.store.tx() as db:
             for agent_id, uri in found.items():
-                digest = hashlib.sha1(uri.encode()).hexdigest()
+                digest = hashlib.sha256(uri.encode()).hexdigest()
                 row = db.execute("SELECT uri_hash FROM erc8004_tokens WHERE chain=? AND agent_id=?", (chain, agent_id)).fetchone()
                 if row and row["uri_hash"] == digest:
                     stats["unchanged"] += 1
@@ -278,7 +278,7 @@ class Erc8004Crawler:
         return f"{'erc8004-mcp' if service['kind'] == 'mcp' else 'a2a'}:{service['endpoint']}"
 
     def _withdraw(self, chain: str, agent_id: int, keep: list[dict], stats: dict) -> None:
-        """이 토큰이 전에 등록했던 엔드포인트 중 지금은 빠진 것: 등록 목록에서 지우고, 남은 등록이 없으면 비활성화."""
+        """Remove withdrawn registry associations without changing local activity."""
         row = self.store.query("SELECT services FROM erc8004_tokens WHERE chain=? AND agent_id=?", (chain, agent_id))
         old = json.loads(row[0]["services"]) if row and row[0]["services"] else []
         keep_keys = {self._key(s) for s in keep}
@@ -295,7 +295,10 @@ class Erc8004Crawler:
                 if regs:
                     db.execute("UPDATE resources SET details=? WHERE id=?", (json.dumps({**details, "erc8004": regs}, sort_keys=True), res[0]["id"]))
                 else:
-                    db.execute("UPDATE resources SET active=0 WHERE id=?", (res[0]["id"],))
+                    from ..managed_catalog import mark_ids_missing
+                    mark_ids_missing(db, [res[0]['id']])
+                    db.execute('UPDATE resources SET details=? WHERE id=?',
+                               (json.dumps({**details, 'erc8004': []}, sort_keys=True), res[0]['id']))
                     stats["withdrawn"] += 1
 
     def _apply(self, chain: str, chain_id: int, agent_id: int, doc, stats: dict) -> None:

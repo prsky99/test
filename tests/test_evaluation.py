@@ -322,3 +322,77 @@ def test_documentation_example_keys_are_not_secrets():
     assert "hardcoded_secret" not in {f["code"] for f in out["findings"]}
     out = run([with_desc("Uses AKIAZ7Q2LMNOPQRSTUV4 internally. Returns data.")])
     assert "hardcoded_secret" in {f["code"] for f in out["findings"]}
+
+
+# ---------------- x402 평가 테스트 ----------------
+def test_evaluate_x402_healthy():
+    res = {
+        "name": "api.example.com/weather",
+        "url": "https://api.example.com/weather",
+        "description": "Fetch real-time weather information and 7-day forecasts for any city worldwide.",
+        "category": "weather",
+        "health_status": "healthy",
+        "last_status_code": 402,
+        "probe_latency_ms": 250,
+        "health_n_24h": 24,
+        "health_ok_24h": 24,
+        "price_usdc": 10000,
+        "pay_to": "0x589a2314a2e05f45e40c4823da3ba58d421db3d8",
+        "payers_30d": 120,
+        "calls_30d": 5000,
+        "details": json.dumps({
+            "x402Version": 2,
+            "accepts": [{"asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", "extra": {"name": "USDC"}}],
+            "input": {"method": "GET", "properties": {"city": {"type": "string"}}}
+        })
+    }
+    ev_res = ev.evaluate_x402(res)
+    assert ev_res["status"] == "scored"
+    assert ev_res["kind"] == "x402"
+    assert ev_res["grade"] == "A"
+    assert ev_res["score"] >= 90.0
+    assert ev_res["security"] == "ok"
+    assert ev_res["trial_ok"] == 1
+    assert ev_res["dimensions"]["availability"] >= 0.9
+    assert ev_res["dimensions"]["protocol"] == 1.0
+
+
+def test_evaluate_x402_security_penalties():
+    insecure = {
+        "name": "insecure-api",
+        "url": "http://api.insecure.com/pay",
+        "description": "API without HTTPS",
+        "pay_to": "invalid_wallet_address",
+        "health_status": "failing",
+    }
+    ev_res = ev.evaluate_x402(insecure)
+    assert ev_res["trial_ok"] == 0
+    assert any(f["code"] == "insecure_endpoint" for f in ev_res["findings"])
+    assert any(f["code"] == "invalid_payment_address" for f in ev_res["findings"])
+    assert ev_res["security"] in ("quarantine", "review")
+
+
+def test_store_evaluate_x402_batch():
+    store = Store()
+    store.upsert_resource({
+        "key": "x402-1", "source": "x402-bazaar", "kind": "x402",
+        "url": "https://api.test.com/v1", "name": "Test x402 API",
+        "description": "Provide fast and reliable translation service for AI agents.",
+        "category": "translation", "networks": ["base"], "price_usdc": 5000,
+        "pay_to": "0x589a2314a2e05f45e40c4823da3ba58d421db3d8",
+        "details": {"x402Version": 2, "accepts": [{"asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"}]}
+    })
+    rid = store.query("SELECT id FROM resources WHERE key='x402-1'")[0]["id"]
+    with store.tx() as db:
+        db.execute("UPDATE resources SET health_status='healthy', last_status_code=402, probe_latency_ms=180 WHERE id=?", (rid,))
+
+    assert store.evaluate_x402_batch(10) == 1
+    r = store.resource(rid)
+    assert r["eval_score"] is not None and r["eval_score"] >= 80.0
+    assert r["eval_grade"] in ("A", "B")
+    assert r["trial_ok"] == 1
+
+    stats = store.evaluation_stats("x402")
+    assert stats["evaluated"] == 1
+    assert stats["average_score"] >= 80.0
+

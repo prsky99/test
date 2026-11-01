@@ -1,8 +1,13 @@
 """판매 에이전트가 파는 AI 작업들. 실제 작업은 Claude가 수행한다."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 
-import anthropic
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import anthropic
 
 from .config import usdc
 
@@ -52,7 +57,13 @@ class ServiceError(RuntimeError):
 
 class ClaudeWorker:
     def __init__(self, client: anthropic.Anthropic | None = None):
-        self.client = client or anthropic.Anthropic()
+        if client is None:
+            try:
+                import anthropic
+            except ImportError as exc:
+                raise RuntimeError("Claude integration requires requirements-anthropic.txt.") from exc
+            client = anthropic.Anthropic()
+        self.client = client
 
     def run(self, service: Service, text: str) -> str:
         response = self.client.beta.messages.create(

@@ -8,7 +8,10 @@
 ## 1. 수익 지갑 만들기 (본인 PC)
 ```bash
 git clone -b claude/hopeful-darwin-i3qj6n https://github.com/prsky99/test.git && cd test
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+python3.11 -m venv .venv
+.venv/bin/python -m pip install --require-hashes -r requirements-build.lock
+.venv/bin/python -m pip install --no-cache-dir --require-hashes --no-build-isolation -r requirements-runtime.lock
+.venv/bin/python -m pip uninstall --yes setuptools wheel packaging
 .venv/bin/python -m agent_market.wallet create ~/gateway-wallet.json   # 출력되는 0x... 주소를 적어 두기
 ```
 keystore 파일과 비밀번호는 따로 백업하세요. 서버에는 **주소만** 넣습니다.
@@ -65,3 +68,5 @@ sudo docker compose cp gateway:/data/gateway.sqlite3 ./backup.sqlite3          #
   - 최신 것만 다시 복사: `.venv/bin/python -m scripts.scheduled_backup --copy-only --copy-to /Volumes/kingstone/agentconcierge-backups`
   - 실측: launchd 환경에서 3.2GB를 약 198초에 복사했고, sha256이 원본과 일치했습니다.
   - 재부팅 뒤에는 공유를 다시 마운트해야 복사됩니다. 로그인 항목에 공유 폴더를 넣어 두면 자동으로 마운트됩니다.
+
+의존성 프로필과 선택형 Claude SDK/레거시 SQLite 벡터 설치는 [의존성 관리 안내](DEPENDENCY_MAINTENANCE.md)를 참고하세요.

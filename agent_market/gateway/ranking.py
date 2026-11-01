@@ -40,11 +40,20 @@ def _stem(word: str) -> str:
 
 
 def _relevance(task_terms: list[str], idf: dict[str, float], resource: dict) -> float:
-    """작업 단어가 설명에 얼마나 들어 있는지(드문 단어일수록 무겁게) + 구절이 그대로 나오는지.
+    """작업 단어가 설명 및 도구 목록에 얼마나 들어 있는지(드문 단어일수록 무겁게) + 구절이 그대로 나오는지.
     'exchange rate'처럼 두 단어가 붙어 있어야 뜻이 되는 경우, 'Coinbase Exchange ... spot rate'처럼 따로 흩어진 설명과 구분한다."""
     if not task_terms:
         return 0.5
-    words = [_stem(t) for t in tokens(f"{resource['name']} {resource['description']}")]
+    tool_text = ""
+    if resource.get("usage_tools"):
+        try:
+            raw = resource["usage_tools"]
+            tools = json.loads(raw) if isinstance(raw, str) else raw
+            if isinstance(tools, list):
+                tool_text = " " + " ".join(f"{t.get('name', '')} {t.get('description', '')}" for t in tools if isinstance(t, dict))
+        except (ValueError, TypeError):
+            pass
+    words = [_stem(t) for t in tokens(f"{resource['name']} {resource['description']}{tool_text}")]
     doc, bigrams = set(words), set(zip(words, words[1:]))
     total = sum(idf.get(t, 1.0) for t in task_terms)
     overlap = sum(idf.get(t, 1.0) for t in task_terms if _stem(t) in doc) / total if total else 0.0
@@ -146,7 +155,17 @@ def score_resource(resource: dict, task_terms: list[str], idf: dict[str, float],
     parts["price"] = 0.5 if price is None else (1.0 if price <= REFERENCE_PRICE else min(1.0, REFERENCE_PRICE / price) ** 0.5)
 
     last = resource.get("last_called")
-    if last is None:
+    if isinstance(last, str) and last.strip():
+        try:
+            last = float(last)
+        except ValueError:
+            try:
+                from datetime import datetime, timezone
+                dt = datetime.fromisoformat(last.strip().replace("Z", "+00:00"))
+                last = (dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt).timestamp()
+            except ValueError:
+                last = None
+    if not isinstance(last, (int, float)):
         parts["recency"] = 0.3
     else:
         days = max(0.0, (now - last) / 86400)
@@ -166,13 +185,14 @@ def score_resource(resource: dict, task_terms: list[str], idf: dict[str, float],
     return Scored(resource, round(total, 4), {k: round(v, 3) for k, v in parts.items()})
 
 
-def rank(store: Store, need: dict, limit: int = 5, include: int | None = None) -> tuple[list[Scored], Scored | None]:
+def rank(store: Store, need: dict, limit: int = 5, include: int | None = None, rag_engine=None) -> tuple[list[Scored], Scored | None]:
     """need에 맞는 후보를 점수순으로. include(현재 에이전트 id)도 같은 기준으로 점수를 매겨 돌려준다."""
     terms = query_terms(need["task"])
     idf = store.idf(terms)
     candidates = store.search(need["task"], need["category"], need.get("max_price"), need["networks"], need["kinds"],
                               region=need.get("region"), auth_free=need.get("auth_pref") == "none",
-                              agent_usable=need.get("auth_pref") == "agent", min_grade=need.get("min_grade"))
+                              agent_usable=need.get("auth_pref") == "agent", min_grade=need.get("min_grade"),
+                              rag_engine=rag_engine)
     feedback = store.feedback_stats_many([r["id"] for r in candidates])  # 후보마다 쿼리하지 않게 한 번에
     no_feedback = (0, 0, None)
     scored = sorted(
@@ -233,6 +253,14 @@ def evaluation_summary(r: dict, findings: int = 5) -> dict | None:
         "findings": [{k: f.get(k) for k in ("severity", "code", "tool", "message")} for f in (ev.get("findings") or [])[:findings]]}
 
 
+def _safe_json_check(s: str) -> bool:
+    try:
+        json.loads(s)
+        return True
+    except Exception:
+        return False
+
+
 def reveal(s: Scored) -> dict:
     r = s.resource
     return {
@@ -248,8 +276,8 @@ def reveal(s: Scored) -> dict:
         "networks": [n for n in r["networks"].strip(",").split(",") if n],
         "calls_30d": r.get("calls_30d"),
         "payers_30d": r.get("payers_30d"),
-        "details": json.loads(r["details"]),
-        "usage": json.loads(r["usage_guide"]) if r.get("usage_guide") else None,  # 연결 방법·도구별 사용법·검증된 예제
+        "details": json.loads(r["details"]) if r.get("details") and _safe_json_check(r["details"]) else {},
+        "usage": json.loads(r["usage_guide"]) if r.get("usage_guide") and _safe_json_check(r["usage_guide"]) else None,  # 연결 방법·도구별 사용법·검증된 예제
         "usage_updated_at": r.get("usage_updated_at"),
         "verified_working": None if r.get("trial_ok") is None else bool(r["trial_ok"]),  # 실제 호출 시험 결과
         "evaluation": evaluation_summary(r),  # 규칙 기반 품질 평가 (축별 점수·주요 발견 사항)

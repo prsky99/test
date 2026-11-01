@@ -206,3 +206,11 @@ def test_need_conditions_survive_in_rescan(world):
     world.crawl()
     world.service.rescan()
     assert c.status(need["need_id"])["pending_offers"] == []  # 브라질 전용은 한국 요청에 재소개하지 않음
+
+
+def test_caribbean_territory_is_a_regional_scope():
+    from agent_market.concierge.selection import _weather_scope_matches
+    text = 'Puerto Rico news summaries and live island conditions. get_town_weather'
+    assert cons.regions_in_text(text) == ['latam']
+    assert not _weather_scope_matches(['weather', 'forecast', 'seoul'], text)
+    assert _weather_scope_matches(['weather', 'forecast'], 'Worldwide weather forecast for any city.')

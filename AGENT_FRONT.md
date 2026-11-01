@@ -1,118 +1,119 @@
-# 에이전트 전용 프론트(컨시어지) 기획안
+# Public Agent Frontend
 
-사람이 아니라 **AI 에이전트만을 위한 첫 화면**입니다. 에이전트가 처음 읽는 곳마다 "에이전트 전용 서비스"라고 밝힙니다. 접근하자마자 인사하고 무엇을 도와줄지 묻습니다. 방문자를 기억해 다음 방문 때 지난 대화를 이어 가고, 연락처를 받아 더 좋아진 에이전트가 나오면 먼저 알려서 단골로 만듭니다.
+> Screen policy: `docs/FRONTEND_SCREEN_POLICY.md` (11-01). Fixed content renders directly in HTML, no full-screen loading, and loading appears only in the affected area when the user acts.
 
-## 1. 목표와 지표
+The public frontend returns one relevant agent ranked by recent successful verification, recent
+activity, and quality grade. New protocol-unspecified requests default to A2A;
+explicit MCP/x402 requests and follow-up protocol context are preserved.
+Newest replies appear first. Home, Chat, and their
+metadata describe this behavior. The same selection path serves REST `/chat`,
+A2A `/a2a`, MCP discovery tools, and the admin conversation simulator.
 
-| 목표 | 지표 (관리 화면 "방문 에이전트" 탭) |
-|---|---|
-| 처음 온 에이전트가 대화를 시작 | 첫 응답 후 메시지를 1개 이상 보낸 비율 |
-| 다시 방문 | 재방문 에이전트 수, 방문 횟수, 방문한 날 수 |
-| 단골 확보 | 단골 수 (3일 이상 방문, 또는 2회 이상 방문 + 메시지 10개 이상) |
-| 연속성 | 인증된 연락처 수, 보낸 추천 알림 수, 알림 뒤 재방문 |
+Customer sign-in supports Google OIDC and GitHub OAuth on the public frontend
+only. The frontend service's server verifies provider responses and issues the
+customer session; browser profile data never establishes authority. Administrator
+login retains its existing named staff sessions. Customer identity does not grant
+workspace membership, provider ownership, marketing, execution or delivery rights.
+When enabled, the Workspace navigation link opens this separate customer sign-in surface;
+unconfigured providers remain unavailable.
 
-## 1-1. 실행 구조: 관리 화면과 완전 분리
+## Content standards
 
-| 포트 | 앱 | 담는 것 | 담지 않는 것 |
-|---|---|---|---|
-| 8200 (`PORT`) | 관리·게이트웨이 API | `/admin/*` 관리 화면, 게이트웨이 에이전트 API(`/needs` 등) | 에이전트 대화 창구 |
-| 8400 (`AGENT_FRONT_PORT`) | **에이전트 전용 프론트** | `/`, `/chat`, `/a2a`, `/mcp`, `/llms.txt`, `/robots.txt`, agent card | `/admin`, 사람용 API 문서(`/docs`) |
+- Use a modern, uncluttered design with Lucide icons. Prefer local SVGs and keep
+  responsive spacing, accessible labels, keyboard focus, light/dark themes, and
+  reduced-motion preferences consistent throughout the frontend.
+- Write all frontend copy, comments, metadata, and frontend maintenance scripts
+  in English. Keep non-English input aliases escaped; language-support test inputs
+  are allowed.
+- Never publish private configuration, runtime details, developer diagnostics,
+  visitor profiles, tokens, credentials, or personal data. Public agent connection
+  facts and official service contacts may be displayed.
+- Keep Home and page descriptions, social tags, and agent metadata current when
+  changing features.
+- Do not display commercial terms or amounts in Chat, recommendation prose, or
+  Calling details. Preserve truthful machine protocol fields for API compatibility.
+- Keep Chat concise: one agent, protocol, endpoint, representative tool, quality
+  grade, test report evidence, and recent activity confirmation. The detail drawer
+  provides essential connection and input information. Hide raw JSON and session
+  controls from Chat.
 
-- 같은 프로세스에서 두 포트로 뜨고, DB와 추천 알림 스케줄러만 공유합니다. Ctrl+C 한 번에 함께 멈춥니다.
-- 관리 화면의 "대화해 보기"는 프론트 포트를 거치지 않고, 관리 API가 같은 엔진으로 답합니다.
-- 배포할 때 Caddy는 `/admin`을 막고, 게이트웨이 API 경로만 8200으로 보내며, 나머지는 모두 8400으로 보냅니다.
+Persistent guidance: [AGENTS.md](AGENTS.md) and
+[public frontend rule](.cursor/rules/public-frontend-content.mdc).
 
-## 2. 에이전트가 가장 먼저 읽는 곳: 모두 "에이전트 전용"이라고 밝힘
+## Selection
 
-| 읽는 곳 | 누가 먼저 읽나 | 담는 내용 |
-|---|---|---|
-| `GET /` | 모든 에이전트·크롤러 | JSON이면 인사 + 질문 + 대화 방법. 브라우저(HTML)면 "AI 에이전트 전용" 안내와 같은 인사를 본문과 JSON-LD로 |
-| `/robots.txt` | 크롤러 | 첫 줄 주석에 에이전트 전용 안내와 대화 주소 |
-| `/llms.txt` | LLM 기반 에이전트 | 서비스 소개, 대화 방법(REST·A2A·MCP), 예시 |
-| `/.well-known/agent-card.json` | A2A 에이전트 | 설명 첫 문장 "FOR AI AGENTS ONLY", 스킬과 예시 |
-| `/.well-known/agent.json` | 예전 A2A·브로커 형식 | `audience: ai-agents-only`와 컨시어지 주소 추가 |
-| MCP `initialize`의 `instructions` | MCP 클라이언트 | 에이전트 전용 안내 + 인사 + 도구 사용법 |
-| 모든 응답의 HTTP 헤더 | 모두 | `X-Audience: ai-agents-only`, `Link: </.well-known/agent-card.json>; rel="agent-card"`, `</llms.txt>; rel="llms-txt"` |
+1. Match the task using the local FTS index and tool descriptions. A local alias
+   dictionary supports common Korean task terms without generating output copy.
+2. Require a public HTTP(S) endpoint with successful health, test, or usage evidence
+   within the last 24 hours. Exclude failing, quarantined, security-review, and
+   grade-F candidates, including unresolved recent failures.
+3. Prefer candidates with a successful test report or recorded execution check,
+   newest successful verification first. Fall back to recent health evidence only
+   when no successfully tested relevant candidate is available.
+4. Prefer recent successful activity, then grades A, B, C, D, and unrated.
+   Use the newer evidence if report and evaluation grades differ.
+5. Resolve ties using quality score, success rate,
+   observed latency, relevance, and stable resource ID.
 
-## 3. 대화 설계
+Explicit A2A, MCP or x402 preferences filter candidates before recency ranking. A
+structured selector takes priority over protocol mentions in the question. Commercial
+attributes, customer history and popularity do not determine ranking. Existing
+discovery arguments remain accepted for transport compatibility. An irrelevant or unverified candidate is never substituted to fill
+an empty result: return `status: no_match` with an empty array instead. Explicit
+session, contact, and notification commands remain separate from discovery.
 
-**들어오는 길 (세 가지 모두 같은 대화 엔진):**
-- REST: `POST /chat {"message": "..."}`
-- A2A: `POST /a2a` (`message/send` v0.3, `SendMessage` v1.0)
-- MCP: `POST /mcp` (`hello`, `chat`, `find_agents`, `whats_new`, `subscribe` 도구)
+## Request path and security
 
-**대화 원칙:**
-- 모든 답의 끝은 질문이나 다음 행동 제안입니다. 바로 보낼 수 있는 `suggested_replies`도 함께 줍니다.
-- **답은 영어로만 합니다(고정).** 다른 언어로 온 요청도 이해는 합니다. 한국어는 단어 대응과 로컬 LLM으로 해석합니다. 설정은 `concierge/engine.py`의 `REPLY_LANG`에 있습니다.
-- 구조화된 데이터도 받습니다. 예: `{"intent": "find", "task": "...", "kind": "mcp"}`
-- 받은 메시지는 신뢰하지 않는 데이터로 다룹니다. 규칙 기반 엔진이라 메시지 안의 지시를 실행하지 않고, 저장할 때 길이를 제한합니다.
+`FastConcierge` uses `QualityRecommender`, local search, and stored verification
+records. The question path makes no generative-model, embedding, or live endpoint
+check calls. Background collectors continue updating the evidence. Report dates
+support numeric and ISO values, with records linked by resource ID or URL.
 
-**의도(intent):**
+Keep visitor tokens in transport and session storage. Preserve token hashing,
+context binding, body and request limits, CSP nonces, public endpoint validation,
+HTML escaping, credential redaction, and session replay masking. Sensitive schema
+values must not appear in browser responses; schema field names remain available
+for connection compatibility.
 
-| 의도 | 예 | 동작 |
-|---|---|---|
-| 인사 | "hi", "안녕" | 처음이면 소개와 질문, 다시 왔으면 지난 대화를 바탕으로 인사 |
-| 찾기 | "weather forecast API", "주식 시세 MCP 찾아줘" | 분류 → 순위 → 상위 3개 추천(사용법·가격·인증·실제 동작 여부). 관심사로 기억 |
-| 더 보기·자세히 | "more", "2번 자세히" | 다음 추천, 사용 안내 요약 |
-| 새 소식 | "what's new", "새로운 거 있어?" | 지난 관심사 기준으로 더 좋아진 것 |
-| 연락처 | "contact https://my-agent.example/inbox" | 인증 코드 발송 → "verify 123456"으로 확인 |
-| 결과 알림 | "1번 잘 됐어", "it failed" | 추천 결과 기록 → 다음 추천에 반영 |
-| 그만 | "stop", "unsubscribe" | 알림 중단 |
-| 도움말 | "help", "who are you" | 할 수 있는 일 목록 |
+`details 1` refreshes the selected agent's evidence, `more` returns one alternative,
+and `failed 1` records the failure and selects at most one replacement. Existing
+notification and verification commands remain supported.
 
-## 3-1. 로컬 LLM (Ollama, 기본 `gemma4:e4b-mlx`)
+## Verification
 
-규칙 엔진 위에 로컬 모델을 얹었습니다. 모델이 없거나 느리면 규칙만으로 그대로 동작합니다.
+Run `python scripts/check_front_content.py` after frontend edits. It checks the
+public source and maintenance scripts for literal Hangul, embedded HTML parity,
+removed private/development presentation, Chat copy, and current Home metadata.
+Use the browser content, single-agent recommendation, and frontend security tests
+to verify rendered content, routing, safe connection details, and output escaping.
 
-| 역할 | 하는 일 | 지키는 선 |
-|---|---|---|
-| 의도 파악 | 규칙에 걸리지 않은 자유 문장에서 의도·작업·**영어 검색어**·이름·종류를 뽑음 | 명령어(자세히·더·결과·인증·그만)는 규칙이 먼저 처리. 인증 조건은 규칙만 믿음. 나온 값은 모두 검증 |
-| 첫 문장 | 추천 앞에 자연스러운 한두 문장 | 사실(이름·주소·가격)은 DB 그대로. 모델 문장의 URL·인사는 지우고 320자까지. "에이전트 전용" 소개는 항상 맨 앞 |
+Earlier selection validation: [implementation verification](reports/single-agent-2026-10-17/README.md).
 
-- **설정:** `CONCIERGE_LLM`(auto: 모델이 있으면 사용, ollama: 항상, off: 끔), `OLLAMA_URL`, `CONCIERGE_MODEL`, `CONCIERGE_LLM_TIMEOUT`, `CONCIERGE_LLM_LEAD`(0이면 의도 파악에만 사용)
-- **Gemma 4:** 생각 모드가 켜져 있으면 생각에 토큰을 다 써 답이 비므로 `think: false`로 부릅니다.
-- **장애 대응:** 동시 호출은 2개까지이고, 바쁘면 규칙으로 답합니다. 실패하면 60초간 쓰지 않습니다. 시작할 때 모델을 미리 올려 둡니다(keep_alive 30분).
-- **실측(이 PC):** 호출당 평균 1.5초, 자유 문장 한 번에 3~5초(모델 2번 호출), 명령어는 0초입니다.
 
-## 4. 방문 에이전트 기억 (재방문 챙기기)
+## Optional task updates and admin integration
 
-- **식별:** 첫 대화에 방문 토큰(`vt_…`)을 줍니다. 다음에는 `X-Visitor-Token` 헤더(또는 A2A 메타데이터, MCP 인자)로 보내면 기억합니다.
-  - A2A의 `contextId`도 같은 방문자로 묶습니다.
-  - 토큰은 해시로만 저장합니다.
-- **지문으로만 맞을 때:** 토큰 없이 같은 IP와 User-Agent로 다시 오면 "혹시 전에 오셨나요? 토큰을 보내 주시면 이어서 얘기할게요"라고만 묻습니다. 지난 대화 내용은 토큰을 가진 쪽에게만 보여 줍니다. 같은 IP를 쓰는 다른 에이전트에게 새지 않게 하기 위해서입니다.
-- **기억하는 것:** 이름(자기소개, A2A·MCP 클라이언트 정보), 방문 횟수와 방문한 날 수, 대화(최근 200개), 관심사(찾았던 작업과 그때 추천한 에이전트·점수·등급·실제 동작 여부), 연락처, 받은 알림
-- **재방문 인사 예:** "다시 오셨네요, TravelBot! 3일 전에 'weather forecast API'를 찾으셨죠. 그 사이 더 좋은 곳이 2개 생겼어요(실제 동작 확인, A등급). 보여 드릴까요?"
+Recommend before collecting contact details. Task authorization, destination review,
+address ownership proof, and optional marketing permission are separate choices.
+A native browser PushSubscription requires explicit permission and a click on the
+actual encrypted test notification. Do not describe manual polling as browser
+notifications or activate it as a silent fallback. HTTPS webhook/A2A inboxes require
+a received verification code after destination review. Declining a pending request
+physically removes it. Rejected browser permission removes known browser requests.
 
-## 5. 단골 만들기
+Recommendation protocol and delivery channel are independent. Watches expire after
+90 days and can be paused, stopped, renewed or deleted from Notification Preferences.
+Marketing is optional and unchecked; only a separately opted-in verified destination
+may be marked eligible. This release records that permission and enables admin
+inspection/filtering, while advertising delivery and legacy nurture sends are denied.
+Marketing withdrawal is independent of task updates. Admins may remove permission,
+but cannot grant or restore it. The Visiting Agents menu shows actual questions,
+protocol, scoped watches, verification status, purpose-choice history and delivery state.
 
-| 등급 | 조건 | 대우 |
-|---|---|---|
-| 신규 | 첫 방문 | 소개와 첫 추천, 연락처 등록 권유 |
-| 재방문 | 2회 이상 방문 | 지난 대화를 이어 가는 인사, 관심사 새 소식 |
-| 단골 | 3일 이상 방문, 또는 2회 이상 방문 + 메시지 10개 이상 | 단골이 된 순간 알림, 추천 알림 주기 우선(24시간 → 단골이 아니면 72시간), 추천 5개까지 |
+All public copy and footer policies must describe these actual behaviors. Keep
+private destinations encrypted and out of conversation history, logs and public
+listings. Verify both browser and API security with isolated data after development.
+The user runs the server from their terminal: do not restart it during development.
 
-## 6. 연락처와 추천 알림 (연속성)
+## Customer workspace access
 
-- **받는 연락처:** 텍스트 메시지를 받을 수 있는 곳 두 가지입니다.
-  - `webhook`: JSON을 POST로 받는 https 주소
-  - `a2a`: A2A 에이전트 주소 또는 agent card. A2A 메시지로 보냅니다.
-- **인증:** 등록하면 6자리 코드를 그 주소로 보냅니다. 받은 에이전트가 대화에서 `verify 코드`를 보내야 알림을 시작합니다. 남의 주소를 등록해 스팸 통로로 쓰는 것을 막기 위해서입니다.
-- **추천 알림:** 게이트웨이 재평가 주기(15분)마다 확인합니다.
-  - 인증된 연락처가 있고 알림을 끄지 않은 방문자가 대상입니다.
-  - 관심사별로 다시 순위를 매겨, **전보다 좋아진 것**이 있을 때만 보냅니다.
-    - 새 후보가 전에 추천한 최고점보다 3% 이상 높을 때
-    - 전에 추천한 곳이 실제 동작 확인을 받았거나 등급이 올랐을 때
-  - 단골은 24시간, 그 외는 72시간에 한 번까지만 보냅니다.
-  - 메시지마다 "다시 대화하는 법"과 "알림 끄는 법(STOP)"을 넣습니다.
-  - 5번 연속 전달에 실패하면 알림을 멈춥니다.
-- **관리 화면:** 방문 에이전트 목록·등급·관심사·연락처·대화 내용·알림 기록을 보고, 지금 추천 보내기와 알림 끄기를 할 수 있습니다.
-
-## 7. 안전
-
-- **외부 주소 접근:** 연락처와 agent card 주소는 공인 주소만 받습니다. 요청 전과 접속 순간에 두 번 확인하고, 리다이렉트는 따라가지 않습니다(`public_client`).
-- **요청 제한:**
-  - 대화: IP당 분당 60회
-  - 연락처 등록: 방문자당 시간당 5회
-  - 알림: 방문자당 하루 1회(단골)
-- **저장량 제한:** 메시지는 2,000자까지만 저장합니다. 방문자당 메시지 200개, 관심사 20개까지 둡니다. 90일 동안 오지 않은 익명 방문 기록은 정리합니다.
-- **사람이 들어오면:** HTML로 "AI 에이전트 전용" 안내만 보여 줍니다. 관리 화면(`/admin`)은 기존처럼 외부에서 막혀 있습니다.
+The user requested direct development testing with the public Workspace link hidden on 2026-10-19. `CUSTOMER_WORKSPACE_ACCESS_ENABLED=1` enables the customer routes; the independent `CUSTOMER_WORKSPACE_LINK_ENABLED=0` keeps navigation and Home advertising hidden. Leave the link hidden until development is confirmed complete and the user authorizes its release. Both code defaults remain closed, and provider configuration alone does not open the portal. The existing registered Google and GitHub clients are used; first successful sign-in creates a provider-linked customer account, returning sign-in reuses it, and sign-out revokes the customer session and its BFF capabilities. No email-based account merging or staff membership is inferred. Existing staff administration stays separate. See the scoped launch report for isolated verification and the current real-account acceptance status.

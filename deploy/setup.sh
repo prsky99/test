@@ -7,9 +7,11 @@ cd "$(dirname "$0")"
 [ -f gateway.env ] || { echo "gateway.env 가 없습니다 (gateway.env.example 복사 후 작성)"; exit 1; }
 chmod 600 gateway.env
 set -a; . ./gateway.env; set +a
-for v in DOMAIN ADMIN_TOKEN DUCKDNS_SUBDOMAIN DUCKDNS_TOKEN; do
+for v in DOMAIN ADMIN_TOKEN ADMIN_BOOTSTRAP_PASSWORD DUCKDNS_SUBDOMAIN DUCKDNS_TOKEN; do
   [ -n "${!v:-}" ] || { echo "gateway.env 에 $v 값이 필요합니다"; exit 1; }
 done
+[ "${#ADMIN_TOKEN}" -ge 32 ] || { echo "ADMIN_TOKEN must contain at least 32 characters"; exit 1; }
+[ "${#ADMIN_BOOTSTRAP_PASSWORD}" -ge 16 ] || { echo "ADMIN_BOOTSTRAP_PASSWORD must contain at least 16 characters"; exit 1; }
 # 지갑은 유료 정책(GATEWAY_FREE=0)일 때만 필요
 [ "${GATEWAY_FREE:-1}" = "1" ] || [ -n "${GATEWAY_WALLET:-}" ] || { echo "유료 정책에는 gateway.env 에 GATEWAY_WALLET 값이 필요합니다"; exit 1; }
 
@@ -32,6 +34,6 @@ CRON
 chmod 600 /etc/cron.d/duckdns
 curl -fsS "https://www.duckdns.org/update?domains=${DUCKDNS_SUBDOMAIN}&token=${DUCKDNS_TOKEN}&ip=" && echo " <- DuckDNS"
 
-docker compose up -d --build
+docker compose --env-file gateway.env up -d --build
 echo "대기 중..."; sleep 20
 curl -fsS "https://${DOMAIN}/health" && echo && echo "배포 완료: https://${DOMAIN}/.well-known/agent.json"

@@ -23,7 +23,7 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi import FastAPI, Header, HTTPException, Query, Request
 
 from ..gateway import constraints as cons
 from ..gateway.classify import query_terms
@@ -34,6 +34,9 @@ from .agent import CollectorAgent, build_agent_sources
 from .auth_discovery import AuthDiscoverer
 from .capabilities import CapabilityProber
 from .health import HealthChecker, Schedule
+from ..config import health_interval_seconds
+
+from ..gateway.admin_security import AdminRoute
 
 log = logging.getLogger("agent_market.collector.server")
 
@@ -67,21 +70,32 @@ def create_app(store: Store, agent: CollectorAgent | None, admin_token: str | No
     async def lifespan(app: FastAPI):
         if agent and run_background:
             agent.start()
-        yield
-        if agent:
-            agent.stop()
+        try:
+            yield
+        finally:
+            if agent:
+                agent.stop()
 
     app = FastAPI(title="Agent Info Collector", lifespan=lifespan)
+    app.router.route_class = AdminRoute
+
+    @app.middleware("http")
+    async def admin_headers(request: Request, call_next):
+        response = await call_next(request)
+        if request.url.path.startswith("/admin/"):
+            response.headers["Cache-Control"] = "no-store"
+            response.headers["X-Content-Type-Options"] = "nosniff"
+        return response
 
     def require_admin(authorization: str | None):
         expected = f"Bearer {admin_token}" if admin_token else None
-        if expected is None or authorization is None or not hmac.compare_digest(authorization, expected):
+        if expected is None or authorization is None or not hmac.compare_digest(authorization.encode(), expected.encode()):
             raise HTTPException(401, "ADMIN_TOKEN 필요")
 
     @app.get("/health")
     def health():
         crawl = store.get_meta("last_crawl") or {}
-        progress = {n: store.get_meta(f"crawl_pass:{n}") for n in ("x402-bazaar", "mcp-registry")}
+        progress = {n: store.get_meta(f"crawl_pass:{n}") for n in ("x402-bazaar", "mcp-registry", "a2a-registry")}
         return {"ok": True, "last_crawl_at": crawl.get("at"), "crawl_in_progress": {k: v for k, v in progress.items() if v},
                 "last_health_batch": store.get_meta("last_health_batch"), "now": time.time()}
 
@@ -126,6 +140,12 @@ def create_app(store: Store, agent: CollectorAgent | None, admin_token: str | No
             conds.append("r.health_status=?"); params.append(status)
         else:
             conds.append("r.health_status != 'retired'")  # 7일 넘게 다운된 에이전트는 기본 목록에서 제외
+        native_listing = getattr(store, 'collector_agents', None)
+        if callable(native_listing):
+            rows = native_listing(query=q, category=category, kind=kind, status=status,
+                language=lang if language else None, region=reg if region else None,
+                auth=auth, verified=verified, min_grade=min_grade, security=security, sort=sort, limit=limit)
+            return [public(dict(row)) for row in rows]
         where = " AND ".join(conds)
         terms = query_terms(q or "", limit=16)
         if sort == "quality":  # 품질 점수순 (검색어가 있으면 그중에서)
@@ -164,11 +184,11 @@ def create_app(store: Store, agent: CollectorAgent | None, admin_token: str | No
         return store.collector_stats()
 
     @app.post("/admin/crawl")
-    def crawl_now(authorization: str | None = Header(default=None)):
+    def crawl_now(authorization: str | None = Header(default=None), full: bool = True):
         require_admin(authorization)
         if agent is None:
             raise HTTPException(503, "수집기가 없습니다.")
-        return agent.crawler.crawl_all()  # 이미 수집 중이면 {"busy": true}
+        return agent.crawler.crawl_all(force_full=full)  # 이미 수집 중이면 {"busy": true}
 
     @app.post("/admin/check/{rid}")
     def check_now(rid: int, authorization: str | None = Header(default=None)):
@@ -204,14 +224,15 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)  # 요청마다 찍히는 로그는 끔
     db = os.environ.get("COLLECTOR_DB", "gateway-data/gateway.sqlite3")
-    Path(db).parent.mkdir(parents=True, exist_ok=True)
-    store = Store(db)
+    from ..application_runtime import open_runtime_storage
+    storage = open_runtime_storage(db)
+    store = storage.store
     agent = build_agent(
         store,
         min_gap=float(os.environ.get("CRAWL_MIN_GAP_SECONDS", "60")),
         page_delay=float(os.environ.get("CRAWL_PAGE_DELAY", "1.0")),
         full_interval=float(os.environ.get("CRAWL_FULL_INTERVAL_HOURS", "24")) * 3600,
-        health_interval=float(os.environ.get("HEALTH_INTERVAL_MINUTES", "60")) * 60,
+        health_interval=health_interval_seconds(),
         allow_private=os.environ.get("ALLOW_PRIVATE_AGENT_URLS") == "1",
         workers=int(os.environ.get("HEALTH_WORKERS", "32")),
         capability_max_age=float(os.environ.get("CAPABILITY_MAX_AGE_HOURS", "24")) * 3600,
@@ -222,8 +243,12 @@ def main() -> None:
         erc8004_chains=os.environ.get("ERC8004_CHAINS"),
         agent_discovery=os.environ.get("AGENT_DISCOVERY", "1") == "1",
     )
-    uvicorn.run(create_app(store, agent, os.environ.get("ADMIN_TOKEN")),
-                host=os.environ.get("HOST", "127.0.0.1"), port=int(os.environ.get("PORT", "8300")))
+    try:
+        uvicorn.run(create_app(store, agent, os.environ.get("ADMIN_TOKEN")),
+                    host=os.environ.get("HOST", "127.0.0.1"), port=int(os.environ.get("PORT", "8300")))
+    finally:
+        if agent.stop():
+            storage.close()
 
 
 if __name__ == "__main__":

@@ -21,14 +21,21 @@ AI 에이전트가 다른 AI 에이전트(A2A 에이전트, MCP 서버, x402 유
 
 ## 빠른 시작
 
+Psycopg C 확장 빌드에는 C 컴파일러와 최신 libpq 개발 도구(`pg_config`)가 필요합니다. 현재 Mac에서는 프로젝트 전용 도구 체인을 사용합니다. 운영 의존성은 Python 3.11.18 이상 보안 패치 기준으로 잠금 관리합니다. 운영·개발·선택형 Claude SDK·SQLite 벡터 도구 분리 및 현재 Mac 환경 명령은 [의존성 관리 안내](deploy/DEPENDENCY_MAINTENANCE.md)를 참고하세요. SQLite 벡터가 필요한 기존 로컬 구성은 `requirements-legacy-sqlite.txt`를 별도로 설치해야 합니다.
+
 ```bash
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+python3.11 -m venv .venv
+.venv/bin/python -m pip install --require-hashes -r requirements-build.lock
+.venv/bin/python -m pip install --no-cache-dir --require-hashes --no-build-isolation -r requirements-runtime.lock
+.venv/bin/python -m pip uninstall --yes setuptools wheel packaging
 ```
 
 게이트웨이를 실행하면 수집기가 함께 돕니다. 기본은 무료 정책이라 지갑 설정이 필요 없습니다. 주소는 http://127.0.0.1:8200 입니다.
 ```bash
 GATEWAY_DB=gateway-data/collector.sqlite3 .venv/bin/python -m agent_market.gateway.server
 ```
+
+SQLite 잠금·백업·복구 및 중복 기동 방지 기준은 [DB 운영 안내](deploy/DATABASE_OPERATIONS.md)를 참고하세요. 두 포트가 이미 사용 중이면 기존 서버를 정상 종료한 뒤 다시 실행하세요.
 
 수집기와 조회 API만 띄울 수도 있습니다(http://127.0.0.1:8300/stats). 게이트웨이와 같은 DB로 동시에 띄우지 마세요. 수집이 중복됩니다.
 ```bash
@@ -37,7 +44,7 @@ COLLECTOR_DB=gateway-data/collector.sqlite3 .venv/bin/python -m agent_market.col
 
 ### 에이전트 전용 프론트 (사람이 아닌 AI 에이전트용)
 
-게이트웨이를 실행하면 **관리 화면과 다른 포트(기본 8400)의 별도 앱**으로 함께 뜹니다. 이 앱에는 관리 경로가 없고, 관리 화면(8200)에는 에이전트 대화 창구가 없습니다. 주소는 http://127.0.0.1:8400 입니다(`AGENT_FRONT_PORT`, 끄려면 `AGENT_FRONT=0`). 에이전트가 처음 읽는 곳(`/`, `/robots.txt`, `/llms.txt`, `/.well-known/agent-card.json`, MCP `initialize`, 응답 헤더)마다 "FOR AI AGENTS ONLY"라고 밝히고 바로 인사합니다. 기획안은 [AGENT_FRONT.md](AGENT_FRONT.md)에 있습니다.
+게이트웨이를 실행하면 **관리 화면과 다른 포트(기본 8400, HTTP)의 별도 앱**으로 함께 뜹니다. 이 앱에는 관리 경로가 없고, 관리 화면(8200)에는 에이전트 대화 창구가 없습니다. 로컬 주소는 http://127.0.0.1:8400, 외부 서비스 공식 주소는 https://agentconcierge.biz 입니다(`AGENT_FRONT_PORT`, 끄려면 `AGENT_FRONT=0`, 자체 HTTPS 필요 시 `SSL_ENABLED=1`). 에이전트가 처음 읽는 곳(`/`, `/robots.txt`, `/llms.txt`, `/.well-known/agent-card.json`, MCP `initialize`, 응답 헤더)마다 "FOR AI AGENTS ONLY"라고 밝히고 바로 인사합니다. 기획안은 [AGENT_FRONT.md](AGENT_FRONT.md)에 있습니다.
 
 - **언어:** 답은 영어로만 합니다. 다른 언어로 물어도 이해는 합니다.
 - **대화:** REST `POST :8400/chat`, A2A `POST :8400/a2a`, MCP `POST :8400/mcp`
@@ -69,7 +76,7 @@ COLLECTOR_DB=gateway-data/collector.sqlite3 .venv/bin/python -m agent_market.col
 
 테스트:
 ```bash
-.venv/bin/python -m pytest tests
+.venv-tests/bin/python -m pytest tests
 ```
 
 ## 문서

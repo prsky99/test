@@ -27,6 +27,7 @@ import httpx
 
 from ..broker.discovery import DiscoveryError, check_public_url, public_client
 from ..gateway.store import Store
+from ..observation_guards import GuardError
 from .capabilities import HEADERS, INIT, parse_jsonrpc
 
 log = logging.getLogger("agent_market.collector.auth")
@@ -257,7 +258,7 @@ class AuthDiscoverer:
     def run_due(self, limit: int = 100) -> dict:
         due = self.store.due_for_auth(time.time(), self.max_age, limit)
         if not due:
-            return {"checked": 0}
+            return {"checked": 0, "accepted": 0, "stale": 0}
         by_host: dict[str, list[dict]] = defaultdict(list)
         for r in due:
             by_host[r.get("host") or r["url"]].append(r)
@@ -268,8 +269,12 @@ class AuthDiscoverer:
             for i, r in enumerate(resources):
                 if i:
                     time.sleep(self.per_host_delay)
+                guard = None
                 try:
+                    guard = self.store.observation_guard(r["id"], "auth", expected_resource=r)
                     found, err = self.discover(r, http), None
+                except GuardError:
+                    found, err = None, "stale"
                 except (httpx.PoolTimeout, httpx.ProxyError):
                     found, err = None, "local"
                 except (httpx.HTTPError, DiscoveryError, ValueError) as exc:
@@ -278,7 +283,7 @@ class AuthDiscoverer:
                     log.warning("auth discovery error for %s: %r", r["url"], exc)
                     found, err = None, f"{type(exc).__name__}: {exc}"[:300]
                 with lock:
-                    results.append((r, found, err))
+                    results.append((r, found, err, guard))
 
         try:
             with ThreadPoolExecutor(max_workers=self.workers) as pool:
@@ -286,14 +291,25 @@ class AuthDiscoverer:
         finally:
             if http is not self._fixed_http:
                 http.close()
-        failed = sum(1 for _, f, _ in results if f is None)
-        outage = len(results) >= 20 and failed / len(results) >= 0.8
-        stats = defaultdict(int)
-        for r, found, err in results:
-            if found is None and (outage or err == "local"):
+        attempted = sum(guard is not None for _, _, _, guard in results)
+        failed = sum(1 for _, found, _, guard in results if guard is not None and found is None)
+        outage = attempted >= 20 and failed / attempted >= 0.8
+        stats = defaultdict(int, accepted=0, stale=0)
+        for r, found, err, guard in results:
+            if guard is None:
+                stats["stale"] += 1
+                continue
+            try:
+                with self.store.observation_transaction(guard):
+                    postponed = found is None and (outage or err == "local")
+                    if not postponed: self.store.record_auth(r["id"], found, err)
+            except GuardError:
+                stats["stale"] += 1
+                continue
+            if postponed:
                 stats["postponed"] += 1
                 continue
-            self.store.record_auth(r["id"], found, err)
+            stats["accepted"] += 1
             stats[found["method"] if found else "failed"] += 1
             if found and found["autonomy"] == "agent_autonomous":
                 stats["agent_autonomous"] += 1

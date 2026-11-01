@@ -2,6 +2,13 @@
 
 import os
 from dataclasses import dataclass
+from urllib.parse import urlsplit
+
+DEFAULT_HEALTH_INTERVAL_SECONDS = 6 * 3600
+
+
+def health_interval_seconds() -> float:
+    return float(os.environ.get("HEALTH_INTERVAL_MINUTES", str(DEFAULT_HEALTH_INTERVAL_SECONDS // 60))) * 60
 
 # 체인 ID -> (이름, 기본 RPC, USDC 컨트랙트, 테스트넷 여부)
 NETWORKS = {
@@ -118,7 +125,7 @@ class GatewayConfig:
     scheduler: bool
     allow_private_urls: bool
     free: bool = True  # 무료 정책 (GATEWAY_FREE=0 이면 재소개 유료)
-    health_interval: float = 3600  # 수집 에이전트 헬스체크 주기
+    health_interval: float = DEFAULT_HEALTH_INTERVAL_SECONDS  # 기본 6시간
     health_workers: int = 32
     health_lanes: int = 3  # 동시에 도는 헬스체크 묶음 수
     crawl_page_delay: float = 1.0  # 수집 페이지 사이 간격 (요청 속도 고정)
@@ -133,15 +140,68 @@ class GatewayConfig:
     agent_front: bool = True  # 에이전트 전용 프론트를 관리 화면과 다른 포트로 함께 띄울지 (AGENT_FRONT.md)
     agent_front_host: str | None = None  # 없으면 HOST와 같음
     agent_front_port: int = 8400
-    agent_front_url: str | None = None  # 에이전트에게 알려 줄 공개 주소 (예: https://agents.example.com)
+    agent_front_url: str | None = None  # 에이전트에게 알려 줄 공개 주소 (기본 https://agentconcierge.biz)
+    customer_workspace_access: bool = False
+    customer_workspace_link: bool = False
+    workspace_model_enabled: bool = False
+    workspace_model_url: str = "http://127.0.0.1:11434"
+    workspace_model_fallback_url: str = ""
+    workspace_model_name: str = "gemma3:1b"
+    workspace_model_provider: str = "ollama"
+    workspace_model_allow_http: bool = False
+    local_ollama_enabled: bool = True
+    embedding_enabled: bool | None = None
+    embedding_ollama_url: str = ""
+    ssl_enabled: bool = False  # 8400 포트 기본 HTTP (로컬 브라우저 및 Cloudflare 터널용). SSL_ENABLED=1 설정 시 HTTPS 활성화
+    ssl_certfile: str = "deploy/ssl/cert.pem"
+    ssl_keyfile: str = "deploy/ssl/key.pem"
     concierge_llm: str = "off"  # 컨시어지 로컬 LLM: auto(Ollama가 있으면 사용) | ollama(항상) | off  — from_env 기본은 auto
     ollama_url: str = "http://127.0.0.1:11434"
-    concierge_model: str = "gemma4:e4b-mlx"
+    concierge_model: str = "gemma3:1b"
     concierge_llm_timeout: float = 20.0
     concierge_llm_lead: bool = True  # 답 앞에 모델이 쓴 한두 문장을 붙일지 (끄면 의도 파악에만 사용)
+    log_dir: str = "logs"
+    log_level: str = "INFO"
+    log_archive_dir: str = "logs/archives"
+    log_compress_months: int = 3
+    log_to_console: bool = True
 
     @classmethod
     def from_env(cls) -> "GatewayConfig":
+        workspace_access = os.environ.get("CUSTOMER_WORKSPACE_ACCESS_ENABLED", "0")
+        if workspace_access not in ("0", "1"):
+            raise ValueError("Customer workspace access must be explicitly 0 or 1.")
+        workspace_link = os.environ.get("CUSTOMER_WORKSPACE_LINK_ENABLED", "0")
+        workspace_model = os.environ.get("WORKSPACE_MODEL_ENABLED", "0")
+        workspace_provider = os.environ.get("WORKSPACE_MODEL_PROVIDER", "ollama")
+        workspace_http = os.environ.get("WORKSPACE_MODEL_ALLOW_HTTP", "0")
+        ollama_enabled = os.environ.get("LOCAL_OLLAMA_ENABLED", "1")
+        embedding_enabled = os.environ.get("EMBEDDING_ENABLED")
+        embedding_url = os.environ.get("EMBEDDING_OLLAMA_URL", "")
+        if embedding_enabled is not None and embedding_enabled not in ("0", "1"):
+            raise ValueError("Embedding activation must be explicitly 0 or 1.")
+        if embedding_url:
+            try:
+                parsed_embedding = urlsplit(embedding_url)
+                parsed_embedding.port
+                if (parsed_embedding.scheme not in ("http", "https") or not parsed_embedding.hostname
+                        or parsed_embedding.username is not None or parsed_embedding.password is not None
+                        or parsed_embedding.path not in ("", "/") or parsed_embedding.query or parsed_embedding.fragment
+                        or any(ord(char) <= 32 for char in embedding_url)):
+                    raise ValueError
+            except ValueError:
+                raise ValueError("Use an embedding origin without credentials, path or query.") from None
+
+        if workspace_provider not in ("ollama", "openai") or workspace_http not in ("0", "1"):
+            raise ValueError("Choose an explicit local model provider and HTTP policy.")
+        if ollama_enabled not in ("0", "1"):
+            raise ValueError("Local Ollama activation must be explicitly 0 or 1.")
+        if ollama_enabled == "0" and (workspace_model != "1" or workspace_provider != "openai"):
+            raise ValueError("Disabling Ollama requires the configured OpenAI-compatible generation provider.")
+        if workspace_model not in ("0", "1"):
+            raise ValueError("Workspace model activation must be explicitly 0 or 1.")
+        if workspace_link not in ("0", "1") or workspace_link == "1" and workspace_access != "1":
+            raise ValueError("Customer workspace link requires an explicit 0 or 1 and enabled customer access.")
         free = os.environ.get("GATEWAY_FREE", "1") == "1"
         pay_to = os.environ.get("GATEWAY_WALLET") or None
         if not pay_to and not free:  # 무료 정책은 수수료를 받지 않으므로 지갑이 없어도 된다
@@ -165,17 +225,40 @@ class GatewayConfig:
             agent_front=os.environ.get("AGENT_FRONT", "1") == "1",
             agent_front_host=os.environ.get("AGENT_FRONT_HOST") or None,
             agent_front_port=int(os.environ.get("AGENT_FRONT_PORT", "8400")),
-            agent_front_url=os.environ.get("AGENT_FRONT_URL") or None,
+            customer_workspace_access=workspace_access == "1",
+            customer_workspace_link=workspace_link == "1",
+            workspace_model_enabled=workspace_model == "1",
+            workspace_model_url=os.environ.get("WORKSPACE_MODEL_URL", "http://127.0.0.1:11434"),
+            workspace_model_fallback_url=os.environ.get("WORKSPACE_MODEL_FALLBACK_URL", ""),
+            workspace_model_name=os.environ.get("WORKSPACE_MODEL_NAME", "gemma3:1b"),
+            workspace_model_provider=workspace_provider,
+            workspace_model_allow_http=workspace_http == "1",
+            local_ollama_enabled=ollama_enabled == "1",
+            embedding_enabled=None if embedding_enabled is None else embedding_enabled == "1",
+            embedding_ollama_url=embedding_url,
+            agent_front_url=(
+                (os.environ.get("AGENT_FRONT_URL", "").replace("oneheartall.iptime.org", "agentconcierge.biz").replace(":8080", "").replace("http://agentconcierge.biz", "https://agentconcierge.biz")
+                 if os.environ.get("AGENT_FRONT_URL") else None)
+                or ("https://agentconcierge.biz" if not os.environ.get("PYTEST_CURRENT_TEST") else None)
+            ),
+            ssl_enabled=os.environ.get("SSL_ENABLED", "0") == "1",
+            ssl_certfile=os.environ.get("SSL_CERTFILE", "deploy/ssl/cert.pem"),
+            ssl_keyfile=os.environ.get("SSL_KEYFILE", "deploy/ssl/key.pem"),
             concierge_llm=os.environ.get("CONCIERGE_LLM", "auto"),
             ollama_url=os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434"),
-            concierge_model=os.environ.get("CONCIERGE_MODEL", "gemma4:e4b-mlx"),
+            concierge_model=os.environ.get("CONCIERGE_MODEL", "gemma3:1b"),
             concierge_llm_timeout=float(os.environ.get("CONCIERGE_LLM_TIMEOUT", "20")),
             concierge_llm_lead=os.environ.get("CONCIERGE_LLM_LEAD", "1") == "1",
-            health_interval=float(os.environ.get("HEALTH_INTERVAL_MINUTES", "60")) * 60,
+            health_interval=health_interval_seconds(),
             health_workers=int(os.environ.get("HEALTH_WORKERS", "32")),
             health_lanes=int(os.environ.get("HEALTH_LANES", "3")),
             rescan_interval=float(os.environ.get("RESCAN_INTERVAL_MINUTES", "15")) * 60,
             scheduler=os.environ.get("SCHEDULER", "1") == "1",
             allow_private_urls=os.environ.get("ALLOW_PRIVATE_AGENT_URLS") == "1",
             free=free,
+            log_dir=os.environ.get("LOG_DIR", "logs"),
+            log_level=os.environ.get("LOG_LEVEL", "INFO"),
+            log_archive_dir=os.environ.get("LOG_ARCHIVE_DIR", "logs/archives"),
+            log_compress_months=int(os.environ.get("LOG_COMPRESS_MONTHS", "3")),
+            log_to_console=os.environ.get("LOG_TO_CONSOLE", "1") == "1",
         )

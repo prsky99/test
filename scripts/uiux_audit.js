@@ -42,11 +42,15 @@ async function measurePage(p, url) {
       transferKB: Math.round((rs.reduce((s, x) => s + (x.transferSize || 0), 0) + n.transferSize) / 1024) };
   });
   const btn = p.locator("main button:visible").first();
-  // INP 근사용 클릭. 로그인 버튼처럼 다른 사이트로 넘어가는 버튼은 누르지 않는다
-  const leaves = await btn.evaluate(e => /sign in|log in|continue with|google|github/i.test(e.innerText)).catch(() => true);
-  if ((await btn.count()) && !leaves) await btn.click({ timeout: 3000 }).catch(() => {});
+  if (await btn.count()) await btn.click({ timeout: 3000 }).catch(() => {});
   await p.waitForTimeout(800);
-  if (new URL(p.url()).origin !== new URL(url).origin) await p.goto(url, { waitUntil: "load", timeout: 90000 });
+  // 첫 버튼이 외부 로그인(OAuth) 등으로 이동시키면 원래 페이지를 잰다(남의 사이트를 재지 않기).
+  await p.waitForTimeout(1700);
+  await p.waitForLoadState("load").catch(() => {});
+  if (new URL(p.url()).origin !== new URL(url).origin) {
+    await p.goto(url, { waitUntil: "load", timeout: 90000 });
+    await p.waitForTimeout(1500);
+  }
   const vitals = await p.evaluate(() => window.__v || {});
   await p.evaluate(AXE); // CSP가 있어도 동작하도록 주입 대신 평가
   const axe = await p.evaluate(async () => {
@@ -54,9 +58,9 @@ async function measurePage(p, url) {
     return res.violations.map(v => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, example: (v.nodes[0]?.target || []).join(" ").slice(0, 80) }));
   });
   const ui = await p.evaluate(() => {
-    const vis = e => { const r = e.getBoundingClientRect(); const s = getComputedStyle(e); return r.width > 0 && r.height > 0 && s.visibility !== "hidden" && s.display !== "none"; };
+    const vis = e => { const r = e.getBoundingClientRect(); const s = getComputedStyle(e); return r.width > 0 && r.height > 0 && s.visibility !== "hidden" && s.display !== "none" && s.clipPath !== "inset(50%)" && s.clip !== "rect(0px, 0px, 0px, 0px)"; };
     const ctrls = [...document.querySelectorAll("a,button,input,select,textarea,[role=button]")].filter(vis);
-    const small = ctrls.filter(e => { const r = e.getBoundingClientRect(); return (r.width < 24 || r.height < 24) && !(e.tagName === "A" && getComputedStyle(e).display === "inline"); });
+    const small = ctrls.filter(e => { const r = e.getBoundingClientRect(); const labelHit = [...(e.labels || [])].some(l => {const b=l.getBoundingClientRect();return vis(l) && b.width>=24 && b.height>=24;}); return (r.width < 24 || r.height < 24) && !labelHit && !(e.tagName === "A" && getComputedStyle(e).display === "inline"); });
     return { controls: ctrls.length, smallTargets: small.length, smallExamples: small.slice(0, 3).map(e => (e.innerText || e.getAttribute("aria-label") || e.tagName).trim().slice(0, 20)),
       overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth, lang: document.documentElement.lang,
       visibleH1: [...document.querySelectorAll("h1")].filter(vis).length, landmarks: ["main", "nav", "header", "footer"].filter(t => document.querySelector(t)).length,

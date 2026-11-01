@@ -55,8 +55,10 @@ class GatewayClient:
     def decline(self, offer: dict) -> None:
         self.http.post(f"{self.url}/offers/decline", json={"offer_id": offer["offer_id"], "need_id": offer["need_id"]}).raise_for_status()
 
-    def feedback(self, need_id: str, success: bool, rating: int | None = None) -> None:
-        self.http.post(f"{self.url}/needs/{need_id}/feedback", json={"success": success, "rating": rating}).raise_for_status()
+    def feedback(self, need_id: str, success: bool, rating: int | None = None) -> dict:
+        resp = self.http.post(f"{self.url}/needs/{need_id}/feedback", json={"success": success, "rating": rating})
+        resp.raise_for_status()
+        return resp.json()
 
 
 def main() -> None:

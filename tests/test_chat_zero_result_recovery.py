@@ -10,6 +10,7 @@ def tool(name, description):
 
 
 def test_shared_words_replace_subject_words(monkeypatch):
+    monkeypatch.setattr('agent_market.concierge.discovery.enabled', lambda engine: True)
     texts = ['remote jobs board'] * 6 + ['remote work jobs api'] * 4 + ['software engineering jobs digest']
     monkeypatch.setattr('agent_market.concierge.discovery.candidates',
                         lambda *a, **k: [{'_rank_text': text} for text in texts])
@@ -18,6 +19,7 @@ def test_shared_words_replace_subject_words(monkeypatch):
 
 
 def test_subjects_qualifiers_and_generic_words_never_lead(monkeypatch):
+    monkeypatch.setattr('agent_market.concierge.discovery.enabled', lambda engine: True)
     rows = [{'_rank_text': 'restaurants near times square guide'}] * 4 + [{'_rank_text': 'restaurants nearby'}] * 6
     monkeypatch.setattr('agent_market.concierge.discovery.candidates', lambda *a, **k: rows)
     monkeypatch.setattr(fc, 'catalog_share', lambda store, term: 0.001)
@@ -29,6 +31,7 @@ def test_subjects_qualifiers_and_generic_words_never_lead(monkeypatch):
 
 
 def test_one_word_needs_the_shortlist_to_converge(monkeypatch):
+    monkeypatch.setattr('agent_market.concierge.discovery.enabled', lambda engine: True)
     rows = [{'_rank_text': 'landscape survey'}] * 2 + [{'_rank_text': 'unrelated'}] * 18
     monkeypatch.setattr('agent_market.concierge.discovery.candidates', lambda *a, **k: rows)
     monkeypatch.setattr(fc, 'catalog_share', lambda store, term: 0.0001)
@@ -36,6 +39,7 @@ def test_one_word_needs_the_shortlist_to_converge(monkeypatch):
 
 
 def test_too_few_candidates_or_one_core_word_change_nothing(monkeypatch):
+    monkeypatch.setattr('agent_market.concierge.discovery.enabled', lambda engine: True)
     monkeypatch.setattr('agent_market.concierge.discovery.candidates', lambda *a, **k: [{'_rank_text': 'jobs'}] * 3)
     assert fc.capability_focus(object(), None, 'find remote software engineering jobs') is None
     assert fc.capability_focus(object(), None, 'weather') is None
@@ -85,3 +89,10 @@ def test_questions_and_long_requests_skip_narrowing():
     assert not fc.QUESTION_FORM.match('find remote software engineering jobs')
     from agent_market.concierge.chat_query_rewrite import SUMMARY_MIN_CHARS
     assert SUMMARY_MIN_CHARS == 100
+
+
+def test_no_second_retrieval_without_an_enabled_engine(monkeypatch):
+    calls = []
+    monkeypatch.setattr('agent_market.concierge.discovery.candidates', lambda *a, **k: calls.append(1) or [])
+    assert fc.capability_focus(object(), None, 'find remote software engineering jobs') is None
+    assert calls == []

@@ -81,7 +81,10 @@ def capability_focus(store, engine, task, protocol=None):
     word names the subject the capability is applied to, not the capability. Only the
     listing's own compact text is read; nothing is selected here."""
     from .selection import capability_terms, _term_in
-    from .discovery import candidates, normalize_task, ranking_text
+    from .discovery import candidates, enabled, normalize_task, ranking_text
+    # The same retrieval the first search used; without an enabled engine there is none to repeat.
+    if not enabled(engine):
+        return None
     core = capability_terms(normalize_task(task))
     if len(core) < 2:
         return None

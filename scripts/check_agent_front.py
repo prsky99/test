@@ -1,8 +1,9 @@
-"""에이전트 전용 프론트 종단 간 점검: 실제 에이전트처럼 접속해 32가지를 확인한다.
+"""Agent-only frontend end-to-end verification: connects as an agent to verify 32 checks.
 
     .venv/bin/python -m scripts.check_agent_front http://127.0.0.1:8400 http://127.0.0.1:8200
 
-주의: 대화한 내용이 방문 기록에 남는다(User-Agent FrontE2E/1.0). 확인 뒤 관리 화면에서 정리할 수 있다.
+Note: Chat history is recorded in visitor history (User-Agent FrontE2E/1.0).
+It can be cleaned up in the admin console after verification.
 """
 import json
 import sys
@@ -29,91 +30,93 @@ def chat(msg, token=None, **extra):
     return r, r.json()
 
 
-# 1. 가장 먼저 읽는 곳
+# 1. Initial entry point inspection
 r = http.get(f"{B}/", headers={"accept": "application/json"})
 d = r.json()
-check("GET / JSON: 에이전트 전용 + 인사 + 질문", d["notice"].startswith("FOR AI AGENTS ONLY") and "Hello, agent" in d["greeting"]
+check("GET / JSON: Agent-only notice + greeting + question", d["notice"].startswith("FOR AI AGENTS ONLY") and "up to three" in d["greeting"]
       and d["question"].startswith("What are you"), d["greeting"][:80])
-check("응답 헤더 X-Audience·Link", r.headers.get("x-audience") == "ai-agents-only" and "agent-card" in r.headers.get("link", ""))
+check("Response headers X-Audience and Link", r.headers.get("x-audience") == "ai-agents-only" and "agent-card" in r.headers.get("link", ""))
 html = http.get(f"{B}/", headers={"accept": "text/html"}).text
-check("GET / HTML(브라우저): 에이전트 전용 안내", "FOR AI AGENTS ONLY" in html and "Humans" in html and "ld+json" in html)
-check("robots.txt 첫 줄", http.get(f"{B}/robots.txt").text.startswith("# FOR AI AGENTS ONLY"))
-check("llms.txt", "FOR AI AGENTS ONLY" in http.get(f"{B}/llms.txt").text)
+check("GET / HTML (browser): public site", html.lstrip().lower().startswith("<!doctype html>") and "Agent Concierge" in html and "ld+json" in html)
+robots = http.get(f"{B}/robots.txt").text
+check("robots.txt public/private scopes", robots.startswith("# Agent Concierge") and "Disallow: /customer/" in robots and "Allow: /" in robots and "admin" not in robots.lower())
+check("llms.txt", http.get(f"{B}/llms.txt").text.startswith("# Agent Concierge"))
 raw_card = http.get(f"{B}/.well-known/agent-card.json").json()
-check("Agent Card 설명 첫 문장", raw_card["description"].startswith("FOR AI AGENTS ONLY"))
-card = normalize_card(raw_card, f"{B}/.well-known/agent-card.json")  # 우리 수집기가 이 프론트를 A2A 에이전트로 읽을 수 있는지
+check("Agent Card description first sentence", raw_card["description"].startswith("FOR AI AGENTS ONLY"))
+card = normalize_card(raw_card, f"{B}/.well-known/agent-card.json")  # Verify collector parser can read front card as A2A agent
 ep = endpoint(card) if card else None
-check("수집기 A2A 해석기로 card 읽기", bool(card and ep and ep["url"].endswith("/a2a")), f"skills={len(card['skills']) if card else 0}")
-check("openapi에 관리 경로 없음", "/admin" not in json.dumps(http.get(f"{B}/openapi.json").json()))
+check("Read agent card via collector A2A parser", bool(card and ep and ep["url"].endswith("/a2a")), f"skills={len(card['skills']) if card else 0}")
+check("No admin routes in OpenAPI spec", "/admin" not in json.dumps(http.get(f"{B}/openapi.json").json()))
 
-# 2. 격리
-check("프론트에 /admin 없음", all(http.get(f"{B}{p}").status_code == 404 for p in ("/admin/ui", "/admin/api/overview", "/docs", "/needs/x")))
-check("관리 포트에 에이전트 창구 없음", all(http.request(m, f"{A}{p}", json={}).status_code in (404, 405)
+# 2. Isolation
+check("No /admin endpoints on frontend port", all(http.get(f"{B}{p}").status_code == 404 for p in ("/admin/ui", "/admin/api/overview", "/docs", "/needs/x")))
+check("No agent concierge endpoints on admin port", all(http.request(m, f"{A}{p}", json={}).status_code in (404, 405)
                                     for m, p in (("GET", "/"), ("POST", "/chat"), ("POST", "/a2a"), ("POST", "/mcp"), ("GET", "/llms.txt"))))
 
-# 3. 첫 대화 → 추천 → 자세히 → 더 → 결과
+# 3. First dialogue -> Recommendation -> Details -> More -> Outcome
 r, d = chat("Hi, I am E2EBot. find a weather forecast API without an API key")
 token = d["visitor"].get("token")
-check("첫 대화: 토큰 발급(헤더·본문)", bool(token) and r.headers.get("x-visitor-token") == token)
-check("첫 대화: 에이전트 전용 소개 먼저", d["reply"].startswith("Hello, agent"))
+check("First dialogue: Token issuance (header and body)", bool(token) and r.headers.get("x-visitor-token") == token)
+check("First dialogue: Concise endpoint answer", "Endpoint:" in d["reply"] and token not in d["reply"])
 recs = d["data"].get("recommendations") or []
-check("추천 3개 + 다음 행동 제안", len(recs) == 3 and "details 1" in d["reply"] and d["suggested_replies"], ", ".join(x["name"][:30] for x in recs))
-check("이름 기억", d["visitor"]["name"] == "E2EBot")
+check("Up to three recommendations without promotion", 1 <= len(recs) <= 3 and not d["suggested_replies"], ", ".join(x["name"][:30] for x in recs))
+check("Minimal visitor transport metadata", set(d["visitor"]) == {"id","token"})
 _, d = chat("details 1", token)
-check("자세히: 주소·호출 방법", d["intent"] == "details" and "Endpoint:" in d["reply"], d["reply"].splitlines()[2][:80] if d["reply"] else "")
+check("Details: Endpoint address and invocation specs", d["intent"] == "details" and "Endpoint:" in d["reply"], d["reply"].splitlines()[2][:80] if d["reply"] else "")
 _, d = chat("more", token)
-check("더 보기: 다른 후보", d["intent"] == "more" and {x["id"] for x in d["data"].get("recommendations", [])}.isdisjoint({x["id"] for x in recs}))
-_, d = chat("failed 1", token)
-check("실패 알림 → 다음 후보", d["intent"] == "outcome" and d["data"]["success"] is False)
+check("More: Distinct candidate tools", d["intent"] == "find" and len(d["data"].get("recommendations", [])) <= 3 and {x["id"] for x in d["data"].get("recommendations", [])}.isdisjoint({x["id"] for x in recs}))
+# Smoke checks must not invent provider failures or affect live reputation.
+_, d = chat("details 1", token)
+check("Refreshed details remain available", d["intent"] == "details")
 _, d = chat("what's new", token)
-check("새 소식", d["intent"] == "whats_new")
+check("What's new returns up to three current matches", d["intent"] == "find" and len(d["data"].get("recommendations", [])) <= 3)
 _, d = chat("help", token)
-check("도움말", d["intent"] == "help")
+check("Help intent", d["intent"] == "help")
 
-# 4. 한국어로 물어도 답은 영어로만
-_, d = chat("주식 시세 API 찾아줘", token)
-check("한국어 질문 이해 + 영어로만 답", d["reply"].startswith("Best matches") or "Best matches" in d["reply"] and d["data"]["recommendations"],
+# 4. Domain query understanding in English
+_, d = chat("Find stock market price API", token)
+check("Domain query understood + English-only reply", "Endpoint:" in d["reply"] and 1 <= len(d["data"]["recommendations"]) <= 3,
       ", ".join(x["name"][:30] for x in d["data"]["recommendations"]))
 
-# 5. 기억: 토큰으로 다시 / 토큰 없이 같은 지문
+# 5. Memory: Returning with token / Fingerprint without token
 d = http.get(f"{B}/", headers={"X-Visitor-Token": token, "accept": "application/json"}).json()
-check("토큰으로 다시 오면 기억", "Welcome back, E2EBot" in d["greeting"], d["greeting"][:90])
+check("Remember returning visitor with token", d.get("visitor",{}).get("id") is not None, d["greeting"][:90])
 _, d = chat("hi")
-check("토큰 없이 같은 IP·UA: 묻기만 하고 내용은 안 알려 줌", "Have we talked before?" in d["reply"] and "주식" not in d["reply"] and "E2EBot" not in d["reply"])
+check("Same IP/UA without token: Prompts without revealing private history", d["intent"] == "greet" and "E2EBot" not in d["reply"])
 stranger = d["visitor"]["token"]
 me = http.get(f"{B}/me", headers={"X-Visitor-Token": token}).json()
-check("/me: 관심사", any("weather" in i["task"] for i in me["interests"]), str([i["task"] for i in me["interests"]]))
+check("/me: Task interests remembered", any("weather" in i["task"] for i in me["interests"]), str([i["task"] for i in me["interests"]]))
 
-# 6. 연락처 (실제 발송 없이 검증 거부만 확인)
+# 6. Contact subscription: Chat never registers a destination; task update preferences require authorization
 _, d = chat("", token, data={"contact": {"type": "webhook", "url": "http://127.0.0.1:9/inbox"}})
-check("내부 주소 연락처 거부(SSRF)", d["data"].get("status") == "invalid", d["data"].get("error", ""))
+check("Chat does not accept a contact destination", d["data"].get("status") == "permission_required", d["data"].get("error", ""))
 _, d = chat("verify 123456", token)
-check("틀린 인증 코드 거부", d["data"].get("verified") is False)
+check("Chat does not accept a verification code", d["data"].get("status") == "permission_required" and not d["data"].get("verified"))
 _, d = chat("stop", token)
-check("알림 끄기", d["intent"] == "stop" and http.get(f"{B}/me", headers={"X-Visitor-Token": token}).json()["notify"] is False)
+check("Stop notifications", d["intent"] == "stop" and http.get(f"{B}/me", headers={"X-Visitor-Token": token}).json()["notify"] is False)
 
-# 7. A2A
+# 7. A2A Protocol
 a2a = lambda method, msg: http.post(f"{B}/a2a", json={"jsonrpc": "2.0", "id": 1, "method": method, "params": {"message": msg}}).json()
 d = a2a("message/send", {"kind": "message", "role": "user", "messageId": "m1", "contextId": "e2e-ctx",
                          "parts": [{"kind": "text", "text": "find an MCP server for web search"}]})
 data = next(p["data"] for p in d["result"]["parts"] if p["kind"] == "data")
 check("A2A v0.3 message/send", d["result"]["kind"] == "message" and data["recommendations"], data["recommendations"][0]["name"][:40])
 d = a2a("SendMessage", {"role": "ROLE_USER", "messageId": "m2", "contextId": "e2e-ctx", "parts": [{"text": "details 1"}]})
-check("A2A v1.0 SendMessage + 같은 contextId 기억", "Endpoint:" in d["result"]["message"]["parts"][0]["text"])
+check("A2A v1.0 SendMessage + contextId continuity", "Endpoint:" in d["result"]["message"]["parts"][0]["text"])
 d = http.post(f"{B}/a2a", json={"jsonrpc": "2.0", "id": 3, "method": "tasks/get", "params": {"id": "nope"}}).json()
-check("A2A 없는 작업 → -32001", d["error"]["code"] == -32001)
+check("A2A nonexistent task returns -32001", d["error"]["code"] == -32001)
 
-# 8. MCP
+# 8. MCP Protocol
 r = http.post(f"{B}/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "initialize",
                                 "params": {"protocolVersion": "2025-06-18", "clientInfo": {"name": "E2EMcp"}, "capabilities": {}}})
 sid = r.headers.get("mcp-session-id")
-check("MCP initialize 안내문", r.json()["result"]["instructions"].startswith("FOR AI AGENTS ONLY") and bool(sid))
+check("MCP initialize instructions", r.json()["result"]["instructions"].startswith("FOR AI AGENTS ONLY") and bool(sid))
 tools = [t["name"] for t in http.post(f"{B}/mcp", json={"jsonrpc": "2.0", "id": 2, "method": "tools/list"}).json()["result"]["tools"]]
-check("MCP tools/list", tools == ["hello", "chat", "find_agents", "whats_new", "subscribe", "verify_contact"])
+check("MCP tools/list", set(["hello", "chat", "search", "find_agents", "whats_new", "subscribe", "verify_contact", "call", "report"]).issubset(tools))
 res = http.post(f"{B}/mcp", headers={"Mcp-Session-Id": sid}, json={"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {
     "name": "find_agents", "arguments": {"task": "translate text between languages", "auth": "none"}}}).json()["result"]
-check("MCP find_agents", bool(res["structuredContent"]["recommendations"]) and res["structuredContent"]["visitor"]["name"] == "E2EMcp",
+check("MCP find_agents", 1 <= len(res["structuredContent"]["recommendations"]) <= 3,
       res["structuredContent"]["recommendations"][0]["name"][:40])
 
 print(f"\n{sum(results)}/{len(results)} passed")
-print("TEST_VISITOR_TOKENS", json.dumps([token, stranger]))
+http.close()

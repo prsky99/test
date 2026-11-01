@@ -80,6 +80,19 @@ def grade_at_least(grade: str | None, minimum: str) -> bool:
     return bool(grade) and GRADE_ORDER.index(grade) <= GRADE_ORDER.index(minimum.upper())
 
 
+def verdict(kind: str, status: int | None, body_ok: bool, timed_out: bool = False) -> str:
+    """Three-stage verdict per Chapter 1 of the test report improvement plan."""
+    if timed_out or status is None or status >= 500:
+        return "fail"
+    if status in (401, 403):
+        return "gated" if body_ok else "fail"
+    if status == 402:
+        return "gated" if kind == "x402" and body_ok else "fail"
+    if 200 <= status < 300:
+        return "pass" if body_ok else "fail"
+    return "fail"
+
+
 def full_tools(tools_raw: list) -> list[dict]:
     """보안 검사용 도구 정의. compact_tools는 설명을 400자로 자르지만 주입 문구는 긴 설명 끝에 숨는 경우가 많아 원문을 본다."""
     out = []
@@ -203,11 +216,11 @@ def protocol_findings(tools_raw: list, init: dict | None) -> tuple[float, list[d
             findings.append({"severity": severity, "code": code, "tool": tool, "message": message})
 
     pv = init.get("protocol_version")
-    check(pv, "no_protocol_version", "initialize did not return protocolVersion", severity="medium")
+    check(pv, "no_protocol_version", "initialize or server/discover did not return protocolVersion", severity="medium")
     if pv:
         check(isinstance(pv, str) and re.match(r"^\d{4}-\d{2}-\d{2}$", pv), "invalid_protocol_version",
               f"protocolVersion '{str(pv)[:20]}' is not a YYYY-MM-DD revision", severity="medium")
-    check((init.get("server_info") or {}).get("name"), "no_server_info", "initialize did not return serverInfo.name")
+    check((init.get("server_info") or {}).get("name"), "no_server_info", "initialize or server/discover did not return serverInfo.name")
     names = [t.get("name") for t in tools_raw if isinstance(t, dict)]
     check(len(names) == len(set(names)), "duplicate_tool_names", "Duplicate tool names", severity="medium")
     check(tools_raw, "no_tools", "tools/list returned no tools", severity="medium")
@@ -267,7 +280,17 @@ def provenance_score(resource: dict, now: float | None = None) -> tuple[float, l
     if re.match(r"^\d+\.\d+", version) and not version.startswith("0.0.0"):
         score += 0.1
     updated = resource.get("last_called")  # MCP Registry의 updatedAt
-    if updated:
+    if isinstance(updated, str) and updated.strip():
+        try:
+            updated = float(updated)
+        except ValueError:
+            try:
+                from datetime import datetime, timezone
+                dt = datetime.fromisoformat(updated.strip().replace("Z", "+00:00"))
+                updated = (dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt).timestamp()
+            except ValueError:
+                updated = None
+    if isinstance(updated, (int, float)):
         age_days = (now - updated) / 86400
         score += 0.2 if age_days <= 90 else 0.12 if age_days <= 180 else 0.05 if age_days <= 365 else 0.0
         if age_days > 365:
@@ -607,3 +630,142 @@ def evaluate_agent(resource: dict, card: dict, meta: dict, live: dict, trial: di
                   "signed": card.get("signed"), "security_signals": len(sec)},
         "findings": _sort_findings(findings), "at": now or time.time(),
     }
+
+
+# ============================================================================
+# x402 유료 API 품질 평가
+# ============================================================================
+X402_EVAL_VERSION = 1
+_EVM_ADDRESS = re.compile(r"^0x[a-fA-F0-9]{40}$")
+
+
+def evaluate_x402(resource: dict, live: dict | None = None, now: float | None = None) -> dict:
+    """x402 유료 API 평가 (MCP·A2A와 동일한 6개 축 100점 만점 및 A~F 등급 산식).
+
+    6대 평가 차원:
+    1. 가용성 (availability, 25%): 24시간 헬스체크 성공률, 응답 레이턴시(속도), healthy 상태
+    2. 정의 품질 (definitions, 20%): 설명문 길이 및 동사 명확도, 입력 스키마/메서드 명세, 카테고리 정확도
+    3. 보안 (security, 20%): HTTPS 필수, 유효한 온체인 정산 지갑 주소, 프롬프트 인젝션·시크릿 누출 검사
+    4. 컨텍스트 효율 (context, 15%): 간결한 스키마 토큰, 압축 효율
+    5. 프로토콜 준수 (protocol, 10%): x402 버전(v2 우선), accepts 결제 사양(USDC, Base EIP-155) 완전성
+    6. 출처 및 실사용 (provenance, 10%): 최근 30일 고유 결제자 수(payers_30d), 호출량(calls_30d), 가격 합리성
+    """
+    dims, findings = {}, []
+
+    # 1) 가용성 (25%)
+    n, ok = resource.get("health_n_24h") or 0, resource.get("health_ok_24h") or 0
+    uptime = ok / n if n >= 3 else (ok + 1) / (n + 2)
+    latency = (live or {}).get("latency_ms") or resource.get("probe_latency_ms")
+    if latency is None or latency <= 400:
+        speed = 1.0
+    elif latency <= 1000:
+        speed = 0.85
+    elif latency <= 3000:
+        speed = 0.65
+    elif latency <= 8000:
+        speed = 0.4
+    else:
+        speed = 0.2
+
+    h_status = resource.get("health_status") or "unknown"
+    status_score = 1.0 if h_status == "healthy" else 0.7 if h_status == "reachable" else 0.2
+    dims["availability"] = round(0.45 * uptime + 0.35 * speed + 0.20 * status_score, 3)
+    if uptime < 0.85 and n >= 3:
+        findings.append({"severity": "medium", "code": "low_uptime", "tool": None, "message": f"24h uptime {ok}/{n}"})
+    if latency and latency > 3000:
+        findings.append({"severity": "low", "code": "slow_response", "tool": None, "message": f"High response latency: {latency}ms"})
+
+    # 2) 정의 품질 (20%)
+    desc = (resource.get("description") or "").strip()
+    details = resource.get("details")
+    if isinstance(details, str):
+        try:
+            details = json.loads(details)
+        except ValueError:
+            details = {}
+    details = details or {}
+
+    desc_score = 1.0 if len(desc) >= 60 and _PURPOSE_VERB.search(desc) else 0.75 if len(desc) >= 30 else 0.4 if desc else 0.1
+    inp = details.get("input") or {}
+    input_score = 1.0 if (inp.get("body") or inp.get("properties") or inp.get("method")) else 0.5 if inp else 0.3
+    cat = resource.get("category")
+    cat_score = 1.0 if cat and cat != "other" else 0.6
+    dims["definitions"] = round(0.50 * desc_score + 0.35 * input_score + 0.15 * cat_score, 3)
+    if len(desc) < 20:
+        findings.append({"severity": "low", "code": "short_description", "tool": None, "message": "Description is very short or missing"})
+
+    # 3) 보안 (20%)
+    sec_findings = []
+    url = resource.get("url") or ""
+    if not url.startswith("https://"):
+        sec_findings.append({"severity": "critical", "code": "insecure_endpoint", "precision": "high", "message": "Endpoint does not use HTTPS"})
+
+    pay_to = resource.get("pay_to") or ""
+    if not pay_to or not _EVM_ADDRESS.match(pay_to):
+        sec_findings.append({"severity": "high", "code": "invalid_payment_address", "precision": "high", "message": "Invalid or missing settlement EVM wallet address"})
+
+    text_corpus = f"{resource.get('name', '')} {desc} {json.dumps(inp)}"
+    if _HIDDEN_CHARS.search(text_corpus):
+        sec_findings.append({"severity": "critical", "code": "hidden_unicode", "precision": "high", "message": "Hidden unicode or Trojan Source characters detected"})
+    if _SECRET.search(text_corpus):
+        sec_findings.append({"severity": "critical", "code": "hardcoded_secret", "precision": "high", "message": "Potential hardcoded secret or API key detected in text/schema"})
+    if _INJECTION.search(text_corpus):
+        sec_findings.append({"severity": "medium", "code": "instruction_injection", "precision": "review", "message": "Potential prompt injection keywords in description/input"})
+    if _SENSITIVE.search(text_corpus):
+        sec_findings.append({"severity": "medium", "code": "sensitive_path", "precision": "review", "message": "Reference to sensitive local file paths"})
+
+    findings += sec_findings
+    penalty = sum(SEVERITY_PENALTY[f["severity"]] * PRECISION.get(f["code"], 1.0) for f in sec_findings)
+    dims["security"] = round(max(0.0, 100 - penalty) / 100, 3)
+    quarantined = any(f["code"] in QUARANTINE_CODES for f in sec_findings)
+    security_level = "quarantine" if quarantined else "review" if sec_findings else "ok"
+
+    # 4) 컨텍스트 효율 (15%)
+    desc_tokens = len(desc) // 4
+    input_tokens = len(json.dumps(inp)) // 4 if inp else 0
+    total_tokens = desc_tokens + input_tokens
+    dims["context"] = round(_linear(total_tokens, 200, 2000, 0.4), 3)
+
+    # 5) 프로토콜 준수 (10%)
+    x402_ver = details.get("x402Version") or 1
+    ver_score = 1.0 if x402_ver >= 2 else 0.8
+    accepts = details.get("accepts") or []
+    has_usdc = any("usd" in str(a.get("extra", {})).lower() or a.get("asset") == "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" for a in accepts)
+    accepts_score = 1.0 if accepts and has_usdc else 0.7 if accepts else 0.4
+    dims["protocol"] = round(0.5 * ver_score + 0.5 * accepts_score, 3)
+    if not accepts:
+        findings.append({"severity": "low", "code": "missing_accepts_spec", "tool": None, "message": "No structured payment accepts specification provided"})
+
+    # 6) 출처 및 실사용 (10%)
+    payers = resource.get("payers_30d") or 0
+    calls = resource.get("calls_30d") or 0
+    price = resource.get("price_usdc") or 0
+
+    payers_score = 1.0 if payers >= 50 else 0.85 if payers >= 10 else 0.7 if payers >= 1 else 0.4
+    calls_score = 1.0 if calls >= 1000 else 0.85 if calls >= 100 else 0.65 if calls >= 1 else 0.4
+    price_score = 1.0 if (0 < price <= 50_000) else 0.85 if price <= 500_000 else 0.65 if price <= 5_000_000 else 0.4 if price > 0 else 0.5
+    dims["provenance"] = round(0.4 * payers_score + 0.3 * calls_score + 0.3 * price_score, 3)
+
+    score = sum(WEIGHTS[k] * v for k, v in dims.items())
+    if quarantined:
+        score = min(score, QUARANTINE_CAP)
+
+    is_verified = (h_status == "healthy") and (resource.get("last_status_code") in (200, 402))
+
+    return {
+        "version": X402_EVAL_VERSION, "kind": "x402", "status": "scored",
+        "coverage": "full" if (resource.get("health_ok_24h") or 0) > 0 else "definitions",
+        "task_verified": False, "score": round(score, 1), "grade": grade_for(score), "security": security_level,
+        "trial_ok": 1 if is_verified else 0,
+        "dimensions": dims,
+        "stats": {
+            "price_usdc": price,
+            "payers_30d": payers,
+            "calls_30d": calls,
+            "latency_ms": latency,
+            "x402_version": x402_ver,
+            "verified": is_verified,
+        },
+        "findings": _sort_findings(findings), "at": now or time.time(),
+    }
+

@@ -129,18 +129,33 @@ class BuyerAgent:
             raise BuyerError(f"총 예산 {self.config.budget}을 넘습니다 (이미 {self.spent} 사용).")
 
     def _pay(self, token: str, pay_to: str, amount: int) -> str:
+        from .chain import get_nonce_manager
+        nonce_mgr = get_nonce_manager()
+        nonce = nonce_mgr.get_nonce(self.account.address, self.rpc)
+
         tx = {
             "from": self.account.address,
             "to": token,
             "data": encode_transfer(pay_to, amount),
             "value": 0,
             "chainId": self.config.network.chain_id,
-            "nonce": self.rpc.nonce(self.account.address),
-            "gasPrice": self.rpc.gas_price(),
+            "nonce": nonce,
         }
-        tx["gas"] = self.rpc.estimate_gas({"from": tx["from"], "to": token, "data": tx["data"]})
-        signed = self.account.sign_transaction({k: v for k, v in tx.items() if k != "from"})
-        return self.rpc.send_raw(signed.raw_transaction)
+        try:
+            max_fee, priority_fee = self.rpc.eip1559_fees()
+            tx["maxFeePerGas"] = max_fee
+            tx["maxPriorityFeePerGas"] = priority_fee
+            tx["type"] = 2
+        except Exception:
+            tx["gasPrice"] = self.rpc.gas_price()
+
+        try:
+            tx["gas"] = self.rpc.estimate_gas({"from": tx["from"], "to": token, "data": tx["data"]})
+            signed = self.account.sign_transaction({k: v for k, v in tx.items() if k != "from"})
+            return self.rpc.send_raw(signed.raw_transaction)
+        except Exception:
+            nonce_mgr.reset(self.account.address)
+            raise
 
 
 def main() -> None:

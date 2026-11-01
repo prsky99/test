@@ -27,7 +27,7 @@ REGIONS = {
     "ch": ("스위스", r"\bCH\b", r"\b(switzerland|swiss)\b"),
     "ca": ("캐나다", r"(?!x)x", r"\b(canada|canadian)\b"),
     "au": ("호주", r"\b(AU|ASX)\b", r"\b(australia|australian)\b"),
-    "latam": ("중남미", r"(?!x)x", r"\b(mexico|mexican|latam|latin america|argentina|chile|colombia|peru)\b"),
+    "latam": ("중남미", r"(?!x)x", r"\b(mexico|mexican|latam|latin america|argentina|chile|colombia|peru|puerto ric(?:o|an)|caribbean)\b"),
     "africa": ("아프리카", r"\b(NG|KE|ZA)\b", r"\b(nigeria|kenya|south africa|africa|african)\b"),
     "sea": ("동남아", r"\b(SGX)\b", r"\b(singapore|indonesia|vietnam|thailand|philippines|malaysia)\b"),
     "me": ("중동", r"\b(UAE|KSA)\b", r"\b(dubai|saudi|qatar|abu dhabi|emirates)\b"),
@@ -87,6 +87,41 @@ def detect_language(text: str) -> str | None:
 def regions_in_text(text: str) -> list[str]:
     """설명문에 나오는 나라·지역 (데이터 대상 지역). 특정 지역이 없으면 빈 목록 = 전 세계 공통."""
     return sorted(code for code, (cs, ci) in _REGION_PATTERNS.items() if cs.search(text) or ci.search(text))
+
+
+# Focused gazetteer: cities and regions that listings name as their only coverage
+# (a "focused gazetteer" outperforms a generic one for scope resolution). Each maps to
+# the region code used by REGIONS. Ambiguous English words (e.g. "nice", "reading") are left out.
+PLACES = {
+    "kr": "seoul, busan, incheon, daegu, daejeon, gwangju, ulsan, jeju, suwon, gyeonggi",
+    "jp": "tokyo, osaka, kyoto, yokohama, sapporo, nagoya, fukuoka, kobe, okinawa, hokkaido",
+    "cn": "beijing, shanghai, shenzhen, guangzhou, chengdu, hangzhou, wuhan",
+    "us": "hawaii, honolulu, alaska, california, texas, florida, new york, nyc, chicago, los angeles, san francisco, "
+          "seattle, boston, miami, denver, atlanta, las vegas, washington dc, colorado, oregon, arizona, nevada",
+    "gb": "london, manchester, birmingham, liverpool, edinburgh, glasgow",
+    "fr": "paris, lyon, marseille",
+    "de": "berlin, munich, hamburg, frankfurt, cologne",
+    "au": "sydney, melbourne, brisbane, perth, adelaide",
+    "ca": "toronto, vancouver, montreal, ottawa, calgary",
+    "in": "delhi, mumbai, bangalore, bengaluru, chennai, kolkata, hyderabad",
+    "sea": "phuket, bangkok, chiang mai, pattaya, bali, jakarta, hanoi, ho chi minh, manila, cebu, kuala lumpur",
+    "me": "riyadh, doha",
+    "br": "sao paulo, rio de janeiro, brasilia",
+    "latam": "mexico city, buenos aires, bogota, lima, santiago",
+    "africa": "lagos, nairobi, cape town, johannesburg, cairo",
+}
+_PLACE_PATTERNS = {code: re.compile(r"\b(?:" + "|".join(re.escape(name.strip()).replace(r"\ ", r"\s+")
+                                                         for name in sorted(names.split(","), key=len, reverse=True)) + r")\b", re.I)
+                   for code, names in PLACES.items()}
+
+
+def places_in_text(text: str) -> list[str]:
+    """Regions named through a city or local region ("Phuket weather", "Seoul")."""
+    found = set(regions_in_text(text))
+    for code, pattern in _PLACE_PATTERNS.items():
+        if pattern.search(text):
+            found.add(code)
+    return sorted(found)
 
 
 def normalize_language(value) -> str | None:

@@ -9,9 +9,11 @@
 
 import hmac
 import logging
+import json
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
+from starlette.concurrency import run_in_threadpool
 
 from .chain import RPC
 from .config import SellerConfig
@@ -64,12 +66,18 @@ def create_app(config: SellerConfig, verifier: PaymentVerifier | None = None, wo
         svc = SERVICES.get(name)
         if svc is None:
             raise HTTPException(404, "없는 서비스")
-        body = await request.body()
+        chunks, size = [], 0
+        async for chunk in request.stream():
+            size += len(chunk)
+            if size > 1024 * 1024:
+                raise HTTPException(413, 'The request body is too large.')
+            chunks.append(chunk)
+        body = b''.join(chunks)
         if not x_payment_tx or not x_payment_signature:
             return JSONResponse({"error": "payment required", "payment": requirements(name)}, status_code=402)
 
         try:
-            data = await request.json()
+            data = json.loads(body)
             text = data["input"]
             if not isinstance(text, str) or not text.strip():
                 raise ValueError
@@ -79,21 +87,22 @@ def create_app(config: SellerConfig, verifier: PaymentVerifier | None = None, wo
             raise HTTPException(413, f"입력이 너무 깁니다 (최대 {svc.max_input_chars}자).")
 
         try:
-            payment = verifier.verify(x_payment_tx, x_payment_signature, body, svc.price)
+            payment = await run_in_threadpool(verifier.verify, x_payment_tx, x_payment_signature, body, svc.price)
         except PaymentError as exc:
-            return JSONResponse({"error": str(exc), "retryable": exc.retryable, "payment": requirements(name)}, status_code=exc.status)
+            return JSONResponse({"error": str(exc), "error_code": exc.error_code, "validation_stage": exc.stage, "retryable": exc.retryable, "payment": requirements(name)}, status_code=exc.status)
 
         if not ledger.claim(payment.tx_hash, payment.payer, name, payment.amount):
-            return JSONResponse({"error": "이미 사용된 결제입니다."}, status_code=409)
+            return JSONResponse({"error": "이미 사용된 결제입니다.", "error_code":"PAYMENT_REPLAY", "retryable":False}, status_code=409)
         try:
-            output = worker.run(svc, text)
+            output = await run_in_threadpool(worker.run, svc, text)
         except ServiceError as exc:
             ledger.release(payment.tx_hash)
             return JSONResponse({"error": str(exc), "retry_with_same_payment": True}, status_code=422)
         except Exception:
             log.exception("service %s failed", name)
-            ledger.release(payment.tx_hash)
-            return JSONResponse({"error": "작업 실패. 같은 결제로 재시도할 수 있습니다.", "retry_with_same_payment": True}, status_code=502)
+            return JSONResponse({'error':'The service outcome is unconfirmed. Review the existing payment before retrying.',
+                'error_code':'SERVICE_OUTCOME_UNCONFIRMED','retry_with_same_payment':False,
+                'reconciliation_required':True},status_code=502)
         ledger.settle(payment.tx_hash)
         log.info("sold %s to %s for %d (tx %s)", name, payment.payer, payment.amount, payment.tx_hash)
         return {"service": name, "output": output, "receipt": {"tx_hash": payment.tx_hash, "payer": payment.payer, "amount": payment.amount}}
@@ -101,7 +110,7 @@ def create_app(config: SellerConfig, verifier: PaymentVerifier | None = None, wo
     @app.get("/stats")
     def stats(authorization: str | None = Header(default=None)):
         expected = f"Bearer {config.admin_token}" if config.admin_token else None
-        if expected is None or authorization is None or not hmac.compare_digest(authorization, expected):
+        if expected is None or authorization is None or not hmac.compare_digest(authorization.encode(), expected.encode()):
             raise HTTPException(401, "ADMIN_TOKEN 필요")
         return ledger.stats()
 

@@ -33,13 +33,16 @@ class CollectorAgent:
     def __init__(self, store: Store, crawler: Crawler, checker: HealthChecker,
                  min_gap: float = 60, idle_wait: float = 15, batch: int = 500, capabilities: CapabilityProber | None = None,
                  auth: AuthDiscoverer | None = None, agents: AgentProber | None = None,
-                 erc8004: Erc8004Crawler | None = None, wellknown: WellKnownDiscoverer | None = None, health_lanes: int = 3):
+                 erc8004: Erc8004Crawler | None = None, wellknown: WellKnownDiscoverer | None = None, health_lanes: int = 3,
+                 rag_pipeline=None):
         self.store, self.crawler, self.checker = store, crawler, checker
         self.capabilities = capabilities
         self.auth = auth
         self.agents = agents
         self.erc8004 = erc8004
         self.wellknown = wellknown
+        self.rag_pipeline = rag_pipeline
+        self.rag_status = {"state": "starting" if rag_pipeline is not None else "unavailable", "last_count": 0}
         self.min_gap = min_gap
         self.idle_wait = idle_wait
         self.batch = batch
@@ -69,6 +72,10 @@ class CollectorAgent:
         return [{"name": t.name, "alive": t.is_alive()} for t in self._threads]
 
     def start(self) -> None:
+        if any(thread.is_alive() for thread in self._threads):
+            return
+        self.stop_event.clear()
+        self._threads.clear()
         for prober in (self.capabilities, self.agents):
             if prober is not None:
                 try:
@@ -76,21 +83,64 @@ class CollectorAgent:
                 except Exception:
                     log.exception("evaluation requeue failed")
         self.started_at = time.time()
-        loops = [("collector-crawl", self._crawl_loop), ("collector-health", self._health_loop)]
-        loops += [(f"collector-health-{i + 1}", lambda: self._health_loop(prune=False)) for i in range(1, self.health_lanes)]
+        loops = [("collector-crawl", self._crawl_loop)]
+        loops.extend(self._build_health_loops())
         if self.capabilities is not None or self.auth is not None or self.agents is not None:
             loops.append(("collector-capabilities", self._capability_loop))
         if self.erc8004 is not None:
             loops.append(("collector-erc8004-scan", self._erc8004_scan_loop))
         if self.erc8004 is not None or self.wellknown is not None:
             loops.append(("collector-agent-resolve", self._agent_resolve_loop))
+        if self.rag_pipeline is not None:
+            loops.append(("collector-rag-index", self._rag_index_loop))
         for name, target in loops:
             t = threading.Thread(target=target, name=name, daemon=True)
             t.start()
             self._threads.append(t)
 
-    def stop(self) -> None:
+    def stop(self, timeout: float = 30) -> bool:
+        """Stop admission and wait before the owner detaches persistent storage."""
+        if type(timeout) not in (int, float) or not 0 <= timeout <= 300:
+            raise ValueError('invalid_collector_shutdown_timeout')
         self.stop_event.set()
+        deadline = time.monotonic() + timeout
+        current = threading.current_thread()
+        for thread in self._threads:
+            if thread is not current:
+                thread.join(max(0, deadline - time.monotonic()))
+        return not any(thread.is_alive() for thread in self._threads)
+
+    def _rag_index_loop(self) -> None:
+        """에이전트 정보 갱신(outbox) 실시간 반영 및 기존 데이터(backfill)를 점진적으로 색인하는 루프."""
+        while not self.stop_event.is_set():
+            if self._idle_if_paused():
+                continue
+            try:
+                started = time.time()
+                previous = self.rag_status
+                self.rag_status = {**previous, 'state': 'running', 'last_started_at': started,
+                                   'enabled': bool(self.rag_pipeline.engine.embeddings_enabled)}
+                res = self.rag_pipeline.step(self.store)
+                finished = time.time()
+                self.rag_status = {'state': res.get('type', 'idle'), 'enabled': bool(self.rag_pipeline.engine.embeddings_enabled),
+                                   'last_started_at': started, 'last_finished_at': finished,
+                                   'last_count': res.get('count', 0), 'last_failed': res.get('failed', 0),
+                                   'reason': res.get('reason'),
+                                   'last_success_at': finished if res.get('count', 0) > 0 else previous.get('last_success_at')}
+
+                res_type = res.get("type", "idle")
+                count = res.get("count", 0)
+                if res_type in ("outbox", "backfill") and count > 0:
+                    self.stop_event.wait(0.05)
+                elif res_type == "error":
+                    self.stop_event.wait(5.0)
+                else:
+                    self.stop_event.wait(5.0)
+            except Exception:
+                self.rag_status = {**self.rag_status, 'state': 'error', 'last_finished_at': time.time(),
+                                   'reason': 'index_step_error'}
+                log.exception("rag index loop error")
+                self.stop_event.wait(5.0)
 
     def _crawl_loop(self) -> None:
         while not self.stop_event.is_set():
@@ -130,6 +180,11 @@ class CollectorAgent:
                     stats["checked"] += self.capabilities.evaluate_static_due()
                 except Exception:
                     log.exception("static evaluation error")
+            if self.store is not None:
+                try:  # x402 유료 API 품질 평가 (미평가 또는 24시간 경과분)
+                    stats["checked"] += self.store.evaluate_x402_batch(limit=1000)
+                except Exception:
+                    log.exception("x402 evaluation error")
             if not stats["checked"]:
                 self.stop_event.wait(300)  # 조사할 게 없으면 5분 쉼
             elif stats.get("local_network_problem"):
@@ -185,26 +240,72 @@ class CollectorAgent:
                 self.store.set_meta("last_agent_discovery", {"at": time.time(), **report})
             self.stop_event.wait(2 if busy else 120)
 
-    def _health_loop(self, prune: bool = True) -> None:
+    def _build_health_loops(self) -> list[tuple[str, any]]:
+        lanes = self.health_lanes
+        loops = []
+        if lanes >= 3:
+            # 3개 이상의 레인이면 A2A, MCP, x402 각각 전용 스레드로 완전 분리
+            loops.append(("collector-health-a2a", lambda: self._health_loop(kinds="a2a", prune=False, scavenge=False)))
+            loops.append(("collector-health-mcp", lambda: self._health_loop(kinds="mcp", prune=False, scavenge=False)))
+            loops.append(("collector-health-x402", lambda: self._health_loop(kinds="x402", prune=True, scavenge=True)))
+            # 3개를 초과하는 추가 레인은 데이터 양이 압도적인 x402(11,000+개)에 추가 분산 워커로 배정
+            for i in range(4, lanes + 1):
+                loops.append((f"collector-health-x402-{i - 2}", lambda: self._health_loop(kinds="x402", prune=False, scavenge=False)))
+        elif lanes == 2:
+            # 2개 레인이면 [A2A, MCP] 묶음 1개, [x402] 전용 1개
+            loops.append(("collector-health-a2a-mcp", lambda: self._health_loop(kinds=("a2a", "mcp"), prune=False, scavenge=False)))
+            loops.append(("collector-health-x402", lambda: self._health_loop(kinds="x402", prune=True, scavenge=True)))
+        else:
+            # 1개 레인이면 모든 종류를 순차 라운드로빈으로 점검
+            loops.append(("collector-health", lambda: self._health_loop(kinds=("a2a", "mcp", "x402"), prune=True, scavenge=True)))
+        return loops
+
+    def _health_loop(self, kinds: str | list[str] | tuple[str, ...] | None = None,
+                     prune: bool = True, scavenge: bool = True) -> None:
         last_prune = 0.0 if prune else float("inf")
+        last_scavenge = 0.0 if scavenge else float("inf")
+        targets = [kinds] if isinstance(kinds, str) or kinds is None else list(kinds)
+
         while not self.stop_event.is_set():
             if self._idle_if_paused():
                 continue
+            total_checked = 0
+            any_outage = False
             try:
-                stats = self.checker.run_due(self.batch)
-                if stats["checked"]:
-                    log.info("health: %s", stats)
-                    self.store.set_meta("last_health_batch", {"at": time.time(), **stats})
-                if time.time() - last_prune > 86400:
+                for k in targets:
+                    if self.stop_event.is_set():
+                        break
+                    # kind별 적절한 배치 크기 설정 (A2A, MCP는 소량 분산, x402는 대량)
+                    batch_size = min(self.batch, 100) if k in ("a2a", "mcp") else self.batch
+                    stats = self.checker.run_due(batch_size, kind=k)
+                    if stats.get("checked"):
+                        total_checked += stats["checked"]
+                        k_name = k or "all"
+                        log.info("health [%s]: %s", k_name, stats)
+                        self.store.set_meta(f"last_health_batch_{k_name}", {"at": time.time(), "kind": k_name, **stats})
+                        self.store.set_meta("last_health_batch", {"at": time.time(), "kind": k_name, **stats})
+                    if stats.get("local_network_problem"):
+                        any_outage = True
+
+                if prune and (time.time() - last_prune > 86400):
                     removed = self.store.prune_health(time.time() - HISTORY_DAYS * 86400)
                     log.info("pruned %d old health checks", removed)
                     last_prune = time.time()
+
+                # 스캐빈저 (7일 이상 실패한 retired 에이전트 초경량 재점검 및 부활 탐지)
+                if scavenge and (time.time() - last_scavenge > 600 or total_checked == 0):
+                    scav_stats = self.checker.scavenge_retired(limit=25)
+                    if scav_stats.get("scavenged"):
+                        log.info("scavenger revival check: %s", scav_stats)
+                        self.store.set_meta("last_scavenge_batch", {"at": time.time(), **scav_stats})
+                    last_scavenge = time.time()
             except Exception:
-                log.exception("health loop error")
-                stats = {"checked": 0}
-            if not stats["checked"]:
-                self.stop_event.wait(self.idle_wait)  # 할 일이 없으면 잠시 쉼
-            elif stats.get("local_network_problem"):
+                log.exception("health loop error for kinds=%s", kinds)
+                total_checked = 0
+
+            if not total_checked:
+                self.stop_event.wait(self.idle_wait)  # 점검할 대상이 없으면 잠시 쉼
+            elif any_outage:
                 self.stop_event.wait(60)  # 우리 쪽 네트워크 문제: 잠시 쉬었다가 새 연결로 재시도
 
 

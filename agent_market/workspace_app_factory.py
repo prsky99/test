@@ -350,7 +350,9 @@ class AppFactory(SignedWorkspaceModule):
         if callable(normalize):
             objective = normalize(objective) or objective
         candidates = self._route_docs(objective, candidates)
-        from .workspace_goal_coverage import missing, incomplete
+        from .workspace_goal_coverage import missing, incomplete, refused, explain, unverifiable, unclear
+        reason = refused(objective) or (unverifiable(objective) if not unclear(objective) else None)
+        if reason:return incomplete([reason],0)
         try:
             unavailable=missing(objective,{item['contract_id'] for item in candidates})
         except WorkspaceInvalid as error:
@@ -366,7 +368,8 @@ class AppFactory(SignedWorkspaceModule):
         try:
             envelope = scoped_context(envelope)
             if goal_sequence(envelope) is None:
-                return incomplete(['An explicit supported public news or documentation search objective'],0)
+                # Name what is missing, or ask what to find, rather than a generic requirement.
+                return incomplete(explain(objective,'An explicit supported public news or documentation search objective'),0)
         except WorkspaceInvalid as error:
             return incomplete([getattr(error,'requirement','An explicit order and two to ten supported search steps')],0)
         candidates = envelope['candidates']
@@ -448,6 +451,15 @@ class AppFactory(SignedWorkspaceModule):
             definition = {'nodes': [{'id': 'step_'+str(index+1), 'resource_id': doc_nodes[index % len(doc_nodes)]['resource_id'],
                 'contract_id': 'docs.search.v1', 'input': {**template, 'query': subject}, 'bindings': {},
                 'after': [], 'when': None} for index, subject in enumerate(listed)]}
+        # Each step of "news about X, then papers on Y" searches its own subject; the model
+        # proposes one query, for the first subject only.
+        from .workspace_goal_coverage import step_subjects
+        subjects = step_subjects(objective, len(definition['nodes']))
+        if len(listed) >= 2 and not (subjects and all(subjects)):
+            subjects = None  # an explicit list already gave every step its subject
+        for node, subject in zip(definition['nodes'], subjects or ()):
+            if subject and 'query' not in (node.get('bindings') or {}) and type(node.get('input')) is dict:
+                node['input'] = {**node['input'], 'query': subject}
         try:
             validate_goal(envelope,definition['nodes'])
         except GoalNeedsDetails as error:

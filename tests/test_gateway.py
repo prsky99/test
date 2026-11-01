@@ -3,6 +3,8 @@ import time
 
 import httpx
 import pytest
+
+from tests.conftest import staff_session
 from eth_account import Account
 from fastapi.testclient import TestClient
 
@@ -60,11 +62,12 @@ class GW_World:
         config = GatewayConfig(NET, GW.address, ":memory:", "secret", 1, 3600, 900, False, True, free=free)
         self.app = create_app(
             config, store=self.store, verifier=PaymentVerifier(self.chain, NET.token, GW.address),
-            crawler=Crawler(self.store, http=ext, page_delay=0), prober=Prober(self.store, http=ext, allow_private=True),
+            crawler=Crawler(self.store, http=ext, page_delay=0, sources=("x402-bazaar", "mcp-registry")), prober=Prober(self.store, http=ext, allow_private=True),
             policy=policy,
         )
         self.service = self.app.state.service
         self.http = httpx.Client(transport=Router({"gw": self.app}), base_url="http://gw")
+        staff_session(self.store)
 
     def crawl(self):
         return self.http.post("/admin/crawl", headers={"authorization": "Bearer secret"}).json()
@@ -138,14 +141,17 @@ def test_parse_mcp_skips_non_latest():
     assert parse_mcp_item(item) is None
 
 
-def test_crawl_indexes_sources_and_deactivates_removed(w):
+def test_crawl_indexes_sources_and_retains_locally_managed_entries(w):
     counts = w.store.resource_counts()
     assert counts["x402"]["web_search"] == 1 and counts["mcp"]["web_search"] == 1
     w.reg.x402 = w.reg.x402[1:]
     time.sleep(0.05)
     assert w.crawl()["x402-bazaar"]["deactivated"] == 0  # 한 번 안 보인 것만으로는 비활성화하지 않음
     time.sleep(0.05)
-    assert w.crawl()["x402-bazaar"]["deactivated"] == 1  # 전체 수집 2번 연속 안 보이면 비활성화
+    report = w.crawl()['x402-bazaar']
+    assert report['deactivated'] == 0
+    row = w.store.query("SELECT active,registry_missing_since FROM resources WHERE url='https://search-a.example/api'")[0]
+    assert row['active'] == 1 and row['registry_missing_since'] is not None
 
 
 def test_first_intro_is_free_and_revealed(w):
@@ -267,9 +273,26 @@ def test_feedback_affects_score(w):
     c = w.client()
     need = c.create_need("web search for SERP results", kinds=["x402"])
     rid = need["agent"]["resource_id"]
-    c.feedback(need["need_id"], success=False, rating=1)
+    res = c.feedback(need["need_id"], success=False, rating=1)
+    assert res.get("ok") is True
     n, s, r = w.store.feedback_stats(rid)
     assert n == 1 and s == 0 and r == 1
+
+
+def test_feedback_failure_provides_self_reflection_alternative(w):
+    w.reg.x402.append(x402_item("https://search-b.example/api", "Alternative web search API for SERP results", 12_000, 20))
+    w.crawl()
+    c = w.client()
+    need = c.create_need("web search for SERP results", kinds=["x402"])
+    first_rid = need["agent"]["resource_id"]
+    # 실패 보고 시 즉시 Self-Reflection 대안 에이전트가 반환되고 갱신되는지 확인
+    fb = c.feedback(need["need_id"], success=False, rating=1)
+    assert fb["ok"] is True
+    assert fb.get("alternative") is not None
+    assert fb["alternative"]["resource_id"] != first_rid
+    # 이후 조회 시 활성 에이전트도 새 대안으로 갱신되었는지 확인
+    status = c.status(need["need_id"])
+    assert status["current_agent"]["resource_id"] != first_rid
 
 
 def test_free_intro_ip_quota():
@@ -401,9 +424,10 @@ def test_register_deactivates_services_dropped_from_card(reg):
     host.cards["https://s.example/a/.well-known/agent.json"] = seller_card(["sum", "tr"])
     assert client.post("/agents/register", json={"url": "https://s.example/a"}).json()["registered"] == 2
     host.cards["https://s.example/a/.well-known/agent.json"] = seller_card(["sum"])
-    assert client.post("/agents/register", json={"url": "https://s.example/a"}).json()["deactivated"] == 1
+    report = client.post('/agents/register', json={'url': 'https://s.example/a'}).json()
+    assert report['deactivated'] == 0 and report['registry_missing'] == 1
     active = {r["url"]: r["active"] for r in store.query("SELECT url, active FROM resources")}
-    assert active == {"https://s.example/a/services/sum": 1, "https://s.example/a/services/tr": 0}
+    assert active == {"https://s.example/a/services/sum": 1, "https://s.example/a/services/tr": 1}
 
 
 def test_register_caps_services_per_host(reg, monkeypatch):

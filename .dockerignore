@@ -4,5 +4,14 @@ wallets
 gateway-data
 *.sqlite3
 tests
-scripts
+scripts/*
+!scripts/audit_stored_tokens.py
 deploy
+.env
+.env.*
+logs
+reports
+exports
+**/*.key
+**/*.pem
+**/*.credentials-key

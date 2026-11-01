@@ -17,6 +17,7 @@ from . import constraints as cons
 from .classify import OTHER, classify
 from .crawler import Prober
 from .ranking import Scored, rank, refresh_reliability, reveal, teaser
+from .sanitizer import sanitize_text
 from .store import Store, new_id
 
 log = logging.getLogger("agent_market.gateway")
@@ -76,7 +77,11 @@ class GatewayService:
             "SELECT resource_id FROM offers WHERE need_id=? AND status IN ('declined','expired') AND created>?",
             (need_id, time.time() - self.policy.redo_cooldown),
         )
-        return {r["resource_id"] for r in rows}
+        fb_rows = self.store.query(
+            "SELECT resource_id FROM feedback WHERE need_id=? AND success=0 AND created>?",
+            (need_id, time.time() - self.policy.redo_cooldown),
+        )
+        return {r["resource_id"] for r in rows} | {r["resource_id"] for r in fb_rows}
 
     # ---------------- 요청 등록 ----------------
     def create_need(self, client: str, task: str, category: str | None, max_price: int | None,
@@ -108,8 +113,9 @@ class GatewayService:
             "SELECT COUNT(*) AS n FROM needs WHERE ip=? AND free_used=1 AND created>?", (ip, now - 86400)
         )[0]["n"]
         free_eligible = self.policy.free or (prior == 0 and ip_free < self.policy.free_per_ip_per_day)
+        task_clean = sanitize_text(task, max_length=1000)
         need = {
-            "need_id": new_id("need"), "client": client, "task": task, "category": category, "max_price": max_price,
+            "need_id": new_id("need"), "client": client, "task": task_clean, "category": category, "max_price": max_price,
             "networks": networks if networks is not None else DEFAULT_NETWORKS, "kinds": kinds, "webhook": webhook,
             "current_resource": None, "current_score": None,
         }
@@ -118,7 +124,7 @@ class GatewayService:
                 """INSERT INTO needs (need_id, client, task, category, max_price, networks, kinds, webhook, status,
                    current_resource, current_score, free_used, created, updated, ip, language, region, auth_pref, min_grade)
                    VALUES (?,?,?,?,?,?,?,?,'watching',NULL,NULL,?,?,?,?,?,?,?,?)""",
-                (need["need_id"], client, task, category, max_price, json.dumps(need["networks"]), json.dumps(kinds),
+                (need["need_id"], client, need["task"], category, max_price, json.dumps(need["networks"]), json.dumps(kinds),
                  webhook, 0 if free_eligible else 2, now, now, ip, language, region, auth, min_grade),
             )
         intro = self._introduce(self._load_need(need["need_id"]))
@@ -349,15 +355,34 @@ class GatewayService:
             raise NeedError("거절할 수 있는 제안이 없습니다.", 404)
         self._record_outcome(self._load_need(need_id)["category"], accepted=False)
 
-    def feedback(self, need_id: str, success: bool, rating: int | None) -> None:
+    def feedback(self, need_id: str, success: bool, rating: int | None) -> dict:
         need = self._load_need(need_id)
         if need["current_resource"] is None:
             raise NeedError("아직 소개받은 에이전트가 없습니다.", 409)
+        failed_rid = need["current_resource"]
         with self.store.tx() as db:
             db.execute(
                 "INSERT OR REPLACE INTO feedback VALUES (?,?,?,?,?)",
-                (need_id, need["current_resource"], int(success), rating, time.time()),
+                (need_id, failed_rid, int(success), rating, time.time()),
             )
+        alternative = None
+        if not success:
+            # Self-Reflection: 실패한 에이전트를 제외하고 즉시 대체 후보 탐색
+            exclude = self._cooldown_ids(need_id) | {failed_rid}
+            best, _ = self._best(need, exclude)
+            if best is not None:
+                if self.policy.free or need.get("free_used", 0) <= 1:
+                    offer_id = self._create_offer(need, best, None, fee=0, free=True, status="accepted")
+                    with self.store.tx() as db:
+                        db.execute(
+                            "UPDATE needs SET status='active', current_resource=?, current_score=?, updated=?, usage_seen_at=? WHERE need_id=?",
+                            (best.resource["id"], best.score, time.time(), time.time(), need_id),
+                        )
+                    alternative = reveal(best)
+                else:
+                    offer = self._offer(need, best, None)
+                    alternative = offer
+        return {"alternative": alternative}
 
     def cancel(self, need_id: str) -> None:
         self._load_need(need_id)

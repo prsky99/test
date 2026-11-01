@@ -29,15 +29,15 @@ class DiscoveryError(ValueError):
 def check_public_url(url: str) -> None:
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https") or not parsed.hostname:
-        raise DiscoveryError("http(s) URL만 등록할 수 있습니다.")
+        raise DiscoveryError("Use a public HTTP or HTTPS endpoint URL.")
     try:
         infos = socket.getaddrinfo(parsed.hostname, parsed.port or (443 if parsed.scheme == "https" else 80))
     except socket.gaierror as exc:
-        raise DiscoveryError(f"호스트를 찾을 수 없습니다: {parsed.hostname}") from exc
+        raise DiscoveryError("The endpoint hostname could not be resolved.") from exc
     for info in infos:
         ip = ipaddress.ip_address(info[4][0])
         if not ip.is_global:
-            raise DiscoveryError("사설/내부 주소는 등록할 수 없습니다.")
+            raise DiscoveryError("Private or internal network destinations are not allowed.")
 
 
 class PublicOnlyBackend(httpcore.SyncBackend):
@@ -62,13 +62,15 @@ class PublicOnlyBackend(httpcore.SyncBackend):
 
 def public_client(allow_private: bool = False, **kwargs) -> httpx.Client:
     """임의 URL에 요청하는 httpx 클라이언트. allow_private가 아니면 직접 연결은 공인 주소로만 한다."""
+    kwargs.update(verify=True, trust_env=False, follow_redirects=False)
     client = httpx.Client(**kwargs)
     if not allow_private:
         pool = getattr(client._transport, "_pool", None)
         if isinstance(pool, httpcore.ConnectionPool) and hasattr(pool, "_network_backend"):
             pool._network_backend = PublicOnlyBackend()
-        else:  # httpx 내부 구조가 바뀐 경우: 사전 검사(check_public_url)만 적용
-            log.warning("connect-time address check unavailable; relying on pre-request checks only")
+        else:
+            client.close()
+            raise RuntimeError("Secure public transport unavailable")
     return client
 
 
@@ -85,15 +87,15 @@ class CardFetcher:
         try:
             resp = self.http.get(f"{base_url}/.well-known/agent.json")
         except httpx.HTTPError as exc:
-            raise DiscoveryError(f"agent card를 가져올 수 없습니다: {exc}") from exc
+            raise DiscoveryError("The agent card could not be retrieved.") from exc
         if resp.status_code != 200:
-            raise DiscoveryError(f"agent card 응답 코드 {resp.status_code}")
+            raise DiscoveryError(f"The agent card returned HTTP {resp.status_code}.")
         if len(resp.content) > MAX_CARD_BYTES:
-            raise DiscoveryError("agent card가 너무 큽니다.")
+            raise DiscoveryError("The agent card exceeds the size limit.")
         try:
             card = resp.json()
         except ValueError as exc:
-            raise DiscoveryError("agent card가 JSON이 아닙니다.") from exc
+            raise DiscoveryError("The agent card must contain valid JSON.") from exc
         return self.parse(base_url, card)
 
     def parse(self, base_url: str, card: dict) -> dict:
@@ -101,9 +103,9 @@ class CardFetcher:
             name = str(card["name"])[:100]
             raw_services = card["services"]
         except (KeyError, TypeError) as exc:
-            raise DiscoveryError("agent card에 name/services가 없습니다.") from exc
+            raise DiscoveryError("The agent card must include a name and services.") from exc
         if not isinstance(raw_services, list) or not raw_services:
-            raise DiscoveryError("services가 비어 있습니다.")
+            raise DiscoveryError("The services list must not be empty.")
 
         services, pay_tos = [], set()
         for s in raw_services[:MAX_SERVICES]:
@@ -118,20 +120,20 @@ class CardFetcher:
                     "endpoint": base_url + "/" + str(s["endpoint"]).lstrip("/"),
                 }
             except (KeyError, TypeError, ValueError) as exc:
-                raise DiscoveryError(f"서비스 항목 형식 오류: {exc}") from exc
+                raise DiscoveryError("A service entry has an invalid format.") from exc
             if category not in CATEGORIES:
                 continue  # 브로커가 다루지 않는 카테고리는 건너뛴다
             if entry["price"] <= 0:
-                raise DiscoveryError("가격은 0보다 커야 합니다.")
+                raise DiscoveryError("The amount must be greater than zero.")
             if self.network and (
                 payment.get("chain_id") != self.network["chain_id"]
                 or str(payment.get("token", "")).lower() != self.network["token"].lower()
             ):
-                raise DiscoveryError("브로커와 다른 네트워크/토큰으로 결제받는 서비스입니다.")
+                raise DiscoveryError("The service uses an unsupported network or token.")
             pay_tos.add(str(payment["pay_to"]).lower())
             services.append(entry)
         if not services:
-            raise DiscoveryError(f"지원 카테고리({', '.join(CATEGORIES)})에 해당하는 서비스가 없습니다.")
+            raise DiscoveryError("No service matches a supported category.")
         if len(pay_tos) != 1:
-            raise DiscoveryError("한 에이전트의 서비스는 같은 지갑으로 결제받아야 합니다.")
+            raise DiscoveryError("All services of an agent must use the same recipient address.")
         return {"name": name, "pay_to": pay_tos.pop(), "services": services}

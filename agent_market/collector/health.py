@@ -31,15 +31,21 @@ from urllib.parse import urlparse
 import httpx
 
 from ..broker.discovery import DiscoveryError, check_public_url, public_client
+from ..config import DEFAULT_HEALTH_INTERVAL_SECONDS
 from ..gateway.crawler import usdc_price
 from ..gateway.store import Store
+from ..observation_guards import GuardError
 
 log = logging.getLogger("agent_market.collector.health")
 
 USER_AGENT = "agent-collector/0.1 (+health check; no payment is made)"
+MCP_DISCOVER = {
+    "jsonrpc": "2.0", "id": 1, "method": "server/discover",
+    "params": {},
+}
 MCP_INIT = {
     "jsonrpc": "2.0", "id": 1, "method": "initialize",
-    "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "agent-collector", "version": "0.1"}},
+    "params": {"protocolVersion": "2026-07-28", "capabilities": {}, "clientInfo": {"name": "agent-collector", "version": "0.1"}},
 }
 MAX_BODY = 64 * 1024
 LEASE = 900  # 고른 뒤 결과를 기록할 때까지 '점검 중'으로 잡아 두는 시간
@@ -78,7 +84,7 @@ def parse_payment_required(resp: httpx.Response, body: bytes) -> list[dict] | No
 
 @dataclass(frozen=True)
 class Schedule:
-    interval: float = 3600  # 일반 에이전트와 down 에이전트: 매시간
+    interval: float = DEFAULT_HEALTH_INTERVAL_SECONDS  # 일반·down 에이전트: 기본 6시간마다
     in_use_interval: float = 900  # 고객에게 소개된 에이전트, 실패가 시작된 에이전트: 15분마다
     down_after: int = 3
     retire_after: float = 7 * 86400  # 7일 넘게 계속 실패하면 제외
@@ -107,7 +113,8 @@ class HealthChecker:
     def host_sizes(self) -> Counter:
         """호스트별 점검 대상 엔드포인트 수 (10분마다 갱신)."""
         if time.time() - self._host_sizes_at > 600:
-            rows = self.store.query("SELECT host, COUNT(*) AS n FROM resources WHERE active=1 AND health_status != 'retired' GROUP BY host")
+            native = getattr(self.store, 'health_host_sizes', None)
+            rows = native() if callable(native) else self.store.query("SELECT host, COUNT(*) AS n FROM resources WHERE active=1 AND health_status != 'retired' GROUP BY host")
             self._host_sizes = Counter({r["host"]: r["n"] for r in rows})
             self._host_sizes_at = time.time()
         return self._host_sizes
@@ -153,6 +160,8 @@ class HealthChecker:
             result = CheckResult("fail", error="timeout")
         except httpx.HTTPError as exc:
             result = CheckResult("fail", error=f"{type(exc).__name__}: {exc}"[:300])
+        except DiscoveryError as exc:
+            result = CheckResult("fail", error=f"blocked: {exc}"[:300])
         except Exception as exc:  # 잘못된 URL 등: 점검을 멈추지 않고 실패로 기록
             log.warning("health check error for %s: %s", url, exc)
             result = CheckResult("fail", error=f"{type(exc).__name__}: {exc}"[:300])
@@ -188,6 +197,22 @@ class HealthChecker:
 
     def _check_mcp(self, http: httpx.Client, url: str) -> CheckResult:
         headers = {"accept": "application/json, text/event-stream", "content-type": "application/json"}
+        # 1. 최신 2026-07-28 사양: server/discover (무상태)
+        with http.stream("POST", url, json=MCP_DISCOVER, headers=headers) as resp:
+            body = self._read(resp)
+            session = resp.headers.get("mcp-session-id")
+        code = resp.status_code
+        if session:  # 점검용 세션이 생겼으면 바로 정리
+            try:
+                http.delete(url, headers={"mcp-session-id": session})
+            except httpx.HTTPError:
+                pass
+        if code == 200 and b'"result"' in body:
+            return CheckResult("healthy", code, auth=False)
+        if code in (401, 403):
+            return CheckResult("reachable", code, error="auth required", auth=True)
+        # server/discover를 모르는 기존 서버는 -32601(Method not found)이나 에러를 반환할 수 있으므로 initialize로 폴백
+        # 2. 구형 사양: initialize (세션 핸드셰이크)
         with http.stream("POST", url, json=MCP_INIT, headers=headers) as resp:
             body = self._read(resp)
             session = resp.headers.get("mcp-session-id")
@@ -208,13 +233,30 @@ class HealthChecker:
     def _check_a2a(self, http: httpx.Client, resource: dict) -> CheckResult:
         """agent card가 열리고 A2A card 모양(name·skills)이면 정상. 조사에서 찾은 card 주소가 있으면 그것만 본다."""
         from .a2a import card_candidates
-        details = json.loads(resource.get("details") or "{}")
-        found = (json.loads(resource.get("usage_guide") or "{}") or {}).get("agent_card")
-        urls = [found] if found else card_candidates(resource["url"], details.get("agent_card"))[:3]
+        details = {}
+        try:
+            details = json.loads(resource.get("details") or "{}")
+            if not isinstance(details, dict):
+                details = {}
+        except Exception:
+            details = {}
+        found = None
+        try:
+            guide = json.loads(resource.get("usage_guide") or "{}")
+            if isinstance(guide, dict):
+                found = guide.get("agent_card")
+        except Exception:
+            pass
+        urls = [found] if found else card_candidates(resource["url"], details.get("agent_card") if isinstance(details, dict) else None)[:3]
         last = None
+        last_err = None
         for url in urls:
             if not self.allow_private:
-                check_public_url(url)
+                try:
+                    check_public_url(url)
+                except DiscoveryError as exc:
+                    last_err = f"blocked: {exc}"
+                    continue
             with http.stream("GET", url, headers={"accept": "application/json"}) as resp:
                 body = self._read(resp, 512 * 1024)
             last = resp.status_code
@@ -225,7 +267,9 @@ class HealthChecker:
                     continue
                 if isinstance(data, dict) and data.get("name") and isinstance(data.get("skills"), list):
                     return CheckResult("healthy", 200)
-        if last is not None and (last >= 500 or last in (404, 410) or last == 200):
+        if last is None:
+            return CheckResult("fail", None, error=(last_err or "no reachable A2A card URL")[:300])
+        if last >= 500 or last in (404, 410) or last == 200:
             return CheckResult("fail", last, error="no A2A agent card" if last == 200 else f"HTTP {last}")
         return CheckResult("reachable", last, error=f"HTTP {last}")
 
@@ -243,11 +287,17 @@ class HealthChecker:
         return now + delay * (1 + random.uniform(-s.jitter, s.jitter))
 
     def check_and_record(self, resource: dict, in_use: bool = False) -> dict:
-        result = self.check(resource)
-        if result.local:
-            self.store.postpone([resource["id"]], time.time() + 300)
-            return {"status": resource.get("health_status"), "previous": resource.get("health_status"), "postponed": True}
-        return self.record(resource, result, in_use)
+        try:
+            guard = self.store.observation_guard(resource["id"], "health", expected_resource=resource)
+            result = self.check(resource)
+            with self.store.observation_transaction(guard):
+                if result.local:
+                    self.store.postpone([resource["id"]], time.time() + 300)
+                    return {"status": resource.get("health_status"), "previous": resource.get("health_status"),
+                            "postponed": True, "accepted": False}
+                return {**self.record(resource, result, in_use), "accepted": True}
+        except GuardError:
+            return {"status": None, "previous": resource.get("health_status"), "accepted": False, "stale": True}
 
     def record(self, resource: dict, result: CheckResult, in_use: bool = False) -> dict:
         failures = 0 if result.outcome != "fail" else (resource.get("consecutive_failures") or 0) + 1
@@ -263,20 +313,24 @@ class HealthChecker:
         return state
 
     # ---------------- 일괄 점검 ----------------
-    def run_due(self, limit: int = 500) -> dict:
-        """점검 시각이 된 에이전트들을 호스트별로 묶어 병렬 점검한다. 호스트당 per_host_cap개까지만 담는다."""
+    def run_due(self, limit: int = 500, kind: str | list[str] | tuple[str, ...] | None = None) -> dict:
+        """점검 시각이 된 에이전트들을 호스트별로 묶어 병렬 점검한다. 호스트당 per_host_cap개까지만 담는다.
+        kind가 지정되면 해당 에이전트 종류(a2a, mcp, x402 등)만 분산 점검한다."""
         def host(r):
             return r.get("host") or urlparse(r["url"]).hostname or r["url"]
 
         with self._claim_lock:
-            due = [r for r in self.store.due_for_check(time.time(), limit * 2, per_host=self.per_host_cap)
+            due = [r for r in self.store.due_for_check(time.time(), limit * 2, per_host=self.per_host_cap, kind=kind)
                    if host(r) not in self._busy_hosts][:limit]
             claimed = {host(r) for r in due}
             self._busy_hosts |= claimed
             if due:  # 결과를 기록하기 전까지 다른 묶음이 다시 고르지 않게. 프로세스가 죽어도 LEASE 뒤에 다시 점검됨
                 self.store.postpone([r["id"] for r in due], time.time() + LEASE)
         try:
-            return self._run_batch(due, host)
+            res = self._run_batch(due, host)
+            if kind:
+                res["kind"] = kind if isinstance(kind, str) else ",".join(kind)
+            return res
         finally:
             with self._claim_lock:
                 self._busy_hosts -= claimed
@@ -286,9 +340,9 @@ class HealthChecker:
         for r in due:
             by_host[host(r)].append(r)
         if not due:
-            return {"checked": 0}
+            return {"checked": 0, "accepted": 0, "stale": 0}
         in_use = self.store.in_use_ids()
-        results: list[tuple[dict, CheckResult]] = []
+        results = []
         lock = threading.Lock()
         http = self._new_client()
 
@@ -296,13 +350,17 @@ class HealthChecker:
             for i, r in enumerate(resources):
                 if i:
                     time.sleep(self.per_host_delay)
+                guard = None
                 try:
+                    guard = self.store.observation_guard(r["id"], "health", expected_resource=r)
                     result = self.check(r, http)
+                except GuardError:
+                    result = None
                 except Exception:
                     log.exception("health check crashed for %s", r["url"])
                     result = CheckResult("fail", error="checker crashed", local=True)
                 with lock:
-                    results.append((r, result))
+                    results.append((r, result, guard))
 
         try:
             with ThreadPoolExecutor(max_workers=self.workers) as pool:
@@ -310,17 +368,33 @@ class HealthChecker:
         finally:
             self._close(http)
 
-        fails = sum(1 for _, res in results if res.outcome == "fail")
-        outage = len(results) >= self.outage_min and fails / len(results) >= self.outage_ratio
+        net_candidates = [(r, res) for r, res, guard in results
+                          if guard is not None and res is not None and r.get("health_status") not in ("failing", "down")]
+        net_fails = sum(1 for _, res in net_candidates if res.outcome == "fail" and res.status_code is None)
+        outage = len(net_candidates) >= self.outage_min and net_fails / len(net_candidates) >= self.outage_ratio
         if outage:
-            log.warning("local network problem suspected: %d/%d checks failed in one batch; not recording failures", fails, len(results))
-        stats = defaultdict(int)
-        postponed = []
-        for r, res in results:
-            if res.local or (outage and res.outcome == "fail"):
-                postponed.append(r["id"])
+            log.warning("local network problem suspected: %d/%d checks failed in one batch; not recording failures", net_fails, len(net_candidates))
+        stats = defaultdict(int, accepted=0, stale=0)
+        for r, res, guard in results:
+            if guard is None or res is None:
+                stats["stale"] += 1
                 continue
-            state = self.record(r, res, in_use=r["id"] in in_use)
+            try:
+                with self.store.observation_transaction(guard):
+                    if res.local or (outage and res.outcome == "fail"):
+                        self.store.postpone([r["id"]], time.time() + 300)
+                        postponed = True
+                        state = None
+                    else:
+                        state = self.record(r, res, in_use=r["id"] in in_use)
+                        postponed = False
+            except GuardError:
+                stats["stale"] += 1
+                continue
+            if postponed:
+                stats["postponed"] += 1
+                continue
+            stats["accepted"] += 1
             stats[state.get("status", "error")] += 1
             if state.get("price_changed"):
                 stats["price_changed"] += 1
@@ -330,7 +404,80 @@ class HealthChecker:
                 stats["recovered"] += 1
             if state.get("status") == "retired" and state.get("previous") != "retired":
                 stats["retired"] += 1
-        if postponed:
-            self.store.postpone(postponed, time.time() + 300)
-            stats["postponed"] = len(postponed)
         return {"checked": len(due), "hosts": len(by_host), "local_network_problem": outage, **stats}
+
+    # ---------------- 스캐빈저 (7일 이상 retired 에이전트 재점검) ----------------
+    def probe_lightweight(self, resource: dict, http: httpx.Client) -> tuple[bool, int | None, str | None]:
+        """초경량 프로브 (Zero-payload HEAD / Ping).
+        200, 402, 401, 403, 405 등 '서버가 응답함' 코드가 나오면 True(부활 후보).
+        404, 410, 500, 타임아웃, 연결 거부면 False(계속 휴면).
+        """
+        url = resource["url"]
+        if not self.allow_private:
+            try:
+                check_public_url(url)
+            except DiscoveryError as exc:
+                return False, None, f"blocked: {exc}"
+        try:
+            # 1. HEAD 요청 먼저 시도 (바디 0바이트)
+            resp = http.head(url, timeout=5.0)
+            code = resp.status_code
+            if code in (200, 204, 301, 302, 401, 402, 403, 405):
+                return True, code, None
+            if code in (404, 410) or code >= 500:
+                return False, code, f"HTTP {code}"
+        except (httpx.RequestError, Exception):
+            pass
+
+        # 2. HEAD 실패 또는 미지원 시 초경량 GET (최대 1KB)
+        try:
+            with http.stream("GET", url, timeout=5.0) as resp:
+                code = resp.status_code
+                self._read(resp, limit=1024)
+            if code in (200, 204, 301, 302, 401, 402, 403, 405):
+                return True, code, None
+            return False, code, f"HTTP {code}"
+        except httpx.TimeoutException:
+            return False, None, "timeout"
+        except Exception as exc:
+            return False, None, f"{type(exc).__name__}: {exc}"[:200]
+
+    def scavenge_retired(self, limit: int = 50) -> dict:
+        """7일 이상 실패한 retired 에이전트들을 점검하여 복구된 서버를 탐지(Revival)."""
+        now = time.time()
+        due = self.store.due_for_scavenge(now, limit=limit, per_host=1)
+        if not due:
+            return {"scavenged": 0, "revived": 0, "still_dead": 0}
+
+        revived, dead, stale, postponed = 0, 0, 0, 0
+        http = self._new_client()
+        try:
+            for r in due:
+                try:
+                    guard = self.store.observation_guard(r["id"], "health", expected_resource=r)
+                    observed_at = time.time()
+                    alive, code, err = self.probe_lightweight(r, http)
+                    res = self.check(r, http) if alive else None
+                    with self.store.observation_transaction(guard):
+                        if res is not None and res.local:
+                            self.store.postpone([r["id"]], time.time() + 300)
+                            outcome = "postponed"
+                        elif res is not None and res.outcome in ("healthy", "reachable"):
+                            self.record(r, res, in_use=False)
+                            outcome = "revived"
+                        else:
+                            self.store.record_scavenge_failure(r["id"], observed_at, err or (f"HTTP {code}" if code is not None else None))
+                            outcome = "dead"
+                    if outcome == "postponed": postponed += 1
+                    elif outcome == "revived":
+                        revived += 1
+                        log.info("REVIVAL: agent #%s (%s) revived from retired! status: %s (code %s)",
+                                 r["id"], r["url"], res.outcome, res.status_code)
+                    else: dead += 1
+                except GuardError:
+                    stale += 1
+        finally:
+            self._close(http)
+
+        return {"scavenged": len(due), "revived": revived, "still_dead": dead,
+                "accepted": revived + dead, "stale": stale, "postponed": postponed}

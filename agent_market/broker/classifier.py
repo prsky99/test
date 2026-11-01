@@ -1,8 +1,13 @@
 """구매 에이전트가 적어 보낸 작업 설명을 카테고리로 분류한다 (Claude 구조화 출력)."""
 
+from __future__ import annotations
+
 import json
 
-import anthropic
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import anthropic
 
 from .categories import CATEGORIES
 
@@ -15,7 +20,13 @@ class ClassificationError(RuntimeError):
 
 class ClaudeClassifier:
     def __init__(self, client: anthropic.Anthropic | None = None):
-        self.client = client or anthropic.Anthropic()
+        if client is None:
+            try:
+                import anthropic
+            except ImportError as exc:
+                raise RuntimeError("Claude integration requires requirements-anthropic.txt.") from exc
+            client = anthropic.Anthropic()
+        self.client = client
         catalog = "\n".join(f"- {c.id}: {c.description}" for c in CATEGORIES.values())
         self.system = (
             "You route tasks posted by AI agents to the service category that can fulfil them.\n"

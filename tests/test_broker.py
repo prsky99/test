@@ -237,9 +237,9 @@ def test_seller_pay_to_swap_detected(world):
 def test_card_parse_rejects_other_network_and_unknown_categories():
     fetcher = CardFetcher(http=httpx.Client(), allow_private=True, network={"chain_id": NET.chain_id, "token": NET.token})
     svc = {"name": "s", "category": "ai_models", "endpoint": "/s", "payment": {"amount": 1, "pay_to": "0xabc", "chain_id": 1, "token": NET.token}}
-    with pytest.raises(DiscoveryError, match="네트워크"):
+    with pytest.raises(DiscoveryError, match="network"):
         fetcher.parse("http://x", {"name": "a", "services": [svc]})
-    with pytest.raises(DiscoveryError, match="지원 카테고리"):
+    with pytest.raises(DiscoveryError, match="supported category"):
         fetcher.parse("http://x", {"name": "a", "services": [{**svc, "category": "gambling"}]})
 
 
