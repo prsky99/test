@@ -1,7 +1,7 @@
 # 작업 기록 (짧게 유지: 끝날 때마다 몇 줄 갱신)
 
 ## 완료 (최근 것만)
-- 워크플로 생성 p11(2026-11-02): 통번역 실패 시 "-고"·"그리고" 절마다 번역(workflow_model_proposer), 이어지는 "and also find related papers" 분리(workflow_goal_policy), 단계 주제 덮어쓰기를 apply_step_subjects로(후속 절은 모델 질의 유지). 평가 72/73(98.6%, holdout 30/30), 남은 실패 p13(오타 영어). 정책 해시 아님 → frontend만.
+- 워크플로 생성 p11(2026-11-02): 통번역 실패 시 "-고"·"그리고" 절마다 번역(workflow_model_proposer), 이어지는 "and also find related papers" 분리(workflow_goal_policy), 단계 주제 덮어쓰기를 apply_step_subjects로(후속 절은 모델 질의 유지). 평가 72/73(98.6%, holdout 30/30), 남은 실패 p13(오타 영어). 정책 해시 아님 → frontend만. workflow-split-frontend-20261102-r1(award-stage2-r1 위 4개 파일) 07:38 배포(활성 b), 새 실패 0, 5xx 0. admin은 11-01 개선도 없음(파일 70개 차이) → 따로.
 - 스냅샷 이중 실행(2026-11-02 0시): 대기 슬롯은 시작 때 한 번만 만들고 활성 슬롯만 10분마다 갱신(report_snapshot.keep_fresh serving, service_host.serving_slot + AGENTCON_SERVICE_STATE_DIR). r5가 07:01 먼저 배포되어 그 위 standby-snapshot-frontend-20261102-r2를 07:03:47 배포(활성 a). r5의 customer_batch.py gzip 버그로 고객 워크스페이스 첫 화면 장애, 프론트 세션이 r6(이 위 + customer_batch.py) 준비.
 - Chat 503 조사(2026-11-01 20시): 원인은 전역 쓰기 잠금(pg_advisory_xact_lock, lock_timeout 1s)과 Chat 쓰기 5개 이상. 표본 결과 jobs 벡터 대기열 정리 DELETE(LIMIT 500)가 잠금을 0.91초 보유. jobs vector-retention-r1(정리 검색을 읽기 스냅샷으로) 21:09 배포. 판정 경계 버그로 옛 in-lock 정리가 가끔 돎 → r2 패키징·승인 대기. frontend는 활성이 centre-progress-r3로 바뀌어 writer-retry-frontend-20261101-r3(그 위 2개 파일)로 다시 만듦. 넓은 비교(r1 기준 351개 파일)에서 새 실패 0(탐색 브라우저 시험 1건은 기준도 1/8 흔들림), r3 사본 핵심 158건 통과. jobs r2(22:58)·frontend r3(22:59) 배포. 배포 뒤 옛 in-lock 정리 0회, 0.5초 이상 보유 12→2, lock timeout 0, 5xx 0. 남은 최장 보유는 capability_text 정리 DELETE 0.81초. → docs/qa/chat-write-lock-503-2026-11-01.ko.md
 - 워크플로 생성 품질(2026-11-01 밤): 읽기 전용 평가 `scripts/evaluate_workflow_goal_quality.py` + 사례 73건(`tests/data/workflow_goal_quality_cases.json`). 41.1% → 97.3%(holdout 30/30): 없는 기능 이름 붙이기·모호하면 되묻기·해로운 목표 거절·단계마다 자기 주제·번역 실패 시 영어 재작성 요청·한국어 연결어 (workspace_goal_coverage/workspace_app_factory/workflow_goal_policy, 정책 해시 아님). r1은 기준 read-only-r1의 버그(CustomerWorkspaceAccess._tx readonly TypeError, 프론트 세션 발견)로 폐기. r2·r3는 기준 변경으로 쓰지 않음. workflow-goals-frontend-20261101-r4(활성 read-only-r3 + 워크플로 3개 + fast_chat 엔진 활성 조건 수정)를 활성 사본과 비교(새 실패 0, 탐색 브라우저 시험 1건은 단독 0/8로 흔들림) 후 19:52 배포(활성 a). 19:49 첫 시도는 이전 슬롯이 스냅샷 중이라 timeout, 19:50 배포 뒤 내 확인 스크립트 파싱 오류로 잘못 롤백했다가 19:52 재배포. 배포 뒤 5xx 0. 다음: 소스 분석 snapshot-pause-r2를 r4 위로, /chat 쓰기 잠금 503 조사. → docs/qa/workflow-goal-quality-2026-11-01.ko.md
@@ -147,3 +147,6 @@
     - 시작할 때 연 두 연결(81405·81406)은 풀 밖의 기본 연결이라 정리 대상이 아니다.
     - 풀 세션 1개(81515)는 대기 중에도 몇 초마다 쓰여, 300초 동안 쉬는 일이 없다.
     - 더 줄이려면 대기 슬롯에 들어오는 주기 요청을 찾아 없애거나, 기본 연결을 닫는 설계가 필요하다(보류).
+- 11-02 07:40 평소 부하 측정(연결 재사용) 158건: 중앙값 1.12초, 상위 10% 1.94초, 3초 초과 6건(3.8%, 대부분 weather alerts).
+  - 날씨 판정 비용은 selection.py에 있다(정책 해시 파일).
+  - CLAUDE.md에 nice -n 10 규칙을 넣었다(4f641ae3).
