@@ -1,0 +1,59 @@
+
+/* Stable conversation geometry and accessible controls shared by public views. */
+#secChat .pearl-conversation{display:flex;flex-direction:column;gap:16px;min-width:0}
+#secChat .pearl-conversation-title{order:0}
+#secChat #chatForm{order:1;margin:0}
+/* Results flow with the page (11-01): a nested fixed-height scroll box hid the lower part of results.
+   The minimum height still reserves space so a reply does not move the composer. */
+#secChat #chatMessages{order:2;height:auto!important;block-size:auto!important;min-block-size:300px!important;max-block-size:none!important;max-height:none!important;overflow:visible!important;contain:layout;overflow-anchor:none}
+#secChat #chatMessages .chat-bubble{max-width:100%}
+#secChat .chat-composer-footer{min-height:44px}
+#secChat .chat-provider-description{padding:12px;border-radius:10px;background:var(--soft);color:var(--ink);margin:8px 0}
+#secChat .chat-provider-description>span{display:block;font-weight:600;font-size:12px;margin-bottom:6px}
+#secChat .chat-provider-description p{margin:0;overflow-wrap:anywhere}
+#secChat .chat-grade-button{font:inherit;color:inherit;border:0;background:none;text-decoration:underline;text-underline-offset:3px;min-width:24px;min-height:32px;cursor:pointer}
+.chat-extra-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.chat-extra-actions button,.chat-extra-actions a,.chat-feedback-reason button{min-height:44px}
+.chat-feedback-reason{display:grid;gap:8px;margin-top:12px}
+.chat-feedback-reason select{min-height:44px;width:100%;min-width:0}
+.chat-quality-details{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:10px}
+.chat-quality-details h3{font:600 16px/1.5 Arial,sans-serif;margin:0 0 8px}
+.chat-compare-panel{padding:16px;border:1px solid var(--line);border-radius:14px;margin-top:20px;min-width:0}
+.chat-compare-scroll{overflow:auto;max-width:100%}
+.chat-compare-panel table{border-collapse:collapse;width:100%;font-size:14px}
+.chat-compare-panel th,.chat-compare-panel td{text-align:left;padding:12px;vertical-align:top;border-bottom:1px solid var(--line);min-width:140px;color:var(--ink);background:var(--surface);overflow-wrap:anywhere}
+.chat-compare-panel caption{text-align:left;padding:12px 0;font-weight:600}
+.chat-compare-panel th[scope="row"]{min-width:120px}
+.task-suggestions{position:relative;z-index:30;max-width:100%}
+.task-suggestions [role="listbox"]{position:absolute;inset:0 0 auto;max-height:280px;overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px;color:var(--ink)}
+.task-suggestions [role="option"]{padding:12px;min-height:44px;cursor:pointer;overflow-wrap:anywhere}
+.task-suggestions [aria-selected="true"]{background:var(--soft);outline:2px solid var(--teal);outline-offset:-2px}
+#secWorkflows .pearl-workflow-identity{min-height:156px}
+#secWorkflows #frontWfActiveName{min-height:72px}
+#secWorkflows #pearlWorkflowDescription{min-height:68px}
+#secWorkflows #frontWorkflowAvailability{min-height:24px}
+.necklace-center h2{font:inherit;font-weight:600;font-size:24px;line-height:1.2}
+@media(max-width:700px){#secChat #chatMessages{min-block-size:360px!important}#secWorkflows .pearl-workflow-identity{min-height:210px}#secWorkflows #frontWfActiveName{min-height:108px}}
+@media(prefers-reduced-motion:reduce){#secChat #chatMessages{scroll-behavior:auto}}
+
+/* Reserve action slots when Stop changes visibility during a request. */
+#secChat .pearl-inline-composer{display:flex!important;flex-direction:column;align-items:stretch}
+#secChat .chat-composer-footer{display:grid!important;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;padding-top:10px}
+#secChat .chat-status-wrap{grid-column:1/-1;grid-row:1;min-height:36px;padding:0}
+#secChat #chatSubmit{grid-column:3;grid-row:2;width:auto}
+#secChat #chatStop{grid-column:2;grid-row:2;min-width:64px}
+#secChat #chatStop[hidden]{display:inline-flex!important;visibility:hidden}
+#secChat .chat-jump-newest{grid-column:1;grid-row:2;justify-self:start;white-space:normal}
+@media(max-width:700px){#secChat .chat-composer-footer{grid-template-columns:64px minmax(0,1fr)}#secChat #chatStop{grid-column:1;grid-row:2}#secChat #chatSubmit{grid-column:2;grid-row:2;width:100%}#secChat .chat-jump-newest{grid-column:1/-1;grid-row:3}}
+/* The retained renderer uses the same contrast floor as the published views. */
+body:not([data-pearl-entry]){--ink:var(--text);--surface:var(--panel);--soft:var(--chip);--teal:var(--accent);--text-dim:#a8b5c8}
+body:not([data-pearl-entry]) :is(.skip-link,.nav-tab.on,.btn.primary){background:#1d4ed8;color:#fff}
+body:not([data-pearl-entry]) .chat-disclosure a{color:var(--accent)}
+#secChat .chat-provider-description p{color:var(--ink,var(--text))!important}
+@media(prefers-color-scheme:light){body:not([data-pearl-entry]){--accent:#1d4ed8;--text-muted:#475569;--text-dim:#475569}}
+
+#secWorkflows #frontWorkflowAvailability{color:var(--ink,var(--text))!important}
+
+/* Keep the actual composer control visible to keyboard users in both themes. */
+#secChat #chatInput:focus-visible{outline:2px solid var(--focus-ring,var(--accent))!important;outline-offset:3px!important}
+

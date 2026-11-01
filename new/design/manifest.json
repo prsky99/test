@@ -1,0 +1,175 @@
+{
+  "count": 34,
+  "images": [
+    {
+      "file": "concept/04-pearl-connection.png",
+      "source": "output/frontend-renewal-2026-10-19/04-pearl-connection.png",
+      "sha256": "89220bc330d2ca99a981a2432c60ae419df0a4c5593dff6f4afb3a3f341e9269"
+    },
+    {
+      "file": "pages/01-home-full.png",
+      "source": "output/pearl-connection-pages-2026-10-19/01-home-full.png",
+      "sha256": "9db4df75e9b84b0a2d57b1630db71a8c4acead105e12764dc667bb3971a3b2fd"
+    },
+    {
+      "file": "pages/02-explore.png",
+      "source": "output/pearl-connection-pages-2026-10-19/02-explore.png",
+      "sha256": "6d929b6596202096e911c79c7021fdac9e61afb12450119b74bb0d263c65ba66"
+    },
+    {
+      "file": "pages/03-test.png",
+      "source": "output/pearl-connection-pages-2026-10-19/03-test.png",
+      "sha256": "b26345949739d76f804a613a48bc4d0353f734ee2f0c0a08675b527ccbfb2642"
+    },
+    {
+      "file": "pages/04-workflows.png",
+      "source": "output/pearl-connection-pages-2026-10-19/04-workflows.png",
+      "sha256": "c111bbba34adeaf659297eabcd3867868b8f1b16d93882e4066dc3a9ca261def"
+    },
+    {
+      "file": "pages/05-chat.png",
+      "source": "output/pearl-connection-pages-2026-10-19/05-chat.png",
+      "sha256": "087bb66482fa6041e3db70d700d7edc8496d4902775e1b5e5f7da291312bf5cc"
+    },
+    {
+      "file": "pages/06-learn.png",
+      "source": "output/pearl-connection-pages-2026-10-19/06-learn.png",
+      "sha256": "355a65ae83ee9d67eccda79bf31fe8d5c55780f0d83909dea9a960ffd1869edf"
+    },
+    {
+      "file": "pages/07-list-your-agent.png",
+      "source": "output/pearl-connection-pages-2026-10-19/07-list-your-agent.png",
+      "sha256": "d46a4102b2e5f39f7bd492d225b7436758958842f234c1545260bdd8af1c7eeb"
+    },
+    {
+      "file": "pages/08-about.png",
+      "source": "output/pearl-connection-pages-2026-10-19/08-about.png",
+      "sha256": "555014b51c0af46d8b9b839852db368ac20b9f2b1ba8c2c03b7fbf227fd12795"
+    },
+    {
+      "file": "system/01-footer-desktop-mobile.png",
+      "source": "output/pearl-connection-system-2026-10-19/01-footer-desktop-mobile.png",
+      "sha256": "5e56a638f13c964565facc97673d052626ad8df148188b30301b30753547bd32"
+    },
+    {
+      "file": "system/02-terms-privacy-dialogs.png",
+      "source": "output/pearl-connection-system-2026-10-19/02-terms-privacy-dialogs.png",
+      "sha256": "18900d3ca31f44c16e85d9fd256e614551ff6f0d4635d2460a7e21c940b82482"
+    },
+    {
+      "file": "system/03-privacy-accessibility-disclosure.png",
+      "source": "output/pearl-connection-system-2026-10-19/03-privacy-accessibility-disclosure.png",
+      "sha256": "49e3cdc246ac8c94066218273af8f9a1ae3c26d0d11a292023ff79a55a04ef07"
+    },
+    {
+      "file": "system/04-cookie-banner-preferences.png",
+      "source": "output/pearl-connection-system-2026-10-19/04-cookie-banner-preferences.png",
+      "sha256": "a9ead3daecbf948a7f506f5cf568e0427d56e106dd8d7cc6bbaf1ea7710cbb04"
+    },
+    {
+      "file": "system/05-notification-preferences.png",
+      "source": "output/pearl-connection-system-2026-10-19/05-notification-preferences.png",
+      "sha256": "2e10f3c902764696e2577478bfd68cbfcc5e94776a376688043c49d6d7595635"
+    },
+    {
+      "file": "system/06-task-update-verification.png",
+      "source": "output/pearl-connection-system-2026-10-19/06-task-update-verification.png",
+      "sha256": "4b3e7657978863f99c0f61ae11f4dbd6e25dfe3811683b386ef38073a648f419"
+    },
+    {
+      "file": "system/07-agent-report-details.png",
+      "source": "output/pearl-connection-system-2026-10-19/07-agent-report-details.png",
+      "sha256": "7e939c64df64ce919d353f9f138102a516966a350c91498b63b21d9586a2ddeb"
+    },
+    {
+      "file": "system/08-workflow-run-review.png",
+      "source": "output/pearl-connection-system-2026-10-19/08-workflow-run-review.png",
+      "sha256": "84f7655f71735fe35947adb00c146cd695615f0fd19980f3ac07a409b64f99ed"
+    },
+    {
+      "file": "system/09-workflow-result-webapp.png",
+      "source": "output/pearl-connection-system-2026-10-19/09-workflow-result-webapp.png",
+      "sha256": "9b2ee4c9434702f0f7052989091875291bd343f61c3001e46e80a63eec5dfe8b"
+    },
+    {
+      "file": "system/10-registration-import-consent.png",
+      "source": "output/pearl-connection-system-2026-10-19/10-registration-import-consent.png",
+      "sha256": "11ba24f43bfbb756eaf9476f01f2c7b24b74f4ef4bf22690589684a0672796a8"
+    },
+    {
+      "file": "system/11-common-components.png",
+      "source": "output/pearl-connection-system-2026-10-19/11-common-components.png",
+      "sha256": "71aaae685f947abd7cebf335bc71441888869ef7136e04834d2c67303f509238"
+    },
+    {
+      "file": "system/12-feedback-loading-errors.png",
+      "source": "output/pearl-connection-system-2026-10-19/12-feedback-loading-errors.png",
+      "sha256": "5a9cca1829c86685e4517091b969c69316efd5e9c5abd20749b00f137f17f0b3"
+    },
+    {
+      "file": "system/13-mobile-common-surfaces.png",
+      "source": "output/pearl-connection-system-2026-10-19/13-mobile-common-surfaces.png",
+      "sha256": "de70033bcef2fef9c2cc1da0518f947c8a618a4c68eaf387f7500c8945cb4f39"
+    },
+    {
+      "file": "system/14-dark-theme-surfaces.png",
+      "source": "output/pearl-connection-system-2026-10-19/14-dark-theme-surfaces.png",
+      "sha256": "0a3084d6a7e4455d0457420574be6c480c9c412f2ae2a981b3648f585d92a2e3"
+    },
+    {
+      "file": "system/15-contact-inquiry.png",
+      "source": "output/pearl-connection-system-2026-10-19/15-contact-inquiry.png",
+      "sha256": "fdfb7e2211047e0423c8228879632e6556c28b92b7a8641ec65e3dba0e771b20"
+    },
+    {
+      "file": "system/16-workflow-node-inspector.png",
+      "source": "output/pearl-connection-system-2026-10-19/16-workflow-node-inspector.png",
+      "sha256": "09a5ad47be2e724f2f3eca89160279042f22049cbb0398c013eb3cf27a82b648"
+    },
+    {
+      "file": "workspace-auth/01-workspace-overview.png",
+      "source": "output/pearl-connection-workspace-auth-2026-10-19/01-workspace-overview.png",
+      "sha256": "034d3498da4b816b86295ecae0b02e37d54b7ef55e4879cb2b55278410829be5"
+    },
+    {
+      "file": "workspace-auth/02-workspace-start-and-invitations.png",
+      "source": "output/pearl-connection-workspace-auth-2026-10-19/02-workspace-start-and-invitations.png",
+      "sha256": "d1418764a9300f8b49fb365ba00049f760cdced9ab78752ea114cd423f1b795e"
+    },
+    {
+      "file": "workspace-auth/03-private-workflow-studio.png",
+      "source": "output/pearl-connection-workspace-auth-2026-10-19/03-private-workflow-studio.png",
+      "sha256": "5d71e37ed68f33b66d54fb0785a6e48e2a6dad4648e714d2971b3b24401eee3d"
+    },
+    {
+      "file": "workspace-auth/04-workspace-review-test-release.png",
+      "source": "output/pearl-connection-workspace-auth-2026-10-19/04-workspace-review-test-release.png",
+      "sha256": "4695419dcc8b3d0f4a8a7af81711fd349625925160524dc20b61b675f2bc802f"
+    },
+    {
+      "file": "workspace-auth/05-workspace-members-access.png",
+      "source": "output/pearl-connection-workspace-auth-2026-10-19/05-workspace-members-access.png",
+      "sha256": "a500a6234f748cba6d2058bf07f72f5d028464eb3cb784bafa39194609121473"
+    },
+    {
+      "file": "workspace-auth/06-sign-up-google-github.png",
+      "source": "output/pearl-connection-workspace-auth-2026-10-19/06-sign-up-google-github.png",
+      "sha256": "77db25bf6f6dd7b789c200cb7060a783de3f003747b3924d528fad7adecb5d25"
+    },
+    {
+      "file": "workspace-auth/07-sign-in-and-recovery-states.png",
+      "source": "output/pearl-connection-workspace-auth-2026-10-19/07-sign-in-and-recovery-states.png",
+      "sha256": "1e97d3ac38430b2312245ba977d5b8342656085b9d4ffd6a8505d5c7263b87a0"
+    },
+    {
+      "file": "workspace-auth/08-account-and-sign-out.png",
+      "source": "output/pearl-connection-workspace-auth-2026-10-19/08-account-and-sign-out.png",
+      "sha256": "7dde4196db242a70036b65d972ab9ed7d9486b376075eee7378f120f02de4f8c"
+    },
+    {
+      "file": "workspace-auth/09-mobile-workspace-and-auth.png",
+      "source": "output/pearl-connection-workspace-auth-2026-10-19/09-mobile-workspace-and-auth.png",
+      "sha256": "631e4ac519208d57e9c3b4d7d185b20752aa01b4ad9d713a834332f9d5fc2d8f"
+    }
+  ]
+}

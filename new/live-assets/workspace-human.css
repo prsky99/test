@@ -1,0 +1,111 @@
+/* Shared workspace hierarchy, with a real navigation drawer on small screens. */
+.workspace-pearl #workspace-menu,.workspace-pearl #workspace-nav-close{display:none}
+.workspace-pearl .workspace-manage{margin:24px 0 8px;border:0!important;background:none!important;padding:0!important}
+.workspace-pearl .workspace-manage>summary{font-family:var(--sans,Inter,system-ui);font-size:12px;letter-spacing:.02em;color:var(--muted);cursor:pointer;padding:12px}
+.workspace-pearl .workspace-manage>a{margin:4px 0}
+.workspace-pearl .workspace-nav-mask{position:fixed;inset:0;background:#061d2a88;z-index:49;border:0;border-radius:0;margin:0}
+.workspace-pearl .workspace-nav-mask[hidden]{display:none!important}
+.workspace-pearl .workspace-sidebar>.workspace-back{margin-top:auto;font-size:12px}
+.workspace-pearl .human-overview-grid{grid-template-columns:1fr!important;gap:24px;max-width:920px}
+.workspace-pearl .human-overview-grid>aside{order:2}
+.workspace-pearl.human-overview .human-workspace-chooser,.workspace-pearl.human-overview .human-invitations{border:0;border-top:1px solid var(--line);border-radius:0;padding:16px 0;background:none}
+.workspace-pearl.human-overview .human-overview-grid>div{order:1}
+.workspace-pearl.human-overview #detail{padding:28px}
+.workspace-pearl.human-overview #detail h2{font-size:15px;color:var(--muted);font-family:var(--sans,Inter,system-ui);margin-bottom:4px}
+.workspace-pearl.human-overview #org-role{font-size:12px;margin:0}
+.workspace-pearl.human-overview .workspace-start{background:none;border:0;padding:12px 0 20px}
+.workspace-pearl.human-overview .workspace-start h3{font-size:30px;line-height:1.25;margin:12px 0}
+.workspace-pearl.human-overview .workspace-start p{max-width:610px;font-size:15px}
+.workspace-pearl.human-overview .workspace-start>a{margin-right:12px}
+.workspace-pearl.human-overview #account[hidden]{display:none!important}
+.workspace-pearl.human-overview main>header>div>a,.workspace-pearl.human-overview main>header>div>p:first-of-type{display:none}
+.workspace-pearl.human-overview #organization-settings,.workspace-pearl.human-overview #individual-panel{font-size:13px}
+.workspace-pearl.human-credits main{max-width:960px}
+.workspace-pearl.human-credits #balance{display:block;font-size:32px;line-height:1.3;margin:20px 0;color:var(--text)}
+.workspace-pearl.human-credits .human-credit-policy,.workspace-pearl.human-credits .human-credit-history{margin:18px 0;border:1px solid var(--line);border-radius:16px;padding:18px 22px}
+.workspace-pearl.human-credits .human-credit-policy>summary,.workspace-pearl.human-credits .human-credit-history>summary{cursor:pointer;font-weight:600}
+.workspace-pearl.human-credits .human-credit-policy section,.workspace-pearl.human-credits .human-credit-history section{border:0;margin:0;padding:20px 0 0;background:none}
+.workspace-pearl.human-credits .human-plan-settings{border:0;border-top:1px solid var(--line);padding:16px 0 0;margin-top:20px}
+.workspace-pearl.human-credits .human-credit-policy[data-enrolling=true]>summary{font-size:20px}
+@media(max-width:900px){
+ .workspace-pearl #workspace-menu{display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;padding:8px;margin:0;background:transparent;border:1px solid var(--line);border-radius:10px;flex:none}
+ .workspace-pearl .workspace-topbar{gap:10px;padding:12px 16px;position:relative;z-index:51}
+ .workspace-pearl .workspace-brand{margin-right:auto;min-width:0}
+ .workspace-pearl .workspace-brand>span:last-child{font-size:18px}
+ .workspace-pearl .workspace-layout{display:grid!important;grid-template-columns:minmax(0,1fr)!important}
+ .workspace-pearl .workspace-sidebar{display:none!important}
+ .workspace-pearl[data-workspace-menu=true]{overflow:hidden}
+ .workspace-pearl[data-workspace-menu=true] .workspace-sidebar{display:flex!important;flex-direction:column!important;flex-wrap:nowrap!important;position:fixed;top:74px;bottom:0;left:0;width:min(320px,88vw);padding:16px;overflow:auto;z-index:50;background:var(--panel,var(--card));border-right:1px solid var(--line);gap:6px;align-items:stretch}
+ .workspace-pearl #workspace-nav-close{display:block;min-height:44px;margin:0 0 12px;align-self:flex-end;font-size:13px}
+ .workspace-pearl .workspace-sidebar a{min-height:46px;white-space:normal;flex:none!important}
+ .workspace-pearl .workspace-sidebar .workspace-manage a{display:flex}
+ .workspace-pearl .workspace-header-actions>a{font-size:0;padding:10px}
+ .workspace-pearl .workspace-header-actions>a .icon{font-size:16px}
+ .workspace-pearl .workspace-header-actions{gap:6px}
+ .workspace-pearl .workspace-header-actions #workspace-signout,.workspace-pearl .workspace-header-actions #logout{font-size:12px;padding:8px;min-height:40px}
+ .workspace-pearl.human-overview #detail{padding:22px}.workspace-pearl.human-overview .workspace-start h3{font-size:26px}
+}
+@media(max-width:390px){.workspace-pearl .workspace-topbar{padding:10px;gap:6px}.workspace-pearl .workspace-brand>span:last-child{font-size:16px}.workspace-pearl .workspace-brand .brand-mark{transform:scale(.8);transform-origin:left center;margin-right:-5px}.workspace-pearl .workspace-header-actions>a{display:none}}
+.workspace-pearl #workspace-mobile-signout{display:none}
+.workspace-pearl.workspace-auth #workspace-menu{display:none!important}
+@media(max-width:900px){
+ .workspace-pearl .workspace-topbar{display:flex!important;flex-wrap:nowrap!important;align-items:center!important;height:64px!important;min-height:64px!important;justify-content:space-between!important}
+ .workspace-pearl .workspace-brand{display:flex!important;gap:8px!important;font-size:18px!important;flex:1;min-width:0}
+ .workspace-pearl .workspace-brand .brand-mark{transform:none!important;position:relative;width:43px!important;min-width:43px;height:26px;flex:0 0 43px;margin:0!important}
+ .workspace-pearl .workspace-header-actions{display:flex!important;flex-wrap:nowrap!important;flex:none}
+ .workspace-pearl[data-workspace-menu=true] .workspace-sidebar{top:64px}
+}
+@media(max-width:600px){
+ .workspace-pearl .workspace-header-actions #workspace-signout,.workspace-pearl .workspace-header-actions #logout{display:none!important}
+ .workspace-pearl #workspace-mobile-signout{display:block;min-height:44px;border:1px solid var(--line);border-radius:10px;padding:10px;margin:16px 0 0}
+}
+.workspace-pearl .workspace-manage>a{display:flex;align-items:center;gap:12px;padding:12px;margin:4px 0;border-radius:10px;text-decoration:none;color:var(--ink);font-size:13px;min-height:44px}
+.workspace-pearl .workspace-manage>a[aria-current=page]{background:var(--aqua);font-weight:600}
+.workspace-pearl .workspace-manage>a .icon{width:20px;height:20px;flex:none}
+@media(max-width:900px){.workspace-pearl .workspace-header-actions{width:auto!important}}
+
+@media(max-width:900px){.workspace-pearl .workspace-brand .brand-mark i{width:14px;height:14px;top:8px}.workspace-pearl .workspace-brand .brand-mark i:nth-child(2){width:19px;height:19px;left:12px;top:0}.workspace-pearl .workspace-brand .brand-mark i:nth-child(3){left:28px}}
+
+/* Overview uses the same field, action and disclosure rhythm in every state. */
+.workspace-pearl.human-overview main{max-width:1200px;width:100%}
+.workspace-pearl.human-overview .human-overview-grid{max-width:none;gap:20px}
+.workspace-pearl.human-overview #detail{margin:0;padding:28px}
+.workspace-pearl.human-overview #org-title{margin:0 0 4px;font:600 15px/1.5 Arial,Helvetica,sans-serif;letter-spacing:0;color:var(--ink)}
+.workspace-pearl.human-overview .workspace-start{padding:18px 0 24px;margin:0}
+.workspace-pearl.human-overview .workspace-start h3{margin:0 0 10px}
+.workspace-pearl.human-overview .workspace-start p{margin:0 0 20px}
+.workspace-pearl.human-overview .overview-primary-actions{display:flex;align-items:center;flex-wrap:wrap;gap:12px}
+.workspace-pearl.human-overview .overview-primary-actions>a{display:inline-flex;align-items:center;justify-content:center;min-height:44px;margin:0;padding:10px 18px;border-radius:10px;font:500 14px/1.5 Arial,Helvetica,sans-serif;letter-spacing:0;text-decoration:none}
+.workspace-pearl.human-overview .overview-primary-actions>#workflow-studio{background:var(--teal);border:1px solid var(--teal);color:#fff}
+.workspace-pearl.human-overview[data-theme=dark] .overview-primary-actions>#workflow-studio{background:#97d5cc;border-color:#97d5cc;color:#102c2b}
+.workspace-pearl.human-overview .overview-primary-actions>#human-overview-templates{background:var(--surface);border:1px solid var(--line);color:var(--ink)}
+.workspace-pearl.human-overview .overview-disclosure{margin:0!important;padding:0!important;border:0!important;border-top:1px solid var(--line)!important;background:none!important;border-radius:0!important;box-shadow:none!important}
+.workspace-pearl.human-overview .overview-disclosure>summary{min-height:52px;padding:15px 0;font:600 14px/1.5 Arial,Helvetica,sans-serif;letter-spacing:0}
+.workspace-pearl.human-overview .overview-disclosure-body{padding:4px 0 24px;min-width:0}
+.workspace-pearl.human-overview .overview-disclosure-body>.card{padding:0;margin:0;border:0;background:none;box-shadow:none}
+.workspace-pearl.human-overview .overview-disclosure-body h2,.workspace-pearl.human-overview .overview-disclosure-body h3{margin:0 0 12px;font:600 16px/1.5 Arial,Helvetica,sans-serif;letter-spacing:0}
+.workspace-pearl.human-overview .overview-disclosure-body p{margin:0 0 16px;font-size:13px}
+.workspace-pearl.human-overview #owner-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px 32px;align-items:start}
+.workspace-pearl.human-overview .overview-sent{grid-column:1/-1;padding-top:20px;border-top:1px solid var(--line)}
+.workspace-pearl.human-overview .overview-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px 12px;align-items:end;margin:0;min-width:0}
+.workspace-pearl.human-overview .overview-field{display:grid;gap:8px;min-width:0}
+.workspace-pearl.human-overview .overview-field label{margin:0;font-size:13px;color:var(--ink)}
+.workspace-pearl.human-overview .overview-field :is(input,select){width:100%;min-width:0;margin:0;min-height:44px}
+.workspace-pearl.human-overview .overview-form>button{margin:0;align-self:end;min-height:44px;white-space:normal}
+.workspace-pearl.human-overview #invite .overview-field:has(#recipient){grid-column:1/-1}
+.workspace-pearl.human-overview .overview-owner-settings{max-width:680px;margin-bottom:24px}
+.workspace-pearl.human-overview #organization-settings .row{justify-content:flex-start;gap:12px;padding-top:20px;border-top:1px solid var(--line)}
+.workspace-pearl.human-overview .overview-disclosure-body .list{margin:0;padding:0}
+.workspace-pearl.human-overview .overview-disclosure-body .list>li{padding:16px 0;display:flex;align-items:center;flex-wrap:wrap;gap:12px;min-width:0}
+.workspace-pearl.human-overview #members>li>.reference{flex-basis:100%;font-size:12px}
+.workspace-pearl.human-overview #members>li>p{display:none}
+.workspace-pearl.human-overview #members>li>select{flex:1;min-width:100px}
+.workspace-pearl.human-overview .overview-disclosure-body .list>li :is(button,select){margin:0;min-height:44px}
+.workspace-pearl.human-overview #create-organization{margin-top:16px}
+.workspace-pearl.human-overview .overview-empty{font-size:13px;color:var(--muted);margin:0}
+.workspace-pearl.human-overview #account .reference{padding:12px 14px;background:var(--soft);border-radius:8px;margin:16px 0 12px}
+.workspace-pearl.human-overview #account>.reference+button{margin:0 0 20px}
+.workspace-pearl.human-overview #status{margin:0 0 20px;padding:10px 14px;min-height:0;font-size:13px}
+.workspace-pearl.human-overview #detail:has(#org-actions[hidden]){min-height:120px}
+@media(max-width:1100px){.workspace-pearl.human-overview #owner-actions{grid-template-columns:minmax(0,1fr);gap:24px}.workspace-pearl.human-overview .overview-members{padding-top:20px;border-top:1px solid var(--line)}}
+@media(max-width:600px){.workspace-pearl.human-overview #detail{padding:20px}.workspace-pearl.human-overview .overview-form{grid-template-columns:minmax(0,1fr)}.workspace-pearl.human-overview .overview-form>button{justify-self:start}.workspace-pearl.human-overview #members>li>select{flex-basis:100%}.workspace-pearl.human-overview .overview-disclosure>summary{min-height:48px;padding:13px 0}.workspace-pearl.human-overview .overview-primary-actions{gap:10px}.workspace-pearl.human-overview .overview-primary-actions>a{flex:1;min-width:135px}}

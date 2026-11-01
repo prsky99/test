@@ -1,0 +1,41 @@
+{
+  "image_count": 2,
+  "method": "Built-in image_gen.imagegen",
+  "data_snapshot_utc": "2026-10-19T10:07:57.648618+00:00",
+  "scope": "Design images; not an HTML implementation or deployment.",
+  "items": [
+    {
+      "file": "01-home-with-catalog-status.png",
+      "title": "홈 수정 시안 — 카탈로그 규모와 운영 현황 전면 배치",
+      "width": 887,
+      "height": 1774,
+      "bytes": 1767828,
+      "sha256": "485c597459520a7eac17acec69db25ad8bc5da83db27629c7d1c427533211474",
+      "refined": false,
+      "png_crc_verified": true,
+      "visual_review": "Reviewed layout, English copy, exact metrics, timestamp, protocol totals, distinct connection and execution scopes."
+    },
+    {
+      "file": "02-agent-status.png",
+      "title": "에이전트 현황 페이지 — 규모·연결 상태·실행 점검·탐색 연결",
+      "width": 893,
+      "height": 1760,
+      "bytes": 1755349,
+      "sha256": "4b547a1027f3236a17b71cef8517fbf8999d2d8c0364cf53467d4fc687b3bacd",
+      "refined": true,
+      "png_crc_verified": true,
+      "visual_review": "Reviewed layout, English copy, exact metrics, timestamp, protocol totals, distinct connection and execution scopes."
+    }
+  ],
+  "validation": {
+    "png_crc": true,
+    "source_copy_sha256": true,
+    "metric_sums": true,
+    "visual_review": true
+  },
+  "limitations": [
+    "Generative image typography is not a data-rendering specification.",
+    "Captured counts can increase or decrease after the snapshot.",
+    "Proportional charts were replaced by numeric lists to avoid inaccurate visual encoding."
+  ]
+}

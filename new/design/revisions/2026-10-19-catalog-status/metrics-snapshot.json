@@ -1,0 +1,188 @@
+{
+  "captured_at_utc": "2026-10-19T10:07:57.648618+00:00",
+  "catalog_scope": "resources with active=1; A2A agents, MCP servers and x402 services",
+  "cataloged": 114938,
+  "reachable": 93778,
+  "with_status_check": 114873,
+  "by_protocol": [
+    {
+      "kind": "a2a",
+      "n": 33598,
+      "status_checked": 33593
+    },
+    {
+      "kind": "mcp",
+      "n": 33717,
+      "status_checked": 33717
+    },
+    {
+      "kind": "x402",
+      "n": 47623,
+      "status_checked": 47563
+    }
+  ],
+  "by_protocol_status": [
+    {
+      "kind": "a2a",
+      "status": "down",
+      "n": 5781
+    },
+    {
+      "kind": "a2a",
+      "status": "failing",
+      "n": 114
+    },
+    {
+      "kind": "a2a",
+      "status": "healthy",
+      "n": 26964
+    },
+    {
+      "kind": "a2a",
+      "status": "reachable",
+      "n": 734
+    },
+    {
+      "kind": "a2a",
+      "status": "unknown",
+      "n": 5
+    },
+    {
+      "kind": "mcp",
+      "status": "down",
+      "n": 3285
+    },
+    {
+      "kind": "mcp",
+      "status": "failing",
+      "n": 50
+    },
+    {
+      "kind": "mcp",
+      "status": "healthy",
+      "n": 19858
+    },
+    {
+      "kind": "mcp",
+      "status": "reachable",
+      "n": 10524
+    },
+    {
+      "kind": "x402",
+      "status": "down",
+      "n": 1550
+    },
+    {
+      "kind": "x402",
+      "status": "failing",
+      "n": 10315
+    },
+    {
+      "kind": "x402",
+      "status": "healthy",
+      "n": 33652
+    },
+    {
+      "kind": "x402",
+      "status": "reachable",
+      "n": 2046
+    },
+    {
+      "kind": "x402",
+      "status": "unknown",
+      "n": 60
+    }
+  ],
+  "new_24h": 4488,
+  "new_by_day_utc": [
+    {
+      "day": "2026-10-12",
+      "n": 40481
+    },
+    {
+      "day": "2026-10-13",
+      "n": 34725
+    },
+    {
+      "day": "2026-10-14",
+      "n": 6941
+    },
+    {
+      "day": "2026-10-15",
+      "n": 7741
+    },
+    {
+      "day": "2026-10-16",
+      "n": 9638
+    },
+    {
+      "day": "2026-10-17",
+      "n": 9012
+    },
+    {
+      "day": "2026-10-18",
+      "n": 4748
+    },
+    {
+      "day": "2026-10-19",
+      "n": 1652
+    }
+  ],
+  "execution_24h": {
+    "period_start": 1792318077.648618,
+    "period_end": 1792404477.648618,
+    "timezone": "UTC",
+    "scope": "execution",
+    "completed": 717,
+    "succeeded": 489,
+    "failed": 228,
+    "unknown": 0,
+    "successful_resources": 456,
+    "success_share_pct": 68.2,
+    "by_protocol": {
+      "a2a": {
+        "succeeded": 0,
+        "failed": 0,
+        "unknown": 0
+      },
+      "mcp": {
+        "succeeded": 489,
+        "failed": 228,
+        "unknown": 0
+      },
+      "x402": {
+        "succeeded": 0,
+        "failed": 0,
+        "unknown": 0
+      }
+    },
+    "bucket_seconds": 3600
+  },
+  "reachable_share": 81.6,
+  "categories": [
+    {
+      "name": "Finance, Payments & Crypto",
+      "n": 27637
+    },
+    {
+      "name": "Docs, Knowledge Bases & RAG",
+      "n": 26991
+    },
+    {
+      "name": "other",
+      "n": 12053
+    },
+    {
+      "name": "Web Search & Scraping",
+      "n": 5994
+    },
+    {
+      "name": "Data Utilities & Format Conversion",
+      "n": 5649
+    },
+    {
+      "name": "Database & Analytics",
+      "n": 4666
+    }
+  ]
+}

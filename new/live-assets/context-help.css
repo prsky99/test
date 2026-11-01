@@ -1,0 +1,13 @@
+/* Optional explanations stay close to the control without competing with it. */
+.context-help{min-width:0;margin:0;border:0;border-radius:0;padding:0;background:none;box-shadow:none;font:13px/1.5 Arial,Helvetica,sans-serif;color:var(--muted,var(--text-dim))}
+.context-help>summary{display:list-item;list-style:disclosure-closed inside;width:fit-content;max-width:100%;min-height:32px;padding:6px 0;font:inherit;font-weight:500;color:var(--teal,var(--accent));cursor:pointer;touch-action:manipulation}
+.context-help[open]>summary{list-style-type:disclosure-open;margin-bottom:6px}
+.context-help>.context-help-body{max-width:70ch;margin:0 0 10px;padding:10px 14px;border-left:2px solid var(--line,var(--border));overflow-wrap:anywhere;color:var(--muted,var(--text-dim));font:13px/1.55 Arial,Helvetica,sans-serif}
+.context-help .context-help-body p{font:inherit;color:inherit;margin:0 0 8px}.context-help .context-help-body p:last-child{margin-bottom:0}
+.context-help>summary:focus-visible{outline:2px solid var(--teal,var(--accent));outline-offset:3px;border-radius:3px}
+.workspace-pearl .context-help{border:0;padding:0;margin:0;background:none;box-shadow:none}
+.workspace-pearl .context-help>summary{padding:6px 0;font:13px/1.5 Arial,Helvetica,sans-serif;font-weight:500;min-height:32px;color:var(--teal,var(--accent))}
+.workspace-pearl .context-help .context-help-body p{font:inherit;margin:0 0 8px}
+.context-help-row{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 16px;min-width:0}
+.context-help-row>.context-help[open]{flex-basis:100%}
+@media(prefers-reduced-motion:reduce){.context-help{scroll-behavior:auto}}

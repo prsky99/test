@@ -1,0 +1,88 @@
+/* WCAG 2.2 AA presentation fixes, measured on the published pages (2026-10-28). */
+
+/* 1.4.3 contrast: light-theme gold and muted text reach at least 4.5:1 on every light surface.
+   Decorative gold lines keep the brand color; only text uses the deeper tone. */
+body:not([data-theme="dark"]){--muted:#4d6880;--gold-text:#7d5f36}
+body:not([data-theme="dark"]) :is(.eyebrow,.protocol-rule,.reference-step-number,.reference-learn-example>.caption,
+  .heading-listing-art p,.pearl-step-number),
+body:not([data-theme="dark"]) .step-list li::before{color:var(--gold-text)}
+body:not([data-theme="dark"]) th{color:var(--ink)}
+
+/* 2.4.7 / 2.4.13 visible focus in both themes. */
+body{--focus-ring:#0b5f6a}
+body[data-theme="dark"]{--focus-ring:#f5c86a}
+:where(a,button,input,select,textarea,summary,[tabindex]):focus-visible{
+  outline:2px solid var(--focus-ring);outline-offset:2px}
+
+a:focus, a:focus-visible,
+button:focus, button:focus-visible,
+input:focus, input:focus-visible,
+select:focus, select:focus-visible,
+textarea:focus, textarea:focus-visible,
+.btn:focus, .btn:focus-visible,
+.nav-tab:focus, .nav-tab:focus-visible,
+.pearl-header .nav-tab:focus, .pearl-header .nav-tab:focus-visible,
+.cookie-banner button:focus, .cookie-banner button:focus-visible {
+  outline: 2px solid var(--focus-ring, #0b5f6a) !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 2px var(--focus-ring, #0b5f6a) !important;
+}
+.cookie-banner {
+  position: fixed !important;
+  bottom: 16px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  width: calc(100% - 32px) !important;
+  max-width: 920px !important;
+  margin: 0 auto !important;
+  z-index: 99999 !important;
+}
+
+/* 2.4.11 focus not obscured: keep focused controls clear of sticky composers and run bars. */
+html{scroll-padding-block:24px 120px}
+
+/* 2.5.8 target size: controls are at least 24 by 24 CSS pixels. */
+:where(button,.btn,.chip-btn,.icon-btn,[role="button"],summary,input[type="checkbox"],input[type="radio"]){
+  min-height:24px;min-width:24px}
+
+/* Reserve result space so loading cards do not push the page (CLS). */
+#xResults{min-height:min(70vh,720px)}
+#chatMessages{min-height:240px}
+
+/* Theme aliases must resolve where the theme is set (body), not at :root, or dark mode
+   keeps the light values: dim text and accent links fell to about 2:1 contrast. */
+body{--panel:var(--surface);--panel-hover:var(--aqua);--card:var(--surface);--card-hover:var(--aqua);--text:var(--ink);
+  --text-muted:var(--muted);--text-dim:var(--muted);--border:var(--line);--border-light:var(--line);--accent:var(--teal);
+  --accent-hover:var(--teal);--chip:var(--soft);--k-a2a:var(--teal);--k-mcp:var(--teal);--k-x402:var(--gold)}
+/* In dark mode the accent is light, so text placed on it is dark (about 11:1 on #9cdbdc). */
+body[data-theme="dark"] :is(.btn.primary,.sub-pill.active,.home-query .icon-btn,.skip-link),
+body[data-theme="dark"] .btn.primary :is(span,svg){color:#0b1a1f}
+
+/* Compact controls retain a usable target without counting hidden native mirrors. */
+:is(button,[role="button"],summary,.btn,.icon-btn,input[type="checkbox"],input[type="radio"]){min-height:24px!important;min-width:24px!important}
+#secChat .pearl-protocol-segmented{min-width:0;max-width:100%;flex-wrap:wrap}
+#secWorkflows .pearl-workflow-actions{min-height:52px}
+
+
+/* Search results remain readable and comfortably selectable at narrow widths. */
+.learn-topic-search{display:grid;gap:8px;margin-bottom:16px;min-width:0}.learn-topic-search input{width:100%;min-width:0}.learn-topic-results{display:grid;gap:8px}.learn-topic-results[hidden]{display:none}.learn-topic-results button{text-align:left;min-height:44px;white-space:normal}
+.test-report-evidence-note{padding:12px;border:1px solid var(--border,var(--line));border-radius:8px;font-weight:600}.archived-report-assessment>summary{cursor:pointer;min-height:32px}
+
+/* Visible pointer targets meet the 24px minimum; keyboard-only skip links stay collapsed until focus. */
+.pf-email,a[href*="agent-status"],a[href="#status"]{min-height:24px;min-width:24px;display:inline-flex;align-items:center}
+input[type=checkbox],input[type=radio]{min-height:24px!important;min-width:24px!important;width:24px;height:24px;flex-shrink:0}
+
+label:has(> #pearlRegAuthority){display:flex;align-items:center;gap:8px;min-height:28px}
+.learn-guide-search{grid-column:1/-1;min-width:0;padding:18px}.learn-guide-search label{display:block;font-weight:600;margin-bottom:8px}.learn-guide-search input{width:100%;min-width:0}.learn-guide-results{display:flex;gap:8px;flex-wrap:wrap;max-height:24rem;overflow:auto}
+
+/* Loading previews and live examples use the same geometry. */
+#secTest #testbenchRecipesGrid,#secTest .ux-example-picker #testbenchRecipesGrid{grid-template-columns:repeat(5,minmax(0,1fr))!important;grid-auto-rows:136px;min-height:136px;gap:10px}
+#secTest #testbenchRecipesGrid :is(.pearl-example-choice,.pearl-example-preview){height:136px;min-height:136px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;gap:5px;padding:12px}
+#secTest #testbenchRecipesGrid strong{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:38px;line-height:19px}
+#secTest .pearl-example-description{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:32px;line-height:16px}
+#secTest .pearl-example-state{margin-top:auto;line-height:16px}
+@media(max-width:1100px){#secTest #testbenchRecipesGrid,#secTest .ux-example-picker #testbenchRecipesGrid{grid-template-columns:repeat(3,minmax(0,1fr))!important;min-height:282px}}
+@media(max-width:700px){#secTest #testbenchRecipesGrid,#secTest .ux-example-picker #testbenchRecipesGrid{grid-template-columns:repeat(2,minmax(0,1fr))!important;min-height:428px}}
+
+#secTest #pearlTestExampleName{min-height:2.3em}
+#secTest #pearlTestExampleDescription{min-height:3em}
