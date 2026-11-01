@@ -20,6 +20,15 @@ def test_document_not_found_is_html_but_api_not_found_remains_json(client):
     assert client.get('/missing-public-page',headers={'Accept':'application/json'}).headers['content-type'].startswith(('application/json','application/problem+json'))
 
 
+def test_document_not_found_keeps_the_site_navigation(client):
+    # A lost visitor can reach every main page from the 404 page, not only Home and Explore.
+    text=client.get('/new/en/missing.html',headers={'Accept':'text/html'}).text
+    assert 'aria-label="Main navigation"' in text and 'href="/"' in text
+    for page in ('explore','chat','workflows','test','learn','agent-status','list-agent','about'):
+        assert 'href="/new/en/'+page+'.html"' in text
+    assert '<script' not in text
+
+
 def test_optimized_pearl_has_a_budget_and_conditional_cache(client):
     path='/new/en/assets/pearl.webp'
     response=client.get(path)

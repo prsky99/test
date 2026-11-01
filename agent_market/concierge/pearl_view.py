@@ -237,7 +237,12 @@ def install(app, front, *, workspace_access_enabled=False, workspace_link_enable
             '<body><main class="container" id="main"><section class="card page-heading"><p class="eyebrow">404</p>'
             '<h1>Find your next connection.</h1><p>This page is unavailable. Continue from Home or explore the agent catalog.</p>'
             '<div class="actions"><a class="btn primary" href="/">Home</a>'
-            '<a class="btn" href="/new/en/explore.html">Explore agents</a></div></section></main></body></html>',
+            '<a class="btn" href="/new/en/explore.html">Explore agents</a></div></section>'
+            '<nav class="card" aria-label="Main navigation"><p class="eyebrow">Other pages</p><div class="actions">'
+            + ''.join('<a class="btn" href="/new/en/'+page+'.html">'+label+'</a>' for page,label in (
+                ('chat','Chat'),('workflows','Workflows'),('test','Test'),('learn','Learn'),
+                ('agent-status','Agent Status'),('list-agent','List Your Agent'),('about','About')))
+            + '</div></nav></main></body></html>',
             status_code=404,headers={'Cache-Control':'no-store','X-Robots-Tag':'noindex',
                 'Content-Security-Policy':"default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; frame-ancestors 'none'; base-uri 'none'"})
     app.add_exception_handler(404,not_found)

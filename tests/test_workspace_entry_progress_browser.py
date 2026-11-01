@@ -213,7 +213,7 @@ def test_expired_workflows_entry_returns_to_signin_without_private_data(customer
 
 
 @pytest.mark.parametrize('mobile', [False, True])
-def test_progress_stays_in_a_corner_for_clicks_and_hidden_for_background_and_errors(orgs, browser, mobile):
+def test_progress_sits_small_in_the_centre_for_clicks_and_hidden_for_background_and_errors(orgs, browser, mobile):
     client, context, page, errors, external, calls = account_page(orgs, browser, mobile=mobile)
     detail = '/api/customer-organizations/' + orgs.organization['id']
     held = []; page.route('**' + detail, lambda route: held.append(route))
@@ -234,18 +234,20 @@ def test_progress_stays_in_a_corner_for_clicks_and_hidden_for_background_and_err
             progress = page.locator('#workspace-progress')
             expect(progress).to_be_visible()
             bounds = progress.bounding_box(); viewport = page.viewport_size
-            # UI policy 11-01: a corner badge that never covers the page or takes clicks.
-            assert bounds['y'] < 40 and bounds['x'] + bounds['width'] > viewport['width'] - 40
+            # UI policy 11-01 (user decision): a small centred box that never covers the page or takes clicks.
+            centre_x = bounds['x'] + bounds['width'] / 2; centre_y = bounds['y'] + bounds['height'] / 2
+            assert abs(centre_x - viewport['width'] / 2) < 4 and abs(centre_y - viewport['height'] / 2) < 4
+            assert bounds['width'] < viewport['width'] * 0.9 and bounds['height'] < 120
             assert progress.evaluate('e=>getComputedStyle(e).pointerEvents') == 'none'
             expect(page.locator('.org-choice').first).to_be_visible()
             page.emulate_media(reduced_motion='reduce')
             assert progress.locator('.workspace-spinner').evaluate('e=>getComputedStyle(e).animationName') == 'none'
             if not fail:
                 PROOF.mkdir(parents=True, exist_ok=True)
-                page.screenshot(path=str(PROOF / ('corner-progress-mobile.png' if mobile else 'corner-progress-desktop.png')))
+                page.screenshot(path=str(PROOF / ('centre-progress-mobile.png' if mobile else 'centre-progress-desktop.png')))
                 page.locator('#workspace-theme').click()
                 expect(page.locator('body')).to_have_attribute('data-theme','dark')
-                page.screenshot(path=str(PROOF / ('corner-progress-mobile-dark.png' if mobile else 'corner-progress-desktop-dark.png')))
+                page.screenshot(path=str(PROOF / ('centre-progress-mobile-dark.png' if mobile else 'centre-progress-desktop-dark.png')))
             held.pop().fulfill(status=503 if fail else response.status_code,
                                body=b'{}' if fail else response.content, content_type='application/json')
             expect(progress).to_be_hidden()

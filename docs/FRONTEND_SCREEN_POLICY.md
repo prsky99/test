@@ -11,7 +11,8 @@
    - 접속할 때 서버·DB를 부르지 않는다.
    - 실행 가능 여부는 사용자가 실행을 누를 때 서버가 확인한다.
 2. **화면 전체를 막지 않는다.**
-   - 전체 화면 로딩 오버레이, 화면 가운데 진행 팝업, 레이아웃을 숨기는 "준비될 때까지 대기"는 금지한다.
+   - 전체 화면 로딩 오버레이, 화면을 어둡게 덮는 막, 레이아웃을 숨기는 "준비될 때까지 대기"는 금지한다.
+   - 화면 가운데의 작은 진행 표시(규칙 6)는 허용한다. 화면을 덮지 않고 클릭을 막지 않기 때문이다.
    - 메뉴, 머리글, 제목, 본문 틀은 첫 페인트에 보이고 바로 누를 수 있어야 한다.
 3. **불러오는 것은 그 영역에만 표시한다.**
    - 데이터가 필요한 영역만 상태 문구, 작은 스피너, `aria-busy`로 표시한다.
@@ -23,9 +24,9 @@
    - 세션 확인과 읽기 요청(GET)은 병렬로 보낸다.
    - 읽기는 쿠키로 인증되고, CSRF는 쓰기에만 필요하다.
    - 401이면 공통 처리기가 로그인으로 보낸다.
-6. **진행 표시는 구석에, 클릭을 막지 않게 한다.**
-   - 사용자가 누른 동작의 진행은 누른 버튼의 `aria-busy` 스피너와 오른쪽 위 작은 배지로 보인다.
-   - 배지는 `pointer-events:none`이다.
+6. **진행 표시는 화면 가운데에 작게, 클릭을 막지 않게 한다.** (2026-11-01 사용자 결정: 가운데가 맞고, 오른쪽 위로 옮긴 것은 잘못이었다)
+   - 사용자가 누른 동작의 진행은 누른 버튼의 `aria-busy` 스피너와 화면 가운데의 작은 표시(예: Explore의 "Finding agents…")로 보인다.
+   - 가운데 표시는 내용 크기만 한 작은 상자다. 배경 막이 없고 `pointer-events:none`이다.
    - 백그라운드 읽기에는 표시하지 않는다.
 7. **경과 시간을 보인다.**
    - 오래 걸리는 작업은 남은 시간 대신 경과 시간을 보인다.
@@ -58,12 +59,12 @@
 - **워크스페이스**
   - 전체 화면 게이트(`data-workspace-loading`이 레이아웃을 숨기던 것과 `#workspace-entry-progress`)를 없앴다.
   - 지금은 `#status` 줄에만 스피너가 붙는다.
-  - 가운데 진행 팝업은 오른쪽 위 배지로 옮겼다.
+  - 진행 표시를 오른쪽 위 배지로 옮겼으나, 사용자 결정(11-01)에 따라 화면 가운데의 작은 표시로 되돌린다.
   - 개요와 워크플로 화면은 세션 확인과 읽기를 동시에 보낸다.
 - **회귀 시험**
   - `tests/test_front_first_entry_browser.py::test_fixed_examples_open_without_any_request`
   - `tests/test_workspace_entry_progress_browser.py::test_shell_shows_at_once_and_reads_run_beside_the_session_check`
-  - `tests/test_workspace_entry_progress_browser.py::test_progress_stays_in_a_corner_for_clicks_and_hidden_for_background_and_errors`
+  - `tests/test_workspace_entry_progress_browser.py::test_progress_sits_small_in_the_centre_for_clicks_and_hidden_for_background_and_errors`
 
 - **Workflows 화면:** 공개 워크플로 25개를 `new/en/workflows.html`의 `appBootstrapData`에 넣었다. 템플릿 요청이 0회다.
 - **Chat:** 결과 영역은 안쪽 스크롤 상자가 아니라 페이지와 함께 늘어난다.
@@ -78,6 +79,7 @@
 - [ ] 스크롤로 닿지 않는 내용, 다른 요소에 가려진 버튼, 안쪽 고정 높이 스크롤 상자가 없는가(감사 시험에 화면 추가)
 - [ ] 접속할 때 이 화면이 부르는 API 목록을 적고, 고정 내용이면 HTML로 옮겼는가
 - [ ] 메뉴와 제목이 첫 페인트에 보이는가(데이터 요청을 막아 두고 시험)
-- [ ] 로딩 표시가 해당 영역에만 있는가(전체 오버레이, 가운데 팝업이 없는가)
+- [ ] 로딩 표시가 해당 영역에만 있는가(전체 오버레이, 배경 막이 없는가)
+- [ ] 누른 동작의 진행 표시가 화면 가운데에 작게 뜨고 클릭을 막지 않는가
 - [ ] 부가 목록은 사용자가 열 때 요청하는가
 - [ ] 서로 독립인 요청을 병렬로 보내는가
