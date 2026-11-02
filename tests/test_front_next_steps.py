@@ -19,7 +19,8 @@ def test_explore_status_line_reports_how_many_agents_a_search_shows():
 
 
 def test_desktop_search_brings_results_into_view_without_taking_focus_from_the_box():
-    branch = body('} else if (userInitiated && !isLoadMore && $("xTitle").getBoundingClientRect().top > innerHeight * 0.6)')
+    branch = body('} else if (userInitiated && !isLoadMore && exploreSubmittedFromSearchBox()')
+    assert 'active.id === "xQ"' in body('function exploreSubmittedFromSearchBox()')
     assert 'scrollIntoView' in branch and 'prefers-reduced-motion: reduce' in branch
     assert '.focus(' not in branch.split('}', 1)[0]
 

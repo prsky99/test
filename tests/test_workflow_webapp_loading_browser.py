@@ -87,7 +87,7 @@ def started(state):
 def idle(state):
     playwright.expect(state.page.locator('#runAppBtn')).to_be_enabled()
     playwright.expect(state.page.locator('#runAppBtn')).to_have_attribute('aria-busy','false')
-    playwright.expect(state.page.locator('[data-run-label]')).to_have_text('Run workflow')
+    playwright.expect(state.page.locator('[data-run-label]')).to_have_text('Run Workflow')
     assert not state.page.locator('[data-run-spinner]').is_visible()
     assert state.page.locator('[data-run-ready]').is_visible()
     assert state.page.locator('#cancelAppBtn').is_disabled()

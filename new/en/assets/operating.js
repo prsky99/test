@@ -2616,6 +2616,11 @@ function renderExplore(items, q, total = null, estimated = false, matchedReportC
   }
 }
 
+function exploreSubmittedFromSearchBox() {
+  const active = document.activeElement;
+  return !!active && (active.id === "xQ" || (active.tagName === "BUTTON" && active.textContent.trim() === "Search"));
+}
+
 // The status line is a live region, so the count reaches screen readers when results change.
 function exploreFoundText(count, q) {
   if (!q) return "";
@@ -2733,8 +2738,10 @@ async function loadExplore(force = false, isLoadMore = false, userInitiated = fa
     if (userInitiated && !isLoadMore && matchMedia("(max-width:700px)").matches) {
       $("xTitle").tabIndex=-1; $("xTitle").focus({preventScroll:true});
       $("xTitle").scrollIntoView({block:"start",behavior:"instant"});
-    } else if (userInitiated && !isLoadMore && $("xTitle").getBoundingClientRect().top > innerHeight * 0.6) {
+    } else if (userInitiated && !isLoadMore && exploreSubmittedFromSearchBox()
+               && $("xTitle").getBoundingClientRect().top > innerHeight * 0.6) {
       // Results below the fold changed out of sight; bring their heading up and keep focus in the search box.
+      // Filters and task chips do not scroll: a visitor ticking several filters keeps them in view.
       $("xTitle").scrollIntoView({block:"start",behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"instant":"smooth"});
     }
   } catch(err) {

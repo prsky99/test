@@ -28,7 +28,8 @@ def test_last_title_case_buttons_and_decorative_heading_are_fixed():
         text = (ROOT / 'new/en' / name).read_text()
         assert 'Run Workflow' not in text and 'Download Web App' not in text, name
         assert '<h3 role="presentation">From individual agents to one useful result</h3>' in text, name
-    for path in ('new/en/assets/operating.js', 'new/en/assets/workflow-library.js', 'agent_market/workflow_webapp.py',
-                 'agent_market/concierge/workflow_app.js'):
+    # Downloaded web apps (workflow_app.js, workflow_webapp.py) keep "Run Workflow": workflow_app.js stays
+    # byte-identical with the admin dashboard and the retained single-file HTML, and both runtimes match.
+    for path in ('new/en/assets/operating.js', 'new/en/assets/workflow-library.js'):
         text = (ROOT / path).read_text()
         assert 'Run Workflow' not in text and 'Download Web App' not in text, path

@@ -1,6 +1,7 @@
-"""Web award follow-up: sentence case for the last two Title Case buttons on public pages and downloaded web apps.
+"""Web award follow-up: sentence case for the last two Title Case buttons on public pages and their scripts.
 
-Admin screens, the retained single-file HTML (front.py, extracted_html.txt) and QA scripts keep their text.
+Admin screens, the retained single-file HTML (front.py, extracted_html.txt), downloaded web apps
+(workflow_app.js must stay identical with the admin dashboard copy) and QA scripts keep their text.
 Usage: python -m scripts.apply_award_button_case [ROOT]  (ROOT defaults to this checkout)
 """
 import json
@@ -11,8 +12,7 @@ LABELS = (('Run Workflow', 'Run workflow'), ('Download Web App', 'Download web a
           # The home illustration's caption is decoration, not a section: keep its styling, drop the heading role.
           ('<h3>From individual agents to one useful result</h3>',
            '<h3 role="presentation">From individual agents to one useful result</h3>'))
-FILES = ('new/en/assets/operating.js', 'new/en/assets/workflow-library.js', 'new/live-assets/workflow-library.js',
-         'agent_market/workflow_webapp.py', 'agent_market/concierge/workflow_app.js')
+FILES = ('new/en/assets/operating.js', 'new/en/assets/workflow-library.js', 'new/live-assets/workflow-library.js')
 
 
 def apply(root):

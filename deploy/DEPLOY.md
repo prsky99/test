@@ -70,6 +70,23 @@ sudo docker compose cp gateway:/data/gateway.sqlite3 ./backup.sqlite3          #
   - 최신 것만 다시 복사: `.venv/bin/python -m scripts.scheduled_backup --copy-only --copy-to /Volumes/<공유>/agentconcierge-backups`
   - 실측: launchd 환경에서 3.2GB를 약 198초에 복사했고, sha256이 원본과 일치했습니다.
   - 재부팅 뒤에는 공유를 다시 마운트해야 복사됩니다. 로그인 항목에 공유 폴더를 넣어 두면 자동으로 마운트됩니다.
+- 2026-11-02 자동 백업 실측: 04:30 시작, 덤프 약 17분, 전체 1,102초, Mac mini 복사 성공.
+  - 수동 실행(343초)보다 느린 이유는 launchd의 `LowPriorityIO`·`Nice 10` 때문입니다. 새벽 서비스에 부담을 주지 않으려는 설정이라 그대로 둡니다.
+- 복원 연습(2026-11-02, `snapshot-20261102-043005`)
+  - 운영과 분리된 임시 클러스터에 복원했습니다. TCP를 열지 않고, 짧은 경로의 유닉스 소켓만 썼습니다.
+  - 명령: `pg_restore --no-owner --no-privileges -j 2`, `nice -n 15 taskpolicy -b`로 낮은 우선순위 실행.
+  - 11분 걸렸고, 오류는 0건입니다.
+  - 확인한 것
+    - 테이블 272개
+    - `resources` 237,585건: manifest의 `catalog_resources_at_baseline`과 같습니다.
+    - `explore_documents` 237,585건
+    - 확장 기능: vector, unaccent, pg_stat_statements
+    - 최신 `first_seen`: 04:29(백업 직전)
+    - 복원된 DB 크기: 7.5GB
+  - macOS에서 주의할 것
+    - 소켓 경로는 103바이트를 넘으면 안 됩니다. 예: `/tmp/claude-501/pgd`
+    - Postgres를 시작할 때 `LC_ALL=en_US.UTF-8`을 지정해야 합니다. 없으면 "postmaster became multithreaded" 오류로 시작하지 않습니다.
+  - 임시 클러스터는 확인 뒤 지웠습니다.
 
 의존성 프로필과 선택형 Claude SDK/레거시 SQLite 벡터 설치는 [의존성 관리 안내](DEPENDENCY_MAINTENANCE.md)를 참고하세요.
 
