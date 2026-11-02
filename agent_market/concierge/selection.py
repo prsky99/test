@@ -370,9 +370,18 @@ def capability_terms(task):
     if 'news' in specific:
         from .task_requirements import NEWS_TOPICS
         specific=[term for term in specific if term not in NEWS_TOPICS]
+    # "convert text to speech": the boundary split at "to" dropped the capability itself.
+    if SPEECH_PHRASE.search(task):
+        return ['speech']
+    # "look up a topic on Wikipedia": a named reference source is the capability wherever it appears.
+    sources = [term for term in search_terms(task) if term in REFERENCE_SOURCES]
+    if sources:
+        return sources
     return specific or terms
 
 
+SPEECH_PHRASE = re.compile(r'\b(?:text[\s-]+to[\s-]+(?:speech|voice)|speech[\s-]+to[\s-]+text)\b', re.I)
+REFERENCE_SOURCES = {'wikipedia', 'wikidata', 'wiktionary'}
 PRICE_CONDITION = re.compile(r'\b(?:that\s+|which\s+)?(?:costs?|priced?(?:\s+at)?|for|at)?\s*(?:under|below|less than|cheaper than|at most|no more than|max(?:imum)?(?: of)?)\s*'
                              r'(?:\$|usd\s*|us\$)?\d[\d.,]*\s*(?:cents?|usd[c]?|dollars?|\$)?(?:\s+(?:per|a|each)\s+(?:call|request|query))?', re.I)
 CURRENCY_TOOL = re.compile(r'\b(?:fx|forex|currenc\w*|exchange[- ]rates?|foreign exchange|[a-z]{3}[/-][a-z]{3})\b')
@@ -399,7 +408,7 @@ def _regional_languages_cover(requested, text):
     return all(wanted <= family for scope, family in REGIONAL_LANGUAGES if scope.search(text))
 NEGATIONS = {'not', 'no', 'nor', 'without', 'except', 'excluding'}
 CAPABILITY_MODIFIERS = set('research recent latest online live real realtime time free public simple quick best good new current '
-                           'daily accurate reliable fast'.split())
+                           'daily accurate reliable fast similar'.split())
 GENERIC_ACTIONS = set('get check make create run build show list return fetch give take put set see view open '
                       'text data information info result results item items line lines'.split())
 

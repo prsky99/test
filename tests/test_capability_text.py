@@ -110,7 +110,13 @@ def test_actual_postgres_install_refresh_attach_and_cleanup():
                 store._execute("UPDATE resources SET description='Tide tables' WHERE id=%s", (ids[0],))
                 store._execute("UPDATE resources SET active=0 WHERE id=%s", (ids[2],))
             refresher.rest_until = 0
+            seen, execute = [], store._execute
+            store._execute = lambda sql, params=(), **k: seen.append(sql) or execute(sql, params, **k)
             assert refresher.run() == {'checked': 2, 'written': 1}
+            store._execute = execute
+            # The searchable-set scan runs outside the writer lock; the delete only re-checks the found ids.
+            deletes = [sql for sql in seen if sql.lstrip().startswith('DELETE FROM agentcon_search.capability_text')]
+            assert deletes and all('jsonb_array_elements_text' in sql for sql in deletes)
             with store.tx(readonly=True):
                 left = dict(store._execute('SELECT resource_id,body FROM agentcon_search.capability_text').fetchall())
             assert set(left) == set(ids[:2]) and 'tide tables' in left[ids[0]]

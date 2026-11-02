@@ -27,6 +27,11 @@ SOURCE_FIELDS = ('kind', 'name', 'description', 'category', 'cap_tool_names', 'u
                  'usage_full_tools', 'usage_full_hash', 'usage_guide', 'details')
 SEARCHABLE = ("active=1 AND health_status IN ('healthy','reachable') "
               "AND COALESCE(eval_security,'') NOT IN ('quarantine','review')")
+# A stored text whose listing left the searchable set (alias t).
+LEFT_SEARCHABLE = ('NOT EXISTS (SELECT 1 FROM resources r WHERE r.id=t.resource_id AND r.active=1 '
+                   "AND r.health_status IN ('healthy','reachable') "
+                   "AND COALESCE(r.eval_security,'') NOT IN ('quarantine','review'))")
+PRUNE_LIMIT, PRUNE_BATCH = 2000, 200
 
 
 def source_hash(resource):
@@ -274,11 +279,17 @@ class Refresher:
                     (self.after, self.batch), max_rows=self.batch).fetchall()]
             if not ids:
                 # A full pass is complete; drop texts of listings that left the searchable set.
-                with self.store.tx():
-                    self.store._execute("""DELETE FROM agentcon_search.capability_text t WHERE NOT EXISTS
-                        (SELECT 1 FROM resources r WHERE r.id=t.resource_id AND r.active=1
-                         AND r.health_status IN ('healthy','reachable')
-                         AND COALESCE(r.eval_security,'') NOT IN ('quarantine','review'))""")
+                # The scan runs in a read snapshot; the writer lock only covers a re-checked delete by id.
+                with self.store.tx(readonly=True):
+                    stale = [row[0] for row in self.store._execute(
+                        'SELECT t.resource_id FROM agentcon_search.capability_text t WHERE ' + LEFT_SEARCHABLE
+                        + ' ORDER BY t.resource_id LIMIT %s', (PRUNE_LIMIT,), max_rows=PRUNE_LIMIT).fetchall()]
+                for start in range(0, len(stale), PRUNE_BATCH):
+                    with self.store.tx():
+                        self.store._execute(
+                            'DELETE FROM agentcon_search.capability_text t WHERE t.resource_id IN '
+                            '(SELECT jsonb_array_elements_text(%s::jsonb)::bigint) AND ' + LEFT_SEARCHABLE,
+                            (json.dumps(stale[start:start + PRUNE_BATCH]),))
                 self.after, self.rest_until = 0, self.clock() + self.interval
                 break
             one(ids)

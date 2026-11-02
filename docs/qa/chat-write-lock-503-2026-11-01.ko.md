@@ -86,3 +86,12 @@
   - 배포 뒤 Chat·스트림·탐색은 200, 5xx 0건, 잠금 대기 초과 0건이다.
   - 배포는 대기 슬롯 a의 스냅샷이 끝난 06:59:44 직후에 해서 timeout이 없었다.
 - **같은 시각 다른 세션이 발견한 장애:** r5의 `customer_batch.py`가 하위 요청에 Accept-Encoding을 그대로 넘긴다. 그래서 gzip 바이트가 JSON 안에 들어가 고객 워크스페이스 첫 화면이 "Workspace access could not be loaded"로 깨진다. 이 릴리스에도 들어 있다. 프론트엔드 세션이 이 위에 수정만 얹은 r6을 준비한다.
+
+## capability_text 정리 (11-02 09시)
+- 남은 최장 보유 0.81초는 capability_text Refresher의 정리 DELETE였다. 한 바퀴가 끝날 때마다 `NOT EXISTS` 반결합을 쓰기 잠금 안에서 돌렸다.
+- **변경 (`postgres_capability_text.Refresher.run`)**
+  - 빠질 행은 읽기 트랜잭션에서 찾는다(최대 2,000건). 운영 사본에서 이 검색은 1.65초가 걸리지만, 이제는 쓰기 잠금 밖이다.
+  - 쓰기 트랜잭션에서는 찾은 id를 200건씩 나눠, 조건을 다시 확인하고 지운다. 그 사이 다시 검색 대상이 된 목록은 남는다.
+  - 2,000건을 넘는 나머지는 다음 바퀴에 지운다.
+- `postgres_capability_text.py`는 정책 해시 파일이다. 그래서 selection.py 변경과 묶어 jobs·frontend를 함께 배포했다(09:00).
+- 시험: `tests/test_capability_text.py`(PG 시험 포함, 정리 DELETE가 id 목록으로만 도는지 확인).

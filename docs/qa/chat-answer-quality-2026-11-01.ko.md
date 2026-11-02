@@ -66,3 +66,22 @@
   - 번역 → translate_text 도구 3개
   - 비밀번호 노출 → `needs_redaction`
   - 응답 0.8~4.4초, 배포 뒤 5xx 0건
+
+## 11-02 selection.py 핵심어 (정책 파일)
+- **변경 (`capability_terms`)**
+  - "text to speech", "speech to text": 경계어 "to"에서 잘려 'convert'·'text'만 남았다. 이제 'speech'를 핵심어로 쓴다(`SPEECH_PHRASE`).
+  - "look up a topic on Wikipedia": "on"에서 잘려 'topic'만 남았다. 이제 이름이 있는 참고 출처(Wikipedia·Wikidata·Wiktionary)가 요청 어디에 있든 그것을 핵심어로 쓴다(`REFERENCE_SOURCES`).
+  - "similar"를 수식어로 본다("movie recommendations similar to Inception" → 'movie').
+- **결과 (운영 데이터, 릴리스 사본 코드, 같은 시각 활성 사본과 비교)**
+
+| 세트 | 활성(workflow-split-r1) | 개선(policy-bundle-r1) |
+|---|---|---|
+| tuning 105 | 98 (93.3%) | 101 (96.2%) |
+| holdout 54 | 49 (90.7%) | 49 (90.7%) |
+| 합계 159 | 147 (92.5%) | 150 (94.3%) |
+
+  - 새로 통과한 것: a2(text to speech), mv1(영화 추천), wk1(Wikipedia). 실패로 바뀐 것은 없다.
+  - 남은 실패 7건은 모두 "결과 없음"이다: h5·h15·h22·h36·g3·unit1·long2.
+  - "convert miles to kilometers"(unit1)는 단위어만 빼면 통화 변환기도 통과하게 되어 이번에는 고치지 않았다.
+- **배포 (09:00):** jobs `policy-bundle-jobs-20261102-r1`, frontend `policy-bundle-frontend-20261102-r2`(활성 award-stage4 위). 정책 해시는 양쪽 같고(468201e4…), 검색 문서 재생성(약 100분)이 시작됐다.
+- **시험:** `tests/test_chat_zero_result_recovery.py`(핵심어 6건 추가).

@@ -1,6 +1,8 @@
 """Chat requests whose own words found nothing get bounded, verified second searches (2026-11-01)."""
 import time
 
+import pytest
+
 from agent_market.concierge import fast_chat as fc
 from agent_market.concierge.chat_guidance import review
 
@@ -96,3 +98,16 @@ def test_no_second_retrieval_without_an_enabled_engine(monkeypatch):
     monkeypatch.setattr('agent_market.concierge.discovery.candidates', lambda *a, **k: calls.append(1) or [])
     assert fc.capability_focus(object(), None, 'find remote software engineering jobs') is None
     assert calls == []
+
+
+@pytest.mark.parametrize('task,terms', [
+    ('convert text to speech', ['speech']),
+    ('speech to text for meetings', ['speech']),
+    ('look up a topic on Wikipedia', ['wikipedia']),
+    ('search Wikipedia for black holes', ['wikipedia']),
+    ('movie recommendations similar to Inception', ['movie']),
+    ('text summarization', ['summarization']),
+])
+def test_capability_terms_keep_the_capability_a_boundary_would_drop(task, terms):
+    from agent_market.concierge.selection import capability_terms
+    assert capability_terms(task) == terms
