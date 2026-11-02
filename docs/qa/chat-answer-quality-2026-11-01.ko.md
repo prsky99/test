@@ -103,3 +103,4 @@
   - 새로 통과한 것: g3, h15. 실패로 바뀐 것은 없다.
   - time1·rec1·h35는 양쪽에서 오갔다(흔들림).
 - **릴리스:** frontend `chat-writes-frontend-20261102-r2`(award-buttons-r1 위 4개 파일), jobs `chat-terms-jobs-20261102-r1`(policy-bundle-jobs-r1 + selection.py). 정책 해시는 양쪽 같다(dbecbcb7…). 사본 비교 시험 1,018건에서 새 실패 0건이다.
+- **배포 (11-02 12:53~12:55):** jobs `chat-terms-jobs-20261102-r1`, frontend `chat-writes-frontend-20261102-r2`(활성 a). 배포 점검 56건 통과. 배포 뒤 Chat·탐색·페이지 200, 5xx 0건, jobs 오류 0건. 검색 문서 재생성이 시작됐다. 운영 g3 요청은 GitDiagram·Repology를 추천한다.
