@@ -1832,6 +1832,9 @@ pydantic-core==2.50.1 \
 pyee==13.0.1 \
     --hash=sha256:af2f8fede4171ef667dfded53f96e2ed0d6e6bd7ee3bb46437f77e3b57689228
     # via playwright
+pyflakes==4.1.0 \
+    --hash=sha256:b2e05e6bac8e49b67be2a6ffa63422c60f7193fc72e8180255907b41ec997dc1
+    # via -r requirements-dev.txt
 pygments==2.21.0 \
     --hash=sha256:2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9
     # via pytest

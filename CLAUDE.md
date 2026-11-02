@@ -35,7 +35,7 @@ COLLECTOR_DB=gateway-data/collector.sqlite3 .venv/bin/python -m agent_market.col
 GATEWAY_DB=gateway-data/collector.sqlite3 .venv/bin/python -m agent_market.gateway.server
 ```
 - 시험은 `.venv-tests`로 돌린다. `.venv`에는 pytest가 없다(11-02 확인).
-  - pyflakes는 어느 환경에도 설치돼 있지 않고 `requirements-dev.txt`에도 없다. 설치 여부는 사용자가 정한다.
+  - 정적 검사: `.venv-tests/bin/python -m pyflakes agent_market tests` (11-02 설치, `requirements-dev.txt`). 경고 약 3,700건은 대부분 쓰지 않는 import다. 정의되지 않은 이름은 `tests/test_pyflakes_undefined_names.py`가 막는다.
 - frontend 릴리스는 배포 전에 `.venv-tests/bin/python -m scripts.release_gate <release>`로 사본 시험을 한다(`deploy/DEPLOY.md`).
 - 이 맥은 운영 서버이기도 하다. 큰 테스트(전체 pytest, playwright)는 낮은 우선순위로 돌린다(사용자 결정 2026-11-02).
   - 예: `nice -n 10 .venv-tests/bin/python -m pytest -q`
