@@ -40,11 +40,22 @@ def keep_explore_warm(front, stop, pause=8.0, serving=None):
     so; its searches only added database load and kept pooled sessions busy (11-02)."""
     from .concierge.front import warm_explore
     from .concierge.report_snapshot import _serving
+
+    class RoundStop:
+        """Ends a round early once the slot stops serving; a round of 24 chip searches
+        otherwise ran about four minutes into standby (11-02)."""
+        def is_set(self):
+            # An unreadable deployment state counts as serving, as for the report snapshot.
+            return stop.is_set() or not _serving(serving)
+
+        def wait(self, seconds):
+            return stop.wait(seconds)
+
+    round_stop = RoundStop()
     while not stop.is_set():
         try:
-            # An unreadable deployment state counts as serving, as for the report snapshot.
-            if _serving(serving):
-                warm_explore(front, stop=stop, pause=pause)
+            if not round_stop.is_set():
+                warm_explore(front, stop=round_stop, pause=pause)
         except Exception:
             log.warning('Explore keep-warm round failed', exc_info=False)
         stop.wait(pause)

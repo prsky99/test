@@ -202,3 +202,33 @@ def test_explore_keep_warm_skips_rounds_in_a_standby_slot(monkeypatch):
     rounds.clear()
     service_host.keep_explore_warm('front', Stop(2), pause=8.0)
     assert len(rounds) == 2  # no slot check (tests, a direct start): always warm
+
+
+def test_explore_keep_warm_stops_mid_round_when_the_slot_turns_standby(monkeypatch):
+    from agent_market import service_host
+    from agent_market.concierge import front as front_module
+    serving = [True]
+    searched = []
+
+    def fake_warm(front, stop=None, pause=0.0):
+        for query in range(24):
+            if stop.is_set():
+                break
+            searched.append(query)
+            if query == 2:
+                serving[0] = False  # a deploy makes this slot the standby mid-round
+            stop.wait(pause)
+
+    monkeypatch.setattr(front_module, 'warm_explore', fake_warm)
+
+    class Stop:
+        def __init__(self, waits):
+            self.left = waits
+        def is_set(self):
+            return self.left <= 0
+        def wait(self, seconds):
+            self.left -= 1
+            return self.is_set()
+
+    service_host.keep_explore_warm('front', Stop(30), pause=8.0, serving=lambda: serving[0])
+    assert searched == [0, 1, 2]  # the rest of the round is skipped once standby
