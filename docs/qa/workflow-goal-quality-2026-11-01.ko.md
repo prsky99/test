@@ -91,3 +91,4 @@
   - 구성: 활성 `idle-reaper-admin-20261101-r1` 위에 워크플로 파일 4개와 `workspace_access.py`를 얹었다. `workspace_access.py`는 새 app factory가 쓰는 `WorkspaceLimit` 때문에 넣었다. admin의 다른 모듈이 이 5개 파일에서 가져오는 이름은 모두 남아 있다.
   - 시험: 활성 admin 사본과 워크플로 시험 515건을 나란히 돌렸다. 새 실패는 0건이고, 기준에서 실패하던 43건(11-01·11-02 개선)이 통과한다. 남은 6건은 기준도 같다.
   - 배포 뒤 두 슬롯의 `/admin/ui`는 200이고, 생성 경로는 인증이 없으면 401이다. 오류는 0건이다. 공개 주소의 `/admin`은 설계상 차단된다(404).
+- **p13 (11-02 오후):** 찾기 동사가 없는 영어 목표에서는 목표 단어(find·research·papers·about·then 등)와 아주 가까운 오타를 고친다(`respell_goal_words`). 고친 결과에 동사와 검색 종류가 둘 다 있을 때만 쓴다. 그래서 "Book a flight"는 "look"으로 바뀌지 않는다. 주제어("batery recyclng")는 그대로 둔다. 평가는 73/73이고, 사례 73건 중 바뀌는 것은 p13뿐이다.

@@ -95,3 +95,5 @@
   - 2,000건을 넘는 나머지는 다음 바퀴에 지운다.
 - `postgres_capability_text.py`는 정책 해시 파일이다. 그래서 selection.py 변경과 묶어 jobs·frontend를 함께 배포했다(09:00).
 - 시험: `tests/test_capability_text.py`(PG 시험 포함, 정리 DELETE가 id 목록으로만 도는지 확인).
+- **운영 확인 (11-02 12시, pg_stat_statements):** 새 방식이 한 번 돌았다. 읽기 쪽 검색은 0.25초, 잠금 안 삭제는 77건에 4.6ms였다. 예전 in-lock 정리는 8번 돌았고, 평균 0.79초·최대 1.19초였다.
+- **pg_prewarm:** 확장이 설치돼 있지 않다. 자동 예열을 쓰려면 shared_preload_libraries를 바꾸고 재시작해야 한다. 버퍼 적중률이 이미 99%대라 하지 않았다.

@@ -1,6 +1,7 @@
 # 작업 기록 (짧게 유지: 끝날 때마다 몇 줄 갱신)
 
 ## 완료 (최근 것만)
+- 남은 작업(2026-11-02 오후): Chat 쓰기 묶기(VisitorBook.batch), 워크플로 오타 교정(p13, 73/73), 핵심어 3개(g3·h15, Chat 149→151/159), capability_text 새 정리 운영 확인(잠금 안 4.6ms), pg_prewarm은 안 함. 릴리스 chat-writes-frontend-20261102-r2·chat-terms-jobs-20261102-r1 패키징·검증, 배포 승인 대기(분류기 차단).
 - admin 워크플로 생성 맞춤(2026-11-02 10:30): wf-admin-20261102-r1(idle-reaper-admin-r1 + 워크플로 4개 + workspace_access.py) 배포(활성 a). 사본 비교 새 실패 0, 43건 회복, 오류 0. 다음 admin은 이 릴리스 기준.
 - 정책 파일 묶음(2026-11-02 09:00, 사용자 "묶어서 진행"): capability_text 정리를 읽기 스냅샷 검색 + id 재확인 삭제로(잠금 밖), selection.capability_terms에 text-to-speech·Wikipedia·similar 규칙 → Chat 147→150/159(94.3%, 실패 전환 0). bbdbf971(프론트앤드)·e6335cac(백엔드)도 함께. jobs policy-bundle-jobs-20261102-r1, frontend policy-bundle-frontend-20261102-r2(award-stage4 위) 배포, 게이트 56 통과, 5xx 0, 재생성 중 탐색 1.7~2.8초. 확인할 것: 재생성 끝난 뒤 탐색 속도, 다음 정리 때 잠금 보유.
 - 워크플로 생성 p11(2026-11-02): 통번역 실패 시 "-고"·"그리고" 절마다 번역(workflow_model_proposer), 이어지는 "and also find related papers" 분리(workflow_goal_policy), 단계 주제 덮어쓰기를 apply_step_subjects로(후속 절은 모델 질의 유지). 평가 72/73(98.6%, holdout 30/30), 남은 실패 p13(오타 영어). 정책 해시 아님 → frontend만. workflow-split-frontend-20261102-r1(award-stage2-r1 위 4개 파일) 07:38 배포(활성 b), 새 실패 0, 5xx 0. admin은 11-01 개선도 없음(파일 70개 차이) → 따로.

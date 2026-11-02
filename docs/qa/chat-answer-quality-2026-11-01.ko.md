@@ -85,3 +85,21 @@
   - "convert miles to kilometers"(unit1)는 단위어만 빼면 통화 변환기도 통과하게 되어 이번에는 고치지 않았다.
 - **배포 (09:00):** jobs `policy-bundle-jobs-20261102-r1`, frontend `policy-bundle-frontend-20261102-r2`(활성 award-stage4 위). 정책 해시는 양쪽 같고(468201e4…), 검색 문서 재생성(약 100분)이 시작됐다.
 - **시험:** `tests/test_chat_zero_result_recovery.py`(핵심어 6건 추가).
+
+## 11-02 오후: 핵심어 3개 더, 쓰기 묶기
+- **핵심어 (`capability_terms`)**
+  - "open source repositories"에서 'source'는 저장소를 꾸미는 말이라 뺀다. 'popular'·'top'은 수식어로 본다(g3).
+  - illustration·drawing·painting·artwork·logo가 있으면 그것만 남긴다. 그려지는 대상은 주제다(h15).
+  - "across"·"throughout"을 주제 경계로 본다(h22, 지명 제거). h22는 아직 결과가 없다.
+- **쓰기 묶기:** 답변 뒤의 결과 저장과 관심사 기록을 `VisitorBook.batch()`로 묶었다. PostgreSQL에서 쓰기 잠금 대기가 2번에서 1번으로 준다. 다른 저장소는 예전처럼 쓰기마다 트랜잭션을 연다.
+- **결과 (같은 시각 활성 round-stop-r1 사본과 비교)**
+
+| 세트 | 활성 | 개선 |
+|---|---|---|
+| tuning 105 | 100 | 101 |
+| holdout 54 | 49 | 50 |
+| 합계 159 | 149 (93.7%) | 151 (95.0%) |
+
+  - 새로 통과한 것: g3, h15. 실패로 바뀐 것은 없다.
+  - time1·rec1·h35는 양쪽에서 오갔다(흔들림).
+- **릴리스:** frontend `chat-writes-frontend-20261102-r2`(award-buttons-r1 위 4개 파일), jobs `chat-terms-jobs-20261102-r1`(policy-bundle-jobs-r1 + selection.py). 정책 해시는 양쪽 같다(dbecbcb7…). 사본 비교 시험 1,018건에서 새 실패 0건이다.
