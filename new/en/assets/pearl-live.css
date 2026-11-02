@@ -787,3 +787,6 @@ body .reg-blueprint-chip,body .reg-blueprint-chip span,body .pearl-example-state
 /* Inline styles in page markup and scripts still name 10-11.5px; they outrank class rules, so lift them here. */
 body [style*="font-size:10px"],body [style*="font-size: 10px"],body [style*="font-size:10.5px"],body [style*="font-size: 10.5px"],
 body [style*="font-size:11px"],body [style*="font-size: 11px"],body [style*="font-size:11.5px"],body [style*="font-size: 11.5px"]{font-size:12px!important}
+/* Web award stage 4, item 13 (2026-11-02): wide screens reserve one line, not two, for the selected workflow's
+   name and description, so Run Workflow sits inside a 1280x720 first screen. Narrow screens keep the reserve. */
+@media(min-width:1100px){body #secWorkflows #frontWfActiveName{min-height:36px}body #secWorkflows #pearlWorkflowDescription{min-height:45px;margin-bottom:10px}}

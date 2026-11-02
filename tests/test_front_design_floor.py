@@ -29,3 +29,9 @@ def test_phone_filters_fold_behind_one_labelled_button():
     fold = fold[:fold.index('})();') + 5]
     assert "matchMedia('(max-width:700px)')" in fold and "aria-controls" in fold and "aria-expanded" in fold
     assert "' filters and common tasks'" in fold and "' on)'" in fold
+
+
+def test_wide_workflow_screens_reserve_one_line_for_the_selected_name():
+    tail = CSS[CSS.index('item 13 (2026-11-02)'):]
+    assert '@media(min-width:1100px){body #secWorkflows #frontWfActiveName{min-height:36px}' in tail
+    assert 'body #secWorkflows #pearlWorkflowDescription{min-height:45px' in tail
