@@ -10,5 +10,5 @@
 
 기간·95% 등 수치는 제안 목표이며 성과 아님. 핵심 여정2~3주/전체8~12주는 1인 범위 추정, 6단계 검증 게이트 우선. Provider 호출·운영 DB/설정·worker/process·서버·Registry 게시·외부 메시지 변경0. 기존 방문 보고서/자동화 untouched.
 
-Canvas: ~/.cursor/projects/Users-kingstonelee-workspace-A2A_Discovery/canvases/agent-concierge-autonomous-service-design.canvas.tsx
+Canvas: ~/.cursor/projects/Users-<user>-workspace-A2A_Discovery/canvases/agent-concierge-autonomous-service-design.canvas.tsx
 남은 작업: 최종 전달. 후속 구현을 하려면 두 번째 단계의 Workflow 발견+첫 안내부터 진행할 수 있음. 현재 목표는 설계이며 구현 성과로 표현하지 말 것.

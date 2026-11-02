@@ -8,6 +8,6 @@ Findings: C16 plain p95 1.808s, JSON 11.830s; workflow 38.218s and semantic0/16 
 
 AppFactory existing process semaphore2: 2/16 completed,14 WorkspaceConflict,actualmodelpeak2. Do not blindly increase to16 before quality/queue/deadline work. Report includes prioritized improvements; no runtime fix performed within this benchmark scope.
 
-Verification:88 affected unit/model/workflow/shared-security tests passed,1 isolated real-model app test passed,Python compile passed. Final modelhealthy, scheduler0/0,home200,workspaceguest303. Analytical canvas created and opened/queued at ~/.cursor/projects/Users-kingstonelee-workspace-A2A_Discovery/canvases/model-performance-2026-10-23.canvas.tsx. Canvas exports/props checked against SDK; host compile status not available in current hidden window.
+Verification:88 affected unit/model/workflow/shared-security tests passed,1 isolated real-model app test passed,Python compile passed. Final modelhealthy, scheduler0/0,home200,workspaceguest303. Analytical canvas created and opened/queued at ~/.cursor/projects/Users-<user>-workspace-A2A_Discovery/canvases/model-performance-2026-10-23.canvas.tsx. Canvas exports/props checked against SDK; host compile status not available in current hidden window.
 
 No old-model baseline, TTFT,cold start,long soak or general accuracy claim. All comparison/rate/sample caveats included. Task complete; future fixes require separate scope, no restart currently needed.

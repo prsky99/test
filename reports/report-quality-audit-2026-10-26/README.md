@@ -112,4 +112,4 @@
 
 완료 범위: 저장 이력 전수 정합성 검증, 생성기 오프라인 결함 재현, 공개 표본 대조, 연구·SNS 근거 조사와 개선 순서 작성. **서버 재시작·배포는 필요 없다.** 개선안 구현·기존 이력 정리는 이번 요청에서 수행하지 않았다.
 
-시각 요약: [보고서 품질 검증 Canvas](~/.cursor/projects/Users-kingstonelee-workspace-A2A_Discovery/canvases/report-quality-audit-2026-10-26.canvas.tsx). 전체·최근 24시간·최신 배치 수치를 선택해 비교할 수 있다. 실행 명령이나 운영 제어는 포함하지 않는다.
+시각 요약: [보고서 품질 검증 Canvas](~/.cursor/projects/Users-<user>-workspace-A2A_Discovery/canvases/report-quality-audit-2026-10-26.canvas.tsx). 전체·최근 24시간·최신 배치 수치를 선택해 비교할 수 있다. 실행 명령이나 운영 제어는 포함하지 않는다.

@@ -15,7 +15,7 @@ v2는 관련 소스 21개·논문 9편·공식 기술 문서 1개·SNS 논의 4�
 
 핵심 설계 변경은 filtered ANN/exact 비교, 선택 조건 전달, 실제 Fast Chat 경로, 업무 목표 검증, 연결 저장과 인증 실행의 구분, OAuth 만료/재연결, 현재 typed compiler와 증적/권한 gate의 재사용이다. 모델 16슬롯과 서비스 동시성을 같은 숫자로 취급하지 않는다.
 
-Canvas: `~/.cursor/projects/Users-kingstonelee-workspace-A2A_Discovery/canvases/agent-concierge-business-product-improvement-2026-10-25.canvas.tsx`
+Canvas: `~/.cursor/projects/Users-<user>-workspace-A2A_Discovery/canvases/agent-concierge-business-product-improvement-2026-10-25.canvas.tsx`
 
 기존 마감·승인·보류를 덮어쓰지 않는다. `IMP-01~08`은 새 실행 대기열이 아니라 현행 기능과 대조할 검토 ID다. 후속 구현은 차이와 승인 범위를 확정한 뒤 기존 계획에 편입한다.
 
