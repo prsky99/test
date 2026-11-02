@@ -1,6 +1,7 @@
 # 작업 기록 (짧게 유지: 끝날 때마다 몇 줄 갱신)
 
 ## 완료 (최근 것만)
+- 웹어워드 대비·agent-desktop·복원 연습(2026-11-02): 출품 확정이 아닌 품질 대비. 0~6단계와 13번, 버튼 대소문자까지 배포했다(award-buttons-frontend-20261102-r1). 9개 화면 모두 12px 미만 글자 0, 이름 없는 조작 요소 0, 작은 누를 영역 0. 페이지 분리는 생략(한 페이지 앱). 'tide tables' 0건은 selection.capability_terms 원인만 기록(정책 해시 파일). 배포 전환 감시 2,376회 실패 0. 백업 복원 연습 11분·오류 0·리소스 237,585 일치(deploy/DEPLOY.md). agent-desktop(vercel-labs) 설치, 스킬 ~/.claude/skills/agent-desktop, 전역 ~/.claude/CLAUDE.md. 기록: reports/웹어워드 심사 예상 지적.md
 - 남은 작업(2026-11-02 오후): Chat 쓰기 묶기(VisitorBook.batch), 워크플로 오타 교정(p13, 73/73), 핵심어 3개(g3·h15, Chat 149→151/159), capability_text 새 정리 운영 확인(잠금 안 4.6ms), pg_prewarm은 안 함. 릴리스 chat-writes-frontend-20261102-r2·chat-terms-jobs-20261102-r1 패키징·검증, 12:53 jobs·12:55 frontend 배포(사용자 승인), 5xx 0, 재생성 중.
 - admin 워크플로 생성 맞춤(2026-11-02 10:30): wf-admin-20261102-r1(idle-reaper-admin-r1 + 워크플로 4개 + workspace_access.py) 배포(활성 a). 사본 비교 새 실패 0, 43건 회복, 오류 0. 다음 admin은 이 릴리스 기준.
 - 정책 파일 묶음(2026-11-02 09:00, 사용자 "묶어서 진행"): capability_text 정리를 읽기 스냅샷 검색 + id 재확인 삭제로(잠금 밖), selection.capability_terms에 text-to-speech·Wikipedia·similar 규칙 → Chat 147→150/159(94.3%, 실패 전환 0). bbdbf971(프론트앤드)·e6335cac(백엔드)도 함께. jobs policy-bundle-jobs-20261102-r1, frontend policy-bundle-frontend-20261102-r2(award-stage4 위) 배포, 게이트 56 통과, 5xx 0, 재생성 중 탐색 1.7~2.8초. 확인할 것: 재생성 끝난 뒤 탐색 속도, 다음 정리 때 잠금 보유.
