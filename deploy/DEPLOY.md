@@ -81,6 +81,9 @@ sudo docker compose cp gateway:/data/gateway.sqlite3 ./backup.sqlite3          #
 ```
 
 - 마지막 줄이 `passed`일 때만 배포한다.
+- 11-02부터 `./agentcon deploy frontend <release>`가 이 점검을 먼저 자동으로 돌린다. 배포 잠금을 잡기 전에 돌고, 실패하면 배포하지 않는다(`release_gate_failed`).
+  - 긴급할 때만 `--skip-gate`를 붙인다. 롤백(`./agentcon rollback frontend`)은 점검하지 않는다.
+  - admin 배포는 점검하지 않는다.
 - 시험 목록은 `scripts/release_gate.py`의 `TESTS`에 있다.
   - 묶음 읽기, 실행 엔진 선택, 읽기 전용 경로, 공개·워크스페이스 첫 화면 브라우저 시험이 들어 있다.
 - 11-02 07:01 장애 버전 `batch-reads-frontend-20261101-r5`는 이 점검에서 실패로 걸린다(gzip 시험).

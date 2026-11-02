@@ -16,6 +16,7 @@ import secrets
 import shutil
 import signal
 import subprocess
+import sys
 import time
 import urllib.request
 
@@ -755,12 +756,27 @@ class Deployment:
         return result
 
 
+def release_gate(root, release, runner=subprocess.run):
+    """Refuse a frontend release whose copy fails the opening-path tests (DEPLOY.md, 11-02).
+
+    Runs before the deployment lock is taken. Its output goes to stderr; stdout stays the JSON result.
+    """
+    python = Path(root) / '.venv-tests' / 'bin' / 'python'
+    if not python.is_file():
+        raise SystemExit('release_gate_unavailable: .venv-tests is missing (emergency only: --skip-gate)')
+    result = runner([str(python), '-m', 'scripts.release_gate', release], cwd=str(root),
+                    stdout=sys.stderr, stderr=sys.stderr)
+    if result.returncode:
+        raise SystemExit('release_gate_failed: %s (see the test output above)' % release)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', default=str(Path(__file__).resolve().parents[1]))
     commands = parser.add_subparsers(dest='command', required=True)
     package = commands.add_parser('package'); package.add_argument('release')
     deploy = commands.add_parser('deploy'); deploy.add_argument('role', choices=PORTS); deploy.add_argument('release')
+    deploy.add_argument('--skip-gate', action='store_true', help='emergency only: deploy a frontend release without scripts.release_gate')
     rollback = commands.add_parser('rollback'); rollback.add_argument('role', choices=PORTS)
     commands.add_parser('status')
     commands.add_parser('install-schema')
@@ -778,6 +794,8 @@ def main():
         with manager.lock():
             result = manager.package(args.release)
     elif args.command == 'deploy':
+        if args.role == 'frontend' and not args.skip_gate:
+            release_gate(args.root, args.release)
         result = manager.deploy(args.role, args.release)
     elif args.command == 'rollback':
         result = manager.rollback(args.role)
