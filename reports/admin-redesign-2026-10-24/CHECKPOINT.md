@@ -1,0 +1,17 @@
+## 2026-10-24 13:06 KST restart confirmation
+
+User restarted. Both frontend/admin active release web-20261024-130523-557e; private ready probes passed. Served admin HTML +6JS assets match current navigation-cleanup source and contain no /admin/ui reference. Local/public plan both200,100credit copy present,3credit copy absent. No operating login/mutation or new grant exercised. Evidence: reports/workspace-credits-admin-postrestart-2026-10-24/postrestart-130523-verification.json. Navigation source cleanup is now deployed; earlier pending statements below are historical. The71unit full redesign remains a design/prototype, not implemented or deployed by this restart.
+
+# Admin redesign v2 complete — 2026-10-24
+
+Latest user asked to redesign every administrator screen after reporting unusable blank views and incomprehensible collection copy. Design first; do not claim the proposed console has been implemented or deployed. No subagents, production restart, customer enrollment, collection, external execution, sending, or permission issuance.
+
+Deliverables: docs/admin-redesign-2026-10-24/DESIGN.ko.md, screens.json, prototype.html; managed canvas ~/.cursor/projects/Users-kingstonelee-workspace-A2A_Discovery/canvases/admin-entire-redesign-2026-10-24.canvas.tsx. 8 groups,47business+6common+18specialists=71design units;32current routes and21original menus mapped,18specialists preserved. Sources/extension contracts differentiated; payments, settings, old advanced public-workflow execution/export require explicit parity review. No automatic changes to owner/membership/privacy/consent/credit/approval boundaries.
+
+Prototype: all71desktop screens,213responsive conditions(71×390/768/1280),8state variants oncollection,11interaction categories,23screenshots.0JSconsoleerrors,0external requests. These are offline synthetic design tests, not 71operating workflows. TSX syntactic transpile passed, host canvas runtime build not asserted. Full spec and IA coverage verified.
+
+Earlier user request completed read-only: deployed web-20261024-095554-c66b bothroles ready; frontend/admin welcome-credit sources and10original adminrenewal files matched. Servedlocal/public plan mentions100and no3copy. Evidence reports/workspace-credits-admin-postrestart-2026-10-24/*.json. No operating grant created. Original admin audit workbook remains historical, not new-redesign acceptance.
+
+Separate authorized source navigation cleanup: removed adm-legacy shell and JS hooks; customers→currentoverview;specialists→currentstaff;system→credits/audit;publictemplates→staffspecialists with accurate label;unusedlegacy.js forwardspublic;coverageinventory conditionalupdated;tests changed viewer assertions andnavigationdestination;newtest_admin_renewal_navigation_browser.py. No active new-UI links to /admin/ui.38existingauth/browser/UX tests passed,15finalnavigation/public-API tests passed (independent sets recorded; not a whole operating audit).These source fixes remain undeployed. Keep existing APIs/legacySDK untouched; do not claim removinglinks equals full migration.
+
+Changed files and all previous user work retained. No edits to actual collector dashboard implementation after latest design request. Implementation sequence is documented, not complete. Need user direction to proceed implementing the new full design; ordinary action requests authorize implementation, no invented approval flow. Never restart operating services without explicit instruction per AGENTS.md.

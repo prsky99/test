@@ -1,0 +1,9 @@
+# P1 authentication checkpoint
+
+Objective: design 13.3 item 1, individual console sessions, explicit machine read boundary, bootstrap rotation, aggregate-only viewer. Preserve operating records and existing customer auth.
+
+Implemented: admin_policy exact allowlists and viewer projection; four-role validation; bootstrap hash marker/legacy default detection; forced password screen shared by legacy redirects; session revocation and last-active-superadmin protection; native PostgreSQL auth/access query registration. No operational schema/data writes. Server remains user-operated.
+
+Verified: 242 unique tests, 0 failure/skip (integration.xml overridden by final-ui.xml and viewer-final.xml, plus 44 configuration tests); temporary PostgreSQL native routes and staff checks pass; JS 11 modules pass; public content 238/0. Security static 28 existing-pattern warnings retained, reviewed auth fixed-fragment SQL; legacy dashboard F lint 9 findings retained. Source fingerprint: source-hashes.json.
+
+User restart accepted: 2026-10-21 17:42 KST read-only operating checks 12/12 passed. Shell/assets 200, new password form present, CSP/no-store enforced, machine overview/timeseries 200 with aggregate projection, machine staff/private/v2 access 401. All 33 source fingerprints unchanged. Actual individual staff UI is not operating-verified. Evidence: operating-after-restart.json. First overview response took 4.316 seconds; persistent summary/performance work remains the planned P2 phase. Shared ADMIN_TOKEN now only GET overview/timeseries in /admin/api and cannot log into either UI. No actual password reset performed. Design 13.4 documents limits. Next development: common two-person risk command service, not repeated P1 expansion. Operator specialist permissions and viewer private detail remain restricted.

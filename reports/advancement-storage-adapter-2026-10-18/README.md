@@ -1,0 +1,36 @@
+# Explicit storage adapter foundation
+
+2026-10-18 · v1.24 · low-level contract and static inventory; operating Store remains SQLite.
+
+The planned coherent foundation is complete: explicit SQLite/PostgreSQL statement/session/result contracts, fail-closed SQLite-only application factory, source dependency inventory, actual private PostgreSQL verification, security/cancellation/failure tests and synchronized design. Existing application/Store/frontend/SDK behavior is unchanged. **No additional server restart is needed.**
+
+## Final evidence
+
+**369 passed / 153 new / failure,error,skip0**, one source-frozen affected selection of **19 modules** in101.22s. This covers new core/independent/inventory/PG tests and existing SQLite storage/locks, durability/SIGKILL, recovery/authority API/CSRF, Chromium/TLS and prior retention/rehearsal invariants. Historical845(v1.23), full2,878(v1.22), focused and initial runs are not added. [JUnit](affected/regression.xml) · [log](affected/regression.log) · [case identities](test-reconciliation.json).
+
+All388 source/test/supporting hashes remained frozen; old379 are byte-identical, with nine new files(eight Python plus one optional requirement). Public content66 source/maintenance files(not pages)/violations0, HTML synchronized, oldSDK/package11 and public/main4 unchanged. Operating requirements, server imports/routes and schemas did not change. [Checks](source-checks.json) · [hashes](final-source-snapshot.json).
+
+Bandit scope: four new core/inventory/CLI modules **High0/Medium0/Low3**, scan errors0. The three reviewed warnings are intentional fixed subprocess lifecycle/code-child operations and a synthetic unused local-trust fixture password; none is an operating credential or shell command. No suppressions were added. [Scan](static-final.json) · [triage](static-triage.json) · [independent review](independent-review.json). This is not a whole-platform absence-of-vulnerabilities certificate.
+
+## Actual delivered boundaries
+
+- The application factory accepts only explicit SQLite, returning unchanged Store. PostgreSQL/unknown selection fails before path inspection, application Store/optional PostgreSQL driver import or I/O. No environment backend switch, DSN connector, fallback, schema migration or server integration is provided.
+- Low-level adapters use separately declared trusted SQL variants and bound scalar parameters; no arbitrary placeholder rewriting or SQL scripts. Explicit transactions poison on caught statement errors, preserve caller/cancellation exceptions, enforce native persistent read-only and expire session/thread use. IDs use RETURNING, rowcount stays native, rows support names/positions/dict. Result checks are after decoding, not an arbitrary-query CPU/memory sandbox.
+- Commit acknowledgement failure stays commit_unknown even after rollback failure, disables reuse and never automatically retries. Failed BEGIN acknowledgement rolls back; cursor/config/rollback cleanup must preserve cancellation. Existing Store's raw nested-context commit/rollback and query mutation quirks are intentionally pinned rather than changed.
+- The current syntax inventory completed117 Python files/2629785bytes/4792 syntactic findings, including122 detected unresolved SQL calls. It reads fixed source only without executing/importing it, opening DB/config/network or serializing SQL/literals. Receiver/alias/runtime, nested ownership and migration completeness are not inferred. Explicit file/AST/resolution/string-work budgets make exhaustion incomplete. [Inventory](storage-boundary-inventory.json).
+- The final actual PostgreSQL14.22/psycopg3.3.6 CLI passed17 strict checks in998.302ms: values/IDs/rollback/poison/read-only/thread/session/result limits and four-way CAS/single winner/stale fence. Driver installation was a separate temporary target; the project environment was not modified. Fresh local cluster/privateUnix socket only, clean child environment, inherited PG credentials excluded, stderr empty, cluster stopped/removed. No operating DSN or source database can be supplied. [Actual report](postgres-adapter-final.json).
+- If fast and immediate shutdown both fail and the private pid remains, its0700 fixture is retained and a fixed error returned, avoiding deletion of potentially live DB files. Handled success/failure is tested; abrupt process termination and OS stalls are not cleanup/global-deadline guarantees.
+
+The detailed [contract](../../docs/STORAGE_ADAPTER_CONTRACT.md) links the official psycopg transaction/preparation/installation references and states unsupported nativeNUMERIC/timezone/search/Store features. No public route, output projection, provider execution or authority behavior was changed.
+
+## Findings, corrections and actual scope
+
+Initial failures are preserved in [verification](verification.json), not relabeled as passing or added to final totals. Independent tests reproduced commit_unknown being overwritten by failed rollback, and a successful BEGIN with failed cursor-close leaving a transaction open. Both are fixed. Cursor-close and rollback/config-restoration cancellation masking were also reproduced and fixed; the shared cleanup preserves primary uncertainty and non-Exception cancellation. Root's final cleanup cancellation RED3 and all86 then-final core/review cases are retained. Final affected selection uses the final frozen source.
+
+The static resolver's repeated-alias expansion exceeded10,000 instrumented calls on tiny source; a safe abort preserved the reproduction. Resolution and string-work budgets plus a linear consuming quote/comment masker now prevent that uncontrolled work and explicitly mark incomplete coverage. Its final focused module48cases passed before the affected run. This is a bounded syntactic inventory, not an automatic SQL translator.
+
+The PG harness fake shutdown reproduction proved automatic TemporaryDirectory cleanup could remove an apparently live fixture; lifecycle now removes only after shutdown confirmation. A first privacy test wrongly banned the ordinary numeric PGPORT sentinel1 in aggregate versions; only that assertion was corrected. Initial scanner feature/nested coverage tests and ordinary caller-exception normalization failures were likewise retained and resolved. Actual staticLow3 are intentional reviewed boundaries, not claimed fixed vulnerabilities.
+
+No operating UI/API acceptance was attempted this turn. Prior authenticated v1.22 inspector presence is historical evidence; all previously scoped source is unchanged. Operating server actions/directDB writes/provider/model tasks/approvals/grants/notifications/marketing0. All fault/commit/retention/PG/SSL actions above are isolated fixtures. There is no operating PostgreSQL Store, full schema migration, cutover/rollback, production throughput/HA/SLA/RPO/RTO, real expert score or provider-quality certification.
+
+Next: [catalog repository pilot](../../docs/POSTGRES_CATALOG_REPOSITORY_PLAN.md), reusing the foundation. Actual reviewed human/source/access/pre-run evidence and product-provider integration remain independent conditional tracks. Full Store/FTS/auth/collector/ledger repositories/migration and R-07/AC-08/G0/G1 remain open. [Design](../../docs/PLATFORM_ADVANCEMENT_DESIGN.md) · [remaining order](../../docs/REMAINING_WORK_BATCHES.md).

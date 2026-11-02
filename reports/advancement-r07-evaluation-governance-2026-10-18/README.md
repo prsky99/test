@@ -1,0 +1,33 @@
+# R-07 offline evaluation governance plan
+
+2026-10-18 · v1.16 · authored-plan validation implemented; real expert evaluation and protected pre-run allocation remain open.
+
+## Outcome and operating acceptance
+
+After the user's restart and administrator refresh, Home/admin GET 200 with CSP and latest markers were confirmed. Anonymous private APIs returned 403. The current listener PID is 99561, started 12:11:30; the read-only live fallback state remains off with zero policies. In the existing authenticated highest-admin browser session, the central connected-test inspector opened correctly, displayed no retained connected tests, and left preparation/download disabled. No provider run was created just to populate the screen. This accepts the current authenticated empty state, not an end-to-end live worksheet download. The dialog was closed afterward. [Observations](restart-readonly.json).
+
+The next recommended development unit is implemented as an explicit offline validator. It binds a proposed governance plan to the separately validated manifest and pinned rubric; enforces exact family/case/split coverage; separates curator, custodian, executor, source reviewer, two or more outcome reviewers and adjudicator; checks declared candidate access and source-material handling; and rejects scores, completed-review claims, historical runs and unsupported fields. Duplicate declared identity commitments cannot fill different slots.
+
+Pending or self-declared records remain unverified. Even a fully populated plan always returns `needs_human_actions`, with actual identity/qualification/independence/source/access/chronology/holdout gates unestablished. Its content hash is not a trusted timestamp or reservation. No real people were invented or appointed; no qualification, source bundle, human judgment or unseen test result was fabricated. The public synthetic fixture contains only unfilled role slots and pending procedures/materials. [Contract and command](../../docs/WORKFLOW_EVALUATION_GOVERNANCE.md) · [synthetic aggregate result](synthetic-example.json).
+
+## Verification
+
+- Existing application compatibility: **1,847 passed**, no failures/errors/skips. [XML](compatibility/regression.xml) · [log](compatibility/regression.log) · [selected modules](compatibility/selected-tests.txt). This fixed existing-module inventory excludes the three new plan-test modules, which are verified below. It covers public frontend/gateway, consent/destinations, private APIs, actual isolated Chromium rendering/download/session behavior, workflow authority/durability/fallback/operations, composer/typed flow, and temporary TLS/PostgreSQL fixtures.
+- Final new plan validation: **136 passed** (63 unit, 36 CLI, 37 independent adversarial), no failures/errors/skips. [XML](combined-identifier-final.xml) · [log](combined-identifier-final.log). File/path/JSON guards, manifest/rubric drift, exact role/family/case/source/access coverage, all-declarations-filled limits, fingerprint tamper, fixed errors and aggregate privacy are covered. Independent and CLI runs overlap with this final run and are not added to totals.
+- Existing SDK/download Chromium compatibility: **9 passed**, no failures/errors/skips. [XML](sdk-browser.xml) · [log](sdk-browser.log).
+- **Unique latest: 1,992 passed, including 136 new cases**, no failures/errors/skips. [Reconciliation](test-reconciliation.json). This total contains current runs only, never previous release totals or overlapping exploratory results.
+- Public content: 54 files, zero policy violations. Embedded/extracted HTML match. Three public executable inline scripts and one admin inline script parse; two CLI Python modules compile. Twenty existing source/inventory files are byte-identical, including seven public frontend/SDK/package files and the application runtime/admin/worksheet/comparison/old-validator boundaries. [Checks](source-checks.json) · [baseline hashes](input-source-snapshot.json) · [new source hashes](final-source-snapshot.json).
+
+An initial new-unit/CLI trial had 89 passes and one test failure: the fixture assumed the existing objective guard denies every `password=` string. It was corrected to the existing denied `api_key=` pattern. No production or old-validator policy was changed, no complete sensitive-text detection is claimed, and this was not a reproduced production vulnerability. The original [initial XML](unit-cli.xml) and [log](unit-cli.log) are retained. The authoritative final 136 cases pass.
+
+## Secure-coding and dynamic security scope
+
+Bandit scans the new plan CLI and reused old manifest CLI: **High 0, Medium 0, Low 0**. [Raw scan](bandit-final.json) · [scope](static-triage.json). This two-module scope does not rescan the whole application or erase prior reviewed private dashboard warnings. Unchanged sources and current dynamic regressions cover compatibility; no platform-wide vulnerability-free certificate is claimed.
+
+The CLI uses explicit bounded existing regular files only, no-follow opens for every path component, strict duplicate-key/nonfinite JSON handling, exact request schemas and no automatic repair. Error output never echoes task/identity/path/record content. An isolated subprocess audit hook denies filesystem mutation, network, SQLite and subprocess creation while successful validation runs; input bytes/mtime/inodes remain unchanged. Import/help/missing-argument paths do not initialize the application or discover inputs. Both inputs are tested for symlink, directory, FIFO, size, JSON and missing-path rejection. Use `python -B` to suppress interpreter cache writes; artifact-writes counters describe the tool's effects.
+
+The operator server was never stopped, restarted, replaced or duplicated. Direct live database writes, production provider/model tasks, notifications, advertising, publication, canary and automatic maintenance activation were zero. No application code, route, schema/table, frontend metadata, public content or SDK package was changed. **This offline-only change requires no additional server restart.**
+
+## Next work
+
+Implement the controlled actual-input/source-context paired execution and publication-consent contract next, while real independent people, privately verified qualifications/conflicts, separately reviewed sources, access controls and independently chronological pre-run reservations are established through authorized procedures. An authored JSON plan is not that operating process. Then proceed to SDK 1.2/automation consent, product/unit/cascade contracts and expanded storage/operating acceptance. Wider authenticated controls/recovery/retention/composer operating acceptance, measured real-provider/model cohorts, hosted CI and full R-07/AC-08/G0/G1 remain open.

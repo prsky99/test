@@ -1,0 +1,17 @@
+# Post-restart log verification
+
+Read-only inspection of bounded console/source-log tails and listener metadata for process 84113. No running service, configuration, database or source was changed, and this analysis made no HTTP requests to live routes. Client addresses, queries, tokens, visitor records and credentials are excluded.
+
+The process started at **2026-10-19 12:15:31 KST**. Both administrative and public Uvicorn servers report that same process, which accounts for the two process-start log lines. Listener metadata confirms administrative port 8200 is loopback-bound and frontend port 8400 binds all interfaces. Exposure through ingress/firewall is checked independently by the parent task.
+
+For the requested strict window, **12:15:31 inclusive to 12:16:00 exclusive KST**, there are four timestamped access records: two administrative overview reads and two administrative timeseries reads, all HTTP 200 and logged with loopback transport peers. There are no 5xx, auto-jail warnings, execution warnings or operational-metadata warnings within that 29-second interval. This is too short and too local to establish public-client attribution or an availability guarantee.
+
+A separately retained supplemental observation extends through **12:16:36 KST**: 13 access records, consisting of six overview reads, six timeseries reads and one managed x402 gateway GET. Twelve returned HTTP 200; the gateway request returned HTTP 402 and logged `AUTH_REQUIRED` at 12:16:03. An operational-metadata warning appeared at that same second. That warning may reflect a transient write requiring the new retry buffer; logs alone do not show whether it subsequently recovered. Check the administrative recording status and pending/flush counts before classifying it as a persistent loss.
+
+The last auto-jail warning in the source log is **11:57:49 KST**, before this restart. No post-restart jail has yet appeared in the inspected interval, so there is no new evidence of the prior shared-edge-peer jailing pattern. Absence of a jail in this short period does not prove that proxy attribution is corrected.
+
+The new console uses central timestamped `uvicorn.access`/`uvicorn.error` records and source routing into `logs/system/...`, demonstrating that the deployed server uses the new logging setup. The initial inspected console was 7,563 bytes and the later bounded snapshot was 11,145 bytes; neither contains the prior `httpcore` DEBUG stream. Startup stderr was empty. Existing oversized rotated backup metadata is retained in the JSON; no legacy log was read in full or deleted.
+
+**Attribution limit:** all supplemental access records show loopback **transport peers**. The new `TrustedIngressMiddleware` copies the ASGI scope before resolving the application client. Uvicorn's outer access logger can therefore retain the original socket peer while security/rate-limit consumers receive a resolved identity in the inner scope. These access peers cannot establish whether the application correctly extracted distinct clients, nor whether a CDN address was trusted. The logs contain no explicit middleware-chain marker. The parent task must combine process/source deployment evidence, actual ingress topology/configuration, and benign authorized verification to make that determination.
+
+Sanitized machine-readable evidence is in `log-findings.json`. The prior official address-family sources remain linked there; network-peer membership is never treated as an end-user identity.

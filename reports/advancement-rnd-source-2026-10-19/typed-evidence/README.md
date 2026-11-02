@@ -1,0 +1,15 @@
+# Typed execution evidence — bounded private source
+
+`P2-01-TYPED-EVIDENCE` / `POST139R-03` implements a purpose-bound adapter over the existing typed executor and reliability plane. No new executor, evidence database, table, provider dispatch, public route or background worker was added.
+
+The adapter reads signed run/ticket/version/step sources and preserves graph, immutable agent/schema/contract pins, parent projection/branch, logical-run versus node-attempt identity and observed dispatch/terminal timing. Actual resolved inputs are reconstructed only after every relevant node has current pre-existing purpose consent, and must match the original signed input hash. The encrypted bundles, independent evaluator, audit, withdrawal/erasure, restore blocks and logical sample denominators reuse the existing reliability plane.
+
+Historical failed execution does not require a fresh successful provider call to be observable. Immutable binding/schema/tool approval, current owner/member/control and retention authorization remain required. A dispatched node without a definite recorded response stays unknown. Skipped/unreached nodes do not become execution samples; missing raw input/output, prepared timestamps and hidden provider reasoning are never fabricated. Expired interrupted runs display unknown without inventing a terminal timestamp.
+
+The individual staff API exposes metadata-only lineage, explicit encrypted capture and current ETag. The desktop dialog is centered, uses DOM text rendering, starts with retention permission unchecked and clears on session/workspace changes. Existing raw-source inspection and erasure use the existing reliability menu and authorization. Same-transaction projection is available to trusted dispatch guards and rejects a foreign/non-transactional connection while rechecking current access.
+
+Current component results are recorded in [verification.json](verification.json): core/API23 passed, actual offline desktop browser2 passed, and the source scan has no Bandit findings/errors or added suppressions. JavaScript syntax passed. Parent's owned PostgreSQL harness reported five native contracts passed; its final native artifact is maintained by the parent.
+
+The earlier shared regression diagnostic encountered two setup errors while the parent was concurrently wiring `output_guards`; it is preserved in `shared-integration-during-write.xml`. The parent corrected that shared intermediate state and owns the final frozen integration. Do not add diagnostic, historical or repeated regression counts to component/final totals.
+
+This profile does not certify whole-run task quality, business success or actual external operation. Current independent node quality remains a separate trusted evaluator/rubric decision. Each retained node source is bounded by the existing32KiB bundle limit and existing source/observation quotas. Key unavailability, withdrawal, expiry, original-source loss or restore makes current fidelity unavailable. Public Workspace, public trust, marketing and real-money execution remain off.

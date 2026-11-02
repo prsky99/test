@@ -1,0 +1,1 @@
+Diagnostic run: all482pytest cases passed, but2inputs changed while adding the final restore-to-new-grant replay fence. This run is not the final accepted source and its counts are not added to final totals. The final source is verified separately. Initial wiring tick-race and native DTO-reference fixture mistakes were corrected before this diagnostic run.

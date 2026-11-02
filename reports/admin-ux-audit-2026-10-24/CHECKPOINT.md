@@ -1,0 +1,21 @@
+# 2026-10-24 update: operating revision verified; full redesign now requested
+
+Both active web roles use web-20261024-095554-c66b and private ready probes passed. Original10renewal asset hashes and credit100sources matched deployed package; served CSS/JS and public/localplan100copy confirmed. See reports/workspace-credits-admin-postrestart-2026-10-24. User found the UX still unusable; source delivery is not usability acceptance. A new design covers71units in docs/admin-redesign-2026-10-24; see reports/admin-redesign-2026-10-24/CHECKPOINT.md. Subsequent legacy-link source cleanup is tested but undeployed. Do not repeat the old migration/static inventory as complete functional acceptance or restart servers automatically.
+
+---
+
+# Admin renewal UX audit complete; user deployment pending
+
+2026-10-24 /root. No subagents, operating restarts, production customer data use or writes.
+
+User requested every renewal screen checklist in Excel, before screenshots, analysis/fixes, after screenshot filenames. Completed seven main areas,32business routes×desktoplight/mobilelight/desktopdark=96conditions+login. 19interactionconditions (table columns/sort,drawer6tabs,confirmcancel,readresults,reportpagination/detail,SNScompose,templateeditor,accountforms);18specialist panelsdesktop+3mobile=21conditions.97+40=137Excelrows,274pairedimagefilenames. Beforeallassets preserved in baseline-assets from active immutable admin edge-control-admin-20261023-215325; matched pre-edit source except our changes. After screenshots realChromium+isolated authenticated API,not operating customer captures.
+
+Fixed 10runtimefiles underagent_market/gateway/admin_next:admin-pearl.css,pearl-tokens.css,core/ui.js,core/app.js,areas/{catalog-tools,catalog,public-operations,admin-accounts,staff-workspaces,system}. Shared fields and result dataView escaping/masking, forms/drawers42pxcontrols, CSSOM for31trusted oldstyleattrs preserving CSP+hiddenclass, responsive tables minwidth/scroll/stickyhead/emptyrows, mobilemainnav autoheight+visibleactivetabs, callsdetailsingleactive+focusreturn, reportinitialread+51fixturepagination+drawer+doubleclickguard, userinputguardonbackgroundchanges, balancedmetriccounts, systemsectionnav, goldcontrast5.48vs3.56,darkalertcontrast>=4.5. No backend/DB/policy changes. Source-hashes.json current10runtimefiles.
+
+Validation: existing144tests passed; affected19browser/staff passed(overlap,donotsum). FINALux-final.log8tests passed; FINALfinal-browser.log3evidence tests passed. Latest 96afterconditions:0documentoverflow,0consoleerrors. Before:1systemmobileoverflow,93CSPerrors(31×3).2beforemobiledrawersoverflow→0after. Pythonruffformat/check+compile passed;8JSnode--check passed;content249files0violations;staticrenewalinventory22migrated,6validlegacytargets,0missing. Last minorreadonlyreportpaginationguard separatelypassed andincludedfinal8.
+
+Deliverable outputs/01a15206-2530-7fb0-bb29-70ae02abbaa7/admin-ui-ux-checklist-2026-10-24.xlsx,2sheets97+40rows. ArtifactTool authored. COUNTIFSrecalcstatuschange+restore proven,0formulaerrors. Bothsheetpreviews and imagefilenamecolumns visuallychecked. SavedZIPverified2native tables,2row/colfreezepanes(x2/y10),validationlists,summary97/40,imagecounts194/80,all274referencesexist. Workbookbuilder /tmp/admin-ux-workbook/build.mjs;marker already run exactlyonce(do not rerun).
+
+Report RESULT.ko.md. Evidence before/,after/,before-specialists/,after-specialists/ and JSONmanifests; operating /admin/ui legacy pages outside screenshot scope, production customer and external executions not tested. Many listempty states synthetic; PGstorageavailability showntruthfully.18specialistdialogopens, releasesemptyselectorviews only, not all mutations. No claim全operating DASTorWCAGcertification.
+
+Pending: user agentcon restart admin required; do not restart unless explicitlyauthorized perAGENTS.md. After user restart read statefile release string; compare 10sourcehashes against gateway-data/services/releases/<release>/agent_market/...; privateDeployment.probe roleadmin only; readpublicunauth /admin/next/staticasset GET asappropriate. Preserve otherdirtysource. Finalreply mustlink/cite finalworkbook exactlyoncepurposeoutput, conciseKoreanfixsummary+deploymentcommand+reportlink.

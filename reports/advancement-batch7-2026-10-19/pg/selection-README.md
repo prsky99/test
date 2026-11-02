@@ -1,0 +1,9 @@
+# Current native Chat selection and duplicate detection
+
+**46 pytest cases passed**: 45 existing recommendation/registration security regressions and one required native rehearsal containing **62 nested native contracts**. The native result is source-bound before/after, uses a removed Unix-socket cluster, and blocks provider/model/TCP calls. The new native projection had zero Bandit findings; the public content check inspected 77 files with zero violations and the embedded HTML matches its extracted mirror.
+
+The named adapter preserves actual FTS5 matches and the exact source SQLite timestamp/JSON/latest-report semantics against fresh request-local metadata from one PostgreSQL read snapshot. Current report/execution evidence changes invalidate the winner without a text-index change. All 2,005 fixture candidates participate before ranking; the newest candidate beyond the default bound of 2,000 rows wins. The recorded query timing is an observation, not a service SLA. Memory-only TEMP storage is explicitly configured and verified, and temporary metadata tables are removed.
+
+The actual Chat API retains default A2A, explicit MCP and one recent verified recommendation, with existing auth facts, relevance, quarantine/review/private/failed gates. URL duplication preserves active-first/exact/variant ordering and bound quote/Unicode/card/slash inputs. No public Workspace portal or operating migration was activated. Historical ISO TEXT in a physical REAL report column remains outside the native schema domain; no invented timestamp conversion was introduced.
+
+See `selection-verification.json`, `selection-native.json`, the two regression XMLs, `selection-bandit.json` and `docs/APPLICATION_STORE_SELECTION.md`. The source-discovered native Chat interest upsert compilation was corrected by the PostgreSQL adapter owner to native GREATEST/qualified conflict columns; the current Chat proof includes that fix.

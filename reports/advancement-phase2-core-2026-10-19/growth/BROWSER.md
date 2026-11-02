@@ -1,0 +1,7 @@
+# Private growth desktop browser checks
+
+Nine offline Chromium tests passed with zero failures, errors or skips. The fixture intercepts every request and supplies fixed synthetic options, review graphs, SDK policies and support cases. No server, database, real session, provider or external service is used. Product source was reviewed but not edited by the test author.
+
+Checks cover a centered native accessible dialog; exact graph and destination rendering; fresh unchecked save authorization; invalidation by all seven factory inputs; expired-review cleanup; discarded late preparation after input changes with a subsequent successful prepare; one commit after lost acknowledgment with no automatic retry; fresh read/review requirement; exact SDK policy consent reset after every relevant input edit; support consent reset after all eight relevant fields; separate unchecked withdrawal; workspace and session changes removing the dialog and discarding stale late results; and hostile strings appearing only as text without injected image elements or script execution.
+
+`browser.xml` records the authoritative result. `browser-manifest.json` binds tests to the frozen product JavaScript. `desktop-factory-review.png` is an actual isolated 1440×1000 screenshot. Backend authorization and native PostgreSQL acceptance are separate from these synthetic UI checks and remain in the parent integration evidence.
