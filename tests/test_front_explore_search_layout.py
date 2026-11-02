@@ -72,7 +72,7 @@ def test_explore_category_chip_toggle_and_initial_newest_display(explore_page, c
     expect(page.locator('#xVerified')).not_to_be_checked()
     expect(page.locator('#xHasReport')).not_to_be_checked()
     expect(page.locator('#xResults .skeleton-card')).to_have_count(0)
-    expect(page.locator('#xTitle')).to_contain_text('Latest Discovered Agents')
+    expect(page.locator('#xTitle')).to_contain_text('Latest discovered agents')
 
     weather = page.locator('#xChips').get_by_role('button', name='Weather', exact=True)
     with page.expect_response('**/api/explore?*'):
@@ -90,7 +90,7 @@ def test_explore_category_chip_toggle_and_initial_newest_display(explore_page, c
     expect(page.locator('#xQ')).to_have_value('')
     expect(weather).to_have_class('chip-btn')
     assert state.calls[-1]['params']['q'] == '' and state.calls[-1]['params']['limit'] == '45'
-    expect(page.locator('#xTitle')).to_contain_text('Latest Discovered Agents')
+    expect(page.locator('#xTitle')).to_contain_text('Latest discovered agents')
     assert not state.errors and not state.blocked
 
 

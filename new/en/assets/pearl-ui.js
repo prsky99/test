@@ -46,7 +46,7 @@
     const outcomeLine=q('.change-card:nth-child(2) h3 + p');if(outcomeLine)outcomeLine.textContent=format(data.execution_24h.succeeded)+' succeeded · '+format(data.execution_24h.failed)+' failed · '+format(data.execution_24h.unknown)+' unknown';
     const scope=Object.entries(data.execution_24h.by_protocol || {}).filter(([,value]) => Object.values(value).some(n=>n>0)).map(([key])=>key==='x402'?'x402':key.toUpperCase()).join(', ') || 'All protocols';
     text('.execution-scope','Recorded execution attempts · '+scope+' · 24 hours');
-    text('.change-card:nth-child(2) .caption',scope+' execution evidence in this window.');
+    text('.change-card:nth-child(2) .caption','Execution evidence for '+scope.replace(/, ([^,]*)$/,' and $1')+' in this window.');
     text('#execution-checks > .caption','Recorded task attempts in the stated window. Connection status is shown separately.');
     all('.category-cards .card').forEach((node,i) => {const category=data.categories[i];if(!category)return;text('strong',format(category.n),node);const a=q('a',node);if(a)a.dataset.pearlFilter='category='+encodeURIComponent(category.id);});
     all('#secOverview .catalog-hero .actions a').forEach(node => {if(node.getAttribute('href')==='#explore'){ const label=[...node.childNodes].find(n=>n.nodeType===Node.TEXT_NODE && n.textContent.trim());if(label)label.textContent='Explore agents'; }});

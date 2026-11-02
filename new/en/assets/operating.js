@@ -2584,7 +2584,7 @@ function renderExplore(items, q, total = null, estimated = false, matchedReportC
 
   $("xTitle").innerHTML = q
     ? `"${esc(q)}" Search Results <span class="sub">${protocolLabel} · ${countLabel} ${isReportFilter ? "matching " + agentUnit : "matches"}${reportLabel ? " · " + reportLabel : ""} · Matched to your task and filters</span>`
-    : `Latest Discovered Agents <span class="sub">${protocolLabel} · ${subLabel}</span>`;
+    : `Latest discovered agents <span class="sub">${protocolLabel} · ${subLabel}</span>`;
 
   $("xResults").innerHTML = items.length
     ? items.map((r) => agentCardHtml(r)).join("")
@@ -2609,7 +2609,7 @@ function renderExplore(items, q, total = null, estimated = false, matchedReportC
     if ((exploreHasMore === true || (exploreHasMore == null && total != null && total > items.length)) && items.length < 300) {
       lmWrap.style.display = "block";
       const lmBtn = $("xLoadMore");
-      if (lmBtn) lmBtn.textContent = `Load More Agents (${fmt(items.length)} / ${estimated ? "up to " : ""}${fmt(total)})`;
+      if (lmBtn) lmBtn.textContent = `Load more agents (${fmt(items.length)} / ${estimated ? "up to " : ""}${fmt(total)})`;
     } else {
       lmWrap.style.display = "none";
     }
@@ -6353,7 +6353,7 @@ async function executeCurrentTestbench() {
         toast("Please provide valid JSON arguments before running.", "error");
         if (runBtn) {
           runBtn.disabled = false;
-          runBtn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg><span>Run Test</span>`;
+          runBtn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg><span>Run test</span>`;
         }
         if (kpiStatus) {
           kpiStatus.textContent = "Error";
@@ -6417,7 +6417,7 @@ async function executeCurrentTestbench() {
     tbRunInFlight = false;
     if (runBtn) {
       runBtn.disabled = !tbSelectedAgent;
-      runBtn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg><span>Run Test</span>`;
+      runBtn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg><span>Run test</span>`;
     }
   }
 }
