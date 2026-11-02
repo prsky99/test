@@ -279,7 +279,7 @@ def _tool_text(tool, described):
     return text.lower().replace('_', ' ')
 
 
-TOPIC_BOUNDARY = re.compile(r'\b(?:(?:and\s+)?(?:return|include|provide|output)|about|regarding|concerning|related to|with|for|on|from|to|into|in|that|which)\b', re.I)
+TOPIC_BOUNDARY = re.compile(r'\b(?:(?:and\s+)?(?:return|include|provide|output)|about|regarding|concerning|related to|with|for|on|from|to|into|in|across|throughout|that|which)\b', re.I)
 # A leading "Search for papers" names the papers search itself, so its "for" is no topic
 # boundary. "web search for AI news" (a search with its own object) and normalize_task's
 # "academic paper search for <task>" keep the boundary.
@@ -370,6 +370,13 @@ def capability_terms(task):
     if 'news' in specific:
         from .task_requirements import NEWS_TOPICS
         specific=[term for term in specific if term not in NEWS_TOPICS]
+    # "open source repositories": "source" qualifies the repositories; it is no capability.
+    if 'repositories' in specific or 'repository' in specific:
+        specific = [term for term in specific if term != 'source' or not OPEN_SOURCE.search(task)] or specific
+    # "an illustration of a mountain landscape": what is drawn is the subject, not the capability.
+    made = [term for term in specific if term in IMAGE_KINDS]
+    if made:
+        specific = made
     # "convert text to speech": the boundary split at "to" dropped the capability itself.
     if SPEECH_PHRASE.search(task):
         return ['speech']
@@ -380,6 +387,8 @@ def capability_terms(task):
     return specific or terms
 
 
+OPEN_SOURCE = re.compile(r'\bopen[\s-]+source\b', re.I)
+IMAGE_KINDS = {'illustration', 'illustrations', 'drawing', 'drawings', 'painting', 'paintings', 'artwork', 'logo', 'logos'}
 SPEECH_PHRASE = re.compile(r'\b(?:text[\s-]+to[\s-]+(?:speech|voice)|speech[\s-]+to[\s-]+text)\b', re.I)
 REFERENCE_SOURCES = {'wikipedia', 'wikidata', 'wiktionary'}
 PRICE_CONDITION = re.compile(r'\b(?:that\s+|which\s+)?(?:costs?|priced?(?:\s+at)?|for|at)?\s*(?:under|below|less than|cheaper than|at most|no more than|max(?:imum)?(?: of)?)\s*'
@@ -408,7 +417,7 @@ def _regional_languages_cover(requested, text):
     return all(wanted <= family for scope, family in REGIONAL_LANGUAGES if scope.search(text))
 NEGATIONS = {'not', 'no', 'nor', 'without', 'except', 'excluding'}
 CAPABILITY_MODIFIERS = set('research recent latest online live real realtime time free public simple quick best good new current '
-                           'daily accurate reliable fast similar'.split())
+                           'daily accurate reliable fast similar popular top'.split())
 GENERIC_ACTIONS = set('get check make create run build show list return fetch give take put set see view open '
                       'text data information info result results item items line lines'.split())
 

@@ -100,3 +100,16 @@ def test_a_follow_up_step_keeps_the_proposed_queries_unless_the_first_mixes_kind
     both = wgc.apply_step_subjects('Find news about Bitcoin prices, then research papers on cryptocurrency volatility.',
                                    nodes('Bitcoin prices news'))
     assert [n['input']['query'] for n in both] == ['Bitcoin prices', 'cryptocurrency volatility']
+
+
+@pytest.mark.parametrize('goal,expected', [
+    ('Fnd reserch papres abot batery recyclng then suport sources',
+     'find research papers about batery recyclng then support sources'),
+    ('Serch nwes abot AI chips', 'search news about AI chips'),
+    ('Book a flight to Tokyo next Friday', 'Book a flight to Tokyo next Friday'),
+    ('Find news about pagers', 'Find news about pagers'),
+    ('Automate my work', 'Automate my work'),
+])
+def test_typos_of_goal_words_are_corrected_only_when_the_goal_names_no_verb(goal, expected):
+    from agent_market.workflow_model_proposer import respell_goal_words
+    assert respell_goal_words(goal) == expected

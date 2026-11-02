@@ -107,6 +107,10 @@ def test_no_second_retrieval_without_an_enabled_engine(monkeypatch):
     ('search Wikipedia for black holes', ['wikipedia']),
     ('movie recommendations similar to Inception', ['movie']),
     ('text summarization', ['summarization']),
+    ('find popular open source repositories for vector databases', ['repositories']),
+    ('create an illustration of a mountain landscape', ['illustration']),
+    ('plan a route by bicycle across Amsterdam', ['route', 'bicycle']),
+    ('find open source license compliance tools', ['source', 'license', 'compliance']),
 ])
 def test_capability_terms_keep_the_capability_a_boundary_would_drop(task, terms):
     from agent_market.concierge.selection import capability_terms

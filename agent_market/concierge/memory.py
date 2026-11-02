@@ -387,6 +387,16 @@ class VisitorBook:
         with self._hit_condition:
             return self._hit_worker is None and self._hit_queue.empty()
 
+    @contextmanager
+    def batch(self):
+        """One writer transaction for the visitor writes inside it on PostgreSQL, where each
+        transaction waits for the global writer lock; other stores keep one per write."""
+        if getattr(self.store, 'backend', '') != 'postgresql':
+            yield
+            return
+        with _write(self.store):
+            yield
+
     # ---------------- conversation ----------------
     def add_message(self, v: Visitor, role: str, channel: str, text: str, data: dict | None = None) -> int:
         encoded = redact_visitor_tokens(json.dumps(data, ensure_ascii=False)) if data else None

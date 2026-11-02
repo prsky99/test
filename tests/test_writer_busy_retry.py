@@ -74,3 +74,41 @@ def test_postgresql_reports_the_held_writer_lock_as_writer_busy():
             started = time.monotonic()
             visitor = book.create('rest', 'pytest', 'fp-writer-busy')
             assert visitor.id and time.monotonic() - started < 4
+            # Results and the remembered interest are written in one transaction.
+            with book.batch():
+                book.save_results(visitor, [{'id': 1, 'name': 'Forecast', 'task': 'weather'}], 1)
+                book.remember_interest(visitor, 'weather', 'travel_maps_weather', None, None, [])
+            assert book.last_results(visitor.id)[1] == 1
+            assert [i['task'] for i in book.interests(visitor.id)] == ['weather']
+
+
+def test_batched_visitor_writes_wait_for_the_writer_lock_once():
+    class Nesting(Store):
+        backend = 'postgresql'
+
+        def __init__(self):
+            super().__init__(0)
+            self.depth = 0
+
+        @contextmanager
+        def tx(self):
+            if self.depth == 0:
+                self.calls += 1
+            self.depth += 1
+            try:
+                yield self
+            finally:
+                self.depth -= 1
+    store = Nesting()
+    book = object.__new__(memory.VisitorBook)
+    book.store = store
+    with book.batch():
+        for _ in range(3):
+            with memory._write(store):
+                pass
+    assert store.calls == 1
+    other = Store(0)
+    book.store = other
+    with book.batch():
+        pass
+    assert other.calls == 0  # SQLite and other stores keep one transaction per write

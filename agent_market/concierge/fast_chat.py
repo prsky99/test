@@ -347,8 +347,9 @@ class FastConcierge(Concierge):
             items, parts = self._cover_parts(task, items, protocol, excluded)
         if not items:
             if persist:
-                self.book.save_results(v,[],0)
-                self.book.remember_interest(v,task,classify(' '.join(search_terms(task))),protocol,None,[])
+                with self.book.batch():
+                    self.book.save_results(v,[],0)
+                    self.book.remember_interest(v,task,classify(' '.join(search_terms(task))),protocol,None,[])
             from .chat_guidance import QUESTION
             reason = 'out_of_scope' if QUESTION.match(task) and offset == 0 else 'no_eligible_match'
             no_match_data = {'task':task,'protocol':protocol,'recommendations':[],'status':'no_match',
@@ -376,9 +377,10 @@ class FastConcierge(Concierge):
         for item in items:
             item['display_name'] = agent_display_name(item)
         if persist:
-            self.book.save_results(v,[{**item,'task':task,'task_spec':spec.state(),'protocol_filter':protocol} for item in items],offset+len(items))
-            # Retain only the structured task state needed for subsequent requests.
-            self.book.remember_interest(v,task,items[0]['category'],protocol,None,items)
+            with self.book.batch():
+                self.book.save_results(v,[{**item,'task':task,'task_spec':spec.state(),'protocol_filter':protocol} for item in items],offset+len(items))
+                # Retain only the structured task state needed for subsequent requests.
+                self.book.remember_interest(v,task,items[0]['category'],protocol,None,items)
         from .inertia import InertiaGraph
         top_tool = (items[0].get('tools') or [''])[0]
         next_steps = InertiaGraph(self.store).predict_next(items[0]['id'], str(top_tool or ''), limit=2,
@@ -684,8 +686,9 @@ class FastConcierge(Concierge):
                     task = combined
                     task_terms = search_terms(task)
             elif not task_terms and untranslated_words(task):
-                self.book.save_results(v,[],0)
-                self.book.remember_interest(v,task,classify(' '.join(task_terms)),protocol,None,[])
+                with self.book.batch():
+                    self.book.save_results(v,[],0)
+                    self.book.remember_interest(v,task,classify(' '.join(task_terms)),protocol,None,[])
                 return Reply('Your task is kept. Please restate it briefly in English; language normalization is unavailable.',
                              'clarify',{'status':'needs_language','recommendations':[],'task':task,'protocol':protocol})
         if not task_terms or set(task_terms).issubset({'artificial','intelligence','assistant','bot','chatbot'}):
