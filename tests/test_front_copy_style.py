@@ -21,3 +21,14 @@ def test_live_pages_and_scripts_no_longer_carry_the_old_labels():
 def test_execution_caption_reads_as_a_sentence():
     ui = (ROOT / 'new/en/assets/pearl-ui.js').read_text()
     assert "'Execution evidence for '+scope.replace(/, ([^,]*)$/,' and $1')+' in this window.'" in ui
+
+
+def test_last_title_case_buttons_and_decorative_heading_are_fixed():
+    for name in PAGES:
+        text = (ROOT / 'new/en' / name).read_text()
+        assert 'Run Workflow' not in text and 'Download Web App' not in text, name
+        assert '<h3 role="presentation">From individual agents to one useful result</h3>' in text, name
+    for path in ('new/en/assets/operating.js', 'new/en/assets/workflow-library.js', 'agent_market/workflow_webapp.py',
+                 'agent_market/concierge/workflow_app.js'):
+        text = (ROOT / path).read_text()
+        assert 'Run Workflow' not in text and 'Download Web App' not in text, path

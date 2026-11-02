@@ -140,7 +140,7 @@ def test_run_error_recovers_button(workflow_page):
     page.route("**/api/workflows/run", reject_run)
     page.locator("#btnFrontRunWorkflow").click()
     playwright.expect(page.locator('#frontToastContainer')).to_contain_text('Please retry later')
-    playwright.expect(page.locator("#btnFrontRunWorkflow")).to_have_text("Run Workflow")
+    playwright.expect(page.locator("#btnFrontRunWorkflow")).to_have_text("Run workflow")
     playwright.expect(page.locator("#btnFrontRunWorkflow")).to_be_enabled()
     playwright.expect(page.locator("#frontWfRunModal")).not_to_be_visible()
     assert preflights and len(attempts) == 1

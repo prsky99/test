@@ -62,7 +62,7 @@ def test_frontend_download_buttons_export_gateway_zip_and_run_on_other_host(stud
     else:
         page.locator('#btnFrontWfViewTemplates').click()
         page.locator('#frontTemplatesGrid .template-card').filter(has_text='Recorded Weather Pipeline').get_by_role('button',name='Preview Recorded Weather Pipeline',exact=True).click()
-        button = page.locator('#wfLibraryPreview').get_by_role('button',name='Download Web App',exact=True)
+        button = page.locator('#wfLibraryPreview').get_by_role('button',name='Download web app',exact=True)
     with page.expect_download() as event: button.click()
     assert event.value.suggested_filename == 'recorded-weather-pipeline-webapp.zip'
     path = tmp_path / (entry + '.zip'); event.value.save_as(path)

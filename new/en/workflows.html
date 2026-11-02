@@ -476,7 +476,7 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 </svg>
 <div class="necklace-center">
 <span class="badge ">Agent workflow</span>
-<h3>From individual agents to one useful result</h3>
+<h3 role="presentation">From individual agents to one useful result</h3>
 <div class="row">
 <div>
 <span class="icon-disc">
@@ -1778,12 +1778,12 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <button class="btn primary" id="btnFrontRunWorkflow" data-ac-click="b571849519cf" style="font-weight:700;display:inline-flex;align-items:center;gap:6px">
             <svg width="14" height="14" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-            <span>Run Workflow</span>
+            <span>Run workflow</span>
           </button>
           <button class="btn" id="btnFrontStopWorkflow" disabled aria-label="Stop current workflow run">Stop</button>
         <button class="btn" id="btnFrontExportApp" data-ac-click="9b507ce6740c" title="Download a ZIP web app package for your server" style="display:inline-flex;align-items:center;gap:6px">
             <svg width="14" height="14" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-            <span>Download Web App</span>
+            <span>Download web app</span>
           </button>
           <button class="btn" id="btnFrontResetCanvas" data-ac-click="adcbd7d21513" style="color:var(--text-muted);display:inline-flex;align-items:center;gap:6px" aria-label="Reset to the default technology news workflow">
             <svg width="14" height="14" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
@@ -1802,7 +1802,7 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
       </div>
 
       <!-- Canvas Viewport -->
-      <section class="card pearl-workflow-review ux-workflow-steps"><div><h3>Workflow steps</h3><p>Review each published input before running.</p></div><div id="pearlWorkflowInputSteps" class="pearl-workflow-input-steps"><p class="caption pearl-workflow-loading" role="status">Loading workflow steps…</p></div></section><div class="ux-workflow-results"><section class="card ux-result-panel" id="uxWorkflowResultPanel" data-expanded="false"><span class="badge" id="pearlWorkflowResultState">No run yet</span><h3>Workflow result</h3><div id="pearlWorkflowResult"><p>Run the selected workflow to inspect its actual output. Results and source links will appear when available.</p></div><button id="uxFullRunDetails" type="button" class="btn" hidden>Open full run details</button></section><section class="card" hidden><h3>Run details</h3><p>The steps in your current connection.</p><ol class="step-list" id="pearlWorkflowRunDetails"></ol></section></div><details class="ux-canvas-editor"><summary>Advanced: inspect and edit the canvas</summary><p class="caption">Canvas edits stay in your draft. Run Workflow uses the selected published template.</p><div class="wf-canvas-container" id="frontWfCanvasContainer">
+      <section class="card pearl-workflow-review ux-workflow-steps"><div><h3>Workflow steps</h3><p>Review each published input before running.</p></div><div id="pearlWorkflowInputSteps" class="pearl-workflow-input-steps"><p class="caption pearl-workflow-loading" role="status">Loading workflow steps…</p></div></section><div class="ux-workflow-results"><section class="card ux-result-panel" id="uxWorkflowResultPanel" data-expanded="false"><span class="badge" id="pearlWorkflowResultState">No run yet</span><h3>Workflow result</h3><div id="pearlWorkflowResult"><p>Run the selected workflow to inspect its actual output. Results and source links will appear when available.</p></div><button id="uxFullRunDetails" type="button" class="btn" hidden>Open full run details</button></section><section class="card" hidden><h3>Run details</h3><p>The steps in your current connection.</p><ol class="step-list" id="pearlWorkflowRunDetails"></ol></section></div><details class="ux-canvas-editor"><summary>Advanced: inspect and edit the canvas</summary><p class="caption">Canvas edits stay in your draft. Run workflow uses the selected published template.</p><div class="wf-canvas-container" id="frontWfCanvasContainer">
         <!-- Canvas Hint Toolbar -->
         <div class="wf-canvas-toolbar">
           <div style="display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent)"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg><span style="font-size:11.5px;color:var(--text-muted)">Drag right port to left port to connect nodes. Click any node to configure parameters.</span></div>

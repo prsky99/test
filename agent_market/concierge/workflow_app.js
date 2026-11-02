@@ -96,7 +96,7 @@ function standaloneAppRuntime() {
   function setRunning(value) {
     run.disabled = value;
     run.setAttribute('aria-busy', String(value));
-    run.querySelector('[data-run-label]').textContent = value ? 'Running...' : 'Run Workflow';
+    run.querySelector('[data-run-label]').textContent = value ? 'Running...' : 'Run workflow';
     run.querySelector('[data-run-ready]').toggleAttribute('hidden', value);
     run.querySelector('[data-run-spinner]').toggleAttribute('hidden', !value);
   }
@@ -173,7 +173,7 @@ function buildWorkflowAppHTML(config) {
 <style nonce="${nonce}">:root{color-scheme:light dark;font-family:system-ui,sans-serif}body{max-width:850px;margin:40px auto;padding:20px}section{border:1px solid #8391a6;border-radius:16px;padding:16px;margin:16px 0}h2{font-size:1rem}button{display:inline-flex;align-items:center;gap:8px;border:1px solid #8391a6;border-radius:10px;padding:12px 18px;cursor:pointer}button:focus-visible{outline:3px solid #6366f1;outline-offset:3px}pre{white-space:pre-wrap;overflow-wrap:anywhere}button svg{flex-shrink:0}#runAppBtn:disabled{cursor:wait;color:CanvasText;opacity:.75}[hidden]{display:none!important}.app-run-spinner{animation:app-run-spin 1s linear infinite}@keyframes app-run-spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.app-run-spinner{animation:none}}</style>
 </head><body><h1>${escapeHTML(config.title)}</h1><p>${escapeHTML(config.description)}</p>
 <p>This app connects to Agent Concierge to run the current published template. Results depend on agent availability. It requires an internet connection.</p>
-<button id="runAppBtn" type="button" aria-busy="false"><svg data-run-ready width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg><svg data-run-spinner class="app-run-spinner" hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a10 10 0 1 0 10 10"/></svg><span data-run-label>Run Workflow</span></button>
+<button id="runAppBtn" type="button" aria-busy="false"><svg data-run-ready width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg><svg data-run-spinner class="app-run-spinner" hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a10 10 0 1 0 10 10"/></svg><span data-run-label>Run workflow</span></button>
 <button id="cancelAppBtn" type="button" disabled>Stop</button><p id="appStatus" role="status" aria-live="polite">Ready</p><div id="stepsContainer"></div>
 <script type="application/json" id="wfData" nonce="${nonce}">${data}${endScript}
 <script nonce="${nonce}">${createAgentConciergeClient.toString()}\n(${standaloneAppRuntime.toString()})();${endScript}</body></html>`;

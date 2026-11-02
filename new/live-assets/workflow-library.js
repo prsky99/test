@@ -81,8 +81,8 @@
     previewBody.append(list);
     const state=el('p','wf-library-preview-state',template.execution_availability?.message||'Review the published configuration before running.');state.setAttribute('role','status');
     const use=button('Use this workflow',()=>choose(template),true);use.disabled=!available(template)||frontWorkflowRunning;
-    const download=button('Download Web App',()=>downloadFrontTemplateWebApp(template.id));download.classList.add('wf-library-download');
-    previewBody.append(state,el('p','wf-library-preview-hint','Choosing a template opens it for review. Nothing runs until you select Run Workflow.'));
+    const download=button('Download web app',()=>downloadFrontTemplateWebApp(template.id));download.classList.add('wf-library-download');
+    previewBody.append(state,el('p','wf-library-preview-hint','Choosing a template opens it for review. Nothing runs until you select Run workflow.'));
     previewFooter.replaceChildren(use,download);previewBody.scrollTop=0;
     dialog.showModal();previewBody.scrollTop=0;
   }

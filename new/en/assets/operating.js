@@ -1543,7 +1543,7 @@ const GUIDE = [
     <h4 style="margin:20px 0 8px 0;font-size:15px">Visual Orchestration &amp; Standalone Web App Export</h4>
     <p style="font-size:13px;color:var(--text-muted);line-height:1.6;margin:0 0 10px 0">
       In Agent Concierge's <b>Visual Workflow Studio</b> (<code>#workflows</code>), you can review published workflows built with registered agent connections.
-      Click <b>Download Web App</b> to get a ZIP package with a web app, gateway SDK, and deployment guide. Host it on your own server or in a subdirectory. Execution connects to Agent Concierge and requires an internet connection.
+      Click <b>Download web app</b> to get a ZIP package with a web app, gateway SDK, and deployment guide. Host it on your own server or in a subdirectory. Execution connects to Agent Concierge and requires an internet connection.
     </p>
 `},
   { id: "unreg-coding", group: "unregistered", pillLabel: "Autonomous Coding & SWE", title: "Autonomous Coding & SWE — Unregistered Industry Benchmarks", html: `
@@ -2198,7 +2198,7 @@ const GUIDE = [
     ],
     [
         "Can I download and run multi-agent workflows offline?",
-        "No — workflow execution requires an internet connection. Choose a published template in Workflow Studio and click 'Download Web App'. Extract the ZIP and upload it to your server or static host. Its SDK connects to Agent Concierge to run the workflow."
+        "No — workflow execution requires an internet connection. Choose a published template in Workflow Studio and click 'Download web app'. Extract the ZIP and upload it to your server or static host. Its SDK connects to Agent Concierge to run the workflow."
     ],
     [
         "What does the 'TEST REPORT' badge represent?",
@@ -4631,9 +4631,9 @@ function updateFrontWorkflowAvailability() {
   const state = selected?.execution_availability;
   const summary = $('frontWfSelectedTemplate');
   if (summary) summary.textContent = selected
-    ? `Selected published template: ${selected.name}. Choose Run Workflow to check availability and start it.`
+    ? `Selected published template: ${selected.name}. Choose Run workflow to check availability and start it.`
     : frontTemplatesLoadFailed ? 'Published templates could not be loaded. Open Template Hub to try again.'
-      : frontTemplatesCache.length ? 'Choose a published template in Template Hub to enable Run Workflow.'
+      : frontTemplatesCache.length ? 'Choose a published template in Template Hub to enable Run workflow.'
       : 'Preparing the Technology News template.';
   const notice = $('frontWorkflowAvailability');
   // A selected workflow that left the published list (its connections became unavailable) says so.
@@ -4959,7 +4959,7 @@ async function runFrontCanvasWorkflow() {
     if (!template) throw new Error('Choose an available published template.');
     if (frontActiveTemplateId !== intent.templateId || template.definition_hash !== intent.definitionHash) {
       $('frontFallbackConsent').checked = false;
-      throw new Error('The selected workflow changed. Review it and choose Run Workflow again.');
+      throw new Error('The selected workflow changed. Review it and choose Run workflow again.');
     }
     const allowFallback = template.fallback_available === true && intent.allowFallback;
     if (template.product && !allowFallback) throw new Error('Allow one verified alternative below before running this protected product.');
@@ -4993,7 +4993,7 @@ async function runFrontCanvasWorkflow() {
     window.frontWorkflowRun=null;
     if (runBtn) {
       runBtn.disabled = false;
-      runBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg><span>Run Workflow</span>`;
+      runBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg><span>Run workflow</span>`;
     }
     updateFrontWorkflowAvailability();
   }
@@ -5237,7 +5237,7 @@ function standaloneAppRuntime() {
   function setRunning(value) {
     run.disabled = value;
     run.setAttribute('aria-busy', String(value));
-    run.querySelector('[data-run-label]').textContent = value ? 'Running...' : 'Run Workflow';
+    run.querySelector('[data-run-label]').textContent = value ? 'Running...' : 'Run workflow';
     run.querySelector('[data-run-ready]').toggleAttribute('hidden', value);
     run.querySelector('[data-run-spinner]').toggleAttribute('hidden', !value);
   }
@@ -5314,7 +5314,7 @@ function buildWorkflowAppHTML(config) {
 <style nonce="${nonce}">:root{color-scheme:light dark;font-family:system-ui,sans-serif}body{max-width:850px;margin:40px auto;padding:20px}section{border:1px solid #8391a6;border-radius:16px;padding:16px;margin:16px 0}h2{font-size:1rem}button{display:inline-flex;align-items:center;gap:8px;border:1px solid #8391a6;border-radius:10px;padding:12px 18px;cursor:pointer}button:focus-visible{outline:3px solid #6366f1;outline-offset:3px}pre{white-space:pre-wrap;overflow-wrap:anywhere}button svg{flex-shrink:0}#runAppBtn:disabled{cursor:wait;color:CanvasText;opacity:.75}[hidden]{display:none!important}.app-run-spinner{animation:app-run-spin 1s linear infinite}@keyframes app-run-spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.app-run-spinner{animation:none}}</style>
 </head><body><h1>${escapeHTML(config.title)}</h1><p>${escapeHTML(config.description)}</p>
 <p>This app connects to Agent Concierge to run the current published template. Results depend on agent availability. It requires an internet connection.</p>
-<button id="runAppBtn" type="button" aria-busy="false"><svg data-run-ready width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg><svg data-run-spinner class="app-run-spinner" hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a10 10 0 1 0 10 10"/></svg><span data-run-label>Run Workflow</span></button>
+<button id="runAppBtn" type="button" aria-busy="false"><svg data-run-ready width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg><svg data-run-spinner class="app-run-spinner" hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a10 10 0 1 0 10 10"/></svg><span data-run-label>Run workflow</span></button>
 <button id="cancelAppBtn" type="button" disabled>Stop</button><p id="appStatus" role="status" aria-live="polite">Ready</p><div id="stepsContainer"></div>
 <script type="application/json" id="wfData" nonce="${nonce}">${data}${endScript}
 <script nonce="${nonce}">${createAgentConciergeClient.toString()}\n(${standaloneAppRuntime.toString()})();${endScript}</body></html>`;
@@ -5336,7 +5336,7 @@ function standaloneAppRuntime() {
   function setRunning(value) {
     run.disabled = value;
     run.setAttribute('aria-busy', String(value));
-    run.querySelector('[data-run-label]').textContent = value ? 'Running...' : 'Run Workflow';
+    run.querySelector('[data-run-label]').textContent = value ? 'Running...' : 'Run workflow';
     run.querySelector('[data-run-ready]').toggleAttribute('hidden', value);
     run.querySelector('[data-run-spinner]').toggleAttribute('hidden', !value);
   }
@@ -5413,7 +5413,7 @@ function buildWorkflowAppHTML(config) {
 <style nonce="${nonce}">:root{color-scheme:light dark;font-family:system-ui,sans-serif}body{max-width:850px;margin:40px auto;padding:20px}section{border:1px solid #8391a6;border-radius:16px;padding:16px;margin:16px 0}h2{font-size:1rem}button{display:inline-flex;align-items:center;gap:8px;border:1px solid #8391a6;border-radius:10px;padding:12px 18px;cursor:pointer}button:focus-visible{outline:3px solid #6366f1;outline-offset:3px}pre{white-space:pre-wrap;overflow-wrap:anywhere}button svg{flex-shrink:0}#runAppBtn:disabled{cursor:wait;color:CanvasText;opacity:.75}[hidden]{display:none!important}.app-run-spinner{animation:app-run-spin 1s linear infinite}@keyframes app-run-spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.app-run-spinner{animation:none}}</style>
 </head><body><h1>${escapeHTML(config.title)}</h1><p>${escapeHTML(config.description)}</p>
 <p>This app connects to Agent Concierge to run the current published template. Results depend on agent availability. It requires an internet connection.</p>
-<button id="runAppBtn" type="button" aria-busy="false"><svg data-run-ready width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg><svg data-run-spinner class="app-run-spinner" hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a10 10 0 1 0 10 10"/></svg><span data-run-label>Run Workflow</span></button>
+<button id="runAppBtn" type="button" aria-busy="false"><svg data-run-ready width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg><svg data-run-spinner class="app-run-spinner" hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a10 10 0 1 0 10 10"/></svg><span data-run-label>Run workflow</span></button>
 <button id="cancelAppBtn" type="button" disabled>Stop</button><p id="appStatus" role="status" aria-live="polite">Ready</p><div id="stepsContainer"></div>
 <script type="application/json" id="wfData" nonce="${nonce}">${data}${endScript}
 <script nonce="${nonce}">${createAgentConciergeClient.toString()}\n(${standaloneAppRuntime.toString()})();${endScript}</body></html>`;
@@ -5637,7 +5637,7 @@ function renderFrontTemplates() {
           </button>
           <button class="btn sm" data-id="${esc(t.id)}" data-ac-click="fc422abb205a" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            <span>Download Web App</span>
+            <span>Download web app</span>
           </button>
         </div>
       </div>

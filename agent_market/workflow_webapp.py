@@ -56,7 +56,7 @@ def build_package(config):
 <script nonce="{nonce}" src="assets/app.js" defer></script>
 </head><body><main><h1>{title}</h1><p>{description}</p>
 <p>Workflow execution is processed by Agent Concierge. An internet connection is required.</p>
-<button id="runAppBtn" type="button" aria-busy="false"><svg data-run-ready width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg><svg data-run-spinner class="app-run-spinner" hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a10 10 0 1 0 10 10"/></svg><span data-run-label>Run Workflow</span></button>
+<button id="runAppBtn" type="button" aria-busy="false"><svg data-run-ready width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg><svg data-run-spinner class="app-run-spinner" hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a10 10 0 1 0 10 10"/></svg><span data-run-label>Run workflow</span></button>
 <button id="cancelAppBtn" type="button" disabled>Stop</button>
 <p id="appStatus" role="status" aria-live="polite">Ready</p><div id="stepsContainer"></div>
 <script type="application/json" id="wfData" nonce="{nonce}">{public_config}</script>
@@ -71,7 +71,7 @@ Use HTTPS in production. Internet access to {GATEWAY} is required.
 
 1. Extract the archive and keep index.html and assets/ together.
 2. Upload the folder to your server's document root or any subdirectory.
-3. Open index.html through your server and select Run Workflow.
+3. Open index.html through your server and select Run workflow.
 
 Relative asset paths support deployment at / or a path such as /apps/digest/.
 For local preview, run `python3 -m http.server 8080 --bind 127.0.0.1` in this
