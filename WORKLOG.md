@@ -1,6 +1,7 @@
 # 작업 기록 (짧게 유지: 끝날 때마다 몇 줄 갱신)
 
 ## 완료 (최근 것만)
+- 품질 정책 v1 운영 적용 완료(2026-11-04 08:39): r2가 id 50154에서 result_limit(500행 32MB 초과)로 멈춤 → 배치 절반 줄이기(760dcf82), jobs quality-policy-jobs-20261104-r3 07:08 배포(사용자 승인). 결과 A 비율 MCP 23.0%·A2A 1.6%·x402 46.8%, 평균 81.6·80.8·84.4. 정책 미적용 5건은 10-16 manual 행(평가 정보 없이 94점, 정리 필요). 탐색 처음 보는 검색어 36개 중 3초 초과 1건('bond yield curve' 3.96초, 다시 보내도 2.19초, 따로 조사). → reports/에이전트 품질 평가 업그레이드 2026-11-03.md 5-1절
 - 웹어워드 대비·agent-desktop·복원 연습(2026-11-02): 출품 확정이 아닌 품질 대비. 0~6단계와 13번, 버튼 대소문자까지 배포했다(award-buttons-frontend-20261102-r2; 내려받는 웹앱은 관리자 사본과 같아야 해서 "Run Workflow" 유지, 결과로 스크롤은 검색창에서 검색할 때만). 9개 화면 모두 12px 미만 글자 0, 이름 없는 조작 요소 0, 작은 누를 영역 0. 페이지 분리는 생략(한 페이지 앱). 'tide tables' 0건은 selection.capability_terms 원인만 기록(정책 해시 파일). 배포 전환 감시 2,376회 실패 0. 백업 복원 연습 11분·오류 0·리소스 237,585 일치(deploy/DEPLOY.md). agent-desktop(vercel-labs) 설치, 스킬 ~/.claude/skills/agent-desktop, 전역 ~/.claude/CLAUDE.md. 기록: reports/웹어워드 심사 예상 지적.md. 전체 시험(nice) 10,345 통과·4 실패 → 내 변경 원인 2건 고침, log_retention 1건은 기존 실패, pearl_task_ux는 실행 중 시험 파일 변경.
 - 남은 작업(2026-11-02 오후): Chat 쓰기 묶기(VisitorBook.batch), 워크플로 오타 교정(p13, 73/73), 핵심어 3개(g3·h15, Chat 149→151/159), capability_text 새 정리 운영 확인(잠금 안 4.6ms), pg_prewarm은 안 함. 릴리스 chat-writes-frontend-20261102-r2·chat-terms-jobs-20261102-r1 패키징·검증, 12:53 jobs·12:55 frontend 배포(사용자 승인), 5xx 0, 재생성 중.
 - admin 워크플로 생성 맞춤(2026-11-02 10:30): wf-admin-20261102-r1(idle-reaper-admin-r1 + 워크플로 4개 + workspace_access.py) 배포(활성 a). 사본 비교 새 실패 0, 43건 회복, 오류 0. 다음 admin은 이 릴리스 기준.
