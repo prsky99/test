@@ -11,7 +11,8 @@ from .security import _QUOTA_SINK, quota_headers
 
 PUBLIC_READS = frozenset(('/api/overview','/api/insights','/api/explore','/api/workflows/templates',
     '/api/test/presets','/robots.txt','/sitemap.xml','/llms.txt','/llms-full.txt',
-    '/.well-known/agent-card.json','/.well-known/mcp.json','/.well-known/mcp/server.json'))
+    '/.well-known/agent-card.json','/.well-known/mcp.json','/.well-known/mcp/server.json',
+    '/.well-known/security.txt','/security.txt'))
 TITLES = {400:'Bad request',401:'Authentication required',403:'Forbidden',404:'Not found',
     405:'Method not allowed',408:'Request timed out',409:'Conflict',413:'Payload too large',
     422:'Invalid request',429:'Too many requests',500:'Request failed',502:'Provider unavailable',

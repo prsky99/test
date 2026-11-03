@@ -32,3 +32,11 @@ def test_audience_wording_includes_the_people_who_run_agents():
     assert 'humans are not the audience' not in engine.T['intro']
     card = client().get('/.well-known/agent-card.json').json()
     assert card['description'].startswith('FOR AI AGENTS.') and 'not for humans' not in card['description']
+
+
+def test_security_txt_is_publicly_cacheable():
+    # Cloudflare cache rule "Agent discovery documents" (11-03) caches it only when the origin allows it.
+    c = client()
+    for path in ('/.well-known/security.txt', '/security.txt'):
+        reply = c.get(path)
+        assert reply.headers['cache-control'].startswith('public') and 'no-store' not in reply.headers['cache-control']

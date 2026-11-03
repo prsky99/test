@@ -66,7 +66,7 @@ HEAD 대신 GET을 사용하고 `-L`을 넣지 않아 첫 응답을 확인한다
 
 저장소 루트의 `./agentcon check`는 준비된 native 환경 설정을 검사하는 별도 명령이며 Cloudflare 규칙이나 실행 중인 프로세스 설정을 바꾸지 않는다. `agentcon restart`는 native 설정을 실제 적용하는 별도 운영 작업으로, 이번 브라우저 설정과 분리한다. 이 문서 갱신 과정에서는 서버를 실행·종료·재시작하지 않았다.
 
-## 에이전트용 공개 문서 캐시 규칙 (2026-11-03 계획, 적용 전)
+## 에이전트용 공개 문서 캐시 규칙 (2026-11-03 적용)
 
 - **배경:** 에이전트가 가장 먼저 읽는 문서가 `cf-cache-status: DYNAMIC`이라 매번 원 서버까지 간다. 새 연결의 첫 응답이 1~4초, `llms-full.txt`는 한 번 8.9초였다(`reports/전문가 4인 평가 보완 2026-11-03.md` D1).
 - **안전성:** 대상 응답에는 `Set-Cookie`가 없고, `Vary`는 `Accept-Encoding`뿐이다. 원 서버의 `Cache-Control`(예: `public, max-age=30, stale-while-revalidate=30`)을 그대로 따르게 한다.
@@ -77,12 +77,16 @@ HEAD 대신 GET을 사용하고 `-L`을 넣지 않아 첫 응답을 확인한다
     (http.host eq "agentconcierge.biz" and http.request.method eq "GET" and http.request.uri.path in {"/llms.txt" "/llms-full.txt" "/robots.txt" "/sitemap.xml" "/.well-known/agent-card.json" "/.well-known/mcp.json" "/.well-known/mcp/server.json" "/.well-known/security.txt"})
     ```
   - Cache eligibility: **Eligible for cache**
-  - Edge TTL: **Use cache-control header if present**(원 서버 값 사용)
-  - Browser TTL: **Respect origin**
-  - 나머지 설정은 기본값으로 둔다.
+  - Edge TTL, Browser TTL을 포함한 나머지 설정은 추가하지 않는다(기본값 = 원 서버 `Cache-Control`을 따름).
 - **넣지 않는 것:** `status.json`, `agent-entry.json`, `openapi.json`은 원 서버가 `no-store`를 보내므로 넣지 않는다. HTML 페이지와 `/api/` 아래도 넣지 않는다.
 - **확인:** 같은 주소를 두 번 요청해 두 번째 `cf-cache-status`가 `HIT`인지 본다.
   ```bash
   for i in 1 2; do curl -s -o /dev/null -D - https://agentconcierge.biz/llms.txt | grep -i cf-cache-status; done
   ```
 - **되돌리기:** 규칙을 끄면(Disable) 바로 원래대로 돌아간다.
+- **적용 결과 (2026-11-03 15시경, 크롬 대시보드에서 적용):**
+  - 8개 주소 모두 세 번 요청에 `MISS`(또는 `REVALIDATED`) → `HIT` → `HIT`.
+  - `security.txt`는 처음에 `BYPASS`였다. 원 서버 미들웨어가 공개 문서 목록(`public_http_contract.PUBLIC_READS`) 밖의 응답을 모두 `no-store`로 덮기 때문이다. 목록에 `/.well-known/security.txt`, `/security.txt`를 넣어 `security-cache-frontend-20261103-r1`로 배포한 뒤 `HIT`를 확인했다.
+  - 원 서버는 `max-age=30`을 보내지만 Cloudflare를 거친 응답은 `max-age=14400`이다. 영역(zone)의 Browser Cache TTL 기본값(4시간)이 더 짧은 원 서버 값을 덮는 것이다. 에이전트 쪽에서 최대 4시간 오래된 문서를 볼 수 있다. 문서가 자주 바뀌지 않아 그대로 두었다.
+  - `/api/overview`는 규칙 밖이라 계속 `DYNAMIC`이다.
+- **목록에 문서를 더할 때:** Cloudflare 조건식과 `PUBLIC_READS`를 함께 바꾼다. 원 서버가 `no-store`를 보내면 규칙이 있어도 캐시되지 않는다.
