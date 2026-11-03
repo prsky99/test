@@ -154,3 +154,28 @@ def test_postgres_health_counts_binds_at_most_256_values_per_statement():
     fake = Fake()
     counts = fake.health_counts(list(range(1, 1001)), 0.0)
     assert len(counts) == 1000 and len(fake.calls) == 5
+
+
+def test_postgres_batch_halves_when_rows_exceed_the_result_cap_and_skips_a_giant_row():
+    from agent_market.application_store_collector import PostgresCollectorMixin
+    from agent_market.application_store_postgres import ApplicationStoreError
+
+    class Fake(PostgresCollectorMixin):
+        def __init__(self, cap):
+            self.meta, self.limits, self.cap = {}, [], cap
+
+        def get_meta(self, key): return self.meta.get(key)
+        def set_meta(self, key, value): self.meta[key] = value
+        def health_counts(self, ids, since): return {}
+
+        def _collector_rows(self, sql, params=()):
+            if 'SELECT id' in sql: return [{'id': params[0] + 1}]
+            self.limits.append(params[1])
+            if params[1] > self.cap: raise ApplicationStoreError('result_limit')
+            return [{'id': params[0] + i + 1, 'eval_info': 'null'} for i in range(params[1])]
+
+    fits = Fake(cap=100)
+    assert fits.quality_policy_batch(limit=500) == 62 and fits.limits == [500, 250, 125, 62]
+    assert fits.meta['quality_policy_cursor']['id'] == 62
+    giant = Fake(cap=0)
+    assert giant.quality_policy_batch(limit=4) == 1 and giant.meta['quality_policy_cursor']['id'] == 1

@@ -136,14 +136,29 @@ class PostgresCollectorMixin:
 
     def quality_policy_batch(self, limit=500):
         import json
+        from .application_store_postgres import ApplicationStoreError
         from .collector.evaluation import POLICY_VERSION, POLICY_WINDOW_DAYS, apply_quality_policy
         _limit(limit)
         if self.get_meta('quality_policy_done') == POLICY_VERSION:
             return 0
         cursor = self.get_meta('quality_policy_cursor') or {}
         after = cursor.get('id', 0) if cursor.get('version') == POLICY_VERSION else 0
-        rows = self._collector_rows('''SELECT * FROM resources WHERE id>%s AND active=1
-            AND kind IN ('mcp','a2a','x402') AND eval_score IS NOT NULL ORDER BY id LIMIT %s''', (after, limit))
+        sql = '''SELECT * FROM resources WHERE id>%s AND active=1
+            AND kind IN ('mcp','a2a','x402') AND eval_score IS NOT NULL ORDER BY id LIMIT %s'''
+        while True:
+            # Large details can push 500 full rows past the 32 MB result cap; halve until it fits.
+            try:
+                rows = self._collector_rows(sql, (after, limit))
+                break
+            except ApplicationStoreError as error:
+                if str(error) != 'result_limit': raise
+                if limit > 1:
+                    limit //= 2
+                    continue
+                skip = self._collector_rows('''SELECT id FROM resources WHERE id>%s AND active=1
+                    AND kind IN ('mcp','a2a','x402') AND eval_score IS NOT NULL ORDER BY id LIMIT 1''', (after,))
+                self.set_meta('quality_policy_cursor', {'version': POLICY_VERSION, 'id': skip[0]['id'], 'changed': 0})
+                return 1
         if not rows:
             self.set_meta('quality_policy_done', POLICY_VERSION)
             return 0
