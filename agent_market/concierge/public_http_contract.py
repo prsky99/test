@@ -13,6 +13,12 @@ PUBLIC_READS = frozenset(('/api/overview','/api/insights','/api/explore','/api/w
     '/api/test/presets','/robots.txt','/sitemap.xml','/llms.txt','/llms-full.txt',
     '/.well-known/agent-card.json','/.well-known/mcp.json','/.well-known/mcp/server.json',
     '/.well-known/security.txt','/security.txt'))
+# Agent discovery documents the Cloudflare cache rule keeps at the edge (11-03). s-maxage lets the
+# edge hold them for ten minutes while browsers and agents still revalidate after 30 seconds;
+# with max-age alone the edge copy expired after 30 seconds (4 HITs in 24 cold requests, 11-04).
+EDGE_DOCUMENTS = frozenset(('/robots.txt','/sitemap.xml','/llms.txt','/llms-full.txt',
+    '/.well-known/agent-card.json','/.well-known/mcp.json','/.well-known/mcp/server.json',
+    '/.well-known/security.txt','/security.txt'))
 TITLES = {400:'Bad request',401:'Authentication required',403:'Forbidden',404:'Not found',
     405:'Method not allowed',408:'Request timed out',409:'Conflict',413:'Payload too large',
     422:'Invalid request',429:'Too many requests',500:'Request failed',502:'Provider unavailable',
@@ -83,7 +89,8 @@ class PublicHTTPContract:
                     if 'etag' in headers:del headers['etag']
                     if status==429:headers.setdefault('Retry-After','60')
             if cache and status in (200,304) and 'set-cookie' not in headers:
-                headers['cache-control']='public, max-age=30, stale-while-revalidate=30'
+                headers['cache-control']=('public, max-age=30, s-maxage=600, stale-while-revalidate=3600'
+                    if path in EDGE_DOCUMENTS else 'public, max-age=30, stale-while-revalidate=30')
                 if status==200 and method=='GET':
                     tag=headers.get('etag') or '"'+hashlib.sha256(body).hexdigest()[:24]+'"'
                     tag='W/'+tag if not tag.startswith('W/') else tag

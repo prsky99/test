@@ -185,6 +185,11 @@ def agent_display_name(item):
     return kind+' agent'+(' #'+str(item['id']) if type(item.get('id')) is int else '')
 
 
+# Tasks the catalog answers well, offered when a request names no task.
+CLARIFY_EXAMPLES = ('Find research papers on a topic', 'Get a weather forecast for a city',
+                    'Convert currency rates without an API key')
+
+
 class FastConcierge(Concierge):
     """Keep transport/session compatibility with bounded factual task matching."""
 
@@ -692,7 +697,10 @@ class FastConcierge(Concierge):
                 return Reply('Your task is kept. Please restate it briefly in English; language normalization is unavailable.',
                              'clarify',{'status':'needs_language','recommendations':[],'task':task,'protocol':protocol})
         if not task_terms or set(task_terms).issubset({'artificial','intelligence','assistant','bot','chatbot'}):
-            return Reply('What should the agent do? Describe a task, such as finding research papers or searching technology news.', 'clarify', {'status':'needs_task','recommendations':[]})
+            # Choices let a person tap one and let an agent pick one without writing a new task (11-04 review B6).
+            return Reply('What should the agent do? Describe a task, such as finding research papers or searching technology news.',
+                         'clarify', {'status':'needs_task','recommendations':[],'examples':list(CLARIFY_EXAMPLES)},
+                         list(CLARIFY_EXAMPLES))
         reply = self._recommend(v,task,protocol=protocol,operation=spec.operation)
         if corrected and isinstance(getattr(reply,'text',None),str):
             reply.text = 'Searched for "' + corrected[:200] + '". ' + reply.text

@@ -146,3 +146,13 @@ def test_constraint_follow_ups_refine_the_list_and_keep_the_context(catalog):
         assert body['reply'].startswith('Filtered for: ') and 'free to call' in body['reply'], body['reply']
     second = ask(client, 'the second one', visitor_token=token)
     assert 'Describe the task first' not in second['reply']
+
+
+def test_a_request_without_a_task_offers_task_choices(catalog):
+    # 11-04 review B6: the clarify reply names choices a person can tap and an agent can pick.
+    from agent_market.concierge.fast_chat import CLARIFY_EXAMPLES
+    _, _, client, _, _ = catalog
+    body = ask(client, 'assistant')
+    assert body['intent'] == 'clarify' and body['data']['status'] == 'needs_task'
+    assert body['data']['examples'] == list(CLARIFY_EXAMPLES) == body['suggested_replies']
+    assert all(3 <= len(value) <= 80 and value.isascii() for value in CLARIFY_EXAMPLES)  # operating.js chip filter

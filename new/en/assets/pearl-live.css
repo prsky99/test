@@ -790,3 +790,23 @@ body [style*="font-size:11px"],body [style*="font-size: 11px"],body [style*="fon
 /* Web award stage 4, item 13 (2026-11-02): wide screens reserve one line, not two, for the selected workflow's
    name and description, so Run Workflow sits inside a 1280x720 first screen. Narrow screens keep the reserve. */
 @media(min-width:1100px){body #secWorkflows #frontWfActiveName{min-height:36px}body #secWorkflows #pearlWorkflowDescription{min-height:45px;margin-bottom:10px}}
+
+/* 11-04 review B5/W4: the first-visit consent banner is opaque from its first frame (the old fade drew
+   its text over the page). On phones it is a compact strip at the top, because at the bottom any
+   banner covers the home task input (727px on a 375x812 screen). */
+@keyframes cookieBannerRise{from{translate:0 16px}to{translate:0 0}}
+@keyframes cookieBannerDrop{from{translate:0 -16px}to{translate:0 0}}
+.cookie-banner:not(.hidden){animation:cookieBannerRise .2s ease-out!important}
+@media(max-width:700px){
+ body #cookieConsentBanner:not(.hidden){top:12px!important;bottom:auto!important;padding:12px 14px!important;max-height:40dvh;animation-name:cookieBannerDrop!important}
+ body .cookie-banner-title{font-size:15px!important;margin:0 32px 2px 0!important}
+ body .cookie-banner .cookie-choice-summary{display:none}
+ body .cookie-banner .cookie-purpose-details{font-size:12px;margin:0}
+ body .cookie-banner-actions{grid-template-columns:repeat(3,minmax(0,1fr))!important;align-items:stretch;margin-top:8px!important;gap:6px!important}
+ body .cookie-banner-actions .btn{min-height:44px;padding:6px 8px;font-size:13px}
+ body .cookie-banner-actions .btn:last-child{grid-column:auto}
+}
+@media(prefers-reduced-motion:reduce){.cookie-banner:not(.hidden){animation:none!important}}
+/* 11-04: dark-theme primary buttons sit on the dark teal gradient (#00626d to #003945, or #005864), so
+   the dark label meant for the light accent measured 1.6 to 2.5:1. White measures 7.1 to 12.6:1. */
+body[data-theme="dark"] .btn.primary,body[data-theme="dark"] .btn.primary :is(span,svg){color:#fff}
