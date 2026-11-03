@@ -166,6 +166,10 @@ def test_session_change_closes_review_and_discards_late_response(privacy_page):
     page.locator(f'[data-privacy-review-id="{w.identity}"]').click()
     expect(page.locator('#privacyReviewDialog')).to_be_visible()
     page.wait_for_function('() => document.querySelector("#privacyReviewMessage").textContent.includes("Reading")')
+    for _ in range(60):
+        if held:
+            break
+        page.wait_for_timeout(50)
     assert held
     page.evaluate('''() => { token = ''; currentUser = null; updateUserUI(null, false); }''')
     expect(page.locator('#privacyReviewDialog')).to_have_count(0)

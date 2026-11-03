@@ -39,10 +39,10 @@ def test_fresh_and_cached_explicit_searches_show_progress_until_their_response(e
     else:page.locator('#xHasReport').check()
     _wait_calls(state,before+1);_searching(page)
     _fulfill(state.calls[-1]);expect(page.locator('#xResults .acard')).to_have_count(45)
-    page.wait_for_function('exploreRequestedKey===null');_hidden(page)
+    page.wait_for_function('()=>exploreRequestedKey===null');_hidden(page)
     before=len(state.calls);page.locator('#xGo').click();_wait_calls(state,before+1)
     expect(page.locator('#xResults .acard')).to_have_count(45);_searching(page)
-    _fulfill(state.calls[-1]);page.wait_for_function('exploreRequestedKey===null');_hidden(page)
+    _fulfill(state.calls[-1]);page.wait_for_function('()=>exploreRequestedKey===null');_hidden(page)
     assert not state.errors and not state.blocked
 
 
@@ -50,12 +50,12 @@ def test_search_completion_cannot_hide_independent_detail_progress(explore_page)
     state=explore_page;page=state.page;_open(state);state.hold=True;state.hold_details=True
     before=len(state.calls);page.locator('#xGo').click();_wait_calls(state,before+1);_searching(page)
     rid=state.add('Uncached detail progress');page.evaluate('id=>void openAgent(id)',rid)
-    page.wait_for_function('activeReqs===2');_fulfill(state.calls[-1])
-    page.wait_for_function('exploreRequestedKey===null');assert _loader_state(page)['tokens']==1
+    page.wait_for_function('()=>activeReqs===2');_fulfill(state.calls[-1])
+    page.wait_for_function('()=>exploreRequestedKey===null');assert _loader_state(page)['tokens']==1
     expect(page.locator('#binaryLoader')).to_be_visible()
     deadline=time.monotonic()+3
     while not state.details and time.monotonic()<deadline:page.wait_for_timeout(10)
-    assert len(state.details)==1;_fulfill(state.details[0]);page.wait_for_function('activeReqs===0');_hidden(page)
+    assert len(state.details)==1;_fulfill(state.details[0]);page.wait_for_function('()=>activeReqs===0');_hidden(page)
     assert not state.errors and not state.blocked
 
 
@@ -71,7 +71,7 @@ def test_partial_or_other_limit_cache_does_not_replace_a_complete_visible_page(e
       setSwrCache(key,preview)}''',marker)
     before=len(state.calls);page.locator('#xGo').click();_wait_calls(state,before+1)
     expect(page.locator('#xResults .acard')).to_have_count(45);_searching(page)
-    _fulfill(state.calls[-1]);page.wait_for_function('exploreRequestedKey===null');_hidden(page)
+    _fulfill(state.calls[-1]);page.wait_for_function('()=>exploreRequestedKey===null');_hidden(page)
     assert not state.errors
 
 
@@ -85,7 +85,7 @@ def test_failed_or_cancelled_search_releases_only_its_progress(explore_page,outc
     else:
         page.locator('#xQ').fill('Next search');expect(page.locator('#binaryLoader')).to_be_visible()
         _fulfill(old);_wait_calls(state,before+2);_searching(page);_fulfill(state.calls[-1])
-    page.wait_for_function('exploreRequestedKey===null');_hidden(page)
+    page.wait_for_function('()=>exploreRequestedKey===null');_hidden(page)
     assert not state.errors and not state.blocked
 
 

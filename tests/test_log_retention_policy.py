@@ -62,6 +62,8 @@ def test_quiet_defaults_keep_startup_errors_security_and_access_failures(tmp_pat
     manager=LoggingManager(log_dir=str(tmp_path/'logs'),archive_dir=str(tmp_path/'archive'),auto_start_scheduler=False)
     manager.start()
     try:
+        for name in ('agent_market','agent_market.collector','agent_market.collector.health','agent_market.gateway.server','agent_market.concierge.security','uvicorn','uvicorn.access'):
+            lg=logging.getLogger(name);lg.disabled=False;lg.propagate=True;lg.setLevel(logging.NOTSET)
         logging.getLogger('agent_market.collector').info('routine collection stats')
         logging.getLogger('agent_market.collector.health').info('routine health transition')
         logging.getLogger('agent_market.gateway.server').info('service listening')
