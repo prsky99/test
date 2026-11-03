@@ -1893,13 +1893,15 @@ class Store:
 
     def health_counts(self, ids: list[int], since: float) -> dict[int, tuple[int, int]]:
         """resource_id → (점검 수, 성공 수), SINCE 이후 헬스체크 기록. 품질 정책의 가용성 근거."""
-        if not ids:
-            return {}
-        rows = self.query(f"""SELECT resource_id, COUNT(*) AS n,
-            SUM(CASE WHEN outcome IN ('healthy','reachable') THEN 1 ELSE 0 END) AS ok
-            FROM health_checks WHERE at > ? AND resource_id IN ({','.join('?' * len(ids))}) GROUP BY resource_id""",
-                          (since, *ids))
-        return {r["resource_id"]: (r["n"], r["ok"] or 0) for r in rows}
+        counts = {}
+        for start in range(0, len(ids), 200):  # PostgreSQL 저장소는 문장당 값 256개까지 받는다
+            chunk = ids[start:start + 200]
+            rows = self.query(f"""SELECT resource_id, COUNT(*) AS n,
+                SUM(CASE WHEN outcome IN ('healthy','reachable') THEN 1 ELSE 0 END) AS ok
+                FROM health_checks WHERE at > ? AND resource_id IN ({','.join('?' * len(chunk))}) GROUP BY resource_id""",
+                              (since, *chunk))
+            counts.update({r["resource_id"]: (r["n"], r["ok"] or 0) for r in rows})
+        return counts
 
     def quality_policy_batch(self, limit: int = 500) -> int:
         """기존 평가에 품질 정책(evaluation.apply_quality_policy)을 입힌다. 네트워크 요청 없음.

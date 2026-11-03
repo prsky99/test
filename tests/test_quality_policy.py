@@ -137,3 +137,20 @@ def test_capped_scores_keep_their_order():
     lower["dimensions"] = {**DIMS, "definitions": 0.6}
     low = apply_quality_policy(row(), lower, (28, 28))
     assert 74.9 < low["score"] < high["score"] <= 84.9 and high["grade"] == low["grade"] == "B"
+
+
+def test_postgres_health_counts_binds_at_most_256_values_per_statement():
+    from agent_market.application_store_collector import PostgresCollectorMixin
+
+    class Fake(PostgresCollectorMixin):
+        def __init__(self):
+            self.calls = []
+
+        def _collector_rows(self, sql, params=()):
+            assert len(params) <= 256
+            self.calls.append(params)
+            return [{"resource_id": i, "n": 3, "ok": 3} for i in params[1:]]
+
+    fake = Fake()
+    counts = fake.health_counts(list(range(1, 1001)), 0.0)
+    assert len(counts) == 1000 and len(fake.calls) == 5

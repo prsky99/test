@@ -124,13 +124,15 @@ class PostgresCollectorMixin:
     def health_counts(self, ids, since):
         _number(since)
         if type(ids) is not list or len(ids) > MAX_COLLECTOR_ROWS or any(type(value) is not int or not 0 < value < 2**63 for value in ids): _invalid()
-        if not ids:
-            return {}
-        rows = self._collector_rows('''SELECT resource_id,COUNT(*) AS n,
-            SUM(CASE WHEN outcome IN ('healthy','reachable') THEN 1 ELSE 0 END) AS ok
-            FROM health_checks WHERE at>%s AND resource_id IN (''' + ','.join(['%s'] * len(ids)) + ''')
-            GROUP BY resource_id''', (since, *ids))
-        return {row['resource_id']: (row['n'], row['ok'] or 0) for row in rows}
+        counts = {}
+        for start in range(0, len(ids), 200):  # a statement binds at most 256 values
+            chunk = ids[start:start + 200]
+            rows = self._collector_rows('''SELECT resource_id,COUNT(*) AS n,
+                SUM(CASE WHEN outcome IN ('healthy','reachable') THEN 1 ELSE 0 END) AS ok
+                FROM health_checks WHERE at>%s AND resource_id IN (''' + ','.join(['%s'] * len(chunk)) + ''')
+                GROUP BY resource_id''', (since, *chunk))
+            counts.update({row['resource_id']: (row['n'], row['ok'] or 0) for row in rows})
+        return counts
 
     def quality_policy_batch(self, limit=500):
         import json
