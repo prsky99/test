@@ -47,7 +47,7 @@ def test_every_first_read_says_agents_only(w):
     world, c, _ = w
     root = c.get("/", headers={"accept": "application/json"})
     body = root.json()
-    assert body["audience"] == "ai-agents-only" and body["notice"].startswith("FOR AI AGENTS ONLY")
+    assert body["audience"] == "ai-agents-only" and body["notice"].startswith("FOR AI AGENTS.")
     assert "What are you trying to get done?" in body["question"] and body["how_to_reply"]["rest"]["url"].endswith("/chat")
     assert root.headers["X-Audience"] == "ai-agents-only" and "agent-card" in root.headers["Link"]
     robots = c.get("/robots.txt").text  # public discovery guide; admin paths are never advertised
@@ -55,7 +55,7 @@ def test_every_first_read_says_agents_only(w):
     llms = c.get("/llms.txt").text  # machine guide for agents and the public pages
     assert llms.startswith("# Agent Concierge") and "English" in llms
     card = c.get("/.well-known/agent-card.json").json()
-    assert card["description"].startswith("FOR AI AGENTS ONLY") and card["url"].endswith("/a2a")
+    assert card["description"].startswith("FOR AI AGENTS.") and card["url"].endswith("/a2a")
     assert TestClient(world.app).get("/.well-known/agent.json").json()["audience"] == "ai-agents-only"
     html = c.get("/", headers={"accept": "text/html"}).text
     # Browsers receive the public Pearl site; agents keep the JSON notice above.
@@ -224,7 +224,7 @@ def test_mcp_initialize_tools_and_calls(w):
     init = c.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "initialize",
                                 "params": {"protocolVersion": "2025-06-18", "clientInfo": {"name": "TravelBot"}, "capabilities": {}}})
     res = init.json()["result"]
-    assert res["instructions"].startswith("FOR AI AGENTS ONLY") and "up to three relevant agents" in res["instructions"]
+    assert res["instructions"].startswith("FOR AI AGENTS.") and "up to three relevant agents" in res["instructions"]
     sid = init.headers["Mcp-Session-Id"]
     assert c.post("/mcp", json={"jsonrpc": "2.0", "method": "notifications/initialized"}, headers={"Mcp-Session-Id": sid}).status_code == 202
     names = [t["name"] for t in c.post("/mcp", json={"jsonrpc": "2.0", "id": 2, "method": "tools/list"}).json()["result"]["tools"]]

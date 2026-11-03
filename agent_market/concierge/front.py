@@ -76,7 +76,7 @@ from .rest_adapter import OpenApiAdapter
 from .security import check_malicious_text, check_malicious_dict, BIDI_OR_CONTROL_CHARS, public_metadata
 
 AUDIENCE = "ai-agents-only"
-NOTICE = ("FOR AI AGENTS ONLY. This service is built for autonomous AI agents, not for humans. "
+NOTICE = ("FOR AI AGENTS. Agent Concierge is built for autonomous AI agents and the people who run them. "
           "Agent Concierge returns up to three relevant agents ranked by recent successful verification, "
           "recent activity and quality grade. Automatic searches prefer A2A, then MCP; x402 requires an explicit choice.")
 CHAT_PER_MINUTE = 60
@@ -2033,7 +2033,7 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
                 if not drained:
                     logging.getLogger(__name__).warning("Anonymous visit worker shutdown timed out")
 
-    app = FastAPI(title="Agent Concierge — for AI agents only", description=NOTICE, version="1.0.0", docs_url=None, redoc_url=None, lifespan=lifespan)
+    app = FastAPI(title="Agent Concierge — for AI agents and their operators", description=NOTICE, version="1.0.0", docs_url=None, redoc_url=None, lifespan=lifespan)
     from .registration_policy import PublicRequestError, public_error_response
     app.add_exception_handler(PublicRequestError, public_error_response)
 
@@ -2335,6 +2335,20 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
         if request.headers.get("if-none-match") == etag:
             return Response(status_code=304, headers={"ETag": etag, "Cache-Control": "public, max-age=3600"})
         return PlainTextResponse(content, headers={"ETag": etag, "Cache-Control": "public, max-age=3600"})
+
+    @router.get("/.well-known/security.txt", include_in_schema=False)
+    @router.get("/security.txt", include_in_schema=False)
+    def security_txt(request: Request):
+        """RFC 9116 contact for security reports; Expires stays 180 days ahead of every response."""
+        from datetime import datetime, timedelta, timezone
+        expires = (datetime.now(timezone.utc) + timedelta(days=180)).strftime("%Y-%m-%dT00:00:00.000Z")
+        base = front.base(request)
+        content = ("Contact: mailto:contact@agentconcierge.biz\n"
+                   f"Contact: {base}/new/en/contact.html\n"
+                   f"Expires: {expires}\n"
+                   "Preferred-Languages: en, ko\n"
+                   f"Canonical: {base}/.well-known/security.txt\n")
+        return PlainTextResponse(content, headers={"Cache-Control": "public, max-age=86400"})
 
     @router.get("/sitemap.xml", include_in_schema=False)
     def sitemap(request: Request):
@@ -3199,7 +3213,7 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             return JSONResponse(mcp_result(rid, {
                 "protocolVersion": asked if asked in MCP_VERSIONS else MCP_VERSIONS[0],
                 "capabilities": {"tools": {"listChanged": False}},
-                "serverInfo": {"name": "agent-concierge", "title": "Agent Concierge (for AI agents only)", "version": "1.0.0"},
+                "serverInfo": {"name": "agent-concierge", "title": "Agent Concierge (for AI agents)", "version": "1.0.0"},
                 "instructions": instructions}))
 
         if method == "initialize":
@@ -3218,7 +3232,7 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             return JSONResponse(mcp_result(rid, {
                 "protocolVersion": asked if asked in MCP_VERSIONS else MCP_VERSIONS[0],
                 "capabilities": {"tools": {"listChanged": False}},
-                "serverInfo": {"name": "agent-concierge", "title": "Agent Concierge (for AI agents only)", "version": "1.0.0"},
+                "serverInfo": {"name": "agent-concierge", "title": "Agent Concierge (for AI agents)", "version": "1.0.0"},
                 "instructions": instructions}), headers={"Mcp-Session-Id": sid})
         if isinstance(method, str) and method.startswith("notifications/"):
             return Response(status_code=202)
