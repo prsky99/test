@@ -25,7 +25,7 @@ def test_cards_always_show_access_and_x402_price():
 
 
 def test_phone_filters_fold_behind_one_labelled_button():
-    fold = UI[UI.index("// Phones: evidence filters and common tasks fold"):]
+    fold = UI[UI.index("// Phones: category, evidence filters and common tasks fold"):]
     fold = fold[:fold.index('})();') + 5]
     assert "matchMedia('(max-width:700px)')" in fold and "aria-controls" in fold and "aria-expanded" in fold
     assert "' filters and common tasks'" in fold and "' on)'" in fold

@@ -2470,10 +2470,13 @@ function applyExploreChip(q) {
   const next = currentQ === targetQ ? "" : (q || "");
   $("xQ").value = next;
   updateActiveExploreChip(next);
+  exploreSubmitIntent = true;
   loadExplore(true, false, true);
 }
 
 let exploreDebounce = null;
+// Set by Search, Enter and task chips (iOS does not focus tapped buttons, so focus cannot tell).
+let exploreSubmitIntent = false;
 function invalidateExploreRequest() {
   exploreRequestRevision += 1;
   exploreRequestedKey = null;
@@ -2493,10 +2496,11 @@ $("xQ").addEventListener("input", () => {
 $("xQ").addEventListener("keydown", (e) => {
   if (e.key === "Enter") {
     clearTimeout(exploreDebounce);
+    exploreSubmitIntent = true;
     loadExplore(true, false, true);
   }
 });
-$("xGo").onclick = () => loadExplore(true, false, true);
+$("xGo").onclick = () => { exploreSubmitIntent = true; loadExplore(true, false, true); };
 // One filter change sends exactly one request, even when change and input both fire.
 let exploreFilterTimer = null;
 function exploreFilterChanged() {
@@ -2668,6 +2672,7 @@ function restoreExploreLocation() {
 
 async function loadExplore(force = false, isLoadMore = false, userInitiated = false) {
   clearTimeout(exploreDebounce); exploreDebounce = null;
+  const submitted = exploreSubmitIntent; exploreSubmitIntent = false;
   populateCategorySelects(); updateActiveExploreChip();
   const q = $("xQ").value.trim(), kind = $("xKind").value, category = $("xCategory").value;
   const verified = $("xVerified").checked ? "1" : "0";
@@ -2735,9 +2740,11 @@ async function loadExplore(force = false, isLoadMore = false, userInitiated = fa
     if(!data || !Array.isArray(data.items))throw Error("Search results are unavailable. Please try again.");
     setSwrCache(cacheKey,{...data,_complete_page:true,_request_limit:requestLimit});
     display(data);
-    if (userInitiated && !isLoadMore && matchMedia("(max-width:700px)").matches) {
+    if (userInitiated && !isLoadMore && matchMedia("(max-width:700px)").matches
+        && submitted) {
+      // Phones: Search, Enter or a task chip brings the result heading up; filters stay where the visitor is.
       $("xTitle").tabIndex=-1; $("xTitle").focus({preventScroll:true});
-      $("xTitle").scrollIntoView({block:"start",behavior:"instant"});
+      $("xTitle").scrollIntoView({block:"start",behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"instant":"smooth"});
     } else if (userInitiated && !isLoadMore && exploreSubmittedFromSearchBox()
                && $("xTitle").getBoundingClientRect().top > innerHeight * 0.6) {
       // Results below the fold changed out of sight; bring their heading up and keep focus in the search box.

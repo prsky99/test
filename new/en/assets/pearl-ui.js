@@ -498,15 +498,17 @@
   const originalExplore=renderExplore;
   renderExplore=function(...args){const value=originalExplore(...args);compactResults();return value;};
   compactResults();
-  // Phones: evidence filters and common tasks fold behind one button so results start on the first screen.
+  // Phones: category, evidence filters and common tasks fold behind one button so results start on the first screen.
   (()=>{
     const box=q('#secExplore .pearl-filter-bottom');if(!box)return;
     const phone=matchMedia('(max-width:700px)');
+    const category=q('#xCategory')?.closest('.field'),search=q('#xGo');
     box.id=box.id||'uxFilterOptions';
     const toggle=node('button','btn sm ux-filter-toggle');toggle.type='button';
     toggle.setAttribute('aria-controls',box.id);toggle.setAttribute('aria-expanded','false');
     const apply=()=>{
-      const on=['xVerified','xNoAuth','xHasReport'].filter(id=>q('#'+id)?.checked).length;
+      if(category&&search){if(phone.matches&&category.parentNode!==box)box.prepend(category);else if(!phone.matches&&category.parentNode===box)search.before(category);}
+      const on=['xVerified','xNoAuth','xHasReport'].filter(id=>q('#'+id)?.checked).length+(phone.matches&&q('#xCategory')?.value?1:0);
       const open=!phone.matches||toggle.getAttribute('aria-expanded')==='true';
       box.style.display=open?'':'none';toggle.hidden=!phone.matches;
       toggle.textContent=(open?'Hide':'Show')+' filters and common tasks'+(on?' ('+on+' on)':'');

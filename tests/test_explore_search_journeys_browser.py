@@ -122,5 +122,6 @@ def test_mobile_explicit_search_moves_focus_to_results(explore_page):
     page.locator('#xQ').fill('Forecast')
     page.locator('#xGo').click()
     expect(page.locator('#xTitle')).to_be_focused()
-    assert 0 <= page.locator('#xTitle').bounding_box()['y'] < 160
+    # The scroll is smooth unless reduced motion is set, so wait for it to settle.
+    page.wait_for_function("()=>{const y=document.getElementById('xTitle').getBoundingClientRect().top;return y>=0&&y<160}")
     assert not state.errors
