@@ -1870,7 +1870,7 @@ class Store:
                             json.dumps(ev, ensure_ascii=False), self._observation_time(ev.get("at")), rid))
 
     def evaluate_x402_batch(self, limit: int = 5000) -> int:
-        from ..collector.evaluation import evaluate_x402
+        from ..collector.evaluation import POLICY_WINDOW_DAYS, apply_quality_policy, evaluate_x402
         rows = self.query(
             """SELECT * FROM resources WHERE active=1 AND kind='x402' AND health_status != 'retired'
                AND (eval_at IS NULL OR eval_at < strftime('%s','now') - 86400)
@@ -1878,17 +1878,62 @@ class Store:
         if not rows:
             return 0
         accepted = 0
+        counts = self.health_counts([row['id'] for row in rows], time.time() - POLICY_WINDOW_DAYS * 86400)
         for row in rows:
             resource = dict(row)
             try:
                 token = self.observation_guard(resource['id'], 'evaluation', expected_resource=resource)
-                ev = evaluate_x402(resource, now=time.time())
+                ev = apply_quality_policy(resource, evaluate_x402(resource, now=time.time()), counts.get(resource['id']))
                 with self.observation_transaction(token):
                     self.record_evaluation(resource['id'], ev)
                 accepted += 1
             except GuardError:
                 continue
         return accepted
+
+    def health_counts(self, ids: list[int], since: float) -> dict[int, tuple[int, int]]:
+        """resource_id → (점검 수, 성공 수), SINCE 이후 헬스체크 기록. 품질 정책의 가용성 근거."""
+        if not ids:
+            return {}
+        rows = self.query(f"""SELECT resource_id, COUNT(*) AS n,
+            SUM(CASE WHEN outcome IN ('healthy','reachable') THEN 1 ELSE 0 END) AS ok
+            FROM health_checks WHERE at > ? AND resource_id IN ({','.join('?' * len(ids))}) GROUP BY resource_id""",
+                          (since, *ids))
+        return {r["resource_id"]: (r["n"], r["ok"] or 0) for r in rows}
+
+    def quality_policy_batch(self, limit: int = 500) -> int:
+        """기존 평가에 품질 정책(evaluation.apply_quality_policy)을 입힌다. 네트워크 요청 없음.
+        id 순서로 한 바퀴 돌고, 다 돌면 그 정책 버전은 끝난 것으로 기록한다 (새 평가는 기록할 때 정책이 붙는다)."""
+        from ..collector.evaluation import POLICY_VERSION, POLICY_WINDOW_DAYS, apply_quality_policy
+        if self.get_meta("quality_policy_done") == POLICY_VERSION:
+            return 0
+        cursor = self.get_meta("quality_policy_cursor") or {}
+        after = cursor.get("id", 0) if cursor.get("version") == POLICY_VERSION else 0
+        rows = [dict(r) for r in self.query(
+            """SELECT * FROM resources WHERE id > ? AND active=1 AND kind IN ('mcp','a2a','x402')
+               AND eval_score IS NOT NULL ORDER BY id LIMIT ?""", (after, limit))]
+        if not rows:
+            self.set_meta("quality_policy_done", POLICY_VERSION)
+            return 0
+        counts = self.health_counts([r["id"] for r in rows], time.time() - POLICY_WINDOW_DAYS * 86400)
+        changed = 0
+        for resource in rows:
+            try:
+                ev = json.loads(resource.get("eval_info") or "null")
+            except ValueError:
+                continue
+            new = apply_quality_policy(resource, ev, counts.get(resource["id"]))
+            if new is ev:
+                continue
+            try:
+                token = self.observation_guard(resource["id"], "evaluation", expected_resource=resource)
+                with self.observation_transaction(token):
+                    self.record_evaluation(resource["id"], {**new, "at": time.time()})
+                changed += 1
+            except GuardError:
+                continue
+        self.set_meta("quality_policy_cursor", {"version": POLICY_VERSION, "id": rows[-1]["id"], "changed": changed})
+        return len(rows)
 
     def score_percentile(self, score: float, kind: str = "mcp") -> float | None:
         """같은 종류에서 평가 점수가 이보다 낮은 비율 (0~1). 등급이 A에 몰려도 상대 위치를 알 수 있게."""

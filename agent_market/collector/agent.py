@@ -185,6 +185,10 @@ class CollectorAgent:
                     stats["checked"] += self.store.evaluate_x402_batch(limit=1000)
                 except Exception:
                     log.exception("x402 evaluation error")
+                try:  # 기존 평가에 품질 정책 입히기 (정책 버전마다 한 바퀴, 네트워크 요청 없음)
+                    stats["checked"] += self.store.quality_policy_batch(limit=500)
+                except Exception:
+                    log.exception("quality policy batch error")
             if not stats["checked"]:
                 self.stop_event.wait(300)  # 조사할 게 없으면 5분 쉼
             elif stats.get("local_network_problem"):

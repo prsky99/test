@@ -717,6 +717,9 @@ class AgentProber:
         fresh = self.store.resource(r["id"]) or r
         ev = evaluation.evaluate_agent(fresh, card, s["meta"], s["live"], last_trial if not s["auth_required"] else None,
                                        changes, s["domain_verified"])
+        since = time.time() - evaluation.POLICY_WINDOW_DAYS * 86400
+        ev = evaluation.apply_quality_policy({**fresh, "trial_info": None if s["auth_required"] else last_trial}, ev,
+                                             self.store.health_counts([r["id"]], since).get(r["id"]))
         ev["percentile"] = self.store.score_percentile(ev["score"], kind="a2a")
         self.store.record_evaluation(r["id"], ev)
         return {"changed": changed and old is not None, "trial": trial, "grade": ev["grade"], "security": ev["security"]}

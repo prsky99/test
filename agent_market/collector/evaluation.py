@@ -769,3 +769,182 @@ def evaluate_x402(resource: dict, live: dict | None = None, now: float | None = 
         "findings": _sort_findings(findings), "at": now or time.time(),
     }
 
+
+
+# ============================================================================
+# 품질 정책 (2026-11-03): 증거 기반 등급 — 원 평가(evaluate·evaluate_agent·evaluate_x402) 위에 덧씌운다
+# ============================================================================
+# 근거 (reports/에이전트 품질 평가 업그레이드 2026-11-03.md):
+# - 측정되지 않은 품질은 인증하지 않는다. 실제 호출 시험을 통과한 것만 A, 시험하지 못하면 최고 B, 시험이 실패하면 최고 C.
+#   (A2A 카드·x402 선언은 자기 신고일 뿐이고 실행 측정이 필요하다는 커뮤니티 합의, pass^k 신뢰성 연구)
+# - 가용성은 하루 점검 1~2회로 판단하지 않는다. 7일 헬스체크 기록의 Wilson 하한(z=1)을 쓴다.
+#   2/2 성공은 0.67, 6/6은 0.86, 28/28은 0.97로, 표본이 많을수록 믿는다.
+# - 경고가 없다는 것은 안전의 증거가 아니다. 보안은 경고 감점(85%)에 실제 통제 수단(15%: HTTPS, 안전 주석, 카드 서명)을 더한다.
+# - 거의 모든 대상이 만점인 축(보안·프로토콜·컨텍스트, v5 실측 평균 0.99~1.00)은 등급을 가르지 못하고 점수만 올린다.
+#   비중을 줄이고, 실제로 갈리는 정의 품질(설명 결함이 도구 선택에 8~12% 영향)과 출처의 비중을 올린다.
+POLICY_VERSION = "v1"
+POLICY_WEIGHTS = {"availability": 25, "definitions": 25, "security": 15, "context": 10, "protocol": 10, "provenance": 15}
+POLICY_WINDOW_DAYS = 7
+VERIFIED_UPTIME = 0.95  # 7일 성공률이 이보다 낮으면 시험을 통과해도 A를 주지 않는다 (SLO)
+EVIDENCE_CAPS = {"verified": None, "observed": 84.9, "limited": 84.9, "failed": 69.9}
+HEALTH_OK = ("healthy", "reachable")  # health_checks.outcome 중 성공으로 치는 값
+CAP_SPAN = 10.0  # 상한이 있는 등급은 [상한-10, 100]을 [상한-10, 상한]으로 눌러 담는다 (순서 유지)
+# 시험 결과 판정. 결론이 안 나는 측정은 실패로 치지 않는다 (11-03 실측: MCP 시험 실패 6천여 건 중 서버 장애는
+# 시간 초과·5xx 수십 건이고, 대부분은 응답 형식 불일치·우리 시험 인자에 대한 도구 오류·인증·결제 요구였다).
+_GATED_TEXT = re.compile(r"payment[_ ]required|x402version|\b40[12]\b|unauthori[sz]ed|unauthenticated|forbidden|"
+                         r"api[ _-]?key|sign[ -]?in required|authenticat|authori[sz]ation (is )?required|bearer|oauth|"
+                         r"access token|키가 필요|로그인", re.I)
+_TRANSPORT_FAIL = re.compile(r"timeout|timed out|connecterror|connection (refused|reset|closed)|remoteprotocolerror|"
+                             r"no result \(http 5\d\d\)|\b50[0-4]\b|internal server error|bad gateway|service unavailable", re.I)
+
+
+def wilson_lower(ok: int, n: int, z: float = 1.0) -> float:
+    """성공률의 Wilson 하한. 점검이 없으면 0.5(모름)."""
+    if not n:
+        return 0.5
+    p = ok / n
+    denom = 1 + z * z / n
+    center = p + z * z / (2 * n)
+    margin = z * ((p * (1 - p) + z * z / (4 * n)) / n) ** 0.5
+    return max(0.0, (center - margin) / denom)
+
+
+def _trial(resource: dict) -> dict | None:
+    raw = resource.get("trial_info")
+    if isinstance(raw, dict):
+        return raw
+    try:
+        value = json.loads(raw) if raw else None
+    except ValueError:
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def trial_outcome(trial: dict | None) -> str | None:
+    """시험 결과: pass | gated(인증·결제 조건) | failed(서버 장애) | inconclusive(판정 불가) | None(시험 없음)."""
+    from .usage import is_auth_error
+    if not trial or trial.get("skipped"):
+        return None
+    if trial.get("ok"):
+        return "pass"
+    error = str(trial.get("error") or "")
+    if trial.get("payment_required") or is_auth_error(error) or _GATED_TEXT.search(error):
+        return "gated"
+    if _TRANSPORT_FAIL.search(error):
+        return "failed"
+    return "inconclusive"
+
+
+def _cap(score: float, cap: float) -> float:
+    floor = cap - CAP_SPAN
+    return score if score <= floor else floor + (score - floor) * (cap - floor) / (100 - floor)
+
+
+def _speed(kind: str, latency) -> float:
+    if latency is None:
+        return 1.0
+    if kind == "a2a":
+        return 1.0 if latency <= 2000 else 0.8 if latency <= 6000 else 0.5 if latency <= 15000 else 0.2
+    if kind == "x402":
+        return 1.0 if latency <= 400 else 0.85 if latency <= 1000 else 0.65 if latency <= 3000 else 0.4 if latency <= 8000 else 0.2
+    return 1.0 if latency <= 1000 else 0.8 if latency <= 3000 else 0.5 if latency <= 8000 else 0.2
+
+
+def apply_quality_policy(resource: dict, ev: dict, health: tuple[int, int] | None = None) -> dict:
+    """원 평가 EV에 품질 정책을 적용한 새 평가를 돌려준다. 네트워크 요청 없이 DB 행과 저장된 평가만 쓴다.
+
+    resource: resources 행 (health_n_24h·health_ok_24h·probe_latency_ms·trial_info·url 등),
+    health: 최근 POLICY_WINDOW_DAYS일 헬스체크 (점검 수, 성공 수). 없으면 24시간 값을 쓴다.
+    이미 같은 정책이 적용된 평가는 그대로 돌려준다(멱등). 점수가 없는 평가(정적·인증 필요)는 손대지 않는다."""
+    if not isinstance(ev, dict) or ev.get("score") is None or not isinstance(ev.get("dimensions"), dict):
+        return ev
+    if ev.get("quality_policy") == POLICY_VERSION:
+        return ev
+    kind = ev.get("kind") or resource.get("kind") or "mcp"
+    dims = dict(ev["dimensions"])
+    if not all(k in dims for k in POLICY_WEIGHTS):
+        return ev
+    stats = dict(ev.get("stats") or {})
+    codes = {f.get("code") for f in ev.get("findings") or [] if isinstance(f, dict)}
+    findings = [f for f in ev.get("findings") or [] if isinstance(f, dict)
+                and f.get("code") not in ("unverified_function", "insufficient_monitoring", "unstable_week")]
+
+    # 1) 가용성: 7일 기록의 Wilson 하한
+    n24, ok24 = resource.get("health_n_24h") or 0, resource.get("health_ok_24h") or 0
+    n, ok = health if health and health[0] else (n24, ok24)
+    uptime = wilson_lower(ok, n)
+    trial = _trial(resource) if kind != "x402" else None
+    latency = resource.get("probe_latency_ms")
+    if trial and trial.get("latency_ms"):
+        latency = max(latency or 0, trial["latency_ms"])
+    speed = _speed(kind, latency)
+    outcome = trial_outcome(trial)
+    if kind == "x402":
+        status = resource.get("health_status") or "unknown"
+        status_score = 1.0 if status == "healthy" else 0.7 if status == "reachable" else 0.2
+        availability = 0.45 * uptime + 0.35 * speed + 0.20 * status_score
+    else:
+        middle = 0.0 if "endpoint_unreachable" in codes else 1.0  # A2A 엔드포인트 응답, MCP는 tools/list 성공
+        parts = [(0.45, uptime), (0.15, middle), (0.15, speed)]
+        if outcome in ("pass", "failed"):
+            parts.append((0.25, 1.0 if outcome == "pass" else 0.2))
+        availability = sum(w * v for w, v in parts) / sum(w for w, _ in parts)
+    dims["availability"] = round(availability, 3)
+
+    # 2) 보안: 경고 감점(원 평가) 85% + 실제 통제 수단 15%
+    base = stats.get("security_base", dims["security"])
+    url = str(resource.get("url") or "")
+    controls = [0.0 if "insecure_endpoint" in codes or not url.startswith("https://") else 1.0]
+    if kind == "mcp":
+        controls.append(0.0 if "def_safety_annotations" in codes else 1.0)
+    elif kind == "a2a":
+        controls.append(1.0 if stats.get("signed") else 0.0)
+    dims["security"] = round(0.85 * base + 0.15 * sum(controls) / len(controls), 3)
+    stats["security_base"] = base
+
+    # 3) 증거 수준과 등급 상한
+    if kind == "x402":
+        functional = bool(stats.get("verified"))
+        failed = False
+    else:
+        functional = outcome == "pass"
+        failed = outcome == "failed" or "endpoint_unreachable" in codes
+    ratio = ok / n if n else 0.0
+    if failed:
+        level = "failed"
+    elif functional and n >= 3 and ratio >= VERIFIED_UPTIME:
+        level = "verified"
+    elif n >= 3:
+        level = "observed"
+    else:
+        level = "limited"
+    if level == "observed":
+        findings.append({"severity": "low", "code": "unstable_week" if functional else "unverified_function", "tool": None,
+                         "message": (f"7-day success {ok}/{n} is below {VERIFIED_UPTIME:.0%}" if functional
+                                     else "No passing functional test yet; grade is capped at B")})
+    elif level == "limited":
+        findings.append({"severity": "low", "code": "insufficient_monitoring", "tool": None,
+                         "message": f"Only {n} health check(s) in {POLICY_WINDOW_DAYS} days; grade is capped at B"})
+
+    score = sum(POLICY_WEIGHTS[k] * dims[k] for k in POLICY_WEIGHTS)
+    if ev.get("security") == "quarantine":
+        score = min(score, QUARANTINE_CAP)
+    cap = EVIDENCE_CAPS[level]
+    if cap is not None:
+        score = _cap(score, cap)
+    out = dict(ev)
+    out.update({
+        "quality_policy": POLICY_VERSION,
+        "raw_score": ev.get("raw_score", ev["score"]),
+        "raw_grade": ev.get("raw_grade", ev.get("grade")),
+        "raw_at": ev.get("raw_at", ev.get("at")),
+        "score": round(score, 1),
+        "grade": grade_for(score),
+        "dimensions": dims,
+        "stats": {**stats, "uptime_window": {"days": POLICY_WINDOW_DAYS, "checks": n, "ok": ok,
+                                             "wilson_lower": round(uptime, 3)}},
+        "evidence": {"level": level, "functional_test": functional, "trial": outcome,
+                     "grade_cap": grade_for(cap) if cap else None},
+        "findings": _sort_findings(findings),
+    })
+    return out

@@ -105,20 +105,60 @@ class PostgresCollectorMixin:
             ORDER BY eval_at IS NOT NULL,eval_at LIMIT %s''', (now - max_age, limit))
 
     def evaluate_x402_batch(self, limit=5000):
-        from .collector.evaluation import evaluate_x402
+        from .collector.evaluation import POLICY_WINDOW_DAYS, apply_quality_policy, evaluate_x402
         _limit(limit)
         rows = self._collector_rows('''SELECT * FROM resources WHERE active=1 AND kind='x402'
             AND health_status!='retired' AND (eval_at IS NULL OR eval_at<%s)
             ORDER BY eval_at IS NOT NULL,eval_at LIMIT %s''', (int(time.time()) - 86400, limit))
         accepted = 0
+        counts = self.health_counts([row['id'] for row in rows], time.time() - POLICY_WINDOW_DAYS * 86400) if rows else {}
         for resource in rows:
             try:
                 token = self.observation_guard(resource['id'], 'evaluation', expected_resource=resource)
-                value = evaluate_x402(resource, now=time.time())
+                value = apply_quality_policy(resource, evaluate_x402(resource, now=time.time()), counts.get(resource['id']))
                 with self.observation_transaction(token): self.record_evaluation(resource['id'], value)
                 accepted += 1
             except GuardError: continue
         return accepted
+
+    def health_counts(self, ids, since):
+        _number(since)
+        if type(ids) is not list or len(ids) > MAX_COLLECTOR_ROWS or any(type(value) is not int or not 0 < value < 2**63 for value in ids): _invalid()
+        if not ids:
+            return {}
+        rows = self._collector_rows('''SELECT resource_id,COUNT(*) AS n,
+            SUM(CASE WHEN outcome IN ('healthy','reachable') THEN 1 ELSE 0 END) AS ok
+            FROM health_checks WHERE at>%s AND resource_id IN (''' + ','.join(['%s'] * len(ids)) + ''')
+            GROUP BY resource_id''', (since, *ids))
+        return {row['resource_id']: (row['n'], row['ok'] or 0) for row in rows}
+
+    def quality_policy_batch(self, limit=500):
+        import json
+        from .collector.evaluation import POLICY_VERSION, POLICY_WINDOW_DAYS, apply_quality_policy
+        _limit(limit)
+        if self.get_meta('quality_policy_done') == POLICY_VERSION:
+            return 0
+        cursor = self.get_meta('quality_policy_cursor') or {}
+        after = cursor.get('id', 0) if cursor.get('version') == POLICY_VERSION else 0
+        rows = self._collector_rows('''SELECT * FROM resources WHERE id>%s AND active=1
+            AND kind IN ('mcp','a2a','x402') AND eval_score IS NOT NULL ORDER BY id LIMIT %s''', (after, limit))
+        if not rows:
+            self.set_meta('quality_policy_done', POLICY_VERSION)
+            return 0
+        counts = self.health_counts([row['id'] for row in rows], time.time() - POLICY_WINDOW_DAYS * 86400)
+        changed = 0
+        for resource in rows:
+            try: ev = json.loads(resource.get('eval_info') or 'null')
+            except ValueError: continue
+            new = apply_quality_policy(resource, ev, counts.get(resource['id']))
+            if new is ev: continue
+            try:
+                token = self.observation_guard(resource['id'], 'evaluation', expected_resource=resource)
+                with self.observation_transaction(token): self.record_evaluation(resource['id'], {**new, 'at': time.time()})
+                changed += 1
+            except GuardError: continue
+        self.set_meta('quality_policy_cursor', {'version': POLICY_VERSION, 'id': rows[-1]['id'], 'changed': changed})
+        return len(rows)
 
     def score_percentile(self, score, kind='mcp'):
         if type(score) not in (int, float) or not -2**63 <= score < 2**63 or not math.isfinite(score): _invalid()

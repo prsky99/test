@@ -388,11 +388,14 @@ def test_store_evaluate_x402_batch():
 
     assert store.evaluate_x402_batch(10) == 1
     r = store.resource(rid)
-    assert r["eval_score"] is not None and r["eval_score"] >= 80.0
-    assert r["eval_grade"] in ("A", "B")
+    # 헬스체크 기록이 없으므로 품질 정책상 limited: 최고 B, 점수는 순서를 지켜 눌러 담김
+    info = json.loads(r["eval_info"])
+    assert info["evidence"]["level"] == "limited" and info["raw_score"] >= 80.0
+    assert r["eval_score"] is not None and 74.9 <= r["eval_score"] <= 84.9
+    assert r["eval_grade"] == "B"
     assert r["trial_ok"] == 1
 
     stats = store.evaluation_stats("x402")
     assert stats["evaluated"] == 1
-    assert stats["average_score"] >= 80.0
+    assert stats["average_score"] >= 74.9
 

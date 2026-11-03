@@ -202,6 +202,10 @@ class CapabilityProber:
             log.warning("capability evaluation calculation unavailable")
             self.store.record_evaluation_unavailable(r["id"])
             return None
+        # 품질 정책: 7일 헬스체크와 실제 호출 시험으로 등급 상한을 정한다
+        since = time.time() - evaluation.POLICY_WINDOW_DAYS * 86400
+        ev = evaluation.apply_quality_policy({**r, "trial_info": last_trial}, ev,
+                                             self.store.health_counts([r["id"]], since).get(r["id"]))
         ev["percentile"] = self.store.score_percentile(ev["score"], kind="mcp")  # 평가된 서버 중 이보다 점수가 낮은 비율
         self.store.record_evaluation(r["id"], ev)
         return ev
