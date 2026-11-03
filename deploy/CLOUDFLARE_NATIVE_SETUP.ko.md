@@ -90,4 +90,5 @@ HEAD 대신 GET을 사용하고 `-L`을 넣지 않아 첫 응답을 확인한다
   - 원 서버는 `max-age=30`을 보내지만 Cloudflare를 거친 응답은 `max-age=14400`이다. 영역(zone)의 Browser Cache TTL 기본값(4시간)이 더 짧은 원 서버 값을 덮는 것이다. 에이전트 쪽에서 최대 4시간 오래된 문서를 볼 수 있다. 문서가 자주 바뀌지 않아 그대로 두었다.
   - `/api/overview`는 규칙 밖이라 계속 `DYNAMIC`이다.
 - **edge 보관 시간 (11-04):** 원 서버가 이 문서들에 `s-maxage=600, stale-while-revalidate=3600`을 함께 보낸다(`public_http_contract.EDGE_DOCUMENTS`). 그 결과 edge는 10분 보관하고, 첫 요청 뒤 1~2분이 지나도 `HIT`다. 문서를 바꿔 배포한 뒤 바로 반영해야 하면 Cache → Configuration → Purge Cache → Custom Purge로 해당 주소를 지운다.
+- **Browser Cache TTL (11-04 변경):** 영역 설정을 4시간에서 "Respect Existing Headers"로 바꿨다. 4시간이면 원 서버의 짧은 `max-age`(문서 30초, 정적 자산 300초)를 4시간으로 늘려 에이전트가 오래된 문서를 볼 수 있었다. 되돌리려면 같은 메뉴(Caching → Configuration)에서 고른다.
 - **목록에 문서를 더할 때:** Cloudflare 조건식, `PUBLIC_READS`, `EDGE_DOCUMENTS`를 함께 바꾼다. 원 서버가 `no-store`를 보내면 규칙이 있어도 캐시되지 않는다.
