@@ -45,7 +45,31 @@ def atomic_json(path, value):
     os.replace(temp, path)
 
 
-def caddyfile(directory, frontend, admin, public_port=8400, admin_port=8200):
+# Separate apps published under a path prefix of the public site. They run outside this deployment
+# (own launchd jobs, DB and secrets); the proxy only forwards the prefix to their loopback port.
+PATH_APPS = (('/driveragent', 8620),)
+
+
+def path_app_routes(apps):
+    routes = ''
+    for prefix, port in apps:
+        if not re.fullmatch(r'/[a-z0-9-]+', prefix) or type(port) is not int or not 1024 <= port <= 65535:
+            raise ValueError('invalid_path_app')
+        name = prefix[1:].replace('-', '_')
+        routes += '''    @app_%s path %s %s/*
+    handle @app_%s {
+        reverse_proxy 127.0.0.1:%d {
+            header_up X-Forwarded-Proto https
+            header_up X-Forwarded-For {client_ip}
+            header_up -CF-Connecting-IP
+            header_up -X-Real-IP
+        }
+    }
+''' % (name, prefix, prefix, name, port)
+    return routes
+
+
+def caddyfile(directory, frontend, admin, public_port=8400, admin_port=8200, apps=PATH_APPS):
     for value in (frontend, admin, public_port, admin_port):
         if type(value) is not int or not 1024 <= value <= 65535:
             raise ValueError('invalid_proxy_port')
@@ -60,7 +84,7 @@ def caddyfile(directory, frontend, admin, public_port=8400, admin_port=8200):
 }
 :%d {
     bind 127.0.0.1
-    @private path /admin /admin/* /internal /internal/*
+%s    @private path /admin /admin/* /internal /internal/*
     respond @private 404
     reverse_proxy 127.0.0.1:%d {
         header_up X-Forwarded-Proto https
@@ -82,7 +106,7 @@ def caddyfile(directory, frontend, admin, public_port=8400, admin_port=8200):
         stream_close_delay 15s
     }
 }
-''' % (json.dumps(socket), public_port, frontend, admin_port, admin)
+''' % (json.dumps(socket), public_port, path_app_routes(apps), frontend, admin_port, admin)
 
 
 class Deployment:

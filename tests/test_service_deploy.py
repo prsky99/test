@@ -106,6 +106,13 @@ def test_release_paths_and_ports_are_not_shell_inputs(tmp_path):
         caddyfile(tmp_path, '8401\n', 8201)
 
 
+def test_path_apps_are_validated_and_default_to_driveragent(tmp_path):
+    assert '@app_driveragent path /driveragent /driveragent/*' in caddyfile(tmp_path, 8401, 8201)
+    for apps in ((('/Bad', 8620),), (('/x y', 8620),), (('/ok', 80),), (('/ok', '8620'),)):
+        with pytest.raises(ValueError):
+            caddyfile(tmp_path, 8401, 8201, apps=apps)
+
+
 def test_candidate_smoke_requests_browser_representation(tmp_path, monkeypatch):
     manager = FakeDeployment(tmp_path)
     original = httpx.Client
@@ -272,10 +279,11 @@ def test_real_caddy_switch_preserves_requests_and_ingress_boundaries(tmp_path):
         with socket.socket() as sock:
             sock.bind(('127.0.0.1', 0))
             return sock.getsockname()[1]
-    old, new, admin = server('old'), server('new'), server('admin')
+    old, new, admin, app = server('old'), server('new'), server('admin'), server('path-app')
+    apps = (('/driveragent', app),)
     public_port, admin_port = port(), port()
     config = root / 'Caddyfile'
-    config.write_text(caddyfile(root, old, admin, public_port, admin_port))
+    config.write_text(caddyfile(root, old, admin, public_port, admin_port, apps))
     evidence = {'requests': 0, 'errors': [], 'versions': []}
     try:
         with (root / 'proxy.log').open('wb') as logs:
@@ -296,6 +304,11 @@ def test_real_caddy_switch_preserves_requests_and_ingress_boundaries(tmp_path):
             assert client.get('/internal/service/ready', headers={'X-Service-Probe': 'forged'}).status_code == 404
             headers = client.get('/', headers={'CF-Connecting-IP': '198.51.100.8'}).json()
             assert headers['scheme'] == 'https' and headers['forwarded'] == '198.51.100.8' and headers['cf'] is None
+            routed = client.get('/driveragent/', headers={'CF-Connecting-IP': '198.51.100.9'}).json()
+            assert routed['version'] == 'path-app' and routed['scheme'] == 'https'
+            assert routed['forwarded'] == '198.51.100.9' and routed['cf'] is None
+            assert client.get('/driveragent').json()['version'] == 'path-app'
+            assert client.get('/driveragentx').json()['version'] == 'old'
             def traffic():
                 with httpx.Client(base_url=base, timeout=5, trust_env=False) as session:
                     for _ in range(80):
@@ -310,13 +323,14 @@ def test_real_caddy_switch_preserves_requests_and_ingress_boundaries(tmp_path):
                 ongoing = pool.submit(traffic)
                 slow = pool.submit(client.get, '/slow')
                 time.sleep(.15)
-                config.write_text(caddyfile(root, new, admin, public_port, admin_port))
+                config.write_text(caddyfile(root, new, admin, public_port, admin_port, apps))
                 result = subprocess.run([caddy, 'reload', '--config', str(config), '--adapter', 'caddyfile',
                     '--address', 'unix//' + str(root / 'caddy-admin.sock')], capture_output=True)
                 assert result.returncode == 0
                 assert slow.result().json()['version'] == 'old'
                 ongoing.result()
             assert client.get('/').json()['version'] == 'new'
+            assert client.get('/driveragent/x').json()['version'] == 'path-app'
             assert set(evidence['versions']) == {'old', 'new'} and not evidence['errors']
             assert httpx.get('http://127.0.0.1:%d/admin/ui' % admin_port, trust_env=False).json()['version'] == 'admin'
             bad = root / 'bad.caddy'; bad.write_text('this configuration is invalid {')
