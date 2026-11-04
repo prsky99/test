@@ -766,6 +766,63 @@ class Deployment:
             self.persist(state)
             return {'managed': True, 'stopped': True}
 
+    def running_releases(self):
+        """Releases a live process still points at (slots, gate copies, ad hoc scripts)."""
+        listing = subprocess.run(['/bin/ps', '-axww', '-o', 'args='], capture_output=True, text=True, check=True).stdout
+        marker = str(self.directory / 'releases') + '/'
+        return {line.split(marker, 1)[1].split('/', 1)[0].split()[0] for line in listing.splitlines() if marker in line}
+
+    def prune_releases(self, keep=10, min_age_days=3, apply=False, now=None):
+        """Remove old releases (11-04: 461 releases held about 140GB). A dry run unless apply is set.
+
+        Kept: every release named anywhere in state.json (slots, previous, pending, workers), any release a
+        running process uses, the newest `keep` releases, and anything younger than `min_age_days`, which
+        another session may still be testing or about to deploy.
+        """
+        now = time.time() if now is None else now
+        named = set()
+        def walk(value):
+            if isinstance(value, dict):
+                for child in value.values():
+                    walk(child)
+            elif isinstance(value, list):
+                for child in value:
+                    walk(child)
+            elif isinstance(value, str):
+                named.add(value)
+        with self.lock():
+            walk(self.state())
+            releases = self.directory / 'releases'
+            found = []
+            for path in releases.iterdir() if releases.is_dir() else ():
+                if path.name.startswith('.') or path.is_symlink() or not path.is_dir() or not RELEASE.fullmatch(path.name):
+                    continue
+                try:
+                    created = float(json.loads((path / 'release.json').read_text())['created'])
+                except (OSError, ValueError, KeyError, TypeError):
+                    created = path.stat().st_mtime
+                found.append((created, path.name))
+            found.sort(reverse=True)
+            protected = (named | self.running_releases()) & {name for _, name in found}
+            recent = {name for _, name in found[:max(0, keep)]}
+            young = {name for created, name in found if now - created < min_age_days * 86400}
+            remove = [name for _, name in reversed(found) if name not in protected | recent | young]
+            if apply:
+                # Rename under the lock (fast) so a half-deleted tree never looks like a release;
+                # delete after releasing it so other sessions can keep packaging and deploying.
+                for name in remove:
+                    (releases / name).rename(releases / ('.pruning-' + name))
+        removed = []
+        if apply:
+            # Also finishes trees an interrupted run left behind.
+            for trash in sorted(releases.glob('.pruning-*')):
+                if trash.is_dir() and not trash.is_symlink():
+                    shutil.rmtree(trash)
+                    removed.append(trash.name)
+        return {'releases': len(found), 'protected': sorted(protected), 'kept_recent': len(recent),
+                'kept_young': len(young - recent - protected), 'to_remove': len(remove),
+                'removed': len(removed), 'applied': apply, 'oldest_removed': remove[:3], 'newest_removed': remove[-3:]}
+
     def status(self):
         state = self.state()
         result = {'managed': state['managed'], 'phase': state['phase'], 'services': {}}
@@ -803,6 +860,9 @@ def main():
     deploy.add_argument('--skip-gate', action='store_true', help='emergency only: deploy a frontend release without scripts.release_gate')
     rollback = commands.add_parser('rollback'); rollback.add_argument('role', choices=PORTS)
     commands.add_parser('status')
+    prune = commands.add_parser('prune-releases', help='dry run unless --apply')
+    prune.add_argument('--apply', action='store_true'); prune.add_argument('--keep', type=int, default=10)
+    prune.add_argument('--min-age-days', type=float, default=3)
     commands.add_parser('install-schema')
     recovery = commands.add_parser('recover')
     recovery.add_argument('--worker', choices=('jobs', 'execution'))
@@ -825,6 +885,8 @@ def main():
         result = manager.rollback(args.role)
     elif args.command == 'recover':
         result = manager.recover(args.worker, args.release)
+    elif args.command == 'prune-releases':
+        result = manager.prune_releases(args.keep, args.min_age_days, args.apply)
     elif args.command == 'install-schema':
         result = manager.install_schema()
     elif args.command == 'cutover':

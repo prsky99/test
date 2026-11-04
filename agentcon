@@ -17,7 +17,7 @@ if [ "${2:-}" != "--legacy" ] && [ -f "$PROJECT_DIR/gateway-data/services/state.
   managed="$("$PYTHON_BIN" -c 'import json,sys; print("yes" if json.load(open(sys.argv[1])).get("managed") else "no")' "$PROJECT_DIR/gateway-data/services/state.json")"
   if [ "$managed" = "yes" ]; then
     case "${1:-}" in
-      start|stop|restart|status|deploy|rollback|recover|package|worker-deploy)
+      start|stop|restart|status|deploy|rollback|recover|package|worker-deploy|prune-releases)
         cd "$PROJECT_DIR"
         exec "$PYTHON_BIN" -m scripts.service_deploy --root "$PROJECT_DIR" "$@"
         ;;
@@ -282,6 +282,9 @@ Commands:
                     Managed mode: verify and activate a prepared web release
   worker-deploy jobs|execution <release>
                     Managed mode: drain and replace one background service
+  prune-releases [--apply] [--keep N] [--min-age-days D]
+                    Managed mode: list (or with --apply delete) old releases;
+                    state.json releases, running ones, the newest N and young ones stay
   recover [--worker jobs|execution --release <release>]
                     Managed mode: recover an interrupted web/worker deployment
   check             Validate the proposed runtime settings without starting a server
