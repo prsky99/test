@@ -413,6 +413,14 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
         except PeopleError as exc:
             raise AdCoinError('unknown_invite', str(exc), 404) from None
 
+    @add('POST', '/admin/audits', 'admin')
+    def record_audit(request, who, data):
+        return service.record_audit(data.get('report'))
+
+    @add('GET', '/admin/audits', 'admin')
+    def audits(request, who, data):
+        return {'audits': service.audits()}
+
     @add('GET', '/admin/settings', 'admin')
     def get_settings(request, who, data):
         return {'split_bps': service.split()}

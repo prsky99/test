@@ -841,6 +841,31 @@ class AdCoinService:
         self._after_money_move()
         return {'status': 'acknowledged', 'operator_reward_won': operator_won, 'receipt': receipt}
 
+    # ---------- sponsorship audits ----------
+    def record_audit(self, report):
+        """Store an audit summary; a failed audit opens the circuit (stop condition 4)."""
+        if not isinstance(report, dict) or report.get('profile') != 'ai-ad-coin-sponsorship-audit-v1' \
+                or not isinstance(report.get('counts'), dict):
+            raise AdCoinError('invalid_audit')
+        counts = {k: int(report['counts'].get(k, 0)) for k in ('same', 'changed', 'unstable', 'error')}
+        passed = counts['changed'] == 0 and counts['same'] > 0
+        changed = [r.get('query') for r in report.get('rows') or [] if isinstance(r, dict)
+                   and r.get('verdict') == 'changed'][:20]
+        summary = {'counts': counts, 'top': report.get('top'), 'queries': report.get('queries'),
+                   'started_at': report.get('started_at'), 'changed_queries': changed,
+                   'inconclusive': counts['same'] + counts['changed'] == 0}
+        audit_id = 'a_' + uuid.uuid4().hex[:20]
+        with self.db.transaction() as db:
+            db.execute('INSERT INTO audits VALUES (?,?,?,?)', (audit_id, now(), int(passed), dumps(summary)))
+        if not passed and not summary['inconclusive']:
+            self.open_circuit('audit_mismatch:%d' % counts['changed'])
+        return {'id': audit_id, 'passed': passed, **summary, 'circuit': self.circuit()}
+
+    def audits(self, limit=24):
+        rows = self.db.all('SELECT * FROM audits ORDER BY created_at DESC LIMIT ?', (max(1, min(int(limit), 100)),))
+        return [{'id': r['id'], 'created_at': int(r['created_at']), 'passed': bool(r['passed']),
+                 **json.loads(r['summary'])} for r in rows]
+
     # ---------- reports ----------
     def receipts(self, user_ref, limit=50):
         rows = self.db.all('SELECT body FROM receipts WHERE user_ref=? ORDER BY created_at DESC LIMIT ?',

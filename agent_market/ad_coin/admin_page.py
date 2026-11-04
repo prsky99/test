@@ -35,6 +35,10 @@ table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}th{white
 <div class="row"><input id="circuit-reason" placeholder="회로를 여는 이유"><button id="open-circuit" class="secondary">회로 열기</button><button id="close-circuit" class="secondary">회로 닫기</button></div>
 <div class="out" id="circuit-out" aria-live="polite"></div></section>
 
+<section><h2>후원 감사</h2>
+<p class="muted">매달 같은 질문을 후원 끔·켬·끔으로 돌려 추천 상위 3개가 바뀌는지 봅니다. 바뀐 질문이 하나라도 있으면 회로가 열려 후원 제안이 멈춥니다. 실행: <code>nice -n 10 .venv/bin/python -m scripts.ad_coin_sponsorship_audit</code></p>
+<div class="row"><button id="a-list" class="secondary">감사 기록</button></div><div class="out" id="a-out" aria-live="polite"></div></section>
+
 <section><h2>초대</h2>
 <p class="muted">고객 로그인 계정 ID로 초대합니다. 사용자는 AI AD Coin 화면의 "Check my account"에서 자기 계정 ID를 볼 수 있습니다. 초대를 거두면 그 사람의 에이전트 키도 함께 멈춥니다.</p>
 <div class="row"><input id="i-id" placeholder="계정 ID"><input id="i-note" placeholder="메모(선택)"><button id="i-add">초대</button><button id="i-list" class="secondary">목록</button></div>
@@ -135,6 +139,10 @@ function invites(){var box=$('i-out');box.textContent='불러오는 중...';call
     if(v.status==='invited')row.appendChild(action('거두기',function(){call('/admin/invites/revoke',{customer_id:v.customer_id}).then(invites).catch(function(e){t.textContent=e.message})},true));
     box.appendChild(row)})}).catch(function(e){box.textContent=e.message})}
 $('i-list').onclick=invites;
+$('a-list').onclick=function(){say('a-out','불러오는 중...');call('/admin/audits').then(function(d){
+  say('a-out',d.audits.length?d.audits.map(function(a){return new Date(a.created_at*1000).toLocaleString('ko-KR')+' · '+(a.inconclusive?'판정 불가':a.passed?'통과':'실패')+
+    ' · 같음 '+a.counts.same+', 바뀜 '+a.counts.changed+', 흔들림 '+a.counts.unstable+', 오류 '+a.counts.error+(a.changed_queries.length?' · 바뀐 질문: '+a.changed_queries.join(' / '):'')}).join('\n'):'감사 기록이 없습니다.')})
+  .catch(function(e){say('a-out',e.message)})};
 $('i-add').onclick=function(){call('/admin/invites',{customer_id:$('i-id').value.trim(),note:$('i-note').value}).then(invites).catch(function(e){say('i-out',e.message)})};
 $('t-create').onclick=function(){$('t-create').disabled=true;call('/admin/test-products',{name:$('t-name').value,description:$('t-desc').value,steps:steps()})
   .then(function(p){say('t-out','만들었습니다: '+p.id);setTimeout(products,300)}).catch(function(e){say('t-out',e.message)}).finally(function(){$('t-create').disabled=false})};
