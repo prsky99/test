@@ -37,9 +37,10 @@ ul{padding-left:20px;margin:6px 0}
 <div class="out" id="wallet" aria-live="polite"></div></section>
 
 <section aria-labelledby="try-h"><h2 id="try-h">Try a sponsored run</h2>
-<p class="muted">Paste the agent ids from a Chat answer, in the order shown, to check for a paid upgrade. For a multi-step task, write each step as id x calls (for example 109457x20, 116275x1). For a published workflow, write w, its id and the number of runs (for example w39x5). One run of the whole task is what a sponsor can cover. Leave it empty to use an example (comparing five papers in full text, 60 coins).</p>
+<p class="muted">Paste the agent ids from a Chat answer, in the order shown, to check for a paid upgrade. For a multi-step task, write each step as id x calls (for example 109457x20, 116275x1). For a published workflow, write w, its id and the number of runs (for example w39x5); for a closed-test product, its id and runs (for example tp_0123456789abcdef x5). One run of the whole task is what a sponsor can cover. Leave it empty to use an example (comparing five papers in full text, 60 coins).</p>
 <label for="ids">Agent ids or steps from the answer (comma separated)</label><input id="ids" inputmode="numeric" autocomplete="off">
-<div class="row"><button id="quote" class="secondary">Show funding options</button></div>
+<div class="row"><button id="quote" class="secondary">Show funding options</button><button id="products" class="secondary">Show test products</button></div>
+<div class="out" id="product-list" aria-live="polite"></div>
 <div id="card" hidden>
 <p class="ad" id="card-label"></p><p id="card-text"></p><p class="muted" id="card-digest"></p>
 <p id="card-question"></p><label for="answer">Your answer</label><input id="answer" autocomplete="off">
@@ -82,22 +83,23 @@ $('load-wallet').onclick=function(){busy('load-wallet',true);say('wallet','Loadi
 var current=null;
 $('quote').onclick=function(){busy('quote',true);say('quote-out','Loading...');$('card').hidden=true;
   var raw=$('ids').value.split(',').map(function(x){return x.trim()}).filter(Boolean);
-  var wf=raw.length===1&&/^w\d+(x\d+)?$/i.test(raw[0])?raw[0].slice(1).toLowerCase().split('x'):null;
-  var bundle=!wf&&raw.some(function(x){return /x/i.test(x)});
-  var ids=(bundle||wf)?[]:raw.map(function(x){return parseInt(x,10)}).filter(function(x){return x>0});
+  var tp=raw.length===1&&/^tp_[0-9a-f]{16}(\s*x\d+)?$/i.test(raw[0])?raw[0].replace(/\s+/g,'').toLowerCase().split('x'):null;
+  var wf=!tp&&raw.length===1&&/^w\d+(x\d+)?$/i.test(raw[0])?raw[0].slice(1).toLowerCase().split('x'):null;
+  var bundle=!wf&&!tp&&raw.some(function(x){return /x/i.test(x)});
+  var ids=(bundle||wf||tp)?[]:raw.map(function(x){return parseInt(x,10)}).filter(function(x){return x>0});
   var steps=bundle?raw.map(function(x){var p=x.toLowerCase().split('x');return {resource_id:parseInt(p[0],10),calls:parseInt(p[1]||'1',10)}}):[];
   var example={selection:{items:[{agent:'openscholar-finder',price:'free'},{agent:'research-pro',price_coins:60}],chosen:'research-pro'},
     task:{provider:'research-pro',task_ref:'compare-5-papers',price_won:600,category:'deep_research/academic'}};
   var priced=function(b){
-      var why={all_steps_free:'Every step is free, so no coins or sponsor are needed.',workflow_not_published:'This workflow is not published.',
+      var why={all_steps_free:'Every step is free, so no coins or sponsor are needed.',workflow_not_published:'This workflow is not published.',unknown_test_product:'This test product does not exist or was archived.',
         no_catalog_steps:'No step links to a catalog agent, so it cannot be priced.',bundle_has_ineligible_step:'A paid step cannot take coins yet (grade below B or not live).'}[b.reason];
       if(!b.upgrade_available)throw new Error((why||'No paid upgrade ('+b.reason+').')+' The free result stays available.');
-      say('quote-out',(b.workflow?'Workflow "'+(b.workflow.name||b.workflow.id)+'", '+b.workflow.runs+' run(s)'+(b.workflow.upper_bound?' (upper bound; branches that do not run are refunded)':'')+': ':'Task of '+b.lines.length+' steps: ')+
+      say('quote-out',(b.workflow?(b.workflow.kind==='test_product'?'Test product "':'Workflow "')+(b.workflow.name||b.workflow.id)+'", '+b.workflow.runs+' run(s)'+(b.workflow.upper_bound?' (upper bound; branches that do not run are refunded)':'')+': ':'Task of '+b.lines.length+' steps: ')+
         b.price_coins+' coins in total ('+b.lines.map(function(l){return l.calls+' x '+(l.name||l.resource_id)+' = '+l.won+' won'}).join('; ')+').'+
         (b.note?' '+b.note:'')+(b.sponsorable?'':' It cannot be sponsored at this price; pay with coins or keep the free result.'));
       if(!b.quote_request)throw new Error('This task costs more than a sponsor can cover.');
       return call('/quotes',b.quote_request)};
-  var request=wf?call('/upgrade-check',{workflow:{template_id:parseInt(wf[0],10),runs:parseInt(wf[1]||'1',10)}}).then(priced):
+  var request=tp?call('/upgrade-check',{test_product:{id:tp[0],runs:parseInt(tp[1]||'1',10)}}).then(priced):wf?call('/upgrade-check',{workflow:{template_id:parseInt(wf[0],10),runs:parseInt(wf[1]||'1',10)}}).then(priced):
     bundle?call('/upgrade-check',{bundle:steps}).then(function(b){
       if(!b.upgrade_available)throw new Error('This task needs no paid step or a step cannot take coins ('+b.reason+'). The free result stays available.');
       say('quote-out','Task of '+b.lines.length+' steps: '+b.price_coins+' coins in total ('+b.lines.map(function(l){return l.calls+' x '+(l.name||l.resource_id)+' = '+l.won+' won'}).join('; ')+').'+
@@ -116,10 +118,14 @@ $('quote').onclick=function(){busy('quote',true);say('quote-out','Loading...');$
       $('quote-out').textContent=($('quote-out').textContent?$('quote-out').textContent+'\n':'')+'No sponsor now: '+why+'. You can pay with coins ('+p.coin_quote_and_balance.price_coins+' needed, '+p.coin_quote_and_balance.available_coins+' available) or keep the free result.';return}
     current={rid:opt.reservation_id};
     say('card-label','[Ad | Sponsored offer] '+opt.sponsor);
-    say('card-text',opt.title+' - '+opt.body+(opt.coins?' You receive '+opt.coins+' coins.':' This covers one run of the task.'));
+    say('card-text',opt.title+' - '+opt.body+(opt.coins?' You receive '+opt.coins+' coins.':' This covers the whole task shown above, once.'));
     say('card-digest','The recommendation was fixed before this offer (check code '+p.selection_digest.slice(7,15)+').');
     say('card-question',opt.question);say('card-notice',p.ai_generation_notice);$('card').hidden=false})
   .catch(function(e){say('quote-out',e.message)}).finally(function(){busy('quote',false)})};
+$('products').onclick=function(){var box=$('product-list');box.textContent='Loading...';call('/test-products').then(function(d){
+  box.textContent=d.test_products.length?'':'No test products yet.';d.test_products.forEach(function(p){var row=document.createElement('div');row.className='row';
+    var t=document.createElement('span');t.textContent=p.name+' ('+p.steps.length+' agents) ';var use=document.createElement('button');use.className='secondary';use.textContent='Use 5 runs';
+    use.onclick=function(){$('ids').value=p.id+'x5';$('quote').click()};row.appendChild(t);row.appendChild(use);box.appendChild(row)})}).catch(function(e){box.textContent=e.message})};
 $('decline').onclick=function(){if(!current)return;call('/declines',{reservation_id:current.rid}).then(function(){
   $('card').hidden=true;say('quote-out','Declined. Your free result is unchanged.')}).catch(function(e){say('quote-out',e.message)})};
 $('approve').onclick=function(){if(!current)return;busy('approve',true);

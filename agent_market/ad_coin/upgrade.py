@@ -194,9 +194,11 @@ def workflow_steps(workflow):
         if type(rid) is not int or rid <= 0:
             unpriced.append(str(node.get('name') or node.get('id') or 'step')[:80])
             continue
+        per_run = data.get('calls_per_run', 1)
+        per_run = per_run if type(per_run) is int and 1 <= per_run <= 100 else 1
         if rid not in counts:
             order.append(rid)
-        counts[rid] = counts.get(rid, 0) + 1
+        counts[rid] = counts.get(rid, 0) + per_run
     branching = any(isinstance(n, dict) and n.get('type') == 'router' for n in workflow.get('nodes') or [])
     return [{'resource_id': rid, 'calls': counts[rid]} for rid in order], unpriced, branching
 
@@ -205,34 +207,40 @@ def workflow_check(read_workflow, read_resource, template_id, runs=1):
     """Price `runs` runs of a published workflow as one sponsorable task."""
     if type(template_id) is not int or not 0 < template_id < 2 ** 31:
         raise ValueError('template_id must be a positive integer.')
+    return check_definition(read_workflow(template_id), read_resource, runs, 'workflow', template_id)
+
+
+def check_definition(workflow, read_resource, runs, label, ident):
     if type(runs) is not int or not 1 <= runs <= MAX_RUNS:
         raise ValueError('runs must be 1 to 100.')
-    workflow = read_workflow(template_id)
+    profile = 'ai-ad-coin-' + label.replace('_', '-') + '-check-v1'
     if not workflow:
-        return {'profile': 'ai-ad-coin-workflow-check-v1', 'upgrade_available': False, 'sponsorable': False,
-                'reason': 'workflow_not_published', 'quote_request': None}
+        return {'profile': profile, 'upgrade_available': False, 'sponsorable': False,
+                'reason': label + '_not_published' if label == 'workflow' else 'unknown_test_product',
+                'quote_request': None}
     per_run, unpriced, branching = workflow_steps(workflow)
-    info = {'id': workflow.get('id', template_id), 'name': workflow.get('name'), 'runs': runs,
+    info = {'id': workflow.get('id', ident), 'name': workflow.get('name'), 'runs': runs, 'kind': label,
             'definition_hash': workflow.get('definition_hash'), 'upper_bound': branching,
             'unpriced_steps': unpriced}
     if not per_run:
-        return {'profile': 'ai-ad-coin-workflow-check-v1', 'upgrade_available': False, 'sponsorable': False,
+        return {'profile': profile, 'upgrade_available': False, 'sponsorable': False,
                 'reason': 'no_catalog_steps', 'workflow': info, 'quote_request': None}
     if len(per_run) > MAX_STEPS:
-        return {'profile': 'ai-ad-coin-workflow-check-v1', 'upgrade_available': False, 'sponsorable': False,
+        return {'profile': profile, 'upgrade_available': False, 'sponsorable': False,
                 'reason': 'too_many_paid_agents', 'workflow': info, 'quote_request': None}
     steps = [{'resource_id': s['resource_id'], 'calls': min(s['calls'] * runs, MAX_CALLS)} for s in per_run]
     result = bundle_check(read_resource, steps)
-    result['profile'] = 'ai-ad-coin-workflow-check-v1'
+    result['profile'] = profile
     result['workflow'] = info
     if unpriced and result.get('upgrade_available'):
         result['note'] = ('Some agent steps have no catalog price and are not covered: '
                           + ', '.join(unpriced[:5]) + '.')
     if result.get('quote_request'):
         digest = (workflow.get('definition_hash') or '')[:12]
-        result['quote_request']['selection'] = {'bundle': steps, 'workflow': {
+        result['quote_request']['selection'] = {'bundle': steps, label: {
             'id': info['id'], 'definition_hash': info['definition_hash'], 'runs': runs}}
         result['selection_digest'] = selection_digest(result['quote_request']['selection'])
-        result['quote_request']['task']['task_ref'] = ('workflow-' + str(info['id']) + ('-' + digest if digest else '')
+        prefix = 'workflow-' if label == 'workflow' else 'product-'
+        result['quote_request']['task']['task_ref'] = (prefix + str(info['id']) + ('-' + digest if digest else '')
                                                       + '-x' + str(runs))[:96]
     return result

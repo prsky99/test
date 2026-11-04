@@ -57,6 +57,14 @@ table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}th{white
 <div class="out" id="campaign-out" aria-live="polite"></div><div class="scroll"><table id="campaigns" hidden><thead><tr>
 <th>캠페인</th><th>상품</th><th>입찰가</th><th>에스크로</th><th>상태</th><th>작업</th></tr></thead><tbody></tbody></table></div></section>
 
+<section><h2>시험 상품</h2>
+<p class="muted">실제 카탈로그 에이전트로 만든 숨김 워크플로 상품입니다. 공개 워크플로 목록에는 나가지 않고, 실행은 시뮬레이션입니다. 돈을 옮기거나 상태를 바꾸는 것처럼 보이는 에이전트, 코인을 받을 수 없는 유료 에이전트는 거부합니다.</p>
+<div class="grid"><div><label for="t-name">이름(영어)</label><input id="t-name" placeholder="Market brief"></div>
+<div><label for="t-desc">설명(영어)</label><input id="t-desc"></div>
+<div><label for="t-steps">단계(ID x 실행당 호출 수, 쉼표)</label><input id="t-steps" placeholder="74x5, 484x2, 32926x1"></div></div>
+<div class="row"><button id="t-create">만들기</button><button id="t-list" class="secondary">목록</button></div>
+<div class="out" id="t-out" aria-live="polite"></div></section>
+
 <section><h2>실행·정산(시뮬레이션)</h2>
 <div class="row"><input id="x-id" placeholder="실행 ID (x_...)"><label><input id="x-ok" type="checkbox" checked> 성공</label><button id="complete" class="secondary">실행 완료 처리</button></div>
 <div class="row"><input id="p-id" placeholder="제공자 ID (예: r123)"><button id="settle" class="secondary">가상 정산</button><button id="sweep" class="secondary">휴면 에이전트 지갑 회수</button></div>
@@ -107,6 +115,15 @@ function list(){var table=$('campaigns'),body=table.querySelector('tbody');say('
         note.textContent='승인 노출 '+r.approved_views+' (사람 '+r.people+') · 후원 실행 시작 '+r.sponsored_runs_started+' / 성공 '+r.sponsored_runs_succeeded+' · 에이전트 수신 '+r.agent_receipts}).catch(fail)},true));
       td.appendChild(note);tr.appendChild(td);body.appendChild(tr)})}).catch(function(e){say('campaign-out',e.message)})}
 $('load-campaigns').onclick=list;
+function steps(){return $('t-steps').value.split(',').map(function(x){return x.trim()}).filter(Boolean).map(function(x){var p=x.toLowerCase().split('x');return {resource_id:parseInt(p[0],10),calls_per_run:parseInt(p[1]||'1',10)}})}
+function products(){var box=$('t-out');box.textContent='불러오는 중...';call('/admin/test-products').then(function(d){box.textContent=d.test_products.length?'':'시험 상품이 없습니다.';
+  d.test_products.forEach(function(p){var row=document.createElement('div');row.className='row';var t=document.createElement('span');
+    t.textContent=p.id+' · '+p.name+' · '+(p.status==='active'?'사용 중':'보관')+' · '+p.steps.map(function(s){return s.resource_id+'x'+s.calls_per_run}).join(', ');row.appendChild(t);
+    if(p.status==='active')row.appendChild(action('보관',function(){call('/admin/test-products/archive',{id:p.id}).then(products).catch(function(e){t.textContent=e.message})},true));
+    box.appendChild(row)})}).catch(function(e){box.textContent=e.message})}
+$('t-list').onclick=products;
+$('t-create').onclick=function(){$('t-create').disabled=true;call('/admin/test-products',{name:$('t-name').value,description:$('t-desc').value,steps:steps()})
+  .then(function(p){say('t-out','만들었습니다: '+p.id);setTimeout(products,300)}).catch(function(e){say('t-out',e.message)}).finally(function(){$('t-create').disabled=false})};
 $('complete').onclick=function(){var ok=$('x-ok').checked,digest='sha256:'+'0'.repeat(64);
   call('/admin/executions/complete',{execution_id:$('x-id').value.trim(),ok:ok,result_digest:ok?digest:null}).then(function(r){say('ops-out',r.status==='succeeded'?'성공 처리했습니다. 제공자 지급 예정에 넣었습니다.':'실패 처리했습니다. 코인·실행권을 돌려줬습니다.')}).catch(function(e){say('ops-out',e.message)})};
 $('settle').onclick=function(){call('/admin/settle',{provider:$('p-id').value.trim(),idempotency_key:key()}).then(function(r){say('ops-out',r.status==='settled'?'가상 정산 '+won(r.won):'지급할 금액이 없습니다.')}).catch(function(e){say('ops-out',e.message)})};

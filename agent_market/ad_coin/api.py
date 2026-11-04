@@ -50,6 +50,8 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None):
     if not settings.enabled:
         return router
     service = service or build_service(settings)
+    from .test_products import ProductError, TestProducts
+    products = TestProducts(service.db)
 
     def is_admin(request):
         header = request.headers.get('authorization', '')
@@ -146,10 +148,14 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None):
 
     @add('POST', '/upgrade-check', 'person')
     def upgrade(request, who, data):
-        from .upgrade import bundle_check, upgrade_check, workflow_check
+        from .upgrade import bundle_check, check_definition, upgrade_check, workflow_check
         if store is None:
             raise AdCoinError('catalog_unavailable', status=503)
         try:
+            if 'test_product' in data:
+                spec = data.get('test_product') if isinstance(data.get('test_product'), dict) else {}
+                return check_definition(products.get(spec.get('id')), store.resource, spec.get('runs', 1),
+                                        'test_product', spec.get('id'))
             if 'workflow' in data:
                 if workflow_reader is None:
                     raise AdCoinError('workflows_unavailable', status=503)
@@ -160,6 +166,11 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None):
             return upgrade_check(store.resource, data.get('recommendation_ids'))
         except ValueError as exc:
             raise AdCoinError('invalid_recommendation_ids', str(exc)) from None
+
+    @add('GET', '/test-products', 'person')
+    def test_products(request, who, data):
+        return {'test_products': [p for p in products.list() if p['status'] == 'active'],
+                'note': 'Closed-test products built from real catalog agents. Runs are simulated.'}
 
     @add('POST', '/consents', 'person')
     def consent(request, who, data):
@@ -248,6 +259,27 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None):
     @add('GET', '/admin/campaigns/report', 'admin')
     def report(request, who, data):
         return service.campaign_report(request.query_params.get('campaign_id', ''))
+
+    @add('POST', '/admin/test-products', 'admin')
+    def create_test_product(request, who, data):
+        if store is None:
+            raise AdCoinError('catalog_unavailable', status=503)
+        try:
+            return products.create(name=data.get('name'), description=data.get('description'),
+                                   steps=data.get('steps'), read_resource=store.resource)
+        except ProductError as exc:
+            raise AdCoinError('invalid_test_product', str(exc)) from None
+
+    @add('POST', '/admin/test-products/archive', 'admin')
+    def archive_test_product(request, who, data):
+        try:
+            return products.archive(str(data.get('id', '')))
+        except ProductError as exc:
+            raise AdCoinError('unknown_test_product', str(exc), 404) from None
+
+    @add('GET', '/admin/test-products', 'admin')
+    def list_test_products(request, who, data):
+        return {'test_products': products.list()}
 
     @add('GET', '/admin/settings', 'admin')
     def get_settings(request, who, data):
