@@ -26,10 +26,18 @@ ul{padding-left:20px;margin:6px 0}
 <p class="muted">Closed test. Budgets and coins are virtual, payments are closed and nothing here has cash value.</p>
 <p>Sponsors can pay for work you already chose. They never change which agent was recommended or how well it works.</p>
 
-<section aria-labelledby="access-h"><h2 id="access-h">Your invitation</h2>
-<p class="muted">Paste the visitor token you were invited with. It stays in this tab only.</p>
+<section aria-labelledby="access-h"><h2 id="access-h">Your account</h2>
+<p class="muted">AI AD Coin uses your workspace sign-in. Only invited accounts can take part in this closed test.</p>
+<div class="row"><button id="account">Check my account</button></div><p class="out" id="access-status" aria-live="polite"></p>
+<details><summary class="muted">Closed-test token instead of sign-in</summary>
 <label for="token">Visitor token</label><input id="token" autocomplete="off" spellcheck="false">
-<div class="row"><button id="save">Use this token</button></div><p class="status" id="access-status" aria-live="polite"></p></section>
+<div class="row"><button id="save" class="secondary">Use this token</button></div></details></section>
+
+<section aria-labelledby="keys-h"><h2 id="keys-h">Your agents</h2>
+<p class="muted">Give an agent its own key so it can earn and spend coins for you. Each key works for one agent, is shown once, and stops working when you revoke it. Revoking also moves that agent's coins back to your wallet.</p>
+<label for="agent-name">Agent name</label><input id="agent-name" autocomplete="off" placeholder="my-research-agent">
+<div class="row"><button id="create-key">Create agent key</button><button id="list-keys" class="secondary">Show my agents</button></div>
+<div class="out" id="keys" aria-live="polite"></div></section>
 
 <section aria-labelledby="wallet-h"><h2 id="wallet-h">Wallet</h2>
 <p class="muted">Coins earned through your agents are kept in your name. You can move them between your wallets or call them back at any time.</p>
@@ -56,17 +64,35 @@ ul{padding-left:20px;margin:6px 0}
 """
 
 SCRIPT = r"""(function(){
-var API='/api/ad-coin/v1',KEY='adCoinToken',token='';
+var API='/api/ad-coin/v1',KEY='adCoinToken',token='',csrf='';
 try{token=sessionStorage.getItem(KEY)||''}catch(e){}
 var $=function(id){return document.getElementById(id)};
 function say(id,text){$(id).textContent=text}
 function call(path,body){
-  var init={method:body?'POST':'GET',headers:{'X-Visitor-Token':token,'X-Agent-Name':'concierge-web'}};
+  var init={method:body?'POST':'GET',credentials:'same-origin',headers:{'X-Agent-Name':'concierge-web'}};
+  if(token)init.headers['X-Visitor-Token']=token;
+  if(csrf)init.headers['X-Customer-CSRF']=csrf;
   if(body){init.headers['Content-Type']='application/json';init.body=JSON.stringify(body)}
   return fetch(API+path,init).then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.message||d.error||'Request failed');return d})});
 }
 function busy(id,on){$(id).disabled=on}
 $('token').value=token?'saved':'';
+$('account').onclick=function(){say('access-status','Checking...');
+  fetch('/api/customer-auth/session',{credentials:'same-origin'}).then(function(r){return r.ok?r.json():null}).catch(function(){return null})
+  .then(function(s){if(s&&s.csrf_token)csrf=s.csrf_token;return call('/account')})
+  .then(function(a){say('access-status',!a.signed_in?a.message:a.invited?'Signed in and invited. Account id: '+a.account_id:
+    'Signed in, not invited yet. Send this account id to the operator: '+a.account_id)})
+  .catch(function(e){say('access-status',e.message)})};
+function keyList(){var box=$('keys');box.textContent='Loading...';call('/agent-keys').then(function(d){
+  box.textContent=d.agent_keys.length?'':'No agent keys yet.';d.agent_keys.forEach(function(k){var row=document.createElement('div');row.className='row';
+    var t=document.createElement('span');t.textContent=k.agent+(k.last_used_at?' - last used '+new Date(k.last_used_at*1000).toLocaleString():' - not used yet');
+    var b=document.createElement('button');b.className='secondary';b.textContent='Revoke';
+    b.onclick=function(){b.disabled=true;call('/agents/revoke',{agent:k.agent}).then(function(r){t.textContent=k.agent+' revoked. '+r.coins+' coins moved to your wallet.';b.remove()})
+      .catch(function(e){t.textContent=e.message;b.disabled=false})};row.appendChild(t);row.appendChild(b);box.appendChild(row)})}).catch(function(e){box.textContent=e.message})}
+$('list-keys').onclick=keyList;
+$('create-key').onclick=function(){busy('create-key',true);call('/agent-keys',{agent:$('agent-name').value.trim()}).then(function(k){
+    say('keys','Key for '+k.agent+' (copy it now; it is shown once): '+k.agent_key+'\n'+k.use)})
+  .catch(function(e){say('keys',e.message)}).finally(function(){busy('create-key',false)})};
 $('save').onclick=function(){token=$('token').value.trim();try{sessionStorage.setItem(KEY,token)}catch(e){}say('access-status','Token set for this tab.')};
 $('load-wallet').onclick=function(){busy('load-wallet',true);say('wallet','Loading...');
   call('/wallets').then(function(d){var lines=['Total: '+d.total_coins+' coins (no cash value)'];

@@ -77,3 +77,14 @@ def reader_for(front, enabled, core_factory=None):
             raise PrivateWorkflowDenied('not_allowed')
         return projected
     return read
+
+
+def customer_identity_for(front, enabled):
+    """A lazy getter for the customer sign-in core, or None when customer workspaces are closed."""
+    if not enabled:
+        return None
+
+    def identity():
+        from ..workspace_platform import platform_for
+        return platform_for(front).identity
+    return identity

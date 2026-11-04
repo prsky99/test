@@ -42,7 +42,8 @@ def user_ref_of(token):
     return 'u_' + hashlib.sha256(token.encode()).hexdigest()[:24]
 
 
-def router_for(settings=None, service=None, store=None, workflow_reader=None, private_flow_reader=None):
+def router_for(settings=None, service=None, store=None, workflow_reader=None, private_flow_reader=None,
+               customer_identity=None):
     """`store` is the catalog store, read only for the upgrade check.
     `workflow_reader(template_id)` returns a published workflow definition."""
     settings = settings or Settings.from_environment()
@@ -52,6 +53,11 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
     service = service or build_service(settings)
     from .test_products import ProductError, TestProducts
     products = TestProducts(service.db)
+    from .people import People, PeopleError, customer_session, user_ref_for_customer
+    people = People(service.db)
+
+    def identity():
+        return customer_identity() if callable(customer_identity) else customer_identity
 
     def is_admin(request):
         header = request.headers.get('authorization', '')
@@ -59,15 +65,38 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
         return bool(settings.admin_token) and bool(token) and hmac.compare_digest(token, settings.admin_token)
 
     def person(request):
-        """Invited people only. The ref is a hash; the token itself is never stored."""
-        token = request.headers.get('x-visitor-token', '')
+        """Who acts, in order: an agent key, the signed-in invited customer, the admin,
+        then a legacy invited visitor token. Refs are hashes; tokens and keys are never stored."""
+        write = request.method in ('POST', 'PUT')
+        key = request.headers.get('x-ad-coin-agent-key')
+        if key:
+            found = people.agent_for_key(key)
+            if not found:
+                return None
+            request.state.ad_coin = {'source': 'agent_key', 'customer_id': found[0], 'agent': found[1]}
+            return user_ref_for_customer(found[0])
+        customer = customer_session(identity(), request, write)
+        if customer:
+            if not people.invited(customer):
+                return None
+            request.state.ad_coin = {'source': 'customer', 'customer_id': customer, 'agent': None}
+            return user_ref_for_customer(customer)
         if is_admin(request):
+            request.state.ad_coin = {'source': 'admin', 'customer_id': None, 'agent': None}
             return 'u_admin'
+        token = request.headers.get('x-visitor-token', '')
         if 8 <= len(token) <= 200 and hashlib.sha256(token.encode()).hexdigest() in settings.invited:
+            request.state.ad_coin = {'source': 'legacy_visitor', 'customer_id': None, 'agent': None}
             return user_ref_of(token)
         return None
 
+    def acting(request):
+        return getattr(request.state, 'ad_coin', None) or {}
+
     def agent_of(request):
+        fixed = acting(request).get('agent')
+        if fixed:
+            return fixed  # an agent key names exactly one agent
         name = request.headers.get('x-agent-name', '')
         return name if AGENT.fullmatch(name) else 'direct'
 
@@ -96,10 +125,13 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
                 try:
                     if kind == 'admin' and not is_admin(request):
                         return _json({'error': 'admin_required'}, 403)
-                    who = person(request) if kind == 'person' else None
-                    if kind == 'person' and not who:
+                    who = await run_in_threadpool(person, request) if kind in ('person', 'customer') else None
+                    if kind in ('person', 'customer') and not who:
                         return _json({'error': 'invitation_required',
-                                      'message': 'AI AD Coin is in a closed test. An invitation is required.'}, 403)
+                                      'message': 'AI AD Coin is in a closed test. Sign in with an invited account.'}, 403)
+                    if kind == 'customer' and acting(request).get('source') != 'customer':
+                        return _json({'error': 'customer_session_required',
+                                      'message': 'Manage agent keys from your own signed-in session.'}, 403)
                     data = await body(request) if request.method == 'POST' or request.method == 'PUT' else {}
                     return _json(await run_in_threadpool(handler, request, who, data))
                 except AdCoinError as exc:
@@ -213,7 +245,39 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
 
     @add('POST', '/agents/revoke', 'person')
     def revoke_agent(request, who, data):
-        return service.sweep_agent(user_ref=who, agent_ref=str(data.get('agent', '')), reason='revoked')
+        agent = str(data.get('agent', ''))
+        customer = acting(request).get('customer_id')
+        revoked = people.revoke_keys(customer, agent) if customer else 0
+        try:
+            swept = service.sweep_agent(user_ref=who, agent_ref=agent, reason='revoked')
+        except AdCoinError as exc:
+            if exc.code != 'unknown_wallet':
+                raise
+            swept = {'status': 'no_wallet', 'coins': 0, 'receipt': None}
+        return {**swept, 'agent_keys_revoked': revoked}
+
+    @add('GET', '/account', 'public')
+    def account(request, who, data):
+        customer = customer_session(identity(), request, False)
+        if not customer:
+            return {'signed_in': False, 'invited': False,
+                    'message': 'Sign in to your workspace account to use AI AD Coin.'}
+        invited = people.invited(customer)
+        return {'signed_in': True, 'invited': invited, 'account_id': customer,
+                'message': None if invited else 'Ask the operator to invite this account id.'}
+
+    @add('GET', '/agent-keys', 'customer')
+    def agent_keys(request, who, data):
+        return {'agent_keys': people.keys(acting(request)['customer_id'])}
+
+    @add('POST', '/agent-keys', 'customer')
+    def create_agent_key(request, who, data):
+        try:
+            created = people.create_key(acting(request)['customer_id'], data.get('agent'))
+        except PeopleError as exc:
+            raise AdCoinError('invalid_agent_key', str(exc)) from None
+        service._ensure_wallet(who, created['agent'])
+        return created
 
     @add('GET', '/mandates', 'person')
     def mandates(request, who, data):
@@ -295,6 +359,24 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
     @add('GET', '/admin/test-products', 'admin')
     def list_test_products(request, who, data):
         return {'test_products': products.list()}
+
+    @add('GET', '/admin/invites', 'admin')
+    def invites(request, who, data):
+        return {'invites': people.invites()}
+
+    @add('POST', '/admin/invites', 'admin')
+    def invite(request, who, data):
+        try:
+            return people.invite(data.get('customer_id'), data.get('note', ''))
+        except PeopleError as exc:
+            raise AdCoinError('invalid_invite', str(exc)) from None
+
+    @add('POST', '/admin/invites/revoke', 'admin')
+    def revoke_invite(request, who, data):
+        try:
+            return people.revoke_invite(str(data.get('customer_id', '')))
+        except PeopleError as exc:
+            raise AdCoinError('unknown_invite', str(exc), 404) from None
 
     @add('GET', '/admin/settings', 'admin')
     def get_settings(request, who, data):
