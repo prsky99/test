@@ -43,7 +43,8 @@ llm = None
 if config.workspace_model_enabled:
     from agent_market.concierge.llm import LocalLLM
     llm = LocalLLM(config.workspace_model_url, config.workspace_model_name, timeout=2, lead=False, http=rag.http,
-                   concurrency=2, provider=config.workspace_model_provider, allow_http=config.workspace_model_allow_http)
+                   concurrency=int(os.environ.get('EVAL_LLM_CONCURRENCY') or 2), provider=config.workspace_model_provider,
+                   allow_http=config.workspace_model_allow_http)
 from agent_market.concierge import fast_chat
 class _Journal:
     def begin(self, *a, **k): return self
@@ -145,6 +146,10 @@ _path, _, _part = CASES.partition(':')
 _loaded = json.load(open(_path, encoding='utf-8'))
 if isinstance(_loaded, dict): _loaded = _loaded[_part or 'tuning']
 cases = [c for c in _loaded if _only is None or c['id'] in _only]
+if os.environ.get('EVAL_SHARD'):
+    # "i/n": every n-th case from i, so scripts/evaluate_chat_parallel.py can run n shards at once.
+    _index, _count = (int(x) for x in os.environ['EVAL_SHARD'].split('/'))
+    cases = cases[_index::_count]
 REPEAT = max(1, int(os.environ.get('EVAL_REPEAT') or 1))
 RECALL = int(os.environ.get('EVAL_RECALL') or 0)
 
