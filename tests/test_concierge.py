@@ -228,7 +228,7 @@ def test_mcp_initialize_tools_and_calls(w):
     sid = init.headers["Mcp-Session-Id"]
     assert c.post("/mcp", json={"jsonrpc": "2.0", "method": "notifications/initialized"}, headers={"Mcp-Session-Id": sid}).status_code == 202
     names = [t["name"] for t in c.post("/mcp", json={"jsonrpc": "2.0", "id": 2, "method": "tools/list"}).json()["result"]["tools"]]
-    assert names == ["hello", "chat", "search", "find_agents", "whats_new", "subscribe", "verify_contact", "call", "report", "credit", "adapt_rest", "search_workflows", "workflow_details"]
+    assert names == ["hello", "chat", "search", "find_agents", "whats_new", "subscribe", "verify_contact", "call", "report", "credit", "adapt_rest", "search_workflows", "workflow_details", "run_workflow"]
     call = c.post("/mcp", json={"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {
         "name": "find_agents", "arguments": {"task": "x402 web search API for SERP results", "kind": "x402"}}},
                   headers={"Mcp-Session-Id": sid}).json()["result"]

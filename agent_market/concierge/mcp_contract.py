@@ -139,6 +139,11 @@ def mcp_tools():
             'required': ['text'],
             'additionalProperties': True,
         }
+    # run_workflow starts a public run and may answer with an MCP task (mcp_tasks.py), so it keeps its own
+    # annotations (not read-only, open world) and its execution.taskSupport.
+    import copy
+    from .mcp_tasks import TOOL as RUN_WORKFLOW
+    TOOLS.append({**copy.deepcopy(RUN_WORKFLOW), 'outputSchema': copy.deepcopy(TOOLS[-1]['outputSchema'])})
     return TOOLS
 
 

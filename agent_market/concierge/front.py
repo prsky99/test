@@ -3160,6 +3160,7 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
         return JSONResponse({"jsonrpc": "2.0", "id": rid, "result": result}, headers=headers)
 
     # ---------------- MCP ----------------
+    from . import mcp_tasks
     TOOLS = mcp_tools()
 
     def mcp_result(rid, result) -> dict:
@@ -3223,7 +3224,7 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
                             "visitor token — pass it as `visitor_token` (or the X-Visitor-Token header) so I remember you next time.")
             return JSONResponse(mcp_result(rid, {
                 "protocolVersion": asked if asked in MCP_VERSIONS else MCP_VERSIONS[0],
-                "capabilities": {"tools": {"listChanged": False}},
+                "capabilities": {"tools": {"listChanged": False}, "tasks": mcp_tasks.CAPABILITY},
                 "serverInfo": {"name": "agent-concierge", "title": "Agent Concierge (for AI agents)", "version": "1.0.0"},
                 "instructions": instructions}))
 
@@ -3242,7 +3243,7 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
                             "visitor token — pass it as `visitor_token` (or the X-Visitor-Token header) so I remember you next time.")
             return JSONResponse(mcp_result(rid, {
                 "protocolVersion": asked if asked in MCP_VERSIONS else MCP_VERSIONS[0],
-                "capabilities": {"tools": {"listChanged": False}},
+                "capabilities": {"tools": {"listChanged": False}, "tasks": mcp_tasks.CAPABILITY},
                 "serverInfo": {"name": "agent-concierge", "title": "Agent Concierge (for AI agents)", "version": "1.0.0"},
                 "instructions": instructions}), headers={"Mcp-Session-Id": sid})
         if isinstance(method, str) and method.startswith("notifications/"):
@@ -3253,12 +3254,34 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             if params.get('cursor') is not None:
                 return {"jsonrpc": "2.0", "id": rid, "error": {"code": -32602, "message": "This bounded tool list has no continuation cursor."}}
             return mcp_result(rid, {"tools": TOOLS})
+        if method in ("tasks/get", "tasks/result", "tasks/cancel"):
+            # MCP tasks follow published workflow runs started by run_workflow (mcp_tasks.py).
+            handler = {"tasks/get": mcp_tasks.get, "tasks/result": mcp_tasks.result, "tasks/cancel": mcp_tasks.cancel}[method]
+            try:
+                return mcp_result(rid, await run_in_threadpool(handler, front, params))
+            except mcp_tasks.TaskError as exc:
+                return {"jsonrpc": "2.0", "id": rid, "error": {"code": exc.code, "message": exc.message}}
         if method != "tools/call":
             return {"jsonrpc": "2.0", "id": rid, "error": {"code": -32601, "message": f"Method not found: {method}"}}
         name = params.get("name") if isinstance(params, dict) else None
         if not isinstance(name, str) or not isinstance(params.get('arguments', {}), dict):
             return {"jsonrpc": "2.0", "id": rid, "error": {"code": -32602, "message": "Provide a tool name and object arguments."}}
         args = params.get("arguments") if isinstance(params, dict) and isinstance(params.get("arguments"), dict) else {}
+        if name == "run_workflow":
+            # The public run limit of POST /api/workflows/run applies to MCP runs too.
+            if not front.security.allow_probe(front.security.resolve_ip(request), base_limit=20):
+                return {"jsonrpc": "2.0", "id": rid, "error": {"code": -32000, "message": "Workflow execution limit reached."}}
+            if "task" in params and not isinstance(params["task"], dict):
+                return {"jsonrpc": "2.0", "id": rid, "error": {"code": -32602, "message": "task must be an object."}}
+            try:
+                run = await run_in_threadpool(mcp_tasks.start, front, args)
+            except mcp_tasks.TaskError as exc:
+                return mcp_result(rid, mcp_tasks.refused(exc.message))
+            value = mcp_tasks.task_id(run)
+            if isinstance(params.get("task"), dict):
+                current = await run_in_threadpool(front.workflows.get, run["run_id"])
+                return mcp_result(rid, {"task": mcp_tasks.view(value, current)})
+            return mcp_result(rid, mcp_tasks.started(value, run))
         if name in ('search', 'find_agents', 'search_workflows'):
             try:
                 args = discovery_arguments(args)
