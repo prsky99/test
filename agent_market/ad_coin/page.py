@@ -37,7 +37,8 @@ ul{padding-left:20px;margin:6px 0}
 <div class="out" id="wallet" aria-live="polite"></div></section>
 
 <section aria-labelledby="try-h"><h2 id="try-h">Try a sponsored run</h2>
-<p class="muted">Example: comparing five papers in full text needs a paid agent (60 coins). See how a sponsor could cover it.</p>
+<p class="muted">Paste the agent ids from a Chat answer, in the order shown, to check for a paid upgrade. Leave it empty to use an example (comparing five papers in full text, 60 coins).</p>
+<label for="ids">Agent ids from the answer (comma separated)</label><input id="ids" inputmode="numeric" autocomplete="off">
 <div class="row"><button id="quote" class="secondary">Show funding options</button></div>
 <div id="card" hidden>
 <p class="ad" id="card-label"></p><p id="card-text"></p><p class="muted" id="card-digest"></p>
@@ -80,9 +81,16 @@ $('load-wallet').onclick=function(){busy('load-wallet',true);say('wallet','Loadi
   .catch(function(e){say('wallet',e.message)}).finally(function(){busy('load-wallet',false)})};
 var current=null;
 $('quote').onclick=function(){busy('quote',true);say('quote-out','Loading...');$('card').hidden=true;
-  var selection={items:[{agent:'openscholar-finder',price:'free'},{agent:'research-pro',price_coins:60}],chosen:'research-pro'};
-  call('/quotes',{selection:selection,task:{provider:'research-pro',task_ref:'compare-5-papers',price_won:600,category:'deep_research/academic'}})
-  .then(function(p){say('quote-out','');var opt=null;
+  var ids=$('ids').value.split(',').map(function(x){return parseInt(x.trim(),10)}).filter(function(x){return x>0});
+  var example={selection:{items:[{agent:'openscholar-finder',price:'free'},{agent:'research-pro',price_coins:60}],chosen:'research-pro'},
+    task:{provider:'research-pro',task_ref:'compare-5-papers',price_won:600,category:'deep_research/academic'}};
+  var request=ids.length?call('/upgrade-check',{recommendation_ids:ids}).then(function(u){
+      if(!u.upgrade_available)throw new Error('No paid upgrade for this answer ('+u.reason+'). The free result is the right choice.');
+      say('quote-out','Paid option from the answer: '+u.target.name+' ('+u.target.price_coins+' coins, grade '+u.target.grade+').');
+      if(!u.quote_request)throw new Error('This paid agent costs more than a sponsor can cover. Compare it with the free result first.');
+      if(!u.sponsorable)say('quote-out','Paid option from the answer: '+u.target.name+' ('+u.target.price_coins+' coins). It is too small to sponsor; pay with coins or keep the free result.');
+      return call('/quotes',u.quote_request)}):call('/quotes',example);
+  request.then(function(p){var opt=null;
     p.funding_options.forEach(function(o){if(!opt&&o.type==='sponsored_run')opt=o;if(!opt&&o.type==='coin_reward')opt=o.items[0]});
     if(!opt){say('quote-out','No sponsor is available now ('+(p.sponsorship_unavailable_reason||'none')+'). The free result is ready.');return}
     current={rid:opt.reservation_id};

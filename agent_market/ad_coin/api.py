@@ -42,7 +42,8 @@ def user_ref_of(token):
     return 'u_' + hashlib.sha256(token.encode()).hexdigest()[:24]
 
 
-def router_for(settings=None, service=None):
+def router_for(settings=None, service=None, store=None):
+    """`store` is the catalog store, read only for the upgrade check."""
     settings = settings or Settings.from_environment()
     router = APIRouter()
     if not settings.enabled:
@@ -141,6 +142,16 @@ def router_for(settings=None, service=None):
     def quote(request, who, data):
         return service.quote(user_ref=who, agent_ref=agent_of(request), operator_ref=operator_of(request),
                              selection=data.get('selection'), task=data.get('task'))
+
+    @add('POST', '/upgrade-check', 'person')
+    def upgrade(request, who, data):
+        from .upgrade import upgrade_check
+        if store is None:
+            raise AdCoinError('catalog_unavailable', status=503)
+        try:
+            return upgrade_check(store.resource, data.get('recommendation_ids'))
+        except ValueError as exc:
+            raise AdCoinError('invalid_recommendation_ids', str(exc)) from None
 
     @add('POST', '/consents', 'person')
     def consent(request, who, data):
@@ -268,6 +279,16 @@ def router_for(settings=None, service=None):
     async def page():
         from .page import PAGE
         return HTMLResponse(PAGE, headers={**NO_STORE, 'Content-Security-Policy': csp})
+
+    @router.get('/ad-coin/admin', include_in_schema=False)
+    async def admin_page():
+        from .admin_page import PAGE as ADMIN_PAGE
+        return HTMLResponse(ADMIN_PAGE, headers={**NO_STORE, 'Content-Security-Policy': csp})
+
+    @router.get('/ad-coin/admin.js', include_in_schema=False)
+    async def admin_script():
+        from .admin_page import SCRIPT as ADMIN_SCRIPT
+        return Response(ADMIN_SCRIPT, media_type='text/javascript', headers={**NO_STORE, 'Content-Security-Policy': csp})
 
     @router.get('/ad-coin/app.js', include_in_schema=False)
     async def script():

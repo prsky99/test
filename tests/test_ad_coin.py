@@ -350,3 +350,80 @@ def test_http_flow_for_invited_people_and_admin(tmp_path):
     page = client.get('/ad-coin')
     assert page.status_code == 200 and "script-src 'self'" in page.headers['content-security-policy']
     assert user_ref_of(token).startswith('u_') and token not in (tmp_path / 'ad.sqlite3').read_bytes().decode('latin1')
+
+
+# ---------- upgrade check after an organic answer ----------
+from agent_market.ad_coin.upgrade import price_won, upgrade_check  # noqa: E402
+
+CATALOG = {
+    1: {'id': 1, 'name': 'Free finder', 'kind': 'mcp', 'price_usdc': None, 'eval_grade': 'A',
+        'health_status': 'healthy', 'category': 'Research', 'active': 1},
+    2: {'id': 2, 'name': 'Paid compare', 'kind': 'x402', 'price_usdc': 450_000, 'eval_grade': 'B',
+        'health_status': 'reachable', 'category': 'Research', 'active': 1},
+    3: {'id': 3, 'name': 'Paid but weak', 'kind': 'x402', 'price_usdc': 450_000, 'eval_grade': 'C',
+        'health_status': 'healthy', 'category': 'Research', 'active': 1},
+    4: {'id': 4, 'name': 'Paid but down', 'kind': 'x402', 'price_usdc': 450_000, 'eval_grade': 'A',
+        'health_status': 'down', 'category': 'Research', 'active': 1},
+}
+
+
+def test_price_conversion_rounds_up_to_whole_coins():
+    assert price_won(None) == 0 and price_won(0) == 0
+    assert price_won(450_000) == 630      # 0.45 USDC x 1380 = 621 won -> 63 coins
+    assert price_won(1) == 10
+
+
+def test_upgrade_check_reads_only_the_answer_in_its_order():
+    result = upgrade_check(CATALOG.get, [1, 3, 2])
+    assert result['upgrade_available'] and result['target']['id'] == 2
+    assert result['reason'] == 'paid_alternative_in_answer' and result['order_preserved']
+    assert [row['id'] for row in result['checked']] == [1, 3, 2]
+    assert upgrade_check(CATALOG.get, [1, 3, 4])['reason'] == 'no_eligible_paid_agent'
+    assert upgrade_check(CATALOG.get, [3, 2])['reason'] == 'top_paid_but_not_eligible'
+    assert upgrade_check(CATALOG.get, [2])['reason'] == 'top_recommendation_is_paid'
+    for bad in ([], [0], ['1'], list(range(1, 12))):
+        with pytest.raises(ValueError):
+            upgrade_check(CATALOG.get, bad)
+
+
+def test_upgrade_check_feeds_a_quote_with_the_same_digest(svc):
+    campaign(svc, categories=('research',))
+    check = upgrade_check(CATALOG.get, [1, 2])
+    packet = svc.quote(user_ref='u_alice', agent_ref='helper', operator_ref='agent:helper', **check['quote_request'])
+    assert packet['selection_digest'] == check['selection_digest']
+    run = option(packet, 'sponsored_run')
+    assert run and run['coins_equivalent'] == 63
+
+
+class _Store:
+    def resource(self, rid):
+        return CATALOG.get(rid)
+
+
+def test_http_upgrade_check_and_admin_console(tmp_path):
+    token = 'invited-visitor-token'
+    settings = Settings(enabled=True, db_path=str(tmp_path / 'ad.sqlite3'), receipt_key_path=str(tmp_path / 'k.pem'),
+                        admin_token='admin-secret-token', invited=frozenset({hashlib.sha256(token.encode()).hexdigest()}))
+    app = FastAPI()
+    app.include_router(router_for(settings, store=_Store()))
+    client = TestClient(app)
+    person = {'X-Visitor-Token': token}
+    response = client.post('/api/ad-coin/v1/upgrade-check', headers=person, json={'recommendation_ids': [1, 2]})
+    assert response.status_code == 200 and response.json()['target']['id'] == 2
+    assert client.post('/api/ad-coin/v1/upgrade-check', headers=person, json={'recommendation_ids': []}).status_code == 400
+    assert client.post('/api/ad-coin/v1/upgrade-check', json={'recommendation_ids': [1]}).status_code == 403
+    page = client.get('/ad-coin/admin')
+    assert page.status_code == 200 and 'lang="ko"' in page.text and 'admin-secret-token' not in page.text
+    assert client.get('/ad-coin/admin.js').headers['content-type'].startswith('text/javascript')
+    assert client.get('/api/ad-coin/v1/admin/settings').status_code == 403
+
+
+def test_upgrade_check_marks_what_a_sponsor_can_cover():
+    cheap = {**CATALOG[2], 'id': 5, 'price_usdc': 10_000}          # 13.8 won: per-call micropayment
+    huge = {**CATALOG[2], 'id': 6, 'price_usdc': 1_000_000_000}    # 1,000 USDC
+    rows = {**CATALOG, 5: cheap, 6: huge}
+    assert upgrade_check(rows.get, [2])['sponsorable'] is True
+    small = upgrade_check(rows.get, [5])
+    assert small['upgrade_available'] and not small['sponsorable'] and small['quote_request']
+    big = upgrade_check(rows.get, [6])
+    assert big['upgrade_available'] and not big['sponsorable'] and big['quote_request'] is None
