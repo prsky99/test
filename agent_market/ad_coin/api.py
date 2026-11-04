@@ -42,8 +42,9 @@ def user_ref_of(token):
     return 'u_' + hashlib.sha256(token.encode()).hexdigest()[:24]
 
 
-def router_for(settings=None, service=None, store=None):
-    """`store` is the catalog store, read only for the upgrade check."""
+def router_for(settings=None, service=None, store=None, workflow_reader=None):
+    """`store` is the catalog store, read only for the upgrade check.
+    `workflow_reader(template_id)` returns a published workflow definition."""
     settings = settings or Settings.from_environment()
     router = APIRouter()
     if not settings.enabled:
@@ -145,10 +146,15 @@ def router_for(settings=None, service=None, store=None):
 
     @add('POST', '/upgrade-check', 'person')
     def upgrade(request, who, data):
-        from .upgrade import bundle_check, upgrade_check
+        from .upgrade import bundle_check, upgrade_check, workflow_check
         if store is None:
             raise AdCoinError('catalog_unavailable', status=503)
         try:
+            if 'workflow' in data:
+                if workflow_reader is None:
+                    raise AdCoinError('workflows_unavailable', status=503)
+                spec = data.get('workflow') if isinstance(data.get('workflow'), dict) else {}
+                return workflow_check(workflow_reader, store.resource, spec.get('template_id'), spec.get('runs', 1))
             if 'bundle' in data:
                 return bundle_check(store.resource, data.get('bundle'))
             return upgrade_check(store.resource, data.get('recommendation_ids'))

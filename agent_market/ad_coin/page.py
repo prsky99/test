@@ -37,7 +37,7 @@ ul{padding-left:20px;margin:6px 0}
 <div class="out" id="wallet" aria-live="polite"></div></section>
 
 <section aria-labelledby="try-h"><h2 id="try-h">Try a sponsored run</h2>
-<p class="muted">Paste the agent ids from a Chat answer, in the order shown, to check for a paid upgrade. For a multi-step task, write each step as id x calls (for example 109457x20, 116275x1); one run of the whole task is what a sponsor can cover. Leave it empty to use an example (comparing five papers in full text, 60 coins).</p>
+<p class="muted">Paste the agent ids from a Chat answer, in the order shown, to check for a paid upgrade. For a multi-step task, write each step as id x calls (for example 109457x20, 116275x1). For a published workflow, write w, its id and the number of runs (for example w39x5). One run of the whole task is what a sponsor can cover. Leave it empty to use an example (comparing five papers in full text, 60 coins).</p>
 <label for="ids">Agent ids or steps from the answer (comma separated)</label><input id="ids" inputmode="numeric" autocomplete="off">
 <div class="row"><button id="quote" class="secondary">Show funding options</button></div>
 <div id="card" hidden>
@@ -82,12 +82,23 @@ $('load-wallet').onclick=function(){busy('load-wallet',true);say('wallet','Loadi
 var current=null;
 $('quote').onclick=function(){busy('quote',true);say('quote-out','Loading...');$('card').hidden=true;
   var raw=$('ids').value.split(',').map(function(x){return x.trim()}).filter(Boolean);
-  var bundle=raw.some(function(x){return /x/i.test(x)});
-  var ids=bundle?[]:raw.map(function(x){return parseInt(x,10)}).filter(function(x){return x>0});
+  var wf=raw.length===1&&/^w\d+(x\d+)?$/i.test(raw[0])?raw[0].slice(1).toLowerCase().split('x'):null;
+  var bundle=!wf&&raw.some(function(x){return /x/i.test(x)});
+  var ids=(bundle||wf)?[]:raw.map(function(x){return parseInt(x,10)}).filter(function(x){return x>0});
   var steps=bundle?raw.map(function(x){var p=x.toLowerCase().split('x');return {resource_id:parseInt(p[0],10),calls:parseInt(p[1]||'1',10)}}):[];
   var example={selection:{items:[{agent:'openscholar-finder',price:'free'},{agent:'research-pro',price_coins:60}],chosen:'research-pro'},
     task:{provider:'research-pro',task_ref:'compare-5-papers',price_won:600,category:'deep_research/academic'}};
-  var request=bundle?call('/upgrade-check',{bundle:steps}).then(function(b){
+  var priced=function(b){
+      var why={all_steps_free:'Every step is free, so no coins or sponsor are needed.',workflow_not_published:'This workflow is not published.',
+        no_catalog_steps:'No step links to a catalog agent, so it cannot be priced.',bundle_has_ineligible_step:'A paid step cannot take coins yet (grade below B or not live).'}[b.reason];
+      if(!b.upgrade_available)throw new Error((why||'No paid upgrade ('+b.reason+').')+' The free result stays available.');
+      say('quote-out',(b.workflow?'Workflow "'+(b.workflow.name||b.workflow.id)+'", '+b.workflow.runs+' run(s)'+(b.workflow.upper_bound?' (upper bound; branches that do not run are refunded)':'')+': ':'Task of '+b.lines.length+' steps: ')+
+        b.price_coins+' coins in total ('+b.lines.map(function(l){return l.calls+' x '+(l.name||l.resource_id)+' = '+l.won+' won'}).join('; ')+').'+
+        (b.note?' '+b.note:'')+(b.sponsorable?'':' It cannot be sponsored at this price; pay with coins or keep the free result.'));
+      if(!b.quote_request)throw new Error('This task costs more than a sponsor can cover.');
+      return call('/quotes',b.quote_request)};
+  var request=wf?call('/upgrade-check',{workflow:{template_id:parseInt(wf[0],10),runs:parseInt(wf[1]||'1',10)}}).then(priced):
+    bundle?call('/upgrade-check',{bundle:steps}).then(function(b){
       if(!b.upgrade_available)throw new Error('This task needs no paid step or a step cannot take coins ('+b.reason+'). The free result stays available.');
       say('quote-out','Task of '+b.lines.length+' steps: '+b.price_coins+' coins in total ('+b.lines.map(function(l){return l.calls+' x '+(l.name||l.resource_id)+' = '+l.won+' won'}).join('; ')+').'+
         (b.sponsorable?'':' It cannot be sponsored at this price; pay with coins or keep the free result.'));

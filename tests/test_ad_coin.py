@@ -497,3 +497,39 @@ def test_coin_bundle_refunds_failed_steps_to_the_wallet_and_mandate_covers_every
                         result_digest='sha256:' + 'c' * 64)
     assert done['refunded_won'] == 414 and svc.ledger.balance(wallet) == 1000 - 690 + 414
     assert svc.ledger.invariant()['ok']
+
+
+# ---------- published workflows as bundles ----------
+from agent_market.ad_coin.upgrade import workflow_check, workflow_steps  # noqa: E402
+
+WORKFLOW = {'id': 39, 'name': 'Legal brief', 'definition_hash': 'f' * 64, 'nodes': [
+    {'id': 'start', 'type': 'trigger'},
+    {'id': 'a', 'type': 'agent', 'resource_id': 7, 'data': {}},
+    {'id': 'route', 'type': 'router', 'data': {}},
+    {'id': 'b', 'type': 'agent', 'data': {'resource_id': 8}},
+    {'id': 'c', 'type': 'agent', 'data': {'resource_id': 7}},
+    {'id': 'off', 'type': 'agent', 'disabled': True, 'data': {'resource_id': 2}},
+    {'id': 'free', 'type': 'agent', 'data': {'resource_id': 1}},
+    {'id': 'raw', 'type': 'agent', 'name': 'Unregistered step', 'data': {'resource_ref': {'url': 'https://x'}}}]}
+
+
+def test_workflow_steps_merge_agents_and_skip_disabled_nodes():
+    steps, unpriced, branching = workflow_steps(WORKFLOW)
+    assert steps == [{'resource_id': 7, 'calls': 2}, {'resource_id': 8, 'calls': 1}, {'resource_id': 1, 'calls': 1}]
+    assert unpriced == ['Unregistered step'] and branching is True
+
+
+def test_workflow_runs_become_one_sponsorable_task(svc):
+    read = {39: WORKFLOW}.get
+    one = workflow_check(read, MICRO.get, 39, 1)
+    assert one['price_won'] == 60 and not one['sponsorable']       # 2 x 13.8 + 27.6 = 55.2 -> 60 won
+    ten = workflow_check(read, MICRO.get, 39, 10)
+    assert ten['price_won'] == 560 and ten['sponsorable'] and ten['workflow']['upper_bound']
+    assert 'Unregistered step' in ten['note'] and ten['quote_request']['task']['task_ref'].startswith('workflow-39-')
+    campaign(svc, categories=('research',))
+    packet = svc.quote(user_ref='u_alice', agent_ref='helper', operator_ref='agent:helper', **ten['quote_request'])
+    assert packet['selection_digest'] == ten['selection_digest'] and option(packet, 'sponsored_run')
+    assert workflow_check(read, MICRO.get, 40, 1)['reason'] == 'workflow_not_published'
+    for bad in ((0, 1), (39, 0), (39, 101), ('39', 1)):
+        with pytest.raises(ValueError):
+            workflow_check(read, MICRO.get, *bad)

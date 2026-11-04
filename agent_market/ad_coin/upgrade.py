@@ -171,3 +171,68 @@ def bundle_check(read_resource, steps):
             'lines': [{'provider': 'r' + str(line['resource_id']), 'calls': line['calls'], 'won': line['won']}
                       for line in result['lines']]}}
     return result
+
+
+MAX_RUNS = 100
+
+
+def workflow_steps(workflow):
+    """Agent nodes of a published workflow, merged per catalog agent, one call per run.
+
+    Every branch is counted, so the quote is an upper bound: a router branch that
+    does not run is refunded line by line after the run. Disabled nodes and
+    triggers, routers and transforms cost nothing. Agent nodes without a catalog
+    id cannot be priced and are listed so the person can see them."""
+    counts, order, unpriced = {}, [], []
+    for node in workflow.get('nodes') or []:
+        if not isinstance(node, dict) or node.get('type', 'agent') != 'agent':
+            continue
+        data = node.get('data') if isinstance(node.get('data'), dict) else {}
+        if node.get('disabled') or data.get('disabled') or node.get('is_active') is False or data.get('is_active') is False:
+            continue
+        rid = node.get('resource_id') or data.get('resource_id')
+        if type(rid) is not int or rid <= 0:
+            unpriced.append(str(node.get('name') or node.get('id') or 'step')[:80])
+            continue
+        if rid not in counts:
+            order.append(rid)
+        counts[rid] = counts.get(rid, 0) + 1
+    branching = any(isinstance(n, dict) and n.get('type') == 'router' for n in workflow.get('nodes') or [])
+    return [{'resource_id': rid, 'calls': counts[rid]} for rid in order], unpriced, branching
+
+
+def workflow_check(read_workflow, read_resource, template_id, runs=1):
+    """Price `runs` runs of a published workflow as one sponsorable task."""
+    if type(template_id) is not int or not 0 < template_id < 2 ** 31:
+        raise ValueError('template_id must be a positive integer.')
+    if type(runs) is not int or not 1 <= runs <= MAX_RUNS:
+        raise ValueError('runs must be 1 to 100.')
+    workflow = read_workflow(template_id)
+    if not workflow:
+        return {'profile': 'ai-ad-coin-workflow-check-v1', 'upgrade_available': False, 'sponsorable': False,
+                'reason': 'workflow_not_published', 'quote_request': None}
+    per_run, unpriced, branching = workflow_steps(workflow)
+    info = {'id': workflow.get('id', template_id), 'name': workflow.get('name'), 'runs': runs,
+            'definition_hash': workflow.get('definition_hash'), 'upper_bound': branching,
+            'unpriced_steps': unpriced}
+    if not per_run:
+        return {'profile': 'ai-ad-coin-workflow-check-v1', 'upgrade_available': False, 'sponsorable': False,
+                'reason': 'no_catalog_steps', 'workflow': info, 'quote_request': None}
+    if len(per_run) > MAX_STEPS:
+        return {'profile': 'ai-ad-coin-workflow-check-v1', 'upgrade_available': False, 'sponsorable': False,
+                'reason': 'too_many_paid_agents', 'workflow': info, 'quote_request': None}
+    steps = [{'resource_id': s['resource_id'], 'calls': min(s['calls'] * runs, MAX_CALLS)} for s in per_run]
+    result = bundle_check(read_resource, steps)
+    result['profile'] = 'ai-ad-coin-workflow-check-v1'
+    result['workflow'] = info
+    if unpriced and result.get('upgrade_available'):
+        result['note'] = ('Some agent steps have no catalog price and are not covered: '
+                          + ', '.join(unpriced[:5]) + '.')
+    if result.get('quote_request'):
+        digest = (workflow.get('definition_hash') or '')[:12]
+        result['quote_request']['selection'] = {'bundle': steps, 'workflow': {
+            'id': info['id'], 'definition_hash': info['definition_hash'], 'runs': runs}}
+        result['selection_digest'] = selection_digest(result['quote_request']['selection'])
+        result['quote_request']['task']['task_ref'] = ('workflow-' + str(info['id']) + ('-' + digest if digest else '')
+                                                      + '-x' + str(runs))[:96]
+    return result

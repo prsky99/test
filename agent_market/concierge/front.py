@@ -3631,7 +3631,9 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
     from ..first_party_guides import router_for as public_guides_router
     app.include_router(public_guides_router(enabled=first_party_guides_enabled))
     from ..ad_coin.api import router_for as ad_coin_router
-    app.include_router(ad_coin_router(store=front.store))  # AD_COIN_ENABLED off by default: no routes, test mode only
+    from .workflow_discovery import published_detail as _published_workflow
+    app.include_router(ad_coin_router(store=front.store, workflow_reader=lambda template_id: _published_workflow(
+        front.store, template_id, runtime=front.workflows)))  # AD_COIN_ENABLED off by default: no routes, test mode only
     from .idempotency import Idempotency, MemoryBackend, RedisBackend
 
     def idempotency_caller(scope, headers):
