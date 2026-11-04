@@ -3795,13 +3795,45 @@ function openChatAgent(item) {
   $("drawer").classList.remove("hidden");
   $("drawerBackdrop").classList.remove("hidden");
 }
+// 11-04 five-point step 7: the recorded evidence behind a recommendation, one click from the card.
+// evidence.unknown decides which rows read "Unknown"; nothing is inferred on the page.
+function chatIsoTime(value) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)) return "";
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toISOString().replace("T", " ").slice(0, 16) + " UTC" : "";
+}
+function chatProof(item) {
+  const ev = item && typeof item.evidence === "object" && item.evidence ? item.evidence : null;
+  if (!ev) return "";
+  const unknown = new Set(Array.isArray(ev.unknown) ? ev.unknown.filter(v => typeof v === "string") : []);
+  const row = (key, label, value) => {
+    const missing = unknown.has(key) || !value;
+    return '<div' + (missing ? ' data-unknown=""' : '') + '><dt>' + esc(label) + '</dt><dd>' +
+      (missing ? 'Unknown \u2014 no record' : esc(value)) + '</dd></div>';
+  };
+  const health = chatIsoTime(ev.health_checked_at);
+  const trial = ev.trial_call && typeof ev.trial_call === "object" ? ev.trial_call : {};
+  const trialAt = chatIsoTime(trial.at);
+  const report = Number.isInteger(trial.report_id) && trial.report_id > 0 ? " \u00b7 report #" + trial.report_id : "";
+  const trialText = trial.status === "passed" ? "Passed" + (trialAt ? " \u00b7 " + trialAt : "") + report
+    : trial.status === "failed" ? "Failed" + (trialAt ? " \u00b7 " + trialAt : "") + report : "";
+  if (trial.status !== "passed" && trial.status !== "failed") unknown.add("trial_call");
+  const toolText = ev.selected_tool_check === "passed" ? "Passed" : "";
+  const known = [health && !unknown.has("health_checked_at"), trialText && !unknown.has("trial_call"), toolText && !unknown.has("selected_tool_check")].filter(Boolean).length;
+  return '<details class="chat-proof"><summary>' + chatIcon('shield-check') + 'Evidence: ' + known + ' of 3 recorded</summary><dl>' +
+    row("health_checked_at", "Last health check", health) +
+    row("trial_call", "Trial call", trialText) +
+    row("selected_tool_check", "Selected tool check", toolText) +
+    '</dl><p class="caption">Recorded by Agent Concierge before your request. Your request has not been run.</p></details>';
+}
 function chatWhy(item) {
   const terms = Array.isArray(item.matched_terms) ? item.matched_terms.filter(t => typeof t === "string" && /^[a-z0-9][a-z0-9-]{1,39}$/.test(t)).slice(0, 6) : [];
   const purpose = item.tools_schema?.[0]?.description || "";
   const tool = chatLabel(item.tools?.[0], "");
   const focus = terms.length ? terms.join(", ") : "your task";
   // A sentence from structured match data; provider text appears only when it is product-neutral.
-  const reason = tool ? (item.match_basis === "tool" ? "One of this service's tools, " + tool + ", covers " + focus + "."
+  const served = typeof item.reason?.text === "string" ? item.reason.text.trim().slice(0, 400) : "";
+  const reason = served ? served : tool ? (item.match_basis === "tool" ? "One of this service's tools, " + tool + ", covers " + focus + "."
                                                    : "Its " + tool + " tool covers " + focus + ".")
                       : terms.length ? "The listing covers " + focus + "." : "Selected for your task.";
   const text = chatLabel(purpose, "");
@@ -3836,7 +3868,7 @@ function appendChatBubble(role, contentText, data, requestNote=null) {
       '<div class="chat-result-heading"><div class="chat-agent-mark">' + chatIcon('bot') + '</div>' +
         '<div class="chat-result-identity"><strong class="chat-result-name">' + esc(chatLabel(item.display_name || item.name, 'Agent #' + (item.id || 'unavailable'))) + '</strong><span class="chat-result-caption">' + esc(typeof item.request_part === 'string' && item.request_part ? 'For: ' + chatLabel(item.request_part.slice(0,120), 'part of your task') : choices.length > 1 ? 'Option '+(index+1)+' for your task' : 'Selected for your task') + '</span></div>' +
         '<span class="chat-protocol">' + esc(chatLabel(item.kind, 'Agent')) + '</span></div>' +
-      chatWhy(item) +
+      chatWhy(item) + chatProof(item) +
       '<div class="chat-endpoint"><span class="chat-field-label">' + chatIcon('plug') + 'Endpoint:</span>' + gatewayLink(gwUrl) + '</div>' +
       '<dl class="chat-evidence">' +
         (item.task_verification?.status === 'verified' && item.task_verification?.tool === item.tools?.[0]

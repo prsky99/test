@@ -2,6 +2,7 @@
 - 11-04: 디스크 점검(여유 150GB, 릴리스 461개 142GB). `agentcon prune-releases` 추가, 383개 삭제, 여유 149.5→191.7GB. 배포·워커 배포 성공 뒤 자동 정리(배포된 것과 6시간 미만 미배포만 남김, `--no-prune`).
 
 ## 완료 (최근 것만)
+- 5점 7단계 화면(2026-11-04 저녁, 프론트앤드): Chat 추천 카드마다 접힌 "Evidence: N of 3 recorded"(마지막 헬스체크·시험 호출 성공/실패·시각·보고서 번호·선택 도구 확인, evidence.unknown은 "Unknown — no record"), 이유 문장은 서버 reason.text 우선, 오른쪽 패널에 헬스체크·시험 호출 두 줄. evidence-ui-frontend-20261104-r1(reason-evidence-r1 위, 릴리스 사본 파일에 패치) 게이트 통과·배포(활성 b), 운영 화면 확인. summary 높이 43px(전역 24px !important 때문, AA 충족). 시험 tests/test_chat_recommendation_evidence.py. → reports/전문가 4인 재평가 2차 2026-11-04.md 6.4절
 - 2차 재평가 4~7단계(2026-11-04 저녁, 사용자 "4~7단계 먼저"·"배포")
   - 4 평가 자동화: scripts/release_gate.py가 Chat 파일(정책 해시 7개+Chat 경로)이 바뀐 릴리스에서 고정 표본 110건(review 10+holdout 100)을 운영·새 릴리스로 평가, 새 실패는 양쪽에서 다시 재서 데이터 변화·흔들림을 빼고, 새 실패−새 통과 2 이상이면 배포 거부. 1회 약 6.5분.
   - 5 조건 충족 우선(fast_chat.condition_first). rv1용 단어 쌍 규칙은 holdout −3·+0이라 뺌(rv1은 단계 2 과제).

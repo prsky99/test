@@ -441,7 +441,8 @@
     const description=element('p','','Selected for your task. Review its recorded evidence and connection details.');
     const evidence=element('dl','pearl-chat-evidence');
     const report=item.test_report;
-    for(const [label,value]of [['Quality grade',item.grade||'Unrated'],['Recorded report',report?'Recorded '+chatTimestamp(report.created_at):'No published report'],['Recent activity',chatTimestamp(item.active_checked_at)]]){
+    for(const [label,value]of [['Quality grade',item.grade||'Unrated'],['Recorded report',report?'Recorded '+chatTimestamp(report.created_at):'No published report'],['Recent activity',chatTimestamp(item.active_checked_at)],
+      ...(item.evidence&&typeof item.evidence==='object'?[['Last health check',chatIsoTime(item.evidence.health_checked_at)||'Unknown'],['Trial call',item.evidence.trial_call?.status==='passed'?'Passed':item.evidence.trial_call?.status==='failed'?'Failed':'Unknown']]:[])]){
       evidence.append(element('dt','',label),element('dd','',chatLabel(value,'Not recorded')));
     }
     const button=element('button','btn primary block','Calling details →');button.type='button';button.addEventListener('click',()=>openChatAgent(item));
