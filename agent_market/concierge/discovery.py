@@ -56,6 +56,15 @@ def normalize_task(task):
         )
     if re.search(r"\btranslat\w*\b", text, re.I):
         return "translation for " + text
+    # "summarize a pdf research paper" asks for a summarizer; the paper is its input, not a search (rv2, 11-04).
+    if (re.search(r'\bsummar(?:i[sz]\w*|y|ies)\b', text, re.I)
+            and re.search(r'\b(?:pdfs?|papers?|documents?|files?|reports?)\b', text, re.I)):
+        return "document summarization for " + text
+    # "check the status of a website": an uptime check, not an order or shipment status (rv10, 11-04).
+    if (re.search(r'\b(?:status|uptime|up or down|is (?:it )?(?:up|down|online))\b.{0,30}\b(?:websites?|sites?|urls?|domains?|web pages?)\b'
+                 r'|\b(?:websites?|sites?|urls?|domains?)\b.{0,30}\b(?:status|uptime|up or down|is (?:up|down|online))\b', text, re.I)
+            and not re.search(r'\b(?:orders?|shipments?|packages?|parcels?|deliver\w*|flights?|payments?|tickets?)\b', text, re.I)):
+        return "website uptime monitoring for " + text
     if re.search(r"\b(?:documentation|docs|API reference)\b", text, re.I):
         return "documentation for " + text
     if re.search(

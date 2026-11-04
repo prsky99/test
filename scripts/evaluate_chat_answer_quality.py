@@ -59,7 +59,8 @@ if SUBSET < 1:
 
     def _subset_candidates(*args, **kwargs):
         wanted = int(kwargs.get('maximum') or 600)
-        kwargs['maximum'] = int(wanted / SUBSET)
+        # candidates() refuses a maximum above MAX_CANDIDATES (empty list), so stay inside it.
+        kwargs['maximum'] = min(_discovery.MAX_CANDIDATES, int(wanted / SUBSET))
         kept = [row for row in _candidates(*args, **kwargs) if int(row['id']) * 2654435761 % 1000 < SUBSET * 1000]
         return kept[:wanted]
     _discovery.candidates = _subset_candidates

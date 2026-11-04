@@ -1,6 +1,7 @@
 """Single-agent selection from indexed, local verification evidence; no model or network calls."""
 import itertools
 from collections import Counter
+from functools import lru_cache
 import json
 import math
 import re
@@ -24,6 +25,7 @@ RESOURCE_BATCH = 500  # listing contracts read per lookup batch
 ALIASES = {
     '\uc6f9 \uac80\uc0c9': 'web search', '\uc6f9\uac80\uc0c9': 'web search', '\uc778\ud130\ub137 \uac80\uc0c9': 'web search', '\uac80\uc0c9 \uacb0\uacfc': 'search results',
     '\ub0a0\uc528': 'weather', '\uc77c\uae30\uc608\ubcf4': 'forecast', '\uc608\ubcf4': 'forecast', '\uae30\uc628': 'temperature', '\uac15\uc218': 'rainfall',
+    '\ubbf8\uc138\uba3c\uc9c0': 'air quality', '\ucd08\ubbf8\uc138\uba3c\uc9c0': 'air quality', '\uacf5\uae30\uc9c8': 'air quality', '\ub300\uae30\uc9c8': 'air quality',
     '\uc8fc\uc2dd': 'stock', '\uc8fc\uac00': 'stock', '\uc2dc\uc138': 'price quote', '\ud658\uc728': 'exchange rate', '\uc554\ud638\ud654\ud3d0': 'crypto', '\ube44\ud2b8\ucf54\uc778': 'bitcoin',
     '\uc774\ub354\ub9ac\uc6c0': 'ethereum', '\uae08\uc735': 'finance', '\uc120\ubb3c': 'perpetual', '\ud380\ub529\ube44': 'funding rate',
     '\ud56d\uacf5': 'flight', '\ud56d\uacf5\uad8c': 'flight', '\ud638\ud154': 'hotel', '\uc9c0\ub3c4': 'maps', '\uc9c0\uc624\ucf54\ub529': 'geocoding',
@@ -64,9 +66,10 @@ FILLER = set('find recommend recommendation recommendations best highest high qu
 FILLER.update('fast faster fastest quick quickly low lower lowest latency accurate accuracy highly top rated ratings grade grades report reports tested evaluation regular returning tier tiers subscription basic premium plan plans very really would could should will provide provides providing supports support current today tomorrow week days easy simple'.split())
 # Prepositions and connectives carry no capability; they only dilute relevance.
 FILLER.update('about into from by at as via per like than then also some other more most such into onto upon up'.split())
-FILLER.update(('\ucd94\ucc9c','\ucd94\ucc9c\ud574\uc918','\ucc3e\uc544\uc918','\uc54c\ub824\uc918','\uc5d0\uc774\uc804\ud2b8','\uc11c\ubc84','\ub3c4\uad6c','\ubb34\ub8cc','\uc720\ub8cc','\uac00\uaca9','\uac00\uc7a5','\uc88b\uc740','\ud488\uc9c8','\ub192\uc740','\ud558\ub098','\uac1c','\ud544\uc694\ud574','\ubd80\ud0c1\ud574','\uc870\ud68c','\uc870\ud68c\ud574','\uc870\ud68c\ud560','\uc788\uc5b4','\uc218','\ud560'))
+FILLER.update(('\ucd94\ucc9c','\ucd94\ucc9c\ud574\uc918','\ucc3e\uc544\uc918','\uc54c\ub824\uc918','\uc5d0\uc774\uc804\ud2b8','\uc11c\ubc84','\ub3c4\uad6c','\ubb34\ub8cc','\uc720\ub8cc','\uac00\uaca9','\uac00\uc7a5','\uc88b\uc740','\ud488\uc9c8','\ub192\uc740','\ud558\ub098','\uac1c','\ud544\uc694\ud574','\ubd80\ud0c1\ud574','\uc870\ud68c','\uc870\ud68c\ud574','\uc870\ud68c\ud560','\uc788\uc5b4','\uc218','\ud560','\ub18d\ub3c4'))
 FILLER.update('quiero necesito busca encuentra recomienda agente que un una unos unas al el la los las de del para por en con sin gratis como es son ingles inglés'.split())
 FILLER.update(('\u306e', '\u3092', '\u306f', '\u304c', '\u306b', '\u3067', '\u3068', '\u3057\u305f\u3044', '\u77e5\u308a\u305f\u3044', '\u6559\u3048\u3066', '\u304f\u3060\u3055\u3044', '\u30a8\u30fc\u30b8\u30a7\u30f3\u30c8', '\u30c4\u30fc\u30eb', '\u7121\u6599', '\u6709\u6599', '\u3042\u308b', '\u3044\u3044', '\u304a\u3059\u3059\u3081'))
+UNIT_NAMES = frozenset('miles mile kilometers kilometer km meters meter feet foot inches inch yards yard pounds pound lbs kilograms kilogram kg grams gram ounces ounce celsius fahrenheit kelvin gallons gallon liters liter'.split())
 
 
 def search_terms(task):
@@ -74,13 +77,18 @@ def search_terms(task):
     from .chat_task_spec import canonical_text
     text = interpret(canonical_text(task)).positive.lower()
     for source, target in sorted(ALIASES.items(), key=lambda pair: -len(pair[0])):
-        text = text.replace(source, ' ' + target + ' ')
+        if source[0].isascii():
+            text = re.sub(r'\b' + re.escape(source) + r'\b', ' ' + target + ' ', text)
+        else:
+            text = text.replace(source, ' ' + target + ' ')
     # Korean grammatical particles and unmapped prose do not pollute the English catalog query.
     text = re.sub(r'\bai\b', 'artificial intelligence', text)
     words = re.findall(r'[a-z][a-z0-9_-]*', text.lower())
     if 'equity' in words or 'equities' in words:
         words.append('stock')
     filtered = [word for word in query_terms(' '.join(words), limit=1024) if word not in FILLER]
+    if set(filtered).intersection({'convert', 'conversion'}) and set(filtered).intersection(UNIT_NAMES) and 'unit' not in filtered:
+        filtered.append('unit')
     if re.search(r'\b(?:bitcoin|btc|ethereum|eth|stocks?|shares|equit(?:y|ies))\b',text)and re.search(r'\b(?:price|quote)s?\b',text):
         filtered.append('price')
     return filtered if len(filtered) <= 12 else filtered[:8] + filtered[-4:]
@@ -167,37 +175,54 @@ def _task_tool_matches(terms, tool):
 
 
 WORD_ENDINGS = ('ations', 'ation', 'ions', 'ion', 'izes', 'ize', 'ings', 'ing', 'ibe', 'ate', 'es', 'ed', 'e', 's')
+_EQUIVALENT_PATTERNS = {
+    'postgres': re.compile(r'\bpostgres(?:ql)?\b'),
+    'postgresql': re.compile(r'\bpostgres(?:ql)?\b'),
+    'bitcoin': re.compile(r'\b(?:bitcoin|btc)\b'),
+    'weather': re.compile(r'\b(?:weather|forecast\w*|meteorolog\w*)\b'),
+    'transcription': re.compile(r'\b(?:transcrib\w*|transcript\w*|speech[- ]to[- ]text)\b'),
+    'audio': re.compile(r'\b(?:audio|speech|spoken|recording|podcast)\b'),
+    'translation': re.compile(r'\btranslat\w*\b'),
+    'convert': re.compile(r'\b(?:convert\w*|conversion\w*)\b'),
+    'conversion': re.compile(r'\b(?:convert\w*|conversion\w*)\b'),
+    'direction': re.compile(r'\bdirections?\b'),
+    'directions': re.compile(r'\bdirections?\b'),
+    'documentation': re.compile(r'\b(?:documentation|docs|API reference)\b'),
+    'academic': re.compile(r'\b(?:academic|scholarly|research)\b'),
+    'scholarly': re.compile(r'\b(?:academic|scholarly|research)\b'),
+    'paper': re.compile(r'\b(?:papers?|scholarly (?:articles?|literature)|literature)\b'),
+    'literature': re.compile(r'\b(?:literature|papers?|scholarly articles?|bibliographic)\b'),
+    'code': re.compile(r'\b(?:code|pull requests?|github pr|pr reviews?)\b'),
+    'equity': re.compile(r'\b(?:equity|equities|stocks?|shares)\b'),
+    'currency': re.compile(r'\b(?:currenc(?:y|ies)|forex|fx|exchange[- ]rates?)\b'),
+    'resume': re.compile(r'\b(?:resumes?|curriculum[- ]vitae|cv)\b'),
+    'cv': re.compile(r'\b(?:resumes?|curriculum[- ]vitae|cv)\b'),
+    'invoice': re.compile(r'\b(?:invoices?|billing[- ]documents?)\b'),
+    'hotel': re.compile(r'\b(?:hotels?|lodgings?|accommodations?)\b'),
+    'flight': re.compile(r'\b(?:flights?|airfares?|airlines?)\b'),
+}
+
+
+@lru_cache(maxsize=4096)
+def _term_pattern(term):
+    if term in ('direction', 'directions'):
+        return _EQUIVALENT_PATTERNS[term]
+    for ending in WORD_ENDINGS:
+        if term.endswith(ending) and len(term) - len(ending) >= 5:
+            return re.compile(r'\b' + re.escape(term[:-len(ending)]) + r'\w*')
+    stem = term[:-1] if len(term) > 4 and term.endswith('s') else term
+    endings = r'(?:s|es|ed|ers?|ors?|ing|ions?|ations?)?' if len(stem) >= 5 else r's?'
+    return re.compile(r'\b' + re.escape(stem) + endings + r'\b')
 
 
 def _term_in(term, text):
     """Match a task word and its inflections (translate, translation, translator)."""
-    equivalent={
-        'postgres':r'\bpostgres(?:ql)?\b',
-        'postgresql':r'\bpostgres(?:ql)?\b',
-        'bitcoin':r'\b(?:bitcoin|btc)\b',
-        'weather':r'\b(?:weather|forecast\w*|meteorolog\w*)\b',
-        'transcription':r'\b(?:transcrib\w*|transcript\w*|speech[- ]to[- ]text)\b',
-        'audio':r'\b(?:audio|speech|spoken|recording|podcast)\b',
-        'translation':r'\btranslat\w*\b',
-        'documentation':r'\b(?:documentation|docs|API reference)\b',
-        'academic':r'\b(?:academic|scholarly|research)\b',
-        'paper':r'\b(?:papers?|scholarly articles?)\b',
-        'code':r'\b(?:code|pull requests?|github pr|pr reviews?)\b',
-        'equity':r'\b(?:equity|equities|stocks?|shares)\b',
-        'currency':r'\b(?:currenc(?:y|ies)|forex|fx|exchange[- ]rates?)\b',
-        'resume':r'\b(?:resumes?|curriculum[- ]vitae|cv)\b',
-        'cv':r'\b(?:resumes?|curriculum[- ]vitae|cv)\b',
-        'invoice':r'\b(?:invoices?|billing[- ]documents?)\b',
-        'hotel':r'\b(?:hotels?|lodgings?|accommodations?)\b',
-        'flight':r'\b(?:flights?|airfares?|airlines?)\b',
-    }
-    if term in equivalent and re.search(equivalent[term],text):return True
-    for ending in WORD_ENDINGS:
-        if term.endswith(ending) and len(term) - len(ending) >= 5:
-            return re.search(r'\b' + re.escape(term[:-len(ending)]) + r'\w*', text) is not None
-    stem = term[:-1] if len(term) > 4 and term.endswith('s') else term
-    endings = r'(?:s|es|ed|ers?|ors?|ing|ions?|ations?)?' if len(stem) >= 5 else r's?'
-    return re.search(r'\b' + re.escape(stem) + endings + r'\b', text) is not None
+    eq = _EQUIVALENT_PATTERNS.get(term)
+    if eq is not None and eq.search(text):
+        return True
+    if term in ('direction', 'directions'):
+        return False
+    return _term_pattern(term).search(text) is not None
 
 
 # A tool that finds other APIs or agents ("find a paid API for anything") is a
@@ -235,6 +260,8 @@ def _described_tools(resource, tools):
     Many listings copy one marketing sentence into every skill. Such text, or
     the agent's own description repeated on a tool, is not evidence that a
     tool named like the task performs it."""
+    if len(tools) <= 1:
+        return [t for t in tools if str(t.get('description') or '').strip()]
     agent_text = ' '.join(str(resource.get('description') or '').lower().split())
     texts = [' '.join(str(t.get('description') or '').lower().split()) for t in tools]
     shared = {text for text, count in Counter(texts).items() if text and count >= 3}
@@ -296,7 +323,7 @@ KO_SUFFIXES = tuple(sorted(('\uc5d0\uc11c\ub294', '\uc5d0\uc11c', '\uc5d0\uac8c'
 KO_FUNCTION_WORDS = set('''\ucc3e\uc544\uc918 \uc54c\ub824\uc918 \ud574\uc918 \ucd94\ucc9c\ud574\uc918 \ubcf4\uc5ec\uc918 \uac80\uc0c9\ud574\uc918
     \uc5d0\uc774\uc804\ud2b8 \ub3c4\uad6c \uc11c\ube44\uc2a4 \uad00\ud55c \ub300\ud55c \uad00\ub828 \uc704\ud55c \uc788\ub294 \ucd5c\uc2e0
     \uc624\ub298 \ub0b4\uc77c \uc9c0\uae08 \uadf8\ub9ac\uace0 \uc880 \ucc3e\uc544 \uc54c\ub824 \ucd94\ucc9c
-    \uc870\ud68c \uc870\ud68c\ud574 \uc870\ud68c\ud560 \uc788\uc5b4 \uc218 \ud560 \ubb34\ub8cc \uc720\ub8cc'''.split())
+    \uc870\ud68c \uc870\ud68c\ud574 \uc870\ud68c\ud560 \uc788\uc5b4 \uc218 \ud560 \ubb34\ub8cc \uc720\ub8cc \ub18d\ub3c4'''.split())
 
 
 ALIAS_WORDS = frozenset(word for value in ALIASES.values() for word in value.split())
@@ -338,14 +365,30 @@ def untranslated_words(task):
     return []
 
 
+# "Is there an agent or API that can track a flight?" and "..., so we need a tool that can ..." (11-04):
+# the lead may open the request, and may name two kinds of listing.
+_LEAD_NOUN = r'(?:tool|agent|service|api|server|app)s?'
+NARRATIVE_LEAD = re.compile(
+    r'^(?:.*?(?:[;:.!?,]\s+|\b(?:and|so)\s+))?'
+    r'(?:(?:we|i)\s+(?:need|want|am looking for|are looking for|would like)\s+|(?:is there|are there|do you have|do you know(?:\s+of)?)\s+)'
+    r'(?:(?:a|an|any|some)\s+' + _LEAD_NOUN + r'(?:\s+or\s+(?:(?:a|an)\s+)?' + _LEAD_NOUN + r')?|something)'
+    r'\s+(?:that|which)\s+(?:(?:can|could|will|gives?|provides?)\s+)?',
+    re.I)
+# After the lead, the capability ends with its sentence ("..., ideally without setup. It should be cheap.").
+LEAD_CLAUSE_END = re.compile(r'[.!?;](?:\s|$)|,\s+(?:ideally|preferably)\b', re.I)
+
+
 def capability_terms(task):
     """Terms naming the capability, not the subject it is applied to.
 
     In "research papers about battery recycling" a paper-search tool will not
     mention batteries; the subject after the boundary is a query, not a skill."""
     task = PRICE_CONDITION.sub(' ', str(task or ''))  # "costs under 1 cent" limits a listing; it names no capability
-    head = TOPIC_BOUNDARY.split(SEEK_PHRASE.sub(r'\1', task), maxsplit=1)[0]
-    terms = search_terms(head) or search_terms(task)
+    focused_task = NARRATIVE_LEAD.sub('', task)
+    if focused_task != task:
+        focused_task = LEAD_CLAUSE_END.split(focused_task, maxsplit=1)[0]
+    head = TOPIC_BOUNDARY.split(SEEK_PHRASE.sub(r'\1', focused_task), maxsplit=1)[0]
+    terms = search_terms(head) or search_terms(focused_task) or search_terms(task)
     # Generic verbs match almost any tool ("Get an API key"), and modifiers such
     # as "research" in "research papers" do not name the capability; keep the nouns.
     # Negations ("A2A weather, not MCP") qualify the request; they are never a capability.
@@ -354,7 +397,7 @@ def capability_terms(task):
     specific = [term for term in specific if term not in CAPABILITY_MODIFIERS] or specific
     specific = [term for term in specific if term not in LANGUAGE_NAMES] or specific
     # The place, company or document is what the capability is applied to, not the capability.
-    if set(specific).intersection({'weather','forecast','temperature'}):
+    if set(specific).intersection({'weather','forecast','temperature','tide','tides','surf','surfing','swell','air','aqi'}):
         specific = [term for term in specific if term in WEATHER_TERMS] or specific
     if set(specific).intersection({'stock','stocks','equity','equities','shares'}):
         specific = [term for term in specific if term in STOCK_TERMS] or specific
@@ -363,6 +406,10 @@ def capability_terms(task):
         specific = [term for term in search_terms(task) if term in CURRENCY_TERMS] or specific
     if {'exchange', 'rate'}.issubset(specific) or set(specific).intersection({'currency', 'currencies', 'forex'}):
         specific = [term for term in specific if term in CURRENCY_TERMS] or specific
+    if set(specific).intersection({'convert', 'conversion'}) and set(search_terms(task)).intersection(UNIT_NAMES):
+        specific = ['convert', 'unit']
+    if specific and set(specific) <= {'extract', 'parse'} and 'pdf' in search_terms(task):
+        specific = specific + ['pdf']
     if set(specific).intersection({'scrape', 'scraping', 'scraper', 'crawl', 'crawling', 'crawler'}):
         specific = [term for term in specific if term in SCRAPE_TERMS] or specific
     if set(specific).intersection({'translation','translate','translates','translator'}):
@@ -397,7 +444,7 @@ CURRENCY_TOOL = re.compile(r'\b(?:fx|forex|currenc\w*|exchange[- ]rates?|foreign
 CURRENCY_CODES = set('usd eur jpy gbp krw cny chf cad aud inr hkd sgd'.split())
 CURRENCY_TERMS = set('exchange rate rates currency currencies forex fx conversion convert'.split())
 SCRAPE_TERMS = set('scrape scraping scraper crawl crawling crawler website websites web page pages html'.split())
-WEATHER_TERMS = set('weather forecast forecasts temperature rainfall rain precipitation humidity wind snow storm alerts hourly daily'.split())
+WEATHER_TERMS = set('weather forecast forecasts temperature rainfall rain precipitation humidity wind snow storm alerts hourly daily tide tides surf surfing swell air aqi pollution pollutant index'.split())
 STOCK_TERMS = set('stock stocks equity equities shares quote quotes price prices ticker tickers market'.split())
 DOCUMENT_SUBJECTS = set('contract contracts paragraph paragraphs document documents sentence sentences letter letters article '
                         'articles page pages file files manual manuals text texts message messages'.split())
@@ -414,12 +461,16 @@ def _regional_languages_cover(requested, text):
     wanted = set(requested).intersection(LANGUAGE_NAMES) - {'english', 'ingles', 'ingl'}
     if not wanted or re.search(r'\b(?:\d{3}\+? languages|any language|all major languages)\b', text):
         return True
+    # "Arabic-first OCR and translation" is built around another language (rv3, 11-04).
+    if any(lang in LANGUAGE_NAMES and lang not in requested for lang in LANGUAGE_FIRST.findall(text.lower())):
+        return False
     return all(wanted <= family for scope, family in REGIONAL_LANGUAGES if scope.search(text))
+LANGUAGE_FIRST = re.compile(r'\b([a-z]+)[- ](?:first|centric|focused|only)\b')
 NEGATIONS = {'not', 'no', 'nor', 'without', 'except', 'excluding'}
 CAPABILITY_MODIFIERS = set('research recent latest online live real realtime time free public simple quick best good new current '
                            'daily accurate reliable fast similar popular top'.split())
 GENERIC_ACTIONS = set('get check make create run build show list return fetch give take put set see view open '
-                      'text data information info result results item items line lines'.split())
+                      'text data information info result results item items line lines keyword keywords'.split())
 
 
 # A demo/sample tool shows an output shape; it cannot perform the user's task.
@@ -579,7 +630,7 @@ def _weather_scope_matches(terms, text):
     if (re.search(r'\b(?:space weather|solar (?:wind|flares?|storms?)|geomagnetic|aurora|asteroids?|satellite passes|aviation|metar|taf)\b',text)
             and not requested.intersection({'space','solar','geomagnetic','aurora','asteroid','asteroids','satellite','aviation','metar','taf','airport','airports'})
             and not re.search(r'\b(?:current|local|hourly|daily|terrestrial|surface|city)[ -]weather\b|(?<!space )weather forecasts? (?:for|in)\b|\b(?:hourly|daily|7-day|5-day) forecasts?\b',text)):return False
-    if re.search(r'\b(?:marine navigation|marine forecasts?|mediterranean)\b',text) and not requested.intersection({'marine','maritime','sea','sailing','tides','coastal','ocean','mediterranean'}):return False
+    if re.search(r'\b(?:marine navigation|marine forecasts?|mediterranean)\b',text) and not requested.intersection({'marine','maritime','sea','sailing','tides','tide','surf','surfing','swell','coastal','ocean','mediterranean'}):return False
     if re.search(r'\bski\b|\bskiing\b|snowboard|snow conditions|\bsnow questions\b',text) and not requested.intersection({'ski','skiing','snow','snowboard','snowboarding','resort','resorts'}):return False
     from ..gateway.constraints import places_in_text
     # A focused gazetteer names the request's place and the listing's only coverage area.
@@ -594,6 +645,24 @@ def _weather_scope_matches(terms, text):
     return True
 
 
+def _coherence_possible(core, resource, tools):
+    """Cheap necessary condition for _coherent_capability(core, resource, subset of tools).
+
+    Coherence needs the listing's own name and leading sentence, or one tool's name plus
+    its leading sentence, to carry the task words. Each text here contains the text that
+    check reads, so a listing failing here fails it too. Gateway families repeat dozens of
+    shared tools on every listing, and filtering those first cost seconds per search."""
+    need = min(len(core), 2) if len(core) <= 3 else math.ceil(len(core) * .75)
+    primary = (str(resource.get('name') or '') + ' ' + _tool_purpose(resource.get('description'))).lower()
+    if sum(_term_in(term, primary) for term in core) >= need:
+        return True
+    for tool in tools:
+        text = (str(tool.get('name') or tool.get('id') or '') + ' ' + _tool_purpose(tool.get('description'))).lower().replace('_', ' ')
+        if sum(_term_in(term, text) for term in core) >= need:
+            return True
+    return False
+
+
 def task_scope_matches(terms, resource, core=None, *, tools=None):
     """Require an advertised task capability, preserving restricted weather scope."""
     requested=set(terms)
@@ -601,6 +670,8 @@ def task_scope_matches(terms, resource, core=None, *, tools=None):
     tools=_advertised_tools(resource) if tools is None else tools
     # A directory's listed tools describe what it catalogs, not what it does.
     directory_request=bool(requested.intersection({'discovery','marketplace','directory','catalog','routing'}))
+    # Both coherence checks below read a subset of these texts; reject before costly filtering.
+    if not directory_request and not _coherence_possible(core, resource, tools):return False
     if tools and not directory_request:
         tools=_task_tools(tools, core)
         if not tools:return False
@@ -632,6 +703,8 @@ def task_scope_matches(terms, resource, core=None, *, tools=None):
     if {'exchange','rate'}.issubset(requested) or requested.intersection({'currency','currencies','forex'}):
         # A currency request needs currency rates, not crypto funding rates or an exchange listing.
         if not CURRENCY_TOOL.search(purpose_text):return False
+    if 'unit' in requested and requested.intersection({'convert','conversion'}) and re.search(r'\b(?:public housing|housing authority|mortgage|rent)\b',purpose_text):return False
+    if 'route' in requested and not requested.intersection({'flight','flights','aircraft','aviation','airport','airports','ferry','airline','airlines'}) and re.search(r'\b(?:ferry[- ]flight|aircraft|faa[- ]registry|aviation|live[- ]flight)\b',primary):return False
     if {'pull','requests'}.issubset(requested) or 'pr' in requested and requested.intersection({'github','gitlab','repository'}):
         # A pull request is code review on a hosting service, not a quote or data "pull request".
         if not re.search(r'\b(?:github|gitlab|bitbucket|git|repositor\w*|code review|merge requests?)\b',purpose_text+' '+capability_text):return False
