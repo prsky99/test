@@ -23,7 +23,15 @@ def test_more_new_failures_than_passes_refuse_the_release(monkeypatch):
     evaluate, calls = fake({'old': {'a': True, 'b': True, 'c': True, 'd': False},
                             'new': {'a': False, 'b': False, 'c': True, 'd': False}})
     assert gate.chat_check('new', 'old', evaluate=evaluate) == 1
-    assert calls[-1] == ('new', ('a', 'b'))  # new failures are measured once more before refusing
+    # New failures are measured once more on both releases before refusing.
+    assert calls[-2:] == [('new', ('a', 'b')), ('old', ('a', 'b'))]
+
+
+def test_a_case_the_active_release_now_fails_too_is_data_not_a_regression(monkeypatch):
+    monkeypatch.setattr(gate, 'chat_changed', lambda release, active: ['agent_market/concierge/fast_chat.py'])
+    evaluate, _ = fake({'old': {'a': True, 'b': True}, 'new': {'a': False, 'b': False},
+                        'old:again': {'a': False, 'b': False}})
+    assert gate.chat_check('new', 'old', evaluate=evaluate) == 0
 
 
 def test_a_failure_that_passes_on_the_second_run_is_noise(monkeypatch):

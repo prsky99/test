@@ -2,6 +2,14 @@
 - 11-04: 디스크 점검(여유 150GB, 릴리스 461개 142GB). `agentcon prune-releases` 추가, 383개 삭제, 여유 149.5→191.7GB. 배포·워커 배포 성공 뒤 자동 정리(배포된 것과 6시간 미만 미배포만 남김, `--no-prune`).
 
 ## 완료 (최근 것만)
+- 2차 재평가 4~7단계(2026-11-04 저녁, 사용자 "4~7단계 먼저"·"배포")
+  - 4 평가 자동화: scripts/release_gate.py가 Chat 파일(정책 해시 7개+Chat 경로)이 바뀐 릴리스에서 고정 표본 110건(review 10+holdout 100)을 운영·새 릴리스로 평가, 새 실패는 양쪽에서 다시 재서 데이터 변화·흔들림을 빼고, 새 실패−새 통과 2 이상이면 배포 거부. 1회 약 6.5분.
+  - 5 조건 충족 우선(fast_chat.condition_first). rv1용 단어 쌍 규칙은 holdout −3·+0이라 뺌(rv1은 단계 2 과제).
+  - 6 추천 이유: "the listing covers" 대신 과업·도구·조건 문장, 응답 reason 객체.
+  - 7 근거: Chat recommendations[].evidence, discover items[].evidence(health_checked_at, trial_call, selected_tool_check, unknown). 탐색 카드는 기존 last_check_at·trial_ok·connection_readiness.
+  - 나란히 비교: holdout 214=214, review 9=9, 판정 변화 0. 커밋 47f88f70.
+  - 배포 reason-evidence-frontend-20261104-r1(explore-prefilter-r2 위, 활성 a). 게이트: 85→84/110, 새 실패 stock_quote-ask는 운영 사본에서도 실패(데이터 변화) → 게이트가 양쪽 재측정하도록 고침.
+  - 남음: rv1 flight status(FareEagle 1위), 이유 문장의 "forecast range, forecast window" 중복 표기.
 - 탐색 사전 거르기(2026-11-04 17시, 프론트앤드 세션이 넘긴 탐색 서버 시간 단축, 사용자 "배포")
   - 원인: 결과 적은·0건 검색이 후보 600개 문서를 끝까지 읽음(큰 MCP 묶음 1.4초).
   - 고침: 한 묶음에서 통과 가능한 문서가 절반 미만이면 다음 묶음은 문서 텍스트만 먼저 읽고(explore_document_reader.texts), named_match·text_may_match를 통과할 수 없는 문서는 전체 읽기 생략(hybrid_explore._in_ranked_batches). jsonb 캐스트는 NUL 이스케이프 문서에서 실패해 Python 파싱으로.

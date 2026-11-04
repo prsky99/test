@@ -103,9 +103,12 @@ def chat_check(release, active=None, *, evaluate=evaluate):
         after = evaluate(release, cases, Path(scratch) / 'release.json')
         broken, fixed = compare(before, after)
         if broken:
-            # A verdict that flips back on a second run is noise (live health, model load), not a regression.
+            # A verdict that flips on a second run is noise (live health, model load), and a case the
+            # active release now fails too was moved by catalog data, not by the release (11-04:
+            # stock_quote-ask failed on both after a new listing ranked first).
             again = evaluate(release, cases, Path(scratch) / 'again.json', only=broken)
-            broken = [i for i in broken if not again.get(i, False)]
+            still = evaluate(active, cases, Path(scratch) / 'active-again.json', only=broken)
+            broken = [i for i in broken if not again.get(i, False) and still.get(i, False)]
     print(f'chat check: active {sum(before.values())}/{len(before)}, release {sum(after.values())}/{len(after)}; '
           f'new failures {len(broken)} {broken[:10]}, new passes {len(fixed)}')
     if len(broken) - len(fixed) >= CHAT_MARGIN:
