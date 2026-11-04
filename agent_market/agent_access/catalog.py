@@ -71,6 +71,7 @@ class Catalog:
             return bounded({'profile':PROFILE,'status':'matched'if compact else'no_match',
                 'resource_type':'workflow','items':compact,'execution_authorized':False})
         from .projection import current_states
+        from ..concierge.recommendation_evidence import evidence as public_evidence
         items=[];resources={};states={}
         # Qualify a bounded shortlist before limiting the public result. A
         # recently healthy listing must not hide another verified connection.
@@ -88,6 +89,7 @@ class Catalog:
                     'protocol':row['kind'],'url':row['url'],'grade':row.get('grade'),
                     'version_id':current['version_id'],
                     'verified_at':current['verified_at'],'expires_at':current['expires_at'],
+                    'evidence':public_evidence(row),
                     'match_basis':'heuristic','execution_authorized':False})
                 if len(items)==3:break
             if len(items)==3:break

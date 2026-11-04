@@ -196,18 +196,68 @@ def subject_first(task, items):
 
     Only that case moves: a full reorder by word count lost "convert time between time zones" on the
     evaluation set (11-04), while a shop's "order status" leading "check flight status" is the failure."""
-    from .selection import _term_in
     terms = [t for t in search_terms(task) if t not in GENERIC_SUBJECT_TERMS]
     if len(items) < 2 or not terms:
         return items
-    def said(item):
-        text = ' '.join([str(item.get('name') or ''), str(item.get('description') or '')] +
-                        [str(s.get('name') or '') + ' ' + str(s.get('description') or '') for s in item.get('tools_schema') or []]).lower()
-        return sum(1 for t in terms if _term_in(t, text))
+    said = lambda item: _subject_words(terms, item)
     if said(items[0]):
         return items
     best = max(range(1, len(items)), key=lambda i: (said(items[i]), -i))
     return [items[best]] + items[:best] + items[best + 1:] if said(items[best]) else items
+
+
+def _subject_words(terms, item):
+    """How many of the task's subject words the listing's own name, description or tools say."""
+    from .selection import _term_in
+    text = ' '.join([str(item.get('name') or ''), str(item.get('description') or '')] +
+                    [str(s.get('name') or '') + ' ' + str(s.get('description') or '') for s in item.get('tools_schema') or []]).lower()
+    return sum(1 for t in terms if _term_in(t, text))
+
+
+def condition_first(task, items):
+    """Among candidates that name the task's subject, the one meeting more requested conditions leads.
+
+    2nd review (11-04): the weather #1 left the forecast range unknown while #2 matched it. Order
+    changes only between candidates whose verdicts differ: fewer violated, then fewer unknown,
+    keeping the earlier order otherwise; a candidate that never names the subject never moves up."""
+    fits = [item.get('task_fit') or {} for item in items]
+    if len(items) < 2 or not any(fit.get('matched') or fit.get('unknown') or fit.get('violated') for fit in fits):
+        return items
+    terms = [t for t in search_terms(task) if t not in GENERIC_SUBJECT_TERMS]
+    def key(pair):
+        index, item = pair
+        fit = fits[index]
+        return (0 if not terms or _subject_words(terms, item) else 1,
+                1 if fit.get('violated') else 0, len(fit.get('unknown') or []), index)
+    return [item for _, item in sorted(enumerate(items), key=key)]
+
+
+# Readable names for task_fit keys in the reason sentence.
+FIT_LABELS = {'no_api_key': 'no API key', 'no_account': 'no account', 'no_charge': 'free to call',
+              'region': 'the requested region', 'forecast': 'the forecast range', 'language_pair': 'the language pair',
+              'pdf_input': 'PDF input'}
+
+
+def recommendation_reason(subject, item):
+    """Why this listing, in task and condition terms rather than matched words (2nd review B3, 11-04)."""
+    fit = item.get('task_fit') or {}
+    label = lambda key: FIT_LABELS.get(key, str(key).replace('_', ' '))
+    tool = next(iter(item.get('tools') or []), None)
+    tool = display_label(tool, '') if tool else ''
+    met = [label(key) for key in fit.get('matched') or []]
+    open_ = [label(key) for key in fit.get('unknown') or []]
+    missed = [label(key) for key in fit.get('violated') or []]
+    text = 'Chosen for "' + subject + '"' if subject else 'Chosen for this task'
+    if tool:
+        text += ' through its ' + tool + ' tool'
+    if met:
+        text += '; meets ' + ', '.join(met)
+    if open_:
+        text += '; not confirmed: ' + ', '.join(open_)
+    if missed:
+        text += '; does not meet ' + ', '.join(missed)
+    return {'task': subject, 'tool': tool or None, 'meets': met, 'not_confirmed': open_, 'does_not_meet': missed,
+            'text': text + '.'}
 
 
 def merged_fit(required, item):
@@ -288,8 +338,9 @@ class FastConcierge(Concierge):
                  'Call: '+call]
         summary=next((part.strip() for part in re.split(r'(?<=[.!?])\s+|;',str(item.get('description') or '')) if part.strip() and not DISPLAY_RESTRICTED.search(part)), '')
         if summary:lines.append('Capability: '+summary[:220])
-        if item.get('matched_terms'):
-            lines.append('Why: the listing covers '+', '.join(term for term in item['matched_terms'] if not DISPLAY_RESTRICTED.search(term)))
+        reason = (item.get('reason') or {}).get('text')
+        if reason and not DISPLAY_RESTRICTED.search(reason):
+            lines.append('Why: '+reason)
         if item.get('tools'):
             lines.append('Tool: '+display_label(item['tools'][0], 'Available tool'))
             schema = (item.get('tools_schema') or [{}])[0]
@@ -429,9 +480,16 @@ class FastConcierge(Concierge):
         # Among the admitted candidates, the ones whose own words name the task's subject lead (11-04 review A-1).
         items = subject_first(task, items)
         step('prepare')
+        from .recommendation_evidence import evidence
+        from .selection import capability_terms
+        from .discovery import normalize_task
+        subject = (focus or ' '.join(capability_terms(normalize_task(task))))[:80]
         for item in items:
             item['display_name'] = agent_display_name(item)
             item['task_fit'] = merged_fit(spec.required, item)
+            item['reason'] = recommendation_reason(subject, item)
+            item['evidence'] = evidence(item)
+        items = condition_first(task, items)
         if persist:
             with self.book.batch():
                 self.book.save_results(v,[{**item,'task':task,'task_spec':spec.state(),'protocol_filter':protocol} for item in items],offset+len(items))

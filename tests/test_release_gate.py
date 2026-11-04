@@ -48,6 +48,9 @@ def test_deploy_command_runs_the_gate_only_for_frontend(monkeypatch):
             deployed.append((role, release))
             return {}
 
+        def prune_after_deploy(self):  # every verified deploy prunes old releases since 5a4677e3
+            return {}
+
     monkeypatch.setattr(service_deploy, 'Deployment', Manager)
     for argv in (['deploy', 'frontend', 'f1'], ['deploy', 'admin', 'a1'], ['deploy', 'frontend', 'f2', '--skip-gate']):
         monkeypatch.setattr('sys.argv', ['service_deploy', *argv])
