@@ -2593,6 +2593,8 @@ function renderExplore(items, q, total = null, estimated = false, matchedReportC
   $("xResults").innerHTML = items.length
     ? items.map((r) => agentCardHtml(r)).join("")
     : `<p style="color:var(--text-dim);grid-column:1/-1;padding:24px;text-align:center">${isReportFilter ? "No agents with matching recorded reports were found within this result window." : "No agents match your current query and filters. Try adjusting keywords or clearing category constraints."}</p>`;
+  // 11-04 five-point step 8: an empty search always offers a next step (fewer words, no filters, Chat).
+  if (!items.length && !isReportFilter) $("xResults").replaceChildren(exploreEmptyState(q));
 
   if (Array.isArray(suggestions) && suggestions.length) {
     // A likely misspelling gets an explicit choice; results already shown stay unchanged.
@@ -2618,6 +2620,31 @@ function renderExplore(items, q, total = null, estimated = false, matchedReportC
       lmWrap.style.display = "none";
     }
   }
+}
+
+// 11-04 five-point step 8: next actions for an empty search. Words come from the visitor's own query and are
+// set as text, never as markup; every action runs an ordinary search or opens Chat with the same task.
+function exploreActiveFilters() {
+  return !!($("xKind")?.value || $("xCategory")?.value || $("xVerified")?.checked || $("xNoAuth")?.checked || $("xHasReport")?.checked);
+}
+function exploreEmptyState(q) {
+  const box = document.createElement("div"); box.className = "explore-empty"; box.setAttribute("role", "status");
+  const text = document.createElement("p");
+  text.textContent = q ? `No agents match “${q.slice(0, 100)}”${exploreActiveFilters() ? " with these filters" : ""}.` : "No agents match these filters.";
+  const actions = document.createElement("div"); actions.className = "explore-empty-actions";
+  const add = (label, run) => { const b = document.createElement("button"); b.type = "button"; b.className = "btn"; b.textContent = label; b.addEventListener("click", run); actions.append(b); };
+  if (exploreActiveFilters()) add("Remove filters", () => {
+    for (const id of ["xKind", "xCategory"]) if ($(id)) $(id).value = "";
+    for (const id of ["xVerified", "xNoAuth", "xHasReport"]) if ($(id)) $(id).checked = false;
+    loadExplore(true, false, true);
+  });
+  const words = [...new Set(String(q || "").toLowerCase().split(/\s+/).filter((w) => w.length >= 3))].slice(0, 2);
+  if (words.length > 1) for (const word of words) add(`Search “${word}”`, () => { $("xQ").value = word; loadExplore(true, false, true); });
+  if (q && typeof switchTab === "function" && $("chatInput")) add("Ask Chat to recommend", () => {
+    switchTab("chat"); const input = $("chatInput"); input.value = q.slice(0, 500); input.dispatchEvent(new Event("input", { bubbles: true })); input.focus();
+  });
+  box.append(text, actions);
+  return box;
 }
 
 function exploreSubmittedFromSearchBox() {
@@ -2765,7 +2792,11 @@ async function loadExplore(force = false, isLoadMore = false, userInitiated = fa
           : err?.status===429 ? "Search limit reached. Please wait a moment and try again."
           : "Search could not be completed. Please try again.";
         const error=document.createElement("p");error.className="explore-search-error";error.textContent=message;
-        resultsEl.replaceChildren(error);
+        // 11-04 five-point step 8: a failed search keeps the query and offers the retry in place.
+        const retry=document.createElement("button");retry.type="button";retry.className="btn explore-retry";retry.textContent="Try again";
+        retry.addEventListener("click",()=>loadExplore(true,false,true));
+        const box=document.createElement("div");box.className="explore-empty";box.setAttribute("role","alert");box.append(error,retry);
+        resultsEl.replaceChildren(box);
       }
     }
   } finally {

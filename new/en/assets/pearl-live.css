@@ -841,3 +841,11 @@ body .cookie-banner-close{gap:6px;min-height:32px;color:var(--ink)}
 body .cookie-banner-close::after{content:"Essential only";font:600 12px/1 Arial,Helvetica,sans-serif;white-space:nowrap}
 @media(min-width:701px){body .cookie-banner-actions{padding-right:132px!important}}
 @media(max-width:700px){body .cookie-banner-title{margin-right:124px!important}}
+/* 11-04 five-point step 8: empty and failed searches show their next actions in the results area. */
+body #xResults .explore-empty{grid-column:1/-1;display:grid;justify-items:center;gap:14px;padding:28px 16px;text-align:center;align-content:start;align-self:start}
+body #xResults .explore-empty p{margin:0;color:var(--muted);font-size:15px}
+body #xResults .explore-empty-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;align-items:center}
+body #xResults .explore-empty .btn{min-height:44px}
+/* 11-04 five-point step 9 (axe WCAG 2.2 AA): the Chat "Find matches" button keeps the light dark-mode accent
+   (#9cdbdc), so the white label from the rule above measured 1.54:1; its label stays dark (about 11:1). */
+body[data-theme="dark"] #chatSubmit,body[data-theme="dark"] #chatSubmit :is(span,svg){color:#0b1a1f}
