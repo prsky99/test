@@ -829,3 +829,9 @@ body #secOverview .catalog-band .metric-card:nth-child(2) h2{font-weight:700}
  body #secOverview .catalog-band .metric-card .metric-value{font-size:24px}
  body #secOverview .catalog-band .metric-card:nth-child(2) .metric-value{font-size:38px}
 }
+/* 11-04 re-review: on phones the catalog "Updated" line and the workflow illustration labels were 9-11px;
+   12px is the body minimum since 11-02 and still fits inside the necklace centre at 375px. */
+@media(max-width:700px){
+ body #secOverview .catalog-band .snapshot-heading .row :is(time,a){font-size:12px}
+ body #secOverview .necklace .necklace-center :is(.badge,small,.link-button){font-size:12px}
+}
