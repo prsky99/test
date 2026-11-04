@@ -2350,6 +2350,17 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
                    f"Canonical: {base}/.well-known/security.txt\n")
         return PlainTextResponse(content, headers={"Cache-Control": "public, max-age=86400"})
 
+    @router.get("/.well-known/http-message-signatures-directory", include_in_schema=False)
+    def signature_directory(request: Request):
+        """Web Bot Auth key directory: the public key our collector signs requests with (11-04)."""
+        from .. import web_bot_signer as web_bot_auth
+        signer = web_bot_auth.signer()
+        if signer is None:
+            return JSONResponse({"error": "Request signing is not configured."}, status_code=404)
+        body, signature = signer.directory(request.url.netloc)
+        return Response(body, media_type=web_bot_auth.DIRECTORY_MEDIA_TYPE,
+                        headers={**signature, "Cache-Control": "public, max-age=86400"})
+
     @router.get("/sitemap.xml", include_in_schema=False)
     def sitemap(request: Request):
         from ..agent_access.pages import category_links

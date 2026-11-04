@@ -1922,5 +1922,146 @@
     ]
    }
   }
+ ],
+ "review": [
+  {
+   "id": "rv1",
+   "task": "check flight status by flight number",
+   "group": "review-1104",
+   "expect": {
+    "type": "match",
+    "any": [
+     "flight.{0,60}(status|track|arriv|depart|delay|live)|(status|track).{0,40}flight|flightaware|aviation"
+    ],
+    "forbid": [
+     "shop|basket|order status|camden"
+    ],
+    "oracle": "flight status"
+   }
+  },
+  {
+   "id": "rv2",
+   "task": "summarize a pdf research paper",
+   "group": "review-1104",
+   "expect": {
+    "type": "match",
+    "any": [
+     "pdf.{0,80}summar|summar.{0,80}(pdf|document|file)"
+    ],
+    "oracle": "pdf summarization"
+   }
+  },
+  {
+   "id": "rv3",
+   "task": "translate english text to korean",
+   "group": "review-1104",
+   "expect": {
+    "type": "match",
+    "any": [
+     "translat"
+    ],
+    "forbid": [
+     "arabic-first"
+    ],
+    "fit_unknown_or_matched": [
+     "language_pair"
+    ],
+    "oracle": "text translation"
+   }
+  },
+  {
+   "id": "rv4",
+   "task": "convert currency rates without an API key",
+   "group": "review-1104",
+   "expect": {
+    "type": "match",
+    "any": [
+     "exchange rate|currenc|forex|\\bfx\\b"
+    ],
+    "fit_matched": [
+     "no_api_key"
+    ],
+    "oracle": "currency exchange rate"
+   }
+  },
+  {
+   "id": "rv5",
+   "task": "get a weather forecast for Seoul tomorrow",
+   "group": "review-1104",
+   "expect": {
+    "type": "match",
+    "any": [
+     "weather|forecast|meteo"
+    ],
+    "oracle": "weather forecast"
+   }
+  },
+  {
+   "id": "rv6",
+   "task": "help me with my data",
+   "group": "review-1104",
+   "expect": {
+    "type": "status",
+    "status": [
+     "needs_task",
+     "needs_scope",
+     "needs_goal"
+    ]
+   }
+  },
+  {
+   "id": "rv7",
+   "task": "track a parcel delivery with a tracking number",
+   "group": "review-1104",
+   "expect": {
+    "type": "match",
+    "any": [
+     "parcel|package|shipment|courier|carrier|tracking number|logistic"
+    ],
+    "forbid": [
+     "flight"
+    ],
+    "oracle": "parcel tracking"
+   }
+  },
+  {
+   "id": "rv8",
+   "task": "train departures from Berlin Hauptbahnhof",
+   "group": "review-1104",
+   "expect": {
+    "type": "match",
+    "any": [
+     "train|rail|transit|departure|bahn|transport"
+    ],
+    "oracle": "train departures"
+   }
+  },
+  {
+   "id": "rv9",
+   "task": "look up an airport by its IATA code",
+   "group": "review-1104",
+   "expect": {
+    "type": "match",
+    "any": [
+     "airport|iata"
+    ],
+    "oracle": "airport lookup"
+   }
+  },
+  {
+   "id": "rv10",
+   "task": "check the status of a website",
+   "group": "review-1104",
+   "expect": {
+    "type": "match",
+    "any": [
+     "uptime|website.{0,30}(status|monitor|up|down|check)|(status|monitor|ping).{0,30}(website|site|url)|http status"
+    ],
+    "forbid": [
+     "shop|order status|flight"
+    ],
+    "oracle": "website uptime check"
+   }
+  }
  ]
 }

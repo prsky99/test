@@ -109,7 +109,13 @@ def judge(case, reply):
         if any(re.search(p, top) for p in exp.get('forbid', [])): return False, 'forbidden top'
         if exp.get('kind') and items[0].get('kind') != exp['kind']: return False, 'wrong kind ' + str(items[0].get('kind'))
         ok = any(re.search(p, top) for p in exp['any'])
-        return ok, 'top ok' if ok else 'top irrelevant'
+        if not ok: return False, 'top irrelevant'
+        # Condition verdicts an agent reads instead of the sentence (11-04 review A-4).
+        fit = items[0].get('task_fit') or {}
+        missing = [c for c in exp.get('fit_matched', []) if c not in (fit.get('matched') or [])]
+        missing += [c for c in exp.get('fit_unknown_or_matched', [])
+                    if c not in (fit.get('matched') or []) + (fit.get('unknown') or [])]
+        return (False, 'task_fit lacks ' + ','.join(missing)) if missing else (True, 'top ok')
     if exp['type'] == 'parts':
         # Several named capabilities: one match per part, or a request to choose the order.
         return len(items) >= exp['min'] or status in exp['status'], str(status) + ' parts=' + str(len(data.get('request_parts') or []))

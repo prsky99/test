@@ -63,7 +63,11 @@ class PublicOnlyBackend(httpcore.SyncBackend):
 def public_client(allow_private: bool = False, **kwargs) -> httpx.Client:
     """임의 URL에 요청하는 httpx 클라이언트. allow_private가 아니면 직접 연결은 공인 주소로만 한다."""
     kwargs.update(verify=True, trust_env=False, follow_redirects=False)
-    client = httpx.Client(**kwargs)
+    # Web Bot Auth: requests to other people's servers say who sent them when a key is configured.
+    from ..web_bot_signer import httpx_hooks
+    hooks = {name: list(values) for name, values in (kwargs.pop("event_hooks", None) or {}).items()}
+    hooks["request"] = hooks.get("request", []) + httpx_hooks()["request"]
+    client = httpx.Client(event_hooks=hooks, **kwargs)
     if not allow_private:
         pool = getattr(client._transport, "_pool", None)
         if isinstance(pool, httpcore.ConnectionPool) and hasattr(pool, "_network_backend"):
