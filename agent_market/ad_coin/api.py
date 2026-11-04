@@ -42,7 +42,7 @@ def user_ref_of(token):
     return 'u_' + hashlib.sha256(token.encode()).hexdigest()[:24]
 
 
-def router_for(settings=None, service=None, store=None, workflow_reader=None):
+def router_for(settings=None, service=None, store=None, workflow_reader=None, private_flow_reader=None):
     """`store` is the catalog store, read only for the upgrade check.
     `workflow_reader(template_id)` returns a published workflow definition."""
     settings = settings or Settings.from_environment()
@@ -152,6 +152,19 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None):
         if store is None:
             raise AdCoinError('catalog_unavailable', status=503)
         try:
+            if 'private_workflow' in data:
+                from .private_workflows import PrivateWorkflowDenied
+                if private_flow_reader is None:
+                    raise AdCoinError('private_workflows_closed', 'Customer workspaces are not open here.', 503)
+                spec = data.get('private_workflow') if isinstance(data.get('private_workflow'), dict) else {}
+                try:
+                    flow = private_flow_reader(request, spec.get('workspace_id'), spec.get('flow_id'))
+                except PrivateWorkflowDenied as exc:
+                    status = 401 if str(exc) == 'sign_in_required' else 403
+                    raise AdCoinError('private_workflow_' + str(exc),
+                                      'Sign in to your workspace and choose one of your own workflows.', status) from None
+                return check_definition(flow, store.resource, spec.get('runs', 1), 'private_workflow',
+                                        spec.get('flow_id'))
             if 'test_product' in data:
                 spec = data.get('test_product') if isinstance(data.get('test_product'), dict) else {}
                 return check_definition(products.get(spec.get('id')), store.resource, spec.get('runs', 1),
@@ -164,6 +177,8 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None):
             if 'bundle' in data:
                 return bundle_check(store.resource, data.get('bundle'))
             return upgrade_check(store.resource, data.get('recommendation_ids'))
+        except AdCoinError:
+            raise
         except ValueError as exc:
             raise AdCoinError('invalid_recommendation_ids', str(exc)) from None
 

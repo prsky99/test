@@ -598,3 +598,58 @@ def test_http_test_products_flow(tmp_path):
     check = client.post('/api/ad-coin/v1/upgrade-check', headers=person,
                         json={'test_product': {'id': made['id'], 'runs': 5}}).json()
     assert check['price_won'] == 630 and check['sponsorable']
+
+
+# ---------- a customer's own saved workflow ----------
+from agent_market.ad_coin.private_workflows import PrivateWorkflowDenied, project, reader_for  # noqa: E402
+
+PRIVATE = {'id': 'wtf_' + '1' * 32, 'active': True, 'name': 'Secret plan for ACME',
+           'definition': {'nodes': [
+               {'id': 'a', 'resource_id': 7, 'contract_id': 'x', 'input': {'q': 'confidential merger'}, 'bindings': {},
+                'after': [], 'when': None},
+               {'id': 'b', 'resource_id': 8, 'contract_id': 'x', 'input': {}, 'bindings': {'q': 'a.out'},
+                'after': ['a'], 'when': {'path': 'a.ok', 'equals': True}}]}}
+
+
+def test_private_projection_keeps_only_agents_and_counts():
+    projected = project(PRIVATE)
+    text = str(projected)
+    assert 'confidential' not in text and 'ACME' not in text and projected['name'] == 'Your saved workflow'
+    check = check_definition(projected, MICRO.get, 10, 'private_workflow', PRIVATE['id'])
+    # per run 13.8 + 27.6 = 41.4 won; ten runs 414 -> 420 won; conditional step makes it an upper bound
+    assert check['price_won'] == 420 and check['workflow']['upper_bound'] is True
+    assert check['quote_request']['task']['task_ref'].startswith('private-wtf_')
+    assert reader_for(object(), False) is None
+    with pytest.raises(PrivateWorkflowDenied):
+        reader_for(object(), True)(None, '../etc', 'wtf_x')
+
+
+def test_http_private_workflow_needs_the_customers_own_session(tmp_path):
+    token = 'invited-visitor-token'
+    settings = Settings(enabled=True, db_path=str(tmp_path / 'ad.sqlite3'), receipt_key_path=str(tmp_path / 'k.pem'),
+                        admin_token='admin-secret-token', invited=frozenset({hashlib.sha256(token.encode()).hexdigest()}))
+    seen = []
+
+    def reader(request, ws, flow):
+        seen.append((ws, flow))
+        if request.cookies.get('__Host-ac_customer_session') != 'cst_owner':
+            raise PrivateWorkflowDenied('sign_in_required' if not request.cookies else 'not_allowed')
+        return project(PRIVATE)
+
+    class Store:
+        def resource(self, rid):
+            return MICRO.get(rid)
+    app = FastAPI()
+    app.include_router(router_for(settings, store=Store(), private_flow_reader=reader))
+    client = TestClient(app, base_url='https://testserver')
+    person = {'X-Visitor-Token': token}
+    body = {'private_workflow': {'workspace_id': 'ws_' + '2' * 32, 'flow_id': PRIVATE['id'], 'runs': 10}}
+    assert client.post('/api/ad-coin/v1/upgrade-check', headers=person, json=body).status_code == 401
+    client.cookies.set('__Host-ac_customer_session', 'cst_other')
+    assert client.post('/api/ad-coin/v1/upgrade-check', headers=person, json=body).status_code == 403
+    client.cookies.set('__Host-ac_customer_session', 'cst_owner')
+    ok = client.post('/api/ad-coin/v1/upgrade-check', headers=person, json=body)
+    assert ok.status_code == 200 and ok.json()['price_won'] == 420 and 'confidential' not in ok.text
+    closed = FastAPI()
+    closed.include_router(router_for(settings.with_(db_path=str(tmp_path / 'b.sqlite3')), store=Store()))
+    assert TestClient(closed).post('/api/ad-coin/v1/upgrade-check', headers=person, json=body).status_code == 503

@@ -174,6 +174,9 @@ def bundle_check(read_resource, steps):
 
 
 MAX_RUNS = 100
+NOT_FOUND = {'workflow': 'workflow_not_published', 'test_product': 'unknown_test_product',
+             'private_workflow': 'private_workflow_unavailable'}
+PREFIX = {'workflow': 'workflow-', 'test_product': 'product-', 'private_workflow': 'private-'}
 
 
 def workflow_steps(workflow):
@@ -216,7 +219,7 @@ def check_definition(workflow, read_resource, runs, label, ident):
     profile = 'ai-ad-coin-' + label.replace('_', '-') + '-check-v1'
     if not workflow:
         return {'profile': profile, 'upgrade_available': False, 'sponsorable': False,
-                'reason': label + '_not_published' if label == 'workflow' else 'unknown_test_product',
+                'reason': NOT_FOUND.get(label, 'unknown_' + label),
                 'quote_request': None}
     per_run, unpriced, branching = workflow_steps(workflow)
     info = {'id': workflow.get('id', ident), 'name': workflow.get('name'), 'runs': runs, 'kind': label,
@@ -240,7 +243,7 @@ def check_definition(workflow, read_resource, runs, label, ident):
         result['quote_request']['selection'] = {'bundle': steps, label: {
             'id': info['id'], 'definition_hash': info['definition_hash'], 'runs': runs}}
         result['selection_digest'] = selection_digest(result['quote_request']['selection'])
-        prefix = 'workflow-' if label == 'workflow' else 'product-'
+        prefix = PREFIX.get(label, label + '-')
         result['quote_request']['task']['task_ref'] = (prefix + str(info['id']) + ('-' + digest if digest else '')
                                                       + '-x' + str(runs))[:96]
     return result
