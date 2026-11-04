@@ -27,3 +27,13 @@ def test_dark_chat_submit_keeps_a_dark_label():
     css = (ROOT / 'new/en/assets/pearl-live.css').read_text()
     rule = 'body[data-theme="dark"] #chatSubmit,body[data-theme="dark"] #chatSubmit :is(span,svg){color:#0b1a1f}'
     assert rule in css and css.index(rule) > css.index('body[data-theme="dark"] .btn.primary,body[data-theme="dark"] .btn.primary :is(span,svg){color:#fff}')
+
+
+def test_home_task_defaults_to_auto_like_chat():
+    # 11-04 self-test: the home form defaulted to A2A, so common tasks (weather, translation) found no
+    # verified match while the same task in Chat (Auto) did. Auto keeps the A2A-then-MCP order.
+    for name in ('index', 'explore', 'chat'):
+        html = (ROOT / 'new/en' / (name + '.html')).read_text()
+        assert '<select name="protocol" id="home-protocol">\n<option selected>Auto</option>\n<option>A2A</option>' in html
+    chat = (ROOT / 'new/en/chat.html').read_text()
+    assert '<option value="auto">Auto (A2A, then MCP)</option>' in chat
