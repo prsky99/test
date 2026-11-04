@@ -31,6 +31,7 @@ log = logging.getLogger("agent_market.concierge.llm")
 INTENTS = ("greet", "find", "whats_new", "help", "chitchat")  # intents left to the model (commands are handled by rules)
 KINDS = ("a2a", "mcp", "x402")
 BREAK = 60  # after a failure, skip the model for this many seconds
+TRANSLATE_BUDGET, TRANSLATE_WAIT = 3.0, 1.0  # other-language requests (seconds)
 TASK_CACHE_SIZE = 2048  # remembered rewrites and summaries (request text -> validated result)
 # Greetings are already in the templates: drop a leading greeting sentence from model text (small models add one anyway)
 GREETING_RE = re.compile(r"^\s*(?:hello|hi|hey|welcome(?: back)?|greetings|good (?:morning|afternoon|evening))[^.!?]*[.!?]\s*", re.I)
@@ -185,8 +186,14 @@ class LocalLLM:
         }
 
     def rewrite_task(self, text: str, budget: float = 1.8) -> str | None:
-        """One bounded language-normalization attempt; never selects or executes tools."""
+        """One bounded language-normalization attempt; never selects or executes tools.
+
+        A request in another language cannot be searched at all without it (11-04: 11 of 20 Korean
+        misses were "please restate in English" while the model translated each in about 1 s), so
+        that path waits up to TRANSLATE_WAIT for a busy slot and allows TRANSLATE_BUDGET."""
         from .chat_query_rewrite import SYSTEM, validate
+        if type(text) is str and not text.isascii():
+            return self._bounded_task_call(SYSTEM, validate, text, max(budget, TRANSLATE_BUDGET), wait=TRANSLATE_WAIT)
         return self._bounded_task_call(SYSTEM, validate, text, budget)
 
     def summarize_task(self, text: str, budget: float = 1.8) -> str | None:
@@ -196,7 +203,7 @@ class LocalLLM:
             return None
         return self._bounded_task_call(SUMMARY_SYSTEM, validate_summary, text, budget, num_predict=96)
 
-    def _bounded_task_call(self, system, validator, text, budget, num_predict=256):
+    def _bounded_task_call(self, system, validator, text, budget, num_predict=256, wait=0.0):
         from .recommendation_security import public_data
         if (type(text) is not str or not 1 <= len(text) <= 2000
                 or time.time() < self._broken_until
@@ -208,7 +215,7 @@ class LocalLLM:
             if key in self._task_cache:
                 self._task_cache.move_to_end(key)
                 return self._task_cache[key]
-        result = self._bounded_task_answer(system, validator, text, budget, num_predict)
+        result = self._bounded_task_answer(system, validator, text, budget, num_predict, wait)
         if result is not None:
             with self._task_cache_lock:
                 self._task_cache[key] = result
@@ -216,18 +223,20 @@ class LocalLLM:
                     self._task_cache.popitem(last=False)
         return result
 
-    def _bounded_task_answer(self, system, validator, text, budget, num_predict):
+    def _bounded_task_answer(self, system, validator, text, budget, num_predict, wait=0.0):
         from ..local_generation import chat_stream
-        if not self._slots.acquire(blocking=False):
+        if not (self._slots.acquire(timeout=wait) if wait > 0 else self._slots.acquire(blocking=False)):
             return None
-        deadline = time.monotonic() + min(2.0, max(0.1, budget))
+        # Only the language path asks for more than the 2-second cap the other callers keep.
+        limit = min(TRANSLATE_BUDGET, max(0.1, budget))
+        deadline = time.monotonic() + limit
         try:
             body = {"model": self.model, "stream": False, "think": False, "format": "json",
                     "messages": [{"role":"system","content":system},{"role":"user","content":text}],
                     "options":{"temperature":0,"num_predict":num_predict}}
             # No standby retries on this latency-sensitive optional path.
             with chat_stream(self.http, self.url, self.provider, body, allow_http=self.allow_http,
-                             timeout=httpx.Timeout(min(2.0, max(0.1, budget)))) as response:
+                             timeout=httpx.Timeout(limit)) as response:
                 response.raise_for_status()
                 parts, size = [], 0
                 for chunk in response.iter_bytes(chunk_size=4096):

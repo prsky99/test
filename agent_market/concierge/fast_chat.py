@@ -61,10 +61,21 @@ def retrieval_text(task):
     # "alert me on Telegram": the place after "on" is the channel, not a subject to drop.
     text = re.sub(r'\b(?:alert|notify|ping|message|tell)\s+(?:me|us|the team|my team)?\s*(?:on|via|through|in|over)\s+'
                   r'(telegram|slack|discord|whatsapp|teams)\b', r'send \1 message', text, flags=re.I)
+    # "Context: a small shop. Requirement: compose a jingle. Nothing else is needed": the labelled
+    # requirement is the capability; the original stays after "for" for its conditions (stage 1, 11-04).
+    stated = STATED_REQUIREMENT.search(text)
+    need = next((part for part in stated.groups() if part), '') if stated else ''
+    if need and len(text) > len(need) + 20:
+        text = need.strip() + ' for ' + text
     terms = capability_terms(text)
     if terms and set(terms) <= DATABASE_PRODUCTS:
         text += ' database'
     return text
+
+
+STATED_REQUIREMENT = re.compile(
+    r'\b(?:requirements?|task|goal|objective|need)\s*:\s*([^.!?;:]{3,200})'
+    r'|\bautomate\s+(?:one|a single|this|the next|the following)\s+step\s*:\s*([^.!?;:]{3,200})', re.I)
 
 
 QUESTION_FORM = re.compile(r'^\s*(?:what|who|when|where|why|which|how (?:many|much|old|far|tall|long))\b', re.I)
