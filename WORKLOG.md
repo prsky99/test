@@ -10,7 +10,7 @@
   - 원인: 질문형 26%("there"가 핵심어), 흔들림은 LLM 다시 쓰기의 바쁨·2초 포기.
   - 고침: llm.py 성공 캐시, selection.NARRATIVE_LEAD 맨 앞·두 명사·첫 문장, 다른 언어 중심 번역 제외(rv3), discovery 문서 요약(rv2)·웹사이트 가동(rv10).
   - 1k 재평가: 맞음 553→612/800, 196→215/289. 정밀도 87.3/84.6%, 흔들림 2. review 7→10/10.
-  - 릴리스 lead-frontend-20261104-r1(bot-auth-r2 위)·lead-jobs-20261104-r2(bot-auth-jobs-r1 위, 서명 파일 유지) 패키징·검증, 정책 해시 653423698c06. 배포 승인 대기.
+  - 릴리스 lead-frontend-20261104-r1(bot-auth-r2 위)·lead-jobs-20261104-r2(bot-auth-jobs-r1 위, 서명 파일 유지) 패키징·검증, 정책 해시 653423698c06. 사용자 "둘 다 배포": 15:3x jobs → frontend(게이트 56 통과, 활성 b). 운영 확인: 질문형 항공편·웹사이트 상태·영→한 번역이 맞는 1위, PDF 요약은 "없음", 5xx 0. 재생성 중 처음 보는 금융 검색어 1.1~3.2초(첫 1건 3.2초, bond yield curve 처음 연결 4.5초) → 재생성 끝난 뒤 다시 잴 것.
   - 보고: reports/에이전트 증가 대비 추천 정확도 99% 개선 방안 2026-11-04.md 6절
 - Web Bot Auth 켬(2026-11-04 12:50, 프론트앤드, 사용자 지시): 키 gateway-data/web-bot-auth/ed25519.pem, 경로는 gateway-data/web-bot-signer.env(agentcon.env에 넣으면 배포 도구·옛 릴리스가 멈춤 — 한 번 넣었다 즉시 되돌림). frontend bot-auth-frontend-20261104-r2(활성 a), 키 디렉터리 200·서명 검증됨. **jobs 다음 배포 때 web_bot_signer.py·broker/discovery.py·service_host.py·scripts/agentcon_config.py를 실어야 수집기도 서명함**(백엔드 세션 종료로 미전달). → reports/전문가 4인 재평가 2차 2026-11-04.md 4절
 - 전문가 재평가 2차(2026-11-04 12시, 프론트앤드): UX 3.9·디자인 4.3·AI 3.4·웹개발 4.5. 폰 12px 미만 글자 8곳 수정(small-text-frontend-20261104-r1, 활성 b). 추천 항목(rv2·rv3·rv10, 평가 자동화, 조건 줄)은 검색과 RAG 99% 계획에 인계. D2 숨은 화면 보류(116개 ID 직접 참조, INP 64ms). Web Bot Auth 키 생성·agentcon.env 추가는 자동 승인에서 막혀 사용자 실행 대기(보고서 4절 명령). → reports/전문가 4인 재평가 2차 2026-11-04.md
