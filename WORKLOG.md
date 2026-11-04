@@ -2,6 +2,12 @@
 - 11-04: 디스크 점검(여유 150GB, 릴리스 461개 142GB). `agentcon prune-releases` 추가, 383개 삭제, 여유 149.5→191.7GB. 배포·워커 배포 성공 뒤 자동 정리(배포된 것과 6시간 미만 미배포만 남김, `--no-prune`).
 
 ## 완료 (최근 것만)
+- 추천 정확도 단계 1 질문 쪽(2026-11-04 밤, 사용자 "단계 1 시작"·"질문 쪽부터"·"배포")
+  - 손실 분석: 참조 문구로는 찾는데 사용자 문구로 못 찾은 161건 중 후보 600개에 없음 100, 통과 검사 탈락 60, 미선택 1. 원인은 핵심어가 기능어가 아닌 것(오타 37, 장소·대상, 동의어, 긴 맥락 배경, 한국어 핵심어 빔 14).
+  - 오타 교정: concierge/catalog_spelling.respell(어휘 22,354개 catalog_vocabulary.json, scripts/build_catalog_vocabulary.py). 한 글자 거리·첫 글자 제외·대문자 이름 제외·애매하면 그대로. Chat과 discover에 적용(정책 해시 아님).
+  - 나란히 비교: 오타 사례 tuning 57→66/80, holdout 22→27/31. 다른 요청은 진짜 오타 3건만 바뀌고 통과. 커밋 앞 커밋.
+  - 배포 typo-fix-frontend-20261104-r1(evidence-ui-r1 위, 활성 a), 게이트 83=83/110. 운영에서 교정 확인, 새 오류 0.
+  - 남은 손실: 동의어·바꿔 말하기(의미 기반 통과 필요, 단계 2와 함께), 긴 맥락 배경 문장, 한국어 20건.
 - 5점 7단계 화면(2026-11-04 저녁, 프론트앤드): Chat 추천 카드마다 접힌 "Evidence: N of 3 recorded"(마지막 헬스체크·시험 호출 성공/실패·시각·보고서 번호·선택 도구 확인, evidence.unknown은 "Unknown — no record"), 이유 문장은 서버 reason.text 우선, 오른쪽 패널에 헬스체크·시험 호출 두 줄. evidence-ui-frontend-20261104-r1(reason-evidence-r1 위, 릴리스 사본 파일에 패치) 게이트 통과·배포(활성 b), 운영 화면 확인. summary 높이 43px(전역 24px !important 때문, AA 충족). 시험 tests/test_chat_recommendation_evidence.py. → reports/전문가 4인 재평가 2차 2026-11-04.md 6.4절
 - 2차 재평가 4~7단계(2026-11-04 저녁, 사용자 "4~7단계 먼저"·"배포")
   - 4 평가 자동화: scripts/release_gate.py가 Chat 파일(정책 해시 7개+Chat 경로)이 바뀐 릴리스에서 고정 표본 110건(review 10+holdout 100)을 운영·새 릴리스로 평가, 새 실패는 양쪽에서 다시 재서 데이터 변화·흔들림을 빼고, 새 실패−새 통과 2 이상이면 배포 거부. 1회 약 6.5분.
