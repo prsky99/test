@@ -142,15 +142,28 @@ def _browse(store, kind, category, no_auth, *, limit=None, registry=None):
     return (listed if limit is None else listed[:limit]), total
 
 
-def _in_ranked_batches(store, ranked, size=100, *, documents=True):
-    """Yield complete current rows in ranked order, reading only as far as the page needs."""
+def _in_ranked_batches(store, ranked, size=100, *, documents=True, keep=None):
+    """Yield complete current rows in ranked order, reading only as far as the page needs.
+
+    KEEP(row, capability_text) is a necessary admission condition. Once fewer than half of
+    a batch's documents satisfy it, later batches read only document texts first and fetch
+    complete rows for the listings that still can be admitted (0-match searches read all
+    600 candidates: 1.4 s -> about 0.4 s for large MCP pages, 2026-11-04)."""
     from ..application_store_resource_batches import resources
+    from ..explore_document_reader import read as read_documents, texts as read_texts
     ids = [row['id'] for row in ranked]
     order = {row['id']: row for row in ranked}
+    sparse = False
     for start in range(0, len(ids), size):
         batch = ids[start:start + size]
-        from ..explore_document_reader import read as read_documents
+        if documents and keep is not None and sparse:
+            known = read_texts(store, batch)
+            # Only a current document's own text may rule a listing out; the rest are read as before.
+            batch = [rid for rid in batch if rid not in known or keep(order[rid], known[rid])]
         prepared = read_documents(store, batch) if documents else {}
+        if keep is not None and prepared:
+            passing = sum(bool(keep(order[rid], row['_capability_text'])) for rid, row in prepared.items())
+            sparse = passing * 2 < len(prepared)
         missing = [rid for rid in batch if rid not in prepared]
         rows = resources(store, missing, "active=1 AND health_status IN ('healthy','reachable') "
                          "AND COALESCE(eval_security,'') NOT IN ('quarantine','review')", (),
@@ -274,7 +287,13 @@ def explore(store, engine, query, kind, category, verified, no_auth, limit):
     snapshot = store.tx(readonly=True) if getattr(store, "backend", None) == "postgresql" else nullcontext()
     with snapshot:
         lazy = exact_total is None and getattr(store, "backend", None) == "postgresql"
-        full = _in_ranked_batches(store, found, documents=not verified) if lazy else iter(found)
+        keep = None
+        if terms and not registry_filter and str(query).strip():
+            from .explore_search import named_match as named_listing
+            from .selection import text_may_match
+            # The first two checks of task_advertised, on the document text it would read.
+            keep = lambda row, text: named_listing(query, row) or text_may_match(scope_terms, {'_capability_text': text}, core)
+        full = _in_ranked_batches(store, found, documents=not verified, keep=keep) if lazy else iter(found)
         if verified and getattr(store, "backend", None) == "postgresql":
             import json
 

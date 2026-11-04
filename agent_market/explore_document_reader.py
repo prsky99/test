@@ -76,3 +76,38 @@ def read(store, ids):
         value["_capability_text"] = document["text"]
         found[value["id"]] = value
     return found
+
+
+@timed("search_document")
+def texts(store, ids):
+    """Capability text of the documents read() would accept, without the row columns.
+
+    Same policy, generation, size, hash and profile conditions as read(); Explore uses it to
+    skip listings whose own text cannot satisfy the cheap admission condition (2026-11-04).
+    The document is parsed here as read() does: some hold escaped NULs that PostgreSQL
+    json casts reject, which would fail the whole search."""
+    if not ids or not documents.available(store):
+        return {}
+    rows = store._execute(
+        """SELECT r.id,d.document FROM resources r
+        JOIN agentcon_search.explore_documents d ON d.resource_id=r.id
+        JOIN resource_observation_generations g ON g.resource_id=r.id
+        WHERE r.id IN (SELECT value::bigint FROM jsonb_array_elements_text(%s::jsonb))
+        AND d.policy_hash=%s AND octet_length(d.document)<=%s AND d.source_generation=g.generation
+        AND d.document_hash=encode(sha256(convert_to(d.document,'UTF8')),'hex')
+        AND """ + SEARCHABLE,
+        (json.dumps(ids), documents.policy_hash(), documents.MAX_DOCUMENT_BYTES),
+        max_rows=len(ids),
+        max_bytes=32 * 1024 * 1024,
+    ).fetchall()
+    found = {}
+    for rid, encoded in rows:
+        try:
+            document = json.loads(encoded)
+        except (ValueError, TypeError, RecursionError):
+            continue
+        if (isinstance(document, dict) and document.get("profile") == documents.PROFILE
+                and isinstance(document.get("tools"), list) and isinstance(document.get("support"), dict)
+                and isinstance(document.get("text"), str)):
+            found[rid] = document["text"]
+    return found
