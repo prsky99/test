@@ -54,6 +54,9 @@ CREATE TABLE IF NOT EXISTS executions (
     id TEXT PRIMARY KEY, user_ref TEXT NOT NULL, provider TEXT NOT NULL, task_ref TEXT NOT NULL,
     price_won INTEGER NOT NULL, source TEXT NOT NULL, source_ref TEXT NOT NULL, status TEXT NOT NULL,
     result_digest TEXT, created_at REAL NOT NULL, finished_at REAL);
+CREATE TABLE IF NOT EXISTS execution_lines (
+    execution_id TEXT NOT NULL, position INTEGER NOT NULL, provider TEXT NOT NULL, calls INTEGER NOT NULL,
+    won INTEGER NOT NULL, status TEXT NOT NULL, PRIMARY KEY (execution_id, position));
 CREATE TABLE IF NOT EXISTS receipts (
     id TEXT PRIMARY KEY, kind TEXT NOT NULL, user_ref TEXT NOT NULL, body TEXT NOT NULL, created_at REAL NOT NULL);
 CREATE INDEX IF NOT EXISTS receipts_user ON receipts(user_ref, created_at);

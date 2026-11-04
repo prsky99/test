@@ -145,10 +145,12 @@ def router_for(settings=None, service=None, store=None):
 
     @add('POST', '/upgrade-check', 'person')
     def upgrade(request, who, data):
-        from .upgrade import upgrade_check
+        from .upgrade import bundle_check, upgrade_check
         if store is None:
             raise AdCoinError('catalog_unavailable', status=503)
         try:
+            if 'bundle' in data:
+                return bundle_check(store.resource, data.get('bundle'))
             return upgrade_check(store.resource, data.get('recommendation_ids'))
         except ValueError as exc:
             raise AdCoinError('invalid_recommendation_ids', str(exc)) from None
@@ -202,7 +204,7 @@ def router_for(settings=None, service=None, store=None):
                              task_ref=data.get('task_ref'), price_coins=data.get('price_coins'),
                              idem=str(data.get('idempotency_key', ''))[:64] or 'none', actor=actor,
                              agent_ref=agent_of(request), mandate_id=data.get('mandate_id'),
-                             memo=str(data.get('memo', ''))[:200])
+                             memo=str(data.get('memo', ''))[:200], lines=data.get('lines'))
 
     @add('POST', '/vouchers/redeem', 'person')
     def redeem(request, who, data):
@@ -262,7 +264,7 @@ def router_for(settings=None, service=None, store=None):
     @add('POST', '/admin/executions/complete', 'admin')
     def complete(request, who, data):
         return service.complete(execution_id=str(data.get('execution_id', '')), ok=data.get('ok') is True,
-                                result_digest=data.get('result_digest'))
+                                result_digest=data.get('result_digest'), line_results=data.get('line_results'))
 
     @add('POST', '/admin/settle', 'admin')
     def settle(request, who, data):

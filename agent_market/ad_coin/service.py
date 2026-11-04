@@ -64,6 +64,30 @@ def _won(value, name='amount_won', minimum=1, maximum=10_000_000):
     return value
 
 
+MAX_LINES = 20
+
+
+def bundle_lines(lines, price):
+    """Validate a task bundle: lines of (provider, calls, won) that add up to the price.
+    Free steps carry 0 won. None means a single-provider task."""
+    if lines is None:
+        return None
+    if not isinstance(lines, list) or not 1 <= len(lines) <= MAX_LINES:
+        raise AdCoinError('invalid_lines')
+    clean = []
+    for line in lines:
+        if not isinstance(line, dict):
+            raise AdCoinError('invalid_lines')
+        provider = _ref(line.get('provider'), 'provider')
+        calls, won = line.get('calls'), line.get('won')
+        if type(calls) is not int or not 1 <= calls <= 1000 or type(won) is not int or not 0 <= won <= price:
+            raise AdCoinError('invalid_lines')
+        clean.append({'provider': provider, 'calls': calls, 'won': won})
+    if sum(line['won'] for line in clean) != price:
+        raise AdCoinError('invalid_lines', 'Bundle lines must add up to the price.')
+    return clean
+
+
 def coins(won):
     return won // COIN_VALUE_WON
 
@@ -310,6 +334,7 @@ class AdCoinService:
         category = task.get('category')
         if type(category) is not str or not re.fullmatch(CATEGORY, category):
             raise AdCoinError('invalid_category')
+        lines = bundle_lines(task.get('lines'), price)
         self.expire()
         digest = selection_digest(selection)
         quote_id = 'q_' + uuid.uuid4().hex[:20]
@@ -366,7 +391,8 @@ class AdCoinService:
                 'issued_at': int(now()), 'expires_at': int(now() + QUOTE_TTL_SECONDS),
                 'selection_digest': digest,
                 'organic_first': 'The organic recommendation was completed before this packet and did not see it.',
-                'verified_upgrade_target': {'provider': provider, 'task_ref': task_ref, 'category': category},
+                'verified_upgrade_target': {'provider': provider, 'task_ref': task_ref, 'category': category,
+                                            'bundle_lines': lines},
                 'coin_quote_and_balance': {'price_coins': coins(price), 'available_coins': coins(available),
                                            'shortfall_coins': max(coins(price) - coins(available), 0),
                                            'coin_value_won': COIN_VALUE_WON, 'cash_value': None},
@@ -379,14 +405,15 @@ class AdCoinService:
                     'approval_scope': 'one view; never a payment, subscription or transfer'},
                 'ai_generation_notice': AI_NOTICE,
                 'equal_quality_statement': EQUAL_QUALITY,
-                'sponsorship_unavailable_reason': None if sponsorable else (
-                    'circuit_open' if circuit['open'] else 'task_below_minimum'),
+                'sponsorship_unavailable_reason': (
+                    ('no_matching_sponsor' if not any(o['type'] in ('sponsored_run', 'coin_reward') for o in options)
+                     else None) if sponsorable else ('circuit_open' if circuit['open'] else 'task_below_minimum')),
             }
             packet['signature'] = self.signer.sign_payload(packet)
             packet['key_id'] = self.signer.kid
             db.execute('INSERT INTO quotes VALUES (?,?,?,?,?,?,?,?)',
                        (quote_id, user_ref, agent_ref, digest, dumps({'provider': provider, 'task_ref': task_ref,
-                        'price_won': price, 'category': category}), dumps(options), now(), now() + QUOTE_TTL_SECONDS))
+                        'price_won': price, 'category': category, 'lines': lines}), dumps(options), now(), now() + QUOTE_TTL_SECONDS))
         self._after_money_move()
         return packet
 
@@ -576,7 +603,7 @@ class AdCoinService:
 
     # ---------- spending, execution and settlement ----------
     def spend(self, *, user_ref, wallet, provider, task_ref, price_coins, idem, actor='user', agent_ref='',
-              mandate_id=None, memo=''):
+              mandate_id=None, memo='', lines=None):
         """Coins pay a provider's task. An agent acting alone needs a live mandate
         that covers the provider, the per-task limit and the remaining total."""
         source = self._wallet(wallet)
@@ -586,6 +613,7 @@ class AdCoinService:
         if type(price_coins) is not int or not 1 <= price_coins <= 100_000:
             raise AdCoinError('invalid_price')
         price = price_coins * COIN_VALUE_WON
+        lines = bundle_lines(lines, price)
         if memo_findings(memo):
             raise HoldRequired('spend_held', 'The person must confirm this payment directly.')
         if actor == 'agent':
@@ -595,7 +623,9 @@ class AdCoinService:
             if (not row or row['revoked_at'] or row['expires_at'] < now() or row['agent_ref'] != agent_ref
                     or source['agent_ref'] not in ('', agent_ref)):
                 raise HoldRequired('mandate_invalid', 'The mandate is missing, expired, revoked or for another agent.')
-            if provider not in json.loads(row['providers']) or price > row['per_task_won'] \
+            allowed = set(json.loads(row['providers']))
+            needed = {line['provider'] for line in lines if line['won']} if lines else {provider}
+            if not needed <= allowed or price > row['per_task_won'] \
                     or row['spent_won'] + price > row['total_won']:
                 raise HoldRequired('mandate_exceeded', 'This payment is outside the mandate; ask the person.')
         elif actor != 'user':
@@ -608,6 +638,7 @@ class AdCoinService:
                                            {'provider': provider})
                 db.execute('INSERT INTO executions VALUES (?,?,?,?,?,?,?,?,NULL,?,NULL)',
                            (execution_id, user_ref, provider, task_ref, price, 'coins', wallet, 'running', now()))
+                self._insert_lines(db, execution_id, lines)
                 if actor == 'agent':
                     db.execute('UPDATE mandates SET spent_won=spent_won+? WHERE id=?', (price, mandate_id))
         except L.Duplicate as dup:
@@ -626,6 +657,9 @@ class AdCoinService:
         if row['status'] != 'active' or row['expires_at'] < now():
             raise AdCoinError('voucher_closed', status=409)
         execution_id = 'x_' + uuid.uuid4().hex[:20]
+        task = self.db.one('SELECT q.task FROM vouchers v JOIN reservations r ON r.id=v.reservation_id '
+                           'JOIN quotes q ON q.id=r.quote_id WHERE v.id=?', (voucher_id,))
+        lines = json.loads(task['task']).get('lines') if task else None
         with self.db.transaction() as db:
             db.execute("UPDATE vouchers SET status='redeemed' WHERE id=?", (voucher_id,))
             self.ledger.post('redeem', 'redeem:' + voucher_id + ':' + execution_id,
@@ -633,6 +667,7 @@ class AdCoinService:
             db.execute('INSERT INTO executions VALUES (?,?,?,?,?,?,?,?,NULL,?,NULL)',
                        (execution_id, user_ref, row['provider'], row['task_ref'], row['price_won'], 'voucher',
                         voucher_id, 'running', now()))
+            self._insert_lines(db, execution_id, lines)
         self._after_money_move()
         return {'status': 'running', 'execution_id': execution_id,
                 'provider_request': self.provider_request(execution_id)}
@@ -641,35 +676,86 @@ class AdCoinService:
         """What the provider receives. It never says how the run was funded, so a
         sponsored run cannot be served differently from a paid one."""
         row = self.db.one('SELECT id, provider, task_ref FROM executions WHERE id=?', (execution_id,))
-        return {'execution_id': row['id'], 'provider': row['provider'], 'task_ref': row['task_ref']}
+        request = {'execution_id': row['id'], 'provider': row['provider'], 'task_ref': row['task_ref']}
+        lines = self._lines_of(execution_id)
+        if lines:
+            request['lines'] = [{'position': l['position'], 'provider': l['provider'], 'calls': l['calls']} for l in lines]
+        return request
 
-    def complete(self, *, execution_id, ok, result_digest=None):
+    def _insert_lines(self, db, execution_id, lines):
+        for position, line in enumerate(lines or []):
+            db.execute('INSERT INTO execution_lines VALUES (?,?,?,?,?,?)',
+                       (execution_id, position, line['provider'], line['calls'], line['won'], 'running'))
+
+    def _lines_of(self, execution_id):
+        return self.db.all('SELECT * FROM execution_lines WHERE execution_id=? ORDER BY position', (execution_id,))
+
+    def complete(self, *, execution_id, ok, result_digest=None, line_results=None):
+        """Finish a run. For a bundle, `line_results` lists success per line in
+        order; successful lines are paid to their providers and the rest goes
+        back to whoever funded it (the wallet, or the sponsor's escrow)."""
         row = self.db.one('SELECT * FROM executions WHERE id=?', (execution_id,))
         if not row:
             raise AdCoinError('unknown_execution', status=404)
         if row['status'] != 'running':
             raise AdCoinError('execution_closed', status=409)
-        if ok and (type(result_digest) is not str or not re.fullmatch(r'sha256:[0-9a-f]{64}', result_digest)):
-            raise AdCoinError('result_digest_required')
+        lines = self._lines_of(execution_id)
+        if line_results is None:
+            results = [bool(ok)] * len(lines)
+        elif lines and isinstance(line_results, list) and len(line_results) == len(lines) \
+                and all(type(r) is bool for r in line_results):
+            results = line_results
+        else:
+            raise AdCoinError('invalid_line_results')
         price = row['price_won']
+        if lines:
+            paid_lines = [(l, r) for l, r in zip(lines, results)]
+            paid = sum(l['won'] for l, r in paid_lines if r)
+            any_ok = any(results)
+        else:
+            paid = price if ok else 0
+            any_ok = bool(ok)
+        refund = price - paid
+        if any_ok and (type(result_digest) is not str or not re.fullmatch(r'sha256:[0-9a-f]{64}', result_digest)):
+            raise AdCoinError('result_digest_required')
+        outcome = 'succeeded' if refund == 0 and any_ok else ('refunded' if not any_ok else 'partial')
         with self.db.transaction() as db:
             db.execute('UPDATE executions SET status=?, result_digest=?, finished_at=? WHERE id=?',
-                       ('succeeded' if ok else 'refunded', result_digest, now(), execution_id))
-            if ok:
-                target = L.provider_payable(row['provider'])
-            elif row['source'] == 'voucher':
-                target = L.voucher(row['source_ref'])
-                db.execute("UPDATE vouchers SET status='active' WHERE id=?", (row['source_ref'],))
-            else:
-                target = row['source_ref']
-            journal = self.ledger.post('complete' if ok else 'refund', 'finish:' + execution_id,
-                                       [(L.inflight(execution_id), -price), (target, price)])
-            receipt = self.signer.issue(self.db, 'execution' if ok else 'refund', row['user_ref'], {
+                       (outcome, result_digest, now(), execution_id))
+            postings = [(L.inflight(execution_id), -price)]
+            if lines:
+                for line, success in paid_lines:
+                    db.execute('UPDATE execution_lines SET status=? WHERE execution_id=? AND position=?',
+                               ('succeeded' if success else 'refunded', execution_id, line['position']))
+                    if success and line['won']:
+                        postings.append((L.provider_payable(line['provider']), line['won']))
+            elif paid:
+                postings.append((L.provider_payable(row['provider']), paid))
+            refund_to = None
+            if refund:
+                if row['source'] != 'voucher':
+                    refund_to = row['source_ref']
+                elif not any_ok:
+                    refund_to = L.voucher(row['source_ref'])
+                    db.execute("UPDATE vouchers SET status='active' WHERE id=?", (row['source_ref'],))
+                else:
+                    campaign = db.execute('SELECT r.campaign_id FROM vouchers v JOIN reservations r '
+                                          'ON r.id=v.reservation_id WHERE v.id=?', (row['source_ref'],)).fetchone()
+                    refund_to = L.escrow(campaign['campaign_id'])
+                postings.append((refund_to, refund))
+            merged = {}
+            for account, amount in postings:
+                merged[account] = merged.get(account, 0) + amount
+            journal = self.ledger.post({'succeeded': 'complete', 'refunded': 'refund'}.get(outcome, 'partial'),
+                                       'finish:' + execution_id, [(a, v) for a, v in merged.items() if v])
+            receipt = self.signer.issue(self.db, 'refund' if outcome == 'refunded' else 'execution', row['user_ref'], {
                 'journal_id': journal, 'execution_id': execution_id, 'provider': row['provider'],
-                'task_ref': row['task_ref'], 'coins': coins(price), 'funded_by': row['source'],
-                'result_digest': result_digest, 'outcome': 'succeeded' if ok else 'refunded'})
+                'task_ref': row['task_ref'], 'coins': coins(price), 'paid_won': paid, 'refunded_won': refund,
+                'refunded_to': None if not refund_to else refund_to.split(':', 1)[0],
+                'line_results': results or None, 'funded_by': row['source'],
+                'result_digest': result_digest, 'outcome': outcome})
         self._after_money_move()
-        return {'status': 'succeeded' if ok else 'refunded', 'receipt': receipt}
+        return {'status': outcome, 'paid_won': paid, 'refunded_won': refund, 'receipt': receipt}
 
     def settle_provider(self, provider, idem):
         """Test mode: a virtual payout of everything owed to one provider."""

@@ -96,3 +96,78 @@ def upgrade_check(read_resource, ids):
                           'task': {'provider': 'r' + str(target['id']), 'task_ref': 'resource-' + str(target['id']),
                                    'price_won': target['price_won'], 'category': target['category']}}})
     return result
+
+
+MAX_STEPS = 20
+MAX_CALLS = 1000
+
+
+def _allocate(micro_lines, total_won):
+    """Split a total rounded once to whole coins across lines, largest remainders first,
+    so line amounts are whole won and add up exactly."""
+    floors = [m // 1_000_000 for m in micro_lines]
+    left = total_won - sum(floors)
+    order = sorted((i for i, m in enumerate(micro_lines) if m), key=lambda i: (-(micro_lines[i] % 1_000_000), i))
+    k = 0
+    while left > 0 and order:
+        floors[order[k % len(order)]] += 1
+        left -= 1
+        k += 1
+    return floors
+
+
+def bundle_check(read_resource, steps):
+    """Price a task bundle the organic plan already chose: steps of catalog agents and
+    how many calls each needs. One run of the bundle is the unit a sponsor can cover;
+    single x402 calls are mostly far below the 50-coin minimum."""
+    if not isinstance(steps, list) or not 1 <= len(steps) <= MAX_STEPS:
+        raise ValueError('bundle needs 1 to 20 steps.')
+    clean = []
+    for step in steps:
+        if (not isinstance(step, dict) or type(step.get('resource_id')) is not int or step['resource_id'] <= 0
+                or type(step.get('calls')) is not int or not 1 <= step['calls'] <= MAX_CALLS):
+            raise ValueError('Each step needs a catalog resource_id and 1 to 1000 calls.')
+        clean.append({'resource_id': step['resource_id'], 'calls': step['calls']})
+    digest = selection_digest({'bundle': clean})
+    result = {'profile': 'ai-ad-coin-bundle-check-v1', 'selection_digest': digest, 'upgrade_available': False,
+              'sponsorable': False, 'lines': [], 'quote_request': None, 'order_preserved': True}
+    micro, rows = [], []
+    for step in clean:
+        row = read_resource(step['resource_id'])
+        if not row:
+            result['reason'] = 'unknown_step'
+            result['unknown'] = step['resource_id']
+            return result
+        fact = facts(row)
+        unit = row.get('price_usdc') if type(row.get('price_usdc')) is int and row.get('price_usdc') > 0 else 0
+        micro.append(unit * USD_WON * step['calls'])
+        rows.append((step, fact))
+    blocked = [f['id'] for s, f in rows if f['price_won'] and not f['accepts_coins']]
+    total_micro = sum(micro)
+    total = math.ceil(total_micro / 1_000_000 / COIN_VALUE_WON) * COIN_VALUE_WON if total_micro else 0
+    split = _allocate(micro, total) if total else [0] * len(rows)
+    result['lines'] = [{'resource_id': f['id'], 'name': f['name'], 'calls': s['calls'], 'won': won,
+                        'grade': f['grade'], 'health': f['health'], 'accepts_coins': f['accepts_coins'] or not f['price_won']}
+                       for (s, f), won in zip(rows, split)]
+    result['price_won'] = total
+    result['price_coins'] = total // COIN_VALUE_WON
+    if not total:
+        result['reason'] = 'all_steps_free'
+        return result
+    if blocked:
+        result['reason'] = 'bundle_has_ineligible_step'
+        result['blocked'] = blocked
+        return result
+    costliest = max(rows, key=lambda item: micro[rows.index(item)])[1]
+    sponsorable = eligible_for_sponsorship(total) and total <= SPONSOR_MAX_WON
+    result.update({'upgrade_available': True, 'reason': 'paid_bundle', 'sponsorable': sponsorable,
+                   'sponsorship_note': None if sponsorable else (
+                       'below_sponsorship_minimum: pay with coins or use the free result' if total < 500 else
+                       'above_sponsorship_cap: a sponsor cannot cover one run of this price')})
+    if total <= QUOTE_MAX_WON:
+        result['quote_request'] = {'selection': {'bundle': clean}, 'task': {
+            'provider': 'bundle', 'task_ref': 'bundle-' + digest[7:23], 'price_won': total,
+            'category': costliest['category'],
+            'lines': [{'provider': 'r' + str(line['resource_id']), 'calls': line['calls'], 'won': line['won']}
+                      for line in result['lines']]}}
+    return result

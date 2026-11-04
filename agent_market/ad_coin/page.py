@@ -37,8 +37,8 @@ ul{padding-left:20px;margin:6px 0}
 <div class="out" id="wallet" aria-live="polite"></div></section>
 
 <section aria-labelledby="try-h"><h2 id="try-h">Try a sponsored run</h2>
-<p class="muted">Paste the agent ids from a Chat answer, in the order shown, to check for a paid upgrade. Leave it empty to use an example (comparing five papers in full text, 60 coins).</p>
-<label for="ids">Agent ids from the answer (comma separated)</label><input id="ids" inputmode="numeric" autocomplete="off">
+<p class="muted">Paste the agent ids from a Chat answer, in the order shown, to check for a paid upgrade. For a multi-step task, write each step as id x calls (for example 109457x20, 116275x1); one run of the whole task is what a sponsor can cover. Leave it empty to use an example (comparing five papers in full text, 60 coins).</p>
+<label for="ids">Agent ids or steps from the answer (comma separated)</label><input id="ids" inputmode="numeric" autocomplete="off">
 <div class="row"><button id="quote" class="secondary">Show funding options</button></div>
 <div id="card" hidden>
 <p class="ad" id="card-label"></p><p id="card-text"></p><p class="muted" id="card-digest"></p>
@@ -81,10 +81,19 @@ $('load-wallet').onclick=function(){busy('load-wallet',true);say('wallet','Loadi
   .catch(function(e){say('wallet',e.message)}).finally(function(){busy('load-wallet',false)})};
 var current=null;
 $('quote').onclick=function(){busy('quote',true);say('quote-out','Loading...');$('card').hidden=true;
-  var ids=$('ids').value.split(',').map(function(x){return parseInt(x.trim(),10)}).filter(function(x){return x>0});
+  var raw=$('ids').value.split(',').map(function(x){return x.trim()}).filter(Boolean);
+  var bundle=raw.some(function(x){return /x/i.test(x)});
+  var ids=bundle?[]:raw.map(function(x){return parseInt(x,10)}).filter(function(x){return x>0});
+  var steps=bundle?raw.map(function(x){var p=x.toLowerCase().split('x');return {resource_id:parseInt(p[0],10),calls:parseInt(p[1]||'1',10)}}):[];
   var example={selection:{items:[{agent:'openscholar-finder',price:'free'},{agent:'research-pro',price_coins:60}],chosen:'research-pro'},
     task:{provider:'research-pro',task_ref:'compare-5-papers',price_won:600,category:'deep_research/academic'}};
-  var request=ids.length?call('/upgrade-check',{recommendation_ids:ids}).then(function(u){
+  var request=bundle?call('/upgrade-check',{bundle:steps}).then(function(b){
+      if(!b.upgrade_available)throw new Error('This task needs no paid step or a step cannot take coins ('+b.reason+'). The free result stays available.');
+      say('quote-out','Task of '+b.lines.length+' steps: '+b.price_coins+' coins in total ('+b.lines.map(function(l){return l.calls+' x '+(l.name||l.resource_id)+' = '+l.won+' won'}).join('; ')+').'+
+        (b.sponsorable?'':' It cannot be sponsored at this price; pay with coins or keep the free result.'));
+      if(!b.quote_request)throw new Error('This task costs more than a sponsor can cover.');
+      return call('/quotes',b.quote_request)}):
+    ids.length?call('/upgrade-check',{recommendation_ids:ids}).then(function(u){
       if(!u.upgrade_available)throw new Error('No paid upgrade for this answer ('+u.reason+'). The free result is the right choice.');
       say('quote-out','Paid option from the answer: '+u.target.name+' ('+u.target.price_coins+' coins, grade '+u.target.grade+').');
       if(!u.quote_request)throw new Error('This paid agent costs more than a sponsor can cover. Compare it with the free result first.');
@@ -92,7 +101,8 @@ $('quote').onclick=function(){busy('quote',true);say('quote-out','Loading...');$
       return call('/quotes',u.quote_request)}):call('/quotes',example);
   request.then(function(p){var opt=null;
     p.funding_options.forEach(function(o){if(!opt&&o.type==='sponsored_run')opt=o;if(!opt&&o.type==='coin_reward')opt=o.items[0]});
-    if(!opt){say('quote-out','No sponsor is available now ('+(p.sponsorship_unavailable_reason||'none')+'). The free result is ready.');return}
+    if(!opt){var why={no_matching_sponsor:'no test sponsor bids enough for this task',task_below_minimum:'the task is below 50 coins',circuit_open:'sponsorship is paused'}[p.sponsorship_unavailable_reason]||'none';
+      $('quote-out').textContent=($('quote-out').textContent?$('quote-out').textContent+'\n':'')+'No sponsor now: '+why+'. You can pay with coins ('+p.coin_quote_and_balance.price_coins+' needed, '+p.coin_quote_and_balance.available_coins+' available) or keep the free result.';return}
     current={rid:opt.reservation_id};
     say('card-label','[Ad | Sponsored offer] '+opt.sponsor);
     say('card-text',opt.title+' - '+opt.body+(opt.coins?' You receive '+opt.coins+' coins.':' This covers one run of the task.'));

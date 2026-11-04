@@ -124,7 +124,9 @@ def test_failed_run_restores_voucher_and_decline_releases_hold(svc):
 
 def test_small_tasks_and_unrelated_sponsors_get_no_offer(svc):
     campaign(svc, categories=('dev_tools',))
-    assert option(quote(svc), 'sponsored_run') is None
+    unrelated = quote(svc)
+    assert option(unrelated, 'sponsored_run') is None
+    assert unrelated['sponsorship_unavailable_reason'] == 'no_matching_sponsor'
     campaign(svc)
     packet = quote(svc, task={**TASK, 'price_won': 300})
     assert option(packet, 'sponsored_run') is None and packet['sponsorship_unavailable_reason'] == 'task_below_minimum'
@@ -427,3 +429,71 @@ def test_upgrade_check_marks_what_a_sponsor_can_cover():
     assert small['upgrade_available'] and not small['sponsorable'] and small['quote_request']
     big = upgrade_check(rows.get, [6])
     assert big['upgrade_available'] and not big['sponsorable'] and big['quote_request'] is None
+
+
+# ---------- task bundles ----------
+from agent_market.ad_coin.upgrade import bundle_check  # noqa: E402
+
+MICRO = {**CATALOG,
+         7: {'id': 7, 'name': 'Tiny lookup', 'kind': 'x402', 'price_usdc': 10_000, 'eval_grade': 'A',
+             'health_status': 'healthy', 'category': 'Research', 'active': 1},          # 13.8 won a call
+         8: {'id': 8, 'name': 'Tiny summary', 'kind': 'x402', 'price_usdc': 20_000, 'eval_grade': 'B',
+             'health_status': 'healthy', 'category': 'Writing', 'active': 1}}          # 27.6 won a call
+
+
+def test_bundle_rounds_once_and_lines_add_up():
+    check = bundle_check(MICRO.get, [{'resource_id': 7, 'calls': 30}, {'resource_id': 8, 'calls': 10},
+                                     {'resource_id': 1, 'calls': 5}])
+    # 30 x 13.8 + 10 x 27.6 = 414 + 276 = 690 won -> 69 coins, one rounding for the whole task
+    assert check['price_won'] == 690 and check['sponsorable'] and check['upgrade_available']
+    assert [line['won'] for line in check['lines']] == [414, 276, 0]
+    task = check['quote_request']['task']
+    assert sum(line['won'] for line in task['lines']) == task['price_won'] and task['category'] == 'research'
+    assert bundle_check(MICRO.get, [{'resource_id': 7, 'calls': 1}])['sponsorable'] is False
+    assert bundle_check(MICRO.get, [{'resource_id': 1, 'calls': 3}])['reason'] == 'all_steps_free'
+    blocked = bundle_check(MICRO.get, [{'resource_id': 7, 'calls': 50}, {'resource_id': 3, 'calls': 1}])
+    assert blocked['reason'] == 'bundle_has_ineligible_step' and blocked['blocked'] == [3]
+    for bad in ([], [{'resource_id': 7, 'calls': 0}], [{'resource_id': 7}], [{'resource_id': 7, 'calls': 1}] * 21):
+        with pytest.raises(ValueError):
+            bundle_check(MICRO.get, bad)
+
+
+def test_sponsored_bundle_pays_each_provider_and_returns_failed_steps_to_the_sponsor(svc):
+    c = campaign(svc, categories=('research',))
+    check = bundle_check(MICRO.get, [{'resource_id': 7, 'calls': 30}, {'resource_id': 8, 'calls': 10}])
+    packet = svc.quote(user_ref='u_alice', agent_ref='helper', operator_ref='agent:helper', **check['quote_request'])
+    assert packet['selection_digest'] == check['selection_digest']
+    award = view(svc, option(packet, 'sponsored_run')['reservation_id'])
+    escrow_before = svc.campaign(c['id'])['escrow_won']
+    started = svc.redeem_voucher(user_ref='u_alice', voucher_id=award['voucher_id'])
+    assert [l['provider'] for l in started['provider_request']['lines']] == ['r7', 'r8']
+    assert 'funded_by' not in str(started['provider_request'])
+    with pytest.raises(AdCoinError):
+        svc.complete(execution_id=started['execution_id'], ok=True, result_digest='sha256:' + 'b' * 64,
+                     line_results=[True])
+    done = svc.complete(execution_id=started['execution_id'], ok=True, result_digest='sha256:' + 'b' * 64,
+                        line_results=[True, False])
+    assert done['status'] == 'partial' and done['paid_won'] == 414 and done['refunded_won'] == 276
+    assert svc.ledger.balance(L.provider_payable('r7')) == 414 and svc.ledger.balance(L.provider_payable('r8')) == 0
+    assert svc.campaign(c['id'])['escrow_won'] == escrow_before + 276
+    assert svc.ledger.invariant()['ok']
+
+
+def test_coin_bundle_refunds_failed_steps_to_the_wallet_and_mandate_covers_every_provider(svc):
+    wallet = svc._ensure_wallet('u_alice', 'helper')
+    svc.ledger.post('promo', 'p', [(L.EXTERNAL_FUNDING, -1000), (wallet, 1000)])
+    lines = [{'provider': 'r7', 'calls': 30, 'won': 414}, {'provider': 'r8', 'calls': 10, 'won': 276}]
+    m = svc.create_mandate(user_ref='u_alice', agent_ref='helper', total_coins=100, per_task_coins=70,
+                           providers=['r7'], days=7)
+    with pytest.raises(HoldRequired):
+        svc.spend(user_ref='u_alice', wallet=wallet, provider='bundle', task_ref='b', price_coins=69, idem='x',
+                  actor='agent', agent_ref='helper', mandate_id=m['id'], lines=lines)
+    with pytest.raises(AdCoinError):
+        svc.spend(user_ref='u_alice', wallet=wallet, provider='bundle', task_ref='b', price_coins=70, idem='y',
+                  lines=lines)
+    run = svc.spend(user_ref='u_alice', wallet=wallet, provider='bundle', task_ref='b', price_coins=69, idem='z',
+                    lines=lines)
+    done = svc.complete(execution_id=run['execution_id'], ok=False, line_results=[False, True],
+                        result_digest='sha256:' + 'c' * 64)
+    assert done['refunded_won'] == 414 and svc.ledger.balance(wallet) == 1000 - 690 + 414
+    assert svc.ledger.invariant()['ok']
