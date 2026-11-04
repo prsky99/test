@@ -8,6 +8,7 @@
   - 나란히 비교: 오타 사례 tuning 57→66/80, holdout 22→27/31. 다른 요청은 진짜 오타 3건만 바뀌고 통과. 커밋 앞 커밋.
   - 배포 typo-fix-frontend-20261104-r1(evidence-ui-r1 위, 활성 a), 게이트 83=83/110. 운영에서 교정 확인, 새 오류 0.
   - 남은 손실: 동의어·바꿔 말하기(의미 기반 통과 필요, 단계 2와 함께), 긴 맥락 배경 문장, 한국어 20건.
+  - 한국어·긴 맥락(사용자 "한국어·긴 맥락"·"배포"): llm.rewrite_task가 다른 언어 요청만 바쁜 슬롯을 1초 기다리고 3초 허용(모델은 실패하던 한국어 10건을 약 1초에 정확히 번역). fast_chat.retrieval_text가 "Requirement:/Task:/automate one step:" 요구를 앞세움. 한국어·긴 맥락 283건 214→224(커버리지↑, 정밀도 유지). 배포 lang-context-frontend-20261104-r1(typo-fix-r1 위, 활성 b), 게이트 84→85/110. 운영: "웹페이지 내용 긁어오기"·"두 날짜 사이 일수 계산"이 되묻기 대신 추천, 새 오류 0.
 - 5점 7단계 화면(2026-11-04 저녁, 프론트앤드): Chat 추천 카드마다 접힌 "Evidence: N of 3 recorded"(마지막 헬스체크·시험 호출 성공/실패·시각·보고서 번호·선택 도구 확인, evidence.unknown은 "Unknown — no record"), 이유 문장은 서버 reason.text 우선, 오른쪽 패널에 헬스체크·시험 호출 두 줄. evidence-ui-frontend-20261104-r1(reason-evidence-r1 위, 릴리스 사본 파일에 패치) 게이트 통과·배포(활성 b), 운영 화면 확인. summary 높이 43px(전역 24px !important 때문, AA 충족). 시험 tests/test_chat_recommendation_evidence.py. → reports/전문가 4인 재평가 2차 2026-11-04.md 6.4절
 - 2차 재평가 4~7단계(2026-11-04 저녁, 사용자 "4~7단계 먼저"·"배포")
   - 4 평가 자동화: scripts/release_gate.py가 Chat 파일(정책 해시 7개+Chat 경로)이 바뀐 릴리스에서 고정 표본 110건(review 10+holdout 100)을 운영·새 릴리스로 평가, 새 실패는 양쪽에서 다시 재서 데이터 변화·흔들림을 빼고, 새 실패−새 통과 2 이상이면 배포 거부. 1회 약 6.5분.
