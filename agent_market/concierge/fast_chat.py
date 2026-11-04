@@ -185,6 +185,54 @@ def agent_display_name(item):
     return kind+' agent'+(' #'+str(item['id']) if type(item.get('id')) is int else '')
 
 
+# Words that say what kind of answer is wanted rather than what it is about ("status", "number").
+GENERIC_SUBJECT_TERMS = frozenset({'status','number','numbers','data','info','information','check','get','find',
+    'lookup','look','search','list','details','detail','value','values','current','latest','today','tool','api',
+    'service','agent','free','key','account','without','using','tomorrow'})
+
+
+def subject_first(task, items):
+    """When the first candidate never names the task's subject ("flight") and another does, that one leads.
+
+    Only that case moves: a full reorder by word count lost "convert time between time zones" on the
+    evaluation set (11-04), while a shop's "order status" leading "check flight status" is the failure."""
+    from .selection import _term_in
+    terms = [t for t in search_terms(task) if t not in GENERIC_SUBJECT_TERMS]
+    if len(items) < 2 or not terms:
+        return items
+    def said(item):
+        text = ' '.join([str(item.get('name') or ''), str(item.get('description') or '')] +
+                        [str(s.get('name') or '') + ' ' + str(s.get('description') or '') for s in item.get('tools_schema') or []]).lower()
+        return sum(1 for t in terms if _term_in(t, text))
+    if said(items[0]):
+        return items
+    best = max(range(1, len(items)), key=lambda i: (said(items[i]), -i))
+    return [items[best]] + items[:best] + items[best + 1:] if said(items[best]) else items
+
+
+def merged_fit(required, item):
+    """One verdict per requested condition: declared tool constraints, recorded conditions and access needs."""
+    fit = item.get('task_fit') or {}
+    matched, unknown, violated = list(fit.get('matched') or []), list(fit.get('unknown') or []), list(fit.get('violated') or [])
+    seen = lambda key: key in matched or key in unknown or key in violated
+    needs_auth = item.get('auth_required')
+    for key in ('no_api_key', 'no_account'):
+        if key in (required or ()) and not seen(key):
+            if needs_auth is False:
+                matched.append(key)
+            elif needs_auth and key == 'no_api_key' and 'key' in str(item.get('auth_method') or '').lower():
+                violated.append(key)
+            else:
+                unknown.append(key)
+    check = item.get('condition_check') or {}
+    for name, bucket in (('matched', matched), ('unknown', unknown), ('violated', violated)):
+        for key in check.get(name) or []:
+            if not seen(key):
+                bucket.append(key)
+    return {'matched': matched, 'unknown': unknown, 'violated': violated,
+            'status': 'mismatch' if violated else 'unknown' if unknown else 'match'}
+
+
 # Tasks the catalog answers well, offered when a request names no task.
 CLARIFY_EXAMPLES = ('Find research papers on a topic', 'Get a weather forecast for a city',
                     'Convert currency rates without an API key')
@@ -378,9 +426,12 @@ class FastConcierge(Concierge):
             if no_match_data.get('cross_protocol_hint'):
                 message += ' ' + no_match_data['cross_protocol_hint']['message']
             return Reply(message, 'find', no_match_data)
+        # Among the admitted candidates, the ones whose own words name the task's subject lead (11-04 review A-1).
+        items = subject_first(task, items)
         step('prepare')
         for item in items:
             item['display_name'] = agent_display_name(item)
+            item['task_fit'] = merged_fit(spec.required, item)
         if persist:
             with self.book.batch():
                 self.book.save_results(v,[{**item,'task':task,'task_spec':spec.state(),'protocol_filter':protocol} for item in items],offset+len(items))
