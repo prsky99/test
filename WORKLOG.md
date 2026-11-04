@@ -2,6 +2,12 @@
 - 11-04: 디스크 점검(여유 150GB, 릴리스 461개 142GB). `agentcon prune-releases` 추가, 383개 삭제, 여유 149.5→191.7GB. 배포·워커 배포 성공 뒤 자동 정리(배포된 것과 6시간 미만 미배포만 남김, `--no-prune`).
 
 ## 완료 (최근 것만)
+- 탐색 사전 거르기(2026-11-04 17시, 프론트앤드 세션이 넘긴 탐색 서버 시간 단축, 사용자 "배포")
+  - 원인: 결과 적은·0건 검색이 후보 600개 문서를 끝까지 읽음(큰 MCP 묶음 1.4초).
+  - 고침: 한 묶음에서 통과 가능한 문서가 절반 미만이면 다음 묶음은 문서 텍스트만 먼저 읽고(explore_document_reader.texts), named_match·text_may_match를 통과할 수 없는 문서는 전체 읽기 생략(hybrid_explore._in_ranked_batches). jsonb 캐스트는 NUL 이스케이프 문서에서 실패해 Python 파싱으로.
+  - 검증: 운영 읽기 전용, 같은 프로세스 끔·켬 교대 70건 결과 같음, 합계 39.4→33.4초, p95 1.40→1.11초. 커밋 20e002a7.
+  - 배포 explore-prefilter-frontend-20261104-r2(home-auto-r1 위, 게이트 56 통과, 활성 b). 배포 뒤 처음 보는 40건(부하 6.8): 서버 p50 1.03·p95 1.63·최대 3.07초, 2.4초 초과 2건, 새 오류 0.
+  - Chat 빈 결과(PDF 요약, calendar alerts)는 검증된 작동 목록이 없는 것(참조 검색도 0건). rv1 flight status는 새 데이터(FareEagle get_airline_info 1위)로 실패, 순위 과제.
 - 5점 8~11단계(2026-11-04 17:30, 프론트앤드): 0건·오류 다음 행동(recovery-a11y r1·r2), axe 36조합 위반 1→0(다크 Chat 버튼), 홈 프로토콜 기본값 A2A→Auto(home-auto-r1), 자체 과업 시험 3/5(실패 2건은 검증 목록 없음), D2 부분 적용은 이득 없음으로 미채택. 임시 인덱스 커밋 뒤 기본 인덱스에 18개 파일이 되돌림 상태로 남은 것 발견·정리. 7단계는 검색과 RAG 알림 대기.
 - 탐색 서버 시간 원인 분석(2026-11-04 16:10, 프론트앤드): candidates 순차 읽기 7.5초·묶음 읽기 4.4초·과업 일치 검사 3.4초(검색 6건). 0건 검색어가 가장 느림(600 후보 전부 읽음). 구현은 사용자 지시로 검색과 RAG 세션에 넘김(2차 보고서 6.2절).
 - 5점 1~3단계(2026-11-04 15:50, 프론트앤드): five-step-frontend-20261104-r2(lead-frontend-r1 위) 배포. 홈 숫자 data-primary, 배너 × "Essential only", RUM(/api/rum, rum.py, logs/service-frontend/rum, 식별자 없음·GPC/DNT 제외). r1이 lead-frontend를 몇 분 덮은 사고 → r2로 복구, 배포 직전 슬롯 재확인. 탐색 재측정은 부하 7~8에서 체감 p95 5.3초(서버 3.5초)로 미달, 부하<5 자동 재측정 대기, 타이머 밖 대기 1.6~4.1초 발견.
@@ -13,7 +19,7 @@
   - 원인: 질문형 26%("there"가 핵심어), 흔들림은 LLM 다시 쓰기의 바쁨·2초 포기.
   - 고침: llm.py 성공 캐시, selection.NARRATIVE_LEAD 맨 앞·두 명사·첫 문장, 다른 언어 중심 번역 제외(rv3), discovery 문서 요약(rv2)·웹사이트 가동(rv10).
   - 1k 재평가: 맞음 553→612/800, 196→215/289. 정밀도 87.3/84.6%, 흔들림 2. review 7→10/10.
-  - 릴리스 lead-frontend-20261104-r1(bot-auth-r2 위)·lead-jobs-20261104-r2(bot-auth-jobs-r1 위, 서명 파일 유지) 패키징·검증, 정책 해시 653423698c06. 사용자 "둘 다 배포": 15:3x jobs → frontend(게이트 56 통과, 활성 b). 운영 확인: 질문형 항공편·웹사이트 상태·영→한 번역이 맞는 1위, PDF 요약은 "없음", 5xx 0. 재생성 중 처음 보는 금융 검색어 1.1~3.2초(첫 1건 3.2초, bond yield curve 처음 연결 4.5초) → 재생성 끝난 뒤 다시 잴 것.
+  - 릴리스 lead-frontend-20261104-r1(bot-auth-r2 위)·lead-jobs-20261104-r2(bot-auth-jobs-r1 위, 서명 파일 유지) 패키징·검증, 정책 해시 653423698c06. 사용자 "둘 다 배포": 15:3x jobs → frontend(게이트 56 통과, 활성 b). 운영 확인: 질문형 항공편·웹사이트 상태·영→한 번역이 맞는 1위, PDF 요약은 "없음", 5xx 0. 재생성 중 처음 보는 금융 검색어 1.1~3.2초(첫 1건 3.2초, bond yield curve 처음 연결 4.5초) → 재생성 끝난 뒤 다시 잴 것. 15:4x 프론트앤드가 five-step-frontend-20261104-r2(lead-frontend-r1 위 13개 파일)로 바꿈: 세 파일·정책 해시 653423698c06 유지 확인. 대기 슬롯 a(five-step-r1)에는 세 파일이 없으니 a로 되돌리지 말 것. 다음 frontend는 five-step-r2 기준.
   - 보고: reports/에이전트 증가 대비 추천 정확도 99% 개선 방안 2026-11-04.md 6절
 - Web Bot Auth 켬(2026-11-04 12:50, 프론트앤드, 사용자 지시): 키 gateway-data/web-bot-auth/ed25519.pem, 경로는 gateway-data/web-bot-signer.env(agentcon.env에 넣으면 배포 도구·옛 릴리스가 멈춤 — 한 번 넣었다 즉시 되돌림). frontend bot-auth-frontend-20261104-r2(활성 a), 키 디렉터리 200·서명 검증됨. **jobs 다음 배포 때 web_bot_signer.py·broker/discovery.py·service_host.py·scripts/agentcon_config.py를 실어야 수집기도 서명함**(백엔드 세션 종료로 미전달). → reports/전문가 4인 재평가 2차 2026-11-04.md 4절
 - 전문가 재평가 2차(2026-11-04 12시, 프론트앤드): UX 3.9·디자인 4.3·AI 3.4·웹개발 4.5. 폰 12px 미만 글자 8곳 수정(small-text-frontend-20261104-r1, 활성 b). 추천 항목(rv2·rv3·rv10, 평가 자동화, 조건 줄)은 검색과 RAG 99% 계획에 인계. D2 숨은 화면 보류(116개 ID 직접 참조, INP 64ms). Web Bot Auth 키 생성·agentcon.env 추가는 자동 승인에서 막혀 사용자 실행 대기(보고서 4절 명령). → reports/전문가 4인 재평가 2차 2026-11-04.md
