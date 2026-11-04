@@ -282,6 +282,7 @@ Commands:
                     Managed mode: verify and activate a prepared web release
   worker-deploy jobs|execution <release>
                     Managed mode: drain and replace one background service
+  (deploy and worker-deploy delete old releases after a verified switch; --no-prune keeps them)
   prune-releases [--apply] [--keep N] [--min-age-days D]
                     Managed mode: list (or with --apply delete) old releases;
                     state.json releases, running ones, the newest N and young ones stay

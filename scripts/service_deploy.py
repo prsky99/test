@@ -25,6 +25,8 @@ from agent_market.application_runtime import _private_bytes
 from agent_market.service_host import probe_token
 
 PORTS = {'frontend': {'a': 8401, 'b': 8402}, 'admin': {'a': 8201, 'b': 8202}}
+# Undeployed releases younger than this survive the post-deploy prune (another session may deploy them next).
+AFTER_DEPLOY_MIN_AGE_HOURS = 6
 RELEASE = re.compile(r'[a-zA-Z0-9][a-zA-Z0-9_.-]{0,79}\Z')
 
 
@@ -823,6 +825,21 @@ class Deployment:
                 'kept_young': len(young - recent - protected), 'to_remove': len(remove),
                 'removed': len(removed), 'applied': apply, 'oldest_removed': remove[:3], 'newest_removed': remove[-3:]}
 
+    def prune_after_deploy(self):
+        """After a verified deploy keep only what is deployed (11-04 user decision).
+
+        state.json releases (active, rollback slot, worker previous) and running ones stay; so do releases
+        packaged in the last AFTER_DEPLOY_MIN_AGE_HOURS that another session may be about to deploy.
+        A prune problem never fails the deploy that already succeeded.
+        """
+        try:
+            result = self.prune_releases(keep=0, min_age_days=AFTER_DEPLOY_MIN_AGE_HOURS / 24, apply=True)
+            return {key: result[key] for key in ('removed', 'protected', 'kept_young')}
+        except BlockingIOError:
+            return {'skipped': 'deploy_lock_busy'}
+        except Exception as error:
+            return {'skipped': type(error).__name__ + ': ' + str(error)[:200]}
+
     def status(self):
         state = self.state()
         result = {'managed': state['managed'], 'phase': state['phase'], 'services': {}}
@@ -858,6 +875,7 @@ def main():
     package = commands.add_parser('package'); package.add_argument('release')
     deploy = commands.add_parser('deploy'); deploy.add_argument('role', choices=PORTS); deploy.add_argument('release')
     deploy.add_argument('--skip-gate', action='store_true', help='emergency only: deploy a frontend release without scripts.release_gate')
+    deploy.add_argument('--no-prune', action='store_true', help='keep old releases after a successful deploy')
     rollback = commands.add_parser('rollback'); rollback.add_argument('role', choices=PORTS)
     commands.add_parser('status')
     prune = commands.add_parser('prune-releases', help='dry run unless --apply')
@@ -872,6 +890,7 @@ def main():
     restart = commands.add_parser('restart'); restart.add_argument('role', nargs='?', choices=('all', 'frontend', 'admin'), default='all')
     cutover = commands.add_parser('cutover'); cutover.add_argument('release'); cutover.add_argument('--legacy-pid', type=int, required=True)
     worker = commands.add_parser('worker-deploy'); worker.add_argument('role', choices=('jobs', 'execution')); worker.add_argument('release')
+    worker.add_argument('--no-prune', action='store_true', help='keep old releases after a successful deploy')
     args = parser.parse_args()
     manager = Deployment(args.root)
     if args.command == 'package':
@@ -881,6 +900,8 @@ def main():
         if args.role == 'frontend' and not args.skip_gate:
             release_gate(args.root, args.release)
         result = manager.deploy(args.role, args.release)
+        if not args.no_prune:
+            result['pruned'] = manager.prune_after_deploy()
     elif args.command == 'rollback':
         result = manager.rollback(args.role)
     elif args.command == 'recover':
@@ -893,6 +914,8 @@ def main():
         result = manager.cutover(args.release, args.legacy_pid)
     elif args.command == 'worker-deploy':
         result = manager.deploy_worker(args.role, args.release)
+        if not args.no_prune:
+            result['pruned'] = manager.prune_after_deploy()
     elif args.command == 'restart':
         result = manager.restart_web(args.role)
     elif args.command == 'start':

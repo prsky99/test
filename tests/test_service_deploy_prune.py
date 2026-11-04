@@ -81,3 +81,67 @@ def test_running_releases_reads_paths_under_this_release_directory(tmp_path, mon
     monkeypatch.setattr('scripts.service_deploy.subprocess.run',
                         lambda *a, **k: type('R', (), {'stdout': listing})())
     assert manager.running_releases() == {'live-r1', 'gate-r2'}
+
+
+def test_after_a_deploy_only_deployed_and_recently_packaged_releases_stay(deployment):
+    manager, now = deployment
+    path = manager.directory / 'releases' / 'r19'
+    (path / 'release.json').write_text(json.dumps({'release': 'r19', 'created': time.time() - 3600}))
+    result = manager.prune_after_deploy()
+    # state.json releases r00-r04 and running r05 stay; r19 was packaged an hour ago and may be deployed next.
+    assert result['removed'] == 13 and result['kept_young'] == 1
+    assert names(manager) == ['r00', 'r01', 'r02', 'r03', 'r04', 'r05', 'r19']
+
+
+def test_a_busy_lock_skips_the_post_deploy_prune_without_failing(deployment):
+    manager, now = deployment
+    with manager.lock():
+        assert manager.prune_after_deploy() == {'skipped': 'deploy_lock_busy'}
+    assert len(names(manager)) == 20
+
+
+class Recorder:
+    calls = []
+    fail = False
+
+    def __init__(self, root):
+        pass
+
+    def deploy(self, role, release):
+        self.calls.append(('deploy', role, release))
+        if self.fail:
+            raise RuntimeError('probe_failed')
+        return {'service': role, 'release': release}
+
+    def deploy_worker(self, role, release):
+        self.calls.append(('worker', role, release))
+        return {'services': {}}
+
+    def prune_after_deploy(self):
+        self.calls.append(('prune',))
+        return {'removed': 2}
+
+
+@pytest.mark.parametrize('argv,expected', [
+    (['deploy', 'admin', 'x-r1'], [('deploy', 'admin', 'x-r1'), ('prune',)]),
+    (['worker-deploy', 'jobs', 'x-r1'], [('worker', 'jobs', 'x-r1'), ('prune',)]),
+    (['deploy', 'admin', 'x-r1', '--no-prune'], [('deploy', 'admin', 'x-r1')]),
+])
+def test_deploy_commands_prune_only_after_success(monkeypatch, capsys, argv, expected):
+    from scripts import service_deploy
+    Recorder.calls, Recorder.fail = [], False
+    monkeypatch.setattr(service_deploy, 'Deployment', Recorder)
+    monkeypatch.setattr('sys.argv', ['service_deploy', *argv])
+    service_deploy.main()
+    assert Recorder.calls == expected
+    assert '"pruned"' in capsys.readouterr().out or '--no-prune' in argv
+
+
+def test_a_failed_deploy_deletes_nothing(monkeypatch):
+    from scripts import service_deploy
+    Recorder.calls, Recorder.fail = [], True
+    monkeypatch.setattr(service_deploy, 'Deployment', Recorder)
+    monkeypatch.setattr('sys.argv', ['service_deploy', 'deploy', 'admin', 'x-r1'])
+    with pytest.raises(RuntimeError):
+        service_deploy.main()
+    assert Recorder.calls == [('deploy', 'admin', 'x-r1')]
