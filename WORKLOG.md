@@ -1,5 +1,5 @@
 # 작업 기록 (짧게 유지: 끝날 때마다 몇 줄 갱신)
-- 11-04: 디스크 점검(여유 150GB, 릴리스 461개 142GB). `agentcon prune-releases` 추가, 미리보기 383개 대상, 실제 삭제는 사용자 확인 대기.
+- 11-04: 디스크 점검(여유 150GB, 릴리스 461개 142GB). `agentcon prune-releases` 추가, 383개 삭제, 여유 149.5→191.7GB.
 
 ## 완료 (최근 것만)
 - MCP 비동기 작업(2026-11-04 오후, 프론트앤드, 사용자 "설계대로 구현"): run_workflow 도구(공개 REST 실행과 같은 검사, definition_hash 필수, taskSupport optional)와 tasks/get·result·cancel(concierge/mcp_tasks.py, 작업 ID=실행 ID.실행 키). mcp_contract에 넣어 런타임·mcp.json·홈 JSON 14개 도구 일치. mcp-tasks-frontend-20261104-r2 배포(활성 a), 운영에서 워크플로 38번 작업 실행 completed 3/3 확인(첫 회는 제공자 일시 실패). → reports/전문가 4인 재평가 2026-11-04.md 6.6절
