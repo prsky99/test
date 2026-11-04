@@ -551,6 +551,20 @@ class FastConcierge(Concierge):
         elif offset == 0:
             step('cover')
             items, parts = self._cover_parts(task, items, protocol, excluded)
+        if not items and offset == 0:
+            # Last: the words the listings closest in meaning share, when the request's own words
+            # never appear in them ("emotion analysis" -> listings that say "sentiment"; stage 2, 11-05).
+            shared = neighbor_focus(self.store, getattr(self.rec, 'rag_engine', None), task, protocol)
+            if shared:
+                step('narrow')
+                ranked, closeness = semantic_rank(getattr(self.rec, 'rag_engine', None), task,
+                                                  self.rec.search(shared + ' for ' + task, kind=protocol,
+                                                                  limit=SEMANTIC_SHORTLIST, exclude=excluded))
+                # Words the request never said need a clearly close tool; below the bar, no answer
+                # is more accurate than a guess (tuning chose 0.73: 39 answers, 95% right).
+                if ranked and closeness is not None and closeness >= NEIGHBOR_CLOSENESS:
+                    items = ranked[:3]
+                    focus = focus or shared
         if not items:
             if persist:
                 with self.book.batch():
