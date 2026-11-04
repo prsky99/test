@@ -50,6 +50,8 @@ class Settings:
     invited: frozenset = field(default_factory=frozenset)  # sha256 hex of invited visitor tokens
     issuer: str = 'https://agentconcierge.biz'
     test_mode: bool = True   # fixed until the grand opening; payments stay closed
+    write_per_minute: int = 120   # per person, agent key or advertiser member
+    read_per_minute: int = 600
 
     @classmethod
     def from_environment(cls, environ=None):

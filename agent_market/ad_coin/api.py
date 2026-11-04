@@ -76,6 +76,10 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
     products = TestProducts(service.db)
     from .people import People, PeopleError, customer_session, user_ref_for_customer
     people = People(service.db)
+    from .advertisers import AdvertiserConsole
+    console = AdvertiserConsole(service, people)
+    from ..broker.server import RateLimiter
+    write_limit, read_limit = RateLimiter(settings.write_per_minute), RateLimiter(settings.read_per_minute)
 
     def identity():
         return customer_identity() if callable(customer_identity) else customer_identity
@@ -146,7 +150,23 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
                 try:
                     if kind == 'admin' and not is_admin(request):
                         return _json({'error': 'admin_required'}, 403)
-                    who = await run_in_threadpool(person, request) if kind in ('person', 'customer') else None
+                    if kind == 'advertiser':
+                        if is_admin(request):
+                            who = 'admin'
+                        else:
+                            await run_in_threadpool(person, request)
+                            state = acting(request)
+                            if state.get('source') != 'customer':
+                                return _json({'error': 'customer_session_required',
+                                              'message': 'Sign in to your workspace to manage advertising.'}, 403)
+                            who = state['customer_id']
+                    else:
+                        who = await run_in_threadpool(person, request) if kind in ('person', 'customer') else None
+                    if who and who not in ('admin', 'u_admin'):
+                        limiter = write_limit if request.method in ('POST', 'PUT') else read_limit
+                        if not limiter.allow(who):
+                            return JSONResponse({'error': 'rate_limited', 'message': 'Too many requests; retry soon.'},
+                                                status_code=429, headers={**NO_STORE, 'Retry-After': '60'})
                     if kind in ('person', 'customer') and not who:
                         return _json({'error': 'invitation_required',
                                       'message': 'AI AD Coin is in a closed test. Sign in with an invited account.'}, 403)
@@ -416,6 +436,121 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
     def list_test_products(request, who, data):
         return {'test_products': products.list()}
 
+    # ---- advertiser console (signed-in customers who belong to an advertiser) ----
+    def adv_id(request, data):
+        return str(data.get('advertiser_id') or request.query_params.get('advertiser_id') or '')
+
+    @add('GET', '/advertisers', 'advertiser')
+    def list_advertisers(request, who, data):
+        return {'advertisers': console.advertisers(who)}
+
+    @add('POST', '/advertisers', 'advertiser')
+    def create_advertiser(request, who, data):
+        return console.create_advertiser(who, name=data.get('name'), website=data.get('website'))
+
+    @add('GET', '/advertiser', 'advertiser')
+    def get_advertiser(request, who, data):
+        aid = adv_id(request, data)
+        return {'advertiser': console.advertiser(aid, who), 'members': console.members(aid, who),
+                'notifications': console.notifications(aid, who)}
+
+    @add('POST', '/advertiser/members', 'advertiser')
+    def set_member(request, who, data):
+        return {'members': console.set_member(adv_id(request, data), who, data.get('customer_id'), data.get('role'))}
+
+    @add('GET', '/advertiser/campaigns', 'advertiser')
+    def adv_campaigns(request, who, data):
+        return {'campaigns': console.campaigns(adv_id(request, data), who)}
+
+    @add('POST', '/advertiser/campaigns', 'advertiser')
+    def adv_create_campaign(request, who, data):
+        return console.create_campaign(adv_id(request, data), who, data)
+
+    @add('POST', '/advertiser/campaigns/update', 'advertiser')
+    def adv_update_campaign(request, who, data):
+        return console.update_campaign(adv_id(request, data), who, str(data.get('campaign_id', '')),
+                                       {k: v for k, v in data.items() if k not in ('advertiser_id', 'campaign_id')})
+
+    @add('POST', '/advertiser/campaigns/fund', 'advertiser')
+    def adv_fund(request, who, data):
+        return console.fund(adv_id(request, data), who, str(data.get('campaign_id', '')), data.get('amount_won'),
+                            str(data.get('idempotency_key', '')) or 'none')
+
+    @add('POST', '/advertiser/creatives', 'advertiser')
+    def adv_add_creative(request, who, data):
+        return console.add_creative(adv_id(request, data), who, str(data.get('campaign_id', '')), data)
+
+    @add('POST', '/advertiser/creatives/edit', 'advertiser')
+    def adv_edit_creative(request, who, data):
+        return console.edit_creative(adv_id(request, data), who, str(data.get('creative_id', '')), data)
+
+    @add('POST', '/advertiser/appeals', 'advertiser')
+    def adv_appeal(request, who, data):
+        return console.appeal(adv_id(request, data), who, str(data.get('creative_id', '')), data.get('reason'))
+
+    @add('GET', '/advertiser/report', 'advertiser')
+    def adv_report(request, who, data):
+        try:
+            days = int(request.query_params.get('days', '30'))
+        except ValueError:
+            raise AdCoinError('invalid_days') from None
+        return console.report(adv_id(request, data), who, campaign_id=request.query_params.get('campaign_id') or None,
+                              days=days)
+
+    @router.get(PREFIX + '/advertiser/report.csv', include_in_schema=False)
+    async def adv_report_csv(request: Request):
+        try:
+            if is_admin(request):
+                who = 'admin'
+            else:
+                await run_in_threadpool(person, request)
+                state = acting(request)
+                if state.get('source') != 'customer':
+                    return _json({'error': 'customer_session_required'}, 403)
+                who = state['customer_id']
+            days = int(request.query_params.get('days', '30'))
+            text = await run_in_threadpool(console.report_csv, adv_id(request, {}), who,
+                                           campaign_id=request.query_params.get('campaign_id') or None, days=days)
+        except AdCoinError as exc:
+            return _error(exc)
+        except ValueError:
+            return _json({'error': 'invalid_days'}, 400)
+        return Response(text, media_type='text/csv', headers={**NO_STORE,
+                        'Content-Disposition': 'attachment; filename="ai-ad-coin-report.csv"'})
+
+    @add('GET', '/advertiser/statement', 'advertiser')
+    def adv_statement(request, who, data):
+        return console.statement(adv_id(request, data), who)
+
+    @add('GET', '/advertiser/history', 'advertiser')
+    def adv_history(request, who, data):
+        return {'history': console.history(adv_id(request, data), who)}
+
+    # ---- operator review of advertisers ----
+    @add('GET', '/admin/reviews', 'admin')
+    def reviews(request, who, data):
+        return {'queue': console.review_queue()}
+
+    @add('POST', '/admin/reviews/decide', 'admin')
+    def decide(request, who, data):
+        return console.decide(str(data.get('creative_id', '')), data.get('decision'), data.get('note', ''))
+
+    @add('POST', '/admin/advertisers/verification', 'admin')
+    def verification(request, who, data):
+        return console.set_verification(str(data.get('advertiser_id', '')), data.get('verification'))
+
+    @add('POST', '/admin/advertisers/status', 'admin')
+    def account_status(request, who, data):
+        return console.set_account_status(str(data.get('advertiser_id', '')), data.get('status'))
+
+    @add('POST', '/admin/platform-reserve', 'admin')
+    def platform_reserve(request, who, data):
+        return console.fund_platform_reserve(data.get('amount_won'), str(data.get('idempotency_key', '')) or 'none')
+
+    @add('POST', '/admin/invalid-activity', 'admin')
+    def invalid_activity(request, who, data):
+        return console.mark_invalid(str(data.get('reservation_id', '')), data.get('reason', 'invalid'))
+
     @add('GET', '/admin/invites', 'admin')
     def invites(request, who, data):
         return {'invites': people.invites()}
@@ -495,6 +630,16 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
         from .admin_page import SCRIPT as ADMIN_SCRIPT
         return Response(ADMIN_SCRIPT, media_type='text/javascript', headers={**NO_STORE, 'Content-Security-Policy': csp})
 
+    @router.get('/ad-coin/advertiser', include_in_schema=False)
+    async def advertiser_page():
+        from .advertiser_page import PAGE as ADV_PAGE
+        return HTMLResponse(ADV_PAGE, headers={**NO_STORE, 'Content-Security-Policy': csp})
+
+    @router.get('/ad-coin/advertiser.js', include_in_schema=False)
+    async def advertiser_script():
+        from .advertiser_page import SCRIPT as ADV_SCRIPT
+        return Response(ADV_SCRIPT, media_type='text/javascript', headers={**NO_STORE, 'Content-Security-Policy': csp})
+
     @router.get('/ad-coin/app.js', include_in_schema=False)
     async def script():
         from .page import SCRIPT
@@ -502,4 +647,5 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
                         headers={**NO_STORE, 'Content-Security-Policy': csp})
 
     router.ad_coin_service = service
+    router.ad_coin_console = console
     return router

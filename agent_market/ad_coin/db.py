@@ -70,6 +70,47 @@ CREATE TABLE IF NOT EXISTS ad_coin_run_claims (
     run_key TEXT PRIMARY KEY, execution_id TEXT NOT NULL, created_at REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS ad_coin_audits (
     id TEXT PRIMARY KEY, created_at REAL NOT NULL, passed INTEGER NOT NULL, summary TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS ad_coin_campaign_categories (
+    campaign_id TEXT NOT NULL, category TEXT NOT NULL, parent TEXT NOT NULL, PRIMARY KEY (campaign_id, category));
+CREATE INDEX IF NOT EXISTS ad_coin_campaign_categories_lookup ON ad_coin_campaign_categories(category, parent);
+CREATE INDEX IF NOT EXISTS ad_coin_campaign_categories_parent ON ad_coin_campaign_categories(parent);
+CREATE INDEX IF NOT EXISTS ad_coin_reservations_campaign_day ON ad_coin_reservations(campaign_id, created_at);
+CREATE INDEX IF NOT EXISTS ad_coin_reservations_user ON ad_coin_reservations(user_ref, status);
+CREATE INDEX IF NOT EXISTS ad_coin_reservations_expiry ON ad_coin_reservations(status, expires_at);
+CREATE INDEX IF NOT EXISTS ad_coin_exposures_user_day ON ad_coin_exposures(user_ref, day);
+CREATE INDEX IF NOT EXISTS ad_coin_vouchers_expiry ON ad_coin_vouchers(status, expires_at);
+CREATE INDEX IF NOT EXISTS ad_coin_vouchers_user ON ad_coin_vouchers(user_ref, status);
+CREATE INDEX IF NOT EXISTS ad_coin_campaigns_product ON ad_coin_campaigns(product, status);
+CREATE TABLE IF NOT EXISTS ad_coin_advertisers (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, website TEXT NOT NULL, status TEXT NOT NULL,
+    verification TEXT NOT NULL, created_by TEXT NOT NULL, created_at REAL NOT NULL);
+CREATE TABLE IF NOT EXISTS ad_coin_advertiser_members (
+    advertiser_id TEXT NOT NULL, customer_id TEXT NOT NULL, role TEXT NOT NULL, created_at REAL NOT NULL,
+    revoked_at REAL, PRIMARY KEY (advertiser_id, customer_id));
+CREATE INDEX IF NOT EXISTS ad_coin_advertiser_members_customer ON ad_coin_advertiser_members(customer_id);
+CREATE TABLE IF NOT EXISTS ad_coin_campaign_meta (
+    campaign_id TEXT PRIMARY KEY, advertiser_id TEXT NOT NULL, name TEXT NOT NULL, daily_budget_won INTEGER NOT NULL,
+    starts_at REAL NOT NULL, ends_at REAL, frequency_cap INTEGER NOT NULL, excluded TEXT NOT NULL,
+    review_status TEXT NOT NULL, review_note TEXT NOT NULL, user_status TEXT NOT NULL,
+    created_at REAL NOT NULL, updated_at REAL NOT NULL);
+CREATE INDEX IF NOT EXISTS ad_coin_campaign_meta_advertiser ON ad_coin_campaign_meta(advertiser_id);
+CREATE TABLE IF NOT EXISTS ad_coin_creatives (
+    id TEXT PRIMARY KEY, campaign_id TEXT NOT NULL, title TEXT NOT NULL, body TEXT NOT NULL, question TEXT NOT NULL,
+    answer TEXT NOT NULL, public_url TEXT NOT NULL, review_status TEXT NOT NULL, review_note TEXT NOT NULL,
+    weight INTEGER NOT NULL, created_at REAL NOT NULL, updated_at REAL NOT NULL, removed_at REAL);
+CREATE INDEX IF NOT EXISTS ad_coin_creatives_campaign ON ad_coin_creatives(campaign_id, review_status);
+CREATE TABLE IF NOT EXISTS ad_coin_reservation_creatives (
+    reservation_id TEXT PRIMARY KEY, creative_id TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS ad_coin_appeals (
+    id TEXT PRIMARY KEY, advertiser_id TEXT NOT NULL, object_ref TEXT NOT NULL, reason TEXT NOT NULL,
+    status TEXT NOT NULL, resolution TEXT NOT NULL, created_at REAL NOT NULL, resolved_at REAL);
+CREATE TABLE IF NOT EXISTS ad_coin_change_log (
+    id TEXT PRIMARY KEY, advertiser_id TEXT NOT NULL, actor TEXT NOT NULL, action TEXT NOT NULL,
+    object_ref TEXT NOT NULL, detail TEXT NOT NULL, created_at REAL NOT NULL);
+CREATE INDEX IF NOT EXISTS ad_coin_change_log_advertiser ON ad_coin_change_log(advertiser_id, created_at);
+CREATE TABLE IF NOT EXISTS ad_coin_invalid_activity (
+    reservation_id TEXT PRIMARY KEY, campaign_id TEXT NOT NULL, reason TEXT NOT NULL, refunded_won INTEGER NOT NULL,
+    created_at REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS ad_coin_receipts (
     id TEXT PRIMARY KEY, kind TEXT NOT NULL, user_ref TEXT NOT NULL, body TEXT NOT NULL, created_at REAL NOT NULL);
 CREATE INDEX IF NOT EXISTS ad_coin_receipts_user ON ad_coin_receipts(user_ref, created_at);
@@ -140,7 +181,7 @@ def dumps(value):
 # ---------------- application PostgreSQL store ----------------
 import re as _re
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 _OR_IGNORE = _re.compile(r'^\s*INSERT OR IGNORE INTO\s+(.*)$', _re.S)
 
 

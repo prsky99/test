@@ -70,7 +70,7 @@ def test_migration_is_explicit_additive_and_idempotent(cluster):
     assert status(store) == {'schema_version': None, 'rows': {}}
     first = migrate(store)
     again = migrate(store)
-    assert first == again and first['schema_version'] == 1 and 'ad_coin_journals' in first['tables']
+    assert first == again and first['schema_version'] == dbmod.SCHEMA_VERSION and 'ad_coin_journals' in first['tables']
     assert status(store)['rows']['ad_coin_journals'] == 0
     # a restarted service re-attaches to the same database with the ad_coin_* tables present
     connection = psycopg.connect(host=cluster['socket'], port=PORT, dbname='adcoin_migrate', user='postgres',

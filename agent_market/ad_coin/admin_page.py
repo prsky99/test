@@ -35,6 +35,15 @@ table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}th{white
 <div class="row"><input id="circuit-reason" placeholder="회로를 여는 이유"><button id="open-circuit" class="secondary">회로 열기</button><button id="close-circuit" class="secondary">회로 닫기</button></div>
 <div class="out" id="circuit-out" aria-live="polite"></div></section>
 
+<section><h2>광고 검토·광고주 관리</h2>
+<p class="muted">자동 검토에서 사람이 볼 광고(민감한 주장, 웹사이트 밖 공개 사본, 이의 제기)가 여기 쌓입니다. 광고주를 인증하면 하루 2만 원 제한이 풀립니다.</p>
+<div class="row"><button id="v-queue" class="secondary">검토 대기열</button></div><div class="out" id="v-out" aria-live="polite"></div>
+<div class="row"><input id="v-adv" placeholder="광고주 ID (adv_...)"><select id="v-state"><option value="verified">인증</option><option value="unverified">미인증</option><option value="rejected">거절</option></select><button id="v-verify" class="secondary">인증 상태 저장</button>
+<select id="v-acct"><option value="active">활성</option><option value="suspended">정지</option></select><button id="v-status" class="secondary">계정 상태 저장</button></div>
+<div class="row"><input id="v-resv" placeholder="무효로 볼 예약 ID (h_...)"><input id="v-reason" placeholder="이유"><button id="v-invalid" class="secondary">무효 처리·환불</button>
+<input id="v-reserve" placeholder="환불 준비금(원)" inputmode="numeric"><button id="v-fund" class="secondary">준비금 충전(가상)</button></div>
+<div class="out" id="v-ops" aria-live="polite"></div></section>
+
 <section><h2>후원 감사</h2>
 <p class="muted">매달 같은 질문을 후원 끔·켬·끔으로 돌려 추천 상위 3개가 바뀌는지 봅니다. 바뀐 질문이 하나라도 있으면 회로가 열려 후원 제안이 멈춥니다. 실행: <code>nice -n 10 .venv/bin/python -m scripts.ad_coin_sponsorship_audit</code></p>
 <div class="row"><button id="a-list" class="secondary">감사 기록</button></div><div class="out" id="a-out" aria-live="polite"></div></section>
@@ -139,6 +148,17 @@ function invites(){var box=$('i-out');box.textContent='불러오는 중...';call
     if(v.status==='invited')row.appendChild(action('거두기',function(){call('/admin/invites/revoke',{customer_id:v.customer_id}).then(invites).catch(function(e){t.textContent=e.message})},true));
     box.appendChild(row)})}).catch(function(e){box.textContent=e.message})}
 $('i-list').onclick=invites;
+function queue(){say('v-out','불러오는 중...');call('/admin/reviews').then(function(d){var box=$('v-out');box.textContent=d.queue.length?'':'검토할 광고가 없습니다.';
+  d.queue.forEach(function(q){var row=document.createElement('div');row.className='row';var t=document.createElement('span');
+    t.textContent=q.advertiser+' · '+q.title+' — '+q.body+' · '+q.public_url+(q.note?' · '+q.note:'');row.appendChild(t);
+    [['eligible','승인'],['eligible_limited','제한 승인'],['disapproved','비승인']].forEach(function(d){row.appendChild(action(d[1],function(){
+      call('/admin/reviews/decide',{creative_id:q.creative_id,decision:d[0]}).then(queue).catch(function(e){t.textContent=e.message})},d[0]!=='eligible'))});
+    box.appendChild(row)})}).catch(function(e){say('v-out',e.message)})}
+$('v-queue').onclick=queue;
+$('v-verify').onclick=function(){call('/admin/advertisers/verification',{advertiser_id:$('v-adv').value.trim(),verification:$('v-state').value}).then(function(a){say('v-ops',a.name+': '+a.verification)}).catch(function(e){say('v-ops',e.message)})};
+$('v-status').onclick=function(){call('/admin/advertisers/status',{advertiser_id:$('v-adv').value.trim(),status:$('v-acct').value}).then(function(a){say('v-ops',a.name+': '+a.status)}).catch(function(e){say('v-ops',e.message)})};
+$('v-invalid').onclick=function(){call('/admin/invalid-activity',{reservation_id:$('v-resv').value.trim(),reason:$('v-reason').value||'invalid'}).then(function(r){say('v-ops','환불 '+won(r.refunded_won)+' (사용자 코인은 그대로)')}).catch(function(e){say('v-ops',e.message)})};
+$('v-fund').onclick=function(){call('/admin/platform-reserve',{amount_won:parseInt($('v-reserve').value,10),idempotency_key:key()}).then(function(r){say('v-ops','환불 준비금 '+won(r.reserve_won))}).catch(function(e){say('v-ops',e.message)})};
 $('a-list').onclick=function(){say('a-out','불러오는 중...');call('/admin/audits').then(function(d){
   say('a-out',d.audits.length?d.audits.map(function(a){return new Date(a.created_at*1000).toLocaleString('ko-KR')+' · '+(a.inconclusive?'판정 불가':a.passed?'통과':'실패')+
     ' · 같음 '+a.counts.same+', 바뀜 '+a.counts.changed+', 흔들림 '+a.counts.unstable+', 오류 '+a.counts.error+(a.changed_queries.length?' · 바뀐 질문: '+a.changed_queries.join(' / '):'')}).join('\n'):'감사 기록이 없습니다.')})
