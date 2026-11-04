@@ -386,6 +386,9 @@ class FastConcierge(Concierge):
         step('understand')
         spec = parse(task, operation=operation)
         task = spec.original
+        # One-letter typos become required capability words otherwise ("sttaus", stage 1, 11-04).
+        from .catalog_spelling import respell
+        task = respell(task)
         visitor_excluded = (self.book.failed_resources(v.id) if v else set()) | set(exclude or ())
         circuit_excluded = self.book.global_failing_resources()
         excluded = visitor_excluded | circuit_excluded

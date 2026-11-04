@@ -77,8 +77,10 @@ class Catalog:
         # recently healthy listing must not hide another verified connection.
         # Qualify each protocol separately so unverified A2A candidates cannot
         # exhaust automatic discovery before MCP is considered.
+        from ..concierge.catalog_spelling import respell
+        searched=respell(task)
         for protocol in search_protocols(kind):
-            found=self.front.rec.search(task,kind=protocol,limit=CANDIDATE_LIMIT)[:CANDIDATE_LIMIT]
+            found=self.front.rec.search(searched,kind=protocol,limit=CANDIDATE_LIMIT)[:CANDIDATE_LIMIT]
             batch_resources,batch_states=current_states(self.store,[r['id']for r in found])
             resources.update(batch_resources);states.update(batch_states)
             for row in found:
