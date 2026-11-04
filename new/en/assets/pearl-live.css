@@ -820,14 +820,14 @@ body[data-theme="dark"] .btn.primary,body[data-theme="dark"] .btn.primary :is(sp
  body .cookie-banner-actions{grid-column:2!important;grid-row:1/4!important;grid-template-columns:repeat(3,auto)!important;align-self:center;gap:8px!important;padding-right:36px!important}
  body .cookie-banner-actions .btn{min-width:0!important;width:auto!important;min-height:40px;padding:8px 14px;white-space:nowrap}
 }
-/* 11-04 review W3: one catalog number leads. "Reachable at last check" (the second card) is what a
+/* 11-04 review W3: one catalog number leads. "Reachable at last check" (marked data-primary) is what a
    visitor can connect to now; the other three measures stay as smaller supporting figures. */
 body #secOverview .catalog-band .metric-card .metric-value{font-size:30px}
-body #secOverview .catalog-band .metric-card:nth-child(2) .metric-value{font-size:52px;color:var(--teal)}
-body #secOverview .catalog-band .metric-card:nth-child(2) h2{font-weight:700}
+body #secOverview .catalog-band .metric-card[data-primary] .metric-value{font-size:52px;color:var(--teal)}
+body #secOverview .catalog-band .metric-card[data-primary] h2{font-weight:700}
 @media(max-width:700px){
  body #secOverview .catalog-band .metric-card .metric-value{font-size:24px}
- body #secOverview .catalog-band .metric-card:nth-child(2) .metric-value{font-size:38px}
+ body #secOverview .catalog-band .metric-card[data-primary] .metric-value{font-size:38px}
 }
 /* 11-04 re-review: on phones the catalog "Updated" line and the workflow illustration labels were 9-11px;
    12px is the body minimum since 11-02 and still fits inside the necklace centre at 375px. */
@@ -835,3 +835,9 @@ body #secOverview .catalog-band .metric-card:nth-child(2) h2{font-weight:700}
  body #secOverview .catalog-band .snapshot-heading .row :is(time,a){font-size:12px}
  body #secOverview .necklace .necklace-center :is(.badge,small,.link-button){font-size:12px}
 }
+/* 11-04 five-point step 1: the close button keeps essential storage only, so it says so in words
+   instead of a bare x (nothing optional is turned on until a choice is made). */
+body .cookie-banner-close{gap:6px;min-height:32px;color:var(--ink)}
+body .cookie-banner-close::after{content:"Essential only";font:600 12px/1 Arial,Helvetica,sans-serif;white-space:nowrap}
+@media(min-width:701px){body .cookie-banner-actions{padding-right:132px!important}}
+@media(max-width:700px){body .cookie-banner-title{margin-right:124px!important}}

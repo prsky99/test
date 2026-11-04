@@ -3091,6 +3091,17 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
         except WorkflowError:raise HTTPException(403,'Event rejected.')
         return JSONResponse(result,status_code=202)
 
+    @router.post('/api/rum')
+    async def api_rum(req: Request):
+        # Field Core Web Vitals beacon (rum.py). Nothing identifying is stored; a bad or limited beacon is dropped quietly.
+        from . import rum
+        if front.security.allow_probe(front.security.resolve_ip(req), base_limit=30):
+            try:
+                rum.record(await read_body(req))
+            except (rum.RumError, OSError):
+                pass
+        return Response(status_code=204)
+
     # ---------------- A2A ----------------
     @router.post("/a2a")
     async def a2a(request: Request):

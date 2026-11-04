@@ -1,0 +1,65 @@
+"""Field Core Web Vitals beacon: bounded numbers, no identifiers stored, p75 summary, quiet endpoint."""
+import json
+from datetime import date, datetime, timezone
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+
+from agent_market.concierge import rum
+
+ROOT = Path(__file__).resolve().parents[1]
+NOW = datetime(2026, 11, 4, 15, 30, tzinfo=timezone.utc)
+
+
+def beacon(**fields):
+    body = {'page': 'home', 'device': 'phone', 'lcp': 1800, 'inp': 120, 'cls': 0.02}
+    body.update(fields)
+    return json.dumps(body).encode()
+
+
+def test_record_keeps_only_bounded_metrics(tmp_path):
+    entry = rum.record(beacon(ip='1.2.3.4', ua='x', page='Explore?q=secret'), now=NOW, root=tmp_path)
+    assert entry == {'page': 'other', 'device': 'phone', 'lcp': 1800, 'inp': 120, 'cls': 0.02, 'hour': '2026-11-04T15'}
+    line = (tmp_path / '2026-11-04.jsonl').read_text()
+    assert 'secret' not in line and '1.2.3.4' not in line and (tmp_path / '2026-11-04.jsonl').stat().st_mode & 0o777 == 0o600
+
+
+@pytest.mark.parametrize('raw', [b'{', b'[]', beacon(lcp=None), beacon(lcp=-1), beacon(inp=10**9), beacon(cls='0.1'),
+                                 b'{"lcp": NaN}', b'x' * 600])
+def test_bad_beacons_are_refused(raw, tmp_path):
+    with pytest.raises(rum.RumError):
+        rum.record(raw, now=NOW, root=tmp_path)
+    assert not list(tmp_path.iterdir())
+
+
+def test_summary_reports_p75_against_the_thresholds(tmp_path):
+    for lcp in (1000, 2000, 2400, 4000):
+        rum.record(beacon(lcp=lcp, device='desktop'), now=NOW, root=tmp_path)
+    rum.record(beacon(lcp=1500, inp=None), now=NOW, root=tmp_path)
+    out = rum.summary(tmp_path, days=7, today=date(2026, 11, 4))
+    assert out['all']['loads'] == 5 and out['all']['lcp'] == 2400 and out['all']['lcp_good'] is True
+    assert out['groups']['home/desktop']['lcp'] == 2400 and out['groups']['home/phone']['inp'] is None
+
+
+def test_endpoint_answers_204_and_records(monkeypatch, tmp_path):
+    from agent_market.concierge.front import create_front_app
+    from tests.test_gateway import populated
+    monkeypatch.setenv('LOG_DIR', str(tmp_path))
+    client = TestClient(create_front_app(populated().app.state.front))
+    assert client.post('/api/rum', content=beacon(), headers={'content-type': 'text/plain'}).status_code == 204
+    assert client.post('/api/rum', content=b'nope', headers={'content-type': 'text/plain'}).status_code == 204
+    files = list((tmp_path / 'rum').iterdir())
+    assert len(files) == 1 and len(files[0].read_text().splitlines()) == 1
+
+
+def test_pages_mark_the_leading_number_and_label_the_close_button():
+    css = (ROOT / 'new/en/assets/pearl-live.css').read_text()
+    assert '.metric-card:nth-child(2)' not in css and '.metric-card[data-primary] .metric-value' in css
+    assert 'content:"Essential only"' in css
+    html = (ROOT / 'new/en/index.html').read_text()
+    assert html.count('data-primary') == 1 and 'data-primary>\n<span class="pearl small" aria-hidden="true">\n</span>\n<strong class="metric-value" data-metric="reachable">' in html
+    assert 'aria-label="Close and keep essential cookies only"' in html
+    script = (ROOT / 'new/en/assets/panels-bootstrap.js').read_text()
+    assert 'navigator.globalPrivacyControl' in script and 'sendBeacon("/api/rum"' in script
+    assert 'document.cookie' not in script and 'localStorage' not in script.split('five-point step 3')[1]

@@ -48,3 +48,33 @@
     else context.provideContext({ tools });
   } catch (error) { /* A browser that refuses the tools leaves the page unchanged. */ }
 })();
+
+// 11-04 five-point step 3: field Core Web Vitals. One beacon when the page is hidden, with LCP, the
+// slowest interaction (INP) and the layout shift sum (CLS), a short page name and phone/desktop.
+// No cookie, no storage, no identifier; never sent with Global Privacy Control or Do Not Track.
+(function () {
+  try {
+    if (!("PerformanceObserver" in window) || !navigator.sendBeacon || navigator.globalPrivacyControl || navigator.doNotTrack === "1") return;
+    const metrics = { lcp: null, inp: null, cls: 0 };
+    let sent = false;
+    const watch = (type, take, options) => {
+      try { new PerformanceObserver((list) => list.getEntries().forEach(take)).observe(Object.assign({ type, buffered: true }, options || {})); } catch (error) { /* unsupported entry type */ }
+    };
+    watch("largest-contentful-paint", (entry) => { metrics.lcp = entry.startTime; });
+    watch("layout-shift", (entry) => { if (!entry.hadRecentInput) metrics.cls += entry.value; });
+    watch("event", (entry) => { if (entry.interactionId && (metrics.inp === null || entry.duration > metrics.inp)) metrics.inp = entry.duration; }, { durationThreshold: 40 });
+    const page = () => {
+      const name = location.pathname.replace(/\/+$/, "").split("/").pop().replace(/\.html$/, "").toLowerCase();
+      return !name || name === "index" ? "home" : name;
+    };
+    const send = () => {
+      if (sent || metrics.lcp === null) return;
+      sent = true;
+      const body = JSON.stringify({ page: page(), device: matchMedia("(max-width: 700px)").matches ? "phone" : "desktop",
+        lcp: Math.round(metrics.lcp), inp: metrics.inp === null ? null : Math.round(metrics.inp), cls: Math.round(metrics.cls * 1000) / 1000 });
+      navigator.sendBeacon("/api/rum", new Blob([body], { type: "text/plain" }));
+    };
+    addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") send(); });
+    addEventListener("pagehide", send);
+  } catch (error) { /* measurement never affects the page */ }
+})();
