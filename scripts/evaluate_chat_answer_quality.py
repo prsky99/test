@@ -5,7 +5,9 @@ usage: python -m scripts.evaluate_chat_answer_quality <release_or_repo_dir> test
 
 A top-1 recommendation passes when its selected tool's own name and description match the case;
 "no result" passes only when a clean reference phrase for the same capability also finds no matching,
-working listing. Set EVAL_ONLY=id,id to run some cases. (2026-11-01, docs/qa/chat-answer-quality-2026-11-01.ko.md)"""
+working listing. Set EVAL_ONLY=id,id to run some cases, EVAL_REPEAT=n to find cases whose verdict
+changes between runs, EVAL_RECALL=50 to check the retrieval stage,
+and EVAL_SUBSET=0.25 to evaluate as if the catalog held only that share of listings. (2026-11-01, docs/qa/chat-answer-quality-2026-11-01.ko.md)"""
 import json, os, re, sys, time, types
 REL, CASES, OUT = sys.argv[1], sys.argv[2], sys.argv[3]
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -48,6 +50,19 @@ class _Journal:
     def selected(self, *a, **k): pass
     def finish(self, *a, **k): pass
 fast_chat.journal_for = lambda store: _Journal()
+SUBSET = float(os.environ.get('EVAL_SUBSET') or 1)
+if SUBSET < 1:
+    # Scale curve (stage 0): keep a fixed hash share of listings, as if the catalog were that size.
+    # The first stage asks for proportionally more candidates so the kept ones still number up to 600.
+    from agent_market.concierge import discovery as _discovery
+    _candidates = _discovery.candidates
+
+    def _subset_candidates(*args, **kwargs):
+        wanted = int(kwargs.get('maximum') or 600)
+        kwargs['maximum'] = int(wanted / SUBSET)
+        kept = [row for row in _candidates(*args, **kwargs) if int(row['id']) * 2654435761 % 1000 < SUBSET * 1000]
+        return kept[:wanted]
+    _discovery.candidates = _subset_candidates
 from agent_market.concierge.memory import VisitorBook
 from agent_market.concierge.selection import QualityRecommender
 book = VisitorBook(store)
@@ -129,15 +144,32 @@ _path, _, _part = CASES.partition(':')
 _loaded = json.load(open(_path, encoding='utf-8'))
 if isinstance(_loaded, dict): _loaded = _loaded[_part or 'tuning']
 cases = [c for c in _loaded if _only is None or c['id'] in _only]
-results = []
-for case in cases:
+REPEAT = max(1, int(os.environ.get('EVAL_REPEAT') or 1))
+RECALL = int(os.environ.get('EVAL_RECALL') or 0)
+
+
+def recall_at(case):
+    """Whether a listing for this capability is among the first RECALL search results (the retrieval stage)."""
+    exp = case['expect']
+    found = concierge.rec.search(case['task'], kind=exp.get('kind') or (case.get('data') or {}).get('protocol'), limit=RECALL)
+    return any(any(re.search(p, text_of(item)) for p in exp['any']) for item in found or [])
+
+
+def run(case):
     t = time.perf_counter()
     try:
         reply = front.concierge.handle(visitor, case['task'], dict(case.get('data') or {}), 'rest')
         err = None
     except Exception as exc:
         reply, err = None, type(exc).__name__ + ': ' + str(exc)[:200]
-    ms = round((time.perf_counter() - t) * 1000)
+    return reply, err, round((time.perf_counter() - t) * 1000)
+
+
+results = []
+for case in cases:
+    runs = [run(case) for _ in range(REPEAT)]
+    reply, err, ms = runs[0]
+    verdicts = [judge(case, r)[0] if r is not None else False for r, _, _ in runs]
     if reply is None:
         r = {'id': case['id'], 'ok': False, 'why': err, 'ms': ms}
     else:
@@ -148,8 +180,27 @@ for case in cases:
              'top': [{'id': i.get('id'), 'kind': i.get('kind'), 'name': str(i.get('name'))[:60],
                       'tool': (i.get('tools') or [None])[0], 'tool_desc': str(((i.get('tools_schema') or [{}])[0] or {}).get('description') or '')[:160], 'desc': str(i.get('description') or '')[:120]} for i in items[:3]],
              'reply': (reply.text or '')[:200]}
+    r['answered'] = bool(reply is not None and ((reply.data or {}).get('recommendations') or (reply.data or {}).get('workflows')))
+    r['flaky'] = len(set(verdicts)) > 1
+    if RECALL and case['expect']['type'] == 'match':
+        r['recall'] = recall_at(case)
     results.append(r)
     print(('PASS ' if r['ok'] else 'FAIL ') + case['id'] + f" {ms}ms " + str(r.get('why')) + (' [focus: ' + str(r.get('focus')) + ']' if r.get('focus') else '') + ' | ' + ' / '.join(x['name'] + ':' + str(x.get('tool')) for x in r.get('top', [])), flush=True)
 json.dump(results, open(OUT, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
 n = len(results); p = sum(r['ok'] for r in results)
 print(f'TOTAL {p}/{n} = {p/n*100:.1f}%  max {max(r["ms"] for r in results)}ms')
+# Precision counts only answered match cases; coverage is how many match cases got an answer (2026-11-04 plan, stage 0).
+match = [r for r, c in zip(results, cases) if c['expect']['type'] == 'match']
+answered = [r for r in match if r.get('answered')]
+if match:
+    right = sum(r['ok'] for r in answered)
+    print(f'PRECISION {right}/{len(answered)} = {right/max(1, len(answered))*100:.1f}%  '
+          f'COVERAGE {len(answered)}/{len(match)} = {len(answered)/len(match)*100:.1f}%')
+if RECALL and match:
+    hits = sum(bool(r.get('recall')) for r in match)
+    print(f'RECALL@{RECALL} {hits}/{len(match)} = {hits/len(match)*100:.1f}%')
+ms = sorted(r['ms'] for r in results)
+print(f'LATENCY p50 {ms[len(ms)//2]}ms  p95 {ms[int(len(ms)*0.95)]}ms')
+if REPEAT > 1:
+    flaky = [r['id'] for r in results if r.get('flaky')]
+    print(f'FLAKY {len(flaky)}/{n} over {REPEAT} runs: ' + ','.join(flaky))
