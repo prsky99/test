@@ -26,7 +26,7 @@ ALLOWED_KEYS = frozenset((
     'GITHUB_OAUTH_CLIENT_ID', 'GITHUB_OAUTH_CLIENT_SECRET', 'GITHUB_OAUTH_REDIRECT_URI',
     'CUSTOMER_WORKSPACE_ACCESS_ENABLED',
     'CUSTOMER_WORKSPACE_LINK_ENABLED',
-    'WEB_BOT_TRUST_FILE',
+    'WEB_BOT_TRUST_FILE', 'WEB_BOT_AUTH_KEY_FILE',
     'WORKSPACE_MODEL_ENABLED', 'WORKSPACE_MODEL_URL', 'WORKSPACE_MODEL_NAME',
     'WORKSPACE_MODEL_PROVIDER', 'WORKSPACE_MODEL_ALLOW_HTTP',
     'WORKSPACE_MODEL_FALLBACK_URL',
@@ -51,6 +51,16 @@ def read_web_bot_settings(path):
     if not target.exists() and not target.is_symlink():return {}
     values=read_settings(target)
     if values.keys()-{'WEB_BOT_TRUST_FILE'}:raise ConfigError('Web Bot Auth settings contain unsupported names.')
+    return values
+
+
+def read_web_bot_signer_settings(path):
+    """Optional outgoing request signing key (11-04). A file of its own: older retained releases never read
+    it, so they keep starting even though they do not know WEB_BOT_AUTH_KEY_FILE."""
+    target=Path(path)
+    if not target.exists() and not target.is_symlink():return {}
+    values=read_settings(target)
+    if values.keys()-{'WEB_BOT_AUTH_KEY_FILE'}:raise ConfigError('Web Bot Auth signer settings contain unsupported names.')
     return values
 
 

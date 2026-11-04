@@ -71,3 +71,16 @@ def test_directory_publishes_only_the_public_key(tmp_path, monkeypatch):
     assert reply.status_code == 200 and reply.headers['content-type'].startswith(web_bot_auth.DIRECTORY_MEDIA_TYPE)
     assert reply.json() == {'keys': [signer.jwk]} and 'd' not in reply.json()['keys'][0]
     assert 'tag="http-message-signatures-directory"' in reply.headers['signature-input']
+
+
+def test_signer_settings_live_in_their_own_file(tmp_path):
+    # agentcon.env is read by every retained release; a name they do not know stops them starting
+    # (11-04: adding WEB_BOT_AUTH_KEY_FILE there failed a deploy), so the key path has its own file.
+    from scripts.agentcon_config import ConfigError, read_web_bot_signer_settings
+    assert read_web_bot_signer_settings(tmp_path / 'missing.env') == {}
+    path = tmp_path / 'web-bot-signer.env'
+    path.write_text('WEB_BOT_AUTH_KEY_FILE=/abs/key.pem\n'); path.chmod(0o600)
+    assert read_web_bot_signer_settings(path) == {'WEB_BOT_AUTH_KEY_FILE': '/abs/key.pem'}
+    path.write_text('WEB_BOT_AUTH_KEY_FILE=/abs/key.pem\nADMIN_TOKEN=x\n')
+    with pytest.raises(ConfigError):
+        read_web_bot_signer_settings(path)

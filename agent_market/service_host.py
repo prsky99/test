@@ -395,7 +395,7 @@ def main():
     parser.add_argument('--settings', required=True)
     parser.add_argument('--project-root', required=True)
     args = parser.parse_args()
-    from scripts.agentcon_config import read_settings, read_local_model_settings, read_local_model_fallback_settings, read_edge_gateway_settings, read_admin_evidence_settings, read_embedding_settings, read_web_bot_settings
+    from scripts.agentcon_config import read_settings, read_local_model_settings, read_local_model_fallback_settings, read_edge_gateway_settings, read_admin_evidence_settings, read_embedding_settings, read_web_bot_settings, read_web_bot_signer_settings
     settings = read_settings(args.settings)
     root = Path(args.project_root).resolve()
     settings.update(read_local_model_settings(str(root / 'gateway-data/local-model.env')))
@@ -404,9 +404,11 @@ def main():
     settings.update(read_admin_evidence_settings(root / 'gateway-data/admin-evidence.env'))
     settings.update(read_embedding_settings(root / 'gateway-data/embedding.env'))
     settings.update(read_web_bot_settings(root / 'gateway-data/web-bot-auth.env'))
+    settings.update(read_web_bot_signer_settings(root / 'gateway-data/web-bot-signer.env'))
     for key in ('GATEWAY_DB', 'APPLICATION_POSTGRES_DSN_FILE', 'APPLICATION_WORKFLOW_KEY_FILE',
                 'AGENT_EDGE_GATEWAY_CONFIG', 'AGENT_EDGE_CLOUDFLARE_TOKEN_FILE',
-                'AGENTCON_ADMIN_BACKUP_ROOT', 'AGENTCON_ADMIN_SQLITE_ARCHIVE', 'WEB_BOT_TRUST_FILE'):
+                'AGENTCON_ADMIN_BACKUP_ROOT', 'AGENTCON_ADMIN_SQLITE_ARCHIVE', 'WEB_BOT_TRUST_FILE',
+                'WEB_BOT_AUTH_KEY_FILE'):
         if settings.get(key) and not Path(settings[key]).is_absolute():
             settings[key] = str(root / settings[key])
     os.environ.update(settings)
