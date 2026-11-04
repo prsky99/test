@@ -225,6 +225,41 @@ def _subject_words(terms, item):
     return sum(1 for t in terms if _term_in(t, text))
 
 
+SEMANTIC_SHORTLIST = 10
+SEMANTIC_BUDGET = 0.8  # seconds; past it the ranked order stands
+
+
+def _cosine(a, b):
+    import math
+    na, nb = math.sqrt(sum(x * x for x in a)), math.sqrt(sum(x * x for x in b))
+    return sum(x * y for x, y in zip(a, b)) / (na * nb) if na and nb else 0.0
+
+
+def semantic_first(engine, task, items):
+    """Move the candidate whose chosen tool is closest in meaning to the task to the front.
+
+    Measured offline (11-04, production read-only, threshold chosen on tuning only): of answered
+    cases the first of ten was right for 85% and some of the ten for 93%; moving the closest tool
+    first gained 28 and lost 5 on tuning, gained 13 and lost 3 on holdout, in about 0.22 s. The
+    ranked order stands when embeddings are off, slow or fail."""
+    if len(items) < 2 or engine is None or not getattr(engine, 'embeddings_enabled', False):
+        return items
+    docs = []
+    for item in items:
+        tool = (item.get('tools_schema') or [{}])[0] or {}
+        docs.append((str(item.get('name') or '')[:80] + ': ' + str(tool.get('name') or '') + ' ' +
+                     str(tool.get('description') or item.get('description') or '')[:300]).strip() or 'agent')
+    try:
+        vectors = engine.embed_texts([str(task)[:1000]] + docs, timeout_seconds=SEMANTIC_BUDGET)
+    except Exception:
+        return items
+    if not vectors or len(vectors) != len(items) + 1:
+        return items
+    scores = [_cosine(vectors[0], vector) for vector in vectors[1:]]
+    best = max(range(len(items)), key=lambda i: (scores[i], -i))
+    return [items[best]] + items[:best] + items[best + 1:] if best else items
+
+
 def condition_first(task, items):
     """Among candidates that name the task's subject, the one meeting more requested conditions leads.
 
@@ -404,7 +439,14 @@ class FastConcierge(Concierge):
         circuit_excluded = self.book.global_failing_resources()
         excluded = visitor_excluded | circuit_excluded
         step('search')
-        items = self.rec.search(retrieval_text(task), kind=protocol, limit=3, offset=offset, exclude=excluded)
+        if offset == 0:
+            # Rank ten, then let the tool closest in meaning lead (stage 2, 11-04): the right listing was
+            # in the first ten for 93% of answered cases but first for 85%.
+            items = semantic_first(getattr(self.rec, 'rag_engine', None), task,
+                                   self.rec.search(retrieval_text(task), kind=protocol, limit=SEMANTIC_SHORTLIST,
+                                                   exclude=excluded))[:3]
+        else:
+            items = self.rec.search(retrieval_text(task), kind=protocol, limit=3, offset=offset, exclude=excluded)
         focus = None
         summarizer = getattr(self, 'query_summarizer', None)
         if not items and callable(summarizer):
