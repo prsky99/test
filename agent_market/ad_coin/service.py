@@ -110,16 +110,16 @@ class AdCoinService:
 
     # ---------- settings and circuit ----------
     def _secret(self, key):
-        row = self.db.one('SELECT value FROM settings WHERE key=?', (key,))
+        row = self.db.one('SELECT value FROM ad_coin_settings WHERE key=?', (key,))
         if row:
             return bytes.fromhex(json.loads(row['value']))
         value = secrets.token_bytes(32)
         with self.db.transaction() as db:
-            db.execute('INSERT OR IGNORE INTO settings VALUES (?,?,?)', (key, json.dumps(value.hex()), now()))
-        return bytes.fromhex(json.loads(self.db.one('SELECT value FROM settings WHERE key=?', (key,))['value']))
+            db.execute('INSERT OR IGNORE INTO ad_coin_settings VALUES (?,?,?)', (key, json.dumps(value.hex()), now()))
+        return bytes.fromhex(json.loads(self.db.one('SELECT value FROM ad_coin_settings WHERE key=?', (key,))['value']))
 
     def split(self):
-        row = self.db.one("SELECT value FROM settings WHERE key='split_bps'")
+        row = self.db.one("SELECT value FROM ad_coin_settings WHERE key='split_bps'")
         return json.loads(row['value']) if row else dict(DEFAULT_SPLIT_BPS)
 
     def set_split(self, split):
@@ -130,18 +130,18 @@ class AdCoinService:
         if value['operator'] + value['direct'] > 10000 - TASK_SHARE_BPS:
             raise AdCoinError('invalid_split', 'Operator and direct shares must leave room for task sponsorship.')
         with self.db.transaction() as db:
-            db.execute("INSERT INTO settings VALUES ('split_bps',?,?) ON CONFLICT(key) DO UPDATE SET "
+            db.execute("INSERT INTO ad_coin_settings VALUES ('split_bps',?,?) ON CONFLICT(key) DO UPDATE SET "
                        'value=excluded.value, updated_at=excluded.updated_at', (dumps(value), now()))
         return value
 
     def circuit(self):
-        row = self.db.one('SELECT open, reason, changed_at FROM circuit WHERE id=1')
+        row = self.db.one('SELECT open, reason, changed_at FROM ad_coin_circuit WHERE id=1')
         return {'open': bool(row and row['open']), 'reason': row['reason'] if row else '',
                 'changed_at': row['changed_at'] if row else None}
 
     def _set_circuit(self, is_open, reason):
         with self.db.transaction() as db:
-            db.execute('INSERT INTO circuit VALUES (1,?,?,?) ON CONFLICT(id) DO UPDATE SET open=excluded.open, '
+            db.execute('INSERT INTO ad_coin_circuit VALUES (1,?,?,?) ON CONFLICT(id) DO UPDATE SET open=excluded.open, '
                        'reason=excluded.reason, changed_at=excluded.changed_at', (int(is_open), reason, now()))
 
     def open_circuit(self, reason):
@@ -165,30 +165,30 @@ class AdCoinService:
     def _ensure_wallet(self, user_ref, agent_ref=''):
         account = L.agent_wallet(user_ref, agent_ref) if agent_ref else L.user_wallet(user_ref)
         with self.db.transaction() as db:
-            db.execute('INSERT OR IGNORE INTO wallets VALUES (?,?,?,?,?,?)',
+            db.execute('INSERT OR IGNORE INTO ad_coin_wallets VALUES (?,?,?,?,?,?)',
                        (account, user_ref, 'agent' if agent_ref else 'user', agent_ref, now(), now()))
         return account
 
     def _touch(self, account):
         with self.db.transaction() as db:
-            db.execute('UPDATE wallets SET last_active_at=? WHERE account=?', (now(), account))
+            db.execute('UPDATE ad_coin_wallets SET last_active_at=? WHERE account=?', (now(), account))
 
     def _wallet(self, account):
-        row = self.db.one('SELECT * FROM wallets WHERE account=?', (account,))
+        row = self.db.one('SELECT * FROM ad_coin_wallets WHERE account=?', (account,))
         if not row:
             raise AdCoinError('unknown_wallet', status=404)
         return row
 
     def wallets(self, user_ref):
         self._ensure_wallet(user_ref)
-        rows = self.db.all('SELECT * FROM wallets WHERE user_ref=? ORDER BY kind DESC, agent_ref', (user_ref,))
+        rows = self.db.all('SELECT * FROM ad_coin_wallets WHERE user_ref=? ORDER BY kind DESC, agent_ref', (user_ref,))
         items = []
         for row in rows:
             won = self.ledger.balance(row['account'])
             items.append({'account': row['account'], 'kind': row['kind'], 'agent': row['agent_ref'] or None,
                           'available_coins': coins(won), 'available_won_value': won,
                           'last_active_at': int(row['last_active_at'])})
-        vouchers = self.db.all("SELECT id, provider, task_ref, price_won, expires_at FROM vouchers "
+        vouchers = self.db.all("SELECT id, provider, task_ref, price_won, expires_at FROM ad_coin_vouchers "
                                "WHERE user_ref=? AND status='active' ORDER BY created_at", (user_ref,))
         return {'wallets': items, 'total_coins': sum(i['available_coins'] for i in items),
                 'vouchers': [{'id': v['id'], 'provider': v['provider'], 'task_ref': v['task_ref'],
@@ -214,14 +214,14 @@ class AdCoinService:
             raise AdCoinError('creative_rejected', 'Creative rejected: ' + ', '.join(exc.reasons)) from None
         campaign_id = 'c_' + uuid.uuid4().hex[:20]
         with self.db.transaction() as db:
-            db.execute('INSERT INTO campaigns VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            db.execute('INSERT INTO ad_coin_campaigns VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
                        (campaign_id, advertiser.strip(), creative['title'], creative['body'], public_url,
                         dumps(sorted(set(categories))), product, bid_won, creative['question'],
                         creative['answer'], 'active', int(self.test_mode), now()))
         return self.campaign(campaign_id)
 
     def campaign(self, campaign_id):
-        row = self.db.one('SELECT * FROM campaigns WHERE id=?', (campaign_id,))
+        row = self.db.one('SELECT * FROM ad_coin_campaigns WHERE id=?', (campaign_id,))
         if not row:
             raise AdCoinError('unknown_campaign', status=404)
         return {'id': row['id'], 'advertiser': row['advertiser'], 'product': row['product'], 'title': row['title'],
@@ -230,14 +230,14 @@ class AdCoinService:
                 'test': bool(row['test']), 'escrow_won': self.ledger.balance(L.escrow(row['id']))}
 
     def campaigns(self):
-        return [self.campaign(r['id']) for r in self.db.all('SELECT id FROM campaigns ORDER BY created_at')]
+        return [self.campaign(r['id']) for r in self.db.all('SELECT id FROM ad_coin_campaigns ORDER BY created_at')]
 
     def set_campaign_status(self, campaign_id, status):
         if status not in ('active', 'paused'):
             raise AdCoinError('invalid_status')
         self.campaign(campaign_id)
         with self.db.transaction() as db:
-            db.execute('UPDATE campaigns SET status=? WHERE id=?', (status, campaign_id))
+            db.execute('UPDATE ad_coin_campaigns SET status=? WHERE id=?', (status, campaign_id))
         return self.campaign(campaign_id)
 
     def fund_campaign(self, campaign_id, amount_won, idem):
@@ -270,21 +270,20 @@ class AdCoinService:
     # ---------- expiry ----------
     def expire(self):
         at = now()
-        for row in self.db.all("SELECT * FROM reservations WHERE status='reserved' AND expires_at<?", (at,)):
+        for row in self.db.all("SELECT * FROM ad_coin_reservations WHERE status='reserved' AND expires_at<?", (at,)):
             self._release(row, 'expired')
-        for row in self.db.all("SELECT v.*, r.campaign_id FROM vouchers v JOIN reservations r ON r.id=v.reservation_id "
+        for row in self.db.all("SELECT v.*, r.campaign_id FROM ad_coin_vouchers v JOIN ad_coin_reservations r ON r.id=v.reservation_id "
                                "WHERE v.status='active' AND v.expires_at<?", (at,)):
             with self.db.transaction() as db:
-                db.execute("UPDATE vouchers SET status='expired' WHERE id=? AND status='active'", (row['id'],))
-                try:
+                db.execute("UPDATE ad_coin_vouchers SET status='expired' WHERE id=? AND status='active'", (row['id'],))
+                # Never catch inside a transaction: on PostgreSQL a caught error still fails the outer one.
+                if not self.ledger.has('voucher_expired:' + row['id']):
                     self.ledger.post('voucher_expired', 'voucher_expired:' + row['id'],
                                      [(L.voucher(row['id']), -row['price_won']), (L.escrow(row['campaign_id']), row['price_won'])])
-                except L.Duplicate:
-                    pass
 
     def _release(self, reservation, status):
         with self.db.transaction() as db:
-            changed = db.execute("UPDATE reservations SET status=? WHERE id=? AND status='reserved'",
+            changed = db.execute("UPDATE ad_coin_reservations SET status=? WHERE id=? AND status='reserved'",
                                  (status, reservation['id'])).rowcount
             if changed:
                 amount = self.ledger.balance(L.hold(reservation['id']))
@@ -294,14 +293,14 @@ class AdCoinService:
 
     # ---------- quote ----------
     def _capped(self, user_ref, campaign_id):
-        row = self.db.one('SELECT COUNT(*) AS n FROM exposures WHERE user_ref=? AND campaign_id=? AND day=?',
+        row = self.db.one('SELECT COUNT(*) AS n FROM ad_coin_exposures WHERE user_ref=? AND campaign_id=? AND day=?',
                           (user_ref, campaign_id, _day()))
-        open_holds = self.db.one("SELECT COUNT(*) AS n FROM reservations WHERE user_ref=? AND campaign_id=? "
+        open_holds = self.db.one("SELECT COUNT(*) AS n FROM ad_coin_reservations WHERE user_ref=? AND campaign_id=? "
                                  "AND status='reserved'", (user_ref, campaign_id))
         return row['n'] + open_holds['n'] >= FREQUENCY_CAP_PER_DAY
 
     def _active(self, product, user_ref):
-        rows = self.db.all("SELECT id FROM campaigns WHERE product=? AND status='active'", (product,))
+        rows = self.db.all("SELECT id FROM ad_coin_campaigns WHERE product=? AND status='active'", (product,))
         result = []
         for row in rows:
             campaign = self.campaign(row['id'])
@@ -312,7 +311,7 @@ class AdCoinService:
 
     def _reserve(self, db, quote_id, campaign, product, user_ref, agent_ref, operator_ref, amount, price_won):
         reservation_id = 'h_' + uuid.uuid4().hex[:20]
-        db.execute('INSERT INTO reservations VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+        db.execute('INSERT INTO ad_coin_reservations VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
                    (reservation_id, quote_id, campaign['id'], product, user_ref, agent_ref, operator_ref, amount,
                     price_won, 'reserved', now(), now() + RESERVATION_TTL_SECONDS))
         self.ledger.post('reserve', 'reserve:' + reservation_id,
@@ -411,7 +410,7 @@ class AdCoinService:
             }
             packet['signature'] = self.signer.sign_payload(packet)
             packet['key_id'] = self.signer.kid
-            db.execute('INSERT INTO quotes VALUES (?,?,?,?,?,?,?,?)',
+            db.execute('INSERT INTO ad_coin_quotes VALUES (?,?,?,?,?,?,?,?)',
                        (quote_id, user_ref, agent_ref, digest, dumps({'provider': provider, 'task_ref': task_ref,
                         'price_won': price, 'category': category, 'lines': lines}), dumps(options), now(), now() + QUOTE_TTL_SECONDS))
         self._after_money_move()
@@ -419,7 +418,7 @@ class AdCoinService:
 
     # ---------- consent and exposure ----------
     def _reservation(self, reservation_id, user_ref):
-        row = self.db.one('SELECT * FROM reservations WHERE id=?', (reservation_id,))
+        row = self.db.one('SELECT * FROM ad_coin_reservations WHERE id=?', (reservation_id,))
         if not row or row['user_ref'] != user_ref:
             raise AdCoinError('unknown_reservation', status=404)
         return row
@@ -431,10 +430,10 @@ class AdCoinService:
             raise AdCoinError('reservation_closed', status=409)
         consent_id = 'k_' + uuid.uuid4().hex[:20]
         with self.db.transaction() as db:
-            existing = db.execute('SELECT id FROM consents WHERE reservation_id=?', (reservation_id,)).fetchone()
+            existing = db.execute('SELECT id FROM ad_coin_consents WHERE reservation_id=?', (reservation_id,)).fetchone()
             if existing:
                 return {'consent_id': existing['id'], 'scope': 'one_view'}
-            db.execute('INSERT INTO consents VALUES (?,?,?,?,NULL)', (consent_id, reservation_id, user_ref, now()))
+            db.execute('INSERT INTO ad_coin_consents VALUES (?,?,?,?,NULL)', (consent_id, reservation_id, user_ref, now()))
         return {'consent_id': consent_id, 'scope': 'one_view', 'reservation_id': reservation_id}
 
     def decline(self, *, user_ref, reservation_id):
@@ -446,7 +445,7 @@ class AdCoinService:
     def exposure(self, *, user_ref, reservation_id, consent_id, displayed_ms, answer=None, foreground=True):
         self.expire()
         row = self._reservation(reservation_id, user_ref)
-        consent = self.db.one('SELECT * FROM consents WHERE id=? AND reservation_id=?', (consent_id, reservation_id))
+        consent = self.db.one('SELECT * FROM ad_coin_consents WHERE id=? AND reservation_id=?', (consent_id, reservation_id))
         if not consent or consent['user_ref'] != user_ref:
             raise AdCoinError('consent_required', 'Show the offer only after the person approves it.', 403)
         if row['status'] != 'reserved' or consent['used_at']:
@@ -458,25 +457,25 @@ class AdCoinService:
             raise AdCoinError('confirmation_required', 'Answer the one-question confirmation.', 422)
         matched = None
         if type(answer) is str and answer.strip():
-            stored = self.db.one('SELECT answer FROM campaigns WHERE id=?', (campaign['id'],))['answer']
+            stored = self.db.one('SELECT answer FROM ad_coin_campaigns WHERE id=?', (campaign['id'],))['answer']
             matched = answer.strip().lower() == stored.strip().lower()
         split = self.split()
         amount = row['amount_won']
         operator_won = _down(amount * split['operator'] // 10000)
         direct_won = _down(amount * split['direct'] // 10000)
         with self.db.transaction() as db:
-            if not db.execute("UPDATE reservations SET status='awarded' WHERE id=? AND status='reserved'",
+            if not db.execute("UPDATE ad_coin_reservations SET status='awarded' WHERE id=? AND status='reserved'",
                               (reservation_id,)).rowcount:
                 raise AdCoinError('reservation_closed', status=409)
-            db.execute('UPDATE consents SET used_at=? WHERE id=?', (now(), consent_id))
-            db.execute('INSERT INTO exposures VALUES (?,?,?,?,?,?,?)',
+            db.execute('UPDATE ad_coin_consents SET used_at=? WHERE id=?', (now(), consent_id))
+            db.execute('INSERT INTO ad_coin_exposures VALUES (?,?,?,?,?,?,?)',
                        (reservation_id, campaign['id'], user_ref, _day(), displayed_ms, 'interaction', now()))
             if row['product'] == 'S1':
-                task = json.loads(db.execute('SELECT task FROM quotes WHERE id=?', (row['quote_id'],)).fetchone()['task'])
+                task = json.loads(db.execute('SELECT task FROM ad_coin_quotes WHERE id=?', (row['quote_id'],)).fetchone()['task'])
                 user_won = row['task_price_won']
                 voucher_id = 'v_' + uuid.uuid4().hex[:20]
                 target = L.voucher(voucher_id)
-                db.execute('INSERT INTO vouchers VALUES (?,?,?,?,?,?,?,?,?)',
+                db.execute('INSERT INTO ad_coin_vouchers VALUES (?,?,?,?,?,?,?,?,?)',
                            (voucher_id, reservation_id, user_ref, task['provider'], task['task_ref'], user_won,
                             'active', now(), now() + VOUCHER_TTL_SECONDS))
             else:
@@ -539,7 +538,7 @@ class AdCoinService:
         self._wallet(account)
         master = self._ensure_wallet(user_ref)
         with self.db.transaction() as db:
-            db.execute('UPDATE mandates SET revoked_at=? WHERE user_ref=? AND agent_ref=? AND revoked_at IS NULL',
+            db.execute('UPDATE ad_coin_mandates SET revoked_at=? WHERE user_ref=? AND agent_ref=? AND revoked_at IS NULL',
                        (now(), user_ref, agent_ref))
         amount = self.ledger.balance(account)
         receipt = None
@@ -554,7 +553,7 @@ class AdCoinService:
     def sweep_dormant(self):
         cutoff = now() - DORMANT_AGENT_DAYS * 86400
         moved = []
-        for row in self.db.all("SELECT * FROM wallets WHERE kind='agent' AND last_active_at<?", (cutoff,)):
+        for row in self.db.all("SELECT * FROM ad_coin_wallets WHERE kind='agent' AND last_active_at<?", (cutoff,)):
             if self.ledger.balance(row['account']):
                 moved.append(self.sweep_agent(user_ref=row['user_ref'], agent_ref=row['agent_ref'],
                                               reason='dormant_agent'))
@@ -575,7 +574,7 @@ class AdCoinService:
         self._ensure_wallet(user_ref, agent_ref)
         mandate_id = 'm_' + uuid.uuid4().hex[:20]
         with self.db.transaction() as db:
-            db.execute('INSERT INTO mandates VALUES (?,?,?,?,?,?,0,?,?,NULL)',
+            db.execute('INSERT INTO ad_coin_mandates VALUES (?,?,?,?,?,?,0,?,?,NULL)',
                        (mandate_id, user_ref, agent_ref, total_coins * COIN_VALUE_WON, per_task_coins * COIN_VALUE_WON,
                         dumps(providers), now(), now() + days * 86400))
         mandate = self.mandate(mandate_id, user_ref)
@@ -583,7 +582,7 @@ class AdCoinService:
         return mandate
 
     def mandate(self, mandate_id, user_ref):
-        row = self.db.one('SELECT * FROM mandates WHERE id=? AND user_ref=?', (mandate_id, user_ref))
+        row = self.db.one('SELECT * FROM ad_coin_mandates WHERE id=? AND user_ref=?', (mandate_id, user_ref))
         if not row:
             raise AdCoinError('unknown_mandate', status=404)
         state = 'revoked' if row['revoked_at'] else ('expired' if row['expires_at'] < now() else 'active')
@@ -593,12 +592,12 @@ class AdCoinService:
 
     def mandates(self, user_ref):
         return [self.mandate(r['id'], user_ref) for r in
-                self.db.all('SELECT id FROM mandates WHERE user_ref=? ORDER BY created_at', (user_ref,))]
+                self.db.all('SELECT id FROM ad_coin_mandates WHERE user_ref=? ORDER BY created_at', (user_ref,))]
 
     def revoke_mandate(self, mandate_id, user_ref):
         self.mandate(mandate_id, user_ref)
         with self.db.transaction() as db:
-            db.execute('UPDATE mandates SET revoked_at=? WHERE id=? AND revoked_at IS NULL', (now(), mandate_id))
+            db.execute('UPDATE ad_coin_mandates SET revoked_at=? WHERE id=? AND revoked_at IS NULL', (now(), mandate_id))
         return self.mandate(mandate_id, user_ref)
 
     # ---------- spending, execution and settlement ----------
@@ -619,7 +618,7 @@ class AdCoinService:
         if actor == 'agent':
             if not mandate_id:
                 raise HoldRequired('mandate_required', 'The person must approve this payment or grant a mandate.')
-            row = self.db.one('SELECT * FROM mandates WHERE id=? AND user_ref=?', (mandate_id, user_ref))
+            row = self.db.one('SELECT * FROM ad_coin_mandates WHERE id=? AND user_ref=?', (mandate_id, user_ref))
             if (not row or row['revoked_at'] or row['expires_at'] < now() or row['agent_ref'] != agent_ref
                     or source['agent_ref'] not in ('', agent_ref)):
                 raise HoldRequired('mandate_invalid', 'The mandate is missing, expired, revoked or for another agent.')
@@ -636,11 +635,11 @@ class AdCoinService:
                 journal = self.ledger.post('spend', 'spend:' + user_ref + ':' + idem,
                                            [(wallet, -price), (L.inflight(execution_id), price)],
                                            {'provider': provider})
-                db.execute('INSERT INTO executions VALUES (?,?,?,?,?,?,?,?,NULL,?,NULL)',
+                db.execute('INSERT INTO ad_coin_executions VALUES (?,?,?,?,?,?,?,?,NULL,?,NULL)',
                            (execution_id, user_ref, provider, task_ref, price, 'coins', wallet, 'running', now()))
                 self._insert_lines(db, execution_id, lines)
                 if actor == 'agent':
-                    db.execute('UPDATE mandates SET spent_won=spent_won+? WHERE id=?', (price, mandate_id))
+                    db.execute('UPDATE ad_coin_mandates SET spent_won=spent_won+? WHERE id=?', (price, mandate_id))
         except L.Duplicate as dup:
             return {'status': 'already_done', 'journal_id': dup.journal_id}
         except L.LedgerError:
@@ -651,20 +650,20 @@ class AdCoinService:
                 'provider_request': self.provider_request(execution_id)}
 
     def redeem_voucher(self, *, user_ref, voucher_id):
-        row = self.db.one('SELECT * FROM vouchers WHERE id=? AND user_ref=?', (voucher_id, user_ref))
+        row = self.db.one('SELECT * FROM ad_coin_vouchers WHERE id=? AND user_ref=?', (voucher_id, user_ref))
         if not row:
             raise AdCoinError('unknown_voucher', status=404)
         if row['status'] != 'active' or row['expires_at'] < now():
             raise AdCoinError('voucher_closed', status=409)
         execution_id = 'x_' + uuid.uuid4().hex[:20]
-        task = self.db.one('SELECT q.task FROM vouchers v JOIN reservations r ON r.id=v.reservation_id '
-                           'JOIN quotes q ON q.id=r.quote_id WHERE v.id=?', (voucher_id,))
+        task = self.db.one('SELECT q.task FROM ad_coin_vouchers v JOIN ad_coin_reservations r ON r.id=v.reservation_id '
+                           'JOIN ad_coin_quotes q ON q.id=r.quote_id WHERE v.id=?', (voucher_id,))
         lines = json.loads(task['task']).get('lines') if task else None
         with self.db.transaction() as db:
-            db.execute("UPDATE vouchers SET status='redeemed' WHERE id=?", (voucher_id,))
+            db.execute("UPDATE ad_coin_vouchers SET status='redeemed' WHERE id=?", (voucher_id,))
             self.ledger.post('redeem', 'redeem:' + voucher_id + ':' + execution_id,
                              [(L.voucher(voucher_id), -row['price_won']), (L.inflight(execution_id), row['price_won'])])
-            db.execute('INSERT INTO executions VALUES (?,?,?,?,?,?,?,?,NULL,?,NULL)',
+            db.execute('INSERT INTO ad_coin_executions VALUES (?,?,?,?,?,?,?,?,NULL,?,NULL)',
                        (execution_id, user_ref, row['provider'], row['task_ref'], row['price_won'], 'voucher',
                         voucher_id, 'running', now()))
             self._insert_lines(db, execution_id, lines)
@@ -675,7 +674,7 @@ class AdCoinService:
     def provider_request(self, execution_id):
         """What the provider receives. It never says how the run was funded, so a
         sponsored run cannot be served differently from a paid one."""
-        row = self.db.one('SELECT id, provider, task_ref FROM executions WHERE id=?', (execution_id,))
+        row = self.db.one('SELECT id, provider, task_ref FROM ad_coin_executions WHERE id=?', (execution_id,))
         request = {'execution_id': row['id'], 'provider': row['provider'], 'task_ref': row['task_ref']}
         lines = self._lines_of(execution_id)
         if lines:
@@ -684,17 +683,17 @@ class AdCoinService:
 
     def _insert_lines(self, db, execution_id, lines):
         for position, line in enumerate(lines or []):
-            db.execute('INSERT INTO execution_lines VALUES (?,?,?,?,?,?)',
+            db.execute('INSERT INTO ad_coin_execution_lines VALUES (?,?,?,?,?,?)',
                        (execution_id, position, line['provider'], line['calls'], line['won'], 'running'))
 
     def _lines_of(self, execution_id):
-        return self.db.all('SELECT * FROM execution_lines WHERE execution_id=? ORDER BY position', (execution_id,))
+        return self.db.all('SELECT * FROM ad_coin_execution_lines WHERE execution_id=? ORDER BY position', (execution_id,))
 
     def complete(self, *, execution_id, ok, result_digest=None, line_results=None):
         """Finish a run. For a bundle, `line_results` lists success per line in
         order; successful lines are paid to their providers and the rest goes
         back to whoever funded it (the wallet, or the sponsor's escrow)."""
-        row = self.db.one('SELECT * FROM executions WHERE id=?', (execution_id,))
+        row = self.db.one('SELECT * FROM ad_coin_executions WHERE id=?', (execution_id,))
         if not row:
             raise AdCoinError('unknown_execution', status=404)
         if row['status'] != 'running':
@@ -726,14 +725,14 @@ class AdCoinService:
             raise AdCoinError('result_digest_required')
         outcome = 'succeeded' if refund == 0 and any_ok else ('refunded' if not any_ok else 'partial')
         with self.db.transaction() as db:
-            db.execute('UPDATE executions SET status=?, result_digest=?, finished_at=? WHERE id=?',
+            db.execute('UPDATE ad_coin_executions SET status=?, result_digest=?, finished_at=? WHERE id=?',
                        (outcome, result_digest, now(), execution_id))
             postings = [(L.inflight(execution_id), -price)]
             if lines:
                 for line, won in paid_lines:
                     state = 'succeeded' if won == line['won'] and (won or results[line['position']] is True) \
                         else ('partial' if won else 'refunded')
-                    db.execute('UPDATE execution_lines SET status=? WHERE execution_id=? AND position=?',
+                    db.execute('UPDATE ad_coin_execution_lines SET status=? WHERE execution_id=? AND position=?',
                                (state, execution_id, line['position']))
                     if won:
                         postings.append((L.provider_payable(line['provider']), won))
@@ -745,9 +744,9 @@ class AdCoinService:
                     refund_to = row['source_ref']
                 elif not any_ok:
                     refund_to = L.voucher(row['source_ref'])
-                    db.execute("UPDATE vouchers SET status='active' WHERE id=?", (row['source_ref'],))
+                    db.execute("UPDATE ad_coin_vouchers SET status='active' WHERE id=?", (row['source_ref'],))
                 else:
-                    campaign = db.execute('SELECT r.campaign_id FROM vouchers v JOIN reservations r '
+                    campaign = db.execute('SELECT r.campaign_id FROM ad_coin_vouchers v JOIN ad_coin_reservations r '
                                           'ON r.id=v.reservation_id WHERE v.id=?', (row['source_ref'],)).fetchone()
                     refund_to = L.escrow(campaign['campaign_id'])
                 postings.append((refund_to, refund))
@@ -793,7 +792,7 @@ class AdCoinService:
             return {'profile': 'ai-ad-coin-offer-feed-v1', 'offers': [], 'reason': 'circuit_open'}
         day = _day()
         offers = []
-        for row in self.db.all("SELECT id FROM campaigns WHERE product='B1' AND status='active' ORDER BY id"):
+        for row in self.db.all("SELECT id FROM ad_coin_campaigns WHERE product='B1' AND status='active' ORDER BY id"):
             campaign = self.campaign(row['id'])
             if campaign['escrow_won'] < campaign['bid_won']:
                 continue
@@ -826,9 +825,9 @@ class AdCoinService:
         operator_won = _down(amount * (split['user'] + split['operator']) // 10000)
         direct_won = _down(amount * split['direct'] // 10000)
         with self.db.transaction() as db:
-            if db.execute('SELECT 1 FROM offer_acks WHERE token_digest=?', (digest,)).fetchone():
+            if db.execute('SELECT 1 FROM ad_coin_offer_acks WHERE token_digest=?', (digest,)).fetchone():
                 return {'status': 'already_acknowledged'}
-            db.execute('INSERT INTO offer_acks VALUES (?,?,?,?,?)', (digest, offer_id, operator_ref, day, now()))
+            db.execute('INSERT INTO ad_coin_offer_acks VALUES (?,?,?,?,?)', (digest, offer_id, operator_ref, day, now()))
             try:
                 journal = self.ledger.post('offer_ack', 'offer_ack:' + digest, [
                     (L.escrow(offer_id), -amount), (L.operator_payable(operator_ref), operator_won),
@@ -856,33 +855,33 @@ class AdCoinService:
                    'inconclusive': counts['same'] + counts['changed'] == 0}
         audit_id = 'a_' + uuid.uuid4().hex[:20]
         with self.db.transaction() as db:
-            db.execute('INSERT INTO audits VALUES (?,?,?,?)', (audit_id, now(), int(passed), dumps(summary)))
+            db.execute('INSERT INTO ad_coin_audits VALUES (?,?,?,?)', (audit_id, now(), int(passed), dumps(summary)))
         if not passed and not summary['inconclusive']:
             self.open_circuit('audit_mismatch:%d' % counts['changed'])
         return {'id': audit_id, 'passed': passed, **summary, 'circuit': self.circuit()}
 
     def audits(self, limit=24):
-        rows = self.db.all('SELECT * FROM audits ORDER BY created_at DESC LIMIT ?', (max(1, min(int(limit), 100)),))
+        rows = self.db.all('SELECT * FROM ad_coin_audits ORDER BY created_at DESC LIMIT ?', (max(1, min(int(limit), 100)),))
         return [{'id': r['id'], 'created_at': int(r['created_at']), 'passed': bool(r['passed']),
                  **json.loads(r['summary'])} for r in rows]
 
     # ---------- reports ----------
     def receipts(self, user_ref, limit=50):
-        rows = self.db.all('SELECT body FROM receipts WHERE user_ref=? ORDER BY created_at DESC LIMIT ?',
+        rows = self.db.all('SELECT body FROM ad_coin_receipts WHERE user_ref=? ORDER BY created_at DESC LIMIT ?',
                            (user_ref, max(1, min(int(limit), 200))))
         return [json.loads(r['body']) for r in rows]
 
     def campaign_report(self, campaign_id):
         """Aggregates only: no conversation text, no user identifiers."""
         campaign = self.campaign(campaign_id)
-        exposures = self.db.one('SELECT COUNT(*) AS n, COUNT(DISTINCT user_ref) AS people FROM exposures '
+        exposures = self.db.one('SELECT COUNT(*) AS n, COUNT(DISTINCT user_ref) AS people FROM ad_coin_exposures '
                                 'WHERE campaign_id=?', (campaign_id,))
-        redeemed = self.db.one("SELECT COUNT(*) AS n FROM vouchers v JOIN reservations r ON r.id=v.reservation_id "
+        redeemed = self.db.one("SELECT COUNT(*) AS n FROM ad_coin_vouchers v JOIN ad_coin_reservations r ON r.id=v.reservation_id "
                                "WHERE r.campaign_id=? AND v.status='redeemed'", (campaign_id,))
-        runs = self.db.one("SELECT COUNT(*) AS n FROM executions e JOIN vouchers v ON v.id=e.source_ref "
-                           "JOIN reservations r ON r.id=v.reservation_id WHERE r.campaign_id=? AND e.status='succeeded'",
+        runs = self.db.one("SELECT COUNT(*) AS n FROM ad_coin_executions e JOIN ad_coin_vouchers v ON v.id=e.source_ref "
+                           "JOIN ad_coin_reservations r ON r.id=v.reservation_id WHERE r.campaign_id=? AND e.status='succeeded'",
                            (campaign_id,))
-        acks = self.db.one('SELECT COUNT(*) AS n FROM offer_acks WHERE campaign_id=?', (campaign_id,))
+        acks = self.db.one('SELECT COUNT(*) AS n FROM ad_coin_offer_acks WHERE campaign_id=?', (campaign_id,))
         return {'campaign': campaign['id'], 'product': campaign['product'], 'test': campaign['test'],
                 'approved_views': exposures['n'], 'people': exposures['people'],
                 'sponsored_runs_started': redeemed['n'], 'sponsored_runs_succeeded': runs['n'],

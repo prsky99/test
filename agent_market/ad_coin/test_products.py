@@ -71,18 +71,18 @@ class TestProducts:
                                                 for i in range(len(nodes) - 1)]}
         definition['definition_hash'] = hashlib.sha256(canonical(nodes)).hexdigest()
         with self.db.transaction() as db:
-            db.execute('INSERT INTO test_products VALUES (?,?,?,?,?,?)',
+            db.execute('INSERT INTO ad_coin_test_products VALUES (?,?,?,?,?,?)',
                        (product_id, name, description, dumps(definition), 'active', now()))
         return definition
 
     def get(self, product_id):
         if type(product_id) is not str or not ID.fullmatch(product_id):
             return None
-        row = self.db.one("SELECT definition FROM test_products WHERE id=? AND status='active'", (product_id,))
+        row = self.db.one("SELECT definition FROM ad_coin_test_products WHERE id=? AND status='active'", (product_id,))
         return json.loads(row['definition']) if row else None
 
     def list(self):
-        rows = self.db.all('SELECT id, name, description, status, definition FROM test_products ORDER BY created_at')
+        rows = self.db.all('SELECT id, name, description, status, definition FROM ad_coin_test_products ORDER BY created_at')
         return [{'id': r['id'], 'name': r['name'], 'description': r['description'], 'status': r['status'],
                  'steps': [{'resource_id': n['resource_id'], 'name': n['name'],
                             'calls_per_run': n['data']['calls_per_run']}
@@ -90,6 +90,6 @@ class TestProducts:
 
     def archive(self, product_id):
         with self.db.transaction() as db:
-            if not db.execute("UPDATE test_products SET status='archived' WHERE id=?", (product_id,)).rowcount:
+            if not db.execute("UPDATE ad_coin_test_products SET status='archived' WHERE id=?", (product_id,)).rowcount:
                 raise ProductError('Unknown test product.')
         return {'id': product_id, 'status': 'archived'}

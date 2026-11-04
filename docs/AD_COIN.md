@@ -11,7 +11,8 @@
 | 환경 변수 | 뜻 | 기본값 |
 |---|---|---|
 | `AD_COIN_ENABLED` | `1`이면 라우트가 생긴다. 끄면 모든 경로가 404 | 꺼짐 |
-| `AD_COIN_DB` | 전용 SQLite 파일. 카탈로그·운영 PG와 분리 | `gateway-data/ad_coin.sqlite3` |
+| `AD_COIN_STORE` | `sqlite`(전용 파일) 또는 `application`(애플리케이션 PostgreSQL 저장소의 `ad_coin_*` 표) | `sqlite` |
+| `AD_COIN_DB` | `sqlite`일 때 쓰는 전용 SQLite 파일 | `gateway-data/ad_coin.sqlite3` |
 | `AD_COIN_RECEIPT_KEY_FILE` | 영수증 Ed25519 개인 키. 처음 한 번 0600으로 만든다 | `gateway-data/ad_coin_receipt_key.pem` |
 | `AD_COIN_ADMIN_TOKEN` | 캠페인·설정·정산 관리용 Bearer 토큰 | 없음(관리 불가) |
 | `AD_COIN_INVITED` | (예전 방식, 시험 호환용) 초대한 visitor token의 sha256 hex 목록(쉼표 구분). 정식 초대는 관리자 화면의 고객 계정 초대를 쓴다 | 없음 |
@@ -173,6 +174,33 @@ front.py는 `ad_coin.api.router_for()`만 포함한다. 플래그가 꺼져 있�
   - 비공개 실행은 고객 경계의 `core.typed.get`을 쓴다.
 - 결과 해시는 실행 ID와 단계 상태로 만든다. 실행 영수증에 단계별 성공 호출 수를 남긴다.
 
+## 운영 PostgreSQL로 옮기기
+
+`AD_COIN_STORE=application`이면 AD Coin 표(`ad_coin_*`, 22개)를 애플리케이션 PostgreSQL 저장소 안에 둔다(`ApplicationStoreDatabase`, `ad_coin/db.py`). 방식은 `workspace_admin_events`의 덧붙이기 이전과 같다.
+
+- **연결:** 저장소가 이미 가진 연결과 트랜잭션을 그대로 쓴다. 연결 수가 늘지 않는다(운영 상한 48).
+- **쓰기 잠금:** 쓰기는 저장소의 쓰기 잠금 아래에서 직렬로 처리된다. 잔액 확인과 분개가 섞이지 않는다.
+- **카탈로그 무변경:** `application_store_sql.json`(등록 SQL 목록)과 카탈로그 스키마 프로필을 바꾸지 않는다. 목록을 다시 만들 필요가 없다(r14 사고 방지).
+- **표·인덱스 이름:** 다른 기능과 섞이지 않게 모두 `ad_coin_` 접두사를 붙였다.
+- **SQL 변환:** AD Coin이 쓰는 SQLite 표기 몇 가지만 바꾼다(`?`→`%s`, `INSERT OR IGNORE`→`ON CONFLICT DO NOTHING`). 값은 항상 매개변수로 넘긴다.
+- **트랜잭션 규칙:** PostgreSQL에서는 트랜잭션 안에서 잡은 오류도 바깥 트랜잭션을 실패시킨다. 그래서 트랜잭션 안에서 예외를 잡지 않는다(실행권 만료 처리를 사전 확인으로 바꿨다).
+- **이전 전 안전장치:** 이전하지 않은 저장소로 켜면 AD Coin만 꺼진다. `/status`가 503과 이유를 알리고, 프론트 전체는 정상으로 뜬다.
+- **운영자 명령**(`scripts/ad_coin_migrate_postgres.py`): 서버를 시작·재시작하지 않고, 연결은 하나만 쓴다.
+  - `status`: 표가 있는지와 표별 행 수
+  - `migrate`: 표·인덱스 생성. 덧붙이기 전용이고 여러 번 실행해도 안전하다.
+  - `copy --sqlite <파일>`: 기존 SQLite 장부를 빈 PG 표로 복사한다. 대상에 행이 있으면 거부한다.
+  ```
+  .venv/bin/python -m scripts.ad_coin_migrate_postgres status  --dsn-file <DSN 파일> --key-file <워크플로 키 파일>
+  .venv/bin/python -m scripts.ad_coin_migrate_postgres migrate --dsn-file <DSN 파일> --key-file <워크플로 키 파일>
+  ```
+- **운영 적용 순서**(아직 하지 않음, 사용자 승인 뒤)
+  1. `status`로 현재 상태를 확인한다.
+  2. `migrate`를 실행한다.
+  3. 필요하면 `copy`를 실행한다.
+  4. frontend 설정에 `AD_COIN_STORE=application`을 넣는다.
+  5. release_gate를 거쳐 배포한다.
+  6. 플래그는 그 뒤에 켠다.
+
 ## 월간 후원 감사
 
 후원을 켜도 일반 추천이 바뀌지 않는다는 약속을 운영에서 확인한다(기획 v3 10절 즉시 중지 조건 4). 판정은 `ad_coin/audit.py`, 실행은 `scripts/ad_coin_sponsorship_audit.py`가 한다.
@@ -252,6 +280,14 @@ front.py는 `ad_coin.api.router_for()`만 포함한다. 플래그가 꺼져 있�
   - 20개 모두 "같음", 흔들림 0이었다. Explore 기준 감사는 판정할 수 있다.
   - 운영 플래그가 꺼져 있어 후원 켬 단계는 돌리지 않았다. 반복 조회 안정성만 쟀다.
   - 같은 측정의 Explore 왕복 시간은 중간값 1.46초, 상위 10% 3.55초, 최대 10.1초였다(이 맥 부하 4.7~6.6, 공개 주소 경유). 3초 정책을 넘는 값이 있어 따로 기록한다. AI AD Coin 변경과는 무관하다.
+- `tests/test_ad_coin_postgres.py` 4건 통과(격리된 PostgreSQL 18 임시 클러스터, 운영 DB 무접촉). 확인한 내용:
+  - 이전 전에는 시작 거부, 이전은 두 번 실행해도 결과가 같음
+  - **AD Coin 표가 있는 DB에 저장소가 다시 붙어도(재시작) 스키마 검증 통과**
+  - 전체 흐름: 후원 실행권, 코인 보상, 이전 멱등, 위임장, 묶음 부분 정산, 초대·키, 시험 상품, 감사
+  - 실행권 만료가 한 트랜잭션 안에서 오염 없이 처리됨
+  - 손상된 잔액에 회로가 열림
+  - SQLite 장부 복사(합계 일치, 다시 복사 거부)
+  - 이전 전 플래그를 켜도 프론트는 뜸
 - 2026-11-05 0시 화면 확인(로컬 데모, 고객 로그인 없음)
   - "Check my account"에서 로그인 안내가 나왔다.
   - 에이전트 키 만들기는 "본인 세션에서만"으로 막혔다.
@@ -297,9 +333,7 @@ front.py는 `ad_coin.api.router_for()`만 포함한다. 플래그가 꺼져 있�
 
 ## 남은 일
 
-- 운영 PostgreSQL 이전
-  - 지금은 전용 SQLite 파일이다.
-  - 운영 PG로 옮기려면 SQL을 `application_store_sql.json`에 등록해야 한다.
+- 운영 PostgreSQL 적용: 코드와 이전 명령은 준비됐다(위 "운영 PostgreSQL로 옮기기"). 운영 DB에서 `migrate`를 실행하는 일은 사용자 승인 뒤에 한다.
 - 초대 계정 연결: 지금은 visitor token 해시 목록이다. 고객 로그인 세션과 연결하는 일이 남았다.
 - Chat 화면에서 답변이 끝난 뒤 업그레이드 확인을 자동으로 부르는 일. Chat 화면 파일은 다른 세션이 고치는 중이라 이번에는 건드리지 않았다. 지금은 `/ad-coin` 화면과 API로 쓴다.
 - 공개용 유료 워크플로 상품: 숨김 시험 상품으로 흐름은 검증했다. 공개하려면 결제(그랜드 오픈)와 제공자 계약이 먼저다.

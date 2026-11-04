@@ -246,3 +246,5 @@
   - 실행 완료에 성공 호출 수 비례 지급 추가. 시험 5건 + 비공개 통합 1건, 관련 153건 통과. 운영 화면 버튼은 브라우저 미확인.
 - 11-05 01:00 AI AD Coin 월간 후원 감사(`ad_coin/audit.py`, `scripts/ad_coin_sponsorship_audit.py`): 질문마다 후원 끔→켬(실제 후원 예약)→끔으로 상위 3개 비교, 바뀜이면 회로 `audit_mismatch` 열기, 통과면 회로 복원·예약 해제. 운영 화면에 감사 기록.
   - 실측(운영 Explore 읽기 20×3): 흔들림 0. 같은 측정 Explore 왕복 중간값 1.46초, 상위 10% 3.55초, 최대 10.1초(부하 5~6). 시험 3건, 관련 89건 통과.
+- 11-05 01:40 AI AD Coin 운영 PG 이전 준비: `AD_COIN_STORE=application`이면 애플리케이션 PG 저장소의 같은 연결·트랜잭션에서 `ad_coin_*` 표 사용(등록 SQL 목록·스키마 프로필 무변경, 연결 증가 없음). 표·인덱스 `ad_coin_` 접두사, 트랜잭션 안 예외 잡기 제거, 이전 전이면 AD Coin만 503.
+  - 운영자 CLI `scripts.ad_coin_migrate_postgres status|migrate|copy`. 격리 PG18 시험 4건(재접속 스키마 검증 포함), 관련 161건 통과. 운영 DB `migrate`는 아직 실행 안 함(승인 필요).

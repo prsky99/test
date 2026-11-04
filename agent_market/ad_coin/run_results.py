@@ -82,7 +82,7 @@ def successful_calls(lines, mapping, runs):
 def reconcile(service, *, execution_id, user_ref, run_ids, load_run, definition, admin=False):
     """`load_run(run_id)` returns the run dict above (or None); `definition` is the
     quoted workflow's current definition (nodes with resource ids)."""
-    row = service.db.one('SELECT * FROM executions WHERE id=?', (execution_id,))
+    row = service.db.one('SELECT * FROM ad_coin_executions WHERE id=?', (execution_id,))
     if not row or (not admin and row['user_ref'] != user_ref):
         raise RunMismatch('unknown_execution', 'No such execution for you.')
     if row['status'] != 'running':
@@ -112,11 +112,11 @@ def reconcile(service, *, execution_id, user_ref, run_ids, load_run, definition,
     results = successful_calls(lines, node_resources(definition), runs)
     keys = [target['kind'] + ':' + str(target['id']) + ':' + r for r in run_ids]
     with service.db.transaction() as db:
-        taken = [k for k in keys if db.execute('SELECT 1 FROM run_claims WHERE run_key=?', (k,)).fetchone()]
+        taken = [k for k in keys if db.execute('SELECT 1 FROM ad_coin_run_claims WHERE run_key=?', (k,)).fetchone()]
         if taken:
             raise RunMismatch('run_already_used', 'A run can settle only one execution.')
         for key in keys:
-            db.execute('INSERT INTO run_claims VALUES (?,?,?)', (key, execution_id, now()))
+            db.execute('INSERT INTO ad_coin_run_claims VALUES (?,?,?)', (key, execution_id, now()))
         digest = 'sha256:' + hashlib.sha256(canonical({'runs': run_ids, 'steps': [
             [(s['node_id'], s['status']) for s in run['steps']] for run in runs]})).hexdigest()
         settled = service.complete(execution_id=execution_id, ok=any(results), result_digest=digest,

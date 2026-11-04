@@ -90,7 +90,7 @@ class Signer:
                 'virtual_amounts': self.test_mode, 'subject': user_ref, 'facts': facts}
         receipt = {**body, 'signature': self.sign_payload(body)}
         with database.transaction() as db:
-            db.execute('INSERT INTO receipts VALUES (?,?,?,?,?)',
+            db.execute('INSERT INTO ad_coin_receipts VALUES (?,?,?,?,?)',
                        (body['id'], kind, user_ref, dumps(receipt), body['issued_at']))
         return receipt
 

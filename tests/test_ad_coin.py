@@ -240,7 +240,7 @@ def test_creative_screen_rejects_agent_instructions(svc, body):
 def test_broken_backing_opens_circuit_and_stops_offers(svc):
     campaign(svc)
     with svc.db.transaction() as db:  # simulate a corrupted claim outside the journal
-        db.execute("INSERT INTO balances VALUES ('wallet:user:ghost', 999999)")
+        db.execute("INSERT INTO ad_coin_balances VALUES ('wallet:user:ghost', 999999)")
     svc._after_money_move()
     assert svc.circuit()['open']
     packet = quote(svc)

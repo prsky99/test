@@ -73,8 +73,11 @@ class Ledger:
         self.database = database
 
     def balance(self, account):
-        row = self.database.one('SELECT amount FROM balances WHERE account=?', (account,))
+        row = self.database.one('SELECT amount FROM ad_coin_balances WHERE account=?', (account,))
         return row['amount'] if row else 0
+
+    def has(self, idem):
+        return bool(self.database.one('SELECT id FROM ad_coin_journals WHERE idem=?', (idem,)))
 
     def post(self, kind, idem, postings, detail=None):
         """Write one balanced journal. `postings` is [(account, amount_won)].
@@ -88,39 +91,39 @@ class Ledger:
         if any(amount == 0 for _, amount in postings):
             raise LedgerError('Zero postings are not allowed.')
         with self.database.transaction() as db:
-            earlier = db.execute('SELECT id FROM journals WHERE idem=?', (idem,)).fetchone()
+            earlier = db.execute('SELECT id FROM ad_coin_journals WHERE idem=?', (idem,)).fetchone()
             if earlier:
                 raise Duplicate(earlier['id'])
             journal_id = 'j_' + uuid.uuid4().hex
-            db.execute('INSERT INTO journals VALUES (?,?,?,?,?)',
+            db.execute('INSERT INTO ad_coin_journals VALUES (?,?,?,?,?)',
                        (journal_id, now(), kind, idem, dumps(detail or {})))
             for account, amount in postings:
-                db.execute('INSERT INTO postings VALUES (?,?,?)', (journal_id, account, amount))
-                row = db.execute('SELECT amount FROM balances WHERE account=?', (account,)).fetchone()
+                db.execute('INSERT INTO ad_coin_postings VALUES (?,?,?)', (journal_id, account, amount))
+                row = db.execute('SELECT amount FROM ad_coin_balances WHERE account=?', (account,)).fetchone()
                 value = (row['amount'] if row else 0) + amount
                 if value < 0 and not account.startswith(_EXTERNAL):
                     raise LedgerError('Insufficient balance in ' + account.split(':', 1)[0] + '.')
-                db.execute('INSERT INTO balances VALUES (?,?) ON CONFLICT(account) DO UPDATE SET amount=excluded.amount',
+                db.execute('INSERT INTO ad_coin_balances VALUES (?,?) ON CONFLICT(account) DO UPDATE SET amount=excluded.amount',
                            (account, value))
             return journal_id
 
     def journal(self, journal_id):
-        row = self.database.one('SELECT * FROM journals WHERE id=?', (journal_id,))
+        row = self.database.one('SELECT * FROM ad_coin_journals WHERE id=?', (journal_id,))
         if not row:
             return None
-        postings = self.database.all('SELECT account, amount FROM postings WHERE journal_id=?', (journal_id,))
+        postings = self.database.all('SELECT account, amount FROM ad_coin_postings WHERE journal_id=?', (journal_id,))
         return {'id': row['id'], 'kind': row['kind'], 'created_at': row['created_at'],
                 'postings': [(p['account'], p['amount']) for p in postings]}
 
     def totals(self):
-        rows = self.database.all('SELECT account, amount FROM balances')
+        rows = self.database.all('SELECT account, amount FROM ad_coin_balances')
         pool = sum(r['amount'] for r in rows if not r['account'].startswith(_EXTERNAL))
         obligations = sum(r['amount'] for r in rows if r['account'].startswith(OBLIGATION_PREFIXES))
         coins = sum(r['amount'] for r in rows if r['account'].startswith(COIN_PREFIXES))
         trust = -sum(r['amount'] for r in rows if r['account'].startswith(_EXTERNAL))
         negative = [r['account'] for r in rows if r['amount'] < 0 and not r['account'].startswith(_EXTERNAL)]
         unbalanced = self.database.one(
-            'SELECT COUNT(*) AS n FROM (SELECT journal_id FROM postings GROUP BY journal_id HAVING SUM(amount) != 0)')['n']
+            'SELECT COUNT(*) AS n FROM (SELECT journal_id FROM ad_coin_postings GROUP BY journal_id HAVING SUM(amount) != 0) AS unbalanced')['n']
         return {'pool_won': pool, 'obligations_won': obligations, 'coin_liability_won': coins,
                 'trust_balance_won': trust, 'negative_accounts': negative, 'unbalanced_journals': unbalanced}
 

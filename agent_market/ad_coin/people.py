@@ -41,26 +41,26 @@ class People:
         if type(customer_id) is not str or not CUSTOMER.fullmatch(customer_id):
             raise PeopleError('Use the account id the person sees on the AI AD Coin page.')
         with self.db.transaction() as db:
-            db.execute('INSERT INTO invites VALUES (?,?,?,NULL) ON CONFLICT(customer_id) DO UPDATE SET '
+            db.execute('INSERT INTO ad_coin_invites VALUES (?,?,?,NULL) ON CONFLICT(customer_id) DO UPDATE SET '
                        'revoked_at=NULL, note=excluded.note', (customer_id, str(note or '')[:120], now()))
         return {'customer_id': customer_id, 'status': 'invited'}
 
     def revoke_invite(self, customer_id):
         with self.db.transaction() as db:
-            if not db.execute('UPDATE invites SET revoked_at=? WHERE customer_id=? AND revoked_at IS NULL',
+            if not db.execute('UPDATE ad_coin_invites SET revoked_at=? WHERE customer_id=? AND revoked_at IS NULL',
                               (now(), customer_id)).rowcount:
                 raise PeopleError('No active invitation for that account.')
-            db.execute('UPDATE agent_keys SET revoked_at=? WHERE customer_id=? AND revoked_at IS NULL',
+            db.execute('UPDATE ad_coin_agent_keys SET revoked_at=? WHERE customer_id=? AND revoked_at IS NULL',
                        (now(), customer_id))
         return {'customer_id': customer_id, 'status': 'revoked'}
 
     def invites(self):
-        rows = self.db.all('SELECT * FROM invites ORDER BY created_at')
+        rows = self.db.all('SELECT * FROM ad_coin_invites ORDER BY created_at')
         return [{'customer_id': r['customer_id'], 'note': r['note'],
                  'status': 'revoked' if r['revoked_at'] else 'invited'} for r in rows]
 
     def invited(self, customer_id):
-        return bool(self.db.one('SELECT 1 FROM invites WHERE customer_id=? AND revoked_at IS NULL', (customer_id,)))
+        return bool(self.db.one('SELECT 1 FROM ad_coin_invites WHERE customer_id=? AND revoked_at IS NULL', (customer_id,)))
 
     # ---- agent keys (the person) ----
     def create_key(self, customer_id, agent_ref):
@@ -68,27 +68,27 @@ class People:
             raise PeopleError('Name the agent with letters, numbers, dots, dashes or underscores.')
         if not self.invited(customer_id):
             raise PeopleError('This account is not invited.')
-        active = self.db.one('SELECT COUNT(*) AS n FROM agent_keys WHERE customer_id=? AND revoked_at IS NULL',
+        active = self.db.one('SELECT COUNT(*) AS n FROM ad_coin_agent_keys WHERE customer_id=? AND revoked_at IS NULL',
                              (customer_id,))['n']
         if active >= MAX_KEYS:
             raise PeopleError('Revoke an agent key before adding another (at most 10).')
         key = 'ack_' + secrets.token_urlsafe(32)[:43]
         with self.db.transaction() as db:
-            db.execute('UPDATE agent_keys SET revoked_at=? WHERE customer_id=? AND agent_ref=? AND revoked_at IS NULL',
+            db.execute('UPDATE ad_coin_agent_keys SET revoked_at=? WHERE customer_id=? AND agent_ref=? AND revoked_at IS NULL',
                        (now(), customer_id, agent_ref))
-            db.execute('INSERT INTO agent_keys VALUES (?,?,?,?,NULL,NULL)', (_hash(key), customer_id, agent_ref, now()))
+            db.execute('INSERT INTO ad_coin_agent_keys VALUES (?,?,?,?,NULL,NULL)', (_hash(key), customer_id, agent_ref, now()))
         return {'agent': agent_ref, 'agent_key': key, 'shown_once': True,
                 'use': 'Send it as the X-Ad-Coin-Agent-Key header. It acts only for you and only as this agent.'}
 
     def keys(self, customer_id):
-        rows = self.db.all('SELECT agent_ref, created_at, last_used_at FROM agent_keys WHERE customer_id=? '
+        rows = self.db.all('SELECT agent_ref, created_at, last_used_at FROM ad_coin_agent_keys WHERE customer_id=? '
                            'AND revoked_at IS NULL ORDER BY created_at', (customer_id,))
         return [{'agent': r['agent_ref'], 'created_at': int(r['created_at']),
                  'last_used_at': int(r['last_used_at']) if r['last_used_at'] else None} for r in rows]
 
     def revoke_keys(self, customer_id, agent_ref):
         with self.db.transaction() as db:
-            changed = db.execute('UPDATE agent_keys SET revoked_at=? WHERE customer_id=? AND agent_ref=? '
+            changed = db.execute('UPDATE ad_coin_agent_keys SET revoked_at=? WHERE customer_id=? AND agent_ref=? '
                                  'AND revoked_at IS NULL', (now(), customer_id, agent_ref)).rowcount
         return changed
 
@@ -97,13 +97,13 @@ class People:
         if type(key) is not str or not KEY.fullmatch(key):
             return None
         digest = _hash(key)
-        row = self.db.one('SELECT k.customer_id, k.agent_ref FROM agent_keys k JOIN invites i '
+        row = self.db.one('SELECT k.customer_id, k.agent_ref FROM ad_coin_agent_keys k JOIN ad_coin_invites i '
                           'ON i.customer_id=k.customer_id WHERE k.key_hash=? AND k.revoked_at IS NULL '
                           'AND i.revoked_at IS NULL', (digest,))
         if not row:
             return None
         with self.db.transaction() as db:
-            db.execute('UPDATE agent_keys SET last_used_at=? WHERE key_hash=?', (now(), digest))
+            db.execute('UPDATE ad_coin_agent_keys SET last_used_at=? WHERE key_hash=?', (now(), digest))
         return row['customer_id'], row['agent_ref']
 
 

@@ -24,8 +24,16 @@ AGENT = re.compile(r'[A-Za-z0-9][A-Za-z0-9._-]{0,63}\Z')
 NO_STORE = {'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex'}
 
 
-def build_service(settings):
-    database = Database(settings.db_path)
+def build_service(settings, app_store=None):
+    if settings.store == 'application':
+        from .db import ApplicationStoreDatabase
+        if app_store is None or getattr(app_store, 'backend', '') != 'postgresql':
+            raise RuntimeError('AD_COIN_STORE=application needs the application PostgreSQL store.')
+        database = ApplicationStoreDatabase(app_store)
+    elif settings.store == 'sqlite':
+        database = Database(settings.db_path)
+    else:
+        raise RuntimeError('AD_COIN_STORE must be sqlite or application.')
     signer = Signer(load_or_create_key(settings.receipt_key_path), settings.issuer, test_mode=True)
     return AdCoinService(database, signer, test_mode=True)
 
@@ -50,7 +58,20 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
     router = APIRouter()
     if not settings.enabled:
         return router
-    service = service or build_service(settings)
+    if service is None:
+        try:
+            service = build_service(settings, store)
+        except RuntimeError as exc:
+            # Never take the whole frontend down for this closed test: report and stay off.
+            import logging
+            reason = str(exc)
+            logging.getLogger('agent_market.ad_coin').error('AI AD Coin unavailable: %s', reason)
+
+            @router.get(PREFIX + '/status', include_in_schema=False)
+            def unavailable():
+                return _json({'enabled': True, 'available': False, 'error': 'ad_coin_unavailable',
+                              'message': reason}, 503)
+            return router
     from .test_products import ProductError, TestProducts
     products = TestProducts(service.db)
     from .people import People, PeopleError, customer_session, user_ref_for_customer
@@ -306,7 +327,7 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
         from .run_results import RunMismatch, parse_task_ref, public_run, reconcile
         from .private_workflows import PrivateWorkflowDenied
         execution_id = str(data.get('execution_id', ''))
-        row = service.db.one('SELECT task_ref FROM executions WHERE id=?', (execution_id,))
+        row = service.db.one('SELECT task_ref FROM ad_coin_executions WHERE id=?', (execution_id,))
         target = parse_task_ref(row['task_ref']) if row else None
         try:
             if target and target['kind'] == 'workflow':
