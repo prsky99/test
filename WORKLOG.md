@@ -2,6 +2,7 @@
 - 11-04: 디스크 점검(여유 150GB, 릴리스 461개 142GB). `agentcon prune-releases` 추가, 383개 삭제, 여유 149.5→191.7GB. 배포·워커 배포 성공 뒤 자동 정리(배포된 것과 6시간 미만 미배포만 남김, `--no-prune`).
 
 ## 완료 (최근 것만)
+- Web Bot Auth jobs 켬·5점 개선 순서(2026-11-04 15:00, 프론트앤드, 사용자 승인): bot-auth-jobs-20261104-r1(gateway-scope-jobs-r1 + 서명 파일 4개, service_host는 3줄만) 배포(--no-prune). 검색과 RAG가 lead-jobs-r2를 이 위로 다시 패키징(배포 승인 대기). 2차 재평가 보고서 6절에 5점용 11단계(1~3·8~9 프론트앤드, 4~7 검색과 RAG, 10 실사용자 시험).
 - Web Bot Auth 켬(2026-11-04 12:50, 프론트앤드, 사용자 지시): 키 gateway-data/web-bot-auth/ed25519.pem, 경로는 gateway-data/web-bot-signer.env(agentcon.env에 넣으면 배포 도구·옛 릴리스가 멈춤 — 한 번 넣었다 즉시 되돌림). frontend bot-auth-frontend-20261104-r2(활성 a), 키 디렉터리 200·서명 검증됨. **jobs 다음 배포 때 web_bot_signer.py·broker/discovery.py·service_host.py·scripts/agentcon_config.py를 실어야 수집기도 서명함**(백엔드 세션 종료로 미전달). → reports/전문가 4인 재평가 2차 2026-11-04.md 4절
 - 전문가 재평가 2차(2026-11-04 12시, 프론트앤드): UX 3.9·디자인 4.3·AI 3.4·웹개발 4.5. 폰 12px 미만 글자 8곳 수정(small-text-frontend-20261104-r1, 활성 b). 추천 항목(rv2·rv3·rv10, 평가 자동화, 조건 줄)은 검색과 RAG 99% 계획에 인계. D2 숨은 화면 보류(116개 ID 직접 참조, INP 64ms). Web Bot Auth 키 생성·agentcon.env 추가는 자동 승인에서 막혀 사용자 실행 대기(보고서 4절 명령). → reports/전문가 4인 재평가 2차 2026-11-04.md
 - MCP 비동기 작업(2026-11-04 오후, 프론트앤드, 사용자 "설계대로 구현"): run_workflow 도구(공개 REST 실행과 같은 검사, definition_hash 필수, taskSupport optional)와 tasks/get·result·cancel(concierge/mcp_tasks.py, 작업 ID=실행 ID.실행 키). mcp_contract에 넣어 런타임·mcp.json·홈 JSON 14개 도구 일치. mcp-tasks-frontend-20261104-r2 배포(활성 a), 운영에서 워크플로 38번 작업 실행 completed 3/3 확인(첫 회는 제공자 일시 실패). → reports/전문가 4인 재평가 2026-11-04.md 6.6절
