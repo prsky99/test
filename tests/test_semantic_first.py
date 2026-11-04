@@ -39,3 +39,12 @@ def test_the_ranked_order_stands_when_embeddings_fail_or_are_off():
 def test_the_first_stays_when_it_is_already_closest():
     engine = Engine([[1, 0], [1, 0], [0, 1], [0.5, 0.5]])
     assert semantic_first(engine, 'task', ITEMS) == ITEMS
+
+
+def test_a_single_candidate_needs_no_embedding_and_rank_reports_closeness():
+    from agent_market.concierge.fast_chat import semantic_rank
+    engine = Engine([[1, 0], [0.6, 0.8]])
+    assert semantic_first(engine, 'task', ITEMS[:1]) == ITEMS[:1] and engine.calls == []
+    ranked, closeness = semantic_rank(engine, 'task', ITEMS[:1])
+    assert ranked == ITEMS[:1] and abs(closeness - 0.6) < 1e-9
+    assert semantic_rank(Engine(None), 'task', ITEMS) == (ITEMS, None)

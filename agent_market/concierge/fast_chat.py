@@ -125,6 +125,47 @@ def capability_focus(store, engine, task, protocol=None):
     return ' '.join(kept)
 
 
+NEIGHBOR_ROWS = 30          # listings closest to the request that vote on shared words
+NEIGHBOR_SHARE = 0.3        # a word must appear in this share of them
+NEIGHBOR_CATALOG_SHARE = 0.02  # and in no more than this share of the whole catalog
+NEIGHBOR_WORDS = 2
+NEIGHBOR_CLOSENESS = 0.73  # minimum request-to-tool similarity for an answer found this way
+NEIGHBOR_STOP = frozenset('this that with from your their they have will what when where which into about using used '
+                          'uses tool tools agent agents data api apis service services server mcp returns return get list '
+                          'search find query results result information info based support supports provide provides '
+                          'allows access'.split())
+
+
+def neighbor_focus(store, engine, task, protocol=None):
+    """Words the listings nearest the request share but the request never says, or None.
+
+    Measured offline (11-05, production read-only) on Chat misses the canonical phrase would have
+    answered: tuning 93 -> 54 answered, 42 right; holdout 32 -> 20 answered, 19 right. Only the
+    listings' own compact text is read; the search that follows applies every usual gate."""
+    from .selection import search_terms, FILLER
+    from .discovery import candidates, enabled, ranking_text
+    if not enabled(engine):
+        return None
+    try:
+        rows = candidates(store, engine, task, kind=protocol, maximum=2 * NEIGHBOR_ROWS, ranking_only=True)
+    except Exception:
+        return None
+    texts = [(row.get('_rank_text') if isinstance(row.get('_rank_text'), str) else ranking_text(row)).lower()
+             for row in rows][:NEIGHBOR_ROWS]
+    if len(texts) < 8:
+        return None
+    own = set(search_terms(task))
+    counts = {}
+    for text in texts:
+        for word in set(re.findall(r'[a-z]{4,}', text)):
+            if word not in NEIGHBOR_STOP and word not in FILLER and word not in own:
+                counts[word] = counts.get(word, 0) + 1
+    ranked = sorted(counts.items(), key=lambda pair: (-pair[1], pair[0]))[:12]
+    picked = [word for word, count in ranked if count >= NEIGHBOR_SHARE * len(texts)
+              and catalog_share(store, word) <= NEIGHBOR_CATALOG_SHARE][:NEIGHBOR_WORDS]
+    return ' '.join(picked) or None
+
+
 def states_every_word(item, words):
     """Each word, or its plural, as a whole word in the recommended tool's own name and description."""
     schema = (item.get('tools_schema') or [{}])[0] or {}
@@ -236,14 +277,19 @@ def _cosine(a, b):
 
 
 def semantic_first(engine, task, items):
+    """The ranked list with the closest tool first; one candidate needs no embedding call."""
+    return items if len(items) < 2 else semantic_rank(engine, task, items)[0]
+
+
+def semantic_rank(engine, task, items):
     """Move the candidate whose chosen tool is closest in meaning to the task to the front.
 
     Measured offline (11-04, production read-only, threshold chosen on tuning only): of answered
     cases the first of ten was right for 85% and some of the ten for 93%; moving the closest tool
     first gained 28 and lost 5 on tuning, gained 13 and lost 3 on holdout, in about 0.22 s. The
     ranked order stands when embeddings are off, slow or fail."""
-    if len(items) < 2 or engine is None or not getattr(engine, 'embeddings_enabled', False):
-        return items
+    if not items or engine is None or not getattr(engine, 'embeddings_enabled', False):
+        return items, None
     docs = []
     for item in items:
         tool = (item.get('tools_schema') or [{}])[0] or {}
@@ -252,12 +298,12 @@ def semantic_first(engine, task, items):
     try:
         vectors = engine.embed_texts([str(task)[:1000]] + docs, timeout_seconds=SEMANTIC_BUDGET)
     except Exception:
-        return items
+        return items, None
     if not vectors or len(vectors) != len(items) + 1:
-        return items
+        return items, None
     scores = [_cosine(vectors[0], vector) for vector in vectors[1:]]
     best = max(range(len(items)), key=lambda i: (scores[i], -i))
-    return [items[best]] + items[:best] + items[best + 1:] if best else items
+    return ([items[best]] + items[:best] + items[best + 1:] if best else items), scores[best]
 
 
 def condition_first(task, items):
