@@ -66,6 +66,8 @@ CREATE TABLE IF NOT EXISTS agent_keys (
     key_hash TEXT PRIMARY KEY, customer_id TEXT NOT NULL, agent_ref TEXT NOT NULL, created_at REAL NOT NULL,
     last_used_at REAL, revoked_at REAL);
 CREATE INDEX IF NOT EXISTS agent_keys_owner ON agent_keys(customer_id, agent_ref);
+CREATE TABLE IF NOT EXISTS run_claims (
+    run_key TEXT PRIMARY KEY, execution_id TEXT NOT NULL, created_at REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS receipts (
     id TEXT PRIMARY KEY, kind TEXT NOT NULL, user_ref TEXT NOT NULL, body TEXT NOT NULL, created_at REAL NOT NULL);
 CREATE INDEX IF NOT EXISTS receipts_user ON receipts(user_ref, created_at);

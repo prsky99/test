@@ -72,6 +72,8 @@ table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}th{white
 
 <section><h2>실행·정산(시뮬레이션)</h2>
 <div class="row"><input id="x-id" placeholder="실행 ID (x_...)"><label><input id="x-ok" type="checkbox" checked> 성공</label><button id="complete" class="secondary">실행 완료 처리</button></div>
+<div class="row"><input id="r-ids" placeholder="공개 워크플로 실행 ID(쉼표, 견적의 실행 횟수만큼)"><button id="settle-runs" class="secondary">실행 기록으로 정산</button></div>
+<p class="muted">공개 워크플로 실행권·코인 결제는 실제 실행 기록으로 정산합니다. 위 실행 ID 칸에 AI AD Coin 실행 ID(x_...)를 넣으세요. 단계별로 성공한 호출만 지급하고 나머지는 낸 쪽에 돌려줍니다. 고객 비공개 흐름은 고객 본인 세션에서 정산합니다.</p>
 <div class="row"><input id="p-id" placeholder="제공자 ID (예: r123)"><button id="settle" class="secondary">가상 정산</button><button id="sweep" class="secondary">휴면 에이전트 지갑 회수</button></div>
 <div class="out" id="ops-out" aria-live="polite"></div></section>
 </main><script src="/ad-coin/admin.js"></script></body></html>
@@ -138,6 +140,10 @@ $('t-create').onclick=function(){$('t-create').disabled=true;call('/admin/test-p
   .then(function(p){say('t-out','만들었습니다: '+p.id);setTimeout(products,300)}).catch(function(e){say('t-out',e.message)}).finally(function(){$('t-create').disabled=false})};
 $('complete').onclick=function(){var ok=$('x-ok').checked,digest='sha256:'+'0'.repeat(64);
   call('/admin/executions/complete',{execution_id:$('x-id').value.trim(),ok:ok,result_digest:ok?digest:null}).then(function(r){say('ops-out',r.status==='succeeded'?'성공 처리했습니다. 제공자 지급 예정에 넣었습니다.':'실패 처리했습니다. 코인·실행권을 돌려줬습니다.')}).catch(function(e){say('ops-out',e.message)})};
+$('settle-runs').onclick=function(){var ids=$('r-ids').value.split(',').map(function(x){return x.trim()}).filter(Boolean);
+  call('/admin/executions/settle-from-runs',{execution_id:$('x-id').value.trim(),run_ids:ids}).then(function(r){
+    say('ops-out',r.status==='waiting'?'아직 실행 중인 기록이 있습니다: '+r.run:'정산: '+r.status+' · 지급 '+won(r.paid_won)+' · 환불 '+won(r.refunded_won)+' · 단계별 성공 호출 '+r.line_calls_succeeded.join(', '))})
+  .catch(function(e){say('ops-out',e.message)})};
 $('settle').onclick=function(){call('/admin/settle',{provider:$('p-id').value.trim(),idempotency_key:key()}).then(function(r){say('ops-out',r.status==='settled'?'가상 정산 '+won(r.won):'지급할 금액이 없습니다.')}).catch(function(e){say('ops-out',e.message)})};
 $('sweep').onclick=function(){call('/admin/sweep-dormant',{}).then(function(r){say('ops-out','회수한 지갑 '+r.swept_wallets+'개, '+r.coins+'코인')}).catch(function(e){say('ops-out',e.message)})};
 })();

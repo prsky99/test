@@ -43,7 +43,7 @@ def user_ref_of(token):
 
 
 def router_for(settings=None, service=None, store=None, workflow_reader=None, private_flow_reader=None,
-               customer_identity=None):
+               customer_identity=None, private_run_reader=None):
     """`store` is the catalog store, read only for the upgrade check.
     `workflow_reader(template_id)` returns a published workflow definition."""
     settings = settings or Settings.from_environment()
@@ -302,6 +302,41 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
                              agent_ref=agent_of(request), mandate_id=data.get('mandate_id'),
                              memo=str(data.get('memo', ''))[:200], lines=data.get('lines'))
 
+    def settle_from_runs(request, who, data, admin):
+        from .run_results import RunMismatch, parse_task_ref, public_run, reconcile
+        from .private_workflows import PrivateWorkflowDenied
+        execution_id = str(data.get('execution_id', ''))
+        row = service.db.one('SELECT task_ref FROM executions WHERE id=?', (execution_id,))
+        target = parse_task_ref(row['task_ref']) if row else None
+        try:
+            if target and target['kind'] == 'workflow':
+                if store is None or workflow_reader is None:
+                    raise AdCoinError('workflows_unavailable', status=503)
+                definition = workflow_reader(target['id'])
+                if not definition:
+                    raise AdCoinError('workflow_not_published', status=409)
+                load = lambda run_id: public_run(store, run_id)  # noqa: E731
+            elif target and target['kind'] == 'private_workflow':
+                if admin or private_flow_reader is None or private_run_reader is None:
+                    raise AdCoinError('private_workflows_closed',
+                                      'Settle your own workflow runs from your signed-in session.', 403)
+                ws = data.get('workspace_id')
+                definition = private_flow_reader(request, ws, target['id'])
+                load = lambda run_id: private_run_reader(request, ws, target['id'], run_id)  # noqa: E731
+            else:
+                definition, load = None, None
+            return reconcile(service, execution_id=execution_id, user_ref=who, run_ids=data.get('run_ids'),
+                             load_run=load or (lambda run_id: None), definition=definition, admin=admin)
+        except PrivateWorkflowDenied as exc:
+            raise AdCoinError('private_workflow_' + str(exc), 'Sign in to your workspace to read its runs.',
+                              401 if str(exc) == 'sign_in_required' else 403) from None
+        except RunMismatch as exc:
+            raise AdCoinError(exc.code, str(exc), 409) from None
+
+    @add('POST', '/executions/settle-from-runs', 'person')
+    def settle_runs(request, who, data):
+        return settle_from_runs(request, who, data, admin=False)
+
     @add('POST', '/vouchers/redeem', 'person')
     def redeem(request, who, data):
         return service.redeem_voucher(user_ref=who, voucher_id=str(data.get('voucher_id', '')))
@@ -400,6 +435,10 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
     def complete(request, who, data):
         return service.complete(execution_id=str(data.get('execution_id', '')), ok=data.get('ok') is True,
                                 result_digest=data.get('result_digest'), line_results=data.get('line_results'))
+
+    @add('POST', '/admin/executions/settle-from-runs', 'admin')
+    def admin_settle_runs(request, who, data):
+        return settle_from_runs(request, who, data, admin=True)
 
     @add('POST', '/admin/settle', 'admin')
     def settle(request, who, data):

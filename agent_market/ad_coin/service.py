@@ -700,18 +700,24 @@ class AdCoinService:
         if row['status'] != 'running':
             raise AdCoinError('execution_closed', status=409)
         lines = self._lines_of(execution_id)
+        # Per line: True/False for the whole line, or the number of calls that succeeded.
         if line_results is None:
             results = [bool(ok)] * len(lines)
-        elif lines and isinstance(line_results, list) and len(line_results) == len(lines) \
-                and all(type(r) is bool for r in line_results):
+        elif lines and isinstance(line_results, list) and len(line_results) == len(lines) and all(
+                type(r) is bool or (type(r) is int and 0 <= r <= line['calls'])
+                for r, line in zip(line_results, lines)):
             results = line_results
         else:
             raise AdCoinError('invalid_line_results')
         price = row['price_won']
         if lines:
-            paid_lines = [(l, r) for l, r in zip(lines, results)]
-            paid = sum(l['won'] for l, r in paid_lines if r)
-            any_ok = any(results)
+            def earned(line, result):
+                if type(result) is bool:
+                    return line['won'] if result else 0
+                return line['won'] * result // line['calls']
+            paid_lines = [(l, earned(l, r)) for l, r in zip(lines, results)]
+            paid = sum(won for _, won in paid_lines)
+            any_ok = any(won > 0 or (r is True) for (_, won), r in zip(paid_lines, results))
         else:
             paid = price if ok else 0
             any_ok = bool(ok)
@@ -724,11 +730,13 @@ class AdCoinService:
                        (outcome, result_digest, now(), execution_id))
             postings = [(L.inflight(execution_id), -price)]
             if lines:
-                for line, success in paid_lines:
+                for line, won in paid_lines:
+                    state = 'succeeded' if won == line['won'] and (won or results[line['position']] is True) \
+                        else ('partial' if won else 'refunded')
                     db.execute('UPDATE execution_lines SET status=? WHERE execution_id=? AND position=?',
-                               ('succeeded' if success else 'refunded', execution_id, line['position']))
-                    if success and line['won']:
-                        postings.append((L.provider_payable(line['provider']), line['won']))
+                               (state, execution_id, line['position']))
+                    if won:
+                        postings.append((L.provider_payable(line['provider']), won))
             elif paid:
                 postings.append((L.provider_payable(row['provider']), paid))
             refund_to = None

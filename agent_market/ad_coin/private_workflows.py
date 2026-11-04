@@ -88,3 +88,33 @@ def customer_identity_for(front, enabled):
         from ..workspace_platform import platform_for
         return platform_for(front).identity
     return identity
+
+
+def run_reader_for(front, enabled, core_factory=None):
+    """Returns read(request, workspace_id, flow_id, run_id) -> {'status', 'created', 'steps'} through the
+    same customer boundary, or None when customer workspaces are closed. Step outputs are dropped."""
+    if not enabled:
+        return None
+
+    def read(request, workspace_id, flow_id, run_id):
+        if not all(type(v) is str and WS.fullmatch(v) for v in (workspace_id, flow_id, run_id)):
+            raise PrivateWorkflowDenied('invalid_ids')
+        from fastapi import HTTPException
+        from ..customer_identity_service import customer_actor
+        from ..workspace_access import WorkspaceDenied, WorkspaceInvalid
+        if core_factory is not None:
+            core = core_factory()
+        else:
+            from ..customer_authoring import authoring_for
+            from ..workspace_platform import platform_for
+            core = authoring_for(platform_for(front))
+        try:
+            customer = customer_actor(request, core.identity)
+            run = core.typed.get(workspace_id, flow_id, run_id, core.actor(workspace_id, customer))
+        except HTTPException as exc:
+            raise PrivateWorkflowDenied('sign_in_required' if exc.status_code == 401 else 'not_allowed') from None
+        except (WorkspaceDenied, WorkspaceInvalid, KeyError, ValueError, TypeError):
+            return None
+        return {'status': run.get('status'), 'created': run.get('created'),
+                'steps': [{'node_id': s.get('node_id'), 'status': s.get('status')} for s in run.get('steps') or []]}
+    return read
