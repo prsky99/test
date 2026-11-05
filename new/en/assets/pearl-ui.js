@@ -450,6 +450,8 @@
   }
   const oldBubble=appendChatBubble;
   appendChatBubble=function(role,content,data,...rest){const value=oldBubble(role,content,data,...rest);if(role!=='user')chatDetails(data);return value;};
+  // 11-05 needs_choice: the side panel follows the option the visitor chose.
+  document.addEventListener('chat-choice',event=>{const bubble=event.target.closest?.('.chat-bubble');const index=event.detail?.index;if(bubble?.__chatData&&Number.isInteger(index))chatDetails(bubble.__chatData,index);});
   const authority=q('#pearlRegAuthority'),submit=q('#regSubmitBtn');
   if(authority&&submit){const original=submit.onclick;submit.onclick=async function(event){
     if(!authority.checked){showModalAlert({type:'warning',title:'Authorization required',message:'Confirm that you are authorized to submit this public endpoint.',onClose:()=>authority.focus()});return;}

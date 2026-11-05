@@ -3852,6 +3852,69 @@ function chatWhy(item) {
     (matched.length ? '<p class="chat-task-fit">Declared requirements: ' + matched.map(key => esc(labels[key])).join(', ') + '</p>' : '') +
     (text ? '<p>' + esc(text) + '</p>' : '') + '</div>';
 }
+// 11-05 needs_choice: the visitor picks one of the options; nothing is run or sent when choosing.
+function chatChoice(bubble, choices) {
+  const cards = [...bubble.querySelectorAll('.chat-recommendation')];
+  const prompt = document.createElement('div');
+  prompt.className = 'chat-choice';
+  prompt.setAttribute('role', 'group');
+  prompt.setAttribute('aria-label', 'Choose one recommendation');
+  const title = document.createElement('p');
+  title.className = 'chat-choice-title';
+  title.textContent = 'Not sure which of these fits your task.';
+  const hint = document.createElement('p');
+  hint.className = 'caption';
+  hint.textContent = 'Choose one to keep it, or say more about what the agent should do.';
+  const more = document.createElement('button');
+  more.type = 'button'; more.className = 'btn sm chat-choice-more'; more.textContent = 'Say more';
+  more.onclick = () => {
+    const input = document.getElementById('chatInput');
+    if (!input) return;
+    const last = document.querySelector('#chatMessages .chat-request')?.dataset.request || '';
+    if (!input.value.trim() && last) input.value = last + ' ';
+    input.focus();
+    input.setSelectionRange?.(input.value.length, input.value.length);
+  };
+  const change = document.createElement('button');
+  change.type = 'button'; change.className = 'btn sm chat-choice-change'; change.textContent = 'Change choice'; change.hidden = true;
+  const actions = document.createElement('div');
+  actions.className = 'chat-choice-actions';
+  actions.append(more, change);
+  prompt.append(title, hint, actions);
+  bubble.prepend(prompt);
+  const announce = text => { if (chatStatus) chatStatus.textContent = text; };
+  const reset = () => {
+    for (const card of cards) {
+      card.hidden = false; card.removeAttribute('data-chosen');
+      const pick = card.querySelector('.chat-choose-btn');
+      if (pick) { pick.hidden = false; pick.setAttribute('aria-pressed', 'false'); }
+    }
+    title.textContent = 'Not sure which of these fits your task.';
+    hint.hidden = false; change.hidden = true;
+    announce('Showing all ' + cards.length + ' options.');
+    cards[0]?.querySelector('.chat-choose-btn')?.focus();
+  };
+  change.onclick = reset;
+  cards.forEach((card, index) => {
+    const pick = document.createElement('button');
+    pick.type = 'button'; pick.className = 'btn sm primary chat-choose-btn';
+    pick.setAttribute('aria-pressed', 'false');
+    const name = card.querySelector('.chat-result-name')?.textContent || 'Option ' + (index + 1);
+    pick.textContent = 'Choose this option';
+    pick.setAttribute('aria-label', 'Choose option ' + (index + 1) + ': ' + name);
+    pick.onclick = () => {
+      cards.forEach((other, i) => { other.hidden = i !== index; });
+      card.dataset.chosen = '';
+      pick.setAttribute('aria-pressed', 'true'); pick.hidden = true;
+      title.textContent = 'You chose option ' + (index + 1) + ': ' + name + '.';
+      hint.hidden = true; change.hidden = false;
+      announce('Option ' + (index + 1) + ' chosen: ' + name + '. Review its evidence and calling details.');
+      bubble.dispatchEvent(new CustomEvent('chat-choice', {bubbles: true, detail: {index}}));
+      card.querySelector('.chat-rec-btn')?.focus();
+    };
+    card.querySelector('.chat-result-heading')?.after(pick);
+  });
+}
 function appendChatBubble(role, contentText, data, requestNote=null) {
   if (!chatMessages) return;
   if (role === "user") {
@@ -3894,7 +3957,9 @@ function appendChatBubble(role, contentText, data, requestNote=null) {
         '<button type="button" class="btn sm chat-feedback-btn" data-outcome="worked">Worked</button>' +
         '<button type="button" class="btn sm chat-feedback-btn" data-outcome="failed">Didn&#39;t work</button></div></article>';
     });
-    bubble.innerHTML = cards[0] + (cards.length > 1 ? '<details class="context-help chat-alternatives"><summary>Show ' + (cards.length-1) + ' alternative' + (cards.length > 2 ? 's' : '') + '</summary>' + cards.slice(1).join('') + '</details>' : '');
+    // 11-05: a low-confidence answer (status needs_choice) shows every option side by side to choose from.
+    const choosing = data?.data?.status === 'needs_choice' && cards.length > 1;
+    bubble.innerHTML = choosing ? cards.join('') : cards[0] + (cards.length > 1 ? '<details class="context-help chat-alternatives"><summary>Show ' + (cards.length-1) + ' alternative' + (cards.length > 2 ? 's' : '') + '</summary>' + cards.slice(1).join('') + '</details>' : '');
     const basis = document.createElement('details');basis.className='context-help chat-result-basis';
     const summary=document.createElement('summary');summary.textContent='Why these matches?';
     const explanation=document.createElement('div');explanation.className='context-help-body';explanation.textContent='Matches must fit the task. Services built for the task come before multi-tool services where one tool matches. Within each group, recent successful checks come first, then activity and quality. Automatic searches prefer A2A, then MCP.';
@@ -3902,6 +3967,8 @@ function appendChatBubble(role, contentText, data, requestNote=null) {
     const quality=document.createElement('p');quality.textContent='Quality is a rule-based score out of 100: availability 25, tool definition quality 20, security 20, context 15, protocol conformance 10, provenance and maintenance 10. Grades: A 85+, B 70+, C 55+, D 40+. A confirmed security signal caps the score at 40. Descriptions are written by each provider.';
     explanation.append(quality);basis.append(summary,explanation);
     bubble.prepend(basis);
+    bubble.__chatData = data;
+    if (choosing) chatChoice(bubble, choices);
     bubble.querySelectorAll('.chat-rec-btn').forEach((button,index) => {button.onclick=()=>openChatAgent(choices[index]);});
     // Feedback names a position in the latest list; earlier answers stop accepting it.
     document.querySelectorAll('#chatMessages .chat-feedback-btn').forEach(button => { if (!bubble.contains(button)) button.disabled = true; });
