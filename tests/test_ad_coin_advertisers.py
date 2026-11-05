@@ -286,3 +286,35 @@ def test_http_console_needs_a_signed_in_member_and_csrf(tmp_path):
     assert 429 in statuses                                              # writes are rate limited per person
     agent_key = {'X-Ad-Coin-Agent-Key': 'ack_' + 'x' * 43}
     assert TestClient(app).get('/api/ad-coin/v1/advertisers', headers=agent_key).status_code == 403
+
+
+def test_the_console_uses_the_agent_concierge_design_system():
+    """The console keeps the site's Pearl Connection design: shared files and workspace shell, no own styles."""
+    from agent_market.ad_coin.advertiser_page import PAGE, SCRIPT
+    for shared in ('/new/en/assets/styles.css', '/new/en/assets/necklace.css', '/new/en/assets/pearl-live.css',
+                   '/new/en/assets/app.js'):
+        assert shared in PAGE
+    for part in ('class="ws-top"', 'class="container ws-layout"', 'class="ws-sidebar"', 'class="side-item active"',
+                 'class="ws-main"', 'class="page-heading"', 'class="eyebrow"', 'class="card"', 'class="field"',
+                 'class="btn primary"', 'class="review-steps"', 'class="tabs"', 'data-tab-panel=', 'class="note"',
+                 'data-action="theme"'):
+        assert part in PAGE, part
+    assert '<style' not in PAGE and 'style=' not in PAGE          # no page-local styling
+    assert '.innerHTML' not in SCRIPT                               # data is written as text only
+    import os
+    root = os.path.join(os.path.dirname(__file__), '..', 'new', 'en', 'assets')
+    css = ''.join(open(os.path.join(root, name)).read() for name in ('styles.css', 'pearl-live.css', 'necklace.css'))
+    for cls in ('ws-layout', 'ws-sidebar', 'side-item', 'ws-main', 'page-heading', 'eyebrow', 'card', 'field',
+                'data-table', 'table-wrap', 'status-table', 'history-row', 'setting-row', 'review-steps', 'badge',
+                'error-text', 'split', 'note'):
+        assert '.' + cls in css, cls                                 # every class used exists in the shared CSS
+
+
+def test_the_console_page_may_load_the_shared_design_files(tmp_path):
+    settings = Settings(enabled=True, db_path=str(tmp_path / 'ad.sqlite3'), receipt_key_path=str(tmp_path / 'k.pem'))
+    app = FastAPI()
+    app.include_router(router_for(settings))
+    page = TestClient(app).get('/ad-coin/advertiser')
+    policy = page.headers['content-security-policy']
+    assert page.status_code == 200 and "style-src 'self'" in policy and "script-src 'self'" in policy
+    assert 'unsafe-inline' not in policy and "frame-ancestors 'none'" in policy

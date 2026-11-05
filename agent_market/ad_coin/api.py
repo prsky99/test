@@ -670,6 +670,9 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
     csp = ("default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; "
            "img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 
+    site_csp = ("default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; "
+                "font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+
     @router.get('/ad-coin', include_in_schema=False)
     async def page():
         from .page import PAGE
@@ -688,7 +691,8 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
     @router.get('/ad-coin/advertiser', include_in_schema=False)
     async def advertiser_page():
         from .advertiser_page import PAGE as ADV_PAGE
-        return HTMLResponse(ADV_PAGE, headers={**NO_STORE, 'Content-Security-Policy': csp})
+        # The console uses the site's shared design system files (same origin), not page-local styles.
+        return HTMLResponse(ADV_PAGE, headers={**NO_STORE, 'Content-Security-Policy': site_csp})
 
     @router.get('/ad-coin/advertiser.js', include_in_schema=False)
     async def advertiser_script():
