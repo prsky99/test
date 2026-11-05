@@ -28,7 +28,10 @@ NO_STORE = {'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex'}
 
 
 def build_service(settings, app_store=None):
-    if settings.store == 'application':
+    store_kind = settings.store
+    if store_kind == 'auto':
+        store_kind = 'application' if getattr(app_store, 'backend', '') == 'postgresql' else 'sqlite'
+    if store_kind == 'application':
         from .db import ApplicationStoreDatabase, PooledPostgresDatabase
         if app_store is None or getattr(app_store, 'backend', '') != 'postgresql':
             raise RuntimeError('AD_COIN_STORE=application needs the application PostgreSQL store.')
@@ -38,10 +41,10 @@ def build_service(settings, app_store=None):
             database = PooledPostgresDatabase(factory, maximum=settings.pool_maximum)
         else:
             database = ApplicationStoreDatabase(app_store)
-    elif settings.store == 'sqlite':
+    elif store_kind == 'sqlite':
         database = Database(settings.db_path)
     else:
-        raise RuntimeError('AD_COIN_STORE must be sqlite or application.')
+        raise RuntimeError('AD_COIN_STORE must be auto, sqlite or application.')
     signer = Signer(load_or_create_key(settings.receipt_key_path), settings.issuer, test_mode=True)
     return AdCoinService(database, signer, test_mode=True)
 

@@ -49,7 +49,9 @@ def _pool_maximum(value):
 class Settings:
     enabled: bool = False
     db_path: str = 'gateway-data/ad_coin.sqlite3'
-    store: str = 'sqlite'   # 'sqlite' (own file) or 'application' (the application PostgreSQL store)
+    # 'sqlite' (own file), 'application' (the application PostgreSQL database) or 'auto': application
+    # when the frontend runs on PostgreSQL (production), else sqlite. The environment default is auto.
+    store: str = 'sqlite'
     receipt_key_path: str = 'gateway-data/ad_coin_receipt_key.pem'
     admin_token: str = ''
     invited: frozenset = field(default_factory=frozenset)  # sha256 hex of invited visitor tokens
@@ -66,7 +68,7 @@ class Settings:
                             if len(item.strip()) == 64)
         return cls(enabled=_flag('AD_COIN_ENABLED', environ),
                    db_path=environ.get('AD_COIN_DB', cls.db_path),
-                   store=environ.get('AD_COIN_STORE', 'sqlite').strip().lower() or 'sqlite',
+                   store=environ.get('AD_COIN_STORE', 'auto').strip().lower() or 'auto',
                    receipt_key_path=environ.get('AD_COIN_RECEIPT_KEY_FILE', cls.receipt_key_path),
                    admin_token=environ.get('AD_COIN_ADMIN_TOKEN', ''),
                    invited=invited,

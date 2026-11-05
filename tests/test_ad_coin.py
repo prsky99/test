@@ -733,3 +733,22 @@ def test_daily_counters_follow_holds_releases_and_views(svc):
     held = svc.db.one("SELECT COALESCE(SUM(amount_won), 0) AS s FROM ad_coin_reservations WHERE campaign_id=? "
                       "AND status IN ('reserved','awarded')", (c['id'],))['s']
     assert (row['offers'], row['views'], row['spend_won']) == (2, 1, held) and held > 0
+
+
+def test_the_store_defaults_to_the_application_database_on_postgresql(tmp_path, monkeypatch):
+    from agent_market.ad_coin import api as api_module
+    assert Settings.from_environment({}).store == 'auto'
+    seen = {}
+
+    class FakePool:
+        def __init__(self, factory, maximum):
+            seen['pool'] = maximum
+
+    class PgStore:
+        backend = 'postgresql'
+        _connection_factory = staticmethod(lambda: None)
+    monkeypatch.setattr(dbmod, 'PooledPostgresDatabase', FakePool)
+    monkeypatch.setattr(api_module, 'AdCoinService', lambda database, signer, test_mode: database)
+    settings = Settings(enabled=True, store='auto', db_path=str(tmp_path / 'a.sqlite3'), receipt_key_path=':memory:')
+    assert isinstance(api_module.build_service(settings, PgStore()), FakePool) and seen['pool'] == 6
+    assert isinstance(api_module.build_service(settings, None), Database)

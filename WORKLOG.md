@@ -267,4 +267,6 @@
   - 행 단위 동시성: 사람 잠금, 캠페인 행 잠금, 원자적 잔액, 합계 16줄 분할, savepoint, 교착 재시도
   - 견적 2단계, 등급별 후보 조회, 일별 집계 사전 필터, 백그라운드 만료 정리와 전체 재계산, Server-Timing(adc-*)
 - 운영 DB: 11-05 09:22 승인 후 `migrate` 실행. ad_coin 표 33개, 스키마 3. 기능은 아직 꺼져 있다.
-- 다음: frontend 설정 `AD_COIN_STORE=application`, release_gate 거친 배포, AD Coin 화면 LCP 측정.
+- 배포: `ad-coin-frontend-20261105-r1`(12:20). 기준 `id-range-frontend-20261105-r1` 위에 AD Coin 패키지와 front.py 연결부만 얹음. gate 56개 통과. 기능은 꺼짐(404).
+  - `AD_COIN_STORE` 기본값을 `auto`로 바꿈(PG면 application). agentcon 설정 허용 목록에 AD_COIN_* 키가 없어서다. 플래그를 켜려면 허용 목록 변경이 먼저다.
+- 다음: 광고주 콘솔을 AgentConcierge 디자인 체계로 재구성, AD Coin 화면 LCP 측정.

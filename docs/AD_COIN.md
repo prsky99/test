@@ -216,10 +216,13 @@ front.py는 `ad_coin.api.router_for()`만 포함한다. 플래그가 꺼져 있�
   2. ~~`migrate`를 실행한다.~~ 완료(11-05 09:22, 사용자 승인). 표 33개, 스키마 3.
      - 먼저 확인한 여유: 운영 릴리스의 스키마 검사는 자기 카탈로그 표만 비교한다. 열 1,820/8,192, 제약 1,765/4,096.
      - 직후 저장소에 다시 붙는 확인이 통과했다. 되돌리기는 `ad_coin_*` 표 삭제다.
-  3. 필요하면 `copy`를 실행한다.
-  4. frontend 설정에 `AD_COIN_STORE=application`을 넣는다.
-  5. release_gate를 거쳐 배포한다.
-  6. 플래그는 그 뒤에 켠다.
+  3. 필요하면 `copy`를 실행한다. (기존 SQLite 장부가 없어 하지 않았다.)
+  4. ~~frontend 설정에 `AD_COIN_STORE=application`~~: 운영 설정 파일은 허용 목록(`scripts/agentcon_config.ALLOWED_KEYS`)의 키만 받는다. 그래서 대신 기본값을 `auto`로 바꿨다. 앱 저장소가 PostgreSQL이면 application을 쓴다.
+  5. ~~release_gate를 거쳐 배포한다.~~ 완료: `ad-coin-frontend-20261105-r1`(11-05 12:20).
+     - 기준 릴리스는 `id-range-frontend-20261105-r1`이다. 여기에 AD Coin 패키지, `front.py` 연결부, 스크립트 2개만 얹었다.
+     - release_gate는 56개 통과했다.
+     - 배포 후 홈·상태·Explore가 200이었다. AD Coin 경로는 꺼져 있어 404다.
+  6. 플래그를 켜려면 `AD_COIN_ENABLED`(와 관리자 토큰·초대 목록)를 frontend 환경에 넣어야 한다. 지금은 허용 목록에 없으므로 `agentcon_config` 변경이 먼저다(그랜드 오픈 준비 때).
 
 ## 월간 후원 감사
 
@@ -353,7 +356,7 @@ front.py는 `ad_coin.api.router_for()`만 포함한다. 플래그가 꺼져 있�
 
 ## 남은 일
 
-- 운영 PostgreSQL 적용: 표 생성은 끝났다(11-05). 남은 것은 frontend 설정에 `AD_COIN_STORE=application`을 넣고 release_gate를 거쳐 배포하는 일, 그 뒤 플래그를 켜는 일이다.
+- 운영 PostgreSQL 적용: 표 생성과 코드 배포는 끝났다(11-05, `ad-coin-frontend-20261105-r1`). 남은 것은 플래그를 켜기 위한 `agentcon_config` 허용 목록 변경이다(그랜드 오픈 준비 때).
 - 운영 리허설: `reports/AI-AD-Coin-운영-리허설-2026-11-05.md`의 남은 일을 본다.
 - 초대 계정 연결: 지금은 visitor token 해시 목록이다. 고객 로그인 세션과 연결하는 일이 남았다.
 - Chat 화면에서 답변이 끝난 뒤 업그레이드 확인을 자동으로 부르는 일. Chat 화면 파일은 다른 세션이 고치는 중이라 이번에는 건드리지 않았다. 지금은 `/ad-coin` 화면과 API로 쓴다.
