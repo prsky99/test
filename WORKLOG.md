@@ -277,4 +277,7 @@
   - 공용 assets와 워크스페이스 틀을 쓰고, 페이지 전용 스타일은 없앰. 내장 브라우저로 데스크톱·어두운 테마·375px 확인.
   - 배포: `ad-coin-frontend-20261105-r2`(12:33, gate 통과).
 - 12:35 이후 Explore 첫 검색이 서버 1.7~6초로 느렸다. 두 슬롯(r1·r2)이 같았고, 원인은 다른 세션의 전체 pytest와 Chat 평가가 만든 부하 16~20이다.
+- 사람용 `/ad-coin`과 관리자 `/ad-coin/admin`도 Pearl 디자인으로 바꿈. 첫 쓰기 전 CSRF 자동 확보, 관리자 캠페인은 상세 카드 방식.
+  - 배포: `ad-coin-frontend-20261105-r3`(13:29). 기준은 활성 `sec-cleanup-frontend-20261105-r1`이고 AD Coin 파일 3개만 얹음. gate 통과.
+  - 대기 중이던 `budget-frontend-20261105-r1`은 검색과 RAG 세션이 폐기한다고 확인해 줌.
 - 다음: AD Coin 화면 LCP 측정, 플래그를 켜기 위한 agentcon 허용 목록 변경(그랜드 오픈 준비 때).
