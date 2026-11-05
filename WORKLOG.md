@@ -280,4 +280,7 @@
 - 사람용 `/ad-coin`과 관리자 `/ad-coin/admin`도 Pearl 디자인으로 바꿈. 첫 쓰기 전 CSRF 자동 확보, 관리자 캠페인은 상세 카드 방식.
   - 배포: `ad-coin-frontend-20261105-r3`(13:29). 기준은 활성 `sec-cleanup-frontend-20261105-r1`이고 AD Coin 파일 3개만 얹음. gate 통과.
   - 대기 중이던 `budget-frontend-20261105-r1`은 검색과 RAG 세션이 폐기한다고 확인해 줌.
-- 다음: AD Coin 화면 LCP 측정, 플래그를 켜기 위한 agentcon 허용 목록 변경(그랜드 오픈 준비 때).
+- 영어 전용·내부 정보 금지 적용(f9bc4131): `/ad-coin/admin` 영어화, 화면 스크립트 주석 제거, 감사 실행 명령 문구 제거, Server-Timing 기본 끔, 공개 /status O(1).
+  - r4 패키징·gate 통과. 그러나 13:56·14:05 배포는 새 슬롯이 `WriterBusy`(앱 저장소 쓰기 잠금, 부하 19)로 준비 시간 초과 → 자동 취소, r3 유지.
+  - 다른 세션의 `info-fix-frontend-20261105-r1`이 대기 중이다. 그 배포가 끝나면 그 위에 r4를 다시 만들어 배포한다.
+- 다음: 에이전트콘시어지 규칙 미적용 항목 처리(등록 SQL, 보안 이벤트 로그, 표별 보존·삭제, screening.py 한국어 리터럴 이스케이프, 화면 정책 5·7, 공식 Lucide 아이콘, 보안 점검, 연결 예산), AD Coin 화면 LCP.
