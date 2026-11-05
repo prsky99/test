@@ -136,10 +136,8 @@ SCRIPT = r"""(function(){
 var API='/api/ad-coin/v1',KEY='adCoinToken',token='',csrf='';
 try{token=sessionStorage.getItem(KEY)||''}catch(e){}
 var $=function(id){return document.getElementById(id)};
-// Results are drawn as one paragraph per line, as text only (the shared design has no pre-wrap block).
 function say(id,value){var box=$(id);box.textContent='';String(value).split('\n').forEach(function(line){if(line){var p=document.createElement('p');p.textContent=line;box.appendChild(p)}})}
 function lines(id){return Array.prototype.map.call($(id).querySelectorAll('p'),function(p){return p.textContent}).join('\n')}
-// A write needs the signed-in session's CSRF proof: fetch it once, before the first write.
 function session(){if(csrf||token)return Promise.resolve();return fetch('/api/customer-auth/session',{credentials:'same-origin'})
   .then(function(r){return r.ok?r.json():{}}).then(function(s){if(s&&s.csrf_token)csrf=s.csrf_token}).catch(function(){})}
 function call(path,body){return (body?session():Promise.resolve()).then(function(){return send(path,body)})}
@@ -245,7 +243,6 @@ $('load-receipts').onclick=function(){say('receipts','Loading...');call('/receip
 $('load-mandates').onclick=function(){say('mandates','Loading...');call('/mandates').then(function(d){
   say('mandates',d.mandates.length?d.mandates.map(function(m){return m.agent+': '+m.spent_coins+'/'+m.total_coins+' coins, '+m.state}).join('\n'):'No mandates.')})
   .catch(function(e){say('mandates',e.message)})};
-/* views: the frame is HTML; nothing loads until a button is pressed */
 function show(view){if(!document.querySelector('[data-view="'+view+'"]'))view='account';
   Array.prototype.forEach.call(document.querySelectorAll('[data-view]'),function(v){v.hidden=v.dataset.view!==view});
   Array.prototype.forEach.call(document.querySelectorAll('[data-view-link]'),function(a){var on=a.dataset.viewLink===view;a.classList.toggle('active',on);

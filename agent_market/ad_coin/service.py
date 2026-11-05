@@ -1286,7 +1286,8 @@ class AdCoinService:
                 'reward_basis': 'Viewers were rewarded and knew it; views are not purchase intent.'}
 
     def status(self):
-        check = self.ledger.invariant()
+        # Public: the O(1) backing check from the running totals (the full recount runs in the background).
+        check = self.ledger.fast_invariant()
         return {'test_mode': self.test_mode, 'payments': 'closed', 'coin_value_won': COIN_VALUE_WON,
                 'split_bps': self.split(), 'circuit': self.circuit(),
                 'backing': {k: check[k] for k in ('ok', 'problems', 'obligations_won', 'trust_statement_won',

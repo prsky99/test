@@ -59,6 +59,7 @@ class Settings:
     test_mode: bool = True   # fixed until the grand opening; payments stay closed
     write_per_minute: int = 120   # per person, agent key or advertiser member
     read_per_minute: int = 600
+    server_timing: bool = False   # detailed internal timing headers, for rehearsals only (never in production)
     pool_maximum: int = 6   # own PostgreSQL sessions per process with AD_COIN_STORE=application; 0 = share the store's
 
     @classmethod

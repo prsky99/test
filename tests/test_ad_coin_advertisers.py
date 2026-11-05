@@ -322,3 +322,31 @@ def test_the_console_page_may_load_the_shared_design_files(tmp_path):
         policy = page.headers['content-security-policy']
         assert page.status_code == 200 and "style-src 'self'" in policy and "script-src 'self'" in policy, path
         assert 'unsafe-inline' not in policy and "frame-ancestors 'none'" in policy
+
+
+@pytest.mark.parametrize('module', ['advertiser_page', 'page', 'admin_page'])
+def test_every_ad_coin_screen_is_english_only_and_carries_no_internal_details(module):
+    """The public frontend is English only; shipped markup and scripts carry no comments, system,
+    development or personal details."""
+    import importlib
+    import re
+    screen = importlib.import_module('agent_market.ad_coin.' + module)
+    shipped = screen.PAGE + screen.SCRIPT
+    assert not re.search('[ᄀ-ᇿ㄰-㆏가-힣]', shipped)          # no Korean
+    assert 'lang="en"' in screen.PAGE
+    assert not re.search(r'/\*.*?\*/|<!--.*?-->', shipped, re.S)                         # no comments
+    assert not re.search(r'(?m)(^|[\s;{}])//\s', shipped)
+    for leak in ('.venv', 'python', 'scripts.', 'nice -n', 'gateway-data', '/Users/', 'localhost', '127.0.0.1',
+                 'docs/', 'sqlite', 'postgres', 'TODO', 'FIXME', '@gmail', 'kingstone'):
+        assert leak not in shipped.lower(), leak
+
+
+def test_internal_timing_headers_stay_out_of_responses_by_default(tmp_path):
+    settings = Settings(enabled=True, db_path=str(tmp_path / 'ad.sqlite3'), receipt_key_path=str(tmp_path / 'k.pem'))
+    app = FastAPI()
+    app.include_router(router_for(settings))
+    response = TestClient(app).get('/api/ad-coin/v1/status')
+    assert response.status_code == 200 and 'server-timing' not in response.headers
+    rehearsal = FastAPI()
+    rehearsal.include_router(router_for(settings.with_(server_timing=True, db_path=str(tmp_path / 'b.sqlite3'))))
+    assert 'adc-work' in TestClient(rehearsal).get('/api/ad-coin/v1/status').headers.get('server-timing', '')

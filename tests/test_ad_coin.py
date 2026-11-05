@@ -415,7 +415,7 @@ def test_http_upgrade_check_and_admin_console(tmp_path):
     assert client.post('/api/ad-coin/v1/upgrade-check', headers=person, json={'recommendation_ids': []}).status_code == 400
     assert client.post('/api/ad-coin/v1/upgrade-check', json={'recommendation_ids': [1]}).status_code == 403
     page = client.get('/ad-coin/admin')
-    assert page.status_code == 200 and 'lang="ko"' in page.text and 'admin-secret-token' not in page.text
+    assert page.status_code == 200 and 'lang="en"' in page.text and 'admin-secret-token' not in page.text
     assert client.get('/ad-coin/admin.js').headers['content-type'].startswith('text/javascript')
     assert client.get('/api/ad-coin/v1/admin/settings').status_code == 403
 

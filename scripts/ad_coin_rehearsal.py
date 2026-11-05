@@ -163,7 +163,8 @@ def make_app(store, catalog, users, settings_overrides=None, sessions=None):
             return catalog.get(rid)
     invited = frozenset(hashlib.sha256(token.encode()).hexdigest() for token in users)
     settings = Settings(enabled=True, store='application', receipt_key_path=':memory:', admin_token=ADMIN_TOKEN,
-                        invited=invited, write_per_minute=600, read_per_minute=3000, **(settings_overrides or {}))
+                        invited=invited, write_per_minute=600, read_per_minute=3000, server_timing=True,
+                        **(settings_overrides or {}))
     # Production wiring (api.build_service): AI AD Coin's own session pool when a session factory exists.
     database = PooledPostgresDatabase(sessions) if sessions else ApplicationStoreDatabase(store)
     service = AdCoinService(database, Signer(load_or_create_key(':memory:'),

@@ -222,7 +222,8 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
                         return value, timing
                     value, timing = await run_in_threadpool(atomic)
                     response = _json(value)
-                    response.headers['Server-Timing'] = timing     # wait for a worker, work, CPU in that work
+                    if settings.server_timing:   # internal timing stays out of production responses
+                        response.headers['Server-Timing'] = timing
                     return response
                 except AdCoinError as exc:
                     return _error(exc)

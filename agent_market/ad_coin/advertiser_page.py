@@ -259,7 +259,6 @@ function rows(table,items,cells){var t=$(table),b=t.querySelector('tbody');b.tex
   items.forEach(function(it){var tr=el('tr');cells(it).forEach(function(v){var td=el('td');if(v&&v.nodeType)td.appendChild(v);else td.textContent=v==null?'':String(v);tr.appendChild(td)});b.appendChild(tr)})}
 function needAccount(id){if(!acct){say(id,'Open an advertiser account first (Overview).',true);return false}return true}
 
-/* views: the frame is HTML; a view loads its data the first time it is opened */
 function show(view){if(!document.querySelector('[data-view="'+view+'"]'))view='overview';
   Array.prototype.forEach.call(document.querySelectorAll('[data-view]'),function(v){v.hidden=v.dataset.view!==view});
   Array.prototype.forEach.call(document.querySelectorAll('[data-view-link]'),function(a){var on=a.dataset.viewLink===view;a.classList.toggle('active',on);
@@ -333,7 +332,7 @@ function members(list){var box=$('m-list');box.textContent='';list.forEach(funct
 function team(){if(!needAccount('m-out'))return;say('m-out','Loading team.');call(q('/advertiser')).then(function(d){members(d.members)}).catch(function(e){say('m-out',e.message,true)})}
 $('m-set').onclick=function(){if(!needAccount('m-out'))return;var b=this;busy(b,call('/advertiser/members',{advertiser_id:acct,customer_id:$('m-id').value.trim(),role:$('m-role').value})).then(function(d){members(d.members)}).catch(function(e){say('m-out',e.message,true)})};
 
-ready=accounts();   // the account list is this page's own content, so it loads with the page
+ready=accounts();
 show(location.hash.slice(1)||'overview');
 })();
 """
