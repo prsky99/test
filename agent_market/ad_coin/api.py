@@ -294,6 +294,8 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
         operator = data.get('operator_ref') if isinstance(data.get('operator_ref'), str) else ''
         if not operator.startswith('web:'):
             raise AdCoinError('web_bot_auth_required', status=403)
+        if operator_of(request) != operator:      # the signed request itself must be that operator
+            raise AdCoinError('operator_mismatch', 'Sign the receipt with the same Web Bot Auth key.', 403)
         return service.acknowledge_offer(operator, data.get('offer_id', ''), data.get('offer_token'))
 
     # ---- invited people (through their agent) ----
@@ -582,6 +584,11 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
 
     @router.get(PREFIX + '/advertiser/report.csv', include_in_schema=False)
     async def adv_report_csv(request: Request):
+        response = await report_csv_response(request)
+        security_event(request, 'advertiser', response)
+        return response
+
+    async def report_csv_response(request):
         try:
             if is_admin(request):
                 who = 'admin'
@@ -591,6 +598,9 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
                 if state.get('source') != 'customer':
                     return _json({'error': 'customer_session_required'}, 403)
                 who = state['customer_id']
+                if not read_limit.allow(who):
+                    return JSONResponse({'error': 'rate_limited', 'message': 'Too many requests; retry soon.'},
+                                        status_code=429, headers={**NO_STORE, 'Retry-After': '60'})
             days = int(request.query_params.get('days', '30'))
             text = await run_in_threadpool(console.report_csv, adv_id(request, {}), who,
                                            campaign_id=request.query_params.get('campaign_id') or None, days=days)

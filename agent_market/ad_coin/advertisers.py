@@ -19,7 +19,7 @@ from .config import COIN_VALUE_WON, FREQUENCY_CAP_PER_DAY
 from .db import dumps, now
 from .exchange import CATEGORY, task_floor_won
 from .screening import ScreeningRejected, findings, normalize, screen_creative
-from .service import _day, AdCoinError, BLOCKED_CATEGORIES, PRODUCTS, PUBLIC_URL, day_start
+from .service import _day, AdCoinError, BLOCKED_CATEGORIES, PRODUCTS, day_start, public_link
 
 ROLES = {'viewer': 1, 'editor': 2, 'owner': 3}
 CAMPAIGN_STATUS = ('enabled', 'paused', 'removed')
@@ -106,7 +106,7 @@ class AdvertiserConsole:
         if actor != 'admin' and not self.people.invited(actor):
             raise AdCoinError('invitation_required', 'Only invited accounts can open an advertiser account.', 403)
         name = self._text(name, MAX_NAME, 'name')
-        if type(website) is not str or not PUBLIC_URL.fullmatch(website):
+        if not public_link(website):
             raise AdCoinError('invalid_website', 'Use the https address of your business website.')
         if actor != 'admin':
             owned = self.db.one("SELECT COUNT(*) AS n FROM ad_coin_advertiser_members WHERE customer_id=? AND "
@@ -208,7 +208,7 @@ class AdvertiserConsole:
                 raise AdCoinError('invalid_' + key)
             fields[key] = value
         url = data.get('public_url')
-        if type(url) is not str or not PUBLIC_URL.fullmatch(url):
+        if not public_link(url):
             raise AdCoinError('invalid_public_url', 'A public https copy of the ad is required.')
         fields['public_url'] = url
         weight = data.get('weight', 1)

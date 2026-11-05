@@ -25,7 +25,7 @@ _PATTERNS = (
     ('hidden_markup', r'<\s*(script|iframe|img|style|svg)|javascript:|data:text/html|!\[[^\]]*\]\('),
 )
 _COMPILED = tuple((name, re.compile(pattern, re.IGNORECASE | re.DOTALL)) for name, pattern in _PATTERNS)
-_INVISIBLE = re.compile('[​-‏‪-‮⁠-⁤﻿]')
+_INVISIBLE = re.compile('[\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff]')
 
 
 class ScreeningRejected(ValueError):

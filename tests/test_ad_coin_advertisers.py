@@ -384,3 +384,31 @@ def test_reads_do_not_wait_for_the_session_check():
     assert "(body?session():Promise.resolve())" in SCRIPT
     from agent_market.ad_coin.page import SCRIPT as PERSON
     assert "(body?session():Promise.resolve())" in PERSON and "r.status===401" in PERSON
+
+
+def test_links_to_private_or_internal_hosts_are_refused():
+    from agent_market.ad_coin.service import public_link
+    for bad in ('https://192.168.0.1/x', 'https://10.0.0.5', 'https://127.0.0.1/', 'https://localhost/a',
+                'https://router.local/', 'https://intranet/', 'https://[::1]/', 'http://plain.example',
+                'https://-bad.example/', 'javascript:alert(1)'):
+        assert not public_link(bad), bad
+    for good in ('https://agentconcierge.biz/ad-coin/test-offer', 'https://shop.example.com/offer/1'):
+        assert public_link(good), good
+
+
+def test_source_files_carry_no_invisible_or_bidirectional_characters():
+    import pathlib
+    import unicodedata
+    root = pathlib.Path(__file__).resolve().parents[1]
+    for path in sorted((root / 'agent_market/ad_coin').glob('*.py')):
+        text = path.read_text()
+        assert not [c for c in text if unicodedata.category(c) in ('Cf', 'Cc') and c not in '\n\t'], path
+
+
+def test_an_offer_receipt_must_come_from_the_same_signed_operator(tmp_path):
+    settings = Settings(enabled=True, db_path=str(tmp_path / 'ad.sqlite3'), receipt_key_path=str(tmp_path / 'k.pem'))
+    app = FastAPI()
+    app.include_router(router_for(settings))
+    response = TestClient(app).post('/api/ad-coin/v1/offer-feed/ack',
+                                    json={'operator_ref': 'web:' + 'a' * 32, 'offer_id': 'c_x', 'offer_token': 't'})
+    assert response.status_code == 403 and response.json()['error'] == 'operator_mismatch'
