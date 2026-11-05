@@ -45,3 +45,31 @@ def test_json_string_body_is_still_a_question(catalog):
     _, _, client, _, _ = catalog
     response = client.post('/chat', content='"weather forecast"', headers={'Content-Type': 'application/json'})
     assert response.status_code == 200
+
+
+# 11-05 security review finding 6: no production branch trusts the literal peer name "testclient".
+def test_testclient_peer_is_not_a_trusted_proxy():
+    from starlette.datastructures import Headers
+    from agent_market.gateway.deployment_security import forwarded_client, trusted_proxy_networks
+    headers = Headers({'x-forwarded-for': '203.0.113.9'})
+    assert forwarded_client('testclient', headers, trusted_proxy_networks()) == 'testclient'
+    assert forwarded_client('127.0.0.1', headers, trusted_proxy_networks()) == '203.0.113.9'
+
+
+def test_no_testclient_literal_in_production_code():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1] / 'agent_market'
+    hits = [str(p) for p in root.rglob('*.py') if '"testclient"' in p.read_text() or "'testclient'" in p.read_text()]
+    assert hits == []
+
+
+# 11-05 security review finding 2: Explore cache entries keyed by search words stay only for the tab.
+def test_search_word_cache_entries_use_session_storage():
+    from pathlib import Path
+    js = (Path(__file__).resolve().parents[1] / 'new/en/assets/operating.js').read_text()
+    assert 'function swrStorage(key) { return swrHasSearchWords(key) ? sessionStorage : localStorage; }' in js
+    assert 'swrStorage(key).getItem(SWR_STORAGE_KEY_PREFIX + key)' in js
+    assert 'swrStorage(key).setItem(SWR_STORAGE_KEY_PREFIX + key, JSON.stringify(val))' in js
+    assert 'localStorage.setItem(SWR_STORAGE_KEY_PREFIX' not in js
+    # Entries left by earlier releases are removed on load.
+    assert 'swrHasSearchWords(key.slice(SWR_STORAGE_KEY_PREFIX.length))) localStorage.removeItem(key);' in js

@@ -149,7 +149,7 @@ def test_inquiry_dedup_and_quota(w):
     response=client.post('/api/contact/submit',json=inquiry(subject='Over quota'))
     assert response.status_code==429 and response.headers['retry-after']=='3600'
     assert 'contact-email' in response.headers['ratelimit-policy']
-    assert not world.app.state.front.security.is_blocked('testclient')[0]
+    assert not world.app.state.front.security.is_blocked('127.0.0.1')[0]
 
 
 def test_required_privacy_type_and_independent_limits(w):

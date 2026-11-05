@@ -3,6 +3,14 @@ import functools
 import time
 
 import pytest
+from starlette.testclient import TestClient as _StarletteTestClient
+
+# 11-05 security review: production code no longer trusts the literal peer "testclient" for
+# X-Forwarded-For or jail exemptions. Test clients connect from loopback instead, which is the
+# default FORWARDED_ALLOW_IPS ingress (127.0.0.1, ::1) in production too.
+_StarletteTestClient.__init__.__defaults__ = tuple(
+    ('127.0.0.1', 50000) if value == ('testclient', 50000) else value
+    for value in _StarletteTestClient.__init__.__defaults__)
 
 
 @pytest.fixture

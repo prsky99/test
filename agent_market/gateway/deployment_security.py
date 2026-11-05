@@ -36,7 +36,7 @@ def is_trusted_proxy(address, networks):
 
 def forwarded_client(peer, headers, networks):
     """Walk a bounded, validated XFF chain from the authenticated socket peer."""
-    if not is_trusted_proxy(peer, networks) and peer != "testclient":
+    if not is_trusted_proxy(peer, networks):
         return peer
     values = headers.getlist("x-forwarded-for")
     if not values or len(values) > 16 or sum(map(len, values)) + len(values) - 1 > 2048:

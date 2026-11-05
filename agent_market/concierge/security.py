@@ -443,8 +443,7 @@ class SecurityManager:
                 return
             scoped_rate = vtype == 'rate_limit_429' and path in (
                 '/api/register', '/api/register/inspect', '/api/contact/submit', '/api/privacy/opt-out')
-            if (scoped_rate or ip in SHARED_EGRESS_IPS or is_trusted_proxy(ip, self._trusted_proxy_networks)
-                    or ip == "testclient"):
+            if scoped_rate or ip in SHARED_EGRESS_IPS or is_trusted_proxy(ip, self._trusted_proxy_networks):
                 should_jail = False
             else:
                 threshold = 2 if self.under_attack_mode else self.auto_jail_threshold
