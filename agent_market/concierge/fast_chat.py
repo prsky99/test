@@ -267,6 +267,7 @@ def _subject_words(terms, item):
 
 
 SEMANTIC_SHORTLIST = 10
+FALLBACK_DEADLINE = 3.5  # seconds into a request after which no further fallback search starts
 SEMANTIC_BUDGET = 0.8  # seconds; past it the ranked order stands
 
 
@@ -513,7 +514,10 @@ class FastConcierge(Concierge):
                 focus = None
         rewriter = getattr(self, 'query_rewriter', None)
         # A request the normalizer already rewrote keeps its original words beside the rewrite.
-        if not items and callable(rewriter) and task.isascii() and ' for ' not in task and unknown_words(self.store, task):
+        # Past FALLBACK_DEADLINE the remaining fallbacks almost never answer (11-05: of 30 unanswered requests
+        # over 5 s, 2 got an answer and neither was right), so "no match" returns within the RAG budget.
+        within = lambda: time.monotonic() - started < FALLBACK_DEADLINE
+        if not items and within() and callable(rewriter) and task.isascii() and ' for ' not in task and unknown_words(self.store, task):
             # "wheather in pariss": words no listing contains are misspellings far more often than
             # capabilities; the grounded normalizer respells them and the search runs once more.
             step('respell')
@@ -522,7 +526,7 @@ class FastConcierge(Concierge):
                 items = self.rec.search(retrieval_text(respelled), kind=protocol, limit=3, offset=offset, exclude=excluded)
                 if items:
                     focus = focus or respelled
-        if not items and len(task) < SUMMARY_MIN_CHARS and not QUESTION_FORM.match(task):
+        if not items and within() and len(task) < SUMMARY_MIN_CHARS and not QUESTION_FORM.match(task):
             # Every gate requires most of the capability words. When the request also names
             # its subject ("remote software engineering jobs", "restaurants near Times Square")
             # those subject words appear in almost none of the retrieved candidates; search
@@ -537,7 +541,7 @@ class FastConcierge(Concierge):
                 if items:
                     focus = focus or narrowed
         parts = []
-        if not items:
+        if not items and within():
             # "weather data, a translator and a stock price feed": one match for each named capability.
             from .chat_guidance import separate_requests
             step('split')
@@ -548,10 +552,10 @@ class FastConcierge(Concierge):
                 if found:
                     items.append({**found[0], 'request_part': part[:120]})
                     parts.append(part[:120])
-        elif offset == 0:
+        elif items and offset == 0:
             step('cover')
             items, parts = self._cover_parts(task, items, protocol, excluded)
-        if not items and offset == 0:
+        if not items and offset == 0 and within():
             # Last: the words the listings closest in meaning share, when the request's own words
             # never appear in them ("emotion analysis" -> listings that say "sentiment"; stage 2, 11-05).
             shared = neighbor_focus(self.store, getattr(self.rec, 'rag_engine', None), task, protocol)
