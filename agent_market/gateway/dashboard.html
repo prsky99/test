@@ -4565,7 +4565,7 @@ function renderOverview(ov) {
   }
   $("kindStatus").innerHTML = KIND_ORDER.map((k) => {
     const s = per[k] || {}; const total = Object.values(s).reduce((a, b) => a + b, 0) || 1;
-    return `<div style="margin-bottom:12px"><div class="row" style="justify-content:space-between"><b>${k.toUpperCase()}</b><span class="muted">${fmt(total)}</span></div>
+    return `<div style="margin-bottom:12px"><div class="row" style="justify-content:space-between"><b>${esc(k.toUpperCase())}</b><span class="muted">${fmt(total)}</span></div>
       <div class="stack">${order.map((st) => s[st] ? `<span title="${st} ${fmt(s[st])}" style="width:${100 * s[st] / total}%;background:${color[st]}"></span>` : "").join("")}</div>
       <div class="legend">${order.filter((st) => s[st]).map((st) => `<span><i style="background:${color[st]}"></i>${st} ${fmt(s[st])}</span>`).join("")}</div></div>`;
   }).join("");
@@ -4615,7 +4615,7 @@ function renderOverview(ov) {
           <div class="row" style="justify-content:space-between">
             <div style="font-weight:700;font-size:14px;display:flex;align-items:center;gap:6px">
               <span>${meta.icon}</span>
-              <span>${meta.title}</span>
+              <span>${esc(meta.title)}</span>
             </div>
             <div style="font-size:11.5px;display:flex;align-items:center;gap:5px">
               <span class="dot ${threadAlive ? "ok" : "warn"}"></span>
@@ -6141,7 +6141,7 @@ async function renderLearn() {
   $("protoCards").innerHTML = KIND_ORDER.map((k) => {
     const s = data.kinds[k].stats;
     const isSel = selectedLearnTab === k;
-    return `<div class="card proto k-${k}" data-goto="${k}" style="${isSel ? 'border-color:var(--k, var(--accent));box-shadow:0 0 0 2px color-mix(in srgb, var(--k, var(--accent)) 30%, transparent);' : ''}"><div class="tag">${esc(KIND[k].label)}</div>
+    return `<div class="card proto k-${esc(k)}" data-goto="${k}" style="${isSel ? 'border-color:var(--k, var(--accent));box-shadow:0 0 0 2px color-mix(in srgb, var(--k, var(--accent)) 30%, transparent);' : ''}"><div class="tag">${esc(KIND[k].label)}</div>
       <div class="big">${fmt(s.total)}</div><div class="muted" style="font-size:13px">${esc(KIND[k].tip)}</div>
       <div class="muted" style="font-size:12px;margin-top:6px">서비스 가능 ${pct(s.live, s.total)}${newLabel(s) ? " · " + newLabel(s) : ""}</div></div>`;
   }).join("");
@@ -8839,7 +8839,7 @@ function renderTestReportsFeed(reports, total) {
 
   container.innerHTML = reports.map(r => {
     const k = ["mcp", "a2a", "x402"].includes(r.kind) ? r.kind : "unknown";
-    const kBadge = `<span class="kind-badge k-${k}">${esc(k.toUpperCase())}</span>`;
+    const kBadge = `<span class="kind-badge k-${esc(k)}">${esc(k.toUpperCase())}</span>`;
     const gradeBadge = r.eval_grade ? `<span class="chip" style="font-weight:700;color:var(--accent)">기재 Grade ${esc(r.eval_grade)} ${typeof r.eval_score === "number" && Number.isFinite(r.eval_score) ? r.eval_score.toFixed(1) : ''}</span>` : '';
     const measured = r.execution_measured === true;
     const evidenceBadge = `<span class="chip ${measured && r.is_success === 1 ? 's-healthy' : ''}">${reportEvidenceLabel(r)}</span>`;
@@ -8922,7 +8922,7 @@ async function openTestReportModal(reportId) {
     currentSelectedReport = r;
     const k = ["mcp", "a2a", "x402"].includes(r.kind) ? r.kind : "unknown";
     
-    $("repModalKindBadge").innerHTML = `<span class="kind-badge k-${k}" style="font-size:13px">${esc(k.toUpperCase())}</span>`;
+    $("repModalKindBadge").innerHTML = `<span class="kind-badge k-${esc(k)}" style="font-size:13px">${esc(k.toUpperCase())}</span>`;
     $("repModalGradeBadge").textContent = r.eval_grade ? `기재 등급 ${r.eval_grade}${typeof r.eval_score === 'number' ? ' (' + r.eval_score + ')' : ''}` : "등급 기재 없음";
     $("repModalStatusBadge").textContent = typeof r.status_code === 'number' ? `기재 HTTP ${r.status_code}` : "HTTP 기재 없음";
     $("repModalLatencyBadge").textContent = typeof r.latency_ms === 'number' && Number.isFinite(r.latency_ms) && r.latency_ms >= 0
@@ -9339,7 +9339,7 @@ function renderNodes() {
         <div class="wf-port output" data-node-id="${esc(n.id)}" data-port="output" title="출력 포트 (드래그하여 다른 노드에 연결)"></div>
         <div class="wf-node-head">
           <div style="display:flex;align-items:center;gap:6px;overflow:hidden">
-            <span class="kind-badge k-${k}" style="font-size:10px">${k.toUpperCase()}</span>
+            <span class="kind-badge k-${esc(k)}" style="font-size:10px">${esc(k.toUpperCase())}</span>
             <strong style="font-size:12.5px;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(n.name)}</strong>
           </div>
           <div style="display:flex;align-items:center;gap:4px">
@@ -13120,7 +13120,7 @@ function renderAlternativeCards(candidates, targetNode) {
         <div>
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px">
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-              <span class="kind-badge k-${k}" style="font-size:10px">${k.toUpperCase()}</span>
+              <span class="kind-badge k-${esc(k)}" style="font-size:10px">${esc(k.toUpperCase())}</span>
               <strong style="font-size:13.5px;line-height:1.3">${esc(c.name)}</strong>
               ${c.trial_ok ? `<span title="실제 호출 검증 완료" style="color:var(--ok);display:inline-flex;align-items:center">${ico('check-circle-2', 12, 12)}</span>` : ''}
             </div>
@@ -13222,7 +13222,7 @@ async function showAgentReplacementDetail(agent) {
       <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:10px">
         <div>
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">
-            <span class="kind-badge k-${k}" style="font-size:11px">${k.toUpperCase()}</span>
+            <span class="kind-badge k-${esc(k)}" style="font-size:11px">${esc(k.toUpperCase())}</span>
             <h3 style="margin:0;font-size:17px">${esc(agent.name)}</h3>
             <span class="chip ok" style="font-size:10.5px;font-weight:700;display:inline-flex;align-items:center;gap:3px">${ico('check-circle-2', 11, 11)} <span>정상 가동 (Healthy)</span></span>
             <span class="chip" style="font-size:10.5px;font-weight:700;color:#f59e0b;display:inline-flex;align-items:center;gap:3px">${ico('star', 11, 11, 'fill-amber')} <span>${esc(agent.eval_grade || 'A')} 등급 (${agent.eval_score || 95}점)</span></span>
