@@ -40,6 +40,11 @@ def _flag(name, environ):
     return str(environ.get(name, '')).strip().lower() in ('1', 'true', 'yes', 'on')
 
 
+def _pool_maximum(value):
+    value = str(value).strip()
+    return max(0, min(8, int(value))) if value.isdigit() else 6
+
+
 @dataclass(frozen=True)
 class Settings:
     enabled: bool = False
@@ -52,6 +57,7 @@ class Settings:
     test_mode: bool = True   # fixed until the grand opening; payments stay closed
     write_per_minute: int = 120   # per person, agent key or advertiser member
     read_per_minute: int = 600
+    pool_maximum: int = 6   # own PostgreSQL sessions per process with AD_COIN_STORE=application; 0 = share the store's
 
     @classmethod
     def from_environment(cls, environ=None):
@@ -64,7 +70,8 @@ class Settings:
                    receipt_key_path=environ.get('AD_COIN_RECEIPT_KEY_FILE', cls.receipt_key_path),
                    admin_token=environ.get('AD_COIN_ADMIN_TOKEN', ''),
                    invited=invited,
-                   issuer=environ.get('AD_COIN_ISSUER', cls.issuer))
+                   issuer=environ.get('AD_COIN_ISSUER', cls.issuer),
+                   pool_maximum=_pool_maximum(environ.get('AD_COIN_POOL_MAXIMUM', '')))
 
     def with_(self, **changes):
         return replace(self, **changes)

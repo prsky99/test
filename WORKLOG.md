@@ -257,8 +257,13 @@
 - 11-05 01:40 AI AD Coin 운영 PG 이전 준비: `AD_COIN_STORE=application`이면 애플리케이션 PG 저장소의 같은 연결·트랜잭션에서 `ad_coin_*` 표 사용(등록 SQL 목록·스키마 프로필 무변경, 연결 증가 없음). 표·인덱스 `ad_coin_` 접두사, 트랜잭션 안 예외 잡기 제거, 이전 전이면 AD Coin만 503.
   - 운영자 CLI `scripts.ad_coin_migrate_postgres status|migrate|copy`. 격리 PG18 시험 4건(재접속 스키마 검증 포함), 관련 161건 통과. 운영 DB `migrate`는 아직 실행 안 함(승인 필요).
 
-## 2026-11-05 AI AD Coin 운영 리허설(미커밋, 진행 중)
-- 전용 PG 세션 풀(`PooledPostgresDatabase`, 최대 3, FIFO 쓰기 잠금 + advisory lock), Server-Timing(adc-*), 원장 일괄 기록, 견적 2단계(잠금 밖 읽기/잠금 안 재검증), 관련도 등급별 후보 조회, 만료 5초 주기+개별 검사, 배분율 5초 캐시, 전체 재계산 백그라운드, migrate ANALYZE, 일 예산<입찰가 거부.
-- 리허설: 부하기 별도 프로세스(uvicorn) + 운영 상태 표본을 별도 스레드로(일정 지연 착시 제거).
-- 결과: 연기·소량·중량 = 보안·품질·속도 모두 통과(중량 p99 견적 27ms, 노출 6.5ms). 대용량 = 보안·품질 통과, 속도 미달(게재 못 하는 캠페인 과다 스캔).
-- 다음: `ad_coin_campaign_daily` 증분 갱신으로 SQL 사전 필터(예산·잔액·검토) → 대용량·극한 재실행 → 문서(AD_COIN_TARGETS.md, 결과 보고서) → 커밋.
+## 2026-11-05 AI AD Coin 운영 리허설(완료)
+- 결과: `reports/AI-AD-Coin-운영-리허설-2026-11-05.md`.
+  - 연기·소량·중량·대용량 단계에서 보안·품질·속도 모두 통과했다(대용량 200/s, 견적 p99 24ms).
+  - 극한 단계는 367/s에서 정합성을 지켰다(교착 17건은 재시도로 해결).
+- 구조:
+  - 전용 PG 세션 풀(기본 6)
+  - 행 단위 동시성: 사람 잠금, 캠페인 행 잠금, 원자적 잔액, 합계 16줄 분할, savepoint, 교착 재시도
+  - 견적 2단계, 등급별 후보 조회, 일별 집계 사전 필터, 백그라운드 만료 정리와 전체 재계산, Server-Timing(adc-*)
+- 운영 DB: 11-05 09:22 승인 후 `migrate` 실행. ad_coin 표 33개, 스키마 3. 기능은 아직 꺼져 있다.
+- 다음: frontend 설정 `AD_COIN_STORE=application`, release_gate 거친 배포, AD Coin 화면 LCP 측정.

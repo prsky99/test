@@ -23,8 +23,8 @@ from .db import dumps
 
 def now():
     return _db.now()
-from .exchange import (CATEGORY, coin_option_count, eligible_for_sponsorship, relevance, run_task_auction,
-                       selection_digest)
+from .exchange import (CATEGORY, MAX_SPONSORED_OPTIONS, coin_option_count, eligible_for_sponsorship, relevance,
+                       run_task_auction, selection_digest)
 from .screening import ScreeningRejected, memo_findings, screen_creative
 
 PRODUCTS = ('S1', 'P2', 'B1')
@@ -98,7 +98,8 @@ def coins(won):
 
 
 def _day(at=None):
-    return time.strftime('%Y-%m-%d', time.gmtime(at or now()))
+    """The Korean calendar day: caps, budgets and reports all use it."""
+    return time.strftime('%Y-%m-%d', time.gmtime((at or now()) + DAY_OFFSET_SECONDS))
 
 
 def day_start(at=None):
@@ -111,6 +112,11 @@ def _down(value, unit=COIN_VALUE_WON):
     return value - value % unit
 
 
+def _only(ids):
+    """An id filter for re-checking a few known campaigns (values stay parameters)."""
+    return ' AND c.id IN (' + ','.join('?' * len(ids)) + ')' if ids else ''
+
+
 class AdCoinService:
     def __init__(self, database, signer, *, test_mode=True):
         self.db = database
@@ -118,6 +124,8 @@ class AdCoinService:
         self.signer = signer
         self.test_mode = test_mode
         self._feed_secret = self._secret('offer_feed_secret')
+        if not self.db.one('SELECT 1 FROM ad_coin_totals LIMIT 1') and self.db.one('SELECT 1 FROM ad_coin_balances LIMIT 1'):
+            self.ledger.rebuild_running_totals()
 
     # ---------- settings and circuit ----------
     def _secret(self, key):
@@ -129,9 +137,17 @@ class AdCoinService:
             db.execute('INSERT OR IGNORE INTO ad_coin_settings VALUES (?,?,?)', (key, json.dumps(value.hex()), now()))
         return bytes.fromhex(json.loads(self.db.one('SELECT value FROM ad_coin_settings WHERE key=?', (key,))['value']))
 
+    SPLIT_CACHE_SECONDS = 5.0
+
     def split(self):
+        """The admin's split, cached for SPLIT_CACHE_SECONDS (a change here applies at once)."""
+        cached = getattr(self, '_split_cache', None)
+        if cached and time.monotonic() - cached[0] < self.SPLIT_CACHE_SECONDS:
+            return dict(cached[1])
         row = self.db.one("SELECT value FROM ad_coin_settings WHERE key='split_bps'")
-        return json.loads(row['value']) if row else dict(DEFAULT_SPLIT_BPS)
+        value = json.loads(row['value']) if row else dict(DEFAULT_SPLIT_BPS)
+        self._split_cache = (time.monotonic(), value)
+        return dict(value)
 
     def set_split(self, split):
         try:
@@ -143,6 +159,7 @@ class AdCoinService:
         with self.db.transaction() as db:
             db.execute("INSERT INTO ad_coin_settings VALUES ('split_bps',?,?) ON CONFLICT(key) DO UPDATE SET "
                        'value=excluded.value, updated_at=excluded.updated_at', (dumps(value), now()))
+        self._split_cache = None
         return value
 
     def circuit(self):
@@ -166,8 +183,57 @@ class AdCoinService:
         self._set_circuit(False, '')
         return self.circuit()
 
+    FULL_CHECK_EVERY = 500
+
     def _after_money_move(self):
+        """O(1) backing check on every move; a full recount every FULL_CHECK_EVERY moves.
+
+        On the dedicated PostgreSQL pool the recount runs on its own read-only snapshot in the
+        background, so it never holds the writer lock; elsewhere it runs here as before."""
+        self._moves = getattr(self, '_moves', 0) + 1
+        if self._moves % self.FULL_CHECK_EVERY == 0:
+            if not getattr(self.db, 'background_checks', False):
+                return self.full_check()
+            self._full_check_in_background()
+        check = self.ledger.fast_invariant()
+        if not check['ok'] and not self.circuit()['open']:
+            self._set_circuit(True, 'invariant:' + ','.join(check['problems']))
+        return check
+
+    def _full_check_in_background(self):
+        import threading
+        if getattr(self, '_checking', None) and self._checking.is_alive():
+            return                      # one recount at a time; the next due one starts after it
+
+        def run():
+            try:
+                with self.db.read():
+                    check = self.ledger.invariant()
+                if not check['ok'] and not self.circuit()['open']:
+                    self._set_circuit(True, 'invariant:' + ','.join(check['problems']))
+                self.last_full_check = check
+            except Exception as exc:        # a recount that cannot run must be visible, never silent
+                import logging
+                logging.getLogger('agent_market.ad_coin').error('AI AD Coin full check failed: %r', exc)
+                self.last_full_check = {'ok': None, 'error': repr(exc)[:200]}
+        self._checking = threading.Thread(target=run, name='ad-coin-full-check', daemon=True)
+        self._checking.start()
+
+    def daily_drift(self):
+        """Campaigns whose kept daily spend differs from today's reservations (should be none)."""
+        rows = self.db.all(
+            "SELECT r.campaign_id, SUM(r.amount_won) AS s, MAX(COALESCE(d.spend_won, 0)) AS kept FROM "
+            "ad_coin_reservations r LEFT JOIN ad_coin_campaign_daily d ON d.campaign_id=r.campaign_id AND d.day=? "
+            "WHERE r.created_at>=? AND r.status IN ('reserved','awarded') GROUP BY r.campaign_id "
+            "HAVING SUM(r.amount_won) <> MAX(COALESCE(d.spend_won, 0)) LIMIT 20", (_day(), day_start()))
+        return [r['campaign_id'] for r in rows]
+
+    def full_check(self):
+        """Recount every balance and journal (also catches writes that bypassed the ledger)."""
         check = self.ledger.invariant()
+        drift = self.daily_drift()
+        if drift:
+            check = dict(check, ok=False, problems=list(check['problems']) + ['daily_spend_drift'])
         if not check['ok'] and not self.circuit()['open']:
             self._set_circuit(True, 'invariant:' + ','.join(check['problems']))
         return check
@@ -180,6 +246,17 @@ class AdCoinService:
                        (account, user_ref, 'agent' if agent_ref else 'user', agent_ref, now(), now()))
         return account
 
+    def _ensure_wallets(self, user_ref, agent_ref):
+        """The agent's wallet and the person's master wallet, created in one statement when missing."""
+        if not agent_ref:
+            account = self._ensure_wallet(user_ref)
+            return account, account
+        agent, master, at = L.agent_wallet(user_ref, agent_ref), L.user_wallet(user_ref), now()
+        with self.db.transaction() as db:
+            db.execute('INSERT OR IGNORE INTO ad_coin_wallets VALUES (?,?,?,?,?,?),(?,?,?,?,?,?)',
+                       (agent, user_ref, 'agent', agent_ref, at, at, master, user_ref, 'user', '', at, at))
+        return agent, master
+
     def _touch(self, account):
         with self.db.transaction() as db:
             db.execute('UPDATE ad_coin_wallets SET last_active_at=? WHERE account=?', (now(), account))
@@ -191,8 +268,12 @@ class AdCoinService:
         return row
 
     def wallets(self, user_ref):
-        self._ensure_wallet(user_ref)
-        rows = self.db.all('SELECT * FROM ad_coin_wallets WHERE user_ref=? ORDER BY kind DESC, agent_ref', (user_ref,))
+        """Read only: a person's own wallet is listed even before its first coin."""
+        rows = list(self.db.all('SELECT * FROM ad_coin_wallets WHERE user_ref=? ORDER BY kind DESC, agent_ref '
+                                'LIMIT 50', (user_ref,)))
+        if not any(r['kind'] == 'user' for r in rows):
+            rows.insert(0, {'account': L.user_wallet(user_ref), 'kind': 'user', 'agent_ref': '',
+                            'last_active_at': now()})
         items = []
         for row in rows:
             won = self.ledger.balance(row['account'])
@@ -249,7 +330,8 @@ class AdCoinService:
                 'test': bool(row['test']), 'escrow_won': self.ledger.balance(L.escrow(row['id']))}
 
     def campaigns(self):
-        return [self.campaign(r['id']) for r in self.db.all('SELECT id FROM ad_coin_campaigns ORDER BY created_at')]
+        return [self.campaign(r['id']) for r in self.db.all('SELECT id FROM ad_coin_campaigns ORDER BY created_at '
+                                                            'LIMIT 500')]
 
     def set_campaign_status(self, campaign_id, status):
         if status not in ('active', 'paused'):
@@ -263,6 +345,11 @@ class AdCoinService:
         """Test mode: a virtual deposit into the segregated pool."""
         self.campaign(campaign_id)
         _won(amount_won, maximum=100_000_000)
+        with self.db.transaction():
+            self.db.lock_rows('ad_coin_campaigns', [campaign_id])
+            return self._fund(campaign_id, amount_won, idem)
+
+    def _fund(self, campaign_id, amount_won, idem):
         try:
             self.ledger.post('fund', 'fund:' + idem, [(L.EXTERNAL_FUNDING, -amount_won),
                                                      (L.escrow(campaign_id), amount_won)],
@@ -274,6 +361,11 @@ class AdCoinService:
 
     def refund_campaign(self, campaign_id, idem):
         self.expire()
+        with self.db.transaction():
+            self.db.lock_rows('ad_coin_campaigns', [campaign_id])
+            return self._refund(campaign_id, idem)
+
+    def _refund(self, campaign_id, idem):
         amount = self.ledger.balance(L.escrow(campaign_id))
         if amount:
             try:
@@ -287,24 +379,68 @@ class AdCoinService:
         return self.campaign(campaign_id)
 
     # ---------- expiry ----------
+    EXPIRE_EVERY_SECONDS = 5.0
+
+    def _sweep(self):
+        """The expiry sweep on request paths, at most every EXPIRE_EVERY_SECONDS per process. Each path
+        also refuses an expired reservation or voucher itself, so a later sweep only returns the money."""
+        at = time.monotonic()
+        if at - getattr(self, '_swept_at', -1e9) >= self.EXPIRE_EVERY_SECONDS:
+            self._swept_at = at
+            if not getattr(self.db, 'background_checks', False):
+                return self.expire()
+            # On the dedicated pool the sweep runs on its own thread, one short transaction per
+            # item, so it never holds a request's locks (and never orders locks against one).
+            import threading
+            if getattr(self, '_sweeping', None) and self._sweeping.is_alive():
+                return
+
+            def run():
+                try:
+                    self.expire()
+                except Exception as exc:
+                    import logging
+                    logging.getLogger('agent_market.ad_coin').error('AI AD Coin expiry sweep failed: %r', exc)
+            self._sweeping = threading.Thread(target=run, name='ad-coin-sweep', daemon=True)
+            self._sweeping.start()
+
     def expire(self):
         at = now()
-        for row in self.db.all("SELECT * FROM ad_coin_reservations WHERE status='reserved' AND expires_at<?", (at,)):
+        for row in self.db.all("SELECT * FROM ad_coin_reservations WHERE status='reserved' AND expires_at<? "
+                               "ORDER BY expires_at LIMIT 200", (at,)):
             self._release(row, 'expired')
         for row in self.db.all("SELECT v.*, r.campaign_id FROM ad_coin_vouchers v JOIN ad_coin_reservations r ON r.id=v.reservation_id "
-                               "WHERE v.status='active' AND v.expires_at<?", (at,)):
+                               "WHERE v.status='active' AND v.expires_at<? ORDER BY v.expires_at LIMIT 200", (at,)):
             with self.db.transaction() as db:
+                self.db.lock_rows('ad_coin_campaigns', [row['campaign_id']])
                 db.execute("UPDATE ad_coin_vouchers SET status='expired' WHERE id=? AND status='active'", (row['id'],))
                 # Never catch inside a transaction: on PostgreSQL a caught error still fails the outer one.
                 if not self.ledger.has('voucher_expired:' + row['id']):
                     self.ledger.post('voucher_expired', 'voucher_expired:' + row['id'],
                                      [(L.voucher(row['id']), -row['price_won']), (L.escrow(row['campaign_id']), row['price_won'])])
 
+    @staticmethod
+    def _daily(db, campaign_id, day, offers=0, views=0, spend=0, invalid=0, started=0, succeeded=0):
+        """Per campaign and Korean day, updated in the same transaction as the event. Serving uses
+        spend_won only to skip campaigns that cannot afford one more bid (the exact budget check still
+        reads the reservations); reports read the rest."""
+        db.execute('INSERT INTO ad_coin_campaign_daily VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(campaign_id, day) DO '
+                   'UPDATE SET offers=ad_coin_campaign_daily.offers+excluded.offers, '
+                   'views=ad_coin_campaign_daily.views+excluded.views, '
+                   'spend_won=ad_coin_campaign_daily.spend_won+excluded.spend_won, '
+                   'invalid_refunded_won=ad_coin_campaign_daily.invalid_refunded_won+excluded.invalid_refunded_won, '
+                   'runs_started=ad_coin_campaign_daily.runs_started+excluded.runs_started, '
+                   'runs_succeeded=ad_coin_campaign_daily.runs_succeeded+excluded.runs_succeeded',
+                   (campaign_id, day, offers, views, spend, invalid, started, succeeded))
+
     def _release(self, reservation, status):
         with self.db.transaction() as db:
+            self.db.lock_rows('ad_coin_campaigns', [reservation['campaign_id']])   # lock order: campaign first
             changed = db.execute("UPDATE ad_coin_reservations SET status=? WHERE id=? AND status='reserved'",
                                  (status, reservation['id'])).rowcount
             if changed:
+                self._daily(db, reservation['campaign_id'], _day(reservation['created_at']),
+                            spend=-reservation['amount_won'])
                 amount = self.ledger.balance(L.hold(reservation['id']))
                 if amount:
                     self.ledger.post('release', 'release:' + reservation['id'],
@@ -318,61 +454,104 @@ class AdCoinService:
                                  "AND status='reserved'", (user_ref, campaign_id))
         return row['n'] + open_holds['n'] >= FREQUENCY_CAP_PER_DAY
 
-    def _active(self, product, user_ref, category='general'):
+    CHUNK = 100
+
+    def _seen_today(self, user_ref):
+        """Today's views plus open holds per campaign for this person (frequency caps)."""
+        seen = {}
+        for r in self.db.all("SELECT campaign_id, COUNT(*) AS n FROM ad_coin_exposures WHERE user_ref=? AND day=? "
+                             "GROUP BY campaign_id UNION ALL SELECT campaign_id, COUNT(*) AS n FROM ad_coin_reservations "
+                             "WHERE user_ref=? AND status='reserved' GROUP BY campaign_id LIMIT 2000",
+                             (user_ref, _day(), user_ref)):
+            seen[r['campaign_id']] = seen.get(r['campaign_id'], 0) + r['n']
+        return seen
+
+    def _active(self, product, user_ref, category='general', need=2, limit=50, seen=None, only=None):
         """Campaigns that may serve this person for this task category right now.
 
-        Four indexed reads regardless of how many campaigns exist: candidates by
-        category, this person's caps, today's spend and approved creatives. A
-        campaign serves only if it is active, funded for one unit, within its
-        schedule and daily budget, reviewed eligible, not paused, not excluding
-        the category and under this person's frequency cap."""
+        Relevance has two levels (exact category 1.0, same top-level category 0.6), so each level
+        is read separately in bid order, CHUNK rows at a time, until `need` eligible campaigns are
+        found. Within a level the score is proportional to the bid and rows come in (bid DESC,
+        id ASC) order, so the first `need` eligible ones are exactly that level's best; the union
+        holds the overall best `need` and a second-price auction over it is exact. A campaign
+        serves only if it is active, funded for one unit, within its schedule and daily budget,
+        reviewed eligible, not paused, not excluding the category, its advertiser is active and
+        this person is under its frequency cap."""
         columns = ("c.id, c.advertiser, c.title, c.body, c.question, c.public_url, c.categories, c.bid_won, "
                    "COALESCE(b.amount, 0) AS escrow_won, m.daily_budget_won, m.starts_at, m.ends_at, m.frequency_cap, "
-                   "m.excluded, m.review_status, m.user_status, m.advertiser_id")
-        joins = ("LEFT JOIN ad_coin_balances b ON b.account='escrow:'||c.id "
-                 "LEFT JOIN ad_coin_campaign_meta m ON m.campaign_id=c.id ")
-        if category is None:      # the signed offer feed without a category: every funded offer
-            parent = None
-            subquery, scope = "SELECT id FROM ad_coin_campaigns WHERE product=?", (product,)
-            rows = self.db.all("SELECT " + columns + " FROM ad_coin_campaigns c " + joins +
-                               "WHERE c.product=? AND c.status='active'", (product,))
+                   "m.excluded, m.review_status, m.user_status, m.advertiser_id, COALESCE(d.spend_won, 0) AS spent_today, "
+                   "a.verification AS adv_verification, a.status AS adv_status")
+        head = ("SELECT " + columns + " FROM ad_coin_campaigns c LEFT JOIN ad_coin_balances b ON "
+                "b.account='escrow:'||c.id LEFT JOIN ad_coin_campaign_meta m ON m.campaign_id=c.id "
+                "LEFT JOIN ad_coin_campaign_daily d ON d.campaign_id=c.id AND d.day=? "
+                "LEFT JOIN ad_coin_advertisers a ON a.id=m.advertiser_id "
+                "WHERE c.product=? AND c.status='active' AND COALESCE(b.amount, 0) >= c.bid_won")
+        if product != 'B1':
+            # Skip in SQL what can never serve now (paused, not approved, budget spent); the rows that
+            # pass are still checked exactly below, so this only saves reading the rest.
+            head += (" AND (m.review_status IS NULL OR (m.review_status IN (?,?) AND m.user_status='enabled' AND "
+                     "COALESCE(d.spend_won, 0) + c.bid_won <= CASE WHEN a.verification='verified' AND "
+                     "a.status='active' AND m.review_status<>'eligible_limited' THEN m.daily_budget_won "
+                     "WHEN m.daily_budget_won < ? THEN m.daily_budget_won ELSE ? END))")
+            lead = (_day(), product) + SERVING_REVIEW + (LIMITED_DAILY_WON, LIMITED_DAILY_WON)
+        else:
+            lead = (_day(), product)
+        tail = _only(only) + " ORDER BY c.bid_won DESC, c.id LIMIT ? OFFSET ?"
+        extra = tuple(only or ())
+        if category is None or only:    # the offer feed, or a re-check of known campaigns: one read
+            parent = None if category is None else category.split('/', 1)[0]
+            if parent and (category in BLOCKED_CATEGORIES or parent in BLOCKED_CATEGORIES):
+                return []
+            levels = [(head + tail, lead + extra)]
         else:
             parent = category.split('/', 1)[0]
             if category in BLOCKED_CATEGORIES or parent in BLOCKED_CATEGORIES:
                 return []
-            subquery = ("SELECT cc.campaign_id FROM ad_coin_campaign_categories cc WHERE cc.category=? OR "
-                        "cc.category=? OR cc.parent=?")
-            scope = (category, parent, parent)
-            rows = self.db.all("SELECT DISTINCT " + columns + " FROM ad_coin_campaign_categories cc "
-                               "JOIN ad_coin_campaigns c ON c.id=cc.campaign_id " + joins +
-                               "WHERE c.product=? AND c.status='active' AND (cc.category=? OR cc.category=? OR "
-                               "cc.parent=?)", (product,) + scope)
+            exact = ' AND c.id IN (SELECT campaign_id FROM ad_coin_campaign_categories WHERE category=?)'
+            near = (' AND c.id IN (SELECT campaign_id FROM ad_coin_campaign_categories WHERE parent=?) AND c.id NOT IN '
+                    '(SELECT campaign_id FROM ad_coin_campaign_categories WHERE category=?)')
+            levels = [(head + exact + tail, lead + (category,) + extra),
+                      (head + near + tail, lead + (parent, category) + extra)]
+        seen = self._seen_today(user_ref) if seen is None else seen
+        state = {'at': now(), 'today': day_start(), 'verified': {}}
+        result = []
+        for sql, scope in levels:
+            found, offset = [], 0
+            chunk = min(self.CHUNK, max(16, need * 4))
+            while len(found) < need and len(result) + len(found) < limit:
+                rows = self.db.all(sql, scope + (chunk, offset))
+                offset += len(rows)
+                found.extend(self._eligible(rows, product, category, parent, seen, state))
+                if len(rows) < chunk:
+                    break
+            result.extend(found)
+        return result[:limit]
+
+    def _eligible(self, rows, product, category, parent, seen, state):
+        """The rows of one chunk that may serve now, with their chosen creative (bounded reads)."""
         if not rows:
             return []
-        at, today = now(), day_start()
-        seen = {}
-        for r in self.db.all('SELECT campaign_id, COUNT(*) AS n FROM ad_coin_exposures WHERE user_ref=? AND day=? '
-                             'GROUP BY campaign_id', (user_ref, _day())):
-            seen[r['campaign_id']] = r['n']
-        for r in self.db.all("SELECT campaign_id, COUNT(*) AS n FROM ad_coin_reservations WHERE user_ref=? AND "
-                             "status='reserved' GROUP BY campaign_id", (user_ref,)):
-            seen[r['campaign_id']] = seen.get(r['campaign_id'], 0) + r['n']
-        spent = {r['campaign_id']: r['s'] or 0 for r in self.db.all(
-            "SELECT r.campaign_id, SUM(r.amount_won) AS s FROM ad_coin_reservations r WHERE r.created_at>=? "
-            "AND r.status IN ('reserved','awarded') AND r.campaign_id IN (" + subquery + ") "
-            "GROUP BY r.campaign_id", (today,) + scope)}
+        at, today, verified = state['at'], state['today'], state['verified']
+        ids = [r['id'] for r in rows]
+        marks = ','.join('?' * len(ids))
+        # Today's held and awarded amount per campaign, kept in the same transactions as every hold
+        # and release (full_check verifies it against the reservations).
+        spent = {r['id']: r['spent_today'] for r in rows}
         if product == 'B1':
-            for r in self.db.all("SELECT a.campaign_id, COUNT(*) AS n FROM ad_coin_offer_acks a WHERE a.created_at>=? "
-                                 "AND a.campaign_id IN (" + subquery + ") GROUP BY a.campaign_id", (today,) + scope):
-                bid = next((x['bid_won'] for x in rows if x['id'] == r['campaign_id']), 0)
-                spent[r['campaign_id']] = spent.get(r['campaign_id'], 0) + r['n'] * bid
+            bids = {r['id']: r['bid_won'] for r in rows}
+            for r in self.db.all("SELECT campaign_id, COUNT(*) AS n FROM ad_coin_offer_acks WHERE created_at>=? "
+                                 "AND campaign_id IN (" + marks + ") GROUP BY campaign_id", (today,) + tuple(ids)):
+                spent[r['campaign_id']] = spent.get(r['campaign_id'], 0) + r['n'] * bids[r['campaign_id']]
         creatives = {}
         for r in self.db.all(
-                "SELECT cr.id, cr.campaign_id, cr.title, cr.body, cr.question, cr.public_url, cr.weight, "
-                "cr.review_status FROM ad_coin_creatives cr WHERE cr.removed_at IS NULL AND cr.review_status IN "
-                "('eligible','eligible_limited') AND cr.campaign_id IN (" + subquery + ")", scope):
+                "SELECT id, campaign_id, title, body, question, public_url, weight, review_status FROM "
+                "ad_coin_creatives WHERE removed_at IS NULL AND review_status IN ('eligible','eligible_limited') "
+                "AND campaign_id IN (" + marks + ") LIMIT 1600", tuple(ids)):
             creatives.setdefault(r['campaign_id'], []).append(r)
-        verified = {}
+        for r in rows:
+            if r['advertiser_id']:
+                verified[r['advertiser_id']] = (r['adv_verification'] if r['adv_status'] == 'active'
+                                                else 'suspended')
         result = []
         for r in rows:
             cap = r['frequency_cap'] if r['frequency_cap'] is not None else FREQUENCY_CAP_PER_DAY
@@ -387,17 +566,13 @@ class AdCoinService:
                     continue
                 if r['starts_at'] > at or (r['ends_at'] is not None and r['ends_at'] <= at):
                     continue
-                if category is not None and (category in json.loads(r['excluded']) or parent in json.loads(r['excluded'])):
+                excluded = json.loads(r['excluded'])
+                if category is not None and (category in excluded or parent in excluded):
                     continue
-                if r['advertiser_id'] not in verified:
-                    row = self.db.one('SELECT verification, status FROM ad_coin_advertisers WHERE id=?',
-                                      (r['advertiser_id'],))
-                    verified[r['advertiser_id']] = (row['verification'] if row and row['status'] == 'active'
-                                                    else 'suspended')
-                if verified[r['advertiser_id']] == 'suspended':
+                if verified.get(r['advertiser_id']) == 'suspended':
                     continue
                 daily = r['daily_budget_won']
-                if verified[r['advertiser_id']] != 'verified' or r['review_status'] == 'eligible_limited':
+                if verified.get(r['advertiser_id']) != 'verified' or r['review_status'] == 'eligible_limited':
                     daily = min(daily, LIMITED_DAILY_WON)
                 if spent.get(r['id'], 0) + r['bid_won'] > daily:
                     continue
@@ -410,6 +585,10 @@ class AdCoinService:
                                 daily_left_won=daily - spent.get(r['id'], 0))
             result.append(campaign)
         return result
+
+    @staticmethod
+    def _score(campaign, category):
+        return campaign['bid_won'] * relevance(campaign['categories'], category) if category else campaign['bid_won']
 
     @staticmethod
     def _pick_creative(options):
@@ -431,6 +610,7 @@ class AdCoinService:
                          {'quote': quote_id, 'product': product})
         if campaign.get('creative_id'):
             db.execute('INSERT INTO ad_coin_reservation_creatives VALUES (?,?)', (reservation_id, campaign['creative_id']))
+        self._daily(db, campaign['id'], _day(), offers=1, spend=amount)
         return reservation_id
 
     def quote(self, *, user_ref, agent_ref, operator_ref, selection, task):
@@ -448,19 +628,68 @@ class AdCoinService:
         if type(category) is not str or not re.fullmatch(CATEGORY, category):
             raise AdCoinError('invalid_category')
         lines = bundle_lines(task.get('lines'), price)
-        self.expire()
+        self._sweep()
         digest = selection_digest(selection)
         quote_id = 'q_' + uuid.uuid4().hex[:20]
-        split = self.split()
-        wallet = self._ensure_wallet(user_ref, agent_ref)
-        master = self._ensure_wallet(user_ref)
-        available = self.ledger.balance(wallet) + self.ledger.balance(master)
-        circuit = self.circuit()
+        agent_account, master_account = L.agent_wallet(user_ref, agent_ref), L.user_wallet(user_ref)
+        # Phase 1, read only and outside every lock: balances, the circuit and every candidate. On the
+        # dedicated pool the two products are read side by side on their own sessions; both are
+        # checked again under the locks in phase 2, so separate snapshots are safe here.
+        # Never while this thread already holds a session: waiting for more sessions while holding one
+        # could exhaust the pool.
+        parallel = (getattr(self.db, 'background_checks', False) and eligible_for_sponsorship(price)
+                    and not self.db.in_transaction())
+        if parallel:
+            seen = self._seen_today(user_ref)
+            pending = [self._readers().submit(self._active_read, 'S1', user_ref, category, 2, seen),
+                       self._readers().submit(self._active_read, 'P2', user_ref, category, MAX_SPONSORED_OPTIONS, seen)]
+        with self.db.read():
+            split = self.split()
+            held = {r['account'] for r in self.db.all('SELECT account FROM ad_coin_wallets WHERE account IN (?,?)',
+                                                      (agent_account, master_account))}
+            available = sum(r['amount'] for r in self.db.all(
+                'SELECT amount FROM ad_coin_balances WHERE account IN (?,?)', (agent_account, master_account)))
+            circuit = self.circuit()
+            sponsorable = eligible_for_sponsorship(price) and not circuit['open']
+            s1 = p2 = []
+            if sponsorable and not parallel:
+                seen = self._seen_today(user_ref)
+                s1 = self._active('S1', user_ref, category, seen=seen)
+                p2 = self._active('P2', user_ref, category, need=MAX_SPONSORED_OPTIONS, seen=seen)
+        if parallel:
+            s1, p2 = (f.result() for f in pending)
+            if not sponsorable:
+                s1 = p2 = []
         options, disclosures = [], []
-        sponsorable = eligible_for_sponsorship(price) and not circuit['open']
+        # Phase 2, under the writer lock: re-check only the campaigns that would be reserved with the
+        # same eligibility rules, then reserve. A campaign that stopped qualifying meanwhile makes this
+        # product fall back to a full read under the lock, so nothing is reserved on stale facts.
         with self.db.transaction() as db:
+            self.db.lock_key('who:' + user_ref)       # this person's caps and holds
+            if len(held) < 2:
+                self._ensure_wallets(user_ref, agent_ref)
+            if sponsorable and self.circuit()['open']:
+                sponsorable, circuit = False, self.circuit()
             if sponsorable:
-                auction = run_task_auction(self._active('S1', user_ref, category), category, price)
+                fresh_seen = self._seen_today(user_ref)
+                auction = run_task_auction(s1, category, price)
+                chosen = self._coin_choice(p2, category, split, price, available)
+                # Every campaign this quote may reserve, locked at once in id order (budgets until commit).
+                self.db.lock_rows('ad_coin_campaigns', (auction['ranked'][:2] if auction else []) +
+                                  [c['id'] for c in chosen])
+                if auction:
+                    keep = auction['ranked'][:2]
+                    fresh = self._active('S1', user_ref, category, seen=fresh_seen, only=keep)
+                    if {c['id'] for c in fresh} != set(keep):
+                        auction = run_task_auction(self._active('S1', user_ref, category, seen=fresh_seen),
+                                                   category, price)
+                        if auction:
+                            winner = auction['winner']['id']
+                            self.db.lock_rows('ad_coin_campaigns', [winner])
+                            if not self._active('S1', user_ref, category, seen=fresh_seen, only=[winner]):
+                                auction = None
+                    else:
+                        auction = run_task_auction(fresh, category, price)
                 if auction:
                     campaign = auction['winner']
                     rid = self._reserve(db, quote_id, campaign, 'S1', user_ref, agent_ref, operator_ref,
@@ -473,30 +702,36 @@ class AdCoinService:
                                     'coins_equivalent': coins(price)})
                     disclosures.append({'reservation_id': rid, 'paying_principal': campaign['advertiser'],
                                         'operator_reward_won': operator_won})
-                p2 = sorted(self._active('P2', user_ref, category),
-                            key=lambda c: (-c['bid_won'] * relevance(c['categories'], category), c['id']))
-                p2 = [c for c in p2 if relevance(c['categories'], category) > 0]
-                if p2:
-                    reward = _down(p2[0]['bid_won'] * split['user'] // 10000)
-                    count = coin_option_count(max(price - available, 0) or price, reward)
-                    chosen = [c for c in p2 if _down(c['bid_won'] * split['user'] // 10000) >= reward][:count or 0]
-                    if count and len(chosen) == count and all(c['escrow_won'] >= c['bid_won'] and
-                                                              c.get('daily_left_won', c['bid_won']) >= c['bid_won']
-                                                              for c in chosen):
-                        items = []
-                        for campaign in chosen:
-                            rid = self._reserve(db, quote_id, campaign, 'P2', user_ref, agent_ref, operator_ref,
-                                                campaign['bid_won'], price)
-                            items.append({'reservation_id': rid, 'sponsor': campaign['advertiser'],
-                                          'title': campaign['title'], 'body': campaign['body'],
-                                          'question': campaign['question'], 'public_copy_url': campaign['public_url'],
-                                          'view_ms': MIN_EXPOSURE_MS,
-                                          'coins': coins(_down(campaign['bid_won'] * split['user'] // 10000))})
-                            disclosures.append({'reservation_id': rid, 'paying_principal': campaign['advertiser'],
-                                                'operator_reward_won': _down(campaign['bid_won'] * split['operator'] // 10000)})
-                        options.append({'type': 'coin_reward', 'items': items,
-                                        'total_coins': sum(i['coins'] for i in items),
-                                        'each_is_separate_approval': True})
+                for _attempt in range(2):
+                    if not chosen:
+                        break
+                    keep = [c['id'] for c in chosen]
+                    if _attempt:
+                        self.db.lock_rows('ad_coin_campaigns', keep)
+                    fresh = self._active('P2', user_ref, category, need=MAX_SPONSORED_OPTIONS, seen=fresh_seen,
+                                         only=keep)
+                    if {c['id'] for c in fresh} == set(keep):
+                        chosen = self._coin_choice(fresh, category, split, price, available)
+                        break
+                    chosen = self._coin_choice(self._active('P2', user_ref, category, need=MAX_SPONSORED_OPTIONS,
+                                                            seen=fresh_seen), category, split, price, available)
+                else:
+                    chosen = []          # still changing under us: offer no coin reward this time
+                if chosen:
+                    items = []
+                    for campaign in chosen:
+                        rid = self._reserve(db, quote_id, campaign, 'P2', user_ref, agent_ref, operator_ref,
+                                            campaign['bid_won'], price)
+                        items.append({'reservation_id': rid, 'sponsor': campaign['advertiser'],
+                                      'title': campaign['title'], 'body': campaign['body'],
+                                      'question': campaign['question'], 'public_copy_url': campaign['public_url'],
+                                      'view_ms': MIN_EXPOSURE_MS,
+                                      'coins': coins(_down(campaign['bid_won'] * split['user'] // 10000))})
+                        disclosures.append({'reservation_id': rid, 'paying_principal': campaign['advertiser'],
+                                            'operator_reward_won': _down(campaign['bid_won'] * split['operator'] // 10000)})
+                    options.append({'type': 'coin_reward', 'items': items,
+                                    'total_coins': sum(i['coins'] for i in items),
+                                    'each_is_separate_approval': True})
             options.append({'type': 'pay_with_coins', 'available': available >= price,
                             'coins_needed': coins(price), 'coins_available': coins(available)})
             options.append({'type': 'direct_payment', 'available': False, 'reason': 'payments_closed_test_mode'})
@@ -532,6 +767,33 @@ class AdCoinService:
         self._after_money_move()
         return packet
 
+    def _readers(self):
+        """A small shared pool of reader threads for independent reads (dedicated sessions only)."""
+        if getattr(self, '_reader_pool', None) is None:
+            import concurrent.futures
+            self._reader_pool = concurrent.futures.ThreadPoolExecutor(4, thread_name_prefix='ad-coin-read')
+        return self._reader_pool
+
+    def _active_read(self, product, user_ref, category, need, seen):
+        with self.db.read():
+            return self._active(product, user_ref, category, need=need, seen=seen)
+
+    @staticmethod
+    def _coin_choice(candidates, category, split, price, available):
+        """The P2 campaigns that together cover the shortfall, each paying the top reward, or []."""
+        p2 = sorted((c for c in candidates if relevance(c['categories'], category) > 0),
+                    key=lambda c: (-c['bid_won'] * relevance(c['categories'], category), c['id']))
+        if not p2:
+            return []
+        reward = _down(p2[0]['bid_won'] * split['user'] // 10000)
+        count = coin_option_count(max(price - available, 0) or price, reward)
+        chosen = [c for c in p2 if _down(c['bid_won'] * split['user'] // 10000) >= reward][:count or 0]
+        if count and len(chosen) == count and all(c['escrow_won'] >= c['bid_won'] and
+                                                  c.get('daily_left_won', c['bid_won']) >= c['bid_won']
+                                                  for c in chosen):
+            return chosen
+        return []
+
     # ---------- consent and exposure ----------
     def _reservation(self, reservation_id, user_ref):
         row = self.db.one('SELECT * FROM ad_coin_reservations WHERE id=?', (reservation_id,))
@@ -540,9 +802,9 @@ class AdCoinService:
         return row
 
     def consent(self, *, user_ref, reservation_id):
-        self.expire()
+        self._sweep()
         row = self._reservation(reservation_id, user_ref)
-        if row['status'] != 'reserved':
+        if row['status'] != 'reserved' or row['expires_at'] < now():
             raise AdCoinError('reservation_closed', status=409)
         consent_id = 'k_' + uuid.uuid4().hex[:20]
         with self.db.transaction() as db:
@@ -559,8 +821,10 @@ class AdCoinService:
         return {'reservation_id': reservation_id, 'status': 'declined', 'next': 'free_result'}
 
     def exposure(self, *, user_ref, reservation_id, consent_id, displayed_ms, answer=None, foreground=True):
-        self.expire()
+        self._sweep()
         row = self._reservation(reservation_id, user_ref)
+        if row['status'] == 'reserved' and row['expires_at'] < now():
+            raise AdCoinError('reservation_closed', status=409)
         consent = self.db.one('SELECT * FROM ad_coin_consents WHERE id=? AND reservation_id=?', (consent_id, reservation_id))
         if not consent or consent['user_ref'] != user_ref:
             raise AdCoinError('consent_required', 'Show the offer only after the person approves it.', 403)
@@ -586,6 +850,7 @@ class AdCoinService:
             if not db.execute("UPDATE ad_coin_reservations SET status='awarded' WHERE id=? AND status='reserved'",
                               (reservation_id,)).rowcount:
                 raise AdCoinError('reservation_closed', status=409)
+            self._daily(db, row['campaign_id'], _day(row['created_at']), views=1)
             db.execute('UPDATE ad_coin_consents SET used_at=? WHERE id=?', (now(), consent_id))
             db.execute('INSERT INTO ad_coin_exposures VALUES (?,?,?,?,?,?,?)',
                        (reservation_id, campaign['id'], user_ref, _day(), displayed_ms, 'interaction', now()))
@@ -625,6 +890,8 @@ class AdCoinService:
         source = self._wallet(from_account)
         if source['user_ref'] != user_ref:
             raise AdCoinError('not_your_wallet', status=403)
+        if to_account == L.user_wallet(user_ref):
+            self._ensure_wallet(user_ref)      # a person's own wallet always exists as a destination
         target = self._wallet(to_account)
         if from_account == to_account:
             raise AdCoinError('same_wallet')
@@ -672,7 +939,8 @@ class AdCoinService:
     def sweep_dormant(self):
         cutoff = now() - DORMANT_AGENT_DAYS * 86400
         moved = []
-        for row in self.db.all("SELECT * FROM ad_coin_wallets WHERE kind='agent' AND last_active_at<?", (cutoff,)):
+        for row in self.db.all("SELECT * FROM ad_coin_wallets WHERE kind='agent' AND last_active_at<? "
+                               "ORDER BY last_active_at LIMIT 500", (cutoff,)):
             if self.ledger.balance(row['account']):
                 moved.append(self.sweep_agent(user_ref=row['user_ref'], agent_ref=row['agent_ref'],
                                               reason='dormant_agent'))
@@ -711,7 +979,8 @@ class AdCoinService:
 
     def mandates(self, user_ref):
         return [self.mandate(r['id'], user_ref) for r in
-                self.db.all('SELECT id FROM ad_coin_mandates WHERE user_ref=? ORDER BY created_at', (user_ref,))]
+                self.db.all('SELECT id FROM ad_coin_mandates WHERE user_ref=? ORDER BY created_at DESC LIMIT 100',
+                            (user_ref,))]
 
     def revoke_mandate(self, mandate_id, user_ref):
         self.mandate(mandate_id, user_ref)
@@ -749,6 +1018,11 @@ class AdCoinService:
         elif actor != 'user':
             raise AdCoinError('invalid_actor')
         execution_id = 'x_' + uuid.uuid4().hex[:20]
+        earlier = self.db.one('SELECT id FROM ad_coin_journals WHERE idem=?', ('spend:' + user_ref + ':' + idem,))
+        if earlier:
+            return {'status': 'already_done', 'journal_id': earlier['id']}
+        if self.ledger.balance(wallet) < price:
+            raise AdCoinError('insufficient_coins', status=409)
         try:
             with self.db.transaction() as db:
                 journal = self.ledger.post('spend', 'spend:' + user_ref + ':' + idem,
@@ -913,7 +1187,7 @@ class AdCoinService:
         offers = []
         if category is not None and (type(category) is not str or not re.fullmatch(CATEGORY, category)):
             raise AdCoinError('invalid_category')
-        for campaign in sorted(self._active('B1', 'op:' + operator_ref, category), key=lambda c: c['id']):
+        for campaign in sorted(self._active('B1', 'op:' + operator_ref, category, need=50), key=lambda c: c['id']):
             offer = {'offer_id': campaign['id'], 'title': campaign['title'], 'body': campaign['body'],
                      'categories': sorted(campaign['categories']), 'public_copy_url': campaign['public_url'],
                      'sponsored_context': {'paying_principal': {'name': campaign['advertiser']},
@@ -932,10 +1206,15 @@ class AdCoinService:
         day = _day()
         if type(offer_token) is not str or not hmac.compare_digest(offer_token, self._offer_token(offer_id, operator_ref, day)):
             raise AdCoinError('invalid_offer_token', status=403)
+        with self.db.transaction():
+            self.db.lock_rows('ad_coin_campaigns', [offer_id])     # this offer's daily budget, until commit
+            return self._acknowledge(operator_ref, offer_id, offer_token, day)
+
+    def _acknowledge(self, operator_ref, offer_id, offer_token, day):
         campaign = self.campaign(offer_id)
         if campaign['product'] != 'B1' or campaign['status'] != 'active':
             raise AdCoinError('offer_closed', status=409)
-        if offer_id not in {c['id'] for c in self._active('B1', 'op:' + operator_ref, None)}:
+        if offer_id not in {c['id'] for c in self._active('B1', 'op:' + operator_ref, None, need=50)}:
             raise AdCoinError('offer_closed', 'The offer is paused, under review or out of budget today.', 409)
         digest = hashlib.sha256(offer_token.encode()).hexdigest()
         split = self.split()

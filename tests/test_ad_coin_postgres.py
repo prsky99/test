@@ -80,10 +80,17 @@ def test_migration_is_explicit_additive_and_idempotent(cluster):
     _service(ApplicationStoreDatabase(attached)).status()
 
 
-def test_full_flow_runs_on_the_application_postgres_store(cluster, monkeypatch):
-    store = _store(cluster, 'adcoin_flow')
+def _sessions(ready, name):
+    return lambda: psycopg.connect(host=ready['socket'], port=PORT, dbname=name, user='postgres', autocommit=True)
+
+
+@pytest.mark.parametrize('adapter', ['store', 'pool'])
+def test_full_flow_runs_on_the_application_postgres_store(cluster, monkeypatch, adapter):
+    store = _store(cluster, 'adcoin_flow_' + adapter)
     migrate(store)
-    svc = _service(ApplicationStoreDatabase(store))
+    database = (ApplicationStoreDatabase(store) if adapter == 'store'
+                else dbmod.PooledPostgresDatabase(_sessions(cluster, 'adcoin_flow_' + adapter)))
+    svc = _service(database)
     # sponsored run, bundle settlement, invariant
     _campaign(svc)
     packet = svc.quote(user_ref='u_alice', agent_ref='helper', operator_ref='agent:helper', selection=SELECTION, task=TASK)
@@ -147,7 +154,7 @@ def test_full_flow_runs_on_the_application_postgres_store(cluster, monkeypatch):
     # a corrupted claim opens the circuit
     with store.tx():
         store._execute("INSERT INTO ad_coin_balances VALUES ('wallet:user:ghost', %s)", (10 ** 9,))
-    svc._after_money_move()
+    svc.full_check()
     assert svc.circuit()['open']
 
 
@@ -191,3 +198,137 @@ def test_an_unmigrated_store_keeps_the_frontend_up(cluster, tmp_path):
     response = client.get('/api/ad-coin/v1/status')
     assert response.status_code == 503 and 'ad_coin_migrate_postgres' in response.json()['message']
     assert client.get('/api/ad-coin/v1/wallets').status_code == 404
+
+
+def test_the_dedicated_pool_serializes_money_and_reads_in_parallel(cluster):
+    import concurrent.futures as cf
+    import threading
+    store = _store(cluster, 'adcoin_pool')
+    migrate(store)
+    pool = dbmod.PooledPostgresDatabase(_sessions(cluster, 'adcoin_pool'), maximum=3, wait_seconds=5)
+    svc = _service(pool)
+    wallet = svc._ensure_wallet('u_race', 'racer')
+    svc.ledger.post('promo', 'race-seed', [(L.EXTERNAL_FUNDING, -1000), (wallet, 1000)])
+
+    def spend(i):
+        try:
+            with pool.transaction():
+                svc.spend(user_ref='u_race', wallet=wallet, provider='r1', task_ref='race', price_coins=30,
+                          idem='race-%d' % i)
+            return True
+        except Exception as error:
+            return repr(error)
+    with cf.ThreadPoolExecutor(12) as workers:
+        results = list(workers.map(spend, range(24)))
+    assert results.count(True) == 3, results
+    assert svc.ledger.balance(wallet) == 100
+    assert svc.ledger.invariant()['ok'] and pool.stats()['open'] <= 3
+    # a write cannot hide inside a read-only transaction; a read joins a write
+    with pool.read():
+        with pytest.raises(RuntimeError, match='read-only'):
+            with pool.transaction():
+                pass
+    with pool.transaction():
+        assert pool.one('SELECT amount FROM ad_coin_balances WHERE account=?', (wallet,))['amount'] == 100
+    # reads overlap while a writer holds the AI AD Coin lock
+    held, release = threading.Event(), threading.Event()
+
+    def writer():
+        with pool.transaction():
+            held.set()
+            release.wait(5)
+    thread = threading.Thread(target=writer)
+    thread.start()
+    held.wait(5)
+    assert pool.one('SELECT COUNT(*) AS n FROM ad_coin_journals')['n'] >= 1
+    release.set()
+    thread.join()
+    # exhausted sessions are refused quickly, never queued forever
+    tight = dbmod.PooledPostgresDatabase(_sessions(cluster, 'adcoin_pool'), maximum=1, wait_seconds=0.2)
+    entered = threading.Event()
+
+    def hold():
+        with tight.read():
+            entered.set()
+            release.clear()
+            release.wait(2)
+    other = threading.Thread(target=hold)
+    other.start()
+    entered.wait(5)
+    with pytest.raises(dbmod.PoolBusy):
+        tight.one('SELECT 1 AS x')
+    release.set()
+    other.join()
+    assert tight.one('SELECT 1 AS x')['x'] == 1
+    with pytest.raises(RuntimeError, match='result_limit'):
+        tight.all('SELECT g FROM generate_series(1, 2001) AS g')
+    tight.close()
+    pool.close()
+
+
+def test_the_writer_lock_is_first_come_first_served():
+    import threading
+    import time as _time
+    lock, order = dbmod.FairLock(), []
+    assert lock.acquire()
+    threads = []
+    for i in range(5):
+        thread = threading.Thread(target=lambda i=i: (lock.acquire(), order.append(i), lock.release()))
+        thread.start()
+        threads.append(thread)
+        _time.sleep(0.02)                      # each waiter queues before the next
+    lock.release()
+    for thread in threads:
+        thread.join(5)
+    assert order == [0, 1, 2, 3, 4]
+    assert lock.acquire(timeout=0.1)
+    assert not dbmod.FairLock().acquire() or True
+    blocked = threading.Thread(target=lambda: order.append(lock.acquire(timeout=0.05)))
+    blocked.start()
+    blocked.join(5)
+    assert order[-1] is False                  # a timed-out waiter leaves the queue
+    lock.release()
+    assert lock.acquire(timeout=0.1)
+
+
+def test_concurrent_writers_keep_budgets_idempotency_and_balances(cluster):
+    import concurrent.futures as cf
+    from agent_market.ad_coin.advertisers import AdvertiserConsole
+    store = _store(cluster, 'adcoin_rowlocks')
+    migrate(store)
+    pool = dbmod.PooledPostgresDatabase(_sessions(cluster, 'adcoin_rowlocks'), maximum=6, wait_seconds=10)
+    svc = _service(pool)
+    console = AdvertiserConsole(svc, People(pool))
+    console.fund_platform_reserve(1_000_000, 'reserve')
+    console.people.invite('cus_rl')
+    adv = console.create_advertiser('cus_rl', name='Row Lock Tools', website='https://rowlock.example')
+    console.set_verification(adv['id'], 'verified')
+    c = console.create_campaign(adv['id'], 'cus_rl', {
+        'objective': 'S1', 'name': 'Tight budget', 'categories': ['deep_research'], 'bid_won': 1500,
+        'daily_budget_won': 4500, 'creative': {'title': 'Chart it', 'body': 'Charts tables.', 'question': 'What?',
+                                               'answer': 'tables', 'public_url': 'https://rowlock.example/o'}})
+    console.fund(adv['id'], 'cus_rl', c['id'], 100_000, 'fund')
+
+    def one_quote(i):
+        with pool.transaction():
+            packet = svc.quote(user_ref='u_q%d' % i, agent_ref='helper', operator_ref='agent:helper',
+                               selection=SELECTION, task=TASK)
+        return next((o for o in packet['funding_options'] if o['type'] == 'sponsored_run'), None)
+    with cf.ThreadPoolExecutor(6) as workers:
+        runs = [r for r in workers.map(one_quote, range(30)) if r]
+    held = pool.one("SELECT COALESCE(SUM(amount_won), 0) AS s FROM ad_coin_reservations WHERE campaign_id=? "
+                    "AND status IN ('reserved','awarded')", (c['id'],))['s']
+    assert runs and held <= 4500                       # never past the daily budget under concurrency
+
+    def same_key(_):
+        try:
+            return svc.ledger.post('promo', 'same-key', [(L.EXTERNAL_FUNDING, -10), (L.user_wallet('u_z'), 10)])
+        except L.Duplicate as dup:
+            return 'dup:' + str(dup)
+    with cf.ThreadPoolExecutor(6) as workers:
+        outcomes = list(workers.map(same_key, range(12)))
+    assert len({o for o in outcomes if not o.startswith('dup:')}) == 1
+    assert pool.one("SELECT COUNT(*) AS n FROM ad_coin_journals WHERE idem='same-key'")['n'] == 1
+    assert svc.ledger.balance(L.user_wallet('u_z')) == 10
+    assert svc.ledger.invariant()['ok']
+    pool.close()

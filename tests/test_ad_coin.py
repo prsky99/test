@@ -241,7 +241,7 @@ def test_broken_backing_opens_circuit_and_stops_offers(svc):
     campaign(svc)
     with svc.db.transaction() as db:  # simulate a corrupted claim outside the journal
         db.execute("INSERT INTO ad_coin_balances VALUES ('wallet:user:ghost', 999999)")
-    svc._after_money_move()
+    svc.full_check()
     assert svc.circuit()['open']
     packet = quote(svc)
     assert option(packet, 'sponsored_run') is None and packet['sponsorship_unavailable_reason'] == 'circuit_open'
@@ -653,3 +653,83 @@ def test_http_private_workflow_needs_the_customers_own_session(tmp_path):
     closed = FastAPI()
     closed.include_router(router_for(settings.with_(db_path=str(tmp_path / 'b.sqlite3')), store=Store()))
     assert TestClient(closed).post('/api/ad-coin/v1/upgrade-check', headers=person, json=body).status_code == 503
+
+
+def test_an_expired_hold_is_refused_even_between_throttled_sweeps(svc, monkeypatch):
+    campaign(svc)
+    rid = option(quote(svc), 'sponsored_run')['reservation_id']
+    consent = svc.consent(user_ref='u_alice', reservation_id=rid)       # this request also ran the sweep
+    real = dbmod.now
+    monkeypatch.setattr(dbmod, 'now', lambda: real() + 3600)
+    import agent_market.ad_coin.service as service_module
+    monkeypatch.setattr(service_module, 'now', lambda: real() + 3600)
+    for attempt in (lambda: svc.consent(user_ref='u_alice', reservation_id=rid),
+                    lambda: svc.exposure(user_ref='u_alice', reservation_id=rid, consent_id=consent['consent_id'],
+                                         displayed_ms=15000, answer='results', foreground=True)):
+        with pytest.raises(AdCoinError) as refused:
+            attempt()
+        assert refused.value.code == 'reservation_closed'
+    svc.expire()                       # the sweep returns the hold to the campaign
+    assert svc.db.one('SELECT status FROM ad_coin_reservations WHERE id=?', (rid,))['status'] == 'expired'
+    assert svc.ledger.invariant()['ok']
+
+
+def test_a_split_change_applies_at_once_in_this_process(svc):
+    before = svc.split()
+    changed = dict(before, user=before['user'] - 100, operator=before['operator'] + 100)
+    svc.set_split(changed)
+    assert svc.split() == svc.set_split(changed)
+
+
+def test_a_campaign_that_stops_qualifying_after_the_read_phase_is_never_reserved(svc):
+    first = campaign(svc, bid=3000)
+    second = campaign(svc, bid=2000)
+    real, calls = svc._active, []
+
+    def stale_then_pause(product, *args, **kwargs):
+        result = real(product, *args, **kwargs)
+        calls.append((product, kwargs.get('only')))
+        if product == 'S1' and len(calls) == 1:          # right after the unlocked read, the winner is paused
+            svc.set_campaign_status(first['id'], 'paused')
+        return result
+    svc._active = stale_then_pause
+    packet = quote(svc)
+    run = option(packet, 'sponsored_run')
+    reserved = svc.db.one('SELECT campaign_id FROM ad_coin_reservations WHERE id=?', (run['reservation_id'],))
+    assert reserved['campaign_id'] == second['id']               # re-checked under the lock, then re-read in full
+    assert [c for c in calls if c[0] == 'S1'][1][1] == [first['id'], second['id']]
+    assert svc.ledger.invariant()['ok']
+
+
+def test_reading_candidates_in_chunks_gives_exactly_the_full_scan_auction(svc, monkeypatch):
+    import random as _random
+    rng = _random.Random(11)
+    categories = ['deep_research', 'deep_research/academic', 'deep_research/market', 'data_utility']
+    for i in range(60):
+        cats = rng.sample(categories, rng.choice((1, 2)))
+        campaign(svc, bid=rng.choice((1500, 1500, 2000, 3000)), categories=cats, fund=rng.choice((1500, 20000)),
+                 advertiser='Test Data Tools %d' % i)
+    monkeypatch.setattr(type(svc), 'CHUNK', 4)
+    for task_category in ('deep_research/academic', 'deep_research', 'data_utility'):
+        for user in ('u_a', 'u_b'):
+            for product, need in (('S1', 2), ('P2', 5)):
+                chunked = svc._active(product, user, task_category, need=need)
+                full = svc._active(product, user, task_category, need=10 ** 6, limit=10 ** 6)
+                key = lambda c: (-svc._score(c, task_category), c['id'])
+                assert [c['id'] for c in sorted(chunked, key=key)[:need]] == \
+                       [c['id'] for c in sorted(full, key=key)[:need]]
+                if product == 'S1':
+                    a, b = run_task_auction(chunked, task_category, 600), run_task_auction(full, task_category, 600)
+                    assert (a and (a['winner']['id'], a['price_won'])) == (b and (b['winner']['id'], b['price_won']))
+
+
+def test_daily_counters_follow_holds_releases_and_views(svc):
+    c = campaign(svc, bid=1500)
+    first = option(quote(svc), 'sponsored_run')['reservation_id']
+    view(svc, first)
+    second = option(quote(svc, user='u_bob'), 'sponsored_run')['reservation_id']
+    svc.decline(user_ref='u_bob', reservation_id=second)
+    row = svc.db.one('SELECT * FROM ad_coin_campaign_daily WHERE campaign_id=?', (c['id'],))
+    held = svc.db.one("SELECT COALESCE(SUM(amount_won), 0) AS s FROM ad_coin_reservations WHERE campaign_id=? "
+                      "AND status IN ('reserved','awarded')", (c['id'],))['s']
+    assert (row['offers'], row['views'], row['spend_won']) == (2, 1, held) and held > 0

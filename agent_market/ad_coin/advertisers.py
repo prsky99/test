@@ -19,7 +19,7 @@ from .config import COIN_VALUE_WON, FREQUENCY_CAP_PER_DAY
 from .db import dumps, now
 from .exchange import CATEGORY, task_floor_won
 from .screening import ScreeningRejected, findings, normalize, screen_creative
-from .service import AdCoinError, BLOCKED_CATEGORIES, PRODUCTS, PUBLIC_URL, day_start
+from .service import _day, AdCoinError, BLOCKED_CATEGORIES, PRODUCTS, PUBLIC_URL, day_start
 
 ROLES = {'viewer': 1, 'editor': 2, 'owner': 3}
 CAMPAIGN_STATUS = ('enabled', 'paused', 'removed')
@@ -232,6 +232,8 @@ class AdvertiserConsole:
             if type(daily) is not int or not 100 <= daily <= 100_000_000 or daily % COIN_VALUE_WON:
                 raise AdCoinError('invalid_daily_budget')
             out['daily_budget_won'] = daily
+        if 'bid_won' in out and 'daily_budget_won' in out and out['daily_budget_won'] < out['bid_won']:
+            raise AdCoinError('daily_budget_below_bid', 'The daily budget must cover at least one bid.')
         if 'starts_at' in data or not partial:
             starts = data.get('starts_at', now())
             if not isinstance(starts, (int, float)) or starts < 0:
@@ -504,10 +506,12 @@ class AdvertiserConsole:
         if left:
             raise AdCoinError('platform_funds_short', 'Top up the platform refund reserve before refunding.', 409)
         with self.db.transaction() as db:
+            self.db.lock_rows('ad_coin_campaigns', [row['campaign_id']])
             journal = self.svc.ledger.post('invalid_refund', 'invalid_refund:' + reservation_id,
                                            [p for p in postings if p[1]], {'reason': str(reason)[:100]})
             db.execute('INSERT INTO ad_coin_invalid_activity VALUES (?,?,?,?,?)',
                        (reservation_id, row['campaign_id'], str(reason)[:100], amount, now()))
+            self.svc._daily(db, row['campaign_id'], _day(row['created_at']), invalid=amount)
             meta = db.execute('SELECT advertiser_id FROM ad_coin_campaign_meta WHERE campaign_id=?',
                               (row['campaign_id'],)).fetchone()
             if meta:

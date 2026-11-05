@@ -8,28 +8,36 @@ import hashlib
 import hmac
 import json
 import re
+import time
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from starlette.concurrency import run_in_threadpool
 
 from .config import Settings
-from .db import Database
+from .db import Database, PoolBusy, take_db_calls, take_db_ms, take_waits
 from .receipts import Signer, load_or_create_key, public_jwk
 from .service import AdCoinError, AdCoinService
 
 PREFIX = '/api/ad-coin/v1'
 MAX_BODY = 32768
 AGENT = re.compile(r'[A-Za-z0-9][A-Za-z0-9._-]{0,63}\Z')
+RETRIES = 3
+RETRYABLE = ('DeadlockDetected', 'LockNotAvailable', 'SerializationFailure')
 NO_STORE = {'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex'}
 
 
 def build_service(settings, app_store=None):
     if settings.store == 'application':
-        from .db import ApplicationStoreDatabase
+        from .db import ApplicationStoreDatabase, PooledPostgresDatabase
         if app_store is None or getattr(app_store, 'backend', '') != 'postgresql':
             raise RuntimeError('AD_COIN_STORE=application needs the application PostgreSQL store.')
-        database = ApplicationStoreDatabase(app_store)
+        factory = getattr(app_store, '_connection_factory', None)
+        if factory is not None and settings.pool_maximum > 0:
+            # Own small session pool: AI AD Coin never queues behind the store's single session.
+            database = PooledPostgresDatabase(factory, maximum=settings.pool_maximum)
+        else:
+            database = ApplicationStoreDatabase(app_store)
     elif settings.store == 'sqlite':
         database = Database(settings.db_path)
     else:
@@ -144,7 +152,9 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
             raise AdCoinError('invalid_json')
         return value
 
-    def guarded(kind):
+    def guarded(kind, tx=None):
+        """tx: 'write' (default for POST/PUT, takes AI AD Coin's writer lock), 'read' (default for GET) or
+        'none' for handlers that never touch the AI AD Coin tables (they then queue behind no writer)."""
         def wrap(handler):
             async def endpoint(request: Request):
                 try:
@@ -174,16 +184,54 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
                         return _json({'error': 'customer_session_required',
                                       'message': 'Manage agent keys from your own signed-in session.'}, 403)
                     data = await body(request) if request.method == 'POST' or request.method == 'PUT' else {}
-                    return _json(await run_in_threadpool(handler, request, who, data))
+
+                    submitted = time.perf_counter()
+
+                    def atomic():
+                        # One transaction per request: atomic on PostgreSQL and far fewer round trips.
+                        started, cpu = time.perf_counter(), time.thread_time()
+                        take_db_ms(), take_db_calls(), take_waits()
+                        mode = tx or ('write' if request.method in ('POST', 'PUT') else 'read')
+                        for attempt in range(RETRIES):
+                            try:
+                                if mode == 'none':
+                                    value = handler(request, who, data)
+                                elif mode == 'write':
+                                    with service.db.transaction():
+                                        if who:
+                                            service.db.lock_key('who:' + who)   # one person's writes in order
+                                        value = handler(request, who, data)
+                                else:
+                                    with service.db.read():
+                                        value = handler(request, who, data)
+                                break
+                            except Exception as exc:
+                                # Concurrent writers that deadlock or time out on a lock are rolled back
+                                # whole; the request runs again from the start (nothing was kept).
+                                if type(exc).__name__ not in RETRYABLE or attempt == RETRIES - 1:
+                                    raise
+                                time.sleep(0.005 * (attempt + 1))
+                        pool_ms, lock_ms, hold_ms, ahead = take_waits()
+                        timing = ('adc-queue;dur=%.2f, adc-work;dur=%.2f, adc-cpu;dur=%.2f, adc-db;dur=%.2f, '
+                                  'adc-sql;dur=%d, adc-pool;dur=%.2f, adc-lock;dur=%.2f, adc-hold;dur=%.2f, adc-ahead;dur=%d') % (
+                            (started - submitted) * 1000, (time.perf_counter() - started) * 1000,
+                            (time.thread_time() - cpu) * 1000, take_db_ms(), take_db_calls(), pool_ms, lock_ms, hold_ms, ahead)
+                        return value, timing
+                    value, timing = await run_in_threadpool(atomic)
+                    response = _json(value)
+                    response.headers['Server-Timing'] = timing     # wait for a worker, work, CPU in that work
+                    return response
                 except AdCoinError as exc:
                     return _error(exc)
+                except PoolBusy:
+                    return _json({'error': 'busy', 'message': 'Try again shortly.'}, 503)
             endpoint.__name__ = 'ad_coin_' + handler.__name__
             return endpoint
         return wrap
 
-    def add(method, path, kind):
+    def add(method, path, kind, tx=None):
         def deco(handler):
-            router.add_api_route(PREFIX + path, guarded(kind)(handler), methods=[method], include_in_schema=False)
+            router.add_api_route(PREFIX + path, guarded(kind, tx)(handler), methods=[method], include_in_schema=False)
             return handler
         return deco
 
@@ -214,12 +262,12 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
         return service.acknowledge_offer(operator, data.get('offer_id', ''), data.get('offer_token'))
 
     # ---- invited people (through their agent) ----
-    @add('POST', '/quotes', 'person')
+    @add('POST', '/quotes', 'person', tx='none')     # reads outside the writer lock, reserves inside it
     def quote(request, who, data):
         return service.quote(user_ref=who, agent_ref=agent_of(request), operator_ref=operator_of(request),
                              selection=data.get('selection'), task=data.get('task'))
 
-    @add('POST', '/upgrade-check', 'person')
+    @add('POST', '/upgrade-check', 'person', tx='none')     # catalog reads only
     def upgrade(request, who, data):
         from .upgrade import bundle_check, check_definition, upgrade_check, workflow_check
         if store is None:
@@ -588,6 +636,10 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
     @add('GET', '/admin/invariant', 'admin')
     def invariant(request, who, data):
         return service.ledger.invariant()
+
+    @add('POST', '/admin/full-check', 'admin')
+    def full_check(request, who, data):
+        return service.full_check()
 
     @add('POST', '/admin/circuit', 'admin')
     def circuit(request, who, data):
