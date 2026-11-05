@@ -146,7 +146,8 @@ function send(path,body){
   if(token)init.headers['X-Visitor-Token']=token;
   if(csrf)init.headers['X-Customer-CSRF']=csrf;
   if(body){init.headers['Content-Type']='application/json';init.body=JSON.stringify(body)}
-  return fetch(API+path,init).then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.message||d.error||'Request failed');return d})});
+  return fetch(API+path,init).then(function(r){if(r.status===401){location.href='/new/en/sign-in.html';throw new Error('Sign in to continue.')}
+    return r.json().then(function(d){if(!r.ok)throw new Error(d.message||d.error||'Request failed');return d})});
 }
 function busy(id,on){var b=$(id);b.disabled=on;if(on)b.setAttribute('aria-busy','true');else b.removeAttribute('aria-busy')}
 $('token').placeholder=token?'A token is set for this tab':'';

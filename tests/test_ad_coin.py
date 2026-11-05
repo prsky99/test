@@ -773,8 +773,29 @@ def test_product_code_never_skips_the_registered_sql_check():
 def test_every_constant_statement_in_product_code_is_registered():
     """New SQL needs `python -m scripts.ad_coin_sql_registry --write` (and a review of the diff)."""
     import json as _json
-    from agent_market.ad_coin.sql_registry import PATH
+    import os as _os
+    from agent_market.ad_coin.sql_registry import PATH, RECORD_ENV
     from scripts.ad_coin_sql_registry import static_statements
+    if _os.environ.get(RECORD_ENV):
+        pytest.skip('the registry is being rebuilt')
     registered = {item['sql'] for item in _json.loads(PATH.read_text())['statements']}
     missing = sorted(static_statements() - registered)
     assert not missing, missing[:5]
+
+
+def test_old_quotes_are_pruned_in_batches_and_evidence_is_kept(svc, monkeypatch):
+    campaign(svc)
+    run = option(quote(svc), 'sponsored_run')
+    view(svc, run['reservation_id'])
+    for user in ('u_b', 'u_c', 'u_d'):
+        quote(svc, user=user)
+    count = lambda table: raw_one(svc.db, 'SELECT COUNT(*) AS n FROM ' + table)['n']
+    before = {t: count(t) for t in ('ad_coin_journals', 'ad_coin_receipts', 'ad_coin_exposures', 'ad_coin_reservations')}
+    assert svc.prune()['quotes_deleted'] == 0                       # nothing is old yet
+    monkeypatch.setattr(type(svc), 'PRUNE_BATCH', 2)
+    later = dbmod.now() + svc.QUOTE_RETENTION_SECONDS + 3600
+    assert svc.prune(at=later)['quotes_deleted'] == 2                # bounded batch
+    assert svc.prune(at=later)['quotes_deleted'] == 2
+    assert count('ad_coin_quotes') == 0
+    assert {t: count(t) for t in before} == before                    # money and evidence untouched
+    assert svc.ledger.invariant()['ok']

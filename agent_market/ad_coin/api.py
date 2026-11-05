@@ -7,6 +7,7 @@ management needs the admin token. Test mode only; payments stay closed.
 import hashlib
 import hmac
 import json
+import logging
 import re
 import time
 
@@ -16,6 +17,7 @@ from starlette.concurrency import run_in_threadpool
 
 from .config import Settings
 from .db import Database, PoolBusy, take_db_calls, take_db_ms, take_waits
+from .sql_registry import UnregisteredSql
 from .receipts import Signer, load_or_create_key, public_jwk
 from .service import AdCoinError, AdCoinService
 
@@ -47,6 +49,26 @@ def build_service(settings, app_store=None):
         raise RuntimeError('AD_COIN_STORE must be auto, sqlite or application.')
     signer = Signer(load_or_create_key(settings.receipt_key_path), settings.issuer, test_mode=True)
     return AdCoinService(database, signer, test_mode=True)
+
+
+SECURITY = logging.getLogger('agent_market.ad_coin.security')
+SECURITY_CODES = {401, 403, 429, 503}
+
+
+def security_event(request, kind, response):
+    """Refusals and operator writes, by fixed code and path only: never tokens, keys, people or bodies."""
+    status = response.status_code
+    code = ''
+    if status >= 400:
+        try:
+            code = json.loads(response.body or b'{}').get('error', '')
+        except ValueError:
+            code = ''
+    if status in SECURITY_CODES or (status == 404 and code.startswith('unknown_')):
+        SECURITY.warning('ad_coin.security event=refused status=%d code=%s method=%s path=%s access=%s',
+                         status, code[:60], request.method, request.url.path, kind)
+    elif kind == 'admin' and request.method in ('POST', 'PUT') and status < 400:
+        SECURITY.info('ad_coin.security event=admin_change method=%s path=%s', request.method, request.url.path)
 
 
 def _json(value, status=200):
@@ -108,6 +130,7 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
         if key:
             found = people.agent_for_key(key)
             if not found:
+                SECURITY.warning('ad_coin.security event=agent_key_rejected path=%s', request.url.path)
                 return None
             request.state.ad_coin = {'source': 'agent_key', 'customer_id': found[0], 'agent': found[1]}
             return user_ref_for_customer(found[0])
@@ -160,6 +183,11 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
         'none' for handlers that never touch the AI AD Coin tables (they then queue behind no writer)."""
         def wrap(handler):
             async def endpoint(request: Request):
+                response = await serve(request)
+                security_event(request, kind, response)
+                return response
+
+            async def serve(request):
                 try:
                     if kind == 'admin' and not is_admin(request):
                         return _json({'error': 'admin_required'}, 403)
@@ -229,6 +257,9 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
                     return _error(exc)
                 except PoolBusy:
                     return _json({'error': 'busy', 'message': 'Try again shortly.'}, 503)
+                except UnregisteredSql as exc:
+                    SECURITY.error('ad_coin.security event=unregistered_sql path=%s detail=%s', request.url.path, exc)
+                    return _json({'error': 'internal_error', 'message': 'Something went wrong; nothing was changed.'}, 500)
             endpoint.__name__ = 'ad_coin_' + handler.__name__
             return endpoint
         return wrap

@@ -6,6 +6,10 @@
    "sha256": "a02837296580f35b2c175a15792df7c0d403045c96f9e6894ccfc393659941ee"
   },
   {
+   "sql": "DELETE FROM ad_coin_quotes WHERE id IN (SELECT id FROM ad_coin_quotes WHERE expires_at<? ORDER BY expires_at LIMIT ?)",
+   "sha256": "faa637929af16818feedd9e715d0d0f701d72f114334d7725c9b3c6f79a20147"
+  },
+  {
    "sql": "DELETE FROM ad_coin_totals",
    "sha256": "5b038ed8881a2fe4d2002d2b56f5ec1c48cdbbf448b3fcd9035a7c7b1e09e383"
   },

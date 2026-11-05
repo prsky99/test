@@ -480,6 +480,7 @@ class PooledPostgresDatabase:
         self.savepoints = True            # a nested write that fails is undone alone
         if require_migrated and schema_version(self) != SCHEMA_VERSION:
             raise RuntimeError('AI AD Coin tables are missing; run scripts.ad_coin_migrate_postgres first.')
+        threading.Thread(target=self._reap_forever, name='ad-coin-pool-reaper', daemon=True).start()
 
     # -- sessions
     def _lease(self):
@@ -489,8 +490,9 @@ class PooledPostgresDatabase:
             while True:
                 if self._closed:
                     raise PoolBusy('closed')
+                self._reap()
                 while self._idle:
-                    connection = self._idle.pop()
+                    connection = self._idle.pop()[0]
                     if not (connection.closed or getattr(connection, 'broken', False)):
                         return connection
                     self._total -= 1
@@ -516,7 +518,8 @@ class PooledPostgresDatabase:
         with self._condition:
             healthy = not discard and not connection.closed and int(connection.info.transaction_status) == 0
             if healthy and not self._closed and len(self._idle) < self.maximum:   # opening one costs tens of ms
-                self._idle.append(connection)
+                self._idle.append((connection, time.monotonic()))
+                self._reap()
             else:
                 self._total -= 1
                 try:
@@ -524,6 +527,25 @@ class PooledPostgresDatabase:
                 except Exception:
                     pass
             self._condition.notify()
+
+    IDLE_SECONDS = 300
+
+    def _reap(self):
+        """Close sessions idle for IDLE_SECONDS, keeping one warm (the DB connection budget is shared)."""
+        cutoff = time.monotonic() - self.IDLE_SECONDS
+        while len(self._idle) > 1 and self._idle[0][1] < cutoff:
+            connection = self._idle.pop(0)[0]
+            self._total -= 1
+            try:
+                connection.close()
+            except Exception:
+                pass
+
+    def _reap_forever(self):
+        while not self._closed:
+            time.sleep(60)
+            with self._condition:
+                self._reap()
 
     @contextmanager
     def _session(self, mode):
@@ -649,7 +671,7 @@ class PooledPostgresDatabase:
     def close(self):
         with self._condition:
             self._closed = True
-            for connection in self._idle:
+            for connection, _ in self._idle:
                 self._total -= 1
                 try:
                     connection.close()

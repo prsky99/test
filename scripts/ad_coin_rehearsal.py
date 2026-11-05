@@ -453,6 +453,9 @@ def run_stage(name, args):
         if served:
             served.__exit__(None, None, None)
         svc.expire()
+        from agent_market.ad_coin.sql_registry import unchecked
+        inspection = unchecked()        # the rehearsal's own counting queries are not product SQL
+        inspection.__enter__()
         invariant = svc.ledger.invariant()
         counts = {}
         for table in ('ad_coin_journals', 'ad_coin_postings', 'ad_coin_reservations', 'ad_coin_exposures',
@@ -469,6 +472,7 @@ def run_stage(name, args):
         circuit = svc.circuit()
         daily_drift = svc.daily_drift()
         deadlocks = connection.execute("SELECT deadlocks FROM pg_stat_database WHERE datname='postgres'").fetchone()[0]
+        inspection.__exit__(None, None, None)
         pool = svc.db.stats() if hasattr(svc.db, 'stats') else None
         svc.db.close()
         store.close()

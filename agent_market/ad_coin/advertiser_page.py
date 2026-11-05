@@ -10,28 +10,26 @@ at once; each view loads its data when it is opened, only inside that view; a bu
 button shows aria-busy. Data is written with textContent only. Writes carry the
 customer session's CSRF proof."""
 
-ICON = {
-    'sun': '<svg class="icon lucide" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/>'
-           '<path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg>',
-    'moon': '<svg class="icon lucide" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
-            '<path d="M21 13A9 9 0 0 1 11 3 9 9 0 1 0 21 13Z"/></svg>',
-    'user': '<svg class="icon lucide" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="7" r="4"/>'
-            '<path d="M4 22v-2a8 8 0 0 1 16 0v2"/></svg>',
-    'home': '<svg class="icon lucide" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
-            '<path d="m3 10 9-8 9 8v12h-7v-8h-4v8H3Z"/></svg>',
-    'megaphone': '<svg class="icon lucide" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
-                 '<path d="m3 11 18-5v12L3 14v-3Z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>',
-    'plus': '<svg class="icon lucide" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg>',
-    'chart': '<svg class="icon lucide" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
-             '<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>',
-    'receipt': '<svg class="icon lucide" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
-               '<path d="M5 2h14v20l-3-2-2 2-2-2-2 2-2-2-3 2Z"/><path d="M9 7h6M9 11h6M9 15h4"/></svg>',
-    'team': '<svg class="icon lucide" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
-            '<path d="M16 22v-2a6 6 0 0 0-12 0v2m16-1v-2a6 6 0 0 0-4-5"/><circle cx="10" cy="6" r="4"/>'
-            '<path d="M17 2a4 4 0 0 1 0 8"/></svg>',
-    'info': '<svg class="icon lucide" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/>'
-            '<path d="M12 16v-4m0-4h.01"/></svg>',
-    'arrow': '<svg class="icon lucide" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>',
+LUCIDE = ('<svg class="icon lucide lucide-%s" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+          'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">%s</svg>')
+
+ICON = {   # official Lucide icon paths
+    'sun': LUCIDE % ('sun', '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/>'
+                            '<path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/>'
+                            '<path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>'),
+    'moon': LUCIDE % ('moon', '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>'),
+    'user': LUCIDE % ('user', '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>'),
+    'home': LUCIDE % ('house', '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/>'
+                               '<path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'),
+    'megaphone': LUCIDE % ('megaphone', '<path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>'),
+    'plus': LUCIDE % ('plus', '<path d="M5 12h14"/><path d="M12 5v14"/>'),
+    'chart': LUCIDE % ('chart-line', '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="m19 9-5 5-4-4-3 3"/>'),
+    'receipt': LUCIDE % ('receipt', '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/>'
+                                    '<path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17.5v-11"/>'),
+    'team': LUCIDE % ('users', '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>'
+                               '<path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'),
+    'info': LUCIDE % ('info', '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>'),
+    'arrow': LUCIDE % ('arrow-right', '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>'),
 }
 
 VIEWS = (('overview', 'Overview', 'home'), ('campaigns', 'Campaigns', 'megaphone'), ('create', 'New campaign', 'plus'),
@@ -243,7 +241,7 @@ function list(v){return v.split(',').map(function(x){return x.trim()}).filter(Bo
 function num(id){return parseInt($(id).value,10)}
 function session(){if(csrf)return Promise.resolve();return fetch('/api/customer-auth/session',{credentials:'same-origin'})
   .then(function(r){return r.ok?r.json():{}}).then(function(s){csrf=s.csrf_token||''}).catch(function(){})}
-function call(path,body){return session().then(function(){var init={method:body?'POST':'GET',credentials:'same-origin',headers:{}};
+function call(path,body){return (body?session():Promise.resolve()).then(function(){var init={method:body?'POST':'GET',credentials:'same-origin',headers:{}};
   if(body){init.headers['Content-Type']='application/json';init.headers['X-Customer-CSRF']=csrf;init.body=JSON.stringify(body)}
   return fetch(API+path,init).then(function(r){return r.json().catch(function(){return {}}).then(function(d){
     if(r.status===401||d.error==='customer_session_required'){location.href='/new/en/sign-in.html';throw new Error('Sign in to continue.')}

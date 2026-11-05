@@ -10,6 +10,7 @@ tests and the rehearsal smoke stage run):
 
     .venv-tests/bin/python -m scripts.ad_coin_sql_registry --write
 """
+import functools
 import hashlib
 import json
 import os
@@ -30,6 +31,7 @@ class UnregisteredSql(RuntimeError):
     """A statement outside the registered list; nothing was sent to the database."""
 
 
+@functools.lru_cache(maxsize=4096)
 def shape(sql):
     text = _SPACE.sub(' ', sql.strip())
     text = _GROUP.sub('(?+)', text)
@@ -38,6 +40,9 @@ def shape(sql):
 
 def digest(sql_shape):
     return hashlib.sha256(sql_shape.encode()).hexdigest()
+
+
+_digest = functools.lru_cache(maxsize=4096)(digest)
 
 
 def _registered():
@@ -77,7 +82,7 @@ def check(sql):
             with _lock, open(record, 'a', encoding='utf-8') as out:
                 out.write(json.dumps(text) + '\n')
         return
-    if digest(text) not in _registered():
+    if _digest(text) not in _registered():
         raise UnregisteredSql('unregistered_sql: ' + text[:160])
 
 

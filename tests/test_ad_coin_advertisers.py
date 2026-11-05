@@ -354,3 +354,33 @@ def test_internal_timing_headers_stay_out_of_responses_by_default(tmp_path):
     rehearsal = FastAPI()
     rehearsal.include_router(router_for(settings.with_(server_timing=True, db_path=str(tmp_path / 'b.sqlite3'))))
     assert 'adc-work' in TestClient(rehearsal).get('/api/ad-coin/v1/status').headers.get('server-timing', '')
+
+
+def test_security_events_are_logged_without_secrets(tmp_path, caplog):
+    import logging
+    identity = _Identity()
+    settings = Settings(enabled=True, db_path=str(tmp_path / 'ad.sqlite3'), receipt_key_path=str(tmp_path / 'k.pem'),
+                        admin_token='admin-secret-token', write_per_minute=2)
+    router = router_for(settings, customer_identity=lambda: identity)
+    router.ad_coin_console.people.invite('cus_alice')
+    app = FastAPI()
+    app.include_router(router)
+    client = TestClient(app, base_url='https://ads.test')
+    with caplog.at_level(logging.INFO, logger='agent_market.ad_coin.security'):
+        client.get('/api/ad-coin/v1/admin/campaigns', headers={'Authorization': 'Bearer wrong-token'})
+        client.get('/api/ad-coin/v1/wallets', headers={'X-Ad-Coin-Agent-Key': 'ack_' + 'f' * 43})
+        client.post('/api/ad-coin/v1/admin/circuit', json={'open': True, 'reason': 'drill'},
+                    headers={'Authorization': 'Bearer admin-secret-token'})
+    text = '\n'.join(r.getMessage() for r in caplog.records if r.name == 'agent_market.ad_coin.security')
+    assert 'event=refused status=403 code=admin_required' in text
+    assert 'event=agent_key_rejected' in text
+    assert 'event=circuit_opened reason=drill' in text and 'event=admin_change' in text
+    assert 'admin-secret-token' not in text and 'wrong-token' not in text and 'ack_' not in text
+
+
+def test_reads_do_not_wait_for_the_session_check():
+    """Screen policy 5: reads go out at once (cookie auth); only writes fetch the CSRF proof first."""
+    from agent_market.ad_coin.advertiser_page import SCRIPT
+    assert "(body?session():Promise.resolve())" in SCRIPT
+    from agent_market.ad_coin.page import SCRIPT as PERSON
+    assert "(body?session():Promise.resolve())" in PERSON and "r.status===401" in PERSON

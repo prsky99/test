@@ -358,3 +358,23 @@ def test_an_unregistered_statement_never_reaches_postgresql(cluster):
                 db.execute('DELETE FROM ad_coin_journals')
     assert raw(pool, 'SELECT COUNT(*) AS n FROM ad_coin_settings')['n'] >= 1
     pool.close()
+
+
+def test_idle_sessions_beyond_one_are_closed(cluster, monkeypatch):
+    import concurrent.futures as cf
+    store = _store(cluster, 'adcoin_idle')
+    migrate(store)
+    pool = dbmod.PooledPostgresDatabase(_sessions(cluster, 'adcoin_idle'), maximum=4)
+    monkeypatch.setattr(type(pool), 'IDLE_SECONDS', 0)
+    import threading
+    gate = threading.Barrier(4)
+
+    def hold(_):
+        with pool.read():
+            gate.wait(5)
+    with cf.ThreadPoolExecutor(4) as workers:
+        list(workers.map(hold, range(4)))
+    with pool._condition:
+        pool._reap()
+    assert pool.stats()['open'] == 1 and pool.stats()['idle'] == 1      # one stays warm
+    pool.close()

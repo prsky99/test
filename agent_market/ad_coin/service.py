@@ -168,6 +168,9 @@ class AdCoinService:
                 'changed_at': row['changed_at'] if row else None}
 
     def _set_circuit(self, is_open, reason):
+        import logging
+        logging.getLogger('agent_market.ad_coin.security').warning(
+            'ad_coin.security event=circuit_%s reason=%s', 'opened' if is_open else 'closed', str(reason)[:120])
         with self.db.transaction() as db:
             db.execute('INSERT INTO ad_coin_circuit VALUES (1,?,?,?) ON CONFLICT(id) DO UPDATE SET open=excluded.open, '
                        'reason=excluded.reason, changed_at=excluded.changed_at', (int(is_open), reason, now()))
@@ -388,6 +391,9 @@ class AdCoinService:
         if at - getattr(self, '_swept_at', -1e9) >= self.EXPIRE_EVERY_SECONDS:
             self._swept_at = at
             if not getattr(self.db, 'background_checks', False):
+                if at - getattr(self, '_pruned_at', -1e9) >= self.PRUNE_EVERY_SECONDS:
+                    self._pruned_at = at
+                    self.prune()
                 return self.expire()
             # On the dedicated pool the sweep runs on its own thread, one short transaction per
             # item, so it never holds a request's locks (and never orders locks against one).
@@ -398,11 +404,29 @@ class AdCoinService:
             def run():
                 try:
                     self.expire()
+                    if time.monotonic() - getattr(self, '_pruned_at', -1e9) >= self.PRUNE_EVERY_SECONDS:
+                        self._pruned_at = time.monotonic()
+                        self.prune()
                 except Exception as exc:
                     import logging
                     logging.getLogger('agent_market.ad_coin').error('AI AD Coin expiry sweep failed: %r', exc)
             self._sweeping = threading.Thread(target=run, name='ad-coin-sweep', daemon=True)
             self._sweeping.start()
+
+    QUOTE_RETENTION_SECONDS = 30 * 86400     # past the 7-day voucher life that still reads a quote
+    PRUNE_EVERY_SECONDS = 3600
+    PRUNE_BATCH = 200
+
+    def prune(self, at=None):
+        """Delete expired one-off records in small batches (the platform's incremental retention).
+        Money, consent and evidence records are kept: journals, postings, balances, receipts,
+        reservations, exposures, consents, vouchers, executions, invalid activity, audits and
+        the change log."""
+        cutoff = (at or now()) - self.QUOTE_RETENTION_SECONDS
+        with self.db.transaction() as db:
+            gone = db.execute('DELETE FROM ad_coin_quotes WHERE id IN (SELECT id FROM ad_coin_quotes WHERE '
+                              'expires_at<? ORDER BY expires_at LIMIT ?)', (cutoff, self.PRUNE_BATCH)).rowcount
+        return {'quotes_deleted': max(gone, 0)}
 
     def expire(self):
         at = now()
