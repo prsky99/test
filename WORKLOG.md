@@ -2,6 +2,7 @@
 - 11-04: 디스크 점검(여유 150GB, 릴리스 461개 142GB). `agentcon prune-releases` 추가, 383개 삭제, 여유 149.5→191.7GB. 배포·워커 배포 성공 뒤 자동 정리(배포된 것과 6시간 미만 미배포만 남김, `--no-prune`).
 
 ## 완료 (최근 것만)
+- 로그인 점검 정보 수준 1·2번 수정(2026-11-05, 프론트앤드, 사용자 "고쳐서 배포"·"관리자 배포"): dashboard agent.kind esc 11곳, provider-connections.js 문서 링크 https 검사. info-fix-frontend-20261105-r1(ad-coin-r3 위, 게이트 통과, 활성 b), info-fix-admin-20261105-r1(wf-admin-20261102-r1 위, 게이트는 원래 판과 같은 이유로 실패, 실패 목록 동일 확인 뒤 사용자 승인 배포, 활성 b). 관리자 서비스는 11-02 판 기반이라 다음 admin 배포는 최신 코드로. → reports/프런트엔드 보안 점검 검증·추가 점검 2026-11-05.md 8절
 - 로그인 화면 보안 점검(2026-11-05, 프론트앤드, 사용자 "로그인 화면 점검"): 운영 릴리스 코드로 격리 앱 구성, 익명 847 경로(고객 401/303, admin 401·403), 고객 A·B 교차 74 경로·탈취 6종 모두 거부, CSRF·다른 Origin 403, 쿠키 __Host-·HttpOnly·Lax, 로그인 뒤 이동 허용 목록, 고객 화면 위험 출력 함수 0, admin CSP nonce+script-src-attr none. 정보 수준 3건(dashboard agent.kind esc, 문서 링크 https 검사, admin 껍데기 공개). → reports/프런트엔드 보안 점검 검증·추가 점검 2026-11-05.md 7절
 - 의존성 취약점 점검(2026-11-05, 프론트앤드, 사용자 "pip-audit 진행"): 운영 6개 서비스 릴리스 .venv(60개, lock과 일치)·.venv-tests(70)·lock 5개 pip-audit(PyPI·OSV) 0건, edge-gateway npm audit 0건. .venv-security와 deploy/DEPENDENCY_MAINTENANCE.md 절차가 이미 있었음. → reports/프런트엔드 보안 점검 검증·추가 점검 2026-11-05.md 6절
 - 보안 정리 2차(2026-11-05, 프론트앤드, 사용자 "이어서 진행"): testclient 분기 2곳 제거(conftest에서 시험 클라이언트 127.0.0.1), 검색어 든 탐색 캐시는 sessionStorage·옛 localStorage 항목 삭제. sec-cleanup-frontend-20261105-r1(ad-coin-r2 위) 배포(활성 b)·운영 확인. 전체 pytest 133 실패는 의미 순위 vectors Mock 원인(변경 전후 동일). 남음: pip-audit, 로그인 화면 점검. → reports/프런트엔드 보안 점검 검증·추가 점검 2026-11-05.md 5절
