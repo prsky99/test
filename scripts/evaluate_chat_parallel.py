@@ -43,6 +43,9 @@ def summary(results, cases):
         right = sum(r['ok'] for r in answered)
         lines.append(f'PRECISION {right}/{len(answered)} = {right/max(1, len(answered))*100:.1f}%  '
                      f'COVERAGE {len(answered)}/{len(match)} = {len(answered)/len(match)*100:.1f}%')
+    asked = [r for r in match if r.get('asked')] if match else []
+    if asked:
+        lines.append(f'ASKED {len(asked)}/{len(match)}  a choice fits {sum(r["ok"] for r in asked)}/{len(asked)}')
     ms = sorted(r['ms'] for r in results)
     if ms:
         lines.append(f'LATENCY p50 {ms[len(ms)//2]}ms  p95 {ms[int(len(ms)*0.95)]}ms')

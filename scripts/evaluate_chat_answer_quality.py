@@ -122,6 +122,10 @@ def judge(case, reply):
                     return True, 'no working agent (reference ' + ('empty' if not found else 'unrelated: ' + str(found[0].get('name'))[:30]) + ')'
                 return False, 'no result; reference finds ' + str(found[0].get('name'))[:40]
             return False, 'no result (' + str(status) + ')'
+        if status == 'needs_choice':
+            # Chat asked which listed tool fits (stage 4): right when one of the choices is.
+            hit = any(any(re.search(p, text_of(item)) for p in exp['any']) for item in items[:3])
+            return hit, 'asked; ' + ('a choice fits' if hit else 'no choice fits')
         top = text_of(items[0])
         if any(re.search(p, top) for p in exp.get('forbid', [])): return False, 'forbidden top'
         if exp.get('kind') and items[0].get('kind') != exp['kind']: return False, 'wrong kind ' + str(items[0].get('kind'))
@@ -186,7 +190,9 @@ for case in cases:
              'top': [{'id': i.get('id'), 'kind': i.get('kind'), 'name': str(i.get('name'))[:60],
                       'tool': (i.get('tools') or [None])[0], 'tool_desc': str(((i.get('tools_schema') or [{}])[0] or {}).get('description') or '')[:160], 'desc': str(i.get('description') or '')[:120]} for i in items[:3]],
              'reply': (reply.text or '')[:200]}
-    r['answered'] = bool(reply is not None and ((reply.data or {}).get('recommendations') or (reply.data or {}).get('workflows')))
+    r['asked'] = bool(reply is not None and (reply.data or {}).get('status') == 'needs_choice')
+    # An asked request is not a direct answer: precision counts only answers Chat asserts.
+    r['answered'] = bool(reply is not None and not r['asked'] and ((reply.data or {}).get('recommendations') or (reply.data or {}).get('workflows')))
     r['flaky'] = len(set(verdicts)) > 1
     if RECALL and case['expect']['type'] == 'match':
         r['recall'] = recall_at(case)
@@ -205,6 +211,9 @@ if match:
 if RECALL and match:
     hits = sum(bool(r.get('recall')) for r in match)
     print(f'RECALL@{RECALL} {hits}/{len(match)} = {hits/len(match)*100:.1f}%')
+asked = [r for r in match if r.get('asked')]
+if asked:
+    print(f'ASKED {len(asked)}/{len(match)}  a choice fits {sum(r["ok"] for r in asked)}/{len(asked)}')
 ms = sorted(r['ms'] for r in results)
 print(f'LATENCY p50 {ms[len(ms)//2]}ms  p95 {ms[int(len(ms)*0.95)]}ms')
 if REPEAT > 1:

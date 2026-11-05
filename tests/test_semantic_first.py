@@ -48,3 +48,30 @@ def test_a_single_candidate_needs_no_embedding_and_rank_reports_closeness():
     ranked, closeness = semantic_rank(engine, 'task', ITEMS[:1])
     assert ranked == ITEMS[:1] and abs(closeness - 0.6) < 1e-9
     assert semantic_rank(Engine(None), 'task', ITEMS) == (ITEMS, None)
+
+
+class Http:
+    def __init__(self, vectors=None, status=200, error=None):
+        self.vectors, self.status, self.error, self.calls = vectors, status, error, []
+
+    def post(self, url, json=None, timeout=None):
+        self.calls.append((url, json, timeout))
+        if self.error:
+            raise self.error
+        vectors, status = self.vectors, self.status
+        class Response:
+            status_code = status
+            def json(self):
+                return {'embeddings': vectors}
+        return Response()
+
+
+def test_closeness_uses_the_stronger_model_and_is_optional():
+    from agent_market.concierge.fast_chat import strong_closeness, STRONG_BUDGET, STRONG_MODEL
+    engine = Engine(); engine.ollama_url = 'http://127.0.0.1:11434'; engine.http = Http([[1, 0], [0.8, 0.6]])
+    assert abs(strong_closeness(engine, 'task', ITEMS[0]) - 0.8) < 1e-9
+    url, body, timeout = engine.http.calls[0]
+    assert url.endswith('/api/embed') and body['model'] == STRONG_MODEL and timeout == STRONG_BUDGET
+    for http in (Http(error=TimeoutError()), Http(status=404), Http([[1, 0]])):
+        engine.http = http
+        assert strong_closeness(engine, 'task', ITEMS[0]) is None  # unmeasured: Chat answers as before

@@ -166,6 +166,42 @@ def neighbor_focus(store, engine, task, protocol=None):
     return ' '.join(picked) or None
 
 
+STRONG_MODEL = 'qwen3-embedding:0.6b'
+STRONG_INSTRUCT = 'Instruct: Given a task an agent should perform, retrieve the tool that performs it\nQuery: '
+STRONG_BUDGET = 1.5  # seconds; past it the answer is given as usual
+# Below this closeness of the first listing, Chat asks which listed tool fits (tuning chose 0.70:
+# 13% asked, direct-answer precision 92.1% -> 97.1%; holdout 89.4% -> 96.2%).
+CHOICE_CLOSENESS = 0.70
+CHOICE_LEAD = ('Not sure which of these fits your task. Choose one, or say more about what the agent should do.\n\n')
+
+
+def strong_embeddings(engine, texts):
+    """Vectors from the stronger local model, or None (model missing, slow or failing)."""
+    url = str(getattr(engine, 'ollama_url', '') or '').rstrip('/')
+    http = getattr(engine, 'http', None)
+    if not url or http is None or not getattr(engine, 'embeddings_enabled', False):
+        return None
+    try:
+        response = http.post(url + '/api/embed', json={'model': STRONG_MODEL, 'input': texts, 'keep_alive': -1},
+                             timeout=STRONG_BUDGET)
+        vectors = response.json().get('embeddings') if response.status_code == 200 else None
+    except Exception:
+        return None
+    return vectors if isinstance(vectors, list) and len(vectors) == len(texts) else None
+
+
+def _tool_doc(item):
+    tool = (item.get('tools_schema') or [{}])[0] or {}
+    return (str(item.get('name') or '')[:80] + ': ' + str(tool.get('name') or '') + ' ' +
+            str(tool.get('description') or item.get('description') or '')[:300]).strip() or 'agent'
+
+
+def strong_closeness(engine, task, item):
+    """Closeness of TASK and ITEM's chosen tool by the stronger model, or None when it cannot be measured."""
+    vectors = strong_embeddings(engine, [STRONG_INSTRUCT + str(task)[:1000], _tool_doc(item)])
+    return _cosine(vectors[0], vectors[1]) if vectors else None
+
+
 def states_every_word(item, words):
     """Each word, or its plural, as a whole word in the recommended tool's own name and description."""
     schema = (item.get('tools_schema') or [{}])[0] or {}
@@ -629,8 +665,14 @@ class FastConcierge(Concierge):
         labels={'no_charge':'free to call','no_api_key':'no API key','no_account':'no account'}
         applied=[labels[name] for name in state.get('required',[]) if name in labels]
         lead=('Filtered for: '+', '.join(applied)+'.\n\n') if state.get('operation')=='refine' and applied else ''
+        # Low closeness of the first listing: offer the list as choices instead of asserting it (stage 4, 11-05).
+        unsure = (not parts and offset == 0 and state.get('operation') != 'refine'
+                  and (strong_closeness(getattr(self.rec, 'rag_engine', None), task, items[0]) or 1.0) < CHOICE_CLOSENESS)
+        if unsure:
+            lead = CHOICE_LEAD + lead
         return Reply(lead+'\n\n'.join(str(i+1)+'. '+self._brief(item) for i,item in enumerate(items)),'find',
-                     {'task':task,'watch_task':' '.join(search_terms(task))[:160],'protocol':protocol,
+                     {**({'status':'needs_choice','confidence':'low'} if unsure else {}),
+                      'task':task,'watch_task':' '.join(search_terms(task))[:160],'protocol':protocol,
                       'category':items[0]['category'],'revalidate_after_sec':3600,
                       'task_spec':spec.state(),'quality_policy':'task_constraints_verified_recency_v1',
                       **({'task_focus':focus} if focus else {}),
