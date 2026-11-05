@@ -1772,6 +1772,9 @@ def get_safe_agent_detail(store: Store, rid: int) -> dict:
     Strictly excludes history (50 health check records) and admin management actions."""
     if rid in FRONT_TESTBENCH_PRESETS:
         return {"agent": FRONT_TESTBENCH_PRESETS[rid]}
+    # 11-05 security review: ids outside BIGINT overflowed in the driver and answered 500.
+    if not 1 <= rid <= 9223372036854775807:
+        raise HTTPException(404, "Agent not found. Search with GET /api/explore?q=<task> to get current agent ids.")
     rows = store.query("SELECT * FROM resources WHERE id=?", (rid,))
     if not rows:
         raise HTTPException(404, "Agent not found. Search with GET /api/explore?q=<task> to get current agent ids.")
@@ -2247,7 +2250,10 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
                 # A declared JSON body that does not parse is a client error, not a question.
                 raise HTTPException(400, 'The request body is not valid JSON. Send an object such as {"message": "weather forecast"}.')
             return {"message": raw.decode("utf-8", "replace")[:MAX_MESSAGE]}  # plain-text bodies are accepted too
-        return data if isinstance(data, dict) else {"message": str(data)[:MAX_MESSAGE]}
+        if isinstance(data, dict):
+            return data
+        # 11-05: a JSON string is a question; null, numbers, booleans and lists are not ("None" was searched).
+        return {"message": data[:MAX_MESSAGE]} if isinstance(data, str) else {}
 
     async def read_json_object(request: Request) -> dict:
         raw = await request.body()
