@@ -272,10 +272,17 @@ function binaryClockHtml(msg) {
 
 // Instant SWR Cache Engine
 const SWR_STORAGE_KEY_PREFIX = "concierge_swr_gateway_v6_";
+// 11-05 security review: a key that carries the visitor's search words stays only for this tab
+// (sessionStorage), so a shared computer keeps no record of what was searched.
+function swrHasSearchWords(key) {
+  return typeof key === "string" && key.startsWith("explore:") && !/^explore:(?:v4:)?\[""/.test(key) && key !== "explore:|||0|0";
+}
+function swrStorage(key) { return swrHasSearchWords(key) ? sessionStorage : localStorage; }
 // Discard obsolete discovery projections while retaining unrelated browser preferences.
 try {
   for (const key of Object.keys(localStorage)) {
     if (key.startsWith("concierge_swr_") && !key.startsWith(SWR_STORAGE_KEY_PREFIX)) localStorage.removeItem(key);
+    else if (key.startsWith(SWR_STORAGE_KEY_PREFIX) && swrHasSearchWords(key.slice(SWR_STORAGE_KEY_PREFIX.length))) localStorage.removeItem(key);
   }
 } catch (error) {}
 const SWR_MEMORY_CACHE = new Map();
@@ -283,7 +290,7 @@ const SWR_MEMORY_CACHE = new Map();
 function getSwrCache(key) {
   if (SWR_MEMORY_CACHE.has(key)) return SWR_MEMORY_CACHE.get(key);
   try {
-    const raw = localStorage.getItem(SWR_STORAGE_KEY_PREFIX + key);
+    const raw = swrStorage(key).getItem(SWR_STORAGE_KEY_PREFIX + key);
     if (raw) {
       const parsed = JSON.parse(raw);
       SWR_MEMORY_CACHE.set(key, parsed);
@@ -296,7 +303,7 @@ function getSwrCache(key) {
 function setSwrCache(key, val) {
   try {
     SWR_MEMORY_CACHE.set(key, val);
-    localStorage.setItem(SWR_STORAGE_KEY_PREFIX + key, JSON.stringify(val));
+    swrStorage(key).setItem(SWR_STORAGE_KEY_PREFIX + key, JSON.stringify(val));
   } catch (e) {}
 }
 
