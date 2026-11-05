@@ -676,12 +676,12 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
     @router.get('/ad-coin', include_in_schema=False)
     async def page():
         from .page import PAGE
-        return HTMLResponse(PAGE, headers={**NO_STORE, 'Content-Security-Policy': csp})
+        return HTMLResponse(PAGE, headers={**NO_STORE, 'Content-Security-Policy': site_csp})
 
     @router.get('/ad-coin/admin', include_in_schema=False)
     async def admin_page():
         from .admin_page import PAGE as ADMIN_PAGE
-        return HTMLResponse(ADMIN_PAGE, headers={**NO_STORE, 'Content-Security-Policy': csp})
+        return HTMLResponse(ADMIN_PAGE, headers={**NO_STORE, 'Content-Security-Policy': site_csp})
 
     @router.get('/ad-coin/admin.js', include_in_schema=False)
     async def admin_script():

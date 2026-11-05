@@ -288,17 +288,20 @@ def test_http_console_needs_a_signed_in_member_and_csrf(tmp_path):
     assert TestClient(app).get('/api/ad-coin/v1/advertisers', headers=agent_key).status_code == 403
 
 
-def test_the_console_uses_the_agent_concierge_design_system():
-    """The console keeps the site's Pearl Connection design: shared files and workspace shell, no own styles."""
-    from agent_market.ad_coin.advertiser_page import PAGE, SCRIPT
+@pytest.mark.parametrize('module', ['advertiser_page', 'page', 'admin_page'])
+def test_the_console_uses_the_agent_concierge_design_system(module):
+    """Every AI AD Coin screen keeps the site's Pearl Connection design: shared files and workspace shell, no own styles."""
+    import importlib
+    screen = importlib.import_module('agent_market.ad_coin.' + module)
+    PAGE, SCRIPT = screen.PAGE, screen.SCRIPT
     for shared in ('/new/en/assets/styles.css', '/new/en/assets/necklace.css', '/new/en/assets/pearl-live.css',
                    '/new/en/assets/app.js'):
         assert shared in PAGE
     for part in ('class="ws-top"', 'class="container ws-layout"', 'class="ws-sidebar"', 'class="side-item active"',
                  'class="ws-main"', 'class="page-heading"', 'class="eyebrow"', 'class="card"', 'class="field"',
-                 'class="btn primary"', 'class="review-steps"', 'class="tabs"', 'data-tab-panel=', 'class="note"',
-                 'data-action="theme"'):
+                 'class="btn primary"', 'class="note"', 'data-action="theme"'):
         assert part in PAGE, part
+    assert "style=" not in SCRIPT and '.style.' not in SCRIPT and 'secondary' not in SCRIPT
     assert '<style' not in PAGE and 'style=' not in PAGE          # no page-local styling
     assert '.innerHTML' not in SCRIPT                               # data is written as text only
     import os
@@ -306,7 +309,7 @@ def test_the_console_uses_the_agent_concierge_design_system():
     css = ''.join(open(os.path.join(root, name)).read() for name in ('styles.css', 'pearl-live.css', 'necklace.css'))
     for cls in ('ws-layout', 'ws-sidebar', 'side-item', 'ws-main', 'page-heading', 'eyebrow', 'card', 'field',
                 'data-table', 'table-wrap', 'status-table', 'history-row', 'setting-row', 'review-steps', 'badge',
-                'error-text', 'split', 'note'):
+                'error-text', 'split', 'note', 'check', 'divider', 'caption', 'actions', 'stack'):
         assert '.' + cls in css, cls                                 # every class used exists in the shared CSS
 
 
@@ -314,7 +317,8 @@ def test_the_console_page_may_load_the_shared_design_files(tmp_path):
     settings = Settings(enabled=True, db_path=str(tmp_path / 'ad.sqlite3'), receipt_key_path=str(tmp_path / 'k.pem'))
     app = FastAPI()
     app.include_router(router_for(settings))
-    page = TestClient(app).get('/ad-coin/advertiser')
-    policy = page.headers['content-security-policy']
-    assert page.status_code == 200 and "style-src 'self'" in policy and "script-src 'self'" in policy
-    assert 'unsafe-inline' not in policy and "frame-ancestors 'none'" in policy
+    for path in ('/ad-coin/advertiser', '/ad-coin', '/ad-coin/admin'):
+        page = TestClient(app).get(path)
+        policy = page.headers['content-security-policy']
+        assert page.status_code == 200 and "style-src 'self'" in policy and "script-src 'self'" in policy, path
+        assert 'unsafe-inline' not in policy and "frame-ancestors 'none'" in policy
