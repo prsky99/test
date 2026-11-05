@@ -269,4 +269,8 @@
 - 운영 DB: 11-05 09:22 승인 후 `migrate` 실행. ad_coin 표 33개, 스키마 3. 기능은 아직 꺼져 있다.
 - 배포: `ad-coin-frontend-20261105-r1`(12:20). 기준 `id-range-frontend-20261105-r1` 위에 AD Coin 패키지와 front.py 연결부만 얹음. gate 56개 통과. 기능은 꺼짐(404).
   - `AD_COIN_STORE` 기본값을 `auto`로 바꿈(PG면 application). agentcon 설정 허용 목록에 AD_COIN_* 키가 없어서다. 플래그를 켜려면 허용 목록 변경이 먼저다.
-- 다음: 광고주 콘솔을 AgentConcierge 디자인 체계로 재구성, AD Coin 화면 LCP 측정.
+- 광고주 콘솔을 Pearl Connection 디자인으로 다시 만듦(사용자 결정: 사이트 디자인·UI/UX 유지).
+  - 공용 assets와 워크스페이스 틀을 쓰고, 페이지 전용 스타일은 없앰. 내장 브라우저로 데스크톱·어두운 테마·375px 확인.
+  - 배포: `ad-coin-frontend-20261105-r2`(12:33, gate 통과).
+- 12:35 이후 Explore 첫 검색이 서버 1.7~6초로 느렸다. 두 슬롯(r1·r2)이 같았고, 원인은 다른 세션의 전체 pytest와 Chat 평가가 만든 부하 16~20이다.
+- 다음: AD Coin 화면 LCP 측정, 플래그를 켜기 위한 agentcon 허용 목록 변경(그랜드 오픈 준비 때).
