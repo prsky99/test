@@ -7,6 +7,7 @@ import pytest
 from agent_market.ad_coin import db as dbmod
 from agent_market.ad_coin import ledger as L
 from agent_market.ad_coin.db import ApplicationStoreDatabase, Database, migrate
+from agent_market.ad_coin.sql_registry import unchecked
 from agent_market.ad_coin.people import People
 from agent_market.ad_coin.receipts import Signer, load_or_create_key, verify
 from agent_market.ad_coin.run_results import reconcile
@@ -229,7 +230,7 @@ def test_the_dedicated_pool_serializes_money_and_reads_in_parallel(cluster):
             with pool.transaction():
                 pass
     with pool.transaction():
-        assert pool.one('SELECT amount FROM ad_coin_balances WHERE account=?', (wallet,))['amount'] == 100
+        assert raw(pool, 'SELECT amount FROM ad_coin_balances WHERE account=?', (wallet,))['amount'] == 100
     # reads overlap while a writer holds the AI AD Coin lock
     held, release = threading.Event(), threading.Event()
 
@@ -240,7 +241,7 @@ def test_the_dedicated_pool_serializes_money_and_reads_in_parallel(cluster):
     thread = threading.Thread(target=writer)
     thread.start()
     held.wait(5)
-    assert pool.one('SELECT COUNT(*) AS n FROM ad_coin_journals')['n'] >= 1
+    assert raw(pool, 'SELECT COUNT(*) AS n FROM ad_coin_journals')['n'] >= 1
     release.set()
     thread.join()
     # exhausted sessions are refused quickly, never queued forever
@@ -256,12 +257,13 @@ def test_the_dedicated_pool_serializes_money_and_reads_in_parallel(cluster):
     other.start()
     entered.wait(5)
     with pytest.raises(dbmod.PoolBusy):
-        tight.one('SELECT 1 AS x')
+        raw(tight, 'SELECT 1 AS x')
     release.set()
     other.join()
-    assert tight.one('SELECT 1 AS x')['x'] == 1
+    assert raw(tight, 'SELECT 1 AS x')['x'] == 1
     with pytest.raises(RuntimeError, match='result_limit'):
-        tight.all('SELECT g FROM generate_series(1, 2001) AS g')
+        with unchecked():
+            tight.all('SELECT g FROM generate_series(1, 2001) AS g')
     tight.close()
     pool.close()
 
@@ -316,7 +318,7 @@ def test_concurrent_writers_keep_budgets_idempotency_and_balances(cluster):
         return next((o for o in packet['funding_options'] if o['type'] == 'sponsored_run'), None)
     with cf.ThreadPoolExecutor(6) as workers:
         runs = [r for r in workers.map(one_quote, range(30)) if r]
-    held = pool.one("SELECT COALESCE(SUM(amount_won), 0) AS s FROM ad_coin_reservations WHERE campaign_id=? "
+    held = raw(pool, "SELECT COALESCE(SUM(amount_won), 0) AS s FROM ad_coin_reservations WHERE campaign_id=? "
                     "AND status IN ('reserved','awarded')", (c['id'],))['s']
     assert runs and held <= 4500                       # never past the daily budget under concurrency
 
@@ -328,7 +330,31 @@ def test_concurrent_writers_keep_budgets_idempotency_and_balances(cluster):
     with cf.ThreadPoolExecutor(6) as workers:
         outcomes = list(workers.map(same_key, range(12)))
     assert len({o for o in outcomes if not o.startswith('dup:')}) == 1
-    assert pool.one("SELECT COUNT(*) AS n FROM ad_coin_journals WHERE idem='same-key'")['n'] == 1
+    assert raw(pool, "SELECT COUNT(*) AS n FROM ad_coin_journals WHERE idem='same-key'")['n'] == 1
     assert svc.ledger.balance(L.user_wallet('u_z')) == 10
     assert svc.ledger.invariant()['ok']
+    pool.close()
+
+
+def raw(database, sql, args=()):
+    """A test's own inspection query (outside the registered product SQL)."""
+    with unchecked():
+        return database.one(sql, args)
+
+
+def test_an_unregistered_statement_never_reaches_postgresql(cluster):
+    import os
+    from agent_market.ad_coin.sql_registry import RECORD_ENV, UnregisteredSql
+    if os.environ.get(RECORD_ENV):
+        pytest.skip('the registry is being rebuilt (record mode admits every statement)')
+    store = _store(cluster, 'adcoin_registry')
+    migrate(store)
+    pool = dbmod.PooledPostgresDatabase(_sessions(cluster, 'adcoin_registry'))
+    for database in (pool, ApplicationStoreDatabase(store)):
+        with pytest.raises(UnregisteredSql):
+            database.one('SELECT amount FROM ad_coin_balances WHERE 1=1 OR account=?', ('x',))
+        with pytest.raises(UnregisteredSql):
+            with database.transaction() as db:
+                db.execute('DELETE FROM ad_coin_journals')
+    assert raw(pool, 'SELECT COUNT(*) AS n FROM ad_coin_settings')['n'] >= 1
     pool.close()

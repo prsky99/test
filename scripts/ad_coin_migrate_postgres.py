@@ -21,6 +21,13 @@ def table_names():
 
 
 def status(store):
+    # Operator inspection: table-by-table counts are outside the registered product SQL.
+    from agent_market.ad_coin.sql_registry import unchecked
+    with unchecked():
+        return _status(store)
+
+
+def _status(store):
     from agent_market.ad_coin.db import ApplicationStoreDatabase, schema_version
     database = ApplicationStoreDatabase(store, require_migrated=False)
     version = schema_version(database)
@@ -33,6 +40,12 @@ def status(store):
 
 def copy(store, sqlite_path):
     """Copy every ad_coin_* row from a SQLite file; refuses if the target already has rows."""
+    from agent_market.ad_coin.sql_registry import unchecked
+    with unchecked():           # operator migration: generic per-table copy statements
+        return _copy(store, sqlite_path)
+
+
+def _copy(store, sqlite_path):
     from agent_market.ad_coin.db import ApplicationStoreDatabase, postgres_sql
     database = ApplicationStoreDatabase(store)
     source = sqlite3.connect('file:' + sqlite_path + '?mode=ro', uri=True)

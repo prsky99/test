@@ -1,0 +1,697 @@
+{
+ "profile": "ai-ad-coin-sql-v1",
+ "statements": [
+  {
+   "sql": "DELETE FROM ad_coin_campaign_categories WHERE campaign_id=?",
+   "sha256": "a02837296580f35b2c175a15792df7c0d403045c96f9e6894ccfc393659941ee"
+  },
+  {
+   "sql": "DELETE FROM ad_coin_totals",
+   "sha256": "5b038ed8881a2fe4d2002d2b56f5ec1c48cdbbf448b3fcd9035a7c7b1e09e383"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_advertiser_members VALUES (?,?,?,?,NULL)",
+   "sha256": "0f20fca8ec2f0a177a96a660ce1f511348e070b0fbe5d2ca21f5a3ea8ebf349c"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_advertiser_members VALUES (?,?,?,?,NULL) ON CONFLICT(advertiser_id, customer_id) DO UPDATE SET role=excluded.role, revoked_at=NULL",
+   "sha256": "ee388b82ab11f0549d1d709f0e7caa1e572dd138cb2221647cf5a2d9e8eb1b17"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_advertisers VALUES (?+)",
+   "sha256": "725f47f88e674e1b36ba368299bc756607b185f9c31c36e3ae57e57073edde92"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_agent_keys VALUES (?,?,?,?,NULL,NULL)",
+   "sha256": "69cacfdfe48181e6dbf8d6e252f828a91ea9174a22179a8ff984fe06ccb420b8"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_appeals VALUES (?,?,?,?,?,?,?,NULL)",
+   "sha256": "48a5e52d4fdbf7a6c6471e3696ea8547db0f9b8ded3baf4828bcd6c143529a39"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_audits VALUES (?+)",
+   "sha256": "d5e29a504d8b7beea70aea3bac1ae63e0aa3c5605d821876265d9723e9d29211"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_balances VALUES",
+   "sha256": "b83f804264d3efac806fb5cfe361f698ce89ee7b1743d1b1088e2ab507995126"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_balances VALUES (?+)* ON CONFLICT(account) DO UPDATE SET amount=ad_coin_balances.amount+excluded.amount RETURNING account, amount",
+   "sha256": "bdee4968b26102ebf5338e3890c61a0ee911f1abcd1bd40209d7602186dfa5b2"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_campaign_categories VALUES (?+)",
+   "sha256": "eb793803af9e6c4f9b38471d613129ee3ae965d124c02fe88d3a48b39123a2c1"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_campaign_daily VALUES (?+) ON CONFLICT(campaign_id, day) DO UPDATE SET offers=ad_coin_campaign_daily.offers+excluded.offers, views=ad_coin_campaign_daily.views+excluded.views, spend_won=ad_coin_campaign_daily.spend_won+excluded.spend_won, invalid_refunded_won=ad_coin_campaign_daily.invalid_refunded_won+excluded.invalid_refunded_won, runs_started=ad_coin_campaign_daily.runs_started+excluded.runs_started, runs_succeeded=ad_coin_campaign_daily.runs_succeeded+excluded.runs_succeeded",
+   "sha256": "1b36a87427744ec1f4ea379b049e01da10c7505bea363fd5a8f3d2e1ad9ae6a7"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_campaign_meta VALUES (?+)",
+   "sha256": "30b5ce6e7ef9c2633725ec42c890d73e4d5ebbcced40bc0d1bbe2d46b188a1be"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_campaigns VALUES (?+)",
+   "sha256": "381da9d0f97b7b2ebfd7db9d25ea8f24deef0659675975477f5506b8b8afd84f"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_change_log VALUES (?+)",
+   "sha256": "f2513052a2287d0087c5e3eb57c4416f47c621095e50d5666eb883be4559321b"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_circuit VALUES (1,?,?,?) ON CONFLICT(id) DO UPDATE SET open=excluded.open, reason=excluded.reason, changed_at=excluded.changed_at",
+   "sha256": "2b50a72457fd52f615a5746bdcb6ce861cf15ece3be944078b2efaf4adcd23f4"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_consents VALUES (?,?,?,?,NULL)",
+   "sha256": "baf76c27b7ba3e7e57b88845c55c48cbf1e328c8b107711a39e8314985ddce22"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_creatives VALUES (?,?,?,?,?,?,?,?,?,?,?,?,NULL)",
+   "sha256": "e25709451f6ca6ae3ffda6d67d39d7b0b021a3ba9836db6db582ab0506d2443a"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_execution_lines VALUES (?+)",
+   "sha256": "b23242a2ffb9ac607d26eeba58cdc62a85d0d36660a2aa6a077266bda80eacea"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_executions VALUES (?,?,?,?,?,?,?,?,NULL,?,NULL)",
+   "sha256": "fb8614832308a393c5195ea5c19f423eb5aaf1f20f2a2fc5a3b82385d2e8d89f"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_exposures VALUES (?+)",
+   "sha256": "90ee823f2945f0e991f633f6183f3da3e3fa071e6a738554c18eee42f67048ab"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_invalid_activity VALUES (?+)",
+   "sha256": "fb7cbe4c3fe52f659385ce7fde1f04ed5bd2b83543b0caeb841c0e6930ff69ee"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_invites VALUES (?,?,?,NULL) ON CONFLICT(customer_id) DO UPDATE SET revoked_at=NULL, note=excluded.note",
+   "sha256": "0a5df355de2fd1657d10488ed729e6344ce997f7d25e6bf4309b61097402f41f"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_journals VALUES (?+)",
+   "sha256": "1644dcd77bc58f5138775f693e8aa13e6adfb8bf86a1d015b7afa4bf2a484e3a"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_mandates VALUES (?,?,?,?,?,?,0,?,?,NULL)",
+   "sha256": "9ff70260a8fee178144933fa8da368d945eef4fd0c40dd2aa4c1e185aeaddd36"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_offer_acks VALUES (?+)",
+   "sha256": "4c347e7df83c1b8341439ad02738b730db79b61c79f845352fdac2a0a7d2a601"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_postings VALUES",
+   "sha256": "9b618d450dfb61f2848ae5a67a525940d36a80b62a50f97bcc44558c9e211092"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_postings VALUES (?+)*",
+   "sha256": "36d382e8b7870cebc98710684d5719314c126b666ebcc6edef0c5eddf271799b"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_quotes VALUES (?+)",
+   "sha256": "69db6b087e663f69f3bdfa543c25a6b325cedb01b31bc57d8dbf9ab787f1b56a"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_receipts VALUES (?+)",
+   "sha256": "ad42dba90a552adc47517085132a8aaec767f62ef6ecfdaa3f5e2515187e38f4"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_reservation_creatives VALUES (?+)",
+   "sha256": "d90bcb03148f38457e00a48977dbd3043b7ac9a4c10d954919499339c3079177"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_reservations VALUES (?+)",
+   "sha256": "e82826f0532fc12e1ee151e3f4015ccda14f835103cf2435c5716514fd554b68"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_run_claims VALUES (?+)",
+   "sha256": "cf27212ec87669d2e33aa6d810c557ecf99ea8dc2a20f2bb5d70696f374536de"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_settings VALUES ('split_bps',?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
+   "sha256": "d3f6ffaba28a366efb8d1c9adebbe7aa4a3210cb10202764243c6e23ae2abcc3"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_test_products VALUES (?+)",
+   "sha256": "39ef9a37606d6add44d17df97493111d6bb51c476822c24417b8c0ee5235b8c6"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_totals VALUES",
+   "sha256": "36fee79155f0b1cccc54a04bd5aad486da3397f8fe30e72bacd7c84c517de8eb"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_totals VALUES (?+)",
+   "sha256": "b1a95885508ef0aff68d1a9e5ffb7b01f48901a4df2fc7193ba18aeea95ed9e3"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_totals VALUES (?+) ON CONFLICT(bucket) DO UPDATE SET amount=ad_coin_totals.amount+excluded.amount",
+   "sha256": "9c545f211d5b3fd2c7aa8835671580ab7794221fc68391c7f9af301ed1aaa7cd"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_totals VALUES (?+)* ON CONFLICT(bucket) DO UPDATE SET amount=ad_coin_totals.amount+excluded.amount",
+   "sha256": "3b21d6a12c355d9075db39ceab167967e805fb575245d57b6047549a550432dd"
+  },
+  {
+   "sql": "INSERT INTO ad_coin_vouchers VALUES (?+)",
+   "sha256": "9088f928491ec33e0b1b38eba050b79ae06ae3eb7eb15d6f6fe4e91b37ae6999"
+  },
+  {
+   "sql": "INSERT OR IGNORE INTO ad_coin_settings VALUES (?+)",
+   "sha256": "1d5cccd610e817654abeeed72a7b927bd783840ca58547d51eda8f5c3f76bff1"
+  },
+  {
+   "sql": "INSERT OR IGNORE INTO ad_coin_wallets VALUES (?+)",
+   "sha256": "88a619b141d31025fdb311bd58d0888dddeec9874a5b9be2010d365bd58f1386"
+  },
+  {
+   "sql": "INSERT OR IGNORE INTO ad_coin_wallets VALUES (?+)*",
+   "sha256": "1298949351647d7907b82606a4e10cd596a9f4acf6966867abd1c7311c374734"
+  },
+  {
+   "sql": "SELECT * FROM ad_coin_advertisers WHERE id=?",
+   "sha256": "108f1adca7b1a507d4b7c05a4ce05a4a82aa2e42f8594afcd0ca757a72da20f5"
+  },
+  {
+   "sql": "SELECT * FROM ad_coin_audits ORDER BY created_at DESC LIMIT ?",
+   "sha256": "5ae605f3aa4cfe6109fc45247714b52d7ca0e0a3b4d475d515803ca1d69591fc"
+  },
+  {
+   "sql": "SELECT * FROM ad_coin_campaign_meta WHERE campaign_id=? AND advertiser_id=?",
+   "sha256": "984b43bf4d4ef9c5026c2b6f95eef9f5d3050790b17936a718db13398b0da68c"
+  },
+  {
+   "sql": "SELECT * FROM ad_coin_campaigns WHERE id=?",
+   "sha256": "7a5acfdb391a44a46513196051b061b90fd6cd9a762cab4e8854b4a14b188982"
+  },
+  {
+   "sql": "SELECT * FROM ad_coin_change_log WHERE advertiser_id=? ORDER BY created_at DESC LIMIT ?",
+   "sha256": "02da54b4e4a0ab3d26fb3434cb04eae3fc49bc83f36033288760701c2ce25bab"
+  },
+  {
+   "sql": "SELECT * FROM ad_coin_consents WHERE id=? AND reservation_id=?",
+   "sha256": "2c7f00d7d0cf261c52005457bfd21f0380d9442360b4803b6f3b01f79f80d42b"
+  },
+  {
+   "sql": "SELECT * FROM ad_coin_creatives WHERE campaign_id=? AND removed_at IS NULL ORDER BY created_at",
+   "sha256": "a944c366ef3a3d62538d941bb4889348bf674eca90b919263fcc48722da1e6f0"
+  },
+  {
+   "sql": "SELECT * FROM ad_coin_execution_lines WHERE execution_id=? ORDER BY position",
+   "sha256": "c03d3d91c270584de17ca41b07b3f8ffd8528c7922c0a1f0f426c2d63c25900f"
+  },
+  {
+   "sql": "SELECT * FROM ad_coin_executions WHERE id=?",
+   "sha256": "339ebad5948aefe05bb6e53418e10fd3ff343afeb794b3893e8c0783ae9ebb88"
+  },
+  {
+   "sql": "SELECT * FROM ad_coin_invites ORDER BY created_at",
+   "sha256": "3abcbc900884cdef120664e287bda817f8f381fbae9061f915d34d170fc73810"
+  },
+  {
+   "sql": "SELECT * FROM ad_coin_journals WHERE id=?",
+   "sha256": "081d788c9e0c5a61788600bd9e20a756213db25cb00978bd87c5e8d27fe5b50b"
+  },
+  {
+   "sql": "SELECT * FROM ad_coin_mandates WHERE id=? AND user_ref=?",
+   "sha256": "e66ad1f738ee72ba2ce9a9ee5b33a0d8f2877ab9b816fc13f8301f4177c9e3dd"
+  },
+  {
+   "sql": "SELECT * FROM ad_coin_reservations WHERE id=?",
+   "sha256": "0f30178b75c0624494a05781fdf42182f97570fee00b2e02709fb3af0d48ef9b"
+  },
+  {
+   "sql": "SELECT * FROM ad_coin_reservations WHERE status='reserved' AND expires_at<? ORDER BY expires_at LIMIT 200",
+   "sha256": "472ce78ee2a518fcd31f24957ff5c502c6b0ee6b0581ee2d49a5068a8fa1b334"
+  },
+  {
+   "sql": "SELECT * FROM ad_coin_vouchers WHERE id=? AND user_ref=?",
+   "sha256": "0632453d6059339e491123ccc018de176ec5916878305a48ccb898801cc5593f"
+  },
+  {
+   "sql": "SELECT * FROM ad_coin_wallets WHERE account=?",
+   "sha256": "c0d1794d7c549870e3881f493f5c9bf2c4333ac6227540345aadcf3c8832291f"
+  },
+  {
+   "sql": "SELECT * FROM ad_coin_wallets WHERE kind='agent' AND last_active_at<? ORDER BY last_active_at LIMIT 500",
+   "sha256": "8321f70b2895a9c966a9dd8292277b8158d5ce88f64b9290efe08510a9d5a0e9"
+  },
+  {
+   "sql": "SELECT * FROM ad_coin_wallets WHERE user_ref=? ORDER BY kind DESC, agent_ref LIMIT 50",
+   "sha256": "329c23f1b33119a4e346221e5538e68ee6e4f141919f1261086ad5948c46d8fe"
+  },
+  {
+   "sql": "SELECT 1 FROM ad_coin_balances LIMIT 1",
+   "sha256": "47aff7f3c6c8b0bba8d553fe56d922323161553a421d37e70d298b14b0843799"
+  },
+  {
+   "sql": "SELECT 1 FROM ad_coin_invalid_activity WHERE reservation_id=?",
+   "sha256": "64aa312ac7afc15a0176112726f0ec56e6cae52af0d42b58ebc4579669ae77a1"
+  },
+  {
+   "sql": "SELECT 1 FROM ad_coin_invites WHERE customer_id=? AND revoked_at IS NULL",
+   "sha256": "c1f341c07afb9e75b829859e58d19a4ea30576b50ee4e14f2f7888de0f0d5b97"
+  },
+  {
+   "sql": "SELECT 1 FROM ad_coin_offer_acks WHERE token_digest=?",
+   "sha256": "8bee75b82e1ebfccaf419394b8f4f496faf4aeb562b7ffa95551019b4c7cce05"
+  },
+  {
+   "sql": "SELECT 1 FROM ad_coin_run_claims WHERE run_key=?",
+   "sha256": "d5aed45353c2fbb6996dac67583035d662164f3ab9d9ff1d05f0190d9dfed7e7"
+  },
+  {
+   "sql": "SELECT 1 FROM ad_coin_totals LIMIT 1",
+   "sha256": "69097d761bfdfbbc47a51f0878cd3e589035299ac711707c54124a4158e1b59a"
+  },
+  {
+   "sql": "SELECT COALESCE(SUM(CASE WHEN account NOT LIKE 'external:%' THEN amount ELSE 0 END), 0) AS pool, COALESCE(SUM(CASE WHEN account LIKE 'escrow:%' OR account LIKE 'hold:%' OR account LIKE 'wallet:%' OR account LIKE 'voucher:%' OR account LIKE 'inflight:%' OR account LIKE 'payable:%' OR account LIKE 'reserve:%' THEN amount ELSE 0 END), 0) AS obligations, COALESCE(SUM(CASE WHEN account LIKE 'wallet:%' THEN amount ELSE 0 END), 0) AS coins, COALESCE(SUM(CASE WHEN account LIKE 'external:%' THEN amount ELSE 0 END), 0) AS external FROM ad_coin_balances",
+   "sha256": "59560f1a2e7dbf3817430dd597ee1236b297b1f9f00c1831123f31a01c0c48e1"
+  },
+  {
+   "sql": "SELECT COALESCE(SUM(amount_won), 0) AS s FROM ad_coin_reservations WHERE campaign_id=? AND created_at>=? AND status IN ('reserved','awarded')",
+   "sha256": "8174ce65088e89138d9dade89dc3093f61e11b41927152f57852f52d405661ed"
+  },
+  {
+   "sql": "SELECT COUNT(*) AS n FROM (SELECT journal_id FROM ad_coin_postings GROUP BY journal_id HAVING SUM(amount) != 0) AS unbalanced",
+   "sha256": "ee24e8e9fa1c431f78b2a920d6923598f05f1dd7e86e87c00ab94e4d1f96b9af"
+  },
+  {
+   "sql": "SELECT COUNT(*) AS n FROM ad_coin_advertiser_members WHERE advertiser_id=? AND role='owner' AND revoked_at IS NULL",
+   "sha256": "19ba181bd0a6eb028bd7e635b12c7e73cae6bf123db96548db42fcb5d42b8347"
+  },
+  {
+   "sql": "SELECT COUNT(*) AS n FROM ad_coin_advertiser_members WHERE customer_id=? AND role='owner' AND revoked_at IS NULL",
+   "sha256": "bc75651c553a41f76d9f4499cd537f4193270c284643da27e85641fdb2ec3b1b"
+  },
+  {
+   "sql": "SELECT COUNT(*) AS n FROM ad_coin_agent_keys WHERE customer_id=? AND revoked_at IS NULL",
+   "sha256": "f2f341265ca4ff7ac1827146c57610e0c83397abb8eaa96a05553aea084edfab"
+  },
+  {
+   "sql": "SELECT COUNT(*) AS n FROM ad_coin_creatives WHERE campaign_id=? AND removed_at IS NULL",
+   "sha256": "3ca49c0d66d04b240dbad4c1c34aeedbea774b593535ae0917a4f6629cea99d4"
+  },
+  {
+   "sql": "SELECT COUNT(*) AS n FROM ad_coin_executions e JOIN ad_coin_vouchers v ON v.id=e.source_ref JOIN ad_coin_reservations r ON r.id=v.reservation_id WHERE r.campaign_id=? AND e.status='succeeded'",
+   "sha256": "8bba0b19eb34ebc56feb2f965cc53923fc46cec3618eafac468b1079f4ee270f"
+  },
+  {
+   "sql": "SELECT COUNT(*) AS n FROM ad_coin_exposures WHERE user_ref=? AND campaign_id=? AND day=?",
+   "sha256": "cadeed5c64823c8ca0e8b5b353a1ffcb38f45b7f9ccbb2a8ae7411e16117b26e"
+  },
+  {
+   "sql": "SELECT COUNT(*) AS n FROM ad_coin_offer_acks WHERE campaign_id=?",
+   "sha256": "744960efc5a092dfe7cae3aff5dcc17124028150dbe15b9c1e6bf2c195299632"
+  },
+  {
+   "sql": "SELECT COUNT(*) AS n FROM ad_coin_reservations WHERE user_ref=? AND campaign_id=? AND status='reserved'",
+   "sha256": "79035fbd7860d720ac57f2e91bb0104e857177580dbcca130cbaa977fbf46d68"
+  },
+  {
+   "sql": "SELECT COUNT(*) AS n FROM ad_coin_vouchers v JOIN ad_coin_reservations r ON r.id=v.reservation_id WHERE r.campaign_id=? AND v.status='redeemed'",
+   "sha256": "cb9d9091ef8fda817af52faae3d0eba421bb51a6ca5d7f6a2c8c670e2dbaf5fd"
+  },
+  {
+   "sql": "SELECT COUNT(*) AS n, COUNT(DISTINCT user_ref) AS people FROM ad_coin_exposures WHERE campaign_id=?",
+   "sha256": "073388326a839d9eb9138a2940ac633a269c0083cf7922036cf76e1211b50983"
+  },
+  {
+   "sql": "SELECT account FROM ad_coin_balances WHERE amount < 0 AND account NOT LIKE 'external:%' LIMIT 20",
+   "sha256": "f0edf5d995357dfe54dd11de903e1aac9fa407b4577a8a5cc9e660d8e305fe7e"
+  },
+  {
+   "sql": "SELECT account FROM ad_coin_wallets WHERE account IN (?+)",
+   "sha256": "e338149af6e5f1c478781ada3d937d429fb96de1a86b134698c302c32843e911"
+  },
+  {
+   "sql": "SELECT account, amount FROM ad_coin_balances WHERE account IN (",
+   "sha256": "b571ad34ad285871f310ba0eafcd4de94b52ab0b2cc1cf9dfc7b9bc27ba32f38"
+  },
+  {
+   "sql": "SELECT account, amount FROM ad_coin_balances WHERE account IN (?+)",
+   "sha256": "ec83129727ecd920950fb66bdfd5d70c0e1dcd5f505caa1205c8072b42881dce"
+  },
+  {
+   "sql": "SELECT account, amount FROM ad_coin_postings WHERE journal_id=?",
+   "sha256": "4a4d43de0568a97b291683b2c31f596455aa881c7c40a56ad92c556a7d58672b"
+  },
+  {
+   "sql": "SELECT advertiser_id FROM ad_coin_campaign_meta WHERE campaign_id=?",
+   "sha256": "7ff04de2acb197b89dfd7114d628388bbf8a8c61c08f7a3eca721ae9c85cb7e1"
+  },
+  {
+   "sql": "SELECT agent_ref, created_at, last_used_at FROM ad_coin_agent_keys WHERE customer_id=? AND revoked_at IS NULL ORDER BY created_at",
+   "sha256": "610c9e397831895cc8ea6b4ba8b909a460b39c08570c477692aa6d93eb33e2dc"
+  },
+  {
+   "sql": "SELECT amount FROM ad_coin_balances WHERE account IN (?+)",
+   "sha256": "7480144a21f9696b7bf3790a951e75dde8d805e63e49fb3be284c17e79e4b0e8"
+  },
+  {
+   "sql": "SELECT amount FROM ad_coin_balances WHERE account=?",
+   "sha256": "9a372565e19a0ae8e230867fa8746629213d3d11b861b6cae4fa05bd84c48a4d"
+  },
+  {
+   "sql": "SELECT answer FROM ad_coin_campaigns WHERE id=?",
+   "sha256": "57db0138e416062051823414c453f7959855b9546ace7d3bb10552714902949f"
+  },
+  {
+   "sql": "SELECT body FROM ad_coin_receipts WHERE user_ref=? ORDER BY created_at DESC LIMIT ?",
+   "sha256": "9535497b32d061915466dc50447eed3b185daf1517a4396808d9ed647b883957"
+  },
+  {
+   "sql": "SELECT bucket, amount FROM ad_coin_totals",
+   "sha256": "1d7bd678fefc952922d8d583d3cbeeeb9192d2edd54e1cad44e98b5bfe500e6f"
+  },
+  {
+   "sql": "SELECT c.id, c.advertiser, c.title, c.body, c.question, c.public_url, c.categories, c.bid_won, COALESCE(b.amount, 0) AS escrow_won, m.daily_budget_won, m.starts_at, m.ends_at, m.frequency_cap, m.excluded, m.review_status, m.user_status, m.advertiser_id, COALESCE(d.spend_won, 0) AS spent_today, a.verification AS adv_verification, a.status AS adv_status FROM ad_coin_campaigns c LEFT JOIN ad_coin_balances b ON b.account='escrow:'||c.id LEFT JOIN ad_coin_campaign_meta m ON m.campaign_id=c.id LEFT JOIN ad_coin_campaign_daily d ON d.campaign_id=c.id AND d.day=? LEFT JOIN ad_coin_advertisers a ON a.id=m.advertiser_id WHERE c.product=? AND c.status='active' AND COALESCE(b.amount, 0) >= c.bid_won AND (m.review_status IS NULL OR (m.review_status IN (?+) AND m.user_status='enabled' AND COALESCE(d.spend_won, 0) + c.bid_won <= CASE WHEN a.verification='verified' AND a.status='active' AND m.review_status<>'eligible_limited' THEN m.daily_budget_won WHEN m.daily_budget_won < ? THEN m.daily_budget_won ELSE ? END)) AND c.id IN (?+) ORDER BY c.bid_won DESC, c.id LIMIT ? OFFSET ?",
+   "sha256": "5ac74dafd8e5ac5cf0808bd55e7fe91c2bba73457f863a271d6465c759114c83"
+  },
+  {
+   "sql": "SELECT c.id, c.advertiser, c.title, c.body, c.question, c.public_url, c.categories, c.bid_won, COALESCE(b.amount, 0) AS escrow_won, m.daily_budget_won, m.starts_at, m.ends_at, m.frequency_cap, m.excluded, m.review_status, m.user_status, m.advertiser_id, COALESCE(d.spend_won, 0) AS spent_today, a.verification AS adv_verification, a.status AS adv_status FROM ad_coin_campaigns c LEFT JOIN ad_coin_balances b ON b.account='escrow:'||c.id LEFT JOIN ad_coin_campaign_meta m ON m.campaign_id=c.id LEFT JOIN ad_coin_campaign_daily d ON d.campaign_id=c.id AND d.day=? LEFT JOIN ad_coin_advertisers a ON a.id=m.advertiser_id WHERE c.product=? AND c.status='active' AND COALESCE(b.amount, 0) >= c.bid_won AND (m.review_status IS NULL OR (m.review_status IN (?+) AND m.user_status='enabled' AND COALESCE(d.spend_won, 0) + c.bid_won <= CASE WHEN a.verification='verified' AND a.status='active' AND m.review_status<>'eligible_limited' THEN m.daily_budget_won WHEN m.daily_budget_won < ? THEN m.daily_budget_won ELSE ? END)) AND c.id IN (SELECT campaign_id FROM ad_coin_campaign_categories WHERE category=?) ORDER BY c.bid_won DESC, c.id LIMIT ? OFFSET ?",
+   "sha256": "09f4af278a1deb9a08022046b91cc4f141095ad6c9ab3f37a1b0cc11d5f66736"
+  },
+  {
+   "sql": "SELECT c.id, c.advertiser, c.title, c.body, c.question, c.public_url, c.categories, c.bid_won, COALESCE(b.amount, 0) AS escrow_won, m.daily_budget_won, m.starts_at, m.ends_at, m.frequency_cap, m.excluded, m.review_status, m.user_status, m.advertiser_id, COALESCE(d.spend_won, 0) AS spent_today, a.verification AS adv_verification, a.status AS adv_status FROM ad_coin_campaigns c LEFT JOIN ad_coin_balances b ON b.account='escrow:'||c.id LEFT JOIN ad_coin_campaign_meta m ON m.campaign_id=c.id LEFT JOIN ad_coin_campaign_daily d ON d.campaign_id=c.id AND d.day=? LEFT JOIN ad_coin_advertisers a ON a.id=m.advertiser_id WHERE c.product=? AND c.status='active' AND COALESCE(b.amount, 0) >= c.bid_won AND (m.review_status IS NULL OR (m.review_status IN (?+) AND m.user_status='enabled' AND COALESCE(d.spend_won, 0) + c.bid_won <= CASE WHEN a.verification='verified' AND a.status='active' AND m.review_status<>'eligible_limited' THEN m.daily_budget_won WHEN m.daily_budget_won < ? THEN m.daily_budget_won ELSE ? END)) AND c.id IN (SELECT campaign_id FROM ad_coin_campaign_categories WHERE parent=?) AND c.id NOT IN (SELECT campaign_id FROM ad_coin_campaign_categories WHERE category=?) ORDER BY c.bid_won DESC, c.id LIMIT ? OFFSET ?",
+   "sha256": "c5018090b0ffc38320d7d37e2891e5b939f27d83600d25a8dfba53260ff09794"
+  },
+  {
+   "sql": "SELECT c.id, c.advertiser, c.title, c.body, c.question, c.public_url, c.categories, c.bid_won, COALESCE(b.amount, 0) AS escrow_won, m.daily_budget_won, m.starts_at, m.ends_at, m.frequency_cap, m.excluded, m.review_status, m.user_status, m.advertiser_id, COALESCE(d.spend_won, 0) AS spent_today, a.verification AS adv_verification, a.status AS adv_status FROM ad_coin_campaigns c LEFT JOIN ad_coin_balances b ON b.account='escrow:'||c.id LEFT JOIN ad_coin_campaign_meta m ON m.campaign_id=c.id LEFT JOIN ad_coin_campaign_daily d ON d.campaign_id=c.id AND d.day=? LEFT JOIN ad_coin_advertisers a ON a.id=m.advertiser_id WHERE c.product=? AND c.status='active' AND COALESCE(b.amount, 0) >= c.bid_won ORDER BY c.bid_won DESC, c.id LIMIT ? OFFSET ?",
+   "sha256": "2f0e481322c22cee4954e28e6b9ac415f87cef53072cd4ff72d4aec8060b3794"
+  },
+  {
+   "sql": "SELECT campaign_id FROM ad_coin_campaign_meta WHERE advertiser_id=? AND user_status != 'removed' ORDER BY created_at",
+   "sha256": "ad8eacbf91a0f23001650dd436d174cef9cd168030b04dcbc7c4a6fb3943ac2d"
+  },
+  {
+   "sql": "SELECT campaign_id FROM ad_coin_creatives WHERE id=?",
+   "sha256": "23d2e6100945908a995e47dafd47aa16c1a000f6cac1af96b123de55fff43152"
+  },
+  {
+   "sql": "SELECT campaign_id, COUNT(*) AS n FROM ad_coin_exposures WHERE user_ref=? AND day=? GROUP BY campaign_id UNION ALL SELECT campaign_id, COUNT(*) AS n FROM ad_coin_reservations WHERE user_ref=? AND status='reserved' GROUP BY campaign_id LIMIT 2000",
+   "sha256": "ac0c57873bcc625dbd311eaa50a6266333e883fa175de90af6d66ec205404f25"
+  },
+  {
+   "sql": "SELECT campaign_id, COUNT(*) AS n FROM ad_coin_offer_acks WHERE created_at>=? AND campaign_id IN (",
+   "sha256": "67fd7206521dcd914bc17bbfe10b33064275d6ceb22a4ff5743778e40c5a0d7a"
+  },
+  {
+   "sql": "SELECT campaign_id, COUNT(*) AS n FROM ad_coin_offer_acks WHERE created_at>=? AND campaign_id IN (?+) GROUP BY campaign_id",
+   "sha256": "2ef78e5d37936cd958321be9d3fa9e7e963194a99c0282405f2ba5b7781b5459"
+  },
+  {
+   "sql": "SELECT cr.* FROM ad_coin_creatives cr JOIN ad_coin_campaign_meta m ON m.campaign_id=cr.campaign_id WHERE cr.id=? AND m.advertiser_id=? AND cr.removed_at IS NULL",
+   "sha256": "33cfc863d52aafda51e34197c4415904bbb33601b4220458eb973776306c45fc"
+  },
+  {
+   "sql": "SELECT cr.*, m.advertiser_id, a.name AS advertiser_name FROM ad_coin_creatives cr JOIN ad_coin_campaign_meta m ON m.campaign_id=cr.campaign_id JOIN ad_coin_advertisers a ON a.id=m.advertiser_id WHERE cr.review_status='under_review' AND cr.removed_at IS NULL ORDER BY cr.updated_at LIMIT 200",
+   "sha256": "f288bf4e8c9399b52a846307ef45be4b8b438fbb83e7c202cd39f518c7492ca9"
+  },
+  {
+   "sql": "SELECT cr.answer FROM ad_coin_reservation_creatives rc JOIN ad_coin_creatives cr ON cr.id=rc.creative_id WHERE rc.reservation_id=?",
+   "sha256": "9ac1c9882d20487df6d657779c17085200c2e21057586859f92e0a6a3399875e"
+  },
+  {
+   "sql": "SELECT cr.campaign_id, m.advertiser_id FROM ad_coin_creatives cr JOIN ad_coin_campaign_meta m ON m.campaign_id=cr.campaign_id WHERE cr.id=?",
+   "sha256": "90e681044e22abf8a9a94fd71612003fe53292e4ff0949dbcacc57006a9cd2d3"
+  },
+  {
+   "sql": "SELECT cr.review_status FROM ad_coin_creatives cr JOIN ad_coin_campaign_meta m ON m.campaign_id=cr.campaign_id WHERE cr.id=? AND m.advertiser_id=?",
+   "sha256": "b42dfcbc16bea466842a1ef8c526e02a6aeba4b552497942d9f9bf61655e8867"
+  },
+  {
+   "sql": "SELECT customer_id, role FROM ad_coin_advertiser_members WHERE advertiser_id=? AND revoked_at IS NULL ORDER BY created_at",
+   "sha256": "b7eaa711c3498c1eac09a2645a7735a28838d2bd68ca5d1d38570e88f7b29c3b"
+  },
+  {
+   "sql": "SELECT definition FROM ad_coin_test_products WHERE id=? AND status='active'",
+   "sha256": "fe393855ed2b22d19d1abe5278a7d59f5ecd07d230477c63d91ad2d426f5dd77"
+  },
+  {
+   "sql": "SELECT e.reservation_id, e.user_ref FROM ad_coin_exposures e JOIN ad_coin_campaign_meta m ON m.campaign_id=e.campaign_id WHERE m.advertiser_id=? AND e.created_at>=?",
+   "sha256": "ad0226dd5d101fbf35adee3163ece7ec6a5c513e10e429815eb446edcc682d19"
+  },
+  {
+   "sql": "SELECT i.reservation_id, i.refunded_won FROM ad_coin_invalid_activity i JOIN ad_coin_campaign_meta m ON m.campaign_id=i.campaign_id WHERE m.advertiser_id=? AND i.created_at>=?",
+   "sha256": "1c7d01b316faf4bc62750e92a6ad985213451ebd6cc0a705c0f75fcf3bd86b23"
+  },
+  {
+   "sql": "SELECT id FROM ad_coin_advertisers ORDER BY created_at",
+   "sha256": "2e66b071a0e2a67de00f1b63d63f163133cdf446640913de2b9f02ae955e8620"
+  },
+  {
+   "sql": "SELECT id FROM ad_coin_campaigns ORDER BY created_at LIMIT 500",
+   "sha256": "79239e8996fa02315c90cf0f2f21769a4ddcaf544991209b18f53383505b6f9b"
+  },
+  {
+   "sql": "SELECT id FROM ad_coin_consents WHERE reservation_id=?",
+   "sha256": "03313082cecfbdde93a84c6b2fbaa52afe43204e729a4252539955b9b4db9060"
+  },
+  {
+   "sql": "SELECT id FROM ad_coin_journals WHERE idem=?",
+   "sha256": "b7bf77693b4575764bc729d66f7827c39523527cb61d1519a35bee0fdeb28172"
+  },
+  {
+   "sql": "SELECT id FROM ad_coin_mandates WHERE user_ref=? ORDER BY created_at DESC LIMIT 100",
+   "sha256": "10b22e85770c550cb7947ca96a15b08dd465f4dd134c28f490d5825828ddc004"
+  },
+  {
+   "sql": "SELECT id, campaign_id, title, body, question, public_url, weight, review_status FROM ad_coin_creatives WHERE removed_at IS NULL AND review_status IN ('eligible','eligible_limited') AND campaign_id IN (",
+   "sha256": "2e7a93cafa9745fdb7ada422d3439791fcb4529a6cad134ce4fcc073f33c21a5"
+  },
+  {
+   "sql": "SELECT id, campaign_id, title, body, question, public_url, weight, review_status FROM ad_coin_creatives WHERE removed_at IS NULL AND review_status IN ('eligible','eligible_limited') AND campaign_id IN (?+) LIMIT 1600",
+   "sha256": "7ea9cd76576d3afd399d1dce35caba2f34a4e898a696a68807b8bf08d75002de"
+  },
+  {
+   "sql": "SELECT id, name, description, status, definition FROM ad_coin_test_products ORDER BY created_at",
+   "sha256": "4fce9608691172e22c916c47c88ee2d68080323c505593b63bf40f99c005fac4"
+  },
+  {
+   "sql": "SELECT id, provider, task_ref FROM ad_coin_executions WHERE id=?",
+   "sha256": "84cfe58b44df57aef68ca0529addf1425b54cdc63d65ba01febd1021acf959c1"
+  },
+  {
+   "sql": "SELECT id, provider, task_ref, price_won, expires_at FROM ad_coin_vouchers WHERE user_ref=? AND status='active' ORDER BY created_at",
+   "sha256": "b732e482bc64873b447344aa1ebac0d594b60310176f2c478ee86c354391bba2"
+  },
+  {
+   "sql": "SELECT j.id, j.kind, j.created_at, p.account, p.amount FROM ad_coin_postings p JOIN ad_coin_journals j ON j.id=p.journal_id JOIN ad_coin_campaign_meta m ON p.account='escrow:'||m.campaign_id WHERE m.advertiser_id=? ORDER BY j.created_at DESC LIMIT ?",
+   "sha256": "738f0204b306cec521e71b8763905dd7fc7704478ac3e03accb30d9c2ce3fc3e"
+  },
+  {
+   "sql": "SELECT k.customer_id, k.agent_ref FROM ad_coin_agent_keys k JOIN ad_coin_invites i ON i.customer_id=k.customer_id WHERE k.key_hash=? AND k.revoked_at IS NULL AND i.revoked_at IS NULL",
+   "sha256": "e96ee9501057dbebfb245da8a72f09a0d5c58eb7968ed96e619c96ebea1579ad"
+  },
+  {
+   "sql": "SELECT m.advertiser_id AS id FROM ad_coin_advertiser_members m WHERE m.customer_id=? AND m.revoked_at IS NULL ORDER BY m.created_at",
+   "sha256": "489cc13c069c35de7cb6bbf2acaea72a62eef3c7f652b37720a1e81e6bf02c0f"
+  },
+  {
+   "sql": "SELECT open, reason, changed_at FROM ad_coin_circuit WHERE id=1",
+   "sha256": "cb6c4c71d6731dc8b320b9f82eb620164d23798a74fb504ce992ef66a1931d3e"
+  },
+  {
+   "sql": "SELECT q.task FROM ad_coin_vouchers v JOIN ad_coin_reservations r ON r.id=v.reservation_id JOIN ad_coin_quotes q ON q.id=r.quote_id WHERE v.id=?",
+   "sha256": "f8b411b71f74aa6a9bcdd6dcb5f1ea9b665b2f5864a3a8987e62433998884a83"
+  },
+  {
+   "sql": "SELECT r.campaign_id FROM ad_coin_vouchers v JOIN ad_coin_reservations r ON r.id=v.reservation_id WHERE v.id=?",
+   "sha256": "1f43770d602cba970b1da6b778ec185d28cee0aff274308b1e691b99f42dfae9"
+  },
+  {
+   "sql": "SELECT r.campaign_id, SUM(r.amount_won) AS s, MAX(COALESCE(d.spend_won, 0)) AS kept FROM ad_coin_reservations r LEFT JOIN ad_coin_campaign_daily d ON d.campaign_id=r.campaign_id AND d.day=? WHERE r.created_at>=? AND r.status IN ('reserved','awarded') GROUP BY r.campaign_id HAVING SUM(r.amount_won) <> MAX(COALESCE(d.spend_won, 0)) LIMIT 20",
+   "sha256": "e28d15f8463b930a6e9ade542e5053f56cbf62b989de7ff310a8314b11986ab4"
+  },
+  {
+   "sql": "SELECT r.id, r.campaign_id, r.status, r.amount_won, r.created_at FROM ad_coin_reservations r JOIN ad_coin_campaign_meta m ON m.campaign_id=r.campaign_id WHERE m.advertiser_id=? AND r.created_at>=?",
+   "sha256": "0502060a226c8f72191df65a805017589c923afa09e76028debab7068ff8f177"
+  },
+  {
+   "sql": "SELECT review_status FROM ad_coin_creatives WHERE campaign_id=? AND removed_at IS NULL",
+   "sha256": "8118b254b34be6658d705e21da7171295a60708c0b725b5db1d652f73f0b531a"
+  },
+  {
+   "sql": "SELECT role FROM ad_coin_advertiser_members WHERE advertiser_id=? AND customer_id=? AND revoked_at IS NULL",
+   "sha256": "5670d94e87e9331619b4eba0d470429f0c7290d79b4083b8e508c69c343e7e9c"
+  },
+  {
+   "sql": "SELECT task FROM ad_coin_quotes WHERE id=?",
+   "sha256": "79cddb4459ffb33fe8ed569abadd900f755e9e9cf16e2ab87b904343ac2fcf1a"
+  },
+  {
+   "sql": "SELECT task_ref FROM ad_coin_executions WHERE id=?",
+   "sha256": "2d28d68ad7d2334fa87bf133276e831627d3164fc216b42cdd916c99eca3f1da"
+  },
+  {
+   "sql": "SELECT v.*, r.campaign_id FROM ad_coin_vouchers v JOIN ad_coin_reservations r ON r.id=v.reservation_id WHERE v.status='active' AND v.expires_at<? ORDER BY v.expires_at LIMIT 200",
+   "sha256": "b94c63246a14c9e55f641d7399de17552d619f840f9c9683decdd54768a9dd48"
+  },
+  {
+   "sql": "SELECT v.reservation_id, e.status FROM ad_coin_vouchers v JOIN ad_coin_executions e ON e.source_ref=v.id JOIN ad_coin_reservations r ON r.id=v.reservation_id JOIN ad_coin_campaign_meta m ON m.campaign_id=r.campaign_id WHERE m.advertiser_id=? AND r.created_at>=?",
+   "sha256": "843c08494169f87e9aa7e5801f60dafd2720a439f01a86be01571b744ed2233f"
+  },
+  {
+   "sql": "SELECT value FROM ad_coin_settings WHERE key='schema_version'",
+   "sha256": "8b26721c8ebf195a3f1f058585bae366e3dd6aa7b6e7d389df3e5b6e47e87005"
+  },
+  {
+   "sql": "SELECT value FROM ad_coin_settings WHERE key='split_bps'",
+   "sha256": "78b5769a44ec5fccbfda3e599471e65f8b0c263132ab2a9d188fe275f92dbc38"
+  },
+  {
+   "sql": "SELECT value FROM ad_coin_settings WHERE key=?",
+   "sha256": "1e5650d97cd4498e677ef299f37e15e879c2b4c39648e75ffb09c3198f84995c"
+  },
+  {
+   "sql": "UPDATE ad_coin_advertiser_members SET revoked_at=? WHERE advertiser_id=? AND customer_id=? AND revoked_at IS NULL",
+   "sha256": "5264b2ee54ef7f35ed5d246d5051a1b03f6f6aabf964c38c989f30cf2ebec018"
+  },
+  {
+   "sql": "UPDATE ad_coin_advertisers SET status=? WHERE id=?",
+   "sha256": "d6140b5ec720c0c165b4c18eb70539ed90e0ac0262b39c32e0077acbcfd585ca"
+  },
+  {
+   "sql": "UPDATE ad_coin_advertisers SET verification=? WHERE id=?",
+   "sha256": "33a8ca568a2161e2a390f2efa8cc9057da6e15a3dbb57396b1efc1c0eb26be12"
+  },
+  {
+   "sql": "UPDATE ad_coin_agent_keys SET last_used_at=? WHERE key_hash=?",
+   "sha256": "2b2e9fce6e6aa71bfbe3498e50e95f91ed6b00751dec7d7f060d305ed3c7d465"
+  },
+  {
+   "sql": "UPDATE ad_coin_agent_keys SET revoked_at=? WHERE customer_id=? AND agent_ref=? AND revoked_at IS NULL",
+   "sha256": "759579dd3b3b7a484daa3e39b276ff44a73ce3cfbfa452ec41f70eca36e4f329"
+  },
+  {
+   "sql": "UPDATE ad_coin_agent_keys SET revoked_at=? WHERE customer_id=? AND revoked_at IS NULL",
+   "sha256": "4423e7ed66070ae9360508031f6134f6f30c47f93d3b61c8e91bf28d53d1e0bf"
+  },
+  {
+   "sql": "UPDATE ad_coin_appeals SET status='resolved', resolution=?, resolved_at=? WHERE object_ref=? AND status='pending'",
+   "sha256": "72645cd46a01e991228345981f92e83f863ba25e1b6615ac1a5c122f76a5cf60"
+  },
+  {
+   "sql": "UPDATE ad_coin_campaign_meta SET daily_budget_won=?, updated_at=? WHERE campaign_id=?",
+   "sha256": "aa689e62bb75289049eba81e88214c549f0e0bce5d9470dcb7cd0723f786a124"
+  },
+  {
+   "sql": "UPDATE ad_coin_campaign_meta SET ends_at=?, updated_at=? WHERE campaign_id=?",
+   "sha256": "1dcf5a6458a824e4e2aea580dc1aa9d2863d8c9e7a0e39f3748fb2e19b057e89"
+  },
+  {
+   "sql": "UPDATE ad_coin_campaign_meta SET excluded=?, updated_at=? WHERE campaign_id=?",
+   "sha256": "5b4a9038728021fb85755797ee6d1cce63253651f49f105e39024aa44271719b"
+  },
+  {
+   "sql": "UPDATE ad_coin_campaign_meta SET frequency_cap=?, updated_at=? WHERE campaign_id=?",
+   "sha256": "cf2e51f93ed7bb80292a7375e419d532a03cab80d28f7df129dbc1418596bb7c"
+  },
+  {
+   "sql": "UPDATE ad_coin_campaign_meta SET name=?, updated_at=? WHERE campaign_id=?",
+   "sha256": "6de3a485f62f2c1f8140e0761517847a6854426b5f75ab6a42fd9e1416db0f22"
+  },
+  {
+   "sql": "UPDATE ad_coin_campaign_meta SET review_status=?, updated_at=? WHERE campaign_id=?",
+   "sha256": "f00e32698234087ab55bb6cd283caff687c73aa0ab83b2e78b3166106e31d4bb"
+  },
+  {
+   "sql": "UPDATE ad_coin_campaign_meta SET starts_at=?, updated_at=? WHERE campaign_id=?",
+   "sha256": "86eb7068f50af60ecdd4a53d8a83691a2496289b687a316008e0754c3c44cdb8"
+  },
+  {
+   "sql": "UPDATE ad_coin_campaign_meta SET user_status=?, updated_at=? WHERE campaign_id=?",
+   "sha256": "a1d8973133d5123e6f6fb29bb56719d80db036cbc7369a68ea08cbfe28326dd6"
+  },
+  {
+   "sql": "UPDATE ad_coin_campaigns SET bid_won=? WHERE id=?",
+   "sha256": "e007a1e2abc510f26257af59f4ddbd32fcfb7f5715177c87b9b92b572becc893"
+  },
+  {
+   "sql": "UPDATE ad_coin_campaigns SET categories=? WHERE id=?",
+   "sha256": "00a09209043b70ffaac826396b8815ba2e542d0576d595639ed6031cd3eacad5"
+  },
+  {
+   "sql": "UPDATE ad_coin_campaigns SET status=? WHERE id=?",
+   "sha256": "c81313ebd0388d86773e770950c59031c7cee9c635866adeeeddb3607cd00e76"
+  },
+  {
+   "sql": "UPDATE ad_coin_consents SET used_at=? WHERE id=?",
+   "sha256": "469c7ecfb41ce5b5ae1d90b66d6661e771063cc88dbe8def2aa5040ff01b5400"
+  },
+  {
+   "sql": "UPDATE ad_coin_creatives SET removed_at=? WHERE id=?",
+   "sha256": "40b3b88cb1ac49e22d3bd0dfc5f94467cebf5bf8cdeb5394e7d6ab04ebbe391e"
+  },
+  {
+   "sql": "UPDATE ad_coin_creatives SET review_status='under_review', review_note=?, updated_at=? WHERE id=?",
+   "sha256": "2b19101e06a1832b31a43199671963b7f60b3322105ce93e641ad252e326a048"
+  },
+  {
+   "sql": "UPDATE ad_coin_creatives SET review_status=?, review_note=?, updated_at=? WHERE id=?",
+   "sha256": "4d68c225843918f96fd726921f4dedc8ac63faae24523a10f0af8c831d33d523"
+  },
+  {
+   "sql": "UPDATE ad_coin_creatives SET title=?, body=?, question=?, answer=?, public_url=?, weight=?, review_status=?, review_note=?, updated_at=? WHERE id=?",
+   "sha256": "bff0ae26b37d18947bf40b55c3aed31c1e8bd4cb1f5972d4ed2e9a95262cacfa"
+  },
+  {
+   "sql": "UPDATE ad_coin_execution_lines SET status=? WHERE execution_id=? AND position=?",
+   "sha256": "0ed20aba80ac50b5bfc4cc7710b043a4cb07f7f4ff5b8df63ea37df48bcb224e"
+  },
+  {
+   "sql": "UPDATE ad_coin_executions SET status=?, result_digest=?, finished_at=? WHERE id=?",
+   "sha256": "73be6d8401ca41b58969e38777dee03a7e0318f00638e0a40329bf05a7ca8a3e"
+  },
+  {
+   "sql": "UPDATE ad_coin_invites SET revoked_at=? WHERE customer_id=? AND revoked_at IS NULL",
+   "sha256": "4c751939608f0094bd9eb1ce6a56cf9621fb796efef222f539a20e5103f93f1c"
+  },
+  {
+   "sql": "UPDATE ad_coin_mandates SET revoked_at=? WHERE id=? AND revoked_at IS NULL",
+   "sha256": "d2d1ac893f7976c035a1d2793976ba0c5f3b3f2d96177218beb51837902c184e"
+  },
+  {
+   "sql": "UPDATE ad_coin_mandates SET revoked_at=? WHERE user_ref=? AND agent_ref=? AND revoked_at IS NULL",
+   "sha256": "40d080d1bb4ee8076b52a5d2444e8b0eb47adab58b5ebde0b0469bcbca8e79ed"
+  },
+  {
+   "sql": "UPDATE ad_coin_mandates SET spent_won=spent_won+? WHERE id=?",
+   "sha256": "aa4f67739b48893ff5fd35ec1867ed677a1cc8a20cc433518967f69bf719519f"
+  },
+  {
+   "sql": "UPDATE ad_coin_reservations SET status='awarded' WHERE id=? AND status='reserved'",
+   "sha256": "7fe8749d6021d039e79392098c916d6b617ab43e58b4281fd90ffec32bb2031e"
+  },
+  {
+   "sql": "UPDATE ad_coin_reservations SET status=? WHERE id=? AND status='reserved'",
+   "sha256": "6d51304e334c505dd98a468ae1b9508bab803db797f7715bee38efcbf6db1b33"
+  },
+  {
+   "sql": "UPDATE ad_coin_test_products SET status='archived' WHERE id=?",
+   "sha256": "c89ce632b4414e0b23c202cd17cf9bcb2c5c6c7a0c22276cee083009f85aefb9"
+  },
+  {
+   "sql": "UPDATE ad_coin_vouchers SET status='active' WHERE id=?",
+   "sha256": "ece78fad6e69cdf184a0aead013130686e11f066e2f596f920119d0cd45ae249"
+  },
+  {
+   "sql": "UPDATE ad_coin_vouchers SET status='expired' WHERE id=? AND status='active'",
+   "sha256": "88c422f5961063dc1d2c4d78c657c742919b0bc1c476c8de30fafaafb11ccfa7"
+  },
+  {
+   "sql": "UPDATE ad_coin_vouchers SET status='redeemed' WHERE id=?",
+   "sha256": "9afa0ff2fb39791dc1c4ca1a989bbe57142721ee83745a8d86a600e3e33ec61b"
+  },
+  {
+   "sql": "UPDATE ad_coin_wallets SET last_active_at=? WHERE account=?",
+   "sha256": "f7c25bed450aa01fc2251d95427fe7872a5e76ce1eb4977518dcad342b6570d3"
+  }
+ ]
+}

@@ -15,6 +15,7 @@ from agent_market.ad_coin.db import Database
 from agent_market.ad_coin.exchange import run_task_auction, selection_digest, task_floor_won
 from agent_market.ad_coin.receipts import ReceiptInvalid, Signer, load_or_create_key, verify
 from agent_market.ad_coin.service import AdCoinError, AdCoinService, HoldRequired
+from agent_market.ad_coin.sql_registry import unchecked
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SELECTION = {'items': [{'agent': 'openscholar-finder'}, {'agent': 'research-pro'}], 'chosen': 'research-pro'}
@@ -239,7 +240,7 @@ def test_creative_screen_rejects_agent_instructions(svc, body):
 
 def test_broken_backing_opens_circuit_and_stops_offers(svc):
     campaign(svc)
-    with svc.db.transaction() as db:  # simulate a corrupted claim outside the journal
+    with unchecked(), svc.db.transaction() as db:  # simulate a corrupted claim outside the journal
         db.execute("INSERT INTO ad_coin_balances VALUES ('wallet:user:ghost', 999999)")
     svc.full_check()
     assert svc.circuit()['open']
@@ -415,7 +416,7 @@ def test_http_upgrade_check_and_admin_console(tmp_path):
     assert client.post('/api/ad-coin/v1/upgrade-check', headers=person, json={'recommendation_ids': []}).status_code == 400
     assert client.post('/api/ad-coin/v1/upgrade-check', json={'recommendation_ids': [1]}).status_code == 403
     page = client.get('/ad-coin/admin')
-    assert page.status_code == 200 and 'lang="en"' in page.text and 'admin-secret-token' not in page.text
+    assert page.status_code == 200 and 'lang="ko"' in page.text and 'admin-secret-token' not in page.text
     assert client.get('/ad-coin/admin.js').headers['content-type'].startswith('text/javascript')
     assert client.get('/api/ad-coin/v1/admin/settings').status_code == 403
 
@@ -670,7 +671,7 @@ def test_an_expired_hold_is_refused_even_between_throttled_sweeps(svc, monkeypat
             attempt()
         assert refused.value.code == 'reservation_closed'
     svc.expire()                       # the sweep returns the hold to the campaign
-    assert svc.db.one('SELECT status FROM ad_coin_reservations WHERE id=?', (rid,))['status'] == 'expired'
+    assert raw_one(svc.db, 'SELECT status FROM ad_coin_reservations WHERE id=?', (rid,))['status'] == 'expired'
     assert svc.ledger.invariant()['ok']
 
 
@@ -695,7 +696,7 @@ def test_a_campaign_that_stops_qualifying_after_the_read_phase_is_never_reserved
     svc._active = stale_then_pause
     packet = quote(svc)
     run = option(packet, 'sponsored_run')
-    reserved = svc.db.one('SELECT campaign_id FROM ad_coin_reservations WHERE id=?', (run['reservation_id'],))
+    reserved = raw_one(svc.db, 'SELECT campaign_id FROM ad_coin_reservations WHERE id=?', (run['reservation_id'],))
     assert reserved['campaign_id'] == second['id']               # re-checked under the lock, then re-read in full
     assert [c for c in calls if c[0] == 'S1'][1][1] == [first['id'], second['id']]
     assert svc.ledger.invariant()['ok']
@@ -729,8 +730,8 @@ def test_daily_counters_follow_holds_releases_and_views(svc):
     view(svc, first)
     second = option(quote(svc, user='u_bob'), 'sponsored_run')['reservation_id']
     svc.decline(user_ref='u_bob', reservation_id=second)
-    row = svc.db.one('SELECT * FROM ad_coin_campaign_daily WHERE campaign_id=?', (c['id'],))
-    held = svc.db.one("SELECT COALESCE(SUM(amount_won), 0) AS s FROM ad_coin_reservations WHERE campaign_id=? "
+    row = raw_one(svc.db, 'SELECT * FROM ad_coin_campaign_daily WHERE campaign_id=?', (c['id'],))
+    held = raw_one(svc.db, "SELECT COALESCE(SUM(amount_won), 0) AS s FROM ad_coin_reservations WHERE campaign_id=? "
                       "AND status IN ('reserved','awarded')", (c['id'],))['s']
     assert (row['offers'], row['views'], row['spend_won']) == (2, 1, held) and held > 0
 
@@ -752,3 +753,28 @@ def test_the_store_defaults_to_the_application_database_on_postgresql(tmp_path, 
     settings = Settings(enabled=True, store='auto', db_path=str(tmp_path / 'a.sqlite3'), receipt_key_path=':memory:')
     assert isinstance(api_module.build_service(settings, PgStore()), FakePool) and seen['pool'] == 6
     assert isinstance(api_module.build_service(settings, None), Database)
+
+
+def raw_one(database, sql, args=()):
+    """A test's own inspection query (outside the registered product SQL)."""
+    with unchecked():
+        return database.one(sql, args)
+
+
+def test_product_code_never_skips_the_registered_sql_check():
+    import pathlib as _p
+    for path in (_p.Path(__file__).resolve().parents[1] / 'agent_market').rglob('*.py'):
+        if path.name != 'sql_registry.py':
+            text = path.read_text(errors='ignore')
+            assert 'import unchecked' not in text and 'sql_registry.unchecked' not in text and \
+                'unchecked()' not in text, path
+
+
+def test_every_constant_statement_in_product_code_is_registered():
+    """New SQL needs `python -m scripts.ad_coin_sql_registry --write` (and a review of the diff)."""
+    import json as _json
+    from agent_market.ad_coin.sql_registry import PATH
+    from scripts.ad_coin_sql_registry import static_statements
+    registered = {item['sql'] for item in _json.loads(PATH.read_text())['statements']}
+    missing = sorted(static_statements() - registered)
+    assert not missing, missing[:5]

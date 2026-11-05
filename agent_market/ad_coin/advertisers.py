@@ -43,6 +43,15 @@ def _host(url):
     return host[4:] if host.startswith('www.') else host
 
 
+META_UPDATES = (
+    ('name', 'UPDATE ad_coin_campaign_meta SET name=?, updated_at=? WHERE campaign_id=?'),
+    ('daily_budget_won', 'UPDATE ad_coin_campaign_meta SET daily_budget_won=?, updated_at=? WHERE campaign_id=?'),
+    ('starts_at', 'UPDATE ad_coin_campaign_meta SET starts_at=?, updated_at=? WHERE campaign_id=?'),
+    ('ends_at', 'UPDATE ad_coin_campaign_meta SET ends_at=?, updated_at=? WHERE campaign_id=?'),
+    ('frequency_cap', 'UPDATE ad_coin_campaign_meta SET frequency_cap=?, updated_at=? WHERE campaign_id=?'),
+)
+
+
 class AdvertiserConsole:
     def __init__(self, service, people):
         self.svc = service
@@ -305,11 +314,9 @@ class AdvertiserConsole:
         if status is not None and status not in CAMPAIGN_STATUS:
             raise AdCoinError('invalid_status')
         with self.db.transaction() as db:
-            for key, column in (('name', 'name'), ('daily_budget_won', 'daily_budget_won'), ('starts_at', 'starts_at'),
-                                ('ends_at', 'ends_at'), ('frequency_cap', 'frequency_cap')):
+            for key, statement in META_UPDATES:      # fixed statements: each one is registered SQL
                 if key in changes:
-                    db.execute('UPDATE ad_coin_campaign_meta SET ' + column + '=?, updated_at=? WHERE campaign_id=?',
-                               (changes[key], now(), campaign_id))
+                    db.execute(statement, (changes[key], now(), campaign_id))
             if 'excluded' in changes:
                 db.execute('UPDATE ad_coin_campaign_meta SET excluded=?, updated_at=? WHERE campaign_id=?',
                            (dumps(changes['excluded']), now(), campaign_id))

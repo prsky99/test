@@ -8,6 +8,7 @@ import threading
 import time
 
 from ..storage_security import private_sqlite_file
+from .sql_registry import CheckedConnection, check as check_sql
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS ad_coin_journals (
@@ -144,6 +145,7 @@ class Database:
             if path != ':memory:':
                 self.db.execute('PRAGMA journal_mode=WAL')
             self.db.executescript(SCHEMA)
+        self.checked = CheckedConnection(self.db)
 
     @contextmanager
     def transaction(self):
@@ -154,7 +156,7 @@ class Database:
                 self.db.execute('BEGIN IMMEDIATE')
             self._depth += 1
             try:
-                yield self.db
+                yield self.checked
             except BaseException:
                 self._depth -= 1
                 if outer:
@@ -179,11 +181,11 @@ class Database:
 
     def one(self, sql, args=()):
         with self.lock:
-            return self.db.execute(sql, args).fetchone()
+            return self.checked.execute(sql, args).fetchone()
 
     def all(self, sql, args=()):
         with self.lock:
-            return self.db.execute(sql, args).fetchall()
+            return self.checked.execute(sql, args).fetchall()
 
     def close(self):
         with self.lock:
@@ -243,6 +245,7 @@ class _PostgresConnection:
         self._store = store
 
     def execute(self, sql, args=()):
+        check_sql(sql)
         return _PostgresCursor(self._store._execute(postgres_sql(sql), tuple(args)))
 
 
@@ -431,6 +434,7 @@ class _PooledConnection:
 
     def _execute(self, sql, args):
         from ..storage_adapter import Row
+        check_sql(sql)
         values = tuple(str(v) if type(v) is int else v for v in args)
         with self._connection.cursor() as cursor:
             cursor.execute(postgres_sql(sql), values)

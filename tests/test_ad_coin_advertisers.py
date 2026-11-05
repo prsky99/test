@@ -326,14 +326,18 @@ def test_the_console_page_may_load_the_shared_design_files(tmp_path):
 
 @pytest.mark.parametrize('module', ['advertiser_page', 'page', 'admin_page'])
 def test_every_ad_coin_screen_is_english_only_and_carries_no_internal_details(module):
-    """The public frontend is English only; shipped markup and scripts carry no comments, system,
+    """The public frontend (the advertiser console and the person page) is English only; the
+    operator page is admin, which stays Korean. None of them ships comments, system,
     development or personal details."""
     import importlib
     import re
     screen = importlib.import_module('agent_market.ad_coin.' + module)
     shipped = screen.PAGE + screen.SCRIPT
-    assert not re.search('[ᄀ-ᇿ㄰-㆏가-힣]', shipped)          # no Korean
-    assert 'lang="en"' in screen.PAGE
+    korean = re.search('[ᄀ-ᇿ㄰-㆏가-힣]', shipped)
+    if module == 'admin_page':
+        assert korean and 'lang="ko"' in screen.PAGE
+    else:
+        assert not korean and 'lang="en"' in screen.PAGE
     assert not re.search(r'/\*.*?\*/|<!--.*?-->', shipped, re.S)                         # no comments
     assert not re.search(r'(?m)(^|[\s;{}])//\s', shipped)
     for leak in ('.venv', 'python', 'scripts.', 'nice -n', 'gateway-data', '/Users/', 'localhost', '127.0.0.1',
