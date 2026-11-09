@@ -21,15 +21,21 @@ def _fake(monkeypatch, behaviour):
     return calls
 
 
+def _now(f):
+    f()
+
+
 def test_page_is_built_once_per_window_and_rebuilt_after(monkeypatch):
     calls = _fake(monkeypatch, lambda n: f'page {n}')
     front, now = SimpleNamespace(), [1000.0]
     clock = lambda: now[0]
-    assert pages.cached_category_page(front, 'web_search', clock=clock) == 'page 1'
+    assert pages.cached_category_page(front, 'web_search', clock=clock, spawn=_now) == 'page 1'
     now[0] += pages.CACHE_SECONDS - 1
-    assert pages.cached_category_page(front, 'web_search', clock=clock) == 'page 1'
+    assert pages.cached_category_page(front, 'web_search', clock=clock, spawn=_now) == 'page 1'
     now[0] += 2
-    assert pages.cached_category_page(front, 'web_search', clock=clock) == 'page 2'
+    # the expired page is still served at once; the rebuild runs behind it
+    assert pages.cached_category_page(front, 'web_search', clock=clock, spawn=_now) == 'page 1'
+    assert pages.cached_category_page(front, 'web_search', clock=clock, spawn=_now) == 'page 2'
     assert calls == ['web_search', 'web_search']
 
 
@@ -48,10 +54,11 @@ def test_failed_rebuild_serves_the_previous_page(monkeypatch):
     _fake(monkeypatch, behaviour)
     front, now = SimpleNamespace(), [0.0]
     clock = lambda: now[0]
-    assert pages.cached_category_page(front, 'web_search', clock=clock) == 'page 1'
+    assert pages.cached_category_page(front, 'web_search', clock=clock, spawn=_now) == 'page 1'
     now[0] += pages.CACHE_SECONDS + 1
-    assert pages.cached_category_page(front, 'web_search', clock=clock) == 'page 1'
-    assert pages.cached_category_page(front, 'web_search', clock=clock) == 'page 3'
+    assert pages.cached_category_page(front, 'web_search', clock=clock, spawn=_now) == 'page 1'  # rebuild 2 fails
+    assert pages.cached_category_page(front, 'web_search', clock=clock, spawn=_now) == 'page 1'  # rebuild 3 runs
+    assert pages.cached_category_page(front, 'web_search', clock=clock, spawn=_now) == 'page 3'
 
 
 def test_first_build_failure_is_not_hidden(monkeypatch):
@@ -68,20 +75,23 @@ def test_requests_during_a_slow_rebuild_get_the_previous_page_at_once(monkeypatc
             started.set()
             release.wait(5)
         return f'page {n}'
-    _fake(monkeypatch, behaviour)
+    calls = _fake(monkeypatch, behaviour)
     front, now = SimpleNamespace(), [0.0]
     clock = lambda: now[0]
     pages.cached_category_page(front, 'web_search', clock=clock)
     now[0] += pages.CACHE_SECONDS + 1
-    slow = threading.Thread(target=pages.cached_category_page, args=(front, 'web_search'), kwargs={'clock': clock})
-    slow.start()
-    assert started.wait(5)
     begun = time.monotonic()
-    assert pages.cached_category_page(front, 'web_search', clock=clock) == 'page 1'
+    assert pages.cached_category_page(front, 'web_search', clock=clock) == 'page 1'  # starts the rebuild
+    assert started.wait(5)
+    assert pages.cached_category_page(front, 'web_search', clock=clock) == 'page 1'  # no second rebuild
     assert time.monotonic() - begun < 1
     release.set()
-    slow.join(5)
+    for _ in range(50):
+        if front._category_page_cache['pages']['web_search'][1] == 'page 2':
+            break
+        time.sleep(0.02)
     assert pages.cached_category_page(front, 'web_search', clock=clock) == 'page 2'
+    assert len(calls) == 2
 
 
 def test_status_projection_is_reused_briefly_but_explicit_times_are_fresh(monkeypatch):

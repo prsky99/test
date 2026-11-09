@@ -19,12 +19,20 @@ def category_links(front):
 # Category previews are read by crawlers; build each at most once per CACHE_SECONDS and keep the
 # last good page, so a slow database (11-09 20:4x: a vacuum and snapshots, one page took 125 s)
 # never makes a crawler wait. One build per category at a time; others get the previous page.
+# 11-10: an expired page is rebuilt in the background too, so only a category's very first visit
+# after a restart waits for a build (it took 0.5-1.4 s under load).
 CACHE_SECONDS=600
 STALE_SECONDS=86400
 
 
-def cached_category_page(front,category,*,clock=time.monotonic):
+def _background(work):
+    import threading
+    threading.Thread(target=work,name='category-page-refresh',daemon=True).start()
+
+
+def cached_category_page(front,category,*,clock=time.monotonic,spawn=_background):
     if category not in CATEGORIES:raise ValueError('NOT_FOUND')
+    import logging
     import threading
     state=getattr(front,'_category_page_cache',None)
     if state is None:
@@ -37,16 +45,22 @@ def cached_category_page(front,category,*,clock=time.monotonic):
     now=clock()
     if entry and now-entry[0]<CACHE_SECONDS:return entry[1]
     usable=entry if entry and now-entry[0]<STALE_SECONDS else None
-    if usable is None:build.acquire()
-    elif not build.acquire(blocking=False):return usable[1]  # another request is rebuilding it
+    if usable is not None:
+        if not build.acquire(blocking=False):return usable[1]  # another request is rebuilding it
+
+        def refresh():
+            try:state['pages'][category]=(clock(),category_page(front,category))
+            except Exception:logging.getLogger(__name__).warning('Category page %s refresh failed; serving the previous page',category,exc_info=True)
+            finally:build.release()
+        try:spawn(refresh)
+        except Exception:
+            build.release()
+        return usable[1]
+    build.acquire()
     try:
         latest=state['pages'].get(category)
-        if latest and clock()-latest[0]<CACHE_SECONDS:return latest[1]
-        try:page=category_page(front,category)
-        except ValueError:raise
-        except Exception:
-            if usable is None:raise
-            return usable[1]
+        if latest and clock()-latest[0]<STALE_SECONDS:return latest[1]
+        page=category_page(front,category)
         state['pages'][category]=(clock(),page)
         return page
     finally:
