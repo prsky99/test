@@ -6,6 +6,7 @@ import time
 from uuid import uuid4
 
 from .contracts import ContractError
+from ..service import public_link
 from .ledger import ModelLedger, identifier
 from .security_guards import AuditLogger, EventType
 from .store import ModelStore
@@ -39,7 +40,7 @@ class AdRelayGateway:
             raise ContractError("invalid_partner_name", 422)
         if protocol not in ("a2a", "mcp"):
             raise ContractError("unsupported_relay_protocol", 422)
-        if not endpoint_url.startswith(("https://", "http://localhost")):
+        if not public_link(endpoint_url):
             raise ContractError("insecure_endpoint_url", 422)
         if not (0 <= fee_basis_points <= 3000):
             raise ContractError("invalid_fee_basis_points", 422)
@@ -361,24 +362,16 @@ class AdRelayGateway:
             },
         }
 
-    def settle_relay_dispatch(
-        self,
-        dispatch_id: str,
-        *,
-        evidence_verified: bool = True,
-    ) -> dict:
-        """Settle the relayed ad rewards upon verified platform exposure completion."""
+    def settle_relay_dispatch(self, dispatch_id: str) -> dict:
+        """Settle a relayed offer only after the platform itself recorded the view."""
         disp_id = identifier(dispatch_id)
         now = int(self._clock())
-
-        if not evidence_verified:
-            raise ContractError("evidence_verification_required", 422)
 
         with self.store.atomic():
             row = self.store.one("relay_dispatch_get_for_update", (disp_id,))
             if row is None:
                 raise ContractError("unknown_relay_dispatch", 404)
-            if row["status"] not in ("consented", "viewed"):
+            if row["status"] != "viewed":
                 raise ContractError("dispatch_not_ready_for_settlement", 409)
 
             relay_fee = int(row["relay_fee_atoms"])

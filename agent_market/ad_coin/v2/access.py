@@ -33,9 +33,22 @@ HUMAN_CAPABILITIES = frozenset(
 )
 
 
+# Platform operator rights. Never granted by default; provisioned explicitly for staff only.
+OPERATOR_CAPABILITY = "platform.operate"
+
+
 class Access:
     def __init__(self, store):
         self.store, self.guards = store, AuthorityGuards(store)
+
+    def require_operator(self, principal):
+        """Platform-wide views and settlements need a human with the explicit operator capability."""
+        if principal.kind != Kind.HUMAN:
+            raise ContractError("operator_required", 403)
+        with self.store.atomic():
+            capabilities = self.current(principal).capabilities
+        if OPERATOR_CAPABILITY not in capabilities:
+            raise ContractError("operator_required", 403)
 
     def provision_principal(
         self, principal_id, kind, *, owner_id=None, capabilities=None
@@ -63,7 +76,7 @@ class Access:
                 caps = sorted(HUMAN_CAPABILITIES)
             else:
                 caps = sorted(set(capabilities))
-                if not set(caps) <= (HUMAN_CAPABILITIES | COMMERCIAL_CAPABILITIES):
+                if not set(caps) <= (HUMAN_CAPABILITIES | COMMERCIAL_CAPABILITIES | {OPERATOR_CAPABILITY}):
                     raise ContractError("unsupported_owner_capability")
         with self.store.atomic():
             self.guards.provision(principal_id)

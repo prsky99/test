@@ -10,7 +10,6 @@ from starlette.concurrency import run_in_threadpool
 from .ad_relay import AdRelayGateway
 from .contracts import ContractError
 from .http import _error
-from .identity import Kind
 
 
 def router_for(
@@ -26,12 +25,16 @@ def router_for(
             raise ContractError("auth_resolver_not_configured", 503)
         return await run_in_threadpool(resolve_auth, request)
 
+    async def require_operator(ctx):
+        if relay_gateway.access is None:
+            raise ContractError("operator_required", 403)
+        await run_in_threadpool(relay_gateway.access.require_operator, ctx.principal)
+
     @router.post("/partners")
     async def register_partner(request: Request):
         try:
             ctx = await get_context(request)
-            if ctx.principal.kind != Kind.HUMAN:
-                raise ContractError("partner_registration_requires_human_admin", 403)
+            await require_operator(ctx)
 
             body = await request.json()
             partner = await run_in_threadpool(
@@ -50,7 +53,7 @@ def router_for(
     @router.get("/partners")
     async def list_partners(request: Request):
         try:
-            await get_context(request)
+            await require_operator(await get_context(request))
             partners = await run_in_threadpool(relay_gateway.list_partners)
             return JSONResponse({"partners": partners})
         except ContractError as exc:
@@ -60,8 +63,7 @@ def router_for(
     async def revoke_partner(request: Request, partner_id: str):
         try:
             ctx = await get_context(request)
-            if ctx.principal.kind != Kind.HUMAN:
-                raise ContractError("unauthorized_partner_revocation", 403)
+            await require_operator(ctx)
             partner = await run_in_threadpool(relay_gateway.revoke_partner, partner_id)
             return JSONResponse(partner)
         except ContractError as exc:
@@ -130,14 +132,8 @@ def router_for(
     @router.post("/{dispatch_id}/settle")
     async def settle_dispatch(request: Request, dispatch_id: str):
         try:
-            await get_context(request)
-            body = await request.json() if request.headers.get("content-length", "0") != "0" else {}
-            evidence_verified = bool(body.get("evidence_verified", True))
-            dispatch = await run_in_threadpool(
-                relay_gateway.settle_relay_dispatch,
-                dispatch_id,
-                evidence_verified=evidence_verified,
-            )
+            await require_operator(await get_context(request))
+            dispatch = await run_in_threadpool(relay_gateway.settle_relay_dispatch, dispatch_id)
             return JSONResponse(dispatch)
         except ContractError as exc:
             return JSONResponse(_error(exc.code, exc.status, str(uuid4())), status_code=exc.status)

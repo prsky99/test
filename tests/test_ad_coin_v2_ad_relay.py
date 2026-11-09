@@ -6,7 +6,7 @@ from fastapi import FastAPI
 import pytest
 from starlette.testclient import TestClient
 
-from agent_market.ad_coin.v2.access import COMMERCIAL_CAPABILITIES, HUMAN_CAPABILITIES
+from agent_market.ad_coin.v2.access import COMMERCIAL_CAPABILITIES, HUMAN_CAPABILITIES, OPERATOR_CAPABILITY
 from agent_market.ad_coin.v2.ad_relay import AdRelayGateway
 from agent_market.ad_coin.v2.commercial import date_text, etag
 from agent_market.ad_coin.v2.contracts import MODEL_ASSET, canonical_bytes, ContractError
@@ -389,6 +389,10 @@ def test_ad_relay_gateway_lifecycle(store):  # noqa: F811
     assert consented_disp["status"] == "consented"
     assert consented_disp["consented_at"] is not None
 
+    # Consent alone never pays: settlement waits for the view the platform records itself.
+    with pytest.raises(ContractError, match="dispatch_not_ready_for_settlement"):
+        gateway.settle_relay_dispatch(dispatch_a2a["id"])
+
     # 6. Platform Viewer Connection (DEC-03)
     viewer_session = gateway.open_viewer_session(dispatch_a2a["id"], dispatch_a2a["relay_token"])
     assert viewer_session["status"] == "viewed"
@@ -400,7 +404,7 @@ def test_ad_relay_gateway_lifecycle(store):  # noqa: F811
         gateway.open_viewer_session(dispatch_a2a["id"], "wrong-token-abc")
 
     # 7. Settle Relay Dispatch and Verify Ledger Conservation
-    settled = gateway.settle_relay_dispatch(dispatch_a2a["id"], evidence_verified=True)
+    settled = gateway.settle_relay_dispatch(dispatch_a2a["id"])
     assert settled["status"] == "settled"
     assert settled["settled_at"] is not None
 
@@ -502,10 +506,32 @@ def test_ad_relay_http_routes(store):  # noqa: F811
     partner_owner = uid()
     operator_acc = commercial.ledger.create_account(partner_owner, "operator_payable")
 
+    # Platform staff hold the explicit operator capability; ordinary people do not.
+    staff_principal, staff_owner = uid(), uid()
+    staff_token, staff_csrf = "staff_sess_" + uid(), "csrf_" + uid()
+    commercial.access.provision_principal(
+        staff_principal, Kind.HUMAN, owner_id=staff_owner,
+        capabilities=HUMAN_CAPABILITIES | {OPERATOR_CAPABILITY},
+    )
+    resolver.register_human_session(
+        staff_token, staff_csrf, principal_id=staff_principal, owner_id=staff_owner, epoch=1, expires_at=expires_at
+    )
+    staff = {"Cookie": f"__Host-ac_customer_session={staff_token}", "X-CSRF-Token": staff_csrf,
+             "X-AIAC-Contract": "v6.2"}
+    partner_body = {"name": "Live A2A Network", "protocol": "a2a",
+                    "endpoint_url": "https://agentconcierge.biz/a2a/live", "fee_basis_points": 700,
+                    "operator_account_id": operator_acc}
+    refused = client.post("/api/ad-coin/v2/relays/partners", headers=headers, json=partner_body)
+    assert refused.status_code == 403 and refused.json()["error"]["code"] == "operator_required", refused.text
+    assert client.get("/api/ad-coin/v2/relays/partners", headers=headers).status_code == 403
+    private = client.post("/api/ad-coin/v2/relays/partners", headers=staff,
+                          json={**partner_body, "endpoint_url": "https://192.168.0.10/relay"})
+    assert private.status_code == 422, private.text
+
     # 1. Register Partner via HTTP
     reg_res = client.post(
         "/api/ad-coin/v2/relays/partners",
-        headers=headers,
+        headers=staff,
         json={
             "name": "Live A2A Network",
             "protocol": "a2a",
@@ -518,7 +544,7 @@ def test_ad_relay_http_routes(store):  # noqa: F811
     partner_id = reg_res.json()["id"]
 
     # 2. List Partners via HTTP
-    list_res = client.get("/api/ad-coin/v2/relays/partners", headers=headers)
+    list_res = client.get("/api/ad-coin/v2/relays/partners", headers=staff)
     assert list_res.status_code == 200
     partners = list_res.json()["partners"]
     assert any(p["id"] == partner_id for p in partners)
@@ -563,11 +589,9 @@ def test_ad_relay_http_routes(store):  # noqa: F811
     assert "creative" in view_res.json()
 
     # 8. Settle Dispatch via HTTP
-    settle_res = client.post(
-        f"/api/ad-coin/v2/relays/{dispatch_id}/settle",
-        headers=headers,
-        json={"evidence_verified": True},
-    )
+    early = client.post(f"/api/ad-coin/v2/relays/{dispatch_id}/settle", headers=headers)
+    assert early.status_code == 403, early.text  # the person cannot settle their own relay
+    settle_res = client.post(f"/api/ad-coin/v2/relays/{dispatch_id}/settle", headers=staff)
     assert settle_res.status_code == 200, settle_res.text
     assert settle_res.json()["status"] == "settled"
 

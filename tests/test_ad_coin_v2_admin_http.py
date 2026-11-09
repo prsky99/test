@@ -5,7 +5,7 @@ from uuid import uuid4
 from fastapi import FastAPI
 from starlette.testclient import TestClient
 
-from agent_market.ad_coin.v2.access import HUMAN_CAPABILITIES
+from agent_market.ad_coin.v2.access import HUMAN_CAPABILITIES, OPERATOR_CAPABILITY
 from agent_market.ad_coin.v2.identity import Kind
 from agent_market.ad_coin.v2.live_service import create_live_ad_coin_v2_router
 from tests.test_ad_coin_postgres import cluster  # noqa: F401
@@ -54,7 +54,22 @@ def test_admin_http_endpoints_live(store):  # noqa: F811
     cookies = {"aiac_session": session_token}
     headers = {"X-CSRF-Token": csrf_token}
 
-    # 3. Call /reconcile with human session
+    # An ordinary signed-in person is refused platform-wide views.
+    for path in ("/api/ad-coin/v2/admin/reconcile", "/api/ad-coin/v2/admin/overview"):
+        refused = client.get(path, cookies=cookies, headers=headers)
+        assert refused.status_code == 403 and refused.json()["error"]["code"] == "operator_required"
+
+    # Platform staff carry the explicit operator capability.
+    staff_principal, staff_owner = str(uuid4()), str(uuid4())
+    access.provision_principal(
+        staff_principal, Kind.HUMAN, owner_id=staff_owner, capabilities=HUMAN_CAPABILITIES | {OPERATOR_CAPABILITY}
+    )
+    staff_token, staff_csrf = "sess-" + str(uuid4()), "csrf-" + str(uuid4())
+    resolver.register_human_session(staff_token, staff_csrf, principal_id=staff_principal, owner_id=staff_owner)
+    cookies = {"aiac_session": staff_token}
+    headers = {"X-CSRF-Token": staff_csrf}
+
+    # 3. Call /reconcile with the staff session
     recon_resp = client.get("/api/ad-coin/v2/admin/reconcile", cookies=cookies, headers=headers)
     assert recon_resp.status_code == 200
     recon_data = recon_resp.json()

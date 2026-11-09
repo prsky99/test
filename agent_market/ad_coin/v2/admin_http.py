@@ -13,7 +13,6 @@ from starlette.concurrency import run_in_threadpool
 from .commercial import Commercial
 from .contracts import ContractError
 from .http import _error
-from .identity import Kind
 from .reconcile import LedgerReconciler
 
 
@@ -30,8 +29,7 @@ def router_for(
         if resolve_auth is None:
             raise ContractError("auth_resolver_not_configured", 503)
         ctx = await run_in_threadpool(resolve_auth, request)
-        if ctx.principal.kind != Kind.HUMAN:
-            raise ContractError("admin_access_requires_human_staff", 403)
+        await run_in_threadpool(commercial.access.require_operator, ctx.principal)
         return ctx
 
     @router.get("/reconcile")
