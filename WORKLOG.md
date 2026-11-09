@@ -2,6 +2,7 @@
 - 11-04: 디스크 점검(여유 150GB, 릴리스 461개 142GB). `agentcon prune-releases` 추가, 383개 삭제, 여유 149.5→191.7GB. 배포·워커 배포 성공 뒤 자동 정리(배포된 것과 6시간 미만 미배포만 남김, `--no-prune`).
 
 ## 완료 (최근 것만)
+- 공식 MCP Registry 게시(2026-11-09 21:48, 총괄 PM, 사용자 승인 "게시 진행"): biz.agentconcierge/agent-concierge@1.0.0 active(remotes https://agentconcierge.biz/mcp). HTTP 도메인 확인(logs/service-frontend/public-pages/mcp-registry-auth, git 제외), 키 ~/.mcp-registry/key.pem, mcp-publisher 1.8.7. → deploy/mcp-registry/README.md 4절
 - 외부 유입 0단계 계측(2026-11-09, 프론트앤드, 사용자 "0단계부터 시작"): concierge/traffic.py 익명 하루 집계(입구×클라이언트 종류, 상태, 봇 이름, MCP 클라이언트 이름, 하루 salt로 서로 다른 수; IP·UA·본문 저장 없음), front.py 미들웨어 끝에 연결. 우리 트래픽은 internal(127.0.0.1·internal-ips.txt·시험 UA). LOG_DIR 없으면 메모리만(r1 gate 시험 파일 오염 → r2 수정). traffic-frontend-20261109-r2 배포·운영 확인. 요약 `python -m agent_market.concierge.traffic logs/service-frontend/traffic 7`. 관리자 화면은 admin 재빌드 때. → reports/외부 유입 개선 계획 2026-11-09.md 6절
 - AI AD Coin v6.2 로드맵 1단계(어드민 UI 통합), 2단계(스테이징 검수), 3단계/8번(실가치 발행 및 블록체인) 구현 완료 (2026-11-09, 풀스택):
   1) [1단계] 어드민 포털 통합 UI 개발 (Admin UI Integration):

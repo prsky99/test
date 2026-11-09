@@ -64,3 +64,11 @@ DNS 방식으로 하려면 Cloudflare에서 apex TXT `v=MCPv1; k=ed25519; p=<PUB
 - `version`은 게시마다 올린다(같은 버전 재게시 불가). 서버의 `serverInfo.version`(지금 1.0.0)과 맞춘다.
 - 0단계 계측(`agent_market/concierge/traffic.py`)의 MCP `clientInfo.name` 수로 효과를 본다. 기준선은 11-16.
 - 이 파일을 바꿀 때는 `tests/test_growth_pages.py`를 돌린다.
+
+## 4. 게시 결과 (2026-11-09 21:48 KST, 사용자 승인 "게시 진행", 총괄 PM 실행)
+- `biz.agentconcierge/agent-concierge@1.0.0`을 공식 MCP Registry에 게시했다. 상태는 active, publishedAt은 2026-11-09T12:48:24Z이다.
+  - 확인: `https://registry.modelcontextprotocol.io/v0.1/servers?search=agentconcierge`
+- 도구: Homebrew `mcp-publisher` 1.8.7, `openssl@3`
+- 도메인 확인은 HTTP 방식으로 했다. 공개 키 파일은 `logs/service-frontend/public-pages/mcp-registry-auth`(git 제외)에 두었고, 응답은 200 text/plain이다.
+- 개인 키는 `~/.mcp-registry/key.pem`(권한 600, 저장소 밖)에 있다. 새 버전을 게시할 때 다시 쓴다. 잃어버리면 새 키로 확인 파일을 바꾸면 된다.
+- 다음 버전: `server.json`의 `version`을 올리고, 3절의 login 단계부터 다시 한다.
