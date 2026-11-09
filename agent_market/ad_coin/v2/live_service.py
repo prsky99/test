@@ -21,6 +21,27 @@ def is_v2_enabled() -> bool:
     return os.environ.get("AD_COIN_V2_ENABLED", "0") in ("1", "true", "True")
 
 
+V2_POOL_MAXIMUM = 4  # dedicated sessions per process on the application database (budget: docs/AD_COIN_V2_PROD_CONNECT.md)
+KEY_DIRECTORY = "gateway-data/ad_coin_v2_keys"
+
+
+def default_key_vault() -> KeyVault:
+    """Keys from the environment when given, else persistent owner-only files shared by all processes."""
+    if os.environ.get("AIAC_ED25519_PRIVATE_KEY_PEM") and os.environ.get("AIAC_FRESH_PROOF_KEY_HEX"):
+        return KeyVault()
+    return KeyVault.from_directory(os.environ.get("AD_COIN_V2_KEY_DIR", KEY_DIRECTORY))
+
+
+def store_from_application(app_store) -> ModelStore:
+    """A small dedicated pool on the application PostgreSQL database, like v1's AD_COIN_STORE=application."""
+    factory = getattr(app_store, "_connection_factory", None)
+    if getattr(app_store, "backend", "") != "postgresql" or factory is None:
+        raise RuntimeError("AI AD Coin v2 needs the application PostgreSQL store.")
+    raw = os.environ.get("AD_COIN_V2_POOL_MAXIMUM", "").strip()
+    maximum = max(1, min(8, int(raw))) if raw.isdigit() else V2_POOL_MAXIMUM
+    return ModelStore.postgres(factory, maximum=maximum)
+
+
 def build_live_service(
     store: ModelStore | None = None,
     *,
@@ -32,7 +53,7 @@ def build_live_service(
 ) -> tuple[Commercial, PersistentCredentialResolver, KeyVault]:
     """Instantiate live Commercial service with real PersistentCredentialResolver and KeyVault."""
     if store is None:
-        store = ModelStore()
+        raise RuntimeError("AI AD Coin v2 needs a store: pass store= or app_store= to the router factory.")
     vault = key_vault or KeyVault()
     proof_key, fallbacks = vault.get_fresh_keys()
     signing_key = vault.get_signing_key()
@@ -60,8 +81,12 @@ def create_live_ad_coin_v2_router(
     languages: frozenset[str] | None = None,
     clock_ms: Any | None = None,
     include_workspace: bool = True,
+    app_store: Any | None = None,
 ) -> Any:
     """Create and return FastAPI APIRouter configured with live persistent auth and workspace."""
+    if store is None and app_store is not None:
+        store = store_from_application(app_store)
+        key_vault = key_vault or default_key_vault()  # production path: keys shared by every process
     commercial, resolver, _ = build_live_service(
         store,
         key_vault=key_vault,

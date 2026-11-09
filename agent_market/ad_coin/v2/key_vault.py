@@ -61,6 +61,36 @@ class KeyVault:
                     if len(parsed) == 32 and parsed not in self._fallback_keys:
                         self._fallback_keys.append(parsed)
 
+    @classmethod
+    def from_directory(cls, directory, **kwargs) -> "KeyVault":
+        """Keys kept in owner-only files so every process and restart signs and verifies the same way.
+
+        Files are created once (exclusive create, mode 0600). A process that loses the race reads the
+        winner's file. The directory lives under gateway-data/ and is never committed.
+        """
+        def load_or_create(name, make, parse):
+            path = os.path.join(directory, name)
+            os.makedirs(directory, mode=0o700, exist_ok=True)
+            try:
+                fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
+            except FileExistsError:
+                with open(path, "rb") as handle:
+                    return parse(handle.read())
+            data = make()
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(data)
+            return parse(data)
+
+        signing = load_or_create(
+            "signing.pem",
+            lambda: ed25519.Ed25519PrivateKey.generate().private_bytes(
+                serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()),
+            lambda data: serialization.load_pem_private_key(data, password=None),
+        )
+        fresh = load_or_create("fresh.key", lambda: secrets.token_bytes(32).hex().encode("ascii"),
+                               lambda data: bytes.fromhex(data.decode("ascii").strip()))
+        return cls(signing_key=signing, fresh_proof_key=fresh, **kwargs)
+
     @property
     def kid(self) -> str:
         return self._kid

@@ -49,3 +49,38 @@ def test_front_imports_v2_only_when_switched_on():
     switch = source.index("_environ.get('AD_COIN_V2_ENABLED'")
     assert switch < source.index('from ..ad_coin.v2.live_service import')
 
+
+
+def test_front_gives_v2_the_application_store():
+    source = (ROOT / 'agent_market' / 'concierge' / 'front.py').read_text()
+    if 'create_live_ad_coin_v2_router' in source:
+        assert 'create_live_ad_coin_v2_router(include_workspace=True, app_store=front.store)' in source
+
+
+def test_v2_keys_persist_in_owner_only_files(tmp_path):
+    import os
+    import stat
+    from agent_market.ad_coin.v2.key_vault import KeyVault
+    from cryptography.hazmat.primitives import serialization
+    directory = tmp_path / 'keys'
+    first, second = KeyVault.from_directory(str(directory)), KeyVault.from_directory(str(directory))
+    raw = serialization.Encoding.Raw, serialization.PublicFormat.Raw
+    assert first.get_signing_key().public_key().public_bytes(*raw) == second.get_signing_key().public_key().public_bytes(*raw)
+    assert first.get_fresh_keys()[0] == second.get_fresh_keys()[0] and len(first.get_fresh_keys()[0]) == 32
+    for name in ('signing.pem', 'fresh.key'):
+        assert stat.S_IMODE(os.stat(directory / name).st_mode) == 0o600
+
+
+def test_v2_store_needs_the_application_postgres_store():
+    from types import SimpleNamespace
+    from agent_market.ad_coin.v2.live_service import V2_POOL_MAXIMUM, store_from_application
+    with pytest.raises(RuntimeError):
+        store_from_application(SimpleNamespace(backend='sqlite', _connection_factory=None))
+    store = store_from_application(SimpleNamespace(backend='postgresql', _connection_factory=lambda: None))
+    assert store.backend == 'postgres' and store.database.maximum == V2_POOL_MAXIMUM == 4
+
+
+def test_router_factory_refuses_to_run_without_a_store():
+    from agent_market.ad_coin.v2.live_service import build_live_service
+    with pytest.raises(RuntimeError):
+        build_live_service(None)
