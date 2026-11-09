@@ -76,6 +76,10 @@ from .rest_adapter import OpenApiAdapter
 from .security import check_malicious_text, check_malicious_dict, BIDI_OR_CONTROL_CHARS, public_metadata
 
 AUDIENCE = "ai-agents-only"
+RETURN_VISIT = ("Coming back later: call `whats_new` with your visitor_token to re-check the agents for your saved task, "
+                "or opt in to task updates at /api/task-updates (webhook, A2A inbox or polling; see /llms.txt).")
+A2A_RETURN_VISIT = ("Coming back later: send \"what's new\" in this context, or with your visitor token, to re-check the agents "
+                    "for your saved task, or opt in to task updates at /api/task-updates (see /llms.txt).")
 NOTICE = ("FOR AI AGENTS. Agent Concierge is built for autonomous AI agents and the people who run them. "
           "Agent Concierge returns up to three relevant agents ranked by recent successful verification, "
           "recent activity and quality grade. Automatic searches prefer A2A, then MCP; x402 requires an explicit choice.")
@@ -507,6 +511,7 @@ The About navigation item follows List Your Agent. The Agent Concierge logo open
 - Task pages with recorded checks: `{base}/agents/tasks`
 - Category rankings by recorded checks: `{base}/agents/best`; one evidence page per agent: `{base}/agent/{{id}}`
 - Monthly report with charts: `{base}/reports/state-of-ai-agents`; README badges for agent operators: `{base}/badges`
+- These pages and the home page answer `Accept: text/markdown` with a Markdown copy of the same content
 Owned data examples retrieve public source records and return English prose with source links,
 retrieval times and explicit cache status. Coverage can be partial and sources can be unavailable.
 Annual indicators show the latest available source year. An empty advisory lookup is not a security guarantee.
@@ -3173,12 +3178,15 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             if exc.status_code != 400:
                 raise
             return {"jsonrpc": "2.0", "id": rid, "error": {"code": -32602, "message": "Conversation context is unavailable. Start without a contextId."}}
+        first_contact = not ctx
         if not ctx:  # hand out an unguessable context so later messages in it are recognised without a token
             ctx = front.book.new_context_id()
             front.book.bind_context(v, ctx, fingerprint(front.security.resolve_ip(request),
                                                         request.headers.get("user-agent")), issued=True)
         reply=await run_in_threadpool(front.public_reply, reply)
         payload = {"intent": reply.intent, "suggested_replies": reply.suggested, "visitor": front.visitor_info(v), **reply.data}
+        if first_contact:
+            payload.setdefault("return_visit", A2A_RETURN_VISIT)
         mid = str(uuid.uuid4())
         if method == "SendMessage":
             result = {"message": {"role": "ROLE_AGENT", "messageId": mid, "contextId": ctx,
@@ -3251,7 +3259,7 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             v = front.book.by_token(_token_from(request))
             greet = await run_in_threadpool(front.concierge.greeting, v)
             instructions = (f"{NOTICE}\n\n{greet.text}\n\nCall `search` for a read-only lookup, or `chat` to save your task. A chat reply gives you a "
-                            "visitor token — pass it as `visitor_token` (or the X-Visitor-Token header) so I remember you next time.")
+                            "visitor token — pass it as `visitor_token` (or the X-Visitor-Token header) so I remember you next time.\n\n"+RETURN_VISIT)
             return JSONResponse(mcp_result(rid, {
                 "protocolVersion": asked if asked in MCP_VERSIONS else MCP_VERSIONS[0],
                 "capabilities": {"tools": {"listChanged": False}, "tasks": mcp_tasks.CAPABILITY},
@@ -3270,7 +3278,7 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             v = front.book.by_token(_token_from(request))
             greet = await run_in_threadpool(front.concierge.greeting, v)
             instructions = (f"{NOTICE}\n\n{greet.text}\n\nCall `search` for a read-only lookup, or `chat` to save your task. A chat reply gives you a "
-                            "visitor token — pass it as `visitor_token` (or the X-Visitor-Token header) so I remember you next time.")
+                            "visitor token — pass it as `visitor_token` (or the X-Visitor-Token header) so I remember you next time.\n\n"+RETURN_VISIT)
             return JSONResponse(mcp_result(rid, {
                 "protocolVersion": asked if asked in MCP_VERSIONS else MCP_VERSIONS[0],
                 "capabilities": {"tools": {"listChanged": False}, "tasks": mcp_tasks.CAPABILITY},

@@ -1,0 +1,152 @@
+"""11-10 growth: catalog-based task pages, Markdown views of public pages and the return-visit line."""
+import time
+
+from agent_market.concierge import growth_pages as g
+from agent_market.concierge import task_catalog as tc
+from agent_market.concierge.page_markdown import html_to_markdown
+from tests.test_concierge import w  # noqa: F401 (fixture)
+from tests.test_growth_pages import agent, client, snapshot, write  # noqa: F401 (fixture)
+
+NOW = time.time()
+
+
+def cleaned(rid, name, description, **extra):
+    return g.clean_agent(agent(rid, name=name, description=description, **extra))
+
+
+# ---------------------------------------------------------------- catalog-based task pages
+def test_phrase_match_needs_the_whole_phrase():
+    item = {'name': 'Filings desk', 'description': 'Recent SEC EDGAR filings by ticker.'}
+    assert tc.phrase_match('sec edgar filings', item)
+    assert tc.phrase_match('sec edgar filing', item)  # plural ending allowed
+    assert not tc.phrase_match('edgar sec filings', item)  # word order matters
+    assert not tc.phrase_match('text to image', {'name': 'Image tools', 'description': 'Resize an image. Extract text.'})
+    assert not tc.phrase_match('gdp', {'name': 'gdpr check', 'description': ''})  # whole words only
+
+
+def test_catalog_tasks_fill_short_tasks_and_add_catalog_phrases(monkeypatch):
+    monkeypatch.setattr(tc, 'TASKS', {'Finance and crypto': ['stock prices', 'tax calculation']})
+    monkeypatch.setattr(tc, 'CATALOG_TASKS', {'Finance and crypto': ['sec edgar filings', 'gdp data|gdp', 'funding rates']})
+    catalog = [cleaned(1, 'Edgar A', 'SEC EDGAR filings for US companies.'),
+               cleaned(2, 'Edgar B', 'Latest SEC EDGAR filings.', verified_at=NOW-3600),
+               cleaned(3, 'Edgar C', 'Search SEC EDGAR filings.'),
+               cleaned(4, 'Macro', 'GDP and inflation series.'),
+               cleaned(5, 'Macro 2', 'Country GDP figures.'),
+               cleaned(6, 'Tax helper', 'Tax calculation for invoices.'),
+               cleaned(7, 'Tax 2', 'Sales tax calculation.'),
+               cleaned(8, 'Funding', 'Perpetual funding rates.')]
+    existing = [{'slug': 'stock-prices', 'title': 'Stock prices', 'query': 'stock prices', 'group': 'Finance and crypto',
+                 'agents': catalog[:2]}]
+    tasks = tc.catalog_tasks(existing, catalog)
+    by_slug = {t['slug']: t for t in tasks}
+    assert by_slug['stock-prices']['agents'] == catalog[:2]  # search results kept as they were
+    assert [a['id'] for a in by_slug['tax-calculation']['agents']] == [6, 7]  # short task: two agents are enough (ties: lower id first)
+    edgar = by_slug['sec-edgar-filings']
+    assert edgar['agents'][0]['id'] == 2  # a recent execution check ranks first
+    assert len(edgar['agents']) == 3 and edgar['query'] == 'sec edgar filings'
+    assert 'gdp-data' not in by_slug and 'funding-rates' not in by_slug  # catalog-only pages need three listings
+    assert len(tasks) == len(by_slug)  # no duplicate slugs
+    assert g.clean({'version': 1, 'captured_at': '2026-11-10T00:00:00+00:00', 'tasks': tasks})['by_slug'].keys() == by_slug.keys()
+
+
+def test_catalog_phrases_are_unique_and_valid_slugs():
+    seen = {tc.slugify(p) for ps in tc.TASKS.values() for p in ps}
+    for group, entries in tc.CATALOG_TASKS.items():
+        assert group in tc.TASKS
+        for entry in entries:
+            title, _, term = entry.partition('|')
+            slug = tc.slugify(title)
+            assert g.SLUG.match(slug) and slug not in seen, entry
+            assert term == '' or term.strip() == term
+            seen.add(slug)
+
+
+def test_assembler_snapshot_includes_catalog_tasks():
+    assembler = tc.Assembler()
+    items = [{'id': i, 'kind': 'x402', 'name': f'Desk {i}', 'description': 'Funding rates for perpetual futures.',
+              'health_status': 'healthy', 'last_check_at': NOW-60, 'trial_ok': True, 'eval_grade': 'A'} for i in (1, 2, 3)]
+    assembler.add(('catalog', 'finance', 'x402', True, 300), items)
+    value = assembler.snapshot()
+    assert 'funding-rates' in {t['slug'] for t in value['tasks']}
+
+
+def test_phrase_case_keeps_acronyms_and_names():
+    assert g.phrase_case('Sec edgar filings') == 'SEC EDGAR filings'
+    assert g.phrase_case('llms txt') == 'llms.txt'
+    assert g.phrase_case('youtube transcript') == 'YouTube transcript'
+    assert g.display_title('ip reputation') == 'IP reputation'
+
+
+# ---------------------------------------------------------------- Markdown views
+def test_markdown_view_of_the_connect_page(client):
+    c, _ = client
+    md = c.get('/connect', headers={'Accept': 'text/markdown'})
+    assert md.status_code == 200 and md.headers['content-type'].startswith('text/markdown')
+    assert md.headers['vary'] == 'Accept' and 'x-robots-tag' not in md.headers
+    text = md.text
+    assert text.splitlines()[2] == '# Use Agent Concierge from your MCP client'
+    assert '```\nclaude mcp add --transport http agent-concierge https://agentconcierge.biz/mcp\n```' in text
+    assert '[llms.txt](https://agentconcierge.biz/llms.txt)' in text  # links become absolute
+    assert 'whats_new' in text and '<' not in text.replace('<=', '')
+    assert 'Toggle dark theme' not in text and 'Skip to main content' not in text
+    html = c.get('/connect', headers={'Accept': 'text/html'})
+    assert html.headers['content-type'].startswith('text/html') and html.headers['vary'] == 'Accept'
+    assert c.get('/connect', headers={'Accept': 'text/html, text/markdown;q=0.5'}).headers['content-type'].startswith('text/html')
+
+
+def test_markdown_view_of_task_pages_and_not_found(client):
+    c, folder = client
+    write(folder, snapshot())
+    text = c.get('/agents/task/weather-forecast', headers={'Accept': 'text/markdown'}).text
+    assert '# Agents for weather forecast' in text and '### Agent 1' in text
+    assert '- Quality grade: A' in text and '- Trial call: Succeeded' in text
+    assert 'Canonical page: https://agentconcierge.biz/agents/task/weather-forecast' in text
+    missing = c.get('/agents/task/none', headers={'Accept': 'text/markdown'})
+    assert missing.status_code == 404 and missing.headers['x-robots-tag'] == 'noindex'
+
+
+def test_html_to_markdown_drops_scripts_and_svg():
+    html = ('<html><head><title>T</title></head><body><main><h2>A</h2><script>alert(1)</script>'
+            '<svg><text>chart label</text></svg><p>Hello <a href="/x">there</a><a href="/y">again</a></p></main></body></html>')
+    text = html_to_markdown(html)
+    assert 'alert' not in text and 'chart label' not in text
+    assert '## A' in text and 'Hello [there](https://agentconcierge.biz/x) [again](https://agentconcierge.biz/y)' in text
+
+
+# ---------------------------------------------------------------- return-visit line
+def test_return_visit_line_in_mcp_and_first_a2a_reply(w):  # noqa: F811
+    _, c, _ = w
+    init = c.post('/mcp', json={'jsonrpc': '2.0', 'id': 1, 'method': 'initialize',
+                               'params': {'protocolVersion': '2025-06-18', 'clientInfo': {'name': 'Bot'}, 'capabilities': {}}})
+    assert '`whats_new`' in init.json()['result']['instructions'] and '/api/task-updates' in init.json()['result']['instructions']
+    first = c.post('/a2a', json={'jsonrpc': '2.0', 'id': 1, 'method': 'message/send', 'params': {'message': {
+        'kind': 'message', 'role': 'user', 'messageId': 'm1', 'parts': [{'kind': 'text', 'text': 'find a weather API'}]}}}).json()
+    res = first['result']
+    data = next(p['data'] for p in res['parts'] if p['kind'] == 'data')
+    assert "what's new" in data['return_visit'] and '/api/task-updates' in data['return_visit']
+    assert 'Coming back later' not in res['parts'][0]['text']  # the answer text is unchanged
+    again = c.post('/a2a', json={'jsonrpc': '2.0', 'id': 2, 'method': 'message/send', 'params': {'message': {
+        'kind': 'message', 'role': 'user', 'messageId': 'm2', 'contextId': res['contextId'],
+        'parts': [{'kind': 'text', 'text': 'details 1'}]}}}).json()
+    data = next(p['data'] for p in again['result']['parts'] if p['kind'] == 'data')
+    assert 'return_visit' not in data
+
+
+# ---------------------------------------------------------------- search-console ownership files
+def test_site_verification_files_are_served_only_in_console_format(client):
+    c, folder = client
+    proof = folder/g.VERIFY_DIR
+    proof.mkdir()
+    (proof/'google1234567890abcdef.html').write_text('google-site-verification: google1234567890abcdef.html\n')
+    (proof/'naver0123456789abcdef0123456789abcdef.html').write_text('naver-site-verification: naver0123456789abcdef0123456789abcdef.html')
+    (proof/'BingSiteAuth.xml').write_text('<?xml version="1.0"?>\n<users>\n<user>0123456789ABCDEF0123456789ABCDEF</user>\n</users>')
+    (proof/'google0000000000000000.html').write_text('-----BEGIN PRIVATE KEY-----')  # wrong content is never served
+    r = c.get('/google1234567890abcdef.html', headers={'Accept': 'text/markdown'})
+    assert r.status_code == 200 and r.text == 'google-site-verification: google1234567890abcdef.html'
+    assert c.get('/naver0123456789abcdef0123456789abcdef.html').status_code == 200
+    bing = c.get('/BingSiteAuth.xml')
+    assert bing.status_code == 200 and bing.headers['content-type'].startswith('application/xml')
+    assert c.get('/google0000000000000000.html').status_code == 404
+    assert c.get('/googleabcdefgh12345678.html').status_code == 404  # no file
+    assert c.get('/google..%2Fx.html').status_code == 404
+    assert g.site_verification('../BingSiteAuth.xml', lambda: folder) is None

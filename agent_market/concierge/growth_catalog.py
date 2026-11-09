@@ -123,7 +123,7 @@ def agent_page(rid, snapshot=None):
         '<a class="btn" href="/connect">Connect your MCP client</a></div></section>']
     if tasks:
         sections.append('<section class="card stack" aria-labelledby="tasks-h"><h2 id="tasks-h">Listed for these tasks</h2><ul>'
-                        + ''.join('<li><a href="/agents/task/'+esc(t['slug'])+'">'+esc(t['title'])+'</a></li>' for t in tasks)+'</ul></section>')
+                        + ''.join('<li><a href="/agents/task/'+esc(t['slug'])+'">'+esc(g.display_title(t['title']))+'</a></li>' for t in tasks)+'</ul></section>')
     if peers:
         sections.append('<section class="card stack" aria-labelledby="peers-h"><h2 id="peers-h">Other '+esc(category.lower())+' agents with evidence</h2><ul>'
                         + ''.join('<li><a href="/agent/'+str(a['id'])+'">'+esc(a['name'])+'</a> <span class="caption">'+esc(g.KINDS[a['kind']])+'</span></li>' for a in peers)

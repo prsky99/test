@@ -59,7 +59,20 @@ def main(argv=None):
     parser.add_argument('--pause', type=float, default=0.7, help='seconds between requests (Explore allows about 120 a minute)')
     parser.add_argument('--only', nargs='*', help='task slugs to build (for a quick check)')
     parser.add_argument('--no-catalog', action='store_true')
+    parser.add_argument('--extend', action='store_true',
+                        help='no searches: add the catalog-based task pages to the existing snapshot (keeps its capture time)')
     args = parser.parse_args(argv)
+    if args.extend:
+        with open(args.out, encoding='utf-8') as handle:
+            snapshot = json.load(handle)
+        from agent_market.concierge.growth_pages import clean_agent
+        from agent_market.concierge.task_catalog import catalog_tasks
+        catalog = [a for a in map(clean_agent, snapshot.get('catalog') or []) if a]
+        before = len(snapshot['tasks'])
+        snapshot['tasks'] = catalog_tasks(snapshot['tasks'], catalog)
+        write(args.out, snapshot)
+        print(json.dumps({'tasks_before': before, 'tasks': len(snapshot['tasks']), 'out': args.out}))
+        return
     assembler = Assembler()
     steps = plan([] if args.no_catalog else CATEGORIES, set(args.only) if args.only else None)
     for number, step in enumerate(steps, 1):

@@ -314,9 +314,20 @@ def connect_page():
                 '<p><span class="badge success">Official MCP Registry</span> Listed on the official MCP Registry as '
                 '<a href="'+esc(REGISTRY_URL)+'"><code>'+esc(REGISTRY_NAME)+'</code></a>. Clients and directories that read '
                 'the Registry can find it by that name.</p></section>')
+    first = ('<section class="card stack" aria-labelledby="first-h"><h2 id="first-h">After you connect</h2>'
+             '<p>Ask your assistant in plain words, for example:</p><ul>'
+             + ''.join('<li>'+esc(t)+'</li>' for t in (
+                 'Use Agent Concierge to find an agent that returns a weather forecast for Seoul.',
+                 'Search Agent Concierge for an MCP server that reads GitHub issues, without sign-in.',
+                 'Find an x402 API for SEC EDGAR filings and show its recorded checks.'))
+             + '</ul><p>Coming back later: call <code>whats_new</code> with the visitor token from your first chat reply to re-check '
+             'the agents for your saved task, or opt in to task updates at <code>/api/task-updates</code> (details in '
+             '<a href="/llms.txt">llms.txt</a>).</p>'
+             '<p class="caption">Agents can read this page and the task pages as Markdown by sending <code>Accept: text/markdown</code>. '
+             'Browse checked agents by task on <a href="/agents/tasks">task pages</a>.</p></section>')
     body = (heading('Connect', 'Use Agent Concierge from your MCP client',
                     'Add one remote MCP server and ask for an agent by task. Copy the settings for your client below.')
-            + '<div class="stack">'+endpoint+''.join(blocks)+tools+'</div>')
+            + '<div class="stack">'+endpoint+''.join(blocks)+first+tools+'</div>')
     structured = {'@context': 'https://schema.org', '@type': 'TechArticle', 'headline': 'Connect Agent Concierge to your MCP client',
                   'url': ORIGIN+'/connect', 'inLanguage': 'en', 'about': {'@type': 'WebAPI', 'name': 'Agent Concierge MCP server', 'url': MCP_URL,
                                                                           'identifier': REGISTRY_NAME, 'sameAs': REGISTRY_URL}}
@@ -360,6 +371,37 @@ def agent_card(agent):
             '<div class="actions"><a class="btn small" href="'+esc(explore)+'">Open in Explore</a></div></article>')
 
 
+SPECIAL_CASE = {w: w.upper() for w in (
+    'ai', 'api', 'sec', 'edgar', 'llm', 'llms', 'ip', 'dns', 'mx', 'tls', 'ssl', 'seo', 'uuid', 'json', 'npm', 'ocr', 'qr', 'gdp',
+    'us', 'eu', 'vat', 'esg', 'icd', 'crm', 'a2a', 'mcp', 'cisa', 'kev', 'ofac', 'rss', 'pdf', 'csv', 'sql', 'aws', 'nft', 'defi',
+    'evm', 'xrpl', 'sms', 'cve', 'url', 'html', 'ci', 'arxiv', 'whois')}
+SPECIAL_CASE.update({'x402': 'x402', 'youtube': 'YouTube', 'github': 'GitHub', 'linkedin': 'LinkedIn', 'google': 'Google',
+                     'pubmed': 'PubMed', 'hyperliquid': 'Hyperliquid', 'instagram': 'Instagram', 'tiktok': 'TikTok',
+                     'reddit': 'Reddit', 'wikipedia': 'Wikipedia', 'notion': 'Notion', 'slack': 'Slack', 'discord': 'Discord',
+                     'telegram': 'Telegram', 'whatsapp': 'WhatsApp', 'jira': 'Jira', 'shopify': 'Shopify', 'python': 'Python',
+                     'javascript': 'JavaScript', 'postgres': 'Postgres', 'mysql': 'MySQL', 'mongodb': 'MongoDB', 'bigquery': 'BigQuery',
+                     'arxiv': 'arXiv', 'ethereum': 'Ethereum', 'solana': 'Solana', 'kubernetes': 'Kubernetes', 'docker': 'Docker',
+                     'playwright': 'Playwright', 'terraform': 'Terraform', 'cloudflare': 'Cloudflare', 'stripe': 'Stripe',
+                     'txt': '.txt', 'llms.txt': 'llms.txt'})
+
+
+def display_title(title):
+    value = phrase_case(title)
+    return value[:1].upper()+value[1:]
+
+
+def phrase_case(text):
+    """Lower-case words, keeping acronyms and product names as written ('sec edgar filings' -> 'SEC EDGAR filings')."""
+    words = text.lower().split()
+    out = []
+    for i, w in enumerate(words):
+        if w == 'txt' and i and words[i-1] in ('llms', 'robots'):
+            out[-1] = words[i-1]+'.txt'
+            continue
+        out.append(SPECIAL_CASE.get(w, w))
+    return ' '.join(out)
+
+
 def task_page(slug, snapshot=None):
     snapshot = SNAPSHOT.read() if snapshot is None else snapshot
     if not snapshot or slug not in snapshot['by_slug']:
@@ -367,14 +409,15 @@ def task_page(slug, snapshot=None):
     task = snapshot['by_slug'][slug]
     captured = datetime.fromisoformat(snapshot['captured_at']).astimezone(timezone.utc)
     title = task['title']
-    description = (f"{len(task['agents'])} AI agents and MCP servers for {title.lower()}, each with a recorded health check, "
+    phrase = phrase_case(title)
+    description = (f"{len(task['agents'])} AI agents and MCP servers for {phrase}, each with a recorded health check, "
                    "trial call or quality grade. Snapshot "+captured.strftime('%d %b %Y')+'.')
     chat = '/new/en/chat.html'
     related = [t for t in snapshot['tasks'] if t['group'] == task['group'] and t['slug'] != slug][:8]
     related_html = ('<section class="card stack" aria-labelledby="related-h"><h2 id="related-h">Related tasks</h2><ul>'
-                    + ''.join('<li><a href="/agents/task/'+esc(t['slug'])+'">'+esc(t['title'])+'</a></li>' for t in related)
+                    + ''.join('<li><a href="/agents/task/'+esc(t['slug'])+'">'+esc(display_title(t['title']))+'</a></li>' for t in related)
                     + '</ul></section>') if related else ''
-    body = (heading(task['group'], 'Agents for '+title.lower(), description)
+    body = (heading(task['group'], 'Agents for '+phrase, description)
             + '<div class="stack"><div class="note" role="note"><p>Listed agents had a successful recorded execution check, or a successful trial call with a '
             'recent health check and quality grade A or B. Checks show what happened when they ran, not that an agent works now. '
             'Snapshot captured <time datetime="'+esc(snapshot['captured_at'])+'">'+esc(captured.strftime('%d %b %Y, %H:%M UTC'))+'</time>.</p></div>'
@@ -384,11 +427,11 @@ def task_page(slug, snapshot=None):
             'MCP client connected to Agent Concierge (<a href="/connect">setup</a>). Search the full catalog, including listings without '
             'evidence, in <a href="/new/en/explore.html#explore?q='+esc(quote(task['query'] or title))+'">Explore</a>.</p></section>'
             + related_html+'</div>')
-    structured = {'@context': 'https://schema.org', '@type': 'CollectionPage', 'name': 'Agents for '+title.lower(),
+    structured = {'@context': 'https://schema.org', '@type': 'CollectionPage', 'name': 'Agents for '+phrase,
                   'description': description, 'url': ORIGIN+'/agents/task/'+slug, 'inLanguage': 'en', 'dateModified': snapshot['captured_at'],
                   'mainEntity': {'@type': 'ItemList', 'numberOfItems': len(task['agents']), 'itemListElement': [
                       {'@type': 'ListItem', 'position': i+1, 'name': a['name']} for i, a in enumerate(task['agents'])]}}
-    return shell(title='Agents for '+title.lower()+' — Agent Concierge', description=description,
+    return shell(title='Agents for '+phrase+' — Agent Concierge', description=description,
                  canonical=ORIGIN+'/agents/task/'+slug, body=body, structured=structured, index=fresh(snapshot))
 
 
@@ -398,7 +441,7 @@ def tasks_index(snapshot=None):
     for task in (snapshot or {}).get('tasks', []):
         groups.setdefault(task['group'], []).append(task)
     sections = ''.join('<section class="card stack" aria-labelledby="g'+str(i)+'"><h2 id="g'+str(i)+'">'+esc(name)+'</h2><ul>'
-                       + ''.join('<li><a href="/agents/task/'+esc(t['slug'])+'">'+esc(t['title'])+'</a> <span class="caption">'
+                       + ''.join('<li><a href="/agents/task/'+esc(t['slug'])+'">'+esc(display_title(t['title']))+'</a> <span class="caption">'
                                  + str(len(t['agents']))+' agents</span></li>' for t in tasks)+'</ul></section>'
                        for i, (name, tasks) in enumerate(sorted(groups.items())))
     if not sections:
@@ -441,12 +484,46 @@ def registry_auth(path_fn=None):
     return line if AUTH_LINE.match(line) else None
 
 
+# Search-console ownership files (11-10). The operator saves the file the console hands out under
+# public-pages/site-verification/; it is served at the site root only when its content matches the
+# format each console uses, so nothing else in that folder can be published this way.
+VERIFY_DIR = 'site-verification'
+VERIFY_FILES = (
+    (re.compile(r'google[0-9a-zA-Z]{8,64}\.html'), lambda n, t: t == 'google-site-verification: '+n, 'text/html; charset=utf-8'),
+    (re.compile(r'naver[0-9a-zA-Z]{8,64}\.html'), lambda n, t: t == 'naver-site-verification: '+n, 'text/html; charset=utf-8'),
+    (re.compile(r'BingSiteAuth\.xml'),
+     lambda n, t: re.fullmatch(r'<\?xml version="1\.0"\?>\s*<users>\s*<user>[0-9A-F]{32}</user>\s*</users>', t) is not None,
+     'application/xml'),
+)
+
+
+def site_verification(name, path_fn=None):
+    """(content, media type) of a console ownership file, or None."""
+    for pattern, valid, media in VERIFY_FILES:
+        if pattern.fullmatch(name):
+            break
+    else:
+        return None
+    folder = data_dir() if path_fn is None else path_fn()
+    if folder is None:
+        return None
+    try:
+        raw = (folder / VERIFY_DIR / name).read_bytes()
+    except OSError:
+        return None
+    if len(raw) > 2048:
+        return None
+    text = raw.decode('utf-8', 'replace').strip()
+    return (text, media) if valid(name, text) else None
+
+
 # ---------------------------------------------------------------- router
 def growth_router():
     from fastapi import APIRouter
     from fastapi.responses import HTMLResponse, PlainTextResponse, Response
     from starlette.concurrency import run_in_threadpool
-    router = APIRouter()
+    from .page_markdown import route_class
+    router = APIRouter(route_class=route_class())  # Accept: text/markdown gets the Markdown view of each page
     # The front's default policy blocks scripts and stylesheets; these pages load only same-origin assets.
     page_headers = {'Cache-Control': 'public, max-age=300', 'Content-Security-Policy': PAGE_CSP}
 
@@ -480,6 +557,24 @@ def growth_router():
         @router.get('/'+key+'.txt', include_in_schema=False)
         def indexnow_key_file():
             return PlainTextResponse(key, headers={'Cache-Control': 'public, max-age=3600'})
+
+    def verification(name):
+        found = site_verification(name)
+        if found is None:
+            return Response(status_code=404)
+        return Response(found[0], media_type=found[1], headers={'Cache-Control': 'no-store'})
+
+    @router.get('/google{code}.html', include_in_schema=False)
+    def google_verification(code: str):
+        return verification('google'+code+'.html')
+
+    @router.get('/naver{code}.html', include_in_schema=False)
+    def naver_verification(code: str):
+        return verification('naver'+code+'.html')
+
+    @router.get('/BingSiteAuth.xml', include_in_schema=False)
+    def bing_verification():
+        return verification('BingSiteAuth.xml')
 
     @router.get('/.well-known/mcp-registry-auth', include_in_schema=False)
     def mcp_registry_auth():

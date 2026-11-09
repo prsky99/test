@@ -73,6 +73,94 @@ TASKS = {
 }
 
 
+# Task pages built from the evidence catalog alone (11-10): phrases that recur in the names and
+# descriptions of agents with recorded evidence. 'title|term' when the listing wording differs
+# from the page title. A page needs CATALOG_MIN listings that contain the term as a phrase.
+CATALOG_TASKS = {
+    'Weather, maps and travel': [
+        'weather alerts', 'latitude longitude lookup|latitude longitude', 'earthquake data|earthquakes',
+        'wildfire data|wildfire', 'space weather', 'moon phase', 'google maps', 'places search',
+        'local business search|local business', 'restaurant recommendations|restaurants', 'flight prices',
+        'concert tickets|concerts'],
+    'Search and web': [
+        'clean markdown', 'llms txt', 'robots txt check|robots txt', 'link preview', 'web scraping', 'headless browser',
+        'page screenshot|screenshot', 'web archive', 'google search', 'x search', 'fact check', 'wikipedia summary',
+        'schema org markup|schema org', 'seo audit', 'ai visibility', 'ai crawler access|ai crawler', 'domain check',
+        'domain age', 'domain availability', 'whois lookup|whois', 'subdomain discovery|subdomain', 'dns records',
+        'mx records', 'tls certificate', 'security headers check', 'status page', 'app store data|app store',
+        'youtube transcript', 'youtube channel', 'linkedin profile', 'social posts', 'instagram posts',
+        'brand mentions', 'influencer search|influencer'],
+    'Developer tools': [
+        'npm package', 'package version', 'known vulnerabilities', 'cisa kev', 'github repo', 'json schema',
+        'regex tools|regex', 'uuid generator|uuid', 'base64 encoding|base64', 'cron expression', 'terraform',
+        'license check', 'mcp tools', 'tool search', 'chat completions', 'llm inference', 'llm pricing', 'ai models',
+        'text to image', 'semantic search', 'knowledge graph'],
+    'Data and databases': [
+        'barcode lookup|barcode', 'word count', 'business days'],
+    'Documents and knowledge': [
+        'translation services|translation', 'research papers', 'semantic scholar', 'academic papers',
+        'literature review'],
+    'Finance and crypto': [
+        'market data', 'open interest', 'funding rates', 'hyperliquid', 'xrpl', 'crypto market', 'crypto news',
+        'prediction markets', 'gas price', 'wallet balance', 'base tokens', 'fear and greed index', 'insider trades',
+        'sec edgar filings', 'public company', 'company profile', 'company data', 'price history', 'exchange rates',
+        'inflation data|inflation', 'gdp data|gdp', 'unemployment data|unemployment', 'interest rates', 'us treasury',
+        'mortgage rates', 'income tax', 'sales tax', 'withholding tax', 'tax rates', 'minimum wage', 'payroll',
+        'bookkeeping', 'accounting'],
+    'Commerce and marketing': [
+        'crm', 'email verification', 'email finder', 'email deliverability', 'product recalls', 'real estate',
+        'property check', 'supply chain', 'due diligence', 'job postings'],
+    'Health, science and education': [
+        'nutrition', 'calorie counting|calories', 'fitness', 'mental health', 'icd 10 codes|icd 10', 'astrology',
+        'recipes'],
+    'Security and operations': [
+        'ip reputation', 'ofac sanctions', 'identity verification', 'agent trust', 'agent reputation',
+        'security audit'],
+    'Public data and legal': [
+        'federal register', 'official legislation', 'court records', 'vat number validation', 'esg data|esg',
+        'country data'],
+    'Agents and AI models': [
+        'agent discovery', 'agent card', 'agent registry', 'a2a agents', 'x402 payments'],
+}
+CATALOG_MIN = 3
+
+
+def phrase_match(term, item):
+    """The listing contains the term as a phrase (each word may take a plural ending)."""
+    text = ' '+re.sub(r'[^a-z0-9]+', ' ', ' '.join(str(item.get(k) or '') for k in ('name', 'description')).lower())+' '
+    words = re.findall(r'[a-z0-9]+', term.lower())
+    return bool(words) and re.search(' '+' '.join(re.escape(w)+'(?:s|es)?' for w in words)+' ', text) is not None
+
+
+def catalog_tasks(tasks, catalog, now=None):
+    """Adds task pages from the evidence catalog: short search-based tasks, then CATALOG_TASKS.
+
+    `tasks` is the list of finished task dicts, `catalog` the cleaned agents with evidence. Agents are
+    ordered by the published ranking basis (growth_pages.rank_key)."""
+    from .growth_pages import rank_key
+    ranked = sorted(catalog, key=lambda a: rank_key(a, now), reverse=True)
+    done = {t['slug'] for t in tasks}
+    added = []
+
+    def add(group, title, term, minimum, query):
+        slug = slugify(title)
+        if slug in done:
+            return
+        agents = [a for a in ranked if phrase_match(term, a)][:MAX_AGENTS]
+        if len(agents) >= minimum:
+            done.add(slug)
+            added.append({'slug': slug, 'title': title[:1].upper()+title[1:], 'query': query, 'group': group, 'agents': agents})
+
+    for group, phrases in TASKS.items():
+        for phrase in phrases:
+            add(group, phrase, phrase, MIN_AGENTS, phrase)
+    for group, entries in CATALOG_TASKS.items():
+        for entry in entries:
+            title, _, term = entry.partition('|')
+            add(group, title, term or title, CATALOG_MIN, term or title)
+    return tasks + added
+
+
 def slugify(phrase):
     return re.sub(r'[^a-z0-9]+', '-', phrase.lower()).strip('-')
 
@@ -150,6 +238,7 @@ class Assembler:
         tasks = [{'slug': slugify(phrase), 'title': phrase[:1].upper()+phrase[1:], 'query': phrase, 'group': group,
                   'agents': list(agents.values())[:MAX_AGENTS]}
                  for (group, phrase), agents in self.tasks.items() if len(agents) >= MIN_AGENTS]
+        tasks = catalog_tasks(tasks, self.catalog.values())
         value = {'version': 1, 'captured_at': captured_at or datetime.now(timezone.utc).isoformat(timespec='seconds'),
                  'tasks': tasks, 'catalog': list(self.catalog.values())}
         if stats:
