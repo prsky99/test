@@ -2,7 +2,7 @@
 
 11-09 헌장 변경("합법 범위 안에서 공격적으로")에 따라 **등록할 수 있는 합법 채널 전부**를 준비했다. 사용자는 각 절의 값을 그대로 붙여 넣고 제출만 하면 된다. 게시·계정은 사용자 몫이다.
 - 형식은 11-09에 각 채널 공개 페이지에서 확인했다. 확인하지 못한 칸은 "(미확인)"으로 적었다.
-- 유료 즉시 게시($29~$39)는 지출이라 무료 경로를 기본으로 적었다. 쓸지는 사용자 결정이다.
+- 유료 즉시 게시($29~$39)는 쓰지 않는다(11-10 사용자 결정: 수익 전 지출 0). 무료 경로만 쓴다.
 - 아이콘: `deploy/distribution/icon-512.png`, `icon-256.png`, `icon.svg` (Pearl 로고).
 
 ## 공통 문구 (영어, 그대로 사용)
@@ -18,7 +18,7 @@
 - **Tags:** agent-discovery, mcp-directory, a2a, search, aggregator, verification
 - **Category (선택형일 때):** Search (없으면 Other / Developer Tools)
 - **Publisher:** Agent Concierge, https://agentconcierge.biz
-- **Contact email:** 사용자 결정 필요(공개될 수 있음)
+- **Contact email:** contact@agentconcierge.biz (사이트 공개 주소, 11-10 사용자 결정)
 
 ---
 
@@ -42,7 +42,7 @@
 | Repository, Website or Documentation | https://agentconcierge.biz/connect |
 | Official MCP Registry Name (optional) | biz.agentconcierge/agent-concierge |
 | This server supports remote connections | 체크 |
-| Contact Email | 사용자 결정 |
+| Contact Email | contact@agentconcierge.biz |
 | Submission plan | Free (2주 내 검토). Premium $39는 지출 승인 필요 |
 
 ## 3. jaw9c/awesome-remote-mcp-servers (GitHub PR) — 원격 전용 서버의 정식 목록
@@ -111,7 +111,7 @@ Setup for other clients: https://agentconcierge.biz/connect
 | Icon (emoji) | 🦪 |
 | Publisher Name * | Agent Concierge |
 | Publisher URL | https://agentconcierge.biz |
-| Contact Email * | 사용자 결정 |
+| Contact Email * | contact@agentconcierge.biz |
 
 ## 9. 지금은 제출 경로가 없는 곳 (자동 또는 대기)
 | 곳 | 상태 | 할 일 |
