@@ -27,6 +27,9 @@ from agent_market.service_host import probe_token
 PORTS = {'frontend': {'a': 8401, 'b': 8402}, 'admin': {'a': 8201, 'b': 8202}}
 # 11-10: a retained previous slot (about 1.5 GB) is stopped this long after a deploy; rollback starts it again.
 RECLAIM_STANDBY_SECONDS = 1800
+# Searches a new frontend slot runs before it takes traffic (cold caches made the first search 10.7 s on 11-10).
+WARM_QUERIES = ('weather forecast', 'web search', 'translate text', 'pdf extraction')
+WARM_SECONDS = 45
 # Undeployed releases younger than this survive the post-deploy prune (another session may deploy them next).
 AFTER_DEPLOY_MIN_AGE_HOURS = 6
 RELEASE = re.compile(r'[a-zA-Z0-9][a-zA-Z0-9_.-]{0,79}\Z')
@@ -453,6 +456,32 @@ class Deployment:
             time.sleep(1)
         raise RuntimeError('candidate_readiness_timeout')
 
+    def warm_web(self, role, slot, budget=WARM_SECONDS, transport=None):
+        """Run a few Explore searches on the new frontend slot before traffic moves to it.
+
+        11-10: the first public search after a deploy took 10.7 s (new process, cold caches, a swapped-out
+        search engine). Failures and slowness never block the deploy; the timings are returned."""
+        if role != 'frontend' or (transport is None and os.environ.get('PYTEST_CURRENT_TEST')):
+            return []
+        import httpx
+        timings, deadline = [], time.monotonic() + budget
+        base = 'http://127.0.0.1:' + str(PORTS[role][slot])
+        try:
+            with httpx.Client(base_url=base, trust_env=False, follow_redirects=False, timeout=15, transport=transport,
+                              headers={'Host': 'agentconcierge.biz', 'User-Agent': 'AgentConcierge-Deployment-Warmup/1.0'}) as client:
+                for query in WARM_QUERIES:
+                    if time.monotonic() >= deadline:
+                        break
+                    began = time.monotonic()
+                    try:
+                        status = client.get('/api/explore', params={'q': query}).status_code
+                    except Exception as error:
+                        status = type(error).__name__
+                    timings.append({'q': query, 'status': status, 'ms': round((time.monotonic() - began) * 1000)})
+        except Exception as error:
+            timings.append({'error': type(error).__name__})
+        return timings
+
     def verify_web(self, role, slot):
         import httpx
         base = 'http://127.0.0.1:' + str(PORTS[role][slot])
@@ -541,6 +570,7 @@ class Deployment:
                 self.stop(role, new)
                 self.save(previous, 'stable')
                 raise
+            warmed = self.warm_web(role, new)
             service['slots'][new] = release
             service['active'] = new
             self.save(state, 'switching')
@@ -566,7 +596,7 @@ class Deployment:
             # then reclaim_standby stops it (rollback starts it again, in tens of seconds).
             self.drained(role, old)
             self.schedule_reclaim()
-            return {'service': role, 'active': new, 'release': release, 'previous_retained': True}
+            return {'service': role, 'active': new, 'release': release, 'previous_retained': True, 'warmed': warmed}
 
     def schedule_reclaim(self, delay=RECLAIM_STANDBY_SECONDS):
         """Run reclaim-standby once after DELAY in a detached process; a failure only keeps the standby."""

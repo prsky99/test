@@ -174,3 +174,8 @@ frontend·admin 배포는 이전 칸(직전 버전 프로세스)을 남겨 즉�
   - 이전 칸은 30분 뒤 회수된다.
 - 코드를 바꾸려면 restart가 아니라 운영 중인 버전 위에 겹쳐 패키징하고(`package --base`), 게이트를 통과시킨 뒤 `deploy`한다.
 - 시험: `tests/test_service_deploy_shared_env.py::test_restart_redeploys_the_active_release_and_never_packages_the_working_tree`
+
+## 새 frontend 칸 미리 데우기 (2026-11-10)
+- 배포 직후 첫 공개 탐색이 10.7초 걸렸다. 새 프로세스는 캐시가 비어 있고, 메모리 압박으로 검색엔진 메모리가 스왑에 나가 있었다.
+- 이제 `deploy frontend`는 준비 확인 뒤, 트래픽을 넘기기 전에 탐색 검색 4개(`WARM_QUERIES`, 최대 45초)를 새 칸에 보낸다. 실패하거나 느려도 배포는 계속하고, 시간은 출력의 `warmed`에 남는다.
+- 11-10 실측(대기 칸): 196 / 113 / 3,283 / 277ms. 처음 보는 검색어는 데우지 않으면 3초를 넘긴다.

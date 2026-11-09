@@ -140,3 +140,29 @@ def test_restart_redeploys_the_active_release_and_never_packages_the_working_tre
     calls.clear()
     manager.restart_web('admin')
     assert calls == [('deploy', 'admin', 'a-new', True)]
+
+
+def test_a_new_frontend_slot_is_warmed_with_searches_and_failures_do_not_block(tmp_path):
+    import httpx
+    from scripts import service_deploy
+    seen = []
+
+    def handler(request):
+        seen.append((request.url.host, request.url.port, request.url.path, request.url.params.get('q'), request.headers['host']))
+        if request.url.params.get('q') == 'web search':
+            raise httpx.ConnectError('cold')
+        return httpx.Response(200, json={'items': []})
+    manager = Reclaim(tmp_path, _state(retained_at=0.0))
+    timings = manager.warm_web('frontend', 'a', transport=httpx.MockTransport(handler))
+    assert [t['q'] for t in timings] == list(service_deploy.WARM_QUERIES)
+    assert [t['status'] for t in timings] == [200, 'ConnectError', 200, 200]
+    assert seen[0][:3] == ('127.0.0.1', 8401, '/api/explore') and seen[0][4] == 'agentconcierge.biz'
+    assert manager.warm_web('admin', 'a', transport=httpx.MockTransport(handler)) == []
+    assert manager.warm_web('frontend', 'b') == []  # tests never reach a real slot
+
+
+def test_deploy_warms_before_switching():
+    import inspect
+    from scripts.service_deploy import Deployment
+    source = inspect.getsource(Deployment.deploy)
+    assert source.index('self.warm_web(role, new)') < source.index("service['active'] = new")
