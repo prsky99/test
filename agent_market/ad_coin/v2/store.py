@@ -69,9 +69,26 @@ class ModelStore:
             self.execute("asset_insert")
         self._ready = True
 
+    def attach(self):
+        """Use a schema that an operator already migrated: read-only check, no DDL.
+
+        Production processes never migrate; they attach on first use. A missing or different schema
+        (wrong version, real value on) keeps the store closed, so requests answer 503.
+        """
+        if self._ready:
+            return True
+        try:
+            with self.atomic(require_ready=False):
+                row = self.one("schema_get")
+        except Exception:
+            return False
+        if row is not None and dict(row) == {"id": 1, "version": VERSION, "environment": "model", "real_value": 0}:
+            self._ready = True
+        return self._ready
+
     @contextmanager
     def atomic(self, *, require_ready=True):
-        if require_ready and not self._ready:
+        if require_ready and not self._ready and not self.attach():
             raise ContractError("model_migration_required", 503)
         old = getattr(self._local, "connection", None)
         with self.database.transaction() as connection:

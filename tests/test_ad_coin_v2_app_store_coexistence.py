@@ -102,3 +102,19 @@ def test_public_leftovers_with_real_data_are_not_dropped(database):
         tool.public_leftovers(v2, drop=True)
     assert tool.public_leftovers(v2)['tables'] == 54
     v2.close()
+
+
+def test_a_new_process_attaches_to_a_migrated_schema_without_ddl(database):
+    """Production processes never migrate: a fresh store must become ready from the existing schema."""
+    from agent_market.ad_coin.v2.store import ModelStore
+    from scripts import ad_coin_v2_migrate as tool
+    fresh = ModelStore.postgres(database, maximum=1)
+    assert not fresh.attach()  # nothing migrated yet: stays closed
+    tool.run(ModelStore.postgres(database, maximum=1), 'migrate')
+    later = ModelStore.postgres(database, maximum=1)
+    with later.atomic():  # attaches on first use
+        assert later.one('schema_get')['version'] >= 10
+    with database() as connection:  # a schema of another version is refused
+        connection.execute("UPDATE ad_coin_v2.adc2_schema SET version=999")
+    other = ModelStore.postgres(database, maximum=1)
+    assert not other.attach()
