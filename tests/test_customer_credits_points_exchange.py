@@ -49,6 +49,8 @@ def test_exchange_caps_match_the_terms(credits):  # noqa: F811
 def test_terms_state_the_exchange_and_earlier_enrollments_stay_valid(credits):  # noqa: F811
     assert ('%d points for 1 credit, up to %d credits at a time and %d credits a month' % (
         points.POINTS_PER_WORKSPACE_CREDIT, points.MAX_CREDITS_PER_EXCHANGE, points.MAX_CREDITS_PER_MONTH)) in module.TERMS
+    assert (module.POINTS_PER_CREDIT, module.MAX_CREDITS_PER_EXCHANGE, module.MAX_CREDITS_PER_MONTH) == (
+        points.POINTS_PER_WORKSPACE_CREDIT, points.MAX_CREDITS_PER_EXCHANGE, points.MAX_CREDITS_PER_MONTH)
     assert module.VERSION == 'workspace-free-2026-11-10-v3'
     previous = ('workspace-free-2026-10-24-v2', '29ef63d133d0641d8f5d9b0b2e12c59c7ff4a95c19b1f03a52fd69a0e4578594')
     assert previous in module.LEGACY_ACCEPTANCES

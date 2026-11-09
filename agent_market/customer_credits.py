@@ -40,6 +40,11 @@ SCHEMA = (
 
 
 POINTS_EXCHANGE_PREFIX = "points:"
+# Same values as agent_market/ad_coin/v2/points.py (tests keep them equal). Kept here because code
+# outside AD Coin must never import AD Coin (tests/test_ad_coin.py organic separation guard).
+POINTS_PER_CREDIT = 10
+MAX_CREDITS_PER_EXCHANGE = 10
+MAX_CREDITS_PER_MONTH = 50
 
 
 class CreditRequired(WorkspaceDenied):
@@ -466,10 +471,9 @@ class CustomerCredits:
         points on the AD Coin ledger under the same exchange_id; a replay grants nothing twice.
 
         Only an enrolled, active account receives credits. Caps match the public terms and the AD
-        Coin constants: at most MAX_CREDITS_PER_EXCHANGE at a time and MAX_CREDITS_PER_MONTH per
+        Coin constants (kept equal by tests): at most MAX_CREDITS_PER_EXCHANGE at a time and MAX_CREDITS_PER_MONTH per
         UTC month.
         """
-        from .ad_coin.v2.points import MAX_CREDITS_PER_EXCHANGE, MAX_CREDITS_PER_MONTH
         _identity(customer, "cu")
         if (type(credits) is not int or not 1 <= credits <= MAX_CREDITS_PER_EXCHANGE
                 or not re.fullmatch(r"[a-f0-9]{32}", str(exchange_id))):
