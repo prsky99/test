@@ -20,8 +20,9 @@ PLATFORM_OWNER = "00000000-0000-4000-8000-000000000000"
 class ModelWorkers:
     """Processes outbox leases and periodic expiry/reporting tasks on isolated PostgreSQL."""
 
-    def __init__(self, store, *, receipt_signer: ReceiptSigner | None = None):
+    def __init__(self, store, *, receipt_signer: ReceiptSigner | None = None, credit_grant=None):
         self.store = store
+        self.credit_grant = credit_grant  # customer_credits.exchange_points in production
         self.ledger = ModelLedger(store)
         self.budgets = ModelBudgets(self.ledger)
         self.attention = Attention(store)
@@ -59,6 +60,11 @@ class ModelWorkers:
                     self._handle_report_plan(payload)
                 elif event == "review_requested":
                     self._handle_review_requested(payload)
+                elif event == "points_exchange_requested":
+                    if self.credit_grant is None:
+                        raise ContractError("credit_grant_unavailable", 503)
+                    from .points_exchange import PointsExchange
+                    PointsExchange(self.store, self.ledger).handle(payload, self.credit_grant)
                 elif event in ("campaign_paused", "preferences_withdrawn"):
                     pass
                 else:

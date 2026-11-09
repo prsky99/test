@@ -34,7 +34,14 @@
 2. 크레딧 약관 문구 추가 승인
 3. 공용 코드(`customer_credits.py`)에 지급 진입점 하나를 두는 것. 워크스페이스 담당이 없으면 AD Coin 팀이 시험과 함께 맡는다.
 
-## 4. 구현 순서 (승인 뒤)
+## 4. 구현 순서 (11-10 승인: 비율 10:1, 1회 10, 월 50, 크레딧 약관 A안)
+
+- **완료(11-10):**
+  1. 교환 상수(`points.py`), 원장 차감 + outbox(`points_exchange.py`), 작업자 처리와 실패 시 환불(`workers.py`). 시험: `tests/test_ad_coin_v2_points_exchange.py` 6개. 실제 크레딧 진입점과 잇는 시험도 들어 있다.
+  2. `customer_credits.exchange_points`와 크레딧 약관 v3(기존 v2 동의 유지). 버전 `adcoin-credit-terms-frontend-20261110-r1`로 배포됐다.
+- **남은 것:** 화면 버튼과 확인 화면, 운영 작업자에 `credit_grant=CustomerCredits.exchange_points` 연결(v2 운영 연결 뒤), v2 소유자와 고객 id 연결.
+
+### 처음 계획
 
 1. 교환 상수, 원장 기록, outbox 일, 시험(실패 시 환불 포함)
 2. `customer_credits`에 지급 진입점(관리 변경 경로 재사용)과 시험

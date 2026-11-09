@@ -576,3 +576,14 @@
   - 1회 10, 월 50 상한은 AD Coin 상수를 그대로 쓴다.
 - 크레딧 약관(TERMS)에 교환 문구를 추가하고 버전을 workspace-free-2026-11-10-v3로 올렸다. 기존 v2 동의는 LEGACY_ACCEPTANCES에 넣어 유효하게 유지했다.
 - 시험 4개 추가, 크레딧 관련 시험 32개 통과. 남은 일: AD Coin 쪽 교환 흐름(포인트 이동 → outbox → 이 진입점 → 실패 시 환불)과 화면.
+
+## 2026-11-10 AI AD Coin 팀: 포인트→크레딧 교환 흐름, 분리 규칙 위반 수정
+- 교환 흐름(points_exchange.py)
+  - v2 거래 하나에서 포인트 차감과 outbox 일 기록을 함께 한다.
+  - 작업자가 customer_credits.exchange_points를 부른다. 교환 id로 멱등이다.
+  - 크레딧 쪽이 거절하면(미가입·월 상한 등) 포인트를 환불하고, 일시 실패면 다시 시도한다.
+  - 시험 6개(실제 크레딧 진입점 통합 포함).
+- 결함 수정: 604f6bc9의 customer_credits.exchange_points가 함수 안에서 AD Coin 상수를 import해, "AD Coin 밖 코드는 AD Coin을 import하지 않는다" 분리 시험(test_ad_coin.py)을 깼다.
+  - 운영 버전에 들어갔지만 부르는 곳이 없어 실제 영향은 없었다. 릴리스 게이트 시험 목록에 이 시험이 없어 걸러지지 않았다.
+  - 상수를 customer_credits에 두고, 양쪽 값이 같은지 시험으로 묶었다.
+- 시험 421개 통과.
