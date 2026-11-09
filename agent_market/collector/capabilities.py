@@ -19,6 +19,7 @@ from ..gateway import constraints as cons
 from ..gateway.store import Store
 from ..observation_guards import GuardError
 from . import evaluation, usage
+from .percentile_cache import score_percentile as cached_percentile
 
 log = logging.getLogger("agent_market.collector.capabilities")
 
@@ -206,7 +207,7 @@ class CapabilityProber:
         since = time.time() - evaluation.POLICY_WINDOW_DAYS * 86400
         ev = evaluation.apply_quality_policy({**r, "trial_info": last_trial}, ev,
                                              self.store.health_counts([r["id"]], since).get(r["id"]))
-        ev["percentile"] = self.store.score_percentile(ev["score"], kind="mcp")  # 평가된 서버 중 이보다 점수가 낮은 비율
+        ev["percentile"] = cached_percentile(self.store, ev["score"], "mcp")  # 평가된 서버 중 이보다 점수가 낮은 비율
         self.store.record_evaluation(r["id"], ev)
         return ev
 

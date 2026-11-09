@@ -29,6 +29,7 @@ from ..gateway import constraints as cons
 from ..gateway.classify import OTHER, classify
 from ..gateway.store import Store
 from ..observation_guards import GuardError
+from .percentile_cache import score_percentile as cached_percentile
 from . import evaluation, usage
 from .auth_discovery import compact, instructions
 
@@ -720,7 +721,7 @@ class AgentProber:
         since = time.time() - evaluation.POLICY_WINDOW_DAYS * 86400
         ev = evaluation.apply_quality_policy({**fresh, "trial_info": None if s["auth_required"] else last_trial}, ev,
                                              self.store.health_counts([r["id"]], since).get(r["id"]))
-        ev["percentile"] = self.store.score_percentile(ev["score"], kind="a2a")
+        ev["percentile"] = cached_percentile(self.store, ev["score"], "a2a")
         self.store.record_evaluation(r["id"], ev)
         return {"changed": changed and old is not None, "trial": trial, "grade": ev["grade"], "security": ev["security"]}
 
