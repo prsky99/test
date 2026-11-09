@@ -41,6 +41,8 @@ class EventType:
     EXPERIMENT_CREATED = "experiment_created"
     EXPERIMENT_UPDATED = "experiment_updated"
     CONVERSION_RECORDED = "conversion_recorded"
+    COINS_ISSUED = "coins_issued"
+    COINS_GRANTED = "coins_granted"
 
 
 class TokenBucketRateLimiter:

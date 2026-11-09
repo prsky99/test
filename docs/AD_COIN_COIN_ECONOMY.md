@@ -105,7 +105,15 @@ flowchart LR
 ## 7. 구현 순서 (PM 확인 뒤)
 
 1. ~~원장 규칙 2개(사람↔광고주 이동 금지, 발행 상한)와 새 종류 4개, 그리고 시험~~ → **11-10 완료.** `points.py`, `ledger.py`, 스키마 10(`adc2_sponsored_bookings`), 시험 `tests/test_ad_coin_v2_coin_economy.py`. 상한은 코드 상수다: 발행 월 100,000코인, 제공자 보상 월 1,000코인
-2. 성장 예산 계정, 환영 지급, 제공자 보상 작업(작업자), 운영자 수동 지급 API
+2. ~~성장 예산 계정, 환영 지급, 제공자 보상 작업(작업자), 운영자 수동 지급 API~~ → **11-10 완료.**
+   - `economy.py`
+     - 월 발행: 달마다 1회, 상한은 원장이 검사
+     - 환영 지급: 100코인, 1회, 활성 광고주만
+     - 제공자 보상: 달마다 1회, 1,000코인 상한
+     - 운영자 수동 지급: `platform.operate`, 1회 최대 1,000코인. 대상은 사람·광고주 잔액만. 사유를 감사 로그에 남긴다.
+   - 운영자 API `/api/ad-coin/v2/admin/coins/*`, `/admin/advertisers/{id}/welcome-grant|provider-reward`: 운영자 권한과 CSRF가 필요하다.
+   - 시험: `tests/test_ad_coin_v2_economy_grants.py`
+   - 제공자 보상을 카탈로그 검증 결과로 자동 지급하는 작업자는 v2 운영 연결 뒤에 만든다.
 3. Sponsored 하루 예약과 결제·환불, `adc2_sponsored_bookings`(운영 DB 승인 A1에 추가)
 4. 운영 화면(`/ad-coin/admin`)의 발행·수익·지출 대사
 5. 혜택 목록 확정(워크스페이스 담당과 협의)과 사용 연결

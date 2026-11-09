@@ -524,6 +524,9 @@ def test_ad_relay_http_routes(store):  # noqa: F811
     refused = client.post("/api/ad-coin/v2/relays/partners", headers=headers, json=partner_body)
     assert refused.status_code == 403 and refused.json()["error"]["code"] == "operator_required", refused.text
     assert client.get("/api/ad-coin/v2/relays/partners", headers=headers).status_code == 403
+    no_csrf = {key: value for key, value in staff.items() if key != "X-CSRF-Token"}
+    refused_csrf = client.post("/api/ad-coin/v2/relays/partners", headers=no_csrf, json=partner_body)
+    assert refused_csrf.status_code == 403, refused_csrf.text  # operator writes need the CSRF proof
     private = client.post("/api/ad-coin/v2/relays/partners", headers=staff,
                           json={**partner_body, "endpoint_url": "https://192.168.0.10/relay"})
     assert private.status_code == 422, private.text

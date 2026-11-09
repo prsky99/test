@@ -25,10 +25,12 @@ def router_for(
             raise ContractError("auth_resolver_not_configured", 503)
         return await run_in_threadpool(resolve_auth, request)
 
-    async def require_operator(ctx):
+    async def require_operator(ctx, *, write=True):
         if relay_gateway.access is None:
             raise ContractError("operator_required", 403)
         await run_in_threadpool(relay_gateway.access.require_operator, ctx.principal)
+        if write and not ctx.principal.csrf_verified:
+            raise ContractError("csrf_required", 403)
 
     @router.post("/partners")
     async def register_partner(request: Request):
@@ -53,7 +55,7 @@ def router_for(
     @router.get("/partners")
     async def list_partners(request: Request):
         try:
-            await require_operator(await get_context(request))
+            await require_operator(await get_context(request), write=False)
             partners = await run_in_threadpool(relay_gateway.list_partners)
             return JSONResponse({"partners": partners})
         except ContractError as exc:
