@@ -3,13 +3,18 @@
 from typing import Any
 from uuid import uuid4
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
 from .contracts import ContractError
 from .http import _error
-from .real_value import RealValueGateway
+from .real_value import RealValueGateway, is_real_value_enabled
+
+
+def _real_value_switch() -> None:
+    if not is_real_value_enabled():
+        raise HTTPException(status_code=404, detail="Not found")
 
 
 def router_for(
@@ -19,7 +24,7 @@ def router_for(
     resolve_auth: Any | None = None,
 ) -> APIRouter:
     """Create FastAPI router for real-value issuance and blockchain operations."""
-    router = APIRouter(prefix="/api/ad-coin/v2/real")
+    router = APIRouter(prefix="/api/ad-coin/v2/real", dependencies=[Depends(_real_value_switch)])
 
     async def get_context(request: Request):
         if resolve_auth is None:

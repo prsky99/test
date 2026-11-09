@@ -7,6 +7,22 @@ from .contracts import ContractError, MAX_ATOMS
 from .ledger import identifier
 
 
+
+REAL_VALUE_ENV = "AD_COIN_REAL_VALUE_ENABLED"
+
+
+def is_real_value_enabled() -> bool:
+    """Real value stays off unless AD_COIN_REAL_VALUE_ENABLED is set explicitly (legal review first)."""
+    import os
+
+    return os.environ.get(REAL_VALUE_ENV, "0") in ("1", "true", "True")
+
+
+def require_real_value() -> None:
+    if not is_real_value_enabled():
+        raise ContractError("real_value_disabled", 403)
+
+
 class RealValueGateway:
     """Manages real fiat/USDC deposit webhooks, full-reserve proof reconciliation, and on-chain redemptions."""
 
@@ -26,6 +42,7 @@ class RealValueGateway:
         external_tx_ref: str,
     ) -> dict[str, Any]:
         """Record an inbound fiat/stablecoin deposit event."""
+        require_real_value()
         if amount_atoms <= 0 or amount_atoms > MAX_ATOMS:
             raise ContractError("invalid_deposit_amount", 422)
         if currency not in ("USD", "EUR", "KRW", "USDC"):
@@ -65,6 +82,7 @@ class RealValueGateway:
         clearing_account_id: str,
     ) -> dict[str, Any]:
         """Confirm a verified deposit webhook and credit wallet available balance 1:1."""
+        require_real_value()
         deposit_id = identifier(deposit_id)
         clearing_account_id = identifier(clearing_account_id)
         now = self._clock()
@@ -101,6 +119,7 @@ class RealValueGateway:
         reported_at: float,
     ) -> dict[str, Any]:
         """Record an external custodian reserve balance attestation."""
+        require_real_value()
         if reported_atoms < 0 or reported_atoms > MAX_ATOMS:
             raise ContractError("invalid_reserve_amount", 422)
         checkpoint_id = identifier(checkpoint_id)
@@ -123,6 +142,7 @@ class RealValueGateway:
 
     def reconcile_proof_of_reserves(self) -> dict[str, Any]:
         """Perform Proof-of-Reserves verification comparing external custody against circulating ledger supply."""
+        require_real_value()
         with self.store.atomic():
             latest_res = self.store.one("custody_reserve_latest")
             reported_atoms = int(latest_res["reported_atoms"]) if latest_res else 0
@@ -166,6 +186,7 @@ class RealValueGateway:
         fee_atoms: int,
     ) -> dict[str, Any]:
         """Initiate an on-chain withdrawal and atomically lock wallet available balance."""
+        require_real_value()
         if amount_atoms <= 0 or fee_atoms < 0:
             raise ContractError("invalid_withdrawal_amount", 422)
         if destination_chain not in ("ethereum", "base", "polygon", "arbitrum"):
@@ -218,6 +239,7 @@ class RealValueGateway:
         redemption_account_id: str | None = None,
     ) -> dict[str, Any]:
         """Confirm on-chain broadcast completion with transaction hash and settle locked hold."""
+        require_real_value()
         withdrawal_id = identifier(withdrawal_id)
         now = self._clock()
 
@@ -248,6 +270,7 @@ class RealValueGateway:
         withdrawal_id: str,
     ) -> dict[str, Any]:
         """Cancel on-chain withdrawal and refund locked hold back to user wallet available balance."""
+        require_real_value()
         withdrawal_id = identifier(withdrawal_id)
         now = self._clock()
 

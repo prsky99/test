@@ -6,7 +6,7 @@ import time
 from typing import Any
 
 from .contracts import ContractError
-from .real_value import RealValueGateway
+from .real_value import RealValueGateway, require_real_value
 
 
 class StripeWebhookVerifier:
@@ -96,6 +96,7 @@ class FiatWebhookHandler:
         self.circle_verifier = circle_verifier
 
     def handle_stripe_event(self, raw_body: bytes, signature_header: str) -> dict[str, Any]:
+        require_real_value()
         if self.stripe_verifier is None:
             raise ContractError("stripe_verifier_not_configured", 503)
 
@@ -132,6 +133,7 @@ class FiatWebhookHandler:
         return {"handled": False, "type": event_type}
 
     def handle_circle_event(self, raw_body: bytes, signature_header: str) -> dict[str, Any]:
+        require_real_value()
         if self.circle_verifier is None:
             raise ContractError("circle_verifier_not_configured", 503)
 

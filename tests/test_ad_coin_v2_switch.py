@@ -40,3 +40,12 @@ def test_front_mounts_v2_only_behind_the_switch():
     for match in re.finditer(r'app\.include_router\(create_live_ad_coin_v2_router', source):
         before = source[:match.start()].rsplit('\n', 3)
         assert any('if is_v2_enabled()' in line for line in before), 'v2 router must sit behind is_v2_enabled()'
+
+
+def test_front_imports_v2_only_when_switched_on():
+    source = (ROOT / 'agent_market' / 'concierge' / 'front.py').read_text()
+    if 'create_live_ad_coin_v2_router' not in source:
+        return
+    switch = source.index("_environ.get('AD_COIN_V2_ENABLED'")
+    assert switch < source.index('from ..ad_coin.v2.live_service import')
+

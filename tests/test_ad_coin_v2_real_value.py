@@ -17,6 +17,13 @@ from tests.test_ad_coin_postgres import cluster  # noqa: F401
 from tests.test_ad_coin_v2_persistence import store  # noqa: F401
 
 
+@pytest.fixture(autouse=True)
+def _real_value_switch_on(monkeypatch):
+    # These tests exercise the real-value code paths, which stay off unless switched on explicitly.
+    monkeypatch.setenv("AD_COIN_REAL_VALUE_ENABLED", "1")
+
+
+
 def uid():
     return str(uuid4())
 
