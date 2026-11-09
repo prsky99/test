@@ -21,6 +21,10 @@ class Refresher:
     # 25-per-5s setting capped the initial load at 300 per minute.
     BATCH, BUDGET = 200, 4.0
     MAX_ATTEMPTS, PARK = 6, 7 * 86400
+    # The stale-document scan reads every generation row (309k rows, 266 ms mean) even when
+    # nothing changed; one scan per 5 s round cost 39,252 s of database time, the largest Explore
+    # cost (2026-11-10). A scan that queues nothing rests SCAN_REST rounds; a busy one goes on.
+    SCAN_REST = 12
 
     def __init__(self, store, *, batch=BATCH, interval=5, budget=BUDGET, clock=time.monotonic):
         self.store, self.batch, self.interval, self.budget, self.clock = (
@@ -31,6 +35,7 @@ class Refresher:
             clock,
         )
         self.rest_until = 0
+        self.scan_after = 0
 
     def due(self):
         return self.clock() >= self.rest_until
@@ -49,18 +54,21 @@ class Refresher:
                 if not documents.available(self.store):
                     self.rest_until = self.clock() + 300
                     return
-            with self.store.tx():
-                # Poll existing durable generations, not a lossy in-process callback.
-                self.store._execute(
-                    """INSERT INTO agentcon_search.explore_document_queue(resource_id,queued_at)
-                    SELECT g.resource_id,%s FROM resource_observation_generations g
-                    LEFT JOIN agentcon_search.explore_documents d ON d.resource_id=g.resource_id
-                    LEFT JOIN agentcon_search.explore_document_queue q ON q.resource_id=g.resource_id
-                    WHERE q.resource_id IS NULL AND (d.resource_id IS NULL OR
-                        d.source_generation<>g.generation OR d.policy_hash<>%s)
-                    ORDER BY g.resource_id LIMIT %s ON CONFLICT(resource_id) DO NOTHING""",
-                    (time.time(), documents.policy_hash(), self.batch),
-                )
+            if self.clock() >= self.scan_after:
+                with self.store.tx():
+                    # Poll existing durable generations, not a lossy in-process callback.
+                    found = self.store._execute(
+                        """INSERT INTO agentcon_search.explore_document_queue(resource_id,queued_at)
+                        SELECT g.resource_id,%s FROM resource_observation_generations g
+                        LEFT JOIN agentcon_search.explore_documents d ON d.resource_id=g.resource_id
+                        LEFT JOIN agentcon_search.explore_document_queue q ON q.resource_id=g.resource_id
+                        WHERE q.resource_id IS NULL AND (d.resource_id IS NULL OR
+                            d.source_generation<>g.generation OR d.policy_hash<>%s)
+                        ORDER BY g.resource_id LIMIT %s ON CONFLICT(resource_id) DO NOTHING""",
+                        (time.time(), documents.policy_hash(), self.batch),
+                    ).rowcount
+                if not found:
+                    self.scan_after = self.clock() + self.interval * self.SCAN_REST
             with self.store.tx(readonly=True):
                 now = time.time()
                 # Listings Explore can show come first; the rest of the queue follows.

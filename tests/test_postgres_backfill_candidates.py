@@ -54,4 +54,9 @@ def test_postgres_backfill_exclusions_match_publication_and_job_fences():
         # work. In-flight/failed/current publications and ineligible rows do not.
         assert index._backfill_candidates(desc,50)==[5,6,10,11]
         assert index._backfill_candidates(desc,1)==[5]
+        # 11-10: one scan covers one window of ids, and the sweep wraps after the last listing.
+        connection.execute("INSERT INTO resources VALUES(25000,1,'healthy','ok')")
+        assert index._backfill_candidates(desc,50)==[5,6,10,11] and index._backfill_from==20000
+        assert index._backfill_candidates(desc,50)==[25000] and index._backfill_from==0
+        assert index._backfill_swept
     finally:connection.close()

@@ -45,3 +45,41 @@ def test_explicit_resource_requests_never_wait_for_the_pause(monkeypatch):
     item._backfill_after = 10 ** 9
     item.ensure_jobs(model, 1, [7], {7: None})
     assert queued == [[7]] and scans == []
+
+
+def test_a_failed_scan_waits_instead_of_repeating_every_round(monkeypatch):
+    # 11-10: the whole-catalog scan hit the 5 s statement timeout every 10 s (4,073 errors).
+    import pytest
+    from agent_market.legacy_vector_index import VectorError
+    clock = [1000.0]
+    monkeypatch.setattr(legacy, '_now', lambda: clock[0])
+    model = ModelDescriptor('synthetic-embedding')
+    item, scans, queued = index(monkeypatch, [])
+
+    def failing(descriptor, limit):
+        scans.append(limit)
+        raise VectorError('database_error')
+    item._backfill_candidates = failing
+    with pytest.raises(VectorError):
+        item.ensure_jobs(model, limit=2)
+    clock[0] += 10
+    assert item.ensure_jobs(model, limit=2) == 0 and len(scans) == 1
+
+
+def test_an_unfinished_sweep_keeps_scanning_the_next_window(monkeypatch):
+    clock = [1000.0]
+    monkeypatch.setattr(legacy, '_now', lambda: clock[0])
+    model = ModelDescriptor('synthetic-embedding')
+    item, scans, queued = index(monkeypatch, [])
+    windows = [False, False, True]
+
+    def window(descriptor, limit):
+        scans.append(limit)
+        item._backfill_swept = windows.pop(0)
+        return []
+    item._backfill_candidates = window
+    for _ in range(3):
+        item.ensure_jobs(model, limit=2)
+    assert len(scans) == 3  # each round scans the next window until the sweep ends
+    item.ensure_jobs(model, limit=2)
+    assert len(scans) == 3  # then it rests

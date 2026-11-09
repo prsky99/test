@@ -132,6 +132,15 @@ def test_same_text_reuses_the_stored_vector_without_ollama(monkeypatch):
             claim = index.claim_batch(descriptor, limit=1, resource_ids=(rid,))[0]
             assert engine._publish_claim(index, claim, descriptor) == 'indexed'
             assert len(calls) == 1
+            # The live 402 quote survives a refresh of the same bazaar entry (registered SQL on PostgreSQL).
+            paid = {'key': 'x402:https://reuse.example/pay', 'source': 'fixture', 'kind': 'x402', 'name': 'Paid fixture',
+                    'url': 'https://reuse.example/pay', 'description': 'Paid text', 'category': 'data_utility',
+                    'networks': ['base'], 'price_usdc': 3000, 'details': {'accepts': [{'amount': '3000'}]}}
+            pid = store.upsert_resource(paid, now=30)
+            store.record_observed_quote(pid, 10000)
+            quoted = store.resource(pid)['content_hash']
+            store.upsert_resource(paid, now=40)
+            assert (store.resource(pid)['price_usdc'], store.resource(pid)['content_hash']) == (10000, quoted)
             store.close()
 
 
@@ -168,3 +177,49 @@ def test_a_zero_quote_without_a_listed_price_is_stored_as_unknown_not_free(tmp_p
     assert parse_x402_item(item)['price_usdc'] is None
     item['accepts'][0]['amount'] = '5000'
     assert parse_x402_item(item)['price_usdc'] == 5000
+
+
+def test_a_registry_refresh_keeps_the_live_quote_for_the_same_entry(tmp_path):
+    # 2026-11-10: the bazaar amount and the provider's 402 quote overwrote each other.
+    import time
+    store = Store(str(tmp_path / 'pingpong.sqlite3'))
+    row = {'key': 'x402:https://pay.example/q', 'source': 'x402-bazaar', 'kind': 'x402',
+           'url': 'https://pay.example/q', 'name': 'Quote API', 'description': 'Answers questions',
+           'category': 'data_utility', 'networks': ['base'], 'price_usdc': 3000, 'pay_to': '0xAA',
+           'details': {'accepts': [{'amount': '3000'}]}}
+    rid = store.upsert_resource(row, now=10)
+    store.record_health(rid, 'healthy', 402, 10, None, time.time() + 3600, observed_price=10000, observed_pay_to='0xBB')
+    hash_after_quote = store.resource(rid)['content_hash']
+    assert store.upsert_resource(row, now=20) == rid
+    stored = store.resource(rid)
+    assert (stored['price_usdc'], stored['pay_to'], stored['content_hash']) == (10000, '0xbb', hash_after_quote)
+    assert stored['last_seen'] == 20
+    # The quote stays, so the next health check sees no change.
+    assert not store.record_health(rid, 'healthy', 402, 10, None, time.time() + 3600, observed_price=10000)['price_changed']
+    # A changed registry entry brings its own price until the next quote.
+    store.upsert_resource(row | {'price_usdc': 5000, 'details': {'accepts': [{'amount': '5000'}]}}, now=30)
+    assert store.resource(rid)['price_usdc'] == 5000
+
+
+def test_an_unknown_price_from_a_zero_quote_survives_the_registry_refresh(tmp_path):
+    import time
+    store = Store(str(tmp_path / 'keepnull.sqlite3'))
+    row = {'key': 'x402:https://pay.example/z', 'source': 'x402-bazaar', 'kind': 'x402',
+           'url': 'https://pay.example/z', 'name': 'Dyn', 'description': 'Dynamic', 'category': 'data_utility',
+           'networks': ['base'], 'price_usdc': 0, 'details': {'accepts': [{'amount': '0'}]}}
+    rid = store.upsert_resource(row, now=10)
+    store.record_health(rid, 'healthy', 402, 10, None, time.time() + 3600, observed_price=0)
+    store.upsert_resource(row | {'price_usdc': None}, now=20)  # the crawler reads a listed 0 as unknown
+    assert store.resource(rid)['price_usdc'] is None
+
+
+def test_a_listed_price_replaces_an_unknown_left_by_an_old_zero_quote(tmp_path):
+    # 32172: the bazaar lists $0.06, an old zero quote had replaced it, and the zero rule then made it unknown.
+    store = Store(str(tmp_path / 'relist.sqlite3'))
+    row = {'key': 'x402:https://pay.example/r', 'source': 'x402-bazaar', 'kind': 'x402',
+           'url': 'https://pay.example/r', 'name': 'Relist', 'description': 'Relisted', 'category': 'data_utility',
+           'networks': ['base'], 'price_usdc': 60000, 'details': {'accepts': [{'amount': '60000'}]}}
+    rid = store.upsert_resource(row, now=10)
+    store.record_observed_quote(rid, None)
+    store.upsert_resource(row, now=20)
+    assert store.resource(rid)['price_usdc'] == 60000

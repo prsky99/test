@@ -2,6 +2,12 @@
 - 11-04: 디스크 점검(여유 150GB, 릴리스 461개 142GB). `agentcon prune-releases` 추가, 383개 삭제, 여유 149.5→191.7GB. 배포·워커 배포 성공 뒤 자동 정리(배포된 것과 6시간 미만 미배포만 남김, `--no-prune`).
 
 ## 완료 (최근 것만)
+- jobs 오류·가격 핑퐁·큐 대조(2026-11-10 07시, 검색과 RAG, 총괄 PM 과제)
+  - `rag index loop error` 4,073건: ensure_jobs 백필 쿼리가 카탈로그 전체(289k)를 한 번에 훑어 6.8~11초 → jobs 5초 statement_timeout. 실패하면 BACKFILL_PAUSE를 정하기 전에 예외가 나가 10초마다 반복. 쉬는 시각을 먼저 정하고(실패해도 300초), 자원 번호 2만 개 구간씩 훑음(운영 읽기 전용 0.4~2.5초, 부하 15). 작업본의 출처 모름 미커밋 변경(database_error 삼킴)은 쓰지 않고 그대로 둠.
+  - x402 가격 핑퐁: 등록 금액과 402 견적이 번갈아 저장돼 309개가 하루 1.48번 재색인(나머지 0.19번). 등록 항목(details)이 그대로면 양수 견적 가격·받는 주소 유지, 0·NULL이면 등록 가격(32172는 $0.06으로 돌아옴). 가격 집계는 COLLECTOR.md.
+  - 탐색 문서 큐 대조: 5초마다 세대 309k행 전체 대조(평균 266ms, 147k회, 누적 39,252초, DB 시간 상위). 빈 대조 뒤 12회차(60초) 쉼, 들어온 게 있으면 계속.
+  - 시험: test_embedding_churn 10, test_postgres_backfill_pause 4, test_explore_documents_postgres 새 1. 바뀐 부분 묶음 171 통과. 전체 pytest는 메모리 압박(스왑 83%)으로 88분 넘게 걸려 PM 지시로 중지.
+  - 후속: 테스트넷(Base Sepolia) 전용 x402 427개가 실제 가격처럼 보임(PM 채택, 다음 과제). 탐색 3초 측정 스크립트 준비(scratchpad).
 - 성장·유통 6차(2026-11-10 07시, PM 후속)
   - Markdown 응답 첫 줄의 분류 글자("Connect" 등) 제거: 모든 Markdown 경로가 본문 H1부터 시작(10개 경로 확인).
   - Claude Code 플러그인 자체 사이트 공개(PM 승인): /claude-plugins/marketplace.json, /claude-plugins/agent-concierge-plugin-1.0.0.zip(archive 출처, sha256 8188f22b…, 매번 같은 바이트). 비밀값·내부 주소 없음 확인, README 설치 명령을 우리 주소로. archive 출처는 Claude Code v2.1.224 이상(이 맥 2.1.89라 실제 설치는 못 해 봄).

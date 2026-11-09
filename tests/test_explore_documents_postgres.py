@@ -231,3 +231,31 @@ def test_generation_bound_reader_matches_and_never_serves_changed_sources():
                 store._execute("UPDATE resources SET eval_security='quarantine' WHERE id=%s", (rid,))
             assert not both()[1]
             store.close()
+
+
+def test_an_empty_stale_scan_rests_and_a_busy_one_goes_on():
+    # 2026-11-10: the scan read all generation rows every 5 s (266 ms, 39,252 s of DB time).
+    binary = Path("/opt/homebrew/opt/postgresql@18/bin")
+    if not (binary / "initdb").is_file():
+        pytest.skip("PostgreSQL 18 fixture tools unavailable")
+    with _private_cluster({name: str(binary / name) for name in ("initdb", "pg_ctl")}) as cluster:
+        with psycopg.connect(host=cluster["socket"], port=PORT, dbname="postgres", user="postgres", autocommit=True) as pg:
+            store = open_store("postgresql", connection=pg, initialize=True, workflow_key=b"s" * 32)
+            doc.install(store)
+            ids = [store.upsert_resource({"key": "rest-%d" % n, "source": "fixture", **listing(n)}) for n in range(3)]
+            with store.tx():
+                store._execute("UPDATE resources SET active=1,health_status='healthy'")
+            now = [1000.0]
+            worker = doc.Refresher(store, batch=2, interval=5, clock=lambda: now[0])
+            assert worker.run()["written"] == 2  # a full batch was queued: keep scanning
+            now[0] += 5
+            assert worker.run()["written"] == 1
+            now[0] += 5
+            assert worker.run()["written"] == 0  # nothing stale: rest 12 rounds
+            with store.tx():
+                store._execute("UPDATE resources SET description='Changed text' WHERE id=%s", (ids[0],))
+            now[0] += 5
+            assert worker.run()["written"] == 0
+            now[0] += 60
+            assert worker.run()["written"] == 1
+            store.close()

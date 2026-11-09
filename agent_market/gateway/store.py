@@ -565,6 +565,12 @@ _UPSERT_FIELDS = ('source', 'kind', 'url', 'name', 'description', 'category', 'n
                   'pay_to', 'method', 'details', 'calls_30d', 'payers_30d', 'last_called')
 
 
+def _same_details(old, new) -> bool:
+    if old is not None and not isinstance(old, str):
+        old = json.dumps(old, sort_keys=True)
+    return old == new
+
+
 def _activity_only(stored, values) -> bool:
     """True when VALUES differ from the stored row only in activity figures (or category)."""
     if stored is None:
@@ -1170,6 +1176,16 @@ class Store:
             db.execute("UPDATE resources SET last_seen=? WHERE id=?", (seen_at, rid))
             return "unchanged", rid
         stored = db.execute("SELECT * FROM resources WHERE id=?", (rid,)).fetchone()
+        if (registry_observed and r["kind"] == "x402" and stored is not None and _same_details(stored["details"], values[10])
+                and stored["price_usdc"]):  # only a positive quote; 0 or unknown takes the listed price
+            # Same registry entry: keep the price and payee from the provider's own 402 quote. The
+            # bazaar's listed amount and the live quote took turns overwriting each other, which
+            # re-embedded 309 listings ~1.5 times a day and showed a different price each time (2026-11-10).
+            values = values[:7] + (stored["price_usdc"], stored["pay_to"]) + values[9:]
+            digest = hashlib.sha256(json.dumps(values, default=str).encode()).hexdigest()
+            if row["content_hash"] == digest:
+                db.execute("UPDATE resources SET last_seen=? WHERE id=?", (seen_at, rid))
+                return "unchanged", rid
         if row["name"] == r["name"][:200] and row["description"] == r["description"][:2000]:
             # Same text: keep the category the collectors set from richer evidence (agent card,
             # tools). The A2A registry changes updated_at about every 30 minutes, and rewriting

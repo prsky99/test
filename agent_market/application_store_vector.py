@@ -13,11 +13,17 @@ from .legacy_vector_index import VectorIndex, VectorError, PROFILE, ModelDescrip
 
 MAX_DENSE_ROWS = 20000
 MAX_DENSE_BYTES = 80 * 1024 * 1024
-BACKFILL_PAUSE = 300  # seconds after a backfill scan that found no listing to queue
+BACKFILL_PAUSE = 300  # seconds after a backfill sweep that found no listing to queue
+# One backfill scan covers this many listing ids. The whole-catalog scan took 6.8-11 s on 289k
+# listings and hit the 5 s statement timeout every 10 s (4,073 'rag index loop error', 11-10);
+# a 20k-id window takes 0.3-2.5 s, and an empty sweep of every window then rests BACKFILL_PAUSE.
+BACKFILL_WINDOW = 20000
 
 
 class PostgresVectorIndex(VectorIndex):
     _backfill_after = 0.0  # next full backfill scan (ensure_jobs)
+    _backfill_from = 0  # the next window starts after this listing id
+    _backfill_swept = True  # the last scan finished a sweep of every window
 
     def __init__(self, store):
         self.store, self.db, self.lock = store, store._db, store._lock
@@ -74,8 +80,12 @@ class PostgresVectorIndex(VectorIndex):
             # so after an empty scan look again only after BACKFILL_PAUSE.
             now, found = legacy_vector_index._now(), []
             if now >= self._backfill_after:
+                # Set first: a scan that fails (statement timeout) also waits instead of
+                # repeating every round.
+                self._backfill_after = now + BACKFILL_PAUSE
                 found = self._backfill_candidates(descriptor, limit)
-                self._backfill_after = 0.0 if found else now + BACKFILL_PAUSE
+                if found or not self._backfill_swept:
+                    self._backfill_after = 0.0
             if not found:
                 with self._tx():
                     self._pin(descriptor, bind=False)
@@ -122,18 +132,28 @@ class PostgresVectorIndex(VectorIndex):
             self._pin(descriptor, bind=False)
             # Materialize the same publication and unfinished-job exclusions once,
             # instead of repeating correlated lookups for the entire catalog.
+            low = self._backfill_from
+            high = low + BACKFILL_WINDOW
             rows = self.store._execute("""WITH exclusions AS MATERIALIZED (
                 SELECT h.resource_id FROM legacy_vector_heads h JOIN legacy_vector_jobs j USING(job_id)
-                WHERE j.status IN ('pending','claimed','failed')
+                WHERE j.status IN ('pending','claimed','failed') AND h.resource_id>%s AND h.resource_id<=%s
                 UNION
                 SELECT p.resource_id FROM legacy_vector_provenance p
                 JOIN legacy_vector_heads h USING(resource_id) JOIN legacy_vector_generations g USING(resource_id)
-                WHERE p.job_id=h.job_id AND p.generation=g.generation AND p.descriptor_hash=%s)
+                WHERE p.job_id=h.job_id AND p.generation=g.generation AND p.descriptor_hash=%s
+                AND p.resource_id>%s AND p.resource_id<=%s)
                 SELECT r.id FROM resources r LEFT JOIN exclusions x ON x.resource_id=r.id
-                WHERE r.active=1 AND COALESCE(r.health_status,'unknown')!='retired'
+                WHERE r.id>%s AND r.id<=%s AND r.active=1 AND COALESCE(r.health_status,'unknown')!='retired'
                 AND COALESCE(r.eval_security,'')!='quarantine' AND x.resource_id IS NULL
-                ORDER BY r.id LIMIT %s""", (descriptor.digest, limit)).fetchall()
-        return [row['id'] for row in rows]
+                ORDER BY r.id LIMIT %s""", (low, high, descriptor.digest, low, high, low, high, limit)).fetchall()
+            last = self.store._execute('SELECT max(id) AS last FROM resources').fetchone()['last'] or 0
+        found = [row['id'] for row in rows]
+        if len(found) < limit:
+            # This window is done (queued listings leave the candidates); move on, and wrap
+            # after the last listing.
+            self._backfill_from = 0 if high >= last else high
+        self._backfill_swept = self._backfill_from == 0 and len(found) < limit
+        return found
 
     def current_ids(self, ids, descriptor):
         from .legacy_vector_index import _id
