@@ -199,7 +199,7 @@ def strong_embeddings(engine, texts):
     reloads it in the background; requests meanwhile answer without it at once."""
     url = str(getattr(engine, 'ollama_url', '') or '').rstrip('/')
     http = getattr(engine, 'http', None)
-    if not url or http is None or not getattr(engine, 'embeddings_enabled', False):
+    if not url or http is None or getattr(engine, 'embeddings_enabled', False) is not True:
         return None
     if time.monotonic() < _strong_state['down_until']:
         return None
@@ -389,7 +389,8 @@ def semantic_rank(engine, task, items):
     cases the first of ten was right for 85% and some of the ten for 93%; moving the closest tool
     first gained 28 and lost 5 on tuning, gained 13 and lost 3 on holdout, in about 0.22 s. The
     ranked order stands when embeddings are off, slow or fail."""
-    if not items or engine is None or not getattr(engine, 'embeddings_enabled', False):
+    # The same "enabled" rule as discovery: a stub engine (tests, a disabled RAG) is never called.
+    if not items or engine is None or getattr(engine, 'embeddings_enabled', False) is not True:
         return items, None
     docs = []
     for item in items:
@@ -400,7 +401,7 @@ def semantic_rank(engine, task, items):
         vectors = engine.embed_texts([str(task)[:1000]] + docs, timeout_seconds=SEMANTIC_BUDGET)
     except Exception:
         return items, None
-    if not vectors or len(vectors) != len(items) + 1:
+    if not isinstance(vectors, list) or len(vectors) != len(items) + 1:
         return items, None
     scores = [_cosine(vectors[0], vector) for vector in vectors[1:]]
     best = max(range(len(items)), key=lambda i: (scores[i], -i))

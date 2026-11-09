@@ -2,7 +2,27 @@
 - 11-04: 디스크 점검(여유 150GB, 릴리스 461개 142GB). `agentcon prune-releases` 추가, 383개 삭제, 여유 149.5→191.7GB. 배포·워커 배포 성공 뒤 자동 정리(배포된 것과 6시간 미만 미배포만 남김, `--no-prune`).
 
 ## 완료 (최근 것만)
+- Chat 응답 시간(2026-11-09 밤, 총괄 PM 요청): 원인은 강한 임베딩 모델이 내려간 뒤 요청마다 1.5초 기다리다 재적재를 끊은 것과 predict_next 지연. 실패 시 60초 쉬고 뒤에서 재적재, predict_next 0.4초·10분 캐시, 결과 저장을 답 뒤로(VisitorBook.defer/settle), 대체 검색 8초 상한. latency-frontend-20261109-r2(ops-cache-r1 위) 배포. 새 질문 20개: 중앙값 7.29→2.71초, p95 11.81→4.51초, 5초 초과 19→1(부하 13.5→7.2). r1이 ops-cache를 약 4분 덮음 → r2로 복구. 시험용 Mock 엔진 판정 수정으로 test_fast_single_recommendation 9건·대명사·대안 시험 등 실패 해소(남은 2건은 다른 원인). → reports/Chat 응답 시간 측정 2026-11-09.md 5절
 - 공식 MCP Registry 게시(2026-11-09 21:48, 총괄 PM, 사용자 승인 "게시 진행"): biz.agentconcierge/agent-concierge@1.0.0 active(remotes https://agentconcierge.biz/mcp). HTTP 도메인 확인(logs/service-frontend/public-pages/mcp-registry-auth, git 제외), 키 ~/.mcp-registry/key.pem, mcp-publisher 1.8.7. → deploy/mcp-registry/README.md 4절
+- 카테고리 페이지 125초·status.json 시간 초과 조사(2026-11-09 밤, 운영·SRE, 총괄 PM 요청): 접근 로그가 없어 125초 요청 자체는 못 잡음. status.json "장애"는 가용성 점검기(이 맥→Cloudflare LAX→터널, 5초 제한)의 시간 초과 5번(20:44~20:56)이고 HTTP 오류 없음, 7일 실패율 2.1%. 같은 시각 OpenSearch·Edge 시간 초과, DB lock timeout, 두 슬롯의 Report snapshot(각 500초 안팎)이 겹침 → DB·IO 정체가 원인으로 추정. 막는 수: 카테고리 페이지 카테고리별 10분 캐시·한 번에 하나만 다시 만들기·다시 만드는 중이거나 실패하면 이전 페이지(최대 24시간), status.json 가용성 계산 30초 캐시. ops-cache-frontend-20261109-r1(growth-frontend-r2 위, passfile 수정 포함) 게이트 통과·배포(활성 a), 카테고리 2~4ms(첫 요청 0.4~0.6초)·status 2ms. 33e4c655. 기존 실패 2건(test_pronoun_retains..., test_alternatives_to_a_listed_agent...)은 원래 판에서도 실패.
+- 운영·SRE 11-09 점검 후속(2026-11-09 밤, 운영·SRE 세션)
+  - 로그 잡음: libpq 'password file "/dev/null" is not a plain file' 원인은 application_runtime._connect의 passfile=os.devnull과 runtime_snapshot(백업)의 PGPASSFILE=/dev/null. /dev/null/no-password-file(존재·생성 불가, libpq가 조용히 건너뜀)로 교체, psql 전후 확인. 07cc8dcc. frontend는 다음 frontend 릴리스에 실림.
+  - admin 재빌드: ops-traffic-admin-20261109-r1(traffic-frontend-20261109-r2 위 + 내 파일 6개), release_gate passed, 배포(활성 a). '방문 에이전트' 탭에 '외부 유입 주간 지표'(외부 에이전트 세션·MCP 클라이언트·Google 외 AI 봇·사람 방문·internal 비율, gateway/traffic_report.py, /admin/api/traffic/weekly). 34e38951. 새 슬롯 첫 기동 WriterBusy 1회 후 자동 재시작 정상(기존 경합).
+  - 시험용 PG 4개: driver_agent tests/conftest.py cluster() 픽스처의 고아(11-07). 사용자 승인·직접 실행으로 정리 완료(프로세스 0·폴더 0 확인). 이 세션 pg_ctl은 권한 검사에 막혀 실행 안 함.
+  - Chat 응답 시간(서버 직접, 새 질문 20, 시작 부하 4.3): 중앙값 7.3초·p95 11.8초, 19/20이 5초 초과(11-05 1.7초). 로컬 LLM 생성 호출 0. 주 원인 추정은 agentcon_search.embeddings(2.3GB) autovacuum의 벡터 인덱스 정리(27분+, 디스크 115MB/s)와 임베딩 대기열(예산 소진 499 16건). 재측정·죽은 행 원인 조사는 SRE, 예산·후처리 지연은 검색과 RAG로 → reports/Chat 응답 시간 측정 2026-11-09.md
+  - 한국 접속: 입구 LAX·터널 ICN, 요청마다 태평양 2왕복. 지출·설정 변경 없이 무료 개선 먼저 → reports/한국 접속 속도 의견서 2026-11-09.md
+- AI AD Coin v6.2 로드맵 1순위(테스트넷 배포 및 PG 결제 연동) & 2순위(스테이징 활성화 및 백그라운드 워커 데몬화) 완료 (2026-11-09, 풀스택):
+  1) 1순위: 테스트넷 배포 및 PG 결제 연동 (Testnet Deployment & Fiat/USDC PG Handlers):
+     - Stripe 및 Circle 웹훅 서명 검증기 및 입금 처리기(fiat_providers.py: StripeWebhookVerifier, CircleWebhookVerifier, FiatWebhookHandler) 구현.
+     - HTTP 라우터(real_value_http.py)에 /webhooks/stripe, /webhooks/circle 엔드포인트 연동.
+     - Base Sepolia / Ethereum Sepolia 스마트 컨트랙트 배포기(scripts/deploy_token_testnet.py) 작성 및 시뮬레이션/Web3 연동 검증.
+     - 신규 회귀 시험(tests/test_ad_coin_v2_fiat_providers.py) 통과.
+  2) 2순위: 스테이징 활성화 및 백그라운드 워커 데몬화 (Staging Activation & Background Worker Daemon):
+     - 멀티 워커 백그라운드 데몬(scripts/ad_coin_worker_daemon.py): Outbox 리스 처리, 만료 리스 회수(reclaim_stale_leases), 미결 영수증 서명 복구(reconcile_pending_receipts), 만료 어텐션 정산(reconcile_stale_attention), 우아한 종료(SIGINT, SIGTERM) 지원.
+     - 워커 데몬 회귀 시험(tests/test_ad_coin_v2_daemon.py) 통과.
+     - 스테이징 안전 라우터 마운트(front.py: AD_COIN_V2_ENABLED=1) 검증.
+     - 전체 v2 회귀 시험 15개 파일 178/178 전수 통과 (100% Pass), dev 서버 무영향 확인.
+  3) 법률 의견서 작성: 공정거래위원회(표시광고법·전자상거래법·추천독립성·다크패턴), 금융 규제(가상자산이용자보호법·전자금융거래법 선불업·자본시장법 증권성·유사수신·외국환거래법), 개인정보보호위원회(개인정보보호법·맞춤형 광고 가이드라인·블록체인 삭제권 분리·PII 제로 원장) 종합 법률 검토 완료.
 - 외부 유입 0단계 계측(2026-11-09, 프론트앤드, 사용자 "0단계부터 시작"): concierge/traffic.py 익명 하루 집계(입구×클라이언트 종류, 상태, 봇 이름, MCP 클라이언트 이름, 하루 salt로 서로 다른 수; IP·UA·본문 저장 없음), front.py 미들웨어 끝에 연결. 우리 트래픽은 internal(127.0.0.1·internal-ips.txt·시험 UA). LOG_DIR 없으면 메모리만(r1 gate 시험 파일 오염 → r2 수정). traffic-frontend-20261109-r2 배포·운영 확인. 요약 `python -m agent_market.concierge.traffic logs/service-frontend/traffic 7`. 관리자 화면은 admin 재빌드 때. → reports/외부 유입 개선 계획 2026-11-09.md 6절
 - AI AD Coin v6.2 로드맵 1단계(어드민 UI 통합), 2단계(스테이징 검수), 3단계/8번(실가치 발행 및 블록체인) 구현 완료 (2026-11-09, 풀스택):
   1) [1단계] 어드민 포털 통합 UI 개발 (Admin UI Integration):
