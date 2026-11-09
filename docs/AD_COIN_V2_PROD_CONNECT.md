@@ -53,7 +53,18 @@ v2 migrate 같은 운영 DB 구조 변경은 운영에서 실행하기 전에 �
   - `AD_COIN_V2_KEY_DIR=/Users/kingstonelee/workspace/A2A_Discovery/gateway-data/ad_coin_v2_keys`
 - **키 폴더는 반드시 이 절대 경로여야 한다.** 상대 경로면 배포 버전마다 키가 달라진다.
 - 설정 검사: `.venv/bin/python scripts/agentcon_config.py --check --env-file gateway-data/agentcon.env`
-- 설정은 프로세스가 시작할 때 읽는다. 배포하거나 frontend를 재시작한 뒤에 적용된다.
+- 설정은 프로세스가 시작할 때 읽는다.
+- **`./agentcon restart frontend`는 쓰지 않는다.** 이 명령은 작업본(다른 세션의 미커밋 변경 포함)으로 새 버전을 만든다.
+- 설정만 다시 읽히려면 활성 버전을 그대로 복제한 버전(파일 변경 0)을 `--base`로 패키징해 배포한다.
+  - 11-10 켤 때 쓴 버전: `adcoin-v2-on-frontend-20261110-r1`
+  - 원본 설정 백업: `gateway-data/agentcon.env.before-adcoin-v2-20261110`
+- **11-10 운영 결과:**
+  - `/ad-coin/v2` 200
+  - `/api/ad-coin/v2/sponsored` 200(Sponsored 표시)
+  - `/real/deposits` 404
+  - `schema_invariants_mismatch` 새로 0건
+  - 키 폴더 0700
+  - DB 연결 17
 - 되돌리기: `AD_COIN_V2_ENABLED=0`으로 바꾸고 재시작한다. 표는 그대로 둔다.
 
 ## 1. 승인이 필요한 일 (사용자 결정)
