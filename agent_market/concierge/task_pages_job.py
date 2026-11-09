@@ -6,6 +6,10 @@ between 03:00 and 07:00 KST, once a day. Searches use the service's own store th
 Explore functions as /api/explore; nothing goes through the public site. The finished snapshot
 is written atomically to <project root>/logs/service-frontend/public-pages/task-pages.json,
 where both frontend slots read it.
+
+After a new snapshot is written, pages whose facts changed are sent to IndexNow once (indexnow.py).
+That notice is retried every 15 minutes while IndexNow answers 403 (key not yet fetched), at most
+eight times; unsent changes stay in the next day's difference.
 """
 import logging
 import os
@@ -21,6 +25,8 @@ ZONE = ZoneInfo('Asia/Seoul')
 QUIET_HOURS = range(3, 7)   # start only in this window; an unfinished build waits for the next night
 MIN_AGE = 20*3600           # rebuild once a day
 SLICE_SECONDS = 20.0
+NOTICE_RETRY = 900
+NOTICE_ATTEMPTS = 8
 PAUSE = 0.5                 # seconds between searches inside a slice
 
 
@@ -72,6 +78,8 @@ class TaskPagesRefresher:
         self.assembler = None
         self.attempted_day = None
         self.retry_at = 0.
+        self.notice = None   # {'urls': [...], 'pages': {...}, 'attempts': n} waiting to be sent
+        self.submit = None   # injectable for tests; defaults to indexnow.submit
 
     def _age(self):
         try:
@@ -82,6 +90,8 @@ class TaskPagesRefresher:
     def due(self):
         if self.out is None or self.clock() < self.retry_at:
             return False
+        if self.notice is not None:
+            return True
         now = datetime.fromtimestamp(self.clock(), ZONE)
         if self.steps is not None:
             return now.hour in QUIET_HOURS
@@ -89,6 +99,8 @@ class TaskPagesRefresher:
 
     def run(self):
         """One bounded slice. Errors pause the build for ten minutes and keep what was collected."""
+        if self.notice is not None:
+            return self.send_notice()
         if self.steps is None:
             self.steps, self.position, self.assembler = plan(self.categories), 0, Assembler()
             self.attempted_day = datetime.fromtimestamp(self.clock(), ZONE).date()
@@ -114,3 +126,52 @@ class TaskPagesRefresher:
                 log.exception('Task page snapshot was not written')
                 return
             log.info('Task page snapshot: %d task pages, %d agents', len(snapshot['tasks']), len(snapshot['catalog']))
+            self.prepare_notice(snapshot)
+
+    def prepare_notice(self, snapshot):
+        from . import indexnow
+        from .growth_pages import clean
+        try:
+            pages = indexnow.fingerprints(clean(snapshot))
+        except Exception:
+            log.exception('IndexNow fingerprints failed; no notice today')
+            return
+        state_path = self.out.parent / 'indexnow-state.json'
+        previous = indexnow.read_state(state_path)
+        if previous is None:
+            indexnow.write_state(state_path, {'pages': pages, 'submitted_at': None})
+            log.info('IndexNow baseline recorded for %d pages; nothing sent', len(pages))
+            return
+        urls = [indexnow.ORIGIN + p for p in indexnow.changed(previous['pages'], pages)]
+        if not urls:
+            indexnow.write_state(state_path, {'pages': pages, 'submitted_at': previous.get('submitted_at')})
+            return
+        self.notice = {'urls': urls, 'pages': pages, 'attempts': 0}
+        self.send_notice()
+
+    def send_notice(self):
+        from . import indexnow
+        from .growth_pages import indexnow_key
+        notice = self.notice
+        key = indexnow_key(lambda: self.out.parent)
+        if not key:
+            log.warning('IndexNow key file missing; %d changed pages not sent', len(notice['urls']))
+            self.notice = None
+            return
+        notice['attempts'] += 1
+        try:
+            done, statuses = (self.submit or indexnow.submit)(key, notice['urls'])
+        except Exception:
+            done, statuses = False, ['error']
+            log.exception('IndexNow notice failed')
+        if done:
+            indexnow.write_state(self.out.parent / 'indexnow-state.json',
+                                 {'pages': notice['pages'], 'submitted_at': self.clock()})
+            log.info('IndexNow: sent %d changed pages (%s)', len(notice['urls']), statuses)
+            self.notice = None
+        elif notice['attempts'] >= NOTICE_ATTEMPTS:
+            log.warning('IndexNow: giving up today after %s; changes stay in tomorrow\'s difference', statuses)
+            self.notice = None
+        else:
+            self.retry_at = self.clock() + NOTICE_RETRY
+            log.info('IndexNow: %s; retrying in %d s', statuses, NOTICE_RETRY)

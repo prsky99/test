@@ -113,3 +113,87 @@ def test_jobs_loop_registers_the_refresher():
     source = open('agent_market/service_host.py').read()
     assert 'TaskPagesRefresher(front) if self.role==\'jobs\'' in source
     assert 'elif task_pages.due():self.maintenance_pending=self.maintenance_pool.submit(task_pages.run)' in source
+
+
+# ---------------------------------------------------------------- IndexNow differences
+def snapshot_with(items):
+    from agent_market.concierge.task_catalog import Assembler
+    a = Assembler()
+    a.add(('task', 'Weather', 'weather forecast', True, 12), items)
+    a.add(('catalog', 'travel_maps_weather', 'mcp', True, 300), items)
+    return g.clean(a.snapshot({'day': '2026-11-10', 'cataloged': 10, 'reachable': 5, 'with_status_check': 10, 'a2a': 3, 'mcp': 4, 'x402': 3}))
+
+
+def test_fingerprints_ignore_timestamps_but_catch_real_changes():
+    from agent_market.concierge import indexnow
+    base = indexnow.fingerprints(snapshot_with([item(1), item(2)]))
+    later = indexnow.fingerprints(snapshot_with([item(1, last_check_at=NOW-60, probe_latency_ms=99), item(2)]))
+    assert indexnow.changed(base, later) == []  # a newer health check alone is not a new page
+    graded = indexnow.fingerprints(snapshot_with([item(1, eval_grade='B'), item(2)]))
+    assert '/agent/1' in indexnow.changed(base, graded) and '/agent/2' not in indexnow.changed(base, graded)
+    added = indexnow.fingerprints(snapshot_with([item(1), item(2), item(5)]))
+    assert '/agent/5' in indexnow.changed(base, added)
+    removed = indexnow.fingerprints(snapshot_with([item(1), item(5)]))
+    assert '/agent/2' in indexnow.changed(base, removed)  # deletions are announced too
+
+
+def test_submit_checks_the_key_with_one_url_first():
+    from agent_market.concierge import indexnow
+    calls = []
+
+    def opener_for(code):
+        def opener(request, timeout):
+            calls.append(len(json.loads(request.data)['urlList']))
+            if code != 200:
+                raise indexnow.urllib.error.HTTPError(request.full_url, code, 'x', {}, None)
+
+            class R:
+                status = 200
+                def __enter__(self): return self
+                def __exit__(self, *e): return False
+            return R()
+        return opener
+    urls = ['https://agentconcierge.biz/agent/%d' % i for i in range(5)]
+    assert indexnow.submit('k'*32, urls, opener_for(403)) == (False, [403]) and calls == [1]
+    calls.clear()
+    assert indexnow.submit('k'*32, urls, opener_for(200)) == (True, [200, 200]) and calls == [1, 4]
+
+
+def test_job_records_a_baseline_then_sends_only_differences(tmp_path):
+    (tmp_path/'indexnow-key').write_text('a'*32)
+    sent = []
+    clock = Clock(kst(3))
+    r = refresher(tmp_path, clock, lambda front, step: [item(1), item(2)])
+    r.submit = lambda key, urls: (sent.append(urls) or (True, [200]))
+    while True:
+        r.run()
+        if r.steps is None:
+            break
+    assert sent == [] and (tmp_path/'indexnow-state.json').exists()  # first day: baseline only
+    clock.value = kst(3) + 86400
+    r2 = refresher(tmp_path, clock, lambda front, step: [item(1, eval_grade='B'), item(2)])
+    r2.submit = lambda key, urls: (sent.append(urls) or (True, [200]))
+    (tmp_path/'task-pages.json').touch()
+    import os
+    os.utime(tmp_path/'task-pages.json', (clock.value-86400, clock.value-86400))
+    while True:
+        r2.run()
+        if r2.steps is None:
+            break
+    assert len(sent) == 1 and 'https://agentconcierge.biz/agent/1' in sent[0]
+    assert 'https://agentconcierge.biz/agent/2' not in sent[0]
+
+
+def test_job_retries_a_403_later(tmp_path):
+    (tmp_path/'indexnow-key').write_text('a'*32)
+    clock = Clock(kst(3))
+    r = refresher(tmp_path, clock, lambda front, step: [])
+    answers = iter([(False, [403]), (True, [200, 200])])
+    r.submit = lambda key, urls: next(answers)
+    r.notice = {'urls': ['https://agentconcierge.biz/agent/1'], 'pages': {'/agent/1': 'x'}, 'attempts': 0}
+    r.run()
+    assert r.notice is not None and not r.due()
+    clock.value += job.NOTICE_RETRY
+    assert r.due()
+    r.run()
+    assert r.notice is None and json.loads((tmp_path/'indexnow-state.json').read_text())['pages'] == {'/agent/1': 'x'}
