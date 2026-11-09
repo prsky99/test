@@ -109,7 +109,9 @@ def test_whats_new_returns_current_choices(w):
     world.service.prober.checker.check_and_record(resource)
     news = chat(c, "what's new", token)
     assert news["intent"] == "find" and len(news["data"]["recommendations"]) == 2
-    assert news["data"]["recommendations"][0]["url"] == f"https://agentconcierge.biz/api/gateway/x402/{resource['id']}"
+    # Chat ranks by relevance, recent verified success and quality, not by price or payer count (11-09):
+    # the new listing ties with the old one, so it must be among the current choices, not necessarily first.
+    assert f"https://agentconcierge.biz/api/gateway/x402/{resource['id']}" in {r["url"] for r in news["data"]["recommendations"]}
     assert len(chat(c, "what's new", token)["data"]["recommendations"]) == 2
 
 
