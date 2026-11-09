@@ -42,6 +42,19 @@ def test_a_registry_refresh_keeps_the_collector_category(tmp_path):
     assert store.resource(rid)['category'] == 'dev_tools'
 
 
+def test_a_registry_activity_refresh_keeps_the_capability_check_and_evaluation(tmp_path):
+    # 2026-11-10: 613 A2A listings were re-checked and re-evaluated every ~30 minutes.
+    store = Store(str(tmp_path / 'activity.sqlite3'))
+    rid = store.upsert_resource(_row(price_usdc=0.0), now=10)
+    with store.tx() as db:
+        db.execute('UPDATE resources SET cap_checked_at=50, eval_at=60 WHERE id=?', (rid,))
+    store.upsert_resource(_row(price_usdc=0.0, last_called=200.0, calls_30d=7), now=20)
+    assert (store.resource(rid)['cap_checked_at'], store.resource(rid)['eval_at']) == (50, 60)
+    # A new version in the registry entry is checked again.
+    store.upsert_resource(_row(price_usdc=0.0, last_called=300.0, details={'version': '2'}), now=30)
+    assert (store.resource(rid)['cap_checked_at'], store.resource(rid)['eval_at']) == (None, None)
+
+
 def test_a_stored_label_outside_our_categories_is_replaced(tmp_path):
     store = Store(str(tmp_path / 'label.sqlite3'))
     rid = store.upsert_resource(_row(category='developer-tools'), now=10)
@@ -89,8 +102,16 @@ def test_same_text_reuses_the_stored_vector_without_ollama(monkeypatch):
             # A registry refresh (registered SQL on PostgreSQL) keeps the collector's category.
             with store.tx():
                 store._execute("UPDATE resources SET category='agent_infra' WHERE id=%s", (rid,))
-            store.upsert_resource(row | {'last_called': 5.0}, now=15)
+            with store.tx():
+                store._execute("UPDATE resources SET cap_checked_at=50, eval_at=60 WHERE id=%s", (rid,))
+            store.upsert_resource(row | {'last_called': 5.0, 'price_usdc': 0.01, 'details': {'skills': ['a']}}, now=15)
             assert store.resource(rid)['category'] == 'agent_infra'
+            store.upsert_resource(row | {'last_called': 6.0, 'price_usdc': 0.01, 'details': {'skills': ['a']}}, now=16)
+            assert (store.resource(rid)['cap_checked_at'], store.resource(rid)['eval_at']) == (None, None)  # details changed at 15
+            with store.tx():
+                store._execute("UPDATE resources SET cap_checked_at=50, eval_at=60 WHERE id=%s", (rid,))
+            store.upsert_resource(row | {'last_called': 7.0, 'price_usdc': 0.01, 'details': {'skills': ['a']}}, now=17)
+            assert (store.resource(rid)['cap_checked_at'], store.resource(rid)['eval_at']) == (50, 60)
             index.ensure_jobs(descriptor, limit=1, resource_ids=(rid,))
             claim = index.claim_batch(descriptor, limit=1, resource_ids=(rid,))[0]
             assert engine._publish_claim(index, claim, descriptor) == 'indexed'

@@ -559,6 +559,34 @@ def _graph_to_steps(nodes: list[dict], edges: list[dict]) -> list[dict]:
     return steps
 
 
+# Positions in Store._upsert values: registry activity figures and our own category.
+_ACTIVITY = {'category', 'calls_30d', 'payers_30d', 'last_called'}
+_UPSERT_FIELDS = ('source', 'kind', 'url', 'name', 'description', 'category', 'networks', 'price_usdc',
+                  'pay_to', 'method', 'details', 'calls_30d', 'payers_30d', 'last_called')
+
+
+def _activity_only(stored, values) -> bool:
+    """True when VALUES differ from the stored row only in activity figures (or category)."""
+    if stored is None:
+        return False
+    for field, value in zip(_UPSERT_FIELDS, values):
+        if field in _ACTIVITY:
+            continue
+        old = stored[field]
+        if field == 'details' and not isinstance(old, str) and old is not None:
+            old = json.dumps(old, sort_keys=True)
+        if field == 'price_usdc' and old is not None and value is not None:
+            # Compare with what the column kept: the PostgreSQL column is BIGINT (0.01 is stored as 0).
+            if type(old) is int:
+                value = round(float(value))
+            if not math.isclose(float(old), float(value), rel_tol=1e-9, abs_tol=1e-12):
+                return False
+            continue
+        if old != value:
+            return False
+    return True
+
+
 class Store:
     # Legacy tx/query borrowers remain unguarded until observation setup is explicit.
     _observation_context = None
@@ -1141,21 +1169,23 @@ class Store:
         if row["content_hash"] == digest:  # 바뀐 게 없으면 확인 시각만 갱신
             db.execute("UPDATE resources SET last_seen=? WHERE id=?", (seen_at, rid))
             return "unchanged", rid
+        stored = db.execute("SELECT * FROM resources WHERE id=?", (rid,)).fetchone()
         if row["name"] == r["name"][:200] and row["description"] == r["description"][:2000]:
             # Same text: keep the category the collectors set from richer evidence (agent card,
             # tools). The A2A registry changes updated_at about every 30 minutes, and rewriting
             # its own label each time flipped 629 listings back and forth and re-embedded them
             # (2026-11-09, 49k embeddings a day).
-            kept = db.execute("SELECT category, source FROM resources WHERE id=?", (rid,)).fetchone()
-            if kept is not None and kept["category"] in CATEGORIES and kept["category"] != OTHER_CATEGORY:
-                values = values[:5] + (kept["category"],) + values[6:]
+            if stored is not None and stored["category"] in CATEGORIES and stored["category"] != OTHER_CATEGORY:
+                values = values[:5] + (stored["category"],) + values[6:]
         db.execute(
             """UPDATE resources SET source=?, kind=?, url=?, name=?, description=?, category=?, networks=?,
                price_usdc=?, pay_to=?, method=?, details=?, calls_30d=?, payers_30d=?, last_called=?,
                last_seen=?, content_hash=?, host=?, desc_lang=?, regions=?, auth_declared=? WHERE id=?""",
             (*values, seen_at, digest, host_of(r["url"]), lang, regions, auth, rid),
         )
-        if r["kind"] in ("mcp", "a2a"):  # 레지스트리 항목(버전·저장소 등)이 바뀌면 기능 조사·품질 평가를 다시
+        # Only the registry's activity figures (updated_at, call counts) changed: the listing is the
+        # same, so its capability check and evaluation stay (A2A registry: every ~30 minutes).
+        if r["kind"] in ("mcp", "a2a") and not _activity_only(stored, values):  # 레지스트리 항목(버전·저장소 등)이 바뀌면 기능 조사·품질 평가를 다시
             db.execute("UPDATE resources SET cap_checked_at=NULL, eval_at=NULL WHERE id=?", (rid,))
         if row["url"] != r["url"]:  # 주소가 바뀌면 헬스 상태를 새로 시작 (제외됐던 에이전트도 다시 점검)
             db.execute(
