@@ -43,6 +43,9 @@ SHARED_HOSTS = {"ipfs", "arweave.net", "raw.githubusercontent.com", "gist.github
 DEAD_HOST_SAMPLE = 200  # 한 호스트에서 이만큼 받아 봤는데 엔드포인트가 하나도 없으면 나머지는 보류
 DEFER = 7 * 86400  # 보류 기간 (지나면 다시 표본을 받아 본다)
 RATE_LIMIT_RETRY = 1800  # 429(요청 제한)는 실패로 세지 않고 이만큼 뒤에 다시
+# 11-10 06:13: the pending-token pick (window over ~940k rows) hit the jobs 5 s statement timeout under load.
+# Nothing was written, so the round is skipped with a warning and the pick waits this long before trying again.
+RESOLVE_TIMEOUT_BACKOFF = 300
 DEAD_HOST_REFRESH = 600
 MAX_REGISTRATION = 256 * 1024
 BATCH = 100
@@ -398,11 +401,21 @@ class Erc8004Crawler:
 
     def resolve_pending(self, limit: int = 200) -> dict:
         """https·ipfs 등록 파일을 받는다. 호스트당 per_host개씩, 호스트 사이는 병렬."""
+        now = time.time()
+        if now < getattr(self, '_resolve_backoff_until', 0.0):
+            return {"resolved": 0, "skipped": "statement_timeout_backoff"}
         deferred = self.defer_dead_hosts()
-        rows = self.store.query(
-            """SELECT * FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY host ORDER BY next_at) AS rn FROM erc8004_tokens
-                 WHERE status IN ('pending','error','deferred') AND uri IS NOT NULL AND (next_at IS NULL OR next_at <= ?))
-               WHERE rn <= ? ORDER BY next_at LIMIT ?""", (time.time(), self.per_host, limit))
+        try:
+            rows = self.store.query(
+                """SELECT * FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY host ORDER BY next_at) AS rn FROM erc8004_tokens
+                     WHERE status IN ('pending','error','deferred') AND uri IS NOT NULL AND (next_at IS NULL OR next_at <= ?))
+                   WHERE rn <= ? ORDER BY next_at LIMIT ?""", (now, self.per_host, limit))
+        except Exception as exc:
+            if getattr(exc, 'code', None) != 'statement_failed':
+                raise
+            self._resolve_backoff_until = time.time() + RESOLVE_TIMEOUT_BACKOFF
+            log.warning("erc8004: pending pick timed out under load; next try in %d s", RESOLVE_TIMEOUT_BACKOFF)
+            return {"resolved": 0, "skipped": "statement_timeout", **({"deferred": deferred} if deferred else {})}
         if not rows:
             return {"resolved": 0, **({"deferred": deferred} if deferred else {})}
         by_host = defaultdict(list)
