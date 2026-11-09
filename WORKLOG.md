@@ -569,3 +569,10 @@
   - AI 공시: Sponsored는 추천과 분리, Chat 답변에 광고·가격 없음
 - 갱신일을 Updated November 10, 2026으로 바꾸고, "Design layout preview" 개발 문구를 시행일로 바꿨다.
 - 교환 상수(10 points=1 크레딧, 1회 10, 월 50)를 코드에 두고 약관 문구와 시험으로 묶었다. 공개 문구 검사 342개 위반 0, new/en 관련 시험 367개 통과.
+
+## 2026-11-10 AI AD Coin 팀: 포인트→워크스페이스 크레딧 지급 진입점과 크레딧 약관
+- customer_credits.exchange_points(customer, credits, exchange_id) 추가.
+  - 가입하고 활성인 계정만 받을 수 있다. exchange_id로 멱등이다.
+  - 1회 10, 월 50 상한은 AD Coin 상수를 그대로 쓴다.
+- 크레딧 약관(TERMS)에 교환 문구를 추가하고 버전을 workspace-free-2026-11-10-v3로 올렸다. 기존 v2 동의는 LEGACY_ACCEPTANCES에 넣어 유효하게 유지했다.
+- 시험 4개 추가, 크레딧 관련 시험 32개 통과. 남은 일: AD Coin 쪽 교환 흐름(포인트 이동 → outbox → 이 진입점 → 실패 시 환불)과 화면.

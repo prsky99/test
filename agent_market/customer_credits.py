@@ -18,12 +18,14 @@ from .workspace_access import (
 from .private_artifact_keys import ArtifactSigner
 
 WELCOME_CREDITS = 100
-VERSION = "workspace-free-2026-10-24-v2"
+VERSION = "workspace-free-2026-11-10-v3"
 # Preserve verified enrollment under the previous one-time grant policy.
 LEGACY_ACCEPTANCES = frozenset({
     ("workspace-free-2026-10-20-v1", "c42935fbe9c8e31e48654c25c27deb4f0bd7a9ecf0bebb9bb464ed39386a449d"),
+    # v2 (2026-10-24) before the points exchange sentence was added; still a valid enrollment.
+    ("workspace-free-2026-10-24-v2", "29ef63d133d0641d8f5d9b0b2e12c59c7ff4a95c19b1f03a52fd69a0e4578594"),
 })
-TERMS = f"""The workspace is intended for adults aged 18 or over who can legally accept these terms. Free workspace enrollment gives this signed-in account {WELCOME_CREDITS} credits once, not monthly. Paid plans, payments, automatic billing, paid conversion and credit top-ups are coming soon. Enrollment currently requires no card and creates no charges. Future paid features will require separate terms and explicit authorization before any charge. One credit saves a new workflow and includes downloads of that workflow revision. Changes saved before its first download share that credit; saving a changed workflow after download uses one new credit. Repeated downloads of the same saved revision do not use credits. AI suggestions, rejected saves and failed transactions do not use credits. Testing and releasing remain subject to service safety limits and successful verification; a credit does not guarantee an agent result or availability. Credits have no cash value, are not transferable and currently have no scheduled expiry. Closing enrollment stops new saves and downloads, without erasing retained workflows or restoring previously used credits. Rejoining does not repeat the welcome grant. You may request correction of an erroneous deduction at contact@agentconcierge.biz. Material changes require a new notice and cannot authorize future payments. Your mandatory consumer rights remain unaffected."""
+TERMS = f"""The workspace is intended for adults aged 18 or over who can legally accept these terms. Free workspace enrollment gives this signed-in account {WELCOME_CREDITS} credits once, not monthly. Paid plans, payments, automatic billing, paid conversion and credit top-ups are coming soon. Enrollment currently requires no card and creates no charges. Future paid features will require separate terms and explicit authorization before any charge. One credit saves a new workflow and includes downloads of that workflow revision. Changes saved before its first download share that credit; saving a changed workflow after download uses one new credit. Repeated downloads of the same saved revision do not use credits. AI suggestions, rejected saves and failed transactions do not use credits. Testing and releasing remain subject to service safety limits and successful verification; a credit does not guarantee an agent result or availability. Credits have no cash value, are not transferable and currently have no scheduled expiry. Points earned through activity can be exchanged for credits at 10 points for 1 credit, up to 10 credits at a time and 50 credits a month; exchanged credits work like other credits and cannot be turned back into points. Closing enrollment stops new saves and downloads, without erasing retained workflows or restoring previously used credits. Rejoining does not repeat the welcome grant. You may request correction of an erroneous deduction at contact@agentconcierge.biz. Material changes require a new notice and cannot authorize future payments. Your mandatory consumer rights remain unaffected."""
 PRIVACY = """Account identifiers, sign-in sessions, saved workflows, agreement records and credit history are used to provide and secure the workspace. AI generation shares only your separately authorized public objective and approved capability references with the suggestion service. Do not submit personal, confidential or sensitive information. Each agent test has its own input-sharing review. Enrollment does not authorize advertising or model training. You can close enrollment here or delete your account in Your organizations. Workspace credit and agreement records are kept while the account exists, then removed within 90 days after account deletion. Other security records follow the service Privacy notice; contact contact@agentconcierge.biz for access, correction, deletion or questions. Read the service Privacy notice for storage, retention and your rights."""
 DIGEST = hashlib.sha256((VERSION + "\n" + TERMS + "\n" + PRIVACY).encode()).hexdigest()
 SCHEMA = (
@@ -35,6 +37,9 @@ SCHEMA = (
     """CREATE TABLE IF NOT EXISTS customer_credit_artifacts(workspace_id TEXT NOT NULL,artifact_id TEXT NOT NULL,revision INTEGER NOT NULL,bundle_id TEXT NOT NULL,signature TEXT NOT NULL,PRIMARY KEY(workspace_id,artifact_id,revision))""",
     "CREATE INDEX IF NOT EXISTS customer_credit_events_customer ON customer_credit_events(customer_id,id)",
 )
+
+
+POINTS_EXCHANGE_PREFIX = "points:"
 
 
 class CreditRequired(WorkspaceDenied):
@@ -455,6 +460,41 @@ class CustomerCredits:
             emit(self.store, db, 'entitlement.download_marked', customer=actor.customer_id, workspace=ws,
                  object_id=artifact, event_key='package:' + ws + ':' + artifact + ':' + str(revision),
                  outcome='succeeded')
+
+    def exchange_points(self, customer, credits, exchange_id):
+        """Grant credits bought with activity points (AI AD Coin). The caller has already moved the
+        points on the AD Coin ledger under the same exchange_id; a replay grants nothing twice.
+
+        Only an enrolled, active account receives credits. Caps match the public terms and the AD
+        Coin constants: at most MAX_CREDITS_PER_EXCHANGE at a time and MAX_CREDITS_PER_MONTH per
+        UTC month.
+        """
+        from .ad_coin.v2.points import MAX_CREDITS_PER_EXCHANGE, MAX_CREDITS_PER_MONTH
+        _identity(customer, "cu")
+        if (type(credits) is not int or not 1 <= credits <= MAX_CREDITS_PER_EXCHANGE
+                or not re.fullmatch(r"[a-f0-9]{32}", str(exchange_id))):
+            raise WorkspaceInvalid()
+        key = POINTS_EXCHANGE_PREFIX + exchange_id
+        with self.identity.tx() as db:
+            old = self._account(db, customer)
+            if not old or old["status"] != "active" or not self._accepted(db, customer):
+                raise CreditRequired()
+            if db.execute("SELECT 1 FROM customer_credit_events WHERE customer_id=? AND event_key=?",
+                          (customer, key)).fetchone():
+                return self._post(db, customer, key, credits, "points_exchange", "ad_coin",
+                                  detail={"exchange_id": exchange_id})
+            import datetime
+            now = datetime.datetime.now(datetime.timezone.utc)
+            month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).timestamp()
+            used = db.execute(
+                "SELECT COALESCE(SUM(delta),0) FROM customer_credit_events WHERE customer_id=? "
+                "AND event_key LIKE ? AND created>=?",
+                (customer, POINTS_EXCHANGE_PREFIX + "%", month_start),
+            ).fetchone()[0]
+            if used + credits > MAX_CREDITS_PER_MONTH:
+                raise WorkspaceConflict()
+            return self._post(db, customer, key, credits, "points_exchange", "ad_coin",
+                              detail={"exchange_id": exchange_id})
 
     def admin_list(self, access, actor, q=""):
         if type(q) is not str or len(q) > 80:
