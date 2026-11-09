@@ -3,6 +3,15 @@
 사용자 계정으로 진행하는 일입니다. 계정 만들기, 로그인, 약관 동의는 사용자가 합니다.
 소유 확인 파일을 둘 자리와 사이트맵은 미리 준비해 두었습니다(11-10).
 
+## 진행 상황 (11-10)
+| 콘솔 | 상태 |
+|---|---|
+| Google Search Console | **등록 완료.** URL 접두어 `https://agentconcierge.biz/`, HTML 파일로 소유 확인, `sitemap.xml` 제출(제출 직후 "가져올 수 없음" 표시, Googlebot UA로 200 확인) |
+| Bing Webmaster Tools | **등록 완료.** 수동 추가 + `BingSiteAuth.xml`로 소유 확인, 사이트맵 제출(Processing) |
+| Naver 서치어드바이저 | 하지 않음(한국어 검색 노출이 적음, 필요하면 같은 방식) |
+
+확인 파일 두 개(`google…html`, `BingSiteAuth.xml`)는 운영 맥 `logs/service-frontend/public-pages/site-verification/`에 있다. 지우지 않는다.
+
 ## 미리 준비된 것
 
 | 항목 | 주소 또는 위치 | 상태 |
