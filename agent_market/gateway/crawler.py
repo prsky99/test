@@ -222,7 +222,7 @@ class Crawler:
             if self._fixed_http is None:
                 self.http = httpx.Client(
                     timeout=30.0,
-                    headers={"user-agent": "A2A-Discovery-Crawler/1.0 (+https://github.com/a2a-discovery; respectful indexing bot; contact: bot@a2a-discovery.org)"}
+                    headers={"user-agent": "A2A-Discovery-Crawler/1.0 (+https://agentconcierge.biz/; respectful indexing bot; contact: contact@agentconcierge.biz)"}
                 )
             report = {}
             for name in self.sources:
