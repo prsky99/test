@@ -126,7 +126,36 @@ class TaskPagesRefresher:
                 log.exception('Task page snapshot was not written')
                 return
             log.info('Task page snapshot: %d task pages, %d agents', len(snapshot['tasks']), len(snapshot['catalog']))
+            self.publish_weekly(snapshot)
+            self.aggregate_feedback(snapshot)
             self.prepare_notice(snapshot)
+
+    def aggregate_feedback(self, snapshot):
+        """Daily per-agent report counts for the agents with evidence (registered per-resource statistics)."""
+        store = getattr(self.front, 'store', None)
+        if store is None:
+            return
+        from . import feedback
+        try:
+            ids = [a['id'] for a in snapshot.get('catalog') or [] if isinstance(a, dict) and a.get('id')]
+            value = feedback.write_stats(self.out.parent, feedback.aggregate(store, ids), self.clock)
+            log.info('Feedback stats: %d reports on %d agents', value['totals']['reports'], value['totals']['agents'])
+        except Exception:
+            log.exception('Feedback stats were not written')
+
+    def publish_weekly(self, snapshot):
+        """Monday (KST): the weekly evidence issue for the week that just ended, once."""
+        if datetime.fromtimestamp(self.clock(), ZONE).weekday() != 0:
+            return
+        from . import weekly_report
+        from .growth_pages import clean
+        try:
+            week = weekly_report.publish(self.out.parent / weekly_report.FOLDER, clean(snapshot))
+        except Exception:
+            log.exception('Weekly evidence issue was not written')
+            return
+        if week:
+            log.info('Weekly evidence issue %s written', week)
 
     def prepare_notice(self, snapshot):
         from . import indexnow

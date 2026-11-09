@@ -94,6 +94,33 @@ def card_html(agent):
             f'alt="{esc(agent["name"])} recorded checks on Agent Concierge" width="360" height="120"></a>')
 
 
+def outcome_section(rid):
+    """'Did it work?' as a plain form (no script needed) plus the published report counts."""
+    from .feedback import resource_stats
+    stats = resource_stats(g.data_dir(), rid)
+    counts = (f'<p class="caption">User reports so far: {stats["worked"]:,} worked, {stats["reports"]-stats["worked"]:,} did not. '
+              'Reports are signals, not proof.</p>') if stats and stats['reports'] else ''
+    form = lambda worked, label, cls: ('<form method="post" action="/api/feedback" class="inline">'
+                                       '<input type="hidden" name="resource_id" value="'+str(int(rid))+'">'
+                                       '<input type="hidden" name="worked" value="'+worked+'">'
+                                       '<input type="hidden" name="source" value="agent_page">'
+                                       '<button class="btn '+cls+'" type="submit">'+label+'</button></form>')
+    return ('<section class="card stack" id="outcome" aria-labelledby="outcome-h"><h2 id="outcome-h">Did it work for you?</h2>'
+            '<p>If you tried this agent, tell us. Reports feed ranking signals. We store only the agent, the answer and the time.</p>'
+            '<div class="actions">'+form('1', 'Worked', 'primary')+form('0', "Didn't work", '')+'</div>'+counts+'</section>')
+
+
+def reported_page(rid, result):
+    agent = (g.SNAPSHOT.read() or {}).get('catalog', {}).get(rid)
+    name = agent['name'] if agent else 'this agent'
+    text = ('Thanks. Your report for '+name+' was recorded.' if result == 'recorded'
+            else 'Thanks. We already have enough reports from you for now, so this one was not recorded.')
+    return g.shell(title='Report received | Agent Concierge', description=text, canonical=g.ORIGIN+'/agent/'+str(rid), index=False,
+                   body=g.heading('Report', 'Report received', text)
+                   + '<div class="actions"><a class="btn primary" href="/agent/'+str(rid)+'">Back to the agent</a>'
+                   '<a class="btn" href="/new/en/explore.html">Explore</a></div>')
+
+
 def agent_page(rid, snapshot=None):
     snapshot = g.SNAPSHOT.read() if snapshot is None else snapshot
     agent = (snapshot or {}).get('catalog', {}).get(rid)
@@ -137,6 +164,7 @@ def agent_page(rid, snapshot=None):
                     '<p class="caption">Markdown</p><pre tabindex="0"><code>'+esc(badge_markdown(agent))+'</code></pre>'
                     '<p class="caption">Evidence card (HTML)</p><pre tabindex="0"><code>'+esc(card_html(agent))+'</code></pre>'
                     '<p><a href="/badges">About badges and cards</a></p></section>')
+    sections.append(outcome_section(rid))
     body = (g.heading(kind + (' · '+category if category else ''), title, agent.get('description') or description)
             + '<div class="row"><span class="badge">'+esc(kind)+'</span>'+('<span class="badge success">Free</span>' if agent.get('free') else '')
             + ('<span class="badge">Grade '+esc(agent['eval_grade'])+'</span>' if agent.get('eval_grade') else '')+'</div>'
@@ -390,6 +418,12 @@ def install(router, page_headers, not_found):
     @router.get('/agent/{rid}', include_in_schema=False)
     async def agent(rid: str):
         return page(await run_in_threadpool(agent_page, int(rid)) if re.fullmatch(r'[1-9][0-9]{0,9}', rid) else None)
+
+    @router.get('/agent/{rid}/reported', include_in_schema=False)
+    def reported(rid: str, r: str = ''):
+        if not re.fullmatch(r'[1-9][0-9]{0,9}', rid) or r not in ('recorded', 'limited'):
+            return not_found()
+        return HTMLResponse(reported_page(int(rid), r), headers={'Cache-Control': 'no-store'})
 
     @router.get('/agent/{rid}/card.svg', include_in_schema=False)
     async def card(rid: str):

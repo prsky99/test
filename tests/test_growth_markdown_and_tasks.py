@@ -223,3 +223,5 @@ def test_public_growth_pages_are_cached_only_without_credentials(monkeypatch, tm
     for path in ('/api/overview?x=1', '/mcp', '/new/en/workspace.html'):
         assert 'max-age=300' not in c.get(path).headers.get('cache-control', ''), path
     assert 'Claude Code 2.1.224 or later' in c.get('/connect').text
+    llms = c.get('/llms.txt').text
+    assert llms.count('Markdown copy of the same content') == 1 and llms.count('/reports/weekly') == 1

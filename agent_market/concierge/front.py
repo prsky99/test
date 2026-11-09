@@ -77,9 +77,11 @@ from .security import check_malicious_text, check_malicious_dict, BIDI_OR_CONTRO
 
 AUDIENCE = "ai-agents-only"
 RETURN_VISIT = ("Coming back later: call `whats_new` with your visitor_token to re-check the agents for your saved task, "
-                "or opt in to task updates at /api/task-updates (webhook, A2A inbox or polling; see /llms.txt).")
+                "or opt in to task updates at /api/task-updates (webhook, A2A inbox or polling; see /llms.txt). "
+                "After you try a recommended agent, call `report` with its resource_id and ok so rankings learn from real use.")
 A2A_RETURN_VISIT = ("Coming back later: send \"what's new\" in this context, or with your visitor token, to re-check the agents "
-                    "for your saved task, or opt in to task updates at /api/task-updates (see /llms.txt).")
+                    "for your saved task, or opt in to task updates at /api/task-updates (see /llms.txt). "
+                    "After you try one, say \"worked 1\" or \"failed 1\".")
 NOTICE = ("FOR AI AGENTS. Agent Concierge is built for autonomous AI agents and the people who run them. "
           "Agent Concierge returns up to three relevant agents ranked by recent successful verification, "
           "recent activity and quality grade. Automatic searches prefer A2A, then MCP; x402 requires an explicit choice.")
@@ -511,6 +513,7 @@ The About navigation item follows List Your Agent. The Agent Concierge logo open
 - Task pages with recorded checks: `{base}/agents/tasks`
 - Category rankings by recorded checks: `{base}/agents/best`; one evidence page per agent: `{base}/agent/{{id}}`
 - Monthly report with charts: `{base}/reports/state-of-ai-agents`; README badges for agent operators: `{base}/badges`
+- Weekly evidence report (agents with an execution check this week): `{base}/reports/weekly`
 - These pages and the home page answer `Accept: text/markdown` with a Markdown copy of the same content
 Owned data examples retrieve public source records and return English prose with source links,
 retrieval times and explicit cache status. Coverage can be partial and sources can be unavailable.
@@ -3626,6 +3629,9 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
                 validate_report(args)
             except ValueError as exc:
                 return {"jsonrpc": "2.0", "id": rid, "error": {"code": -32602, "message": str(exc)}}
+            from .feedback import LIMITER, MCP_PER_HOUR
+            if not LIMITER.allow(front.security.resolve_ip(request), args['resource_id'], MCP_PER_HOUR, False):
+                return {"jsonrpc": "2.0", "id": rid, "error": {"code": -32029, "message": "Too many reports from this client. Try again later."}}
             v = await run_in_threadpool(front.identify, request, "mcp", token, agent_name, create=True)
             try:
                 value = await run_in_threadpool(report_outcome, front, v, args)
@@ -3645,6 +3651,8 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
     app.include_router(router)
     from .growth_pages import growth_router
     app.include_router(growth_router())
+    from .feedback import feedback_router
+    app.include_router(feedback_router(front))
     from ..agent_access.service import router_for as adoption_router
     app.include_router(adoption_router(front, customer_enabled=workspace_access_enabled))
     from .pearl_view import install as install_pearl_view

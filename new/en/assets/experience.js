@@ -98,6 +98,22 @@
   const query=new URLSearchParams(location.search);const hash=new URLSearchParams(location.hash.split('?')[1]||'');
   const ids=String(query.get('compare')||query.get('agents')||hash.get('compare')||hash.get('agents')||'').split(',').filter(validId).slice(0,4);
   if(ids.length){switchTab('chat');if(query.has('compare')||hash.has('compare'))showComparison(ids);else Promise.all(ids.map(id=>readAgent(id))).then(items=>{const messages=q('#chatMessages');const bubble=make('div','','chat-bubble bot');for(const item of items){const card=make('article','','chat-recommendation');const heading=make('div','','chat-result-heading');heading.append(make('strong',safeFields(item).name));card.append(heading);bindAgentCard(card,item);bubble.append(card);}messages?.prepend(bubble);}).catch(()=>announce('This public agent link is no longer available. Search for current agents.'));}
+  // 11-10: one-click "Worked / Didn't work" on Explore results. Anonymous; the server keeps no IP or user agent and limits abuse.
+  if(typeof renderExplore==='function'){
+    const priorExplore=renderExplore;
+    renderExplore=function(...args){const value=priorExplore(...args);
+      for(const card of document.querySelectorAll('#xResults .acard[data-id]')){
+        if(card.querySelector('.explore-feedback'))continue;const id=Number(card.dataset.id);if(!Number.isSafeInteger(id)||id<1)continue;
+        const box=document.createElement('div');box.className='explore-feedback actions';const label=document.createElement('span');label.className='caption';label.textContent='Tried it?';label.setAttribute('aria-live','polite');
+        const name=(card.querySelector('.t')?.textContent||'this agent').trim().slice(0,80);
+        const send=worked=>async event=>{event.stopPropagation();event.preventDefault();box.querySelectorAll('button').forEach(b=>{b.disabled=true;});
+          try{const r=await fetch('/api/feedback',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'omit',body:JSON.stringify({resource_id:id,worked,source:'explore'})});
+            label.textContent=r.ok?'Thanks, recorded.':r.status===429?'Thanks. Enough reports from you for now.':'Could not record. Try again later.';}
+          catch{label.textContent='Could not record. Try again later.';}};
+        for(const [text,worked] of [['Worked',true],["Didn't work",false]]){const b=document.createElement('button');b.type='button';b.className='btn sm';b.textContent=text;b.setAttribute('aria-label',text+': '+name);b.addEventListener('click',send(worked));box.append(b);}
+        box.prepend(label);card.append(box);}
+      return value;};
+  }
   if(query.get('guide')==='quality'){switchTab('learn');if(typeof selectLearnSubTab==='function')selectLearnSubTab('quality');}
 
   // Browser-native tools expose only public discovery; no execution or payment tools.

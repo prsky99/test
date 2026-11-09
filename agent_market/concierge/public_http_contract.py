@@ -51,7 +51,7 @@ def problem_document(body, status, method):
 
 
 def growth_path(path):
-    return path in GROWTH_PAGES or path.startswith(GROWTH_PREFIXES)
+    return (path in GROWTH_PAGES or path.startswith(GROWTH_PREFIXES)) and not path.endswith('/reported')
 
 
 def shared_path(path):

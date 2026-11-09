@@ -205,6 +205,8 @@ def sitemap_paths(snapshot=None):
     if fresh(snapshot) and snapshot['catalog']:
         from .growth_catalog import sitemap_paths as catalog_paths
         paths += catalog_paths(snapshot)
+    from .weekly_report import sitemap_paths as weekly_paths
+    paths += weekly_paths()
     return paths
 
 
@@ -374,7 +376,8 @@ def agent_card(agent):
             '<h3>'+esc(agent['name'])+'</h3>'
             + ('<p>'+esc(agent['description'])+'</p>' if agent.get('description') else '')
             + '<section aria-label="Recorded evidence"><p class="eyebrow">Recorded evidence</p>'+rows+'</section>'
-            '<div class="actions"><a class="btn small" href="'+esc(explore)+'">Open in Explore</a></div></article>')
+            '<div class="actions"><a class="btn small" href="'+esc(explore)+'">Open in Explore</a>'
+            '<a class="btn small" href="/agent/'+str(int(agent['id']))+'#outcome">Did it work?</a></div></article>')
 
 
 SPECIAL_CASE = {w: w.upper() for w in (
@@ -560,6 +563,9 @@ def growth_router():
 
     from . import plugin_dist
     plugin_dist.install(router)
+
+    from . import weekly_report
+    weekly_report.install(router, page_headers, not_found)
 
     key = indexnow_key()
     if key:
