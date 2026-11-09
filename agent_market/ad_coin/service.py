@@ -18,6 +18,7 @@ from .config import (COIN_VALUE_WON, DEFAULT_SPLIT_BPS, DORMANT_AGENT_DAYS, FREQ
                      MAX_MANDATE_DAYS, MIN_EXPOSURE_MS, QUOTE_TTL_SECONDS, RESERVATION_TTL_SECONDS,
                      STEP_UP_TRANSFER_WON, TASK_SHARE_BPS, VOUCHER_TTL_SECONDS, SettingsError, validate_split)
 from . import db as _db
+from .config import require_test_mode
 from .db import dumps
 
 
@@ -139,6 +140,7 @@ def _only(ids):
 
 class AdCoinService:
     def __init__(self, database, signer, *, test_mode=True):
+        require_test_mode(test_mode)
         self.db = database
         self.ledger = L.Ledger(database)
         self.signer = signer

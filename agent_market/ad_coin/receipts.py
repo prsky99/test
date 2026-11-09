@@ -15,6 +15,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 
 from . import db as _db
+from .config import require_test_mode
 from .db import dumps
 
 
@@ -73,6 +74,7 @@ def public_jwk(public_key):
 
 class Signer:
     def __init__(self, private_key, issuer, test_mode=True):
+        require_test_mode(test_mode)
         self.key = private_key
         self.public = private_key.public_key()
         self.kid = key_id(self.public)

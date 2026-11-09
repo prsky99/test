@@ -22,6 +22,17 @@ class SettingsError(ValueError):
     pass
 
 
+# Version 1 is frozen as a test-only ledger (decision 2026-11-09). Real value lives in v2.
+# Only security and correctness fixes land here; test mode cannot be switched off.
+FROZEN_TEST_ONLY = True
+
+
+def require_test_mode(test_mode):
+    if test_mode is not True:
+        raise SettingsError('AI AD Coin v1 is frozen as test-only; test mode cannot be switched off.')
+    return True
+
+
 def validate_split(split):
     if not isinstance(split, dict) or set(split) != set(SPLIT_KEYS):
         raise SettingsError('The split must name user, operator, direct and platform.')
@@ -75,6 +86,9 @@ class Settings:
                    invited=invited,
                    issuer=environ.get('AD_COIN_ISSUER', cls.issuer),
                    pool_maximum=_pool_maximum(environ.get('AD_COIN_POOL_MAXIMUM', '')))
+
+    def __post_init__(self):
+        require_test_mode(self.test_mode)
 
     def with_(self, **changes):
         return replace(self, **changes)
