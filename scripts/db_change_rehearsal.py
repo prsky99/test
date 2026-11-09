@@ -10,6 +10,7 @@ transaction, an Explore search). It never connects to the production database.
     .venv/bin/python -m scripts.db_change_rehearsal run --sql change.sql
     .venv/bin/python -m scripts.db_change_rehearsal run --command "python -m scripts.ad_coin_v2_migrate migrate --dsn-file {dsn_file} --key-file {key_file} --i-have-approval"
     .venv/bin/python -m scripts.db_change_rehearsal check --sql change.sql     # before the production run
+    .venv/bin/python -m scripts.db_change_rehearsal drill --backup <snapshot dir> --data full   # backup restore drill
 
 `run` writes a JSON report under logs/ops/db-rehearsal/ and exits 1 when any check fails. A passed
 run also records the change's digest; `check` exits 1 unless the same change passed within
@@ -213,6 +214,49 @@ def run(sql=None, command=None, backup=None, releases=None, mode='minimal', repo
     return result
 
 
+def drill(backup, releases=None, mode='full', report=None):
+    """Backup restore drill: verify the dump against its manifest, restore it into a disposable cluster
+    and attach the active releases. Nothing is changed and production is not connected."""
+    from scripts.rehearse_storage_adapter_postgres import _private_cluster, PORT
+    backup = Path(backup)
+    releases = releases or active_releases()
+    began = time.time()
+    manifest = json.loads((backup / 'manifest.json').read_text())
+    digest = hashlib.sha256()
+    with (backup / 'database.dump').open('rb') as stream:
+        for chunk in iter(lambda: stream.read(8 * 1024 * 1024), b''):
+            digest.update(chunk)
+    result = {'started': began, 'backup': str(backup), 'releases': releases, 'data': mode, 'production_connected': False,
+              'dump_sha256_matches_manifest': digest.hexdigest() == manifest['files']['database.dump']['sha256'],
+              'verify_seconds': round(time.time() - began, 1)}
+    if result['dump_sha256_matches_manifest']:
+        tools = {name: str(BIN / name) for name in ('initdb', 'pg_ctl')}
+        with _private_cluster(tools) as cluster:
+            key_path = Path(cluster['root']) / 'workflow.key'
+            descriptor = os.open(key_path, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
+            with os.fdopen(descriptor, 'wb') as stream:
+                stream.write((backup / 'workflow.key').read_bytes())
+            restore_began = time.time()
+            result['restore'] = restore(backup, cluster, mode, PORT)
+            result['restore_seconds'] = round(time.time() - restore_began, 1)
+            if result['restore']['ok']:
+                counts = subprocess.run([str(BIN / 'psql'), '-At', '-h', cluster['socket'], '-p', str(PORT), '-U', 'postgres',
+                                         '-d', 'postgres', '-c', "SELECT (SELECT count(*) FROM resources), (SELECT count(*) FROM resources WHERE active=1), "
+                                         "(SELECT count(*) FROM agent_test_reports), (SELECT count(*) FROM workflow_runs)"],
+                                        env=_environment(), capture_output=True, text=True)
+                values = counts.stdout.strip().split('|')
+                result['counts'] = dict(zip(('resources', 'active_resources', 'agent_test_reports', 'workflow_runs'), values))
+                result['catalog_resources_at_baseline'] = manifest.get('catalog_resources_at_baseline')
+                result['attach'] = {release: check_release(release, cluster, PORT, key_path) for release in releases}
+    result['ok'] = bool(result.get('attach')) and all(item.get('ok') for item in result['attach'].values())
+    result['seconds'] = round(time.time() - began, 1)
+    REPORTS.mkdir(parents=True, exist_ok=True)
+    path = Path(report) if report else REPORTS / time.strftime('drill-%Y%m%d-%H%M%S.json')
+    path.write_text(json.dumps(result, indent=2) + '\n')
+    result['report'] = str(path)
+    return result
+
+
 def check(sql=None, command=None, now=None):
     """0 when this exact change passed a rehearsal within PASS_HOURS against the releases active now."""
     now = time.time() if now is None else now
@@ -231,8 +275,8 @@ def check(sql=None, command=None, now=None):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument('action', choices=('run', 'check'))
-    change = parser.add_mutually_exclusive_group(required=True)
+    parser.add_argument('action', choices=('run', 'check', 'drill'))
+    change = parser.add_mutually_exclusive_group(required=False)
     change.add_argument('--sql')
     change.add_argument('--command')
     parser.add_argument('--backup')
@@ -240,7 +284,14 @@ def main(argv=None):
     parser.add_argument('--data', choices=('minimal', 'full'), default='minimal')
     parser.add_argument('--report')
     args = parser.parse_args(argv)
-    if args.action == 'check':
+    if args.action == 'drill':
+        if not args.backup:
+            parser.error('drill needs --backup <snapshot directory>')
+        result = drill(args.backup, args.releases.split(',') if args.releases else None,
+                       'full' if args.data == 'full' else 'minimal', args.report)
+    elif not (args.sql or args.command):
+        parser.error(args.action + ' needs --sql or --command')
+    elif args.action == 'check':
         result = check(args.sql, args.command)
     else:
         result = run(args.sql, args.command, args.backup, args.releases.split(',') if args.releases else None,
