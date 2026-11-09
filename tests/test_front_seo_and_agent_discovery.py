@@ -24,7 +24,8 @@ def test_sitemap_xml_endpoint(w):
     from agent_market.agent_access.pages import category_links
     pages = [url(panel) for panel in PAGES]
     # Public pages first, then the English category landing pages.
-    assert urls == pages + ['https://agentconcierge.biz' + path for path in category_links(None)]
+    from agent_market.concierge.growth_pages import sitemap_paths
+    assert urls == pages + ['https://agentconcierge.biz' + path for path in [*category_links(None), *sitemap_paths()]]
     assert all('#' not in value for value in urls)
     # Only a successfully measured home snapshot may supply a lastmod.
     dated = [entry for entry in root if entry.find('{*}lastmod') is not None]

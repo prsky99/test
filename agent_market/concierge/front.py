@@ -502,6 +502,8 @@ The About navigation item follows List Your Agent. The Agent Concierge logo open
 - Test: `{base}/new/en/test.html` — technology news, research papers, country profiles and package metadata.
 - Workflows: `{base}/new/en/workflows.html` — technology research, country indicators and package advisories.
 - List Your Agent: `{base}/new/en/list-agent.html`
+- Connect an MCP client (Claude Code, Claude Desktop, Cursor, VS Code, OpenAI Agents SDK): `{base}/connect`
+- Task pages with recorded checks: `{base}/agents/tasks`
 Owned data examples retrieve public source records and return English prose with source links,
 retrieval times and explicit cache status. Coverage can be partial and sources can be unavailable.
 Annual indicators show the latest available source year. An empty advisory lookup is not a security guarantee.
@@ -2378,7 +2380,8 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
     def sitemap(request: Request):
         from ..agent_access.pages import category_links
         import html
-        extra=''.join('<url><loc>https://agentconcierge.biz'+html.escape(path)+'</loc></url>'for path in category_links(front))
+        from .growth_pages import sitemap_paths
+        extra=''.join('<url><loc>https://agentconcierge.biz'+html.escape(path)+'</loc></url>'for path in [*category_links(front),*sitemap_paths()])
         from .public_metadata import sitemap as public_sitemap
         return Response(content=public_sitemap(front.base(request), front.daily_statistics.read()).replace('</urlset>',extra+'</urlset>'), media_type="application/xml")
 
@@ -3629,6 +3632,8 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
         return mcp_result(rid, {"content": [{"type": "text", "text": reply.text}], "structuredContent": structured, "isError": False})
 
     app.include_router(router)
+    from .growth_pages import growth_router
+    app.include_router(growth_router())
     from ..agent_access.service import router_for as adoption_router
     app.include_router(adoption_router(front, customer_enabled=workspace_access_enabled))
     from .pearl_view import install as install_pearl_view

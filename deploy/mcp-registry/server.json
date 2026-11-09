@@ -1,0 +1,14 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "biz.agentconcierge/agent-concierge",
+  "title": "Agent Concierge",
+  "description": "Find AI agents, MCP servers and x402 APIs for a task, ranked by recorded checks and quality.",
+  "version": "1.0.0",
+  "websiteUrl": "https://agentconcierge.biz/connect",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://agentconcierge.biz/mcp"
+    }
+  ]
+}

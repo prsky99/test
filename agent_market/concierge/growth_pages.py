@@ -1,0 +1,417 @@
+"""Public, server-rendered pages for outside discovery (11-09 growth plan, steps 1-2).
+
+- /connect: copyable client settings for the remote MCP endpoint.
+- /agents/tasks and /agents/task/{slug}: task pages built from a periodic snapshot
+  (scripts/build_task_pages.py). Requests only read a local file, so they never touch
+  the database and stay well inside the 3-second Explore policy.
+- /.well-known/mcp-registry-auth: the official MCP Registry HTTP domain proof, served
+  from an operator file only when it holds exactly one public-key line.
+
+All visible text is English. Pages use the shared Pearl Connection assets and classes.
+"""
+import base64
+import html
+import json
+import os
+import re
+import threading
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+from urllib.parse import quote
+
+ORIGIN = 'https://agentconcierge.biz'
+MCP_URL = ORIGIN + '/mcp'
+SERVER_NAME = 'agent-concierge'
+SNAPSHOT_NAME = 'task-pages.json'
+AUTH_NAME = 'mcp-registry-auth'
+MIN_AGENTS = 2            # a task page needs at least this many agents with evidence
+MAX_AGENTS = 6
+SITEMAP_MAX_AGE = 21*86400  # stale snapshots stay readable but leave the sitemap
+SLUG = re.compile(r'^[a-z0-9]+(?:-[a-z0-9]+){0,8}$')
+AUTH_LINE = re.compile(r'^v=MCPv1; k=(ed25519|ecdsap384); p=[A-Za-z0-9+/]{20,200}={0,2}$')
+KINDS = {'a2a': 'A2A', 'mcp': 'MCP', 'x402': 'x402'}
+GRADES = {'A', 'B', 'C', 'D', 'E', 'F'}
+
+esc = lambda value: html.escape(str(value), quote=True)
+
+
+def data_dir():
+    """LOG_DIR/public-pages: shared by both frontend slots, outside git and releases."""
+    value = os.environ.get('LOG_DIR')
+    return Path(value) / 'public-pages' if value else None
+
+
+# ---------------------------------------------------------------- snapshot
+class Snapshot:
+    """Reads the task snapshot file, re-reading only when its mtime changes."""
+
+    def __init__(self, path_fn=None):
+        self.path_fn = path_fn or (lambda: (data_dir() / SNAPSHOT_NAME) if data_dir() else None)
+        self.lock = threading.Lock()
+        self.key = None
+        self.value = None
+        self.checked = 0.
+
+    def read(self):
+        now = time.monotonic()
+        with self.lock:
+            if now - self.checked < 5 and self.key is not None:
+                return self.value
+            self.checked = now
+            path = self.path_fn()
+            try:
+                stat = path.stat() if path else None
+            except OSError:
+                stat = None
+            key = (str(path), stat.st_mtime_ns, stat.st_size) if stat else ('missing',)
+            if key != self.key:
+                self.key = key
+                self.value = None
+                if stat and stat.st_size < 8*1024*1024:
+                    try:
+                        self.value = clean(json.loads(path.read_text(encoding='utf-8')))
+                    except (OSError, ValueError):
+                        self.value = None
+            return self.value
+
+
+def _text(value, limit):
+    value = re.sub(r'\s+', ' ', str(value or '')).strip()
+    return value[:limit-1].rstrip()+'…' if len(value) > limit else value
+
+
+def _time(value):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if 1.5e9 < number < 4e9 else None
+
+
+def clean_agent(item):
+    if not isinstance(item, dict) or item.get('kind') not in KINDS:
+        return None
+    try:
+        rid = int(item.get('id'))
+    except (TypeError, ValueError):
+        return None
+    if not 0 < rid < 2**31:
+        return None
+    grade = item.get('eval_grade') if item.get('eval_grade') in GRADES else None
+    report = item.get('report_grade') if item.get('report_grade') in GRADES else None
+    latency = item.get('probe_latency_ms')
+    latency = int(latency) if isinstance(latency, (int, float)) and 0 <= latency < 600000 else None
+    agent = {'id': rid, 'kind': item['kind'], 'name': _text(item.get('name'), 90) or 'Unnamed agent',
+             'description': _text(item.get('description'), 260), 'health_status': _text(item.get('health_status'), 20),
+             'last_check_at': _time(item.get('last_check_at')), 'verified_at': _time(item.get('verified_at')),
+             'trial_ok': bool(item.get('trial_ok')), 'eval_grade': grade, 'report_grade': report,
+             'probe_latency_ms': latency, 'auth_required': bool(item.get('auth_required')),
+             'free': item['free'] is True if 'free' in item else item.get('price_usdc') in (0, 0.0)}
+    return agent if has_evidence(agent) else None
+
+
+def has_evidence(agent, now=None):
+    """A recorded execution check, or a successful trial call with a recent health check and a quality grade."""
+    now = now or time.time()
+    if agent.get('verified_at') and now - agent['verified_at'] < 30*86400:
+        return True
+    return bool(agent.get('trial_ok') and agent.get('eval_grade') in ('A', 'B')
+                and agent.get('health_status') in ('healthy', 'reachable')
+                and agent.get('last_check_at') and now - agent['last_check_at'] < 14*86400)
+
+
+def clean(value):
+    if not isinstance(value, dict) or value.get('version') != 1 or not isinstance(value.get('tasks'), list):
+        return None
+    try:
+        captured = datetime.fromisoformat(value['captured_at'])
+        if captured.utcoffset() is None:
+            return None
+    except (KeyError, TypeError, ValueError):
+        return None
+    tasks, seen = [], set()
+    for task in value['tasks'][:2000]:
+        if not isinstance(task, dict) or not SLUG.match(str(task.get('slug') or '')) or task['slug'] in seen:
+            continue
+        agents = [a for a in map(clean_agent, (task.get('agents') or [])[:MAX_AGENTS*3]) if a][:MAX_AGENTS]
+        if len(agents) < MIN_AGENTS:
+            continue
+        seen.add(task['slug'])
+        tasks.append({'slug': task['slug'], 'title': _text(task.get('title'), 80) or task['slug'].replace('-', ' '),
+                      'query': _text(task.get('query'), 120), 'group': _text(task.get('group'), 40) or 'Other tasks',
+                      'agents': agents})
+    return {'captured_at': captured.isoformat(), 'captured': captured.timestamp(), 'tasks': tasks,
+            'by_slug': {t['slug']: t for t in tasks}}
+
+
+def fresh(snapshot, now=None):
+    return bool(snapshot) and (now or time.time()) - snapshot['captured'] < SITEMAP_MAX_AGE
+
+
+SNAPSHOT = Snapshot()
+
+
+def sitemap_paths(snapshot=None):
+    """Only pages with evidence: the connect guide, and task pages from a fresh snapshot."""
+    snapshot = SNAPSHOT.read() if snapshot is None else snapshot
+    paths = ['/connect']
+    if fresh(snapshot) and snapshot['tasks']:
+        paths.append('/agents/tasks')
+        paths += ['/agents/task/'+t['slug'] for t in snapshot['tasks']]
+    return paths
+
+
+def llms_lines(base=ORIGIN):
+    return ('\n## Connect and browse\n'
+            f'- Client setup for the remote MCP endpoint (Claude Code, Claude Desktop, Cursor, VS Code, OpenAI Agents SDK): `{base}/connect`\n'
+            f'- Task pages with recorded checks (health, trial call, quality grade): `{base}/agents/tasks`\n')
+
+
+# ---------------------------------------------------------------- shell
+NAV = [('Agent Status', '/new/en/agent-status.html'), ('Learn', '/new/en/learn.html'), ('Explore', '/new/en/explore.html'),
+       ('Test', '/new/en/test.html'), ('Workflows', '/new/en/workflows.html'), ('Chat', '/new/en/chat.html'),
+       ('List Your Agent', '/new/en/list-agent.html'), ('About', '/new/en/about.html')]
+FOOTER = [('Connect a client', '/connect'), ('Task pages', '/agents/tasks'), ('Explore', '/new/en/explore.html'),
+          ('Chat', '/new/en/chat.html'), ('About', '/new/en/about.html'), ('llms.txt', '/llms.txt'),
+          ('Terms of Service', '/#tos'), ('Privacy Policy', '/#privacy')]
+
+
+def shell(*, title, description, canonical, body, structured=None, index=True):
+    data = json.dumps(structured or {}, ensure_ascii=True).replace('<', '\\u003c')
+    nav = ''.join('<a class="nav-tab" href="'+esc(href)+'">'+esc(label)+'</a>' for label, href in NAV)
+    links = ''.join('<a class="footer-link-btn" href="'+esc(href)+'">'+esc(label)+'</a>' for label, href in FOOTER)
+    return ('<!doctype html><html lang="en"><head><meta charset="utf-8">'
+            '<meta name="viewport" content="width=device-width,initial-scale=1">'
+            '<title>'+esc(title)+'</title><meta name="description" content="'+esc(description)+'">'
+            '<meta name="robots" content="'+('index, follow, max-snippet:-1' if index else 'noindex, follow')+'">'
+            '<link rel="canonical" href="'+esc(canonical)+'">'
+            '<meta property="og:type" content="website"><meta property="og:site_name" content="Agent Concierge">'
+            '<meta property="og:title" content="'+esc(title)+'"><meta property="og:description" content="'+esc(description)+'">'
+            '<meta property="og:url" content="'+esc(canonical)+'"><meta property="og:image" content="'+ORIGIN+'/new/en/assets/social-card.png">'
+            '<meta name="twitter:card" content="summary_large_image">'
+            '<link rel="icon" type="image/svg+xml" href="/new/en/assets/favicon.svg">'
+            '<link rel="agent-card" href="/.well-known/agent-card.json"><link rel="alternate" type="text/markdown" href="/llms.txt">'
+            '<link rel="stylesheet" href="/new/en/assets/operating.css"><link rel="stylesheet" href="/new/en/assets/styles.css">'
+            '<link rel="stylesheet" href="/new/en/assets/necklace.css"><link rel="stylesheet" href="/new/en/assets/pearl-live.css">'
+            '<script src="/new/en/assets/app.js" defer></script>'
+            '<script type="application/ld+json">'+data+'</script></head>'
+            '<body><a href="#mainContent" class="skip-link">Skip to main content</a>'
+            '<header class="top-nav pearl-header"><a href="/" class="brand-box" aria-label="Agent Concierge Home">'
+            '<span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>Agent Concierge</a>'
+            '<nav class="nav-tabs" aria-label="Main navigation">'+nav+'</nav>'
+            '<div class="pearl-header-actions"><button class="theme-toggle" type="button" data-action="theme" '
+            'aria-label="Toggle dark theme" aria-pressed="false"></button></div></header>'
+            '<main id="mainContent" class="main-wrap" tabindex="-1">'+body+'</main>'
+            '<footer class="global-footer"><div class="footer-wrap"><p class="footer-name">Agent Concierge</p>'
+            '<p class="footer-tagline">Purposeful connections. Inspectable evidence.</p>'
+            '<nav class="footer-links" aria-label="Site links">'+links+'</nav></div></footer></body></html>')
+
+
+def heading(eyebrow, h1, lead):
+    return ('<div class="page-heading pearl-page-heading"><p class="eyebrow">'+esc(eyebrow)+'</p><h1>'+esc(h1)+'</h1>'
+            '<p class="lead">'+esc(lead)+'</p></div>')
+
+
+# ---------------------------------------------------------------- connect page
+def cursor_link(url=MCP_URL, name=SERVER_NAME):
+    config = base64.b64encode(json.dumps({'url': url}, separators=(',', ':')).encode()).decode()
+    return 'cursor://anysphere.cursor-deeplink/mcp/install?name='+quote(name)+'&config='+quote(config)
+
+
+def client_settings(url=MCP_URL, name=SERVER_NAME):
+    """Exact copyable settings per client (checked against each vendor's documentation, 11-09)."""
+    return [
+        ('claude-code', 'Claude Code', 'Run once in a terminal. Add --scope user to use it in every project.',
+         [('Terminal', f'claude mcp add --transport http {name} {url}')]),
+        ('claude-desktop', 'Claude Desktop and claude.ai', 'Open Settings, then Connectors, choose Add custom connector, '
+         'enter the name and URL below and choose no sign-in. The connection is made from Anthropic\'s servers, so it uses the public URL.',
+         [('Name', 'Agent Concierge'), ('Remote MCP server URL', url)]),
+        ('cursor', 'Cursor', 'Use the install link, or add the entry to .cursor/mcp.json in a project or ~/.cursor/mcp.json for every project.',
+         [('.cursor/mcp.json', json.dumps({'mcpServers': {name: {'url': url}}}, indent=2))]),
+        ('vscode', 'VS Code', 'Add the entry to .vscode/mcp.json, or run the command to add it to your user settings. Then start the server from the MCP view.',
+         [('.vscode/mcp.json', json.dumps({'servers': {name: {'type': 'http', 'url': url}}}, indent=2)),
+          ('Terminal', "code --add-mcp '"+json.dumps({'name': name, 'type': 'http', 'url': url}, separators=(',', ':'))+"'")]),
+        ('openai-agents', 'OpenAI Agents SDK (Python)', 'Connect from your own process with MCPServerStreamableHttp, or let the Responses API call it as a hosted MCP tool.',
+         [('Local connection', 'from agents import Agent, Runner\nfrom agents.mcp import MCPServerStreamableHttp\n\n'
+           f'async with MCPServerStreamableHttp(name="Agent Concierge", params={{"url": "{url}"}}, cache_tools_list=True) as concierge:\n'
+           '    agent = Agent(name="Assistant", instructions="Use Agent Concierge to find a checked agent for the task.", mcp_servers=[concierge])\n'
+           '    result = await Runner.run(agent, "Find an agent that returns a weather forecast for Seoul.")\n'
+           '    print(result.final_output)'),
+          ('Hosted MCP tool', 'from agents import Agent, HostedMCPTool\n\n'
+           'agent = Agent(name="Assistant", tools=[HostedMCPTool(tool_config={\n'
+           f'    "type": "mcp", "server_label": "agent_concierge", "server_url": "{url}", "require_approval": "never"}})])')]),
+    ]
+
+
+def connect_page():
+    blocks = []
+    for key, label, note, snippets in client_settings():
+        parts = ''.join('<p class="caption">'+esc(caption)+'</p><pre tabindex="0"><code>'+esc(text)+'</code></pre>'
+                        for caption, text in snippets)
+        extra = ('<div class="actions"><a class="btn primary" href="'+esc(cursor_link())+'">Add to Cursor</a></div>'
+                 if key == 'cursor' else '')
+        blocks.append('<section class="card stack" id="'+key+'" aria-labelledby="'+key+'-h"><h2 id="'+key+'-h">'+esc(label)+'</h2>'
+                      '<p>'+esc(note)+'</p>'+parts+extra+'</section>')
+    tools = ('<section class="card stack" aria-labelledby="tools-h"><h2 id="tools-h">What the server offers</h2>'
+             '<p>Start with <code>search</code> for a read-only lookup, or <code>chat</code> to describe a task and receive up to three '
+             'relevant agents. Results are ranked by the latest successful recorded check, recent activity and quality grade; A2A comes first, '
+             'then MCP, and x402 only when you ask for it.</p>'
+             '<p>Calls to other agents through <code>call</code> or a workflow run are separate steps that you start. '
+             'Recorded checks describe what happened when they ran and do not guarantee that an agent works now.</p>'
+             '<p class="caption">Transport: streamable HTTP. No sign-in is needed for search. Other entry points: '
+             '<a href="/.well-known/mcp.json">MCP manifest</a>, <a href="/.well-known/agent-card.json">A2A Agent Card</a>, '
+             '<a href="/llms.txt">llms.txt</a>.</p></section>')
+    endpoint = ('<section class="card stack" aria-labelledby="endpoint-h"><h2 id="endpoint-h">Endpoint</h2>'
+                '<pre tabindex="0"><code>'+esc(MCP_URL)+'</code></pre></section>')
+    body = (heading('Connect', 'Use Agent Concierge from your MCP client',
+                    'Add one remote MCP server and ask for an agent by task. Copy the settings for your client below.')
+            + '<div class="stack">'+endpoint+''.join(blocks)+tools+'</div>')
+    structured = {'@context': 'https://schema.org', '@type': 'TechArticle', 'headline': 'Connect Agent Concierge to your MCP client',
+                  'url': ORIGIN+'/connect', 'inLanguage': 'en', 'about': {'@type': 'WebAPI', 'name': 'Agent Concierge MCP server', 'url': MCP_URL}}
+    return shell(title='Connect Agent Concierge to Claude, Cursor, VS Code and OpenAI Agents',
+                 description='Copyable settings for the Agent Concierge remote MCP server: Claude Code, Claude Desktop, Cursor, VS Code and the OpenAI Agents SDK.',
+                 canonical=ORIGIN+'/connect', body=body, structured=structured)
+
+
+# ---------------------------------------------------------------- task pages
+def _date(value):
+    return datetime.fromtimestamp(value, timezone.utc).strftime('%d %b %Y') if value else None
+
+
+def evidence_rows(agent):
+    rows = []
+    if agent.get('verified_at'):
+        rows.append(('Execution check', 'Succeeded · '+_date(agent['verified_at'])))
+    if agent.get('trial_ok'):
+        rows.append(('Trial call', 'Succeeded'))
+    if agent.get('last_check_at'):
+        status = (agent.get('health_status') or 'recorded').capitalize()
+        latency = ' · '+str(agent['probe_latency_ms'])+' ms' if agent.get('probe_latency_ms') is not None else ''
+        rows.append(('Health check', status+' · '+_date(agent['last_check_at'])+latency))
+    if agent.get('eval_grade'):
+        rows.append(('Quality grade', agent['eval_grade']))
+    if agent.get('report_grade'):
+        rows.append(('Test report grade', agent['report_grade']))
+    rows.append(('Sign-in', 'Required' if agent.get('auth_required') else 'Not required for listed checks'))
+    return rows
+
+
+def agent_card(agent):
+    rows = ''.join('<div class="history-row"><span class="caption">'+esc(k)+'</span><span>'+esc(v)+'</span></div>'
+                   for k, v in evidence_rows(agent))
+    explore = '/new/en/explore.html#explore?q='+quote(agent['name'])
+    return ('<article class="card stack" role="listitem"><div class="row"><span class="badge">'+esc(KINDS[agent['kind']])+'</span>'
+            + ('<span class="badge success">Free</span>' if agent.get('free') else '')+'</div>'
+            '<h3>'+esc(agent['name'])+'</h3>'
+            + ('<p>'+esc(agent['description'])+'</p>' if agent.get('description') else '')
+            + '<section aria-label="Recorded evidence"><p class="eyebrow">Recorded evidence</p>'+rows+'</section>'
+            '<div class="actions"><a class="btn small" href="'+esc(explore)+'">Open in Explore</a></div></article>')
+
+
+def task_page(slug, snapshot=None):
+    snapshot = SNAPSHOT.read() if snapshot is None else snapshot
+    if not snapshot or slug not in snapshot['by_slug']:
+        return None
+    task = snapshot['by_slug'][slug]
+    captured = datetime.fromisoformat(snapshot['captured_at']).astimezone(timezone.utc)
+    title = task['title']
+    description = (f"{len(task['agents'])} AI agents and MCP servers for {title.lower()}, each with a recorded health check, "
+                   "trial call or quality grade. Snapshot "+captured.strftime('%d %b %Y')+'.')
+    chat = '/new/en/chat.html'
+    related = [t for t in snapshot['tasks'] if t['group'] == task['group'] and t['slug'] != slug][:8]
+    related_html = ('<section class="card stack" aria-labelledby="related-h"><h2 id="related-h">Related tasks</h2><ul>'
+                    + ''.join('<li><a href="/agents/task/'+esc(t['slug'])+'">'+esc(t['title'])+'</a></li>' for t in related)
+                    + '</ul></section>') if related else ''
+    body = (heading(task['group'], 'Agents for '+title.lower(), description)
+            + '<div class="stack"><div class="note" role="note"><p>Listed agents had a successful recorded execution check, or a successful trial call with a '
+            'recent health check and quality grade A or B. Checks show what happened when they ran, not that an agent works now. '
+            'Snapshot captured <time datetime="'+esc(snapshot['captured_at'])+'">'+esc(captured.strftime('%d %b %Y, %H:%M UTC'))+'</time>.</p></div>'
+            + '<div class="grid two" role="list" aria-label="Agents with recorded evidence">'+''.join(map(agent_card, task['agents']))+'</div>'
+            + '<section class="card stack" aria-labelledby="next-h"><h2 id="next-h">Compare current options</h2>'
+            '<p>Rankings change as checks run. Describe the task in <a href="'+chat+'">Chat</a> for up to three current matches, or ask an '
+            'MCP client connected to Agent Concierge (<a href="/connect">setup</a>). Search the full catalog, including listings without '
+            'evidence, in <a href="/new/en/explore.html#explore?q='+esc(quote(task['query'] or title))+'">Explore</a>.</p></section>'
+            + related_html+'</div>')
+    structured = {'@context': 'https://schema.org', '@type': 'CollectionPage', 'name': 'Agents for '+title.lower(),
+                  'description': description, 'url': ORIGIN+'/agents/task/'+slug, 'inLanguage': 'en', 'dateModified': snapshot['captured_at'],
+                  'mainEntity': {'@type': 'ItemList', 'numberOfItems': len(task['agents']), 'itemListElement': [
+                      {'@type': 'ListItem', 'position': i+1, 'name': a['name']} for i, a in enumerate(task['agents'])]}}
+    return shell(title='Agents for '+title.lower()+' — Agent Concierge', description=description,
+                 canonical=ORIGIN+'/agents/task/'+slug, body=body, structured=structured, index=fresh(snapshot))
+
+
+def tasks_index(snapshot=None):
+    snapshot = SNAPSHOT.read() if snapshot is None else snapshot
+    groups = {}
+    for task in (snapshot or {}).get('tasks', []):
+        groups.setdefault(task['group'], []).append(task)
+    sections = ''.join('<section class="card stack" aria-labelledby="g'+str(i)+'"><h2 id="g'+str(i)+'">'+esc(name)+'</h2><ul>'
+                       + ''.join('<li><a href="/agents/task/'+esc(t['slug'])+'">'+esc(t['title'])+'</a> <span class="caption">'
+                                 + str(len(t['agents']))+' agents</span></li>' for t in tasks)+'</ul></section>'
+                       for i, (name, tasks) in enumerate(sorted(groups.items())))
+    if not sections:
+        sections = ('<section class="card"><p>Task pages are being prepared. Search the catalog in '
+                    '<a href="/new/en/explore.html">Explore</a> or describe a task in <a href="/new/en/chat.html">Chat</a>.</p></section>')
+    captured = (' Snapshot captured '+datetime.fromisoformat(snapshot['captured_at']).astimezone(timezone.utc).strftime('%d %b %Y')+'.'
+                if snapshot else '')
+    body = (heading('Tasks', 'Find an agent by task',
+                    'Each page lists agents with recorded evidence for one task: a health check, a trial call, an execution check or a quality grade.'
+                    + captured) + '<div class="grid two">'+sections+'</div>')
+    structured = {'@context': 'https://schema.org', '@type': 'CollectionPage', 'name': 'Find an agent by task',
+                  'url': ORIGIN+'/agents/tasks', 'inLanguage': 'en'}
+    return shell(title='Find AI Agents and MCP Servers by Task — Agent Concierge',
+                 description='Task pages listing AI agents and MCP servers with recorded health checks, trial calls and quality grades.',
+                 canonical=ORIGIN+'/agents/tasks', body=body, structured=structured, index=fresh(snapshot))
+
+
+def registry_auth(path_fn=None):
+    """Return the single public-key line, or None. Anything else (e.g. a private key) is never served."""
+    folder = data_dir() if path_fn is None else path_fn()
+    if folder is None:
+        return None
+    try:
+        raw = (folder / AUTH_NAME).read_bytes()
+    except OSError:
+        return None
+    if len(raw) > 4096:
+        return None
+    line = raw.decode('ascii', 'replace').strip()
+    return line if AUTH_LINE.match(line) else None
+
+
+# ---------------------------------------------------------------- router
+def growth_router():
+    from fastapi import APIRouter
+    from fastapi.responses import HTMLResponse, PlainTextResponse, Response
+    from starlette.concurrency import run_in_threadpool
+    router = APIRouter()
+    page_headers = {'Cache-Control': 'public, max-age=300'}
+
+    @router.get('/connect', include_in_schema=False)
+    def connect():
+        return HTMLResponse(connect_page(), headers=page_headers)
+
+    @router.get('/agents/tasks', include_in_schema=False)
+    async def tasks():
+        return HTMLResponse(await run_in_threadpool(tasks_index), headers=page_headers)
+
+    @router.get('/agents/task/{slug}', include_in_schema=False)
+    async def task(slug: str):
+        page = await run_in_threadpool(task_page, slug) if SLUG.match(slug) else None
+        if page is None:
+            return HTMLResponse(shell(title='Task page not found — Agent Concierge', description='This task page is not available.',
+                                      canonical=ORIGIN+'/agents/tasks', index=False,
+                                      body=heading('Tasks', 'Task page not found', 'Choose a task from the list, or search the catalog.')
+                                      + '<div class="actions"><a class="btn primary" href="/agents/tasks">All task pages</a>'
+                                      '<a class="btn" href="/new/en/explore.html">Explore</a></div>'), status_code=404)
+        return HTMLResponse(page, headers=page_headers)
+
+    @router.get('/.well-known/mcp-registry-auth', include_in_schema=False)
+    def mcp_registry_auth():
+        line = registry_auth()
+        if line is None:
+            return Response(status_code=404)
+        return PlainTextResponse(line+'\n', headers={'Cache-Control': 'no-store'})
+
+    return router
