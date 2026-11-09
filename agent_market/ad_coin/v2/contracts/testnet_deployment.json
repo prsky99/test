@@ -1,0 +1,22 @@
+{
+  "network": "base_sepolia",
+  "chain_id": 84532,
+  "status": "deployed_simulation",
+  "contract_name": "AIADCoin",
+  "contract_address": "0x831becd9c8d765862e1e803a49d55c80532b8490",
+  "deployer_address": "0x1111111111111111111111111111111111111111",
+  "bridge_minter": "0x2222222222222222222222222222222222222222",
+  "reserve_oracle_feed": "0x3333333333333333333333333333333333333333",
+  "transaction_hash": "0xdbf707ac9d1a8052645ba0cc32b529a4f83c631ab644177fb3d14c6a54ac8946",
+  "gas_used": 1850000,
+  "source_hash": "471e0a2e0527af905caa25fce7aaa0e3a58d10b8af8aa2580d75fd881aa3cf2a",
+  "token_metadata": {
+    "name": "AI AD Coin",
+    "symbol": "AIAC",
+    "decimals": 6,
+    "backing": "100% full fiat/USDC reserves in qualified custody",
+    "standard": "ERC-20 / ERC-2612",
+    "version": "1.0.0"
+  },
+  "timestamp": 1794224855
+}

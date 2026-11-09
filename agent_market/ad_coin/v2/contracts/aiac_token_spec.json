@@ -1,0 +1,38 @@
+{
+  "token": {
+    "name": "AI AD Coin",
+    "symbol": "AIAC",
+    "decimals": 6,
+    "backing": "100% full fiat/USDC reserves in qualified custody",
+    "standard": "ERC-20 / ERC-2612",
+    "version": "1.0.0"
+  },
+  "deployment_targets": {
+    "ethereum": {
+      "chain_id": 1,
+      "settlement_layer": "L1",
+      "purpose": "Primary reserve & institutional liquidity"
+    },
+    "base": {
+      "chain_id": 8453,
+      "settlement_layer": "L2",
+      "purpose": "High-throughput micro-rewards & fast consumer payments"
+    },
+    "polygon": {
+      "chain_id": 137,
+      "settlement_layer": "Sidechain",
+      "purpose": "Agent-to-agent automated high-frequency settlements"
+    },
+    "arbitrum": {
+      "chain_id": 42161,
+      "settlement_layer": "L2",
+      "purpose": "Cross-rollup escrow & programmatic ad exchanges"
+    }
+  },
+  "security_invariants": {
+    "proof_of_reserves": "Chainlink PoR oracle attestation feed checked before minting",
+    "redemption_guarantee": "1:1 atomic burn on withdrawal request",
+    "zero_leakage": "Off-chain internal ledger postings mirror on-chain supply delta",
+    "access_control": "Multi-sig Timelock controller with bridge minter and emergency pause"
+  }
+}
