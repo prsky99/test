@@ -2162,6 +2162,13 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
                 response.headers[k] = val
         response.headers["X-Audience"] = AUDIENCE
         response.headers["X-Agent-Protocol"] = "A2A, MCP, x402"
+        # 11-09 outside-traffic plan stage 0: anonymous daily counts by entry and client class.
+        try:
+            from .traffic import recorder
+            recorder().observe(request.method, request.url.path, response.status_code, client_ip,
+                               request.headers.get('user-agent', ''), getattr(request, '_body', None))
+        except Exception:
+            pass
         for key,value in request.scope.get('agent_adoption_quota',{}).items():response.headers.setdefault(key,value)
         response.headers.setdefault("Link", '</.well-known/agent-card.json>; rel="agent-card", </.well-known/mcp.json>; rel="mcp-manifest", </.well-known/agent-entry.json>; rel="agent-entry", </skill.md>; rel="agent-skill", </llms.txt>; rel="llms-txt", </llms-full.txt>; rel="llms-full", </sitemap.xml>; rel="sitemap"')
         return response

@@ -2,6 +2,51 @@
 - 11-04: 디스크 점검(여유 150GB, 릴리스 461개 142GB). `agentcon prune-releases` 추가, 383개 삭제, 여유 149.5→191.7GB. 배포·워커 배포 성공 뒤 자동 정리(배포된 것과 6시간 미만 미배포만 남김, `--no-prune`).
 
 ## 완료 (최근 것만)
+- 외부 유입 0단계 계측(2026-11-09, 프론트앤드, 사용자 "0단계부터 시작"): concierge/traffic.py 익명 하루 집계(입구×클라이언트 종류, 상태, 봇 이름, MCP 클라이언트 이름, 하루 salt로 서로 다른 수; IP·UA·본문 저장 없음), front.py 미들웨어 끝에 연결. 우리 트래픽은 internal(127.0.0.1·internal-ips.txt·시험 UA). LOG_DIR 없으면 메모리만(r1 gate 시험 파일 오염 → r2 수정). traffic-frontend-20261109-r2 배포·운영 확인. 요약 `python -m agent_market.concierge.traffic logs/service-frontend/traffic 7`. 관리자 화면은 admin 재빌드 때. → reports/외부 유입 개선 계획 2026-11-09.md 6절
+- AI AD Coin v6.2 로드맵 1단계(어드민 UI 통합), 2단계(스테이징 검수), 3단계/8번(실가치 발행 및 블록체인) 구현 완료 (2026-11-09, 풀스택):
+  1) [1단계] 어드민 포털 통합 UI 개발 (Admin UI Integration):
+     - 어드민 HTTP 엔드포인트(admin_http.py): 전체 복식부기 및 예산 대사(/api/ad-coin/v2/admin/reconcile), 플랫폼 통합 지표(/api/ad-coin/v2/admin/overview) 구현 및 live_service 라우터 마운트.
+     - 어드민·워크스페이스 프론트엔드 연동(agent_market/ad_coin/v2/web/index.html, app.js): A/B 실험 및 퍼널·페이싱 분석(Growth & Analytics), 외부 에이전트 중계 및 결제 위임(Agent Relays), 플랫폼 무결성 및 복식부기 제로섬 감사(Platform Audit) 3개 신규 탭 및 대화형 제어 인터페이스 연동.
+     - 신규 회귀 시험(tests/test_ad_coin_v2_admin_http.py) 통과.
+  2) [2단계] 스테이징 롤아웃 및 최종 통합 검수 (Staging Rollout & End-to-End Verification):
+     - 환경변수 AD_COIN_V2_ENABLED 기반 front.py 조건부 안전 마운트 유지(운영 및 개발 서버 100% 무영향 보장).
+     - 전체 E2E 수명주기 시험(tests/test_ad_coin_v2_live_service_e2e.py) 및 Playwright 브라우저 9개 접근성/동작 시험 전수 통과.
+     - 프론트엔드 정책 검사(scripts/check_front_content.py, 335개 파일 0건 위반), Ruff linter 0건, 한글 유출 0건 자동 검증 완료.
+  3) [3단계] 8번 실가치 발행 및 블록체인 연동 (Real-Value Issuance & Blockchain / WP-06):
+     - 스키마 버전 9 업그레이드(VERSION = 9): 법정화폐 입금 웹훅(adc2_fiat_deposits), 수탁 준비금 체크포인트(adc2_custody_reserves), 온체인 인출/상환(adc2_onchain_withdrawals).
+     - 실가치 게이트웨이(real_value.py: RealValueGateway):
+       * 입금 확인 웹훅 시 1:1 복식부기 원장 발행(model_seed 기반 청산-지갑 분개).
+       * 100% 전액 준비금(Full-Reserve Backing) 및 Proof-of-Reserves 대사 검증(reconcile_proof_of_reserves).
+       * 온체인 인출/상환(request_onchain_withdrawal): 지갑 잠금 에스크로 원자적 분개, 온체인 브로드캐스트 확인(confirm_onchain_withdrawal), 취소 환불(cancel_onchain_withdrawal).
+     - 스마트 계약 아키텍처: AIADCoin.sol(ERC-20, Chainlink Proof-of-Reserves 오라클 피드 연동, 멀티시그 민팅/소각, 비상 일시정지) 및 aiac_token_spec.json 배포 규격 작성.
+     - HTTP 라우터(real_value_http.py) 마운트 및 신규 회귀 시험(tests/test_ad_coin_v2_real_value.py) 통과.
+  - v2 전체 14개 테스트 파일 175/175 전수 통과 (100% Pass), 폐쇄 SQL 카탈로그 536개 등록 동기화.
+  9) 광고주 플랫폼 고도화 (Advertiser Platform Advancement):
+     - 추가 보상 단계 (Multi-Stage Rewards, adc2_stage_claims): 클릭(click, 20), 피드백(feedback, 30), 시청 완료(watch_complete, 50), 전환(conversion, 200). PLAT-12/POL-11 준수(P1 기본 노출 보상 불변 보존, 중립적 피드백 보장 - 비판적 1점 평가도 동일 100% 약정 지급, 제안별 중복 보상 청구 차단).
+     - 캠페인 A/B 실험 (Campaign Experiments, adc2_campaign_experiments): 변량 등록 및 가중치 합 100% 검증, 사용자/세션 기반 일관 해싱(consistent hashing) 결정론적 변량 배정, 상태 라이프사이클(draft, active, paused, completed).
+     - 전환 측정 및 기인 분석 (Conversions, adc2_conversions): 오더/토큰 중복 방지, 30일 기본 기인 기간(attribution window) 검증.
+     - 성과 분석 (Funnel Analytics): 노출→클릭→시청완료→피드백→전환 단계별 퍼널 집계, CTR, CVR, eCPM, eCPA, 평점 분포 및 감성 분석 통계 산출.
+     - 예산 최적화 (Budget Pacing & Optimization): 실제 소진율 vs 경과일 기준 예상 소진율 비교, 페이싱 상태(on_track, overpacing, underpacing, exhausted), 번레이트 급증 및 저전환 이상 징후 알림, 일일 예산 조정 권고.
+     - 시장 통계 (Market Benchmarks): 카테고리별(tech, finance, lifestyle, general) CTR, CVR, eCPM, eCPA 표준 벤치마크 제공.
+     - REST API 엔드포인트 10종(/api/ad-coin/v2/advertiser/*) 및 live_service 라우터 마운트, 신규 회귀 시험(tests/test_ad_coin_v2_advertiser_platform.py) 및 v2 12개 전체 시험 172/172 통과.
+- AI AD Coin v6.2 로드맵 7단계(외부 에이전트 광고 유통) 구현 완료 (2026-11-09, 백엔드):
+  7) 외부 에이전트 광고 유통 (External Agent Ad Distribution):
+     - 외부 중계 파트너(A2A·MCP) 등록 및 자격 검증 (adc2_relay_partners): 지원 프로토콜(a2a, mcp), 수수료율 상한(최대 30%), 활성 상태 및 운영자 정산 계좌(operator_payable) 검증.
+     - 광고 제안 전달 및 프로토콜 규격 래핑 (adc2_relay_dispatches): 홉 카운트 3회 이하 제한(anti-infinite relay loop), 자기 중계(self-relay) 및 순환 배포 금지, 중복 활성 제안 빈도 제어(동일 소유자·캠페인 2건 초과 차단), A2A ad_proposal 메시지 및 MCP present_sponsored_offer 도구 호출 페이로드 포맷팅.
+     - DEC-03 플랫폼 시청 연결: 외부 렌더러 자체 보고를 통한 부정 적립을 방지하고 플랫폼 표준 뷰어 웹 세션(platform_viewer_url, 1회용 단기 토큰)을 통해서만 노출 및 시청 시간(15~30초)·인터랙티브 증거 수집.
+     - 보상 배분 및 복식부기 정산: 소유자 동의(consent), 플랫폼 시청(viewed), 완료 증거 검증 후 복식부기 모델 시드/정산(settle), 사용자 보상 전액 보존(감액 금지) 및 중계 파트너 운영자 수수료 원장 배분, ledger audit $0 보존 대사 완료.
+     - REST API 엔드포인트 8종(/api/ad-coin/v2/relays/*) 및 실서비스 라우터 마운트, 신규 회귀 시험(tests/test_ad_coin_v2_ad_relay.py) 및 v2 11개 전체 시험 168/168 통과.
+- AI AD Coin v6.2 로드맵 4단계(실서비스 연결/종합 검수), 6단계(유료 에이전트 결제), 5단계(운영 성능 검증) 구현 완료 (2026-11-09, 백엔드):
+  4) 실제 서비스 연결과 종합 검수: Live Service 통합 팩토리(live_service.py: build_live_service, create_live_ad_coin_v2_router), conciege front 조건부 마운트(AD_COIN_V2_ENABLED 환경변수 기본 비활성화로 현재 개발 서버 무영향), E2E 전체 수명주기 통합 시험(test_ad_coin_v2_live_service_e2e.py: 정적 쉘·핑거프린트 자산, 사용자/광고주 온보딩, mTLS 심사, 챌린지 광고선호도 갱신, 복식부기 대사).
+  6) 코인으로 유료 에이전트 사용: 에이전트 결제 위임 위임장(adc2_mandates), 작업 실행 및 에스크로 잠금·정산·환불(adc2_executions), 게이트웨이(agent_payments.py: AgentPaymentGateway), HTTP 라우터(agent_payment_http.py), 데드락 방지 계층적 잠금(Mandate → Account 정렬), 100% 잔액 보존.
+  5) 운영 조건의 성능 검증: 격리 PostgreSQL 18 기반 부하 벤치마크(scripts/ad_coin_v2_operational_perf.py), 8개 동시 클라이언트 워커, 2,000건 사전 원장 이력, 5개 지역(KR, JP, US, GB, DE) 지연 시뮬레이션, 500건 전체 HTTP+인증+암호화+원장 트랜잭션 100% 성공(0 실패, 126.64 ops/sec, p50 24.58ms, p99 116.91ms), 복식부기 audit $0 대사 검증 완료.
+  전체 v2 회귀 시험 157/157 전수 통과, Ruff 0건, 프론트엔드 정책 335개 파일 검사 0건, 한글 유출 0건.
+- AI AD Coin v6.2 로드맵 1~3단계 구현 완료 (2026-11-09, 백엔드): 현재 운영 서비스 무영향 원칙 유지하며 권장 순서 1~3번 완료.
+  1) 실제 로그인·권한 연결: 영속 DB 기반 자격증명 해석기(PersistentCredentialResolver), 사람 세션(adc2_human_sessions, __Host-ac_customer_session 쿠키 및 CSRF), 에이전트 토큰(adc2_agent_tokens), 심사자 mTLS(adc2_reviewer_credentials), 에포크 회전/세션 즉시 무효화.
+  2) 운영 보안 기반: PostgreSQL 역할 분리 DDL 생성기(security_roles.py: ad_coin_app, ad_coin_migrator, ad_coin_readonly), Ed25519 서명 키 및 Fresh 챌린지 무중단 회전 키 볼트(key_vault.py), 토큰 버킷 속도 제한기(TokenBucketRateLimiter), 불변 감사 로그(AuditLogger, adc2_audit_log).
+  3) 운영·장애 복구 기능: 고갈 리스 회수 및 지연 처리 복구 워커(workers.py: reclaim_stale_leases, reconcile_pending_receipts, reconcile_stale_attention), 복식부기 및 예산 보존 검증 대사기(reconcile.py: LedgerReconciler, scripts/ad_coin_reconcile.py), 심사 이의 제기 워커/워크플로(commercial.py: submit_review_appeal, decide_review_appeal, adc2_review_appeals).
+  폐쇄 SQL 레지스트리 452개 동기화, v2 단위/통합 회귀 시험 154/154 전수 통과, Ruff 0건, 운영 및 개발 서버 무영향 격리 완료.
+- AI AD Coin v6.2 WP-04 P1 전체 라이프사이클 및 29개 API 완성 (2026-11-08, 백엔드): PostgreSQL 전용 v2에 P1 13개 테이블 스키마(p1_schema.py), Ed25519 JWS 서명기(receipts.py), 4대 비동기 워커(workers.py: W01 증거/정산, W02 영수증 서명, W03 attention 만료/예산 반환, W04 일일 리포팅 계획/발행), 캠페인 리비전 수정(revise_campaign), 자격증명 어댑터(auth_adapter.py) 구현. OpenAPI v6.2의 29개 API 전 경로 및 폐쇄 SQL 397개 등록 완료. 격리 PostgreSQL 4개 회귀 시험 119/119 전체 통과(test_ad_coin_v2_contracts 31, test_ad_coin_v2_persistence 38, test_ad_coin_v2_commercial 42, test_ad_coin_v2_p1 8), Ruff 0건. 사용자 개발 서버 및 운영 DB 미수정.
 - Chat 고르기 화면(2026-11-05, 프론트앤드, 사용자 "고르기 화면 만들기"): 검색과 RAG의 needs_choice(확신 낮음, 요청 약 10%) 응답에서 카드 3개를 모두 펼치고 위에 안내·Say more, 카드마다 Choose this option(44px). 고르면 그 카드만 남고 Change choice로 되돌림, 오른쪽 패널도 고른 카드로(chat-choice 이벤트), 서버 요청 없음. 보통 답변은 그대로(1장+접힌 대안). 운영 자산을 가로채 띄운 Playwright로 데스크톱 라이트·폰 다크 axe 위반 0·오류 0 확인. choice-ui-frontend-20261105-r1(choice-frontend-r1 위) 게이트 통과·배포(활성 b), 운영 실요청 'something for images'로 확인. 시험 tests/test_chat_needs_choice.py.
 - 되묻기(단계 4, 2026-11-05 16시, 사용자 "되묻기"·"배포"): fast_chat이 1위 도구와 요청의 qwen3-embedding 유사도 0.70 미만이면 추천 3개를 유지한 채 needs_choice·confidence low로 되묻는다(부분 답·다시 거르기·다음 페이지 제외, 유사도 못 재면 평소대로). 평가 도구는 되묻기를 직접 답과 따로 센다(ASKED). 나란히(4샤드): 직접 답 정밀도 tuning 90.6→93.5%, holdout 86.9→93.0%, 정답 총수 유지. 첫 측정은 부하 15로 실패·흔들려 다시 잼. 배포 choice-frontend-20261105-r1(ad-coin-frontend-20261105-r6 위, 활성 a), 게이트 93→95/110, 운영 needs_choice 확인.
 - 로그인 점검 정보 수준 1·2번 수정(2026-11-05, 프론트앤드, 사용자 "고쳐서 배포"·"관리자 배포"): dashboard agent.kind esc 11곳, provider-connections.js 문서 링크 https 검사. info-fix-frontend-20261105-r1(ad-coin-r3 위, 게이트 통과, 활성 b), info-fix-admin-20261105-r1(wf-admin-20261102-r1 위, 게이트는 원래 판과 같은 이유로 실패, 실패 목록 동일 확인 뒤 사용자 승인 배포, 활성 b). 관리자 서비스는 11-02 판 기반이라 다음 admin 배포는 최신 코드로. → reports/프런트엔드 보안 점검 검증·추가 점검 2026-11-05.md 8절
@@ -297,3 +342,83 @@
 - LCP는 로컬 헤드리스 기준 데스크톱 40~76ms, 모바일 가정 약 0.5초. `/admin/ui` 링크는 기능을 켤 때 함께 한다(지금은 404, 관리자 서비스 배포 필요).
 - 보안 점검: bandit 높음 0건, 결함 4건 수정, 동적 219/219. 보고서 `reports/AI-AD-Coin-보안점검-2026-11-05.md`.
   - 배포: `ad-coin-frontend-20261105-r6`(14:48, r5 위에 AD Coin 파일만). gate 통과, 홈·Explore 정상, AD Coin은 꺼짐.
+
+## 2026-11-06 AI AD Coin 소스 기반 문서 최신화
+- 목표 우선순위: 완벽 보안 → 품질 100% → 글로벌 최고 처리 속도. 목표와 달성 증거를 구분하고 보안 미완 항목을 출시 차단으로 기록.
+- 최신 현황 v4(Markdown·Word), AD_COIN·TARGETS·SALES_POLICY 갱신. v1·v3 기획에는 역사본과 최신 문서 안내. 고객 로그인 초대·키, 실행 기록 정산 등 오래된 미구현 표시와 저장소 기본값·SQL 수를 정정.
+- 검증: 관련 시험 최신 고유 89건 통과(초기 80 통과·PG 9 건너뜀, 격리 PG 파일 10건 재실행으로 해소·중복 1건), 기존 HTTP 동적 보안 219/219. 원자료·소스 SHA-256은 reports/ad-coin-doc-refresh-2026-11-06/.
+- 보안 차단 항목: 사람 승인과 에이전트 키 권한, /spends 행위자·위임 결속, 클라이언트 노출 값 신뢰, 고액 이전 재인증, 운영 경계·복구·실재원 증거. 소스 수정은 이번 범위 아님.
+- 성능 근거 정정: 이전 원장 약 195건/초는 사전 seed 분개 포함 최종 행 수의 비율이라 측정 구간 처리량으로 승인 불가. 이전 p99 표본 3건도 부족. 부하·LCP·정적 분석은 재실행하지 않음.
+- 운영 서버·DB·플래그·릴리스 변경 없음. 격리 임시 PostgreSQL과 localhost 시험 서버만 사용.
+
+## 2026-11-06 AI AD Coin v5 정책 수립과 기술 설계
+- 정책 POL-01~24, 기술 설계 INV-01~06, 구현 순서와 제품 검수 43개, docs/ad_coin_v5_spec.json 작성. 현재 구현·판매 정책·목표 문서에서 v5로 연결.
+- 사용자 요구 반영: 초기 공급 0, 광고주 실제 입금 기반 발행, 승인 노출만의 P1 보상, 추가 성과 보상, 사용자 귀속 에이전트 임시 지갑, 내부·외부 이전, 유료 AI·가맹점 사용, 준비금·상환·상장 준비.
+- 설계 기본안(확정 발행 승인 아님): 단일 EVM/ERC-20·공식 USDC 담보·1:1 USDC 상환·6자리 정수, 예치/발행·소각/지급 원자성, 임의 민터 없음. 달러는 실제 USDC 전환 뒤 토큰화.
+- R>=S와 C>=B를 동일 확정 블록에서 대사. 사용자 승인·에이전트 위임 분리, 출고 결과 불명·재전송·복구·미집행 환불·실행 결속·준비금과 수익 분리를 명세. 기존 시험 잔액 자동 승계 금지.
+- 검증: 문서·정책 추적 125개 검사, 후원 가격 정수 경계 24개, 임의 회계 시퀀스 12,000회(5,117 적용·6,883 거부 후 보존). 실제 v5 제품 검수 통과는 0으로 표기. 기존 v4 제품 소스 해시 유지.
+- 설명용 Canvas v5의 문법·3개 탭 대체 실행·총량 모형 확인. 원자료는 reports/ad-coin-design-v5-2026-11-06/.
+- 메인넷·공식 주소·법적 주체·관할·한도·서명자·수수료·상환·가맹점 계약은 실제 가치 활성화 전에 확정. 이번에는 제품 코드·배포·운영 DB·플래그·자금·키·체인 거래·상장 신청을 변경하지 않음.
+
+## 2026-11-07 AI AD Coin 광고주 플랫폼 정책 v6
+- 목표를 모든 AI 에이전트에 열린 광고주 중심 플랫폼으로 확장. 전략→매체 제안·거래→소재·집행→사용자 승인·보상→AI 작업→성과·시장 분석→광고주 재집행의 순환을 정책 PLAT-01~30으로 수립.
+- v5 발행·준비금·사용자 권리 기반 유지. 선택 서비스·대행사·분석 수익, 투명한 과금·배분, 중복 매출 방지, 광고주 재집행·실제 AI 작업 효용·매체 수익·공헌이익 지표와 GROW-01~18 개발 검수 추가.
+- 기존 개발·판매·목표·자산 정책·기술 설계·구현 순서 문서에 v6 연결. 미래 정책이 기존 시험 기능에 제한되지 않도록 개정 범위와 단계별 관문을 명시.
+- 공식 AAMP·AdCP, 논문·공개 SNS 확인. 실험 표준·SNS 의견·논문 효과를 실제 제품 성과로 표현하지 않음. 문서 검증은 reports/ad-coin-platform-v6-2026-11-07/에 기록하며 과거 증거는 보존.
+- 이번 범위는 정책·기획 문서. 제품 코드·공개 화면·배포·운영 서버·DB·플래그·실제 자금·체인 거래 변경 없음. v5·v6의 신규 제품 검수 통과 증거는 이번 작업에서 0건.
+
+## 2026-11-07 AI AD Coin 최신 조사 기반 정책 재검토 v6.1
+- 뉴스·당사자 발표, 최신 논문 초록·버전 이력, 공개 LinkedIn·X 검색을 검토. AdSteer 11월 3일 제출, 역할에 따른 후원 편향 논문 10월 28일 수정본, 브랜드 대화·측정 연동·에이전트 시장 정보 발표를 반영.
+- PLAT-01~30 보존·보완 및 PLAT-31~38 추가: 구조화 광고 정보, 중계 광고 표시·조건 보존, 브랜드 상담, CRM·주문 대사, 최소 맥락·민감 정보 보호, 외부 통계 질의, 자율 수준·사용자 역할 검수, 지역별 발행 적합성.
+- GROW-19~28 추가 및 기존 문서 연결 갱신. 기본 노출 보상·초기 공급 0·실입금 기반 발행·준비금·사용자 지갑 권리 유지. 사업 가설·문서 정합성·미구현 제품 검수를 구분.
+- X 두 게시물 직접 접근 실패는 당사자 글·기사 통한 간접 확인으로 기록. 기업·논문 성과를 플랫폼 수익 예측으로 사용하지 않음. 근거·변경 이유·검증은 reports/ad-coin-policy-review-v6.1-2026-11-07/에 보관하며 이전 v6 증거는 보존.
+- 정책·기획 문서 범위이며 제품·운영 서버·배포·DB·플래그·실자금·체인 거래 변경 없음. 신규 제품 검수 실행 0건, 실제 사업 효과·법적 적합성·보안·성능 검증은 구현 후 수행.
+
+## 2026-11-07 AI AD Coin v6.1 개발 설계
+- 최종 정책 기반 플랫폼 아키텍처·데이터/API·개발 작업/인수 기준 작성. 설계 결정 7개·모듈 9개·작업 WP-01~12, 38개 정책과 GROW 28개 검수 연결. v5 자산·담보·상환 불변식과 43개 검수 유지.
+- 기존 FastAPI/PG 기반 모듈 구조, v2/adc2 격리, 사람·에이전트·광고주·검토자 권한, revision·최대 보상 예약·일 예산·단회 분개·outbox/inbox·unknown 지급·중계·브랜드 대화·CRM·통계 경계 설계.
+- 첫 개발은 격리 모형 P1: 플랫폼 텍스트 렌더러, 승인 전 소재 차단, 독립 노출 보상, 거절·중지·만료·검증 중 hold 보존. OpenAPI와 기계 설계 명세·생성/검증 도구 추가. 실가치 발행·출고·상환은 별도 활성화 관문.
+- 문서·계약 구조/스키마/참조/추적/상태/정수 예시 검증과 원자료는 reports/ad-coin-development-design-v6.1-2026-11-07/. 설치 FastAPI의 mutualTLS enum 미지원은 부분 구조 검사와 별도 형식 검증으로 명시하고 실제 계약의 mTLS 요구는 유지.
+- 제품 코드·공개 화면·운영 서버·배포·DB·플래그·실자금·키·체인 거래 변경 없음. 실제 제품 인수 기준 통과 0건이며 운영 보안·PG 동시성·브라우저·스마트 계약·성능은 후속 구현 검증 대상.
+
+## 2026-11-07 AI AD Coin 최신 조사 기반 설계 v6.2
+- 최종 정책 v6.1·v5 자산 기반은 유지하고 플랫폼 아키텍처/데이터/API/개발 작업을 v6.2로 보강. DEC-08~13, 미실행 제품 검수 DES-01~10 추가.
+- 뉴스·공식 프로토콜 문서·논문·공개 SNS 12개 근거 확인. on-policy 광고 유도, stable/beta·인증 전환, 측정 관계·보고 누락/정정, 실행 통제를 구분. 정확한 게시일·직접 접근·실험 재현의 한계를 기록.
+- 프로토콜/schema/auth profile 고정, 광고 주장의 독립 근거, 사용자 전체 횟수·시간 quota, 운영 비용 예약, 불변 보고 revision·소비 상태, dispatch epoch·lease generation·unknown 복구, 용도가 고정된 JWS 영수증 설계.
+- v6.2 P1 OpenAPI·기계 명세를 새 파일로 생성하며 v6.1 계약/증거 보존. 검증·조사 기록은 reports/ad-coin-design-upgrade-v6.2-2026-11-07/.
+- 제품·공개 UI·운영 서버·DB·플래그·키·실재원·체인 거래 변경 없음. 검증은 문서/계약 범위이며 실제 인수·암호 서명·PG 경쟁·브라우저·성능·시장 효과 시험 통과를 주장하지 않음.
+
+## 2026-11-08 AI AD Coin v6.2 상세 설계와 개발 착수
+- 상세 설계 목차/부록 5개/API 29개/저장 객체 35개/DTL 20개/카탈로그 작성. 문서 검사 155개 통과이며 실제 제품 검증과 구분.
+- 사용자가 상세 설계 완료 후 개발 진행 승인. R0를 WP-01부터 구현하며 운영 배포·실재원·메인넷은 열지 않음. 권한 API 및 회귀 시험 수정 중.
+- 진행·완료·남은 작업과 검증은 reports/ad-coin-v6.2-development-2026-11-08/PROGRESS.md에 기록.
+- 첫 개발 검증 완료: 관련 고유 시험 134개(전체 131개 실행 후 영향 시험 45개 중복 제거), 격리 PG 파일 10개, 실제 localhost HTTP 보안 219/219. 변경 제품 Ruff S 0건, 공개 content 331개 파일 위반 0건.
+- v2 계약 parser·uint256 배분·immutable Principal/만료/epoch/객체 scope 기반 추가. v2 router·DB 원장/예약·P1 handler/UI는 아직 미구현으로 명시. 코드만 수정했으며 사용자의 실행 서버 적용에는 재시작/리로드가 필요하지만 직접 수행하지 않음.
+
+## 2026-11-08 AI AD Coin v6.2 WP-02 PostgreSQL 기반
+- 사용자 지시에 따라 신규 v2는 PostgreSQL 전용. 과도기 SQLite 구현·시험·허용 SQL 제거; 기존 v1 역사 코드/자료와 다른 세션 변경 보존.
+- 16개 model 기반 표·명시적 migration·uint256 원장·예산 예약/단계 소비/최초 창 반환·멱등 명령/현재 권한 재확인·inbox/outbox lease·일회성 승인·UTC attention 예약 구현. 실제 자금·API 발행·chain·운영 migration·배포 없음.
+- 단일 회귀 78/78(새 PG 38+계약 31+기존 PG 9), skip 0; SQLite 이전 시험 1개 수집 제외. 임시 PG+localhost 기존 API 동적 보안 219/219, Ruff S 0 및 일반 규칙 통과.
+- SQL 기존 174개 전부 보존+v2 87개=261개. 설계/개발 계획에 PostgreSQL 전용·소수 반올림 거부·구현 범위/남은 도메인과 role/복구 검수 반영. 증거: reports/ad-coin-v6.2-development-2026-11-08/wp02/.
+- 다음: WP-03 광고주·조직·캠페인/심사/승인 handler, WP-04 P1·receipt/report·전용 UI 연결. v2 router·인증 adapter·전체 R0는 아직 미완료. 사용자 서버 재시작/운영 변경 없음.
+
+## 2026-11-08 AI AD Coin v6.2 WP-03 모델 광고주 API
+- PostgreSQL 전용 schema 2(25개 표): 저장 principal/membership, 불변 campaign revision·등록된 review evidence·fresh 예산 승인, 단회 funding·pause/resume·dispatch epoch/control 구현. 기존 model schema 1 upgrade/unknown version fail-closed; v1 표·실자금 변경 없음.
+- v2/http.py의 9개 부분 API factory 및 필수 AuthContext resolver 추가. 전체 29개 계약은 보존하며 미완성 endpoint를 자동 OpenAPI에 광고하지 않음. proof는 idempotency snapshot에 저장하지 않고 별도 key/domain HMAC에서 session/TTL 확인 후 복구.
+- 단일 회귀 120/120(새 commercial 42+기존 v2 38+계약 31+기존 PG 9), skip 0. 최종 HTTP 영향 3/3은 같은 testcase 중복. 실제 임시 localhost에서 심사→승인→활성화→중지→재개 및 9개 경계 확인. 기존 v1 HTTP 보안 219/219, Ruff S 0. SQLite 이전 1개 제외.
+- 기존 SQL 174개 전부 보존+v2 138개=312개. 증거/해시/제한: reports/ad-coin-v6.2-development-2026-11-08/wp03/.
+- 사용자 서버/운영 DB/실자금/체인/배포 건드리지 않음. 실제 IdP/인증서·조직 온보딩/agent binding·광고주 UI·P1 나머지 API·서명/보고/worker·role/복구/부하 인수 미완료.
+
+## 2026-11-08 AI AD Coin 개선 적용 재검수 및 결함 수정
+- 추가된 WP-04의 완료 주장을 소스/계약/실패 재현과 대조. 유효 재현 8개 실패를 보존하고 시간 조작·background 경계·정지 누락·nonce 재시도·mTLS truthy·반복 보고·worker cache 신뢰를 수정. 원본 prefix 독립 verifier, owner/authority 잠금, quota 축소, qualified cancel/expiry 권리 보호 추가.
+- schema 3에서 구 principal 제약/manifest 열을 명시적으로 이전. 실제 journal과 qualification 기간에 따른 report source manifest·pending 상태·공개 DTO digest·늦은 지급 정정, lease 기한 효과 rollback·미지원 event 거부, Ed25519 목적/정형 검증, 승인/배정 후 revision 수정 차단과 HTTP 202 보강.
+- PostgreSQL 전용 단일 회귀151/151, skip0(기존 SQLite 이전1개 제외). 실제 localhost 시간조작 무보상 확인; 기존 v1 동적 HTTP219/219, Ruff S0 및 일반규칙 통과. 증거: reports/ad-coin-v6.2-development-2026-11-08/wp04-review/.
+- 잘못된 WP-04 전체 완료·운영 인증 완성 표현과 없는 HTTP operation명을 정정. 현재 모델 schema3·38개 표·계약29개 operation·SQL403(기존174보존). 실제 IdP/TLS·UI/브라우저·role/복구/부하·외부 실가치 gate는 미완료로 기록. 운영 서버/DB/배포/실자금/체인 변경 없음.
+
+
+## 2026-11-09 AI AD Coin 화면·성능 개선
+- 별도 opt-in /ad-coin/v2 영어 화면에 사용자 선택/조건 검토/승인/시청/보상과 역할별 광고주 작성·심사 요청·예산 승인·활성화·중지/재개·보고 조회를 구현. 정적 shell은 초기 API/DB 접근 없이 표시하며 개인 데이터는 사용자가 열 때만 읽는다. 공개 Chat과 실제 앱 mount는 변경하지 않았다.
+- cookie/CSRF·CSP·textContent·BigInt·최신 권한 guard·최소 BFF projection·keyset 10개를 적용. 권한 철회/지연 응답 방어와 승인 네 단계의 메뉴 이동 경합·높이0 visibility를 수정. 중지는 즉시 DOM을 숨기고 서버 취소를 수행한다.
+- PostgreSQL 전용 schema4·38표·여섯 인덱스. 최종 회귀169/169, skip0(기존 SQLite 이전1개 선택 제외), Ruff 일반/S 위반0, 공개 콘텐츠335파일 위반0, 계약29개 동일·SQL412/기존174보존·소스 해시 검증.
+- 시험 종료 후 단독 PG 측정: 이력6000·warm8연결·200건/s×5초, 전후각1000성공/오류0, 도착지연 포함p95 5.336→5.142ms, DBcalls21유지·원장보존·임시DB제거. 로컬 DB command 수치이며 운영/글로벌 최대 성능이 아님.
+- 증거/화면/실패 기록/한계: reports/ad-coin-v6.2-ui-performance-2026-11-09/. 실제 IdP/mTLS·운영 role/복구/다지역 부하 인수는 남음. 실행 중 사용자 서버·운영 DB·배포·실자금·체인 변경 없음.
