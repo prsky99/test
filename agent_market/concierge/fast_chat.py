@@ -191,6 +191,34 @@ def _warm_strong_model(http, url):
         _strong_state['warming'] = False
 
 
+MODEL_WATCH_INTERVAL = 600.0  # seconds between checks that the embedding models are loaded
+
+
+def _watch_models(engine):
+    """Reload the embedding models Ollama dropped (11-06 an Ollama restart left qwen3 unloaded for 3 days)."""
+    url = str(getattr(engine, 'ollama_url', '') or '').rstrip('/')
+    http = getattr(engine, 'http', None)
+    while True:
+        time.sleep(MODEL_WATCH_INTERVAL)
+        try:
+            loaded = {model.get('name') for model in http.get(url + '/api/ps', timeout=3).json().get('models') or []}
+        except Exception:
+            continue
+        if STRONG_MODEL not in loaded and not _strong_state['warming']:
+            _strong_state['warming'] = True
+            _warm_strong_model(http, url)
+
+
+def _start_model_watch(engine):
+    if _strong_state.get('watching'):
+        return
+    with _strong_state['lock']:
+        if _strong_state.get('watching'):
+            return
+        _strong_state['watching'] = True
+    threading.Thread(target=_watch_models, args=(engine,), name='embed-model-watch', daemon=True).start()
+
+
 def strong_embeddings(engine, texts):
     """Vectors from the stronger local model, or None (model missing, slow or failing).
 
@@ -201,6 +229,7 @@ def strong_embeddings(engine, texts):
     http = getattr(engine, 'http', None)
     if not url or http is None or getattr(engine, 'embeddings_enabled', False) is not True:
         return None
+    _start_model_watch(engine)
     if time.monotonic() < _strong_state['down_until']:
         return None
     try:

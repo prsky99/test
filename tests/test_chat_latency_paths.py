@@ -89,3 +89,30 @@ def test_next_steps_are_bounded_cached_and_filtered(monkeypatch):
     started = time.monotonic()
     assert fast_chat.bounded_next_steps(store, 'slow', 't', None, set()) == []
     assert time.monotonic() - started < 0.9
+
+
+def test_the_model_watch_reloads_a_dropped_model_once(monkeypatch):
+    calls = []
+    class WatchHttp:
+        def get(self, url, timeout=None):
+            class Response:
+                def json(self):
+                    return {'models': [{'name': 'embeddinggemma-2:270m-mxfp8-text'}]}  # qwen3 dropped
+            return Response()
+        def post(self, url, json=None, timeout=None):
+            calls.append((json['model'], timeout))
+            raise StopIteration  # end the loop after one reload attempt
+    engine = Engine(); engine.http = WatchHttp()
+    monkeypatch.setattr(fast_chat, 'MODEL_WATCH_INTERVAL', 0)
+    monkeypatch.setitem(fast_chat._strong_state, 'warming', False)
+    sleeps = []
+    def stop_after_two(seconds):
+        sleeps.append(seconds)
+        if len(sleeps) > 1:
+            raise SystemExit
+    monkeypatch.setattr(fast_chat.time, 'sleep', stop_after_two)
+    try:
+        fast_chat._watch_models(engine)
+    except SystemExit:
+        pass
+    assert calls == [(fast_chat.STRONG_MODEL, fast_chat.STRONG_WARMUP_BUDGET)]
