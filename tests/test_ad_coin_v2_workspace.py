@@ -52,7 +52,7 @@ def test_shell_is_static_has_no_credentials_and_assets_are_fingerprinted(
         suite.user_token not in response.text and suite.user_owner not in response.text
     )
     urls = re.findall(r'(?:src|href)="(/ad-coin/v2/assets/[^\"]+)"', response.text)
-    assert len(urls) == 2
+    assert len(urls) == 1  # one page script; styles come from the shared design system
     for url in urls:
         asset = client.get(url)
         assert (

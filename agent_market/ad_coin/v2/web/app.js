@@ -1,4 +1,3 @@
-/* Optional advertising workspace. Account data loads only after an explicit action. */
 (() => {
   'use strict';
   const $ = id => document.getElementById(id);
@@ -268,12 +267,12 @@
     const {value}=await net(url);state.cursor=value.next_cursor;
     if (!more) $('campaigns').replaceChildren();
     for (const campaign of value.items) {
-      const card=document.createElement('article');card.className='card campaign-row';
+      const card=document.createElement('article');card.className='card';card.dataset.item='campaign';
       const title=document.createElement('h2');title.textContent=campaign.name;
       const status=document.createElement('p');status.textContent=campaign.state.replaceAll('_',' ')+' · '+campaign.approval_status;
       const amount=document.createElement('p');amount.textContent='Total budget '+coins(campaign.total_budget_atoms)+' · Daily '+coins(campaign.daily_budget_atoms)+' · Per view '+coins(campaign.gross_p1_atoms)+' test coins';
       const actions=document.createElement('div');actions.className='actions';card.append(title,status,amount,actions);
-      const add=(label,action)=>{const b=document.createElement('button');b.type='button';b.className='button secondary';b.textContent=label;b.addEventListener('click',()=>run(b,action));actions.append(b);};
+      const add=(label,action)=>{const b=document.createElement('button');b.type='button';b.className='btn';b.textContent=label;b.addEventListener('click',()=>run(b,action));actions.append(b);};
       if (['draft','rejected'].includes(campaign.state)&&adv.capabilities.includes('campaign.edit')) add('Request review',()=>campaignAction(campaign,'review-request'));
       if (campaign.state==='eligible'&&campaign.approval_status==='unapproved'&&adv.capabilities.includes('budget.approve')) add('Review budget',async()=>review('Approve this campaign budget?',[
         campaign.name,'Total: '+coins(campaign.total_budget_atoms)+' test coins. Daily: '+coins(campaign.daily_budget_atoms)+' test coins.',
@@ -295,7 +294,7 @@
       const card=document.createElement('article');card.className='card';const p=document.createElement('p');
       p.textContent=item.state==='available'?'A report is available.':'A report is not available yet. Check again later.';card.append(p);
       if (item.report_id&&item.current_revision) {
-        const button=document.createElement('button');button.className='button secondary';button.type='button';button.textContent='View latest report';
+        const button=document.createElement('button');button.className='btn';button.type='button';button.textContent='View latest report';
         button.onclick=()=>run(button,async()=>{const {value:report}=await api('/advertisers/'+adv.id+'/reports/'+item.report_id+'/revisions/'+item.current_revision);
           p.textContent=report.complete?'Confirmed results for this period.':'Provisional results. Some data is pending verification.';
           const dl=document.createElement('dl');dl.className='facts';
@@ -466,7 +465,7 @@
     if (state.ad&&name!=='rewards') closeAd(true).catch(error=>text('notice',message(error)));
     cancelReview();
     document.querySelectorAll('[data-view]').forEach(node=>node.hidden=node.dataset.view!==name);
-    document.querySelectorAll('nav a').forEach(node=>{if (node.hash==='#'+name) node.setAttribute('aria-current','page');else node.removeAttribute('aria-current');});
+    document.querySelectorAll('nav a').forEach(node=>{const on=node.hash==='#'+name;node.classList.toggle('active',on);if (on) node.setAttribute('aria-current','page');else node.removeAttribute('aria-current');});
   }
   $('connect').onclick=()=>run($('connect'),connect);
   $('refresh-wallet').onclick=()=>run($('refresh-wallet'),refreshWallet);
@@ -507,15 +506,6 @@
   $('load-mandates').onclick=()=>run($('load-mandates'),loadMandates);
   $('run-reconcile').onclick=()=>run($('run-reconcile'),runReconcile);
   $('load-overview').onclick=()=>run($('load-overview'),loadOverview);
-  const colorPreference=matchMedia('(prefers-color-scheme:dark)');
-  function syncTheme() {
-    const dark=document.documentElement.dataset.theme?document.documentElement.dataset.theme==='dark':colorPreference.matches;
-    $('theme').setAttribute('aria-pressed',String(dark));
-    $('theme').setAttribute('aria-label',dark?'Switch to light theme':'Switch to dark theme');
-    return dark;
-  }
-  $('theme').onclick=()=>{document.documentElement.dataset.theme=syncTheme()?'light':'dark';syncTheme();};
-  colorPreference.addEventListener('change',syncTheme);syncTheme();
   addEventListener('hashchange',()=>showView(location.hash.slice(1)));
   document.addEventListener('visibilitychange',()=>{if (state.ad&&!state.ad.pending) {clearTimeout(state.ad.timer);sample().catch(()=>{});}});
   showView(location.hash.slice(1));

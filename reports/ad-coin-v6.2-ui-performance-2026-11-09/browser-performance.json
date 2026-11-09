@@ -2,29 +2,41 @@
   "paint": [
     {
       "name": "first-paint",
-      "start_ms": 76
+      "start_ms": 44
     },
     {
       "name": "first-contentful-paint",
-      "start_ms": 76
+      "start_ms": 44
     }
   ],
   "assets": [
     {
-      "bytes": 8756,
-      "duration_ms": 8.300000190734863
+      "bytes": 89747,
+      "duration_ms": 10.099999904632568
     },
     {
-      "bytes": 35327,
-      "duration_ms": 8.799999713897705
+      "bytes": 60,
+      "duration_ms": 9.699999809265137
+    },
+    {
+      "bytes": 133585,
+      "duration_ms": 11.199999809265137
+    },
+    {
+      "bytes": 34708,
+      "duration_ms": 6.199999809265137
+    },
+    {
+      "bytes": 28421,
+      "duration_ms": 10.099999904632568
     }
   ],
   "long_task_observer": true,
   "long_tasks_ms": [],
   "navigation": [
     {
-      "bytes": 17051,
-      "dom_ready_ms": 42.30000019073486
+      "bytes": 18547,
+      "dom_ready_ms": 20.59999990463257
     }
   ]
 }

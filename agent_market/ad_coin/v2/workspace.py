@@ -133,7 +133,7 @@ def campaigns(service, principal, advertiser_id, cursor):
 def router_for(service, *, resolve_auth):
     router = APIRouter(prefix="/ad-coin/v2")
     assets = {}
-    for name, mime in (("app.js", "text/javascript"), ("app.css", "text/css")):
+    for name, mime in (("app.js", "text/javascript"),):
         data = (WEB / name).read_bytes()
         stem, extension = name.split(".")
         assets[stem + "." + hashlib.sha256(data).hexdigest()[:16] + "." + extension] = (
@@ -141,7 +141,7 @@ def router_for(service, *, resolve_auth):
             mime,
         )
     html = (WEB / "index.html").read_text()
-    for name in ("app.js", "app.css"):
+    for name in ("app.js",):
         extension = name.split(".")[-1]
         url = next(path for path in assets if path.endswith("." + extension))
         html = html.replace("@@" + name + "@@", "/ad-coin/v2/assets/" + url)

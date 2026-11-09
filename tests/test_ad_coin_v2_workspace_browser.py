@@ -49,6 +49,9 @@ def live(p1_suite):
     app.include_router(
         router_for(service, resolve_auth=p1_suite.resolver, include_workspace=True)
     )
+    from fastapi.staticfiles import StaticFiles
+
+    app.mount("/new/en/assets", StaticFiles(directory="new/en/assets"), name="shared-assets")
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.bind(("127.0.0.1", 0))
     server = uvicorn.Server(
@@ -288,7 +291,7 @@ def test_browser_stop_halts_collection_and_campaign_draft_is_usable(live):
         page.locator("#gross-reward").fill("1")
         page.get_by_role("button", name="Create draft", exact=True).click()
         expect(page.locator("#campaigns")).to_contain_text("Browser campaign")
-        row = page.locator(".campaign-row").filter(
+        row = page.locator("[data-item=campaign]").filter(
             has=page.get_by_role("heading", name="Browser campaign", exact=True)
         )
         row.get_by_role("button", name="Request review", exact=True).click()

@@ -68,7 +68,7 @@ def test_live_service_e2e_lifecycle(store):  # noqa: F811
     import re
 
     urls = re.findall(r'(?:src|href)="(/ad-coin/v2/assets/[^\"]+)"', resp_shell.text)
-    assert len(urls) == 2
+    assert len(urls) == 1  # one page script; styles come from the shared design system
     for url in urls:
         resp_asset = client.get(url)
         assert resp_asset.status_code == 200
