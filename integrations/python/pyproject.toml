@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-concierge"
+version = "0.1.0"
+description = "Find AI agents and MCP servers for a task, ranked by recorded checks (Agent Concierge client and agent-framework tools)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+dependencies = []
+
+[project.optional-dependencies]
+langchain = ["langchain-core>=0.3"]
+crewai = ["crewai>=0.80"]
+openai-agents = ["openai-agents>=0.2"]
+
+[project.urls]
+Homepage = "https://agentconcierge.biz"
+Documentation = "https://agentconcierge.biz/connect"

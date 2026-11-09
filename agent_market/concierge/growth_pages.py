@@ -71,7 +71,7 @@ class Snapshot:
             if key != self.key:
                 self.key = key
                 self.value = None
-                if stat and stat.st_size < 8*1024*1024:
+                if stat and stat.st_size < 32*1024*1024:
                     try:
                         self.value = clean(json.loads(path.read_text(encoding='utf-8')))
                     except (OSError, ValueError):
@@ -110,8 +110,26 @@ def clean_agent(item):
              'last_check_at': _time(item.get('last_check_at')), 'verified_at': _time(item.get('verified_at')),
              'trial_ok': bool(item.get('trial_ok')), 'eval_grade': grade, 'report_grade': report,
              'probe_latency_ms': latency, 'auth_required': bool(item.get('auth_required')),
-             'free': item['free'] is True if 'free' in item else item.get('price_usdc') in (0, 0.0)}
+             'free': item['free'] is True if 'free' in item else item.get('price_usdc') in (0, 0.0),
+             'eval_score': _score(item.get('eval_score')), 'report_score': _score(item.get('report_score')),
+             'tool_count': _count(item.get('tool_count', item.get('cap_tool_count'))),
+             'category': item.get('category') if re.fullmatch(r'[a-z_]{2,40}', str(item.get('category') or '')) else None}
     return agent if has_evidence(agent) else None
+
+
+def _score(value):
+    return round(float(value), 1) if isinstance(value, (int, float)) and not isinstance(value, bool) and 0 <= value <= 100 else None
+
+
+def _count(value):
+    return int(value) if isinstance(value, int) and not isinstance(value, bool) and 0 <= value < 10000 else None
+
+
+def rank_key(agent, now=None):
+    """Published ranking basis: a recent execution check first, then the quality score, the test report score and the latest health check."""
+    now = now or time.time()
+    recent = bool(agent.get('verified_at') and now - agent['verified_at'] < 30*86400)
+    return (recent, agent.get('eval_score') or 0, agent.get('report_score') or 0, agent.get('last_check_at') or 0, -agent['id'])
 
 
 def has_evidence(agent, now=None):
@@ -144,8 +162,28 @@ def clean(value):
         tasks.append({'slug': task['slug'], 'title': _text(task.get('title'), 80) or task['slug'].replace('-', ' '),
                       'query': _text(task.get('query'), 120), 'group': _text(task.get('group'), 40) or 'Other tasks',
                       'agents': agents})
+    catalog = {}
+    for item in (value.get('catalog') or [])[:60000] if isinstance(value.get('catalog'), list) else []:
+        agent = clean_agent(item)
+        if agent:
+            catalog.setdefault(agent['id'], agent)
+    for task in tasks:
+        for agent in task['agents']:
+            catalog.setdefault(agent['id'], agent)
+    stats = value.get('stats') if isinstance(value.get('stats'), dict) else {}
     return {'captured_at': captured.isoformat(), 'captured': captured.timestamp(), 'tasks': tasks,
-            'by_slug': {t['slug']: t for t in tasks}}
+            'by_slug': {t['slug']: t for t in tasks}, 'catalog': catalog, 'stats': clean_stats(stats)}
+
+
+def clean_stats(stats):
+    """Only whole-number catalog counts published by /status.json; everything else is derived from the catalog."""
+    keys = ('cataloged', 'reachable', 'with_status_check', 'a2a', 'mcp', 'x402')
+    counts = stats.get('catalog_snapshot') if isinstance(stats.get('catalog_snapshot'), dict) else {}
+    value = {k: counts[k] for k in keys if isinstance(counts.get(k), int) and not isinstance(counts.get(k), bool) and 0 <= counts[k] < 10**9}
+    if len(value) != len(keys):
+        return {}
+    value['day'] = _text(counts.get('day'), 10)
+    return value
 
 
 def fresh(snapshot, now=None):
@@ -162,6 +200,9 @@ def sitemap_paths(snapshot=None):
     if fresh(snapshot) and snapshot['tasks']:
         paths.append('/agents/tasks')
         paths += ['/agents/task/'+t['slug'] for t in snapshot['tasks']]
+    if fresh(snapshot) and snapshot['catalog']:
+        from .growth_catalog import sitemap_paths as catalog_paths
+        paths += catalog_paths(snapshot)
     return paths
 
 
@@ -175,7 +216,8 @@ def llms_lines(base=ORIGIN):
 NAV = [('Agent Status', '/new/en/agent-status.html'), ('Learn', '/new/en/learn.html'), ('Explore', '/new/en/explore.html'),
        ('Test', '/new/en/test.html'), ('Workflows', '/new/en/workflows.html'), ('Chat', '/new/en/chat.html'),
        ('List Your Agent', '/new/en/list-agent.html'), ('About', '/new/en/about.html')]
-FOOTER = [('Connect a client', '/connect'), ('Task pages', '/agents/tasks'), ('Explore', '/new/en/explore.html'),
+FOOTER = [('Connect a client', '/connect'), ('Task pages', '/agents/tasks'), ('Rankings', '/agents/best'),
+          ('State of AI Agents', '/reports/state-of-ai-agents'), ('Badges', '/badges'), ('Explore', '/new/en/explore.html'),
           ('Chat', '/new/en/chat.html'), ('About', '/new/en/about.html'), ('llms.txt', '/llms.txt'),
           ('Terms of Service', '/#tos'), ('Privacy Policy', '/#privacy')]
 
@@ -368,6 +410,16 @@ def tasks_index(snapshot=None):
                  canonical=ORIGIN+'/agents/tasks', body=body, structured=structured, index=fresh(snapshot))
 
 
+def indexnow_key(path_fn=None):
+    """The public IndexNow ownership key (not a secret), read once when the router is built."""
+    folder = data_dir() if path_fn is None else path_fn()
+    try:
+        value = (folder / 'indexnow-key').read_text(encoding='ascii').strip() if folder else ''
+    except (OSError, UnicodeDecodeError):
+        return None
+    return value if re.fullmatch(r'[a-f0-9]{32}', value) else None
+
+
 def registry_auth(path_fn=None):
     """Return the single public-key line, or None. Anything else (e.g. a private key) is never served."""
     folder = data_dir() if path_fn is None else path_fn()
@@ -400,17 +452,28 @@ def growth_router():
     async def tasks():
         return HTMLResponse(await run_in_threadpool(tasks_index), headers=page_headers)
 
+    def not_found():
+        return HTMLResponse(shell(title='Page not found — Agent Concierge', description='This page is not available.',
+                                  canonical=ORIGIN+'/agents/tasks', index=False,
+                                  body=heading('Not found', 'This page is not available',
+                                               'Listings change as checks run. Choose a task or a ranking, or search the catalog.')
+                                  + '<div class="actions"><a class="btn primary" href="/agents/tasks">Task pages</a>'
+                                  '<a class="btn" href="/agents/best">Rankings</a><a class="btn" href="/new/en/explore.html">Explore</a></div>'),
+                            status_code=404, headers={'Content-Security-Policy': PAGE_CSP})
+
     @router.get('/agents/task/{slug}', include_in_schema=False)
     async def task(slug: str):
         page = await run_in_threadpool(task_page, slug) if SLUG.match(slug) else None
-        if page is None:
-            return HTMLResponse(shell(title='Task page not found — Agent Concierge', description='This task page is not available.',
-                                      canonical=ORIGIN+'/agents/tasks', index=False,
-                                      body=heading('Tasks', 'Task page not found', 'Choose a task from the list, or search the catalog.')
-                                      + '<div class="actions"><a class="btn primary" href="/agents/tasks">All task pages</a>'
-                                      '<a class="btn" href="/new/en/explore.html">Explore</a></div>'), status_code=404,
-                                headers={'Content-Security-Policy': PAGE_CSP})
-        return HTMLResponse(page, headers=page_headers)
+        return HTMLResponse(page, headers=page_headers) if page else not_found()
+
+    from .growth_catalog import install
+    install(router, page_headers, not_found)
+
+    key = indexnow_key()
+    if key:
+        @router.get('/'+key+'.txt', include_in_schema=False)
+        def indexnow_key_file():
+            return PlainTextResponse(key, headers={'Cache-Control': 'public, max-age=3600'})
 
     @router.get('/.well-known/mcp-registry-auth', include_in_schema=False)
     def mcp_registry_auth():

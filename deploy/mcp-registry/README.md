@@ -65,6 +65,10 @@ DNS 방식으로 하려면 Cloudflare에서 apex TXT `v=MCPv1; k=ed25519; p=<PUB
 - 0단계 계측(`agent_market/concierge/traffic.py`)의 MCP `clientInfo.name` 수로 효과를 본다. 기준선은 11-16.
 - 이 파일을 바꿀 때는 `tests/test_growth_pages.py`를 돌린다.
 
+## 5. 기존 초안과의 관계
+- `agent_market/agent_access/distribution/server.json`에 `biz.agentconcierge/discovery`(`/mcp/compact`, 고정 5개 도구) 초안이 이미 있다.
+- 같은 도메인 로그인으로 둘 다 게시할 수 있다. 권장 순서는 이 파일(`biz.agentconcierge/agent-concierge`, 전체 `/mcp`)을 먼저 게시하고, compact는 운영 확인 뒤 두 번째로 게시하는 것이다.
+
 ## 4. 게시 결과 (2026-11-09 21:48 KST, 사용자 승인 "게시 진행", 총괄 PM 실행)
 - `biz.agentconcierge/agent-concierge@1.0.0`을 공식 MCP Registry에 게시했다. 상태는 active, publishedAt은 2026-11-09T12:48:24Z이다.
   - 확인: `https://registry.modelcontextprotocol.io/v0.1/servers?search=agentconcierge`

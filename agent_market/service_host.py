@@ -294,6 +294,8 @@ class BackgroundLoop:
         from .public_availability import AvailabilityMonitor, ConversationRetention
         availability=AvailabilityMonitor(front) if self.role=='jobs' else None
         retention=ConversationRetention(front.book) if self.role=='jobs' else None
+        from .concierge.task_pages_job import TaskPagesRefresher
+        task_pages=TaskPagesRefresher(front) if self.role=='jobs' else None
         next_due = 0
         while not self.stop.is_set():
             for future in tuple(self.pending):
@@ -313,6 +315,7 @@ class BackgroundLoop:
                     if retention.due():self.maintenance_pending=self.maintenance_pool.submit(retention.run)
                     elif availability.due():self.maintenance_pending=self.maintenance_pool.submit(availability.run)
                     elif search_documents.due():self.maintenance_pending=self.maintenance_pool.submit(self.refresh_capability_text, search_documents)
+                    elif task_pages.due():self.maintenance_pending=self.maintenance_pool.submit(task_pages.run)
                 if not self.pending:
                     item = self.control.claim()
                     if item:

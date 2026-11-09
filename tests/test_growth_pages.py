@@ -144,7 +144,9 @@ def test_stale_or_missing_snapshot_leaves_the_sitemap(client):
     assert g.sitemap_paths() == ['/connect']
     assert c.get('/agents/tasks').status_code == 200  # still a page, with a fallback
     write(folder, snapshot())
-    assert g.sitemap_paths() == ['/connect', '/agents/tasks', '/agents/task/weather-forecast']
+    paths = g.sitemap_paths()
+    assert paths[:3] == ['/connect', '/agents/tasks', '/agents/task/weather-forecast']
+    assert '/agent/1' in paths and '/agent/2' in paths and '/agent/4' not in paths  # agents from task pages get pages too
     write(folder, snapshot(captured=datetime.now(timezone.utc)-timedelta(days=30)))
     assert g.sitemap_paths() == ['/connect']
     assert 'noindex' in c.get('/agents/task/weather-forecast').text
@@ -179,7 +181,7 @@ def test_builder_relevance_filter_and_snapshot_validation(tmp_path):
     out = tmp_path/'task-pages.json'
     write_snapshot(str(out), snapshot())
     assert g.clean(json.loads(out.read_text()))['tasks'][0]['slug'] == 'weather-forecast'
-    with pytest.raises(SystemExit):
+    with pytest.raises(ValueError):
         write_snapshot(str(tmp_path/'bad.json'), {'version': 2})
 
 
@@ -200,10 +202,95 @@ def test_front_app_routes_sitemap_and_llms(monkeypatch, tmp_path):
         policy = response.headers['content-security-policy']
         assert "script-src 'self'" in policy and "style-src 'self'" in policy and "'unsafe-eval'" not in policy
     llms = c.get('/llms.txt').text
-    assert '/connect' in llms and '/agents/tasks' in llms
+    assert '/connect' in llms and '/agents/tasks' in llms and '/agents/best' in llms and '/agent/{id}' in llms
     locs = [e.text for e in ET.fromstring(c.get('/sitemap.xml').text).iter('{http://www.sitemaps.org/schemas/sitemap/0.9}loc')]
     assert 'https://agentconcierge.biz/connect' in locs
     assert 'https://agentconcierge.biz/agents/task/weather-forecast' in locs
     assert 'https://agentconcierge.biz/agents/task/current-weather' not in locs
     about = (ROOT/'new/en/about.html').read_text()
     assert 'https://agentconcierge.biz/connect' in about
+
+
+# ---------------------------------------------------------------- catalog pages (rankings, agents, comparisons, report)
+def catalog_snapshot():
+    value = snapshot()
+    value['catalog'] = ([agent(100+i, category='web_search', eval_score=90-i, verified_at=NOW-3600 if i < 2 else None) for i in range(5)]
+                        + [agent(200+i, category='dev_tools', kind='a2a', eval_score=80-i) for i in range(3)]
+                        + [agent(300, category='not_a_category')]
+                        + [agent(400, category='web_search', trial_ok=False, verified_at=None)])  # no evidence
+    value['stats'] = {'catalog_snapshot': {'day': '2026-11-09', 'cataloged': 1000, 'reachable': 700, 'with_status_check': 1000,
+                                           'a2a': 400, 'mcp': 300, 'x402': 300}}
+    return value
+
+
+def test_rankings_follow_the_published_basis(client):
+    c, folder = client
+    write(folder, catalog_snapshot())
+    page = c.get('/agents/best/web_search')
+    assert page.status_code == 200
+    order = [int(x) for x in re.findall(r'<h3><a href="/agent/(\d+)">', page.text)]
+    assert order[:2] == [100, 101]  # recent execution checks first
+    assert order[2:] == [102, 103, 104]  # then quality score
+    assert 400 not in order
+    assert 'no listing pays for its position' in page.text
+    assert c.get('/agents/best/web_search/mcp').status_code == 200
+    assert c.get('/agents/best/web_search/a2a').status_code == 404  # fewer than two
+    assert c.get('/agents/best/unknown').status_code == 404
+    assert '/agents/best/dev_tools' in c.get('/agents/best').text
+
+
+def test_agent_page_badge_and_card(client):
+    c, folder = client
+    write(folder, catalog_snapshot())
+    page = c.get('/agent/100')
+    assert page.status_code == 200
+    assert '/api/agent/v1/badge/100.svg' in page.text and '/agent/100/card.svg' in page.text
+    assert '<link rel="canonical" href="https://agentconcierge.biz/agent/100">' in page.text
+    card = c.get('/agent/100/card.svg')
+    assert card.status_code == 200 and card.headers['content-type'].startswith('image/svg+xml')
+    ET.fromstring(card.text)  # well-formed
+    assert 'Execution check succeeded' in card.text
+    assert c.get('/agent/400').status_code == 404 and c.get('/agent/400/card.svg').status_code == 404
+    assert c.get('/agent/abc').status_code == 404
+
+
+def test_comparisons_exist_only_for_published_neighbours(client):
+    c, folder = client
+    write(folder, catalog_snapshot())
+    assert c.get('/agents/compare/100-vs-101').status_code == 200
+    assert 'does not say which agent is better' in c.get('/agents/compare/100-vs-101').text
+    assert c.get('/agents/compare/100-vs-104').status_code == 404  # not neighbours
+    assert c.get('/agents/compare/101-vs-100').status_code == 404  # only the canonical order
+
+
+def test_report_and_sitemap_cover_catalog_pages(client):
+    c, folder = client
+    write(folder, catalog_snapshot())
+    month = datetime.now(timezone.utc).strftime('%Y-%m')
+    report = c.get('/reports/state-of-ai-agents/'+month)
+    assert report.status_code == 200 and '<svg viewBox' in report.text and 'lower bounds' in report.text
+    assert '1,000 public agents' in report.text
+    assert c.get('/reports/state-of-ai-agents/2020-01').status_code == 404
+    assert c.get('/badges').status_code == 200
+    paths = g.sitemap_paths()
+    for path in ['/agents/best', '/agents/best/web_search', '/agent/100', '/agent/200', '/agents/compare/100-vs-101',
+                 '/reports/state-of-ai-agents/'+month, '/badges']:
+        assert path in paths
+    assert '/agent/400' not in paths and len(paths) == len(set(paths))
+    for path in paths:
+        response = c.get(path)
+        assert response.status_code == 200, path
+        assert not re.search(r'[ㄱ-힣]', response.text) and ' style=' not in response.text
+
+
+def test_indexnow_key_route(tmp_path, monkeypatch):
+    monkeypatch.setenv('LOG_DIR', str(tmp_path))
+    (tmp_path/'public-pages').mkdir()
+    key = 'a'*32
+    (tmp_path/'public-pages'/'indexnow-key').write_text(key)
+    app = FastAPI()
+    app.include_router(g.growth_router())
+    c = TestClient(app)
+    assert c.get('/'+key+'.txt').text == key
+    (tmp_path/'public-pages'/'indexnow-key').write_text('not-a-key')
+    assert g.indexnow_key() is None

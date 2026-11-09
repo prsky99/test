@@ -504,6 +504,8 @@ The About navigation item follows List Your Agent. The Agent Concierge logo open
 - List Your Agent: `{base}/new/en/list-agent.html`
 - Connect an MCP client (Claude Code, Claude Desktop, Cursor, VS Code, OpenAI Agents SDK): `{base}/connect`
 - Task pages with recorded checks: `{base}/agents/tasks`
+- Category rankings by recorded checks: `{base}/agents/best`; one evidence page per agent: `{base}/agent/{{id}}`
+- Monthly report with charts: `{base}/reports/state-of-ai-agents`; README badges for agent operators: `{base}/badges`
 Owned data examples retrieve public source records and return English prose with source links,
 retrieval times and explicit cache status. Coverage can be partial and sources can be unavailable.
 Annual indicators show the latest available source year. An empty advisory lookup is not a security guarantee.

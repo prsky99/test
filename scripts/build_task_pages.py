@@ -1,96 +1,26 @@
-"""Build the task-page snapshot from the public Explore API (read-only, sequential, rate-limited).
+"""Build the task-page snapshot by hand through the public Explore API (read-only, sequential, rate-limited).
 
     .venv/bin/python -m scripts.build_task_pages --out logs/service-frontend/public-pages/task-pages.json
 
-Each task runs two public searches (execution-checked first, then the plain catalog), keeps
-agents that carry evidence (agent_market.concierge.growth_pages.has_evidence) and writes the
-snapshot atomically. Tasks with fewer than two such agents are left out, so they never reach
-the sitemap. Requests go to our own public API only and use the normal Explore limits.
+The jobs service refreshes the same snapshot daily from its own store (concierge/task_pages_job.py).
+This script is for a first build or a manual rebuild. The task list, the relevance rule and the
+assembly live in agent_market/concierge/task_catalog.py.
 """
 import argparse
 import json
-import os
-import re
 import sys
-import tempfile
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
 
-from agent_market.concierge.growth_pages import MAX_AGENTS, MIN_AGENTS, clean, clean_agent
+from agent_market.concierge.task_catalog import TASKS, Assembler, plan, relevant, slugify, write  # noqa: F401 (re-exported for tests)
 
 USER_AGENT = 'AgentConcierge-task-pages/1.0 (site owner test)'
 
-# (group, task phrase). Phrases are written as a person would type them into Explore.
-TASKS = {
-    'Weather, maps and travel': [
-        'weather forecast', 'current weather', 'air quality', 'severe weather alerts', 'geocoding addresses',
-        'reverse geocoding', 'route planning', 'distance between places', 'nearby places search', 'time zone lookup',
-        'flight search', 'flight status', 'hotel search', 'travel itinerary', 'public transit directions',
-        'country information', 'tide and marine weather', 'sunrise and sunset times', 'ip geolocation', 'map tiles'],
-    'Search and web': [
-        'web search', 'news search', 'scrape a web page', 'extract article text', 'search academic papers',
-        'website screenshot', 'crawl a website', 'search reddit', 'search hacker news', 'youtube search',
-        'image search', 'wikipedia lookup', 'domain whois lookup', 'check website uptime', 'rss feed reader',
-        'sitemap extraction', 'search github repositories', 'search stack overflow', 'patent search', 'job search'],
-    'Developer tools': [
-        'github issues', 'github pull requests', 'code review', 'run python code', 'execute javascript',
-        'package metadata', 'npm package info', 'pypi package info', 'dependency vulnerabilities', 'docker containers',
-        'kubernetes cluster', 'ci build status', 'api documentation lookup', 'regex testing', 'generate unit tests',
-        'browser automation', 'playwright testing', 'git repository analysis', 'code search', 'library documentation'],
-    'Data and databases': [
-        'postgres query', 'mysql query', 'sqlite database', 'mongodb query', 'redis cache',
-        'csv analysis', 'excel spreadsheet', 'json transformation', 'data visualization chart', 'bigquery',
-        'snowflake data warehouse', 'elasticsearch search', 'vector database search', 'time series data', 'convert file formats',
-        'pdf extraction', 'ocr text from image', 'unit conversion', 'random data generation', 'qr code generation'],
-    'Documents and knowledge': [
-        'summarize a document', 'translate text', 'translate a document', 'knowledge base search', 'notion pages',
-        'confluence pages', 'google docs', 'markdown conversion', 'note taking', 'retrieval augmented generation',
-        'dictionary definitions', 'grammar check', 'text to speech', 'speech to text', 'meeting notes summary',
-        'obsidian notes', 'read epub books', 'citation formatting', 'documentation search', 'language detection'],
-    'Productivity and communication': [
-        'calendar scheduling', 'send email', 'read email inbox', 'slack messages', 'discord bot',
-        'telegram messages', 'todo list', 'project management tasks', 'jira issues', 'linear issues',
-        'trello boards', 'google drive files', 'dropbox files', 'contact management', 'reminders',
-        'time tracking', 'form submissions', 'sms messages', 'whatsapp messages', 'team chat summary'],
-    'Finance and crypto': [
-        'stock prices', 'stock market news', 'company financials', 'currency exchange rates', 'cryptocurrency prices',
-        'crypto wallet balance', 'blockchain transactions', 'token prices on base', 'defi protocols', 'nft collections',
-        'sec filings', 'economic indicators', 'invoice generation', 'tax calculation', 'personal budgeting',
-        'payment processing', 'onchain analytics', 'ethereum gas prices', 'trading signals', 'portfolio tracking'],
-    'Commerce and marketing': [
-        'product search', 'price comparison', 'shopify store', 'ecommerce orders', 'seo analysis',
-        'keyword research', 'social media posting', 'ad campaign performance', 'email marketing', 'customer reviews analysis',
-        'lead generation', 'crm contacts', 'company enrichment', 'competitor analysis', 'brand monitoring'],
-    'Media and creative': [
-        'image generation', 'image editing', 'video generation', 'music generation', 'podcast search',
-        'transcribe video', 'background removal', 'logo design', 'meme generation', 'photo search',
-        'audio transcription', 'video summarization', 'presentation slides', 'diagram generation', 'font pairing'],
-    'Health, science and education': [
-        'medical literature search', 'drug information', 'clinical trials search', 'nutrition facts', 'fitness tracking',
-        'chemistry compounds', 'math problem solving', 'physics calculations', 'astronomy data', 'genomics data',
-        'language learning', 'quiz generation', 'flashcards', 'course recommendations', 'arxiv papers'],
-    'Security and operations': [
-        'vulnerability scanning', 'cve lookup', 'ssl certificate check', 'dns lookup', 'threat intelligence',
-        'password strength check', 'malware analysis', 'log analysis', 'server monitoring', 'incident alerts',
-        'cloud cost analysis', 'aws resources', 'cloudflare dns', 'network ping test', 'email deliverability check'],
-    'Public data and legal': [
-        'government open data', 'legal case search', 'company registry lookup', 'contract review', 'regulation lookup',
-        'census statistics', 'election data', 'public holidays', 'sanctions screening', 'trademark search'],
-    'Agents and AI models': [
-        'call another ai model', 'llm comparison', 'agent memory', 'multi agent orchestration', 'prompt optimization',
-        'embedding generation', 'sentiment analysis', 'named entity extraction', 'text classification', 'content moderation'],
-}
 
-
-def slugify(phrase):
-    return re.sub(r'[^a-z0-9]+', '-', phrase.lower()).strip('-')
-
-
-def fetch(base, query, verified, limit):
-    params = {'q': query, 'limit': str(limit)}
+def fetch(base, query, verified, limit, **filters):
+    params = {'q': query, 'limit': str(limit), **{k: v for k, v in filters.items() if v}}
     if verified:
         params['verified'] = '1'
     request = urllib.request.Request(base.rstrip('/')+'/api/explore?'+urllib.parse.urlencode(params),
@@ -109,80 +39,38 @@ def fetch(base, query, verified, limit):
     return []
 
 
-STOP = {'a', 'an', 'and', 'the', 'of', 'to', 'for', 'from', 'on', 'in', 'with', 'between', 'another', 'your', 'text'}
+def search(base, step):
+    if step[0] == 'task':
+        return fetch(base, step[2], step[3], step[4])
+    return fetch(base, '', step[3], step[4], category=step[1], kind=step[2])
 
 
-def stems(phrase):
-    words = [w for w in re.findall(r'[a-z0-9]+', phrase.lower()) if w not in STOP and len(w) > 1]
-    return [w if len(w) <= 4 else w[:max(4, len(w)-2)] for w in words]
-
-
-def relevant(phrase, item):
-    """The listing itself must mention the task: every key word, or all but one for longer phrases."""
-    text = ' '.join(str(item.get(k) or '') for k in ('name', 'description')).lower()
-    text = re.sub(r'[^a-z0-9]+', ' ', text)
-    words = stems(phrase)
-    found = sum(1 for w in words if re.search(r'(?<![a-z0-9])'+re.escape(w), text))
-    return found >= (len(words) if len(words) <= 2 else len(words)-1)
-
-
-def flatten(item):
-    readiness = item.get('connection_readiness') or {}
-    value = dict(item)
-    value['verified_at'] = (readiness.get('verified_at') if readiness.get('verified_callable')
-                            and readiness.get('evidence_scope') == 'execution' else None)
-    return value
-
-
-def build(base, pause, only=None, log=print):
-    tasks = []
-    for group, phrases in TASKS.items():
-        for phrase in phrases:
-            slug = slugify(phrase)
-            if only and slug not in only:
-                continue
-            agents, seen = [], set()
-            for verified, limit in ((True, 12), (False, 24)):
-                if len(agents) >= MAX_AGENTS:
-                    break
-                for item in fetch(base, phrase, verified, limit):
-                    if item.get('id') in seen or not relevant(phrase, item):
-                        continue
-                    agent = clean_agent(flatten(item))
-                    if agent:
-                        seen.add(item.get('id'))
-                        agents.append(agent)
-                time.sleep(pause)
-            log(f'{slug}: {len(agents)}')
-            if len(agents) >= MIN_AGENTS:
-                tasks.append({'slug': slug, 'title': phrase[:1].upper()+phrase[1:], 'query': phrase, 'group': group,
-                              'agents': agents[:MAX_AGENTS]})
-    return {'version': 1, 'captured_at': datetime.now(timezone.utc).isoformat(timespec='seconds'), 'tasks': tasks}
-
-
-def write(path, snapshot):
-    if clean(snapshot) is None:
-        raise SystemExit('The snapshot failed validation; nothing was written.')
-    folder = os.path.dirname(os.path.abspath(path))
-    os.makedirs(folder, exist_ok=True)
-    handle, temporary = tempfile.mkstemp(dir=folder, prefix='.task-pages.')
-    with os.fdopen(handle, 'w', encoding='utf-8') as out:
-        json.dump(snapshot, out, ensure_ascii=False, separators=(',', ':'))
-    os.chmod(temporary, 0o644)
-    os.replace(temporary, path)
+def status(base):
+    request = urllib.request.Request(base.rstrip('/')+'/status.json', headers={'User-Agent': USER_AGENT})
+    with urllib.request.urlopen(request, timeout=30) as response:
+        return json.load(response).get('catalog_snapshot')
 
 
 def main(argv=None):
+    from agent_market.broker.categories import CATEGORIES
     parser = argparse.ArgumentParser()
     parser.add_argument('--base', default='https://agentconcierge.biz')
     parser.add_argument('--out', default='logs/service-frontend/public-pages/task-pages.json')
     parser.add_argument('--pause', type=float, default=0.7, help='seconds between requests (Explore allows about 120 a minute)')
-    parser.add_argument('--only', nargs='*', help='slugs to build (for a quick check)')
+    parser.add_argument('--only', nargs='*', help='task slugs to build (for a quick check)')
+    parser.add_argument('--no-catalog', action='store_true')
     args = parser.parse_args(argv)
-    snapshot = build(args.base, args.pause, set(args.only) if args.only else None,
-                     log=lambda line: print(line, file=sys.stderr, flush=True))
+    assembler = Assembler()
+    steps = plan([] if args.no_catalog else CATEGORIES, set(args.only) if args.only else None)
+    for number, step in enumerate(steps, 1):
+        if assembler.needs(step):
+            assembler.add(step, search(args.base, step))
+            time.sleep(args.pause)
+        if number % 20 == 0:
+            print(f'{number}/{len(steps)} catalog={len(assembler.catalog)}', file=sys.stderr, flush=True)
+    snapshot = assembler.snapshot(None if args.no_catalog else status(args.base))
     write(args.out, snapshot)
-    print(json.dumps({'tasks': len(snapshot['tasks']), 'agents': sum(len(t['agents']) for t in snapshot['tasks']),
+    print(json.dumps({'tasks': len(snapshot['tasks']), 'catalog': len(snapshot['catalog']),
                       'captured_at': snapshot['captured_at'], 'out': args.out}))
 
 

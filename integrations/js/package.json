@@ -1,0 +1,14 @@
+{
+  "name": "agent-concierge",
+  "version": "0.1.0",
+  "description": "Find AI agents and MCP servers for a task, ranked by recorded checks (Agent Concierge client).",
+  "type": "module",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "files": ["index.js", "index.d.ts", "README.md"],
+  "engines": {"node": ">=18"},
+  "keywords": ["mcp", "ai-agents", "a2a", "agent-discovery"],
+  "homepage": "https://agentconcierge.biz/connect",
+  "license": "MIT",
+  "scripts": {"test": "node --test"}
+}
