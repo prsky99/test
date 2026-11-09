@@ -27,6 +27,11 @@ def public_content_paths():
     """Return the checker's exact source inventory in deterministic path order."""
     paths = {p for p in (ROOT / 'agent_market/concierge').rglob('*')
              if p.is_file() and p.suffix in ('.py', '.html', '.js', '.css', '.svg')}
+    paths.update(p for p in (ROOT/'agent_market/ad_coin/v2/web').rglob('*')
+                 if p.is_file() and p.suffix in ('.html','.js','.css','.svg'))
+    workspace = ROOT/'agent_market/ad_coin/v2/workspace.py'
+    if workspace.is_file():
+        paths.add(workspace)
     paths.update(p for p in (ROOT / 'agent_market/owned_data_agents').glob('*.py')
                  if p.is_file())
     paths.update(p for p in (ROOT / 'agent_market/agent_access').rglob('*')
