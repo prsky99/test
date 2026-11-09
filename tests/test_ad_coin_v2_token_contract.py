@@ -88,3 +88,12 @@ def test_deploy_tool_only_simulates():
 def test_experiment_bucketing_does_not_use_md5():
     source = (ROOT / 'agent_market' / 'ad_coin' / 'v2' / 'advertiser_platform.py').read_text()
     assert 'hashlib.md5' not in source and 'hashlib.sha256(f"{experiment_id}:{user_id}"' in source
+
+
+@pytest.mark.skipif(not __import__('shutil').which('forge'), reason='Foundry is not installed on this machine')
+def test_contract_behaviour_suite_passes_under_forge():
+    """Compiles AIADCoin.sol and runs the behaviour tests (test/AIADCoin.t.sol) locally; no network chain."""
+    import subprocess
+    result = subprocess.run(['forge', 'test', '--offline'], cwd=CONTRACTS, capture_output=True, text=True, timeout=600)
+    assert result.returncode == 0, result.stdout[-3000:] + result.stderr[-2000:]
+    assert '0 failed' in result.stdout

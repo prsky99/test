@@ -1,0 +1,13 @@
+# Local compile and test only (anvil/forge test). No RPC endpoints or keys are configured here.
+[profile.default]
+src = "."
+test = "test"
+out = "out"
+cache_path = "cache"
+libs = []
+solc_version = "0.8.24"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 200
+offline = false
+fuzz = { runs = 512 }
