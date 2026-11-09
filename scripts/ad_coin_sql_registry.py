@@ -49,6 +49,8 @@ def static_statements():
             return None if left is None or right is None else left + right
         return None
     found = set()
+    from agent_market.ad_coin.v2.sql import all_statements
+    found.update(shape(value) for value in all_statements())
     skip = {'db.py', 'sql_registry.py', 'page.py', 'admin_page.py', 'advertiser_page.py'}
     for path in sorted((ROOT / 'agent_market/ad_coin').glob('*.py')):
         if path.name in skip:
@@ -64,11 +66,19 @@ def main(argv=None):
     from agent_market.ad_coin.sql_registry import PATH, digest
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('--write', action='store_true')
+    parser.add_argument('--add-v2', action='store_true',
+                        help='Synchronize the closed v2 SQL catalog while preserving legacy statements')
     args = parser.parse_args(argv)
-    shapes = sorted(set(collect()) | static_statements())
-    data = {'profile': 'ai-ad-coin-sql-v1', 'statements': [{'sql': s, 'sha256': digest(s)} for s in shapes]}
     before = json.loads(PATH.read_text())['statements'] if PATH.exists() else []
     old = {item['sql'] for item in before}
+    if args.add_v2:
+        from agent_market.ad_coin.sql_registry import shape
+        from agent_market.ad_coin.v2.sql import all_statements
+        shapes = sorted({sql for sql in old if 'adc2_' not in sql} |
+                        {shape(sql) for sql in all_statements()})
+    else:
+        shapes = sorted(set(collect()) | static_statements())
+    data = {'profile': 'ai-ad-coin-sql-v1', 'statements': [{'sql': s, 'sha256': digest(s)} for s in shapes]}
     print('statements', len(shapes), 'added', len(set(shapes) - old), 'removed', len(old - set(shapes)))
     if args.write:
         PATH.write_text(json.dumps(data, indent=1, ensure_ascii=True) + '\n')

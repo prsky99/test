@@ -309,14 +309,17 @@ def test_organic_selection_cannot_import_ad_coin():
 
 
 # ---------- HTTP ----------
-def _client(tmp_path, enabled=True):
+def _client(tmp_path, enabled=True, identity=None):
     token = 'invited-visitor-token'
     settings = Settings(enabled=enabled, db_path=str(tmp_path / 'ad.sqlite3'),
                         receipt_key_path=str(tmp_path / 'key.pem'), admin_token='admin-secret-token',
                         invited=frozenset({hashlib.sha256(token.encode()).hexdigest()}))
     app = FastAPI()
-    app.include_router(router_for(settings))
-    return TestClient(app), token
+    router = router_for(settings, customer_identity=identity)
+    if identity is not None and enabled:
+        router.ad_coin_console.people.invite(identity.customer_id)
+    app.include_router(router)
+    return TestClient(app, base_url='https://testserver'), token
 
 
 def test_routes_do_not_exist_when_the_flag_is_off(tmp_path):
@@ -326,9 +329,26 @@ def test_routes_do_not_exist_when_the_flag_is_off(tmp_path):
 
 
 def test_http_flow_for_invited_people_and_admin(tmp_path):
-    client, token = _client(tmp_path)
+    from types import SimpleNamespace
+    from agent_market.customer_identity_service import COOKIE
+
+    class Identity:
+        customer_id = 'cus_http_owner'
+
+        def actor(self, token):
+            if token != 'closed-test-human-session':
+                raise ValueError('invalid test session')
+            return SimpleNamespace(customer_id=self.customer_id)
+
+        def csrf(self, token):
+            return hashlib.sha256(('http-test-csrf:' + token).encode()).hexdigest()
+
+    identity = Identity()
+    client, token = _client(tmp_path, identity=identity)
+    client.cookies.set(COOKIE, 'closed-test-human-session')
     admin = {'Authorization': 'Bearer admin-secret-token'}
-    person = {'X-Visitor-Token': token, 'X-Agent-Name': 'helper'}
+    person = {'X-Agent-Name': 'helper', 'Origin': 'https://testserver',
+              'X-Customer-CSRF': identity.csrf('closed-test-human-session')}
     assert client.post('/api/ad-coin/v1/quotes', json={}, headers={'X-Visitor-Token': 'nope-nope'}).status_code == 403
     assert client.post('/api/ad-coin/v1/admin/campaigns', json={}, headers=person).status_code == 403
     created = client.post('/api/ad-coin/v1/admin/campaigns', headers=admin, json={

@@ -134,12 +134,15 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
                 return None
             request.state.ad_coin = {'source': 'agent_key', 'customer_id': found[0], 'agent': found[1]}
             return user_ref_for_customer(found[0])
-        customer = customer_session(identity(), request, write)
+        identity_service = identity()
+        customer = customer_session(identity_service, request, write)
         if customer:
             if not people.invited(customer):
                 return None
             request.state.ad_coin = {'source': 'customer', 'customer_id': customer, 'agent': None}
             return user_ref_for_customer(customer)
+        if identity_service is not None and request.cookies.get('__Host-ac_customer_session'):
+            return None  # An invalid session/CSRF proof cannot fall back to a legacy visitor token.
         if is_admin(request):
             request.state.ad_coin = {'source': 'admin', 'customer_id': None, 'agent': None}
             return 'u_admin'
@@ -189,6 +192,11 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
 
             async def serve(request):
                 try:
+                    if request.headers.get('x-ad-coin-agent-key') and (
+                            request.cookies.get('__Host-ac_customer_session') or
+                            request.headers.get('authorization') or request.headers.get('x-visitor-token')):
+                        return _json({'error': 'mixed_credentials',
+                                      'message': 'Use one identity for this request.'}, 403)
                     if kind == 'admin' and not is_admin(request):
                         return _json({'error': 'admin_required'}, 403)
                     if kind == 'advertiser':
@@ -213,7 +221,7 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
                                       'message': 'AI AD Coin is in a closed test. Sign in with an invited account.'}, 403)
                     if kind == 'customer' and acting(request).get('source') != 'customer':
                         return _json({'error': 'customer_session_required',
-                                      'message': 'Manage agent keys from your own signed-in session.'}, 403)
+                                      'message': 'Use your own signed-in session for this action.'}, 403)
                     data = await body(request) if request.method == 'POST' or request.method == 'PUT' else {}
 
                     submitted = time.perf_counter()
@@ -231,6 +239,13 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
                                     with service.db.transaction():
                                         if who:
                                             service.db.lock_key('who:' + who)   # one person's writes in order
+                                        state = acting(request)
+                                        if state.get('source') == 'agent_key':
+                                            current = people.agent_for_key(request.headers.get('x-ad-coin-agent-key'))
+                                            if current != (state.get('customer_id'), state.get('agent')):
+                                                raise AdCoinError('agent_key_revoked', status=403)
+                                        elif state.get('source') == 'customer' and not people.invited(state['customer_id']):
+                                            raise AdCoinError('invitation_required', status=403)
                                         value = handler(request, who, data)
                                 else:
                                     with service.db.read():
@@ -345,7 +360,7 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
         return {'test_products': [p for p in products.list() if p['status'] == 'active'],
                 'note': 'Closed-test products built from real catalog agents. Runs are simulated.'}
 
-    @add('POST', '/consents', 'person')
+    @add('POST', '/consents', 'customer')
     def consent(request, who, data):
         return service.consent(user_ref=who, reservation_id=str(data.get('reservation_id', '')))
 
@@ -353,7 +368,7 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
     def decline(request, who, data):
         return service.decline(user_ref=who, reservation_id=str(data.get('reservation_id', '')))
 
-    @add('POST', '/exposures', 'person')
+    @add('POST', '/exposures', 'customer')
     def exposure(request, who, data):
         return service.exposure(user_ref=who, reservation_id=str(data.get('reservation_id', '')),
                                 consent_id=str(data.get('consent_id', '')), displayed_ms=data.get('displayed_ms'),
@@ -363,13 +378,13 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
     def wallets(request, who, data):
         return service.wallets(who)
 
-    @add('POST', '/transfers', 'person')
+    @add('POST', '/transfers', 'customer')
     def transfer(request, who, data):
         return service.transfer(user_ref=who, from_account=str(data.get('from', '')), to_account=str(data.get('to', '')),
                                 coins_amount=data.get('coins'), idem=str(data.get('idempotency_key', ''))[:64] or 'none',
                                 step_up=False, memo=str(data.get('memo', ''))[:200])
 
-    @add('POST', '/agents/revoke', 'person')
+    @add('POST', '/agents/revoke', 'customer')
     def revoke_agent(request, who, data):
         agent = str(data.get('agent', ''))
         customer = acting(request).get('customer_id')
@@ -409,19 +424,22 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
     def mandates(request, who, data):
         return {'mandates': service.mandates(who)}
 
-    @add('POST', '/mandates', 'person')
+    @add('POST', '/mandates', 'customer')
     def create_mandate(request, who, data):
         return service.create_mandate(user_ref=who, agent_ref=str(data.get('agent', '')),
                                       total_coins=data.get('total_coins'), per_task_coins=data.get('per_task_coins'),
                                       providers=data.get('providers'), days=data.get('days'))
 
-    @add('POST', '/mandates/revoke', 'person')
+    @add('POST', '/mandates/revoke', 'customer')
     def revoke_mandate(request, who, data):
         return service.revoke_mandate(str(data.get('id', '')), who)
 
     @add('POST', '/spends', 'person')
     def spend(request, who, data):
-        actor = 'agent' if data.get('mandate_id') else 'user'
+        source = acting(request).get('source')
+        if source not in ('agent_key', 'customer'):
+            raise AdCoinError('customer_session_required', 'Use a signed-in session or a delegated agent key.', 403)
+        actor = 'agent' if source == 'agent_key' else 'user'
         return service.spend(user_ref=who, wallet=str(data.get('wallet', '')), provider=data.get('provider'),
                              task_ref=data.get('task_ref'), price_coins=data.get('price_coins'),
                              idem=str(data.get('idempotency_key', ''))[:64] or 'none', actor=actor,
@@ -463,7 +481,7 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
     def settle_runs(request, who, data):
         return settle_from_runs(request, who, data, admin=False)
 
-    @add('POST', '/vouchers/redeem', 'person')
+    @add('POST', '/vouchers/redeem', 'customer')
     def redeem(request, who, data):
         return service.redeem_voucher(user_ref=who, voucher_id=str(data.get('voucher_id', '')))
 
@@ -658,7 +676,9 @@ def router_for(settings=None, service=None, store=None, workflow_reader=None, pr
     @add('POST', '/admin/invites/revoke', 'admin')
     def revoke_invite(request, who, data):
         try:
-            return people.revoke_invite(str(data.get('customer_id', '')))
+            customer_id = str(data.get('customer_id', ''))
+            service.db.lock_key('who:' + user_ref_for_customer(customer_id))
+            return people.revoke_invite(customer_id)
         except PeopleError as exc:
             raise AdCoinError('unknown_invite', str(exc), 404) from None
 

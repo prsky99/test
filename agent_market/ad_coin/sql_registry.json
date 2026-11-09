@@ -2,6 +2,430 @@
  "profile": "ai-ad-coin-sql-v1",
  "statements": [
   {
+   "sql": "ALTER TABLE adc2_principals ADD CONSTRAINT adc2_principals_check CHECK ((kind IN ('human','agent') AND owner_id IS NOT NULL) OR (kind='ops' AND owner_id IS NULL))",
+   "sha256": "668823821aa9b003787b6f5cd31218a79f48dce0f110a4bb7476b2eac90af5e1"
+  },
+  {
+   "sql": "ALTER TABLE adc2_principals ADD CONSTRAINT adc2_principals_kind_check CHECK (kind IN ('human','agent','ops'))",
+   "sha256": "82cb01b43d8b49c020b1f5e783d44aa2c3aa7026a03b51fe3979c1d42e78a753"
+  },
+  {
+   "sql": "ALTER TABLE adc2_principals DROP CONSTRAINT IF EXISTS adc2_principals_check",
+   "sha256": "540144e18770da1bf63a274a85d3cca94456f52c73caff19aace42ef2b3542ae"
+  },
+  {
+   "sql": "ALTER TABLE adc2_principals DROP CONSTRAINT IF EXISTS adc2_principals_kind_check",
+   "sha256": "6e03c5a9a2cc592332208b0217ab517cba236a18fd26a6de12a7c1266a20974a"
+  },
+  {
+   "sql": "ALTER TABLE adc2_report_revisions ADD COLUMN IF NOT EXISTS source_manifest_json TEXT NOT NULL DEFAULT '[]'",
+   "sha256": "5058c219c6f5051fd1a2913c4dfc00b41ffdf4f4bb3a7eed791db8e546252a47"
+  },
+  {
+   "sql": "CREATE CONSTRAINT TRIGGER adc2_balance_commit AFTER INSERT OR UPDATE ON adc2_journals DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION adc2_validate_journal()",
+   "sha256": "a985b773e45a85b8e13d68676ed877b244e285f628cb9a256f75cce3e7b0fc4d"
+  },
+  {
+   "sql": "CREATE INDEX IF NOT EXISTS adc2_active_campaigns ON adc2_campaigns(id) WHERE state='active' AND approval_status='approved' AND funded=1",
+   "sha256": "8499b5e5c9518aa4857c06d4d903fa1146b4969425e5db3047792ff84c085eb1"
+  },
+  {
+   "sql": "CREATE INDEX IF NOT EXISTS adc2_active_memberships ON adc2_memberships(principal_id,advertiser_id,capability) WHERE active=1",
+   "sha256": "1a3f29ab1a55463109b5378eac9cf09a3fb26d822c72989bdd54191112323d84"
+  },
+  {
+   "sql": "CREATE INDEX IF NOT EXISTS adc2_advertiser_campaigns ON adc2_campaigns(advertiser_id,id)",
+   "sha256": "af15f64384b0f2859aeebdf53f9e3303b1ca3f5bb71fdbe77cb758c583986d7b"
+  },
+  {
+   "sql": "CREATE INDEX IF NOT EXISTS adc2_agent_tokens_owner ON adc2_agent_tokens(owner_id, revoked_at)",
+   "sha256": "6c58d9e15bddf93f615d07f96f906e62ac156d937d4b36a792c9529e0919f620"
+  },
+  {
+   "sql": "CREATE INDEX IF NOT EXISTS adc2_audit_log_target ON adc2_audit_log(target_id, event_type)",
+   "sha256": "d4c7ffb43ab56506ecb7115313f4ebbc572ae02b485f45e667db2a44404377f7"
+  },
+  {
+   "sql": "CREATE INDEX IF NOT EXISTS adc2_audit_log_time ON adc2_audit_log(timestamp_ms)",
+   "sha256": "641379a430b7a0bb35ecd70926df02f3db7b27b432365e3d547a73502ec151b2"
+  },
+  {
+   "sql": "CREATE INDEX IF NOT EXISTS adc2_campaign_experiments_camp ON adc2_campaign_experiments(campaign_id)",
+   "sha256": "99cb76c74c869f8c026409bfc12b30faf99f0c7aba31a53df427517251a6aa25"
+  },
+  {
+   "sql": "CREATE INDEX IF NOT EXISTS adc2_conversions_advertiser ON adc2_conversions(advertiser_id)",
+   "sha256": "bca773e1cd0563aa6f7c3cb924223e2a2137504099ed8390195b3e1643d3e9ac"
+  },
+  {
+   "sql": "CREATE INDEX IF NOT EXISTS adc2_conversions_campaign ON adc2_conversions(campaign_id)",
+   "sha256": "7dfddfc9640e97a9445475cdda2d7e414ce35e27e96813ffbeafb6f927702ca3"
+  },
+  {
+   "sql": "CREATE INDEX IF NOT EXISTS adc2_custody_reserves_created ON adc2_custody_reserves(created_at DESC)",
+   "sha256": "ba826d0330207863ccb87848fb1626bb48305c4973cefd030435570a84b3b666"
+  },
+  {
+   "sql": "CREATE INDEX IF NOT EXISTS adc2_executions_owner ON adc2_executions(owner_id)",
+   "sha256": "3c4a47e283085ad7ff3e79bffeaabf3c18526ba28c6a54919b417f9ff75909a8"
+  },
+  {
+   "sql": "CREATE INDEX IF NOT EXISTS adc2_executions_status ON adc2_executions(status)",
+   "sha256": "76bbe546a08b8fc703f84a5009f0f1d2b5ab63d7bbe722e7035ddb3e73e7c15e"
+  },
+  {
+   "sql": "CREATE INDEX IF NOT EXISTS adc2_fiat_deposits_wallet ON adc2_fiat_deposits(wallet_id)",
+   "sha256": "2e045bae660f826b6a5a30387ffbc6f03890398a9ede48971d4affee5a98b722"
+  },
+  {
+   "sql": "CREATE INDEX IF NOT EXISTS adc2_human_sessions_owner ON adc2_human_sessions(owner_id, revoked_at)",
+   "sha256": "e0dddb6e0d69506a826266a59fdf2fd13b834a1902a7077bc34f9654b14fe2ff"
+  },
+  {
+   "sql": "CREATE INDEX IF NOT EXISTS adc2_mandates_agent ON adc2_mandates(agent_principal_id)",
+   "sha256": "3573da6de912806f0b4ff01f09dd28beb6d4582a2e1217fad1d1fe5a7c4f6863"
+  },
+  {
+   "sql": "CREATE INDEX IF NOT EXISTS adc2_mandates_owner ON adc2_mandates(owner_id)",
+   "sha256": "665923c4e764b76e31cc98a930ce4b8343f5dde927853800cddc948f9b4f43ea"
+  },
+  {
+   "sql": "CREATE INDEX IF NOT EXISTS adc2_offers_owner_day ON adc2_offers(owner_id,created_ms)",
+   "sha256": "5ae1df6fbf031aa1d385e54e5e071e36ac41cc7a8c22e70342375489d8c9f07b"
+  },
+  {
+   "sql": "CREATE INDEX IF NOT EXISTS adc2_onchain_withdrawals_owner ON adc2_onchain_withdrawals(owner_id)",
+   "sha256": "e66df1b6f3777c369823e3f81e811999377e08986f8197bee446242013c8d5f2"
+  },
+  {
+   "sql": "CREATE INDEX IF NOT EXISTS adc2_onchain_withdrawals_wallet ON adc2_onchain_withdrawals(wallet_id)",
+   "sha256": "2f227698fd4ae86f3364a52ca7382e5b690ca4d5cff1c8147d9550c7f0a32acf"
+  },
+  {
+   "sql": "CREATE INDEX IF NOT EXISTS adc2_outbox_due ON adc2_outbox(state,available_ms,lease_until_ms)",
+   "sha256": "3fd120681899133f29e5954fa44487689b7d1c62caa9b4dd47a86f7a005741ed"
+  },
+  {
+   "sql": "CREATE INDEX IF NOT EXISTS adc2_owner_wallets ON adc2_wallets(owner_id,id)",
+   "sha256": "cb404a28676f594f1489b521027a03e6c64d23a10442b179b6d3ecb9f6558c7f"
+  },
+  {
+   "sql": "CREATE INDEX IF NOT EXISTS adc2_pending_commands ON adc2_idempotency_records(scope_hash) WHERE state<>'done'",
+   "sha256": "7c878bc09beb3f13a79e1f3548d7b9d1333eb65ff4bf3d6220ea8339336d1ee4"
+  },
+  {
+   "sql": "CREATE INDEX IF NOT EXISTS adc2_pending_journals ON adc2_journals(id) WHERE state<>'sealed'",
+   "sha256": "592ca048dde1405c500b5054241f8855d8b69cd4bfdc5104c756c118ee68c03f"
+  },
+  {
+   "sql": "CREATE INDEX IF NOT EXISTS adc2_postings_account ON adc2_postings(account_id,journal_id)",
+   "sha256": "ef4e0a782ed18903ceb914ca65548e3a78c6f26098e0c3cb2277a4794df0058d"
+  },
+  {
+   "sql": "CREATE INDEX IF NOT EXISTS adc2_relay_dispatches_owner ON adc2_relay_dispatches(owner_id, status)",
+   "sha256": "f4f9525c1446af7ac9f4d105977c96e4788ea3221ac8a37c5f8bf905d977f5e1"
+  },
+  {
+   "sql": "CREATE INDEX IF NOT EXISTS adc2_relay_dispatches_partner ON adc2_relay_dispatches(partner_id, status)",
+   "sha256": "0eb536989ef3c1f908c45e8d6ddb09f7626aa74e943f3f0af474a810f4a95cab"
+  },
+  {
+   "sql": "CREATE INDEX IF NOT EXISTS adc2_review_appeals_state ON adc2_review_appeals(state, created_ms)",
+   "sha256": "a5cc9a393512d527b46b0ad4d1bc1659ab8814f94c40fe7bdad568dc7d9e497e"
+  },
+  {
+   "sql": "CREATE INDEX IF NOT EXISTS adc2_stage_claims_campaign ON adc2_stage_claims(campaign_id, stage_type)",
+   "sha256": "4f1bae7d2cdf96bb8565f50ab22249d022f5752712c24d5b3995a36784c53330"
+  },
+  {
+   "sql": "CREATE INDEX IF NOT EXISTS adc2_stage_claims_owner ON adc2_stage_claims(owner_id)",
+   "sha256": "06bea524c22e868b3c76caf48d2d36baa567b3e2ffd4607b6c5326771fa5a7c7"
+  },
+  {
+   "sql": "CREATE OR REPLACE FUNCTION adc2_account_identity() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF TG_OP='DELETE' OR (NEW.id,NEW.owner_id,NEW.asset_id,NEW.purpose,NEW.beneficial) IS DISTINCT FROM (OLD.id,OLD.owner_id,OLD.asset_id,OLD.purpose,OLD.beneficial) THEN RAISE EXCEPTION 'adc2_immutable_account_identity'; END IF; RETURN NEW; END $$",
+   "sha256": "a6b3b614799c1e360bb37e4fb59ea74d9c25c0860740f03ffe8ee1434bbc13ca"
+  },
+  {
+   "sql": "CREATE OR REPLACE FUNCTION adc2_immutable_commercial() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'adc2_immutable_commercial_record'; END $$",
+   "sha256": "c912114c9d196dbc52dcbb95ab27c945b229836dd6e47016a2e82b96b5d10809"
+  },
+  {
+   "sql": "CREATE OR REPLACE FUNCTION adc2_immutable_journal() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF TG_OP='DELETE' OR OLD.state='sealed' THEN RAISE EXCEPTION 'adc2_immutable_journal'; END IF; IF (NEW.id,NEW.asset_id,NEW.economic_key,NEW.payload_hash,NEW.kind,NEW.created_ms) IS DISTINCT FROM (OLD.id,OLD.asset_id,OLD.economic_key,OLD.payload_hash,OLD.kind,OLD.created_ms) THEN RAISE EXCEPTION 'adc2_immutable_journal'; END IF; RETURN NEW; END $$",
+   "sha256": "fc35b8e0a14f907b0eb02de45173ac060f8ffc4d4cd7af1e3834c3261832844a"
+  },
+  {
+   "sql": "CREATE OR REPLACE FUNCTION adc2_immutable_posting() RETURNS trigger LANGUAGE plpgsql AS $$ DECLARE journal_state TEXT; BEGIN IF TG_OP<>'INSERT' THEN RAISE EXCEPTION 'adc2_immutable_posting'; END IF; SELECT state INTO journal_state FROM adc2_journals WHERE id=NEW.journal_id FOR UPDATE; IF journal_state<>'pending' THEN RAISE EXCEPTION 'adc2_closed_journal'; END IF; RETURN NEW; END $$",
+   "sha256": "384246c134b39524aab8f804513883a9c7add6894af0be694a89ad0715e783c5"
+  },
+  {
+   "sql": "CREATE OR REPLACE FUNCTION adc2_validate_journal() RETURNS trigger LANGUAGE plpgsql AS $$ DECLARE header adc2_journals%ROWTYPE; n BIGINT; total NUMERIC; BEGIN SELECT * INTO header FROM adc2_journals WHERE id=NEW.id; SELECT count(*),coalesce(sum(delta_atoms),0) INTO n,total FROM adc2_postings WHERE journal_id=NEW.id; IF header.state<>'sealed' OR n<2 OR total<>0 THEN RAISE EXCEPTION 'adc2_unbalanced_journal'; END IF; RETURN NULL; END $$",
+   "sha256": "a138eac4113b449e7cca967639b49797592e338c91592ca2c4e11d6e6255e5f1"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_accounts (id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, asset_id TEXT NOT NULL REFERENCES adc2_assets(id), purpose TEXT NOT NULL CHECK (purpose IN ('external_clearing','advertiser_available','campaign_available','offer_hold','user_available','user_locked','provider_payable','operator_payable','direct_cost','platform_revenue')), beneficial INTEGER NOT NULL CHECK (beneficial IN (0,1)), balance_atoms NUMERIC NOT NULL CHECK (balance_atoms=trunc(balance_atoms) AND balance_atoms BETWEEN -115792089237316195423570985008687907853269984665640564039457584007913129639935 AND 115792089237316195423570985008687907853269984665640564039457584007913129639935), version INTEGER NOT NULL CHECK (version>=1), UNIQUE(id,asset_id), CHECK ((purpose='external_clearing' AND beneficial=0) OR (purpose<>'external_clearing' AND beneficial=1)), CHECK (beneficial=0 OR balance_atoms>=0))",
+   "sha256": "c6ee06bffe40f760ea998fe3522d432df5afaef670410bf6341ab8f529ebf76e"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_ad_preferences (id TEXT PRIMARY KEY, owner_id TEXT NOT NULL UNIQUE, receive_offers INTEGER NOT NULL CHECK (receive_offers IN (0,1)), context_fields_json TEXT NOT NULL, max_offers_per_day INTEGER NOT NULL CHECK (max_offers_per_day BETWEEN 0 AND 100), max_ads_per_campaign_day INTEGER NOT NULL CHECK (max_ads_per_campaign_day BETWEEN 0 AND 3), max_ads_per_day INTEGER NOT NULL CHECK (max_ads_per_day BETWEEN 0 AND 10), max_ad_ms_per_day BIGINT NOT NULL CHECK (max_ad_ms_per_day BETWEEN 0 AND 600000), version BIGINT NOT NULL CHECK (version>=1), revision_hash TEXT NOT NULL, effective_ms BIGINT NOT NULL)",
+   "sha256": "def8d66ff2446ba8cac415ec5d0c7dceac96cdc2a8b003d8116e4ddaf7981020"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_advertisers (id TEXT PRIMARY KEY REFERENCES adc2_authority_guards(guard_id), commercial_tenant_id TEXT NOT NULL UNIQUE, available_account TEXT NOT NULL UNIQUE REFERENCES adc2_accounts(id), status TEXT NOT NULL CHECK (status IN ('active','suspended')))",
+   "sha256": "1a34990dbeead3515c227f82e2e36b8e4186b0726d9c836b7a3df102b0231792"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_agent_bindings (id TEXT PRIMARY KEY REFERENCES adc2_authority_guards(guard_id), owner_id TEXT NOT NULL, agent_principal_id TEXT NOT NULL REFERENCES adc2_principals(id), operator_id TEXT NOT NULL, capabilities_json TEXT NOT NULL, active INTEGER NOT NULL CHECK (active IN (0,1)), epoch BIGINT NOT NULL CHECK (epoch>=1), UNIQUE(id,owner_id), UNIQUE(agent_principal_id))",
+   "sha256": "8c16b5f16597081870d94f341af6690068ab0d9d71fd94d2365d008fc1a076e8"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_agent_tokens (token_hash TEXT PRIMARY KEY, principal_id TEXT NOT NULL REFERENCES adc2_principals(id), owner_id TEXT NOT NULL, agent_binding_id TEXT NOT NULL REFERENCES adc2_agent_bindings(id), epoch BIGINT NOT NULL CHECK (epoch>=1), created_at DOUBLE PRECISION NOT NULL, expires_at DOUBLE PRECISION NOT NULL, revoked_at DOUBLE PRECISION)",
+   "sha256": "99a941ca6fb111063f67e81680ac68352d2ef23373a6a0ff175aa6010295b202"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_approvals (id TEXT PRIMARY KEY, campaign_id TEXT NOT NULL, advertiser_id TEXT NOT NULL, revision_id TEXT NOT NULL UNIQUE, principal_id TEXT NOT NULL REFERENCES adc2_principals(id), principal_epoch BIGINT NOT NULL, membership_epoch BIGINT NOT NULL, fresh_action_id TEXT NOT NULL UNIQUE REFERENCES adc2_fresh_actions(id), operation_id TEXT NOT NULL REFERENCES adc2_idempotency_records(operation_id), expires_ms BIGINT NOT NULL, FOREIGN KEY(revision_id,campaign_id,advertiser_id) REFERENCES adc2_campaign_revisions(id,campaign_id,advertiser_id), UNIQUE(campaign_id,revision_id))",
+   "sha256": "863648476ae9fca53f6ed4dbb71d67d2acbbe461020e00c6ea88c892d026c180"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_assets (id TEXT PRIMARY KEY, namespace TEXT NOT NULL CHECK (namespace='model'), decimals INTEGER NOT NULL CHECK (decimals=6), CHECK (id='model:aiac:v2'))",
+   "sha256": "20293eee254cf5c5f57314e67497d6cb1300898973be6fe9e7fc640f17c1a741"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_attention_reservations (session_id TEXT NOT NULL REFERENCES adc2_attention_sessions(id), window_id TEXT NOT NULL REFERENCES adc2_attention_windows(id), reserved_ms BIGINT NOT NULL CHECK (reserved_ms BETWEEN 15000 AND 30000), consumed_ms BIGINT CHECK (consumed_ms>=0 AND consumed_ms<=reserved_ms), PRIMARY KEY(session_id,window_id))",
+   "sha256": "d03499284c60a81ff15598c02389776b4a33c0be085ce22a7446bd190a75442b"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_attention_sessions (id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, payload_hash TEXT NOT NULL, reserved_ms BIGINT NOT NULL CHECK (reserved_ms BETWEEN 15000 AND 30000), state TEXT NOT NULL CHECK (state IN ('active','closed')), settlement_hash TEXT, CHECK ((state='active' AND settlement_hash IS NULL) OR (state='closed' AND settlement_hash IS NOT NULL)))",
+   "sha256": "659cfa6323718bd6d19d3f4a897fe61b2288bc5f69c50db960490a014d276be7"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_attention_windows (id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, scope_kind TEXT NOT NULL CHECK (scope_kind IN ('global','advertiser','campaign')), scope_id TEXT NOT NULL, day_start_ms BIGINT NOT NULL CHECK (day_start_ms>=0 AND day_start_ms%86400000=0), count_limit INTEGER NOT NULL CHECK (count_limit BETWEEN 1 AND 10000), time_limit_ms BIGINT NOT NULL CHECK (time_limit_ms BETWEEN 15000 AND 86400000), started_sessions INTEGER NOT NULL CHECK (started_sessions>=0 AND started_sessions<=count_limit), reserved_ms BIGINT NOT NULL CHECK (reserved_ms>=0), observed_ms BIGINT NOT NULL CHECK (observed_ms>=0), version BIGINT NOT NULL CHECK (version>=1), UNIQUE(owner_id,scope_kind,scope_id,day_start_ms), CHECK (reserved_ms+observed_ms<=time_limit_ms), CHECK (scope_kind<>'global' OR scope_id=owner_id))",
+   "sha256": "2189f1bfe52eccb5348a1fd69ed833de1bfecbfa3f19ac701474a7892764409b"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_audit_log (id TEXT PRIMARY KEY, timestamp_ms BIGINT NOT NULL, event_type TEXT NOT NULL, actor_principal_id TEXT, actor_owner_id TEXT, target_id TEXT, client_ip TEXT, user_agent TEXT, status TEXT NOT NULL CHECK (status IN ('succeeded', 'denied', 'failed')), details_json TEXT NOT NULL)",
+   "sha256": "eeb5853cb1cfa30a0791a06120e0fb4aebe6107a0a3bf6c06c81cf65e44481ae"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_authority_guards (guard_id TEXT PRIMARY KEY, epoch BIGINT NOT NULL CHECK (epoch>=1), status TEXT NOT NULL CHECK (status IN ('active','revoked')))",
+   "sha256": "e63b34bdbd58fd460b1aecfd3da7d6fac1899b90cc619be3acf7c7e941188dd5"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_budget_events (hold_id TEXT NOT NULL REFERENCES adc2_budget_holds(id), event_key TEXT NOT NULL, payload_hash TEXT NOT NULL, journal_id TEXT NOT NULL REFERENCES adc2_journals(id), kind TEXT NOT NULL CHECK (kind IN ('consume','release')), amount_atoms NUMERIC NOT NULL CHECK (amount_atoms=trunc(amount_atoms) AND amount_atoms>=1 AND amount_atoms<=115792089237316195423570985008687907853269984665640564039457584007913129639935), PRIMARY KEY(hold_id,event_key))",
+   "sha256": "c429dfd1657e5c7e4b2d1bec210e73ae99b40d2b39273aa1e6f8401b46e6ee31"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_budget_holds (id TEXT PRIMARY KEY, asset_id TEXT NOT NULL, source_account TEXT NOT NULL, hold_account TEXT NOT NULL UNIQUE, total_window TEXT NOT NULL, day_window TEXT NOT NULL, payload_hash TEXT NOT NULL, expires_ms BIGINT NOT NULL, initial_atoms NUMERIC NOT NULL CHECK (initial_atoms=trunc(initial_atoms) AND initial_atoms>=1 AND initial_atoms<=115792089237316195423570985008687907853269984665640564039457584007913129639935), remaining_atoms NUMERIC NOT NULL CHECK (remaining_atoms=trunc(remaining_atoms) AND remaining_atoms>=0 AND remaining_atoms<=115792089237316195423570985008687907853269984665640564039457584007913129639935), state TEXT NOT NULL CHECK (state IN ('held','partial','consumed','released','review_pending')), FOREIGN KEY(source_account,asset_id) REFERENCES adc2_accounts(id,asset_id), FOREIGN KEY(hold_account,asset_id) REFERENCES adc2_accounts(id,asset_id), FOREIGN KEY(total_window,asset_id) REFERENCES adc2_budget_windows(id,asset_id), FOREIGN KEY(day_window,asset_id) REFERENCES adc2_budget_windows(id,asset_id), CHECK (remaining_atoms<=initial_atoms))",
+   "sha256": "5118ad998a75f65412cc24905789a9635088b6fcece9eb944a74340ed2abfc87"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_budget_windows (id TEXT PRIMARY KEY, source_account TEXT NOT NULL, asset_id TEXT NOT NULL, kind TEXT NOT NULL CHECK (kind IN ('total','day')), starts_ms BIGINT NOT NULL, ends_ms BIGINT NOT NULL CHECK (ends_ms>starts_ms), limit_atoms NUMERIC NOT NULL CHECK (limit_atoms=trunc(limit_atoms) AND limit_atoms>=1 AND limit_atoms<=115792089237316195423570985008687907853269984665640564039457584007913129639935), reserved_atoms NUMERIC NOT NULL CHECK (reserved_atoms=trunc(reserved_atoms) AND reserved_atoms>=0 AND reserved_atoms<=115792089237316195423570985008687907853269984665640564039457584007913129639935), spent_atoms NUMERIC NOT NULL CHECK (spent_atoms=trunc(spent_atoms) AND spent_atoms>=0 AND spent_atoms<=115792089237316195423570985008687907853269984665640564039457584007913129639935), version INTEGER NOT NULL CHECK (version>=1), UNIQUE(source_account,kind,starts_ms), UNIQUE(id,asset_id), FOREIGN KEY(source_account,asset_id) REFERENCES adc2_accounts(id,asset_id), CHECK (reserved_atoms+spent_atoms<=limit_atoms))",
+   "sha256": "98ad718e1ffe9c196294baccace636a20333f862200b90b83fbc12623060b524"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_campaign_experiments (id TEXT PRIMARY KEY, campaign_id TEXT NOT NULL, advertiser_id TEXT NOT NULL, name TEXT NOT NULL, status TEXT NOT NULL CHECK (status IN ('draft','active','paused','completed')), variants_json TEXT NOT NULL, created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL)",
+   "sha256": "d97a3e54ffe497d15c11ecef53f4c7889676ffd5c86c134382c34135a0682d06"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_campaign_revisions (id TEXT PRIMARY KEY, campaign_id TEXT NOT NULL, advertiser_id TEXT NOT NULL, revision_hash TEXT NOT NULL, payload_json TEXT NOT NULL, starts_ms BIGINT NOT NULL, ends_ms BIGINT NOT NULL CHECK (ends_ms>starts_ms), total_atoms NUMERIC NOT NULL CHECK (total_atoms=trunc(total_atoms) AND total_atoms BETWEEN 1 AND 115792089237316195423570985008687907853269984665640564039457584007913129639935), daily_atoms NUMERIC NOT NULL CHECK (daily_atoms=trunc(daily_atoms) AND daily_atoms BETWEEN 1 AND 115792089237316195423570985008687907853269984665640564039457584007913129639935), gross_atoms NUMERIC NOT NULL CHECK (gross_atoms=trunc(gross_atoms) AND gross_atoms BETWEEN 1 AND 115792089237316195423570985008687907853269984665640564039457584007913129639935), split_json TEXT NOT NULL, FOREIGN KEY(campaign_id,advertiser_id) REFERENCES adc2_campaigns(id,advertiser_id), UNIQUE(id,campaign_id,advertiser_id), CHECK (daily_atoms<=total_atoms AND gross_atoms<=daily_atoms))",
+   "sha256": "481ba4fdec8f2dff0a86f60a03cc1c9aad856e331bf96fd47e9a24f07dd4e38f"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_campaigns (id TEXT PRIMARY KEY, advertiser_id TEXT NOT NULL REFERENCES adc2_advertisers(id), current_revision_id TEXT NOT NULL UNIQUE, account_id TEXT NOT NULL UNIQUE REFERENCES adc2_accounts(id), state TEXT NOT NULL CHECK (state IN ('draft','in_review','eligible','rejected','active','paused','suspended')), approval_status TEXT NOT NULL CHECK (approval_status IN ('unapproved','approved','invalidated')), version BIGINT NOT NULL CHECK (version>=1), dispatch_epoch BIGINT NOT NULL CHECK (dispatch_epoch>=1), funded INTEGER NOT NULL CHECK (funded IN (0,1)), total_window_id TEXT REFERENCES adc2_budget_windows(id), UNIQUE(id,advertiser_id), CHECK ((funded=0 AND total_window_id IS NULL) OR (funded=1 AND total_window_id IS NOT NULL)))",
+   "sha256": "bc9c76e682a0852b082318c7bb6c70a25abb293b30c021d2cb6fafae8cfacb46"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_commercial_control (id INTEGER PRIMARY KEY CHECK (id=1), model_activation_enabled INTEGER NOT NULL CHECK (model_activation_enabled IN (0,1)))",
+   "sha256": "bd0b4dfb02fd9a2ea4c8b20a584742aafe70b259b63960c3700b65e591caaf02"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_conversions (id TEXT PRIMARY KEY, advertiser_id TEXT NOT NULL, campaign_id TEXT NOT NULL, offer_id TEXT NOT NULL, owner_id TEXT NOT NULL, conversion_event TEXT NOT NULL, value_atoms NUMERIC NOT NULL DEFAULT 0, order_id TEXT, attribution_window_seconds INTEGER NOT NULL DEFAULT 2592000, created_at BIGINT NOT NULL)",
+   "sha256": "febc5db9d778c48307188fae371d8dc7e1adae81558eada51b1596d06cce5c92"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_custody_reserves ( id TEXT PRIMARY KEY, custodian_name TEXT NOT NULL, vault_address TEXT NOT NULL, reported_atoms NUMERIC NOT NULL CHECK (reported_atoms >= 0), attestation_hash TEXT NOT NULL, reported_at NUMERIC NOT NULL, created_at NUMERIC NOT NULL )",
+   "sha256": "1ecbc576da32e84af393c660597152b9d016ea3593ae09e2bb883731451f49a2"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_evidence_chunks (session_id TEXT NOT NULL REFERENCES adc2_exposure_sessions(id), sequence INTEGER NOT NULL CHECK (sequence BETWEEN 0 AND 300), nonce_hash TEXT NOT NULL, server_received_ms BIGINT NOT NULL, elapsed_claim_ms INTEGER NOT NULL CHECK (elapsed_claim_ms BETWEEN 0 AND 30000), visible INTEGER NOT NULL CHECK (visible IN (0,1)), foreground INTEGER NOT NULL CHECK (foreground IN (0,1)), canonical_hash TEXT NOT NULL, issued_next_nonce TEXT NOT NULL, PRIMARY KEY(session_id,sequence), UNIQUE(session_id,nonce_hash))",
+   "sha256": "ba8a98f3be586b7e00628d5b1e530adc970bc6c96c4151f7e6c6d95260bcf316"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_executions (id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, provider_id TEXT NOT NULL, task_ref TEXT NOT NULL, price_atoms NUMERIC NOT NULL CHECK (price_atoms=trunc(price_atoms) AND price_atoms>0), status TEXT NOT NULL CHECK (status IN ('held','settled','refunded','partial')), mandate_id TEXT REFERENCES adc2_mandates(id), user_account_id TEXT NOT NULL REFERENCES adc2_accounts(id), hold_account_id TEXT NOT NULL REFERENCES adc2_accounts(id), provider_account_id TEXT NOT NULL REFERENCES adc2_accounts(id), result_digest TEXT, created_at BIGINT NOT NULL, finished_at BIGINT)",
+   "sha256": "9482ea3535b81680665b7490f8f0549ff17eca9b5c8df695a9003ca306a7de6c"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_exposure_sessions (id TEXT PRIMARY KEY, offer_id TEXT NOT NULL UNIQUE, owner_id TEXT NOT NULL, consent_id TEXT NOT NULL, consent_version BIGINT NOT NULL CHECK (consent_version>=1), state TEXT NOT NULL CHECK (state IN ('active','evidence_pending','review_pending','completed','cancelled','expired','rejected')), next_sequence INTEGER NOT NULL CHECK (next_sequence BETWEEN 0 AND 301), next_nonce TEXT NOT NULL, next_nonce_hash TEXT NOT NULL, startup_deadline_ms BIGINT NOT NULL, first_signal_ms BIGINT, last_signal_ms BIGINT, last_elapsed_claim_ms INTEGER NOT NULL CHECK (last_elapsed_claim_ms BETWEEN 0 AND 30000), active_deadline_ms BIGINT, evidence_deadline_ms BIGINT NOT NULL, cutoff_ms BIGINT, collected_valid_ms INTEGER NOT NULL CHECK (collected_valid_ms BETWEEN 0 AND 30000), qualified_ms BIGINT, max_view_ms INTEGER NOT NULL CHECK (max_view_ms BETWEEN 15000 AND 30000), quota_reservation_id TEXT NOT NULL REFERENCES adc2_attention_sessions(id), version BIGINT NOT NULL CHECK (version>=1), FOREIGN KEY(offer_id,owner_id) REFERENCES adc2_offers(id,owner_id), FOREIGN KEY(consent_id,offer_id,owner_id) REFERENCES adc2_human_consents(id,offer_id,owner_id))",
+   "sha256": "3302525b841bdc9f0936fb8a3104f2d81a033c394020ee33af528c4100cb7ddd"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_fiat_deposits ( id TEXT PRIMARY KEY, wallet_id TEXT NOT NULL, payer_owner_id TEXT NOT NULL, amount_atoms NUMERIC NOT NULL CHECK (amount_atoms > 0), currency TEXT NOT NULL CHECK (currency IN ('USD', 'EUR', 'KRW', 'USDC')), external_tx_ref TEXT NOT NULL UNIQUE, status TEXT NOT NULL CHECK (status IN ('pending', 'confirmed', 'failed', 'rejected')), created_at NUMERIC NOT NULL, settled_at NUMERIC )",
+   "sha256": "212590246bda1784e43bb38bb903f6a1fa0de2fa0e4cd1f0af86b538a7eb610e"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_fresh_actions (id TEXT PRIMARY KEY, principal_id TEXT NOT NULL REFERENCES adc2_authority_guards(guard_id), owner_id TEXT NOT NULL, credential_epoch BIGINT NOT NULL, session_hash TEXT NOT NULL, action TEXT NOT NULL CHECK (action IN ('set_ad_preferences','approve_offer','approve_campaign')), target_id TEXT NOT NULL, revision_hash TEXT NOT NULL, semantic_digest TEXT NOT NULL, precondition TEXT, challenge_hash TEXT NOT NULL UNIQUE, expires_ms BIGINT NOT NULL, consumed_by_operation TEXT REFERENCES adc2_idempotency_records(operation_id))",
+   "sha256": "b9f6f955bfca125e21cf5247ae0124bdee62a38b8fc18c00181994d9c4b37a37"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_human_consents (id TEXT PRIMARY KEY, offer_id TEXT NOT NULL UNIQUE, owner_id TEXT NOT NULL, quote_hash TEXT NOT NULL, fresh_action_id TEXT NOT NULL UNIQUE REFERENCES adc2_fresh_actions(id), operation_id TEXT NOT NULL REFERENCES adc2_idempotency_records(operation_id), version BIGINT NOT NULL CHECK (version>=1), created_ms BIGINT NOT NULL, revoked_ms BIGINT, FOREIGN KEY(offer_id,owner_id) REFERENCES adc2_offers(id,owner_id), UNIQUE(id,offer_id,owner_id))",
+   "sha256": "80ba49df70adab57d7a94ca6010a4b3141f9c8fae0680e0462b42da53d720721"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_human_sessions (session_hash TEXT PRIMARY KEY, csrf_secret_hash TEXT NOT NULL, principal_id TEXT NOT NULL REFERENCES adc2_principals(id), owner_id TEXT NOT NULL, epoch BIGINT NOT NULL CHECK (epoch>=1), created_at DOUBLE PRECISION NOT NULL, expires_at DOUBLE PRECISION NOT NULL, revoked_at DOUBLE PRECISION)",
+   "sha256": "e36ea5d9dffe758d4a3fc2b288ab79ebae8d9d123ace4df66e73d5c90431393f"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_idempotency_records (scope_hash TEXT PRIMARY KEY, request_digest TEXT NOT NULL, operation_id TEXT NOT NULL UNIQUE, state TEXT NOT NULL CHECK (state IN ('running','done')), result_json TEXT, CHECK ((state='running' AND result_json IS NULL) OR (state='done' AND result_json IS NOT NULL)))",
+   "sha256": "86c02e2b01e44505a15e788c3780c99021b4592105adccae9f8180294191fa72"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_inbox (source_id TEXT NOT NULL, audience TEXT NOT NULL, event_id TEXT NOT NULL, payload_hash TEXT NOT NULL, payload_json TEXT NOT NULL, PRIMARY KEY(source_id,audience,event_id))",
+   "sha256": "5fcf6a563a0d952d43ed92f1f60421fea59c370f84f1a2b58ff95d8cd75952c8"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_journals (id TEXT PRIMARY KEY, asset_id TEXT NOT NULL REFERENCES adc2_assets(id), economic_key TEXT NOT NULL, payload_hash TEXT NOT NULL, kind TEXT NOT NULL, state TEXT NOT NULL CHECK (state IN ('pending','sealed')), created_ms BIGINT NOT NULL, UNIQUE(asset_id,economic_key), UNIQUE(id,asset_id))",
+   "sha256": "93f0ad2ef6a999a1c3346295d1f2bfad7ebbd6c3cfdf60c6664b8d8b39e40d0a"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_mandates (id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, agent_principal_id TEXT NOT NULL, total_atoms NUMERIC NOT NULL CHECK (total_atoms=trunc(total_atoms) AND total_atoms>=0), per_task_atoms NUMERIC NOT NULL CHECK (per_task_atoms=trunc(per_task_atoms) AND per_task_atoms>=0), spent_atoms NUMERIC NOT NULL DEFAULT 0 CHECK (spent_atoms=trunc(spent_atoms) AND spent_atoms>=0), providers JSONB NOT NULL DEFAULT '[]'::jsonb, expires_at BIGINT NOT NULL, revoked_at BIGINT, created_at BIGINT NOT NULL, CHECK (spent_atoms<=total_atoms))",
+   "sha256": "c897c550f8464c9c1700290fe58cc12dfdbff79e9a7f8f61112e9b1101864ede"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_memberships (advertiser_id TEXT NOT NULL REFERENCES adc2_advertisers(id), principal_id TEXT NOT NULL REFERENCES adc2_principals(id), capability TEXT NOT NULL, active INTEGER NOT NULL CHECK (active IN (0,1)), epoch BIGINT NOT NULL CHECK (epoch>=1), PRIMARY KEY(advertiser_id,principal_id,capability))",
+   "sha256": "0b22d6590dc630980bd040fc56c702d53e96738114ced5dc721d286a554f6084"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_offers (id TEXT PRIMARY KEY, campaign_id TEXT NOT NULL, revision_id TEXT NOT NULL, advertiser_id TEXT NOT NULL, owner_id TEXT NOT NULL, agent_binding_id TEXT, wallet_id TEXT NOT NULL, hold_id TEXT NOT NULL UNIQUE REFERENCES adc2_budget_holds(id), quote_hash TEXT NOT NULL, quote_json TEXT NOT NULL, state TEXT NOT NULL CHECK (state IN ('reserved','consented','exposing','evidence_pending','review_pending','awarded','declined','expired','cancelled','rejected')), version BIGINT NOT NULL CHECK (version>=1), expires_ms BIGINT NOT NULL, created_ms BIGINT NOT NULL, FOREIGN KEY(revision_id,campaign_id,advertiser_id) REFERENCES adc2_campaign_revisions(id,campaign_id,advertiser_id), FOREIGN KEY(wallet_id,owner_id) REFERENCES adc2_wallets(id,owner_id), UNIQUE(id,owner_id))",
+   "sha256": "ed38d12635ff0d9bb9a850886396777c469efbed466a51090053c99ff2f8d45c"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_onchain_withdrawals ( id TEXT PRIMARY KEY, wallet_id TEXT NOT NULL, owner_id TEXT NOT NULL, destination_chain TEXT NOT NULL CHECK (destination_chain IN ('ethereum', 'base', 'polygon', 'arbitrum')), chain_id BIGINT NOT NULL, destination_address TEXT NOT NULL CHECK (destination_address ~ '^0x[0-9a-fA-F]{40}$'), amount_atoms NUMERIC NOT NULL CHECK (amount_atoms > 0), fee_atoms NUMERIC NOT NULL CHECK (fee_atoms >= 0), status TEXT NOT NULL CHECK (status IN ('pending', 'relayed', 'confirmed', 'failed', 'cancelled')), tx_hash TEXT, created_at NUMERIC NOT NULL, settled_at NUMERIC )",
+   "sha256": "172c0ff4b497e89b0a6fa196a1e8f797ee8930d1e11ea3cb69b98adcb608c785"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_operations (id TEXT PRIMARY KEY, principal_id TEXT NOT NULL REFERENCES adc2_principals(id), owner_id TEXT, agent_binding_id TEXT, command_type TEXT NOT NULL, state TEXT NOT NULL CHECK (state IN ('pending','running','review_pending','succeeded','failed','no_offer')), resource_id TEXT, resource_type TEXT NOT NULL CHECK (resource_type IN ('offer','exposure','award','none')), receipt_id TEXT, review_deadline_ms BIGINT, version BIGINT NOT NULL CHECK (version>=1))",
+   "sha256": "cb21b5197fc040fefcf7d8e52ad1c58821e3efcccdbb6459b89d8d0e2d217c02"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_outbox (id TEXT PRIMARY KEY, logical_key TEXT NOT NULL UNIQUE, payload_hash TEXT NOT NULL, payload_json TEXT NOT NULL, available_ms BIGINT NOT NULL, state TEXT NOT NULL CHECK (state IN ('pending','leased','done')), lease_owner TEXT, lease_until_ms BIGINT, generation BIGINT NOT NULL CHECK (generation>=0), attempts INTEGER NOT NULL CHECK (attempts>=0), CHECK ((state='leased' AND lease_owner IS NOT NULL AND lease_until_ms IS NOT NULL) OR (state<>'leased' AND lease_owner IS NULL AND lease_until_ms IS NULL)))",
+   "sha256": "f676022544c14ea7a4f66f56e333b42d6a8ac5aed3870bcfc80aaf4aa6629278"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_postings (journal_id TEXT NOT NULL, line_no INTEGER NOT NULL CHECK (line_no>=0), asset_id TEXT NOT NULL, account_id TEXT NOT NULL, delta_atoms NUMERIC NOT NULL CHECK (delta_atoms=trunc(delta_atoms) AND delta_atoms<>0 AND delta_atoms BETWEEN -115792089237316195423570985008687907853269984665640564039457584007913129639935 AND 115792089237316195423570985008687907853269984665640564039457584007913129639935), PRIMARY KEY(journal_id,line_no), FOREIGN KEY(journal_id,asset_id) REFERENCES adc2_journals(id,asset_id), FOREIGN KEY(account_id,asset_id) REFERENCES adc2_accounts(id,asset_id))",
+   "sha256": "8bc7f3847f68c8ae3c4252aecc84c3dd20a4a8034e160eb21d33774f62f2650f"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_principals (id TEXT PRIMARY KEY REFERENCES adc2_authority_guards(guard_id), kind TEXT NOT NULL CHECK (kind IN ('human','agent','ops')), owner_id TEXT, capabilities_json TEXT NOT NULL, CHECK (((kind IN ('human','agent')) AND owner_id IS NOT NULL) OR (kind='ops' AND owner_id IS NULL)))",
+   "sha256": "9ae1083965e15c047bfc25e25d14d74031158868178544f55f41f8bbe1d73525"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_receipt_keys (kid TEXT PRIMARY KEY, status TEXT NOT NULL CHECK (status IN ('active','verify_only','revoked')), not_before_ms BIGINT NOT NULL, verify_until_ms BIGINT NOT NULL CHECK (verify_until_ms>not_before_ms), public_x TEXT NOT NULL)",
+   "sha256": "be7181776178d0fc8200e5408d1c88f4e4f2a2696868168e90614001d4f18fff"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_receipts (id TEXT PRIMARY KEY, journal_id TEXT NOT NULL UNIQUE REFERENCES adc2_journals(id), offer_id TEXT NOT NULL UNIQUE, owner_id TEXT NOT NULL, agent_binding_id TEXT, asset_id TEXT NOT NULL REFERENCES adc2_assets(id), user_reward_atoms NUMERIC NOT NULL CHECK (user_reward_atoms=trunc(user_reward_atoms) AND user_reward_atoms BETWEEN 1 AND 115792089237316195423570985008687907853269984665640564039457584007913129639935), quote_hash TEXT NOT NULL, issued_ms BIGINT NOT NULL, signature_state TEXT NOT NULL CHECK (signature_state IN ('pending','signed')), key_id TEXT, jws TEXT, FOREIGN KEY(offer_id,owner_id) REFERENCES adc2_offers(id,owner_id), CHECK ((signature_state='pending' AND key_id IS NULL AND jws IS NULL) OR (signature_state='signed' AND key_id IS NOT NULL AND jws IS NOT NULL)))",
+   "sha256": "b42cda809a493c8b77e41d7bd8ac0409dff3a6916ce141f95bdf78df24377957"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_relay_dispatches (id TEXT PRIMARY KEY, offer_id TEXT NOT NULL UNIQUE REFERENCES adc2_offers(id), partner_id TEXT NOT NULL REFERENCES adc2_relay_partners(id), owner_id TEXT NOT NULL, campaign_id TEXT NOT NULL, hop_count INTEGER NOT NULL CHECK (hop_count BETWEEN 1 AND 3), relay_token TEXT NOT NULL UNIQUE, status TEXT NOT NULL CHECK (status IN ('dispatched', 'consented', 'viewed', 'settled', 'expired', 'rejected')), user_reward_atoms NUMERIC NOT NULL CHECK (user_reward_atoms=trunc(user_reward_atoms) AND user_reward_atoms BETWEEN 1 AND 115792089237316195423570985008687907853269984665640564039457584007913129639935), relay_fee_atoms NUMERIC NOT NULL CHECK (relay_fee_atoms=trunc(relay_fee_atoms) AND relay_fee_atoms BETWEEN 0 AND 115792089237316195423570985008687907853269984665640564039457584007913129639935), platform_viewer_url TEXT NOT NULL, created_at BIGINT NOT NULL, expires_at BIGINT NOT NULL CHECK (expires_at > created_at), consented_at BIGINT, settled_at BIGINT)",
+   "sha256": "eade32e8aa26ab5489ede7535e7efcf5d0a9d4be0c28ccf143884332d62f12e5"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_relay_partners (id TEXT PRIMARY KEY, name TEXT NOT NULL, protocol TEXT NOT NULL CHECK (protocol IN ('a2a', 'mcp')), endpoint_url TEXT NOT NULL, fee_basis_points INTEGER NOT NULL CHECK (fee_basis_points BETWEEN 0 AND 3000), status TEXT NOT NULL CHECK (status IN ('active', 'suspended', 'revoked')), operator_account_id TEXT NOT NULL REFERENCES adc2_accounts(id), created_at BIGINT NOT NULL, revoked_at BIGINT)",
+   "sha256": "785730b34a0dc0e77c241b32b8358d70712a94e9bc18e90195d89e77ee3b3ad3"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_report_consumptions (id TEXT PRIMARY KEY, advertiser_id TEXT NOT NULL REFERENCES adc2_advertisers(id), principal_id TEXT NOT NULL REFERENCES adc2_principals(id), report_id TEXT NOT NULL, revision INTEGER NOT NULL CHECK (revision>=1), state TEXT NOT NULL CHECK (state IN ('received','missing','unreadable','content_mismatch')), observed_digest TEXT, recorded_ms BIGINT NOT NULL, FOREIGN KEY(report_id,revision) REFERENCES adc2_report_revisions(id,revision))",
+   "sha256": "5dedbfc013368a93a8b7af9e65dfbe79c13def4908ba1cf4aaf7a514c9e3dd76"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_report_revisions (id TEXT NOT NULL, revision INTEGER NOT NULL CHECK (revision>=1), obligation_id TEXT NOT NULL REFERENCES adc2_reporting_obligations(id), advertiser_id TEXT NOT NULL REFERENCES adc2_advertisers(id), campaign_id TEXT NOT NULL, content_digest TEXT NOT NULL, supersedes_revision INTEGER, generated_ms BIGINT NOT NULL, data_through_ms BIGINT NOT NULL, complete INTEGER NOT NULL CHECK (complete IN (0,1)), metrics_json TEXT NOT NULL, PRIMARY KEY(id,revision), FOREIGN KEY(campaign_id,advertiser_id) REFERENCES adc2_campaigns(id,advertiser_id))",
+   "sha256": "2fd0729a24fe09a55bb04a72deac6d4cefd9ee76b4f93a9ab06eea698f7945bb"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_reporting_obligations (id TEXT PRIMARY KEY, advertiser_id TEXT NOT NULL REFERENCES adc2_advertisers(id), campaign_id TEXT NOT NULL, period_start_ms BIGINT NOT NULL, period_end_ms BIGINT NOT NULL CHECK (period_end_ms>period_start_ms), expected_ms BIGINT NOT NULL, state TEXT NOT NULL CHECK (state IN ('waiting','available','delayed','action_required')), current_revision INTEGER CHECK (current_revision IS NULL OR current_revision>=1), report_id TEXT, FOREIGN KEY(campaign_id,advertiser_id) REFERENCES adc2_campaigns(id,advertiser_id), UNIQUE(campaign_id,period_start_ms,period_end_ms), CHECK ((state='available' AND current_revision IS NOT NULL AND report_id IS NOT NULL) OR state<>'available'))",
+   "sha256": "0691a53c046f3046388b4ceaaeac7a874dcf372fce9a575cd3809eeb84d72d19"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_review_appeals (id TEXT PRIMARY KEY, review_id TEXT NOT NULL REFERENCES adc2_reviews(id), advertiser_id TEXT NOT NULL, campaign_id TEXT NOT NULL, reason_text TEXT NOT NULL, evidence_ref TEXT, state TEXT NOT NULL CHECK (state IN ('pending', 'accepted', 'rejected')), decision_reason TEXT, reviewer_id TEXT REFERENCES adc2_principals(id), created_ms BIGINT NOT NULL, decided_ms BIGINT, version BIGINT NOT NULL CHECK (version>=1))",
+   "sha256": "a98c86ae1a071beaf7da52888f32673aab842b1d95d1e9332518dbb010370c07"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_review_evidence (id TEXT PRIMARY KEY, review_id TEXT NOT NULL, revision_id TEXT NOT NULL, advertiser_id TEXT NOT NULL, content_digest TEXT NOT NULL, FOREIGN KEY(review_id,revision_id,advertiser_id) REFERENCES adc2_reviews(id,revision_id,advertiser_id), UNIQUE(id,review_id,revision_id,advertiser_id))",
+   "sha256": "a70abd3c807b7c9a7188a3408766c17078484daa0a7f9cc4a61750c6a52553a3"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_reviewer_credentials (token_hash TEXT PRIMARY KEY, principal_id TEXT NOT NULL REFERENCES adc2_principals(id), cert_fingerprint_sha256 TEXT, epoch BIGINT NOT NULL CHECK (epoch>=1), created_at DOUBLE PRECISION NOT NULL, expires_at DOUBLE PRECISION NOT NULL, revoked_at DOUBLE PRECISION)",
+   "sha256": "cb27a3dcefa444981390cc9a9edd66f3207f70fbadf12ff40e69f1858fb703cb"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_reviews (id TEXT PRIMARY KEY, campaign_id TEXT NOT NULL, advertiser_id TEXT NOT NULL, revision_id TEXT NOT NULL, state TEXT NOT NULL CHECK (state IN ('pending','eligible','rejected')), version BIGINT NOT NULL CHECK (version>=1), reviewer_id TEXT REFERENCES adc2_principals(id), evidence_id TEXT, reason_code TEXT, FOREIGN KEY(revision_id,campaign_id,advertiser_id) REFERENCES adc2_campaign_revisions(id,campaign_id,advertiser_id), UNIQUE(id,revision_id,advertiser_id))",
+   "sha256": "566c49116efecb1be855921e9b95b8cc152c3a73cc22ba01d1115a026b84d804"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_schema (id INTEGER PRIMARY KEY CHECK (id=1), version INTEGER NOT NULL, environment TEXT NOT NULL CHECK (environment='model'), real_value INTEGER NOT NULL CHECK (real_value=0))",
+   "sha256": "913716b0db7fa9d0e3240b7a49e4720ab1075b2cb2425bb727bbde820470c118"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_stage_claims (id TEXT PRIMARY KEY, offer_id TEXT NOT NULL REFERENCES adc2_offers(id), campaign_id TEXT NOT NULL, advertiser_id TEXT NOT NULL, owner_id TEXT NOT NULL, stage_type TEXT NOT NULL CHECK (stage_type IN ('click','feedback','watch_complete','conversion')), reward_atoms NUMERIC NOT NULL CHECK (reward_atoms >= 0), evidence_json TEXT NOT NULL, status TEXT NOT NULL CHECK (status IN ('claimed','verified','rejected','settled')), created_at BIGINT NOT NULL, settled_at BIGINT, UNIQUE(offer_id, stage_type))",
+   "sha256": "dff9a2b88ada69806c6322aa625616a361b49d6e066c49c0c1924f3bf769dc06"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_wallets (id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, manager_binding_id TEXT REFERENCES adc2_agent_bindings(id), asset_id TEXT NOT NULL REFERENCES adc2_assets(id), available_account TEXT NOT NULL UNIQUE REFERENCES adc2_accounts(id), locked_account TEXT NOT NULL UNIQUE REFERENCES adc2_accounts(id), operator_account TEXT NOT NULL REFERENCES adc2_accounts(id), UNIQUE(id,owner_id))",
+   "sha256": "f72262327dedce8bcb591ad28e65429248c7edac4d40a3decf0c54644b85ef3a"
+  },
+  {
+   "sql": "CREATE TRIGGER adc2_account_identity BEFORE UPDATE OR DELETE ON adc2_accounts FOR EACH ROW EXECUTE FUNCTION adc2_account_identity()",
+   "sha256": "301ebe93d586a50cac4baa9f481d1ab91261390bdb8db21c6d9553872392f03d"
+  },
+  {
+   "sql": "CREATE TRIGGER adc2_immutable_commercial BEFORE UPDATE OR DELETE ON adc2_approvals FOR EACH ROW EXECUTE FUNCTION adc2_immutable_commercial()",
+   "sha256": "b0182132b917a1e9875cf068970eda50a57436b72204101980a8a20afd064a35"
+  },
+  {
+   "sql": "CREATE TRIGGER adc2_immutable_commercial BEFORE UPDATE OR DELETE ON adc2_campaign_revisions FOR EACH ROW EXECUTE FUNCTION adc2_immutable_commercial()",
+   "sha256": "2651af99d1d16e97243695d3f8f4f2fd226a670a12172b54a70731df0adaf45d"
+  },
+  {
+   "sql": "CREATE TRIGGER adc2_immutable_commercial BEFORE UPDATE OR DELETE ON adc2_evidence_chunks FOR EACH ROW EXECUTE FUNCTION adc2_immutable_commercial()",
+   "sha256": "059125b5921f54995b57e701acff76d7d38e21b907fff946ed2829afb695d299"
+  },
+  {
+   "sql": "CREATE TRIGGER adc2_immutable_commercial BEFORE UPDATE OR DELETE ON adc2_human_consents FOR EACH ROW EXECUTE FUNCTION adc2_immutable_commercial()",
+   "sha256": "b193cd73adffe8984a50018baa77b6cd126d58e0afe7e59708383bcb40cdb3ec"
+  },
+  {
+   "sql": "CREATE TRIGGER adc2_immutable_commercial BEFORE UPDATE OR DELETE ON adc2_principals FOR EACH ROW EXECUTE FUNCTION adc2_immutable_commercial()",
+   "sha256": "397b98d677522b154716096da5c33f8fa1daff5c87e0c644211f60c9c3e0572f"
+  },
+  {
+   "sql": "CREATE TRIGGER adc2_immutable_commercial BEFORE UPDATE OR DELETE ON adc2_report_consumptions FOR EACH ROW EXECUTE FUNCTION adc2_immutable_commercial()",
+   "sha256": "901d165fb5e202a843c3963d6f3706c5d069fb74d78e5e1a7111521f3f7defb8"
+  },
+  {
+   "sql": "CREATE TRIGGER adc2_immutable_commercial BEFORE UPDATE OR DELETE ON adc2_report_revisions FOR EACH ROW EXECUTE FUNCTION adc2_immutable_commercial()",
+   "sha256": "6f191750a76598edc9abfa4ac61372fd72f77e34c995abc8819dfdf7eeaa64fc"
+  },
+  {
+   "sql": "CREATE TRIGGER adc2_immutable_commercial BEFORE UPDATE OR DELETE ON adc2_review_evidence FOR EACH ROW EXECUTE FUNCTION adc2_immutable_commercial()",
+   "sha256": "c20b05bf686ed4d6d64def64d8f5e36e3fc0b7db9adc177a981ed8aa0dc65782"
+  },
+  {
+   "sql": "CREATE TRIGGER adc2_journal_immutable BEFORE UPDATE OR DELETE ON adc2_journals FOR EACH ROW EXECUTE FUNCTION adc2_immutable_journal()",
+   "sha256": "b487339cfe18be0428e1d480999ec1c5877ba019a58a0e846b0b86723a866574"
+  },
+  {
+   "sql": "CREATE TRIGGER adc2_posting_immutable BEFORE INSERT OR UPDATE OR DELETE ON adc2_postings FOR EACH ROW EXECUTE FUNCTION adc2_immutable_posting()",
+   "sha256": "eb6084ae82f743270782488af19480a6969ecb10eb0643f1f60b1fb83ba5fd7f"
+  },
+  {
+   "sql": "CREATE UNIQUE INDEX IF NOT EXISTS adc2_attention_active_owner ON adc2_attention_sessions(owner_id) WHERE state='active'",
+   "sha256": "4f10d090cb40234b82a7c376390da8426df4161f35313a1735f6724e868f2969"
+  },
+  {
+   "sql": "CREATE UNIQUE INDEX IF NOT EXISTS adc2_pending_review ON adc2_reviews(revision_id) WHERE state='pending'",
+   "sha256": "4c111732757c5f2a5bb165cfdaf070af07ac31ac6f520eb2d836817d987a57ea"
+  },
+  {
    "sql": "DELETE FROM ad_coin_campaign_categories WHERE campaign_id=?",
    "sha256": "a02837296580f35b2c175a15792df7c0d403045c96f9e6894ccfc393659941ee"
   },
@@ -12,6 +436,62 @@
   {
    "sql": "DELETE FROM ad_coin_totals",
    "sha256": "5b038ed8881a2fe4d2002d2b56f5ec1c48cdbbf448b3fcd9035a7c7b1e09e383"
+  },
+  {
+   "sql": "DO $$ BEGIN ALTER TABLE adc2_campaigns ADD CONSTRAINT adc2_current_revision_fk FOREIGN KEY(current_revision_id,id,advertiser_id) REFERENCES adc2_campaign_revisions(id,campaign_id,advertiser_id) DEFERRABLE INITIALLY DEFERRED; EXCEPTION WHEN duplicate_object THEN NULL; END $$",
+   "sha256": "5ac443ec6bfbb37eb269cf530f68f311fd5803c92a74a00d60d6fa09e868e9da"
+  },
+  {
+   "sql": "DO $$ BEGIN ALTER TABLE adc2_reviews ADD CONSTRAINT adc2_review_evidence_fk FOREIGN KEY(evidence_id,id,revision_id,advertiser_id) REFERENCES adc2_review_evidence(id,review_id,revision_id,advertiser_id) DEFERRABLE INITIALLY DEFERRED; EXCEPTION WHEN duplicate_object THEN NULL; END $$",
+   "sha256": "c9706f22d63c6a1629f146a8a26cdcd041844c9d345a99f67c4ee7338065175c"
+  },
+  {
+   "sql": "DROP TRIGGER IF EXISTS adc2_account_identity ON adc2_accounts",
+   "sha256": "4fde6cfd49ae7eec940addae3b406fdc31c94b5e0b59a4cc78fecd665e988682"
+  },
+  {
+   "sql": "DROP TRIGGER IF EXISTS adc2_balance_commit ON adc2_journals",
+   "sha256": "82a0e80793fddcaf8b449a2adbb5f18ab5945b0a3e44190781ae6210604d7a13"
+  },
+  {
+   "sql": "DROP TRIGGER IF EXISTS adc2_immutable_commercial ON adc2_approvals",
+   "sha256": "09d74fc02dd58e08397867cd08dff17eafc11ae2c9b2f6c5849918edd29d6db2"
+  },
+  {
+   "sql": "DROP TRIGGER IF EXISTS adc2_immutable_commercial ON adc2_campaign_revisions",
+   "sha256": "636e96e35edb3d8ad08bb6f7c3351635ba80f4dc08ffb3829af7982b6eb2b7c6"
+  },
+  {
+   "sql": "DROP TRIGGER IF EXISTS adc2_immutable_commercial ON adc2_evidence_chunks",
+   "sha256": "dd45d03cd4dd2a2a8bd6c94c85fa09309a06ed6a1d56f85bf1c1bdecd1ed7e65"
+  },
+  {
+   "sql": "DROP TRIGGER IF EXISTS adc2_immutable_commercial ON adc2_human_consents",
+   "sha256": "5ae28747e2bc47d5651d4dc3a410ad2116dadfe81a0114a95d6819f581d22f62"
+  },
+  {
+   "sql": "DROP TRIGGER IF EXISTS adc2_immutable_commercial ON adc2_principals",
+   "sha256": "fcfd0b439ec3e99c6a9273f5ac527892d41306b4a406e5afa9d3cd2084c8b99b"
+  },
+  {
+   "sql": "DROP TRIGGER IF EXISTS adc2_immutable_commercial ON adc2_report_consumptions",
+   "sha256": "e5eed89255a658b5c30650e1d7d99941d14b7750c81850a3f61e7bc391ce072c"
+  },
+  {
+   "sql": "DROP TRIGGER IF EXISTS adc2_immutable_commercial ON adc2_report_revisions",
+   "sha256": "8217523730f1319a542a0edf0e8f0935de37a90fc4b01a6a37fc0a69c076c23f"
+  },
+  {
+   "sql": "DROP TRIGGER IF EXISTS adc2_immutable_commercial ON adc2_review_evidence",
+   "sha256": "2e102ad07ca66eee6713eecc2642fd493b4339beede3f423b8153d5013e04b5f"
+  },
+  {
+   "sql": "DROP TRIGGER IF EXISTS adc2_journal_immutable ON adc2_journals",
+   "sha256": "47a69822b28f2320936bcd6b81f7373051f91b0551854f618b880a63e64bffda"
+  },
+  {
+   "sql": "DROP TRIGGER IF EXISTS adc2_posting_immutable ON adc2_postings",
+   "sha256": "eb55d7ac766d44903efcb8f22d6cabbb7cd52921efd492bbf4a6818ddc00a939"
   },
   {
    "sql": "INSERT INTO ad_coin_advertiser_members VALUES (?,?,?,?,NULL)",
@@ -166,6 +646,218 @@
    "sha256": "9088f928491ec33e0b1b38eba050b79ae06ae3eb7eb15d6f6fe4e91b37ae6999"
   },
   {
+   "sql": "INSERT INTO adc2_accounts VALUES (?,?,?,?,?,?,1)",
+   "sha256": "94cae0ac36e0b79db3e223efd8d80636a6eff3c0508348f6b5bdf8197b1c1ea5"
+  },
+  {
+   "sql": "INSERT INTO adc2_ad_preferences VALUES (?+)",
+   "sha256": "a86c049a6329183e604718223983b28f2c1f0fa1eba51b507bb0fa9989531c85"
+  },
+  {
+   "sql": "INSERT INTO adc2_advertisers VALUES (?,?,?,'active')",
+   "sha256": "9678d7c24c34b04a0ea3ad75952b363aeea5faa33ff1326e8a0d75dfce1c56af"
+  },
+  {
+   "sql": "INSERT INTO adc2_agent_bindings VALUES (?,?,?,?,?,1,1) ON CONFLICT(id) DO UPDATE SET capabilities_json=EXCLUDED.capabilities_json,active=1,epoch=adc2_agent_bindings.epoch+1",
+   "sha256": "e4fcc747a91b659501b6c2bec89bd4126e4586fe1c277ccacb36d6666afa95dd"
+  },
+  {
+   "sql": "INSERT INTO adc2_agent_tokens VALUES (?+) ON CONFLICT(token_hash) DO UPDATE SET epoch=EXCLUDED.epoch,expires_at=EXCLUDED.expires_at,revoked_at=NULL",
+   "sha256": "98edb21ee6308129315f0b0c67486451c8d375d58f88787833d86cbc476b2fab"
+  },
+  {
+   "sql": "INSERT INTO adc2_approvals VALUES (?+)",
+   "sha256": "510f5b4f7b5a660475484cb26a1e5b6b5a8a696a2f219354e2f65d56ba2e3cfc"
+  },
+  {
+   "sql": "INSERT INTO adc2_assets VALUES ('model:aiac:v2','model',6) ON CONFLICT(id) DO NOTHING",
+   "sha256": "e85bf81fe4b91392c43d09ce8988b0dd3ae67ef5edeabcb8e9c0dbf5cd0a39da"
+  },
+  {
+   "sql": "INSERT INTO adc2_attention_reservations VALUES (?,?,?,NULL)",
+   "sha256": "87a8ed0ff7fdc552ded97d18cc766c8606317c80bd56748fad6fbc77546042b1"
+  },
+  {
+   "sql": "INSERT INTO adc2_attention_sessions VALUES (?,?,?,?,'active',NULL)",
+   "sha256": "0ecf85593011a4d753dead4b7edc066b5225854db86dfd6563a0f1cd40a32ae9"
+  },
+  {
+   "sql": "INSERT INTO adc2_attention_windows VALUES (?,?,?,?,?,?,?,0,0,0,1)",
+   "sha256": "83fb2ce2ad62d975a1ff78656a1baca0cf3ee4fe8962311ccdba44dfa5c822a3"
+  },
+  {
+   "sql": "INSERT INTO adc2_audit_log VALUES (?+)",
+   "sha256": "0bce01fdfb0deb3d4eae28578df5697e55f4dda49e0697db0867b35adb8d98c3"
+  },
+  {
+   "sql": "INSERT INTO adc2_authority_guards VALUES (?,1,'active') ON CONFLICT(guard_id) DO NOTHING",
+   "sha256": "41590ba1a6383499567d572175c1707048a19b318961312184946cdab3cc52da"
+  },
+  {
+   "sql": "INSERT INTO adc2_budget_events VALUES (?+)",
+   "sha256": "315a1d7c8b6ee53ec7bc37940a0d522abd2932fb4676504062c976ef9cfc1aab"
+  },
+  {
+   "sql": "INSERT INTO adc2_budget_holds VALUES (?+)",
+   "sha256": "489fefe7ba77af2975a4e2dcd00ba5f1dad075e411a9b04a82ea0b7dc10da6e2"
+  },
+  {
+   "sql": "INSERT INTO adc2_budget_windows VALUES (?,?,?,?,?,?,?,?,?,1)",
+   "sha256": "a580ec697306afb9b533e44fe7805538550c9397e400f1adcc556a0a976b2f3d"
+  },
+  {
+   "sql": "INSERT INTO adc2_campaign_experiments VALUES (?+)",
+   "sha256": "899788f1c7a665565aa0b1ef02f84738a58bb02eb460e36bbb7c33385b949a0e"
+  },
+  {
+   "sql": "INSERT INTO adc2_campaign_revisions VALUES (?+)",
+   "sha256": "143b26f9a1fe9137944838ac12df79356b55fe4c03d483939c79f3c08c3fceaa"
+  },
+  {
+   "sql": "INSERT INTO adc2_campaigns VALUES (?,?,?,?,'draft','unapproved',1,1,0,NULL)",
+   "sha256": "3e27689fbaad7aef82ff9d416a45b998f3ad42403e5cb5cd052b6b558b6f3380"
+  },
+  {
+   "sql": "INSERT INTO adc2_commercial_control VALUES (1,0) ON CONFLICT(id) DO NOTHING",
+   "sha256": "f9f53feee418650a1900624fd12e573c4fa04d4448733e322f0360309f113f0e"
+  },
+  {
+   "sql": "INSERT INTO adc2_conversions VALUES (?+)",
+   "sha256": "7adcfa2fc005a5cd0d98d66bb70fcb9724a39fcec7d4d1936103c069531e568f"
+  },
+  {
+   "sql": "INSERT INTO adc2_custody_reserves VALUES (?+)",
+   "sha256": "adcc7a0f5f12699a3def581008b94c2e5279cbbe9071454c9580549fc4ce1144"
+  },
+  {
+   "sql": "INSERT INTO adc2_evidence_chunks VALUES (?+)",
+   "sha256": "d7e0e409e1b259994cc62cc87173116557c4200bc07eae1de2dc977d0e6d54da"
+  },
+  {
+   "sql": "INSERT INTO adc2_executions VALUES (?,?,?,?,?,?,?,?,?,?,NULL,?,NULL)",
+   "sha256": "79d2cfda88c6d0278259cb851a910ce63d201ad8104ab3000ab1417f8754697c"
+  },
+  {
+   "sql": "INSERT INTO adc2_exposure_sessions VALUES (?,?,?,?,?,'active',0,?,?,?,NULL,NULL,0,NULL,?,NULL,0,NULL,?,?,1)",
+   "sha256": "a7df270f5b0cb8c8ed0d0ed89d0407eede325fea79c1d03113d5008259b1b439"
+  },
+  {
+   "sql": "INSERT INTO adc2_fiat_deposits VALUES (?+)",
+   "sha256": "a8ad635c80b8bb7f0e19f2309ba036cc9c0afd7ac2d0bbd196852c58ff9b5c19"
+  },
+  {
+   "sql": "INSERT INTO adc2_fresh_actions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,NULL)",
+   "sha256": "d145e14c907fc6dea3fdd85bc0cfe0de3a4488107d68619d02ed4b3b1e3af524"
+  },
+  {
+   "sql": "INSERT INTO adc2_human_consents VALUES (?,?,?,?,?,?,1,?,NULL)",
+   "sha256": "f5aa2bc7b7004a5ebe11ac7a420888588e9ea33a9b7b9a687247d48833e30a82"
+  },
+  {
+   "sql": "INSERT INTO adc2_human_sessions VALUES (?+) ON CONFLICT(session_hash) DO UPDATE SET csrf_secret_hash=EXCLUDED.csrf_secret_hash,epoch=EXCLUDED.epoch,expires_at=EXCLUDED.expires_at,revoked_at=NULL",
+   "sha256": "0fd6ab3623f9f8a9c45ae2ab8255edbd724897ded26d7dfa5911433c557fce08"
+  },
+  {
+   "sql": "INSERT INTO adc2_idempotency_records VALUES (?,?,?,'running',NULL)",
+   "sha256": "7ceb0541f551ae2a5e945ade3c0e760243a8d16706d2ec12d777e109ea723a6d"
+  },
+  {
+   "sql": "INSERT INTO adc2_inbox VALUES (?+)",
+   "sha256": "82727b173216e652137f0d44a54f7e3ee34bcf9d3654c4d90f25729da29f6c51"
+  },
+  {
+   "sql": "INSERT INTO adc2_journals VALUES (?,?,?,?,?,'pending',?)",
+   "sha256": "9c1ff6221d77d1be901464bc5f5391a7641083e4f01308e60c933094df771e78"
+  },
+  {
+   "sql": "INSERT INTO adc2_mandates VALUES (?,?,?,?,?,?,?::jsonb,?,NULL,?)",
+   "sha256": "9dccc710a6d8388ab08a9b7226107b1050b5c7b74f64c653f900c95e0b3c60c2"
+  },
+  {
+   "sql": "INSERT INTO adc2_memberships VALUES (?,?,?,1,1) ON CONFLICT(advertiser_id,principal_id,capability) DO UPDATE SET active=1,epoch=adc2_memberships.epoch+1 WHERE adc2_memberships.active=0",
+   "sha256": "84c7e2713d07b1ee503fe0f7de22ced8009f922b51e834f33b2570bf865fef5a"
+  },
+  {
+   "sql": "INSERT INTO adc2_offers VALUES (?,?,?,?,?,?,?,?,?,?,?,1,?,?)",
+   "sha256": "1cbff3e970cbe467b30cecdbe972527ce3e0c1fd689b6d9d7f18900f786ef946"
+  },
+  {
+   "sql": "INSERT INTO adc2_onchain_withdrawals VALUES (?,?,?,?,?,?,?,?,?,NULL,?,NULL)",
+   "sha256": "186b8f126e2b9796214950d07f26c9a6b88274fddd3b0b30fe4d85d19558c3e1"
+  },
+  {
+   "sql": "INSERT INTO adc2_operations VALUES (?,?,?,?,?,?,?,?,?,?,1)",
+   "sha256": "605fef176ced27fff78c2bc01b4713c0d3ec193424d55b778705ea919494bf9f"
+  },
+  {
+   "sql": "INSERT INTO adc2_outbox VALUES (?,?,?,?,?,'pending',NULL,NULL,0,0)",
+   "sha256": "af4edc0f188fb8252f34972253e49b9bd4d76ccfa796330c8a839ebdda20d7c3"
+  },
+  {
+   "sql": "INSERT INTO adc2_postings VALUES (?+)",
+   "sha256": "99761d963c42209dcf0d300c7e5d004a0f7b19a10a538bc6add5bcdd78eece79"
+  },
+  {
+   "sql": "INSERT INTO adc2_principals VALUES (?+)",
+   "sha256": "f070b5f2d06a2442be550ae9e21ffff439d9e0bc8646f4048ed356aca40d473e"
+  },
+  {
+   "sql": "INSERT INTO adc2_receipt_keys VALUES (?+) ON CONFLICT(kid) DO UPDATE SET status=EXCLUDED.status,verify_until_ms=EXCLUDED.verify_until_ms",
+   "sha256": "dcff24301315c11fbc7e0ff44185ab060b32ab236d99de7faa42b50c252f399a"
+  },
+  {
+   "sql": "INSERT INTO adc2_receipts VALUES (?,?,?,?,?,?,?,?,?,'pending',NULL,NULL)",
+   "sha256": "6a6aa7eb563af981764c3f1f1055991e18b9ad52220dd86f0b02357865119a61"
+  },
+  {
+   "sql": "INSERT INTO adc2_relay_dispatches VALUES (?,?,?,?,?,?,?,'dispatched',?,?,?,?,?,NULL,NULL)",
+   "sha256": "b9ed2cde5d6e57ecb35b7aa8507d72bb40e64f57d2a4272bdbb9428541da3e56"
+  },
+  {
+   "sql": "INSERT INTO adc2_relay_partners VALUES (?,?,?,?,?,?,?,?,NULL)",
+   "sha256": "877ce044b0db47c5d29bb9512502cf0c5f8a51d758319856885ebbbe9769ad31"
+  },
+  {
+   "sql": "INSERT INTO adc2_report_consumptions VALUES (?+)",
+   "sha256": "230e4078e8957c78efc9154f69d9aff2d25864295e01c5810fb3616f8bdad006"
+  },
+  {
+   "sql": "INSERT INTO adc2_report_revisions VALUES (?+)",
+   "sha256": "4b73e2ee43b8b379920a40a666f46b1d89ce5ad3b7cc241beb69801b03439bc4"
+  },
+  {
+   "sql": "INSERT INTO adc2_reporting_obligations VALUES (?,?,?,?,?,?,'waiting',NULL,NULL) ON CONFLICT(campaign_id,period_start_ms,period_end_ms) DO NOTHING",
+   "sha256": "dd1d4906f0b63dacadf2cd3989259dc00f6d0d0fedd405533307e923c2765727"
+  },
+  {
+   "sql": "INSERT INTO adc2_review_appeals VALUES (?,?,?,?,?,?,'pending',NULL,NULL,?,NULL,1)",
+   "sha256": "e3da674a3193f59a741f747c1dc2d059125b76b71e6abd872491e5dd6693f33d"
+  },
+  {
+   "sql": "INSERT INTO adc2_review_evidence VALUES (?+)",
+   "sha256": "e450aaecefdf4f9fdc4b308f97b49094a7d09d8d9c34d9da41a42a9c85b8b18b"
+  },
+  {
+   "sql": "INSERT INTO adc2_reviewer_credentials VALUES (?+) ON CONFLICT(token_hash) DO UPDATE SET cert_fingerprint_sha256=EXCLUDED.cert_fingerprint_sha256,epoch=EXCLUDED.epoch,expires_at=EXCLUDED.expires_at,revoked_at=NULL",
+   "sha256": "950dd2b64f84f1cadba5971041faa318a81aaf92898d7e065470b3c8884d5147"
+  },
+  {
+   "sql": "INSERT INTO adc2_reviews VALUES (?,?,?,?,'pending',?,NULL,NULL,NULL)",
+   "sha256": "777265dfae6b51d58723b647c0797ab226c1f1a27eb0332af7dd82042ad5d867"
+  },
+  {
+   "sql": "INSERT INTO adc2_schema VALUES (1,9,'model',0) ON CONFLICT(id) DO NOTHING",
+   "sha256": "7c19e146420d3e5b7ed231be4e17c2867e48482955251f4474d550f81e865d06"
+  },
+  {
+   "sql": "INSERT INTO adc2_stage_claims VALUES (?+)",
+   "sha256": "a7a59d6324078dde07d9093ba7a7bd6c5dddbc4a73179db09d32b8b472d5f390"
+  },
+  {
+   "sql": "INSERT INTO adc2_wallets VALUES (?+)",
+   "sha256": "f4724eba4213fd06a65f9e7abf49ac2c92c4aeea9f797e11179eb93d0eae7440"
+  },
+  {
    "sql": "INSERT OR IGNORE INTO ad_coin_settings VALUES (?+)",
    "sha256": "1d5cccd610e817654abeeed72a7b927bd783840ca58547d51eda8f5c3f76bff1"
   },
@@ -176,6 +868,10 @@
   {
    "sql": "INSERT OR IGNORE INTO ad_coin_wallets VALUES (?+)*",
    "sha256": "1298949351647d7907b82606a4e10cd596a9f4acf6966867abd1c7311c374734"
+  },
+  {
+   "sql": "SELECT 'award' AS record_kind,r.id AS source_id,r.journal_id,e.amount_atoms AS gross_atoms,r.user_reward_atoms,r.owner_id,s.qualified_ms AS fact_ms FROM adc2_receipts r JOIN adc2_offers o ON o.id=r.offer_id JOIN adc2_exposure_sessions s ON s.offer_id=o.id JOIN adc2_budget_events e ON e.journal_id=r.journal_id AND e.hold_id=o.hold_id AND e.event_key='P1' AND e.kind='consume' WHERE o.campaign_id=? AND o.state='awarded' AND s.qualified_ms>=? AND s.qualified_ms<? AND r.issued_ms<=? UNION ALL SELECT 'pending',s.id,NULL,NULL,NULL,s.owner_id,coalesce(s.qualified_ms,s.first_signal_ms,s.startup_deadline_ms-10000) FROM adc2_exposure_sessions s JOIN adc2_offers o ON o.id=s.offer_id WHERE o.campaign_id=? AND coalesce(s.qualified_ms,s.first_signal_ms,s.startup_deadline_ms-10000)>=? AND coalesce(s.qualified_ms,s.first_signal_ms,s.startup_deadline_ms-10000)<? AND s.state IN ('active','evidence_pending','review_pending') ORDER BY record_kind,source_id",
+   "sha256": "89d9de9fc6531f1b69d577dc50e7d030927cf84ccd6f37bae0826ea4006e5386"
   },
   {
    "sql": "SELECT * FROM ad_coin_advertisers WHERE id=?",
@@ -250,6 +946,442 @@
    "sha256": "329c23f1b33119a4e346221e5538e68ee6e4f141919f1261086ad5948c46d8fe"
   },
   {
+   "sql": "SELECT * FROM adc2_accounts WHERE id=?",
+   "sha256": "4d17fb69ad704eb4d3716788a4f08b7053466cb34b03f6c31267b1756dbe89a0"
+  },
+  {
+   "sql": "SELECT * FROM adc2_accounts WHERE id=? FOR UPDATE",
+   "sha256": "5be4a8298bfa8eeabd43b94c52041bcbb2ebab7eaa3edab3a94840dd6a9191bb"
+  },
+  {
+   "sql": "SELECT * FROM adc2_accounts WHERE id>? ORDER BY id LIMIT 500",
+   "sha256": "f7a6e354570528ef5e1f50eb063666dad521f2ab23f7763ee9ebfe42f005ed4f"
+  },
+  {
+   "sql": "SELECT * FROM adc2_accounts WHERE owner_id=? AND purpose=? ORDER BY id LIMIT 1",
+   "sha256": "a21bb1ab394b18a48dc88b92bbebb260f4ce2361d629554d1de31809f780c37f"
+  },
+  {
+   "sql": "SELECT * FROM adc2_ad_preferences WHERE id=?",
+   "sha256": "c86d4b3319b6981b2bf76d9e7e0590cf182d307ba8cbcea9753e82600017285f"
+  },
+  {
+   "sql": "SELECT * FROM adc2_ad_preferences WHERE owner_id=?",
+   "sha256": "7e09fd02f9bf228a8197963e3d9bb817142552c5dfa09a93a0235982eca6be00"
+  },
+  {
+   "sql": "SELECT * FROM adc2_ad_preferences WHERE owner_id=? FOR UPDATE",
+   "sha256": "c8110f8375e232e4ae238a7ec46e7a386f3bf063dd05ab3dc0bc83ee187f3d63"
+  },
+  {
+   "sql": "SELECT * FROM adc2_advertisers WHERE id=?",
+   "sha256": "a094f7921eca8b6fec3eb8e575d23a45289e9ba3e9b9dc2e5758e63973dbcad3"
+  },
+  {
+   "sql": "SELECT * FROM adc2_agent_bindings WHERE id=?",
+   "sha256": "0f2ba83b507c5ae92fa71055533f430a786cc1ec2f74ea6390cd3204cf2cf474"
+  },
+  {
+   "sql": "SELECT * FROM adc2_agent_tokens WHERE token_hash=?",
+   "sha256": "7f4ab55d3a11ff1333a4ebdc4357ad99e48d42f902a126e32ce9d0e2e58831c7"
+  },
+  {
+   "sql": "SELECT * FROM adc2_assets WHERE id=?",
+   "sha256": "e1ecb2202363e2491a0a924e936c6cd56bbc652cff560d39c4ea87d280c23ccb"
+  },
+  {
+   "sql": "SELECT * FROM adc2_attention_reservations WHERE session_id=? ORDER BY window_id",
+   "sha256": "55dccc89e3e47bf72efe30966c7dd3c814d4d84ac4aacf61f23707ad959c633a"
+  },
+  {
+   "sql": "SELECT * FROM adc2_attention_sessions WHERE id=? FOR UPDATE",
+   "sha256": "e03a68be30b0fd54f67d5a2ed60e956234219ec162aa4bd7dd7a9c696713e2bc"
+  },
+  {
+   "sql": "SELECT * FROM adc2_attention_windows WHERE id=? FOR UPDATE",
+   "sha256": "a4e492eaa8d6e866fadfbd635b21886107e4f2759c278e6e3475f55357c597d9"
+  },
+  {
+   "sql": "SELECT * FROM adc2_attention_windows WHERE owner_id=? AND scope_kind=? AND scope_id=? AND day_start_ms=? FOR UPDATE",
+   "sha256": "9174f826bc416ce3c1cc4c6e4c4c97bd62e53fa201dddfb16b3cb5c148949ccc"
+  },
+  {
+   "sql": "SELECT * FROM adc2_audit_log ORDER BY timestamp_ms DESC LIMIT ?",
+   "sha256": "a25f75206c2fad466952c36d71444f61cc502e05dd5289748095de85a0633741"
+  },
+  {
+   "sql": "SELECT * FROM adc2_authority_guards WHERE guard_id=?",
+   "sha256": "bbd33ea1dc407bf38603054d6d955e4f93b6441dd21f787db8da5bfe31a50461"
+  },
+  {
+   "sql": "SELECT * FROM adc2_authority_guards WHERE guard_id=? FOR UPDATE",
+   "sha256": "b4a60059537c9b6eca1aaaffb011e5c5bc5117dd02b7ab0d157c4f15d8c9cde3"
+  },
+  {
+   "sql": "SELECT * FROM adc2_budget_events WHERE hold_id=? AND event_key=?",
+   "sha256": "9338679ca950a67ca77a5c5b597ee9d5d606033a8bcbb944a2b7c244f7d42c87"
+  },
+  {
+   "sql": "SELECT * FROM adc2_budget_holds WHERE id=?",
+   "sha256": "0927194dd9ce3a77a31645603ee6601723560ce429ba0afde33d1b007d8f72bc"
+  },
+  {
+   "sql": "SELECT * FROM adc2_budget_holds WHERE id=? FOR UPDATE",
+   "sha256": "69aae44b90fc0355dbc0eb39dadad6ef88360421a81a660e1200a50a047d01d9"
+  },
+  {
+   "sql": "SELECT * FROM adc2_budget_windows WHERE id=?",
+   "sha256": "e4771c1fa548aef9e25737f040a5860256ec1c7a95fd656108ccc9bc100a6388"
+  },
+  {
+   "sql": "SELECT * FROM adc2_budget_windows WHERE id=? FOR UPDATE",
+   "sha256": "0245ee2b1fd6496adef2d220f1e6f2a1c195f7678262b2ad14e34b052e852ba9"
+  },
+  {
+   "sql": "SELECT * FROM adc2_budget_windows WHERE source_account=? AND kind=? AND starts_ms=?",
+   "sha256": "02355498ff3d3a2f53790deff5a4fb65b3ec23edcf592298e2fc17571c286482"
+  },
+  {
+   "sql": "SELECT * FROM adc2_campaign_experiments WHERE campaign_id=? ORDER BY created_at DESC",
+   "sha256": "cfdf1b457c4438dd5a66b99b9ab5b76c8fcb42b71038b2aa2eb77535d1851bde"
+  },
+  {
+   "sql": "SELECT * FROM adc2_campaign_experiments WHERE id=?",
+   "sha256": "9de1b0fabc959e1e5980be5c0119067f1866c7d388f3d166a4d0ab1932cc7ed3"
+  },
+  {
+   "sql": "SELECT * FROM adc2_campaign_revisions WHERE id=?",
+   "sha256": "3371d7af9d086c4afe4e2f61b9fdec15be3e80e28eef9ae1acb4603ee0f32cc6"
+  },
+  {
+   "sql": "SELECT * FROM adc2_campaigns WHERE id=?",
+   "sha256": "c4c2ead56699b30efed14fabc53361838900f3c0be8c3d8550d1ff96bc3b4244"
+  },
+  {
+   "sql": "SELECT * FROM adc2_campaigns WHERE id=? FOR UPDATE",
+   "sha256": "ff002037322edb032ba2135ff171cec536ab41fcc567eb00b89eeb8b95a7a2c7"
+  },
+  {
+   "sql": "SELECT * FROM adc2_campaigns WHERE state='active'",
+   "sha256": "60299e8edc5aaa13af2a1bc5145ae3bff92f3326302185c838dd0e53e569d316"
+  },
+  {
+   "sql": "SELECT * FROM adc2_commercial_control WHERE id=1",
+   "sha256": "4319816b7d41e2b26d8e985d5d552ecd2ab8ef0e8f361ab560fd86962e43479d"
+  },
+  {
+   "sql": "SELECT * FROM adc2_commercial_control WHERE id=1 FOR SHARE",
+   "sha256": "81abf85b072937e48f7ee172261e9c1dab90415872d894594f3f9d0a74b06e28"
+  },
+  {
+   "sql": "SELECT * FROM adc2_conversions WHERE advertiser_id=? AND order_id=?",
+   "sha256": "729ff7195f65a44e26f9628aaa65ffedb60cbe99b0573b7e028e4809f10bd676"
+  },
+  {
+   "sql": "SELECT * FROM adc2_conversions WHERE campaign_id=? ORDER BY created_at DESC LIMIT 100",
+   "sha256": "14dd121620a7ee55342397f9368d9e731af5a698a0ebc16d1b83c9a7a2cf1f18"
+  },
+  {
+   "sql": "SELECT * FROM adc2_conversions WHERE id=?",
+   "sha256": "e1d8eaba3ac0d0678ac72aa18e1a3fde6fa6c90f8e9ae9f0d58a15d5c6c9a4ba"
+  },
+  {
+   "sql": "SELECT * FROM adc2_custody_reserves ORDER BY created_at DESC LIMIT 1",
+   "sha256": "8284a59508cb41b4c30c6e620ea14e4f7bc32612b3ca4a3deea88471ad48381a"
+  },
+  {
+   "sql": "SELECT * FROM adc2_custody_reserves ORDER BY created_at DESC LIMIT 50",
+   "sha256": "34af400defad53cc5c09608d1c3bf1bc049328787d15ca6ca7612dc1e29ee733"
+  },
+  {
+   "sql": "SELECT * FROM adc2_evidence_chunks WHERE session_id=? AND sequence=?",
+   "sha256": "3d297eb9f343696acf4387e7272afa75808e4b677bd8117f3fa2adf45f2d8a4d"
+  },
+  {
+   "sql": "SELECT * FROM adc2_evidence_chunks WHERE session_id=? ORDER BY sequence",
+   "sha256": "96d9aec530849f23ef66c644fdcbfa559a46c434398543d5fd8ad82e3b6a9ed6"
+  },
+  {
+   "sql": "SELECT * FROM adc2_executions WHERE id=?",
+   "sha256": "396e46aa979e3192e426eb8321e9933eab1a528c5c6e2c2b6aac03fd36cc023e"
+  },
+  {
+   "sql": "SELECT * FROM adc2_executions WHERE id=? FOR UPDATE",
+   "sha256": "3425c074f1277ec27be06f59ee24832eeeffeafc2bc683fab77a5869bac37b10"
+  },
+  {
+   "sql": "SELECT * FROM adc2_exposure_sessions WHERE id=?",
+   "sha256": "ab0acad04513a9edc33fc02681b0ed0ef6490641cb0d9902824bdc9ab23a5c39"
+  },
+  {
+   "sql": "SELECT * FROM adc2_exposure_sessions WHERE id=? FOR UPDATE",
+   "sha256": "32f3fd0b25c1b0cc32fb1bd14e3d40f1479b2720b618b43a38608104dc01fe01"
+  },
+  {
+   "sql": "SELECT * FROM adc2_exposure_sessions WHERE offer_id=?",
+   "sha256": "a17398e418dc7fbcbe0d16c5027963700f5fd35014598d5b03cfc954ab8abb8a"
+  },
+  {
+   "sql": "SELECT * FROM adc2_exposure_sessions WHERE state='active' AND (cutoff_ms<? OR (? > startup_deadline_ms AND first_signal_ms IS NULL)) LIMIT ?",
+   "sha256": "07fc195ec56fff1d8ec5094ae3ebef905c953fd5f728194ec7a5a68a6511fa20"
+  },
+  {
+   "sql": "SELECT * FROM adc2_exposure_sessions WHERE state='active' AND (evidence_deadline_ms<=? OR (first_signal_ms IS NULL AND startup_deadline_ms<=?) OR (active_deadline_ms IS NOT NULL AND active_deadline_ms<=?)) ORDER BY id LIMIT 50",
+   "sha256": "3958ff516a83912418352fb731b2ff0676626f92b486f20b404e0ecf0aab4768"
+  },
+  {
+   "sql": "SELECT * FROM adc2_fiat_deposits WHERE external_tx_ref=?",
+   "sha256": "c4563aa0fd327d15c64ea7ea512a25bc06b83facc0d78a43f5ecab3aef49d287"
+  },
+  {
+   "sql": "SELECT * FROM adc2_fiat_deposits WHERE id=?",
+   "sha256": "d1111de9e2a360cb00190acf17adb46ab828527f81e000b342e9897195dbb3f8"
+  },
+  {
+   "sql": "SELECT * FROM adc2_fiat_deposits WHERE wallet_id=? ORDER BY created_at DESC LIMIT 50",
+   "sha256": "2103c2c6149f056b21624dd9d9c8499f8ede70540d2024038addc2044528a786"
+  },
+  {
+   "sql": "SELECT * FROM adc2_fresh_actions WHERE id=? FOR UPDATE",
+   "sha256": "c1c827f725ee0fa4cfbe18f375d6a3bea8f03ba53307c1d45d7e7b4378e1eaf3"
+  },
+  {
+   "sql": "SELECT * FROM adc2_human_consents WHERE id=?",
+   "sha256": "a6a72acef97194aca2c8d4fe07a30ad4a1c9984211ce653b83269bdb8f1102b2"
+  },
+  {
+   "sql": "SELECT * FROM adc2_human_consents WHERE offer_id=?",
+   "sha256": "2fa972976c8e72a62568975f2d69905ea9bdb157498b96e3c6a94106134d7bd9"
+  },
+  {
+   "sql": "SELECT * FROM adc2_human_sessions WHERE session_hash=?",
+   "sha256": "a00070403a3157e5b6a5368bde1d7337bbee31894046538650a23b53a50cb765"
+  },
+  {
+   "sql": "SELECT * FROM adc2_idempotency_records WHERE scope_hash=?",
+   "sha256": "dc183e7abf18636c95c40f451529915107bfe7d0f3eedc1e425d36041f757604"
+  },
+  {
+   "sql": "SELECT * FROM adc2_inbox WHERE source_id=? AND audience=? AND event_id=?",
+   "sha256": "41372f3942055b8f9321274cc403d7f1108c8c01682a4055af81ec5485ebf2e4"
+  },
+  {
+   "sql": "SELECT * FROM adc2_journals WHERE asset_id=? AND economic_key=?",
+   "sha256": "302186b4a8ca9107cf419362a20473365e21614f05203a6f69895e70f177bf6c"
+  },
+  {
+   "sql": "SELECT * FROM adc2_journals WHERE id=?",
+   "sha256": "cdb50270898b2fb66dc41446621ee0687c65cfbde2fea294aa2070487df04616"
+  },
+  {
+   "sql": "SELECT * FROM adc2_mandates WHERE id=?",
+   "sha256": "bfbc904e37bc5f56090e26b9e8a91bd1f011b4890da07e6b85ead4f86decfe7a"
+  },
+  {
+   "sql": "SELECT * FROM adc2_mandates WHERE id=? FOR UPDATE",
+   "sha256": "8e354afd1a44f2a4941b7d10d13b281f6414c541656673620e5dbcb44ba05466"
+  },
+  {
+   "sql": "SELECT * FROM adc2_mandates WHERE owner_id=? ORDER BY created_at DESC LIMIT 100",
+   "sha256": "a5109f37d1d3305b306a09acc9557073241b32f6bbff479bdd8a73e92ec86871"
+  },
+  {
+   "sql": "SELECT * FROM adc2_memberships WHERE advertiser_id=? AND principal_id=? AND capability=?",
+   "sha256": "a981bc7dfb08d8cfdeda3235f344cb165ada4f44baf8cd9c4b44c8356aa695d2"
+  },
+  {
+   "sql": "SELECT * FROM adc2_offers WHERE id=?",
+   "sha256": "71437df4f06e829a3591e9060fd3872bbe60552c1b396cdc437f989ebd7e1596"
+  },
+  {
+   "sql": "SELECT * FROM adc2_offers WHERE id=? FOR UPDATE",
+   "sha256": "a45e0a56769b84b4b5fd8d1d7e2118e8447e52f1bf9984f310b5dbaa874f0b9d"
+  },
+  {
+   "sql": "SELECT * FROM adc2_offers WHERE state IN ('reserved','consented') AND expires_ms<=? ORDER BY id LIMIT 50",
+   "sha256": "c507a856cc8245f049c32f9c0acff24d40ac734dc69483c2d1b45fc44f9c6169"
+  },
+  {
+   "sql": "SELECT * FROM adc2_onchain_withdrawals WHERE id=?",
+   "sha256": "bf9336aaaca7198729defb4c567cfa5319c79359deeb4c719dfd4013cb56ab6b"
+  },
+  {
+   "sql": "SELECT * FROM adc2_onchain_withdrawals WHERE status IN ('pending','relayed') ORDER BY created_at ASC LIMIT 50",
+   "sha256": "9dfc174ce79b8da34db7a0563f7863456c9da675241a0245558e28427cdfb34c"
+  },
+  {
+   "sql": "SELECT * FROM adc2_onchain_withdrawals WHERE wallet_id=? ORDER BY created_at DESC LIMIT 50",
+   "sha256": "cc8dc450478d986c1c39cf1e19b19fd781687a1ab464c6f42fd58c934a809913"
+  },
+  {
+   "sql": "SELECT * FROM adc2_operations WHERE id=?",
+   "sha256": "311fc630f0d556d2c2d0a7300a6b9042a32d3d4cca795bdceebc13d002e7d189"
+  },
+  {
+   "sql": "SELECT * FROM adc2_outbox WHERE available_ms<=? AND (state='pending' OR (state='leased' AND lease_until_ms<=?)) ORDER BY available_ms,id LIMIT ?",
+   "sha256": "4cf41d2856f6a23d091419611042c366bf1991ed4ab03884536169d56e2bce07"
+  },
+  {
+   "sql": "SELECT * FROM adc2_outbox WHERE available_ms<=? AND (state='pending' OR (state='leased' AND lease_until_ms<=?)) ORDER BY available_ms,id LIMIT ? FOR UPDATE SKIP LOCKED",
+   "sha256": "a7df4a7fbf63179cfe3b3019ebaa695823bf47b5dd11757c615a3c4195bd89f4"
+  },
+  {
+   "sql": "SELECT * FROM adc2_outbox WHERE id=? FOR UPDATE",
+   "sha256": "a658cc28becca123282de744c27054d1b50aa7a9747069c7a5fc856228d9c663"
+  },
+  {
+   "sql": "SELECT * FROM adc2_outbox WHERE logical_key=?",
+   "sha256": "9a8fc966bea773c1f2deaa4e92c18e31b980795728830a8a2a722f56ec108ece"
+  },
+  {
+   "sql": "SELECT * FROM adc2_outbox WHERE state='leased' AND lease_until_ms<? LIMIT ?",
+   "sha256": "647dbf2b57cae81dd4f47bb6f990146c0bb2580b429136375a81715d8ad8b3ca"
+  },
+  {
+   "sql": "SELECT * FROM adc2_principals WHERE id=?",
+   "sha256": "adece299ff454d0d2be1887ddbdda9a152ddb8bba591ed3eaf6b3843a4be45d4"
+  },
+  {
+   "sql": "SELECT * FROM adc2_principals WHERE owner_id=? AND kind='human' ORDER BY id LIMIT 1",
+   "sha256": "454d0031bc4fa7de204c3b957f1bd2373f646d0f43f08ea5504ee38b8bf5db3d"
+  },
+  {
+   "sql": "SELECT * FROM adc2_receipt_keys ORDER BY kid LIMIT 20",
+   "sha256": "a9dbf9ea374936cdd3294b6257493d039d56843bdcfe561136dfed2fad32c08c"
+  },
+  {
+   "sql": "SELECT * FROM adc2_receipt_keys WHERE kid=?",
+   "sha256": "94d068022b5b4e1f46953ff450f2e751a5c0cc1938028ad72629a4619e58fc3d"
+  },
+  {
+   "sql": "SELECT * FROM adc2_receipts WHERE id=?",
+   "sha256": "48d18158f9997b03da114a9f15e2ab7ef1c26eb943d0d74ba445e855395ea9cc"
+  },
+  {
+   "sql": "SELECT * FROM adc2_receipts WHERE id=? FOR UPDATE",
+   "sha256": "5966551f9193eab44864f4e49a9f510786aa689c56372376059cdd6305fe652e"
+  },
+  {
+   "sql": "SELECT * FROM adc2_receipts WHERE offer_id=?",
+   "sha256": "38b2108c3ff25f8123cfa0bbbb5c8a0814e52b6b043255accaac738e540bcf96"
+  },
+  {
+   "sql": "SELECT * FROM adc2_relay_dispatches WHERE id=?",
+   "sha256": "b2dcc41c692cf0f0abb0c25c22660e93d8f9c0b2b5111cd27df7cd0a8a1ec6ed"
+  },
+  {
+   "sql": "SELECT * FROM adc2_relay_dispatches WHERE id=? FOR UPDATE",
+   "sha256": "edc74d4dfaa11c404a2e12872b3d3b9b0950ff9e080a30b93147e15a45dc114c"
+  },
+  {
+   "sql": "SELECT * FROM adc2_relay_dispatches WHERE offer_id=?",
+   "sha256": "60a6cb2180e31baaf4f55c03c06ab272ace24d2156521f117335bd410c1b8821"
+  },
+  {
+   "sql": "SELECT * FROM adc2_relay_dispatches WHERE owner_id=? ORDER BY created_at DESC LIMIT 100",
+   "sha256": "02f2aeabd8eb7403f1bd5ac9556a0432ff61993f8ff9803fdaeb9fa955cbb7f2"
+  },
+  {
+   "sql": "SELECT * FROM adc2_relay_dispatches WHERE relay_token=?",
+   "sha256": "9cdcb9e151ce501e9aeccb7686c62653775573ab83f9a4672cb65858f77a153c"
+  },
+  {
+   "sql": "SELECT * FROM adc2_relay_partners WHERE id=?",
+   "sha256": "a3098a8a9972413b88f94ae3905c9326bb4d9d539373b87c4adc8f5765fa9951"
+  },
+  {
+   "sql": "SELECT * FROM adc2_relay_partners WHERE status='active' ORDER BY created_at DESC LIMIT 50",
+   "sha256": "4fbb3ab4c283445984b53fb9504e1b8eb1789c890bf3439c195230840f70c020"
+  },
+  {
+   "sql": "SELECT * FROM adc2_report_revisions WHERE id=? AND revision=?",
+   "sha256": "4d58a6d07ee1918eb4bb0da0b2097a5552a732bcf942b718feda775ee8fdc4fb"
+  },
+  {
+   "sql": "SELECT * FROM adc2_report_revisions WHERE id=? AND revision=? AND advertiser_id=?",
+   "sha256": "cf26a89e3f83a0884a29799d10c32a58f040820edef5ed6dd7d2c8ed250073ad"
+  },
+  {
+   "sql": "SELECT * FROM adc2_reporting_obligations WHERE advertiser_id=? AND (period_start_ms>? OR (period_start_ms=? AND id>?)) ORDER BY period_start_ms,id LIMIT ?",
+   "sha256": "3230a46bb28f4b1328003af957f38f4b3cb514f48bafb0a90e7b2e123561e315"
+  },
+  {
+   "sql": "SELECT * FROM adc2_reporting_obligations WHERE advertiser_id=? ORDER BY period_start_ms,id",
+   "sha256": "cb1d274294752ea763f8254a0645ed46437efdb57d60c2177e3e85932a6876fc"
+  },
+  {
+   "sql": "SELECT * FROM adc2_reporting_obligations WHERE id=?",
+   "sha256": "24f28582e8fa73045e20ae4b30b6e072464c57493edb67977ddf3702b509e313"
+  },
+  {
+   "sql": "SELECT * FROM adc2_reporting_obligations WHERE period_end_ms<=? ORDER BY period_start_ms,id LIMIT 100",
+   "sha256": "fd1d1085ee92146439614d9c4fa190ec7f38719252c08e6b5d1cf5dde9c0d764"
+  },
+  {
+   "sql": "SELECT * FROM adc2_review_appeals WHERE id=?",
+   "sha256": "61806dca455782401a404eab30604a78a6945ee31885b45a8840f6b4253d871a"
+  },
+  {
+   "sql": "SELECT * FROM adc2_review_appeals WHERE review_id=? ORDER BY created_ms DESC LIMIT 1",
+   "sha256": "ca932855c328be33659a0ce97e2ad24c4ef4f95cdce8711c0b71df35b4582437"
+  },
+  {
+   "sql": "SELECT * FROM adc2_review_evidence WHERE id=?",
+   "sha256": "7b20808333eeb3e56fb2f58fef60c52afa61a50286a388596ee0e711fac9d333"
+  },
+  {
+   "sql": "SELECT * FROM adc2_review_evidence WHERE review_id=? ORDER BY id LIMIT 1",
+   "sha256": "ab285997a4ffc8abda95c50be35b1f6a5a4ec80f86495bcbbf788f5da44fdde0"
+  },
+  {
+   "sql": "SELECT * FROM adc2_reviewer_credentials WHERE token_hash=?",
+   "sha256": "9dac84469a5c7bb8ae9e7f304a06f505ce3577b7af3b20e48a995aa8beb528e9"
+  },
+  {
+   "sql": "SELECT * FROM adc2_reviews WHERE id=?",
+   "sha256": "b0ab8b0d202c8ca118525e102ff65953ea2a34a8f709d6998c45b5f5d44f14ba"
+  },
+  {
+   "sql": "SELECT * FROM adc2_reviews WHERE id=? FOR UPDATE",
+   "sha256": "791c0470c544bcd34da3ff67d2e23a678ea01ad9f6aa4e4bcb7ee4d8b5586304"
+  },
+  {
+   "sql": "SELECT * FROM adc2_reviews WHERE revision_id=? AND state='pending'",
+   "sha256": "1bf0e1ed9e796cc250d23398d1996e5aabcae4b2ba657b32141bf9771706ffde"
+  },
+  {
+   "sql": "SELECT * FROM adc2_reviews WHERE revision_id=? ORDER BY version DESC,id DESC LIMIT 1",
+   "sha256": "70de0545a21524cc2f95de03e87e81bf4e9051b5b0a8788fe50d94c41b325463"
+  },
+  {
+   "sql": "SELECT * FROM adc2_schema WHERE id=1",
+   "sha256": "378ae108d21acf1c9e0e34cae101b84c37143192e03aa3e8fc44302f3100f7a5"
+  },
+  {
+   "sql": "SELECT * FROM adc2_stage_claims WHERE id=?",
+   "sha256": "68f3e9c57475b7357f854d4cedee3884b399738240ad4fd86f4bdd58fe35cf21"
+  },
+  {
+   "sql": "SELECT * FROM adc2_stage_claims WHERE offer_id=? AND stage_type=?",
+   "sha256": "b402bb036509c82a23356d60b7edd101617184e79cb8d5f9fd86ac4f19d8696c"
+  },
+  {
+   "sql": "SELECT * FROM adc2_stage_claims WHERE offer_id=? ORDER BY created_at ASC",
+   "sha256": "dc81c31e8d9d27c67bb2cce681923c29ea057fbd6f03d03143b6a4501ff58156"
+  },
+  {
+   "sql": "SELECT * FROM adc2_wallets",
+   "sha256": "1ae75df8672f9d6aa856ff377d0f9415199bfa3ba17e168fdcace67fd67fcd61"
+  },
+  {
+   "sql": "SELECT * FROM adc2_wallets WHERE id=?",
+   "sha256": "13c7c4ae3b29313cb3fd7d89bbc603df5845535c35f323a134b953e4b220bf1b"
+  },
+  {
+   "sql": "SELECT * FROM adc2_wallets WHERE owner_id=? ORDER BY id LIMIT 1",
+   "sha256": "a2fc93d2de71feb8a91899243b8dccf3ab2ee7e6115ae70b0a0478a4d5d17839"
+  },
+  {
    "sql": "SELECT 1 FROM ad_coin_balances LIMIT 1",
    "sha256": "47aff7f3c6c8b0bba8d553fe56d922323161553a421d37e70d298b14b0843799"
   },
@@ -280,6 +1412,10 @@
   {
    "sql": "SELECT COALESCE(SUM(amount_won), 0) AS s FROM ad_coin_reservations WHERE campaign_id=? AND created_at>=? AND status IN ('reserved','awarded')",
    "sha256": "8174ce65088e89138d9dade89dc3093f61e11b41927152f57852f52d405661ed"
+  },
+  {
+   "sql": "SELECT COUNT(*) AS count, COALESCE(SUM(value_atoms), 0) AS total_value FROM adc2_conversions WHERE campaign_id=?",
+   "sha256": "a259066db38ada847aed1df5393510e497e249360e81d21ed25a30ca06e83e11"
   },
   {
    "sql": "SELECT COUNT(*) AS n FROM (SELECT journal_id FROM ad_coin_postings GROUP BY journal_id HAVING SUM(amount) != 0) AS unbalanced",
@@ -326,6 +1462,14 @@
    "sha256": "073388326a839d9eb9138a2940ac633a269c0083cf7922036cf76e1211b50983"
   },
   {
+   "sql": "SELECT COUNT(*) AS total_offers, COUNT(CASE WHEN state='awarded' THEN 1 END) AS awarded_offers FROM adc2_offers WHERE campaign_id=?",
+   "sha256": "882aa62ea4482dc378365b564ea8111916d9ee9b59f409576766112aaec972cc"
+  },
+  {
+   "sql": "SELECT a.* FROM adc2_approvals a JOIN adc2_campaigns c ON c.id=a.campaign_id AND c.current_revision_id=a.revision_id WHERE a.campaign_id=?",
+   "sha256": "eab2c54db2b618e47103a12e79226f4deec3e9176f153a48772814a050bf2f05"
+  },
+  {
    "sql": "SELECT account FROM ad_coin_balances WHERE amount < 0 AND account NOT LIKE 'external:%' LIMIT 20",
    "sha256": "f0edf5d995357dfe54dd11de903e1aac9fa407b4577a8a5cc9e660d8e305fe7e"
   },
@@ -366,12 +1510,24 @@
    "sha256": "57db0138e416062051823414c453f7959855b9546ace7d3bb10552714902949f"
   },
   {
+   "sql": "SELECT asset_id, coalesce(sum(delta_atoms), 0) AS total_delta, count(*) AS posting_count FROM adc2_postings GROUP BY asset_id",
+   "sha256": "580fb06dcf1fd7b4169ded90e2df4bafd2abee55f4bf21ed4bfd360de355f394"
+  },
+  {
    "sql": "SELECT body FROM ad_coin_receipts WHERE user_ref=? ORDER BY created_at DESC LIMIT ?",
    "sha256": "9535497b32d061915466dc50447eed3b185daf1517a4396808d9ed647b883957"
   },
   {
    "sql": "SELECT bucket, amount FROM ad_coin_totals",
    "sha256": "1d7bd678fefc952922d8d583d3cbeeeb9192d2edd54e1cad44e98b5bfe500e6f"
+  },
+  {
+   "sql": "SELECT c.*,r.revision_hash,r.payload_json FROM adc2_campaigns c JOIN adc2_campaign_revisions r ON r.id=c.current_revision_id WHERE c.advertiser_id=? AND c.id>? ORDER BY c.id LIMIT 11",
+   "sha256": "f0aadaeb3f89ad802e11a8000d4c4567533a94f00eb0fa4fff343cd0f58d90d6"
+  },
+  {
+   "sql": "SELECT c.*,r.revision_hash,r.payload_json,r.starts_ms,r.ends_ms,r.total_atoms,r.daily_atoms,r.gross_atoms,r.split_json FROM adc2_campaigns c JOIN adc2_campaign_revisions r ON r.id=c.current_revision_id JOIN adc2_advertisers a ON a.id=c.advertiser_id WHERE c.state='active' AND c.approval_status='approved' AND c.funded=1 AND a.status='active' AND r.starts_ms<=? AND r.ends_ms>? ORDER BY c.id LIMIT 20",
+   "sha256": "a1153099014113bc9f5e6238acf0a41201bebecd576eb1dde0b8c5f2094f1b2a"
   },
   {
    "sql": "SELECT c.id, c.advertiser, c.title, c.body, c.question, c.public_url, c.categories, c.bid_won, COALESCE(b.amount, 0) AS escrow_won, m.daily_budget_won, m.starts_at, m.ends_at, m.frequency_cap, m.excluded, m.review_status, m.user_status, m.advertiser_id, COALESCE(d.spend_won, 0) AS spent_today, a.verification AS adv_verification, a.status AS adv_status FROM ad_coin_campaigns c LEFT JOIN ad_coin_balances b ON b.account='escrow:'||c.id LEFT JOIN ad_coin_campaign_meta m ON m.campaign_id=c.id LEFT JOIN ad_coin_campaign_daily d ON d.campaign_id=c.id AND d.day=? LEFT JOIN ad_coin_advertisers a ON a.id=m.advertiser_id WHERE c.product=? AND c.status='active' AND COALESCE(b.amount, 0) >= c.bid_won AND (m.review_status IS NULL OR (m.review_status IN (?+) AND m.user_status='enabled' AND COALESCE(d.spend_won, 0) + c.bid_won <= CASE WHEN a.verification='verified' AND a.status='active' AND m.review_status<>'eligible_limited' THEN m.daily_budget_won WHEN m.daily_budget_won < ? THEN m.daily_budget_won ELSE ? END)) AND c.id IN (?+) ORDER BY c.bid_won DESC, c.id LIMIT ? OFFSET ?",
@@ -410,6 +1566,38 @@
    "sha256": "2ef78e5d37936cd958321be9d3fa9e7e963194a99c0282405f2ba5b7781b5459"
   },
   {
+   "sql": "SELECT capability FROM adc2_memberships WHERE advertiser_id=? AND principal_id=? AND active=1",
+   "sha256": "c6b369d7867ee78de8c2dc6627b2bda449a82d0a47cf221b53eb7009211a42e0"
+  },
+  {
+   "sql": "SELECT coalesce(sum(delta_atoms),0) AS total FROM adc2_postings WHERE account_id=?",
+   "sha256": "0b1d974b6ebf80d5cbaab1ed9d3be55e7a209bb695e1562ca089831ef37258e7"
+  },
+  {
+   "sql": "SELECT coalesce(sum(e.amount_atoms), 0) AS spent_total FROM adc2_budget_events e JOIN adc2_budget_holds h ON h.id=e.hold_id WHERE h.source_account=? AND e.kind='consume'",
+   "sha256": "f20c7dc0889ef617e65af1adac8a5d8b505dd6c37b06ab84378ca409be462483"
+  },
+  {
+   "sql": "SELECT coalesce(sum(remaining_atoms), 0) AS remaining_holds, count(*) AS hold_count FROM adc2_budget_holds WHERE source_account=? AND state IN ('held', 'partial')",
+   "sha256": "0a2eb904ce16c8d0def5a3af09f33314caf69a53288506b785b7ab3c788e1929"
+  },
+  {
+   "sql": "SELECT coalesce(sum(user_reward_atoms), 0) AS total_rewards FROM adc2_receipts WHERE owner_id=? AND signature_state='signed'",
+   "sha256": "dbd7c14196e71419208b87e69cabd6a9c4169ddefedfcb5093f9aac3cec6ffce"
+  },
+  {
+   "sql": "SELECT count(*) AS n FROM adc2_relay_dispatches WHERE owner_id=? AND campaign_id=? AND status IN ('dispatched','consented','viewed') AND expires_at>?",
+   "sha256": "ef97035aa77e019b15a7c238145e3187c81a89818ef1c3b637a29fb6b17c3eaa"
+  },
+  {
+   "sql": "SELECT count(*) AS total FROM adc2_offers WHERE owner_id=? AND created_ms>=? AND created_ms<?",
+   "sha256": "5435ee88aea7af28469579486d9e2c39857e5a7ac45318316e11308b338aa641"
+  },
+  {
+   "sql": "SELECT count(*) AS total FROM adc2_offers WHERE owner_id=? AND state IN ('reserved','consented','exposing')",
+   "sha256": "9c014eaa6c7a8ec386b8a137d461d6e84b3b7a1d9f5c686dc7004a51892f7080"
+  },
+  {
    "sql": "SELECT cr.* FROM ad_coin_creatives cr JOIN ad_coin_campaign_meta m ON m.campaign_id=cr.campaign_id WHERE cr.id=? AND m.advertiser_id=? AND cr.removed_at IS NULL",
    "sha256": "33cfc863d52aafda51e34197c4415904bbb33601b4220458eb973776306c45fc"
   },
@@ -442,6 +1630,10 @@
    "sha256": "ad0226dd5d101fbf35adee3163ece7ec6a5c513e10e429815eb446edcc682d19"
   },
   {
+   "sql": "SELECT evidence_json FROM adc2_stage_claims WHERE campaign_id=? AND stage_type='feedback' AND status='settled'",
+   "sha256": "80dc14f008a8b7ef2fbc6d6942c8cb8439b48e44f5882942c1b9be6109965fa5"
+  },
+  {
    "sql": "SELECT i.reservation_id, i.refunded_won FROM ad_coin_invalid_activity i JOIN ad_coin_campaign_meta m ON m.campaign_id=i.campaign_id WHERE m.advertiser_id=? AND i.created_at>=?",
    "sha256": "1c7d01b316faf4bc62750e92a6ad985213451ebd6cc0a705c0f75fcf3bd86b23"
   },
@@ -466,6 +1658,18 @@
    "sha256": "10b22e85770c550cb7947ca96a15b08dd465f4dd134c28f490d5825828ddc004"
   },
   {
+   "sql": "SELECT id FROM adc2_assets",
+   "sha256": "bca96a1f6384f5d270f0291c0f8f7b081a3d77f06713abd2d12b5a5e807e123b"
+  },
+  {
+   "sql": "SELECT id FROM adc2_attention_sessions WHERE owner_id=? AND state='active'",
+   "sha256": "fcd201adc56a0c2205c29c8ff3e6f5d0b7f74459dace1cc6fe008f452e173d45"
+  },
+  {
+   "sql": "SELECT id FROM adc2_journals WHERE state<>'sealed' LIMIT 1",
+   "sha256": "457861c7cce5ba4ec919185c1e8d3b26e2a2ed04eccf35c913999a8049383ef8"
+  },
+  {
    "sql": "SELECT id, campaign_id, title, body, question, public_url, weight, review_status FROM ad_coin_creatives WHERE removed_at IS NULL AND review_status IN ('eligible','eligible_limited') AND campaign_id IN (",
    "sha256": "2e7a93cafa9745fdb7ada422d3439791fcb4529a6cad134ce4fcc073f33c21a5"
   },
@@ -476,6 +1680,10 @@
   {
    "sql": "SELECT id, name, description, status, definition FROM ad_coin_test_products ORDER BY created_at",
    "sha256": "4fce9608691172e22c916c47c88ee2d68080323c505593b63bf40f99c005fac4"
+  },
+  {
+   "sql": "SELECT id, owner_id, purpose, balance_atoms FROM adc2_accounts WHERE purpose<>'external_clearing' AND balance_atoms<0",
+   "sha256": "55193b22aea37e75be69ef8e97ffb35cfc1b6280bae09b2c5a6a33453211085b"
   },
   {
    "sql": "SELECT id, provider, task_ref FROM ad_coin_executions WHERE id=?",
@@ -494,8 +1702,16 @@
    "sha256": "e96ee9501057dbebfb245da8a72f09a0d5c58eb7968ed96e619c96ebea1579ad"
   },
   {
+   "sql": "SELECT limit_atoms, reserved_atoms, spent_atoms FROM adc2_budget_windows WHERE source_account=? AND kind='total'",
+   "sha256": "3f8a3b45b7d1d5e15f3795589048ef121cbafbd1dba8b85bfb5e9e489c627abc"
+  },
+  {
    "sql": "SELECT m.advertiser_id AS id FROM ad_coin_advertiser_members m WHERE m.customer_id=? AND m.revoked_at IS NULL ORDER BY m.created_at",
    "sha256": "489cc13c069c35de7cb6bbf2acaea72a62eef3c7f652b37720a1e81e6bf02c0f"
+  },
+  {
+   "sql": "SELECT m.advertiser_id,m.capability FROM adc2_memberships m JOIN adc2_advertisers a ON a.id=m.advertiser_id WHERE m.principal_id=? AND m.active=1 ORDER BY m.advertiser_id,m.capability LIMIT 60",
+   "sha256": "e9e69d278ee4d63a21f2a8cf65d2706c7bb5cc3e6a19da4727ba7f34be33b6e1"
   },
   {
    "sql": "SELECT open, reason, changed_at FROM ad_coin_circuit WHERE id=1",
@@ -504,6 +1720,14 @@
   {
    "sql": "SELECT q.task FROM ad_coin_vouchers v JOIN ad_coin_reservations r ON r.id=v.reservation_id JOIN ad_coin_quotes q ON q.id=r.quote_id WHERE v.id=?",
    "sha256": "f8b411b71f74aa6a9bcdd6dcb5f1ea9b665b2f5864a3a8987e62433998884a83"
+  },
+  {
+   "sql": "SELECT r.* FROM adc2_campaign_revisions r JOIN adc2_campaigns c ON c.current_revision_id=r.id WHERE c.id=?",
+   "sha256": "6f60b0c3f7aeb74f02908a9acf8d0f665921522c538c635216e6ba8fb8e5a10a"
+  },
+  {
+   "sql": "SELECT r.* FROM adc2_receipts r JOIN adc2_offers o ON o.id=r.offer_id WHERE r.signature_state IN ('pending','failed') AND o.state='awarded' LIMIT ?",
+   "sha256": "fd74ddbbe8db3ce7a729369294d4d823383330cbabf8801a510795d327f09738"
   },
   {
    "sql": "SELECT r.campaign_id FROM ad_coin_vouchers v JOIN ad_coin_reservations r ON r.id=v.reservation_id WHERE v.id=?",
@@ -524,6 +1748,14 @@
   {
    "sql": "SELECT role FROM ad_coin_advertiser_members WHERE advertiser_id=? AND customer_id=? AND revoked_at IS NULL",
    "sha256": "5670d94e87e9331619b4eba0d470429f0c7290d79b4083b8e508c69c343e7e9c"
+  },
+  {
+   "sql": "SELECT scope_hash FROM adc2_idempotency_records WHERE state<>'done' LIMIT 1",
+   "sha256": "fd6b1cb31023a63c2496e1ceb1a5148bda77aeeddbcd541e50c6d054a85d2ac1"
+  },
+  {
+   "sql": "SELECT stage_type, COUNT(*) AS count, COALESCE(SUM(reward_atoms), 0) AS total_atoms FROM adc2_stage_claims WHERE campaign_id=? AND status='settled' GROUP BY stage_type",
+   "sha256": "cff97cc04912ea659d7a8aca1f104070a654e0f214273fdc52e5212d8306dccc"
   },
   {
    "sql": "SELECT task FROM ad_coin_quotes WHERE id=?",
@@ -552,6 +1784,10 @@
   {
    "sql": "SELECT value FROM ad_coin_settings WHERE key=?",
    "sha256": "1e5650d97cd4498e677ef299f37e15e879c2b4c39648e75ffb09c3198f84995c"
+  },
+  {
+   "sql": "SELECT w.id,w.manager_binding_id,w.asset_id,a.balance_atoms AS available_atoms,l.balance_atoms AS locked_atoms FROM adc2_wallets w JOIN adc2_accounts a ON a.id=w.available_account JOIN adc2_accounts l ON l.id=w.locked_account WHERE w.owner_id=? ORDER BY w.id LIMIT 20",
+   "sha256": "d86901acb7a804251b9d62233005956190f3c4cd63bad53994aa49404e09c5be"
   },
   {
    "sql": "UPDATE ad_coin_advertiser_members SET revoked_at=? WHERE advertiser_id=? AND customer_id=? AND revoked_at IS NULL",
@@ -696,6 +1932,218 @@
   {
    "sql": "UPDATE ad_coin_wallets SET last_active_at=? WHERE account=?",
    "sha256": "f7c25bed450aa01fc2251d95427fe7872a5e76ce1eb4977518dcad342b6570d3"
+  },
+  {
+   "sql": "UPDATE adc2_accounts SET balance_atoms=?,version=version+1 WHERE id=? AND version=?",
+   "sha256": "9583d78dac61224d0a54d76c71d534c4044253f355f1c649b34c05602f4f3b96"
+  },
+  {
+   "sql": "UPDATE adc2_ad_preferences SET receive_offers=?,context_fields_json=?,max_offers_per_day=?,max_ads_per_campaign_day=?,max_ads_per_day=?,max_ad_ms_per_day=?,version=version+1,revision_hash=?,effective_ms=? WHERE id=? AND version=?",
+   "sha256": "14f3fb21c87bdbf7bd31ebe46a7b4af3f6a5cc05427d5688f693ad02f47e964c"
+  },
+  {
+   "sql": "UPDATE adc2_advertisers SET status=? WHERE id=?",
+   "sha256": "3608fd66d04806217c810d8317b83258b802275f7a4a08786c22df4122997d54"
+  },
+  {
+   "sql": "UPDATE adc2_agent_bindings SET active=0,epoch=epoch+1 WHERE id=? AND active=1",
+   "sha256": "6c664f5d3d4059a01ff442655e9e5d607bb428f7ad6264e0480e9113b6e8eca7"
+  },
+  {
+   "sql": "UPDATE adc2_agent_tokens SET revoked_at=? WHERE token_hash=? AND revoked_at IS NULL",
+   "sha256": "3d09cdf605dff41aa72cb45c24ecd227ad070612e4f0d90ae5dbf32cb8719987"
+  },
+  {
+   "sql": "UPDATE adc2_attention_reservations SET consumed_ms=? WHERE session_id=? AND window_id=? AND consumed_ms IS NULL",
+   "sha256": "e009b2c0ba531bcf3ed706e4cb00dbac69621add8e21315e0498c11187b3e0aa"
+  },
+  {
+   "sql": "UPDATE adc2_attention_sessions SET state='closed',settlement_hash=? WHERE id=? AND state='active'",
+   "sha256": "9ab7a8666e287ca2bd4eb9d72cac1c6048dcb52632e69a58b63395543d16b87e"
+  },
+  {
+   "sql": "UPDATE adc2_attention_windows SET started_sessions=?,reserved_ms=?,observed_ms=?,version=version+1 WHERE id=? AND version=?",
+   "sha256": "fcf0bc9fd1d740950841e2da0ec3e59ea1d6d9c696c358139aa73ac879cd2d06"
+  },
+  {
+   "sql": "UPDATE adc2_authority_guards SET epoch=epoch+1 WHERE guard_id=?",
+   "sha256": "42232c6abb8ba354fa31a4d3a8f829011c70578847deb83e7282286570fabfd6"
+  },
+  {
+   "sql": "UPDATE adc2_authority_guards SET epoch=epoch+1,status='revoked' WHERE guard_id=? AND epoch=? AND status='active'",
+   "sha256": "26eec863d840645f417396762a4f483efe6b1000b6470903548060cc9aedf221"
+  },
+  {
+   "sql": "UPDATE adc2_budget_holds SET remaining_atoms=?,state=? WHERE id=?",
+   "sha256": "a048e976ba66d938909deb2a08fff43200eb80a7dcb5e6164037390d04b6f06a"
+  },
+  {
+   "sql": "UPDATE adc2_budget_windows SET reserved_atoms=?,spent_atoms=?,version=version+1 WHERE id=? AND version=?",
+   "sha256": "0da2dc5fab01333c68b708a81e59f9fc5d8a81abb516f71216e34d88350c0138"
+  },
+  {
+   "sql": "UPDATE adc2_campaign_experiments SET status=?,updated_at=? WHERE id=?",
+   "sha256": "0df0d94caf63a38c609614bb06a2ac65badbb31bd74d41efc78329cbbcb88708"
+  },
+  {
+   "sql": "UPDATE adc2_campaigns SET current_revision_id=?,state='draft',approval_status='unapproved',version=version+1,dispatch_epoch=dispatch_epoch+1 WHERE id=? AND version=?",
+   "sha256": "434e3f9ecca9ac40970f3750e0e5216c562068265939db693597ad578240ec8a"
+  },
+  {
+   "sql": "UPDATE adc2_campaigns SET state=?,approval_status=?,version=version+1,dispatch_epoch=?,funded=?,total_window_id=? WHERE id=? AND version=?",
+   "sha256": "66237a773a594fc7fa1cbc3c774aa91e2e8c987f926bf2c7e983973e002b4dc5"
+  },
+  {
+   "sql": "UPDATE adc2_commercial_control SET model_activation_enabled=? WHERE id=1",
+   "sha256": "eef01a712b5f996fe7a776a420bdcac5ac9b88f24ba170d4ea9993f7397fa31c"
+  },
+  {
+   "sql": "UPDATE adc2_executions SET status='refunded',finished_at=? WHERE id=? AND status='held'",
+   "sha256": "0db326614f51a918f76513ee14aa04b1285900c3a6946a8758bae1d8d5c38c9d"
+  },
+  {
+   "sql": "UPDATE adc2_executions SET status='settled',result_digest=?,finished_at=? WHERE id=? AND status='held'",
+   "sha256": "738ffcd4a0a2cb1561e2b379b8d059bc5d42d22a6311a5f0b890e0841b1e5b14"
+  },
+  {
+   "sql": "UPDATE adc2_exposure_sessions SET next_sequence=?,next_nonce=?,next_nonce_hash=?,first_signal_ms=?,last_signal_ms=?,last_elapsed_claim_ms=?,active_deadline_ms=?,collected_valid_ms=?,qualified_ms=?,version=version+1 WHERE id=? AND version=?",
+   "sha256": "58f96976937dd5db448fa34aaf915288a866583c1a1a6622d0136a9c0386f04e"
+  },
+  {
+   "sql": "UPDATE adc2_exposure_sessions SET state=?,cutoff_ms=?,version=version+1 WHERE id=? AND version=?",
+   "sha256": "c8e23bcfce88ceac72ca5e035a42c9cd9f7c73c25e1c74e2b35e4d306a9e74c3"
+  },
+  {
+   "sql": "UPDATE adc2_exposure_sessions SET state=?,version=version+1 WHERE id=? AND version=?",
+   "sha256": "4916837d0f0d5514dd7f76d27e40c2207e8bd9d9d371825eede9638f8c0256e0"
+  },
+  {
+   "sql": "UPDATE adc2_fiat_deposits SET status='confirmed',settled_at=? WHERE id=? AND status='pending'",
+   "sha256": "0f7cfdb2f14e67b47da5916bf9b294b39f8cc7b1194f928d3c639016a54a37d7"
+  },
+  {
+   "sql": "UPDATE adc2_fiat_deposits SET status='failed',settled_at=? WHERE id=? AND status='pending'",
+   "sha256": "5266bd8fd501fd8bf0b95b4b383ba4c01493f9eff067904ae0f4b6347b2cdbd2"
+  },
+  {
+   "sql": "UPDATE adc2_fresh_actions SET consumed_by_operation=? WHERE id=? AND consumed_by_operation IS NULL",
+   "sha256": "992567fe127f4d416028b2b09d7489a5a3478cad23aa592c51e1ae331622fd3a"
+  },
+  {
+   "sql": "UPDATE adc2_human_sessions SET revoked_at=? WHERE session_hash=? AND revoked_at IS NULL",
+   "sha256": "0ff0385eefa1e4e72c8e87deb03458318212cb940f09027064a60840f12213d8"
+  },
+  {
+   "sql": "UPDATE adc2_idempotency_records SET state='done',result_json=? WHERE scope_hash=? AND state='running'",
+   "sha256": "644f03cc06e5c72bbe5989bf6adcfb2e5db67d60cc47046604761ef595ee9c9c"
+  },
+  {
+   "sql": "UPDATE adc2_journals SET state='sealed' WHERE id=? AND state='pending'",
+   "sha256": "280dc92e9bc6549ee3fe843a5f713c654263aff22ca4605921aaee0efacc3ad1"
+  },
+  {
+   "sql": "UPDATE adc2_mandates SET revoked_at=? WHERE id=? AND revoked_at IS NULL",
+   "sha256": "5d5f4aa0b0307e7465a444ded03babde69a298d1d7d87383a11f4fef0e8aafd0"
+  },
+  {
+   "sql": "UPDATE adc2_mandates SET spent_atoms=GREATEST(0, spent_atoms-?) WHERE id=?",
+   "sha256": "85537becbef710d59b9e45ee9b5c59ebc6024930571e93d6ee27c6fc542dcb0f"
+  },
+  {
+   "sql": "UPDATE adc2_mandates SET spent_atoms=spent_atoms+? WHERE id=?",
+   "sha256": "2afc23890d6066e32736af7fb697eb86c249029ee032212088c875d76e0c8fb4"
+  },
+  {
+   "sql": "UPDATE adc2_memberships SET active=0,epoch=epoch+1 WHERE advertiser_id=? AND principal_id=? AND capability=? AND active=1",
+   "sha256": "976e557e58c18cff2f2bcc3b4d306bc21db169b9f14cf30f1c8ea562efb01937"
+  },
+  {
+   "sql": "UPDATE adc2_offers SET state=?,version=version+1 WHERE id=? AND version=?",
+   "sha256": "2a4014246c49c68a3ef9cccf970bcd470dd53340e7dbe4674c7f85e064970ca7"
+  },
+  {
+   "sql": "UPDATE adc2_onchain_withdrawals SET status=?,tx_hash=?,settled_at=? WHERE id=?",
+   "sha256": "87cafd71e4e91f6b459603f98ed6a22612ee7ca7258de2cd97e7b93b89b060b9"
+  },
+  {
+   "sql": "UPDATE adc2_operations SET state=?,resource_id=?,resource_type=?,receipt_id=?,review_deadline_ms=?,version=version+1 WHERE id=?",
+   "sha256": "bee6bcfb36de414bdd5fd630001c0af26c868a7e6095718ea9b0bb759dc443cc"
+  },
+  {
+   "sql": "UPDATE adc2_outbox SET lease_until_ms=? WHERE id=? AND state='leased' AND lease_owner=? AND generation=? AND lease_until_ms>?",
+   "sha256": "9925001dd00d748c824c0f0255014c332fa97657fc1bbfd026418dd9550431f4"
+  },
+  {
+   "sql": "UPDATE adc2_outbox SET state='done',lease_owner=NULL,lease_until_ms=NULL WHERE id=? AND state='leased' AND lease_owner=? AND generation=? AND lease_until_ms>?",
+   "sha256": "fe159cb22f5703949e85ce9f2b21dca216237ec372ac0840207f2af880a71230"
+  },
+  {
+   "sql": "UPDATE adc2_outbox SET state='leased',lease_owner=?,lease_until_ms=?,generation=generation+1,attempts=attempts+1 WHERE id=? AND generation=? AND state<>'done'",
+   "sha256": "b10e5c547468efd16fc7cfc1c53de2039783d19b5e6be0a4798e6fc0f62fb491"
+  },
+  {
+   "sql": "UPDATE adc2_outbox SET state='pending',lease_owner=NULL,lease_until_ms=NULL,generation=generation+1 WHERE id=? AND generation=?",
+   "sha256": "612adf3faa77bf07da5ed7b1fe21fd2f02d0b9ab26764c660385acbca21dfd11"
+  },
+  {
+   "sql": "UPDATE adc2_principals SET epoch=epoch+1 WHERE id=? RETURNING epoch",
+   "sha256": "697c584a028ff71013b5fdee7e886f2ac3f1c92c4b6f1beaaf49643da0ad2e72"
+  },
+  {
+   "sql": "UPDATE adc2_receipt_keys SET status=? WHERE kid=?",
+   "sha256": "5f7ae57abbd0b9850b195810cff9d1707e25e73818c9e90eee3b97cde0defeeb"
+  },
+  {
+   "sql": "UPDATE adc2_receipts SET signature_state='signed',key_id=?,jws=? WHERE id=? AND signature_state='pending'",
+   "sha256": "7f534d4dedd60448f907e227c277dd286df7c1db5d297002dac10ae0b4e7f84a"
+  },
+  {
+   "sql": "UPDATE adc2_relay_dispatches SET status='consented',consented_at=? WHERE id=? AND status='dispatched'",
+   "sha256": "644133508c67df71d7a43bb2a588cabd7dda460a76739f85ce3b21e794955c3a"
+  },
+  {
+   "sql": "UPDATE adc2_relay_dispatches SET status='expired' WHERE id=? AND status IN ('dispatched','consented')",
+   "sha256": "ab4cadfa990bcad1b1a9069e3e3061c7feb92c165f1e46f93ebaec673f7fe931"
+  },
+  {
+   "sql": "UPDATE adc2_relay_dispatches SET status='rejected' WHERE id=? AND status IN ('dispatched','consented')",
+   "sha256": "c2c4dd1621a7ccacfaaf5785e54c0c28ad5c4807cea1dea8a7c8f7a5ed37704d"
+  },
+  {
+   "sql": "UPDATE adc2_relay_dispatches SET status='settled',settled_at=? WHERE id=? AND status IN ('consented','viewed')",
+   "sha256": "53040077367a5a6b015a9e2f9470c445181e4842a918bbf73fe6acb7dff5fcae"
+  },
+  {
+   "sql": "UPDATE adc2_relay_dispatches SET status='viewed' WHERE id=? AND status='consented'",
+   "sha256": "824ddfa0abf19796c104d61e06ba3de2e75c70d97e02a0d23c1e01ab611d8acc"
+  },
+  {
+   "sql": "UPDATE adc2_relay_partners SET status='revoked',revoked_at=? WHERE id=? AND status<>'revoked'",
+   "sha256": "256b1abbc7269c9f52c2e1f905bbe9f7f8a02d4d1e81394c774f35f4814f25f2"
+  },
+  {
+   "sql": "UPDATE adc2_reporting_obligations SET state=?,current_revision=?,report_id=? WHERE id=?",
+   "sha256": "892669f0bc989bc078dc934e935b14dccdad92399e74308bf396136bf3a5bb8e"
+  },
+  {
+   "sql": "UPDATE adc2_review_appeals SET state=?,decision_reason=?,reviewer_id=?,decided_ms=?,version=version+1 WHERE id=? AND version=?",
+   "sha256": "6a6876f326ac751a595ac93a67b8c269cb927b570f2b60ac7223c4866ed4847f"
+  },
+  {
+   "sql": "UPDATE adc2_reviewer_credentials SET revoked_at=? WHERE token_hash=? AND revoked_at IS NULL",
+   "sha256": "edabd5533e962a3b0579d425985b6d6dbb5362a91637185c5bc35ef21dfc87cb"
+  },
+  {
+   "sql": "UPDATE adc2_reviews SET state=?,version=version+1,reviewer_id=?,evidence_id=?,reason_code=? WHERE id=? AND version=? AND state='pending'",
+   "sha256": "f47b011dac963987c748212d9e2e889c692e3d984e174ea5f7b99b743490a6ec"
+  },
+  {
+   "sql": "UPDATE adc2_schema SET version=9 WHERE id=1 AND version IN (1,2,3,4,5,6,7,8) AND environment='model' AND real_value=0",
+   "sha256": "40a57936cb0d490b56fc98477c85e12e502462f74884de1b85e5363ec396ded6"
+  },
+  {
+   "sql": "UPDATE adc2_stage_claims SET status='settled',settled_at=? WHERE id=? AND status IN ('claimed','verified')",
+   "sha256": "2bbda69cb0b98948c3fddaee387833d1bd9508d542e11df3b6270cf540099822"
   }
  ]
 }
