@@ -107,6 +107,9 @@ class Recorder:
     def __init__(self, root):
         pass
 
+    def check_base(self, role, release, state=None, force=False):
+        return None  # base checks have their own tests (test_service_deploy_base.py)
+
     def deploy(self, role, release):
         self.calls.append(('deploy', role, release))
         if self.fail:

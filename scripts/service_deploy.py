@@ -149,7 +149,12 @@ class Deployment:
             raise ValueError('release_symlink_refused')
         return path
 
-    def package(self, release):
+    def package(self, release, base=None):
+        """Copy the tree into a new release. BASE names the release this tree was overlaid on;
+        without it, AGENTCON_RELEASE_BASE or a release.json left in a copied release tree is used.
+        deploy refuses a release whose base is no longer the active one (11-09: overlays built on
+        a release that another session had replaced in the meantime reverted their work)."""
+        base = self.package_base(base)
         target = self.path(release)
         if target.exists():
             raise ValueError('release_already_exists')
@@ -189,8 +194,49 @@ class Deployment:
         for file in sorted(target.rglob('*')):
             if file.is_file() and '.venv' not in file.relative_to(target).parts:
                 hashes[str(file.relative_to(target))] = hashlib.sha256(file.read_bytes()).hexdigest()
-        atomic_json(target / 'release.json', {'release': release, 'created': time.time(), 'sha256': hashes})
-        return {'release': release, 'files': len(hashes)}
+        manifest = {'release': release, 'created': time.time(), 'sha256': hashes}
+        if base:
+            manifest['base'] = base
+        atomic_json(target / 'release.json', manifest)
+        return {'release': release, 'files': len(hashes), 'base': base}
+
+    def package_base(self, base=None):
+        if base is None:
+            base = os.environ.get('AGENTCON_RELEASE_BASE') or None
+        if base is None:
+            copied = self.root / 'release.json'
+            if copied.is_file() and not copied.is_symlink():
+                try:
+                    base = json.loads(copied.read_text()).get('release')
+                except (OSError, ValueError, AttributeError):
+                    base = None
+        if base is not None and (type(base) is not str or not RELEASE.fullmatch(base) or base in ('.', '..')):
+            raise ValueError('invalid_release_base')
+        return base
+
+    def release_base(self, release):
+        """The base recorded when RELEASE was packaged, or None (older releases recorded none)."""
+        try:
+            manifest = json.loads((self.path(release) / 'release.json').read_text())
+        except (OSError, ValueError):
+            return None
+        base = manifest.get('base') if isinstance(manifest, dict) else None
+        return base if type(base) is str else None
+
+    def check_base(self, role, release, state=None, force=False):
+        """Refuse RELEASE when it was built on a release that is not the active one of ROLE."""
+        base = self.release_base(release)
+        if base is None or force:
+            return base
+        state = state or self.state()
+        service = (state.get('services') or {}).get(role) or {}
+        active = service['slots'].get(service.get('active')) if 'slots' in service else service.get('release')
+        if isinstance(active, dict):
+            active = active.get('release')
+        if active is not None and base != active:
+            raise ValueError('release_base_mismatch: %s was built on %s but the active %s release is %s; '
+                             'repackage it on the active release (or pass --force-base)' % (release, base, role, active))
+        return base
 
     def verify_release(self, release):
         root = self.path(release)
@@ -401,13 +447,14 @@ class Deployment:
             time.sleep(1)
         return False
 
-    def deploy(self, role, release):
+    def deploy(self, role, release, force_base=False):
         if role not in PORTS:
             raise ValueError('web_service_required')
         with self.lock():
             state = self.state()
             if not state['managed'] or state['phase'] not in ('stable', 'retained'):
                 raise ValueError('stable_managed_state_required')
+            self.check_base(role, release, state, force_base)
             previous = json.loads(json.dumps(state))
             service = state['services'][role]
             old = service['active']
@@ -683,13 +730,14 @@ class Deployment:
             self.persist(state)
             return self.status()
 
-    def deploy_worker(self, role, release):
+    def deploy_worker(self, role, release, force_base=False):
         if role not in ('jobs', 'execution'):
             raise ValueError('worker_role_required')
         with self.lock():
             state = self.state()
             if not state['managed'] or state['phase'] not in ('stable', 'retained'):
                 raise ValueError('stable_managed_state_required')
+            self.check_base(role, release, state, force_base)
             old = state['services'][role]['release']
             self.verify_release(release)
             state['pending_worker'] = {'role': role, 'release': release, 'from_release': old,
@@ -873,7 +921,9 @@ def main():
     parser.add_argument('--root', default=str(Path(__file__).resolve().parents[1]))
     commands = parser.add_subparsers(dest='command', required=True)
     package = commands.add_parser('package'); package.add_argument('release')
+    package.add_argument('--base', help='the release this tree was overlaid on (deploy checks it is still active)')
     deploy = commands.add_parser('deploy'); deploy.add_argument('role', choices=PORTS); deploy.add_argument('release')
+    deploy.add_argument('--force-base', action='store_true', help='deploy although the release was built on a release that is no longer active')
     deploy.add_argument('--skip-gate', action='store_true', help='emergency only: deploy a frontend release without scripts.release_gate')
     deploy.add_argument('--no-prune', action='store_true', help='keep old releases after a successful deploy')
     rollback = commands.add_parser('rollback'); rollback.add_argument('role', choices=PORTS)
@@ -891,15 +941,19 @@ def main():
     cutover = commands.add_parser('cutover'); cutover.add_argument('release'); cutover.add_argument('--legacy-pid', type=int, required=True)
     worker = commands.add_parser('worker-deploy'); worker.add_argument('role', choices=('jobs', 'execution')); worker.add_argument('release')
     worker.add_argument('--no-prune', action='store_true', help='keep old releases after a successful deploy')
+    worker.add_argument('--force-base', action='store_true', help='deploy although the release was built on a release that is no longer active')
     args = parser.parse_args()
     manager = Deployment(args.root)
     if args.command == 'package':
         with manager.lock():
-            result = manager.package(args.release)
+            result = manager.package(args.release, args.base)
     elif args.command == 'deploy':
+        forced = {'force_base': True} if args.force_base else {}
+        if not args.force_base:
+            manager.check_base(args.role, args.release)  # before the gate's minute of tests; deploy checks again
         if args.role == 'frontend' and not args.skip_gate:
             release_gate(args.root, args.release)
-        result = manager.deploy(args.role, args.release)
+        result = manager.deploy(args.role, args.release, **forced)
         if not args.no_prune:
             result['pruned'] = manager.prune_after_deploy()
     elif args.command == 'rollback':
@@ -913,7 +967,7 @@ def main():
     elif args.command == 'cutover':
         result = manager.cutover(args.release, args.legacy_pid)
     elif args.command == 'worker-deploy':
-        result = manager.deploy_worker(args.role, args.release)
+        result = manager.deploy_worker(args.role, args.release, **({'force_base': True} if args.force_base else {}))
         if not args.no_prune:
             result['pruned'] = manager.prune_after_deploy()
     elif args.command == 'restart':

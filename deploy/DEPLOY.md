@@ -107,6 +107,17 @@ sudo docker compose cp gateway:/data/gateway.sqlite3 ./backup.sqlite3          #
 - 배포 뒤 점검(`verify_web`)은 로그인하지 않으므로 고객 화면의 데이터 읽기를 확인하지 못한다. 그래서 배포 전 점검이 필요하다.
 - 시험은 작업본의 `tests/`에서 가져온다. 아직 배포되지 않은 기능의 시험을 `TESTS` 목록의 파일에 넣지 않는다. 넣으면 그 기능이 없는 다른 세션의 릴리스가 점검에서 실패한다. 새 기능의 시험은 별도 파일에 둔다.
 
+## 기준 판 검사 (2026-11-09)
+릴리스는 활성 판에 파일을 얹어 만든다. 그사이 다른 세션이 활성 판을 바꾸면, 낡은 판 위에 만든 릴리스가 그 세션의 작업을 되돌린다(11-09 밤 여러 번 겹침). 그래서 배포 도구가 스스로 막는다.
+- 패키징할 때 기준 판을 `release.json`의 `base`에 남긴다. 다음 순서로 정한다.
+  - `package --base <판>`
+  - 환경 변수 `AGENTCON_RELEASE_BASE`
+  - 복사한 릴리스 사본에 남아 있는 `release.json`의 이름(`cp -cR`로 활성 판을 복사했다면 지우지 말 것)
+- `./agentcon deploy …`와 `worker-deploy …`는 기준 판이 지금 활성 판과 다르면 `release_base_mismatch`로 거부한다. 게이트 전에 한 번, 배포 잠금 안에서 한 번 더 본다.
+  - 활성 판 위에 다시 패키징하는 것이 원칙이다. 일부러 덮어쓸 때만 `--force-base`를 붙인다(예: frontend 판으로 admin을 다시 만들 때).
+- `base`가 없는 예전 릴리스와 되돌리기(`rollback`)는 검사하지 않는다.
+- 시험: `tests/test_service_deploy_base.py`
+
 ## 오래된 릴리스 정리 (2026-11-04)
 릴리스는 배포마다 `gateway-data/services/releases/`에 쌓이고 저절로 지워지지 않는다. 11-04에는 461개, `du` 기준 142GB였다. 그때 디스크 여유는 150GB였다.
 - `.venv`는 APFS 복제라서 실제로 차지하는 공간은 `du` 수치보다 작다. 크게 차지하는 것은 그대로 복사되는 `new/`다(릴리스마다 약 146MB).
