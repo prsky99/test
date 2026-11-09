@@ -37,6 +37,25 @@
 - `drop-public`은 기본 행 말고 데이터가 하나라도 있으면 거부한다. 지운 뒤 애플리케이션 검사를 돌린다.
 - `migrate`는 `ad_coin_v2` 스키마에 만들고 전후로 검사한다. 트리거를 다시 만드는 SQL을 손으로 돌릴 필요는 없다.
 
+## 0-1. 운영 DB 구조 변경은 사본 리허설부터 (2026-11-10 운영·SRE, 4c371fb5)
+
+v2 migrate 같은 운영 DB 구조 변경은 운영에서 실행하기 전에 사본 리허설을 거친다. 리허설은 운영 버전 코드로 앱 연결(트리거 불변 검사)까지 통과해야 한다. 05:38 장애와 같은 트리거 변경은 이 리허설에서 실패로 잡힌다. 운영 실행 직전에는 같은 명령으로 `check`를 한 번 더 돌린다. 절차는 `deploy/DATABASE_OPERATIONS.md`의 "운영 DB 구조 변경" 절에 있다.
+
+```bash
+.venv/bin/python -m scripts.db_change_rehearsal run --command "python -m scripts.ad_coin_v2_migrate migrate --dsn-file {dsn_file} --key-file {key_file} --i-have-approval"
+```
+
+## 0-2. v2 켜기 (A2): 운영 설정 파일은 `gateway-data/agentcon.env`
+
+- 세 줄을 넣는다.
+  - `AD_COIN_V2_ENABLED=1`
+  - `AD_COIN_V2_POOL_MAXIMUM=2`
+  - `AD_COIN_V2_KEY_DIR=/Users/kingstonelee/workspace/A2A_Discovery/gateway-data/ad_coin_v2_keys`
+- **키 폴더는 반드시 이 절대 경로여야 한다.** 상대 경로면 배포 버전마다 키가 달라진다.
+- 설정 검사: `.venv/bin/python scripts/agentcon_config.py --check --env-file gateway-data/agentcon.env`
+- 설정은 프로세스가 시작할 때 읽는다. 배포하거나 frontend를 재시작한 뒤에 적용된다.
+- 되돌리기: `AD_COIN_V2_ENABLED=0`으로 바꾸고 재시작한다. 표는 그대로 둔다.
+
 ## 1. 승인이 필요한 일 (사용자 결정)
 
 | # | 일 | 바뀌는 것 | 되돌리기 |
