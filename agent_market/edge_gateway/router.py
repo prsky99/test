@@ -1,5 +1,6 @@
 """Versioned execution APIs; no original bindings are returned to public callers."""
 from functools import wraps
+import logging
 from pathlib import Path
 import re
 
@@ -15,6 +16,7 @@ from .config import EdgeError, parse
 from .state import nonce
 
 SDK = Path(__file__).with_name('sdk.js')
+log = logging.getLogger(__name__)
 
 
 def errors(function):
@@ -25,8 +27,11 @@ def errors(function):
         except EdgeError as exc:
             return JSONResponse({'error_code': exc.code, 'message': 'The approved execution is unavailable.'},
                                 status_code=exc.status, headers={'Cache-Control': 'private, no-store'})
-        except Exception:
-            # Provider text, configuration paths and internal diagnostics stay private.
+        except Exception as exc:
+            # Provider text, configuration paths and internal diagnostics stay private: only the
+            # error class and store code reach the server log (11-10 00:36: a 503 left no cause).
+            log.warning('Edge gateway %s unavailable: %s %s', function.__name__, type(exc).__name__,
+                        getattr(exc, 'code', ''))
             return JSONResponse({'error_code': 'UNAVAILABLE', 'message': 'The execution state could not be confirmed.'},
                                 status_code=503, headers={'Cache-Control': 'private, no-store'})
     return wrapped

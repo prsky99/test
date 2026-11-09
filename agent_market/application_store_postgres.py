@@ -153,6 +153,9 @@ class ApplicationStoreError(StorageError, sqlite3.DatabaseError):
         ValueError.__init__(self, code)
 
 
+WRITER_RETRY_SECONDS = 0.25
+
+
 class WriterBusy(ApplicationStoreError):
     """The writer lock was not granted within lock_timeout; nothing was written.
 
@@ -234,7 +237,12 @@ class _LegacyConnection:
 
     def _execute_registered(self, sql, params=()):
         if sql == 'BEGIN IMMEDIATE' and params == ():
-            self._store._begin_direct()
+            # Nothing has been written when the writer lock times out, so one more try is safe.
+            # 11-10 05:24: a health check lost its observation ticket to a 1 s lock_timeout.
+            try: self._store._begin_direct()
+            except WriterBusy:
+                time.sleep(WRITER_RETRY_SECONDS)
+                self._store._begin_direct()
             return _Cursor()
         if type(sql) is str and sql.startswith('PRAGMA table_info(') and sql.endswith(')') and not params:
             table = sql[len('PRAGMA table_info('):-1]
@@ -280,7 +288,11 @@ class _LegacyConnection:
         return self
 
     def commit(self): self._store._finish_direct(True)
-    def rollback(self): self._store._finish_direct(False)
+    def rollback(self):
+        # BEGIN that failed already rolled its connection back; there is no session to end.
+        # Raising session_required here hid the real error (11-10 05:24 health check crash).
+        if not self._store._direct and not self._store._depth: return
+        self._store._finish_direct(False)
 
 
 class PostgresApplicationStore(PostgresCollectorMixin, PostgresFinanceMixin, PostgresConsumerMixin, PostgresSelectionMixin, Store):
@@ -597,13 +609,22 @@ class PostgresApplicationStore(PostgresCollectorMixin, PostgresFinanceMixin, Pos
                 raise ApplicationStoreError('connection_busy')
             self._owner, self._depth, self._failed = threading.get_ident(), 1, False
             try:
-                self._begin('BEGIN ISOLATION LEVEL REPEATABLE READ' if readonly else 'BEGIN', starting=True)
-                self._transaction_controls()
-                if readonly: self._native('SET TRANSACTION READ ONLY').close()
-                else:
-                    self._writer_lock()
-                    if not self._bootstrapping:
-                        self._native('LOCK TABLE resources,resources_fts,vec_outbox IN ROW EXCLUSIVE MODE').close()
+                for attempt in (0, 1):
+                    self._begin('BEGIN ISOLATION LEVEL REPEATABLE READ' if readonly else 'BEGIN', starting=True)
+                    self._transaction_controls()
+                    if readonly:
+                        self._native('SET TRANSACTION READ ONLY').close()
+                        break
+                    try: self._writer_lock()
+                    except WriterBusy:
+                        # The body has not run, so one more try is safe (11-10 00:36 edge observation 503).
+                        if attempt: raise
+                        self._connection.rollback()
+                        time.sleep(WRITER_RETRY_SECONDS)
+                        continue
+                    break
+                if not readonly and not self._bootstrapping:
+                    self._native('LOCK TABLE resources,resources_fts,vec_outbox IN ROW EXCLUSIVE MODE').close()
                 self._assert_deployment_gates()
                 if not self._bootstrapping: self._validate_native_invariants()
                 yield self._db
