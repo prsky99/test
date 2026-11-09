@@ -1,10 +1,10 @@
-"""Check whether directories that read the official MCP Registry list Agent Concierge (read-only, one GET each).
+"""Check whether directories list Agent Concierge (read-only, one GET each): MCP Registry readers and A2A directories.
 
     .venv/bin/python -m scripts.directory_presence            # prints and appends one JSON line
     .venv/bin/python -m scripts.directory_presence --no-log
 
 Appends to logs/growth/directory-presence.jsonl so the date each listing appeared can be compared
-with the traffic counts (agent_market/concierge/traffic.py). Five public pages, once a day at most.
+with the traffic counts (agent_market/concierge/traffic.py). Seven public pages, once a day at most.
 """
 import argparse
 import json
@@ -22,6 +22,9 @@ CHECKS = [
     ('pulsemcp', 'https://www.pulsemcp.com/servers?q=agent+concierge', r'agentconcierge|biz\.agentconcierge'),
     ('mcpservers_org', 'https://mcpservers.org/search?query=agent+concierge', r'agentconcierge'),
     ('mcp_so', 'https://mcp.so/search?q=agent+concierge', r'agentconcierge'),
+    # A2A directories (submitted 11-10): the registry's public API and the directory's agent page
+    ('a2a_registry', 'https://a2aregistry.org/api/agents?search=agent+concierge', r'"wellKnownURI"\s*:\s*"https://agentconcierge\.biz/'),
+    ('a2a_directory', 'https://a2a.directory/agents/agent-concierge', r'agentconcierge\.biz/\.well-known/agent-card\.json'),
 ]
 
 

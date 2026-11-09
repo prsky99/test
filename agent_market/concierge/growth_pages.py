@@ -552,6 +552,9 @@ def growth_router():
     from .growth_catalog import install
     install(router, page_headers, not_found)
 
+    from . import plugin_dist
+    plugin_dist.install(router)
+
     key = indexnow_key()
     if key:
         @router.get('/'+key+'.txt', include_in_schema=False)

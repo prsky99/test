@@ -9,7 +9,7 @@
 |---|---|---|---|---|
 | PyPI | `agent-concierge` | 비어 있음(404) | pypi.org 계정, 2단계 인증, API 토큰 | 휠과 소스 묶음 빌드, 설치·가져오기 확인 |
 | npm | `agent-concierge` | 비어 있음(404) | npmjs.com 계정, 2단계 인증 | `npm test` 통과, `npm pack` 묶음 4개 파일 |
-| Claude Code 플러그인 | `agent-concierge` | 해당 없음 | 우리 사이트에 파일 두 개 공개 | zip과 마켓플레이스 파일, `claude plugin validate` 통과 |
+| Claude Code 플러그인 | `agent-concierge` | 해당 없음 | 우리 사이트에 파일 두 개 공개(11-10 PM 승인) | 우리 사이트에서 제공. 플러그인 `claude plugin validate` 통과 |
 
 같은 이름이 먼저 등록되면 쓸 수 없습니다. 게시를 정하면 이름부터 먼저 등록하는 편이 안전합니다.
 
@@ -59,7 +59,8 @@ HTTPS 주소로 추가하면 Claude Code는 `marketplace.json`만 받습니다. 
 ```
 
 - 플러그인이 하는 일: 원격 MCP 서버 `https://agentconcierge.biz/mcp` 를 연결하고, 과업으로 에이전트를 찾는 스킬 하나를 더합니다.
-- 공개하려면 frontend에 경로 두 개를 넣어 배포해야 합니다. 자체 사이트 공개도 외부 공개이므로 승인 뒤에 합니다.
+- 11-10 PM 승인으로 공개했습니다. `agent_market/concierge/plugin_dist.py`가 `claude_plugin/`(integrations 사본, 시험으로 같은지 확인)에서 매번 같은 바이트의 zip을 만들고, `marketplace.json`에 그 sha256을 넣습니다.
+- `archive` 출처는 Claude Code v2.1.224 이상에서 됩니다(문서 기준). 이 맥의 2.1.89 검증기는 마켓플레이스 파일을 거부하고, 플러그인 자체는 통과합니다. 옛 버전 사용자는 `/connect`의 `claude mcp add` 한 줄을 쓰면 됩니다.
 - npm 패키지로 게시하는 방법도 있습니다(`"source": "npm"`). npm 계정이 생기면 함께 쓸 수 있습니다.
 - Anthropic 공식 디렉터리(claude.ai/directory)는 다음 조건이 필요해 지금은 해당하지 않습니다.
   - 플러그인을 담은 GitHub 저장소
@@ -77,4 +78,4 @@ HTTPS 주소로 추가하면 Claude Code는 `marketplace.json`만 받습니다. 
 ## 확인하지 못한 것
 
 - LangChain, CrewAI, OpenAI Agents SDK 선택 의존성을 실제로 설치해서 돌려 보지는 않았습니다. 시험은 가짜 응답으로 했습니다.
-- 자체 호스팅 마켓플레이스로 실제 `/plugin install`을 해 보지는 않았습니다. 아직 공개 주소가 없기 때문입니다.
+- 자체 호스팅 마켓플레이스로 실제 `/plugin install`은 해 보지 않았습니다. 이 맥의 Claude Code(2.1.89)가 `archive` 출처를 지원하지 않습니다.

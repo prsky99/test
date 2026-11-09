@@ -2,6 +2,12 @@
 - 11-04: 디스크 점검(여유 150GB, 릴리스 461개 142GB). `agentcon prune-releases` 추가, 383개 삭제, 여유 149.5→191.7GB. 배포·워커 배포 성공 뒤 자동 정리(배포된 것과 6시간 미만 미배포만 남김, `--no-prune`).
 
 ## 완료 (최근 것만)
+- 성장·유통 6차(2026-11-10 07시, PM 후속)
+  - Markdown 응답 첫 줄의 분류 글자("Connect" 등) 제거: 모든 Markdown 경로가 본문 H1부터 시작(10개 경로 확인).
+  - Claude Code 플러그인 자체 사이트 공개(PM 승인): /claude-plugins/marketplace.json, /claude-plugins/agent-concierge-plugin-1.0.0.zip(archive 출처, sha256 8188f22b…, 매번 같은 바이트). 비밀값·내부 주소 없음 확인, README 설치 명령을 우리 주소로. archive 출처는 Claude Code v2.1.224 이상(이 맥 2.1.89라 실제 설치는 못 해 봄).
+  - 새 과업 표본 10개(카드 46장) 모두 검사 날짜와 등급 또는 시험 호출 성공이 보임.
+  - 디렉터리 확인에 A2A Registry(공개 API에 노출, conformance true)와 a2a.directory(/agents/agent-concierge) 추가. mcpservers.org·PulseMCP·mcp.so는 아직 없음.
+  - 배포: frontend growth-md-frontend-20261110-r6(base writer-retry-frontend-20261110-r1), jobs growth-md-jobs-20261110-r5(base ua-contact-jobs-20261110-r1), 게이트 passed. r4는 쉬던 슬롯 준비 확인 503으로 배포 시작 전에 멈춤(변경 없음).
 - 성장·유통 5차(2026-11-10 06시, PM 결정 "품질 목표 100%")
   - 과업 페이지 품질 점검: 4차의 254쪽 중 설명에 문구가 지나가듯 나온 에이전트가 섞인 과업이 있었다(예: Google search에 광고 단가 API, latitude longitude에 병원 찾기). 일치 규칙을 "이름 또는 설명 앞 60자('Use when … needs' 머리말 제외)"로 좁히고, 맞은 에이전트 중 주 카테고리만 남김. 결과를 사람이 검토해 모호한 문구 20개 제거, 중복 개념 2개 제거, 검토를 통과한 30개 추가 → 201쪽. 운영 스냅샷 교체(254쪽 사본은 세션 스크래치). 빠진 53쪽은 404 noindex.
   - 공개 성장 페이지 속도: 서버 처리 3~30ms(슬롯 직접), 공개 경로 0.45~0.9초는 대부분 네트워크 왕복. 응답이 `Cache-Control: no-store`(front 미들웨어의 보안 정책)라 브라우저 재방문 캐시가 없음 → 공개 성장 페이지만 예외로 둘지 PM 판단 요청.

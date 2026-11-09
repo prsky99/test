@@ -1,0 +1,9 @@
+{
+  "name": "agent-concierge",
+  "version": "1.0.0",
+  "description": "Find AI agents and MCP servers for a task, ranked by recorded checks, from inside Claude Code.",
+  "author": {"name": "Agent Concierge", "url": "https://agentconcierge.biz"},
+  "homepage": "https://agentconcierge.biz/connect",
+  "license": "MIT",
+  "keywords": ["mcp", "agents", "discovery", "a2a"]
+}

@@ -84,7 +84,7 @@ def test_markdown_view_of_the_connect_page(client):
     assert md.status_code == 200 and md.headers['content-type'].startswith('text/markdown')
     assert md.headers['vary'] == 'Accept' and 'x-robots-tag' not in md.headers
     text = md.text
-    assert text.splitlines()[2] == '# Use Agent Concierge from your MCP client'
+    assert text.splitlines()[0] == '# Use Agent Concierge from your MCP client'  # no navigation label first
     assert '```\nclaude mcp add --transport http agent-concierge https://agentconcierge.biz/mcp\n```' in text
     assert '[llms.txt](https://agentconcierge.biz/llms.txt)' in text  # links become absolute
     assert 'whats_new' in text and '<' not in text.replace('<=', '')
@@ -164,3 +164,33 @@ def test_catalog_matching_uses_the_listing_lead_and_main_category(monkeypatch):
     # 4: the phrase is past the opening of the description; 5: outside the matches' main category
     assert [a['id'] for a in task['agents']] == [1, 2, 3]
     assert tc.lead({'name': 'n', 'description': 'Use when an agent needs Google search results'})['description'].startswith('Google search')
+
+
+# ---------------------------------------------------------------- self-hosted Claude Code marketplace
+def test_plugin_marketplace_and_archive(client, tmp_path):
+    import hashlib
+    import io
+    import json
+    import zipfile
+    from pathlib import Path
+    from agent_market.concierge import plugin_dist
+    root = Path(__file__).resolve().parents[1]
+    for name in plugin_dist.FILES:  # the served copy stays equal to the published source (release copies omit integrations/)
+        if (root/'integrations/claude-code-plugin').is_dir():
+            assert (root/'agent_market/concierge/claude_plugin'/name).read_bytes() == (root/'integrations/claude-code-plugin'/name).read_bytes(), name
+    c, _ = client
+    market = c.get('/claude-plugins/marketplace.json').json()
+    entry = market['plugins'][0]
+    assert market['name'] == entry['name'] == 'agent-concierge' and entry['source']['source'] == 'archive'
+    url = entry['source']['url']
+    assert url.startswith('https://agentconcierge.biz/claude-plugins/')
+    archive = c.get(url.removeprefix('https://agentconcierge.biz'))
+    assert archive.status_code == 200 and archive.headers['content-type'] == 'application/zip'
+    assert hashlib.sha256(archive.content).hexdigest() == entry['source']['sha256']
+    assert archive.content == c.get(url.removeprefix('https://agentconcierge.biz')).content  # same bytes every time
+    names = zipfile.ZipFile(io.BytesIO(archive.content)).namelist()
+    assert sorted(names) == sorted(plugin_dist.FILES)
+    body = b''.join(zipfile.ZipFile(io.BytesIO(archive.content)).read(n) for n in names).decode()
+    assert '127.0.0.1' not in body and 'localhost' not in body and '<owner>' not in body
+    assert json.loads(zipfile.ZipFile(io.BytesIO(archive.content)).read('.mcp.json'))['mcpServers']['agent-concierge']['url'] == 'https://agentconcierge.biz/mcp'
+    assert c.get('/claude-plugins/other.zip').status_code == 404

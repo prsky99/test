@@ -28,6 +28,8 @@ class _Converter(HTMLParser):
         self.in_title = False
         self.canonical = None
         self.noindex = False
+        self.eyebrow = False   # inside the small label above a page heading
+        self.seen_heading = False
 
     def flush(self):
         text = re.sub(r'[ \t]+', ' ', self.line).strip()
@@ -59,11 +61,15 @@ class _Converter(HTMLParser):
         classes = (attrs.get('class') or '').split()
         if self.pre is not None:
             return
+        if tag == 'p' and 'eyebrow' in classes and not self.seen_heading:
+            self.eyebrow = True  # the page heading's category label repeats navigation, not content
+            return
         if tag == 'pre':
             self.blank()
             self.pre = ''
         elif tag in ('h1', 'h2', 'h3', 'h4'):
             self.blank()
+            self.seen_heading = True
             self.line = '#'*int(tag[1])+' '
         elif tag == 'li' or attrs.get('role') == 'listitem':
             self.flush()
@@ -106,6 +112,10 @@ class _Converter(HTMLParser):
             if tag in SKIP:
                 self.skip -= 1
             return
+        if self.eyebrow:
+            if tag == 'p':
+                self.eyebrow = False
+            return
         if tag == 'pre' and self.pre is not None:
             self.lines += ['```', *self.pre.strip('\n').split('\n'), '```', '']
             self.pre = None
@@ -139,7 +149,7 @@ class _Converter(HTMLParser):
     def handle_data(self, data):
         if self.in_title:
             self.title += data
-        if not self.in_main or self.skip:
+        if not self.in_main or self.skip or self.eyebrow:
             return
         if self.pre is not None:
             self.pre += data
