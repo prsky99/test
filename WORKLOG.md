@@ -554,3 +554,12 @@
 - migrate 도구에 사전·사후 앱 검사를 넣었다.
 - public-status와 drop-public 추가: 운영 public에 남은 빈 표 54, 함수 5, 기본 행 3을 정리한다. 기본 행 말고 데이터가 있으면 거부한다.
 - 시험으로 장애를 재현(schema_invariants_mismatch)하고, 고친 뒤 앱이 열리는 것을 확인했다. AD Coin 시험 405개 통과. 역할 DDL 기본 스키마도 public에서 ad_coin_v2로 바꿨다.
+
+## 2026-11-10 AI AD Coin 팀: 공개 약관·정책 페이지에 AD Coin 운영 방식 반영(사용자 지시)
+- new/en 정책 문구가 들어 있는 33개 페이지에 같은 내용을 넣었다.
+  - Terms: Points, Sponsored content and advertisers, Fair use
+  - Privacy: Sponsored 영역은 로그인·쿠키·개인정보 미사용, 광고 선택·동의·노출 기록, 보안 기록 90일, 포인트·코인 기록 5년
+  - Cookies: Sponsored 영역 쿠키 없음
+  - AI 공시: Sponsored는 추천과 분리, Chat 답변에 광고·가격 없음
+- 갱신일을 Updated November 10, 2026으로 바꾸고, "Design layout preview" 개발 문구를 시행일로 바꿨다.
+- 교환 상수(10 points=1 크레딧, 1회 10, 월 50)를 코드에 두고 약관 문구와 시험으로 묶었다. 공개 문구 검사 342개 위반 0, new/en 관련 시험 367개 통과.

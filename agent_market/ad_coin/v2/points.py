@@ -24,6 +24,11 @@ BENEFITS = {
     str(uuid5(NAMESPACE_URL, "https://agentconcierge.biz/ad-coin/benefit/workspace-boost")): "workspace_boost",
 }
 
+# Points -> workspace credits (docs/AD_COIN_BENEFITS.md, approved 11-10). Code constants, stated in the public terms.
+POINTS_PER_WORKSPACE_CREDIT = 10
+MAX_CREDITS_PER_EXCHANGE = 10
+MAX_CREDITS_PER_MONTH = 50
+
 # Account purposes that hold a person's points, and an advertiser's coins.
 PERSONAL_PURPOSES = frozenset(("user_available", "user_locked"))
 ADVERTISER_PURPOSES = frozenset(("advertiser_available",))
