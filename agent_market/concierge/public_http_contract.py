@@ -1,6 +1,7 @@
 """Bounded REST error normalization and explicit public conditional reads.
 
-Protocol-native envelopes, credentials and HTML remain outside shared caching.
+Protocol-native envelopes and credentialed requests remain outside shared caching. HTML is shared
+only for the login-free public growth pages (GROWTH_PAGES, 11-10).
 """
 import hashlib
 import json
@@ -19,6 +20,14 @@ PUBLIC_READS = frozenset(('/api/overview','/api/insights','/api/explore','/api/w
 EDGE_DOCUMENTS = frozenset(('/robots.txt','/sitemap.xml','/llms.txt','/llms-full.txt',
     '/.well-known/agent-card.json','/.well-known/mcp.json','/.well-known/mcp/server.json',
     '/.well-known/security.txt','/security.txt'))
+# Public growth pages (11-10 PM approval): login-free, never personalized HTML/Markdown/JSON. Browsers
+# and the edge may keep them for five minutes and serve a stale copy while refreshing for ten.
+GROWTH_PAGES = frozenset(('/connect','/agents/tasks','/agents/best','/badges','/reports/state-of-ai-agents',
+    '/claude-plugins/marketplace.json'))
+GROWTH_PREFIXES = ('/agents/task/','/agents/best/','/agent/','/agents/compare/','/reports/state-of-ai-agents/',
+    '/claude-plugins/')
+GROWTH_CACHE = 'public, max-age=300, stale-while-revalidate=600'
+ANALYTICS_COOKIES = ('_ga','_gid','_gcl')
 TITLES = {400:'Bad request',401:'Authentication required',403:'Forbidden',404:'Not found',
     405:'Method not allowed',408:'Request timed out',409:'Conflict',413:'Payload too large',
     422:'Invalid request',429:'Too many requests',500:'Request failed',502:'Provider unavailable',
@@ -41,8 +50,25 @@ def problem_document(body, status, method):
     return value
 
 
+def growth_path(path):
+    return path in GROWTH_PAGES or path.startswith(GROWTH_PREFIXES)
+
+
 def shared_path(path):
-    return path in PUBLIC_READS or path.startswith('/api/workflows/templates/')
+    return path in PUBLIC_READS or path.startswith('/api/workflows/templates/') or growth_path(path)
+
+
+def _session_cookie(header):
+    """True when the Cookie header carries anything besides analytics cookies (which change no page)."""
+    names=[part.split('=',1)[0].strip() for part in (header or '').split(';') if part.strip()]
+    return any(not name.startswith(ANALYTICS_COOKIES) for name in names)
+
+
+def _credentials(request,path):
+    keys=('authorization','x-visitor-token','signature','signature-agent')
+    if any(request.get(key) for key in keys):
+        return True
+    return _session_cookie(request.get('cookie')) if growth_path(path) else bool(request.get('cookie'))
 
 
 class PublicHTTPContract:
@@ -52,8 +78,7 @@ class PublicHTTPContract:
         if scope['type']!='http':return await self.app(scope,receive,send)
         path,method=scope['path'],scope['method'];request=Headers(scope=scope)
         rest=(path.startswith('/api/') or path in ('/chat','/unsubscribe'))
-        cache=method in ('GET','HEAD') and shared_path(path) and not any(
-            request.get(key) for key in ('authorization','cookie','x-visitor-token','signature','signature-agent'))
+        cache=method in ('GET','HEAD') and shared_path(path) and not _credentials(request,path)
         sink={};token=_QUOTA_SINK.set(sink)
         start=None;parts=[];size=0;passthrough=False
 
@@ -90,7 +115,13 @@ class PublicHTTPContract:
                     if status==429:headers.setdefault('Retry-After','60')
             if cache and status in (200,304) and 'set-cookie' not in headers:
                 headers['cache-control']=('public, max-age=30, s-maxage=600, stale-while-revalidate=3600'
-                    if path in EDGE_DOCUMENTS else 'public, max-age=30, stale-while-revalidate=30')
+                    if path in EDGE_DOCUMENTS else GROWTH_CACHE if growth_path(path)
+                    else 'public, max-age=30, stale-while-revalidate=30')
+                if growth_path(path):  # the same URL answers HTML or Markdown by Accept
+                    vary=[v.strip() for v in headers.get('vary','').split(',') if v.strip()]
+                    for name in ('Accept','Accept-Encoding'):
+                        if name.lower() not in (v.lower() for v in vary):vary.append(name)
+                    headers['vary']=', '.join(vary)
                 if status==200 and method=='GET':
                     tag=headers.get('etag') or '"'+hashlib.sha256(body).hexdigest()[:24]+'"'
                     tag='W/'+tag if not tag.startswith('W/') else tag

@@ -291,13 +291,19 @@ def client_settings(url=MCP_URL, name=SERVER_NAME):
     ]
 
 
+PLUGIN_NOTE = ('<p class="caption">Plugin (Claude Code 2.1.224 or later)</p><pre tabindex="0"><code>'
+               '/plugin marketplace add '+ORIGIN+'/claude-plugins/marketplace.json\n'
+               '/plugin install agent-concierge@agent-concierge</code></pre>'
+               '<p>The plugin adds the same server and a find-agent skill. Older versions: use the command above.</p>')
+
+
 def connect_page():
     blocks = []
     for key, label, note, snippets in client_settings():
         parts = ''.join('<p class="caption">'+esc(caption)+'</p><pre tabindex="0"><code>'+esc(text)+'</code></pre>'
                         for caption, text in snippets)
         extra = ('<div class="actions"><a class="btn primary" href="'+esc(cursor_link())+'">Add to Cursor</a></div>'
-                 if key == 'cursor' else '')
+                 if key == 'cursor' else PLUGIN_NOTE if key == 'claude-code' else '')
         blocks.append('<section class="card stack" id="'+key+'" aria-labelledby="'+key+'-h"><h2 id="'+key+'-h">'+esc(label)+'</h2>'
                       '<p>'+esc(note)+'</p>'+parts+extra+'</section>')
     tools = ('<section class="card stack" aria-labelledby="tools-h"><h2 id="tools-h">What the server offers</h2>'

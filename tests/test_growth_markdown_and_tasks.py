@@ -194,3 +194,32 @@ def test_plugin_marketplace_and_archive(client, tmp_path):
     assert '127.0.0.1' not in body and 'localhost' not in body and '<owner>' not in body
     assert json.loads(zipfile.ZipFile(io.BytesIO(archive.content)).read('.mcp.json'))['mcpServers']['agent-concierge']['url'] == 'https://agentconcierge.biz/mcp'
     assert c.get('/claude-plugins/other.zip').status_code == 404
+
+
+# ---------------------------------------------------------------- public cache for growth pages (11-10)
+def test_public_growth_pages_are_cached_only_without_credentials(monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+    from tests.test_concierge import populated
+    from agent_market.concierge.front import create_front_app
+    monkeypatch.setenv('LOG_DIR', str(tmp_path))
+    (tmp_path/'public-pages').mkdir()
+    monkeypatch.setattr(g, 'SNAPSHOT', g.Snapshot())
+    write(tmp_path/'public-pages', snapshot())
+    c = TestClient(create_front_app(populated().app.state.front))
+    public = ['/connect', '/agents/tasks', '/agents/task/weather-forecast', '/badges', '/claude-plugins/marketplace.json']
+    for path in public:
+        r = c.get(path, headers={'Accept': 'text/html'})
+        assert r.status_code == 200 and r.headers['cache-control'] == 'public, max-age=300, stale-while-revalidate=600', path
+        assert 'accept' in r.headers['vary'].lower(), path
+        assert r.headers.get('etag') and r.headers['x-content-type-options'] == 'nosniff', path
+        assert c.get(path, headers={'Accept': 'text/html', 'If-None-Match': r.headers['etag']}).status_code == 304, path
+        assert c.get(path, headers={'Cookie': '_ga=GA1.1.1; _gid=GA1.1.2'}).headers['cache-control'].startswith('public'), path
+        for credential in ({'Cookie': 'acs_session=abc'}, {'Authorization': 'Bearer x'}, {'X-Visitor-Token': 'vt_x'}):
+            assert c.get(path, headers=credential).headers['cache-control'] == 'no-store', (path, credential)
+    md = c.get('/connect', headers={'Accept': 'text/markdown'})
+    assert md.headers['content-type'].startswith('text/markdown') and md.headers['cache-control'].startswith('public')
+    assert md.headers['etag'] != c.get('/connect', headers={'Accept': 'text/html'}).headers['etag']
+    assert c.get('/agents/task/none').headers['cache-control'] == 'no-store'  # errors are not shared
+    for path in ('/api/overview?x=1', '/mcp', '/new/en/workspace.html'):
+        assert 'max-age=300' not in c.get(path).headers.get('cache-control', ''), path
+    assert 'Claude Code 2.1.224 or later' in c.get('/connect').text

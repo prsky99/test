@@ -132,3 +132,17 @@ def test_without_log_dir_nothing_is_written(tmp_path, monkeypatch):
     t.flush()
     assert t.root is None and t.snapshot()['requests'] == {'home|browser': 1}
     assert not any(tmp_path.rglob('*.json'))
+
+
+def test_growth_pages_are_counted_by_family_and_bot(tmp_path):
+    from agent_market.concierge import traffic as t
+    assert [t.entry_of('GET', p) for p in ('/agents/task/x', '/agents/tasks', '/agent/12', '/agent/12/card.svg',
+            '/agents/best/finance', '/agents/compare/1-vs-2', '/reports/state-of-ai-agents', '/connect',
+            '/claude-plugins/marketplace.json')] == [
+        'tasks', 'tasks', 'agent_pages', 'agent_pages', 'rankings', 'rankings', 'reports', 'connect', 'connect']
+    rec = t.Traffic(tmp_path)
+    rec.observe('GET', '/agents/task/x', 200, '203.0.113.9', 'Mozilla/5.0 (compatible; bingbot/2.0)')
+    rec.observe('GET', '/agent/5', 200, '203.0.113.9', 'Mozilla/5.0 (compatible; Googlebot/2.1)')
+    rec.flush()
+    day = t.summarize(tmp_path, 1)[-1]
+    assert day['growth_bot'] == 2

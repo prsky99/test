@@ -75,6 +75,17 @@ def entry_of(method, path):
         return 'workspace'
     if path.startswith('/api/'):
         return 'api_other'
+    # Public growth pages (11-10): counted by family so crawler visits can stand in for index progress.
+    if path == '/agents/tasks' or path.startswith('/agents/task/'):
+        return 'tasks'
+    if path.startswith('/agent/'):
+        return 'agent_pages'
+    if path == '/agents/best' or path.startswith(('/agents/best/', '/agents/compare/')):
+        return 'rankings'
+    if path.startswith('/reports/'):
+        return 'reports'
+    if path in ('/connect', '/badges') or path.startswith('/claude-plugins/'):
+        return 'connect'
     return None
 
 
@@ -238,6 +249,9 @@ def load_day(root, day):
     return merged
 
 
+GROWTH_ENTRIES = ('tasks', 'agent_pages', 'rankings', 'reports', 'connect')
+
+
 def summarize(root, days=7, today=None):
     today = today or datetime.now(timezone.utc).date()
     rows = []
@@ -257,6 +271,8 @@ def summarize(root, days=7, today=None):
             'ai_bot_google': sum(v for k, v in d['bots'].items() if k.split('|')[0].startswith('Google')),
             'human_pages': get(req, ('home', 'page'), ('browser',)),
             'human_visitors': get(dist, ('home', 'page'), ('browser',)),
+            'growth_bot': sum(v for k, v in d['bots'].items() if k.split('|')[-1] in GROWTH_ENTRIES),
+            'growth_human': get(req, GROWTH_ENTRIES, ('browser',)),
             'internal': sum(v for k, v in req.items() if k.endswith('|internal')),
             'external': sum(v for k, v in req.items() if not k.endswith('|internal')),
         })
@@ -271,13 +287,19 @@ def main(argv):
     print('\t'.join(keys))
     for row in rows:
         print('\t'.join(str(row[k]) for k in keys))
-    names, bots = Counter(), Counter()
+    names, bots, growth = Counter(), Counter(), Counter()
     today = datetime.now(timezone.utc).date()
     for offset in range(days):
         d = load_day(root, (today - timedelta(days=offset)).isoformat())
-        names.update(d['mcp_clients']); bots.update({k.split('|')[0]: v for k, v in d['bots'].items()})
+        names.update(d['mcp_clients'])
+        for key, value in d['bots'].items():
+            bot, entry = key.split('|', 1)
+            bots[bot] += value
+            if entry in GROWTH_ENTRIES:
+                growth[bot + ' ' + entry] += value
     print('MCP clients:', dict(names.most_common(15)))
     print('Bots:', dict(bots.most_common(15)))
+    print('Growth pages by bot:', dict(growth.most_common(20)))
 
 
 if __name__ == '__main__':
