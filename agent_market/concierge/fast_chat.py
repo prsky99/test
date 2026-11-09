@@ -1,5 +1,6 @@
 """Up to three concise choices, selected only from recorded verification data."""
 import re
+import threading
 import time
 from datetime import datetime, timezone
 
@@ -175,19 +176,82 @@ CHOICE_CLOSENESS = 0.70
 CHOICE_LEAD = ('Not sure which of these fits your task. Choose one, or say more about what the agent should do.\n\n')
 
 
+STRONG_PAUSE = 60.0        # seconds the stronger model is skipped after a failure
+STRONG_WARMUP_BUDGET = 30.0  # a load takes about 6 s; the warm-up runs off the request path
+_strong_state = {'down_until': 0.0, 'warming': False, 'lock': threading.Lock()}
+
+
+def _warm_strong_model(http, url):
+    try:
+        http.post(url + '/api/embed', json={'model': STRONG_MODEL, 'input': ['warm up'], 'keep_alive': -1},
+                  timeout=STRONG_WARMUP_BUDGET)
+    except Exception:
+        pass
+    finally:
+        _strong_state['warming'] = False
+
+
 def strong_embeddings(engine, texts):
-    """Vectors from the stronger local model, or None (model missing, slow or failing)."""
+    """Vectors from the stronger local model, or None (model missing, slow or failing).
+
+    11-09: after Ollama unloaded the model, every request waited the full budget and cancelled
+    the 6 s reload, so it never loaded. A failure now pauses the model for STRONG_PAUSE and
+    reloads it in the background; requests meanwhile answer without it at once."""
     url = str(getattr(engine, 'ollama_url', '') or '').rstrip('/')
     http = getattr(engine, 'http', None)
     if not url or http is None or not getattr(engine, 'embeddings_enabled', False):
+        return None
+    if time.monotonic() < _strong_state['down_until']:
         return None
     try:
         response = http.post(url + '/api/embed', json={'model': STRONG_MODEL, 'input': texts, 'keep_alive': -1},
                              timeout=STRONG_BUDGET)
         vectors = response.json().get('embeddings') if response.status_code == 200 else None
     except Exception:
-        return None
-    return vectors if isinstance(vectors, list) and len(vectors) == len(texts) else None
+        vectors = None
+    if isinstance(vectors, list) and len(vectors) == len(texts):
+        return vectors
+    with _strong_state['lock']:
+        _strong_state['down_until'] = time.monotonic() + STRONG_PAUSE
+        start = not _strong_state['warming']
+        _strong_state['warming'] = True
+    if start:
+        threading.Thread(target=_warm_strong_model, args=(http, url), name='strong-embed-warmup', daemon=True).start()
+    return None
+
+
+NEXT_STEPS_BUDGET = 0.4   # seconds; the suggestions are optional, the answer is not
+NEXT_STEPS_TTL = 600.0
+_next_steps_cache = {}
+_next_steps_pool = None
+
+
+def bounded_next_steps(store, rid, tool, protocol, excluded):
+    """predict_next within NEXT_STEPS_BUDGET, cached per listing and tool (11-09: p50 0.6 s, max 4 s)."""
+    global _next_steps_pool
+    from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
+    from .inertia import InertiaGraph
+    key = (id(store), rid, tool, protocol)
+    cached = _next_steps_cache.get(key)
+    if cached is not None and time.monotonic() - cached[0] < NEXT_STEPS_TTL:
+        steps = cached[1]
+    else:
+        if _next_steps_pool is None:
+            _next_steps_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix='next-steps')
+        def predict():
+            found = InertiaGraph(store).predict_next(rid, tool, limit=2, protocol=protocol)
+            if len(_next_steps_cache) > 2048:
+                _next_steps_cache.clear()
+            _next_steps_cache[key] = (time.monotonic(), found)
+            return found
+        try:
+            steps = _next_steps_pool.submit(predict).result(timeout=NEXT_STEPS_BUDGET)
+        except FutureTimeout:
+            return []  # the prediction still finishes and fills the cache for the next answer
+        except Exception:
+            return []
+    excluded = set(excluded or ())
+    return [step for step in steps if step.get('resource_id') not in excluded]
 
 
 def _tool_doc(item):
@@ -303,6 +367,7 @@ def _subject_words(terms, item):
 
 
 SEMANTIC_SHORTLIST = 10
+FALLBACK_DEADLINE = 8.0  # seconds into a request after which the split and neighbor searches do not start
 SEMANTIC_BUDGET = 0.8  # seconds; past it the ranked order stands
 
 
@@ -573,7 +638,10 @@ class FastConcierge(Concierge):
                 if items:
                     focus = focus or narrowed
         parts = []
-        if not items:
+        # Past FALLBACK_DEADLINE the last fallbacks no longer start (11-09: split->narrow answers took
+        # 11.5-12.5 s); 3.5 and 5.0 s cut right answers (11-05), so only the long tail is cut.
+        late = lambda: time.monotonic() - started >= FALLBACK_DEADLINE
+        if not items and not late():
             # "weather data, a translator and a stock price feed": one match for each named capability.
             from .chat_guidance import separate_requests
             step('split')
@@ -584,10 +652,10 @@ class FastConcierge(Concierge):
                 if found:
                     items.append({**found[0], 'request_part': part[:120]})
                     parts.append(part[:120])
-        elif offset == 0:
+        elif items and offset == 0:
             step('cover')
             items, parts = self._cover_parts(task, items, protocol, excluded)
-        if not items and offset == 0:
+        if not items and offset == 0 and not late():
             # Last: the words the listings closest in meaning share, when the request's own words
             # never appear in them ("emotion analysis" -> listings that say "sentiment"; stage 2, 11-05).
             shared = neighbor_focus(self.store, getattr(self.rec, 'rag_engine', None), task, protocol)
@@ -643,14 +711,18 @@ class FastConcierge(Concierge):
             item['evidence'] = evidence(item)
         items = condition_first(task, items)
         if persist:
-            with self.book.batch():
-                self.book.save_results(v,[{**item,'task':task,'task_spec':spec.state(),'protocol_filter':protocol} for item in items],offset+len(items))
-                # Retain only the structured task state needed for subsequent requests.
-                self.book.remember_interest(v,task,items[0]['category'],protocol,None,items)
-        from .inertia import InertiaGraph
+            saved = [{**item,'task':task,'task_spec':spec.state(),'protocol_filter':protocol} for item in items]
+            listed, category = list(items), items[0]['category']
+            def remember():
+                with self.book.batch():
+                    self.book.save_results(v,saved,offset+len(listed))
+                    # Retain only the structured task state needed for subsequent requests.
+                    self.book.remember_interest(v,task,category,protocol,None,listed)
+            # The answer does not need these writes; the visitor's next read waits for them (11-09).
+            defer = getattr(self.book, 'defer', None)
+            defer(v.id, remember) if callable(defer) else remember()
         top_tool = (items[0].get('tools') or [''])[0]
-        next_steps = InertiaGraph(self.store).predict_next(items[0]['id'], str(top_tool or ''), limit=2,
-            protocol=protocol, exclude=excluded)
+        next_steps = bounded_next_steps(self.store, items[0]['id'], str(top_tool or ''), protocol, excluded)
         continuation_plan = {
             'inspect_contract': {'command': 'details 1'},
             'more_candidates': {'command': 'more'},

@@ -14,6 +14,7 @@ import re
 import secrets
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
 from contextlib import ExitStack, contextmanager
@@ -107,6 +108,39 @@ class Visitor:
     nurture_stage: str = "onboarded"
     last_nurture_at: float | None = None
     extra: dict = field(default_factory=dict)
+
+
+DEFERRED_WAIT = 3.0  # seconds a read waits for this visitor's deferred writes
+_DEFERRED_WRITES = ThreadPoolExecutor(max_workers=2, thread_name_prefix='visitor-write')
+_DEFERRED_LOCAL = threading.local()
+
+
+def _deferred_state(book):
+    state = book.__dict__.get('_deferred_writes')
+    if state is None:
+        state = book.__dict__.setdefault('_deferred_writes', {'lock': threading.Lock(), 'pending': {}})
+    return state
+
+
+def _run_deferred(previous, write):
+    if previous is not None:
+        try:
+            previous.result(timeout=DEFERRED_WAIT)
+        except Exception:
+            pass
+    _DEFERRED_LOCAL.running = True
+    try:
+        write()
+    except Exception as exc:
+        logging.getLogger(__name__).warning('Deferred visitor write failed (%s)', type(exc).__name__)
+    finally:
+        _DEFERRED_LOCAL.running = False
+
+
+def _forget_deferred(state, vid, done):
+    with state['lock']:
+        if state['pending'].get(vid) is done:
+            del state['pending'][vid]
 
 
 class VisitorBook:
@@ -387,6 +421,30 @@ class VisitorBook:
         with self._hit_condition:
             return self._hit_worker is None and self._hit_queue.empty()
 
+    # ---------------- writes after the answer (11-09) ----------------
+    def defer(self, vid: str, write) -> None:
+        """Run WRITE after the answer is sent; this visitor's later reads wait for it first.
+
+        Chat answered only after saving results and interests (writer lock, up to seconds under
+        load); the next request ("details 1", "more") is what reads them, so it waits instead."""
+        state = _deferred_state(self)
+        with state['lock']:
+            previous = state['pending'].get(vid)
+            future = _DEFERRED_WRITES.submit(_run_deferred, previous, write)
+            state['pending'][vid] = future
+        future.add_done_callback(lambda done, vid=vid: _forget_deferred(state, vid, done))
+
+    def settle(self, vid: str) -> None:
+        """Wait (bounded) for this visitor's writes deferred by an earlier answer."""
+        if getattr(_DEFERRED_LOCAL, 'running', False):
+            return
+        future = _deferred_state(self)['pending'].get(vid)
+        if future is not None:
+            try:
+                future.result(timeout=DEFERRED_WAIT)
+            except Exception:
+                pass
+
     @contextmanager
     def batch(self):
         """One writer transaction for the visitor writes inside it on PostgreSQL, where each
@@ -430,11 +488,13 @@ class VisitorBook:
 
     def save_results(self, v: Visitor, results: list[dict], offset: int) -> None:
         """Remember the last recommendation list for "details 2" and "more"."""
+        self.settle(v.id)
         with _write(self.store) as db:
             db.execute("UPDATE agent_visitors SET last_results=?, last_offset=? WHERE id=?",
                        (json.dumps(results, ensure_ascii=False), offset, v.id))
 
     def last_results(self, vid: str) -> tuple[list[dict], int]:
+        self.settle(vid)
         rows = self.store.query("SELECT last_results, last_offset FROM agent_visitors WHERE id=? AND last_seen>=?", (vid, time.time()-MESSAGE_RETENTION))
         if not rows or not rows[0]["last_results"]:
             return [], 0
@@ -464,6 +524,7 @@ class VisitorBook:
     # ---------------- interests ----------------
     def remember_interest(self, v: Visitor, task: str, category: str, kind: str | None, auth_pref: str | None,
                           recommended: list[dict], hint: str | None = None) -> int:
+        self.settle(v.id)
         norm = " ".join(task.lower().split())[:200]
         now = time.time()
         rec = json.dumps([
@@ -494,6 +555,7 @@ class VisitorBook:
         return row["id"]
 
     def interests(self, vid: str, active_only: bool = True) -> list[dict]:
+        self.settle(vid)
         rows = self.store.query(f"SELECT * FROM agent_interests WHERE visitor_id=? AND updated>=? {'AND active=1' if active_only else ''} ORDER BY updated DESC",
                                 (vid,time.time()-MESSAGE_RETENTION))
         out = []
@@ -528,6 +590,7 @@ class VisitorBook:
             db.execute("INSERT OR REPLACE INTO agent_outcomes VALUES (?,?,?,?)", (v.id, resource_id, int(success), time.time()))
 
     def failed_resources(self, vid: str) -> set[int]:
+        self.settle(vid)
         return {r["resource_id"] for r in self.store.query(
             "SELECT resource_id FROM agent_outcomes WHERE visitor_id=? AND success=0", (vid,))}
 
