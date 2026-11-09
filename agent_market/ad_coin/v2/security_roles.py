@@ -35,7 +35,7 @@ def generate_role_setup_sql(
     app_password: str = "change_me_app_password",
     migrator_password: str = "change_me_migrator_password",
     readonly_password: str = "change_me_readonly_password",
-    schema: str = "public",
+    schema: str = "ad_coin_v2",  # v2 schema only; never grant on the application's public schema
 ) -> str:
     """Generate production PostgreSQL role separation DDL script."""
     return f"""-- AI AD Coin v2 PostgreSQL Role Separation Script

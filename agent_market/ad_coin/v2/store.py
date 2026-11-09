@@ -6,7 +6,7 @@ import threading
 
 from ..db import PooledPostgresDatabase
 from .contracts import ContractError, MAX_ATOMS, MODEL_ASSET
-from .schema import VERSION, statements
+from .schema import SCHEMA, VERSION, statements
 from .sql import SQL
 
 _SIGNED = re.compile(r"-?(?:0|[1-9][0-9]{0,77})\Z")
@@ -30,8 +30,20 @@ class ModelStore:
 
     @classmethod
     def postgres(cls, factory, maximum=6):
+        """Every session works in its own schema (SCHEMA), never in the application's public schema.
+
+        The application store refuses to start when the public schema holds triggers other than its
+        own (2026-11-10 outage), so v2 tables, functions and triggers live in SCHEMA.
+        """
+        def scoped():
+            connection = factory()
+            if connection.autocommit is not True:
+                connection.autocommit = True
+            connection.execute("SET search_path TO " + SCHEMA)
+            return connection
+
         return cls(
-            PooledPostgresDatabase(factory, maximum=maximum, require_migrated=False),
+            PooledPostgresDatabase(scoped, maximum=maximum, require_migrated=False),
             "postgres",
         )
 

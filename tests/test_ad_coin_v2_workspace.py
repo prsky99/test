@@ -170,14 +170,14 @@ def test_schema_three_upgrade_adds_indexes_without_changing_balances(workspace):
             )
     raw(database, "UPDATE adc2_schema SET version=3 WHERE id=1")
     database.migrate_model()
-    from agent_market.ad_coin.v2.schema import VERSION
+    from agent_market.ad_coin.v2.schema import SCHEMA, VERSION
 
     assert database.one("schema_get")["version"] == VERSION
     for sql in INDEXES:
         rows = raw(
             database,
             "SELECT indexdef FROM pg_indexes WHERE schemaname=? AND indexname=?",
-            ("public", sql.split()[5]),
+            (SCHEMA, sql.split()[5]),
         )
         assert len(rows) == 1
     assert suite.service.ledger.audit() == before

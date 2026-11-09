@@ -4,11 +4,44 @@
 - **목적:** v2를 운영에 연결하는 데 필요한 것을 한곳에 모은다. **아직 아무것도 실행하지 않았다.** 운영 DB 변경은 총괄 PM을 거쳐 사용자 승인을 받은 뒤에만 한다.
 - **연결하면 열리는 범위:** 무상 활동 포인트 모드(`docs/AD_COIN_POINTS_MODE.md`)와 Sponsored 영역(`docs/AD_COIN_SPONSORED_SLOT.md`). 실가치 경로(`AD_COIN_REAL_VALUE_ENABLED`)는 계속 꺼 둔다.
 
+## 0. 2026-11-10 장애와 바뀐 점 (먼저 읽을 것)
+
+- **장애:** 05:38에 첫 migrate가 v2 표와 트리거를 애플리케이션의 `public` 스키마에 만들었다. 애플리케이션 저장소는 연결할 때마다 `public`의 트리거가 자기 것 5개와 정확히 같은지 검사한다(`_validate_native_invariants`). 그래서 공개 사이트 전체가 500을 냈고 jobs도 멈췄다. 트리거 12개를 지워 05:40에 복구됐다.
+- **바뀐 점:** v2는 이제 **자기 스키마 `ad_coin_v2`**에만 표, 함수, 트리거를 만든다. 모든 v2 연결은 `search_path`를 `ad_coin_v2`로 고정한다. 애플리케이션 검사는 그대로 엄격하게 둔다.
+- **migrate 안전장치:** 실행 전후에 애플리케이션 저장소 검사를 직접 돌린다. 실행 전 검사에 실패하면 아무것도 하지 않고 멈춘다. 실행 뒤 검사에 실패하면 오류를 내서 바로 알 수 있게 한다.
+  - 시험: `tests/test_ad_coin_v2_app_store_coexistence.py`
+    - 마이그레이션 뒤 애플리케이션 저장소가 열린다.
+    - `public`에 v2 표·트리거가 0개다.
+    - 장애 상태를 재현하고 정리한 뒤 복구된다.
+    - 데이터가 있으면 정리를 거부한다.
+- **운영에 남은 것:**
+  - `public`에 빈 v2 표 54개와 함수 5개가 남아 있다.
+  - 첫 migrate가 넣은 기본 행 3개(schema, assets, commercial_control)도 있다.
+  - 트리거는 지워졌다. 애플리케이션 검사는 트리거만 보므로 지금 장애는 없다.
+
+**다시 연결하는 순서(승인 뒤, PM 실행):**
+
+```bash
+.venv/bin/python -m scripts.ad_coin_v2_migrate public-status --dsn-file <dsn 파일> --key-file <workflow 키 파일>
+```
+
+```bash
+.venv/bin/python -m scripts.ad_coin_v2_migrate drop-public --dsn-file <dsn 파일> --key-file <workflow 키 파일> --i-have-approval
+```
+
+```bash
+.venv/bin/python -m scripts.ad_coin_v2_migrate migrate --dsn-file <dsn 파일> --key-file <workflow 키 파일> --i-have-approval
+```
+
+- `public-status`는 읽기만 한다. 기대값: 표 54개, 함수 5개, `data_tables` 빈 목록
+- `drop-public`은 기본 행 말고 데이터가 하나라도 있으면 거부한다. 지운 뒤 애플리케이션 검사를 돌린다.
+- `migrate`는 `ad_coin_v2` 스키마에 만들고 전후로 검사한다. 트리거를 다시 만드는 SQL을 손으로 돌릴 필요는 없다.
+
 ## 1. 승인이 필요한 일 (사용자 결정)
 
 | # | 일 | 바뀌는 것 | 되돌리기 |
 |---|---|---|---|
-| A1 | 운영 PostgreSQL에 v2 표 만들기 | `adc2_` 표 54개(코인 경제의 Sponsored 예약 표 `adc2_sponsored_bookings` 포함), 색인 32개, 함수 5개, 트리거(원장 불변성 검사), 스키마 행 1개(`real_value=0`). 기존 표는 건드리지 않는다. 지우는 문장이 없다(`drops_or_deletes_data: false`) | 표를 지우는 것은 데이터 삭제라 별도 승인이 필요하다. 쓰지 않으면 비어 있을 뿐이다 |
+| A1 | 운영 PostgreSQL에 v2 표 만들기 | **`ad_coin_v2` 스키마에** `adc2_` 표 54개(코인 경제의 Sponsored 예약 표 `adc2_sponsored_bookings` 포함), 색인 32개, 함수 5개, 트리거(원장 불변성 검사), 스키마 행 1개(`real_value=0`). 기존 표는 건드리지 않는다. 지우는 문장이 없다(`drops_or_deletes_data: false`) | 표를 지우는 것은 데이터 삭제라 별도 승인이 필요하다. 쓰지 않으면 비어 있을 뿐이다 |
 | A2 | v2 켜기 | frontend 설정에 `AD_COIN_V2_ENABLED=1`을 넣고, 처음에는 `AD_COIN_V2_POOL_MAXIMUM=2`로 시작한다 | 설정을 지우고 다시 배포 |
 | A3 | 운영 설정 허용 목록 바꾸기 | `scripts/agentcon_config.ALLOWED_KEYS`에 `AD_COIN_V2_ENABLED`, `AD_COIN_V2_POOL_MAXIMUM`, `AD_COIN_V2_KEY_DIR`를 추가한다(공용 파일이라 운영·SRE와 조율) | 코드 되돌리기 |
 

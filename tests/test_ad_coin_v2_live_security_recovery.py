@@ -193,8 +193,8 @@ def test_task2_key_vault_and_security_guards(store):  # noqa: F811
     role_specs = verify_role_specifications()
     assert role_specs["status"] == "valid"
     sql = generate_role_setup_sql()
-    assert "GRANT USAGE ON SCHEMA public TO ad_coin_app;" in sql
-    assert "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ad_coin_migrator;" in sql
+    assert "GRANT USAGE ON SCHEMA ad_coin_v2 TO ad_coin_app;" in sql and "SCHEMA public" not in sql
+    assert "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA ad_coin_v2 TO ad_coin_migrator;" in sql
 
 
 def test_task3_disaster_recovery_and_reconciliation(store):  # noqa: F811

@@ -166,6 +166,10 @@
    "sha256": "a138eac4113b449e7cca967639b49797592e338c91592ca2c4e11d6e6255e5f1"
   },
   {
+   "sql": "CREATE SCHEMA IF NOT EXISTS ad_coin_v2",
+   "sha256": "e0e6624591fa218a6132596e91c83a7c49e4d345576bb4df174b7ade33bf8596"
+  },
+  {
    "sql": "CREATE TABLE IF NOT EXISTS adc2_accounts (id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, asset_id TEXT NOT NULL REFERENCES adc2_assets(id), purpose TEXT NOT NULL CHECK (purpose IN ('external_clearing','advertiser_available','campaign_available','offer_hold','user_available','user_locked','provider_payable','operator_payable','direct_cost','platform_revenue')), beneficial INTEGER NOT NULL CHECK (beneficial IN (0,1)), balance_atoms NUMERIC NOT NULL CHECK (balance_atoms=trunc(balance_atoms) AND balance_atoms BETWEEN -115792089237316195423570985008687907853269984665640564039457584007913129639935 AND 115792089237316195423570985008687907853269984665640564039457584007913129639935), version INTEGER NOT NULL CHECK (version>=1), UNIQUE(id,asset_id), CHECK ((purpose='external_clearing' AND beneficial=0) OR (purpose<>'external_clearing' AND beneficial=1)), CHECK (beneficial=0 OR balance_atoms>=0))",
    "sha256": "c6ee06bffe40f760ea998fe3522d432df5afaef670410bf6341ab8f529ebf76e"
   },

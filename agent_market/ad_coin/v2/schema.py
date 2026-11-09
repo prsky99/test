@@ -3,6 +3,8 @@
 from .contracts import MAX_ATOMS
 
 VERSION = 10
+# v2 lives in its own schema; the application store owns "public" (see store.ModelStore.postgres).
+SCHEMA = "ad_coin_v2"
 
 
 def statements():
@@ -19,6 +21,7 @@ def statements():
     budget_check = "reserved_atoms+spent_atoms<=limit_atoms"
     remaining_check = "remaining_atoms<=initial_atoms"
     result = [
+        "CREATE SCHEMA IF NOT EXISTS " + SCHEMA,
         "CREATE TABLE IF NOT EXISTS adc2_schema (id INTEGER PRIMARY KEY CHECK (id=1), version INTEGER NOT NULL, "
         "environment TEXT NOT NULL CHECK (environment='model'), real_value INTEGER NOT NULL CHECK (real_value=0))",
         "CREATE TABLE IF NOT EXISTS adc2_assets (id TEXT PRIMARY KEY, namespace TEXT NOT NULL CHECK (namespace='model'), "
