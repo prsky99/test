@@ -483,3 +483,9 @@
 - IndexNow: 키 파일·`/<key>.txt` 제공·`scripts/indexnow_submit.py`(기본 미리보기, 9,436 URL, key_served true). 전송은 승인 대기.
 - 등록 제출물 `deploy/distribution/SUBMISSIONS.md`(공식 Registry·mcpservers.org·awesome-remote-mcp-servers PR·mcp.so·MCP Market·Glama·A2A 2곳, 아이콘), 통합 초안 `integrations/`(Claude Code 플러그인 validate 통과, PyPI·npm 패키지 시험 통과), 런칭 글 5~14번 추가. 모두 게시 승인 대기.
 - 발견: 실제 플러그인 검증기는 marketplace 최상위 description을 거부(metadata.description 사용). jobs 로그의 VectorError database_error는 이전 판에도 151건 있던 기존 문제. release_gate를 jobs 릴리스에 돌리면 활성 frontend와 비교해 Chat 평가 100건을 돌리므로 `--skip-chat`이 필요.
+
+## 2026-11-09 성장·유통 3차: Registry 반영·IndexNow 차이분
+- 공식 MCP Registry 게시(PM, 12:48 UTC) 확인: `biz.agentconcierge/agent-concierge@1.0.0` active. Glama가 Registry를 자동으로 가져가 `/mcp/connectors/biz.agentconcierge/agent-concierge`에 올림(상태 "아직 시험 안 됨"). PulseMCP·mcpservers.org·mcp.so는 아직 없음. `scripts/directory_presence.py`로 하루 1회 확인·기록(`logs/growth/directory-presence.jsonl`).
+- /connect·llms.txt에 "Listed on the official MCP Registry" 문구와 링크(커밋 e60f3518). frontend r4로 배포 예정: SRE ops-snapshot 배포 뒤 그 활성판 위에(PM 순서).
+- IndexNow: PM이 9,436 URL 전송(첫 일괄 403 → 1개로 키 확인 뒤 성공). 그 뒤 jobs 갱신기가 매일 바뀐 페이지만 보내게 함(`concierge/indexnow.py`, 커밋 8026891d). 지문은 페이지가 보여 주는 사실(점검 종류·등급·목록 구성과 순서)로 만들고 시각·지연은 뺌. 1개 URL로 키 확인 → 403이면 15분 뒤 재시도(최대 8회). 오늘 전송분을 기준선 9,407쪽으로 기록(`public-pages/indexnow-state.json`). jobs r2로 배포 예정: SRE ops-probe-jobs-r2 뒤.
+- 1~2주 뒤 확인(11-16·11-23): Bing Webmaster·Naver 색인 수(사용자 계정 필요), traffic 요약의 AI 봇(Google 제외) 요청, MCP clientInfo 이름 수, directory_presence 기록. 기준선은 11-16 traffic 요약.
