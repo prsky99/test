@@ -5,6 +5,7 @@ import time
 from uuid import UUID, uuid4
 
 from .contracts import ContractError, MAX_ATOMS, MODEL_ASSET, digest
+from .points import require_single_holder
 from .store import signed_atoms
 
 PURPOSES = frozenset(
@@ -31,6 +32,7 @@ KINDS = frozenset(
         "release",
         "payment",
         "refund",
+        "expiry",
     )
 )
 
@@ -147,6 +149,7 @@ class ModelLedger:
                 if abs(balance) > MAX_ATOMS or (row["beneficial"] and balance < 0):
                     raise ContractError("insufficient_balance", 409)
                 rows[account_id] = row, balance
+            require_single_holder(kind, [row for row, _ in rows.values()])
             clearing = [
                 (account_id, amount)
                 for account_id, amount in ordered

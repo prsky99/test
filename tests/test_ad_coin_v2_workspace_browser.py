@@ -212,7 +212,7 @@ def test_browser_approved_view_earns_reward_without_click_or_quiz(live):
         enable_offers(page)
         choose_offer(page)
         expect(page.locator("#offer-terms")).to_have_text(
-            "Your reward: 0.5 test coins."
+            "Your reward: 0.5 points."
         )
         assert not creative_requests
         page.screenshot(path=str(OUT / "desktop-offer.png"), full_page=True)
@@ -358,7 +358,7 @@ def test_browser_stop_halts_collection_and_campaign_draft_is_usable(live):
         switch("approver")
         before = int(suite.service.ledger.account(suite.available)["balance_atoms"])
         row.get_by_role("button", name="Review budget", exact=True).click()
-        expect(page.locator("#review-body")).to_contain_text("Total: 4 test coins")
+        expect(page.locator("#review-body")).to_contain_text("Total: 4 test credits")
         page.get_by_role("button", name="Confirm", exact=True).click()
         expect(row.get_by_role("button", name="Activate", exact=True)).to_be_visible()
         row.get_by_role("button", name="Activate", exact=True).click()

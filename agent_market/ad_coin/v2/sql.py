@@ -212,6 +212,7 @@ SQL.update(
         "principal_epoch_bump": "UPDATE adc2_principals SET epoch=epoch+1 WHERE id=? RETURNING epoch",
         "audit_log_insert": "INSERT INTO adc2_audit_log VALUES (?,?,?,?,?,?,?,?,?,?)",
         "audit_log_recent": "SELECT * FROM adc2_audit_log ORDER BY timestamp_ms DESC LIMIT ?",
+        "points_inactive_accounts": "SELECT a.id,a.owner_id,a.balance_atoms FROM adc2_accounts a WHERE a.purpose='user_available' AND a.asset_id=? AND a.balance_atoms>0 AND NOT EXISTS (SELECT 1 FROM adc2_postings p JOIN adc2_journals j ON j.id=p.journal_id AND j.asset_id=p.asset_id WHERE p.account_id=a.id AND j.created_ms>=?) ORDER BY a.id LIMIT ?",
         "audit_log_prune": "DELETE FROM adc2_audit_log WHERE id IN (SELECT id FROM adc2_audit_log WHERE timestamp_ms<? ORDER BY timestamp_ms LIMIT ?)",
         "human_session_prune": "DELETE FROM adc2_human_sessions WHERE session_hash IN (SELECT session_hash FROM adc2_human_sessions WHERE COALESCE(revoked_at,expires_at)<? AND expires_at<? LIMIT ?)",
         "agent_token_prune": "DELETE FROM adc2_agent_tokens WHERE token_hash IN (SELECT token_hash FROM adc2_agent_tokens WHERE COALESCE(revoked_at,expires_at)<? AND expires_at<? LIMIT ?)",

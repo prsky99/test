@@ -8,14 +8,7 @@ from .ledger import identifier
 
 
 
-REAL_VALUE_ENV = "AD_COIN_REAL_VALUE_ENABLED"
-
-
-def is_real_value_enabled() -> bool:
-    """Real value stays off unless AD_COIN_REAL_VALUE_ENABLED is set explicitly (legal review first)."""
-    import os
-
-    return os.environ.get(REAL_VALUE_ENV, "0") in ("1", "true", "True")
+from .points import REAL_VALUE_ENV, real_value_enabled as is_real_value_enabled  # noqa: E402,F401
 
 
 def require_real_value() -> None:

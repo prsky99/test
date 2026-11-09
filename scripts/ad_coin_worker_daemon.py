@@ -54,13 +54,16 @@ class WorkerDaemon:
     PRUNE_INTERVAL_MS = 3_600_000  # retention deletes run at most once an hour
 
     def prune_if_due(self, now_ms: int) -> int:
-        """Apply the retention periods (audit log 90 days, ended credentials 30 days)."""
+        """Apply point expiry (365 days idle) and retention (audit log 90 days, ended credentials 30 days)."""
         from agent_market.ad_coin.v2.security_guards import AuditLogger, prune_credentials
 
         if now_ms - getattr(self, "_last_prune_ms", 0) < self.PRUNE_INTERVAL_MS:
             return 0
         self._last_prune_ms = now_ms
-        return AuditLogger.prune(self.store, now_ms=now_ms) + prune_credentials(self.store, now_ms=now_ms)
+        from agent_market.ad_coin.v2.points import expire_inactive_points
+
+        expired = expire_inactive_points(self.store, self.workers.ledger, now_ms=now_ms)
+        return expired + AuditLogger.prune(self.store, now_ms=now_ms) + prune_credentials(self.store, now_ms=now_ms)
 
     def run_forever(self, interval_seconds: float = 5.0):
         self.running = True

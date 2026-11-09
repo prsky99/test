@@ -3,6 +3,7 @@
 from uuid import uuid4
 
 from fastapi import FastAPI
+import pytest
 from starlette.testclient import TestClient
 
 from agent_market.ad_coin.v2.access import HUMAN_CAPABILITIES
@@ -20,6 +21,12 @@ from tests.test_ad_coin_postgres import cluster  # noqa: F401
 from tests.test_ad_coin_v2_persistence import store  # noqa: F401
 
 NOW = 1_800_000_000_000
+
+
+@pytest.fixture(autouse=True)
+def _third_party_payments_need_real_value(monkeypatch):
+    # Paying third-party providers is a real-value feature; points mode allows platform benefits only.
+    monkeypatch.setenv("AD_COIN_REAL_VALUE_ENABLED", "1")
 
 
 def uid():

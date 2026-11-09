@@ -497,3 +497,12 @@
 - 수정(`pearl-live.css` 끝 블록만 추가): 폰에서 배너를 헤더 바로 아래(top 84px)에 두고, 메뉴가 열리면 헤더를 배너 위(z-index 100000)로 올림. 닫기 버튼 44px, "How we use cookies" 줄은 버튼과 겹치지 않게 여백. 홈 입력창(710px)은 여전히 가리지 않음.
 - 시험: 새 `tests/test_cookie_banner_phone.py` 9건(390·375·320 × 홈·탐색·Chat), `test_pearl_frontend.py` 41건 통과. 게이트 106건 통과.
 - 배포: `cookie-phone-frontend-20261110-r1`(--base price-unknown-frontend-20261110-r1). 운영 390×812에서 메뉴 클릭·닫기 44px·헤더 아래 배치 확인.
+
+## 2026-11-10 AI AD Coin 팀: v2 무상 활동 포인트 모드, 공개 화면 용어 정리
+- 실가치 스위치가 꺼져 있으면 v2는 활동 포인트 모드로만 동작한다(docs/AD_COIN_POINTS_MODE.md).
+  - 원장 자체가 서로 다른 두 사람의 개인 계정 사이 이동을 거부한다(points_not_transferable).
+  - 포인트는 플랫폼 혜택 목록에만 쓸 수 있다.
+  - 365일 동안 활동이 없으면 플랫폼 만료 계정으로 옮긴다(작업자가 1시간마다 실행).
+  - 구매와 현금화는 기존 실가치 잠금으로 막혀 있다.
+- 공개 v2 화면: 사람에게는 points, 광고주 예산은 test credits로 표시한다. 잔액 카드와 바닥글에 포인트 규칙을 보인다. 운영자 보기(Platform Audit, Agent Relays, 위임 결제)와 내부 용어는 공개 화면에서 뺐다.
+- 시험: AD Coin 381개 통과, 공개 파일 341개 검사 위반 0건. 원장 기계 시험 3개와 외부 제공자 결제 시험은 실가치 모드로 돌린다.

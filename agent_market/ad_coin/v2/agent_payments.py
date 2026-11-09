@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from .contracts import ContractError
 from .ledger import ModelLedger, identifier
+from .points import require_platform_benefit
 from .security_guards import AuditLogger, EventType
 
 
@@ -132,6 +133,7 @@ class AgentPaymentGateway:
         mandate_id: str | None = None,
     ) -> dict:
         owner_id = identifier(owner_id)
+        require_platform_benefit(provider_id)
         if price_atoms < 1:
             raise ContractError("invalid_execution_price", 422)
         if actor not in ("user", "agent"):

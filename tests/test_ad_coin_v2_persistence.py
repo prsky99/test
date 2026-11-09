@@ -124,7 +124,9 @@ def test_explicit_model_migration_and_closed_sql(store):
     )
 
 
-def test_max_uint_is_exact_and_replay_is_semantic(ledger):
+def test_max_uint_is_exact_and_replay_is_semantic(ledger, monkeypatch):
+    # Ledger mechanics between two people's accounts; points mode forbids such moves (see test below).
+    monkeypatch.setenv("AD_COIN_REAL_VALUE_ENABLED", "1")
     source, clearing = funded(ledger, str(MAX_ATOMS), purpose="user_available")
     target = ledger.create_account(uid(), "user_available")
     result = ledger.post(
@@ -545,7 +547,9 @@ def test_idempotency_scope_uses_route_template_and_binds_target(ledger):
     assert first.value["operation"]
 
 
-def test_concurrent_debits_and_retries_preserve_balances(ledger):
+def test_concurrent_debits_and_retries_preserve_balances(ledger, monkeypatch):
+    # Ledger mechanics between two people's accounts; points mode forbids such moves (see test below).
+    monkeypatch.setenv("AD_COIN_REAL_VALUE_ENABLED", "1")
     source, _ = funded(ledger, "100", purpose="user_available")
     targets = [ledger.create_account(uid(), "user_available") for _ in range(24)]
 
@@ -586,7 +590,9 @@ def test_concurrent_same_economic_event_has_one_effect(ledger):
     assert ledger.audit()["beneficial_atoms"] == "100"
 
 
-def test_opposite_transfers_lock_accounts_in_one_order(ledger):
+def test_opposite_transfers_lock_accounts_in_one_order(ledger, monkeypatch):
+    # Ledger mechanics between two people's accounts; points mode forbids such moves (see test below).
+    monkeypatch.setenv("AD_COIN_REAL_VALUE_ENABLED", "1")
     first, _ = funded(ledger, "100", purpose="user_available")
     second = ledger.create_account(uid(), "user_available")
     ledger.post("setup", [(first, "-50"), (second, "50")], kind="transfer")

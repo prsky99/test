@@ -22,14 +22,14 @@
     $('region').value='';$('offers-limit').value=10;$('ads-limit').value=3;$('campaign-limit').value=1;$('time-limit').value=90;
   }
   function message(error) {
-    if (error.code==='insufficient_balance') return 'This advertising account does not have enough test balance for the budget.';
+    if (error.code==='insufficient_balance') return 'This advertising account does not have enough test credits for the budget.';
     if (error.code==='model_activation_disabled') return 'Campaign activation is not available right now.';
     if (error.status===401) return 'Sign in to your account, then open this workspace again.';
     if (error.status===403) return 'This action is not available for your account. Sign in again if your access changed.';
     if (error.status===409) return 'The conditions changed or this action has ended. Refresh and review the latest details.';
     if (error.status===429) return 'Your limit has been reached. Try again later or review your choices.';
     if (error.status===422) return 'Check the amounts, dates and choices, then try again.';
-    return 'The request could not be confirmed. Please try again; the same request will not award coins twice.';
+    return 'The request could not be confirmed. Please try again; the same request will not award points twice.';
   }
   async function net(path,{method='GET',body,etag,key=uuid()}={}) {
     const headers={};const epoch=state.epoch;
@@ -164,10 +164,10 @@
     if (operation.state==='no_offer') {text('offer-status','There is no eligible offer for these choices right now. Try again later.');return;}
     if (!operation.resource_id) {text('offer-status','Your request is being checked. Try again shortly.');return;}
     const {value}=await api('/offers/'+operation.resource_id);state.offer=value;
-    text('offer-title',value.advertiser_name);text('offer-terms','Your reward: '+coins(value.user_reward_atoms)+' test coins.');
-    text('offer-expiry','Available until '+new Date(value.expires_at).toLocaleTimeString()+'. Test coins have no cash value.');
+    text('offer-title',value.advertiser_name);text('offer-terms','Your reward: '+coins(value.user_reward_atoms)+' points.');
+    text('offer-expiry','Available until '+new Date(value.expires_at).toLocaleTimeString()+'. Points have no cash value.');
     const split=[['Your reward',value.user_reward_atoms],['Agent operator',value.operator_reward_atoms],['Delivery expense',value.direct_cost_atoms],['Platform',value.platform_reward_atoms]];
-    $('reward-split').replaceChildren(...split.flatMap(([label,amount])=>{const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=label;dd.textContent=coins(amount)+' test coins';return [dt,dd];}));
+    $('reward-split').replaceChildren(...split.flatMap(([label,amount])=>{const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=label;dd.textContent=coins(amount)+' points';return [dt,dd];}));
     $('offer-card').hidden=false;text('offer-status','Review the offer before allowing the advertisement.');
   }
   function visible() {
@@ -270,12 +270,12 @@
       const card=document.createElement('article');card.className='card';card.dataset.item='campaign';
       const title=document.createElement('h2');title.textContent=campaign.name;
       const status=document.createElement('p');status.textContent=campaign.state.replaceAll('_',' ')+' · '+campaign.approval_status;
-      const amount=document.createElement('p');amount.textContent='Total budget '+coins(campaign.total_budget_atoms)+' · Daily '+coins(campaign.daily_budget_atoms)+' · Per view '+coins(campaign.gross_p1_atoms)+' test coins';
+      const amount=document.createElement('p');amount.textContent='Total budget '+coins(campaign.total_budget_atoms)+' · Daily '+coins(campaign.daily_budget_atoms)+' · Per view '+coins(campaign.gross_p1_atoms)+' points';
       const actions=document.createElement('div');actions.className='actions';card.append(title,status,amount,actions);
       const add=(label,action)=>{const b=document.createElement('button');b.type='button';b.className='btn';b.textContent=label;b.addEventListener('click',()=>run(b,action));actions.append(b);};
       if (['draft','rejected'].includes(campaign.state)&&adv.capabilities.includes('campaign.edit')) add('Request review',()=>campaignAction(campaign,'review-request'));
       if (campaign.state==='eligible'&&campaign.approval_status==='unapproved'&&adv.capabilities.includes('budget.approve')) add('Review budget',async()=>review('Approve this campaign budget?',[
-        campaign.name,'Total: '+coins(campaign.total_budget_atoms)+' test coins. Daily: '+coins(campaign.daily_budget_atoms)+' test coins.',
+        campaign.name,'Total: '+coins(campaign.total_budget_atoms)+' test credits. Daily: '+coins(campaign.daily_budget_atoms)+' test credits.',
         'Dates: '+new Date(campaign.starts_at).toLocaleString()+' to '+new Date(campaign.ends_at).toLocaleString()+'.',
         'This approval does not activate the campaign.'],()=>campaignAction(campaign,'approvals')));
       if (['eligible','paused'].includes(campaign.state)&&campaign.approval_status==='approved'&&adv.capabilities.includes('budget.approve')) add(campaign.state==='paused'?'Resume':'Activate',()=>campaignAction(campaign,'activation'));
@@ -300,7 +300,7 @@
           const dl=document.createElement('dl');dl.className='facts';
           const labels={valid_exposures:'Confirmed views',gross_ad_charge_atoms:'Advertising expense',user_rewards_atoms:'Viewer rewards',unique_owners:'Distinct viewers'};
           for (const metric of report.metrics) {const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=labels[metric.name]||metric.name.replaceAll('_',' ');
-            dd.textContent=metric.value===null?'Not available':metric.unit==='atoms'?coins(metric.value)+' test coins':metric.value;dl.append(dt,dd);}
+            dd.textContent=metric.value===null?'Not available':metric.unit==='atoms'?coins(metric.value)+' test credits':metric.value;dl.append(dt,dd);}
           card.querySelector('dl')?.remove();card.append(dl);
         });card.append(button);
       }
@@ -366,7 +366,7 @@
       ['Total Completions', f.total_completions],
       ['Multi-Stage Claims', f.stage_claims_count],
       ['Pacing Status', p.pacing_status],
-      ['Spend Velocity (atoms/hr)', coins(p.spend_velocity_atoms_per_hour)+' test coins/hr'],
+      ['Spend per hour', coins(p.spend_velocity_atoms_per_hour)+' test credits'],
       ['Active Campaigns', p.active_campaigns_count],
     ];
     for (const [k, v] of items) {
@@ -376,91 +376,8 @@
     card.append(dl);
     $('analytics-content').append(card);
   }
-  async function loadRelays() {
-    if (!account()) return;
-    const {value}=await api('/relays/partners');
-    $('relays-list').replaceChildren();
-    for (const partner of value.partners) {
-      const card=document.createElement('article');card.className='card';
-      const title=document.createElement('h3');title.textContent=partner.partner_name+' ('+partner.protocol.toUpperCase()+')';
-      const p=document.createElement('p');p.textContent='Status: '+partner.status+' · Rev share: '+partner.rev_share_bps/100+'% · Endpoint: '+partner.endpoint_url;
-      card.append(title,p);
-      $('relays-list').append(card);
-    }
-    if (!value.partners.length) text('relays-list','No external agent relay partners registered.');
-  }
-  async function createRelay() {
-    if (!account()) return;
-    await api('/relays/partners', {
-      method:'POST',
-      body: {
-        partner_name: $('relay-partner-name').value,
-        endpoint_url: $('relay-endpoint-url').value,
-        protocol: $('relay-protocol').value,
-        rev_share_bps: Number($('relay-rev-share').value),
-      }
-    });
-    $('relay-partner-name').value='';$('relay-endpoint-url').value='';
-    await loadRelays();
-    text('notice','External agent relay partner registered successfully.');
-  }
-  async function loadMandates() {
-    if (!account()) return;
-    const {value}=await api('/payments/mandates');
-    $('mandates-content').replaceChildren();
-    for (const m of value.mandates) {
-      const card=document.createElement('article');card.className='card';
-      const title=document.createElement('h3');title.textContent='Mandate: '+m.id.slice(0,8)+'… ('+m.state+')';
-      const p=document.createElement('p');p.textContent='Max amount: '+coins(m.max_amount_atoms)+' test coins · Spent: '+coins(m.spent_amount_atoms)+' test coins';
-      card.append(title,p);
-      $('mandates-content').append(card);
-    }
-    if (!value.mandates.length) text('mandates-content','No active delegated payment mandates found.');
-  }
-  async function runReconcile() {
-    if (!account()) return;
-    const {value}=await api('/admin/reconcile');
-    $('reconcile-result').replaceChildren();
-    const card=document.createElement('article');card.className='card';
-    const title=document.createElement('h3');title.textContent='Reconciliation Result: '+value.status.toUpperCase();
-    const dl=document.createElement('dl');dl.className='facts';
-    const items = [
-      ['Status', value.status],
-      ['Zero-Sum Balanced', value.audit.zero_sum_balanced ? 'Yes (Balanced)' : 'No (Imbalance Detected)'],
-      ['Accounts Checked', value.audit.accounts_checked],
-      ['Beneficial Atoms', coins(value.audit.beneficial_atoms)+' test coins'],
-      ['Clearing Atoms', coins(value.audit.clearing_atoms)+' test coins'],
-    ];
-    for (const [k, v] of items) {
-      const dt=document.createElement('dt'), dd=document.createElement('dd');
-      dt.textContent=k; dd.textContent=String(v); dl.append(dt, dd);
-    }
-    card.append(title, dl);
-    $('reconcile-result').append(card);
-  }
-  async function loadOverview() {
-    if (!account()) return;
-    const {value}=await api('/admin/overview');
-    $('overview-content').replaceChildren();
-    const card=document.createElement('article');card.className='card';
-    const dl=document.createElement('dl');dl.className='facts';
-    const items = [
-      ['Active Campaigns', value.active_campaigns_count],
-      ['Relay Partners', value.active_relay_partners_count],
-      ['Total Wallets', value.total_wallets_count],
-      ['Ledger Accounts Checked', value.ledger_accounts_checked],
-      ['Total Beneficial Atoms', coins(value.total_beneficial_atoms)+' test coins'],
-      ['Total Clearing Atoms', coins(value.total_clearing_atoms)+' test coins'],
-    ];
-    for (const [k, v] of items) {
-      const dt=document.createElement('dt'), dd=document.createElement('dd');
-      dt.textContent=k; dd.textContent=String(v); dl.append(dt, dd);
-    }
-    card.append(dl);
-    $('overview-content').append(card);
-  }
   function showView(name) {
-    if (!['rewards','preferences','advertising','reports','growth','relays','reconcile'].includes(name)) name='rewards';
+    if (!['rewards','preferences','advertising','reports','growth'].includes(name)) name='rewards';
     state.view=name;state.viewSeq++;
     if (state.ad&&name!=='rewards') closeAd(true).catch(error=>text('notice',message(error)));
     cancelReview();
@@ -477,7 +394,7 @@
   $('withdraw').onclick=()=>run($('withdraw'),async()=>{if (!account()||!state.pref) return;
     await Promise.all([state.ad?closeAd(true):Promise.resolve(),savePreferences({...preferenceBody(),receive_offers:false,context_fields:[]})]);});
   $('review-offer').onclick=()=>{const offer=state.offer;if (!offer) return;
-    review('Allow this advertisement?',[offer.advertiser_name,'Your reward: '+coins(offer.user_reward_atoms)+' test coins after a verified view of at least 15 seconds.',
+    review('Allow this advertisement?',[offer.advertiser_name,'Your reward: '+coins(offer.user_reward_atoms)+' points after a verified view of at least 15 seconds.',
       'You can stop at any time. No purchase, click or quiz is required.'],()=>beginAd(offer));};
   $('decline-offer').onclick=()=>run($('decline-offer'),async()=>{await api('/offers/'+state.offer.id+'/decline',{method:'POST',body:{reason:'not_relevant'}});
     state.offer=null;$('offer-card').hidden=true;text('offer-status','Offer declined. Your recommendations are unchanged.');});
@@ -501,11 +418,6 @@
   $('experiment-form').onsubmit=event=>{event.preventDefault();run(event.submitter,createExperiment);};
   $('load-experiments').onclick=()=>run($('load-experiments'),loadExperiments);
   $('load-analytics').onclick=()=>run($('load-analytics'),loadAnalytics);
-  $('relay-form').onsubmit=event=>{event.preventDefault();run(event.submitter,createRelay);};
-  $('load-relays').onclick=()=>run($('load-relays'),loadRelays);
-  $('load-mandates').onclick=()=>run($('load-mandates'),loadMandates);
-  $('run-reconcile').onclick=()=>run($('run-reconcile'),runReconcile);
-  $('load-overview').onclick=()=>run($('load-overview'),loadOverview);
   addEventListener('hashchange',()=>showView(location.hash.slice(1)));
   document.addEventListener('visibilitychange',()=>{if (state.ad&&!state.ad.pending) {clearTimeout(state.ad.timer);sample().catch(()=>{});}});
   showView(location.hash.slice(1));

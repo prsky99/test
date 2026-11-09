@@ -1486,6 +1486,10 @@
    "sha256": "eab2c54db2b618e47103a12e79226f4deec3e9176f153a48772814a050bf2f05"
   },
   {
+   "sql": "SELECT a.id,a.owner_id,a.balance_atoms FROM adc2_accounts a WHERE a.purpose='user_available' AND a.asset_id=? AND a.balance_atoms>0 AND NOT EXISTS (SELECT 1 FROM adc2_postings p JOIN adc2_journals j ON j.id=p.journal_id AND j.asset_id=p.asset_id WHERE p.account_id=a.id AND j.created_ms>=?) ORDER BY a.id LIMIT ?",
+   "sha256": "16b8a49f38bd2a670f97740640795d3bf08f8e0304f5f70d38ba8f646b97ad87"
+  },
+  {
    "sql": "SELECT account FROM ad_coin_balances WHERE amount < 0 AND account NOT LIKE 'external:%' LIMIT 20",
    "sha256": "f0edf5d995357dfe54dd11de903e1aac9fa407b4577a8a5cc9e660d8e305fe7e"
   },

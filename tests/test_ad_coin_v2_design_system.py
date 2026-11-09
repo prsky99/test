@@ -33,3 +33,13 @@ def test_every_class_on_the_v2_page_exists_in_the_shared_css():
         used.update(value.split())
     missing = sorted(name for name in used - {'facts'} if '.' + name not in css)
     assert not missing, missing
+
+
+def test_public_v2_page_has_no_internal_terms_and_states_the_points_rules():
+    visible = re.sub(r'<[^>]+>', ' ', PAGE) + ' ' + ' '.join(re.findall(r"'([A-Z][a-z][^'\n]*? [^'\n]*)'", SCRIPT))
+    for term in ('atoms', 'Beneficial', 'Clearing', 'double-entry', 'Reconcil', 'A2A', 'MCP', 'bps', 'escrow',
+                 'mandate', 'Mandate', 'Relay', 'relay partner', 'test coins', 'Platform Audit'):
+        assert term not in visible, term
+    for rule in ('cannot be bought, cashed out or sent to another person', 'Agent Concierge benefits',
+                 'expire after 365 days without activity', 'Points have no cash value'):
+        assert rule in PAGE, rule
