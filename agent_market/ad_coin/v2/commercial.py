@@ -317,7 +317,9 @@ class Commercial:
             if operation == "requestOffer":
                 now_ms = millis(self.clock_ms())
                 delivery_campaigns = self.store.all(
-                    "campaigns_active_candidates", (now_ms, now_ms)
+                    "campaigns_active_candidates_for_target",
+                    (now_ms, now_ms, str((body or {}).get("task_category", "")),
+                     str((body or {}).get("coarse_region", ""))),
                 )
             elif operation in ("approveOffer", "startExposure", "getApprovedCreative"):
                 offer = (
@@ -1521,7 +1523,10 @@ class Commercial:
                 operation_id, str(principal.id), owner_id, binding_id
             )
 
-        candidates = self.store.all("campaigns_active_candidates", (now_ms, now_ms))
+        candidates = self.store.all(
+            "campaigns_active_candidates_for_target",
+            (now_ms, now_ms, body["task_category"], body["coarse_region"]),
+        )
         for cand in candidates:
             payload = json.loads(cand["payload_json"])
             if (

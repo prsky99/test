@@ -131,6 +131,15 @@ SQL.update(
         "campaign_update": "UPDATE adc2_campaigns SET state=?,approval_status=?,version=version+1,dispatch_epoch=?,funded=?,total_window_id=? WHERE id=? AND version=?",
         "campaign_revise": "UPDATE adc2_campaigns SET current_revision_id=?,state='draft',approval_status='unapproved',"
         "version=version+1,dispatch_epoch=dispatch_epoch+1 WHERE id=? AND version=?",
+        "campaigns_active_candidates_for_target": "SELECT c.*,r.revision_hash,r.payload_json,r.starts_ms,r.ends_ms,r.total_atoms,r.daily_atoms,"
+        "r.gross_atoms,r.split_json FROM adc2_campaigns c JOIN adc2_campaign_revisions r ON r.id=c.current_revision_id "
+        "JOIN adc2_advertisers a ON a.id=c.advertiser_id WHERE c.state='active' AND c.approval_status='approved' "
+        "AND c.funded=1 AND a.status='active' AND r.starts_ms<=? AND r.ends_ms>? "
+        "AND jsonb_exists((r.payload_json)::jsonb->'task_categories',?) AND jsonb_exists((r.payload_json)::jsonb->'regions',?) "
+        "ORDER BY c.id LIMIT 20",
+        "campaigns_sponsored_snapshot": "SELECT c.id,r.payload_json,r.ends_ms FROM adc2_campaigns c JOIN adc2_campaign_revisions r ON r.id=c.current_revision_id "
+        "JOIN adc2_advertisers a ON a.id=c.advertiser_id WHERE c.state='active' AND c.approval_status='approved' "
+        "AND c.funded=1 AND a.status='active' AND r.starts_ms<=? AND r.ends_ms>? ORDER BY c.id LIMIT ?",
         "campaigns_active_candidates": "SELECT c.*,r.revision_hash,r.payload_json,r.starts_ms,r.ends_ms,r.total_atoms,r.daily_atoms,"
         "r.gross_atoms,r.split_json FROM adc2_campaigns c JOIN adc2_campaign_revisions r ON r.id=c.current_revision_id "
         "JOIN adc2_advertisers a ON a.id=c.advertiser_id WHERE c.state='active' AND c.approval_status='approved' "

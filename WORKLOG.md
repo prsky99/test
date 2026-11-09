@@ -512,3 +512,12 @@
 - A2A Registry 제출(Conformant, 검토 대기), a2a.directory 즉시 게시, mcpservers.org 무료 제출(2주 심사).
 - MCP Market($69)·mcp.so($39)는 원격 서버의 무료 경로가 없어 건너뜀. 진행표는 deploy/distribution/SUBMISSIONS.md.
 - 효과 비교: 11-16 traffic 기준선에서 a2a·mcp 입구 외부 요청과 MCP clientInfo 이름 수를 본다.
+
+## 2026-11-10 AI AD Coin 팀: 공개 Sponsored 영역, 제안 후보 20개 제한 결함 수정
+- `GET /api/ad-coin/v2/sponsored` 추가(docs/AD_COIN_SPONSORED_SLOT.md).
+  - "Sponsored" 표시를 단 카드를 최대 2개 보인다.
+  - 추천과 연결되지 않고, 개인정보와 보상이 없다.
+  - 심사를 통과하고 예산이 있는 활성 캠페인만 보이며, 1분마다 돌아가며 보인다.
+  - 60초 메모리 스냅샷과 (분류, 지역) 색인을 쓴다. 캠페인 5,000개에서 스냅샷 9.2ms, 조회 1.2µs(최적화 전 85.7µs).
+- 결함 수정: 제안 요청이 활성 캠페인을 처음 20개만 읽은 뒤 걸러서, 조건이 맞는 캠페인이 빠질 수 있었다. 분류·지역 조건을 SQL로 옮겼다(jsonb_exists, 등록 SQL 543개).
+- AD Coin 시험 387개 통과. 남은 일: Chat·Explore 화면에 붙이는 것(공용 파일이라 PM과 조율).

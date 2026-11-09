@@ -1546,6 +1546,10 @@
    "sha256": "f0aadaeb3f89ad802e11a8000d4c4567533a94f00eb0fa4fff343cd0f58d90d6"
   },
   {
+   "sql": "SELECT c.*,r.revision_hash,r.payload_json,r.starts_ms,r.ends_ms,r.total_atoms,r.daily_atoms,r.gross_atoms,r.split_json FROM adc2_campaigns c JOIN adc2_campaign_revisions r ON r.id=c.current_revision_id JOIN adc2_advertisers a ON a.id=c.advertiser_id WHERE c.state='active' AND c.approval_status='approved' AND c.funded=1 AND a.status='active' AND r.starts_ms<=? AND r.ends_ms>? AND jsonb_exists((r.payload_json)::jsonb->'task_categories',?) AND jsonb_exists((r.payload_json)::jsonb->'regions',?) ORDER BY c.id LIMIT 20",
+   "sha256": "137bca07dda9ca8776d4ba217d723bcbb77f840b55d2cbc0e1d79c3e74fa834e"
+  },
+  {
    "sql": "SELECT c.*,r.revision_hash,r.payload_json,r.starts_ms,r.ends_ms,r.total_atoms,r.daily_atoms,r.gross_atoms,r.split_json FROM adc2_campaigns c JOIN adc2_campaign_revisions r ON r.id=c.current_revision_id JOIN adc2_advertisers a ON a.id=c.advertiser_id WHERE c.state='active' AND c.approval_status='approved' AND c.funded=1 AND a.status='active' AND r.starts_ms<=? AND r.ends_ms>? ORDER BY c.id LIMIT 20",
    "sha256": "a1153099014113bc9f5e6238acf0a41201bebecd576eb1dde0b8c5f2094f1b2a"
   },
@@ -1564,6 +1568,10 @@
   {
    "sql": "SELECT c.id, c.advertiser, c.title, c.body, c.question, c.public_url, c.categories, c.bid_won, COALESCE(b.amount, 0) AS escrow_won, m.daily_budget_won, m.starts_at, m.ends_at, m.frequency_cap, m.excluded, m.review_status, m.user_status, m.advertiser_id, COALESCE(d.spend_won, 0) AS spent_today, a.verification AS adv_verification, a.status AS adv_status FROM ad_coin_campaigns c LEFT JOIN ad_coin_balances b ON b.account='escrow:'||c.id LEFT JOIN ad_coin_campaign_meta m ON m.campaign_id=c.id LEFT JOIN ad_coin_campaign_daily d ON d.campaign_id=c.id AND d.day=? LEFT JOIN ad_coin_advertisers a ON a.id=m.advertiser_id WHERE c.product=? AND c.status='active' AND COALESCE(b.amount, 0) >= c.bid_won ORDER BY c.bid_won DESC, c.id LIMIT ? OFFSET ?",
    "sha256": "2f0e481322c22cee4954e28e6b9ac415f87cef53072cd4ff72d4aec8060b3794"
+  },
+  {
+   "sql": "SELECT c.id,r.payload_json,r.ends_ms FROM adc2_campaigns c JOIN adc2_campaign_revisions r ON r.id=c.current_revision_id JOIN adc2_advertisers a ON a.id=c.advertiser_id WHERE c.state='active' AND c.approval_status='approved' AND c.funded=1 AND a.status='active' AND r.starts_ms<=? AND r.ends_ms>? ORDER BY c.id LIMIT ?",
+   "sha256": "b7ae83611e4a15825018f629d09c18ae4683448f533841569706bec5d7d42f65"
   },
   {
    "sql": "SELECT campaign_id FROM ad_coin_campaign_meta WHERE advertiser_id=? AND user_status != 'removed' ORDER BY created_at",
