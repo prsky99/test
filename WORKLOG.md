@@ -491,3 +491,9 @@
 - /connect·llms.txt에 "Listed on the official MCP Registry" 문구와 링크(커밋 e60f3518). frontend r4로 배포 예정: SRE ops-snapshot 배포 뒤 그 활성판 위에(PM 순서).
 - IndexNow: PM이 9,436 URL 전송(첫 일괄 403 → 1개로 키 확인 뒤 성공). 그 뒤 jobs 갱신기가 매일 바뀐 페이지만 보내게 함(`concierge/indexnow.py`, 커밋 8026891d). 지문은 페이지가 보여 주는 사실(점검 종류·등급·목록 구성과 순서)로 만들고 시각·지연은 뺌. 1개 URL로 키 확인 → 403이면 15분 뒤 재시도(최대 8회). 오늘 전송분을 기준선 9,407쪽으로 기록(`public-pages/indexnow-state.json`). jobs r2로 배포 예정: SRE ops-probe-jobs-r2 뒤.
 - 1~2주 뒤 확인(11-16·11-23): Bing Webmaster·Naver 색인 수(사용자 계정 필요), traffic 요약의 AI 봇(Google 제외) 요청, MCP clientInfo 이름 수, directory_presence 기록. 기준선은 11-16 traffic 요약.
+
+## 2026-11-10 폰 쿠키 배너가 메뉴 버튼을 덮던 문제 (성장·유통, PM 지시)
+- 재현(운영, 390×812, 동의 기록 없음): 11-04 변경으로 폰 배너가 화면 맨 위(top 12px, z-index 99999)에 고정돼 로고와 "Open navigation" 버튼을 덮음. 닫기 버튼도 24px로 44px 기준 미달(전역 24px !important 하한이 32px 규칙을 누름). `test_pearl_frontend` 메뉴 390 시험 실패와 같은 원인.
+- 수정(`pearl-live.css` 끝 블록만 추가): 폰에서 배너를 헤더 바로 아래(top 84px)에 두고, 메뉴가 열리면 헤더를 배너 위(z-index 100000)로 올림. 닫기 버튼 44px, "How we use cookies" 줄은 버튼과 겹치지 않게 여백. 홈 입력창(710px)은 여전히 가리지 않음.
+- 시험: 새 `tests/test_cookie_banner_phone.py` 9건(390·375·320 × 홈·탐색·Chat), `test_pearl_frontend.py` 41건 통과. 게이트 106건 통과.
+- 배포: `cookie-phone-frontend-20261110-r1`(--base price-unknown-frontend-20261110-r1). 운영 390×812에서 메뉴 클릭·닫기 44px·헤더 아래 배치 확인.

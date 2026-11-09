@@ -854,3 +854,13 @@ body[data-theme="dark"] #chatSubmit,body[data-theme="dark"] #chatSubmit :is(span
 .chat-proof{margin:8px 0;border:1px solid var(--border,#d7dee2);border-radius:10px;padding:0 12px}.chat-proof>summary{display:flex;align-items:center;gap:6px;min-height:44px;cursor:pointer;font-weight:600;font-size:14px}.chat-proof dl{display:grid;gap:6px;margin:0 0 8px}.chat-proof dl>div{display:grid;grid-template-columns:minmax(120px,40%) 1fr;gap:8px}.chat-proof dt{font-weight:600}.chat-proof dd{margin:0;overflow-wrap:anywhere}.chat-proof [data-unknown] dd{color:var(--text-muted,#5b6770);font-style:italic}
 /* 11-05 needs_choice */
 .chat-choice{margin:0 0 12px;padding:12px 14px;border:1px solid var(--accent,#1f6f78);border-radius:12px;background:var(--panel,transparent)}#chatMessages .chat-choice-title{margin:0 0 4px;font-weight:600;color:var(--text,inherit)}.chat-choice .caption{margin:0 0 8px}.chat-choice-actions{display:flex;flex-wrap:wrap;gap:8px}#chatMessages .chat-choice-actions .btn,#chatMessages .chat-choose-btn{min-height:44px!important}.chat-recommendation[hidden],.chat-choice [hidden],.chat-choose-btn[hidden]{display:none!important}.chat-choose-btn{margin:8px 0}.chat-recommendation[data-chosen]{outline:2px solid var(--accent,#1f6f78);outline-offset:2px}
+
+/* 11-10: phone consent strip below the header. The 11-04 top strip covered the logo and the menu button, so
+   the menu could not open before a choice; at 76px it still clears the home task input. The open menu draws
+   above the strip, and "Essential only" keeps a 44px touch target clear of the "How we use cookies" row. */
+@media(max-width:700px){
+ body #cookieConsentBanner:not(.hidden){top:84px!important;max-height:calc(100dvh - 96px)}
+ body #cookieConsentBanner .cookie-banner-close{min-height:44px!important;min-width:44px!important;top:8px;right:8px}
+ body #cookieConsentBanner .cookie-purpose-details>summary{margin-right:124px}
+ body header.pearl-header:has(.nav-tabs.pearl-open){z-index:100000}
+}
