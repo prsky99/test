@@ -159,7 +159,9 @@ def test_agent_front_bypasses_rag_generation():
     assert reply.intent == "find"
     assert "Global Weather MCP" in reply.text
     assert "Endpoint:" in reply.text and len(reply.data["recommendations"]) == 1
-    assert "rag" not in reply.data and not mock_http.post.called
+    # Chat may embed the request to rank candidates (2026-11-04), but never asks the LLM to write the answer.
+    generation = [c for c in mock_http.post.call_args_list if not str(c.args[0] if c.args else c.kwargs.get('url')).endswith('/api/embed')]
+    assert "rag" not in reply.data and generation == []
 
 
 def test_dashboard_rag_endpoints():

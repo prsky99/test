@@ -39,7 +39,9 @@ def publish(store, claim, blob, descriptor, vector_hash):
     store._execute('''INSERT INTO agentcon_search.embeddings(resource_id,descriptor_hash,vector_hash,embedding)
         VALUES(%s,%s,%s,%s::public.vector)
         ON CONFLICT(resource_id) DO UPDATE SET descriptor_hash=EXCLUDED.descriptor_hash,
-        vector_hash=EXCLUDED.vector_hash,embedding=EXCLUDED.embedding''',
+        vector_hash=EXCLUDED.vector_hash,embedding=EXCLUDED.embedding
+        WHERE embeddings.vector_hash IS DISTINCT FROM EXCLUDED.vector_hash
+           OR embeddings.descriptor_hash IS DISTINCT FROM EXCLUDED.descriptor_hash''',
         (claim.resource_id,descriptor.digest,vector_hash,vector_literal(blob)))
 
 
@@ -79,6 +81,15 @@ def configure_scan(store, *, filtered=False):
     return supported
 
 
+# A listing waiting to be embedded again keeps its old row: the next publish usually
+# writes the same vector (2026-11-09: 46% of 175k daily embeddings repeated the same
+# text), and deleting the row first turned every such no-op into a delete plus insert on
+# the HNSW-indexed table. Search still ignores the row until provenance matches it again.
+_WAITING = '''NOT EXISTS (SELECT 1 FROM public.vec_outbox o WHERE o.resource_id=e.resource_id)
+              AND NOT EXISTS (SELECT 1 FROM public.legacy_vector_heads h JOIN public.legacy_vector_jobs j USING(job_id)
+                WHERE h.resource_id=e.resource_id AND j.status IN ('pending','claimed'))'''
+
+
 def cleanup(store):
     # Changed/deleted publications cannot rank as current, even before cleanup.
     # Find stale rows without the writer lock (a full comparison can take seconds under
@@ -86,8 +97,8 @@ def cleanup(store):
     with store.tx(readonly=True):
         stale = [row[0] for row in store._execute('''SELECT e.resource_id FROM agentcon_search.embeddings e
             LEFT JOIN public.legacy_vector_provenance p ON p.resource_id=e.resource_id
-            WHERE p.resource_id IS NULL OR p.vector_hash<>e.vector_hash
-              OR p.descriptor_hash<>e.descriptor_hash LIMIT 256''').fetchall()]
+            WHERE (p.resource_id IS NULL OR p.vector_hash<>e.vector_hash
+              OR p.descriptor_hash<>e.descriptor_hash) AND ''' + _WAITING + ''' LIMIT 256''').fetchall()]
     if not stale:
         return 0
     marks = ','.join(['%s'] * len(stale))  # bound integer ids; the store accepts at most 256 parameters
@@ -96,7 +107,32 @@ def cleanup(store):
             SELECT e.resource_id FROM agentcon_search.embeddings e
             LEFT JOIN public.legacy_vector_provenance p ON p.resource_id=e.resource_id
             WHERE e.resource_id IN (''' + marks + ''') AND (p.resource_id IS NULL OR p.vector_hash<>e.vector_hash
-              OR p.descriptor_hash<>e.descriptor_hash))''', tuple(stale)).rowcount
+              OR p.descriptor_hash<>e.descriptor_hash) AND ''' + _WAITING + ''')''', tuple(stale)).rowcount
+
+
+def reusable(store, claim, descriptor):
+    """The stored embedding when the listing's last indexed job embedded this same text, else None.
+
+    Health and other non-text changes invalidate a listing's vector (resources trigger), so
+    the same text came back for embedding again. The row in agentcon_search.embeddings was
+    written by the latest indexed job in the same transaction; when that job's corpus and
+    model match the claim, the bytes are reused and checked against their stored hash.
+    """
+    rows = store._execute('''SELECT e.embedding::text, e.vector_hash FROM agentcon_search.embeddings e
+        WHERE e.resource_id=%s AND e.descriptor_hash=%s AND EXISTS (
+          SELECT 1 FROM (SELECT j.corpus_hash, j.descriptor_hash FROM public.legacy_vector_jobs j
+            WHERE j.resource_id=%s AND j.status='indexed' ORDER BY j.finished DESC, j.job_id DESC LIMIT 1) last
+          WHERE last.corpus_hash=%s AND last.descriptor_hash=%s)''',
+        (claim.resource_id, descriptor.digest, claim.resource_id, claim.corpus_hash, descriptor.digest)).fetchall()
+    if len(rows) != 1 or type(rows[0][0]) is not str:
+        return None
+    try:
+        values = [float(v) for v in rows[0][0].strip('[]').split(',')]
+    except ValueError:
+        return None
+    if len(values) != 768 or hashlib.sha256(struct.pack('<768f', *values)).hexdigest() != rows[0][1]:
+        return None
+    return values
 
 
 def install(store):

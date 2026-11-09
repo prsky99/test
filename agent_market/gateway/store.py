@@ -19,9 +19,9 @@ from ..storage_security import private_sqlite_file
 from ..legacy_vector_index import install as install_vector_index, register as register_vector_index
 from ..observation_guards import (FIELDS as OBSERVATION_FIELDS, OWNERS as OBSERVATION_OWNERS,
                                   GuardError, ObservationToken, fingerprint, issue, validate)
-from ..broker.categories import LEGACY_ALIASES
+from ..broker.categories import CATEGORIES, LEGACY_ALIASES
 from .classify import VERSION as CLASSIFIER_VERSION
-from .classify import classify_listing, query_terms
+from .classify import OTHER as OTHER_CATEGORY, classify_listing, query_terms
 from . import constraints as cons
 from .admin_auth import init_admin_auth_db
 from .rag import ensure_vec_table, load_sqlite_vec
@@ -1141,6 +1141,14 @@ class Store:
         if row["content_hash"] == digest:  # 바뀐 게 없으면 확인 시각만 갱신
             db.execute("UPDATE resources SET last_seen=? WHERE id=?", (seen_at, rid))
             return "unchanged", rid
+        if row["name"] == r["name"][:200] and row["description"] == r["description"][:2000]:
+            # Same text: keep the category the collectors set from richer evidence (agent card,
+            # tools). The A2A registry changes updated_at about every 30 minutes, and rewriting
+            # its own label each time flipped 629 listings back and forth and re-embedded them
+            # (2026-11-09, 49k embeddings a day).
+            kept = db.execute("SELECT category, source FROM resources WHERE id=?", (rid,)).fetchone()
+            if kept is not None and kept["category"] in CATEGORIES and kept["category"] != OTHER_CATEGORY:
+                values = values[:5] + (kept["category"],) + values[6:]
         db.execute(
             """UPDATE resources SET source=?, kind=?, url=?, name=?, description=?, category=?, networks=?,
                price_usdc=?, pay_to=?, method=?, details=?, calls_30d=?, payers_30d=?, last_called=?,

@@ -339,6 +339,11 @@ class RagEngine:
         endpoint = self.ollama_url
         if self.model_descriptor().digest != descriptor.digest:
             return index.fail(claim, descriptor, 'invalid_response')
+        # Same text and model as the vector already stored: publish it again without Ollama.
+        reuse = getattr(index, 'reusable_vector', None)
+        stored = reuse(claim, descriptor) if reuse is not None else None
+        if stored is not None:
+            return index.publish(claim, stored, descriptor)
         embeddings = self.embed_texts([claim.text])
         if self.ollama_url != endpoint or self.model_descriptor().digest != descriptor.digest:
             return index.fail(claim, descriptor, 'invalid_response')

@@ -15,6 +15,7 @@ from urllib.parse import urlparse
 
 import httpx
 
+from ..broker.categories import CATEGORIES
 from .classify import classify
 from .store import Store
 
@@ -136,7 +137,9 @@ def parse_a2a_item(item: dict) -> dict | None:
         return None
     name = str(item.get("name") or item.get("displayName") or item.get("packageName") or "")[:200]
     description = str(item.get("description") or "")[:2000]
-    cat = item.get("category") or classify(f"{name} {description}")
+    # The registry's own labels (developer-tools, demo-test, ...) are not our categories:
+    # stored as-is they hid listings from category pages until the card check reclassified them.
+    cat = item.get("category") if item.get("category") in CATEGORIES else classify(f"{name} {description}")
 
     skills = item.get("skills")[:20] if isinstance(item.get("skills"), list) else []
     caps = item.get("capabilities") if isinstance(item.get("capabilities"), (dict, list)) else None

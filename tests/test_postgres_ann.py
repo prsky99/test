@@ -52,7 +52,7 @@ def test_actual_pgvector_ann_publication_search_and_invalidation(monkeypatch,lex
             store.upsert_resource(row|{'description':'Changed source revision'},now=20)
             stale=engine.hybrid_search(store._db,'photonics',query_embedding=vector,query_descriptor=descriptor)
             assert not any(r['dense_match'] for r in stale)
-            assert cleanup(store)==1
+            assert cleanup(store)==0  # kept while the listing waits to be embedded again (2026-11-09)
             index.ensure_jobs(descriptor,limit=1,resource_ids=(rid,))
             claim=index.claim_batch(descriptor,limit=1,resource_ids=(rid,))[0]
             assert index.publish(claim,vector,descriptor)=='indexed'

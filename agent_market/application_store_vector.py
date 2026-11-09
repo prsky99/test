@@ -52,6 +52,17 @@ class PostgresVectorIndex(VectorIndex):
             from .postgres_ann import publish
             publish(self.store, claim, blob, descriptor, vector_hash)
 
+    def reusable_vector(self, claim, descriptor):
+        """The stored vector when this claim's text and model were already embedded, else None."""
+        if not self.ann_enabled:
+            return None
+        from .postgres_ann import reusable
+        try:
+            with self.read_snapshot():
+                return reusable(self.store, claim, descriptor)
+        except VectorError:
+            return None
+
     def ensure_jobs(self, descriptor, limit=1, resource_ids=None, expected_resources=None):
         if resource_ids is None and expected_resources is None:
             # The backfill scan reads every listing for seconds. Holding the
