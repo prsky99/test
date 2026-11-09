@@ -427,3 +427,10 @@
 - 소스 분석과 개선사항 17개: reports/AI-AD-Coin-소스분석-2026-11-09.md (계약 준비금 fail-open·단일 소유자, v2 미커밋, v2 화면 디자인 체계 위반, MD5 1건).
 - 사용자 결정: v1은 시험 전용 동결. Settings·AdCoinService·Signer가 test_mode=False를 거부(config.require_test_mode, tests/test_ad_coin_v1_frozen.py). 규칙: docs/AD_COIN_V1_FREEZE.md. AD Coin 시험 275개 통과. 전체 시험은 무관한 collector 시험 1개(다른 세션 미커밋 변경)에서 멈춤.
 - 총괄 PM 요청으로 v2 현황·남은 과제·법률 검토 자료 목록: reports/AI-AD-Coin-v2-현황과-법률검토자료-2026-11-09.md. 배포·운영 DB 변경 없음.
+
+## 2026-11-09 AI AD Coin 팀: v2 커밋·계약·실가치 잠금·디자인 체계 (총괄 PM 지시)
+- v2 커밋(아직 배포 안 함): e346295d(v1 신원 확인 보안), c83c5eda(v2 코드·시험, AD_COIN_V2_ENABLED 기본 꺼짐 시험), 501c399a(설계 문서·검증 기록). 비밀·개인정보 검사 통과. 시험 기록의 호스트 이름과 로컬 경로는 지움. 커밋할 트리를 따로 풀어 AD Coin 시험 293개 통과.
+- a60dac6c 토큰 계약 초안: 준비금 fail-closed(피드 없음·0 이하·자릿수·1일 초과·미래 시각 거부), 다중서명 계약 소유자, 2단계 이전, 발행자·피드 변경 2일 지연(7일 만료), 발행은 브리지 발행자만. 배포 도구는 시뮬레이션 계획만 출력하고 --execute는 거부. 가짜 배포 기록 삭제. 결함 목록: docs/AD_COIN_TOKEN_CONTRACT.md. 실험 배정 MD5를 sha256으로 교체(배정은 저장되지 않아 이전 작업 불필요). solc가 없어 컴파일 시험은 못 함(설치는 승인 필요).
+- 353c9a0f 실가치 이중 잠금: AD_COIN_REAL_VALUE_ENABLED(기본 꺼짐) 없이는 라우터를 붙이지 않고, 요청이 와도 404, 게이트웨이와 웹훅 처리기는 403. front.py는 v2 마운트만 HEAD 사본에 붙였고, v2는 켤 때만 import한다(os 미import로 서버가 죽을 뻔한 것을 막음). 법률 문서는 "법률검토-쟁점초안"으로 낮춤(단정 삭제, 근거 없는 수치는 확인 필요로 표시, 일정은 검토 후보로).
+- 694bd955 v2 화면을 공용 디자인 체계로: 공용 styles/necklace/pearl-live/app.js, 워크스페이스 틀 적용. 자체 app.css·테마 코드·주석 제거. 디자인 유지 시험 추가. 브라우저 시험 21개 통과.
+- 남은 일: 4개 법률 자료 초안(약관, 개인정보 흐름도, 화면 문구 묶음, 법령 원문 근거) + 로펌 후보 비교표, 5~7번(커버리지 95%, Redis 속도 제한·jobs 이동, 문서 색인). 화면의 "Platform Audit"·"Agent Relays" 보기는 공개 화면에 내부 용어가 많아 정리가 필요함.
