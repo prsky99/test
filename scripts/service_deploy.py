@@ -25,6 +25,8 @@ from agent_market.application_runtime import _private_bytes
 from agent_market.service_host import probe_token
 
 PORTS = {'frontend': {'a': 8401, 'b': 8402}, 'admin': {'a': 8201, 'b': 8202}}
+# 11-10: a retained previous slot (about 1.5 GB) is stopped this long after a deploy; rollback starts it again.
+RECLAIM_STANDBY_SECONDS = 1800
 # Undeployed releases younger than this survive the post-deploy prune (another session may deploy them next).
 AFTER_DEPLOY_MIN_AGE_HOURS = 6
 RELEASE = re.compile(r'[a-zA-Z0-9][a-zA-Z0-9_.-]{0,79}\Z')
@@ -171,13 +173,19 @@ class Deployment:
                 shutil.copy2(path, target / path.name)
         (target / 'service_entry.py').write_text(
             "import runpy\nrunpy.run_module('agent_market.service_host', run_name='__main__')\n")
-        # APFS clone is cheap and isolates package writes from the live venv.
-        result = subprocess.run(['/bin/cp', '-cR', str(self.root / '.venv'), str(target / '.venv')],
-                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        if result.returncode:
-            if (target / '.venv').exists():
-                shutil.rmtree(target / '.venv')
-            shutil.copytree(self.root / '.venv', target / '.venv', symlinks=True)
+        # Releases with the same dependencies share one environment (11-10: 28 releases a day each
+        # cloned .venv, and macOS assessed every new copy of its binaries on first run).
+        shared = self.shared_environment(target)
+        if shared is not None:
+            os.symlink(shared, target / '.venv')
+        else:
+            # APFS clone is cheap and isolates package writes from the live venv.
+            result = subprocess.run(['/bin/cp', '-cR', str(self.root / '.venv'), str(target / '.venv')],
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if result.returncode:
+                if (target / '.venv').exists():
+                    shutil.rmtree(target / '.venv')
+                shutil.copytree(self.root / '.venv', target / '.venv', symlinks=True)
         runtime_manifest = self.root / 'deploy/runtime-versions.json'
         if runtime_manifest.is_file() and not runtime_manifest.is_symlink():
             (target / 'deploy').mkdir(exist_ok=True)
@@ -199,6 +207,66 @@ class Deployment:
             manifest['base'] = base
         atomic_json(target / 'release.json', manifest)
         return {'release': release, 'files': len(hashes), 'base': base}
+
+    def environment_key(self, target):
+        """Dependency identity of the environment a release would run: its runtime lock, the runtime
+        versions file, the interpreter and the installed distributions. None when it cannot be read."""
+        source = (self.root / '.venv').resolve()
+        try:
+            config = (source / 'pyvenv.cfg').read_bytes()
+            packages = sorted(path.name for path in source.glob('lib/python*/site-packages/*.dist-info'))
+            if not packages:
+                return None
+            parts = [config, '\n'.join(packages).encode()]
+            for name in ('requirements-runtime.lock', 'deploy/runtime-versions.json'):
+                path = target / name
+                parts.append(path.read_bytes() if path.is_file() else b'-')
+        except OSError:
+            return None
+        return hashlib.sha256(b'\0'.join(parts)).hexdigest()[:24]
+
+    def shared_environment(self, target):
+        """The shared environment for this dependency key, cloned once from the packaging .venv.
+        A key never changes its directory, so releases already using it are not affected by a new key."""
+        key = self.environment_key(target)
+        if key is None:
+            return None
+        venvs = self.directory / 'venvs'
+        shared = venvs / key
+        if shared.is_dir() and not shared.is_symlink() and (shared / '.complete').is_file():
+            return shared
+        venvs.mkdir(mode=0o700, exist_ok=True)
+        staging = venvs / ('.staging-' + key + '-' + secrets.token_hex(4))
+        result = subprocess.run(['/bin/cp', '-cR', str((self.root / '.venv').resolve()), str(staging)],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if result.returncode:
+            shutil.rmtree(staging, ignore_errors=True)
+            return None
+        (staging / '.complete').write_text(key)
+        try:
+            staging.rename(shared)
+        except OSError:  # another session finished the same key first
+            shutil.rmtree(staging, ignore_errors=True)
+            if not (shared / '.complete').is_file():
+                return None
+        return shared
+
+    def prune_environments(self, apply=False):
+        """Shared environments that no remaining release links to."""
+        venvs = self.directory / 'venvs'
+        if not venvs.is_dir():
+            return []
+        used = set()
+        for release in (self.directory / 'releases').iterdir():
+            link = release / '.venv'
+            if link.is_symlink():
+                used.add(Path(os.path.realpath(link)).name)
+        unused = [path for path in venvs.iterdir()
+                  if path.is_dir() and not path.is_symlink() and path.name not in used and not path.name.startswith('.')]
+        if apply:
+            for path in unused:
+                shutil.rmtree(path)
+        return sorted(path.name for path in unused)
 
     def package_base(self, base=None):
         if base is None:
@@ -490,13 +558,52 @@ class Deployment:
                 self.save(previous, 'stable')
                 raise
             service['previous'] = old
+            service['retained_at'] = time.time()
             state.pop('pending', None)
             self.save(state, 'retained')
             self.persist(state)
-            # Retain the previous, drained process for immediate rollback. It is
-            # reclaimed only when the next candidate needs this slot.
+            # Retain the previous, drained process for immediate rollback for RECLAIM_STANDBY_SECONDS;
+            # then reclaim_standby stops it (rollback starts it again, in tens of seconds).
             self.drained(role, old)
+            self.schedule_reclaim()
             return {'service': role, 'active': new, 'release': release, 'previous_retained': True}
+
+    def schedule_reclaim(self, delay=RECLAIM_STANDBY_SECONDS):
+        """Run reclaim-standby once after DELAY in a detached process; a failure only keeps the standby."""
+        if os.environ.get('PYTEST_CURRENT_TEST'):
+            return  # tests call reclaim_standby directly; never leave a sleeping process behind
+        try:
+            logs = self.root / 'logs/services'
+            logs.mkdir(parents=True, exist_ok=True)
+            with open(logs / 'reclaim-standby.log', 'ab') as output:
+                subprocess.Popen(['nice', '-n', '10', sys.executable, '-m', 'scripts.service_deploy', '--root', str(self.root),
+                                  'reclaim-standby', '--after', str(int(delay))], cwd=str(self.root),
+                                 stdin=subprocess.DEVNULL, stdout=output, stderr=output, start_new_session=True)
+        except Exception:
+            pass
+
+    def reclaim_standby(self, min_age=RECLAIM_STANDBY_SECONDS, now=None):
+        """Stop each web role's previous slot once its deploy is MIN_AGE old. State keeps the slot and its
+        release, so rollback starts the process again before switching."""
+        stopped = []
+        with self.lock():
+            state = self.state()
+            if not state.get('managed') or state.get('phase') not in ('stable', 'retained'):
+                return {'stopped': stopped, 'skipped': 'phase ' + str(state.get('phase'))}
+            now = time.time() if now is None else now
+            for role in PORTS:
+                service = state['services'].get(role) or {}
+                previous, active = service.get('previous'), service.get('active')
+                at = service.get('retained_at')
+                if previous not in ('a', 'b') or previous == active or type(at) not in (int, float) or now - at < min_age:
+                    continue
+                if not self.pid(role, previous):
+                    continue
+                if not self.drained(role, previous, timeout=30):
+                    continue
+                self.stop(role, previous)
+                stopped.append({'role': role, 'slot': previous, 'release': service['slots'].get(previous)})
+        return {'stopped': stopped}
 
     def rollback(self, role):
         with self.lock():
@@ -869,9 +976,11 @@ class Deployment:
                 if trash.is_dir() and not trash.is_symlink():
                     shutil.rmtree(trash)
                     removed.append(trash.name)
+        environments = self.prune_environments(apply)
         return {'releases': len(found), 'protected': sorted(protected), 'kept_recent': len(recent),
                 'kept_young': len(young - recent - protected), 'to_remove': len(remove),
-                'removed': len(removed), 'applied': apply, 'oldest_removed': remove[:3], 'newest_removed': remove[-3:]}
+                'removed': len(removed), 'applied': apply, 'oldest_removed': remove[:3], 'newest_removed': remove[-3:],
+                'unused_environments': environments}
 
     def prune_after_deploy(self):
         """After a verified deploy keep only what is deployed (11-04 user decision).
@@ -928,6 +1037,9 @@ def main():
     deploy.add_argument('--no-prune', action='store_true', help='keep old releases after a successful deploy')
     rollback = commands.add_parser('rollback'); rollback.add_argument('role', choices=PORTS)
     commands.add_parser('status')
+    reclaim = commands.add_parser('reclaim-standby', help='stop previous web slots retained longer than --min-age')
+    reclaim.add_argument('--after', type=int, default=0, help='wait this many seconds first')
+    reclaim.add_argument('--min-age', type=int, default=RECLAIM_STANDBY_SECONDS)
     prune = commands.add_parser('prune-releases', help='dry run unless --apply')
     prune.add_argument('--apply', action='store_true'); prune.add_argument('--keep', type=int, default=10)
     prune.add_argument('--min-age-days', type=float, default=3)
@@ -958,6 +1070,9 @@ def main():
             result['pruned'] = manager.prune_after_deploy()
     elif args.command == 'rollback':
         result = manager.rollback(args.role)
+    elif args.command == 'reclaim-standby':
+        time.sleep(max(0, args.after))
+        result = manager.reclaim_standby(args.min_age)
     elif args.command == 'recover':
         result = manager.recover(args.worker, args.release)
     elif args.command == 'prune-releases':

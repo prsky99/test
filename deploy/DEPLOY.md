@@ -144,3 +144,25 @@ sudo docker compose cp gateway:/data/gateway.sqlite3 ./backup.sqlite3          #
   - 배포가 실패하면 아무것도 지우지 않는다. 정리에 문제가 생겨도 이미 성공한 배포는 실패로 바꾸지 않는다. 결과는 출력의 `pruned`에 나온다.
   - 지우지 않으려면 `--no-prune`을 붙인다.
   - 6시간보다 오래 기다린 미배포 릴리스는 다음 배포 때 지워진다. 그럴 때는 다시 패키지한다.
+
+## 릴리스끼리 Python 환경 공유 (2026-11-10)
+11-10 하루에 릴리스를 28개 만들면서, 릴리스마다 `.venv`를 복제했다. 그래서 macOS 실행 파일 검사(syspolicyd)가 새 사본마다 돌아 CPU를 84%까지 썼다(16GB 맥이 스왑 80%이던 때).
+- `package`가 의존성이 같은 릴리스끼리 환경 하나를 함께 쓰게 한다.
+  - 의존성 키 = 패키징하는 `.venv`의 `pyvenv.cfg`(인터프리터) + 설치된 배포판 목록(`site-packages/*.dist-info`) + 릴리스의 `requirements-runtime.lock` + `deploy/runtime-versions.json`
+  - 키마다 `gateway-data/services/venvs/<키>`에 한 번만 복제한다(`.complete` 표시). 릴리스의 `.venv`는 그 폴더를 가리키는 심볼릭 링크다.
+- 키 폴더는 만든 뒤 바꾸지 않는다. 의존성이 바뀌면 새 키, 새 폴더가 생긴다. 그래서 이전 버전과 되돌릴 버전은 자기 환경을 그대로 쓴다.
+  - 공유 환경 안에서 `pip install`을 하지 않는다. 의존성을 바꾸려면 작업본 `.venv`를 바꾸고 다시 패키징한다.
+- 활성 릴리스를 `cp -cR`로 복사해 만드는 오버레이도 링크가 그대로 복사되므로 같은 환경을 쓴다.
+- 키를 읽지 못하면(배포판 목록이 없는 등) 예전처럼 `.venv`를 복제한다.
+- 정리: 릴리스 정리(`prune-releases`, 배포 뒤 자동 정리)가 끝나면, 어떤 릴리스도 가리키지 않는 키 폴더를 함께 지운다. 결과는 `unused_environments`에 나온다.
+- 시험: `tests/test_service_deploy_shared_env.py`. 실제 확인: `venv-share-frontend-20261110-r1`(게이트 passed), 성장 팀 `growth-md-frontend-20261110-r7`(같은 키, 패키지 목록이 운영 버전과 같음).
+
+## 이전 칸 회수와 되돌리기 시간 (2026-11-10)
+frontend·admin 배포는 이전 칸(직전 버전 프로세스)을 남겨 즉시 되돌릴 수 있게 한다. 이 칸이 약 1.5GB를 쓴다.
+- 배포가 끝나고 30분(`RECLAIM_STANDBY_SECONDS`)이 지나면 이전 칸 프로세스를 멈춘다.
+  - 배포가 `reclaim-standby --after 1800`을 분리된 프로세스로 한 번 띄운다. 로그는 `logs/services/reclaim-standby.log`다.
+  - 수동 실행: `./agentcon reclaim-standby`(30분 지난 것만), `--min-age 0`은 바로 멈춘다.
+  - `state.json`의 이전 칸·버전 기록은 그대로 둔다. 배포 중(phase가 stable·retained가 아님)이면 아무것도 하지 않는다.
+  - `retained_at`이 없는 예전 배포의 이전 칸은 건드리지 않는다.
+- **되돌리기 시간**: 30분 안에는 즉시(프록시 전환만)다. 30분이 지나면 `./agentcon rollback <역할>`이 이전 칸을 다시 띄우고 준비를 확인한 뒤 전환하므로 **수십 초가 걸린다**(frontend 시작·준비 약 20~40초).
+- 시험: `tests/test_service_deploy_shared_env.py`(회수 시점, 상태 유지, 배포 중 건너뜀)
