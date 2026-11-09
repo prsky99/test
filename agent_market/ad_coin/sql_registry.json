@@ -438,6 +438,22 @@
    "sha256": "5b038ed8881a2fe4d2002d2b56f5ec1c48cdbbf448b3fcd9035a7c7b1e09e383"
   },
   {
+   "sql": "DELETE FROM adc2_agent_tokens WHERE token_hash IN (SELECT token_hash FROM adc2_agent_tokens WHERE COALESCE(revoked_at,expires_at)<? AND expires_at<? LIMIT ?)",
+   "sha256": "ec472f3eb6718f9c1a933d0eaba2a8b548b4bb6c0a9e3ca34a50ef0807a6baca"
+  },
+  {
+   "sql": "DELETE FROM adc2_audit_log WHERE id IN (SELECT id FROM adc2_audit_log WHERE timestamp_ms<? ORDER BY timestamp_ms LIMIT ?)",
+   "sha256": "fa9d30892e12bf7e261e3a9da2b6f28ae24e90f20d01002f8de8d1351e135cea"
+  },
+  {
+   "sql": "DELETE FROM adc2_human_sessions WHERE session_hash IN (SELECT session_hash FROM adc2_human_sessions WHERE COALESCE(revoked_at,expires_at)<? AND expires_at<? LIMIT ?)",
+   "sha256": "db8d1c10f5c85ed7a481a93dbe3bd0a1722429c3bb5c47b8d2ab1f8286dd3d72"
+  },
+  {
+   "sql": "DELETE FROM adc2_reviewer_credentials WHERE token_hash IN (SELECT token_hash FROM adc2_reviewer_credentials WHERE COALESCE(revoked_at,expires_at)<? AND expires_at<? LIMIT ?)",
+   "sha256": "4c61cc296055a28b22cdb6538d4bd5edb4b4dda090040bf70196704c4682bd7f"
+  },
+  {
    "sql": "DO $$ BEGIN ALTER TABLE adc2_campaigns ADD CONSTRAINT adc2_current_revision_fk FOREIGN KEY(current_revision_id,id,advertiser_id) REFERENCES adc2_campaign_revisions(id,campaign_id,advertiser_id) DEFERRABLE INITIALLY DEFERRED; EXCEPTION WHEN duplicate_object THEN NULL; END $$",
    "sha256": "5ac443ec6bfbb37eb269cf530f68f311fd5803c92a74a00d60d6fa09e868e9da"
   },

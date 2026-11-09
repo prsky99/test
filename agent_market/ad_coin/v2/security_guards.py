@@ -80,6 +80,41 @@ class TokenBucketRateLimiter:
             self._buckets.clear()
 
 
+# Personal data in the audit trail is minimised before it is stored (docs/AD_COIN_PRIVACY_FLOW.md).
+AUDIT_RETENTION_DAYS = 90          # audit entries are deleted after this many days
+CREDENTIAL_RETENTION_DAYS = 30     # expired or revoked sessions and tokens are deleted this long after they end
+_DAY_MS = 86_400_000
+
+
+def coarse_ip(value):
+    """Keep only the network part of an address: IPv4 /24, IPv6 /48. Anything else is dropped."""
+    import ipaddress
+
+    if not value or not isinstance(value, str):
+        return None
+    try:
+        address = ipaddress.ip_address(value.strip())
+    except ValueError:
+        return None
+    prefix = 24 if address.version == 4 else 48
+    return str(ipaddress.ip_network(f"{address}/{prefix}", strict=False))
+
+
+def client_class(user_agent):
+    """Store a coarse client class instead of the raw user agent string."""
+    if not user_agent or not isinstance(user_agent, str):
+        return None
+    text = user_agent.lower()
+    if any(word in text for word in ("bot", "crawler", "spider", "curl", "python", "httpx", "wget")):
+        return "automated"
+    if "mobile" in text or "android" in text or "iphone" in text:
+        return "mobile_browser"
+    if "mozilla" in text:
+        return "browser"
+    return "other"
+
+
+
 class AuditLogger:
     """Immutable audit trail writer for financial and operational events."""
 
@@ -114,8 +149,8 @@ class AuditLogger:
                     identifier(actor_principal_id) if actor_principal_id else None,
                     identifier(actor_owner_id) if actor_owner_id else None,
                     identifier(target_id) if target_id else None,
-                    client_ip,
-                    user_agent,
+                    coarse_ip(client_ip),
+                    client_class(user_agent),
                     status,
                     details_json,
                 ),
@@ -123,7 +158,30 @@ class AuditLogger:
         return entry_id
 
     @staticmethod
+    def prune(store, *, now_ms: int, batch: int = 500, max_batches: int = 20) -> int:
+        """Delete audit entries older than AUDIT_RETENTION_DAYS, in bounded batches."""
+        cutoff = millis(now_ms - AUDIT_RETENTION_DAYS * _DAY_MS)
+        removed = 0
+        for _ in range(max_batches):
+            with store.atomic():
+                count = store.execute("audit_log_prune", (cutoff, batch)).rowcount or 0
+            removed += count
+            if count < batch:
+                break
+        return removed
+
+    @staticmethod
     def recent(store, limit: int = 50) -> list[dict]:
         with store.atomic():
             rows = store.execute("audit_log_recent", (limit,)).fetchall()
             return [dict(r) for r in rows]
+
+
+def prune_credentials(store, *, now_ms: int, batch: int = 500) -> int:
+    """Delete sessions and tokens that ended more than CREDENTIAL_RETENTION_DAYS ago."""
+    cutoff = (now_ms - CREDENTIAL_RETENTION_DAYS * _DAY_MS) / 1000.0
+    removed = 0
+    for name in ("human_session_prune", "agent_token_prune", "reviewer_credential_prune"):
+        with store.atomic():
+            removed += store.execute(name, (cutoff, cutoff, batch)).rowcount or 0
+    return removed

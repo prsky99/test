@@ -37,6 +37,7 @@ class WorkerDaemon:
         processed_outbox = self.workers.process_outbox(now_ms=now_ms)
         signed_receipts = self.workers.reconcile_pending_receipts(now_ms=now_ms)
         stale_attention = self.workers.reconcile_stale_attention(now_ms=now_ms)
+        pruned = self.prune_if_due(now_ms)
 
         cycle_summary = {
             "timestamp_ms": now_ms,
@@ -44,10 +45,22 @@ class WorkerDaemon:
             "processed_outbox": processed_outbox,
             "signed_receipts": signed_receipts,
             "stale_attention": stale_attention,
+            "pruned": pruned,
         }
-        if any([reclaimed_leases, processed_outbox, signed_receipts, stale_attention]):
+        if any([reclaimed_leases, processed_outbox, signed_receipts, stale_attention, pruned]):
             logger.info("Cycle completed with activity: %s", cycle_summary)
         return cycle_summary
+
+    PRUNE_INTERVAL_MS = 3_600_000  # retention deletes run at most once an hour
+
+    def prune_if_due(self, now_ms: int) -> int:
+        """Apply the retention periods (audit log 90 days, ended credentials 30 days)."""
+        from agent_market.ad_coin.v2.security_guards import AuditLogger, prune_credentials
+
+        if now_ms - getattr(self, "_last_prune_ms", 0) < self.PRUNE_INTERVAL_MS:
+            return 0
+        self._last_prune_ms = now_ms
+        return AuditLogger.prune(self.store, now_ms=now_ms) + prune_credentials(self.store, now_ms=now_ms)
 
     def run_forever(self, interval_seconds: float = 5.0):
         self.running = True

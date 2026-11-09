@@ -448,3 +448,8 @@
 - 실패에서 배운 것: 첫 배포는 front 기본 CSP(script-src 'none')가 공용 CSS·JS를 막아 무스타일로 보였음(미리보기 서버엔 미들웨어가 없어 못 잡음). 페이지가 자체 CSP를 보내게 고치고 실제 앱 통합 시험에 헤더 검사를 넣음.
 - 승인 대기: MCP Registry 게시(`deploy/mcp-registry/`, HTTP 확인 파일 방식 권장, DNS 변경 불필요), 디렉터리 4곳(`reports/MCP·A2A 디렉터리 선별 2026-11-09.md`), 런칭 글(`reports/런칭 글 초안 2026-11-09.md`), 스냅샷 매일 갱신 예약.
 - 남은 것: 스냅샷 주기 실행 없음(21일 뒤 사이트맵 제외·noindex). 일부 과업은 관련성이 느슨함(예: search-reddit). `/agents/category/web_search` 125초 응답 발견, SRE에 전달.
+
+## 2026-11-09 AI AD Coin 팀: v2 감사 로그 개인정보 최소화·보존 기간 (PM 1순위 지시)
+- 감사 로그는 저장하기 전에 IP를 IPv4 /24, IPv6 /48로 자르고, 브라우저 정보는 browser·mobile_browser·automated·other 분류로 바꿔 저장한다. 지금까지 IP·UA를 넘기는 코드는 없었지만 함수가 원문을 받을 수 있었다.
+- 보존: 감사 로그 90일, 끝난 세션·에이전트 토큰·심사자 자격 30일. 작업자 데몬이 1시간마다 500건씩 삭제. 삭제 SQL 4개를 등록 목록에 추가(scripts.ad_coin_sql_registry --add-v2, 540개).
+- 시험 15개 추가, AD Coin 시험 347개 통과. 남은 것: 노출 증거·동의·전환의 보존 기간.
