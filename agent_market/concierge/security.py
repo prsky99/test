@@ -377,7 +377,7 @@ class SecurityManager:
                 with self.store.tx() as db:
                     db.execute(
                         "INSERT INTO security_events (at, ip, event_type, path, method, user_agent, detail) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        (evt["at"], ip, evt["event_type"], evt["path"], evt["method"], evt["user_agent"], evt["detail"]),
+                        (evt["at"], evt["ip"], evt["event_type"], evt["path"], evt["method"], evt["user_agent"], evt["detail"]),
                     )
                     db.execute(
                         "UPDATE security_ip_rules SET blocked_hits=blocked_hits+?, last_hit_at=? WHERE ip=?",
@@ -395,14 +395,16 @@ class SecurityManager:
             self.store._lock.release()
 
     def log_event(self, event_type: str, ip: str, path: str, method: str, ua: str | None, detail: str, *, persist=True):
+        from ..privacy import coarse_ip, ua_family
         now = time.time()
+        # Only the /24 (/48) network and the client family are kept, in memory and in the table (11-10).
         evt = {
             "at": now,
-            "ip": ip,
+            "ip": coarse_ip(ip) or "unknown",
             "event_type": event_type,
             "path": path[:200],
             "method": method[:10],
-            "user_agent": (ua or "")[:200],
+            "user_agent": ua_family(ua),
             "detail": detail[:500],
         }
         with self._lock:
@@ -414,7 +416,7 @@ class SecurityManager:
                 db.execute(
                     """INSERT INTO security_events (at, ip, event_type, path, method, user_agent, detail)
                        VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                    (now, ip, event_type, evt["path"], evt["method"], evt["user_agent"], evt["detail"])
+                    (now, evt["ip"], event_type, evt["path"], evt["method"], evt["user_agent"], evt["detail"])
                 )
         except Exception as exc:
             log.warning("Failed to insert security event: %s", exc)
@@ -782,8 +784,15 @@ class SecurityManager:
             conds.append("event_type=?")
             params.append(event_type)
         if ip:
-            conds.append("ip LIKE ?")
-            params.append(f"%{ip}%")
+            # Stored addresses are /24 (/48) networks since 11-10: an exact address finds its network.
+            from ..privacy import coarse_ip
+            network = coarse_ip(ip)
+            if network:
+                conds.append("ip=?")
+                params.append(network)
+            else:
+                conds.append("ip LIKE ?")
+                params.append(f"%{ip}%")
         where = ("WHERE " + " AND ".join(conds)) if conds else ""
         rows = self.store.query(
             f"SELECT id, at, ip, event_type, path, method, user_agent, detail "

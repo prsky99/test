@@ -79,7 +79,7 @@ def test_security_manager_auto_jail_on_repeated_violations(sec):
 
     events = sec.get_events(event_type="auto_jail_ddos", ip=ip)
     assert len(events) >= 1
-    assert events[0]["ip"] == ip
+    assert events[0]["ip"] == "203.0.113.0/24"  # stored as a /24 network since 11-10
 
 
 def test_shared_worker_egress_address_is_never_jailed(sec):

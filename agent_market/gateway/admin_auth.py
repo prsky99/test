@@ -242,6 +242,7 @@ def record_audit(
     details: Any = None,
 ) -> None:
     """관리자 활동 감사 로그를 기록한다."""
+    from ..privacy import coarse_ip  # staff addresses are kept as /24 (/48) networks (11-10)
     now = time.time()
     det_str = ""
     if details is not None:
@@ -250,7 +251,7 @@ def record_audit(
         db.execute(
             """INSERT INTO admin_audit_logs (at, username, role, action, action_name, target, ip, status, details)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (now, username, role, action, action_name, target, ip, status, det_str),
+            (now, username, role, action, action_name, target, coarse_ip(ip), status, det_str),
         )
     except Exception as e:
         log.warning("Failed to record admin audit log: %s", e)

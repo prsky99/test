@@ -57,10 +57,11 @@ def register(store, data, client_ip, *, public_origin='https://agentconcierge.bi
              len(details.get('tools') or details.get('skills') or []),rid))
         db.execute('''INSERT INTO health_checks (resource_id,at,outcome,status_code,latency_ms,error)
             VALUES (?,?,'healthy',?,?,NULL)''',(rid,now,observed.get('status_code',200),observed.get('latency_ms')))
+        from ..privacy import coarse_ip
         # Do not publish consent, network identifiers or browser privacy signals in resource metadata.
         db.execute('''INSERT INTO security_events (at,ip,event_type,path,method,user_agent,detail)
             VALUES (?,?,'registration_consent','/api/register','POST',NULL,?)''',
-            (now,client_ip,json.dumps({**receipt,'resource_id':rid,'verification_scope':'protocol'},sort_keys=True)))
+            (now,coarse_ip(client_ip) or 'unknown',json.dumps({**receipt,'resource_id':rid,'verification_scope':'protocol'},sort_keys=True)))
     clear_front_caches()
     return {'ok':True,'id':rid,'kind':kind,'name':data['name'],'status':'healthy',
         'tool_count':len(details.get('tools') or details.get('skills') or []),
