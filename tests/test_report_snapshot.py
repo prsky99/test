@@ -116,6 +116,7 @@ def test_rebuild_releases_the_front_store_lock_between_short_chunks(monkeypatch)
     monkeypatch.setattr(rs, 'KINDS', ('mcp',))
     monkeypatch.setattr(front, '_report_candidate_sql', lambda *a: ('', []))
     monkeypatch.setattr(front, '_report_candidates', lambda *a: (list(rows), len(rows)))
+    monkeypatch.setattr(rs, '_all_candidates', lambda *a: (list(rows), len(rows)))  # the snapshot's own window
     monkeypatch.setattr(front, '_report_prefetch', lambda s, ids: chunk_sizes.append(len(ids)) or ({}, {}))
     monkeypatch.setattr(front, '_report_listing', lambda s, row, current, reports: (row, {'name': row['name']}))
     monkeypatch.setattr(front, '_card_data', lambda row, s, create_connections=True: {})

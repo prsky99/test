@@ -168,3 +168,32 @@ def test_start_build_always_runs_and_later_refreshes_use_the_standby_stop(monkey
     monkeypatch.setattr(report_snapshot, 'STANDBY_CHECK_SECONDS', 0)
     report_snapshot.keep_fresh(object(), stop, interval=0, serving=lambda: True)
     assert calls[0] is stop and isinstance(calls[1], report_snapshot._UntilStandby)
+
+
+def test_snapshot_reads_past_the_request_window(monkeypatch):
+    """11-09 21:40: a2a 10,023 and mcp 10,001 report listings passed the 10,000 request window."""
+    from agent_market.concierge import report_snapshot
+    rows = [{'id': i} for i in range(1, 10_024)]
+
+    class Store:
+        def query(self, sql, params):
+            if sql == 'COUNT':
+                return [{'c': len(rows)}]
+            limit, offset = params[-2], params[-1]
+            return rows[offset:offset + limit]
+    candidates, total = report_snapshot._all_candidates(Store(), 'COUNT', 'PAGE', [], ['a2a'])
+    assert total == 10_023 and len(candidates) == 10_023
+    assert report_snapshot.SNAPSHOT_MAX_CANDIDATES > total
+
+
+def test_a_start_build_without_a_snapshot_is_not_reported_as_a_failure(monkeypatch, caplog):
+    from agent_market.concierge import report_snapshot
+    stop = threading.Event()
+
+    def refresh(store, halt):
+        stop.set()
+        return None  # a build that produced no snapshot
+    monkeypatch.setattr(report_snapshot, 'refresh', refresh)
+    with caplog.at_level('INFO'):
+        report_snapshot.keep_fresh(object(), stop, serving=lambda: True)
+    assert 'refresh failed' not in caplog.text and 'no longer serving' not in caplog.text

@@ -187,10 +187,34 @@ def _indexed_text(store, ids):
     return {row[0]: (row[1], row[2]) for row in rows}
 
 
+# The snapshot reads every report-backed listing of a kind. It used the request path's window of
+# 10,000 (front.MAX_REPORT_CANDIDATES); on 11-09 about 21:40 a2a reached 10,023 and mcp 10,001,
+# every new slot built no snapshot, and report-filtered Explore fell back to the 5-12 s path.
+SNAPSHOT_MAX_CANDIDATES = 50000
+CANDIDATE_PAGE = 2000
+
+
+def _all_candidates(store, count_sql, candidate_sql, prefix, values, maximum=None):
+    """Like front._report_candidates, with the snapshot's own (larger) window."""
+    maximum = SNAPSHOT_MAX_CANDIDATES if maximum is None else maximum
+    count_rows = store.query(count_sql, (*prefix, *values))
+    total = int(count_rows[0]['c']) if count_rows else 0
+    candidates = []
+    while len(candidates) < min(total, maximum):
+        size = min(CANDIDATE_PAGE, maximum - len(candidates))
+        rows = store.query(candidate_sql, (*prefix, *values, size, len(candidates)))
+        if not rows:
+            break
+        candidates.extend(dict(row) for row in rows)
+        if len(rows) < size:
+            break
+    return candidates, total
+
+
 def build(store, stop=None):
     """Check every report-backed listing with the public report rules; None if a kind exceeds the window."""
-    from .front import (LIVE_COND, MAX_REPORT_CANDIDATES, REPORT_CONDS, REPORT_HISTORY_COND,
-                        VERIFIED_EXECUTION_COND, _card_data, _report_candidate_sql, _report_candidates,
+    from .front import (LIVE_COND, REPORT_CONDS, REPORT_HISTORY_COND,
+                        VERIFIED_EXECUTION_COND, _card_data, _report_candidate_sql,
                         _report_listing, _report_prefetch)
     from .content_policy import adult_listing
     entries = []
@@ -198,9 +222,10 @@ def build(store, stop=None):
         history = " AND ".join([REPORT_HISTORY_COND, *REPORT_CONDS, "r.kind=?"])
         live = " AND ".join([LIVE_COND, VERIFIED_EXECUTION_COND, *REPORT_CONDS, "r.kind=?"])
         with store._lock, store.tx(readonly=True):
-            candidates, total = _report_candidates(store, *_report_candidate_sql([], history), [kind])
-            verified_ids = {row['id'] for row in _report_candidates(store, *_report_candidate_sql([], live), [kind])[0]}
-        if total > len(candidates) or total >= MAX_REPORT_CANDIDATES:
+            candidates, total = _all_candidates(store, *_report_candidate_sql([], history), [kind])
+            verified_ids = {row['id'] for row in _all_candidates(store, *_report_candidate_sql([], live), [kind])[0]}
+        if total > len(candidates) or total >= SNAPSHOT_MAX_CANDIDATES:
+            log.warning('Report snapshot skipped: %d %s listings exceed the window of %d', total, kind, SNAPSHOT_MAX_CANDIDATES)
             return None
         for start in range(0, len(candidates), CHUNK):
             if stop is not None and stop.is_set():
@@ -269,7 +294,7 @@ def keep_fresh(store, stop, interval=REFRESH_SECONDS, serving=None):
             halt = stop if first else _UntilStandby(stop, serving)
             first = False
             try:
-                if refresh(store, halt) is None and halt.standby:
+                if refresh(store, halt) is None and getattr(halt, 'standby', False):
                     log.info('Report snapshot refresh stopped: this slot is no longer serving')
             except Exception:
                 log.warning('Report snapshot refresh failed', exc_info=False)
