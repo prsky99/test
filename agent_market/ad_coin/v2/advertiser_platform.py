@@ -354,7 +354,9 @@ class AdvertiserPlatformGateway:
         if exp["status"] != "active":
             return exp["variants"][0]
 
-        hash_int = int(hashlib.md5(f"{experiment_id}:{user_id}".encode()).hexdigest(), 16) % 100
+        # Assignments are recomputed on each call and never stored. Changing this hash moves people
+        # between variants of running experiments, so only change it when no experiment is active.
+        hash_int = int(hashlib.sha256(f"{experiment_id}:{user_id}".encode()).hexdigest(), 16) % 100
         cumulative = 0
         for variant in exp["variants"]:
             cumulative += int(variant.get("weight", 0))

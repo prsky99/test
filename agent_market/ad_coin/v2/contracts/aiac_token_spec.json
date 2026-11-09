@@ -4,8 +4,9 @@
     "symbol": "AIAC",
     "decimals": 6,
     "backing": "100% full fiat/USDC reserves in qualified custody",
-    "standard": "ERC-20 / ERC-2612",
-    "version": "1.0.0"
+    "standard": "ERC-20",
+    "version": "1.0.0",
+    "status": "draft_not_audited_not_deployed"
   },
   "deployment_targets": {
     "ethereum": {
@@ -30,9 +31,10 @@
     }
   },
   "security_invariants": {
-    "proof_of_reserves": "Chainlink PoR oracle attestation feed checked before minting",
-    "redemption_guarantee": "1:1 atomic burn on withdrawal request",
+    "proof_of_reserves": "Mint fails closed: a configured feed with a positive answer in 6 decimals, updated within MAX_RESERVE_AGE (1 day), must cover the new total supply",
+    "redemption_guarantee": "Burn on withdrawal request; off-chain redemption is outside the contract",
     "zero_leakage": "Off-chain internal ledger postings mirror on-chain supply delta",
-    "access_control": "Multi-sig Timelock controller with bridge minter and emergency pause"
+    "access_control": "Owner must be a multisig contract; two-step ownership transfer; minter and feed changes wait CHANGE_DELAY (2 days) and expire after CHANGE_GRACE (7 days); only the bridge minter mints; pause is immediate",
+    "activation": "No testnet or mainnet deployment without operator approval; external audit before mainnet; legal opinion before any real-value use"
   }
 }
