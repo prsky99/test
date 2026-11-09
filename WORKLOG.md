@@ -422,3 +422,8 @@
 - PostgreSQL 전용 schema4·38표·여섯 인덱스. 최종 회귀169/169, skip0(기존 SQLite 이전1개 선택 제외), Ruff 일반/S 위반0, 공개 콘텐츠335파일 위반0, 계약29개 동일·SQL412/기존174보존·소스 해시 검증.
 - 시험 종료 후 단독 PG 측정: 이력6000·warm8연결·200건/s×5초, 전후각1000성공/오류0, 도착지연 포함p95 5.336→5.142ms, DBcalls21유지·원장보존·임시DB제거. 로컬 DB command 수치이며 운영/글로벌 최대 성능이 아님.
 - 증거/화면/실패 기록/한계: reports/ad-coin-v6.2-ui-performance-2026-11-09/. 실제 IdP/mTLS·운영 role/복구/다지역 부하 인수는 남음. 실행 중 사용자 서버·운영 DB·배포·실자금·체인 변경 없음.
+
+## 2026-11-09 AI AD Coin: 소스 분석, v1 동결, v2 현황 보고
+- 소스 분석과 개선사항 17개: reports/AI-AD-Coin-소스분석-2026-11-09.md (계약 준비금 fail-open·단일 소유자, v2 미커밋, v2 화면 디자인 체계 위반, MD5 1건).
+- 사용자 결정: v1은 시험 전용 동결. Settings·AdCoinService·Signer가 test_mode=False를 거부(config.require_test_mode, tests/test_ad_coin_v1_frozen.py). 규칙: docs/AD_COIN_V1_FREEZE.md. AD Coin 시험 275개 통과. 전체 시험은 무관한 collector 시험 1개(다른 세션 미커밋 변경)에서 멈춤.
+- 총괄 PM 요청으로 v2 현황·남은 과제·법률 검토 자료 목록: reports/AI-AD-Coin-v2-현황과-법률검토자료-2026-11-09.md. 배포·운영 DB 변경 없음.
