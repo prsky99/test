@@ -275,3 +275,17 @@ def test_cli_modes_are_exclusive_and_errors_do_not_echo_arguments():
                             capture_output=True, text=True, timeout=10)
     assert result.returncode == 1 and not result.stdout
     assert 'private-review-placeholder' not in result.stderr
+
+
+def test_ad_coin_v2_settings_are_allowed_and_checked():
+    import pytest
+    from scripts.agentcon_config import ALLOWED_KEYS, ConfigError, check_ad_coin_v2_settings
+    assert {'AD_COIN_V2_ENABLED', 'AD_COIN_V2_POOL_MAXIMUM', 'AD_COIN_V2_KEY_DIR'} <= ALLOWED_KEYS
+    assert 'AD_COIN_REAL_VALUE_ENABLED' not in ALLOWED_KEYS  # real value stays out of production settings
+    assert check_ad_coin_v2_settings({}) == {'ad_coin_v2_enabled': False}
+    assert check_ad_coin_v2_settings({'AD_COIN_V2_ENABLED': '1', 'AD_COIN_V2_POOL_MAXIMUM': '2',
+                                      'AD_COIN_V2_KEY_DIR': '/srv/keys'})['ad_coin_v2_enabled']
+    for bad in ({'AD_COIN_V2_ENABLED': 'true'}, {'AD_COIN_V2_POOL_MAXIMUM': '9'},
+                {'AD_COIN_V2_KEY_DIR': 'relative/keys'}, {'AD_COIN_V2_ENABLED': '1'}):
+        with pytest.raises(ConfigError):
+            check_ad_coin_v2_settings(bad)

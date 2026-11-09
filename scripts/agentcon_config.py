@@ -32,6 +32,9 @@ ALLOWED_KEYS = frozenset((
     'WORKSPACE_MODEL_FALLBACK_URL',
     'LOCAL_OLLAMA_ENABLED', 'EMBEDDING_ENABLED', 'EMBEDDING_OLLAMA_URL',
     'AGENTCON_ADMIN_BACKUP_ROOT', 'AGENTCON_ADMIN_SQLITE_ARCHIVE',
+    # AI AD Coin v2 in points mode. AD_COIN_REAL_VALUE_ENABLED is deliberately absent: real value
+    # (sale, cash-out, on-chain) cannot be switched on through production settings.
+    'AD_COIN_V2_ENABLED', 'AD_COIN_V2_POOL_MAXIMUM', 'AD_COIN_V2_KEY_DIR',
 ))
 MAX_FILE_BYTES = 65536
 LOCAL_MODEL_KEYS = frozenset(('WORKSPACE_MODEL_ENABLED', 'WORKSPACE_MODEL_URL', 'WORKSPACE_MODEL_NAME',
@@ -191,6 +194,21 @@ class EmptyStore:
         return None
 
 
+def check_ad_coin_v2_settings(settings):
+    enabled = settings.get('AD_COIN_V2_ENABLED', '0')
+    if enabled not in ('0', '1'):
+        raise ConfigError('AD_COIN_V2_ENABLED must be 0 or 1.')
+    pool = settings.get('AD_COIN_V2_POOL_MAXIMUM', '')
+    if pool and not (pool.isdigit() and 1 <= int(pool) <= 8):
+        raise ConfigError('AD_COIN_V2_POOL_MAXIMUM must be a number from 1 to 8.')
+    key_dir = settings.get('AD_COIN_V2_KEY_DIR', '')
+    if key_dir and not os.path.isabs(key_dir):
+        raise ConfigError('AD_COIN_V2_KEY_DIR must be an absolute path.')
+    if enabled == '1' and not key_dir:
+        raise ConfigError('AD_COIN_V2_ENABLED=1 needs AD_COIN_V2_KEY_DIR so every release shares one key set.')
+    return {'ad_coin_v2_enabled': enabled == '1'}
+
+
 def check_settings(settings):
     for key, value in settings.items():
         os.environ.setdefault(key, value)
@@ -199,6 +217,7 @@ def check_settings(settings):
     from agent_market.config import GatewayConfig
     from agent_market.gateway.deployment_security import trusted_proxy_options, validate_production_runtime
 
+    check_ad_coin_v2_settings(settings)
     backend = os.environ.get('APPLICATION_STORE_BACKEND', 'sqlite')
     if backend not in ('sqlite', 'postgresql'):
         raise ConfigError('Choose an explicit supported application backend.')
