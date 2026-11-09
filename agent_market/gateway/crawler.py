@@ -32,7 +32,7 @@ USDC_ASSETS = {
     "eip155:84532": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
     "eip155:42161": "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
     "eip155:137": "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359",
-    "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp": "epjfwdd5aufqssqem2qn1xzybapc8g4wegggkzwytdt1v",
+    "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp": "epjfwdd5aufqssqem2qn1xzybapc8g4weggkzwytdt1v",
 }
 LEGACY_NETWORKS = {"base": "eip155:8453", "base-sepolia": "eip155:84532", "polygon": "eip155:137", "arbitrum": "eip155:42161", "solana": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"}
 
