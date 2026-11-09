@@ -43,6 +43,7 @@ flowchart LR
 
 1. ~~감사 로그가 IP 주소와 브라우저 정보를 원문으로 저장한다~~ → **11-09 고침.**
    - 저장하기 전에 IP는 네트워크 부분(IPv4 /24, IPv6 /48)으로 자르고, 브라우저 정보는 분류(browser, mobile_browser, automated, other)로 바꾼다(`security_guards.coarse_ip`, `client_class`).
+   - 11-10 추가: 감사 로그 세부 항목의 자유 텍스트(심사 사유, 지급 사유, 이름)에서 이메일, 전화번호, IP 주소를 저장하기 전에 가린다(`scrub_text`). 동의 기록(`adc2_human_consents`)에는 가명 id, 해시, 시각만 있고 직접 식별 정보가 없음을 시험으로 고정했다.
    - 시험: `tests/test_ad_coin_v2_privacy_retention.py`
 2. ~~v2에 보존 기간과 삭제 작업이 없다~~ → **11-09 일부 고침.**
    - 감사 로그는 90일 뒤에, 끝난(만료·철회) 세션·에이전트 토큰·심사자 자격은 30일 뒤에 삭제한다. 작업자(`scripts/ad_coin_worker_daemon.py`)가 1시간마다 500건씩 지운다.

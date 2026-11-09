@@ -102,6 +102,28 @@ def coarse_ip(value):
     return str(ipaddress.ip_network(f"{address}/{prefix}", strict=False))
 
 
+_EMAIL = __import__("re").compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+_PHONE = __import__("re").compile(r"(?<![\w-])(?:\+\d{1,3}[\s.-]?)?\(?\d{2,4}\)?[\s.-]\d{3,4}[\s.-]\d{4}(?![\w-])")
+_IPV4 = __import__("re").compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+
+
+def scrub_text(value):
+    """Free text in audit details (review reasons, grant reasons, names) keeps no contact data."""
+    if not isinstance(value, str):
+        return value
+    value = _EMAIL.sub("[email removed]", value)
+    value = _IPV4.sub("[address removed]", value)
+    return _PHONE.sub("[number removed]", value)
+
+
+def _scrub_details(details):
+    if isinstance(details, dict):
+        return {key: _scrub_details(item) for key, item in details.items()}
+    if isinstance(details, (list, tuple)):
+        return [_scrub_details(item) for item in details]
+    return scrub_text(details)
+
+
 def client_class(user_agent):
     """Store a coarse client class instead of the raw user agent string."""
     if not user_agent or not isinstance(user_agent, str):
@@ -139,7 +161,7 @@ class AuditLogger:
 
         entry_id = str(uuid4())
         ts = millis(now_ms if now_ms is not None else int(time.time() * 1000))
-        details_json = json.dumps(details or {}, sort_keys=True, separators=(",", ":"))
+        details_json = json.dumps(_scrub_details(details or {}), sort_keys=True, separators=(",", ":"))
 
         with store.atomic():
             store.execute(

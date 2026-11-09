@@ -77,3 +77,33 @@ def test_worker_daemon_applies_retention_hourly():
     from scripts.ad_coin_worker_daemon import WorkerDaemon as Daemon
     assert Daemon.PRUNE_INTERVAL_MS == 3_600_000
     assert 'prune_if_due' in Daemon.run_cycle.__code__.co_names
+
+
+@pytest.mark.parametrize('raw, cleaned', [
+    ('reach jane.doe@example.com', 'reach [email removed]'),
+    ('call +82 10-1234-5678', 'call [number removed]'),
+    ('from 198.51.100.7', 'from [address removed]'),
+    ('2026-11-10 price 1500000', '2026-11-10 price 1500000'),
+    ('3f1c9a2e-1b2c-4d5e-8f90-1234567890ab', '3f1c9a2e-1b2c-4d5e-8f90-1234567890ab'),
+])
+def test_free_text_in_audit_details_keeps_no_contact_data(raw, cleaned):
+    from agent_market.ad_coin.v2.security_guards import scrub_text
+    assert scrub_text(raw) == cleaned
+
+
+def test_audit_details_are_scrubbed_before_storage(store):  # noqa: F811
+    store.migrate_model()
+    AuditLogger.log(store, EventType.COINS_GRANTED, 'succeeded', target_id=str(uuid4()),
+                    details={'reason': 'thanks, ping me at a@b.co or 010-1234-5678', 'nested': ['203.0.113.9']},
+                    now_ms=NOW)
+    stored = AuditLogger.recent(store, limit=1)[0]['details_json']
+    assert 'a@b.co' not in stored and '010-1234-5678' not in stored and '203.0.113.9' not in stored
+
+
+def test_consent_records_hold_no_direct_identifiers():
+    from agent_market.ad_coin.v2.schema import statements
+    import re
+    text = ' '.join(statements())
+    columns = re.search(r'CREATE TABLE IF NOT EXISTS adc2_human_consents \((.*?)\)"?', text).group(1).lower()
+    for word in ('email', 'phone', 'name', 'ip', 'address', 'agent'):
+        assert not re.search(r'\b' + word + r'\b', columns), word
