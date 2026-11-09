@@ -22,12 +22,17 @@
 
 ---
 
-## 진행 상황 (11-09 22:08 KST, `scripts/directory_presence.py`로 매일 확인)
+## 진행 상황 (11-10 갱신, 처음 작성 11-09 22:08 KST, `scripts/directory_presence.py`로 매일 확인)
 | 곳 | 상태 |
 |---|---|
 | 공식 MCP Registry | **게시 완료** `biz.agentconcierge/agent-concierge@1.0.0` (12:48 UTC, 커밋 c6bb85aa) |
 | Glama | **자동 반영 완료**: https://glama.ai/mcp/connectors/biz.agentconcierge/agent-concierge (Registry에서 가져감, 상태 "아직 시험 안 됨"). 6번 제출은 필요 없음 |
-| PulseMCP, mcpservers.org, mcp.so | 아직 없음. PulseMCP는 재개 시 자동 수집 예정 |
+| A2A Registry | **제출 완료 (11-10)**: 카드 검사 결과 Conformant. 검토 대기 id 7082c1bf-781d-4422-9261-08c5f41bdca4 |
+| a2a.directory | **게시 완료 (11-10)**: 검증을 통과해 바로 공개됨 |
+| mcpservers.org | **무료 제출 완료 (11-10)**: 카테고리 Search, 원격 URL /mcp, 2주 안에 심사, 승인 메일은 contact@ |
+| MCP Market | **건너뜀 (11-10)**: 원격 MCP는 $69 유료 게시만 있고, 무료 대기열은 GitHub 저장소 제출만 받음(GitHub 미사용 결정) |
+| mcp.so | **건너뜀 (11-10)**: 원격 서버 양식에 "$39 결제 후 게시"만 있음. 무료 경로는 Google 로그인(계정 생성)이 필요할 수 있음 |
+| PulseMCP | 아직 없음. 재개 시 자동 수집 예정 |
 
 ## 1. 공식 MCP Registry — 게시 완료
 - 제출물: `deploy/mcp-registry/server.json` (스키마 검증 완료). 절차: `deploy/mcp-registry/README.md` 3절 명령 6줄.

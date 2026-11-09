@@ -506,3 +506,9 @@
   - 구매와 현금화는 기존 실가치 잠금으로 막혀 있다.
 - 공개 v2 화면: 사람에게는 points, 광고주 예산은 test credits로 표시한다. 잔액 카드와 바닥글에 포인트 규칙을 보인다. 운영자 보기(Platform Audit, Agent Relays, 위임 결제)와 내부 용어는 공개 화면에서 뺐다.
 - 시험: AD Coin 381개 통과, 공개 파일 341개 검사 위반 0건. 원장 기계 시험 3개와 외부 제공자 결제 시험은 실가치 모드로 돌린다.
+
+## 2026-11-10 디렉터리 무료 등록 (총괄 PM, agent-desktop으로 Chrome 조작)
+- 사용자 결정: 연락 메일은 contact@agentconcierge.biz, 지출 0, 품질 목표 100%, 속도는 계속 개선, 멈추지 않고 진행(CLAUDE.md·헌장 67365780).
+- A2A Registry 제출(Conformant, 검토 대기), a2a.directory 즉시 게시, mcpservers.org 무료 제출(2주 심사).
+- MCP Market($69)·mcp.so($39)는 원격 서버의 무료 경로가 없어 건너뜀. 진행표는 deploy/distribution/SUBMISSIONS.md.
+- 효과 비교: 11-16 traffic 기준선에서 a2a·mcp 입구 외부 요청과 MCP clientInfo 이름 수를 본다.
