@@ -728,6 +728,13 @@ def dashboard_router(store: Store, db_path: str, admin_token: str | None, collec
             "actions": store._service_control.actions() if getattr(store, '_service_control', None) else actions,
         }
 
+    @router.get("/admin/api/traffic/weekly", dependencies=auth)
+    def traffic_weekly(response: Response, days: int = Query(7, ge=1, le=31)):
+        """외부 유입 주간 지표(익명 하루 집계 합계). 개인정보 없음, 파일만 읽는다."""
+        response.headers["Cache-Control"] = "private, no-store"
+        from .traffic_report import weekly
+        return weekly(days=days)
+
     @router.get("/admin/api/timeseries", dependencies=auth)
     def timeseries(hours: int = Query(6, ge=1, le=168)):
         """헬스체크 처리량 (구간별 성공·응답·실패 수)."""

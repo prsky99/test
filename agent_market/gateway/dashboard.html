@@ -1152,6 +1152,14 @@ mark { background: color-mix(in srgb, #facc15 45%, transparent); color: inherit;
 
 
   <section data-panel="visitors" class="hidden">
+    <div class="card" id="trafficWeeklyCard" style="margin-bottom:14px">
+      <h2>외부 유입 주간 지표 <span class="sub">최근 7일 · UTC 날짜 · 익명 하루 집계(IP·UA·본문 저장 없음)</span></h2>
+      <p id="trafficWeeklyStatus" class="muted" role="status" aria-live="polite">불러오는 중…</p>
+      <div class="grid kpis" id="trafficWeeklyKpis"></div>
+      <div id="trafficWeeklyTable" style="margin-top:10px;overflow-x:auto"></div>
+      <p id="trafficWeeklyNames" class="muted" style="font-size:12.5px;margin-top:8px"></p>
+      <p class="muted" style="font-size:12.5px">외부 에이전트 세션과 사람 방문은 하루마다 따로 센 수의 합입니다(같은 방문자가 여러 날 오면 날마다 1로 셉니다). internal은 이 서버·시험·운영 점검 요청입니다.</p>
+    </div>
     <div class="grid kpis" id="vKpis"></div>
     <div class="grid two" style="margin-top:14px">
       <div class="card">
@@ -6602,12 +6610,51 @@ function renderSimSuggestions() {
 async function runNurtureBatch() { toast("방문자를 선택한 뒤 작업별 미리보기를 이용하세요."); }
 const CASE_STATES = {new:"신규 검토",reviewing:"검토 중",waiting:"후속 대기",resolved:"완료",archived:"보관"};
 let visitorOffset=0, visitorListEpoch=0, visitorDetailEpoch=0;
+let trafficWeeklyEpoch=0;
+async function loadTrafficWeekly() {
+  const epoch=++trafficWeeklyEpoch;
+  const status=$("trafficWeeklyStatus");
+  if(!status)return;
+  if(!$("trafficWeeklyKpis").children.length)status.textContent="불러오는 중…";
+  let d;
+  try{d=await api("/admin/api/traffic/weekly?days=7",{silent:true});}
+  catch(e){if(epoch===trafficWeeklyEpoch)status.textContent="주간 지표를 불러오지 못했습니다: "+(e.message||"오류");return;}
+  if(epoch!==trafficWeeklyEpoch)return;
+  if(!d.available){status.textContent="아직 집계 파일이 없습니다(frontend 트래픽 기록 디렉터리 없음).";$("trafficWeeklyKpis").innerHTML="";$("trafficWeeklyTable").innerHTML="";$("trafficWeeklyNames").textContent="";return;}
+  const t=d.totals;
+  const ratio=t.internal_ratio===null?"–":(t.internal_ratio*100).toFixed(1)+"%";
+  status.textContent=`${d.rows.length?d.rows[0].day:""} ~ ${d.rows.length?d.rows[d.rows.length-1].day:""}`;
+  $("trafficWeeklyKpis").innerHTML=[
+    kpi("외부 에이전트 세션",fmt(t.agent_sessions),`요청 ${fmt(t.agent_requests)}건 · Chat·MCP·A2A·API`),
+    kpi("MCP 클라이언트",fmt(t.mcp_clients),`클라이언트 이름 ${fmt(t.mcp_client_names)}종`),
+    kpi("Google 외 AI 봇",fmt(t.ai_bot_non_google),`Google 봇 ${fmt(t.ai_bot_google)}건`),
+    kpi("사람 방문",fmt(t.human_visitors),`페이지 ${fmt(t.human_pages)}회`),
+    kpi("internal 비율",ratio,`internal ${fmt(t.internal)} · 외부 ${fmt(t.external)}`)
+  ].join("");
+  $("trafficWeeklyTable").innerHTML=table([
+    {label:"날짜(UTC)",key:"day"},
+    {label:"에이전트 세션",num:true,get:r=>fmt(r.agent_clients)},
+    {label:"에이전트 요청",num:true,get:r=>fmt(r.agent_requests)},
+    {label:"MCP 클라이언트",num:true,get:r=>fmt(r.mcp_clients)},
+    {label:"Google 외 AI 봇",num:true,get:r=>fmt(r.ai_bot_non_google)},
+    {label:"Google 봇",num:true,get:r=>fmt(r.ai_bot_google)},
+    {label:"사람 방문",num:true,get:r=>fmt(r.human_visitors)},
+    {label:"사람 페이지",num:true,get:r=>fmt(r.human_pages)},
+    {label:"Chat(브라우저)",num:true,get:r=>fmt(r.chat_browser)},
+    {label:"internal",num:true,get:r=>fmt(r.internal)},
+    {label:"외부",num:true,get:r=>fmt(r.external)}
+  ],d.rows.slice().reverse(),{empty:"집계가 없습니다."});
+  const names=d.mcp_clients_top.map(x=>`${x.name} ${fmt(x.count)}`).join(", ")||"없음";
+  const bots=d.bots_non_google_top.map(x=>`${x.name} ${fmt(x.count)}`).join(", ")||"없음";
+  $("trafficWeeklyNames").textContent=`MCP 클라이언트 이름: ${names} · Google 외 AI 봇: ${bots}`;
+}
 async function loadVisitors() {
   const epoch=++visitorListEpoch;
   const p=new URLSearchParams({offset:String(visitorOffset),limit:"50"});
   for (const [id,key] of [["vQ","q"],["vTier","tier"],["vContact","contact"],["vProtocol","protocol"],["vCaseState","case_state"],["vSource","source"]]) {
     if ($(id).value.trim()) p.set(key,$(id).value.trim());
   }
+  loadTrafficWeekly();
   const d=await api("/admin/api/visitors?"+p);
   if(epoch!==visitorListEpoch)return;
   renderFrontLinks(d.front_url,d.llm);
