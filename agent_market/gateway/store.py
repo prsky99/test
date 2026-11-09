@@ -1745,7 +1745,10 @@ class Store:
             if auth_observed is not None and (bool(auth_observed) or row['auth_scope'] != 'tool'):
                 self._supersede_observation(db, rid, 'auth', now)
                 db.execute("UPDATE resources SET auth_observed=? WHERE id=?", (int(auth_observed), rid))
-            price_changed = observed_price is not None and observed_price != row["price_usdc"]
+            # A dynamic-price provider answers an empty probe with amount 0 (x402 32172, 109666,
+            # 9573 on 2026-11-10): that is not a free listing, so a 0 quote never replaces a price.
+            price_changed = (observed_price is not None and observed_price != row["price_usdc"]
+                             and not (observed_price == 0 and (row["price_usdc"] or 0) > 0))
             if price_changed:
                 self.record_observed_quote(rid, observed_price, observed_pay_to)
         return {"status": status, "previous": row["health_status"], "consecutive_failures": failures, "failing_since": failing_since,

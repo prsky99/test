@@ -133,3 +133,18 @@ def test_same_text_reuses_the_stored_vector_without_ollama(monkeypatch):
             assert engine._publish_claim(index, claim, descriptor) == 'indexed'
             assert len(calls) == 1
             store.close()
+
+
+def test_a_zero_quote_from_a_dynamic_price_api_keeps_the_listed_price(tmp_path):
+    # 2026-11-10: three x402 batch APIs answer an empty probe with amount 0; they are not free.
+    import time
+    store = Store(str(tmp_path / 'quote.sqlite3'))
+    row = {'key': 'x402:https://pay.example/batch', 'source': 'x402-bazaar', 'kind': 'x402',
+           'url': 'https://pay.example/batch', 'name': 'Batch scorer', 'description': 'Scores a batch',
+           'category': 'data_utility', 'networks': ['base'], 'price_usdc': 10000, 'details': {}}
+    rid = store.upsert_resource(row, now=10)
+    result = store.record_health(rid, 'healthy', 402, 10, None, time.time() + 3600, observed_price=0)
+    assert store.resource(rid)['price_usdc'] == 10000 and not result['price_changed']
+    # A real positive quote still replaces the listed price.
+    store.record_health(rid, 'healthy', 402, 10, None, time.time() + 3600, observed_price=20000)
+    assert store.resource(rid)['price_usdc'] == 20000
