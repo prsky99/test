@@ -11,7 +11,8 @@ def test_unknown_release_is_refused(tmp_path):
 
 
 def test_default_list_covers_the_opening_paths():
-    assert all((release_gate.ROOT / test).is_file() for test in release_gate.TESTS)
+    assert all((release_gate.ROOT / test.split('::')[0]).is_file() for test in release_gate.TESTS)
+    assert 'tests/test_ad_coin.py::test_organic_selection_cannot_import_ad_coin' in release_gate.TESTS
     assert 'tests/test_customer_batch.py' in release_gate.TESTS
 
 
@@ -81,7 +82,7 @@ def test_each_role_gets_its_own_test_list(tmp_path, monkeypatch):
     assert release_gate.ROLE_TESTS['frontend'] == release_gate.TESTS
     assert 'tests/test_typed_engine_for.py' in release_gate.ROLE_TESTS['frontend']
     assert 'tests/test_typed_engine_for.py' not in release_gate.ROLE_TESTS['jobs']
-    assert all((release_gate.ROOT / test).is_file() for tests in release_gate.ROLE_TESTS.values() for test in tests)
+    assert all((release_gate.ROOT / test.split('::')[0]).is_file() for tests in release_gate.ROLE_TESTS.values() for test in tests)
 
 
 def test_main_runs_the_role_list_and_compares_chat_only_for_frontend(tmp_path, monkeypatch):

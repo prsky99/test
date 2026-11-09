@@ -31,6 +31,8 @@ TESTS = (
     'tests/test_workspace_read_only_paths.py',
     'tests/test_front_first_entry_browser.py',
     'tests/test_workspace_entry_progress_browser.py',
+    # AD Coin stays separate from organic selection (11-10: adcoin-credit-terms-frontend-r1 broke it and passed).
+    'tests/test_ad_coin.py::test_organic_selection_cannot_import_ad_coin',
 )
 # Each role runs the tests for the code it serves. jobs releases run the collector, health checks,
 # crawler and evaluation without the typed execution engine, so the opening-path list above
