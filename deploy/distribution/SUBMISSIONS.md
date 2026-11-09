@@ -46,6 +46,8 @@
 | Submission plan | Free (2주 내 검토). Premium $39는 지출 승인 필요 |
 
 ## 3. jaw9c/awesome-remote-mcp-servers (GitHub PR) — 원격 전용 서버의 정식 목록
+> **보류 (11-10 사용자 결정 "깃허브 공개하지 않음"):** GitHub 계정으로 하는 PR과 소개용 저장소는 하지 않는다. 아래는 결정이 바뀔 때를 위한 참고용이다.
+
 - 근거: punkpeye/awesome-mcp-servers는 "원격 전용은 awesome-remote-mcp-servers로"라고 안내한다. 11-09에도 커밋이 있다(열린 PR 1.1k라 병합은 느릴 수 있음).
 - 주의: 기준 문구는 OAuth를 요구하지만 표에는 "Open" 항목이 많다. 우리는 검색에 인증이 없으므로 "Open"으로 적는다. 거절되면 그대로 둔다.
 - 추가할 표 줄(README 표 끝, "Open" 항목 묶음 근처):
@@ -82,7 +84,7 @@ Setup for other clients: https://agentconcierge.biz/connect
 |---|---|
 | Type | Remote Server |
 | Name | Agent Concierge |
-| Repository URL* | 필수 표시. 공개 소개 저장소가 생기면 그 주소, 없으면 https://agentconcierge.biz/connect 를 넣어 보고 거절되면 보류 |
+| Repository URL* | 필수 표시. https://agentconcierge.biz/connect 를 넣는다(GitHub 저장소는 쓰지 않음, 11-10). 거절되면 보류 |
 | Server URL | https://agentconcierge.biz/mcp |
 | Description / Tags | 공통 문구 (미확인: 정적 페이지에 칸이 보이지 않음) |
 | Plan | 무료 검토(있으면). $39 즉시 게시는 지출 승인 필요 |

@@ -63,6 +63,16 @@ GATEWAY_DB=gateway-data/collector.sqlite3 .venv/bin/python -m agent_market.gatew
 - 파괴적 도구는 호출하지 않는다. 시험 호출은 읽기 전용만.
 - 사설 주소는 막는다(`check_public_url`).
 - 저장소는 공개다. 키·지갑·`deploy/gateway.env`는 커밋하지 않는다.
+- GitHub은 외부 유입 채널로 쓰지 않는다(사용자 결정 2026-11-10 "깃허브 공개하지 않음"). 다음은 하지 않는다.
+  - 소개용 저장소 만들기
+  - README 홍보
+  - awesome 목록 PR
+  - 저장소 이름 바꾸기
+- 배포는 상시 승인이다(사용자 결정 2026-11-10 "배포에 대해서는 무조건 승인함").
+  - 범위: frontend·admin·jobs·execution
+  - 조건: 게이트를 통과하고 활성 판 위에 겹쳐 만든 릴리스면 묻지 않고 배포한 뒤 결과를 보고한다.
+  - 팀 세션이 운영 배포를 막히면 총괄 PM 세션이 base와 diff를 확인하고 대신 배포한다.
+  - 계속 먼저 묻는 것: DB 스키마·함수 변경, DB 재시작, 데이터 삭제, 외부 게시, 지출, 게이트 실패 배포.
 - 개발 브랜치: `claude/hopeful-darwin-i3qj6n`
   - 사용자가 맥에서도 푸시한다.
   - 푸시 전에 `git fetch` 후 `git rebase`한다(남의 커밋을 덮어쓰지 않기).
