@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="4" time="11.433" timestamp="2026-11-09T06:40:23.330493+09:00" hostname="test-host"><testcase classname="tests.test_ad_coin_v2_workspace_browser" name="test_navigation_during_ad_approval_never_counts_hidden_view[fresh-action-challenges]" time="5.760"><failure message="AssertionError: fresh-action-challenges&#10;assert []">live = (P1Suite(service=&lt;agent_market.ad_coin.v2.commercial.Commercial object at 0x108ce1c10&gt;, resolver=&lt;agent_market.ad_coin...cryptography.hazmat.bindings._rust.openssl.ed25519.Ed25519PrivateKey object at 0x109a94d30&gt;), 'http://127.0.0.1:55107')
+stage = 'fresh-action-challenges'
+
+    @pytest.mark.parametrize("stage", ["fresh-action-challenges", "human-consents", "exposure-sessions", "creative"])
+    def test_navigation_during_ad_approval_never_counts_hidden_view(live, stage):
+        suite, base = live
+        with sync_playwright() as p:
+            browser, context, page = browser_session(
+                p, suite, base, viewport={"width": 1200, "height": 1000}
+            )
+            page.goto(base + "/ad-coin/v2")
+            enable_offers(page)
+            choose_offer(page)
+            held, evidence, errors = [], [], []
+            page.on("pageerror", lambda error: errors.append(str(error)))
+            page.on("request", lambda request: evidence.append(request.url)
+                    if request.url.endswith("/evidence") else None)
+    
+            def hold(route):
+                held.append((route, route.fetch()))
+    
+            pattern = "**/exposure-sessions/*/creative" if stage == "creative" else "**/" + stage
+            page.route(pattern, hold)
+            page.get_by_role("button", name="Review &amp; allow ad", exact=True).click()
+            page.get_by_role("button", name="Confirm", exact=True).click()
+            deadline = time.monotonic() + 3
+            while not held and time.monotonic() &lt; deadline:
+                page.wait_for_timeout(20)
+&gt;           assert held, stage
+E           AssertionError: fresh-action-challenges
+E           assert []
+
+tests/test_ad_coin_v2_workspace_browser.py:483: AssertionError</failure></testcase><testcase classname="tests.test_ad_coin_v2_workspace_browser" name="test_navigation_during_ad_approval_never_counts_hidden_view[human-consents]" time="1.404"><failure message="playwright._impl._errors.Error: Route.fulfill: Route is already handled!">live = (P1Suite(service=&lt;agent_market.ad_coin.v2.commercial.Commercial object at 0x108d245d0&gt;, resolver=&lt;agent_market.ad_coin...cryptography.hazmat.bindings._rust.openssl.ed25519.Ed25519PrivateKey object at 0x109a96eb0&gt;), 'http://127.0.0.1:55116')
+stage = 'human-consents'
+
+    @pytest.mark.parametrize("stage", ["human-challenges", "human-consents", "exposure-sessions", "creative"])
+    def test_navigation_during_ad_approval_never_counts_hidden_view(live, stage):
+        suite, base = live
+        with sync_playwright() as p:
+            browser, context, page = browser_session(
+                p, suite, base, viewport={"width": 1200, "height": 1000}
+            )
+            page.goto(base + "/ad-coin/v2")
+            enable_offers(page)
+            choose_offer(page)
+            held, evidence, errors = [], [], []
+            page.on("pageerror", lambda error: errors.append(str(error)))
+            page.on("request", lambda request: evidence.append(request.url)
+                    if request.url.endswith("/evidence") else None)
+    
+            def hold(route):
+                held.append((route, route.fetch()))
+    
+            pattern = "**/exposure-sessions/*/creative" if stage == "creative" else "**/" + stage
+            page.route(pattern, hold)
+            page.get_by_role("button", name="Review &amp; allow ad", exact=True).click()
+            page.get_by_role("button", name="Confirm", exact=True).click()
+            deadline = time.monotonic() + 3
+            while not held and time.monotonic() &lt; deadline:
+                page.wait_for_timeout(20)
+            assert held, stage
+            page.get_by_role("link", name="Your choices", exact=True).click()
+            page.unroute(pattern, hold)
+            for route, response in held:
+&gt;               route.fulfill(response=response)
+
+tests/test_ad_coin_v2_workspace_browser.py:487: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv-tests/lib/python3.11/site-packages/playwright/sync_api/_generated.py:22711: in fulfill
+    self._sync(
+.venv-tests/lib/python3.11/site-packages/playwright/_impl/_network.py:430: in fulfill
+    await self._handle_route(
+.venv-tests/lib/python3.11/site-packages/playwright/_impl/_network.py:508: in _handle_route
+    raise e
+.venv-tests/lib/python3.11/site-packages/playwright/_impl/_network.py:504: in _handle_route
+    await callback()
+.venv-tests/lib/python3.11/site-packages/playwright/_impl/_network.py:499: in _inner_fulfill
+    await self._race_with_page_close(self._channel.send("fulfill", None, params))
+.venv-tests/lib/python3.11/site-packages/playwright/_impl/_network.py:604: in _race_with_page_close
+    raise cast(BaseException, fut.exception())
+.venv-tests/lib/python3.11/site-packages/playwright/_impl/_connection.py:78: in send
+    return await self._connection.wrap_api_call(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;playwright._impl._connection.Connection object at 0x10b156690&gt;
+cb = &lt;function Channel.send.&lt;locals&gt;.&lt;lambda&gt; at 0x10b1fa7a0&gt;
+is_internal = False, title = None
+
+    async def wrap_api_call(
+        self, cb: Callable[[], Any], is_internal: bool = False, title: str = None
+    ) -&gt; Any:
+        if self._api_zone.get():
+            return await cb()
+        task = asyncio.current_task(self._loop)
+        parsed_st = _attach_api_call_information(
+            getattr(task, "__pw_stack__", None) or _capture_stack_trace(),
+            is_internal,
+            title,
+        )
+        self._api_zone.set(parsed_st)
+        try:
+            return await cb()
+        except Exception as error:
+&gt;           raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+E           playwright._impl._errors.Error: Route.fulfill: Route is already handled!
+
+.venv-tests/lib/python3.11/site-packages/playwright/_impl/_connection.py:636: Error</failure></testcase><testcase classname="tests.test_ad_coin_v2_workspace_browser" name="test_navigation_during_ad_approval_never_counts_hidden_view[exposure-sessions]" time="1.499"><failure message="playwright._impl._errors.Error: Route.fulfill: Route is already handled!">live = (P1Suite(service=&lt;agent_market.ad_coin.v2.commercial.Commercial object at 0x108071090&gt;, resolver=&lt;agent_market.ad_coin...cryptography.hazmat.bindings._rust.openssl.ed25519.Ed25519PrivateKey object at 0x10b9463f0&gt;), 'http://127.0.0.1:55133')
+stage = 'exposure-sessions'
+
+    @pytest.mark.parametrize("stage", ["human-challenges", "human-consents", "exposure-sessions", "creative"])
+    def test_navigation_during_ad_approval_never_counts_hidden_view(live, stage):
+        suite, base = live
+        with sync_playwright() as p:
+            browser, context, page = browser_session(
+                p, suite, base, viewport={"width": 1200, "height": 1000}
+            )
+            page.goto(base + "/ad-coin/v2")
+            enable_offers(page)
+            choose_offer(page)
+            held, evidence, errors = [], [], []
+            page.on("pageerror", lambda error: errors.append(str(error)))
+            page.on("request", lambda request: evidence.append(request.url)
+                    if request.url.endswith("/evidence") else None)
+    
+            def hold(route):
+                held.append((route, route.fetch()))
+    
+            pattern = "**/exposure-sessions/*/creative" if stage == "creative" else "**/" + stage
+            page.route(pattern, hold)
+            page.get_by_role("button", name="Review &amp; allow ad", exact=True).click()
+            page.get_by_role("button", name="Confirm", exact=True).click()
+            deadline = time.monotonic() + 3
+            while not held and time.monotonic() &lt; deadline:
+                page.wait_for_timeout(20)
+            assert held, stage
+            page.get_by_role("link", name="Your choices", exact=True).click()
+            page.unroute(pattern, hold)
+            for route, response in held:
+&gt;               route.fulfill(response=response)
+
+tests/test_ad_coin_v2_workspace_browser.py:487: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv-tests/lib/python3.11/site-packages/playwright/sync_api/_generated.py:22711: in fulfill
+    self._sync(
+.venv-tests/lib/python3.11/site-packages/playwright/_impl/_network.py:430: in fulfill
+    await self._handle_route(
+.venv-tests/lib/python3.11/site-packages/playwright/_impl/_network.py:508: in _handle_route
+    raise e
+.venv-tests/lib/python3.11/site-packages/playwright/_impl/_network.py:504: in _handle_route
+    await callback()
+.venv-tests/lib/python3.11/site-packages/playwright/_impl/_network.py:499: in _inner_fulfill
+    await self._race_with_page_close(self._channel.send("fulfill", None, params))
+.venv-tests/lib/python3.11/site-packages/playwright/_impl/_network.py:604: in _race_with_page_close
+    raise cast(BaseException, fut.exception())
+.venv-tests/lib/python3.11/site-packages/playwright/_impl/_connection.py:78: in send
+    return await self._connection.wrap_api_call(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;playwright._impl._connection.Connection object at 0x10786a810&gt;
+cb = &lt;function Channel.send.&lt;locals&gt;.&lt;lambda&gt; at 0x10b1fab60&gt;
+is_internal = False, title = None
+
+    async def wrap_api_call(
+        self, cb: Callable[[], Any], is_internal: bool = False, title: str = None
+    ) -&gt; Any:
+        if self._api_zone.get():
+            return await cb()
+        task = asyncio.current_task(self._loop)
+        parsed_st = _attach_api_call_information(
+            getattr(task, "__pw_stack__", None) or _capture_stack_trace(),
+            is_internal,
+            title,
+        )
+        self._api_zone.set(parsed_st)
+        try:
+            return await cb()
+        except Exception as error:
+&gt;           raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+E           playwright._impl._errors.Error: Route.fulfill: Route is already handled!
+
+.venv-tests/lib/python3.11/site-packages/playwright/_impl/_connection.py:636: Error</failure></testcase><testcase classname="tests.test_ad_coin_v2_workspace_browser" name="test_navigation_during_ad_approval_never_counts_hidden_view[creative]" time="1.866"><failure message="playwright._impl._errors.Error: Route.fulfill: Route is already handled!">live = (P1Suite(service=&lt;agent_market.ad_coin.v2.commercial.Commercial object at 0x108f27350&gt;, resolver=&lt;agent_market.ad_coin...cryptography.hazmat.bindings._rust.openssl.ed25519.Ed25519PrivateKey object at 0x10c18c030&gt;), 'http://127.0.0.1:55145')
+stage = 'creative'
+
+    @pytest.mark.parametrize("stage", ["human-challenges", "human-consents", "exposure-sessions", "creative"])
+    def test_navigation_during_ad_approval_never_counts_hidden_view(live, stage):
+        suite, base = live
+        with sync_playwright() as p:
+            browser, context, page = browser_session(
+                p, suite, base, viewport={"width": 1200, "height": 1000}
+            )
+            page.goto(base + "/ad-coin/v2")
+            enable_offers(page)
+            choose_offer(page)
+            held, evidence, errors = [], [], []
+            page.on("pageerror", lambda error: errors.append(str(error)))
+            page.on("request", lambda request: evidence.append(request.url)
+                    if request.url.endswith("/evidence") else None)
+    
+            def hold(route):
+                held.append((route, route.fetch()))
+    
+            pattern = "**/exposure-sessions/*/creative" if stage == "creative" else "**/" + stage
+            page.route(pattern, hold)
+            page.get_by_role("button", name="Review &amp; allow ad", exact=True).click()
+            page.get_by_role("button", name="Confirm", exact=True).click()
+            deadline = time.monotonic() + 3
+            while not held and time.monotonic() &lt; deadline:
+                page.wait_for_timeout(20)
+            assert held, stage
+            page.get_by_role("link", name="Your choices", exact=True).click()
+            page.unroute(pattern, hold)
+            for route, response in held:
+&gt;               route.fulfill(response=response)
+
+tests/test_ad_coin_v2_workspace_browser.py:487: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv-tests/lib/python3.11/site-packages/playwright/sync_api/_generated.py:22711: in fulfill
+    self._sync(
+.venv-tests/lib/python3.11/site-packages/playwright/_impl/_network.py:430: in fulfill
+    await self._handle_route(
+.venv-tests/lib/python3.11/site-packages/playwright/_impl/_network.py:508: in _handle_route
+    raise e
+.venv-tests/lib/python3.11/site-packages/playwright/_impl/_network.py:504: in _handle_route
+    await callback()
+.venv-tests/lib/python3.11/site-packages/playwright/_impl/_network.py:499: in _inner_fulfill
+    await self._race_with_page_close(self._channel.send("fulfill", None, params))
+.venv-tests/lib/python3.11/site-packages/playwright/_impl/_network.py:604: in _race_with_page_close
+    raise cast(BaseException, fut.exception())
+.venv-tests/lib/python3.11/site-packages/playwright/_impl/_connection.py:78: in send
+    return await self._connection.wrap_api_call(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;playwright._impl._connection.Connection object at 0x10b54ab50&gt;
+cb = &lt;function Channel.send.&lt;locals&gt;.&lt;lambda&gt; at 0x10b1f9440&gt;
+is_internal = False, title = None
+
+    async def wrap_api_call(
+        self, cb: Callable[[], Any], is_internal: bool = False, title: str = None
+    ) -&gt; Any:
+        if self._api_zone.get():
+            return await cb()
+        task = asyncio.current_task(self._loop)
+        parsed_st = _attach_api_call_information(
+            getattr(task, "__pw_stack__", None) or _capture_stack_trace(),
+            is_internal,
+            title,
+        )
+        self._api_zone.set(parsed_st)
+        try:
+            return await cb()
+        except Exception as error:
+&gt;           raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+E           playwright._impl._errors.Error: Route.fulfill: Route is already handled!
+
+.venv-tests/lib/python3.11/site-packages/playwright/_impl/_connection.py:636: Error</failure></testcase></testsuite></testsuites>

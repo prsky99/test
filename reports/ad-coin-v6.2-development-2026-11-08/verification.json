@@ -1,0 +1,114 @@
+{
+  "profile": "ai-ad-coin-v6.2-development-increment",
+  "date_kst": "2026-11-08",
+  "completed_scope": [
+    "v1_human_agent_authority_boundary",
+    "v2_contract_arithmetic_authority_primitives"
+  ],
+  "R0_complete": false,
+  "v2_router_mounted": false,
+  "deployment_performed": false,
+  "production_state_queried": false,
+  "real_value_activated": false,
+  "unit_runs": [
+    {
+      "file": "tests.xml",
+      "cases": 131,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "file": "wp01-v2-contracts.xml",
+      "cases": 45,
+      "failed": 0,
+      "skipped": 0
+    }
+  ],
+  "latest_unique_testcases": 134,
+  "latest_unique_passed": 134,
+  "dynamic_HTTP_security": {
+    "checks": 219,
+    "passed": 219,
+    "failed": 0,
+    "by_area": {
+      "setup": {
+        "checks": 1,
+        "failed": 0
+      },
+      "authz": {
+        "checks": 151,
+        "failed": 0
+      },
+      "bola": {
+        "checks": 16,
+        "failed": 0
+      },
+      "csrf": {
+        "checks": 4,
+        "failed": 0
+      },
+      "input": {
+        "checks": 16,
+        "failed": 0
+      },
+      "leak": {
+        "checks": 11,
+        "failed": 0
+      },
+      "money": {
+        "checks": 11,
+        "failed": 0
+      },
+      "race": {
+        "checks": 1,
+        "failed": 0
+      },
+      "method": {
+        "checks": 2,
+        "failed": 0
+      },
+      "ratelimit": {
+        "checks": 1,
+        "failed": 0
+      },
+      "headers": {
+        "checks": 4,
+        "failed": 0
+      },
+      "integrity": {
+        "checks": 1,
+        "failed": 0
+      }
+    }
+  },
+  "static_security_findings": 0,
+  "static_security_scope": "Ruff S rules on changed product API and v2 modules only.",
+  "frontend_content_result": "331 public frontend files checked; 0 content policy violations.",
+  "remaining": [
+    "v2 persistence and financial/attention transactions",
+    "fresh-action/idempotency/outbox storage",
+    "v2 transport authentication and epoch lookup",
+    "29 v2 handlers and reward/advertiser UI",
+    "browser/PG concurrency and receipt-signing integration",
+    "full release/security/performance/real-value gates"
+  ],
+  "sha256": {
+    "agent_market/ad_coin/api.py": "75bc7c3f483207566d39d975502b3b0c90bb4cb4dde5176aacb460946430e5b2",
+    "agent_market/ad_coin/v2/__init__.py": "e00e46b969b63a412aaf086b950a05eff9c49a27a67e234c273977118a4cfb4a",
+    "agent_market/ad_coin/v2/contracts.py": "7cbbcdb5fcbcd1e8b3d874d9a7c2563217d632e9d437e91e55d4bd476ab80095",
+    "agent_market/ad_coin/v2/identity.py": "1944b0400b07e7274b984f2f71fcbd962b2e9f8bf30db84418ba399f26205d18",
+    "agent_market/ad_coin/v2/p1_contract.json": "e9614fdb2831ba3b785dcb76ce7e1010c4c254589c7822600cde62969e1ecbe1",
+    "tests/test_ad_coin.py": "9bb29cf1cc446107f3edd7389ce72840597db6350acb5bf7628db18662b9f786",
+    "tests/test_ad_coin_authority.py": "450e0445afa48b700ad50d022a73be48f3bf2ce6345c4d4ea685bb6c92901640",
+    "tests/test_ad_coin_v2_contracts.py": "aacd28fe186b1476d0fcce3520766311fdbc3ec89da30aa86aa1df926471f616",
+    "reports/ad-coin-v6.2-development-2026-11-08/tests.xml": "1a9effac77e71d6181ce45f19fde00ac1dfc557505f10b759ed1e329b0cc9dc2",
+    "reports/ad-coin-v6.2-development-2026-11-08/tests.log": "12d80589210752ada07859c53fbab5280964e5ea0f37036c25b12357f0de94d5",
+    "reports/ad-coin-v6.2-development-2026-11-08/wp01-v2-contracts.xml": "f3f31157ea7da0a6e0d58bb234f794b89befbb67d1fa27eec4f8c4d298d54b96",
+    "reports/ad-coin-v6.2-development-2026-11-08/wp01-postgres.xml": "7ddbe0a5152df67fdaf9c9046766cb778f9b8c4df30782f3034561e04f933870",
+    "reports/ad-coin-v6.2-development-2026-11-08/secure-coding.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "reports/ad-coin-v6.2-development-2026-11-08/frontend-content.log": "1b13a4707e5ec3d061ee91b3f351db691fac10ec8f5aafc043d297e349c39e8e",
+    "reports/ad-coin-v6.2-development-2026-11-08/wp01-security/dynamic-security.json": "7fa6a16b0a7414404fc481739543357bd20fee2da4d3dcec08a41d1523069977",
+    "reports/ad-coin-v6.2-development-2026-11-08/PROGRESS.md": "7d8e312c63cea2ad54d0e8d231eb226397d37d51cf502a809293cbf19deaa4b6",
+    "reports/ad-coin-v6.2-development-2026-11-08/record_verification.py": "cc920282c5878d872632efcefde657680119aa8fbcf41a1b225545de487ed025"
+  }
+}

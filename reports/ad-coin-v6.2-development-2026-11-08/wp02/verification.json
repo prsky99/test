@@ -1,0 +1,133 @@
+{
+  "profile": "ai-ad-coin-v6.2-wp02-model-foundation",
+  "date_kst": "2026-11-08",
+  "postgres_only": true,
+  "model_only": true,
+  "v2_tables": 16,
+  "unit_regression": {
+    "passed": 78,
+    "failed": 0,
+    "skipped": 0,
+    "by_file": {
+      "tests.test_ad_coin_v2_persistence": 38,
+      "tests.test_ad_coin_v2_contracts": 31,
+      "tests.test_ad_coin_postgres": 9
+    },
+    "deselected": [
+      "legacy v1 SQLite import test"
+    ]
+  },
+  "legacy_v1_HTTP_security": {
+    "checks": 219,
+    "passed": 219,
+    "failed": 0,
+    "by_area": {
+      "setup": {
+        "checks": 1,
+        "failed": 0
+      },
+      "authz": {
+        "checks": 151,
+        "failed": 0
+      },
+      "bola": {
+        "checks": 16,
+        "failed": 0
+      },
+      "csrf": {
+        "checks": 4,
+        "failed": 0
+      },
+      "input": {
+        "checks": 16,
+        "failed": 0
+      },
+      "leak": {
+        "checks": 11,
+        "failed": 0
+      },
+      "money": {
+        "checks": 11,
+        "failed": 0
+      },
+      "race": {
+        "checks": 1,
+        "failed": 0
+      },
+      "method": {
+        "checks": 2,
+        "failed": 0
+      },
+      "ratelimit": {
+        "checks": 1,
+        "failed": 0
+      },
+      "headers": {
+        "checks": 4,
+        "failed": 0
+      },
+      "integrity": {
+        "checks": 1,
+        "failed": 0
+      }
+    }
+  },
+  "v2_HTTP_or_browser_tested": false,
+  "static_security": {
+    "tool": "Ruff S rules",
+    "findings": 0,
+    "scope": "ad_coin/api.py and v2"
+  },
+  "sql_catalog": {
+    "legacy_preserved": 174,
+    "v2_shapes": 87,
+    "total": 261
+  },
+  "R0_complete": false,
+  "v2_router_mounted": false,
+  "real_value_activated": false,
+  "deployment_or_user_server_restart": false,
+  "production_DB_access": false,
+  "superseded_evidence": [
+    "sqlite.xml",
+    "persistence.xml"
+  ],
+  "remaining": [
+    "credential/session/membership adapters",
+    "advertiser campaign/review/approval handlers",
+    "delivery eligibility/evidence/budget/attention integration",
+    "29 v2 HTTP handlers and user interfaces",
+    "receipt signing and report workers",
+    "least-privilege DB roles and recovery/load/release gates",
+    "actual funding, custody, chain, redemption and external payment"
+  ],
+  "sha256": {
+    "agent_market/ad_coin/v2/__init__.py": "e00e46b969b63a412aaf086b950a05eff9c49a27a67e234c273977118a4cfb4a",
+    "agent_market/ad_coin/v2/attention.py": "cc9099234c2eb97228fc5cbcff9d392e0d56292114de09721e38efac5b711510",
+    "agent_market/ad_coin/v2/budgets.py": "654526accef0c7554c63a3215da32d9282142b2ccebb961741cb4e417eb933d2",
+    "agent_market/ad_coin/v2/commands.py": "01f89b4db1e8fa476e3c3b2d0edb533ef1cf9718af27b8e3fff395537559413d",
+    "agent_market/ad_coin/v2/contracts.py": "7cbbcdb5fcbcd1e8b3d874d9a7c2563217d632e9d437e91e55d4bd476ab80095",
+    "agent_market/ad_coin/v2/fresh.py": "d172d063e0b7bf017c2fb13f63f737e2eac11b1dbadd90c2cb4a45274a71a89e",
+    "agent_market/ad_coin/v2/identity.py": "1944b0400b07e7274b984f2f71fcbd962b2e9f8bf30db84418ba399f26205d18",
+    "agent_market/ad_coin/v2/ledger.py": "028844b6f1aa89d0f66097fc875bc07908aa1196d75cd7b87cb89dcd312bb7d2",
+    "agent_market/ad_coin/v2/schema.py": "6de750c3309a6ed540ca3724e1a4e503a7ff98db2f70b7ddb14b01c1fe71a442",
+    "agent_market/ad_coin/v2/sql.py": "1792a8104179ec0eef65bcef58087a38a5935b417f6275a3b1de3d3cdfd2818b",
+    "agent_market/ad_coin/v2/store.py": "7e81dfa0379d49fb58656a6f21cad5f375a6a049d7292b5fdd5487192ad6488b",
+    "agent_market/ad_coin/v2/p1_contract.json": "e9614fdb2831ba3b785dcb76ce7e1010c4c254589c7822600cde62969e1ecbe1",
+    "agent_market/ad_coin/sql_registry.json": "f700c60633a5c8e519300c6edda5fe15e8c85a56aabe43cf373b45f41230ce1c",
+    "scripts/ad_coin_sql_registry.py": "acb5c910cbbd74999358c54079759b54a1bde319f12b1b41858610e68f08b427",
+    "tests/test_ad_coin_v2_persistence.py": "147df780ec8cb704ee7eaaf9fac0162ab60caa9d84af44b96bc6c2e9b56f9052",
+    "docs/AD_COIN.md": "6e48048c2e6e063524abc378b69ef7cb66837aa4fe2678d8da434bdf63ba439b",
+    "docs/AD_COIN_V6_2_DETAILED_DESIGN.md": "e99dd710cec9c2428ebdf7f7c7fb4378aa1aa996a2093de54d92f97bed2093c6",
+    "docs/AD_COIN_PLATFORM_DATA_API.md": "34bf47c4c723095990ebbb861d0948ead35dd135f61855894f6f11c528347eaa",
+    "docs/AD_COIN_PLATFORM_IMPLEMENTATION_PLAN.md": "180eaf5a89797f482586e5d00c28e6c08edd8ebc402d148bb60708a1820edfbf",
+    "docs/AD_COIN_ARCHITECTURE.md": "26d8a40e064f76651a7813e133e43be27102135fe11cdb056c3dc585f127eecd",
+    "docs/ad_coin_v6_2_detail/02-storage-transactions.md": "c203c6111bdb0f91a23492f54ceb34c7febb9cc908a0212b7e3e4bfa47c20a12",
+    "reports/ad-coin-v6.2-development-2026-11-08/PROGRESS.md": "3ea7ac78c96b28c863667ba4c8b7b814c099cd76c0cdda85f8f00829f820a519",
+    "reports/ad-coin-v6.2-development-2026-11-08/wp02/regression.xml": "7140bbd83ccf33fe6bb974e429ba08edfd42143b664495c23705dff2c5614780",
+    "reports/ad-coin-v6.2-development-2026-11-08/wp02/regression.log": "964c506ec78bb60af286df6f968c3874b373174ce0d11c21bee96d770204f19c",
+    "reports/ad-coin-v6.2-development-2026-11-08/wp02/http-security/dynamic-security.json": "27ef3c8fe6cb54dc5e830093bba0061890a87a08dbbfa1d6b8d01ec25d8d7f01",
+    "reports/ad-coin-v6.2-development-2026-11-08/wp02/secure-coding.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "reports/ad-coin-v6.2-development-2026-11-08/wp02/record_verification.py": "f2a4a676e55e16d1e2d79d4972a7abc4c3976ca7f7c9d0c503c3b026aae9d502"
+  }
+}

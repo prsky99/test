@@ -1,0 +1,1099 @@
+{
+  "profile": "ai-ad-coin-platform-design-v6.1",
+  "date_kst": "2026-11-07",
+  "status": "design_only",
+  "real_value_enabled": false,
+  "product_acceptance_passes_claimed": 0,
+  "documents": [
+    "AD_COIN_PLATFORM_ARCHITECTURE.md",
+    "AD_COIN_PLATFORM_DATA_API.md",
+    "AD_COIN_PLATFORM_IMPLEMENTATION_PLAN.md",
+    "AD_COIN_PLATFORM_POLICY.md",
+    "AD_COIN_ARCHITECTURE.md",
+    "ad_coin_platform_p1.openapi.json"
+  ],
+  "inherited_asset_spec": "ad_coin_v5_spec.json",
+  "decisions": [
+    "DEC-01",
+    "DEC-02",
+    "DEC-03",
+    "DEC-04",
+    "DEC-05",
+    "DEC-06",
+    "DEC-07"
+  ],
+  "reference_profile": {
+    "model_asset": true,
+    "decimals": 6,
+    "initial_supply_atoms": "0",
+    "uint256_max": "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+    "min_exposure_ms": 15000,
+    "offer_ttl_seconds": 300,
+    "evidence_ttl_seconds": 600,
+    "review_max_seconds": 86400,
+    "max_parallel_offers_per_owner": 2,
+    "max_campaign_ads_per_owner_day": 3,
+    "max_offers_per_owner_day": 10,
+    "max_relay_hops": 3,
+    "statistics_min_distinct_users": 50,
+    "statistics_min_advertisers": 5,
+    "split_bps": {
+      "user": 5000,
+      "operator": 1000,
+      "direct": 1500,
+      "platform": 2500
+    },
+    "reference_values_are_not_security_certification": true
+  },
+  "operation_catalog": [
+    {
+      "id": "getCapabilities",
+      "method": "GET",
+      "path": "/capabilities",
+      "actors": [
+        "public"
+      ],
+      "fresh_action_required": false
+    },
+    {
+      "id": "getAsset",
+      "method": "GET",
+      "path": "/asset",
+      "actors": [
+        "public"
+      ],
+      "fresh_action_required": false
+    },
+    {
+      "id": "createHumanChallenge",
+      "method": "POST",
+      "path": "/human-challenges",
+      "actors": [
+        "human"
+      ],
+      "fresh_action_required": false
+    },
+    {
+      "id": "getAdPreferences",
+      "method": "GET",
+      "path": "/ad-preferences",
+      "actors": [
+        "human"
+      ],
+      "fresh_action_required": false
+    },
+    {
+      "id": "setAdPreferences",
+      "method": "PUT",
+      "path": "/ad-preferences",
+      "actors": [
+        "human"
+      ],
+      "fresh_action_required": true
+    },
+    {
+      "id": "createCampaign",
+      "method": "POST",
+      "path": "/advertisers/{advertiser_id}/campaigns",
+      "actors": [
+        "human"
+      ],
+      "fresh_action_required": false
+    },
+    {
+      "id": "getCampaign",
+      "method": "GET",
+      "path": "/advertisers/{advertiser_id}/campaigns/{campaign_id}",
+      "actors": [
+        "human"
+      ],
+      "fresh_action_required": false
+    },
+    {
+      "id": "requestReview",
+      "method": "POST",
+      "path": "/advertisers/{advertiser_id}/campaigns/{campaign_id}/review-request",
+      "actors": [
+        "human"
+      ],
+      "fresh_action_required": false
+    },
+    {
+      "id": "decideReview",
+      "method": "POST",
+      "path": "/reviews/{review_id}/decisions",
+      "actors": [
+        "ops"
+      ],
+      "fresh_action_required": false
+    },
+    {
+      "id": "getReview",
+      "method": "GET",
+      "path": "/reviews/{review_id}",
+      "actors": [
+        "ops"
+      ],
+      "fresh_action_required": false
+    },
+    {
+      "id": "approveCampaign",
+      "method": "POST",
+      "path": "/advertisers/{advertiser_id}/campaigns/{campaign_id}/approvals",
+      "actors": [
+        "human"
+      ],
+      "fresh_action_required": true
+    },
+    {
+      "id": "activateCampaign",
+      "method": "POST",
+      "path": "/advertisers/{advertiser_id}/campaigns/{campaign_id}/activation",
+      "actors": [
+        "human"
+      ],
+      "fresh_action_required": false
+    },
+    {
+      "id": "pauseCampaign",
+      "method": "POST",
+      "path": "/advertisers/{advertiser_id}/campaigns/{campaign_id}/pause",
+      "actors": [
+        "human"
+      ],
+      "fresh_action_required": false
+    },
+    {
+      "id": "requestOffer",
+      "method": "POST",
+      "path": "/offers",
+      "actors": [
+        "human",
+        "agent"
+      ],
+      "fresh_action_required": false
+    },
+    {
+      "id": "getOffer",
+      "method": "GET",
+      "path": "/offers/{offer_id}",
+      "actors": [
+        "human",
+        "agent"
+      ],
+      "fresh_action_required": false
+    },
+    {
+      "id": "declineOffer",
+      "method": "POST",
+      "path": "/offers/{offer_id}/decline",
+      "actors": [
+        "human",
+        "agent"
+      ],
+      "fresh_action_required": false
+    },
+    {
+      "id": "approveOffer",
+      "method": "POST",
+      "path": "/human-consents",
+      "actors": [
+        "human"
+      ],
+      "fresh_action_required": true
+    },
+    {
+      "id": "startExposure",
+      "method": "POST",
+      "path": "/exposure-sessions",
+      "actors": [
+        "human"
+      ],
+      "fresh_action_required": false
+    },
+    {
+      "id": "getApprovedCreative",
+      "method": "GET",
+      "path": "/exposure-sessions/{session_id}/creative",
+      "actors": [
+        "human"
+      ],
+      "fresh_action_required": false
+    },
+    {
+      "id": "submitEvidence",
+      "method": "POST",
+      "path": "/exposure-sessions/{session_id}/evidence",
+      "actors": [
+        "human"
+      ],
+      "fresh_action_required": false
+    },
+    {
+      "id": "completeExposure",
+      "method": "POST",
+      "path": "/exposure-sessions/{session_id}/complete",
+      "actors": [
+        "human"
+      ],
+      "fresh_action_required": false
+    },
+    {
+      "id": "cancelExposure",
+      "method": "POST",
+      "path": "/exposure-sessions/{session_id}/cancel",
+      "actors": [
+        "human"
+      ],
+      "fresh_action_required": false
+    },
+    {
+      "id": "getOperation",
+      "method": "GET",
+      "path": "/operations/{operation_id}",
+      "actors": [
+        "human",
+        "agent"
+      ],
+      "fresh_action_required": false
+    },
+    {
+      "id": "getWallet",
+      "method": "GET",
+      "path": "/wallets/{wallet_id}",
+      "actors": [
+        "human",
+        "agent"
+      ],
+      "fresh_action_required": false
+    },
+    {
+      "id": "getReceipt",
+      "method": "GET",
+      "path": "/receipts/{receipt_id}",
+      "actors": [
+        "human",
+        "agent"
+      ],
+      "fresh_action_required": false
+    }
+  ],
+  "policy_trace": {
+    "PLAT-01": {
+      "modules": [
+        "M02"
+      ],
+      "work_packages": [
+        "WP-03"
+      ],
+      "planned_gates": [
+        "GROW-14"
+      ]
+    },
+    "PLAT-02": {
+      "modules": [
+        "M09"
+      ],
+      "work_packages": [
+        "WP-01",
+        "WP-02",
+        "WP-04",
+        "WP-06",
+        "WP-12"
+      ],
+      "planned_gates": [
+        "GROW-17",
+        "GROW-18"
+      ]
+    },
+    "PLAT-03": {
+      "modules": [
+        "M01"
+      ],
+      "work_packages": [
+        "WP-01",
+        "WP-03",
+        "WP-11"
+      ],
+      "planned_gates": [
+        "GROW-02",
+        "GROW-07"
+      ]
+    },
+    "PLAT-04": {
+      "modules": [
+        "M03"
+      ],
+      "work_packages": [
+        "WP-07"
+      ],
+      "planned_gates": [
+        "GROW-02",
+        "GROW-18"
+      ]
+    },
+    "PLAT-05": {
+      "modules": [
+        "M02",
+        "M09"
+      ],
+      "work_packages": [
+        "WP-03",
+        "WP-07"
+      ],
+      "planned_gates": [
+        "GROW-02",
+        "GROW-08",
+        "GROW-11"
+      ]
+    },
+    "PLAT-06": {
+      "modules": [
+        "M02"
+      ],
+      "work_packages": [
+        "WP-03",
+        "WP-10"
+      ],
+      "planned_gates": [
+        "GROW-01"
+      ]
+    },
+    "PLAT-07": {
+      "modules": [
+        "M02"
+      ],
+      "work_packages": [
+        "WP-03",
+        "WP-07"
+      ],
+      "planned_gates": [
+        "GROW-01",
+        "GROW-08"
+      ]
+    },
+    "PLAT-08": {
+      "modules": [
+        "M02"
+      ],
+      "work_packages": [
+        "WP-03",
+        "WP-08"
+      ],
+      "planned_gates": [
+        "GROW-11",
+        "GROW-19"
+      ]
+    },
+    "PLAT-09": {
+      "modules": [
+        "M02"
+      ],
+      "work_packages": [
+        "WP-03",
+        "WP-07"
+      ],
+      "planned_gates": [
+        "GROW-03"
+      ]
+    },
+    "PLAT-10": {
+      "modules": [
+        "M02"
+      ],
+      "work_packages": [
+        "WP-03",
+        "WP-07"
+      ],
+      "planned_gates": [
+        "GROW-03",
+        "GROW-23"
+      ]
+    },
+    "PLAT-11": {
+      "modules": [
+        "M01",
+        "M03"
+      ],
+      "work_packages": [
+        "WP-01",
+        "WP-04",
+        "WP-08"
+      ],
+      "planned_gates": [
+        "GROW-04",
+        "GROW-11",
+        "GROW-21"
+      ]
+    },
+    "PLAT-12": {
+      "modules": [
+        "M03",
+        "M04"
+      ],
+      "work_packages": [
+        "WP-02",
+        "WP-04",
+        "WP-08"
+      ],
+      "planned_gates": [
+        "GROW-05",
+        "GROW-21"
+      ]
+    },
+    "PLAT-13": {
+      "modules": [
+        "M07"
+      ],
+      "work_packages": [
+        "WP-09"
+      ],
+      "planned_gates": [
+        "GROW-08",
+        "GROW-09",
+        "GROW-15",
+        "GROW-22"
+      ]
+    },
+    "PLAT-14": {
+      "modules": [
+        "M07"
+      ],
+      "work_packages": [
+        "WP-09",
+        "WP-10"
+      ],
+      "planned_gates": [
+        "GROW-12",
+        "GROW-15"
+      ]
+    },
+    "PLAT-15": {
+      "modules": [
+        "M01"
+      ],
+      "work_packages": [
+        "WP-01",
+        "WP-05",
+        "WP-10"
+      ],
+      "planned_gates": [
+        "GROW-06",
+        "GROW-07",
+        "GROW-12",
+        "GROW-26"
+      ]
+    },
+    "PLAT-16": {
+      "modules": [
+        "M04",
+        "M05"
+      ],
+      "work_packages": [
+        "WP-04",
+        "WP-05"
+      ],
+      "planned_gates": [
+        "GROW-13",
+        "GROW-28"
+      ]
+    },
+    "PLAT-17": {
+      "modules": [
+        "M03",
+        "M07"
+      ],
+      "work_packages": [
+        "WP-04",
+        "WP-09"
+      ],
+      "planned_gates": [
+        "GROW-08",
+        "GROW-22"
+      ]
+    },
+    "PLAT-18": {
+      "modules": [
+        "M01",
+        "M08"
+      ],
+      "work_packages": [
+        "WP-01",
+        "WP-04",
+        "WP-09",
+        "WP-11"
+      ],
+      "planned_gates": [
+        "GROW-04",
+        "GROW-10",
+        "GROW-24"
+      ]
+    },
+    "PLAT-19": {
+      "modules": [
+        "M08"
+      ],
+      "work_packages": [
+        "WP-11"
+      ],
+      "planned_gates": [
+        "GROW-10",
+        "GROW-15",
+        "GROW-25"
+      ]
+    },
+    "PLAT-20": {
+      "modules": [
+        "M08",
+        "M09"
+      ],
+      "work_packages": [
+        "WP-04",
+        "WP-07",
+        "WP-11"
+      ],
+      "planned_gates": [
+        "GROW-02",
+        "GROW-07",
+        "GROW-18",
+        "GROW-25"
+      ]
+    },
+    "PLAT-21": {
+      "modules": [
+        "M02",
+        "M04"
+      ],
+      "work_packages": [
+        "WP-02",
+        "WP-03",
+        "WP-08"
+      ],
+      "planned_gates": [
+        "GROW-05",
+        "GROW-06"
+      ]
+    },
+    "PLAT-22": {
+      "modules": [
+        "M02",
+        "M04"
+      ],
+      "work_packages": [
+        "WP-02",
+        "WP-03"
+      ],
+      "planned_gates": [
+        "GROW-13",
+        "GROW-14",
+        "GROW-20"
+      ]
+    },
+    "PLAT-23": {
+      "modules": [
+        "M04",
+        "M05",
+        "M06"
+      ],
+      "work_packages": [
+        "WP-02",
+        "WP-05",
+        "WP-06"
+      ],
+      "planned_gates": [
+        "GROW-06",
+        "GROW-13",
+        "GROW-14",
+        "GROW-17",
+        "GROW-27"
+      ]
+    },
+    "PLAT-24": {
+      "modules": [
+        "M04"
+      ],
+      "work_packages": [
+        "WP-02",
+        "WP-05",
+        "WP-12"
+      ],
+      "planned_gates": [
+        "GROW-14",
+        "GROW-28"
+      ]
+    },
+    "PLAT-25": {
+      "modules": [
+        "M09"
+      ],
+      "work_packages": [
+        "WP-07",
+        "WP-10"
+      ],
+      "planned_gates": [
+        "GROW-16"
+      ]
+    },
+    "PLAT-26": {
+      "modules": [
+        "M02"
+      ],
+      "work_packages": [
+        "WP-03",
+        "WP-10"
+      ],
+      "planned_gates": [
+        "GROW-12",
+        "GROW-16",
+        "GROW-28"
+      ]
+    },
+    "PLAT-27": {
+      "modules": [
+        "M09"
+      ],
+      "work_packages": [
+        "WP-06",
+        "WP-11",
+        "WP-12"
+      ],
+      "planned_gates": [
+        "GROW-17",
+        "GROW-27"
+      ]
+    },
+    "PLAT-28": {
+      "modules": [
+        "M02"
+      ],
+      "work_packages": [
+        "WP-03",
+        "WP-09",
+        "WP-10"
+      ],
+      "planned_gates": [
+        "GROW-03",
+        "GROW-15",
+        "GROW-28"
+      ]
+    },
+    "PLAT-29": {
+      "modules": [
+        "M09"
+      ],
+      "work_packages": [
+        "WP-02",
+        "WP-06",
+        "WP-12"
+      ],
+      "planned_gates": [
+        "GROW-09",
+        "GROW-17"
+      ]
+    },
+    "PLAT-30": {
+      "modules": [
+        "M09"
+      ],
+      "work_packages": [
+        "WP-02",
+        "WP-12"
+      ],
+      "planned_gates": [
+        "GROW-18"
+      ]
+    },
+    "PLAT-31": {
+      "modules": [
+        "M02",
+        "M03"
+      ],
+      "work_packages": [
+        "WP-03",
+        "WP-07"
+      ],
+      "planned_gates": [
+        "GROW-19"
+      ]
+    },
+    "PLAT-32": {
+      "modules": [
+        "M03"
+      ],
+      "work_packages": [
+        "WP-04",
+        "WP-07"
+      ],
+      "planned_gates": [
+        "GROW-20",
+        "GROW-23"
+      ]
+    },
+    "PLAT-33": {
+      "modules": [
+        "M03"
+      ],
+      "work_packages": [
+        "WP-08"
+      ],
+      "planned_gates": [
+        "GROW-21",
+        "GROW-28"
+      ]
+    },
+    "PLAT-34": {
+      "modules": [
+        "M07"
+      ],
+      "work_packages": [
+        "WP-09"
+      ],
+      "planned_gates": [
+        "GROW-22",
+        "GROW-28"
+      ]
+    },
+    "PLAT-35": {
+      "modules": [
+        "M01",
+        "M03"
+      ],
+      "work_packages": [
+        "WP-01",
+        "WP-04",
+        "WP-08"
+      ],
+      "planned_gates": [
+        "GROW-24"
+      ]
+    },
+    "PLAT-36": {
+      "modules": [
+        "M08"
+      ],
+      "work_packages": [
+        "WP-11"
+      ],
+      "planned_gates": [
+        "GROW-25"
+      ]
+    },
+    "PLAT-37": {
+      "modules": [
+        "M01",
+        "M03"
+      ],
+      "work_packages": [
+        "WP-01",
+        "WP-04",
+        "WP-07",
+        "WP-10"
+      ],
+      "planned_gates": [
+        "GROW-23",
+        "GROW-26"
+      ]
+    },
+    "PLAT-38": {
+      "modules": [
+        "M06",
+        "M09"
+      ],
+      "work_packages": [
+        "WP-06",
+        "WP-12"
+      ],
+      "planned_gates": [
+        "GROW-27"
+      ]
+    }
+  },
+  "planned_gates": {
+    "GROW-01": [
+      "PLAT-06",
+      "PLAT-07"
+    ],
+    "GROW-02": [
+      "PLAT-03",
+      "PLAT-04",
+      "PLAT-05",
+      "PLAT-20"
+    ],
+    "GROW-03": [
+      "PLAT-09",
+      "PLAT-10",
+      "PLAT-28"
+    ],
+    "GROW-04": [
+      "PLAT-11",
+      "PLAT-18"
+    ],
+    "GROW-05": [
+      "PLAT-12",
+      "PLAT-21"
+    ],
+    "GROW-06": [
+      "PLAT-15",
+      "PLAT-21",
+      "PLAT-23"
+    ],
+    "GROW-07": [
+      "PLAT-03",
+      "PLAT-15",
+      "PLAT-20"
+    ],
+    "GROW-08": [
+      "PLAT-05",
+      "PLAT-07",
+      "PLAT-13",
+      "PLAT-17"
+    ],
+    "GROW-09": [
+      "PLAT-13",
+      "PLAT-29"
+    ],
+    "GROW-10": [
+      "PLAT-18",
+      "PLAT-19"
+    ],
+    "GROW-11": [
+      "PLAT-05",
+      "PLAT-08",
+      "PLAT-11"
+    ],
+    "GROW-12": [
+      "PLAT-14",
+      "PLAT-15",
+      "PLAT-26"
+    ],
+    "GROW-13": [
+      "PLAT-16",
+      "PLAT-22",
+      "PLAT-23"
+    ],
+    "GROW-14": [
+      "PLAT-01",
+      "PLAT-22",
+      "PLAT-23",
+      "PLAT-24"
+    ],
+    "GROW-15": [
+      "PLAT-13",
+      "PLAT-14",
+      "PLAT-19",
+      "PLAT-28"
+    ],
+    "GROW-16": [
+      "PLAT-25",
+      "PLAT-26"
+    ],
+    "GROW-17": [
+      "PLAT-02",
+      "PLAT-23",
+      "PLAT-27",
+      "PLAT-29"
+    ],
+    "GROW-18": [
+      "PLAT-02",
+      "PLAT-04",
+      "PLAT-20",
+      "PLAT-30"
+    ],
+    "GROW-19": [
+      "PLAT-08",
+      "PLAT-31"
+    ],
+    "GROW-20": [
+      "PLAT-22",
+      "PLAT-32"
+    ],
+    "GROW-21": [
+      "PLAT-11",
+      "PLAT-12",
+      "PLAT-33"
+    ],
+    "GROW-22": [
+      "PLAT-13",
+      "PLAT-17",
+      "PLAT-34"
+    ],
+    "GROW-23": [
+      "PLAT-10",
+      "PLAT-32",
+      "PLAT-37"
+    ],
+    "GROW-24": [
+      "PLAT-18",
+      "PLAT-35"
+    ],
+    "GROW-25": [
+      "PLAT-19",
+      "PLAT-20",
+      "PLAT-36"
+    ],
+    "GROW-26": [
+      "PLAT-15",
+      "PLAT-37"
+    ],
+    "GROW-27": [
+      "PLAT-23",
+      "PLAT-27",
+      "PLAT-38"
+    ],
+    "GROW-28": [
+      "PLAT-16",
+      "PLAT-24",
+      "PLAT-26",
+      "PLAT-28",
+      "PLAT-33",
+      "PLAT-34"
+    ]
+  },
+  "work_dependencies": {
+    "WP-01": [],
+    "WP-02": [
+      "WP-01"
+    ],
+    "WP-03": [
+      "WP-02"
+    ],
+    "WP-04": [
+      "WP-03"
+    ],
+    "WP-05": [
+      "WP-02",
+      "WP-04"
+    ],
+    "WP-06": [
+      "WP-01",
+      "WP-02"
+    ],
+    "WP-07": [
+      "WP-04"
+    ],
+    "WP-08": [
+      "WP-04",
+      "WP-07"
+    ],
+    "WP-09": [
+      "WP-04"
+    ],
+    "WP-10": [
+      "WP-03",
+      "WP-09"
+    ],
+    "WP-11": [
+      "WP-03",
+      "WP-09"
+    ],
+    "WP-12": [
+      "WP-01",
+      "WP-02",
+      "WP-03",
+      "WP-04"
+    ]
+  },
+  "states": {
+    "offer_base_p1": {
+      "reserved": {
+        "consent": "consented",
+        "decline": "declined",
+        "expire": "expired"
+      },
+      "consented": {
+        "start": "exposing",
+        "withdraw": "cancelled",
+        "expire_before_start": "expired"
+      },
+      "exposing": {
+        "submit_completion": "evidence_pending",
+        "cancel_before_qualified": "cancelled"
+      },
+      "evidence_pending": {
+        "accept_and_post": "awarded",
+        "reject": "rejected",
+        "review": "review_pending"
+      },
+      "review_pending": {
+        "accept_and_post": "awarded",
+        "reject": "rejected"
+      },
+      "awarded": {},
+      "declined": {},
+      "expired": {},
+      "cancelled": {},
+      "rejected": {}
+    }
+  },
+  "money_guards": [
+    "same_asset_only",
+    "all_beneficial_balances_nonnegative",
+    "journal_sum_zero",
+    "economic_event_unique",
+    "owner_tenant_bound",
+    "campaign_total_and_day_caps_atomic",
+    "pending_verdict_holds_not_expired",
+    "R_ge_S_and_C_ge_B_at_same_checkpoint"
+  ],
+  "release_profiles": {
+    "R0_model_p1": {
+      "real_value": false,
+      "work_packages": [
+        "WP-01",
+        "WP-02",
+        "WP-03",
+        "WP-04",
+        "WP-12"
+      ]
+    },
+    "R1_agent_utility": {
+      "real_value": false,
+      "requires": [
+        "R0_model_p1"
+      ],
+      "adds": [
+        "WP-05"
+      ]
+    },
+    "R2_collateral_backed_p1": {
+      "real_value": "activation_gated",
+      "requires": [
+        "R0_model_p1"
+      ],
+      "adds": [
+        "WP-06"
+      ],
+      "v5_acceptance_and_legal_required": true
+    },
+    "R3_open_network": {
+      "requires": [
+        "R2_collateral_backed_p1"
+      ],
+      "adds": [
+        "WP-07",
+        "WP-08",
+        "WP-09",
+        "WP-10"
+      ]
+    },
+    "R4_intelligence_global": {
+      "requires": [
+        "R3_open_network"
+      ],
+      "adds": [
+        "WP-11"
+      ]
+    }
+  },
+  "real_value_activation_required": [
+    "chain_and_official_addresses",
+    "issuer_and_custodian",
+    "jurisdiction_and_reserve_eligibility",
+    "redemption_and_customer_rights",
+    "AML_and_sanctions",
+    "risk_limits_and_fees",
+    "independent_security_audit",
+    "key_separation_and_recovery",
+    "v5_and_release_acceptance_evidence"
+  ]
+}

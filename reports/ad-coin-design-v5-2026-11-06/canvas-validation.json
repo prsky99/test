@@ -1,0 +1,9 @@
+{
+  "tsxSyntaxErrors": 0,
+  "renderedTabs": 3,
+  "accountingExample": "R=S=C=B=970",
+  "initialSupplyZero": true,
+  "overspendRejected": true,
+  "scope": "TypeScript transpilation and mocked component/accounting smoke check; no live Canvas visual, smart-contract or real-funds validation.",
+  "canvas_sha256": "bb958daa2ee294dea29e2217b5811c6d4eb1c030dac2037f98f9754b6ee427c1"
+}

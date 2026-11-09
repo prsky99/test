@@ -1,0 +1,3095 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "AI AD Coin model P1 design contract",
+    "version": "6.1.0-design",
+    "description": "Proposed first vertical slice only. Not implemented; no real-value funding or settlement."
+  },
+  "servers": [
+    {
+      "url": "/api/ad-coin/v2"
+    }
+  ],
+  "paths": {
+    "/capabilities": {
+      "get": {
+        "operationId": "getCapabilities",
+        "security": [],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Authorized resource result.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Capabilities"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; no internal diagnostic details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-principal-kinds": [
+          "public"
+        ],
+        "x-capabilities": [],
+        "x-human-only": false,
+        "x-fresh-action-required": false,
+        "x-object-authorization": "server-bound owner and tenant; never body actor",
+        "x-idempotency-required": false,
+        "x-authorization-on-replay": true
+      }
+    },
+    "/asset": {
+      "get": {
+        "operationId": "getAsset",
+        "security": [],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Authorized resource result.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; no internal diagnostic details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-principal-kinds": [
+          "public"
+        ],
+        "x-capabilities": [],
+        "x-human-only": false,
+        "x-fresh-action-required": false,
+        "x-object-authorization": "server-bound owner and tenant; never body actor",
+        "x-idempotency-required": false,
+        "x-authorization-on-replay": true
+      }
+    },
+    "/human-challenges": {
+      "post": {
+        "operationId": "createHumanChallenge",
+        "security": [
+          {
+            "HumanSession": [],
+            "Csrf": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized resource result.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChallengeView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; no internal diagnostic details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-principal-kinds": [
+          "human"
+        ],
+        "x-capabilities": [],
+        "x-human-only": true,
+        "x-fresh-action-required": false,
+        "x-object-authorization": "server-bound owner and tenant; never body actor",
+        "x-idempotency-required": true,
+        "x-authorization-on-replay": true,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChallengeRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ad-preferences": {
+      "get": {
+        "operationId": "getAdPreferences",
+        "security": [
+          {
+            "HumanSession": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Authorized resource result.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Opaque version for If-Match."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreferencesView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; no internal diagnostic details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-principal-kinds": [
+          "human"
+        ],
+        "x-capabilities": [],
+        "x-human-only": true,
+        "x-fresh-action-required": false,
+        "x-object-authorization": "server-bound owner and tenant; never body actor",
+        "x-idempotency-required": false,
+        "x-authorization-on-replay": true
+      },
+      "put": {
+        "operationId": "setAdPreferences",
+        "security": [
+          {
+            "HumanSession": [],
+            "Csrf": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "Current opaque object version; rejected if stale."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized resource result.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Opaque version for If-Match."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreferencesView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; no internal diagnostic details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-principal-kinds": [
+          "human"
+        ],
+        "x-capabilities": [],
+        "x-human-only": true,
+        "x-fresh-action-required": true,
+        "x-object-authorization": "server-bound owner and tenant; never body actor",
+        "x-idempotency-required": true,
+        "x-authorization-on-replay": true,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreferencesRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/advertisers/{advertiser_id}/campaigns": {
+      "post": {
+        "operationId": "createCampaign",
+        "security": [
+          {
+            "HumanSession": [],
+            "Csrf": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "advertiser_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized resource result.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Opaque version for If-Match."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; no internal diagnostic details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-principal-kinds": [
+          "human"
+        ],
+        "x-capabilities": [
+          "campaign.edit"
+        ],
+        "x-human-only": true,
+        "x-fresh-action-required": false,
+        "x-object-authorization": "server-bound owner and tenant; never body actor",
+        "x-idempotency-required": true,
+        "x-authorization-on-replay": true,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampaignRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/advertisers/{advertiser_id}/campaigns/{campaign_id}": {
+      "get": {
+        "operationId": "getCampaign",
+        "security": [
+          {
+            "HumanSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "advertiser_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized resource result.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Opaque version for If-Match."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; no internal diagnostic details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-principal-kinds": [
+          "human"
+        ],
+        "x-capabilities": [
+          "campaign.read"
+        ],
+        "x-human-only": true,
+        "x-fresh-action-required": false,
+        "x-object-authorization": "server-bound owner and tenant; never body actor",
+        "x-idempotency-required": false,
+        "x-authorization-on-replay": true
+      }
+    },
+    "/advertisers/{advertiser_id}/campaigns/{campaign_id}/review-request": {
+      "post": {
+        "operationId": "requestReview",
+        "security": [
+          {
+            "HumanSession": [],
+            "Csrf": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "advertiser_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "Current opaque object version; rejected if stale."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized resource result.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Opaque version for If-Match."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; no internal diagnostic details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-principal-kinds": [
+          "human"
+        ],
+        "x-capabilities": [
+          "campaign.edit"
+        ],
+        "x-human-only": true,
+        "x-fresh-action-required": false,
+        "x-object-authorization": "server-bound owner and tenant; never body actor",
+        "x-idempotency-required": true,
+        "x-authorization-on-replay": true,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reviews/{review_id}/decisions": {
+      "post": {
+        "operationId": "decideReview",
+        "security": [
+          {
+            "OpsService": [],
+            "MutualTLS": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "review_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "Current opaque object version; rejected if stale."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized resource result.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Opaque version for If-Match."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; no internal diagnostic details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-principal-kinds": [
+          "ops"
+        ],
+        "x-capabilities": [
+          "creative.review"
+        ],
+        "x-human-only": false,
+        "x-fresh-action-required": false,
+        "x-object-authorization": "server-bound owner and tenant; never body actor",
+        "x-idempotency-required": true,
+        "x-authorization-on-replay": true,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewDecision"
+              }
+            }
+          }
+        },
+        "x-ingress": "restricted_review_service_only"
+      }
+    },
+    "/reviews/{review_id}": {
+      "get": {
+        "operationId": "getReview",
+        "security": [
+          {
+            "OpsService": [],
+            "MutualTLS": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "review_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized resource result.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Opaque version for If-Match."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; no internal diagnostic details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-principal-kinds": [
+          "ops"
+        ],
+        "x-capabilities": [
+          "creative.review"
+        ],
+        "x-human-only": false,
+        "x-fresh-action-required": false,
+        "x-object-authorization": "server-bound owner and tenant; never body actor",
+        "x-idempotency-required": false,
+        "x-authorization-on-replay": true,
+        "x-ingress": "restricted_review_service_only"
+      }
+    },
+    "/advertisers/{advertiser_id}/campaigns/{campaign_id}/approvals": {
+      "post": {
+        "operationId": "approveCampaign",
+        "security": [
+          {
+            "HumanSession": [],
+            "Csrf": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "advertiser_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "Current opaque object version; rejected if stale."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized resource result.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Opaque version for If-Match."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; no internal diagnostic details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-principal-kinds": [
+          "human"
+        ],
+        "x-capabilities": [
+          "budget.approve"
+        ],
+        "x-human-only": true,
+        "x-fresh-action-required": true,
+        "x-object-authorization": "server-bound owner and tenant; never body actor",
+        "x-idempotency-required": true,
+        "x-authorization-on-replay": true,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/advertisers/{advertiser_id}/campaigns/{campaign_id}/activation": {
+      "post": {
+        "operationId": "activateCampaign",
+        "security": [
+          {
+            "HumanSession": [],
+            "Csrf": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "advertiser_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "Current opaque object version; rejected if stale."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized resource result.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Opaque version for If-Match."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; no internal diagnostic details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-principal-kinds": [
+          "human"
+        ],
+        "x-capabilities": [
+          "budget.approve"
+        ],
+        "x-human-only": true,
+        "x-fresh-action-required": false,
+        "x-object-authorization": "server-bound owner and tenant; never body actor",
+        "x-idempotency-required": true,
+        "x-authorization-on-replay": true,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevisionRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/advertisers/{advertiser_id}/campaigns/{campaign_id}/pause": {
+      "post": {
+        "operationId": "pauseCampaign",
+        "security": [
+          {
+            "HumanSession": [],
+            "Csrf": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "advertiser_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "Current opaque object version; rejected if stale."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized resource result.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Opaque version for If-Match."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; no internal diagnostic details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-principal-kinds": [
+          "human"
+        ],
+        "x-capabilities": [
+          "campaign.pause"
+        ],
+        "x-human-only": true,
+        "x-fresh-action-required": false,
+        "x-object-authorization": "server-bound owner and tenant; never body actor",
+        "x-idempotency-required": true,
+        "x-authorization-on-replay": true,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PauseRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/offers": {
+      "post": {
+        "operationId": "requestOffer",
+        "security": [
+          {
+            "HumanSession": [],
+            "Csrf": []
+          },
+          {
+            "AgentKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted for processing; inspect operation.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; no internal diagnostic details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-principal-kinds": [
+          "human",
+          "agent"
+        ],
+        "x-capabilities": [
+          "offers.request"
+        ],
+        "x-human-only": false,
+        "x-fresh-action-required": false,
+        "x-object-authorization": "server-bound owner and tenant; never body actor",
+        "x-idempotency-required": true,
+        "x-authorization-on-replay": true,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OfferRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/offers/{offer_id}": {
+      "get": {
+        "operationId": "getOffer",
+        "security": [
+          {
+            "HumanSession": []
+          },
+          {
+            "AgentKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "offer_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized resource result.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfferSummary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; no internal diagnostic details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-principal-kinds": [
+          "human",
+          "agent"
+        ],
+        "x-capabilities": [
+          "offers.read"
+        ],
+        "x-human-only": false,
+        "x-fresh-action-required": false,
+        "x-object-authorization": "server-bound owner and tenant; never body actor",
+        "x-idempotency-required": false,
+        "x-authorization-on-replay": true
+      }
+    },
+    "/offers/{offer_id}/decline": {
+      "post": {
+        "operationId": "declineOffer",
+        "security": [
+          {
+            "HumanSession": [],
+            "Csrf": []
+          },
+          {
+            "AgentKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "offer_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized resource result.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfferSummary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; no internal diagnostic details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-principal-kinds": [
+          "human",
+          "agent"
+        ],
+        "x-capabilities": [
+          "offers.decline"
+        ],
+        "x-human-only": false,
+        "x-fresh-action-required": false,
+        "x-object-authorization": "server-bound owner and tenant; never body actor",
+        "x-idempotency-required": true,
+        "x-authorization-on-replay": true,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclineRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/human-consents": {
+      "post": {
+        "operationId": "approveOffer",
+        "security": [
+          {
+            "HumanSession": [],
+            "Csrf": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized resource result.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; no internal diagnostic details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-principal-kinds": [
+          "human"
+        ],
+        "x-capabilities": [],
+        "x-human-only": true,
+        "x-fresh-action-required": true,
+        "x-object-authorization": "server-bound owner and tenant; never body actor",
+        "x-idempotency-required": true,
+        "x-authorization-on-replay": true,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsentRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/exposure-sessions": {
+      "post": {
+        "operationId": "startExposure",
+        "security": [
+          {
+            "HumanSession": [],
+            "Csrf": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized resource result.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExposureView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; no internal diagnostic details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-principal-kinds": [
+          "human"
+        ],
+        "x-capabilities": [],
+        "x-human-only": true,
+        "x-fresh-action-required": false,
+        "x-object-authorization": "server-bound owner and tenant; never body actor",
+        "x-idempotency-required": true,
+        "x-authorization-on-replay": true,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExposureRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/exposure-sessions/{session_id}/creative": {
+      "get": {
+        "operationId": "getApprovedCreative",
+        "security": [
+          {
+            "HumanSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized resource result.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; no internal diagnostic details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-principal-kinds": [
+          "human"
+        ],
+        "x-capabilities": [],
+        "x-human-only": true,
+        "x-fresh-action-required": false,
+        "x-object-authorization": "server-bound owner and tenant; never body actor",
+        "x-idempotency-required": false,
+        "x-authorization-on-replay": true,
+        "x-precondition": "Active owner-bound consent/session; no creative before consent."
+      }
+    },
+    "/exposure-sessions/{session_id}/evidence": {
+      "post": {
+        "operationId": "submitEvidence",
+        "security": [
+          {
+            "HumanSession": [],
+            "Csrf": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized resource result.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExposureView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; no internal diagnostic details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-principal-kinds": [
+          "human"
+        ],
+        "x-capabilities": [],
+        "x-human-only": true,
+        "x-fresh-action-required": false,
+        "x-object-authorization": "server-bound owner and tenant; never body actor",
+        "x-idempotency-required": true,
+        "x-authorization-on-replay": true,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvidenceRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/exposure-sessions/{session_id}/complete": {
+      "post": {
+        "operationId": "completeExposure",
+        "security": [
+          {
+            "HumanSession": [],
+            "Csrf": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted for processing; inspect operation.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; no internal diagnostic details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-principal-kinds": [
+          "human"
+        ],
+        "x-capabilities": [],
+        "x-human-only": true,
+        "x-fresh-action-required": false,
+        "x-object-authorization": "server-bound owner and tenant; never body actor",
+        "x-idempotency-required": true,
+        "x-authorization-on-replay": true,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/exposure-sessions/{session_id}/cancel": {
+      "post": {
+        "operationId": "cancelExposure",
+        "security": [
+          {
+            "HumanSession": [],
+            "Csrf": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted for processing; inspect operation.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; no internal diagnostic details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-principal-kinds": [
+          "human"
+        ],
+        "x-capabilities": [],
+        "x-human-only": true,
+        "x-fresh-action-required": false,
+        "x-object-authorization": "server-bound owner and tenant; never body actor",
+        "x-idempotency-required": true,
+        "x-authorization-on-replay": true,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelExposureRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/operations/{operation_id}": {
+      "get": {
+        "operationId": "getOperation",
+        "security": [
+          {
+            "HumanSession": []
+          },
+          {
+            "AgentKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "operation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized resource result.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; no internal diagnostic details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-principal-kinds": [
+          "human",
+          "agent"
+        ],
+        "x-capabilities": [
+          "operations.read"
+        ],
+        "x-human-only": false,
+        "x-fresh-action-required": false,
+        "x-object-authorization": "server-bound owner and tenant; never body actor",
+        "x-idempotency-required": false,
+        "x-authorization-on-replay": true
+      }
+    },
+    "/wallets/{wallet_id}": {
+      "get": {
+        "operationId": "getWallet",
+        "security": [
+          {
+            "HumanSession": []
+          },
+          {
+            "AgentKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "wallet_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized resource result.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalletView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; no internal diagnostic details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-principal-kinds": [
+          "human",
+          "agent"
+        ],
+        "x-capabilities": [
+          "wallet.read"
+        ],
+        "x-human-only": false,
+        "x-fresh-action-required": false,
+        "x-object-authorization": "server-bound owner and tenant; never body actor",
+        "x-idempotency-required": false,
+        "x-authorization-on-replay": true
+      }
+    },
+    "/receipts/{receipt_id}": {
+      "get": {
+        "operationId": "getReceipt",
+        "security": [
+          {
+            "HumanSession": []
+          },
+          {
+            "AgentKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "receipt_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized resource result.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; no internal diagnostic details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-principal-kinds": [
+          "human",
+          "agent"
+        ],
+        "x-capabilities": [
+          "receipts.read"
+        ],
+        "x-human-only": false,
+        "x-fresh-action-required": false,
+        "x-object-authorization": "server-bound owner and tenant; never body actor",
+        "x-idempotency-required": false,
+        "x-authorization-on-replay": true
+      }
+    }
+  },
+  "x-status": "design_only",
+  "x-release-profile": "R0_model_p1",
+  "x-authentication-conflict-policy": "Reject mixed human and machine credentials; never select a stronger principal by header order.",
+  "components": {
+    "securitySchemes": {
+      "HumanSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "adc2_session",
+        "description": "Proposed session adapter; principal kind must be human."
+      },
+      "Csrf": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-CSRF-Token"
+      },
+      "AgentKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Ad-Coin-Agent-Key"
+      },
+      "OpsService": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Purpose-scoped reviewer service token; distinct audience."
+      },
+      "MutualTLS": {
+        "type": "mutualTLS"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "message": {
+                "type": "string",
+                "maxLength": 240
+              },
+              "request_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "retryable": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "request_id",
+              "retryable"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "Capabilities": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "policy_version": {
+            "const": "v6.1"
+          },
+          "mode": {
+            "const": "model"
+          },
+          "real_value_enabled": {
+            "const": false
+          },
+          "products": {
+            "type": "array",
+            "items": {
+              "const": "P1"
+            },
+            "maxItems": 1
+          },
+          "renderers": {
+            "type": "array",
+            "items": {
+              "const": "platform_text_v1"
+            },
+            "maxItems": 1
+          },
+          "external_renderer_enabled": {
+            "const": false
+          }
+        },
+        "required": [
+          "policy_version",
+          "mode",
+          "real_value_enabled",
+          "products",
+          "renderers",
+          "external_renderer_enabled"
+        ]
+      },
+      "AssetView": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "asset_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "namespace": {
+            "const": "model"
+          },
+          "decimals": {
+            "const": 6
+          },
+          "redeemable": {
+            "const": false
+          }
+        },
+        "required": [
+          "asset_id",
+          "namespace",
+          "decimals",
+          "redeemable"
+        ]
+      },
+      "ChallengeRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "enum": [
+              "set_ad_preferences",
+              "approve_offer",
+              "approve_campaign"
+            ]
+          },
+          "target_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "target_revision_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "request_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": [
+          "action",
+          "target_id",
+          "target_revision_hash",
+          "request_digest"
+        ]
+      },
+      "ChallengeView": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "fresh_action_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "proof_challenge": {
+            "type": "string",
+            "minLength": 32,
+            "maxLength": 512
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "action": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "target_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "request_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": [
+          "fresh_action_id",
+          "proof_challenge",
+          "expires_at",
+          "action",
+          "target_id",
+          "request_digest"
+        ]
+      },
+      "PreferencesRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "fresh_action_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fresh_action_proof": {
+            "type": "string",
+            "minLength": 32,
+            "maxLength": 512
+          },
+          "receive_offers": {
+            "type": "boolean"
+          },
+          "context_fields": {
+            "type": "array",
+            "uniqueItems": true,
+            "maxItems": 3,
+            "items": {
+              "enum": [
+                "task_category",
+                "language",
+                "coarse_region"
+              ]
+            }
+          },
+          "max_offers_per_day": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "max_ads_per_campaign_day": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3
+          }
+        },
+        "required": [
+          "fresh_action_id",
+          "fresh_action_proof",
+          "receive_offers",
+          "context_fields",
+          "max_offers_per_day",
+          "max_ads_per_campaign_day"
+        ]
+      },
+      "PreferencesView": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "receive_offers": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "revision_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "effective_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "receive_offers",
+          "version",
+          "revision_hash",
+          "effective_at"
+        ]
+      },
+      "CampaignRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "asset_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "total_budget_atoms": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,77}$",
+            "description": "Positive integer atomic units; server enforces uint256 maximum."
+          },
+          "daily_budget_atoms": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,77}$",
+            "description": "Positive integer atomic units; server enforces uint256 maximum."
+          },
+          "budget_timezone": {
+            "const": "UTC"
+          },
+          "starts_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "ends_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "task_categories": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_.-]{1,63}$",
+              "description": "Controlled taxonomy ID. Server rejects IDs outside its allowlist; never raw conversation text."
+            }
+          },
+          "regions": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 30,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Z]{2}$"
+            }
+          },
+          "creative_text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "gross_p1_atoms": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,77}$",
+            "description": "Positive integer atomic units; server enforces uint256 maximum."
+          },
+          "min_exposure_ms": {
+            "const": 15000
+          },
+          "split_policy_id": {
+            "const": "default_v5"
+          },
+          "renderer_profile": {
+            "const": "platform_text_v1"
+          }
+        },
+        "required": [
+          "name",
+          "asset_id",
+          "total_budget_atoms",
+          "daily_budget_atoms",
+          "budget_timezone",
+          "starts_at",
+          "ends_at",
+          "task_categories",
+          "regions",
+          "creative_text",
+          "gross_p1_atoms",
+          "min_exposure_ms",
+          "split_policy_id",
+          "renderer_profile"
+        ]
+      },
+      "CampaignView": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "advertiser_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "revision_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "state": {
+            "enum": [
+              "draft",
+              "in_review",
+              "eligible",
+              "active",
+              "paused",
+              "completed",
+              "archived",
+              "rejected",
+              "suspended"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "advertiser_id",
+          "version",
+          "revision_hash",
+          "state"
+        ]
+      },
+      "ReviewRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "revision_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": [
+          "revision_hash"
+        ]
+      },
+      "ReviewView": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "campaign_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "revision_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "state": {
+            "enum": [
+              "pending",
+              "eligible",
+              "eligible_limited",
+              "rejected"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "campaign_id",
+          "version",
+          "revision_hash",
+          "state"
+        ]
+      },
+      "ReviewDecision": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "revision_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "verdict": {
+            "enum": [
+              "eligible",
+              "rejected"
+            ]
+          },
+          "reason_code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "evidence_ref": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "revision_hash",
+          "verdict",
+          "reason_code",
+          "evidence_ref"
+        ]
+      },
+      "ApprovalRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "fresh_action_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fresh_action_proof": {
+            "type": "string",
+            "minLength": 32,
+            "maxLength": 512
+          },
+          "revision_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": [
+          "fresh_action_id",
+          "fresh_action_proof",
+          "revision_hash"
+        ]
+      },
+      "RevisionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "revision_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": [
+          "revision_hash"
+        ]
+      },
+      "PauseRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "revision_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "reason_code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "revision_hash",
+          "reason_code"
+        ]
+      },
+      "DeclineRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "enum": [
+              "not_relevant",
+              "not_now",
+              "withdraw"
+            ]
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "CancelExposureRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "enum": [
+              "user_stop",
+              "consent_withdrawn"
+            ]
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "OfferRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "task_category": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_.-]{1,63}$",
+            "description": "Controlled taxonomy ID. Server rejects IDs outside its allowlist; never raw conversation text."
+          },
+          "language": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 32
+          },
+          "coarse_region": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}$"
+          },
+          "selection_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": [
+          "task_category",
+          "language",
+          "coarse_region",
+          "selection_digest"
+        ]
+      },
+      "OfferSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "campaign_revision_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "quote_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "advertiser_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "asset_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "user_reward_atoms": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,77}$",
+            "description": "Positive integer atomic units; server enforces uint256 maximum."
+          },
+          "gross_atoms": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,77}$",
+            "description": "Positive integer atomic units; server enforces uint256 maximum."
+          },
+          "operator_reward_atoms": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,77})$",
+            "description": "Integer atomic units. Server also enforces uint256 maximum."
+          },
+          "direct_cost_atoms": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,77})$",
+            "description": "Integer atomic units. Server also enforces uint256 maximum."
+          },
+          "platform_reward_atoms": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,77})$",
+            "description": "Integer atomic units. Server also enforces uint256 maximum."
+          },
+          "fees_atoms": {
+            "const": "0"
+          },
+          "use_condition": {
+            "const": "Model balance for isolated tests; not redeemable."
+          },
+          "min_exposure_ms": {
+            "const": 15000
+          },
+          "wallet_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "state": {
+            "enum": [
+              "reserved",
+              "consented",
+              "exposing",
+              "evidence_pending",
+              "review_pending",
+              "awarded",
+              "declined",
+              "expired",
+              "cancelled",
+              "rejected"
+            ]
+          },
+          "disclosure": {
+            "const": "Sponsored offer"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "campaign_revision_hash",
+          "quote_hash",
+          "advertiser_name",
+          "asset_id",
+          "user_reward_atoms",
+          "gross_atoms",
+          "operator_reward_atoms",
+          "direct_cost_atoms",
+          "platform_reward_atoms",
+          "fees_atoms",
+          "use_condition",
+          "min_exposure_ms",
+          "wallet_id",
+          "expires_at",
+          "state",
+          "disclosure",
+          "version"
+        ]
+      },
+      "ConsentRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "fresh_action_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fresh_action_proof": {
+            "type": "string",
+            "minLength": 32,
+            "maxLength": 512
+          },
+          "offer_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quote_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": [
+          "fresh_action_id",
+          "fresh_action_proof",
+          "offer_id",
+          "quote_hash"
+        ]
+      },
+      "ConsentView": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "offer_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quote_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "offer_id",
+          "quote_hash",
+          "version",
+          "created_at"
+        ]
+      },
+      "ExposureRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "offer_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "consent_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "consent_version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "offer_id",
+          "consent_id",
+          "consent_version"
+        ]
+      },
+      "ExposureView": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "offer_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "evidence_deadline": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "next_sequence": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "next_nonce": {
+            "type": "string",
+            "minLength": 32,
+            "maxLength": 512
+          }
+        },
+        "required": [
+          "id",
+          "offer_id",
+          "state",
+          "evidence_deadline",
+          "next_sequence",
+          "next_nonce"
+        ]
+      },
+      "CreativeView": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "offer_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "creative_revision_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "advertiser_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "disclosure": {
+            "const": "Advertisement"
+          },
+          "plain_text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "offer_id",
+          "creative_revision_hash",
+          "advertiser_name",
+          "disclosure",
+          "plain_text"
+        ]
+      },
+      "EvidenceRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 300
+          },
+          "nonce": {
+            "type": "string",
+            "minLength": 32,
+            "maxLength": 512
+          },
+          "elapsed_claim_ms": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 600000
+          },
+          "visible": {
+            "type": "boolean"
+          },
+          "foreground": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "sequence",
+          "nonce",
+          "elapsed_claim_ms",
+          "visible",
+          "foreground"
+        ]
+      },
+      "CompleteRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "last_sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 300
+          }
+        },
+        "required": [
+          "last_sequence"
+        ]
+      },
+      "OperationView": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "enum": [
+              "pending",
+              "running",
+              "review_pending",
+              "succeeded",
+              "failed",
+              "no_offer"
+            ]
+          },
+          "resource_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "resource_type": {
+            "enum": [
+              "offer",
+              "exposure",
+              "award",
+              "none"
+            ]
+          },
+          "receipt_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "review_deadline": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "resource_id",
+          "resource_type",
+          "receipt_id",
+          "review_deadline"
+        ]
+      },
+      "WalletView": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "asset_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "available_atoms": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,77})$",
+            "description": "Integer atomic units. Server also enforces uint256 maximum."
+          },
+          "locked_atoms": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,77})$",
+            "description": "Integer atomic units. Server also enforces uint256 maximum."
+          },
+          "ownership": {
+            "const": "user_owned"
+          },
+          "mode": {
+            "const": "model"
+          }
+        },
+        "required": [
+          "id",
+          "asset_id",
+          "available_atoms",
+          "locked_atoms",
+          "ownership",
+          "mode"
+        ]
+      },
+      "ReceiptView": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "const": "p1_award"
+          },
+          "offer_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "stage_key": {
+            "const": "P1"
+          },
+          "asset_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "user_reward_atoms": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,77}$",
+            "description": "Positive integer atomic units; server enforces uint256 maximum."
+          },
+          "quote_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "issued_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "signature_state": {
+            "enum": [
+              "pending",
+              "signed"
+            ]
+          },
+          "signature": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2048
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "offer_id",
+          "stage_key",
+          "asset_id",
+          "user_reward_atoms",
+          "quote_hash",
+          "issued_at",
+          "signature_state",
+          "signature"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "signature_state": {
+                  "const": "signed"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "signature": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "signature": {
+                  "type": "null"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

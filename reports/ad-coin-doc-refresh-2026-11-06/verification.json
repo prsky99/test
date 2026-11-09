@@ -1,0 +1,153 @@
+{
+  "date_kst": "2026-11-06",
+  "scope": "Documentation refresh with existing isolated tests only; no product code, deployment, live DB or external-value transfer mutations.",
+  "test_runs": [
+    {
+      "file": "tests-initial.xml",
+      "result": {
+        "passed": 80,
+        "failed": 0,
+        "skipped": 9
+      }
+    },
+    {
+      "file": "tests-postgres.xml",
+      "result": {
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0
+      }
+    }
+  ],
+  "latest_unique_tests": {
+    "passed": 89,
+    "failed": 0,
+    "skipped": 0
+  },
+  "dynamic_security": {
+    "checks": 219,
+    "passed": 219,
+    "failed": 0,
+    "by_area": {
+      "setup": {
+        "checks": 1,
+        "failed": 0
+      },
+      "authz": {
+        "checks": 151,
+        "failed": 0
+      },
+      "bola": {
+        "checks": 16,
+        "failed": 0
+      },
+      "csrf": {
+        "checks": 4,
+        "failed": 0
+      },
+      "input": {
+        "checks": 16,
+        "failed": 0
+      },
+      "leak": {
+        "checks": 11,
+        "failed": 0
+      },
+      "money": {
+        "checks": 11,
+        "failed": 0
+      },
+      "race": {
+        "checks": 1,
+        "failed": 0
+      },
+      "method": {
+        "checks": 2,
+        "failed": 0
+      },
+      "ratelimit": {
+        "checks": 1,
+        "failed": 0
+      },
+      "headers": {
+        "checks": 4,
+        "failed": 0
+      },
+      "integrity": {
+        "checks": 1,
+        "failed": 0
+      }
+    }
+  },
+  "source_sha256": {
+    "agent_market/ad_coin/__init__.py": "1057923b71de857481ee9a21d2a2b54179839a30b8d142aa050f88c3e1f3e554",
+    "agent_market/ad_coin/admin_page.py": "0e7a7d27da31270844318080d623d21a6d002d08928ad062535bbd034db4c8bd",
+    "agent_market/ad_coin/advertiser_page.py": "75b271732d6e8ef84a3041965d349e8ddb02e81a488bf2db793751061b10e8de",
+    "agent_market/ad_coin/advertisers.py": "d0bf9ec4b704fda268978548ee7aec0e4f4d65f020e7ce312fa35d4b595c5a72",
+    "agent_market/ad_coin/api.py": "fe115e56c509dbcb31fcf908836c0ccc1ac82005d9ce2ef9ac96b5e75ddcd97d",
+    "agent_market/ad_coin/audit.py": "3a2e54527ffa4bf0eb00d716f1e77eab53178d4d586d353e23ccfcbe28febc1a",
+    "agent_market/ad_coin/config.py": "310c6cf73b6bd23bb9acad0112980d7316f2a21296ec27c818884e716d7c9357",
+    "agent_market/ad_coin/db.py": "eca6481854531e9a1cff11f7e4bd9447226472e9a7f68e14f505c66e095d62e6",
+    "agent_market/ad_coin/exchange.py": "74bc02cd04c2ec3ad14278ea81d0fe9126c777e12828052e3909ceb90fe5c678",
+    "agent_market/ad_coin/ledger.py": "407e124f528b2cb2f379bff7f69930959cf6ba8a6346a7f996f1fd5b44c893ef",
+    "agent_market/ad_coin/page.py": "1c2e8d25dc4f198f7592d405cbcdd07b89f84291ea42dd86c6a5965f62e1c839",
+    "agent_market/ad_coin/people.py": "c1c769261bed11f4a07643fbaebc2f07032c926f85534359fd88118489a5fd14",
+    "agent_market/ad_coin/private_workflows.py": "d833f3da83c64bb4a38a0c8788b9aac79f23c40dfa09cf2c5cbb00c2e5d2fa52",
+    "agent_market/ad_coin/receipts.py": "a0af95e8da4228dd1ec3d11b2ef6378fca8675d50fe399efd651fd60a5748e8d",
+    "agent_market/ad_coin/run_results.py": "6a46f7b0b374d8133fd72d9d3ff4eef0a43e0850aba7d46dc78183a6af093706",
+    "agent_market/ad_coin/screening.py": "3703aecfb04d7c49b5fa7e7fbdb358bd70b8c97c5913c5d181f60e3bf19aecc4",
+    "agent_market/ad_coin/service.py": "f488006a800a370f1f6ab09f87b0481861497ab49df22aa5e662eb94b293ddcf",
+    "agent_market/ad_coin/sql_registry.py": "b1b75bba9291fd78ff7c68b545cf2920b842eec1fb14cca582a973a9425cddc2",
+    "agent_market/ad_coin/test_products.py": "164f5280d7e752231985e95d4ce4426471151fcee5e783e87b2419b45fee4b03",
+    "agent_market/ad_coin/upgrade.py": "e69000e74f5d5feea75b2f4dc8927b7fb60b300420b8b1a96a88eacd305f6966",
+    "agent_market/ad_coin/sql_registry.json": "82993b5ade151792a9b0facddc8cd99dace427a9c6adb816ae6f745ab84b27d1",
+    "scripts/ad_coin_dynamic_security.py": "45c0a311a8fb41ba7e4a8068501fae6758635b1dbf650d614fd96493a78c3508",
+    "scripts/ad_coin_migrate_postgres.py": "acaa5d39e0a17b59f40b4f5ccaa3b8b6bccb5602dc13cefef64b3875f469c3b9",
+    "scripts/ad_coin_rehearsal.py": "068f197174bdc87ef3aa89fe91bd630efeab77725d277b1309ace3e72d5aac04",
+    "scripts/ad_coin_sponsorship_audit.py": "62353cb93374572a78a1cc8267295678440b90f27645aea2c7d4995ac2b78786",
+    "scripts/ad_coin_sql_registry.py": "009c0870d06f7d5819ff5ad720abbb83aa2055a8fc96b234099c584688ddce06",
+    "tests/test_ad_coin.py": "e0d5b58c85f1b62a5fbe91bffaecbe52fffd11e5a79384d5469b3c0cd61a76c3",
+    "tests/test_ad_coin_advertisers.py": "a45ecf4c9896270bcf77d1ba1a801e4462a0ce49beb74dfeb1cc1d41f4a777eb",
+    "tests/test_ad_coin_audit.py": "992077cbcab0050095b9a7875552315b22223cbc0b64c900e573eb012d796e36",
+    "tests/test_ad_coin_people.py": "c105e56d2a8841c893ed24228d383a6853cf5be33ccef647b9c3c98d2fd0dbc3",
+    "tests/test_ad_coin_postgres.py": "93262acd9868c6bb265271c95206fcf313a818b846ff3ba87d237d4f48de6f2c",
+    "tests/test_ad_coin_private_workflows.py": "31e8c916ff7867d98740299659b886710e2a8c976835dfac46404a5e30d32a39",
+    "tests/test_ad_coin_run_results.py": "c48628f928dd9747566179df28acaabb889aca872a505a0a674176cd1ceb40ea"
+  },
+  "historical_evidence": [
+    "reports/ad-coin-security-2026-11-05/bandit.json",
+    "reports/ad-coin-rehearsal-2026-11-05/large.json",
+    "reports/ad-coin-rehearsal-2026-11-05/extreme.json"
+  ],
+  "not_reexecuted": [
+    "static Bandit",
+    "full repository suite",
+    "dependency audit",
+    "load benchmarks",
+    "LCP and real-customer browser checks",
+    "production boundaries and real Web Bot Auth",
+    "external provider billing/settlement or blockchain transfers"
+  ],
+  "release_blockers": [
+    "Human-only approval and agent-key authority separation",
+    "Actor derivation and mandate enforcement in /spends",
+    "Client-supplied exposure duration/foreground is not independent human viewing proof",
+    "Fresh authentication flow for held high-value transfers",
+    "Production boundary, recovery, key lifecycle, real-funds reconciliation evidence"
+  ],
+  "performance_caveats": [
+    "Transfer latency has only 3 observations in large.json",
+    "Final journal rows include pre-load seed funding; total rows divided by elapsed_seconds is not measured ledger write throughput",
+    "speed_passed covers observed route latency only; not complete release or global ranking"
+  ],
+  "documentation_verification": {
+    "markdown_files_checked": 6,
+    "broken_local_links": 0,
+    "source_changed_since_test_fingerprint": false,
+    "docx_pages": 5,
+    "docx_visual_qa": "All pages inspected; Korean glyphs and complete latency table verified.",
+    "word_file": "reports/AI-AD-Coin-implementation-v4-2026-11-06.docx",
+    "word_sha256": "cf0eea4282b3a3eb182c821c3d8f392dc0d966eee866d6dd8d63483cfce59ed7",
+    "md_sha256": "6108d7535b80c11fa94c8af813f3b7011b219bb3627b8ebd0ab4b1ab8bafd690"
+  }
+}

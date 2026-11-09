@@ -1,0 +1,92 @@
+{
+  "profile": "ad_coin_v2_operational_performance_production",
+  "workers": 8,
+  "total_operations": 500,
+  "successful_operations": 500,
+  "failed_operations": 0,
+  "error_rate_percent": 0.0,
+  "total_duration_seconds": 3.948,
+  "throughput_ops_per_second": 126.64,
+  "preseeded_history_records": 2000,
+  "preseed_duration_seconds": 2.009,
+  "latency_overall_ms": {
+    "min": 3.27,
+    "p50": 24.583,
+    "p95": 104.224,
+    "p99": 116.912,
+    "max": 156.83
+  },
+  "latency_by_operation_ms": {
+    "mandate_list": {
+      "count": 100,
+      "p50": 5.515,
+      "p95": 8.998,
+      "p99": 11.999
+    },
+    "execution_hold": {
+      "count": 300,
+      "p50": 5.984,
+      "p95": 13.363,
+      "p99": 28.725
+    },
+    "execution_settle": {
+      "count": 200,
+      "p50": 86.666,
+      "p95": 106.582,
+      "p99": 116.912
+    },
+    "execution_refund": {
+      "count": 100,
+      "p50": 100.621,
+      "p95": 117.229,
+      "p99": 129.81
+    },
+    "workspace_session": {
+      "count": 100,
+      "p50": 70.9,
+      "p95": 77.713,
+      "p99": 88.696
+    }
+  },
+  "latency_by_region_ms": {
+    "US": {
+      "count": 100,
+      "p50": 70.9,
+      "p95": 77.713,
+      "p99": 88.696
+    },
+    "KR": {
+      "count": 100,
+      "p50": 5.515,
+      "p95": 8.998,
+      "p99": 11.999
+    },
+    "JP": {
+      "count": 100,
+      "p50": 30.815,
+      "p95": 41.695,
+      "p99": 53.097
+    },
+    "GB": {
+      "count": 100,
+      "p50": 97.935,
+      "p95": 110.017,
+      "p99": 127.256
+    },
+    "DE": {
+      "count": 100,
+      "p50": 100.621,
+      "p95": 117.229,
+      "p99": 129.81
+    }
+  },
+  "ledger_conservation_verified": true,
+  "reconciliation_status": "clean",
+  "reconciliation_issues_count": 0,
+  "audit": {
+    "beneficial_atoms": "240000000",
+    "clearing_atoms": "-240000000",
+    "zero_sum_balance": 0
+  },
+  "errors": []
+}

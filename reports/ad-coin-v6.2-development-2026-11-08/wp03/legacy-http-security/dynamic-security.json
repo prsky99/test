@@ -1,0 +1,1374 @@
+{
+ "summary": {
+  "checks": 219,
+  "passed": 219,
+  "failed": 0,
+  "by_area": {
+   "setup": {
+    "checks": 1,
+    "failed": 0
+   },
+   "authz": {
+    "checks": 151,
+    "failed": 0
+   },
+   "bola": {
+    "checks": 16,
+    "failed": 0
+   },
+   "csrf": {
+    "checks": 4,
+    "failed": 0
+   },
+   "input": {
+    "checks": 16,
+    "failed": 0
+   },
+   "leak": {
+    "checks": 11,
+    "failed": 0
+   },
+   "money": {
+    "checks": 11,
+    "failed": 0
+   },
+   "race": {
+    "checks": 1,
+    "failed": 0
+   },
+   "method": {
+    "checks": 2,
+    "failed": 0
+   },
+   "ratelimit": {
+    "checks": 1,
+    "failed": 0
+   },
+   "headers": {
+    "checks": 4,
+    "failed": 0
+   },
+   "integrity": {
+    "checks": 1,
+    "failed": 0
+   }
+  }
+ },
+ "failed": [],
+ "checks": [
+  {
+   "area": "setup",
+   "name": "seed through the API",
+   "passed": true,
+   "detail": "None"
+  },
+  {
+   "area": "authz",
+   "name": "POST /quotes person route anonymous",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /quotes person route not invited",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /upgrade-check person route anonymous",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /upgrade-check person route not invited",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /test-products person route anonymous",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /test-products person route not invited",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /consents customer route anonymous",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /consents customer route not invited",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /declines person route anonymous",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /declines person route not invited",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /exposures customer route anonymous",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /exposures customer route not invited",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /wallets person route anonymous",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /wallets person route not invited",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /transfers customer route anonymous",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /transfers customer route not invited",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /agents/revoke customer route anonymous",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /agents/revoke customer route not invited",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /agent-keys customer route anonymous",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /agent-keys customer route not invited",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /agent-keys customer route anonymous",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /agent-keys customer route not invited",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /mandates person route anonymous",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /mandates person route not invited",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /mandates customer route anonymous",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /mandates customer route not invited",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /mandates/revoke customer route anonymous",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /mandates/revoke customer route not invited",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /spends person route anonymous",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /spends person route not invited",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /executions/settle-from-runs person route anonymous",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /executions/settle-from-runs person route not invited",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /vouchers/redeem customer route anonymous",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /vouchers/redeem customer route not invited",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /receipts person route anonymous",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /receipts person route not invited",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /admin/campaigns admin route with no token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /admin/campaigns admin route with wrong token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /admin/campaigns admin route with customer session",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/campaigns admin route with no token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/campaigns admin route with wrong token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/campaigns admin route with customer session",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/campaigns/fund admin route with no token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/campaigns/fund admin route with wrong token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/campaigns/fund admin route with customer session",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/campaigns/status admin route with no token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/campaigns/status admin route with wrong token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/campaigns/status admin route with customer session",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/campaigns/refund admin route with no token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/campaigns/refund admin route with wrong token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/campaigns/refund admin route with customer session",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /admin/campaigns/report admin route with no token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /admin/campaigns/report admin route with wrong token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /admin/campaigns/report admin route with customer session",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/test-products admin route with no token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/test-products admin route with wrong token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/test-products admin route with customer session",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/test-products/archive admin route with no token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/test-products/archive admin route with wrong token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/test-products/archive admin route with customer session",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /admin/test-products admin route with no token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /admin/test-products admin route with wrong token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /admin/test-products admin route with customer session",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /advertisers advertiser route anonymous",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /advertisers advertiser route not invited",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /advertisers advertiser route anonymous",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /advertisers advertiser route not invited",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /advertiser advertiser route anonymous",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /advertiser advertiser route not invited",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /advertiser/members advertiser route anonymous",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /advertiser/members advertiser route not invited",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /advertiser/campaigns advertiser route anonymous",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /advertiser/campaigns advertiser route not invited",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /advertiser/campaigns advertiser route anonymous",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /advertiser/campaigns advertiser route not invited",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /advertiser/campaigns/update advertiser route anonymous",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /advertiser/campaigns/update advertiser route not invited",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /advertiser/campaigns/fund advertiser route anonymous",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /advertiser/campaigns/fund advertiser route not invited",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /advertiser/creatives advertiser route anonymous",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /advertiser/creatives advertiser route not invited",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /advertiser/creatives/edit advertiser route anonymous",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /advertiser/creatives/edit advertiser route not invited",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /advertiser/appeals advertiser route anonymous",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /advertiser/appeals advertiser route not invited",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /advertiser/report advertiser route anonymous",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /advertiser/report advertiser route not invited",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /advertiser/statement advertiser route anonymous",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /advertiser/statement advertiser route not invited",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /advertiser/history advertiser route anonymous",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /advertiser/history advertiser route not invited",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /admin/reviews admin route with no token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /admin/reviews admin route with wrong token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /admin/reviews admin route with customer session",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/reviews/decide admin route with no token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/reviews/decide admin route with wrong token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/reviews/decide admin route with customer session",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/advertisers/verification admin route with no token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/advertisers/verification admin route with wrong token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/advertisers/verification admin route with customer session",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/advertisers/status admin route with no token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/advertisers/status admin route with wrong token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/advertisers/status admin route with customer session",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/platform-reserve admin route with no token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/platform-reserve admin route with wrong token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/platform-reserve admin route with customer session",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/invalid-activity admin route with no token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/invalid-activity admin route with wrong token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/invalid-activity admin route with customer session",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /admin/invites admin route with no token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /admin/invites admin route with wrong token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /admin/invites admin route with customer session",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/invites admin route with no token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/invites admin route with wrong token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/invites admin route with customer session",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/invites/revoke admin route with no token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/invites/revoke admin route with wrong token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/invites/revoke admin route with customer session",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/audits admin route with no token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/audits admin route with wrong token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/audits admin route with customer session",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /admin/audits admin route with no token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /admin/audits admin route with wrong token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /admin/audits admin route with customer session",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /admin/settings admin route with no token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /admin/settings admin route with wrong token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /admin/settings admin route with customer session",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "PUT /admin/settings admin route with no token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "PUT /admin/settings admin route with wrong token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "PUT /admin/settings admin route with customer session",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /admin/invariant admin route with no token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /admin/invariant admin route with wrong token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "GET /admin/invariant admin route with customer session",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/full-check admin route with no token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/full-check admin route with wrong token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/full-check admin route with customer session",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/circuit admin route with no token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/circuit admin route with wrong token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/circuit admin route with customer session",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/executions/complete admin route with no token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/executions/complete admin route with wrong token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/executions/complete admin route with customer session",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/executions/settle-from-runs admin route with no token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/executions/settle-from-runs admin route with wrong token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/executions/settle-from-runs admin route with customer session",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/settle admin route with no token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/settle admin route with wrong token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/settle admin route with customer session",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/sweep-dormant admin route with no token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/sweep-dormant admin route with wrong token",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "authz",
+   "name": "POST /admin/sweep-dormant admin route with customer session",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "bola",
+   "name": "Eve reads /advertiser",
+   "passed": true,
+   "detail": "404"
+  },
+  {
+   "area": "bola",
+   "name": "Eve reads /advertiser/campaigns",
+   "passed": true,
+   "detail": "404"
+  },
+  {
+   "area": "bola",
+   "name": "Eve reads /advertiser/report",
+   "passed": true,
+   "detail": "404"
+  },
+  {
+   "area": "bola",
+   "name": "Eve reads /advertiser/statement",
+   "passed": true,
+   "detail": "404"
+  },
+  {
+   "area": "bola",
+   "name": "Eve reads /advertiser/history",
+   "passed": true,
+   "detail": "404"
+  },
+  {
+   "area": "bola",
+   "name": "Eve writes /advertiser/campaigns/update ['advertiser_id', 'campaign_id']",
+   "passed": true,
+   "detail": "404"
+  },
+  {
+   "area": "bola",
+   "name": "Eve writes /advertiser/campaigns/update ['advertiser_id', 'bid_won']",
+   "passed": true,
+   "detail": "404"
+  },
+  {
+   "area": "bola",
+   "name": "Eve writes /advertiser/campaigns/fund ['advertiser_id', 'amount_won']",
+   "passed": true,
+   "detail": "404"
+  },
+  {
+   "area": "bola",
+   "name": "Eve writes /advertiser/members ['advertiser_id', 'customer_id']",
+   "passed": true,
+   "detail": "404"
+  },
+  {
+   "area": "bola",
+   "name": "Eve writes /advertiser/creatives ['advertiser_id', 'campaign_id']",
+   "passed": true,
+   "detail": "404"
+  },
+  {
+   "area": "bola",
+   "name": "Eve uses the owner's /consents",
+   "passed": true,
+   "detail": "404"
+  },
+  {
+   "area": "bola",
+   "name": "Eve uses the owner's /declines",
+   "passed": true,
+   "detail": "404"
+  },
+  {
+   "area": "bola",
+   "name": "Eve uses the owner's /exposures",
+   "passed": true,
+   "detail": "404"
+  },
+  {
+   "area": "bola",
+   "name": "Eve uses the owner's /transfers",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "bola",
+   "name": "Eve uses the owner's /spends",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "bola",
+   "name": "Eve sees no receipt of the owner",
+   "passed": true,
+   "detail": ""
+  },
+  {
+   "area": "csrf",
+   "name": "write without CSRF proof is refused",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "csrf",
+   "name": "write with a forged CSRF proof is refused",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "csrf",
+   "name": "another session's CSRF proof is refused",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "csrf",
+   "name": "cross-origin write is refused",
+   "passed": true,
+   "detail": "403"
+  },
+  {
+   "area": "input",
+   "name": "hostile campaign input \"'; DROP TABLE ad_coi\" is refused or stored inert",
+   "passed": true,
+   "detail": "400"
+  },
+  {
+   "area": "leak",
+   "name": "no internals in the answer to \"'; DROP TABLE ad_coi\"",
+   "passed": true,
+   "detail": "{\"error\":\"invalid_categories\",\"message\":\"invalid_categories\"}"
+  },
+  {
+   "area": "input",
+   "name": "hostile campaign input '<script>alert(1)</sc' is refused or stored inert",
+   "passed": true,
+   "detail": "400"
+  },
+  {
+   "area": "leak",
+   "name": "no internals in the answer to '<script>alert(1)</sc'",
+   "passed": true,
+   "detail": "{\"error\":\"invalid_name\",\"message\":\"Remove instructions, safety claims or wallet requests.\"}"
+  },
+  {
+   "area": "input",
+   "name": "hostile campaign input '\\u202eevil' is refused or stored inert",
+   "passed": true,
+   "detail": "400"
+  },
+  {
+   "area": "leak",
+   "name": "no internals in the answer to '\\u202eevil'",
+   "passed": true,
+   "detail": "{\"error\":\"invalid_name\",\"message\":\"invalid_name\"}"
+  },
+  {
+   "area": "input",
+   "name": "hostile campaign input 'xxxxxxxxxxxxxxxxxxxx' is refused or stored inert",
+   "passed": true,
+   "detail": "400"
+  },
+  {
+   "area": "leak",
+   "name": "no internals in the answer to 'xxxxxxxxxxxxxxxxxxxx'",
+   "passed": true,
+   "detail": "{\"error\":\"invalid_name\",\"message\":\"invalid_name\"}"
+  },
+  {
+   "area": "input",
+   "name": "hostile campaign input '{{7*7}}' is refused or stored inert",
+   "passed": true,
+   "detail": "400"
+  },
+  {
+   "area": "leak",
+   "name": "no internals in the answer to '{{7*7}}'",
+   "passed": true,
+   "detail": "{\"error\":\"invalid_categories\",\"message\":\"invalid_categories\"}"
+  },
+  {
+   "area": "input",
+   "name": "hostile campaign input '../../etc/passwd' is refused or stored inert",
+   "passed": true,
+   "detail": "400"
+  },
+  {
+   "area": "leak",
+   "name": "no internals in the answer to '../../etc/passwd'",
+   "passed": true,
+   "detail": "{\"error\":\"invalid_categories\",\"message\":\"invalid_categories\"}"
+  },
+  {
+   "area": "input",
+   "name": "hostile campaign input '\\x00' is refused or stored inert",
+   "passed": true,
+   "detail": "400"
+  },
+  {
+   "area": "leak",
+   "name": "no internals in the answer to '\\x00'",
+   "passed": true,
+   "detail": "{\"error\":\"invalid_categories\",\"message\":\"invalid_categories\"}"
+  },
+  {
+   "area": "input",
+   "name": "hostile campaign input '1 OR 1=1' is refused or stored inert",
+   "passed": true,
+   "detail": "400"
+  },
+  {
+   "area": "leak",
+   "name": "no internals in the answer to '1 OR 1=1'",
+   "passed": true,
+   "detail": "{\"error\":\"invalid_categories\",\"message\":\"invalid_categories\"}"
+  },
+  {
+   "area": "input",
+   "name": "creative link https://192.168.0.1/x is refused",
+   "passed": true,
+   "detail": "400"
+  },
+  {
+   "area": "input",
+   "name": "creative link https://localhost/ is refused",
+   "passed": true,
+   "detail": "400"
+  },
+  {
+   "area": "input",
+   "name": "creative link javascript:alert(1) is refused",
+   "passed": true,
+   "detail": "400"
+  },
+  {
+   "area": "input",
+   "name": "creative link http://owner.example/ is refused",
+   "passed": true,
+   "detail": "400"
+  },
+  {
+   "area": "input",
+   "name": "oversized body is refused",
+   "passed": true,
+   "detail": "413"
+  },
+  {
+   "area": "input",
+   "name": "malformed JSON is refused",
+   "passed": true,
+   "detail": "400"
+  },
+  {
+   "area": "input",
+   "name": "out-of-range report period is refused",
+   "passed": true,
+   "detail": "400"
+  },
+  {
+   "area": "input",
+   "name": "non-numeric report period is refused",
+   "passed": true,
+   "detail": "400"
+  },
+  {
+   "area": "money",
+   "name": "fund amount -1000 is refused",
+   "passed": true,
+   "detail": "400"
+  },
+  {
+   "area": "money",
+   "name": "fund amount 0 is refused",
+   "passed": true,
+   "detail": "400"
+  },
+  {
+   "area": "money",
+   "name": "fund amount 15 is refused",
+   "passed": true,
+   "detail": "400"
+  },
+  {
+   "area": "money",
+   "name": "fund amount 10.5 is refused",
+   "passed": true,
+   "detail": "400"
+  },
+  {
+   "area": "money",
+   "name": "fund amount '1000' is refused",
+   "passed": true,
+   "detail": "400"
+  },
+  {
+   "area": "money",
+   "name": "fund amount 1000000000000 is refused",
+   "passed": true,
+   "detail": "400"
+  },
+  {
+   "area": "money",
+   "name": "fund amount True is refused",
+   "passed": true,
+   "detail": "400"
+  },
+  {
+   "area": "money",
+   "name": "a replayed funding is applied once",
+   "passed": true,
+   "detail": "({'campaign_id': 'c_95eaffb27abb44ec8b6a', 'escrow_won': 59000, 'virtual': True}, {'campaign_id': 'c_95eaffb27abb44ec8b6a', 'escrow_won': 59000, 'virtual': True})"
+  },
+  {
+   "area": "money",
+   "name": "a view shorter than 15 seconds earns nothing",
+   "passed": true,
+   "detail": "422"
+  },
+  {
+   "area": "money",
+   "name": "a view is rewarded once",
+   "passed": true,
+   "detail": "(200, 409)"
+  },
+  {
+   "area": "money",
+   "name": "a negative transfer is refused",
+   "passed": true,
+   "detail": "400"
+  },
+  {
+   "area": "race",
+   "name": "24 concurrent spends of 300 won from 1,000 won: exactly 3 succeed, never negative",
+   "passed": true,
+   "detail": "(3, 100)"
+  },
+  {
+   "area": "method",
+   "name": "DELETE on a POST route is refused",
+   "passed": true,
+   "detail": "405"
+  },
+  {
+   "area": "method",
+   "name": "PATCH on a POST route is refused",
+   "passed": true,
+   "detail": "405"
+  },
+  {
+   "area": "ratelimit",
+   "name": "a burst of writes is rate limited",
+   "passed": true,
+   "detail": "[429, 429, 429, 429, 429]"
+  },
+  {
+   "area": "headers",
+   "name": "console CSP: no inline script, no framing",
+   "passed": true,
+   "detail": "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+  },
+  {
+   "area": "headers",
+   "name": "API answers are no-store and not indexed",
+   "passed": true,
+   "detail": "{'date': 'Sat, 07 Nov 2026 22:41:18 GMT', 'server': 'uvicorn', 'cache-control': 'no-store', 'x-robots-tag': 'noindex', 'content-length': '355', 'content-type': 'application/json'}"
+  },
+  {
+   "area": "headers",
+   "name": "no internal timing header in normal mode",
+   "passed": true,
+   "detail": "None"
+  },
+  {
+   "area": "headers",
+   "name": "AI AD Coin sets no cookies",
+   "passed": true,
+   "detail": ""
+  },
+  {
+   "area": "leak",
+   "name": "error for /advertiser?advertiser_id=adv_x carries no internals",
+   "passed": true,
+   "detail": "{\"error\":\"customer_session_required\",\"message\":\"Sign in to your workspace to manage advertising.\"}"
+  },
+  {
+   "area": "leak",
+   "name": "error for /advertiser?advertiser_id=adv_missing carries no internals",
+   "passed": true,
+   "detail": "{\"error\":\"unknown_advertiser\",\"message\":\"No such advertiser account for you.\"}"
+  },
+  {
+   "area": "leak",
+   "name": "error for /admin/campaigns/report?campaign_id=nope carries no internals",
+   "passed": true,
+   "detail": "{\"error\":\"unknown_campaign\",\"message\":\"unknown_campaign\"}"
+  },
+  {
+   "area": "integrity",
+   "name": "ledger invariant holds after the attack run",
+   "passed": true,
+   "detail": "[]"
+  }
+ ]
+}

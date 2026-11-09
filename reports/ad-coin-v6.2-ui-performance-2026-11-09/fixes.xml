@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="2" time="7.133" timestamp="2026-11-09T06:30:17.323174+09:00" hostname="test-host"><testcase classname="tests.test_ad_coin_v2_workspace" name="test_schema_three_upgrade_adds_indexes_without_changing_balances" time="1.363"><failure message="AttributeError: 'FixtureFunctionDefinition' object has no attribute 'database'">workspace = (P1Suite(service=&lt;agent_market.ad_coin.v2.commercial.Commercial object at 0x10af38950&gt;, resolver=&lt;agent_market.ad_coin...c4d90&gt;), &lt;starlette.testclient.TestClient object at 0x10cccd210&gt;, &lt;fastapi.applications.FastAPI object at 0x10cb52cd0&gt;)
+
+    def test_schema_three_upgrade_adds_indexes_without_changing_balances(workspace):
+        from agent_market.ad_coin.sql_registry import unchecked
+        from agent_market.ad_coin.v2.performance_schema import INDEXES
+        from tests.test_ad_coin_v2_persistence import raw
+        import psycopg
+    
+        suite, _, _ = workspace
+        database = suite.service.store
+        before = suite.service.ledger.audit()
+        with unchecked(), database.database.transaction() as connection:
+            for sql in INDEXES:
+                connection.execute(
+                    psycopg.sql.SQL("DROP INDEX {}")
+                    .format(psycopg.sql.Identifier(sql.split()[5]))
+                    .as_string()
+                )
+        raw(database, "UPDATE adc2_schema SET version=3 WHERE id=1")
+        database.migrate_model()
+        assert database.one("schema_get")["version"] == 4
+        for sql in INDEXES:
+&gt;           rows = raw(
+                store,
+                "SELECT indexdef FROM pg_indexes WHERE schemaname=? AND indexname=?",
+                ("public", sql.split()[5]),
+            )
+
+tests/test_ad_coin_v2_workspace.py:166: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+store = &lt;pytest_fixture(&lt;function store at 0x10b783240&gt;)&gt;
+sql = 'SELECT indexdef FROM pg_indexes WHERE schemaname=? AND indexname=?'
+args = ('public', 'adc2_pending_journals')
+
+    def raw(store, sql, args=()):
+        """Deliberate corruptions test database constraints, never application execution."""
+&gt;       with unchecked(), store.database.transaction() as connection:
+                          ^^^^^^^^^^^^^^
+E       AttributeError: 'FixtureFunctionDefinition' object has no attribute 'database'
+
+tests/test_ad_coin_v2_persistence.py:96: AttributeError</failure></testcase><testcase classname="tests.test_ad_coin_v2_workspace_browser" name="test_browser_stop_halts_collection_and_campaign_draft_is_usable" time="5.192" /></testsuite></testsuites>

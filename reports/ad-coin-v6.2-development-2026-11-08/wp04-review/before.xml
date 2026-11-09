@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="8" skipped="0" tests="8" time="3.911" timestamp="2026-11-08T20:25:38.326856+09:00" hostname="test-host"><testcase classname="tests.test_ad_coin_v2_review" name="test_zero_server_elapsed_cannot_earn_exposure_time" time="1.056"><failure message="assert 15000 == 0&#10; +  where 15000 = int(15000)">p1_suite = P1Suite(service=&lt;agent_market.ad_coin.v2.commercial.Commercial object at 0x10b8b8ad0&gt;, resolver=&lt;agent_market.ad_coin....0x10bdaea90&gt;, signing_key=&lt;cryptography.hazmat.bindings._rust.openssl.ed25519.Ed25519PrivateKey object at 0x10b82de70&gt;)
+
+    def test_zero_server_elapsed_cannot_earn_exposure_time(p1_suite):
+        _,session=session_for(p1_suite)
+        for seq in range(16):
+            response=signal(p1_suite,session,seq,NOW,seq*1000)
+            assert response.status_code==200,response.text
+        row=p1_suite.service.store.one('exposure_get',(session['id'],))
+&gt;       assert int(row['collected_valid_ms'])==0
+E       assert 15000 == 0
+E        +  where 15000 = int(15000)
+
+tests/test_ad_coin_v2_review.py:65: AssertionError</failure></testcase><testcase classname="tests.test_ad_coin_v2_review" name="test_interval_requires_both_endpoints_visible" time="0.257"><failure message="assert 1000 == 0&#10; +  where 1000 = int(1000)">p1_suite = P1Suite(service=&lt;agent_market.ad_coin.v2.commercial.Commercial object at 0x10b93f310&gt;, resolver=&lt;agent_market.ad_coin....0x10bdf8d10&gt;, signing_key=&lt;cryptography.hazmat.bindings._rust.openssl.ed25519.Ed25519PrivateKey object at 0x10b82feb0&gt;)
+
+    def test_interval_requires_both_endpoints_visible(p1_suite):
+        _,session=session_for(p1_suite)
+        assert signal(p1_suite,session,0,NOW,0).status_code==200
+        assert signal(p1_suite,session,1,NOW+1000,1000,visible=False).status_code==200
+        assert signal(p1_suite,session,2,NOW+2000,2000).status_code==200
+        row=p1_suite.service.store.one('exposure_get',(session['id'],))
+&gt;       assert int(row['collected_valid_ms'])==0
+E       assert 1000 == 0
+E        +  where 1000 = int(1000)
+
+tests/test_ad_coin_v2_review.py:75: AssertionError</failure></testcase><testcase classname="tests.test_ad_coin_v2_review" name="test_latest_safety_stop_blocks_previously_consented_start[switch]" time="0.211"><failure message="AssertionError: {&quot;evidence_deadline&quot;:&quot;2027-01-15T08:10:00Z&quot;,&quot;id&quot;:&quot;9a8d022d-bea3-485c-8f7d-bcdf6f724203&quot;,&quot;max_view_ms&quot;:30000,&quot;next_nonce&quot;:&quot;uugGTmLWFzlJvAUMF0HcaM3CiUnla5yAl67ANBLODKo&quot;,&quot;next_sequence&quot;:0,&quot;offer_id&quot;:&quot;d7b045e1-74d5-4477-95c3-1aafb4380ff2&quot;,&quot;quota_reservation_id&quot;:&quot;581968cf-8824-4597-b679-94fc549d08ca&quot;,&quot;state&quot;:&quot;active&quot;}&#10;assert 200 == 409&#10; +  where 200 = &lt;Response [200 OK]&gt;.status_code">p1_suite = P1Suite(service=&lt;agent_market.ad_coin.v2.commercial.Commercial object at 0x10b93de10&gt;, resolver=&lt;agent_market.ad_coin....0x109073ad0&gt;, signing_key=&lt;cryptography.hazmat.bindings._rust.openssl.ed25519.Ed25519PrivateKey object at 0x1087a59b0&gt;)
+stop = 'switch'
+
+    @pytest.mark.parametrize('stop',['switch','advertiser'])
+    def test_latest_safety_stop_blocks_previously_consented_start(p1_suite,stop):
+        _activate_campaign(p1_suite)
+        offer=offer_for(p1_suite)
+        consent=consent_for(p1_suite,offer)
+        if stop=='switch': p1_suite.service.access.set_model_activation(False)
+        else: p1_suite.service.access.set_advertiser_status(p1_suite.advertiser,'suspended')
+        response=start_for(p1_suite,offer,consent)
+&gt;       assert response.status_code==409,response.text
+E       AssertionError: {"evidence_deadline":"2027-01-15T08:10:00Z","id":"9a8d022d-bea3-485c-8f7d-bcdf6f724203","max_view_ms":30000,"next_nonce":"uugGTmLWFzlJvAUMF0HcaM3CiUnla5yAl67ANBLODKo","next_sequence":0,"offer_id":"d7b045e1-74d5-4477-95c3-1aafb4380ff2","quota_reservation_id":"581968cf-8824-4597-b679-94fc549d08ca","state":"active"}
+E       assert 200 == 409
+E        +  where 200 = &lt;Response [200 OK]&gt;.status_code
+
+tests/test_ad_coin_v2_review.py:86: AssertionError</failure></testcase><testcase classname="tests.test_ad_coin_v2_review" name="test_latest_safety_stop_blocks_previously_consented_start[advertiser]" time="0.194"><failure message="AssertionError: {&quot;evidence_deadline&quot;:&quot;2027-01-15T08:10:00Z&quot;,&quot;id&quot;:&quot;151b04c4-95ff-4876-b9ec-fcc9e6db32da&quot;,&quot;max_view_ms&quot;:30000,&quot;next_nonce&quot;:&quot;QckRxMkljxRDze4b-3piJ5MDuTHgc8aa0sI9_MQXdUQ&quot;,&quot;next_sequence&quot;:0,&quot;offer_id&quot;:&quot;f9e626ff-61cc-424f-a3aa-809f8654fc2b&quot;,&quot;quota_reservation_id&quot;:&quot;e6b39225-772f-4a72-8bb5-6ce3abce0aa0&quot;,&quot;state&quot;:&quot;active&quot;}&#10;assert 200 == 409&#10; +  where 200 = &lt;Response [200 OK]&gt;.status_code">p1_suite = P1Suite(service=&lt;agent_market.ad_coin.v2.commercial.Commercial object at 0x10beb5610&gt;, resolver=&lt;agent_market.ad_coin....0x10bf6a710&gt;, signing_key=&lt;cryptography.hazmat.bindings._rust.openssl.ed25519.Ed25519PrivateKey object at 0x1087a5d30&gt;)
+stop = 'advertiser'
+
+    @pytest.mark.parametrize('stop',['switch','advertiser'])
+    def test_latest_safety_stop_blocks_previously_consented_start(p1_suite,stop):
+        _activate_campaign(p1_suite)
+        offer=offer_for(p1_suite)
+        consent=consent_for(p1_suite,offer)
+        if stop=='switch': p1_suite.service.access.set_model_activation(False)
+        else: p1_suite.service.access.set_advertiser_status(p1_suite.advertiser,'suspended')
+        response=start_for(p1_suite,offer,consent)
+&gt;       assert response.status_code==409,response.text
+E       AssertionError: {"evidence_deadline":"2027-01-15T08:10:00Z","id":"151b04c4-95ff-4876-b9ec-fcc9e6db32da","max_view_ms":30000,"next_nonce":"QckRxMkljxRDze4b-3piJ5MDuTHgc8aa0sI9_MQXdUQ","next_sequence":0,"offer_id":"f9e626ff-61cc-424f-a3aa-809f8654fc2b","quota_reservation_id":"e6b39225-772f-4a72-8bb5-6ce3abce0aa0","state":"active"}
+E       assert 200 == 409
+E        +  where 200 = &lt;Response [200 OK]&gt;.status_code
+
+tests/test_ad_coin_v2_review.py:86: AssertionError</failure></testcase><testcase classname="tests.test_ad_coin_v2_review" name="test_idempotent_evidence_reply_keeps_its_sequence_nonce_pair" time="0.209"><failure message="AssertionError: assert {'evidence_de...urJQrsM', ...} == {'evidence_de...pmaP0xg', ...}&#10;  &#10;  Omitting 7 identical items, use -vv to show&#10;  Differing items:&#10;  {'next_nonce': 'ZItQKmzBphE5Y1doW-884yGCvxJXOah6b3zMurJQrsM'} != {'next_nonce': '7T0c0f8YnK91wwMWHin3PEQRxziW4cExsJakpmaP0xg'}&#10;  Use -v to get more diff">p1_suite = P1Suite(service=&lt;agent_market.ad_coin.v2.commercial.Commercial object at 0x10be14350&gt;, resolver=&lt;agent_market.ad_coin....0x10c0213d0&gt;, signing_key=&lt;cryptography.hazmat.bindings._rust.openssl.ed25519.Ed25519PrivateKey object at 0x10b92f910&gt;)
+
+    def test_idempotent_evidence_reply_keeps_its_sequence_nonce_pair(p1_suite):
+        _,session=session_for(p1_suite)
+        headers=p1_suite.headers()
+        original_nonce=session['next_nonce']
+        first=signal(p1_suite,session,0,NOW,0,headers=headers)
+        assert first.status_code==200,first.text
+        assert signal(p1_suite,session,1,NOW+1000,1000).status_code==200
+        response=p1_suite.client.post('/api/ad-coin/v2/exposure-sessions/'+session['id']+'/evidence',
+            json={'sequence':0,'nonce':original_nonce,'elapsed_claim_ms':0,'visible':True,'foreground':True},headers=headers)
+&gt;       assert response.json()==first.json()
+E       AssertionError: assert {'evidence_de...urJQrsM', ...} == {'evidence_de...pmaP0xg', ...}
+E         
+E         Omitting 7 identical items, use -vv to show
+E         Differing items:
+E         {'next_nonce': 'ZItQKmzBphE5Y1doW-884yGCvxJXOah6b3zMurJQrsM'} != {'next_nonce': '7T0c0f8YnK91wwMWHin3PEQRxziW4cExsJakpmaP0xg'}
+E         Use -v to get more diff
+
+tests/test_ad_coin_v2_review.py:99: AssertionError</failure></testcase><testcase classname="tests.test_ad_coin_v2_review" name="test_mtls_callback_must_return_boolean_true" time="0.183"><failure message="AssertionError: {&quot;id&quot;:&quot;d15819d3-fcd0-4040-839d-49ff85985f80&quot;,&quot;campaign_id&quot;:&quot;affbeb69-58de-4f4c-b6b1-fc3d9b964370&quot;,&quot;version&quot;:3,&quot;revision_hash&quot;:&quot;fde7cd9b4f7833ba7fb2173f18863498ac35209d00f3c4b27f2e6213fecec2b4&quot;,&quot;state&quot;:&quot;eligible&quot;}&#10;assert 200 == 403&#10; +  where 200 = &lt;Response [200 OK]&gt;.status_code">p1_suite = P1Suite(service=&lt;agent_market.ad_coin.v2.commercial.Commercial object at 0x109887e50&gt;, resolver=&lt;agent_market.ad_coin....0x10c0ed390&gt;, signing_key=&lt;cryptography.hazmat.bindings._rust.openssl.ed25519.Ed25519PrivateKey object at 0x10b82db30&gt;)
+
+    def test_mtls_callback_must_return_boolean_true(p1_suite):
+        campaign=_activate_campaign(p1_suite)
+        review=p1_suite.service.store.one('review_latest',(p1_suite.service.store.one('campaign_get',(campaign['id'],))['current_revision_id'],))
+        p1_suite.resolver._mtls_verifier=lambda _: 'false'
+        response=p1_suite.client.get('/api/ad-coin/v2/reviews/'+review['id'],headers=p1_suite.headers('reviewer'))
+&gt;       assert response.status_code==403,response.text
+E       AssertionError: {"id":"d15819d3-fcd0-4040-839d-49ff85985f80","campaign_id":"affbeb69-58de-4f4c-b6b1-fc3d9b964370","version":3,"revision_hash":"fde7cd9b4f7833ba7fb2173f18863498ac35209d00f3c4b27f2e6213fecec2b4","state":"eligible"}
+E       assert 200 == 403
+E        +  where 200 = &lt;Response [200 OK]&gt;.status_code
+
+tests/test_ad_coin_v2_review.py:107: AssertionError</failure></testcase><testcase classname="tests.test_ad_coin_v2_review" name="test_unchanged_report_does_not_publish_another_revision" time="0.203"><failure message="assert 2 == 0&#10; +  where 2 = publish_reports(now_ms=(1800000000000 + (86400000 * 2)))&#10; +    where publish_reports = &lt;agent_market.ad_coin.v2.workers.ModelWorkers object at 0x10c17e3d0&gt;.publish_reports&#10; +      where &lt;agent_market.ad_coin.v2.workers.ModelWorkers object at 0x10c17e3d0&gt; = &lt;agent_market.ad_coin.v2.commercial.Commercial object at 0x10908a110&gt;.workers&#10; +        where &lt;agent_market.ad_coin.v2.commercial.Commercial object at 0x10908a110&gt; = P1Suite(service=&lt;agent_market.ad_coin.v2.commercial.Commercial object at 0x10908a110&gt;, resolver=&lt;agent_market.ad_coin....0x10c1a18d0&gt;, signing_key=&lt;cryptography.hazmat.bindings._rust.openssl.ed25519.Ed25519PrivateKey object at 0x10bf77bb0&gt;).service">p1_suite = P1Suite(service=&lt;agent_market.ad_coin.v2.commercial.Commercial object at 0x10908a110&gt;, resolver=&lt;agent_market.ad_coin....0x10c1a18d0&gt;, signing_key=&lt;cryptography.hazmat.bindings._rust.openssl.ed25519.Ed25519PrivateKey object at 0x10bf77bb0&gt;)
+
+    def test_unchanged_report_does_not_publish_another_revision(p1_suite):
+        _activate_campaign(p1_suite)
+        p1_suite.service.workers.process_outbox(now_ms=NOW)
+        assert p1_suite.service.workers.publish_reports(now_ms=NOW+86400000*2)&gt;0
+&gt;       assert p1_suite.service.workers.publish_reports(now_ms=NOW+86400000*2)==0
+E       assert 2 == 0
+E        +  where 2 = publish_reports(now_ms=(1800000000000 + (86400000 * 2)))
+E        +    where publish_reports = &lt;agent_market.ad_coin.v2.workers.ModelWorkers object at 0x10c17e3d0&gt;.publish_reports
+E        +      where &lt;agent_market.ad_coin.v2.workers.ModelWorkers object at 0x10c17e3d0&gt; = &lt;agent_market.ad_coin.v2.commercial.Commercial object at 0x10908a110&gt;.workers
+E        +        where &lt;agent_market.ad_coin.v2.commercial.Commercial object at 0x10908a110&gt; = P1Suite(service=&lt;agent_market.ad_coin.v2.commercial.Commercial object at 0x10908a110&gt;, resolver=&lt;agent_market.ad_coin....0x10c1a18d0&gt;, signing_key=&lt;cryptography.hazmat.bindings._rust.openssl.ed25519.Ed25519PrivateKey object at 0x10bf77bb0&gt;).service
+
+tests/test_ad_coin_v2_review.py:114: AssertionError</failure></testcase><testcase classname="tests.test_ad_coin_v2_review" name="test_worker_does_not_trust_forged_qualified_cache" time="1.064"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;invalid_request_schema&quot;,&quot;message&quot;:&quot;The request could not be completed.&quot;,&quot;request_id&quot;:&quot;6283a905-ccb5-4d56-b485-37024f64dbe6&quot;,&quot;retryable&quot;:false,&quot;recovery&quot;:{&quot;action&quot;:&quot;do_not_retry&quot;,&quot;operation_id&quot;:null,&quot;retry_after_seconds&quot;:null}}}&#10;assert 422 in (200, 202)&#10; +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code">p1_suite = P1Suite(service=&lt;agent_market.ad_coin.v2.commercial.Commercial object at 0x10befc650&gt;, resolver=&lt;agent_market.ad_coin....0x10c25a910&gt;, signing_key=&lt;cryptography.hazmat.bindings._rust.openssl.ed25519.Ed25519PrivateKey object at 0x108fffcb0&gt;)
+
+    def test_worker_does_not_trust_forged_qualified_cache(p1_suite):
+        offer,session=session_for(p1_suite)
+        raw(p1_suite.service.store,'UPDATE adc2_exposure_sessions SET collected_valid_ms=15000,qualified_ms=? WHERE id=?',(NOW,session['id']))
+        response=p1_suite.client.post('/api/ad-coin/v2/exposure-sessions/'+session['id']+'/complete',
+            json={'last_sequence':-1},headers=p1_suite.headers())
+&gt;       assert response.status_code in (200,202),response.text
+E       AssertionError: {"error":{"code":"invalid_request_schema","message":"The request could not be completed.","request_id":"6283a905-ccb5-4d56-b485-37024f64dbe6","retryable":false,"recovery":{"action":"do_not_retry","operation_id":null,"retry_after_seconds":null}}}
+E       assert 422 in (200, 202)
+E        +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code
+
+tests/test_ad_coin_v2_review.py:122: AssertionError</failure></testcase></testsuite></testsuites>

@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="5" skipped="0" tests="16" time="6.372" timestamp="2026-11-08T20:29:47.934671+09:00" hostname="test-host"><testcase classname="tests.test_ad_coin_v2_review" name="test_zero_server_elapsed_cannot_earn_exposure_time" time="0.973"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;service_error&quot;,&quot;message&quot;:&quot;The request could not be completed.&quot;,&quot;request_id&quot;:&quot;47410414-e2bf-46a3-8cf7-b74291290773&quot;,&quot;retryable&quot;:false,&quot;recovery&quot;:{&quot;action&quot;:&quot;contact_support&quot;,&quot;operation_id&quot;:null,&quot;retry_after_seconds&quot;:null}}}&#10;assert 500 == 200&#10; +  where 500 = &lt;Response [500 Internal Server Error]&gt;.status_code">p1_suite = P1Suite(service=&lt;agent_market.ad_coin.v2.commercial.Commercial object at 0x10ab35f50&gt;, resolver=&lt;agent_market.ad_coin....0x10abb7e50&gt;, signing_key=&lt;cryptography.hazmat.bindings._rust.openssl.ed25519.Ed25519PrivateKey object at 0x10aa15e50&gt;)
+
+    def test_zero_server_elapsed_cannot_earn_exposure_time(p1_suite):
+        _, session = session_for(p1_suite)
+        for seq in range(16):
+            response = signal(p1_suite, session, seq, NOW, seq * 1000)
+&gt;           assert response.status_code == 200, response.text
+E           AssertionError: {"error":{"code":"service_error","message":"The request could not be completed.","request_id":"47410414-e2bf-46a3-8cf7-b74291290773","retryable":false,"recovery":{"action":"contact_support","operation_id":null,"retry_after_seconds":null}}}
+E           assert 500 == 200
+E            +  where 500 = &lt;Response [500 Internal Server Error]&gt;.status_code
+
+tests/test_ad_coin_v2_review.py:125: AssertionError</failure></testcase><testcase classname="tests.test_ad_coin_v2_review" name="test_interval_requires_both_endpoints_visible" time="0.199"><failure message="AssertionError: assert 500 == 200&#10; +  where 500 = &lt;Response [500 Internal Server Error]&gt;.status_code&#10; +    where &lt;Response [500 Internal Server Error]&gt; = signal(P1Suite(service=&lt;agent_market.ad_coin.v2.commercial.Commercial object at 0x10a91b750&gt;, resolver=&lt;agent_market.ad_coin....0x107c9f610&gt;, signing_key=&lt;cryptography.hazmat.bindings._rust.openssl.ed25519.Ed25519PrivateKey object at 0x1072f5cd0&gt;), {'evidence_deadline': '2027-01-15T08:10:00Z', 'id': '2eee7807-7b1b-461d-9fa8-d490fba41019', 'max_view_ms': 30000, 'next_nonce': 'e5SrjZC9JnfmosCQaglo5yYg7jkWPEET-V32IhnW3Yc', ...}, 0, 1800000000000, 0)">p1_suite = P1Suite(service=&lt;agent_market.ad_coin.v2.commercial.Commercial object at 0x10a91b750&gt;, resolver=&lt;agent_market.ad_coin....0x107c9f610&gt;, signing_key=&lt;cryptography.hazmat.bindings._rust.openssl.ed25519.Ed25519PrivateKey object at 0x1072f5cd0&gt;)
+
+    def test_interval_requires_both_endpoints_visible(p1_suite):
+        _, session = session_for(p1_suite)
+&gt;       assert signal(p1_suite, session, 0, NOW, 0).status_code == 200
+E       AssertionError: assert 500 == 200
+E        +  where 500 = &lt;Response [500 Internal Server Error]&gt;.status_code
+E        +    where &lt;Response [500 Internal Server Error]&gt; = signal(P1Suite(service=&lt;agent_market.ad_coin.v2.commercial.Commercial object at 0x10a91b750&gt;, resolver=&lt;agent_market.ad_coin....0x107c9f610&gt;, signing_key=&lt;cryptography.hazmat.bindings._rust.openssl.ed25519.Ed25519PrivateKey object at 0x1072f5cd0&gt;), {'evidence_deadline': '2027-01-15T08:10:00Z', 'id': '2eee7807-7b1b-461d-9fa8-d490fba41019', 'max_view_ms': 30000, 'next_nonce': 'e5SrjZC9JnfmosCQaglo5yYg7jkWPEET-V32IhnW3Yc', ...}, 0, 1800000000000, 0)
+
+tests/test_ad_coin_v2_review.py:133: AssertionError</failure></testcase><testcase classname="tests.test_ad_coin_v2_review" name="test_latest_safety_stop_blocks_previously_consented_start[switch]" time="0.177" /><testcase classname="tests.test_ad_coin_v2_review" name="test_latest_safety_stop_blocks_previously_consented_start[advertiser]" time="0.184" /><testcase classname="tests.test_ad_coin_v2_review" name="test_idempotent_evidence_reply_keeps_its_sequence_nonce_pair" time="0.203"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;service_error&quot;,&quot;message&quot;:&quot;The request could not be completed.&quot;,&quot;request_id&quot;:&quot;1f3051c4-e9e0-404f-a6ce-2fab8c27ffe1&quot;,&quot;retryable&quot;:false,&quot;recovery&quot;:{&quot;action&quot;:&quot;contact_support&quot;,&quot;operation_id&quot;:null,&quot;retry_after_seconds&quot;:null}}}&#10;assert 500 == 200&#10; +  where 500 = &lt;Response [500 Internal Server Error]&gt;.status_code">p1_suite = P1Suite(service=&lt;agent_market.ad_coin.v2.commercial.Commercial object at 0x10aab6990&gt;, resolver=&lt;agent_market.ad_coin....0x10ad466d0&gt;, signing_key=&lt;cryptography.hazmat.bindings._rust.openssl.ed25519.Ed25519PrivateKey object at 0x107ba7e50&gt;)
+
+    def test_idempotent_evidence_reply_keeps_its_sequence_nonce_pair(p1_suite):
+        _, session = session_for(p1_suite)
+        headers = p1_suite.headers()
+        original_nonce = session["next_nonce"]
+        first = signal(p1_suite, session, 0, NOW, 0, headers=headers)
+&gt;       assert first.status_code == 200, first.text
+E       AssertionError: {"error":{"code":"service_error","message":"The request could not be completed.","request_id":"1f3051c4-e9e0-404f-a6ce-2fab8c27ffe1","retryable":false,"recovery":{"action":"contact_support","operation_id":null,"retry_after_seconds":null}}}
+E       assert 500 == 200
+E        +  where 500 = &lt;Response [500 Internal Server Error]&gt;.status_code
+
+tests/test_ad_coin_v2_review.py:161: AssertionError</failure></testcase><testcase classname="tests.test_ad_coin_v2_review" name="test_mtls_callback_must_return_boolean_true" time="0.174" /><testcase classname="tests.test_ad_coin_v2_review" name="test_unchanged_report_does_not_publish_another_revision" time="0.176" /><testcase classname="tests.test_ad_coin_v2_review" name="test_worker_does_not_trust_forged_qualified_cache" time="0.957"><failure message="AssertionError: assert 500 == 200&#10; +  where 500 = &lt;Response [500 Internal Server Error]&gt;.status_code&#10; +    where &lt;Response [500 Internal Server Error]&gt; = signal(P1Suite(service=&lt;agent_market.ad_coin.v2.commercial.Commercial object at 0x10ae33b50&gt;, resolver=&lt;agent_market.ad_coin....0x10af3da90&gt;, signing_key=&lt;cryptography.hazmat.bindings._rust.openssl.ed25519.Ed25519PrivateKey object at 0x10aa17130&gt;), {'evidence_deadline': '2027-01-15T08:10:00Z', 'id': 'e7db6327-d452-4bf7-b3cc-b80726ac5612', 'max_view_ms': 30000, 'next_nonce': '_giUipNHvWBC6QlBldwJkOLkrVFBjGG33wBdxKhM0cY', ...}, 0, 1800000000000, 0)">p1_suite = P1Suite(service=&lt;agent_market.ad_coin.v2.commercial.Commercial object at 0x10ae33b50&gt;, resolver=&lt;agent_market.ad_coin....0x10af3da90&gt;, signing_key=&lt;cryptography.hazmat.bindings._rust.openssl.ed25519.Ed25519PrivateKey object at 0x10aa17130&gt;)
+
+    def test_worker_does_not_trust_forged_qualified_cache(p1_suite):
+        offer, session = session_for(p1_suite)
+&gt;       assert signal(p1_suite, session, 0, NOW, 0).status_code == 200
+E       AssertionError: assert 500 == 200
+E        +  where 500 = &lt;Response [500 Internal Server Error]&gt;.status_code
+E        +    where &lt;Response [500 Internal Server Error]&gt; = signal(P1Suite(service=&lt;agent_market.ad_coin.v2.commercial.Commercial object at 0x10ae33b50&gt;, resolver=&lt;agent_market.ad_coin....0x10af3da90&gt;, signing_key=&lt;cryptography.hazmat.bindings._rust.openssl.ed25519.Ed25519PrivateKey object at 0x10aa17130&gt;), {'evidence_deadline': '2027-01-15T08:10:00Z', 'id': 'e7db6327-d452-4bf7-b3cc-b80726ac5612', 'max_view_ms': 30000, 'next_nonce': '_giUipNHvWBC6QlBldwJkOLkrVFBjGG33wBdxKhM0cY', ...}, 0, 1800000000000, 0)
+
+tests/test_ad_coin_v2_review.py:203: AssertionError</failure></testcase><testcase classname="tests.test_ad_coin_v2_p1" name="test_public_endpoints_accessible_without_auth" time="0.777" /><testcase classname="tests.test_ad_coin_v2_p1" name="test_user_ad_preferences_challenge_and_update" time="0.147" /><testcase classname="tests.test_ad_coin_v2_p1" name="test_campaign_revise_creates_new_revision_and_can_be_activated" time="0.135" /><testcase classname="tests.test_ad_coin_v2_p1" name="test_full_offer_consent_exposure_evidence_award_and_receipt_jws_flow" time="0.206"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;service_error&quot;,&quot;message&quot;:&quot;The request could not be completed.&quot;,&quot;request_id&quot;:&quot;e786895b-93dc-4b6e-9470-1d49ad5efda1&quot;,&quot;retryable&quot;:false,&quot;recovery&quot;:{&quot;action&quot;:&quot;contact_support&quot;,&quot;operation_id&quot;:null,&quot;retry_after_seconds&quot;:null}}}&#10;assert 500 == 200&#10; +  where 500 = &lt;Response [500 Internal Server Error]&gt;.status_code">p1_suite = P1Suite(service=&lt;agent_market.ad_coin.v2.commercial.Commercial object at 0x10b0f5f50&gt;, resolver=&lt;agent_market.ad_coin....0x10b19e510&gt;, signing_key=&lt;cryptography.hazmat.bindings._rust.openssl.ed25519.Ed25519PrivateKey object at 0x10aca76d0&gt;)
+
+    def test_full_offer_consent_exposure_evidence_award_and_receipt_jws_flow(p1_suite):
+        # 1. Activate campaign
+        _activate_campaign(p1_suite)
+    
+        # 2. Enable user offers
+        pref_res = p1_suite.client.get("/api/ad-coin/v2/ad-preferences", headers=p1_suite.headers("user"))
+        pref = pref_res.json()
+        intended = p1_suite.service.contract.parse(
+            "setAdPreferences",
+            canonical_bytes(
+                {
+                    "fresh_action_id": uid(),
+                    "fresh_action_proof": "p" * 43,
+                    "receive_offers": True,
+                    "context_fields": ["task_category", "language", "coarse_region"],
+                    "max_offers_per_day": 10,
+                    "max_ads_per_campaign_day": 2,
+                    "max_ads_per_day": 5,
+                    "max_ad_ms_per_day": 90000,
+                }
+            ),
+            if_match=etag(pref),
+        )
+        chal_res = p1_suite.client.post(
+            "/api/ad-coin/v2/human-challenges",
+            json={
+                "action": "set_ad_preferences",
+                "target_id": pref["id"],
+                "target_revision_hash": pref["revision_hash"],
+                "request_digest": intended.semantic_digest,
+            },
+            headers=p1_suite.headers("user"),
+        )
+        chal = chal_res.json()
+        p1_suite.client.put(
+            "/api/ad-coin/v2/ad-preferences",
+            json={
+                "fresh_action_id": chal["fresh_action_id"],
+                "fresh_action_proof": chal["proof_challenge"],
+                "receive_offers": True,
+                "context_fields": ["task_category", "language", "coarse_region"],
+                "max_offers_per_day": 10,
+                "max_ads_per_campaign_day": 2,
+                "max_ads_per_day": 5,
+                "max_ad_ms_per_day": 90000,
+            },
+            headers=p1_suite.headers("user", **{"If-Match": etag(pref)}),
+        )
+    
+        # 3. Request offer
+        req_offer_res = p1_suite.client.post(
+            "/api/ad-coin/v2/offers",
+            json={
+                "task_category": "research",
+                "language": "en",
+                "coarse_region": "US",
+                "selection_digest": "0" * 64,
+            },
+            headers=p1_suite.headers("user"),
+        )
+        assert req_offer_res.status_code == 200 or req_offer_res.status_code == 202, req_offer_res.text
+        op = req_offer_res.json()
+        assert op["state"] == "succeeded"
+        offer_id = op["resource_id"]
+        assert offer_id is not None
+    
+        # 4. Get offer
+        offer_res = p1_suite.client.get("/api/ad-coin/v2/offers/" + offer_id, headers=p1_suite.headers("user"))
+        assert offer_res.status_code == 200, offer_res.text
+        offer = offer_res.json()
+        assert offer["state"] == "reserved"
+        assert offer["user_reward_atoms"] == "50"
+        assert offer["operator_reward_atoms"] == "10"
+        assert offer["direct_cost_atoms"] == "15"
+        assert offer["platform_reward_atoms"] == "25"
+    
+        # 5. Challenge and approve offer
+        intended_consent = p1_suite.service.contract.parse(
+            "approveOffer",
+            canonical_bytes(
+                {
+                    "offer_id": offer["id"],
+                    "quote_hash": offer["quote_hash"],
+                    "fresh_action_id": uid(),
+                    "fresh_action_proof": "p" * 43,
+                }
+            ),
+        )
+        offer_chal_res = p1_suite.client.post(
+            "/api/ad-coin/v2/human-challenges",
+            json={
+                "action": "approve_offer",
+                "target_id": offer["id"],
+                "target_revision_hash": offer["quote_hash"],
+                "request_digest": intended_consent.semantic_digest,
+            },
+            headers=p1_suite.headers("user"),
+        )
+        assert offer_chal_res.status_code == 200, offer_chal_res.text
+        offer_chal = offer_chal_res.json()
+    
+        consent_res = p1_suite.client.post(
+            "/api/ad-coin/v2/human-consents",
+            json={
+                "offer_id": offer["id"],
+                "quote_hash": offer["quote_hash"],
+                "fresh_action_id": offer_chal["fresh_action_id"],
+                "fresh_action_proof": offer_chal["proof_challenge"],
+            },
+            headers=p1_suite.headers("user"),
+        )
+        assert consent_res.status_code == 200, consent_res.text
+        consent = consent_res.json()
+    
+        # 6. Start exposure
+        exp_start_res = p1_suite.client.post(
+            "/api/ad-coin/v2/exposure-sessions",
+            json={
+                "offer_id": offer["id"],
+                "consent_id": consent["id"],
+                "consent_version": consent["version"],
+            },
+            headers=p1_suite.headers("user"),
+        )
+        assert exp_start_res.status_code == 200, exp_start_res.text
+        session = exp_start_res.json()
+        session_id = session["id"]
+    
+        # 7. Get approved creative
+        creative_res = p1_suite.client.get(
+            "/api/ad-coin/v2/exposure-sessions/" + session_id + "/creative",
+            headers=p1_suite.headers("user"),
+        )
+        assert creative_res.status_code == 200, creative_res.text
+        assert "research" in creative_res.json()["plain_text"].lower()
+    
+        # 8. Submit evidence (sequence 0..15 with 1000ms steps to accumulate 15,000ms valid attention)
+        cur_time = NOW + 1000
+        for seq in range(16):
+            next_nonce = p1_suite.service.store.one("exposure_get", (session_id,))["next_nonce"]
+            p1_suite.service.clock_ms = lambda t=cur_time: t
+            ev = p1_suite.client.post(
+                "/api/ad-coin/v2/exposure-sessions/" + session_id + "/evidence",
+                json={
+                    "sequence": seq,
+                    "nonce": next_nonce,
+                    "elapsed_claim_ms": seq * 1000,
+                    "visible": True,
+                    "foreground": True,
+                },
+                headers=p1_suite.headers("user"),
+            )
+&gt;           assert ev.status_code == 200, ev.text
+E           AssertionError: {"error":{"code":"service_error","message":"The request could not be completed.","request_id":"e786895b-93dc-4b6e-9470-1d49ad5efda1","retryable":false,"recovery":{"action":"contact_support","operation_id":null,"retry_after_seconds":null}}}
+E           assert 500 == 200
+E            +  where 500 = &lt;Response [500 Internal Server Error]&gt;.status_code
+
+tests/test_ad_coin_v2_p1.py:513: AssertionError</failure></testcase><testcase classname="tests.test_ad_coin_v2_p1" name="test_offer_decline_and_unspent_budget_release" time="0.230" /><testcase classname="tests.test_ad_coin_v2_p1" name="test_reporting_status_publishing_and_consumption" time="0.176" /><testcase classname="tests.test_ad_coin_v2_p1" name="test_agent_bearer_token_and_binding" time="0.173" /><testcase classname="tests.test_ad_coin_v2_p1" name="test_fresh_key_rotation_with_fallback" time="1.035" /></testsuite></testsuites>

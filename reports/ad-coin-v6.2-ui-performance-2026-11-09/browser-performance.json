@@ -1,0 +1,30 @@
+{
+  "paint": [
+    {
+      "name": "first-paint",
+      "start_ms": 76
+    },
+    {
+      "name": "first-contentful-paint",
+      "start_ms": 76
+    }
+  ],
+  "assets": [
+    {
+      "bytes": 8756,
+      "duration_ms": 8.300000190734863
+    },
+    {
+      "bytes": 35327,
+      "duration_ms": 8.799999713897705
+    }
+  ],
+  "long_task_observer": true,
+  "long_tasks_ms": [],
+  "navigation": [
+    {
+      "bytes": 17051,
+      "dom_ready_ms": 42.30000019073486
+    }
+  ]
+}

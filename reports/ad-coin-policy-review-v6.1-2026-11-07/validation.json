@@ -1,0 +1,266 @@
+{
+  "profile": "ai-ad-coin-platform-policy-v6.1-document-review",
+  "date_kst": "2026-11-07",
+  "scope": "Documentation IDs, planned acceptance trace, local links, stated source dates/access limits and historical source fingerprints only. No product, security, legal, market-effect or performance certification.",
+  "document_validation_passed": true,
+  "policy_count": 38,
+  "planned_product_gate_count": 28,
+  "all_policies_traced": true,
+  "local_links_checked": 55,
+  "evidence_sources": [
+    {
+      "id": "NEWS-01",
+      "published": "2026-09-16",
+      "url": "https://openai.com/index/reimagining-advertising-with-ai/",
+      "access": "primary_announcement"
+    },
+    {
+      "id": "NEWS-02",
+      "published": "2026-10-05",
+      "url": "https://openai.com/index/new-chatgpt-ads-format-and-measurement/",
+      "access": "primary_announcement"
+    },
+    {
+      "id": "NEWS-03",
+      "published": "2026-10-28",
+      "url": "https://www.guideline.ai/blog/guideline-expands-ad-intelligence-digital-pricing-data",
+      "access": "primary_announcement"
+    },
+    {
+      "id": "PAPER-01",
+      "published": "2026-11-03",
+      "revision": "v1",
+      "url": "https://arxiv.org/abs/2611.04147",
+      "access": "primary_abstract_and_metadata"
+    },
+    {
+      "id": "PAPER-02",
+      "published": "2026-09-16",
+      "revised": "2026-10-28",
+      "revision": "v3",
+      "url": "https://arxiv.org/abs/2609.17989",
+      "access": "primary_abstract_and_metadata"
+    },
+    {
+      "id": "PAPER-03",
+      "published": "2026-04-09",
+      "revised": "2026-08-17",
+      "revision": "v3",
+      "url": "https://arxiv.org/abs/2604.08525",
+      "access": "primary_abstract_and_metadata"
+    },
+    {
+      "id": "STD-01",
+      "published": "2026-09-22",
+      "comment_deadline": "2026-11-10",
+      "url": "https://iabtechlab.com/press-releases/iab-tech-lab-introduces-aamp-3-0-with-openproposal/",
+      "access": "primary_standard_announcement"
+    },
+    {
+      "id": "STD-02",
+      "published": null,
+      "url": "https://github.com/adcontextprotocol/adcp/blob/main/docs/faq.mdx",
+      "access": "primary_mutable_main_document"
+    },
+    {
+      "id": "SNS-01",
+      "published": null,
+      "date_basis": "Relative social dates not converted; NEWS-03 corroborates announcement date.",
+      "url": "https://www.linkedin.com/company/guideline-ai/",
+      "access": "public_page_and_search_index"
+    },
+    {
+      "id": "SNS-02",
+      "published": "2026-11-02",
+      "date_basis": "As reported by PPC Land; original X body blocked.",
+      "url": "https://x.com/shellypalmer/status/2117255802721288455",
+      "access": "indirect_secondary_and_author_essay",
+      "direct_access_error": "403"
+    },
+    {
+      "id": "SNS-03",
+      "published": "2026-11-03",
+      "date_basis": "As reported by PPC Land; original X body unavailable.",
+      "url": "https://x.com/anthonykatsur/status/2117661412939972833",
+      "access": "indirect_secondary",
+      "direct_access_error": "cache_miss"
+    },
+    {
+      "id": "REG-01",
+      "published": "2026-10-21",
+      "effective_date": "2027-01-18",
+      "url": "https://occ.gov/news-issuances/bulletins/2026/bulletin-2026-50.html",
+      "access": "primary_regulator_notice"
+    }
+  ],
+  "policy_to_planned_gate_trace": {
+    "GROW-01": [
+      "PLAT-06",
+      "PLAT-07"
+    ],
+    "GROW-02": [
+      "PLAT-03",
+      "PLAT-04",
+      "PLAT-05",
+      "PLAT-20"
+    ],
+    "GROW-03": [
+      "PLAT-09",
+      "PLAT-10",
+      "PLAT-28"
+    ],
+    "GROW-04": [
+      "PLAT-11",
+      "PLAT-18"
+    ],
+    "GROW-05": [
+      "PLAT-12",
+      "PLAT-21"
+    ],
+    "GROW-06": [
+      "PLAT-15",
+      "PLAT-21",
+      "PLAT-23"
+    ],
+    "GROW-07": [
+      "PLAT-03",
+      "PLAT-15",
+      "PLAT-20"
+    ],
+    "GROW-08": [
+      "PLAT-05",
+      "PLAT-07",
+      "PLAT-13",
+      "PLAT-17"
+    ],
+    "GROW-09": [
+      "PLAT-13",
+      "PLAT-29"
+    ],
+    "GROW-10": [
+      "PLAT-18",
+      "PLAT-19"
+    ],
+    "GROW-11": [
+      "PLAT-05",
+      "PLAT-08",
+      "PLAT-11"
+    ],
+    "GROW-12": [
+      "PLAT-14",
+      "PLAT-15",
+      "PLAT-26"
+    ],
+    "GROW-13": [
+      "PLAT-16",
+      "PLAT-22",
+      "PLAT-23"
+    ],
+    "GROW-14": [
+      "PLAT-01",
+      "PLAT-22",
+      "PLAT-23",
+      "PLAT-24"
+    ],
+    "GROW-15": [
+      "PLAT-13",
+      "PLAT-14",
+      "PLAT-19",
+      "PLAT-28"
+    ],
+    "GROW-16": [
+      "PLAT-25",
+      "PLAT-26"
+    ],
+    "GROW-17": [
+      "PLAT-02",
+      "PLAT-23",
+      "PLAT-27",
+      "PLAT-29"
+    ],
+    "GROW-18": [
+      "PLAT-02",
+      "PLAT-04",
+      "PLAT-20",
+      "PLAT-30"
+    ],
+    "GROW-19": [
+      "PLAT-08",
+      "PLAT-31"
+    ],
+    "GROW-20": [
+      "PLAT-22",
+      "PLAT-32"
+    ],
+    "GROW-21": [
+      "PLAT-11",
+      "PLAT-12",
+      "PLAT-33"
+    ],
+    "GROW-22": [
+      "PLAT-13",
+      "PLAT-17",
+      "PLAT-34"
+    ],
+    "GROW-23": [
+      "PLAT-10",
+      "PLAT-32",
+      "PLAT-37"
+    ],
+    "GROW-24": [
+      "PLAT-18",
+      "PLAT-35"
+    ],
+    "GROW-25": [
+      "PLAT-19",
+      "PLAT-20",
+      "PLAT-36"
+    ],
+    "GROW-26": [
+      "PLAT-15",
+      "PLAT-37"
+    ],
+    "GROW-27": [
+      "PLAT-23",
+      "PLAT-27",
+      "PLAT-38"
+    ],
+    "GROW-28": [
+      "PLAT-16",
+      "PLAT-24",
+      "PLAT-26",
+      "PLAT-28",
+      "PLAT-33",
+      "PLAT-34"
+    ]
+  },
+  "v5_policy_ids_preserved": 24,
+  "v5_machine_spec_unchanged": true,
+  "historical_v4_sources_checked": 33,
+  "historical_v4_source_changes": [],
+  "historical_v6_manifest_sha256": "9004cc0a7d549131fcb975800e86842d25859085efda5daf4ef7bcd255b12c43",
+  "historical_v6_document_hash_changes": [
+    "docs/AD_COIN_PLATFORM_POLICY.md",
+    "docs/AD_COIN_PLATFORM_ROADMAP.md",
+    "docs/AD_COIN.md",
+    "docs/AD_COIN_POLICY.md",
+    "docs/AD_COIN_SALES_POLICY.md",
+    "docs/AD_COIN_TARGETS.md",
+    "docs/AD_COIN_ARCHITECTURE.md",
+    "docs/AD_COIN_V5_IMPLEMENTATION_PLAN.md"
+  ],
+  "product_tests_run_this_revision": 0,
+  "v5_product_acceptance_checks_passed_this_revision": 0,
+  "v6_1_product_acceptance_checks_passed_this_revision": 0,
+  "sha256": {
+    "docs/AD_COIN_PLATFORM_POLICY.md": "fca5e75ad61d980faba9b642eb1d56311d1166036bbdab57c9430c440cd538d6",
+    "docs/AD_COIN_PLATFORM_ROADMAP.md": "4985e1faa5bee65a5343b13ab26267129ecbe4d12550937ca549f7aa79dc68a4",
+    "docs/AD_COIN.md": "68687b573cba889c1b530c7d349162c2926be7b2fa6630ff6845c5f6c06810f3",
+    "docs/AD_COIN_POLICY.md": "8099d799defda13b38d749c869bdf634296ea05fdc20453e2b676df1cfa2a8e5",
+    "docs/AD_COIN_SALES_POLICY.md": "f83c0e66402119f0ce92ef5a45f9243c15698d273ba3bf6acedf5c940452c820",
+    "docs/AD_COIN_TARGETS.md": "2093b79e47ba05ab71870bcd4c6e93209fd6c319a672f2014760225474f18a16",
+    "docs/AD_COIN_ARCHITECTURE.md": "e2b6e6b948d1d4110ab7be407a6d8eec2f04204eb55ce5d0811d8b1bfc8446cc",
+    "docs/AD_COIN_V5_IMPLEMENTATION_PLAN.md": "0b711047a7c26ec047807e685fc259a6c36b6b2081e71cb159ae90d69b06d82e",
+    "reports/ad-coin-policy-review-v6.1-2026-11-07/README.md": "1ecfab0874f91e73dda5075b5277213ebd83b441cd9b1cf7bd5d06132b76a372"
+  }
+}

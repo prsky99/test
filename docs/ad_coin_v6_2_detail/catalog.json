@@ -1,0 +1,1491 @@
+{
+  "profile": "ai-ad-coin-v6.2-detailed-design",
+  "date_kst": "2026-11-08",
+  "status": "design_only",
+  "real_value_enabled": false,
+  "policy_version": "v6.1",
+  "contract_version": "v6.2",
+  "source_openapi_sha256": "e9614fdb2831ba3b785dcb76ce7e1010c4c254589c7822600cde62969e1ecbe1",
+  "documents": [
+    "AD_COIN_V6_2_DETAILED_DESIGN.md",
+    "ad_coin_v6_2_detail/01-domain-security.md",
+    "ad_coin_v6_2_detail/02-storage-transactions.md",
+    "ad_coin_v6_2_detail/03-api-handlers.md",
+    "ad_coin_v6_2_detail/04-workers-integrations.md",
+    "ad_coin_v6_2_detail/05-ui-operations-tests.md"
+  ],
+  "handlers": [
+    {
+      "detail_id": "API-01",
+      "operation_id": "getCapabilities",
+      "method": "GET",
+      "path": "/capabilities",
+      "request_schema": null,
+      "principal_kinds": [
+        "public"
+      ],
+      "capabilities": [],
+      "human_only": false,
+      "fresh_action_required": false,
+      "transaction_rule": "read_only",
+      "detail_document": "03-api-handlers.md"
+    },
+    {
+      "detail_id": "API-02",
+      "operation_id": "getAsset",
+      "method": "GET",
+      "path": "/asset",
+      "request_schema": null,
+      "principal_kinds": [
+        "public"
+      ],
+      "capabilities": [],
+      "human_only": false,
+      "fresh_action_required": false,
+      "transaction_rule": "read_only",
+      "detail_document": "03-api-handlers.md"
+    },
+    {
+      "detail_id": "API-03",
+      "operation_id": "createHumanChallenge",
+      "method": "POST",
+      "path": "/human-challenges",
+      "request_schema": "#/components/schemas/ChallengeRequest",
+      "principal_kinds": [
+        "human"
+      ],
+      "capabilities": [],
+      "human_only": true,
+      "fresh_action_required": false,
+      "transaction_rule": "C01",
+      "detail_document": "03-api-handlers.md"
+    },
+    {
+      "detail_id": "API-04",
+      "operation_id": "getAdPreferences",
+      "method": "GET",
+      "path": "/ad-preferences",
+      "request_schema": null,
+      "principal_kinds": [
+        "human"
+      ],
+      "capabilities": [],
+      "human_only": true,
+      "fresh_action_required": false,
+      "transaction_rule": "read_only",
+      "detail_document": "03-api-handlers.md"
+    },
+    {
+      "detail_id": "API-05",
+      "operation_id": "setAdPreferences",
+      "method": "PUT",
+      "path": "/ad-preferences",
+      "request_schema": "#/components/schemas/PreferencesRequest",
+      "principal_kinds": [
+        "human"
+      ],
+      "capabilities": [],
+      "human_only": true,
+      "fresh_action_required": true,
+      "transaction_rule": "API-05",
+      "detail_document": "03-api-handlers.md"
+    },
+    {
+      "detail_id": "API-06",
+      "operation_id": "createCampaign",
+      "method": "POST",
+      "path": "/advertisers/{advertiser_id}/campaigns",
+      "request_schema": "#/components/schemas/CampaignRequest",
+      "principal_kinds": [
+        "human"
+      ],
+      "capabilities": [
+        "campaign.edit"
+      ],
+      "human_only": true,
+      "fresh_action_required": false,
+      "transaction_rule": "TX-01",
+      "detail_document": "03-api-handlers.md"
+    },
+    {
+      "detail_id": "API-07",
+      "operation_id": "getCampaign",
+      "method": "GET",
+      "path": "/advertisers/{advertiser_id}/campaigns/{campaign_id}",
+      "request_schema": null,
+      "principal_kinds": [
+        "human"
+      ],
+      "capabilities": [
+        "campaign.read"
+      ],
+      "human_only": true,
+      "fresh_action_required": false,
+      "transaction_rule": "read_only",
+      "detail_document": "03-api-handlers.md"
+    },
+    {
+      "detail_id": "API-08",
+      "operation_id": "requestReview",
+      "method": "POST",
+      "path": "/advertisers/{advertiser_id}/campaigns/{campaign_id}/review-request",
+      "request_schema": "#/components/schemas/ReviewRequest",
+      "principal_kinds": [
+        "human"
+      ],
+      "capabilities": [
+        "campaign.edit"
+      ],
+      "human_only": true,
+      "fresh_action_required": false,
+      "transaction_rule": "TX-02",
+      "detail_document": "03-api-handlers.md"
+    },
+    {
+      "detail_id": "API-09",
+      "operation_id": "decideReview",
+      "method": "POST",
+      "path": "/reviews/{review_id}/decisions",
+      "request_schema": "#/components/schemas/ReviewDecision",
+      "principal_kinds": [
+        "ops"
+      ],
+      "capabilities": [
+        "creative.review"
+      ],
+      "human_only": false,
+      "fresh_action_required": false,
+      "transaction_rule": "TX-02",
+      "detail_document": "03-api-handlers.md"
+    },
+    {
+      "detail_id": "API-10",
+      "operation_id": "getReview",
+      "method": "GET",
+      "path": "/reviews/{review_id}",
+      "request_schema": null,
+      "principal_kinds": [
+        "ops"
+      ],
+      "capabilities": [
+        "creative.review"
+      ],
+      "human_only": false,
+      "fresh_action_required": false,
+      "transaction_rule": "read_only",
+      "detail_document": "03-api-handlers.md"
+    },
+    {
+      "detail_id": "API-11",
+      "operation_id": "approveCampaign",
+      "method": "POST",
+      "path": "/advertisers/{advertiser_id}/campaigns/{campaign_id}/approvals",
+      "request_schema": "#/components/schemas/ApprovalRequest",
+      "principal_kinds": [
+        "human"
+      ],
+      "capabilities": [
+        "budget.approve"
+      ],
+      "human_only": true,
+      "fresh_action_required": true,
+      "transaction_rule": "TX-02",
+      "detail_document": "03-api-handlers.md"
+    },
+    {
+      "detail_id": "API-12",
+      "operation_id": "activateCampaign",
+      "method": "POST",
+      "path": "/advertisers/{advertiser_id}/campaigns/{campaign_id}/activation",
+      "request_schema": "#/components/schemas/RevisionRequest",
+      "principal_kinds": [
+        "human"
+      ],
+      "capabilities": [
+        "budget.approve"
+      ],
+      "human_only": true,
+      "fresh_action_required": false,
+      "transaction_rule": "TX-03",
+      "detail_document": "03-api-handlers.md"
+    },
+    {
+      "detail_id": "API-13",
+      "operation_id": "pauseCampaign",
+      "method": "POST",
+      "path": "/advertisers/{advertiser_id}/campaigns/{campaign_id}/pause",
+      "request_schema": "#/components/schemas/PauseRequest",
+      "principal_kinds": [
+        "human"
+      ],
+      "capabilities": [
+        "campaign.pause"
+      ],
+      "human_only": true,
+      "fresh_action_required": false,
+      "transaction_rule": "API-13",
+      "detail_document": "03-api-handlers.md"
+    },
+    {
+      "detail_id": "API-14",
+      "operation_id": "requestOffer",
+      "method": "POST",
+      "path": "/offers",
+      "request_schema": "#/components/schemas/OfferRequest",
+      "principal_kinds": [
+        "human",
+        "agent"
+      ],
+      "capabilities": [
+        "offers.request"
+      ],
+      "human_only": false,
+      "fresh_action_required": false,
+      "transaction_rule": "TX-04",
+      "detail_document": "03-api-handlers.md"
+    },
+    {
+      "detail_id": "API-15",
+      "operation_id": "getOffer",
+      "method": "GET",
+      "path": "/offers/{offer_id}",
+      "request_schema": null,
+      "principal_kinds": [
+        "human",
+        "agent"
+      ],
+      "capabilities": [
+        "offers.read"
+      ],
+      "human_only": false,
+      "fresh_action_required": false,
+      "transaction_rule": "read_only",
+      "detail_document": "03-api-handlers.md"
+    },
+    {
+      "detail_id": "API-16",
+      "operation_id": "declineOffer",
+      "method": "POST",
+      "path": "/offers/{offer_id}/decline",
+      "request_schema": "#/components/schemas/DeclineRequest",
+      "principal_kinds": [
+        "human",
+        "agent"
+      ],
+      "capabilities": [
+        "offers.decline"
+      ],
+      "human_only": false,
+      "fresh_action_required": false,
+      "transaction_rule": "TX-05",
+      "detail_document": "03-api-handlers.md"
+    },
+    {
+      "detail_id": "API-17",
+      "operation_id": "approveOffer",
+      "method": "POST",
+      "path": "/human-consents",
+      "request_schema": "#/components/schemas/ConsentRequest",
+      "principal_kinds": [
+        "human"
+      ],
+      "capabilities": [],
+      "human_only": true,
+      "fresh_action_required": true,
+      "transaction_rule": "TX-06",
+      "detail_document": "03-api-handlers.md"
+    },
+    {
+      "detail_id": "API-18",
+      "operation_id": "startExposure",
+      "method": "POST",
+      "path": "/exposure-sessions",
+      "request_schema": "#/components/schemas/ExposureRequest",
+      "principal_kinds": [
+        "human"
+      ],
+      "capabilities": [],
+      "human_only": true,
+      "fresh_action_required": false,
+      "transaction_rule": "TX-07",
+      "detail_document": "03-api-handlers.md"
+    },
+    {
+      "detail_id": "API-19",
+      "operation_id": "getApprovedCreative",
+      "method": "GET",
+      "path": "/exposure-sessions/{session_id}/creative",
+      "request_schema": null,
+      "principal_kinds": [
+        "human"
+      ],
+      "capabilities": [],
+      "human_only": true,
+      "fresh_action_required": false,
+      "transaction_rule": "read_only",
+      "detail_document": "03-api-handlers.md"
+    },
+    {
+      "detail_id": "API-20",
+      "operation_id": "submitEvidence",
+      "method": "POST",
+      "path": "/exposure-sessions/{session_id}/evidence",
+      "request_schema": "#/components/schemas/EvidenceRequest",
+      "principal_kinds": [
+        "human"
+      ],
+      "capabilities": [],
+      "human_only": true,
+      "fresh_action_required": false,
+      "transaction_rule": "TX-08",
+      "detail_document": "03-api-handlers.md"
+    },
+    {
+      "detail_id": "API-21",
+      "operation_id": "completeExposure",
+      "method": "POST",
+      "path": "/exposure-sessions/{session_id}/complete",
+      "request_schema": "#/components/schemas/CompleteRequest",
+      "principal_kinds": [
+        "human"
+      ],
+      "capabilities": [],
+      "human_only": true,
+      "fresh_action_required": false,
+      "transaction_rule": "TX-08",
+      "detail_document": "03-api-handlers.md"
+    },
+    {
+      "detail_id": "API-22",
+      "operation_id": "cancelExposure",
+      "method": "POST",
+      "path": "/exposure-sessions/{session_id}/cancel",
+      "request_schema": "#/components/schemas/CancelExposureRequest",
+      "principal_kinds": [
+        "human"
+      ],
+      "capabilities": [],
+      "human_only": true,
+      "fresh_action_required": false,
+      "transaction_rule": "TX-08",
+      "detail_document": "03-api-handlers.md"
+    },
+    {
+      "detail_id": "API-23",
+      "operation_id": "getOperation",
+      "method": "GET",
+      "path": "/operations/{operation_id}",
+      "request_schema": null,
+      "principal_kinds": [
+        "human",
+        "agent"
+      ],
+      "capabilities": [
+        "operations.read"
+      ],
+      "human_only": false,
+      "fresh_action_required": false,
+      "transaction_rule": "read_only",
+      "detail_document": "03-api-handlers.md"
+    },
+    {
+      "detail_id": "API-24",
+      "operation_id": "getWallet",
+      "method": "GET",
+      "path": "/wallets/{wallet_id}",
+      "request_schema": null,
+      "principal_kinds": [
+        "human",
+        "agent"
+      ],
+      "capabilities": [
+        "wallet.read"
+      ],
+      "human_only": false,
+      "fresh_action_required": false,
+      "transaction_rule": "read_only",
+      "detail_document": "03-api-handlers.md"
+    },
+    {
+      "detail_id": "API-25",
+      "operation_id": "getReceipt",
+      "method": "GET",
+      "path": "/receipts/{receipt_id}",
+      "request_schema": null,
+      "principal_kinds": [
+        "human",
+        "agent"
+      ],
+      "capabilities": [
+        "receipts.read"
+      ],
+      "human_only": false,
+      "fresh_action_required": false,
+      "transaction_rule": "read_only",
+      "detail_document": "03-api-handlers.md"
+    },
+    {
+      "detail_id": "API-26",
+      "operation_id": "getReceiptKeys",
+      "method": "GET",
+      "path": "/receipt-keys",
+      "request_schema": null,
+      "principal_kinds": [
+        "public"
+      ],
+      "capabilities": [],
+      "human_only": false,
+      "fresh_action_required": false,
+      "transaction_rule": "read_only",
+      "detail_document": "03-api-handlers.md"
+    },
+    {
+      "detail_id": "API-27",
+      "operation_id": "getReportingStatus",
+      "method": "GET",
+      "path": "/advertisers/{advertiser_id}/reporting-status",
+      "request_schema": null,
+      "principal_kinds": [
+        "human"
+      ],
+      "capabilities": [
+        "reports.read"
+      ],
+      "human_only": true,
+      "fresh_action_required": false,
+      "transaction_rule": "read_only",
+      "detail_document": "03-api-handlers.md"
+    },
+    {
+      "detail_id": "API-28",
+      "operation_id": "getReportRevision",
+      "method": "GET",
+      "path": "/advertisers/{advertiser_id}/reports/{report_id}/revisions/{revision}",
+      "request_schema": null,
+      "principal_kinds": [
+        "human"
+      ],
+      "capabilities": [
+        "reports.read"
+      ],
+      "human_only": true,
+      "fresh_action_required": false,
+      "transaction_rule": "read_only",
+      "detail_document": "03-api-handlers.md"
+    },
+    {
+      "detail_id": "API-29",
+      "operation_id": "recordReportConsumption",
+      "method": "POST",
+      "path": "/advertisers/{advertiser_id}/reports/{report_id}/consumption",
+      "request_schema": "#/components/schemas/ReportConsumptionRequest",
+      "principal_kinds": [
+        "human"
+      ],
+      "capabilities": [
+        "reports.acknowledge"
+      ],
+      "human_only": true,
+      "fresh_action_required": false,
+      "transaction_rule": "API-29",
+      "detail_document": "03-api-handlers.md"
+    }
+  ],
+  "core_entities": [
+    {
+      "name": "adc2_principals",
+      "key": "principals",
+      "scope": "R0",
+      "required_definition": "id PK, kind text CHECK enum, credential_epoch bigint, status, subject_owner_id UUID 선택, expires_at. UNIQUE(environment, issuer, external_subject). 직접적인 업무 호출 kind와 실제 owner를 분리한다."
+    },
+    {
+      "name": "adc2_authority_guards",
+      "key": "authority_guards",
+      "scope": "R0",
+      "required_definition": "guard_type, guard_id 복합 PK, epoch, status. principal·grant·organization·owner별 철회 선형화 지점이다. 단순 수익 수취자까지 모두 authority guard로 잠그지 않아 전역 platform 병목을 만들지 않는다."
+    },
+    {
+      "name": "adc2_memberships",
+      "key": "memberships",
+      "scope": "R0",
+      "required_definition": "commercial_tenant_id, principal_id, capability, grant_epoch, revoked_at. UNIQUE(tenant, principal, capability). 활성 membership만 인가에 사용한다."
+    },
+    {
+      "name": "adc2_agent_bindings",
+      "key": "agent_bindings",
+      "scope": "R0",
+      "required_definition": "id, owner_id, agent_principal_id, operator_id, credential_epoch, audience, capabilities, revoked_at. UNIQUE(id, owner_id). key secret은 해시/별도 credential store이며 업무 row에 plaintext로 두지 않는다."
+    },
+    {
+      "name": "adc2_ad_preferences",
+      "key": "ad_preferences",
+      "scope": "R0",
+      "required_definition": "id, owner_id, purpose, receive_offers, context_fields, max_offers/day, max_ads/day, max_ads/campaign/day, max_ad_ms/day, version, revision_hash. UNIQUE(owner_id, purpose). 기본은 수신 비활성·공유 없음이다."
+    },
+    {
+      "name": "adc2_fresh_actions",
+      "key": "fresh_actions",
+      "scope": "R0",
+      "required_definition": "id, principal_id, session_binding_hash, action, target_id, target_revision_hash, semantic_digest, challenge_hash UNIQUE, expires_at, consumed_by_operation 선택. challenge 소비는 수신 command의 커밋과 원자적이다."
+    },
+    {
+      "name": "adc2_advertisers",
+      "key": "advertisers",
+      "scope": "R0",
+      "required_definition": "id, commercial_tenant_id UNIQUE, verification_status, brand_rights_ref, jurisdiction_profile, status. KYC 원문은 별도 보호 저장소 참조다."
+    },
+    {
+      "name": "adc2_campaigns",
+      "key": "campaigns",
+      "scope": "R0",
+      "required_definition": "id, advertiser_id, current_revision_id, state, approval_status, version. UNIQUE(id, advertiser_id). workflow 상태 변경마다 version 증가."
+    },
+    {
+      "name": "adc2_campaign_revisions",
+      "key": "campaign_revisions",
+      "scope": "R0",
+      "required_definition": "id, campaign_id, advertiser_id, revision_no, content_hash, asset_id, total_budget_atoms, daily_budget_atoms, timezone, starts_at, ends_at, product=P1, gross_p1_atoms, split_bps, exact_split_atoms, min_exposure_ms, creative_hash/text_ref, renderer_profile. UNIQUE(campaign_id, revision_no), UNIQUE(id, advertiser_id), CHECK daily<=total·ends>starts·사용자 보상>0."
+    },
+    {
+      "name": "adc2_reviews",
+      "key": "reviews",
+      "scope": "R0",
+      "required_definition": "id, advertiser_id, campaign_id, campaign_revision_id, state, version, reviewer_principal 선택, evidence_ref 선택, reason. 같은 campaign/revision의 활성 pending 심사 하나에 partial unique index."
+    },
+    {
+      "name": "adc2_approvals",
+      "key": "approvals",
+      "scope": "R0",
+      "required_definition": "id, campaign_revision_id, content_hash, approver_principal, fresh_action_id UNIQUE, approved_at, expires_at, grant_epoch. UNIQUE(revision, approver, approval_purpose). 승인한 revision과 실제 활성 revision이 같아야 한다."
+    },
+    {
+      "name": "adc2_assets",
+      "key": "assets",
+      "scope": "R0",
+      "required_definition": "id text PK, namespace, chain_id 선택, token_contract 선택, decimals=6, activation_manifest_ref 선택. model은 체인 identity가 null이며 정식 자산과 ID를 공유하지 않는다."
+    },
+    {
+      "name": "adc2_accounts",
+      "key": "accounts",
+      "scope": "R0",
+      "required_definition": "id, owner_id, manager_binding_id 선택, asset_id, purpose, beneficial, account_class, balance_atoms. UNIQUE(id, asset_id). manager null/non-null 두 partial unique index로 owner/asset/purpose/manager의 중복을 막는다. campaign/hold 등 목적 계정에는 object_ref를 포함한다."
+    },
+    {
+      "name": "adc2_journals",
+      "key": "journals",
+      "scope": "R0",
+      "required_definition": "id, asset_id, economic_event_key, operation_id, kind, committed_at. UNIQUE(environment, asset_id, economic_event_key), UNIQUE(id, asset_id). 확정 후 UPDATE/DELETE 금지."
+    },
+    {
+      "name": "adc2_postings",
+      "key": "postings",
+      "scope": "R0",
+      "required_definition": "journal_id, line_no, asset_id, account_id, signed_delta. PK(journal_id, line_no), 복합 FK(journal_id,asset_id)·(account_id,asset_id). 같은 journal의 delta 합 0을 command와 commit-time DB 검증으로 강제한다."
+    },
+    {
+      "name": "adc2_budget_windows",
+      "key": "budget_windows",
+      "scope": "R0",
+      "required_definition": "id, campaign_id, asset_id, window_kind(total/day), window_start/end, limit_atoms, reserved_atoms, spent_atoms, version. UNIQUE(campaign, kind, start), CHECK reserved>=0·spent>=0·reserved+spent<=limit."
+    },
+    {
+      "name": "adc2_budget_holds",
+      "key": "budget_holds",
+      "scope": "R0",
+      "required_definition": "id, offer_id UNIQUE, asset_id, total_window_id, day_window_id, hold_account_id, initial_atoms, remaining_atoms, state, qualification_deadline, review_deadline. remaining은 실제 hold 계정 잔액과 대사한다. 같은 금액을 B에 두 번 합산하지 않는다."
+    },
+    {
+      "name": "adc2_stage_awards",
+      "key": "stage_awards",
+      "scope": "R0",
+      "required_definition": "id, offer_id, stage_key, occurrence, evidence_verdict_id, journal_id UNIQUE, receipt_id UNIQUE. UNIQUE(offer,stage,occurrence), 단계별 동일 원본 evidence 재사용 제한."
+    },
+    {
+      "name": "adc2_offers",
+      "key": "offers",
+      "scope": "R0",
+      "required_definition": "id, campaign_revision_id, advertiser_id, owner_id, agent_binding_id 선택, wallet_id, fallback_wallet_id, quote_hash, quote_snapshot, hold_id, state, version, expires_at. UNIQUE(id,owner_id). quote에는 asset·정확한 split·기한·관리 철회 fallback·검토 조건을 포함한다."
+    },
+    {
+      "name": "adc2_human_consents",
+      "key": "human_consents",
+      "scope": "R0",
+      "required_definition": "id, offer_id, owner_id, quote_hash, fresh_action_id UNIQUE, version, created_at, revoked_at. 복합 FK(offer,owner), UNIQUE(offer,owner,quote_hash). 소비와 취소 이력은 보존한다."
+    },
+    {
+      "name": "adc2_exposure_sessions",
+      "key": "exposure_sessions",
+      "scope": "R0",
+      "required_definition": "id, offer_id, owner_id, consent_id/version, state, nonce_sequence, next_nonce_hash, startup_deadline, first_signal_at 선택, active_deadline 선택, evidence_deadline, cutoff_at 선택, collected_valid_ms, max_view_ms, version. 같은 offer의 활성 세션 하나에 partial unique index."
+    },
+    {
+      "name": "adc2_evidence_chunks",
+      "key": "evidence_chunks",
+      "scope": "R0",
+      "required_definition": "session_id, sequence, nonce_hash, server_received_at, client_elapsed_ms, visible, foreground, canonical_hash. PK(session,sequence), UNIQUE(session,nonce_hash). 원본은 append-only, 동일 sequence·다른 내용은 거부."
+    },
+    {
+      "name": "adc2_evidence_verdicts",
+      "key": "evidence_verdicts",
+      "scope": "R0",
+      "required_definition": "id, session_id, stage, verifier_version, evidence_manifest_hash, decision, qualified_at 선택, reason, review_deadline. 최종 판정 정정은 새 이력으로 기록하며 stage award 유일성은 유지한다."
+    },
+    {
+      "name": "adc2_attention_windows",
+      "key": "attention_windows",
+      "scope": "R0",
+      "required_definition": "owner_id, scope_kind(global/advertiser/campaign), scope_id, day_start, reserved_sessions, started_sessions, reserved_ms, observed_ms, limits, version. UNIQUE(owner,scope,scope_id,day). 시작 횟수와 지급 가능한 유효 노출 수를 구분한다."
+    },
+    {
+      "name": "adc2_attention_reservations",
+      "key": "attention_reservations",
+      "scope": "R0",
+      "required_definition": "id, session_id, window_id, reserved_ms, consumed_ms, count_consumed, state. UNIQUE(session,window). 세션 종료마다 정확히 한 번 해소한다."
+    },
+    {
+      "name": "adc2_operations",
+      "key": "operations",
+      "scope": "R0",
+      "required_definition": "id, principal_id, owner/tenant scope, command_type, target_id, state, result_ref, error_code, version. state는 API 계약과 같으며 금전 unknown은 별도 업무 객체 상태에 보존한다."
+    },
+    {
+      "name": "adc2_idempotency_records",
+      "key": "idempotency_records",
+      "scope": "R0",
+      "required_definition": "환경/주체/method/route/key 복합 유일 키, request_digest, operation_id, http_status, safe_response_ref, state. 경제 dedup보다 짧은 캐시 수명은 허용해도 경제 사건 tombstone은 유지한다."
+    },
+    {
+      "name": "adc2_outbox",
+      "key": "outbox",
+      "scope": "R0",
+      "required_definition": "id, aggregate_type/id/version, event_type/schema, payload_ref/hash, audience, available_at, state, lease_owner, lease_until, lease_generation, principal_epoch, grant_epoch, auth_snapshot_hash, dispatch_intent_id 선택, attempts. INDEX(state,available_at), INDEX(aggregate,id)."
+    },
+    {
+      "name": "adc2_inbox",
+      "key": "inbox",
+      "scope": "R0",
+      "required_definition": "source_id, audience, event_id 복합 유일 키, payload_hash, received_at, processed_operation. 같은 ID·다른 hash는 격리."
+    },
+    {
+      "name": "adc2_dispatch_intents",
+      "key": "dispatch_intents",
+      "scope": "R0",
+      "required_definition": "id, logical_effect_id UNIQUE, operation_id, target_profile, payload_hash, authority_epochs, lease_generation, state, remote_ref 선택. committed intent와 실제 송신 결과를 분리한다."
+    },
+    {
+      "name": "adc2_receipts",
+      "key": "receipts",
+      "scope": "R0",
+      "required_definition": "id, journal_id UNIQUE, offer_id, payload_bytes/hash, policy/contract version, issued_at, signature_state, key_id 선택, jws 선택. signed일 때 key/JWS 필수, pending일 때 둘 다 null. payload는 서명 전에 고정한다."
+    },
+    {
+      "name": "adc2_receipt_key_metadata",
+      "key": "receipt_key_metadata",
+      "scope": "R0",
+      "required_definition": "kid PK, public_jwk, status, not_before, issue_until, verify_until, key_service_ref. private key는 DB/catalog에 저장하지 않는다."
+    },
+    {
+      "name": "adc2_reporting_obligations",
+      "key": "reporting_obligations",
+      "scope": "R0",
+      "required_definition": "id, advertiser/campaign, period_start/end, timezone, expected_at, recovery_deadline, metric_contract_hash, state, current_report/revision 선택. UNIQUE(campaign,period,metric_contract_hash). available은 유효 revision을 요구한다."
+    },
+    {
+      "name": "adc2_report_revisions",
+      "key": "report_revisions",
+      "scope": "R0",
+      "required_definition": "report_id, revision 복합 PK, obligation_id, content_digest, fact_manifest_ref, generated_at, data_through, method_version, vendor_relation, supersedes_revision 선택, completeness. revision 불변."
+    },
+    {
+      "name": "adc2_report_consumption",
+      "key": "report_consumption",
+      "scope": "R0",
+      "required_definition": "id, tenant/principal, report_id, revision, state, observed_digest 선택, recorded_at. received는 저장된 content_digest와 일치해야 한다. 이 표를 원장 지급 트리거로 사용하지 않는다."
+    }
+  ],
+  "transaction_rules": [
+    "TX-01",
+    "TX-02",
+    "TX-03",
+    "TX-04",
+    "TX-05",
+    "TX-06",
+    "TX-07",
+    "TX-08",
+    "TX-09"
+  ],
+  "common_rules": [
+    "C00",
+    "C01",
+    "C02",
+    "C03",
+    "C04"
+  ],
+  "workers": [
+    "W01",
+    "W02",
+    "W03",
+    "W04",
+    "W05",
+    "W06",
+    "W07"
+  ],
+  "policy_trace": {
+    "PLAT-01": {
+      "modules": [
+        "M02"
+      ],
+      "work_packages": [
+        "WP-03"
+      ],
+      "planned_gates": [
+        "GROW-14"
+      ]
+    },
+    "PLAT-02": {
+      "modules": [
+        "M09"
+      ],
+      "work_packages": [
+        "WP-01",
+        "WP-02",
+        "WP-04",
+        "WP-06",
+        "WP-12"
+      ],
+      "planned_gates": [
+        "GROW-17",
+        "GROW-18"
+      ]
+    },
+    "PLAT-03": {
+      "modules": [
+        "M01"
+      ],
+      "work_packages": [
+        "WP-01",
+        "WP-03",
+        "WP-11"
+      ],
+      "planned_gates": [
+        "GROW-02",
+        "GROW-07"
+      ]
+    },
+    "PLAT-04": {
+      "modules": [
+        "M03"
+      ],
+      "work_packages": [
+        "WP-07"
+      ],
+      "planned_gates": [
+        "GROW-02",
+        "GROW-18"
+      ]
+    },
+    "PLAT-05": {
+      "modules": [
+        "M02",
+        "M09"
+      ],
+      "work_packages": [
+        "WP-03",
+        "WP-07"
+      ],
+      "planned_gates": [
+        "GROW-02",
+        "GROW-08",
+        "GROW-11"
+      ]
+    },
+    "PLAT-06": {
+      "modules": [
+        "M02"
+      ],
+      "work_packages": [
+        "WP-03",
+        "WP-10"
+      ],
+      "planned_gates": [
+        "GROW-01"
+      ]
+    },
+    "PLAT-07": {
+      "modules": [
+        "M02"
+      ],
+      "work_packages": [
+        "WP-03",
+        "WP-07"
+      ],
+      "planned_gates": [
+        "GROW-01",
+        "GROW-08"
+      ]
+    },
+    "PLAT-08": {
+      "modules": [
+        "M02"
+      ],
+      "work_packages": [
+        "WP-03",
+        "WP-08"
+      ],
+      "planned_gates": [
+        "GROW-11",
+        "GROW-19"
+      ]
+    },
+    "PLAT-09": {
+      "modules": [
+        "M02"
+      ],
+      "work_packages": [
+        "WP-03",
+        "WP-07"
+      ],
+      "planned_gates": [
+        "GROW-03"
+      ]
+    },
+    "PLAT-10": {
+      "modules": [
+        "M02"
+      ],
+      "work_packages": [
+        "WP-03",
+        "WP-07"
+      ],
+      "planned_gates": [
+        "GROW-03",
+        "GROW-23"
+      ]
+    },
+    "PLAT-11": {
+      "modules": [
+        "M01",
+        "M03"
+      ],
+      "work_packages": [
+        "WP-01",
+        "WP-04",
+        "WP-08"
+      ],
+      "planned_gates": [
+        "GROW-04",
+        "GROW-11",
+        "GROW-21"
+      ]
+    },
+    "PLAT-12": {
+      "modules": [
+        "M03",
+        "M04"
+      ],
+      "work_packages": [
+        "WP-02",
+        "WP-04",
+        "WP-08"
+      ],
+      "planned_gates": [
+        "GROW-05",
+        "GROW-21"
+      ]
+    },
+    "PLAT-13": {
+      "modules": [
+        "M07"
+      ],
+      "work_packages": [
+        "WP-09"
+      ],
+      "planned_gates": [
+        "GROW-08",
+        "GROW-09",
+        "GROW-15",
+        "GROW-22"
+      ]
+    },
+    "PLAT-14": {
+      "modules": [
+        "M07"
+      ],
+      "work_packages": [
+        "WP-09",
+        "WP-10"
+      ],
+      "planned_gates": [
+        "GROW-12",
+        "GROW-15"
+      ]
+    },
+    "PLAT-15": {
+      "modules": [
+        "M01"
+      ],
+      "work_packages": [
+        "WP-01",
+        "WP-05",
+        "WP-10"
+      ],
+      "planned_gates": [
+        "GROW-06",
+        "GROW-07",
+        "GROW-12",
+        "GROW-26"
+      ]
+    },
+    "PLAT-16": {
+      "modules": [
+        "M04",
+        "M05"
+      ],
+      "work_packages": [
+        "WP-04",
+        "WP-05"
+      ],
+      "planned_gates": [
+        "GROW-13",
+        "GROW-28"
+      ]
+    },
+    "PLAT-17": {
+      "modules": [
+        "M03",
+        "M07"
+      ],
+      "work_packages": [
+        "WP-04",
+        "WP-09"
+      ],
+      "planned_gates": [
+        "GROW-08",
+        "GROW-22"
+      ]
+    },
+    "PLAT-18": {
+      "modules": [
+        "M01",
+        "M08"
+      ],
+      "work_packages": [
+        "WP-01",
+        "WP-04",
+        "WP-09",
+        "WP-11"
+      ],
+      "planned_gates": [
+        "GROW-04",
+        "GROW-10",
+        "GROW-24"
+      ]
+    },
+    "PLAT-19": {
+      "modules": [
+        "M08"
+      ],
+      "work_packages": [
+        "WP-11"
+      ],
+      "planned_gates": [
+        "GROW-10",
+        "GROW-15",
+        "GROW-25"
+      ]
+    },
+    "PLAT-20": {
+      "modules": [
+        "M08",
+        "M09"
+      ],
+      "work_packages": [
+        "WP-04",
+        "WP-07",
+        "WP-11"
+      ],
+      "planned_gates": [
+        "GROW-02",
+        "GROW-07",
+        "GROW-18",
+        "GROW-25"
+      ]
+    },
+    "PLAT-21": {
+      "modules": [
+        "M02",
+        "M04"
+      ],
+      "work_packages": [
+        "WP-02",
+        "WP-03",
+        "WP-08"
+      ],
+      "planned_gates": [
+        "GROW-05",
+        "GROW-06"
+      ]
+    },
+    "PLAT-22": {
+      "modules": [
+        "M02",
+        "M04"
+      ],
+      "work_packages": [
+        "WP-02",
+        "WP-03"
+      ],
+      "planned_gates": [
+        "GROW-13",
+        "GROW-14",
+        "GROW-20"
+      ]
+    },
+    "PLAT-23": {
+      "modules": [
+        "M04",
+        "M05",
+        "M06"
+      ],
+      "work_packages": [
+        "WP-02",
+        "WP-05",
+        "WP-06"
+      ],
+      "planned_gates": [
+        "GROW-06",
+        "GROW-13",
+        "GROW-14",
+        "GROW-17",
+        "GROW-27"
+      ]
+    },
+    "PLAT-24": {
+      "modules": [
+        "M04"
+      ],
+      "work_packages": [
+        "WP-02",
+        "WP-05",
+        "WP-12"
+      ],
+      "planned_gates": [
+        "GROW-14",
+        "GROW-28"
+      ]
+    },
+    "PLAT-25": {
+      "modules": [
+        "M09"
+      ],
+      "work_packages": [
+        "WP-07",
+        "WP-10"
+      ],
+      "planned_gates": [
+        "GROW-16"
+      ]
+    },
+    "PLAT-26": {
+      "modules": [
+        "M02"
+      ],
+      "work_packages": [
+        "WP-03",
+        "WP-10"
+      ],
+      "planned_gates": [
+        "GROW-12",
+        "GROW-16",
+        "GROW-28"
+      ]
+    },
+    "PLAT-27": {
+      "modules": [
+        "M09"
+      ],
+      "work_packages": [
+        "WP-06",
+        "WP-11",
+        "WP-12"
+      ],
+      "planned_gates": [
+        "GROW-17",
+        "GROW-27"
+      ]
+    },
+    "PLAT-28": {
+      "modules": [
+        "M02"
+      ],
+      "work_packages": [
+        "WP-03",
+        "WP-09",
+        "WP-10"
+      ],
+      "planned_gates": [
+        "GROW-03",
+        "GROW-15",
+        "GROW-28"
+      ]
+    },
+    "PLAT-29": {
+      "modules": [
+        "M09"
+      ],
+      "work_packages": [
+        "WP-02",
+        "WP-06",
+        "WP-12"
+      ],
+      "planned_gates": [
+        "GROW-09",
+        "GROW-17"
+      ]
+    },
+    "PLAT-30": {
+      "modules": [
+        "M09"
+      ],
+      "work_packages": [
+        "WP-02",
+        "WP-12"
+      ],
+      "planned_gates": [
+        "GROW-18"
+      ]
+    },
+    "PLAT-31": {
+      "modules": [
+        "M02",
+        "M03"
+      ],
+      "work_packages": [
+        "WP-03",
+        "WP-07"
+      ],
+      "planned_gates": [
+        "GROW-19"
+      ]
+    },
+    "PLAT-32": {
+      "modules": [
+        "M03"
+      ],
+      "work_packages": [
+        "WP-04",
+        "WP-07"
+      ],
+      "planned_gates": [
+        "GROW-20",
+        "GROW-23"
+      ]
+    },
+    "PLAT-33": {
+      "modules": [
+        "M03"
+      ],
+      "work_packages": [
+        "WP-08"
+      ],
+      "planned_gates": [
+        "GROW-21",
+        "GROW-28"
+      ]
+    },
+    "PLAT-34": {
+      "modules": [
+        "M07"
+      ],
+      "work_packages": [
+        "WP-09"
+      ],
+      "planned_gates": [
+        "GROW-22",
+        "GROW-28"
+      ]
+    },
+    "PLAT-35": {
+      "modules": [
+        "M01",
+        "M03"
+      ],
+      "work_packages": [
+        "WP-01",
+        "WP-04",
+        "WP-08"
+      ],
+      "planned_gates": [
+        "GROW-24"
+      ]
+    },
+    "PLAT-36": {
+      "modules": [
+        "M08"
+      ],
+      "work_packages": [
+        "WP-11"
+      ],
+      "planned_gates": [
+        "GROW-25"
+      ]
+    },
+    "PLAT-37": {
+      "modules": [
+        "M01",
+        "M03"
+      ],
+      "work_packages": [
+        "WP-01",
+        "WP-04",
+        "WP-07",
+        "WP-10"
+      ],
+      "planned_gates": [
+        "GROW-23",
+        "GROW-26"
+      ]
+    },
+    "PLAT-38": {
+      "modules": [
+        "M06",
+        "M09"
+      ],
+      "work_packages": [
+        "WP-06",
+        "WP-12"
+      ],
+      "planned_gates": [
+        "GROW-27"
+      ]
+    }
+  },
+  "work_dependencies": {
+    "WP-01": [],
+    "WP-02": [
+      "WP-01"
+    ],
+    "WP-03": [
+      "WP-02"
+    ],
+    "WP-04": [
+      "WP-03"
+    ],
+    "WP-05": [
+      "WP-02",
+      "WP-04"
+    ],
+    "WP-06": [
+      "WP-01",
+      "WP-02"
+    ],
+    "WP-07": [
+      "WP-04"
+    ],
+    "WP-08": [
+      "WP-04",
+      "WP-07"
+    ],
+    "WP-09": [
+      "WP-04"
+    ],
+    "WP-10": [
+      "WP-03",
+      "WP-09"
+    ],
+    "WP-11": [
+      "WP-03",
+      "WP-09"
+    ],
+    "WP-12": [
+      "WP-01",
+      "WP-02",
+      "WP-03",
+      "WP-04"
+    ]
+  },
+  "inherited_acceptance": {
+    "GROW": 28,
+    "DES": 10,
+    "v5": 43
+  },
+  "detailed_acceptance": {
+    "DTL-01": {
+      "work_packages": [
+        "WP-01"
+      ],
+      "status": "planned_not_executed",
+      "scenario": "다른 owner/advertiser의 UUID·scope·path 조합, 혼합 cookie/key, reviewer token without mTLS를 모두 거부한다. WP-01; SEC-01·03, GROW-07, DES-01·09."
+    },
+    "DTL-02": {
+      "work_packages": [
+        "WP-01",
+        "WP-04"
+      ],
+      "status": "planned_not_executed",
+      "scenario": "fresh action의 action/target/quote·If-Match·body·contract·session을 각각 바꿔 거부한다. 같은 HTTP replay만 원래 응답을 반환하고 현재 접근은 재검사한다. WP-01·04; SEC-04, DES-09·10."
+    },
+    "DTL-03": {
+      "work_packages": [
+        "WP-01",
+        "WP-02"
+      ],
+      "status": "planned_not_executed",
+      "scenario": "중복 JSON key·대소문자 alias·oversize·잘못된 Unicode·비정규 금액·uint overflow를 파서/schema/의미 경계에서 거부한다. WP-01·02; ECON-01, DES-09."
+    },
+    "DTL-04": {
+      "work_packages": [
+        "WP-02",
+        "WP-03"
+      ],
+      "status": "planned_not_executed",
+      "scenario": "draft 생성 무이동, 최초 activation 단회 배정, pause/resume 재차감 없음, stale review/approval·budget 부족의 전체 rollback을 PG에서 확인한다. WP-02·03; GROW-01·06·14."
+    },
+    "DTL-05": {
+      "work_packages": [
+        "WP-02",
+        "WP-04"
+      ],
+      "status": "planned_not_executed",
+      "scenario": "같은 캠페인/다른 owner의 동시 offer와 같은 owner/다른 캠페인의 동시 offer를 실행해 일/총 한도·잔액·동시 제안 수를 지킨다. WP-02·04; ECON-09, GROW-06."
+    },
+    "DTL-06": {
+      "work_packages": [
+        "WP-02",
+        "WP-04",
+        "WP-08"
+      ],
+      "status": "planned_not_executed",
+      "scenario": "기본+추가 단계 최대 reserve·부분 award·추가 기한 종료·다음 날 release에서 원래 window와 user 권리를 보존한다. WP-02·04·08; ECON-10, GROW-05."
+    },
+    "DTL-07": {
+      "work_packages": [
+        "WP-02",
+        "WP-04",
+        "WP-07"
+      ],
+      "status": "planned_not_executed",
+      "scenario": "같은 사람의 여러 agent/campaign 동시 start에서 전체/캠페인 count/time 한도를 지키고 UTC day closing·최소 15초 부족을 거부한다. WP-02·04·07; DES-03."
+    },
+    "DTL-08": {
+      "work_packages": [
+        "WP-04"
+      ],
+      "status": "planned_not_executed",
+      "scenario": "first signal·nonce/sequence·서버 간격·hidden/background·gap·30초 상한·600초 제출 기한·증거 재전송을 실제 브라우저/API로 검증한다. WP-04; SEC-12, GROW-08, DES-09."
+    },
+    "DTL-09": {
+      "work_packages": [
+        "WP-01",
+        "WP-04"
+      ],
+      "status": "planned_not_executed",
+      "scenario": "15초 충족 후 cancel/withdraw/pause/verifier 지연이 확정 권리를 잃게 하지 않고, 미충족·불명확·review_pending을 구분한다. WP-01·04; AD-02, GROW-05, DES-07."
+    },
+    "DTL-10": {
+      "work_packages": [
+        "WP-02",
+        "WP-04"
+      ],
+      "status": "planned_not_executed",
+      "scenario": "같은 stage를 다른 key/동시 worker/재시작으로 제출해도 단일 journal·award·receipt만 만든다. 서명 장애로 재지급하지 않는다. WP-02·04; ECON-08, DES-08."
+    },
+    "DTL-11": {
+      "work_packages": [
+        "WP-01",
+        "WP-04",
+        "WP-05"
+      ],
+      "status": "planned_not_executed",
+      "scenario": "agent manager 철회·휴면·wallet fallback·내부 이전·locked/unknown 자금을 검사하고 다른 owner/operator로 귀속되지 않게 한다. WP-01·04·05; PAY-01, GROW-13."
+    },
+    "DTL-12": {
+      "work_packages": [
+        "WP-01",
+        "WP-04",
+        "WP-06"
+      ],
+      "status": "planned_not_executed",
+      "scenario": "JWS alg/type/kid/issuer/audience·payload/표시·서명 위조·키 회전/폐기·원격 jku/x5u를 실제 암호 검증한다. WP-01·04·06; DES-08."
+    },
+    "DTL-13": {
+      "work_packages": [
+        "WP-02",
+        "WP-06",
+        "WP-12"
+      ],
+      "status": "planned_not_executed",
+      "scenario": "lease 만료·stale generation·철회와 dispatching commit·I/O 전후 종료·원격 성공/응답 유실에서 unknown·중복 방지를 검증한다. WP-02·06·12; SEC-10·11, DES-07."
+    },
+    "DTL-14": {
+      "work_packages": [
+        "WP-04",
+        "WP-09",
+        "WP-11"
+      ],
+      "status": "planned_not_executed",
+      "scenario": "보고 0건·미도착·억제·관측 지연·out-of-order commit·정정·exact revision 복구·ACK digest mismatch가 과금/보상과 섞이지 않는다. WP-04·09·11; DES-05·06."
+    },
+    "DTL-15": {
+      "work_packages": [
+        "WP-05"
+      ],
+      "status": "planned_not_executed",
+      "scenario": "실제 AI run의 definition/provider/node/owner/version을 바꾸거나 재사용해 정산할 수 없고 부분 성공·미실행·지급 후 환불 재원이 맞는다. WP-05; PAY-02~05, ECON-11."
+    },
+    "DTL-16": {
+      "work_packages": [
+        "WP-06"
+      ],
+      "status": "planned_not_executed",
+      "scenario": "실입금 단회 mint·동결/전송 실패 rollback·확정 전 credit 금지·동일 checkpoint 대사·unknown 출고·원자 상환을 로컬 체인/격리 PG에서 검증한다. WP-06; INV-01~06, SEC-05~11."
+    },
+    "DTL-17": {
+      "work_packages": [
+        "WP-07"
+      ],
+      "status": "planned_not_executed",
+      "scenario": "매체 판매 권한·schema/auth profile·beta·hop/loop·표시/배분·A2A/MCP·B1과 사람 노출을 구분한다. WP-07; GROW-02·20, DES-01·02."
+    },
+    "DTL-18": {
+      "work_packages": [
+        "WP-08",
+        "WP-10"
+      ],
+      "status": "planned_not_executed",
+      "scenario": "브랜드 상담·클릭/재생/가입·구매 단계·도구 retry/재귀·비용 상한·중립적 피드백·임의 구매/구독 차단을 검증한다. WP-08·10; GROW-05·21·26, DES-04."
+    },
+    "DTL-19": {
+      "work_packages": [
+        "WP-09",
+        "WP-11"
+      ],
+      "status": "planned_not_executed",
+      "scenario": "CRM 원본 주문 중복·환불/정정·귀속 version·실험 권리·통계 suppression/차분·자료 라이선스·삭제 lineage를 검사한다. WP-09·11; GROW-09·10·15·22·25."
+    },
+    "DTL-20": {
+      "work_packages": [
+        "WP-12"
+      ],
+      "status": "planned_not_executed",
+      "scenario": "격리 부하·복구·영어/접근성·CSP/escaping·CSRF·기존 추천·v1 분리·실가치 gate·release overlay와 rollback을 인수한다. WP-12; OPS/PERF, GROW-18·27·28, DES-10."
+    }
+  },
+  "reference_values": {
+    "fresh_action_ttl_seconds": 120,
+    "heartbeat_interval_ms": 1000,
+    "max_heartbeat_gap_ms": 3000,
+    "startup_allowance_ms": 10000,
+    "max_view_ms": 30000,
+    "min_view_ms": 15000,
+    "evidence_ttl_seconds": 600,
+    "worker_lease_seconds": 15,
+    "worker_batch_size": 50,
+    "network_retry_limit": 8,
+    "report_expected_delay_minutes": 15,
+    "report_recovery_window_minutes": 60
+  },
+  "first_release": "R0_model_p1",
+  "schema_is_executable_migration": false,
+  "product_acceptance_checks_passed": 0
+}

@@ -1,0 +1,128 @@
+{
+  "profile": "ai-ad-coin-platform-v6-document-validation",
+  "date_kst": "2026-11-07",
+  "scope": "Documentation IDs, local links, policy-to-planned-gate trace and historical fingerprints only; no product, legal, effectiveness or security validation.",
+  "document_validation_passed": true,
+  "policy_count": 30,
+  "planned_gate_count": 18,
+  "all_policies_traced": true,
+  "local_links_checked": 52,
+  "v5_policy_ids_preserved": 24,
+  "v5_machine_spec_unchanged": true,
+  "policy_to_gate_trace": {
+    "GROW-01": [
+      "PLAT-06",
+      "PLAT-07"
+    ],
+    "GROW-02": [
+      "PLAT-03",
+      "PLAT-04",
+      "PLAT-05",
+      "PLAT-20"
+    ],
+    "GROW-03": [
+      "PLAT-09",
+      "PLAT-10",
+      "PLAT-28"
+    ],
+    "GROW-04": [
+      "PLAT-11",
+      "PLAT-18"
+    ],
+    "GROW-05": [
+      "PLAT-12",
+      "PLAT-21"
+    ],
+    "GROW-06": [
+      "PLAT-15",
+      "PLAT-21",
+      "PLAT-23"
+    ],
+    "GROW-07": [
+      "PLAT-03",
+      "PLAT-15",
+      "PLAT-20"
+    ],
+    "GROW-08": [
+      "PLAT-05",
+      "PLAT-07",
+      "PLAT-13",
+      "PLAT-17"
+    ],
+    "GROW-09": [
+      "PLAT-13",
+      "PLAT-29"
+    ],
+    "GROW-10": [
+      "PLAT-18",
+      "PLAT-19"
+    ],
+    "GROW-11": [
+      "PLAT-05",
+      "PLAT-08",
+      "PLAT-11"
+    ],
+    "GROW-12": [
+      "PLAT-14",
+      "PLAT-15",
+      "PLAT-26"
+    ],
+    "GROW-13": [
+      "PLAT-16",
+      "PLAT-22",
+      "PLAT-23"
+    ],
+    "GROW-14": [
+      "PLAT-01",
+      "PLAT-22",
+      "PLAT-23",
+      "PLAT-24"
+    ],
+    "GROW-15": [
+      "PLAT-13",
+      "PLAT-14",
+      "PLAT-19",
+      "PLAT-28"
+    ],
+    "GROW-16": [
+      "PLAT-25",
+      "PLAT-26"
+    ],
+    "GROW-17": [
+      "PLAT-02",
+      "PLAT-23",
+      "PLAT-27",
+      "PLAT-29"
+    ],
+    "GROW-18": [
+      "PLAT-02",
+      "PLAT-04",
+      "PLAT-20",
+      "PLAT-30"
+    ]
+  },
+  "historical_v4_sources_checked": 33,
+  "historical_v4_source_changes": [],
+  "historical_v5_document_hash_differences_expected_after_link_updates": [
+    "docs/AD_COIN_POLICY.md",
+    "docs/AD_COIN_ARCHITECTURE.md",
+    "docs/AD_COIN_V5_IMPLEMENTATION_PLAN.md",
+    "docs/AD_COIN.md",
+    "docs/AD_COIN_SALES_POLICY.md",
+    "docs/AD_COIN_TARGETS.md"
+  ],
+  "product_tests_run_this_revision": 0,
+  "v5_product_acceptance_checks_passed_this_revision": 0,
+  "v6_product_acceptance_checks_passed_this_revision": 0,
+  "sha256": {
+    "docs/AD_COIN_PLATFORM_POLICY.md": "68dfd613b710cad62b59f74b601d99b0bf165e4e4564f2e7a202fa4f7c1f1038",
+    "docs/AD_COIN_PLATFORM_ROADMAP.md": "af4197afac1c455c15a88e8e5a1291bc668d009a3d5a333655aec119ae8fe086",
+    "docs/AD_COIN.md": "5ae30663db09da541935cf20cba711eb605311a4eb19df957e00a7001979a675",
+    "docs/AD_COIN_POLICY.md": "8bb0d9e90f230309f27c4398ab267f1285636a9e89b37edbbea3a31e728c7dcd",
+    "docs/AD_COIN_SALES_POLICY.md": "2f67f4d8ced6fe41b82ea45551719ec6e2339cf97dc35dd4e5de647680883a24",
+    "docs/AD_COIN_TARGETS.md": "b3acf0972710b0159aae10adbd7267d1293fe4747e90bbe620627eeee3442714",
+    "docs/AD_COIN_ARCHITECTURE.md": "d2ce330d3181b555742e41250b003f1f526a264ae4b96edf5cade998b81d2564",
+    "docs/AD_COIN_V5_IMPLEMENTATION_PLAN.md": "6757da1917452324d2f7c6c5e4209015b3bc46433ff6a0a30229efd00377dfc5",
+    "reports/ad-coin-platform-v6-2026-11-07/README.md": "420e880a8714373f13bd6318fc8b2dda0bfa019b6660189a1d5993068159d12d"
+  }
+}
