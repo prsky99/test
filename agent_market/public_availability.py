@@ -46,8 +46,25 @@ class ConversationRetention:
         return report
 
 
+PROJECTION_SECONDS=30
+
+
 def projection(store,now=None):
-    now=time.time() if now is None else now
+    """Public status from the per-minute probe rows. /status.json is itself the probe target, so the
+    default (current) view is reused for PROJECTION_SECONDS: a slow database cannot make the status
+    request time out (11-09 20:44-20:56, five 5 s probe timeouts)."""
+    if now is None:
+        cached=getattr(store,'_availability_projection',None)
+        current=time.monotonic()
+        if cached and current-cached[0]<PROJECTION_SECONDS:return cached[1]
+        value=_projection(store,time.time())
+        try:store._availability_projection=(current,value)
+        except AttributeError:pass
+        return value
+    return _projection(store,now)
+
+
+def _projection(store,now):
     rows=store.query('SELECT COUNT(*) AS n,SUM(ok) AS succeeded,MIN(checked_at) AS first_check,MAX(checked_at) AS last_check,AVG(latency_ms) AS response_ms FROM public_availability_checks WHERE checked_at>=?',(now-WINDOW_DAYS*86400,))
     total=dict(rows[0]);n=total['n']
     recent=store.query('SELECT checked_at,ok,status_code FROM public_availability_checks ORDER BY checked_at DESC LIMIT 120')

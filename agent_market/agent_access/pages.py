@@ -16,6 +16,43 @@ def category_links(front):
     return ['/agents/category/'+category for category in sorted(CATEGORIES)]
 
 
+# Category previews are read by crawlers; build each at most once per CACHE_SECONDS and keep the
+# last good page, so a slow database (11-09 20:4x: a vacuum and snapshots, one page took 125 s)
+# never makes a crawler wait. One build per category at a time; others get the previous page.
+CACHE_SECONDS=600
+STALE_SECONDS=86400
+
+
+def cached_category_page(front,category,*,clock=time.monotonic):
+    if category not in CATEGORIES:raise ValueError('NOT_FOUND')
+    import threading
+    state=getattr(front,'_category_page_cache',None)
+    if state is None:
+        state={'lock':threading.Lock(),'pages':{},'building':{}}
+        try:front._category_page_cache=state
+        except AttributeError:return category_page(front,category)
+    with state['lock']:
+        entry=state['pages'].get(category)
+        build=state['building'].setdefault(category,threading.Lock())
+    now=clock()
+    if entry and now-entry[0]<CACHE_SECONDS:return entry[1]
+    usable=entry if entry and now-entry[0]<STALE_SECONDS else None
+    if usable is None:build.acquire()
+    elif not build.acquire(blocking=False):return usable[1]  # another request is rebuilding it
+    try:
+        latest=state['pages'].get(category)
+        if latest and clock()-latest[0]<CACHE_SECONDS:return latest[1]
+        try:page=category_page(front,category)
+        except ValueError:raise
+        except Exception:
+            if usable is None:raise
+            return usable[1]
+        state['pages'][category]=(clock(),page)
+        return page
+    finally:
+        build.release()
+
+
 def category_page(front,category):
     if category not in CATEGORIES:raise ValueError('NOT_FOUND')
     from ..concierge.discovery import discovery_store

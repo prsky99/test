@@ -219,8 +219,8 @@ def router_for(front,*,customer_enabled=False):
     @router.get('/agents/category/{category}',include_in_schema=False)
     async def category(category:str,request:Request):
         rate(request)
-        from .pages import category_page
-        try:page=await run_in_threadpool(category_page,front,category)
+        from .pages import cached_category_page
+        try:page=await run_in_threadpool(cached_category_page,front,category)
         except ValueError:raise HTTPException(404,'This category has no current public preview.')from None
         return HTMLResponse(page,headers={'Cache-Control':'no-cache'})
 
