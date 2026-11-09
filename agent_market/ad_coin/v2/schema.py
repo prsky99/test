@@ -2,7 +2,7 @@
 
 from .contracts import MAX_ATOMS
 
-VERSION = 9
+VERSION = 10
 
 
 def statements():
@@ -173,6 +173,7 @@ def statements():
     from .advertiser_platform_schema import statements as advertiser_platform_statements
     from .real_value_schema import statements as real_value_statements
     from .performance_schema import INDEXES
+    from .economy_schema import statements as economy_statements
 
     return (
         *result,
@@ -183,6 +184,7 @@ def statements():
         *agent_payment_statements(),
         *ad_relay_statements(),
         *advertiser_platform_statements(),
+        *economy_statements(),
         *real_value_statements(),
         *INDEXES,
     )

@@ -506,7 +506,8 @@ def test_challenge_replays_same_proof_without_plaintext_persistence_and_checks_s
 def test_insufficient_activation_rolls_back_funding_window_state_and_outbox(suite):
     campaign, _ = suite.eligible()
     campaign = suite.approve(campaign)
-    destination = suite.service.ledger.create_account(uid(), "user_available")
+    # Empty the advertiser balance into a platform account (coins never go to a person from an advertiser).
+    destination = suite.service.ledger.create_account(uid(), "platform_revenue")
     suite.service.ledger.post(
         "empty-fixture",
         [(suite.available, "-9900"), (destination, "9900")],
@@ -930,7 +931,7 @@ def test_model_schema_upgrade_preserves_existing_accounts_and_rejects_unknown_ve
     account = ledger.create_account(uid(), "user_available")
     raw(store, "UPDATE adc2_schema SET version=1 WHERE id=1")
     store.migrate_model()
-    assert store.one("schema_get")["version"] == VERSION == 9
+    assert store.one("schema_get")["version"] == VERSION == 10
     assert ledger.account(account)["balance_atoms"] == "0"
     raw(store, "UPDATE adc2_schema SET version=99 WHERE id=1")
     with pytest.raises(ContractError, match="model_schema_mismatch"):

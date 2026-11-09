@@ -24,8 +24,18 @@ BENEFITS = {
     str(uuid5(NAMESPACE_URL, "https://agentconcierge.biz/ad-coin/benefit/workspace-boost")): "workspace_boost",
 }
 
-# Account purposes that hold a person's points.
+# Account purposes that hold a person's points, and an advertiser's coins.
 PERSONAL_PURPOSES = frozenset(("user_available", "user_locked"))
+ADVERTISER_PURPOSES = frozenset(("advertiser_available",))
+
+# Coin economy (docs/AD_COIN_COIN_ECONOMY.md). Caps are code constants on purpose, not settings.
+ATOMS_PER_COIN = 1_000_000
+ISSUANCE_MONTHLY_CAP_ATOMS = 100_000 * ATOMS_PER_COIN        # new coins the platform may issue per UTC month
+PROVIDER_REWARD_MONTHLY_CAP_ATOMS = 1_000 * ATOMS_PER_COIN   # coins one provider may receive per UTC month
+ISSUANCE_ACCOUNT = str(uuid5(NAMESPACE_URL, "https://agentconcierge.biz/ad-coin/issuance"))
+GROWTH_ACCOUNT = str(uuid5(NAMESPACE_URL, "https://agentconcierge.biz/ad-coin/growth-budget"))
+REVENUE_ACCOUNT = str(uuid5(NAMESPACE_URL, "https://agentconcierge.biz/ad-coin/coin-revenue"))
+ECONOMY_KINDS = frozenset(("issuance", "grant", "sponsored_purchase", "growth_reward"))
 
 RULES = (
     "Points are earned by activity and cannot be bought.",
@@ -55,12 +65,27 @@ def require_platform_benefit(provider_id) -> None:
 
 
 def require_single_holder(kind, account_rows) -> None:
-    """In points mode one journal never moves points between two people."""
+    """In points mode coins never move between two people, or from a person to an advertiser."""
     if not points_mode():
         return
     holders = {row["owner_id"] for row in account_rows if row["purpose"] in PERSONAL_PURPOSES}
     if len(holders) > 1:
         raise ContractError("points_not_transferable", 403)
+    if holders and any(row["purpose"] in ADVERTISER_PURPOSES for row in account_rows):
+        raise ContractError("points_not_transferable", 403)
+
+
+def require_issuance_shape(changes) -> None:
+    """Issuance moves new coins from the issuance account into the growth budget, nowhere else."""
+    if set(changes) != {ISSUANCE_ACCOUNT, GROWTH_ACCOUNT} or changes[GROWTH_ACCOUNT] <= 0:
+        raise ContractError("invalid_issuance", 403)
+
+
+def month_start_ms(now_ms: int) -> int:
+    import datetime
+
+    moment = datetime.datetime.fromtimestamp(now_ms / 1000, tz=datetime.timezone.utc)
+    return int(moment.replace(day=1, hour=0, minute=0, second=0, microsecond=0).timestamp() * 1000)
 
 
 def rules() -> dict:
@@ -91,3 +116,16 @@ def expire_inactive_points(store, ledger, *, now_ms: int, limit: int = 200) -> i
                     [(row["id"], str(-amount)), (EXPIRED_POINTS_ACCOUNT, str(amount))], kind="expiry")
         expired += 1
     return expired
+
+
+def ensure_platform_accounts(ledger) -> None:
+    ledger.create_account(PLATFORM_OWNER, "external_clearing", account_id=ISSUANCE_ACCOUNT)
+    ledger.create_account(PLATFORM_OWNER, "platform_revenue", account_id=GROWTH_ACCOUNT)
+    ledger.create_account(PLATFORM_OWNER, "platform_revenue", account_id=REVENUE_ACCOUNT)
+
+
+def issue(ledger, amount_atoms: int, *, reason: str):
+    """Issue new coins into the growth budget, within ISSUANCE_MONTHLY_CAP_ATOMS (checked by the ledger)."""
+    ensure_platform_accounts(ledger)
+    return ledger.post("issuance:" + reason, [(ISSUANCE_ACCOUNT, str(-int(amount_atoms))),
+                                              (GROWTH_ACCOUNT, str(int(amount_atoms)))], kind="issuance")

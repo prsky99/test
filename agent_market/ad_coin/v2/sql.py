@@ -1,8 +1,8 @@
 """Closed statement catalog; identifiers never come from callers."""
 
 SQL = {
-    "schema_insert": "INSERT INTO adc2_schema VALUES (1,9,'model',0) ON CONFLICT(id) DO NOTHING",
-    "schema_upgrade": "UPDATE adc2_schema SET version=9 WHERE id=1 AND version IN (1,2,3,4,5,6,7,8) AND environment='model' AND real_value=0",
+    "schema_insert": "INSERT INTO adc2_schema VALUES (1,10,'model',0) ON CONFLICT(id) DO NOTHING",
+    "schema_upgrade": "UPDATE adc2_schema SET version=10 WHERE id=1 AND version IN (1,2,3,4,5,6,7,8,9) AND environment='model' AND real_value=0",
     "schema_get": "SELECT * FROM adc2_schema WHERE id=1",
     "asset_insert": "INSERT INTO adc2_assets VALUES ('model:aiac:v2','model',6) ON CONFLICT(id) DO NOTHING",
     "asset_get": "SELECT * FROM adc2_assets WHERE id=?",
@@ -221,6 +221,7 @@ SQL.update(
         "principal_epoch_bump": "UPDATE adc2_principals SET epoch=epoch+1 WHERE id=? RETURNING epoch",
         "audit_log_insert": "INSERT INTO adc2_audit_log VALUES (?,?,?,?,?,?,?,?,?,?)",
         "audit_log_recent": "SELECT * FROM adc2_audit_log ORDER BY timestamp_ms DESC LIMIT ?",
+        "issuance_month_total": "SELECT COALESCE(SUM(p.delta_atoms),0) AS total FROM adc2_postings p JOIN adc2_journals j ON j.id=p.journal_id AND j.asset_id=p.asset_id WHERE j.kind='issuance' AND p.asset_id=? AND p.account_id=? AND j.created_ms>=?",
         "points_inactive_accounts": "SELECT a.id,a.owner_id,a.balance_atoms FROM adc2_accounts a WHERE a.purpose='user_available' AND a.asset_id=? AND a.balance_atoms>0 AND NOT EXISTS (SELECT 1 FROM adc2_postings p JOIN adc2_journals j ON j.id=p.journal_id AND j.asset_id=p.asset_id WHERE p.account_id=a.id AND j.created_ms>=?) ORDER BY a.id LIMIT ?",
         "audit_log_prune": "DELETE FROM adc2_audit_log WHERE id IN (SELECT id FROM adc2_audit_log WHERE timestamp_ms<? ORDER BY timestamp_ms LIMIT ?)",
         "human_session_prune": "DELETE FROM adc2_human_sessions WHERE session_hash IN (SELECT session_hash FROM adc2_human_sessions WHERE COALESCE(revoked_at,expires_at)<? AND expires_at<? LIMIT ?)",

@@ -134,6 +134,10 @@
    "sha256": "a5cc9a393512d527b46b0ad4d1bc1659ab8814f94c40fe7bdad568dc7d9e497e"
   },
   {
+   "sql": "CREATE INDEX IF NOT EXISTS adc2_sponsored_bookings_day ON adc2_sponsored_bookings(day_ms, task_category, region, state)",
+   "sha256": "0e946ff085443e8cf519d30dd7916d5dad7acaea91ddff466270a6768ac74a66"
+  },
+  {
    "sql": "CREATE INDEX IF NOT EXISTS adc2_stage_claims_campaign ON adc2_stage_claims(campaign_id, stage_type)",
    "sha256": "4f1bae7d2cdf96bb8565f50ab22249d022f5752712c24d5b3995a36784c53330"
   },
@@ -364,6 +368,10 @@
   {
    "sql": "CREATE TABLE IF NOT EXISTS adc2_schema (id INTEGER PRIMARY KEY CHECK (id=1), version INTEGER NOT NULL, environment TEXT NOT NULL CHECK (environment='model'), real_value INTEGER NOT NULL CHECK (real_value=0))",
    "sha256": "913716b0db7fa9d0e3240b7a49e4720ab1075b2cb2425bb727bbde820470c118"
+  },
+  {
+   "sql": "CREATE TABLE IF NOT EXISTS adc2_sponsored_bookings (id TEXT PRIMARY KEY, advertiser_id TEXT NOT NULL REFERENCES adc2_advertisers(id), campaign_id TEXT NOT NULL REFERENCES adc2_campaigns(id), day_ms BIGINT NOT NULL CHECK (day_ms>=0 AND day_ms % 86400000 = 0), task_category TEXT NOT NULL, region TEXT NOT NULL, price_atoms NUMERIC NOT NULL CHECK (price_atoms>0 AND price_atoms=trunc(price_atoms)), journal_id TEXT NOT NULL REFERENCES adc2_journals(id), state TEXT NOT NULL CHECK (state IN ('booked','served','refunded')), refund_journal_id TEXT REFERENCES adc2_journals(id), created_ms BIGINT NOT NULL, UNIQUE(campaign_id, day_ms, task_category, region))",
+   "sha256": "b3d920bf77d0e3f14b9323ca255a0bd170427bfa5d5f4395c022967f38cc8327"
   },
   {
    "sql": "CREATE TABLE IF NOT EXISTS adc2_stage_claims (id TEXT PRIMARY KEY, offer_id TEXT NOT NULL REFERENCES adc2_offers(id), campaign_id TEXT NOT NULL, advertiser_id TEXT NOT NULL, owner_id TEXT NOT NULL, stage_type TEXT NOT NULL CHECK (stage_type IN ('click','feedback','watch_complete','conversion')), reward_atoms NUMERIC NOT NULL CHECK (reward_atoms >= 0), evidence_json TEXT NOT NULL, status TEXT NOT NULL CHECK (status IN ('claimed','verified','rejected','settled')), created_at BIGINT NOT NULL, settled_at BIGINT, UNIQUE(offer_id, stage_type))",
@@ -862,8 +870,8 @@
    "sha256": "777265dfae6b51d58723b647c0797ab226c1f1a27eb0332af7dd82042ad5d867"
   },
   {
-   "sql": "INSERT INTO adc2_schema VALUES (1,9,'model',0) ON CONFLICT(id) DO NOTHING",
-   "sha256": "7c19e146420d3e5b7ed231be4e17c2867e48482955251f4474d550f81e865d06"
+   "sql": "INSERT INTO adc2_schema VALUES (1,10,'model',0) ON CONFLICT(id) DO NOTHING",
+   "sha256": "75bf2baa74a1919c94686eb7dda0cebba9612709c868426966690e0585de4d9a"
   },
   {
    "sql": "INSERT INTO adc2_stage_claims VALUES (?+)",
@@ -1428,6 +1436,10 @@
   {
    "sql": "SELECT COALESCE(SUM(amount_won), 0) AS s FROM ad_coin_reservations WHERE campaign_id=? AND created_at>=? AND status IN ('reserved','awarded')",
    "sha256": "8174ce65088e89138d9dade89dc3093f61e11b41927152f57852f52d405661ed"
+  },
+  {
+   "sql": "SELECT COALESCE(SUM(p.delta_atoms),0) AS total FROM adc2_postings p JOIN adc2_journals j ON j.id=p.journal_id AND j.asset_id=p.asset_id WHERE j.kind='issuance' AND p.asset_id=? AND p.account_id=? AND j.created_ms>=?",
+   "sha256": "f6bb0f7cd549627816fae8296b599531a9edfac8d7e3c67dd75cdec2e300b856"
   },
   {
    "sql": "SELECT COUNT(*) AS count, COALESCE(SUM(value_atoms), 0) AS total_value FROM adc2_conversions WHERE campaign_id=?",
@@ -2166,8 +2178,8 @@
    "sha256": "f47b011dac963987c748212d9e2e889c692e3d984e174ea5f7b99b743490a6ec"
   },
   {
-   "sql": "UPDATE adc2_schema SET version=9 WHERE id=1 AND version IN (1,2,3,4,5,6,7,8) AND environment='model' AND real_value=0",
-   "sha256": "40a57936cb0d490b56fc98477c85e12e502462f74884de1b85e5363ec396ded6"
+   "sql": "UPDATE adc2_schema SET version=10 WHERE id=1 AND version IN (1,2,3,4,5,6,7,8,9) AND environment='model' AND real_value=0",
+   "sha256": "3c9720a69a506b8ea27bcbbf576955dd000fd8f08e5e1895edc2a1ecc2c2a5be"
   },
   {
    "sql": "UPDATE adc2_stage_claims SET status='settled',settled_at=? WHERE id=? AND status IN ('claimed','verified')",

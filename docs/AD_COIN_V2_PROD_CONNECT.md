@@ -8,7 +8,7 @@
 
 | # | 일 | 바뀌는 것 | 되돌리기 |
 |---|---|---|---|
-| A1 | 운영 PostgreSQL에 v2 표 만들기 | `adc2_` 표 53개, 색인 31개, 함수 5개, 트리거(원장 불변성 검사), 스키마 행 1개(`real_value=0`). 기존 표는 건드리지 않는다. 지우는 문장이 없다(`drops_or_deletes_data: false`) | 표를 지우는 것은 데이터 삭제라 별도 승인이 필요하다. 쓰지 않으면 비어 있을 뿐이다 |
+| A1 | 운영 PostgreSQL에 v2 표 만들기 | `adc2_` 표 54개(코인 경제의 Sponsored 예약 표 `adc2_sponsored_bookings` 포함), 색인 32개, 함수 5개, 트리거(원장 불변성 검사), 스키마 행 1개(`real_value=0`). 기존 표는 건드리지 않는다. 지우는 문장이 없다(`drops_or_deletes_data: false`) | 표를 지우는 것은 데이터 삭제라 별도 승인이 필요하다. 쓰지 않으면 비어 있을 뿐이다 |
 | A2 | v2 켜기 | frontend 설정에 `AD_COIN_V2_ENABLED=1`을 넣고, 처음에는 `AD_COIN_V2_POOL_MAXIMUM=2`로 시작한다 | 설정을 지우고 다시 배포 |
 | A3 | 운영 설정 허용 목록 바꾸기 | `scripts/agentcon_config.ALLOWED_KEYS`에 `AD_COIN_V2_ENABLED`, `AD_COIN_V2_POOL_MAXIMUM`, `AD_COIN_V2_KEY_DIR`를 추가한다(공용 파일이라 운영·SRE와 조율) | 코드 되돌리기 |
 
@@ -28,7 +28,7 @@
 
 - `plan`은 DB에 연결하지 않고 만들 것만 보여 준다.
 - `migrate`는 `--i-have-approval`이 없으면 거부한다. 여러 번 실행해도 결과가 같다. 연결은 하나만 쓴다.
-- 시험: `tests/test_ad_coin_v2_migrate_script.py`. 빈 DB에서 상태 확인 → 두 번 migrate → 표 53개, 스키마 9, `real_value=0`.
+- 시험: `tests/test_ad_coin_v2_migrate_script.py`. 빈 DB에서 상태 확인 → 두 번 migrate → 표 54개, 스키마 10, `real_value=0`.
 
 ## 2. 연결 예산 (운영 DB `max_connections` 48)
 

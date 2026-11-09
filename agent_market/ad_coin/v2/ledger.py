@@ -5,7 +5,8 @@ import time
 from uuid import UUID, uuid4
 
 from .contracts import ContractError, MAX_ATOMS, MODEL_ASSET, digest
-from .points import require_single_holder
+from .points import (ISSUANCE_ACCOUNT, ISSUANCE_MONTHLY_CAP_ATOMS, month_start_ms, require_issuance_shape,
+                     require_single_holder)
 from .store import signed_atoms
 
 PURPOSES = frozenset(
@@ -33,6 +34,10 @@ KINDS = frozenset(
         "payment",
         "refund",
         "expiry",
+        "issuance",
+        "grant",
+        "sponsored_purchase",
+        "growth_reward",
     )
 )
 
@@ -166,6 +171,13 @@ class ModelLedger:
                     )
                 ):
                     raise ContractError("invalid_model_seed", 409)
+            elif kind == "issuance":
+                require_issuance_shape(changes)
+                self.store.lock("1:issuance_cap:" + asset_id)
+                now_ms = int(time.time() * 1000)
+                issued = self.store.one("issuance_month_total", (asset_id, ISSUANCE_ACCOUNT, month_start_ms(now_ms)))
+                if -int(issued["total"]) - changes[ISSUANCE_ACCOUNT] > ISSUANCE_MONTHLY_CAP_ATOMS:
+                    raise ContractError("issuance_monthly_cap_exceeded", 409)
             elif clearing:
                 raise ContractError("clearing_requires_model_fixture", 403)
             journal_id = str(uuid4())
