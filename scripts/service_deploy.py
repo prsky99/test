@@ -877,13 +877,19 @@ class Deployment:
             return self.status()
 
     def restart_web(self, role='all'):
-        release = time.strftime('web-%Y%m%d-%H%M%S') + '-' + secrets.token_hex(2)
-        with self.lock():
-            self.package(release)
+        """Start each web role's active release again in its other slot and switch to it.
+
+        11-10: restart used to package the working tree (other sessions' uncommitted edits included)
+        and deploy that; only a dependency check stopped it. A restart now never changes code: the
+        active release is redeployed as it is (its base is its own predecessor, so the base check
+        is skipped for this same-release case)."""
         results = []
         for target in (('frontend', 'admin') if role == 'all' else (role,)):
-            results.append(self.deploy(target, release))
-        return {'deployments': results, 'workers_restarted': False}
+            service = self.state()['services'][target]
+            slot = service['slots'][service['active']]
+            release = slot['release'] if isinstance(slot, dict) else slot
+            results.append(self.deploy(target, release, force_base=True))
+        return {'deployments': results, 'workers_restarted': False, 'packaged': False}
 
     def managed_start(self):
         with self.lock():

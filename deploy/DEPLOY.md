@@ -166,3 +166,11 @@ frontend·admin 배포는 이전 칸(직전 버전 프로세스)을 남겨 즉�
   - `retained_at`이 없는 예전 배포의 이전 칸은 건드리지 않는다.
 - **되돌리기 시간**: 30분 안에는 즉시(프록시 전환만)다. 30분이 지나면 `./agentcon rollback <역할>`이 이전 칸을 다시 띄우고 준비를 확인한 뒤 전환하므로 **수십 초가 걸린다**(frontend 시작·준비 약 20~40초).
 - 시험: `tests/test_service_deploy_shared_env.py`(회수 시점, 상태 유지, 배포 중 건너뜀)
+
+## restart는 코드를 바꾸지 않는다 (2026-11-10)
+- 예전에는 `./agentcon restart`가 **작업본을 새 버전으로 패키징해 배포**했다. 다른 세션의 미커밋 변경도 함께 들어갔다. 11-10에는 의존성 검사에 막혀 다행히 배포되지 않았다.
+- 지금은 각 역할(frontend·admin)의 **운영 중인 버전을 반대 칸에 그대로 다시 띄우고 전환**한다. 패키징하지 않는다.
+  - 같은 버전을 다시 띄우는 것이라 기준 버전 검사는 건너뛴다(`force_base`).
+  - 이전 칸은 30분 뒤 회수된다.
+- 코드를 바꾸려면 restart가 아니라 운영 중인 버전 위에 겹쳐 패키징하고(`package --base`), 게이트를 통과시킨 뒤 `deploy`한다.
+- 시험: `tests/test_service_deploy_shared_env.py::test_restart_redeploys_the_active_release_and_never_packages_the_working_tree`

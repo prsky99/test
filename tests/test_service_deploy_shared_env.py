@@ -126,3 +126,17 @@ def test_rollback_starts_a_stopped_previous_slot_again():
     import inspect
     source = inspect.getsource(Deployment.rollback)
     assert 'if not self.pid(role, new):' in source and 'self.start(role, new' in source
+
+
+def test_restart_redeploys_the_active_release_and_never_packages_the_working_tree(tmp_path):
+    """11-10: restart packaged the working tree, uncommitted edits of other sessions included."""
+    manager = Reclaim(tmp_path, _state(retained_at=0.0))
+    calls = []
+    manager.package = lambda *a, **k: calls.append(('package', a))
+    manager.deploy = lambda role, release, force_base=False: calls.append(('deploy', role, release, force_base)) or {'service': role}
+    result = manager.restart_web()
+    assert calls == [('deploy', 'frontend', 'f-new', True), ('deploy', 'admin', 'a-new', True)]
+    assert result['packaged'] is False
+    calls.clear()
+    manager.restart_web('admin')
+    assert calls == [('deploy', 'admin', 'a-new', True)]
