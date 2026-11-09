@@ -75,54 +75,69 @@ TASKS = {
 
 # Task pages built from the evidence catalog alone (11-10): phrases that recur in the names and
 # descriptions of agents with recorded evidence. 'title|term' when the listing wording differs
-# from the page title. A page needs CATALOG_MIN listings that contain the term as a phrase.
+# from the page title. A page needs CATALOG_MIN listings that contain the term as a phrase in the
+# name or the opening of the description (LEAD characters), within the matches' main category.
+# Phrases whose matches were reviewed and found mixed (e.g. 'base64', 'crm', 'gas price') are left out.
 CATALOG_TASKS = {
-    'Weather, maps and travel': [
-        'weather alerts', 'latitude longitude lookup|latitude longitude', 'earthquake data|earthquakes',
-        'wildfire data|wildfire', 'space weather', 'moon phase', 'google maps', 'places search',
+    'Weather, maps and travel': [ 'earthquake data|earthquakes',
+        'wildfire data|wildfire', 'space weather', 'moon phase', 'places search',
         'local business search|local business', 'restaurant recommendations|restaurants', 'flight prices',
-        'concert tickets|concerts'],
+        'concert tickets|concerts',
+        'tide predictions|tide', 'airport information|airport', 'aviation weather|metar', 'flood risk|flood', 'elevation data|elevation', 'census geocoding|census'],
     'Search and web': [
-        'clean markdown', 'llms txt', 'robots txt check|robots txt', 'link preview', 'web scraping', 'headless browser',
-        'page screenshot|screenshot', 'web archive', 'google search', 'x search', 'fact check', 'wikipedia summary',
+        'clean markdown', 'llms txt', 'robots txt check|robots txt', 'link preview', 'web scraping', 'headless browser', 'google search', 'x search', 'fact check', 'wikipedia summary',
         'schema org markup|schema org', 'seo audit', 'ai visibility', 'ai crawler access|ai crawler', 'domain check',
-        'domain age', 'domain availability', 'whois lookup|whois', 'subdomain discovery|subdomain', 'dns records',
+        'domain age', 'domain availability', 'whois lookup|whois', 'dns records',
         'mx records', 'tls certificate', 'security headers check', 'status page', 'app store data|app store',
         'youtube transcript', 'youtube channel', 'linkedin profile', 'social posts', 'instagram posts',
-        'brand mentions', 'influencer search|influencer'],
+        'brand mentions', 'influencer search|influencer',
+        'open graph metadata|open graph', 'redirect chain check|redirect chain'],
     'Developer tools': [
         'npm package', 'package version', 'known vulnerabilities', 'cisa kev', 'github repo', 'json schema',
-        'regex tools|regex', 'uuid generator|uuid', 'base64 encoding|base64', 'cron expression', 'terraform',
-        'license check', 'mcp tools', 'tool search', 'chat completions', 'llm inference', 'llm pricing', 'ai models',
-        'text to image', 'semantic search', 'knowledge graph'],
+        'regex tools|regex', 'uuid generator|uuid', 'cron expression', 'terraform',
+        'license check', 'tool search', 'chat completions', 'llm inference', 'llm pricing',
+        'text to image', 'semantic search', 'knowledge graph',
+        'jwt decode|jwt', 'rerank'],
     'Data and databases': [
-        'barcode lookup|barcode', 'word count', 'business days'],
+        'barcode lookup|barcode', 'word count', 'business days',
+        'iban validation|iban', 'email validation', 'isin lookup|isin', 'exif metadata|exif'],
     'Documents and knowledge': [
         'translation services|translation', 'research papers', 'semantic scholar', 'academic papers',
         'literature review'],
-    'Finance and crypto': [
-        'market data', 'open interest', 'funding rates', 'hyperliquid', 'xrpl', 'crypto market', 'crypto news',
-        'prediction markets', 'gas price', 'wallet balance', 'base tokens', 'fear and greed index', 'insider trades',
-        'sec edgar filings', 'public company', 'company profile', 'company data', 'price history', 'exchange rates',
+    'Finance and crypto': [ 'open interest', 'funding rates', 'hyperliquid', 'xrpl', 'crypto market', 'crypto news',
+        'prediction markets', 'wallet balance', 'base tokens', 'fear and greed index', 'insider trades',
+        'sec edgar filings', 'public company', 'company profile', 'exchange rates',
         'inflation data|inflation', 'gdp data|gdp', 'unemployment data|unemployment', 'interest rates', 'us treasury',
         'mortgage rates', 'income tax', 'sales tax', 'withholding tax', 'tax rates', 'minimum wage', 'payroll',
-        'bookkeeping', 'accounting'],
-    'Commerce and marketing': [
-        'crm', 'email verification', 'email finder', 'email deliverability', 'product recalls', 'real estate',
-        'property check', 'supply chain', 'due diligence', 'job postings'],
+        'bookkeeping', 'accounting',
+        'earnings calendar', 'order book', 'polymarket', 'kalshi'],
+    'Commerce and marketing': [ 'email finder', 'product recalls',
+        'property check', 'supply chain', 'job postings',
+        'tariff codes|tariff'],
     'Health, science and education': [
         'nutrition', 'calorie counting|calories', 'fitness', 'mental health', 'icd 10 codes|icd 10', 'astrology',
-        'recipes'],
+        'recipes',
+        'medicare data|medicare', 'bible verses|bible', 'tarot'],
     'Security and operations': [
-        'ip reputation', 'ofac sanctions', 'identity verification', 'agent trust', 'agent reputation',
-        'security audit'],
-    'Public data and legal': [
-        'federal register', 'official legislation', 'court records', 'vat number validation', 'esg data|esg',
-        'country data'],
+        'ip reputation', 'identity verification', 'agent trust', 'agent reputation',
+        'url safety check|url safety', 'phishing detection|phishing', 'epss scores|epss', 'pii redaction', 'prompt injection detection|prompt injection'],
+    'Public data and legal': [ 'official legislation', 'court records', 'vat number validation', 'esg data|esg',
+        'country data',
+        'lei lookup'],
     'Agents and AI models': [
-        'agent discovery', 'agent card', 'agent registry', 'a2a agents', 'x402 payments'],
+        'agent discovery', 'agent card', 'a2a agents', 'x402 payments',
+        'erc 8004 agents|erc 8004', 'agent identity'],
 }
 CATALOG_MIN = 3
+LEAD = 60
+EXCLUDED_FALLBACK = {'log analysis'}  # catalog matches describe IP lookups, not log analysis
+_PURPOSE_PREFIX = re.compile(r'^(?:use (?:this )?when|call this when|use for)\b[^:]{0,80}?\b(?:needs?|wants?) (?:to )?', re.I)
+
+
+def lead(item):
+    """Name plus the opening of the description, where a listing says what it is for."""
+    description = _PURPOSE_PREFIX.sub('', str(item.get('description') or ''))
+    return {'name': item.get('name'), 'description': description[:LEAD]}
 
 
 def phrase_match(term, item):
@@ -146,14 +161,22 @@ def catalog_tasks(tasks, catalog, now=None):
         slug = slugify(title)
         if slug in done:
             return
-        agents = [a for a in ranked if phrase_match(term, a)][:MAX_AGENTS]
+        matches = [a for a in ranked if phrase_match(term, lead(a))]
+        if not matches:
+            return
+        counts = {}
+        for a in matches:
+            counts[a.get('category')] = counts.get(a.get('category'), 0) + 1
+        main = max(counts, key=lambda c: (counts[c], c is not None, str(c)))
+        agents = [a for a in matches if a.get('category') == main][:MAX_AGENTS]
         if len(agents) >= minimum:
             done.add(slug)
             added.append({'slug': slug, 'title': title[:1].upper()+title[1:], 'query': query, 'group': group, 'agents': agents})
 
     for group, phrases in TASKS.items():
         for phrase in phrases:
-            add(group, phrase, phrase, MIN_AGENTS, phrase)
+            if phrase not in EXCLUDED_FALLBACK:
+                add(group, phrase, phrase, MIN_AGENTS, phrase)
     for group, entries in CATALOG_TASKS.items():
         for entry in entries:
             title, _, term = entry.partition('|')

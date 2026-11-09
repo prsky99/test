@@ -150,3 +150,17 @@ def test_site_verification_files_are_served_only_in_console_format(client):
     assert c.get('/googleabcdefgh12345678.html').status_code == 404  # no file
     assert c.get('/google..%2Fx.html').status_code == 404
     assert g.site_verification('../BingSiteAuth.xml', lambda: folder) is None
+
+
+def test_catalog_matching_uses_the_listing_lead_and_main_category(monkeypatch):
+    monkeypatch.setattr(tc, 'TASKS', {'Search and web': []})
+    monkeypatch.setattr(tc, 'CATALOG_TASKS', {'Search and web': ['google search']})
+    catalog = [cleaned(1, 'Serp A', 'Google Search results as JSON.', category='web_search'),
+               cleaned(2, 'Serp B', 'Use when an agent needs Google search results for a query.', category='web_search'),
+               cleaned(3, 'Serp C', 'Google search organic results and snippets.', category='web_search'),
+               cleaned(4, 'Ad mockups', 'Preview ads for Facebook, YouTube, Display and also Google Search.', category='commerce_marketing'),
+               cleaned(5, 'Ad costs', 'Google Search CPC benchmarks.', category='commerce_marketing')]
+    task = tc.catalog_tasks([], catalog)[0]
+    # 4: the phrase is past the opening of the description; 5: outside the matches' main category
+    assert [a['id'] for a in task['agents']] == [1, 2, 3]
+    assert tc.lead({'name': 'n', 'description': 'Use when an agent needs Google search results'})['description'].startswith('Google search')
