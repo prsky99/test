@@ -62,6 +62,10 @@ GATEWAY_DB=gateway-data/collector.sqlite3 .venv/bin/python -m agent_market.gatew
 - 남의 서버에 자격 증명·결제를 보내지 않는다.
 - 파괴적 도구는 호출하지 않는다. 시험 호출은 읽기 전용만.
 - 사설 주소는 막는다(`check_public_url`).
+- 팀 사이 조율은 `logs/ops/status-board.md`(운영 현황판)로 한다(11-10 사용자 결정).
+  - 작업·배포 전에 읽는다.
+  - 운영 중인 버전, 배포 잠금, 고치는 파일, 넘기는 일을 여기에 적는다.
+  - 세션 메시지는 결정·승인·긴급일 때만 쓴다(사용자 입력 없이 10건 한도).
 - 운영 DB 구조 변경(표·인덱스·트리거·함수·마이그레이션 도구)은 아래 순서를 지킨다(11-10 05:38 트리거 장애, `deploy/DATABASE_OPERATIONS.md`).
   1. `scripts.db_change_rehearsal run`으로 사본에서 운영 버전 연결까지 통과시킨다.
   2. 복구 SQL을 준비한다.
