@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 from agent_market.agent_access import pages
+from tests.test_fast_single_recommendation import catalog  # noqa: F401
 
 
 def _fake(monkeypatch, behaviour):
@@ -103,3 +104,67 @@ def test_route_uses_the_cached_builder():
     from pathlib import Path
     source = (Path(pages.__file__).parent / 'service.py').read_text(encoding='utf-8')
     assert 'run_in_threadpool(cached_category_page,front,category)' in source
+
+
+def test_failed_public_probe_logs_whether_the_origin_answered(caplog):
+    import httpx
+    from agent_market.public_availability import AvailabilityMonitor
+    seen = []
+
+    def local(request):
+        seen.append((str(request.url), request.headers['host']))
+        return httpx.Response(200, json={'service': 'Agent Concierge'})
+    with httpx.Client(transport=httpx.MockTransport(local)) as http:
+        monitor = AvailabilityMonitor(SimpleNamespace(public_url='https://agentconcierge.biz'), local_http=http)
+        with caplog.at_level('WARNING'):
+            assert monitor.record_origin(None, 5002.0) == 'path'
+    assert seen == [('http://127.0.0.1:8400/status.json', 'agentconcierge.biz')]
+    assert 'path problem' in caplog.text
+
+    with httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(503))) as http:
+        monitor = AvailabilityMonitor(SimpleNamespace(public_url='https://agentconcierge.biz'), local_http=http)
+        assert monitor.record_origin(None, 5002.0) == 'origin'
+
+
+def test_public_status_rows_are_unchanged_by_the_origin_check(catalog):
+    import httpx
+    from agent_market.public_availability import AvailabilityMonitor, projection
+    store = catalog[0]
+    asked = []
+    with httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(503))) as public, \
+         httpx.Client(transport=httpx.MockTransport(lambda r: asked.append(1) or httpx.Response(200))) as local:
+        monitor = AvailabilityMonitor(SimpleNamespace(store=store, public_url='https://agentconcierge.biz'),
+                                      http=public, local_http=local, clock=lambda: 1794200000.0)
+        monitor.run()
+    value = projection(store, 1794200000.0)
+    assert asked == [1] and value['availability']['observation_count'] == 1
+    assert value['availability']['availability_percent'] == 0 and value['status'] == 'degraded'
+
+
+def test_snapshot_refresh_stops_when_the_slot_turns_standby(monkeypatch):
+    from agent_market.concierge import report_snapshot
+    stop = threading.Event()
+    serving = [True]
+    halt = report_snapshot._UntilStandby(stop, lambda: serving[0], clock=lambda: clock[0])
+    clock = [0.0]
+    assert halt.is_set() is False
+    serving[0] = False
+    clock[0] += 1
+    assert halt.is_set() is False  # checked at most every CHECK_SECONDS
+    clock[0] += report_snapshot._UntilStandby.CHECK_SECONDS
+    assert halt.is_set() is True and halt.standby is True
+
+
+def test_start_build_always_runs_and_later_refreshes_use_the_standby_stop(monkeypatch):
+    from agent_market.concierge import report_snapshot
+    stop, calls = threading.Event(), []
+
+    def refresh(store, halt):
+        calls.append(halt)
+        if len(calls) == 2:
+            stop.set()
+        return None
+    monkeypatch.setattr(report_snapshot, 'refresh', refresh)
+    monkeypatch.setattr(report_snapshot, 'STANDBY_CHECK_SECONDS', 0)
+    report_snapshot.keep_fresh(object(), stop, interval=0, serving=lambda: True)
+    assert calls[0] is stop and isinstance(calls[1], report_snapshot._UntilStandby)

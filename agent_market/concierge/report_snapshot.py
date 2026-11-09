@@ -263,12 +263,35 @@ def keep_fresh(store, stop, interval=REFRESH_SECONDS, serving=None):
         snapshot = _snapshots.get(id(store))
         due = snapshot is None or time.time() - snapshot.built_at >= interval
         if first or due and _serving(serving):
+            # The start build always finishes (a slot about to be activated needs it); a refresh
+            # stops when a deploy makes this slot standby, so the old and the new slot do not both
+            # read every report for minutes (11-09: five deploys in 70 minutes, builds overlapped).
+            halt = stop if first else _UntilStandby(stop, serving)
             first = False
             try:
-                refresh(store, stop)
+                if refresh(store, halt) is None and halt.standby:
+                    log.info('Report snapshot refresh stopped: this slot is no longer serving')
             except Exception:
                 log.warning('Report snapshot refresh failed', exc_info=False)
         stop.wait(STANDBY_CHECK_SECONDS)
+
+
+class _UntilStandby:
+    """A stop flag for build(): set by STOP, or once SERVING() turns false (checked every few seconds)."""
+    CHECK_SECONDS = 5
+
+    def __init__(self, stop, serving, clock=time.monotonic):
+        self.stop, self.serving, self.clock = stop, serving, clock
+        self.checked, self.standby = None, False
+
+    def is_set(self):
+        if self.stop.is_set():
+            return True
+        now = self.clock()
+        if self.checked is None or now - self.checked >= self.CHECK_SECONDS:
+            self.checked = now
+            self.standby = not _serving(self.serving)
+        return self.standby
 
 
 def _serving(serving):

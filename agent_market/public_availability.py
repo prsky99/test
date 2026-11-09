@@ -1,4 +1,6 @@
 """Measured public reachability and bounded conversation-retention maintenance."""
+import logging
+import os
 import time
 from contextlib import closing
 from urllib.parse import urlsplit
@@ -6,11 +8,12 @@ from urllib.parse import urlsplit
 from .concierge.http_security import bounded_client, outbound_operation
 
 WINDOW_DAYS=30
+log=logging.getLogger(__name__)
 
 
 class AvailabilityMonitor:
-    def __init__(self,front,*,clock=time.time,http=None):
-        self.front,self.clock,self.http=front,clock,http
+    def __init__(self,front,*,clock=time.time,http=None,local_http=None):
+        self.front,self.clock,self.http,self.local_http=front,clock,http,local_http
         self.next_check=0
     def due(self):return self.clock()>=self.next_check
     def run(self):
@@ -31,9 +34,29 @@ class AvailabilityMonitor:
             # Network failures become failed observations; never a fabricated success.
             pass
         latency=round((time.monotonic()-started)*1000,1)
+        if not ok:self.record_origin(status,latency)
         with self.front.store.tx() as db:
             db.execute('INSERT INTO public_availability_checks (checked_at,ok,status_code,latency_ms) VALUES (?,?,?,?)',(now,int(ok),status,latency))
             db.execute('DELETE FROM public_availability_checks WHERE checked_at<?',(now-WINDOW_DAYS*86400,))
+
+
+    def record_origin(self,status,latency):
+        """Internal log only: ask the local proxy the same question, to tell an origin problem
+        from a network-path problem (Cloudflare edge and tunnel). The public status is unchanged."""
+        origin=os.environ.get('AVAILABILITY_LOCAL_ORIGIN','http://127.0.0.1:8400')
+        local=None;started=time.monotonic()
+        try:
+            host=urlsplit(self.front.public_url or 'https://agentconcierge.biz').hostname or 'agentconcierge.biz'
+            with outbound_operation(3),closing(bounded_client(self.local_http,timeout=3,allow_private=True)) as client:
+                local=client.get(origin.rstrip('/')+'/status.json',
+                                 headers={'User-Agent':'AgentConciergeAvailability/1.0','Host':host}).status_code
+        except Exception:
+            pass
+        local_ms=round((time.monotonic()-started)*1000,1)
+        verdict='origin' if local!=200 or local_ms>=3000 else 'path'
+        log.warning('Public availability check failed (status %s, %.0f ms); local origin %s in %.0f ms -> %s problem',
+                    status,latency,local,local_ms,verdict)
+        return verdict
 
 
 class ConversationRetention:
