@@ -474,3 +474,11 @@
 - 감사 로그는 저장하기 전에 IP를 IPv4 /24, IPv6 /48로 자르고, 브라우저 정보는 browser·mobile_browser·automated·other 분류로 바꿔 저장한다. 지금까지 IP·UA를 넘기는 코드는 없었지만 함수가 원문을 받을 수 있었다.
 - 보존: 감사 로그 90일, 끝난 세션·에이전트 토큰·심사자 자격 30일. 작업자 데몬이 1시간마다 500건씩 삭제. 삭제 SQL 4개를 등록 목록에 추가(scripts.ad_coin_sql_registry --add-v2, 540개).
 - 시험 15개 추가, AD Coin 시험 347개 통과. 남은 것: 노출 증거·동의·전환의 보존 기간.
+
+## 2026-11-09 성장·유통 2차: 공격적 성장 지시 반영
+- 배포: frontend `growth-frontend-20261109-r3`(22:0x, 바탕 latency-frontend-r2, 게이트 118 통과), jobs `growth-jobs-20261109-r1`(바탕 collector-scavenger-jobs-r1, 해당 시험 4통과·1건너뜀, `worker-deploy`). Chat·탐색 로직·정책 해시 파일 변경 없음.
+- 새 공개 페이지(`concierge/growth_catalog.py`): 에이전트 페이지 `/agent/{id}` 8,931쪽, 카테고리·프로토콜 순위 `/agents/best/...` 80쪽(순위 기준을 페이지에 공개, 돈으로 순위를 살 수 없음 명시), 비교 `/agents/compare/a-vs-b` 293쪽(공개 순위의 이웃끼리만, "어느 쪽이 낫다"고 말하지 않음), 월간 보고서 `/reports/state-of-ai-agents`(서버 SVG 차트, 수치는 하한), 배지 안내 `/badges`, 증거 카드 `/agent/{id}/card.svg`. 사이트맵 130→9,436. 운영 응답 0.9~2.4초(한국 왕복 포함).
+- 스냅샷: 공개 API로 카탈로그 수집(카테고리 20×프로토콜 3×실행 점검 여부, 각 300개 창) → 근거 있는 에이전트 8,931개. 매일 갱신은 jobs 유지보수 칸에서 KST 03~07시, 20초 조각으로 내부 저장소를 직접 검색(`task_pages_job.py`, PM 결정). 운영 PG 경로는 첫 실행(11-10 03시) 로그 "Task page snapshot"으로 확인 필요.
+- IndexNow: 키 파일·`/<key>.txt` 제공·`scripts/indexnow_submit.py`(기본 미리보기, 9,436 URL, key_served true). 전송은 승인 대기.
+- 등록 제출물 `deploy/distribution/SUBMISSIONS.md`(공식 Registry·mcpservers.org·awesome-remote-mcp-servers PR·mcp.so·MCP Market·Glama·A2A 2곳, 아이콘), 통합 초안 `integrations/`(Claude Code 플러그인 validate 통과, PyPI·npm 패키지 시험 통과), 런칭 글 5~14번 추가. 모두 게시 승인 대기.
+- 발견: 실제 플러그인 검증기는 marketplace 최상위 description을 거부(metadata.description 사용). jobs 로그의 VectorError database_error는 이전 판에도 151건 있던 기존 문제. release_gate를 jobs 릴리스에 돌리면 활성 frontend와 비교해 Chat 평가 100건을 돌리므로 `--skip-chat`이 필요.
