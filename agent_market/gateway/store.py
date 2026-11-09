@@ -1745,10 +1745,14 @@ class Store:
             if auth_observed is not None and (bool(auth_observed) or row['auth_scope'] != 'tool'):
                 self._supersede_observation(db, rid, 'auth', now)
                 db.execute("UPDATE resources SET auth_observed=? WHERE id=?", (int(auth_observed), rid))
-            # A dynamic-price provider answers an empty probe with amount 0 (x402 32172, 109666,
-            # 9573 on 2026-11-10): that is not a free listing, so a 0 quote never replaces a price.
-            price_changed = (observed_price is not None and observed_price != row["price_usdc"]
-                             and not (observed_price == 0 and (row["price_usdc"] or 0) > 0))
+            # A 402 challenge asking for 0 means payment is required but the amount is not known
+            # (dynamic-price APIs answer an empty probe with 0: x402 32172, 109666, 9573 on
+            # 2026-11-10). It keeps a stored price, and is stored as unknown (NULL), never as free.
+            if observed_price == 0:
+                observed_price = None if row["price_usdc"] == 0 else row["price_usdc"]
+                price_changed = row["price_usdc"] == 0
+            else:
+                price_changed = observed_price is not None and observed_price != row["price_usdc"]
             if price_changed:
                 self.record_observed_quote(rid, observed_price, observed_pay_to)
         return {"status": status, "previous": row["health_status"], "consecutive_failures": failures, "failing_since": failing_since,
@@ -1756,7 +1760,7 @@ class Store:
 
     def record_observed_quote(self, rid, amount, pay_to=None):
         """Apply a provider quote through registry hashing, separately from reachability state."""
-        if type(amount) is not int or not 0 <= amount < 2**63:
+        if amount is not None and (type(amount) is not int or not 0 <= amount < 2**63):
             raise ValueError('Invalid observed quote.')
         with self.tx() as db:
             row = db.execute('SELECT * FROM resources WHERE id=?', (rid,)).fetchone()

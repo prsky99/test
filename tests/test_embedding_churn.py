@@ -148,3 +148,23 @@ def test_a_zero_quote_from_a_dynamic_price_api_keeps_the_listed_price(tmp_path):
     # A real positive quote still replaces the listed price.
     store.record_health(rid, 'healthy', 402, 10, None, time.time() + 3600, observed_price=20000)
     assert store.resource(rid)['price_usdc'] == 20000
+
+
+def test_a_zero_quote_without_a_listed_price_is_stored_as_unknown_not_free(tmp_path):
+    import time
+    from agent_market.gateway.crawler import parse_x402_item
+    store = Store(str(tmp_path / 'unknown.sqlite3'))
+    row = {'key': 'x402:https://pay.example/dyn', 'source': 'x402-bazaar', 'kind': 'x402',
+           'url': 'https://pay.example/dyn', 'name': 'Dynamic scorer', 'description': 'Prices per batch',
+           'category': 'data_utility', 'networks': ['base'], 'price_usdc': 0, 'details': {}}
+    rid = store.upsert_resource(row, now=10)
+    store.record_health(rid, 'healthy', 402, 10, None, time.time() + 3600, observed_price=0)
+    assert store.resource(rid)['price_usdc'] is None
+    store.record_health(rid, 'healthy', 402, 10, None, time.time() + 3600, observed_price=0)
+    assert store.resource(rid)['price_usdc'] is None  # stays unknown
+    usdc = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+    item = {'resource': 'https://pay.example/dyn', 'accepts': [
+        {'network': 'eip155:8453', 'asset': usdc, 'amount': '0', 'payTo': '0xabc'}]}
+    assert parse_x402_item(item)['price_usdc'] is None
+    item['accepts'][0]['amount'] = '5000'
+    assert parse_x402_item(item)['price_usdc'] == 5000

@@ -282,7 +282,9 @@ class AgentNurtureEngine:
         lines = []
         for idx, t in enumerate(tools, 1):
             auth_str = "Zero Auth" if not t.get("auth_required") else "Auth Required"
-            price_str = "Free" if not t.get("price_usdc") else f"${t['price_usdc'] / 1e6:.4f} USDC"
+            price = t.get("price_usdc")
+            price_str = (f"${price / 1e6:.4f} USDC" if price else "Price on request"
+                         if price is None and t.get("kind") == "x402" else "Free")
             desc = (t.get("description") or "Verified autonomous capability.")[:120].strip()
             grade_str = f"Grade {t.get('grade')}" if t.get("grade") else "Verified Live"
             score_str = f"Score: {t.get('score', 0):.2f}" if t.get("score") else "Active Telemetry"

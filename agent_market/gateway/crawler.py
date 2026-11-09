@@ -89,7 +89,7 @@ def parse_x402_item(item: dict) -> dict | None:
         "description": description,
         "category": classify(f"{name} {description}"),
         "networks": sorted(networks),
-        "price_usdc": best[0] if best else None,
+        "price_usdc": (best[0] or None) if best else None,  # a 402 asking for 0: amount unknown, not free
         "pay_to": best[1] if best else None,
         "method": (info.get("input") or {}).get("method"),
         "details": {"accepts": accepts[:4], "input": info.get("input"), "x402Version": item.get("x402Version")},
