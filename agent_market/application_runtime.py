@@ -9,6 +9,11 @@ from dataclasses import dataclass, field
 import os
 import stat
 
+# libpq warns on every connection when the passfile exists but is not a plain file
+# ("/dev/null"). A path under /dev/null can never exist or be created by anyone,
+# so libpq skips it silently and no password file is ever read.
+_ABSENT_PASSFILE = os.path.join(os.devnull, 'no-password-file')
+
 # Pooled sessions unused this long are closed. A busy active slot keeps its sessions;
 # a retained standby slot releases them within about five minutes.
 IDLE_SESSION_SECONDS = 300
@@ -97,7 +102,7 @@ def _connect(dsn):
     options.setdefault('sslrootcert', 'system')
     options.setdefault('sslcert', '')
     options.setdefault('sslkey', '')
-    return psycopg.connect(**options, passfile=os.devnull,
+    return psycopg.connect(**options, passfile=_ABSENT_PASSFILE,
         options='', application_name='agent-concierge', connect_timeout=5,
         sslmode='verify-full', gssencmode='disable', target_session_attrs='read-write', autocommit=True)
 

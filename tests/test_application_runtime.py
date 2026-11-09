@@ -173,3 +173,16 @@ def test_actual_native_service_backend_and_persistent_writer_rollback():
     assert not result['provisional_catalog']
     assert result['operating_database_writes'] == result['external_provider_calls'] == 0
     assert not result['operating_cutover'] and not result['external_ha_dr_acceptance']
+
+
+def test_absent_passfile_can_never_exist_so_libpq_stays_quiet():
+    # "/dev/null" made libpq print 'password file "/dev/null" is not a plain file'
+    # on every connection; a path under /dev/null fails stat and is skipped silently.
+    import os
+    import pytest
+    from agent_market import application_runtime
+    assert application_runtime._ABSENT_PASSFILE.startswith(os.devnull + os.sep)
+    with pytest.raises(NotADirectoryError):
+        os.stat(application_runtime._ABSENT_PASSFILE)
+    source = open(application_runtime.__file__, encoding='utf-8').read()
+    assert 'passfile=os.devnull' not in source

@@ -14,7 +14,7 @@ import tarfile
 import time
 
 from scripts.agentcon_config import read_settings
-from agent_market.application_runtime import _private_bytes, _connect
+from agent_market.application_runtime import _ABSENT_PASSFILE, _private_bytes, _connect
 
 
 def snapshot(destination, settings_file, resume=False):
@@ -34,7 +34,7 @@ def snapshot(destination, settings_file, resume=False):
     if not dump or not restore:
         raise ValueError('postgres_backup_tools_required')
     environment = {k: v for k, v in os.environ.items() if not k.startswith('PG')}
-    environment.update(PGPASSFILE=os.devnull, PGSERVICEFILE=os.devnull,
+    environment.update(PGPASSFILE=_ABSENT_PASSFILE, PGSERVICEFILE=os.devnull,
                        PGSSLMODE='verify-full', PGGSSENCMODE='disable', PGCONNECT_TIMEOUT='5')
     for name, value in options.items():
         environment['PG' + ('DATABASE' if name == 'dbname' else name.upper())] = value
