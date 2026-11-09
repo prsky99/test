@@ -440,3 +440,11 @@
 - 보안 결함(v2, 운영 미연결): 로그인한 아무 사람이나 할 수 있던 것을 운영자 권한(platform.operate, 기본 부여 없음)이 있어야 하도록 바꿈. 대상은 전체 대사·통계, 중계 파트너 등록·목록·해지, 중계 정산. 정산은 클라이언트가 보낸 "증거 확인됨" 값을 믿지 않고 플랫폼이 기록한 노출(viewed) 뒤에만 함. 파트너 주소는 공개 https만 허용. AD Coin 시험 332개 통과.
 - 문서: 개인정보 처리 흐름도(v2 감사 로그에 IP·브라우저 정보가 원문으로 저장되고, v2에 보존 기간·삭제 작업이 없음), 화면 문구 묶음, 시험 이용 조건 초안. 법률 원문 확인 결과는 쟁점 초안 7절에, 로펌 후보 비교는 보관(11-09 방향 변경으로 법률 작업 중단).
 - 남은 문제: 중계 수수료가 광고주 예산이 아니라 그 자리에서 만든 정산 계정에서 나감(시험 코인이라 실해는 없음). 포인트 모드 설계 때 함께 고침.
+
+## 2026-11-09 성장·유통: 연결 안내·과업 페이지·Registry 준비
+- 배포: `growth-frontend-20261109-r1`(21:08, 바탕 traffic-r2) → `r2`(21:36, 공개 페이지 CSP 수정). 게이트 둘 다 passed(113 통과·1 건너뜀). Chat·탐색 로직과 정책 해시 파일은 바꾸지 않음.
+- 새 공개 페이지(영어, Pearl 공용 assets): `/connect`(Claude Code·Desktop·Cursor 딥링크·VS Code·OpenAI Agents SDK), `/agents/tasks`, `/agents/task/{slug}`. llms.txt·About·사이트맵에서 연결. 모듈 `concierge/growth_pages.py`, 시험 `tests/test_growth_pages.py` 13건.
+- 과업 페이지는 스냅샷 파일 `logs/service-frontend/public-pages/task-pages.json`만 읽음(요청 경로에 DB 없음, 운영 응답 0.9~1.2초). 생성 `scripts/build_task_pages.py`: 공개 Explore API 순차 호출 약 25분, 230개 과업 중 근거 있는 에이전트 2개 이상인 99쪽·424건. 사이트맵 29→130. 근거 기준: 30일 내 실행 점검 성공, 또는 14일 내 정상 헬스체크+시험 호출 성공+품질 A/B. 이름·설명에 과업 핵심어가 없으면 제외.
+- 실패에서 배운 것: 첫 배포는 front 기본 CSP(script-src 'none')가 공용 CSS·JS를 막아 무스타일로 보였음(미리보기 서버엔 미들웨어가 없어 못 잡음). 페이지가 자체 CSP를 보내게 고치고 실제 앱 통합 시험에 헤더 검사를 넣음.
+- 승인 대기: MCP Registry 게시(`deploy/mcp-registry/`, HTTP 확인 파일 방식 권장, DNS 변경 불필요), 디렉터리 4곳(`reports/MCP·A2A 디렉터리 선별 2026-11-09.md`), 런칭 글(`reports/런칭 글 초안 2026-11-09.md`), 스냅샷 매일 갱신 예약.
+- 남은 것: 스냅샷 주기 실행 없음(21일 뒤 사이트맵 제외·noindex). 일부 과업은 관련성이 느슨함(예: search-reddit). `/agents/category/web_search` 125초 응답 발견, SRE에 전달.

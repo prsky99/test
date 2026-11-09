@@ -193,8 +193,12 @@ def test_front_app_routes_sitemap_and_llms(monkeypatch, tmp_path):
     write(tmp_path/'public-pages', snapshot())
     world = populated()
     c = TestClient(create_front_app(world.app.state.front))
-    assert c.get('/connect').status_code == 200
-    assert c.get('/agents/task/weather-forecast').status_code == 200
+    for path, code in [('/connect', 200), ('/agents/tasks', 200), ('/agents/task/weather-forecast', 200), ('/agents/task/none', 404)]:
+        response = c.get(path, headers={'Accept': 'text/html'})
+        assert response.status_code == code
+        # The front middleware keeps a page's own policy; the strict default would block the shared assets.
+        policy = response.headers['content-security-policy']
+        assert "script-src 'self'" in policy and "style-src 'self'" in policy and "'unsafe-eval'" not in policy
     llms = c.get('/llms.txt').text
     assert '/connect' in llms and '/agents/tasks' in llms
     locs = [e.text for e in ET.fromstring(c.get('/sitemap.xml').text).iter('{http://www.sitemaps.org/schemas/sitemap/0.9}loc')]

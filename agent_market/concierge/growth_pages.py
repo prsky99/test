@@ -30,6 +30,9 @@ MAX_AGENTS = 6
 SITEMAP_MAX_AGE = 21*86400  # stale snapshots stay readable but leave the sitemap
 SLUG = re.compile(r'^[a-z0-9]+(?:-[a-z0-9]+){0,8}$')
 AUTH_LINE = re.compile(r'^v=MCPv1; k=(ed25519|ecdsap384); p=[A-Za-z0-9+/]{20,200}={0,2}$')
+PAGE_CSP = ("default-src 'none'; script-src 'self'; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; "
+            "frame-ancestors 'none'; form-action 'self'")
 KINDS = {'a2a': 'A2A', 'mcp': 'MCP', 'x402': 'x402'}
 GRADES = {'A', 'B', 'C', 'D', 'E', 'F'}
 
@@ -386,7 +389,8 @@ def growth_router():
     from fastapi.responses import HTMLResponse, PlainTextResponse, Response
     from starlette.concurrency import run_in_threadpool
     router = APIRouter()
-    page_headers = {'Cache-Control': 'public, max-age=300'}
+    # The front's default policy blocks scripts and stylesheets; these pages load only same-origin assets.
+    page_headers = {'Cache-Control': 'public, max-age=300', 'Content-Security-Policy': PAGE_CSP}
 
     @router.get('/connect', include_in_schema=False)
     def connect():
@@ -404,7 +408,8 @@ def growth_router():
                                       canonical=ORIGIN+'/agents/tasks', index=False,
                                       body=heading('Tasks', 'Task page not found', 'Choose a task from the list, or search the catalog.')
                                       + '<div class="actions"><a class="btn primary" href="/agents/tasks">All task pages</a>'
-                                      '<a class="btn" href="/new/en/explore.html">Explore</a></div>'), status_code=404)
+                                      '<a class="btn" href="/new/en/explore.html">Explore</a></div>'), status_code=404,
+                                headers={'Content-Security-Policy': PAGE_CSP})
         return HTMLResponse(page, headers=page_headers)
 
     @router.get('/.well-known/mcp-registry-auth', include_in_schema=False)
