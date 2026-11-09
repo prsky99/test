@@ -142,13 +142,10 @@ def test_contact_rejects_controls_and_empty_sanitized_message(field,value):
 
 def test_inquiry_dedup_and_quota(w):
     world,client,_=w
-    first=client.post('/api/contact/submit',json=inquiry());assert first.status_code==200,first.text
-    second=client.post('/api/contact/submit',json=inquiry());assert second.json()['duplicate'] is True
-    assert second.json()['inquiry_id']==first.json()['inquiry_id']
-    for index in range(4):assert client.post('/api/contact/submit',json=inquiry(subject='Question '+str(index))).status_code==200
-    response=client.post('/api/contact/submit',json=inquiry(subject='Over quota'))
-    assert response.status_code==429 and response.headers['retry-after']=='3600'
-    assert 'contact-email' in response.headers['ratelimit-policy']
+    # 11-10: the public contact form is closed; nothing is stored and the reply points to the mailbox
+    for _ in range(3):
+        response=client.post('/api/contact/submit',json=inquiry());assert response.status_code==410
+    assert world.store.query('SELECT COUNT(*) AS n FROM customer_inquiries')[0]['n']==0
     assert not world.app.state.front.security.is_blocked('127.0.0.1')[0]
 
 

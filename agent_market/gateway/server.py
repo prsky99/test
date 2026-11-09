@@ -436,7 +436,8 @@ def _compose_app(
                 except DiscoveryError as exc:
                     raise HTTPException(400, f"webhook: {exc}")
         try:
-            result = service.create_need(signer, task.strip(), data.get("category"), max_price, networks, kinds, webhook, ip,
+            from ..concierge.memory import fingerprint  # 11-10: a same-day pseudonym, never the address itself
+            result = service.create_need(signer, task.strip(), data.get("category"), max_price, networks, kinds, webhook, fingerprint(ip, None),
                                          language=data.get("language"), region=data.get("region"), auth=data.get("auth"),
                                          min_grade=data.get("min_grade"))
         except NeedError as exc:

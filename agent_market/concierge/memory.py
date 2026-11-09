@@ -6,6 +6,7 @@ shown only to the token holder. A visitor that comes back without a token from t
 """
 
 import hashlib
+import hmac
 import json
 import logging
 import math
@@ -74,8 +75,21 @@ def token_hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
+_FP_SALT = {'day': None, 'salt': b''}
+_FP_LOCK = threading.Lock()
+
+
 def fingerprint(ip: str | None, user_agent: str | None) -> str:
-    return hashlib.sha256(f"{ip or ''}|{(user_agent or '')[:300]}".encode()).hexdigest()[:32]
+    """A same-day pseudonym for IP + User-Agent (11-10: no stable identifier from visitors is stored).
+
+    The salt is random, lives only in this process's memory and changes every UTC day, so a stored value
+    cannot be linked to an address or to another day's value."""
+    day = int(time.time() // 86400)
+    with _FP_LOCK:
+        if _FP_SALT['day'] != day:
+            _FP_SALT.update(day=day, salt=secrets.token_bytes(16))
+        salt = _FP_SALT['salt']
+    return hmac.new(salt, f"{ip or ''}|{(user_agent or '')[:300]}".encode(), hashlib.sha256).hexdigest()[:32]
 
 
 def tier_for(visits: int, days: int, messages: int) -> str:
@@ -210,7 +224,7 @@ class VisitorBook:
         with _write(self.store) as db:
             db.execute("""INSERT INTO agent_visitors (id, token_hash, name, channel, user_agent, fingerprint, lang, first_seen, last_seen)
                           VALUES (?,?,?,?,?,?,?,?,?)""",
-                       (vid, token_hash(token), (name or None) and name[:80], channel, (user_agent or "")[:300], fp, lang, now, now))
+                       (vid, token_hash(token), None, channel, None, fp, lang, now, now))  # 11-10: no name or user agent stored
         if secrets.randbelow(100) == 0:
             self.prune()
         v = self.by_id(vid)
@@ -243,7 +257,7 @@ class VisitorBook:
                 db.execute("UPDATE agent_visitors SET last_results=NULL,last_offset=0,last_tool_resource=NULL,last_tool_name=NULL WHERE id=?",(v.id,))
             db.execute("""UPDATE agent_visitors SET last_seen=?, visits=?, visit_days=?, tier=?, channel=?, user_agent=?,
                           fingerprint=?, lang=COALESCE(?, lang) WHERE id=?""",
-                       (now, visits, days, tier, channel, (user_agent or "")[:300], fp, lang, v.id))
+                       (now, visits, days, tier, channel, None, fp, lang, v.id))
         v.previous_seen, v.last_seen, v.new_visit = v.last_seen, now, new_visit
         if tier != v.tier:
             v.tier_up = tier
@@ -260,9 +274,7 @@ class VisitorBook:
     def set_name(self, v: Visitor, name: str) -> None:
         name = re.sub(r"\s+", " ", "".join(ch for ch in name if ch.isprintable())).strip()[:80]  # no control/invisible characters
         if name:
-            with _write(self.store) as db:
-                db.execute("UPDATE agent_visitors SET name=? WHERE id=?", (name, v.id))
-            v.name = name
+            v.name = name  # 11-10: kept for this reply only; names are not stored
 
     def set_notify(self, vid: str, enabled: bool) -> None:
         with _write(self.store) as db:
@@ -294,7 +306,7 @@ class VisitorBook:
                               first_seen=CASE WHEN excluded.first_seen<agent_hits.first_seen THEN excluded.first_seen ELSE agent_hits.first_seen END,
                               last_seen=CASE WHEN excluded.last_seen>=agent_hits.last_seen THEN excluded.last_seen ELSE agent_hits.last_seen END,
                               last_path=CASE WHEN excluded.last_seen>=agent_hits.last_seen THEN excluded.last_path ELSE agent_hits.last_path END""",
-                           (fp, ua, at, at, path))
+                           (fp, None, at, at, path))  # 11-10: user agents are not stored
             db.execute("DELETE FROM agent_hits WHERE last_seen<?", (time.time() - HIT_RETENTION,))
             db.execute("""DELETE FROM agent_hits WHERE fingerprint IN (SELECT fingerprint FROM agent_hits ORDER BY last_seen DESC
                           LIMIT -1 OFFSET ?)""", (MAX_HITS,))

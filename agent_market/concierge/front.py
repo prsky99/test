@@ -2678,8 +2678,8 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             token_masked=token_masked,
             source=source,
             reason=reason or "1-Click Unsubscribe via FTC footer standard",
-            ip=ip,
-            user_agent=user_agent
+            ip=None,
+            user_agent=None  # 11-10: no address or user agent stored
         )
 
         return {"audience": AUDIENCE, "ok": True, "request_id": req_id, "reply": "Done — no more messages. Say \"resume\" to turn them back on."}
@@ -2687,6 +2687,8 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
     @router.post("/api/contact/submit")
     async def api_contact_submit(request: Request):
         """Submit inquiry from footer Contact form or machine communications desk."""
+        return JSONResponse({"ok": False, "email": "contact@agentconcierge.biz", "error": "The contact form is closed. Email contact@agentconcierge.biz; this site does not store names, addresses or contact details."}, status_code=410,
+                            headers={"Cache-Control": "no-store"})
         ip = front.security.resolve_ip(request)
         user_agent = request.headers.get("user-agent", "")[:200]
         token = _token_from(request)
@@ -2755,8 +2757,9 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
         email, details = email.strip(), details.strip()
         if email and not re.fullmatch(r'[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+', email):
             raise HTTPException(422, "A valid contact email is required.")
-        if status == 'pending_verification' and not email:
-            raise HTTPException(422, "A contact email is required for a reviewed data request.")
+        if status == 'pending_verification':  # 11-10: access, correction and deletion requests go by email
+            return JSONResponse({"ok": False, "email": "contact@agentconcierge.biz", "error": "Email contact@agentconcierge.biz for access, correction or deletion requests. This site does not store contact details."}, status_code=410,
+                                headers={"Cache-Control": "no-store"})
         if 'gpc' in body and type(body['gpc']) is not bool:
             raise HTTPException(422, "The privacy signal must be a boolean.")
         gpc_detected = int(request.headers.get("sec-gpc") == "1" or body.get('gpc', False))
@@ -2764,10 +2767,10 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
         req_id = front.store.record_privacy_request(
             request_type=request_type,
             visitor_token_masked=token_masked,
-            email=email or None,
+            email=None,  # 11-10: contact details are not stored; reviewed requests go by email
             details=details or ("One-click CCPA / GPC opt-out registered from web client" if request_type == "ccpa_opt_out" else details),
-            ip=ip,
-            user_agent=user_agent,
+            ip=None,
+            user_agent=None,
             gpc_detected=gpc_detected,
             statutory_days=45
         )

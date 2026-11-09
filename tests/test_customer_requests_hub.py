@@ -22,23 +22,19 @@ def env():
 def test_contact_inquiry_public_and_admin_workflow(env):
     world, front_c, admin_c = env
 
-    # 1. Validation error checks
-    bad_res = front_c.post("/api/contact/submit", json={"name": "A", "email": "invalid", "subject": "Hi", "message": "12"})
-    assert bad_res.status_code == 422
+    # 1. 11-10: the public form is closed (no personal information collected); nothing is stored
+    before = len(world.store.query("SELECT * FROM customer_inquiries"))
+    closed = front_c.post("/api/contact/submit", json={"category": "technical", "name": "A", "email": "a@b.org",
+                                                       "subject": "Hi", "message": "Hello there team"})
+    assert closed.status_code == 410 and closed.json()["email"] == "contact@agentconcierge.biz"
+    assert len(world.store.query("SELECT * FROM customer_inquiries")) == before
 
-    # 2. Valid submission from footer Contact form
-    payload = {
-        "category": "technical",
-        "name": "Autonomous Tester",
-        "email": "agent@autonomous.org",
-        "subject": "A2A Protocol schema clarification",
-        "message": "We are experiencing a schema validation mismatch with tool parameter declarations. Please advise."
-    }
-    res = front_c.post("/api/contact/submit", json=payload, headers={"User-Agent": "TesterBot/1.0"})
-    assert res.status_code == 200
-    data = res.json()
-    assert data["ok"] is True
-    inquiry_id = data["inquiry_id"]
+    # 2. Inquiries made before the change still reach the admin hub
+    inquiry_id = world.store.record_customer_inquiry(
+        category="technical", name="Autonomous Tester", email="agent@autonomous.org",
+        subject="A2A Protocol schema clarification",
+        message="We are experiencing a schema validation mismatch with tool parameter declarations. Please advise.",
+        visitor_token=None, ip=None, user_agent=None)
     assert inquiry_id.startswith("inq_")
 
     # 3. Verify inquiry is retrieved via Admin API
@@ -92,6 +88,10 @@ def test_privacy_rights_opt_out_and_compliance(env):
     assert d["gpc_detected"] is True
     request_id = d["request_id"]
     assert request_id.startswith("prv_")
+    stored = world.store.query("SELECT email, ip, user_agent FROM privacy_requests WHERE request_id=?", (request_id,))[0]
+    assert stored["email"] is None and stored["ip"] is None and stored["user_agent"] is None  # 11-10: nothing about the sender
+    reviewed = front_c.post("/api/privacy/opt-out", json={"request_type": "access", "email": "a@b.org"})
+    assert reviewed.status_code in (410, 422)  # access, correction and deletion requests go by email
 
     # 2. Verify admin privacy list & statutory deadline
     prv_list = admin_c.get("/admin/api/needs/privacy", headers=H).json()
@@ -132,6 +132,8 @@ def test_ftc_one_click_unsubscribe_and_reactivation(env):
     assert unsub_data["ok"] is True
     cancel_id = unsub_data["request_id"]
     assert cancel_id.startswith("cnl_")
+    row = world.store.query("SELECT ip, user_agent FROM cancellation_requests WHERE request_id=?", (cancel_id,))[0]
+    assert row["ip"] is None and row["user_agent"] is None
 
     # Verify notify is now False
     me_after = front_c.get("/me", headers={"X-Visitor-Token": token}).json()

@@ -196,7 +196,7 @@ def test_visitors_admin_api(dash):
     front.post("/chat", json={"message": "find web search API"}, headers={"X-Visitor-Token": first["visitor"]["token"]})
     front.get("/")
     d = c.get("/admin/api/visitors", headers=H).json()
-    assert d["stats"]["total"] == 1 and d["stats"]["anonymous_reads"] == 1 and d["items"][0]["name"] == "TravelBot"
+    assert d["stats"]["total"] == 1 and d["stats"]["anonymous_reads"] == 1 and d["items"][0]["name"] is None  # 11-10: names are not stored
     assert d["items"][0]["last_task"] == "find web search API"
     vid = d["items"][0]["id"]
     detail = c.get(f"/admin/api/visitors/{vid}", headers=H).json()

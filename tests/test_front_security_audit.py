@@ -42,7 +42,7 @@ def test_all_body_readers_enforce_size_limit(target, path, chunked):
 def test_object_routes_reject_wrong_json_types(target, path, body):
     _, client = target
     response = client.post(path, content=json.dumps(body), headers={"content-type": "application/json"})
-    assert response.status_code == 400
+    assert response.status_code == (410 if path == "/api/contact/submit" else 400)  # 11-10: contact form closed
 
 
 def test_untrusted_peer_cannot_spoof_a_ban_or_rate_limit(target):
@@ -184,9 +184,8 @@ def test_contact_inquiry_does_not_persist_bearer_token(target):
     front, client = target
     response = client.post("/api/contact/submit", headers={"x-visitor-token": "vt_private_credential"},
         json={"name": "Audit agent", "email": "audit@example.com", "subject": "Security audit", "message": "Local test inquiry"})
-    assert response.status_code == 200
-    row = dict(front.store.query("SELECT * FROM customer_inquiries")[0])
-    assert "vt_private_credential" not in json.dumps(row)
+    assert response.status_code == 410  # 11-10: the form is closed, so nothing (token or contact details) is stored
+    assert front.store.query("SELECT COUNT(*) AS n FROM customer_inquiries")[0]["n"] == 0
 
 
 def test_templates_failure_does_not_disclose_internal_exception(target, monkeypatch):

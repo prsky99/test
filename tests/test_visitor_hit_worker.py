@@ -49,8 +49,7 @@ def test_request_admission_never_waits_for_store_and_preserves_request_order(hit
     assert first_before <= row['first_seen'] <= first_after
     assert second_before <= row['last_seen'] <= second_after
     assert row['hits'] == 2 and row['last_path'] == '/second'
-    assert len(row['user_agent']) <= 300 and '\n' not in row['user_agent'] and token not in row['user_agent']
-    assert '[REDACTED_VISITOR_TOKEN]' in row['user_agent']
+    assert row['user_agent'] is None  # 11-10: user agents are not stored
     assert book.store.query('SELECT COUNT(*) AS n FROM agent_visitors')[0]['n'] == 0
 
 

@@ -9,6 +9,8 @@ from agent_market.concierge.front import create_front_app
 from tests.test_concierge import w  # noqa: F401 (fixture)
 from tests.test_gateway import populated
 
+pytestmark = pytest.mark.skip(reason="11-10: the public contact form is closed (no personal information is collected); tests/test_customer_requests_hub.py checks the closed endpoint")
+
 
 def test_footer_xss_resilience(w):
     """Dynamic Test: Ensure XSS payloads in footer forms are safely handled without code execution."""

@@ -140,7 +140,7 @@ def test_name_and_regular_tier(w):
     world, c, _ = w
     first = chat(c, "Hi, I am TravelBot")
     token = first["visitor"]["token"]
-    assert world.app.state.front.book.by_id(first["visitor"]["id"]).name == "TravelBot"
+    assert world.app.state.front.book.by_id(first["visitor"]["id"]).name is None  # 11-10: names are not stored
     assert "name" not in first["visitor"]
     with world.store.tx() as db:  # 이틀 동안 왔던 방문자가 사흘째 다시 옴
         db.execute("UPDATE agent_visitors SET visit_days=2, visits=2, last_seen=last_seen-86400 WHERE id=?", (first["visitor"]["id"],))

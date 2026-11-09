@@ -10,6 +10,10 @@ def test_receipt_is_not_completion(env, kind, status):
     world, public, admin = env
     payload = {'request_type': kind, 'email': 'review@example.test'}
     result = public.post('/api/privacy/opt-out', json=payload)
+    if status == 'pending_verification':  # 11-10: reviewed requests go by email; nothing is stored
+        assert result.status_code == 410 and result.json()['email'] == 'contact@agentconcierge.biz'
+        assert world.store.list_privacy_requests()[1] == 0
+        return
     assert result.status_code == 200
     receipt = result.json()
     assert receipt['status'] == status and 'enforced' not in receipt['message']
@@ -31,7 +35,7 @@ def test_malformed_body_does_not_create_a_receipt(env, raw):
     {'gpc': 'false'}, {'details': []}, {'request_type': 'data_erasure'}, {'completed': True}])
 def test_unsupported_request_does_not_create_receipt(env, payload):
     world, public, _ = env
-    assert public.post('/api/privacy/opt-out', json=payload).status_code == 422
+    assert public.post('/api/privacy/opt-out', json=payload).status_code in (410, 422)
     assert world.store.list_privacy_requests()[1] == 0
 
 
