@@ -62,6 +62,11 @@ GATEWAY_DB=gateway-data/collector.sqlite3 .venv/bin/python -m agent_market.gatew
 - 남의 서버에 자격 증명·결제를 보내지 않는다.
 - 파괴적 도구는 호출하지 않는다. 시험 호출은 읽기 전용만.
 - 사설 주소는 막는다(`check_public_url`).
+- 운영 DB 구조 변경(표·인덱스·트리거·함수·마이그레이션 도구)은 아래 순서를 지킨다(11-10 05:38 트리거 장애, `deploy/DATABASE_OPERATIONS.md`).
+  1. `scripts.db_change_rehearsal run`으로 사본에서 운영 버전 연결까지 통과시킨다.
+  2. 복구 SQL을 준비한다.
+  3. 사용자 승인을 받는다.
+  4. 실행 직전 `check`가 0이 아니면 실행하지 않는다.
 - 저장소는 공개다. 키·지갑·`deploy/gateway.env`는 커밋하지 않는다.
 - GitHub은 외부 유입 채널로 쓰지 않는다(사용자 결정 2026-11-10 "깃허브 공개하지 않음"). 다음은 하지 않는다.
   - 소개용 저장소 만들기
