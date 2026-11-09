@@ -32,6 +32,34 @@ TESTS = (
     'tests/test_front_first_entry_browser.py',
     'tests/test_workspace_entry_progress_browser.py',
 )
+# Each role runs the tests for the code it serves. jobs releases run the collector, health checks,
+# crawler and evaluation without the typed execution engine, so the opening-path list above
+# (customer pages, typed_engine_for) does not apply to them (11-10: pct-cache-jobs and its base
+# growth-md-jobs-r2 both failed collecting tests/test_typed_engine_for.py).
+JOBS_TESTS = (
+    'tests/test_collector.py',
+    'tests/test_collector_observation_guards.py',
+    'tests/test_crawler_x402_retry.py',
+    'tests/test_a2a.py',
+    'tests/test_evaluation.py',
+)
+ROLE_TESTS = {'frontend': TESTS, 'admin': TESTS, 'execution': TESTS, 'jobs': JOBS_TESTS}
+ROLES = tuple(ROLE_TESTS)
+
+
+def release_role(release):
+    """The role a release was built for: release.json 'role', else the -<role>- part of its name."""
+    manifest = RELEASES / release / 'release.json'
+    try:
+        declared = json.loads(manifest.read_text()).get('role')
+    except (OSError, ValueError, AttributeError):
+        declared = None
+    if declared in ROLES:
+        return declared
+    found = [role for role in ROLES if f'-{role}-' in f'-{release}-']
+    if len(found) != 1:
+        raise SystemExit(f'release role unknown: {release} (name it <change>-<role>-<date>-rN)')
+    return found[0]
 
 
 # Files whose change can move a Chat recommendation (the policy-hash files and the Chat path).
@@ -147,12 +175,16 @@ def run(release, tests, python):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('release')
-    parser.add_argument('tests', nargs='*', default=list(TESTS))
+    parser.add_argument('tests', nargs='*')
     parser.add_argument('--python', default=sys.executable)
     parser.add_argument('--skip-chat', action='store_true', help='skip the Chat evaluation comparison')
     args = parser.parse_args(argv)
-    code = run(args.release, args.tests, args.python)
-    if code == 0 and not args.skip_chat:
+    role = release_role(args.release)
+    tests = args.tests or list(ROLE_TESTS[role])
+    print(f'release gate {args.release}: role {role}, {len(tests)} test file(s)')
+    code = run(args.release, tests, args.python)
+    # Chat answers come from the frontend; other roles are not compared with the active frontend.
+    if code == 0 and not args.skip_chat and role == 'frontend':
         code = chat_check(args.release)
     print(f'release gate {args.release}: ' + ('passed' if code == 0 else f'FAILED (pytest exit {code})'))
     return code
