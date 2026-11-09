@@ -22,7 +22,14 @@
 
 ---
 
-## 1. 공식 MCP Registry — 최우선
+## 진행 상황 (11-09 22:08 KST, `scripts/directory_presence.py`로 매일 확인)
+| 곳 | 상태 |
+|---|---|
+| 공식 MCP Registry | **게시 완료** `biz.agentconcierge/agent-concierge@1.0.0` (12:48 UTC, 커밋 c6bb85aa) |
+| Glama | **자동 반영 완료**: https://glama.ai/mcp/connectors/biz.agentconcierge/agent-concierge (Registry에서 가져감, 상태 "아직 시험 안 됨"). 6번 제출은 필요 없음 |
+| PulseMCP, mcpservers.org, mcp.so | 아직 없음. PulseMCP는 재개 시 자동 수집 예정 |
+
+## 1. 공식 MCP Registry — 게시 완료
 - 제출물: `deploy/mcp-registry/server.json` (스키마 검증 완료). 절차: `deploy/mcp-registry/README.md` 3절 명령 6줄.
 - 효과: PulseMCP가 재개 시 자동 수집, Glama·mcpservers.org가 Registry 이름을 참조한다.
 
@@ -33,7 +40,7 @@
 | Category | Search |
 | Short Description | 공통 Short description |
 | Repository, Website or Documentation | https://agentconcierge.biz/connect |
-| Official MCP Registry Name (optional) | biz.agentconcierge/agent-concierge (1번 게시 뒤) |
+| Official MCP Registry Name (optional) | biz.agentconcierge/agent-concierge |
 | This server supports remote connections | 체크 |
 | Contact Email | 사용자 결정 |
 | Submission plan | Free (2주 내 검토). Premium $39는 지출 승인 필요 |
@@ -57,6 +64,7 @@ Adds **Agent Concierge**, a remote MCP server for finding AI agents and MCP serv
 - **URL:** `https://agentconcierge.biz/mcp` (streamable HTTP)
 - **Authentication:** Open — discovery tools are read-only and need no sign-in.
 - **Maintainer:** Agent Concierge (https://agentconcierge.biz)
+- **Official MCP Registry:** `biz.agentconcierge/agent-concierge`
 
 **What it does:** catalogs about 258k public A2A agents, MCP servers and x402 APIs and keeps a check history for each (health checks, read-only trial calls, execution checks). `search` / `find_agents` return up to three candidates with the latest check type and date.
 
@@ -84,7 +92,7 @@ Setup for other clients: https://agentconcierge.biz/connect
 - URL: https://agentconcierge.biz/mcp (원격 토글에서 받는 칸이 무엇인지는 미확인)
 - Plan: Free Queue (평균 4~6주). $29 Get Listed Now는 지출 승인 필요.
 
-## 6. Glama — https://glama.ai/mcp/servers → "Add Server" (원격은 Connectors)
+## 6. Glama — 자동 반영됨 (아래는 참고용)
 - 칸은 미확인. 공통 문구, MCP URL, Website, 아이콘을 넣는다. 로그인 필요.
 - Glama는 "승인된 streamable HTTP 커넥터만" 공개한다고 밝힘 → 검토 대기.
 
@@ -114,4 +122,4 @@ Setup for other clients: https://agentconcierge.biz/connect
 | ERC-8004(8004scan) | 온체인 등록, 가스비 지출 | 지출 승인 시 |
 
 ## 10. 권장 제출 순서 (한 번에 30분 이내)
-1 → 7 → 8 → 2 → 3 → 5 → 4 → 6. 제출 날짜를 WORKLOG에 남기면 0단계 계측으로 채널별 효과(MCP clientInfo 이름, 리퍼러 없는 신규 클라이언트)를 비교할 수 있다.
+7 → 8 → 2 → 3 → 5 → 4 (1·6은 끝남). 제출 날짜를 WORKLOG에 남기면 0단계 계측으로 채널별 효과(MCP clientInfo 이름, 리퍼러 없는 신규 클라이언트)를 비교할 수 있다.

@@ -503,6 +503,7 @@ The About navigation item follows List Your Agent. The Agent Concierge logo open
 - Workflows: `{base}/new/en/workflows.html` — technology research, country indicators and package advisories.
 - List Your Agent: `{base}/new/en/list-agent.html`
 - Connect an MCP client (Claude Code, Claude Desktop, Cursor, VS Code, OpenAI Agents SDK): `{base}/connect`
+- Listed on the official MCP Registry as `biz.agentconcierge/agent-concierge`: https://registry.modelcontextprotocol.io/v0.1/servers?search=biz.agentconcierge/agent-concierge
 - Task pages with recorded checks: `{base}/agents/tasks`
 - Category rankings by recorded checks: `{base}/agents/best`; one evidence page per agent: `{base}/agent/{{id}}`
 - Monthly report with charts: `{base}/reports/state-of-ai-agents`; README badges for agent operators: `{base}/badges`

@@ -23,6 +23,8 @@ from urllib.parse import quote
 ORIGIN = 'https://agentconcierge.biz'
 MCP_URL = ORIGIN + '/mcp'
 SERVER_NAME = 'agent-concierge'
+REGISTRY_NAME = 'biz.agentconcierge/agent-concierge'
+REGISTRY_URL = 'https://registry.modelcontextprotocol.io/v0.1/servers?search=' + REGISTRY_NAME
 SNAPSHOT_NAME = 'task-pages.json'
 AUTH_NAME = 'mcp-registry-auth'
 MIN_AGENTS = 2            # a task page needs at least this many agents with evidence
@@ -308,12 +310,16 @@ def connect_page():
              '<a href="/.well-known/mcp.json">MCP manifest</a>, <a href="/.well-known/agent-card.json">A2A Agent Card</a>, '
              '<a href="/llms.txt">llms.txt</a>.</p></section>')
     endpoint = ('<section class="card stack" aria-labelledby="endpoint-h"><h2 id="endpoint-h">Endpoint</h2>'
-                '<pre tabindex="0"><code>'+esc(MCP_URL)+'</code></pre></section>')
+                '<pre tabindex="0"><code>'+esc(MCP_URL)+'</code></pre>'
+                '<p><span class="badge success">Official MCP Registry</span> Listed on the official MCP Registry as '
+                '<a href="'+esc(REGISTRY_URL)+'"><code>'+esc(REGISTRY_NAME)+'</code></a>. Clients and directories that read '
+                'the Registry can find it by that name.</p></section>')
     body = (heading('Connect', 'Use Agent Concierge from your MCP client',
                     'Add one remote MCP server and ask for an agent by task. Copy the settings for your client below.')
             + '<div class="stack">'+endpoint+''.join(blocks)+tools+'</div>')
     structured = {'@context': 'https://schema.org', '@type': 'TechArticle', 'headline': 'Connect Agent Concierge to your MCP client',
-                  'url': ORIGIN+'/connect', 'inLanguage': 'en', 'about': {'@type': 'WebAPI', 'name': 'Agent Concierge MCP server', 'url': MCP_URL}}
+                  'url': ORIGIN+'/connect', 'inLanguage': 'en', 'about': {'@type': 'WebAPI', 'name': 'Agent Concierge MCP server', 'url': MCP_URL,
+                                                                          'identifier': REGISTRY_NAME, 'sameAs': REGISTRY_URL}}
     return shell(title='Connect Agent Concierge to Claude, Cursor, VS Code and OpenAI Agents',
                  description='Copyable settings for the Agent Concierge remote MCP server: Claude Code, Claude Desktop, Cursor, VS Code and the OpenAI Agents SDK.',
                  canonical=ORIGIN+'/connect', body=body, structured=structured)

@@ -61,6 +61,7 @@ def test_server_json_matches_the_registry_schema_constraints_and_live_endpoint()
     assert data['$schema'] == 'https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json'
     assert re.fullmatch(r'[a-zA-Z0-9.-]+/[a-zA-Z0-9._-]+', data['name'])
     assert data['name'].startswith('biz.agentconcierge/')  # domain namespace for agentconcierge.biz
+    assert data['name'] == g.REGISTRY_NAME  # the name the public pages cite
     assert 1 <= len(data['description']) <= 100 and 1 <= len(data['title']) <= 100
     assert re.fullmatch(r'\d+\.\d+\.\d+', data['version'])
     assert data['remotes'] == [{'type': 'streamable-http', 'url': g.MCP_URL}]
@@ -92,6 +93,7 @@ def test_connect_page_has_copyable_settings_for_each_client(client):
     assert '&quot;mcpServers&quot;' in text  # Cursor
     assert 'MCPServerStreamableHttp' in text and 'HostedMCPTool' in text
     assert 'Add custom connector' in text
+    assert 'Listed on the official MCP Registry' in text and 'biz.agentconcierge/agent-concierge' in text
     link = re.search(r'href="(cursor://[^"]+)"', text).group(1).replace('&amp;', '&')
     query = parse_qs(urlparse(link).query)
     assert query['name'] == ['agent-concierge']
@@ -203,6 +205,7 @@ def test_front_app_routes_sitemap_and_llms(monkeypatch, tmp_path):
         assert "script-src 'self'" in policy and "style-src 'self'" in policy and "'unsafe-eval'" not in policy
     llms = c.get('/llms.txt').text
     assert '/connect' in llms and '/agents/tasks' in llms and '/agents/best' in llms and '/agent/{id}' in llms
+    assert 'official MCP Registry as `biz.agentconcierge/agent-concierge`' in llms
     locs = [e.text for e in ET.fromstring(c.get('/sitemap.xml').text).iter('{http://www.sitemaps.org/schemas/sitemap/0.9}loc')]
     assert 'https://agentconcierge.biz/connect' in locs
     assert 'https://agentconcierge.biz/agents/task/weather-forecast' in locs
@@ -294,3 +297,23 @@ def test_indexnow_key_route(tmp_path, monkeypatch):
     assert c.get('/'+key+'.txt').text == key
     (tmp_path/'public-pages'/'indexnow-key').write_text('not-a-key')
     assert g.indexnow_key() is None
+
+
+def test_directory_presence_reads_pages_without_guessing():
+    import io
+    from scripts import directory_presence as p
+
+    class Response(io.BytesIO):
+        status = 200
+        def __enter__(self): return self
+        def __exit__(self, *exc): return False
+
+    def opener(request, timeout):
+        if 'glama' in request.full_url:
+            raise OSError('timeout')
+        body = '{"name": "biz.agentconcierge/agent-concierge"}' if 'registry' in request.full_url else '<html>nothing</html>'
+        return Response(body.encode())
+    result = p.run(opener)
+    assert result['official_registry']['listed'] is True
+    assert result['glama']['listed'] is None and result['glama']['error'] == 'OSError'  # a failed fetch is not "not listed"
+    assert result['mcp_so']['listed'] is False
