@@ -1,0 +1,274 @@
+{
+ "summary": {
+  "console": 0,
+  "failed_requests": 0,
+  "broken_images": 0,
+  "horizontal_scroll": 0,
+  "overlaps": 82,
+  "small_targets": 76,
+  "design_system_small": 6,
+  "unlabeled_fields": 0,
+  "contrast_failures": 0,
+  "spacing_off_token": 0,
+  "misaligned": 14,
+  "focus_not_visible": 0
+ },
+ "results": [
+  {
+   "label": "url",
+   "viewport": "desktop",
+   "scheme": "light",
+   "horizontal_scroll": 0,
+   "spacing_off_token": 0,
+   "spacing_examples": [],
+   "design_system_small": 2,
+   "design_system_examples": [
+    "button.theme-toggle",
+    "a.brand"
+   ],
+   "small_targets": 22,
+   "small_examples": [
+    "a.brand-box 231x39",
+    "a.nav-tab 36x46",
+    "a.nav-tab 26x46",
+    "a.nav-tab 30x46",
+    "a.nav-tab 37x46",
+    "button.icon-btn 38x38",
+    "a 110x24",
+    "summary 1138x24"
+   ],
+   "small_targets_all": 24,
+   "small_all_examples": [
+    "a.brand-box 231x39",
+    "a.nav-tab 36x46",
+    "a.nav-tab 26x46",
+    "a.nav-tab 30x46",
+    "a.nav-tab 37x46",
+    "button.theme-toggle 44x30",
+    "button.icon-btn 38x38",
+    "a 110x24"
+   ],
+   "unlabeled_fields": 0,
+   "unlabeled_examples": [],
+   "contrast_unmeasured": 28,
+   "contrast_failures": 0,
+   "contrast_examples": [],
+   "overlaps": 20,
+   "overlap_examples": [
+    "h2 / p.cookie-banner-text",
+    "p / p.cookie-banner-text",
+    "h2 / p.cookie-banner-text",
+    "p / p#uxCatalogScope",
+    "p / h2",
+    "p / p",
+    "p / h2",
+    "p / p"
+   ],
+   "misaligned": 4,
+   "misaligned_examples": [
+    "row span.icon-disc | h3",
+    "row span.icon-disc | h3",
+    "row span.icon-disc | h3",
+    "row div | div.actions"
+   ],
+   "broken_images": 0,
+   "focus_not_visible": 0,
+   "focus_examples": [],
+   "console": 0,
+   "console_examples": [],
+   "failed_requests": 0,
+   "failed_examples": []
+  },
+  {
+   "label": "url",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "horizontal_scroll": 0,
+   "spacing_off_token": 0,
+   "spacing_examples": [],
+   "design_system_small": 2,
+   "design_system_examples": [
+    "button.theme-toggle",
+    "a.brand"
+   ],
+   "small_targets": 22,
+   "small_examples": [
+    "a.brand-box 231x39",
+    "a.nav-tab 36x46",
+    "a.nav-tab 26x46",
+    "a.nav-tab 30x46",
+    "a.nav-tab 37x46",
+    "button.icon-btn 38x38",
+    "a 110x24",
+    "summary 1138x24"
+   ],
+   "small_targets_all": 24,
+   "small_all_examples": [
+    "a.brand-box 231x39",
+    "a.nav-tab 36x46",
+    "a.nav-tab 26x46",
+    "a.nav-tab 30x46",
+    "a.nav-tab 37x46",
+    "button.theme-toggle 44x30",
+    "button.icon-btn 38x38",
+    "a 110x24"
+   ],
+   "unlabeled_fields": 0,
+   "unlabeled_examples": [],
+   "contrast_unmeasured": 129,
+   "contrast_failures": 0,
+   "contrast_examples": [],
+   "overlaps": 20,
+   "overlap_examples": [
+    "h2 / p.cookie-banner-text",
+    "p / p.cookie-banner-text",
+    "h2 / p.cookie-banner-text",
+    "p / p#uxCatalogScope",
+    "p / h2",
+    "p / p",
+    "p / h2",
+    "p / p"
+   ],
+   "misaligned": 4,
+   "misaligned_examples": [
+    "row span.icon-disc | h3",
+    "row span.icon-disc | h3",
+    "row span.icon-disc | h3",
+    "row div | div.actions"
+   ],
+   "broken_images": 0,
+   "focus_not_visible": 0,
+   "focus_examples": [],
+   "console": 0,
+   "console_examples": [],
+   "failed_requests": 0,
+   "failed_examples": []
+  },
+  {
+   "label": "url",
+   "viewport": "mobile",
+   "scheme": "light",
+   "horizontal_scroll": 0,
+   "spacing_off_token": 0,
+   "spacing_examples": [],
+   "design_system_small": 1,
+   "design_system_examples": [
+    "button.theme-toggle"
+   ],
+   "small_targets": 16,
+   "small_examples": [
+    "a.brand-box 175x30",
+    "button.icon-btn.pearl-menu 38x38",
+    "button.icon-btn 38x38",
+    "a.link-button 106x25",
+    "a 110x24",
+    "summary 305x24",
+    "summary 137x32",
+    "a 130x32"
+   ],
+   "small_targets_all": 17,
+   "small_all_examples": [
+    "a.brand-box 175x30",
+    "button.theme-toggle 36x26",
+    "button.icon-btn.pearl-menu 38x38",
+    "button.icon-btn 38x38",
+    "a.link-button 106x25",
+    "a 110x24",
+    "summary 305x24",
+    "summary 137x32"
+   ],
+   "unlabeled_fields": 0,
+   "unlabeled_examples": [],
+   "contrast_unmeasured": 28,
+   "contrast_failures": 0,
+   "contrast_examples": [],
+   "overlaps": 21,
+   "overlap_examples": [
+    "h3 / button.cookie-banner-close",
+    "p / p#uxCatalogScope",
+    "p / h2",
+    "p / p",
+    "p / a",
+    "p / h2",
+    "p / p",
+    "a / h2"
+   ],
+   "misaligned": 3,
+   "misaligned_examples": [
+    "row span.icon-disc | h3",
+    "row span.icon-disc | h3",
+    "row span.icon-disc | h3"
+   ],
+   "broken_images": 0,
+   "focus_not_visible": 0,
+   "focus_examples": [],
+   "console": 0,
+   "console_examples": [],
+   "failed_requests": 0,
+   "failed_examples": []
+  },
+  {
+   "label": "url",
+   "viewport": "mobile",
+   "scheme": "dark",
+   "horizontal_scroll": 0,
+   "spacing_off_token": 0,
+   "spacing_examples": [],
+   "design_system_small": 1,
+   "design_system_examples": [
+    "button.theme-toggle"
+   ],
+   "small_targets": 16,
+   "small_examples": [
+    "a.brand-box 175x30",
+    "button.icon-btn.pearl-menu 38x38",
+    "button.icon-btn 38x38",
+    "a.link-button 106x25",
+    "a 110x24",
+    "summary 305x24",
+    "summary 137x32",
+    "a 130x32"
+   ],
+   "small_targets_all": 17,
+   "small_all_examples": [
+    "a.brand-box 175x30",
+    "button.theme-toggle 36x26",
+    "button.icon-btn.pearl-menu 38x38",
+    "button.icon-btn 38x38",
+    "a.link-button 106x25",
+    "a 110x24",
+    "summary 305x24",
+    "summary 137x32"
+   ],
+   "unlabeled_fields": 0,
+   "unlabeled_examples": [],
+   "contrast_unmeasured": 115,
+   "contrast_failures": 0,
+   "contrast_examples": [],
+   "overlaps": 21,
+   "overlap_examples": [
+    "h3 / button.cookie-banner-close",
+    "p / p#uxCatalogScope",
+    "p / h2",
+    "p / p",
+    "p / a",
+    "p / h2",
+    "p / p",
+    "a / h2"
+   ],
+   "misaligned": 3,
+   "misaligned_examples": [
+    "row span.icon-disc | h3",
+    "row span.icon-disc | h3",
+    "row span.icon-disc | h3"
+   ],
+   "broken_images": 0,
+   "focus_not_visible": 0,
+   "focus_examples": [],
+   "console": 0,
+   "console_examples": [],
+   "failed_requests": 0,
+   "failed_examples": []
+  }
+ ]
+}

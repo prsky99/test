@@ -1,0 +1,799 @@
+{
+ "summary": {
+  "console": 0,
+  "failed_requests": 0,
+  "broken_images": 0,
+  "horizontal_scroll": 0,
+  "overlaps": 0,
+  "small_targets": 144,
+  "unlabeled_fields": 0,
+  "contrast_failures": 28,
+  "spacing_off_token": 18,
+  "misaligned": 52,
+  "focus_not_visible": 4
+ },
+ "results": [
+  {
+   "label": "rewards",
+   "viewport": "desktop",
+   "scheme": "light",
+   "horizontal_scroll": 0,
+   "spacing_off_token": 1,
+   "spacing_examples": [
+    "a.brand margin-right 591.781px"
+   ],
+   "small_targets": 10,
+   "small_examples": [
+    "a.sr-only.skip-link 1x1",
+    "a.brand 231x30",
+    "a.small.mobile-hidden 102x20",
+    "button.theme-toggle 44x30",
+    "a.btn.small 109x40",
+    "button#refresh-wallet.btn.small 125x38",
+    "button#use-points.btn.small 91x38",
+    "a 137x25"
+   ],
+   "unlabeled_fields": 0,
+   "unlabeled_examples": [],
+   "contrast_failures": 1,
+   "contrast_examples": [
+    "button.btn.primary 1.01"
+   ],
+   "overlaps": 0,
+   "overlap_examples": [],
+   "misaligned": 2,
+   "misaligned_examples": [
+    "row i | i",
+    "row i | i"
+   ],
+   "broken_images": 0,
+   "focus_not_visible": 0,
+   "console": 0,
+   "console_examples": [],
+   "failed_requests": 0,
+   "failed_examples": []
+  },
+  {
+   "label": "rewards",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "horizontal_scroll": 0,
+   "spacing_off_token": 1,
+   "spacing_examples": [
+    "a.brand margin-right 591.781px"
+   ],
+   "small_targets": 10,
+   "small_examples": [
+    "a.sr-only.skip-link 1x1",
+    "a.brand 231x30",
+    "a.small.mobile-hidden 102x20",
+    "button.theme-toggle 44x30",
+    "a.btn.small 109x40",
+    "button#refresh-wallet.btn.small 125x38",
+    "button#use-points.btn.small 91x38",
+    "a 137x25"
+   ],
+   "unlabeled_fields": 0,
+   "unlabeled_examples": [],
+   "contrast_failures": 1,
+   "contrast_examples": [
+    "a.sr-only.skip-link 1.05"
+   ],
+   "overlaps": 0,
+   "overlap_examples": [],
+   "misaligned": 2,
+   "misaligned_examples": [
+    "row i | i",
+    "row i | i"
+   ],
+   "broken_images": 0,
+   "focus_not_visible": 0,
+   "console": 0,
+   "console_examples": [],
+   "failed_requests": 0,
+   "failed_examples": []
+  },
+  {
+   "label": "rewards",
+   "viewport": "mobile",
+   "scheme": "light",
+   "horizontal_scroll": 0,
+   "spacing_off_token": 0,
+   "spacing_examples": [],
+   "small_targets": 8,
+   "small_examples": [
+    "a.sr-only.skip-link 1x1",
+    "a.brand 184x30",
+    "button.theme-toggle 39x26",
+    "button#refresh-wallet.btn.small 125x38",
+    "button#use-points.btn.small 91x38",
+    "a 137x25",
+    "a 93x17",
+    "a 165x17"
+   ],
+   "unlabeled_fields": 0,
+   "unlabeled_examples": [],
+   "contrast_failures": 1,
+   "contrast_examples": [
+    "button.btn.primary 1.01"
+   ],
+   "overlaps": 0,
+   "overlap_examples": [],
+   "misaligned": 2,
+   "misaligned_examples": [
+    "row i | i",
+    "row i | i"
+   ],
+   "broken_images": 0,
+   "focus_not_visible": 0,
+   "console": 0,
+   "console_examples": [],
+   "failed_requests": 0,
+   "failed_examples": []
+  },
+  {
+   "label": "rewards",
+   "viewport": "mobile",
+   "scheme": "dark",
+   "horizontal_scroll": 0,
+   "spacing_off_token": 0,
+   "spacing_examples": [],
+   "small_targets": 8,
+   "small_examples": [
+    "a.sr-only.skip-link 1x1",
+    "a.brand 184x30",
+    "button.theme-toggle 39x26",
+    "button#refresh-wallet.btn.small 125x38",
+    "button#use-points.btn.small 91x38",
+    "a 137x25",
+    "a 93x17",
+    "a 165x17"
+   ],
+   "unlabeled_fields": 0,
+   "unlabeled_examples": [],
+   "contrast_failures": 1,
+   "contrast_examples": [
+    "a.sr-only.skip-link 1.05"
+   ],
+   "overlaps": 0,
+   "overlap_examples": [],
+   "misaligned": 2,
+   "misaligned_examples": [
+    "row i | i",
+    "row i | i"
+   ],
+   "broken_images": 0,
+   "focus_not_visible": 0,
+   "console": 0,
+   "console_examples": [],
+   "failed_requests": 0,
+   "failed_examples": []
+  },
+  {
+   "label": "choices",
+   "viewport": "desktop",
+   "scheme": "light",
+   "horizontal_scroll": 0,
+   "spacing_off_token": 2,
+   "spacing_examples": [
+    "a.brand margin-right 591.781px",
+    "fieldset#preferences-fields padding-top 5.6px"
+   ],
+   "small_targets": 11,
+   "small_examples": [
+    "a.sr-only.skip-link 1x1",
+    "a.brand 231x30",
+    "a.small.mobile-hidden 102x20",
+    "button.theme-toggle 44x30",
+    "a.btn.small 109x40",
+    "input#receive-offers 24x24",
+    "input 24x24",
+    "input 24x24"
+   ],
+   "unlabeled_fields": 0,
+   "unlabeled_examples": [],
+   "contrast_failures": 1,
+   "contrast_examples": [
+    "button.btn.primary 1.01"
+   ],
+   "overlaps": 0,
+   "overlap_examples": [],
+   "misaligned": 3,
+   "misaligned_examples": [
+    "row i | i",
+    "row i | i",
+    "column fieldset#preferences-fields | div.actions"
+   ],
+   "broken_images": 0,
+   "focus_not_visible": 0,
+   "console": 0,
+   "console_examples": [],
+   "failed_requests": 0,
+   "failed_examples": []
+  },
+  {
+   "label": "choices",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "horizontal_scroll": 0,
+   "spacing_off_token": 2,
+   "spacing_examples": [
+    "a.brand margin-right 591.781px",
+    "fieldset#preferences-fields padding-top 5.6px"
+   ],
+   "small_targets": 11,
+   "small_examples": [
+    "a.sr-only.skip-link 1x1",
+    "a.brand 231x30",
+    "a.small.mobile-hidden 102x20",
+    "button.theme-toggle 44x30",
+    "a.btn.small 109x40",
+    "input#receive-offers 24x24",
+    "input 24x24",
+    "input 24x24"
+   ],
+   "unlabeled_fields": 0,
+   "unlabeled_examples": [],
+   "contrast_failures": 1,
+   "contrast_examples": [
+    "a.sr-only.skip-link 1.05"
+   ],
+   "overlaps": 0,
+   "overlap_examples": [],
+   "misaligned": 3,
+   "misaligned_examples": [
+    "row i | i",
+    "row i | i",
+    "column fieldset#preferences-fields | div.actions"
+   ],
+   "broken_images": 0,
+   "focus_not_visible": 0,
+   "console": 0,
+   "console_examples": [],
+   "failed_requests": 0,
+   "failed_examples": []
+  },
+  {
+   "label": "choices",
+   "viewport": "mobile",
+   "scheme": "light",
+   "horizontal_scroll": 0,
+   "spacing_off_token": 1,
+   "spacing_examples": [
+    "fieldset#preferences-fields padding-top 5.6px"
+   ],
+   "small_targets": 9,
+   "small_examples": [
+    "a.sr-only.skip-link 1x1",
+    "a.brand 184x30",
+    "button.theme-toggle 39x26",
+    "input#receive-offers 24x24",
+    "input 24x24",
+    "input 24x24",
+    "input 24x24",
+    "a 93x17"
+   ],
+   "unlabeled_fields": 0,
+   "unlabeled_examples": [],
+   "contrast_failures": 1,
+   "contrast_examples": [
+    "button.btn.primary 1.01"
+   ],
+   "overlaps": 0,
+   "overlap_examples": [],
+   "misaligned": 3,
+   "misaligned_examples": [
+    "row i | i",
+    "row i | i",
+    "column fieldset#preferences-fields | div.actions"
+   ],
+   "broken_images": 0,
+   "focus_not_visible": 0,
+   "console": 0,
+   "console_examples": [],
+   "failed_requests": 0,
+   "failed_examples": []
+  },
+  {
+   "label": "choices",
+   "viewport": "mobile",
+   "scheme": "dark",
+   "horizontal_scroll": 0,
+   "spacing_off_token": 1,
+   "spacing_examples": [
+    "fieldset#preferences-fields padding-top 5.6px"
+   ],
+   "small_targets": 9,
+   "small_examples": [
+    "a.sr-only.skip-link 1x1",
+    "a.brand 184x30",
+    "button.theme-toggle 39x26",
+    "input#receive-offers 24x24",
+    "input 24x24",
+    "input 24x24",
+    "input 24x24",
+    "a 93x17"
+   ],
+   "unlabeled_fields": 0,
+   "unlabeled_examples": [],
+   "contrast_failures": 1,
+   "contrast_examples": [
+    "a.sr-only.skip-link 1.05"
+   ],
+   "overlaps": 0,
+   "overlap_examples": [],
+   "misaligned": 3,
+   "misaligned_examples": [
+    "row i | i",
+    "row i | i",
+    "column fieldset#preferences-fields | div.actions"
+   ],
+   "broken_images": 0,
+   "focus_not_visible": 0,
+   "console": 0,
+   "console_examples": [],
+   "failed_requests": 0,
+   "failed_examples": []
+  },
+  {
+   "label": "advertising",
+   "viewport": "desktop",
+   "scheme": "light",
+   "horizontal_scroll": 0,
+   "spacing_off_token": 1,
+   "spacing_examples": [
+    "a.brand margin-right 591.781px"
+   ],
+   "small_targets": 7,
+   "small_examples": [
+    "a.sr-only.skip-link 1x1",
+    "a.brand 231x30",
+    "a.small.mobile-hidden 102x20",
+    "button.theme-toggle 44x30",
+    "a.btn.small 109x40",
+    "a 93x17",
+    "a 165x17"
+   ],
+   "unlabeled_fields": 0,
+   "unlabeled_examples": [],
+   "contrast_failures": 2,
+   "contrast_examples": [
+    "button#load-campaigns.btn.primary 1.01",
+    "button.btn.primary 1.01"
+   ],
+   "overlaps": 0,
+   "overlap_examples": [],
+   "misaligned": 3,
+   "misaligned_examples": [
+    "row i | i",
+    "row i | i",
+    "row h2#bookings-title | button#load-bookings.btn"
+   ],
+   "broken_images": 0,
+   "focus_not_visible": 0,
+   "console": 0,
+   "console_examples": [],
+   "failed_requests": 0,
+   "failed_examples": []
+  },
+  {
+   "label": "advertising",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "horizontal_scroll": 0,
+   "spacing_off_token": 1,
+   "spacing_examples": [
+    "a.brand margin-right 591.781px"
+   ],
+   "small_targets": 7,
+   "small_examples": [
+    "a.sr-only.skip-link 1x1",
+    "a.brand 231x30",
+    "a.small.mobile-hidden 102x20",
+    "button.theme-toggle 44x30",
+    "a.btn.small 109x40",
+    "a 93x17",
+    "a 165x17"
+   ],
+   "unlabeled_fields": 0,
+   "unlabeled_examples": [],
+   "contrast_failures": 1,
+   "contrast_examples": [
+    "a.sr-only.skip-link 1.05"
+   ],
+   "overlaps": 0,
+   "overlap_examples": [],
+   "misaligned": 3,
+   "misaligned_examples": [
+    "row i | i",
+    "row i | i",
+    "row h2#bookings-title | button#load-bookings.btn"
+   ],
+   "broken_images": 0,
+   "focus_not_visible": 0,
+   "console": 0,
+   "console_examples": [],
+   "failed_requests": 0,
+   "failed_examples": []
+  },
+  {
+   "label": "advertising",
+   "viewport": "mobile",
+   "scheme": "light",
+   "horizontal_scroll": 0,
+   "spacing_off_token": 0,
+   "spacing_examples": [],
+   "small_targets": 5,
+   "small_examples": [
+    "a.sr-only.skip-link 1x1",
+    "a.brand 184x30",
+    "button.theme-toggle 39x26",
+    "a 93x17",
+    "a 165x17"
+   ],
+   "unlabeled_fields": 0,
+   "unlabeled_examples": [],
+   "contrast_failures": 2,
+   "contrast_examples": [
+    "button#load-campaigns.btn.primary 1.01",
+    "button.btn.primary 1.01"
+   ],
+   "overlaps": 0,
+   "overlap_examples": [],
+   "misaligned": 2,
+   "misaligned_examples": [
+    "row i | i",
+    "row i | i"
+   ],
+   "broken_images": 0,
+   "focus_not_visible": 0,
+   "console": 0,
+   "console_examples": [],
+   "failed_requests": 0,
+   "failed_examples": []
+  },
+  {
+   "label": "advertising",
+   "viewport": "mobile",
+   "scheme": "dark",
+   "horizontal_scroll": 0,
+   "spacing_off_token": 0,
+   "spacing_examples": [],
+   "small_targets": 5,
+   "small_examples": [
+    "a.sr-only.skip-link 1x1",
+    "a.brand 184x30",
+    "button.theme-toggle 39x26",
+    "a 93x17",
+    "a 165x17"
+   ],
+   "unlabeled_fields": 0,
+   "unlabeled_examples": [],
+   "contrast_failures": 1,
+   "contrast_examples": [
+    "a.sr-only.skip-link 1.05"
+   ],
+   "overlaps": 0,
+   "overlap_examples": [],
+   "misaligned": 2,
+   "misaligned_examples": [
+    "row i | i",
+    "row i | i"
+   ],
+   "broken_images": 0,
+   "focus_not_visible": 0,
+   "console": 0,
+   "console_examples": [],
+   "failed_requests": 0,
+   "failed_examples": []
+  },
+  {
+   "label": "booking_and_payment",
+   "viewport": "desktop",
+   "scheme": "light",
+   "horizontal_scroll": 0,
+   "spacing_off_token": 1,
+   "spacing_examples": [
+    "a.brand margin-right 591.781px"
+   ],
+   "small_targets": 9,
+   "small_examples": [
+    "a.sr-only.skip-link 1x1",
+    "a.brand 231x30",
+    "a.small.mobile-hidden 102x20",
+    "button.theme-toggle 44x30",
+    "a.btn.small 109x40",
+    "button#copy-amount.btn.small 107x38",
+    "button#copy-address.btn.small 110x38",
+    "a 93x17"
+   ],
+   "unlabeled_fields": 0,
+   "unlabeled_examples": [],
+   "contrast_failures": 4,
+   "contrast_examples": [
+    "button#load-campaigns.btn.primary 1.01",
+    "button.btn.primary 1.01",
+    "button.btn.primary 1.01",
+    "button.btn.primary 1.01"
+   ],
+   "overlaps": 0,
+   "overlap_examples": [],
+   "misaligned": 3,
+   "misaligned_examples": [
+    "row i | i",
+    "row i | i",
+    "row h2#bookings-title | button#load-bookings.btn"
+   ],
+   "broken_images": 0,
+   "focus_not_visible": 1,
+   "console": 0,
+   "console_examples": [],
+   "failed_requests": 0,
+   "failed_examples": []
+  },
+  {
+   "label": "booking_and_payment",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "horizontal_scroll": 0,
+   "spacing_off_token": 1,
+   "spacing_examples": [
+    "a.brand margin-right 591.781px"
+   ],
+   "small_targets": 9,
+   "small_examples": [
+    "a.sr-only.skip-link 1x1",
+    "a.brand 231x30",
+    "a.small.mobile-hidden 102x20",
+    "button.theme-toggle 44x30",
+    "a.btn.small 109x40",
+    "button#copy-amount.btn.small 107x38",
+    "button#copy-address.btn.small 110x38",
+    "a 93x17"
+   ],
+   "unlabeled_fields": 0,
+   "unlabeled_examples": [],
+   "contrast_failures": 1,
+   "contrast_examples": [
+    "a.sr-only.skip-link 1.05"
+   ],
+   "overlaps": 0,
+   "overlap_examples": [],
+   "misaligned": 3,
+   "misaligned_examples": [
+    "row i | i",
+    "row i | i",
+    "row h2#bookings-title | button#load-bookings.btn"
+   ],
+   "broken_images": 0,
+   "focus_not_visible": 1,
+   "console": 0,
+   "console_examples": [],
+   "failed_requests": 0,
+   "failed_examples": []
+  },
+  {
+   "label": "booking_and_payment",
+   "viewport": "mobile",
+   "scheme": "light",
+   "horizontal_scroll": 0,
+   "spacing_off_token": 0,
+   "spacing_examples": [],
+   "small_targets": 7,
+   "small_examples": [
+    "a.sr-only.skip-link 1x1",
+    "a.brand 184x30",
+    "button.theme-toggle 39x26",
+    "button#copy-amount.btn.small 107x38",
+    "button#copy-address.btn.small 110x38",
+    "a 93x17",
+    "a 165x17"
+   ],
+   "unlabeled_fields": 0,
+   "unlabeled_examples": [],
+   "contrast_failures": 4,
+   "contrast_examples": [
+    "button#load-campaigns.btn.primary 1.01",
+    "button.btn.primary 1.01",
+    "button.btn.primary 1.01",
+    "button.btn.primary 1.01"
+   ],
+   "overlaps": 0,
+   "overlap_examples": [],
+   "misaligned": 2,
+   "misaligned_examples": [
+    "row i | i",
+    "row i | i"
+   ],
+   "broken_images": 0,
+   "focus_not_visible": 1,
+   "console": 0,
+   "console_examples": [],
+   "failed_requests": 0,
+   "failed_examples": []
+  },
+  {
+   "label": "booking_and_payment",
+   "viewport": "mobile",
+   "scheme": "dark",
+   "horizontal_scroll": 0,
+   "spacing_off_token": 0,
+   "spacing_examples": [],
+   "small_targets": 7,
+   "small_examples": [
+    "a.sr-only.skip-link 1x1",
+    "a.brand 184x30",
+    "button.theme-toggle 39x26",
+    "button#copy-amount.btn.small 107x38",
+    "button#copy-address.btn.small 110x38",
+    "a 93x17",
+    "a 165x17"
+   ],
+   "unlabeled_fields": 0,
+   "unlabeled_examples": [],
+   "contrast_failures": 1,
+   "contrast_examples": [
+    "a.sr-only.skip-link 1.05"
+   ],
+   "overlaps": 0,
+   "overlap_examples": [],
+   "misaligned": 2,
+   "misaligned_examples": [
+    "row i | i",
+    "row i | i"
+   ],
+   "broken_images": 0,
+   "focus_not_visible": 1,
+   "console": 0,
+   "console_examples": [],
+   "failed_requests": 0,
+   "failed_examples": []
+  },
+  {
+   "label": "operator",
+   "viewport": "desktop",
+   "scheme": "light",
+   "horizontal_scroll": 0,
+   "spacing_off_token": 1,
+   "spacing_examples": [
+    "a.brand margin-right 719.609px"
+   ],
+   "small_targets": 3,
+   "small_examples": [
+    "a.sr-only.skip-link 1x1",
+    "a.brand 231x30",
+    "button.theme-toggle 44x30"
+   ],
+   "unlabeled_fields": 0,
+   "unlabeled_examples": [],
+   "contrast_failures": 1,
+   "contrast_examples": [
+    "button#load.btn.primary 1.07"
+   ],
+   "overlaps": 0,
+   "overlap_examples": [],
+   "misaligned": 4,
+   "misaligned_examples": [
+    "row i | i",
+    "row i | i",
+    "row button#load-paid.btn | label.field",
+    "row label.field | button#export-paid.btn"
+   ],
+   "broken_images": 0,
+   "focus_not_visible": 0,
+   "console": 0,
+   "console_examples": [],
+   "failed_requests": 0,
+   "failed_examples": []
+  },
+  {
+   "label": "operator",
+   "viewport": "desktop",
+   "scheme": "dark",
+   "horizontal_scroll": 0,
+   "spacing_off_token": 1,
+   "spacing_examples": [
+    "a.brand margin-right 719.609px"
+   ],
+   "small_targets": 3,
+   "small_examples": [
+    "a.sr-only.skip-link 1x1",
+    "a.brand 231x30",
+    "button.theme-toggle 44x30"
+   ],
+   "unlabeled_fields": 0,
+   "unlabeled_examples": [],
+   "contrast_failures": 1,
+   "contrast_examples": [
+    "a.sr-only.skip-link 1.05"
+   ],
+   "overlaps": 0,
+   "overlap_examples": [],
+   "misaligned": 4,
+   "misaligned_examples": [
+    "row i | i",
+    "row i | i",
+    "row button#load-paid.btn | label.field",
+    "row label.field | button#export-paid.btn"
+   ],
+   "broken_images": 0,
+   "focus_not_visible": 0,
+   "console": 0,
+   "console_examples": [],
+   "failed_requests": 0,
+   "failed_examples": []
+  },
+  {
+   "label": "operator",
+   "viewport": "mobile",
+   "scheme": "light",
+   "horizontal_scroll": 0,
+   "spacing_off_token": 2,
+   "spacing_examples": [
+    "a.brand margin-right 53.1406px",
+    "div.header-actions margin-left 53.1406px"
+   ],
+   "small_targets": 3,
+   "small_examples": [
+    "a.sr-only.skip-link 1x1",
+    "a.brand 184x30",
+    "button.theme-toggle 39x26"
+   ],
+   "unlabeled_fields": 0,
+   "unlabeled_examples": [],
+   "contrast_failures": 1,
+   "contrast_examples": [
+    "button#load.btn.primary 1.07"
+   ],
+   "overlaps": 0,
+   "overlap_examples": [],
+   "misaligned": 2,
+   "misaligned_examples": [
+    "row i | i",
+    "row i | i"
+   ],
+   "broken_images": 0,
+   "focus_not_visible": 0,
+   "console": 0,
+   "console_examples": [],
+   "failed_requests": 0,
+   "failed_examples": []
+  },
+  {
+   "label": "operator",
+   "viewport": "mobile",
+   "scheme": "dark",
+   "horizontal_scroll": 0,
+   "spacing_off_token": 2,
+   "spacing_examples": [
+    "a.brand margin-right 53.1406px",
+    "div.header-actions margin-left 53.1406px"
+   ],
+   "small_targets": 3,
+   "small_examples": [
+    "a.sr-only.skip-link 1x1",
+    "a.brand 184x30",
+    "button.theme-toggle 39x26"
+   ],
+   "unlabeled_fields": 0,
+   "unlabeled_examples": [],
+   "contrast_failures": 1,
+   "contrast_examples": [
+    "a.sr-only.skip-link 1.05"
+   ],
+   "overlaps": 0,
+   "overlap_examples": [],
+   "misaligned": 2,
+   "misaligned_examples": [
+    "row i | i",
+    "row i | i"
+   ],
+   "broken_images": 0,
+   "focus_not_visible": 0,
+   "console": 0,
+   "console_examples": [],
+   "failed_requests": 0,
+   "failed_examples": []
+  }
+ ]
+}

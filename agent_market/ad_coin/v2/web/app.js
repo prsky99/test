@@ -295,7 +295,7 @@
     state.booking=campaign;text('booking-campaign',campaign.name);
     options('booking-category',state.session.categories,v=>v.replaceAll('_',' '));
     options('booking-region',state.session.regions);
-    $('booking-day').min=utcDay(1);$('booking-day').max=utcDay(30);$('booking-day').value=utcDay(1);
+    options('booking-day',Array.from({length:30},(_,i)=>utcDay(i+1)),d=>new Date(d+'T00:00:00Z').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric',timeZone:'UTC'})+' (UTC)');
     $('booking-form').hidden=false;$('booking-day').focus();
   }
   function bookingLine(item) {
