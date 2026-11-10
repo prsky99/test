@@ -1,4 +1,4 @@
-"""Recommend MCP servers whose gateway lists at least one callable tool first (2026-11-10).
+"""Leave out MCP servers whose gateway lists no callable tool while another choice remains (2026-11-10).
 
 A first-time agent asked for "PDF to text" and got Clearcrawl first, whose gateway tools/list
 was empty: its two tools fail the gateway's safety and schema checks. On 11-10, 17,253 of
@@ -53,8 +53,9 @@ class ExposedFirstRecommender:
         wider = min(600 - min(offset, 599), limit + EXTRA)
         items = search(task, kind, auth_pref, max(limit, wider), offset, exclude, hint, category)
         exposed = [item for item in items if self.callable(item)]
-        hidden = [item for item in items if not self.callable(item)]
-        return (exposed + hidden)[:limit]
+        # Leave them out while any callable choice remains: Chat re-ranks a ten-item shortlist by
+        # meaning, which moved a demoted server back to first (11-10 deploy check).
+        return (exposed or items)[:limit]
 
     def callable(self, item):
         """False only for an MCP server whose gateway tools/list would be empty."""

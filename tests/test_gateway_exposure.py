@@ -1,4 +1,4 @@
-"""MCP servers whose gateway tools/list is empty are recommended last (2026-11-10)."""
+"""MCP servers whose gateway tools/list is empty are left out while another choice remains (2026-11-10)."""
 import json
 from copy import copy
 
@@ -38,7 +38,9 @@ def test_an_empty_gateway_server_moves_last_and_is_replaced():
     items = [{'id': 1, 'kind': 'mcp'}, {'id': 2, 'kind': 'mcp'}, {'id': 4, 'kind': 'a2a'}, {'id': 3, 'kind': 'mcp'}]
     rec = ExposedFirstRecommender(Recommender(items), store)
     assert [i['id'] for i in rec.search('pdf to text', limit=1)] == [2]
-    assert [i['id'] for i in rec.search('pdf to text', limit=4)] == [2, 4, 1, 3]  # demoted, not removed
+    assert [i['id'] for i in rec.search('pdf to text', limit=4)] == [2, 4]  # left out while others remain
+    only_hidden = ExposedFirstRecommender(Recommender([{'id': 1, 'kind': 'mcp'}]), store)
+    assert [i['id'] for i in only_hidden.search('x', limit=1)] == [1]  # nothing callable: keep the answer
     assert rec._recommender.asked == [4, 7]  # looked EXTRA further
     reads = store.reads
     rec.search('pdf to text', limit=1)
