@@ -13,6 +13,7 @@
 """
 
 import logging
+import os
 import threading
 import time
 
@@ -27,6 +28,10 @@ from .registries import DEFAULT_CHAINS, Erc8004Crawler, WellKnownDiscoverer
 log = logging.getLogger("agent_market.collector")
 
 HISTORY_DAYS = 7
+# 11-10 사용자 결정: x402는 결제 실행 시험이 가능해질 때(AD Coin 보유 10만 코인 이상, 보유량의 1/1000만 사용)까지
+# 새로 수집·점검·평가하지 않는다. 연결 확인만으로는 정확한 시험이 안 되기 때문이다. 다시 켤 때: COLLECT_X402=1.
+COLLECT_X402 = os.environ.get("COLLECT_X402", "0") == "1"
+COLLECT_KINDS = ("a2a", "mcp", "x402") if COLLECT_X402 else ("a2a", "mcp")
 
 
 class CollectorAgent:
@@ -181,10 +186,11 @@ class CollectorAgent:
                 except Exception:
                     log.exception("static evaluation error")
             if self.store is not None:
-                try:  # x402 유료 API 품질 평가 (미평가 또는 24시간 경과분)
-                    stats["checked"] += self.store.evaluate_x402_batch(limit=1000)
-                except Exception:
-                    log.exception("x402 evaluation error")
+                if COLLECT_X402:
+                    try:  # x402 유료 API 품질 평가 (미평가 또는 24시간 경과분)
+                        stats["checked"] += self.store.evaluate_x402_batch(limit=1000)
+                    except Exception:
+                        log.exception("x402 evaluation error")
                 try:  # 기존 평가에 품질 정책 입히기 (정책 버전마다 한 바퀴, 네트워크 요청 없음)
                     stats["checked"] += self.store.quality_policy_batch(limit=500)
                 except Exception:
@@ -247,6 +253,14 @@ class CollectorAgent:
     def _build_health_loops(self) -> list[tuple[str, any]]:
         lanes = self.health_lanes
         loops = []
+        if not COLLECT_X402:
+            # x402 paused: A2A and MCP only; pruning and retired-agent scavenging move to the A2A lane.
+            if lanes >= 2:
+                loops.append(("collector-health-a2a", lambda: self._health_loop(kinds="a2a", prune=True, scavenge=True)))
+                loops.append(("collector-health-mcp", lambda: self._health_loop(kinds="mcp", prune=False, scavenge=False)))
+            else:
+                loops.append(("collector-health", lambda: self._health_loop(kinds=("a2a", "mcp"), prune=True, scavenge=True)))
+            return loops
         if lanes >= 3:
             # 3개 이상의 레인이면 A2A, MCP, x402 각각 전용 스레드로 완전 분리
             loops.append(("collector-health-a2a", lambda: self._health_loop(kinds="a2a", prune=False, scavenge=False)))

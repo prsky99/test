@@ -621,7 +621,8 @@ def test_retired_agent_scheduled_with_tiered_backoff():
     assert r["next_check_at"] is None
 
 
-def test_scavenger_probes_and_detects_revival(env):
+def test_scavenger_probes_and_detects_revival(env, monkeypatch):
+    monkeypatch.setenv("COLLECT_X402", "1")  # these fixtures are x402 resources
     store, net, checker, _ = env
     url = "https://api.example.com/revival-target"
     rid = add(store, url)
@@ -647,7 +648,8 @@ def test_scavenger_probes_and_detects_revival(env):
     assert r["failing_since"] is None
 
 
-def test_scavenger_still_dead_increments_and_delays(env):
+def test_scavenger_still_dead_increments_and_delays(env, monkeypatch):
+    monkeypatch.setenv("COLLECT_X402", "1")  # these fixtures are x402 resources
     store, net, checker, _ = env
     url = "https://api.example.com/dead-target"
     rid = add(store, url)

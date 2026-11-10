@@ -22,6 +22,7 @@ import json
 import logging
 import random
 import threading
+import os
 import time
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
@@ -446,6 +447,8 @@ class HealthChecker:
         """7일 이상 실패한 retired 에이전트들을 점검하여 복구된 서버를 탐지(Revival)."""
         now = time.time()
         due = self.store.due_for_scavenge(now, limit=limit, per_host=1)
+        if os.environ.get("COLLECT_X402", "0") != "1":  # 11-10: x402 paused (see collector/agent.py)
+            due = [r for r in due if r.get("kind") != "x402"]
         if not due:
             return {"scavenged": 0, "revived": 0, "still_dead": 0}
 

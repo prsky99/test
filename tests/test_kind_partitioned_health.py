@@ -104,7 +104,9 @@ def test_store_due_for_check_partitions_by_kind(temp_store: Store):
     assert len(due_all) == 4
 
 
-def test_collector_health_loop_threads_configuration(temp_store: Store):
+def test_collector_health_loop_threads_configuration(temp_store: Store, monkeypatch):
+    import agent_market.collector.agent as collector_agent
+    monkeypatch.setattr(collector_agent, "COLLECT_X402", True)
     dummy_http = httpx.Client()
     crawler = Crawler(temp_store, http=dummy_http, page_delay=0)
     checker = HealthChecker(temp_store, http=dummy_http)
@@ -142,3 +144,15 @@ def test_collector_health_loop_threads_configuration(temp_store: Store):
         "collector-health-x402-2",
         "collector-health-x402-3",
     ]
+
+
+def test_x402_paused_runs_only_a2a_and_mcp_lanes(temp_store: Store, monkeypatch):
+    import agent_market.collector.agent as collector_agent
+    monkeypatch.setattr(collector_agent, "COLLECT_X402", False)
+    dummy_http = httpx.Client()
+    crawler = Crawler(temp_store, http=dummy_http, page_delay=0)
+    checker = HealthChecker(temp_store, http=dummy_http)
+    for lanes, names in ((1, ["collector-health"]), (3, ["collector-health-a2a", "collector-health-mcp"]),
+                         (5, ["collector-health-a2a", "collector-health-mcp"])):
+        loops = CollectorAgent(temp_store, crawler, checker, health_lanes=lanes)._build_health_loops()
+        assert [loop[0] for loop in loops] == names
