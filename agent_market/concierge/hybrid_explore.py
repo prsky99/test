@@ -45,30 +45,38 @@ def _collapse_templates(records):
     return kept
 
 
-# Words that narrow how a result is delivered, not what it does (11-10: "crypto price json output"
-# found 0 while "crypto price" found many). Dropped only when the full query finds nothing.
-MODIFIERS = frozenset('''json output outputs api apis quickly quick fast today now realtime bulk free
-    cheap my team history small business agents agent korea please tool tools service online'''.split())
+# Words about how a result is delivered, not what it does (11-10: "crypto price json output" found
+# 0 while "crypto price" found many). Removed before the first search, with function words.
+DELIVERY = frozenset('''json output outputs api apis quickly quick fast today now realtime bulk please
+    tool tools service online'''.split())
 STOPWORDS = frozenset('''a an the is are be it its this that what which who how when where can could would should
     i me my we our you your in on at for of to from with and or by find get give show need want looking'''.split())
+# Real conditions of the task (11-11 PM review: "speech to text in korea" lost "korea" but kept "in").
+# They stay in the first search and are the first thing dropped when nothing is found.
+CONDITIONS = frozenset('''korea korean japan japanese history team small business agents agent free cheap
+    enterprise personal'''.split())
 RELAX_BUDGET = 3.0  # retries start only within this many seconds; they run only after zero results
 RELAX_TRIES = 2
 
 
+def _words(query):
+    return [w for w in re.findall(r"[^\s,;]+", str(query or "")) if w]
+
+
 def cleaned_query(query):
-    """The query without numbers and delivery words, or None when nothing would change."""
-    words = [w for w in re.findall(r"[^\s,;]+", str(query or "")) if w]
-    content = [w for w in words if not re.fullmatch(r"[\d.,:/-]+", w) and w.casefold() not in MODIFIERS]
+    """The query without numbers, delivery words and function words, or None when nothing changes."""
+    words = _words(query)
+    content = [w for w in words if not re.fullmatch(r"[\d.,:/-]+", w)
+               and w.casefold() not in DELIVERY and w.casefold() not in STOPWORDS]
     return " ".join(content) if content and content != words else None
 
 
 def relaxed_queries(query):
-    """Shorter forms of a query that found nothing: function words removed, then a leading word
-    (often the verb: "book flights" -> "flights"), then a trailing word, alternately."""
-    words = [w for w in re.findall(r"[^\s,;]+", str(query or "")) if w]
-    content = [w for w in words if not re.fullmatch(r"[\d.,:/-]+", w) and w.casefold() not in MODIFIERS]
+    """Shorter forms of a cleaned query that found nothing: condition words first, then a leading
+    word (often the verb: "book flights" -> "flights"), then a trailing word, alternately."""
+    content = _words(query)
     forms = []
-    core = [w for w in content if w.casefold() not in STOPWORDS]
+    core = [w for w in content if w.casefold() not in CONDITIONS]
     if core and core != content:
         forms.append(" ".join(core))
     content = core or content
