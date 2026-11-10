@@ -82,7 +82,7 @@
   "external_provider_calls": 0,
   "observation": {
     "fixture_candidates": 2005,
-    "native_and_sqlite_2005_candidate_queries_seconds": 0.1022271669935435,
+    "native_and_sqlite_2005_candidate_queries_seconds": 0.0957002080976963,
     "timing_is_not_a_service_sla": true
   },
   "operating_actions": 0,
@@ -92,14 +92,14 @@
   "production_cutover": false,
   "source_hashes": {
     "agent_market/application_store_selection.py": "9d4cd174b00ed2c4ea681ec91c8c6fbae75caf119a252b4e828fd2a54286ed5a",
-    "agent_market/concierge/selection.py": "3c1185eb7c717c3b8546daa455c81a170785e537fb56749e998d0a420d53a238",
-    "agent_market/concierge/front.py": "a8a413a63b2c1b301761a06433698d49a2b4e31ef118ffca0e53366982a686c9",
-    "agent_market/application_store_postgres.py": "543e156c53cf483c45002a4c457b74e31331063d6dc8314b440717c4b02532d3",
+    "agent_market/concierge/selection.py": "7c2590f24c8492f0a48c7377c4935bb1714e910b10da046c2cb66a2bb03caff1",
+    "agent_market/concierge/front.py": "34b872ad6683e070a721b2ec88523dd1f4f9129e48215f2392beec10bc86f9d5",
+    "agent_market/application_store_postgres.py": "07987a99776c89719637bed907642e71ed3068e771ca1af227e47ee340835ddc",
     "agent_market/application_store_sql.json": "abe38ac8d02a04f6aa9840cbae24574e98b33c3d8605c3723d159253a291e5f3",
     "scripts/rehearse_application_selection_postgres.py": "d23e2022358b8b8c573938fad23a644dec06666ca079b52d1f48b4443d03e61e",
     "agent_market/capability_registry.py": "fa849f333f3ce7686b6c2a21475952056491215cc96e2b054a4c4864ed6a0d3a",
     "agent_market/concierge/report_evidence.py": "3da085f1a22e99c91214f2cf3edd40210b3f49efb1c21915c9b687b5d32bcb1f",
-    "agent_market/gateway/store.py": "ee9381d59009b047540d5c22e5fdc111cfed21dbb810dec66e925cf79b0b4559",
+    "agent_market/gateway/store.py": "269f0e78af8a8d491c25c632ef81304cc362978da748fcfdedff17c30949d472",
     "tests/report_fixtures.py": "778c6c36c71b06172c820ee143c36f4e8e8983bf80b9fe11cd0770ae8b1c8460"
   },
   "source_unchanged": true

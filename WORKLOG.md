@@ -5,6 +5,16 @@
 - jobs 쿼리 후속(2026-11-10 16시, 검색과 RAG): 운영 PG는 조사 대상 조회를 gateway/store.py가 아니라 application_store_collector.py(등록 SQL을 거치지 않는 직접 SQL)로 실행한다. 1d6bac1c 배포 뒤에도 옛 조회문이 75초에 8회 계속 돌아 찾음. 같은 좁은 정렬을 이 구현에 적용(고른 id는 200개씩 IN으로 읽어 순서 유지). 벡터 정리 쉬기는 배포 뒤 90초 동안 정리 조회 0회로 작동 확인.
 - jobs 5초 초과 쿼리 2건(2026-11-10 16시, 검색과 RAG, 운영·SRE가 넘김, e444d30c 뒤 근본 해결): ① A2A 조사 대상 조회는 넓은 행(106k×2.7KB)을 통째로 정렬해 디스크 약 180MB를 쓰고 결과는 2행 → 좁은 열(id, cap_checked_at, host)로 순위만 매기고 고른 행만 등록된 `SELECT * FROM resources WHERE id=?`로 읽음(운영 읽기 전용 601→310ms, 디스크 정렬 0). 새 SQL은 application_store_sql.json에 한 항목 추가(store.due_for_capability.narrow, 목록 재생성 없음). ② 벡터 정리 조회는 171,391회·평균 237ms·누적 약 40,600초(대부분 지울 것 없음) → 찾은 게 없으면 store별 300초 쉼. 시험 tests/test_jobs_query_load.py(실제 PG 포함), 관련 88 통과.
 - 성장·유통 캐시 예외 효과 측정(11-10 13:5x, 재부팅 뒤 부하 5): 공개 경로 첫 방문 1.0~2.6초(변경 전 05시 부하 9에서 0.58~0.89초), 같은 연결 재요청 0.5~1.8초. HTML은 Cloudflare가 캐시하지 않고(DYNAMIC) If-None-Match 304도 HTML에는 전달되지 않음(JSON은 304). 효과는 5분 안 재방문 때 브라우저가 네트워크 없이 보여 주는 것에 한정. 첫 방문이 느려진 원인은 미확인(재부팅 직후 측정) → 다음 측정에서 Server-Timing으로 구간 분리 필요.
+- 재개 뒤 작업(2026-11-10 12:2x~13:5x, 운영·SRE)
+  - 재부팅 뒤 정상 확인: cloudflared·OpenSearch(green)·Ollama·맥미니 SMB. 12:56 재측정은 탐색 중앙값 1.3초, Chat 2.9초.
+  - 03:30 전체 복원 연습, 11-11 07:30 과업 스냅샷 확인을 다시 예약했다.
+  - 보안·감사 기록 기존 행 정리(사용자 승인)
+    - 준비: 두 표 백업(gateway-data/backups/privacy-scrub-20261110), SQL·사용자 실행 스크립트(e4ddbdba), 사본 리허설 passed
+    - 운영 실행은 자동 모드 권한 검사가 거부했다. 사용자 실행 대기다.
+  - agentcon_config.py: admin만 예전 파일이라 config-admin-20261110-r1로 배포했다. 네 역할 모두 HEAD와 같다.
+  - 90일 보존 정리는 등록 SQL 파일 충돌로 보류했다(지금 대상 0행).
+  - AD Coin 데몬 설치는 그 팀의 배포 대기 등록을 기다린다.
+  - 재부팅으로 scratchpad가 비워져 패키징·커밋 보조 스크립트를 다시 만들었다.
 - 성장·유통 7차(2026-11-10 오전~13시)
   - 공개 성장 페이지 캐시 예외(PM 승인): 로그인 없는 GET이고 자격 증명이 없으면(분석 쿠키 제외) `public, max-age=300, stale-while-revalidate=600`, Vary: Accept, 약한 ETag(304). 나머지는 no-store. 서버 처리 3~30ms, 공개 경로 첫 방문 0.6초·재방문은 브라우저 캐시.
   - 주간 근거 보고서 /reports/weekly(첫 호 2026-W45, 실행 점검 876 = MCP 822·A2A 54, x402는 시험 호출 기준). jobs가 매주 월요일 발행(W46은 11-16).
@@ -14,21 +24,111 @@
   - 실수 기록: "Cloudflare br 캐시가 옛 파일" 판단은 틀림. 이 맥 curl에 brotli가 없어 압축 바이트를 검색했던 것. 페이지는 pearl_view가 내용 해시로 자원 주소를 바꿔 이미 새 파일을 씀(내장 브라우저로 버튼 90개 확인). r8의 ?v= 추가는 불필요했지만 해는 없음. br 확인은 브라우저로 할 것.
 - 탐색 3초 측정(2026-11-10 12:58, 검색과 RAG): 처음 보는 검색어 20개(필터·쪽 넘기기 섞음), 연결 재사용, 배포 1분 뒤, 부하 4.5~5.4. 서버 시간 = 전체 시간(Server-Timing explore). 중앙값 1.14초·p95 1.82초·최대 1.94초, 3초 초과 0. 가장 느린 것은 결과 0건 검색어(lithuanian invoice parser 1.94초, recipe scaling grams+필터 1.82초). 20개 중 9개가 0건(earthquake early warning feed·volcanic ash advisory 등): 속도 문제는 아니고 카탈로그 범위.
 - 테스트넷 가격 표시(2026-11-10 13시, 검색과 RAG, PM 채택): Base Sepolia에서만 받는 x402 427개가 실제 가격처럼 보였다. 테스트넷 결제 조건은 가격으로 보지 않고(crawler.TEST_NETWORKS, 수집·견적 모두), 견적 유지 규칙은 등록 가격도 양수일 때만 적용 → 저장된 테스트넷 가격은 다음 수집 때 NULL(손 수정 없음). 상세 API에 price_note "testnet_only" 추가, 상세·칩에 "Testnet only". 탐색 결과는 문서에 네트워크가 없어 "Price on request". 시험 164 통과.
+- 묶음 배포(2026-11-10 10:52~10:55, 운영·SRE, 현황판 잠금)
+  - execution: rebuild-execution-20261110-r1. privacy-frontend-r1과 같은 내용이고, 기준 버전은 docs-execution-20261031-r2로 기록했다.
+    - 10-31 이후의 수정(잠금 재시도, typed 엔진, 새 config)이 처음 들어갔다.
+    - 게이트: 기본 목록에 execution 시험 3개를 더해 passed
+  - jobs: erc-timeout-jobs-20261110-r1(backfill-quote-jobs-r3 위, 1b73a2e3)
+  - frontend: privacy-frontend-20261110-r1(quote-keep-frontend-r1 위)
+  - admin: privacy-admin-20261110-r1(ua-contact-admin-r2 위). frontend·admin 모두 bf365263(IP /24·/48, UA 계열화) 반영
+  - 배포 뒤 확인
+    - 공개 /·/llms.txt·탐색·카테고리 200(해외 경유 1.3~2.6초), admin 200
+    - 네 역할 모두 새 오류 0(기존 rag index 제외), DB 연결 16
+    - execution에 AD Coin 로그 0
+    - 새 칸 데우기 첫 검색 1.7초
+  - 남은 일: 90일 보존 삭제는 등록 SQL 파일 충돌로 보류, 기존 행 정리는 사용자 승인 대기, 03:30 전체 복원 연습 예약됨
 - jobs 오류·가격 핑퐁·큐 대조(2026-11-10 07시, 검색과 RAG, 총괄 PM 과제)
   - `rag index loop error` 4,073건: ensure_jobs 백필 쿼리가 카탈로그 전체(289k)를 한 번에 훑어 6.8~11초 → jobs 5초 statement_timeout. 실패하면 BACKFILL_PAUSE를 정하기 전에 예외가 나가 10초마다 반복. 쉬는 시각을 먼저 정하고(실패해도 300초), 자원 번호 2만 개 구간씩 훑음(운영 읽기 전용 0.4~2.5초, 부하 15). 작업본의 출처 모름 미커밋 변경(database_error 삼킴)은 쓰지 않고 그대로 둠.
   - x402 가격 핑퐁: 등록 금액과 402 견적이 번갈아 저장돼 309개가 하루 1.48번 재색인(나머지 0.19번). 등록 항목(details)이 그대로면 양수 견적 가격·받는 주소 유지, 0·NULL이면 등록 가격(32172는 $0.06으로 돌아옴). 가격 집계는 COLLECTOR.md.
   - 탐색 문서 큐 대조: 5초마다 세대 309k행 전체 대조(평균 266ms, 147k회, 누적 39,252초, DB 시간 상위). 빈 대조 뒤 12회차(60초) 쉼, 들어온 게 있으면 계속.
   - 시험: test_embedding_churn 10, test_postgres_backfill_pause 4, test_explore_documents_postgres 새 1. 바뀐 부분 묶음 171 통과. 전체 pytest는 메모리 압박(스왑 83%)으로 88분 넘게 걸려 PM 지시로 중지.
   - 후속: 테스트넷(Base Sepolia) 전용 x402 427개가 실제 가격처럼 보임(PM 채택, 다음 과제). 탐색 3초 측정 스크립트 준비(scratchpad).
+- restart·배포 직후 탐색 지연(2026-11-10 07시, 운영·SRE, PM 요청)
+  - restart: 작업본(미커밋 포함)을 패키징하던 것을, 운영 중인 버전을 반대 칸에 다시 띄우도록 바꿨다(1d59f8f9, DEPLOY.md 경고 추가).
+  - 배포 직후 탐색 10.7초와 OpenSearch 시간 초과(오늘 11회)
+    - 원인: 메모리 압박이다. 남은 메모리 18MB, 스왑 85%이고, OpenSearch 상주 메모리가 74MB라 힙 대부분이 스왑에 나가 있다. 새 칸은 캐시도 비어 있다.
+    - 수정: frontend 배포가 트래픽을 넘기기 전에 탐색 4개로 새 칸을 데운다(b15a549a). 대기 칸 실측은 196/113/3,283/277ms였다.
+    - admin 이전 칸(writer-retry-admin-r1)은 승인된 30분 정책대로 멈췄다.
+    - 현재 표본: 탐색 중앙값 1.7초, 최대 2.75초. Chat은 4.1~4.6초.
+  - Antigravity 일반 종료(PM 사전 알림 뒤)는 자동 모드 권한 검사가 거부해 하지 않았다. 사용자 결정 사항이다.
+  - 제안(승인 필요): OpenSearch 힙을 768m에서 512m로 줄이기(색인 160MB, 힙 사용 24%). OpenSearch 재시작이 필요하며, 그동안 탐색은 PG로 대체된다.
+  - execution과 AD Coin v2: v2 라우터·풀은 create_front_app(frontend)에서만 켜진다. execution은 gateway 앱만 만들어 영향이 없다(배포 뒤 확인 예정).
+- 운영 DB 구조 변경 절차·리허설 도구(2026-11-10 06:5x, 운영·SRE, 사용자 지시 "운영 DB 변경 절차 진행해줘")
+  - 커밋 4c371fb5, 시험 3개
+  - `scripts/db_change_rehearsal.py run`
+    - 최신 일일 백업을 사설 PG에 복원한다. 스키마는 전부, 데이터는 큰 표 16개만 빼고(약 170MB) 넣고, 사본의 신원 게이트 스키마를 지운다.
+    - 운영 중인 frontend·jobs 버전의 코드로 변경 전과 후에 앱 연결(불변 검사)·쓰기 트랜잭션·탐색을 검사한다. 운영 DB 표시가 들어간 명령은 거부한다.
+    - `check`는 24시간 안에 지금 운영 중인 버전으로 통과한 같은 변경만 허용한다.
+  - 실측: 표 주석은 passed(14.7초). 05:38과 같은 종류(public 표 + 트리거)는 application_refuses_changed_database(schema_invariants_mismatch, 11.3초)로 장애를 그대로 재현했다.
+  - 문서: deploy/DATABASE_OPERATIONS.md "운영 DB 구조 변경" 절. CLAUDE.md 한 줄 초안은 PM에 보냈다.
+  - 그 사이 처리: erc8004 resolve 시간 초과는 경고로 남기고 5분 대기(1b73a2e3), jobs 배포는 10시 묶음에 넣는다.
+- 배포 도구: 환경 공유·이전 칸 회수(2026-11-10 06:2x, 운영·SRE, PM 승인)
+  - 커밋 779e23c7, 시험 tests/test_service_deploy_shared_env.py 7개, 배포 도구 시험 43 passed
+  - .venv 공유: `package`가 의존성 키(pyvenv.cfg + dist-info 목록 + runtime lock + runtime-versions)별로 services/venvs/<키>를 한 번만 만들고, 릴리스 .venv는 그 폴더에 링크한다.
+    - 키 폴더는 바꾸지 않으므로 이전·되돌릴 버전이 안전하다. 쓰지 않는 키 폴더는 릴리스 정리 때 함께 지운다.
+    - 확인: venv-share-frontend-20261110-r1 게이트 passed. 성장 팀 growth-md-frontend-20261110-r7이 작업본의 새 도구로 06:11에 먼저 패키징됐는데, 같은 키·같은 패키지로 import가 정상이었다.
+  - 이전 칸 회수: frontend·admin 배포 30분 뒤 분리 프로세스가 `reclaim-standby`로 이전 칸을 멈춘다(state 기록은 유지).
+    - 30분 뒤 되돌리기는 다시 띄우므로 수십 초가 걸린다(DEPLOY.md에 적음).
+    - 11-10 이전 배포의 이전 칸(retained_at 없음)은 건드리지 않는다.
+  - 사용자 보고 용어는 "판"이 아니라 "버전"으로 쓴다(사용자 지시, 기억 say-version-not-pan).
+- 운영 맥 하드웨어 점검(2026-11-10 06시, 운영·SRE, 사용자 지시 "메모리와 디스크 등 하드웨어도 항상 체크")
+  - 보고서: `reports/운영 맥 메모리·부하·디스크 2026-11-10.md`(1202b81d)
+  - 측정: 부하 11~19, CPU idle 44%, RAM 16GB 중 압축 6.5GB·남음 0.2GB, 스왑 80%. 부하의 상당 부분이 스왑 대기다.
+  - 원인
+    - 메모리: PG shared_buffers 2GB, Antigravity IDE 3.5GB(사용자 앱), OpenSearch 1GB, 이전 frontend 대기 슬롯 1.5GB, Claude 세션들 1.7GB
+    - CPU: syspolicyd 84%. 오늘 판 28개가 저마다 .venv를 복제해, 처음 실행 때마다 macOS가 검사한다.
+  - 우리 시험은 측정 시점에 모두 nice(10·15)로 돌고 있었다.
+  - 릴리스는 배포 때 자동 정리(배포된 판과 6시간 안에 만든 판만)되므로 추가 정리가 필요 없다. 백업은 7개 순환(24GB)이다.
+  - 디스크: 홈 647GB 중 운영 데이터는 69GB다. 큰 것은 ~/Library 179GB, ~/.cache 108GB, ComfyUI 94GB, Downloads 50GB(정리는 사용자 결정). 경보 기준 제안은 여유 100GB 미만 주의, 50GB 미만 장애다.
+  - 제안: 배포 묶기와 배포 전 pytest 확인, 판끼리 .venv 공유(배포 도구 변경), 이전 슬롯을 배포 30분 뒤 멈추기(PM 결정), IDE 닫기(사용자 결정). DB 메모리 설정은 재시작이 필요해 승인 대상이다.
 - 성장·유통 6차(2026-11-10 07시, PM 후속)
   - Markdown 응답 첫 줄의 분류 글자("Connect" 등) 제거: 모든 Markdown 경로가 본문 H1부터 시작(10개 경로 확인).
   - Claude Code 플러그인 자체 사이트 공개(PM 승인): /claude-plugins/marketplace.json, /claude-plugins/agent-concierge-plugin-1.0.0.zip(archive 출처, sha256 8188f22b…, 매번 같은 바이트). 비밀값·내부 주소 없음 확인, README 설치 명령을 우리 주소로. archive 출처는 Claude Code v2.1.224 이상(이 맥 2.1.89라 실제 설치는 못 해 봄).
   - 새 과업 표본 10개(카드 46장) 모두 검사 날짜와 등급 또는 시험 호출 성공이 보임.
   - 디렉터리 확인에 A2A Registry(공개 API에 노출, conformance true)와 a2a.directory(/agents/agent-concierge) 추가. mcpservers.org·PulseMCP·mcp.so는 아직 없음.
   - 배포: frontend growth-md-frontend-20261110-r6(base writer-retry-frontend-20261110-r1), jobs growth-md-jobs-20261110-r5(base ua-contact-jobs-20261110-r1), 게이트 passed. r4는 쉬던 슬롯 준비 확인 503으로 배포 시작 전에 멈춤(변경 없음).
+- 수집기 연락처 판 준비·execution 계획(2026-11-10 06시, 운영·SRE)
+  - User-Agent 연락처: crawler.py의 `bot@a2a-discovery.org`(MX 없음)와 `github.com/a2a-discovery`를 `contact@agentconcierge.biz`, `https://agentconcierge.biz/`로 바꾼다. 제품 토큰은 A2A-Discovery-Crawler/1.0으로 유지한다. agentconcierge.biz에는 Cloudflare MX가 있다. contact@ 전달 규칙은 계정에서 확인해야 한다.
+    - 사용자 승인(PM 경유) 뒤 06:00에 배포했다: jobs ua-contact-jobs-20261110-r1(base writer-retry-jobs-r1), admin ua-contact-admin-20261110-r2(base writer-retry-admin-r1). 게이트 둘 다 passed. admin r1은 patch .orig가 섞여 쓰지 않는다.
+    - 커밋 8255d24b(HEAD 내용에 이 한 줄만 얹음, 시험 tests/test_crawler_contact.py). 다른 세션의 crawler.py 미커밋 변경(394행)은 그대로 두었다. 연락처는 crawler 한 곳뿐이었다(collector·health는 연락처 없음).
+    - 배포 뒤 jobs·admin에 새 오류가 없다(06:00~, 기존 rag index 오류만).
+  - execution 판 재구성 계획: `reports/execution 판 재구성 계획 2026-11-10.md`(1cd2df92)
+    - 활성 frontend 판을 복사해 execution 판을 만들고, execution 시험을 게이트에 더해 조용한 시간에 배포하는 안이다.
+    - 근거: execution 로그 "workflow round deferred: statement_failed"가 11-05 이후 373회이고, 10-31 이후 execution 관련 커밋 10개가 빠져 있다.
+- 쓰기 잠금 재시도·게이트 역할별 시험(2026-11-10 05:4x, 운영·SRE, 총괄 PM 지시)
+  - 오류 2건: 헬스체크 crash(05:24)와 엣지 output-observation 503(00:36)
+    - 원인: 둘 다 DB 쓰기 advisory lock의 lock_timeout(1초) 초과다. DB 로그상 오늘 14회.
+    - 수정: 본문 실행 전 잠금 시간 초과는 0.25초 쉬고 한 번 더 시도한다(tx·BEGIN IMMEDIATE). 세션 없는 rollback은 무시하고, 엣지 errors()가 503의 예외 종류를 로그에 남긴다.
+    - 커밋 0eacf21e, 시험 6개(실제 PG 재시도 포함)
+  - jobs 판의 application_store_postgres.py가 11-02 커밋(0769327e, WriterBusy 구분) 이전 사본이었다. jobs 판에 그 커밋도 함께 얹었다.
+  - release_gate 수정(커밋 94284e4a)
+    - 판 역할(release.json 'role' 또는 이름의 -jobs- 등)로 시험 목록을 고른다.
+    - jobs는 수집·헬스·크롤러·평가 시험 5개를 돌리고, Chat 비교는 frontend만 한다.
+    - test_release_gate의 가짜 Manager에 check_base가 빠져 있던 것도 고쳤다(1b67c238 이후 실패).
+    - growth-md-jobs-r2가 passed였던 이유: 기본 목록으로는 지금도 실패하므로 시험을 직접 지정해 돌린 것으로 보인다. 새 jobs 목록으로는 141 passed.
+  - 배포(모두 게이트 passed)
+    - frontend writer-retry-frontend-20261110-r1(base growth-md-frontend-r3)
+    - jobs writer-retry-jobs-20261110-r1(base growth-md-jobs-r2). 백분위 캐시(2df53d39)를 포함하므로 pct-cache-jobs-r1은 쓰지 않는다.
+    - admin writer-retry-admin-20261110-r1(base ops-traffic-admin-r1, 고친 게이트 passed) 배포
+    - execution(10-31 판)은 패치가 맞지 않아 제외했다.
+  - 11-11 03시 과업 스냅샷: task-pages.json 수정이 11-10 05:37(성장 팀 --extend)이라 01:37에 20시간이 찬다. 03시 실행 대상이고, IndexNow 변경분 기준은 11-09 22:13 상태다. 07시 뒤에 다시 쓰면 그만큼 밀린다.
+  - 넘긴 것: jobs `rag index loop error`(VectorError database_error, 누적 4,073건)는 application_store_vector.py라 검색과 RAG 팀으로 넘긴다.
 - 성장·유통 5차(2026-11-10 06시, PM 결정 "품질 목표 100%")
   - 과업 페이지 품질 점검: 4차의 254쪽 중 설명에 문구가 지나가듯 나온 에이전트가 섞인 과업이 있었다(예: Google search에 광고 단가 API, latitude longitude에 병원 찾기). 일치 규칙을 "이름 또는 설명 앞 60자('Use when … needs' 머리말 제외)"로 좁히고, 맞은 에이전트 중 주 카테고리만 남김. 결과를 사람이 검토해 모호한 문구 20개 제거, 중복 개념 2개 제거, 검토를 통과한 30개 추가 → 201쪽. 운영 스냅샷 교체(254쪽 사본은 세션 스크래치). 빠진 53쪽은 404 noindex.
   - 공개 성장 페이지 속도: 서버 처리 3~30ms(슬롯 직접), 공개 경로 0.45~0.9초는 대부분 네트워크 왕복. 응답이 `Cache-Control: no-store`(front 미들웨어의 보안 정책)라 브라우저 재방문 캐시가 없음 → 공개 성장 페이지만 예외로 둘지 PM 판단 요청.
+- DB 부하 줄이기: 평가 백분위 캐시(2026-11-10 05:3x, 운영·SRE)
+  - 무엇이 무거웠나: pg_stat_statements(11-01 초기화 뒤)에서 누적 DB 시간 2위가 `score_percentile`의 COUNT 쿼리였다.
+    - 73만 번, 평균 67ms, 4.9만 초로 전체의 9%다.
+    - 한 번에 최대 0.5초가 걸렸고, 지금도 분당 46번 돈다.
+  - 점수 값은 종류마다 300개 남짓뿐이라, (종류, 점수)별 결과를 10분 동안 기억하게 했다.
+    - 새 파일 `collector/percentile_cache.py`. capabilities·a2a가 이것을 쓴다.
+    - 등록 SQL은 바꾸지 않았다.
+    - 커밋 2df53d39, 시험 4개.
+  - 판 pct-cache-jobs-20261110-r1(base growth-md-jobs-20261110-r2)
+    - 판 사본에서 관련 시험 125개가 통과했다.
+    - release_gate는 기준 판도 똑같이 실패한다(jobs 판에 workspace_platform.typed_engine_for가 없어 tests/test_typed_engine_for.py 수집 오류). 규칙상 게이트 실패 배포라 PM 판단을 기다린다.
+  - 기준선: 05:29 calls 730,683.
+  - 그 밖의 DB 시간 상위는 embeddings 삽입·정리, explore_document_queue 삽입(각 8~9%)이다. 모두 검색과 RAG 영역이라 넘긴다.
 - 성장·유통 4차(2026-11-10 05시, 총괄 PM 과제 1~5)
   - 과업 페이지 99→254쪽(사이트맵 10,021). 검색으로 2개가 안 찬 과업은 근거 카탈로그에서 과업 문구가 그대로 나오는 에이전트로 보충하고, 근거 있는 에이전트 설명에서 자주 나오는 문구로 새 과업 약 140개를 만들었다(3개 이상일 때만). task_catalog.catalog_tasks, 운영 스냅샷은 `build_task_pages --extend`로 검색 없이 확장. IndexNow 변경분은 11-11 03시 jobs가 보낸다(새 쪽 포함).
   - 공개 페이지(/connect, /agents/*, /agent/*, /reports/*, /badges)가 `Accept: text/markdown`이면 같은 내용의 Markdown으로 답한다(page_markdown.py, 404는 X-Robots-Tag noindex). llms.txt에 한 줄 추가. 제목은 약어 유지(SEC EDGAR, IP, llms.txt).
@@ -37,11 +137,43 @@
   - PyPI·npm·Claude Code 플러그인: GitHub 없이 가능(PyPI·npm은 사용자 계정·토큰, 플러그인은 우리 사이트에 marketplace.json+zip을 archive 소스로). 빌드·검증만 함, 게시는 승인 대기. deploy/distribution/PACKAGES.md. 런칭 글 4번(GitHub README) 제외 표시.
   - 배포: frontend growth-md-frontend-20261110-r3(base category-bg-frontend-20261110-r1), jobs growth-md-jobs-20261110-r2(base price-unknown-jobs-20261110-r1), 게이트 모두 passed. 시험 tests/test_growth_markdown_and_tasks.py 10건.
   - jobs 첫 매일 갱신이 11-10에 돌지 않은 이유: 스냅샷이 11-09 21:51에 만들어져 20시간이 안 됨(정상). 첫 실행 11-11 03시.
+- 응답 시간 추세·카테고리 페이지(2026-11-10 05시, 운영·SRE)
+  - 측정(부하 11~19)
+    - 탐색 중앙값 1.8~2.3초, Chat 2.8~4.5초
+    - 과업·비교·best 페이지 10~20ms
+    - 상세 API 25~75ms. 한 번 1.2초가 나왔는데, 부하 때 디스크에서 읽은 탓이다.
+    - 카테고리 0.5~1.4초로, 가장 느렸다.
+  - 원인: 10분 캐시가 만료된 뒤 첫 방문자가 페이지를 다시 만드는 동안 기다렸다.
+  - 수정: 만료된 페이지도 바로 주고 뒤에서 다시 만든다. 기다리는 경우는 재시작 직후 각 카테고리의 첫 방문뿐이다.
+    - 커밋 75788338
+    - 판 category-bg-frontend-20261110-r1(base cookie-phone-frontend-20261110-r1, 게이트 passed)을 배포했다.
+  - 추세 기록: `scripts.ops_daily_samples --record --trend`가 logs/ops/response-samples.jsonl에 하루 한 줄씩 쌓고, ISO 주별 중앙값을 보여 준다. 첫 기록은 11-10이다.
+  - 일일 점검 지시문 반영은 사용자 승인 대기다.
+- 운영 점검 묶음(2026-11-10 05시, 운영·SRE, 총괄 PM 요청)
+  - Solana USDC 확인: 가격 없음 26→2, Solana가 더 싼데 Base 가격으로 저장 99→46. 줄어든 것은 헬스체크가 402 견적을 다시 받은 결과다.
+    - 남은 46개 중 배포 뒤 점검된 23개는 실제 402가 두 네트워크 같은 값이다(예: stableupload 2 USDC, kino402 0.384). 오류가 아니라 등록부 accepts의 Solana 금액이 예전 값이다.
+    - 남은 2개는 down 상태다.
+  - x402 수집 주기: 정상이다. 마지막 전체 수집은 11-09 08시쯤이고(meta crawl_last_full), 증분 수집은 계속 돌고 있다. 다음 전체 수집은 11-10 08시쯤이다.
+  - 새로 찾은 것: 등록부 가격과 저장(관측) 가격이 다른 x402 자원이 760개다. content_hash에 가격이 들어가므로, 등록부 수집 때마다 등록부 가격으로 덮이고 헬스체크가 관측가로 되돌리는 왕복이 생길 수 있다. 검색과 RAG의 "동적 가격 0" 규칙과 같은 판단(관측 vs 등록부 우선)이라 넘긴다.
+  - jobs 야간 작업: 03~07시 jobs 로그에 경고·오류가 없다.
+    - 과업 스냅샷은 11-09 21:51에 수동으로 만들어져 MIN_AGE 20시간 조건에 걸렸다. 그래서 오늘 새벽은 정상적으로 건너뛰었고, IndexNow 변경분 전송도 없었다. 첫 자동 실행은 11-11 03시다.
+  - 09:05 일일 점검 보완
+    - `scripts/ops_daily_samples.py`(+시험 2개): 날짜별 5xx 비율(전체·외부), 탐색 5건·Chat 3건 표본(처음 보는 질의, 연결 재사용, Server-Timing).
+    - 실측: 탐색 중앙값 1.8초(3초 초과 0), Chat 2.9~4.5초(5초 초과 0, 추천 3), 11-09 5xx 0.18%(외부 0.27%).
+    - 예약 작업 지시문 수정은 권한 검사에 막혔다. 보완안은 공유 노트 `운영SRE-일일점검-보완안-20261110.md`에 있다. 스크립트·시험은 미커밋이고 PM 확인 뒤 커밋한다.
+  - 상태: 백업 04:30 ok, DB 연결 17, 디스크 7%. 부하 10은 다른 세션의 nice pytest와 fseventsd 때문이며 장애는 없다.
 - 수집 낭비·가격 규칙 후속(2026-11-10 01시, 검색과 RAG): ① A2A 갱신 때 활동 수치(updated_at·호출 수)·카테고리만 바뀌면 cap_checked_at·eval_at 유지(c7f6990d, activity-refresh r1) → a2a-registry 활성 825개 중 미조사 33개로 고정(전에는 30분마다 613개). ② 402 결제 요구 금액 0 = 금액 모름: 저장 양수 가격 유지, 저장 0이면 NULL, 수집기도 0→NULL(8b98463c, 59208188). NULL x402는 탐색 카드·목록·상세(전에 "Free")·알림에 "Price on request". 32172는 다음 헬스체크(04:36) 뒤 NULL 확인 예정, 9573은 active=0이라 그대로. 배포: frontend price-unknown-frontend-20261110-r1, jobs price-unknown-jobs-20261110-r1(총괄 PM이 사용자 상시 승인으로 실행). 이전부터 실패하는 test_pearl_frontend::test_public_workspace_menu_opens_secure_customer_entry_on_desktop_and_mobile[390]의 원인: 390px에서 쿠키 동의 배너의 닫기 버튼이 "Open navigation" 메뉴 버튼 위를 덮어 클릭을 가로챔(시험이 배너를 닫지 않거나, 모바일에서 배너가 메뉴를 가림) → 운영·SRE와 정리 예정. embeddings 24시간 전후 기록은 11-11 00:40.
 - embeddings 낭비 1·2번(2026-11-10 00시, 검색과 RAG, 총괄 PM 요청): 원인은 a2a-registry가 updated_at을 약 30분마다 바꿔 content_hash가 달라지고 upsert가 레지스트리 자체 카테고리로 덮어쓴 것(활성 825개 중 613개). crawler는 체계 밖 카테고리를 classify, _upsert는 이름·설명이 같으면 저장 카테고리 유지(등록문 재사용), postgres_ann은 같은 vector_hash면 갱신 안 함·대기 중 자원 행은 cleanup 제외·마지막 indexed 작업과 corpus·모델이 같으면 저장 벡터 재사용(Ollama 생략). 9fcdb1a5. frontend embed-churn-frontend-20261109-r1 배포(게이트 통과), jobs embed-churn-jobs-20261109-r1은 패키징·검증만(worker-deploy 권한 검사 거부, 사용자 실행 대기). 기준선(11-09 22:35): 색인 작업 24시간 175,148, embeddings 삽입 285만·삭제 258만·갱신 42만, autovacuum 8시간마다 1,052~1,951초 → jobs 배포 뒤 24시간 기준 재측정. 3번(트리거)은 측정 뒤 결정(앱이 시작 때 함수 본문을 대조하므로 코드·함수 동시 변경 필요). 남은 낭비: A2A 갱신마다 cap_checked_at·eval_at 초기화. 후보 40개+qwen3 재순위 실험: 1위 정답 +0.8~0.9%p, 임베딩 p50 +0.45초 → 보류.
 - IndexNow 전송(2026-11-09 22:2x, 총괄 PM, 사용자 승인 "IndexNow 전송"): 사이트맵 URL 9,436개를 api.indexnow.org로 제출(Bing·Yandex·Naver 등 공유), 응답 200. 첫 일괄 요청은 키 확인 전이라 403 → 1개 URL로 키 확인(200) 뒤 재전송 성공. 키 파일 logs/service-frontend/public-pages/indexnow-key(git 제외). 같은 URL을 매일 다시 보내지 말고, 새로 생기거나 바뀐 페이지만 보낼 것.
 - Chat 응답 시간(2026-11-09 밤, 총괄 PM 요청): 원인은 강한 임베딩 모델이 내려간 뒤 요청마다 1.5초 기다리다 재적재를 끊은 것과 predict_next 지연. 실패 시 60초 쉬고 뒤에서 재적재, predict_next 0.4초·10분 캐시, 결과 저장을 답 뒤로(VisitorBook.defer/settle), 대체 검색 8초 상한. latency-frontend-20261109-r2(ops-cache-r1 위) 배포. 새 질문 20개: 중앙값 7.29→2.71초, p95 11.81→4.51초, 5초 초과 19→1(부하 13.5→7.2). r1이 ops-cache를 약 4분 덮음 → r2로 복구. 시험용 Mock 엔진 판정 수정으로 test_fast_single_recommendation 9건·대명사·대안 시험 등 실패 해소(남은 2건은 다른 원인). → reports/Chat 응답 시간 측정 2026-11-09.md 5절
 - 공식 MCP Registry 게시(2026-11-09 21:48, 총괄 PM, 사용자 승인 "게시 진행"): biz.agentconcierge/agent-concierge@1.0.0 active(remotes https://agentconcierge.biz/mcp). HTTP 도메인 확인(logs/service-frontend/public-pages/mcp-registry-auth, git 제외), 키 ~/.mcp-registry/key.pem, mcp-publisher 1.8.7. → deploy/mcp-registry/README.md 4절
+- price_usdc 단위 조사(2026-11-10, 운영·SRE, 총괄 PM 요청): 설계는 USDC 원자 단위 정수라 BIGINT가 맞음, 소수로 0이 된 자원 0개(소수는 XRPL RLUSD뿐, USDC 아니라 제외). 대신 crawler USDC_ASSETS의 Solana USDC 주소 오타(g 하나 더)로 Solana 가격 미반영: 가격 없음 26·더 비싸게 99. 4dfaa386, 판 usdc-sol-jobs-20261110-r2(base activity-refresh-jobs-r1) 배포 요청. 스키마 변경 권하지 않음 → reports/price_usdc 단위 조사 2026-11-10.md. 기준 판 검사가 낡은 base(embed-churn-jobs)를 실제로 막음.
+- 리포트 탐색 장애 해소(2026-11-10 00:44): snapshot-fix-frontend-20261110-r1(embed-churn-frontend-r1 위 + report_snapshot.py 62632799, 총괄 PM 배포)에서 스냅샷 20,589건 463.7초 생성, has_report 탐색 0.52~0.72초(부하 7.4).
+- Chat 재측정(2026-11-09 23:14, 운영·SRE, autovacuum 끝난 뒤, growth-frontend-r5, 새 질문 20, 평균 부하 4.2): 중앙값 2.87초·p95 4.86초·최대 5.40초, 5초 초과 1/20 → 5초 목표 충족(21시 7.3초). 리포트 탐색 수정은 ops-snapshot-frontend-20261109-r5(base growth-frontend-r5, 게이트 통과)로 다시 만듦, 배포 대기(r4는 기준 낡음). has_report 탐색은 23:15 부하 4에서 1.7~2.9초(스냅샷 없음).
+- 탐색 리포트 스냅샷 장애(2026-11-09 22시대, 운영·SRE): 21:40쯤 리포트 있는 자원이 a2a 10,023·mcp 10,001로 스냅샷 상한(front.MAX_REPORT_CANDIDATES 10,000)을 넘어, 그 뒤 시작한 모든 슬롯이 스냅샷 없이(로그도 없이) 돌았고 has_report 탐색 7.7초. report_snapshot에 전용 상한 50,000·초과 경고·첫 빌드 로그 버그 수정, 62632799. ops-snapshot-frontend-20261109-r4(base ops-snapshot-r3, 게이트 통과) 배포 요청 중(이 세션 배포 권한 없음). jobs ops-probe-r2는 배포 뒤 password 경고 0.
+- 배포 도구 기준 판 검사(2026-11-09 밤, 운영·SRE, 총괄 PM 요청): package가 기준 판을 release.json base에 기록(--base, AGENTCON_RELEASE_BASE, 복사한 release.json), deploy·worker-deploy가 활성 판과 다르면 release_base_mismatch로 거부(게이트 전·잠금 안 두 번), --force-base로만 무시, base 없는 예전 판은 그대로. 1b67c238, deploy/DEPLOY.md, tests/test_service_deploy_base.py.
+- 운영·SRE 22시대(2026-11-09): 배포 판을 새 활성 판 위에 다시 만듦 — ops-snapshot-frontend-20261109-r3(model-watch-frontend-r1 위, 게이트 통과), ops-probe-jobs-20261109-r2(growth-jobs-r1 위, 해당 시험 18개 통과). 이 세션 worker-deploy가 권한 검사에 막혀 배포 안 함 → 총괄 PM·사용자 실행 대기. test_concierge::test_whats_new_returns_current_choices는 시험이 낡음(Chat은 가격·결제자 수로 순위 안 매김, 동점 0.875) → 새 후보가 선택지에 있는지로 고침, 5c6d66c2.
+- 운영·SRE 후속 3건(2026-11-09 밤, 총괄 PM 요청): (1) 정정: 대기 슬롯은 시작 때만 Report snapshot을 만듦(두 슬롯이 같은 concierge 로그에 써서 오해). 배포 직후 옛 활성 슬롯의 진행 중 스냅샷이 끝까지 돌던 것을 몇 초 안에 멈추게 함(_UntilStandby). (3) status.json 점검 실패 때 127.0.0.1:8400 직접 측정해 origin/path 문제를 jobs 로그에 남김(공개 행은 그대로). 862319ea. ops-snapshot-frontend-20261109-r2(growth-frontend-r3 위, 게이트 통과)·ops-probe-jobs-20261109-r1(collector-scavenger-jobs 위, 해당 시험 18개 통과) 패키징만, model-watch-frontend-r1·growth-jobs-r1 대기 때문에 배포 순서 총괄 PM 확인 중. (2) embeddings: 하루 재임베딩 17.5만 중 약 46%가 같은 글. 최대 원인은 629개 자원의 카테고리 줄다리기(crawler가 레지스트리 원본 카테고리로 덮어씀 ↔ a2a 조사가 재분류), 다음은 33개 필드 무효화 트리거. 수정안만 보냄(파일들 다른 세션 작업 중) → reports/embeddings 죽은 행 원인 2026-11-09.md (fed2a803).
 - 카테고리 페이지 125초·status.json 시간 초과 조사(2026-11-09 밤, 운영·SRE, 총괄 PM 요청): 접근 로그가 없어 125초 요청 자체는 못 잡음. status.json "장애"는 가용성 점검기(이 맥→Cloudflare LAX→터널, 5초 제한)의 시간 초과 5번(20:44~20:56)이고 HTTP 오류 없음, 7일 실패율 2.1%. 같은 시각 OpenSearch·Edge 시간 초과, DB lock timeout, 두 슬롯의 Report snapshot(각 500초 안팎)이 겹침 → DB·IO 정체가 원인으로 추정. 막는 수: 카테고리 페이지 카테고리별 10분 캐시·한 번에 하나만 다시 만들기·다시 만드는 중이거나 실패하면 이전 페이지(최대 24시간), status.json 가용성 계산 30초 캐시. ops-cache-frontend-20261109-r1(growth-frontend-r2 위, passfile 수정 포함) 게이트 통과·배포(활성 a), 카테고리 2~4ms(첫 요청 0.4~0.6초)·status 2ms. 33e4c655. 기존 실패 2건(test_pronoun_retains..., test_alternatives_to_a_listed_agent...)은 원래 판에서도 실패.
 - 운영·SRE 11-09 점검 후속(2026-11-09 밤, 운영·SRE 세션)
   - 로그 잡음: libpq 'password file "/dev/null" is not a plain file' 원인은 application_runtime._connect의 passfile=os.devnull과 runtime_snapshot(백업)의 PGPASSFILE=/dev/null. /dev/null/no-password-file(존재·생성 불가, libpq가 조용히 건너뜀)로 교체, psql 전후 확인. 07cc8dcc. frontend는 다음 frontend 릴리스에 실림.
@@ -571,6 +703,21 @@
   - 플랫폼 수익은 기여 보상, 신규 등록 보상, 노출 지원으로 쓰고 원장에 남긴다.
   - 발행은 월 상한을 둔다. 혜택은 바깥 비용이 0인 것만 둔다.
   - 새 표는 adc2_sponsored_bookings 1개(A1 승인안에 추가).
+
+## 2026-11-10 AI AD Coin 팀: 코인 경제 1단계(원장 규칙) 구현
+- PM이 설계안을 승인했다.
+- 원장이 사람→광고주, 광고주→사람 이동을 거부한다. 사람↔사람은 이미 막혀 있었다.
+- 새 종류 4개: issuance, grant, sponsored_purchase, growth_reward.
+- 발행은 발행 계정→성장 예산만 허용하고 월 상한 100,000코인을 둔다. 제공자 보상 상한은 월 1,000코인이다. 둘 다 코드 상수다.
+- 스키마 10: adc2_sponsored_bookings 추가. A1 승인안은 표 54, 색인 32로 바뀌었다.
+- 시험 7개 추가, AD Coin 시험 375개 통과. 남은 단계: 성장 예산·지급, Sponsored 예약·결제, 운영 화면 대사, 혜택 연결.
+
+## 2026-11-10 AI AD Coin 팀: 포인트 혜택 후보와 비용 0 근거
+- docs/AD_COIN_BENEFITS.md
+  - 채택: 포인트 → 워크스페이스 크레딧(customer_credits, 1크레딧=워크플로 저장 1개). 바깥 비용 0(우리 DB만 씀).
+  - 보류: 자체 에이전트 추가 실행. 키 없는 공개 API·LLM 없음이라 돈은 0이지만, 사람별 한도가 없어 혜택이 되지 않고 외부 출처 속도 제한만 압박한다.
+  - 기각: 기록 보존 연장(개인정보 최소화와 충돌).
+- 교환 초안 10:1, 한 번 10, 한 달 50. 크레딧 약관 문구 추가는 사용자 승인 필요.
 
 ## 2026-11-10 AI AD Coin 팀: v2 마이그레이션 장애(05:38~05:40) 재발 방지
 - 원인: 첫 migrate가 v2 트리거 12개를 애플리케이션의 public 스키마에 만들었고, 앱이 연결 때마다 하는 트리거 검사(_validate_native_invariants)가 실패했다.
