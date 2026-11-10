@@ -18,10 +18,78 @@ def _sha256_hex(value: str) -> str:
 class PersistentCredentialResolver:
     """Production database-backed resolver ensuring persistent authentication across process restarts."""
 
-    def __init__(self, store, *, mtls_verifier=None, clock=None):
+    SITE_COOKIE = "__Host-ac_customer_session"
+    SITE_PRINCIPAL_SECONDS = 300  # a site-session principal is re-derived on every request
+
+    def __init__(self, store, *, mtls_verifier=None, clock=None, customer_identity=None, owner_link_key=None):
         self.store = store
         self._mtls_verifier = mtls_verifier or (lambda req: req.headers.get("x-mock-tls") == "verified")
         self._clock = clock or time.time
+        # Site sign-in bridge: a callable returning the customer identity core (or None when customer
+        # workspaces are closed) and the server-secret HMAC key that derives v2 ids from customer ids.
+        if customer_identity is not None and (type(owner_link_key) is not bytes or len(owner_link_key) != 32):
+            raise ContractError("owner_link_key_required", 503)
+        self._customer_identity = customer_identity
+        self._owner_link_key = owner_link_key
+
+    def _linked_id(self, label, customer_id):
+        """A v2 id derived with the server secret; it cannot be computed from the customer id alone."""
+        digest = hmac.new(self._owner_link_key, (label + customer_id).encode("utf-8"), hashlib.sha256).digest()
+        return str(UUID(bytes=digest[:16], version=4))
+
+    def site_customer(self, request):
+        """The signed-in site customer behind a request: (customer_id, owner_id, principal_id, csrf_ok).
+
+        Every call re-checks the site session, so signing out or revoking it takes effect at once."""
+        identity = self._customer_identity() if self._customer_identity is not None else None
+        token = self._site_token(request) if identity is not None else None
+        if not token:
+            raise ContractError("authentication_required", 401)
+        from ...workflow_publication_service import same_origin
+        from ...workspace_access import WorkspaceDenied
+        if not same_origin(request):
+            raise ContractError("cross_origin_refused", 403)
+        try:
+            actor = identity.actor(token)
+        except (WorkspaceDenied, ValueError, TypeError, KeyError, LookupError):
+            raise ContractError("authentication_required", 401) from None
+        customer_id = str(actor.customer_id)
+        proof = request.headers.get("x-csrf-token", "")
+        csrf_ok = request.method == "GET" or (bool(proof) and hmac.compare_digest(proof, identity.csrf(token)))
+        return (customer_id, self._linked_id("adc2-owner:", customer_id),
+                self._linked_id("adc2-principal:", customer_id), csrf_ok)
+
+    def _site_token(self, request):
+        """The one site session cookie, read from the raw header; two copies are refused so the session
+        that is checked is always the session that is used."""
+        values = [part.split("=", 1)[1].strip() for header in request.headers.getlist("cookie")
+                  for part in header.split(";") if part.strip().startswith(self.SITE_COOKIE + "=")]
+        if len(values) > 1:
+            raise ContractError("duplicate_session_cookie", 401)
+        return values[0] if values else None
+
+    def _site_context(self, request, now):
+        customer_id, owner_id, principal_id, csrf_ok = self.site_customer(request)
+        guard = self.store.one("guard_get", (principal_id,))
+        if guard is None:
+            self._provision_site_person(customer_id, owner_id, principal_id, now)
+            guard = self.store.one("guard_get", (principal_id,))
+        if guard is None or guard["status"] != "active":
+            raise ContractError("authority_revoked", 403)
+        principal = Principal(UUID(principal_id), Kind.HUMAN, guard["epoch"], now + self.SITE_PRINCIPAL_SECONDS,
+                              owner_id=UUID(owner_id), csrf_verified=csrf_ok, audience="aiac-v2-model")
+        return AuthContext(principal, _sha256_hex("session:" + self._site_token(request)))
+
+    def _provision_site_person(self, customer_id, owner_id, principal_id, now):
+        """First use: an ordinary person (no advertiser or operator authority), preferences and a wallet.
+        No customer id, e-mail or name is stored; only the derived ids."""
+        from .access import HUMAN_CAPABILITIES, Access
+        access = Access(self.store)
+        with self.store.atomic():
+            self.store.lock("site_person:" + principal_id)
+            access.provision_principal(principal_id, Kind.HUMAN, owner_id=owner_id, capabilities=HUMAN_CAPABILITIES)
+            access.provision_preferences(owner_id, now_ms=int(now * 1000))
+            access.provision_wallet(owner_id, wallet_id=self._linked_id("adc2-wallet:", customer_id))
 
     def register_human_session(
         self,
@@ -147,6 +215,8 @@ class PersistentCredentialResolver:
         if cookie_header:
             parts = [p.strip() for p in cookie_header.split(";") if "=" in p]
             cookies = dict(p.split("=", 1) for p in parts)
+            if self._customer_identity is not None and cookies.get(self.SITE_COOKIE):
+                return self._site_context(request, now)  # the site sign-in is the only source for this cookie
             raw_session = cookies.get("__Host-ac_customer_session") or cookies.get("aiac_session", "")
             if not raw_session:
                 raise ContractError("authentication_required", 401)

@@ -50,6 +50,7 @@ def build_live_service(
     regions: frozenset[str] | None = None,
     languages: frozenset[str] | None = None,
     clock_ms: Any | None = None,
+    customer_identity: Any | None = None,
 ) -> tuple[Commercial, PersistentCredentialResolver, KeyVault]:
     """Instantiate live Commercial service with real PersistentCredentialResolver and KeyVault."""
     if store is None:
@@ -68,7 +69,11 @@ def build_live_service(
         receipt_keys={vault.kid: signing_key},
         clock_ms=clock_ms,
     )
-    resolver = PersistentCredentialResolver(store)
+    if customer_identity is not None and not vault.owner_link_persistent:
+        raise RuntimeError("The site sign-in bridge needs a persistent owner-link key (key folder or AIAC_OWNER_LINK_KEY_HEX).")
+    resolver = PersistentCredentialResolver(
+        store, customer_identity=customer_identity,
+        owner_link_key=vault.get_owner_link_key() if customer_identity is not None else None)
     return commercial, resolver, vault
 
 
@@ -82,6 +87,7 @@ def create_live_ad_coin_v2_router(
     clock_ms: Any | None = None,
     include_workspace: bool = True,
     app_store: Any | None = None,
+    customer_identity: Any | None = None,
 ) -> Any:
     """Create and return FastAPI APIRouter configured with live persistent auth and workspace."""
     if store is None and app_store is not None:
@@ -94,6 +100,7 @@ def create_live_ad_coin_v2_router(
         regions=regions,
         languages=languages,
         clock_ms=clock_ms,
+        customer_identity=customer_identity,
     )
     base_router = router_for(
         commercial,
@@ -143,6 +150,9 @@ def create_live_ad_coin_v2_router(
     from .admin_http import router_for as admin_router
 
     base_router.include_router(admin_router(commercial, resolve_auth=resolver))
+    from .points_exchange_http import router_for as points_exchange_router
+
+    base_router.include_router(points_exchange_router(commercial.store, resolve_auth=resolver))
     from .admin_page import router_for as admin_page_router
 
     base_router.include_router(admin_page_router())  # Korean operator screen, static shell

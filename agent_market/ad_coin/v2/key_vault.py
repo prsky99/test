@@ -23,8 +23,20 @@ class KeyVault:
         fresh_fallback_keys: tuple[bytes, ...] = (),
         kid: str | None = None,
         clock=None,
+        owner_link_key: bytes | None = None,
     ):
         self._clock = clock or time.time
+        # Server-secret key that turns a site customer id into v2 ids (HMAC), so knowing a customer id
+        # is not enough to compute or link that customer's v2 identity.
+        env_link = os.environ.get("AIAC_OWNER_LINK_KEY_HEX")
+        if owner_link_key is None and env_link:
+            owner_link_key = bytes.fromhex(env_link)
+        # Only a stable key may link site customers: a random one would give a customer another v2
+        # identity in every process and after every restart.
+        self.owner_link_persistent = owner_link_key is not None
+        self._owner_link_key = owner_link_key if owner_link_key is not None else secrets.token_bytes(32)
+        if len(self._owner_link_key) != 32:
+            raise ContractError("invalid_owner_link_key", 503)
         self._kid = kid or "k1"
         self._created_at = self._clock()
 
@@ -89,7 +101,9 @@ class KeyVault:
         )
         fresh = load_or_create("fresh.key", lambda: secrets.token_bytes(32).hex().encode("ascii"),
                                lambda data: bytes.fromhex(data.decode("ascii").strip()))
-        return cls(signing_key=signing, fresh_proof_key=fresh, **kwargs)
+        link = load_or_create("owner-link.key", lambda: secrets.token_bytes(32).hex().encode("ascii"),
+                              lambda data: bytes.fromhex(data.decode("ascii").strip()))
+        return cls(signing_key=signing, fresh_proof_key=fresh, owner_link_key=link, **kwargs)
 
     @property
     def kid(self) -> str:
@@ -97,6 +111,9 @@ class KeyVault:
 
     def get_signing_key(self) -> ed25519.Ed25519PrivateKey:
         return self._signing_key
+
+    def get_owner_link_key(self) -> bytes:
+        return self._owner_link_key
 
     def get_fresh_keys(self) -> tuple[bytes, tuple[bytes, ...]]:
         return self._proof_key, tuple(self._fallback_keys)

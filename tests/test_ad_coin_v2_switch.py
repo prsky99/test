@@ -54,7 +54,10 @@ def test_front_imports_v2_only_when_switched_on():
 def test_front_gives_v2_the_application_store():
     source = (ROOT / 'agent_market' / 'concierge' / 'front.py').read_text()
     if 'create_live_ad_coin_v2_router' in source:
-        assert 'create_live_ad_coin_v2_router(include_workspace=True, app_store=front.store)' in source
+        call = source[source.index('create_live_ad_coin_v2_router(\n'):]
+        call = call[:call.index('# site sign-in bridge')]
+        assert 'app_store=front.store' in call and 'include_workspace=True' in call
+        assert 'customer_identity=_ad_coin_customer_identity(front, workspace_access_enabled)' in call
 
 
 def test_v2_keys_persist_in_owner_only_files(tmp_path):

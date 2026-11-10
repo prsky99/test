@@ -8,7 +8,7 @@ import re
 
 from .commands import Outbox
 from .contracts import ContractError
-from .ledger import ModelLedger, identifier
+from .ledger import MODEL_ASSET, ModelLedger, identifier
 from .points import (ATOMS_PER_COIN, MAX_CREDITS_PER_EXCHANGE, POINTS_PER_WORKSPACE_CREDIT, REVENUE_ACCOUNT,
                      ensure_platform_accounts)
 
@@ -37,8 +37,12 @@ class PointsExchange:
             account = self.store.one("account_by_owner_purpose", (owner_id, "user_available"))
             if account is None:
                 raise ContractError("user_wallet_required", 404)
-            self.ledger.post("points_exchange:" + exchange_id,
-                             [(account["id"], str(-cost)), (REVENUE_ACCOUNT, str(cost))], kind="payment")
+            posted = self.ledger.post("points_exchange:" + exchange_id,
+                                      [(account["id"], str(-cost)), (REVENUE_ACCOUNT, str(cost))], kind="payment")
+            if posted.replayed:  # the same exchange retried: already debited and queued once
+                refunded = self.store.one("journal_get", (MODEL_ASSET, "points_exchange_refund:" + exchange_id))
+                return {"exchange_id": exchange_id, "state": "refunded" if refunded else "pending",
+                        "credits": credits, "points": cost // ATOMS_PER_COIN, "replayed": True}
             self.outbox.enqueue("points_exchange:" + exchange_id, {
                 "event": EVENT, "exchange_id": exchange_id, "owner_id": owner_id, "customer_id": customer_id,
                 "credits": credits, "cost_atoms": str(cost), "user_account": account["id"],

@@ -7,12 +7,12 @@
   const uuid = () => crypto.randomUUID();
   function csrf() {
     const values = document.cookie.split(';').map(x=>x.trim()).filter(x=>x.startsWith('aiac_csrf='));
-    return values.length===1 ? decodeURIComponent(values[0].slice(10)) : '';
+    return values.length===1 ? decodeURIComponent(values[0].slice(10)) : (state.siteCsrf||'');
   }
   function clearSession() {
     state.epoch++;
     if (state.ad) {state.ad.stop=true;clearTimeout(state.ad.timer);}
-    state.session=null;state.pref=null;state.offer=null;state.ad=null;state.operation=null;cancelReview();
+    state.session=null;state.siteCsrf=null;state.pref=null;state.offer=null;state.ad=null;state.operation=null;cancelReview();
     text('balance','—');text('connect','Open my workspace');text('account-state','Sign in again to continue.');
     $('offer-card').hidden=true;$('creative-card').hidden=true;$('outcome').hidden=true;
     $('preferences-fields').disabled=true;$('receive-offers').checked=false;
@@ -22,6 +22,7 @@
     $('region').value='';$('offers-limit').value=10;$('ads-limit').value=3;$('campaign-limit').value=1;$('time-limit').value=90;
   }
   function message(error) {
+    if (error.code==='points_short') return 'You do not have enough points for this exchange.';
     if (error.code==='insufficient_balance') return 'This advertising account does not have enough test credits for the budget.';
     if (error.code==='model_activation_disabled') return 'Campaign activation is not available right now.';
     if (error.status===401) return 'Sign in to your account, then open this workspace again.';
@@ -117,7 +118,9 @@
   }
   async function connect() {
     state.epoch++;
-    const {value}=await net('/ad-coin/v2/ui/session');
+    const [{value},site]=await Promise.all([net('/ad-coin/v2/ui/session'),
+      fetch('/api/customer-auth/session',{credentials:'same-origin',cache:'no-store'}).then(r=>r.ok?r.json():null).catch(()=>null)]);
+    state.siteCsrf=typeof site?.session?.csrf_token==='string'?site.session.csrf_token:null;
     state.session=value;updatePrefs(value.preferences);
     text('account-state','Workspace open · advertising is always optional.');
     text('connect','Refresh workspace');
@@ -432,6 +435,25 @@
   $('stop-ad').onclick=()=>run($('stop-ad'),()=>closeAd(true),{quiet:true});
   $('check-outcome').onclick=()=>run($('check-outcome'),pollOutcome,{quiet:true});
   $('load-campaigns').onclick=()=>run($('load-campaigns'),()=>loadCampaigns(false));
+  $('use-points').onclick=()=>{if (!account()) return;$('exchange-form').hidden=false;$('exchange-credits').focus();};
+  $('cancel-exchange').onclick=()=>{$('exchange-form').hidden=true;};
+  $('exchange-form').addEventListener('submit',event=>{
+    event.preventDefault();
+    const credits=Number($('exchange-credits').value);
+    if (!Number.isInteger(credits)||credits<1||credits>10) {text('notice','Choose between 1 and 10 credits.');return;}
+    const balance=$('balance').textContent, points=credits*10;
+    review('Exchange points for workspace credits?',[
+      points+' points for '+credits+' workspace credit'+(credits===1?'':'s')+'.',
+      'Points now: '+balance+'. Points after: '+(balance==='\u2014'?'\u2014':String(Number(balance)-points))+'.',
+      'Credits are added to your workspace shortly. If they cannot be added, your points are returned.',
+      'Points and credits have no cash value and cannot be transferred.'],async()=>{
+      let value;
+      try {({value}=await api('/points-exchanges',{method:'POST',body:{credits}}));}
+      catch (error) {throw error.code==='insufficient_balance'?{status:409,code:'points_short'}:error;}
+      $('exchange-form').hidden=true;
+      text('notice','Exchange received: '+value.points+' points for '+value.credits+' credit'+(value.credits===1?'':'s')+'. Credits are added shortly.');
+      await refreshWallet();});
+  });
   $('load-bookings').onclick=()=>run($('load-bookings'),loadBookings);
   $('cancel-booking-form').onclick=()=>{$('booking-form').hidden=true;state.booking=null;};
   $('booking-form').addEventListener('submit',event=>{

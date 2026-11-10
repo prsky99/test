@@ -3686,7 +3686,9 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
     if _environ.get('AD_COIN_V2_ENABLED', '0') in ('1', 'true', 'True'):  # v2 is off by default; imported only when on
         from ..ad_coin.v2.live_service import is_v2_enabled, create_live_ad_coin_v2_router
         if is_v2_enabled():
-            app.include_router(create_live_ad_coin_v2_router(include_workspace=True, app_store=front.store))
+            app.include_router(create_live_ad_coin_v2_router(
+                include_workspace=True, app_store=front.store,
+                customer_identity=_ad_coin_customer_identity(front, workspace_access_enabled)))  # site sign-in bridge
     from .idempotency import Idempotency, MemoryBackend, RedisBackend
 
     def idempotency_caller(scope, headers):
