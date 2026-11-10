@@ -228,15 +228,17 @@ def candidates(
     if vector is not None and index and index.ann_enabled:
         blob = validate_vector(vector, descriptor)[0]
         with stage('ann'), index.read_snapshot():
-            from ..postgres_ann import configure_scan
+            from ..postgres_ann import configure_scan, kind_search
             configure_scan(store, filtered=kind is not None or category is not None)
+            # A kind's own halfvec graph when it exists (draft D'), else the shared graph.
+            clause, order, cast = kind_search(store, kind) or ('TRUE', 'e.embedding', 'public.vector')
             found = store._execute(
                 """SELECT e.resource_id FROM agentcon_search.embeddings e
                 JOIN public.resources r ON r.id=e.resource_id
-                WHERE e.descriptor_hash=%s AND r.active=1 AND r.health_status IN ('healthy','reachable')
+                WHERE e.descriptor_hash=%s AND """ + clause + """ AND r.active=1 AND r.health_status IN ('healthy','reachable')
                  AND COALESCE(r.eval_security,'') NOT IN ('quarantine','review')
                  AND (%s::text IS NULL OR r.kind=%s) AND (%s::text IS NULL OR r.category=%s)
-                ORDER BY e.embedding <=> %s::public.vector LIMIT 100""",
+                ORDER BY """ + order + """ <=> %s::""" + cast + """ LIMIT 100""",
                 (
                     descriptor.digest,
                     kind,

@@ -11,6 +11,41 @@ from .legacy_vector_index import VectorError
 
 PROFILE = 'agentcon-pgvector-hnsw-768-cosine-v1'
 
+# Per-kind halfvec HNSW (11-11 draft D'). One graph over every kind answered a kind-filtered search
+# with about 60 of 100 rows and recall@100 0.26 after touching ~30,000 blocks (live MCP is 12% of
+# the vectors). Each kind gets its own partial index, used only when the column and all three valid
+# indexes exist, so code and database can change in either order (scripts.embeddings_kind_indexes).
+KINDS = ('a2a', 'mcp', 'x402')
+KIND_INDEXES = {kind: 'embeddings_half_' + kind for kind in KINDS}
+LAYOUT_SECONDS = 300
+
+
+def layout(store):
+    """{'kind_column': bool, 'kind_indexes': bool}, re-read every LAYOUT_SECONDS. Caller holds a session."""
+    import time
+    index = getattr(store, '_vector_index', None)
+    cached = getattr(index, '_kind_layout', None)
+    if cached and time.monotonic() - cached[0] < LAYOUT_SECONDS:
+        return cached[1]
+    column = bool(store._execute("""SELECT 1 FROM pg_attribute WHERE attrelid='agentcon_search.embeddings'::regclass
+        AND attname='kind' AND NOT attisdropped""").fetchall())
+    valid = store._execute("""SELECT count(*) FROM pg_index i JOIN pg_class c ON c.oid=i.indexrelid
+        JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='agentcon_search'
+        AND c.relname IN ('embeddings_half_a2a','embeddings_half_mcp','embeddings_half_x402')
+        AND i.indisvalid AND i.indisready""").fetchone()[0]
+    value = {'kind_column': column, 'kind_indexes': column and valid == len(KINDS)}
+    if index is not None:
+        index._kind_layout = (time.monotonic(), value)
+    return value
+
+
+def kind_search(store, kind):
+    """(kind clause, order expression, query cast) for one kind's own graph, or None for the shared graph.
+    The kind is a literal from KINDS, so the planner can prove the partial index predicate."""
+    if kind not in KINDS or not layout(store)['kind_indexes']:
+        return None
+    return "e.kind='%s'" % kind, 'e.embedding::public.halfvec(768)', 'public.halfvec(768)'
+
 
 def vector_literal(blob):
     if type(blob) is not bytes or len(blob) != 3072:
@@ -36,6 +71,16 @@ def available(store):
 
 
 def publish(store, claim, blob, descriptor, vector_hash):
+    if layout(store)['kind_column']:
+        store._execute('''INSERT INTO agentcon_search.embeddings(resource_id,descriptor_hash,vector_hash,embedding,kind)
+            VALUES(%s,%s,%s,%s::public.vector,(SELECT kind FROM public.resources WHERE id=%s))
+            ON CONFLICT(resource_id) DO UPDATE SET descriptor_hash=EXCLUDED.descriptor_hash,
+            vector_hash=EXCLUDED.vector_hash,embedding=EXCLUDED.embedding,kind=EXCLUDED.kind
+            WHERE embeddings.vector_hash IS DISTINCT FROM EXCLUDED.vector_hash
+               OR embeddings.descriptor_hash IS DISTINCT FROM EXCLUDED.descriptor_hash
+               OR embeddings.kind IS DISTINCT FROM EXCLUDED.kind''',
+            (claim.resource_id,descriptor.digest,vector_hash,vector_literal(blob),claim.resource_id))
+        return
     store._execute('''INSERT INTO agentcon_search.embeddings(resource_id,descriptor_hash,vector_hash,embedding)
         VALUES(%s,%s,%s,%s::public.vector)
         ON CONFLICT(resource_id) DO UPDATE SET descriptor_hash=EXCLUDED.descriptor_hash,
@@ -49,14 +94,16 @@ def nearest(store, blob, descriptor, *, kind=None, category=None, verified_only=
     # Metadata filtering is not execution authorization. Publication proofs are
     # still checked by the caller in the same read snapshot.
     configure_scan(store, filtered=True)
+    own = kind_search(store, kind)
+    clause, order, cast = own or ('TRUE', 'e.embedding', 'public.vector')
     return [row[0] for row in store._execute('''SELECT e.resource_id
         FROM agentcon_search.embeddings e JOIN public.resources r ON r.id=e.resource_id
-        WHERE e.descriptor_hash=%s AND r.active=1 AND r.health_status!='retired'
+        WHERE e.descriptor_hash=%s AND ''' + clause + ''' AND r.active=1 AND r.health_status!='retired'
           AND COALESCE(r.eval_security,'')!='quarantine'
           AND (%s::text IS NULL OR r.kind=%s)
           AND (%s::text IS NULL OR r.category=%s)
           AND (%s=0 OR r.trial_ok=1)
-        ORDER BY e.embedding <=> %s::public.vector LIMIT 100''',
+        ORDER BY ''' + order + ''' <=> %s::''' + cast + ''' LIMIT 100''',
         (descriptor.digest,kind,kind,category,category,int(verified_only),vector_literal(blob))).fetchall()]
 
 

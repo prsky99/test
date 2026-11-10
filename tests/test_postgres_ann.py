@@ -141,3 +141,63 @@ def test_cleanup_deletes_stale_rows_in_batches_the_store_accepts():
     store = Store()
     assert cleanup(store) == 256 and cleanup(store) == 44 and cleanup(store) == 0
     assert sorted(deleted) == list(range(1, 301))
+
+
+def test_per_kind_halfvec_indexes_are_used_once_present_and_rolled_back_cleanly():
+    """Draft D' (11-11): a kind-filtered search reads its own partial halfvec graph; code works before and after."""
+    import psycopg
+    from scripts.rehearse_storage_adapter_postgres import _private_cluster,PORT
+    from scripts import embeddings_kind_indexes as migration
+    from agent_market.storage_adapter import open_store
+    from agent_market.legacy_vector_index import ModelDescriptor
+    from agent_market.postgres_ann import install,nearest,layout,kind_search
+    binary=Path('/opt/homebrew/opt/postgresql@18/bin')
+    if not (binary/'initdb').is_file():pytest.skip('PostgreSQL 18 fixture tools unavailable')
+    with _private_cluster({name:str(binary/name) for name in ('initdb','pg_ctl')}) as cluster:
+        with psycopg.connect(host=cluster['socket'],port=PORT,dbname='postgres',user='postgres',autocommit=True) as conn:
+            conn.execute('CREATE EXTENSION vector')
+            store=open_store('postgresql',connection=conn,initialize=True,workflow_key=b'k'*32)
+            descriptor=ModelDescriptor('synthetic-ann',revision='fixture-v1')
+            index=store._vector_index
+            ids={}
+            for n,kind in enumerate(('mcp','a2a','mcp')):
+                vector=[0.]*768;vector[n]=1.
+                row={'key':'fixture:kind:%d'%n,'source':'fixture','kind':kind,'name':'Kind %d'%n,'url':'https://kind%d.example/%s'%(n,kind),
+                     'description':'Synthetic','category':'research','networks':[],'details':{}}
+                rid=store.upsert_resource(row,now=10);ids[n]=(rid,vector)
+                index.ensure_jobs(descriptor,limit=1,resource_ids=(rid,))
+                claim=index.claim_batch(descriptor,limit=1,resource_ids=(rid,))[0]
+                assert index.publish(claim,vector,descriptor)=='indexed'
+            install(store)
+            with store.tx():store._execute("UPDATE resources SET health_status='healthy'")
+            triggers=migration.status(conn)['public_triggers']
+            blob=struct.pack('<768f',*ids[0][1])
+            with store.tx(readonly=True):
+                assert kind_search(store,'mcp') is None  # nothing built yet: the shared graph
+                before=nearest(store,blob,descriptor,kind='mcp')
+            steps=migration.migrate(conn,cover=True)
+            assert steps['filled']==3
+            state=migration.status(conn)
+            assert state['kind_missing']==0 and state['public_triggers']==triggers
+            assert all(state['indexes']['embeddings_half_'+k][0] for k in ('a2a','mcp','x402'))
+            index._kind_layout=None
+            with store.tx(readonly=True):
+                assert layout(store)=={'kind_column':True,'kind_indexes':True}
+                assert nearest(store,blob,descriptor,kind='mcp')==before
+                store._execute('SET LOCAL enable_seqscan=off')
+                plan=store._execute("""EXPLAIN SELECT e.resource_id FROM agentcon_search.embeddings e WHERE e.kind='mcp'
+                    ORDER BY e.embedding::public.halfvec(768) <=> %s::public.halfvec(768) LIMIT 10""",(vector_literal(blob),)).fetchall()
+                assert any('embeddings_half_mcp' in line[0] for line in plan)
+            # A new vector carries its kind.
+            rid=ids[1][0]
+            store.upsert_resource({'key':'fixture:kind:1','source':'fixture','kind':'a2a','name':'Kind 1 changed','url':'https://kind1.example/a2a',
+                                   'description':'Changed','category':'research','networks':[],'details':{}},now=20)
+            index.ensure_jobs(descriptor,limit=1,resource_ids=(rid,))
+            claim=index.claim_batch(descriptor,limit=1,resource_ids=(rid,))[0]
+            assert index.publish(claim,ids[1][1],descriptor)=='indexed'
+            assert conn.execute('SELECT kind FROM agentcon_search.embeddings WHERE resource_id=%s',(rid,)).fetchone()[0]=='a2a'
+            migration.rollback(conn,cover=True)
+            index._kind_layout=None
+            with store.tx(readonly=True):
+                assert layout(store)['kind_column'] is False and nearest(store,blob,descriptor,kind='mcp')==before
+            store.close()
