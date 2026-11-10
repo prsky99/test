@@ -1,0 +1,1613 @@
+{
+ "details": [
+  {
+   "el": "p",
+   "text": "Published once daily; current ",
+   "drawn": false,
+   "panel": "Daily search snapshot \u00b7 2026-1",
+   "page": "/ @1280"
+  },
+  {
+   "el": "p",
+   "text": "Discover 320,050 AI agents: 23",
+   "drawn": false,
+   "panel": "Daily search snapshot \u00b7 2026-1",
+   "page": "/ @1280"
+  },
+  {
+   "el": "p",
+   "text": "Snapshot captured: 11 Nov 2026",
+   "drawn": false,
+   "panel": "Daily search snapshot \u00b7 2026-1",
+   "page": "/ @1280"
+  },
+  {
+   "el": "a",
+   "text": "View current agent status",
+   "drawn": false,
+   "panel": "Daily search snapshot \u00b7 2026-1",
+   "page": "/ @1280"
+  },
+  {
+   "el": "p#uxCatalogScope",
+   "text": "Catalog totals include A2A, MC",
+   "drawn": false,
+   "panel": "About these numbers",
+   "page": "/ @1280"
+  },
+  {
+   "el": "article.card",
+   "text": "Example agent report Overview ",
+   "drawn": false,
+   "panel": "Preview an agent report",
+   "page": "/ @1280"
+  },
+  {
+   "el": "h3",
+   "text": "Example agent report",
+   "drawn": false,
+   "panel": "Preview an agent report",
+   "page": "/ @1280"
+  },
+  {
+   "el": "button#tab-overview.tab",
+   "text": "Overview",
+   "drawn": false,
+   "panel": "Preview an agent report",
+   "page": "/ @1280"
+  },
+  {
+   "el": "button#tab-evidence.tab",
+   "text": "Evidence",
+   "drawn": false,
+   "panel": "Preview an agent report",
+   "page": "/ @1280"
+  },
+  {
+   "el": "button#tab-connections.tab",
+   "text": "Connections",
+   "drawn": false,
+   "panel": "Preview an agent report",
+   "page": "/ @1280"
+  },
+  {
+   "el": "p",
+   "text": "Review the agent capability an",
+   "drawn": false,
+   "panel": "Preview an agent report",
+   "page": "/ @1280"
+  },
+  {
+   "el": "p",
+   "text": "Published once daily; current ",
+   "drawn": false,
+   "panel": "Daily search snapshot \u00b7 2026-1",
+   "page": "/ @375"
+  },
+  {
+   "el": "p",
+   "text": "Discover 320,050 AI agents: 23",
+   "drawn": false,
+   "panel": "Daily search snapshot \u00b7 2026-1",
+   "page": "/ @375"
+  },
+  {
+   "el": "p",
+   "text": "Snapshot captured: 11 Nov 2026",
+   "drawn": false,
+   "panel": "Daily search snapshot \u00b7 2026-1",
+   "page": "/ @375"
+  },
+  {
+   "el": "a",
+   "text": "View current agent status",
+   "drawn": false,
+   "panel": "Daily search snapshot \u00b7 2026-1",
+   "page": "/ @375"
+  },
+  {
+   "el": "p#uxCatalogScope",
+   "text": "Catalog totals include A2A, MC",
+   "drawn": false,
+   "panel": "About these numbers",
+   "page": "/ @375"
+  },
+  {
+   "el": "article.card",
+   "text": "Example agent report Overview ",
+   "drawn": false,
+   "panel": "Preview an agent report",
+   "page": "/ @375"
+  },
+  {
+   "el": "h3",
+   "text": "Example agent report",
+   "drawn": false,
+   "panel": "Preview an agent report",
+   "page": "/ @375"
+  },
+  {
+   "el": "button#tab-overview.tab",
+   "text": "Overview",
+   "drawn": false,
+   "panel": "Preview an agent report",
+   "page": "/ @375"
+  },
+  {
+   "el": "button#tab-evidence.tab",
+   "text": "Evidence",
+   "drawn": false,
+   "panel": "Preview an agent report",
+   "page": "/ @375"
+  },
+  {
+   "el": "button#tab-connections.tab",
+   "text": "Connections",
+   "drawn": false,
+   "panel": "Preview an agent report",
+   "page": "/ @375"
+  },
+  {
+   "el": "p",
+   "text": "Review the agent capability an",
+   "drawn": false,
+   "panel": "Preview an agent report",
+   "page": "/ @375"
+  },
+  {
+   "el": "button.chip-btn",
+   "text": "Stock Quotes",
+   "drawn": false,
+   "panel": "More tasks",
+   "page": "/new/en/explore.html @1280"
+  },
+  {
+   "el": "button.chip-btn",
+   "text": "Crypto Prices",
+   "drawn": false,
+   "panel": "More tasks",
+   "page": "/new/en/explore.html @1280"
+  },
+  {
+   "el": "button.chip-btn",
+   "text": "Translation",
+   "drawn": false,
+   "panel": "More tasks",
+   "page": "/new/en/explore.html @1280"
+  },
+  {
+   "el": "button.chip-btn",
+   "text": "Image Generation",
+   "drawn": false,
+   "panel": "More tasks",
+   "page": "/new/en/explore.html @1280"
+  },
+  {
+   "el": "button.chip-btn",
+   "text": "Maps & Places",
+   "drawn": false,
+   "panel": "More tasks",
+   "page": "/new/en/explore.html @1280"
+  },
+  {
+   "el": "button.chip-btn",
+   "text": "Email",
+   "drawn": false,
+   "panel": "More tasks",
+   "page": "/new/en/explore.html @1280"
+  },
+  {
+   "el": "button.chip-btn",
+   "text": "GitHub",
+   "drawn": false,
+   "panel": "More tasks",
+   "page": "/new/en/explore.html @1280"
+  },
+  {
+   "el": "button.chip-btn",
+   "text": "Legal & Courts",
+   "drawn": false,
+   "panel": "More tasks",
+   "page": "/new/en/explore.html @1280"
+  },
+  {
+   "el": "button.chip-btn",
+   "text": "Travel & Flights",
+   "drawn": false,
+   "panel": "More tasks",
+   "page": "/new/en/explore.html @1280"
+  },
+  {
+   "el": "button.chip-btn",
+   "text": "Directory & Registry",
+   "drawn": false,
+   "panel": "More tasks",
+   "page": "/new/en/explore.html @1280"
+  },
+  {
+   "el": "button.chip-btn",
+   "text": "Health & Medicine",
+   "drawn": false,
+   "panel": "More tasks",
+   "page": "/new/en/explore.html @1280"
+  },
+  {
+   "el": "button.chip-btn",
+   "text": "Security & CVE",
+   "drawn": false,
+   "panel": "More tasks",
+   "page": "/new/en/explore.html @1280"
+  },
+  {
+   "el": "button.chip-btn",
+   "text": "Perpetual Funding",
+   "drawn": false,
+   "panel": "More tasks",
+   "page": "/new/en/explore.html @1280"
+  },
+  {
+   "el": "button.chip-btn",
+   "text": "SMS & Messaging",
+   "drawn": false,
+   "panel": "More tasks",
+   "page": "/new/en/explore.html @1280"
+  },
+  {
+   "el": "button.chip-btn",
+   "text": "Domain & DNS",
+   "drawn": false,
+   "panel": "More tasks",
+   "page": "/new/en/explore.html @1280"
+  },
+  {
+   "el": "button.chip-btn",
+   "text": "Data Transformation",
+   "drawn": false,
+   "panel": "More tasks",
+   "page": "/new/en/explore.html @1280"
+  },
+  {
+   "el": "p#xProtocolHelp",
+   "text": "Task-focused results first. x4",
+   "drawn": false,
+   "panel": "Search rules",
+   "page": "/new/en/explore.html @1280"
+  },
+  {
+   "el": "p#xProtocolHelp",
+   "text": "Task-focused results first. x4",
+   "drawn": false,
+   "panel": "Search rules",
+   "page": "/new/en/explore.html @375"
+  },
+  {
+   "el": "p#uxConnectionMeaning",
+   "text": "Healthy and Reachable describe",
+   "drawn": false,
+   "panel": "What do the statuses mean?",
+   "page": "/new/en/agent-status.html @1280"
+  },
+  {
+   "el": "p#uxConnectionMeaning",
+   "text": "Healthy and Reachable describe",
+   "drawn": false,
+   "panel": "What do the statuses mean?",
+   "page": "/new/en/agent-status.html @375"
+  },
+  {
+   "el": "p",
+   "text": "Start with the task, inspect t",
+   "drawn": false,
+   "panel": "How do I choose the right prot",
+   "page": "/new/en/learn.html @1280"
+  },
+  {
+   "el": "p",
+   "text": "Inspect the recorded input, re",
+   "drawn": false,
+   "panel": "How do I read execution checks",
+   "page": "/new/en/learn.html @1280"
+  },
+  {
+   "el": "p",
+   "text": "Start with the task, inspect t",
+   "drawn": false,
+   "panel": "How do I choose the right prot",
+   "page": "/new/en/learn.html @375"
+  },
+  {
+   "el": "p",
+   "text": "Inspect the recorded input, re",
+   "drawn": false,
+   "panel": "How do I read execution checks",
+   "page": "/new/en/learn.html @375"
+  },
+  {
+   "el": "label",
+   "text": "Protocol",
+   "drawn": false,
+   "panel": "Choose another agent",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "button.chip-btn.active",
+   "text": "All Protocols",
+   "drawn": false,
+   "panel": "Choose another agent",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "button.chip-btn",
+   "text": "MCP",
+   "drawn": false,
+   "panel": "Choose another agent",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "button.chip-btn",
+   "text": "A2A",
+   "drawn": false,
+   "panel": "Choose another agent",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "button.chip-btn",
+   "text": "x402",
+   "drawn": false,
+   "panel": "Choose another agent",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "label",
+   "text": "Selected agent",
+   "drawn": false,
+   "panel": "Choose another agent",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "input#tbAgentSearch.input",
+   "text": "",
+   "drawn": false,
+   "panel": "Choose another agent",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "select#tbAgentSelect.select",
+   "text": "Technology News [MCP]Research ",
+   "drawn": false,
+   "panel": "Choose another agent",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "p#uxAgentSearchStatus.caption",
+   "text": "Search the registered catalog,",
+   "drawn": false,
+   "panel": "Choose another agent",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "label",
+   "text": "Request input (JSON)",
+   "drawn": false,
+   "panel": "Advanced: edit request JSON",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "textarea#tbArgsEditor.textarea",
+   "text": "",
+   "drawn": false,
+   "panel": "Advanced: edit request JSON",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "button.chip-btn",
+   "text": "Schema Mock",
+   "drawn": false,
+   "panel": "Request presets",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "button.chip-btn",
+   "text": "Weather",
+   "drawn": false,
+   "panel": "Request presets",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "button.chip-btn",
+   "text": "Search",
+   "drawn": false,
+   "panel": "Request presets",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "button.chip-btn",
+   "text": "Empty ({})",
+   "drawn": false,
+   "panel": "Request presets",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "input#tbCustomToolInput.input",
+   "text": "",
+   "drawn": false,
+   "panel": "Advanced options",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "label",
+   "text": "Timeout:",
+   "drawn": false,
+   "panel": "Advanced options",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "select#tbTimeoutSelect.select",
+   "text": "5s (Fast) 8s (Standard)",
+   "drawn": false,
+   "panel": "Advanced options",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "p.eyebrow",
+   "text": "Understand the results",
+   "drawn": false,
+   "panel": "What does a test check?",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "h2",
+   "text": "Know what a test tells you.",
+   "drawn": false,
+   "panel": "What does a test check?",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "p.lead",
+   "text": "A test shows an agent\u2019s scope,",
+   "drawn": false,
+   "panel": "What does a test check?",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "article.card",
+   "text": "Connection checks Review the t",
+   "drawn": false,
+   "panel": "What does a test check?",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "h3",
+   "text": "Connection checks",
+   "drawn": false,
+   "panel": "What does a test check?",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "p",
+   "text": "Review the tools and data sour",
+   "drawn": false,
+   "panel": "What does a test check?",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "article.card",
+   "text": "Execution evidence Inspect the",
+   "drawn": false,
+   "panel": "What does a test check?",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "h3",
+   "text": "Execution evidence",
+   "drawn": false,
+   "panel": "What does a test check?",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "p",
+   "text": "Inspect the steps and informat",
+   "drawn": false,
+   "panel": "What does a test check?",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "article.card",
+   "text": "Current availability Results r",
+   "drawn": false,
+   "panel": "What does a test check?",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "h3",
+   "text": "Current availability",
+   "drawn": false,
+   "panel": "What does a test check?",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "p",
+   "text": "Results reflect the selected a",
+   "drawn": false,
+   "panel": "What does a test check?",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "div.card",
+   "text": "Recent tests Test history stay",
+   "drawn": false,
+   "panel": "Recent tests and export",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "h3",
+   "text": "Recent tests",
+   "drawn": false,
+   "panel": "Recent tests and export",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "p",
+   "text": "Test history stays in this bro",
+   "drawn": false,
+   "panel": "Recent tests and export",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "button.btn.sm",
+   "text": "Export JSON Report",
+   "drawn": false,
+   "panel": "Recent tests and export",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "button.chip-btn",
+   "text": "Clear History",
+   "drawn": false,
+   "panel": "Recent tests and export",
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "el": "label",
+   "text": "Protocol",
+   "drawn": false,
+   "panel": "Choose another agent",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "button.chip-btn.active",
+   "text": "All Protocols",
+   "drawn": false,
+   "panel": "Choose another agent",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "button.chip-btn",
+   "text": "MCP",
+   "drawn": false,
+   "panel": "Choose another agent",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "button.chip-btn",
+   "text": "A2A",
+   "drawn": false,
+   "panel": "Choose another agent",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "button.chip-btn",
+   "text": "x402",
+   "drawn": false,
+   "panel": "Choose another agent",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "label",
+   "text": "Selected agent",
+   "drawn": false,
+   "panel": "Choose another agent",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "input#tbAgentSearch.input",
+   "text": "",
+   "drawn": false,
+   "panel": "Choose another agent",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "select#tbAgentSelect.select",
+   "text": "Technology News [MCP]Research ",
+   "drawn": false,
+   "panel": "Choose another agent",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "p#uxAgentSearchStatus.caption",
+   "text": "Search the registered catalog,",
+   "drawn": false,
+   "panel": "Choose another agent",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "label",
+   "text": "Request input (JSON)",
+   "drawn": false,
+   "panel": "Advanced: edit request JSON",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "textarea#tbArgsEditor.textarea",
+   "text": "",
+   "drawn": false,
+   "panel": "Advanced: edit request JSON",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "button.chip-btn",
+   "text": "Schema Mock",
+   "drawn": false,
+   "panel": "Request presets",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "button.chip-btn",
+   "text": "Weather",
+   "drawn": false,
+   "panel": "Request presets",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "button.chip-btn",
+   "text": "Search",
+   "drawn": false,
+   "panel": "Request presets",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "button.chip-btn",
+   "text": "Empty ({})",
+   "drawn": false,
+   "panel": "Request presets",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "input#tbCustomToolInput.input",
+   "text": "",
+   "drawn": false,
+   "panel": "Advanced options",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "label",
+   "text": "Timeout:",
+   "drawn": false,
+   "panel": "Advanced options",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "select#tbTimeoutSelect.select",
+   "text": "5s (Fast) 8s (Standard)",
+   "drawn": false,
+   "panel": "Advanced options",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "p.eyebrow",
+   "text": "Understand the results",
+   "drawn": false,
+   "panel": "What does a test check?",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "h2",
+   "text": "Know what a test tells you.",
+   "drawn": false,
+   "panel": "What does a test check?",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "p.lead",
+   "text": "A test shows an agent\u2019s scope,",
+   "drawn": false,
+   "panel": "What does a test check?",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "article.card",
+   "text": "Connection checks Review the t",
+   "drawn": false,
+   "panel": "What does a test check?",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "h3",
+   "text": "Connection checks",
+   "drawn": false,
+   "panel": "What does a test check?",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "p",
+   "text": "Review the tools and data sour",
+   "drawn": false,
+   "panel": "What does a test check?",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "article.card",
+   "text": "Execution evidence Inspect the",
+   "drawn": false,
+   "panel": "What does a test check?",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "h3",
+   "text": "Execution evidence",
+   "drawn": false,
+   "panel": "What does a test check?",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "p",
+   "text": "Inspect the steps and informat",
+   "drawn": false,
+   "panel": "What does a test check?",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "article.card",
+   "text": "Current availability Results r",
+   "drawn": false,
+   "panel": "What does a test check?",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "h3",
+   "text": "Current availability",
+   "drawn": false,
+   "panel": "What does a test check?",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "p",
+   "text": "Results reflect the selected a",
+   "drawn": false,
+   "panel": "What does a test check?",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "div.card",
+   "text": "Recent tests Test history stay",
+   "drawn": false,
+   "panel": "Recent tests and export",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "h3",
+   "text": "Recent tests",
+   "drawn": false,
+   "panel": "Recent tests and export",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "p",
+   "text": "Test history stays in this bro",
+   "drawn": false,
+   "panel": "Recent tests and export",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "button.btn.sm",
+   "text": "Export JSON Report",
+   "drawn": false,
+   "panel": "Recent tests and export",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "button.chip-btn",
+   "text": "Clear History",
+   "drawn": false,
+   "panel": "Recent tests and export",
+   "page": "/new/en/test.html @375"
+  },
+  {
+   "el": "p#frontSelectionBasis",
+   "text": "Default workflow selected. Cho",
+   "drawn": false,
+   "panel": "Selection details",
+   "page": "/new/en/workflows.html @1280"
+  },
+  {
+   "el": "p.caption",
+   "text": "Canvas edits stay in your draf",
+   "drawn": false,
+   "panel": "Advanced: inspect and edit the",
+   "page": "/new/en/workflows.html @1280"
+  },
+  {
+   "el": "span.badge",
+   "text": "trigger",
+   "drawn": false,
+   "panel": "Advanced: inspect and edit the",
+   "page": "/new/en/workflows.html @1280"
+  },
+  {
+   "el": "button.btn.sm",
+   "text": "",
+   "drawn": false,
+   "panel": "Advanced: inspect and edit the",
+   "page": "/new/en/workflows.html @1280"
+  },
+  {
+   "el": "span.badge",
+   "text": "mcp",
+   "drawn": false,
+   "panel": "Advanced: inspect and edit the",
+   "page": "/new/en/workflows.html @1280"
+  },
+  {
+   "el": "button.btn.sm",
+   "text": "",
+   "drawn": false,
+   "panel": "Advanced: inspect and edit the",
+   "page": "/new/en/workflows.html @1280"
+  },
+  {
+   "el": "span.badge",
+   "text": "mcp",
+   "drawn": false,
+   "panel": "Advanced: inspect and edit the",
+   "page": "/new/en/workflows.html @1280"
+  },
+  {
+   "el": "button.btn.sm",
+   "text": "",
+   "drawn": false,
+   "panel": "Advanced: inspect and edit the",
+   "page": "/new/en/workflows.html @1280"
+  },
+  {
+   "el": "p#frontSelectionBasis",
+   "text": "Default workflow selected. Cho",
+   "drawn": false,
+   "panel": "Selection details",
+   "page": "/new/en/workflows.html @375"
+  },
+  {
+   "el": "p.caption",
+   "text": "Canvas edits stay in your draf",
+   "drawn": false,
+   "panel": "Advanced: inspect and edit the",
+   "page": "/new/en/workflows.html @375"
+  },
+  {
+   "el": "span.badge",
+   "text": "trigger",
+   "drawn": false,
+   "panel": "Advanced: inspect and edit the",
+   "page": "/new/en/workflows.html @375"
+  },
+  {
+   "el": "button.btn.sm",
+   "text": "",
+   "drawn": false,
+   "panel": "Advanced: inspect and edit the",
+   "page": "/new/en/workflows.html @375"
+  },
+  {
+   "el": "span.badge",
+   "text": "mcp",
+   "drawn": false,
+   "panel": "Advanced: inspect and edit the",
+   "page": "/new/en/workflows.html @375"
+  },
+  {
+   "el": "button.btn.sm",
+   "text": "",
+   "drawn": false,
+   "panel": "Advanced: inspect and edit the",
+   "page": "/new/en/workflows.html @375"
+  },
+  {
+   "el": "span.badge",
+   "text": "mcp",
+   "drawn": false,
+   "panel": "Advanced: inspect and edit the",
+   "page": "/new/en/workflows.html @375"
+  },
+  {
+   "el": "button.btn.sm",
+   "text": "",
+   "drawn": false,
+   "panel": "Advanced: inspect and edit the",
+   "page": "/new/en/workflows.html @375"
+  },
+  {
+   "el": "p",
+   "text": "Use a public endpoint or an ag",
+   "drawn": false,
+   "panel": "Import agent information",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "label",
+   "text": "Smart URL Auto-Detection & Qui",
+   "drawn": false,
+   "panel": "Import agent information",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "button#regOpenJsonModalBtn.btn.sm",
+   "text": "Paste Schema / JSON",
+   "drawn": false,
+   "panel": "Import agent information",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "input#regAutoUrl.input",
+   "text": "",
+   "drawn": false,
+   "panel": "Import agent information",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "button#regInspectBtn.btn.primary",
+   "text": "Auto Detect",
+   "drawn": false,
+   "panel": "Import agent information",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "label",
+   "text": "Community Agent Blueprints (1-",
+   "drawn": false,
+   "panel": "Import agent information",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "button.chip-btn.reg-blueprint-chip",
+   "text": "DuckDB [OLAP SQL]",
+   "drawn": false,
+   "panel": "Import agent information",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "button.chip-btn.reg-blueprint-chip",
+   "text": "ClickHouse [Columnar DB]",
+   "drawn": false,
+   "panel": "Import agent information",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "button.chip-btn.reg-blueprint-chip",
+   "text": "Neo4j [Graph & Cypher]",
+   "drawn": false,
+   "panel": "Import agent information",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "button.chip-btn.reg-blueprint-chip",
+   "text": "Trivy [SBOM & CVE]",
+   "drawn": false,
+   "panel": "Import agent information",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "button.chip-btn.reg-blueprint-chip",
+   "text": "Weaviate [Hybrid Search]",
+   "drawn": false,
+   "panel": "Import agent information",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "button.chip-btn.reg-blueprint-chip",
+   "text": "LanceDB [Arrow Vector]",
+   "drawn": false,
+   "panel": "Import agent information",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "button.chip-btn.reg-blueprint-chip",
+   "text": "ast-grep [AST Code]",
+   "drawn": false,
+   "panel": "Import agent information",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "button.chip-btn.reg-blueprint-chip",
+   "text": "Meilisearch [Typo-Tolerant]",
+   "drawn": false,
+   "panel": "Import agent information",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "button.chip-btn.reg-blueprint-chip",
+   "text": "PagerDuty [Incident Triage]",
+   "drawn": false,
+   "panel": "Import agent information",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "button.chip-btn.reg-blueprint-chip",
+   "text": "Datadog [APM & Metrics]",
+   "drawn": false,
+   "panel": "Import agent information",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "aside.card",
+   "text": "Before you submit A few things",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "h2",
+   "text": "Before you submit",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "p",
+   "text": "A few things to check to help ",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "h3",
+   "text": "Public endpoint",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "p",
+   "text": "Provide a publicly accessible ",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "h3",
+   "text": "Accurate protocol",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "p",
+   "text": "Select A2A, MCP or x402 accura",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "h3",
+   "text": "Clear capabilities",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "p",
+   "text": "Describe the main tasks and in",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "h3",
+   "text": "Connection details",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "p",
+   "text": "Provide public documentation w",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "h3",
+   "text": "What happens next?",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "p",
+   "text": "Review checks connectivity, co",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "article.card",
+   "text": "Will my agent appear immediate",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "h3",
+   "text": "Will my agent appear immediate",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "p",
+   "text": "No. Submissions are reviewed b",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "article.card",
+   "text": "Can I review the connection de",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "h3",
+   "text": "Can I review the connection de",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "p",
+   "text": "Public connection details and ",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "el": "p",
+   "text": "Use a public endpoint or an ag",
+   "drawn": false,
+   "panel": "Import agent information",
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "el": "label",
+   "text": "Smart URL Auto-Detection & Qui",
+   "drawn": false,
+   "panel": "Import agent information",
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "el": "button#regOpenJsonModalBtn.btn.sm",
+   "text": "Paste Schema / JSON",
+   "drawn": false,
+   "panel": "Import agent information",
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "el": "input#regAutoUrl.input",
+   "text": "",
+   "drawn": false,
+   "panel": "Import agent information",
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "el": "button#regInspectBtn.btn.primary",
+   "text": "Auto Detect",
+   "drawn": false,
+   "panel": "Import agent information",
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "el": "label",
+   "text": "Community Agent Blueprints (1-",
+   "drawn": false,
+   "panel": "Import agent information",
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "el": "button.chip-btn.reg-blueprint-chip",
+   "text": "DuckDB [OLAP SQL]",
+   "drawn": false,
+   "panel": "Import agent information",
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "el": "button.chip-btn.reg-blueprint-chip",
+   "text": "ClickHouse [Columnar DB]",
+   "drawn": false,
+   "panel": "Import agent information",
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "el": "button.chip-btn.reg-blueprint-chip",
+   "text": "Neo4j [Graph & Cypher]",
+   "drawn": false,
+   "panel": "Import agent information",
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "el": "button.chip-btn.reg-blueprint-chip",
+   "text": "Trivy [SBOM & CVE]",
+   "drawn": false,
+   "panel": "Import agent information",
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "el": "button.chip-btn.reg-blueprint-chip",
+   "text": "Weaviate [Hybrid Search]",
+   "drawn": false,
+   "panel": "Import agent information",
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "el": "button.chip-btn.reg-blueprint-chip",
+   "text": "LanceDB [Arrow Vector]",
+   "drawn": false,
+   "panel": "Import agent information",
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "el": "button.chip-btn.reg-blueprint-chip",
+   "text": "ast-grep [AST Code]",
+   "drawn": false,
+   "panel": "Import agent information",
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "el": "button.chip-btn.reg-blueprint-chip",
+   "text": "Meilisearch [Typo-Tolerant]",
+   "drawn": false,
+   "panel": "Import agent information",
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "el": "button.chip-btn.reg-blueprint-chip",
+   "text": "PagerDuty [Incident Triage]",
+   "drawn": false,
+   "panel": "Import agent information",
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "el": "button.chip-btn.reg-blueprint-chip",
+   "text": "Datadog [APM & Metrics]",
+   "drawn": false,
+   "panel": "Import agent information",
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "el": "aside.card",
+   "text": "Before you submit A few things",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "el": "h2",
+   "text": "Before you submit",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "el": "p",
+   "text": "A few things to check to help ",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "el": "h3",
+   "text": "Public endpoint",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "el": "p",
+   "text": "Provide a publicly accessible ",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "el": "h3",
+   "text": "Accurate protocol",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "el": "p",
+   "text": "Select A2A, MCP or x402 accura",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "el": "h3",
+   "text": "Clear capabilities",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "el": "p",
+   "text": "Describe the main tasks and in",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "el": "h3",
+   "text": "Connection details",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "el": "p",
+   "text": "Provide public documentation w",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "el": "h3",
+   "text": "What happens next?",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "el": "p",
+   "text": "Review checks connectivity, co",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "el": "article.card",
+   "text": "Will my agent appear immediate",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "el": "h3",
+   "text": "Will my agent appear immediate",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "el": "p",
+   "text": "No. Submissions are reviewed b",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "el": "article.card",
+   "text": "Can I review the connection de",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "el": "h3",
+   "text": "Can I review the connection de",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "el": "p",
+   "text": "Public connection details and ",
+   "drawn": false,
+   "panel": "Submission guidelines",
+   "page": "/new/en/list-agent.html @375"
+  }
+ ],
+ "table": [
+  {
+   "row": "tr",
+   "a": "th \"Protocol\"",
+   "b": "th \"Healthy\"",
+   "topDiff": 0,
+   "leftA": 585,
+   "leftB": 708,
+   "page": "/new/en/agent-status.html @1280"
+  },
+  {
+   "row": "tr",
+   "a": "th \"A2A\"",
+   "b": "td \"153,939\"",
+   "topDiff": 0,
+   "leftA": 585,
+   "leftB": 708,
+   "page": "/new/en/agent-status.html @1280"
+  },
+  {
+   "row": "tr",
+   "a": "th \"MCP\"",
+   "b": "td \"24,828\"",
+   "topDiff": 0,
+   "leftA": 585,
+   "leftB": 708,
+   "page": "/new/en/agent-status.html @1280"
+  },
+  {
+   "row": "tr",
+   "a": "th \"x402\"",
+   "b": "td \"40,252\"",
+   "topDiff": 0,
+   "leftA": 585,
+   "leftB": 708,
+   "page": "/new/en/agent-status.html @1280"
+  },
+  {
+   "row": "tr",
+   "a": "th \"Protocol\"",
+   "b": "th \"Healthy\"",
+   "topDiff": 0,
+   "leftA": 19,
+   "leftB": 120,
+   "page": "/new/en/agent-status.html @375"
+  },
+  {
+   "row": "tr",
+   "a": "th \"A2A\"",
+   "b": "td \"153,949\"",
+   "topDiff": 0,
+   "leftA": 19,
+   "leftB": 120,
+   "page": "/new/en/agent-status.html @375"
+  },
+  {
+   "row": "tr",
+   "a": "th \"MCP\"",
+   "b": "td \"24,828\"",
+   "topDiff": 0,
+   "leftA": 19,
+   "leftB": 120,
+   "page": "/new/en/agent-status.html @375"
+  },
+  {
+   "row": "tr",
+   "a": "th \"x402\"",
+   "b": "td \"40,252\"",
+   "topDiff": 0,
+   "leftA": 19,
+   "leftB": 120,
+   "page": "/new/en/agent-status.html @375"
+  },
+  {
+   "row": "tr",
+   "a": "th \"Agent Name\"",
+   "b": "th \"Protocol\"",
+   "topDiff": 0,
+   "leftA": 51,
+   "leftB": 261,
+   "page": "/new/en/test.html @1280"
+  },
+  {
+   "row": "tr",
+   "a": "th \"Agent Name\"",
+   "b": "th \"Protocol\"",
+   "topDiff": 0,
+   "leftA": 31,
+   "leftB": 81,
+   "page": "/new/en/test.html @375"
+  }
+ ],
+ "centre": [
+  {
+   "stack": "div text-align:center",
+   "a": "h4",
+   "b": "span.badge",
+   "leftDiff": 31.1,
+   "centreDiff": -0.0,
+   "rightDiff": -31.1,
+   "page": "/new/en/workflows.html @1280"
+  },
+  {
+   "stack": "div text-align:center",
+   "a": "h4",
+   "b": "button.link-button",
+   "leftDiff": 26.9,
+   "centreDiff": -0.0,
+   "rightDiff": -27,
+   "page": "/new/en/workflows.html @1280"
+  },
+  {
+   "stack": "div text-align:center",
+   "a": "h4",
+   "b": "span.badge",
+   "leftDiff": 57,
+   "centreDiff": -0.0,
+   "rightDiff": -57,
+   "page": "/new/en/workflows.html @1280"
+  },
+  {
+   "stack": "div text-align:center",
+   "a": "h4",
+   "b": "button.link-button",
+   "leftDiff": 36.8,
+   "centreDiff": -0.0,
+   "rightDiff": -36.8,
+   "page": "/new/en/workflows.html @1280"
+  },
+  {
+   "stack": "div text-align:center",
+   "a": "h4",
+   "b": "span.badge",
+   "leftDiff": 51.7,
+   "centreDiff": 0,
+   "rightDiff": -51.7,
+   "page": "/new/en/workflows.html @1280"
+  },
+  {
+   "stack": "div text-align:center",
+   "a": "h4",
+   "b": "button.link-button",
+   "leftDiff": 31.5,
+   "centreDiff": 0,
+   "rightDiff": -31.5,
+   "page": "/new/en/workflows.html @1280"
+  },
+  {
+   "stack": "span text-align:start",
+   "a": "a",
+   "b": "a",
+   "leftDiff": 212.2,
+   "centreDiff": 204.4,
+   "rightDiff": 196.6,
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "stack": "span text-align:start",
+   "a": "a",
+   "b": "a",
+   "leftDiff": 396.5,
+   "centreDiff": 414.7,
+   "rightDiff": 432.9,
+   "page": "/new/en/list-agent.html @1280"
+  },
+  {
+   "stack": "span text-align:start",
+   "a": "a",
+   "b": "a",
+   "leftDiff": -51.8,
+   "centreDiff": -59.6,
+   "rightDiff": -67.4,
+   "page": "/new/en/list-agent.html @375"
+  },
+  {
+   "stack": "span text-align:start",
+   "a": "a",
+   "b": "a",
+   "leftDiff": -131.3,
+   "centreDiff": -113.1,
+   "rightDiff": -94.9,
+   "page": "/new/en/list-agent.html @375"
+  }
+ ],
+ "baseline": [],
+ "grid": [
+  {
+   "grid": "div.pearl-selected-example",
+   "spanning": "div.ux-test-primary",
+   "rows": "1 / 3",
+   "topDiffWithFirstItem": 0,
+   "page": "/new/en/test.html @1280"
+  }
+ ],
+ "label": []
+}

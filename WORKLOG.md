@@ -764,3 +764,9 @@
 - 운영자 API(/api/ad-coin/v2/admin/coins/*, welcome-grant, provider-reward)는 운영자 권한과 CSRF가 필요하다.
 - 함께 고침: 중계 파트너 등록·해지·정산 같은 운영자 쓰기 API에 CSRF 검사가 없었다. 이제 막는다.
 - 시험 5개 추가(+중계 CSRF 1), AD Coin 시험 398개 통과.
+
+## 11-11 성장·유통: 메인 화면 품질(PM 과제)
+- 운영 frontend audit-fix-frontend-20261111-r1(60b6a555). 공개 주소 13화면 × 2폭 × 2모드 × 쿠키 선택 전·후: 새 도구 기준 겹침·44px·정렬·가려진 조작·콘솔 전부 0, CLS 최대 0.079.
+- 옛 도구 대비 "실제로 고친 것 / 측정에서 뺀 것"과 규칙별 표본은 reports/ui-quality-main-2026-11-11/README.md "최종 보고".
+- 쿠키 띠는 머리글 위 본문 흐름(PM 결정 A, head nonce 스크립트가 선택 여부 먼저 읽음). 탐색 폰·데스크톱 첫 그림 CLS 수정.
+- 게이트에 화면 품질 시험(tests/test_main_ui_touch_targets.py, test_cookie_banner_phone.py) 추가. 작업 전부터 실패하던 시험 목록도 보고서에.

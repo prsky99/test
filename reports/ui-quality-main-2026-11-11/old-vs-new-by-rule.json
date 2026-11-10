@@ -1,0 +1,1432 @@
+{
+ "totals": {
+  "old tool (64311fd0)": {
+   "overlaps": 594,
+   "overlay_overlaps": 0,
+   "small_targets": 12,
+   "design_system_small": 0,
+   "misaligned": 144,
+   "unlabeled_fields": 12,
+   "contrast_failures": 4,
+   "horizontal_scroll": 0
+  },
+  "new tool +0 (none)": {
+   "overlaps": 594,
+   "overlay_overlaps": 0,
+   "small_targets": 12,
+   "design_system_small": 0,
+   "misaligned": 144,
+   "unlabeled_fields": 12,
+   "contrast_failures": 4,
+   "horizontal_scroll": 0
+  },
+  "new tool +1 closed details": {
+   "overlaps": 0,
+   "overlay_overlaps": 0,
+   "small_targets": 12,
+   "design_system_small": 0,
+   "misaligned": 96,
+   "unlabeled_fields": 0,
+   "contrast_failures": 0,
+   "horizontal_scroll": 0
+  },
+  "new tool +2 fixed/sticky layer apart": {
+   "overlaps": 0,
+   "overlay_overlaps": 0,
+   "small_targets": 12,
+   "design_system_small": 0,
+   "misaligned": 96,
+   "unlabeled_fields": 0,
+   "contrast_failures": 0,
+   "horizontal_scroll": 0
+  },
+  "new tool +3 wrapped inline per line": {
+   "overlaps": 0,
+   "overlay_overlaps": 0,
+   "small_targets": 12,
+   "design_system_small": 0,
+   "misaligned": 96,
+   "unlabeled_fields": 0,
+   "contrast_failures": 0,
+   "horizontal_scroll": 0
+  },
+  "new tool +4 table rows": {
+   "overlaps": 0,
+   "overlay_overlaps": 0,
+   "small_targets": 12,
+   "design_system_small": 0,
+   "misaligned": 16,
+   "unlabeled_fields": 0,
+   "contrast_failures": 0,
+   "horizontal_scroll": 0
+  },
+  "new tool +5 baseline rows": {
+   "overlaps": 0,
+   "overlay_overlaps": 0,
+   "small_targets": 12,
+   "design_system_small": 0,
+   "misaligned": 14,
+   "unlabeled_fields": 0,
+   "contrast_failures": 0,
+   "horizontal_scroll": 0
+  },
+  "new tool +6 grid row spans": {
+   "overlaps": 0,
+   "overlay_overlaps": 0,
+   "small_targets": 12,
+   "design_system_small": 0,
+   "misaligned": 12,
+   "unlabeled_fields": 0,
+   "contrast_failures": 0,
+   "horizontal_scroll": 0
+  },
+  "new tool +7 centre/right stacks": {
+   "overlaps": 0,
+   "overlay_overlaps": 0,
+   "small_targets": 12,
+   "design_system_small": 0,
+   "misaligned": 0,
+   "unlabeled_fields": 0,
+   "contrast_failures": 0,
+   "horizontal_scroll": 0
+  },
+  "new tool +8 links in label": {
+   "overlaps": 0,
+   "overlay_overlaps": 0,
+   "small_targets": 0,
+   "design_system_small": 0,
+   "misaligned": 0,
+   "unlabeled_fields": 0,
+   "contrast_failures": 0,
+   "horizontal_scroll": 0
+  }
+ },
+ "pages": {
+  "home": {
+   "old tool (64311fd0)": {
+    "overlaps": 64,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +0 (none)": {
+    "overlaps": 64,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +1 closed details": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +2 fixed/sticky layer apart": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +3 wrapped inline per line": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +4 table rows": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +5 baseline rows": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +6 grid row spans": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +7 centre/right stacks": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +8 links in label": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   }
+  },
+  "explore": {
+   "old tool (64311fd0)": {
+    "overlaps": 18,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +0 (none)": {
+    "overlaps": 18,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +1 closed details": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +2 fixed/sticky layer apart": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +3 wrapped inline per line": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +4 table rows": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +5 baseline rows": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +6 grid row spans": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +7 centre/right stacks": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +8 links in label": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   }
+  },
+  "chat": {
+   "old tool (64311fd0)": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +0 (none)": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +1 closed details": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +2 fixed/sticky layer apart": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +3 wrapped inline per line": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +4 table rows": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +5 baseline rows": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +6 grid row spans": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +7 centre/right stacks": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +8 links in label": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   }
+  },
+  "status": {
+   "old tool (64311fd0)": {
+    "overlaps": 8,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 82,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +0 (none)": {
+    "overlaps": 8,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 82,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +1 closed details": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 82,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +2 fixed/sticky layer apart": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 82,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +3 wrapped inline per line": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 82,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +4 table rows": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 2,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +5 baseline rows": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +6 grid row spans": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +7 centre/right stacks": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +8 links in label": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   }
+  },
+  "learn": {
+   "old tool (64311fd0)": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +0 (none)": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +1 closed details": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +2 fixed/sticky layer apart": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +3 wrapped inline per line": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +4 table rows": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +5 baseline rows": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +6 grid row spans": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +7 centre/right stacks": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +8 links in label": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   }
+  },
+  "test": {
+   "old tool (64311fd0)": {
+    "overlaps": 258,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 46,
+    "unlabeled_fields": 8,
+    "contrast_failures": 4,
+    "horizontal_scroll": 0
+   },
+   "new tool +0 (none)": {
+    "overlaps": 258,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 46,
+    "unlabeled_fields": 8,
+    "contrast_failures": 4,
+    "horizontal_scroll": 0
+   },
+   "new tool +1 closed details": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 2,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +2 fixed/sticky layer apart": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 2,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +3 wrapped inline per line": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 2,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +4 table rows": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 2,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +5 baseline rows": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 2,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +6 grid row spans": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +7 centre/right stacks": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +8 links in label": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   }
+  },
+  "workflows": {
+   "old tool (64311fd0)": {
+    "overlaps": 44,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 12,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +0 (none)": {
+    "overlaps": 44,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 12,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +1 closed details": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 12,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +2 fixed/sticky layer apart": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 12,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +3 wrapped inline per line": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 12,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +4 table rows": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 12,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +5 baseline rows": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 12,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +6 grid row spans": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 12,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +7 centre/right stacks": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +8 links in label": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   }
+  },
+  "list_agent": {
+   "old tool (64311fd0)": {
+    "overlaps": 202,
+    "overlay_overlaps": 0,
+    "small_targets": 12,
+    "design_system_small": 0,
+    "misaligned": 4,
+    "unlabeled_fields": 4,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +0 (none)": {
+    "overlaps": 202,
+    "overlay_overlaps": 0,
+    "small_targets": 12,
+    "design_system_small": 0,
+    "misaligned": 4,
+    "unlabeled_fields": 4,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +1 closed details": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 12,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +2 fixed/sticky layer apart": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 12,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +3 wrapped inline per line": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 12,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +4 table rows": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 12,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +5 baseline rows": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 12,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +6 grid row spans": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 12,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +7 centre/right stacks": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 12,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +8 links in label": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   }
+  },
+  "about": {
+   "old tool (64311fd0)": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +0 (none)": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +1 closed details": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +2 fixed/sticky layer apart": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +3 wrapped inline per line": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +4 table rows": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +5 baseline rows": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +6 grid row spans": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +7 centre/right stacks": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +8 links in label": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   }
+  },
+  "agent_detail": {
+   "old tool (64311fd0)": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +0 (none)": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +1 closed details": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +2 fixed/sticky layer apart": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +3 wrapped inline per line": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +4 table rows": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +5 baseline rows": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +6 grid row spans": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +7 centre/right stacks": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +8 links in label": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   }
+  },
+  "category": {
+   "old tool (64311fd0)": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +0 (none)": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +1 closed details": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +2 fixed/sticky layer apart": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +3 wrapped inline per line": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +4 table rows": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +5 baseline rows": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +6 grid row spans": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +7 centre/right stacks": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +8 links in label": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   }
+  },
+  "ranking": {
+   "old tool (64311fd0)": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +0 (none)": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +1 closed details": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +2 fixed/sticky layer apart": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +3 wrapped inline per line": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +4 table rows": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +5 baseline rows": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +6 grid row spans": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +7 centre/right stacks": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +8 links in label": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   }
+  },
+  "task": {
+   "old tool (64311fd0)": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +0 (none)": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +1 closed details": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +2 fixed/sticky layer apart": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +3 wrapped inline per line": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +4 table rows": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +5 baseline rows": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +6 grid row spans": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +7 centre/right stacks": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   },
+   "new tool +8 links in label": {
+    "overlaps": 0,
+    "overlay_overlaps": 0,
+    "small_targets": 0,
+    "design_system_small": 0,
+    "misaligned": 0,
+    "unlabeled_fields": 0,
+    "contrast_failures": 0,
+    "horizontal_scroll": 0
+   }
+  }
+ }
+}
