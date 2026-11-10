@@ -144,7 +144,8 @@ class Front:
         self.security = SecurityManager(store)
         self.rag_engine = rag_engine
         self.book = VisitorBook(store)
-        self.rec = QualityRecommender(store, rag_engine=rag_engine)
+        from .gateway_exposure import ExposedFirstRecommender
+        self.rec = ExposedFirstRecommender(QualityRecommender(store, rag_engine=rag_engine), store)
         self.clearinghouse = Clearinghouse(store)
         self.proxy = McpProxy(store, allow_private, clearinghouse=self.clearinghouse)
         self.inertia = InertiaGraph(store)

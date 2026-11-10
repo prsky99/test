@@ -3753,6 +3753,12 @@ function chatLabel(value, fallback) {
   if (!CHAT_PROMOTION.test(text)) return text;
   // Keep the service name and drop price or billing fragments instead of hiding the whole name.
   let kept = text.split(/\s*(?:[|()\[\]:\u2013\u2014]|\s-\s)\s*/).filter(part => part && !CHAT_PROMOTION.test(part)).join(" - ");
+  if (!/[A-Za-z]{3}/.test(kept)) {
+    // A description: drop whole sentences that mention price, never single words, so
+    // "compress. 25 free/month, then a free key." does not become "compress. , then a key" (11-10).
+    const sentences = text.split(/(?<=[.!?])\s+|;\s*/).filter(Boolean);
+    kept = sentences.length > 1 ? sentences.filter(part => !CHAT_PROMOTION.test(part)).join(" ") : "";
+  }
   if (!/[A-Za-z]{3}/.test(kept)) kept = text.replace(/[$\u20ac\u00a3\u20a9]\s*[\d.,]+/g, " ").replace(/\b(?:pay[ -]?)?per[ -]?(?:call|request|query|use)\b/gi, " ").replace(CHAT_PROMOTION_ALL, " ").replace(/[\d.,/]+\s*(?:per|\/)\s*\w+/gi, " ");
   kept = kept.replace(/\s+/g, " ").replace(/^[\s\-|:,.\/]+|[\s\-|:,.\/]+$/g, "");
   return /[A-Za-z]{3}/.test(kept) && !CHAT_PROMOTION.test(kept) ? kept : fallback;
