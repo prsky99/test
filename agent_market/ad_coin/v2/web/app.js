@@ -17,7 +17,7 @@
     $('offer-card').hidden=true;$('creative-card').hidden=true;$('outcome').hidden=true;
     $('preferences-fields').disabled=true;$('receive-offers').checked=false;
     document.querySelectorAll('input[name=context]').forEach(node=>node.checked=false);
-    $('campaigns').replaceChildren();$('reports').replaceChildren();$('campaign-form').hidden=true;
+    $('campaigns').replaceChildren();$('reports').replaceChildren();$('campaign-form').hidden=true;$('booking-form').hidden=true;$('bookings').replaceChildren();state.booking=null;
     options('advertiser',[''],()=> 'Open your workspace first');
     $('region').value='';$('offers-limit').value=10;$('ads-limit').value=3;$('campaign-limit').value=1;$('time-limit').value=90;
   }
@@ -280,11 +280,40 @@
         'This approval does not activate the campaign.'],()=>campaignAction(campaign,'approvals')));
       if (['eligible','paused'].includes(campaign.state)&&campaign.approval_status==='approved'&&adv.capabilities.includes('budget.approve')) add(campaign.state==='paused'?'Resume':'Activate',()=>campaignAction(campaign,'activation'));
       if (campaign.state==='active'&&adv.capabilities.includes('campaign.pause')) add('Pause',()=>campaignAction(campaign,'pause'));
+      if (campaign.state==='active'&&campaign.approval_status==='approved'&&adv.capabilities.includes('budget.approve')) add('Book a Sponsored day',async()=>openBooking(campaign));
       if (campaign.state==='in_review') {const note=document.createElement('p');note.textContent='Independent review is pending. Refresh to check for a decision.';card.append(note);}
       $('campaigns').append(card);
     }
     if (!value.items.length&&!more) text('campaigns','No campaigns yet. Create a draft to begin.');
     $('more-campaigns').hidden=!state.cursor;
+  }
+  function utcDay(offset) {const d=new Date(Date.now()+offset*86400000);return d.toISOString().slice(0,10);}
+  function openBooking(campaign) {
+    state.booking=campaign;text('booking-campaign',campaign.name);
+    options('booking-category',state.session.categories,v=>v.replaceAll('_',' '));
+    options('booking-region',state.session.regions);
+    $('booking-day').min=utcDay(1);$('booking-day').max=utcDay(30);$('booking-day').value=utcDay(1);
+    $('booking-form').hidden=false;$('booking-day').focus();
+  }
+  function bookingLine(item) {
+    return new Date(item.day_ms).toISOString().slice(0,10)+' UTC · '+item.task_category.replaceAll('_',' ')+' · '+item.region+' · '+coins(item.price_atoms)+' coins · '+item.state;
+  }
+  async function loadBookings() {
+    if (!account()) return;
+    const adv=advertiser();if (!adv) {text('notice','Choose an advertising account first.');return;}
+    const {value}=await api('/advertisers/'+adv.id+'/sponsored-bookings');
+    $('bookings').replaceChildren();
+    for (const item of value.items) {
+      const row=document.createElement('div');row.className='row';const p=document.createElement('p');p.textContent=bookingLine(item);row.append(p);
+      if (item.state==='booked'&&item.day_ms>Date.now()) {
+        const b=document.createElement('button');b.type='button';b.className='btn';b.textContent='Cancel booking';
+        b.addEventListener('click',()=>review('Cancel this booking?',[bookingLine(item),'All coins for this booking return to your balance.'],async()=>{
+          await api('/advertisers/'+adv.id+'/sponsored-bookings/'+item.id+'/cancel',{method:'POST',body:{}});await loadBookings();}));
+        row.append(b);
+      }
+      $('bookings').append(row);
+    }
+    if (!value.items.length) text('bookings','No Sponsored bookings yet.');
   }
   async function loadReports() {
     if (!account()) return;
@@ -403,6 +432,21 @@
   $('stop-ad').onclick=()=>run($('stop-ad'),()=>closeAd(true),{quiet:true});
   $('check-outcome').onclick=()=>run($('check-outcome'),pollOutcome,{quiet:true});
   $('load-campaigns').onclick=()=>run($('load-campaigns'),()=>loadCampaigns(false));
+  $('load-bookings').onclick=()=>run($('load-bookings'),loadBookings);
+  $('cancel-booking-form').onclick=()=>{$('booking-form').hidden=true;state.booking=null;};
+  $('booking-form').addEventListener('submit',event=>{
+    event.preventDefault();
+    const campaign=state.booking, adv=advertiser();if (!campaign||!adv) return;
+    const body={campaign_id:campaign.id,day:$('booking-day').value,task_category:$('booking-category').value,region:$('booking-region').value};
+    review('Book this Sponsored placement?',[campaign.name,body.day+' UTC · '+body.task_category.replaceAll('_',' ')+' · '+body.region,
+      'Price: 50 coins, deducted from your coin balance when you confirm. A new advertiser\u2019s first booking may be paid from the platform\u2019s growth budget instead.',
+      'You can cancel until the day before it starts and get all coins back. If you pause the campaign yourself, coins are not returned.',
+      'Coins have no cash value. See \u201cSponsored placements paid with coins\u201d below.'],async()=>{
+      const {value}=await api('/advertisers/'+adv.id+'/sponsored-bookings',{method:'POST',body});
+      $('booking-form').hidden=true;state.booking=null;
+      text('notice',value.paid_by==='growth_support'?'Booked. This first booking was paid by the platform\u2019s growth budget.':'Booked. '+coins(value.price_atoms)+' coins were deducted from your balance.');
+      await loadBookings();});
+  });
   $('more-campaigns').onclick=()=>run($('more-campaigns'),()=>loadCampaigns(true));
   $('show-create').onclick=()=>{if (!account()) return;if (!advertiser()?.capabilities.includes('campaign.edit')) {text('notice','Campaign editing is not enabled for this account.');return;}
     $('campaign-form').hidden=false;$('campaign-start').value=new Date().toISOString().slice(0,16);$('campaign-end').value=new Date(Date.now()+86400000).toISOString().slice(0,16);$('campaign-name').focus();};

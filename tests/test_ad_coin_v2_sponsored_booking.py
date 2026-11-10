@@ -203,3 +203,23 @@ def test_http_booking_needs_authority_csrf_and_an_idempotency_key(p1_suite):  # 
                            json={'reason': 'Sponsored outage 2h'}, headers={**staff_headers, 'X-CSRF-Token': csrf})
     assert refunded.status_code == 200 and refunded.json()['state'] == 'refunded'
     assert balance(s, points.GROWTH_ACCOUNT) == before + PRICE_ATOMS
+
+
+def test_public_terms_match_the_approved_clauses_word_for_word():
+    """The eight clauses the user approved (11-10) appear unchanged in the English workspace."""
+    import html as htmllib
+    import re
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    report = (root / 'reports/AI-AD-Coin-Sponsored-광고주약관-조항초안-2026-11-10.md').read_text()
+    clauses = re.findall(r'^> \*\*\d\. (.+?)\*\* (.+)$', report, re.M)
+    assert len(clauses) == 8
+    page = (root / 'agent_market/ad_coin/v2/web/index.html').read_text()
+    section = page[page.index('id="sponsored-terms"'):]
+    section = section[:section.index('</section>')]
+    items = [htmllib.unescape(re.sub(r'<[^>]+>', '', item)).strip()
+             for item in re.findall(r'<li>(.*?)</li>', section, re.S)]
+    expected = [title + ' ' + body for title, body in clauses]
+    straight = [item.replace('“', '"').replace('”', '"').replace('’', "'") for item in items]
+    assert straight == expected
+    assert 'Sponsored placements paid with coins' in section and '<!--' not in page
