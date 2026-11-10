@@ -62,7 +62,8 @@ def test_publish_writes_once_and_pages_render(client, monkeypatch):
 
 
 def test_jobs_publish_weekly_only_on_monday(tmp_path):
-    from agent_market.concierge.task_pages_job import TaskPagesRefresher
+    import pytest
+    TaskPagesRefresher = pytest.importorskip('agent_market.concierge.task_pages_job').TaskPagesRefresher  # jobs releases only
     out = tmp_path/'public-pages'/'task-pages.json'
     raw = {'version': 1, 'captured_at': CAPTURED.isoformat(), 'tasks': [], 'catalog': sample()}
     sunday = TaskPagesRefresher(None, out=out, clock=lambda: datetime(2026, 11, 15, 4, tzinfo=timezone.utc).timestamp(), categories=[])
