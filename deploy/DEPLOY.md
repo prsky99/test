@@ -200,3 +200,10 @@ frontend·admin 배포는 이전 칸(직전 버전 프로세스)을 남겨 즉�
   - 그다음 MCP `find_agents`를 한 번 부른다. 읽기 전용이고 대화 기록을 남기지 않는다.
 - 데우기가 실패하거나 느려도 배포는 막지 않는다. 결과는 배포 출력의 `warm`에 남는다: `first_explore_ms`, `explore_goal_met`, `recommend_ms`, `recommend_goal_met`.
 - 확인은 공개 주소에서 배포 직후 처음 보는 질의 3개로 한다(현황판에 기록).
+- 근본 원인(11-11 로그): 새 frontend 칸은 시작하면 탐색 보고서 스냅샷(20,928건)을 만든다. 방문자에게 양보하려고 쉬면서 만들기 때문에 520~560초가 걸린다. 그런데 칸 전환은 시작 후 약 1분 만에 일어났다. 그 사이 첫 요청은 스냅샷 작업과 저장소 잠금을 다퉜다(11-01에도 같은 이유로 14초).
+- 고친 것:
+  - 아직 트래픽을 받지 않는 칸은 첫 스냅샷을 쉬지 않고 만든다(`report_snapshot.keep_fresh`).
+  - 준비 확인(`/internal/service/ready`)에 `report_snapshot` 상태(building, ready, skipped, failed)를 넣었다.
+  - `deploy`는 그 상태가 ready가 될 때까지 기다린다(`wait_snapshot`, 최대 600초, 넘어도 배포는 막지 않음). 그다음 데우고 전환한다. 결과는 배포 출력의 `report_snapshot: {state, seconds}`에 남는다.
+  - 데우기 요청마다 Server-Timing을 `warmed[].server_timing`에 남긴다.
+- 그래서 frontend 배포는 스냅샷을 만드는 몇 분만큼 길어진다. 속도 정책(첫 요청 2초)을 위한 대가다.

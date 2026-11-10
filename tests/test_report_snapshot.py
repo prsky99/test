@@ -149,7 +149,7 @@ def test_only_the_serving_slot_keeps_refreshing(monkeypatch):
             waits.append(seconds)
             clock[0] += 400
 
-    def fake_refresh(store, stop):
+    def fake_refresh(store, stop, ratio=rs.PAUSE_RATIO):
         builds.append(clock[0])
         rs._snapshots[id(store)] = rs.Snapshot([], clock[0])
     monkeypatch.setattr(rs, 'refresh', fake_refresh)
@@ -233,3 +233,38 @@ def test_explore_keep_warm_stops_mid_round_when_the_slot_turns_standby(monkeypat
 
     service_host.keep_explore_warm('front', Stop(30), pause=8.0, serving=lambda: serving[0])
     assert searched == [0, 1, 2]  # the rest of the round is skipped once standby
+
+
+def test_a_slot_not_yet_serving_builds_its_start_snapshot_without_pauses(monkeypatch):
+    # 11-11: the paused start build took ~9 min; a new slot took traffic after ~1 min and the first public
+    # search waited 14.4 s. A candidate slot has no visitors to yield to, so it builds at full speed.
+    ratios, store = [], object()
+
+    class Stop:
+        def __init__(self): self.n = 0
+        def is_set(self): return self.n >= 1
+        def wait(self, seconds): self.n += 1
+
+    def fake_refresh(store, stop, ratio=rs.PAUSE_RATIO):
+        ratios.append(ratio)
+        rs._snapshots[id(store)] = rs.Snapshot([], rs.time.time())
+    monkeypatch.setattr(rs, 'refresh', fake_refresh)
+    rs._snapshots.clear()
+    rs.keep_fresh(store, Stop(), serving=lambda: False)
+    rs._snapshots.clear()
+    rs.keep_fresh(store, Stop(), serving=lambda: True)   # a restart of the serving slot keeps yielding
+    assert ratios == [0.0, rs.PAUSE_RATIO]
+
+
+def test_snapshot_state_reports_building_ready_and_skipped(monkeypatch):
+    store = object()
+    rs._snapshots.pop(id(store), None); rs._states.pop(id(store), None)
+    assert rs.state(store) is None
+    seen = []
+    monkeypatch.setattr(rs, 'build', lambda s, stop=None, ratio=rs.PAUSE_RATIO: seen.append(rs.state(s)) or rs.Snapshot([], 1.0))
+    rs.refresh(store)
+    assert seen == ['building'] and rs.state(store) == 'ready'
+    other = object()
+    monkeypatch.setattr(rs, 'build', lambda s, stop=None, ratio=rs.PAUSE_RATIO: None)
+    rs.refresh(other)
+    assert rs.state(other) == 'skipped'

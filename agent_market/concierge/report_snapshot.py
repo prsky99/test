@@ -31,6 +31,7 @@ KINDS = ('a2a', 'mcp', 'x402')
 WEIGHT_A, WEIGHT_D = 1.0, 0.1
 MAX_POSITIONS = 256  # PostgreSQL keeps at most this many positions per lexeme
 _snapshots = {}
+_states = {}   # id(store) -> 'building' | 'ready' | 'skipped' | 'failed' (for the deploy readiness probe)
 _lock = threading.Lock()
 
 
@@ -211,7 +212,7 @@ def _all_candidates(store, count_sql, candidate_sql, prefix, values, maximum=Non
     return candidates, total
 
 
-def build(store, stop=None):
+def build(store, stop=None, pause_ratio=PAUSE_RATIO):
     """Check every report-backed listing with the public report rules; None if a kind exceeds the window."""
     from .front import (LIVE_COND, REPORT_CONDS, REPORT_HISTORY_COND,
                         VERIFIED_EXECUTION_COND, _card_data, _report_candidate_sql,
@@ -232,7 +233,7 @@ def build(store, stop=None):
                 return None
             if start:
                 # Outside the lock, so a waiting visitor request takes it first.
-                time.sleep(max(YIELD_SECONDS, PAUSE_RATIO * worked))
+                time.sleep(max(YIELD_SECONDS, pause_ratio * worked))
             began = time.perf_counter()
             chunk = candidates[start:start + CHUNK]
             with store._lock, store.tx(readonly=True):
@@ -264,14 +265,27 @@ def current(store):
     return None
 
 
-def refresh(store, stop=None):
+def refresh(store, stop=None, pause_ratio=PAUSE_RATIO):
     with _lock:
         started = time.monotonic()
-        snapshot = build(store, stop)
+        _states.setdefault(id(store), 'building')
+        try:
+            snapshot = build(store, stop, pause_ratio)
+        except Exception:
+            _states[id(store)] = 'ready' if id(store) in _snapshots else 'failed'
+            raise
         if snapshot is not None:
             _snapshots[id(store)] = snapshot
+            _states[id(store)] = 'ready'
             log.info('Report snapshot: %d listings in %.1f s', len(snapshot.entries), time.monotonic() - started)
+        elif id(store) not in _snapshots and not (stop is not None and stop.is_set()):
+            _states[id(store)] = 'skipped'   # a kind exceeded the window: Explore uses its query path
         return snapshot
+
+
+def state(store):
+    """'building', 'ready', 'skipped', 'failed' or None (no build started) for the readiness probe."""
+    return _states.get(id(store))
 
 
 STANDBY_CHECK_SECONDS = 30
@@ -292,9 +306,13 @@ def keep_fresh(store, stop, interval=REFRESH_SECONDS, serving=None):
             # stops when a deploy makes this slot standby, so the old and the new slot do not both
             # read every report for minutes (11-09: five deploys in 70 minutes, builds overlapped).
             halt = stop if first else _UntilStandby(stop, serving)
+            # 11-11: a slot that does not take traffic yet has no visitors to yield to, so its start
+            # build runs without pauses (about 3 min instead of 9) and the deploy waits for it before
+            # switching. Pausing it let the first public search after a deploy take 14.4 s.
+            ratio = 0.0 if first and not _serving(serving) else PAUSE_RATIO
             first = False
             try:
-                if refresh(store, halt) is None and getattr(halt, 'standby', False):
+                if refresh(store, halt, ratio) is None and getattr(halt, 'standby', False):
                     log.info('Report snapshot refresh stopped: this slot is no longer serving')
             except Exception:
                 log.warning('Report snapshot refresh failed', exc_info=False)

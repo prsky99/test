@@ -45,7 +45,7 @@ def test_web_roles_do_not_start_jobs_and_readiness_is_private(role, monkeypatch)
             reply = client.get('/internal/service/ready', headers={'x-service-probe': probe_token(Control.key)})
             assert reply.status_code == 200
             assert reply.json() == {'ready': True, 'role': role, 'release': 'synthetic-v1', 'active_requests': 0,
-                                    'embedding_warmup': None, 'generation_warmup': None}
+                                    'embedding_warmup': None, 'generation_warmup': None, 'report_snapshot': None}
             paths = {getattr(r, 'path', '') for r in app.routes}
             if role == 'frontend':
                 assert '/needs' in paths and not any(p.startswith('/admin') for p in paths)

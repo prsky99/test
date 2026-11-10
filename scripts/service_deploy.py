@@ -37,6 +37,7 @@ WARM_VERBS = ('convert', 'summarize', 'extract', 'translate', 'search', 'monitor
               'schedule', 'validate', 'compare', 'classify')
 WARM_OBJECTS = ('csv files', 'pdf invoices', 'news articles', 'github issues', 'stock prices', 'emails',
                 'images', 'web pages', 'calendar events', 'product reviews', 'sql tables', 'audio notes')
+SNAPSHOT_WAIT_SECONDS = 600     # the new slot's start report snapshot (about 3 min unpaused, 11-11)
 WARM_EXPLORE_GOAL_MS = 2000      # the Explore target (CLAUDE.md response-time policy)
 WARM_RECOMMEND_GOAL_MS = 3000    # the recommendation target
 # Undeployed releases younger than this survive the post-deploy prune (another session may deploy them next).
@@ -520,6 +521,25 @@ class Deployment:
             time.sleep(1)
         raise RuntimeError('candidate_readiness_timeout')
 
+    def wait_snapshot(self, role, slot, release, budget=SNAPSHOT_WAIT_SECONDS, sleep=time.sleep, clock=time.monotonic):
+        """Wait until the new frontend slot has built its Explore report snapshot (or reports it cannot).
+
+        11-11: a slot took traffic about a minute after start while its report snapshot took nine more
+        minutes; that build shares the store lock with visitor requests and the first public search took
+        14.4 s. Releases without the readiness field are not waited for; a timeout never blocks the deploy."""
+        if role != 'frontend':
+            return None
+        began = clock()
+        state = None
+        while True:
+            try:
+                state = self.probe(role, slot, release).get('report_snapshot', 'absent')
+            except Exception:
+                state = 'probe_failed'
+            if state in ('ready', 'skipped', 'failed', 'absent', None) or clock() - began >= budget:
+                return {'state': state, 'seconds': round(clock() - began, 1)}
+            sleep(5)
+
     def warm_web(self, role, slot, budget=WARM_SECONDS, transport=None, rng=None):
         """Warm the new frontend slot with queries it has never seen before traffic moves to it.
 
@@ -535,12 +555,17 @@ class Deployment:
         base = 'http://127.0.0.1:' + str(PORTS[role][slot])
 
         def timed(kind, call, label):
-            began = time.monotonic()
+            began, stages = time.monotonic(), None
             try:
-                status = call().status_code
+                response = call()
+                status = response.status_code
+                # Server-Timing stages show which part of a cold process is slow (11-11).
+                stages = response.headers.get('server-timing', '')[:400] or None
             except Exception as error:
                 status = type(error).__name__
             item = {'kind': kind, 'q': label, 'status': status, 'ms': round((time.monotonic() - began) * 1000)}
+            if stages:
+                item['server_timing'] = stages
             timings.append(item)
             return item
 
@@ -662,6 +687,7 @@ class Deployment:
                 self.stop(role, new)
                 self.save(previous, 'stable')
                 raise
+            snapshot = self.wait_snapshot(role, new, release)
             warmed = self.warm_web(role, new)
             service['slots'][new] = release
             service['active'] = new
@@ -689,7 +715,7 @@ class Deployment:
             self.drained(role, old)
             self.schedule_reclaim()
             return {'service': role, 'active': new, 'release': release, 'previous_retained': True, 'warmed': warmed,
-                    'warm': self.warm_summary(warmed)}
+                    'warm': self.warm_summary(warmed), 'report_snapshot': snapshot}
 
     def schedule_reclaim(self, delay=RECLAIM_STANDBY_SECONDS):
         """Run reclaim-standby once after DELAY in a detached process; a failure only keeps the standby."""

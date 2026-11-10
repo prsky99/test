@@ -186,6 +186,12 @@ def create_service_app(config, role, *, store=None, control=None, release='test'
                     stop.set()
     app.router.lifespan_context = lifecycle
 
+    def report_snapshot_state():
+        if role != 'frontend' or getattr(front.store, 'backend', None) != 'postgresql':
+            return None
+        from .concierge.report_snapshot import state
+        return state(front.store)
+
     @app.get('/internal/service/ready', include_in_schema=False)
     async def readiness(request: Request):
         key = control.key if control is not None else getattr(front.store, 'workflow_key', None)
@@ -200,7 +206,8 @@ def create_service_app(config, role, *, store=None, control=None, release='test'
         return JSONResponse({'ready': ready, 'role': role, 'release': release,
                              'active_requests': app.state.active_requests,
                              'embedding_warmup': app.state.embedding_warmup,
-                             'generation_warmup': app.state.generation_warmup},
+                             'generation_warmup': app.state.generation_warmup,
+                             'report_snapshot': report_snapshot_state()},
                             status_code=200 if ready else 503, headers={'Cache-Control': 'no-store'})
     return app
 

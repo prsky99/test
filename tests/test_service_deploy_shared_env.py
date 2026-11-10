@@ -217,3 +217,23 @@ def test_package_from_a_commit_ignores_working_tree_edits_and_records_the_hash(t
         manager.package('git-frontend-r2', commit='no-such-ref')
     with pytest.raises(ValueError, match='invalid_commit'):
         manager.package('git-frontend-r3', commit='--upload-pack=x')
+
+
+def test_deploy_waits_for_the_new_slot_report_snapshot_before_warming_and_switching(tmp_path):
+    import inspect
+    from scripts.service_deploy import Deployment
+    source = inspect.getsource(Deployment.deploy)
+    assert source.index('self.wait_snapshot(role, new, release)') < source.index('self.warm_web(role, new)') \
+        < source.index("service['active'] = new")
+    manager = Reclaim(tmp_path, _state(retained_at=0.0))
+    states, now = iter(['building', 'building', 'ready']), [0.0]
+    manager.probe = lambda role, slot, release=None: {'ready': True, 'report_snapshot': next(states)}
+    result = manager.wait_snapshot('frontend', 'a', 'r1', sleep=lambda s: now.__setitem__(0, now[0] + s), clock=lambda: now[0])
+    assert result == {'state': 'ready', 'seconds': 10.0}
+    manager.probe = lambda role, slot, release=None: {'ready': True}   # an older release without the field
+    assert manager.wait_snapshot('frontend', 'a', 'r1', sleep=lambda s: None)['state'] == 'absent'
+    manager.probe = lambda role, slot, release=None: {'ready': True, 'report_snapshot': 'building'}
+    now[0] = 0.0
+    late = manager.wait_snapshot('frontend', 'a', 'r1', budget=30, sleep=lambda s: now.__setitem__(0, now[0] + s), clock=lambda: now[0])
+    assert late['state'] == 'building' and late['seconds'] >= 30   # a timeout never blocks the deploy
+    assert manager.wait_snapshot('admin', 'a', 'r1') is None
