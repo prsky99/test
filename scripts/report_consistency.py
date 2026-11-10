@@ -154,6 +154,8 @@ def check(report):
         problems.append('C7')
     if report.get('evidence_scope') == 'legacy' and not re.search(r'(?i)restored|historical', md):
         problems.append('C8')
+    if (as_list(report.get('pros')) and '### Pros' not in md) or (as_list(report.get('cons')) and '### Cons' not in md):
+        problems.append('C19')
     for key in ('pros', 'cons'):
         value = report.get(key)
         if value and not isinstance(value, list):
@@ -190,6 +192,13 @@ def normalize(report):
     md, pros, cons = extra_fix(r, md, pros, cons)
     r['pros'], r['cons'] = json.dumps(pros, ensure_ascii=False), json.dumps(cons, ensure_ascii=False)
 
+    # C19: a rewrite that dropped the ### Pros / ### Cons sections gets them back from the fields (lint R4).
+    md = re.sub(r'(?m)^#{2,6} (Pros|Cons)[ \t\r]*$', r'### \1', md)
+    missing = [(h, items) for h, items in (('### Pros', pros), ('### Cons', cons)) if items and h not in md]
+    if missing:
+        block = '\n\n'.join(f'{h}\n\n{_bullets(items)}' for h, items in missing)
+        anchor = re.search(r'(?m)^## (?:Scope|Recommended Workflow Integration)', md)
+        md = (md[:anchor.start()] + block + '\n\n' + md[anchor.start():]) if anchor else md.rstrip() + '\n\n' + block + '\n'
     # C1: sections follow the fields.
     if pros:
         md = _replace_body(md, '### Pros', _bullets(pros))
@@ -415,21 +424,6 @@ def apply_all(conn, backup_path=None, write=True):
     return dict(counts)
 
 
-if __name__ == '__main__':
-    import sys
-    from datetime import datetime
-    from pathlib import Path
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from remediate_all_test_reports import connect
-    apply = '--apply' in sys.argv
-    root = Path(__file__).resolve().parents[1]
-    path = root / 'logs/ops/report-quality' / f'backup-consistency-{datetime.now():%Y%m%d-%H%M%S}.jsonl'
-    conn = connect()
-    print(json.dumps(apply_all(conn, path if apply else None, write=apply)))
-    if apply:
-        conn.commit()
-        print(f'backup: {path.relative_to(root)}')
-
 
 # --- C18: a transport label on a report whose stored request is a real call (11-10 second re-score) ---------
 _TRANSPORT_REQUEST = re.compile(r'^(?:GET|POST|tools/list|initialize|POST initialize.*|GET \(3-probe burst\))?$')
@@ -465,3 +459,18 @@ def executed_method(report):
     if not real:
         return None
     return 'MCP Tool Call' if method.lower() == 'mcp tools list' else 'A2A Message'
+
+if __name__ == '__main__':
+    import sys
+    from datetime import datetime
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from remediate_all_test_reports import connect
+    apply = '--apply' in sys.argv
+    root = Path(__file__).resolve().parents[1]
+    path = root / 'logs/ops/report-quality' / f'backup-consistency-{datetime.now():%Y%m%d-%H%M%S}.jsonl'
+    conn = connect()
+    print(json.dumps(apply_all(conn, path if apply else None, write=apply)))
+    if apply:
+        conn.commit()
+        print(f'backup: {path.relative_to(root)}')

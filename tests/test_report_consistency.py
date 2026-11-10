@@ -113,3 +113,10 @@ def test_transport_label_with_a_real_call_is_detected():
     assert rc.executed_method({'test_method': 'A2A Agent Card', 'input_wire': '{"method": "GET (3-probe burst)", "trials": 3}'}) is None
     assert rc.executed_method({'test_method': 'MCP Tools List',
                                'input_wire': '{"method": "POST initialize + tools/list", "trials": 3}'}) is None
+
+
+def test_dropped_pros_and_cons_sections_come_back_from_the_fields():
+    md = '## Verification Summary\n\nx\n\n## Scope\n\ny\n\n## Recommended Workflow Integration\n\nNew workflow.\n'
+    new, applied = rc.normalize(report(content_md=md))
+    assert 'C19' in applied and rc.check(new) == []
+    assert new['content_md'].index('### Pros') < new['content_md'].index('## Scope')

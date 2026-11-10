@@ -20,6 +20,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 import ops_llm  # noqa: E402
@@ -247,6 +248,9 @@ def _valid(original, rewrite):
                         for k in FIELDS)
     if re.search(r'[ㄱ-힝]', new_text):
         return 'non_english'
+    from report_pipeline_common import PRIVATE  # same rule as lint R2 (11-10: rewrites re-added 'localhost')
+    if PRIVATE.search(new_text):
+        return 'private_text'
     added = _numbers(new_text) - _numbers(source) - {'0', '1', '2', '3', '4', '5', '30', '100'}
     if added:
         return 'new_numbers:' + ','.join(sorted(added)[:5])
