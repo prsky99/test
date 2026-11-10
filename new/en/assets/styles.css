@@ -201,4 +201,16 @@ html body :is(.nav-tab,.brand,.brand-box,.pf-email,.footer-link-btn,.link-button
 html body .nav-tab:not(.no-touch-floor){justify-content:center}
 html body summary:not(.no-touch-floor){box-sizing:border-box;padding-block:10px}
 /* Unclassed links that stand alone under a heading or block (card titles, "Explore … →") get the same height. */
-html body main :is(h2,h3,h4,div)>a:not([class]){display:inline-flex;align-items:center;min-height:44px}
+html body main>a:not([class]),html body main :is(h2,h3,h4,div,article)>a:not([class]){display:inline-flex;align-items:center;min-height:44px;min-width:44px}
+
+/* 11-11 alignment (quality bar): rows centre their items and stacked blocks share one edge. */
+html body :is(.card-title,.end-cta,.pearl-conversation-title,.context-help-row){align-items:center}
+html body .between:has(>:is(h2,h3)){align-items:center}
+/* A heading's bottom margin pulls it off the row centre; rows space their items with gap instead. */
+html body :is(.card-title,.pearl-conversation-title,.between:has(>:is(h2,h3)))>:is(h2,h3,h4,p,ul){margin-block:0!important}
+@media(min-width:701px){html body .end-cta>.actions{margin-top:0}}
+/* Protocol cards: the figures and the action start at the card edge, like the heading row. */
+html body .protocol-card>:is(dl,.btn){margin-left:0}
+/* Test: Run and Reset use the flex layout pearl-live.css gives them; an older #secTest rule forced block. */
+html body .ux-test-primary{display:flex!important;align-items:center;gap:12px}
+html body .pearl-selected-example{align-items:center}

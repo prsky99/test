@@ -1,7 +1,9 @@
 """11-11 quality bar for the main screens (same as AD Coin): measured with scripts/ui_audit.js in Chromium.
 
 Interactive controls are at least 44px (shared design-system controls and page controls alike) at desktop
-and phone widths, and there is no horizontal scroll or console error. New small targets fail this test.
+and phone widths; in-flow boxes do not overlap and rows and stacks stay aligned; there is no horizontal
+scroll or console error. A new small target, overlap or misalignment fails this test. Overlaps with a fixed
+or sticky layer (the cookie strip) are measured apart as overlay_overlaps and are not gated here.
 """
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -13,7 +15,8 @@ from tests.test_front_workflow_browser import browser  # noqa: F401
 
 AUDIT_JS = (Path(__file__).resolve().parents[1] / 'scripts/ui_audit.js').read_text()
 PAGES = ('/new/en/index.html', '/new/en/explore.html', '/new/en/chat.html', '/new/en/agent-status.html',
-         '/new/en/learn.html', '/new/en/about.html', '/agents/tasks', '/connect')
+         '/new/en/learn.html', '/new/en/test.html', '/new/en/workflows.html', '/new/en/list-agent.html',
+         '/new/en/about.html', '/agents/tasks', '/connect', '/agents/category/dev_tools')
 
 
 @pytest.mark.parametrize('width,height', ((1280, 800), (375, 812)))
@@ -37,9 +40,10 @@ def test_main_screens_have_no_small_targets(adoption, browser, width, height):  
                 continue
             page.wait_for_load_state('load')
             m = page.evaluate(AUDIT_JS)
-            bad = {k: m[k] for k in ('small_targets', 'design_system_small', 'horizontal_scroll') if m[k]}
+            bad = {k: m[k] for k in ('small_targets', 'design_system_small', 'horizontal_scroll', 'overlaps', 'misaligned') if m[k]}
             if bad or errors:
-                failures[path] = {**bad, 'examples': m['small_examples'] + m['design_system_examples'], 'console': errors}
+                failures[path] = {**bad, 'examples': m['small_examples'] + m['design_system_examples'] + m['overlap_examples']
+                                   + m['misaligned_examples'], 'console': errors}
         finally:
             context.close()
     assert not failures, failures

@@ -124,7 +124,7 @@ def audit(url, *, setup="", shots=None, label="page", allow_401=True):
     return results
 
 
-COUNTED = ("console", "failed_requests", "broken_images", "horizontal_scroll", "overlaps", "small_targets",
+COUNTED = ("console", "failed_requests", "broken_images", "horizontal_scroll", "overlaps", "overlay_overlaps", "small_targets",
            "design_system_small",
            "unlabeled_fields", "contrast_failures", "spacing_off_token", "misaligned", "focus_not_visible")
 

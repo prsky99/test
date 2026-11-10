@@ -3,10 +3,19 @@
 // unlabeled fields, WCAG AA contrast, spacing values outside the shared design files, alignment
 // (rows and columns within 1px) and broken images. Only visible elements are measured.
 (() => {
+  // Content of a closed <details> is not drawn, but Chrome still reports layout boxes for it (11-11:
+  // the test and register screens counted ~150 "overlaps" from closed panels). Only the summary shows.
+  const inClosedDetails = el => {
+    for (let d = el.closest('details:not([open])'); d; d = d.parentElement && d.parentElement.closest('details:not([open])')) {
+      const summary = el.closest('summary');
+      if (el !== d && !(summary && summary.parentElement === d)) return true;
+    }
+    return false;
+  };
   const visible = el => {
     const s = getComputedStyle(el), r = el.getBoundingClientRect();
     return s.display !== 'none' && s.visibility !== 'hidden' && +s.opacity > 0 && r.width > 1 && r.height > 1
-      && !el.closest('[hidden], [aria-hidden="true"], .sr-only');
+      && !el.closest('[hidden], [aria-hidden="true"], .sr-only') && !inClosedDetails(el);
   };
   const name = el => el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + (el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/).slice(0, 2).join('.') : '');
   const all = [...document.querySelectorAll('body *')].filter(visible);
@@ -45,7 +54,7 @@
 
   // 3. targets and labels
   const interactive = all.filter(el => el.matches('button, a[href], input:not([type=hidden]), select, textarea, summary'));
-  const inText = el => el.matches('a') && el.closest('p, li, dd, td, .caption') && !el.matches('.btn');
+  const inText = el => el.matches('a') && el.closest('p, li, dd, td, label, .caption') && !el.matches('.btn');  // label: a link inside a consent sentence (11-11)
   const target = el => (el.matches('input[type=checkbox], input[type=radio]') && el.closest('label')) || el;  // the label is the hit area
   const small = interactive.filter(el => !inText(el)).filter(el => { const r = target(el).getBoundingClientRect(); return r.width < 44 - 0.5 || r.height < 44 - 0.5; });
   // Shared header and form parts sized by the design system files (the same on the main frontend).
@@ -83,23 +92,38 @@
 
   // 5. overlaps between distinct visible boxes that do not contain each other
   const boxes = all.filter(el => el.matches('button, a, input, select, textarea, label, h1, h2, h3, p, img, .badge, .card'));
-  const overlaps = [];
+  const overlaps = [], overlays = [];
+  const layer = el => { for (let e = el; e && e !== document.body; e = e.parentElement) { const p = getComputedStyle(e).position; if (p === 'fixed' || p === 'sticky') return true; } return false; };
   for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
     const a = boxes[i], b = boxes[j]; if (a.contains(b) || b.contains(a)) continue;
-    const r = a.getBoundingClientRect(), q = b.getBoundingClientRect();
-    const w = Math.min(r.right, q.right) - Math.max(r.left, q.left), h = Math.min(r.bottom, q.bottom) - Math.max(r.top, q.top);
-    if (w > 1 && h > 1) overlaps.push(name(a) + ' / ' + name(b));
+    // An inline element that wraps has one box per line; its bounding box would span both lines (11-11).
+    const boxesOf = el => getComputedStyle(el).display === 'inline' ? [...el.getClientRects()] : [el.getBoundingClientRect()];
+    const hit = boxesOf(a).some(r => boxesOf(b).some(q => Math.min(r.right, q.right) - Math.max(r.left, q.left) > 1
+      && Math.min(r.bottom, q.bottom) - Math.max(r.top, q.top) > 1));
+    if (hit) (layer(a) || layer(b) ? overlays : overlaps).push(name(a) + ' / ' + name(b));
   }
   out.overlaps = overlaps.length; out.overlap_examples = overlaps.slice(0, 8);
+  // A fixed or sticky layer (cookie strip, sticky panel) floats over scrolling content by design; it is
+  // counted apart so in-flow layout overlaps stay visible (11-11).
+  out.overlay_overlaps = overlays.length; out.overlay_examples = overlays.slice(0, 8);
 
   // 6. alignment: flex/grid rows share a top, bottom or centre; stacked blocks share a left edge
   const misaligned = [];
   for (const parent of all) {
     const s = getComputedStyle(parent), kids = [...parent.children].filter(visible);
     if (kids.length < 2) continue;
+    // Table rows lay cells side by side and the table aligns its own columns; the stacked-block left-edge
+    // check would compare th and td in one row (11-11: 106 false reports on the status table).
+    if (/^table/.test(s.display)) continue;
     const rects = kids.map(k => k.getBoundingClientRect());
     if (/flex|grid/.test(s.display)) {
+      // Rows aligned on the text baseline are aligned by design; an item that spans several grid rows
+      // (a side column of actions) is not in one row with its neighbour (11-11).
+      if (/baseline/.test(s.alignItems)) continue;
+      const spans = k => { const c = getComputedStyle(k), a = parseInt(c.gridRowStart), b = parseInt(c.gridRowEnd);
+        return /span\s*([2-9]|\d\d)/.test(c.gridRowEnd) || (b - a > 1); };
       for (let i = 1; i < kids.length; i++) {
+        if (/grid/.test(s.display) && (spans(kids[i - 1]) || spans(kids[i]))) continue;
         const a = rects[i - 1], b = rects[i];
         const sameRow = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > Math.min(a.height, b.height) / 2;
         if (sameRow && Math.abs(a.top - b.top) > 1 && Math.abs(a.bottom - b.bottom) > 1 && Math.abs((a.top + a.bottom) / 2 - (b.top + b.bottom) / 2) > 1)
@@ -108,7 +132,10 @@
     } else {
       const blocks = kids.filter(k => /block|flex|grid|table/.test(getComputedStyle(k).display) && getComputedStyle(k).position === 'static' && getComputedStyle(k).float === 'none');
       const lefts = blocks.map(k => k.getBoundingClientRect().left + parseFloat(getComputedStyle(k).marginLeft) * 0);
-      for (let i = 1; i < blocks.length; i++) if (Math.abs(lefts[i] - lefts[0]) > 1) misaligned.push('column ' + name(blocks[0]) + ' | ' + name(blocks[i]));
+      // A centred or right-aligned stack shares its centre or right edge instead (11-11: centred workflow steps).
+      const br = blocks.map(k => k.getBoundingClientRect()), centre = r => (r.left + r.right) / 2;
+      for (let i = 1; i < blocks.length; i++) if (Math.abs(lefts[i] - lefts[0]) > 1 && Math.abs(centre(br[i]) - centre(br[0])) > 1
+        && Math.abs(br[i].right - br[0].right) > 1) misaligned.push('column ' + name(blocks[0]) + ' | ' + name(blocks[i]));
     }
   }
   out.misaligned = misaligned.length; out.misaligned_examples = misaligned.slice(0, 8);
