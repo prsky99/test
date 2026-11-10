@@ -114,7 +114,16 @@ class HealthChecker:
         """호스트별 점검 대상 엔드포인트 수 (10분마다 갱신)."""
         if time.time() - self._host_sizes_at > 600:
             native = getattr(self.store, 'health_host_sizes', None)
-            rows = native() if callable(native) else self.store.query("SELECT host, COUNT(*) AS n FROM resources WHERE active=1 AND health_status != 'retired' GROUP BY host")
+            try:
+                rows = native() if callable(native) else self.store.query("SELECT host, COUNT(*) AS n FROM resources WHERE active=1 AND health_status != 'retired' GROUP BY host")
+            except Exception as exc:
+                # 11-11 00:58: 부하 중 5초 제한을 넘겨 record()가 깨지고 묶음 결과를 통째로 잃었다.
+                # 이 수는 호스트별 가중치일 뿐이라, 이전 값(없으면 기본 1)을 쓰고 1분 뒤 다시 센다.
+                if getattr(exc, "code", None) != "statement_failed":
+                    raise
+                log.warning("health: host size count timed out under load; keeping previous counts")
+                self._host_sizes_at = time.time() - 540
+                return self._host_sizes
             self._host_sizes = Counter({r["host"]: r["n"] for r in rows})
             self._host_sizes_at = time.time()
         return self._host_sizes
