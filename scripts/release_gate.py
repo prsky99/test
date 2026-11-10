@@ -13,6 +13,7 @@ runs a fixed Chat evaluation sample on both releases against production, read-on
 release that answers more of them wrongly (2nd review A-3, 2026-11-04). --skip-chat skips that.
 """
 import argparse
+import ast
 import hashlib
 import json
 import os
@@ -74,6 +75,14 @@ CHAT_FILES = (
     'agent_market/concierge/chat_guidance.py', 'agent_market/concierge/chat_query_rewrite.py',
     'agent_market/concierge/chat_task_spec.py', 'agent_market/concierge/task_conditions.py',
     'agent_market/concierge/query_intent.py', 'agent_market/concierge/engine.py',
+    # 11-10: the recommender is wrapped in front.py (ExposedFirstRecommender from gateway_exposure.py).
+    'agent_market/concierge/front.py', 'agent_market/concierge/gateway_exposure.py',
+)
+# Modules these import directly also count, read from each release, so a new helper on the Chat path
+# triggers the check without editing this list.
+CHAT_ROOTS = (
+    'agent_market/concierge/fast_chat.py', 'agent_market/concierge/selection.py',
+    'agent_market/concierge/gateway_exposure.py',
 )
 CASES_1K = ROOT / 'tests' / 'data' / 'chat_answer_quality_cases_1k.json'
 CASES_REVIEW = ROOT / 'tests' / 'data' / 'chat_answer_quality_cases.json'
@@ -86,12 +95,40 @@ def active_frontend():
     return state['slots'][state['active']]
 
 
+def chat_imports(root):
+    """agent_market modules the CHAT_ROOTS of one release import directly (relative or absolute)."""
+    found = []
+    for name in CHAT_ROOTS:
+        source = root / name
+        if not source.is_file():
+            continue
+        try:
+            tree = ast.parse(source.read_text(encoding='utf-8'))
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+        package = Path(name).parent
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ImportFrom):
+                continue
+            if node.level == 1:
+                base = package
+            elif node.level == 0 and (node.module or '').startswith('agent_market'):
+                base = Path()
+            else:
+                continue
+            stem = base / (node.module or '').replace('.', '/') if node.module else base
+            candidates = [stem.with_suffix('.py')] + [stem / f'{alias.name}.py' for alias in node.names]
+            found += [str(path) for path in candidates if (root / path).is_file()]
+    return found
+
+
 def chat_changed(release, active):
-    """CHAT_FILES whose bytes differ between the two releases."""
+    """Chat files (CHAT_FILES plus the direct imports of CHAT_ROOTS) whose bytes differ."""
     def read(name, path):
         target = RELEASES / name / path
         return target.read_bytes() if target.is_file() else None
-    return [path for path in CHAT_FILES if read(release, path) != read(active, path)]
+    paths = dict.fromkeys(CHAT_FILES + tuple(chat_imports(RELEASES / release)) + tuple(chat_imports(RELEASES / active)))
+    return [path for path in paths if read(release, path) != read(active, path)]
 
 
 def chat_sample(size=CHAT_SAMPLE):
