@@ -16,6 +16,8 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from starlette.datastructures import Headers, MutableHeaders
 
 VERIFIED_READER=ContextVar('verified_public_reader',default=None)
+# The request's User-Agent for crawler verification by published IP lists (crawler_verify, 11-10).
+CLIENT_USER_AGENT=ContextVar('client_user_agent',default=None)
 LABEL=r'[a-z][a-z0-9_-]{0,30}'
 INPUT=re.compile(r'('+LABEL+r')=(\((?:"[@a-z][@a-z0-9_-]*" ?){1,12}\))((?:;[a-z]+=(?:"[A-Za-z0-9_./:+ =-]{1,200}"|[0-9]{1,12})){3,8})\Z')
 PARAM=re.compile(r';([a-z]+)=("[^"]*"|[0-9]+)')
@@ -116,9 +118,11 @@ class WebBotAuth:
         if scope['type']!='http':return await self.app(scope,receive,send)
         identity=self.verifier.verify(scope) if scope['method'] in ('GET','HEAD') and self.verifier.keys else None
         token=VERIFIED_READER.set(identity)
+        ua_token=CLIENT_USER_AGENT.set(Headers(scope=scope).get('user-agent'))
         async def deliver(message):
             if identity and message['type']=='http.response.start':
                 headers=MutableHeaders(scope=message);headers['Web-Bot-Auth']='verified';headers['Cache-Control']='no-store'
             await send(message)
         try:await self.app(scope,receive,deliver)
-        finally:VERIFIED_READER.reset(token)
+        finally:
+            VERIFIED_READER.reset(token);CLIENT_USER_AGENT.reset(ua_token)

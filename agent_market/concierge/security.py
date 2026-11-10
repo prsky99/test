@@ -163,6 +163,20 @@ BLOCKED_EVENT_LIMIT = 30
 BLOCKED_PEER_LIMIT = 1024
 
 
+def verified_crawler(ip, user_agent=None):
+    """A search or AI crawler verified by its operator's published IP list (crawler_verify), or None."""
+    from .crawler_verify import claimed, verified
+    if user_agent is None:
+        from .web_bot_auth import CLIENT_USER_AGENT
+        user_agent = CLIENT_USER_AGENT.get()
+    if not claimed(user_agent):
+        return None
+    try:
+        return verified(ip, user_agent)
+    except Exception:
+        return None
+
+
 class SecurityManager:
     """Central security and DDoS defense controller."""
 
@@ -309,6 +323,9 @@ class SecurityManager:
         with self._lock:
             if ip in self._allowed_ips:
                 return False, None
+        # Verified search and AI crawlers are never held by a ban (11-10: ClaudeBot was jailed).
+        if verified_crawler(ip):
+            return False, None
 
         # Check distributed Redis jail first
         if self.redis.is_available():
@@ -445,7 +462,8 @@ class SecurityManager:
                 return
             scoped_rate = vtype == 'rate_limit_429' and path in (
                 '/api/register', '/api/register/inspect', '/api/contact/submit', '/api/privacy/opt-out')
-            if scoped_rate or ip in SHARED_EGRESS_IPS or is_trusted_proxy(ip, self._trusted_proxy_networks):
+            crawler = verified_crawler(ip, ua) if vtype == 'rate_limit_429' else None
+            if scoped_rate or crawler or ip in SHARED_EGRESS_IPS or is_trusted_proxy(ip, self._trusted_proxy_networks):
                 should_jail = False
             else:
                 threshold = 2 if self.under_attack_mode else self.auto_jail_threshold
@@ -556,6 +574,11 @@ class SecurityManager:
         effective_limit = max(1, int(per_minute * self.rate_multiplier))
         from .web_bot_auth import VERIFIED_READER
         identity=VERIFIED_READER.get()
+        if not identity and route in ('read','explore'):
+            crawler=verified_crawler(key)
+            if crawler:
+                from .crawler_verify import MULTIPLIER
+                identity={'key':'crawler-'+crawler,'multiplier':MULTIPLIER}
         if identity and route in ('read','explore'):
             effective_limit*=identity['multiplier']
             key='verified:'+identity['key']+':'+key
