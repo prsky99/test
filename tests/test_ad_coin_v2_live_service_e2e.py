@@ -25,6 +25,13 @@ def uid():
     return str(uuid4())
 
 
+def test_live_service_refuses_the_test_mtls_header_by_default(store):  # noqa: F811
+    from types import SimpleNamespace
+    store.migrate_model()
+    _, resolver, _ = build_live_service(store, key_vault=KeyVault())
+    assert resolver._mtls_verifier(SimpleNamespace(headers={"x-mock-tls": "verified"})) is False
+
+
 def test_live_service_e2e_lifecycle(store):  # noqa: F811
     store.migrate_model()
 
@@ -54,6 +61,7 @@ def test_live_service_e2e_lifecycle(store):  # noqa: F811
         languages=DEFAULT_LANGUAGES,
         clock_ms=lambda: NOW,
         include_workspace=True,
+        mtls_verifier=lambda request: request.headers.get("x-mock-tls") == "verified",  # test reviewer only
     )
     app = FastAPI()
     app.include_router(router)
