@@ -1042,6 +1042,10 @@
    "sha256": "a25f75206c2fad466952c36d71444f61cc502e05dd5289748095de85a0633741"
   },
   {
+   "sql": "SELECT * FROM adc2_audit_log WHERE target_id=? AND event_type=? ORDER BY timestamp_ms DESC LIMIT 1",
+   "sha256": "befefc793a657f3c4ad43afb1518f76a6d432ca3675f85d7bf43c7e49e22716d"
+  },
+  {
    "sql": "SELECT * FROM adc2_authority_guards WHERE guard_id=?",
    "sha256": "bbd33ea1dc407bf38603054d6d955e4f93b6441dd21f787db8da5bfe31a50461"
   },
@@ -1506,6 +1510,10 @@
    "sha256": "cb9d9091ef8fda817af52faae3d0eba421bb51a6ca5d7f6a2c8c670e2dbaf5fd"
   },
   {
+   "sql": "SELECT COUNT(*) AS n FROM adc2_audit_log WHERE actor_principal_id=? AND event_type=?",
+   "sha256": "f629c704060f1f64dd41a0b138181b8d57c48916a59a0afa808ba739509f09e2"
+  },
+  {
    "sql": "SELECT COUNT(*) AS n FROM adc2_sponsored_bookings WHERE day_ms=? AND task_category=? AND region=? AND state IN ('booked','served')",
    "sha256": "d1599c7ab4a9d2f51323ee6d57d3a3f367e9cd581bf1df51a6f37c36a00ed4c6"
   },
@@ -1772,6 +1780,10 @@
   {
    "sql": "SELECT id, provider, task_ref, price_won, expires_at FROM ad_coin_vouchers WHERE user_ref=? AND status='active' ORDER BY created_at",
    "sha256": "b732e482bc64873b447344aa1ebac0d594b60310176f2c478ee86c354391bba2"
+  },
+  {
+   "sql": "SELECT id,status FROM adc2_advertisers WHERE status='suspended' AND id<>? ORDER BY id LIMIT ?",
+   "sha256": "008809e23a89d890bd16e2c5e078cfda2c6a00667aef1dce5d69aee41696875b"
   },
   {
    "sql": "SELECT j.id, j.kind, j.created_at, p.account, p.amount FROM ad_coin_postings p JOIN ad_coin_journals j ON j.id=p.journal_id JOIN ad_coin_campaign_meta m ON p.account='escrow:'||m.campaign_id WHERE m.advertiser_id=? ORDER BY j.created_at DESC LIMIT ?",

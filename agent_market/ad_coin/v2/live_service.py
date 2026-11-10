@@ -155,6 +155,9 @@ def create_live_ad_coin_v2_router(
     from .admin_http import router_for as admin_router
 
     base_router.include_router(admin_router(commercial, resolve_auth=resolver))
+    from .advertiser_applications_http import router_for as applications_router
+
+    base_router.include_router(applications_router(commercial, resolve_auth=resolver))
     from .points_exchange_http import router_for as points_exchange_router
 
     base_router.include_router(points_exchange_router(commercial.store, resolve_auth=resolver))
