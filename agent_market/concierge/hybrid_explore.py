@@ -56,7 +56,10 @@ STOPWORDS = frozenset('''a an the is are be it its this that what which who how 
 # Real conditions of the task (11-11 PM review: "speech to text in korea" lost "korea" but kept "in").
 # They stay in the first search and are the first thing dropped when nothing is found.
 CONDITIONS = frozenset('''korea korean japan japanese history team small business agents agent free cheap
-    enterprise personal'''.split())
+    enterprise personal'''.split()) | frozenset('''china chinese english french france german germany spanish spain
+    italian italy dutch polish poland russian ukrainian lithuanian latvian estonian finnish swedish norwegian danish
+    portuguese brazilian mexican indian india vietnamese thai indonesian turkish arabic hebrew greek czech hungarian
+    romanian european us usa uk british american canadian australian global local'''.split())  # a language or place is a condition (11-11: "lithuanian invoice parser" -> "lithuanian")
 # A word that names the kind of work but not its subject is never searched alone: "volcanic ash advisory"
 # reduced to "advisory" showed M&A advisors (11-11). Better no listing than an unrelated one.
 GENERIC = frozenset('''advisory advice lookup search finder tracking tracker parser parsing checker check order odds

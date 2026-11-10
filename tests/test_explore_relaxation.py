@@ -20,7 +20,7 @@ def test_relaxed_forms_drop_conditions_then_a_leading_and_a_trailing_word():
     assert hx.relaxed_queries('weather') == []
     # A middle word alone is tried too (11-11: "lithuanian invoice parser" found nothing).
     assert hx.relaxed_queries('lithuanian invoice parser') == [
-        'invoice parser', 'lithuanian invoice', 'lithuanian', 'invoice']
+        'invoice parser', 'invoice']  # the language is a condition and goes first; "parser" alone is generic
     # Longer phrases keep their subject first: "bird", not "song" (11-11 public check).
     assert hx.relaxed_queries('bird song identification')[2:] == ['bird', 'song']
     # A generic word alone is never the task.
@@ -66,8 +66,8 @@ def test_retries_read_the_text_index_only(monkeypatch):
     monkeypatch.setattr(hx, '_scoped_explore', search)
     result = hx.scoped_explore(None, 'engine', 'lithuanian invoice parser', None, None, False, False, 45)
     assert result['relaxed_query'] == 'invoice'
-    assert asked == ['lithuanian invoice parser', 'invoice parser', 'lithuanian invoice', 'lithuanian', 'invoice']
-    assert engines == ['engine', None, None, None, None]
+    assert asked == ['lithuanian invoice parser', 'invoice parser', 'invoice']
+    assert engines == ['engine', None, None]
     assert result['match'] == 'relaxed' and '"invoice"' in result['search_notice']
 
 
