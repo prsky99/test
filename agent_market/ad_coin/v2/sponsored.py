@@ -34,6 +34,9 @@ class SponsoredSlots:
         day_ms = now_ms - now_ms % DAY_MS
         with self.store.atomic():
             rows = self.store.all("campaigns_sponsored_booked", (day_ms, now_ms, SNAPSHOT_LIMIT))
+            from .paid_bookings import enabled as paid_enabled
+            if paid_enabled():  # paid USDC bookings appear the same way once confirmed
+                rows = list(rows) + self.store.all("campaigns_sponsored_paid", (day_ms, now_ms, SNAPSHOT_LIMIT))
         index = {}
         for row in rows:
             payload = json.loads(row["payload_json"])

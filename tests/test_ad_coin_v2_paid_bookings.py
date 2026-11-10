@@ -195,3 +195,42 @@ def test_platform_fault_after_the_day_becomes_refund_due(world):
         store._connection().execute("UPDATE adc2_campaigns SET state='suspended' WHERE id=?", (campaign['id'],))
     assert service.settle_due(now_ms=TODAY + 2 * DAY_MS + 11 * 60_000) == 1
     assert store.one('paid_booking_get', (q['id'],))['state'] == 'refund_due'
+
+
+def test_routes_are_absent_while_the_switch_is_off(store, monkeypatch):  # noqa: F811
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from agent_market.ad_coin.v2.key_vault import KeyVault
+    from agent_market.ad_coin.v2.live_service import create_live_ad_coin_v2_router
+    monkeypatch.delenv(paid.ENABLED_ENV, raising=False)
+    store.migrate_model()
+    app = FastAPI()
+    app.include_router(create_live_ad_coin_v2_router(store, key_vault=KeyVault()))
+    client = TestClient(app)
+    path = '/api/ad-coin/v2/advertisers/' + str(uuid4()) + '/paid-bookings'
+    assert client.post(path, json={}).status_code in (404, 405)
+    assert client.get('/api/ad-coin/v2/admin/paid-bookings').status_code in (404, 405)
+
+
+def test_http_quote_pay_list_and_operator_export(world):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from agent_market.ad_coin.v2.paid_bookings_http import router_for
+    suite, service, rpc, campaign = world
+    app = FastAPI()
+    app.include_router(router_for(suite.service, service, resolve_auth=suite.resolver))
+    client = TestClient(app)
+    base = '/api/ad-coin/v2/advertisers/' + suite.advertiser + '/paid-bookings'
+    body = {'campaign_id': campaign['id'], 'task_category': 'research', 'region': 'US',
+            'day': time.strftime('%Y-%m-%d', time.gmtime((int(time.time() * 1000) // DAY_MS + 1) * DAY_MS / 1000))}
+    assert client.post(base, json=body, headers=suite.headers('user')).status_code == 403     # a person cannot book
+    q = client.post(base, json=body, headers=suite.headers('approver'))
+    assert q.status_code == 200, q.text
+    q = q.json()
+    tx = rpc.send(int(q['amount_units']))
+    done = client.post(base + '/' + q['id'] + '/payment', json={'tx_hash': tx}, headers=suite.headers('approver'))
+    assert done.status_code == 200 and done.json()['state'] == 'confirmed'
+    bad = client.post(base + '/' + q['id'] + '/payment', json={'tx_hash': 'x'}, headers=suite.headers('approver'))
+    assert bad.status_code == 422
+    assert [i['id'] for i in client.get(base, headers=suite.headers('editor')).json()['items']] == [q['id']]
+    assert client.get('/api/ad-coin/v2/admin/paid-bookings', headers=suite.headers('approver')).status_code == 403

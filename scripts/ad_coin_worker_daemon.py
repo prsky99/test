@@ -41,6 +41,7 @@ class WorkerDaemon:
 
         sponsored_settled = SponsoredBookings(self.store, self.workers.ledger, taxonomy=(), regions=()).settle_due(
             now_ms=now_ms)
+        sponsored_settled += self.paid_cycle(now_ms)
         pruned = self.prune_if_due(now_ms)
 
         cycle_summary = {
@@ -55,6 +56,23 @@ class WorkerDaemon:
         if any([reclaimed_leases, processed_outbox, signed_receipts, stale_attention, sponsored_settled, pruned]):
             logger.info("Cycle completed with activity: %s", cycle_summary)
         return cycle_summary
+
+    paid = None  # PaidBookings when AD_COIN_PAID_BOOKING_ENABLED is on (USDC, 11-11)
+
+    def paid_cycle(self, now_ms: int) -> int:
+        """Confirm paid bookings waiting for blocks, expire unpaid quotes, settle finished days."""
+        from agent_market.ad_coin.v2.paid_bookings import enabled
+        if not enabled():
+            return 0
+        if self.paid is None:
+            import os
+            from agent_market.ad_coin.v2.paid_bookings import PaidBookings, PaidConfig, Sanctions
+            from agent_market.chain import RPC
+            self.paid = PaidBookings(self.store, PaidConfig.from_env(),
+                                     rpc=RPC(os.environ.get("AD_COIN_PAID_RPC_URL", "https://mainnet.base.org")),
+                                     sanctions=Sanctions(os.environ.get("AD_COIN_OFAC_LIST", "gateway-data/ofac/eth_addresses.txt")),
+                                     taxonomy=(), regions=())
+        return self.paid.recheck(now_ms=now_ms) + self.paid.settle_due(now_ms=now_ms)
 
     PRUNE_INTERVAL_MS = 3_600_000  # retention deletes run at most once an hour
 
