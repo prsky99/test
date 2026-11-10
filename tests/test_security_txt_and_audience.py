@@ -44,8 +44,9 @@ def test_security_txt_is_publicly_cacheable():
 
 def test_agent_documents_stay_at_the_edge_longer_than_in_browsers():
     c = client()
-    for path in ('/llms.txt', '/.well-known/agent-card.json', '/.well-known/security.txt'):
+    # Discovery documents stay an hour at the edge (11-11 PM decision); security.txt keeps ten minutes.
+    for path, edge in (('/llms.txt', 3600), ('/.well-known/agent-card.json', 3600), ('/.well-known/security.txt', 600)):
         value = c.get(path).headers['cache-control']
-        assert 'max-age=30' in value and 's-maxage=600' in value, (path, value)
+        assert 'max-age=30' in value and f's-maxage={edge},' in value, (path, value)
     # Search and catalog reads keep the short shared lifetime.
     assert 's-maxage' not in c.get('/api/overview').headers.get('cache-control', '')

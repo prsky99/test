@@ -15,13 +15,19 @@ EDGE_REDIRECTS = frozenset(('/.well-known/llms.txt','/.well-known/mcp/server-car
 PUBLIC_READS = frozenset(('/api/overview','/api/insights','/api/explore','/api/workflows/templates',
     '/api/test/presets','/robots.txt','/sitemap.xml','/llms.txt','/llms-full.txt',
     '/.well-known/agent-card.json','/.well-known/mcp.json','/.well-known/mcp/server.json',
-    '/.well-known/security.txt','/security.txt','/openapi.json')) | EDGE_REDIRECTS
+    '/.well-known/security.txt','/security.txt','/openapi.json','/skill.md')) | EDGE_REDIRECTS
 # Agent discovery documents the Cloudflare cache rule keeps at the edge (11-03). s-maxage lets the
 # edge hold them for ten minutes while browsers and agents still revalidate after 30 seconds;
 # with max-age alone the edge copy expired after 30 seconds (4 HITs in 24 cold requests, 11-04).
 EDGE_DOCUMENTS = frozenset(('/robots.txt','/sitemap.xml','/llms.txt','/llms-full.txt',
     '/.well-known/agent-card.json','/.well-known/mcp.json','/.well-known/mcp/server.json',
-    '/.well-known/security.txt','/security.txt','/openapi.json')) | EDGE_REDIRECTS
+    '/.well-known/security.txt','/security.txt','/openapi.json','/skill.md')) | EDGE_REDIRECTS
+# Static discovery documents change rarely; the edge keeps them an hour so an expiry seldom
+# sends an agent to the origin (11-11 PM decision: llms.txt took 3.88 s from Korea on a MISS).
+# No purge on deploy: an edit may take up to an hour to reach the edge.
+DISCOVERY_DOCUMENTS = frozenset(('/llms.txt','/llms-full.txt','/skill.md','/.well-known/agent-card.json',
+    '/.well-known/mcp.json','/.well-known/mcp/server.json','/openapi.json')) | EDGE_REDIRECTS
+DISCOVERY_CACHE = 'public, max-age=30, s-maxage=3600, stale-while-revalidate=3600'
 # Public growth pages (11-10 PM approval): login-free, never personalized HTML/Markdown/JSON. Browsers
 # and the edge may keep them for five minutes and serve a stale copy while refreshing for ten.
 GROWTH_PAGES = frozenset(('/connect','/agents/tasks','/agents/best','/badges','/reports/state-of-ai-agents',
@@ -116,7 +122,8 @@ class PublicHTTPContract:
                     if 'etag' in headers:del headers['etag']
                     if status==429:headers.setdefault('Retry-After','60')
             if cache and (status in (200,304) or status==301 and path in EDGE_REDIRECTS) and 'set-cookie' not in headers:
-                headers['cache-control']=('public, max-age=30, s-maxage=600, stale-while-revalidate=3600'
+                headers['cache-control']=(DISCOVERY_CACHE if path in DISCOVERY_DOCUMENTS
+                    else 'public, max-age=30, s-maxage=600, stale-while-revalidate=3600'
                     if path in EDGE_DOCUMENTS else GROWTH_CACHE if growth_path(path)
                     else 'public, max-age=30, stale-while-revalidate=30')
                 if growth_path(path):  # the same URL answers HTML or Markdown by Accept
