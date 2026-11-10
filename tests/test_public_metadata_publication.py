@@ -77,3 +77,9 @@ def test_all_crawler_groups_keep_private_actions_out_and_public_guides_in():
     root=ET.fromstring(sitemap(ORIGIN))
     assert len(root)==9 and '<lastmod>' not in sitemap(ORIGIN)
     assert not any('#' in element.text for element in root.iter() if element.text)
+
+
+def test_daily_catalog_dataset_declares_a_license():
+    import inspect
+    from agent_market.concierge import public_metadata
+    assert "'license': 'https://creativecommons.org/licenses/by/4.0/'" in inspect.getsource(public_metadata)

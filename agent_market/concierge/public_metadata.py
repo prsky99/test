@@ -61,6 +61,8 @@ def graph(panel='overview', base=ORIGIN, snapshot=None):
             'description': 'Counts of active A2A, MCP and x402 catalog listings. Reachable means a recorded healthy or reachable status, not successful task execution. A recorded status check may be historical.',
             'url': base+'/#daily-catalog-statistics', 'inLanguage': 'en',
             'creator': {'@id': base+'/#organization'},
+            # 11-11 user decision: aggregate counts are reusable with attribution (Search Console asked for license).
+            'license': 'https://creativecommons.org/licenses/by/4.0/',
             'dateModified': snapshot['modified_at'], 'temporalCoverage': snapshot['captured_at'],
             'measurementTechnique': 'Daily aggregate of active catalog listings and their recorded connection statuses; day boundary Asia/Seoul (UTC+09:00).',
             'variableMeasured': [{'@type': 'PropertyValue', 'name': labels[k],
