@@ -988,11 +988,13 @@ def _shared_explore(store, key, compute, hit):
         hub = RedisHub.get_instance()
         exact, finished = _shared_explore_keys(store, key)
         if hub.is_available():
-            for name in (exact, finished):
-                found = hub.get_json(name)
-                if isinstance(found, dict) and isinstance(found.get('items'), list):
-                    hit.append(name)
-                    return found
+            from .retrieval_metrics import stage
+            with stage('shared_cache'):
+                for name in (exact, finished):
+                    found = hub.get_json(name)
+                    if isinstance(found, dict) and isinstance(found.get('items'), list):
+                        hit.append(name)
+                        return found
         value = compute()
         if hub.is_available() and isinstance(value, dict):
             try:
@@ -1180,6 +1182,12 @@ def _current_states(store, ids):
                              columns=('active', 'health_status', 'eval_security', 'inactive_reason'))
         return {row['id']: dict(row) for row in rows}
     return {rid: resource for rid in ids if (resource := store.resource(rid))}
+
+
+def _timed_revalidation(store, result):
+    from .retrieval_metrics import stage
+    with stage('revalidate'):
+        return revalidated_page(store, result)
 
 
 def revalidated_page(store, result):
@@ -2851,7 +2859,7 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             reused=result is not None
             if result is None:
                 result,reused=_explore_result_cache.load(key,_shared_explore(front.store,key,compute,shared_hit))
-            if reused or shared_hit:result=revalidated_page(front.store,result)
+            if reused or shared_hit:result=_timed_revalidation(front.store,result)
             next_window=min(300,offset+2*limit+1)
             if (getattr(front.store,'backend',None)=='postgresql'
                     and result.get('complete') is False and next_window>window_limit
@@ -2869,7 +2877,7 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
                 # slots and restarts. The marker sits before the window so no key equals a plain search's.
                 compute=_shared_explore(front.store,explore_key[:-2]+('has_report',window_limit),compute,shared_hit)
             result,reused=_explore_result_cache.load(explore_key,compute)
-            if reused or shared_hit:result=revalidated_page(front.store,result)
+            if reused or shared_hit:result=_timed_revalidation(front.store,result)
         result = _continue_snapshot((effective, kind, category, verified, no_auth, has_report), result, offset, limit)
         body = page(result, offset, limit)
         body.pop('complete', None)  # an internal cache fact, not part of the public response

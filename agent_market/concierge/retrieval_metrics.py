@@ -9,7 +9,8 @@ _current = ContextVar('retrieval_quality_measurements', default=None)
 _lock = threading.Lock()
 _STAGES = frozenset(('lexical', 'embedding', 'ann', 'expansion', 'projection', 'exact', 'total', 'rerank',
                      'contracts', 'resource_read', 'admission', 'cards', 'search_document', 'exposure',
-                     'public_agent', 'states', 'describe'))
+                     'public_agent', 'states', 'describe', 'opensearch', 'documents', 'relax', 'near',
+                     'shared_cache', 'revalidate'))
 
 
 def timed(name):
@@ -29,12 +30,22 @@ def timed(name):
 
 @contextmanager
 def capture():
+    """A nested capture (search_quality.observed inside a timed request) also adds its stages,
+    counts and marks to the enclosing one, so Server-Timing sees inside Explore (11-11)."""
+    outer = _current.get()
     values = {'stages_ms': {}, 'counts': {}}
     token = _current.set(values)
     try:
         yield values
     finally:
         _current.reset(token)
+        if outer is not None:
+            with _lock:
+                for group in ('stages_ms', 'counts'):
+                    for name, value in values[group].items():
+                        outer[group][name] = outer[group].get(name, 0) + value
+                if values.get('marks'):
+                    outer.setdefault('marks', []).extend(values['marks'])
 
 
 @contextmanager

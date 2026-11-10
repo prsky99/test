@@ -6,6 +6,8 @@ import re
 import time
 import threading
 
+from .retrieval_metrics import stage
+
 from .connections import public_agent
 from .discovery import candidates, normalize_task
 from .selection import search_terms, capability_terms
@@ -60,7 +62,7 @@ CONDITIONS = frozenset('''korea korean japan japanese history team small busines
 GENERIC = frozenset('''advisory advice lookup search finder tracking tracker parser parsing checker check order odds
     data info information api service tool generator converter conversion analysis analytics monitor monitoring
     alert alerts feed report reports manager management table tables list estimate calculator schedule
-    progression pairing transcription'''.split())
+    progression pairing transcription identification recognition detection'''.split())
 RELAX_BUDGET = 3.5  # retries start only within this many seconds; they run only after zero results
 RELAX_TRIES = 6
 # Retries search the text index only (11-11 measurement: 0.07-0.33 s against 0.6-2 s with the
@@ -87,41 +89,60 @@ def cleaned_query(query):
 def relaxed_queries(query):
     """Shorter forms of a cleaned query that found nothing: condition words first, then every run of
     adjacent words from longest to shortest, later runs first (the object before the verb:
-    "book flights" -> "flights"; "lithuanian invoice parser" reaches "invoice", 11-11)."""
+    "book flights" -> "flights"; "lithuanian invoice parser" reaches "invoice", 11-11), then single words."""
     content = _words(query)
     forms = []
     core = [w for w in content if w.casefold() not in CONDITIONS]
     if core and core != content:
         forms.append(" ".join(core))
     content = [w for w in (core or content) if w.casefold() != 'to']  # a direction needs both of its ends
-    for size in range(len(content) - 1, 0, -1):
+    for size in range(len(content) - 1, 1, -1):
         for start in range(len(content) - size, -1, -1):
-            if size > 1 or content[start].casefold() not in GENERIC:
-                forms.append(" ".join(content[start:start + size]))
+            forms.append(" ".join(content[start:start + size]))
+    # One word alone: the object before the verb in two words ("book flights" -> "flights"), the subject
+    # first in longer phrases ("bird song identification" -> "bird", not "song", 11-11).
+    singles = content[::-1] if len(content) == 2 else content
+    forms += [word for word in singles if word.casefold() not in GENERIC]
     return list(dict.fromkeys(f for f in forms if f and f != str(query).strip()))
+
+
+RELAXED_NOTICE = 'No listing matched every word of the search, so results for "{}" are shown.'
+NEAR_NOTICE = ('No listing matches "{}" exactly. These are the closest listings by meaning; '
+               'check that one does the task before you use it.')
 
 
 @observed('explore')
 @contract_reads
 def scoped_explore(source, engine, query, kind, category, verified, no_auth, limit):
     """Search the query without numbers and delivery words; when nothing is found, search up to
-    RELAX_TRIES shorter forms (research design 4, 11-10/11). The answer names relaxed_query."""
+    RELAX_TRIES shorter forms on the text index (research design 4, 11-10/11). When those find nothing
+    either, the closest listings by meaning are shown, marked match="near" (11-11 PM: never an empty
+    page; say plainly that nothing matched exactly). The answer names relaxed_query and match."""
     started = time.monotonic()
     cleaned = cleaned_query(query)
     searched = cleaned or query
     result = _scoped_explore(source, engine, searched, kind, category, verified, no_auth, limit)
     if result.get("items") or not str(searched or "").strip():
-        return {**result, "relaxed_query": cleaned} if cleaned and result.get("items") else result
+        if cleaned and result.get("items"):
+            return {**result, "relaxed_query": cleaned, "match": "exact"}
+        return {**result, "match": "exact"} if result.get("items") else result
     for relaxed in relaxed_queries(searched)[:RELAX_TRIES]:
         if time.monotonic() - started > RELAX_BUDGET:
             break
-        retry = _scoped_explore(source, RELAX_ENGINE, relaxed, kind, category, verified, no_auth, limit)
+        with stage('relax'):
+            retry = _scoped_explore(source, RELAX_ENGINE, relaxed, kind, category, verified, no_auth, limit)
         if retry.get("items"):
-            return {**retry, "relaxed_query": relaxed}
+            return {**retry, "relaxed_query": relaxed, "match": "relaxed",
+                    "search_notice": RELAXED_NOTICE.format(relaxed[:100])}
+    if engine is not None:
+        with stage('near'):
+            near = _scoped_explore(source, engine, searched, kind, category, verified, no_auth, limit, near=True)
+        if near.get("items"):
+            return {**near, "match": "near", "search_notice": NEAR_NOTICE.format(str(query).strip()[:100])}
     return result
 
 
-def _scoped_explore(source, engine, query, kind, category, verified, no_auth, limit):
+def _scoped_explore(source, engine, query, kind, category, verified, no_auth, limit, near=False):
     """Overlap independent protocol reads within the existing pool's connection cap."""
     from .discovery import discovery_store
     from .protocols import search_protocols, merge_discovery_results
@@ -129,7 +150,7 @@ def _scoped_explore(source, engine, query, kind, category, verified, no_auth, li
     parallel = kind is None and getattr(source,'backend',None)=='postgresql' and getattr(pool,'maximum',0)>=2
     if not parallel or not _parallel_explore.acquire(blocking=False):
         with discovery_store(source) as store:
-            return explore(store,engine,query,kind,category,verified,no_auth,limit)
+            return explore(store,engine,query,kind,category,verified,no_auth,limit,near)
     try:
         from concurrent.futures import ThreadPoolExecutor
         from contextvars import copy_context
@@ -138,7 +159,7 @@ def _scoped_explore(source, engine, query, kind, category, verified, no_auth, li
         def read(protocol):
             # The caller holds no reader lease, so the workers cannot wait on their parent.
             with discovery_store(source) as store, isolated_contract_reads():
-                return explore(store,engine,query,protocol,category,verified,no_auth,limit)
+                return explore(store,engine,query,protocol,category,verified,no_auth,limit,near)
 
         with ThreadPoolExecutor(max_workers=2,thread_name_prefix='explore-read') as executor:
             pending=[executor.submit(copy_context().run,read,protocol) for protocol in search_protocols()]
@@ -225,6 +246,7 @@ def _in_ranked_batches(store, ranked, size=100, *, documents=True, keep=None):
     600 candidates: 1.4 s -> about 0.4 s for large MCP pages, 2026-11-04)."""
     from ..application_store_resource_batches import resources
     from ..explore_document_reader import read as read_documents, texts as read_texts
+    read_documents, read_texts = timed('documents')(read_documents), timed('documents')(read_texts)
     ids = [row['id'] for row in ranked]
     order = {row['id']: row for row in ranked}
     sparse = False
@@ -305,7 +327,7 @@ def _card(store, registry, resource, verified):
 
 @observed('explore')
 @contract_reads
-def explore(store, engine, query, kind, category, verified, no_auth, limit):
+def explore(store, engine, query, kind, category, verified, no_auth, limit, near=False):
     from .content_policy import hidden_from_public_list
     from .protocols import search_protocols, merge_discovery_results, requested_protocol
     selected = requested_protocol(query, {'kind': kind})
@@ -315,7 +337,7 @@ def explore(store, engine, query, kind, category, verified, no_auth, limit):
             # Listings about the task come first across protocols, so a page filled by A2A
             # bundles still checks a bounded number of MCP listings that may lead with the task.
             wanted = remaining if not groups else max(remaining, min(limit, FOCUS_FILL))
-            group = explore(store, engine, query, protocol, category, verified, no_auth, wanted)
+            group = explore(store, engine, query, protocol, category, verified, no_auth, wanted, near)
             groups.append(group)
             remaining = max(0, remaining - len(group['items']))
         merged = merge_discovery_results(groups, limit)
@@ -363,7 +385,7 @@ def explore(store, engine, query, kind, category, verified, no_auth, limit):
     with snapshot:
         lazy = exact_total is None and getattr(store, "backend", None) == "postgresql"
         keep = None
-        if terms and not registry_filter and str(query).strip():
+        if terms and not registry_filter and str(query).strip() and not near:
             from .explore_search import named_match as named_listing
             from .selection import text_may_match
             # The first two checks of task_advertised, on the document text it would read.
@@ -396,7 +418,7 @@ def explore(store, engine, query, kind, category, verified, no_auth, limit):
                 continue
             if hidden_from_public_list(resource, query):
                 continue
-            if str(query).strip() and not terms and not registry_filter:
+            if str(query).strip() and not terms and not registry_filter and not near:
                 # An unrecognized query is not an empty browse request. Keep exact
                 # provider-name searches, but do not fill it with unrelated agents.
                 from .explore_search import named_match
@@ -428,7 +450,7 @@ def explore(store, engine, query, kind, category, verified, no_auth, limit):
             host = urlsplit(resource.get("url") or "").hostname or ""
             if hosts.get(host, 0) >= 2:
                 continue
-            if terms and not registry_filter and not task_advertised(query, resource, terms=scope_terms, core=core):
+            if terms and not registry_filter and not near and not task_advertised(query, resource, terms=scope_terms, core=core):
                 continue
             endpoints.add(endpoint)
             if provider is not None:

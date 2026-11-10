@@ -2710,6 +2710,10 @@ async function loadExplore(force = false, isLoadMore = false, userInitiated = fa
     exploreNextOffset = Number.isInteger(data.next_offset) ? data.next_offset : offset + data.items.length;
     if (!data.items.length) exploreHasMore=false;
     renderExplore(exploreLoadedItems,data.query_ignored?"":(data.corrected_query||q),data.total,data.total_is_estimate,data.matched_report_count,data.suggestions);
+    // A shortened search or the closest listings by meaning never claim a match to the whole task.
+    const matchSub=(data.match==="near"||data.match==="relaxed")&&$("xTitle").querySelector(".sub");
+    if (matchSub) matchSub.textContent=matchSub.textContent.replace("Matched to your task and filters",
+      data.match==="near"?"Closest by meaning, no exact match":`Matched to “${String(data.relaxed_query||"").slice(0,80)}”`);
     if (data.query_ignored) { hint.hidden = false; hint.textContent = "This query is broad, so the selected agent catalog is shown. Add a task, such as weather forecast or document translation, to narrow the results."; }
     else if (typeof data.search_notice === "string") { hint.hidden=false;hint.textContent=data.search_notice; }
   }

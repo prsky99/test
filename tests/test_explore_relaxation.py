@@ -20,7 +20,9 @@ def test_relaxed_forms_drop_conditions_then_a_leading_and_a_trailing_word():
     assert hx.relaxed_queries('weather') == []
     # A middle word alone is tried too (11-11: "lithuanian invoice parser" found nothing).
     assert hx.relaxed_queries('lithuanian invoice parser') == [
-        'invoice parser', 'lithuanian invoice', 'invoice', 'lithuanian']
+        'invoice parser', 'lithuanian invoice', 'lithuanian', 'invoice']
+    # Longer phrases keep their subject first: "bird", not "song" (11-11 public check).
+    assert hx.relaxed_queries('bird song identification')[2:] == ['bird', 'song']
     # A generic word alone is never the task.
     assert 'advisory' not in hx.relaxed_queries('volcanic ash advisory')
 
@@ -28,11 +30,11 @@ def test_relaxed_forms_drop_conditions_then_a_leading_and_a_trailing_word():
 def _fake(found, engines=None):
     asked = []
 
-    def search(source, engine, query, *args):
-        asked.append(query)
+    def search(source, engine, query, *args, near=False):
+        asked.append(query + (' ~near' if near else ''))
         if engines is not None:
             engines.append(engine)
-        return {'items': [{'id': 1}] if query in found else [], 'total': 0}
+        return {'items': [{'id': 1}] if query in found or near and 'near' in found else [], 'total': 0}
     return asked, search
 
 
@@ -64,5 +66,19 @@ def test_retries_read_the_text_index_only(monkeypatch):
     monkeypatch.setattr(hx, '_scoped_explore', search)
     result = hx.scoped_explore(None, 'engine', 'lithuanian invoice parser', None, None, False, False, 45)
     assert result['relaxed_query'] == 'invoice'
-    assert asked == ['lithuanian invoice parser', 'invoice parser', 'lithuanian invoice', 'invoice']
-    assert engines == ['engine', None, None, None]
+    assert asked == ['lithuanian invoice parser', 'invoice parser', 'lithuanian invoice', 'lithuanian', 'invoice']
+    assert engines == ['engine', None, None, None, None]
+    assert result['match'] == 'relaxed' and '"invoice"' in result['search_notice']
+
+
+def test_nothing_matched_shows_the_closest_listings_and_says_so(monkeypatch):
+    asked, search = _fake({'near'})
+    monkeypatch.setattr(hx, '_scoped_explore', search)
+    result = hx.scoped_explore(None, 'engine', 'volcanic ash advisory', None, None, False, False, 45)
+    assert result['items'] and result['match'] == 'near'
+    assert 'exactly' in result['search_notice'] and 'volcanic ash advisory' in result['search_notice']
+    assert asked[-1] == 'volcanic ash advisory ~near' and 'advisory' not in asked
+    # Without an embedding engine there is no meaning to be near; the empty answer stays honest.
+    asked.clear()
+    plain = hx.scoped_explore(None, None, 'volcanic ash advisory', None, None, False, False, 45)
+    assert not plain['items'] and not any(q.endswith('~near') for q in asked)

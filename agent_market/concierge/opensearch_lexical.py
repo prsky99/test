@@ -221,7 +221,9 @@ def lexical_ids(words, joiner, kind, category, postgres, *, config=None, searche
         return postgres()
     if config['mode'] == 'on' and not _breaker.open():
         try:
-            return searcher(config, words, joiner, kind, category)
+            from .retrieval_metrics import stage
+            with stage('opensearch'):
+                return searcher(config, words, joiner, kind, category)
         except Unavailable as exc:
             _breaker.trip()
             _log.warning('Explore OpenSearch unavailable (%s); PostgreSQL serves for %.0fs', exc, PAUSE_SECONDS)
