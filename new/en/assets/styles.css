@@ -188,3 +188,17 @@ body[data-theme=dark] .pearl-menu-page{--ink:#eef3ef;--muted:#b1c5ca;--gold:#d2b
 .pearl-menu-page .strand:before{top:36px}.pearl-menu-page .strand .pearl{width:48px;height:48px}
 .pearl-menu-page .strand h3{font-size:24px;margin:17px 0 8px}.pearl-menu-page .strand p{font-size:16px;max-width:220px}
 
+
+/* 11-11 touch targets (quality bar, same as AD Coin): shared controls are at least 44px tall, and short
+   controls at least 44px wide. min-height and min-width are !important: they are a floor that per-page
+   rules may only raise. `html body` outranks the 24px floor in pearl-live.css (0,1,1, loaded later).
+   Add class no-touch-floor to opt a control out (for example a hidden native mirror). */
+html body :is(button,[role="button"],summary,.btn,.chip-btn,.tab,.nav-tab,.brand,.brand-box,.theme-toggle,.footer-link-btn,.pf-email,.link-button,.icon-btn,.cookie-banner-close,label.check):not(.no-touch-floor){min-height:44px!important}
+html body :is(button,.nav-tab,.icon-btn,.theme-toggle,.chip-btn,.cookie-banner-close,.footer-link-btn):not(.no-touch-floor){min-width:44px!important}
+/* A checkbox or radio is used through its label, so the label is the target. */
+html body label:has(>input:is([type=checkbox],[type=radio])):not(.no-touch-floor){min-height:44px!important;align-items:center}
+html body :is(.nav-tab,.brand,.brand-box,.pf-email,.footer-link-btn,.link-button,.cookie-banner-close,label.check):not(.no-touch-floor){align-items:center}
+html body .nav-tab:not(.no-touch-floor){justify-content:center}
+html body summary:not(.no-touch-floor){box-sizing:border-box;padding-block:10px}
+/* Unclassed links that stand alone under a heading or block (card titles, "Explore … →") get the same height. */
+html body main :is(h2,h3,h4,div)>a:not([class]){display:inline-flex;align-items:center;min-height:44px}

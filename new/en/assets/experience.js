@@ -26,7 +26,7 @@
   function prepareHome(){
     const hero=q('#secOverview .catalog-hero'),band=q('#secOverview .catalog-band');if(!hero||!band)return;
     const form=q('.home-query',hero),actions=q('.actions',hero);if(form&&actions)actions.before(form);
-    const lead=q('.lead',hero);if(lead)lead.textContent='Find an agent for your task. Check the evidence. Review the inputs before you run.';
+    const lead=q('.lead',hero);if(lead)lead.textContent='Describe what you need. We suggest up to three agents and show how each one was checked.';
     const grid=q('.metric-grid',band);if(grid&&!q('.catalog-measures-toggle',band)){
       grid.id='homeCatalogMeasures';const button=make('button','Show all four catalog measures','btn sm catalog-measures-toggle');button.type='button';button.setAttribute('aria-controls',grid.id);button.setAttribute('aria-expanded','false');
       button.onclick=()=>{const expanded=button.getAttribute('aria-expanded')!=='true';button.setAttribute('aria-expanded',String(expanded));band.classList.toggle('catalog-measures-expanded',expanded);button.textContent=expanded?'Show key catalog measures':'Show all four catalog measures';};grid.after(button);

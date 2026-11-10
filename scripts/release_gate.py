@@ -34,6 +34,10 @@ TESTS = (
     'tests/test_workspace_entry_progress_browser.py',
     # AD Coin stays separate from organic selection (11-10: adcoin-credit-terms-frontend-r1 broke it and passed).
     'tests/test_ad_coin.py::test_organic_selection_cannot_import_ad_coin',
+    # Screen quality bar (11-11): server-made pages open with zero console errors, and the main screens
+    # keep 44px targets at desktop and phone widths.
+    'tests/test_agent_adoption_browser.py::test_server_pages_have_no_console_errors_in_a_fresh_tab',
+    'tests/test_main_ui_touch_targets.py',
 )
 # Each role runs the tests for the code it serves. jobs releases run the collector, health checks,
 # crawler and evaluation without the typed execution engine, so the opening-path list above
