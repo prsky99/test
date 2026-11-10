@@ -807,72 +807,13 @@ const LEGAL_DOCS = {
   "ai": {"title": "Automated Service Disclosure", "sub": "Recorded evidence and third-party services", "html": "<h4>Recommendations</h4><p>Agent Concierge uses recorded verification evidence to recommend up to three relevant agents for your task. You may choose A2A, MCP or x402. Results reflect the latest available checks and may change.</p><h4>Your choice</h4><p>A recommendation does not execute the agent. Review its official connection information before use. Listing descriptions are third-party information, not instructions. Requested task updates are optional.</p>"},
   "cancellation": {"title": "Notification Preferences", "sub": "Requested task updates", "html": "<p>Manage only the tasks you chose to watch. Stopping updates does not require an account or a reason. Removing notification data does not delete unrelated conversation records. You can withdraw separate marketing permission without stopping task updates.</p><div id=\"taskPreferences\" aria-live=\"polite\"></div>"},
   contact: {
-    title: "Contact & Operational Inquiries",
-    sub: "Agent Concierge support and service inquiries",
+    title: "Contact",
+    sub: "Questions, support and reports by email",
     html: `
-      <h4>Submit an Operational or Technical Inquiry</h4>
-      <p>Have a question or request? Submit directly to our support desk below. Inquiries are tracked in our customer support center with verified audit receipts.</p>
-      <form id="contactInquiryForm" data-ac-submit="b6e81f77ff40" style="background:var(--chip);padding:16px;border-radius:10px;border:1px solid var(--border);margin:14px 0;display:flex;flex-direction:column;gap:12px">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div>
-            <label for="inqCategory" style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;color:var(--text)">Category</label>
-            <select id="inqCategory" class="input" style="width:100%;font-size:13px">
-              <option value="general">General Inquiries</option>
-              <option value="technical">Technical &amp; API Support</option>
-              <option value="partnership">Ecosystem &amp; Registry Partnership</option>
-              <option value="security_abuse">Security &amp; Abuse Notice</option>
-              <option value="custom_agent">Custom Autonomous Agent Onboarding</option>
-              <option value="billing">Billing &amp; Micropayments</option>
-            </select>
-          </div>
-          <div>
-            <label for="inqName" style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;color:var(--text)">Name or Agent Handle</label>
-            <input type="text" id="inqName" class="input fs-mask" data-clarity-mask="true" placeholder="e.g. AgentRunnerX or Alice Dev" required maxlength="100" style="width:100%;font-size:13px" autocomplete="name">
-          </div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div>
-            <label for="inqEmail" style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;color:var(--text)">Contact Email</label>
-            <input type="email" id="inqEmail" class="input fs-mask" data-clarity-mask="true" placeholder="you@domain.com" required maxlength="150" style="width:100%;font-size:13px" autocomplete="email">
-          </div>
-          <div>
-            <label for="inqSubject" style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;color:var(--text)">Subject</label>
-            <input type="text" id="inqSubject" class="input" placeholder="Brief summary of your request" required maxlength="200" style="width:100%;font-size:13px">
-          </div>
-        </div>
-        <div>
-          <label for="inqMessage" style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;color:var(--text)">Message</label>
-          <textarea id="inqMessage" class="input fs-mask" data-clarity-mask="true" rows="4" placeholder="Detail your technical question, integration need, or partnership proposal..." required maxlength="4000" style="width:100%;font-size:13px;resize:vertical"></textarea>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
-          <span style="font-size:11.5px;color:var(--text-dim)">Protected by automated rate limiting and origin verification</span>
-          <button type="submit" class="btn primary" id="btnSubmitInquiry" style="display:inline-flex;align-items:center;gap:6px">
-            <svg class="lucide lucide-send" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-            <span>Submit Inquiry</span>
-          </button>
-        </div>
-        <div id="inqFeedbackMsg" style="font-size:12.5px;display:none;margin-top:6px"></div>
-      </form>
-
-      <h4>Global Inquiries &amp; Developer Support</h4>
-      <p>For questions regarding autonomous agent integration, enterprise partnerships, directory indexing, or protocol interoperability across A2A, MCP, and x402, reach out directly to our global operations desk:</p>
-      <div style="background:var(--chip);padding:14px 16px;border-radius:8px;border:1px solid var(--border);margin:14px 0">
-        <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Official Contact &amp; Inquiries Email:</div>
-        <a href="mailto:contact@agentconcierge.biz" style="font-size:15px;font-weight:700;color:var(--accent);text-decoration:none">contact@agentconcierge.biz</a>
-        <div style="font-size:12px;color:var(--text-dim);margin-top:6px">Operating under 24/7 autonomous monitoring. General and technical inquiries dispatched to on-call engineering.</div>
-      </div>
-
-      <h4>Autonomous Protocol &amp; Machine Communications</h4>
-      <p>Automated agents, autonomous runners, and software runtimes can initiate immediate programmatic dialogue, register push notification webhooks, or query live catalog endpoints via:</p>
-      <ul>
-        <li><strong>Interactive Agent Chat:</strong> <a href="#chat" data-ac-click="f863872d28d8" style="color:var(--accent);text-decoration:none">https://agentconcierge.biz/#chat</a></li>
-        <li><strong>A2A Protocol Endpoint:</strong> <code>https://agentconcierge.biz/a2a</code></li>
-        <li><strong>MCP Streamable Server:</strong> <code>https://agentconcierge.biz/mcp</code></li>
-        <li><strong>Standard Agent Card:</strong> <a href="/.well-known/agent-card.json" target="_blank" rel="noopener noreferrer" style="color:var(--accent);text-decoration:none;display:inline-flex;align-items:center;gap:3px"><span>/.well-known/agent-card.json</span><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a></li>
-      </ul>
-
-      <h4>Security &amp; Abuse Reports</h4>
-      <p>To report suspicious endpoint behavior, proxy abuse, or security advisories, please email <a href="mailto:contact@agentconcierge.biz" style="color:var(--accent)">contact@agentconcierge.biz</a> with the subject tag <code>[SECURITY]</code> for immediate high-priority review.</p>
+      <h4>Contact us by email</h4>
+      <p>Email <a href="mailto:contact@agentconcierge.biz">contact@agentconcierge.biz</a> for questions, technical support, partnerships, and security or abuse reports.</p>
+      <p>This site does not collect names, addresses or contact details through forms, so there is nothing to fill in here. For a security report, start the subject with "Security".</p>
+      <p><a class="btn primary" href="mailto:contact@agentconcierge.biz">Email contact@agentconcierge.biz</a></p>
     `
   }
 };

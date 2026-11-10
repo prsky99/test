@@ -107,65 +107,27 @@ def admin_tab(state, subtab):
         page.locator(f'[data-subtab="{subtab}"]').click()
 
 
-def fill_inquiry(page, category='technical'):
-    page.locator('#inqCategory').select_option(category)
-    page.locator('#inqName').fill('Footer Journey Agent')
-    page.locator('#inqEmail').fill('footer-journey@example.test')
-    page.locator('#inqSubject').fill(f'Footer {category} request')
-    page.locator('#inqMessage').fill('Please review this synthetic footer request.\nSecond line: A2A & MCP.')
-
-
 def screenshot(page, name):
     REPORT.mkdir(parents=True, exist_ok=True)
     page.screenshot(path=str(REPORT/name))
 
 
-@pytest.mark.parametrize('category,width', [
-    ('general',1280), ('technical',1280), ('partnership',1280),
-    ('security_abuse',1280), ('custom_agent',1280), ('billing',1280), ('technical',390)])
-def test_contact_categories_admin_details_status_and_reload(journey, category, width):
+@pytest.mark.parametrize('width', [390, 1280])
+def test_contact_footer_offers_email_and_stores_nothing(journey, width):
+    """11-11: the contact form was removed in the personal-data change (11-10, reports/개인정보 미수집 전환).
+    The footer Contact panel offers the published address only, has no fields, and a stray submission is
+    refused with 410 without storing anything."""
     s = journey
-    s.public.set_viewport_size({'width':width, 'height':950})
-    s.admin.set_viewport_size({'width':width, 'height':950})
+    s.public.set_viewport_size({'width': width, 'height': 950})
     footer(s, 'contact')
-    fill_inquiry(s.public, category)
-    s.public.locator('#btnSubmitInquiry').click()
-    pw.expect(s.public.locator('#inqFeedbackMsg')).to_contain_text('Inquiry registered')
-    inquiry_id = s.receipts[-1]['inquiry_id']
-    pw.expect(s.public.locator('#inqFeedbackMsg')).to_contain_text(inquiry_id)
-    stored = s.store.get_customer_inquiry(inquiry_id)
-    assert stored['category'] == category and stored['status'] == 'pending'
-    assert stored['email'] == 'footer-journey@example.test'
-    assert stored['message'].endswith('Second line: A2A & MCP.')
-    admin_tab(s, 'inquiries')
-    pw.expect(s.admin.locator('#inquiriesTable')).to_contain_text(inquiry_id)
-    with s.admin.expect_response('**/admin/api/needs/inquiries?*'):
-        s.admin.locator('#inqCategorySelect').select_option(category)
-    pw.expect(s.admin.locator('#inquiriesTable')).to_contain_text(inquiry_id)
-    with s.admin.expect_response('**/admin/api/needs/inquiries?*q=*'):
-        s.admin.locator('#inqSearchInput').fill('footer-journey@example.test')
-    pw.expect(s.admin.locator('#inquiriesTable')).to_contain_text(inquiry_id)
-    s.admin.locator(f'[data-inquiry-id="{inquiry_id}"]').click()
-    for selector, value in [('#inqDtlId',inquiry_id), ('#inqDtlName',stored['name']),
-                            ('#inqDtlEmail',stored['email']), ('#inqDtlSubject',stored['subject']),
-                            ('#inqDtlMessage',stored['message'])]:
-        pw.expect(s.admin.locator(selector)).to_have_text(value)
-    s.admin.locator('#inquiryModalStatus').select_option('resolved')
-    s.admin.locator('#inquiryModalResponse').fill('Synthetic review completed; internal note only.')
-    s.admin.locator('#btnSaveInquiryResponse').click()
-    pw.expect(s.admin.locator('#inquiryModal')).to_be_hidden()
-    assert s.store.get_customer_inquiry(inquiry_id)['status'] == 'resolved'
-    s.admin.reload()
-    admin_tab(s, 'inquiries')
-    s.admin.locator('#inqStatusSelect').select_option('resolved')
-    pw.expect(s.admin.locator('#inquiriesTable')).to_contain_text('Synthetic review completed')
-    s.admin.locator(f'[data-inquiry-id="{inquiry_id}"]').click()
-    pw.expect(s.admin.locator('#inquiryModalResponse')).to_have_value('Synthetic review completed; internal note only.')
-    assert s.admin.locator('#inquiryModalBody').evaluate('(el)=>el.scrollWidth<=el.clientWidth')
-    if category == 'technical':
-        s.public.locator('#inqFeedbackMsg').scroll_into_view_if_needed()
-        screenshot(s.public, f'contact-confirmed-{width}.png')
-        screenshot(s.admin, f'admin-contact-detail-{width}.png')
+    modal = s.public.locator('#legalModal')
+    pw.expect(modal.locator('a[href="mailto:contact@agentconcierge.biz"]').first).to_be_visible()
+    assert modal.locator('input, textarea, select, form').count() == 0
+    before = s.store.list_customer_inquiries()[1]
+    status = s.public.evaluate("""async()=>(await fetch('/api/contact/submit',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({category:'technical',name:'x',email:'x@example.test',subject:'s',message:'m'})})).status""")
+    assert status == 410 and s.store.list_customer_inquiries()[1] == before
+    screenshot(s.public, f'contact-email-{width}.png')
 
 
 @pytest.mark.parametrize('width', [390,1280])
@@ -191,34 +153,10 @@ def test_privacy_choice_receipt_and_admin_filters(journey, width):
     screenshot(s.admin, f'admin-privacy-{width}.png')
 
 
-def test_contact_reference_can_be_searched(journey):
-    s = journey
-    footer(s, 'contact')
-    fill_inquiry(s.public)
-    s.public.locator('#btnSubmitInquiry').click()
-    pw.expect(s.public.locator('#inqFeedbackMsg')).to_contain_text('Inquiry registered')
-    inquiry_id = s.receipts[-1]['inquiry_id']
-    admin_tab(s, 'inquiries')
-    with s.admin.expect_response('**/admin/api/needs/inquiries?q=*'):
-        s.admin.locator('#inqSearchInput').fill(inquiry_id)
-    pw.expect(s.admin.locator('#inquiriesTable')).to_contain_text(inquiry_id)
-
-
 def test_validation_and_failed_submissions_never_create_phantom_requests(journey):
+    # 11-11: the contact form part left with the form (see test_contact_footer_offers_email_and_stores_nothing).
     s = journey
     footer(s, 'contact')
-    fill_inquiry(s.public)
-    s.public.locator('#inqEmail').fill('invalid-address')
-    s.public.locator('#btnSubmitInquiry').click()
-    assert s.public.locator('#inqEmail').evaluate('(el)=>el.validity.valid') is False
-    assert not s.store.list_customer_inquiries()[1]
-    s.public.locator('#inqEmail').fill('footer-journey@example.test')
-    s.fail_paths.add('/api/contact/submit')
-    s.public.locator('#btnSubmitInquiry').click()
-    pw.expect(s.public.locator('#inqFeedbackMsg')).to_contain_text('Error submitting inquiry')
-    pw.expect(s.public.locator('#btnSubmitInquiry')).to_be_enabled()
-    assert s.public.locator('#inqSubject').input_value() == 'Footer technical request'
-    assert not s.store.list_customer_inquiries()[1]
     s.public.locator('#legalModalTabs [data-doc="ccpa"]').click()
     s.fail_paths.add('/api/privacy/opt-out')
     s.public.locator('#btnConfirmCcpaOptOut').click()
@@ -279,12 +217,9 @@ def test_admin_requires_authentication_and_stored_markup_stays_inert(journey):
     s = journey
     for path in ('inquiries','privacy','cancellations','summary'):
         assert s.admin_client.get('/admin/api/needs/'+path).status_code in (401,403)
-    footer(s, 'contact')
-    fill_inquiry(s.public, 'security_abuse')
-    s.public.locator('#inqMessage').fill('Audit <img src=x onerror="window.__footerXss=1"> & <script>window.__footerXss=1</script>')
-    s.public.locator('#btnSubmitInquiry').click()
-    pw.expect(s.public.locator('#inqFeedbackMsg')).to_contain_text('Inquiry registered')
-    inquiry_id = s.receipts[-1]['inquiry_id']
+    # Records from before 11-10 can still be listed in the admin view; their text must stay inert.
+    inquiry_id = s.store.record_customer_inquiry('security_abuse', '', '', 'Audit',
+        'Audit <img src=x onerror="window.__footerXss=1"> & <script>window.__footerXss=1</script>')
     admin_tab(s, 'inquiries')
     s.admin.locator(f'[data-inquiry-id="{inquiry_id}"]').click()
     assert s.admin.locator('#inquiryModalBody img, #inquiryModalBody script').count() == 0

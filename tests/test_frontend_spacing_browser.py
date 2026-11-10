@@ -91,9 +91,9 @@ def test_footer_forms_fit_the_dialog_without_submitting(pearl_page,width):
         page.get_by_role('link',name=label,exact=True).click()  # footer items are links that open the dialog
         dialog=page.locator('#legalModal');expect(dialog).to_be_visible()
         assert dialog.evaluate('(n)=>n.scrollWidth<=n.clientWidth+1')
-        if label=='Contact' and width<700:
-            email=page.locator('#inqEmail').bounding_box();subject=page.locator('#inqSubject').bounding_box()
-            assert subject['y']>=email['y']+email['height']+20
+        if label=='Contact':  # 11-11: Contact is an email link (the form left with the 11-10 personal-data change)
+            expect(dialog.locator('a[href="mailto:contact@agentconcierge.biz"]').first).to_be_visible()
+            assert dialog.locator('input, textarea').count()==0
         capture(page,'footer-'+label.split()[0].lower()+'-'+str(width))
         dialog.get_by_role('button',name='Close',exact=True).click()
     assert not errors

@@ -257,3 +257,9 @@ html body #xChips:not(:has(.pearl-more-tasks))>.chip-btn:nth-of-type(n+5){displa
 html body label a:not(.btn){display:inline-flex;align-items:center;min-height:44px;vertical-align:middle}
 /* Headings with a legend or caption beside them sit on the row centre (baseline rows read as misaligned). */
 html body :is(#secStatus .status-section-heading,#secWorkflows .ux-workflow-steps>div:first-child){align-items:center}
+/* 11-11: an Explore card keeps one row of actions: the feedback buttons and "View details" (pushed right). */
+html body #xResults .explore-feedback.pearl-card-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px!important}
+html body #xResults .explore-feedback.pearl-card-actions>.pearl-view-details{margin-left:auto;font-size:14px}
+/* Cards are as narrow as 310px in the two-column layout too, so the row stays compact at every width. */
+html body #xResults .explore-feedback.pearl-card-actions{gap:6px}
+html body #xResults .explore-feedback.pearl-card-actions>.btn{padding-inline:12px!important}

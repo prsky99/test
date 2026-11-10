@@ -88,18 +88,28 @@ def test_cached_string_has_retrieval_time_and_gateway_label(chat_page):
     assert not errors,errors
 
 
-def test_webmcp_discovery_tools_preserve_session_and_abort(chat_page):
+def test_webmcp_discovery_tools_preserve_session_and_abort(chat_page,request):
     page,requests,_,errors,_=chat_page
     page.add_init_script("window.__nativeTools={};Object.defineProperty(document,'modelContext',{value:{registerTool:(tool,options)=>{window.__nativeTools[tool.name]={tool,signal:options.signal}}}})")
     page.goto('https://agentconcierge.biz/#chat')
-    assert page.evaluate('Object.keys(window.__nativeTools).sort()')==['recommend_agents','search_agents']
+    # 11-11: the published page adds inspect_agent (reads one public record, never contacts the provider);
+    # the legacy fallback page keeps the two discovery tools.
+    published=request.node.callspec.params['chat_page']=='published'
+    expected=['inspect_agent','recommend_agents','search_agents'] if published else ['recommend_agents','search_agents']
+    assert page.evaluate('Object.keys(window.__nativeTools).sort()')==expected
     assert page.evaluate('window.__nativeTools.search_agents.tool.annotations.readOnlyHint') is True
+    if published:
+        assert page.evaluate('window.__nativeTools.inspect_agent.tool.annotations.readOnlyHint') is True
+        assert page.evaluate("window.__nativeTools.inspect_agent.tool.execute({agent_id:0})")['error']
     assert page.evaluate('window.__nativeTools.recommend_agents.tool.annotations.readOnlyHint') is False
     before=len(requests)
     assert page.evaluate("window.__nativeTools.search_agents.tool.execute({query:'x'})")['error']
     assert len(requests)==before
     found=page.evaluate("window.__nativeTools.search_agents.tool.execute({query:'weather',protocol:'mcp'})")
     assert found['items'] and all(item['kind']=='mcp' for item in found['items'])
+    if published:
+        inspected=page.evaluate("id=>window.__nativeTools.inspect_agent.tool.execute({agent_id:id})",found['items'][0]['id'])
+        assert inspected['id']==found['items'][0]['id'] and inspected['execution_performed'] is False,inspected
     reply=page.evaluate("window.__nativeTools.recommend_agents.tool.execute({task:'weather forecast',protocol:'mcp'})")
     assert len(reply['recommendations'])==3 and 'visitor' not in reply
     assert page.evaluate("!!sessionStorage.getItem('visitorToken')&&activeVisitorToken===sessionStorage.getItem('visitorToken')")

@@ -52,7 +52,7 @@ def test_history_legal_links_titles_and_form_isolation(pearl_page,width):
     page.locator('footer a[data-footer-key="contact"]').click()
     expect(page.locator('#legalModal')).to_be_visible()
     expect(page.locator('#legalModalTitle')).to_contain_text('Contact')
-    assert page.locator('#legalModal form').evaluate('(form)=>!form.parentElement.closest("form")')
+    assert page.locator('#legalModal form').count()==0  # 11-11: Contact offers email only (form removed 11-10)
     expect(page).to_have_title(re.compile('Contact'))
     page.go_back()
     expect(page.locator('#legalModal')).not_to_be_visible()
@@ -194,19 +194,14 @@ def test_testbench_example_failure_offers_a_real_retry(pearl_page):
     assert not errors
 
 
-def test_contact_submission_is_independent_of_an_empty_registration_form(pearl_page):
-    page,errors,calls=pearl_page;submitted=[]
-    def contact(route):
-        submitted.append(route.request.post_data_json)
-        route.fulfill(json={'inquiry_id':'synthetic-contact-only'})
-    page.route('**/api/contact/submit',contact)
+def test_contact_panel_is_independent_of_an_empty_registration_form(pearl_page):
+    """11-11: Contact is an email link now (the form went away with the 11-10 personal-data change); opening it
+    from the registration page sends nothing and leaves the registration form untouched."""
+    page,errors,calls=pearl_page
     page.goto(ORIGIN+'/#register')
     assert page.locator('#regName').input_value()==''
     page.locator('footer a[data-footer-key="contact"]').click()
-    for id,value in [('inqName','Synthetic visitor'),('inqEmail','synthetic@example.test'),('inqSubject','Isolated form validation'),('inqMessage','Synthetic request intercepted before network.')]:
-        page.locator('#'+id).fill(value)
-    page.locator('#btnSubmitInquiry').click()
-    expect(page.locator('#inqFeedbackMsg')).to_contain_text('synthetic-contact-only')
-    assert len(submitted)==1 and submitted[0]['subject']=='Isolated form validation'
-    assert not any(method=='POST' and path=='/api/register' for method,path in calls)
+    expect(page.locator('#legalModal a[href="mailto:contact@agentconcierge.biz"]').first).to_be_visible()
+    assert page.locator('#legalModal input, #legalModal textarea, #legalModal form').count()==0
+    assert not any(method=='POST' for method,path in calls)
     assert not errors

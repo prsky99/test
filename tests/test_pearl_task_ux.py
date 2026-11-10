@@ -46,9 +46,12 @@ def test_all_45_results_use_the_full_work_area_and_load_more(pearl_page, width, 
     # Measure the items inside every row, rather than only page-level overflow.
     assert cards.evaluate_all('''nodes => nodes.flatMap(c => {
         const b=c.getBoundingClientRect();
-        return [...c.querySelectorAll('.pearl-result-heading,.kind-badge,.d,.m,.pearl-result-actions')]
+        return [...c.querySelectorAll('.pearl-result-heading,.kind-badge,.d,.m,.pearl-result-actions,.pearl-card-actions')]
             .filter(n=>{const r=n.getBoundingClientRect();return r.left<b.left-2||r.right>b.right+2});
     }).length''')==0
+    toggle=page.locator('.ux-filter-toggle')  # phones fold the filters behind one button (pearl-ui.js)
+    if toggle.is_visible():
+        toggle.click()
     page.locator('#xHasReport').check()
     expect(cards).to_have_count(45)
     page.wait_for_timeout(350)
