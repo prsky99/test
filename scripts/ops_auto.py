@@ -68,7 +68,39 @@ def board_handoff(kind, text):
     BOARD.write_text(head + marker + table.rstrip('\n') + '\n' + row + '\n' + (sep + tail if sep else ''))
 
 
+SLO_EVERY = 3600  # user-facing targets, measured from outside every hour (scripts/user_slo.py)
+SLO_STATE = ROOT / 'logs/ops/user-slo-state.json'
+
+
+def user_slo():
+    """Every hour: measure the user-facing targets; hand every breach to its owning team. Nothing is excluded."""
+    state = json.loads(SLO_STATE.read_text()) if SLO_STATE.is_file() else {}
+    if time.time() - state.get('at', 0) < SLO_EVERY:
+        return
+    state['at'] = time.time()
+    SLO_STATE.write_text(json.dumps(state))
+    out = subprocess.run([str(ROOT / '.venv/bin/python'), str(ROOT / 'scripts/user_slo.py')], capture_output=True, text=True,
+                         cwd=ROOT, timeout=600).stdout
+    try:
+        record = json.loads(out.strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        board_handoff('user_slo', '사용자 기준 측정(user_slo.py)이 결과를 내지 못함')
+        return
+    for kind, breach in (record.get('breaches') or {}).items():
+        text = f'사용자 기준 목표 미달 [{kind}] ' + json.dumps(breach.get('bad'), ensure_ascii=False)[:110]
+        open_rows = [l for l in (BOARD.read_text().splitlines() if BOARD.is_file() else []) if f'목표 미달 [{kind}]' in l and '대기' in l]
+        if open_rows:
+            continue  # one open hand-off per target; the team closes it when fixed
+        TEAM[f'slo_{kind}'] = breach.get('team', '운영·SRE')
+        board_handoff(f'slo_{kind}', text)
+    append(ACTIONS, f'{now()} user_slo: 미달 {",".join(record.get("breaches") or {}) or "없음"}')
+
+
 def watch():
+    try:
+        user_slo()
+    except Exception as error:  # noqa: BLE001 - the 10-minute watch must keep running
+        append(ACTIONS, f'{now()} user_slo 실패: {type(error).__name__}')
     record = json.loads(subprocess.run([sys.executable, str(ROOT / 'scripts/ops_watch.py')],
                                        capture_output=True, text=True, cwd=ROOT).stdout or '{}')
     anomalies = record.get('anomalies') or {}
