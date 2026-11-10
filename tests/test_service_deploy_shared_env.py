@@ -166,3 +166,33 @@ def test_deploy_warms_before_switching():
     from scripts.service_deploy import Deployment
     source = inspect.getsource(Deployment.deploy)
     assert source.index('self.warm_web(role, new)') < source.index("service['active'] = new")
+
+
+def test_package_from_a_commit_ignores_working_tree_edits_and_records_the_hash(tmp_path, monkeypatch):
+    """11-10 operations = git: uncommitted working-tree edits reached production through overlays."""
+    import subprocess
+    monkeypatch.delenv('AGENTCON_RELEASE_BASE', raising=False)
+    root = _tree(tmp_path)
+    git = lambda *a: subprocess.run(['git', *a], cwd=root, check=True, capture_output=True, text=True).stdout.strip()
+    git('init', '-q'); git('config', 'user.email', 't@example.com'); git('config', 'user.name', 't')
+    (root / 'scripts' / 'keep.py').write_text('x = 1\n')
+    (root / 'new' / 'index.html').write_text('<p>ok</p>\n')
+    (root / 'pyproject.toml').write_text('[project]\nname = "x"\n')
+    (root / '.gitignore').write_text('.venv/\n')
+    git('add', '.'); git('commit', '-q', '-m', 'one')
+    sha = git('rev-parse', 'HEAD')
+    (root / 'agent_market' / 'x.py').write_text('x = 2  # uncommitted\n')
+    (root / 'scripts' / 'stray.py').write_text('untracked\n')
+    manager = Deployment(root, state_dir=tmp_path / 'state')
+    result = manager.package('git-frontend-r1', commit='HEAD')
+    release = tmp_path / 'state' / 'releases' / 'git-frontend-r1'
+    assert result['commit'] == sha
+    assert json.loads((release / 'release.json').read_text())['commit'] == sha
+    assert (release / 'agent_market' / 'x.py').read_text() == 'x = 1\n'
+    assert not (release / 'scripts' / 'stray.py').exists()
+    assert manager.release_commit('git-frontend-r1') == sha
+    import pytest
+    with pytest.raises(ValueError, match='unknown_commit'):
+        manager.package('git-frontend-r2', commit='no-such-ref')
+    with pytest.raises(ValueError, match='invalid_commit'):
+        manager.package('git-frontend-r3', commit='--upload-pack=x')

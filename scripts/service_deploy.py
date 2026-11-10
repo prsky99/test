@@ -154,11 +154,64 @@ class Deployment:
             raise ValueError('release_symlink_refused')
         return path
 
-    def package(self, release, base=None):
+    def package(self, release, base=None, commit=None):
         """Copy the tree into a new release. BASE names the release this tree was overlaid on;
         without it, AGENTCON_RELEASE_BASE or a release.json left in a copied release tree is used.
         deploy refuses a release whose base is no longer the active one (11-09: overlays built on
-        a release that another session had replaced in the meantime reverted their work)."""
+        a release that another session had replaced in the meantime reverted their work).
+
+        COMMIT (11-10 user decision "operations = git"): build the release from that commit with
+        `git archive`, never from working-tree files, and record the full hash in release.json, so
+        every role can be checked against one commit."""
+        source_root, exported, sha = self.root, None, None
+        if commit is not None:
+            sha, exported = self.export_commit(commit)
+            source_root = exported
+        self._from_commit = commit is not None
+        try:
+            return self._package(release, base, source_root, sha)
+        finally:
+            self._from_commit = False
+            if exported is not None:
+                shutil.rmtree(exported, ignore_errors=True)
+
+    def venv_source(self):
+        """The environment a new release clones. A release built from a commit uses the active frontend
+        release's audited environment: the working copy's .venv gained test tools on 11-08 (pytest,
+        sqlite-vec) and fails the runtime dependency profile."""
+        if getattr(self, '_from_commit', False):
+            try:
+                service = self.state()['services']['frontend']
+                release = service['slots'][service['active']]
+                candidate = (self.path(release) / '.venv').resolve()
+                if (candidate / 'bin' / 'python').exists():
+                    return candidate
+            except (KeyError, OSError, ValueError, TypeError):
+                pass
+        return (self.root / '.venv').resolve()
+
+    def export_commit(self, commit):
+        """Full hash and a private temporary tree of COMMIT's source, assets and metadata."""
+        import tempfile
+        if type(commit) is not str or not re.fullmatch(r'[A-Za-z0-9_./-]{1,100}', commit) or commit.startswith('-'):
+            raise ValueError('invalid_commit')
+        resolved = subprocess.run(['git', 'rev-parse', '--verify', commit + '^{commit}'], cwd=self.root,
+                                  capture_output=True, text=True)
+        if resolved.returncode:
+            raise ValueError('unknown_commit')
+        sha = resolved.stdout.strip()
+        listed = subprocess.run(['git', 'ls-tree', '--name-only', sha], cwd=self.root, capture_output=True, text=True).stdout.split()
+        wanted = [name for name in listed if name in ('agent_market', 'scripts', 'new', 'deploy', 'pyproject.toml', 'extracted_html.txt')
+                  or name.startswith('requirements')]
+        destination = Path(tempfile.mkdtemp(prefix='release-commit-'))
+        archive = subprocess.run(['git', 'archive', sha, *wanted], cwd=self.root, capture_output=True)
+        if archive.returncode:
+            shutil.rmtree(destination, ignore_errors=True)
+            raise ValueError('commit_export_failed')
+        subprocess.run(['tar', '-x', '-C', str(destination)], input=archive.stdout, check=True)
+        return sha, destination
+
+    def _package(self, release, base, source_root, commit):
         base = self.package_base(base)
         target = self.path(release)
         if target.exists():
@@ -167,10 +220,10 @@ class Deployment:
         # Keep source, assets and dependencies fixed for the process lifetime.
         ignore = shutil.ignore_patterns('__pycache__', '*.pyc', '.DS_Store', 'node_modules', 'qa')
         for name in ('agent_market', 'scripts', 'new'):
-            shutil.copytree(self.root / name, target / name, ignore=ignore)
-        metadata = {self.root / name for name in ('pyproject.toml', 'extracted_html.txt')}
-        metadata.update(self.root.glob('requirements*.txt'))
-        metadata.update(self.root.glob('requirements*.lock'))
+            shutil.copytree(source_root / name, target / name, ignore=ignore)
+        metadata = {source_root / name for name in ('pyproject.toml', 'extracted_html.txt')}
+        metadata.update(source_root.glob('requirements*.txt'))
+        metadata.update(source_root.glob('requirements*.lock'))
         for path in sorted(metadata):
             if path.is_file() and not path.is_symlink():
                 shutil.copy2(path, target / path.name)
@@ -183,13 +236,13 @@ class Deployment:
             os.symlink(shared, target / '.venv')
         else:
             # APFS clone is cheap and isolates package writes from the live venv.
-            result = subprocess.run(['/bin/cp', '-cR', str(self.root / '.venv'), str(target / '.venv')],
+            result = subprocess.run(['/bin/cp', '-cR', str(self.venv_source()), str(target / '.venv')],
                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             if result.returncode:
                 if (target / '.venv').exists():
                     shutil.rmtree(target / '.venv')
-                shutil.copytree(self.root / '.venv', target / '.venv', symlinks=True)
-        runtime_manifest = self.root / 'deploy/runtime-versions.json'
+                shutil.copytree(self.venv_source(), target / '.venv', symlinks=True)
+        runtime_manifest = source_root / 'deploy/runtime-versions.json'
         if runtime_manifest.is_file() and not runtime_manifest.is_symlink():
             (target / 'deploy').mkdir(exist_ok=True)
             shutil.copy2(runtime_manifest, target / 'deploy/runtime-versions.json')
@@ -208,13 +261,15 @@ class Deployment:
         manifest = {'release': release, 'created': time.time(), 'sha256': hashes}
         if base:
             manifest['base'] = base
+        if commit:
+            manifest['commit'] = commit
         atomic_json(target / 'release.json', manifest)
-        return {'release': release, 'files': len(hashes), 'base': base}
+        return {'release': release, 'files': len(hashes), 'base': base, 'commit': commit}
 
     def environment_key(self, target):
         """Dependency identity of the environment a release would run: its runtime lock, the runtime
         versions file, the interpreter and the installed distributions. None when it cannot be read."""
-        source = (self.root / '.venv').resolve()
+        source = self.venv_source()
         try:
             config = (source / 'pyvenv.cfg').read_bytes()
             packages = sorted(path.name for path in source.glob('lib/python*/site-packages/*.dist-info'))
@@ -240,7 +295,7 @@ class Deployment:
             return shared
         venvs.mkdir(mode=0o700, exist_ok=True)
         staging = venvs / ('.staging-' + key + '-' + secrets.token_hex(4))
-        result = subprocess.run(['/bin/cp', '-cR', str((self.root / '.venv').resolve()), str(staging)],
+        result = subprocess.run(['/bin/cp', '-cR', str(self.venv_source()), str(staging)],
                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         if result.returncode:
             shutil.rmtree(staging, ignore_errors=True)
@@ -1044,7 +1099,17 @@ class Deployment:
             else:
                 result['services'][role] = {'release': service['release'], 'pid': self.pid(role, 'main')}
         result['proxy_pid'] = self.pid('proxy', 'main')
+        # 11-10 operations = git: the commit each active role runs (None = built from files, not a commit).
+        active = {role: (service['slots'][service['active']] if role in PORTS else service['release'])
+                  for role, service in state['services'].items()}
+        result['commits'] = {role: self.release_commit(release) for role, release in active.items()}
         return result
+
+    def release_commit(self, release):
+        try:
+            return json.loads((self.path(release) / 'release.json').read_text()).get('commit')
+        except (OSError, ValueError, AttributeError):
+            return None
 
 
 def release_gate(root, release, runner=subprocess.run):
@@ -1067,6 +1132,8 @@ def main():
     commands = parser.add_subparsers(dest='command', required=True)
     package = commands.add_parser('package'); package.add_argument('release')
     package.add_argument('--base', help='the release this tree was overlaid on (deploy checks it is still active)')
+    package.add_argument('--commit', default='HEAD', help='build from this commit with git archive (default HEAD; 11-10 operations = git)')
+    package.add_argument('--from-tree', action='store_true', help='legacy: copy the files on disk instead of a commit (no commit recorded)')
     deploy = commands.add_parser('deploy'); deploy.add_argument('role', choices=PORTS); deploy.add_argument('release')
     deploy.add_argument('--force-base', action='store_true', help='deploy although the release was built on a release that is no longer active')
     deploy.add_argument('--skip-gate', action='store_true', help='emergency only: deploy a frontend release without scripts.release_gate')
@@ -1094,7 +1161,7 @@ def main():
     manager = Deployment(args.root)
     if args.command == 'package':
         with manager.lock():
-            result = manager.package(args.release, args.base)
+            result = manager.package(args.release, args.base, None if args.from_tree else args.commit)
     elif args.command == 'deploy':
         forced = {'force_base': True} if args.force_base else {}
         if not args.force_base:
