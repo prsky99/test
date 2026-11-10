@@ -25,9 +25,24 @@ spec = {'Label': L,
 with open(P, 'wb') as f: plistlib.dump(spec, f)
 os.chmod(P, 0o600)
 PY
-launchctl bootout "gui/$(id -u)/$L" 2>/dev/null || true
-launchctl bootstrap "gui/$(id -u)" "$P"
-sleep 15
-launchctl list | grep "$L" || { echo "not running"; exit 1; }
+LAUNCHCTL=${LAUNCHCTL:-launchctl}   # replaceable for tests
+WAIT=${INSTALL_WAIT_SECONDS:-30}; SETTLE=${INSTALL_SETTLE_SECONDS:-15}; RETRY=${INSTALL_RETRY_SECONDS:-5}
+# 11-10: bootstrap right after bootout failed with "Bootstrap failed: 5: Input/output error" because the
+# previous job had not finished unloading. Wait until the label leaves the list (at most WAIT seconds).
+"$LAUNCHCTL" bootout "gui/$(id -u)/$L" 2>/dev/null || true
+for _ in $(seq 1 "$WAIT"); do
+  "$LAUNCHCTL" list | grep -q "[[:space:]]$L\$" || break
+  sleep 1
+done
+if "$LAUNCHCTL" list | grep -q "[[:space:]]$L\$"; then
+  echo "previous $L is still loaded after ${WAIT}s; not installing"; exit 1
+fi
+if ! "$LAUNCHCTL" bootstrap "gui/$(id -u)" "$P"; then
+  echo "bootstrap failed; trying once more in ${RETRY}s"
+  sleep "$RETRY"
+  "$LAUNCHCTL" bootstrap "gui/$(id -u)" "$P"
+fi
+sleep "$SETTLE"
+"$LAUNCHCTL" list | grep "[[:space:]]$L\$" || { echo "not running"; exit 1; }
 tail -5 "$ROOT/logs/services/$L.log" || true
 echo "installed $L from $REL"
