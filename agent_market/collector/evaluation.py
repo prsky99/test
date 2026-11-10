@@ -784,7 +784,7 @@ def evaluate_x402(resource: dict, live: dict | None = None, now: float | None = 
 # - 경고가 없다는 것은 안전의 증거가 아니다. 보안은 경고 감점(85%)에 실제 통제 수단(15%: HTTPS, 안전 주석, 카드 서명)을 더한다.
 # - 거의 모든 대상이 만점인 축(보안·프로토콜·컨텍스트, v5 실측 평균 0.99~1.00)은 등급을 가르지 못하고 점수만 올린다.
 #   비중을 줄이고, 실제로 갈리는 정의 품질(설명 결함이 도구 선택에 8~12% 영향)과 출처의 비중을 올린다.
-POLICY_VERSION = "v1"
+POLICY_VERSION = "v2"  # v2 (11-10 사용자 결정): x402는 결제 없는 402 응답만으로는 A를 주지 않는다(B 상한)
 POLICY_WEIGHTS = {"availability": 25, "definitions": 25, "security": 15, "context": 10, "protocol": 10, "provenance": 15}
 POLICY_WINDOW_DAYS = 7
 VERIFIED_UPTIME = 0.95  # 7일 성공률이 이보다 낮으면 시험을 통과해도 A를 주지 않는다 (SLO)
@@ -906,7 +906,9 @@ def apply_quality_policy(resource: dict, ev: dict, health: tuple[int, int] | Non
 
     # 3) 증거 수준과 등급 상한
     if kind == "x402":
-        functional = bool(stats.get("verified"))
+        # An unpaid 402 challenge proves the payment contract is served, not that the paid call works.
+        # AQEF-30 treats it as transport evidence, so it can never reach the "verified" level (cap B).
+        functional = False
         failed = False
     else:
         functional = outcome == "pass"
@@ -923,7 +925,8 @@ def apply_quality_policy(resource: dict, ev: dict, health: tuple[int, int] | Non
     if level == "observed":
         findings.append({"severity": "low", "code": "unstable_week" if functional else "unverified_function", "tool": None,
                          "message": (f"7-day success {ok}/{n} is below {VERIFIED_UPTIME:.0%}" if functional
-                                     else "No passing functional test yet; grade is capped at B")})
+                                     else "Only an unpaid 402 challenge was checked; grade is capped at B"
+                                     if kind == "x402" else "No passing functional test yet; grade is capped at B")})
     elif level == "limited":
         findings.append({"severity": "low", "code": "insufficient_monitoring", "tool": None,
                          "message": f"Only {n} health check(s) in {POLICY_WINDOW_DAYS} days; grade is capped at B"})

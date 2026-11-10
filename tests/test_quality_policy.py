@@ -83,8 +83,11 @@ def test_a2a_and_x402_use_their_own_evidence():
         row("a2a"), raw("a2a", findings=[{"severity": "high", "code": "endpoint_unreachable", "tool": None, "message": "x"}]),
         (10, 10))
     assert unreachable["evidence"]["level"] == "failed"
-    paid = apply_quality_policy(row("x402", health_status="healthy"), raw("x402", verified=True), (10, 10))
-    assert paid["evidence"]["level"] == "verified" and paid["grade"] == "A"
+    # 11-10 user decision: an unpaid 402 challenge ("verified" in the raw x402 evaluation) is transport evidence,
+    # so x402 is capped at B even with a full healthy week.
+    challenge = apply_quality_policy(row("x402", health_status="healthy"), raw("x402", verified=True), (10, 10))
+    assert challenge["evidence"]["level"] == "observed" and challenge["grade"] == "B"
+    assert any("unpaid 402 challenge" in f["message"] for f in challenge["findings"])
     unpaid = apply_quality_policy(row("x402", health_status="healthy"), raw("x402", verified=False), (10, 10))
     assert unpaid["grade"] == "B"
 
