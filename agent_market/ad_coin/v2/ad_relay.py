@@ -363,7 +363,12 @@ class AdRelayGateway:
         }
 
     def settle_relay_dispatch(self, dispatch_id: str) -> dict:
-        """Settle a relayed offer only after the platform itself recorded the view."""
+        """Settle a relayed offer only after the platform itself recorded the view.
+
+        Closed 2026-11-10 (PM decision A): the relay fee was created from a per-partner clearing
+        account, outside the monthly issuance cap and the growth budget. Coins are created only by
+        issuance; paying the fee from a budget is a later decision (B)."""
+        raise ContractError("issuance_only", 403)
         disp_id = identifier(dispatch_id)
         now = int(self._clock())
 
@@ -374,22 +379,9 @@ class AdRelayGateway:
             if row["status"] != "viewed":
                 raise ContractError("dispatch_not_ready_for_settlement", 409)
 
-            relay_fee = int(row["relay_fee_atoms"])
-            partner = self.get_partner(row["partner_id"])
 
             # If relay fee > 0, post double-entry payment from external clearing to partner operator account
-            if relay_fee > 0:
-                clearing_acc = self.store.one("account_by_owner_purpose", (row["partner_id"], "external_clearing"))
-                if clearing_acc is None:
-                    clearing_id = self.ledger.create_account(row["partner_id"], "external_clearing")
-                else:
-                    clearing_id = clearing_acc["id"]
-
-                self.ledger.post(
-                    f"relay_fee:{disp_id}",
-                    [(clearing_id, f"-{relay_fee}"), (partner["operator_account_id"], str(relay_fee))],
-                    kind="model_seed",
-                )
+            # (removed 2026-11-10: the fee was minted from a clearing account; see the docstring)
 
             self.store.execute("relay_dispatch_settle", (now, disp_id))
             self.audit.log(
@@ -401,7 +393,7 @@ class AdRelayGateway:
                 details={
                     "settled_at": now,
                     "user_reward_atoms": str(row["user_reward_atoms"]),
-                    "relay_fee_atoms": str(relay_fee),
+                    "relay_fee_atoms": str(row["relay_fee_atoms"]),
                 },
             )
 

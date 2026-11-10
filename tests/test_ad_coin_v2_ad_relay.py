@@ -394,7 +394,7 @@ def test_ad_relay_gateway_lifecycle(store):  # noqa: F811
     assert consented_disp["consented_at"] is not None
 
     # Consent alone never pays: settlement waits for the view the platform records itself.
-    with pytest.raises(ContractError, match="dispatch_not_ready_for_settlement"):
+    with pytest.raises(ContractError, match="issuance_only"):  # settlement is closed (11-10, issuance only)
         gateway.settle_relay_dispatch(dispatch_a2a["id"])
 
     # 6. Platform Viewer Connection (DEC-03)
@@ -408,13 +408,10 @@ def test_ad_relay_gateway_lifecycle(store):  # noqa: F811
         gateway.open_viewer_session(dispatch_a2a["id"], "wrong-token-abc")
 
     # 7. Settle Relay Dispatch and Verify Ledger Conservation
-    settled = gateway.settle_relay_dispatch(dispatch_a2a["id"])
-    assert settled["status"] == "settled"
-    assert settled["settled_at"] is not None
-
-    # Check operator fee received in partner account
-    op_acc = commercial.ledger.account(partner_operator_acc)
-    assert op_acc["balance_atoms"] == "5"
+    # Closed 11-10: the relay fee was minted outside issuance, so settlement refuses and pays nothing.
+    with pytest.raises(ContractError, match="issuance_only"):
+        gateway.settle_relay_dispatch(dispatch_a2a["id"])
+    assert commercial.ledger.account(partner_operator_acc)["balance_atoms"] == "0"
 
     audit = commercial.ledger.audit()
     assert int(audit["beneficial_atoms"]) + int(audit["clearing_atoms"]) == 0
@@ -601,8 +598,7 @@ def test_ad_relay_http_routes(store):  # noqa: F811
     early = client.post(f"/api/ad-coin/v2/relays/{dispatch_id}/settle", headers=headers)
     assert early.status_code == 403, early.text  # the person cannot settle their own relay
     settle_res = client.post(f"/api/ad-coin/v2/relays/{dispatch_id}/settle", headers=staff)
-    assert settle_res.status_code == 200, settle_res.text
-    assert settle_res.json()["status"] == "settled"
+    assert settle_res.status_code == 403 and settle_res.json()["error"]["code"] == "issuance_only"
 
     # 9. Negative Test: View settled dispatch returns 409 closed
     view_closed = client.get(f"/api/ad-coin/v2/relays/{dispatch_id}/view?token={relay_token}")

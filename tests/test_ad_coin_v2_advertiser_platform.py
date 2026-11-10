@@ -296,74 +296,17 @@ def test_advertiser_platform_gateway_stages(store):  # noqa: F811
         client, commercial, resolver, user_owner, user_headers
     )
 
-    # 1. Claim Click Stage Reward
-    click_claim = gateway.claim_stage_reward(
-        offer_id=offer_id,
-        owner_id=user_owner,
-        stage_type="click",
-        evidence={"target_url": "https://example.com/demo"},
-    )
-    assert click_claim["stage_type"] == "click"
-    assert click_claim["status"] == "settled"
-    assert click_claim["reward_atoms"] == "20"
-
-    # Verify deduplication on duplicate click claim
-    with pytest.raises(ContractError, match="stage_already_claimed"):
-        gateway.claim_stage_reward(
-            offer_id=offer_id,
-            owner_id=user_owner,
-            stage_type="click",
-            evidence={"target_url": "https://example.com/demo"},
-        )
-
-    # 2. Claim Feedback Stage Reward - PLAT-12 Neutral Feedback Rule
-    # Even a 1-star critical feedback receives 100% of the promised reward
-    feedback_claim = gateway.claim_stage_reward(
-        offer_id=offer_id,
-        owner_id=user_owner,
-        stage_type="feedback",
-        evidence={"rating": 1, "comment": "Needs better documentation."},
-    )
-    assert feedback_claim["stage_type"] == "feedback"
-    assert feedback_claim["status"] == "settled"
-    assert feedback_claim["reward_atoms"] == "30"
-
-    # Validation: rating must be between 1 and 5
-    with pytest.raises(ContractError, match="feedback_rating_must_be_1_to_5"):
-        gateway.claim_stage_reward(
-            offer_id=offer_id,
-            owner_id=user_owner,
-            stage_type="feedback",
-            evidence={"rating": 6, "comment": "Too high."},
-        )
-
-    # 3. Claim Watch Complete Stage Reward
-    # Incomplete view (< 100%) rejected
-    with pytest.raises(ContractError, match="watch_complete_requires_100_percent"):
-        gateway.claim_stage_reward(
-            offer_id=offer_id,
-            owner_id=user_owner,
-            stage_type="watch_complete",
-            evidence={"watch_percentage": 75},
-        )
-
-    # Complete 100% watch succeeded
-    watch_claim = gateway.claim_stage_reward(
-        offer_id=offer_id,
-        owner_id=user_owner,
-        stage_type="watch_complete",
-        evidence={"watch_percentage": 100},
-    )
-    assert watch_claim["stage_type"] == "watch_complete"
-    assert watch_claim["status"] == "settled"
-    assert watch_claim["reward_atoms"] == "50"
-
-    # Verify all claims listed
-    claims = gateway.list_stage_claims_for_offer(offer_id)
-    assert len(claims) == 3
-    assert {c["stage_type"] for c in claims} == {"click", "feedback", "watch_complete"}
-
-    # Verify double-entry ledger audit
+    # Closed 11-10 (PM decision A): stage rewards were minted outside issuance, so every claim is
+    # refused and nothing is paid or recorded.
+    wallet = commercial.store.one("wallet_by_owner", (user_owner,))
+    before = commercial.ledger.account(wallet["available_account"])["balance_atoms"]
+    for stage, evidence in (("click", {"target_url": "https://example.com/demo"}),
+                            ("feedback", {"rating": 1, "comment": "Needs better documentation."}),
+                            ("watch_complete", {"watch_percentage": 100})):
+        with pytest.raises(ContractError, match="issuance_only"):
+            gateway.claim_stage_reward(offer_id=offer_id, owner_id=user_owner, stage_type=stage, evidence=evidence)
+    assert gateway.list_stage_claims_for_offer(offer_id) == []
+    assert commercial.ledger.account(wallet["available_account"])["balance_atoms"] == before
     audit = commercial.ledger.audit()
     assert int(audit["beneficial_atoms"]) + int(audit["clearing_atoms"]) == 0
 
@@ -523,19 +466,16 @@ def test_advertiser_platform_conversions_and_analytics(store):  # noqa: F811
         client, commercial, resolver, user_owner, user_headers
     )
 
-    # Claim click and feedback stages
-    gateway.claim_stage_reward(
-        offer_id=offer_id,
-        owner_id=user_owner,
-        stage_type="click",
-        evidence={"target_url": "https://example.com/trial"},
-    )
-    gateway.claim_stage_reward(
-        offer_id=offer_id,
-        owner_id=user_owner,
-        stage_type="feedback",
-        evidence={"rating": 5, "comment": "Great product!"},
-    )
+    # Stage claims are closed (11-10, issuance only); analytics still reads recorded rows, so the
+    # fixture records a click and a feedback directly, without any ledger posting.
+    import json as _json
+    offer_row = commercial.store.one("offer_get", (offer_id,))
+    with commercial.store.atomic():
+        for stage, evidence in (("click", {"target_url": "https://example.com/trial"}),
+                                ("feedback", {"rating": 5, "comment": "Great product!"})):
+            commercial.store.execute("stage_claim_insert", (
+                str(uuid4()), offer_id, offer_row["campaign_id"], offer_row["advertiser_id"], user_owner,
+                stage, 0, _json.dumps(evidence), "settled", NOW // 1000, NOW // 1000))
 
     # 1. Record Conversion
     conv = gateway.record_conversion(
@@ -651,13 +591,12 @@ def test_advertiser_platform_http_routes(store):  # noqa: F811
             "evidence": {"target_url": "https://example.com/click-test"},
         },
     )
-    assert res_claim.status_code == 201, res_claim.text
-    claim_id = res_claim.json()["id"]
+    assert res_claim.status_code == 403 and res_claim.json()["error"]["code"] == "issuance_only"  # closed 11-10
 
-    # 2. HTTP List Stages for Offer
+    # 2. HTTP List Stages for Offer (nothing was claimed)
     res_list = client.get(f"/api/ad-coin/v2/advertiser/stages/{offer_id}", headers=user_headers)
     assert res_list.status_code == 200
-    assert any(s["id"] == claim_id for s in res_list.json()["stages"])
+    assert res_list.json()["stages"] == []
 
     # 3. HTTP Create Experiment
     res_exp = client.post(
@@ -704,7 +643,7 @@ def test_advertiser_platform_http_routes(store):  # noqa: F811
     assert res_ana.status_code == 200, res_ana.text
     ana_data = res_ana.json()
     assert "funnel" in ana_data
-    assert ana_data["funnel"]["clicks"] == 1
+    assert ana_data["funnel"]["clicks"] == 0  # the click claim was refused (issuance only, 11-10)
     assert ana_data["funnel"]["conversions"] == 1
 
     # 8. HTTP Optimization

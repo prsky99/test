@@ -93,7 +93,12 @@ class AdvertiserPlatformGateway:
 
         Strictly enforces PLAT-12: P1 impression reward is never revoked,
         and neutral feedback is rewarded equally (positive rating is not required).
+
+        Closed 2026-11-10 (PM decision A): it created coins from a per-campaign clearing account,
+        outside the monthly issuance cap and the growth budget. Coins are created only by issuance;
+        paying stages from the campaign budget is a later decision (B).
         """
+        raise ContractError("issuance_only", 403)
         offer_id = identifier(offer_id)
         owner_id = identifier(owner_id)
         if stage_type not in STAGE_TYPES:
@@ -134,18 +139,7 @@ class AdvertiserPlatformGateway:
                 raise ContractError("wallet_not_provisioned", 404)
 
             # Double-entry ledger settlement for stage reward
-            if reward_atoms > 0:
-                clearing_acc = self.store.one("account_by_owner_purpose", (offer["campaign_id"], "external_clearing"))
-                if clearing_acc is None:
-                    clearing_id = self.ledger.create_account(offer["campaign_id"], "external_clearing")
-                else:
-                    clearing_id = clearing_acc["id"]
-
-                self.ledger.post(
-                    f"stage_reward:{claim_id}",
-                    [(clearing_id, f"-{reward_atoms}"), (wallet["available_account"], str(reward_atoms))],
-                    kind="model_seed",
-                )
+            # (removed 2026-11-10: the reward was minted from a clearing account; see the docstring)
 
             self.store.execute(
                 "stage_claim_insert",
