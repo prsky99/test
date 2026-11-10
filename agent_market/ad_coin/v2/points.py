@@ -131,6 +131,12 @@ def ensure_platform_accounts(ledger) -> None:
     ledger.create_account(PLATFORM_OWNER, "platform_revenue", account_id=REVENUE_ACCOUNT)
 
 
+# x402 real-payment tests (user decision 11-10): only while the platform holds at least 100,000 coins,
+# spending at most 1/1000 of the holding. Coins never become USDC; this only sizes the test budget.
+X402_TEST_MIN_HOLDINGS_ATOMS = 100_000 * ATOMS_PER_COIN
+X402_TEST_SPEND_DIVISOR = 1000
+
+
 def platform_holdings(ledger) -> dict:
     """Coins the platform holds (growth budget + coin revenue) and coins issued so far, in atoms.
 
@@ -146,9 +152,14 @@ def platform_holdings(ledger) -> dict:
             return 0  # accounts appear with the first issuance
 
     growth, revenue = balance(GROWTH_ACCOUNT), balance(REVENUE_ACCOUNT)
+    held = growth + revenue
     return {"growth_budget_atoms": str(growth), "coin_revenue_atoms": str(revenue),
-            "platform_holdings_atoms": str(growth + revenue), "issued_atoms": str(-balance(ISSUANCE_ACCOUNT)),
-            "atoms_per_coin": ATOMS_PER_COIN}
+            "platform_holdings_atoms": str(held), "issued_atoms": str(-balance(ISSUANCE_ACCOUNT)),
+            "atoms_per_coin": ATOMS_PER_COIN,
+            "x402_test": {"eligible": held >= X402_TEST_MIN_HOLDINGS_ATOMS,
+                          "min_holdings_atoms": str(X402_TEST_MIN_HOLDINGS_ATOMS),
+                          "remaining_atoms": str(max(0, X402_TEST_MIN_HOLDINGS_ATOMS - held)),
+                          "spend_limit_atoms": str(max(0, held) // X402_TEST_SPEND_DIVISOR)}}
 
 
 def issue(ledger, amount_atoms: int, *, reason: str):

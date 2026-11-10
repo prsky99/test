@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,noarchive"><meta name="referrer" content="no-referrer">
+<title>AI AD Coin v2 운영 | Agent Concierge</title>
+<link rel="icon" href="/new/en/assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/new/en/assets/styles.css">
+<link rel="stylesheet" href="/new/en/assets/necklace.css">
+<link rel="stylesheet" href="/new/en/assets/pearl-live.css">
+<script src="/new/en/assets/app.js" defer></script>
+<script src="@@admin.js@@" defer></script>
+</head>
+<body data-page="ad-coin-v2-admin">
+<a class="sr-only skip-link" href="#main">본문으로 건너뛰기</a>
+<header class="ws-top">
+<div class="container header-inner">
+<a class="brand" href="/new/en/index.html"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>Agent Concierge</a>
+<span class="small mobile-hidden">AI AD Coin v2 운영</span>
+<div class="header-actions">@@sun@@<button class="theme-toggle" type="button" data-action="theme" aria-label="어두운 테마 전환" aria-pressed="false"></button>@@moon@@</div>
+</div>
+</header>
+<div class="container ws-layout">
+<aside class="ws-sidebar" aria-label="AI AD Coin v2 운영 메뉴"><p class="caption">AI AD Coin v2 운영</p><div class="row"><span class="badge warning">운영자 전용 · 읽기 전용</span></div><hr class="divider"><nav aria-label="운영 화면">
+<a class="side-item active" href="#holdings" aria-current="page">@@home@@보유량</a><a class="side-item" href="#x402">@@chart@@x402 시험 조건</a><a class="side-item" href="#reconcile">@@receipt@@원장 대사</a>
+</nav></aside>
+<main class="ws-main" id="main">
+<div class="page-heading"><div><p class="eyebrow">AI AD Coin · 운영</p><h1>코인 보유량과 대사</h1>
+<p class="lead">플랫폼이 가진 코인(성장 예산과 코인 수익)과 누적 발행량, 원장 대사 결과를 봅니다. 이 화면은 값을 바꾸지 않습니다. 코인은 법정화폐나 USDC로 바꿀 수 없습니다.</p></div></div>
+<div class="row"><span id="state">운영자 계정으로 로그인한 뒤 불러오기를 누르세요.</span><button id="load" type="button" class="btn primary">불러오기</button></div>
+
+<section class="card" id="holdings" aria-labelledby="holdings-h">
+<h2 id="holdings-h">플랫폼 보유량</h2>
+<div class="grid">
+<div><p class="caption">보유량(성장 예산 + 코인 수익)</p><p class="lead"><strong id="held">—</strong> 코인</p></div>
+<div><p class="caption">성장 예산</p><p><strong id="growth">—</strong> 코인</p></div>
+<div><p class="caption">코인 수익</p><p><strong id="revenue">—</strong> 코인</p></div>
+<div><p class="caption">누적 발행량</p><p><strong id="issued">—</strong> 코인</p></div>
+</div>
+<p class="caption">발행은 한 달에 최대 100,000코인이고, 발행 계정에서 성장 예산으로만 갑니다.</p>
+<p id="holdings-status" role="status" aria-live="polite"></p>
+</section>
+
+<section class="card" id="x402" aria-labelledby="x402-h">
+<h2 id="x402-h">x402 실제 결제 시험 조건</h2>
+<p>보유량이 100,000코인 이상일 때만 시험합니다. 시험에 쓰는 양은 보유량의 1/1000까지입니다. 실제 USDC 지출은 시험 때마다 사용자 승인을 따로 받습니다.</p>
+<div class="grid">
+<div><p class="caption">상태</p><p><span id="x402-badge" class="badge">—</span></p></div>
+<div><p class="caption">조건까지 남은 양</p><p><strong id="remaining">—</strong> 코인</p></div>
+<div><p class="caption">시험 한도(보유량의 1/1000)</p><p><strong id="limit">—</strong> 코인</p></div>
+</div>
+</section>
+
+<section class="card" id="reconcile" aria-labelledby="reconcile-h">
+<h2 id="reconcile-h">원장 대사</h2>
+<p>복식부기 합이 0인지, 음수 잔액이 없는지, 캠페인 예산과 지갑이 맞는지 확인합니다.</p>
+<div class="grid">
+<div><p class="caption">결과</p><p><span id="recon-badge" class="badge">—</span></p></div>
+<div><p class="caption">확인한 계정</p><p><strong id="accounts">—</strong></p></div>
+<div><p class="caption">확인 시각</p><p><strong id="checked-at">—</strong></p></div>
+</div>
+<ul id="issues"></ul>
+<p id="recon-status" role="status" aria-live="polite"></p>
+</section>
+</main>
+</div>
+</body>
+</html>

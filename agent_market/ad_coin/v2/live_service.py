@@ -136,6 +136,9 @@ def create_live_ad_coin_v2_router(
     from .admin_http import router_for as admin_router
 
     base_router.include_router(admin_router(commercial, resolve_auth=resolver))
+    from .admin_page import router_for as admin_page_router
+
+    base_router.include_router(admin_page_router())  # Korean operator screen, static shell
 
     from .real_value import RealValueGateway, is_real_value_enabled
     from .real_value_http import router_for as real_value_router
