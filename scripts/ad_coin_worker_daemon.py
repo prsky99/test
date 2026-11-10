@@ -85,7 +85,7 @@ class WorkerDaemon:
         logger.info("Worker daemon stopped cleanly.")
 
 
-def build(dsn_file: str, key_file: str, key_dir: str):
+def build(dsn_file: str, key_file: str, key_dir: str, *, connector=None):
     """Production wiring: the application PostgreSQL database (one v2 session), the shared persistent
     keys the frontend uses, and the real workspace credit grant for points exchanges."""
     import os
@@ -100,7 +100,7 @@ def build(dsn_file: str, key_file: str, key_dir: str):
 
     runtime = open_runtime_storage(":memory:", values={
         "APPLICATION_STORE_BACKEND": "postgresql", "APPLICATION_POSTGRES_DSN_FILE": dsn_file,
-        "APPLICATION_WORKFLOW_KEY_FILE": key_file})
+        "APPLICATION_WORKFLOW_KEY_FILE": key_file}, connector=connector)  # connector: tests only
     app_store = runtime.store
     app_store._admin_read_pool = None  # keep the connection budget small
     os.environ["AD_COIN_V2_POOL_MAXIMUM"] = "1"
