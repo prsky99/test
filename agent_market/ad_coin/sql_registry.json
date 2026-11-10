@@ -822,6 +822,10 @@
    "sha256": "af4edc0f188fb8252f34972253e49b9bd4d76ccfa796330c8a839ebdda20d7c3"
   },
   {
+   "sql": "INSERT INTO adc2_paid_bookings (id,advertiser_id,campaign_id,day_ms,task_category,region,amount_units,pay_to,chain_id,token,state,quoted_ms,expires_ms) VALUES (?,?,?,?,?,?,?,?,?,?,'quoted',?,?)",
+   "sha256": "c45ca67dcf0a38e54ad39e669f5e88f65d813facc3ccd5f3e023c8faecd242db"
+  },
+  {
    "sql": "INSERT INTO adc2_postings VALUES (?+)",
    "sha256": "99761d963c42209dcf0d300c7e5d004a0f7b19a10a538bc6add5bcdd78eece79"
   },
@@ -1274,6 +1278,22 @@
    "sha256": "647dbf2b57cae81dd4f47bb6f990146c0bb2580b429136375a81715d8ad8b3ca"
   },
   {
+   "sql": "SELECT * FROM adc2_paid_bookings WHERE advertiser_id=? ORDER BY quoted_ms DESC LIMIT 100",
+   "sha256": "7ae805b2f38e1c31d547a5dcbbc3158f344e6d84665d61524d99962994563180"
+  },
+  {
+   "sql": "SELECT * FROM adc2_paid_bookings WHERE confirmed_ms>=? AND confirmed_ms<? ORDER BY confirmed_ms",
+   "sha256": "283cdbf67bf74e61715e7637d8aff5d5142f72c72c65364b78f570bb459403d2"
+  },
+  {
+   "sql": "SELECT * FROM adc2_paid_bookings WHERE id=?",
+   "sha256": "859b85b899123d01b62f52e7a1386a6cc64abe31c8c4e9f8bcb70d76a5092d17"
+  },
+  {
+   "sql": "SELECT * FROM adc2_paid_bookings WHERE state IN ('review','refund_due') ORDER BY quoted_ms LIMIT 200",
+   "sha256": "a252be254f3d622de0363f6f6c7bacfc6cee61c719c08d288d93ebc86e9c8fbf"
+  },
+  {
    "sql": "SELECT * FROM adc2_principals WHERE id=?",
    "sha256": "adece299ff454d0d2be1887ddbdda9a152ddb8bba591ed3eaf6b3843a4be45d4"
   },
@@ -1514,6 +1534,10 @@
    "sha256": "f629c704060f1f64dd41a0b138181b8d57c48916a59a0afa808ba739509f09e2"
   },
   {
+   "sql": "SELECT COUNT(*) AS n FROM adc2_paid_bookings WHERE day_ms=? AND task_category=? AND region=? AND state IN ('quoted','confirming','confirmed','review','served')",
+   "sha256": "8da3c52164a24b25759ac625f66e013481c1f8868c9639c9d8c7bcebbe212cb7"
+  },
+  {
    "sql": "SELECT COUNT(*) AS n FROM adc2_sponsored_bookings WHERE day_ms=? AND task_category=? AND region=? AND state IN ('booked','served')",
    "sha256": "d1599c7ab4a9d2f51323ee6d57d3a3f367e9cd581bf1df51a6f37c36a00ed4c6"
   },
@@ -1582,6 +1606,10 @@
    "sha256": "580fb06dcf1fd7b4169ded90e2df4bafd2abee55f4bf21ed4bfd360de355f394"
   },
   {
+   "sql": "SELECT b.*,c.state AS campaign_state,a.status AS advertiser_status FROM adc2_paid_bookings b JOIN adc2_campaigns c ON c.id=b.campaign_id JOIN adc2_advertisers a ON a.id=b.advertiser_id WHERE b.state='confirmed' AND b.day_ms<=? ORDER BY b.day_ms,b.id LIMIT ?",
+   "sha256": "617b7981beba8ea49ccd04c1d9ea20f40772a5e21c8ca82a2e35349538978217"
+  },
+  {
    "sql": "SELECT b.*,c.state AS campaign_state,a.status AS advertiser_status FROM adc2_sponsored_bookings b JOIN adc2_campaigns c ON c.id=b.campaign_id JOIN adc2_advertisers a ON a.id=b.advertiser_id WHERE b.state='booked' AND b.day_ms<=? ORDER BY b.day_ms,b.id LIMIT ?",
    "sha256": "ddf02ceae123fc052ecda54cbee91a150427f5431cc876aedaaeec383f3b1324"
   },
@@ -1624,6 +1652,10 @@
   {
    "sql": "SELECT c.id,r.payload_json,r.ends_ms FROM adc2_campaigns c JOIN adc2_campaign_revisions r ON r.id=c.current_revision_id JOIN adc2_advertisers a ON a.id=c.advertiser_id WHERE c.state='active' AND c.approval_status='approved' AND c.funded=1 AND a.status='active' AND r.starts_ms<=? AND r.ends_ms>? ORDER BY c.id LIMIT ?",
    "sha256": "b7ae83611e4a15825018f629d09c18ae4683448f533841569706bec5d7d42f65"
+  },
+  {
+   "sql": "SELECT c.id,r.payload_json,r.ends_ms,b.task_category,b.region FROM adc2_paid_bookings b JOIN adc2_campaigns c ON c.id=b.campaign_id JOIN adc2_campaign_revisions r ON r.id=c.current_revision_id JOIN adc2_advertisers a ON a.id=c.advertiser_id WHERE b.day_ms=? AND b.state IN ('confirmed','served') AND c.state='active' AND c.approval_status='approved' AND a.status='active' AND r.ends_ms>? ORDER BY b.confirmed_ms,b.id LIMIT ?",
+   "sha256": "ec08ef2e42a190ed803ce851e1c5dd1e66ebedeb9d1d2e405066286b24fdb3a3"
   },
   {
    "sql": "SELECT c.id,r.payload_json,r.ends_ms,b.task_category,b.region FROM adc2_sponsored_bookings b JOIN adc2_campaigns c ON c.id=b.campaign_id JOIN adc2_campaign_revisions r ON r.id=c.current_revision_id JOIN adc2_advertisers a ON a.id=c.advertiser_id WHERE b.day_ms=? AND b.state IN ('booked','served') AND c.state='active' AND c.approval_status='approved' AND a.status='active' AND r.ends_ms>? ORDER BY b.created_ms,b.id LIMIT ?",
@@ -1752,6 +1784,18 @@
   {
    "sql": "SELECT id FROM adc2_journals WHERE state<>'sealed' LIMIT 1",
    "sha256": "457861c7cce5ba4ec919185c1e8d3b26e2a2ed04eccf35c913999a8049383ef8"
+  },
+  {
+   "sql": "SELECT id FROM adc2_paid_bookings WHERE amount_units=? AND state IN ('quoted','confirming','review') AND expires_ms>=? LIMIT 1",
+   "sha256": "65820829cba6057845d2a140fec8af13359696d7b1f460bc575536ba7bae5c67"
+  },
+  {
+   "sql": "SELECT id FROM adc2_paid_bookings WHERE state='confirming' ORDER BY quoted_ms LIMIT ?",
+   "sha256": "2a459acfb2e67ff60d94d9903b1417fa11b15fc6dfd389c557c55c7fab553543"
+  },
+  {
+   "sql": "SELECT id FROM adc2_paid_bookings WHERE tx_hash=?",
+   "sha256": "16ba854a492e0947023ac74b484c2b91193a1ca6ca83b8dd6fe2a8a9666dea32"
   },
   {
    "sql": "SELECT id FROM adc2_sponsored_bookings WHERE campaign_id=? AND day_ms=? AND task_category=? AND region=?",
@@ -2180,6 +2224,30 @@
   {
    "sql": "UPDATE adc2_outbox SET state='pending',lease_owner=NULL,lease_until_ms=NULL,generation=generation+1 WHERE id=? AND generation=?",
    "sha256": "612adf3faa77bf07da5ed7b1fe21fd2f02d0b9ab26764c660385acbca21dfd11"
+  },
+  {
+   "sql": "UPDATE adc2_paid_bookings SET state='expired' WHERE state='quoted' AND expires_ms<?",
+   "sha256": "55c04f6f50db851fa03c9399cbfe2cd0734500b511667bfca6ad4d0fefa1003c"
+  },
+  {
+   "sql": "UPDATE adc2_paid_bookings SET state=?,note=COALESCE(?,note) WHERE id=? AND state='confirmed'",
+   "sha256": "0dfe9a85a7a6cb3f40d5814027bb0ceac4a10a9fdf547b3da126e69573c9db76"
+  },
+  {
+   "sql": "UPDATE adc2_paid_bookings SET state=?,payer=COALESCE(?,payer),krw_rate=?,note=?,confirmed_ms=? WHERE id=?",
+   "sha256": "6d271e7990e9bde23a8ca829391bfe6aa4afc02ea9cdc2593158ecb37970152d"
+  },
+  {
+   "sql": "UPDATE adc2_paid_bookings SET state=?,refund_tx_hash=COALESCE(?,refund_tx_hash) WHERE id=? AND state=?",
+   "sha256": "fe6ca9a2a8d10b8abe8a403988e32f963e42205cfde2722facec97a999ec284e"
+  },
+  {
+   "sql": "UPDATE adc2_paid_bookings SET tx_hash=? WHERE id=? AND tx_hash IS NULL",
+   "sha256": "a259dfca7537272d612d727cca8d0dde2546468031fda830e278e8d135470a44"
+  },
+  {
+   "sql": "UPDATE adc2_paid_bookings SET tx_hash=NULL,state='quoted',note=? WHERE id=?",
+   "sha256": "4aa45ea4dcbe3b35a3e7029ae1d870c9ea2b7adbe565eaee9fc6150aa38dd773"
   },
   {
    "sql": "UPDATE adc2_principals SET epoch=epoch+1 WHERE id=? RETURNING epoch",

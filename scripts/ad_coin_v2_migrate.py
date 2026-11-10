@@ -5,6 +5,7 @@
   migrate  create the adc2_* tables, indexes, functions and triggers in the ad_coin_v2 schema (idempotent)
   public-status  count rows in adc2_* objects left in the application's public schema (read only)
   drop-public    drop those leftovers (2026-11-10 outage) when they hold no data; needs approval
+  migrate-paid   create the paid Sponsored bookings table (USDC, 11-11) in ad_coin_v2; needs approval
 
 migrate changes the production database, so it runs only with the operator's approval and
 the --i-have-approval flag. No server launch, restart or data copy. One connection.
@@ -67,7 +68,7 @@ def _connect(args):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument('action', choices=('plan', 'status', 'migrate', 'public-status', 'drop-public'))
+    parser.add_argument('action', choices=('plan', 'status', 'migrate', 'public-status', 'drop-public', 'migrate-paid'))
     parser.add_argument('--dsn-file')
     parser.add_argument('--key-file')
     parser.add_argument('--i-have-approval', action='store_true',
@@ -78,20 +79,22 @@ def main(argv=None):
         return 0
     if not (args.dsn_file and args.key_file):
         parser.error(args.action + ' needs --dsn-file and --key-file')
-    if args.action in ('migrate', 'drop-public') and not args.i_have_approval:
+    if args.action in ('migrate', 'drop-public', 'migrate-paid') and not args.i_have_approval:
         parser.error(args.action + ' changes the production database; pass --i-have-approval only after approval')
     from agent_market.ad_coin.v2.live_service import store_from_application
     runtime = _connect(args)
     try:
         import os
         os.environ['AD_COIN_V2_POOL_MAXIMUM'] = '1'
-        if args.action in ('migrate', 'drop-public'):
+        if args.action in ('migrate', 'drop-public', 'migrate-paid'):
             preflight(runtime.store)  # stop before touching anything if the application is not healthy
-        if args.action in ('public-status', 'drop-public'):
+        if args.action == 'migrate-paid':
+            result = migrate_paid(store_from_application(runtime.store))
+        elif args.action in ('public-status', 'drop-public'):
             result = public_leftovers(store_from_application(runtime.store), drop=args.action == 'drop-public')
         else:
             result = run(store_from_application(runtime.store), args.action)
-        if args.action in ('migrate', 'drop-public'):
+        if args.action in ('migrate', 'drop-public', 'migrate-paid'):
             preflight(runtime.store)  # the application must still start afterwards
         print(json.dumps(result, sort_keys=True))
     finally:
@@ -110,6 +113,18 @@ def run(store, action):
         schema = store.database.one('SELECT * FROM adc2_schema') if 'adc2_schema' in existing else None
     return {'existing_tables': len(existing), 'expected_tables': len(plan()['tables']),
             'schema': dict(schema) if schema else None}
+
+
+def migrate_paid(store):
+    """Create adc2_paid_bookings (idempotent). Rollback while empty: DROP TABLE ad_coin_v2.adc2_paid_bookings."""
+    from agent_market.ad_coin.sql_registry import unchecked
+    from agent_market.ad_coin.v2.paid_bookings import STATEMENTS
+    with unchecked(), store.atomic(require_ready=False):
+        for statement in STATEMENTS:
+            store._connection().execute(statement)
+        exists = store.database.one("SELECT count(*) AS n FROM pg_tables WHERE schemaname=current_schema() "
+                                    "AND tablename='adc2_paid_bookings'")
+    return {'paid_bookings_table': int(exists['n']) == 1}
 
 
 # Rows a v2 migration itself writes; anything beyond these means real data and blocks the drop.
