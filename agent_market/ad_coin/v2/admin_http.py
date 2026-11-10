@@ -93,6 +93,24 @@ def router_for(
                                            atoms_field(body, "amount_atoms"))
         return await respond(call)
 
+    from . import operator_review
+
+    @router.get("/reviews")
+    async def reviews(request: Request):
+        async def call():
+            ctx = await get_admin_context(request)
+            return await run_in_threadpool(operator_review.pending_reviews, commercial, ctx.principal)
+        return await respond(call)
+
+    @router.post("/reviews/{review_id}/decision")
+    async def review_decision(review_id: str, request: Request):
+        async def call():
+            ctx, body = await operator_write(request)
+            return await run_in_threadpool(lambda: operator_review.decide(
+                commercial, ctx.principal, review_id, verdict=body.get("verdict"),
+                reason_code=body.get("reason_code")))
+        return await respond(call)
+
     @router.get("/reconcile")
     async def reconcile_full(request: Request):
         """Run complete double-entry ledger, campaign budget, and wallet reconciliation."""

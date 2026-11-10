@@ -150,6 +150,8 @@ SQL.update(
         "review_pending": "SELECT * FROM adc2_reviews WHERE revision_id=? AND state='pending'",
         "review_insert": "INSERT INTO adc2_reviews VALUES (?,?,?,?,'pending',?,NULL,NULL,NULL)",
         "review_decide": "UPDATE adc2_reviews SET state=?,version=version+1,reviewer_id=?,evidence_id=?,reason_code=? WHERE id=? AND version=? AND state='pending'",
+        "reviews_pending_for_operator": "SELECT r.id,r.campaign_id,r.advertiser_id,v.payload_json FROM adc2_reviews r "
+        "JOIN adc2_campaign_revisions v ON v.id=r.revision_id WHERE r.state='pending' ORDER BY r.id LIMIT ?",
         "review_evidence_insert": "INSERT INTO adc2_review_evidence VALUES (?,?,?,?,?)",
         "review_evidence_get": "SELECT * FROM adc2_review_evidence WHERE id=?",
         "review_evidence_for_review": "SELECT * FROM adc2_review_evidence WHERE review_id=? ORDER BY id LIMIT 1",

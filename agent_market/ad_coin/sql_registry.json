@@ -1822,6 +1822,10 @@
    "sha256": "0502060a226c8f72191df65a805017589c923afa09e76028debab7068ff8f177"
   },
   {
+   "sql": "SELECT r.id,r.campaign_id,r.advertiser_id,v.payload_json FROM adc2_reviews r JOIN adc2_campaign_revisions v ON v.id=r.revision_id WHERE r.state='pending' ORDER BY r.id LIMIT ?",
+   "sha256": "2a0cf24987e037f7c4aa1a1ae9ce65d355a56b9b7794d112f1db4fe21d6f2182"
+  },
+  {
    "sql": "SELECT review_status FROM ad_coin_creatives WHERE campaign_id=? AND removed_at IS NULL",
    "sha256": "8118b254b34be6658d705e21da7171295a60708c0b725b5db1d652f73f0b531a"
   },
