@@ -57,3 +57,28 @@
 - 재채점에서 나온 Opus 개선본 87건도 반영했다(10건은 검증 실패). 백업: logs/ops/report-quality/spotcheck/backup-20261110-123738.jsonl
 - 남은 문제 1위는 grade_inconsistent(213)다. 등급(eval_grade)은 문장이 아니라 생성 코드(compute_aqef_score_and_grade)가 정한다. 그래서 다음 일은 **생성 코드 수정**이다. 등급 계산과 기본 문장 틀이 측정 범위(시험하지 않은 것)를 반드시 적게 하고, 같은 문제가 새 보고서에서 다시 나오지 않게 한다.
 - 이번 일의 API 비용 합계는 약 48.6달러다.
+
+## 등급 불일치 수정 (11-10 12:45)
+
+Opus 표본에서 가장 많았던 문제(grade_inconsistent 213/300건)를 생성 코드와 저장된 보고서 모두에서 고쳤다.
+
+- 원인: 생성기가 모든 프로브를 `evidence_scope='execution'`으로 적었고, A 기준 점수도 88이었다. Agent Card 가져오기, tools/list 응답, 결제하지 않은 402 응답은 전송 확인일 뿐인데도 A를 받았다.
+- 코드 수정 (`scripts/report_pipeline_common.py`)
+  - `probe_evidence_scope()`: 위 세 방법은 `transport`로 기록한다.
+  - `_aqef_grade_gate()`: A는 실행 근거, 지연 2000 ms 미만, 점수 90 이상일 때만 준다. 아니면 B로 내리고 점수는 89.4가 상한이다.
+  - 같은 규칙을 `build_probed_report_drafts.py`(새 보고서)와 `remediate_all_test_reports.py`(매일 02:30 정리)에도 적용했다.
+- 정리 도구 수정: 지연 문구가 이미 있으면 가짜 "p95/jitter ±0 ms" 행을 다시 넣지 않는다. 기존 도구를 그대로 돌렸다면 API로 고친 보고서 7,265건에 이 행이 다시 들어갈 뻔했다.
+- 저장된 보고서 반영 (`scripts/fix_transport_grades.py --apply`)
+  - 18,548행 갱신
+  - 범위를 transport로 바꾼 행: 13,538건
+  - A에서 B로 내린 행: 11,125건
+  - 본문 위에 정정 안내를 붙인 행: 10,976건
+  - Pros/Cons 절을 저장된 배열로 채운 행: 18건
+  - 백업: `logs/ops/report-quality/backup-transport-grades-20261110-124529.jsonl`
+- 반영 직후 결함과 복구
+  - 정수 점수 99가 "99.0" 안에서도 바뀌어, 394건이 "89.4.0/100"이 됐다.
+  - 바로 복구했고(394건), 함수와 시험을 고쳤다.
+- 검증
+  - 전송만 확인한 보고서 중 A는 0건, 점수 89.4 초과도 0건이다.
+  - 전체 린트 실패는 53건에서 0건으로 줄었다. R4 50건은 위 수정으로, R2 3건은 상대 문서의 localhost 같은 문구를 다듬어 해결했다.
+  - 남은 A 101건은 모두 실제 실행(A2A Message, MCP Tool Call)이다. 이 중 지연 2000 ms 이상인 13건은 11-11 02:30 정리 때 B로 내려간다.
