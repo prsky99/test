@@ -147,6 +147,8 @@ def _invariant_ddl(namespace='public'):
     return tuple(commands)
 
 
+READ_GATE_SECONDS = 2.0  # a read-only transaction reuses a passing gate and invariant check this long
+
 class ApplicationStoreError(StorageError, sqlite3.DatabaseError):
     def __init__(self, code='unsupported_application_sql'):
         self.code = code
@@ -339,6 +341,7 @@ class PostgresApplicationStore(PostgresCollectorMixin, PostgresFinanceMixin, Pos
         self._observation_broken, self._observation_savepoint = False, 0
         self._search_db, self._search_epoch = None, None
         self._bootstrapping = initialize
+        self._read_gates_at = float('-inf')
         try:
             if initialize: self._initialize()
         finally: self._bootstrapping = False
@@ -490,13 +493,14 @@ class PostgresApplicationStore(PostgresCollectorMixin, PostgresFinanceMixin, Pos
         except ApplicationStoreError: raise
         except Exception: raise ApplicationStoreError('schema_profile_mismatch') from None
 
-    def _transaction_controls(self):
+    def _transaction_controls(self, readonly=False):
         # Transaction-local controls never mutate a caller's persistent session
         # settings or infer a database address. The profile owns public tables.
-        self._native("SET LOCAL search_path TO public,pg_temp").close()
-        self._native("SET LOCAL statement_timeout TO '5000ms'").close()
-        self._native("SET LOCAL lock_timeout TO '1000ms'").close()
-        self._native("SET LOCAL synchronous_commit TO 'on'").close()
+        # One round trip: these fixed statements take no parameters (11-11: a Chat answer opened
+        # about 75 transactions and paid 4-5 separate round trips for each).
+        self._native("SET LOCAL search_path TO public,pg_temp; SET LOCAL statement_timeout TO '5000ms'; "
+                     "SET LOCAL lock_timeout TO '1000ms'; SET LOCAL synchronous_commit TO 'on'"
+                     + ("; SET TRANSACTION READ ONLY" if readonly else ""), None).close()
 
     def _assert_deployment_gates(self):
         from .postgres_restore_guard import assert_attach_allowed, RestoreGateDenied
@@ -611,9 +615,8 @@ class PostgresApplicationStore(PostgresCollectorMixin, PostgresFinanceMixin, Pos
             try:
                 for attempt in (0, 1):
                     self._begin('BEGIN ISOLATION LEVEL REPEATABLE READ' if readonly else 'BEGIN', starting=True)
-                    self._transaction_controls()
+                    self._transaction_controls(readonly)
                     if readonly:
-                        self._native('SET TRANSACTION READ ONLY').close()
                         break
                     try: self._writer_lock()
                     except WriterBusy:
@@ -625,8 +628,15 @@ class PostgresApplicationStore(PostgresCollectorMixin, PostgresFinanceMixin, Pos
                     break
                 if not readonly and not self._bootstrapping:
                     self._native('LOCK TABLE resources,resources_fts,vec_outbox IN ROW EXCLUSIVE MODE').close()
-                self._assert_deployment_gates()
-                if not self._bootstrapping: self._validate_native_invariants()
+                # A read-only transaction reuses a passing check for READ_GATE_SECONDS: a Chat answer
+                # opened ~75 transactions and spent ~0.2 s re-reading the same gate and invariant
+                # rows (11-11). Every write still checks, so restore and migration gates keep
+                # blocking writes immediately.
+                now = time.monotonic()
+                if not readonly or self._bootstrapping or now - getattr(self, '_read_gates_at', float('-inf')) >= READ_GATE_SECONDS:
+                    self._assert_deployment_gates()
+                    if not self._bootstrapping: self._validate_native_invariants()
+                    if readonly and not self._bootstrapping: self._read_gates_at = now
                 yield self._db
                 if self._failed: raise ApplicationStoreError('transaction_failed')
                 try: self._connection.commit()

@@ -55,3 +55,35 @@ def test_due_pick_and_idle_cleanup_on_postgresql():
             assert postgres_ann.cleanup(store) == 0 and len(calls) == searched  # no second search while resting
             store._execute = original
             store.close()
+
+
+def test_read_transactions_reuse_a_passing_gate_check_and_writes_always_check():
+    # 11-11: a Chat answer opened ~75 transactions and re-read the same gate rows in each.
+    import psycopg
+    from scripts.rehearse_storage_adapter_postgres import _private_cluster, PORT
+    from agent_market.storage_adapter import open_store
+    from agent_market import application_store_postgres as aps
+    binary = Path('/opt/homebrew/opt/postgresql@18/bin')
+    if not (binary / 'initdb').is_file():
+        pytest.skip('PostgreSQL 18 fixture tools unavailable')
+    with _private_cluster({name: str(binary / name) for name in ('initdb', 'pg_ctl')}) as cluster:
+        with psycopg.connect(host=cluster['socket'], port=PORT, dbname='postgres', user='postgres', autocommit=True) as conn:
+            conn.execute('CREATE EXTENSION vector')
+            store = open_store('postgresql', connection=conn, initialize=True, workflow_key=b'g' * 32)
+            target = getattr(store, '_store', store)
+            checks = []
+            original = target._assert_deployment_gates
+            target._assert_deployment_gates = lambda: checks.append(1) or original()
+            target._read_gates_at = float('-inf')
+            for _ in range(3):
+                with store.tx(readonly=True):
+                    store._execute('SELECT 1')
+            assert len(checks) == 1  # reused within READ_GATE_SECONDS
+            with store.tx():
+                store._execute('SELECT 1')
+            assert len(checks) == 2  # a write checks every time
+            target._read_gates_at = float('-inf')
+            with store.tx(readonly=True):
+                assert tuple(store._execute("SELECT current_setting('transaction_read_only'), current_setting('statement_timeout')").fetchone()) == ('on', '5s')
+            assert len(checks) == 3
+            store.close()
