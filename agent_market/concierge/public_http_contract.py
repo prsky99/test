@@ -10,16 +10,18 @@ from starlette.datastructures import Headers, MutableHeaders
 from .conditional_http import etag_matches
 from .security import _QUOTA_SINK, quota_headers
 
+# Permanent aliases of discovery documents (11-11): a 301 the edge can keep like the target.
+EDGE_REDIRECTS = frozenset(('/.well-known/llms.txt','/.well-known/mcp/server-card.json'))
 PUBLIC_READS = frozenset(('/api/overview','/api/insights','/api/explore','/api/workflows/templates',
     '/api/test/presets','/robots.txt','/sitemap.xml','/llms.txt','/llms-full.txt',
     '/.well-known/agent-card.json','/.well-known/mcp.json','/.well-known/mcp/server.json',
-    '/.well-known/security.txt','/security.txt'))
+    '/.well-known/security.txt','/security.txt','/openapi.json')) | EDGE_REDIRECTS
 # Agent discovery documents the Cloudflare cache rule keeps at the edge (11-03). s-maxage lets the
 # edge hold them for ten minutes while browsers and agents still revalidate after 30 seconds;
 # with max-age alone the edge copy expired after 30 seconds (4 HITs in 24 cold requests, 11-04).
 EDGE_DOCUMENTS = frozenset(('/robots.txt','/sitemap.xml','/llms.txt','/llms-full.txt',
     '/.well-known/agent-card.json','/.well-known/mcp.json','/.well-known/mcp/server.json',
-    '/.well-known/security.txt','/security.txt'))
+    '/.well-known/security.txt','/security.txt','/openapi.json')) | EDGE_REDIRECTS
 # Public growth pages (11-10 PM approval): login-free, never personalized HTML/Markdown/JSON. Browsers
 # and the edge may keep them for five minutes and serve a stale copy while refreshing for ten.
 GROWTH_PAGES = frozenset(('/connect','/agents/tasks','/agents/best','/badges','/reports/state-of-ai-agents',
@@ -113,7 +115,7 @@ class PublicHTTPContract:
                     headers['cache-control']='no-store'
                     if 'etag' in headers:del headers['etag']
                     if status==429:headers.setdefault('Retry-After','60')
-            if cache and status in (200,304) and 'set-cookie' not in headers:
+            if cache and (status in (200,304) or status==301 and path in EDGE_REDIRECTS) and 'set-cookie' not in headers:
                 headers['cache-control']=('public, max-age=30, s-maxage=600, stale-while-revalidate=3600'
                     if path in EDGE_DOCUMENTS else GROWTH_CACHE if growth_path(path)
                     else 'public, max-age=30, stale-while-revalidate=30')
