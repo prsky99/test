@@ -7,6 +7,7 @@ Prints one JSON line and appends it to logs/ops/watch.jsonl. "anomalies" lists o
 - long_tests: pytest or release_gate processes running for more than 60 minutes
 - deploy_stuck: service_deploy processes running for more than 30 minutes
 - memory: system memory free below 15 percent
+- disk: data volume 85 percent used or less than 60 GB free
 - stale_handoffs: status board hand-offs still "대기" (waiting) for more than 6 hours (by board mtime)
 Exit code 0 always; the caller reads "anomalies".
 """
@@ -84,6 +85,15 @@ def check_memory():
     return int(match[1]) if match else None
 
 
+def check_disk():
+    import shutil
+    try:
+        usage = shutil.disk_usage('/System/Volumes/Data')
+    except OSError:
+        return None
+    return {'used_percent': round(usage.used * 100 / usage.total), 'free_gb': round(usage.free / 1e9)}
+
+
 def main():
     anomalies = {}
     site = check_site()
@@ -102,6 +112,9 @@ def main():
     free = check_memory()
     if free is not None and free < 15:
         anomalies['memory'] = {'free_percent': free}
+    disk = check_disk()
+    if disk and (disk['used_percent'] >= 85 or disk['free_gb'] < 60):
+        anomalies['disk'] = disk
     anomalies.update(check_board())
     record = {'at': datetime.now().strftime('%Y-%m-%d %H:%M'), 'memory_free_percent': free,
               'anomalies': anomalies}

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>Label</key><string>biz.agentconcierge.opsauto.testreports</string>
+<key>ProgramArguments</key><array><string>/Users/kingstonelee/workspace/A2A_Discovery/gateway-data/ops-llm-venv/bin/python</string><string>/Users/kingstonelee/workspace/A2A_Discovery/scripts/ops_auto.py</string><string>test-reports</string></array>
+<key>WorkingDirectory</key><string>/Users/kingstonelee/workspace/A2A_Discovery</string>
+<key>StartCalendarInterval</key><dict><key>Hour</key><integer>2</integer><key>Minute</key><integer>30</integer></dict>
+<key>StandardOutPath</key><string>/Users/kingstonelee/workspace/A2A_Discovery/logs/ops/biz.agentconcierge.opsauto.testreports.log</string>
+<key>StandardErrorPath</key><string>/Users/kingstonelee/workspace/A2A_Discovery/logs/ops/biz.agentconcierge.opsauto.testreports.log</string>
+<key>Nice</key><integer>10</integer>
+</dict></plist>

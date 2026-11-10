@@ -16,3 +16,26 @@ def test_board_lock_and_handoffs(tmp_path, monkeypatch):
     assert found['deploy_lock']['held_minutes'] > 40
     board.write_text('## 배포 잠금\n(비어 있음)\n\n## 넘기는 일\n')
     assert ops_watch.check_board() == {}
+
+
+def test_disk_check_returns_numbers():
+    disk = ops_watch.check_disk()
+    assert disk is None or (0 <= disk['used_percent'] <= 100 and disk['free_gb'] >= 0)
+
+
+def test_auto_watch_alerts_once_and_writes_handoff(tmp_path, monkeypatch):
+    import json, subprocess, sys
+    from scripts import ops_auto
+    board = tmp_path / 'board.md'
+    board.write_text('## 넘기는 일\n| 보낸 팀 | 받는 팀 | 내용 | 상태 |\n|---|---|---|---|\n\n## PM 결정 대기\n')
+    for name, value in (('BOARD', board), ('ACTIONS', tmp_path / 'a.md'), ('STATE', tmp_path / 's.json'),
+                        ('DESKTOP', tmp_path / 'desk.txt')):
+        monkeypatch.setattr(ops_auto, name, value)
+    fake = json.dumps({'anomalies': {'memory': {'free_percent': 9}}})
+    monkeypatch.setattr(subprocess, 'run', lambda *a, **k: subprocess.CompletedProcess(a, 0, fake, ''))
+    monkeypatch.setattr(ops_auto.ops_llm, 'ask', lambda *a, **k: None)  # no API in tests
+    ops_auto.watch()
+    ops_auto.watch()  # same anomaly within 30 minutes: no second alert
+    assert board.read_text().count('자동 점검') == 1
+    assert (tmp_path / 'desk.txt').read_text().count('[운영 이상]') == 1
+    assert '## PM 결정 대기' in board.read_text()
