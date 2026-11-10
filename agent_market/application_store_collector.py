@@ -81,12 +81,23 @@ class PostgresCollectorMixin:
 
     def due_for_capability(self, now, max_age, limit, per_host=2, kind='mcp'):
         _number(now); _number(max_age); _limit(limit); _limit(per_host); _kind(kind)
-        return self._collector_rows('''SELECT * FROM (
-            SELECT *,ROW_NUMBER() OVER(PARTITION BY host ORDER BY cap_checked_at IS NOT NULL,cap_checked_at) AS rn
+        # Rank narrow columns only, then read the chosen rows. Sorting whole rows (106k A2A
+        # listings, ~2.7 KB each) spilled ~180 MB to disk and passed the 5 s statement timeout
+        # under load (11-10 13:28); the narrow ranking stays in memory (601 -> 310 ms).
+        chosen = [row['id'] for row in self._collector_rows('''SELECT id FROM (
+            SELECT id,cap_checked_at,ROW_NUMBER() OVER(PARTITION BY host ORDER BY cap_checked_at IS NOT NULL,cap_checked_at) AS rn
             FROM resources WHERE active=1 AND kind=%s AND health_status='healthy'
             AND (cap_checked_at IS NULL OR cap_checked_at<%s)) AS candidates
             WHERE rn<=%s ORDER BY cap_checked_at IS NOT NULL,cap_checked_at,random() LIMIT %s''',
-            (kind, now - max_age, per_host, limit))
+            (kind, now - max_age, per_host, limit))]
+        if not chosen:
+            return []
+        rows = {}
+        for start in range(0, len(chosen), 200):  # a statement binds at most 256 values
+            chunk = chosen[start:start + 200]
+            rows.update((row['id'], row) for row in self._collector_rows(
+                'SELECT * FROM resources WHERE id IN (' + ','.join(['%s'] * len(chunk)) + ')', tuple(chunk)))
+        return [rows[rid] for rid in chosen if rid in rows]
 
     def due_for_auth(self, now, max_age, limit, per_host=1):
         _number(now); _number(max_age); _limit(limit); _limit(per_host)
