@@ -19,7 +19,7 @@ def test_page_is_korean_and_uses_only_the_shared_design_files():
     page = c.get(PATH)
     assert page.status_code == 200 and page.headers['cache-control'] == 'no-store'
     html = page.text
-    assert '<html lang="ko">' in html and '코인 보유량과 대사' in html and 'x402 실제 결제 시험 조건' in html
+    assert '<html lang="ko">' in html and '코인 보유량과 대사' in html and 'x402' not in html
     assert '@@' not in html and '<style' not in html and 'style=' not in html
     sheets = re.findall(r'<link rel="stylesheet" href="([^"]+)"', html)
     assert sheets and all(s.startswith('/new/en/assets/') for s in sheets)
@@ -38,22 +38,15 @@ def test_script_only_reads_and_loads_both_panels_in_parallel():
     assert 'BigInt' in js  # atoms exceed Number's safe range
 
 
-def test_x402_condition_follows_the_user_decision():
-    assert points.X402_TEST_MIN_HOLDINGS_ATOMS == 100_000 * points.ATOMS_PER_COIN
-    assert points.X402_TEST_SPEND_DIVISOR == 1000
+def test_holdings_carry_no_x402_condition():
+    """The x402 test rule is about the USDC wallet, not AD Coin (user correction 11-10)."""
+    assert not any(name.startswith('X402') for name in dir(points))
 
     class Ledger:
-        def __init__(self, balances):
-            self.balances = balances
-
         def account(self, account_id):
-            return {'balance_atoms': str(self.balances.get(account_id, 0))}
+            return {'balance_atoms': str({points.GROWTH_ACCOUNT: 7, points.REVENUE_ACCOUNT: 3,
+                                          points.ISSUANCE_ACCOUNT: -10}.get(account_id, 0))}
 
-    coin = points.ATOMS_PER_COIN
-    below = points.platform_holdings(Ledger({points.GROWTH_ACCOUNT: 60_000 * coin, points.REVENUE_ACCOUNT: 1_000 * coin,
-                                              points.ISSUANCE_ACCOUNT: -61_000 * coin}))['x402_test']
-    assert below == {'eligible': False, 'min_holdings_atoms': str(100_000 * coin),
-                     'remaining_atoms': str(39_000 * coin), 'spend_limit_atoms': str(61 * coin)}
-    at = points.platform_holdings(Ledger({points.GROWTH_ACCOUNT: 100_000 * coin}))
-    assert at['x402_test']['eligible'] and at['x402_test']['remaining_atoms'] == '0'
-    assert at['x402_test']['spend_limit_atoms'] == str(100 * coin) and at['issued_atoms'] == '0'
+    held = points.platform_holdings(Ledger())
+    assert held == {'growth_budget_atoms': '7', 'coin_revenue_atoms': '3', 'platform_holdings_atoms': '10',
+                    'issued_atoms': '10', 'atoms_per_coin': points.ATOMS_PER_COIN}

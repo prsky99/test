@@ -1,5 +1,5 @@
-"""Korean operator screen for AI AD Coin v2: platform coin holdings, the x402 test condition and
-ledger reconciliation (read only).
+"""Korean operator screen for AI AD Coin v2: platform coin holdings and ledger reconciliation
+(read only).
 
 The page is a static shell in the Pearl Connection design (shared /new/en/assets files, workspace
 layout, no page-local styles). It does no account or database work; the two panels load from the
@@ -20,7 +20,7 @@ def _build():
     data = (WEB / "admin.js").read_bytes()
     name = "admin." + hashlib.sha256(data).hexdigest()[:16] + ".js"
     html = (WEB / "admin.html").read_text().replace("@@admin.js@@", PATH + "/assets/" + name)
-    for icon in ("sun", "moon", "home", "chart", "receipt"):
+    for icon in ("sun", "moon", "home", "receipt"):
         html = html.replace("@@" + icon + "@@", ICON.get(icon, ""))
     return html, name, data
 

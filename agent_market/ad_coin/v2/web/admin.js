@@ -33,11 +33,6 @@
     text('growth', coins(c.growth_budget_atoms, unit));
     text('revenue', coins(c.coin_revenue_atoms, unit));
     text('issued', coins(c.issued_atoms, unit));
-    const t = c.x402_test;
-    $('x402-badge').className = 'badge ' + (t.eligible ? 'success' : 'warning');
-    text('x402-badge', t.eligible ? '시험 가능' : '조건 미달');
-    text('remaining', coins(t.remaining_atoms, unit));
-    text('limit', coins(t.spend_limit_atoms, unit));
     text('holdings-status', '');
   }
   function showReconcile(data) {
