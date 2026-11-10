@@ -61,6 +61,7 @@ def test_production_wiring_on_a_real_application_database(cluster, tmp_path, mon
     from tests.test_ad_coin_postgres import PORT, _store
 
     monkeypatch.delenv('AD_COIN_REAL_VALUE_ENABLED', raising=False)
+    monkeypatch.setenv('AD_COIN_V2_POOL_MAXIMUM', '1')  # build() sets it; restore it for later tests
     _store(cluster, 'daemon_wiring')._connection.close()  # an initialized application database
     dsn_file, key_file, key_dir = tmp_path / 'dsn', tmp_path / 'key', tmp_path / 'keys'
     dsn_file.write_text('host=' + cluster['socket'] + ' port=' + str(PORT) + ' dbname=daemon_wiring user=postgres')

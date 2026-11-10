@@ -43,6 +43,8 @@ class EventType:
     CONVERSION_RECORDED = "conversion_recorded"
     COINS_ISSUED = "coins_issued"
     COINS_GRANTED = "coins_granted"
+    SPONSORED_BOOKED = "sponsored_booked"
+    SPONSORED_REFUNDED = "sponsored_refunded"
 
 
 class TokenBucketRateLimiter:

@@ -43,3 +43,9 @@
   - 맨 위 줄에 "Sponsored"를 표시한다.
   - 텍스트로만 넣는다(`textContent`).
 - 캠페인이 아주 많아지면 쓸 `payload_json` 대상 열의 표현식 색인. 운영 DB 변경이라 승인이 필요하다.
+
+## 2026-11-10 예약 기준으로 바뀜
+
+- 코인 경제 3단계부터 Sponsored 영역에는 **그날(UTC) 예약된 캠페인만** 나온다(PM 결정).
+- 예약은 (작업 분류, 넓은 지역) 단위다. 스냅샷 SQL은 `campaigns_sponsored_booked`이고, 조회는 지금처럼 메모리 사전에서 한다.
+- 자세한 내용은 `docs/AD_COIN_COIN_ECONOMY.md` 7절 3단계에 있다.

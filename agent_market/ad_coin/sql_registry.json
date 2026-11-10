@@ -878,6 +878,10 @@
    "sha256": "75bf2baa74a1919c94686eb7dda0cebba9612709c868426966690e0585de4d9a"
   },
   {
+   "sql": "INSERT INTO adc2_sponsored_bookings VALUES (?,?,?,?,?,?,?,?,'booked',NULL,?)",
+   "sha256": "a9a9b1de1c24484d7852c805d1b7632d9c39a1856c4456fb358ee76addde11cf"
+  },
+  {
    "sql": "INSERT INTO adc2_stage_claims VALUES (?+)",
    "sha256": "a7a59d6324078dde07d9093ba7a7bd6c5dddbc4a73179db09d32b8b472d5f390"
   },
@@ -1386,6 +1390,14 @@
    "sha256": "378ae108d21acf1c9e0e34cae101b84c37143192e03aa3e8fc44302f3100f7a5"
   },
   {
+   "sql": "SELECT * FROM adc2_sponsored_bookings WHERE advertiser_id=? ORDER BY day_ms DESC,id LIMIT 100",
+   "sha256": "676ac2690be7212efabfb57c0850c6943804ad04a1169f5a99a4316482997c7a"
+  },
+  {
+   "sql": "SELECT * FROM adc2_sponsored_bookings WHERE id=?",
+   "sha256": "e83a4423963eb8c8788b8047dd756cb2eb5fb40ab39f339526546448cf68e1d7"
+  },
+  {
    "sql": "SELECT * FROM adc2_stage_claims WHERE id=?",
    "sha256": "68f3e9c57475b7357f854d4cedee3884b399738240ad4fd86f4bdd58fe35cf21"
   },
@@ -1446,6 +1458,10 @@
    "sha256": "f6bb0f7cd549627816fae8296b599531a9edfac8d7e3c67dd75cdec2e300b856"
   },
   {
+   "sql": "SELECT COALESCE(SUM(p.delta_atoms),0) AS total FROM adc2_postings p JOIN adc2_journals j ON j.id=p.journal_id AND j.asset_id=p.asset_id WHERE j.kind='sponsored_purchase' AND p.asset_id=? AND p.account_id=? AND j.created_ms>=?",
+   "sha256": "d0142be3c6da22b624223d9703c3189f47228cfb6c823f2a5bb5fff95aab6378"
+  },
+  {
    "sql": "SELECT COUNT(*) AS count, COALESCE(SUM(value_atoms), 0) AS total_value FROM adc2_conversions WHERE campaign_id=?",
    "sha256": "a259066db38ada847aed1df5393510e497e249360e81d21ed25a30ca06e83e11"
   },
@@ -1490,6 +1506,10 @@
    "sha256": "cb9d9091ef8fda817af52faae3d0eba421bb51a6ca5d7f6a2c8c670e2dbaf5fd"
   },
   {
+   "sql": "SELECT COUNT(*) AS n FROM adc2_sponsored_bookings WHERE day_ms=? AND task_category=? AND region=? AND state IN ('booked','served')",
+   "sha256": "d1599c7ab4a9d2f51323ee6d57d3a3f367e9cd581bf1df51a6f37c36a00ed4c6"
+  },
+  {
    "sql": "SELECT COUNT(*) AS n, COUNT(DISTINCT user_ref) AS people FROM ad_coin_exposures WHERE campaign_id=?",
    "sha256": "073388326a839d9eb9138a2940ac633a269c0083cf7922036cf76e1211b50983"
   },
@@ -1526,6 +1546,10 @@
    "sha256": "4a4d43de0568a97b291683b2c31f596455aa881c7c40a56ad92c556a7d58672b"
   },
   {
+   "sql": "SELECT account_id,delta_atoms FROM adc2_postings WHERE journal_id=? ORDER BY line_no",
+   "sha256": "bb25254152311af23f5c98d51b7d155a69ea5a5ecd3b277512560747bcfddaf0"
+  },
+  {
    "sql": "SELECT advertiser_id FROM ad_coin_campaign_meta WHERE campaign_id=?",
    "sha256": "7ff04de2acb197b89dfd7114d628388bbf8a8c61c08f7a3eca721ae9c85cb7e1"
   },
@@ -1548,6 +1572,10 @@
   {
    "sql": "SELECT asset_id, coalesce(sum(delta_atoms), 0) AS total_delta, count(*) AS posting_count FROM adc2_postings GROUP BY asset_id",
    "sha256": "580fb06dcf1fd7b4169ded90e2df4bafd2abee55f4bf21ed4bfd360de355f394"
+  },
+  {
+   "sql": "SELECT b.*,c.state AS campaign_state,a.status AS advertiser_status FROM adc2_sponsored_bookings b JOIN adc2_campaigns c ON c.id=b.campaign_id JOIN adc2_advertisers a ON a.id=b.advertiser_id WHERE b.state='booked' AND b.day_ms<=? ORDER BY b.day_ms,b.id LIMIT ?",
+   "sha256": "ddf02ceae123fc052ecda54cbee91a150427f5431cc876aedaaeec383f3b1324"
   },
   {
    "sql": "SELECT body FROM ad_coin_receipts WHERE user_ref=? ORDER BY created_at DESC LIMIT ?",
@@ -1588,6 +1616,10 @@
   {
    "sql": "SELECT c.id,r.payload_json,r.ends_ms FROM adc2_campaigns c JOIN adc2_campaign_revisions r ON r.id=c.current_revision_id JOIN adc2_advertisers a ON a.id=c.advertiser_id WHERE c.state='active' AND c.approval_status='approved' AND c.funded=1 AND a.status='active' AND r.starts_ms<=? AND r.ends_ms>? ORDER BY c.id LIMIT ?",
    "sha256": "b7ae83611e4a15825018f629d09c18ae4683448f533841569706bec5d7d42f65"
+  },
+  {
+   "sql": "SELECT c.id,r.payload_json,r.ends_ms,b.task_category,b.region FROM adc2_sponsored_bookings b JOIN adc2_campaigns c ON c.id=b.campaign_id JOIN adc2_campaign_revisions r ON r.id=c.current_revision_id JOIN adc2_advertisers a ON a.id=c.advertiser_id WHERE b.day_ms=? AND b.state IN ('booked','served') AND c.state='active' AND c.approval_status='approved' AND a.status='active' AND r.ends_ms>? ORDER BY b.created_ms,b.id LIMIT ?",
+   "sha256": "7db48d3333c21d983f44d4f9ea8254f7967f3e1e6c99d1b9d28fc3d213cd9293"
   },
   {
    "sql": "SELECT campaign_id FROM ad_coin_campaign_meta WHERE advertiser_id=? AND user_status != 'removed' ORDER BY created_at",
@@ -1712,6 +1744,10 @@
   {
    "sql": "SELECT id FROM adc2_journals WHERE state<>'sealed' LIMIT 1",
    "sha256": "457861c7cce5ba4ec919185c1e8d3b26e2a2ed04eccf35c913999a8049383ef8"
+  },
+  {
+   "sql": "SELECT id FROM adc2_sponsored_bookings WHERE campaign_id=? AND day_ms=? AND task_category=? AND region=?",
+   "sha256": "d730fb9dcf42ab97dc266ee5bd1e582742422e45b5e10bac92c9e2f8407e6d59"
   },
   {
    "sql": "SELECT id, campaign_id, title, body, question, public_url, weight, review_status FROM ad_coin_creatives WHERE removed_at IS NULL AND review_status IN ('eligible','eligible_limited') AND campaign_id IN (",
@@ -2184,6 +2220,10 @@
   {
    "sql": "UPDATE adc2_schema SET version=10 WHERE id=1 AND version IN (1,2,3,4,5,6,7,8,9) AND environment='model' AND real_value=0",
    "sha256": "3c9720a69a506b8ea27bcbbf576955dd000fd8f08e5e1895edc2a1ecc2c2a5be"
+  },
+  {
+   "sql": "UPDATE adc2_sponsored_bookings SET state=?,refund_journal_id=? WHERE id=? AND state=?",
+   "sha256": "f2c571f080eb2a11f406ea6725a0a457feaf1637bc2c8d9299105054cebb46d2"
   },
   {
    "sql": "UPDATE adc2_stage_claims SET status='settled',settled_at=? WHERE id=? AND status IN ('claimed','verified')",

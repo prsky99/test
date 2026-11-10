@@ -17,6 +17,7 @@ DISCLOSURE = "Sponsored by the advertiser. Ads never change which agents are rec
 MAX_CARDS = 2
 SNAPSHOT_LIMIT = 5000
 TEXT_LIMIT = 280
+DAY_MS = 86_400_000
 
 
 class SponsoredSlots:
@@ -28,16 +29,20 @@ class SponsoredSlots:
         self._index, self._built = {}, None
 
     def _build(self, now_ms):
+        # Only campaigns booked for today (coin economy step 3) appear; a booking names its own
+        # task category and region, and the card ends with the booked day.
+        day_ms = now_ms - now_ms % DAY_MS
         with self.store.atomic():
-            rows = self.store.all("campaigns_sponsored_snapshot", (now_ms, now_ms, SNAPSHOT_LIMIT))
+            rows = self.store.all("campaigns_sponsored_booked", (day_ms, now_ms, SNAPSHOT_LIMIT))
         index = {}
         for row in rows:
             payload = json.loads(row["payload_json"])
             card = {"id": row["id"], "label": LABEL, "advertiser": str(payload.get("name", ""))[:100],
-                    "text": str(payload.get("creative_text", ""))[:TEXT_LIMIT], "ends_ms": int(row["ends_ms"])}
-            for category in payload.get("task_categories", ()):
-                for region in payload.get("regions", ()):
-                    index.setdefault((category, region), []).append(card)
+                    "text": str(payload.get("creative_text", ""))[:TEXT_LIMIT],
+                    "ends_ms": min(int(row["ends_ms"]), day_ms + DAY_MS)}
+            pool = index.setdefault((row["task_category"], row["region"]), [])
+            if all(existing["id"] != card["id"] for existing in pool):
+                pool.append(card)
         return index
 
     def _snapshot(self):

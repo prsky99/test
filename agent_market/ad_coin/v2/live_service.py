@@ -106,6 +106,13 @@ def create_live_ad_coin_v2_router(
     base_router.include_router(
         sponsored_router(SponsoredSlots(commercial.store, taxonomy=commercial.taxonomy, regions=commercial.regions))
     )
+    from .sponsored_booking import SponsoredBookings
+    from .sponsored_booking_http import router_for as sponsored_booking_router
+
+    base_router.include_router(sponsored_booking_router(
+        commercial, SponsoredBookings(commercial.store, commercial.ledger, taxonomy=commercial.taxonomy,
+                                      regions=commercial.regions, access=commercial.access),
+        resolve_auth=resolver))
     from .agent_payments import AgentPaymentGateway
     from .agent_payment_http import router_for as agent_payment_router
 

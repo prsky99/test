@@ -16,12 +16,24 @@ from tests.test_ad_coin_v2_p1 import NOW, _activate_campaign, campaign_body, p1_
 TAXONOMY, REGIONS = frozenset({'research', 'coding'}), frozenset({'US', 'KR'})
 
 
+def book_today(suite, campaign, category='research', region='US'):
+    """Only campaigns booked for today appear (coin economy step 3); the first booking is supported."""
+    from uuid import uuid4
+    from agent_market.ad_coin.v2 import points
+    from agent_market.ad_coin.v2.sponsored_booking import DAY_MS, SponsoredBookings
+    points.issue(suite.service.ledger, 1000 * points.ATOMS_PER_COIN, reason='test-' + uuid4().hex)
+    today = NOW - NOW % DAY_MS
+    SponsoredBookings(suite.service.store, suite.service.ledger, taxonomy=TAXONOMY, regions=REGIONS).book(
+        suite.advertiser, campaign_id=campaign['id'], day=time.strftime('%Y-%m-%d', time.gmtime(today / 1000)),
+        task_category=category, region=region, request_id=uuid4().hex, now_ms=today - 1)
+
+
 def slots_for(suite, **kw):
     return SponsoredSlots(suite.service.store, taxonomy=TAXONOMY, regions=REGIONS, clock=lambda: NOW / 1000, **kw)
 
 
 def test_only_active_approved_campaigns_appear_with_the_label(p1_suite):  # noqa: F811
-    _activate_campaign(p1_suite)
+    book_today(p1_suite, _activate_campaign(p1_suite))
     base = '/api/ad-coin/v2/advertisers/' + p1_suite.advertiser + '/campaigns'
     draft = p1_suite.client.post(base, json=campaign_body(name='Draft only'), headers=p1_suite.headers('editor'))
     assert draft.status_code == 200
@@ -39,7 +51,7 @@ def test_unsupported_targeting_is_refused(p1_suite):  # noqa: F811
 
 
 def test_http_slot_is_public_cached_and_carries_no_reward(p1_suite):  # noqa: F811
-    _activate_campaign(p1_suite)
+    book_today(p1_suite, _activate_campaign(p1_suite))
     app = FastAPI()
     app.include_router(router_for(slots_for(p1_suite)))
     response = TestClient(app).get('/api/ad-coin/v2/sponsored', params={'category': 'research', 'region': 'US'})
@@ -64,10 +76,11 @@ class FakeStore:
 
 
 def synthetic(count):
-    return [{'id': 'c%05d' % n, 'ends_ms': NOW + 10 ** 9,
-             'payload_json': json.dumps({'name': 'Advertiser %d' % n, 'creative_text': 'Ad %d' % n,
-                                         'task_categories': ['research' if n % 2 else 'coding'],
-                                         'regions': ['US', 'KR']})} for n in range(count)]
+    # One booked row per campaign and target (the booked-today snapshot shape).
+    return [{'id': 'c%05d' % n, 'ends_ms': NOW + 10 ** 9, 'task_category': 'research' if n % 2 else 'coding',
+             'region': region,
+             'payload_json': json.dumps({'name': 'Advertiser %d' % n, 'creative_text': 'Ad %d' % n})}
+            for n in range(count) for region in ('US', 'KR')]
 
 
 def test_snapshot_is_reused_within_ttl_and_rotates_fairly():

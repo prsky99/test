@@ -120,6 +120,20 @@ flowchart LR
    - 운영자 API `/api/ad-coin/v2/admin/coins/*`, `/admin/advertisers/{id}/welcome-grant|provider-reward`: 운영자 권한과 CSRF가 필요하다.
    - 시험: `tests/test_ad_coin_v2_economy_grants.py`
    - 제공자 보상을 카탈로그 검증 결과로 자동 지급하는 작업자는 v2 운영 연결 뒤에 만든다.
-3. Sponsored 하루 예약과 결제·환불, `adc2_sponsored_bookings`(운영 DB 승인 A1에 추가)
+3. ~~Sponsored 하루 예약과 결제·환불~~ → **11-10 시험 모드 구현.**
+   - PM 결정(11-10)
+     - 가격: (분류, 지역) 하루 1칸 50코인, (분류, 지역)마다 하루 2칸
+     - 예약한 캠페인만 노출한다.
+     - 환불: 플랫폼 사정이면 전액, 하루 전 취소도 전액, 광고주가 스스로 멈추면 환불 없음
+     - 첫 예약 지원: 광고주당 1번, 그달 지원 합계가 성장 예산의 10% 안일 때 성장 예산으로 낸다.
+   - `sponsored_booking.py`: 예약, 취소, 운영자 반환, 정산
+     - 작업자 데몬이 하루가 끝나고 10분 뒤에 정산한다.
+     - 반려·정지된 캠페인과 정지된 광고주의 예약은 환불한다.
+     - 지원받은 예약을 환불하면 코인은 성장 예산으로 돌아간다.
+   - `sponsored_booking_http.py`: 예약·취소는 캠페인 활성화와 같은 권한에 CSRF와 Idempotency-Key가 필요하다. 운영자 반환은 `platform.operate` 권한이 필요하다.
+   - `sponsored.py` 스냅샷은 그날 예약된 캠페인만 담는다.
+   - 새 DB 구조 변경은 없다. 표는 스키마 10에 이미 있고, SQL은 등록 목록에 557개로 더했다.
+   - 시험: `tests/test_ad_coin_v2_sponsored_booking.py` 8개, `test_ad_coin_v2_sponsored.py`
+   - 공개는 광고주 약관 조항(`reports/AI-AD-Coin-Sponsored-광고주약관-조항초안-2026-11-10.md`)의 사용자 승인과 v2 재가동 뒤에 한다.
 4. 운영 화면(`/ad-coin/admin`)의 발행·수익·지출 대사
 5. 혜택 목록 확정(워크스페이스 담당과 협의)과 사용 연결

@@ -37,6 +37,10 @@ class WorkerDaemon:
         processed_outbox = self.workers.process_outbox(now_ms=now_ms)
         signed_receipts = self.workers.reconcile_pending_receipts(now_ms=now_ms)
         stale_attention = self.workers.reconcile_stale_attention(now_ms=now_ms)
+        from agent_market.ad_coin.v2.sponsored_booking import SponsoredBookings
+
+        sponsored_settled = SponsoredBookings(self.store, self.workers.ledger, taxonomy=(), regions=()).settle_due(
+            now_ms=now_ms)
         pruned = self.prune_if_due(now_ms)
 
         cycle_summary = {
@@ -45,9 +49,10 @@ class WorkerDaemon:
             "processed_outbox": processed_outbox,
             "signed_receipts": signed_receipts,
             "stale_attention": stale_attention,
+            "sponsored_settled": sponsored_settled,
             "pruned": pruned,
         }
-        if any([reclaimed_leases, processed_outbox, signed_receipts, stale_attention, pruned]):
+        if any([reclaimed_leases, processed_outbox, signed_receipts, stale_attention, sponsored_settled, pruned]):
             logger.info("Cycle completed with activity: %s", cycle_summary)
         return cycle_summary
 
