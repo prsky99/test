@@ -29,7 +29,7 @@
 | Glama | **자동 반영 완료**: https://glama.ai/mcp/connectors/biz.agentconcierge/agent-concierge (Registry에서 가져감, 상태 "아직 시험 안 됨"). 6번 제출은 필요 없음 |
 | A2A Registry | **제출 완료 (11-10)**: 카드 검사 결과 Conformant. 검토 대기 id 7082c1bf-781d-4422-9261-08c5f41bdca4 |
 | a2a.directory | **게시 완료 (11-10)**: 검증을 통과해 바로 공개됨 |
-| mcpservers.org | **무료 제출 완료 (11-10)**: 카테고리 Search, 원격 URL /mcp, 2주 안에 심사, 승인 메일은 contact@ |
+| mcpservers.org | **승인·공개 (11-10 09:16 메일)**: 카테고리 Search, 원격 URL /mcp |
 | MCP Market | **건너뜀 (11-10)**: 원격 MCP는 $69 유료 게시만 있고, 무료 대기열은 GitHub 저장소 제출만 받음(GitHub 미사용 결정) |
 | mcp.so | **건너뜀 (11-10)**: 원격 서버 양식에 "$39 결제 후 게시"만 있음. 무료 경로는 Google 로그인(계정 생성)이 필요할 수 있음 |
 | PulseMCP | 아직 없음. 재개 시 자동 수집 예정 |
