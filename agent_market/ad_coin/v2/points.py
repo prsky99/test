@@ -131,6 +131,26 @@ def ensure_platform_accounts(ledger) -> None:
     ledger.create_account(PLATFORM_OWNER, "platform_revenue", account_id=REVENUE_ACCOUNT)
 
 
+def platform_holdings(ledger) -> dict:
+    """Coins the platform holds (growth budget + coin revenue) and coins issued so far, in atoms.
+
+    Read only. The x402 test-payment rule (11-10) compares this holding against 100,000 coins."""
+    from .contracts import ContractError
+
+    def balance(account_id):
+        try:
+            return int(ledger.account(account_id)["balance_atoms"])
+        except ContractError as exc:
+            if exc.code != "unknown_account":
+                raise
+            return 0  # accounts appear with the first issuance
+
+    growth, revenue = balance(GROWTH_ACCOUNT), balance(REVENUE_ACCOUNT)
+    return {"growth_budget_atoms": str(growth), "coin_revenue_atoms": str(revenue),
+            "platform_holdings_atoms": str(growth + revenue), "issued_atoms": str(-balance(ISSUANCE_ACCOUNT)),
+            "atoms_per_coin": ATOMS_PER_COIN}
+
+
 def issue(ledger, amount_atoms: int, *, reason: str):
     """Issue new coins into the growth budget, within ISSUANCE_MONTHLY_CAP_ATOMS (checked by the ledger)."""
     ensure_platform_accounts(ledger)

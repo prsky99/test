@@ -86,3 +86,18 @@ def test_growth_spending_cannot_exceed_the_budget(ledger):
     with pytest.raises(ContractError) as error:
         ledger.post('too-much', [(points.GROWTH_ACCOUNT, str(-2 * COIN)), (person, str(2 * COIN))], kind='growth_reward')
     assert error.value.code == 'insufficient_balance'
+
+
+def test_platform_holdings_count_growth_and_revenue_and_issued(ledger):
+    empty = points.platform_holdings(ledger)
+    assert empty['platform_holdings_atoms'] == '0' and empty['issued_atoms'] == '0'
+    points.issue(ledger, 500 * COIN, reason='test-' + uid())
+    owner = uid()
+    wallet = ledger.create_account(owner, 'user_available')
+    ledger.post('reward:' + owner, [(points.GROWTH_ACCOUNT, str(-120 * COIN)), (wallet, str(120 * COIN))],
+                kind='growth_reward')
+    held = points.platform_holdings(ledger)
+    assert held['issued_atoms'] == str(500 * COIN)
+    assert held['growth_budget_atoms'] == str(380 * COIN)
+    assert held['platform_holdings_atoms'] == str(380 * COIN + int(held['coin_revenue_atoms']))
+    assert held['atoms_per_coin'] == COIN

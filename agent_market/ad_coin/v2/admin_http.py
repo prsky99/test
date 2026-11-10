@@ -138,8 +138,11 @@ def router_for(
             wallet_rows = store.all("reconcile_all_wallets") or []
 
             audit_res = await run_in_threadpool(commercial.ledger.audit)
+            from .points import platform_holdings
+            holdings = await run_in_threadpool(platform_holdings, commercial.ledger)
 
             return JSONResponse({
+                "coins": holdings,
                 "active_campaigns_count": len(camp_rows),
                 "active_relay_partners_count": len(partner_rows),
                 "total_wallets_count": len(wallet_rows),

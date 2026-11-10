@@ -84,3 +84,6 @@ def test_admin_http_endpoints_live(store):  # noqa: F811
     assert "total_wallets_count" in overview_data
     assert "active_campaigns_count" in overview_data
     assert overview_data["total_wallets_count"] >= 1
+    coins = overview_data["coins"]
+    assert set(coins) >= {"platform_holdings_atoms", "issued_atoms", "growth_budget_atoms", "coin_revenue_atoms"}
+    assert int(coins["platform_holdings_atoms"]) >= 0
