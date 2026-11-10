@@ -179,3 +179,8 @@ def test_postgres_batch_halves_when_rows_exceed_the_result_cap_and_skips_a_giant
     assert fits.meta['quality_policy_cursor']['id'] == 62
     giant = Fake(cap=0)
     assert giant.quality_policy_batch(limit=4) == 1 and giant.meta['quality_policy_cursor']['id'] == 1
+
+
+def test_grade_follows_the_score_as_shown():
+    from agent_market.collector.evaluation import grade_for
+    assert grade_for(84.96) == 'A' and grade_for(84.94) == 'B' and grade_for(85.0) == 'A'

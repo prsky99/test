@@ -37,7 +37,10 @@ SALT = os.environ.get('RQ_SALT', 'pick')  # change it to draw a different sample
 BATCH_PRICES = {'claude-opus-5-5': {'input': 2.0, 'output': 10.0, 'cache_write': 2.5, 'cache_read': 0.10},
                 'claude-haiku-5-5': {'input': 0.05, 'output': 0.25, 'cache_write': 0.0625, 'cache_read': 0.005}}
 BATCH_PRICE = BATCH_PRICES[MODEL]
-EXAMPLES = BASE / 'haiku-examples.json'
+EXAMPLES = Path(os.environ.get('RQ_EXAMPLES', BASE / 'haiku-examples.json'))
+ALWAYS = os.environ.get('RQ_ALWAYS', '1') == '1'  # 0: Haiku audits first and rewrites only when needed (pass 2)
+FOCUS = os.environ.get('RQ_FOCUS', '')  # extra reviewer focus lines for a later pass
+EXCLUDE = {int(x) for x in os.environ.get('RQ_EXCLUDE', '').split(',') if x.strip()}  # ids changed since sampling
 FIELDS = ('summary', 'pros', 'cons', 'workflow_recommendation', 'content_md')
 PSQL = ['/opt/homebrew/opt/postgresql@18/bin/psql', '-h', str(ROOT / 'gateway-data/postgres18/run'), '-p', '55432',
         '-d', 'agentcon_cutover_20261020_191757', '-v', 'ON_ERROR_STOP=1', '-Atc']
@@ -96,12 +99,12 @@ def done_ids():
 
 
 def export_remaining(chunk):
-    skip = done_ids()
-    sql = """select row_to_json(t) from (select id, kind, eval_grade, eval_score, is_success, status_code, latency_ms,
+    skip = set() if os.environ.get('RQ_NO_SKIP') == '1' else done_ids()
+    sql = f"""select row_to_json(t) from (select id, kind, eval_grade, eval_score, is_success, status_code, latency_ms,
       test_method, tool_name, agent_name, summary, pros, cons, workflow_recommendation, content_md,
-      left(output_wire, 2500) output_wire from agent_test_reports order by id) t"""
+      left(output_wire, {WIRE_CHARS}) output_wire from agent_test_reports order by id) t"""
     rows = [l for l in psql(sql).splitlines() if l.strip() and json.loads(l)['id'] not in skip]
-    root = BASE / 'haiku'
+    root = BASE / os.environ.get('RQ_EXPORT', 'haiku')
     root.mkdir(parents=True, exist_ok=True)
     chunks = [rows[i:i + int(chunk)] for i in range(0, len(rows), int(chunk))]
     for n, part in enumerate(chunks):
@@ -138,7 +141,9 @@ def submit():
         shots = '\n\n'.join('Example ' + str(i + 1) + ' input:\n' + json.dumps(e['before'], ensure_ascii=False)
                              + '\nExample ' + str(i + 1) + ' rewrite:\n' + json.dumps(e['after'], ensure_ascii=False)
                              for i, e in enumerate(examples))
-        text = (INSTRUCTIONS + '\nAlways set needs_rewrite to true and return a rewrite. Fix the same kinds of problems '
+        first = ('\nAlways set needs_rewrite to true and return a rewrite.' if ALWAYS else
+                 '\nSet needs_rewrite to true only when an issue of medium or high severity exists.')
+        text = (INSTRUCTIONS + (('\nFocus on these known remaining problems:\n' + FOCUS) if FOCUS else '') + first + ' Fix the same kinds of problems '
                 'a senior reviewer fixed in these accepted examples (missing limitations, unsupported claims, '
                 'overclaiming, grade inconsistency, internal names such as X-Gateway-Route headers, internal table '
                 'names, localhost or private addresses):\n\n' + shots)
@@ -260,7 +265,7 @@ def apply(dry):
     accepted, rejected = [], {}
     for row in rows:
         res = row.get('result') or {}
-        if not res.get('needs_rewrite') or not res.get('rewrite'):
+        if not res.get('needs_rewrite') or not res.get('rewrite') or row['id'] in EXCLUDE:
             continue
         reason = _valid(originals[row['id']], res['rewrite'])
         if reason:

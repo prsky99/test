@@ -73,7 +73,9 @@ _BASE64_BLOB = re.compile(r"[A-Za-z0-9+/]{200,}={0,2}")
 
 
 def grade_for(score: float) -> str:
-    return next(g for threshold, g in GRADES if score >= threshold)
+    # Grade from the score as shown (one decimal): 84.96 is shown as 85.0 and must be A, not B (11-10: 92 rows).
+    shown = round(score, 1)
+    return next(g for threshold, g in GRADES if shown >= threshold)
 
 
 def grade_at_least(grade: str | None, minimum: str) -> bool:
