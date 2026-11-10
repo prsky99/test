@@ -142,23 +142,44 @@ def test_restart_redeploys_the_active_release_and_never_packages_the_working_tre
     assert calls == [('deploy', 'admin', 'a-new', True)]
 
 
-def test_a_new_frontend_slot_is_warmed_with_searches_and_failures_do_not_block(tmp_path):
+def test_a_new_frontend_slot_is_warmed_with_fresh_queries_until_fast_then_recommends(tmp_path):
+    # 11-11: fixed warm queries were served from the shared Redis cache, so the new process never ran a
+    # search and the first public query took 14.4 s. Warm-up now uses unseen queries until two are fast.
+    import random
     import httpx
     from scripts import service_deploy
-    seen = []
+    seen, slow = [], iter([9000, 0, 0])
 
     def handler(request):
-        seen.append((request.url.host, request.url.port, request.url.path, request.url.params.get('q'), request.headers['host']))
-        if request.url.params.get('q') == 'web search':
-            raise httpx.ConnectError('cold')
-        return httpx.Response(200, json={'items': []})
+        seen.append((request.url.port, request.method, request.url.path, request.url.params.get('q'), request.headers['host']))
+        if request.url.path == '/api/explore':
+            delay = next(slow, 0)
+            if delay == 9000:
+                raise httpx.ConnectError('cold')
+            return httpx.Response(200, json={'items': []})
+        return httpx.Response(200, json={'jsonrpc': '2.0', 'id': 1, 'result': {}})
     manager = Reclaim(tmp_path, _state(retained_at=0.0))
-    timings = manager.warm_web('frontend', 'a', transport=httpx.MockTransport(handler))
-    assert [t['q'] for t in timings] == list(service_deploy.WARM_QUERIES)
-    assert [t['status'] for t in timings] == [200, 'ConnectError', 200, 200]
-    assert seen[0][:3] == ('127.0.0.1', 8401, '/api/explore') and seen[0][4] == 'agentconcierge.biz'
+    timings = manager.warm_web('frontend', 'a', transport=httpx.MockTransport(handler), rng=random.Random(7))
+    explore = [t for t in timings if t['kind'] == 'explore']
+    assert [t['status'] for t in explore][:1] == ['ConnectError'] and all(t['status'] == 200 for t in explore[1:])
+    assert len(explore) >= 3 and timings[-1]['kind'] == 'recommend' and timings[-1]['status'] == 200
+    assert not set(t['q'] for t in explore) & set(service_deploy.WARM_QUERIES)   # never the cached fixed queries
+    assert seen[0][:3] == (8401, 'GET', '/api/explore') and seen[0][4] == 'agentconcierge.biz'
+    assert seen[-1][1:3] == ('POST', '/mcp')
+    summary = manager.warm_summary(timings)
+    assert summary['explore_goal_met'] and summary['recommend_goal_met'] and summary['first_explore_ms'] is not None
     assert manager.warm_web('admin', 'a', transport=httpx.MockTransport(handler)) == []
     assert manager.warm_web('frontend', 'b') == []  # tests never reach a real slot
+
+
+def test_warm_summary_reports_a_missed_target():
+    from scripts.service_deploy import Deployment
+    timings = [{'kind': 'explore', 'q': 'a', 'status': 200, 'ms': 14400},
+               {'kind': 'explore', 'q': 'b', 'status': 200, 'ms': 2600},
+               {'kind': 'recommend', 'q': 'c', 'status': 200, 'ms': 5300}]
+    summary = Deployment.warm_summary(timings)
+    assert summary == {'explore_calls': 2, 'first_explore_ms': 14400, 'last_explore_ms': 2600, 'explore_goal_met': False,
+                       'recommend_ms': 5300, 'recommend_goal_met': False}
 
 
 def test_deploy_warms_before_switching():

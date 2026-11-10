@@ -29,7 +29,16 @@ PORTS = {'frontend': {'a': 8401, 'b': 8402}, 'admin': {'a': 8201, 'b': 8202}}
 RECLAIM_STANDBY_SECONDS = 1800
 # Searches a new frontend slot runs before it takes traffic (cold caches made the first search 10.7 s on 11-10).
 WARM_QUERIES = ('weather forecast', 'web search', 'translate text', 'pdf extraction')
-WARM_SECONDS = 45
+WARM_SECONDS = 90
+# 11-11: Explore results are shared through Redis, so the fixed queries above were answered from the old
+# slot's cache and never ran the search on the new process; the first public query then took 14.4 s.
+# Fresh queries are built from these words so each warm-up runs the real path.
+WARM_VERBS = ('convert', 'summarize', 'extract', 'translate', 'search', 'monitor', 'generate', 'analyze',
+              'schedule', 'validate', 'compare', 'classify')
+WARM_OBJECTS = ('csv files', 'pdf invoices', 'news articles', 'github issues', 'stock prices', 'emails',
+                'images', 'web pages', 'calendar events', 'product reviews', 'sql tables', 'audio notes')
+WARM_EXPLORE_GOAL_MS = 2000      # the Explore target (CLAUDE.md response-time policy)
+WARM_RECOMMEND_GOAL_MS = 3000    # the recommendation target
 # Undeployed releases younger than this survive the post-deploy prune (another session may deploy them next).
 AFTER_DEPLOY_MIN_AGE_HOURS = 6
 RELEASE = re.compile(r'[a-zA-Z0-9][a-zA-Z0-9_.-]{0,79}\Z')
@@ -511,31 +520,59 @@ class Deployment:
             time.sleep(1)
         raise RuntimeError('candidate_readiness_timeout')
 
-    def warm_web(self, role, slot, budget=WARM_SECONDS, transport=None):
-        """Run a few Explore searches on the new frontend slot before traffic moves to it.
+    def warm_web(self, role, slot, budget=WARM_SECONDS, transport=None, rng=None):
+        """Warm the new frontend slot with queries it has never seen before traffic moves to it.
 
-        11-10: the first public search after a deploy took 10.7 s (new process, cold caches, a swapped-out
-        search engine). Failures and slowness never block the deploy; the timings are returned."""
+        Explore runs fresh queries until two in a row finish within the Explore target, then one MCP
+        find_agents call (read-only, not recorded) warms the recommendation path. Failures and slowness
+        never block the deploy; the timings and whether the targets were met are returned."""
         if role != 'frontend' or (transport is None and os.environ.get('PYTEST_CURRENT_TEST')):
             return []
         import httpx
+        import random
+        rng = rng or random.SystemRandom()
         timings, deadline = [], time.monotonic() + budget
         base = 'http://127.0.0.1:' + str(PORTS[role][slot])
+
+        def timed(kind, call, label):
+            began = time.monotonic()
+            try:
+                status = call().status_code
+            except Exception as error:
+                status = type(error).__name__
+            item = {'kind': kind, 'q': label, 'status': status, 'ms': round((time.monotonic() - began) * 1000)}
+            timings.append(item)
+            return item
+
         try:
-            with httpx.Client(base_url=base, trust_env=False, follow_redirects=False, timeout=15, transport=transport,
+            with httpx.Client(base_url=base, trust_env=False, follow_redirects=False, timeout=20, transport=transport,
                               headers={'Host': 'agentconcierge.biz', 'User-Agent': 'AgentConcierge-Deployment-Warmup/1.0'}) as client:
-                for query in WARM_QUERIES:
-                    if time.monotonic() >= deadline:
-                        break
-                    began = time.monotonic()
-                    try:
-                        status = client.get('/api/explore', params={'q': query}).status_code
-                    except Exception as error:
-                        status = type(error).__name__
-                    timings.append({'q': query, 'status': status, 'ms': round((time.monotonic() - began) * 1000)})
+                streak = 0
+                while time.monotonic() < deadline and streak < 2:
+                    query = rng.choice(WARM_VERBS) + ' ' + rng.choice(WARM_OBJECTS)
+                    item = timed('explore', lambda: client.get('/api/explore', params={'q': query}), query)
+                    streak = streak + 1 if item['status'] == 200 and item['ms'] <= WARM_EXPLORE_GOAL_MS else 0
+                if time.monotonic() < deadline:
+                    task = rng.choice(WARM_VERBS) + ' ' + rng.choice(WARM_OBJECTS)
+                    body = {'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call',
+                            'params': {'name': 'find_agents', 'arguments': {'task': task}}}
+                    timed('recommend', lambda: client.post('/mcp', json=body, headers={
+                        'Accept': 'application/json, text/event-stream'}), task)
         except Exception as error:
             timings.append({'error': type(error).__name__})
         return timings
+
+    @staticmethod
+    def warm_summary(timings):
+        """First fresh Explore time, last Explore time and whether the targets were met before the switch."""
+        explore = [t for t in timings if t.get('kind') == 'explore']
+        recommend = [t for t in timings if t.get('kind') == 'recommend']
+        met = (len(explore) >= 2 and all(t['status'] == 200 and t['ms'] <= WARM_EXPLORE_GOAL_MS for t in explore[-2:]))
+        return {'explore_calls': len(explore), 'first_explore_ms': explore[0]['ms'] if explore else None,
+                'last_explore_ms': explore[-1]['ms'] if explore else None, 'explore_goal_met': met,
+                'recommend_ms': recommend[-1]['ms'] if recommend else None,
+                'recommend_goal_met': bool(recommend) and recommend[-1]['status'] == 200
+                    and recommend[-1]['ms'] <= WARM_RECOMMEND_GOAL_MS}
 
     def verify_web(self, role, slot):
         import httpx
@@ -651,7 +688,8 @@ class Deployment:
             # then reclaim_standby stops it (rollback starts it again, in tens of seconds).
             self.drained(role, old)
             self.schedule_reclaim()
-            return {'service': role, 'active': new, 'release': release, 'previous_retained': True, 'warmed': warmed}
+            return {'service': role, 'active': new, 'release': release, 'previous_retained': True, 'warmed': warmed,
+                    'warm': self.warm_summary(warmed)}
 
     def schedule_reclaim(self, delay=RECLAIM_STANDBY_SECONDS):
         """Run reclaim-standby once after DELAY in a detached process; a failure only keeps the standby."""
