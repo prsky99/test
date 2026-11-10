@@ -74,3 +74,13 @@ Cloudflare 설정 변경이라 PM 결정이 필요합니다. 비용은 0입니�
 
 - user_slo의 pages 표본(`/`, chat.html, explore.html)은 이번 규칙 대상이 아닙니다. 그래서 성장 페이지 시간은 위처럼 따로 쟀습니다.
 - 공개 측정은 한국→LAX 경유 값입니다.
+
+## 5. 경로 추가 (11-11 01:4x, 사용자 "진행", 맥북 Chrome)
+
+- 2번 규칙 식에 `(http.request.uri.path in {"/openapi.json" "/.well-known/mcp/server-card.json"})`를 OR로 더했습니다. 두 경로는 Markdown 제외 조건과 따로 둡니다.
+- 1번 규칙(Agent discovery documents)은 Edge TTL 설정이 없어 기본값, 곧 원서버 Cache-Control을 따릅니다. 바꾸지 않았습니다.
+- 확인 결과
+  - `/openapi.json`: 200, MISS → HIT (1.01 → 0.48~0.76초), s-maxage=3600
+  - `/.well-known/mcp/server-card.json`: 301, MISS → HIT (1.13 → 0.50~0.55초)
+  - `/agents/tasks`: HTML은 HIT, Markdown은 DYNAMIC (변화 없음)
+- `/skill.md`와 `/.well-known/llms.txt` 추가는 아직 사용자 확인을 받지 않아 넣지 않았습니다.
