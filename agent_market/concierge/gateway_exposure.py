@@ -14,6 +14,7 @@ import time
 from collections import OrderedDict
 
 from .execution_policy import safe_registered_tool, tools_for
+from .retrieval_metrics import stage
 
 EXTRA = 3  # look this many further, so a demoted server is replaced rather than only moved
 CACHE_SIZE = 4096
@@ -52,7 +53,8 @@ class ExposedFirstRecommender:
             return search(task, kind, auth_pref, limit, offset, exclude, hint, category)
         wider = min(600 - min(offset, 599), limit + EXTRA)
         items = search(task, kind, auth_pref, max(limit, wider), offset, exclude, hint, category)
-        exposed = [item for item in items if self.callable(item)]
+        with stage('exposure'):
+            exposed = [item for item in items if self.callable(item)]
         # Leave them out while any callable choice remains: Chat re-ranks a ten-item shortlist by
         # meaning, which moved a demoted server back to first (11-10 deploy check).
         return (exposed or items)[:limit]

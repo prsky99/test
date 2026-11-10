@@ -3725,6 +3725,8 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
                        security_headers=SECURITY_HEADERS)
     from .public_http_contract import PublicHTTPContract, PublicDocumentHEAD
     app.add_middleware(PublicHTTPContract)
+    from .request_timing import RequestTiming
+    app.add_middleware(RequestTiming)
     app.add_middleware(GZipMiddleware, minimum_size=500)
     app.add_middleware(PublicDocumentHEAD)
     from .web_bot_auth import WebBotAuth
