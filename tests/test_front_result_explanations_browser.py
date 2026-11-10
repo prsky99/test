@@ -10,10 +10,10 @@ def test_visible_protocol_and_catalog_scope_match_results(pearl_page):
     expect(page.get_by_role('group',name='Search protocol').get_by_role('button',name='A2A + MCP',exact=True)).to_have_attribute('aria-pressed','true')
     expect(page.locator('#xProtocolScope')).to_have_text('A2A + MCP')
     expect(page.locator('#xProtocolHelp')).to_be_hidden()
-    assert page.locator('.explore-scope').bounding_box()['height']<=40
+    assert page.locator('.explore-scope').bounding_box()['height']<=44  # one line; 44px touch-target floor (11-11)
     page.locator('a.brand').click()
     expect(page.locator('#uxCatalogScope')).not_to_be_visible()
-    assert page.locator('#uxCatalogHelp').bounding_box()['height']<=36
+    assert page.locator('#uxCatalogHelp').bounding_box()['height']<=44  # one line; 44px touch-target floor (11-11)
     page.locator('#uxCatalogHelp > summary').click()
     expect(page.locator('#uxCatalogScope')).to_be_visible()
     expect(page.locator('#uxCatalogScope')).to_contain_text('including unavailable entries')

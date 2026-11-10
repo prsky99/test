@@ -21,7 +21,7 @@ def test_guidance_views_keep_secondary_explanations_collapsed(pearl_page,width):
         help=page.locator(help_selector)
         expect(help.locator(':scope > summary')).to_be_visible()
         assert not help.evaluate('(n)=>n.open')
-        assert help.bounding_box()['height']<=38
+        assert help.bounding_box()['height']<=44  # one line; 44px is the touch-target floor since 11-11
         assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
         page.screenshot(path=str(folder/f'public-{panel}-{width}.png'),full_page=True)
     assert not errors

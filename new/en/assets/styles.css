@@ -240,3 +240,11 @@ html body #cookieConsentBanner:not(.no-flow) :is(#btnAcceptAllCookies,#btnReject
   html body #cookieConsentBanner:not(.no-flow) #btnOpenCookiePrefs{grid-column:1/-1;justify-self:start}
   html body #cookieConsentBanner:not(.no-flow) .cookie-choice-summary{font-size:13px;line-height:1.35}
   html body #cookieConsentBanner:not(.no-flow) .cookie-banner-actions .btn{padding:8px 9px!important;font-size:13px}}
+
+/* 11-11 Explore on phones: the filters fold behind one button (pearl-ui.js). The folded state is drawn from
+   the first paint, with the button's 44px + 10px gap reserved, so nothing moves when the script takes over
+   (public 375px first visit CLS was 0.22). pearl-ui.js marks html.ux-filters-ready when it applies. */
+@media(max-width:700px){
+  html:not(.ux-filters-ready) body #secExplore :is(.pearl-filter-bottom,.explore-inputs-row .field:has(#xCategory)){display:none!important}
+  html:not(.ux-filters-ready) body #secExplore .explore-inputs-row{margin-bottom:54px}
+}

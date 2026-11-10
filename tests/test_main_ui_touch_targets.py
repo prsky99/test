@@ -106,3 +106,18 @@ def test_consent_strip_sits_in_flow_and_never_flashes(adoption, browser, width, 
         assert again.evaluate(CLS) < 0.1 and not errors, errors
     finally:
         context.close()
+
+
+def test_phone_explore_draws_its_folded_filters_from_the_first_paint(adoption, browser):  # noqa: F811
+    """11-11: on phones the filters fold behind one button; the folded state is drawn before the script runs
+    (public first visit CLS was 0.22 when the script folded them after load)."""
+    *_, client = adoption[:6]
+    context = browser.new_context(viewport={'width': 375, 'height': 812}); page = context.new_page()
+    context.route('**/*', serve_with(client))
+    try:
+        page.goto('https://agentconcierge.biz/new/en/explore.html'); page.wait_for_load_state('load')
+        assert page.evaluate(CLS) < 0.1
+        assert page.evaluate("document.documentElement.classList.contains('ux-filters-ready')")
+        assert page.evaluate("getComputedStyle(document.getElementById('uxFilterOptions')).display") == 'none'
+    finally:
+        context.close()

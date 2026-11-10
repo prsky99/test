@@ -517,8 +517,10 @@
       const open=!phone.matches||toggle.getAttribute('aria-expanded')==='true';
       box.style.display=open?'':'none';toggle.hidden=!phone.matches;
       toggle.textContent=(open?'Hide':'Show')+' filters and common tasks'+(on?' ('+on+' on)':'');
+      document.documentElement.classList.add('ux-filters-ready');  // styles.css drew this folded state before the script ran
     };
     toggle.addEventListener('click',()=>{toggle.setAttribute('aria-expanded',String(toggle.getAttribute('aria-expanded')!=='true'));apply();});
+    toggle.hidden=!phone.matches;  // 11-11: hidden before it enters the page, so desktop never draws it for a frame
     box.before(toggle);box.addEventListener('change',apply);phone.addEventListener('change',apply);apply();
   })();
   q('#uxClearSearch')?.addEventListener('click',()=>{
