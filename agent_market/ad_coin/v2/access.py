@@ -35,6 +35,9 @@ HUMAN_CAPABILITIES = frozenset(
 
 # Platform operator rights. Never granted by default; provisioned explicitly for staff only.
 OPERATOR_CAPABILITY = "platform.operate"
+# Platform operators are members of this reserved, suspended record (principals are immutable, so
+# the capability is granted and revoked as a membership). It is never a real advertiser.
+PLATFORM_OPERATORS_ID = "6f1d2c0e-8a7b-5c4d-9e3f-0a1b2c3d4e5f"
 
 
 class Access:
@@ -47,7 +50,8 @@ class Access:
             raise ContractError("operator_required", 403)
         with self.store.atomic():
             capabilities = self.current(principal).capabilities
-        if OPERATOR_CAPABILITY not in capabilities:
+            member = self.store.one("membership_get", (PLATFORM_OPERATORS_ID, str(principal.id), OPERATOR_CAPABILITY))
+        if OPERATOR_CAPABILITY not in capabilities and not (member and member["active"]):
             raise ContractError("operator_required", 403)
 
     def provision_principal(

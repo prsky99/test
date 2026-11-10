@@ -44,6 +44,8 @@ class EventType:
     COINS_ISSUED = "coins_issued"
     COINS_GRANTED = "coins_granted"
     SPONSORED_BOOKED = "sponsored_booked"
+    OPERATOR_GRANTED = "operator_granted"
+    OPERATOR_REVOKED = "operator_revoked"
     SPONSORED_REFUNDED = "sponsored_refunded"
 
 

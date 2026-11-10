@@ -15,6 +15,12 @@ def _sha256_hex(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def linked_id(owner_link_key: bytes, label: str, customer_id: str) -> str:
+    """A v2 id derived from a site customer id with the server secret (HMAC-SHA256 -> uuid)."""
+    digest = hmac.new(owner_link_key, (label + customer_id).encode("utf-8"), hashlib.sha256).digest()
+    return str(UUID(bytes=digest[:16], version=4))
+
+
 class PersistentCredentialResolver:
     """Production database-backed resolver ensuring persistent authentication across process restarts."""
 
@@ -34,8 +40,7 @@ class PersistentCredentialResolver:
 
     def _linked_id(self, label, customer_id):
         """A v2 id derived with the server secret; it cannot be computed from the customer id alone."""
-        digest = hmac.new(self._owner_link_key, (label + customer_id).encode("utf-8"), hashlib.sha256).digest()
-        return str(UUID(bytes=digest[:16], version=4))
+        return linked_id(self._owner_link_key, label, customer_id)
 
     def site_customer(self, request):
         """The signed-in site customer behind a request: (customer_id, owner_id, principal_id, csrf_ok).

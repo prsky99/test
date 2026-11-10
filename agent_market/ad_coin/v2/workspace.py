@@ -37,7 +37,9 @@ def bootstrap(service, principal):
         raise ContractError("human_workspace_required", 403)
     store = service.store
     with store.atomic():
-        rows = store.all("ui_advertisers", (str(principal.id),))
+        from .access import PLATFORM_OPERATORS_ID
+        rows = [r for r in store.all("ui_advertisers", (str(principal.id),))
+                if r["advertiser_id"] != PLATFORM_OPERATORS_ID]  # operator membership is not an advertiser
         ids = {r["advertiser_id"] for r in rows}
         store.lock(
             *("0:authority:" + value for value in sorted(ids | {str(principal.id)}))
@@ -46,7 +48,7 @@ def bootstrap(service, principal):
         if current.expires_at <= time.time() or current.audience != "aiac-v2-model":
             raise ContractError("authority_expired", 403)
         grants = defaultdict(list)
-        for row in store.all("ui_advertisers", (str(principal.id),)):
+        for row in store.all("ui_advertisers", (str(principal.id),)):  # re-read under the locks
             if row["advertiser_id"] in ids:
                 grants[row["advertiser_id"]].append(row["capability"])
         advertisers = []

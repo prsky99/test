@@ -87,6 +87,26 @@ v2 migrate 같은 운영 DB 구조 변경은 운영에서 실행하기 전에 �
   - 사람별 교환 속도 제한이 없다. 월 50크레딧 상한은 크레딧 쪽에서 막고 포인트는 환불된다.
 - 시험: `tests/test_ad_coin_v2_site_session.py`
 
+## 0-4. 운영자 지정 (2026-11-11, PM 1단계)
+
+- **공개 API는 없다.** 서버에서만 `scripts.ad_coin_grant_operator`로 사이트 고객 한 명에게 `platform.operate`를 주거나 거둔다.
+- **순서**
+  1. 대상 고객이 사이트에 로그인해 `/ad-coin/v2`를 한 번 연다. 이때 v2 사람 주체가 생긴다.
+  2. 다음 명령으로 상태를 본다.
+  3. 사용자 승인을 받은 뒤 `grant --i-have-approval`을 실행한다.
+
+```bash
+.venv/bin/python -m scripts.ad_coin_grant_operator status --customer-id <cu_...> --dsn-file <dsn 파일> --key-file <workflow 키 파일> --key-dir /Users/kingstonelee/workspace/A2A_Discovery/gateway-data/ad_coin_v2_keys
+```
+
+- **방식:** v2 주체 표는 바뀌지 않는다(불변 트리거). 그래서 운영자 권한은 예약된 "플랫폼 운영자" 기록(`PLATFORM_OPERATORS_ID`)의 멤버십으로 준다.
+  - 이 기록은 정지 상태의 광고주 행이다. 잔액 0인 계정 1개가 함께 생긴다. 원장 기록(journal)은 생기지 않는다.
+  - 처음 grant할 때 만들어진다. 광고주 목록에는 보이지 않는다.
+- **효과:** 다음 요청부터 바로 적용된다. `revoke`도 같다.
+- **감사:** `operator_granted`, `operator_revoked`를 감사 로그에 남긴다(대상 주체 id만, 고객 id 없음).
+- **키:** `owner-link.key`가 이미 있어야 한다. 스크립트는 키를 새로 만들지 않는다.
+- **시험:** `tests/test_ad_coin_v2_grant_operator.py`, `tests/test_ad_coin_v2_launch_journeys.py::test_step1_*`
+
 ## 1. 승인이 필요한 일 (사용자 결정)
 
 | # | 일 | 바뀌는 것 | 되돌리기 |
