@@ -3,12 +3,14 @@
 
     ops_auto.py watch          every 10 minutes: ops_watch; on a new anomaly, write a short Korean alert
     ops_auto.py test-reports   daily: run the probed test-report batch, then summarise the last 24 hours
+    ops_auto.py board-snapshot copy the status board to logs/ops/status-board-history/ when it changed (also run by watch)
 
 Claude API (scripts/ops_llm.py, Haiku, daily cap) only writes the wording; every decision about what is an
 anomaly, and every fallback, is plain code, so a missing or expired key changes nothing but the wording.
 Writes only to logs/ops, the status board hand-off table and the desktop alert file. It never edits code,
 deploys, stops processes or writes the production database (the batch runner does its own documented writes).
 """
+import hashlib
 import json
 import subprocess
 import sys
@@ -26,6 +28,8 @@ ACTIONS = ROOT / 'logs/ops/watch-actions.md'
 BOARD = ROOT / 'logs/ops/status-board.md'
 STATE = ROOT / 'logs/ops/watch-alert-state.json'
 REPORTS = ROOT / 'logs/ops/test-reports'
+BOARD_HISTORY = ROOT / 'logs/ops/status-board-history'
+BOARD_KEEP_SECONDS = 14 * 86400
 PSQL = ['/opt/homebrew/opt/postgresql@18/bin/psql', '-h', str(ROOT / 'gateway-data/postgres18/run'), '-p', '55432',
         '-d', 'agentcon_cutover_20261020_191757', '-Atc']
 TEAM = {'site': '운영·SRE', 'memory': '운영·SRE', 'disk': '운영·SRE', 'deploy_stuck': '운영·SRE',
@@ -96,7 +100,38 @@ def user_slo():
     append(ACTIONS, f'{now()} user_slo: 미달 {",".join(record.get("breaches") or {}) or "없음"}')
 
 
+def board_snapshot(board=None, history=None, clock=time.time):
+    """Keep a timestamped copy of the status board whenever its content changed (11-11).
+
+    A team overwrote other teams' rows and the original text was lost. Copies are kept 14 days."""
+    board, history = Path(board or BOARD), Path(history or BOARD_HISTORY)
+    try:
+        data = board.read_bytes()
+    except OSError:
+        return None
+    digest = hashlib.sha256(data).hexdigest()
+    history.mkdir(parents=True, exist_ok=True)
+    marker = history / '.last-sha256'
+    if marker.is_file() and marker.read_text().strip() == digest:
+        return None
+    stamp = datetime.fromtimestamp(clock()).strftime('%Y%m%d-%H%M%S')
+    target = history / f'status-board-{stamp}.md'
+    target.write_bytes(data)
+    marker.write_text(digest)
+    for old in history.glob('status-board-*.md'):
+        try:
+            if clock() - old.stat().st_mtime > BOARD_KEEP_SECONDS:
+                old.unlink()
+        except OSError:
+            pass
+    return target
+
+
 def watch():
+    try:
+        board_snapshot()
+    except Exception as error:  # noqa: BLE001
+        append(ACTIONS, f'{now()} 현황판 사본 실패: {type(error).__name__}')
     try:
         user_slo()
     except Exception as error:  # noqa: BLE001 - the 10-minute watch must keep running
@@ -181,4 +216,4 @@ def test_reports():
 
 if __name__ == '__main__':
     command = sys.argv[1] if len(sys.argv) > 1 else ''
-    raise SystemExit({'watch': watch, 'test-reports': test_reports}.get(command, lambda: 2)())
+    raise SystemExit({'watch': watch, 'test-reports': test_reports, 'board-snapshot': lambda: board_snapshot() and 0}.get(command, lambda: 2)())

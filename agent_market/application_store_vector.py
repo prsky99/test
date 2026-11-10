@@ -13,7 +13,9 @@ from .legacy_vector_index import VectorIndex, VectorError, PROFILE, ModelDescrip
 
 MAX_DENSE_ROWS = 20000
 MAX_DENSE_BYTES = 80 * 1024 * 1024
-BACKFILL_PAUSE = 300  # seconds after a backfill sweep that found no listing to queue
+# 11-11: a full sweep of every window read ~190k disk blocks every five minutes while the resources
+# trigger already queues inserts and edits; the sweep is a safety net, so it runs once an hour.
+BACKFILL_PAUSE = 3600  # seconds after a backfill sweep that found no listing to queue
 # One backfill scan covers this many listing ids. The whole-catalog scan took 6.8-11 s on 289k
 # listings and hit the 5 s statement timeout every 10 s (4,073 'rag index loop error', 11-10);
 # a 20k-id window takes 0.3-2.5 s, and an empty sweep of every window then rests BACKFILL_PAUSE.

@@ -31,7 +31,8 @@ LEASE_SECONDS = 90
 MAX_ATTEMPTS = 3
 BACKOFF_SECONDS = 60
 MAX_BATCH = 50
-RETENTION_PAUSE = 60  # seconds between retention sweeps that found less than a full batch
+# 11-11: each sweep read ~33k disk blocks to find 88 deletable jobs; week-old jobs need not go within a minute.
+RETENTION_PAUSE = 3600  # seconds between retention sweeps that found less than a full batch
 RETENTION_BATCH = 200  # expired jobs one snapshot sweep removes
 MAX_SOURCE_BYTES = 65536
 MAX_VALUE_BYTES = 16384

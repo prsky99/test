@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Copy the status board to logs/ops/status-board-history/ right after it changes (11-11).
+     ops_auto watch also copies it every 10 minutes; this job closes the gap between two edits.
+     Install (user): cp deploy/launchd/biz.agentconcierge.opsauto.board.plist ~/Library/LaunchAgents/ &&
+       launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/biz.agentconcierge.opsauto.board.plist -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>biz.agentconcierge.opsauto.board</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/kingstonelee/workspace/A2A_Discovery/gateway-data/ops-llm-venv/bin/python</string>
+    <string>/Users/kingstonelee/workspace/A2A_Discovery/scripts/ops_auto.py</string>
+    <string>board-snapshot</string>
+  </array>
+  <key>WorkingDirectory</key><string>/Users/kingstonelee/workspace/A2A_Discovery</string>
+  <key>WatchPaths</key>
+  <array><string>/Users/kingstonelee/workspace/A2A_Discovery/logs/ops/status-board.md</string></array>
+  <key>ThrottleInterval</key><integer>5</integer>
+  <key>StandardOutPath</key><string>/Users/kingstonelee/workspace/A2A_Discovery/logs/ops/biz.agentconcierge.opsauto.board.log</string>
+  <key>StandardErrorPath</key><string>/Users/kingstonelee/workspace/A2A_Discovery/logs/ops/biz.agentconcierge.opsauto.board.log</string>
+</dict>
+</plist>

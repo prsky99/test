@@ -46,6 +46,7 @@ RATE_LIMIT_RETRY = 1800  # 429(요청 제한)는 실패로 세지 않고 이만�
 # 11-10 06:13: the pending-token pick (window over ~940k rows) hit the jobs 5 s statement timeout under load.
 # Nothing was written, so the round is skipped with a warning and the pick waits this long before trying again.
 RESOLVE_TIMEOUT_BACKOFF = 300
+PENDING_HOSTS_TTL = 600  # seconds the list of hosts with waiting registrations is reused
 DEAD_HOST_REFRESH = 600
 MAX_REGISTRATION = 256 * 1024
 BATCH = 100
@@ -399,6 +400,30 @@ class Erc8004Crawler:
             log.info("erc8004: deferred %d registrations on %d host(s) with no service endpoints: %s", moved, len(dead), dead[:5])
         return moved
 
+    def _pending_hosts(self, now: float) -> list:
+        """Hosts with waiting registrations (an index-only scan of the partial index), kept PENDING_HOSTS_TTL."""
+        if now - getattr(self, '_hosts_at', 0.0) >= PENDING_HOSTS_TTL or getattr(self, '_hosts', None) is None:
+            self._hosts = [r["host"] for r in self.store.query(
+                """SELECT host FROM erc8004_tokens WHERE status IN ('pending','error','deferred') AND uri IS NOT NULL
+                   AND host IS NOT NULL GROUP BY host""")]
+            self._hosts_at = now
+        return self._hosts
+
+    def _pending_rows(self, now: float, limit: int) -> list:
+        """Up to per_host due registrations per host, earliest first (11-11).
+
+        One host (centralcity.ai) holds 906k pending registrations. Ranking every pending row by host
+        read 13.6k blocks per call (21% of all database disk reads); one indexed LIMIT per host reads
+        a few hundred."""
+        rows = []
+        for host in self._pending_hosts(now):
+            rows += [dict(r) for r in self.store.query(
+                """SELECT * FROM erc8004_tokens WHERE host = ? AND status IN ('pending','error','deferred')
+                   AND uri IS NOT NULL AND (next_at IS NULL OR next_at <= ?) ORDER BY next_at LIMIT ?""",
+                (host, now, self.per_host))]
+        rows.sort(key=lambda r: (r["next_at"] is None, r["next_at"] or 0))
+        return rows[:limit]
+
     def resolve_pending(self, limit: int = 200) -> dict:
         """https·ipfs 등록 파일을 받는다. 호스트당 per_host개씩, 호스트 사이는 병렬."""
         now = time.time()
@@ -406,10 +431,7 @@ class Erc8004Crawler:
             return {"resolved": 0, "skipped": "statement_timeout_backoff"}
         deferred = self.defer_dead_hosts()
         try:
-            rows = self.store.query(
-                """SELECT * FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY host ORDER BY next_at) AS rn FROM erc8004_tokens
-                     WHERE status IN ('pending','error','deferred') AND uri IS NOT NULL AND (next_at IS NULL OR next_at <= ?))
-                   WHERE rn <= ? ORDER BY next_at LIMIT ?""", (now, self.per_host, limit))
+            rows = self._pending_rows(now, limit)
         except Exception as exc:
             if getattr(exc, 'code', None) != 'statement_failed':
                 raise
