@@ -1795,14 +1795,22 @@ class Store:
     def due_for_capability(self, now: float, max_age: float, limit: int, per_host: int = 2, kind: str = "mcp") -> list[dict]:
         """기능을 조사할 에이전트: MCP는 인증 없이 응답하는(healthy) 서버, A2A는 agent card가 열리는(healthy) 에이전트 중
         조사한 지 max_age가 지난 것. 호스트당 per_host개."""
-        rows = self.query(
-            """SELECT * FROM (
-                 SELECT *, ROW_NUMBER() OVER (PARTITION BY host ORDER BY cap_checked_at IS NOT NULL, cap_checked_at) AS rn
+        # Rank only narrow columns, then read the chosen rows. Sorting whole rows (106k A2A
+        # listings, ~2.7 KB each) spilled ~180 MB to disk and passed the 5 s statement timeout
+        # under load (11-10 13:28); the narrow ranking stays in memory (601 -> 310 ms).
+        chosen = self.query(
+            """SELECT id FROM (
+                 SELECT id, cap_checked_at, ROW_NUMBER() OVER (PARTITION BY host ORDER BY cap_checked_at IS NOT NULL, cap_checked_at) AS rn
                  FROM resources WHERE active=1 AND kind=? AND health_status='healthy'
                  AND (cap_checked_at IS NULL OR cap_checked_at < ?))
                WHERE rn <= ? ORDER BY cap_checked_at IS NOT NULL, cap_checked_at, random() LIMIT ?""",
             (kind, now - max_age, per_host, limit))
-        return [{k: r[k] for k in r.keys() if k != "rn"} for r in rows]
+        rows = []
+        for row in chosen:
+            found = self.query("SELECT * FROM resources WHERE id=?", (row["id"],))
+            if found:
+                rows.append(dict(found[0]))
+        return rows
 
     def record_capability(self, rid: int, caps: dict | None, error: str | None = None) -> None:
         with self.tx() as db:

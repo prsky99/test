@@ -93,6 +93,7 @@ _WAITING = '''NOT EXISTS (SELECT 1 FROM public.vec_outbox o WHERE o.resource_id=
 # 11-10 10:59: the stale-row search (embeddings x provenance, temp files of 50-78 MB) passed the
 # 5 s statement timeout under load. Cleanup is housekeeping: skip the round and try again later.
 CLEANUP_TIMEOUT_BACKOFF = 300
+CLEANUP_IDLE_REST = 300  # seconds after a search that found nothing to remove
 _cleanup_backoff_until = 0.0
 
 
@@ -100,7 +101,7 @@ def cleanup(store):
     global _cleanup_backoff_until
     import logging
     import time
-    if time.monotonic() < _cleanup_backoff_until:
+    if time.monotonic() < max(_cleanup_backoff_until, getattr(store, '_ann_cleanup_idle_until', 0.0)):
         return 0
     # Changed/deleted publications cannot rank as current, even before cleanup.
     # Find stale rows without the writer lock (a full comparison can take seconds under
@@ -118,6 +119,9 @@ def cleanup(store):
         logging.getLogger(__name__).warning('Vector cleanup search timed out under load; next try in %d s', CLEANUP_TIMEOUT_BACKOFF)
         return 0
     if not stale:
+        # Nothing stale (the usual case): the search compares every published vector
+        # (171k runs, 237 ms mean, 40,600 s of database time by 11-10), so rest before the next.
+        store._ann_cleanup_idle_until = time.monotonic() + CLEANUP_IDLE_REST
         return 0
     marks = ','.join(['%s'] * len(stale))  # bound integer ids; the store accepts at most 256 parameters
     with store.tx():
