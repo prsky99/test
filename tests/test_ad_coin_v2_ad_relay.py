@@ -19,6 +19,8 @@ from agent_market.ad_coin.v2.live_service import (
     build_live_service,
     create_live_ad_coin_v2_router,
 )
+
+MOCK_TLS = lambda request: request.headers.get("x-mock-tls") == "verified"  # noqa: E731 - test reviewer only
 from tests.test_ad_coin_postgres import cluster  # noqa: F401
 from tests.test_ad_coin_v2_persistence import store  # noqa: F401
 
@@ -243,6 +245,7 @@ def test_ad_relay_gateway_lifecycle(store):  # noqa: F811
     vault = KeyVault()
     router = create_live_ad_coin_v2_router(
         store,
+        mtls_verifier=MOCK_TLS,
         key_vault=vault,
         taxonomy=DEFAULT_TAXONOMY,
         regions=DEFAULT_REGIONS,
@@ -256,6 +259,7 @@ def test_ad_relay_gateway_lifecycle(store):  # noqa: F811
 
     commercial, resolver, _ = build_live_service(
         store,
+        mtls_verifier=MOCK_TLS,
         key_vault=vault,
         taxonomy=DEFAULT_TAXONOMY,
         regions=DEFAULT_REGIONS,
@@ -462,6 +466,7 @@ def test_ad_relay_http_routes(store):  # noqa: F811
     vault = KeyVault()
     router = create_live_ad_coin_v2_router(
         store,
+        mtls_verifier=MOCK_TLS,
         key_vault=vault,
         taxonomy=DEFAULT_TAXONOMY,
         regions=DEFAULT_REGIONS,
@@ -475,6 +480,7 @@ def test_ad_relay_http_routes(store):  # noqa: F811
 
     commercial, resolver, _ = build_live_service(
         store,
+        mtls_verifier=MOCK_TLS,
         key_vault=vault,
         taxonomy=DEFAULT_TAXONOMY,
         regions=DEFAULT_REGIONS,
