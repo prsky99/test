@@ -24,11 +24,18 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 import ops_llm  # noqa: E402
 
-OUT = ROOT / 'logs/ops/report-quality'
+import os
+OUT = Path(os.environ.get('RQ_DIR', ROOT / 'logs/ops/report-quality')).resolve()
 STATE = OUT / 'state.json'
+BASE = ROOT / 'logs/ops/report-quality'
 RUBRIC = Path.home() / '.gemini/antigravity/brain/c483b1b9-b552-4e83-b78d-d6f36bf0128d/test_report_quality_evaluation_expert_framework.md'
-MODEL = 'claude-opus-5-5'
-BATCH_PRICE = {'input': 2.0, 'output': 10.0, 'cache_write': 2.5, 'cache_read': 0.10}  # Opus 5.5 at 50% batch rate
+MODEL = os.environ.get('RQ_MODEL', 'claude-opus-5-5')
+EFFORT = os.environ.get('RQ_EFFORT', 'medium')
+# 50% batch rates per million tokens.
+BATCH_PRICES = {'claude-opus-5-5': {'input': 2.0, 'output': 10.0, 'cache_write': 2.5, 'cache_read': 0.10},
+                'claude-haiku-5-5': {'input': 0.05, 'output': 0.25, 'cache_write': 0.0625, 'cache_read': 0.005}}
+BATCH_PRICE = BATCH_PRICES[MODEL]
+EXAMPLES = BASE / 'haiku-examples.json'
 FIELDS = ('summary', 'pros', 'cons', 'workflow_recommendation', 'content_md')
 PSQL = ['/opt/homebrew/opt/postgresql@18/bin/psql', '-h', str(ROOT / 'gateway-data/postgres18/run'), '-p', '55432',
         '-d', 'agentcon_cutover_20261020_191757', '-v', 'ON_ERROR_STOP=1', '-Atc']
@@ -77,6 +84,46 @@ def sample(n):
     print(json.dumps({'sampled': len(rows), 'by_kind': kinds}))
 
 
+def done_ids():
+    ids = set()
+    for backup in BASE.rglob('backup-*.jsonl'):
+        for line in backup.read_text().splitlines():
+            if line.strip():
+                ids.add(json.loads(line)['id'])
+    return ids
+
+
+def export_remaining(chunk):
+    skip = done_ids()
+    sql = """select row_to_json(t) from (select id, kind, eval_grade, eval_score, is_success, status_code, latency_ms,
+      test_method, tool_name, agent_name, summary, pros, cons, workflow_recommendation, content_md,
+      left(output_wire, 2500) output_wire from agent_test_reports order by id) t"""
+    rows = [l for l in psql(sql).splitlines() if l.strip() and json.loads(l)['id'] not in skip]
+    root = BASE / 'haiku'
+    root.mkdir(parents=True, exist_ok=True)
+    chunks = [rows[i:i + int(chunk)] for i in range(0, len(rows), int(chunk))]
+    for n, part in enumerate(chunks):
+        (root / f'chunk-{n:02d}').mkdir(exist_ok=True)
+        (root / f'chunk-{n:02d}' / 'sample.jsonl').write_text('\n'.join(part) + '\n')
+    print(json.dumps({'remaining': len(rows), 'skipped_done': len(skip), 'chunks': len(chunks)}))
+
+
+def make_examples():
+    originals = {json.loads(l)['id']: json.loads(l) for l in (BASE / 'sample.jsonl').read_text().splitlines() if l.strip()}
+    picked, kinds = [], set()
+    for line in (BASE / 'results.jsonl').read_text().splitlines():
+        row = json.loads(line)
+        res = row.get('result') or {}
+        orig = originals.get(row['id'])
+        if not orig or orig['kind'] in kinds or not res.get('rewrite') or _valid(orig, res['rewrite']):
+            continue
+        before = {k: (orig.get(k) or '')[:1500] if k == 'content_md' else orig.get(k) for k in (*FIELDS, 'kind', 'is_success', 'eval_grade')}
+        picked.append({'before': before, 'after': res['rewrite']})
+        kinds.add(orig['kind'])
+    EXAMPLES.write_text(json.dumps(picked, ensure_ascii=False))
+    print(json.dumps({'examples': len(picked), 'kinds': sorted(kinds)}))
+
+
 def client():
     import anthropic
     return anthropic.Anthropic(api_key=ops_llm.KEY_FILE.read_text().strip(), max_retries=3, timeout=120.0)
@@ -84,13 +131,24 @@ def client():
 
 def submit():
     rows = [json.loads(line) for line in (OUT / 'sample.jsonl').read_text().splitlines() if line.strip()]
-    system = [{'type': 'text', 'text': RUBRIC.read_text() + '\n\n' + INSTRUCTIONS, 'cache_control': {'type': 'ephemeral'}}]
+    if MODEL == 'claude-haiku-5-5':
+        examples = json.loads(EXAMPLES.read_text())
+        shots = '\n\n'.join('Example ' + str(i + 1) + ' input:\n' + json.dumps(e['before'], ensure_ascii=False)
+                             + '\nExample ' + str(i + 1) + ' rewrite:\n' + json.dumps(e['after'], ensure_ascii=False)
+                             for i, e in enumerate(examples))
+        text = (INSTRUCTIONS + '\nAlways set needs_rewrite to true and return a rewrite. Fix the same kinds of problems '
+                'a senior reviewer fixed in these accepted examples (missing limitations, unsupported claims, '
+                'overclaiming, grade inconsistency, internal names such as X-Gateway-Route headers, internal table '
+                'names, localhost or private addresses):\n\n' + shots)
+    else:
+        text = RUBRIC.read_text() + '\n\n' + INSTRUCTIONS
+    system = [{'type': 'text', 'text': text, 'cache_control': {'type': 'ephemeral'}}]
     requests = []
     for row in rows:
         payload = {k: row.get(k) for k in ('kind', 'eval_grade', 'eval_score', 'is_success', 'status_code', 'latency_ms',
                                            'test_method', 'tool_name', 'agent_name', *FIELDS, 'output_wire')}
         requests.append({'custom_id': f"r{row['id']}", 'params': {
-            'model': MODEL, 'max_tokens': 6000, 'output_config': {'effort': 'medium'}, 'system': system,
+            'model': MODEL, 'max_tokens': 6000, 'output_config': {'effort': EFFORT}, 'system': system,
             'messages': [{'role': 'user', 'content': 'Report JSON:\n' + json.dumps(payload, ensure_ascii=False)}]}})
     batch = client().messages.batches.create(requests=requests)
     STATE.write_text(json.dumps({'batch_id': batch.id, 'submitted': datetime.now().isoformat(), 'count': len(requests)}))
@@ -231,4 +289,6 @@ def apply(dry):
 if __name__ == '__main__':
     cmd = sys.argv[1:] or ['']
     {'sample': lambda: sample(cmd[1] if len(cmd) > 1 else 1500), 'submit': submit, 'collect': collect,
-     'summarize': summarize, 'apply': lambda: apply('--dry' in cmd)}[cmd[0]]()
+     'summarize': summarize, 'apply': lambda: apply('--dry' in cmd),
+     'export-remaining': lambda: export_remaining(cmd[1] if len(cmd) > 1 else 5000),
+     'make-examples': make_examples}[cmd[0]]()
