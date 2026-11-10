@@ -274,10 +274,14 @@ class BackgroundLoop:
     def refresh_capability_text(self, refresher):
         try:
             refresher.run()
-        except Exception:
+        except Exception as exc:
             # A failed round only leaves rows on the full-text path; retry after a pause.
             refresher.rest_until = refresher.clock() + 300
-            log.exception('Capability text refresh round failed')
+            if getattr(exc, 'code', None) == 'statement_failed':
+                # A statement timeout under load (11-10 17:50) is expected and retried: no traceback.
+                log.warning('Capability text refresh round skipped: statement_failed; retry in 300 s')
+            else:
+                log.exception('Capability text refresh round failed')
 
     def run(self):
         from .workspace_platform import platform_for, typed_engine_for
