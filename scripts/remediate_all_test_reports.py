@@ -11,6 +11,8 @@
 import getpass
 from pathlib import Path
 import json, os, re, sys, time, psycopg
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import report_consistency  # noqa: E402
 sys.path.insert(0, os.path.dirname(__file__))
 from report_pipeline_common import (
     lint, normalize_test_method, normalize_eval_grade, english_clean,
@@ -420,9 +422,10 @@ def remediate(conn, dry_run=False):
                 lat_val = float(latency_ms) if (latency_ms is not None and latency_ms >= 0) else 100.0
                 wire_dict['telemetry'] = {
                     'p50_ms': round(lat_val, 1),
-                    'p95_ms': round(lat_val, 1),
-                    'jitter_ms': 0.0,
-                    'trials': 1
+                    'p95_ms': None,
+                    'jitter_ms': None,
+                    'trials': 1,
+                    'note': 'single trial; p95 and jitter not measurable'
                 }
                 new_output_wire_raw = json.dumps(wire_dict)
                 changes['telemetry_wire_backfilled'] += 1
@@ -462,6 +465,11 @@ def main():
     for k, v in changes.items():
         print(f"  {k}: {v}")
 
+    # C1~C9 consistency rules (scripts/report_consistency.py, 11-10 quality target 100%).
+    backup = None if dry_run else (Path(__file__).resolve().parents[1] / 'logs/ops/report-quality' /
+                                   f"backup-consistency-{time.strftime('%Y%m%d-%H%M%S')}.jsonl")
+    print(f"  consistency_fixed: {report_consistency.apply_all(conn, backup)}")
+
     print("\n=== TEST REPORT QUALITY AUDIT (POST-REMEDIATION) ===")
     post_stats = audit_existing(conn.cursor())
     for k, v in post_stats.items():
@@ -475,7 +483,9 @@ def main():
                    r.workflow_recommendation, r.tags, r.eval_grade, r.is_success,
                    r.test_method, r.pros, r.cons, r.executed_at, r.execution_finished_at, r.source,
                    res.active, res.eval_security, res.inactive_reason, res.health_status,
-                   r.agent_name, r.agent_url
+                   r.agent_name, r.agent_url,
+                   r.id, r.test_method, r.evidence_scope, r.eval_grade, r.eval_score, r.latency_ms, r.agent_name,
+                   r.pros, r.cons, r.workflow_recommendation, r.content_md, r.output_wire
             FROM agent_test_reports r
             LEFT JOIN resources res ON r.resource_id = res.id;
         """)
@@ -506,6 +516,8 @@ def main():
                 'agent_name': r[20], 'agent_url': r[21]
             }
             issues = lint(rep_dict, now=now)
+            consistency_row = dict(zip(report_consistency.COLUMNS, r[22:]))
+            issues += [f'{rule}: consistency rule' for rule in report_consistency.check(consistency_row)]
             if issues:
                 lint_failures += 1
                 if lint_failures <= 5:

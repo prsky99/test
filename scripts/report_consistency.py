@@ -1,0 +1,303 @@
+#!/usr/bin/env python3
+"""Deterministic consistency rules for published test reports (11-10, quality target 100%).
+
+The 11-10 Opus 5.5 audit of 300 rewritten reports (median 88/100) found that most remaining issues are
+mechanical, so plain code can find and fix them without any model call:
+
+  C1 sections_match_fields   the ### Pros / ### Cons lists and the workflow section in content_md must say
+                             exactly what the pros, cons and workflow_recommendation fields say (the fields win)
+  C2 score_matches_field     every "AQEF-30 Score: X/100" in prose must equal eval_score and name the grade
+  C3 transport_scope_stated  a transport-only report must say that grade and score reflect transport evidence
+                             only and that no tool, skill or task was invoked
+  C4 exact_latency_present   the unrounded latency_ms must appear at least once (prose rounds it)
+  C5 empty_description_noted a card description that only repeats the agent name is stated as such and
+                             listed in cons
+  C6 neutral_not_pro         "declared as unsupported" items are limitations, not advantages: they move to cons
+  C7 single_trial_telemetry  output_wire telemetry from one trial carries no p95 or jitter value
+  C8 restored_record_noted   a legacy (restored) report says it is a historical record
+  C9 lists_are_json          pros and cons are JSON arrays of strings
+
+normalize(report) returns (new_report, applied_rule_ids); check(report) returns the rules still violated.
+No numbers are invented: every value written comes from the report's own fields.
+"""
+import json
+import re
+
+TRANSPORT_ONLY_METHODS = {'a2a agent card', 'mcp tools list', 'x402 challenge'}
+SCOPE_SENTENCE = ('The grade and score reflect transport-level evidence only; no tool, skill or task was invoked.')
+RESTORED_NOTE = ('> Historical record restored from a retained backup. Recorded outcomes and grades are not a new '
+                 'execution and not a guarantee of current availability.\n\n')
+EMPTY_DESCRIPTION = 'Provider description: not provided beyond the agent name.'
+EMPTY_DESCRIPTION_CON = 'The card description only repeats the agent name, so it gives no functional detail.'
+NEUTRAL_PRO = re.compile(r'(?i)\b(declared as unsupported|declared as false|are not supported|is not supported)\b')
+SCORE_PROSE = re.compile(r'(AQEF-30 Score:\s*\**)(\d{1,3}(?:\.\d+)?)(\s*/\s*100\**)')
+SINGLE_TRIAL_NOTE = 'single trial; p95 and jitter not measurable'
+
+
+def as_list(value):
+    if isinstance(value, list):
+        return [str(v).strip() for v in value if str(v).strip()]
+    text = str(value or '').strip()
+    if not text:
+        return []
+    try:
+        parsed = json.loads(text)
+    except ValueError:
+        return [part.strip().rstrip('.') + '.' for part in text.split(';') if part.strip().rstrip('.')]
+    if isinstance(parsed, list):
+        return [str(v).strip() for v in parsed if str(v).strip()]
+    return [str(parsed).strip()] if str(parsed).strip() else []
+
+
+def is_transport(report):
+    return str(report.get('test_method') or '').strip().lower() in TRANSPORT_ONLY_METHODS
+
+
+def _section_span(md, heading):
+    """(start_of_body, end_of_body) for a heading line, or None. The body ends at the next heading."""
+    match = re.search(rf'(?m)^{re.escape(heading)}[ \t\r]*\n', md)
+    if not match:
+        return None
+    nxt = re.search(r'(?m)^#{1,6} ', md[match.end():])
+    end = match.end() + nxt.start() if nxt else len(md)
+    return match.end(), end
+
+
+def _replace_body(md, heading, body):
+    span = _section_span(md, heading)
+    if not span:
+        return md
+    start, end = span
+    tail = md[end:]
+    return md[:start] + '\n' + body.strip() + '\n' + ('\n' if tail else '') + tail
+
+
+def _bullets(items):
+    return '\n'.join(f'- {item}' for item in items)
+
+
+def _score_text(score):
+    return f'{float(score):.1f}'
+
+
+def _fmt_ms(value):
+    return f'{float(value):.1f}'.rstrip('0').rstrip('.')
+
+
+def _needs_exact_latency(report, md):
+    latency = report.get('latency_ms')
+    if latency is None:
+        return False
+    try:
+        latency = float(latency)
+    except (TypeError, ValueError):
+        return False
+    if latency < 0 or abs(latency - round(latency)) < 0.05:
+        return False  # whole numbers are already exact when shown
+    return f'{_fmt_ms(latency)} ms' not in md
+
+
+def _telemetry(report):
+    try:
+        wire = json.loads(report.get('output_wire') or '')
+    except (TypeError, ValueError):
+        return None, None
+    if not isinstance(wire, dict) or not isinstance(wire.get('telemetry'), dict):
+        return wire, None
+    return wire, wire['telemetry']
+
+
+def _agent_name_only_description(report, md):
+    name = str(report.get('agent_name') or '').strip()
+    if not name:
+        return None
+    match = re.search(rf'(?m)^(.*?)Provider description:\s*{re.escape(name)}\.?[ \t]*$', md)
+    return match
+
+
+def check(report):
+    md = str(report.get('content_md') or '')
+    problems = []
+    pros, cons = as_list(report.get('pros')), as_list(report.get('cons'))
+    for heading, items in (('### Pros', pros), ('### Cons', cons)):
+        span = _section_span(md, heading)
+        if span and items and md[span[0]:span[1]].strip() != _bullets(items):
+            problems.append('C1')
+            break
+    else:
+        workflow = str(report.get('workflow_recommendation') or '').strip()
+        span = _section_span(md, '## Recommended Workflow Integration')
+        if span and workflow and md[span[0]:span[1]].strip() != workflow:
+            problems.append('C1')
+    score = report.get('eval_score')
+    if score is not None:
+        for line in md.splitlines():
+            if line.lstrip().startswith('|'):
+                continue
+            for match in SCORE_PROSE.finditer(line):
+                if abs(float(match.group(2)) - float(score)) > 0.05 or 'Grade' not in line:
+                    problems.append('C2')
+                    break
+            if 'C2' in problems:
+                break
+    if is_transport(report) and SCOPE_SENTENCE not in md:
+        problems.append('C3')
+    if _needs_exact_latency(report, md):
+        problems.append('C4')
+    if _agent_name_only_description(report, md) or (
+            EMPTY_DESCRIPTION.lower() in md.lower() and not any('description' in c.lower() for c in cons)):
+        problems.append('C5')
+    if any(NEUTRAL_PRO.search(p) for p in pros) and len(pros) > 1:
+        problems.append('C6')
+    _, tele = _telemetry(report)
+    if tele and tele.get('trials') == 1 and (tele.get('p95_ms') is not None or tele.get('jitter_ms') is not None):
+        problems.append('C7')
+    if report.get('evidence_scope') == 'legacy' and not re.search(r'(?i)restored|historical', md):
+        problems.append('C8')
+    for key in ('pros', 'cons'):
+        value = report.get(key)
+        if value and not isinstance(value, list):
+            try:
+                if not isinstance(json.loads(value), list):
+                    problems.append('C9')
+            except ValueError:
+                problems.append('C9')
+    return sorted(set(problems))
+
+
+def normalize(report):
+    """Return (new_report, applied rule ids). The input dict is not changed."""
+    r = dict(report)
+    md = re.sub(r'(?m)^#{3,6} Recommended Workflow Integration[ \t\r]*$', '## Recommended Workflow Integration',
+                str(r.get('content_md') or ''))
+    applied = set(check(r))
+    pros, cons = as_list(r.get('pros')), as_list(r.get('cons'))
+
+    # C6: neutral "not supported" declarations are limitations.
+    neutral = [p for p in pros if NEUTRAL_PRO.search(p)]
+    if neutral and len(pros) > len(neutral):
+        pros = [p for p in pros if p not in neutral]
+        cons = cons + [n for n in neutral if n not in cons]
+    # C5: description that only repeats the agent name.
+    match = _agent_name_only_description(r, md)
+    if match:
+        md = md[:match.start()] + match.group(1) + EMPTY_DESCRIPTION + md[match.end():]
+    if EMPTY_DESCRIPTION.lower() in md.lower() and not any('description' in c.lower() for c in cons):
+        cons = cons + [EMPTY_DESCRIPTION_CON]
+    r['pros'], r['cons'] = json.dumps(pros, ensure_ascii=False), json.dumps(cons, ensure_ascii=False)
+
+    # C1: sections follow the fields.
+    if pros:
+        md = _replace_body(md, '### Pros', _bullets(pros))
+    if cons:
+        md = _replace_body(md, '### Cons', _bullets(cons))
+    workflow = str(r.get('workflow_recommendation') or '').strip()
+    if workflow:
+        md = _replace_body(md, '## Recommended Workflow Integration', workflow)
+
+    # C2: prose score equals the field and names the grade.
+    score, grade = r.get('eval_score'), r.get('eval_grade')
+    if score is not None:
+        lines = md.split('\n')
+        for idx, line in enumerate(lines):
+            if line.lstrip().startswith('|') or 'AQEF-30 Score' not in line:
+                continue
+            line = SCORE_PROSE.sub(lambda m: m.group(1) + _score_text(score) + m.group(3), line)
+            if grade and 'Grade' not in line:
+                line = SCORE_PROSE.sub(lambda m: m.group(0) + f', Grade {grade}', line, count=1)
+            lines[idx] = line
+        md = '\n'.join(lines)
+
+    # C3: transport scope sentence in the Scope section (or a new Scope section).
+    if is_transport(r) and SCOPE_SENTENCE not in md:
+        heading = '## Scope' if _section_span(md, '## Scope') else '### Scope'
+        span = _section_span(md, heading)
+        if span:
+            body = md[span[0]:span[1]].strip()
+            md = _replace_body(md, heading, (body + ' ' if body else '') + SCOPE_SENTENCE)
+        elif '## Recommended Workflow Integration' in md:
+            md = md.replace('## Recommended Workflow Integration',
+                            f'## Scope\n\n{SCOPE_SENTENCE}\n\n## Recommended Workflow Integration', 1)
+        else:
+            md = md.rstrip() + f'\n\n## Scope\n\n{SCOPE_SENTENCE}\n'
+
+    # C4: unrounded latency once, in the Measured Facts table when there is one.
+    if _needs_exact_latency(r, md):
+        row = f'| Recorded latency (unrounded) | {_fmt_ms(r["latency_ms"])} ms |'
+        table = re.search(r'(?ms)^## Measured Facts[ \t]*\n\s*(\|[^\n]*\|\n)(\|[^\n]*\|\n)(?:\|[^\n]*\|\n)*', md + '\n')
+        if table and table.end() <= len(md) + 1:
+            end = min(table.end(), len(md))
+            md = md[:end].rstrip('\n') + '\n' + row + '\n' + md[end:]
+        else:
+            # Never append after the last section: that would change the workflow section (C1).
+            sentence = f'Recorded latency (unrounded): {_fmt_ms(r["latency_ms"])} ms.\n\n'
+            anchor = re.search(r'(?m)^(?:#{1,3} .*Pros|### Pros|## Scope|## Recommended Workflow Integration)', md)
+            md = md[:anchor.start()] + sentence + md[anchor.start():] if anchor else md.rstrip() + '\n\n' + sentence
+
+    # C7: one-trial telemetry has no p95 or jitter.
+    wire, tele = _telemetry(r)
+    if tele and tele.get('trials') == 1 and (tele.get('p95_ms') is not None or tele.get('jitter_ms') is not None):
+        tele['p95_ms'], tele['jitter_ms'], tele['note'] = None, None, SINGLE_TRIAL_NOTE
+        r['output_wire'] = json.dumps(wire, ensure_ascii=False)
+
+    # C8: restored record note.
+    if r.get('evidence_scope') == 'legacy' and not re.search(r'(?i)restored|historical', md):
+        md = RESTORED_NOTE + md
+
+    r['content_md'] = md
+    remaining = set(check(r))
+    return r, sorted(applied - remaining)
+
+
+COLUMNS = ('id', 'test_method', 'evidence_scope', 'eval_grade', 'eval_score', 'latency_ms', 'agent_name', 'pros',
+           'cons', 'workflow_recommendation', 'content_md', 'output_wire')
+WRITABLE = ('content_md', 'pros', 'cons', 'output_wire')
+
+
+def apply_all(conn, backup_path=None, write=True):
+    """Normalize every stored report in the caller's transaction. Returns {rule: rows fixed, ...}.
+
+    When backup_path is given, the old values of every changed row are written there first. The caller commits.
+    """
+    import time
+    from collections import Counter
+    cur = conn.cursor()
+    cur.execute(f"select {', '.join(COLUMNS)} from agent_test_reports")
+    counts, updates, backup = Counter(), [], []
+    for row in cur.fetchall():
+        report = dict(zip(COLUMNS, row))
+        new, applied = normalize(report)
+        changed = [k for k in WRITABLE if (new.get(k) or '') != (report.get(k) or '')]
+        if not changed:
+            continue
+        counts.update(applied)
+        counts['rows'] += 1
+        backup.append({'id': report['id'], **{k: report.get(k) for k in WRITABLE}})
+        updates.append((new['content_md'], new['pros'], new['cons'], new['output_wire'], time.time(), report['id']))
+    if write and updates:
+        if backup_path:
+            from pathlib import Path
+            Path(backup_path).parent.mkdir(parents=True, exist_ok=True)
+            with open(backup_path, 'w') as fh:
+                for item in backup:
+                    fh.write(json.dumps(item, ensure_ascii=False, default=str) + '\n')
+        for start in range(0, len(updates), 500):
+            cur.executemany('update agent_test_reports set content_md=%s, pros=%s, cons=%s, output_wire=%s, '
+                            'updated_at=%s where id=%s', updates[start:start + 500])
+    return dict(counts)
+
+
+if __name__ == '__main__':
+    import sys
+    from datetime import datetime
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from remediate_all_test_reports import connect
+    apply = '--apply' in sys.argv
+    root = Path(__file__).resolve().parents[1]
+    path = root / 'logs/ops/report-quality' / f'backup-consistency-{datetime.now():%Y%m%d-%H%M%S}.jsonl'
+    conn = connect()
+    print(json.dumps(apply_all(conn, path if apply else None, write=apply)))
+    if apply:
+        conn.commit()
+        print(f'backup: {path.relative_to(root)}')
