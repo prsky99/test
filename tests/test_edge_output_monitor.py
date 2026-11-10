@@ -156,3 +156,31 @@ def test_legacy_api_without_browser_negotiation_still_passes_its_output_through_
     response=relay.client.post('/admin/api/test/execute',json={},headers=headers)
     assert response.json()['ok'] and response.headers['x-execution-delivery']=='edge'
     assert seen==['publish','edge-read'] and len(relay.calls)==1
+
+
+@pytest.mark.parametrize('error,stage,reason',[
+    (EdgeError('PUBLISH_HTTP',503),'publish','publish_http_503'),
+    (EdgeError('PUBLISH_HTTP',401),'publish','publish_http_401'),
+    (EdgeError('READBACK_HTTP',503),'readback','readback_http_503'),
+    (EdgeError('PUBLISH_MISMATCH'),'publish','publish_mismatch'),
+    (EdgeError('RESULT_INVALID'),'readback','readback_mismatch'),
+    (httpx.ReadTimeout('secret https://x/y'),'publish','publish_timeout'),
+    (httpx.ConnectError('down'),'readback','readback_connect'),
+    (httpx.RemoteProtocolError('bad'),'publish','publish_transport'),
+    (ValueError('bad json'),'readback','readback_invalid'),
+    (EdgeError('EDGE_NOT_READY'),'publish','edge_not_ready'),
+    (RuntimeError('x'),'publish','publish_failed')])
+def test_fallback_records_a_safe_cause_instead_of_one_publish_failed(edge,relay,monkeypatch,error,stage,reason):
+    # 11-09: 717 fallbacks were all "publish_failed", so their cause was never recorded (11-11).
+    from agent_market.edge_gateway.output_monitor import REASONS
+    assert output_relay.failure_reason(error,stage)==reason and reason in REASONS
+    monkeypatch.setattr(output_relay,'publish',lambda *a,**k:(_ for _ in ()).throw(error))
+    response=relay.client.post('/admin/api/test/execute',json={},headers=relay.headers)
+    assert response.status_code==200 and response.headers['x-execution-delivery']=='origin-fallback'
+    if stage=='publish':
+        assert dashboard(edge.service)['fallback_reasons']==[{'reason':reason,'count':1}]
+
+
+def test_store_busy_is_its_own_cause():
+    from agent_market.application_store_postgres import WriterBusy
+    assert output_relay.failure_reason(WriterBusy(),'publish')=='publish_store_busy'

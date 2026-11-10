@@ -9,7 +9,11 @@ from .state import transaction
 SOURCES={'public','admin','workflow','workspace','mcp','chat','a2a'}
 REASONS={'delivered','origin_relay','edge_unavailable','cache_miss','output_limit','edge_error','unconfirmed',
     'origin_unavailable','stream_error','client_cancelled','provider_failed','edge_not_ready','publish_failed'}|{
-    prefix+str(status) for prefix in ('origin_http_','edge_http_') for status in range(500,600)}
+    prefix+str(status) for prefix in ('origin_http_','edge_http_') for status in range(500,600)}|{
+    # Origin-side relay fallback causes (11-11): stage plus failure class, never message text.
+    stage+suffix for stage in ('publish_','readback_') for suffix in
+    ('store_busy','store','timeout','connect','transport','invalid','http_other',*('http_'+str(s) for s in range(400,600)))}|{
+    'publish_mismatch','readback_mismatch'}
 OUTCOMES={'edge','origin','error'}
 
 

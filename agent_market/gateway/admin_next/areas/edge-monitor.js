@@ -1,9 +1,10 @@
 import {page,button,metrics,table,date} from '../core/task-ui.js';
 let hours=24,automatic=true,timer=0;
 const SOURCES={public:'공개 Gateway',admin:'Admin',workflow:'Workflow·웹앱',workspace:'Workspace',mcp:'MCP',chat:'Chat',a2a:'A2A'};
-const REASONS={delivered:'Edge 직접 전달',origin_relay:'Edge 전달 · Origin 결과 중계',edge_unavailable:'Edge 준비·연결 실패',cache_miss:'Edge 결과 조회 실패',output_limit:'Edge 전달 크기 제한',edge_error:'과거 응답 오류 · 상세 미수집',unconfirmed:'결과 확인 필요',origin_unavailable:'Origin 연결 실패 · 자동 재전송 보류',stream_error:'응답 스트림 중단',client_cancelled:'클라이언트 연결 종료',provider_failed:'Provider 실행 실패 · Edge 전달 정상',edge_not_ready:'Edge 상태 확인 전 · 정책상 Origin 전달',publish_failed:'Edge 결과 게시·확인 실패'};
+const REASONS={delivered:'Edge 직접 전달',origin_relay:'Edge 전달 · Origin 결과 중계',edge_unavailable:'Edge 준비·연결 실패',cache_miss:'Edge 결과 조회 실패',output_limit:'Edge 전달 크기 제한',edge_error:'과거 응답 오류 · 상세 미수집',unconfirmed:'결과 확인 필요',origin_unavailable:'Origin 연결 실패 · 자동 재전송 보류',stream_error:'응답 스트림 중단',client_cancelled:'클라이언트 연결 종료',provider_failed:'Provider 실행 실패 · Edge 전달 정상',edge_not_ready:'Edge 상태 확인 전 · 정책상 Origin 전달',publish_failed:'Edge 결과 게시·확인 실패(원인 미기록)',publish_mismatch:'Edge 게시 응답 불일치',readback_mismatch:'Edge 결과 확인 불일치'};
+const STAGES={publish:'Edge 결과 게시',readback:'Edge 결과 확인'},KINDS={store_busy:'DB 쓰기 대기 초과',store:'DB 오류',timeout:'시간 초과',connect:'연결 실패',transport:'통신 오류',invalid:'형식 오류',http_other:'HTTP 오류'};
 const POLICY={free_available:'Edge 사용 가능',worker_not_ready:'Edge 준비 실패',operator_origin:'이전 Origin 고정 설정 감지',cpu_blocked:'Worker 오류 보호 중',health_unconfirmed:'상태 관측 확인 필요',usage_unconfirmed:'사용량 관측 확인 필요',daily_reserve:'무료 사용량 보호 중'};
-function reasonText(value){const match=/^(origin|edge)_http_(5[0-9]{2})$/.exec(value);return match?(match[1]==='origin'?'Origin 응답 오류':'Edge 응답 오류')+' · HTTP '+match[2]:REASONS[value]||'확인 필요';}
+function reasonText(value){const match=/^(origin|edge)_http_(5[0-9]{2})$/.exec(value);if(match)return (match[1]==='origin'?'Origin 응답 오류':'Edge 응답 오류')+' · HTTP '+match[2];const stage=/^(publish|readback)_(http_([45][0-9]{2})|[a-z_]+)$/.exec(value);if(stage&&(stage[3]||KINDS[stage[2]]))return STAGES[stage[1]]+' · '+(stage[3]?'HTTP '+stage[3]:KINDS[stage[2]]);return REASONS[value]||'확인 필요';}
 export function reset(){clearTimeout(timer);}
 export async function render(main,ctx){
  reset();const {ui,api}=ctx,{body,actions,note}=page(main,ctx),fresh=ui.el('span');let busy=false,last=null;

@@ -3,6 +3,7 @@ import hashlib
 import hmac
 import base64
 import json
+import logging
 import re
 import secrets
 
@@ -21,6 +22,33 @@ CONTEXT='edge-output-relay-v1'
 MEDIA='application/vnd.agentconcierge.edge-output+json'
 LIMIT=65536
 FALLBACK={'OUTPUT_LIMIT':'output_limit','EDGE_NOT_READY':'edge_not_ready'}
+log=logging.getLogger(__name__)
+
+
+def failure_reason(error,stage):
+    """A safe reason code for an Origin fallback: stage and failure class only (11-11).
+
+    Until 11-10 every failure was recorded as publish_failed, so 717 fallbacks on 11-09 had no
+    recorded cause. Codes carry no message, address, token or output; HTTP status is a number.
+    """
+    code=getattr(error,'code',None)
+    if code in FALLBACK:return FALLBACK[code]
+    if code in ('PUBLISH_HTTP','READBACK_HTTP'):
+        status=getattr(error,'status',0)
+        return f"{stage}_http_{status if type(status) is int and 400<=status<=599 else 'other'}"
+    if code=='PUBLISH_MISMATCH':return 'publish_mismatch'
+    if code=='RESULT_INVALID':return 'readback_mismatch'
+    if isinstance(error,EdgeError):return 'publish_failed'  # another named Edge refusal, already safe
+    import httpx
+    import sqlite3
+    from ..application_store_postgres import WriterBusy
+    if isinstance(error,WriterBusy):return stage+'_store_busy'
+    if isinstance(error,httpx.TimeoutException):return stage+'_timeout'
+    if isinstance(error,httpx.ConnectError):return stage+'_connect'
+    if isinstance(error,httpx.HTTPError):return stage+'_transport'
+    if isinstance(error,sqlite3.Error) or type(error).__module__.split('.')[0] in ('psycopg','psycopg_pool'):return stage+'_store'
+    if isinstance(error,(ValueError,KeyError,TypeError)):return stage+'_invalid'
+    return 'publish_failed'
 # Only Agent execution/results, never secrets, billing, audit, membership or configuration.
 OUTPUT=re.compile(r'/admin/api/(?:v2/catalog-tools/)?test-reports(?:/[^/]+)?\Z|/admin/api/(?:v2/catalog-tools/)?test/execute\Z|/admin/api/(?:v2/catalog-tools/)?connections/[1-9][0-9]*/contracts/[^/]+/test\Z|/admin/api/workflows/(?:[1-9][0-9]*/run|runs/[^/]+)\Z|/admin/api/(?:workflow-workspaces|v2/(?:workspace-panels|staff-workspaces))/[^/]+/(?:.*?/)?(?:runs(?:/[^/]+)?|product-test(?:/[^/]+)?|app-factory/model-proposals(?:/[^/]+)?|advancement/support/assistant|remote-a2a/tasks(?:/[^/]+(?:/messages)?)?)\Z')
 
@@ -64,7 +92,8 @@ def publish(service,principal,client_origin,body,status,*,client=None):
     try:
         response=http.post(service.config.origin+path,content=raw,headers={'Content-Type':'application/json',
             'X-Edge-Time':stamp,'X-Edge-Nonce':nonce,'X-Edge-Signature':service_mac(service.config.key,'POST',path,stamp,nonce,raw)})
-        if response.status_code!=200 or response.json()!={'ok':True,'run':run,'hash':digest}:raise EdgeError('EDGE_UNAVAILABLE')
+        if response.status_code!=200:raise EdgeError('PUBLISH_HTTP',response.status_code)
+        if response.json()!={'ok':True,'run':run,'hash':digest}:raise EdgeError('PUBLISH_MISMATCH')
     finally:http.close()
     return {'_edge_output_v1':True,'base':service.config.origin,'run_id':run,
         'path':'/api/edge-gateway/v1/outputs/'+run,'access_token':token}
@@ -84,7 +113,7 @@ def compatibility(service,envelope,client_origin):
     client=bounded_client(allow_private=False,limit=131072,budget=OutboundBudget(6))
     try:
         response=client.get(envelope['base']+envelope['path'],headers={'Origin':client_origin,'Authorization':'Bearer '+envelope['access_token']})
-        if response.status_code!=200:raise EdgeError('EDGE_UNAVAILABLE')
+        if response.status_code!=200:raise EdgeError('READBACK_HTTP',response.status_code)
         return response.json()
     finally:client.close()
 
@@ -126,6 +155,7 @@ def install(app,front):
                 note(service,'origin','admin','output_limit')
                 return StreamingResponse(rest(),status_code=response.status_code,headers={**response.headers,'X-Execution-Delivery':'origin-fallback'})
         headers=dict(response.headers);headers.pop('content-length',None)
+        stage='publish'
         try:
             client_origin=request.headers.get('origin') or str(request.url).split('/admin/',1)[0]
             envelope=await run_in_threadpool(publish,service,principal,client_origin,json.loads(raw),response.status_code)
@@ -134,12 +164,15 @@ def install(app,front):
             except Exception:pass
             retained={k:v for k,v in headers.items() if k not in ('content-type','content-encoding','etag')}
             if request.headers.get('x-edge-output-transport')!='v1':
+                stage='readback'
                 delivered=await run_in_threadpool(compatibility,service,envelope,client_origin)
                 if delivered!={'status':response.status_code,'body':json.loads(raw)}:raise EdgeError('RESULT_INVALID')
                 return Response(bytes(raw),status_code=response.status_code,headers={**headers,'X-Execution-Delivery':'edge','X-Edge-Compatibility-Relay':'1'})
             return JSONResponse(envelope,media_type=MEDIA,headers={**retained,'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'})
         except Exception as error:
-            note(service,'origin','admin',FALLBACK.get(getattr(error,'code',None),'publish_failed'),len(raw))
+            reason=failure_reason(error,stage)
+            if reason not in ('edge_not_ready','output_limit'):log.warning('Edge output relay fell back to Origin: %s (%s)',reason,type(error).__name__)
+            note(service,'origin','admin',reason,len(raw))
             return Response(bytes(raw),status_code=response.status_code,headers={**headers,'X-Execution-Delivery':'origin-fallback'})
 
     @app.get('/admin/api/v2/gateway/edge-output/{run_id}',include_in_schema=False)
