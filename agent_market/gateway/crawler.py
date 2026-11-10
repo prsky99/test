@@ -34,6 +34,15 @@ USDC_ASSETS = {
     "eip155:137": "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359",
     "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp": "epjfwdd5aufqssqem2qn1xzybapc8g4weggkzwytdt1v",
 }
+# Test networks: their USDC has no value, so a price there is never shown as a real price
+# (427 active x402 listings took payment only on Base Sepolia, 2026-11-10).
+TEST_NETWORKS = frozenset({"eip155:84532"})
+
+
+def test_networks_only(networks) -> bool:
+    """True when every payment network is a test network (stored as ',a,b,' or a list)."""
+    names = [n for n in (networks.split(',') if isinstance(networks, str) else networks or []) if n]
+    return bool(names) and all(LEGACY_NETWORKS.get(n, n) in TEST_NETWORKS for n in names)
 LEGACY_NETWORKS = {"base": "eip155:8453", "base-sepolia": "eip155:84532", "polygon": "eip155:137", "arbitrum": "eip155:42161", "solana": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"}
 
 
@@ -61,6 +70,8 @@ def usdc_price(accepts: list[dict]) -> tuple[int, str | None, str] | None:
         try:
             amount = int(a.get("amount") or a.get("maxAmountRequired"))
         except (TypeError, ValueError):
+            continue
+        if net in TEST_NETWORKS:
             continue
         if net and USDC_ASSETS.get(net) == str(a.get("asset", "")).lower() and (best is None or amount < best[0]):
             best = (amount, a.get("payTo"), net)

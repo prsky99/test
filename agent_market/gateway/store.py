@@ -1177,7 +1177,7 @@ class Store:
             return "unchanged", rid
         stored = db.execute("SELECT * FROM resources WHERE id=?", (rid,)).fetchone()
         if (registry_observed and r["kind"] == "x402" and stored is not None and _same_details(stored["details"], values[10])
-                and stored["price_usdc"]):  # only a positive quote; 0 or unknown takes the listed price
+                and stored["price_usdc"] and values[7]):  # positive quote over a positive listing only
             # Same registry entry: keep the price and payee from the provider's own 402 quote. The
             # bazaar's listed amount and the live quote took turns overwriting each other, which
             # re-embedded 309 listings ~1.5 times a day and showed a different price each time (2026-11-10).

@@ -1809,6 +1809,9 @@ def get_safe_agent_detail(store: Store, rid: int) -> dict:
                'auth_method','auth_observed','price_usdc','calls_30d','report_grade','report_score','url')
     resource = r
     r = {key:resource[key] for key in allowed if key in resource}
+    from ..gateway.crawler import test_networks_only
+    if resource.get('kind') == 'x402' and test_networks_only(resource.get('networks')):
+        r['price_note'] = 'testnet_only'  # paid only in test USDC: never shown as a real price (11-10)
     r['active'] = bool(resource.get('active'))
     r['catalog_status'] = ('live' if r['active'] and resource.get('health_status')
                            in ('healthy','reachable') and resource.get('eval_security') != 'quarantine'

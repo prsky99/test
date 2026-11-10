@@ -2420,7 +2420,8 @@ function agentCardHtml(r) {
   const meta = [];
   if (r.catalog_status === "historical") meta.push('<span class="chip" style="color:var(--warn)">Historical entry · unavailable</span>');
   if (r.first_seen) meta.push(`<span class="chip" style="color:var(--reach);display:inline-flex;align-items:center;gap:3px" title="Discovered: ${nyTime(r.first_seen)}"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span>${nyAgo(r.first_seen)}</span></span>`);
-  if (r.kind === "x402" && r.price_usdc) meta.push(`<span class="chip">${usd(r.price_usdc)}/call</span>`);
+  if (r.price_note === "testnet_only") meta.push('<span class="chip">Testnet only</span>');
+  else if (r.kind === "x402" && r.price_usdc) meta.push(`<span class="chip">${usd(r.price_usdc)}/call</span>`);
   else if (r.kind === "x402" && r.price_usdc === null) meta.push('<span class="chip">Price on request</span>');
   if (r.payers_30d) meta.push(`<span class="chip">30d payers: ${fmt(r.payers_30d)}</span>`);
   if (r.cap_tool_count) meta.push(`<span class="chip">${fmt(r.cap_tool_count)} tools</span>`);
@@ -4482,7 +4483,7 @@ function renderDrawerAgent(a, statusType) {
       <dt>Category</dt>
       <dd>${esc(formatCategory(a.category, cats))}</dd>
       <dt>Price Per Call</dt>
-      <dd>${a.price_usdc === null ? (a.kind === "x402" ? "Price on request" : "Free") : usd(a.price_usdc)} ${a.pay_to ? `<span style="font-family:monospace;font-size:11px">(${esc(a.pay_to)})</span>` : ""}</dd>
+      <dd>${a.price_note === "testnet_only" ? "Testnet only" : a.price_usdc === null ? (a.kind === "x402" ? "Price on request" : "Free") : usd(a.price_usdc)} ${a.pay_to ? `<span style="font-family:monospace;font-size:11px">(${esc(a.pay_to)})</span>` : ""}</dd>
       <dt>Authentication</dt>
       <dd>${esc(agentAuthenticationLabel(a))}</dd>
       <dt>Available Tools</dt>

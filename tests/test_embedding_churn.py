@@ -223,3 +223,40 @@ def test_a_listed_price_replaces_an_unknown_left_by_an_old_zero_quote(tmp_path):
     store.record_observed_quote(rid, None)
     store.upsert_resource(row, now=20)
     assert store.resource(rid)['price_usdc'] == 60000
+
+
+def test_a_test_network_price_is_not_a_real_price(tmp_path):
+    # 2026-11-10: 427 active x402 listings paid only on Base Sepolia showed prices such as $1.00.
+    from agent_market.gateway.crawler import parse_x402_item, usdc_price
+    sepolia = {'network': 'eip155:84532', 'asset': '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+               'amount': '1000000', 'payTo': '0xabc'}
+    base = {'network': 'eip155:8453', 'asset': '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+            'amount': '20000', 'payTo': '0xdef'}
+    assert usdc_price([sepolia]) is None
+    assert usdc_price([sepolia, base])[0] == 20000  # the mainnet price wins even when larger
+    item = {'resource': 'https://pay.example/test', 'accepts': [sepolia]}
+    assert parse_x402_item(item)['price_usdc'] is None
+    # A stored test-network price leaves on the next registry refresh of the same entry.
+    store = Store(str(tmp_path / 'testnet.sqlite3'))
+    row = {'key': 'x402:https://pay.example/test', 'source': 'x402-bazaar', 'kind': 'x402',
+           'url': 'https://pay.example/test', 'name': 'Test', 'description': 'Test net', 'category': 'data_utility',
+           'networks': ['eip155:84532'], 'price_usdc': 1000000, 'details': {'accepts': [sepolia]}}
+    rid = store.upsert_resource(row, now=10)
+    store.upsert_resource(row | {'price_usdc': None}, now=20)
+    assert store.resource(rid)['price_usdc'] is None
+
+
+def test_the_detail_api_marks_a_test_network_listing(tmp_path):
+    from agent_market.concierge.front import get_safe_agent_detail
+    from agent_market.gateway.crawler import test_networks_only
+    assert test_networks_only(',eip155:84532,') and test_networks_only(['base-sepolia'])
+    assert not test_networks_only(',eip155:8453,eip155:84532,') and not test_networks_only('')
+    store = Store(str(tmp_path / 'detail.sqlite3'))
+    base = {'source': 'x402-bazaar', 'kind': 'x402', 'name': 'Paid', 'description': 'Paid API',
+            'category': 'data_utility', 'price_usdc': None, 'details': {}}
+    test_id = store.upsert_resource(base | {'key': 'x402:https://t.example/a', 'url': 'https://t.example/a',
+                                            'networks': ['eip155:84532']}, now=10)
+    main_id = store.upsert_resource(base | {'key': 'x402:https://m.example/a', 'url': 'https://m.example/a',
+                                            'networks': ['eip155:8453'], 'price_usdc': 20000}, now=10)
+    assert get_safe_agent_detail(store, test_id)['agent']['price_note'] == 'testnet_only'
+    assert 'price_note' not in get_safe_agent_detail(store, main_id)['agent']

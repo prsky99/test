@@ -491,7 +491,8 @@
         if(item.catalog_status!=='historical'&&item.connection_readiness?.verified_callable===true)items.push(['Execution checked','ux-checked']);
         // Whether a listing can be used right away decides the choice, so access and price always show.
         if(item.auth_required===0&&item.kind!=='x402')items.push(['No account required','']);
-        if(item.kind==='x402'&&item.price_usdc)items.push([usd(item.price_usdc)+' per call','']);
+        if(item.price_note==='testnet_only')items.push(['Testnet only','']);
+        else if(item.kind==='x402'&&item.price_usdc)items.push([usd(item.price_usdc)+' per call','']);
         else if(item.kind==='x402'&&item.price_usdc===null)items.push(['Price on request','']);
         if(item.cap_tool_count)items.push([String(item.cap_tool_count)+' tools','']);
         facts.replaceChildren(...items.map(([label,cls])=>node('span','chip '+cls,label)));
