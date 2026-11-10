@@ -435,6 +435,19 @@
   $('stop-ad').onclick=()=>run($('stop-ad'),()=>closeAd(true),{quiet:true});
   $('check-outcome').onclick=()=>run($('check-outcome'),pollOutcome,{quiet:true});
   $('load-campaigns').onclick=()=>run($('load-campaigns'),()=>loadCampaigns(false));
+  $('apply-form').addEventListener('submit',event=>{
+    event.preventDefault();
+    if (!account()) return;
+    const body={display_name:$('apply-name').value.trim(),listing_url:$('apply-listing').value.trim()};
+    if (!body.listing_url.startsWith('https://agentconcierge.biz/')) {text('apply-status','Use the page of your listing on agentconcierge.biz.');return;}
+    review('Send this advertiser application?',[body.display_name,body.listing_url,
+      'We check that this listing is yours and active. You can create campaigns once the application is approved.'],async()=>{
+      try {const {value}=await api('/advertiser-applications',{method:'POST',body});
+        text('apply-status',value.status==='approved'?'Your advertising account is open.':'Application received. We will review it before your account opens.');}
+      catch (error) {if (error.status===422) {text('apply-status','Check the name and the listing page, then try again.');return;}
+        if (error.status===429) {text('apply-status','You have reached the number of applications for now.');return;} throw error;}
+      await connect();});
+  });
   $('use-points').onclick=()=>{if (!account()) return;$('exchange-form').hidden=false;$('exchange-credits').focus();};
   $('cancel-exchange').onclick=()=>{$('exchange-form').hidden=true;};
   $('exchange-form').addEventListener('submit',event=>{

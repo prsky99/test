@@ -34,7 +34,10 @@ def test_page_is_korean_and_uses_only_the_shared_design_files():
 def test_script_only_reads_and_loads_both_panels_in_parallel():
     js = client().get(re.search(r'src="([^"]+admin\.[0-9a-f]+\.js)"', client().get(PATH).text).group(1)).text
     assert 'Promise.allSettled' in js and "get('/overview')" in js and "get('/reconcile')" in js
-    assert "method:" not in js and 'POST' not in js  # read only
+    # Writes (step 2, 11-11) go only to the two decision APIs and always carry the site CSRF token.
+    import re as _re
+    assert set(_re.findall(r"post\('(/[a-z]+)/", js)) == {'/applications', '/reviews'}
+    assert "'X-CSRF-Token': await siteCsrf()" in js and js.count("method: 'POST'") == 1
     assert 'BigInt' in js  # atoms exceed Number's safe range
 
 
@@ -50,3 +53,9 @@ def test_holdings_carry_no_x402_condition():
     held = points.platform_holdings(Ledger())
     assert held == {'growth_budget_atoms': '7', 'coin_revenue_atoms': '3', 'platform_holdings_atoms': '10',
                     'issued_atoms': '10', 'atoms_per_coin': points.ATOMS_PER_COIN}
+
+
+def test_step2_sections_are_korean_and_load_on_click():
+    html = client().get(PATH).text
+    assert '광고주 신청' in html and '캠페인 심사' in html and 'id="load-applications"' in html and 'id="load-reviews"' in html
+    assert '카탈로그에 등록된 에이전트·MCP 제공자만 승인합니다' in html

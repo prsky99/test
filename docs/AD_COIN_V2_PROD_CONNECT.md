@@ -107,6 +107,25 @@ v2 migrate 같은 운영 DB 구조 변경은 운영에서 실행하기 전에 �
 - **키:** `owner-link.key`가 이미 있어야 한다. 스크립트는 키를 새로 만들지 않는다.
 - **시험:** `tests/test_ad_coin_v2_grant_operator.py`, `tests/test_ad_coin_v2_launch_journeys.py::test_step1_*`
 
+## 0-5. 광고주 신청·승인과 운영자 심사 (2026-11-11, PM 2단계)
+
+- **신청(공개, 영어):** `/ad-coin/v2` Advertising의 "Apply as an advertiser" 카드에서 한다.
+  - API: `POST /api/ad-coin/v2/advertiser-applications` `{display_name, listing_url}`
+  - 사이트 로그인과 CSRF가 필요하다. `listing_url`은 `https://agentconcierge.biz/` 카탈로그 페이지만 받는다. 한 사람이 최대 5건까지 신청할 수 있다.
+  - 새 표는 없다. 신청은 정지(suspended) 상태의 광고주 행이고, 신청자에게 캠페인 권한 멤버십(편집, 읽기, 일시정지, 예산 승인, 보고서)을 준다.
+  - 이름과 목록 주소는 감사 로그 `advertiser_applied`에 남는다. 감사 로그 보존은 90일이라, 90일 넘게 처리하지 않은 신청은 목록에서 빠진다.
+- **승인(관리, 한국어):** `/ad-coin/v2/admin`의 "광고주 신청" 칸에서 한다.
+  - API: `GET /api/ad-coin/v2/admin/applications`, `POST .../applications/{id}/decision` `{approve, reason}`
+  - 운영자 권한과 CSRF가 필요하다.
+  - 기준(c): 카탈로그에 등록된 제공자만 승인한다. 운영자가 목록 페이지를 열어 확인한다.
+  - 승인하면 광고주가 활성이 되고 환영 지급이 함께 나간다. 성장 예산이 0이면 지급 없이 승인하고 `growth_budget_empty`를 알려 준다(3단계 발행 뒤에 지급).
+  - 거절에는 사유가 필요하다. 거절된 광고주는 정지 상태로 남는다.
+- **캠페인 심사(A안):** "캠페인 심사" 칸에서 한다.
+  - API: `GET /api/ad-coin/v2/admin/reviews`, `POST .../reviews/{id}/decision` `{verdict: eligible|rejected, reason_code}`
+  - 기존 심사 증거와 상태 흐름을 그대로 쓰고, 심사자는 운영자로 기록된다. REVIEWER mTLS 자격은 필요 없다.
+- **여정 시험:** `test_ad_coin_v2_launch_journeys.py::test_step2_*`(신청 → 승인 → 캠페인 → 운영자 심사 → eligible)
+- 다음 단계에 남은 것: 예산 승인 뒤 캠페인 활성화(활성화 스위치는 5단계), 환영 지급(3단계 발행)
+
 ## 1. 승인이 필요한 일 (사용자 결정)
 
 | # | 일 | 바뀌는 것 | 되돌리기 |

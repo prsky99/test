@@ -22,7 +22,7 @@
 </header>
 <div class="container ws-layout">
 <aside class="ws-sidebar" aria-label="AI AD Coin v2 운영 메뉴"><p class="caption">AI AD Coin v2 운영</p><div class="row"><span class="badge warning">운영자 전용 · 읽기 전용</span></div><hr class="divider"><nav aria-label="운영 화면">
-<a class="side-item active" href="#holdings" aria-current="page">@@home@@보유량</a><a class="side-item" href="#reconcile">@@receipt@@원장 대사</a>
+<a class="side-item active" href="#holdings" aria-current="page">@@home@@보유량</a><a class="side-item" href="#reconcile">@@receipt@@원장 대사</a><a class="side-item" href="#applications">@@home@@광고주 신청</a><a class="side-item" href="#reviews">@@receipt@@캠페인 심사</a>
 </nav></aside>
 <main class="ws-main" id="main">
 <div class="page-heading"><div><p class="eyebrow">AI AD Coin · 운영</p><h1>코인 보유량과 대사</h1>
@@ -52,6 +52,20 @@
 </div>
 <ul id="issues"></ul>
 <p id="recon-status" role="status" aria-live="polite"></p>
+</section>
+<section class="card" id="applications" aria-labelledby="applications-h">
+<h2 id="applications-h">광고주 신청</h2>
+<p>카탈로그에 등록된 에이전트·MCP 제공자만 승인합니다. 신청한 목록 페이지를 열어 본인 소유이고 활성인지 확인한 뒤 결정하세요. 승인하면 환영 지급(100코인)이 함께 나갑니다. 성장 예산이 0이면 지급 없이 승인됩니다.</p>
+<div class="actions"><button id="load-applications" type="button" class="btn">신청 불러오기</button></div>
+<div id="application-list" class="stack" aria-live="polite"></div>
+<p id="applications-status" role="status" aria-live="polite"></p>
+</section>
+<section class="card" id="reviews" aria-labelledby="reviews-h">
+<h2 id="reviews-h">캠페인 심사</h2>
+<p>광고 문구가 사실과 맞고, 추천처럼 보이지 않으며, 금지된 내용이 없는지 봅니다. 통과한 캠페인은 광고주가 예산을 승인한 뒤 켤 수 있습니다.</p>
+<div class="actions"><button id="load-reviews" type="button" class="btn">심사 대기 불러오기</button></div>
+<div id="review-list" class="stack" aria-live="polite"></div>
+<p id="reviews-status" role="status" aria-live="polite"></p>
 </section>
 </main>
 </div>

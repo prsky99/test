@@ -65,4 +65,70 @@
     button.disabled = false;
   }
   $('load').addEventListener('click', load);
+
+  let csrf = null;
+  async function siteCsrf() {
+    if (csrf) return csrf;
+    const response = await fetch('/api/customer-auth/session', {credentials: 'same-origin', cache: 'no-store'});
+    const value = response.ok ? await response.json() : null;
+    csrf = typeof value?.session?.csrf_token === 'string' ? value.session.csrf_token : null;
+    if (!csrf) throw {status: 401};
+    return csrf;
+  }
+  async function post(path, body) {
+    const response = await fetch(API + path, {method: 'POST', credentials: 'same-origin', cache: 'no-store',
+      redirect: 'error', headers: {'Content-Type': 'application/json', 'X-CSRF-Token': await siteCsrf()},
+      body: JSON.stringify(body)});
+    if (!response.ok) throw {status: response.status};
+    return response.json();
+  }
+  function row(lines, actions) {
+    const card = document.createElement('article'); card.className = 'card';
+    for (const line of lines) { const p = document.createElement('p'); p.textContent = line; card.append(p); }
+    const bar = document.createElement('div'); bar.className = 'actions'; card.append(bar);
+    for (const [label, primary, action] of actions) {
+      const b = document.createElement('button'); b.type = 'button'; b.className = primary ? 'btn primary' : 'btn';
+      b.textContent = label; b.addEventListener('click', () => action(b, card)); bar.append(b);
+    }
+    return card;
+  }
+  function reasonField(card) {
+    let input = card.querySelector('input');
+    if (!input) { input = document.createElement('input'); input.maxLength = 200; input.placeholder = '거절 사유(3자 이상)';
+      input.setAttribute('aria-label', '거절 사유'); card.insertBefore(input, card.querySelector('.actions')); }
+    return input;
+  }
+  async function loadApplications(done = '') {
+    text('applications-status', '불러오는 중입니다.');
+    try {
+      const {items} = await get('/applications');
+      $('application-list').replaceChildren(...items.map(item => row(
+        [item.display_name, item.listing_url, '신청 ' + new Date(item.applied_ms).toLocaleString('ko-KR')],
+        [['승인', true, async (b) => { b.disabled = true; try {
+            const r = await post('/applications/' + item.application_id + '/decision', {approve: true});
+            await loadApplications(r.welcome.granted_atoms === '0' ? '승인했습니다. 성장 예산이 없어 환영 지급은 하지 않았습니다.' : '승인하고 환영 지급을 했습니다.'); } catch (e) { b.disabled = false; text('applications-status', reason(e.status)); } }],
+         ['거절', false, async (b, card) => { const input = reasonField(card);
+            if (input.value.trim().length < 3) { input.focus(); text('applications-status', '거절 사유를 3자 이상 적으세요.'); return; }
+            b.disabled = true; try { await post('/applications/' + item.application_id + '/decision', {approve: false, reason: input.value.trim()});
+            await loadApplications('거절했습니다.'); } catch (e) { b.disabled = false; text('applications-status', reason(e.status)); } }]])));
+      text('applications-status', done || (items.length ? '' : '대기 중인 신청이 없습니다.'));
+    } catch (e) { text('applications-status', reason(e.status)); }
+  }
+  async function loadReviews(done = '') {
+    text('reviews-status', '불러오는 중입니다.');
+    try {
+      const {items} = await get('/reviews');
+      $('review-list').replaceChildren(...items.map(item => row(
+        [item.name, item.text, '분류 ' + item.task_categories.join(', ') + ' · 지역 ' + item.regions.join(', ')],
+        [['통과', true, async (b) => { b.disabled = true; try {
+            await post('/reviews/' + item.review_id + '/decision', {verdict: 'eligible', reason_code: 'operator_checked'});
+            await loadReviews('통과시켰습니다.'); } catch (e) { b.disabled = false; text('reviews-status', reason(e.status)); } }],
+         ['반려', false, async (b) => { b.disabled = true; try {
+            await post('/reviews/' + item.review_id + '/decision', {verdict: 'rejected', reason_code: 'policy_mismatch'});
+            await loadReviews('반려했습니다.'); } catch (e) { b.disabled = false; text('reviews-status', reason(e.status)); } }]])));
+      text('reviews-status', done || (items.length ? '' : '심사 대기 캠페인이 없습니다.'));
+    } catch (e) { text('reviews-status', reason(e.status)); }
+  }
+  $('load-applications').addEventListener('click', loadApplications);
+  $('load-reviews').addEventListener('click', loadReviews);
 })();
