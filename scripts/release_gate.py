@@ -147,6 +147,18 @@ def chat_check(release, active=None, *, evaluate=evaluate):
     return 0
 
 
+def committed_tests(target):
+    """Committed tests (HEAD), not the working copy: other sessions' uncommitted test edits in the shared
+    working tree failed an unrelated jobs release on 11-10 (scavenger and health-lane tests)."""
+    (target / 'tests').mkdir(exist_ok=True)
+    archive = subprocess.run(['git', 'archive', 'HEAD', 'tests'], cwd=ROOT, capture_output=True)
+    if archive.returncode == 0:
+        subprocess.run(['tar', '-x', '-C', str(target)], input=archive.stdout, check=True)
+    else:  # not a git checkout: fall back to the files on disk
+        shutil.rmtree(target / 'tests')
+        shutil.copytree(ROOT / 'tests', target / 'tests')
+
+
 def copy_release(release, into):
     source = RELEASES / release
     if not (source / 'release.json').is_file():
@@ -154,7 +166,7 @@ def copy_release(release, into):
     target = into / release
     # APFS clones (cp -c) make a full copy of a release almost free.
     subprocess.run(['cp', '-cR', str(source), str(target)], check=True)
-    shutil.copytree(ROOT / 'tests', target / 'tests')
+    committed_tests(target)
     for name in ('pytest.ini', 'conftest.py', 'pyproject.toml', 'setup.cfg'):
         if (ROOT / name).is_file() and not (target / name).exists():
             shutil.copy2(ROOT / name, target / name)

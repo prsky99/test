@@ -99,3 +99,12 @@ def test_main_runs_the_role_list_and_compares_chat_only_for_frontend(tmp_path, m
     assert ran == [('x-jobs-20261110-r1', release_gate.JOBS_TESTS), ('x-frontend-20261110-r1', release_gate.TESTS),
                    ('x-jobs-20261110-r1', ('tests/test_a2a.py',))]
     assert chat == ['x-frontend-20261110-r1']
+
+
+def test_gate_tests_come_from_the_commit_not_the_working_copy(tmp_path, monkeypatch):
+    """11-10: another session's uncommitted edits to tests/test_collector.py failed an unrelated release."""
+    import subprocess
+    release_gate.committed_tests(tmp_path)
+    head = subprocess.run(['git', 'show', 'HEAD:tests/test_release_gate.py'], cwd=release_gate.ROOT,
+                          capture_output=True, check=True).stdout
+    assert (tmp_path / 'tests' / 'test_release_gate.py').read_bytes() == head
