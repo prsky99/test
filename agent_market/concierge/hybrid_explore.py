@@ -55,8 +55,17 @@ STOPWORDS = frozenset('''a an the is are be it its this that what which who how 
 # They stay in the first search and are the first thing dropped when nothing is found.
 CONDITIONS = frozenset('''korea korean japan japanese history team small business agents agent free cheap
     enterprise personal'''.split())
-RELAX_BUDGET = 3.0  # retries start only within this many seconds; they run only after zero results
-RELAX_TRIES = 2
+# A word that names the kind of work but not its subject is never searched alone: "volcanic ash advisory"
+# reduced to "advisory" showed M&A advisors (11-11). Better no listing than an unrelated one.
+GENERIC = frozenset('''advisory advice lookup search finder tracking tracker parser parsing checker check order odds
+    data info information api service tool generator converter conversion analysis analytics monitor monitoring
+    alert alerts feed report reports manager management table tables list estimate calculator schedule
+    progression pairing transcription'''.split())
+RELAX_BUDGET = 3.5  # retries start only within this many seconds; they run only after zero results
+RELAX_TRIES = 6
+# Retries search the text index only (11-11 measurement: 0.07-0.33 s against 0.6-2 s with the
+# embedding read). Every listing must still name the task words, so the vector side adds order, not admission.
+RELAX_ENGINE = None
 
 
 def _words(query):
@@ -76,17 +85,19 @@ def cleaned_query(query):
 
 
 def relaxed_queries(query):
-    """Shorter forms of a cleaned query that found nothing: condition words first, then a leading
-    word (often the verb: "book flights" -> "flights"), then a trailing word, alternately."""
+    """Shorter forms of a cleaned query that found nothing: condition words first, then every run of
+    adjacent words from longest to shortest, later runs first (the object before the verb:
+    "book flights" -> "flights"; "lithuanian invoice parser" reaches "invoice", 11-11)."""
     content = _words(query)
     forms = []
     core = [w for w in content if w.casefold() not in CONDITIONS]
     if core and core != content:
         forms.append(" ".join(core))
     content = [w for w in (core or content) if w.casefold() != 'to']  # a direction needs both of its ends
-    for drop in range(1, len(content)):
-        forms.append(" ".join(content[drop:]))
-        forms.append(" ".join(content[:-drop]))
+    for size in range(len(content) - 1, 0, -1):
+        for start in range(len(content) - size, -1, -1):
+            if size > 1 or content[start].casefold() not in GENERIC:
+                forms.append(" ".join(content[start:start + size]))
     return list(dict.fromkeys(f for f in forms if f and f != str(query).strip()))
 
 
@@ -104,7 +115,7 @@ def scoped_explore(source, engine, query, kind, category, verified, no_auth, lim
     for relaxed in relaxed_queries(searched)[:RELAX_TRIES]:
         if time.monotonic() - started > RELAX_BUDGET:
             break
-        retry = _scoped_explore(source, engine, relaxed, kind, category, verified, no_auth, limit)
+        retry = _scoped_explore(source, RELAX_ENGINE, relaxed, kind, category, verified, no_auth, limit)
         if retry.get("items"):
             return {**retry, "relaxed_query": relaxed}
     return result

@@ -18,13 +18,20 @@ def test_relaxed_forms_drop_conditions_then_a_leading_and_a_trailing_word():
     assert 'to' not in ' '.join(hx.relaxed_queries('send email to customers')).split()
     assert hx.relaxed_queries('invoice ocr agents')[0] == 'invoice ocr'
     assert hx.relaxed_queries('weather') == []
+    # A middle word alone is tried too (11-11: "lithuanian invoice parser" found nothing).
+    assert hx.relaxed_queries('lithuanian invoice parser') == [
+        'invoice parser', 'lithuanian invoice', 'invoice', 'lithuanian']
+    # A generic word alone is never the task.
+    assert 'advisory' not in hx.relaxed_queries('volcanic ash advisory')
 
 
-def _fake(found):
+def _fake(found, engines=None):
     asked = []
 
     def search(source, engine, query, *args):
         asked.append(query)
+        if engines is not None:
+            engines.append(engine)
         return {'items': [{'id': 1}] if query in found else [], 'total': 0}
     return asked, search
 
@@ -49,3 +56,13 @@ def test_an_empty_search_tries_the_object_before_the_verb(monkeypatch):
     asked.clear()
     plain = hx.scoped_explore(None, None, 'flights', None, None, False, False, 45)
     assert 'relaxed_query' not in plain and asked == ['flights']
+
+
+def test_retries_read_the_text_index_only(monkeypatch):
+    engines = []
+    asked, search = _fake({'invoice'}, engines)
+    monkeypatch.setattr(hx, '_scoped_explore', search)
+    result = hx.scoped_explore(None, 'engine', 'lithuanian invoice parser', None, None, False, False, 45)
+    assert result['relaxed_query'] == 'invoice'
+    assert asked == ['lithuanian invoice parser', 'invoice parser', 'lithuanian invoice', 'invoice']
+    assert engines == ['engine', None, None, None]
