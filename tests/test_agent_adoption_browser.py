@@ -41,3 +41,28 @@ def test_category_csp_escaping_and_compact_discovery_in_browser(adoption,browser
         assert (result['first'],result['second'],result['found'])==(200,304,200)
         assert 'primary.example'not in result['text']and not errors and not calls
     finally:context.close()
+
+
+def test_server_pages_have_no_console_errors_in_a_fresh_tab(adoption,browser):
+    """11-11: each server-made public page opens in a new context with zero console errors (CSP blocks included)."""
+    core,v,ids,calls,modes,client,*_=adoption
+    def serve(route):
+        request=route.request;url=urlsplit(request.url)
+        if url.hostname!='agentconcierge.biz':route.abort();return
+        response=client.request(request.method,url.path+('?' +url.query if url.query else''),
+            content=request.post_data,headers=request.headers)
+        headers={k:v for k,v in response.headers.items()if k not in ('content-length','content-encoding','transfer-encoding')}
+        route.fulfill(status=response.status_code,body=response.content,headers=headers)
+    failures={}
+    for path in ('/agents/category/dev_tools','/agents/tasks','/connect'):
+        context=browser.new_context();page=context.new_page();errors=[]
+        page.on('console',lambda message,errors=errors:message.type=='error' and errors.append(message.text))
+        page.on('pageerror',lambda error,errors=errors:errors.append(str(error)))
+        context.route('**/*',serve)
+        try:
+            response=page.goto('https://agentconcierge.biz'+path)
+            assert response.status==200,path
+            page.wait_for_load_state('load')
+            if errors:failures[path]=errors  # a CSP-blocked stylesheet is reported here as a console error
+        finally:context.close()
+    assert not failures,failures

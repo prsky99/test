@@ -22,6 +22,9 @@ from .storage import ready,transaction
 
 _LOCK=threading.RLock()
 PRIVATE={'Cache-Control':'private, no-store','Vary':'X-Visitor-Token, Mcp-Session-Id, Authorization'}
+# Category pages: static HTML with one same-origin stylesheet and a JSON-LD block (data, never run).
+CATEGORY_CSP=("default-src 'none'; img-src 'self' data:; script-src 'none'; script-src-attr 'none'; object-src 'none'; "
+    "style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
 
 
 class Adoption:
@@ -222,6 +225,8 @@ def router_for(front,*,customer_enabled=False):
         from .pages import cached_category_page
         try:page=await run_in_threadpool(cached_category_page,front,category)
         except ValueError:raise HTTPException(404,'This category has no current public preview.')from None
-        return HTMLResponse(page,headers={'Cache-Control':'no-cache'})
+        # 11-11: the page links /new/en/assets/styles.css, so its policy allows same-origin stylesheets;
+        # the site default (style-src 'unsafe-inline') blocked it and left a console error.
+        return HTMLResponse(page,headers={'Cache-Control':'no-cache','Content-Security-Policy':CATEGORY_CSP})
 
     return router
