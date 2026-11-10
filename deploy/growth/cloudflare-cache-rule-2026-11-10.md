@@ -55,3 +55,22 @@ Cloudflare 설정 변경이라 PM 결정이 필요합니다. 비용은 0입니�
 - 원인은 Worker가 `/mcp`는 `startsWith`로 원서버에 넘기지만, `/a2a`는 정확히 같은 경로만 넘기기 때문입니다. 원서버(슬롯·Caddy)는 `/a2a/`에 200을 줍니다.
 - 수정은 커밋 6c0b0c5c입니다. Worker 시험 89개가 통과했습니다.
 - 적용하려면 Worker를 다시 배포해야 합니다(`wrangler deploy`, Cloudflare 변경).
+
+## 4. 적용 결과 (11-11 01시, 사용자 승인 "진행")
+
+- 엣지 Worker: `wrangler deploy`로 버전 b5d704ae를 100% 배포했습니다(6c0b0c5c, 메시지 a2a-trailing-slash-worker-20261111-r1).
+  - 확인: 공개 `POST /a2a/` 404 → 200(message), `/a2a` 200, `/mcp/` 200, `POST /chat` 200. 홈·Chat·탐색·`/llms.txt` 200.
+  - 되돌리기: `wrangler rollback 2d9e2799-8a5a-4319-b576-fa7aee0a2e1b`
+- Cache Rule: 대시보드에 2번 규칙 `Growth pages HTML (11-11)`을 추가했습니다(위 2절의 식, Eligible for cache, Edge TTL은 기본값인 원서버 기준). 1번 규칙(Agent discovery documents)은 바꾸지 않았습니다.
+
+| 확인 | 결과 |
+|---|---|
+| `/agents/tasks`, `/agents/best`, `/connect`, 실제 에이전트 페이지 | 첫 요청 MISS, 다음 요청부터 HIT |
+| 시간(같은 주소 2·3번째 요청) | 전: 0.96~6.8초(DYNAMIC, 한 번 18.7초) → 후: HIT 0.48~1.7초(한 번 5.1초) |
+| `Accept: text/markdown` | DYNAMIC, 본문 Markdown 그대로(섞이지 않음) |
+| 쿠키가 있는 요청 | 캐시된 공개본(HIT), 로그인 표시 없음. 이 페이지들은 Set-Cookie를 보내지 않음 |
+| `/agent/{id}/reported`, 없는 에이전트(404) | no-store, DYNAMIC·BYPASS(캐시 안 됨) |
+| 홈 `/` | DYNAMIC(바뀌지 않음, CSP nonce) |
+
+- user_slo의 pages 표본(`/`, chat.html, explore.html)은 이번 규칙 대상이 아닙니다. 그래서 성장 페이지 시간은 위처럼 따로 쟀습니다.
+- 공개 측정은 한국→LAX 경유 값입니다.
