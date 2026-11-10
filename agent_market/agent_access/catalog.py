@@ -81,7 +81,9 @@ class Catalog:
         searched=respell(task)
         for protocol in search_protocols(kind):
             found=self.front.rec.search(searched,kind=protocol,limit=CANDIDATE_LIMIT)[:CANDIDATE_LIMIT]
-            batch_resources,batch_states=current_states(self.store,[r['id']for r in found])
+            from ..concierge.retrieval_metrics import stage
+            with stage('states'):
+                batch_resources,batch_states=current_states(self.store,[r['id']for r in found])
             resources.update(batch_resources);states.update(batch_states)
             for row in found:
                 evidence=row.get('capability_contract')or{}
@@ -98,7 +100,9 @@ class Catalog:
         result={'profile':PROFILE,'status':'matched'if items else'no_match',
                 'resource_type':'agent','items':items,'execution_authorized':False}
         if items:
-            definition=self.describe(items[0]['id'],items[0]['version_id'],resource=resources[items[0]['id']],state=states[items[0]['id']],compact=True)
+            from ..concierge.retrieval_metrics import stage
+            with stage('describe'):
+                definition=self.describe(items[0]['id'],items[0]['version_id'],resource=resources[items[0]['id']],state=states[items[0]['id']],compact=True)
             result['selected_contract']={k:v for k,v in definition.items()if k!='tools_schema'}
             if definition.get('schema_deferred'):result['schema_deferred']=True
             elif definition['schema_digest']not in known:

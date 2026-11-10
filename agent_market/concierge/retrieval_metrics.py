@@ -8,7 +8,8 @@ from functools import wraps
 _current = ContextVar('retrieval_quality_measurements', default=None)
 _lock = threading.Lock()
 _STAGES = frozenset(('lexical', 'embedding', 'ann', 'expansion', 'projection', 'exact', 'total', 'rerank',
-                     'contracts', 'resource_read', 'admission', 'cards', 'search_document', 'exposure'))
+                     'contracts', 'resource_read', 'admission', 'cards', 'search_document', 'exposure',
+                     'public_agent', 'states', 'describe'))
 
 
 def timed(name):

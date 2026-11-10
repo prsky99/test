@@ -259,6 +259,12 @@ def project(value, gateway, raw_urls=(), depth=0):
 
 
 def public_agent(value, resource=None, *, store=None, create_connections=True):
+    from .retrieval_metrics import stage
+    with stage('public_agent'):
+        return _public_agent(value, resource, store=store, create_connections=create_connections)
+
+
+def _public_agent(value, resource=None, *, store=None, create_connections=True):
     resource=resource or value
     gateway=gateway_agent_url(value.get('id'),value.get('kind'))
     metadata=public_metadata(value)
