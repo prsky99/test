@@ -1,4 +1,7 @@
-"""First visit on a phone: the consent strip must leave the header usable (11-10 fix of the 11-04 top strip)."""
+"""First visit on a phone: the consent strip must leave the header usable (11-10 fix of the 11-04 top strip).
+
+11-11 (PM decision A): the strip sits in the page flow above the header, so it can never cover the header or
+the menu; accepting and refusing are two equal 44px buttons (the separate close button is gone)."""
 from urllib.parse import urlsplit
 
 import pytest
@@ -33,16 +36,18 @@ def test_phone_consent_strip_leaves_the_menu_usable(client, browser, size, path)
         geometry = page.evaluate('''() => {
             const header = document.querySelector('header.pearl-header').getBoundingClientRect();
             const banner = document.querySelector('#cookieConsentBanner').getBoundingClientRect();
-            const close = document.querySelector('.cookie-banner-close').getBoundingClientRect();
+            const accept = document.querySelector('#btnAcceptAllCookies').getBoundingClientRect();
+            const reject = document.querySelector('#btnRejectNonEssentialCookies').getBoundingClientRect();
             const menu = document.querySelector('[data-pearl-action="menu"]').getBoundingClientRect();
             const hit = document.elementFromPoint(menu.x + menu.width/2, menu.y + menu.height/2);
-            return {headerBottom: header.bottom, bannerTop: banner.top, bannerBottom: banner.bottom,
-                    closeH: close.height, closeW: close.width, menuOnTop: !!hit.closest('[data-pearl-action="menu"]')};
+            return {headerTop: header.top, bannerTop: banner.top, bannerBottom: banner.bottom, position: getComputedStyle(document.querySelector('#cookieConsentBanner')).position,
+                    acceptH: accept.height, rejectH: reject.height, acceptW: accept.width, rejectW: reject.width,
+                    menuOnTop: !!hit.closest('[data-pearl-action="menu"]')};
         }''')
         assert geometry['menuOnTop'], geometry
-        assert geometry['bannerTop'] >= geometry['headerBottom'], geometry
-        assert geometry['bannerBottom'] <= height, geometry
-        assert geometry['closeH'] >= 44 and geometry['closeW'] >= 44, geometry
+        assert geometry['position'] != 'fixed' and geometry['bannerBottom'] <= geometry['headerTop'] + 1, geometry
+        assert geometry['bannerBottom'] - geometry['bannerTop'] <= 160, geometry
+        assert geometry['acceptH'] >= 44 and geometry['rejectH'] >= 44 and abs(geometry['acceptW'] - geometry['rejectW']) < 2, geometry
         page.get_by_role('button', name='Open navigation', exact=True).click()
         nav = page.locator('#navTabs')
         expect(nav).to_be_visible()

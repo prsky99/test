@@ -38,6 +38,7 @@ TESTS = (
     # keep 44px targets at desktop and phone widths.
     'tests/test_agent_adoption_browser.py::test_server_pages_have_no_console_errors_in_a_fresh_tab',
     'tests/test_main_ui_touch_targets.py',
+    'tests/test_cookie_banner_phone.py',
 )
 # Each role runs the tests for the code it serves. jobs releases run the collector, health checks,
 # crawler and evaluation without the typed execution engine, so the opening-path list above

@@ -106,6 +106,18 @@
   // A fixed or sticky layer (cookie strip, sticky panel) floats over scrolling content by design; it is
   // counted apart so in-flow layout overlaps stay visible (11-11).
   out.overlay_overlaps = overlays.length; out.overlay_examples = overlays.slice(0, 8);
+  // First-screen controls a fixed or sticky layer hides (11-11: before a cookie choice the consent strip
+  // covered Test's Run and Reset). Measured as loaded, without scrolling: the control's centre point must
+  // reach the control itself, not a layer drawn over it.
+  const covered = [];
+  for (const el of interactive) {
+    if (layer(el)) continue;
+    const r = el.getBoundingClientRect(); if (r.bottom <= 0 || r.top >= innerHeight || r.right <= 0 || r.left >= innerWidth) continue;
+    const x = Math.min(Math.max((r.left + r.right) / 2, 0), innerWidth - 1), y = Math.min(Math.max((r.top + r.bottom) / 2, 0), innerHeight - 1);
+    const top = document.elementFromPoint(x, y);
+    if (top && !el.contains(top) && !top.contains(el) && layer(top)) covered.push(name(el) + ' under ' + name(top));
+  }
+  out.covered_controls = covered.length; out.covered_examples = covered.slice(0, 8);
 
   // 6. alignment: flex/grid rows share a top, bottom or centre; stacked blocks share a left edge
   const misaligned = [];

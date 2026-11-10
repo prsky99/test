@@ -1,5 +1,5 @@
 <!doctype html><html lang="en"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8"><script>try{var c=localStorage.getItem("agent_cookie_consent_v2"),ok=false;if(c){try{JSON.parse(c);ok=true}catch(e){}}if(!ok&&!(navigator.globalPrivacyControl))document.documentElement.classList.add("consent-pending")}catch(e){}</script><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>List Your AI Agent — Agent Concierge</title>
 <meta name="description" content="Submit your authorized public AI agent endpoint so others can discover it. Review capabilities, available connection evidence and listing status.">
 <meta name="keywords" content="agent discovery, three agent recommendations, quality grade, latest test report, active agents, MCP, A2A, x402, list your agent, public agent listing">
@@ -141,7 +141,25 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 <meta property="og:locale" content="en_US"><meta name="agent:active-page" content="register"><meta name="agent:compact-mcp" content="https://agentconcierge.biz/mcp/compact"><meta name="agent:verification-feed" content="https://agentconcierge.biz/api/feed/verified.json"><link rel="alternate" type="application/feed+json" title="Recorded agent verification changes" href="https://agentconcierge.biz/api/feed/verified.json">
 <link rel="stylesheet" href="/new/en/assets/operating.css"><link rel="stylesheet" href="/new/en/assets/styles.css"><link rel="stylesheet" href="/new/en/assets/necklace.css"><link rel="stylesheet" href="/new/en/assets/pearl-live.css"><link rel="stylesheet" href="/new/en/assets/experience.css"><script src="/new/en/assets/session-bootstrap.js"></script><meta http-equiv="Content-Security-Policy" content="default-src &#x27;self&#x27;; script-src &#x27;self&#x27;; script-src-attr &#x27;none&#x27;; style-src &#x27;self&#x27; &#x27;unsafe-inline&#x27;; img-src &#x27;self&#x27; data:; connect-src &#x27;self&#x27;; object-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;self&#x27;; worker-src &#x27;self&#x27;"></head><body data-pearl-entry="register">
+
 <a href="#mainContent" class="skip-link">Skip to main content</a>
+<div id="cookieConsentBanner" class="cookie-banner" role="region" aria-label="Privacy and Cookie Consent">
+  <button type="button" class="cookie-banner-close" data-ac-click="5d93cb7e6763" aria-label="Close and keep essential cookies only" title="Close and keep essential cookies only" style="display:inline-flex;align-items:center;justify-content:center"><svg width="14" height="14" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button>
+  <div class="cookie-banner-title">
+    <svg width="18" height="18" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 10 10 0 1 0-10-10"></path></svg>
+    <span>Your cookie choices</span>
+    <span id="gpcBadge" class="chip gpc-chip hidden">GPC Active</span>
+  </div>
+  <p class="cookie-choice-summary">Choose optional analytics and marketing cookies. Essential storage stays on.</p>
+  <details class="cookie-purpose-details"><summary>How we use cookies</summary><p class="cookie-banner-text">
+    We respect your privacy under GDPR, UK PECR, and CCPA/CPRA. We use essential tokens for security and protocol routing. Analytics and telemetry cookies are blocked until you grant affirmative consent.
+  </p></details>
+  <div class="cookie-banner-actions">
+    <button type="button" class="btn primary" id="btnAcceptAllCookies">Accept All</button>
+    <button type="button" class="btn" id="btnRejectNonEssentialCookies">Reject Non-Essential</button>
+    <button type="button" class="btn" id="btnOpenCookiePrefs">Cookie Preferences</button>
+  </div>
+</div>
 <div id="srLiveAnnouncer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 
 <!-- Shared, nonblocking progress feedback for user actions. -->
@@ -2762,22 +2780,7 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 </footer>
 
 <!-- Cookie Consent Floating Banner (GDPR / CCPA / GPC) -->
-<div id="cookieConsentBanner" class="cookie-banner hidden" role="region" aria-label="Privacy and Cookie Consent">
-  <button type="button" class="cookie-banner-close" data-ac-click="5d93cb7e6763" aria-label="Close and keep essential cookies only" title="Close and keep essential cookies only" style="display:inline-flex;align-items:center;justify-content:center"><svg width="14" height="14" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button>
-  <div class="cookie-banner-title">
-    <svg width="18" height="18" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 10 10 0 1 0-10-10"></path></svg>
-    <span>Your cookie choices</span>
-    <span id="gpcBadge" class="chip gpc-chip hidden">GPC Active</span>
-  </div>
-  <p class="cookie-banner-text">
-    We respect your privacy under GDPR, UK PECR, and CCPA/CPRA. We use essential tokens for security and protocol routing. Analytics and telemetry cookies are blocked until you grant affirmative consent.
-  </p>
-  <div class="cookie-banner-actions">
-    <button type="button" class="btn primary" id="btnAcceptAllCookies">Accept All</button>
-    <button type="button" class="btn" id="btnRejectNonEssentialCookies">Reject Non-Essential</button>
-    <button type="button" class="btn" id="btnOpenCookiePrefs">Cookie Preferences</button>
-  </div>
-</div>
+
 
 <!-- Cookie Preferences Modal -->
 <dialog id="cookiePrefsModal" class="layer-modal legal-doc-modal" aria-labelledby="cookiePrefsTitle">

@@ -19,7 +19,8 @@ def test_cookie_focus_and_delayed_chat_stay_stable(chat_page,width,request):
     page.goto('https://agentconcierge.biz/#explore')
     page.evaluate("document.querySelector('#cookieConsentBanner').classList.remove('hidden')")
     page.wait_for_timeout(150);page.locator('#xGo').focus();page.wait_for_timeout(100)
-    visible=page.evaluate("()=>document.querySelector('#xGo').getBoundingClientRect().bottom<document.querySelector('#cookieConsentBanner').getBoundingClientRect().top")
+    # 11-11: the strip sits in the page flow above the header (PM decision A); the focused control is never under it.
+    visible=page.evaluate("()=>{const r=document.querySelector('#xGo').getBoundingClientRect(),hit=document.elementFromPoint(r.left+r.width/2,Math.min(r.top+r.height/2,innerHeight-1));return !!hit&&!hit.closest('#cookieConsentBanner')}")
     assert visible
     page.screenshot(path='reports/feature-remediation-2026-10-29/cookie-focus-'+str(width)+'-'+request.node.callspec.params['chat_page']+'.png')
     page.evaluate("document.querySelector('#cookieConsentBanner').classList.add('hidden')")

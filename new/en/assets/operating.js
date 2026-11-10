@@ -635,20 +635,34 @@ function initCookieConsent() {
   const banner = $("cookieConsentBanner");
   const gpcBadge = $("gpcBadge");
   const hasGpc = isGpcActive();
-  // The banner floats over the bottom of the viewport so it never moves page content (no layout shift).
+  // A floating banner (older layout) reserves space so it never hides content; see the in-flow note below.
   // While visible, reserve matching space at the end of the page and in scroll padding so focus and footer stay reachable.
   if (banner && !banner.dataset.spaceSync) {
     banner.dataset.spaceSync = "1";
     const root = document.documentElement;
+    // 11-11: the strip normally sits in the page flow above the header (styles.css); it then needs no
+    // reserved space. The space below is kept only for a floating strip.
+    const floating = () => getComputedStyle(banner).position === "fixed";
+    let wasVisible = !banner.classList.contains("hidden");
     const syncSpace = () => {
-      const visible = !banner.classList.contains("hidden");
+      const visible = !banner.classList.contains("hidden") && floating();
+      const nowVisible = !banner.classList.contains("hidden");
+      if (wasVisible && !nowVisible) {
+        // After a choice the strip leaves; keyboard focus goes to the start of the page content.
+        const active = document.activeElement;
+        if (!active || active === document.body || banner.contains(active)) {
+          const main = document.getElementById("mainContent");
+          if (main) { if (!main.hasAttribute("tabindex")) main.setAttribute("tabindex", "-1"); main.focus({preventScroll: true}); }
+        }
+      }
+      wasVisible = nowVisible;
       const space = visible ? Math.ceil(banner.getBoundingClientRect().height) + 24 : 0;
       document.body.style.paddingBottom = space ? space + "px" : "";
       root.style.scrollPaddingBottom = space ? space + "px" : "";
     };
     const revealFocus = event => {
       const target = event.target;
-      if (!(target instanceof HTMLElement) || banner.contains(target) || banner.classList.contains("hidden")) return;
+      if (!(target instanceof HTMLElement) || banner.contains(target) || banner.classList.contains("hidden") || !floating()) return;
       const rect = target.getBoundingClientRect(), box = banner.getBoundingClientRect();
       if (rect.width && rect.height && rect.bottom > box.top - 16 && rect.top < box.bottom) {
         window.scrollBy({top: rect.bottom - box.top + 24, behavior: "instant"});

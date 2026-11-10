@@ -214,3 +214,29 @@ html body .protocol-card>:is(dl,.btn){margin-left:0}
 /* Test: Run and Reset use the flex layout pearl-live.css gives them; an older #secTest rule forced block. */
 html body .ux-test-primary{display:flex!important;align-items:center;gap:12px}
 html body .pearl-selected-example{align-items:center}
+
+/* 11-11 consent strip in the page flow (PM decision A): it sits above the header, so it never covers a
+   control, and only visitors who have not chosen see it (the head script sets html.consent-pending before
+   the body renders). One line of text and two equal buttons; preferences stay one click away as a text link
+   (the region keeps its accessible name, so the visual title is dropped).
+   `html body #id:not(.x)` outranks the floating rules in pearl-live.css (1,1,1). */
+html body #cookieConsentBanner:not(.no-flow){position:relative!important;inset:auto!important;transform:none!important;
+  width:auto!important;max-width:none!important;max-height:none!important;margin:0!important;border-radius:0!important;
+  box-shadow:none!important;animation:none!important;z-index:auto!important;display:flex!important;flex-wrap:wrap;
+  align-items:center;align-content:flex-start;justify-content:center;gap:4px 16px;padding:8px 16px!important;min-height:0!important;border:0;border-bottom:1px solid var(--line,#e6dfd3)}
+html:not(.consent-pending) body #cookieConsentBanner:not(.no-flow),html body #cookieConsentBanner.hidden:not(.no-flow){display:none!important}
+html body #cookieConsentBanner:not(.no-flow) :is(.cookie-banner-close,.cookie-purpose-details,.cookie-banner-title){display:none!important}
+html body #cookieConsentBanner:not(.no-flow) .cookie-choice-summary{display:block!important;margin:0!important;font-size:14px;line-height:1.4}
+html body #cookieConsentBanner:not(.no-flow) .cookie-banner-actions{display:flex!important;flex-wrap:nowrap;align-items:center;gap:8px;margin:0!important;width:auto!important;grid-template-columns:none!important}
+html body #cookieConsentBanner:not(.no-flow) .cookie-banner-actions .btn{width:auto!important;min-width:0!important;padding:8px 14px}
+html body #cookieConsentBanner:not(.no-flow) #btnOpenCookiePrefs{background:none!important;border:0!important;box-shadow:none!important;
+  text-decoration:underline;padding:0 4px!important;color:inherit}
+html body #cookieConsentBanner:not(.no-flow) .cookie-banner-actions>*{flex:0 0 auto!important;width:auto!important;min-width:0!important;white-space:nowrap}
+/* Accepting and refusing are offered with the same size (equal prominence). */
+html body #cookieConsentBanner:not(.no-flow) :is(#btnAcceptAllCookies,#btnRejectNonEssentialCookies){min-width:11em!important;justify-content:center}
+@media(max-width:700px){html body #cookieConsentBanner:not(.no-flow){justify-content:flex-start;padding:8px 12px!important}
+  html body #cookieConsentBanner:not(.no-flow) .cookie-banner-actions{display:grid!important;grid-template-columns:1fr 1fr!important;gap:4px 8px;width:100%!important}
+  html body #cookieConsentBanner:not(.no-flow) :is(#btnAcceptAllCookies,#btnRejectNonEssentialCookies){min-width:0!important;width:100%!important}
+  html body #cookieConsentBanner:not(.no-flow) #btnOpenCookiePrefs{grid-column:1/-1;justify-self:start}
+  html body #cookieConsentBanner:not(.no-flow) .cookie-choice-summary{font-size:13px;line-height:1.35}
+  html body #cookieConsentBanner:not(.no-flow) .cookie-banner-actions .btn{padding:8px 9px!important;font-size:13px}}
