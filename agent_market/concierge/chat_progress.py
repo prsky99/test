@@ -23,6 +23,8 @@ _sink = contextvars.ContextVar('chat_progress_sink', default=None)
 
 def step(code):
     """Report that STEP has started; a no-op unless a stream is listening."""
+    from .retrieval_metrics import mark
+    mark(code)  # Server-Timing step durations for public requests (11-11)
     sink = _sink.get()
     if sink is not None:
         try:

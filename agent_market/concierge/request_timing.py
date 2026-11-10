@@ -29,8 +29,14 @@ class RequestTiming:
         with capture() as values:
             async def deliver(message):
                 if message['type'] == 'http.response.start':
-                    stages = [('server', (time.perf_counter() - started) * 1000)]
-                    stages += sorted(values['stages_ms'].items(), key=lambda item: -item[1])[:8]
+                    now = time.perf_counter()
+                    stages = [('server', (now - started) * 1000)]
+                    steps = {}
+                    marks = values.get('marks') or []
+                    for (name, at), following in zip(marks, marks[1:] + [(None, now)]):
+                        steps['step_' + name] = steps.get('step_' + name, 0) + (following[1] - at) * 1000
+                    measured = sorted({**values['stages_ms'], **steps}.items(), key=lambda item: -item[1])
+                    stages += measured[:12]
                     headers = MutableHeaders(scope=message)
                     timing = ', '.join(f'{name};dur={value:.0f}' for name, value in stages)
                     headers['Server-Timing'] = (headers['Server-Timing'] + ', ' + timing) if 'server-timing' in headers else timing

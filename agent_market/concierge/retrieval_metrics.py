@@ -51,6 +51,14 @@ def stage(name):
                 value['stages_ms'][name] = value['stages_ms'].get(name, 0) + (perf_counter() - started) * 1000
 
 
+def mark(name):
+    """Record that a named step started; RequestTiming turns the marks into step durations."""
+    current = _current.get()
+    if current is not None:
+        with _lock:
+            current.setdefault('marks', []).append((str(name)[:24], perf_counter()))
+
+
 def count(name, value):
     if name not in ('lexical_candidates', 'dense_candidates', 'returned_candidates', 'exact_shortcuts',
                     'projection_cache_hits', 'reranked_candidates', 'rerank_order_changed', 'rerank_budget_exhausted',
