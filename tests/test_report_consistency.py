@@ -74,3 +74,32 @@ def test_execution_reports_need_no_transport_sentence_and_text_lists_become_json
 def test_restored_records_get_the_historical_note():
     new, applied = rc.normalize(report(evidence_scope='legacy', test_method='MCP Tool Call', content_md='# R\n'))
     assert 'C8' in applied and new['content_md'].startswith('> Historical record')
+
+
+def test_old_scores_flat_latency_and_superseded_profile_are_fixed():
+    md = ("> [!NOTE]\n> **AQEF-30 grade correction (2026-11-10)**: Grade **B** | AQEF-30 Score: **89.4/100**.\n\n"
+          "> [!NOTE]\n> **AQEF-30 Quality Profile**: Recorded Grade **A** | Recorded Score: **96.4/100**.\n\n"
+          "## Measured Facts\n\n| Check | Observed |\n| --- | --- |\n| Streaming declared | False |\n"
+          "| Latency (p50 / p95 / jitter) | 242 ms / 242 ms / ±0 ms (1 trial) |\n\n"
+          "The recorded AQEF-30 score of 96.4/100 reflects a card check.\n")
+    r = report(eval_score=89.4, content_md=md, executed_at=1762750000.0,
+               pros=json.dumps(['9 tool(s) listed; 9 documented, 9 with input schemas.', 'Fast.']),
+               cons=json.dumps(['The recorded grade A and score 96.4/100 rest on a card fetch.']))
+    new, _ = rc.normalize(r)
+    out = new['content_md']
+    assert rc.check(new) == [] and '96.4' not in out + new['cons']
+    assert 'Quality Profile' not in out and '| false |' in out
+    assert '242 ms (one trial; p95 and jitter not measurable)' in out and '±0' not in out
+    assert 'counted from the live tools/list response' in new['pros']
+    assert 'recorded grade B' in new['cons'] and rc.SCORE_BASIS in out
+    assert '| Evidence | Probe executed 2025-11-10' in out
+
+
+def test_mcp_total_and_step_statistics_are_worded_consistently():
+    text = 'Completed initialize and tools/list in 1288 ms total (step p50: 690 ms, p95: 702 ms, jitter: ±40 ms).'
+    out = rc.fix_step_text(text)
+    assert 'for the two calls' in out and 'median 690 ms, slowest 702 ms, range 40 ms' in out and 'p95' not in out
+    row = '| Step latency (p50 / p95 / jitter) | 690 ms / 702 ms / ±40 ms (3 RPC steps) |'
+    assert rc.fix_step_text(row) == '| Request latency (median / slowest / range) | 690 ms / 702 ms / 40 ms (3 requests) |'
+    assert rc.fix_step_text('(HTTP 200, 1288 ms total, AQEF-30') == '(HTTP 200, 1288 ms for initialize and tools/list, AQEF-30'
+    assert rc.fix_step_text(out) == out

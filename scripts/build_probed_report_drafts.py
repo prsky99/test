@@ -306,14 +306,16 @@ def facts_mcp(res, p):
         ('Server version', server_ver),
         ('Negotiated protocol', str(proto_ver)),
         ('Tools listed', str(len(tools))),
-        ('Step latency (p50 / p95 / jitter)', f"{p50:.0f} ms / {p95:.0f} ms / ±{jitter:.0f} ms ({p.get('trials', 3)} RPC steps)")
+        # 11-10: with three requests the 'p95' is the slowest one, so say median / slowest / range.
+        ('Request latency (median / slowest / range)', f"{p50:.0f} ms / {p95:.0f} ms / {jitter:.0f} ms ({p.get('trials', 3)} requests)")
     ]
     names = [str(t.get('name')) for t in tools[:8]]
     documented = sum(1 for t in tools if t.get('description'))
     schemas = sum(1 for t in tools if t.get('inputSchema'))
 
     pros = [
-        f"Completed initialize and tools/list in {p['ms']:.0f} ms total (step p50: {p50:.0f} ms, p95: {p95:.0f} ms, jitter: ±{jitter:.0f} ms).",
+        f"Completed initialize and tools/list in {p['ms']:.0f} ms for the two calls (across {p.get('trials', 3)} handshake "
+        f"requests including the initialized notification: median {p50:.0f} ms, slowest {p95:.0f} ms, range {jitter:.0f} ms).",
         f"{len(tools)} tool(s) listed; {documented} documented, {schemas} with input schemas."
     ]
     cons = ['No tool was invoked; verification covered the handshake and tool listing only.']
@@ -332,7 +334,10 @@ def facts_mcp(res, p):
     wire = dict(
         serverInfo=info,
         protocolVersion=proto_ver,
-        tools=[{'name': t.get('name'), 'description': (t.get('description') or '')[:200]} for t in tools[:10]],
+        # Keep the counts in the stored capture so every number in the report can be checked against it.
+        tool_counts={'listed': len(tools), 'documented': documented, 'with_input_schema': schemas},
+        tools=[{'name': t.get('name'), 'description': (t.get('description') or '')[:200],
+                'has_input_schema': bool(t.get('inputSchema'))} for t in tools[:10]],
         telemetry={'p50_ms': p50, 'p95_ms': p95, 'jitter_ms': jitter, 'trials': p.get('trials', 3)}
     )
     return rows, pros, cons, desc, dict(tool=names[0] if names else None, wire=wire)

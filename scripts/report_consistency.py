@@ -162,6 +162,7 @@ def check(report):
                     problems.append('C9')
             except ValueError:
                 problems.append('C9')
+    problems += extra_check(report, md, pros)
     return sorted(set(problems))
 
 
@@ -184,6 +185,7 @@ def normalize(report):
         md = md[:match.start()] + match.group(1) + EMPTY_DESCRIPTION + md[match.end():]
     if EMPTY_DESCRIPTION.lower() in md.lower() and not any('description' in c.lower() for c in cons):
         cons = cons + [EMPTY_DESCRIPTION_CON]
+    md, pros, cons = extra_fix(r, md, pros, cons)
     r['pros'], r['cons'] = json.dumps(pros, ensure_ascii=False), json.dumps(cons, ensure_ascii=False)
 
     # C1: sections follow the fields.
@@ -244,14 +246,137 @@ def normalize(report):
     if r.get('evidence_scope') == 'legacy' and not re.search(r'(?i)restored|historical', md):
         md = RESTORED_NOTE + md
 
+    # C14: provenance row, computed last so the hash covers the final stored capture.
+    md = re.sub(r'(?m)^\| Evidence \| Probe executed [^\n]*\n', '', md)
+    row = _evidence_row(r)
+    if row:
+        md = _add_row(md, row)
     r['content_md'] = md
     remaining = set(check(r))
     return r, sorted(applied - remaining)
 
 
+# --- C10~C16: added after the 11-10 13:00 Opus re-score of 100 new reports (median 84) ---------------------
+import hashlib  # noqa: E402
+
+CORRECTION_MARK = 'AQEF-30 grade correction'
+SCHEMA_CLAUSE = re.compile(r"(?<!')(?<!\d)(\d+) with input schemas\b(?! \(counted)(?!')(?!\))")
+SCHEMA_NOTE = ' (counted from the live tools/list response; the stored capture keeps names and descriptions only)'
+FLAT_LATENCY_ROW = re.compile(r'(?m)^\|([^|\n]*?)\s*\(p50 / p95 / jitter\)([^|\n]*)\|\s*(\d+(?:\.\d+)?) ms / \3 ms / ±0 ms[^|\n]*\|[ \t]*$')
+FLAT_LATENCY_PROSE = re.compile(r' ?\(p95: (\d+(?:\.\d+)?) ms, jitter: ±0 ms\)')
+PY_BOOL = re.compile(r'\| (False|True) \|')
+SCORE_SLASH = re.compile(r'(?<![\d.])(\d{1,3}(?:\.\d+)?)(\s*/\s*100)\b')
+OLD_GRADE_A = re.compile(r'(?i)((?:recorded|reported|stored|canonical) grade(?:\*\*)?:?\s*\**\s*\(?|grade is |grade \*\*|grade: \**)A\b(?! requires)')
+# C17: the MCP "total" covers two calls, the step statistics cover three requests (with the notification), and
+# with three samples the "p95" is the slowest one.
+STEP_SENTENCE = re.compile(r'in (\d+(?:\.\d+)?) ms total \(step p50: (\d+(?:\.\d+)?) ms, p95: (\d+(?:\.\d+)?) ms(?:, jitter: ±(\d+(?:\.\d+)?) ms)?(?:[;,]? (?:over )?\d+ trials)?\)')
+STEP_ROW = re.compile(r'(?m)^\| Step latency \(p50 / p95 / jitter\) \| (\d+(?:\.\d+)?) ms / (\d+(?:\.\d+)?) ms / ±(\d+(?:\.\d+)?) ms \((\d+) RPC steps\) \|')
+TOTAL_PROSE = re.compile(r'(\d+(?:\.\d+)?) ms total(?= ?[,)])')
+
+
+def fix_step_text(text, mcp=True):
+    if not text or not mcp:
+        return text
+    text = STEP_SENTENCE.sub(lambda m: f'in {m.group(1)} ms for the two calls (across the handshake requests including the '
+                                       f'initialized notification: median {m.group(2)} ms, slowest {m.group(3)} ms'
+                                       + (f', range {m.group(4)} ms)' if m.group(4) else ')'), text)
+    text = STEP_ROW.sub(lambda m: f'| Request latency (median / slowest / range) | {m.group(1)} ms / {m.group(2)} ms / '
+                                  f'{m.group(3)} ms ({m.group(4)} requests) |', text)
+    return TOTAL_PROSE.sub(lambda m: f'{m.group(1)} ms for initialize and tools/list', text)
+
+
+SCORE_BASIS = ('| Score basis | Transport-only evidence cannot reach Grade A under AQEF-30, so the score is capped at '
+               '89.4 (Grade B). |')
+
+
+def _evidence_row(report):
+    wire = str(report.get('output_wire') or '')
+    when = report.get('executed_at')
+    if not wire or not when:
+        return None
+    from datetime import datetime, timezone
+    try:
+        stamp = datetime.fromtimestamp(float(when), timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
+    except (TypeError, ValueError, OSError):
+        return None
+    digest = hashlib.sha256(wire.encode('utf-8')).hexdigest()[:16]
+    return f'| Evidence | Probe executed {stamp}; stored capture SHA-256 {digest} |'
+
+
+def _table_end(md):
+    table = re.search(r'(?ms)^#{2,3} Measured Facts[ \t]*\n\s*(\|[^\n]*\|\n)(\|[^\n]*\|\n)(?:\|[^\n]*\|\n)*', md + '\n')
+    return min(table.end(), len(md)) if table else None
+
+
+def _add_row(md, row):
+    end = _table_end(md)
+    if end is None:
+        return md
+    return md[:end].rstrip('\n') + '\n' + row + '\n' + md[end:]
+
+
+def extra_check(report, md, pros):
+    found = []
+    score = report.get('eval_score')
+    texts = [md] + list(pros) + as_list(report.get('cons')) + [str(report.get(k) or '') for k in ('workflow_recommendation', 'summary')]
+    if any(fix_score_text(t, report) != t for t in texts):
+        found.append('C10')
+    if FLAT_LATENCY_ROW.search(md) or FLAT_LATENCY_PROSE.search(md):
+        found.append('C11')
+    wire = str(report.get('output_wire') or '')
+    if 'inputSchema' not in wire and 'with_input_schema' not in wire and any(SCHEMA_CLAUSE.search(p) for p in pros):  # cons already caveat it
+        found.append('C12')
+    if PY_BOOL.search(md):
+        found.append('C13')
+    row = _evidence_row(report)
+    if row and _table_end(md) is not None and row not in md:
+        found.append('C14')
+    if (is_transport(report) and report.get('eval_grade') == 'B' and score is not None
+            and abs(float(score) - 89.4) < 0.05 and _table_end(md) is not None and SCORE_BASIS not in md):
+        found.append('C15')
+    if CORRECTION_MARK in md and re.search(r'(?m)^> \*\*AQEF-30 (?:Quality )?Profile', md):
+        found.append('C16')
+    return found
+
+
+def fix_score_text(text, report):
+    """Old scores and an old Grade A left in sentences take the report's current values (C10, C17)."""
+    score, grade = report.get('eval_score'), report.get('eval_grade')
+    if not text:
+        return text
+    text = fix_step_text(text, mcp='mcp' in str(report.get('test_method') or '').lower())
+    if score is not None:
+        text = SCORE_SLASH.sub(lambda m: _score_text(score) + m.group(2), text)
+    if grade and grade != 'A':
+        text = OLD_GRADE_A.sub(lambda m: m.group(1) + grade, text)
+    return text
+
+
+def extra_fix(report, md, pros, cons):
+    score = report.get('eval_score')
+    md = fix_score_text(md, report)
+    pros = [fix_score_text(p, report) for p in pros]
+    cons = [fix_score_text(c, report) for c in cons]
+    for key in ('workflow_recommendation', 'summary'):
+        report[key] = fix_score_text(report.get(key), report)
+    md = FLAT_LATENCY_ROW.sub(lambda m: f'|{m.group(1)} (single trial){m.group(2)}| {m.group(3)} ms (one trial; p95 and '
+                                        'jitter not measurable) |', md)
+    md = FLAT_LATENCY_PROSE.sub('', md)
+    if not re.search(r'inputSchema|with_input_schema', str(report.get('output_wire') or '')):
+        pros = [SCHEMA_CLAUSE.sub(lambda m: m.group(0) + SCHEMA_NOTE, p) for p in pros]
+    md = PY_BOOL.sub(lambda m: f'| {m.group(1).lower()} |', md)
+    if CORRECTION_MARK in md:
+        # Drop the superseded quality-profile block; the correction note already states grade and score.
+        md = re.sub(r'(?m)^(?:> \[!NOTE\]\n)?> \*\*AQEF-30 (?:Quality )?Profile[^\n]*\n(?:>[^\n]*\n)*\n?', '', md)
+    if (is_transport(report) and report.get('eval_grade') == 'B' and score is not None
+            and abs(float(score) - 89.4) < 0.05 and SCORE_BASIS not in md):
+        md = _add_row(md, SCORE_BASIS)
+    return md, pros, cons
+
+
 COLUMNS = ('id', 'test_method', 'evidence_scope', 'eval_grade', 'eval_score', 'latency_ms', 'agent_name', 'pros',
-           'cons', 'workflow_recommendation', 'content_md', 'output_wire')
-WRITABLE = ('content_md', 'pros', 'cons', 'output_wire')
+           'cons', 'workflow_recommendation', 'content_md', 'output_wire', 'executed_at', 'summary')
+WRITABLE = ('content_md', 'pros', 'cons', 'output_wire', 'workflow_recommendation', 'summary')
 
 
 def apply_all(conn, backup_path=None, write=True):
@@ -273,7 +398,8 @@ def apply_all(conn, backup_path=None, write=True):
         counts.update(applied)
         counts['rows'] += 1
         backup.append({'id': report['id'], **{k: report.get(k) for k in WRITABLE}})
-        updates.append((new['content_md'], new['pros'], new['cons'], new['output_wire'], time.time(), report['id']))
+        updates.append((new['content_md'], new['pros'], new['cons'], new['output_wire'], new['workflow_recommendation'],
+                        new['summary'], time.time(), report['id']))
     if write and updates:
         if backup_path:
             from pathlib import Path
@@ -283,7 +409,7 @@ def apply_all(conn, backup_path=None, write=True):
                     fh.write(json.dumps(item, ensure_ascii=False, default=str) + '\n')
         for start in range(0, len(updates), 500):
             cur.executemany('update agent_test_reports set content_md=%s, pros=%s, cons=%s, output_wire=%s, '
-                            'updated_at=%s where id=%s', updates[start:start + 500])
+                            'workflow_recommendation=%s, summary=%s, updated_at=%s where id=%s', updates[start:start + 500])
     return dict(counts)
 
 
