@@ -1,0 +1,1420 @@
+{
+ "overlap": [
+  [
+   "p / a.footer-link-btn.pf-link",
+   17
+  ],
+  [
+   "aside.card / a.footer-link-btn.pf-link",
+   16
+  ],
+  [
+   "h3 / a.footer-link-btn.pf-link",
+   14
+  ],
+  [
+   "p.cookie-banner-text / button#btnAcceptAllCookies.btn.primary",
+   9
+  ],
+  [
+   "p.cookie-banner-text / button#btnRejectNonEssentialCookies.btn",
+   9
+  ],
+  [
+   "p.cookie-banner-text / button#btnOpenCookiePrefs.btn",
+   9
+  ],
+  [
+   "p / p",
+   8
+  ],
+  [
+   "button / p.cookie-banner-text",
+   8
+  ],
+  [
+   "button.chip-btn.reg-blueprint-chip / aside.card",
+   8
+  ],
+  [
+   "article.card / a.footer-link-btn.pf-link",
+   7
+  ],
+  [
+   "p / p.cookie-banner-text",
+   6
+  ],
+  [
+   "button.chip-btn / label",
+   6
+  ],
+  [
+   "button.chip-btn / select#tbToolSelect.select",
+   6
+  ],
+  [
+   "p / h2",
+   5
+  ],
+  [
+   "label / h3",
+   5
+  ],
+  [
+   "article.card / div.card",
+   5
+  ],
+  [
+   "h3 / div.card",
+   5
+  ],
+  [
+   "p / div.card",
+   5
+  ],
+  [
+   "p / h3",
+   5
+  ],
+  [
+   "button.chip-btn.reg-blueprint-chip / a.footer-link-btn.pf-link",
+   5
+  ],
+  [
+   "p / button#btnAcceptAllCookies.btn.primary",
+   4
+  ],
+  [
+   "p / button#btnRejectNonEssentialCookies.btn",
+   4
+  ],
+  [
+   "label / button#btnAcceptAllCookies.btn.primary",
+   4
+  ],
+  [
+   "label / button#btnRejectNonEssentialCookies.btn",
+   4
+  ],
+  [
+   "label / button#btnOpenCookiePrefs.btn",
+   4
+  ],
+  [
+   "article.card / h3",
+   4
+  ],
+  [
+   "span.badge / a.footer-link-btn.pf-link",
+   4
+  ],
+  [
+   "button.btn.sm / a.footer-link-btn.pf-link",
+   4
+  ],
+  [
+   "button.chip-btn.reg-blueprint-chip / p",
+   4
+  ],
+  [
+   "button.chip-btn.reg-blueprint-chip / h2.pf-mobile-title",
+   4
+  ],
+  [
+   "button / button#btnOpenCookiePrefs.btn",
+   3
+  ],
+  [
+   "p / button#btnOpenCookiePrefs.btn",
+   3
+  ],
+  [
+   "label / p.cookie-choice-summary",
+   3
+  ],
+  [
+   "button.chip-btn / p.cookie-choice-summary",
+   3
+  ],
+  [
+   "div.card / h3",
+   3
+  ],
+  [
+   "div.card / a.footer-link-btn.pf-link",
+   3
+  ],
+  [
+   "aside.card / h3",
+   3
+  ],
+  [
+   "button.chip-btn.reg-blueprint-chip / h3",
+   3
+  ],
+  [
+   "h2 / p.cookie-banner-text",
+   2
+  ],
+  [
+   "p / p#uxCatalogScope",
+   2
+  ],
+  [
+   "a / h2",
+   2
+  ],
+  [
+   "a / p",
+   2
+  ],
+  [
+   "article.card / h2",
+   2
+  ],
+  [
+   "article.card / p",
+   2
+  ],
+  [
+   "article.card / a.btn.primary",
+   2
+  ],
+  [
+   "button#tab-overview.tab / h2",
+   2
+  ],
+  [
+   "button#tab-evidence.tab / h2",
+   2
+  ],
+  [
+   "button#tab-connections.tab / h2",
+   2
+  ],
+  [
+   "h3 / button.cookie-banner-close",
+   2
+  ],
+  [
+   "button.chip-btn / p#uxExploreStatus.caption",
+   2
+  ],
+  [
+   "button.chip-btn / button#uxClearSearch.btn.ux-clear-search",
+   2
+  ],
+  [
+   "button.chip-btn / button.btn.sm",
+   2
+  ],
+  [
+   "p#xProtocolHelp / h2#xTitle",
+   2
+  ],
+  [
+   "p#xProtocolHelp / p.cookie-banner-text",
+   2
+  ],
+  [
+   "p / p.cookie-choice-summary",
+   2
+  ],
+  [
+   "p.lead / p.cookie-banner-text",
+   2
+  ],
+  [
+   "h2 / button.cookie-banner-close",
+   2
+  ],
+  [
+   "article.card.protocol-card / p.cookie-banner-text",
+   2
+  ],
+  [
+   "h3 / p.cookie-banner-text",
+   2
+  ],
+  [
+   "p#uxConnectionMeaning / article#execution-checks.card",
+   2
+  ],
+  [
+   "p#uxConnectionMeaning / h2",
+   2
+  ],
+  [
+   "article.card / button.cookie-banner-close",
+   2
+  ],
+  [
+   "button.reference-protocol-button / button.cookie-banner-close",
+   2
+  ],
+  [
+   "section.card.test-input / p.cookie-banner-text",
+   2
+  ],
+  [
+   "section.card.test-input / button#btnAcceptAllCookies.btn.primary",
+   2
+  ],
+  [
+   "section.card.test-input / button#btnRejectNonEssentialCookies.btn",
+   2
+  ],
+  [
+   "section.card.test-input / button#btnOpenCookiePrefs.btn",
+   2
+  ],
+  [
+   "div.card.pearl-test-request / p.cookie-banner-text",
+   2
+  ],
+  [
+   "div.card.pearl-test-request / button#btnAcceptAllCookies.btn.primary",
+   2
+  ],
+  [
+   "div.card.pearl-test-request / button#btnRejectNonEssentialCookies.btn",
+   2
+  ],
+  [
+   "div.card.pearl-test-request / button#btnOpenCookiePrefs.btn",
+   2
+  ],
+  [
+   "label / label",
+   2
+  ],
+  [
+   "label / button.cookie-banner-close",
+   2
+  ],
+  [
+   "button.chip-btn.active / label",
+   2
+  ],
+  [
+   "button.chip-btn.active / select#tbToolSelect.select",
+   2
+  ],
+  [
+   "label / select#tbToolSelect.select",
+   2
+  ],
+  [
+   "input#tbAgentSearch.input / button.chip-btn",
+   2
+  ],
+  [
+   "input#tbAgentSearch.input / p#tbToolHint",
+   2
+  ],
+  [
+   "input#tbAgentSearch.input / label",
+   2
+  ],
+  [
+   "select#tbAgentSelect.select / p#tbToolHint",
+   2
+  ],
+  [
+   "p#uxAgentSearchStatus.caption / label",
+   2
+  ],
+  [
+   "textarea#tbArgsEditor.textarea / input#tbCustomToolInput.input",
+   2
+  ],
+  [
+   "textarea#tbArgsEditor.textarea / select#tbTimeoutSelect.select",
+   2
+  ],
+  [
+   "textarea#tbArgsEditor.textarea / div#uxTestResultPanel.card.pearl-test-result",
+   2
+  ],
+  [
+   "textarea#tbArgsEditor.textarea / button#uxToggleTestResult.btn",
+   2
+  ],
+  [
+   "input#tbCustomToolInput.input / div#uxTestResultPanel.card.pearl-test-result",
+   2
+  ],
+  [
+   "label / div#uxTestResultPanel.card.pearl-test-result",
+   2
+  ],
+  [
+   "select#tbTimeoutSelect.select / div#uxTestResultPanel.card.pearl-test-result",
+   2
+  ],
+  [
+   "select#tbTimeoutSelect.select / h3",
+   2
+  ],
+  [
+   "h2 / div.card",
+   2
+  ],
+  [
+   "h2 / h3",
+   2
+  ],
+  [
+   "p.lead / div.card",
+   2
+  ],
+  [
+   "p.lead / p",
+   2
+  ],
+  [
+   "p / a.brand",
+   2
+  ],
+  [
+   "button.chip-btn / p.eyebrow",
+   2
+  ],
+  [
+   "h3 / h2.pf-mobile-title",
+   2
+  ],
+  [
+   "p / h2.pf-mobile-title",
+   2
+  ],
+  [
+   "p#frontSelectionBasis / button#btnFrontRunWorkflow.btn.primary",
+   2
+  ],
+  [
+   "p#frontSelectionBasis / button#btnFrontExportApp.btn",
+   2
+  ],
+  [
+   "p#frontSelectionBasis / p#frontWorkflowAvailability.muted",
+   2
+  ],
+  [
+   "p#frontSelectionBasis / p.cookie-banner-text",
+   2
+  ],
+  [
+   "button.btn.sm / h3",
+   2
+  ],
+  [
+   "div.card.pearl-registration-form / button.cookie-banner-close",
+   2
+  ],
+  [
+   "div.card.pearl-registration-form / p.cookie-banner-text",
+   2
+  ],
+  [
+   "div.card.pearl-registration-form / button#btnAcceptAllCookies.btn.primary",
+   2
+  ],
+  [
+   "div.card.pearl-registration-form / button#btnRejectNonEssentialCookies.btn",
+   2
+  ],
+  [
+   "div.card.pearl-registration-form / button#btnOpenCookiePrefs.btn",
+   2
+  ],
+  [
+   "button.chip-btn.reg-blueprint-chip / button#regSubmitBtn.btn.primary",
+   2
+  ],
+  [
+   "button.chip-btn.reg-blueprint-chip / button#regResetBtn.btn",
+   2
+  ],
+  [
+   "article.card / a.pf-email",
+   2
+  ],
+  [
+   "button#regInspectBtn.btn.primary / a",
+   2
+  ],
+  [
+   "p / button.cookie-banner-close",
+   2
+  ],
+  [
+   "article.card / a.btn",
+   1
+  ],
+  [
+   "p / a",
+   1
+  ],
+  [
+   "p#uxCatalogScope / h2",
+   1
+  ],
+  [
+   "p#uxCatalogScope / p",
+   1
+  ],
+  [
+   "p#xProtocolHelp / button.btn.sm",
+   1
+  ],
+  [
+   "p#xProtocolHelp / p.cookie-choice-summary",
+   1
+  ],
+  [
+   "button.btn.sm / p.cookie-banner-text",
+   1
+  ],
+  [
+   "p#xProtocolHelp / button",
+   1
+  ],
+  [
+   "p#xProtocolHelp / button#uxClearSearch.btn.ux-clear-search",
+   1
+  ],
+  [
+   "p#xProtocolHelp / button.cookie-banner-close",
+   1
+  ],
+  [
+   "p#xProtocolHelp / button#btnRejectNonEssentialCookies.btn",
+   1
+  ],
+  [
+   "p#xProtocolHelp / button#btnOpenCookiePrefs.btn",
+   1
+  ],
+  [
+   "h2#xTitle / p.cookie-banner-text",
+   1
+  ],
+  [
+   "h2#xTitle / button#btnAcceptAllCookies.btn.primary",
+   1
+  ],
+  [
+   "h2#xTitle / button#btnRejectNonEssentialCookies.btn",
+   1
+  ],
+  [
+   "button#uxClearSearch.btn.ux-clear-search / p.cookie-banner-text",
+   1
+  ],
+  [
+   "section.card.pearl-conversation / button.cookie-banner-close",
+   1
+  ],
+  [
+   "section.card.pearl-conversation / p.cookie-choice-summary",
+   1
+  ],
+  [
+   "section.card.pearl-conversation / p.cookie-banner-text",
+   1
+  ],
+  [
+   "section.card.pearl-conversation / button#btnAcceptAllCookies.btn.primary",
+   1
+  ],
+  [
+   "section.card.pearl-conversation / button#btnRejectNonEssentialCookies.btn",
+   1
+  ],
+  [
+   "section.card.pearl-conversation / button#btnOpenCookiePrefs.btn",
+   1
+  ],
+  [
+   "h1 / button.cookie-banner-close",
+   1
+  ],
+  [
+   "p.lead / button#btnAcceptAllCookies.btn.primary",
+   1
+  ],
+  [
+   "p.lead / button#btnRejectNonEssentialCookies.btn",
+   1
+  ],
+  [
+   "p.lead / button#btnOpenCookiePrefs.btn",
+   1
+  ],
+  [
+   "a / p.cookie-banner-text",
+   1
+  ],
+  [
+   "a / button#btnAcceptAllCookies.btn.primary",
+   1
+  ],
+  [
+   "a / button#btnRejectNonEssentialCookies.btn",
+   1
+  ],
+  [
+   "a / button#btnOpenCookiePrefs.btn",
+   1
+  ],
+  [
+   "h2 / p.cookie-choice-summary",
+   1
+  ],
+  [
+   "h2 / button#btnAcceptAllCookies.btn.primary",
+   1
+  ],
+  [
+   "h2 / button#btnRejectNonEssentialCookies.btn",
+   1
+  ],
+  [
+   "h2 / button#btnOpenCookiePrefs.btn",
+   1
+  ],
+  [
+   "section.learn-guide-search.card / p.cookie-choice-summary",
+   1
+  ],
+  [
+   "section.learn-guide-search.card / p.cookie-banner-text",
+   1
+  ],
+  [
+   "section.learn-guide-search.card / button#btnAcceptAllCookies.btn.primary",
+   1
+  ],
+  [
+   "section.learn-guide-search.card / button#btnRejectNonEssentialCookies.btn",
+   1
+  ],
+  [
+   "section.learn-guide-search.card / button#btnOpenCookiePrefs.btn",
+   1
+  ],
+  [
+   "input#learnGuideSearch.input / p.cookie-banner-text",
+   1
+  ],
+  [
+   "div.side-nav.card / p.cookie-banner-text",
+   1
+  ],
+  [
+   "article.card.reference-learn-panels / p.cookie-banner-text",
+   1
+  ],
+  [
+   "article.card / p.cookie-banner-text",
+   1
+  ],
+  [
+   "article.card / button#btnAcceptAllCookies.btn.primary",
+   1
+  ],
+  [
+   "article.card / button#btnRejectNonEssentialCookies.btn",
+   1
+  ],
+  [
+   "article.card / button#btnOpenCookiePrefs.btn",
+   1
+  ],
+  [
+   "button.reference-protocol-button / p.cookie-banner-text",
+   1
+  ],
+  [
+   "button.reference-protocol-button / button#btnAcceptAllCookies.btn.primary",
+   1
+  ],
+  [
+   "button.reference-protocol-button / button#btnRejectNonEssentialCookies.btn",
+   1
+  ],
+  [
+   "button.reference-protocol-button / button#btnOpenCookiePrefs.btn",
+   1
+  ],
+  [
+   "section.card.test-input / button.cookie-banner-close",
+   1
+  ],
+  [
+   "section.card.test-input / p.cookie-choice-summary",
+   1
+  ],
+  [
+   "div.card.pearl-test-request / button.cookie-banner-close",
+   1
+  ],
+  [
+   "div.card.pearl-test-request / p.cookie-choice-summary",
+   1
+  ],
+  [
+   "label / p.caption",
+   1
+  ],
+  [
+   "input#tbAgentSearch.input / p.cookie-banner-text",
+   1
+  ],
+  [
+   "select#tbAgentSelect.select / input#uxArg-0.input.fs-mask",
+   1
+  ],
+  [
+   "select#tbAgentSelect.select / input#uxArg-1.input.fs-mask",
+   1
+  ],
+  [
+   "select#tbAgentSelect.select / p.cookie-banner-text",
+   1
+  ],
+  [
+   "p#uxAgentSearchStatus.caption / textarea#tbArgsEditor.textarea",
+   1
+  ],
+  [
+   "p#uxAgentSearchStatus.caption / select#tbTimeoutSelect.select",
+   1
+  ],
+  [
+   "p#uxAgentSearchStatus.caption / div#uxTestResultPanel.card.pearl-test-result",
+   1
+  ],
+  [
+   "p#uxAgentSearchStatus.caption / h3",
+   1
+  ],
+  [
+   "p#uxAgentSearchStatus.caption / button#uxToggleTestResult.btn",
+   1
+  ],
+  [
+   "select#tbToolSelect.select / p.cookie-choice-summary",
+   1
+  ],
+  [
+   "button.chip-btn / p.cookie-banner-text",
+   1
+  ],
+  [
+   "p#tbToolHint / p.cookie-banner-text",
+   1
+  ],
+  [
+   "h3 / button#btnAcceptAllCookies.btn.primary",
+   1
+  ],
+  [
+   "h3 / button#btnRejectNonEssentialCookies.btn",
+   1
+  ],
+  [
+   "h3 / button#btnOpenCookiePrefs.btn",
+   1
+  ],
+  [
+   "h2 / button.btn.sm",
+   1
+  ],
+  [
+   "h2 / button.chip-btn",
+   1
+  ],
+  [
+   "article.card / a.brand",
+   1
+  ],
+  [
+   "div.card / a.brand",
+   1
+  ],
+  [
+   "div.card.pearl-example-sidebar / button.cookie-banner-close",
+   1
+  ],
+  [
+   "div.card.pearl-example-sidebar / p.cookie-banner-text",
+   1
+  ],
+  [
+   "p#pearlExampleLoadState.caption / button.cookie-banner-close",
+   1
+  ],
+  [
+   "h2#pearlTestExampleName / p.cookie-banner-text",
+   1
+  ],
+  [
+   "h2#pearlTestExampleName / button#btnAcceptAllCookies.btn.primary",
+   1
+  ],
+  [
+   "h2#pearlTestExampleName / button#btnRejectNonEssentialCookies.btn",
+   1
+  ],
+  [
+   "h2#pearlTestExampleName / button#btnOpenCookiePrefs.btn",
+   1
+  ],
+  [
+   "p#uxAgentSearchStatus.caption / input#uxArg-1.input.fs-mask",
+   1
+  ],
+  [
+   "textarea#tbArgsEditor.textarea / label",
+   1
+  ],
+  [
+   "textarea#tbArgsEditor.textarea / h3",
+   1
+  ],
+  [
+   "textarea#tbArgsEditor.textarea / p#uxTestResultHint.caption",
+   1
+  ],
+  [
+   "select#tbTimeoutSelect.select / p#uxTestResultHint.caption",
+   1
+  ],
+  [
+   "p.lead / button.btn.sm",
+   1
+  ],
+  [
+   "p.lead / h2.pf-mobile-title",
+   1
+  ],
+  [
+   "article.card / button.btn.sm",
+   1
+  ],
+  [
+   "article.card / button.chip-btn",
+   1
+  ],
+  [
+   "article.card / h2.pf-mobile-title",
+   1
+  ],
+  [
+   "div.card / h2.pf-mobile-title",
+   1
+  ],
+  [
+   "button.btn.sm / h2.pf-mobile-title",
+   1
+  ],
+  [
+   "button.chip-btn / h2.pf-mobile-title",
+   1
+  ],
+  [
+   "p#frontSelectionBasis / section.card.pearl-workflow-review",
+   1
+  ],
+  [
+   "p#frontSelectionBasis / h3",
+   1
+  ],
+  [
+   "p#frontSelectionBasis / p.cookie-choice-summary",
+   1
+  ],
+  [
+   "p#frontWorkflowAvailability.muted / button.cookie-banner-close",
+   1
+  ],
+  [
+   "p#frontWorkflowAvailability.muted / p.cookie-choice-summary",
+   1
+  ],
+  [
+   "p#frontWorkflowAvailability.muted / button#btnAcceptAllCookies.btn.primary",
+   1
+  ],
+  [
+   "p#frontWorkflowAvailability.muted / button#btnRejectNonEssentialCookies.btn",
+   1
+  ],
+  [
+   "p#frontWorkflowAvailability.muted / button#btnOpenCookiePrefs.btn",
+   1
+  ],
+  [
+   "section.card.pearl-workflow-review / p.cookie-banner-text",
+   1
+  ],
+  [
+   "button.ux-workflow-pearl / p.cookie-banner-text",
+   1
+  ],
+  [
+   "span.badge / p",
+   1
+  ],
+  [
+   "button.btn.sm / a.brand",
+   1
+  ],
+  [
+   "button.btn.sm / p.pf-tagline",
+   1
+  ],
+  [
+   "p#frontSelectionBasis / button#btnFrontResetCanvas.btn",
+   1
+  ],
+  [
+   "p#frontSelectionBasis / button#btnRejectNonEssentialCookies.btn",
+   1
+  ],
+  [
+   "button#btnFrontRunWorkflow.btn.primary / p.cookie-banner-text",
+   1
+  ],
+  [
+   "button#btnFrontRunWorkflow.btn.primary / button#btnAcceptAllCookies.btn.primary",
+   1
+  ],
+  [
+   "button#btnFrontRunWorkflow.btn.primary / button#btnRejectNonEssentialCookies.btn",
+   1
+  ],
+  [
+   "button#btnFrontExportApp.btn / p.cookie-banner-text",
+   1
+  ],
+  [
+   "button#btnFrontExportApp.btn / button#btnRejectNonEssentialCookies.btn",
+   1
+  ],
+  [
+   "button#btnFrontExportApp.btn / button#btnOpenCookiePrefs.btn",
+   1
+  ],
+  [
+   "button#btnFrontResetCanvas.btn / p.cookie-banner-text",
+   1
+  ],
+  [
+   "button#btnFrontResetCanvas.btn / button#btnAcceptAllCookies.btn.primary",
+   1
+  ],
+  [
+   "button#btnFrontResetCanvas.btn / button#btnRejectNonEssentialCookies.btn",
+   1
+  ],
+  [
+   "div.card.pearl-registration-form / p.cookie-choice-summary",
+   1
+  ],
+  [
+   "textarea#regDesc.textarea / p.cookie-choice-summary",
+   1
+  ],
+  [
+   "textarea#regDesc.textarea / p.cookie-banner-text",
+   1
+  ],
+  [
+   "textarea#regDesc.textarea / button#btnAcceptAllCookies.btn.primary",
+   1
+  ],
+  [
+   "textarea#regDesc.textarea / button#btnRejectNonEssentialCookies.btn",
+   1
+  ],
+  [
+   "textarea#regDesc.textarea / button#btnOpenCookiePrefs.btn",
+   1
+  ],
+  [
+   "input#regAutoUrl.input / label.check.pearl-listing-authority",
+   1
+  ],
+  [
+   "input#regAutoUrl.input / input#pearlRegAuthority",
+   1
+  ],
+  [
+   "button#regInspectBtn.btn.primary / label.check.pearl-listing-authority",
+   1
+  ],
+  [
+   "aside.card / a.brand",
+   1
+  ],
+  [
+   "aside.card / p.pf-tagline",
+   1
+  ],
+  [
+   "aside.card / p",
+   1
+  ],
+  [
+   "h3 / p.pf-tagline",
+   1
+  ],
+  [
+   "h3 / p",
+   1
+  ],
+  [
+   "h3 / a.pf-email",
+   1
+  ],
+  [
+   "select#regCategory.select / button.cookie-banner-close",
+   1
+  ],
+  [
+   "label / p.cookie-banner-text",
+   1
+  ],
+  [
+   "button / button#btnAcceptAllCookies.btn.primary",
+   1
+  ],
+  [
+   "button / button#btnRejectNonEssentialCookies.btn",
+   1
+  ],
+  [
+   "button#regOpenJsonModalBtn.btn.sm / label.check.pearl-listing-authority",
+   1
+  ],
+  [
+   "button#regOpenJsonModalBtn.btn.sm / input#pearlRegAuthority",
+   1
+  ],
+  [
+   "input#regAutoUrl.input / label.clickwrap-label",
+   1
+  ],
+  [
+   "input#regAutoUrl.input / input#regTermsConsent",
+   1
+  ],
+  [
+   "input#regAutoUrl.input / a",
+   1
+  ],
+  [
+   "button#regInspectBtn.btn.primary / label.clickwrap-label",
+   1
+  ],
+  [
+   "label / button#regSubmitBtn.btn.primary",
+   1
+  ],
+  [
+   "button.chip-btn.reg-blueprint-chip / h2",
+   1
+  ],
+  [
+   "aside.card / h2.pf-mobile-title",
+   1
+  ],
+  [
+   "p / a.pf-email",
+   1
+  ]
+ ],
+ "small": [
+  [
+   "button.btn.sm @375",
+   96
+  ],
+  [
+   "button.btn.sm @1280",
+   95
+  ],
+  [
+   "a.nav-tab @1280",
+   44
+  ],
+  [
+   "a.footer-link-btn @1280",
+   33
+  ],
+  [
+   "a @1280",
+   27
+  ],
+  [
+   "summary @1280",
+   27
+  ],
+  [
+   "a @375",
+   27
+  ],
+  [
+   "summary @375",
+   24
+  ],
+  [
+   "button.chip-btn @1280",
+   18
+  ],
+  [
+   "a.btn.small @1280",
+   18
+  ],
+  [
+   "a.btn.small @375",
+   18
+  ],
+  [
+   "button @1280",
+   17
+  ],
+  [
+   "button @375",
+   17
+  ],
+  [
+   "a.brand-box @1280",
+   12
+  ],
+  [
+   "a.brand-box @375",
+   12
+  ],
+  [
+   "button.chip-btn.reg-blueprint-chip @1280",
+   10
+  ],
+  [
+   "button.chip-btn.reg-blueprint-chip @375",
+   10
+  ],
+  [
+   "a.pf-email @1280",
+   9
+  ],
+  [
+   "button.cookie-banner-close @1280",
+   9
+  ],
+  [
+   "button#btnAcceptAllCookies.btn.primary @1280",
+   9
+  ],
+  [
+   "button#btnRejectNonEssentialCookies.btn @1280",
+   9
+  ],
+  [
+   "button#btnOpenCookiePrefs.btn @1280",
+   9
+  ],
+  [
+   "button.icon-btn.pearl-menu @375",
+   9
+  ],
+  [
+   "a.pf-email @375",
+   9
+  ],
+  [
+   "button.chip-btn @375",
+   9
+  ],
+  [
+   "a.nav-tab.on @1280",
+   4
+  ],
+  [
+   "button.link-button @1280",
+   3
+  ],
+  [
+   "button.link-button @375",
+   3
+  ],
+  [
+   "a.link-button @375",
+   2
+  ],
+  [
+   "button.icon-btn @1280",
+   1
+  ],
+  [
+   "a.link-button @1280",
+   1
+  ],
+  [
+   "button#tab-overview.tab @1280",
+   1
+  ],
+  [
+   "button#tab-evidence.tab @1280",
+   1
+  ],
+  [
+   "button#tab-connections.tab @1280",
+   1
+  ],
+  [
+   "button.icon-btn @375",
+   1
+  ],
+  [
+   "button#tab-overview.tab @375",
+   1
+  ],
+  [
+   "button#tab-evidence.tab @375",
+   1
+  ],
+  [
+   "button#tab-connections.tab @375",
+   1
+  ],
+  [
+   "button#xGo.btn.primary @1280",
+   1
+  ],
+  [
+   "input#xVerified @1280",
+   1
+  ],
+  [
+   "input#xNoAuth @1280",
+   1
+  ],
+  [
+   "input#xHasReport @1280",
+   1
+  ],
+  [
+   "button#uxClearSearch.btn.ux-clear-search @1280",
+   1
+  ],
+  [
+   "button#xLoadMore.btn.primary @1280",
+   1
+  ],
+  [
+   "button#xGo.btn.primary @375",
+   1
+  ],
+  [
+   "button#uxClearSearch.btn.ux-clear-search @375",
+   1
+  ],
+  [
+   "button#xLoadMore.btn.primary @375",
+   1
+  ],
+  [
+   "button.btn.small @1280",
+   1
+  ],
+  [
+   "button.btn.small @375",
+   1
+  ],
+  [
+   "button#learn-tab-glossary.side-item @375",
+   1
+  ],
+  [
+   "button#tbRunBtn.btn.primary @1280",
+   1
+  ],
+  [
+   "button#tbResetBtn.chip-btn @1280",
+   1
+  ],
+  [
+   "button.chip-btn.active @1280",
+   1
+  ],
+  [
+   "button#uxToggleTestResult.btn @1280",
+   1
+  ],
+  [
+   "button#tbRunBtn.btn.primary @375",
+   1
+  ],
+  [
+   "button#tbResetBtn.chip-btn @375",
+   1
+  ],
+  [
+   "button.chip-btn.active @375",
+   1
+  ],
+  [
+   "button#uxToggleTestResult.btn @375",
+   1
+  ],
+  [
+   "button#btnFrontWfViewCanvas.btn.sm @1280",
+   1
+  ],
+  [
+   "button#btnFrontWfViewTemplates.btn.sm @1280",
+   1
+  ],
+  [
+   "button#btnFrontRunWorkflow.btn.primary @1280",
+   1
+  ],
+  [
+   "button#btnFrontExportApp.btn @1280",
+   1
+  ],
+  [
+   "button#btnFrontResetCanvas.btn @1280",
+   1
+  ],
+  [
+   "button#btnFrontWfViewCanvas.btn.sm @375",
+   1
+  ],
+  [
+   "button#btnFrontWfViewTemplates.btn.sm @375",
+   1
+  ],
+  [
+   "button.btn @375",
+   1
+  ],
+  [
+   "button#btnFrontRunWorkflow.btn.primary @375",
+   1
+  ],
+  [
+   "button#btnFrontExportApp.btn @375",
+   1
+  ],
+  [
+   "button#btnFrontResetCanvas.btn @375",
+   1
+  ],
+  [
+   "button#regOpenJsonModalBtn.btn.sm @1280",
+   1
+  ],
+  [
+   "input#regTermsConsent @1280",
+   1
+  ],
+  [
+   "button#regResetBtn.btn @1280",
+   1
+  ],
+  [
+   "button#uxInspectEndpoint.btn @375",
+   1
+  ],
+  [
+   "button#regOpenJsonModalBtn.btn.sm @375",
+   1
+  ],
+  [
+   "button#regResetBtn.btn @375",
+   1
+  ]
+ ],
+ "misaligned": [
+  [
+   "column th | td",
+   30
+  ],
+  [
+   "column th | th",
+   22
+  ],
+  [
+   "row span.icon-disc | h3",
+   12
+  ],
+  [
+   "column div.row | dl",
+   6
+  ],
+  [
+   "column div.row | a.btn",
+   6
+  ],
+  [
+   "column h4 | span.badge",
+   3
+  ],
+  [
+   "column h4 | button.link-button",
+   3
+  ],
+  [
+   "row span.explore-scope-badge | details#exploreScopeDetails.context-help",
+   2
+  ],
+  [
+   "column button#tbRunBtn.btn.primary | button#tbResetBtn.chip-btn",
+   2
+  ],
+  [
+   "row label | span#tbJsonStatus",
+   2
+  ],
+  [
+   "row label | select#tbTimeoutSelect.select",
+   2
+  ],
+  [
+   "row input#regTermsConsent | span",
+   2
+  ],
+  [
+   "row div | div.actions",
+   1
+  ],
+  [
+   "row h2 | span.caption",
+   1
+  ],
+  [
+   "row h2 | ul.status-legend",
+   1
+  ],
+  [
+   "row time | button.btn.small",
+   1
+  ],
+  [
+   "row h2 | p",
+   1
+  ],
+  [
+   "row label | button#regOpenJsonModalBtn.btn.sm",
+   1
+  ],
+  [
+   "row label | span",
+   1
+  ]
+ ]
+}
