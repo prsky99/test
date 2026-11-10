@@ -128,7 +128,27 @@ class TaskPagesRefresher:
             log.info('Task page snapshot: %d task pages, %d agents', len(snapshot['tasks']), len(snapshot['catalog']))
             self.publish_weekly(snapshot)
             self.aggregate_feedback(snapshot)
+            self.record_usage()
             self.prepare_notice(snapshot)
+
+    def record_usage(self):
+        """Yesterday's (UTC) real-use line from the anonymous traffic counts: logs/growth/usage-daily.jsonl."""
+        try:
+            import json
+            from datetime import timedelta, timezone as tz
+            from . import traffic
+            logs = self.out.parent.parent.parent        # <root>/logs/service-frontend/public-pages -> <root>/logs
+            day = (datetime.fromtimestamp(self.clock(), tz.utc).date() - timedelta(days=1)).isoformat()
+            target = logs / 'growth' / 'usage-daily.jsonl'
+            if target.exists() and ('"day": "' + day + '"') in target.read_text(encoding='utf-8'):
+                return
+            row = {'day': day, **traffic.usage(traffic.load_day(logs / 'service-frontend' / 'traffic', day))}
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with open(target, 'a', encoding='utf-8') as out:
+                out.write(json.dumps(row) + '\n')
+            log.info('Usage line for %s: %s', day, row)
+        except Exception:
+            log.exception('Usage line was not written')
 
     def aggregate_feedback(self, snapshot):
         """Daily per-agent report counts for the agents with evidence (registered per-resource statistics)."""

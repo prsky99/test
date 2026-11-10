@@ -2182,7 +2182,8 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
         try:
             from .traffic import recorder
             recorder().observe(request.method, request.url.path, response.status_code, client_ip,
-                               request.headers.get('user-agent', ''), getattr(request, '_body', None))
+                               request.headers.get('user-agent', ''), getattr(request, '_body', None),
+                               request.headers, response.headers)
         except Exception:
             pass
         for key,value in request.scope.get('agent_adoption_quota',{}).items():response.headers.setdefault(key,value)
@@ -3137,6 +3138,7 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
 
     # ---------------- A2A ----------------
     @router.post("/a2a")
+    @router.post("/a2a/", include_in_schema=False)
     async def a2a(request: Request):
         if (r := limited(request)) is not None:
             return r
@@ -3221,6 +3223,7 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
         return JSONResponse({"audience": AUDIENCE, "error": "POST JSON-RPC to this endpoint (no SSE stream)."}, status_code=405)
 
     @router.post("/mcp")
+    @router.post("/mcp/", include_in_schema=False)
     async def mcp(request: Request):
         if (r := limited(request)) is not None:
             return r
@@ -3308,6 +3311,10 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
                 return mcp_result(rid, await run_in_threadpool(handler, front, params))
             except mcp_tasks.TaskError as exc:
                 return {"jsonrpc": "2.0", "id": rid, "error": {"code": exc.code, "message": exc.message}}
+        if method in ("resources/list", "resources/templates/list", "prompts/list"):
+            # 11-10: clients probe these at start-up; this server offers tools only, so the lists are empty.
+            return mcp_result(rid, {{"resources/list": "resources", "resources/templates/list": "resourceTemplates",
+                                    "prompts/list": "prompts"}[method]: []})
         if method != "tools/call":
             return {"jsonrpc": "2.0", "id": rid, "error": {"code": -32601, "message": f"Method not found: {method}"}}
         name = params.get("name") if isinstance(params, dict) else None

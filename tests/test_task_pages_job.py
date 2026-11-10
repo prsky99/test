@@ -197,3 +197,24 @@ def test_job_retries_a_403_later(tmp_path):
     assert r.due()
     r.run()
     assert r.notice is None and json.loads((tmp_path/'indexnow-state.json').read_text())['pages'] == {'/agent/1': 'x'}
+
+
+def test_usage_line_is_written_once_per_day(tmp_path):
+    import json
+    from datetime import datetime, timezone
+    from agent_market.concierge import traffic
+    from agent_market.concierge.task_pages_job import TaskPagesRefresher
+    root = tmp_path / 'logs'
+    rec = traffic.Traffic(root / 'service-frontend' / 'traffic', clock=lambda: datetime(2026, 11, 9, 12, tzinfo=timezone.utc).timestamp())
+    rec.observe('POST', '/mcp', 200, '203.0.113.5', 'node',
+                b'{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"Cursor"}}}', {}, {'mcp-session-id': 's'})
+    rec.observe('POST', '/mcp', 200, '203.0.113.5', 'node', b'{"jsonrpc":"2.0","id":2,"method":"tools/call"}', {'mcp-session-id': 's'}, {})
+    rec.flush()
+    job = TaskPagesRefresher(None, out=root / 'service-frontend' / 'public-pages' / 'task-pages.json',
+                             clock=lambda: datetime(2026, 11, 10, 19, tzinfo=timezone.utc).timestamp(), categories=[])
+    job.record_usage()
+    job.record_usage()
+    lines = (root / 'growth' / 'usage-daily.jsonl').read_text().splitlines()
+    assert len(lines) == 1
+    row = json.loads(lines[0])
+    assert row['day'] == '2026-11-09' and row['mcp_sessions_real'] == 1 and row['mcp_tool_calls_real'] == 1

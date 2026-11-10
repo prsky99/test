@@ -90,3 +90,17 @@ def test_daily_aggregate_and_agent_page_counts(w, tmp_path, monkeypatch):  # noq
     section = growth_catalog.outcome_section(rid)
     assert 'action="/api/feedback"' in section and 'name="worked" value="1"' in section and 'did not' in section
     assert growth_pages.data_dir() == tmp_path.parent/'public-pages'
+
+
+def test_protocol_first_call_fixes(w):  # noqa: F811
+    """11-10: trailing-slash posts and start-up list probes no longer fail."""
+    _, c, _ = w
+    init = {'jsonrpc': '2.0', 'id': 1, 'method': 'initialize',
+            'params': {'protocolVersion': '2025-06-18', 'clientInfo': {'name': 'Probe'}, 'capabilities': {}}}
+    assert c.post('/mcp/', json=init, follow_redirects=False).json()['result']['protocolVersion'] == '2025-06-18'
+    for method, key in (('resources/list', 'resources'), ('resources/templates/list', 'resourceTemplates'), ('prompts/list', 'prompts')):
+        assert c.post('/mcp', json={'jsonrpc': '2.0', 'id': 2, 'method': method}).json()['result'] == {key: []}
+    message = {'jsonrpc': '2.0', 'id': 1, 'method': 'message/send', 'params': {'message': {
+        'kind': 'message', 'role': 'user', 'messageId': 'm1', 'parts': [{'kind': 'text', 'text': 'find a weather API'}]}}}
+    r = c.post('/a2a/', json=message, follow_redirects=False)
+    assert r.status_code == 200 and r.json()['result']['kind'] == 'message'
