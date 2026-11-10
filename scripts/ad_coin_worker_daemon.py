@@ -24,11 +24,11 @@ logger = logging.getLogger("ad_coin_daemon")
 
 
 class WorkerDaemon:
-    def __init__(self, store: ModelStore, vault: KeyVault | None = None):
+    def __init__(self, store: ModelStore, vault: KeyVault | None = None, credit_grant=None):
         self.store = store
         self.vault = vault or KeyVault()
         signer = ReceiptSigner(self.store, {self.vault.kid: self.vault.get_signing_key()})
-        self.workers = ModelWorkers(self.store, receipt_signer=signer)
+        self.workers = ModelWorkers(self.store, receipt_signer=signer, credit_grant=credit_grant)
         self.running = False
 
     def run_cycle(self, now_ms: int | None = None) -> dict:
@@ -85,26 +85,57 @@ class WorkerDaemon:
         logger.info("Worker daemon stopped cleanly.")
 
 
-def main():
+def build(dsn_file: str, key_file: str, key_dir: str):
+    """Production wiring: the application PostgreSQL database (one v2 session), the shared persistent
+    keys the frontend uses, and the real workspace credit grant for points exchanges."""
+    import os
+
+    if not key_dir or not os.path.isabs(key_dir):
+        raise SystemExit("--key-dir (or AD_COIN_V2_KEY_DIR) must be the absolute key folder the frontend uses")
+    from agent_market.application_runtime import open_runtime_storage
+    from agent_market.ad_coin.v2.live_service import store_from_application
+    from agent_market.customer_credits import CustomerCredits
+    from agent_market.customer_identity import customer_identity_for
+    from agent_market.workflows import runtime_for
+
+    runtime = open_runtime_storage(":memory:", values={
+        "APPLICATION_STORE_BACKEND": "postgresql", "APPLICATION_POSTGRES_DSN_FILE": dsn_file,
+        "APPLICATION_WORKFLOW_KEY_FILE": key_file})
+    app_store = runtime.store
+    app_store._admin_read_pool = None  # keep the connection budget small
+    os.environ["AD_COIN_V2_POOL_MAXIMUM"] = "1"
+    store = store_from_application(app_store)
+    credits = CustomerCredits(customer_identity_for(app_store, runtime_for(app_store).key))
+    return runtime, store, KeyVault.from_directory(key_dir), credits.exchange_points
+
+
+def main(argv=None):
+    import os
+
     parser = argparse.ArgumentParser(description="AI AD Coin v2 Worker Daemon.")
+    parser.add_argument("--dsn-file", required=True)
+    parser.add_argument("--key-file", required=True, help="the application workflow key file")
+    parser.add_argument("--key-dir", default=os.environ.get("AD_COIN_V2_KEY_DIR", ""))
     parser.add_argument("--once", action="store_true", help="Run a single worker cycle and exit")
     parser.add_argument("--interval", type=float, default=5.0, help="Loop interval in seconds")
-    parser.add_argument("--health", action="store_true", help="Check database readiness and exit")
-    args = parser.parse_args()
+    parser.add_argument("--health", action="store_true", help="Check that the migrated v2 schema is reachable and exit")
+    args = parser.parse_args(argv)
 
-    store = ModelStore()
-    if args.health:
-        is_ready = store.is_ready() if hasattr(store, "is_ready") else True
-        print(json.dumps({"status": "ready" if is_ready else "unready"}))
-        return
-
-    daemon = WorkerDaemon(store)
-    if args.once:
-        summary = daemon.run_cycle()
-        print(json.dumps(summary, indent=2))
-    else:
-        daemon.run_forever(interval_seconds=args.interval)
+    runtime, store, vault, grant = build(args.dsn_file, args.key_file, args.key_dir)
+    try:
+        if args.health:
+            print(json.dumps({"status": "ready" if store.attach() else "unready"}))
+            return 0
+        daemon = WorkerDaemon(store, vault, credit_grant=grant)
+        if args.once:
+            print(json.dumps(daemon.run_cycle(), indent=2))
+        else:
+            daemon.run_forever(interval_seconds=args.interval)
+    finally:
+        store.close()
+        runtime.close()
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

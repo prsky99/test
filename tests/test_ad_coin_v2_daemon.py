@@ -21,3 +21,27 @@ def test_worker_daemon_cycle(store):  # noqa: F811
     assert summary["processed_outbox"] == 0
     assert summary["signed_receipts"] == 0
     assert summary["stale_attention"] == 0
+
+
+def test_daemon_refuses_a_relative_key_folder():
+    import pytest
+    from scripts.ad_coin_worker_daemon import build
+    with pytest.raises(SystemExit):
+        build('dsn', 'key', 'gateway-data/ad_coin_v2_keys')
+    with pytest.raises(SystemExit):
+        build('dsn', 'key', '')
+
+
+def test_daemon_passes_the_credit_grant_to_the_workers(store):  # noqa: F811
+    from scripts.ad_coin_worker_daemon import WorkerDaemon
+    store.migrate_model()
+    def grant(*_):
+        return None
+    assert WorkerDaemon(store, credit_grant=grant).workers.credit_grant is grant
+
+
+def test_daemon_command_needs_the_production_settings_files():
+    import pytest
+    from scripts.ad_coin_worker_daemon import main
+    with pytest.raises(SystemExit):
+        main(['--once'])
