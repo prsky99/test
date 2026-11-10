@@ -103,3 +103,13 @@ def test_mcp_total_and_step_statistics_are_worded_consistently():
     assert rc.fix_step_text(row) == '| Request latency (median / slowest / range) | 690 ms / 702 ms / 40 ms (3 requests) |'
     assert rc.fix_step_text('(HTTP 200, 1288 ms total, AQEF-30') == '(HTTP 200, 1288 ms for initialize and tools/list, AQEF-30'
     assert rc.fix_step_text(out) == out
+
+
+def test_transport_label_with_a_real_call_is_detected():
+    assert rc.executed_method({'test_method': 'MCP Tools List', 'input_wire': '{"method": "tools/call"}'}) == 'MCP Tool Call'
+    assert rc.executed_method({'test_method': 'MCP Tools List', 'input_wire': '{"query": "Vail"}'}) == 'MCP Tool Call'
+    assert rc.executed_method({'test_method': 'A2A Agent Card',
+                               'input_wire': '{"jsonrpc": "2.0", "method": "agent.route"}'}) == 'A2A Message'
+    assert rc.executed_method({'test_method': 'A2A Agent Card', 'input_wire': '{"method": "GET (3-probe burst)", "trials": 3}'}) is None
+    assert rc.executed_method({'test_method': 'MCP Tools List',
+                               'input_wire': '{"method": "POST initialize + tools/list", "trials": 3}'}) is None

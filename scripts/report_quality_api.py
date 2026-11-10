@@ -32,6 +32,7 @@ RUBRIC = Path.home() / '.gemini/antigravity/brain/c483b1b9-b552-4e83-b78d-d6f36b
 MODEL = os.environ.get('RQ_MODEL', 'claude-opus-5-5')
 EFFORT = os.environ.get('RQ_EFFORT', 'medium')
 WIRE_CHARS = int(os.environ.get('RQ_WIRE', '2500'))  # 11-10: 2500 cut tool lists and caused false missing_evidence
+SALT = os.environ.get('RQ_SALT', 'pick')  # change it to draw a different sample
 # 50% batch rates per million tokens.
 BATCH_PRICES = {'claude-opus-5-5': {'input': 2.0, 'output': 10.0, 'cache_write': 2.5, 'cache_read': 0.10},
                 'claude-haiku-5-5': {'input': 0.05, 'output': 0.25, 'cache_write': 0.0625, 'cache_read': 0.005}}
@@ -76,7 +77,7 @@ def sample(n):
       from (select r.*, row_number() over (partition by kind, coalesce(eval_grade,'-'), is_success,
                    date_trunc('week', to_timestamp(created_at)) order by md5(id::text || 'aqef')) rn
             from agent_test_reports r) x
-      where rn <= 40 order by md5(id::text || 'pick') limit {int(n)}) t"""
+      where rn <= 40 order by md5(id::text || '{SALT}') limit {int(n)}) t"""
     rows = [line for line in psql(sql).splitlines() if line.strip()]
     (OUT / 'sample.jsonl').write_text('\n'.join(rows) + '\n')
     kinds = {}

@@ -485,7 +485,7 @@ def main():
                    res.active, res.eval_security, res.inactive_reason, res.health_status,
                    r.agent_name, r.agent_url,
                    r.id, r.test_method, r.evidence_scope, r.eval_grade, r.eval_score, r.latency_ms, r.agent_name,
-                   r.pros, r.cons, r.workflow_recommendation, r.content_md, r.output_wire, r.executed_at, r.summary
+                   r.pros, r.cons, r.workflow_recommendation, r.content_md, r.output_wire, r.executed_at, r.summary, r.input_wire
             FROM agent_test_reports r
             LEFT JOIN resources res ON r.resource_id = res.id;
         """)

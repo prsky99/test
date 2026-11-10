@@ -163,6 +163,8 @@ def check(report):
             except ValueError:
                 problems.append('C9')
     problems += extra_check(report, md, pros)
+    if report.get('input_wire') is not None and executed_method(report):
+        problems.append('C18')  # fixed by scripts/fix_mislabeled_methods.py, not by normalize()
     return sorted(set(problems))
 
 
@@ -375,7 +377,7 @@ def extra_fix(report, md, pros, cons):
 
 
 COLUMNS = ('id', 'test_method', 'evidence_scope', 'eval_grade', 'eval_score', 'latency_ms', 'agent_name', 'pros',
-           'cons', 'workflow_recommendation', 'content_md', 'output_wire', 'executed_at', 'summary')
+           'cons', 'workflow_recommendation', 'content_md', 'output_wire', 'executed_at', 'summary', 'input_wire')
 WRITABLE = ('content_md', 'pros', 'cons', 'output_wire', 'workflow_recommendation', 'summary')
 
 
@@ -427,3 +429,39 @@ if __name__ == '__main__':
     if apply:
         conn.commit()
         print(f'backup: {path.relative_to(root)}')
+
+
+# --- C18: a transport label on a report whose stored request is a real call (11-10 second re-score) ---------
+_TRANSPORT_REQUEST = re.compile(r'^(?:GET|POST|tools/list|initialize|POST initialize.*|GET \(3-probe burst\))?$')
+_CALL_IN_BODY = re.compile(r'tools/call|message/send|SendMessage')
+
+
+def executed_method(report):
+    """'MCP Tool Call' / 'A2A Message' when a transport-labelled report's input_wire shows a real call, else None."""
+    method = str(report.get('test_method') or '')
+    if method.lower() not in ('a2a agent card', 'mcp tools list'):
+        return None
+    try:
+        wire = json.loads(report.get('input_wire') or '{}')
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(wire, dict) or not wire:
+        return None
+    called = str(wire.get('method') or '')
+    body = wire.get('body')
+    if isinstance(body, str):
+        try:
+            body = json.loads(body)
+        except ValueError:
+            pass
+    body_method = str(body.get('method') or '') if isinstance(body, dict) else ''
+    if body is not None and (_CALL_IN_BODY.search(json.dumps(body)) or
+                             (body_method and not _TRANSPORT_REQUEST.match(body_method))):
+        real = True
+    elif called:
+        real = not _TRANSPORT_REQUEST.match(called)
+    else:
+        real = method.lower() == 'mcp tools list'  # tool arguments only, no protocol method
+    if not real:
+        return None
+    return 'MCP Tool Call' if method.lower() == 'mcp tools list' else 'A2A Message'
