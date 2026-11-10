@@ -864,3 +864,11 @@ body[data-theme="dark"] #chatSubmit,body[data-theme="dark"] #chatSubmit :is(span
  body #cookieConsentBanner .cookie-purpose-details>summary{margin-right:124px}
  body header.pearl-header:has(.nav-tabs.pearl-open){z-index:100000}
 }
+/* 11-10: first visit shows what the site does and the task input before the catalog numbers.
+   The home task section comes first on phones too, and on the home page the consent strip sits at the
+   bottom so it never covers the input or the first results; Chat, whose input sits at the bottom, keeps it
+   below the header (11-10 menu fix). */
+@media(max-width:700px){
+ body #secOverview .catalog-band{order:0}
+ body:not([data-pearl-entry="chat"]) #cookieConsentBanner:not(.hidden){top:auto!important;bottom:8px!important;max-height:40vh}
+}

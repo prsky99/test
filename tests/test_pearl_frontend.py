@@ -32,7 +32,7 @@ def client(tmp_path):
 
 def test_separate_view_assets_csp_and_no_original_html_mutation(client):
     response=client.get('/new/en/index.html')
-    assert response.status_code==200 and 'Valuable alone.'in response.text
+    assert response.status_code==200 and 'Find the right AI agent for your task.'in response.text
     assert 'nonce-'in response.headers['content-security-policy']
     assert "script-src-attr 'none'"in response.headers['content-security-policy']
     assert response.headers['x-frame-options']=='DENY'
