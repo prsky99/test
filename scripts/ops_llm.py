@@ -29,13 +29,17 @@ def _today():
     return datetime.now().strftime('%Y-%m-%d')
 
 
-def spent(day_prefix):
+def spent(day_prefix, include_batches=False):
+    """Estimated USD spent. The daily cap counts only small interactive calls; one-off batch jobs
+    (purpose ending in _batch) have their own budget and are included only when asked."""
     total = 0.0
     if USAGE.is_file():
         for line in USAGE.read_text().splitlines():
             try:
                 row = json.loads(line)
             except ValueError:
+                continue
+            if not include_batches and str(row.get('purpose', '')).endswith('_batch'):
                 continue
             if row.get('at', '').startswith(day_prefix):
                 total += row.get('usd', 0.0)
@@ -90,7 +94,7 @@ def _log(purpose, usage, outcome):
 
 if __name__ == '__main__':
     if '--spend' in sys.argv:
-        print(json.dumps({'today_usd': spent(_today()), 'month_usd': spent(_today()[:7]),
+        print(json.dumps({'today_usd': spent(_today()), 'month_usd_all': spent(_today()[:7], include_batches=True),
                           'daily_cap_usd': DAILY_CAP_USD, 'expires': EXPIRES}))
     elif '--ping' in sys.argv:
         started = time.time()
