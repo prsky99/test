@@ -561,6 +561,10 @@ class FastConcierge(Concierge):
                  'Call: '+call]
         summary=next((part.strip() for part in re.split(r'(?<=[.!?])\s+|;',str(item.get('description') or '')) if part.strip() and not DISPLAY_RESTRICTED.search(part)), '')
         if summary:lines.append('Capability: '+summary[:220])
+        from .task_conditions import explanation
+        conditions = explanation(item.get('condition_check') or {})
+        if conditions:
+            lines.append('Conditions: '+conditions)
         reason = (item.get('reason') or {}).get('text')
         if reason and not DISPLAY_RESTRICTED.search(reason):
             lines.append('Why: '+reason)
@@ -699,6 +703,8 @@ class FastConcierge(Concierge):
                 if ranked and closeness is not None and closeness >= NEIGHBOR_CLOSENESS:
                     items = ranked[:3]
                     focus = focus or shared
+        # Rewrites, narrowing and part searches cannot discard the original conditions.
+        items = self._condition_admit(task, items)
         if not items:
             if persist:
                 with self.book.batch():
@@ -781,6 +787,27 @@ class FastConcierge(Concierge):
                       **({'request_parts':parts} if parts else {}),
                       'continuation_plan':continuation_plan,
                       'next_steps':next_steps,'recommendations':items})
+
+    def _condition_admit(self, task, items):
+        from .task_conditions import requested, assess
+        from .selection import _advertised_tools
+        wanted = requested(task)
+        if not (wanted['regions'] or wanted['languages'] or wanted['forecast']):
+            return items
+        result = []
+        for item in items:
+            check = item.get('condition_check') or {}
+            if check.get('requested') != wanted:
+                resource = self.store.resource(item['id'])
+                if not resource:
+                    continue
+                name = next(iter(item.get('tools') or []), None)
+                tool = next((tool for tool in _advertised_tools(resource)
+                             if (tool.get('name') or tool.get('id')) == name), {})
+                check = assess(task, resource, tool, conditions=wanted)
+            if check.get('status') != 'mismatch':
+                result.append({**item, 'condition_check':check})
+        return result
 
     def _cover_parts(self, task, items, protocol, excluded):
         """'Monitor my website and alert me on Telegram': when the matches cover only one
@@ -877,14 +904,18 @@ class FastConcierge(Concierge):
         inferred = requested_protocol(text or data.get('task'),data)
         last_protocol = inferred if explicit else inferred or last_protocol
         lowered = text.lower().strip(' .!?')
-        from .chat_guidance import ordinal, pronoun_reference
+        from .chat_guidance import ordinal, pronoun_reference, condition_question
         number=ordinal(text)
-        if not number and previous and pronoun_reference(text):
+        condition_query = bool(previous and condition_question(text))
+        if not number and previous and (pronoun_reference(text) or condition_query):
             # "how do I connect to it?" continues with the recommendation last discussed.
             number=next((i+1 for i,item in enumerate(previous[:3]) if item.get('conversation_focus')),1)
-        if previous and last_task and re.search(r'\b(?:alternatives?|instead of|other options?|something else|similar to|replacements?)\b',text,re.I):
+        alternatives = re.search(r'\b(?:alternatives?|instead of|other options?|something else|similar to|replacements?)\b'
+                                 r'|\banother (?:agent|one|option)\b.{0,35}\b(?:same|this|that) task\b', text, re.I)
+        if previous and last_task and alternatives:
             # "alternatives to the first one" asks for other agents for the same task, not its details.
-            reply = self._recommend(v,last_task,exclude={item['id'] for item in previous[:3] if item.get('id')},protocol=last_protocol)
+            focused = [item for item in previous[:3] if item.get('conversation_focus')]
+            reply = self._recommend(v,last_task,exclude={item['id'] for item in (focused or previous[:3]) if item.get('id')},protocol=last_protocol)
             reply.intent = 'alternatives'
             return reply
         if number and previous and last_task:
@@ -976,12 +1007,38 @@ class FastConcierge(Concierge):
                         item=prev_candidate
             if item is None:
                 return Reply('This recommendation is no longer eligible. Search again for current options.', 'details', {'recommendations':[], 'status':'no_match'})
+            check = None
+            if condition_query:
+                from .chat_task_spec import parse
+                from .task_conditions import assess, explanation, requested
+                from .selection import _advertised_tools
+                question = requested(text)
+                known_condition = bool(question['regions'] or question['languages'] or question['forecast'])
+                try:
+                    last_task = parse(last_task.rstrip(' .')+'. '+text if known_condition else last_task, operation='refine').original
+                except ValueError as exc:
+                    return Reply(str(exc), 'clarify', {'status':'needs_task','recommendations':[]})
+                resource = self.store.resource(item['id'])
+                if not resource:
+                    return Reply('This agent is no longer available. Choose a current recommendation.', 'details', {'recommendations':[],'status':'no_match'})
+                tool_name = next(iter(item.get('tools') or []), None)
+                tool = next((tool for tool in _advertised_tools(resource)
+                             if (tool.get('name') or tool.get('id')) == tool_name), {})
+                check = assess(last_task, resource, tool)
+                if not known_condition:
+                    check['unknown'].append('requested_condition')
+                    if check['status'] != 'mismatch':
+                        check['status'] = 'unknown'
+                item['condition_check'] = check
             current, _ = self.book.last_results(v.id)
             self.book.save_results(v,[{**{k:val for k,val in entry.items() if k!='conversation_focus'},
+                                       **({'task':last_task} if condition_query else {}),
                                        **({'conversation_focus':True} if entry.get('id')==item['id'] else {})} for entry in current],offset)
             item['display_name'] = agent_display_name(item)
-            return Reply(self._brief(item),'details',{'task':last_task,'watch_task':' '.join(search_terms(last_task))[:160],
-                         'protocol':last_protocol,'recommendations':[item],'recommendation':item})
+            summary = (explanation(check)+' These are recorded declarations, not a new execution check. No action was run.\n\n') if check else ''
+            return Reply(summary+self._brief(item),'details',{'task':last_task,'watch_task':' '.join(search_terms(last_task))[:160],
+                         'protocol':last_protocol,'recommendations':[item],'recommendation':item,
+                         **({'condition_check':check} if check else {})})
         if intent == 'more' or lowered in ('more','next','another','\ub2e4\ub978 \ucd94\ucc9c','\ub2e4\ub978 \uc5d0\uc774\uc804\ud2b8','\ub2e4\uc74c'):
             return self._recommend(v,last_task,offset=offset if stored_protocol==last_protocol else 0,protocol=last_protocol) if last_task else self.greeting(v)
         outcome = re.fullmatch(r'(worked|failed|success|fail)\s*#?[1-3]|[1-3]\s*(worked|failed|\uc131\uacf5|\uc2e4\ud328)',lowered)

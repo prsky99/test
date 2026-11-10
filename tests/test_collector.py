@@ -621,8 +621,7 @@ def test_retired_agent_scheduled_with_tiered_backoff():
     assert r["next_check_at"] is None
 
 
-def test_scavenger_probes_and_detects_revival(env, monkeypatch):
-    monkeypatch.setenv("COLLECT_X402", "1")  # these fixtures are x402 resources
+def test_scavenger_probes_and_detects_revival(env):
     store, net, checker, _ = env
     url = "https://api.example.com/revival-target"
     rid = add(store, url)
@@ -648,8 +647,7 @@ def test_scavenger_probes_and_detects_revival(env, monkeypatch):
     assert r["failing_since"] is None
 
 
-def test_scavenger_still_dead_increments_and_delays(env, monkeypatch):
-    monkeypatch.setenv("COLLECT_X402", "1")  # these fixtures are x402 resources
+def test_scavenger_still_dead_increments_and_delays(env):
     store, net, checker, _ = env
     url = "https://api.example.com/dead-target"
     rid = add(store, url)
@@ -672,6 +670,56 @@ def test_scavenger_still_dead_increments_and_delays(env, monkeypatch):
     assert r["health_status"] == "retired"
     assert r["consecutive_failures"] == 16
     assert r["next_check_at"] > now + 6 * 86400
+
+
+def test_scavenger_revives_inactive_quarantined_agent(env):
+    store, net, checker, _ = env
+    url_revive = "https://api.example.com/inactive-revive"
+    url_spam = "https://api.example.com/inactive-spam"
+    url_sec = "https://api.example.com/inactive-security"
+    rid_revive = add(store, url_revive)
+    rid_spam = add(store, url_spam)
+    rid_sec = add(store, url_sec)
+    now = time.time()
+
+    with store.tx() as db:
+        # 1. Unhealthy retired agent with active=0
+        db.execute("""UPDATE resources SET active=0, inactive_reason='unhealthy:retired',
+                      health_status='retired', consecutive_failures=15,
+                      failing_since=?, next_check_at=? WHERE id=?""",
+                   (now - 14 * 86400, now - 10, rid_revive))
+        # 2. Policy violation quarantined agent with active=0
+        db.execute("""UPDATE resources SET active=0, inactive_reason='policy_violation_commercial_spam',
+                      health_status='retired', consecutive_failures=15,
+                      failing_since=?, next_check_at=? WHERE id=?""",
+                   (now - 14 * 86400, now - 10, rid_spam))
+        # 3. Security quarantine agent with active=0
+        db.execute("""UPDATE resources SET active=0, inactive_reason='security_review_required',
+                      health_status='retired', consecutive_failures=15,
+                      failing_since=?, next_check_at=? WHERE id=?""",
+                   (now - 14 * 86400, now - 10, rid_sec))
+
+    net.responses[url_revive] = x402_ok
+    net.responses[url_spam] = x402_ok
+    net.responses[url_sec] = x402_ok
+
+    due = store.due_for_scavenge(now, limit=50)
+    due_ids = [d["id"] for d in due]
+    assert rid_revive in due_ids
+    assert rid_spam not in due_ids
+    assert rid_sec not in due_ids
+
+    scav = checker.scavenge_retired(limit=10)
+    assert scav["revived"] >= 1
+
+    r = store.resource(rid_revive)
+    assert r["active"] == 1
+    assert r["inactive_reason"] is None
+    assert r["health_status"] == "healthy"
+
+    r_spam = store.resource(rid_spam)
+    assert r_spam["active"] == 0
+    assert r_spam["inactive_reason"] == "policy_violation_commercial_spam"
 
 
 def test_crawler_metadata_preserves_local_retirement():

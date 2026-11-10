@@ -8,7 +8,7 @@ import re
 
 _NEGATIVE = re.compile(
     r"\b(?:do\s+not|don't|never|without|exclud(?:e|ing)|except|no(?!\s+(?:less|more|later|earlier)\b)|not(?!\s+only\b)|avoid)\b"
-    r"[^.;!\n]*?(?=\b(?:but|instead|using|with|then)\b|[.;!\n]|$)", re.I)
+    r"[^.;!\n]*?(?=\b(?:but|instead|using|with|then|and\s+(?:return|output|keep|preserve|retain|include))\b|[.;!\n]|$)", re.I)
 _KOREAN_NEGATIVE = re.compile(
     r'(?P<phrase>[A-Za-z0-9_-]+|\ub274\uc2a4|\ubc88\uc5ed|\uc694\uc57d|\ubb38\uc11c|\ub17c\ubb38|\uacbd\uc81c\uc9c0\ud45c)'
     r'(?:\uc740|\ub294|\uc744|\ub97c)?\s*\uc81c\uc678(?:\ud558\uace0|\ud574\uc918|\ud574|\ud55c)?')

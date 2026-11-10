@@ -7,7 +7,10 @@ def text_task(task):
     from .selection import ALIASES
     text=canonical_text(task).lower()
     for source,target in sorted(ALIASES.items(),key=lambda pair:-len(pair[0])):
-        text=text.replace(source,' '+target+' ')
+        if source[0].isascii():
+            text=re.sub(r'\b'+re.escape(source)+r'\b',' '+target+' ',text)
+        else:
+            text=text.replace(source,' '+target+' ')
     return text
 
 
@@ -17,6 +20,9 @@ def needs_specific_action(task):
 
 
 def matches(task,tool,kind,resource=None):
+    from .task_conditions import assess
+    if assess(task, resource or {}, tool)['status'] == 'mismatch':
+        return False
     request=text_task(task)
     name=str(tool.get('name')or tool.get('id')or'').replace('_',' ').lower()
     from .selection import _tool_purpose

@@ -405,6 +405,8 @@ class Crawler:
             if not isinstance(pagination, dict) or type(pagination.get('total')) is not int or pagination['total'] < 0:
                 raise ValueError('invalid_registry_pagination')
             total = pagination['total']
+            if not items and offset >= total - limit:
+                return [], None
             if not ((not items and offset < total) or (items and total == 0)):
                 break
             # The registry briefly returned an empty page inside its total (2026-11-01 twice); ask once more.

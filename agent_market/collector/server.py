@@ -208,9 +208,7 @@ def build_agent(store: Store, health_interval: float, allow_private: bool = Fals
                 erc8004_chains: str | None = None, agent_discovery: bool = True) -> CollectorAgent:
     checker = HealthChecker(store, allow_private=allow_private, workers=workers,
                             schedule=Schedule(interval=health_interval))
-    from .agent import COLLECT_X402
-    sources = ("x402-bazaar", "mcp-registry", "a2a-registry") if COLLECT_X402 else ("mcp-registry", "a2a-registry")
-    crawler = Crawler(store, page_delay=page_delay, full_interval=full_interval, sources=sources)
+    crawler = Crawler(store, page_delay=page_delay, full_interval=full_interval)
     caps = CapabilityProber(store, allow_private=allow_private, max_age=capability_max_age, workers=capability_workers,
                             trials=trials, trial_max_age=trial_max_age)
     auth = AuthDiscoverer(store, allow_private=allow_private, max_age=auth_max_age, workers=capability_workers)

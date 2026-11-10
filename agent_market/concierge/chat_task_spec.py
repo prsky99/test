@@ -41,6 +41,10 @@ ALIASES = {
     "\ubcc0\ud658": "convert",
     "\uc694\uc57d": "summarize",
     "\uae30\uc0c1": "weather",
+    "\ubbf8\uc138\uba3c\uc9c0": "air quality",
+    "\ucd08\ubbf8\uc138\uba3c\uc9c0": "air quality",
+    "\uacf5\uae30\uc9c8": "air quality",
+    "\ub300\uae30\uc9c8": "air quality",
     "\ub3c4\ucfc4": "Tokyo",
     "\uc11c\uc6b8": "Seoul"
 }
@@ -99,7 +103,9 @@ class TaskSpec:
     operation: str = 'new'
 
     def state(self):
-        return {'schema_version': 1, 'required': list(self.required), 'operation': self.operation}
+        from .task_conditions import requested
+        return {'schema_version': 1, 'required': list(self.required), 'operation': self.operation,
+                'conditions':requested(self.original)}
 
 
 def parse(task, *, operation='new'):

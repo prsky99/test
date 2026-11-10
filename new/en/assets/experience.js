@@ -2,11 +2,44 @@
 /* Public task discovery, accessible suggestions and explicit sharing of public IDs. */
 (() => {
   'use strict';
-  const q = selector => document.querySelector(selector);
+  const q = (selector, root=document) => root.querySelector(selector);
   const make = (tag, text, className) => { const e = document.createElement(tag); if (text) e.textContent = text; if (className) e.className = className; return e; };
   const label = (value, fallback) => typeof chatLabel === 'function' ? chatLabel(value, fallback) : fallback;
   const validId = value => /^\d{1,10}$/.test(String(value)) && Number(value) > 0 && Number(value) < 2147483648;
   const selected = new Set();
+  // Explicitly saved public IDs stay in this tab; raw tasks and credentials are never stored here.
+  const savedKey='agentcon_saved_public_choices_v1';
+  function savedChoices(){try{const rows=JSON.parse(sessionStorage.getItem(savedKey)||'[]');return Array.isArray(rows)?rows.filter(row=>row&&validId(row.id)&&typeof row.name==='string').slice(0,12):[];}catch{return [];}}
+  function saveChoices(rows){try{sessionStorage.setItem(savedKey,JSON.stringify(rows.slice(0,12)));return true;}catch{return false;}}
+  function renderSavedChoices(){
+    const home=q('#secOverview');if(!home)return;
+    let section=q('#savedPublicChoices');const rows=savedChoices();
+    if(!rows.length){section?.remove();return;}
+    if(!section){section=make('section','','card saved-public-choices');section.id='savedPublicChoices';section.setAttribute('aria-label','Agents saved in this tab');home.querySelector('.catalog-hero')?.after(section);}
+    section.replaceChildren(make('h2','Pick up where you left off'),make('p','Saved agents in this tab only. Closing this tab clears this list.','caption'));
+    const list=make('ul');
+    for(const row of rows){const li=make('li');const link=make('a',row.name);link.href='/new/en/chat.html?agents='+encodeURIComponent(row.id);
+      const remove=make('button','Remove','btn sm');remove.type='button';remove.setAttribute('aria-label','Remove '+row.name+' from saved agents');
+      remove.onclick=()=>{saveChoices(savedChoices().filter(item=>item.id!==row.id));renderSavedChoices();};li.append(link,remove);list.append(li);}
+    section.append(list);
+  }
+  function prepareHome(){
+    const hero=q('#secOverview .catalog-hero'),band=q('#secOverview .catalog-band');if(!hero||!band)return;
+    const form=q('.home-query',hero),actions=q('.actions',hero);if(form&&actions)actions.before(form);
+    const lead=q('.lead',hero);if(lead)lead.textContent='Find an agent for your task. Check the evidence. Review the inputs before you run.';
+    const grid=q('.metric-grid',band);if(grid&&!q('.catalog-measures-toggle',band)){
+      grid.id='homeCatalogMeasures';const button=make('button','Show all four catalog measures','btn sm catalog-measures-toggle');button.type='button';button.setAttribute('aria-controls',grid.id);button.setAttribute('aria-expanded','false');
+      button.onclick=()=>{const expanded=button.getAttribute('aria-expanded')!=='true';button.setAttribute('aria-expanded',String(expanded));band.classList.toggle('catalog-measures-expanded',expanded);button.textContent=expanded?'Show key catalog measures':'Show all four catalog measures';};grid.after(button);
+    }
+    renderSavedChoices();
+  }
+  function prepareCookieChoice(){
+    const banner=q('#cookieConsentBanner');if(!banner||q('.cookie-purpose-details',banner))return;
+    const text=q('.cookie-banner-text',banner);if(!text)return;
+    const details=make('details','','cookie-purpose-details'),summary=make('summary','How we use cookies');
+    text.before(details);details.append(summary,text);const short=make('p','Choose optional analytics and marketing cookies. Essential storage stays on.','cookie-choice-summary');details.before(short);
+  }
+  prepareHome();prepareCookieChoice();
   const publicUrl = (ids, compare = false) => {
     const url = new URL('/new/en/chat.html', location.origin);
     url.searchParams.set(compare ? 'compare' : 'agents', ids.filter(validId).slice(0, 4).join(','));
@@ -62,7 +95,13 @@
     const actions=make('div','','chat-extra-actions'); const share=make('button','Share agent','btn sm');share.type='button';share.onclick=()=>copyPublicLink([item.id],false);
     const compare=make('button','Add to comparison','btn sm');compare.type='button';compare.setAttribute('aria-pressed','false');
     compare.onclick=()=>{const id=Number(item.id);if(selected.has(id))selected.delete(id);else if(selected.size<4)selected.add(id);else {announce('Compare up to four agents at a time.');return;}compare.setAttribute('aria-pressed',String(selected.has(id)));compare.textContent=selected.has(id)?'Remove from comparison':'Add to comparison';announce(selected.size+' agents selected.');};
-    const open=make('button','Compare selected','btn sm');open.type='button';open.onclick=()=>showComparison([...selected]);actions.append(share,compare,open);card.append(actions);
+    const open=make('button','Compare selected','btn sm');open.type='button';open.onclick=()=>showComparison([...selected]);
+    const save=make('button','Save agent in this tab','btn sm');save.type='button';save.setAttribute('aria-pressed',String(savedChoices().some(row=>row.id===String(item.id))));
+    save.onclick=()=>{const rows=savedChoices();const id=String(item.id);const exists=rows.some(row=>row.id===id);
+      const next=exists?rows.filter(row=>row.id!==id):[{id,name:safeFields(item).name.slice(0,140)},...rows].slice(0,12);
+      if(!saveChoices(next)){announce('This browser could not save the choice. You can still copy its public link.');return;}
+      save.setAttribute('aria-pressed',String(!exists));save.textContent=exists?'Save agent in this tab':'Saved in this tab';renderSavedChoices();announce(exists?'Agent removed from this tab.':'Agent saved in this tab.');};
+    actions.append(share,compare,open,save);card.append(actions);
     const grade=card.querySelector('.chat-grade');
     if(grade){const button=make('button',grade.textContent,'chat-grade chat-grade-button');button.type='button';button.setAttribute('aria-expanded','false');const details=make('section','','chat-quality-details');details.hidden=true;
       const guide=make('a','Read the quality methodology');guide.href='/new/en/learn.html?guide=quality';
@@ -134,6 +173,13 @@
     const protocol=value=>['auto','any','a2a','mcp','x402'].includes(value)?value:'auto';
     const tools=[{name:'search_agents',description:'Search public agents by task and inspect their recorded capabilities.',inputSchema:{type:'object',properties:{query:{type:'string',minLength:2,maxLength:500},protocol:{type:'string',enum:['auto','any','a2a','mcp','x402']}},required:['query'],additionalProperties:false},annotations:{readOnlyHint:true},async execute(input,{signal}={}){if(typeof input?.query!=='string'||input.query.trim().length<2||input.query.length>500)return{error:'Provide a task between 2 and 500 characters.'};const params=new URLSearchParams({q:input.query,kind:protocol(input.protocol),limit:'3'});const response=await fetch('/api/explore?'+params,{signal,credentials:'omit'});if(!response.ok)return{error:'Discovery unavailable',status:response.status};return response.json();}},
     {name:'recommend_agents',description:'Find up to three relevant agents for a task. Records a session conversation; never runs a provider.',inputSchema:{type:'object',properties:{task:{type:'string',minLength:2,maxLength:2000},protocol:{type:'string',enum:['auto','any','a2a','mcp','x402']}},required:['task'],additionalProperties:false},annotations:{readOnlyHint:false},async execute(input,{signal}={}){if(typeof input?.task!=='string'||input.task.trim().length<2||input.task.length>2000)return{error:'Provide a task between 2 and 2000 characters.'};const headers={'Content-Type':'application/json'};try{const token=sessionStorage.getItem('visitorToken');if(token)headers['X-Visitor-Token']=token;}catch{}const response=await fetch('/chat',{method:'POST',headers,signal,body:JSON.stringify({message:input.task,data:{protocol:protocol(input.protocol)}})});const data=await response.json();if(!response.ok)return{error:data.error_code||'Discovery unavailable',status:response.status};const token=response.headers.get('X-Visitor-Token')||data.visitor?.token;if(token)try{sessionStorage.setItem('visitorToken',token);if(typeof activeVisitorToken!=='undefined')activeVisitorToken=token;}catch{}return{reply:data.reply,recommendations:data.data?.recommendations||[]};}}];
+    tools.push({name:'inspect_agent',description:'Read one public agent record and its recorded evidence. Does not contact or execute the provider.',inputSchema:{type:'object',properties:{agent_id:{type:'integer',minimum:1,maximum:2147483647}},required:['agent_id'],additionalProperties:false},annotations:{readOnlyHint:true},async execute(input,{signal}={}){
+      if(!Number.isSafeInteger(input?.agent_id)||!validId(input.agent_id))return{error:'Choose one valid public agent ID.'};
+      const response=await fetch('/api/agents/'+input.agent_id,{signal,credentials:'omit'});
+      if(!response.ok)return{error:'Public agent unavailable',status:response.status};
+      const data=await response.json();const item=data.agent||data;
+      return{id:item.id,name:item.name,kind:item.kind,description:item.description,health_status:item.health_status,last_check_at:item.last_check_at,connection_readiness:item.connection_readiness,test_reports:item.test_reports||[],execution_performed:false};
+    }});
     for(const tool of tools){try{Promise.resolve(modelContext.registerTool(tool,{signal:lifecycle.signal})).catch(()=>{});}catch{}}
   }
 })();

@@ -22,7 +22,6 @@ import json
 import logging
 import random
 import threading
-import os
 import time
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
@@ -274,15 +273,19 @@ class HealthChecker:
             return CheckResult("fail", last, error="no A2A agent card" if last == 200 else f"HTTP {last}")
         return CheckResult("reachable", last, error=f"HTTP {last}")
 
-    # ---------------- 기록·일정 ----------------
+    # ---------------- Schedule & Recording ----------------
     def next_check_at(self, state_failures: int, in_use: bool, now: float, host_size: int = 1) -> float:
         s = self.schedule
-        # 같은 호스트를 per_host_delay 간격으로 한 바퀴 도는 데 걸리는 시간보다 짧게 잡을 수는 없다
-        interval = max(s.interval, host_size * (self.per_host_delay + 0.5) * 1.2)
+        # Cannot be shorter than the time required to complete one full cycle of the same host
+        host_min = host_size * (self.per_host_delay + 0.5) * 1.2
+        interval = max(s.interval, host_min)
         if state_failures >= s.down_after:
-            delay = interval  # down도 계속 점검해 회복을 반영
-        elif in_use or state_failures:
-            delay = s.in_use_interval  # 소개 중이거나 실패가 막 시작되면 빨리 재확인
+            delay = interval
+        elif in_use:
+            delay = s.in_use_interval
+        elif state_failures:
+            # Prevent dense clusters of failing endpoints on large hosts from collapsing schedule
+            delay = max(s.in_use_interval, host_min) if host_size > 10 else s.in_use_interval
         else:
             delay = interval
         return now + delay * (1 + random.uniform(-s.jitter, s.jitter))
@@ -447,8 +450,6 @@ class HealthChecker:
         """7일 이상 실패한 retired 에이전트들을 점검하여 복구된 서버를 탐지(Revival)."""
         now = time.time()
         due = self.store.due_for_scavenge(now, limit=limit, per_host=1)
-        if os.environ.get("COLLECT_X402", "0") != "1":  # 11-10: x402 paused (see collector/agent.py)
-            due = [r for r in due if r.get("kind") != "x402"]
         if not due:
             return {"scavenged": 0, "revived": 0, "still_dead": 0}
 
@@ -467,6 +468,9 @@ class HealthChecker:
                             outcome = "postponed"
                         elif res is not None and res.outcome in ("healthy", "reachable"):
                             self.record(r, res, in_use=False)
+                            if not r.get("active") and (r.get("inactive_reason") or "").startswith("unhealthy:"):
+                                if hasattr(self.store, "activate_revived_resource"):
+                                    self.store.activate_revived_resource(r["id"])
                             outcome = "revived"
                         else:
                             self.store.record_scavenge_failure(r["id"], observed_at, err or (f"HTTP {code}" if code is not None else None))

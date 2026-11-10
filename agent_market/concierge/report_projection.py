@@ -110,4 +110,6 @@ def public_report(report,resource,store=None):
                   published_at=report.get('created_at'),execution_measured=current,
                   execution_verified=bool(current and report.get('is_success') == 1),
                   verification_state='current_execution' if current else 'historical_record')
+    result['task_result_quality_verified'] = False
+    result['verification_limit'] = 'Recorded connection or execution checks do not establish that this report satisfies your specific task.'
     return result

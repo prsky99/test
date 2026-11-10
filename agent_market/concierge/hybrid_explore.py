@@ -204,6 +204,7 @@ def _card(store, registry, resource, verified):
         "trial_ok",
         "auth_method",
         "auth_autonomy",
+        "cap_tool_count",
     )
     value = {key: resource.get(key) for key in columns}
     value["description"] = str(value.get("description") or "")[:400]

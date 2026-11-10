@@ -1,19 +1,17 @@
-"""수집 에이전트 본체: 두 개의 백그라운드 루프.
+"""Collector agent runtime: background crawler and health loops.
 
-- 수집 루프: 한 바퀴 수집이 끝나면 min_gap(기본 60초) 쉬고 바로 다음 바퀴를 시작한다 (연속 수집).
-  요청 속도는 페이지 간격으로 고정돼 있어 에이전트가 늘어도 순간 부하는 늘지 않는다.
-  MCP는 바뀐 것만, x402는 전체를 훑고, 바뀌지 않은 항목은 DB에 다시 쓰지 않는다 (crawler.Crawler 참고).
-- 헬스체크 루프: 점검 시각이 된 에이전트를 계속 점검 (기본 매시간, 소개 중인 에이전트는 15분, down은 점점 드물게)
-  하루에 한 번 7일이 지난 점검 기록을 정리한다.
-- 기능 조사 루프: 인증 없이 응답하는 MCP의 도구 목록을 하루 한 번 받아 지원 언어·나라·통화를 기록하고,
-  인증이 필요한 MCP는 일주일에 한 번 인증 방법(OAuth 메타데이터·API 키 발급처 등)을 조사한다.
-  A2A 에이전트는 하루 한 번 agent card·인증·엔드포인트·안전한 시험 메시지·평가를 한 번에 조사한다 (collector/a2a.py).
-- AI 에이전트 수집 루프: ERC-8004 온체인 등록부(체인별 tokenURI 배치 조회 → 등록 파일 → A2A·MCP 엔드포인트)와
-  이미 아는 호스트의 /.well-known/agent-card.json 탐색을 쉬지 않고 천천히 돈다 (collector/registries.py).
+- Crawl loop: Upon completing a full crawl pass, rests for min_gap (default 60s) before starting the next pass.
+  Request rates are throttled per page interval to prevent traffic spikes as catalog size grows.
+  Only changed records are updated; unchanged records are not re-written to the database.
+- Health check loop: Regularly validates eligible agent endpoints according to scheduling policy.
+  Prunes historical check records older than 7 days daily.
+- Capability investigation loop: Queries tool definitions and authentication metadata.
+  A2A agents are probed for agent card, auth, endpoints, safe trial invocation, and evaluation daily.
+- AI agent discovery loop: Scans ERC-8004 on-chain registries and queries known host /.well-known/agent-card.json endpoints.
+- RAG index loop: Incrementally updates vector index for catalog changes and backfills listings.
 """
 
 import logging
-import os
 import threading
 import time
 
@@ -28,10 +26,6 @@ from .registries import DEFAULT_CHAINS, Erc8004Crawler, WellKnownDiscoverer
 log = logging.getLogger("agent_market.collector")
 
 HISTORY_DAYS = 7
-# 11-10 사용자 결정: x402는 결제 실행 시험이 가능해질 때(AD Coin 보유 10만 코인 이상, 보유량의 1/1000만 사용)까지
-# 새로 수집·점검·평가하지 않는다. 연결 확인만으로는 정확한 시험이 안 되기 때문이다. 다시 켤 때: COLLECT_X402=1.
-COLLECT_X402 = os.environ.get("COLLECT_X402", "0") == "1"
-COLLECT_KINDS = ("a2a", "mcp", "x402") if COLLECT_X402 else ("a2a", "mcp")
 
 
 class CollectorAgent:
@@ -51,9 +45,9 @@ class CollectorAgent:
         self.min_gap = min_gap
         self.idle_wait = idle_wait
         self.batch = batch
-        self.health_lanes = max(1, health_lanes)  # 동시에 도는 헬스체크 묶음 수 (느린 호스트 하나가 전체를 붙잡지 않게)
+        self.health_lanes = max(1, health_lanes)  # Number of concurrent health check lanes to isolate slow hosts
         self.stop_event = threading.Event()
-        self.paused = threading.Event()  # 관리 화면에서 일시정지: 모든 루프가 쉬고, 수집은 페이지 사이에서 멈춤 (진행 위치 저장)
+        self.paused = threading.Event()  # Administrator pause: halts loops between batches while preserving progress
         self.crawler.should_stop = lambda: self.stop_event.is_set() or self.paused.is_set()
         self._threads: list[threading.Thread] = []
         self.started_at: float | None = None
@@ -67,7 +61,7 @@ class CollectorAgent:
         log.info("collector resumed")
 
     def _idle_if_paused(self) -> bool:
-        """일시정지 중이면 잠깐 기다리고 True (루프는 다시 처음으로)."""
+        """Pause execution briefly if paused flag is set, returning True to restart loop."""
         if self.paused.is_set():
             self.stop_event.wait(2)
             return True
@@ -116,7 +110,7 @@ class CollectorAgent:
         return not any(thread.is_alive() for thread in self._threads)
 
     def _rag_index_loop(self) -> None:
-        """에이전트 정보 갱신(outbox) 실시간 반영 및 기존 데이터(backfill)를 점진적으로 색인하는 루프."""
+        """Process outbox updates and incrementally index existing catalog listings for RAG."""
         while not self.stop_event.is_set():
             if self._idle_if_paused():
                 continue
@@ -141,10 +135,10 @@ class CollectorAgent:
                     self.stop_event.wait(5.0)
                 else:
                     self.stop_event.wait(5.0)
-            except Exception:
+            except Exception as exc:
                 self.rag_status = {**self.rag_status, 'state': 'error', 'last_finished_at': time.time(),
                                    'reason': 'index_step_error'}
-                log.exception("rag index loop error")
+                log.warning("rag index loop transient error: %s", exc)
                 self.stop_event.wait(5.0)
 
     def _crawl_loop(self) -> None:
@@ -159,7 +153,7 @@ class CollectorAgent:
             except Exception:
                 log.exception("crawl failed")
                 failed = True
-            # 다음 바퀴 바로 시작. 실패했으면 레지스트리 부담을 줄이려고 더 오래 쉼
+            # Resume next round; wait longer on failure to reduce registry burden
             self.stop_event.wait(self.min_gap * (5 if failed else 1))
 
     def _capability_loop(self) -> None:
@@ -181,27 +175,26 @@ class CollectorAgent:
                     stats["checked"] += s["checked"]
                     stats["local_network_problem"] = stats.get("local_network_problem") or s.get("local_network_problem")
             if self.capabilities is not None:
-                try:  # 인증이 필요한 서버: 네트워크 요청 없이 출처 정적 평가
+                try:  # Servers requiring authentication: static origin evaluation without network dispatch
                     stats["checked"] += self.capabilities.evaluate_static_due()
                 except Exception:
                     log.exception("static evaluation error")
             if self.store is not None:
-                if COLLECT_X402:
-                    try:  # x402 유료 API 품질 평가 (미평가 또는 24시간 경과분)
-                        stats["checked"] += self.store.evaluate_x402_batch(limit=1000)
-                    except Exception:
-                        log.exception("x402 evaluation error")
-                try:  # 기존 평가에 품질 정책 입히기 (정책 버전마다 한 바퀴, 네트워크 요청 없음)
+                try:  # Paid x402 API quality evaluation (unassessed or older than 24h)
+                    stats["checked"] += self.store.evaluate_x402_batch(limit=1000)
+                except Exception:
+                    log.exception("x402 evaluation error")
+                try:  # Apply quality policy to existing evaluations without network calls
                     stats["checked"] += self.store.quality_policy_batch(limit=500)
                 except Exception:
                     log.exception("quality policy batch error")
             if not stats["checked"]:
-                self.stop_event.wait(300)  # 조사할 게 없으면 5분 쉼
+                self.stop_event.wait(300)  # Sleep 5 minutes if no items are due
             elif stats.get("local_network_problem"):
                 self.stop_event.wait(120)
 
     def erc8004_scan_round(self) -> dict:
-        """체인마다 새 등록을 이어서 읽고, 남는 배치로 기존 등록을 다시 읽는다 (agentURI 변경 반영)."""
+        """Scan new registrations per chain sequentially, reusing remaining budget for updates."""
         report = {}
         for chain in self.erc8004.chains:
             if self.stop_event.is_set():
@@ -214,7 +207,7 @@ class CollectorAgent:
         return report
 
     def agent_resolve_round(self) -> dict:
-        """등록 파일 받기(호스트별로 나눠 병렬) + 아는 호스트의 well-known agent card 탐색."""
+        """Resolve registration files in parallel by host and discover known well-known agent cards."""
         report = {}
         if self.erc8004 is not None:
             try:
@@ -237,7 +230,7 @@ class CollectorAgent:
             if any(v.get("new") or v.get("changed") or v.get("error") for v in report.values()):
                 log.info("erc8004 scan: %s", report)
             self.store.set_meta("last_erc8004_scan", {"at": time.time(), **report})
-            self.stop_event.wait(5 if busy else 120)  # 따라잡은 뒤에는 2분마다 새 등록 확인
+            self.stop_event.wait(5 if busy else 120)  # Check every 2 minutes once caught up
 
     def _agent_resolve_loop(self) -> None:
         while not self.stop_event.is_set():
@@ -253,28 +246,20 @@ class CollectorAgent:
     def _build_health_loops(self) -> list[tuple[str, any]]:
         lanes = self.health_lanes
         loops = []
-        if not COLLECT_X402:
-            # x402 paused: A2A and MCP only; pruning and retired-agent scavenging move to the A2A lane.
-            if lanes >= 2:
-                loops.append(("collector-health-a2a", lambda: self._health_loop(kinds="a2a", prune=True, scavenge=True)))
-                loops.append(("collector-health-mcp", lambda: self._health_loop(kinds="mcp", prune=False, scavenge=False)))
-            else:
-                loops.append(("collector-health", lambda: self._health_loop(kinds=("a2a", "mcp"), prune=True, scavenge=True)))
-            return loops
         if lanes >= 3:
-            # 3개 이상의 레인이면 A2A, MCP, x402 각각 전용 스레드로 완전 분리
+            # 3 or more lanes: dedicated threads for A2A, MCP, and x402
             loops.append(("collector-health-a2a", lambda: self._health_loop(kinds="a2a", prune=False, scavenge=False)))
             loops.append(("collector-health-mcp", lambda: self._health_loop(kinds="mcp", prune=False, scavenge=False)))
             loops.append(("collector-health-x402", lambda: self._health_loop(kinds="x402", prune=True, scavenge=True)))
-            # 3개를 초과하는 추가 레인은 데이터 양이 압도적인 x402(11,000+개)에 추가 분산 워커로 배정
+            # Extra lanes beyond 3 are assigned to high-volume x402 workers
             for i in range(4, lanes + 1):
                 loops.append((f"collector-health-x402-{i - 2}", lambda: self._health_loop(kinds="x402", prune=False, scavenge=False)))
         elif lanes == 2:
-            # 2개 레인이면 [A2A, MCP] 묶음 1개, [x402] 전용 1개
+            # 2 lanes: [A2A, MCP] combined lane and dedicated [x402] lane
             loops.append(("collector-health-a2a-mcp", lambda: self._health_loop(kinds=("a2a", "mcp"), prune=False, scavenge=False)))
             loops.append(("collector-health-x402", lambda: self._health_loop(kinds="x402", prune=True, scavenge=True)))
         else:
-            # 1개 레인이면 모든 종류를 순차 라운드로빈으로 점검
+            # 1 lane: sequential round-robin across all kinds
             loops.append(("collector-health", lambda: self._health_loop(kinds=("a2a", "mcp", "x402"), prune=True, scavenge=True)))
         return loops
 
@@ -293,7 +278,7 @@ class CollectorAgent:
                 for k in targets:
                     if self.stop_event.is_set():
                         break
-                    # kind별 적절한 배치 크기 설정 (A2A, MCP는 소량 분산, x402는 대량)
+                    # Configure batch sizes per kind (A2A and MCP are small-batch, x402 is high-volume)
                     batch_size = min(self.batch, 100) if k in ("a2a", "mcp") else self.batch
                     stats = self.checker.run_due(batch_size, kind=k)
                     if stats.get("checked"):
@@ -310,7 +295,7 @@ class CollectorAgent:
                     log.info("pruned %d old health checks", removed)
                     last_prune = time.time()
 
-                # 스캐빈저 (7일 이상 실패한 retired 에이전트 초경량 재점검 및 부활 탐지)
+                # Scavenger: lightweight re-checking and revival detection for retired agents failing 7+ days
                 if scavenge and (time.time() - last_scavenge > 600 or total_checked == 0):
                     scav_stats = self.checker.scavenge_retired(limit=25)
                     if scav_stats.get("scavenged"):
@@ -322,13 +307,13 @@ class CollectorAgent:
                 total_checked = 0
 
             if not total_checked:
-                self.stop_event.wait(self.idle_wait)  # 점검할 대상이 없으면 잠시 쉼
+                self.stop_event.wait(self.idle_wait)  # Sleep if no agents are due for check
             elif any_outage:
-                self.stop_event.wait(60)  # 우리 쪽 네트워크 문제: 잠시 쉬었다가 새 연결로 재시도
+                self.stop_event.wait(60)  # Local network issue: wait briefly and retry with fresh connection
 
 
 def chains_from(value: str | None) -> dict:
-    """'base,ethereum,bsc' → 체인 설정. 빈 문자열이면 ERC-8004 수집을 끈다."""
+    """Parse comma-separated chains string. Empty string disables ERC-8004 collection."""
     if value is None:
         return dict(DEFAULT_CHAINS)
     return {c.strip(): DEFAULT_CHAINS[c.strip()] for c in value.split(",") if c.strip() in DEFAULT_CHAINS}
@@ -336,7 +321,7 @@ def chains_from(value: str | None) -> dict:
 
 def build_agent_sources(store: Store, allow_private: bool, workers: int, max_age: float, trials: bool,
                         trial_max_age: float, chains: str | None = None, discovery: bool = True):
-    """A2A 조사기와 수집 출처 (ERC-8004, well-known)."""
+    """Construct A2A prober and discovery sources (ERC-8004, well-known)."""
     prober = AgentProber(store, allow_private=allow_private, max_age=max_age, workers=workers, trials=trials,
                          trial_max_age=trial_max_age)
     if not discovery:

@@ -46,7 +46,7 @@ def graph(panel='overview', base=ORIGIN, snapshot=None):
          'url': url(panel, base), 'name': title, 'description': description, 'inLanguage': 'en',
          'isPartOf': {'@id': base+'/#website'}, 'about': {'@id': base+'/#software'}}]}
 
-    from .daily_statistics import COUNTS, description as daily_description, valid
+    from .daily_statistics import COUNTS, description as daily_description, valid, snapshot_id
     if panel == 'overview' and valid(snapshot):
         page = result['@graph'][-1]
         page.update(description=daily_description(snapshot), dateModified=snapshot['modified_at'])
@@ -57,6 +57,7 @@ def graph(panel='overview', base=ORIGIN, snapshot=None):
         result['@graph'].insert(-1, {
             '@type': 'Dataset', '@id': base+'/#daily-catalog-statistics',
             'name': 'Agent Concierge daily catalog statistics',
+            'identifier': snapshot_id(snapshot),
             'description': 'Counts of active A2A, MCP and x402 catalog listings. Reachable means a recorded healthy or reachable status, not successful task execution. A recorded status check may be historical.',
             'url': base+'/#daily-catalog-statistics', 'inLanguage': 'en',
             'creator': {'@id': base+'/#organization'},
@@ -157,7 +158,7 @@ def apply_daily_home(value, snapshot):
 
 
 def daily_home_text(value, snapshot):
-    from .daily_statistics import description, valid
+    from .daily_statistics import description, valid, snapshot_id
     if not valid(snapshot) or 'id="daily-catalog-statistics"' in value:
         return value
     from datetime import datetime
@@ -169,7 +170,7 @@ def daily_home_text(value, snapshot):
             +'. Recorded availability does not guarantee task completion; status checks may be historical.')
     # Collapsed by default: the summary line stays visible and the figures open on request.
     # The text remains in the document for crawlers and assistive technology.
-    block = ('<section id="daily-catalog-statistics" class="caption" aria-label="Daily catalog snapshot">'
+    block = ('<section id="daily-catalog-statistics" class="caption" aria-label="Daily catalog snapshot" data-snapshot-id="'+snapshot_id(snapshot)+'">'
              '<details class="daily-snapshot"><summary style="cursor:pointer"><strong>Daily search snapshot</strong> · '
              + snapshot['day'] + ' KST</summary>'
              '<p>Published once daily; current catalog figures may differ.</p><p>'+html.escape(text)+'</p><p>Snapshot captured: <time datetime="'+captured+'">'

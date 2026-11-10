@@ -1,5 +1,6 @@
 """Bounded daily public catalog snapshots, independent of live UI refreshes."""
 import copy
+import hashlib
 from datetime import datetime, timezone
 import json
 import threading
@@ -10,6 +11,14 @@ KEY = 'public_catalog_daily_v1'
 ZONE = ZoneInfo('Asia/Seoul')
 COUNTS = ('cataloged', 'reachable', 'with_status_check', 'a2a', 'mcp', 'x402')
 _slots = threading.BoundedSemaphore(2)
+
+
+def snapshot_id(value):
+    """A stable public identity compares like-for-like daily observations."""
+    if not valid(value):
+        return None
+    payload = {key:value[key] for key in ('day','captured_at',*COUNTS)}
+    return 'catalog-'+hashlib.sha256(json.dumps(payload,sort_keys=True,separators=(',',':')).encode()).hexdigest()[:20]
 
 
 def valid(value, now=None):

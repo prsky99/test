@@ -38,7 +38,7 @@ def review(text):
         return 'needs_authorized_task'
     if VAGUE_GOAL.fullmatch(text.strip()):
         return 'needs_goal'
-    if re.search(r'\b(?:lottery|lotto)\b',text,re.I) and re.search(r'100\s*%|guarantee|always win|winning numbers',text,re.I):
+    if re.search(r'\b(?:lottery|lotto)\b',text,re.I) and re.search(r'100\s*(?:%|percent)|guarantee|always win|winning numbers',text,re.I):
         return 'unsupported_guarantee'
     if re.fullmatch(r'(?:please\s+)?(?:compare|send|summari[sz]e|translate|search|find|help me|do it|something|anything|recommend)(?:\s+it)?[.!?]*',text.strip(),re.I):
         return 'needs_scope'
@@ -49,7 +49,8 @@ def review(text):
 
 
 VAGUE_GOAL = re.compile(r'(?:please\s+)?(?:help\s+(?:me\s+)?)?(?:make|improve|grow|boost|optimi[sz]e|fix|help)\s+(?:my|our)\s+'
-                       r'(?:business|company|startup|life|work|team|shop|store)(?:\s+(?:better|grow|succeed|more successful|work))?[.!?]*', re.I)
+                       r'(?:business|company|startup|life|work|team|shop|store|project)(?:\s+(?:better|grow|succeed|more successful|work))?[.!?]*'
+                       r'|(?:(?:can|could) you )?help(?: me)? with (?:my|our|the) (?:project|work|business)[.!?]*', re.I)
 QUESTION = re.compile(r'^\s*(?:what|who|when|where|why|which|how (?:many|much|old|far|tall|long))\b', re.I)
 EXAMPLES = ('Weather forecast for Seoul', 'Translate a document into Spanish', 'Search GitHub issues', 'Summarize meeting notes')
 PRONOUN = re.compile(
@@ -68,6 +69,12 @@ PRONOUN = re.compile(
 def pronoun_reference(text):
     """'how do I connect to it?' refers to the recommendation last discussed."""
     return bool(PRONOUN.fullmatch(str(text or '').strip()))
+
+
+def condition_question(text):
+    """A question about the selected agent is not a new discovery request."""
+    return bool(re.match(r'^(?:does|can|will|would|is)\s+(?:it|this (?:one|agent)|that (?:one|agent))\b',
+                         str(text or '').strip(), re.I))
 
 
 LIST_SPLIT = re.compile(r'\s*(?:,|;|\band also\b|\bas well as\b|\bplus\b|\band\b)\s*', re.I)
@@ -91,6 +98,8 @@ def separate_requests(task):
         return []
     if any(cores[i] & cores[j] for i in range(len(cores)) for j in range(i + 1, len(cores))):
         return []
+    if all(core <= {'weather','forecast','temperature'} for core in cores):
+        return []  # Current weather and tomorrow's forecast share the same region.
     return parts
 
 

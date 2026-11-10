@@ -76,8 +76,36 @@ class PostgresCollectorMixin:
         _number(now); _limit(limit); _limit(per_host)
         return self._collector_rows('''SELECT * FROM (
             SELECT *,ROW_NUMBER() OVER(PARTITION BY host ORDER BY next_check_at IS NOT NULL,next_check_at) AS rn
-            FROM resources WHERE active=1 AND health_status='retired' AND next_check_at IS NOT NULL AND next_check_at<=%s
+            FROM resources WHERE (active=1 OR inactive_reason IN ('unhealthy:retired','unhealthy:down'))
+            AND health_status='retired' AND next_check_at IS NOT NULL AND next_check_at<=%s
             ) AS candidates WHERE rn<=%s ORDER BY next_check_at IS NOT NULL,next_check_at LIMIT %s''', (now, per_host, limit))
+
+    def activate_revived_resource(self, rid):
+        _number(rid)
+        with self.tx():
+            return self._execute(
+                'UPDATE resources SET active=1, inactive_reason=NULL WHERE id=%s',
+                (rid,)).rowcount
+
+    def scavenger_stats(self, *, read_db=None):
+        now = time.time()
+        with self.tx(readonly=True):
+            p2 = self._execute("""SELECT COUNT(*) AS n FROM resources
+                WHERE (active=1 OR inactive_reason IN ('unhealthy:retired','unhealthy:down'))
+                AND health_status='retired' AND (%s - failing_since) < 30 * 86400""", (now,)).fetchone()['n']
+            p3 = self._execute("""SELECT COUNT(*) AS n FROM resources
+                WHERE (active=1 OR inactive_reason IN ('unhealthy:retired','unhealthy:down'))
+                AND health_status='retired' AND (%s - failing_since) BETWEEN 30 * 86400 AND 90 * 86400""", (now,)).fetchone()['n']
+            p4 = self._execute("""SELECT COUNT(*) AS n FROM resources
+                WHERE (active=1 OR inactive_reason IN ('unhealthy:retired','unhealthy:down'))
+                AND health_status='retired' AND (%s - failing_since) >= 90 * 86400""", (now,)).fetchone()['n']
+            due = self._execute("""SELECT COUNT(*) AS n FROM resources
+                WHERE (active=1 OR inactive_reason IN ('unhealthy:retired','unhealthy:down'))
+                AND health_status='retired' AND next_check_at <= %s""", (now,)).fetchone()['n']
+            total = self._execute("""SELECT COUNT(*) AS n FROM resources
+                WHERE (active=1 OR inactive_reason IN ('unhealthy:retired','unhealthy:down'))
+                AND health_status='retired'""").fetchone()['n']
+        return {"total_retired": total, "phase2_weekly": p2, "phase3_monthly": p3, "phase4_tombstone": p4, "due_for_scavenge": due}
 
     def due_for_capability(self, now, max_age, limit, per_host=2, kind='mcp'):
         _number(now); _number(max_age); _limit(limit); _limit(per_host); _kind(kind)
@@ -210,10 +238,21 @@ class PostgresCollectorMixin:
     def mark_registry_unseen(self, source, before):
         if type(source) is not str or not source or len(source) > 256 or '\0' in source: _invalid()
         _number(before)
-        with self.tx():
-            return self._execute('''UPDATE resources SET registry_missing_since=%s
-                WHERE source=%s AND last_seen<%s AND registry_missing_since IS NULL''',
-                (time.time(), source, before)).rowcount
+        now = time.time()
+        total = 0
+        while True:
+            with self.tx():
+                updated = self._execute('''UPDATE resources SET registry_missing_since=%s
+                    WHERE id IN (
+                        SELECT id FROM resources
+                        WHERE source=%s AND last_seen<%s AND registry_missing_since IS NULL
+                        LIMIT 1000
+                        FOR UPDATE SKIP LOCKED
+                    )''', (now, source, before)).rowcount
+                total += updated
+                if updated == 0:
+                    break
+        return total
 
     def evaluation_stats(self, kind=None):
         where = "FROM resources WHERE active=1 AND health_status!='retired' AND eval_at IS NOT NULL"

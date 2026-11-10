@@ -3848,10 +3848,19 @@ function chatWhy(item) {
   const text = chatLabel(purpose, "");
   const labels = {pdf_input:'PDF input',ocr:'Scanned document recognition',table_structure:'Table structure',json_output:'JSON output',doi:'DOI identifiers',timestamps:'Timestamps'};
   const matched = Array.isArray(item.task_fit?.matched) ? item.task_fit.matched.filter(key => Object.hasOwn(labels,key)).slice(0,6) : [];
+  const conditionLabels={region:'requested region',language_pair:'requested language pair',forecast:'forecast capability',forecast_window:'requested forecast window',requested_condition:'additional requested condition'};
+  const conditions=item.condition_check||{};
+  const conditionList=key=>Array.isArray(conditions[key])?conditions[key].filter(value=>Object.hasOwn(conditionLabels,value)).map(value=>conditionLabels[value]).slice(0,3):[];
+  const supported=conditionList('matched'),unknown=conditionList('unknown'),restricted=conditionList('violated');
+  const conditionCopy=(supported.length?'Recorded support: '+supported.join(', ')+'. ':'')+
+    (unknown.length?'Not confirmed: '+unknown.join(', ')+'. Review before running. ':'')+
+    (restricted.length?'Recorded restrictions do not cover the '+restricted.join(', ')+'. Choose another agent.':'');
   if (!reason && !text && !matched.length) return "";
   return '<div class="chat-why"><span class="chat-field-label">' + chatIcon('info') + 'Why selected:</span>' +
     (reason ? '<p>' + esc(reason) + '</p>' : '') +
     (matched.length ? '<p class="chat-task-fit">Declared requirements: ' + matched.map(key => esc(labels[key])).join(', ') + '</p>' : '') +
+    (conditionCopy?'<p class="chat-condition-check" role="note">'+esc(conditionCopy)+'</p>':'')+
+    '<p class="caption chat-evidence-scope">Recorded checks describe this connection. Your request has not been run.</p>'+
     (text ? '<p>' + esc(text) + '</p>' : '') + '</div>';
 }
 // 11-05 needs_choice: the visitor picks one of the options; nothing is run or sent when choosing.
@@ -4313,12 +4322,21 @@ function renderAgentTestReportHtml(a) {
     ? cons.map((c) => `<div class="test-report-con-item"><span style="color:var(--warn);display:inline-flex;align-items:center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span><span>${esc(scrubGatewayText(reportDisplayText(c), gwUrl))}</span></div>`).join("")
     : "";
 
+  const tierBadgeHtml = rep.execution_verified === true
+    ? `<span class="report-tier-badge tier-execution"><svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></svg><span class="report-tier-badge-label">Live Execution Verified</span></span>`
+    : rep.is_success && (rep.evidence_scope === "contract" || (rep.evidence_scope === "transport" && ["A2A Agent Card", "MCP Tools List", "x402 Challenge"].includes(rep.test_method)))
+    ? `<span class="report-tier-badge tier-schema"><svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="m9 15 2 2 4-4"/></svg><span class="report-tier-badge-label">Schema Conforming</span></span>`
+    : rep.is_success
+    ? `<span class="report-tier-badge tier-transport"><svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg><span class="report-tier-badge-label">Transport Verified</span></span>`
+    : "";
+
   return `
     <div class="test-report-card">
       <div class="test-report-header">
         <div>
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">
             <span class="report-badge-vivid"><span class="sparkle"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg></span> TEST Recorded report</span>
+            ${tierBadgeHtml}
             <span style="font-size:11.5px;color:var(--text-dim);font-family:ui-monospace,monospace">ID: #${esc(rep.id)} · ${esc(rep.slug || "")}</span>
           </div>
           <h4 class="test-report-title">${esc(rep.title || "Agent Wire Protocol & Benchmark Report")}</h4>

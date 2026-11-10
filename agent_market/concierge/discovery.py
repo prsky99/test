@@ -14,6 +14,8 @@ from .retrieval_metrics import stage, count
 
 MAX_CANDIDATES = 600
 LEXICAL_FORMS = {'translation': ('translation','translate','translator'),
+                 'convert': ('convert','conversion','converter'),
+                 'unit': ('unit','units'), 'units': ('units','unit'),
                  'paper': ('paper','papers'), 'papers': ('papers','paper'),
                  'forecast': ('forecast','forecasts')}
 
@@ -195,7 +197,7 @@ def candidates(
     with stage('lexical'), store.tx(readonly=True):
         seen_matches = set()
         for words, joiner in [(core, " "), (terms, " OR ")]:
-            if not words:
+            if not words or (joiner == " OR " and len(lexical) >= 60):
                 continue
             match = lexical_match(words, joiner)
             if match in seen_matches:
@@ -310,6 +312,26 @@ def candidates(
     )
     if descriptor is not None and engine.model_descriptor().digest != descriptor.digest:
         ordered = lexical
+    if ranking_only and kind == "mcp" and core and len(ordered) > 40:
+        from .selection import _service_focus
+        bake_ok = bool({'baking', 'cooking', 'recipe', 'kitchen', 'flour'}.intersection(terms))
+        bible_ok = bool({'bible', 'scripture', 'biblical', 'theology', 'thai'}.intersection(terms))
+        def off_domain(rid):
+            r = all_resources[rid]
+            txt = (str(r.get('name') or '') + ' ' + str(r.get('description') or '')).lower()
+            if not bake_ok and 'unit' in core and re.search(r'\b(?:baking|recipes?|kitchen|cooking|flour|gold price)\b', txt):
+                return True
+            if not bible_ok and any(w in ('translate', 'translation') for w in core) and re.search(r'\b(?:bible|scriptures?|quran|torah)\b', txt):
+                return True
+            return False
+        def is_focused(rid):
+            if off_domain(rid):
+                return False
+            return _service_focus(core, all_resources[rid], terms)
+        foc = [rid for rid in ordered if is_focused(rid)]
+        if len(foc) >= 5:
+            foc_set = set(foc)
+            ordered = foc + [rid for rid in ordered if rid not in foc_set and not off_domain(rid)][:20]
     count('returned_candidates', min(maximum, len(ordered)))
     return [
         {

@@ -1616,16 +1616,21 @@ class Store:
         return [{k: r[k] for k in r.keys() if k != "rn"} for r in rows]
 
     def due_for_scavenge(self, now: float, limit: int = 50, per_host: int = 1) -> list[dict]:
-        """7일 이상 연속 실패로 retired 된 에이전트 중 재활성화 점검 시각(Phase 2: 7일, Phase 3: 30일)이 된 대상.
-        호스트당 per_host개로 제한하여 트래픽 집중을 방지한다."""
+        """Retired resources due for revival check, partitioned per host."""
         order = "next_check_at IS NOT NULL, next_check_at"
         rows = self.query(
             f"""SELECT * FROM (
                   SELECT *, ROW_NUMBER() OVER (PARTITION BY host ORDER BY {order}) AS rn FROM resources
-                  WHERE active=1 AND health_status = 'retired' AND next_check_at IS NOT NULL AND next_check_at <= ?)
+                  WHERE (active=1 OR inactive_reason IN ('unhealthy:retired','unhealthy:down'))
+                    AND health_status = 'retired' AND next_check_at IS NOT NULL AND next_check_at <= ?)
                 WHERE rn <= ? ORDER BY {order} LIMIT ?""",
             (now, per_host, limit))
         return [{k: r[k] for k in r.keys() if k != "rn"} for r in rows]
+
+    def activate_revived_resource(self, rid: int) -> int:
+        """Reactivate an agent that recovered from retired state."""
+        with self.tx() as db:
+            return db.execute("UPDATE resources SET active=1, inactive_reason=NULL WHERE id=?", (rid,)).rowcount
 
     def record_scavenge_failure(self, rid: int, now: float, error: str | None = None) -> None:
         """스캐빈저 재점검 실패 시 (여전히 죽어있는 경우): 다음 재점검 시각을 계층형 지수 백오프로 연장."""
@@ -1651,14 +1656,14 @@ class Store:
             )
 
     def scavenger_stats(self, *, read_db=None) -> dict:
-        """retired 상태 에이전트들의 페이즈별 수와 점검 대기 현황."""
+        """Counts and due status of retired agents across phases."""
         now = time.time()
         q = self.query if read_db is None else lambda sql, params=(): [dict(r) for r in read_db.execute(sql, params)]
-        p2 = q("SELECT COUNT(*) AS n FROM resources WHERE active=1 AND health_status='retired' AND (? - failing_since) < 30 * 86400", (now,))[0]["n"]
-        p3 = q("SELECT COUNT(*) AS n FROM resources WHERE active=1 AND health_status='retired' AND (? - failing_since) BETWEEN 30 * 86400 AND 90 * 86400", (now,))[0]["n"]
-        p4 = q("SELECT COUNT(*) AS n FROM resources WHERE active=1 AND health_status='retired' AND (? - failing_since) >= 90 * 86400", (now,))[0]["n"]
-        due = q("SELECT COUNT(*) AS n FROM resources WHERE active=1 AND health_status='retired' AND next_check_at <= ?", (now,))[0]["n"]
-        total = q("SELECT COUNT(*) AS n FROM resources WHERE active=1 AND health_status='retired'")[0]["n"]
+        p2 = q("SELECT COUNT(*) AS n FROM resources WHERE (active=1 OR inactive_reason IN ('unhealthy:retired','unhealthy:down')) AND health_status='retired' AND (? - failing_since) < 30 * 86400", (now,))[0]["n"]
+        p3 = q("SELECT COUNT(*) AS n FROM resources WHERE (active=1 OR inactive_reason IN ('unhealthy:retired','unhealthy:down')) AND health_status='retired' AND (? - failing_since) BETWEEN 30 * 86400 AND 90 * 86400", (now,))[0]["n"]
+        p4 = q("SELECT COUNT(*) AS n FROM resources WHERE (active=1 OR inactive_reason IN ('unhealthy:retired','unhealthy:down')) AND health_status='retired' AND (? - failing_since) >= 90 * 86400", (now,))[0]["n"]
+        due = q("SELECT COUNT(*) AS n FROM resources WHERE (active=1 OR inactive_reason IN ('unhealthy:retired','unhealthy:down')) AND health_status='retired' AND next_check_at <= ?", (now,))[0]["n"]
+        total = q("SELECT COUNT(*) AS n FROM resources WHERE (active=1 OR inactive_reason IN ('unhealthy:retired','unhealthy:down')) AND health_status='retired'")[0]["n"]
         return {"total_retired": total, "phase2_weekly": p2, "phase3_monthly": p3, "phase4_tombstone": p4, "due_for_scavenge": due}
 
     def vec_stats(self, descriptor=None, *, read_db=None) -> dict:

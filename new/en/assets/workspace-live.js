@@ -104,6 +104,22 @@ load();
   const $=id=>document.getElementById(id),el=(tag,copy,className)=>{const n=document.createElement(tag);if(copy!==undefined)n.textContent=copy;if(className)n.className=className;return n};
   const toggle=$('workspace-menu'),nav=$('workspace-navigation'),close=$('workspace-nav-close'),main=$('workspace-main');
   const explicitWorkspace=location.pathname.match(/^\/customer\/organizations\/(ws_[a-f0-9]{32})\//)?.[1]||new URLSearchParams(location.search).get('workspace');
+  if(main&&/\/customer\/organizations\/ws_[a-f0-9]{32}\/(?:flows|build|connections)\/?$/.test(location.pathname)){
+    const guide=el('details',undefined,'card workspace-task-guide');guide.id='workspaceTaskGuide';
+    guide.append(el('summary',/\/connections\/?$/.test(location.pathname)?'Connect a provider when a workflow needs it':'From an idea to a reviewed run'));
+    const points=/\/connections\/?$/.test(location.pathname)?[
+      'Choose the provider required by your selected step.',
+      'Review the requested OAuth permissions, or enter the API key only in this connection form. Never paste secrets into Chat.',
+      'Check the connection, then return to your workflow and review its inputs before running.'
+    ]:[
+      'Start from an operator template, a saved workflow, or your own objective.',
+      'Review each step, the data passed between steps, and any required provider connection.',
+      'Save a draft to keep your work. Saving or generating a suggestion does not execute it.',
+      'Run only after reviewing the inputs. Inspect actual outputs and any partially completed steps.'
+    ];
+    const list=el('ol');for(const copy of points)list.append(el('li',copy));guide.append(list);
+    (main.querySelector('header')||main.firstElementChild)?.after(guide);
+  }
   if(/^ws_[a-f0-9]{32}$/.test(explicitWorkspace||'')){
     const flows='/customer/organizations/'+explicitWorkspace+'/flows';
     for(const [section,path]of Object.entries({overview:'/customer/organizations?workspace='+explicitWorkspace,flows,templates:flows+'#templates',connections:'/customer/organizations/'+explicitWorkspace+'/connections',members:'/customer/organizations?workspace='+explicitWorkspace+'#detail',credits:'/customer/plan?workspace='+explicitWorkspace})){

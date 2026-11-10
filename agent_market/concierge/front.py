@@ -480,9 +480,11 @@ def robots_txt(base: str) -> str:
 def catalog_sentence(counts: dict, daily: dict | None = None) -> str:
     """One public catalog figure everywhere: the dated daily snapshot that Home and Status show."""
     if daily:
+        from .daily_statistics import snapshot_id
         return (f"Catalog snapshot {daily['day']} KST: {daily['cataloged']:,} agents cataloged, "
                 f"{daily['reachable']:,} reachable, {daily['with_status_check']:,} with recorded status checks "
-                f"(A2A {daily['a2a']:,}, MCP {daily['mcp']:,}, x402 {daily['x402']:,}); updated once daily.")
+                f"(A2A {daily['a2a']:,}, MCP {daily['mcp']:,}, x402 {daily['x402']:,}); updated once daily. "
+                f"Snapshot ID: {snapshot_id(daily)}.")
     return (f"The catalog currently contains {sum(counts.values()):,} active, reachable listings "
             "(cached for up to five minutes; the dated daily snapshot is temporarily unavailable).")
 
@@ -2430,6 +2432,9 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
         base = front.base(request)
         catalog = ({key: daily[key] for key in ('day', 'cataloged', 'reachable', 'with_status_check', 'a2a', 'mcp', 'x402')}
                    if daily else None)
+        if catalog is not None:
+            from .daily_statistics import snapshot_id
+            catalog.update(snapshot_id=snapshot_id(daily), captured_at=daily['captured_at'], scope='daily_catalog')
         from ..public_availability import projection
         measured=projection(front.store)
         return JSONResponse({
