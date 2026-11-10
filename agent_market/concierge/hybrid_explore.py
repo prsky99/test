@@ -66,7 +66,7 @@ GENERIC = frozenset('''advisory advice lookup search finder tracking tracker par
     data info information api service tool generator converter conversion analysis analytics monitor monitoring
     alert alerts feed report reports manager management table tables list estimate calculator schedule
     progression pairing transcription identification recognition detection'''.split())
-RELAX_BUDGET = 3.5  # retries start only within this many seconds; they run only after zero results
+RELAX_BUDGET = 2.0  # past this, skip the remaining retries and go straight to the closest listings (11-11 PM)
 RELAX_TRIES = 6
 # Retries search the text index only (11-11 measurement: 0.07-0.33 s against 0.6-2 s with the
 # embedding read). Every listing must still name the task words, so the vector side adds order, not admission.

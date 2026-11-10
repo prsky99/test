@@ -259,3 +259,35 @@ def test_an_empty_stale_scan_rests_and_a_busy_one_goes_on():
             now[0] += 60
             assert worker.run()["written"] == 1
             store.close()
+
+
+def test_a_busy_queue_is_filled_by_one_scan_not_one_scan_per_round():
+    # 11-11: health observations keep generations changing, so the scan never rested and read
+    # about 10,000 disk blocks every 5 s. One scan now queues several rounds of work.
+    binary = Path("/opt/homebrew/opt/postgresql@18/bin")
+    if not (binary / "initdb").is_file():
+        pytest.skip("PostgreSQL 18 fixture tools unavailable")
+    with _private_cluster({name: str(binary / name) for name in ("initdb", "pg_ctl")}) as cluster:
+        with psycopg.connect(host=cluster["socket"], port=PORT, dbname="postgres", user="postgres", autocommit=True) as pg:
+            store = open_store("postgresql", connection=pg, initialize=True, workflow_key=b"s" * 32)
+            doc.install(store)
+            for n in range(7):
+                store.upsert_resource({"key": "busy-%d" % n, "source": "fixture", **listing(n)})
+            with store.tx():
+                store._execute("UPDATE resources SET active=1,health_status='healthy'")
+            scans = []
+            execute = store._execute
+
+            def counted(sql, *args, **kwargs):
+                if sql.lstrip().startswith("INSERT INTO agentcon_search.explore_document_queue"):
+                    scans.append(sql)
+                return execute(sql, *args, **kwargs)
+            store._execute = counted
+            now = [1000.0]
+            worker = doc.Refresher(store, batch=2, interval=5, clock=lambda: now[0])
+            written = []
+            for _ in range(4):
+                written.append(worker.run()["written"])
+                now[0] += 5
+            assert written == [2, 2, 2, 1] and len(scans) == 1
+            store.close()

@@ -82,3 +82,12 @@ def test_nothing_matched_shows_the_closest_listings_and_says_so(monkeypatch):
     asked.clear()
     plain = hx.scoped_explore(None, None, 'volcanic ash advisory', None, None, False, False, 45)
     assert not plain['items'] and not any(q.endswith('~near') for q in asked)
+
+
+def test_past_the_budget_the_closest_listings_come_without_more_retries(monkeypatch):
+    asked, search = _fake({'near'})
+    monkeypatch.setattr(hx, '_scoped_explore', search)
+    clock = iter([0.0, 2.5, 2.5, 2.5, 2.5])
+    monkeypatch.setattr(hx.time, 'monotonic', lambda: next(clock))
+    result = hx.scoped_explore(None, 'engine', 'bird song identification', None, None, False, False, 45)
+    assert result['match'] == 'near' and asked == ['bird song identification', 'bird song identification ~near']

@@ -25,6 +25,11 @@ class Refresher:
     # nothing changed; one scan per 5 s round cost 39,252 s of database time, the largest Explore
     # cost (2026-11-10). A scan that queues nothing rests SCAN_REST rounds; a busy one goes on.
     SCAN_REST = 12
+    # Health observations change generations all day, so the scan rarely came back empty and ran
+    # every 5 s: 1.36 s and about 10,000 disk blocks each, evicting the pages visitor searches read
+    # (11-11: 4 scans in 30 s, 39k blocks). A scan now queues SCAN_FILL rounds of work at once and
+    # does not run again while the queue still holds a full round; throughput is unchanged.
+    SCAN_FILL = 6
 
     def __init__(self, store, *, batch=BATCH, interval=5, budget=BUDGET, clock=time.monotonic):
         self.store, self.batch, self.interval, self.budget, self.clock = (
@@ -65,7 +70,7 @@ class Refresher:
                         WHERE q.resource_id IS NULL AND (d.resource_id IS NULL OR
                             d.source_generation<>g.generation OR d.policy_hash<>%s)
                         ORDER BY g.resource_id LIMIT %s ON CONFLICT(resource_id) DO NOTHING""",
-                        (time.time(), documents.policy_hash(), self.batch),
+                        (time.time(), documents.policy_hash(), self.batch * self.SCAN_FILL),
                     ).rowcount
                 if not found:
                     self.scan_after = self.clock() + self.interval * self.SCAN_REST
@@ -80,6 +85,9 @@ class Refresher:
                     ORDER BY q.queued_at,q.resource_id LIMIT %s""",
                     (now, self.batch),
                 ).fetchall()
+                if len(pending) >= self.batch:
+                    # A full round is still waiting: scanning now would only add to the backlog.
+                    self.scan_after = max(self.scan_after, self.clock() + self.interval * self.SCAN_FILL)
                 if len(pending) < self.batch:
                     chosen = [row[0] for row in pending]
                     pending += self.store._execute(
