@@ -1,5 +1,6 @@
 """Verify task evidence, safe rendering and recovery in isolated Chromium."""
 # ruff: noqa: F401,F811 -- shared isolated browser/catalog fixtures
+import re
 from pathlib import Path
 from tests.test_single_agent_chat_browser import chat_page
 from tests.test_front_workflow_browser import browser
@@ -16,14 +17,16 @@ def test_selected_tool_scope_is_visible_and_not_inferred_from_connection(chat_pa
     page.locator('#chatSubmit').click()
     first=page.locator('.chat-recommendation').first
     expect(page.locator('.chat-recommendation:visible')).to_have_count(1)
-    expect(page.locator('.chat-alternatives summary')).to_have_text('Show 2 alternatives')
-    page.locator('.chat-alternatives summary').click()
+    expect(page.locator('.chat-alternatives > summary')).to_have_text('Show 2 alternatives')
+    page.locator('.chat-alternatives > summary').click()
     expect(page.locator('.chat-recommendation:visible')).to_have_count(3)
-    page.locator('.chat-alternatives summary').click()
+    page.locator('.chat-alternatives > summary').click()
     # An unrecorded tool check is omitted rather than shown as an internal status.
     expect(first).not_to_contain_text('Selected tool check:')
     expect(first).not_to_contain_text('Not separately recorded')
-    expect(first.locator('.chat-why')).to_contain_text('tool covers')
+    # The reason names the selected tool: the server's sentence ("... through its forecast tool ...",
+    # 11-04 B3) when it sends one, otherwise the page's own ("Its forecast tool covers ...").
+    expect(first.locator('.chat-why')).to_contain_text(re.compile(r'tool covers|through its \w+ tool'))
     expect(page.locator('#chatSubmit')).to_be_enabled()
     first.get_by_role('button',name='Calling details').click()
     expect(page.locator('#drawer')).to_be_visible()

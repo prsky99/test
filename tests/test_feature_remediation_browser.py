@@ -59,7 +59,7 @@ def test_suggestions_comparison_share_and_feedback_reason(chat_page,catalog,requ
     cards.first.get_by_role('button',name='Share agent',exact=True).click()
     url=page.evaluate('window.__copiedPublicLink');assert 'agents=' in url and 'vt_' not in url and 'weather' not in url
     cards.first.get_by_role('button',name='Add to comparison',exact=True).click()
-    page.locator('.chat-alternatives summary').click();cards.nth(1).get_by_role('button',name='Add to comparison',exact=True).click()
+    page.locator('.chat-alternatives > summary').click();cards.nth(1).get_by_role('button',name='Add to comparison',exact=True).click()
     cards.nth(1).get_by_role('button',name='Compare selected',exact=True).click()
     expect(page.locator('#agentComparison table')).to_be_visible()
     assert page.locator('#agentComparison th[scope=col]').count()==3

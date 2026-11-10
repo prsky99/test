@@ -66,7 +66,7 @@ def test_one_quality_first_card_and_calling_details(chat_page, request):
     playwright.expect(page.locator('#drawer')).to_be_visible()
     playwright.expect(page.locator('#drawerContent')).to_contain_text('Verified Weather A')
     page.locator('#closeDrawer').click()
-    page.locator('.chat-alternatives summary').click()
+    page.locator('.chat-alternatives > summary').click()
     for index,expected in [(1,'Older Weather B'),(2,'Third Weather C')]:
         card.nth(index).get_by_role('button',name='Calling details').click()
         playwright.expect(page.locator('#drawerContent')).to_contain_text(expected)
