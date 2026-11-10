@@ -229,6 +229,12 @@ def drill(backup, releases=None, mode='full', report=None):
     result = {'started': began, 'backup': str(backup), 'releases': releases, 'data': mode, 'production_connected': False,
               'dump_sha256_matches_manifest': digest.hexdigest() == manifest['files']['database.dump']['sha256'],
               'verify_seconds': round(time.time() - began, 1)}
+    # AI AD Coin v2 keys travel with the snapshot since 11-10; each must match its manifest digest.
+    keys = manifest.get('ad_coin_v2_keys')
+    result['ad_coin_v2_keys'] = ('absent' if not keys else
+        'ok' if all((backup / 'ad_coin_v2_keys' / n).is_file()
+                    and hashlib.sha256((backup / 'ad_coin_v2_keys' / n).read_bytes()).hexdigest() == h
+                    for n, h in keys.items()) else 'mismatch')
     if result['dump_sha256_matches_manifest']:
         tools = {name: str(BIN / name) for name in ('initdb', 'pg_ctl')}
         with _private_cluster(tools) as cluster:
@@ -248,7 +254,8 @@ def drill(backup, releases=None, mode='full', report=None):
                 result['counts'] = dict(zip(('resources', 'active_resources', 'agent_test_reports', 'workflow_runs'), values))
                 result['catalog_resources_at_baseline'] = manifest.get('catalog_resources_at_baseline')
                 result['attach'] = {release: check_release(release, cluster, PORT, key_path) for release in releases}
-    result['ok'] = bool(result.get('attach')) and all(item.get('ok') for item in result['attach'].values())
+    result['ok'] = (bool(result.get('attach')) and all(item.get('ok') for item in result['attach'].values())
+                    and result['ad_coin_v2_keys'] != 'mismatch')
     result['seconds'] = round(time.time() - began, 1)
     REPORTS.mkdir(parents=True, exist_ok=True)
     path = Path(report) if report else REPORTS / time.strftime('drill-%Y%m%d-%H%M%S.json')

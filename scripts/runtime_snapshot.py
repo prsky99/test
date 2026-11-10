@@ -17,6 +17,30 @@ from scripts.agentcon_config import read_settings
 from agent_market.application_runtime import _ABSENT_PASSFILE, _private_bytes, _connect
 
 
+def copy_key_directory(source, target):
+    """Copy every regular file of a private key directory (owner-only, 0600) and return their digests.
+    No directory configured means nothing to copy; a key that cannot be read privately fails the snapshot."""
+    if not source:
+        return {}
+    source = Path(source)
+    if not source.is_dir() or source.is_symlink():
+        raise ValueError('ad_coin_key_directory_missing')
+    target.mkdir(mode=0o700, exist_ok=True)
+    digests = {}
+    for item in sorted(source.iterdir()):
+        if item.name.startswith('.') or item.is_dir():
+            continue
+        data = _private_bytes(str(item), 65536)
+        out = target / item.name
+        if out.exists():
+            out.unlink()
+        descriptor = os.open(out, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(descriptor, 'wb') as stream:
+            stream.write(data)
+        digests[item.name] = hashlib.sha256(data).hexdigest()
+    return digests
+
+
 def snapshot(destination, settings_file, resume=False):
     destination = Path(destination).resolve()
     destination.mkdir(mode=0o700, parents=True, exist_ok=resume)
@@ -79,6 +103,9 @@ def snapshot(destination, settings_file, resume=False):
         descriptor = os.open(out, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(descriptor, 'wb') as stream:
             stream.write(data)
+    # 11-10: AI AD Coin v2 keys (owner link, ledger signing). Losing owner-link.key would show every site
+    # user as a new v2 account with no balance; they are as critical as workflow.key.
+    keys = copy_key_directory(settings.get('AD_COIN_V2_KEY_DIR'), destination / 'ad_coin_v2_keys')
     files = {}
     for item in (target, archive):
         digest = hashlib.sha256()
@@ -88,7 +115,8 @@ def snapshot(destination, settings_file, resume=False):
         files[item.name] = {'bytes': item.stat().st_size, 'sha256': digest.hexdigest()}
     manifest = {'created': began, 'finished': time.time(), 'postgres_version': db[0],
                 'database_bytes': db[1], 'catalog_resources_at_baseline': resources,
-                'dump_catalog_checked': True, 'restore_rehearsed': False, 'files': files}
+                'dump_catalog_checked': True, 'restore_rehearsed': False, 'files': files,
+                'ad_coin_v2_keys': keys}
     (destination / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
     return manifest
 

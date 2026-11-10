@@ -65,11 +65,18 @@ def copy_offsite(source, target_root, keep, mounted=os.path.ismount):
     if partial.exists():
         shutil.rmtree(partial)
     shutil.copytree(source, partial, copy_function=shutil.copyfile)
-    expected = json.loads((source / 'manifest.json').read_text())['files']
-    for name, info in expected.items():
+    manifest = json.loads((source / 'manifest.json').read_text())
+    for name, info in manifest['files'].items():
         if (partial / name).stat().st_size != info['bytes']:
             shutil.rmtree(partial)
             raise RuntimeError('offsite_copy_size_mismatch')
+    # AI AD Coin v2 keys must arrive byte for byte (11-10).
+    import hashlib
+    for name, digest in (manifest.get('ad_coin_v2_keys') or {}).items():
+        copied = partial / 'ad_coin_v2_keys' / name
+        if not copied.is_file() or hashlib.sha256(copied.read_bytes()).hexdigest() != digest:
+            shutil.rmtree(partial)
+            raise RuntimeError('offsite_key_copy_mismatch')
     partial.rename(final)
     return {'status': 'ok', 'snapshot': final.name, 'removed': prune(target_root, keep)}
 
