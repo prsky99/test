@@ -248,3 +248,12 @@ html body #cookieConsentBanner:not(.no-flow) :is(#btnAcceptAllCookies,#btnReject
   html:not(.ux-filters-ready) body #secExplore :is(.pearl-filter-bottom,.explore-inputs-row .field:has(#xCategory)){display:none!important}
   html:not(.ux-filters-ready) body #secExplore .explore-inputs-row{margin-bottom:54px}
 }
+/* 11-11 Explore: operating.js draws all 15 task chips, then pearl-ui.js keeps four and folds the rest into
+   "More tasks". Until that happens only four chips show, so the row keeps one line and the results below do
+   not jump for a frame (desktop first visit CLS 0.10-0.12). */
+html body #xChips:not(:has(.pearl-more-tasks))>.chip-btn:nth-of-type(n+5){display:none!important}
+/* 11-11 (PM sample review): links inside a label sentence (the registration consent) are visible targets too.
+   They take a 44px line of their own height, so neighbouring links on wrapped lines never share a tap area. */
+html body label a:not(.btn){display:inline-flex;align-items:center;min-height:44px;vertical-align:middle}
+/* Headings with a legend or caption beside them sit on the row centre (baseline rows read as misaligned). */
+html body :is(#secStatus .status-section-heading,#secWorkflows .ux-workflow-steps>div:first-child){align-items:center}

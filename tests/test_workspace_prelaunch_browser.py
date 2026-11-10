@@ -218,7 +218,7 @@ def test_public_theme_switch_parity_keyboard_persistence_and_small_header(custom
         expect(toggle).to_have_attribute('aria-label','Toggle dark theme')
         expect(page.locator('body')).to_have_attribute('data-theme',expected)
         geometry=toggle.evaluate("e=>({width:e.offsetWidth,height:e.offsetHeight,radius:getComputedStyle(e).borderRadius,knob:getComputedStyle(e,'::before').left})")
-        assert geometry=={'width':44,'height':30,'radius':'30px','knob':'18px' if expected=='dark' else '4px'}
+        assert geometry=={'width':44,'height':44,'radius':'30px','knob':'18px' if expected=='dark' else '4px'}  # 44px tall since 11-11 (PM: shared targets 44px)
         contrast=page.locator('.human-local-nav [aria-current=page]').evaluate("""e=>{const style=getComputedStyle(e),luminance=color=>{const rgb=color.match(/[0-9.]+/g).slice(0,3).map(Number).map(x=>{x/=255;return x<=.04045?x/12.92:Math.pow((x+.055)/1.055,2.4)});return .2126*rgb[0]+.7152*rgb[1]+.0722*rgb[2]},a=luminance(style.color),b=luminance(style.backgroundColor);return(Math.max(a,b)+.05)/(Math.min(a,b)+.05)}""")
         assert contrast>=4.5
         toggle.focus();page.keyboard.press('Space')

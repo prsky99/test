@@ -54,7 +54,7 @@
 
   // 3. targets and labels
   const interactive = all.filter(el => el.matches('button, a[href], input:not([type=hidden]), select, textarea, summary'));
-  const inText = el => el.matches('a') && el.closest('p, li, dd, td, label, .caption') && !el.matches('.btn');  // label: a link inside a consent sentence (11-11)
+  const inText = el => el.matches('a') && el.closest('p, li, dd, td, .caption') && !el.matches('.btn');
   const target = el => (el.matches('input[type=checkbox], input[type=radio]') && el.closest('label')) || el;  // the label is the hit area
   const small = interactive.filter(el => !inText(el)).filter(el => { const r = target(el).getBoundingClientRect(); return r.width < 44 - 0.5 || r.height < 44 - 0.5; });
   // Shared header and form parts sized by the design system files (the same on the main frontend).
@@ -124,25 +124,33 @@
   for (const parent of all) {
     const s = getComputedStyle(parent), kids = [...parent.children].filter(visible);
     if (kids.length < 2) continue;
-    // Table rows lay cells side by side and the table aligns its own columns; the stacked-block left-edge
-    // check would compare th and td in one row (11-11: 106 false reports on the status table).
-    if (/^table/.test(s.display)) continue;
     const rects = kids.map(k => k.getBoundingClientRect());
+    // A table row lays its cells side by side: they must share a top edge (11-11: the stacked-block left-edge
+    // check compared th and td of one row; samples showed top differences of 0).
+    if (s.display === 'table-row') {
+      for (let i = 1; i < kids.length; i++) if (Math.abs(rects[i].top - rects[0].top) > 1) misaligned.push('row ' + name(kids[0]) + ' | ' + name(kids[i]));
+      continue;
+    }
     if (/flex|grid/.test(s.display)) {
-      // Rows aligned on the text baseline are aligned by design; an item that spans several grid rows
-      // (a side column of actions) is not in one row with its neighbour (11-11).
-      if (/baseline/.test(s.alignItems)) continue;
+      // An item that spans several grid rows (a side column of actions) is compared with the first item that
+      // starts in the same grid row, not with its neighbour in source order (11-11).
       const spans = k => { const c = getComputedStyle(k), a = parseInt(c.gridRowStart), b = parseInt(c.gridRowEnd);
         return /span\s*([2-9]|\d\d)/.test(c.gridRowEnd) || (b - a > 1); };
       for (let i = 1; i < kids.length; i++) {
-        if (/grid/.test(s.display) && (spans(kids[i - 1]) || spans(kids[i]))) continue;
+        if (/grid/.test(s.display) && (spans(kids[i - 1]) || spans(kids[i]))) {
+          const k = spans(kids[i]) ? i : i - 1, start = getComputedStyle(kids[k]).gridRowStart;
+          const peer = kids.findIndex((x, j) => j !== k && getComputedStyle(x).gridRowStart === start);
+          if (peer >= 0 && Math.abs(rects[k].top - rects[peer].top) > 1) misaligned.push('row ' + name(kids[peer]) + ' | ' + name(kids[k]));
+          continue;
+        }
         const a = rects[i - 1], b = rects[i];
         const sameRow = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > Math.min(a.height, b.height) / 2;
         if (sameRow && Math.abs(a.top - b.top) > 1 && Math.abs(a.bottom - b.bottom) > 1 && Math.abs((a.top + a.bottom) / 2 - (b.top + b.bottom) / 2) > 1)
           misaligned.push('row ' + name(kids[i - 1]) + ' | ' + name(kids[i]));
       }
     } else {
-      const blocks = kids.filter(k => /block|flex|grid|table/.test(getComputedStyle(k).display) && getComputedStyle(k).position === 'static' && getComputedStyle(k).float === 'none');
+      // Stacked blocks only: inline-level boxes (inline-flex, inline-block ...) sit side by side in a line of text.
+      const blocks = kids.filter(k => /^(block|flex|grid|table|list-item|flow-root)$/.test(getComputedStyle(k).display) && getComputedStyle(k).position === 'static' && getComputedStyle(k).float === 'none');
       const lefts = blocks.map(k => k.getBoundingClientRect().left + parseFloat(getComputedStyle(k).marginLeft) * 0);
       // A centred or right-aligned stack shares its centre or right edge instead (11-11: centred workflow steps).
       const br = blocks.map(k => k.getBoundingClientRect()), centre = r => (r.left + r.right) / 2;
