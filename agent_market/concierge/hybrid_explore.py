@@ -64,11 +64,15 @@ def _words(query):
 
 
 def cleaned_query(query):
-    """The query without numbers, delivery words and function words, or None when nothing changes."""
-    words = _words(query)
-    content = [w for w in words if not re.fullmatch(r"[\d.,:/-]+", w)
-               and w.casefold() not in DELIVERY and w.casefold() not in STOPWORDS]
-    return " ".join(content) if content and content != words else None
+    """The query without numbers, delivery words and function words, or None when nothing changes.
+    "to" between two content words names a direction and stays ("speech to text" is not
+    "text to speech", 11-11)."""
+    words = [w for w in _words(query) if not re.fullmatch(r"[\d.,:/-]+", w) and w.casefold() not in DELIVERY]
+    def content(word):
+        return word.casefold() not in STOPWORDS
+    kept = [w for i, w in enumerate(words) if content(w) or (
+        w.casefold() == 'to' and 0 < i < len(words) - 1 and content(words[i - 1]) and content(words[i + 1]))]
+    return " ".join(kept) if kept and kept != _words(query) else None
 
 
 def relaxed_queries(query):
@@ -79,7 +83,7 @@ def relaxed_queries(query):
     core = [w for w in content if w.casefold() not in CONDITIONS]
     if core and core != content:
         forms.append(" ".join(core))
-    content = core or content
+    content = [w for w in (core or content) if w.casefold() != 'to']  # a direction needs both of its ends
     for drop in range(1, len(content)):
         forms.append(" ".join(content[drop:]))
         forms.append(" ".join(content[:-drop]))
