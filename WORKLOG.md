@@ -2,6 +2,13 @@
 - 11-04: 디스크 점검(여유 150GB, 릴리스 461개 142GB). `agentcon prune-releases` 추가, 383개 삭제, 여유 149.5→191.7GB. 배포·워커 배포 성공 뒤 자동 정리(배포된 것과 6시간 미만 미배포만 남김, `--no-prune`).
 
 ## 완료 (최근 것만)
+- 성장·유통 7차(2026-11-10 오전~13시)
+  - 공개 성장 페이지 캐시 예외(PM 승인): 로그인 없는 GET이고 자격 증명이 없으면(분석 쿠키 제외) `public, max-age=300, stale-while-revalidate=600`, Vary: Accept, 약한 ETag(304). 나머지는 no-store. 서버 처리 3~30ms, 공개 경로 첫 방문 0.6초·재방문은 브라우저 캐시.
+  - 주간 근거 보고서 /reports/weekly(첫 호 2026-W45, 실행 점검 876 = MCP 822·A2A 54, x402는 시험 호출 기준). jobs가 매주 월요일 발행(W46은 11-16).
+  - 피드백 /api/feedback: 에이전트·답·시각만, 등록된 INSERT 재사용, 메모리 제한(시간당 20·에이전트당 하루 1·에이전트당 하루 300). 탐색 카드 버튼·에이전트 페이지 폼·과업 카드 링크, MCP report도 같은 제한(시간당 120). jobs가 매일 feedback-stats.json.
+  - 개인정보 미수집(사용자 결정): 문의 양식 제거(410), 검토 요청은 메일, 이름·UA 미저장, 지문은 하루 단위 무작위 키 해시, 처리방침 33쪽 수정. 기존 행 정리 SQL·리허설 passed(문의 8·방문자 2,167·방문 1,543·컨텍스트 112) → 승인 대기(현황판). reports/개인정보 미수집 전환 2026-11-10.md
+  - 배포: frontend growth-batch-frontend-r5(→ r8), jobs growth-batch-jobs-r1. 커밋 733bcead, 08226e3f, 856c42d1, 4206041b.
+  - 실수 기록: "Cloudflare br 캐시가 옛 파일" 판단은 틀림. 이 맥 curl에 brotli가 없어 압축 바이트를 검색했던 것. 페이지는 pearl_view가 내용 해시로 자원 주소를 바꿔 이미 새 파일을 씀(내장 브라우저로 버튼 90개 확인). r8의 ?v= 추가는 불필요했지만 해는 없음. br 확인은 브라우저로 할 것.
 - 탐색 3초 측정(2026-11-10 12:58, 검색과 RAG): 처음 보는 검색어 20개(필터·쪽 넘기기 섞음), 연결 재사용, 배포 1분 뒤, 부하 4.5~5.4. 서버 시간 = 전체 시간(Server-Timing explore). 중앙값 1.14초·p95 1.82초·최대 1.94초, 3초 초과 0. 가장 느린 것은 결과 0건 검색어(lithuanian invoice parser 1.94초, recipe scaling grams+필터 1.82초). 20개 중 9개가 0건(earthquake early warning feed·volcanic ash advisory 등): 속도 문제는 아니고 카탈로그 범위.
 - 테스트넷 가격 표시(2026-11-10 13시, 검색과 RAG, PM 채택): Base Sepolia에서만 받는 x402 427개가 실제 가격처럼 보였다. 테스트넷 결제 조건은 가격으로 보지 않고(crawler.TEST_NETWORKS, 수집·견적 모두), 견적 유지 규칙은 등록 가격도 양수일 때만 적용 → 저장된 테스트넷 가격은 다음 수집 때 NULL(손 수정 없음). 상세 API에 price_note "testnet_only" 추가, 상세·칩에 "Testnet only". 탐색 결과는 문서에 네트워크가 없어 "Price on request". 시험 164 통과.
 - jobs 오류·가격 핑퐁·큐 대조(2026-11-10 07시, 검색과 RAG, 총괄 PM 과제)
