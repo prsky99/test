@@ -1253,3 +1253,18 @@ test('v1 inspection preserves native payment terms without a v2 header',async()=
   } finally {await f.mf.dispose();}
  }
 });
+
+test('A2A posts with a trailing slash reach Origin once instead of the Worker 404 (11-10)', async () => {
+  const originalFetch=globalThis.fetch,pending=[],forwarded=[];
+  globalThis.fetch=async(url,init)=>{
+    if(new URL(url).pathname.endsWith('/output-observation'))return new Response('{"ok":true}');
+    forwarded.push(new URL(url instanceof Request?url.url:url).pathname);
+    return new Response('{"jsonrpc":"2.0","id":1,"result":{"kind":"message"}}',{headers:{'Content-Type':'application/json'}});
+  };
+  try{
+    const response=await worker.fetch(new Request(origin+'/a2a/',{method:'POST',body:'{}',headers:{'Content-Type':'application/json'}}),
+      {PUBLIC_ORIGIN:origin,CONTROL_ORIGIN:controlOrigin,SHARED_SECRET:secret.toString('base64')},{waitUntil:promise=>pending.push(promise)});
+    assert.equal(response.status,200);assert.equal((await response.json()).result.kind,'message');
+    await Promise.all(pending);assert.deepEqual(forwarded,['/a2a/']);
+  }finally{globalThis.fetch=originalFetch;}
+});

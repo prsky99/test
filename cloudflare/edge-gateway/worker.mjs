@@ -1064,7 +1064,7 @@ async function outputRelay(request,env) {
 }
 function outputSource(path) {
   if(path.startsWith('/api/edge-gateway/v1/outputs/'))return 'admin';
-  if(path==='/chat'||path==='/')return 'chat';if(path==='/a2a')return 'a2a';if(path==='/mcp')return 'mcp';
+  if(path==='/chat'||path==='/')return 'chat';if(path==='/a2a'||path==='/a2a/')return 'a2a';if(path==='/mcp')return 'mcp';
   if(path.startsWith('/api/owned-data-agents/'))return 'mcp';
   if(path.includes('workspace')||path.includes('customer-organizations'))return 'workspace';
   if(path.includes('workflow'))return 'workflow';return 'public';
@@ -1086,7 +1086,7 @@ function chatResponse(request,response) {
 }
 function observedOutput(request,response,env,ctx,failureReason) {
   const path=new URL(request.url).pathname;
-  const eligible=resultPath.test(path)||resultPostPath.test(path)||/^\/api\/(?:owned-data-agents\/[^/]+\/mcp|gateway\/(?:a2a|mcp|x402)\/[1-9][0-9]*|test\/execute|edge-gateway\/v1\/(?:runs\/er_[a-f0-9]{32}\/stream|outputs\/er_[a-f0-9]{32}))$/.test(path)||['/chat','/a2a','/mcp','/'].includes(path)&&request.method==='POST';
+  const eligible=resultPath.test(path)||resultPostPath.test(path)||/^\/api\/(?:owned-data-agents\/[^/]+\/mcp|gateway\/(?:a2a|mcp|x402)\/[1-9][0-9]*|test\/execute|edge-gateway\/v1\/(?:runs\/er_[a-f0-9]{32}\/stream|outputs\/er_[a-f0-9]{32}))$/.test(path)||['/chat','/a2a','/a2a/','/mcp','/'].includes(path)&&request.method==='POST';
   if(!eligible||request.method==='OPTIONS')return response;
   const headers=new Headers(response.headers),providerFailure=headers.get('X-Edge-Provider-Failure')==='1';
   headers.delete('X-Edge-Provider-Failure');
@@ -1121,7 +1121,8 @@ export default {
     const eligible=/^\/api\/edge-gateway\/v1\/runs\/er_[a-f0-9]{32}\/stream$/.test(path)||relay;
     if(!eligible){
       let response;
-      if(['/','/chat','/a2a'].includes(path)){
+      // '/a2a/' (trailing slash) reaches the same Origin handler; some A2A clients post there (11-10).
+      if(['/','/chat','/a2a','/a2a/'].includes(path)){
         try{response=await originRequest(request,request.body,request.headers.get('CF-Connecting-IP'));}
         catch{
           // A lost connection does not prove that Origin skipped processing.
