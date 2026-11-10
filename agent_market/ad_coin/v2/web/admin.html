@@ -22,7 +22,7 @@
 </header>
 <div class="container ws-layout">
 <aside class="ws-sidebar" aria-label="AI AD Coin v2 운영 메뉴"><p class="caption">AI AD Coin v2 운영</p><div class="row"><span class="badge warning">운영자 전용 · 읽기 전용</span></div><hr class="divider"><nav aria-label="운영 화면">
-<a class="side-item active" href="#holdings" aria-current="page">@@home@@보유량</a><a class="side-item" href="#reconcile">@@receipt@@원장 대사</a><a class="side-item" href="#applications">@@home@@광고주 신청</a><a class="side-item" href="#reviews">@@receipt@@캠페인 심사</a>
+<a class="side-item active" href="#holdings" aria-current="page">@@home@@보유량</a><a class="side-item" href="#reconcile">@@receipt@@원장 대사</a><a class="side-item" href="#applications">@@home@@광고주 신청</a><a class="side-item" href="#reviews">@@receipt@@캠페인 심사</a><a class="side-item" href="#paid">@@receipt@@USDC 결제</a>
 </nav></aside>
 <main class="ws-main" id="main">
 <div class="page-heading"><div><p class="eyebrow">AI AD Coin · 운영</p><h1>코인 보유량과 대사</h1>
@@ -66,6 +66,13 @@
 <div class="actions"><button id="load-reviews" type="button" class="btn">심사 대기 불러오기</button></div>
 <div id="review-list" class="stack" aria-live="polite"></div>
 <p id="reviews-status" role="status" aria-live="polite"></p>
+</section>
+<section class="card" id="paid" aria-labelledby="paid-h">
+<h2 id="paid-h">USDC 결제 검토·환불</h2>
+<p>금액이 다르거나, 제재 목록 확인이 안 되거나, 시세를 못 받은 결제가 여기에 옵니다. 확인되면 "확정", 플랫폼 사정이면 "환불 필요"를 누르세요. 환불 송금은 지갑에서 직접 한 뒤 거래 해시를 적고 "환불함"을 누릅니다. 이 화면은 돈을 보내지 않습니다.</p>
+<div class="actions"><button id="load-paid" type="button" class="btn">결제 대기열 불러오기</button><label class="field">월별 내보내기(YYYY-MM)<input id="paid-month" inputmode="numeric" maxlength="7" placeholder="2026-11"></label><button id="export-paid" type="button" class="btn">CSV 받기</button></div>
+<div id="paid-list" class="stack" aria-live="polite"></div>
+<p id="paid-status" role="status" aria-live="polite"></p>
 </section>
 </main>
 </div>

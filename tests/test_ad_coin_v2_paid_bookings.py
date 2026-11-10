@@ -234,3 +234,11 @@ def test_http_quote_pay_list_and_operator_export(world):
     assert bad.status_code == 422
     assert [i['id'] for i in client.get(base, headers=suite.headers('editor')).json()['items']] == [q['id']]
     assert client.get('/api/ad-coin/v2/admin/paid-bookings', headers=suite.headers('approver')).status_code == 403
+
+
+def test_missing_krw_rate_sends_the_payment_to_review(world):
+    suite, service, rpc, _ = world
+    service.krw_rate = lambda: None
+    q = quote(world)
+    assert service.submit(suite.advertiser, q['id'], rpc.send(int(q['amount_units'])), now_ms=NOW + 60_000)['state'] == 'review'
+    assert suite.service.store.one('paid_booking_get', (q['id'],))['note'] == 'krw_rate_unavailable'

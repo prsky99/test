@@ -236,10 +236,12 @@ class PaidBookings:
                 # Money arrived but not as quoted: an operator decides (accept or refund by hand).
                 self.store.execute("paid_booking_set_state", ("review", payer, self.krw_rate(), state, now_ms, booking_id))
             else:
-                screened = self.sanctions.screen(payer)
-                target = "confirmed" if screened == "clear" else "review"
+                screened, rate = self.sanctions.screen(payer), self.krw_rate()
                 note = None if screened == "clear" else "sanctions_" + screened
-                self.store.execute("paid_booking_set_state", (target, payer, self.krw_rate(), note, now_ms, booking_id))
+                if note is None and rate is None:
+                    note = "krw_rate_unavailable"   # the record needs a KRW value; an operator confirms it
+                self.store.execute("paid_booking_set_state", ("confirmed" if note is None else "review", payer, rate,
+                                                              note, now_ms, booking_id))
             view = _view(self.store.one("paid_booking_get", (booking_id,)))
         if refused:
             raise ContractError(refused, 409)

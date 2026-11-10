@@ -36,7 +36,7 @@ def test_script_only_reads_and_loads_both_panels_in_parallel():
     assert 'Promise.allSettled' in js and "get('/overview')" in js and "get('/reconcile')" in js
     # Writes (step 2, 11-11) go only to the two decision APIs and always carry the site CSRF token.
     import re as _re
-    assert set(_re.findall(r"post\('(/[a-z]+)/", js)) == {'/applications', '/reviews'}
+    assert set(_re.findall(r"post\('(/[a-z-]+)/", js)) == {'/applications', '/reviews', '/paid-bookings'}
     assert "'X-CSRF-Token': await siteCsrf()" in js and js.count("method: 'POST'") == 1
     assert 'BigInt' in js  # atoms exceed Number's safe range
 

@@ -17,7 +17,7 @@
     $('offer-card').hidden=true;$('creative-card').hidden=true;$('outcome').hidden=true;
     $('preferences-fields').disabled=true;$('receive-offers').checked=false;
     document.querySelectorAll('input[name=context]').forEach(node=>node.checked=false);
-    $('campaigns').replaceChildren();$('reports').replaceChildren();$('campaign-form').hidden=true;$('booking-form').hidden=true;$('bookings').replaceChildren();state.booking=null;
+    $('campaigns').replaceChildren();$('reports').replaceChildren();$('campaign-form').hidden=true;$('booking-form').hidden=true;$('pay-card').hidden=true;state.payment=null;$('bookings').replaceChildren();state.booking=null;
     options('advertiser',[''],()=> 'Open your workspace first');
     $('region').value='';$('offers-limit').value=10;$('ads-limit').value=3;$('campaign-limit').value=1;$('time-limit').value=90;
   }
@@ -466,6 +466,35 @@
       $('exchange-form').hidden=true;
       text('notice','Exchange received: '+value.points+' points for '+value.credits+' credit'+(value.credits===1?'':'s')+'. Credits are added shortly.');
       await refreshWallet();});
+  });
+  function payMessage(error) {
+    if (error.status===404) return 'Paid placements are not available yet. You can book with coins.';
+    return ({payment_not_found:'No USDC on Base arrived at this address in that transaction. Check the network, token and address, then try another transaction hash.',
+      payment_failed:'That transaction failed on chain. Send the amount again and use the new transaction hash.',
+      payment_already_used:'That transaction already paid another booking.',quote_expired:'This quote has expired. Start the payment again for a new amount.',
+      invalid_tx_hash:'A transaction hash starts with 0x and has 64 more characters.',sponsored_day_full:'That day is full for this category and region. Choose another day.'})[error.code]||message(error);
+  }
+  function showPayment(value) {
+    state.payment=value;$('pay-card').hidden=false;
+    text('pay-amount',value.amount_usdc);text('pay-to',value.pay_to);text('pay-expiry',new Date(value.expires_ms).toLocaleTimeString());
+    text('pay-status',value.state==='confirmed'?'Payment confirmed. Your placement is booked.':value.state==='confirming'?'Payment found. Waiting for Base to confirm it; this usually takes under a minute.':value.state==='review'?'Payment received. We are checking it and will confirm the booking shortly.':'Waiting for your payment.');
+    $('pay-title').focus?.();
+  }
+  $('pay-usdc').onclick=()=>run($('pay-usdc'),async()=>{
+    const campaign=state.booking, adv=advertiser();if (!campaign||!adv) return;
+    const body={campaign_id:campaign.id,day:$('booking-day').value,task_category:$('booking-category').value,region:$('booking-region').value};
+    try {const {value}=await api('/advertisers/'+adv.id+'/paid-bookings',{method:'POST',body});$('booking-form').hidden=true;showPayment(value);}
+    catch (error) {if (error.status) {text('notice',payMessage(error));return;} throw error;}
+  });
+  $('copy-amount').onclick=()=>navigator.clipboard?.writeText($('pay-amount').textContent).then(()=>text('pay-status','Amount copied.'));
+  $('copy-address').onclick=()=>navigator.clipboard?.writeText($('pay-to').textContent).then(()=>text('pay-status','Address copied.'));
+  $('pay-form').addEventListener('submit',event=>{
+    event.preventDefault();
+    const adv=advertiser(), payment=state.payment;if (!adv||!payment) return;
+    run(event.submitter,async()=>{
+      try {const {value}=await api('/advertisers/'+adv.id+'/paid-bookings/'+payment.id+'/payment',{method:'POST',body:{tx_hash:$('pay-tx').value.trim()}});showPayment(value);await loadBookings();}
+      catch (error) {if (error.status) {text('pay-status',payMessage(error));return;} throw error;}
+    });
   });
   $('load-bookings').onclick=()=>run($('load-bookings'),loadBookings);
   $('cancel-booking-form').onclick=()=>{$('booking-form').hidden=true;state.booking=null;};
