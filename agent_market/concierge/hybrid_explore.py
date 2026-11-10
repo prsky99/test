@@ -51,34 +51,45 @@ MODIFIERS = frozenset('''json output outputs api apis quickly quick fast today n
     cheap my team history small business agents agent korea please tool tools service online'''.split())
 STOPWORDS = frozenset('''a an the is are be it its this that what which who how when where can could would should
     i me my we our you your in on at for of to from with and or by find get give show need want looking'''.split())
-RELAX_BUDGET = 1.5  # seconds of server time spent on relaxed retries
+RELAX_BUDGET = 3.0  # retries start only within this many seconds; they run only after zero results
+RELAX_TRIES = 2
+
+
+def cleaned_query(query):
+    """The query without numbers and delivery words, or None when nothing would change."""
+    words = [w for w in re.findall(r"[^\s,;]+", str(query or "")) if w]
+    content = [w for w in words if not re.fullmatch(r"[\d.,:/-]+", w) and w.casefold() not in MODIFIERS]
+    return " ".join(content) if content and content != words else None
 
 
 def relaxed_queries(query):
-    """Shorter forms of a query, most specific first: modifiers and numbers removed, then trailing words."""
+    """Shorter forms of a query that found nothing: function words removed, then a leading word
+    (often the verb: "book flights" -> "flights"), then a trailing word, alternately."""
     words = [w for w in re.findall(r"[^\s,;]+", str(query or "")) if w]
     content = [w for w in words if not re.fullmatch(r"[\d.,:/-]+", w) and w.casefold() not in MODIFIERS]
     forms = []
-    if content and content != words:
-        forms.append(" ".join(content))
     core = [w for w in content if w.casefold() not in STOPWORDS]
     if core and core != content:
         forms.append(" ".join(core))
     content = core or content
-    for size in range(len(content) - 1, 0, -1):
-        forms.append(" ".join(content[:size]))
+    for drop in range(1, len(content)):
+        forms.append(" ".join(content[drop:]))
+        forms.append(" ".join(content[:-drop]))
     return list(dict.fromkeys(f for f in forms if f and f != str(query).strip()))
 
 
 @observed('explore')
 @contract_reads
 def scoped_explore(source, engine, query, kind, category, verified, no_auth, limit):
-    """Search, and when nothing is found, search shorter forms of the query (research design 4, 11-10)."""
+    """Search the query without numbers and delivery words; when nothing is found, search up to
+    RELAX_TRIES shorter forms (research design 4, 11-10/11). The answer names relaxed_query."""
     started = time.monotonic()
-    result = _scoped_explore(source, engine, query, kind, category, verified, no_auth, limit)
-    if result.get("items") or not str(query or "").strip():
-        return result
-    for relaxed in relaxed_queries(query):
+    cleaned = cleaned_query(query)
+    searched = cleaned or query
+    result = _scoped_explore(source, engine, searched, kind, category, verified, no_auth, limit)
+    if result.get("items") or not str(searched or "").strip():
+        return {**result, "relaxed_query": cleaned} if cleaned and result.get("items") else result
+    for relaxed in relaxed_queries(searched)[:RELAX_TRIES]:
         if time.monotonic() - started > RELAX_BUDGET:
             break
         retry = _scoped_explore(source, engine, relaxed, kind, category, verified, no_auth, limit)
