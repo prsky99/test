@@ -160,3 +160,19 @@ def test_security_blocks_are_counted_by_cause(tmp_path):
     src = (Path(__file__).resolve().parents[1] / 'agent_market/concierge/front.py').read_text()
     assert "cause=request.scope.get('traffic_cause')" in src
     assert src.count("request.scope['traffic_cause'] = 'blocked_ip'") == 1 and "'policy_denied'" in src
+
+
+def test_spec_answers_and_missing_well_known_files_are_counted_apart(tmp_path):
+    """11-11: 405 on MCP GET/DELETE and 404 on OAuth discovery are ':spec'; missing discovery files are named."""
+    rec = Traffic(tmp_path)
+    ua = 'python-httpx/0.28'
+    rec.observe('GET', '/mcp', 405, '203.0.113.9', ua)
+    rec.observe('DELETE', '/mcp', 405, '203.0.113.9', ua)
+    rec.observe('GET', '/.well-known/oauth-protected-resource/mcp', 404, '203.0.113.9', ua)
+    rec.observe('GET', '/.well-known/agents.json', 404, '203.0.113.9', ua)
+    rec.observe('GET', '/.well-known/' + 'x' * 500, 404, '203.0.113.9', ua)
+    keys = set(rec.errors)
+    assert sum(k.split('|')[1] == '405:spec' for k in keys) == 2
+    assert any(k.startswith('well_known|404:spec|GET|/.well-known/oauth-protected-resource/mcp|') for k in keys)
+    assert any(k.startswith('well_known|404|GET|/.well-known/agents.json|') for k in keys)
+    assert any(k.startswith('well_known|404|GET|other|') for k in keys) and all(len(k) < 160 for k in keys)

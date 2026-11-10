@@ -104,3 +104,32 @@ def test_protocol_first_call_fixes(w):  # noqa: F811
         'kind': 'message', 'role': 'user', 'messageId': 'm1', 'parts': [{'kind': 'text', 'text': 'find a weather API'}]}}}
     r = c.post('/a2a/', json=message, follow_redirects=False)
     assert r.status_code == 200 and r.json()['result']['kind'] == 'message'
+
+
+def test_newer_protocol_header_still_negotiates(w):  # noqa: F811
+    """11-11: a client on a newer MCP revision can still discover and initialize; other calls get 400 with the list."""
+    _, c, _ = w
+    head = {'MCP-Protocol-Version': '2026-06-30', 'Accept': 'application/json, text/event-stream'}
+    found = c.post('/mcp', json={'jsonrpc': '2.0', 'id': 1, 'method': 'server/discover', 'params': {}}, headers=head)
+    assert found.status_code == 200
+    assert found.json()['result']['supportedVersions'][0] == found.json()['result']['protocolVersion']
+    init = c.post('/mcp', headers=head, json={'jsonrpc': '2.0', 'id': 2, 'method': 'initialize', 'params': {
+        'protocolVersion': '2026-06-30', 'clientInfo': {'name': 'Next'}, 'capabilities': {}}})
+    assert init.status_code == 200 and init.json()['result']['protocolVersion'] in ('2025-11-25', '2025-06-18')
+    listed = c.post('/mcp', json={'jsonrpc': '2.0', 'id': 3, 'method': 'tools/list'}, headers=head)
+    assert listed.status_code == 400 and listed.json()['id'] == 3
+    assert listed.json()['error']['data'] == {'supported': ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'],
+                                              'requested': '2026-06-30'}
+    ok = c.post('/mcp', json={'jsonrpc': '2.0', 'id': 4, 'method': 'tools/list'},
+                headers={'MCP-Protocol-Version': '2025-06-18'})
+    assert ok.status_code == 200 and ok.json()['result']['tools']
+
+
+def test_well_known_aliases_point_at_the_real_files(w):  # noqa: F811
+    _, c, _ = w
+    for alias, target in (('/.well-known/llms.txt', '/llms.txt'),
+                          ('/.well-known/mcp/server-card.json', '/.well-known/mcp/server.json')):
+        r = c.get(alias, follow_redirects=False)
+        assert r.status_code == 301 and r.headers['location'] == target
+        assert c.get(alias).status_code == 200
+    assert c.get('/.well-known/oauth-protected-resource').status_code == 404  # no OAuth: 404 is the spec answer

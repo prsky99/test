@@ -112,6 +112,20 @@ def client_of(ip, ua, internal_ips):
 PROBE_NAME = re.compile(r'probe|check|registry|catalog|index|scan|monitor|beat|rank|glama|smithery|pulse|directory|crawler|'
                         r'inspector|validator|health|test|atlas|bazaar|status', re.I)
 RPC_ENTRIES = ('mcp', 'a2a')
+WELL_KNOWN_NAME = re.compile(r'/\.well-known/[A-Za-z0-9._-]{1,60}(?:/[A-Za-z0-9._-]{1,60})?')
+# 4xx answers the protocols ask for (11-11): an auth-free MCP server answers 404 to OAuth discovery
+# (RFC 9728, MCP authorization), and the MCP/A2A POST endpoints answer 405 to other methods. They
+# are counted with ':spec' so they are not read as failures.
+SPEC_404 = ('/.well-known/oauth-protected-resource', '/.well-known/oauth-authorization-server',
+            '/.well-known/openid-configuration')
+
+
+def spec_cause(entry, method, path, status):
+    if status == 405 and entry in RPC_ENTRIES and method in ('GET', 'HEAD', 'DELETE'):
+        return 'spec'
+    if status == 404 and entry == 'well_known' and path.startswith(SPEC_404):
+        return 'spec'
+    return None
 
 
 def rpc_method(body):
@@ -225,6 +239,15 @@ class Traffic:
                 name = mcp_client_name(body)
                 if name:
                     self.mcp_clients[name] += 1
+            if isinstance(status, int) and status >= 400 and cause is None:
+                cause = spec_cause(entry, method, path, status)
+            if entry == 'well_known' and client != 'internal' and isinstance(status, int) and status >= 400:
+                # Which discovery file was missing: the path name only, bounded (11-11).
+                name = WELL_KNOWN_NAME.fullmatch(path)
+                key = ('well_known|' + str(status) + (':' + cause if cause else '') + '|' + method + '|'
+                       + (name.group(0) if name else 'other') + '|' + client)
+                if key in self.errors or len(self.errors) < 2000:  # scanners cannot grow it without bound
+                    self.errors[key] += 1
             if entry in RPC_ENTRIES and client != 'internal':
                 rpc = rpc_method(body) if method == 'POST' else None
                 kind = self._kind(entry, client, body, headers, response_headers)

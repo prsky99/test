@@ -529,7 +529,7 @@ def site_verification(name, path_fn=None):
 # ---------------------------------------------------------------- router
 def growth_router():
     from fastapi import APIRouter
-    from fastapi.responses import HTMLResponse, PlainTextResponse, Response
+    from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
     from starlette.concurrency import run_in_threadpool
     from .page_markdown import route_class
     router = APIRouter(route_class=route_class())  # Accept: text/markdown gets the Markdown view of each page
@@ -597,5 +597,15 @@ def growth_router():
         if line is None:
             return Response(status_code=404)
         return PlainTextResponse(line+'\n', headers={'Cache-Control': 'no-store'})
+
+    def moved(target):
+        def endpoint():  # no parameters, so FastAPI reads nothing from the request
+            return RedirectResponse(target, status_code=301)
+        return endpoint
+
+    # 11-11: agents also look for these discovery files under /.well-known/; point them at the real ones.
+    for alias, target in (('/.well-known/llms.txt', '/llms.txt'),
+                          ('/.well-known/mcp/server-card.json', '/.well-known/mcp/server.json')):
+        router.add_api_route(alias, moved(target), methods=['GET', 'HEAD'], include_in_schema=False)
 
     return router

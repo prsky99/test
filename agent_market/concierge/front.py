@@ -3238,10 +3238,8 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
         if (r := limited(request)) is not None:
             return r
         version = request.headers.get("mcp-protocol-version")
-        if version is not None and version.strip() not in MCP_VERSIONS:
-            # Streamable HTTP: an unsupported protocol version header is a 400 Bad Request.
-            return JSONResponse({"jsonrpc": "2.0", "id": None, "error": {"code": -32600,
-                "message": "Unsupported MCP-Protocol-Version. Supported: " + ", ".join(MCP_VERSIONS) + "."}}, status_code=400)
+        # Checked after parsing: initialize and server/discover negotiate the version (11-11).
+        unsupported_version = version is not None and version.strip() not in MCP_VERSIONS
         edge_mode = None
         try:
             raw_body = await read_body(request)
@@ -3272,6 +3270,11 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
         rid, method, params = req.get("id"), req.get("method"), req.get("params", {})
         if not isinstance(params, dict) or not isinstance(method, str):
             return {"jsonrpc": "2.0", "id": rid, "error": {"code": -32602, "message": "method must be a string and params must be an object."}}
+        if unsupported_version and method not in ("initialize", "server/discover"):
+            # Streamable HTTP: an unsupported protocol version header is a 400 Bad Request.
+            return JSONResponse({"jsonrpc": "2.0", "id": rid, "error": {"code": -32600,
+                "message": "Unsupported MCP-Protocol-Version. Supported: " + ", ".join(MCP_VERSIONS) + ".",
+                "data": {"supported": list(MCP_VERSIONS), "requested": version.strip()[:40]}}}, status_code=400)
         session = request.headers.get("mcp-session-id")
         meta = (params.get("_meta") or req.get("_meta") or {}) if isinstance(params, dict) else {}
         client_meta = meta.get("io.modelcontextprotocol/clientInfo") if isinstance(meta, dict) else {}
@@ -3284,6 +3287,7 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
                             "visitor token — pass it as `visitor_token` (or the X-Visitor-Token header) so I remember you next time.\n\n"+RETURN_VISIT)
             return JSONResponse(mcp_result(rid, {
                 "protocolVersion": asked if asked in MCP_VERSIONS else MCP_VERSIONS[0],
+                "supportedVersions": list(MCP_VERSIONS),
                 "capabilities": {"tools": {"listChanged": False}, "tasks": mcp_tasks.CAPABILITY},
                 "serverInfo": {"name": "agent-concierge", "title": "Agent Concierge (for AI agents)", "version": "1.0.0"},
                 "instructions": instructions}))
