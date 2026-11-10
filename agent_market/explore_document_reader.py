@@ -19,6 +19,13 @@ from .concierge.retrieval_metrics import timed
 from .postgres_capability_text import SEARCHABLE
 
 
+# Row fields no admission check reads (selection, task_requirements, explore_search, execution_policy,
+# content_policy, recommendation_security, protocols, capability_registry, 11-11). Cards re-read complete rows,
+# so these never reach a visitor from here; skipping them cuts the decoded bytes of an Explore candidate
+# (A2A about 24%, MCP about 7%: usage_tools stays, it is bound into the document).
+SKIPPED = frozenset(("usage_full_tools", "eval_info", "usage_changes", "content_hash", "last_error"))
+
+
 @timed("search_document")
 def read(store, ids):
     """Current rows with their documents when generation, policy and document hash all match."""
@@ -27,7 +34,7 @@ def read(store, ids):
     from .application_store_postgres import _CATALOG
     from psycopg import sql
 
-    columns = [row[1] for row in _CATALOG["metadata"]["resources"] if row[1] != "usage_full_tools"]
+    columns = [row[1] for row in _CATALOG["metadata"]["resources"] if row[1] not in SKIPPED]
     sizes = sql.SQL("+").join(
         sql.SQL("coalesce(octet_length(r.{}),0)").format(sql.Identifier(row[1]))
         for row in _CATALOG["metadata"]["resources"]

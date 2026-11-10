@@ -133,3 +133,10 @@ def test_supported_discovery_gate_still_runs_without_full_schema_parsing():
     # The fact does not turn an unsupported tool into an executable one.
     row["_tool_support"] = {"get_weather_forecast": False}
     assert not match("weather forecast seoul", row)
+
+
+def test_the_explore_read_skips_only_fields_the_document_does_not_bind():
+    """P0 (11-11): the candidate read leaves out fields no admission check reads; bound fields stay."""
+    from agent_market import explore_document_reader as reader, explore_documents as documents
+    assert not reader.SKIPPED & set(documents.BOUND_FIELDS)
+    assert {'usage_tools', 'details', 'auth_observed', 'auth_declared', 'url', 'trial_info'}.isdisjoint(reader.SKIPPED)
