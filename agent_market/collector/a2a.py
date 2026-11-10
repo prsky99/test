@@ -36,6 +36,7 @@ from .auth_discovery import compact, instructions
 log = logging.getLogger("agent_market.collector.a2a")
 
 USER_AGENT = "agent-collector/0.1 (+A2A agent survey; no credentials or payments are sent)"
+DUE_TIMEOUT_BACKOFF = 300  # seconds to wait after a timed-out due pick (11-10)
 MAX_CARD = 512 * 1024
 CARD_PATHS = ("/.well-known/agent-card.json", "/.well-known/agent.json")
 SAMPLE_CHARS = 500
@@ -726,7 +727,18 @@ class AgentProber:
         return {"changed": changed and old is not None, "trial": trial, "grade": ev["grade"], "security": ev["security"]}
 
     def run_due(self, limit: int = 100) -> dict:
-        due = self.store.due_for_capability(time.time(), self.max_age, limit, kind="a2a")
+        # 11-10 13:28: the due pick passed the 5 s statement timeout under load and the round crashed.
+        # Nothing is written by the pick, so the round is skipped and waits before the next try.
+        if time.monotonic() < getattr(self, "_due_backoff_until", 0.0):
+            return {"checked": 0, "accepted": 0, "stale": 0, "skipped": "statement_timeout_backoff"}
+        try:
+            due = self.store.due_for_capability(time.time(), self.max_age, limit, kind="a2a")
+        except Exception as exc:
+            if getattr(exc, "code", None) != "statement_failed":
+                raise
+            self._due_backoff_until = time.monotonic() + DUE_TIMEOUT_BACKOFF
+            log.warning("a2a: due pick timed out under load; next try in %d s", DUE_TIMEOUT_BACKOFF)
+            return {"checked": 0, "accepted": 0, "stale": 0, "skipped": "statement_timeout"}
         if not due:
             return {"checked": 0, "accepted": 0, "stale": 0}
         by_host: dict[str, list[dict]] = defaultdict(list)

@@ -90,15 +90,33 @@ _WAITING = '''NOT EXISTS (SELECT 1 FROM public.vec_outbox o WHERE o.resource_id=
                 WHERE h.resource_id=e.resource_id AND j.status IN ('pending','claimed'))'''
 
 
+# 11-10 10:59: the stale-row search (embeddings x provenance, temp files of 50-78 MB) passed the
+# 5 s statement timeout under load. Cleanup is housekeeping: skip the round and try again later.
+CLEANUP_TIMEOUT_BACKOFF = 300
+_cleanup_backoff_until = 0.0
+
+
 def cleanup(store):
+    global _cleanup_backoff_until
+    import logging
+    import time
+    if time.monotonic() < _cleanup_backoff_until:
+        return 0
     # Changed/deleted publications cannot rank as current, even before cleanup.
     # Find stale rows without the writer lock (a full comparison can take seconds under
     # load and would block every writer); the short delete re-checks the same predicate.
-    with store.tx(readonly=True):
-        stale = [row[0] for row in store._execute('''SELECT e.resource_id FROM agentcon_search.embeddings e
-            LEFT JOIN public.legacy_vector_provenance p ON p.resource_id=e.resource_id
-            WHERE (p.resource_id IS NULL OR p.vector_hash<>e.vector_hash
-              OR p.descriptor_hash<>e.descriptor_hash) AND ''' + _WAITING + ''' LIMIT 256''').fetchall()]
+    try:
+        with store.tx(readonly=True):
+            stale = [row[0] for row in store._execute('''SELECT e.resource_id FROM agentcon_search.embeddings e
+                LEFT JOIN public.legacy_vector_provenance p ON p.resource_id=e.resource_id
+                WHERE (p.resource_id IS NULL OR p.vector_hash<>e.vector_hash
+                  OR p.descriptor_hash<>e.descriptor_hash) AND ''' + _WAITING + ''' LIMIT 256''').fetchall()]
+    except Exception as error:
+        if getattr(error, 'code', None) != 'statement_failed':
+            raise
+        _cleanup_backoff_until = time.monotonic() + CLEANUP_TIMEOUT_BACKOFF
+        logging.getLogger(__name__).warning('Vector cleanup search timed out under load; next try in %d s', CLEANUP_TIMEOUT_BACKOFF)
+        return 0
     if not stale:
         return 0
     marks = ','.join(['%s'] * len(stale))  # bound integer ids; the store accepts at most 256 parameters
