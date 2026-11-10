@@ -202,7 +202,7 @@ class Traffic:
         self.errors = Counter()        # "entry|status|request shape|rpc method" -> 4xx/5xx protocol requests (non-internal)
         self.sessions = {}             # MCP session id -> 'probe' | 'real' (memory only, today)
 
-    def observe(self, method, path, status, ip, ua, body=None, headers=None, response_headers=None):
+    def observe(self, method, path, status, ip, ua, body=None, headers=None, response_headers=None, cause=None):
         entry = entry_of(method, path)
         if entry is None:
             return
@@ -231,7 +231,9 @@ class Traffic:
                 if rpc:
                     self.rpc[entry + '|' + rpc + '|' + kind] += 1
                 if isinstance(status, int) and status >= 400:
-                    self.errors[entry + '|' + str(status) + '|' + request_shape(method, path, headers) + '|' + (rpc or '-')] += 1
+                    # cause (11-10): our own security blocks (blocked_ip, policy_denied) are counted apart
+                    # from protocol failures so a block window does not read as a client problem.
+                    self.errors[entry + '|' + str(status) + (':' + cause if cause else '') + '|' + request_shape(method, path, headers) + '|' + (rpc or '-')] += 1
             if self.clock() - self.flushed >= FLUSH_SECONDS:
                 self._write_locked()
 

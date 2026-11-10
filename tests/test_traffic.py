@@ -146,3 +146,17 @@ def test_growth_pages_are_counted_by_family_and_bot(tmp_path):
     rec.flush()
     day = t.summarize(tmp_path, 1)[-1]
     assert day['growth_bot'] == 2
+
+
+def test_security_blocks_are_counted_by_cause(tmp_path):
+    """11-10: our own IP block and policy denials stay apart from protocol 403s in the 4xx counts."""
+    from pathlib import Path
+    rec = Traffic(tmp_path)
+    body = b'{"jsonrpc":"2.0","id":1,"method":"initialize"}'
+    rec.observe('POST', '/mcp', 403, '203.0.113.9', 'python-httpx/0.28', body, cause='blocked_ip')
+    rec.observe('POST', '/mcp', 403, '203.0.113.9', 'python-httpx/0.28', body)
+    statuses = sorted(key.split('|')[1] for key in rec.errors)
+    assert statuses == ['403', '403:blocked_ip']
+    src = (Path(__file__).resolve().parents[1] / 'agent_market/concierge/front.py').read_text()
+    assert "cause=request.scope.get('traffic_cause')" in src
+    assert src.count("request.scope['traffic_cause'] = 'blocked_ip'") == 1 and "'policy_denied'" in src

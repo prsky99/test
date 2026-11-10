@@ -2183,7 +2183,8 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             from .traffic import recorder
             recorder().observe(request.method, request.url.path, response.status_code, client_ip,
                                request.headers.get('user-agent', ''), getattr(request, '_body', None),
-                               request.headers, response.headers)
+                               request.headers, response.headers,
+                               cause=request.scope.get('traffic_cause'))
         except Exception:
             pass
         for key,value in request.scope.get('agent_adoption_quota',{}).items():response.headers.setdefault(key,value)
@@ -2196,12 +2197,14 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
         if blocked:
             front.security.record_blocked(client_ip, request.url.path, request.method,
                                           request.headers.get("user-agent"), reason or "Blocked by security policy")
+            request.scope['traffic_cause'] = 'blocked_ip'
             return JSONResponse({"audience":AUDIENCE,"error_code":"ACCESS_BLOCKED","retryable":False,
                 "error":"Security checks blocked this request. If you believe this is a mistake, contact support.",
                 "next_action":{"action":"contact_support","url":"/#contact"}},status_code=403)
 
         # Detect scanner probes
         if front.security.check_suspicious_patterns(request, client_ip):
+            request.scope['traffic_cause'] = 'policy_denied'
             return JSONResponse({"audience":AUDIENCE,"error_code":"REQUEST_POLICY_DENIED","retryable":False,
                 "error":"Security checks rejected this request. Review its URL and parameters before trying again.",
                 "next_action":{"action":"review_request"}},status_code=403)
@@ -2209,6 +2212,7 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
         req_p = request.url.path.lower()
         if req_p.startswith(("/.env", "/.git", "/wp-", "/etc/")) or "/.." in req_p:
             front.security.record_violation(client_ip, "scanner_probe", request.url.path, request.method, request.headers.get("user-agent"), "Scanner probe rejected")
+            request.scope['traffic_cause'] = 'policy_denied'
             return JSONResponse({"audience":AUDIENCE,"error_code":"REQUEST_POLICY_DENIED","retryable":False,
                 "error":"Security checks rejected this request. Review its URL and parameters before trying again.",
                 "next_action":{"action":"review_request"}},status_code=403)
