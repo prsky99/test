@@ -1,90 +1,396 @@
 {
-  "_about": "Real-task answer set (11-10, stage 3). 30 tasks: 15 written as a person would ask (growth), 15 as an agent would ask (search and RAG). A recommendation passes only if a recommended agent, called read-only and without payment or sign-in, returns what must_return describes for sample_input. Internal scores do not count.",
-  "fields": {
-    "id": "stable id",
-    "who": "person | agent",
-    "task": "the request exactly as typed into Chat, Explore or find_agents",
-    "needs": "the capability a tool must have for the task to succeed",
-    "sample_input": "the input used when the grader calls the recommended tool",
-    "must_return": "what the tool's answer must contain to count as success",
-    "fail_if": "answers that count as failure even when the call returns 200",
-    "free_check": "true when the grader can verify with a free, read-only call; false when only listing evidence can be checked (paid x402)"
+ "_about": "Real-task answer set (11-10, stage 3). 30 tasks: 15 written as a person would ask (growth), 15 as an agent would ask (search and RAG). A recommendation passes only if a recommended agent, called read-only and without payment or sign-in, returns what must_return describes for sample_input. Internal scores do not count.",
+ "fields": {
+  "id": "stable id",
+  "who": "person | agent",
+  "task": "the request exactly as typed into Chat, Explore or find_agents",
+  "needs": "the capability a tool must have for the task to succeed",
+  "sample_input": "the input used when the grader calls the recommended tool",
+  "must_return": "what the tool's answer must contain to count as success",
+  "fail_if": "answers that count as failure even when the call returns 200",
+  "free_check": "true when the grader can verify with a free, read-only call; false when only listing evidence can be checked (paid x402)"
+ },
+ "tasks": [
+  {
+   "id": "p01",
+   "who": "person",
+   "task": "What's the weather forecast for Seoul tomorrow?",
+   "needs": "daily weather forecast for a named city",
+   "sample_input": {
+    "city": "Seoul",
+    "days": 2
+   },
+   "must_return": "tomorrow's date with temperature (min/max or hourly) and precipitation or condition for Seoul",
+   "fail_if": "current conditions only; another city; no date",
+   "free_check": true
   },
-  "tasks": [
-    {"id": "p01", "who": "person", "task": "What's the weather forecast for Seoul tomorrow?",
-     "needs": "daily weather forecast for a named city",
-     "sample_input": {"city": "Seoul", "days": 2},
-     "must_return": "tomorrow's date with temperature (min/max or hourly) and precipitation or condition for Seoul",
-     "fail_if": "current conditions only; another city; no date", "free_check": true},
-    {"id": "p02", "who": "person", "task": "Convert 250 US dollars to Korean won at today's rate",
-     "needs": "current currency exchange rate between two currencies",
-     "sample_input": {"from": "USD", "to": "KRW", "amount": 250},
-     "must_return": "a USD->KRW rate dated within the last 2 days, or the converted amount with its rate date",
-     "fail_if": "rate older than 7 days; crypto prices instead of fiat", "free_check": true},
-    {"id": "p03", "who": "person", "task": "Show me Apple's most recent SEC filings",
-     "needs": "SEC EDGAR filings by ticker or company name",
-     "sample_input": {"ticker": "AAPL"},
-     "must_return": "a list of filings with form type (10-K, 10-Q, 8-K ...) and filing date, newest within the last 120 days",
-     "fail_if": "stock price only; no form types or dates", "free_check": true},
-    {"id": "p04", "who": "person", "task": "Read this page and give me the main text: https://www.anthropic.com/news",
-     "needs": "fetch a public web page and return its readable text or Markdown",
-     "sample_input": {"url": "https://www.anthropic.com/news"},
-     "must_return": "the page's article titles or body text as text or Markdown (not raw HTML only)",
-     "fail_if": "error for a public URL; only metadata such as title and description", "free_check": true},
-    {"id": "p05", "who": "person", "task": "Is CVE-2024-3094 actively exploited?",
-     "needs": "CVE lookup with exploitation evidence (CISA KEV or EPSS)",
-     "sample_input": {"cve": "CVE-2024-3094"},
-     "must_return": "the CVE's description or CVSS plus whether it is in CISA KEV or its EPSS score",
-     "fail_if": "unknown CVE; generic advice without data", "free_check": true},
-    {"id": "p06", "who": "person", "task": "What are the public holidays in Japan in 2026?",
-     "needs": "public holiday calendar by country and year",
-     "sample_input": {"country": "JP", "year": 2026},
-     "must_return": "a list of dated 2026 holidays in Japan including 2026-01-01",
-     "fail_if": "another country or year; business-day calculation only", "free_check": true},
-    {"id": "p07", "who": "person", "task": "Look up the DNS records for example.com",
-     "needs": "DNS lookup of A, MX or TXT records for a domain",
-     "sample_input": {"domain": "example.com"},
-     "must_return": "at least the A record(s) for example.com",
-     "fail_if": "WHOIS only; no record values", "free_check": true},
-    {"id": "p08", "who": "person", "task": "Find recent research papers about retrieval augmented generation",
-     "needs": "academic paper search (arXiv, Semantic Scholar, OpenAlex or Crossref)",
-     "sample_input": {"query": "retrieval augmented generation", "limit": 5},
-     "must_return": "paper titles with authors or links, at least one published in the last 12 months",
-     "fail_if": "web search results without papers; empty list", "free_check": true},
-    {"id": "p09", "who": "person", "task": "What's the latest version of the Python package requests, and does it have known vulnerabilities?",
-     "needs": "package registry metadata plus vulnerability lookup (PyPI and OSV)",
-     "sample_input": {"ecosystem": "PyPI", "package": "requests"},
-     "must_return": "the latest released version number and a vulnerability result (advisories list or 'none found') for that package",
-     "fail_if": "npm package; version only with no vulnerability answer", "free_check": true},
-    {"id": "p10", "who": "person", "task": "Translate 'Where is the train station?' into Korean",
-     "needs": "text translation between languages",
-     "sample_input": {"text": "Where is the train station?", "target": "ko"},
-     "must_return": "a Korean sentence asking where the train station is (contains 역)",
-     "fail_if": "language detection only; English output", "free_check": true},
-    {"id": "p11", "who": "person", "task": "Get the coordinates of the Eiffel Tower",
-     "needs": "geocoding a place name or address to latitude and longitude",
-     "sample_input": {"query": "Eiffel Tower, Paris"},
-     "must_return": "latitude about 48.858 and longitude about 2.294 (within 0.01)",
-     "fail_if": "reverse geocoding only; another place", "free_check": true},
-    {"id": "p12", "who": "person", "task": "Are there any weather alerts in California right now?",
-     "needs": "active US National Weather Service alerts by state",
-     "sample_input": {"state": "CA"},
-     "must_return": "a list of active alerts with event names, or an explicit empty list with the time checked",
-     "fail_if": "forecast without alerts; another state", "free_check": true},
-    {"id": "p13", "who": "person", "task": "What time is it in New York and in Seoul right now?",
-     "needs": "current time or time-zone conversion for named places",
-     "sample_input": {"zones": ["America/New_York", "Asia/Seoul"]},
-     "must_return": "current local times for both zones within 2 minutes of the real time",
-     "fail_if": "UTC offset only without times; one zone only", "free_check": true},
-    {"id": "p14", "who": "person", "task": "When does the SSL certificate for example.com expire?",
-     "needs": "TLS certificate inspection for a domain",
-     "sample_input": {"domain": "example.com"},
-     "must_return": "the certificate's expiry date (and ideally issuer) for example.com",
-     "fail_if": "domain registration expiry instead of the certificate", "free_check": true},
-    {"id": "p15", "who": "person", "task": "Find an API that gives me the transcript of a YouTube video",
-     "needs": "YouTube transcript or captions for a video URL",
-     "sample_input": {"url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"},
-     "must_return": "timed or plain caption text for the video",
-     "fail_if": "video metadata only; summary without transcript", "free_check": false}
-  ]
+  {
+   "id": "p02",
+   "who": "person",
+   "task": "Convert 250 US dollars to Korean won at today's rate",
+   "needs": "current currency exchange rate between two currencies",
+   "sample_input": {
+    "from": "USD",
+    "to": "KRW",
+    "amount": 250
+   },
+   "must_return": "a USD->KRW rate dated within the last 2 days, or the converted amount with its rate date",
+   "fail_if": "rate older than 7 days; crypto prices instead of fiat",
+   "free_check": true
+  },
+  {
+   "id": "p03",
+   "who": "person",
+   "task": "Show me Apple's most recent SEC filings",
+   "needs": "SEC EDGAR filings by ticker or company name",
+   "sample_input": {
+    "ticker": "AAPL"
+   },
+   "must_return": "a list of filings with form type (10-K, 10-Q, 8-K ...) and filing date, newest within the last 120 days",
+   "fail_if": "stock price only; no form types or dates",
+   "free_check": true
+  },
+  {
+   "id": "p04",
+   "who": "person",
+   "task": "Read this page and give me the main text: https://www.anthropic.com/news",
+   "needs": "fetch a public web page and return its readable text or Markdown",
+   "sample_input": {
+    "url": "https://www.anthropic.com/news"
+   },
+   "must_return": "the page's article titles or body text as text or Markdown (not raw HTML only)",
+   "fail_if": "error for a public URL; only metadata such as title and description",
+   "free_check": true
+  },
+  {
+   "id": "p05",
+   "who": "person",
+   "task": "Is CVE-2024-3094 actively exploited?",
+   "needs": "CVE lookup with exploitation evidence (CISA KEV or EPSS)",
+   "sample_input": {
+    "cve": "CVE-2024-3094"
+   },
+   "must_return": "the CVE's description or CVSS plus whether it is in CISA KEV or its EPSS score",
+   "fail_if": "unknown CVE; generic advice without data",
+   "free_check": true
+  },
+  {
+   "id": "p06",
+   "who": "person",
+   "task": "What are the public holidays in Japan in 2026?",
+   "needs": "public holiday calendar by country and year",
+   "sample_input": {
+    "country": "JP",
+    "year": 2026
+   },
+   "must_return": "a list of dated 2026 holidays in Japan including 2026-01-01",
+   "fail_if": "another country or year; business-day calculation only",
+   "free_check": true
+  },
+  {
+   "id": "p07",
+   "who": "person",
+   "task": "Look up the DNS records for example.com",
+   "needs": "DNS lookup of A, MX or TXT records for a domain",
+   "sample_input": {
+    "domain": "example.com"
+   },
+   "must_return": "at least the A record(s) for example.com",
+   "fail_if": "WHOIS only; no record values",
+   "free_check": true
+  },
+  {
+   "id": "p08",
+   "who": "person",
+   "task": "Find recent research papers about retrieval augmented generation",
+   "needs": "academic paper search (arXiv, Semantic Scholar, OpenAlex or Crossref)",
+   "sample_input": {
+    "query": "retrieval augmented generation",
+    "limit": 5
+   },
+   "must_return": "paper titles with authors or links, at least one published in the last 12 months",
+   "fail_if": "web search results without papers; empty list",
+   "free_check": true
+  },
+  {
+   "id": "p09",
+   "who": "person",
+   "task": "What's the latest version of the Python package requests, and does it have known vulnerabilities?",
+   "needs": "package registry metadata plus vulnerability lookup (PyPI and OSV)",
+   "sample_input": {
+    "ecosystem": "PyPI",
+    "package": "requests"
+   },
+   "must_return": "the latest released version number and a vulnerability result (advisories list or 'none found') for that package",
+   "fail_if": "npm package; version only with no vulnerability answer",
+   "free_check": true
+  },
+  {
+   "id": "p10",
+   "who": "person",
+   "task": "Translate 'Where is the train station?' into Korean",
+   "needs": "text translation between languages",
+   "sample_input": {
+    "text": "Where is the train station?",
+    "target": "ko"
+   },
+   "must_return": "a Korean sentence asking where the train station is (contains 역)",
+   "fail_if": "language detection only; English output",
+   "free_check": true
+  },
+  {
+   "id": "p11",
+   "who": "person",
+   "task": "Get the coordinates of the Eiffel Tower",
+   "needs": "geocoding a place name or address to latitude and longitude",
+   "sample_input": {
+    "query": "Eiffel Tower, Paris"
+   },
+   "must_return": "latitude about 48.858 and longitude about 2.294 (within 0.01)",
+   "fail_if": "reverse geocoding only; another place",
+   "free_check": true
+  },
+  {
+   "id": "p12",
+   "who": "person",
+   "task": "Are there any weather alerts in California right now?",
+   "needs": "active US National Weather Service alerts by state",
+   "sample_input": {
+    "state": "CA"
+   },
+   "must_return": "a list of active alerts with event names, or an explicit empty list with the time checked",
+   "fail_if": "forecast without alerts; another state",
+   "free_check": true
+  },
+  {
+   "id": "p13",
+   "who": "person",
+   "task": "What time is it in New York and in Seoul right now?",
+   "needs": "current time or time-zone conversion for named places",
+   "sample_input": {
+    "zones": [
+     "America/New_York",
+     "Asia/Seoul"
+    ]
+   },
+   "must_return": "current local times for both zones within 2 minutes of the real time",
+   "fail_if": "UTC offset only without times; one zone only",
+   "free_check": true
+  },
+  {
+   "id": "p14",
+   "who": "person",
+   "task": "When does the SSL certificate for example.com expire?",
+   "needs": "TLS certificate inspection for a domain",
+   "sample_input": {
+    "domain": "example.com"
+   },
+   "must_return": "the certificate's expiry date (and ideally issuer) for example.com",
+   "fail_if": "domain registration expiry instead of the certificate",
+   "free_check": true
+  },
+  {
+   "id": "p15",
+   "who": "person",
+   "task": "Find an API that gives me the transcript of a YouTube video",
+   "needs": "YouTube transcript or captions for a video URL",
+   "sample_input": {
+    "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+   },
+   "must_return": "timed or plain caption text for the video",
+   "fail_if": "video metadata only; summary without transcript",
+   "free_check": false
+  },
+  {
+   "id": "a01",
+   "who": "agent",
+   "task": "Find an agent that converts PDF to text",
+   "needs": "extract plain text from a PDF given by URL",
+   "sample_input": {
+    "url": "https://arxiv.org/pdf/1706.03762"
+   },
+   "must_return": "plain text from the PDF that includes the phrase 'Attention Is All You Need'",
+   "fail_if": "an error, an empty string, or only page metadata",
+   "free_check": true
+  },
+  {
+   "id": "a02",
+   "who": "agent",
+   "task": "Need a tool that returns current price of BTC in USD as JSON",
+   "needs": "current cryptocurrency spot price",
+   "sample_input": {
+    "symbol": "BTC",
+    "currency": "USD"
+   },
+   "must_return": "a numeric BTC price in USD with a timestamp within the last day",
+   "fail_if": "a stock price; a price older than 7 days; a non-numeric value",
+   "free_check": true
+  },
+  {
+   "id": "a03",
+   "who": "agent",
+   "task": "Find an MCP server that can search GitHub repositories by keyword",
+   "needs": "repository search on GitHub",
+   "sample_input": {
+    "query": "model context protocol"
+   },
+   "must_return": "a list of GitHub repositories with names or URLs matching the query",
+   "fail_if": "issues or users only; an authentication error",
+   "free_check": true
+  },
+  {
+   "id": "a04",
+   "who": "agent",
+   "task": "Tool to fetch a web page and return clean markdown",
+   "needs": "fetch a URL and return its main content as markdown or text",
+   "sample_input": {
+    "url": "https://example.com"
+   },
+   "must_return": "text containing 'Example Domain'",
+   "fail_if": "raw HTML only; a screenshot; an error",
+   "free_check": true
+  },
+  {
+   "id": "a05",
+   "who": "agent",
+   "task": "Geocode a street address to latitude and longitude",
+   "needs": "forward geocoding of an address",
+   "sample_input": {
+    "address": "1600 Pennsylvania Avenue NW, Washington, DC"
+   },
+   "must_return": "latitude about 38.89 and longitude about -77.03",
+   "fail_if": "coordinates of another place; an empty result",
+   "free_check": true
+  },
+  {
+   "id": "a06",
+   "who": "agent",
+   "task": "Get the abstract of an arXiv paper by its id",
+   "needs": "arXiv paper metadata lookup by identifier",
+   "sample_input": {
+    "id": "1706.03762"
+   },
+   "must_return": "the title 'Attention Is All You Need' and its abstract text",
+   "fail_if": "search results without the requested paper",
+   "free_check": true
+  },
+  {
+   "id": "a07",
+   "who": "agent",
+   "task": "Look up a company's ticker symbol and latest stock quote",
+   "needs": "stock quote by ticker",
+   "sample_input": {
+    "symbol": "MSFT"
+   },
+   "must_return": "a numeric price for MSFT with a date within the last 7 days",
+   "fail_if": "crypto prices; a quote older than 7 days",
+   "free_check": true
+  },
+  {
+   "id": "a08",
+   "who": "agent",
+   "task": "Find an agent that answers WHOIS for a domain",
+   "needs": "domain WHOIS or RDAP registration lookup",
+   "sample_input": {
+    "domain": "example.com"
+   },
+   "must_return": "registrar or registration dates for example.com",
+   "fail_if": "DNS records only; an error",
+   "free_check": true
+  },
+  {
+   "id": "a09",
+   "who": "agent",
+   "task": "Need a tool to get npm package metadata (latest version)",
+   "needs": "npm registry package lookup",
+   "sample_input": {
+    "package": "express"
+   },
+   "must_return": "the latest published version number of express",
+   "fail_if": "a PyPI result; an error",
+   "free_check": true
+  },
+  {
+   "id": "a10",
+   "who": "agent",
+   "task": "Search Wikipedia and return the summary of an article",
+   "needs": "Wikipedia article summary",
+   "sample_input": {
+    "title": "Seoul"
+   },
+   "must_return": "a summary paragraph about Seoul from Wikipedia",
+   "fail_if": "another article; an empty answer",
+   "free_check": true
+  },
+  {
+   "id": "a11",
+   "who": "agent",
+   "task": "Convert an amount between two currencies using a daily rate API",
+   "needs": "fiat currency conversion with a dated rate",
+   "sample_input": {
+    "from": "EUR",
+    "to": "JPY",
+    "amount": 100
+   },
+   "must_return": "an EUR->JPY rate or converted amount with a date within the last 7 days",
+   "fail_if": "crypto rates; no date",
+   "free_check": true
+  },
+  {
+   "id": "a12",
+   "who": "agent",
+   "task": "Get air quality index for a city",
+   "needs": "current air quality measurements",
+   "sample_input": {
+    "city": "Delhi"
+   },
+   "must_return": "an AQI value or pollutant concentrations for Delhi with a time within the last 2 days",
+   "fail_if": "weather only; another city",
+   "free_check": true
+  },
+  {
+   "id": "a13",
+   "who": "agent",
+   "task": "Find a tool that validates JSON against a JSON Schema",
+   "needs": "JSON Schema validation",
+   "sample_input": {
+    "schema": {
+     "type": "object",
+     "required": [
+      "a"
+     ]
+    },
+    "instance": {
+     "b": 1
+    }
+   },
+   "must_return": "a validation result reporting that property 'a' is missing",
+   "fail_if": "a pass for the invalid instance; an error",
+   "free_check": true
+  },
+  {
+   "id": "a14",
+   "who": "agent",
+   "task": "Need an agent to list upcoming earthquakes data feed (USGS) above magnitude 5",
+   "needs": "recent earthquake events from a seismic feed",
+   "sample_input": {
+    "min_magnitude": 5
+   },
+   "must_return": "a list of earthquakes with magnitude >= 5 and times within the last 30 days",
+   "fail_if": "forecasts; events below magnitude 5 only",
+   "free_check": true
+  },
+  {
+   "id": "a15",
+   "who": "agent",
+   "task": "Resolve the IP address location (country, city) for an IP",
+   "needs": "IP geolocation lookup",
+   "sample_input": {
+    "ip": "8.8.8.8"
+   },
+   "must_return": "country 'United States' (or US) for 8.8.8.8",
+   "fail_if": "DNS lookup only; an error",
+   "free_check": true
+  }
+ ]
 }
