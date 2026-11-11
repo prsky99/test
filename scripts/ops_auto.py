@@ -157,11 +157,36 @@ def board_snapshot(board=None, history=None, clock=time.time):
     return target
 
 
+EDGE_STATE = ROOT / 'logs/ops/edge-transitions-state.json'
+EDGE_WORDS = {'auto-block': 'Worker 실행 자동 차단(오류율 기준), 원 서버 경로로 전환', 'auto-clear': '반쯤 열기 시험 통과, Worker 실행 자동 해제',
+              'clear-runtime-block': '운영자가 Worker 실행 차단 해제', 'origin': '운영자가 원 서버 고정', 'auto': '운영자가 자동 경로로 되돌림'}
+
+
+def edge_transitions(rows=None):
+    """Post each new edge runtime switch (audit row) to the status board once (11-11 PM decision)."""
+    last = json.loads(EDGE_STATE.read_text()).get('revision', 0) if EDGE_STATE.is_file() else 0
+    if rows is None:
+        out = query(f"SELECT revision||'|'||action||'|'||actor||'|'||replace(reason,'|','/') FROM edge_gateway_host_audit "
+                    f"WHERE revision>{int(last)} ORDER BY revision LIMIT 20")
+        rows = [line.split('|', 3) for line in out.splitlines() if line.count('|') >= 3]
+    posted = []
+    for revision, action, actor, reason in rows:
+        board_handoff('edge_gateway', f'엣지 게이트웨이: {EDGE_WORDS.get(action, action)} ({actor}, rev {revision}: {reason[:80]})')
+        last = max(last, int(revision)); posted.append(action)
+    if rows:
+        EDGE_STATE.write_text(json.dumps({'revision': last}))
+    return posted
+
+
 def watch():
     try:
         board_snapshot()
     except Exception as error:  # noqa: BLE001
         append(ACTIONS, f'{now()} 현황판 사본 실패: {type(error).__name__}')
+    try:
+        edge_transitions()
+    except Exception as error:  # noqa: BLE001
+        append(ACTIONS, f'{now()} 엣지 전환 알림 실패: {type(error).__name__}')
     try:
         user_slo()
     except Exception as error:  # noqa: BLE001 - the 10-minute watch must keep running

@@ -46,8 +46,10 @@ def message_input(value):
 
 
 class Service:
-    def __init__(self, front, config, *, clock=time.time):
+    def __init__(self, front, config, *, clock=time.time, random=None):
         self.front, self.store, self.config, self.clock = front, front.store, config, clock
+        import random as _random
+        self.random = random or _random.SystemRandom().random   # half-open share (11-11)
         self.available = ready(self.store)
 
     def require_ready(self):
@@ -94,8 +96,17 @@ class Service:
             return 'origin', 'worker_not_ready'
         if policy['mode'] == 'origin':
             return 'origin', 'operator_origin'
+        half_open = False
         if policy['cpu_blocked']:
-            return 'origin', 'cpu_blocked'
+            # 11-11: a monitor block is retried after HALF_OPEN_AFTER with a share of executions (half-open);
+            # the monitor clears it when the probe window is clean. A block without a monitor audit row
+            # (set by hand or before this rule) stays until an operator clears it.
+            last = rows(db, 'audit_monitor_last')
+            from .monitor import HALF_OPEN_AFTER, HALF_OPEN_SHARE
+            if not (last and last[0]['action'] == 'auto-block' and now - last[0]['created'] >= HALF_OPEN_AFTER
+                    and self.random() < HALF_OPEN_SHARE):
+                return 'origin', 'cpu_blocked'
+            half_open = True
         if policy['health_day'] != day or not 0 <= now - policy['health_at'] <= config.max_age:
             return 'origin', 'health_unconfirmed'
         if policy['usage_day'] != day or not 0 <= now - policy['observed_at'] <= config.max_age:
@@ -109,7 +120,7 @@ class Service:
         if reserve:
             execute(db, 'day_init', (day,))
             execute(db, 'reserve', (day,))
-        return 'worker', 'free_available'
+        return 'worker', 'half_open' if half_open else 'free_available'
 
     def ticket(self, row, backend):
         now = self.clock()

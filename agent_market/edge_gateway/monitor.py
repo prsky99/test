@@ -15,19 +15,31 @@ from .config import EdgeError, parse
 from .service import day_at
 from .state import execute, transaction
 
-QUERY = '''query EdgeUsage($account: string, $start: string, $end: string) {
+QUERY = '''query EdgeUsage($account: string, $start: string, $end: string, $window: string) {
   viewer { accounts(filter: {accountTag: $account}) {
     usage: workersInvocationsAdaptive(limit: 1, filter: {datetime_geq: $start, datetime_leq: $end}) {
       sum { requests }
     }
     worker: workersInvocationsAdaptive(limit: 100, filter: {
-      datetime_geq: $start, datetime_leq: $end, scriptName: "agentconcierge-edge-gateway"}) {
+      datetime_geq: $window, datetime_leq: $end, scriptName: "agentconcierge-edge-gateway"}) {
       dimensions { status }
       sum { requests errors }
     }
   } }
 }'''
 RETRY_SECONDS = 5
+log = logging.getLogger(__name__)
+# 11-11 runtime block rule (PM decision). Any Worker error in the UTC day used to block Worker execution
+# with no way back; it blocked from 10-31 while the Worker had 2 exceptions in 11 days (0 CPU limit
+# hits). Now: trip on the last WINDOW_SECONDS only when errors reach both MIN_ERRORS and ERROR_RATE;
+# after HALF_OPEN_AFTER a HALF_OPEN_SHARE of executions tries the Worker again, and a clean window with
+# at least MIN_PROBE Worker invocations clears the block. Every switch is an audit row (actor edge-monitor).
+WINDOW_SECONDS = 900
+ERROR_RATE = 0.02
+MIN_ERRORS = 5
+HALF_OPEN_AFTER = 1800
+HALF_OPEN_SHARE = 0.1
+MIN_PROBE = 20
 
 
 def read_api_token(path):
@@ -55,11 +67,12 @@ class Monitor:
         now = current.clock()
         start = day_at(now) + 'T00:00:00Z'
         end = datetime.fromtimestamp(now, timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+        window = datetime.fromtimestamp(now - WINDOW_SECONDS, timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
         client = self.client or bounded_client(allow_private=False, limit=262144, budget=OutboundBudget(10))
         try:
             response = client.post('https://api.cloudflare.com/client/v4/graphql',
                 headers={'Authorization': 'Bearer ' + self.token, 'Accept-Encoding': 'identity'},
-                json={'query': QUERY, 'variables': {'account': self.account, 'start': start, 'end': end}})
+                json={'query': QUERY, 'variables': {'account': self.account, 'start': start, 'end': end, 'window': window}})
             if response.status_code != 200:
                 raise EdgeError('OBSERVATION_UNAVAILABLE')
             data = parse(response.content)
@@ -73,11 +86,12 @@ class Monitor:
             requests = account['usage'][0]['sum']['requests'] if account.get('usage') else 0
             if type(requests) is not int or requests < 0:
                 raise EdgeError('OBSERVATION_UNAVAILABLE')
-            worker_error = any(type(row.get('sum', {}).get('errors')) is not int or row['sum']['errors'] > 0
-                               for row in account.get('worker', []))
-            if worker_error:
-                with transaction(current.store) as db:
-                    execute(db, 'block_cpu')
+            sums = [row.get('sum', {}) for row in account.get('worker', [])]
+            if any(type(s.get('errors')) is not int or type(s.get('requests')) is not int for s in sums):
+                raise EdgeError('OBSERVATION_UNAVAILABLE')   # unreadable evidence: readiness lapses, no block
+            errors, invoked = sum(s['errors'] for s in sums), sum(s['requests'] for s in sums)
+            worker_error = errors >= MIN_ERRORS and errors >= ERROR_RATE * max(invoked, 1)
+            transition = self.transition(current, now, worker_error, errors, invoked)
             healthy = False
             if requests < current.config.soft_limit and not worker_error:
                 path = '/api/edge-gateway/v1/health'
@@ -91,10 +105,34 @@ class Monitor:
                     result = parse(proof.content)
                     healthy = result == {'backend': 'worker', 'nonce': identity, 'utc_day': day_at(now)}
             current.observe(requests, now, healthy=healthy)
-            return {'observed': True, 'healthy': healthy, 'requests': requests, 'worker_runtime_blocked': worker_error}
+            return {'observed': True, 'healthy': healthy, 'requests': requests, 'worker_runtime_blocked': worker_error,
+                    'window_errors': errors, 'window_invocations': invoked, 'transition': transition}
         finally:
             if self.client is None:
                 client.close()
+
+    @staticmethod
+    def transition(current, now, tripped, errors, invoked):
+        """Apply the block rule once per observation; returns 'auto-block', 'auto-clear' or None."""
+        from .state import rows
+        reason = f'{errors} Worker errors in {invoked} invocations over {WINDOW_SECONDS // 60} minutes'
+        with transaction(current.store) as db:
+            policy = rows(db, 'policy')[0]
+            last = rows(db, 'audit_monitor_last')
+            auto = bool(last) and last[0]['action'] == 'auto-block'
+            if tripped and (not policy['cpu_blocked'] or auto and now - last[0]['created'] >= HALF_OPEN_AFTER):
+                # A new block, or a half-open probe that failed: (re)start the half-open timer.
+                execute(db, 'block_cpu')
+                execute(db, 'audit', (policy['revision'] + 1, 'auto-block', 'edge-monitor', reason[:300], now))
+                log.warning('Edge Worker execution blocked: %s', reason)
+                return 'auto-block'
+            if (policy['cpu_blocked'] and auto and not tripped and invoked >= MIN_PROBE
+                    and now - last[0]['created'] >= HALF_OPEN_AFTER + WINDOW_SECONDS):
+                if execute(db, 'clear_block', (policy['revision'],)).rowcount == 1:
+                    execute(db, 'audit', (policy['revision'] + 1, 'auto-clear', 'edge-monitor', reason[:300], now))
+                    log.warning('Edge Worker execution block cleared after a clean half-open window: %s', reason)
+                    return 'auto-clear'
+        return None
 
     def start(self):
         if self.thread and self.thread.is_alive():

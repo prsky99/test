@@ -434,3 +434,64 @@ def test_public_prepare_over_the_rate_gate_hands_the_call_to_the_origin_gateway(
     assert not edge.calls
     edge.front.security.allow_probe = lambda *_args, **_kw: True
     assert service_request(edge, 'public-prepare', {**body, 'idempotency_key': 'public-bridge-under'}).json()['backend'] == 'worker'
+
+
+def _observe(edge, errors, invoked):
+    def respond(request):
+        if request.url.host == 'api.cloudflare.com':
+            variables = json.loads(request.content)['variables']
+            assert variables['window'] < variables['end']   # the worker rows read only the recent window
+            return httpx.Response(200, json={'data': {'viewer': {'accounts': [{'usage': [{'sum': {'requests': 500}}],
+                'worker': [{'dimensions': {'status': 'success'}, 'sum': {'requests': invoked - errors, 'errors': 0}},
+                           {'dimensions': {'status': 'scriptThrewException'}, 'sum': {'requests': errors, 'errors': errors}}]}]}}})
+        result = {'backend': 'worker', 'nonce': request.headers['x-edge-nonce'], 'utc_day': day_at(edge.clock[0])}
+        raw = json.dumps(result, separators=(',', ':')).encode()
+        signature = hmac.new(derived(edge.config.key, 'edge-health-v1'), raw, hashlib.sha256).hexdigest()
+        return httpx.Response(200, content=raw, headers={'x-edge-health-signature': signature})
+    with httpx.Client(transport=httpx.MockTransport(respond)) as client:
+        return Monitor(edge.service, 'a' * 32, 'synthetic-token', client=client).refresh()
+
+
+def _audit(edge):
+    with transaction(edge.store, readonly=True) as db:
+        return [(r['action'], 'edge-monitor') for r in rows(db, 'audit_monitor_last')]   # the query keeps only edge-monitor rows
+
+
+def test_runtime_block_trips_on_rate_then_half_opens_and_clears_on_a_clean_window(edge):
+    """11-11 PM decision: one Worker error a day blocked Worker execution from 10-31 with no way back."""
+    from agent_market.edge_gateway import monitor as m
+    edge.service.random = lambda: 0.05            # inside the half-open share
+    assert _observe(edge, 3, 1000)['transition'] is None and edge.service.summary()['preferred_backend'] == 'worker'
+    assert _observe(edge, 10, 100)['transition'] == 'auto-block'
+    assert edge.service.summary()['reason'] == 'cpu_blocked' and _audit(edge) == [('auto-block', 'edge-monitor')]
+    edge.clock[0] += m.HALF_OPEN_AFTER - 60
+    assert edge.service.summary()['reason'] == 'cpu_blocked'
+    edge.clock[0] += 61
+    _observe(edge, 0, 10)                          # keeps health fresh; too few invocations to clear
+    assert edge.service.summary()['reason'] == 'half_open'
+    edge.service.random = lambda: 0.5              # outside the share: Origin
+    assert edge.service.summary()['reason'] == 'cpu_blocked'
+    edge.clock[0] += m.WINDOW_SECONDS
+    assert _observe(edge, 0, 50)['transition'] == 'auto-clear'
+    assert _audit(edge) == [('auto-clear', 'edge-monitor')]
+    _observe(edge, 0, 50)
+    assert edge.service.summary()['preferred_backend'] == 'worker'
+
+
+def test_a_failed_half_open_probe_blocks_again_and_restarts_the_timer(edge):
+    from agent_market.edge_gateway import monitor as m
+    assert _observe(edge, 20, 100)['transition'] == 'auto-block'
+    edge.clock[0] += 60
+    assert _observe(edge, 20, 100)['transition'] is None          # still inside the first half-open wait
+    edge.clock[0] += m.HALF_OPEN_AFTER
+    assert _observe(edge, 20, 100)['transition'] == 'auto-block'  # the probe window failed
+    edge.service.random = lambda: 0.0
+    assert edge.service.summary()['reason'] == 'cpu_blocked'
+
+
+def test_a_block_without_a_monitor_audit_row_waits_for_an_operator(edge):
+    edge.service.random = lambda: 0.0
+    with transaction(edge.store) as db: execute(db, 'block_cpu')
+    edge.clock[0] += 7200
+    assert _observe(edge, 0, 500)['transition'] is None
+    assert edge.service.summary()['reason'] == 'cpu_blocked'

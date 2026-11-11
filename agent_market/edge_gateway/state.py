@@ -38,6 +38,7 @@ Q = {
     'mode': 'UPDATE edge_gateway_policy SET revision=revision+1,mode=? WHERE id=1 AND revision=?',
     'clear_block': "UPDATE edge_gateway_policy SET revision=revision+1,cpu_blocked=0,health_day='',health_at=0 WHERE id=1 AND revision=?",
     'audit': 'INSERT INTO edge_gateway_host_audit VALUES(?,?,?,?,?)',
+    'audit_monitor_last': "SELECT revision,action,created FROM edge_gateway_host_audit WHERE actor='edge-monitor' ORDER BY revision DESC LIMIT 1",
     'day': 'SELECT reservations FROM edge_gateway_days WHERE day=?',
     'day_init': 'INSERT INTO edge_gateway_days VALUES(?,0) ON CONFLICT(day) DO NOTHING',
     'reserve': 'UPDATE edge_gateway_days SET reservations=reservations+1 WHERE day=?',
