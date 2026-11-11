@@ -98,13 +98,7 @@ def _time(value):
 # MoneyTools Transcripts "x402 $0.002/min" showed a Free badge; 1,193 active healthy A2A/MCP listings
 # had price_usdc 0 and a stated price, 25 of 25 sampled were priced).
 # An amount of zero ("$0 per call", "0 USDC") is not a price (growth review 11-11).
-_NONZERO = r'(?!0+(?:\.0+)?(?![\d.]))\d+(?:\.\d+)?'
-STATED_PRICE = re.compile(r'x402[^a-z0-9]{0,3}\$\s?' + _NONZERO + r'|\$\s?' + _NONZERO + r'\s?(?:/|per\s)'
-                          + r'|\b' + _NONZERO + r'\s?usdc\b|\bpay[\s-]per[\s-](?:call|use|request|minute)', re.I)
-
-
-def stated_price(*texts):
-    return any(isinstance(text, str) and STATED_PRICE.search(text) for text in texts)
+from .price_status import STATED_PRICE, stated_price  # noqa: F401  (one rule for pages and agent answers)
 
 
 def clean_agent(item):

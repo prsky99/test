@@ -11,7 +11,7 @@ def mcp_tools():
          "annotations": {"readOnlyHint": False}},
         {"name": "chat", "description": "Talk in plain English (replies are in English): describe a task, say 'details 1', 'more', 'what's new', 'stop'.",
          "inputSchema": {"type": "object", "properties": {"message": {"type": "string"}, **TOKEN_ARG}, "required": ["message"]}},
-        {"name": "search", "description": "Read-only catalog lookup without saving a conversation. Return up to three relevant agents ranked by latest successful verification, recent activity, and quality grade. Searches A2A first, then MCP; x402 requires an explicit choice.",
+        {"name": "search", "description": "Read-only catalog lookup without saving a conversation. Return up to three relevant agents ranked by latest successful verification, recent activity, and quality grade. Searches A2A first, then MCP; x402 requires an explicit choice. price_status is free, paid or paid_or_unknown (price_usdc null).",
          "inputSchema": {"type": "object", "properties": {
              "task": {"type": "string", "description": "The specific capability needed (e.g. 'weather forecast', 'stock price', 'web search')"},
              "kind": {"type": "string", "enum": [*KINDS, "any"], "description": "Explicit recommendation protocol filter; Any searches A2A then MCP, excluding x402. Defaults to A2A first, then MCP; x402 requires an explicit choice."},
@@ -19,7 +19,7 @@ def mcp_tools():
              "auth": {"type": "string", "enum": ["none", "agent"], "description": "Compatibility field; authentication preference does not affect ranking."},
              "k": {"type": "integer", "description": "Compatibility field; at most three results is returned."},
              **TOKEN_ARG}, "required": ["task"]}},
-        {"name": "find_agents", "description": "Read-only catalog lookup without saving a conversation. Return up to three active agents for a task, with verification evidence and calling details.",
+        {"name": "find_agents", "description": "Read-only catalog lookup without saving a conversation. Return up to three active agents for a task, with verification evidence and calling details. price_status is free, paid (price_usdc per call in micro-USDC) or paid_or_unknown (the provider states a price or none is known; price_usdc is null).",
          "inputSchema": {"type": "object", "properties": {
              "task": {"type": "string", "description": "What you need done"},
              "kind": {"type": "string", "enum": [*KINDS, "any"], "description": "Explicit recommendation protocol filter; Any searches A2A then MCP, excluding x402. Defaults to A2A first, then MCP; x402 requires an explicit choice."},

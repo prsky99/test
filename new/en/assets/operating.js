@@ -4468,7 +4468,7 @@ function renderDrawerAgent(a, statusType) {
       <dt>Category</dt>
       <dd>${esc(formatCategory(a.category, cats))}</dd>
       <dt>Price Per Call</dt>
-      <dd>${a.price_note === "testnet_only" ? "Testnet only" : a.price_usdc === null ? (a.kind === "x402" ? "Price on request" : "Free") : usd(a.price_usdc)} ${a.pay_to ? `<span style="font-family:monospace;font-size:11px">(${esc(a.pay_to)})</span>` : ""}</dd>
+      <dd>${a.price_note === "testnet_only" ? "Testnet only" : a.price_usdc === null ? (a.kind === "x402" ? "Price on request" : a.price_status === "paid_or_unknown" ? "Paid or unknown" : "Free") : usd(a.price_usdc)} ${a.pay_to ? `<span style="font-family:monospace;font-size:11px">(${esc(a.pay_to)})</span>` : ""}</dd>
       <dt>Authentication</dt>
       <dd>${esc(agentAuthenticationLabel(a))}</dd>
       <dt>Available Tools</dt>

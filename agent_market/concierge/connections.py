@@ -294,6 +294,12 @@ def _public_agent(value, resource=None, *, store=None, create_connections=True):
         if key in result or key!='agent_url':result[key]=gateway
     if 'host' in result:result['host']='agentconcierge.biz' if gateway else ''
     result['connection_available']=bool(gateway)
+    # A listing that states a price is never answered as price 0 / free (11-12, price_status.py).
+    from .price_status import price_fields
+    if 'price_usdc' in value:  # cards built without a price (events, tool specs) stay without one
+        text=lambda key:value.get(key) if value.get(key) is not None else resource.get(key)
+        result['price_usdc'],result['price_status']=price_fields(value.get('kind'),value.get('price_usdc'),
+                                                                 text('name'),text('description'))
     if gateway and value.get('kind')=='mcp' and isinstance(result.get('connect_steps'),list):
         schemas=[t for t in (result.get('tools_schema') or []) if isinstance(t,dict)]
         result['connect_steps']=gateway_mcp_steps(gateway,schemas[0].get('name') if schemas else None)

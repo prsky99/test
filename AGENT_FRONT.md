@@ -62,6 +62,15 @@ discovery arguments remain accepted for transport compatibility. An irrelevant o
 an empty result: return `status: no_match` with an empty array instead. Explicit
 session, contact, and notification commands remain separate from discovery.
 
+### Price fields (11-12)
+
+Every card that carries `price_usdc` also carries `price_status` (`agent_market/concierge/price_status.py`):
+`free` (price 0 and no price stated in the listing's own name or description), `paid` (`price_usdc` per call
+in micro-USDC) or `paid_or_unknown`. A listing whose own text states a price ("x402 $0.002/min", "0.01 USDC",
+"pay-per-call") is answered with `price_usdc: null` and `paid_or_unknown`, never 0; an amount of zero is not a
+price. The public Free badge, the agent detail page, Chat text and find_agents/search/explore cards use this
+one rule. Collection still stores 0 for these listings; telling 0 from unknown there is a separate change.
+
 ## Request path and security
 
 `FastConcierge` uses `QualityRecommender`, local search, and stored verification

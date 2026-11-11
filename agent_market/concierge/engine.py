@@ -20,6 +20,7 @@ from ..gateway.classify import classify, query_terms
 from ..gateway.ranking import rank, reveal
 from ..gateway.store import Store
 from .memory import Visitor, VisitorBook
+from .price_status import price_fields
 
 KINDS = ("a2a", "mcp", "x402")
 KIND_NAME = {"a2a": "A2A agent", "mcp": "MCP server", "x402": "x402 paid API"}
@@ -50,7 +51,9 @@ def ago_text(ts: float | None) -> str:
     return f"{int(s // 60)} min ago" if s < 3600 else f"{int(s // 3600)} h ago" if s < 86400 else f"{int(s // 86400)} days ago"
 
 
-def price_text(cents: int | None, kind: str) -> str:
+def price_text(cents: int | None, kind: str, status: str | None = None) -> str:
+    if status == "paid_or_unknown" and kind != "x402":
+        return "paid or unknown (the provider states a price)"
     if kind != "x402":
         return "free to call (may need an account)"
     if cents is None:
@@ -119,9 +122,10 @@ class Recommender:
                 schema_entry["inputSchema"] = t["inputSchema"]
             tools_schema.append(schema_entry)
         steps = usage.get("how_to_connect") or usage.get("steps") or []
+        price, price_status = price_fields(r["kind"], r.get("price_usdc"), r["name"], r["description"])
         return {
             "id": r["resource_id"], "kind": r["kind"], "name": clean_external(r["name"], 80), "url": clean_external(r["url"], 300),
-            "category": r["category"], "description": clean_external(r["description"], 240), "price_usdc": r.get("price_usdc"),
+            "category": r["category"], "description": clean_external(r["description"], 240), "price_usdc": price, "price_status": price_status,
             "method": r.get("method"), "auth_required": auth.get("required"), "auth_method": auth.get("method"),
             "auth_autonomy": auth.get("autonomy"), "auth_steps": [clean_external(x, 160) for x in (auth.get("instructions") or [])[:4]],
             "verified_working": r.get("verified_working"), "grade": (r.get("evaluation") or {}).get("grade"),
@@ -441,7 +445,7 @@ class Concierge:
                 flags.append("auth required")
         desc = clean_external(i["description"], 140)
         return (f"{n}. {i['name']} [{KIND_NAME[i['kind']]}] — {desc}\n"
-                f"   {price_text(i['price_usdc'], i['kind'])} · {' · '.join(flags) or '-'} · {i['url']}")
+                f"   {price_text(i['price_usdc'], i['kind'], i.get('price_status'))} · {' · '.join(flags) or '-'} · {i['url']}")
 
     def _more(self, v: Visitor) -> Reply:
         results, offset = self.book.last_results(v.id)

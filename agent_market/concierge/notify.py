@@ -284,7 +284,8 @@ class AgentNurtureEngine:
             auth_str = "Zero Auth" if not t.get("auth_required") else "Auth Required"
             price = t.get("price_usdc")
             price_str = (f"${price / 1e6:.4f} USDC" if price else "Price on request"
-                         if price is None and t.get("kind") == "x402" else "Free")
+                         if price is None and t.get("kind") == "x402" else "Paid or unknown"
+                         if t.get("price_status") == "paid_or_unknown" else "Free")
             desc = (t.get("description") or "Verified autonomous capability.")[:120].strip()
             grade_str = f"Grade {t.get('grade')}" if t.get("grade") else "Verified Live"
             score_str = f"Score: {t.get('score', 0):.2f}" if t.get("score") else "Active Telemetry"
