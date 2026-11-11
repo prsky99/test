@@ -53,26 +53,37 @@ def isolated_publication(tmp_path):
 
 @pytest.mark.parametrize('filename', PAGES)
 def test_every_published_page_has_fresh_nonces_and_no_inline_handlers(isolated_publication, filename):
+    # 11-11 PM decision A: a page is the same bytes for everyone, so inline scripts are allowed by sha256
+    # instead of a per-response nonce; live pages may sit at the edge for 60 s, every other page stays no-store.
+    import base64
+    import hashlib
     _, client = isolated_publication
-    nonces = []
+    bodies = []
     for _ in range(2):
         response = client.get('/new/en/' + filename)
         assert response.status_code == 200
         headers = response.headers
-        assert headers['cache-control'] == 'no-store'
+        expected = 'public, max-age=0, s-maxage=60' if filename in MANIFEST['live_pages'] else 'no-store'
+        assert headers['cache-control'] == expected
+        assert 'set-cookie' not in headers
         assert headers['x-frame-options'] == 'DENY'
         assert headers['x-content-type-options'] == 'nosniff'
         assert headers['referrer-policy'] == 'no-referrer'
         assert 'access-control-allow-origin' not in headers
         csp = headers['content-security-policy']
-        assert "script-src-attr 'none'" in csp and "frame-ancestors 'none'" in csp
-        nonce = re.search(r"script-src 'nonce-([^']+)'", csp)[1]
-        nonces.append(nonce)
+        assert "script-src-attr 'none'" in csp and "frame-ancestors 'none'" in csp and "'nonce-" not in csp
+        assert "'unsafe-inline'" not in csp.split('script-src', 1)[1].split(';', 1)[0]
+        allowed = set(re.findall(r"'sha256-([A-Za-z0-9+/=]+)'", csp))
         parser = Scripts()
         parser.feed(response.text)
         assert parser.scripts and not parser.handlers
-        assert all(script.get('nonce') == nonce for script in parser.scripts)
-    assert nonces[0] != nonces[1]
+        for attrs, body in re.findall(r'<script\b([^>]*)>(.*?)</script>', response.text, re.S):
+            if re.search(r'\bsrc=', attrs):
+                assert not re.search(r'src="(?:https?:)?//', attrs), attrs     # files only from this origin ('self')
+            elif not re.search(r'type="application/(?:ld\+)?json"', attrs):
+                assert base64.b64encode(hashlib.sha256(body.encode()).digest()).decode() in allowed
+        bodies.append(response.text)
+    assert bodies[0] == bodies[1]
 
 
 @pytest.mark.parametrize('path', [

@@ -23,19 +23,23 @@ from agent_market.gateway.store import Store
 
 
 def test_csp_uses_fresh_nonce_and_has_no_executable_html_handlers():
+    # 11-11 PM decision A: inline scripts are allowed by hash (the page is the same for everyone), not a nonce.
+    import base64, hashlib
     client = TestClient(create_front_app(Front(Store())))
     responses = [client.get("/", headers={"accept": "text/html"}) for _ in range(2)]
     policies = [r.headers["content-security-policy"] for r in responses]
-    assert policies[0] != policies[1]
+    assert policies[0] == policies[1] and responses[0].text == responses[1].text
     for response, policy in zip(responses, policies):
         scripts = re.search(r"script-src ([^;]+)", policy).group(1)
         assert "'unsafe-inline'" not in scripts and "'unsafe-eval'" not in scripts
         assert "script-src-attr 'none'" in policy
-        nonce = re.search(r"'nonce-([^']+)'", policy).group(1)
-        tags = re.findall(r'<script\b([^>]*)>', response.text)
-        executable = [attrs for attrs in tags if not re.search(r'type="application/(?:ld\+)?json"', attrs)]
+        assert "'nonce-" not in policy
+        tags = re.findall(r'<script\b([^>]*)>(.*?)</script>', response.text, re.S)
+        executable = [(attrs, body) for attrs, body in tags if not re.search(r'type="application/(?:ld\+)?json"', attrs)]
         assert executable
-        assert all(f'nonce="{nonce}"' in attrs for attrs in executable)
+        allowed = set(re.findall(r"'sha256-([^']+)'", policy))
+        for attrs, body in executable:
+            assert 'src="/' in attrs or base64.b64encode(hashlib.sha256(body.encode()).digest()).decode() in allowed
         assert not re.search(r'\bon(?:click|change|input|submit|mousedown|mouseup)="', response.text)
 
 

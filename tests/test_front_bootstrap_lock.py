@@ -61,7 +61,7 @@ def page(client):
     assert match
     data = json.loads(match.group(1))
     assert type(data) is dict and set(('overview', 'explore', 'insights', 'testbench_examples')) <= data.keys()
-    assert "script-src 'nonce-" in response.headers['content-security-policy']
+    assert "script-src 'self' 'sha256-" in response.headers['content-security-policy']  # 11-11 hashes (PM decision A)
     return data
 
 with tempfile.TemporaryDirectory(prefix='a2a-bootstrap-lock-') as directory:

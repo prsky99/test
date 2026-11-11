@@ -96,7 +96,8 @@ def test_html_is_escaped_and_headers_are_strict(w):
     r = c.get("/", headers={"accept": "text/html", "X-Visitor-Token": token})
     assert "<script>alert" not in r.text
     assert "&lt;script&gt;" not in r.text  # Personal names are omitted from the new compact greeting.
-    for name, value in (("X-Content-Type-Options", "nosniff"), ("Cache-Control", "no-store"), ("X-Frame-Options", "DENY")):
+    # 11-11 PM decision A: the page carries no visitor value (a token in the request changes nothing), so it is edge-cacheable.
+    for name, value in (("X-Content-Type-Options", "nosniff"), ("Cache-Control", "public, max-age=0, s-maxage=60"), ("X-Frame-Options", "DENY")):
         assert r.headers[name] == value
     assert "default-src 'none'" in r.headers["Content-Security-Policy"]
     assert c.post("/chat", json={"message": "hi"}).headers["Cache-Control"] == "no-store"  # replies carry tokens
