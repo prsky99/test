@@ -1,10 +1,40 @@
 """Safe execution failure categories and private, metadata-only diagnostics."""
+import contextvars
 import logging
 import re
 import secrets
 
 
 log = logging.getLogger('agent_market.execution')
+QA_HEADER = b'x-agentcon-qa'
+_QA = contextvars.ContextVar('agentcon_qa', default='')
+_QA_NAME = re.compile(r'[a-z][a-z0-9_]{0,39}')
+
+
+def qa_name(value):
+    """Our own measurement tools send X-Agentcon-QA: <tool name>; anything else is ignored."""
+    text = value.decode('latin-1', 'replace') if isinstance(value, bytes) else str(value or '')
+    text = text.strip().lower()
+    return text if _QA_NAME.fullmatch(text) else ''
+
+
+class QAMark:
+    """Pure ASGI middleware: marks the request context when our measurement header is present."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get('type') != 'http':
+            return await self.app(scope, receive, send)
+        name = next((qa_name(v) for k, v in scope.get('headers') or () if k == QA_HEADER), '')
+        if not name:
+            return await self.app(scope, receive, send)
+        token = _QA.set(name)
+        try:
+            return await self.app(scope, receive, send)
+        finally:
+            _QA.reset(token)
 MESSAGES = {
     'INVALID_INPUT': 'Review the tool inputs and try again.',
     'AUTH_REQUIRED': 'This connection requires separate provider authorization.',
@@ -75,5 +105,6 @@ def record_failure(correlation_id, resource_id, protocol, code, *, stage='gatewa
     exception_kind = type(exception).__name__ if exception is not None else 'none'
     if not re.fullmatch(r'[A-Za-z_]{1,80}', exception_kind):
         exception_kind = 'Exception'
-    log.warning('Execution failure reference=%s resource_id=%s protocol=%s code=%s stage=%s exception=%s',
-                correlation_id, rid, kind, failure_code(code), stage, exception_kind)
+    qa = _QA.get()
+    log.warning('Execution failure reference=%s resource_id=%s protocol=%s code=%s stage=%s exception=%s%s',
+                correlation_id, rid, kind, failure_code(code), stage, exception_kind, f' qa={qa}' if qa else '')

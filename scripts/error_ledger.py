@@ -29,7 +29,9 @@ KST = timezone(timedelta(hours=9))
 PSQL = ['/opt/homebrew/opt/postgresql@18/bin/psql', '-h', str(ROOT / 'gateway-data/postgres18/run'), '-p', '55432',
         '-d', 'agentcon_cutover_20261020_191757', '-At', '-F', '|', '-c']
 _LINE = re.compile(r'^(\d{4}-\d{2}-\d{2}) \d{2}:\d{2}:\d{2} (ERROR|CRITICAL) ([\w.]+): (.*)$')
-_FAILURE = re.compile(r'^(\d{4}-\d{2}-\d{2}) .*Execution failure reference=\S+ resource_id=\d+ protocol=(\w+) code=(\w+) stage=(\w+)')
+_FAILURE = re.compile(r'^(\d{4}-\d{2}-\d{2}) .*Execution failure reference=\S+ resource_id=\S+ protocol=(\w+) code=(\w+) stage=(\w+)'
+                      r'(?:.*? qa=([a-z][a-z0-9_]*))?')
+INTERNAL = 'qa|'   # our own measurement requests (X-Agentcon-QA, 11-11 PM): counted on their own rows, not hidden
 _TRACE = re.compile(r'^(\d{4}-\d{2}-\d{2}) \d{2}:\d{2}:\d{2} \w+ ([\w.]+): .*')
 
 
@@ -55,7 +57,8 @@ def from_logs(day, logs=None):
                 continue
             failure = _FAILURE.match(line)
             if failure:
-                counts[f'gateway|{failure.group(2)}|{failure.group(3)}|{failure.group(4)}'] += 1
+                key = f'gateway|{failure.group(2)}|{failure.group(3)}|{failure.group(4)}'
+                counts[(f'{INTERNAL}{failure.group(5)}|' if failure.group(5) else '') + key] += 1
                 continue
             match = _LINE.match(line)
             if not match:
@@ -98,6 +101,10 @@ def explain(counts, known=None):
     rules = known if known is not None else (json.loads(KNOWN.read_text()) if KNOWN.is_file() else [])
     rows = []
     for key, n in counts.most_common():
+        if key.startswith(INTERNAL):
+            rows.append({'key': key, 'count': n, 'explained': True, 'internal': True,
+                         'reason': '내부 측정 요청(X-Agentcon-QA)', 'team': '측정 도구 주인'})
+            continue
         rule = next((r for r in rules if re.search(r['pattern'], key)), None)
         rows.append({'key': key, 'count': n, 'explained': bool(rule),
                      **({'reason': rule['reason'], 'team': rule.get('team', '운영·SRE')} if rule else {})})
@@ -108,7 +115,8 @@ def ledger(day, counts=None, known=None):
     counts = counts if counts is not None else from_logs(day) + from_edge(day)
     rows = explain(counts, known)
     unexplained = [r for r in rows if not r['explained']]
-    return {'day': day, 'total': sum(r['count'] for r in rows), 'kinds': len(rows),
+    internal = sum(r['count'] for r in rows if r.get('internal'))
+    return {'day': day, 'total': sum(r['count'] for r in rows), 'kinds': len(rows), 'internal': internal,
             'unexplained_kinds': len(unexplained), 'unexplained': sum(r['count'] for r in unexplained), 'rows': rows}
 
 
@@ -117,7 +125,8 @@ def write(result, out=None):
     out.mkdir(parents=True, exist_ok=True)
     (out / f"{result['day']}.json").write_text(json.dumps(result, ensure_ascii=False, indent=1))
     lines = [f"# 오류 장부 {result['day']} (KST)", '',
-             f"전체 {result['total']}건, {result['kinds']}종. 설명되지 않음 {result['unexplained']}건, {result['unexplained_kinds']}종.", '',
+             f"전체 {result['total']}건, {result['kinds']}종. 그중 내부 측정 {result.get('internal', 0)}건(따로 셈). "
+             f"설명되지 않음 {result['unexplained']}건, {result['unexplained_kinds']}종.", '',
              '| 건수 | 원인 | 설명 |', '|---|---|---|']
     for r in result['rows']:
         note = f"{r['reason']} ({r['team']})" if r['explained'] else '**설명되지 않음**'

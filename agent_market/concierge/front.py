@@ -3811,6 +3811,8 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
     app.add_middleware(PublicHTTPContract)
     from .request_timing import RequestTiming
     app.add_middleware(RequestTiming)
+    from .execution_errors import QAMark
+    app.add_middleware(QAMark)
     app.add_middleware(GZipMiddleware, minimum_size=500)
     app.add_middleware(PublicDocumentHEAD)
     from .web_bot_auth import WebBotAuth

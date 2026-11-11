@@ -66,3 +66,17 @@ def test_ops_auto_runs_once_then_hands_off_unexplained(tmp_path, monkeypatch):
     assert handed and handed[0][0] == 'error_ledger' and '설명되지 않음 4건' in handed[0][1]
     assert ops_auto.error_ledger(clock=lambda: at + 1800, launch=lambda *a, **k: launched.append(a)) is None
     assert len(launched) == 1 and len(handed) == 1
+
+
+def test_internal_measurement_failures_are_counted_on_their_own_rows(tmp_path):
+    (tmp_path / 'service.a.log').write_text(
+        '2026-11-11 11:21:00 WARNING agent_market.execution: Execution failure reference=r1 resource_id=7 protocol=mcp '
+        'code=INVALID_INPUT stage=admission exception=ExecutionDenied qa=real_task_score\n'
+        '2026-11-11 11:22:00 WARNING agent_market.execution: Execution failure reference=r2 resource_id=None protocol=mcp '
+        'code=INVALID_INPUT stage=admission exception=ExecutionDenied\n')
+    result = error_ledger.ledger(DAY, counts=error_ledger.from_logs(DAY, tmp_path), known=[])
+    keys = {r['key']: r for r in result['rows']}
+    assert keys['qa|real_task_score|gateway|mcp|INVALID_INPUT|admission']['internal']
+    assert not keys['gateway|mcp|INVALID_INPUT|admission']['explained']
+    assert (result['total'], result['internal'], result['unexplained']) == (2, 1, 1)
+    assert '내부 측정 1건' in error_ledger.write(result, tmp_path).read_text()
