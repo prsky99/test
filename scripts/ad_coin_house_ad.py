@@ -1,0 +1,185 @@
+"""Agent Concierge's own Sponsored placement (house ad), made on the server (PM 11-11).
+
+One run, every step idempotent and audited, the same code paths as the advertiser and operator screens:
+
+  1. issue this month's coins into the growth budget        (coins_issued; amount decided by the user)
+  2. the "platform (server script)" principal applies for the house advertiser and approves it
+                                                             (advertiser_applied / advertiser_approved)
+  3. a Sponsored-only campaign: create, request review, operator decision 'eligible'
+     (reason platform_house_ad), approve the budget with a fresh proof, activate
+  4. book one Sponsored day (first-booking support from the growth budget)
+
+The campaign activation switch (adc2_commercial_control) is turned on in step 3 (PM step 5); no other
+campaign is started: the run checks that its own campaign is the only active one.
+
+  .venv/bin/python -m scripts.ad_coin_house_ad plan
+  .venv/bin/python -m scripts.ad_coin_house_ad run --issue-coins 10000 --day 2026-11-12 \\
+      --dsn-file <dsn> --key-file <workflow key> --key-dir <AD_COIN_V2_KEY_DIR> --i-have-approval
+
+The script principal has no sign-in path: its sessions exist only in this process's memory.
+One database connection.
+"""
+import argparse
+import json
+import sys
+import time
+from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
+
+BASE = "https://agentconcierge.biz/ad-coin/"
+SCRIPT_PRINCIPAL = str(uuid5(NAMESPACE_URL, BASE + "platform-server-script"))
+SCRIPT_OWNER = str(uuid5(NAMESPACE_URL, BASE + "platform-server-script/owner"))
+HOUSE_NAME = "Agent Concierge"
+HOUSE_LISTING = "https://agentconcierge.biz/new/en/index.html"
+HOUSE_TEXT = ("Describe a task and Agent Concierge finds AI agents and tools that can do it, "
+              "checked by real connection tests.")
+SPONSORED_ONLY = "2"          # same marker as the advertiser screen (1ee7bb22)
+REASON = "platform_house_ad"
+DAY_MS = 86_400_000
+
+
+def _principal(epoch=1):
+    from agent_market.ad_coin.v2.identity import Kind, Principal
+    return Principal(UUID(SCRIPT_PRINCIPAL), Kind.HUMAN, epoch, time.time() + 600, owner_id=UUID(SCRIPT_OWNER),
+                     csrf_verified=True, audience="aiac-v2-model")
+
+
+def _client(commercial):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from agent_market.ad_coin.v2.auth_adapter import CredentialResolver
+    from agent_market.ad_coin.v2.http import router_for
+    resolver = CredentialResolver(commercial.store)
+    token, csrf = "house-" + uuid4().hex, "house-csrf-" + uuid4().hex
+    resolver.register_human_session(token, csrf, principal_id=SCRIPT_PRINCIPAL, owner_id=SCRIPT_OWNER)
+    app = FastAPI()
+    app.include_router(router_for(commercial, resolve_auth=resolver))
+
+    def headers(**extra):
+        return {"Authorization": "Bearer " + token, "X-CSRF-Token": csrf, "X-AIAC-Contract": "v6.2",
+                "Idempotency-Key": str(uuid4()), **extra}
+    return TestClient(app), headers
+
+
+def _check(response, step):
+    if response.status_code != 200:
+        raise RuntimeError("%s failed: %s %s" % (step, response.status_code, response.text[:300]))
+    return response.json()
+
+
+def run(commercial, *, month, issue_atoms, day, category="research", region="US", now_ms=None):
+    from agent_market.ad_coin.v2 import advertiser_applications as applications
+    from agent_market.ad_coin.v2 import operator_review
+    from agent_market.ad_coin.v2.access import COMMERCIAL_CAPABILITIES, HUMAN_CAPABILITIES, OPERATOR_CAPABILITY
+    from agent_market.ad_coin.v2.commercial import date_text, etag
+    from agent_market.ad_coin.v2.contracts import canonical_bytes
+    from agent_market.ad_coin.v2.economy import CoinEconomy
+    from agent_market.ad_coin.v2.identity import Kind
+    from agent_market.ad_coin.v2.sponsored_booking import SponsoredBookings
+
+    store, access = commercial.store, commercial.access
+    now_ms = int(time.time() * 1000) if now_ms is None else int(now_ms)
+    out = {}
+    economy = CoinEconomy(store, commercial.ledger)
+    out["issuance"] = economy.issue_monthly(month, int(issue_atoms))
+
+    access.provision_principal(SCRIPT_PRINCIPAL, Kind.HUMAN, owner_id=SCRIPT_OWNER,
+                               capabilities=HUMAN_CAPABILITIES | COMMERCIAL_CAPABILITIES | {OPERATOR_CAPABILITY})
+    me = _principal()
+    applied = applications.apply(access, me, display_name=HOUSE_NAME, listing_url=HOUSE_LISTING)
+    advertiser = applied["application_id"]
+    if applications.status_of(store, advertiser) == "pending":
+        out["application"] = applications.decide(access, economy, me, advertiser, approve=True)
+    for capability in sorted(COMMERCIAL_CAPABILITIES):
+        access.grant(advertiser, SCRIPT_PRINCIPAL, capability)
+
+    client, headers = _client(commercial)
+    base = "/api/ad-coin/v2/advertisers/" + advertiser + "/campaigns"
+    with store.atomic():
+        mine = [c for c in store.all("ui_campaigns", (advertiser, "")) if c["state"] != "rejected"]
+    if mine:
+        campaign = _check(client.get(base + "/" + mine[0]["id"], headers=headers()), "read campaign")
+    else:
+        body = {"name": HOUSE_NAME, "asset_id": "model:aiac:v2", "total_budget_atoms": SPONSORED_ONLY,
+                "daily_budget_atoms": SPONSORED_ONLY, "gross_p1_atoms": SPONSORED_ONLY, "budget_timezone": "UTC",
+                "starts_at": date_text(now_ms), "ends_at": date_text(now_ms + 90 * DAY_MS),
+                "task_categories": [category], "regions": [region], "creative_text": HOUSE_TEXT,
+                "min_exposure_ms": 15000, "split_policy_id": "default_v5", "renderer_profile": "platform_text_v1"}
+        campaign = _check(client.post(base, json=body, headers=headers()), "create campaign")
+    if campaign["state"] == "draft":
+        review = _check(client.post(base + "/" + campaign["id"] + "/review-request",
+                                    json={"revision_hash": campaign["revision_hash"]},
+                                    headers=headers(**{"If-Match": etag(campaign)})), "request review")
+        out["review"] = operator_review.decide(commercial, me, review["id"], verdict="eligible", reason_code=REASON)
+        campaign = _check(client.get(base + "/" + campaign["id"], headers=headers()), "read campaign")
+    if campaign["state"] == "eligible" and campaign["approval_status"] != "approved":
+        intended = commercial.contract.parse(
+            "approveCampaign", canonical_bytes({"revision_hash": campaign["revision_hash"],
+                                                "fresh_action_id": str(uuid4()), "fresh_action_proof": "p" * 43}),
+            path_parameters={"advertiser_id": advertiser, "campaign_id": campaign["id"]}, if_match=etag(campaign))
+        challenge = _check(client.post("/api/ad-coin/v2/human-challenges", json={
+            "action": "approve_campaign", "target_id": campaign["id"], "target_revision_hash": campaign["revision_hash"],
+            "request_digest": intended.semantic_digest}, headers=headers()), "fresh challenge")
+        campaign = _check(client.post(base + "/" + campaign["id"] + "/approvals", json={
+            "revision_hash": campaign["revision_hash"], "fresh_action_id": challenge["fresh_action_id"],
+            "fresh_action_proof": challenge["proof_challenge"]}, headers=headers(**{"If-Match": etag(campaign)})),
+            "approve budget")
+    if campaign["state"] in ("eligible", "paused") and campaign["approval_status"] == "approved":
+        access.set_model_activation(True)                           # PM step 5 (11-11)
+        campaign = _check(client.post(base + "/" + campaign["id"] + "/activation",
+                                      json={"revision_hash": campaign["revision_hash"]},
+                                      headers=headers(**{"If-Match": etag(campaign)})), "activate")
+    out["campaign"] = {"id": campaign["id"], "state": campaign["state"], "approval_status": campaign["approval_status"]}
+
+    bookings = SponsoredBookings(store, commercial.ledger, taxonomy=commercial.taxonomy, regions=commercial.regions,
+                                 access=access)
+    booked = bookings.book(advertiser, campaign_id=campaign["id"], day=day, task_category=category, region=region,
+                           request_id=uuid5(NAMESPACE_URL, BASE + "house-booking/" + day + "/" + category + "/" + region).hex,
+                           now_ms=now_ms)
+    out["booking"] = {k: booked.get(k) for k in ("id", "state", "paid_by", "replayed")}
+    out["booking"]["day"] = day
+    with store.atomic():
+        active = [r["id"] for r in store.all("reconcile_active_campaigns", ())]
+    out["advertiser_id"] = advertiser
+    out["other_active_campaigns"] = [c for c in active if c != campaign["id"]]   # PM: must stay empty
+    return out
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("action", choices=("plan", "run"))
+    parser.add_argument("--issue-coins", type=int)
+    parser.add_argument("--month", default=time.strftime("%Y-%m", time.gmtime()))
+    parser.add_argument("--day", help="UTC day to book (tomorrow up to 30 days ahead)")
+    parser.add_argument("--category", default="research")
+    parser.add_argument("--region", default="US")
+    parser.add_argument("--dsn-file")
+    parser.add_argument("--key-file")
+    parser.add_argument("--key-dir")
+    parser.add_argument("--i-have-approval", action="store_true")
+    args = parser.parse_args(argv)
+    if args.action == "plan":
+        print(__doc__)
+        return 0
+    if not (args.issue_coins and args.day and args.dsn_file and args.key_file and args.key_dir):
+        parser.error("run needs --issue-coins, --day, --dsn-file, --key-file and --key-dir")
+    if not args.i_have_approval:
+        parser.error("run writes the production ledger; pass --i-have-approval only after approval")
+    import os
+    os.environ["AD_COIN_V2_POOL_MAXIMUM"] = "1"
+    os.environ["AD_COIN_V2_KEY_DIR"] = args.key_dir
+    from agent_market.ad_coin.v2.live_service import build_live_service, default_key_vault, store_from_application
+    from agent_market.ad_coin.v2.points import ATOMS_PER_COIN
+    from scripts.ad_coin_v2_migrate import _connect
+    runtime = _connect(args)
+    try:
+        commercial, _, _ = build_live_service(store_from_application(runtime.store), key_vault=default_key_vault())
+        result = run(commercial, month=args.month, issue_atoms=args.issue_coins * ATOMS_PER_COIN, day=args.day,
+                     category=args.category, region=args.region)
+    finally:
+        runtime.close()
+    print(json.dumps(result, sort_keys=True, default=str))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
