@@ -46,3 +46,11 @@ def test_recorded_rows_roll_up_by_iso_week(tmp_path):
 
 def test_trend_without_a_record_file_is_empty(tmp_path):
     assert samples.trend(tmp_path / 'missing.jsonl') == []
+
+
+def test_goals_follow_the_user_targets():
+    """One source for the targets (11-11 19:00: recommendation 2 s, page 1 s): no number of its own here."""
+    from scripts.ops_daily_samples import GOALS_MS
+    from scripts.user_slo import TARGET
+    assert GOALS_MS == {'explore': TARGET['explore_s'] * 1000, 'chat': TARGET['recommend_s'] * 1000,
+                        'category': TARGET['page_s'] * 1000, 'detail': TARGET['page_s'] * 1000}

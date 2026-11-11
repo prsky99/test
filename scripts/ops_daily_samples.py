@@ -24,6 +24,14 @@ import re
 import statistics
 import subprocess
 import time
+
+try:
+    from scripts.user_slo import TARGET
+except ImportError:   # run from scripts/
+    from user_slo import TARGET
+# One source for the user targets (11-11 19:00 user decision): chat recommends, category/detail are pages.
+GOALS_MS = {'explore': int(TARGET['explore_s'] * 1000), 'chat': int(TARGET['recommend_s'] * 1000),
+            'category': int(TARGET['page_s'] * 1000), 'detail': int(TARGET['page_s'] * 1000)}
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -126,7 +134,7 @@ def samples(port: int, explore_n: int = 5, chat_n: int = 3, page_n: int = 3) -> 
             r = http.get(path)
             result['category' if path.startswith('/agents/') else 'detail'].append(
                 {'path': path, 'status': r.status_code, 'total_ms': round((time.perf_counter() - begun) * 1000)})
-    for key, goal in (('explore', 3000), ('chat', 5000), ('category', 3000), ('detail', 3000)):
+    for key, goal in GOALS_MS.items():
         times = [s['total_ms'] for s in result[key]]
         if not times:
             continue
