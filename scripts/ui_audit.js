@@ -125,6 +125,20 @@
   }
   out.covered_controls = covered.length; out.covered_examples = covered.slice(0, 8);
 
+  // 5b. split_number (11-11, user request): a number value drawn on two lines ("2,02" / "2") is a defect
+  const split = [];
+  for (const el of document.querySelectorAll('body *')) {
+    if (el.children.length) continue;
+    const text = (el.textContent || '').trim();
+    if (!/^[+\-−$]?\d[\d,.]*\s?(%|[KMB]|ms|s)?$/.test(text)) continue;
+    const r = el.getBoundingClientRect(); if (!r.width || !r.height) continue;
+    const s = getComputedStyle(el); if (s.visibility === 'hidden' || s.display === 'none') continue;
+    const range = document.createRange(); range.selectNodeContents(el);
+    const tops = new Set([...range.getClientRects()].filter(x => x.width > 0).map(x => Math.round(x.top)));
+    if (tops.size > 1) split.push(name(el) + ' "' + text + '"');
+  }
+  out.split_number = split.length; out.split_number_examples = split.slice(0, 8);
+
   // 6. alignment: flex/grid rows share a top, bottom or centre; stacked blocks share a left edge
   const misaligned = [];
   for (const parent of all) {

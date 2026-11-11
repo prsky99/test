@@ -114,7 +114,7 @@ def critical(css, used_ranges, dom=frozenset(), scripted=frozenset()):
     return absolute_urls('\n'.join(x for x in (keep(item) for item in blocks(css)) if x) + '\n')
 
 
-def collect(base, page):
+def collect(base, page, local=None):
     from playwright.sync_api import sync_playwright
     used, sheet, dom, script_text = set(), None, set(), ''
     with sync_playwright() as p:
@@ -123,6 +123,8 @@ def collect(base, page):
             for scheme in SCHEMES:
                 ctx = browser.new_context(viewport={'width': width, 'height': 900}, color_scheme=scheme,
                                           extra_http_headers={'X-Agentcon-QA': 'build_critical_css'})
+                if local is not None:  # pages and assets from this working tree, data from the public API
+                    ctx.route('**/*', lambda route: serve_local(route, local))
                 pg = ctx.new_page()
                 cdp = ctx.new_cdp_session(pg)
                 urls = {}
@@ -156,15 +158,43 @@ def collect(base, page):
     return sheet or '', used, dom, scripted
 
 
+def serve_local(route, client):
+    from urllib.parse import urlsplit
+    request = route.request
+    url = urlsplit(request.url)
+    if url.hostname != 'agentconcierge.biz' or not url.path.startswith('/new/en/'):
+        return route.continue_()  # live data (/api/...) from the public site
+    response = client.get(url.path + ('?' + url.query if url.query else ''), headers={'Accept': request.headers.get('accept', '*/*')})
+    headers = {k: v for k, v in response.headers.items() if k not in ('content-length', 'content-encoding', 'transfer-encoding')}
+    route.fulfill(status=response.status_code, body=response.content, headers=headers)
+
+
+def local_client():
+    import tempfile
+    from fastapi.testclient import TestClient
+    from agent_market.concierge.front import Front, create_front_app
+    from agent_market.gateway.store import Store
+    from agent_market.concierge import pearl_view
+    pearl_view.CRITICAL_DIR = Path(tempfile.mkdtemp())  # measure the page as it is without first-screen CSS
+    store = Store(str(Path(tempfile.mkdtemp()) / 'critical.db'))
+    return TestClient(create_front_app(Front(store), manage_book_lifecycle=False))
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--base', required=True, help='a running frontend (the active slot), never a public URL')
+    parser.add_argument('--base', help='a running frontend (the active slot), never a public URL')
+    parser.add_argument('--local', action='store_true',
+                        help='serve /new/en/ from this working tree and read live data from the public API')
     args = parser.parse_args()
+    if not args.base and not args.local:
+        parser.error('give --base or --local')
+    local = local_client() if args.local else None
+    base = 'https://agentconcierge.biz' if args.local else args.base
     manifest = json.loads((ROOT / 'new/en-manifest.json').read_text())
     OUT.mkdir(parents=True, exist_ok=True)
     report = {}
     for page in sorted(manifest['live_pages']):
-        sheet, used, dom, scripted = collect(args.base, page)
+        sheet, used, dom, scripted = collect(base, page, local)
         if not sheet:
             report[page] = 'no bundle stylesheet seen'
             continue

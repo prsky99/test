@@ -19,7 +19,7 @@ PAGES = ('/new/en/index.html', '/new/en/explore.html', '/new/en/chat.html', '/ne
          '/new/en/about.html', '/agents/tasks', '/connect', '/agents/category/dev_tools')
 
 
-@pytest.mark.parametrize('width,height', ((1280, 800), (375, 812)))
+@pytest.mark.parametrize('width,height', ((1280, 800), (768, 1024), (375, 812)))  # 768: split numbers (11-11)
 def test_main_screens_have_no_small_targets(adoption, browser, width, height):  # noqa: F811
     *_, client = adoption[:6]
     def serve(route):
@@ -40,7 +40,7 @@ def test_main_screens_have_no_small_targets(adoption, browser, width, height):  
                 continue
             page.wait_for_load_state('load')
             m = page.evaluate(AUDIT_JS)
-            bad = {k: m[k] for k in ('small_targets', 'design_system_small', 'horizontal_scroll', 'overlaps', 'misaligned', 'covered_controls') if m[k]}
+            bad = {k: m[k] for k in ('small_targets', 'design_system_small', 'horizontal_scroll', 'overlaps', 'misaligned', 'covered_controls', 'split_number') if m[k]}
             if bad or errors:
                 failures[path] = {**bad, 'examples': m['small_examples'] + m['design_system_examples'] + m['overlap_examples']
                                    + m['misaligned_examples'] + m['covered_examples'], 'console': errors}

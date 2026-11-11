@@ -1,4 +1,4 @@
-/* source aef5e681a0cf9edc */
+/* source 5874525895f6d0be */
 :root {
   --bg: #0b0f19;
   --panel: #111827;
@@ -709,6 +709,9 @@ html body .pearl-sponsored-list{list-style:none;margin:0;padding:0;display:grid;
 html body .pearl-sponsored-card strong{display:block;color:var(--ink,#1f2a33)}
 html body .pearl-sponsored-card p{margin:4px 0 0;color:var(--ink,#1f2a33)}
 html body .pearl-sponsored-disclosure{margin:12px 0 0}
+html body :is(.metric-value,[data-metric],.execution-totals strong,.arrival-total,.outcome-grid dd,.home-protocols strong,.protocol-card dd,.reachable-list dd strong){white-space:nowrap;font-variant-numeric:tabular-nums}
+html body .execution-totals p{flex-wrap:wrap;min-width:0;align-items:baseline;column-gap:12px;row-gap:2px}
+@media(max-width:1100px){html body .outcome-grid dd{font-size:clamp(20px,3.2vw,30px)}}
 :root{--panel:var(--surface);--panel-hover:var(--aqua);--card:var(--surface);--card-hover:var(--aqua);--text:var(--ink);--text-muted:var(--muted);--text-dim:var(--muted);--border:var(--line);--border-light:var(--line);--accent:var(--teal);--accent-hover:var(--teal);--accent-glow:#a4815422;--chip:var(--soft);--ok:#247467;--reach:#288e98;--warn:#a57824;--bad:#aa4d42;--k-a2a:var(--teal);--k-mcp:var(--teal);--k-x402:var(--gold)}
 body{padding-bottom:0;font:16px/1.55 Arial,Helvetica,sans-serif;color:var(--ink);background:var(--bg)}
 header.top-nav.pearl-header{position:relative;display:flex;gap:24px;width:min(1280px,calc(100% - 80px));margin:auto;padding:20px 0;min-height:88px;background:transparent;border:0;backdrop-filter:none}
@@ -775,8 +778,6 @@ body[data-theme=dark]{--panel:var(--surface);--panel-hover:var(--aqua);--card:va
 #secWorkflows .wf-port.input{left:75px!important;right:auto!important;transform:translate(-50%,-50%)}
 @media(max-width:700px){.pearl-header .brand-box{font-size:19px;gap:10px;min-width:0}.pearl-header .brand-mark{width:52px;min-width:52px;flex:0 0 52px}#secOverview{display:flex;flex-direction:column}#secOverview .catalog-hero .lead{font-size:16px;margin:10px 0}}
 @media(max-width:380px){.pearl-header .brand-box{font-size:17px;gap:8px}}
-.pearl-header #workspaceAccessLink{display:inline-flex;align-items:center;gap:6px;text-decoration:none}
-.pearl-header #workspaceAccessLink svg{width:16px;height:16px;flex:none}
 .pearl-header .nav-tab[href]{display:inline-flex;align-items:center;justify-content:center;text-decoration:none}
 .pearl-header .nav-tab{font:14px/1.4 Arial,Helvetica,sans-serif;font-weight:400}
 .pearl-header .nav-tabs{gap:18px}

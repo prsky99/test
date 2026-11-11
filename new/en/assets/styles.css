@@ -270,3 +270,8 @@ html body .pearl-sponsored-list{list-style:none;margin:0;padding:0;display:grid;
 html body .pearl-sponsored-card strong{display:block;color:var(--ink,#1f2a33)}
 html body .pearl-sponsored-card p{margin:4px 0 0;color:var(--ink,#1f2a33)}
 html body .pearl-sponsored-disclosure{margin:12px 0 0}
+
+/* 11-11 (user request): a number never breaks inside itself; narrow rows put the words under the number. */
+html body :is(.metric-value,[data-metric],.execution-totals strong,.arrival-total,.outcome-grid dd,.home-protocols strong,.protocol-card dd,.reachable-list dd strong){white-space:nowrap;font-variant-numeric:tabular-nums}
+html body .execution-totals p{flex-wrap:wrap;min-width:0;align-items:baseline;column-gap:12px;row-gap:2px}
+@media(max-width:1100px){html body .outcome-grid dd{font-size:clamp(20px,3.2vw,30px)}}
