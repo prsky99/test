@@ -15,6 +15,9 @@ import time
 from collections import OrderedDict
 
 from .execution_policy import safe_registered_tool, tools_for
+from .schema_cache import install as _install_schema_cache
+
+_install_schema_cache()  # 16,384 schema checks remembered instead of 4,096 (11-11 Chat profile)
 from .retrieval_metrics import stage
 
 EXTRA = 3  # look this many further, so a demoted server is replaced rather than only moved

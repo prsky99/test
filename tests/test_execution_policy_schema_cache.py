@@ -31,4 +31,4 @@ def test_malformed_and_supported_schemas_keep_their_results():
     validator = ep.supported_schema({'inputSchema': {'type': 'object', 'properties': {'q': {'type': 'string'}}}})
     assert validator.is_valid({'q': 'x'}) and not validator.is_valid({'q': 1})
     assert ep.supported_schema({'inputSchema': {'type': 'object', 'properties': {'q': {'type': 'string'}}}}) is validator
-    assert ep._checked_validator.cache_info().maxsize == 4096
+    assert ep._checked_validator.cache_info().maxsize >= 4096  # schema_cache.install() raises it outside the policy file
