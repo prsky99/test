@@ -1,0 +1,718 @@
+{
+ "summary": {
+  "at": "2026-11-11T02:26:31+00:00",
+  "base": "https://agentconcierge.biz",
+  "tasks": 30,
+  "passed": 12,
+  "score": 0.4,
+  "causes": {
+   "call_failed": 10,
+   "no_recommendation": 1,
+   "bad_answer": 3,
+   "wrong_recommendation": 1,
+   "connection_failed": 1,
+   "listing_only": 1,
+   "no_tool": 1
+  },
+  "by_who": {
+   "person": "5/15",
+   "agent": "7/15"
+  }
+ },
+ "rows": [
+  {
+   "id": "p01",
+   "who": "person",
+   "task": "What's the weather forecast for Seoul tomorrow?",
+   "recommend_s": 2.84,
+   "agent": {
+    "id": 214768,
+    "name": "Faceabot Weather",
+    "kind": "mcp",
+    "tools": [
+     "weather_forecast"
+    ]
+   },
+   "call": {
+    "tool": "weather_forecast",
+    "arguments": {
+     "location": "Seoul",
+     "days": 2
+    }
+   },
+   "connect_call_s": 6.46,
+   "answer_chars": 5744,
+   "outcome": "pass",
+   "total_s": 9.3
+  },
+  {
+   "id": "p02",
+   "who": "person",
+   "task": "Convert 250 US dollars to Korean won at today's rate",
+   "recommend_s": 2.82,
+   "agent": {
+    "id": 42043,
+    "name": "Zaleso",
+    "kind": "mcp",
+    "tools": [
+     "usd_ngn_convert"
+    ]
+   },
+   "call": {
+    "tool": "usd_ngn_convert",
+    "arguments": {
+     "from": "USD",
+     "to": "KRW",
+     "amount": 250
+    }
+   },
+   "connect_call_s": 1.23,
+   "outcome": "call_failed",
+   "detail": "tools/call 200 {\"code\": -32000, \"message\": \"The execution is unavailable.\"}",
+   "total_s": 4.05
+  },
+  {
+   "id": "p03",
+   "who": "person",
+   "task": "Show me Apple's most recent SEC filings",
+   "recommend_s": 4.96,
+   "agent": {
+    "id": 239723,
+    "name": "mkts Market Data",
+    "kind": "mcp",
+    "tools": [
+     "get_filings"
+    ]
+   },
+   "call": {
+    "tool": "get_filings",
+    "arguments": {
+     "symbol": "AAPL"
+    }
+   },
+   "connect_call_s": 4.91,
+   "answer_chars": 8302,
+   "outcome": "pass",
+   "total_s": 9.87
+  },
+  {
+   "id": "p04",
+   "who": "person",
+   "task": "Read this page and give me the main text: https://www.anthropic.com/news",
+   "recommend_s": 8.26,
+   "outcome": "no_recommendation",
+   "detail": "find_agents status 200, no agents",
+   "total_s": 8.26
+  },
+  {
+   "id": "p05",
+   "who": "person",
+   "task": "Is CVE-2024-3094 actively exploited?",
+   "recommend_s": 6.31,
+   "agent": {
+    "id": 276569,
+    "name": "US CISA Known Exploited Vulnerabilities (KEV) & Ransomware Audit",
+    "kind": "mcp",
+    "tools": [
+     "cisa_kev_exploited_vulns"
+    ]
+   },
+   "call": {
+    "tool": "cisa_kev_exploited_vulns",
+    "arguments": {
+     "cve": "CVE-2024-3094"
+    }
+   },
+   "connect_call_s": 29.78,
+   "answer_chars": 9853,
+   "outcome": "pass",
+   "total_s": 36.09
+  },
+  {
+   "id": "p06",
+   "who": "person",
+   "task": "What are the public holidays in Japan in 2026?",
+   "recommend_s": 3.32,
+   "agent": {
+    "id": 178542,
+    "name": "A.U.G.U.R Foresight · World",
+    "kind": "mcp",
+    "tools": [
+     "holidays"
+    ]
+   },
+   "call": {
+    "tool": "holidays",
+    "arguments": {
+     "country": "JP",
+     "year": 2026
+    }
+   },
+   "connect_call_s": 3.33,
+   "outcome": "call_failed",
+   "detail": "tools/call 200 {\"code\": -32000, \"message\": \"The execution is unavailable.\"}",
+   "total_s": 6.65
+  },
+  {
+   "id": "p07",
+   "who": "person",
+   "task": "Look up the DNS records for example.com",
+   "recommend_s": 2.56,
+   "agent": {
+    "id": 58706,
+    "name": "Hivex: .si names, DNS and WHOIS",
+    "kind": "mcp",
+    "tools": [
+     "dns_lookup"
+    ]
+   },
+   "call": {
+    "tool": "dns_lookup",
+    "arguments": {
+     "name": "example.com"
+    }
+   },
+   "connect_call_s": 6.62,
+   "answer_chars": 628,
+   "outcome": "pass",
+   "total_s": 9.18
+  },
+  {
+   "id": "p08",
+   "who": "person",
+   "task": "Find recent research papers about retrieval augmented generation",
+   "recommend_s": 2.49,
+   "agent": {
+    "id": 58939,
+    "name": "Artificial eXperience Intelligence (AXI)",
+    "kind": "mcp",
+    "tools": [
+     "axi_search_paper"
+    ]
+   },
+   "call": {
+    "tool": "axi_search_paper",
+    "arguments": {
+     "query": "retrieval augmented generation",
+     "limit": 5
+    }
+   },
+   "connect_call_s": 43.99,
+   "answer_chars": 6300,
+   "outcome": "bad_answer",
+   "detail": "check failed: (?i)augment, 202[5-6]",
+   "answer_head": "{\"content\": [{\"type\": \"text\", \"text\": \"## 4.2 The AXI Stack\\n\\nAXI proposes a five-layer reference architecture (Figure 1; Table 2). Layers 1–4 are addressed by existing disciplines; Layer 5, the AXI Bridge, is the integration point we formalize as a runtime control plane.\\n\\n\\n\\n![Figure 1. The AXI",
+   "total_s": 46.48
+  },
+  {
+   "id": "p09",
+   "who": "person",
+   "task": "What's the latest version of the Python package requests, and does it have known vulnerabilities?",
+   "recommend_s": 3.54,
+   "agent": {
+    "id": 35565,
+    "name": "Vigía",
+    "kind": "mcp",
+    "tools": [
+     "find_compatible_version"
+    ]
+   },
+   "call": {
+    "tool": "package_status",
+    "arguments": {
+     "ecosystem": "PyPI",
+     "name": "requests"
+    }
+   },
+   "connect_call_s": 1.56,
+   "outcome": "call_failed",
+   "detail": "tools/call 200 {\"code\": -32000, \"message\": \"The execution is unavailable.\"}",
+   "total_s": 5.1
+  },
+  {
+   "id": "p10",
+   "who": "person",
+   "task": "Translate 'Where is the train station?' into Korean",
+   "recommend_s": 2.04,
+   "agent": {
+    "id": 48609,
+    "name": "io.github.krakonjac300-pixel/agent-media-toolkit",
+    "kind": "mcp",
+    "tools": [
+     "translate"
+    ]
+   },
+   "call": {
+    "tool": "translate",
+    "arguments": {
+     "text": "Where is the train station?",
+     "target_lang": "ko"
+    }
+   },
+   "connect_call_s": 5.32,
+   "answer_chars": 96,
+   "outcome": "wrong_recommendation",
+   "detail": "check failed: 역",
+   "answer_head": "{\"content\": [{\"type\": \"text\", \"text\": \"{\\\"error\\\": \\\"translation failed\\\"}\"}], \"isError\": false}",
+   "total_s": 7.36
+  },
+  {
+   "id": "p11",
+   "who": "person",
+   "task": "Get the coordinates of the Eiffel Tower",
+   "recommend_s": 3.62,
+   "agent": {
+    "id": 214764,
+    "name": "Faceabot Geocoding",
+    "kind": "mcp",
+    "tools": [
+     "geocode_address"
+    ]
+   },
+   "call": {
+    "tool": "geocode_address",
+    "arguments": {
+     "query": "Eiffel Tower, Paris"
+    }
+   },
+   "connect_call_s": 43.3,
+   "answer_chars": 1898,
+   "outcome": "pass",
+   "total_s": 46.92
+  },
+  {
+   "id": "p12",
+   "who": "person",
+   "task": "Are there any weather alerts in California right now?",
+   "recommend_s": 3.07,
+   "agent": {
+    "id": 37322,
+    "name": "Weather & Geo Intel MCP",
+    "kind": "mcp",
+    "tools": [
+     "weather_alerts"
+    ]
+   },
+   "call": {
+    "tool": "weather_alerts",
+    "arguments": {
+     "area": "CA"
+    }
+   },
+   "connect_call_s": 4.52,
+   "outcome": "call_failed",
+   "detail": "tools/call 200 {\"code\": -32000, \"message\": \"The execution is unavailable.\"}",
+   "total_s": 7.59
+  },
+  {
+   "id": "p13",
+   "who": "person",
+   "task": "What time is it in New York and in Seoul right now?",
+   "recommend_s": 5.16,
+   "agent": {
+    "id": 130308,
+    "name": "ALPHA-STREAM — Stateful 5-Minute DeFi, DEX & Polymarket Alpha Delta Stream",
+    "kind": "a2a",
+    "tools": [
+     "Stateful 5-Minute DeFi, DEX & Polymarket Alpha Delta Stream"
+    ]
+   },
+   "connect_call_s": 3.85,
+   "outcome": "connection_failed",
+   "detail": "message/send 200 {\"code\": -32000, \"message\": \"The agent returned no usable task result.\", \"data\": {\"error_code\": \"UPSTREAM_TOOL_ERROR\", \"correlation_id\": \"ex_2f5d3a6464ecc0117f7e7a10\"}}",
+   "total_s": 9.01
+  },
+  {
+   "id": "p14",
+   "who": "person",
+   "task": "When does the SSL certificate for example.com expire?",
+   "recommend_s": 2.95,
+   "agent": {
+    "id": 302633,
+    "name": "SteadySite",
+    "kind": "mcp",
+    "tools": [
+     "check_ssl_domain_expiry"
+    ]
+   },
+   "call": {
+    "tool": "check_ssl_domain_expiry",
+    "arguments": {
+     "domain": "example.com"
+    }
+   },
+   "connect_call_s": 37.06,
+   "outcome": "call_failed",
+   "detail": "tools/call 200 {\"code\": -32000, \"message\": \"The execution is unavailable.\"}",
+   "total_s": 40.01
+  },
+  {
+   "id": "p15",
+   "who": "person",
+   "task": "Find an API that gives me the transcript of a YouTube video",
+   "recommend_s": 3.05,
+   "agent": {
+    "id": 43528,
+    "name": "agentsvc.io",
+    "kind": "mcp",
+    "tools": [
+     "audio_transcribe"
+    ]
+   },
+   "outcome": "listing_only",
+   "detail": "not called: the task needs a paid or keyed source (free_check false)",
+   "relevant": false,
+   "total_s": 3.05
+  },
+  {
+   "id": "a01",
+   "who": "agent",
+   "task": "Find an agent that converts PDF to text",
+   "recommend_s": 2.47,
+   "agent": {
+    "id": 45424,
+    "name": "io.github.MLTCorp/convertfilefast",
+    "kind": "mcp",
+    "tools": [
+     "convert_file"
+    ]
+   },
+   "call": {
+    "tool": "convert_file",
+    "arguments": {
+     "target_format": "https://arxiv.org/pdf/1706.03762"
+    }
+   },
+   "connect_call_s": 3.82,
+   "outcome": "call_failed",
+   "detail": "tools/call 200 {\"code\": -32602, \"message\": \"Review the tool inputs and try again.\", \"data\": {\"error_code\": \"INVALID_INPUT\", \"correlation_id\": \"ex_d5844cdfc7a0d55da5b8397c\"}}",
+   "total_s": 6.28
+  },
+  {
+   "id": "a02",
+   "who": "agent",
+   "task": "Need a tool that returns current price of BTC in USD as JSON",
+   "recommend_s": 5.01,
+   "agent": {
+    "id": 161699,
+    "name": "falcon.sol structures",
+    "kind": "mcp",
+    "tools": [
+     "price_note"
+    ]
+   },
+   "outcome": "no_tool",
+   "detail": "tools/list returned 0 tools, none callable",
+   "total_s": 7.31
+  },
+  {
+   "id": "a03",
+   "who": "agent",
+   "task": "Find an MCP server that can search GitHub repositories by keyword",
+   "recommend_s": 3.68,
+   "agent": {
+    "id": 241601,
+    "name": "web2mcp",
+    "kind": "mcp",
+    "tools": [
+     "github_search_repos"
+    ]
+   },
+   "call": {
+    "tool": "github_search_repos",
+    "arguments": {
+     "query": "model context protocol"
+    }
+   },
+   "connect_call_s": 8.13,
+   "answer_chars": 3486,
+   "outcome": "pass",
+   "total_s": 11.81
+  },
+  {
+   "id": "a04",
+   "who": "agent",
+   "task": "Tool to fetch a web page and return clean markdown",
+   "recommend_s": 11.95,
+   "agent": {
+    "id": 140618,
+    "name": "NythosX Agent Tools",
+    "kind": "a2a",
+    "tools": [
+     "Convert any web page into clean, readable Markdown"
+    ]
+   },
+   "connect_call_s": 21.04,
+   "outcome": "call_failed",
+   "detail": "message/send 200 {\"code\": -32000, \"message\": \"The execution is unavailable.\"}",
+   "total_s": 32.99
+  },
+  {
+   "id": "a05",
+   "who": "agent",
+   "task": "Geocode a street address to latitude and longitude",
+   "recommend_s": 6.24,
+   "agent": {
+    "id": 214764,
+    "name": "Faceabot Geocoding",
+    "kind": "mcp",
+    "tools": [
+     "reverse_geocode"
+    ]
+   },
+   "call": {
+    "tool": "reverse_geocode",
+    "arguments": {}
+   },
+   "connect_call_s": 3.11,
+   "outcome": "call_failed",
+   "detail": "tools/call 200 {\"code\": -32602, \"message\": \"Review the tool inputs and try again.\", \"data\": {\"error_code\": \"INVALID_INPUT\", \"correlation_id\": \"ex_6c6c133776cef907058a5b4e\"}}",
+   "total_s": 9.35
+  },
+  {
+   "id": "a06",
+   "who": "agent",
+   "task": "Get the abstract of an arXiv paper by its id",
+   "recommend_s": 5.47,
+   "agent": {
+    "id": 34807,
+    "name": "Paper Finder",
+    "kind": "mcp",
+    "tools": [
+     "get_paper"
+    ]
+   },
+   "call": {
+    "tool": "get_paper",
+    "arguments": {
+     "arxiv_id": "1706.03762"
+    }
+   },
+   "connect_call_s": 73.24,
+   "answer_chars": 4048,
+   "outcome": "pass",
+   "total_s": 78.71
+  },
+  {
+   "id": "a07",
+   "who": "agent",
+   "task": "Look up a company's ticker symbol and latest stock quote",
+   "recommend_s": 6.67,
+   "agent": {
+    "id": 87458,
+    "name": "Fodda Research Agent",
+    "kind": "a2a",
+    "tools": [
+     "Per-Ticker Earnings Intelligence"
+    ]
+   },
+   "connect_call_s": 1.54,
+   "answer_chars": 284,
+   "outcome": "bad_answer",
+   "detail": "check failed: (?i)MSFT|microsoft, \\b[3-6]\\d{2}\\.\\d+\\b",
+   "answer_head": "{\"role\": \"agent\", \"kind\": \"message\", \"messageId\": \"6534bfe60ea7bae23531a229ac163c5e\", \"parts\": [{\"kind\": \"text\", \"text\": \"Fodda A2A endpoint is operational. Provide an API key via Authorization: Bearer <key> for full access to trend intelligence. Get a key at https://app.fodda.ai\"}]}",
+   "total_s": 8.21
+  },
+  {
+   "id": "a08",
+   "who": "agent",
+   "task": "Find an agent that answers WHOIS for a domain",
+   "recommend_s": 3.16,
+   "agent": {
+    "id": 58706,
+    "name": "Hivex: .si names, DNS and WHOIS",
+    "kind": "mcp",
+    "tools": [
+     "whois_lookup"
+    ]
+   },
+   "call": {
+    "tool": "whois_lookup",
+    "arguments": {
+     "domain": "example.com"
+    }
+   },
+   "connect_call_s": 5.8,
+   "answer_chars": 1098,
+   "outcome": "pass",
+   "total_s": 8.96
+  },
+  {
+   "id": "a09",
+   "who": "agent",
+   "task": "Need a tool to get npm package metadata (latest version)",
+   "recommend_s": 3.9,
+   "agent": {
+    "id": 133021,
+    "name": "Package Metadata",
+    "kind": "mcp",
+    "tools": [
+     "get_package_metadata"
+    ]
+   },
+   "call": {
+    "tool": "get_package_metadata",
+    "arguments": {
+     "package": "express"
+    }
+   },
+   "connect_call_s": 1.8,
+   "answer_chars": 730,
+   "outcome": "pass",
+   "total_s": 5.71
+  },
+  {
+   "id": "a10",
+   "who": "agent",
+   "task": "Search Wikipedia and return the summary of an article",
+   "recommend_s": 5.66,
+   "agent": {
+    "id": 143970,
+    "name": "Faceabot Wikipedia",
+    "kind": "mcp",
+    "tools": [
+     "wiki_search"
+    ]
+   },
+   "call": {
+    "tool": "wiki_article",
+    "arguments": {
+     "title": "Seoul"
+    }
+   },
+   "connect_call_s": 41.26,
+   "answer_chars": 17121,
+   "outcome": "pass",
+   "total_s": 46.92
+  },
+  {
+   "id": "a11",
+   "who": "agent",
+   "task": "Convert an amount between two currencies using a daily rate API",
+   "recommend_s": 2.42,
+   "agent": {
+    "id": 37318,
+    "name": "Market Intel MCP",
+    "kind": "mcp",
+    "tools": [
+     "fx_convert"
+    ]
+   },
+   "call": {
+    "tool": "fx_convert",
+    "arguments": {
+     "from": "EUR",
+     "to": "JPY",
+     "amount": 100
+    }
+   },
+   "connect_call_s": 8.3,
+   "answer_chars": 914,
+   "outcome": "pass",
+   "total_s": 10.72
+  },
+  {
+   "id": "a12",
+   "who": "agent",
+   "task": "Get air quality index for a city",
+   "recommend_s": 3.46,
+   "agent": {
+    "id": 61104,
+    "name": "OnchainExpat x402 APIs",
+    "kind": "mcp",
+    "tools": [
+     "tools_air_quality"
+    ]
+   },
+   "call": {
+    "tool": "get_api_docs",
+    "arguments": {
+     "category": "Delhi"
+    }
+   },
+   "connect_call_s": 5.31,
+   "answer_chars": 240,
+   "outcome": "bad_answer",
+   "detail": "check failed: (?i)aqi|pm2\\.?5|pm10|no2|\\bo3\\b",
+   "answer_head": "{\"content\": [{\"type\": \"text\", \"text\": \"{\\\"error\\\": \\\"Unknown category 'Delhi'. Valid: crypto, ai, agent-tools, padel\\\"}\"}], \"structuredContent\": {\"error\": \"Unknown category 'Delhi'. Valid: crypto, ai, agent-tools, padel\"}, \"isError\": false}",
+   "total_s": 8.77
+  },
+  {
+   "id": "a13",
+   "who": "agent",
+   "task": "Find a tool that validates JSON against a JSON Schema",
+   "recommend_s": 5.26,
+   "agent": {
+    "id": 206517,
+    "name": "IA-QA Data & Dev — 36 tools",
+    "kind": "mcp",
+    "tools": [
+     "json_schema_validate"
+    ]
+   },
+   "call": {
+    "tool": "json_schema_validate",
+    "arguments": {
+     "schema": {
+      "type": "object",
+      "required": [
+       "a"
+      ]
+     }
+    }
+   },
+   "connect_call_s": 35.49,
+   "outcome": "call_failed",
+   "detail": "tools/call 200 {\"code\": -32602, \"message\": \"Review the tool inputs and try again.\", \"data\": {\"error_code\": \"INVALID_INPUT\", \"correlation_id\": \"ex_a71f833c3f1d890e3584cf00\"}}",
+   "total_s": 40.76
+  },
+  {
+   "id": "a14",
+   "who": "agent",
+   "task": "Need an agent to list upcoming earthquakes data feed (USGS) above magnitude 5",
+   "recommend_s": 5.01,
+   "agent": {
+    "id": 214762,
+    "name": "Faceabot Earthquakes",
+    "kind": "mcp",
+    "tools": [
+     "recent_earthquakes"
+    ]
+   },
+   "call": {
+    "tool": "recent_earthquakes",
+    "arguments": {
+     "min_magnitude": 5
+    }
+   },
+   "connect_call_s": 8.18,
+   "answer_chars": 4068,
+   "outcome": "pass",
+   "total_s": 13.19
+  },
+  {
+   "id": "a15",
+   "who": "agent",
+   "task": "Resolve the IP address location (country, city) for an IP",
+   "recommend_s": 4.29,
+   "agent": {
+    "id": 43528,
+    "name": "agentsvc.io",
+    "kind": "mcp",
+    "tools": [
+     "ip_lookup"
+    ]
+   },
+   "call": {
+    "tool": "ip_lookup",
+    "arguments": {
+     "ip": "8.8.8.8"
+    }
+   },
+   "connect_call_s": 1.6,
+   "outcome": "call_failed",
+   "detail": "tools/call 200 {\"code\": -32000, \"message\": \"The execution is unavailable.\"}",
+   "total_s": 5.89
+  }
+ ]
+}

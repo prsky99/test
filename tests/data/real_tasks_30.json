@@ -8,7 +8,8 @@
   "sample_input": "the input used when the grader calls the recommended tool",
   "must_return": "what the tool's answer must contain to count as success",
   "fail_if": "answers that count as failure even when the call returns 200",
-  "free_check": "true when the grader can verify with a free, read-only call; false when only listing evidence can be checked (paid x402)"
+  "free_check": "true when the grader can verify with a free, read-only call; false when only listing evidence can be checked (paid x402)",
+  "check": "automatic grading: every regex in \"all\" must match the JSON text of the tool answer (case rules inside each pattern). Recency is approximated by date strings of the current year; must_return stays the human definition."
  },
  "tasks": [
   {
@@ -22,7 +23,14 @@
    },
    "must_return": "tomorrow's date with temperature (min/max or hourly) and precipitation or condition for Seoul",
    "fail_if": "current conditions only; another city; no date",
-   "free_check": true
+   "free_check": true,
+   "check": {
+    "all": [
+     "(?i)seoul|37\\.5",
+     "(?i)temp|°|celsius|\\d+(\\.\\d+)?\\s*[CF]\\b",
+     "2026-\\d\\d-\\d\\d"
+    ]
+   }
   },
   {
    "id": "p02",
@@ -36,7 +44,13 @@
    },
    "must_return": "a USD->KRW rate dated within the last 2 days, or the converted amount with its rate date",
    "fail_if": "rate older than 7 days; crypto prices instead of fiat",
-   "free_check": true
+   "free_check": true,
+   "check": {
+    "all": [
+     "(?i)KRW|won",
+     "\\b1[,.]?[3-5]\\d{2}(\\.\\d+)?\\b"
+    ]
+   }
   },
   {
    "id": "p03",
@@ -48,7 +62,13 @@
    },
    "must_return": "a list of filings with form type (10-K, 10-Q, 8-K ...) and filing date, newest within the last 120 days",
    "fail_if": "stock price only; no form types or dates",
-   "free_check": true
+   "free_check": true,
+   "check": {
+    "all": [
+     "\\b(10-K|10-Q|8-K)\\b",
+     "202[5-6]-\\d\\d-\\d\\d"
+    ]
+   }
   },
   {
    "id": "p04",
@@ -60,7 +80,13 @@
    },
    "must_return": "the page's article titles or body text as text or Markdown (not raw HTML only)",
    "fail_if": "error for a public URL; only metadata such as title and description",
-   "free_check": true
+   "free_check": true,
+   "check": {
+    "all": [
+     "(?i)anthropic",
+     "(?i)claude|news"
+    ]
+   }
   },
   {
    "id": "p05",
@@ -72,7 +98,13 @@
    },
    "must_return": "the CVE's description or CVSS plus whether it is in CISA KEV or its EPSS score",
    "fail_if": "unknown CVE; generic advice without data",
-   "free_check": true
+   "free_check": true,
+   "check": {
+    "all": [
+     "(?i)CVE-2024-3094",
+     "(?i)xz|liblzma|backdoor|cvss|epss|exploit|kev"
+    ]
+   }
   },
   {
    "id": "p06",
@@ -85,7 +117,13 @@
    },
    "must_return": "a list of dated 2026 holidays in Japan including 2026-01-01",
    "fail_if": "another country or year; business-day calculation only",
-   "free_check": true
+   "free_check": true,
+   "check": {
+    "all": [
+     "2026-01-01",
+     "(?i)new year|japan|\\bJP\\b"
+    ]
+   }
   },
   {
    "id": "p07",
@@ -97,7 +135,12 @@
    },
    "must_return": "at least the A record(s) for example.com",
    "fail_if": "WHOIS only; no record values",
-   "free_check": true
+   "free_check": true,
+   "check": {
+    "all": [
+     "\\b\\d{1,3}(\\.\\d{1,3}){3}\\b"
+    ]
+   }
   },
   {
    "id": "p08",
@@ -110,7 +153,14 @@
    },
    "must_return": "paper titles with authors or links, at least one published in the last 12 months",
    "fail_if": "web search results without papers; empty list",
-   "free_check": true
+   "free_check": true,
+   "check": {
+    "all": [
+     "(?i)retrieval",
+     "(?i)augment",
+     "202[5-6]"
+    ]
+   }
   },
   {
    "id": "p09",
@@ -123,7 +173,13 @@
    },
    "must_return": "the latest released version number and a vulnerability result (advisories list or 'none found') for that package",
    "fail_if": "npm package; version only with no vulnerability answer",
-   "free_check": true
+   "free_check": true,
+   "check": {
+    "all": [
+     "\\b2\\.\\d{1,2}\\.\\d+\\b",
+     "(?i)vuln|advisor|GHSA|CVE-|osv|no known"
+    ]
+   }
   },
   {
    "id": "p10",
@@ -136,7 +192,12 @@
    },
    "must_return": "a Korean sentence asking where the train station is (contains 역)",
    "fail_if": "language detection only; English output",
-   "free_check": true
+   "free_check": true,
+   "check": {
+    "all": [
+     "역"
+    ]
+   }
   },
   {
    "id": "p11",
@@ -148,7 +209,13 @@
    },
    "must_return": "latitude about 48.858 and longitude about 2.294 (within 0.01)",
    "fail_if": "reverse geocoding only; another place",
-   "free_check": true
+   "free_check": true,
+   "check": {
+    "all": [
+     "48\\.85\\d*",
+     "\\b2\\.29\\d*"
+    ]
+   }
   },
   {
    "id": "p12",
@@ -160,7 +227,13 @@
    },
    "must_return": "a list of active alerts with event names, or an explicit empty list with the time checked",
    "fail_if": "forecast without alerts; another state",
-   "free_check": true
+   "free_check": true,
+   "check": {
+    "all": [
+     "(?i)\\bCA\\b|california",
+     "(?i)alert|warning|advisory|watch|\"features\""
+    ]
+   }
   },
   {
    "id": "p13",
@@ -175,7 +248,14 @@
    },
    "must_return": "current local times for both zones within 2 minutes of the real time",
    "fail_if": "UTC offset only without times; one zone only",
-   "free_check": true
+   "free_check": true,
+   "check": {
+    "all": [
+     "(?i)new.?york",
+     "(?i)seoul",
+     "\\b\\d{1,2}:\\d{2}"
+    ]
+   }
   },
   {
    "id": "p14",
@@ -187,7 +267,13 @@
    },
    "must_return": "the certificate's expiry date (and ideally issuer) for example.com",
    "fail_if": "domain registration expiry instead of the certificate",
-   "free_check": true
+   "free_check": true,
+   "check": {
+    "all": [
+     "(?i)expir|not.?after|valid.?(to|until)",
+     "202[6-7]"
+    ]
+   }
   },
   {
    "id": "p15",
@@ -199,7 +285,12 @@
    },
    "must_return": "timed or plain caption text for the video",
    "fail_if": "video metadata only; summary without transcript",
-   "free_check": false
+   "free_check": false,
+   "check": {
+    "all": [
+     "(?i)never gonna|transcript|caption"
+    ]
+   }
   },
   {
    "id": "a01",
@@ -211,7 +302,12 @@
    },
    "must_return": "plain text from the PDF that includes the phrase 'Attention Is All You Need'",
    "fail_if": "an error, an empty string, or only page metadata",
-   "free_check": true
+   "free_check": true,
+   "check": {
+    "all": [
+     "(?i)attention is all you need"
+    ]
+   }
   },
   {
    "id": "a02",
@@ -224,7 +320,13 @@
    },
    "must_return": "a numeric BTC price in USD with a timestamp within the last day",
    "fail_if": "a stock price; a price older than 7 days; a non-numeric value",
-   "free_check": true
+   "free_check": true,
+   "check": {
+    "all": [
+     "(?i)btc|bitcoin",
+     "\\b\\d{2,3},?\\d{3}(\\.\\d+)?\\b"
+    ]
+   }
   },
   {
    "id": "a03",
@@ -236,7 +338,13 @@
    },
    "must_return": "a list of GitHub repositories with names or URLs matching the query",
    "fail_if": "issues or users only; an authentication error",
-   "free_check": true
+   "free_check": true,
+   "check": {
+    "all": [
+     "(?i)github\\.com/[\\w.-]+/[\\w.-]+|full_name|repositor",
+     "(?i)model.?context|mcp"
+    ]
+   }
   },
   {
    "id": "a04",
@@ -248,7 +356,12 @@
    },
    "must_return": "text containing 'Example Domain'",
    "fail_if": "raw HTML only; a screenshot; an error",
-   "free_check": true
+   "free_check": true,
+   "check": {
+    "all": [
+     "Example Domain"
+    ]
+   }
   },
   {
    "id": "a05",
@@ -260,7 +373,13 @@
    },
    "must_return": "latitude about 38.89 and longitude about -77.03",
    "fail_if": "coordinates of another place; an empty result",
-   "free_check": true
+   "free_check": true,
+   "check": {
+    "all": [
+     "38\\.89\\d*",
+     "-77\\.0[2-4]\\d*"
+    ]
+   }
   },
   {
    "id": "a06",
@@ -272,7 +391,13 @@
    },
    "must_return": "the title 'Attention Is All You Need' and its abstract text",
    "fail_if": "search results without the requested paper",
-   "free_check": true
+   "free_check": true,
+   "check": {
+    "all": [
+     "(?i)attention is all you need",
+     "(?i)abstract|sequence transduction"
+    ]
+   }
   },
   {
    "id": "a07",
@@ -284,7 +409,13 @@
    },
    "must_return": "a numeric price for MSFT with a date within the last 7 days",
    "fail_if": "crypto prices; a quote older than 7 days",
-   "free_check": true
+   "free_check": true,
+   "check": {
+    "all": [
+     "(?i)MSFT|microsoft",
+     "\\b[3-6]\\d{2}\\.\\d+\\b"
+    ]
+   }
   },
   {
    "id": "a08",
@@ -296,7 +427,12 @@
    },
    "must_return": "registrar or registration dates for example.com",
    "fail_if": "DNS records only; an error",
-   "free_check": true
+   "free_check": true,
+   "check": {
+    "all": [
+     "(?i)registrar|registration|creat(ed|ion)"
+    ]
+   }
   },
   {
    "id": "a09",
@@ -308,7 +444,13 @@
    },
    "must_return": "the latest published version number of express",
    "fail_if": "a PyPI result; an error",
-   "free_check": true
+   "free_check": true,
+   "check": {
+    "all": [
+     "(?i)express",
+     "\\b[45]\\.\\d+\\.\\d+\\b"
+    ]
+   }
   },
   {
    "id": "a10",
@@ -320,7 +462,13 @@
    },
    "must_return": "a summary paragraph about Seoul from Wikipedia",
    "fail_if": "another article; an empty answer",
-   "free_check": true
+   "free_check": true,
+   "check": {
+    "all": [
+     "(?i)seoul",
+     "(?i)capital|south korea"
+    ]
+   }
   },
   {
    "id": "a11",
@@ -334,7 +482,13 @@
    },
    "must_return": "an EUR->JPY rate or converted amount with a date within the last 7 days",
    "fail_if": "crypto rates; no date",
-   "free_check": true
+   "free_check": true,
+   "check": {
+    "all": [
+     "(?i)JPY|yen",
+     "\\b1[5-9]\\d(\\.\\d+)?\\b|\\b1[5-9],?\\d{3}(\\.\\d+)?\\b"
+    ]
+   }
   },
   {
    "id": "a12",
@@ -346,7 +500,13 @@
    },
    "must_return": "an AQI value or pollutant concentrations for Delhi with a time within the last 2 days",
    "fail_if": "weather only; another city",
-   "free_check": true
+   "free_check": true,
+   "check": {
+    "all": [
+     "(?i)delhi",
+     "(?i)aqi|pm2\\.?5|pm10|no2|\\bo3\\b"
+    ]
+   }
   },
   {
    "id": "a13",
@@ -366,7 +526,13 @@
    },
    "must_return": "a validation result reporting that property 'a' is missing",
    "fail_if": "a pass for the invalid instance; an error",
-   "free_check": true
+   "free_check": true,
+   "check": {
+    "all": [
+     "(?i)required|missing",
+     "(?i)property ['\"]?a['\"]?|['\"]a['\"]"
+    ]
+   }
   },
   {
    "id": "a14",
@@ -378,7 +544,13 @@
    },
    "must_return": "a list of earthquakes with magnitude >= 5 and times within the last 30 days",
    "fail_if": "forecasts; events below magnitude 5 only",
-   "free_check": true
+   "free_check": true,
+   "check": {
+    "all": [
+     "(?i)mag(nitude)?",
+     "\\b[5-9]\\.\\d\\b"
+    ]
+   }
   },
   {
    "id": "a15",
@@ -390,7 +562,12 @@
    },
    "must_return": "country 'United States' (or US) for 8.8.8.8",
    "fail_if": "DNS lookup only; an error",
-   "free_check": true
+   "free_check": true,
+   "check": {
+    "all": [
+     "(?i)united states|\\bUS\\b"
+    ]
+   }
   }
  ]
 }

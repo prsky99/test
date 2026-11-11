@@ -4,6 +4,7 @@
     ops_auto.py watch          every 10 minutes: ops_watch; on a new anomaly, write a short Korean alert
     ops_auto.py test-reports   daily: run the probed test-report batch, then summarise the last 24 hours
     ops_auto.py board-snapshot copy the status board to logs/ops/status-board-history/ when it changed (also run by watch)
+    (watch also starts scripts/real_task_score.py once a day in the 04:00 local hour, 11-11)
 
 Claude API (scripts/ops_llm.py, Haiku, daily cap) only writes the wording; every decision about what is an
 anomaly, and every fallback, is plain code, so a missing or expired key changes nothing but the wording.
@@ -100,6 +101,35 @@ def user_slo():
     append(ACTIONS, f'{now()} user_slo: 미달 {",".join(record.get("breaches") or {}) or "없음"}')
 
 
+REAL_TASK_STATE = ROOT / 'logs/ops/real-task-score-state.json'
+REAL_TASK_HOUR = 4  # local time; the quietest hour on this production Mac (11-11 PM: once a day, at night)
+
+
+def real_task_score(clock=time.time, launch=None):
+    """Once a day at night: score the 30-task answer set on the public site (scripts/real_task_score.py).
+
+    Started in the background at low priority so the 10-minute watch never waits for it; skipped while tests or
+    deploys run. Results: reports/real-task-score/<date>.json and logs/ops/real-task-score.jsonl."""
+    local = datetime.fromtimestamp(clock())
+    if local.hour != REAL_TASK_HOUR:
+        return None
+    state = json.loads(REAL_TASK_STATE.read_text()) if REAL_TASK_STATE.is_file() else {}
+    today = local.strftime('%Y-%m-%d')
+    if state.get('day') == today:
+        return None
+    reason = busy()
+    if reason:
+        append(ACTIONS, f'{now()} real_task_score 미룸: {reason}')
+        return None
+    REAL_TASK_STATE.parent.mkdir(parents=True, exist_ok=True)
+    REAL_TASK_STATE.write_text(json.dumps({'day': today, 'started': clock()}))
+    log = (ROOT / 'logs/ops/real-task-score.out').open('a')
+    (launch or subprocess.Popen)(['nice', '-n', '10', str(ROOT / '.venv/bin/python'), '-m', 'scripts.real_task_score'],
+                                 cwd=ROOT, stdout=log, stderr=log, start_new_session=True)
+    append(ACTIONS, f'{now()} real_task_score 시작')
+    return today
+
+
 def board_snapshot(board=None, history=None, clock=time.time):
     """Keep a timestamped copy of the status board whenever its content changed (11-11).
 
@@ -136,6 +166,10 @@ def watch():
         user_slo()
     except Exception as error:  # noqa: BLE001 - the 10-minute watch must keep running
         append(ACTIONS, f'{now()} user_slo 실패: {type(error).__name__}')
+    try:
+        real_task_score()
+    except Exception as error:  # noqa: BLE001
+        append(ACTIONS, f'{now()} real_task_score 실패: {type(error).__name__}')
     record = json.loads(subprocess.run([sys.executable, str(ROOT / 'scripts/ops_watch.py')],
                                        capture_output=True, text=True, cwd=ROOT).stdout or '{}')
     anomalies = record.get('anomalies') or {}
