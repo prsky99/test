@@ -20,6 +20,31 @@ def legacy_public_entry(monkeypatch):
     monkeypatch.setattr(pearl_view, 'public_page_available', lambda: False)
 
 
+class _OutcomeStore:
+    """In-memory stand-in for the shared Redis task-outcome counts, one per test."""
+    def __init__(self):
+        self.values = {}
+
+    def get_json(self, key):
+        return self.values.get(key)
+
+    def set_json(self, key, value, ttl_seconds=None):
+        self.values[key] = value
+
+
+@pytest.fixture(autouse=True)
+def isolated_task_outcomes(monkeypatch):
+    """Gateway answers are counted per listing in the shared Redis store (task_outcomes, 11-11).
+
+    Tests used the machine's real Redis under the 'a2a:local:' prefix, so one test's gateway calls
+    (ten tools/call for a small listing id) reordered another test's recommendations.
+    """
+    from agent_market.concierge import task_outcomes
+    store = _OutcomeStore()
+    monkeypatch.setattr(task_outcomes, '_hub', lambda: store)
+    yield store
+
+
 @pytest.fixture(autouse=True)
 def fresh_agent_pacing():
     """Provider pacing is process-wide; each test starts without earlier dispatch times."""
