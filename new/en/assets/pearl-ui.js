@@ -299,17 +299,19 @@
   }
   function segmented(select, label, labels={}) {
     if(!select)return;
-    const group=element('div','pearl-protocol-segmented');
+    // 11-11: the server may already have drawn this group (no layout shift on load); adopt it if so.
+    const drawn=select.nextElementSibling;
+    const ready=!!(drawn&&drawn.classList.contains('pearl-protocol-segmented')&&drawn.dataset.for===select.id);
+    const group=ready?drawn:element('div','pearl-protocol-segmented');
     group.setAttribute('role','group');group.setAttribute('aria-label',label);
     const sync=()=>all('button',group).forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.value===select.value)));
     for(const option of select.options){
-      const button=element('button','',labels[option.value]||option.textContent);
-      button.type='button';button.dataset.value=option.value;
+      let button=ready?[...group.querySelectorAll('button')].find(node=>node.dataset.value===option.value):null;
+      if(!button){button=element('button','',labels[option.value]||option.textContent);button.type='button';button.dataset.value=option.value;group.append(button);}
       button.addEventListener('click',()=>{select.value=option.value;select.dispatchEvent(new Event('change',{bubbles:true}));sync();});
-      group.append(button);
     }
     select.classList.add('pearl-native-select');select.tabIndex=-1;select.setAttribute('aria-hidden','true');
-    select.after(group);select.addEventListener('change',sync);select.form?.addEventListener('reset',()=>queueMicrotask(sync));sync();
+    if(!ready)select.after(group);select.addEventListener('change',sync);select.form?.addEventListener('reset',()=>queueMicrotask(sync));sync();
   }
   segmented(q('#chatProtocol'),'Recommendation protocol',{auto:'Auto · A2A → MCP',any:'A2A + MCP',a2a:'A2A',mcp:'MCP',x402:'x402'});
   segmented(q('#regKind'),'Agent protocol',{a2a:'A2A',mcp:'MCP',x402:'x402'});

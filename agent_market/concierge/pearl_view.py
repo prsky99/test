@@ -276,9 +276,47 @@ def panels_body(version):
     return (panels_script(found) if found is not None else None), (panels_script(union) if union else None)
 
 
+# 11-11 (PM stability: Chat at 375 px shifted 0.027-0.055 on load): pearl-ui.js turned the protocol <select>s into
+# button groups after the first paint, and on phones the five Chat buttons wrap to two rows, pushing the
+# conversation down 56 px. The page now arrives with the same group already drawn (and the select already hidden
+# the way the script hides it); pearl-ui.js adopts a group marked data-for="<select id>" instead of building one.
+# Labels must match segmented(...) in new/en/assets/pearl-ui.js (tests/test_prerendered_segmented.py checks it).
+SEGMENTED = {
+    'chatProtocol': ('Recommendation protocol', {'auto': 'Auto · A2A → MCP', 'any': 'A2A + MCP', 'a2a': 'A2A',
+                                                 'mcp': 'MCP', 'x402': 'x402'}),
+    'regKind': ('Agent protocol', {'a2a': 'A2A', 'mcp': 'MCP', 'x402': 'x402'}),
+}
+SELECT = re.compile(r'<select id="(%s)"([^>]*)>(.*?)</select>' % '|'.join(SEGMENTED), re.S)
+OPTION = re.compile(r'<option value="([^"]*)"([^>]*)>(.*?)</option>', re.S)
+
+
+def prerender_segmented(value):
+    import html as _html
+
+    def draw(match):
+        sid, attrs, options = match[1], match[2], match[3]
+        if 'pearl-native-select' in attrs:
+            return match[0]
+        label, labels = SEGMENTED[sid]
+        found = OPTION.findall(options)
+        if not found:
+            return match[0]
+        chosen = next((v for v, a, _ in found if re.search(r'\bselected\b', a)), found[0][0])
+        attrs = re.sub(r'class="([^"]*)"', lambda m: 'class="%s pearl-native-select"' % m[1], attrs, count=1)
+        if 'class="' not in attrs:
+            attrs += ' class="pearl-native-select"'
+        buttons = ''.join('<button type="button" data-value="%s" aria-pressed="%s">%s</button>' % (
+            _html.escape(v), 'true' if v == chosen else 'false',
+            _html.escape(labels.get(v) or _html.unescape(re.sub(r'<[^>]+>', '', text)).strip())) for v, _, text in found)
+        group = '<div class="pearl-protocol-segmented" role="group" aria-label="%s" data-for="%s">%s</div>' % (
+            _html.escape(label), sid, buttons)
+        return '<select id="%s"%s tabindex="-1" aria-hidden="true">%s</select>%s' % (sid, attrs, options, group)
+    return SELECT.sub(draw, value)
+
+
 def page_response(value, *, public=False, page=None):
     """Use the same nonce policy for the default and named presentation routes."""
-    value = critical_css(split_panels(versioned(bundled(value))), page)
+    value = critical_css(split_panels(versioned(bundled(prerender_segmented(value)))), page)
     if os.environ.get('MAIN_SPONSORED', '0') == '1':  # 11-11 Sponsored on main Explore and Chat; off by default
         value = re.sub(r'<body\b', '<body data-sponsored="on"', value, count=1)
     # 11-11 (PM decision A): the same bytes for every visitor, so the edge may keep a page for 60 seconds.
