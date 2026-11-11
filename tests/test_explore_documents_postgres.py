@@ -291,3 +291,54 @@ def test_a_busy_queue_is_filled_by_one_scan_not_one_scan_per_round():
                 now[0] += 5
             assert written == [2, 2, 2, 1] and len(scans) == 1
             store.close()
+
+
+def test_the_stale_scan_reads_outside_the_writer_and_skips_deleted_listings():
+    # 11-11: the three-table scan ran inside the write transaction and held the writer 1-3.3 s
+    # every 5-10 minutes (391 lock timeouts). Only the id insert may run inside it now.
+    binary = Path("/opt/homebrew/opt/postgresql@18/bin")
+    if not (binary / "initdb").is_file():
+        pytest.skip("PostgreSQL 18 fixture tools unavailable")
+    with _private_cluster({name: str(binary / name) for name in ("initdb", "pg_ctl")}) as cluster:
+        with psycopg.connect(host=cluster["socket"], port=PORT, dbname="postgres", user="postgres", autocommit=True) as pg:
+            store = open_store("postgresql", connection=pg, initialize=True, workflow_key=b"s" * 32)
+            doc.install(store)
+            ids = [store.upsert_resource({"key": "split-%d" % n, "source": "fixture", **listing(n)}) for n in range(3)]
+            with store.tx():
+                store._execute("UPDATE resources SET active=1,health_status='healthy'")
+            modes, seen = [], []
+            tx, execute = store.tx, store._execute
+
+            class Mode:
+                def __init__(self, inner, readonly):
+                    self.inner, self.readonly = inner, readonly
+
+                def __enter__(self):
+                    modes.append(self.readonly)
+                    return self.inner.__enter__()
+
+                def __exit__(self, *exc):
+                    modes.pop()
+                    return self.inner.__exit__(*exc)
+
+            def traced_tx(*args, **kwargs):
+                return Mode(tx(*args, **kwargs), bool(kwargs.get("readonly")))
+
+            other = psycopg.connect(host=cluster["socket"], port=PORT, dbname="postgres", user="postgres", autocommit=True)
+
+            def traced(sql, *args, **kwargs):
+                if "resource_observation_generations" in sql or "explore_document_queue(resource_id" in sql:
+                    seen.append((modes[-1] if modes else None, " ".join(sql.split())[:60]))
+                result = execute(sql, *args, **kwargs)
+                if "resource_observation_generations" in sql:
+                    # A listing removed between the read and the write must not break the insert.
+                    other.execute("DELETE FROM resources WHERE id=%s", (ids[0],))
+                return result
+            store.tx, store._execute = traced_tx, traced
+            worker = doc.Refresher(store, batch=5, interval=5, clock=lambda: 1000.0)
+            assert worker.run()["written"] == 2
+            other.close()
+            scans = [mode for mode, sql in seen if "resource_observation_generations" in sql]
+            inserts = [mode for mode, sql in seen if sql.startswith("INSERT INTO agentcon_search.explore_document_queue")]
+            assert scans == [True] and inserts == [False]
+            store.close()

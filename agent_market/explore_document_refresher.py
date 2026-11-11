@@ -60,18 +60,31 @@ class Refresher:
                     self.rest_until = self.clock() + 300
                     return
             if self.clock() >= self.scan_after:
-                with self.store.tx():
-                    # Poll existing durable generations, not a lossy in-process callback.
-                    found = self.store._execute(
-                        """INSERT INTO agentcon_search.explore_document_queue(resource_id,queued_at)
-                        SELECT g.resource_id,%s FROM resource_observation_generations g
+                # Poll existing durable generations, not a lossy in-process callback. The three-table
+                # scan runs in a read snapshot; the write transaction only inserts the ids it found.
+                # Inside the writer lock the scan held it 1-3.3 s every 5-10 minutes, with writers
+                # waiting 60 times in an hour (11-11: 391 PostgreSQL lock timeouts, edge 503s).
+                with self.store.tx(readonly=True):
+                    stale = [row[0] for row in self.store._execute(
+                        """SELECT g.resource_id FROM resource_observation_generations g
                         LEFT JOIN agentcon_search.explore_documents d ON d.resource_id=g.resource_id
                         LEFT JOIN agentcon_search.explore_document_queue q ON q.resource_id=g.resource_id
                         WHERE q.resource_id IS NULL AND (d.resource_id IS NULL OR
                             d.source_generation<>g.generation OR d.policy_hash<>%s)
-                        ORDER BY g.resource_id LIMIT %s ON CONFLICT(resource_id) DO NOTHING""",
-                        (time.time(), documents.policy_hash(), self.batch * self.SCAN_FILL),
-                    ).rowcount
+                        ORDER BY g.resource_id LIMIT %s""",
+                        (documents.policy_hash(), self.batch * self.SCAN_FILL),
+                    ).fetchall()]
+                found = 0
+                if stale:
+                    with self.store.tx():
+                        # A listing deleted meanwhile is skipped (the queue references resources).
+                        found = self.store._execute(
+                            """INSERT INTO agentcon_search.explore_document_queue(resource_id,queued_at)
+                            SELECT r.id,%s FROM resources r
+                            WHERE r.id IN (SELECT value::bigint FROM jsonb_array_elements_text(%s::jsonb))
+                            ON CONFLICT(resource_id) DO NOTHING""",
+                            (time.time(), json.dumps(stale)),
+                        ).rowcount
                 if not found:
                     self.scan_after = self.clock() + self.interval * self.SCAN_REST
             with self.store.tx(readonly=True):
