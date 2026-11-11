@@ -94,6 +94,17 @@ def _time(value):
     return number if 1.5e9 < number < 4e9 else None
 
 
+# A listing whose own text states a price is never shown as Free, whatever price_usdc says (11-11:
+# MoneyTools Transcripts "x402 $0.002/min" showed a Free badge; 1,193 active healthy A2A/MCP listings
+# had price_usdc 0 and a stated price, 25 of 25 sampled were priced).
+STATED_PRICE = re.compile(r'''x402[^a-z0-9]{0,3}\$|\$\s?\d+(?:\.\d+)?\s?(?:/|per\s)|\b\d+(?:\.\d+)?\s?usdc\b
+    |\bpay[\s-]per[\s-](?:call|use|request|minute)''', re.I | re.X)
+
+
+def stated_price(*texts):
+    return any(isinstance(text, str) and STATED_PRICE.search(text) for text in texts)
+
+
 def clean_agent(item):
     if not isinstance(item, dict) or item.get('kind') not in KINDS:
         return None
@@ -112,7 +123,8 @@ def clean_agent(item):
              'last_check_at': _time(item.get('last_check_at')), 'verified_at': _time(item.get('verified_at')),
              'trial_ok': bool(item.get('trial_ok')), 'eval_grade': grade, 'report_grade': report,
              'probe_latency_ms': latency, 'auth_required': bool(item.get('auth_required')),
-             'free': item['free'] is True if 'free' in item else item.get('price_usdc') in (0, 0.0),
+             'free': (item['free'] is True if 'free' in item else item.get('price_usdc') in (0, 0.0))
+                     and not stated_price(item.get('name'), item.get('description')),
              'eval_score': _score(item.get('eval_score')), 'report_score': _score(item.get('report_score')),
              'tool_count': _count(item.get('tool_count', item.get('cap_tool_count'))),
              'category': item.get('category') if re.fullmatch(r'[a-z_]{2,40}', str(item.get('category') or '')) else None}
