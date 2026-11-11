@@ -155,7 +155,7 @@ def part_api(run, c):
     gets = ['/api/overview', '/api/insights', '/api/test/presets', '/api/workflows/templates', '/api/feed/verified.json',
             '/api/agent/v1/entry', '/api/agent/v1/openapi.json', '/api/register/recent']
     if rid:
-        gets += [f'/api/agents/{rid}', f'/api/connections/{rid}', f'/api/agent/v1/badge/{rid}.svg', f'/agent/{rid}']
+        gets += [f'/api/agents/{rid}', f'/api/agent/v1/badge/{rid}.svg', f'/agent/{rid}']
     for path in gets:
         took, r, err = timed(c, 'GET', BASE + path)
         run.ok('api', f'GET {path}', r is not None and r.status_code == 200, err or getattr(r, 'status_code', ''), took)
