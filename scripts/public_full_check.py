@@ -346,10 +346,14 @@ def part_browser(run):
             except Exception as e:  # noqa: BLE001
                 # 11-11: say what the page showed, so a limit, a wording change and a real failure differ.
                 try:
-                    shown = re.findall(r'(?:Latest test|Rate|limit|slow down|unavailable)[^\n]{0,90}', page.inner_text('body'), re.I)[:2]
+                    shown = re.findall(r'(?:Latest test|rate limit|too many|slow down|unavailable|error)[^\n]{0,90}', page.inner_text('body'), re.I)[:3]
+                    button = page.evaluate("(() => { const b = document.getElementById('tbRunBtn'); return b ? [b.disabled, b.textContent.trim().slice(0, 40)] : null })()")
+                    shot = ROOT / 'logs/ops/public-full-check' / f'test-run-timeout-{width}-{time.strftime("%H%M%S")}.png'
+                    shot.parent.mkdir(parents=True, exist_ok=True)
+                    page.screenshot(path=str(shot), full_page=False)
                 except Exception:  # noqa: BLE001
-                    shown = []
-                run.ok('browser', f'{width} test run', False, f'{type(e).__name__}: {shown}')
+                    shown, button, shot = [], None, ''
+                run.ok('browser', f'{width} test run', False, f'{type(e).__name__}: shown={shown} run_button={button} shot={shot}')
             ctx.close()
         browser.close()
     return {'flows': flows}
