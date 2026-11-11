@@ -27,3 +27,23 @@ def test_bundle_rejects_unknown_or_unsafe_names(client):  # noqa: F811
     for query in ('f=../../en-manifest', 'f=nope', 'f=', 'f=' + ','.join(['styles'] * 13)):
         assert client.get('/new/en/assets/bundle.css?' + query).status_code == 404
     assert client.get('/new/en/assets/bundle.css?f=styles&v=old').headers['cache-control'].startswith('public, max-age=300')
+
+
+def test_legal_pages_with_relative_asset_links_are_bundled_too(client):  # noqa: F811
+    html = client.get('/new/en/disclosures.html').text
+    assert len(re.findall(r'<link rel="stylesheet"', html[:html.index('</head>')])) == 1
+    assert re.search(r'href="/new/en/assets/bundle\.css\?f=styles,necklace&amp;v=[0-9a-f]+"', html)
+    assert re.search(r'src="/new/en/assets/bundle\.js\?f=app,service-contacts&amp;v=[0-9a-f]+"[^>]*defer', html)
+
+
+def test_every_page_bundle_is_served(client):  # noqa: F811
+    from pathlib import Path
+    seen = 0
+    for page in sorted(Path('new/en').glob('*.html')):
+        r = client.get('/new/en/' + page.name)
+        if r.status_code != 200 or 'text/html' not in r.headers.get('content-type', ''):
+            continue
+        for url in re.findall(r'"(/new/en/assets/bundle\.(?:css|js)\?[^"]+)"', r.text):
+            seen += 1
+            assert client.get(url.replace('&amp;', '&')).status_code == 200, (page.name, url)
+    assert seen >= 20

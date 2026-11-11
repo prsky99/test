@@ -57,10 +57,12 @@ def versioned(value):
 # the LAX edge): a page asks for one stylesheet and one deferred script instead of five of each, and the tiny
 # blocking session-bootstrap.js is inlined. The bundle URL names its files and content digest, so any slot can
 # build it from the shipped files and browsers keep it for a year.
-STYLE_LINK = re.compile(r'<link rel="stylesheet" href="/new/en/assets/([A-Za-z0-9_-]+)\.css(?:\?v=[^"]*)?">\s*')
-DEFER_SCRIPT = re.compile(r'<script src="/new/en/assets/([A-Za-z0-9_-]+)\.js(?:\?v=[^"]*)?" defer></script>\s*')
+# Pages link the shared files either absolutely or relative to /new/en/ (the legal pages); a bundle URL is absolute.
+STYLE_LINK = re.compile(r'<link rel="stylesheet" href="(?:/new/en/)?assets/([A-Za-z0-9_-]+)\.css(?:\?v=[^"]*)?">\s*')
+DEFER_SCRIPT = re.compile(r'<script src="(?:/new/en/)?assets/([A-Za-z0-9_-]+)\.js(?:\?v=[^"]*)?" defer>\s*</script>\s*')
 BLOCKING_BOOTSTRAP = '<script src="/new/en/assets/session-bootstrap.js"></script>'
 BUNDLE_NAME = re.compile(r'[A-Za-z0-9_-]{1,40}')
+BUNDLE_MAX = 12
 
 
 def bundle_body(names, kind):
@@ -85,12 +87,15 @@ def bundled(value):
         if len(found) < 2:
             continue
         names = [m[1] for m in found]
+        # A file linked twice applies at its last place; the bundle keeps that one so the cascade is unchanged.
+        names = [n for i, n in enumerate(names) if n not in names[i + 1:]]
+        if not 2 <= len(names) <= BUNDLE_MAX:
+            continue
         body = bundle_body(names, kind)
         if body is None:
             continue
         url = '/new/en/assets/bundle.{}?f={}&amp;v={}'.format(kind, ','.join(names), asset_version(body))
         first = found[0]
-        rest = set(id(m) for m in found[1:])
         out, last = [], 0
         for m in found:
             out.append(value[last:m.start()])
@@ -279,7 +284,7 @@ def install(app, front, *, workspace_access_enabled=False, workspace_link_enable
         if filename in ('bundle.css', 'bundle.js'):
             kind = filename.rsplit('.', 1)[1]
             names = request.query_params.get('f', '').split(',')
-            body = bundle_body(names, kind) if 0 < len(names) <= 12 else None
+            body = bundle_body(names, kind) if 0 < len(names) <= BUNDLE_MAX else None
             if body is None:
                 raise HTTPException(404, 'Asset not found.')
             version = asset_version(body)
