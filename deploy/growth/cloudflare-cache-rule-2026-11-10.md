@@ -91,13 +91,16 @@ Cloudflare 설정 변경이라 PM 결정이 필요합니다. 비용은 0입니�
 
 ```
 or (http.request.method in {"GET" "HEAD"}
-    and (starts_with(http.request.uri.path, "/agents/category/") or starts_with(http.request.uri.path, "/reports/weekly/"))
+    and (starts_with(http.request.uri.path, "/agents/category/") or starts_with(http.request.uri.path, "/reports/weekly/")
+         or http.request.uri.path eq "/reports/weekly")
     and http.cookie eq ""
     and any(lower(http.request.headers["accept"][*])[*] contains "text/html")
     and not any(lower(http.request.headers["accept"][*])[*] contains "text/markdown")
     and not any(lower(http.request.headers["accept"][*])[*] contains "application/json"))
 ```
 
+- 11-12 08:3x PM: 주간 목록 `/reports/weekly`(끝 슬래시 없음)도 같은 절에 넣는다. 사용자 확인을 한 번에 받기 위해서다. 원서버 쪽 변경(65d9a599)은 다음 묶음에 나가므로, 그 전까지 이 주소는 no-store라 규칙에 걸려도 캐시되지 않는다(Edge TTL이 원서버를 따름).
+- 11-12 08:1x 확인: 08시 묶음(414782c6) 배포 뒤 `/agents/category/web_search`·`/reports/weekly/2026-W45`가 public, max-age=300, swr=600을 보내지만 엣지는 DYNAMIC이다(규칙에 경로가 없음).
 - 적용 직후 확인: 두 경로에서 처음 보는 주소로
   1. 브라우저형 Accept 두 번 → MISS 다음 HIT, 시간
   2. `Accept: text/markdown` → DYNAMIC, 본문 Markdown
