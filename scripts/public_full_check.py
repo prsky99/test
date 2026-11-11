@@ -86,12 +86,43 @@ class Run:
     def __init__(self):
         self.checks, self.failures = 0, []
 
-    def ok(self, part, name, cond, detail='', took=None):
+    def ok(self, part, name, cond, detail='', took=None, ref=None):
         self.checks += 1
         if not cond:
-            self.failures.append({'part': part, 'team': OWNER[part], 'check': name, 'detail': str(detail)[:240],
-                                  's': took})
+            row = {'part': part, 'team': OWNER[part], 'check': name, 'detail': str(detail)[:240], 's': took}
+            if ref:
+                row['ref'] = ref  # reference only: never changes the verdict (PM 11-12 01시)
+            self.failures.append(row)
         return cond
+
+
+NET_PATH = ROOT / 'logs/ops/net-path.jsonl'
+
+
+def path_floor(at=None, window=90):
+    """The minute's Korea-to-edge floor from scripts/net_path (a new connection to /cdn-cgi/trace, answered by the
+    edge alone), nearest to `at` within `window` seconds, so a slow page sample shows whether the path itself
+    was slow then. Reference only (PM 11-12 01시): samples are never dropped and the 1 s verdict is unchanged."""
+    at = at or time.time()
+    try:
+        with NET_PATH.open('rb') as fh:
+            fh.seek(0, 2)
+            start = max(0, fh.tell() - 8192)
+            fh.seek(start)
+            lines = fh.read().decode('utf-8', 'replace').splitlines()[1 if start else 0:]  # a cut first line is dropped
+    except OSError:
+        return None
+    best = None
+    for line in lines:
+        try:
+            row = json.loads(line)
+            when = datetime.strptime(row['at'], '%Y-%m-%d %H:%M:%S').timestamp()
+        except (ValueError, KeyError, TypeError):
+            continue
+        edge_row = row.get('edge') or {}
+        if abs(when - at) <= window and (best is None or abs(when - at) < best[0]):
+            best = (abs(when - at), {'edge_s': edge_row.get('total_s'), 'tls_s': edge_row.get('tls_s'), 'net_at': row['at']})
+    return best[1] if best else None
 
 
 def sitemap_pages(c):
@@ -115,11 +146,13 @@ def part_pages(run, c):
     picked = list(dict.fromkeys(picked))
     links = set()
     for path in picked:
-        took, r, err = timed(c, 'GET', BASE + path, headers={'Accept': 'text/html,*/*'})
+        with client() as fresh:  # a new connection per page, as a first-time visitor (PM 11-12 01시, like user_slo)
+            took, r, err = timed(fresh, 'GET', BASE + path, headers={'Accept': 'text/html,*/*'})
         if not run.ok('pages', f'GET {path}', r is not None and r.status_code == 200,
                       err or (r.status_code if r is not None else ''), took):
             continue
-        run.ok('pages', f'time {path}', took <= SLOW_OK.get(path, PAGE_S), f'{took}s ({edge(r)})', took)
+        run.ok('pages', f'time {path}', took <= SLOW_OK.get(path, PAGE_S), f'{took}s ({edge(r)})', took,
+               ref=path_floor() if took > SLOW_OK.get(path, PAGE_S) else None)
         if 'html' not in r.headers.get('content-type', ''):
             continue
         body = r.text
