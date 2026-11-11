@@ -203,16 +203,28 @@ def chat_check(release, active=None, *, evaluate=evaluate):
     return 0
 
 
-def committed_tests(target):
-    """Committed tests (HEAD), not the working copy: other sessions' uncommitted test edits in the shared
-    working tree failed an unrelated jobs release on 11-10 (scavenger and health-lane tests)."""
+def committed_tests(target, commit='HEAD'):
+    """Committed tests, not the working copy: other sessions' uncommitted test edits in the shared
+    working tree failed an unrelated jobs release on 11-10 (scavenger and health-lane tests).
+    COMMIT is the release's own commit (release.json), so a test added for a later feature is not run
+    against a release that predates it (11-12 00:01: am08-frontend at 414782c6 failed collecting
+    test_prerendered_segmented.py from 43275460). An unknown commit falls back to HEAD."""
     (target / 'tests').mkdir(exist_ok=True)
-    archive = subprocess.run(['git', 'archive', 'HEAD', 'tests'], cwd=ROOT, capture_output=True)
+    archive = subprocess.run(['git', 'archive', commit, 'tests'], cwd=ROOT, capture_output=True)
+    if archive.returncode != 0 and commit != 'HEAD':
+        archive = subprocess.run(['git', 'archive', 'HEAD', 'tests'], cwd=ROOT, capture_output=True)
     if archive.returncode == 0:
         subprocess.run(['tar', '-x', '-C', str(target)], input=archive.stdout, check=True)
     else:  # not a git checkout: fall back to the files on disk
         shutil.rmtree(target / 'tests')
         shutil.copytree(ROOT / 'tests', target / 'tests')
+
+
+def present(tests, copy):
+    """(tests whose file exists in the copy, the others). Files missing at the release's commit belong to
+    later changes; the list itself is checked against HEAD by tests/test_release_gate.py."""
+    kept = [t for t in tests if (copy / t.split('::')[0]).is_file()]
+    return kept, [t for t in tests if t not in kept]
 
 
 def copy_release(release, into):
@@ -222,7 +234,11 @@ def copy_release(release, into):
     target = into / release
     # APFS clones (cp -c) make a full copy of a release almost free.
     subprocess.run(['cp', '-cR', str(source), str(target)], check=True)
-    committed_tests(target)
+    try:
+        commit = json.loads((source / 'release.json').read_text()).get('commit') or 'HEAD'
+    except (ValueError, OSError):
+        commit = 'HEAD'
+    committed_tests(target, commit)
     for name in ('pytest.ini', 'conftest.py', 'pyproject.toml', 'setup.cfg'):
         if (ROOT / name).is_file() and not (target / name).exists():
             shutil.copy2(ROOT / name, target / name)
@@ -237,6 +253,12 @@ def run(release, tests, python):
                                cwd=copy, env=env, capture_output=True, text=True, check=True).stdout.strip()
         if not str(Path(where).resolve()).startswith(str(copy)):
             raise SystemExit(f'tests would import the wrong code: {where}')
+        tests, missing = present(tests, copy)
+        if missing:
+            print(f'release gate {release}: not at the release commit, skipped: ' + ', '.join(missing))
+        if not tests:  # pytest with no arguments would run every test in the copy
+            print(f'release gate {release}: no listed test exists at the release commit')
+            return 5
         result = subprocess.run(['nice', '-n', '10', python, '-m', 'pytest', '-q', '-p', 'no:cacheprovider', *tests],
                                 cwd=copy, env=env)
         return result.returncode

@@ -110,3 +110,40 @@ def test_gate_tests_come_from_the_commit_not_the_working_copy(tmp_path, monkeypa
     head = subprocess.run(['git', 'show', 'HEAD:tests/test_release_gate.py'], cwd=release_gate.ROOT,
                           capture_output=True, check=True).stdout
     assert (tmp_path / 'tests' / 'test_release_gate.py').read_bytes() == head
+
+
+def test_gate_tests_come_from_the_release_commit_and_later_tests_are_skipped(tmp_path):
+    """11-12 00:01: am08-frontend (commit 414782c6) failed collecting a test added by 43275460."""
+    import subprocess
+    old = '414782c69fc66840d9626efa8aab1564ccca80a0'
+    if subprocess.run(['git', 'cat-file', '-e', old], cwd=release_gate.ROOT).returncode != 0:
+        pytest.skip('history not available')
+    release_gate.committed_tests(tmp_path, old)
+    assert not (tmp_path / 'tests' / 'test_prerendered_segmented.py').exists()
+    kept, missing = release_gate.present(['tests/test_release_gate.py::x', 'tests/test_prerendered_segmented.py'], tmp_path)
+    assert kept == ['tests/test_release_gate.py::x'] and missing == ['tests/test_prerendered_segmented.py']
+    (tmp_path / 'unknown').mkdir()
+    release_gate.committed_tests(tmp_path / 'unknown', 'no-such-commit')  # falls back to HEAD
+    assert (tmp_path / 'unknown' / 'tests' / 'test_release_gate.py').is_file()
+
+
+def test_gate_refuses_when_no_listed_test_exists(tmp_path, monkeypatch):
+    def copy(release, into):
+        (into / release).mkdir()
+        return into / release
+    monkeypatch.setattr(release_gate, 'copy_release', copy)
+    monkeypatch.setattr(release_gate.subprocess, 'run', lambda *a, **k: type('R', (), {'stdout': str(tmp_path / 'x' / 'r') + '/agent_market/__init__.py', 'returncode': 0})())
+    monkeypatch.setattr(release_gate.tempfile, 'TemporaryDirectory', lambda prefix: _Dir(tmp_path / 'x'))
+    assert release_gate.run('r', ['tests/test_none.py'], 'python') == 5
+
+
+class _Dir:
+    def __init__(self, path):
+        self.path = path
+
+    def __enter__(self):
+        self.path.mkdir()
+        return str(self.path)
+
+    def __exit__(self, *exc):
+        return False
