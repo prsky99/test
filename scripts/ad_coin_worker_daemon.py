@@ -69,11 +69,11 @@ class WorkerDaemon:
             return 0
         if self.paid is None:
             import os
-            from agent_market.ad_coin.v2.paid_bookings import PaidBookings, PaidConfig, Sanctions
+            from agent_market.ad_coin.v2.paid_bookings import DEFAULT_OFAC_LIST, PaidBookings, PaidConfig, Sanctions
             from agent_market.chain import RPC
             self.paid = PaidBookings(self.store, PaidConfig.from_env(),
                                      rpc=RPC(os.environ.get("AD_COIN_PAID_RPC_URL", "https://mainnet.base.org")),
-                                     sanctions=Sanctions(os.environ.get("AD_COIN_OFAC_LIST", "gateway-data/ofac/eth_addresses.txt")),
+                                     sanctions=Sanctions(os.environ.get("AD_COIN_OFAC_LIST", DEFAULT_OFAC_LIST)),
                                      taxonomy=(), regions=())
         return self.paid.recheck(now_ms=now_ms) + self.paid.settle_due(now_ms=now_ms)
 

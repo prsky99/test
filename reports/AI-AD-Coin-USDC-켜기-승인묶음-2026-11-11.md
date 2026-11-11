@@ -4,7 +4,7 @@
 
 | # | 항목 | 내용 | 바뀌는 곳 | 되돌리기 |
 |---|---|---|---|---|
-| 1 | 받는 지갑 주소 | 운영 받는 지갑의 Base 주소 1개. 키는 서버에 두지 않는다 | `gateway-data/agentcon.env`의 `AD_COIN_PAID_PAY_TO`(git 제외) | 줄 지우기 |
+| 1 | 받는 지갑 주소 | **준비됨(11-11).** 사용자가 직접 만든 Rabby 지갑(Base)이다. 주소는 `gateway-data/usdc-receive-address.txt`(git 제외, 0600, `#` 줄은 메모)에만 있고 저장소에는 적지 않는다. PM 확인: EIP-55 체크섬, OFAC 94개에 없음, 일반 계정, nonce 0. 결제 설정(`PaidConfig.from_env`)이 이 파일을 읽는다(`AD_COIN_PAID_PAY_TO_FILE`로 바꿀 수 있음). env의 `AD_COIN_PAID_PAY_TO`와 파일이 다르면 켜지지 않는다. 확정은 공식 USDC(`0x8335…2913`)가 이 주소로 정확한 금액만큼 들어오고 RPC가 Base(8453)일 때만 한다. 브리지 USDbC, 다른 주소, 다른 체인은 인정하지 않는다(시험 포함). 키는 서버에 두지 않는다 | 파일(git 제외). 지금은 env 변경 없음 | 파일 지우기(스위치를 켜도 설정 오류로 결제 경로가 열리지 않음) |
 | 2 | 결제 표 만들기 | `ad_coin_v2.adc2_paid_bookings`. 리허설(`db_change_rehearsal`) → 승인 → `check` → `migrate-paid` | 운영 DB(ad_coin_v2 스키마, public 무변경) | 비어 있을 때 `DROP TABLE ad_coin_v2.adc2_paid_bookings` |
 | 3 | 노출 집계 표 | `ad_coin_v2.adc2_sponsored_impressions`(`migrate-impressions`, 같은 절차) | 운영 DB | `DROP TABLE IF EXISTS ad_coin_v2.adc2_sponsored_impressions` |
 | 4 | 약관 9항 | `reports/AI-AD-Coin-USDC-유료예약-설계-2026-11-11.md` 6절의 영어 문구 | 광고주 약관(공개 화면) | 문구 내리기 |

@@ -18,6 +18,12 @@ from tests.test_ad_coin_v2_p1 import NOW, _activate_campaign, p1_suite  # noqa: 
 PAY_TO = '0x' + '1' * 40
 PAYER = '0x' + '2' * 40
 TODAY = NOW - NOW % DAY_MS
+NO_FILE = '/nonexistent/usdc-receive-address.txt'
+
+
+@pytest.fixture(autouse=True)
+def _no_operator_file(monkeypatch):
+    monkeypatch.setenv('AD_COIN_PAID_PAY_TO_FILE', NO_FILE)   # never read the operator's real file in tests
 
 
 def topic(address):
@@ -80,8 +86,9 @@ def test_switch_is_off_and_config_needs_a_receiving_address(monkeypatch):
     monkeypatch.delenv(paid.ENABLED_ENV, raising=False)
     assert not paid.enabled()
     with pytest.raises(RuntimeError):
-        paid.PaidConfig.from_env({})
-    config = paid.PaidConfig.from_env({'AD_COIN_PAID_PAY_TO': PAY_TO.upper().replace('0X', '0x'), 'AD_COIN_PAID_PRICE_USDC': '5'})
+        paid.PaidConfig.from_env({'AD_COIN_PAID_PAY_TO_FILE': NO_FILE})
+    config = paid.PaidConfig.from_env({'AD_COIN_PAID_PAY_TO': PAY_TO.upper().replace('0X', '0x'), 'AD_COIN_PAID_PRICE_USDC': '5',
+                                       'AD_COIN_PAID_PAY_TO_FILE': NO_FILE})
     assert config.price_units == 5_000_000 and config.pay_to == PAY_TO and config.chain_id == 8453
 
 
@@ -257,3 +264,71 @@ def test_router_assembles_with_the_switch_on(store, monkeypatch):  # noqa: F811
     app.include_router(create_live_ad_coin_v2_router(store, key_vault=KeyVault()))
     response = TestClient(app).post('/api/ad-coin/v2/advertisers/' + str(uuid4()) + '/paid-bookings', json={})
     assert response.status_code == 401                                    # mounted: asks for sign-in
+
+
+BRIDGED_USDBC = '0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca'   # older bridged USDC on Base: not accepted
+
+
+def test_receive_address_comes_from_the_operator_file(tmp_path):
+    path = tmp_path / 'usdc-receive-address.txt'
+    path.write_text('# receive only, no key on the server\n# checks: checksum, OFAC, plain account\n%s\n' % PAY_TO.upper().replace('0X', '0x'))
+    config = paid.PaidConfig.from_env({'AD_COIN_PAID_PAY_TO_FILE': str(path)})
+    assert config.pay_to == PAY_TO and config.token == paid.BASE_USDC
+    assert config.token == '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'          # Circle's native USDC on Base
+    assert paid.PaidConfig.from_env({'AD_COIN_PAID_PAY_TO_FILE': str(path), 'AD_COIN_PAID_PAY_TO': PAY_TO}).pay_to == PAY_TO
+    with pytest.raises(RuntimeError):                                             # env and file must agree
+        paid.PaidConfig.from_env({'AD_COIN_PAID_PAY_TO_FILE': str(path), 'AD_COIN_PAID_PAY_TO': PAYER})
+    path.write_text('%s\n%s\n' % (PAY_TO, PAYER))                                 # two addresses: unclear, refuse
+    with pytest.raises(RuntimeError):
+        paid.PaidConfig.from_env({'AD_COIN_PAID_PAY_TO_FILE': str(path)})
+
+
+def test_real_receive_file_parses_when_present():
+    from pathlib import Path
+    path = Path(paid.DEFAULT_PAY_TO_FILE)
+    if not path.exists():
+        pytest.skip('operator file is local only')
+    assert paid.pay_to_from_file(str(path)) is not None
+    assert oct(path.stat().st_mode & 0o777) == '0o600'
+
+
+def test_payment_screen_shows_the_file_address_and_only_native_usdc_to_it_counts(world, tmp_path):
+    suite, service, rpc, _ = world
+    path = tmp_path / 'usdc-receive-address.txt'
+    path.write_text('# note\n%s\n' % PAY_TO)
+    service.config = paid.PaidConfig.from_env({'AD_COIN_PAID_PAY_TO_FILE': str(path)})
+    q = quote(world)
+    assert q['pay_to'] == PAY_TO and q['network'] == 'Base' and q['token_symbol'] == 'USDC'
+    amount = int(q['amount_units'])
+    for tx in (rpc.send(amount, token=BRIDGED_USDBC), rpc.send(amount, to='0x' + '5' * 40)):
+        with pytest.raises(ContractError) as error:
+            service.submit(suite.advertiser, q['id'], tx, now_ms=NOW + 60_000)
+        assert error.value.code == 'payment_not_found'
+    assert service.submit(suite.advertiser, q['id'], rpc.send(amount), now_ms=NOW + 60_000)['state'] == 'confirmed'
+
+
+def test_other_network_rpc_never_confirms(world):
+    suite, service, rpc, _ = world
+    rpc.chain_id = lambda: 1                                                     # Ethereum mainnet, not Base
+    with pytest.raises(RuntimeError):
+        service.check_network()
+    q = quote(world)
+    tx = rpc.send(int(q['amount_units']))
+    assert service.submit(suite.advertiser, q['id'], tx, now_ms=NOW + 60_000)['state'] == 'confirming'
+    rpc.chain_id = lambda: paid.BASE_CHAIN_ID
+    assert service.recheck(now_ms=NOW + 120_000) is not None
+    assert suite.service.store.one('paid_booking_get', (q['id'],))['state'] == 'confirmed'
+
+
+def test_gateway_data_paths_resolve_from_a_release_folder(tmp_path, monkeypatch):
+    # The worker daemon runs with cwd = PROJECT/gateway-data/services/releases/<name>: relative paths must still work.
+    release = tmp_path / 'gateway-data/services/releases/r1'
+    release.mkdir(parents=True)
+    monkeypatch.chdir(release)
+    assert paid.data_path(paid.DEFAULT_OFAC_LIST).endswith('gateway-data/ofac/eth_addresses.txt')
+    from pathlib import Path
+    project = Path(paid.__file__).resolve().parents[3]
+    if (project / paid.DEFAULT_OFAC_LIST).exists():
+        assert paid.data_path(paid.DEFAULT_OFAC_LIST) == str(project / paid.DEFAULT_OFAC_LIST)
+        assert paid.Sanctions(paid.DEFAULT_OFAC_LIST).screen('0x' + 'ab' * 20) == 'clear'
+    assert paid.data_path('/abs/x.txt') == '/abs/x.txt'

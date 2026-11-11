@@ -16,6 +16,7 @@ reports/AI-AD-Coin-USDC-유료예약-설계-2026-11-11.md
 import csv
 import io
 import os
+from pathlib import Path
 import re
 import secrets
 import time
@@ -56,6 +57,34 @@ def enabled() -> bool:
     return os.environ.get(ENABLED_ENV, "0") in ("1", "true", "True")
 
 
+DEFAULT_PAY_TO_FILE = "gateway-data/usdc-receive-address.txt"  # git-ignored, 0600, written by the operator
+
+
+DEFAULT_OFAC_LIST = "gateway-data/ofac/eth_addresses.txt"
+
+
+def data_path(path):
+    """Resolve a relative gateway-data path from the working directory or, for a process started inside a
+    release folder (PROJECT/gateway-data/services/releases/<name>, e.g. the worker daemon), from the project."""
+    if not path or os.path.isabs(path) or os.path.exists(path):
+        return path
+    for parent in Path(__file__).resolve().parents:
+        candidate = parent / path
+        if candidate.exists():
+            return str(candidate)
+    return path
+
+
+def pay_to_from_file(path):
+    """The one receive address in the operator's file ('#' lines are notes), lowercased; None if absent or unclear."""
+    try:
+        with open(data_path(path)) as handle:
+            lines = [line.strip() for line in handle if line.strip() and not line.lstrip().startswith("#")]
+    except (OSError, TypeError):
+        return None
+    return lines[0].lower() if len(lines) == 1 and _ADDRESS.match(lines[0]) else None
+
+
 @dataclass(frozen=True)
 class PaidConfig:
     pay_to: str
@@ -67,7 +96,11 @@ class PaidConfig:
     @classmethod
     def from_env(cls, values=None):
         values = os.environ if values is None else values
-        pay_to = values.get("AD_COIN_PAID_PAY_TO", "")
+        pay_to = values.get("AD_COIN_PAID_PAY_TO", "").strip()
+        listed = pay_to_from_file(values.get("AD_COIN_PAID_PAY_TO_FILE", DEFAULT_PAY_TO_FILE))
+        if pay_to and listed and pay_to.lower() != listed:
+            raise RuntimeError("AD_COIN_PAID_PAY_TO differs from the receive-address file.")
+        pay_to = pay_to or listed or ""
         price = values.get("AD_COIN_PAID_PRICE_USDC", "5")
         if not _ADDRESS.match(pay_to) or not re.fullmatch(r"[0-9]{1,4}(\.[0-9]{1,2})?", price):
             raise RuntimeError("Paid bookings need AD_COIN_PAID_PAY_TO and a price in USDC.")
@@ -80,7 +113,7 @@ class Sanctions:
     """OFAC SDN digital currency addresses (ETH-format), one per line, kept fresh by an operator job."""
 
     def __init__(self, path=None, *, addresses=None, clock=None):
-        self.path, self._clock = path, clock or time.time
+        self.path, self._clock = data_path(path), clock or time.time
         self._fixed = None if addresses is None else {a.lower() for a in addresses}
 
     def screen(self, address):
@@ -154,6 +187,7 @@ class PaidBookings:
         self.store, self.config, self.rpc, self.sanctions = store, config, rpc, sanctions
         self.taxonomy, self.regions = frozenset(taxonomy), frozenset(regions)
         self.krw_rate, self._clock = krw_rate, clock or time.time
+        self._network_ok = False
 
     def _now(self, now_ms):
         return int(self._clock() * 1000) if now_ms is None else int(now_ms)
@@ -161,6 +195,15 @@ class PaidBookings:
     def check_network(self):
         if int(self.rpc.chain_id()) != self.config.chain_id:
             raise RuntimeError("The RPC is not Base mainnet.")
+
+    def _on_base(self):
+        if not self._network_ok:
+            try:
+                self.check_network()
+                self._network_ok = True
+            except Exception:
+                return False
+        return True
 
     def quote(self, advertiser_id, *, campaign_id, day, task_category, region, now_ms=None):
         advertiser_id, campaign_id = identifier(advertiser_id), identifier(campaign_id)
@@ -221,9 +264,12 @@ class PaidBookings:
 
     def _check(self, booking_id, now_ms):
         row = self.store.one("paid_booking_get", (booking_id,))
-        state, payer = verify_transfer(self.rpc, row["tx_hash"], token=row["token"], pay_to=row["pay_to"],
-                                       amount_units=int(row["amount_units"]),
-                                       min_confirmations=self.config.min_confirmations)
+        if not self._on_base():
+            state, payer = "pending", None             # wrong or unreachable network: never confirm, retry later
+        else:
+            state, payer = verify_transfer(self.rpc, row["tx_hash"], token=row["token"], pay_to=row["pay_to"],
+                                           amount_units=int(row["amount_units"]),
+                                           min_confirmations=self.config.min_confirmations)
         refused = None
         with self.store.atomic():
             if state == "pending":
