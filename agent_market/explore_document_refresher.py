@@ -41,6 +41,7 @@ class Refresher:
         )
         self.rest_until = 0
         self.scan_after = 0
+        self.carried = 0  # documents whose generation moved without a rebuild (sources unchanged)
 
     def due(self):
         return self.clock() >= self.rest_until
@@ -64,27 +65,54 @@ class Refresher:
                 # scan runs in a read snapshot; the write transaction only inserts the ids it found.
                 # Inside the writer lock the scan held it 1-3.3 s every 5-10 minutes, with writers
                 # waiting 60 times in an hour (11-11: 391 PostgreSQL lock timeouts, edge 503s).
+                policy = documents.policy_hash()
                 with self.store.tx(readonly=True):
-                    stale = [row[0] for row in self.store._execute(
-                        """SELECT g.resource_id FROM resource_observation_generations g
-                        LEFT JOIN agentcon_search.explore_documents d ON d.resource_id=g.resource_id
-                        LEFT JOIN agentcon_search.explore_document_queue q ON q.resource_id=g.resource_id
-                        WHERE q.resource_id IS NULL AND (d.resource_id IS NULL OR
-                            d.source_generation<>g.generation OR d.policy_hash<>%s)
-                        ORDER BY g.resource_id LIMIT %s""",
-                        (documents.policy_hash(), self.batch * self.SCAN_FILL),
-                    ).fetchall()]
+                    # Most generation changes are health, capability and auth checks: the document's
+                    # sources are the same, so only its generation moves (11-11: 7.2-9.9k identical
+                    # documents rebuilt an hour kept jobs busy while load was 6-7).
+                    # The digest is computed only for the rows the limited scan found: joining resources
+                    # before the limit read 378k more blocks (+0.5 s) on production (11-11 22:5x).
+                    scanned = self.store._execute(
+                        """SELECT s.resource_id,s.generation,CASE WHEN s.policy_hash=%s AND s.source_digest="""
+                        + documents.SOURCE_SQL
+                        + """ THEN 1 ELSE 0 END FROM (
+                            SELECT g.resource_id,g.generation,d.source_digest,d.policy_hash
+                            FROM resource_observation_generations g
+                            LEFT JOIN agentcon_search.explore_documents d ON d.resource_id=g.resource_id
+                            LEFT JOIN agentcon_search.explore_document_queue q ON q.resource_id=g.resource_id
+                            WHERE q.resource_id IS NULL AND (d.resource_id IS NULL OR
+                                d.source_generation<>g.generation OR d.policy_hash<>%s)
+                            ORDER BY g.resource_id LIMIT %s) s
+                        LEFT JOIN resources r ON r.id=s.resource_id ORDER BY s.resource_id""",
+                        (policy, policy, self.batch * self.SCAN_FILL),
+                    ).fetchall()
+                same = [{"id": row[0], "generation": row[1]} for row in scanned if row[2]]
+                stale = [row[0] for row in scanned if not row[2]]
                 found = 0
-                if stale:
+                if same or stale:
                     with self.store.tx():
-                        # A listing deleted meanwhile is skipped (the queue references resources).
-                        found = self.store._execute(
-                            """INSERT INTO agentcon_search.explore_document_queue(resource_id,queued_at)
-                            SELECT r.id,%s FROM resources r
-                            WHERE r.id IN (SELECT value::bigint FROM jsonb_array_elements_text(%s::jsonb))
-                            ON CONFLICT(resource_id) DO NOTHING""",
-                            (time.time(), json.dumps(stale)),
-                        ).rowcount
+                        if same:
+                            # The generation read with the matching digest must still be current: any
+                            # change to a source field moves it, and that listing is rebuilt later.
+                            moved = self.store._execute(
+                                """UPDATE agentcon_search.explore_documents d SET source_generation=g.generation
+                                FROM resource_observation_generations g,
+                                    jsonb_to_recordset(%s::jsonb) AS seen(id bigint, generation bigint)
+                                WHERE g.resource_id=d.resource_id AND d.resource_id=seen.id
+                                AND g.generation=seen.generation AND d.policy_hash=%s""",
+                                (json.dumps(same), policy),
+                            ).rowcount
+                            found += moved
+                            self.carried += moved
+                        if stale:
+                            # A listing deleted meanwhile is skipped (the queue references resources).
+                            found += self.store._execute(
+                                """INSERT INTO agentcon_search.explore_document_queue(resource_id,queued_at)
+                                SELECT r.id,%s FROM resources r
+                                WHERE r.id IN (SELECT value::bigint FROM jsonb_array_elements_text(%s::jsonb))
+                                ON CONFLICT(resource_id) DO NOTHING""",
+                                (time.time(), json.dumps(stale)),
+                            ).rowcount
                 if not found:
                     self.scan_after = self.clock() + self.interval * self.SCAN_REST
             with self.store.tx(readonly=True):
@@ -159,14 +187,20 @@ class Refresher:
                     )
                 if built:
                     # Lock the current sources against concurrent changes until publication completes.
+                    # The stored document's own bytes are hashed too: a document edited in place keeps
+                    # its document_hash column, and only a matching pair counts as the same document.
+                    policy = documents.policy_hash()
                     current = {
-                        row[0]: (row[1], row[2])
+                        row[0]: (row[1], row[2], row[3])
                         for row in self.store._execute(
                             "SELECT r.id,"
                             + documents.SOURCE_SQL
-                            + ",g.generation FROM resources r JOIN resource_observation_generations g ON g.resource_id=r.id "
+                            + ",g.generation,CASE WHEN d.policy_hash=%s AND d.document_hash="
+                            "encode(sha256(convert_to(d.document,'UTF8')),'hex') THEN d.document_hash END "
+                            "FROM resources r JOIN resource_observation_generations g ON g.resource_id=r.id "
+                            "LEFT JOIN agentcon_search.explore_documents d ON d.resource_id=r.id "
                             "WHERE r.id IN (SELECT value::bigint FROM jsonb_array_elements_text(%s::jsonb)) FOR SHARE OF r",
-                            (json.dumps([rid for rid, _, _ in built]),),
+                            (policy, json.dumps([rid for rid, _, _ in built])),
                             max_rows=len(built),
                         ).fetchall()
                     }
@@ -174,6 +208,20 @@ class Refresher:
                         found = current.get(rid)
                         if not found or found[0] != digest:
                             continue  # changed since it was read; the next round rebuilds it
+                        if found[2] and found[2] == hashlib.sha256(encoded.encode()).hexdigest():
+                            # Source bytes moved (a guide or contract rewritten) but the document is the
+                            # same: record the new digest and generation without rewriting it.
+                            self.store._execute(
+                                """UPDATE agentcon_search.explore_documents SET source_digest=%s,source_generation=%s
+                                WHERE resource_id=%s""",
+                                (digest, found[1], rid),
+                            )
+                            self.store._execute(
+                                "DELETE FROM agentcon_search.explore_document_queue WHERE resource_id=%s AND queued_at=%s",
+                                (rid, queued[rid]),
+                            )
+                            self.carried += 1
+                            continue
                         self.store._execute(
                             """INSERT INTO agentcon_search.explore_documents VALUES(%s,%s,%s,%s,%s,%s,%s)
                             ON CONFLICT(resource_id) DO UPDATE SET source_digest=excluded.source_digest,
@@ -196,9 +244,14 @@ class Refresher:
                         written += 1
 
         process()
-        if checked or skipped:
-            log.info("Explore search documents: checked=%d written=%d deferred=%d", checked, written, skipped)
-        return {"checked": checked, "written": written, "deferred": skipped}
+        carried, self.carried = self.carried, 0
+        if checked or skipped or carried:
+            log.info("Explore search documents: checked=%d written=%d deferred=%d unchanged=%d",
+                     checked, written, skipped, carried)
+        result = {"checked": checked, "written": written, "deferred": skipped}
+        if carried:
+            result["unchanged"] = carried
+        return result
 
 
 def load_status(store):

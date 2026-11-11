@@ -147,7 +147,7 @@ def main():
             while True:
                 row = worker.run()
                 rounds += 1
-                if row["checked"] == 0:
+                if row["checked"] == 0 and not row.get("unchanged"):
                     break
                 assert rounds < 100, "Document build did not converge"
             print(json.dumps({"copied": copied, "build_rounds": rounds}), flush=True)

@@ -47,7 +47,7 @@ def main():
             for _ in range(args.rounds):
                 row = worker.run()
                 results.append(row)
-                if not row["checked"]:
+                if not row["checked"] and not row.get("unchanged"):
                     break
             result = {"rounds": results}
         else:

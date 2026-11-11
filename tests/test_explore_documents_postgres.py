@@ -212,11 +212,12 @@ def test_generation_bound_reader_matches_and_never_serves_changed_sources():
             assert both() == ({}, {})
             assert worker.run()["written"] == 1
             assert set(both()[1]) == {rid}
-            # Any observed change bumps the generation: the reader falls back until jobs rebuilds.
+            # Any observed change bumps the generation: the reader falls back until jobs confirms the
+            # sources (unchanged here, so only the generation moves; 11-11 no rebuild).
             with store.tx():
                 store._execute("UPDATE resources SET health_status='reachable' WHERE id=%s", (rid,))
             assert not both()[1]
-            assert worker.run()["written"] == 1
+            assert worker.run() == {"checked": 0, "written": 0, "deferred": 0, "unchanged": 1}
             assert set(both()[1]) == {rid}
             # Corrupt documents, another policy and hidden listings are never read.
             with patch.object(doc, "policy_hash", return_value="0" * 64):
@@ -338,7 +339,93 @@ def test_the_stale_scan_reads_outside_the_writer_and_skips_deleted_listings():
             worker = doc.Refresher(store, batch=5, interval=5, clock=lambda: 1000.0)
             assert worker.run()["written"] == 2
             other.close()
-            scans = [mode for mode, sql in seen if "resource_observation_generations" in sql]
+            scans = [mode for mode, sql in seen if sql.startswith("SELECT s.resource_id")]
             inserts = [mode for mode, sql in seen if sql.startswith("INSERT INTO agentcon_search.explore_document_queue")]
             assert scans == [True] and inserts == [False]
+            store.close()
+
+
+def test_unchanged_sources_move_only_the_generation_and_a_changed_one_is_rebuilt():
+    # 11-11 (operations): health, capability and auth checks raise the generation, and 7.2-9.9k
+    # identical documents were rebuilt an hour. Same digest and policy: only the generation moves.
+    binary = Path("/opt/homebrew/opt/postgresql@18/bin")
+    if not (binary / "initdb").is_file():
+        pytest.skip("PostgreSQL 18 fixture tools unavailable")
+    with _private_cluster({name: str(binary / name) for name in ("initdb", "pg_ctl")}) as cluster:
+        with psycopg.connect(host=cluster["socket"], port=PORT, dbname="postgres", user="postgres", autocommit=True) as pg:
+            store = open_store("postgresql", connection=pg, initialize=True, workflow_key=b"s" * 32)
+            doc.install(store)
+            ids = [store.upsert_resource({"key": "same-%d" % n, "source": "fixture", **listing(n)}) for n in range(3)]
+            with store.tx():
+                store._execute("UPDATE resources SET active=1,health_status='healthy'")
+            now = [1000.0]
+            worker = doc.Refresher(store, batch=5, interval=5, clock=lambda: now[0])
+            assert worker.run()["written"] == 3
+
+            def state():
+                with store.tx(readonly=True):
+                    return {row[0]: tuple(row[1:]) for row in store._execute(
+                        """SELECT d.resource_id,d.source_generation,g.generation,d.document_hash,d.updated_at
+                        FROM agentcon_search.explore_documents d JOIN resource_observation_generations g
+                        ON g.resource_id=d.resource_id""").fetchall()}
+            before = state()
+            with store.tx():
+                for rid in ids[:2]:
+                    store._execute("UPDATE resources SET health_status='reachable',cap_checked_at=%s WHERE id=%s",
+                                   (now[0], rid))
+                store._execute("UPDATE resources SET description='A changed description' WHERE id=%s", (ids[2],))
+            built = []
+            original = doc.build
+            with patch.object(doc, "build", side_effect=lambda row: built.append(row["id"]) or original(row)):
+                now[0] += 5
+                result = worker.run()
+            assert result == {"checked": 1, "written": 1, "deferred": 0, "unchanged": 2} and built == [ids[2]]
+            after = state()
+            for rid in ids[:2]:
+                assert after[rid][0] == after[rid][1] > before[rid][0]          # generation moved
+                assert after[rid][2:] == before[rid][2:]                        # same document, not rewritten
+            assert after[ids[2]][2] != before[ids[2]][2] and after[ids[2]][0] == after[ids[2]][1]
+            with store.tx(readonly=True):
+                assert set(doc.read(store, ids)) == set(ids)                    # every document still serves
+            now[0] += 5
+            assert worker.run() == {"checked": 0, "written": 0, "deferred": 0}
+
+            # Source bytes the document does not use (a guide note) change: built again, but the same
+            # document is not rewritten; its digest and generation move and the reader serves it.
+            before = state()
+            with store.tx():
+                store._execute("""UPDATE resources SET usage_guide=(COALESCE(usage_guide,'{}')::jsonb||'{"note":"checked"}')::text
+                                  WHERE id=%s""", (ids[1],))
+            now[0] += 120
+            assert worker.run() == {"checked": 1, "written": 0, "deferred": 0, "unchanged": 1}
+            after = state()
+            assert after[ids[1]][0] == after[ids[1]][1] > before[ids[1]][0] and after[ids[1]][2:] == before[ids[1]][2:]
+            with store.tx(readonly=True):
+                assert set(doc.read(store, [ids[1]])) == {ids[1]}
+
+            # A source change between the scan's read and its update keeps the old generation; the
+            # listing is rebuilt from its new source instead of being marked current.
+            with store.tx():
+                store._execute("UPDATE resources SET health_status='healthy' WHERE id=%s", (ids[0],))
+            execute = store._execute
+            other = psycopg.connect(host=cluster["socket"], port=PORT, dbname="postgres", user="postgres", autocommit=True)
+
+            def racing(sql, *args, **kwargs):
+                result = execute(sql, *args, **kwargs)
+                if sql.lstrip().startswith("SELECT s.resource_id"):
+                    other.execute("UPDATE resources SET name='Renamed meanwhile' WHERE id=%s", (ids[0],))
+                return result
+            store._execute = racing
+            now[0] += 120
+            assert worker.run().get("unchanged", 0) == 0
+            store._execute = execute
+            other.close()
+            stale = state()[ids[0]]
+            assert stale[0] != stale[1]                                          # not marked current
+            with store.tx(readonly=True):
+                assert not doc.read(store, [ids[0]])                             # never served stale
+            now[0] += 120
+            assert worker.run()["written"] == 1
+            with store.tx(readonly=True):
+                assert doc.read(store, [ids[0]])[ids[0]]["name"] == "Renamed meanwhile"
             store.close()
