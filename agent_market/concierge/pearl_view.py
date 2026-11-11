@@ -3,6 +3,7 @@ import collections
 import hashlib
 import json
 import mimetypes
+import os
 import re
 from pathlib import Path
 import secrets
@@ -55,6 +56,8 @@ def versioned(value):
 def page_response(value, *, public=False):
     """Use the same nonce policy for the default and named presentation routes."""
     value = versioned(value)
+    if os.environ.get('MAIN_SPONSORED', '0') == '1':  # 11-11 Sponsored on main Explore and Chat; off by default
+        value = re.sub(r'<body\b', '<body data-sponsored="on"', value, count=1)
     nonce = secrets.token_urlsafe(32)
     from .bootstrap_delivery import nonce_scripts
     value = nonce_scripts(value,nonce)

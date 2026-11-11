@@ -39,6 +39,8 @@ TESTS = (
     'tests/test_agent_adoption_browser.py::test_server_pages_have_no_console_errors_in_a_fresh_tab',
     'tests/test_main_ui_touch_targets.py',
     'tests/test_cookie_banner_phone.py',
+    # Sponsored on main Explore and Chat (11-11): apart from results, nothing without a booking or when off.
+    'tests/test_main_sponsored_browser.py',
 )
 # Each role runs the tests for the code it serves. jobs releases run the collector, health checks,
 # crawler and evaluation without the typed execution engine, so the opening-path list above

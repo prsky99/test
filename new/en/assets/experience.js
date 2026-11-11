@@ -184,3 +184,67 @@
   }
 })();
 
+
+// 11-11 Sponsored (docs/AD_COIN_SPONSORED_CONTRACT.md): labelled, separate from results and answers, fetched only
+// after results are shown, drawn only when a booked card exists. Off unless the server marks body[data-sponsored=on].
+(function(){
+  if(document.body?.dataset.sponsored!=='on')return;
+  const CATEGORIES=new Set(['agent_infra','ai_models','dev_tools','network_ops','security','database_analytics','data_utility','web_search',
+    'docs_knowledge','health_science','education_culture','public_legal','commerce_marketing','finance_crypto','trading_derivatives',
+    'productivity','communication_messaging','media_generation','social','travel_maps_weather']);
+  const pick=list=>{const counts=new Map();for(const c of list)if(CATEGORIES.has(c))counts.set(c,(counts.get(c)||0)+1);
+    let best=null;for(const [c,n]of counts)if(!best||n>counts.get(best))best=c;return best;};
+  async function load(placement,category){
+    if(!category)return null;
+    try{
+      const params=new URLSearchParams({placement,category,limit:'2'});
+      const response=await fetch('/api/ad-coin/v2/sponsored?'+params,{credentials:'omit',signal:AbortSignal.timeout(1500)});
+      if(!response.ok)return null;
+      const body=await response.json();
+      return Array.isArray(body.cards)&&body.cards.length?body:null;
+    }catch{return null;}
+  }
+  function render(body,placement){
+    const box=document.createElement('aside');box.className='pearl-sponsored';box.dataset.placement=placement;
+    box.setAttribute('aria-label',body.label||'Sponsored');
+    const label=document.createElement('p');label.className='pearl-sponsored-label';label.textContent=body.label||'Sponsored';
+    const list=document.createElement('ul');list.className='pearl-sponsored-list';
+    for(const card of body.cards.slice(0,2)){
+      const item=document.createElement('li');item.className='pearl-sponsored-card';
+      const name=document.createElement('strong');name.textContent=String(card.advertiser||'').slice(0,100);
+      const text=document.createElement('p');text.textContent=String(card.text||'').slice(0,280);
+      item.append(name,text);list.append(item);
+    }
+    const note=document.createElement('p');note.className='caption pearl-sponsored-disclosure';note.textContent=body.disclosure||'';
+    box.append(label,list,note);return box;
+  }
+  // Explore: after the result list settles, below it (never inside it).
+  const results=document.getElementById('xResults');
+  if(results){
+    let timer=0,serial=0;
+    new MutationObserver(()=>{clearTimeout(timer);timer=setTimeout(async()=>{
+      const cards=[...results.querySelectorAll('.acard:not(.skeleton-card)')];
+      document.querySelector('.pearl-sponsored[data-placement="explore"]')?.remove();
+      if(!cards.length)return;
+      const map=typeof EXPLORE_AGENT_MAP!=='undefined'?EXPLORE_AGENT_MAP:null;
+      const filter=document.getElementById('xCategory')?.value;
+      const category=CATEGORIES.has(filter)?filter:pick(cards.slice(0,12).map(c=>map?.get(c.dataset.id)?.category));
+      const mine=++serial,body=await load('explore',category);
+      if(body&&mine===serial&&results.isConnected)results.after(render(body,'explore'));
+    },400);}).observe(results,{childList:true});
+  }
+  // Chat: after a recommendation answer, below that answer (never in its text).
+  if(typeof appendChatBubble==='function'){
+    const previous=appendChatBubble;
+    appendChatBubble=function(role,text,payload,...rest){
+      const result=previous(role,text,payload,...rest);
+      const items=role!=='user'?(payload?.data?.recommendations||[]):[];
+      if(items.length){
+        const bubble=[...document.querySelectorAll('#chatMessages .chat-bubble.bot')].pop();
+        const category=pick(items.map(item=>item?.category));
+        load('chat',category).then(body=>{if(body&&bubble?.isConnected)bubble.after(render(body,'chat'));});
+      }
+      return result;
+    };
+  }
+})();
