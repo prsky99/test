@@ -35,7 +35,8 @@ BASE = 'https://agentconcierge.biz'
 UA = 'agentcon-full-check/1 (site owner QA; contact@agentconcierge.biz)'
 QA_HEADER = {'X-Agentcon-QA': 'public_full_check'}  # 11-11: lets the error ledger set our own measurements apart
 GAP = 0.45          # seconds between requests: stay well under our own per-IP limits
-PAGE_S = 2.0        # page target (CLAUDE.md response-time policy)
+PAGE_S = 1.0        # page target (CLAUDE.md response-time policy, 11-11 19시: 1초)
+RECOMMEND_S = 2.0   # recommendation target (11-11 19시: 2초)
 API_S = 3.0
 NAV = ['/', '/new/en/explore.html', '/new/en/chat.html', '/new/en/test.html', '/new/en/workflows.html',
        '/new/en/learn.html', '/new/en/agent-status.html', '/new/en/list-agent.html', '/new/en/about.html',
@@ -173,7 +174,7 @@ def part_api(run, c):
         run.ok('api', 'workflow template detail', r is not None and r.status_code == 200, err or getattr(r, 'status_code', ''), took)
     took, r, err = timed(c, 'POST', BASE + '/api/agent/v1/discover', json={'task': q})
     run.ok('api', 'POST discover', r is not None and r.status_code == 200, err or getattr(r, 'status_code', ''), took)
-    run.ok('api', 'discover time', took <= 3.0, f'{took}s', took)
+    run.ok('api', 'discover time', took <= RECOMMEND_S, f'{took}s', took)
     took, r, err = timed(c, 'POST', BASE + '/api/register/inspect', json={'url': BASE + '/.well-known/agent-card.json'})
     run.ok('api', 'POST register/inspect (read-only)', r is not None and r.status_code < 500,
            err or getattr(r, 'status_code', ''), took)
@@ -221,7 +222,7 @@ def part_agent(run, c):
         text = ((res.get('content') or [{}])[0] or {}).get('text', '')
         run.ok('agent', f'MCP tool {name}', bool(text) and not res.get('isError'),
                err or text[:160] or getattr(r, 'status_code', ''), took)
-        limit = 3.0 if name in ('find_agents', 'search', 'chat') else 5.0
+        limit = RECOMMEND_S if name in ('find_agents', 'search', 'chat') else 5.0
         run.ok('agent', f'MCP tool {name} time', took <= limit, f'{took}s > {limit}s', took)
         if name == 'find_agents' and not endpoint:
             m = re.search(r'Endpoint:\s*(\S*/api/gateway/mcp/\d+)', text)
@@ -249,7 +250,7 @@ def part_agent(run, c):
     except Exception:  # noqa: BLE001
         body = {}
     run.ok('agent', 'A2A message/send', ok, err or str(body.get('error') or getattr(r, 'status_code', '')), took)
-    run.ok('agent', 'A2A time', took <= 3.0, f'{took}s', took)
+    run.ok('agent', 'A2A time', took <= RECOMMEND_S, f'{took}s', took)
     return {'tools': [t.get('name') for t in tools], 'gateway_endpoint': bool(endpoint)}
 
 
@@ -328,7 +329,7 @@ def part_browser(run):
                 wait_text(page, r'Endpoint:|Show \d+ alternatives|Did it work\?', 20)
                 took = round(time.time() - t, 2)
                 flows.append(('chat', width, took))
-                run.ok('browser', f'{width} chat answer time', took <= 3.0, f'{took}s', took)
+                run.ok('browser', f'{width} chat answer time', took <= RECOMMEND_S, f'{took}s', took)
             except Exception as e:  # noqa: BLE001
                 run.ok('browser', f'{width} chat answers', False, f'{type(e).__name__}: {str(e)[:120]}')
             # Flow: Test page runs the default example.

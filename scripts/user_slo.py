@@ -6,9 +6,9 @@ Every check goes through the public address https://agentconcierge.biz (Cloudfla
 queries the site has never seen. Targets (CLAUDE.md response-time policy, quality target 100%):
 
   explore      every unseen search answers within 2.0 s with at least one result (11-10 user target)
-  recommend    an agent asking find_agents (MCP) gets an answer within 3.0 s; complex answers within 5.0 s
+  recommend    an agent asking find_agents (MCP) gets an answer within 2.0 s; complex answers within 5.0 s
   connect      the top recommended agent answers initialize + tools/list through our gateway with >= 1 tool
-  pages        the Explore and Chat pages download within 2.0 s
+  pages        the Explore and Chat pages download within 1.0 s
 
 Writes one JSON line to logs/ops/user-slo.jsonl and prints it. "breaches" lists only failed targets, each with
 the owning team, so scripts/ops_auto.py can hand them over on the status board.
@@ -32,7 +32,7 @@ TOPICS = ['weather forecast', 'translate pdf', 'send email', 'crypto price', 'su
           'shipping tracking', 'customer support', 'code review', '날씨', '번역', '이메일 보내기']
 MODIFIERS = ['for my team', 'in real time', 'free', 'api', 'for agents', 'quickly', 'with history', 'in korea',
              'small business', 'json output', 'today', 'bulk']
-TARGET = {'explore_s': 2.0, 'recommend_s': 3.0, 'complex_s': 5.0, 'page_s': 2.0}  # 11-10 18시 사용자 결정
+TARGET = {'explore_s': 2.0, 'recommend_s': 2.0, 'complex_s': 5.0, 'page_s': 1.0}  # 11-11 19시 사용자 결정(추천 2초·페이지 1초)
 OWNER = {'explore': '검색과 RAG', 'recommend': '검색과 RAG', 'connect': '검색과 RAG', 'pages': '성장·유통'}
 MCP_HEADERS = {'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream'}
 
