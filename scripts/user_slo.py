@@ -18,6 +18,8 @@ the owning team, so scripts/ops_auto.py can hand them over on the status board.
 """
 import json
 import random
+import re
+import socket
 import time
 from datetime import datetime
 from pathlib import Path
@@ -45,16 +47,70 @@ def unseen(n):
     return [f'{t} {random.choice(MODIFIERS)} {random.randint(10, 999)}' for t in picks]
 
 
-def fresh():
+class _Phases:
+    """Where one sample's time went (11-11 PM): DNS, TCP, TLS, first byte and whole body, all from the start of
+    the sample, from httpcore's trace events of the first request on the new connection. The verdict still uses
+    the whole time ('s'); these only show which leg was slow (e.g. find_agents: first byte 2-3 s, body 2-28 s)."""
+
+    def __init__(self):
+        self.started = time.monotonic()
+        self.at = {}
+
+    def trace(self, event, info):
+        name = event.split('.', 1)[-1]          # 'connection.connect_tcp.complete' -> 'connect_tcp.complete'
+        self.at.setdefault(name, time.monotonic() - self.started)
+
+    def summary(self, response=None):
+        def at(*names):
+            found = [self.at[n] for n in names if n in self.at]
+            return round(found[0], 3) if found else None
+        out = {'dns_s': self.dns_s, 'tcp_s': at('connect_tcp.complete'), 'tls_s': at('start_tls.complete'),
+               'first_byte_s': at('receive_response_headers.complete'),
+               'body_s': at('receive_response_body.complete', 'response_closed.complete')}
+        timing = response.headers.get('server-timing', '') if response is not None else ''
+        server = re.search(r'(?:^|,)\s*server\s*;[^,]*?dur=([\d.]+)', timing)
+        out['server_ms'] = round(float(server.group(1))) if server else None
+        return out
+
+
+class _TracedTransport(httpx.HTTPTransport):
+    def __init__(self, phases, **kwargs):
+        super().__init__(**kwargs)
+        self.phases = phases
+
+    def handle_request(self, request):
+        request.extensions['trace'] = self.phases.trace
+        return super().handle_request(request)
+
+
+LAST = {'phases': None}
+
+
+def fresh(phases=None):
     """A new client, so each sample pays its own DNS, TCP and TLS like a first-time visitor (11-11 PM: the hour's
     samples used to share one keep-alive connection, which left the handshake out of every sample after the first)."""
-    return httpx.Client(timeout=30, headers={'User-Agent': UA, **QA_HEADER}, follow_redirects=True)
+    transport = _TracedTransport(phases) if phases else None
+    return httpx.Client(timeout=30, headers={'User-Agent': UA, **QA_HEADER}, follow_redirects=True, transport=transport)
 
 
 def on_fresh(fn):
     """Run fn(client) on a new connection and return its result (the response body is read before closing)."""
-    with fresh() as client:
+    phases = _Phases()
+    LAST['phases'] = phases
+    host = BASE.split('://', 1)[-1].split('/', 1)[0]
+    try:
+        socket.getaddrinfo(host, 443, proto=socket.IPPROTO_TCP)   # the resolve a first-time visitor makes
+        phases.dns_s = round(time.monotonic() - phases.started, 3)
+    except OSError:
+        phases.dns_s = None
+    with fresh(phases) as client:
         return fn(client)
+
+
+def phases(response=None):
+    """The legs of the sample that just ran (on_fresh), with the server's own time from Server-Timing."""
+    current = LAST['phases']
+    return current.summary(response) if current else {}
 
 
 def timed(fn):
@@ -99,7 +155,7 @@ def check_explore(n=6):
             except ValueError:
                 pass
         rows.append({'q': query, 's': took, 'status': getattr(response, 'status_code', error), 'total': total,
-                     'colo': colo(response), 'cache': cache(response)})
+                     'colo': colo(response), 'cache': cache(response), **phases(response)})
     bad = [r for r in rows if r['s'] > TARGET['explore_s'] or r['status'] != 200 or not r['total']]
     return {'samples': rows, 'max_s': max(r['s'] for r in rows), 'ok': not bad, 'bad': bad}
 
@@ -115,7 +171,8 @@ def check_recommend_and_connect(n=2):
                 text = result[1]['result']['content'][0]['text']
             except (KeyError, IndexError, TypeError):
                 text = ''
-        rec.append({'task': task, 's': took, 'answered': bool(text), 'error': error})
+        rec.append({'task': task, 's': took, 'answered': bool(text), 'error': error,
+                    **phases(result[0] if result else None)})
         endpoint = next((line.split('Endpoint:', 1)[1].strip().split()[0] for line in text.splitlines()
                          if 'Endpoint:' in line and '/api/gateway/' in line), None)
         if not endpoint:
@@ -147,7 +204,7 @@ def check_pages():
     for path in ('/new/en/explore.html', '/new/en/chat.html', '/'):
         took, response, error = timed(lambda: on_fresh(lambda c: c.get(BASE + path, headers={'Accept': 'text/html'})))
         rows.append({'path': path, 's': took, 'status': getattr(response, 'status_code', error), 'colo': colo(response),
-                     'cache': cache(response)})  # 11-11 PM: edge state next to the time
+                     'cache': cache(response), **phases(response)})  # 11-11 PM: edge state and legs next to the time
     bad = [r for r in rows if r['s'] > TARGET['page_s'] or r['status'] != 200]
     return {'samples': rows, 'ok': not bad, 'bad': bad}
 
