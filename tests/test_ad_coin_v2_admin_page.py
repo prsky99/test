@@ -59,3 +59,15 @@ def test_step2_sections_are_korean_and_load_on_click():
     html = client().get(PATH).text
     assert '광고주 신청' in html and '캠페인 심사' in html and 'id="load-applications"' in html and 'id="load-reviews"' in html
     assert '카탈로그에 등록된 에이전트·MCP 제공자만 승인합니다' in html
+
+
+def test_advertise_landing_is_english_honest_and_follows_the_usdc_switch(monkeypatch):
+    monkeypatch.delenv('AD_COIN_PAID_BOOKING_ENABLED', raising=False)
+    page = client().get('/ad-coin/v2/advertise')
+    assert page.status_code == 200 and '<html lang="en">' in page.text and '@@' not in page.text
+    for fact in ('5 USDC', 'per placement per day', 'USDC payments open soon', 'never changes which agents we recommend',
+                 'We do not count clicks', 'contact@agentconcierge.biz'):
+        assert fact in page.text, fact
+    assert '<style' not in page.text and 'style=' not in page.text
+    monkeypatch.setenv('AD_COIN_PAID_BOOKING_ENABLED', '1')
+    assert 'USDC payments open soon' not in client().get('/ad-coin/v2/advertise').text

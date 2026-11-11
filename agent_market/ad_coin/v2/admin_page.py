@@ -25,9 +25,23 @@ def _build():
     return html, name, data
 
 
+def advertise_html():
+    """The public advertiser landing page (English). USDC status follows the paid-booking switch."""
+    from .paid_bookings import enabled
+    html = (WEB / "advertise.html").read_text().replace(
+        "@@usdc-status@@", "Pay in USDC on Base from your own wallet." if enabled() else "USDC payments open soon.")
+    for icon in ("sun", "moon"):
+        html = html.replace("@@" + icon + "@@", ICON.get(icon, ""))
+    return html
+
+
 def router_for():
     router = APIRouter()
     html, script_name, script = _build()
+
+    @router.get("/ad-coin/v2/advertise", include_in_schema=False)
+    async def advertise():
+        return HTMLResponse(advertise_html(), headers=_headers())
     tag = '"' + hashlib.sha256(script).hexdigest() + '"'
 
     @router.get(PATH, include_in_schema=False)

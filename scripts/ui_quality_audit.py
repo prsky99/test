@@ -32,6 +32,7 @@ STATES = (
      "document.getElementById('pay-to').textContent='0x1111111111111111111111111111111111111111';"
      "document.getElementById('pay-expiry').textContent='10:30';p.scrollIntoView()"),
     ("operator", "/ad-coin/v2/admin", ""),
+    ("advertise", "/ad-coin/v2/advertise", ""),
 )
 SHOW = ("window.show=v=>document.querySelectorAll('[data-view]').forEach(n=>n.hidden=n.dataset.view!==v);")
 
