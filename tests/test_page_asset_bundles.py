@@ -8,7 +8,8 @@ def test_pages_load_one_stylesheet_and_one_deferred_script(client):  # noqa: F81
     html = client.get('/new/en/index.html').text
     head = html[:html.index('</head>')]
     assert len(re.findall(r'<link rel="stylesheet"', head)) == 1
-    assert len(re.findall(r'<script[^>]*src="/new/en/assets/[^"]+"[^>]*defer', html)) == 1
+    deferred = re.findall(r'<script[^>]*src="/new/en/assets/([^"?]+)[^"]*"[^>]*defer', html)
+    assert deferred == ['panels.js', 'bundle.js']  # 11-11: inactive panel markup in its own shared file, first
     assert 'session-bootstrap.js' not in html  # inlined, carries the page nonce like every script
     css = re.search(r'href="(/new/en/assets/bundle\.css\?f=([^"&]+)&amp;v=([0-9a-f]+))"', html)
     js = re.search(r'src="(/new/en/assets/bundle\.js\?f=([^"&]+)&amp;v=([0-9a-f]+))"', html)

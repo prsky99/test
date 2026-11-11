@@ -230,9 +230,55 @@ def critical_css(value, page):
     return value[:match.start()] + replacement + value[match.end():]
 
 
+# 11-11 (PM: page target 1 s, cut bytes): every live page carried the other eight panels as inactive
+# <template>s, 121 KB of 214 KB (gzip 25 of 44 KB). Their markup moves to one script, panels.js?v=<digest>, which
+# all pages share and browsers and the edge keep; the page keeps empty templates in place and the deferred
+# panels-bootstrap.js (first in bundle.js) fills them before the shared handlers attach. The panel markup still
+# comes from this response's own rendering (daily numbers included), so the digest changes when it does.
+INACTIVE_PANEL = re.compile(r'<template data-inactive-panel="([a-z0-9_-]{1,40})">(.*?)</template>', re.S)
+PANELS_KEPT = 32
+_panels = collections.OrderedDict()
+_panels_lock = threading.Lock()
+_panels_rebuilt = {'at': 0.0}
+
+
+def split_panels(value):
+    """Move inactive panel markup into the shared panels.js; unchanged when there is no bundle.js to run it."""
+    found = INACTIVE_PANEL.findall(value)
+    script = re.search(r'<script src="/new/en/assets/bundle\.js\?[^"]+" defer></script>', value)
+    if not found or not script or not any(body.strip() for _, body in found):
+        return value
+    body = panels_script(dict(found))
+    version = asset_version(body)
+    with _panels_lock:
+        _panels[version] = dict(found)
+        _panels.move_to_end(version)
+        while len(_panels) > PANELS_KEPT:
+            _panels.popitem(last=False)
+    value = INACTIVE_PANEL.sub(lambda m: '<template data-inactive-panel="%s"></template>' % m[1], value)
+    script = re.search(r'<script src="/new/en/assets/bundle\.js\?[^"]+" defer></script>', value)  # offsets moved
+    tag = '<script src="/new/en/assets/panels.js?v=%s" defer></script>' % version
+    return value[:script.start()] + tag + value[script.start():]
+
+
+def panels_script(panels):
+    return ('window.__pearlPanels=Object.assign(window.__pearlPanels||{},'
+            + json.dumps(panels, ensure_ascii=False, separators=(',', ':')) + ');\n').encode()
+
+
+def panels_body(version):
+    """(script for this digest or None, script with every panel known now or None)."""
+    with _panels_lock:
+        found = _panels.get(version)
+        union = {}
+        for panels in _panels.values():
+            union.update(panels)
+    return (panels_script(found) if found is not None else None), (panels_script(union) if union else None)
+
+
 def page_response(value, *, public=False, page=None):
     """Use the same nonce policy for the default and named presentation routes."""
-    value = critical_css(versioned(bundled(value)), page)
+    value = critical_css(split_panels(versioned(bundled(value))), page)
     if os.environ.get('MAIN_SPONSORED', '0') == '1':  # 11-11 Sponsored on main Explore and Chat; off by default
         value = re.sub(r'<body\b', '<body data-sponsored="on"', value, count=1)
     # 11-11 (PM decision A): the same bytes for every visitor, so the edge may keep a page for 60 seconds.
@@ -398,6 +444,24 @@ def install(app, front, *, workspace_access_enabled=False, workspace_link_enable
 
     @app.get('/new/en/assets/{filename:path}', include_in_schema=False)
     def asset(filename: str, request: Request):
+        if filename == 'panels.js':
+            wanted = request.query_params.get('v', '')
+            body, union = panels_body(wanted)
+            # After a restart nothing is rendered yet: render the live pages once (at most once a minute, so
+            # unknown digests cannot make every request render ten pages), then look again.
+            if body is None and time.monotonic() - _panels_rebuilt['at'] > 60:
+                _panels_rebuilt['at'] = time.monotonic()
+                for name in sorted(manifest['live_pages']):
+                    page(name)
+                body, union = panels_body(wanted)
+            immutable = body is not None
+            body = body or union  # an older digest (numbers changed since): every current panel, briefly
+            if body is None:
+                raise HTTPException(404, 'Asset not found.')
+            return Response(body, media_type='text/javascript; charset=utf-8', headers={
+                'X-Content-Type-Options': 'nosniff', 'ETag': '"' + asset_version(body) + '"',
+                'Cache-Control': 'public, max-age=31536000, immutable' if immutable
+                else 'public, max-age=300, stale-while-revalidate=86400'})
         if filename in ('bundle.css', 'bundle.js'):
             kind = filename.rsplit('.', 1)[1]
             names = request.query_params.get('f', '').split(',')

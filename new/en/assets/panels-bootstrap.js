@@ -1,5 +1,5 @@
-/* Restore inactive panels before the shared operating handlers attach. */
-(() => { for (const node of document.querySelectorAll('template[data-inactive-panel]')) node.replaceWith(node.content); })();
+/* Restore inactive panels before the shared operating handlers attach (markup from panels.js since 11-11). */
+(() => { const kept = globalThis.__pearlPanels || {}; for (const node of document.querySelectorAll('template[data-inactive-panel]')) { const markup = kept[node.dataset.inactivePanel]; if (!node.content.childNodes.length && typeof markup === 'string') { const holder = document.createElement('template'); holder.innerHTML = markup; node.replaceWith(holder.content); } else node.replaceWith(node.content); } })();
 
 /* WebMCP (11-04): when the browser offers navigator.modelContext, an agent working in this page can
    call two read-only catalog tools instead of reading the screen. Nothing runs without that API. */

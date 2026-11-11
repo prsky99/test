@@ -48,6 +48,8 @@ TESTS = (
     # 11-11 (PM decision B): first-screen CSS is current and draws the first screen exactly like the full CSS.
     'tests/test_critical_css.py',
     'tests/test_earlier_asset_urls.py',  # 11-11: old bundle URLs keep their bytes after a deploy (swr condition)
+    'tests/test_panels_split.py',  # 11-11: inactive panels in panels.js (HTML gzip about -40%)
+    'tests/test_panels_split_browser.py::test_the_page_is_the_same_with_the_panels_in_a_shared_script[index.html]',
     'tests/test_critical_css_browser.py::test_first_screen_with_inline_css_alone_matches_the_full_css[1280-light]',
     'tests/test_critical_css_browser.py::test_first_screen_with_inline_css_alone_matches_the_full_css[375-light]',
 )

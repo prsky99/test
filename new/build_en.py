@@ -180,7 +180,7 @@ def _build():
     for name in ['operating.css','styles.css','necklace.css','pearl-live.css']+(['experience.css'] if experience_styles else []):
         head.append(fragment('<link rel="stylesheet" href="assets/'+name+'">'))
     head.append(fragment('<script src="assets/session-bootstrap.js"></script>'))
-    (assets/'panels-bootstrap.js').write_text("/* Restore inactive panels before the shared operating handlers attach. */\n(() => { for (const node of document.querySelectorAll('template[data-inactive-panel]')) node.replaceWith(node.content); })();\n")
+    (assets/'panels-bootstrap.js').write_text("/* Restore inactive panels before the shared operating handlers attach (markup from panels.js since 11-11). */\n(() => { const kept = globalThis.__pearlPanels || {}; for (const node of document.querySelectorAll('template[data-inactive-panel]')) { const markup = kept[node.dataset.inactivePanel]; if (!node.content.childNodes.length && typeof markup === 'string') { const holder = document.createElement('template'); holder.innerHTML = markup; node.replaceWith(holder.content); } else node.replaceWith(node.content); } })();\n")
     body.append(fragment('<script src="assets/panels-bootstrap.js" defer></script>'))
     body.append(fragment('<script src="assets/operating.js" defer></script>'))
     if experience_scripts:body.append(fragment('<script src="assets/experience.js" defer></script>'))

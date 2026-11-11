@@ -49,8 +49,9 @@ def test_default_html_entry_uses_published_composition_and_keeps_json_contract(c
     assert response.status_code==200
     assert 'data-pearl-entry="overview"' in response.text
     assert re.search(r'/new/en/assets/(pearl-ui\.js|bundle\.js\?f=[^"]*pearl-ui)', response.text)  # 11-11: one bundle
-    assert 'reference-about-hero' in response.text
-    assert 'pearlWorkflowChoices' in response.text
+    panels=client.get(re.search(r'src="(/new/en/assets/panels\.js\?v=[0-9a-f]+)"',response.text)[1]).text  # 11-11: inactive panels
+    assert 'reference-about-hero' in panels
+    assert 'pearlWorkflowChoices' in response.text+panels
     assert 'noindex' not in response.headers.get('x-robots-tag','')
     assert "script-src 'self' 'sha256-" in response.headers['content-security-policy']  # 11-11: hashes, so the edge may keep the page
     assert client.get('/',headers={'accept':'application/json'}).headers['content-type'].startswith('application/json')
