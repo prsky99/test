@@ -50,6 +50,8 @@ TESTS = (
     'tests/test_earlier_asset_urls.py',  # 11-11: old bundle URLs keep their bytes after a deploy (swr condition)
     'tests/test_panels_split.py',  # 11-11: inactive panels in panels.js (HTML gzip about -40%)
     'tests/test_prerendered_segmented.py',  # 11-11: protocol groups drawn by the server, Chat phone CLS 0
+    # 11-12: discovery cards keep their public keys (usage_endpoint, tools_schema); ed37c569 dropped one.
+    'tests/test_managed_agent_gateway.py::test_raw_discovery_json_and_text_hide_bindings_preserve_schema',
     'tests/test_panels_split_browser.py::test_the_page_is_the_same_with_the_panels_in_a_shared_script[index.html]',
     'tests/test_critical_css_browser.py::test_first_screen_with_inline_css_alone_matches_the_full_css[1280-light]',
     'tests/test_critical_css_browser.py::test_first_screen_with_inline_css_alone_matches_the_full_css[375-light]',
