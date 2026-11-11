@@ -31,7 +31,11 @@ SECTION = '## 무거운 작업'
 SLOTS = 2
 BUSY = 75          # EX_TEMPFAIL: try again later
 STALE = ' [오래됨: pid 없음]'
+TIMED_OUT = ' [오래됨: 시간 초과]'
+NO_ESTIMATE_MINUTES = 180   # a line without an estimate counts for at most three hours
 _PID = re.compile(r'\bpid=(\d+)')
+_START = re.compile(r'\b(\d{2})-(\d{2}) (\d{1,2}):(\d{2})\b')
+_ESTIMATE = re.compile(r'예상[^0-9()]{0,8}(\d+)\s*분')
 
 
 def alive(pid):
@@ -67,7 +71,28 @@ def _section(lines):
     return None
 
 
-def entries(lines, is_alive=alive):
+def overdue(line, now=None):
+    """True when the line started more than twice its estimate ago (three hours without one, 11-11).
+
+    Lines written by hand carry a session pid, which stays alive after the job ends; the time limit
+    keeps a forgotten line from holding a slot all night."""
+    start = _START.search(line)
+    if not start:
+        return False
+    now = now or datetime.now()
+    month, day, hour, minute = map(int, start.groups())
+    try:
+        began = now.replace(month=month, day=day, hour=hour, minute=minute, second=0, microsecond=0)
+    except ValueError:
+        return False
+    if began > now:
+        began = began.replace(year=now.year - 1)
+    estimate = _ESTIMATE.search(line)
+    limit = 2 * int(estimate.group(1)) if estimate else NO_ESTIMATE_MINUTES
+    return (now - began).total_seconds() > limit * 60
+
+
+def entries(lines, is_alive=alive, now=None):
     """[(index, line, live)] for each '- ' entry in the section."""
     span = _section(lines)
     if span is None:
@@ -78,7 +103,8 @@ def entries(lines, is_alive=alive):
         if not line.startswith('- '):
             continue
         pid = _PID.search(line)
-        live = STALE not in line and (pid is None or is_alive(int(pid.group(1))))
+        live = ('[오래됨' not in line and (pid is None or is_alive(int(pid.group(1))))
+                and not overdue(line, now))
         found.append((i, line, live))
     return found
 
@@ -90,10 +116,11 @@ def claim(board, team, what, minutes, pid, token, now=None, is_alive=alive):
     span = _section(lines)
     if span is None:
         raise SystemExit(f'heavy_slot: the status board has no "{SECTION}" section')
-    found = entries(lines, is_alive)
+    found = entries(lines, is_alive, now)
     for i, line, live in found:
-        if not live and STALE not in line:
-            lines[i] = line + STALE
+        if not live and '[오래됨' not in line:
+            pid = _PID.search(line)
+            lines[i] = line + (STALE if pid and not is_alive(int(pid.group(1))) else TIMED_OUT)
     live = [line for _, line, ok in found if ok]
     if len(live) >= SLOTS:
         board.write_text('\n'.join(lines), encoding='utf-8')
