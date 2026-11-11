@@ -15,3 +15,10 @@ def test_free_listings_stay_free_and_mentions_of_payments_are_not_prices():
     assert g.clean_agent(agent(5, price_usdc=0, description='Weather forecast for any city'))['free'] is True
     assert g.clean_agent(agent(6, price_usdc=0, description='Live health leaderboard of x402 paid endpoints'))['free'] is True
     assert g.clean_agent(agent(7, price_usdc=0.01, description='Weather'))['free'] is False
+
+
+def test_a_zero_amount_is_not_a_price():
+    for text in ('Lookups: $0 per call.', '$0/month, no key', '0 USDC per call during beta', 'x402 $0.00 while in preview'):
+        assert g.stated_price(text) is False, text
+    for text in ('x402 $0.002/min', '$0.0006 per call', '0.01 USDC per guide', '$19/month'):
+        assert g.stated_price(text), text
