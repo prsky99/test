@@ -47,3 +47,20 @@ def test_texts_that_used_to_say_free_for_a_missing_price():
     assert 'Paid or unknown' in text and 'Free' not in text
     detail = pathlib.Path(__file__).resolve().parents[1].joinpath('new/en/assets/operating.js').read_text()
     assert 'a.price_status === "paid_or_unknown" ? "Paid or unknown" : "Free"' in detail
+
+
+def test_ranking_gives_no_free_price_credit_to_a_listing_that_states_a_price(tmp_path):
+    """PM 11-12 decision A: the stored 0 stays; the ranking reads it through price_fields."""
+    from agent_market.gateway.ranking import score_resource
+    from agent_market.gateway.store import Store
+    store = Store(str(tmp_path / 'g.db'))
+    base = {'id': 1, 'kind': 'mcp', 'category': 'data', 'name': 'Transcripts', 'health_status': 'healthy',
+            'price_usdc': 0, 'payers_30d': None, 'last_called': None, 'auth_declared': 0, 'auth_observed': 0}
+    free = score_resource({**base, 'description': 'Transcribe audio'}, ['transcribe'], {}, 'data', store,
+                          feedback=(0, 0, None))
+    stated = score_resource({**base, 'description': 'Transcribe audio, x402 $0.002/min'}, ['transcribe'], {}, 'data',
+                            store, feedback=(0, 0, None))
+    assert free.parts['price'] == 1.0 and stated.parts['price'] == 0.5
+    paid = score_resource({**base, 'kind': 'x402', 'price_usdc': 2000, 'description': 'x402 $0.002/call'},
+                          ['transcribe'], {}, 'data', store, feedback=(0, 0, None))
+    assert paid.parts['price'] == 1.0  # a known amount under the reference price is scored as before

@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from . import constraints as cons
 from .classify import query_terms, tokens
 from .store import Store
+from ..concierge.price_status import price_fields
 
 # 관련도가 가장 무겁다: 품질·인기가 높아도 작업과 관계없는 에이전트가 앞에 오지 않게 (2026-10 실측으로 0.30 → 0.45)
 WEIGHTS = {"relevance": 0.45, "popularity": 0.10, "reliability": 0.12, "price": 0.07, "recency": 0.03, "fit": 0.08,
@@ -151,7 +152,9 @@ def score_resource(resource: dict, task_terms: list[str], idf: dict[str, float],
 
     parts["reliability"] = _reliability(resource)
 
-    price = resource.get("price_usdc")
+    # A listing whose own text states a price gets no free-price credit for its stored 0 (11-12, PM A:
+    # the column stays 0, price_status.py decides; null scores as unknown).
+    price, _ = price_fields(resource.get("kind"), resource.get("price_usdc"), resource.get("name"), resource.get("description"))
     parts["price"] = 0.5 if price is None else (1.0 if price <= REFERENCE_PRICE else min(1.0, REFERENCE_PRICE / price) ** 0.5)
 
     last = resource.get("last_called")
