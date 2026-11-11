@@ -3917,6 +3917,8 @@ function appendChatBubble(role, contentText, data, requestNote=null) {
       chatWhy(item) + chatProof(item) +
       '<div class="chat-endpoint"><span class="chat-field-label">' + chatIcon('plug') + 'Endpoint:</span>' + gatewayLink(gwUrl) + '</div>' +
       '<dl class="chat-evidence">' +
+        (typeof item.access_note === 'string' && item.access_note
+          ? '<div><dt class="chat-field-label">' + chatIcon('shield-check') + 'Access:</dt><dd>' + esc(item.access_note.slice(0,160)) + '</dd></div>' : '') +
         (item.task_verification?.status === 'verified' && item.task_verification?.tool === item.tools?.[0]
           ? '<div><dt class="chat-field-label">' + chatIcon('file-check') + 'Selected tool check:</dt><dd>Passed · ' + esc(chatTimestamp(item.task_verification.verified_at)) + '</dd></div>' : '') +
         (typeof checkedAt === 'number' && Number.isFinite(checkedAt) && checkedAt > 0

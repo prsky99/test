@@ -9,6 +9,7 @@ surveyed but every tool filtered). This wrapper applies the gateway's own rule
 It sits outside selection.py and execution_policy.py on purpose: both are part of the Explore
 document policy hash, and changing them would rebuild every search document.
 """
+import re
 import threading
 import time
 from collections import OrderedDict
@@ -17,6 +18,44 @@ from .execution_policy import safe_registered_tool, tools_for
 from .retrieval_metrics import stage
 
 EXTRA = 3  # look this many further, so a demoted server is replaced rather than only moved
+
+# A tool its own description restricts to a paid plan or an account (11-11 PM: "convert a pdf invoice
+# into structured json fields" put extract_invoice_data first, "Requires Team tier or above"). The
+# server itself needs no authorization, so the auth survey cannot see it; the selected tool's text can.
+PAID = re.compile(r"""\b(?:requires?|needs?|only\s+(?:available\s+)?(?:on|with|for|in))\s+(?:an?\s+|the\s+)?
+    (?:paid|pro|premium|team|business|enterprise|plus|starter|growth|scale)\b
+  | \b(?:paid|pro|premium|enterprise)\s+(?:tier|plan|subscription)s?\s+(?:only|required)\b
+  | \b(?:subscription|paid\s+plan|api\s+credits?)\s+(?:is\s+|are\s+)?required\b
+  | \bpay[\s-]per[\s-](?:call|use|request)\b
+  | \bupgrade\s+(?:to|your\s+plan)\b
+  | \b\d+\s+credits?\b
+  | (?:^|[.;:]\s*)paid(?:\s+(?:api|service|only|plan))?\s*(?:[.;]|$)""", re.I | re.X)
+ACCOUNT = re.compile(r"""\b(?:requires?|needs?)\s+(?:an?\s+|your\s+(?:own\s+)?)?
+    (?:api[\s_-]?key|access\s+token|oauth|login|sign[\s-]?in|account)\b""", re.I | re.X)
+SHOWN = 3  # recommendations a visitor sees
+PAID_NOTE = 'Paid plan: the description of this tool says it needs a paid plan.'
+ACCOUNT_NOTE = 'Account: the description of this tool says it needs your own key or account.'
+
+
+def access_note(item, descriptions=None):
+    """PAID_NOTE or ACCOUNT_NOTE when the selected tools or the listing say so, else None.
+    DESCRIPTIONS (name -> full text) replaces the shortened tools_schema text when known."""
+    if not isinstance(item, dict):
+        return None
+    chosen = set(item.get('tools') or ())
+    texts = [str(item.get('description') or '')]
+    if descriptions:
+        texts += [text for name, text in descriptions.items() if not chosen or name in chosen]
+    else:
+        for tool in item.get('tools_schema') or ():
+            if isinstance(tool, dict) and (not chosen or tool.get('name') in chosen):
+                texts.append(str(tool.get('description') or ''))
+    text = ' '.join(texts)[:20000]
+    if PAID.search(text):
+        return PAID_NOTE
+    if item.get('kind') != 'x402' and ACCOUNT.search(text):
+        return ACCOUNT_NOTE
+    return None
 CACHE_SIZE = 4096
 CACHE_SECONDS = 600
 
@@ -55,17 +94,37 @@ class ExposedFirstRecommender:
         items = search(task, kind, auth_pref, max(limit, wider), offset, exclude, hint, category)
         with stage('exposure'):
             exposed = [item for item in items if self.callable(item)]
+            ranked = exposed or items
+            notes = [access_note(item, self.tool_texts(item)) for item in ranked]
+            free = [item for item, note in zip(ranked, notes) if note is None]
+            for item, note in zip(ranked, notes):
+                if note is not None:
+                    item['access_note'] = note
         # Leave them out while any callable choice remains: Chat re-ranks a ten-item shortlist by
-        # meaning, which moved a demoted server back to first (11-10 deploy check).
-        return (exposed or items)[:limit]
+        # meaning, which moved a demoted server back to first (11-10 deploy check). A tool that needs
+        # a paid plan or the caller's own account leaves the list while at least SHOWN free choices
+        # remain (a demoted one came back first after the re-rank, 11-11); otherwise it follows them.
+        restricted = [item for item in ranked if item.get('access_note')] if isinstance(ranked, list) else []
+        if len(free) >= min(limit, SHOWN):
+            return free[:limit]
+        return (free + restricted)[:limit]
 
     def callable(self, item):
         """False only for an MCP server whose gateway tools/list would be empty."""
+        facts = self._facts(item)
+        return True if facts is None else facts[0]
+
+    def tool_texts(self, item):
+        """Full descriptions of the server's tools by name (the recommendation shortens them), or None."""
+        facts = self._facts(item)
+        return None if facts is None else facts[1]
+
+    def _facts(self, item):
         if not isinstance(item, dict) or item.get('kind') != 'mcp':
-            return True
+            return None
         rid = item.get('id')
         if type(rid) is not int:
-            return True
+            return None
         now = time.monotonic()
         with self._lock:
             cached = self._cache.get(rid)
@@ -74,9 +133,12 @@ class ExposedFirstRecommender:
                 return cached[1]
         try:
             resource = self._store.resource(rid)
-            value = bool(resource) and any(safe_registered_tool(spec) for spec in tools_for(resource))
+            specs = tools_for(resource) if resource else []
+            value = (bool(resource) and any(safe_registered_tool(spec) for spec in specs),
+                     {str(spec.get('name')): str(spec.get('description') or '')[:4000]
+                      for spec in specs if isinstance(spec, dict)})
         except Exception:
-            return True  # an unreadable row is judged by the recommender as before
+            return None  # an unreadable row is judged by the recommender as before
         with self._lock:
             self._cache[rid] = (now + CACHE_SECONDS, value)
             self._cache.move_to_end(rid)

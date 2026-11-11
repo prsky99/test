@@ -625,7 +625,10 @@ class FastConcierge(Concierge):
             # in the first ten for 93% of answered cases but first for 85%.
             items = semantic_first(getattr(self.rec, 'rag_engine', None), task,
                                    self.rec.search(retrieval_text(task), kind=protocol, limit=SEMANTIC_SHORTLIST,
-                                                   exclude=excluded))[:3]
+                                                   exclude=excluded))
+            # A tool that says it needs a paid plan or the caller's own account follows the free ones;
+            # the meaning order holds within each group (11-11 PM: extract_invoice_data was first).
+            items = sorted(items, key=lambda item: bool(isinstance(item, dict) and item.get('access_note')))[:3]
         else:
             items = self.rec.search(retrieval_text(task), kind=protocol, limit=3, offset=offset, exclude=excluded)
         focus = None

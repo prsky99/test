@@ -56,3 +56,53 @@ def test_copy_binds_a_request_store_and_forwards_attributes():
     assert rec.store is first and rec.rag_engine == 'engine'
     assert [i['id'] for i in scoped.search('x', limit=1)] == [5]
     assert [i['id'] for i in rec.search('x', limit=1)] == [2]
+
+
+def test_a_tool_that_needs_a_paid_plan_or_an_account_follows_free_choices():
+    """11-11 PM: extract_invoice_data ("Requires Team tier or above") was first for a PDF invoice task."""
+    from agent_market.concierge import gateway_exposure as ge
+    paid = {'id': 1, 'kind': 'mcp', 'tools': ['extract_invoice_data'], 'description': 'PDF tools',
+            'tools_schema': [{'name': 'extract_invoice_data', 'description': 'Extract an invoice. Requires Team tier or above.'}]}
+    keyed = {'id': 2, 'kind': 'mcp', 'tools': ['lookup'], 'description': 'Recalls. Requires an API key.'}
+    free = {'id': 3, 'kind': 'mcp', 'tools': ['invoice_parse'], 'description': 'Invoice fields from a PDF'}
+    other_paid_tool = {'id': 4, 'kind': 'mcp', 'tools': ['free_tool'], 'description': 'Tools',
+                       'tools_schema': [{'name': 'free_tool', 'description': 'Free'}, {'name': 'pro', 'description': 'Requires a pro plan'}]}
+
+    class Inner:
+        store = None
+
+        def search(self, task, *args):
+            return [dict(paid), dict(keyed), dict(free), dict(other_paid_tool)]
+    wrapper = ge.ExposedFirstRecommender(Inner(), None)
+    wrapper.callable = lambda item: True
+    wrapper.tool_texts = lambda item: None
+    ranked = wrapper.search('invoice', limit=4)
+    # Two free choices are fewer than the three a visitor sees: the restricted ones follow, marked.
+    assert [item['id'] for item in ranked] == [3, 4, 1, 2]  # only the selected tool's own text counts
+    assert ranked[2]['access_note'] == ge.PAID_NOTE and ranked[3]['access_note'] == ge.ACCOUNT_NOTE
+    assert 'access_note' not in ranked[0]
+    # Free choices that fill what is shown leave the restricted ones out (Chat re-ranks by meaning).
+    assert [item['id'] for item in wrapper.search('invoice', limit=2)] == [3, 4]
+    more = dict(free, id=5)
+    Inner.search = lambda self, task, *a: [dict(paid), dict(free), dict(other_paid_tool), dict(more), dict(keyed)]
+    assert [item['id'] for item in wrapper.search('invoice', limit=10)] == [3, 4, 5]
+    # With no free choice the restricted ones stay, marked.
+    Inner.search = lambda self, task, *a: [dict(paid)]
+    assert wrapper.search('invoice', limit=2)[0]['access_note'] == ge.PAID_NOTE
+
+
+def test_paid_wording_is_not_found_in_ordinary_text():
+    from agent_market.concierge.gateway_exposure import access_note
+    for text in ('Works for teams of any size', 'Team collaboration notes', 'Pro tips for pdf conversion',
+                 'No API key needed', 'Free tier available'):
+        assert access_note({'kind': 'mcp', 'description': text}) is None, text
+
+
+def test_the_full_tool_text_and_short_paid_wording_count():
+    from agent_market.concierge import gateway_exposure as ge
+    item = {'kind': 'mcp', 'tools': ['extract_invoice'], 'description': 'German e-invoicing: generate and extract.',
+            'tools_schema': [{'name': 'extract_invoice', 'description': 'Extract structured JSON from an e-invoice…'}]}
+    assert ge.access_note(item) is None  # the shortened text hides it
+    assert ge.access_note(item, {'extract_invoice': 'Extract structured JSON. 5 credits, requires an API key.'}) == ge.PAID_NOTE
+    assert ge.access_note(dict(item, description='German e-invoicing. Paid.')) == ge.PAID_NOTE
+    assert ge.access_note(dict(item, description='Paid plans are not needed for this')) is None
