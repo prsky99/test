@@ -82,3 +82,16 @@ def test_gateway_calls_are_paced_under_the_public_limit():
     rts.pace('https://agentconcierge.biz/mcp', clock=clock, sleep=sleep)  # our own MCP endpoint is not paced
     assert len(slept) == 1
     rts._gateway_calls.clear()
+
+
+def test_enum_values_and_aliases_follow_the_schema():
+    schema = {'properties': {'target_format': {'type': 'string', 'enum': ['pdf', 'txt']}, 'source_url': {'type': 'string'}},
+              'required': ['target_format']}
+    assert rts.arguments_for(schema, {'url': 'https://x.test/a.pdf'}, 'convert PDF to text') == {
+        'source_url': 'https://x.test/a.pdf', 'target_format': 'txt'}
+    schema = {'properties': {'ecosystem': {'type': 'string', 'enum': ['npm', 'pypi']}, 'name': {'type': 'string'}}, 'required': ['ecosystem', 'name']}
+    assert rts.arguments_for(schema, {'ecosystem': 'PyPI', 'package': 'requests'}, 'x')['ecosystem'] == 'pypi'
+    schema = {'properties': {'value': {'type': ['string', 'object']}, 'schema': {'type': ['string', 'object']}}, 'required': ['value', 'schema']}
+    assert set(rts.arguments_for(schema, {'schema': {'type': 'object'}, 'instance': {'b': 1}}, 'x')) == {'value', 'schema'}
+    tools = [{'name': 'reverse_geocode', 'description': 'coordinates to address'}, {'name': 'geocode_address', 'description': 'address to coordinates'}]
+    assert rts.pick_tool(tools, 'forward geocoding of an address', {'reverse_geocode'})['name'] == 'geocode_address'

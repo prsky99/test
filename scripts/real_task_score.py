@@ -39,7 +39,7 @@ WRITE_WORDS = re.compile(r'(?i)(^|[_\-.])(create|delete|remove|update|write|send
 STOP = set('a an the of for to and or with by from in on at is are be that this its it as into than up per'.split())
 SYNONYMS = {
     'query': ['query', 'q', 'search', 'term', 'keyword', 'keywords', 'text', 'prompt', 'input', 'topic', 'title', 'name'],
-    'url': ['url', 'link', 'uri', 'page', 'pdf_url', 'source'],
+    'url': ['url', 'source_url', 'file_url', 'link', 'uri', 'page', 'pdf_url', 'source'],
     'id': ['id', 'paper_id', 'arxiv_id', 'identifier'],
     'symbol': ['symbol', 'ticker', 'coin', 'asset', 'id'],
     'currency': ['currency', 'vs_currency', 'quote', 'to'],
@@ -64,7 +64,7 @@ SYNONYMS = {
     'limit': ['limit', 'max_results', 'count', 'n'],
     'state': ['state', 'area'],
     'min_magnitude': ['min_magnitude', 'minmagnitude', 'magnitude'],
-    'schema': ['schema'], 'instance': ['instance', 'data', 'json'],
+    'schema': ['schema'], 'instance': ['instance', 'value', 'data', 'json', 'document'],
 }
 
 
@@ -139,6 +139,23 @@ def arguments_for(schema, sample, task_text):
             nums = [v for v in sample.values() if isinstance(v, (int, float))]
             if nums:
                 args[key] = nums[0]
+    want = words(task_text)
+    for key, spec in props.items():  # allowed values: match case-insensitively, or choose one the task names
+        enum = (spec or {}).get('enum')
+        if not isinstance(enum, list) or not enum:
+            continue
+        if key in args:
+            hit = [e for e in enum if str(e).lower() == str(args[key]).lower()]
+            if hit:
+                args[key] = hit[0]
+                continue
+        after_to = words(task_text.lower().rsplit(' to ', 1)[1]) if ' to ' in task_text.lower() else set()
+        def names(e, pool):
+            e = str(e).lower()
+            return e in pool or (e == 'txt' and 'text' in pool)
+        named = [e for e in enum if names(e, after_to)] or [e for e in enum if names(e, want)]  # "PDF to text": the target
+        if named and (key in required or key in args):
+            args[key] = named[0]
     for key, value in list(args.items()):  # follow the declared scalar types
         kind = (props.get(key) or {}).get('type')
         if kind == 'string' and not isinstance(value, str):
@@ -152,10 +169,14 @@ def pick_tool(tools, needs, preferred):
     callable_tools = [t for t in tools if isinstance(t, dict) and t.get('name') and not WRITE_WORDS.search(t['name'])]
     if not callable_tools:
         return None
-    want = words(needs)
+    stem = lambda ws: {w[:6] for w in ws}  # noqa: E731  ("geocoding" and "geocode" are one word here)
+    want = stem(words(needs))
     def score(t):
         named = 1 if t['name'] in preferred else 0
-        return (len(want & words(t['name'] + ' ' + str(t.get('description', '')))), named)
+        hit = len(want & stem(words(t['name'] + ' ' + str(t.get('description', '')))))
+        if 'revers' in stem(words(t['name'])) and 'revers' not in want:
+            hit -= 1  # a reverse lookup is the opposite of the task unless the task asks for it
+        return (hit, named)
     return max(callable_tools, key=score)
 
 
@@ -216,7 +237,14 @@ def score_task(client, task):
             if tools is None:
                 row.update(outcome='connection_failed', detail='tools/list %s %s' % (st, json.dumps(listed.get('error'))[:160]))
                 return row
-            tool = pick_tool(tools, task['needs'] + ' ' + task['task'], set(top.get('tools') or []))
+            # The recommendation names its tools and their input schemas (tools_schema): an agent uses those first.
+            # Recommended tools (tools_schema) break ties; the tool that best matches the task wins, so a
+            # recommendation that shows the wrong direction (reverse_geocode for geocoding) is recorded below.
+            recommended = {t.get('name') for t in (top.get('tools_schema') or []) if isinstance(t, dict)} | set(top.get('tools') or [])
+            tool = pick_tool(tools, task['needs'] + ' ' + task['task'], recommended)
+            if tool and recommended and tool['name'] not in recommended:
+                row['recommended_tool_mismatch'] = sorted(recommended)[:3]
+            row['tool_source'] = 'recommendation' if tool and tool['name'] in recommended else 'tools/list'
             if not tool:
                 row.update(outcome='no_tool', detail='tools/list returned %d tools, none callable' % len(tools))
                 return row
