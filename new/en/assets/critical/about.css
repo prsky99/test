@@ -1,4 +1,4 @@
-/* source 5874525895f6d0be */
+/* source 7672be9d067a3567 */
 :root {
   --bg: #0b0f19;
   --panel: #111827;
@@ -499,7 +499,7 @@ p{margin:0 0 16px;color:var(--muted)}
 @media(max-width:950px){.card{padding:22px}.four{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){h1{font-size:43px}h2{font-size:32px}h3{font-size:23px}.brand-mark{transform:scale(.85);transform-origin:left center;width:45px}.theme-toggle{width:39px;height:26px}.theme-toggle:before{width:18px;height:18px}.theme-toggle[aria-pressed=true]:before{left:17px}.home-query .icon{width:17px}.two,.three,.four,.split,.chat-layout,.results-layout,.auth-layout,.workflow-layout,.policy-layout,.studio-layout{grid-template-columns:1fr}.lead{font-size:18px}.card{padding:21px}.cookie-banner{padding:20px;gap:12px}.cookie-banner .actions{width:100%;justify-content:flex-start}.cookie-banner .btn{flex:1}.btn{min-height:46px}}
 .card>.icon-disc+h3{margin-top:18px}
-.pearl{background:url('/new/en/assets/pearl.webp') center/124% no-repeat;border:0;box-shadow:none;filter:drop-shadow(0 5px 5px #67513924)}
+.pearl{background:url('/new/en/assets/pearl.webp?v=17ac67b63327a4d1') center/124% no-repeat;border:0;box-shadow:none;filter:drop-shadow(0 5px 5px #67513924)}
 .pearl:after{display:none}
 body[data-theme=dark]{background:radial-gradient(ellipse at 70% 0,#25414844,transparent 65%),var(--bg)}
 body[data-theme=dark] .card{background:linear-gradient(120deg,#ffffff03,transparent),var(--surface)}

@@ -24,6 +24,7 @@ SCHEMES = ('light', 'dark')
 ALWAYS = re.compile(r'^\s*(?::root|html|body)\b[^{]*\{', re.I)
 KEEP_AT = ('@font-face', '@keyframes', '@-webkit-keyframes', '@property', '@counter-style', '@layer')
 MAX_GZIP = 20 * 1024
+PASSES = 2
 
 
 def blocks(css, i=0, n=None):
@@ -119,8 +120,8 @@ def collect(base, page, local=None):
     used, sheet, dom, script_text = set(), None, set(), ''
     with sync_playwright() as p:
         browser = p.chromium.launch()
-        for width in WIDTHS:
-            for scheme in SCHEMES:
+        for width, scheme, _ in [(w, sc, n) for w in WIDTHS for sc in SCHEMES for n in range(PASSES)]:
+            if True:  # each combination twice: live data and timing change which states the first screen shows
                 ctx = browser.new_context(viewport={'width': width, 'height': 900}, color_scheme=scheme,
                                           extra_http_headers={'X-Agentcon-QA': 'build_critical_css'})
                 if local is not None:  # pages and assets from this working tree, data from the public API

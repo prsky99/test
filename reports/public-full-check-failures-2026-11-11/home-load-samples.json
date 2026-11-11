@@ -1,0 +1,798 @@
+[
+ {
+  "w": 1280,
+  "i": 0,
+  "edge": [
+   "LAX",
+   "EXPIRED",
+   200
+  ],
+  "load": 3711,
+  "ttfb": 1623,
+  "fcp": 2456,
+  "dcl": 3707,
+  "res": [
+   [
+    "/new/en/assets/bundle.css?f=operating,styles,necklace,pearl-live,experience&v=aef5e681a0cf9edc",
+    1676,
+    2364,
+    2376,
+    57518,
+    "link",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/pearl.webp?v=17ac67b63327a4d1",
+    2395,
+    2753,
+    2834,
+    18470,
+    "image",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/pearl.webp",
+    2413,
+    2782,
+    2908,
+    18470,
+    "css",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/bundle.js?f=panels-bootstrap,operating,experience,pearl-ui,workflow-library&v=fabcf532b73408ed",
+    2440,
+    2802,
+    3659,
+    148082,
+    "script",
+    "LAX",
+    "HIT",
+    200
+   ]
+  ]
+ },
+ {
+  "w": 1280,
+  "i": 1,
+  "edge": [
+   "LAX",
+   "HIT",
+   200
+  ],
+  "load": 7889,
+  "ttfb": 1181,
+  "fcp": 5328,
+  "dcl": 7516,
+  "res": [
+   [
+    "/new/en/assets/bundle.css?f=operating,styles,necklace,pearl-live,experience&v=aef5e681a0cf9edc",
+    2164,
+    2868,
+    5278,
+    57518,
+    "link",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/pearl.webp?v=17ac67b63327a4d1",
+    5289,
+    5954,
+    7886,
+    18470,
+    "image",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/bundle.js?f=panels-bootstrap,operating,experience,pearl-ui,workflow-library&v=fabcf532b73408ed",
+    5289,
+    5632,
+    7481,
+    148082,
+    "script",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/pearl.webp",
+    5298,
+    5975,
+    7149,
+    18470,
+    "css",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/api/overview",
+    7508,
+    8008,
+    8011,
+    2407,
+    "fetch",
+    "LAX",
+    "DYNAMIC",
+    200
+   ],
+   [
+    "/api/pearl/status",
+    7511,
+    8004,
+    8008,
+    1191,
+    "fetch",
+    "LAX",
+    "DYNAMIC",
+    200
+   ]
+  ]
+ },
+ {
+  "w": 1280,
+  "i": 2,
+  "edge": [
+   "LAX",
+   "HIT",
+   200
+  ],
+  "load": 10937,
+  "ttfb": 2787,
+  "fcp": 5884,
+  "dcl": 10935,
+  "res": [
+   [
+    "/new/en/assets/bundle.css?f=operating,styles,necklace,pearl-live,experience&v=aef5e681a0cf9edc",
+    3474,
+    5170,
+    5825,
+    57518,
+    "link",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/pearl.webp?v=17ac67b63327a4d1",
+    5842,
+    6554,
+    10580,
+    18470,
+    "image",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/pearl.webp",
+    5855,
+    6233,
+    7282,
+    18470,
+    "css",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/bundle.js?f=panels-bootstrap,operating,experience,pearl-ui,workflow-library&v=fabcf532b73408ed",
+    5870,
+    6236,
+    10908,
+    148082,
+    "script",
+    "LAX",
+    "HIT",
+    200
+   ]
+  ]
+ },
+ {
+  "w": 1280,
+  "i": 3,
+  "edge": [
+   "LAX",
+   "HIT",
+   200
+  ],
+  "load": 8606,
+  "ttfb": 874,
+  "fcp": 5836,
+  "dcl": 8579,
+  "res": [
+   [
+    "/new/en/assets/bundle.css?f=operating,styles,necklace,pearl-live,experience&v=aef5e681a0cf9edc",
+    881,
+    1249,
+    5794,
+    57518,
+    "link",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/pearl.webp?v=17ac67b63327a4d1",
+    5807,
+    6820,
+    8605,
+    18470,
+    "image",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/bundle.js?f=panels-bootstrap,operating,experience,pearl-ui,workflow-library&v=fabcf532b73408ed",
+    5807,
+    6504,
+    8555,
+    148082,
+    "script",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/pearl.webp",
+    5814,
+    6161,
+    7900,
+    18470,
+    "css",
+    "LAX",
+    "UPDATING",
+    200
+   ]
+  ]
+ },
+ {
+  "w": 1280,
+  "i": 4,
+  "edge": [
+   "LAX",
+   "HIT",
+   200
+  ],
+  "load": 5170,
+  "ttfb": 840,
+  "fcp": 1952,
+  "dcl": 5168,
+  "res": [
+   [
+    "/new/en/assets/bundle.css?f=operating,styles,necklace,pearl-live,experience&v=aef5e681a0cf9edc",
+    1172,
+    1535,
+    1893,
+    57518,
+    "link",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/pearl.webp?v=17ac67b63327a4d1",
+    1910,
+    2915,
+    2916,
+    18470,
+    "image",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/pearl.webp",
+    1922,
+    2275,
+    3684,
+    18470,
+    "css",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/bundle.js?f=panels-bootstrap,operating,experience,pearl-ui,workflow-library&v=fabcf532b73408ed",
+    1937,
+    2292,
+    5142,
+    148082,
+    "script",
+    "LAX",
+    "HIT",
+    200
+   ]
+  ]
+ },
+ {
+  "w": 1280,
+  "i": 5,
+  "edge": [
+   "LAX",
+   "HIT",
+   200
+  ],
+  "load": 7154,
+  "ttfb": 1769,
+  "fcp": 4396,
+  "dcl": 6523,
+  "res": [
+   [
+    "/new/en/assets/bundle.css?f=operating,styles,necklace,pearl-live,experience&v=aef5e681a0cf9edc",
+    1782,
+    2133,
+    4336,
+    57518,
+    "link",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/pearl.webp?v=17ac67b63327a4d1",
+    4351,
+    5041,
+    7152,
+    18470,
+    "image",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/bundle.js?f=panels-bootstrap,operating,experience,pearl-ui,workflow-library&v=fabcf532b73408ed",
+    4351,
+    5036,
+    6485,
+    148082,
+    "script",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/pearl.webp",
+    4359,
+    5394,
+    6154,
+    18470,
+    "css",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/api/pearl/status",
+    6517,
+    7610,
+    7610,
+    1195,
+    "fetch",
+    "LAX",
+    "DYNAMIC",
+    200
+   ]
+  ]
+ },
+ {
+  "w": 375,
+  "i": 0,
+  "edge": [
+   "LAX",
+   "HIT",
+   200
+  ],
+  "load": 5071,
+  "ttfb": 943,
+  "fcp": 3360,
+  "dcl": 5069,
+  "res": [
+   [
+    "/new/en/assets/bundle.css?f=operating,styles,necklace,pearl-live,experience&v=aef5e681a0cf9edc",
+    1277,
+    1967,
+    3324,
+    57518,
+    "link",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/pearl.webp?v=17ac67b63327a4d1",
+    3338,
+    4323,
+    4430,
+    18470,
+    "image",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/bundle.js?f=panels-bootstrap,operating,experience,pearl-ui,workflow-library&v=fabcf532b73408ed",
+    3338,
+    3656,
+    5046,
+    148082,
+    "script",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/pearl.webp",
+    3345,
+    3991,
+    4434,
+    18470,
+    "css",
+    "LAX",
+    "HIT",
+    200
+   ]
+  ]
+ },
+ {
+  "w": 375,
+  "i": 1,
+  "edge": [
+   "LAX",
+   "HIT",
+   200
+  ],
+  "load": 20586,
+  "ttfb": 3733,
+  "fcp": 18672,
+  "dcl": 20584,
+  "res": [
+   [
+    "/new/en/assets/bundle.css?f=operating,styles,necklace,pearl-live,experience&v=aef5e681a0cf9edc",
+    3751,
+    4098,
+    18629,
+    57518,
+    "link",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/pearl.webp?v=17ac67b63327a4d1",
+    18647,
+    19329,
+    19792,
+    18470,
+    "image",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/bundle.js?f=panels-bootstrap,operating,experience,pearl-ui,workflow-library&v=fabcf532b73408ed",
+    18647,
+    19005,
+    20556,
+    148082,
+    "script",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/pearl.webp",
+    18654,
+    18997,
+    19761,
+    18470,
+    "css",
+    "LAX",
+    "HIT",
+    200
+   ]
+  ]
+ },
+ {
+  "w": 375,
+  "i": 2,
+  "edge": [
+   "LAX",
+   "EXPIRED",
+   200
+  ],
+  "load": 4944,
+  "ttfb": 1470,
+  "fcp": 2228,
+  "dcl": 4942,
+  "res": [
+   [
+    "/new/en/assets/bundle.css?f=operating,styles,necklace,pearl-live,experience&v=aef5e681a0cf9edc",
+    1482,
+    1860,
+    2193,
+    57518,
+    "link",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/pearl.webp?v=17ac67b63327a4d1",
+    2208,
+    3956,
+    3958,
+    18470,
+    "image",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/pearl.webp",
+    2214,
+    2922,
+    2946,
+    18470,
+    "css",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/bundle.js?f=panels-bootstrap,operating,experience,pearl-ui,workflow-library&v=fabcf532b73408ed",
+    2223,
+    2581,
+    4923,
+    148082,
+    "script",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/api/overview",
+    4936,
+    5443,
+    5444,
+    2407,
+    "fetch",
+    "LAX",
+    "DYNAMIC",
+    200
+   ],
+   [
+    "/api/pearl/status",
+    4938,
+    5429,
+    5430,
+    1203,
+    "fetch",
+    "LAX",
+    "DYNAMIC",
+    200
+   ]
+  ]
+ },
+ {
+  "w": 375,
+  "i": 3,
+  "edge": [
+   "LAX",
+   "HIT",
+   200
+  ],
+  "load": 4299,
+  "ttfb": 1185,
+  "fcp": 2632,
+  "dcl": 4298,
+  "res": [
+   [
+    "/new/en/assets/bundle.css?f=operating,styles,necklace,pearl-live,experience&v=aef5e681a0cf9edc",
+    1202,
+    1892,
+    2590,
+    57518,
+    "link",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/pearl.webp?v=17ac67b63327a4d1",
+    2602,
+    2955,
+    2968,
+    18470,
+    "image",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/bundle.js?f=panels-bootstrap,operating,experience,pearl-ui,workflow-library&v=fabcf532b73408ed",
+    2602,
+    2968,
+    4280,
+    148082,
+    "script",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/pearl.webp",
+    2609,
+    3311,
+    4280,
+    18470,
+    "css",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/api/pearl/status",
+    4294,
+    4790,
+    4791,
+    1203,
+    "fetch",
+    "LAX",
+    "DYNAMIC",
+    200
+   ]
+  ]
+ },
+ {
+  "w": 375,
+  "i": 4,
+  "edge": [
+   "LAX",
+   "HIT",
+   200
+  ],
+  "load": 6583,
+  "ttfb": 848,
+  "fcp": 3460,
+  "dcl": 6581,
+  "res": [
+   [
+    "/new/en/assets/bundle.css?f=operating,styles,necklace,pearl-live,experience&v=aef5e681a0cf9edc",
+    860,
+    1570,
+    3417,
+    57518,
+    "link",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/pearl.webp?v=17ac67b63327a4d1",
+    3433,
+    3780,
+    3795,
+    18470,
+    "image",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/pearl.webp",
+    3441,
+    3797,
+    4483,
+    18470,
+    "css",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/bundle.js?f=panels-bootstrap,operating,experience,pearl-ui,workflow-library&v=fabcf532b73408ed",
+    3451,
+    4483,
+    6548,
+    148082,
+    "script",
+    "LAX",
+    "HIT",
+    200
+   ]
+  ]
+ },
+ {
+  "w": 375,
+  "i": 5,
+  "edge": [
+   "LAX",
+   "HIT",
+   200
+  ],
+  "load": 5633,
+  "ttfb": 1983,
+  "fcp": 3052,
+  "dcl": 5631,
+  "res": [
+   [
+    "/new/en/assets/bundle.css?f=operating,styles,necklace,pearl-live,experience&v=aef5e681a0cf9edc",
+    2311,
+    2659,
+    3004,
+    57518,
+    "link",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/pearl.webp?v=17ac67b63327a4d1",
+    3020,
+    3388,
+    4202,
+    18470,
+    "image",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/pearl.webp",
+    3032,
+    3402,
+    4504,
+    18470,
+    "css",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/new/en/assets/bundle.js?f=panels-bootstrap,operating,experience,pearl-ui,workflow-library&v=fabcf532b73408ed",
+    3047,
+    3785,
+    5594,
+    148082,
+    "script",
+    "LAX",
+    "HIT",
+    200
+   ],
+   [
+    "/api/overview",
+    5623,
+    6142,
+    6143,
+    2407,
+    "fetch",
+    "LAX",
+    "DYNAMIC",
+    200
+   ],
+   [
+    "/api/pearl/status",
+    5625,
+    6124,
+    6124,
+    1194,
+    "fetch",
+    "LAX",
+    "DYNAMIC",
+    200
+   ]
+  ]
+ }
+]

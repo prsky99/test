@@ -1,4 +1,4 @@
-/* source 5874525895f6d0be */
+/* source 7672be9d067a3567 */
 :root {
   --bg: #0b0f19;
   --panel: #111827;
@@ -553,7 +553,7 @@ input::placeholder,textarea::placeholder{color:#8796a2}
 .home-query input:not([type=checkbox]):not([type=radio]){border:0;background:transparent;box-shadow:none;padding-inline:0}
 .card>.icon-disc+h3{margin-top:18px}
 .section+.section{margin-top:0}
-.pearl{background:url('/new/en/assets/pearl.webp') center/124% no-repeat;border:0;box-shadow:none;filter:drop-shadow(0 5px 5px #67513924)}
+.pearl{background:url('/new/en/assets/pearl.webp?v=17ac67b63327a4d1') center/124% no-repeat;border:0;box-shadow:none;filter:drop-shadow(0 5px 5px #67513924)}
 .pearl:after{display:none}
 .necklace>.pearl:nth-child(3n){rotate:18deg}
 .badge{white-space:nowrap;flex-shrink:0}

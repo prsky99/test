@@ -47,3 +47,13 @@ def test_every_page_bundle_is_served(client):  # noqa: F811
             seen += 1
             assert client.get(url.replace('&amp;', '&')).status_code == 200, (page.name, url)
     assert seen >= 20
+
+
+def test_bundle_css_points_images_at_the_same_versioned_address_as_the_page(client):  # noqa: F811
+    html = client.get('/new/en/index.html').text
+    css_url = re.search(r'href="(/new/en/assets/bundle\.css\?[^"]+)"', html)[1].replace('&amp;', '&')
+    css = client.get(css_url).text
+    img = re.search(r'/new/en/assets/pearl\.webp\?v=([0-9a-f]{16})', html)
+    assert "url('pearl.webp')" not in css and "url('pearl.webp?v=" in css
+    if img:
+        assert "pearl.webp?v=" + img[1] in css

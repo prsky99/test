@@ -1,4 +1,4 @@
-/* source 5874525895f6d0be */
+/* source 7672be9d067a3567 */
 :root {
   --bg: #0b0f19;
   --panel: #111827;
@@ -532,7 +532,7 @@ input::placeholder,textarea::placeholder{color:#8796a2}
 @media(max-width:950px){.workflow-layout{grid-template-columns:220px 1fr}.three{gap:16px}.card{padding:22px}}
 @media(max-width:700px){h1{font-size:43px}h2{font-size:32px}h3{font-size:23px}.brand-mark{transform:scale(.85);transform-origin:left center;width:45px}.theme-toggle{width:39px;height:26px}.theme-toggle:before{width:18px;height:18px}.theme-toggle[aria-pressed=true]:before{left:17px}.home-query .icon{width:17px}.two,.three,.four,.split,.chat-layout,.results-layout,.auth-layout,.workflow-layout,.policy-layout,.studio-layout{grid-template-columns:1fr}.lead{font-size:18px}.page-heading{padding:36px 0 28px}.page-heading .eyebrow{font-size:10px}.card{padding:21px}.side-item{padding:12px}.workflow-layout{gap:20px}.workflow-layout>.side-nav{grid-template-columns:1fr;gap:4px}.cookie-banner{padding:20px;gap:12px}.cookie-banner .actions{width:100%;justify-content:flex-start}.cookie-banner .btn{flex:1}.btn{min-height:46px}}
 .card>.icon-disc+h3{margin-top:18px}
-.pearl{background:url('/new/en/assets/pearl.webp') center/124% no-repeat;border:0;box-shadow:none;filter:drop-shadow(0 5px 5px #67513924)}
+.pearl{background:url('/new/en/assets/pearl.webp?v=17ac67b63327a4d1') center/124% no-repeat;border:0;box-shadow:none;filter:drop-shadow(0 5px 5px #67513924)}
 .pearl:after{display:none}
 .decorated h1,.decorated .lead{max-width:76%}
 @media(max-width:1150px){.decorated h1,.decorated .lead{max-width:78%}}

@@ -74,7 +74,22 @@ def bundle_body(names, kind):
             return None
         parts.append(path.read_bytes())
     joiner = b'\n' if kind == 'css' else b'\n;\n'
-    return joiner.join(parts) + b'\n'
+    body = joiner.join(parts) + b'\n'
+    return versioned_css_urls(body) if kind == 'css' else body
+
+
+CSS_ASSET_URL = re.compile(rb"""url\((['"]?)([A-Za-z0-9_-]+\.(?:webp|png|svg|jpg|woff2?))\1\)""")
+
+
+def versioned_css_urls(body):
+    """url(pearl.webp) in a bundle gets the same ?v=<digest> as the page's <img>, so the file is fetched once
+    and kept for a year (11-11: the home page loaded pearl.webp twice, once per address)."""
+    def pin(match):
+        path = ROOT / 'en' / 'assets' / match[2].decode()
+        if not path.is_file() or path.is_symlink():
+            return match[0]
+        return b'url(' + match[1] + match[2] + b'?v=' + asset_version(path.read_bytes()).encode() + match[1] + b')'
+    return CSS_ASSET_URL.sub(pin, body)
 
 
 def bundled(value):

@@ -1,4 +1,4 @@
-/* source 5874525895f6d0be */
+/* source 7672be9d067a3567 */
 :root {
   --bg: #0b0f19;
   --panel: #111827;
@@ -573,7 +573,7 @@ textarea{min-height:140px;resize:vertical}
 @media(max-width:950px){.chat-layout{grid-template-columns:1.6fr 1fr}.card{padding:22px}}
 @media(max-width:700px){h1{font-size:43px}h2{font-size:32px}h3{font-size:23px}.brand-mark{transform:scale(.85);transform-origin:left center;width:45px}.theme-toggle{width:39px;height:26px}.theme-toggle:before{width:18px;height:18px}.theme-toggle[aria-pressed=true]:before{left:17px}.home-query .icon{width:17px}.section{padding-block:30px}.two,.three,.four,.split,.chat-layout,.results-layout,.auth-layout,.workflow-layout,.policy-layout,.studio-layout{grid-template-columns:1fr}.lead{font-size:18px}.page-heading{padding:36px 0 28px}.page-heading .eyebrow{font-size:10px}.card{padding:21px}.chat-layout>.details-panel{display:none}.chat-composer .btn{padding:10px 15px}.chat-composer{gap:4px}.cookie-banner{padding:20px;gap:12px}.cookie-banner .actions{width:100%;justify-content:flex-start}.cookie-banner .btn{flex:1}.btn{min-height:46px}}
 .section+.section{margin-top:0}
-.pearl{background:url('/new/en/assets/pearl.webp') center/124% no-repeat;border:0;box-shadow:none;filter:drop-shadow(0 5px 5px #67513924)}
+.pearl{background:url('/new/en/assets/pearl.webp?v=17ac67b63327a4d1') center/124% no-repeat;border:0;box-shadow:none;filter:drop-shadow(0 5px 5px #67513924)}
 .pearl:after{display:none}
 .decorated h1,.decorated .lead{max-width:76%}
 .heading-pearls{position:absolute;display:flex;gap:24px;align-items:center;right:0;top:76px;transform:rotate(-7deg);pointer-events:none}
