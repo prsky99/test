@@ -222,18 +222,34 @@ class ManagedGateway:
         finally:client.close()
 
 
+EXECUTION_LIMIT = 10        # Provider calls a minute per address (unchanged)
+CONNECTION_LIMIT = 120      # connection calls a minute per address: server protection only (11-11)
+EXECUTION_METHODS = frozenset(('tools/call', 'message/send', 'SendMessage', 'message/stream', 'SendStreamingMessage'))
+
+
 def gateway_router(front,read_json_object):
     router=APIRouter()
     gateway=ManagedGateway(front)
     front.managed_gateway=gateway
 
-    def rate(request):
+    def rate(request,execution=True):
+        # 11-11 user decision ("연결 호출은 한도에서 빼기"): only calls that reach the Provider
+        # (tools/call, message/send, the x402 probe) use the 10-a-minute execution limit. Connection
+        # calls (initialize, notifications, ping, tools/list, the GET description) answer locally and use a
+        # separate, much higher server-protection limit, so an agent doing ten tasks in a minute
+        # (30 calls) is not refused before its 11th execution.
         ip=front.security.resolve_ip(request)
-        allowed=front.security.allow_probe(ip,base_limit=10)
+        if execution:
+            allowed=front.security.allow_probe(ip,base_limit=EXECUTION_LIMIT)
+        else:
+            allowed=front.security.allow_feature(ip,'gateway_connect',base_limit=CONNECTION_LIMIT)
         from .security import quota_headers
         quota=quota_headers();request.scope['agent_adoption_quota']=quota
         if not allowed:
-            raise HTTPException(429,'Too many agent requests.',headers={'Retry-After':'60',**quota})
+            detail=(f'Too many agent executions: {EXECUTION_LIMIT} tools/call or message/send calls a minute per address. '
+                    'initialize, tools/list and ping are not counted. Retry after 60 seconds.' if execution else
+                    f'Too many connection calls: {CONNECTION_LIMIT} a minute per address. Retry after 60 seconds.')
+            raise HTTPException(429,detail,headers={'Retry-After':'60',**quota})
 
     def submitted_payment(request,kind,row=None):
         if kind=='x402' and any(name in request.headers for name in
@@ -280,7 +296,7 @@ def gateway_router(front,read_json_object):
 
     @router.get('/api/gateway/{kind}/{rid}')
     async def get_connection(kind:str,rid:int,request:Request):
-        rate(request);row=resource(rid,kind)
+        rate(request,execution=False);row=resource(rid,kind)
         refused=submitted_payment(request,kind,row)
         if refused is not None:return refused
         url=gateway_agent_url(rid,kind)
@@ -315,10 +331,11 @@ def gateway_router(front,read_json_object):
 
     @router.post('/api/gateway/{kind}/{rid}')
     async def post_connection(kind:str,rid:int,request:Request):
-        rate(request);row=resource(rid,kind)
+        body=await read_json_object(request)
+        method=body.get('method') if isinstance(body,dict) else None
+        rate(request,execution=kind=='x402' or method in EXECUTION_METHODS);row=resource(rid,kind)
         refused=submitted_payment(request,kind,row)
         if refused is not None:return refused
-        body=await read_json_object(request)
         if kind=='x402':
             if body!={'action':'probe'}:raise HTTPException(400,'Only the explicit probe action is supported.')
             result=await execute(rid,kind=kind)

@@ -197,7 +197,8 @@ def test_unknown_seller_failure_preserves_claim_and_forbids_automatic_retry():
 def test_gateway_limit_has_retry_and_quota_headers_without_an_upstream_call(catalog):
     _,front,client,add,_=catalog;rid=add('Quota check',kind='mcp')
     front.security.redis=Mock(is_available=Mock(return_value=False))
-    for number in range(30):
+    # ping is a connection call: its own server-protection limit (120 a minute, 11-11), not the execution one.
+    for number in range(130):
         response=client.post(f'/api/gateway/mcp/{rid}',json={'jsonrpc':'2.0','id':1,'method':'ping'})
         assert 'RateLimit-Policy' in response.headers and 'RateLimit' in response.headers
         if response.status_code==429:

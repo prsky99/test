@@ -209,7 +209,7 @@ class SecurityManager:
         self._ip_probe_hits: dict[str, deque] = defaultdict(deque)
         self._ip_inquiry_hits: dict[str, deque] = defaultdict(deque)
         self._feature_hits = {name:defaultdict(deque) for name in
-            ('registration_inspect','registration_submit','contact_submit','privacy_request')}
+            ('registration_inspect','registration_submit','contact_submit','privacy_request','gateway_connect')}
         self._target_domain_hits: dict[str, float] = {}  # domain -> last probe time
 
         # In-flight concurrency counters & FIFO wait queue (>=90% load backpressure)

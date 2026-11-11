@@ -267,9 +267,16 @@ def test_gateway_rate_limit_and_request_boundaries(managed):
     _,front,client,_,rid,calls,_=managed
     path=f'/api/gateway/mcp/{rid}'
     front.security.allow_probe=lambda *a,**kw:False
-    assert rpc(client,path,'ping').status_code==429
-    assert client.get(path).status_code==429 and not calls
+    # 11-11 user decision: connection calls are not counted against the execution limit.
+    assert rpc(client,path,'ping').status_code==200 and client.get(path).status_code==405
+    refused=rpc(client,path,'tools/call',{'name':'get_weather','arguments':{'city':'Tokyo'}})
+    assert refused.status_code==429 and refused.headers['retry-after']=='60' and not calls
+    assert 'initialize, tools/list and ping are not counted' in refused.text
     front.security.allow_probe=lambda *a,**kw:True
+    allow_feature=front.security.allow_feature
+    front.security.allow_feature=lambda ip,feature,base_limit:feature!='gateway_connect'
+    assert rpc(client,path,'ping').status_code==429 and client.get(path).status_code==429
+    front.security.allow_feature=allow_feature
     for body in ('[]','null','{"jsonrpc":"2.0","id":true,"method":"tools/call"}'):
         response=client.post(path,content=body,headers={'Content-Type':'application/json'})
         assert response.status_code==400 or 'error' in response.json()
@@ -354,3 +361,20 @@ def test_mcp_tool_error_is_separate_from_valid_transport_and_protocol(managed):
     assert response['transport_ok'] is response['protocol_valid'] is True
     assert response['ok'] is response['execution_succeeded'] is False
     assert response['task_status']=='failed'
+
+
+def test_ten_mcp_tasks_from_one_address_pass_and_the_eleventh_execution_is_limited(managed):
+    """11-11: one MCP task is initialize + tools/list + tools/call; counting all three let an agent do only
+    three tasks a minute (7 of 30 real tasks failed). Only Provider calls count, ten a minute."""
+    _,front,client,_,rid,calls,_=managed
+    del front.security.allow_probe          # the real sliding-window limiter again
+    path=f'/api/gateway/mcp/{rid}'
+    for task in range(10):
+        assert rpc(client,path,'initialize').status_code==200
+        assert rpc(client,path,'tools/list').status_code==200
+        result=rpc(client,path,'tools/call',{'name':'get_weather','arguments':{'city':'Tokyo'}})
+        assert result.status_code==200, (task, result.text)
+    assert len(calls)>=10
+    eleventh=rpc(client,path,'tools/call',{'name':'get_weather','arguments':{'city':'Tokyo'}})
+    assert eleventh.status_code==429 and eleventh.headers['retry-after']=='60'
+    assert rpc(client,path,'tools/list').status_code==200   # connection calls still answer

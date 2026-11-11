@@ -199,18 +199,6 @@ def install(app, front):
                 or 'testbench' in value and value['testbench'] is not True
                 or value['origin'] != current.config.origin):
             raise EdgeError('INVALID_INPUT', 400)
-        # Existing public Gateway POSTs already authorize this selected request.
-        # A signed Worker request still passes the original ingress rate gate.
-        # 11-11: the Worker turned this 429 into "The execution is unavailable." with no code (7 of 30
-        # real-task failures). Over the limit, hand the request to the Origin gateway, which answers the
-        # same gate with HTTP 429, Retry-After and RateLimit headers; nothing has been prepared or run.
-        try:
-            rate(request)
-        except EdgeError as exc:
-            if exc.code != 'CAPACITY_EXCEEDED':
-                raise
-            log.info('Edge public prepare over the ingress rate gate: handed to the Origin gateway')
-            return JSONResponse({'backend': 'origin'}, headers={'Cache-Control': 'private, no-store'})
         if (current.config.canary_principal or not current.config.worker_ready
                 or type(value['resource_id']) is not int
                 or not current.config.catalog_protocols and not any(p.resource_id == value['resource_id'] for p in current.config.providers)):
@@ -226,6 +214,19 @@ def install(app, front):
             with transaction(current.store, readonly=True) as db:
                 return current.route(db)[0]
         if await run_in_threadpool(preferred) != 'worker':
+            return JSONResponse({'backend': 'origin'}, headers={'Cache-Control': 'private, no-store'})
+        # Existing public Gateway POSTs already authorize this selected request; a signed Worker request
+        # still passes the same execution gate, counted once here and only when the Worker runs it (a
+        # request handed to Origin is counted by the Origin gateway instead, 11-11).
+        # 11-11: the Worker turned this 429 into "The execution is unavailable." with no code (7 of 30
+        # real-task failures). Over the limit, hand the request to the Origin gateway, which answers the
+        # same gate with HTTP 429, Retry-After and RateLimit headers; nothing has been prepared or run.
+        try:
+            rate(request)
+        except EdgeError as exc:
+            if exc.code != 'CAPACITY_EXCEEDED':
+                raise
+            log.info('Edge public prepare over the execution gate: handed to the Origin gateway')
             return JSONResponse({'backend': 'origin'}, headers={'Cache-Control': 'private, no-store'})
         ip = front.security.resolve_ip(request)
         principal = hmac.new(derived(current.config.key, 'edge-public-principal-v1'), ip.encode(), hashlib.sha256).hexdigest()
