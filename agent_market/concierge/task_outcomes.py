@@ -27,6 +27,24 @@ NEEDS_KEY = re.compile(r"""\b(?:provide|requires?|need|missing|invalid|supply)\b
   | \b(?:sign[\s-]?in|log\s?in|subscribe|upgrade)\s+(?:is\s+)?(?:required|to\s+(?:continue|use|access))\b""", re.I | re.X)
 
 
+# An answer that found nothing did not do the task (11-11: FinzData's "datasets matching your request:
+# - none matched" for a time question counted as a success and led "time in New York" ahead of a time
+# tool, real task p13; an author search answered {"returned":0,"total_matches":0}, p08).
+EMPTY = re.compile(r"""\b(?:none|nothing)\s+(?:matched|was\s+found|found)\b
+  | \bno\s+(?:results?|matches|data(?:sets?)?|records?|items?)\s+(?:were\s+|was\s+)?(?:found|matched|available)\b
+  | \b(?:returned|found)\s+(?:0|no|zero)\s+(?:results?|matches|items|records)\b""", re.I | re.X)
+EMPTY_COUNTS = ('returned', 'total_matches', 'total_results', 'result_count', 'match_count')
+
+
+def _empty_json(value):
+    """A JSON answer whose own count fields say nothing was found and whose lists are all empty."""
+    if not isinstance(value, dict):
+        return False
+    counts = [value[k] for k in EMPTY_COUNTS if k in value]
+    lists = [v for v in value.values() if isinstance(v, list)]
+    return bool(counts) and all(type(c) is int and c == 0 for c in counts) and not any(lists)
+
+
 def _text(output):
     """The answer text of an MCP result or an A2A message, capped."""
     if not isinstance(output, dict):
@@ -59,6 +77,8 @@ def classify(output):
     except ValueError:
         value = None
     if isinstance(value, dict) and 'error' in value and len([k for k in value if value[k] not in (None, '', [], {})]) <= 3:
+        return 'failed'
+    if _empty_json(value) or EMPTY.search(text[:400]):
         return 'failed'
     if len(text) < 200 and FAILED.search(text):
         return 'failed'
