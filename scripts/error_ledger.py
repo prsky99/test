@@ -123,6 +123,33 @@ def from_edge(day, run=None):
     return counts
 
 
+
+def from_privacy(day, run=None):
+    """Rows written that day that kept a full address or a raw User-Agent (11-11: new rows must be reduced).
+
+    Read only, counts only. A non-zero count is an error of its own kind, never explained by a rule file."""
+    start = datetime.strptime(day, '%Y-%m-%d').replace(tzinfo=KST).timestamp()
+    window = f'at >= {start} AND at < {start + 86400}'
+    sql = (f"SELECT 'security_events_ip', count(*) FROM security_events WHERE {window} "
+           "AND ip !~ '/(24|48)$' AND ip <> 'unknown' "
+           f"UNION ALL SELECT 'security_events_user_agent', count(*) FROM security_events WHERE {window} "
+           "AND user_agent ~ '[ /;()]' "
+           f"UNION ALL SELECT 'admin_audit_logs_ip', count(*) FROM admin_audit_logs WHERE {window} "
+           "AND ip IS NOT NULL AND ip !~ '/(24|48)$'")
+    try:
+        out = (run or (lambda q: subprocess.run(PSQL + [q], capture_output=True, text=True, timeout=60).stdout))(sql)
+    except Exception as error:
+        return Counter({f'ledger|privacy_unreadable|{type(error).__name__}': 1})
+    counts = Counter()
+    for line in out.splitlines():
+        if '|' in line:
+            name, n = line.rsplit('|', 1)
+            if n.strip().isdigit() and int(n):
+                counts[f'privacy|unreduced|{name}'] += int(n)
+    if not out.strip():
+        counts['ledger|privacy_unreadable|empty'] += 1
+    return counts
+
 def explain(counts, known=None, day=None):
     """A rule with 'until' (a fixed bug) explains only days up to that date; a later return is unexplained."""
     rules = known if known is not None else (json.loads(KNOWN.read_text()) if KNOWN.is_file() else [])
@@ -132,7 +159,7 @@ def explain(counts, known=None, day=None):
             rows.append({'key': key, 'count': n, 'explained': True, 'internal': True,
                          'reason': '내부 측정 요청(X-Agentcon-QA)', 'team': '측정 도구 주인'})
             continue
-        rule = next((r for r in rules if re.search(r['pattern'], key)
+        rule = None if key.startswith('privacy|') else next((r for r in rules if re.search(r['pattern'], key)
                      and not (day and r.get('until') and day > r['until'])), None)
         rows.append({'key': key, 'count': n, 'explained': bool(rule),
                      **({'reason': rule['reason'], 'team': rule.get('team', '운영·SRE')} if rule else {})})
@@ -140,11 +167,12 @@ def explain(counts, known=None, day=None):
 
 
 def ledger(day, counts=None, known=None):
-    counts = counts if counts is not None else from_logs(day) + from_edge(day)
+    counts = counts if counts is not None else from_logs(day) + from_edge(day) + from_privacy(day)
     rows = explain(counts, known, day)
     unexplained = [r for r in rows if not r['explained']]
     internal = sum(r['count'] for r in rows if r.get('internal'))
-    return {'day': day, 'total': sum(r['count'] for r in rows), 'kinds': len(rows), 'internal': internal,
+    privacy_ok = not any(r['key'].startswith(('privacy|', 'ledger|privacy_unreadable')) for r in rows)
+    return {'day': day, 'total': sum(r['count'] for r in rows), 'kinds': len(rows), 'internal': internal, 'privacy_ok': privacy_ok,
             'unexplained_kinds': len(unexplained), 'unexplained': sum(r['count'] for r in unexplained), 'rows': rows}
 
 
@@ -155,6 +183,8 @@ def write(result, out=None):
     lines = [f"# 오류 장부 {result['day']} (KST)", '',
              f"전체 {result['total']}건, {result['kinds']}종. 그중 내부 측정 {result.get('internal', 0)}건(따로 셈). "
              f"설명되지 않음 {result['unexplained']}건, {result['unexplained_kinds']}종.", '',
+             '개인정보 축약(그날 새 행): ' + ('정상, 축약되지 않은 행 0' if result.get('privacy_ok', True)
+                                         else '**축약되지 않은 행 있음(아래 privacy 줄)**'), '',
              '| 건수 | 원인 | 설명 |', '|---|---|---|']
     removed = result.get('retention_removed')
     for r in result['rows']:

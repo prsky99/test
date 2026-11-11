@@ -97,3 +97,13 @@ def test_retention_rows_are_recorded_apart_from_errors(tmp_path):
     result = error_ledger.ledger(DAY, counts=Counter(), known=[])
     result['retention_removed'] = error_ledger.retention_removed(DAY, tmp_path)
     assert 'security_events 10,120행' in error_ledger.write(result, tmp_path).read_text()
+
+
+def test_privacy_check_counts_unreduced_new_rows_and_is_never_explained():
+    clean = error_ledger.from_privacy(DAY, run=lambda q: 'security_events_ip|0\nsecurity_events_user_agent|0\nadmin_audit_logs_ip|0\n')
+    assert clean == Counter()
+    dirty = error_ledger.from_privacy(DAY, run=lambda q: 'security_events_ip|2\nsecurity_events_user_agent|0\nadmin_audit_logs_ip|1\n')
+    assert dirty == Counter({'privacy|unreduced|security_events_ip': 2, 'privacy|unreduced|admin_audit_logs_ip': 1})
+    result = error_ledger.ledger(DAY, counts=dirty, known=[{'pattern': '.*', 'reason': 'everything'}])
+    assert result['unexplained'] == 3 and result['privacy_ok'] is False
+    assert error_ledger.from_privacy(DAY, run=lambda q: '') == Counter({'ledger|privacy_unreadable|empty': 1})
