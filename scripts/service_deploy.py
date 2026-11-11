@@ -18,6 +18,7 @@ import signal
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.request
 
 from scripts.agentcon_config import read_settings
@@ -492,7 +493,8 @@ class Deployment:
             if file.name not in wanted and not file.is_symlink():
                 file.unlink()
 
-    def probe(self, role, slot, release=None):
+    def readiness(self, role, slot):
+        """The slot's readiness JSON, also from a 503 (not ready) reply, which still reports active_requests."""
         settings = read_settings(str(self.settings))
         key_path = Path(settings['APPLICATION_WORKFLOW_KEY_FILE'])
         if not key_path.is_absolute():
@@ -501,8 +503,17 @@ class Deployment:
         request = urllib.request.Request('http://127.0.0.1:%d/internal/service/ready' % PORTS[role][slot],
                                          headers={'X-Service-Probe': probe_token(key)})
         # No environment proxies, redirects, or public network for private probes.
-        with urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect()).open(request, timeout=8) as reply:
-            data = json.loads(reply.read(4096))
+        try:
+            with urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect()).open(request, timeout=8) as reply:
+                return json.loads(reply.read(4096))
+        except urllib.error.HTTPError as error:
+            if error.code != 503:
+                raise
+            with error:
+                return json.loads(error.read(4096))
+
+    def probe(self, role, slot, release=None):
+        data = self.readiness(role, slot)
         if not data.get('ready') or data.get('role') != role or release and data.get('release') != release:
             raise RuntimeError('candidate_not_ready')
         return data
@@ -656,7 +667,10 @@ class Deployment:
     def drained(self, role, slot, timeout=100):
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
-            if self.probe(role, slot).get('active_requests') == 0:
+            # Draining needs only the request count: an unready old slot (e.g. one failing a schema check
+            # after a DB change, 11-12) answers 503 and must still be drainable and reclaimable.
+            data = self.readiness(role, slot)
+            if data.get('role') == role and data.get('active_requests') == 0:
                 return True
             time.sleep(1)
         return False

@@ -237,3 +237,50 @@ def test_deploy_waits_for_the_new_slot_report_snapshot_before_warming_and_switch
     late = manager.wait_snapshot('frontend', 'a', 'r1', budget=30, sleep=lambda s: now.__setitem__(0, now[0] + s), clock=lambda: now[0])
     assert late['state'] == 'building' and late['seconds'] >= 30   # a timeout never blocks the deploy
     assert manager.wait_snapshot('admin', 'a', 'r1') is None
+
+
+def _replying(monkeypatch, code, body):
+    """Answer the private readiness probe with CODE and the JSON BODY, without a network or key file."""
+    import io
+    import urllib.error
+    import scripts.service_deploy as module
+
+    class Reply(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    class Opener:
+        def open(self, request, timeout=None):
+            data = json.dumps(body).encode()
+            if code != 200:
+                raise urllib.error.HTTPError(request.full_url, code, 'x', {}, io.BytesIO(data))
+            return Reply(data)
+
+    monkeypatch.setattr(module, 'read_settings', lambda path: {'APPLICATION_WORKFLOW_KEY_FILE': '/k'})
+    monkeypatch.setattr(module, '_private_bytes', lambda path, size: b'k' * 32)
+    monkeypatch.setattr(module.urllib.request, 'build_opener', lambda *handlers: Opener())
+
+
+def test_an_unready_old_slot_still_drains_so_it_can_be_reclaimed(tmp_path, monkeypatch):
+    # 11-12 07:12: admin's old slot (336ad6b1) failed the schema check after a DB change and answered the
+    # readiness probe with 503; drained() raised HTTPError, so reclaim-standby crashed and kept 1.5 GB alive.
+    manager = Deployment(tmp_path, state_dir=tmp_path / 'state')
+    _replying(monkeypatch, 503, {'ready': False, 'role': 'admin', 'release': 'old', 'active_requests': 0})
+    assert manager.drained('admin', 'b', timeout=1) is True
+    try:
+        manager.probe('admin', 'b')
+    except RuntimeError as error:
+        assert str(error) == 'candidate_not_ready'
+    else:
+        raise AssertionError('probe must still refuse an unready slot')
+
+
+def test_busy_or_foreign_replies_are_not_drained(tmp_path, monkeypatch):
+    manager = Deployment(tmp_path, state_dir=tmp_path / 'state')
+    _replying(monkeypatch, 503, {'ready': False, 'role': 'admin', 'active_requests': 2})
+    assert manager.drained('admin', 'b', timeout=0.01) is False
+    _replying(monkeypatch, 503, {'ready': False, 'role': 'frontend', 'active_requests': 0})
+    assert manager.drained('admin', 'b', timeout=0.01) is False
