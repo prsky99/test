@@ -107,3 +107,17 @@ or (http.request.method in {"GET" "HEAD"}
   3. `Accept: application/json` → DYNAMIC
   4. 쿠키 있는 요청 → DYNAMIC
 - 되돌리기: 2번 규칙 식에서 위 OR 절을 지운다(기존 절은 그대로). 급하면 Purge Everything. 원서버 헤더는 그대로 둬도 규칙이 없으면 캐시되지 않는다.
+
+## 7. 적용 결과: 규칙 2 OR 절 (11-12 09:0x, 사용자 "추가", 성장·유통 세션 확인 칸)
+- 사용자 Chrome에서 2번 규칙 `Growth pages HTML (11-11)` 식에 6절의 절을 OR로 더했다. 경로 조건은 `/agents/category/`·`/reports/weekly/` 접두와 `/reports/weekly` 정확히 일치다. 기존 절은 바꾸지 않았다. 저장 뒤 다시 열어 식(1,133자)에 새 절이 들어 있음을 확인했다.
+- 확인(공개 주소, 요청마다 새 연결, 처음 보는 주소)
+  - `/agents/category/finance_crypto` HTML: MISS 1.55초 → HIT 0.73초
+  - `/reports/weekly/2026-W45` HTML: MISS 1.01초 → HIT 0.57초
+  - `/agents/category/data_utility`: Markdown·JSON·쿠키 요청을 먼저 보내면 모두 DYNAMIC. 그 뒤 HTML MISS 0.75초 → HIT 0.66초. HIT가 생긴 뒤에도 Markdown·JSON·쿠키 요청은 DYNAMIC이다. 카테고리 화면은 Accept와 관계없이 HTML을 준다.
+  - `/reports/weekly`(목록): BYPASS. 규칙에는 걸리지만 원서버가 아직 no-store다. 65d9a599가 배포되면 캐시된다.
+  - 기존 절 회귀 없음: `/connect` REVALIDATED, `/openapi.json` HIT
+- 되돌리기: 2번 규칙 식에서 맨 끝의 `or ((starts_with(http.request.uri.path, "/agents/category/") …application/json"))` 절을 지운다. 바꾸기 전 식은 아래와 같다.
+
+```
+(http.host eq "agentconcierge.biz" and http.request.method in {"GET" "HEAD"} and ((http.request.uri.path in {"/openapi.json" "/.well-known/mcp/server-card.json"}) or ((http.request.uri.path in {"/connect" "/agents/tasks" "/agents/best" "/badges" "/reports/state-of-ai-agents"} or starts_with(http.request.uri.path, "/agents/task/") or starts_with(http.request.uri.path, "/agents/best/") or starts_with(http.request.uri.path, "/agent/") or starts_with(http.request.uri.path, "/agents/compare/") or starts_with(http.request.uri.path, "/reports/state-of-ai-agents/")) and not ends_with(http.request.uri.path, "/reported") and not any(lower(http.request.headers["accept"][*])[*] contains "text/markdown"))))
+```
