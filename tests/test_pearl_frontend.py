@@ -220,7 +220,8 @@ def test_footer_reference_groups_links_and_policy_actions(pearl_page,width):
     page.goto(ORIGIN+'/new/en/about.html')
     footer=page.locator('footer.pearl-footer')
     expect(footer.locator('.pf-group')).to_have_count(3)
-    expect(footer.locator('.pf-link')).to_have_count(8)
+    expect(footer.locator('.pf-link')).to_have_count(9)  # 11-11: Advertise is a plain link to the advertiser landing
+    expect(footer.locator('[data-footer-link="advertise"]')).to_have_attribute('href','/ad-coin/v2/advertise')
     for key in ['terms','privacy','cookies','privacy-choices','accessibility','disclosures','notifications','contact']:
         footer.locator('[data-footer-key="'+key+'"]').click()
         expect(page.locator('dialog[open]')).to_be_visible()
@@ -235,6 +236,9 @@ def test_footer_reference_groups_links_and_policy_actions(pearl_page,width):
         assert sidebar['y']+sidebar['height']<=body['y']+1
     page.keyboard.press('Escape')
     assert page.evaluate('Math.max(document.body.scrollWidth,document.documentElement.scrollWidth)<=innerWidth+2')
+    footer.locator('[data-footer-link="advertise"]').click()
+    page.wait_for_url('**/ad-coin/v2/advertise')
+    expect(page.locator('dialog[open]')).to_have_count(0)
     assert not errors
 
 
