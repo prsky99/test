@@ -28,7 +28,9 @@ class PostgresVectorIndex(VectorIndex):
     _backfill_swept = True  # the last scan finished a sweep of every window
 
     def __init__(self, store):
-        self.store, self.db, self.lock = store, store._db, store._lock
+        from .concierge.retrieval_metrics import TimedLock
+        # The catalog store's lock, timed: its waits show as lock_wait in Server-Timing (11-11).
+        self.store, self.db, self.lock = store, store._db, TimedLock(store._lock)
         self.broken, self._reading = False, False
         with store.tx(readonly=True):
             present = store._execute('SELECT profile FROM legacy_vector_control WHERE id=1').fetchone()

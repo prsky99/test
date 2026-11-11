@@ -39,3 +39,36 @@ def test_a_nested_capture_adds_its_stages_to_the_request():
                 pass
         assert set(inner['stages_ms']) == {'ann', 'relax'}
     assert {'ann', 'relax'} <= set(outer['stages_ms'])
+
+
+def test_waits_are_measured_where_they_happen():
+    """11-11: about 12 s of a find_agents answer went unmeasured; pool, lock, thread and CPU time now show."""
+    import threading
+    import time
+    from agent_market.concierge.retrieval_metrics import capture, entered, left, TimedLock
+    from agent_market.admin_postgres_pool import AdminReaderPool
+    lock = threading.RLock()
+    timed = TimedLock(lock)
+    with capture() as values:
+        values['started'] = time.perf_counter() - 0.05
+        entered()
+        holder = threading.Thread(target=lambda: (lock.acquire(), time.sleep(0.1), lock.release()))
+        holder.start(); time.sleep(0.02)
+        with timed:
+            pass
+        holder.join()
+        sum(range(200000))
+        left()
+    stages = values['stages_ms']
+    assert stages['thread_wait'] >= 40 and stages['lock_wait'] >= 50 and stages['cpu'] > 0
+
+    class Session:
+        closed = False
+
+        def close(self):
+            pass
+    pool = AdminReaderPool(lambda: (Session(), Session()), maximum=1, wait_seconds=2)
+    with capture() as values:
+        with pool.lease_store():
+            pass
+    assert 'pool_wait' in values['stages_ms']

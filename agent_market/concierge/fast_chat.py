@@ -1199,3 +1199,22 @@ class FastConcierge(Concierge):
             if isinstance(reply.data,dict):
                 reply.data['corrected_task'] = corrected[:200]
         return reply
+
+
+def _timed_entry(method):
+    """Server-Timing thread_wait (request start to this worker thread) and cpu (this thread's CPU time)."""
+    from functools import wraps
+    from .retrieval_metrics import entered, left
+
+    @wraps(method)
+    def call(self, *args, **kwargs):
+        entered()
+        try:
+            return method(self, *args, **kwargs)
+        finally:
+            left()
+    return call
+
+
+FastConcierge.handle = _timed_entry(FastConcierge.handle)
+FastConcierge.lookup = _timed_entry(FastConcierge.lookup)

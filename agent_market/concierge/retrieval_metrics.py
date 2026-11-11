@@ -10,7 +10,7 @@ _lock = threading.Lock()
 _STAGES = frozenset(('lexical', 'embedding', 'ann', 'expansion', 'projection', 'exact', 'total', 'rerank',
                      'contracts', 'resource_read', 'admission', 'cards', 'search_document', 'exposure',
                      'public_agent', 'states', 'describe', 'opensearch', 'documents', 'relax', 'near',
-                     'shared_cache', 'revalidate'))
+                     'shared_cache', 'revalidate', 'pool_wait', 'lock_wait', 'thread_wait', 'cpu'))
 
 
 def timed(name):
@@ -60,6 +60,64 @@ def stage(name):
         if value is not None:
             with _lock:
                 value['stages_ms'][name] = value['stages_ms'].get(name, 0) + (perf_counter() - started) * 1000
+
+
+def add(name, milliseconds):
+    """Add measured milliseconds to a stage of the current request (waits measured where they happen)."""
+    if name not in _STAGES:
+        raise ValueError('Unknown retrieval stage.')
+    value = _current.get()
+    if value is not None:
+        with _lock:
+            value['stages_ms'][name] = value['stages_ms'].get(name, 0) + milliseconds
+
+
+def entered():
+    """Called where a request's work starts in its worker thread: the time it waited for that thread."""
+    import time
+    value = _current.get()
+    if value is not None and 'started' in value and 'entered' not in value:
+        value['entered'] = perf_counter()
+        value['cpu_start'] = time.thread_time()
+        add('thread_wait', (value['entered'] - value['started']) * 1000)
+
+
+def left():
+    """CPU time this worker thread used since entered(); wall time minus this is waiting (I/O, locks, GIL)."""
+    import time
+    value = _current.get()
+    if value is not None and 'cpu_start' in value and 'cpu_done' not in value:
+        value['cpu_done'] = True
+        add('cpu', (time.thread_time() - value['cpu_start']) * 1000)
+
+
+class TimedLock:
+    """A lock whose waits count as lock_wait for the current request (11-11: 12 s of Chat went unmeasured)."""
+
+    def __init__(self, lock):
+        self._lock = lock
+
+    def acquire(self, *args, **kwargs):
+        if not args and not kwargs and self._lock.acquire(blocking=False):
+            return True
+        started = perf_counter()
+        got = self._lock.acquire(*args, **kwargs) if args or kwargs else self._lock.acquire()
+        add('lock_wait', (perf_counter() - started) * 1000)
+        return got
+
+    def release(self):
+        self._lock.release()
+
+    def __enter__(self):
+        self.acquire()
+        return self
+
+    def __exit__(self, *exc):
+        self.release()
+        return False
+
+    def __getattr__(self, name):
+        return getattr(self._lock, name)
 
 
 def mark(name):

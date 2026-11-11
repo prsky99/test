@@ -27,6 +27,7 @@ class RequestTiming:
             return await self.app(scope, receive, send)
         started = time.perf_counter()
         with capture() as values:
+            values['started'] = started
             async def deliver(message):
                 if message['type'] == 'http.response.start':
                     now = time.perf_counter()

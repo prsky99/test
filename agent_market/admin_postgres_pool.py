@@ -27,6 +27,7 @@ class AdminReaderPool:
     def lease_store(self):
         """Lease an explicitly configured session; the caller owns transaction scope."""
         deadline=time.monotonic()+self.wait_seconds
+        began=time.perf_counter()
         with self.condition:
             self.waiting+=1
             try:
@@ -36,6 +37,9 @@ class AdminReaderPool:
                     self.condition.wait(remaining)
             finally:
                 self.waiting-=1
+                # The time a request waited for a pooled session (Server-Timing pool_wait, 11-11).
+                from .concierge.retrieval_metrics import add
+                add('pool_wait',(time.perf_counter()-began)*1000)
             if self.closed:raise RuntimeError('admin_read_pool_closed')
             resource=self.idle.pop() if self.idle else None
             if resource is not None:self.released.pop()

@@ -107,6 +107,9 @@ def _connect(dsn):
         sslmode='verify-full', gssencmode='disable', target_session_attrs='read-write', autocommit=True)
 
 
+READ_POOL_SIZE = 6
+
+
 def open_runtime_storage(sqlite_path, *, values=None, connector=None):
     """Read named process settings once; never fall back after a selected failure.
 
@@ -172,7 +175,11 @@ def open_runtime_storage(sqlite_path, *, values=None, connector=None):
             except BaseException:
                 session.close()
                 raise
-        store._admin_read_pool = AdminReaderPool(create_admin_reader,max_idle=1,idle_seconds=IDLE_SESSION_SECONDS)
+        # Explore reads two protocols at once and Chat, insights and warm-ups share this pool; three
+        # sessions queued requests under load (11-11: about 12 s of a find_agents answer unmeasured,
+        # 16 of 48 database connections in use). Six per process; idle sessions still close after a while.
+        store._admin_read_pool = AdminReaderPool(create_admin_reader,maximum=READ_POOL_SIZE,max_idle=1,
+                                                 idle_seconds=IDLE_SESSION_SECONDS)
         # Chat has visitor writes, so it uses separate bounded sessions rather
         # than borrowing read-only metrics sessions or a collector's Python lock.
         store._interactive_pool = AdminReaderPool(create_interactive_session,maximum=4,wait_seconds=8,max_idle=1,
