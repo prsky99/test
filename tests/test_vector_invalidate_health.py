@@ -40,6 +40,18 @@ def test_health_change_keeps_the_vector_and_both_bodies_attach():
             with store.tx():
                 store._execute("UPDATE resources SET description='Changed text' WHERE id=%s", (rid,))
             assert index.current_ids([rid], descriptor) == set()  # changed text still invalidates
+            # Exactly the two bodies attach (PM 11-11): any third body, even one changed space, is refused.
+            from agent_market.application_store_postgres import ApplicationStoreError
+            third = change.definition(False).replace('BEGIN IF TG_OP', 'BEGIN  IF TG_OP', 1)
+            assert third != change.definition(False)
+            conn.execute(third)
+            assert change.status(conn)['body'] == 'unknown'
+            with psycopg.connect(host=cluster['socket'], port=PORT, dbname='postgres', user='postgres', autocommit=True) as again:
+                with pytest.raises(ApplicationStoreError):
+                    refused = open_store('postgresql', connection=again, workflow_key=b'h' * 32)
+                    with refused.tx():
+                        pass
+            conn.execute(change.definition(False))
             assert change.change(conn, True)['after'] == {'body': 'health_invalidates', 'public_triggers': 5}
             with store.tx():
                 pass
