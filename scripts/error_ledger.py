@@ -73,7 +73,7 @@ def from_logs(day, logs=None):
             for follow in lines[i + 1:i + 40]:          # the exception class closes a following traceback
                 if re.match(r'^\d{4}-\d{2}-\d{2} ', follow):
                     break
-                last = re.match(r'^([\w.]+(?:Error|Exception|Timeout|Busy|Failed)\w*)(?::|$)', follow)
+                last = re.match(r'^([\w.]+(?:Error|Exception|Timeout|Busy|Failed|Disconnect)\w*)(?::|$)', follow)
                 if last:
                     exception = last.group(1)
             counts[f'log|{role}|{logger}|{message}' + (f'|{exception}' if exception else '')] += 1

@@ -81,3 +81,34 @@ def test_page_signals_do_not_use_up_the_test_run_limit(monkeypatch, tmp_path):
     statuses = [client.post('/api/test/execute', json={}).status_code for _ in range(11)]
     assert statuses[:10] == [400] * 10          # reached the handler: not limited by the beacons
     assert statuses[10] == 429                  # the test-run limit itself is still 10 a minute
+
+
+def test_a_caller_that_hangs_up_mid_body_is_not_a_server_error(monkeypatch, tmp_path, caplog):
+    """11-10 06:32 and 18:29: ClientDisconnect while reading a POST body was logged as an ERROR with a traceback."""
+    import asyncio
+    import logging
+    from agent_market.concierge.front import create_front_app
+    from tests.test_gateway import populated
+    monkeypatch.setenv('LOG_DIR', str(tmp_path))
+    app = create_front_app(populated().app.state.front)
+    sent = []
+
+    async def receive():
+        return {'type': 'http.disconnect'}
+
+    async def send(message):
+        sent.append(message)
+
+    scope = {'type': 'http', 'asgi': {'version': '3.0'}, 'http_version': '1.1', 'method': 'POST', 'scheme': 'http',
+             'path': '/api/rum', 'raw_path': b'/api/rum', 'query_string': b'', 'root_path': '',
+             'headers': [(b'host', b'testserver'), (b'content-type', b'text/plain'), (b'content-length', b'40')],
+             'client': ('127.0.0.1', 5000), 'server': ('testserver', 80)}
+
+    async def run():
+        async with app.router.lifespan_context(app):
+            await app(scope, receive, send)
+    with caplog.at_level(logging.INFO):
+        asyncio.run(run())
+    status = next(m['status'] for m in sent if m['type'] == 'http.response.start')
+    assert status == 400
+    assert not [r for r in caplog.records if r.levelno >= logging.ERROR and 'request failed' in r.getMessage()]

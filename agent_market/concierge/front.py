@@ -48,6 +48,7 @@ from fastapi import APIRouter, FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response, StreamingResponse
 from fastapi.encoders import jsonable_encoder
 from starlette.concurrency import run_in_threadpool
+from starlette.requests import ClientDisconnect
 from starlette.middleware.gzip import GZipMiddleware
 from pathlib import Path
 
@@ -2185,6 +2186,11 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             response = JSONResponse({"error": "Request body timed out."}, status_code=408)
         except HTTPException as exc:
             response = JSONResponse({"detail": exc.detail}, status_code=exc.status_code, headers=exc.headers)
+        except ClientDisconnect:
+            # The caller hung up while its body was being read; nobody receives this answer and it is
+            # not a server failure (11-10 06:32 and 18:29 were logged as errors with a traceback).
+            logging.getLogger(__name__).info("Public frontend request: client disconnected before the body was read")
+            response = Response(status_code=400)
         except Exception:
             logging.getLogger(__name__).exception("Public frontend request failed")
             response = JSONResponse({"error": "Unable to process the request."}, status_code=500)
