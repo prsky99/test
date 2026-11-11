@@ -145,6 +145,25 @@ class PublicHTTPContract:
         finally:_QUOTA_SINK.reset(token)
 
 
+class SharedCacheCookieGuard:
+    """A response that sets a cookie is never stored by a shared cache (11-11, public HTML at the edge)."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope['type'] != 'http':
+            return await self.app(scope, receive, send)
+
+        async def guarded(message):
+            if message['type'] == 'http.response.start':
+                headers = MutableHeaders(scope=message)
+                if 'set-cookie' in headers and 'public' in headers.get('cache-control', '').lower():
+                    headers['cache-control'] = 'private, no-store'
+            await send(message)
+        return await self.app(scope, receive, guarded)
+
+
 class PublicDocumentHEAD:
     """Apply public HEAD after compression so its metadata matches GET."""
     def __init__(self,app):self.app=app

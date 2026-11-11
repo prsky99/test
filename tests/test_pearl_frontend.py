@@ -34,7 +34,7 @@ def client(tmp_path):
 def test_separate_view_assets_csp_and_no_original_html_mutation(client):
     response=client.get('/new/en/index.html')
     assert response.status_code==200 and 'Find the right AI agent for your task.'in response.text
-    assert 'nonce-'in response.headers['content-security-policy']
+    assert "script-src 'self' 'sha256-" in response.headers['content-security-policy'] and 'nonce-' not in response.headers['content-security-policy']  # 11-11 hashes
     assert "script-src-attr 'none'"in response.headers['content-security-policy']
     assert response.headers['x-frame-options']=='DENY'
     assert client.get('/new/en/assets/operating.js').status_code==200
@@ -52,7 +52,7 @@ def test_default_html_entry_uses_published_composition_and_keeps_json_contract(c
     assert 'reference-about-hero' in response.text
     assert 'pearlWorkflowChoices' in response.text
     assert 'noindex' not in response.headers.get('x-robots-tag','')
-    assert 'nonce-' in response.headers['content-security-policy']
+    assert "script-src 'self' 'sha256-" in response.headers['content-security-policy']  # 11-11: hashes, so the edge may keep the page
     assert client.get('/',headers={'accept':'application/json'}).headers['content-type'].startswith('application/json')
 
 

@@ -2196,6 +2196,12 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
         # Public static assets keep their own cache policy; every other reply stays no-store.
         static = (request.method in ("GET", "HEAD") and request.url.path.startswith("/new/en/assets/")
                   and response.status_code in (200, 304) and "cache-control" in response.headers)
+        # 11-11 PM decision A: a public page carries the same bytes for everyone and may sit at the edge 60 s.
+        from .pearl_view import PUBLIC_PAGE_CACHE
+        static = static or (request.method in ("GET", "HEAD") and response.status_code == 200
+                            and response.headers.get("cache-control") == PUBLIC_PAGE_CACHE
+                            and response.headers.get("content-type", "").startswith("text/html")
+                            and "set-cookie" not in response.headers)
         for k, val in SECURITY_HEADERS.items():
             if static and k == "Cache-Control":
                 continue
@@ -3809,6 +3815,8 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
     app.add_middleware(PublicDocumentHEAD)
     from .web_bot_auth import WebBotAuth
     app.add_middleware(WebBotAuth, origin=front.public_url or 'https://agentconcierge.biz')
+    from .public_http_contract import SharedCacheCookieGuard
+    app.add_middleware(SharedCacheCookieGuard)  # outermost: sees the final headers
     from .public_api_schema import install as install_public_schema
     install_public_schema(app)
     return app

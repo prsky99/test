@@ -1,12 +1,12 @@
 """Separate Pearl Connection presentation on the existing frontend origin."""
 import collections
+import base64
 import hashlib
 import json
 import mimetypes
 import os
 import re
 from pathlib import Path
-import secrets
 import threading
 import time
 
@@ -114,19 +114,41 @@ def bundled(value):
     return value
 
 
+PUBLIC_PAGE_CACHE = 'public, max-age=0, s-maxage=60'
+INLINE_SCRIPT = re.compile(r'<script\b([^>]*)>(.*?)</script>', re.S | re.I)
+DATA_TYPE = re.compile(r'\btype\s*=\s*["\']?(application/(?:ld\+)?json|text/plain|text/template)', re.I)
+
+
+def inline_script_hashes(value):
+    """Base64 sha256 of every inline script the browser runs (data blocks are not run), in page order."""
+    out = []
+    for match in INLINE_SCRIPT.finditer(value):
+        attributes, body = match[1], match[2]
+        if re.search(r'\bsrc\s*=', attributes, re.I) or DATA_TYPE.search(attributes):
+            continue
+        # The HTML parser turns CR LF and lone CR into LF before the browser hashes the text.
+        body = body.replace('\r\n', '\n').replace('\r', '\n')
+        digest = base64.b64encode(hashlib.sha256(body.encode()).digest()).decode()
+        if digest not in out:
+            out.append(digest)
+    return out
+
+
 def page_response(value, *, public=False):
     """Use the same nonce policy for the default and named presentation routes."""
     value = versioned(bundled(value))
     if os.environ.get('MAIN_SPONSORED', '0') == '1':  # 11-11 Sponsored on main Explore and Chat; off by default
         value = re.sub(r'<body\b', '<body data-sponsored="on"', value, count=1)
-    nonce = secrets.token_urlsafe(32)
-    from .bootstrap_delivery import nonce_scripts
-    value = nonce_scripts(value,nonce)
-    policy = ("default-src 'none'; script-src 'nonce-" + nonce + "'; script-src-attr 'none'; "
+    # 11-11 (PM decision A): the same bytes for every visitor, so the edge may keep a page for 60 seconds.
+    # Inline scripts are allowed by their sha256 instead of a per-response nonce; files come from 'self'.
+    hashes = inline_script_hashes(value)
+    policy = ("default-src 'none'; script-src 'self'" + ''.join(" 'sha256-" + h + "'" for h in hashes) +
+              "; script-src-attr 'none'; "
               "style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; "
               "object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; "
               "font-src 'self'; worker-src 'self'")
-    headers = {'Content-Security-Policy': policy, 'Cache-Control': 'no-store',
+    headers = {'Content-Security-Policy': policy,
+               'Cache-Control': PUBLIC_PAGE_CACHE if public else 'no-store',
                'X-Content-Type-Options': 'nosniff'}
     if not public:
         headers['X-Robots-Tag'] = 'noindex,noarchive'

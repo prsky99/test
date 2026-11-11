@@ -158,7 +158,7 @@ def test_protocol_reads_overlap_without_a_parent_pool_lease(monkeypatch):
 
     source = SimpleNamespace(backend="postgresql", _admin_read_pool=Pool())
 
-    def read(store, engine, query, kind, category, verified, no_auth, limit):
+    def read(store, engine, query, kind, category, verified, no_auth, limit, near=None):  # 596856c0 added near
         from agent_market.concierge.discovery_contracts import _request
 
         memo_ids.append(id(_request.get()))

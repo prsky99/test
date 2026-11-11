@@ -334,7 +334,12 @@ def part_browser(run):
                 run.ok('browser', f'{width} test run completes', status == 'Completed', status, took)
                 run.ok('browser', f'{width} test run time', took <= 5.0, f'{took}s', took)
             except Exception as e:  # noqa: BLE001
-                run.ok('browser', f'{width} test run', False, type(e).__name__)
+                # 11-11: say what the page showed, so a limit, a wording change and a real failure differ.
+                try:
+                    shown = re.findall(r'(?:Latest test|Rate|limit|slow down|unavailable)[^\n]{0,90}', page.inner_text('body'), re.I)[:2]
+                except Exception:  # noqa: BLE001
+                    shown = []
+                run.ok('browser', f'{width} test run', False, f'{type(e).__name__}: {shown}')
             ctx.close()
         browser.close()
     return {'flows': flows}
