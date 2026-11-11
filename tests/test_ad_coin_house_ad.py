@@ -50,3 +50,14 @@ def test_run_needs_the_approval_flag():
     with pytest.raises(SystemExit):
         house.main(['run', '--issue-coins', '10000', '--day', '2026-11-12', '--dsn-file', 'x', '--key-file', 'y',
                     '--key-dir', '/k'])
+
+
+def test_daily_ledger_check_is_clean_after_the_house_ad(store):  # noqa: F811
+    from scripts.ad_coin_daily_ledger_check import check
+    commercial = _commercial(store)
+    now_ms = int(time.time() * 1000)
+    tomorrow = time.strftime('%Y-%m-%d', time.gmtime((now_ms - now_ms % DAY_MS + DAY_MS) / 1000))
+    house.run(commercial, month=time.strftime('%Y-%m', time.gmtime()), issue_atoms=10_000 * points.ATOMS_PER_COIN,
+              day=tomorrow, now_ms=now_ms)
+    result = check(store)
+    assert result['ok'] and result['status'] == 'clean' and result['issues'] == []
