@@ -2,11 +2,20 @@
 import os
 import sys
 
+import pytest
+
 from datetime import datetime
 
 from scripts import heavy_slot as hs
 
 NOW = datetime.now().strftime('%m-%d %H:%M')   # lines that started just now are within their estimate
+REAL_SLOTS = hs.slots
+
+
+@pytest.fixture(autouse=True)
+def two_slots(monkeypatch):
+    """Most tests are about counting lines, not the hour; the hour rule has its own test."""
+    monkeypatch.setattr(hs, 'slots', lambda now=None: 2)
 
 BOARD = """# 현황판
 ## 무거운 작업 (최대 2개)
@@ -38,7 +47,7 @@ def test_two_live_lines_refuse_without_running(tmp_path, capsys):
     board = _board(tmp_path, f'- A {NOW} pid={me} one (예상 5분)\n- B {NOW} pid={me} two (예상 5분)')
     marker = tmp_path / 'ran'
     code = hs.run([sys.executable, '-c', f'open({str(marker)!r}, "w")'], '운영·SRE', 'x', 1, board=board, lock=tmp_path / 'lock')
-    assert code == hs.BUSY and not marker.exists() and 'both heavy-work slots' in capsys.readouterr().err
+    assert code == hs.BUSY and not marker.exists() and 'heavy-work slot' in capsys.readouterr().err
 
 
 def test_a_line_whose_pid_is_gone_is_marked_stale_and_not_counted(tmp_path):
@@ -76,3 +85,17 @@ def test_a_hand_written_line_past_twice_its_estimate_times_out(tmp_path):
     text = board.read_text(encoding='utf-8')
     assert ok and live == [f'- B 11-11 15:30 pid={me} tests (예상 남은 60분)']
     assert text.count(hs.TIMED_OUT) == 2 and hs.STALE not in text
+
+
+def test_one_slot_by_day_and_two_at_night(tmp_path, monkeypatch):
+    """11-11 PM decision: 08:00-24:00 one heavy job, 00:00-08:00 two (the night database chain)."""
+    monkeypatch.setattr(hs, 'slots', REAL_SLOTS)
+    me = os.getpid()
+    day, night = datetime(2026, 11, 11, 15, 0), datetime(2026, 11, 12, 1, 0)
+    assert hs.slots(day) == 1 and hs.slots(night) == 2
+    board = _board(tmp_path, f'- A 11-11 14:50 pid={me} one (예상 30분)')
+    ok, _ = hs.claim(board, '운영·SRE', 'x', 5, me, 'd1', now=day, is_alive=lambda pid: True)
+    assert not ok
+    board = _board(tmp_path, f'- A 11-12 00:50 pid={me} one (예상 30분)')
+    ok, _ = hs.claim(board, '운영·SRE', 'x', 5, me, 'n1', now=night, is_alive=lambda pid: True)
+    assert ok

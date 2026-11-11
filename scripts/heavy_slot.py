@@ -6,7 +6,8 @@
 
 This Mac is also the production server. On 11-11 two broad test runs and a browser test overlapped
 with a public measurement (load 6-8, Chat 3-10 s). The wrapper:
-- refuses when two live lines are already in '## 무거운 작업' (exit 75, nothing runs);
+- refuses when the hour's slots are taken in '## 무거운 작업' (one 08:00-24:00, two 00:00-08:00;
+  exit 75, nothing runs);
 - otherwise appends its own line (with its own pid and a slot token), runs the command under
   nice -n 10, and removes its line when the command ends, fails or the wrapper is interrupted;
 - marks a line whose pid is gone as stale and does not count it.
@@ -28,7 +29,13 @@ ROOT = Path(__file__).resolve().parents[1]
 BOARD = ROOT / 'logs/ops/status-board.md'
 LOCK = ROOT / 'logs/ops/.heavy-slot.lock'
 SECTION = '## 무거운 작업'
-SLOTS = 2
+SLOTS = 2          # 00:00-08:00 KST
+DAY_SLOTS = 1      # 08:00-24:00 KST: load 10 lengthened user requests directly (11-11 PM decision)
+
+
+def slots(now=None):
+    hour = (now or datetime.now()).hour
+    return SLOTS if hour < 8 else DAY_SLOTS
 BUSY = 75          # EX_TEMPFAIL: try again later
 STALE = ' [오래됨: pid 없음]'
 TIMED_OUT = ' [오래됨: 시간 초과]'
@@ -122,7 +129,7 @@ def claim(board, team, what, minutes, pid, token, now=None, is_alive=alive):
             pid = _PID.search(line)
             lines[i] = line + (STALE if pid and not is_alive(int(pid.group(1))) else TIMED_OUT)
     live = [line for _, line, ok in found if ok]
-    if len(live) >= SLOTS:
+    if len(live) >= slots(now):
         board.write_text('\n'.join(lines), encoding='utf-8')
         return False, live
     stamp = (now or datetime.now()).strftime('%m-%d %H:%M')
@@ -151,7 +158,7 @@ def run(command, team, what, minutes, board=None, lock=None):
     with board_lock(lock):
         ok, live = claim(board, team, what, minutes, os.getpid(), token)
     if not ok:
-        print('heavy_slot: both heavy-work slots are in use; try again later:', file=sys.stderr)
+        print(f'heavy_slot: all {slots()} heavy-work slot(s) for this hour are in use; try again later:', file=sys.stderr)
         for line in live:
             print('  ' + line, file=sys.stderr)
         return BUSY
