@@ -105,3 +105,22 @@ def test_a_free_answer_flags_the_task_for_real_calls(monkeypatch):
     monkeypatch.setattr(g, 'rpc', rpc)
     row = g.score(None, P15)
     assert row['free_source_found'] is True and row['passed'] is False
+
+
+def test_a_tool_the_gateway_hides_is_judged_from_the_recommendation_and_fails_the_call(monkeypatch):
+    # 11-12 00:48 baseline: Frenchie's gateway offers informational tools only; transcribe_to_markdown is hidden.
+    def answers(url, method, params):
+        if url.endswith('/mcp'):
+            rec = recommendation(price=0, tool='transcribe_to_markdown')
+            rec['result']['structuredContent']['recommendations'][0]['tools_schema'] = repr([FILE_TOOL])
+            return 200, rec
+        if method == 'tools/list':
+            return 200, {'result': {'tools': [{'name': 'fetch_result_file', 'inputSchema': {}}]}}
+        return 200, {'result': {}}
+    rpc, calls = fake_rpc(answers)
+    monkeypatch.setattr(g, 'rpc', rpc)
+    row = g.score(None, P15)
+    assert row['gateway_tools'] == 1 and row['passed'] is False
+    assert row['checks']['input_fit']['why'].startswith('takes file_path')
+    assert 'does not offer transcribe_to_markdown' in row['checks']['unpaid_call']['why']
+    assert not any(c[1] == 'tools/call' and c[2] == 'transcribe_to_markdown' for c in calls)

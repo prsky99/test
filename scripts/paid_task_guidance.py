@@ -21,6 +21,7 @@ free_source_found and the task should move back to real calls (weekly re-check, 
 Rows go to reports/paid-task-guidance/<date>.json; the completion score is not touched.
 """
 import argparse
+import ast
 import json
 import re
 import time
@@ -80,6 +81,20 @@ def disclosed(rec):
     return None
 
 
+def recommended_schema(rec, name):
+    """The tool schema the recommendation itself carries (tools_schema may arrive as a Python-literal string)."""
+    raw = rec.get('tools_schema')
+    if isinstance(raw, str):
+        try:
+            raw = ast.literal_eval(raw)
+        except (ValueError, SyntaxError):
+            try:
+                raw = json.loads(raw)
+            except ValueError:
+                raw = []
+    return next((t for t in raw or [] if isinstance(t, dict) and t.get('name') == name), None)
+
+
 def unpaid_call(client, gateway, tool, task):
     """One tools/call with no payment and no key. Returns (kind, detail): paid, key, free, error."""
     args = arguments_for(tool.get('inputSchema'), task['sample_input'], task['task'])
@@ -117,12 +132,16 @@ def score(client, task):
         st, listed = rpc(client, gateway, 'tools/list', {}, 2)
         tools = ((listed.get('result') or {}).get('tools') or []) if isinstance(listed, dict) else []
         tool = next((t for t in tools if isinstance(t, dict) and t.get('name') == named), None)
+        row['gateway_tools'] = len(tools)
         if tool:
             unpaid = unpaid_call(client, gateway, tool, task)
+        else:
+            unpaid = ('error', 'the gateway does not offer %s (tools/list: %d tools)' % (named, len(tools)))
     row['tool'] = named
+    described = tool or recommended_schema(rec, named)  # judge input and output from the recommendation if hidden
     checks = {}
-    checks['input_fit'] = input_fit(tool, task['sample_input'])
-    checks['output_fit'] = output_fit(task, tool) if tool else (False, 'tool %s not in tools/list' % named)
+    checks['input_fit'] = input_fit(described, task['sample_input'])
+    checks['output_fit'] = output_fit(task, described) if described else (False, 'no schema for %s' % named)
     checks['unpaid_call'] = (unpaid[0] in ('paid', 'key'), '%s: %s' % unpaid)
     agrees = told is not None and unpaid[0] in ('paid', 'key') and (told == unpaid[0] or told == 'paid')
     checks['disclosed'] = (agrees, 'recommendation says %s, unpaid call says %s' % (told or 'free', unpaid[0]))

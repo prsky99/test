@@ -1,0 +1,85 @@
+[
+ {
+  "at": "2026-11-12 00:49:01",
+  "tasks": 1,
+  "passed": 0,
+  "seconds": 4.7,
+  "rows": [
+   {
+    "id": "p15",
+    "task": "Find an API that gives me the transcript of a YouTube video",
+    "agent": {
+     "id": 45347,
+     "name": "Frenchie",
+     "kind": "mcp",
+     "price_usdc": 0,
+     "auth_required": false
+    },
+    "disclosed": null,
+    "tool": "transcribe_to_markdown",
+    "checks": {
+     "input_fit": {
+      "ok": false,
+      "why": "no tool"
+     },
+     "output_fit": {
+      "ok": false,
+      "why": "tool transcribe_to_markdown not in tools/list"
+     },
+     "unpaid_call": {
+      "ok": false,
+      "why": "error: not called"
+     },
+     "disclosed": {
+      "ok": false,
+      "why": "recommendation says free, unpaid call says error"
+     }
+    },
+    "passed": false,
+    "free_source_found": false
+   }
+  ]
+ },
+ {
+  "at": "2026-11-12 00:49:39",
+  "tasks": 1,
+  "passed": 0,
+  "seconds": 4.8,
+  "rows": [
+   {
+    "id": "p15",
+    "task": "Find an API that gives me the transcript of a YouTube video",
+    "agent": {
+     "id": 45347,
+     "name": "Frenchie",
+     "kind": "mcp",
+     "price_usdc": 0,
+     "auth_required": false
+    },
+    "disclosed": null,
+    "gateway_tools": 2,
+    "tool": "transcribe_to_markdown",
+    "checks": {
+     "input_fit": {
+      "ok": false,
+      "why": "takes file_path, not a link"
+     },
+     "output_fit": {
+      "ok": true,
+      "why": "returns (?i)transcript|caption|subtitle"
+     },
+     "unpaid_call": {
+      "ok": false,
+      "why": "error: the gateway does not offer transcribe_to_markdown (tools/list: 2 tools)"
+     },
+     "disclosed": {
+      "ok": false,
+      "why": "recommendation says free, unpaid call says error"
+     }
+    },
+    "passed": false,
+    "free_source_found": false
+   }
+  ]
+ }
+]
