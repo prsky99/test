@@ -556,7 +556,7 @@
     review('Book this Sponsored placement?',[campaign.name,body.day+' UTC · '+body.task_category.replaceAll('_',' ')+' · '+body.region,
       'Price: 50 coins, deducted from your coin balance when you confirm. A new advertiser\u2019s first booking may be paid from the platform\u2019s growth budget instead.',
       'You can cancel until the day before it starts and get all coins back. If you pause the campaign yourself, coins are not returned.',
-      'Coins have no cash value. See \u201cSponsored placements paid with coins\u201d below.'],async()=>{
+      'Coins have no cash value. See \u201cSponsored placement terms\u201d below.'],async()=>{
       const {value}=await api('/advertisers/'+adv.id+'/sponsored-bookings',{method:'POST',body});
       $('booking-form').hidden=true;state.booking=null;
       text('notice',value.paid_by==='growth_support'?'Booked. This first booking was paid by the platform\u2019s growth budget.':'Booked. '+coins(value.price_atoms)+' coins were deducted from your balance.');

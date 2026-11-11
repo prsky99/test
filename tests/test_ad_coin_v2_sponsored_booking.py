@@ -206,7 +206,7 @@ def test_http_booking_needs_authority_csrf_and_an_idempotency_key(p1_suite):  # 
 
 
 def test_public_terms_match_the_approved_clauses_word_for_word():
-    """The eight clauses the user approved (11-10) appear unchanged in the English workspace."""
+    """The eight clauses the user approved (11-10) and term 9 (USDC, 11-11) appear unchanged in the English workspace."""
     import html as htmllib
     import re
     from pathlib import Path
@@ -214,6 +214,9 @@ def test_public_terms_match_the_approved_clauses_word_for_word():
     report = (root / 'reports/AI-AD-Coin-Sponsored-광고주약관-조항초안-2026-11-10.md').read_text()
     clauses = re.findall(r'^> \*\*\d\. (.+?)\*\* (.+)$', report, re.M)
     assert len(clauses) == 8
+    usdc = (root / 'reports/AI-AD-Coin-USDC-유료예약-설계-2026-11-11.md').read_text()   # term 9, approved 11-11
+    clauses += re.findall(r'^> \*\*9\. (.+?)\*\* (.+)$', usdc, re.M)
+    assert len(clauses) == 9
     page = (root / 'agent_market/ad_coin/v2/web/index.html').read_text()
     section = page[page.index('id="sponsored-terms"'):]
     section = section[:section.index('</section>')]
@@ -222,7 +225,7 @@ def test_public_terms_match_the_approved_clauses_word_for_word():
     expected = [title + ' ' + body for title, body in clauses]
     straight = [item.replace('“', '"').replace('”', '"').replace('’', "'") for item in items]
     assert straight == expected
-    assert 'Sponsored placements paid with coins' in section and '<!--' not in page
+    assert 'Sponsored placement terms' in section and 'Paid Sponsored placements' in section and '<!--' not in page
 
 
 def test_sponsored_only_campaigns_are_never_offered_for_rewarded_views(p1_suite):  # noqa: F811
