@@ -473,6 +473,10 @@ class Concierge:
         else:
             lines.append("Call: read the Agent Card → message/send (v0.3) or SendMessage (v1.0)")
         steps = guide.get("how_to_connect") or guide.get("steps") or []
+        if i["kind"] == "mcp" and steps:  # the caller goes through our stateless gateway, not the provider's session
+            from .connections import gateway_mcp_steps
+            first = next((t.get("name") for t in (guide.get("tools") or []) if isinstance(t, dict) and t.get("name")), None)
+            steps = gateway_mcp_steps(clean_external(guide.get("endpoint") or i["url"], 300), first)
         if isinstance(steps, list) and steps:
             lines.append("How to connect:\n" + "\n".join(f"  - {clean_external(x, 220)}" for x in steps[:4]))
         tools = [t for t in (guide.get("tools") or guide.get("skills") or []) if isinstance(t, dict)][:5]

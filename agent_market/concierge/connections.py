@@ -258,6 +258,21 @@ def project(value, gateway, raw_urls=(), depth=0):
     return walk(value,depth,tool_list=isinstance(value,list))
 
 
+def gateway_mcp_steps(endpoint, tool=None):
+    """How to call a listed MCP server through our gateway: stateless JSON, no session to open or close (11-11).
+
+    The stored guide describes the provider's own server (session header, SSE, DELETE); a caller reaches it
+    through the gateway URL, which answers JSON-RPC directly, so that guide would mislead.
+    """
+    name = tool if isinstance(tool, str) and tool else '<tool name from tools_schema>'
+    call = json.dumps({'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call',
+                       'params': {'name': name, 'arguments': {}}}, separators=(',', ':'))
+    return [f"POST {endpoint} with 'Content-Type: application/json' and 'Accept: application/json'. Each request stands alone: no session header, no initialize required, answers are JSON.",
+            "1) Optional: tools/list returns the current tool schemas: {\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}",
+            f"2) tools/call, filling arguments from that tool's inputSchema: {call}",
+            "3) After the call, report the outcome (MCP tool report or POST /api/agent/v1/report) to get verified alternatives if it failed."]
+
+
 def public_agent(value, resource=None, *, store=None, create_connections=True):
     from .retrieval_metrics import stage
     with stage('public_agent'):
@@ -279,6 +294,9 @@ def _public_agent(value, resource=None, *, store=None, create_connections=True):
         if key in result or key!='agent_url':result[key]=gateway
     if 'host' in result:result['host']='agentconcierge.biz' if gateway else ''
     result['connection_available']=bool(gateway)
+    if gateway and value.get('kind')=='mcp' and isinstance(result.get('connect_steps'),list):
+        schemas=[t for t in (result.get('tools_schema') or []) if isinstance(t,dict)]
+        result['connect_steps']=gateway_mcp_steps(gateway,schemas[0].get('name') if schemas else None)
     result['gateway_ready']=False
     if store is not None and gateway:
         from ..capability_registry import Registry
