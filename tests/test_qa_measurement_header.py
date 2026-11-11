@@ -22,3 +22,10 @@ def test_every_client_and_browser_context_carries_the_qa_header(path, name):
         if call.func.attr == 'new_page' and ast.unparse(call.func.value) != 'browser':
             continue  # a page opened from a context inherits the context's extra_http_headers
         assert 'QA_HEADER' in text, f'{path}: {text[:80]} sends requests without X-Agentcon-QA'
+
+
+def test_full_check_labels_slow_samples_with_the_edge_airport():
+    import httpx
+    from scripts.public_full_check import edge
+    r = httpx.Response(200, headers={'cf-ray': '9a1b2c3d4e5f6789-LAX', 'cf-cache-status': 'MISS'})
+    assert edge(r) == 'LAX MISS' and edge(httpx.Response(200)) == '? -' and edge(None) == ''

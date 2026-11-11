@@ -66,6 +66,14 @@ def timed(c, method, url, **kw):
     return round(time.time() - t, 2), r, None
 
 
+def edge(r):
+    """'<airport> <cache status>' of a response, so a slow sample shows where it was served (11-11 PM)."""
+    if r is None:
+        return ''
+    ray = r.headers.get('cf-ray', '')
+    return '%s %s' % (ray.rsplit('-', 1)[-1] if '-' in ray else '?', r.headers.get('cf-cache-status', '-'))
+
+
 def rpc_json(r):
     text = r.text
     if not text.lstrip().startswith('{') and 'data:' in text:
@@ -110,7 +118,7 @@ def part_pages(run, c):
         if not run.ok('pages', f'GET {path}', r is not None and r.status_code == 200,
                       err or (r.status_code if r is not None else ''), took):
             continue
-        run.ok('pages', f'time {path}', took <= SLOW_OK.get(path, PAGE_S), f'{took}s', took)
+        run.ok('pages', f'time {path}', took <= SLOW_OK.get(path, PAGE_S), f'{took}s ({edge(r)})', took)
         if 'html' not in r.headers.get('content-type', ''):
             continue
         body = r.text
@@ -151,7 +159,7 @@ def part_api(run, c):
     for path in gets:
         took, r, err = timed(c, 'GET', BASE + path)
         run.ok('api', f'GET {path}', r is not None and r.status_code == 200, err or getattr(r, 'status_code', ''), took)
-        run.ok('api', f'time {path}', took <= API_S, f'{took}s', took)
+        run.ok('api', f'time {path}', took <= API_S, f'{took}s ({edge(r)})', took)
     templates = []
     try:
         _, r, _ = timed(c, 'GET', BASE + '/api/workflows/templates')
