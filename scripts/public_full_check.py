@@ -33,6 +33,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'logs/ops/public-full-check.jsonl'
 BASE = 'https://agentconcierge.biz'
 UA = 'agentcon-full-check/1 (site owner QA; contact@agentconcierge.biz)'
+QA_HEADER = {'X-Agentcon-QA': 'public_full_check'}  # 11-11: lets the error ledger set our own measurements apart
 GAP = 0.45          # seconds between requests: stay well under our own per-IP limits
 PAGE_S = 2.0        # page target (CLAUDE.md response-time policy)
 API_S = 3.0
@@ -52,7 +53,7 @@ WRITE_TOOLS = {'call', 'run_workflow', 'report', 'credit', 'subscribe', 'verify_
 
 
 def client():
-    return httpx.Client(timeout=30, headers={'User-Agent': UA}, follow_redirects=True, http2=False)
+    return httpx.Client(timeout=30, headers={'User-Agent': UA, **QA_HEADER}, follow_redirects=True, http2=False)
 
 
 def timed(c, method, url, **kw):
@@ -261,7 +262,8 @@ def part_browser(run):
     with sync_playwright() as p:
         browser = p.chromium.launch()
         for width, height in ((1280, 800), (375, 740)):
-            ctx = browser.new_context(viewport={'width': width, 'height': height}, user_agent=UA + ' Chromium')
+            ctx = browser.new_context(viewport={'width': width, 'height': height}, user_agent=UA + ' Chromium',
+                                      extra_http_headers=QA_HEADER)
             page = ctx.new_page()
             errors, failed = [], []
             page.on('console', lambda m: errors.append(m.text[:160]) if m.type == 'error' else None)

@@ -25,6 +25,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'logs/ops/user-slo.jsonl'
 BASE = 'https://agentconcierge.biz'
 UA = 'agentcon-user-slo/1 (site owner QA; contact@agentconcierge.biz)'
+QA_HEADER = {'X-Agentcon-QA': 'user_slo'}  # 11-11: lets the error ledger set our own measurements apart
 TOPICS = ['weather forecast', 'translate pdf', 'send email', 'crypto price', 'summarize video', 'book flights',
           'invoice ocr', 'github issues', 'stock quotes', 'calendar scheduling', 'web scraping', 'image generation',
           'speech to text', 'sql database', 'news headlines', 'legal contract review', 'recipe nutrition',
@@ -125,7 +126,7 @@ def check_pages(client):
 
 
 def main():
-    client = httpx.Client(timeout=30, headers={'User-Agent': UA}, follow_redirects=True)
+    client = httpx.Client(timeout=30, headers={'User-Agent': UA, **QA_HEADER}, follow_redirects=True)
     record = {'at': datetime.now().strftime('%Y-%m-%d %H:%M'), 'targets': TARGET}
     record['explore'] = check_explore(client)
     record['recommend'], record['connect'] = check_recommend_and_connect(client)

@@ -34,6 +34,7 @@ ROOT = Path(__file__).resolve().parents[1]
 TASKS = ROOT / 'tests/data/real_tasks_30.json'
 BASE = 'https://agentconcierge.biz'
 UA = 'agentconcierge-real-task-score/1.0'
+QA_HEADER = {'X-Agentcon-QA': 'real_task_score'}  # 11-11: lets the error ledger set our own measurements apart
 WRITE_WORDS = re.compile(r'(?i)(^|[_\-.])(create|delete|remove|update|write|send|post|put|patch|pay|transfer|buy|sell|'
                          r'order|book|submit|register|upload|publish|execute_trade|mint|deploy|drop|insert)([_\-.]|$)')
 STOP = set('a an the of for to and or with by from in on at is are be that this its it as into than up per'.split())
@@ -300,7 +301,7 @@ def main(argv=None):
         tasks = [t for t in tasks if t['id'] in keep]
     started = datetime.now(timezone.utc)
     rows = []
-    with httpx.Client(timeout=args.timeout, headers={'User-Agent': UA}, follow_redirects=False) as client:
+    with httpx.Client(timeout=args.timeout, headers={'User-Agent': UA, **QA_HEADER}, follow_redirects=False) as client:
         for task in tasks:
             t0 = time.monotonic()
             try:
