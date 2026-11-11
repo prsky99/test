@@ -52,6 +52,15 @@ TESTS = (
     'tests/test_prerendered_segmented.py',  # 11-11: protocol groups drawn by the server, Chat phone CLS 0
     # 11-12: discovery cards keep their public keys (usage_endpoint, tools_schema); ed37c569 dropped one.
     'tests/test_managed_agent_gateway.py::test_raw_discovery_json_and_text_hide_bindings_preserve_schema',
+    # 11-12 (PM): the other public contracts, about 41 s together: MCP tools/list and search/find_agents,
+    # A2A card and message/send, HTTP agent API, Explore API, well-known agent card, earlier QA contracts.
+    'tests/test_mcp_contract.py',
+    'tests/test_a2a.py',
+    'tests/test_agent_http_interoperability.py',
+    'tests/test_front_hybrid_discovery.py',
+    'tests/test_front_seo_and_agent_discovery.py',
+    'tests/test_qa10_contracts.py',
+    'tests/test_qa11_contracts.py',
     'tests/test_panels_split_browser.py::test_the_page_is_the_same_with_the_panels_in_a_shared_script[index.html]',
     'tests/test_critical_css_browser.py::test_first_screen_with_inline_css_alone_matches_the_full_css[1280-light]',
     'tests/test_critical_css_browser.py::test_first_screen_with_inline_css_alone_matches_the_full_css[375-light]',
