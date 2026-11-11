@@ -53,3 +53,11 @@ def test_each_page_is_fetched_on_its_own_connection_and_slow_ones_carry_the_floo
     slow = [f for f in run.failures if f['check'].startswith('time ')]
     assert Client.made == 1 + 4  # the shared client passed in, plus one per page
     assert len(slow) == 4 and all(f['ref']['edge_s'] == 1.4 for f in slow)  # still failures: the verdict is unchanged
+
+
+def test_sign_in_is_measured_at_both_addresses():
+    # 11-12 PM 08:3x: our links now go straight to /customer/sign-in (65d9a599). The old address keeps its 303
+    # for outside links and stays measured; its shortfall still counts. Both are first-visit page samples.
+    from scripts import public_full_check as check
+    assert '/new/en/sign-in.html' in check.NAV and '/customer/sign-in' in check.NAV
+    assert '/customer/sign-in' not in check.SLOW_OK and '/new/en/sign-in.html' not in check.SLOW_OK

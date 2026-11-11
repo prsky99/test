@@ -41,7 +41,9 @@ API_S = 3.0
 NAV = ['/', '/new/en/explore.html', '/new/en/chat.html', '/new/en/test.html', '/new/en/workflows.html',
        '/new/en/learn.html', '/new/en/agent-status.html', '/new/en/list-agent.html', '/new/en/about.html',
        '/new/en/privacy.html', '/new/en/terms.html', '/new/en/cookies.html', '/new/en/accessibility.html',
-       '/new/en/contact.html', '/new/en/disclosures.html', '/new/en/sign-in.html', '/connect', '/badges',
+       '/new/en/contact.html', '/new/en/disclosures.html', '/new/en/sign-in.html',
+       '/customer/sign-in',  # 11-12 PM: where our links now go; the old address above stays measured
+       '/connect', '/badges',
        '/agents/best', '/reports/state-of-ai-agents', '/llms.txt', '/llms-full.txt',
        '/skill.md', '/robots.txt', '/sitemap.xml', '/openapi.json']
 SLOW_OK = {'/sitemap.xml': 5.0, '/llms-full.txt': 4.0}  # large machine files, not pages a person waits on
