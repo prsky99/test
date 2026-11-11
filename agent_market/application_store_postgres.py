@@ -64,7 +64,15 @@ def _normalized(sql):
 _STATEMENTS = {_normalized(item['sqlite']): item for item in _CATALOG['statements']}
 
 
-def _invariant_ddl(namespace='public'):
+# 11-11 (PM decision, user approval pending): a health change no longer invalidates a listing's vector.
+# Search filters health at query time, yet every health flap re-queued the same text (3,643 of 6,585
+# listings re-indexed in one hour had their previous text) and rewrote the vector. While the database
+# changes, attachment accepts both bodies of application_vector_invalidate; installs keep the old one
+# until the operating database runs the new one (scripts.vector_invalidate_health).
+VECTOR_HEALTH_DEFAULT = True
+
+
+def _invariant_ddl(namespace='public', vector_health=None):
     if namespace != 'public' and not re.fullmatch(r'ac_b2a_[0-9a-f]{24}', namespace):
         raise ValueError('Invalid rehearsal namespace.')
     report_claims = ('public' if namespace == 'public' else '"'+namespace+'"') + '.test_report_subject_claims'
@@ -106,7 +114,9 @@ def _invariant_ddl(namespace='public'):
           RETURN NEW; END $$''')
     commands.append('''CREATE TRIGGER application_vector_enqueue AFTER INSERT OR UPDATE
         ON vec_outbox FOR EACH ROW EXECUTE FUNCTION application_vector_enqueue()''')
-    vector_fields = tuple(dict.fromkeys(FIELDS + ('health_status', 'eval_security')))
+    if vector_health is None:
+        vector_health = VECTOR_HEALTH_DEFAULT
+    vector_fields = tuple(dict.fromkeys(FIELDS + (('health_status', 'eval_security') if vector_health else ('eval_security',))))
     vector_changed = ' OR '.join('OLD."' + name + '" IS DISTINCT FROM NEW."' + name + '"' for name in vector_fields)
     commands.append('''CREATE FUNCTION application_vector_invalidate() RETURNS trigger LANGUAGE plpgsql AS $$
         BEGIN IF TG_OP='DELETE' THEN
@@ -518,6 +528,9 @@ class PostgresApplicationStore(PostgresCollectorMixin, PostgresFinanceMixin, Pos
         for sql in definitions:
             match = re.match(r'CREATE FUNCTION ([a-z_]+)\(\)', sql)
             if match: functions[match[1]] = sql.split('$$')[1]
+        accepted = {'application_vector_invalidate': {
+            next(sql.split('$$')[1] for sql in _invariant_ddl(self._schema_namespace(), vector_health=health)
+                 if sql.startswith('CREATE FUNCTION application_vector_invalidate()')) for health in (True, False)}}
         expected = {
             'application_catalog_epoch': ('resources_fts', 28),
             'application_observation_generation': ('resources', 21),
@@ -538,7 +551,8 @@ class PostgresApplicationStore(PostgresCollectorMixin, PostgresFinanceMixin, Pos
         if set(actual) != set(expected): raise ApplicationStoreError('schema_invariants_mismatch')
         for name, (table, events) in expected.items():
             row = actual.get(name)
-            if row != (name, table, events, 'O', name, functions[name], False, 'v', None, 'plpgsql', 0, True, '', False, False, self._schema_namespace()):
+            bodies = accepted.get(name, {functions[name]})
+            if row is None or row[5] not in bodies or row[:5] + row[6:] != (name, table, events, 'O', name, False, 'v', None, 'plpgsql', 0, True, '', False, False, self._schema_namespace()):
                 raise ApplicationStoreError('schema_invariants_mismatch')
 
     def _expected_columns(self, table):

@@ -14,6 +14,13 @@ from agent_market.gateway.crawler import Crawler
 from agent_market.gateway.store import Store
 from tests.test_gateway import BASE_USDC, x402_item
 
+
+@pytest.fixture(autouse=True)
+def _x402_collection_on(monkeypatch):
+    """These tests cover the x402 Bazaar crawl itself; production keeps it off (COLLECT_X402=0, 11-10)."""
+    monkeypatch.setenv('COLLECT_X402', '1')
+
+
 ACCEPTS = [{"scheme": "exact", "network": "eip155:8453", "amount": "7000", "asset": BASE_USDC, "payTo": "0x" + "cd" * 20}]
 
 

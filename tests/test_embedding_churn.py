@@ -289,3 +289,14 @@ def test_a_url_in_a_task_is_input_not_a_capability():
     from agent_market.concierge.fast_chat import retrieval_text
     text = retrieval_text('Read this page and give me the main text: https://www.anthropic.com/news')
     assert 'anthropic' not in text and 'web page' in text
+
+
+def test_the_crawler_skips_x402_unless_collection_is_switched_on(monkeypatch, tmp_path):
+    """11-10 decision: x402 is not collected until paid tests are possible (COLLECT_X402=0 by default)."""
+    from agent_market.gateway.crawler import Crawler
+    store = Store(str(tmp_path / 'crawl.sqlite3'))
+    monkeypatch.delenv('COLLECT_X402', raising=False)
+    assert 'x402-bazaar' not in Crawler(store).sources
+    monkeypatch.setenv('COLLECT_X402', '1')
+    assert 'x402-bazaar' in Crawler(store).sources
+    assert Crawler(store, sources=('x402-bazaar',)).sources == ('x402-bazaar',)

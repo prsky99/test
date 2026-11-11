@@ -8,6 +8,7 @@
 """
 
 import logging
+import os
 import threading
 import time
 from datetime import datetime, timezone
@@ -190,6 +191,10 @@ def parse_a2a_item(item: dict) -> dict | None:
     }
 
 
+def collect_x402() -> bool:
+    return os.environ.get("COLLECT_X402", "0") == "1"
+
+
 class Crawler:
     """레지스트리를 한 바퀴씩 수집한다. 수집 에이전트는 한 바퀴가 끝나면 바로 다음 바퀴를 시작한다.
 
@@ -210,7 +215,7 @@ class Crawler:
                  full_interval: float = 86400, should_stop=None,
                  incremental_x402_max_pages: int = 10, incremental_mcp_max_pages: int = 25,
                  incremental_a2a_max_pages: int = 5,
-                 sources: tuple[str, ...] = ("x402-bazaar", "mcp-registry", "a2a-registry")):
+                 sources: tuple[str, ...] | None = None):
         self.store = store
         self._fixed_http = http  # 없으면 바퀴마다 새 연결을 만든다 (오래된 연결이 망가지는 것 방지)
         self.http = http
@@ -220,6 +225,10 @@ class Crawler:
         self.incremental_x402_max_pages = incremental_x402_max_pages
         self.incremental_mcp_max_pages = incremental_mcp_max_pages
         self.incremental_a2a_max_pages = incremental_a2a_max_pages
+        if sources is None:
+            # x402 수집은 실제 결제 시험이 가능할 때까지 멈춘다(사용자 결정 11-10, COLLECT_X402=0이 기본).
+            # 11-11까지 이 값을 읽는 코드가 없어 x402-bazaar를 계속 훑었다.
+            sources = ("x402-bazaar", "mcp-registry", "a2a-registry") if collect_x402() else ("mcp-registry", "a2a-registry")
         self.sources = sources
         self.retry_delay = 2.0
         self.should_stop = should_stop or (lambda: False)
