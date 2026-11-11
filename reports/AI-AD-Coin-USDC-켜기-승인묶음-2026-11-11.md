@@ -9,7 +9,7 @@
 | 3 | 노출 집계 표 | `ad_coin_v2.adc2_sponsored_impressions`(`migrate-impressions`, 같은 절차) | 운영 DB | `DROP TABLE IF EXISTS ad_coin_v2.adc2_sponsored_impressions` |
 | 4 | 약관 9항 | `reports/AI-AD-Coin-USDC-유료예약-설계-2026-11-11.md` 6절의 영어 문구 | 광고주 약관(공개 화면) | 문구 내리기 |
 | 5 | 처리방침 결제 기록 조항 | 아래 영어 초안 | `/new/en/privacy.html`(공개) | 문구 내리기 |
-| 6 | OFAC 목록 | 공개 OFAC SDN 가상자산 주소를 `gateway-data/ofac/eth_addresses.txt`에 받는다. 8일 넘게 오래되면 결제를 확정하지 않고 검토로 보낸다 | 파일 하나(git 제외) | 파일 지우기(그러면 모든 결제가 검토로 감) |
+| 6 | OFAC 목록 | 공개 OFAC SDN 목록(Sanctions List Service SDN.CSV, 무료·키 없음)에서 EVM 형식 가상자산 주소를 `gateway-data/ofac/eth_addresses.txt`에 받는다: `.venv/bin/python -m scripts.ad_coin_ofac_refresh`. 11-11 12:16 첫 실행 94개(ETH 91·USDT 6·USDC 2·ETC 1, 중복 제거). 50개 미만이거나 20% 넘게 줄면 덮어쓰지 않는다. 매일 돌리는 예약은 운영·SRE에 요청. 8일 넘게 오래되면 결제를 확정하지 않고 검토로 보낸다 | 파일 하나(git 제외) | 파일 지우기(그러면 모든 결제가 검토로 감) |
 | 7 | 데몬 재설치 | 확정 대기 재확인, 기한 만료, 정산, 보고서 발행 | launchd adcoin-worker | 이전 버전 폴더로 재설치 |
 | 8 | 스위치 켜기 | `AD_COIN_PAID_BOOKING_ENABLED=1`, 가격은 기본 5 USDC | agentcon.env | 0으로 |
 
