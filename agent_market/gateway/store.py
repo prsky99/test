@@ -593,7 +593,12 @@ def _activity_only(stored, values) -> bool:
     return True
 
 
+CAP_BATCH = 1000           # ids one capability-survey ranking hands out (11-11)
+CAP_BATCH_SECONDS = 300    # a batch older than this is dropped and ranked again
+
+
 class Store:
+    _cap_batch_lock = threading.Lock()
     # Legacy tx/query borrowers remain unguarded until observation setup is explicit.
     _observation_context = None
 
@@ -1803,18 +1808,41 @@ class Store:
         # Rank only narrow columns, then read the chosen rows. Sorting whole rows (106k A2A
         # listings, ~2.7 KB each) spilled ~180 MB to disk and passed the 5 s statement timeout
         # under load (11-10 13:28); the narrow ranking stays in memory (601 -> 310 ms).
-        chosen = self.query(
-            """SELECT id FROM (
-                 SELECT id, cap_checked_at, ROW_NUMBER() OVER (PARTITION BY host ORDER BY cap_checked_at IS NOT NULL, cap_checked_at) AS rn
-                 FROM resources WHERE active=1 AND kind=? AND health_status='healthy'
-                 AND (cap_checked_at IS NULL OR cap_checked_at < ?))
-               WHERE rn <= ? ORDER BY cap_checked_at IS NOT NULL, cap_checked_at, random() LIMIT ?""",
-            (kind, now - max_age, per_host, limit))
+        # 11-11: the ranking still touched ~104k blocks per call and ran 23 times a minute (35% of a
+        # core on one connection) while each call used a handful of rows. One ranking now fills a batch
+        # of CAP_BATCH ids that later calls take from, until it is empty or CAP_BATCH_SECONDS old. Ids
+        # are taken under a lock, so one process never hands the same id out twice; only the jobs
+        # collector calls this, one process at a time. Each taken row is read again and skipped unless
+        # it is still due.
+        cutoff = now - max_age
+        key = (kind, per_host)
         rows = []
-        for row in chosen:
-            found = self.query("SELECT * FROM resources WHERE id=?", (row["id"],))
-            if found:
-                rows.append(dict(found[0]))
+        batches = self.__dict__.setdefault('_cap_batches', {})
+        with Store._cap_batch_lock:
+            batch = batches.get(key)
+            fresh = False
+            while True:
+                if batch is None or now - batch[0] > CAP_BATCH_SECONDS or not batch[1]:
+                    if fresh:
+                        break   # ranked during this call and nothing left: no due listing
+                    chosen = self.query(
+                        """SELECT id FROM (
+                             SELECT id, cap_checked_at, ROW_NUMBER() OVER (PARTITION BY host ORDER BY cap_checked_at IS NOT NULL, cap_checked_at) AS rn
+                             FROM resources WHERE active=1 AND kind=? AND health_status='healthy'
+                             AND (cap_checked_at IS NULL OR cap_checked_at < ?))
+                           WHERE rn <= ? ORDER BY cap_checked_at IS NOT NULL, cap_checked_at, random() LIMIT ?""",
+                        (kind, cutoff, per_host, max(limit, CAP_BATCH)))
+                    batch, fresh = (now, [row["id"] for row in chosen]), True
+                    batches[key] = batch
+                while batch[1] and len(rows) < limit:
+                    found = self.query("SELECT * FROM resources WHERE id=?", (batch[1].pop(0),))
+                    row = dict(found[0]) if found else None
+                    checked = row.get("cap_checked_at") if row else None
+                    if (row and row.get("active") == 1 and row.get("kind") == kind and row.get("health_status") == "healthy"
+                            and (checked is None or checked < cutoff)):
+                        rows.append(row)
+                if rows or batch[1]:
+                    break   # served, or the batch still holds ids for the next call
         return rows
 
     def record_capability(self, rid: int, caps: dict | None, error: str | None = None) -> None:

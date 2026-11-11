@@ -87,3 +87,25 @@ def test_read_transactions_reuse_a_passing_gate_check_and_writes_always_check():
                 assert tuple(store._execute("SELECT current_setting('transaction_read_only'), current_setting('statement_timeout')").fetchone()) == ('on', '5s')
             assert len(checks) == 3
             store.close()
+
+
+def test_due_pick_ranks_once_per_batch_hands_out_each_id_once_and_expires(tmp_path, monkeypatch):
+    """11-11: the ranking touched ~104k blocks per call, 23 calls a minute, for a few rows each."""
+    from agent_market.gateway import store as module
+    monkeypatch.setattr(module, 'CAP_BATCH', 6)
+    store = Store(str(tmp_path / 'batch.sqlite3'))
+    ids = [store.upsert_resource(_agent(n, f'h{n % 4}.example'), now=10) for n in range(12)]
+    _healthy(store, ids)
+    ranked = []
+    real = store.query
+    monkeypatch.setattr(store, 'query', lambda sql, params=(): (ranked.append(1) if 'ROW_NUMBER' in sql else None) or real(sql, params))
+    first = store.due_for_capability(1000.0, 100.0, 2, per_host=2, kind='a2a')
+    second = store.due_for_capability(1010.0, 100.0, 2, per_host=2, kind='a2a')
+    assert len(ranked) == 1 and len(first) == len(second) == 2
+    assert not {r['id'] for r in first} & {r['id'] for r in second}          # never handed out twice
+    with store.tx() as db:                                                      # surveyed meanwhile: skipped
+        db.execute("UPDATE resources SET cap_checked_at=1015 WHERE id IN (SELECT id FROM resources ORDER BY id)")
+    assert store.due_for_capability(1020.0, 100.0, 2, per_host=2, kind='a2a') == []
+    _healthy(store, ids)
+    store.due_for_capability(1020.0 + module.CAP_BATCH_SECONDS + 1, 100.0, 2, per_host=2, kind='a2a')
+    assert len(ranked) == 3                                                     # empty batch, then expiry: ranked again
