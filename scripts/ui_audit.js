@@ -37,6 +37,12 @@
     } };
     walk(rules);
   }
+  // selectors whose rules set a horizontal margin to auto (free space, not a spacing value)
+  const autoSelectors = [];
+  for (const sheet of document.styleSheets) { let rules; try { rules = sheet.cssRules; } catch (e) { continue; }
+    const walk = list => { for (const rule of list) { if (rule.cssRules) walk(rule.cssRules);
+      if (rule.style && /auto/.test(rule.style.marginLeft + rule.style.marginRight + rule.style.margin + rule.style.marginInline)) autoSelectors.push(rule.selectorText); } };
+    walk(rules); }
   const spacing = [];
   for (const el of all) {
     const s = getComputedStyle(el);
@@ -45,7 +51,7 @@
       const v = s.getPropertyValue(prop);
       if (!v.endsWith('px')) continue;
       const n = Math.round(Math.abs(parseFloat(v)) * 100) / 100;
-      const autoMargin = /margin-(left|right)/.test(prop) && n > 48;   // auto margins resolve to leftover space
+      const autoMargin = /margin-(left|right)/.test(prop) && (n > 48 || autoSelectors.some(sel => { try { return el.matches(sel); } catch (e) { return false; } }));
       if (n && !allowed.has(n) && !autoMargin && !(prop.startsWith('margin-') && s.display === 'inline'))
         spacing.push(name(el) + ' ' + prop + ' ' + v);
     }
@@ -159,6 +165,16 @@
     }
   }
   out.misaligned = misaligned.length; out.misaligned_examples = misaligned.slice(0, 8);
+
+  // 6b. clipped text: a control whose label does not fit (e.g. the mobile header Account button, 11-11)
+  const clipped = interactive.filter(el => el.matches('.btn, button, a.btn') && (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1));
+  // a one-word label split over two lines (11-11 production: mobile header 'Accou / nt')
+  const brokenWord = el => [...el.childNodes].some(n => {
+    if (n.nodeType !== 3 || !/^\S+$/.test(n.textContent.trim())) return false;
+    const range = document.createRange(); range.selectNodeContents(n);
+    return new Set([...range.getClientRects()].filter(r => r.width > 0).map(r => Math.round(r.top))).size > 1; });
+  clipped.push(...interactive.filter(el => el.matches('.btn, button, a') && !clipped.includes(el) && brokenWord(el)));
+  out.clipped_text = clipped.length; out.clipped_examples = clipped.slice(0, 8).map(name);
 
   // 7. broken images
   out.broken_images = [...document.images].filter(i => visible(i) && i.complete && i.naturalWidth === 0).length;

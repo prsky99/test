@@ -283,6 +283,9 @@ def test_browser_stop_halts_collection_and_campaign_draft_is_usable(live):
         page.get_by_role("link", name="Advertising", exact=True).click()
         page.get_by_role("button", name="New campaign", exact=True).click()
         page.get_by_label("Campaign name", exact=True).fill("Browser campaign")
+        # 11-11: targeting is chosen on purpose (no preselected category or region)
+        page.locator("#campaign-category").select_option(index=1)
+        page.locator("#campaign-region").select_option(index=1)
         page.get_by_label("Advertisement text", exact=True).fill(
             "A focused research notebook for your next project."
         )
@@ -358,17 +361,17 @@ def test_browser_stop_halts_collection_and_campaign_draft_is_usable(live):
         switch("approver")
         before = int(suite.service.ledger.account(suite.available)["balance_atoms"])
         row.get_by_role("button", name="Review budget", exact=True).click()
-        expect(page.locator("#review-body")).to_contain_text("Total: 4 test credits")
+        expect(page.locator("#review-body")).to_contain_text("Total: 4 coins")
         page.get_by_role("button", name="Confirm", exact=True).click()
         expect(row.get_by_role("button", name="Activate", exact=True)).to_be_visible()
         row.get_by_role("button", name="Activate", exact=True).click()
-        expect(row).to_contain_text("active · approved")
+        expect(row).to_contain_text("Running")
         switch("editor")
         row.get_by_role("button", name="Pause", exact=True).click()
-        expect(row).to_contain_text("paused · approved")
+        expect(row).to_contain_text("Paused")
         switch("approver")
         row.get_by_role("button", name="Resume", exact=True).click()
-        expect(row).to_contain_text("active · approved")
+        expect(row).to_contain_text("Running")
         assert (
             int(suite.service.ledger.account(suite.available)["balance_atoms"])
             == before - 4000000

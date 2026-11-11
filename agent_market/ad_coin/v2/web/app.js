@@ -13,7 +13,7 @@
     state.epoch++;
     if (state.ad) {state.ad.stop=true;clearTimeout(state.ad.timer);}
     state.session=null;state.siteCsrf=null;state.pref=null;state.offer=null;state.ad=null;state.operation=null;cancelReview();
-    text('balance','—');text('connect','Open my workspace');text('account-state','Sign in again to continue.');
+    text('balance','—');text('connect','Open my workspace');text('account-state','Sign in to continue. Your workspace opens after you sign in.');$('sign-in').hidden=false;
     $('offer-card').hidden=true;$('creative-card').hidden=true;$('outcome').hidden=true;
     $('preferences-fields').disabled=true;$('receive-offers').checked=false;
     document.querySelectorAll('input[name=context]').forEach(node=>node.checked=false);
@@ -23,9 +23,9 @@
   }
   function message(error) {
     if (error.code==='points_short') return 'You do not have enough points for this exchange.';
-    if (error.code==='insufficient_balance') return 'This advertising account does not have enough test credits for the budget.';
+    if (error.code==='insufficient_balance') return 'This advertising account does not have enough coins for the budget.';
     if (error.code==='model_activation_disabled') return 'Campaign activation is not available right now.';
-    if (error.status===401) return 'Sign in to your account, then open this workspace again.';
+    if (error.status===401) return 'Sign in to your Agent Concierge account, then open your workspace.';
     if (error.status===403) return 'This action is not available for your account. Sign in again if your access changed.';
     if (error.status===409) return 'The conditions changed or this action has ended. Refresh and review the latest details.';
     if (error.status===429) return 'Your limit has been reached. Try again later or review your choices.';
@@ -126,11 +126,12 @@
     text('connect','Refresh workspace');
     text('balance',value.wallets.length?coins(value.wallets.reduce((sum,w)=>sum+BigInt(w.available_atoms),0n).toString()):'—');
     options('task-category',value.categories,v=>v.replaceAll('_',' '));
-    options('campaign-category',value.categories,v=>v.replaceAll('_',' '));
+    options('campaign-category',['',...value.categories],v=>v?v.replaceAll('_',' '):'Choose a task category');
     options('region',['',...value.regions],v=>v||'Choose a region');
-    options('campaign-region',value.regions);
+    options('campaign-region',['',...value.regions],v=>v||'Choose a region');
     options('language',value.languages,v=>({en:'English',ko:'Korean'})[v]||v);
-    options('advertiser',value.advertisers.map(a=>a.id),id=>value.advertisers.find(a=>a.id===id).label);
+    $('sign-in').hidden=true;
+    options('advertiser',value.advertisers.map(a=>a.id),id=>{const a=value.advertisers.find(x=>x.id===id);return a.label+(a.status==='active'?'':' · application under review');});
     if (!value.advertisers.length) options('advertiser',[''],()=> 'Advertising access is not enabled');
   }
   async function refreshWallet() {
@@ -168,7 +169,7 @@
     if (!operation.resource_id) {text('offer-status','Your request is being checked. Try again shortly.');return;}
     const {value}=await api('/offers/'+operation.resource_id);state.offer=value;
     text('offer-title',value.advertiser_name);text('offer-terms','Your reward: '+coins(value.user_reward_atoms)+' points.');
-    text('offer-expiry','Available until '+new Date(value.expires_at).toLocaleTimeString()+'. Points have no cash value.');
+    text('offer-expiry','Available until '+new Date(value.expires_at).toLocaleTimeString('en-US',{timeZone:'UTC',timeStyle:'short'})+' UTC'+'. Points have no cash value.');
     const split=[['Your reward',value.user_reward_atoms],['Agent operator',value.operator_reward_atoms],['Delivery expense',value.direct_cost_atoms],['Platform',value.platform_reward_atoms]];
     $('reward-split').replaceChildren(...split.flatMap(([label,amount])=>{const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=label;dd.textContent=coins(amount)+' points';return [dt,dd];}));
     $('offer-card').hidden=false;text('offer-status','Review the offer before allowing the advertisement.');
@@ -272,14 +273,14 @@
     for (const campaign of value.items) {
       const card=document.createElement('article');card.className='card';card.dataset.item='campaign';
       const title=document.createElement('h2');title.textContent=campaign.name;
-      const status=document.createElement('p');status.textContent=campaign.state.replaceAll('_',' ')+' · '+campaign.approval_status;
-      const amount=document.createElement('p');amount.textContent='Total budget '+coins(campaign.total_budget_atoms)+' · Daily '+coins(campaign.daily_budget_atoms)+' · Per view '+coins(campaign.gross_p1_atoms)+' points';
+      const status=document.createElement('p');status.textContent=({draft:'Draft · request a review when ready',in_review:'In review · we check the ad before it can run',eligible:campaign.approval_status==='approved'?'Ready · activate to start':'Passed review · approve the budget next',rejected:'Not approved · edit the ad and request a new review',active:'Running',paused:'Paused',suspended:'Suspended by Agent Concierge'})[campaign.state]||campaign.state;
+      const amount=document.createElement('p');amount.textContent='Budget '+coins(campaign.total_budget_atoms)+' coins · up to '+coins(campaign.daily_budget_atoms)+' a day · '+coins(campaign.gross_p1_atoms)+' points per view';
       const actions=document.createElement('div');actions.className='actions';card.append(title,status,amount,actions);
       const add=(label,action)=>{const b=document.createElement('button');b.type='button';b.className='btn';b.textContent=label;b.addEventListener('click',()=>run(b,action));actions.append(b);};
       if (['draft','rejected'].includes(campaign.state)&&adv.capabilities.includes('campaign.edit')) add('Request review',()=>campaignAction(campaign,'review-request'));
       if (campaign.state==='eligible'&&campaign.approval_status==='unapproved'&&adv.capabilities.includes('budget.approve')) add('Review budget',async()=>review('Approve this campaign budget?',[
-        campaign.name,'Total: '+coins(campaign.total_budget_atoms)+' test credits. Daily: '+coins(campaign.daily_budget_atoms)+' test credits.',
-        'Dates: '+new Date(campaign.starts_at).toLocaleString()+' to '+new Date(campaign.ends_at).toLocaleString()+'.',
+        campaign.name,'Total: '+coins(campaign.total_budget_atoms)+' coins. Daily: '+coins(campaign.daily_budget_atoms)+' coins.',
+        'Dates: '+new Date(campaign.starts_at).toLocaleString('en-US',{timeZone:'UTC',dateStyle:'medium',timeStyle:'short'})+' UTC'+' to '+new Date(campaign.ends_at).toLocaleString('en-US',{timeZone:'UTC',dateStyle:'medium',timeStyle:'short'})+' UTC'+'.',
         'This approval does not activate the campaign.'],()=>campaignAction(campaign,'approvals')));
       if (['eligible','paused'].includes(campaign.state)&&campaign.approval_status==='approved'&&adv.capabilities.includes('budget.approve')) add(campaign.state==='paused'?'Resume':'Activate',()=>campaignAction(campaign,'activation'));
       if (campaign.state==='active'&&adv.capabilities.includes('campaign.pause')) add('Pause',()=>campaignAction(campaign,'pause'));
@@ -287,7 +288,7 @@
       if (campaign.state==='in_review') {const note=document.createElement('p');note.textContent='Independent review is pending. Refresh to check for a decision.';card.append(note);}
       $('campaigns').append(card);
     }
-    if (!value.items.length&&!more) text('campaigns','No campaigns yet. Create a draft to begin.');
+    if (!value.items.length&&!more) {const p=document.createElement('p');p.textContent='No campaigns yet. Choose “New campaign” to write your first ad.';$('campaigns').replaceChildren(p);}
     $('more-campaigns').hidden=!state.cursor;
   }
   function utcDay(offset) {const d=new Date(Date.now()+offset*86400000);return d.toISOString().slice(0,10);}
@@ -295,7 +296,7 @@
     state.booking=campaign;text('booking-campaign',campaign.name);
     options('booking-category',state.session.categories,v=>v.replaceAll('_',' '));
     options('booking-region',state.session.regions);
-    options('booking-day',Array.from({length:30},(_,i)=>utcDay(i+1)),d=>new Date(d+'T00:00:00Z').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric',timeZone:'UTC'})+' (UTC)');
+    options('booking-day',Array.from({length:30},(_,i)=>utcDay(i+1)),d=>new Date(d+'T00:00:00Z').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',timeZone:'UTC'})+' (UTC)');
     $('booking-form').hidden=false;$('booking-day').focus();
   }
   function bookingLine(item) {
@@ -304,8 +305,15 @@
   async function loadBookings() {
     if (!account()) return;
     const adv=advertiser();if (!adv) {text('notice','Choose an advertising account first.');return;}
-    const {value}=await api('/advertisers/'+adv.id+'/sponsored-bookings');
+    const [{value},paid]=await Promise.all([api('/advertisers/'+adv.id+'/sponsored-bookings'),
+      api('/advertisers/'+adv.id+'/paid-bookings').then(r=>r.value.items).catch(()=>[])]);
     $('bookings').replaceChildren();
+    for (const item of paid.filter(i=>i.state!=='expired')) {
+      const row=document.createElement('div');row.className='row';const p=document.createElement('p');
+      p.textContent=new Date(item.day_ms).toISOString().slice(0,10)+' UTC · '+item.task_category.replaceAll('_',' ')+' · '+item.region+' · '+item.amount_usdc+' USDC · '+
+        ({quoted:'waiting for payment',confirming:'confirming on Base',confirmed:'paid',served:'shown',review:'payment under review',refund_due:'refund on the way',refunded:'refunded'})[item.state];
+      row.append(p);$('bookings').append(row);
+    }
     for (const item of value.items) {
       const row=document.createElement('div');row.className='row';const p=document.createElement('p');p.textContent=bookingLine(item);row.append(p);
       if (item.state==='booked'&&item.day_ms>Date.now()) {
@@ -316,7 +324,7 @@
       }
       $('bookings').append(row);
     }
-    if (!value.items.length) text('bookings','No Sponsored bookings yet.');
+    if (!value.items.length&&!paid.length) text('bookings','No Sponsored bookings yet.');
   }
   async function loadReports() {
     if (!account()) return;
@@ -332,13 +340,13 @@
           const dl=document.createElement('dl');dl.className='facts';
           const labels={valid_exposures:'Confirmed views',gross_ad_charge_atoms:'Advertising expense',user_rewards_atoms:'Viewer rewards',unique_owners:'Distinct viewers'};
           for (const metric of report.metrics) {const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=labels[metric.name]||metric.name.replaceAll('_',' ');
-            dd.textContent=metric.value===null?'Not available':metric.unit==='atoms'?coins(metric.value)+' test credits':metric.value;dl.append(dt,dd);}
+            dd.textContent=metric.value===null?'Not available':metric.unit==='atoms'?coins(metric.value)+' coins':metric.value;dl.append(dt,dd);}
           card.querySelector('dl')?.remove();card.append(dl);
         });card.append(button);
       }
       $('reports').append(card);
     }
-    if (!value.obligations.length) text('reports','Reports will appear here after a campaign is activated.');
+    if (!value.obligations.length) text('reports','No report yet. The first report appears after your campaign has run for a full day (UTC). Sponsored day bookings are listed under Advertising.');
   }
   async function loadExperiments() {
     if (!account()) return;
@@ -398,7 +406,7 @@
       ['Total Completions', f.total_completions],
       ['Multi-Stage Claims', f.stage_claims_count],
       ['Pacing Status', p.pacing_status],
-      ['Spend per hour', coins(p.spend_velocity_atoms_per_hour)+' test credits'],
+      ['Spend per hour', coins(p.spend_velocity_atoms_per_hour)+' coins'],
       ['Active Campaigns', p.active_campaigns_count],
     ];
     for (const [k, v] of items) {
@@ -434,7 +442,7 @@
   $('cancel-review').onclick=()=>{cancelReview();$('connect').focus();};
   $('stop-ad').onclick=()=>run($('stop-ad'),()=>closeAd(true),{quiet:true});
   $('check-outcome').onclick=()=>run($('check-outcome'),pollOutcome,{quiet:true});
-  $('load-campaigns').onclick=()=>run($('load-campaigns'),()=>loadCampaigns(false));
+  $('load-campaigns').onclick=()=>{if (pending()) return;run($('load-campaigns'),()=>loadCampaigns(false));};
   $('apply-form').addEventListener('submit',event=>{
     event.preventDefault();
     if (!account()) return;
@@ -443,7 +451,8 @@
     review('Send this advertiser application?',[body.display_name,body.listing_url,
       'We check that this listing is yours and active. You can create campaigns once the application is approved.'],async()=>{
       try {const {value}=await api('/advertiser-applications',{method:'POST',body});
-        text('apply-status',value.status==='approved'?'Your advertising account is open.':'Application received. We will review it before your account opens.');}
+        text('apply-status',value.status==='approved'?'Your advertising account is open.':'Application received. We check your listing and open your account after review. This page shows the status under Advertising account.');
+        $('apply-status').scrollIntoView({block:'center'});}
       catch (error) {if (error.status===422) {text('apply-status','Check the name and the listing page, then try again.');return;}
         if (error.status===429) {text('apply-status','You have reached the number of applications for now.');return;} throw error;}
       await connect();});
@@ -476,8 +485,8 @@
   }
   function showPayment(value) {
     state.payment=value;$('pay-card').hidden=false;
-    text('pay-amount',value.amount_usdc);text('pay-to',value.pay_to);text('pay-expiry',new Date(value.expires_ms).toLocaleTimeString());
-    text('pay-status',value.state==='confirmed'?'Payment confirmed. Your placement is booked.':value.state==='confirming'?'Payment found. Waiting for Base to confirm it; this usually takes under a minute.':value.state==='review'?'Payment received. We are checking it and will confirm the booking shortly.':'Waiting for your payment.');
+    text('pay-amount',value.amount_usdc);text('pay-to',value.pay_to);text('pay-expiry',new Date(value.expires_ms).toLocaleTimeString('en-US',{timeZone:'UTC',timeStyle:'short'})+' UTC');
+    text('pay-status',value.state==='confirmed'?'Payment confirmed. Your placement is booked.':value.state==='confirming'?'Waiting for this transaction to be confirmed on Base. This usually takes under a minute; this page updates when you check again.':value.state==='review'?'Payment received. We are checking it and will confirm the booking shortly.':'Waiting for your payment.');
     $('pay-title').focus?.();
   }
   $('pay-usdc').onclick=()=>run($('pay-usdc'),async()=>{
@@ -512,8 +521,9 @@
       await loadBookings();});
   });
   $('more-campaigns').onclick=()=>run($('more-campaigns'),()=>loadCampaigns(true));
-  $('show-create').onclick=()=>{if (!account()) return;if (!advertiser()?.capabilities.includes('campaign.edit')) {text('notice','Campaign editing is not enabled for this account.');return;}
-    $('campaign-form').hidden=false;$('campaign-start').value=new Date().toISOString().slice(0,16);$('campaign-end').value=new Date(Date.now()+86400000).toISOString().slice(0,16);$('campaign-name').focus();};
+  function pending() {const adv=advertiser();if (adv&&adv.status!=='active') {text('notice','Your advertiser application is under review. You can create campaigns as soon as it is approved.');$('notice').scrollIntoView({block:'center'});return true;}return false;}
+  $('show-create').onclick=()=>{if (!account()||pending()) return;if (!advertiser()?.capabilities.includes('campaign.edit')) {text('notice','Campaign editing is not enabled for this account.');return;}
+    $('campaign-form').hidden=false;$('campaign-start').value=new Date().toISOString().slice(0,16);$('campaign-end').value=new Date(Date.now()+31*86400000).toISOString().slice(0,16);$('campaign-name').focus();};
   $('cancel-create').onclick=()=>{$('campaign-form').hidden=true;};
   $('campaign-form').onsubmit=event=>{event.preventDefault();run(event.submitter,async()=>{const adv=advertiser();if (!adv) return;
     await api('/advertisers/'+adv.id+'/campaigns',{method:'POST',body:{name:$('campaign-name').value,asset_id:'model:aiac:v2',

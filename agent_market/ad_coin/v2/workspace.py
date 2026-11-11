@@ -57,11 +57,13 @@ def bootstrap(service, principal):
                 service.access.guards.current(key)
             except ContractError:
                 continue
+            row = store.one("advertiser_get", (key,))
             advertisers.append(
                 {
                     "id": key,
                     "label": "Advertising account " + str(len(advertisers) + 1),
                     "capabilities": caps,
+                    "status": row["status"] if row else "suspended",  # suspended = application pending
                 }
             )
         pref = store.one("preference_by_owner", (str(current.owner_id),))
