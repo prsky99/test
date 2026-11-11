@@ -198,3 +198,14 @@ def test_long_request_without_results_uses_one_grounded_summary(catalog):
 ])
 def test_finding_papers_normalizes_to_paper_search(task, paper_search):
     assert normalize_task(task).startswith('academic paper search for ') is paper_search
+
+
+def test_a_weather_alerts_request_admits_an_alerts_tool_that_names_weather_alerts():
+    """11-11 real task p12: get_alerts ("Get active NWS weather alerts for a US state") was refused
+    because its name lacks "weather"; a forecast-only or a non-weather alerts tool still is not one."""
+    from agent_market.concierge.task_capability import matches
+    alerts = {'name': 'get_alerts', 'description': 'Get active NWS weather alerts for a US state.'}
+    stock = {'name': 'get_alerts', 'description': 'Get price alerts for a stock ticker.'}
+    assert matches('weather alerts in California', alerts, 'mcp')
+    assert not matches('weather alerts in California', stock, 'mcp')
+    assert not matches('weather forecast for Seoul', alerts, 'mcp')  # not an alerts request

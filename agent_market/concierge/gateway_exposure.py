@@ -78,6 +78,64 @@ def _currency_mismatch(task, tool):
     return bool(asked) and not asked <= {pair.group(1), pair.group(2)}
 
 
+US_STATES = frozenset('''alabama alaska arizona arkansas california colorado connecticut delaware florida georgia
+    hawaii idaho illinois indiana iowa kansas kentucky louisiana maine maryland massachusetts michigan minnesota
+    mississippi missouri montana nebraska nevada ohio oklahoma oregon pennsylvania tennessee texas utah vermont
+    virginia washington wisconsin wyoming'''.split())
+PLACE_REGION = {'usa': 'us', 'america': 'us', 'american': 'us', 'nws': 'us', 'canada': 'ca', 'canadian': 'ca',
+                'norway': 'no', 'norwegian': 'no', 'uk': 'gb', 'britain': 'gb', 'british': 'gb', 'england': 'gb',
+                'london': 'gb', 'japan': 'jp', 'japanese': 'jp', 'tokyo': 'jp', 'korea': 'kr', 'korean': 'kr',
+                'seoul': 'kr', 'germany': 'de', 'german': 'de', 'berlin': 'de', 'france': 'fr', 'french': 'fr',
+                'paris': 'fr', 'australia': 'au', 'india': 'in', 'china': 'cn', 'chinese': 'cn', 'brazil': 'br',
+                'mexico': 'mx', 'spain': 'es', 'italy': 'it', 'netherlands': 'nl', 'sweden': 'se', 'finland': 'fi',
+                'denmark': 'dk', 'ireland': 'ie', 'singapore': 'sg', 'taiwan': 'tw'}
+PLACE_PAIRS = {'united states': 'us', 'new york': 'us', 'north carolina': 'us', 'south carolina': 'us',
+               'new jersey': 'us', 'new mexico': 'us', 'united kingdom': 'gb', 'south korea': 'kr'}
+COVERAGE = re.compile(r"\b(?:covers?|covering|only\s+(?:for|in)|limited\s+to|available\s+only\s+in|for\s+any)\s+"
+                      r"(?:the\s+)?([a-z]+(?:\s+[a-z]+)?)", re.I)
+
+
+def task_region(task):
+    """The one region a task names ('us' for a US state), or None when it names none or several."""
+    text = ' ' + str(task or '').lower() + ' '
+    found = {code for pair, code in PLACE_PAIRS.items() if ' ' + pair + ' ' in text}
+    for word in re.findall(r'[a-z]+', text):
+        if word in US_STATES:
+            found.add('us')
+        elif word in PLACE_REGION:
+            found.add(PLACE_REGION[word])
+    return found.pop() if len(found) == 1 else None
+
+
+def _coverage(text):
+    regions = set()
+    for match in COVERAGE.finditer(text):
+        phrase = match.group(1).lower()
+        for pair, code in PLACE_PAIRS.items():
+            if phrase.startswith(pair):
+                regions.add(code)
+        first = phrase.split()[0]
+        if first in PLACE_REGION:
+            regions.add(PLACE_REGION[first])
+        elif first in ('us', 'u.s'):
+            regions.add('us')
+    return regions
+
+
+def region_mismatch(task, item, descriptions=None, regions=None):
+    """True when the task names one region and the listing clearly serves another (11-11: MET Norway's
+    alerts led "weather alerts in California"). A listing without a stated region is not moved."""
+    wanted = task_region(task)
+    if not wanted or not isinstance(item, dict):
+        return False
+    chosen = (item.get('tools') or [''])[0] or ''
+    stated = {code for code in str(regions or '').strip(',').split(',') if code}
+    stated |= _coverage(str((descriptions or {}).get(chosen) or ''))
+    if not stated or stated & {'global', 'world', 'worldwide', wanted}:
+        return False
+    return True
+
+
 def wrong_direction(task, item, descriptions=None):
     """True when the selected tool does the task the other way round."""
     if not isinstance(item, dict) or not isinstance(task, str):
@@ -165,7 +223,7 @@ class ExposedFirstRecommender:
                 if note is not None:
                     item['access_note'] = note
                 item['task_standing'] = score
-                if wrong_direction(task, item, texts):
+                if wrong_direction(task, item, texts) or region_mismatch(task, item, texts, self.regions(item)):
                     item['task_standing'] = min(score, -1)
                     item['direction_mismatch'] = True
             ranked = sorted(ranked, key=order_key)
@@ -183,6 +241,10 @@ class ExposedFirstRecommender:
         """False only for an MCP server whose gateway tools/list would be empty."""
         facts = self._facts(item)
         return True if facts is None else facts[0]
+
+    def regions(self, item):
+        facts = self._facts(item)
+        return None if facts is None or len(facts) < 3 else facts[2]
 
     def tool_texts(self, item):
         """Full descriptions of the server's tools by name (the recommendation shortens them), or None."""
@@ -206,7 +268,8 @@ class ExposedFirstRecommender:
             specs = tools_for(resource) if resource else []
             value = (bool(resource) and any(safe_registered_tool(spec) for spec in specs),
                      {str(spec.get('name')): str(spec.get('description') or '')[:4000]
-                      for spec in specs if isinstance(spec, dict)})
+                      for spec in specs if isinstance(spec, dict)},
+                     str((resource or {}).get('regions') or ''))
         except Exception:
             return None  # an unreadable row is judged by the recommender as before
         with self._lock:

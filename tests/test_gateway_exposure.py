@@ -176,3 +176,14 @@ def test_places_are_conditions_and_fixed_currency_pairs_must_match():
     assert wrong_direction(task, {'tools': ['convert_currency']}) is False
     assert wrong_direction('usd to ngn today', {'tools': ['usd_ngn_convert']}) is False
     assert wrong_direction('read a csv file', {'tools': ['csv_to_json']}) is False
+
+
+def test_a_listing_that_clearly_serves_another_region_follows_the_others():
+    """11-11 PM: MET Norway's alerts led "weather alerts in California"; a listing without a stated region stays."""
+    from agent_market.concierge.gateway_exposure import region_mismatch, task_region
+    assert task_region('weather alerts in California') == 'us' and task_region('pdf to text') is None
+    norway = {'get_weather_alerts': 'Official danger warnings from MET Norway. Covers Norway and its waters.'}
+    assert region_mismatch('weather alerts in California', {'tools': ['get_weather_alerts']}, norway, '')
+    assert not region_mismatch('weather alerts in California', {'tools': ['weather_alerts']}, {}, ',us,')
+    assert not region_mismatch('weather alerts in California', {'tools': ['get_alerts']}, {'get_alerts': 'Get alerts'}, '')
+    assert region_mismatch('weather alerts in California', {'tools': ['alerts']}, {}, ',ca,')

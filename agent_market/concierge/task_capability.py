@@ -78,7 +78,12 @@ def matches(task,tool,kind,resource=None):
                 and re.search(r'\b(?:find|search|list|discover|recommend)\w*\s+(?:(?:a|an|the|available|matching|weather|forecast|specialist|best|mcp|a2a)\s+){0,5}(?:agents?|providers?|listings?|endpoints?|tools?)\b', purpose)):
             return False
         if re.search(r'\b(?:tools?|catalog|directory|park status)\b',text)and not re.search(r'\b(?:catalog|directory|tools?)\b',request):return False
-        if not re.search(r'\b(?:weather|forecast|temperature)\b',name)and not re.search(r'\b(?:get|fetch|return|provide|retrieve|check)\w*\s+(?:(?:the|current|local|daily|hourly|live|a|an)\s+){0,3}(?:weather|forecast|temperature)\b',purpose):return False
+        # A weather-alerts request is served by an alerts tool whose own purpose names weather alerts
+        # ("get_alerts: Get active NWS weather alerts for a US state", 11-11 real task p12).
+        alerts_tool = (re.search(r'\b(?:alerts?|warnings?|watches)\b', request)
+                       and re.search(r'\b(?:alerts?|warnings?)\b', name)
+                       and re.search(r'\bweather\s+(?:alerts?|warnings?|watches)\b', purpose))
+        if not alerts_tool and not re.search(r'\b(?:weather|forecast|temperature)\b',name)and not re.search(r'\b(?:get|fetch|return|provide|retrieve|check)\w*\s+(?:(?:the|current|local|daily|hourly|live|a|an)\s+){0,3}(?:weather|forecast|temperature)\b',purpose):return False
         domains=(r'\b(?:ski|skiing|snowboard)\b',r'\b(?:camper|camping)\b',
                  r'\b(?:construction|roofing|painting|remodeling)\b')
         for domain in domains[:2]:
