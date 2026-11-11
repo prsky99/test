@@ -111,6 +111,15 @@ def router_for(
                 reason_code=body.get("reason_code")))
         return await respond(call)
 
+    @router.get("/advertisers/{advertiser_id}/history")
+    async def advertiser_history(advertiser_id: str, request: Request):
+        from .advertiser_history import history
+
+        async def call():
+            ctx = await get_admin_context(request)
+            return await run_in_threadpool(history, commercial, ctx.principal, advertiser_id)
+        return await respond(call)
+
     @router.get("/reconcile")
     async def reconcile_full(request: Request):
         """Run complete double-entry ledger, campaign budget, and wallet reconciliation."""

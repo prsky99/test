@@ -22,7 +22,7 @@
 </header>
 <div class="container ws-layout">
 <aside class="ws-sidebar" aria-label="AI AD Coin v2 운영 메뉴"><p class="caption">AI AD Coin v2 운영</p><div class="row"><span class="badge warning">운영자 전용 · 읽기 전용</span></div><hr class="divider"><nav aria-label="운영 화면">
-<a class="side-item active" href="#holdings" aria-current="page">@@home@@보유량</a><a class="side-item" href="#reconcile">@@receipt@@원장 대사</a><a class="side-item" href="#applications">@@home@@광고주 신청</a><a class="side-item" href="#reviews">@@receipt@@캠페인 심사</a><a class="side-item" href="#paid">@@receipt@@USDC 결제</a>
+<a class="side-item active" href="#holdings" aria-current="page">@@home@@보유량</a><a class="side-item" href="#reconcile">@@receipt@@원장 대사</a><a class="side-item" href="#applications">@@home@@광고주 신청</a><a class="side-item" href="#reviews">@@receipt@@캠페인 심사</a><a class="side-item" href="#paid">@@receipt@@USDC 결제</a><a class="side-item" href="#one">@@home@@광고주 한 명 보기</a>
 </nav></aside>
 <main class="ws-main" id="main">
 <div class="page-heading"><div><p class="eyebrow">AI AD Coin · 운영</p><h1>코인 보유량과 대사</h1>
@@ -75,6 +75,14 @@
 <div class="actions"><button id="export-paid" type="button" class="btn">CSV 받기</button></div>
 <div id="paid-list" class="stack" aria-live="polite"></div>
 <p id="paid-status" role="status" aria-live="polite"></p>
+</section>
+<section class="card" id="one" aria-labelledby="one-h">
+<h2 id="one-h">광고주 한 명 보기</h2>
+<p>광고주가 메일에 적어 보낸 광고주 ID로 신청, 캠페인, 코인 예약, USDC 결제, 환불 이력을 한 곳에서 봅니다. 읽기 전용입니다.</p>
+<div class="grid"><label class="field">광고주 ID<input id="one-id" maxlength="36" autocomplete="off" spellcheck="false"></label></div>
+<div class="actions"><button id="load-one" type="button" class="btn">이력 불러오기</button></div>
+<div id="one-list" class="stack" aria-live="polite"></div>
+<p id="one-status" role="status" aria-live="polite"></p>
 </section>
 </main>
 </div>

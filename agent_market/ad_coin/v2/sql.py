@@ -222,6 +222,8 @@ SQL.update(
         "reviewer_credential_revoke": "UPDATE adc2_reviewer_credentials SET revoked_at=? WHERE token_hash=? AND revoked_at IS NULL",
         "principal_epoch_bump": "UPDATE adc2_principals SET epoch=epoch+1 WHERE id=? RETURNING epoch",
         "audit_log_insert": "INSERT INTO adc2_audit_log VALUES (?,?,?,?,?,?,?,?,?,?)",
+        "audit_for_target": "SELECT event_type,status,timestamp_ms,details_json FROM adc2_audit_log WHERE target_id=? ORDER BY timestamp_ms LIMIT 100",
+        "paid_bookings_table": "SELECT to_regclass('adc2_paid_bookings') IS NOT NULL AS present",
         "audit_by_target_event": "SELECT * FROM adc2_audit_log WHERE target_id=? AND event_type=? ORDER BY timestamp_ms DESC LIMIT 1",
         "applications_by_person": "SELECT COUNT(*) AS n FROM adc2_audit_log WHERE actor_principal_id=? AND event_type=?",
         "advertisers_suspended": "SELECT id,status FROM adc2_advertisers WHERE status='suspended' AND id<>? ORDER BY id LIMIT ?",

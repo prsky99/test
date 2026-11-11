@@ -133,6 +133,7 @@
     $('sign-in').hidden=true;
     options('advertiser',value.advertisers.map(a=>a.id),id=>{const a=value.advertisers.find(x=>x.id===id);return a.label+(a.status==='active'?'':' · application under review');});
     if (!value.advertisers.length) options('advertiser',[''],()=> 'Advertising access is not enabled');
+    showAdvertiserId();
   }
   async function refreshWallet() {
     if (!account()) return;
@@ -316,6 +317,8 @@
     }
     for (const item of value.items) {
       const row=document.createElement('div');row.className='row';const p=document.createElement('p');p.textContent=bookingLine(item);row.append(p);
+      const copy=document.createElement('button');copy.type='button';copy.className='btn';copy.textContent='Copy booking ID';
+      copy.addEventListener('click',()=>navigator.clipboard?.writeText(item.id).then(()=>text('notice','Booking ID copied.')));row.append(copy);
       if (item.state==='booked'&&item.day_ms>Date.now()) {
         const b=document.createElement('button');b.type='button';b.className='btn';b.textContent='Cancel booking';
         b.addEventListener('click',()=>review('Cancel this booking?',[bookingLine(item),'All coins for this booking return to your balance.'],async()=>{
@@ -505,6 +508,21 @@
       catch (error) {if (error.status) {text('pay-status',payMessage(error));return;} throw error;}
     });
   });
+  function showAdvertiserId() {const adv=advertiser();text('advertiser-id',adv?adv.id:'—');}
+  $('advertiser').addEventListener('change',showAdvertiserId);
+  $('copy-advertiser-id').onclick=()=>{const adv=advertiser();if (adv) navigator.clipboard?.writeText(adv.id).then(()=>text('notice','Advertiser ID copied.'));};
+  function seenUpdates() {try {return new Set(JSON.parse(localStorage.getItem('adcoin-updates-seen')||'[]'));} catch {return new Set();}}
+  async function loadUpdates() {
+    if (!account()) return;
+    const adv=advertiser();if (!adv) {text('notice','Apply as an advertiser first; updates about your application appear here.');return;}
+    const {value}=await api('/advertisers/'+adv.id+'/updates');
+    const seen=seenUpdates();
+    $('updates').replaceChildren(...value.items.map(item=>{const li=document.createElement('li');
+      li.textContent=(seen.has(item.key)?'':'New · ')+item.text+(item.at_ms?' · '+new Date(item.at_ms).toLocaleString('en-US',{timeZone:'UTC',dateStyle:'medium',timeStyle:'short'})+' UTC':'');return li;}));
+    if (!value.items.length) {const li=document.createElement('li');li.textContent='No updates yet.';$('updates').replaceChildren(li);}
+    try {localStorage.setItem('adcoin-updates-seen',JSON.stringify([...seen,...value.items.map(i=>i.key)].slice(-500)));} catch {}
+  }
+  $('load-updates').onclick=()=>run($('load-updates'),loadUpdates);
   $('load-bookings').onclick=()=>run($('load-bookings'),loadBookings);
   $('cancel-booking-form').onclick=()=>{$('booking-form').hidden=true;state.booking=null;};
   $('booking-form').addEventListener('submit',event=>{

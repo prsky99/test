@@ -161,3 +161,29 @@ def test_step2_rejected_application_stays_suspended(site):  # noqa: F811
     assert rejected.status_code == 200 and rejected.json()['status'] == 'rejected'
     assert site.store.one('advertiser_get', (applied['application_id'],))['status'] == 'suspended'
     assert site.post(path, json={'approve': True}, headers=op_write).status_code == 409
+
+
+def test_ids_updates_and_operator_history_without_new_tables(site):  # noqa: F811
+    """PM 11-11 ①②④: copyable IDs, the advertiser's updates inbox and the operator's one-advertiser view."""
+    applicant = site.identity.sign_in('cu_' + '5' * 32)
+    site.get('/ad-coin/v2/ui/session', headers=headers(applicant))
+    write = headers(applicant, **{'X-CSRF-Token': site.identity.csrf(applicant)})
+    application = site.post('/api/ad-coin/v2/advertiser-applications', headers=write, json={
+        'display_name': 'History Co', 'listing_url': 'https://agentconcierge.biz/new/en/agent.html?id=h'}).json()['application_id']
+    session = site.get('/ad-coin/v2/ui/session', headers=headers(applicant)).json()
+    assert [(a['id'], a['status']) for a in session['advertisers']] == [(application, 'suspended')]   # pending, with its ID
+    op = _operator(site, 'cu_' + '6' * 32)
+    site.post('/api/ad-coin/v2/admin/applications/' + application + '/decision', json={'approve': True},
+              headers=headers(op, **{'X-CSRF-Token': site.identity.csrf(op)}))
+    inbox = site.get('/api/ad-coin/v2/advertisers/' + application + '/updates', headers=headers(applicant))
+    assert inbox.status_code == 200, inbox.text
+    assert [i['text'] for i in inbox.json()['items'] if i['kind'] == 'application'][0].startswith('Application approved')
+    history = site.get('/api/ad-coin/v2/admin/advertisers/' + application + '/history', headers=headers(op))
+    assert history.status_code == 200 and history.json()['status'] == 'active'
+    assert {'advertiser_applied', 'advertiser_approved'} <= {e['event'] for e in history.json()['events']}
+    assert history.json()['paid_bookings'] == []                       # no paid table yet: an empty list, not an error
+    assert site.get('/api/ad-coin/v2/admin/advertisers/' + application + '/history',
+                    headers=headers(applicant)).status_code == 403
+    other = site.identity.sign_in('cu_' + '4' * 32)
+    site.get('/ad-coin/v2/ui/session', headers=headers(other))
+    assert site.get('/api/ad-coin/v2/advertisers/' + application + '/updates', headers=headers(other)).status_code == 403

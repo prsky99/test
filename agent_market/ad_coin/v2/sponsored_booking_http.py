@@ -82,6 +82,16 @@ def router_for(commercial, bookings, *, resolve_auth=None) -> APIRouter:
             return await run_in_threadpool(bookings.list, advertiser)
         return await respond(call)
 
+    @router.get("/advertisers/{advertiser_id}/updates")
+    async def updates(advertiser_id: str, request: Request):
+        from .advertiser_history import updates as advertiser_updates
+
+        async def call():
+            ctx = await context(request)
+            advertiser = await run_in_threadpool(advertiser_authority, ctx.principal, advertiser_id, "getCampaign")
+            return await run_in_threadpool(advertiser_updates, store, advertiser)
+        return await respond(call)
+
     @router.post(base + "/{booking_id}/cancel")
     async def cancel(advertiser_id: str, booking_id: str, request: Request):
         async def call():

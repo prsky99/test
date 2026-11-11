@@ -1750,6 +1750,10 @@
    "sha256": "ad0226dd5d101fbf35adee3163ece7ec6a5c513e10e429815eb446edcc682d19"
   },
   {
+   "sql": "SELECT event_type,status,timestamp_ms,details_json FROM adc2_audit_log WHERE target_id=? ORDER BY timestamp_ms LIMIT 100",
+   "sha256": "98b242ad652a94416cfb02af9dee72e5af8b5e4c73377e3fa33d7f267a71cda4"
+  },
+  {
    "sql": "SELECT evidence_json FROM adc2_stage_claims WHERE campaign_id=? AND stage_type='feedback' AND status='settled'",
    "sha256": "80dc14f008a8b7ef2fbc6d6942c8cb8439b48e44f5882942c1b9be6109965fa5"
   },
@@ -1912,6 +1916,10 @@
   {
    "sql": "SELECT task_ref FROM ad_coin_executions WHERE id=?",
    "sha256": "2d28d68ad7d2334fa87bf133276e831627d3164fc216b42cdd916c99eca3f1da"
+  },
+  {
+   "sql": "SELECT to_regclass('adc2_paid_bookings') IS NOT NULL AS present",
+   "sha256": "794298e78bcf1bf8bf20a9ead6e0c26b08ea8e01ee72cb51abe26239f25eff7c"
   },
   {
    "sql": "SELECT to_regclass('adc2_sponsored_impressions') IS NOT NULL AS present",

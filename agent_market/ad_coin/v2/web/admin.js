@@ -158,6 +158,27 @@
     if (!/^20[0-9]{2}-(0[1-9]|1[0-2])$/.test(month)) { text('paid-status', '월을 2026-11 형식으로 적으세요.'); return; }
     window.location.href = API + '/paid-bookings/export?month=' + month;
   });
+  const KO = {advertiser_applied: '신청', advertiser_approved: '승인', advertiser_rejected: '거절', coins_granted: '코인 지급',
+    sponsored_booked: '코인 예약', sponsored_refunded: '코인 환불'};
+  async function loadOne() {
+    const id = $('one-id').value.trim();
+    if (!/^[0-9a-f-]{36}$/i.test(id)) { text('one-status', '광고주 ID(36자)를 넣으세요.'); return; }
+    text('one-status', '불러오는 중입니다.');
+    try {
+      const h = await get('/advertisers/' + id + '/history');
+      const day = ms => new Date(ms).toISOString().slice(0, 10);
+      const block = (title, lines) => row([title, ...(lines.length ? lines : ['없음'])], []);
+      $('one-list').replaceChildren(
+        block('상태 ' + (h.status === 'active' ? '활성' : '정지·대기') + ' · 코인 잔액 ' + h.coin_balance, []),
+        block('기록(최근 90일)', h.events.map(e => new Date(e.at_ms).toLocaleString('ko-KR') + ' · ' + (KO[e.event] || e.event))),
+        block('캠페인', h.campaigns.map(c => c.name + ' · ' + c.state + ' · ' + c.approval)),
+        block('코인 예약', h.coin_bookings.map(b => day(b.day_ms) + ' · ' + b.category + '/' + b.region + ' · ' + b.coins + '코인 · ' + b.state + ' · ' + b.id)),
+        block('USDC 결제', h.paid_bookings.map(p => day(p.day_ms) + ' · ' + (Number(p.amount_units) / 1e6).toFixed(6) + ' USDC · ' + p.state +
+          (p.tx_hash ? ' · 거래 ' + p.tx_hash : '') + (p.refund_tx_hash ? ' · 환불 ' + p.refund_tx_hash : '') + ' · ' + p.id)));
+      text('one-status', '');
+    } catch (e) { text('one-status', e.status === 404 ? '그 ID의 광고주가 없습니다.' : reason(e.status)); }
+  }
+  $('load-one').addEventListener('click', loadOne);
   $('load-applications').addEventListener('click', loadApplications);
   $('load-reviews').addEventListener('click', loadReviews);
 })();
