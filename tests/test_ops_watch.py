@@ -36,6 +36,7 @@ def test_auto_watch_alerts_once_and_writes_handoff(tmp_path, monkeypatch):
     monkeypatch.setattr(ops_auto.ops_llm, 'ask', lambda *a, **k: None)  # no API in tests
     monkeypatch.setattr(ops_auto, 'error_ledger', lambda: None)  # tested in test_error_ledger.py
     monkeypatch.setattr(ops_auto, 'stability_gate', lambda: None)  # tested in test_stability_gate.py
+    monkeypatch.setattr(ops_auto, 'full_check', lambda: None)  # tested below
     ops_auto.watch()
     ops_auto.watch()  # same anomaly within 30 minutes: no second alert
     assert board.read_text().count('자동 점검') == 1
@@ -61,3 +62,41 @@ def test_board_handoff_refreshes_one_open_line_per_kind(tmp_path, monkeypatch):
     text = board.read_text()
     assert text.count('자동 점검 [lock]') == 2 and text.count('자동 점검 [site]') == 1
     assert text.rstrip().endswith('- x') and '## PM 결정 대기' in text
+
+
+def _board(tmp_path, monkeypatch):
+    from scripts import ops_auto
+    board = tmp_path / 'board.md'
+    board.write_text('## 넘기는 일\n| 보낸 팀 | 받는 팀 | 내용 | 상태 |\n|---|---|---|---|\n\n## PM 결정 대기\n')
+    monkeypatch.setattr(ops_auto, 'BOARD', board)
+    monkeypatch.setattr(ops_auto, 'ACTIONS', tmp_path / 'a.md')
+    return ops_auto, board
+
+
+def test_a_target_that_passes_closes_its_open_line(tmp_path, monkeypatch):
+    import subprocess
+    ops_auto, board = _board(tmp_path, monkeypatch)
+    ops_auto.board_handoff('slo_pages', 'pages slow')
+    ops_auto.board_handoff('slo_connect', 'connect unmeasured')
+    monkeypatch.setattr(ops_auto, 'SLO_STATE', tmp_path / 'slo.json')
+    record = '{"pages": {"ok": true, "samples": 3}, "connect": {"ok": false, "samples": 0}, "breaches": {}}'
+    monkeypatch.setattr(subprocess, 'run', lambda *a, **k: subprocess.CompletedProcess(a, 0, record + '\n', ''))
+    ops_auto.user_slo()
+    text = board.read_text()
+    assert '자동 점검 [slo_pages]' in text and '해결(자동' in text
+    assert [l for l in text.splitlines() if '[slo_connect]' in l][0].endswith('| 대기 |')   # not measured: stays open
+
+
+def test_full_check_runs_every_two_hours_and_records_a_deferral(tmp_path, monkeypatch):
+    ops_auto, board = _board(tmp_path, monkeypatch)
+    monkeypatch.setattr(ops_auto, 'FULL_CHECK_STATE', tmp_path / 'fc.json')
+    monkeypatch.setattr(ops_auto, 'busy', lambda: None)
+    launched = []
+    run = lambda t, free: ops_auto.full_check(clock=lambda: t, launch=lambda *a, **k: launched.append(a), free=free)
+    assert run(10_000, False) == 'deferred' and not launched
+    assert '자동 점검 [full_check_deferred]' in board.read_text()
+    assert run(10_600, False) == 'deferred' and board.read_text().count('[full_check_deferred]') == 1
+    assert run(11_200, True) == 'started' and 'scripts.heavy_slot' in launched[0][0]
+    assert '해결(자동' in board.read_text()
+    assert run(11_200 + 3600, True) is None                  # not yet two hours
+    assert run(11_200 + 7300, True) == 'started' and len(launched) == 2

@@ -93,6 +93,22 @@ def board_handoff(kind, text):
             rows[open_at] = row
         BOARD.write_text(head + marker + '\n'.join(rows) + '\n' + (sep + tail if sep else ''))
 
+
+def board_close(kind, note):
+    """Close the open '자동 점검 [kind]' line (status '대기' -> note). Returns True when a line was closed."""
+    if not BOARD.is_file():
+        return False
+    from heavy_slot import board_lock
+    with board_lock():
+        lines = BOARD.read_text().split('\n')
+        tag = f'| 자동 점검 [{kind}] |'
+        hit = [i for i, row in enumerate(lines) if row.startswith(tag) and row.rstrip().endswith('| 대기 |')]
+        for i in hit:
+            lines[i] = lines[i].rstrip()[:-len('| 대기 |')] + f'| {note} |'
+        if hit:
+            BOARD.write_text('\n'.join(lines))
+        return bool(hit)
+
 SLO_EVERY = 3600  # user-facing targets, measured from outside every hour (scripts/user_slo.py)
 SLO_STATE = ROOT / 'logs/ops/user-slo-state.json'
 
@@ -115,6 +131,12 @@ def user_slo():
         text = f'사용자 기준 목표 미달 [{kind}] ' + json.dumps(breach.get('bad'), ensure_ascii=False)[:110]
         TEAM[f'slo_{kind}'] = breach.get('team', '운영·SRE')
         board_handoff(f'slo_{kind}', text)
+    breaches = record.get('breaches') or {}
+    for kind, part in record.items():
+        # A target measured and met this hour closes its open line (11-11 PM); unmeasured ones stay open.
+        if (kind not in breaches and isinstance(part, dict) and part.get('ok') is True
+                and (part.get('samples') or 0) > 0):
+            board_close(f'slo_{kind}', f'해결(자동 {now()[11:]} 통과)')
     append(ACTIONS, f'{now()} user_slo: 미달 {",".join(record.get("breaches") or {}) or "없음"}')
 
 
@@ -234,6 +256,42 @@ def error_ledger(clock=time.time, launch=None):
 
 
 
+
+FULL_CHECK_STATE = ROOT / 'logs/ops/public-full-check-state.json'
+FULL_CHECK_EVERY = 7200   # 11-11 PM: every two hours
+FULL_CHECK_MINUTES = 15
+
+
+def full_check(clock=time.time, launch=None, free=None):
+    """Every two hours: run scripts/public_full_check.py through heavy_slot (it drives a browser).
+
+    When every heavy-work slot is taken the run is put off to the next watch (ten minutes later) and the board
+    gets one refreshed line saying so; the line closes when a run starts."""
+    state = json.loads(FULL_CHECK_STATE.read_text()) if FULL_CHECK_STATE.is_file() else {}
+    if clock() - state.get('started', 0) < FULL_CHECK_EVERY:
+        return None
+    reason = busy()
+    if free is None:
+        import heavy_slot
+        lines = heavy_slot.BOARD.read_text(encoding='utf-8').split('\n') if heavy_slot.BOARD.is_file() else []
+        live = [line for _, line, ok in heavy_slot.entries(lines) if ok]
+        free = len(live) < heavy_slot.slots()
+    if not free or reason:
+        why = reason or '무거운 작업 칸이 모두 참'
+        board_handoff('full_check_deferred', f'전수 점검(public_full_check) 2시간 주기 실행을 미룸: {why}. 10분 뒤 다시 시도')
+        append(ACTIONS, f'{now()} public_full_check 미룸: {why}')
+        return 'deferred'
+    FULL_CHECK_STATE.write_text(json.dumps({'started': clock()}))
+    log = (ROOT / 'logs/ops/public-full-check.out').open('a')
+    (launch or subprocess.Popen)([str(ROOT / '.venv/bin/python'), '-m', 'scripts.heavy_slot', '--team', '운영·SRE',
+                                  '--what', 'public_full_check (ops_auto 2시간)', '--minutes', str(FULL_CHECK_MINUTES), '--',
+                                  str(ROOT / '.venv/bin/python'), str(ROOT / 'scripts/public_full_check.py')],
+                                 cwd=ROOT, stdout=log, stderr=log, start_new_session=True)
+    board_close('full_check_deferred', f'해결(자동 {now()[11:]} 실행 시작)')
+    append(ACTIONS, f'{now()} public_full_check 시작')
+    return 'started'
+
+
 GATE_STATE = ROOT / 'logs/ops/stability-gate-state.json'
 
 
@@ -272,6 +330,10 @@ def watch():
         error_ledger()
     except Exception as error:  # noqa: BLE001
         append(ACTIONS, f'{now()} 오류 장부 실패: {type(error).__name__}')
+    try:
+        full_check()
+    except Exception as error:  # noqa: BLE001
+        append(ACTIONS, f'{now()} public_full_check 실패: {type(error).__name__}')
     try:
         stability_gate()
     except (Exception, SystemExit) as error:  # noqa: BLE001
