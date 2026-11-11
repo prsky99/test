@@ -337,10 +337,24 @@
     }
     if (!value.items.length&&!paid.length) text('bookings','No Sponsored bookings yet.');
   }
+  function sponsoredReport(report) {
+    const card=document.createElement('article');card.className='card';
+    const h=document.createElement('h2');h.textContent='Sponsored placements';const p=document.createElement('p');
+    card.append(h,p);
+    if (!report.available||!report.rows.length) {p.textContent='No Sponsored placement has been shown yet. Counts appear here for each booked day (UTC).';return card;}
+    p.textContent='Times your Sponsored card was shown in the last '+report.days+' days: Explore '+report.totals.explore+', Chat '+report.totals.chat+'. We count showings only, not clicks or people.';
+    const list=document.createElement('ul');list.className='stack';
+    for (const row of report.rows) {const li=document.createElement('li');const name=document.createElement('strong');
+      name.textContent=row.day+' · '+(row.placement==='chat'?'Chat':'Explore');
+      li.append(name,document.createTextNode(': shown '+row.served+' times. '+(row.campaign||'Campaign')+', '+row.task_category+', '+row.region+'.'));list.append(li);}
+    card.append(list);return card;
+  }
   async function loadReports() {
     if (!account()) return;
     const adv=advertiser();if (!adv) {text('notice','Choose an advertising account first.');return;}
-    const {value}=await api('/advertisers/'+adv.id+'/reporting-status');$('reports').replaceChildren();
+    const [{value},sponsored]=await Promise.all([api('/advertisers/'+adv.id+'/reporting-status'),
+      api('/advertisers/'+adv.id+'/sponsored-report').then(r=>r.value).catch(()=>null)]);$('reports').replaceChildren();
+    if (sponsored) $('reports').append(sponsoredReport(sponsored));
     for (const item of value.obligations) {
       const card=document.createElement('article');card.className='card';const p=document.createElement('p');
       p.textContent=item.state==='available'?'A report is available.':'A report is not available yet. Check again later.';card.append(p);
@@ -357,7 +371,7 @@
       }
       $('reports').append(card);
     }
-    if (!value.obligations.length) text('reports','No report yet. The first report appears after your campaign has run for a full day (UTC). Sponsored day bookings are listed under Advertising.');
+    if (!value.obligations.length&&!sponsored) text('reports','No report yet. The first report appears after your campaign has run for a full day (UTC). Sponsored day bookings are listed under Advertising.');
   }
   async function loadExperiments() {
     if (!account()) return;

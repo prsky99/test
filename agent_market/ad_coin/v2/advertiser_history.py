@@ -82,3 +82,26 @@ def updates(store, advertiser_id):
 def _day(day_ms):
     import time
     return time.strftime("%Y-%m-%d", time.gmtime(int(day_ms) / 1000)) + " UTC"
+
+
+REPORT_DAYS = 30
+DAY_MS = 86_400_000
+
+
+def sponsored_report(store, advertiser_id, *, now_ms):
+    """Daily served counts of the advertiser's Sponsored placements (last 30 UTC days), by placement,
+    category and region. No clicks, no people: only counts. 'available' is false until the count table exists."""
+    advertiser_id = identifier(advertiser_id)
+    since = int(now_ms) - int(now_ms) % DAY_MS - (REPORT_DAYS - 1) * DAY_MS
+    with store.atomic():
+        if not store.one("sponsored_impressions_table")["present"]:
+            return {"available": False, "rows": [], "totals": {"explore": 0, "chat": 0}}
+        names = {c["id"]: json.loads(c["payload_json"]).get("name", "") for c in store.all("ui_campaigns", (advertiser_id, ""))}
+        rows = [{"day": _day(r["day_ms"]), "campaign_id": r["campaign_id"], "campaign": names.get(r["campaign_id"], ""),
+                 "placement": r["placement"], "task_category": r["task_category"], "region": r["region"],
+                 "served": int(r["served"])}
+                for r in store.all("sponsored_impressions_for_advertiser", (advertiser_id, since))]
+    totals = {"explore": 0, "chat": 0}
+    for r in rows:
+        totals[r["placement"]] += r["served"]
+    return {"available": True, "rows": rows, "totals": totals, "days": REPORT_DAYS}

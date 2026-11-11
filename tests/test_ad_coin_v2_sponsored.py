@@ -174,3 +174,26 @@ def test_served_counts_wait_for_the_table_then_add_up(p1_suite):  # noqa: F811
     with unchecked(), store.atomic():
         rows = store.database.all("SELECT placement, served FROM adc2_sponsored_impressions ORDER BY placement")
     assert [(r['placement'], int(r['served'])) for r in rows] == [('chat', 1), ('explore', 2)]
+
+
+def test_advertiser_report_shows_daily_served_counts_only(p1_suite):  # noqa: F811
+    from agent_market.ad_coin.v2 import sponsored as sp
+    from agent_market.ad_coin.v2.advertiser_history import sponsored_report
+    store = p1_suite.service.store
+    assert sponsored_report(store, p1_suite.advertiser, now_ms=NOW)['available'] is False   # before the table
+    campaign = _activate_campaign(p1_suite)
+    book_today(p1_suite, campaign)
+    from scripts.ad_coin_v2_migrate import migrate_impressions
+    migrate_impressions(store)
+    clock = [NOW / 1000]
+    slots = SponsoredSlots(store, taxonomy=TAXONOMY, regions=REGIONS, clock=lambda: clock[0])
+    slots.response('research', 'US', 'explore', 1)
+    slots.response('research', 'US', 'chat', 1)
+    clock[0] += sp.FLUSH_SECONDS + 1
+    slots.response('research', 'US', 'explore', 1)
+    report = sponsored_report(store, p1_suite.advertiser, now_ms=NOW)
+    assert report['available'] and report['totals'] == {'explore': 2, 'chat': 1}
+    assert {r['placement'] for r in report['rows']} == {'explore', 'chat'}
+    assert set(report['rows'][0]) == {'day', 'campaign_id', 'campaign', 'placement', 'task_category', 'region', 'served'}
+    other = str(__import__('uuid').uuid4())
+    assert sponsored_report(store, other, now_ms=NOW)['rows'] == []          # another advertiser sees nothing

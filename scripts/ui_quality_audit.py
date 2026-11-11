@@ -31,6 +31,12 @@ STATES = (
      "document.getElementById('pay-amount').textContent='5.004217';"
      "document.getElementById('pay-to').textContent='0x1111111111111111111111111111111111111111';"
      "document.getElementById('pay-expiry').textContent='10:30';p.scrollIntoView()"),
+    ("reports_sponsored", "/ad-coin/v2",
+     "show('reports');const r=document.getElementById('reports');const c=document.createElement('article');c.className='card';"
+     "c.innerHTML='<h2>Sponsored placements</h2><p>Times your Sponsored card was shown in the last 30 days: Explore 412, Chat 97.</p>"
+     "<ul class=\\'stack\\'><li><strong>2026-11-12 · Explore</strong>: shown 412 times. Literature review agent, research, US.</li>"
+     "<li><strong>2026-11-12 · Chat</strong>: shown 97 times. Literature review agent, research, US.</li></ul>';"
+     "r.replaceChildren(c);c.scrollIntoView()"),
     ("operator", "/ad-coin/v2/admin", ""),
     ("advertise", "/ad-coin/v2/advertise", ""),
 )

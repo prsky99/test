@@ -92,6 +92,18 @@ def router_for(commercial, bookings, *, resolve_auth=None) -> APIRouter:
             return await run_in_threadpool(advertiser_updates, store, advertiser)
         return await respond(call)
 
+    @router.get("/advertisers/{advertiser_id}/sponsored-report")
+    async def sponsored_report(advertiser_id: str, request: Request):
+        import time as _time
+
+        from .advertiser_history import sponsored_report as report
+
+        async def call():
+            ctx = await context(request)
+            advertiser = await run_in_threadpool(advertiser_authority, ctx.principal, advertiser_id, "getCampaign")
+            return await run_in_threadpool(lambda: report(store, advertiser, now_ms=int(_time.time() * 1000)))
+        return await respond(call)
+
     @router.post(base + "/{booking_id}/cancel")
     async def cancel(advertiser_id: str, booking_id: str, request: Request):
         async def call():
