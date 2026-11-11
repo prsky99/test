@@ -26,6 +26,10 @@ def mcp_tools():
              "category": {"type": "string", "enum": list(CATEGORIES.keys()), "description": "Compatibility field; task relevance is derived from the task text."},
              "auth": {"type": "string", "enum": ["none", "agent"], "description": "Compatibility field; authentication preference does not affect ranking."},
              **TOKEN_ARG}, "required": ["task"]}},
+        {"name": "check_agent", "description": "Read-only check before you call an agent: our recorded status, recent check success rate and latency, grade, evidence sources and up to three alternatives for an endpoint or agent-card URL. The URL is only looked up, never called.",
+         "inputSchema": {"type": "object", "properties": {
+             "url": {"type": "string", "description": "The agent's endpoint or agent-card URL (public http or https)."},
+             **TOKEN_ARG}, "required": ["url"]}},
         {"name": "whats_new", "description": "Read the last task saved by chat and re-evaluate its evidence without changing it. Use chat to save a task first (valid visitor token required).",
          "inputSchema": {"type": "object", "properties": TOKEN_ARG, "required": ["visitor_token"]}},
         {"name": "subscribe", "description": "Legacy contact command. Use /api/task-updates with explicit task scope and authorization; this command cannot grant permission.",
@@ -88,6 +92,7 @@ def mcp_tools():
         'chat': ('Use when a conversation helps: refine a previous list ("only free ones"), ask for "details 2", or "more".', '{"message": "find a weather forecast API"}'),
         'search': ('Use when you need up to three ranked candidates for one task without keeping conversation state.', '{"task": "translate a document to Spanish"}'),
         'find_agents': ('Use when you need candidates plus verification evidence and connection steps for one task.', '{"task": "extract text from a PDF", "kind": "mcp"}'),
+        'check_agent': ('Use when you already have an agent URL and want our evidence before calling it.', '{"url": "https://agent.example.org/.well-known/agent-card.json"}'),
         'whats_new': ('Use when you saved a task through chat earlier and want its evidence re-checked.', '{"visitor_token": "vt_..."}'),
         'subscribe': ('Use only for legacy contact registration; task updates use /api/task-updates.', '{"contact_url": "https://example.org/hook", "contact_type": "webhook"}'),
         'verify_contact': ('Use after subscribe, with the code delivered to that contact.', '{"code": "123456", "visitor_token": "vt_..."}'),
@@ -115,7 +120,7 @@ def mcp_tools():
                 properties[field] = {**properties[field], 'description': text}
     for tool in TOOLS:
         name = tool['name']
-        read_only = name in ('search','find_agents','whats_new','search_workflows','credit','workflow_details')
+        read_only = name in ('search','find_agents','check_agent','whats_new','search_workflows','credit','workflow_details')
         external = name in ('call', 'adapt_rest')
         tool['annotations'] = {
             'readOnlyHint': read_only,

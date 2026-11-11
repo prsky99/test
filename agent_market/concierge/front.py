@@ -540,6 +540,7 @@ Stored evidence is used without a request-time live probe.
 ## Call
 - Purpose-based entry: GET `{base}/api/agent/v1/entry` or `{base}/.well-known/agent-entry.json` (service-specific JSON).
 - Browse agents: GET `{base}/api/explore?q=weather` with optional kind, category or verified filters.
+- Check before you call: GET `{base}/api/agent/v1/check?url=<endpoint or agent-card URL>` or MCP `check_agent` with `url`; returns our recorded status, recent check success rate, latency, grade, evidence sources and up to three alternatives. The URL is only looked up, never called.
 - Find a published workflow: GET `{base}/api/workflows/templates?q=research+papers` or MCP `search_workflows` with `task` and optional `protocol`.
 - Workflow details: GET `{base}/api/workflows/templates/{{id}}` or MCP `workflow_details` with `template_id`.
 - Resume a conversation: GET `{base}/api/agent/v1/resume` with the session header; returns current candidates, contracts and workflow changes. Conditional GET omits an unchanged body; current state is still checked.
@@ -621,6 +622,7 @@ Agent Concierge provides evidence-based, autonomous discovery across distributed
 - Standard Tools:
   - `search`: Search relevant agents (`task`: string, `kind`?: string); earlier `query`/`protocol` aliases remain supported.
   - `find_agents`: Evidence-ranked selection of up to three agents (`task`: string, `kind`?: string).
+  - `check_agent`: Recorded evidence for one endpoint or agent-card URL before you call it (`url`: string).
   - `chat`: Conversational concierge inquiry returning one recommendation (`message`: string).
   - `search_workflows`: Find one published workflow by purpose or node capability (`task`: string, `protocol`?: string).
   - `workflow_details`: Read its currently public definition and recorded readiness (`template_id`: integer).
@@ -2925,6 +2927,21 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
     def api_agent(rid: int):
         return get_safe_agent_detail(front.store, rid)
 
+    @router.get('/api/agent/v1/check', operation_id='checkAgentUrl')
+    def api_agent_check(request: Request, url: str = ''):
+        """Check before you call: our recorded evidence for an endpoint or card URL. Nothing is fetched."""
+        from .agent_check import CheckError, check
+        if not front.security.allow_explore(front.security.resolve_ip(request), base_limit=60):
+            return JSONResponse({'error': 'rate_limited', 'message': 'Please slow down.'}, status_code=429,
+                                headers={'Retry-After': '60', 'Access-Control-Allow-Origin': '*'})
+        try:
+            body, status = check(front.store, url), 200
+        except CheckError as error:
+            body, status = {'error': 'invalid_url', 'message': str(error)}, 400
+        return JSONResponse(body, status_code=status, headers={
+            'Cache-Control': 'public, max-age=300' if status == 200 else 'no-store',
+            'Access-Control-Allow-Origin': '*'})
+
     @router.get('/api/connections/{agent_ref}')
     def api_connection(agent_ref:str):
         import re
@@ -3397,6 +3414,14 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             message = ""
         elif name == "chat":
             message = str(args.get("message") or "")
+        elif name == 'check_agent':
+            from .agent_check import CheckError, check
+            try:
+                found = await run_in_threadpool(check, front.store, args.get('url'))
+            except CheckError as error:
+                return {'jsonrpc': '2.0', 'id': rid, 'error': {'code': -32602, 'message': str(error)}}
+            return mcp_result(rid, {'content': [{'type': 'text', 'text': found['message']}],
+                                    'structuredContent': found, 'isError': False})
         elif name == 'workflow_details':
             from .workflow_discovery import published_detail
             template_id = args.get('template_id')

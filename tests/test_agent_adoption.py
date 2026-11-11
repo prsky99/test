@@ -436,7 +436,8 @@ def test_small_openapi_profile_reuses_routes_and_closed_tool_inputs(adoption):
     response=client.get('/api/agent/v1/openapi.json');schema=response.json()
     assert response.status_code==200 and schema['x-agentconcierge-profile']=='agent-discovery-v1'
     assert set(schema['paths'])=={'/api/agent/v1/discover','/api/agent/v1/resume','/api/agent/v1/report','/api/agents/{rid}',
-        '/api/feed/verified.json','/api/agent/v1/entry','/api/agent/v1/openapi.json','/api/agent/v1/badge/{resource_id}.svg'}
+        '/api/feed/verified.json','/api/agent/v1/entry','/api/agent/v1/openapi.json','/api/agent/v1/badge/{resource_id}.svg',
+        '/api/agent/v1/check'}  # 11-11 check before you call
     assert not any(key in response.text for key in ('/admin','/api/customer','workspace_id'))
     actual=schema['paths']['/api/agent/v1/discover']['post']['requestBody']['content']['application/json']['schema']
     assert actual==tools()[0]['inputSchema']and actual['additionalProperties']is False

@@ -116,6 +116,8 @@ def clean_agent(item):
              'eval_score': _score(item.get('eval_score')), 'report_score': _score(item.get('report_score')),
              'tool_count': _count(item.get('tool_count', item.get('cap_tool_count'))),
              'category': item.get('category') if re.fullmatch(r'[a-z_]{2,40}', str(item.get('category') or '')) else None}
+    if re.fullmatch(r'[0-9a-f]{20}', str(item.get('url_key') or '')):
+        agent['url_key'] = item['url_key']  # hash of the provider URL (agent_check.url_key): /api/agent/v1/check matches without the database
     return agent if has_evidence(agent) else None
 
 

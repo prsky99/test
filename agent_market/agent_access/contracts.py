@@ -48,6 +48,14 @@ def openapi_profile(document):
     # These bounded public documents are deliberately absent from FastAPI's generated paths.
     paths['/api/agent/v1/entry']={'get':{'summary':'Public discovery entry and supported actions',
         'responses':{'200':{'description':'Service discovery document','content':{'application/json':{'schema':{'type':'object'}}}}}}}
+    paths['/api/agent/v1/check']={'get':{'operationId':'checkAgentUrl',
+        'summary':'Check before you call: recorded status, recent check success rate, latency, grade, evidence sources and up to three alternatives for one URL; the URL is only looked up, never called',
+        'parameters':[{'name':'url','in':'query','required':True,'schema':{'type':'string','format':'uri','maxLength':2048},
+                       'description':'Public http(s) endpoint or agent-card URL'}],
+        'responses':{'200':{'description':'Our record (found true) or found false with a register link',
+                            'content':{'application/json':{'schema':{'type':'object','required':['found','url','evidence_sources','alternatives']}}}},
+                     '400':{'description':'Not a public http(s) URL (private, reserved and local addresses are refused)'},
+                     '429':{'description':'Rate limited; retry after the Retry-After seconds'}}}}
     paths['/api/agent/v1/openapi.json']={'get':{'summary':'This public discovery API contract',
         'responses':{'200':{'description':'OpenAPI document','content':{'application/json':{'schema':{'type':'object'}}}}}}}
     paths['/api/agent/v1/badge/{resource_id}.svg']={'get':{'summary':'Recorded current-version execution badge',

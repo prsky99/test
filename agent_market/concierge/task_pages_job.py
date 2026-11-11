@@ -121,6 +121,11 @@ class TaskPagesRefresher:
             snapshot = self.assembler.snapshot(catalog_counts(self.front))
             self.steps, self.assembler = None, None
             try:
+                from .agent_check import add_url_keys
+                log.info('Task page snapshot: %d URL keys', add_url_keys(self.front.store, snapshot))
+            except Exception:  # the check API falls back to indexed key lookups
+                log.exception('Task page snapshot URL keys failed')
+            try:
                 write(str(self.out), snapshot)
             except (OSError, ValueError):
                 log.exception('Task page snapshot was not written')

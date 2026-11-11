@@ -144,8 +144,12 @@ def test_static_assets_are_cacheable_by_content_and_pages_stay_private(catalog):
     _, _, client, _, _ = catalog
     page = client.get('/new/en/explore.html')
     assert page.headers['cache-control'] == 'no-store'
-    refs = dict(_re.findall(r'src="/new/en/assets/(operating\.js)\?v=([0-9a-f]{16})"', page.text))
-    assert 'operating.js' in refs
+    # 11-11: pages load operating.js inside one content-addressed bundle; a single file keeps its own pinned URL.
+    bundle = _re.search(r'src="(/new/en/assets/bundle\.js\?f=[^"]*operating[^"]*&amp;v=[0-9a-f]{16})"', page.text)
+    assert bundle and client.get(bundle[1].replace('&amp;', '&')).headers['cache-control'] == 'public, max-age=31536000, immutable'
+    from pathlib import Path as _Path
+    from agent_market.concierge.pearl_view import asset_version
+    refs = {'operating.js': asset_version(_Path('new/en/assets/operating.js').read_bytes())}
     pinned = client.get('/new/en/assets/operating.js?v=' + refs['operating.js'])
     assert pinned.headers['cache-control'] == 'public, max-age=31536000, immutable'
     plain = client.get('/new/en/assets/operating.js')

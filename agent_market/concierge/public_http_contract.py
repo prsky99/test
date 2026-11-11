@@ -12,7 +12,7 @@ from .security import _QUOTA_SINK, quota_headers
 
 # Permanent aliases of discovery documents (11-11): a 301 the edge can keep like the target.
 EDGE_REDIRECTS = frozenset(('/.well-known/llms.txt','/.well-known/mcp/server-card.json'))
-PUBLIC_READS = frozenset(('/api/overview','/api/insights','/api/explore','/api/workflows/templates',
+PUBLIC_READS = frozenset(('/api/overview','/api/insights','/api/explore','/api/agent/v1/check','/api/workflows/templates',
     '/api/test/presets','/robots.txt','/sitemap.xml','/llms.txt','/llms-full.txt',
     '/.well-known/agent-card.json','/.well-known/mcp.json','/.well-known/mcp/server.json',
     '/.well-known/security.txt','/security.txt','/openapi.json','/skill.md')) | EDGE_REDIRECTS

@@ -12,7 +12,7 @@ _PUBLIC = frozenset(('/', '/chat', '/me', '/unsubscribe', '/a2a', '/mcp',
     '/api/workflows/runs/{run_id}', '/api/workflows/runs/{run_id}/cancel',
     '/api/task-updates', '/api/task-updates/browser-config', '/api/task-updates/browser-confirm',
     '/api/task-updates/stop', '/api/task-updates/{watch_id}/action', '/api/task-updates/{watch_id}/events',
-    '/api/agent/v1/discover', '/api/agent/v1/resume', '/api/agent/v1/report', '/api/feed/verified.json'))
+    '/api/agent/v1/discover', '/api/agent/v1/resume', '/api/agent/v1/report', '/api/agent/v1/check', '/api/feed/verified.json'))
 _DOCUMENTED = ('/api/agent/v1/entry', '/api/agent/v1/openapi.json', '/api/agent/v1/badge/{resource_id}.svg')
 
 

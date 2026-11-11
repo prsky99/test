@@ -26,7 +26,7 @@ READ_HEADERS = frozenset(('accept', 'content-type', 'if-none-match'))
 PUBLIC_TRANSPORTS = frozenset(('/chat', '/mcp'))
 PUBLIC_HEADERS = frozenset(('content-type', 'accept', 'x-visitor-token', 'mcp-session-id',
     'mcp-protocol-version', 'last-event-id'))
-PUBLIC_MCP_TOOLS = frozenset(('hello', 'chat', 'search', 'find_agents', 'whats_new', 'credit',
+PUBLIC_MCP_TOOLS = frozenset(('hello', 'chat', 'search', 'find_agents', 'check_agent', 'whats_new', 'credit',
     'search_workflows', 'workflow_details'))
 PUBLIC_EXPOSE = 'Mcp-Session-Id, X-Visitor-Token, Retry-After, RateLimit, RateLimit-Policy'
 PUBLIC_LIMIT, PUBLIC_WINDOW = 60, 60.0  # cross-site calls per page origin, per instance
