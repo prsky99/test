@@ -40,7 +40,7 @@ def main():
         raise SystemExit('ADMIN_SESSION_TOKEN does not look like a real session token (placeholder text, spaces or too short). '
                          'Paste the actual token value, not the example text.')
     allowed_kinds = tuple(k.strip() for k in os.environ.get('REPORT_KINDS', 'a2a,mcp').split(',') if k.strip())
-    ok = skipped = failed = 0
+    ok = skipped = failed = withheld = 0
     for path in sorted(glob.glob(os.path.join(folder, '*.json'))):
         name = os.path.basename(path)
         report = json.load(open(path))
@@ -48,7 +48,9 @@ def main():
             print(f"{name}: skipped (kind={report.get('kind')} excluded)"); skipped += 1; continue
         problems = lint(report)
         if report.get('is_success') in (True, 1) and report.get('evidence_scope') not in ('execution','contract'):
-            problems.append('Successful publication requires recorded execution evidence; a connection-only probe is not task execution.')
+            # The rule stands; a withheld draft is the rule working, not a failed run (11-12 02:30: 30 of 30).
+            print(f'{name}: withheld (successful publication requires recorded execution evidence; '
+                  f'a connection-only probe is not task execution)'); withheld += 1; continue
         if problems:
             print(f'{name}: REJECTED locally {problems}'); failed += 1; continue
         if dry:
@@ -67,7 +69,8 @@ def main():
         stored = call(token, 'GET', f"/admin/api/test-reports/{data['id']}")[1].get('report', {})
         back = lint(stored) if stored else ['read-back failed']
         print(f"{name}: created #{data['id']}" + ('' if not back else f' WARNING read-back: {back}')); ok += 1
-    print(f'created={ok} skipped={skipped} failed={failed}')
+    print(f'created={ok} skipped={skipped} withheld={withheld} failed={failed}'
+          + (' reason=no_execution_evidence' if withheld and not ok else ''))
     if failed > 0:
         sys.exit(1)
     return 0

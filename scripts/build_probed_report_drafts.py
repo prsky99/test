@@ -21,6 +21,8 @@ from agent_market.capability_registry import Registry
 DB = 'gateway-data/collector.sqlite3'
 OUT = sys.argv[2] if len(sys.argv) > 2 else '/Users/kingstonelee/.gemini/antigravity/brain/c483b1b9-b552-4e83-b78d-d6f36bf0128d/scratch/drafts'
 PER_KIND = int(sys.argv[1]) if len(sys.argv) > 1 else 2
+PROBE_FACTOR = 3                      # probe at most PER_KIND * 3 candidates per kind (outbound calls are bounded)
+PUBLISHABLE_SCOPES = ('execution', 'contract')   # the same rule submit_report_drafts.py applies
 UA = 'AgentConcierge-Verification/1.0'
 
 
@@ -473,7 +475,7 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     summary = []
     kinds = tuple(k.strip() for k in os.environ.get('REPORT_KINDS', 'a2a,mcp').split(',') if k.strip())
-    total_created = 0
+    total_created = transport_only = 0
 
     os.environ.setdefault('APPLICATION_STORE_BACKEND', 'postgresql')
     os.environ.setdefault('APPLICATION_POSTGRES_DSN_FILE', '/Users/kingstonelee/workspace/A2A_Discovery/gateway-data/postgres18/application.dsn')
@@ -489,9 +491,12 @@ def main():
             data = live_api(token, f'/admin/api/agents?kind={kind}&grade={grade_value}&status=healthy&active=1&sort=recent&limit=200&offset=0')
             pool += data['items']
         random.shuffle(pool)
-        done = 0
+        done = probed = 0
         for res in pool:
             if done >= PER_KIND: break
+            if probed >= PER_KIND * PROBE_FACTOR:
+                summary.append((kind, 'STOP_PROBE_CAP', f'{probed} probes, {done} drafts'))
+                break
             if not res.get('name') or not str(res.get('url') or '').startswith('https://') or not public_https(res['url']): continue
 
             # Pre-filter candidate against exclusion rules
@@ -524,6 +529,7 @@ def main():
             except Exception:
                 continue
 
+            probed += 1
             p = {'x402': probe_x402, 'a2a': probe_a2a, 'mcp': probe_mcp}[kind](full_res)
             if not p or not p['ok']: continue
 
@@ -531,7 +537,15 @@ def main():
             if not ver:
                 summary.append((res['id'], 'SKIP_NO_VERSION', 'connection_version_failed'))
                 continue
-            safe_record_evidence(registry, ver, scope='execution', outcome='succeeded', started=p['t0'], finished=p['t1'])
+            # 11-12: record what the probe really was. A card fetch or tools/list is transport evidence; it used to
+            # be written as execution evidence, and every draft built on it was then refused at publication
+            # ('a connection-only probe is not task execution', 30 of 30 on 11-12 02:30).
+            scope = probe_evidence_scope(normalize_test_method(kind, p['method']))
+            safe_record_evidence(registry, ver, scope=scope, outcome='succeeded', started=p['t0'], finished=p['t1'])
+            if scope not in PUBLISHABLE_SCOPES:
+                summary.append((res['id'], 'SKIP_TRANSPORT_ONLY', 'connection-only probe: no task execution evidence'))
+                transport_only += 1
+                continue
 
             try:
                 rec = build(full_res, p, version_id=ver['id'])
@@ -548,6 +562,10 @@ def main():
             total_created += 1
 
     for s_ in summary: print(s_)
+    if total_created == 0 and transport_only:
+        # A normal outcome, not a failure: the publication rule needs execution evidence these probes cannot give.
+        print(f'drafts=0 reason=transport_only probes={transport_only} (publication needs execution evidence)')
+        return 0
     if total_created == 0:
         sys.exit(1)
     return 0
