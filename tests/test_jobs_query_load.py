@@ -46,6 +46,16 @@ def test_due_pick_and_idle_cleanup_on_postgresql():
                     store._execute("UPDATE resources SET health_status='healthy' WHERE id=%s", (rid,))
             due = store.due_for_capability(1000.0, 100.0, 10, per_host=2, kind='a2a')  # registered narrow SQL
             assert len(due) == 2 and {row['id'] for row in due} <= set(ids) and due[0]['name'].startswith('Agent')
+            ranked = []
+            rank = store._collector_rows
+            store._collector_rows = lambda sql, *a: (ranked.append(sql) if 'ROW_NUMBER' in sql else None) or rank(sql, *a)
+            store.__dict__.pop('_cap_batches', None)
+            first = store.due_for_capability(1000.0, 100.0, 1, per_host=2, kind='a2a')
+            second = store.due_for_capability(1001.0, 100.0, 1, per_host=2, kind='a2a')
+            assert len(first) == len(second) == 1 and first[0]['id'] != second[0]['id'] and len(ranked) == 1
+            # both ranked ids are taken; the next call ranks again (nothing was surveyed, so they are due again)
+            assert len(store.due_for_capability(1002.0, 100.0, 1, per_host=2, kind='a2a')) == 1 and len(ranked) == 2
+            store._collector_rows = rank
             postgres_ann.install(store)
             calls = []
             original = store._execute

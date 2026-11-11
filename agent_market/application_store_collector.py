@@ -5,12 +5,16 @@ readiness queries do not reserve an external call. Observation tokens remain the
 authority checked immediately before work and again when committing its bundle.
 """
 import math
+import threading
 import time
 
 from .observation_guards import GuardError
 
 MAX_COLLECTOR_ROWS = 5000
 MAX_COLLECTOR_BYTES = 32 * 1024 * 1024
+CAP_BATCH = 1000            # ids ranked at once for the capability survey (11-11)
+CAP_BATCH_SECONDS = 300     # a batch older than this is ranked again
+_CAP_BATCH_LOCK = threading.Lock()
 
 
 def _invalid():
@@ -112,20 +116,40 @@ class PostgresCollectorMixin:
         # Rank narrow columns only, then read the chosen rows. Sorting whole rows (106k A2A
         # listings, ~2.7 KB each) spilled ~180 MB to disk and passed the 5 s statement timeout
         # under load (11-10 13:28); the narrow ranking stays in memory (601 -> 310 ms).
-        chosen = [row['id'] for row in self._collector_rows('''SELECT id FROM (
+        # 11-11: the ranking still read ~107k blocks per call, 18-26 calls a minute, for a few rows
+        # each. One ranking now fills a batch of CAP_BATCH ids that later calls take from, until it is
+        # empty or CAP_BATCH_SECONDS old. Ids are taken under a lock, so one process never hands the
+        # same id out twice; only the jobs collector calls this. Taken rows are read again and kept
+        # only while still due.
+        cutoff = now - max_age
+        key = (kind, per_host)
+        batches = self.__dict__.setdefault('_cap_batches', {})
+        served = []
+        with _CAP_BATCH_LOCK:
+            batch, fresh = batches.get(key), False
+            while len(served) < limit:
+                if batch is None or now - batch[0] > CAP_BATCH_SECONDS or not batch[1]:
+                    if fresh or served:
+                        break   # ranked during this call and nothing left, or a partial answer is enough
+                    batch, fresh = (now, [row['id'] for row in self._collector_rows('''SELECT id FROM (
             SELECT id,cap_checked_at,ROW_NUMBER() OVER(PARTITION BY host ORDER BY cap_checked_at IS NOT NULL,cap_checked_at) AS rn
             FROM resources WHERE active=1 AND kind=%s AND health_status='healthy'
             AND (cap_checked_at IS NULL OR cap_checked_at<%s)) AS candidates
             WHERE rn<=%s ORDER BY cap_checked_at IS NOT NULL,cap_checked_at,random() LIMIT %s''',
-            (kind, now - max_age, per_host, limit))]
-        if not chosen:
-            return []
-        rows = {}
-        for start in range(0, len(chosen), 200):  # a statement binds at most 256 values
-            chunk = chosen[start:start + 200]
-            rows.update((row['id'], row) for row in self._collector_rows(
-                'SELECT * FROM resources WHERE id IN (' + ','.join(['%s'] * len(chunk)) + ')', tuple(chunk)))
-        return [rows[rid] for rid in chosen if rid in rows]
+                        (kind, cutoff, per_host, max(limit, CAP_BATCH)))]), True
+                    batches[key] = batch
+                    if not batch[1]:
+                        break
+                chunk = [batch[1].pop(0) for _ in range(min(limit - len(served), len(batch[1])))]
+                rows = {row['id']: row for row in self._collector_rows(
+                    'SELECT * FROM resources WHERE id IN (' + ','.join(['%s'] * len(chunk)) + ')', tuple(chunk))}
+                for rid in chunk:
+                    row = rows.get(rid)
+                    checked = row.get('cap_checked_at') if row else None
+                    if (row and row.get('active') == 1 and row.get('kind') == kind and row.get('health_status') == 'healthy'
+                            and (checked is None or checked < cutoff)):
+                        served.append(row)
+        return served
 
     def due_for_auth(self, now, max_age, limit, per_host=1):
         _number(now); _number(max_age); _limit(limit); _limit(per_host)
