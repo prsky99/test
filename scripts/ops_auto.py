@@ -35,7 +35,8 @@ BOARD_KEEP_SECONDS = 14 * 86400
 PSQL = ['/opt/homebrew/opt/postgresql@18/bin/psql', '-h', str(ROOT / 'gateway-data/postgres18/run'), '-p', '55432',
         '-d', 'agentcon_cutover_20261020_191757', '-Atc']
 TEAM = {'site': '운영·SRE', 'memory': '운영·SRE', 'disk': '운영·SRE', 'deploy_stuck': '운영·SRE',
-        'deploy_lock': '잠금을 잡은 팀', 'long_tests': '시험을 돌린 팀', 'stale_handoffs': '받는 팀'}
+        'deploy_lock': '잠금을 잡은 팀', 'long_tests': '시험을 돌린 팀', 'stale_handoffs': '받는 팀',
+        'ad_coin_ledger': 'AI AD Coin'}
 ALERT_SYSTEM = (
     'You write operations alerts in Korean for the owner of the Agent Concierge website. '
     'Input is JSON describing detected anomalies. Write at most three short lines in plain Korean: what is wrong, '
@@ -262,6 +263,52 @@ FULL_CHECK_EVERY = 7200   # 11-11 PM: every two hours
 FULL_CHECK_MINUTES = 15
 
 
+ADC_LEDGER_STATE = ROOT / 'logs/ops/ad-coin-ledger-state.json'
+ADC_LEDGER_AFTER_MINUTE = 9 * 60          # daily after 09:00, outside the 03:00-08:00 database change window
+AGENTCON_ENV = ROOT / 'gateway-data/agentcon.env'
+
+
+def _env_paths(names, env_file=None):
+    """File paths (never their contents) from the production service environment file."""
+    found = {}
+    path = Path(env_file or AGENTCON_ENV)
+    for line in path.read_text().splitlines() if path.is_file() else []:
+        key, sep, value = line.partition('=')
+        if sep and key.strip() in names:
+            found[key.strip()] = value.strip().strip('"\'')
+    return found
+
+
+def ad_coin_ledger(clock=time.time, run=None):
+    """Once a day: AI AD Coin v2 ledger conservation check (scripts/ad_coin_daily_ledger_check.py, 11-11 PM).
+
+    Read only, one database connection, about a second. A failed check or a check that could not run is
+    handed off on one board line; a clean day closes it."""
+    local = datetime.fromtimestamp(clock())
+    day = local.strftime('%Y-%m-%d')
+    if local.hour * 60 + local.minute < ADC_LEDGER_AFTER_MINUTE:
+        return None
+    state = json.loads(ADC_LEDGER_STATE.read_text()) if ADC_LEDGER_STATE.is_file() else {}
+    if state.get('day') == day:
+        return None
+    ADC_LEDGER_STATE.write_text(json.dumps({'day': day}))
+    paths = _env_paths({'APPLICATION_POSTGRES_DSN_FILE', 'APPLICATION_WORKFLOW_KEY_FILE'})
+    if len(paths) != 2:
+        board_handoff('ad_coin_ledger', 'AD Coin 원장 보존 검사를 돌리지 못함: gateway-data/agentcon.env에 DSN·키 파일 경로가 없음')
+        return 'unrunnable'
+    command = [str(ROOT / '.venv/bin/python'), '-m', 'scripts.ad_coin_daily_ledger_check',
+               '--dsn-file', paths['APPLICATION_POSTGRES_DSN_FILE'], '--key-file', paths['APPLICATION_WORKFLOW_KEY_FILE']]
+    done = (run or (lambda c: subprocess.run(c, cwd=ROOT, capture_output=True, text=True, timeout=120)))(command)
+    tail = (done.stdout or '').strip().splitlines()[-1:] or (done.stderr or '').strip().splitlines()[-1:] or ['']
+    if done.returncode == 0:
+        board_close('ad_coin_ledger', f'해결(자동 {now()[11:]} 원장 보존 검사 clean)')
+        append(ACTIONS, f'{now()} AD Coin 원장 보존 검사: clean')
+        return 'clean'
+    board_handoff('ad_coin_ledger', f'AD Coin 원장 보존 검사 실패(종료 코드 {done.returncode}, logs/ops/ad-coin-ledger/): {tail[0][:160]}')
+    append(ACTIONS, f'{now()} AD Coin 원장 보존 검사 실패: 종료 코드 {done.returncode}')
+    return 'failed'
+
+
 PROVENANCE_STATE = ROOT / 'logs/ops/provenance-state.json'
 PROVENANCE_AFTER_MINUTE = 6 * 60 + 30   # daily, before the 08:00 bundle deploy
 
@@ -366,6 +413,10 @@ def watch():
         error_ledger()
     except Exception as error:  # noqa: BLE001
         append(ACTIONS, f'{now()} 오류 장부 실패: {type(error).__name__}')
+    try:
+        ad_coin_ledger()
+    except Exception as error:  # noqa: BLE001
+        append(ACTIONS, f'{now()} AD Coin 원장 보존 검사 실패: {type(error).__name__}')
     try:
         provenance()
     except Exception as error:  # noqa: BLE001

@@ -36,6 +36,7 @@ def test_auto_watch_alerts_once_and_writes_handoff(tmp_path, monkeypatch):
     monkeypatch.setattr(ops_auto.ops_llm, 'ask', lambda *a, **k: None)  # no API in tests
     monkeypatch.setattr(ops_auto, 'error_ledger', lambda: None)  # tested in test_error_ledger.py
     monkeypatch.setattr(ops_auto, 'provenance', lambda: None)    # tested below and in test_provenance_check.py
+    monkeypatch.setattr(ops_auto, 'ad_coin_ledger', lambda: None)  # tested below
     monkeypatch.setattr(ops_auto, 'stability_gate', lambda: None)  # tested in test_stability_gate.py
     monkeypatch.setattr(ops_auto, 'full_check', lambda: None)  # tested below
     ops_auto.watch()
@@ -119,3 +120,24 @@ def test_provenance_runs_once_a_day_and_warns_or_closes(tmp_path, monkeypatch):
     clean = lambda: {'uncommitted': {}, 'closed': ['agent_market/x.py'], 'open': []}
     assert ops_auto.provenance(clock=lambda: at(6, 40, 13), run=clean) == 'clean'
     assert [l for l in board.read_text().splitlines() if '[provenance]' in l][0].count('해결(자동') == 1
+
+
+def test_ad_coin_ledger_runs_once_a_day_after_nine_and_reports(tmp_path, monkeypatch):
+    import types
+    from datetime import datetime
+    ops_auto, board = _board(tmp_path, monkeypatch)
+    monkeypatch.setattr(ops_auto, 'ADC_LEDGER_STATE', tmp_path / 'adc.json')
+    env = tmp_path / 'agentcon.env'
+    env.write_text('APPLICATION_POSTGRES_DSN_FILE=/x/dsn\nAPPLICATION_WORKFLOW_KEY_FILE="/x/key"\nOTHER=1\n')
+    monkeypatch.setattr(ops_auto, 'AGENTCON_ENV', env)
+    at = lambda h, d=12: datetime(2026, 11, d, h, 5).timestamp()
+    calls = []
+    fail = lambda c: calls.append(c) or types.SimpleNamespace(returncode=1, stdout='{"ok": false, "issues": ["x"]}', stderr='')
+    assert ops_auto.ad_coin_ledger(clock=lambda: at(4), run=fail) is None          # inside the 03-08 window
+    assert ops_auto.ad_coin_ledger(clock=lambda: at(9), run=fail) == 'failed'
+    assert calls[0][-4:] == ['--dsn-file', '/x/dsn', '--key-file', '/x/key']
+    assert '자동 점검 [ad_coin_ledger]' in board.read_text() and '| AI AD Coin |' in board.read_text()
+    assert ops_auto.ad_coin_ledger(clock=lambda: at(10), run=fail) is None         # once a day
+    ok = lambda c: types.SimpleNamespace(returncode=0, stdout='{"ok": true}', stderr='')
+    assert ops_auto.ad_coin_ledger(clock=lambda: at(9, 13), run=ok) == 'clean'
+    assert '해결(자동' in [l for l in board.read_text().splitlines() if '[ad_coin_ledger]' in l][0]
