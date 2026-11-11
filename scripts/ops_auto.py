@@ -159,7 +159,7 @@ def board_snapshot(board=None, history=None, clock=time.time):
 
 EDGE_STATE = ROOT / 'logs/ops/edge-transitions-state.json'
 EDGE_WORDS = {'auto-block': 'Worker 실행 자동 차단(오류율 기준), 원 서버 경로로 전환', 'auto-clear': '반쯤 열기 시험 통과, Worker 실행 자동 해제',
-              'clear-runtime-block': '운영자가 Worker 실행 차단 해제', 'origin': '운영자가 원 서버 고정', 'auto': '운영자가 자동 경로로 되돌림'}
+              'clear-runtime-block': '운영자가 Worker 실행 차단 해제', 'block-runtime': '운영자가 Worker 실행 다시 차단', 'origin': '운영자가 원 서버 고정', 'auto': '운영자가 자동 경로로 되돌림'}
 
 
 def edge_transitions(rows=None):
