@@ -134,9 +134,33 @@ def inline_script_hashes(value):
     return out
 
 
-def page_response(value, *, public=False):
+CRITICAL_DIR = ROOT / 'en' / 'assets' / 'critical'
+FULL_CSS_SWITCH = ("<script>document.querySelectorAll('link[data-full-css]').forEach(function(l){"
+                   "function on(){l.media='all'}if(l.sheet)on();else l.addEventListener('load',on)})</script>\n")
+
+
+def critical_css(value, page):
+    """PM decision B (11-11): inline the page's first-screen CSS and load the bundle without blocking the first
+    paint. Only pages with a built file (scripts/build_critical_css.py) change; removing the file turns it off
+    (agentcon.env refuses new keys, so there is no environment switch)."""
+    if not page:
+        return value
+    path = CRITICAL_DIR / (page.removesuffix('.html') + '.css')
+    try:
+        css = path.read_text() if path.is_file() and not path.is_symlink() else ''
+    except OSError:
+        css = ''
+    match = re.search(r'<link rel="stylesheet" href="(/new/en/assets/bundle\.css\?[^"]+)">\n?', value)
+    if not css or not match or '</style' in css.lower():
+        return value
+    replacement = ('<style data-critical-css>' + css + '</style>\n'
+                   '<link rel="stylesheet" href="' + match[1] + '" media="print" data-full-css>\n' + FULL_CSS_SWITCH)
+    return value[:match.start()] + replacement + value[match.end():]
+
+
+def page_response(value, *, public=False, page=None):
     """Use the same nonce policy for the default and named presentation routes."""
-    value = versioned(bundled(value))
+    value = critical_css(versioned(bundled(value)), page)
     if os.environ.get('MAIN_SPONSORED', '0') == '1':  # 11-11 Sponsored on main Explore and Chat; off by default
         value = re.sub(r'<body\b', '<body data-sponsored="on"', value, count=1)
     # 11-11 (PM decision A): the same bytes for every visitor, so the edge may keep a page for 60 seconds.
@@ -164,7 +188,7 @@ def default_public_page(bootstrap, structured_data, *, workspace_available=False
     value = re.sub(r'(<script\b[^>]*\btype="application/ld\+json"[^>]*>).*?(</script>)',
                    lambda m: m[1]+structured_data.replace('<', '\\u003c')+m[2], value, flags=re.S)
     from .public_metadata import apply_daily_home
-    return page_response(apply_daily_home(value, snapshot), public=True)
+    return page_response(apply_daily_home(value, snapshot), public=True, page='index.html')
 
 
 def _catalog_status(store):
@@ -299,7 +323,7 @@ def install(app, front, *, workspace_access_enabled=False, workspace_link_enable
                      else daily_home_text(home_metadata_payload(value, snapshot), snapshot))
         if filename in ('test.html', 'workflows.html'):
             value = current_fixed_content(value, filename)
-        return page_response(value, public=filename in manifest['live_pages'])
+        return page_response(value, public=filename in manifest['live_pages'], page=filename)
 
     @app.get('/new/en/assets/{filename:path}', include_in_schema=False)
     def asset(filename: str, request: Request):
