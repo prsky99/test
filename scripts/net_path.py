@@ -117,6 +117,23 @@ def tunnel():
             'edges': sorted(set(re.findall(r'edge_location="(\w+)"', out)))}
 
 
+def host_load():
+    """Load average and the three busiest processes, so a slow minute can be matched to what ran (11-11 PM:
+    22:12 Explore 4-7.6 s at load 6-7 with no registered heavy job)."""
+    _, out = run(['ps', '-Ao', 'pcpu=,pid=,comm='], 3)
+    top = []
+    for line in (out or '').splitlines():
+        parts = line.strip().split(None, 2)
+        if len(parts) == 3:
+            try:   # the pid tells which python (frontend, jobs, a test run) or which database session it was
+                top.append((float(parts[0]), f"{parts[2].rsplit('/', 1)[-1][:40]}#{parts[1]}"))
+            except ValueError:
+                continue
+    top.sort(reverse=True)
+    import os
+    return {'load_1': round(os.getloadavg()[0], 2), 'top': [[name, cpu] for cpu, name in top[:3]]}
+
+
 def stalled_hop(r):
     """The first hop that failed or was slow, from the LAN outwards; None when the whole path was fine."""
     if r.get('gateway_ms') is None:
@@ -147,6 +164,7 @@ def record():
         row = {'at': datetime.now(KST).strftime('%Y-%m-%d %H:%M:%S'), 'interface': interface,
                'port': port_name(interface) if interface else None, 'errors': counters(interface) if interface else None}
         row.update({name: job.result() for name, job in jobs.items()})
+    row['host'] = host_load()
     row['stalled'] = stalled_hop(row)
     return row
 
