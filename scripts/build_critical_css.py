@@ -76,8 +76,26 @@ def blocks(css, i=0, n=None):
     return out
 
 
-def critical(css, used_ranges):
-    """The used part of a stylesheet, given (start, end) offsets of used style rules."""
+URL = re.compile(r'url\(\s*([\'"]?)(?!data:|https?:|/|#)([^)\'"]+)\1\s*\)', re.I)
+
+
+def absolute_urls(css, base='/new/en/assets/'):
+    """Inline CSS resolves url() against the page, not the stylesheet: make relative references absolute."""
+    return URL.sub(lambda m: 'url(%s%s%s)' % (m[1], base + m[2].lstrip('./'), m[1]), css)
+
+
+TOKEN = re.compile(r'[.#](-?[_a-zA-Z][\w-]*)')
+
+
+def state_rule(prelude, dom, scripted):
+    """A rule for a state the data may produce: every class/id is in the page DOM or set by its scripts,
+    and at least one is in the DOM at load (so rules of other pages and closed panels stay out)."""
+    tokens = set(TOKEN.findall(re.sub(r'\\[^\s]', '', prelude)))
+    return bool(tokens) and tokens <= (dom | scripted) and bool(tokens & dom)
+
+
+def critical(css, used_ranges, dom=frozenset(), scripted=frozenset()):
+    """The used part of a stylesheet, given (start, end) offsets of used style rules, plus state rules."""
     used = {(s, e) for s, e in used_ranges}
     starts = {s for s, _ in used_ranges}
 
@@ -90,15 +108,15 @@ def critical(css, used_ranges):
         text = css[start:end]
         if prelude.lower().startswith(KEEP_AT) or prelude.lower().startswith('@import') or prelude.lower().startswith('@charset'):
             return text
-        if (start, end) in used or start in starts or ALWAYS.match(text):
+        if (start, end) in used or start in starts or ALWAYS.match(text) or (dom and state_rule(prelude, dom, scripted)):
             return text
         return ''
-    return '\n'.join(x for x in (keep(item) for item in blocks(css)) if x) + '\n'
+    return absolute_urls('\n'.join(x for x in (keep(item) for item in blocks(css)) if x) + '\n')
 
 
 def collect(base, page):
     from playwright.sync_api import sync_playwright
-    used, sheet = set(), None
+    used, sheet, dom, script_text = set(), None, set(), ''
     with sync_playwright() as p:
         browser = p.chromium.launch()
         for width in WIDTHS:
@@ -114,6 +132,18 @@ def collect(base, page):
                 cdp.send('CSS.startRuleUsageTracking')
                 pg.goto(base.rstrip('/') + '/new/en/' + page, wait_until='load')
                 pg.wait_for_timeout(1200)
+                dom |= set(pg.evaluate("""() => { const t = new Set();
+                  const add = el => { for (const c of el.classList) t.add(c); if (el.id) t.add(el.id); };
+                  for (const el of document.querySelectorAll('body *')) {
+                    if (el.closest('template')) continue;
+                    const r = el.getBoundingClientRect();
+                    if (!r.width || !r.height || r.top >= innerHeight || r.bottom <= 0) continue;
+                    for (let a = el; a && a !== document.body; a = a.parentElement) add(a);  // first screen and its ancestors
+                  }
+                  return [...t]; }"""))
+                if not script_text:
+                    src = pg.evaluate("(document.querySelector('script[src*=bundle]') || {}).src || ''")
+                    script_text = pg.evaluate('async u => u ? (await fetch(u)).text() : ""', src)
                 for rule in cdp.send('CSS.stopRuleUsageTracking')['ruleUsage']:
                     if not rule['used'] or 'bundle.css' not in urls.get(rule['styleSheetId'], ''):
                         continue
@@ -122,7 +152,8 @@ def collect(base, page):
                     used.add((int(rule['startOffset']), int(rule['endOffset'])))
                 ctx.close()
         browser.close()
-    return sheet or '', used
+    scripted = set(re.findall(r'[\'"`\s.#]([_a-zA-Z][\w-]{1,60})(?=[\'"`\s.#,:\[\])])', script_text))
+    return sheet or '', used, dom, scripted
 
 
 def main():
@@ -133,11 +164,12 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
     report = {}
     for page in sorted(manifest['live_pages']):
-        sheet, used = collect(args.base, page)
+        sheet, used, dom, scripted = collect(args.base, page)
         if not sheet:
             report[page] = 'no bundle stylesheet seen'
             continue
-        text = critical(sheet, used)
+        import hashlib
+        text = '/* source %s */\n' % hashlib.sha256(sheet.encode()).hexdigest()[:16] + critical(sheet, used, dom, scripted)
         (OUT / (page.removesuffix('.html') + '.css')).write_text(text)
         report[page] = {'rules': len(used), 'raw': len(text), 'gzip': len(gzip.compress(text.encode(), 9))}
     print(json.dumps(report, indent=1))

@@ -65,3 +65,55 @@ def test_a_page_with_a_built_file_inlines_it_and_loads_the_bundle_without_blocki
         client.close()
         front.book.close()
         store._db.close()
+
+
+def test_relative_urls_point_at_the_assets_folder_once_inlined():
+    from scripts.build_critical_css import absolute_urls
+    css = '.a{background:url(pearl.webp)}.b{background:url("./x.png")}.c{background:url(/new/en/assets/y.png)}.d{background:url(data:image/png;base64,AA)}'
+    out = absolute_urls(css)
+    assert 'url(/new/en/assets/pearl.webp)' in out and 'url("/new/en/assets/x.png")' in out
+    assert 'url(/new/en/assets/y.png)' in out and 'url(data:image/png;base64,AA)' in out
+
+
+def test_state_rules_for_classes_the_page_can_take_are_kept():
+    from scripts.build_critical_css import critical, state_rule
+    dom, scripted = {'chip-btn', 'quick-chips'}, {'active'}
+    assert state_rule('.chip-btn.active', dom, scripted)            # selected by the data on another visit
+    assert not state_rule('.other-page .chip-btn', dom, scripted)    # a class this page never has
+    assert not state_rule('.active', dom, scripted)                  # nothing of it is on this page
+    css = '.chip-btn{a:b}.chip-btn.active{c:d}.wf-node{e:f}'
+    out = critical(css, [(0, len('.chip-btn{a:b}'))], dom, scripted)
+    assert '.chip-btn.active{c:d}' in out and '.wf-node' not in out
+
+
+def test_every_built_file_was_made_from_the_current_bundle():
+    # A stylesheet change without regenerating would leave the first screen drawn by stale rules.
+    import hashlib
+    import json
+    import re
+    from pathlib import Path
+    from fastapi.testclient import TestClient
+    from agent_market.concierge.front import Front, clear_front_caches, create_front_app
+    from agent_market.concierge.pearl_view import bundle_body
+    from agent_market.gateway.store import Store
+    root = Path(__file__).resolve().parents[1]
+    built = sorted((root / 'new/en/assets/critical').glob('*.css'))
+    if not built:
+        return
+    import tempfile
+    store = Store(str(Path(tempfile.mkdtemp()) / 'c.db'))
+    clear_front_caches()
+    front = Front(store)
+    client = TestClient(create_front_app(front, manage_book_lifecycle=False))
+    try:
+        for path in built:
+            html = client.get('/new/en/' + path.stem + '.html').text
+            names = re.search(r'bundle\.css\?f=([^"&]+)', html)[1].split(',')
+            digest = hashlib.sha256(bundle_body(names, 'css')).hexdigest()[:16]
+            head = path.read_text().split('\n', 1)[0]
+            assert head == '/* source %s */' % digest, (
+                path.name + ' was built from another stylesheet: run scripts/build_critical_css.py again')
+    finally:
+        client.close()
+        front.book.close()
+        store._db.close()

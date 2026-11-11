@@ -45,6 +45,10 @@ TESTS = (
     # inline scripts, live pages s-maxage=60, others no-store (about 25 s together).
     'tests/test_public_page_cache.py',
     'tests/test_publication_security_audit.py::test_every_published_page_has_fresh_nonces_and_no_inline_handlers',
+    # 11-11 (PM decision B): first-screen CSS is current and draws the first screen exactly like the full CSS.
+    'tests/test_critical_css.py',
+    'tests/test_critical_css_browser.py::test_first_screen_with_inline_css_alone_matches_the_full_css[1280-light]',
+    'tests/test_critical_css_browser.py::test_first_screen_with_inline_css_alone_matches_the_full_css[375-light]',
 )
 # Each role runs the tests for the code it serves. jobs releases run the collector, health checks,
 # crawler and evaluation without the typed execution engine, so the opening-path list above
