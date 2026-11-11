@@ -119,3 +119,43 @@ def test_due_pick_ranks_once_per_batch_hands_out_each_id_once_and_expires(tmp_pa
     _healthy(store, ids)
     store.due_for_capability(1020.0 + module.CAP_BATCH_SECONDS + 1, 100.0, 2, per_host=2, kind='a2a')
     assert len(ranked) == 3                                                     # empty batch, then expiry: ranked again
+
+
+def test_health_due_pick_on_postgresql_ranks_narrow_ids_once_per_batch():
+    """11-11: the health loop's per-host ranking sorted whole rows (~13 MB to disk per call, ~17 calls a minute)."""
+    import psycopg
+    from scripts.rehearse_storage_adapter_postgres import _private_cluster, PORT
+    from agent_market.storage_adapter import open_store
+    from agent_market import application_store_collector as module
+    binary = Path('/opt/homebrew/opt/postgresql@18/bin')
+    if not (binary / 'initdb').is_file():
+        pytest.skip('PostgreSQL 18 fixture tools unavailable')
+    with _private_cluster({name: str(binary / name) for name in ('initdb', 'pg_ctl')}) as cluster:
+        with psycopg.connect(host=cluster['socket'], port=PORT, dbname='postgres', user='postgres', autocommit=True) as conn:
+            conn.execute('CREATE EXTENSION vector')
+            store = open_store('postgresql', connection=conn, initialize=True, workflow_key=b'q' * 32)
+            ids = [store.upsert_resource(_agent(n, 'one.example' if n < 4 else 'two.example'), now=10) for n in range(5)]
+            ranked = []
+            rank = store._collector_rows
+            store._collector_rows = lambda sql, *a: (ranked.append(sql) if 'ROW_NUMBER' in sql else None) or rank(sql, *a)
+            first = store.due_for_check(1000.0, 2, per_host=2, kind='a2a')
+            second = store.due_for_check(1001.0, 2, per_host=2, kind='a2a')
+            assert len(ranked) == 1 and ranked[0].startswith('SELECT id FROM')            # one narrow ranking
+            assert len(first) == 2 and len(second) == 1                                   # 2 per host: 3 ids in all
+            assert {r['id'] for r in first + second} <= set(ids) and len({r['id'] for r in first + second}) == 3
+            assert all(r['name'].startswith('Agent') and 'rn' not in r for r in first + second)
+            # empty batch: the next call ranks again; a row postponed meanwhile is no longer handed out
+            store.postpone([first[0]['id']], 5000.0)
+            again = store.due_for_check(1002.0, 10, per_host=2, kind='a2a')
+            assert len(ranked) == 2 and first[0]['id'] not in {r['id'] for r in again}
+            # a batch row that stopped being due before it was taken is dropped on the re-read
+            store.__dict__.pop('_cap_batches', None)
+            store._collector_rows = rank
+            taken = store.due_for_check(1003.0, 1, per_host=2, kind=['a2a'])
+            batch = list(store.__dict__['_cap_batches'][('check', ('a2a',), 2)][1])
+            assert len(taken) == 1 and batch                             # the rest wait in the batch
+            store.postpone(ids, 5000.0)                                   # nothing is due any more
+            assert store.due_for_check(1004.0, 10, per_host=2, kind=['a2a']) == []
+            # an old batch is ranked again: once the postponement passes, rows are due again
+            assert len(store.due_for_check(5001.0 + module.CHECK_BATCH_SECONDS, 10, per_host=2, kind=['a2a'])) == 3
+            store.close()

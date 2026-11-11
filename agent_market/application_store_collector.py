@@ -15,6 +15,8 @@ MAX_COLLECTOR_BYTES = 32 * 1024 * 1024
 CAP_BATCH = 1000            # ids ranked at once for the capability survey (11-11)
 CAP_BATCH_SECONDS = 300     # a batch older than this is ranked again
 _CAP_BATCH_LOCK = threading.Lock()
+CHECK_BATCH = 1000          # ids ranked at once for the health loop (11-11)
+CHECK_BATCH_SECONDS = 120   # shorter than the capability batch: newly due checks wait at most this long
 
 
 def _invalid():
@@ -70,11 +72,43 @@ class PostgresCollectorMixin:
         order = 'next_check_at IS NOT NULL,next_check_at'
         if per_host is None:
             sql = 'SELECT * FROM resources WHERE ' + where + ' ORDER BY ' + order + ',random() LIMIT %s'
-        else:
-            sql = 'SELECT * FROM (SELECT *,ROW_NUMBER() OVER(PARTITION BY host ORDER BY ' + order + \
-                ') AS rn FROM resources WHERE ' + where + ') AS candidates WHERE rn<=%s ORDER BY ' + order + ',random() LIMIT %s'
-            params.append(per_host)
-        return self._collector_rows(sql, params + [limit])
+            return self._collector_rows(sql, params + [limit])
+        # 11-11: ranking whole rows by host spilled ~13 MB to disk per call, ~17 calls a minute (284 MB in
+        # 75 s). Rank narrow columns once into a batch of CHECK_BATCH ids that later calls take from until
+        # it is empty or CHECK_BATCH_SECONDS old; taken rows are read again and kept only while still due.
+        sql = 'SELECT id FROM (SELECT id,host,next_check_at,ROW_NUMBER() OVER(PARTITION BY host ORDER BY ' + order + \
+            ') AS rn FROM resources WHERE ' + where + ') AS candidates WHERE rn<=%s ORDER BY ' + order + ',random() LIMIT %s'
+        kinds = tuple(kind) if isinstance(kind, (list, tuple)) else kind
+
+        def still_due(row):
+            due_at = row.get('next_check_at')
+            if row.get('active') != 1 or row.get('health_status') == 'retired' or (due_at is not None and due_at > now):
+                return False
+            if isinstance(kinds, tuple):
+                return not kinds or row.get('kind') in kinds
+            if kinds == 'x402':
+                return row.get('kind') not in ('a2a', 'mcp')
+            return kinds in (None, '') or row.get('kind') == kinds
+
+        key = ('check', kinds, per_host)
+        batches = self.__dict__.setdefault('_cap_batches', {})
+        served = []
+        with _CAP_BATCH_LOCK:
+            batch, fresh = batches.get(key), False
+            while len(served) < limit:
+                if batch is None or now - batch[0] > CHECK_BATCH_SECONDS or not batch[1]:
+                    if fresh or served:
+                        break
+                    batch, fresh = (now, [row['id'] for row in self._collector_rows(
+                        sql, params + [per_host, max(limit, CHECK_BATCH)])]), True
+                    batches[key] = batch
+                    if not batch[1]:
+                        break
+                chunk = [batch[1].pop(0) for _ in range(min(limit - len(served), len(batch[1])))]
+                rows = {row['id']: row for row in self._collector_rows(
+                    'SELECT * FROM resources WHERE id IN (' + ','.join(['%s'] * len(chunk)) + ')', tuple(chunk))}
+                served += [rows[rid] for rid in chunk if rid in rows and still_due(rows[rid])]
+        return served
 
     def due_for_scavenge(self, now, limit=50, per_host=1):
         _number(now); _limit(limit); _limit(per_host)
