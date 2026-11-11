@@ -71,3 +71,12 @@ def test_advertise_landing_is_english_honest_and_follows_the_usdc_switch(monkeyp
     assert '<style' not in page.text and 'style=' not in page.text
     monkeypatch.setenv('AD_COIN_PAID_BOOKING_ENABLED', '1')
     assert 'USDC payments open soon' not in client().get('/ad-coin/v2/advertise').text
+
+
+def test_v2_workspace_links_straight_to_the_sign_in_page():
+    """11-12 PM: /new/en/sign-in.html answers 303 to /customer/sign-in; link there directly (one round trip less)."""
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1] / 'agent_market/ad_coin/v2/web'
+    for name in ('index.html', 'app.js', 'advertise.html', 'admin.html', 'admin.js'):
+        assert '/new/en/sign-in.html' not in (root / name).read_text(), name
+    assert 'id="sign-in" class="btn primary" href="/customer/sign-in"' in (root / 'index.html').read_text()
