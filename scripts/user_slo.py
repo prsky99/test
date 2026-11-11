@@ -127,7 +127,8 @@ def check_pages(client):
     rows = []
     for path in ('/new/en/explore.html', '/new/en/chat.html', '/'):
         took, response, error = timed(lambda: client.get(BASE + path, headers={'Accept': 'text/html'}))
-        rows.append({'path': path, 's': took, 'status': getattr(response, 'status_code', error), 'colo': colo(response)})
+        rows.append({'path': path, 's': took, 'status': getattr(response, 'status_code', error), 'colo': colo(response),
+                     'cache': response.headers.get('cf-cache-status') if response is not None else None})  # 11-11 PM
     bad = [r for r in rows if r['s'] > TARGET['page_s'] or r['status'] != 200]
     return {'samples': rows, 'ok': not bad, 'bad': bad}
 

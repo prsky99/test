@@ -65,27 +65,84 @@ BUNDLE_NAME = re.compile(r'[A-Za-z0-9_-]{1,40}')
 BUNDLE_MAX = 12
 
 
-def bundle_body(names, kind):
+def bundle_body(names, kind, root=None):
     """The concatenated files of one bundle, in page order; None if any name is not a shipped asset."""
+    root = root or ROOT
     parts = []
     for name in names:
-        path = ROOT / 'en' / 'assets' / (name + '.' + kind)
+        path = root / 'en' / 'assets' / (name + '.' + kind)
         if not BUNDLE_NAME.fullmatch(name) or not path.is_file() or path.is_symlink():
             return None
         parts.append(path.read_bytes())
     joiner = b'\n' if kind == 'css' else b'\n;\n'
     body = joiner.join(parts) + b'\n'
-    return versioned_css_urls(body) if kind == 'css' else body
+    return versioned_css_urls(body, root) if kind == 'css' else body
+
+
+# 11-11 (PM: page target 1 s; stale-while-revalidate only once old asset URLs keep working): an edge may hand a
+# visitor HTML cached before a deploy, which names the previous bundle digests. When ?v= is not the current
+# content, the same bytes are looked up in the earlier releases beside this one
+# (gateway-data/services/releases/<name>/new), so that page still gets its own CSS and JS, not the new ones.
+EARLIER_RELEASES = 8
+EARLIER_SUFFIXES = ('.css', '.js', '.svg', '.png', '.webp', '.json', '.zip')
+_earlier = collections.OrderedDict()
+_earlier_lock = threading.Lock()
+
+
+def earlier_roots():
+    """The `new` folders of the most recent other releases, newest first; none outside a releases folder."""
+    releases = ROOT.parent.parent
+    if releases.name != 'releases':
+        return []
+    try:
+        dirs = [d for d in releases.iterdir() if d.is_dir() and not d.is_symlink() and d != ROOT.parent
+                and (d / 'new' / 'en' / 'assets').is_dir()]
+        dirs.sort(key=lambda d: d.stat().st_mtime, reverse=True)
+    except OSError:
+        return []
+    return [d / 'new' for d in dirs[:EARLIER_RELEASES]]
+
+
+def earlier_asset(key, version, build):
+    """Bytes an earlier release served for `key` with this digest, or None. build(root) gives that release's
+    bytes for the key (or None); results per key are kept, so an unknown digest costs a dict lookup."""
+    with _earlier_lock:
+        found = _earlier.get(key)
+        if found is not None:
+            _earlier.move_to_end(key)
+    if found is None:
+        found = {}
+        for root in earlier_roots():
+            try:
+                body = build(root)
+            except OSError:
+                body = None
+            if body is not None:
+                found.setdefault(asset_version(body), body)
+        with _earlier_lock:
+            _earlier[key] = found
+            while len(_earlier) > 128:
+                _earlier.popitem(last=False)
+    return found.get(version)
+
+
+def earlier_file(root, name):
+    """One shipped asset of an earlier release (no links, nothing outside its assets folder)."""
+    assets = (root / 'en' / 'assets').resolve()
+    path = (root / 'en' / name)
+    if '..' in name.split('/') or not path.is_file() or path.is_symlink() or assets not in path.resolve().parents:
+        return None
+    return path.read_bytes()
 
 
 CSS_ASSET_URL = re.compile(rb"""url\((['"]?)([A-Za-z0-9_-]+\.(?:webp|png|svg|jpg|woff2?))\1\)""")
 
 
-def versioned_css_urls(body):
+def versioned_css_urls(body, root=None):
     """url(pearl.webp) in a bundle gets the same ?v=<digest> as the page's <img>, so the file is fetched once
     and kept for a year (11-11: the home page loaded pearl.webp twice, once per address)."""
     def pin(match):
-        path = ROOT / 'en' / 'assets' / match[2].decode()
+        path = (root or ROOT) / 'en' / 'assets' / match[2].decode()
         if not path.is_file() or path.is_symlink():
             return match[0]
         return b'url(' + match[1] + match[2] + b'?v=' + asset_version(path.read_bytes()).encode() + match[1] + b')'
@@ -304,8 +361,7 @@ def install(app, front, *, workspace_access_enabled=False, workspace_link_enable
              | set(manifest.get('native_account_pages', [])))
     en = (directory / 'en').resolve()
     allowed_assets = {p.relative_to(en).as_posix() for p in (en/'assets').rglob('*')
-                      if p.is_file() and not p.is_symlink() and p.suffix in
-                      ('.css', '.js', '.svg', '.png', '.webp', '.json', '.zip')}
+                      if p.is_file() and not p.is_symlink() and p.suffix in EARLIER_SUFFIXES}
     design = (directory / 'design').resolve()
     allowed_design = {p.relative_to(design).as_posix() for p in design.rglob('*.png')
                       if p.is_file() and not p.is_symlink()}
@@ -345,19 +401,27 @@ def install(app, front, *, workspace_access_enabled=False, workspace_link_enable
         if filename in ('bundle.css', 'bundle.js'):
             kind = filename.rsplit('.', 1)[1]
             names = request.query_params.get('f', '').split(',')
-            body = bundle_body(names, kind) if 0 < len(names) <= BUNDLE_MAX else None
+            if not 0 < len(names) <= BUNDLE_MAX:
+                raise HTTPException(404, 'Asset not found.')
+            body, wanted = bundle_body(names, kind), request.query_params.get('v')
+            if wanted and (body is None or asset_version(body) != wanted):
+                body = earlier_asset((kind, tuple(names)), wanted,
+                                     lambda root: bundle_body(names, kind, root)) or body
             if body is None:
                 raise HTTPException(404, 'Asset not found.')
             version = asset_version(body)
-            cache = ('public, max-age=31536000, immutable' if request.query_params.get('v') == version
+            cache = ('public, max-age=31536000, immutable' if wanted == version
                      else 'public, max-age=300, stale-while-revalidate=86400')
             media = 'text/css; charset=utf-8' if kind == 'css' else 'text/javascript; charset=utf-8'
             return Response(body, media_type=media, headers={'X-Content-Type-Options': 'nosniff', 'Cache-Control': cache,
                                                              'ETag': '"' + version + '"'})
         name = 'assets/'+filename
-        if name not in allowed_assets:
+        wanted = request.query_params.get('v')
+        body = read(en, name) if name in allowed_assets else None
+        if wanted and (body is None or asset_version(body) != wanted) and name.endswith(EARLIER_SUFFIXES):
+            body = earlier_asset(('file', name), wanted, lambda root: earlier_file(root, name)) or body
+        if body is None:
             raise HTTPException(404, 'Asset not found.')
-        body=read(en,name)
         version=asset_version(body)
         # Public static files carry no visitor data. A URL naming this exact content is
         # immutable; an unversioned URL is kept briefly and revalidated by ETag.
