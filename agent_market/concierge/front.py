@@ -3448,6 +3448,9 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             reply=await run_in_threadpool(front.public_reply,reply)
             structured={'intent':reply.intent,'suggested_replies':reply.suggested,'visitor':None,
                         **reply.data,'conversation_recorded':False}
+            if name in ('search','find_agents'):
+                from .mcp_compact import compact_discovery
+                structured=compact_discovery(structured)
             return mcp_result(rid,{'content':[{'type':'text','text':reply.text}],
                                   'structuredContent':structured,'isError':reply.data.get('status')=='task_context_required'})
         message, data = "", {}
