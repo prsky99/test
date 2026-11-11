@@ -178,6 +178,44 @@ def edge_transitions(rows=None):
     return posted
 
 
+
+LEDGER_STATE = ROOT / 'logs/ops/error-ledger-state.json'
+LEDGER_DIR = ROOT / 'logs/ops/error-ledger'
+LEDGER_AFTER_MINUTE = 20   # 00:20 local: yesterday's logs are complete
+
+
+def error_ledger(clock=time.time, launch=None):
+    """Once a day: build yesterday's error ledger (scripts/error_ledger.py) and hand off what is unexplained.
+
+    The ledger is started in the background at low priority; a later watch reads its JSON and puts one line in
+    the board's handoff section when anything is unexplained (11-11 PM: stability first)."""
+    local = datetime.fromtimestamp(clock())
+    if local.hour * 60 + local.minute < LEDGER_AFTER_MINUTE:
+        return None
+    day = datetime.fromtimestamp(clock() - 86400).strftime('%Y-%m-%d')
+    state = json.loads(LEDGER_STATE.read_text()) if LEDGER_STATE.is_file() else {}
+    result = LEDGER_DIR / f'{day}.json'
+    if state.get('reported') != day and result.is_file() and state.get('day') == day:
+        data = json.loads(result.read_text())
+        if data.get('unexplained'):
+            top = ', '.join(r['key'][:60] for r in data['rows'] if not r['explained'])[:200]
+            board_handoff('error_ledger', f"오류 장부 {day}: 설명되지 않음 {data['unexplained']}건 {data['unexplained_kinds']}종"
+                                          f" (logs/ops/error-ledger/{day}.md): {top}")
+        state['reported'] = day
+        LEDGER_STATE.write_text(json.dumps(state))
+        append(ACTIONS, f"{now()} 오류 장부 {day}: 전체 {data.get('total')}건, 설명되지 않음 {data.get('unexplained')}건")
+        return 'reported'
+    if state.get('day') == day:
+        return None
+    LEDGER_STATE.parent.mkdir(parents=True, exist_ok=True)
+    LEDGER_STATE.write_text(json.dumps({'day': day, 'started': clock()}))
+    log = (ROOT / 'logs/ops/error-ledger.out').open('a')
+    (launch or subprocess.Popen)(['nice', '-n', '10', str(ROOT / '.venv/bin/python'), '-m', 'scripts.error_ledger',
+                                  '--day', day], cwd=ROOT, stdout=log, stderr=log, start_new_session=True)
+    append(ACTIONS, f'{now()} 오류 장부 {day} 시작')
+    return 'started'
+
+
 def watch():
     try:
         board_snapshot()
@@ -195,6 +233,10 @@ def watch():
         real_task_score()
     except Exception as error:  # noqa: BLE001
         append(ACTIONS, f'{now()} real_task_score 실패: {type(error).__name__}')
+    try:
+        error_ledger()
+    except Exception as error:  # noqa: BLE001
+        append(ACTIONS, f'{now()} 오류 장부 실패: {type(error).__name__}')
     record = json.loads(subprocess.run([sys.executable, str(ROOT / 'scripts/ops_watch.py')],
                                        capture_output=True, text=True, cwd=ROOT).stdout or '{}')
     anomalies = record.get('anomalies') or {}
