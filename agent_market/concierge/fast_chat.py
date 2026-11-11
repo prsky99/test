@@ -55,7 +55,10 @@ def retrieval_text(task):
     validation tools whose text mentions sending ahead of tools that send."""
     from .selection import capability_terms
     # Verb first: "email send" let any send_* tool (feedback, invites) match the request.
-    text = re.sub(r'\b([a-z]+)\s+sending\b', r'send \1', str(task or ''), flags=re.I)
+    # A URL is the task's input, not a capability: "give me the main text: https://…/news" found
+    # nothing while the same request without it found page readers (11-11 real task p04).
+    text = re.sub(r'(?:https?://|www\.)\S+', ' web page ', str(task or ''), flags=re.I)
+    text = re.sub(r'\b([a-z]+)\s+sending\b', r'send \1', text, flags=re.I)
     text = re.sub(r'\bsending\b', 'send', text, flags=re.I)
     # Tools say "postgres" (postgres__sql_read); the lexical index does not equate the two spellings.
     text = re.sub(r'\bpostgresql\b', 'postgres', text, flags=re.I)

@@ -60,6 +60,11 @@ class PostgresVectorIndex(VectorIndex):
             from .postgres_ann import publish
             publish(self.store, claim, blob, descriptor, vector_hash)
 
+    def kind_of(self, resource_id):
+        with self.read_snapshot():
+            row = self.store._execute('SELECT kind FROM public.resources WHERE id=%s', (resource_id,)).fetchone()
+        return row[0] if row else None
+
     def reusable_vector(self, claim, descriptor):
         """The stored vector when this claim's text and model were already embedded, else None."""
         if not self.ann_enabled:

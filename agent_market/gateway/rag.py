@@ -6,6 +6,7 @@
 """
 
 import json
+import os
 import hashlib
 from collections import OrderedDict
 import logging
@@ -344,6 +345,12 @@ class RagEngine:
         stored = reuse(claim, descriptor) if reuse is not None else None
         if stored is not None:
             return index.publish(claim, stored, descriptor)
+        # x402 collection is paused (11-10 decision, COLLECT_X402 unset or 0): a listing whose text
+        # changed keeps the vector it has instead of a new embedding and HNSW insert (11-11).
+        kind_of = getattr(index, 'kind_of', None)
+        if (os.environ.get('COLLECT_X402', '0') != '1' and kind_of is not None
+                and kind_of(claim.resource_id) == 'x402'):
+            return index.fail(claim, descriptor, 'embedding_failed')
         embeddings = self.embed_texts([claim.text])
         if self.ollama_url != endpoint or self.model_descriptor().digest != descriptor.digest:
             return index.fail(claim, descriptor, 'invalid_response')

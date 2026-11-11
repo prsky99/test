@@ -260,3 +260,32 @@ def test_the_detail_api_marks_a_test_network_listing(tmp_path):
                                             'networks': ['eip155:8453'], 'price_usdc': 20000}, now=10)
     assert get_safe_agent_detail(store, test_id)['agent']['price_note'] == 'testnet_only'
     assert 'price_note' not in get_safe_agent_detail(store, main_id)['agent']
+
+
+def test_a_paused_x402_listing_is_not_embedded_again():
+    """11-10 decision: x402 collection is paused; its re-queued listings keep the vectors they have."""
+    from agent_market.gateway.rag import RagEngine
+    engine = RagEngine(embed_model='synthetic', embed_revision='fixture-v1')
+    descriptor = engine.model_descriptor()
+    seen = []
+
+    class Index:
+        def reusable_vector(self, claim, descriptor):
+            return None  # the text changed
+
+        def kind_of(self, rid):
+            return 'x402'
+
+        def fail(self, claim, descriptor, code='embedding_failed'):
+            seen.append(code)
+            return 'failed'
+    engine.embed_texts = lambda *a, **k: pytest.fail('embedded a paused x402 listing')
+    from types import SimpleNamespace
+    assert engine._publish_claim(Index(), SimpleNamespace(resource_id=7, text='x'), descriptor) == 'failed' and seen == ['embedding_failed']
+
+
+def test_a_url_in_a_task_is_input_not_a_capability():
+    """11-11 real task p04: a URL in the request found nothing; the same request without it found page readers."""
+    from agent_market.concierge.fast_chat import retrieval_text
+    text = retrieval_text('Read this page and give me the main text: https://www.anthropic.com/news')
+    assert 'anthropic' not in text and 'web page' in text
