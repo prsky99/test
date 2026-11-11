@@ -262,6 +262,39 @@ FULL_CHECK_EVERY = 7200   # 11-11 PM: every two hours
 FULL_CHECK_MINUTES = 15
 
 
+PROVENANCE_STATE = ROOT / 'logs/ops/provenance-state.json'
+PROVENANCE_AFTER_MINUTE = 6 * 60 + 30   # daily, before the 08:00 bundle deploy
+
+
+def provenance(clock=time.time, run=None):
+    """Once a day: is every file the running versions execute committed? (scripts/provenance_check.py, 11-11 PM)
+
+    Clean '출처 모름' board lines are closed by the check itself; uncommitted content in a running version is
+    handed off on one line, which closes again once a later day is clean."""
+    local = datetime.fromtimestamp(clock())
+    day = local.strftime('%Y-%m-%d')
+    if local.hour * 60 + local.minute < PROVENANCE_AFTER_MINUTE:
+        return None
+    state = json.loads(PROVENANCE_STATE.read_text()) if PROVENANCE_STATE.is_file() else {}
+    if state.get('day') == day:
+        return None
+    PROVENANCE_STATE.write_text(json.dumps({'day': day}))
+    if run is None:
+        import provenance_check
+        run = provenance_check.check
+    result = run()
+    found = result.get('uncommitted') or {}
+    if found:
+        listed = '; '.join(f"{release}: {', '.join(paths[:3])}" + (f' 외 {len(paths) - 3}개' if len(paths) > 3 else '')
+                           for release, paths in found.items())
+        board_handoff('provenance', f'운영 버전에 커밋되지 않은 파일 있음(출처 확인 필요, logs/ops/provenance.json): {listed[:220]}')
+    else:
+        board_close('provenance', f'해결(자동 {now()[11:]} 운영 버전 모두 커밋된 내용)')
+    append(ACTIONS, f"{now()} 출처 대조: 미커밋 {sum(len(v) for v in found.values())}개, 자동 닫음 {len(result.get('closed') or [])}줄, "
+                    f"남은 출처 모름 {len(result.get('open') or [])}줄")
+    return 'warned' if found else 'clean'
+
+
 TEST_PYTHON = ROOT / '.venv-tests/bin/python'   # the browser part needs playwright, which only .venv-tests has (11-11)
 
 
@@ -333,6 +366,10 @@ def watch():
         error_ledger()
     except Exception as error:  # noqa: BLE001
         append(ACTIONS, f'{now()} 오류 장부 실패: {type(error).__name__}')
+    try:
+        provenance()
+    except Exception as error:  # noqa: BLE001
+        append(ACTIONS, f'{now()} 출처 대조 실패: {type(error).__name__}')
     try:
         full_check()
     except Exception as error:  # noqa: BLE001

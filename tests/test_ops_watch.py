@@ -35,6 +35,7 @@ def test_auto_watch_alerts_once_and_writes_handoff(tmp_path, monkeypatch):
     monkeypatch.setattr(subprocess, 'run', lambda *a, **k: subprocess.CompletedProcess(a, 0, fake, ''))
     monkeypatch.setattr(ops_auto.ops_llm, 'ask', lambda *a, **k: None)  # no API in tests
     monkeypatch.setattr(ops_auto, 'error_ledger', lambda: None)  # tested in test_error_ledger.py
+    monkeypatch.setattr(ops_auto, 'provenance', lambda: None)    # tested below and in test_provenance_check.py
     monkeypatch.setattr(ops_auto, 'stability_gate', lambda: None)  # tested in test_stability_gate.py
     monkeypatch.setattr(ops_auto, 'full_check', lambda: None)  # tested below
     ops_auto.watch()
@@ -103,3 +104,18 @@ def test_full_check_runs_every_two_hours_and_records_a_deferral(tmp_path, monkey
     assert '해결(자동' in board.read_text()
     assert run(11_200 + 3600, True) is None                  # not yet two hours
     assert run(11_200 + 7300, True) == 'started' and len(launched) == 2
+
+
+def test_provenance_runs_once_a_day_and_warns_or_closes(tmp_path, monkeypatch):
+    from datetime import datetime
+    ops_auto, board = _board(tmp_path, monkeypatch)
+    monkeypatch.setattr(ops_auto, 'PROVENANCE_STATE', tmp_path / 'prov.json')
+    at = lambda h, m, d=12: datetime(2026, 11, d, h, m).timestamp()
+    dirty = lambda: {'uncommitted': {'cap-jobs-r1': ['agent_market/x.py']}, 'closed': [], 'open': ['agent_market/x.py']}
+    assert ops_auto.provenance(clock=lambda: at(6, 0), run=dirty) is None           # before 06:30
+    assert ops_auto.provenance(clock=lambda: at(6, 31), run=dirty) == 'warned'
+    assert '자동 점검 [provenance]' in board.read_text() and 'agent_market/x.py' in board.read_text()
+    assert ops_auto.provenance(clock=lambda: at(9, 0), run=dirty) is None            # once a day
+    clean = lambda: {'uncommitted': {}, 'closed': ['agent_market/x.py'], 'open': []}
+    assert ops_auto.provenance(clock=lambda: at(6, 40, 13), run=clean) == 'clean'
+    assert [l for l in board.read_text().splitlines() if '[provenance]' in l][0].count('해결(자동') == 1
