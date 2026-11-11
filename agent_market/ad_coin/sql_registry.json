@@ -1630,8 +1630,8 @@
    "sha256": "f0aadaeb3f89ad802e11a8000d4c4567533a94f00eb0fa4fff343cd0f58d90d6"
   },
   {
-   "sql": "SELECT c.*,r.revision_hash,r.payload_json,r.starts_ms,r.ends_ms,r.total_atoms,r.daily_atoms,r.gross_atoms,r.split_json FROM adc2_campaigns c JOIN adc2_campaign_revisions r ON r.id=c.current_revision_id JOIN adc2_advertisers a ON a.id=c.advertiser_id WHERE c.state='active' AND c.approval_status='approved' AND c.funded=1 AND a.status='active' AND r.starts_ms<=? AND r.ends_ms>? AND jsonb_exists((r.payload_json)::jsonb->'task_categories',?) AND jsonb_exists((r.payload_json)::jsonb->'regions',?) ORDER BY c.id LIMIT 20",
-   "sha256": "137bca07dda9ca8776d4ba217d723bcbb77f840b55d2cbc0e1d79c3e74fa834e"
+   "sql": "SELECT c.*,r.revision_hash,r.payload_json,r.starts_ms,r.ends_ms,r.total_atoms,r.daily_atoms,r.gross_atoms,r.split_json FROM adc2_campaigns c JOIN adc2_campaign_revisions r ON r.id=c.current_revision_id JOIN adc2_advertisers a ON a.id=c.advertiser_id WHERE c.state='active' AND c.approval_status='approved' AND c.funded=1 AND a.status='active' AND r.starts_ms<=? AND r.ends_ms>? AND jsonb_exists((r.payload_json)::jsonb->'task_categories',?) AND jsonb_exists((r.payload_json)::jsonb->'regions',?) AND r.gross_atoms>2 ORDER BY c.id LIMIT 20",
+   "sha256": "b06ee7e22f1a8a1f2ead5f7dabb37af4e28999dd895a86275427173a0a764075"
   },
   {
    "sql": "SELECT c.*,r.revision_hash,r.payload_json,r.starts_ms,r.ends_ms,r.total_atoms,r.daily_atoms,r.gross_atoms,r.split_json FROM adc2_campaigns c JOIN adc2_campaign_revisions r ON r.id=c.current_revision_id JOIN adc2_advertisers a ON a.id=c.advertiser_id WHERE c.state='active' AND c.approval_status='approved' AND c.funded=1 AND a.status='active' AND r.starts_ms<=? AND r.ends_ms>? ORDER BY c.id LIMIT 20",

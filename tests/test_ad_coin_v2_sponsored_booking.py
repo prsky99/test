@@ -223,3 +223,16 @@ def test_public_terms_match_the_approved_clauses_word_for_word():
     straight = [item.replace('“', '"').replace('”', '"').replace('’', "'") for item in items]
     assert straight == expected
     assert 'Sponsored placements paid with coins' in section and '<!--' not in page
+
+
+def test_sponsored_only_campaigns_are_never_offered_for_rewarded_views(p1_suite):  # noqa: F811
+    """11-11 (PM d): a per-view reward of 2 atoms marks a Sponsored-only campaign; P1 candidates skip it."""
+    from tests.test_ad_coin_v2_p1 import NOW as P1_NOW
+    s = p1_suite
+    fund(s)
+    only = _activate_campaign(s, name='Sponsored only', total_budget_atoms='2', daily_budget_atoms='2', gross_p1_atoms='2')
+    store = s.service.store
+    with store.atomic():
+        ids = [r['id'] for r in store.all('campaigns_active_candidates_for_target', (P1_NOW, P1_NOW, 'research', 'US'))]
+    assert only['id'] not in ids
+    book(s, only, TODAY + DAY_MS)                                   # still bookable for Sponsored days

@@ -289,6 +289,7 @@ def test_browser_stop_halts_collection_and_campaign_draft_is_usable(live):
         page.get_by_label("Advertisement text", exact=True).fill(
             "A focused research notebook for your next project."
         )
+        page.locator("#sponsored-only").uncheck()  # this journey uses rewarded views (11-11: Sponsored-only is the default)
         page.locator("#total-budget").fill("4")
         page.locator("#daily-budget").fill("2")
         page.locator("#gross-reward").fill("1")
@@ -360,11 +361,9 @@ def test_browser_stop_halts_collection_and_campaign_draft_is_usable(live):
 
         switch("approver")
         before = int(suite.service.ledger.account(suite.available)["balance_atoms"])
-        row.get_by_role("button", name="Review budget", exact=True).click()
+        row.get_by_role("button", name="Review and start", exact=True).click()   # approve and start in one step
         expect(page.locator("#review-body")).to_contain_text("Total: 4 coins")
         page.get_by_role("button", name="Confirm", exact=True).click()
-        expect(row.get_by_role("button", name="Activate", exact=True)).to_be_visible()
-        row.get_by_role("button", name="Activate", exact=True).click()
         expect(row).to_contain_text("Running")
         switch("editor")
         row.get_by_role("button", name="Pause", exact=True).click()

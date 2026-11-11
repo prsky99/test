@@ -3,6 +3,7 @@
   const $ = id => document.getElementById(id);
   const state = {session:null,pref:null,offer:null,ad:null,operation:null,review:null,cursor:null,busy:0,epoch:0,view:'rewards',viewSeq:0};
   const API = '/api/ad-coin/v2';
+  const SPONSORED_ONLY_ATOMS = '2';  // marks a Sponsored-only campaign: never offered for rewarded views (sql gross_atoms>2)
   const text = (id,value) => { $(id).textContent = value; };
   const uuid = () => crypto.randomUUID();
   function csrf() {
@@ -256,6 +257,13 @@
     text('outcome-text','Verification is still pending. You can check again later.');$('check-outcome').hidden=false;
   }
   function advertiser() {return state.session?.advertisers.find(a=>a.id===$('advertiser').value);}
+  async function approveAndStart(campaign) {
+    await campaignAction(campaign,'approvals');
+    const {value}=await net('/ad-coin/v2/ui/advertisers/'+campaign.advertiser_id+'/campaigns');
+    const fresh=value.items.find(c=>c.id===campaign.id);
+    if (fresh&&fresh.approval_status==='approved'&&fresh.state==='eligible') await campaignAction(fresh,'activation');
+    text('notice',fresh?'Campaign started. You can now book Sponsored days.':'Budget approved. Choose Activate to start.');
+  }
   async function campaignAction(campaign,action) {
     const root='/advertisers/'+campaign.advertiser_id+'/campaigns/'+campaign.id;
     const tag=await version(campaign);
@@ -275,14 +283,14 @@
       const card=document.createElement('article');card.className='card';card.dataset.item='campaign';
       const title=document.createElement('h2');title.textContent=campaign.name;
       const status=document.createElement('p');status.textContent=({draft:'Draft · request a review when ready',in_review:'In review · we check the ad before it can run',eligible:campaign.approval_status==='approved'?'Ready · activate to start':'Passed review · approve the budget next',rejected:'Not approved · edit the ad and request a new review',active:'Running',paused:'Paused',suspended:'Suspended by Agent Concierge'})[campaign.state]||campaign.state;
-      const amount=document.createElement('p');amount.textContent='Budget '+coins(campaign.total_budget_atoms)+' coins · up to '+coins(campaign.daily_budget_atoms)+' a day · '+coins(campaign.gross_p1_atoms)+' points per view';
+      const amount=document.createElement('p');amount.textContent=campaign.gross_p1_atoms===SPONSORED_ONLY_ATOMS?'Sponsored placements only · book days below once it is running':'Budget '+coins(campaign.total_budget_atoms)+' coins · up to '+coins(campaign.daily_budget_atoms)+' a day · '+coins(campaign.gross_p1_atoms)+' points per view';
       const actions=document.createElement('div');actions.className='actions';card.append(title,status,amount,actions);
       const add=(label,action)=>{const b=document.createElement('button');b.type='button';b.className='btn';b.textContent=label;b.addEventListener('click',()=>run(b,action));actions.append(b);};
       if (['draft','rejected'].includes(campaign.state)&&adv.capabilities.includes('campaign.edit')) add('Request review',()=>campaignAction(campaign,'review-request'));
-      if (campaign.state==='eligible'&&campaign.approval_status==='unapproved'&&adv.capabilities.includes('budget.approve')) add('Review budget',async()=>review('Approve this campaign budget?',[
-        campaign.name,'Total: '+coins(campaign.total_budget_atoms)+' coins. Daily: '+coins(campaign.daily_budget_atoms)+' coins.',
+      if (campaign.state==='eligible'&&campaign.approval_status==='unapproved'&&adv.capabilities.includes('budget.approve')) add('Review and start',async()=>review('Start this campaign?',[
+        campaign.name,campaign.gross_p1_atoms===SPONSORED_ONLY_ATOMS?'Sponsored placements only. No rewarded-view budget is used; you book days separately.':'Total: '+coins(campaign.total_budget_atoms)+' coins. Daily: '+coins(campaign.daily_budget_atoms)+' coins.',
         'Dates: '+new Date(campaign.starts_at).toLocaleString('en-US',{timeZone:'UTC',dateStyle:'medium',timeStyle:'short'})+' UTC'+' to '+new Date(campaign.ends_at).toLocaleString('en-US',{timeZone:'UTC',dateStyle:'medium',timeStyle:'short'})+' UTC'+'.',
-        'This approval does not activate the campaign.'],()=>campaignAction(campaign,'approvals')));
+        'Confirming approves the budget and starts the campaign in one step.'],()=>approveAndStart(campaign)));
       if (['eligible','paused'].includes(campaign.state)&&campaign.approval_status==='approved'&&adv.capabilities.includes('budget.approve')) add(campaign.state==='paused'?'Resume':'Activate',()=>campaignAction(campaign,'activation'));
       if (campaign.state==='active'&&adv.capabilities.includes('campaign.pause')) add('Pause',()=>campaignAction(campaign,'pause'));
       if (campaign.state==='active'&&campaign.approval_status==='approved'&&adv.capabilities.includes('budget.approve')) add('Book a Sponsored day',async()=>openBooking(campaign));
@@ -523,6 +531,8 @@
     try {localStorage.setItem('adcoin-updates-seen',JSON.stringify([...seen,...value.items.map(i=>i.key)].slice(-500)));} catch {}
   }
   $('load-updates').onclick=()=>run($('load-updates'),loadUpdates);
+  $('sponsored-only').addEventListener('change',()=>{const only=$('sponsored-only').checked;$('reward-fields').hidden=only;
+    for (const id of ['total-budget','daily-budget','gross-reward']) $(id).disabled=only;});
   $('load-bookings').onclick=()=>run($('load-bookings'),loadBookings);
   $('cancel-booking-form').onclick=()=>{$('booking-form').hidden=true;state.booking=null;};
   $('booking-form').addEventListener('submit',event=>{
@@ -545,7 +555,8 @@
   $('cancel-create').onclick=()=>{$('campaign-form').hidden=true;};
   $('campaign-form').onsubmit=event=>{event.preventDefault();run(event.submitter,async()=>{const adv=advertiser();if (!adv) return;
     await api('/advertisers/'+adv.id+'/campaigns',{method:'POST',body:{name:$('campaign-name').value,asset_id:'model:aiac:v2',
-      total_budget_atoms:atoms($('total-budget').value),daily_budget_atoms:atoms($('daily-budget').value),gross_p1_atoms:atoms($('gross-reward').value),
+      ...($('sponsored-only').checked?{total_budget_atoms:SPONSORED_ONLY_ATOMS,daily_budget_atoms:SPONSORED_ONLY_ATOMS,gross_p1_atoms:SPONSORED_ONLY_ATOMS}:
+        {total_budget_atoms:atoms($('total-budget').value),daily_budget_atoms:atoms($('daily-budget').value),gross_p1_atoms:atoms($('gross-reward').value)}),
       budget_timezone:'UTC',starts_at:new Date($('campaign-start').value+'Z').toISOString(),ends_at:new Date($('campaign-end').value+'Z').toISOString(),
       task_categories:[$('campaign-category').value],regions:[$('campaign-region').value],creative_text:$('campaign-text').value,
       min_exposure_ms:15000,split_policy_id:'default_v5',renderer_profile:'platform_text_v1'}});

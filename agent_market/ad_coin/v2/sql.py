@@ -136,7 +136,7 @@ SQL.update(
         "JOIN adc2_advertisers a ON a.id=c.advertiser_id WHERE c.state='active' AND c.approval_status='approved' "
         "AND c.funded=1 AND a.status='active' AND r.starts_ms<=? AND r.ends_ms>? "
         "AND jsonb_exists((r.payload_json)::jsonb->'task_categories',?) AND jsonb_exists((r.payload_json)::jsonb->'regions',?) "
-        "ORDER BY c.id LIMIT 20",
+        "AND r.gross_atoms>2 ORDER BY c.id LIMIT 20",
         "campaigns_sponsored_snapshot": "SELECT c.id,r.payload_json,r.ends_ms FROM adc2_campaigns c JOIN adc2_campaign_revisions r ON r.id=c.current_revision_id "
         "JOIN adc2_advertisers a ON a.id=c.advertiser_id WHERE c.state='active' AND c.approval_status='approved' "
         "AND c.funded=1 AND a.status='active' AND r.starts_ms<=? AND r.ends_ms>? ORDER BY c.id LIMIT ?",
