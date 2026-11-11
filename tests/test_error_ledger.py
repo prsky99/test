@@ -80,3 +80,9 @@ def test_internal_measurement_failures_are_counted_on_their_own_rows(tmp_path):
     assert not keys['gateway|mcp|INVALID_INPUT|admission']['explained']
     assert (result['total'], result['internal'], result['unexplained']) == (2, 1, 1)
     assert '내부 측정 1건' in error_ledger.write(result, tmp_path).read_text()
+
+
+def test_a_fixed_bug_rule_stops_explaining_after_its_date():
+    known = [{'pattern': r'^log\|a\|x', 'reason': 'fixed in abc', 'until': '2026-11-11'}]
+    assert error_ledger.ledger('2026-11-11', counts=Counter({'log|a|x|y': 1}), known=known)['unexplained'] == 0
+    assert error_ledger.ledger('2026-11-12', counts=Counter({'log|a|x|y': 1}), known=known)['unexplained'] == 1

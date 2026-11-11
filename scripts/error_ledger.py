@@ -97,7 +97,8 @@ def from_edge(day, run=None):
     return counts
 
 
-def explain(counts, known=None):
+def explain(counts, known=None, day=None):
+    """A rule with 'until' (a fixed bug) explains only days up to that date; a later return is unexplained."""
     rules = known if known is not None else (json.loads(KNOWN.read_text()) if KNOWN.is_file() else [])
     rows = []
     for key, n in counts.most_common():
@@ -105,7 +106,8 @@ def explain(counts, known=None):
             rows.append({'key': key, 'count': n, 'explained': True, 'internal': True,
                          'reason': '내부 측정 요청(X-Agentcon-QA)', 'team': '측정 도구 주인'})
             continue
-        rule = next((r for r in rules if re.search(r['pattern'], key)), None)
+        rule = next((r for r in rules if re.search(r['pattern'], key)
+                     and not (day and r.get('until') and day > r['until'])), None)
         rows.append({'key': key, 'count': n, 'explained': bool(rule),
                      **({'reason': rule['reason'], 'team': rule.get('team', '운영·SRE')} if rule else {})})
     return rows
@@ -113,7 +115,7 @@ def explain(counts, known=None):
 
 def ledger(day, counts=None, known=None):
     counts = counts if counts is not None else from_logs(day) + from_edge(day)
-    rows = explain(counts, known)
+    rows = explain(counts, known, day)
     unexplained = [r for r in rows if not r['explained']]
     internal = sum(r['count'] for r in rows if r.get('internal'))
     return {'day': day, 'total': sum(r['count'] for r in rows), 'kinds': len(rows), 'internal': internal,
