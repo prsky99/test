@@ -418,3 +418,19 @@ def test_dormant_provisioning_accepts_no_provider_but_cannot_enable_worker(edge)
     assert not config.worker_ready and config.providers == ()
     with pytest.raises(EdgeError): config.provider(edge.rid)
     with pytest.raises(EdgeError): Config.from_dict({**value, 'worker_ready': True})
+
+
+def test_public_prepare_over_the_rate_gate_hands_the_call_to_the_origin_gateway(edge):
+    """11-11: the Worker turned this 429 into "The execution is unavailable." with no code for 7 of 30
+    real tasks. Over the gate the bridge answers backend=origin, so the Origin gateway returns its own
+    HTTP 429 with Retry-After; nothing is prepared or executed."""
+    body = {'resource_id': edge.rid, 'input': {'message': 'What is the weather in Tokyo?'},
+            'origin': ORIGIN, 'idempotency_key': 'public-bridge-over-limit'}
+    edge.front.security.allow_probe = lambda *_args, **_kw: False
+    over = service_request(edge, 'public-prepare', body)
+    assert over.status_code == 200 and over.json() == {'backend': 'origin'}
+    with transaction(edge.store, readonly=True) as db:
+        assert db.execute("SELECT count(*) FROM edge_gateway_runs").fetchone()[0] == 0   # nothing prepared
+    assert not edge.calls
+    edge.front.security.allow_probe = lambda *_args, **_kw: True
+    assert service_request(edge, 'public-prepare', {**body, 'idempotency_key': 'public-bridge-under'}).json()['backend'] == 'worker'

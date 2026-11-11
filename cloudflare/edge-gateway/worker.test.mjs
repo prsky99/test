@@ -1268,3 +1268,18 @@ test('A2A posts with a trailing slash reach Origin once instead of the Worker 40
     await Promise.all(pending);assert.deepEqual(forwarded,['/a2a/']);
   }finally{globalThis.fetch=originalFetch;}
 });
+
+test('a gateway failure answers a public reason code, whether a retry helps and what to do (11-11)', async () => {
+  // 11-11: 7 of 30 real tasks got "The execution is unavailable." with no code; the cause was our own rate gate.
+  const {gatewayFailure} = await import('./worker.mjs');
+  const limited = Object.assign(new Error('Control unavailable'), {code: 'CAPACITY_EXCEEDED', status: 429});
+  assert.deepEqual(gatewayFailure(limited), {error_code: 'rate_limited', retryable: true, retry_after_seconds: 60,
+    next: 'Retry later, or call find_agents for another agent.'});
+  assert.equal(gatewayFailure(Object.assign(new Error('x'), {code: 'POLICY_DENIED', status: 403})).error_code, 'policy_blocked');
+  assert.equal(gatewayFailure(Object.assign(new Error('x'), {code: 'POLICY_DENIED'})).retryable, false);
+  assert.equal(gatewayFailure(Object.assign(new Error('Execution unavailable'), {provider: 'UPSTREAM_TOOL_ERROR'})).error_code, 'provider_error');
+  assert.equal(gatewayFailure(Object.assign(new Error('Execution unavailable'), {provider: 'PROVIDER_TIMEOUT'})).retryable, true);
+  const unknown = gatewayFailure(new Error('Grant'));
+  assert.deepEqual([unknown.error_code, unknown.retryable], ['gateway_unavailable', true]);
+  assert.ok(!JSON.stringify(gatewayFailure(Object.assign(new Error('secret https://p.example/x'), {code: 'WHATEVER'}))).includes('example'));
+});

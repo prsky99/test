@@ -912,7 +912,11 @@ async function legacy(request, env, ctx, rid, testbench, kind = 'a2a') {
           error_message: managed.execution_succeeded ? null : 'Provider authorization is required.', ...managed}, request.method === 'GET' ? managed.status_code : 200, count);
       }
       const body = managed ? managed.output : output;
-      if (managed && !managed.execution_succeeded) throw new Error('Execution unavailable');
+      if (managed && !managed.execution_succeeded) {
+        const failed = new Error('Execution unavailable');
+        failed.provider = typeof managed.error_code === 'string' && /^[A-Z_]{3,40}$/.test(managed.error_code) ? managed.error_code : 'PROVIDER_FAILED';
+        throw failed;
+      }
       if (kind === 'mcp') return reply({jsonrpc: '2.0', id: requestId, result: body}, 200, count);
       let result = {kind: 'message', role: 'agent', messageId: hex(crypto.getRandomValues(new Uint8Array(16))), parts: body.parts};
       if (method === 'SendMessage') result = {message: {role: 'ROLE_AGENT', messageId: result.messageId,
@@ -933,7 +937,11 @@ async function legacy(request, env, ctx, rid, testbench, kind = 'a2a') {
   } catch (error) {
     // A claimed or ambiguous dispatch never falls back by repeating execution.
     if (error.status === 403) return failure(CODES.has(error.code) ? error.code : 'AUTH_REQUIRED', 403);
-    if (!testbench && kind !== 'x402') return jsonReply({jsonrpc: '2.0', id: requestId, error: {code: -32000, message: 'The execution is unavailable.'}}, 200);
+    // 11-11: every failure here read "The execution is unavailable." with no code (7 of 30 real tasks were
+    // our own rate gate). The reason code, whether a retry can help and what to do instead are public;
+    // no Provider detail, address or internal path is included.
+    if (!testbench && kind !== 'x402') return jsonReply({jsonrpc: '2.0', id: requestId, error: {code: -32000,
+      message: 'The execution is unavailable.', data: gatewayFailure(error)}}, 200);
     return failure(CODES.has(error.code) ? error.code : 'UNAVAILABLE', error.status || 503);
   }
 }
@@ -1061,6 +1069,17 @@ async function outputRelay(request,env) {
     const response=jsonReply(result),headers=new Headers(response.headers);if(relayed)headers.set('X-Edge-Origin-Output','1');
     return new Response(response.body,{status:response.status,headers});
   } catch{return failure('RESULT_UNAVAILABLE',503);}
+}
+export function gatewayFailure(error) {
+  const code = error.provider || (CODES.has(error.code) ? error.code : 'UNAVAILABLE');
+  const reason = {CAPACITY_EXCEEDED: 'rate_limited', AUTH_REQUIRED: 'not_authorized', POLICY_DENIED: 'policy_blocked',
+    SCHEMA_CHANGED: 'tool_changed', INPUT_CHANGED: 'input_changed', EXPIRED: 'expired', ALREADY_CLAIMED: 'already_running',
+    ORIGIN_REQUIRED: 'not_authorized', PROVIDER_FAILED: 'provider_error', UPSTREAM_TOOL_ERROR: 'provider_error',
+    PROVIDER_TIMEOUT: 'provider_timeout', PROVIDER_AUTH_REQUIRED: 'provider_auth_required'}[code]
+    || (error.provider ? 'provider_error' : 'gateway_unavailable');
+  const retryable = ['rate_limited', 'provider_timeout', 'gateway_unavailable', 'already_running'].includes(reason);
+  return {error_code: reason, retryable, ...(reason === 'rate_limited' ? {retry_after_seconds: 60} : {}),
+    next: retryable ? 'Retry later, or call find_agents for another agent.' : 'Call find_agents for another agent for this task.'};
 }
 function outputSource(path) {
   if(path.startsWith('/api/edge-gateway/v1/outputs/'))return 'admin';

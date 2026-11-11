@@ -201,7 +201,16 @@ def install(app, front):
             raise EdgeError('INVALID_INPUT', 400)
         # Existing public Gateway POSTs already authorize this selected request.
         # A signed Worker request still passes the original ingress rate gate.
-        rate(request)
+        # 11-11: the Worker turned this 429 into "The execution is unavailable." with no code (7 of 30
+        # real-task failures). Over the limit, hand the request to the Origin gateway, which answers the
+        # same gate with HTTP 429, Retry-After and RateLimit headers; nothing has been prepared or run.
+        try:
+            rate(request)
+        except EdgeError as exc:
+            if exc.code != 'CAPACITY_EXCEEDED':
+                raise
+            log.info('Edge public prepare over the ingress rate gate: handed to the Origin gateway')
+            return JSONResponse({'backend': 'origin'}, headers={'Cache-Control': 'private, no-store'})
         if (current.config.canary_principal or not current.config.worker_ready
                 or type(value['resource_id']) is not int
                 or not current.config.catalog_protocols and not any(p.resource_id == value['resource_id'] for p in current.config.providers)):
