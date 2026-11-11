@@ -409,6 +409,33 @@ def _cosine(a, b):
     return sum(x * y for x, y in zip(a, b)) / (na * nb) if na and nb else 0.0
 
 
+PLACES = frozenset('''alabama alaska arizona arkansas california colorado connecticut delaware florida georgia hawaii
+    idaho illinois indiana iowa kansas kentucky louisiana maine maryland massachusetts michigan minnesota mississippi
+    missouri montana nebraska nevada ohio oklahoma oregon pennsylvania tennessee texas utah vermont virginia washington
+    wisconsin wyoming usa us america canada mexico brazil uk england britain france germany spain italy japan china
+    korea india australia europe asia africa seoul tokyo london paris berlin'''.split())
+PLACE_PAIRS = ('new york', 'new jersey', 'new mexico', 'new hampshire', 'north carolina', 'south carolina',
+               'north dakota', 'south dakota', 'west virginia', 'rhode island', 'united states', 'south korea')
+
+
+def without_places(task):
+    """The task without the places it names and their prepositions ("in California"), or None when it names none."""
+    lowered = ' ' + str(task or '').lower() + ' '
+    for pair in PLACE_PAIRS:
+        lowered = lowered.replace(' ' + pair + ' ', ' california ')  # one place token stands for the pair
+    words = re.findall(r"[a-z][a-z'-]*|[^\sa-z]", lowered)
+    kept, dropped = [], False
+    for word in words:
+        if word in PLACES:
+            dropped = True
+            if kept and kept[-1] in ('in', 'for', 'near', 'around', 'across', 'of', 'from'):
+                kept.pop()
+            continue
+        kept.append(word)
+    text = re.sub(r'\s+([?.!,])', r'\1', ' '.join(kept)).strip()
+    return text if dropped and text else None
+
+
 SEMANTIC_MEMO = 5000  # candidate texts kept with their vectors (768 floats each, about 30 MB in all)
 _SEMANTIC_VECTORS = __import__('collections').OrderedDict()
 _SEMANTIC_LOCK = __import__('threading').Lock()
@@ -655,6 +682,18 @@ class FastConcierge(Concierge):
             items = sorted(items, key=lambda item: order_key(item) if isinstance(item, dict) else (True, True, True))[:3]
         else:
             items = self.rec.search(retrieval_text(task), kind=protocol, limit=3, offset=offset, exclude=excluded)
+        if not items and offset == 0:
+            # A place the task names is a condition, not a capability: no alert tool says
+            # "California", so "weather alerts in California" found nothing while Explore listed five
+            # NWS alert tools (11-11 real task p12). Search once more without the place names.
+            placeless = without_places(task)
+            if placeless:
+                step('place')
+                items = semantic_first(getattr(self.rec, 'rag_engine', None), task,
+                                       self.rec.search(retrieval_text(placeless), kind=protocol,
+                                                       limit=SEMANTIC_SHORTLIST, exclude=excluded))
+                from .gateway_exposure import order_key
+                items = sorted(items, key=lambda item: order_key(item) if isinstance(item, dict) else (True, True, True))[:3]
         focus = None
         summarizer = getattr(self, 'query_summarizer', None)
         if not items and callable(summarizer):

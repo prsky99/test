@@ -163,3 +163,16 @@ def test_chat_meaning_order_embeds_a_candidate_text_once():
     assert fast_chat.semantic_first(Engine(), 'pdf to text', items)[0]['name'] == 'PDF'
     assert fast_chat.semantic_first(Engine(), 'read a pdf', items)[0]['name'] == 'PDF'
     assert len(calls[0]) == 3 and calls[1] == ['read a pdf']  # the second answer embeds only the task
+
+
+def test_places_are_conditions_and_fixed_currency_pairs_must_match():
+    """11-11 real tasks p12 (no tool says "California") and p02 (usd_ngn_convert for won)."""
+    from agent_market.concierge.fast_chat import without_places
+    from agent_market.concierge.gateway_exposure import wrong_direction
+    assert without_places('Are there any weather alerts in California right now?') == 'are there any weather alerts right now?'
+    assert without_places('weather in New York') == 'weather' and without_places('pdf to text') is None
+    task = 'Convert 250 US dollars to Korean won'
+    assert wrong_direction(task, {'tools': ['usd_ngn_convert']}) is True
+    assert wrong_direction(task, {'tools': ['convert_currency']}) is False
+    assert wrong_direction('usd to ngn today', {'tools': ['usd_ngn_convert']}) is False
+    assert wrong_direction('read a csv file', {'tools': ['csv_to_json']}) is False

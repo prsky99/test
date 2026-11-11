@@ -61,6 +61,23 @@ REVERSE_TASK = re.compile(r"""\breverse\b
   | \b(?:coordinates?|lat(?:itude)?\b[\s/,&-]*(?:and\s+)?(?:lon|lng|long)(?:itude)?)\s+(?:to|into)\s+(?:an?\s+)?(?:street\s+)?address""", re.I | re.X)
 
 
+CURRENCIES = {'usd': ('dollar', 'usd'), 'krw': ('won', 'krw'), 'eur': ('euro', 'eur'), 'jpy': ('yen', 'jpy'),
+              'gbp': ('pound', 'sterling', 'gbp'), 'cny': ('yuan', 'renminbi', 'cny'), 'inr': ('rupee', 'inr'),
+              'ngn': ('naira', 'ngn'), 'cad': ('canadian', 'cad'), 'aud': ('australian', 'aud'),
+              'chf': ('franc', 'chf'), 'mxn': ('peso', 'mxn'), 'brl': ('real', 'brl')}
+CURRENCY_PAIR = re.compile(r'(?:^|[^a-z])([a-z]{3})[_\-]?(?:to[_\-]?)?([a-z]{3})(?:[_\-]|$)', re.I)
+
+
+def _currency_mismatch(task, tool):
+    """A converter fixed to one currency pair that the task does not ask for ("usd_ngn_convert" for won, p02)."""
+    pair = CURRENCY_PAIR.search(tool.lower())
+    if not pair or pair.group(1) not in CURRENCIES or pair.group(2) not in CURRENCIES:
+        return False
+    words = set(re.findall(r'[a-z]+', task.lower()))
+    asked = {code for code, names in CURRENCIES.items() if words & set(names)}
+    return bool(asked) and not asked <= {pair.group(1), pair.group(2)}
+
+
 def wrong_direction(task, item, descriptions=None):
     """True when the selected tool does the task the other way round."""
     if not isinstance(item, dict) or not isinstance(task, str):
@@ -69,6 +86,8 @@ def wrong_direction(task, item, descriptions=None):
     text = str(chosen) + ' ' + str((descriptions or {}).get(chosen) or next(
         (t.get('description') for t in item.get('tools_schema') or () if isinstance(t, dict) and t.get('name') == chosen), '') or '')
     if EXTRACT_TASK.search(task) and MAKE_PDF_TOOL.search(text) and not EXTRACT_TOOL.search(text):
+        return True
+    if _currency_mismatch(task, str(chosen)):
         return True
     return bool(FORWARD_TASK.search(task) and not REVERSE_TASK.search(task) and REVERSE_TOOL.search(text))
 
