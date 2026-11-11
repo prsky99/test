@@ -145,8 +145,10 @@ class Service:
         provider, resource = self.admitted(value['resource_id'])
         try:
             payload = payload_for(provider, value['input'], resource)
-        except ExecutionDenied:
-            raise EdgeError('POLICY_DENIED', 403) from None
+        except ExecutionDenied as exc:
+            error = EdgeError('POLICY_DENIED', 403)
+            error.denied = exc.error_code  # the public bridge hands argument mistakes to the Origin gateway
+            raise error from None
         input_hash = input_digest(provider, payload)
         identity = digest(value['idempotency_key'])
         now = self.clock()

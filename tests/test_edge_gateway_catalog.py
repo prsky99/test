@@ -7,7 +7,7 @@ import pytest
 
 from agent_market.collector import usage
 from agent_market.edge_gateway.config import Config, EdgeError, PROFILE
-from agent_market.edge_gateway.state import host_control
+from agent_market.edge_gateway.state import host_control, transaction
 from tests.test_edge_gateway import edge, catalog, service_request, ORIGIN
 from tests.test_mcp_proxy import WEATHER_TOOL, DESTRUCTIVE_TOOL
 
@@ -104,7 +104,8 @@ def test_full_mcp_input_constraints_are_checked_before_hash_approval(edge, catal
     spec = deepcopy(WEATHER_TOOL); spec['inputSchema']['properties']['city']['maxLength'] = 3
     rid = mcp_resource(edge, catalog, [spec])
     denied = bridge(edge, rid, {'tool': 'get_weather', 'arguments': {'city': 'Tokyo'}})
-    assert denied.status_code == 403 and not edge.calls
+    # An argument outside the schema goes to the Origin gateway, which answers -32602 (11-11).
+    assert denied.status_code == 200 and denied.json() == {'backend': 'origin'} and not edge.calls
 
 
 def test_inconsistent_full_and_compact_safety_metadata_cannot_get_hash_approval(edge, catalog, monkeypatch):
@@ -139,7 +140,14 @@ def test_mcp_admission_denies_before_dispatch(edge, catalog, monkeypatch, case):
     if case in ('auth', 'paid', 'quarantine'):
         with edge.store.tx() as db: db.execute('UPDATE resources SET ' + field + '=? WHERE id=?', (value, rid))
     response = bridge(edge, rid, {'tool': tools[0]['name'], 'arguments': {} if case == 'bad-args' else {'city': 'Tokyo'}})
-    assert response.status_code == 403, response.text
+    if case == 'bad-args':
+        # 11-11 real tasks p02/p05/a05: a schema mismatch is not a key or policy refusal. The Origin
+        # gateway repeats the check and answers -32602; nothing is prepared or dispatched here.
+        assert response.status_code == 200 and response.json() == {'backend': 'origin'}, response.text
+        with transaction(edge.store, readonly=True) as db:
+            assert db.execute("SELECT count(*) FROM edge_gateway_runs").fetchone()[0] == 0
+    else:
+        assert response.status_code == 403, response.text
     assert not edge.calls
 
 

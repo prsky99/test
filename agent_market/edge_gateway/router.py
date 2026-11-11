@@ -242,7 +242,11 @@ def install(app, front):
                 'resource_id': value['resource_id'], 'input': payload, 'idempotency_key': value['idempotency_key'],
                 'run_authority': True, 'sharing_authority': True})
         except EdgeError as exc:
-            if exc.code != 'PROFILE_UNAVAILABLE':
+            # 11-11: arguments that do not match the registered schema came back as HTTP 403 with no
+            # JSON-RPC body (Worker AUTH_REQUIRED), so callers read "needs a key" (real tasks p02, p05,
+            # a05). Nothing is prepared; the Origin gateway repeats the same check and answers -32602
+            # "Review the tool inputs and try again." Every other refusal stays 403.
+            if exc.code != 'PROFILE_UNAVAILABLE' and getattr(exc, 'denied', None) != 'INVALID_INPUT':
                 raise
             return JSONResponse({'backend': 'origin'}, headers={'Cache-Control': 'private, no-store'})
         backend = 'worker' if grant['stream_path'].startswith('/api/edge-') else 'origin'
