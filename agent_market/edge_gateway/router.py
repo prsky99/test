@@ -25,6 +25,10 @@ def errors(function):
         try:
             return await function(*args, **kwargs)
         except EdgeError as exc:
+            if exc.status >= 500:
+                # 11-11 22:18: a public-prepare 503 left only the access line; the code
+                # (NOT_PROVISIONED, CAPACITY_EXCEEDED, ...) tells which limit refused it.
+                log.warning('Edge gateway %s refused: %s %s', function.__name__, exc.code, exc.status)
             return JSONResponse({'error_code': exc.code, 'message': 'The approved execution is unavailable.'},
                                 status_code=exc.status, headers={'Cache-Control': 'private, no-store'})
         except Exception as exc:
