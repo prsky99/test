@@ -155,7 +155,7 @@ def test_crawlers_receive_matching_visible_meta_and_dataset_without_javascript(d
         assert '<section id="daily-catalog-statistics"' in body and '12,345' in body
         assert 'does not guarantee task completion' in body
         assert "script-src 'self' 'sha256-" in response.headers['content-security-policy']
-        assert 's-maxage=60' in response.headers['cache-control']  # 11-11 PM decision A
+        assert 's-maxage=300' in response.headers['cache-control']  # 11-11 PM decision A
         assert not re.search(r'[\uac00-\ud7af]',body)
     xml = ET.fromstring(client.get('/sitemap.xml').text)
     dates = xml.findall('.//{*}lastmod')

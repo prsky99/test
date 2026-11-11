@@ -88,3 +88,39 @@ def test_no_path_escapes_an_earlier_release(deployed):
 def test_outside_a_releases_folder_nothing_is_searched(tmp_path, monkeypatch):
     monkeypatch.setattr(pearl_view, 'ROOT', tmp_path / 'repo' / 'new')
     assert pearl_view.earlier_roots() == []
+
+
+PAGE = ('<main><template data-inactive-panel="learn"><section>Learn v1</section></template></main>'
+        '<script src="/new/en/assets/bundle.js?f=app&amp;v=0000000000000000" defer></script>')
+
+
+def test_a_panels_digest_from_before_a_deploy_is_served_exactly_from_disk(deployed):
+    # 11-12 (PM: swr on public HTML): HTML cached before a deploy names its panels.js digest; the new process never
+    # rendered it, so the script is kept on disk beside the releases and served as it was.
+    client, *_ = deployed
+    pearl_view._panels.clear()
+    value = pearl_view.split_panels(PAGE)
+    version = value.split('panels.js?v=')[1][:16]
+    kept = pearl_view.panels_dir() / (version + '.js')
+    assert kept.is_file() and b'Learn v1' in kept.read_bytes()
+    pearl_view._panels.clear()  # a new process or release: nothing rendered yet
+    pearl_view._panels_rebuilt['at'] = pearl_view.time.monotonic()  # and no rebuild this minute
+    r = client.get('/new/en/assets/panels.js?v=' + version)
+    assert r.status_code == 200 and r.content == kept.read_bytes()
+    assert r.headers['cache-control'] == 'public, max-age=31536000, immutable'
+
+
+def test_a_changed_or_odd_panels_file_is_not_served_as_its_digest(deployed):
+    client, *_ = deployed
+    folder = pearl_view.panels_dir()
+    folder.mkdir(exist_ok=True)
+    (folder / 'abcdefabcdefabcd.js').write_bytes(b'not what that digest stands for')
+    assert pearl_view.panels_from_disk('abcdefabcdefabcd') is None
+    assert pearl_view.panels_from_disk('../../escape') is None and pearl_view.panels_from_disk('') is None
+
+
+def test_outside_a_releases_folder_panels_stay_in_memory(tmp_path, monkeypatch):
+    monkeypatch.setattr(pearl_view, 'ROOT', tmp_path / 'new')
+    assert pearl_view.panels_dir() is None
+    pearl_view.keep_panels_on_disk('abcdefabcdefabcd', b'x')  # nothing written, nothing raised
+    assert not list(tmp_path.rglob('*.js'))

@@ -154,7 +154,7 @@ def main():
     if args.stage == 'after':
         from scripts import warm_edge
         try:
-            warm_edge.main()
+            warm_edge.main([])  # its own flags, not this command line
         except SystemExit as done:
             record['warm_edge_exit'] = done.code
     record['numbers'] = numbers()

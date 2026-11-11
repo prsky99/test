@@ -42,7 +42,7 @@ TESTS = (
     # Sponsored on main Explore and Chat (11-11): apart from results, nothing without a booking or when off.
     'tests/test_main_sponsored_browser.py',
     # 11-11 (PM): the public HTML policy itself: same bytes for everyone, no Set-Cookie, CSP hashes match the
-    # inline scripts, live pages s-maxage=60, others no-store (about 25 s together).
+    # inline scripts, live pages s-maxage=300 + swr 600, others no-store (about 25 s together).
     'tests/test_public_page_cache.py',
     'tests/test_publication_security_audit.py::test_every_published_page_has_fresh_nonces_and_no_inline_handlers',
     # 11-11 (PM decision B): first-screen CSS is current and draws the first screen exactly like the full CSS.

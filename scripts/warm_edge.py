@@ -7,7 +7,14 @@ connection), then every bundle and versioned asset the page names. One line per 
 logs/ops/edge-warm.jsonl with the status, the cache state (cf-cache-status) and the airport (cf-ray) of each
 request. Only the airport this Mac reaches (LAX from Korea) is filled; visitors elsewhere still fill their own.
 It is not a keep-warm loop: run it once per deploy, never on a timer (that would only flatter user_slo).
+
+11-12 (PM: B): the category pages and the weekly report (list and latest issue) are fetched too, about 22
+requests. With the origin's s-maxage 3600 / stale-while-revalidate 86400 one fetch keeps them at the edge for a
+day, so the first visitor gets a HIT or UPDATING instead of a MISS (measured 08:32: HIT 0.45-0.58 s, UPDATING
+0.85 s vs MISS 0.98-1.34 s). Only these may be warmed daily, with --growth-only; the live pages stay once per
+deploy. public_full_check samples category pages, so its category numbers include this warming.
 """
+import argparse
 import html
 import json
 import re
@@ -26,6 +33,8 @@ HEADERS = {'Accept': 'text/html,application/xhtml+xml', 'X-Agentcon-QA': 'warm_e
            'User-Agent': 'agentcon-warm-edge/1 (site owner QA; contact@agentconcierge.biz)'}
 ASSET = re.compile(r'(?:href|src)="(/new/en/assets/[^"]+\?[^"]*v=[^"]+)"')
 LOG = ROOT / 'logs/ops/edge-warm.jsonl'
+GROWTH = re.compile(r'<loc>https://agentconcierge\.biz(/agents/category/[^<]+|/reports/weekly(?:/[^<]+)?)</loc>')
+GROWTH_MAX = 24  # PM 11-12: about 21 requests a day; a cap so a longer sitemap cannot turn this into a crawl
 
 
 def fetch(url, headers):
@@ -44,9 +53,29 @@ def assets_of(text):
     return sorted({html.unescape(u) for u in ASSET.findall(text)})
 
 
-def main():
+def growth_paths(sitemap):
+    """Category pages, the weekly list and the latest weekly issue named by the sitemap."""
+    found = list(dict.fromkeys(GROWTH.findall(sitemap)))
+    categories = sorted(p for p in found if p.startswith('/agents/category/'))
+    issues = sorted(p for p in found if p.startswith('/reports/weekly/'))
+    weekly = (['/reports/weekly'] if '/reports/weekly' in found else []) + issues[-1:]
+    return (categories + weekly)[:GROWTH_MAX]
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--growth-only', action='store_true', help='category and weekly pages only (the daily run)')
+    args = parser.parse_args(argv)
     rows, assets = [], set()
-    for path in PAGES:
+    try:
+        with httpx.Client(timeout=30, headers={k: v for k, v in HEADERS.items() if k != 'Accept'}) as client:
+            growth = growth_paths(client.get(BASE + '/sitemap.xml').text)
+    except httpx.HTTPError:
+        growth = []
+    for path in growth:
+        _, row = fetch(BASE + path, HEADERS)
+        rows.append({'path': path, **row})
+    for path in () if args.growth_only else PAGES:
         r, row = fetch(BASE + path, HEADERS)
         rows.append({'path': path, **row})
         if r is not None and r.status_code == 200:

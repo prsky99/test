@@ -209,7 +209,7 @@ def test_public_growth_pages_are_cached_only_without_credentials(monkeypatch, tm
     public = ['/connect', '/agents/tasks', '/agents/task/weather-forecast', '/badges', '/claude-plugins/marketplace.json']
     for path in public:
         r = c.get(path, headers={'Accept': 'text/html'})
-        assert r.status_code == 200 and r.headers['cache-control'] == 'public, max-age=300, stale-while-revalidate=600', path
+        assert r.status_code == 200 and r.headers['cache-control'] == 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400', path
         assert 'accept' in r.headers['vary'].lower(), path
         assert r.headers.get('etag') and r.headers['x-content-type-options'] == 'nosniff', path
         assert c.get(path, headers={'Accept': 'text/html', 'If-None-Match': r.headers['etag']}).status_code == 304, path

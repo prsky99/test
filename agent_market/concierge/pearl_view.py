@@ -186,7 +186,9 @@ def bundled(value):
     return value
 
 
-PUBLIC_PAGE_CACHE = 'public, max-age=0, s-maxage=60'
+# 11-12 (PM: A, measured 08:3x): past s-maxage the edge hands out its copy at once and refreshes it behind
+# (UPDATING 0.85 s instead of an origin round trip), so a page left alone for a while no longer costs EXPIRED 3.8-4.9 s.
+PUBLIC_PAGE_CACHE = 'public, max-age=0, s-maxage=300, stale-while-revalidate=600'
 INLINE_SCRIPT = re.compile(r'<script\b([^>]*)>(.*?)</script>', re.S | re.I)
 DATA_TYPE = re.compile(r'\btype\s*=\s*["\']?(application/(?:ld\+)?json|text/plain|text/template)', re.I)
 
@@ -246,9 +248,54 @@ def direct_account_links(value):
 
 INACTIVE_PANEL = re.compile(r'<template data-inactive-panel="([a-z0-9_-]{1,40})">(.*?)</template>', re.S)
 PANELS_KEPT = 32
+PANELS_ON_DISK = 512
+DIGEST = re.compile(r'[0-9a-f]{16}')
 _panels = collections.OrderedDict()
 _panels_lock = threading.Lock()
 _panels_rebuilt = {'at': 0.0}
+
+
+def panels_dir():
+    """gateway-data/services/panels-cache beside the releases folder, shared by every release; None elsewhere.
+
+    11-12 (PM: swr on public HTML): for up to s-maxage + swr after a deploy the edge may hand out HTML made by the
+    previous release, naming its panels.js digest. The new process never rendered that digest, so the script each
+    digest stood for is kept on disk and served exactly, like the earlier bundle digests (7ac34f2c)."""
+    releases = ROOT.parent.parent
+    return releases.parent / 'panels-cache' if releases.name == 'releases' else None
+
+
+def keep_panels_on_disk(version, body):
+    folder = panels_dir()
+    if folder is None:
+        return
+    path = folder / (version + '.js')
+    try:
+        if path.is_file():
+            return
+        folder.mkdir(exist_ok=True)
+        tmp = folder / ('.%s.%d.tmp' % (version, os.getpid()))
+        tmp.write_bytes(body)
+        tmp.replace(path)
+        kept = sorted(folder.glob('*.js'), key=lambda f: f.stat().st_mtime)
+        for old in kept[:max(0, len(kept) - PANELS_ON_DISK)]:
+            old.unlink(missing_ok=True)
+    except OSError:
+        pass  # the page still works: an unknown digest gets every current panel briefly
+
+
+def panels_from_disk(version):
+    folder = panels_dir()
+    if folder is None or not DIGEST.fullmatch(version or ''):
+        return None
+    path = folder / (version + '.js')
+    try:
+        if path.is_symlink() or not path.is_file():
+            return None
+        body = path.read_bytes()
+    except OSError:
+        return None
+    return body if asset_version(body) == version else None
 
 
 def split_panels(value):
@@ -260,10 +307,13 @@ def split_panels(value):
     body = panels_script(dict(found))
     version = asset_version(body)
     with _panels_lock:
+        known = version in _panels
         _panels[version] = dict(found)
         _panels.move_to_end(version)
         while len(_panels) > PANELS_KEPT:
             _panels.popitem(last=False)
+    if not known:
+        keep_panels_on_disk(version, body)
     value = INACTIVE_PANEL.sub(lambda m: '<template data-inactive-panel="%s"></template>' % m[1], value)
     script = re.search(r'<script src="/new/en/assets/bundle\.js\?[^"]+" defer></script>', value)  # offsets moved
     tag = '<script src="/new/en/assets/panels.js?v=%s" defer></script>' % version
@@ -496,6 +546,7 @@ def install(app, front, *, workspace_access_enabled=False, workspace_link_enable
         if filename == 'panels.js':
             wanted = request.query_params.get('v', '')
             body, union = panels_body(wanted)
+            body = body or panels_from_disk(wanted)  # a digest an earlier process or release rendered
             # After a restart nothing is rendered yet: render the live pages once (at most once a minute, so
             # unknown digests cannot make every request render ten pages), then look again.
             if body is None and time.monotonic() - _panels_rebuilt['at'] > 60:

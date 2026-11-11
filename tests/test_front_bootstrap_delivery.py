@@ -85,7 +85,7 @@ def test_html_does_not_wait_for_welcome_counts_or_catalog(tmp_path, monkeypatch)
             assert result.status_code == 200 and elapsed < 1.
             assert 'private diagnostic' not in result.text
             assert 'worker-src' in result.headers['content-security-policy']
-            assert result.headers['cache-control'] == 'public, max-age=0, s-maxage=60'  # 11-11 same bytes for everyone
+            assert result.headers['cache-control'] == 'public, max-age=0, s-maxage=300, stale-while-revalidate=600'  # 11-11 same bytes for everyone
             assert entered.is_set()
     finally:
         release.set()
@@ -112,7 +112,7 @@ def test_forced_empty_shell_keeps_authoritative_menu_hydration_apis_usable(tmp_p
             assert shell.status_code == 200 and time.monotonic()-started < 1.
             match = re.search(r'<script[^>]*id="appBootstrapData"[^>]*>(.*?)</script>',shell.text,re.S)
             assert match and json.loads(match.group(1)) == EMPTY
-            assert shell.headers['cache-control'] == 'public, max-age=0, s-maxage=60'
+            assert shell.headers['cache-control'] == 'public, max-age=0, s-maxage=300, stale-while-revalidate=600'
             assert "script-src 'self' 'sha256-" in shell.headers['content-security-policy']
             overview = client.get('/api/overview')
             assert overview.status_code == 200 and overview.json()['health_summary']['live_total'] == 1

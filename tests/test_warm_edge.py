@@ -13,3 +13,38 @@ def test_assets_of_a_page_are_its_versioned_bundles_and_files():
 def test_the_pages_are_the_public_live_pages_and_the_request_is_a_first_visit():
     assert '/' in warm_edge.PAGES and len(warm_edge.PAGES) == 10
     assert 'text/html' in warm_edge.HEADERS['Accept'] and 'Cookie' not in warm_edge.HEADERS
+
+
+SITEMAP = ''.join('<url><loc>https://agentconcierge.biz%s</loc></url>' % p for p in (
+    '/agents/category/weather', '/agents/category/ai_models', '/agent/7', '/reports/weekly', '/reports/weekly/2026-W44',
+    '/reports/weekly/2026-W45', '/agents/category/weather', '/connect'))
+
+
+def test_growth_pages_are_categories_the_weekly_list_and_the_latest_issue():
+    # 11-12 PM B: about 21 requests, once after a deploy and once a day; no agent or other growth pages.
+    assert warm_edge.growth_paths(SITEMAP) == ['/agents/category/ai_models', '/agents/category/weather',
+                                               '/reports/weekly', '/reports/weekly/2026-W45']
+    many = ''.join('<loc>https://agentconcierge.biz/agents/category/c%03d</loc>' % i for i in range(100))
+    assert len(warm_edge.growth_paths(many)) == warm_edge.GROWTH_MAX
+
+
+def test_growth_only_skips_the_live_pages(monkeypatch):
+    asked = []
+
+    class Answer:
+        status_code, text, headers = 200, SITEMAP, {}
+
+    class Client:
+        def __init__(self, **_): pass
+        def __enter__(self): return self
+        def __exit__(self, *_): return False
+        def get(self, url): asked.append(url); return Answer()
+    monkeypatch.setattr(warm_edge.httpx, 'Client', Client)
+    monkeypatch.setattr(warm_edge, 'LOG', __import__('pathlib').Path(__import__('tempfile').mkdtemp()) / 'warm.jsonl')
+    try:
+        warm_edge.main(['--growth-only'])
+    except SystemExit as done:
+        assert done.code == 0
+    paths = [u.replace(warm_edge.BASE, '') for u in asked]
+    assert paths[0] == '/sitemap.xml' and '/reports/weekly' in paths
+    assert not any(p in warm_edge.PAGES for p in paths[1:])
