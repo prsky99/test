@@ -245,6 +245,9 @@ SQL.update(
         "campaigns_sponsored_paid": "SELECT c.id,r.payload_json,r.ends_ms,b.task_category,b.region FROM adc2_paid_bookings b JOIN adc2_campaigns c ON c.id=b.campaign_id JOIN adc2_campaign_revisions r ON r.id=c.current_revision_id "
         "JOIN adc2_advertisers a ON a.id=c.advertiser_id WHERE b.day_ms=? AND b.state IN ('confirmed','served') AND c.state='active' AND c.approval_status='approved' "
         "AND a.status='active' AND r.ends_ms>? ORDER BY b.confirmed_ms,b.id LIMIT ?",
+        "sponsored_impressions_table": "SELECT to_regclass('adc2_sponsored_impressions') IS NOT NULL AS present",
+        "sponsored_impression_add": "INSERT INTO adc2_sponsored_impressions VALUES (?,?,?,?,?,?) ON CONFLICT (day_ms,campaign_id,task_category,region,placement) DO UPDATE SET served=adc2_sponsored_impressions.served+EXCLUDED.served",
+        "sponsored_impressions_for_advertiser": "SELECT i.day_ms,i.campaign_id,i.placement,i.task_category,i.region,i.served FROM adc2_sponsored_impressions i JOIN adc2_campaigns c ON c.id=i.campaign_id WHERE c.advertiser_id=? AND i.day_ms>=? ORDER BY i.day_ms DESC,i.campaign_id,i.placement LIMIT 500",
         "sponsored_booking_get": "SELECT * FROM adc2_sponsored_bookings WHERE id=?",
         "sponsored_booking_slot": "SELECT id FROM adc2_sponsored_bookings WHERE campaign_id=? AND day_ms=? AND task_category=? AND region=?",
         "sponsored_booking_day_count": "SELECT COUNT(*) AS n FROM adc2_sponsored_bookings WHERE day_ms=? AND task_category=? AND region=? AND state IN ('booked','served')",

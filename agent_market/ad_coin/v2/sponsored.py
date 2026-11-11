@@ -18,6 +18,25 @@ MAX_CARDS = 2
 SNAPSHOT_LIMIT = 5000
 TEXT_LIMIT = 280
 DAY_MS = 86_400_000
+PLACEMENTS = ("explore", "chat")
+FLUSH_SECONDS = 60
+# Main-site categories (agent_market/broker/categories.py) -> AD Coin v2 task categories.
+SITE_CATEGORIES = {
+    "agent_infra": "technology", "ai_models": "technology", "dev_tools": "technology", "network_ops": "technology",
+    "security": "technology", "database_analytics": "technology", "data_utility": "technology",
+    "web_search": "research", "docs_knowledge": "research", "health_science": "research",
+    "education_culture": "research", "public_legal": "research",
+    "commerce_marketing": "commerce", "finance_crypto": "commerce", "trading_derivatives": "commerce",
+    "productivity": "productivity", "communication_messaging": "productivity",
+    "media_generation": "creative", "social": "creative", "travel_maps_weather": "general",
+}
+# Served counts per day, campaign, category, region and placement; no person, IP or query is kept.
+IMPRESSION_STATEMENTS = (
+    "CREATE TABLE IF NOT EXISTS adc2_sponsored_impressions (day_ms BIGINT NOT NULL CHECK (day_ms % 86400000 = 0), "
+    "campaign_id TEXT NOT NULL REFERENCES adc2_campaigns(id), task_category TEXT NOT NULL, region TEXT NOT NULL, "
+    "placement TEXT NOT NULL CHECK (placement IN ('explore','chat')), served BIGINT NOT NULL CHECK (served>=0), "
+    "PRIMARY KEY (day_ms, campaign_id, task_category, region, placement))",
+)
 
 
 class SponsoredSlots:
@@ -27,6 +46,7 @@ class SponsoredSlots:
         self._clock = clock or time.time
         self._lock = Lock()
         self._index, self._built = {}, None
+        self._served, self._flushed = {}, self._clock()
 
     def _build(self, now_ms):
         # Only campaigns booked for today (coin economy step 3) appear; a booking names its own
@@ -74,6 +94,40 @@ class SponsoredSlots:
                     break
         return chosen
 
-    def response(self, category, region):
-        return {"label": LABEL, "disclosure": DISCLOSURE, "reward": None,
-                "cards": self.cards(category, region)}
+    def response(self, category, region, placement="explore", limit=MAX_CARDS):
+        """Booked cards for a placement; an empty list when nothing is booked or the region is not sold."""
+        category = SITE_CATEGORIES.get(category, category)
+        if category not in self.taxonomy or placement not in PLACEMENTS or type(limit) is not int \
+                or not 1 <= limit <= MAX_CARDS:
+            raise ContractError("unsupported_targeting", 422)
+        cards = self.cards(category, region)[:limit] if region in self.regions else []
+        if cards:
+            self._count(cards, category, region, placement)
+        return {"label": LABEL, "disclosure": DISCLOSURE, "reward": None, "placement": placement, "cards": cards}
+
+    def _count(self, cards, category, region, placement):
+        now = self._clock()
+        day_ms = int(now * 1000) - int(now * 1000) % DAY_MS
+        with self._lock:
+            for card in cards:
+                key = (day_ms, card["id"], category, region, placement)
+                self._served[key] = self._served.get(key, 0) + 1
+            due = now - self._flushed >= FLUSH_SECONDS
+            if due:
+                pending, self._served, self._flushed = self._served, {}, now
+        if due:
+            self.flush(pending)
+
+    def flush(self, pending):
+        """Add counts to adc2_sponsored_impressions once it exists (operator migration); keep them until then."""
+        try:
+            with self.store.atomic():
+                if not self.store.one("sponsored_impressions_table")["present"]:
+                    raise LookupError()
+                for (day_ms, campaign_id, category, region, placement), served in pending.items():
+                    self.store.execute("sponsored_impression_add", (day_ms, campaign_id, category, region, placement, served))
+        except Exception:
+            with self._lock:  # never fail serving; retry with the next flush (bounded)
+                for key, served in pending.items():
+                    if len(self._served) < 50_000:
+                        self._served[key] = self._served.get(key, 0) + served

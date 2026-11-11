@@ -55,7 +55,7 @@ def test_http_slot_is_public_cached_and_carries_no_reward(p1_suite):  # noqa: F8
     app = FastAPI()
     app.include_router(router_for(slots_for(p1_suite)))
     response = TestClient(app).get('/api/ad-coin/v2/sponsored', params={'category': 'research', 'region': 'US'})
-    assert response.status_code == 200 and 'public' in response.headers['cache-control']
+    assert response.status_code == 200 and 'private' in response.headers['cache-control']  # varies by country (11-11)
     body = response.json()
     assert body['label'] == LABEL and body['reward'] is None and 'never change which agents' in body['disclosure']
     assert 'set-cookie' not in response.headers
@@ -123,3 +123,54 @@ def test_offer_candidates_are_filtered_by_target_in_sql(p1_suite):  # noqa: F811
     assert [json.loads(r['payload_json'])['name'] for r in research] == ['Research assistant AI']
     assert [json.loads(r['payload_json'])['name'] for r in coding] == ['Coding helper']
     assert nothing == []
+
+
+def test_contract_placements_limits_site_categories_and_unsold_regions():
+    """docs/AD_COIN_SPONSORED_CONTRACT.md (11-11): placement explore|chat, limit 1..2, site categories map."""
+    from agent_market.ad_coin.v2.sponsored import SITE_CATEGORIES
+    store = FakeStore(synthetic(10))
+    slots = SponsoredSlots(store, taxonomy={'research', 'coding', 'technology'}, regions=REGIONS, clock=lambda: NOW / 1000)
+    slots._count = lambda *a: None
+    body = slots.response('research', 'US', 'chat', 1)
+    assert body['placement'] == 'chat' and len(body['cards']) == 1 and body['reward'] is None
+    assert slots.response('research', 'FR', 'explore', 2)['cards'] == []          # region not sold: nothing to draw
+    assert SITE_CATEGORIES['web_search'] == 'research'
+    assert slots.response('web_search', 'US')['cards']                             # main-site category accepted
+    for args in (('research', 'US', 'sidebar', 2), ('research', 'US', 'explore', 3), ('medical', 'US', 'explore', 1)):
+        with pytest.raises(ContractError):
+            slots.response(*args)
+
+
+def test_http_reads_the_region_from_the_country_header_and_is_private():
+    app = FastAPI()
+    slots = SponsoredSlots(FakeStore(synthetic(4)), taxonomy=TAXONOMY, regions=REGIONS, clock=lambda: NOW / 1000)
+    slots._count = lambda *a: None
+    app.include_router(router_for(slots))
+    client = TestClient(app)
+    hit = client.get('/api/ad-coin/v2/sponsored', params={'category': 'research', 'placement': 'chat', 'limit': 1},
+                     headers={'CF-IPCountry': 'us'})
+    assert hit.status_code == 200 and len(hit.json()['cards']) == 1
+    assert 'private' in hit.headers['cache-control'] and hit.headers['vary'] == 'CF-IPCountry'
+    none = client.get('/api/ad-coin/v2/sponsored', params={'category': 'research'})   # no country: no cards
+    assert none.status_code == 200 and none.json()['cards'] == []
+
+
+def test_served_counts_wait_for_the_table_then_add_up(p1_suite):  # noqa: F811
+    from agent_market.ad_coin.v2 import sponsored as sp
+    book_today(p1_suite, _activate_campaign(p1_suite))
+    clock = [NOW / 1000]
+    slots = SponsoredSlots(p1_suite.service.store, taxonomy=TAXONOMY, regions=REGIONS, clock=lambda: clock[0])
+    slots.response('research', 'US', 'explore', 1)
+    clock[0] += sp.FLUSH_SECONDS + 1
+    slots.response('research', 'US', 'explore', 1)                 # flush attempt: no table yet, counts kept
+    assert sum(slots._served.values()) == 2
+    from scripts.ad_coin_v2_migrate import migrate_impressions
+    assert migrate_impressions(p1_suite.service.store) == {'sponsored_impressions_table': True}
+    clock[0] += sp.FLUSH_SECONDS + 1
+    slots.response('research', 'US', 'chat', 1)
+    assert slots._served == {}
+    from agent_market.ad_coin.sql_registry import unchecked
+    store = p1_suite.service.store
+    with unchecked(), store.atomic():
+        rows = store.database.all("SELECT placement, served FROM adc2_sponsored_impressions ORDER BY placement")
+    assert [(r['placement'], int(r['served'])) for r in rows] == [('chat', 1), ('explore', 2)]

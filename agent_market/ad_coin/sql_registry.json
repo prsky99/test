@@ -886,6 +886,10 @@
    "sha256": "a9a9b1de1c24484d7852c805d1b7632d9c39a1856c4456fb358ee76addde11cf"
   },
   {
+   "sql": "INSERT INTO adc2_sponsored_impressions VALUES (?+) ON CONFLICT (day_ms,campaign_id,task_category,region,placement) DO UPDATE SET served=adc2_sponsored_impressions.served+EXCLUDED.served",
+   "sha256": "8607605d935367e5b441d8bd01a4009520431e5e41ed321674ccd861de8535da"
+  },
+  {
    "sql": "INSERT INTO adc2_stage_claims VALUES (?+)",
    "sha256": "a7a59d6324078dde07d9093ba7a7bd6c5dddbc4a73179db09d32b8b472d5f390"
   },
@@ -1750,6 +1754,10 @@
    "sha256": "80dc14f008a8b7ef2fbc6d6942c8cb8439b48e44f5882942c1b9be6109965fa5"
   },
   {
+   "sql": "SELECT i.day_ms,i.campaign_id,i.placement,i.task_category,i.region,i.served FROM adc2_sponsored_impressions i JOIN adc2_campaigns c ON c.id=i.campaign_id WHERE c.advertiser_id=? AND i.day_ms>=? ORDER BY i.day_ms DESC,i.campaign_id,i.placement LIMIT 500",
+   "sha256": "17016aba6f1bedb22f263fcf07acb2ff64978fbd59b56eb2cc844466329f1155"
+  },
+  {
    "sql": "SELECT i.reservation_id, i.refunded_won FROM ad_coin_invalid_activity i JOIN ad_coin_campaign_meta m ON m.campaign_id=i.campaign_id WHERE m.advertiser_id=? AND i.created_at>=?",
    "sha256": "1c7d01b316faf4bc62750e92a6ad985213451ebd6cc0a705c0f75fcf3bd86b23"
   },
@@ -1904,6 +1912,10 @@
   {
    "sql": "SELECT task_ref FROM ad_coin_executions WHERE id=?",
    "sha256": "2d28d68ad7d2334fa87bf133276e831627d3164fc216b42cdd916c99eca3f1da"
+  },
+  {
+   "sql": "SELECT to_regclass('adc2_sponsored_impressions') IS NOT NULL AS present",
+   "sha256": "fd3eb5cc8c94828abc8f624c70bb0fef06ed295b59ef22de5377256ef24700c4"
   },
   {
    "sql": "SELECT v.*, r.campaign_id FROM ad_coin_vouchers v JOIN ad_coin_reservations r ON r.id=v.reservation_id WHERE v.status='active' AND v.expires_at<? ORDER BY v.expires_at LIMIT 200",

@@ -14,10 +14,15 @@ def router_for(slots) -> APIRouter:
     router = APIRouter(prefix="/api/ad-coin/v2")
 
     @router.get("/sponsored")
-    async def sponsored(request: Request, category: str = "", region: str = ""):
+    async def sponsored(request: Request, category: str = "", region: str = "", placement: str = "explore",
+                        limit: int = 2):
+        """docs/AD_COIN_SPONSORED_CONTRACT.md. The region comes from the Cloudflare country header and is
+        neither stored nor logged; only served counts per day, campaign, category, region and placement."""
         try:
-            body = await run_in_threadpool(slots.response, category, region)
-            return JSONResponse(body, headers={"Cache-Control": "public, max-age=60", "X-Robots-Tag": "noindex"})
+            region = (region or request.headers.get("cf-ipcountry", "")).upper()[:2]
+            body = await run_in_threadpool(slots.response, category, region, placement, limit)
+            return JSONResponse(body, headers={"Cache-Control": "private, max-age=60", "Vary": "CF-IPCountry",
+                                               "X-Robots-Tag": "noindex"})
         except ContractError as exc:
             return JSONResponse(_error(exc.code, exc.status, str(uuid4())), status_code=exc.status)
 
