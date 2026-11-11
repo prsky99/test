@@ -108,7 +108,8 @@ or (http.request.method in {"GET" "HEAD"}
   4. 쿠키 있는 요청 → DYNAMIC
 - 되돌리기: 2번 규칙 식에서 위 OR 절을 지운다(기존 절은 그대로). 급하면 Purge Everything. 원서버 헤더는 그대로 둬도 규칙이 없으면 캐시되지 않는다.
 
-## 7. 적용 결과: 규칙 2 OR 절 (11-12 09:0x, 사용자 "추가", 성장·유통 세션 확인 칸)
+## 7. 적용 결과: 규칙 2 OR 절 (11-12 08:28 저장, 사용자 "추가", 성장·유통 세션 확인 칸)
+- 시각 정정: 커밋 7dabbd7b 메시지의 "09:0x"는 잘못 적은 것이다. 실제 저장 시각은 08:28이다.
 - 사용자 Chrome에서 2번 규칙 `Growth pages HTML (11-11)` 식에 6절의 절을 OR로 더했다. 경로 조건은 `/agents/category/`·`/reports/weekly/` 접두와 `/reports/weekly` 정확히 일치다. 기존 절은 바꾸지 않았다. 저장 뒤 다시 열어 식(1,133자)에 새 절이 들어 있음을 확인했다.
 - 확인(공개 주소, 요청마다 새 연결, 처음 보는 주소)
   - `/agents/category/finance_crypto` HTML: MISS 1.55초 → HIT 0.73초
