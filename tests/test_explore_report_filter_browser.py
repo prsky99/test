@@ -346,7 +346,7 @@ def test_explore_query_protocol_category_auth_and_report_filters_keep_same_inten
     state.page.locator('#xGo').click()
     _expect_ids(state, [state.historical])
     params = state.calls[-1]['params']
-    assert params == {'q': 'Historical', 'limit': '45', 'offset': '0', 'kind': 'mcp',
+    assert params == {'q': 'Historical', 'limit': '15', 'offset': '0', 'kind': 'mcp',
                       'category': 'travel_maps_weather', 'no_auth': 'true', 'has_report': 'true'}
     assert not state.errors and not state.blocked
 
@@ -357,17 +357,17 @@ def test_late_load_more_page_cannot_replace_new_report_filter(explore_page):
         state.add(f'Pagination Forecast {number}')
     state.page.goto(ORIGIN + '/#explore')
     state.page.locator('#xGo').click()
-    playwright.expect(state.page.locator('#xResults .acard[data-id]')).to_have_count(45)
+    playwright.expect(state.page.locator('#xResults .acard[data-id]')).to_have_count(15)
     state.hold = True
     initial = len(state.calls)
     state.page.locator('#xLoadMore').click()
     _wait_calls(state, initial + 1)
     old = state.calls[-1]
-    assert old['params']['limit'] == '45' and old['params']['offset'] == '45'
+    assert old['params']['limit'] == '45' and old['params']['offset'] == '15'
     state.page.locator('#xHasReport').check()
     _wait_calls(state, initial + 2)
     latest = state.calls[-1]
-    assert latest['params']['limit'] == '45'
+    assert latest['params']['limit'] == '15'
     _fulfill(latest)
     _expect_ids(state, [state.historical, state.current_report])
     _fulfill(old)
@@ -382,16 +382,16 @@ def test_load_more_never_exceeds_api_limit_and_filter_resets_page(explore_page):
         state.add(f'Bounded Pagination Forecast {number}')
     state.page.goto(ORIGIN + '/#explore')
     state.page.locator('#xGo').click()
-    playwright.expect(state.page.locator('#xResults .acard[data-id]')).to_have_count(45)
-    for count in [90, 135, 180, 225, 270, 300]:
+    playwright.expect(state.page.locator('#xResults .acard[data-id]')).to_have_count(15)
+    for count in [60, 105, 150, 195, 240, 285, 300]:  # 15 first, then 45 per Load more (11-12)
         state.page.locator('#xLoadMore').click()
         playwright.expect(state.page.locator('#xResults .acard[data-id]')).to_have_count(count)
     playwright.expect(state.page.locator('#xLoadMoreWrap')).not_to_be_visible()
     assert max(int(call['params']['limit']) for call in state.calls) == 45
-    assert max(int(call['params']['offset']) for call in state.calls) == 270
+    assert max(int(call['params']['offset']) for call in state.calls) == 285
     state.page.locator('#xHasReport').check()
     _expect_ids(state, [state.historical, state.current_report])
-    assert state.calls[-1]['params']['limit'] == '45'
+    assert state.calls[-1]['params']['limit'] == '15'
     assert not state.errors and not state.blocked
 
 

@@ -28,19 +28,19 @@ def test_all_45_results_use_the_full_work_area_and_load_more(pearl_page, width, 
     page.set_viewport_size({'width':width,'height':900})
     page.goto(ORIGIN+'/#explore')
     cards=page.locator('#xResults .acard:not(.skeleton-card)')
-    expect(cards).to_have_count(45)
+    expect(cards).to_have_count(15)
     expect(page.locator('#pearlAgentPreview')).not_to_be_visible()
-    expect(page.locator('#xTitle')).to_contain_text('45')
+    expect(page.locator('#xTitle')).to_contain_text('15')
     grid=page.locator('#xResults').bounding_box()
     main=page.locator('.main-wrap').bounding_box()
     assert grid['width']>=main['width']-4
     assert page.locator('#xResults').evaluate('(n)=>getComputedStyle(n).gridTemplateColumns.split(" ").length')==columns
     assert cards.first.bounding_box()['height']<280
     if width==1440:assert grid['height']<4500
-    assert any(query.get('limit')==['45']for query in reads)
-    assert len(set(cards.evaluate_all('(nodes)=>nodes.map(n=>n.dataset.id)')))==45
+    assert any(query.get('limit')==['15']for query in reads)  # first page 15 (11-12)
+    assert len(set(cards.evaluate_all('(nodes)=>nodes.map(n=>n.dataset.id)')))==15
     page.locator('[data-ux-view="list"]').click()
-    expect(cards).to_have_count(45)
+    expect(cards).to_have_count(15)
     assert page.locator('#xResults').get_attribute('data-layout')=='list'
     assert page.locator('#xResults').evaluate('(n)=>getComputedStyle(n).gridTemplateColumns.split(" ").length')==1
     # Measure the items inside every row, rather than only page-level overflow.
@@ -53,18 +53,18 @@ def test_all_45_results_use_the_full_work_area_and_load_more(pearl_page, width, 
     if toggle.is_visible():
         toggle.click()
     page.locator('#xHasReport').check()
-    expect(cards).to_have_count(45)
+    expect(cards).to_have_count(15)
     page.wait_for_timeout(350)
     expect(page.locator('#xLoadMore')).to_be_visible()
     page.locator('#xLoadMore').click()
-    expect(cards).to_have_count(90)
+    expect(cards).to_have_count(60)
     assert cards.evaluate_all('''nodes => nodes.every(c=>{
         const b=c.getBoundingClientRect();return [...c.children].every(n=>{
             const r=n.getBoundingClientRect();return r.left>=b.left-2&&r.right<=b.right+2;
         });
     })''')
-    assert reads[-1]['limit']==['45'] and reads[-1]['offset']==['45'] and reads[-1]['has_report']==['true']
-    assert len(set(cards.evaluate_all('(nodes)=>nodes.map(n=>n.dataset.id)')))==90
+    assert reads[-1]['limit']==['45'] and reads[-1]['offset']==['15'] and reads[-1]['has_report']==['true']
+    assert len(set(cards.evaluate_all('(nodes)=>nodes.map(n=>n.dataset.id)')))==60
     expect(page.locator('#binaryLoader')).not_to_be_visible()
     page.locator('[data-ux-view="cards"]').click()
     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+2')

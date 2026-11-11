@@ -67,7 +67,7 @@ def test_explore_category_chip_toggle_and_initial_newest_display(explore_page, c
     page.goto('https://agentconcierge.biz/#explore')
     _expect_ids(state, state.all_ids)
     assert json.loads(page.locator('#appBootstrapData').text_content()) == bootstrap
-    assert state.calls and state.calls[0]['params']['limit'] == '45'
+    assert state.calls and state.calls[0]['params']['limit'] == '15'  # first page 15 (11-12)
     assert state.calls[0]['params']['q'] == ''
     expect(page.locator('#xVerified')).not_to_be_checked()
     expect(page.locator('#xHasReport')).not_to_be_checked()
@@ -89,7 +89,7 @@ def test_explore_category_chip_toggle_and_initial_newest_display(explore_page, c
     _expect_ids(state, state.all_ids)
     expect(page.locator('#xQ')).to_have_value('')
     expect(weather).to_have_class('chip-btn')
-    assert state.calls[-1]['params']['q'] == '' and state.calls[-1]['params']['limit'] == '45'
+    assert state.calls[-1]['params']['q'] == '' and state.calls[-1]['params']['limit'] == '15'
     expect(page.locator('#xTitle')).to_contain_text('Latest discovered agents')
     assert not state.errors and not state.blocked
 

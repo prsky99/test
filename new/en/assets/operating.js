@@ -2482,7 +2482,7 @@ function exploreFilterChanged() {
 const xLoadMoreBtn = $("xLoadMore");
 if (xLoadMoreBtn) {
   xLoadMoreBtn.onclick = () => {
-    currentExploreLimit = Math.min(300, currentExploreLimit + 45);
+    currentExploreLimit = Math.min(300, currentExploreLimit + EXPLORE_MORE_PAGE);
     loadExplore(true, true, true);
   };
 }
@@ -2626,7 +2626,9 @@ let lastExploreKey = null;
 let exploreRequestRevision = 0;
 let exploreRequestedKey = null;
 let exploreController = null;
-let currentExploreLimit = 45;
+// The first page asks for 15 listings and each Load more for 45 more (11-12 PM: a smaller first answer)
+const EXPLORE_FIRST_PAGE = 15, EXPLORE_MORE_PAGE = 45;
+let currentExploreLimit = EXPLORE_FIRST_PAGE;
 let exploreLoadedItems = [];
 let exploreNextOffset = 0;
 let exploreHasMore = null;
@@ -2688,7 +2690,7 @@ async function loadExplore(force = false, isLoadMore = false, userInitiated = fa
     if (location.hash !== route) history[initialRoutingComplete ? "pushState" : "replaceState"](null,"",route);
   }
   const offset = isLoadMore ? exploreNextOffset : 0;
-  const requestLimit = Math.min(45,300-offset);
+  const requestLimit = Math.min(isLoadMore ? EXPLORE_MORE_PAGE : EXPLORE_FIRST_PAGE,300-offset);
   if (isLoadMore && (!offset || requestLimit < 1)) { if(inputProgress!=null)hideLoader(inputProgress); return; }
   const currentKey = JSON.stringify([q,kind,category,verified,noAuth,hasReport,offset,requestLimit]);
   if (!force && lastExploreKey === currentKey && (resultsEl.children.length || exploreRequestedKey === currentKey)) { if(inputProgress!=null)hideLoader(inputProgress); return; }
@@ -2696,7 +2698,7 @@ async function loadExplore(force = false, isLoadMore = false, userInitiated = fa
   const revision = ++exploreRequestRevision;
   exploreController?.abort();
   const controller = new AbortController(); exploreController = controller; lastExploreKey = currentKey;
-  if (!isLoadMore) { currentExploreLimit=45; exploreLoadedItems=[]; exploreNextOffset=0; exploreHasMore=null; }
+  if (!isLoadMore) { currentExploreLimit=EXPLORE_FIRST_PAGE; exploreLoadedItems=[]; exploreNextOffset=0; exploreHasMore=null; }
   const cacheKey = "explore:v4:" + currentKey;
   const cached = getSwrCache(cacheKey);
   function display(data) {
