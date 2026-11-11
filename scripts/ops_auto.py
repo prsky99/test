@@ -216,6 +216,24 @@ def error_ledger(clock=time.time, launch=None):
     return 'started'
 
 
+
+GATE_STATE = ROOT / 'logs/ops/stability-gate-state.json'
+
+
+def stability_gate(clock=time.time):
+    """Hourly: judge the stability gate (scripts/stability_gate.py) and refresh its line at the top of the board."""
+    hour = datetime.fromtimestamp(clock()).strftime('%Y-%m-%d %H')
+    state = json.loads(GATE_STATE.read_text()) if GATE_STATE.is_file() else {}
+    if state.get('hour') == hour:
+        return None
+    import stability_gate as gate  # scripts/ is on sys.path
+    result = gate.judge()
+    gate.OUT.write_text(json.dumps(result, ensure_ascii=False, indent=1))
+    gate.update_board(gate.board_line(result))
+    GATE_STATE.write_text(json.dumps({'hour': hour, 'open': result['open']}))
+    return result['open']
+
+
 def watch():
     try:
         board_snapshot()
@@ -237,6 +255,10 @@ def watch():
         error_ledger()
     except Exception as error:  # noqa: BLE001
         append(ACTIONS, f'{now()} 오류 장부 실패: {type(error).__name__}')
+    try:
+        stability_gate()
+    except (Exception, SystemExit) as error:  # noqa: BLE001
+        append(ACTIONS, f'{now()} 안정성 관문 판정 실패: {type(error).__name__}')
     record = json.loads(subprocess.run([sys.executable, str(ROOT / 'scripts/ops_watch.py')],
                                        capture_output=True, text=True, cwd=ROOT).stdout or '{}')
     anomalies = record.get('anomalies') or {}
