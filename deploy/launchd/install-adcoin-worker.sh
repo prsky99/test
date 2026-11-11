@@ -2,6 +2,7 @@
 # Install the AI AD Coin v2 worker daemon (option B: one launchd job, one DB connection). Run by the user.
 # Usage: deploy/launchd/install-adcoin-worker.sh <release>   e.g. v2-on-frontend-20261110-r1
 # Checked 11-10 by 운영·SRE: --health ready, --once processed 0 with no errors.
+# 11-11: AD_COIN_PAID_* and AD_COIN_OFAC_LIST are copied from agentcon.env (scripts/adcoin_worker_env.py).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 ROOT=$PWD; REL=${1:?release name}; R=$ROOT/gateway-data/services/releases/$REL
@@ -14,13 +15,18 @@ L=biz.agentconcierge.498590e0b3.adcoin-worker; P=$HOME/Library/LaunchAgents/$L.p
 "$ROOT/.venv/bin/python" - "$R" "$DSN" "$KEY" "$KD" "$P" "$L" "$ROOT" <<'PY'
 import plistlib, sys, os
 R, DSN, KEY, KD, P, L, ROOT = sys.argv[1:]
+sys.path.insert(0, ROOT)
+from scripts.adcoin_worker_env import daemon_environment
+ENVFILE = os.path.join(ROOT, 'gateway-data/agentcon.env')
+env = daemon_environment(R, open(ENVFILE).read(), ENVFILE)
+# paid-booking settings come from agentcon.env as written (switch off unless it says so); names only, no values
+print('daemon env:', ', '.join(sorted(k for k in env if k.startswith('AD_COIN_PAID_') or k == 'AD_COIN_OFAC_LIST')) or 'no paid settings')
 spec = {'Label': L,
         'ProgramArguments': [f'{R}/.venv/bin/python', '-B', f'{R}/scripts/ad_coin_worker_daemon.py',
                              '--dsn-file', DSN, '--key-file', KEY, '--key-dir', KD, '--interval', '5'],
         'WorkingDirectory': R, 'RunAtLoad': True, 'KeepAlive': {'SuccessfulExit': False},
         'ThrottleInterval': 30, 'ExitTimeOut': 60, 'Umask': 0o077, 'ProcessType': 'Background',
-        'EnvironmentVariables': {'PATH': '/opt/homebrew/bin:/usr/bin:/bin', 'PYTHONUNBUFFERED': '1', 'PYTHONPATH': R,
-                                 'AD_COIN_V2_ENABLED': '1'},
+        'EnvironmentVariables': env,
         'StandardOutPath': f'{ROOT}/logs/services/{L}.log', 'StandardErrorPath': f'{ROOT}/logs/services/{L}.log'}
 with open(P, 'wb') as f: plistlib.dump(spec, f)
 os.chmod(P, 0o600)

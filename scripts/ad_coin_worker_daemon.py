@@ -61,17 +61,58 @@ class WorkerDaemon:
         return cycle_summary
 
     paid = None  # PaidBookings when AD_COIN_PAID_BOOKING_ENABLED is on (USDC, 11-11)
+    _paid_env_seen = None  # (mtime, settings) of the runtime env file last applied
+    _paid_config_error = None
+
+    def reload_paid_settings(self) -> None:
+        """Follow AD_COIN_PAID_* in the runtime env file (AD_COIN_RUNTIME_ENV_FILE, agentcon.env) without a reinstall:
+        the switch and settings change here when the file changes; values are never logged."""
+        import os
+        from scripts.adcoin_worker_env import PASSED, paid_settings
+        path = os.environ.get("AD_COIN_RUNTIME_ENV_FILE")
+        if not path:
+            return
+        try:
+            mtime = os.stat(path).st_mtime
+            if self._paid_env_seen is not None and self._paid_env_seen[0] == mtime:
+                return
+            with open(path) as handle:
+                settings = paid_settings(handle.read())
+        except OSError:
+            return
+        if self._paid_env_seen is None:   # first read: whatever the plist put in the environment
+            previous = {key: value for key, value in os.environ.items() if PASSED.match(key)}
+        else:
+            previous = self._paid_env_seen[1]
+        for key in set(previous) - set(settings):
+            os.environ.pop(key, None)
+        os.environ.update(settings)
+        if settings != previous:
+            self.paid, self._paid_config_error = None, None
+            if self._paid_env_seen is not None:
+                logger.info("Paid-booking settings changed: %s", sorted(settings) or "none")
+        self._paid_env_seen = (mtime, settings)
 
     def paid_cycle(self, now_ms: int) -> int:
         """Confirm paid bookings waiting for blocks, expire unpaid quotes, settle finished days."""
         from agent_market.ad_coin.v2.paid_bookings import enabled
+        self.reload_paid_settings()
         if not enabled():
+            self.paid = None
             return 0
+        if self._paid_config_error is not None:
+            return 0                      # misconfigured: keep the other work running, wait for a settings change
         if self.paid is None:
             import os
             from agent_market.ad_coin.v2.paid_bookings import DEFAULT_OFAC_LIST, PaidBookings, PaidConfig, Sanctions
             from agent_market.chain import RPC
-            self.paid = PaidBookings(self.store, PaidConfig.from_env(),
+            try:
+                config = PaidConfig.from_env()
+            except RuntimeError as error:
+                self._paid_config_error = str(error)
+                logger.error("Paid bookings are on but not configured: %s", error)
+                return 0
+            self.paid = PaidBookings(self.store, config,
                                      rpc=RPC(os.environ.get("AD_COIN_PAID_RPC_URL", "https://mainnet.base.org")),
                                      sanctions=Sanctions(os.environ.get("AD_COIN_OFAC_LIST", DEFAULT_OFAC_LIST)),
                                      taxonomy=(), regions=())
