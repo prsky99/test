@@ -414,6 +414,8 @@ def main():
     root = Path(args.project_root).resolve()
     settings.update(read_local_model_settings(str(root / 'gateway-data/local-model.env')))
     settings.update(read_local_model_fallback_settings(root / 'gateway-data/local-model-fallback.env'))
+    from scripts.agentcon_config import read_local_model_slot_settings  # 11-11: its own file
+    settings.update(read_local_model_slot_settings(root / 'gateway-data/local-model-slots.env'))
     settings.update(read_edge_gateway_settings(str(root / 'gateway-data/edge-gateway.env')))
     settings.update(read_admin_evidence_settings(root / 'gateway-data/admin-evidence.env'))
     settings.update(read_embedding_settings(root / 'gateway-data/embedding.env'))

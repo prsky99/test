@@ -42,9 +42,11 @@ rag.embeddings_enabled = config.local_ollama_enabled if config.embedding_enabled
 llm = None
 if config.workspace_model_enabled:
     from agent_market.concierge.llm import LocalLLM
+    # 11-11: share the model server's 4 slots with the running services, from the batch share only.
+    os.environ.setdefault('AGENTCON_PROJECT_ROOT', ROOT)
     llm = LocalLLM(config.workspace_model_url, config.workspace_model_name, timeout=2, lead=False, http=rag.http,
                    concurrency=int(os.environ.get('EVAL_LLM_CONCURRENCY') or 2), provider=config.workspace_model_provider,
-                   allow_http=config.workspace_model_allow_http)
+                   allow_http=config.workspace_model_allow_http, slot_kind='long')
 from agent_market.concierge import fast_chat
 class _Journal:
     def begin(self, *a, **k): return self

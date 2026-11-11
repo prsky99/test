@@ -7,6 +7,8 @@ from urllib.parse import urlsplit
 
 import httpx
 
+from . import model_slots
+
 
 def validate_endpoint(endpoint, provider, *, allow_http=False):
     if provider not in ('ollama', 'openai') or type(endpoint) is not str or len(endpoint) > 2048:
@@ -73,6 +75,13 @@ def chat_stream(client, endpoint, provider, payload, *, fallback_endpoint='', al
     """
     targets = endpoints(endpoint, provider, fallback_endpoint, allow_http=allow_http)
     kwargs['follow_redirects'] = False
+    # 11-11: the model server runs 4 at a time; a caller that did not take a request slot itself
+    # (RAG answers, workspace plans, scripts) waits for the small long-call share instead.
+    with model_slots.slot('long'):
+        yield from _chat_attempts(client, provider, payload, targets, guard, kwargs)
+
+
+def _chat_attempts(client, provider, payload, targets, guard, kwargs):
     for index, target in enumerate(targets):
         if guard is not None:
             guard()

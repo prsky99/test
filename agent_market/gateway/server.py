@@ -315,10 +315,13 @@ def _compose_app(
     install_edge_output_relay(app,front)
     if config.workspace_model_enabled:
         from ..concierge.llm import LocalLLM
+        from .. import model_slots
         # Only unrecognized language takes this bounded path. Known tasks never
         # invoke generation, and recommendations remain current catalog facts.
         front.language_model = LocalLLM(config.workspace_model_url, config.workspace_model_name,
-            timeout=2, lead=False, http=rag_engine.http, concurrency=8,  # the model server batches 16
+            # 11-11: the model server runs 4 at a time; agent_market.model_slots shares that budget
+            # across processes, so this process's own bound is simply the whole budget.
+            timeout=2, lead=False, http=rag_engine.http, concurrency=model_slots.total(),
             provider=config.workspace_model_provider, allow_http=config.workspace_model_allow_http)
         front.concierge.query_rewriter = front.language_model.rewrite_task
         front.concierge.query_summarizer = front.language_model.summarize_task

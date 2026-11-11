@@ -24,6 +24,7 @@ import time
 import httpx
 
 from ..broker.categories import CATEGORIES
+from .. import model_slots
 from ..local_generation import chat_post, completion, endpoints
 
 log = logging.getLogger("agent_market.concierge.llm")
@@ -31,7 +32,10 @@ log = logging.getLogger("agent_market.concierge.llm")
 INTENTS = ("greet", "find", "whats_new", "help", "chitchat")  # intents left to the model (commands are handled by rules)
 KINDS = ("a2a", "mcp", "x402")
 BREAK = 60  # after a failure, skip the model for this many seconds
-TRANSLATE_BUDGET, TRANSLATE_WAIT = 3.0, 1.0  # other-language requests (seconds)
+# Other-language requests (seconds). 11-11: the server now runs 4 at a time, so a busy slot is
+# waited for half as long (was 1.0) to keep the 2-second recommendation budget.
+TRANSLATE_BUDGET, TRANSLATE_WAIT = 3.0, 0.5
+STATS_LOG_SECONDS = 600
 TASK_CACHE_SIZE = 2048  # remembered rewrites and summaries (request text -> validated result)
 # Greetings are already in the templates: drop a leading greeting sentence from model text (small models add one anyway)
 GREETING_RE = re.compile(r"^\s*(?:hello|hi|hey|welcome(?: back)?|greetings|good (?:morning|afternoon|evening))[^.!?]*[.!?]\s*", re.I)
@@ -65,7 +69,11 @@ LEAD_SYSTEM = (
 class LocalLLM:
     def __init__(self, url: str = "http://127.0.0.1:11434", model: str = "gemma3:1b", timeout: float = 20.0,
                  lead: bool = True, http: httpx.Client | None = None, concurrency: int = 2,
-                 provider: str = 'ollama', fallback_url: str = '', allow_http: bool = False):
+                 provider: str = 'ollama', fallback_url: str = '', allow_http: bool = False,
+                 slot_kind: str = 'request'):
+        # 'request' for the live 2-second path; evaluation scripts pass 'long' so they only use the
+        # small batch share of the model server's slots (agent_market.model_slots, 11-11).
+        self.slot_kind = slot_kind if slot_kind in ('request', 'long') else 'long'
         self.url, self.model, self.timeout, self.use_lead = url.rstrip("/"), model, timeout, lead
         self.provider = provider
         self.fallback_url, self.allow_http = fallback_url, allow_http
@@ -74,6 +82,7 @@ class LocalLLM:
                                          trust_env=False, follow_redirects=False)
         self._slots = threading.BoundedSemaphore(concurrency)
         self._broken_until = 0.0
+        self._stats_logged = time.monotonic()
         self.stats = {"calls": 0, "ok": 0, "failed": 0, "skipped_busy": 0, "total_ms": 0}
         # Successful rewrites and summaries, so a busy or slow model does not change the answer to a
         # request it already handled (11-04: all 7 flaky Chat evaluation cases came from this path).
@@ -104,7 +113,8 @@ class LocalLLM:
 
     def ping(self, budget: float = 8.0) -> bool:
         """Keep the generation model hot with one token; skipped when a slot is busy (already hot)."""
-        if not self._slots.acquire(blocking=False):
+        handle = self._take('long', 0)
+        if handle is None:
             return True
         try:
             body = {"model": self.model, "stream": False, "think": False, "messages": [{"role": "user", "content": "ok"}],
@@ -115,7 +125,35 @@ class LocalLLM:
         except (httpx.HTTPError, ValueError, TypeError):
             return False
         finally:
+            self._give(handle)
+
+    def _take(self, kind, wait):
+        """This process's own bound, then one slot of the budget shared with the other processes."""
+        deadline = time.monotonic() + wait
+        if not (self._slots.acquire(timeout=wait) if wait > 0 else self._slots.acquire(blocking=False)):
+            return None
+        index = model_slots.acquire(kind, max(0.0, deadline - time.monotonic()))
+        if index is None:
             self._slots.release()
+            return None
+        return index, model_slots.mark()  # generation calls below must not take a second slot
+
+    def _wait(self, wait):
+        # A script on the batch share queues for it instead of answering by rules (its scores would drift).
+        return wait if self.slot_kind == 'request' else model_slots.LONG_WAIT
+
+    def _give(self, handle):
+        index, token = handle
+        model_slots.unmark(token)
+        model_slots.release(index)
+        self._slots.release()
+        self._log_stats()
+
+    def _log_stats(self):
+        now = time.monotonic()
+        if now - self._stats_logged >= STATS_LOG_SECONDS:
+            self._stats_logged = now
+            log.info("local model use: %s", json.dumps({**self.stats, "slots": model_slots.status()}, sort_keys=True))
 
     def status(self) -> dict:
         s = dict(self.stats)
@@ -126,7 +164,8 @@ class LocalLLM:
     def _chat(self, messages: list[dict], json_mode: bool, num_predict: int) -> str | None:
         if time.time() < self._broken_until:
             return None
-        if not self._slots.acquire(timeout=1.0):  # model busy: do not wait, fall back to rules
+        handle = self._take(self.slot_kind, self._wait(0))  # 11-11: was a 1-second wait; a busy model means the rules answer
+        if handle is None:
             self.stats["skipped_busy"] += 1
             return None
         started = time.time()
@@ -149,7 +188,7 @@ class LocalLLM:
             log.warning("local LLM unavailable (%s); using rules for %ds", type(exc).__name__, BREAK)
             return None
         finally:
-            self._slots.release()
+            self._give(handle)
 
     @staticmethod
     def _text(value, limit: int) -> str:
@@ -225,7 +264,9 @@ class LocalLLM:
 
     def _bounded_task_answer(self, system, validator, text, budget, num_predict, wait=0.0):
         from ..local_generation import chat_stream
-        if not (self._slots.acquire(timeout=wait) if wait > 0 else self._slots.acquire(blocking=False)):
+        handle = self._take(self.slot_kind, self._wait(wait))
+        if handle is None:
+            self.stats["skipped_busy"] += 1
             return None
         # Only the language path asks for more than the 2-second cap the other callers keep.
         limit = min(TRANSLATE_BUDGET, max(0.1, budget))
@@ -249,7 +290,7 @@ class LocalLLM:
         except (httpx.HTTPError, ValueError, TypeError, RecursionError):
             return None
         finally:
-            self._slots.release()
+            self._give(handle)
 
     def lead(self, facts: dict) -> str | None:
         """One or two English sentences to open a reply. URLs are removed; None when empty or too long."""

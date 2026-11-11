@@ -47,6 +47,7 @@ MAX_FILE_BYTES = 65536
 LOCAL_MODEL_KEYS = frozenset(('WORKSPACE_MODEL_ENABLED', 'WORKSPACE_MODEL_URL', 'WORKSPACE_MODEL_NAME',
                               'WORKSPACE_MODEL_PROVIDER', 'WORKSPACE_MODEL_ALLOW_HTTP', 'LOCAL_OLLAMA_ENABLED',
                               'WORKSPACE_MODEL_FALLBACK_URL'))
+LOCAL_MODEL_SLOT_KEYS = frozenset(('WORKSPACE_MODEL_SLOTS', 'WORKSPACE_MODEL_LONG_SLOTS'))
 EDGE_GATEWAY_KEYS = frozenset(('AGENT_EDGE_GATEWAY_CONFIG', 'AGENT_EDGE_CLOUDFLARE_ACCOUNT',
                                'AGENT_EDGE_CLOUDFLARE_TOKEN_FILE'))
 
@@ -158,6 +159,17 @@ def read_local_model_settings(path):
     values = read_settings(path)
     if set(values) - LOCAL_MODEL_KEYS:
         raise ConfigError('Local model settings may only configure generation.')
+    return values
+
+
+def read_local_model_slot_settings(path):
+    """11-11: the generation server's parallel slots, shared by all processes (agent_market.model_slots).
+
+    Its own file, so retained releases (which never read it) still start after a rollback."""
+    values = read_settings(path, allowed=LOCAL_MODEL_SLOT_KEYS)
+    for value in values.values():
+        if not value.isdigit() or not 1 <= int(value) <= 64:
+            raise ConfigError('Local model slot settings must be whole numbers from 1 to 64.')
     return values
 
 

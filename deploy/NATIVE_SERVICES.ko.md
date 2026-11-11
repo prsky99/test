@@ -102,7 +102,15 @@ DB 백업에는 원래 DB 식별자에 연결된 쓰기 승인 기록도 포함�
 
 2026-10-23부터 새 서비스 배포본은 소유자 전용 `gateway-data/local-model.env`를 `agentcon.env` 다음에 읽는다. 예시는 `deploy/local-model.env.example`이다. 생성 모델과 Ollama 사용 여부만 설정할 수 있고 DB·로그인·관리자 설정은 덮어쓸 수 없다. 이전 배포본의 시작을 손상시키지 않도록 기존 `agentcon.env`와 분리했다.
 
-현재 지정 모델은 OpenAI 호환 `http://192.168.0.25:8000/v1`, `gemma4-e4b-mlx`다. 요청마다 `chat_template_kwargs.enable_thinking=false`를 보낸다. 서버 측 단일 인스턴스와 16개 병렬 슬롯 구성은 변경하지 않는다.
+현재 지정 모델은 OpenAI 호환 `http://192.168.0.24:8000/v1`, `gemma4-e4b-mlx`다. 대체 주소는 `http://192.168.0.25:8000/v1`이다(`local-model-fallback.env`). 요청마다 `chat_template_kwargs.enable_thinking=false`를 보낸다.
+
+모델 서버는 단일 인스턴스이고, 2026-11-11부터 병렬 슬롯이 4개다(이전 16개). 4개를 넘는 요청은 서버에서 차례를 기다린다. PM 실측(120토큰 답): 동시 4개 2.2~3.2초, 8개면 뒤 4개 4.2~5.3초, 12개면 6.4~7.1초.
+
+모든 서비스 프로세스는 이 4칸을 함께 나눠 쓴다(`agent_market/model_slots.py`). 칸마다 `gateway-data/model-slots/slot-N.lock` 파일을 잠가 쓰므로, 프로세스가 죽으면 그 칸도 풀린다.
+- 요청 경로(Chat 재작성·요약): 빈 칸이 없으면 기다리지 않고 규칙으로 답한다. 다른 언어 요청만 0.5초 기다린다.
+- 긴 호출(RAG 답 생성, 작업 계획, 평가 스크립트, 예열): 마지막 칸만 쓴다. 낮에는 1칸, 02~07시에는 2칸이다. 10초 안에 칸이 나지 않으면 서버가 바쁠 때와 같은 오류로 끝난다.
+- 바꾸려면 `gateway-data/local-model-slots.env`(600)에 `WORKSPACE_MODEL_SLOTS`(전체 칸 수)와 `WORKSPACE_MODEL_LONG_SLOTS`(낮의 긴 호출 몫)를 적는다. 예전 버전은 이 파일을 읽지 않으므로 되돌려도 시작에 지장이 없다.
+- 사용량은 frontend 로그에 10분마다 `local model use:` 한 줄로 남는다(`skipped_busy`, `failed`, 칸별 사용·바쁨 횟수).
 
 `LOCAL_OLLAMA_ENABLED=0`은 로컬 Ollama 임베딩 호출과 벡터 적재를 중지한다. 기존 벡터는 보존하고 키워드 검색을 계속 사용한다. 현재 Gemma 생성 모델은 기존 임베딩 모델의 대체가 아니다. 벡터 검색을 다시 활성화하려면 호환 임베딩 제공자를 별도로 구성해야 한다.
 
