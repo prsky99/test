@@ -17,6 +17,9 @@ POLICY = 'admin_retention:policy'
 LAST = 'admin_retention:last'
 BATCH = 5000
 BUDGET = 2.0  # seconds of deletion per scheduler step
+# Rows one scheduler step may remove from a table, on top of the time budget (11-11 user decision:
+# security_events keeps 90 days and each run removes at most 10,000 rows).
+STEP_LIMIT = {'security_events': 10000}
 # table -> (time column, shortest period in days, label, extra condition, required index or None).
 # A table qualifies only with a time index, so each batch reads a bounded range.
 TABLES = {
@@ -132,7 +135,8 @@ class Retention:
                     continue
                 cutoff = self.cutoff(table, days, now)
                 removed[table] = 0
-                while cutoff > 0 and time.monotonic() - started < BUDGET:
+                limit = STEP_LIMIT.get(table)
+                while cutoff > 0 and time.monotonic() - started < BUDGET and (limit is None or removed[table] < limit):
                     count = self._delete_batch(table, column, cutoff)
                     removed[table] += count
                     if count < BATCH:

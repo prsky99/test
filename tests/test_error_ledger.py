@@ -86,3 +86,14 @@ def test_a_fixed_bug_rule_stops_explaining_after_its_date():
     known = [{'pattern': r'^log\|a\|x', 'reason': 'fixed in abc', 'until': '2026-11-11'}]
     assert error_ledger.ledger('2026-11-11', counts=Counter({'log|a|x|y': 1}), known=known)['unexplained'] == 0
     assert error_ledger.ledger('2026-11-12', counts=Counter({'log|a|x|y': 1}), known=known)['unexplained'] == 1
+
+
+def test_retention_rows_are_recorded_apart_from_errors(tmp_path):
+    (tmp_path / 'jobs.main.log').write_text(
+        "2026-11-11 03:00:00 INFO agent_market.workspace_admin_retention: admin retention removed {'security_events': 10000}\n"
+        "2026-11-11 03:05:00 INFO agent_market.workspace_admin_retention: admin retention removed {'security_events': 120, 'x': 'index_missing'}\n"
+        "2026-11-10 03:05:00 INFO agent_market.workspace_admin_retention: admin retention removed {'security_events': 9}\n")
+    assert error_ledger.retention_removed(DAY, tmp_path) == {'security_events': 10120}
+    result = error_ledger.ledger(DAY, counts=Counter(), known=[])
+    result['retention_removed'] = error_ledger.retention_removed(DAY, tmp_path)
+    assert 'security_events 10,120행' in error_ledger.write(result, tmp_path).read_text()

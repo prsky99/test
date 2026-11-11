@@ -122,3 +122,19 @@ def test_completed_vector_jobs_only_and_index_gate(migrated, monkeypatch):
     assert refused.status_code == 409 and '인덱스' in refused.json()['detail']
     runner.apply({'table': 'platform_observation_events', 'days': 30, 'backup_confirmed': True}, 1)
     assert runner.run_due(force=True)['removed']['platform_observation_events'] == 'index_missing'
+
+
+def test_security_events_step_stops_at_its_row_limit(migrated, monkeypatch):
+    world, client, _ = migrated
+    with world.store.tx() as db:
+        for n in range(7):
+            db.execute('INSERT INTO security_events(at,event_type,ip,path,detail) VALUES(?,?,?,?,?)',
+                       (NOW - (100 + n) * DAY, 'synthetic', '192.0.2.0/24', '/x', 'fixture'))
+    runner = Retention(world.store)
+    runner.apply({'table': 'security_events', 'days': 90, 'backup_confirmed': True}, 1)
+    monkeypatch.setattr(module, 'BATCH', 2)
+    monkeypatch.setitem(module.STEP_LIMIT, 'security_events', 4)
+    assert runner.run_due(force=True)['removed'] == {'security_events': 4}   # two full batches, then stop
+    assert runner.run_due(force=True)['removed'] == {'security_events': 3}   # the rest on the next step
+    assert runner.status()['last']['removed'] == {'security_events': 3}
+    assert module.STEP_LIMIT['security_events'] == 4 and module.TABLES['security_events'][1] <= 90

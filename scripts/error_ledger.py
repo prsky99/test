@@ -80,6 +80,32 @@ def from_logs(day, logs=None):
     return counts
 
 
+
+_RETENTION = re.compile(r"^(\d{4}-\d{2}-\d{2}) .*admin retention removed (\{.*\})\s*$")
+
+
+def retention_removed(day, logs=None):
+    """Rows the approved retention runner removed that day, per table (11-11 user decision: record them)."""
+    import ast
+    removed = Counter()
+    for path in sorted(Path(logs or LOGS).glob('*.log')):
+        try:
+            lines = path.read_text(errors='replace').splitlines()
+        except OSError:
+            continue
+        for line in lines:
+            match = _RETENTION.match(line)
+            if not match or match.group(1) != day:
+                continue
+            try:
+                values = ast.literal_eval(match.group(2))
+            except (ValueError, SyntaxError):
+                continue
+            for table, n in values.items():
+                if isinstance(n, int):
+                    removed[str(table)] += n
+    return dict(removed)
+
 def from_edge(day, run=None):
     start = datetime.strptime(day, '%Y-%m-%d').replace(tzinfo=KST).timestamp()
     sql = ("SELECT outcome, count(*) FROM edge_gateway_events WHERE substr(run_id,1,3)='eo_' "
@@ -130,9 +156,13 @@ def write(result, out=None):
              f"전체 {result['total']}건, {result['kinds']}종. 그중 내부 측정 {result.get('internal', 0)}건(따로 셈). "
              f"설명되지 않음 {result['unexplained']}건, {result['unexplained_kinds']}종.", '',
              '| 건수 | 원인 | 설명 |', '|---|---|---|']
+    removed = result.get('retention_removed')
     for r in result['rows']:
         note = f"{r['reason']} ({r['team']})" if r['explained'] else '**설명되지 않음**'
         lines.append(f"| {r['count']} | `{r['key'][:150]}` | {note} |")
+    if removed is not None:
+        lines += ['', '## 보존 정리 (승인된 보존 기간, 오류 아님)', '',
+                  ', '.join(f'{table} {n:,}행' for table, n in sorted(removed.items())) or '지운 행 없음']
     (out / f"{result['day']}.md").write_text('\n'.join(lines) + '\n')
     return out / f"{result['day']}.md"
 
@@ -142,6 +172,7 @@ def main(argv=None):
     parser.add_argument('--day', default=(datetime.now(KST) - timedelta(days=1)).strftime('%Y-%m-%d'))
     args = parser.parse_args(argv)
     result = ledger(args.day)
+    result['retention_removed'] = retention_removed(args.day)
     path = write(result)
     print(json.dumps({k: result[k] for k in ('day', 'total', 'kinds', 'unexplained', 'unexplained_kinds')}, ensure_ascii=False), path)
     return 0
