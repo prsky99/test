@@ -317,3 +317,40 @@ def test_directory_presence_reads_pages_without_guessing():
     assert result['official_registry']['listed'] is True
     assert result['glama']['listed'] is None and result['glama']['error'] == 'OSError'  # a failed fetch is not "not listed"
     assert result['mcp_so']['listed'] is False
+
+
+def test_active_listing_without_evidence_gets_a_basic_noindex_page(monkeypatch, tmp_path):
+    """11-11: llms.txt promises /agent/{id} for every agent, but only evidence-catalog listings had a page;
+    ClaudeBot got 404 for 169 active agents. Active listings now get a basic page; others stay 404."""
+    from tests.test_concierge import populated
+    from agent_market.concierge.front import create_front_app
+    from agent_market.concierge import growth_catalog
+    monkeypatch.setenv('LOG_DIR', str(tmp_path))
+    (tmp_path/'public-pages').mkdir()
+    monkeypatch.setattr(g, 'SNAPSHOT', g.Snapshot())
+    write(tmp_path/'public-pages', snapshot())
+    growth_catalog._basic.clear()
+    world = populated()
+    store = world.app.state.front.store
+    catalog = {int(k) for k in ((g.SNAPSHOT.read() or {}).get('catalog') or {})}
+    rows = store.query("SELECT id, active FROM resources ORDER BY id")
+    candidates = [r['id'] for r in rows if r['active'] and r['id'] not in catalog]
+    active, inactive = candidates[0], candidates[1]
+    with store.tx() as db:
+        db.execute("UPDATE resources SET active=0 WHERE id=?", (inactive,))
+    c = TestClient(create_front_app(world.app.state.front))
+    page = c.get('/agent/%d' % active, headers={'Accept': 'text/html'})
+    assert page.status_code == 200
+    assert '<meta name="robots" content="noindex, follow">' in page.text
+    assert '<link rel="canonical" href="https://agentconcierge.biz/agent/%d">' % active in page.text
+    assert 'No recorded evidence yet' in page.text and 'Connection address' in page.text
+    assert c.get('/agent/%d' % inactive).status_code == 404
+    assert c.get('/agent/999999999').status_code == 404
+    assert '/agent/%d' % active not in ' '.join(g.sitemap_paths())   # never in the sitemap
+    calls = []
+    real = growth_catalog._render_basic
+    monkeypatch.setattr(growth_catalog, '_render_basic', lambda s, rid: calls.append(rid) or real(s, rid))
+    growth_catalog._basic.clear()
+    for _ in range(3):
+        assert c.get('/agent/%d' % active).status_code == 200
+    assert calls == [active]   # one read per listing per BASIC_TTL

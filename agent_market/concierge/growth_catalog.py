@@ -408,7 +408,79 @@ def report_page(requested=None, snapshot=None):
                    canonical=g.ORIGIN+'/reports/state-of-ai-agents/'+current, body=body, structured=structured, index=g.fresh(snapshot))
 
 
-def install(router, page_headers, not_found):
+BASIC_TTL = 600        # seconds a basic page (an active listing outside the evidence catalog) is reused
+BASIC_LIMIT = 20000
+_basic = {}
+_basic_lock = __import__('threading').Lock()
+_STATUS = {'healthy': 'Responding', 'reachable': 'Reachable', 'down': 'Not responding at the last check',
+           'unknown': 'Not checked yet', None: 'Not checked yet'}
+
+
+def basic_agent_page(store, rid, clock=None):
+    """A short page for an active listing that has no evidence page yet (11-11).
+
+    llms.txt promises one page per agent at /agent/{id}; only the 8,563 listings with recorded evidence
+    had one, so ClaudeBot got 404 for active agents it found through /api/agents/{id}. This page uses the
+    same public fields as that API (get_safe_agent_detail), is not indexed and is not in the sitemap.
+    Inactive, hidden or unknown ids stay 404. Pages are cached BASIC_TTL so a crawler costs one primary
+    key read per listing per ten minutes."""
+    import time
+    now = (clock or time.time)()
+    with _basic_lock:
+        hit = _basic.get(rid)
+        if hit and now - hit[0] < BASIC_TTL:
+            return hit[1]
+    value = _render_basic(store, rid)
+    with _basic_lock:
+        if len(_basic) >= BASIC_LIMIT:
+            _basic.clear()
+        _basic[rid] = (now, value)
+    return value
+
+
+def _render_basic(store, rid):
+    from fastapi import HTTPException
+    from .front import get_safe_agent_detail
+    try:
+        agent = get_safe_agent_detail(store, rid).get('agent') or {}
+    except HTTPException:
+        return None
+    if not agent.get('active') or agent.get('id') != rid or agent.get('kind') not in g.KINDS:
+        return None
+    kind = g.KINDS[agent['kind']]
+    name = str(agent.get('name') or 'Unnamed agent')[:200]
+    noun = 'agent' if agent['kind'] == 'a2a' else 'server' if agent['kind'] == 'mcp' else 'API'
+    category = categories().get(agent.get('category'))
+    status = ('Listed and currently live' if agent.get('catalog_status') == 'live'
+              else _STATUS.get(agent.get('health_status'), 'Not checked yet'))
+    rows = [('Kind', kind + ' ' + noun), ('Status', status)]
+    if category:
+        rows.append(('Category', category))
+    last = _date(agent.get('last_check_at'))
+    if last:
+        rows.append(('Last check', last))
+    if agent.get('eval_grade'):
+        rows.append(('Quality grade', str(agent['eval_grade'])))
+    if agent.get('url'):
+        rows.append(('Connection address', str(agent['url'])[:300]))
+    description = (f'{name}: {kind} {noun} listed in Agent Concierge. No recorded evidence yet; '
+                   'see its current status and connection address.')
+    body = (g.heading(kind + (' · ' + category if category else ''), name, agent.get('description') or description)
+            + '<div class="grid two">'
+            '<section class="card stack" aria-labelledby="basic-h"><h2 id="basic-h">Listing</h2>'
+            + ''.join('<div class="history-row"><span class="caption">'+esc(k)+'</span><span>'+esc(v)+'</span></div>' for k, v in rows)
+            + '<p class="caption">No recorded evidence yet. An evidence page appears once a test report or a recent '
+              'successful check is recorded.</p></section>'
+            '<section class="card stack" aria-labelledby="use-h"><h2 id="use-h">Use it</h2>'
+            '<p>Open the listing in Explore for the connection details, or ask Agent Concierge from your MCP client '
+            'to compare it with alternatives that already have recorded evidence.</p>'
+            '<div class="actions"><a class="btn primary" href="/new/en/explore.html#explore?q='+esc(quote(name))+'">Open in Explore</a>'
+            '<a class="btn" href="/agents/best">Agents with evidence</a></div></section></div>')
+    return g.shell(title=name + ' | Agent Concierge', description=description, canonical=g.ORIGIN + '/agent/' + str(rid),
+                   body=body, index=False)
+
+
+def install(router, page_headers, not_found, store=None):
     from fastapi.responses import HTMLResponse, Response
     from starlette.concurrency import run_in_threadpool
 
@@ -417,7 +489,12 @@ def install(router, page_headers, not_found):
 
     @router.get('/agent/{rid}', include_in_schema=False)
     async def agent(rid: str):
-        return page(await run_in_threadpool(agent_page, int(rid)) if re.fullmatch(r'[1-9][0-9]{0,9}', rid) else None)
+        if not re.fullmatch(r'[1-9][0-9]{0,9}', rid):
+            return page(None)
+        value = await run_in_threadpool(agent_page, int(rid))
+        if value is None and store is not None:
+            value = await run_in_threadpool(basic_agent_page, store, int(rid))
+        return page(value)
 
     @router.get('/agent/{rid}/reported', include_in_schema=False)
     def reported(rid: str, r: str = ''):

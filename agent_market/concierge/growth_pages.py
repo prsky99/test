@@ -527,7 +527,7 @@ def site_verification(name, path_fn=None):
 
 
 # ---------------------------------------------------------------- router
-def growth_router():
+def growth_router(store=None):
     from fastapi import APIRouter
     from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
     from starlette.concurrency import run_in_threadpool
@@ -559,7 +559,7 @@ def growth_router():
         return HTMLResponse(page, headers=page_headers) if page else not_found()
 
     from .growth_catalog import install
-    install(router, page_headers, not_found)
+    install(router, page_headers, not_found, store)
 
     from . import plugin_dist
     plugin_dist.install(router)
