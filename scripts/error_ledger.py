@@ -31,6 +31,11 @@ PSQL = ['/opt/homebrew/opt/postgresql@18/bin/psql', '-h', str(ROOT / 'gateway-da
 _LINE = re.compile(r'^(\d{4}-\d{2}-\d{2}) \d{2}:\d{2}:\d{2} (ERROR|CRITICAL) ([\w.]+): (.*)$')
 _FAILURE = re.compile(r'^(\d{4}-\d{2}-\d{2}) .*Execution failure reference=\S+ resource_id=\S+ protocol=(\w+) code=(\w+) stage=(\w+)'
                       r'(?:.*? qa=([a-z][a-z0-9_]*))?')
+# Warnings that are storage failures of a scheduled round and count as errors, each from the moment it was added
+# (PM 11-12 08:2x: the execution workflow round deferred 2,828 times before the 08:14 deploy; count what follows).
+WARNINGS_AS_ERRORS = [(re.compile(r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) WARNING ([\w.]+): '
+                                  r'(Due workflow round deferred after a storage error: \w+)(?: at (\S+ \w+))?'),
+                       '2026-11-12 08:14:00')]
 INTERNAL = 'qa|'   # our own measurement requests (X-Agentcon-QA, 11-11 PM): counted on their own rows, not hidden
 _TRACE = re.compile(r'^(\d{4}-\d{2}-\d{2}) \d{2}:\d{2}:\d{2} \w+ ([\w.]+): .*')
 
@@ -62,6 +67,11 @@ def from_logs(day, logs=None):
                 continue
             match = _LINE.match(line)
             if not match:
+                for pattern, since in WARNINGS_AS_ERRORS:
+                    warned = pattern.match(line)
+                    if warned and warned.group(1) >= since:
+                        step = f'|{warned.group(4)}' if warned.group(4) else ''
+                        counts[f'warn|{role}|{warned.group(2)}|{normalize(warned.group(3))}{step}'] += 1
                 continue
             logger, message = match.group(3), match.group(4)
             if logger == 'uvicorn.access':

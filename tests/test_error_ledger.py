@@ -107,3 +107,19 @@ def test_privacy_check_counts_unreduced_new_rows_and_is_never_explained():
     result = error_ledger.ledger(DAY, counts=dirty, known=[{'pattern': '.*', 'reason': 'everything'}])
     assert result['unexplained'] == 3 and result['privacy_ok'] is False
     assert error_ledger.from_privacy(DAY, run=lambda q: '') == Counter({'ledger|privacy_unreadable|empty': 1})
+
+
+def test_a_deferred_workflow_round_counts_from_the_moment_it_was_added(tmp_path):
+    """PM 11-12 08:2x: 'Due workflow round deferred ... statement_failed' is a storage failure; count it after 08:14."""
+    from scripts import error_ledger as e
+    log = tmp_path / 'biz.agentconcierge.x.execution.main.log'
+    log.write_text('\n'.join([
+        '2026-11-12 08:13:16 WARNING __main__: Due workflow round deferred after a storage error: statement_failed',
+        '2026-11-12 08:20:01 WARNING __main__: Due workflow round deferred after a storage error: statement_failed at workflows.py:883 run_due',
+        '2026-11-12 08:21:01 WARNING __main__: Due workflow round deferred after a storage error: statement_failed at workflows.py:883 run_due',
+        '2026-11-12 08:22:01 WARNING agent_market.other: something harmless',
+    ]) + '\n')
+    counts = e.from_logs('2026-11-12', logs=tmp_path)
+    assert counts == {'warn|main|__main__|Due workflow round deferred after a storage error: statement_failed|workflows.py:883 run_due': 2}
+    rows = e.explain(counts, known=[], day='2026-11-12')
+    assert rows[0]['explained'] is False

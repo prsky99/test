@@ -18,6 +18,20 @@ from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
 from .config import GatewayConfig
+
+
+def _failing_step(exc):
+    """The deepest application frame of an exception, as 'file.py:line function' (no values, no SQL text).
+
+    11-12: 'Due workflow round deferred ... statement_failed' came 2,828 times with no way to tell which
+    statement waited on a lock; the PostgreSQL log keeps only 'canceling statement due to lock timeout'."""
+    import traceback
+    frames = [f for f in traceback.extract_tb(exc.__traceback__) if '/agent_market/' in f.filename.replace('\\', '/')
+              and not f.filename.endswith(('application_store_postgres.py', 'service_host.py'))]
+    if not frames:
+        return 'unknown'
+    last = frames[-1]
+    return f"{last.filename.rsplit('/', 1)[-1]}:{last.lineno} {last.name}"
 from .gateway.server import create_app
 from .service_runtime import ServiceControl
 
@@ -342,7 +356,8 @@ class BackgroundLoop:
                         front.workflows.run_due()
                     except ApplicationStoreError as exc:
                         # A lock or statement timeout defers this round only; ownership is unaffected.
-                        log.warning('Due workflow round deferred after a storage error: %s', getattr(exc, 'code', None) or exc)
+                        log.warning('Due workflow round deferred after a storage error: %s at %s',
+                                    getattr(exc, 'code', None) or exc, _failing_step(exc))
                         next_due = time.monotonic() + 2
                         self.stop.wait(.2)
                         continue
