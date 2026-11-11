@@ -37,6 +37,39 @@ PAID_NOTE = 'Paid plan: the description of this tool says it needs a paid plan.'
 ACCOUNT_NOTE = 'Account: the description of this tool says it needs your own key or account.'
 
 
+def order_key(item):
+    """Free and not failing first, then recent real successes first; a stable sort keeps the rest's order."""
+    standing = item.get('task_standing') if isinstance(item, dict) else 0
+    standing = standing if type(standing) is int else 0
+    return (bool(isinstance(item, dict) and item.get('access_note')), standing < 0, standing <= 0)
+
+
+# The task asks to take data out of a document; a tool that makes the document does the reverse
+# (11-11: "convert a pdf invoice into structured json fields" -> "Convert document details to an
+# invoice ... PDF"). Geocoding an address is not reverse geocoding (real task a05).
+EXTRACT_TASK = re.compile(r"""\b(?:extract|parse|ocr)\b
+  | \b(?:convert|turn)\b[^.]{0,60}\b(?:into|to)\s+(?:structured\s+)?(?:json|fields|data|text|csv|markdown)\b""", re.I | re.X)
+EXTRACT_TOOL = re.compile(r'\b(?:extract|parse|read|ocr|recogni[sz]e)', re.I)
+MAKE_PDF_TOOL = re.compile(r"""^\s*(?:create|generate|make|render|build|compose|produce)\b
+  | \bto\s+(?:an?\s+)?[a-z ,]{0,60}\bpdfs?\b""", re.I | re.X)
+REVERSE_TOOL = re.compile(r'\breverse[\s_-]?geocod', re.I)
+FORWARD_TASK = re.compile(r'\bgeocod|\baddress(?:es)?\s+(?:to|into)\s+(?:lat|coord|gps)', re.I)
+REVERSE_TASK = re.compile(r"""\breverse\b
+  | \b(?:coordinates?|lat(?:itude)?\b[\s/,&-]*(?:and\s+)?(?:lon|lng|long)(?:itude)?)\s+(?:to|into)\s+(?:an?\s+)?(?:street\s+)?address""", re.I | re.X)
+
+
+def wrong_direction(task, item, descriptions=None):
+    """True when the selected tool does the task the other way round."""
+    if not isinstance(item, dict) or not isinstance(task, str):
+        return False
+    chosen = (item.get('tools') or [''])[0] or ''
+    text = str(chosen) + ' ' + str((descriptions or {}).get(chosen) or next(
+        (t.get('description') for t in item.get('tools_schema') or () if isinstance(t, dict) and t.get('name') == chosen), '') or '')
+    if EXTRACT_TASK.search(task) and MAKE_PDF_TOOL.search(text) and not EXTRACT_TOOL.search(text):
+        return True
+    return bool(FORWARD_TASK.search(task) and not REVERSE_TASK.search(task) and REVERSE_TOOL.search(text))
+
+
 def access_note(item, descriptions=None):
     """PAID_NOTE or ACCOUNT_NOTE when the selected tools or the listing say so, else None.
     DESCRIPTIONS (name -> full text) replaces the shortened tools_schema text when known."""
@@ -95,19 +128,34 @@ class ExposedFirstRecommender:
         with stage('exposure'):
             exposed = [item for item in items if self.callable(item)]
             ranked = exposed or items
-            notes = [access_note(item, self.tool_texts(item)) for item in ranked]
-            free = [item for item, note in zip(ranked, notes) if note is None]
-            for item, note in zip(ranked, notes):
+            from .task_outcomes import recent, standing
+            outcomes = recent([item.get('id') for item in ranked if isinstance(item, dict)])
+            for item in ranked:
+                texts = self.tool_texts(item)
+                note = access_note(item, texts)
+                chosen = (item.get('tools') or [None])[0]
+                counts = outcomes.get(item.get('id'))
+                score = standing(counts, chosen)
+                needs_key = isinstance(counts, dict) and score < 0 and int(
+                    ((counts.get('tools') or {}).get(chosen) or counts).get('needs_key') or 0) > 0
+                if note is None and needs_key:
+                    note = ACCOUNT_NOTE  # the agent itself asked our gateway for a key
                 if note is not None:
                     item['access_note'] = note
+                item['task_standing'] = score
+                if wrong_direction(task, item, texts):
+                    item['task_standing'] = min(score, -1)
+                    item['direction_mismatch'] = True
+            ranked = sorted(ranked, key=order_key)
+            free = [item for item in ranked if order_key(item)[:2] == (False, False)]
         # Leave them out while any callable choice remains: Chat re-ranks a ten-item shortlist by
         # meaning, which moved a demoted server back to first (11-10 deploy check). A tool that needs
-        # a paid plan or the caller's own account leaves the list while at least SHOWN free choices
+        # a paid plan or the caller's own account, whose recent calls through our gateway only failed,
+        # or that does the task the other way round leaves the list while at least SHOWN other choices
         # remain (a demoted one came back first after the re-rank, 11-11); otherwise it follows them.
-        restricted = [item for item in ranked if item.get('access_note')] if isinstance(ranked, list) else []
         if len(free) >= min(limit, SHOWN):
             return free[:limit]
-        return (free + restricted)[:limit]
+        return ranked[:limit]
 
     def callable(self, item):
         """False only for an MCP server whose gateway tools/list would be empty."""

@@ -389,6 +389,9 @@ def gateway_router(front,read_json_object):
                                         headers={'X-Execution-Error':exc.error_code}) from exc
                 return error(-32602,fields(exc.error_code)['error_message'],
                              fields(exc.error_code,getattr(exc,'correlation_id',None)))
+            # Task-level evidence from the answer itself (11-11): recommendation order reads it.
+            from .task_outcomes import record
+            record(rid,result['output'] if result['ok'] else {'isError':True,'content':[]},tool=params.get('name'))
             if not result['ok']:return error(-32000,result['error_message'],result)
             return {'jsonrpc':'2.0','id':request_id,'result':result['output']}
         if method not in ('message/send','SendMessage'):return error(-32601,'This connection supports synchronous messages only.')
@@ -408,6 +411,8 @@ def gateway_router(front,read_json_object):
                                     headers={'X-Execution-Error':exc.error_code}) from exc
             return error(-32602,fields(exc.error_code)['error_message'],
                          fields(exc.error_code,getattr(exc,'correlation_id',None)))
+        from .task_outcomes import record
+        record(rid,result['output'] if result['ok'] else {'isError':True,'content':[]})
         if not result['ok']:return error(-32000,result['error_message'],result)
         parts=[]
         for part in result['output']['parts']:

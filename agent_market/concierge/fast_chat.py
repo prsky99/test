@@ -629,9 +629,11 @@ class FastConcierge(Concierge):
             items = semantic_first(getattr(self.rec, 'rag_engine', None), task,
                                    self.rec.search(retrieval_text(task), kind=protocol, limit=SEMANTIC_SHORTLIST,
                                                    exclude=excluded))
-            # A tool that says it needs a paid plan or the caller's own account follows the free ones;
-            # the meaning order holds within each group (11-11 PM: extract_invoice_data was first).
-            items = sorted(items, key=lambda item: bool(isinstance(item, dict) and item.get('access_note')))[:3]
+            # A tool that needs a paid plan or the caller's own account, or whose recent calls through our
+            # gateway only failed, follows the others, and one whose calls succeeded leads; the meaning
+            # order holds within each group (11-11 PM: extract_invoice_data first; real tasks p10, a05).
+            from .gateway_exposure import order_key
+            items = sorted(items, key=lambda item: order_key(item) if isinstance(item, dict) else (True, True, True))[:3]
         else:
             items = self.rec.search(retrieval_text(task), kind=protocol, limit=3, offset=offset, exclude=excluded)
         focus = None

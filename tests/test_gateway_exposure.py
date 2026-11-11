@@ -106,3 +106,41 @@ def test_the_full_tool_text_and_short_paid_wording_count():
     assert ge.access_note(item, {'extract_invoice': 'Extract structured JSON. 5 credits, requires an API key.'}) == ge.PAID_NOTE
     assert ge.access_note(dict(item, description='German e-invoicing. Paid.')) == ge.PAID_NOTE
     assert ge.access_note(dict(item, description='Paid plans are not needed for this')) is None
+
+
+def test_recent_gateway_outcomes_and_direction_order_the_shortlist(monkeypatch):
+    """11-11: failing tools (p10), keys asked by the agent (a07) and reverse tools (a05) follow the rest."""
+    from agent_market.concierge import gateway_exposure as ge, task_outcomes
+    items = [{'id': 1, 'kind': 'mcp', 'tools': ['translate'], 'description': 'Media toolkit'},
+             {'id': 2, 'kind': 'a2a', 'tools': ['quote'], 'description': 'Stock quotes'},
+             {'id': 3, 'kind': 'mcp', 'tools': ['reverse_geocode'], 'description': 'Geocoding'},
+             {'id': 4, 'kind': 'mcp', 'tools': ['translate_text'], 'description': 'Translator'},
+             {'id': 5, 'kind': 'mcp', 'tools': ['geocode'], 'description': 'Geocoding'}]
+    counts = {1: {'failed': 2, 'tools': {'translate': {'failed': 2}}}, 2: {'needs_key': 1},
+              4: {'succeeded': 3, 'tools': {'translate_text': {'succeeded': 3}}}}
+    monkeypatch.setattr(task_outcomes, 'recent', lambda ids: {i: counts[i] for i in ids if i in counts})
+
+    class Inner:
+        store = None
+
+        def search(self, task, *args):
+            return [dict(item) for item in items]
+    wrapper = ge.ExposedFirstRecommender(Inner(), None)
+    wrapper.callable = lambda item: True
+    wrapper.tool_texts = lambda item: None
+    ranked = wrapper.search('Geocode a street address to latitude and longitude', limit=10)
+    assert [item['id'] for item in ranked] == [4, 5, 1, 3, 2]  # a key the agent asked for goes last
+    assert ranked[4]['access_note'] == ge.ACCOUNT_NOTE and ranked[3]['direction_mismatch'] is True
+    # Three good choices fill what is shown: the failing, keyed and reverse ones leave the list.
+    items.append({'id': 6, 'kind': 'mcp', 'tools': ['geo'], 'description': 'Geo'})
+    assert [item['id'] for item in wrapper.search('Geocode a street address to latitude and longitude', limit=10)] == [4, 5, 6]
+
+
+def test_answers_are_classified_from_their_own_text():
+    from agent_market.concierge.task_outcomes import classify, standing
+    assert classify({'content': [{'type': 'text', 'text': '{"error": "translation failed"}'}], 'isError': False}) == 'failed'
+    assert classify({'parts': [{'kind': 'text', 'text': 'Provide an API key via Authorization: Bearer <key> for full access.'}]}) == 'needs_key'
+    assert classify({'content': [{'type': 'text', 'text': 'Seoul AQI 42, PM2.5 9'}]}) == 'succeeded'
+    assert classify({'isError': True, 'content': []}) == 'failed'
+    assert standing({'failed': 1, 'tools': {'other': {'failed': 1}}}, 'mine') == 0  # another tool failed
+    assert standing({'succeeded': 1, 'failed': 1}) == 1 and standing({'failed': 2}) == -1
