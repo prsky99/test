@@ -31,7 +31,7 @@ DISCOVERY_CACHE = 'public, max-age=30, s-maxage=3600, stale-while-revalidate=360
 # Public growth pages (11-10 PM approval): login-free, never personalized HTML/Markdown/JSON. Browsers
 # and the edge may keep them for five minutes and serve a stale copy while refreshing for ten.
 GROWTH_PAGES = frozenset(('/connect','/agents/tasks','/agents/best','/badges','/reports/state-of-ai-agents',
-    '/claude-plugins/marketplace.json'))
+    '/claude-plugins/marketplace.json','/reports/weekly'))  # 11-12 PM: the weekly issue list is the same for everyone
 GROWTH_PREFIXES = ('/agents/task/','/agents/best/','/agent/','/agents/compare/','/reports/state-of-ai-agents/',
     '/claude-plugins/','/agents/category/','/reports/weekly/')  # 11-11: category and weekly pages (user approved edge rule)
 GROWTH_CACHE = 'public, max-age=300, stale-while-revalidate=600'

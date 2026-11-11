@@ -235,6 +235,15 @@ def critical_css(value, page):
 # all pages share and browsers and the edge keep; the page keeps empty templates in place and the deferred
 # panels-bootstrap.js (first in bundle.js) fills them before the shared handlers attach. The panel markup still
 # comes from this response's own rendering (daily numbers included), so the digest changes when it does.
+# With Workspace on, these four pages answer 303 -> /customer/sign-in (kept for outside links). Links inside our own
+# pages go there directly, saving a round trip from Korea (PM 11-12 08:3x: sign-in 0.99-1.40 s through the 303).
+ACCOUNT_LINK = re.compile(r'href="(?:/new/en/)?(?:sign-in|sign-up|workspace|account)\.html"')
+
+
+def direct_account_links(value):
+    return ACCOUNT_LINK.sub('href="/customer/sign-in"', value)
+
+
 INACTIVE_PANEL = re.compile(r'<template data-inactive-panel="([a-z0-9_-]{1,40})">(.*?)</template>', re.S)
 PANELS_KEPT = 32
 _panels = collections.OrderedDict()
@@ -471,6 +480,8 @@ def install(app, front, *, workspace_access_enabled=False, workspace_link_enable
             return RedirectResponse('/customer/sign-in', status_code=303, headers={'Cache-Control': 'no-store'})
         value = workspace_shell(read(en, filename).decode(),
                                 workspace_access_enabled and workspace_link_enabled)
+        if workspace_access_enabled:
+            value = direct_account_links(value)
         if filename in manifest['live_pages']:
             from .public_metadata import apply_daily_home, home_metadata_payload, daily_home_text
             snapshot = front.daily_statistics.read()
