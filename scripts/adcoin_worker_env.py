@@ -1,6 +1,7 @@
 """Environment the AD Coin worker daemon gets from its launchd plist (deploy/launchd/install-adcoin-worker.sh).
 
-Only the paid-booking settings are copied from gateway-data/agentcon.env, as written there: the switch
+Only the paid-booking settings are copied from gateway-data/sponsored.env, as written there (agentcon.env
+cannot hold them: retained releases read it with a strict list of names). The switch
 (AD_COIN_PAID_BOOKING_ENABLED) is passed only if that file sets it, so the daemon follows the same switch
 as frontend. The daemon also re-reads the file (AD_COIN_RUNTIME_ENV_FILE) when it changes, so turning the
 switch on later needs no reinstall. Values are never printed; the caller logs key names only.
@@ -12,7 +13,7 @@ BASE = {"PATH": "/opt/homebrew/bin:/usr/bin:/bin", "PYTHONUNBUFFERED": "1", "AD_
 
 
 def paid_settings(text):
-    """KEY=value lines of agentcon.env (literal, optional quotes, '#' comments) that the daemon needs."""
+    """KEY=value lines of sponsored.env (literal, optional quotes, '#' comments) that the daemon needs."""
     found = {}
     for line in text.splitlines():
         line = line.strip()

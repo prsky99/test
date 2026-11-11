@@ -419,10 +419,12 @@ def main():
     settings.update(read_embedding_settings(root / 'gateway-data/embedding.env'))
     settings.update(read_web_bot_settings(root / 'gateway-data/web-bot-auth.env'))
     settings.update(read_web_bot_signer_settings(root / 'gateway-data/web-bot-signer.env'))
+    from scripts.agentcon_config import read_sponsored_settings  # 11-11: its own file, unknown to retained releases
+    settings.update(read_sponsored_settings(root / 'gateway-data/sponsored.env'))
     for key in ('GATEWAY_DB', 'APPLICATION_POSTGRES_DSN_FILE', 'APPLICATION_WORKFLOW_KEY_FILE',
                 'AGENT_EDGE_GATEWAY_CONFIG', 'AGENT_EDGE_CLOUDFLARE_TOKEN_FILE',
                 'AGENTCON_ADMIN_BACKUP_ROOT', 'AGENTCON_ADMIN_SQLITE_ARCHIVE', 'WEB_BOT_TRUST_FILE',
-                'WEB_BOT_AUTH_KEY_FILE'):
+                'WEB_BOT_AUTH_KEY_FILE', 'AD_COIN_PAID_PAY_TO_FILE', 'AD_COIN_OFAC_LIST'):
         if settings.get(key) and not Path(settings[key]).is_absolute():
             settings[key] = str(root / settings[key])
     os.environ.update(settings)

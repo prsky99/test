@@ -65,7 +65,7 @@ class WorkerDaemon:
     _paid_config_error = None
 
     def reload_paid_settings(self) -> None:
-        """Follow AD_COIN_PAID_* in the runtime env file (AD_COIN_RUNTIME_ENV_FILE, agentcon.env) without a reinstall:
+        """Follow AD_COIN_PAID_* in the runtime env file (AD_COIN_RUNTIME_ENV_FILE, gateway-data/sponsored.env) without a reinstall:
         the switch and settings change here when the file changes; values are never logged."""
         import os
         from scripts.adcoin_worker_env import PASSED, paid_settings

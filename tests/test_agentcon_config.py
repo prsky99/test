@@ -289,3 +289,34 @@ def test_ad_coin_v2_settings_are_allowed_and_checked():
                 {'AD_COIN_V2_KEY_DIR': 'relative/keys'}, {'AD_COIN_V2_ENABLED': '1'}):
         with pytest.raises(ConfigError):
             check_ad_coin_v2_settings(bad)
+
+
+def test_sponsored_and_usdc_settings_live_in_their_own_file(tmp_path):
+    """11-11: MAIN_SPONSORED and the receive-only USDC settings are read from gateway-data/sponsored.env only,
+    so agentcon.env stays readable by retained releases; no key setting exists."""
+    import pytest
+    from scripts.agentcon_config import (ALLOWED_KEYS, SPONSORED_KEYS, ConfigError, check_sponsored_settings,
+                                         read_settings, read_sponsored_settings)
+    assert not SPONSORED_KEYS & ALLOWED_KEYS
+    assert not [k for k in SPONSORED_KEYS if 'PRIVATE' in k or 'MNEMONIC' in k or 'SEED' in k]
+    assert read_sponsored_settings(tmp_path / 'missing.env') == {}
+    path = tmp_path / 'sponsored.env'
+    path.write_text('# 11-11\nMAIN_SPONSORED=1\nAD_COIN_PAID_BOOKING_ENABLED=0\nAD_COIN_PAID_PAY_TO_FILE=/srv/usdc.txt\n')
+    path.chmod(0o600)
+    assert read_sponsored_settings(path) == {'MAIN_SPONSORED': '1', 'AD_COIN_PAID_BOOKING_ENABLED': '0',
+                                             'AD_COIN_PAID_PAY_TO_FILE': '/srv/usdc.txt'}
+    with pytest.raises(ConfigError):
+        read_settings(path)                                   # the main file still refuses these names
+    path.write_text('APPLICATION_STORE_BACKEND=sqlite\n')
+    with pytest.raises(ConfigError):
+        read_sponsored_settings(path)                         # and this file refuses everything else
+    on = {'MAIN_SPONSORED': '1', 'AD_COIN_PAID_BOOKING_ENABLED': '1', 'AD_COIN_PAID_PAY_TO_FILE': '/srv/u.txt',
+          'AD_COIN_PAID_PRICE_USDC': '5', 'AD_COIN_PAID_MIN_CONFIRMATIONS': '3',
+          'AD_COIN_PAID_RPC_URL': 'https://mainnet.base.org', 'AD_COIN_OFAC_LIST': '/srv/ofac.txt'}
+    assert check_sponsored_settings(on) == on
+    for bad in ({'MAIN_SPONSORED': 'yes'}, {'AD_COIN_PAID_PAY_TO': '0x123'},
+                {'AD_COIN_PAID_PAY_TO_FILE': 'gateway-data/x.txt'}, {'AD_COIN_PAID_PRICE_USDC': '5 USDC'},
+                {'AD_COIN_PAID_MIN_CONFIRMATIONS': '0'}, {'AD_COIN_PAID_RPC_URL': 'http://mainnet.base.org'},
+                {'AD_COIN_PAID_RPC_URL': 'https://user:pw@rpc.example/x'}):
+        with pytest.raises(ConfigError):
+            check_sponsored_settings(bad)

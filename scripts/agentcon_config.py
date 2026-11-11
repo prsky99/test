@@ -36,6 +36,13 @@ ALLOWED_KEYS = frozenset((
     # (sale, cash-out, on-chain) cannot be switched on through production settings.
     'AD_COIN_V2_ENABLED', 'AD_COIN_V2_POOL_MAXIMUM', 'AD_COIN_V2_KEY_DIR',
 ))
+# 11-11: Sponsored cards on main Explore and Chat, and paid Sponsored bookings in USDC (receive only; the
+# receiving wallet's key never lives on the server, so no key setting exists). They live in their own file,
+# gateway-data/sponsored.env: retained releases never read it, so a rollback still starts.
+SPONSORED_KEYS = frozenset((
+    'MAIN_SPONSORED', 'AD_COIN_PAID_BOOKING_ENABLED', 'AD_COIN_PAID_PAY_TO', 'AD_COIN_PAID_PAY_TO_FILE',
+    'AD_COIN_PAID_PRICE_USDC', 'AD_COIN_PAID_MIN_CONFIRMATIONS', 'AD_COIN_PAID_RPC_URL', 'AD_COIN_OFAC_LIST',
+))
 MAX_FILE_BYTES = 65536
 LOCAL_MODEL_KEYS = frozenset(('WORKSPACE_MODEL_ENABLED', 'WORKSPACE_MODEL_URL', 'WORKSPACE_MODEL_NAME',
                               'WORKSPACE_MODEL_PROVIDER', 'WORKSPACE_MODEL_ALLOW_HTTP', 'LOCAL_OLLAMA_ENABLED',
@@ -78,7 +85,7 @@ def read_admin_evidence_settings(path):
     return values
 
 
-def read_settings(path):
+def read_settings(path, allowed=None):
     if not path:
         return {}
     flags = os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_NONBLOCK', 0)
@@ -122,7 +129,7 @@ def read_settings(path):
         if not match:
             raise ConfigError(f'Line {number}: expected a literal KEY=value assignment.')
         key, value = match.groups()
-        if key not in ALLOWED_KEYS:
+        if key not in (ALLOWED_KEYS if allowed is None else allowed):
             raise ConfigError(f'Line {number}: unsupported setting name.')
         if key in result:
             raise ConfigError(f'Line {number}: duplicate setting name.')
@@ -207,6 +214,37 @@ def check_ad_coin_v2_settings(settings):
     if enabled == '1' and not key_dir:
         raise ConfigError('AD_COIN_V2_ENABLED=1 needs AD_COIN_V2_KEY_DIR so every release shares one key set.')
     return {'ad_coin_v2_enabled': enabled == '1'}
+
+
+def check_sponsored_settings(settings):
+    """Values of gateway-data/sponsored.env (11-11)."""
+    for name in ('MAIN_SPONSORED', 'AD_COIN_PAID_BOOKING_ENABLED'):
+        if settings.get(name, '0') not in ('0', '1'):
+            raise ConfigError(name + ' must be 0 or 1.')
+    pay_to = settings.get('AD_COIN_PAID_PAY_TO', '')
+    if pay_to and not re.fullmatch(r'0x[0-9a-fA-F]{40}', pay_to):
+        raise ConfigError('AD_COIN_PAID_PAY_TO must be a 0x address.')
+    for name in ('AD_COIN_PAID_PAY_TO_FILE', 'AD_COIN_OFAC_LIST'):
+        if settings.get(name) and not os.path.isabs(settings[name]):
+            raise ConfigError(name + ' must be an absolute path.')
+    price = settings.get('AD_COIN_PAID_PRICE_USDC', '')
+    if price and not re.fullmatch(r'[0-9]{1,4}(\.[0-9]{1,2})?', price):
+        raise ConfigError('AD_COIN_PAID_PRICE_USDC must be a USDC amount like 5 or 5.50.')
+    confirmations = settings.get('AD_COIN_PAID_MIN_CONFIRMATIONS', '')
+    if confirmations and not (confirmations.isdigit() and 1 <= int(confirmations) <= 100):
+        raise ConfigError('AD_COIN_PAID_MIN_CONFIRMATIONS must be a number from 1 to 100.')
+    rpc = settings.get('AD_COIN_PAID_RPC_URL', '')
+    if rpc and not re.fullmatch(r'https://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~/-]*)?', rpc):
+        raise ConfigError('AD_COIN_PAID_RPC_URL must be an https URL without credentials or a query.')
+    return settings
+
+
+def read_sponsored_settings(path):
+    """Optional file of its own; only releases that know these settings read it."""
+    target = Path(path)
+    if not target.exists() and not target.is_symlink():
+        return {}
+    return check_sponsored_settings(read_settings(target, SPONSORED_KEYS))
 
 
 def check_settings(settings):

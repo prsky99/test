@@ -2,7 +2,8 @@
 # Install the AI AD Coin v2 worker daemon (option B: one launchd job, one DB connection). Run by the user.
 # Usage: deploy/launchd/install-adcoin-worker.sh <release>   e.g. v2-on-frontend-20261110-r1
 # Checked 11-10 by 운영·SRE: --health ready, --once processed 0 with no errors.
-# 11-11: AD_COIN_PAID_* and AD_COIN_OFAC_LIST are copied from agentcon.env (scripts/adcoin_worker_env.py).
+# 11-11: AD_COIN_PAID_* and AD_COIN_OFAC_LIST come from gateway-data/sponsored.env (scripts/adcoin_worker_env.py);
+# the daemon re-reads that file when it changes, so switching USDC bookings on needs no reinstall.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 ROOT=$PWD; REL=${1:?release name}; R=$ROOT/gateway-data/services/releases/$REL
@@ -17,9 +18,9 @@ import plistlib, sys, os
 R, DSN, KEY, KD, P, L, ROOT = sys.argv[1:]
 sys.path.insert(0, ROOT)
 from scripts.adcoin_worker_env import daemon_environment
-ENVFILE = os.path.join(ROOT, 'gateway-data/agentcon.env')
-env = daemon_environment(R, open(ENVFILE).read(), ENVFILE)
-# paid-booking settings come from agentcon.env as written (switch off unless it says so); names only, no values
+ENVFILE = os.path.join(ROOT, 'gateway-data/sponsored.env')   # Sponsored and USDC settings (11-11), not agentcon.env
+env = daemon_environment(R, open(ENVFILE).read() if os.path.exists(ENVFILE) else '', ENVFILE)
+# paid-booking settings come from sponsored.env as written (switch off unless it says so); names only, no values
 print('daemon env:', ', '.join(sorted(k for k in env if k.startswith('AD_COIN_PAID_') or k == 'AD_COIN_OFAC_LIST')) or 'no paid settings')
 spec = {'Label': L,
         'ProgramArguments': [f'{R}/.venv/bin/python', '-B', f'{R}/scripts/ad_coin_worker_daemon.py',

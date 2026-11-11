@@ -1,4 +1,4 @@
-"""The worker daemon gets the paid-booking settings from agentcon.env and follows later changes (11-11)."""
+"""The worker daemon gets the paid-booking settings from gateway-data/sponsored.env and follows later changes (11-11)."""
 import logging
 import os
 
@@ -17,10 +17,10 @@ AD_COIN_OFAC_LIST=/data/ofac.txt
 def test_only_paid_settings_are_copied_and_the_switch_stays_off_unless_written():
     assert paid_settings(ENV) == {'AD_COIN_PAID_PRICE_USDC': '5', 'AD_COIN_PAID_RPC_URL': 'https://mainnet.base.org',
                                   'AD_COIN_OFAC_LIST': '/data/ofac.txt'}
-    env = daemon_environment('/rel/r1', ENV, '/proj/gateway-data/agentcon.env')
+    env = daemon_environment('/rel/r1', ENV, '/proj/gateway-data/sponsored.env')
     assert 'AD_COIN_PAID_BOOKING_ENABLED' not in env and 'APPLICATION_POSTGRES_DSN_FILE' not in env
     assert env['PYTHONPATH'] == '/rel/r1' and env['AD_COIN_V2_ENABLED'] == '1'
-    assert env['AD_COIN_RUNTIME_ENV_FILE'] == '/proj/gateway-data/agentcon.env'
+    assert env['AD_COIN_RUNTIME_ENV_FILE'] == '/proj/gateway-data/sponsored.env'
     assert paid_settings('AD_COIN_PAID_BOOKING_ENABLED=1\n')['AD_COIN_PAID_BOOKING_ENABLED'] == '1'
 
 
