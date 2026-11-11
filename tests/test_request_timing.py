@@ -72,3 +72,38 @@ def test_waits_are_measured_where_they_happen():
         with pool.lease_store():
             pass
     assert 'pool_wait' in values['stages_ms']
+
+
+def test_recommendation_legs_without_a_stage_now_have_one():
+    """11-12 PM: a find_agents answer took 4.7 s on the server and about half had no stage name.
+    The candidate meaning order (embedding call), the selection rows, report evidence, the ranking pass,
+    the admission loop and registry reads now show, and the header keeps up to 24 stages."""
+    from agent_market.concierge import fast_chat
+    from agent_market.concierge.retrieval_metrics import capture, _STAGES
+
+    assert {'semantic', 'selection_rows', 'report_evidence', 'choice_rank', 'admission_loop', 'registry'} <= _STAGES
+
+    class Engine:
+        embeddings_enabled = True
+        embed_model = 'stub'
+
+        def embed_texts(self, texts, timeout_seconds=None):
+            return [[1.0, 0.0] if i == 0 else [float(i), 1.0] for i in range(len(texts))]
+
+    fast_chat._SEMANTIC_VECTORS.clear()
+    try:
+        with capture() as values:
+            fast_chat.semantic_rank(Engine(), 'task', [{'name': 'a'}, {'name': 'b'}])
+    finally:
+        fast_chat._SEMANTIC_VECTORS.clear()
+    assert 'semantic' in values['stages_ms']
+
+    def many(request):
+        for name in sorted(_STAGES)[:20]:
+            with stage(name):
+                pass
+        return JSONResponse({'ok': True})
+    app = Starlette(routes=[Route('/mcp', many, methods=['POST'])])
+    app.add_middleware(RequestTiming)
+    timing = TestClient(app).post('/mcp').headers['server-timing']
+    assert timing.count(';dur=') == 21  # server plus all twenty stages

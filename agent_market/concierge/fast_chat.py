@@ -479,8 +479,10 @@ def semantic_rank(engine, task, items):
     # same ten candidate texts); only the task and texts not seen before go to the embedding model.
     model = getattr(engine, 'embed_model', None)
     missing = [doc for doc in dict.fromkeys(docs) if (model, doc) not in _SEMANTIC_VECTORS]
+    from .retrieval_metrics import stage
     try:
-        fresh = engine.embed_texts([str(task)[:1000]] + missing, timeout_seconds=SEMANTIC_BUDGET)
+        with stage('semantic'):
+            fresh = engine.embed_texts([str(task)[:1000]] + missing, timeout_seconds=SEMANTIC_BUDGET)
     except Exception:
         return items, None
     if not isinstance(fresh, list) or len(fresh) != len(missing) + 1:

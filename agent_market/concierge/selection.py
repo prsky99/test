@@ -13,7 +13,7 @@ from .engine import Recommender, clean_external
 from .recommendation_security import usable_endpoint, endpoint_origin, public_recommendation
 from .connections import public_agent
 from .discovery_contracts import contract_reads
-from .retrieval_metrics import timed
+from .retrieval_metrics import timed, stage, add as add_stage
 from .execution_policy import supported_schema, ExecutionDenied
 from .report_evidence import measured_report
 from ..search_quality import observed
@@ -823,11 +823,13 @@ class QualityRecommender(Recommender):
             if hint:
                 options['retrieval_hint'] = hint
             shortlist=candidates(self.store,self.rag_engine,task,**options)
-            rows=bounded([r['id'] for r in shortlist],kind,now-MAX_HEALTH_AGE)
+            with stage('selection_rows'):
+                rows=bounded([r['id'] for r in shortlist],kind,now-MAX_HEALTH_AGE)
         else:
-            rows = (native(match, kind, now-MAX_HEALTH_AGE) if callable(native) else
-                    self.store.query(_candidate_sql(), (match, kind, kind, now-MAX_HEALTH_AGE,
-                        now-MAX_HEALTH_AGE, now-MAX_HEALTH_AGE)))
+            with stage('selection_rows'):
+                rows = (native(match, kind, now-MAX_HEALTH_AGE) if callable(native) else
+                        self.store.query(_candidate_sql(), (match, kind, kind, now-MAX_HEALTH_AGE,
+                            now-MAX_HEALTH_AGE, now-MAX_HEALTH_AGE)))
         # Broad questions can match tens of thousands of listings; read their
         # contracts in bounded batches, in the order they will be examined.
         bulk = getattr(self.store,'recommendation_resources',None)
@@ -848,8 +850,10 @@ class QualityRecommender(Recommender):
         plan([row['id'] for row in rows if row['report_at']])
         report_ids=list(dict.fromkeys(row['report_id']for row in rows if row['report_at'] and row['report_id']))
         batch_reports=getattr(self.store,'recommendation_report_evidence',None)
-        reports,report_store=(batch_reports(report_ids) if callable(batch_reports) and len(report_ids)<=600
-                              else (None,self.store))
+        with stage('report_evidence'):
+            reports,report_store=(batch_reports(report_ids) if callable(batch_reports) and len(report_ids)<=600
+                                  else (None,self.store))
+        ranked_at = time.perf_counter()
         choices = []
         report_resources = {}
         for raw in rows:
@@ -909,11 +913,14 @@ class QualityRecommender(Recommender):
         # Verify relevance lazily in recency order. Safety and relevance still gate every candidate.
         # This preserves the exact ordering while avoiding tokenizing every matching listing on every question.
         choices.sort(key=lambda row:row[0],reverse=True)
+        # Inclusive of the report and resource reads it triggers (resource_read also counts those).
+        add_stage('choice_rank', (time.perf_counter() - ranked_at) * 1000)
         plan([choice[1]['id'] for choice in choices])
         seen_capabilities=set()
         focused, unplaced, incidental = [], [], []
         wanted = max(0, offset) + limit
         examined_after_fill = 0
+        admitted_at = time.perf_counter()  # admission_loop is inclusive of resource_read, public_agent and registry
         for _, group in itertools.groupby(choices,key=lambda row:row[0]):
             if len(focused) + len(unplaced) + len(incidental) >= wanted:
                 # Enough places are filled; look a bounded distance further for a listing
@@ -1018,8 +1025,9 @@ class QualityRecommender(Recommender):
                 # Ignored candidates must not create registry versions or acquire
                 # writer locks before their task relevance has been established.
                 from ..capability_registry import Registry
-                registry=Registry(self.store);current=registry.current(resource,create=False)
-                ready=registry.projection(resource,version=current) if current else {}
+                with stage('registry'):
+                    registry=Registry(self.store);current=registry.current(resource,create=False)
+                    ready=registry.projection(resource,version=current) if current else {}
                 readiness = ready.get('connection_readiness', {})
                 if readiness.get('reason') == 'latest_failure': continue
                 if evidence.get('report_version') and current and evidence['report_version']!=current['id']:continue
@@ -1041,6 +1049,7 @@ class QualityRecommender(Recommender):
                 break
             if len(focused) + len(unplaced) + len(incidental) >= wanted:
                 examined_after_fill += 1  # recency groups; each usually holds one listing
+        add_stage('admission_loop', (time.perf_counter() - admitted_at) * 1000)
         # A listing about the task that does not state coverage of the requested place
         # follows the ones that do, ahead of bundles where one tool matches.
         focused = focused + unplaced

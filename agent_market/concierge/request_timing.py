@@ -37,7 +37,7 @@ class RequestTiming:
                     for (name, at), following in zip(marks, marks[1:] + [(None, now)]):
                         steps['step_' + name] = steps.get('step_' + name, 0) + (following[1] - at) * 1000
                     measured = sorted({**values['stages_ms'], **steps}.items(), key=lambda item: -item[1])
-                    stages += measured[:16]
+                    stages += measured[:24]
                     headers = MutableHeaders(scope=message)
                     timing = ', '.join(f'{name};dur={value:.0f}' for name, value in stages)
                     headers['Server-Timing'] = (headers['Server-Timing'] + ', ' + timing) if 'server-timing' in headers else timing
