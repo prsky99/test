@@ -53,9 +53,65 @@ def versioned(value):
     return ASSET_REFERENCE.sub(lambda m: m[1] + m[2] + ('?v=' + versions[m[2]] if m[2] in versions else '') + '"', value)
 
 
+# 11-11 first paint (PM full check: 4-14 s on a first visit from Korea, every render-blocking file ~3.6 s through
+# the LAX edge): a page asks for one stylesheet and one deferred script instead of five of each, and the tiny
+# blocking session-bootstrap.js is inlined. The bundle URL names its files and content digest, so any slot can
+# build it from the shipped files and browsers keep it for a year.
+STYLE_LINK = re.compile(r'<link rel="stylesheet" href="/new/en/assets/([A-Za-z0-9_-]+)\.css(?:\?v=[^"]*)?">\s*')
+DEFER_SCRIPT = re.compile(r'<script src="/new/en/assets/([A-Za-z0-9_-]+)\.js(?:\?v=[^"]*)?" defer></script>\s*')
+BLOCKING_BOOTSTRAP = '<script src="/new/en/assets/session-bootstrap.js"></script>'
+BUNDLE_NAME = re.compile(r'[A-Za-z0-9_-]{1,40}')
+
+
+def bundle_body(names, kind):
+    """The concatenated files of one bundle, in page order; None if any name is not a shipped asset."""
+    parts = []
+    for name in names:
+        path = ROOT / 'en' / 'assets' / (name + '.' + kind)
+        if not BUNDLE_NAME.fullmatch(name) or not path.is_file() or path.is_symlink():
+            return None
+        parts.append(path.read_bytes())
+    joiner = b'\n' if kind == 'css' else b'\n;\n'
+    return joiner.join(parts) + b'\n'
+
+
+def bundled(value):
+    head_end = value.find('</head>')
+    for pattern, kind, tag in ((STYLE_LINK, 'css', '<link rel="stylesheet" href="{}">\n'),
+                               (DEFER_SCRIPT, 'js', '<script src="{}" defer></script>\n')):
+        found = list(pattern.finditer(value))
+        if kind == 'css':
+            found = [m for m in found if head_end < 0 or m.start() < head_end]
+        if len(found) < 2:
+            continue
+        names = [m[1] for m in found]
+        body = bundle_body(names, kind)
+        if body is None:
+            continue
+        url = '/new/en/assets/bundle.{}?f={}&amp;v={}'.format(kind, ','.join(names), asset_version(body))
+        first = found[0]
+        rest = set(id(m) for m in found[1:])
+        out, last = [], 0
+        for m in found:
+            out.append(value[last:m.start()])
+            if m is first:
+                out.append(tag.format(url))
+            last = m.end()
+        out.append(value[last:])
+        value = ''.join(out)
+    if BLOCKING_BOOTSTRAP in value:
+        path = ROOT / 'en' / 'assets' / 'session-bootstrap.js'
+        try:
+            code = path.read_text().replace('</', '<\\/')
+            value = value.replace(BLOCKING_BOOTSTRAP, '<script>' + code + '</script>', 1)
+        except OSError:
+            pass
+    return value
+
+
 def page_response(value, *, public=False):
     """Use the same nonce policy for the default and named presentation routes."""
-    value = versioned(value)
+    value = versioned(bundled(value))
     if os.environ.get('MAIN_SPONSORED', '0') == '1':  # 11-11 Sponsored on main Explore and Chat; off by default
         value = re.sub(r'<body\b', '<body data-sponsored="on"', value, count=1)
     nonce = secrets.token_urlsafe(32)
@@ -220,6 +276,18 @@ def install(app, front, *, workspace_access_enabled=False, workspace_link_enable
 
     @app.get('/new/en/assets/{filename:path}', include_in_schema=False)
     def asset(filename: str, request: Request):
+        if filename in ('bundle.css', 'bundle.js'):
+            kind = filename.rsplit('.', 1)[1]
+            names = request.query_params.get('f', '').split(',')
+            body = bundle_body(names, kind) if 0 < len(names) <= 12 else None
+            if body is None:
+                raise HTTPException(404, 'Asset not found.')
+            version = asset_version(body)
+            cache = ('public, max-age=31536000, immutable' if request.query_params.get('v') == version
+                     else 'public, max-age=300, stale-while-revalidate=86400')
+            media = 'text/css; charset=utf-8' if kind == 'css' else 'text/javascript; charset=utf-8'
+            return Response(body, media_type=media, headers={'X-Content-Type-Options': 'nosniff', 'Cache-Control': cache,
+                                                             'ETag': '"' + version + '"'})
         name = 'assets/'+filename
         if name not in allowed_assets:
             raise HTTPException(404, 'Asset not found.')

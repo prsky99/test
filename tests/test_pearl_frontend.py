@@ -1,6 +1,7 @@
 """Separate Pearl UI: real API contracts, retained state and existing security gates."""
 import ast
 import json
+import re
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -47,7 +48,7 @@ def test_default_html_entry_uses_published_composition_and_keeps_json_contract(c
     response=client.get('/',headers={'accept':'text/html'})
     assert response.status_code==200
     assert 'data-pearl-entry="overview"' in response.text
-    assert '/new/en/assets/pearl-ui.js' in response.text
+    assert re.search(r'/new/en/assets/(pearl-ui\.js|bundle\.js\?f=[^"]*pearl-ui)', response.text)  # 11-11: one bundle
     assert 'reference-about-hero' in response.text
     assert 'pearlWorkflowChoices' in response.text
     assert 'noindex' not in response.headers.get('x-robots-tag','')

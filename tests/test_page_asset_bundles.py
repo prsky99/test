@@ -1,0 +1,29 @@
+"""11-11 first paint: pages ask for one stylesheet and one deferred script, and inline the tiny blocking bootstrap."""
+import re
+
+from tests.test_pearl_frontend import client  # noqa: F401
+
+
+def test_pages_load_one_stylesheet_and_one_deferred_script(client):  # noqa: F811
+    html = client.get('/new/en/index.html').text
+    head = html[:html.index('</head>')]
+    assert len(re.findall(r'<link rel="stylesheet"', head)) == 1
+    assert len(re.findall(r'<script[^>]*src="/new/en/assets/[^"]+"[^>]*defer', html)) == 1
+    assert 'session-bootstrap.js' not in html  # inlined, carries the page nonce like every script
+    css = re.search(r'href="(/new/en/assets/bundle\.css\?f=([^"&]+)&amp;v=([0-9a-f]+))"', html)
+    js = re.search(r'src="(/new/en/assets/bundle\.js\?f=([^"&]+)&amp;v=([0-9a-f]+))"', html)
+    assert css and js
+    assert css[2].split(',') == ['operating', 'styles', 'necklace', 'pearl-live', 'experience']
+    assert js[2].split(',')[:2] == ['panels-bootstrap', 'operating'] and js[2].split(',')[-1] == 'workflow-library'
+    for match, kind in ((css, 'text/css'), (js, 'text/javascript')):
+        r = client.get(match[1].replace('&amp;', '&'))
+        assert r.status_code == 200 and r.headers['content-type'].startswith(kind)
+        assert r.headers['cache-control'] == 'public, max-age=31536000, immutable' and r.headers['etag'] == '"' + match[3] + '"'
+    body = client.get(css[1].replace('&amp;', '&')).text
+    assert body.index('.pearl-sponsored') > body.index('html body') >= 0  # styles.css content kept, in order
+
+
+def test_bundle_rejects_unknown_or_unsafe_names(client):  # noqa: F811
+    for query in ('f=../../en-manifest', 'f=nope', 'f=', 'f=' + ','.join(['styles'] * 13)):
+        assert client.get('/new/en/assets/bundle.css?' + query).status_code == 404
+    assert client.get('/new/en/assets/bundle.css?f=styles&v=old').headers['cache-control'].startswith('public, max-age=300')
