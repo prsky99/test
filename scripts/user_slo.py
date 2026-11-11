@@ -63,6 +63,12 @@ def mcp(client, url, method, params=None, session=None, rid=1):
     return response, json.loads(text)
 
 
+def colo(response):
+    """Cloudflare airport from cf-ray (e.g. '...-LAX'), so a slow hour can be matched to its path (11-11 PM)."""
+    ray = response.headers.get('cf-ray', '') if response is not None else ''
+    return ray.rsplit('-', 1)[-1] if '-' in ray else None
+
+
 def check_explore(client, n=6):
     rows = []
     for query in unseen(n):
@@ -73,7 +79,8 @@ def check_explore(client, n=6):
                 total = response.json().get('total')
             except ValueError:
                 pass
-        rows.append({'q': query, 's': took, 'status': getattr(response, 'status_code', error), 'total': total})
+        rows.append({'q': query, 's': took, 'status': getattr(response, 'status_code', error), 'total': total,
+                     'colo': colo(response)})
     bad = [r for r in rows if r['s'] > TARGET['explore_s'] or r['status'] != 200 or not r['total']]
     return {'samples': rows, 'max_s': max(r['s'] for r in rows), 'ok': not bad, 'bad': bad}
 
@@ -120,7 +127,7 @@ def check_pages(client):
     rows = []
     for path in ('/new/en/explore.html', '/new/en/chat.html', '/'):
         took, response, error = timed(lambda: client.get(BASE + path, headers={'Accept': 'text/html'}))
-        rows.append({'path': path, 's': took, 'status': getattr(response, 'status_code', error)})
+        rows.append({'path': path, 's': took, 'status': getattr(response, 'status_code', error), 'colo': colo(response)})
     bad = [r for r in rows if r['s'] > TARGET['page_s'] or r['status'] != 200]
     return {'samples': rows, 'ok': not bad, 'bad': bad}
 

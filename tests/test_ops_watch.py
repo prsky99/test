@@ -79,7 +79,9 @@ def test_a_target_that_passes_closes_its_open_line(tmp_path, monkeypatch):
     ops_auto.board_handoff('slo_pages', 'pages slow')
     ops_auto.board_handoff('slo_connect', 'connect unmeasured')
     monkeypatch.setattr(ops_auto, 'SLO_STATE', tmp_path / 'slo.json')
-    record = '{"pages": {"ok": true, "samples": 3}, "connect": {"ok": false, "samples": 0}, "breaches": {}}'
+    # Real records carry sample lists (11-11 17:07: a number here hid a TypeError on the real shape).
+    record = ('{"at": "2026-11-11 18:08", "targets": {"page_s": 2.0}, "pages": {"ok": true, "samples": [{"path": "/", "s": 1.1}]}, '
+              '"connect": {"ok": false, "samples": [], "bad": []}, "breaches": {}}')
     monkeypatch.setattr(subprocess, 'run', lambda *a, **k: subprocess.CompletedProcess(a, 0, record + '\n', ''))
     ops_auto.user_slo()
     text = board.read_text()
@@ -97,6 +99,7 @@ def test_full_check_runs_every_two_hours_and_records_a_deferral(tmp_path, monkey
     assert '자동 점검 [full_check_deferred]' in board.read_text()
     assert run(10_600, False) == 'deferred' and board.read_text().count('[full_check_deferred]') == 1
     assert run(11_200, True) == 'started' and 'scripts.heavy_slot' in launched[0][0]
+    assert launched[0][0][-2].endswith('.venv-tests/bin/python')   # playwright lives only in .venv-tests
     assert '해결(자동' in board.read_text()
     assert run(11_200 + 3600, True) is None                  # not yet two hours
     assert run(11_200 + 7300, True) == 'started' and len(launched) == 2

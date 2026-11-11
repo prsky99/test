@@ -135,7 +135,7 @@ def user_slo():
     for kind, part in record.items():
         # A target measured and met this hour closes its open line (11-11 PM); unmeasured ones stay open.
         if (kind not in breaches and isinstance(part, dict) and part.get('ok') is True
-                and (part.get('samples') or 0) > 0):
+                and part.get('samples')):
             board_close(f'slo_{kind}', f'해결(자동 {now()[11:]} 통과)')
     append(ACTIONS, f'{now()} user_slo: 미달 {",".join(record.get("breaches") or {}) or "없음"}')
 
@@ -262,6 +262,9 @@ FULL_CHECK_EVERY = 7200   # 11-11 PM: every two hours
 FULL_CHECK_MINUTES = 15
 
 
+TEST_PYTHON = ROOT / '.venv-tests/bin/python'   # the browser part needs playwright, which only .venv-tests has (11-11)
+
+
 def full_check(clock=time.time, launch=None, free=None):
     """Every two hours: run scripts/public_full_check.py through heavy_slot (it drives a browser).
 
@@ -285,7 +288,7 @@ def full_check(clock=time.time, launch=None, free=None):
     log = (ROOT / 'logs/ops/public-full-check.out').open('a')
     (launch or subprocess.Popen)([str(ROOT / '.venv/bin/python'), '-m', 'scripts.heavy_slot', '--team', '운영·SRE',
                                   '--what', 'public_full_check (ops_auto 2시간)', '--minutes', str(FULL_CHECK_MINUTES), '--',
-                                  str(ROOT / '.venv/bin/python'), str(ROOT / 'scripts/public_full_check.py')],
+                                  str(TEST_PYTHON), str(ROOT / 'scripts/public_full_check.py')],
                                  cwd=ROOT, stdout=log, stderr=log, start_new_session=True)
     board_close('full_check_deferred', f'해결(자동 {now()[11:]} 실행 시작)')
     append(ACTIONS, f'{now()} public_full_check 시작')
