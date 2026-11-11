@@ -187,3 +187,18 @@ def test_a_listing_that_clearly_serves_another_region_follows_the_others():
     assert not region_mismatch('weather alerts in California', {'tools': ['weather_alerts']}, {}, ',us,')
     assert not region_mismatch('weather alerts in California', {'tools': ['get_alerts']}, {'get_alerts': 'Get alerts'}, '')
     assert region_mismatch('weather alerts in California', {'tools': ['alerts']}, {}, ',ca,')
+
+
+def test_a_recommended_tool_missing_from_the_gateway_list_follows_the_others():
+    """11-11 a12: tollbooth was recommended for air_quality_index, which its gateway tools/list leaves out."""
+    hidden = {'name': 'air_quality_index', 'description': 'Delete stored PM2.5 readings', 'required': ['path'],
+              'params': {'path': {'type': 'string'}}, 'annotations': {}}
+    other = dict(SAFE, name='weather_current')
+    store = Store({1: _row(1, [hidden, other]), 2: _row(2, [dict(SAFE, name='air_quality')])})
+    items = [{'id': 1, 'kind': 'mcp', 'tools': ['air_quality_index']}, {'id': 2, 'kind': 'mcp', 'tools': ['air_quality']},
+             {'id': 3, 'kind': 'a2a', 'tools': ['Air quality']}]
+    rec = ExposedFirstRecommender(Recommender(items), store)
+    found = rec.search('air quality index for Delhi', limit=3)
+    assert [i['id'] for i in found][:2] == [2, 3]
+    assert rec.tool_listed({'id': 1, 'kind': 'mcp'}, 'weather_current') and not rec.tool_listed({'id': 1, 'kind': 'mcp'}, 'air_quality_index')
+    assert rec.tool_listed({'id': 3, 'kind': 'a2a'}, 'Air quality')  # only MCP gateway lists are known

@@ -226,6 +226,11 @@ class ExposedFirstRecommender:
                 if wrong_direction(task, item, texts) or region_mismatch(task, item, texts, self.regions(item)):
                     item['task_standing'] = min(score, -1)
                     item['direction_mismatch'] = True
+                if not self.tool_listed(item, chosen):
+                    # The chosen tool is not on the gateway's tools/list (11-11 real task a12: tollbooth's
+                    # air_quality_index is not an admitted tool, so the caller could only try another one).
+                    item['task_standing'] = min(item['task_standing'], -1)
+                    item['tool_unlisted'] = True
             ranked = sorted(ranked, key=order_key)
             free = [item for item in ranked if order_key(item)[:2] == (False, False)]
         # Leave them out while any callable choice remains: Chat re-ranks a ten-item shortlist by
@@ -241,6 +246,13 @@ class ExposedFirstRecommender:
         """False only for an MCP server whose gateway tools/list would be empty."""
         facts = self._facts(item)
         return True if facts is None else facts[0]
+
+    def tool_listed(self, item, tool):
+        """False only when an MCP server's gateway tools/list is known and leaves TOOL out."""
+        facts = self._facts(item)
+        if facts is None or len(facts) < 4 or not isinstance(tool, str) or not tool:
+            return True
+        return tool in facts[3]
 
     def regions(self, item):
         facts = self._facts(item)
@@ -266,10 +278,11 @@ class ExposedFirstRecommender:
         try:
             resource = self._store.resource(rid)
             specs = tools_for(resource) if resource else []
-            value = (bool(resource) and any(safe_registered_tool(spec) for spec in specs),
+            listed = frozenset(str(spec.get('name')) for spec in specs if safe_registered_tool(spec))
+            value = (bool(resource) and bool(listed),
                      {str(spec.get('name')): str(spec.get('description') or '')[:4000]
                       for spec in specs if isinstance(spec, dict)},
-                     str((resource or {}).get('regions') or ''))
+                     str((resource or {}).get('regions') or ''), listed)
         except Exception:
             return None  # an unreadable row is judged by the recommender as before
         with self._lock:
