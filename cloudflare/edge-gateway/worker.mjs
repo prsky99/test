@@ -479,12 +479,13 @@ function resultStream(upstream, binding, controller, completed, format) {
   let pending = [], buffer = '', lines = [], lineBytes = 0, received = 0, delivered = 0, terminal = null, closed = false, code = null;
   function text(parts) { for (const clean of project(parts)) pending.push(event('delta', {text: clean})); }
   function frame(raw) { terminal = normalize(JSON.parse(raw), binding, format, text) || terminal; }
-  async function close(outcome, stream, outcomeCode = null) {
+  async function close(outcome, stream, outcomeCode = null, publicCode = null) {
     if (closed) return; closed = true;
     controller.abort(); await reader.cancel().catch(() => {});
     code = outcomeCode || (outcome === 'succeeded' ? null : outcome === 'outcome_unknown' ? 'OUTCOME_UNKNOWN' : 'EXECUTION_FAILED');
     if (stream) {
-      const final = event('result', {state: outcome, output: null, error_code: code});
+      // The caller may see a more specific public code (PROVIDER_TIMEOUT) than the receipt Origin accepts.
+      const final = event('result', {state: outcome, output: null, error_code: publicCode || code});
       delivered += final.byteLength; stream.enqueue(final); stream.close();
     }
     completed(outcome, delivered, code);
@@ -529,7 +530,8 @@ function resultStream(upstream, binding, controller, completed, format) {
         if (terminal) await close(terminal, stream);
       } catch (error) {
         pending = [];
-        await close(error.outcome || 'outcome_unknown', stream, error.outcome_code || 'PROVIDER_PROTOCOL_INVALID');
+        await close(error.outcome || 'outcome_unknown', stream, error.outcome_code || 'PROVIDER_PROTOCOL_INVALID',
+          controller.timedOut === true ? 'PROVIDER_TIMEOUT' : null);
       }
     },
     async cancel() { pending = []; await close('outcome_unknown'); }
@@ -709,10 +711,10 @@ async function probeOutput(binding, signal) {
   return {status_code: response.status, output, execution_succeeded: true, protocol_valid: true, transport_ok: true, task_status: 'completed'};
 }
 async function deliver(request, env, ctx, binding, run, clientIP, directJSON = false) {
-  let aborter, timer;
+  let aborter, timer, timedOut = false;
   try {
       aborter = new AbortController();
-      timer = setTimeout(() => aborter.abort(), binding.timeout_ms);
+      timer = setTimeout(() => { timedOut = true; aborter.timedOut = true; aborter.abort(); }, binding.timeout_ms);
       request.signal.addEventListener('abort', () => aborter.abort(), {once: true});
       const complete = (outcome, bytes, code = null) => {
         clearTimeout(timer);
@@ -757,6 +759,13 @@ async function deliver(request, env, ctx, binding, run, clientIP, directJSON = f
     const reply = failure('UNAVAILABLE', 503);
     // A classified Provider answer is not an Edge delivery fault; observedOutput strips this marker.
     if (error.outcome) reply.headers.set('X-Edge-Provider-Failure', '1');
+    // 11-11 (a06, a07): the gateway path turned this reply into "gateway_unavailable" with no cause. The cause
+    // travels on the reply object (never as a header or body text) for the caller to answer with a code.
+    reply.deliveryCause = timedOut ? {provider: 'PROVIDER_TIMEOUT'}
+      : error.outcome_code && error.outcome_code !== 'OUTCOME_UNKNOWN' ? {provider: error.outcome_code}
+      : error.outcome ? {provider: 'OUTCOME_UNKNOWN'}
+      : error.name === 'TypeError' && !MARKER.test(error.message) ? {provider: 'PROVIDER_UNREACHABLE'}
+      : {edge: marker(error)};
     return reply;
   }
 }
@@ -805,7 +814,12 @@ async function normalizedResult(response) {
     decode.decode();
     if (!final || buffer.trim() || data.length) throw new Error('Incomplete result');
     if (object(final.managed)) return {managed: final.managed};
-    if (final.state !== 'succeeded') throw new Error('Execution unavailable');
+    if (final.state !== 'succeeded') {
+      // Keep the stream's own result code (11-11 a06, a07 read only "gateway_unavailable").
+      const failed = new Error('Execution unavailable');
+      if (typeof final.error_code === 'string' && /^[A-Z_]{3,40}$/.test(final.error_code)) failed.provider = final.error_code;
+      throw failed;
+    }
     const parts = final.output?.parts || [{kind: 'text', text}];
     if (!Array.isArray(parts) || !parts.length || parts.some(p => !object(p) || typeof p.text !== 'string')) throw new Error('Result parts');
     return {parts};
@@ -883,6 +897,11 @@ async function legacy(request, env, ctx, rid, testbench, kind = 'a2a') {
       if (!testbench && kind !== (binding.protocol || 'a2a')) throw new Error('Protocol');
       kind = binding.protocol || 'a2a';
       response = await deliver(request, env, ctx, binding, grant.run_id, clientIP, true);
+      if (response instanceof Response && !response.ok) {
+        const failed = new Error('Execution unavailable'), cause = response.deliveryCause || {};
+        if (cause.provider) failed.provider = cause.provider; else failed.edge = cause.edge || 'delivery';
+        throw failed;
+      }
     } else if (grant.backend === 'origin' && grant.stream_path.startsWith('/api/origin-gateway/')) {
       const headers=new Headers(request.headers);headers.set('Authorization','Bearer '+grant.access_token);headers.set('Origin',env.PUBLIC_ORIGIN);
       response = await signedOrigin(new Request(env.PUBLIC_ORIGIN+grant.stream_path,{method:'POST',headers,signal:request.signal}),env,JSON.stringify(input),clientIP,'X-Edge-Origin-Relay',env.PUBLIC_ORIGIN);
@@ -1070,15 +1089,28 @@ async function outputRelay(request,env) {
     return new Response(response.body,{status:response.status,headers});
   } catch{return failure('RESULT_UNAVAILABLE',503);}
 }
+// Our own short error markers ('Protocol', 'Output limit', 'Control unavailable'); a message that does not match
+// (Provider text, an address, a runtime message) is never echoed.
+const MARKER = /^[A-Z][a-z]+(?: [a-z]+){0,2}$/;
+function marker(error) {
+  if (error?.name === 'TimeoutError' || error?.name === 'AbortError') return 'timeout';
+  if (typeof error?.message === 'string' && MARKER.test(error.message)) return error.message.toLowerCase().replace(/ /g, '_');
+  return error?.name === 'TypeError' ? 'network' : 'internal';
+}
 export function gatewayFailure(error) {
   const code = error.provider || (CODES.has(error.code) ? error.code : 'UNAVAILABLE');
   const reason = {CAPACITY_EXCEEDED: 'rate_limited', AUTH_REQUIRED: 'not_authorized', POLICY_DENIED: 'policy_blocked',
     SCHEMA_CHANGED: 'tool_changed', INPUT_CHANGED: 'input_changed', EXPIRED: 'expired', ALREADY_CLAIMED: 'already_running',
     ORIGIN_REQUIRED: 'not_authorized', PROVIDER_FAILED: 'provider_error', UPSTREAM_TOOL_ERROR: 'provider_error',
-    PROVIDER_TIMEOUT: 'provider_timeout', PROVIDER_AUTH_REQUIRED: 'provider_auth_required'}[code]
+    PROVIDER_TIMEOUT: 'provider_timeout', PROVIDER_AUTH_REQUIRED: 'provider_auth_required',
+    PROVIDER_RATE_LIMITED: 'provider_rate_limited'}[code]
     || (error.provider ? 'provider_error' : 'gateway_unavailable');
   const retryable = ['rate_limited', 'provider_timeout', 'gateway_unavailable', 'already_running'].includes(reason);
-  return {error_code: reason, retryable, ...(reason === 'rate_limited' ? {retry_after_seconds: 60} : {}),
+  // 11-11: a public cause next to the reason, so a failed call says where it stopped (Provider code or Edge step).
+  const cause = error.provider && /^[A-Z_]{3,40}$/.test(error.provider) ? error.provider.toLowerCase()
+    : reason === 'gateway_unavailable' ? (typeof error.edge === 'string' && /^[a-z_]{3,40}$/.test(error.edge) ? error.edge
+      : error.code === 'UNAVAILABLE' ? 'control_unavailable' : marker(error)) : undefined;
+  return {error_code: reason, retryable, ...(cause ? {cause} : {}), ...(reason === 'rate_limited' ? {retry_after_seconds: 60} : {}),
     next: retryable ? 'Retry later, or call find_agents for another agent.' : 'Call find_agents for another agent for this task.'};
 }
 function outputSource(path) {

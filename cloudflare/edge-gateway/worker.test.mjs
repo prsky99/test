@@ -1282,4 +1282,29 @@ test('a gateway failure answers a public reason code, whether a retry helps and 
   const unknown = gatewayFailure(new Error('Grant'));
   assert.deepEqual([unknown.error_code, unknown.retryable], ['gateway_unavailable', true]);
   assert.ok(!JSON.stringify(gatewayFailure(Object.assign(new Error('secret https://p.example/x'), {code: 'WHATEVER'}))).includes('example'));
+  // 11-11 (a06, a07): a public cause next to the reason; never Provider text
+  assert.equal(gatewayFailure(Object.assign(new Error('Execution unavailable'), {provider: 'PROVIDER_TIMEOUT'})).cause, 'provider_timeout');
+  assert.equal(gatewayFailure(Object.assign(new Error('Execution unavailable'), {edge: 'output_limit'})).cause, 'output_limit');
+  assert.equal(gatewayFailure(new Error('Grant')).cause, 'grant');
+  assert.equal(gatewayFailure(Object.assign(new Error('Control unavailable'), {code: 'UNAVAILABLE'})).cause, 'control_unavailable');
+  assert.equal(gatewayFailure(Object.assign(new Error('secret https://p.example/x'), {code: 'WHATEVER'})).cause, 'internal');
+  assert.equal(gatewayFailure(Object.assign(new TypeError('Network connection lost.'))).cause, 'network');
+  assert.equal(gatewayFailure(limited).cause, undefined);
+});
+
+test('a Provider failure on the gateway path answers its cause instead of a bare gateway_unavailable (11-11 a06, a07)', async () => {
+  for (const [provider, overrides, cause, reason] of [
+    [() => new EdgeResponse('private ' + endpoint, {status: 404}), {}, 'provider_endpoint_unavailable', 'provider_error'],
+    // The binding's own 8 s limit (the only value safeBinding accepts) passes before the Provider answers.
+    [() => new Promise(resolve => setTimeout(() => resolve(new EdgeResponse(delta('late') + done, {headers: {'Content-Type': 'text/event-stream'}})), 8500)),
+      {}, 'provider_timeout', 'provider_timeout'],
+  ]) {
+    const f = await fixture(provider, overrides);
+    try {
+      const value = await (await f.sendLegacy()).json();
+      assert.equal(value.error.data.error_code, reason);
+      assert.equal(value.error.data.cause, cause);
+      assert.ok(!JSON.stringify(value).includes(endpoint));
+    } finally { await f.mf.dispose(); }
+  }
 });
