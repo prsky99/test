@@ -202,3 +202,26 @@ def test_a_recommended_tool_missing_from_the_gateway_list_follows_the_others():
     assert [i['id'] for i in found][:2] == [2, 3]
     assert rec.tool_listed({'id': 1, 'kind': 'mcp'}, 'weather_current') and not rec.tool_listed({'id': 1, 'kind': 'mcp'}, 'air_quality_index')
     assert rec.tool_listed({'id': 3, 'kind': 'a2a'}, 'Air quality')  # only MCP gateway lists are known
+
+
+def test_a_link_task_moves_tools_that_only_take_files_or_bytes_after_the_others():
+    """11-11 p15: every recommendation for a YouTube transcript read a local file, an upload or base64 audio."""
+    from agent_market.concierge.gateway_exposure import input_mismatch
+    task = 'Find an API that gives me the transcript of a YouTube video'
+
+    def card(rid, name, properties):
+        return {'id': rid, 'kind': 'mcp', 'tools': [name], 'tools_schema': [{'name': name, 'inputSchema': {'properties': properties}}]}
+    local = card(1, 'transcribe_to_markdown', {'file_path': {'type': 'string', 'description': 'Absolute local file path'},
+                                               'uploaded_file_reference': {'type': 'string'}})
+    b64 = card(2, 'transcribe_audio', {'audio_base64': {'type': 'string', 'description': 'Base64-encoded audio data'}})
+    nested = card(3, 'transcribe_file', {'file': {'type': 'object', 'description': 'The file; its download link is filled in by the client'}})
+    by_link = card(4, 'youtube_transcript', {'video_url': {'type': 'string', 'description': 'YouTube URL or video id'}})
+    by_id = card(5, 'get_transcript', {'video_id': {'type': 'string'}})
+    assert [input_mismatch(task, c) for c in (local, b64, nested, by_link, by_id)] == [True, True, True, False, False]
+    assert not input_mismatch('Transcribe this audio file to text', local)          # no link in the task
+    assert not input_mismatch(task, {'id': 6, 'kind': 'a2a', 'tools': ['Transcripts']})  # no schema: no judgement
+    page = card(7, 'read_page', {'url': {'type': 'string', 'description': 'Page URL'}, 'max_bytes': {'type': 'integer'}})
+    assert not input_mismatch('Read this page and give me the main text: https://www.anthropic.com/news', page)
+    store = Store({})
+    rec = ExposedFirstRecommender(Recommender([local, b64, by_link]), store)
+    assert [i['id'] for i in rec.search(task, limit=3)][0] == 4

@@ -136,6 +136,31 @@ def region_mismatch(task, item, descriptions=None, regions=None):
     return True
 
 
+# The task hands over a link (a YouTube video, a web page) and the tool only takes a file, a stored
+# upload or base64 bytes (11-11 real task p15: all three recommendations for "the transcript of a
+# YouTube video" were audio transcribers that read a local file, an upload reference or base64 audio).
+URL_TASK = re.compile(r'https?://|\byoutu(?:\.be|be)\b|\b(?:web\s?page|url|link)\b', re.I)
+URL_INPUT = re.compile(r'ur[li]|link|href|youtube|video[\s_-]?id|web\s?page|website|domain', re.I)
+FILE_INPUT = re.compile(r'file|path|base64|b64|audio[\s_-]?(?:data|bytes)|upload|bytes|blob|attachment', re.I)
+
+
+def input_mismatch(task, item):
+    """True when the task gives a link and the chosen tool's own inputs only take files or bytes."""
+    if not isinstance(item, dict) or not isinstance(task, str) or not URL_TASK.search(task):
+        return False
+    chosen = (item.get('tools') or [''])[0] or ''
+    schema = next((t.get('inputSchema') for t in item.get('tools_schema') or ()
+                   if isinstance(t, dict) and t.get('name') == chosen), None)
+    properties = schema.get('properties') if isinstance(schema, dict) else None
+    if not isinstance(properties, dict) or not properties:
+        return False
+    def text(name, spec):
+        return str(name) + ' ' + (str(spec.get('description') or '') if isinstance(spec, dict) else '')
+    if any(URL_INPUT.search(text(name, spec)) and not FILE_INPUT.search(str(name)) for name, spec in properties.items()):
+        return False
+    return any(FILE_INPUT.search(text(name, spec)) for name, spec in properties.items())
+
+
 def wrong_direction(task, item, descriptions=None):
     """True when the selected tool does the task the other way round."""
     if not isinstance(item, dict) or not isinstance(task, str):
@@ -223,7 +248,8 @@ class ExposedFirstRecommender:
                 if note is not None:
                     item['access_note'] = note
                 item['task_standing'] = score
-                if wrong_direction(task, item, texts) or region_mismatch(task, item, texts, self.regions(item)):
+                if (wrong_direction(task, item, texts) or region_mismatch(task, item, texts, self.regions(item))
+                        or input_mismatch(task, item)):
                     item['task_standing'] = min(score, -1)
                     item['direction_mismatch'] = True
                 if not self.tool_listed(item, chosen):
@@ -250,8 +276,8 @@ class ExposedFirstRecommender:
     def tool_listed(self, item, tool):
         """False only when an MCP server's gateway tools/list is known and leaves TOOL out."""
         facts = self._facts(item)
-        if facts is None or len(facts) < 4 or not isinstance(tool, str) or not tool:
-            return True
+        if facts is None or len(facts) < 4 or facts[3] is None or not isinstance(tool, str) or not tool:
+            return True  # an unreadable or missing row is judged by the recommender as before
         return tool in facts[3]
 
     def regions(self, item):
@@ -282,7 +308,7 @@ class ExposedFirstRecommender:
             value = (bool(resource) and bool(listed),
                      {str(spec.get('name')): str(spec.get('description') or '')[:4000]
                       for spec in specs if isinstance(spec, dict)},
-                     str((resource or {}).get('regions') or ''), listed)
+                     str((resource or {}).get('regions') or ''), listed if resource else None)
         except Exception:
             return None  # an unreadable row is judged by the recommender as before
         with self._lock:
