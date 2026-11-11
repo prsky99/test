@@ -2942,6 +2942,35 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             'Cache-Control': 'public, max-age=300' if status == 200 else 'no-store',
             'Access-Control-Allow-Origin': '*'})
 
+    @router.get('/api/agent/v1/owner/token', include_in_schema=False)
+    def api_owner_token(request: Request, host: str = ''):
+        """The ownership token for one host (deterministic; nothing is stored)."""
+        from .owner_proof import ProofError, instructions
+        if not front.security.allow_explore(front.security.resolve_ip(request), base_limit=30):
+            return JSONResponse({'error': 'rate_limited', 'message': 'Please slow down.'}, status_code=429, headers={'Retry-After': '60'})
+        try:
+            return JSONResponse(instructions(host), headers={'Cache-Control': 'no-store'})
+        except ProofError as error:
+            return JSONResponse({'error': 'unavailable' if error.status == 503 else 'invalid_host', 'message': str(error)},
+                                status_code=error.status, headers={'Cache-Control': 'no-store'})
+
+    @router.post('/api/agent/v1/owner/verify', include_in_schema=False)
+    async def api_owner_verify(request: Request):
+        """Read the provider's well-known file or DNS TXT once and compare the token."""
+        from .owner_proof import ProofError, verify
+        try:
+            body = await request.json()
+        except ValueError:
+            body = {}
+        host = body.get('host') if isinstance(body, dict) and isinstance(body.get('host'), str) else ''
+        try:
+            result = await run_in_threadpool(verify, host, front.security.resolve_ip(request))
+        except ProofError as error:
+            headers = {'Cache-Control': 'no-store', **({'Retry-After': '600'} if error.status == 429 else {})}
+            return JSONResponse({'error': {400: 'invalid_host', 429: 'rate_limited', 503: 'unavailable'}[error.status],
+                                 'message': str(error)}, status_code=error.status, headers=headers)
+        return JSONResponse(result, headers={'Cache-Control': 'no-store'})
+
     @router.get('/api/connections/{agent_ref}')
     def api_connection(agent_ref:str):
         import re
