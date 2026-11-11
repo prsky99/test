@@ -421,6 +421,8 @@ def main():
     settings.update(read_web_bot_signer_settings(root / 'gateway-data/web-bot-signer.env'))
     from scripts.agentcon_config import read_sponsored_settings  # 11-11: its own file, unknown to retained releases
     settings.update(read_sponsored_settings(root / 'gateway-data/sponsored.env'))
+    from scripts.agentcon_config import read_owner_proof_settings  # 11-11: its own file, like sponsored.env
+    settings.update(read_owner_proof_settings(root / 'gateway-data/owner-proof.env'))
     for key in ('GATEWAY_DB', 'APPLICATION_POSTGRES_DSN_FILE', 'APPLICATION_WORKFLOW_KEY_FILE',
                 'AGENT_EDGE_GATEWAY_CONFIG', 'AGENT_EDGE_CLOUDFLARE_TOKEN_FILE',
                 'AGENTCON_ADMIN_BACKUP_ROOT', 'AGENTCON_ADMIN_SQLITE_ARCHIVE', 'WEB_BOT_TRUST_FILE',

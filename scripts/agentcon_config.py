@@ -239,6 +239,23 @@ def check_sponsored_settings(settings):
     return settings
 
 
+# 11-11: the ownership-proof HMAC key (PM decision 2), also in a file of its own (gateway-data/owner-proof.env,
+# 0600): agentcon.env refuses unknown keys, so retained releases would not start with it there.
+OWNER_PROOF_KEYS = frozenset(('OWNER_PROOF_SECRET',))
+
+
+def read_owner_proof_settings(path):
+    """Optional; without it the ownership endpoints answer 503."""
+    target = Path(path)
+    if not target.exists() and not target.is_symlink():
+        return {}
+    settings = read_settings(target, OWNER_PROOF_KEYS)
+    value = settings.get('OWNER_PROOF_SECRET', '')
+    if value and not re.fullmatch(r'[A-Za-z0-9_-]{32,128}', value):
+        raise ConfigError('OWNER_PROOF_SECRET must be 32 to 128 URL-safe characters.')
+    return settings
+
+
 def read_sponsored_settings(path):
     """Optional file of its own; only releases that know these settings read it."""
     target = Path(path)

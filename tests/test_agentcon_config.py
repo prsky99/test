@@ -320,3 +320,22 @@ def test_sponsored_and_usdc_settings_live_in_their_own_file(tmp_path):
                 {'AD_COIN_PAID_RPC_URL': 'https://user:pw@rpc.example/x'}):
         with pytest.raises(ConfigError):
             check_sponsored_settings(bad)
+
+
+def test_owner_proof_secret_lives_in_its_own_file(tmp_path):
+    """11-11: OWNER_PROOF_SECRET is read from gateway-data/owner-proof.env only, never agentcon.env."""
+    import pytest
+    from scripts.agentcon_config import (ALLOWED_KEYS, OWNER_PROOF_KEYS, ConfigError, read_owner_proof_settings,
+                                         read_settings)
+    assert not OWNER_PROOF_KEYS & ALLOWED_KEYS
+    assert read_owner_proof_settings(tmp_path / 'missing.env') == {}
+    path = tmp_path / 'owner-proof.env'
+    path.write_text('OWNER_PROOF_SECRET=' + 'a' * 43 + '\n')
+    path.chmod(0o600)
+    assert read_owner_proof_settings(path) == {'OWNER_PROOF_SECRET': 'a' * 43}
+    with pytest.raises(ConfigError):
+        read_settings(path)                                   # the main file refuses the name
+    for bad in ('OWNER_PROOF_SECRET=short\n', 'MAIN_SPONSORED=1\n', 'OWNER_PROOF_SECRET=' + 'a' * 40 + ' x\n'):
+        path.write_text(bad)
+        with pytest.raises(ConfigError):
+            read_owner_proof_settings(path)
