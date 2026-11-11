@@ -1235,7 +1235,12 @@ def refresh_connection_states(store, value, _memo=None):
             projection = _memo[rid]
         else:
             from ..capability_registry import Registry
-            projection = Registry(store).projection(resource) if resource else {}
+            # Read only, as Explore cards do: a listing without a recorded connection version has no
+            # execution evidence to show. projection() created the version row in a write
+            # transaction for each featured listing on a public read (/api/insights 4.15 s, 11-11).
+            registry = Registry(store)
+            version = registry.current(resource, create=False) if resource else None
+            projection = registry.projection(resource, version=version) if version else {}
             _memo[rid] = projection
         if projection:
             result.update(copy.deepcopy(projection))
@@ -1336,12 +1341,18 @@ def get_snapshot_overview(store: Store) -> dict:
     return res
 
 
+# Catalog statistics and featured listings change slowly, and every served copy still rechecks each
+# listing's execution badge (refresh_connection_states). A first computation takes 3-3.5 s (11-11
+# /api/insights 4.15 s on the public site), so it runs at most once per half hour per process.
+INSIGHTS_SECONDS = 1800.0
+
+
 def get_front_insights(store: Store) -> dict:
     """Protocol statistics and featured agents for Learn section. Cached for 60s."""
     now = time.time()
     store_id = id(store)
     cached = _front_insights_cache.get("data")
-    if cached and (_front_insights_cache.get("store_id") == store_id) and (now - _front_insights_cache["at"] < 300.0):
+    if cached and (_front_insights_cache.get("store_id") == store_id) and (now - _front_insights_cache["at"] < INSIGHTS_SECONDS):
         return refresh_connection_states(store, cached)
 
     redis_hub = RedisHub.get_instance()
@@ -1425,7 +1436,8 @@ def get_front_insights(store: Store) -> dict:
                 f"SELECT {CARD_COLS} FROM resources r WHERE {LIVE_COND} AND r.kind=? AND {cond} ORDER BY {order} LIMIT 30",
                 (kind,)
             )
-            cards = [_card_data(r,store) for r in _diverse_hosts(rows, 6)]
+            # A public read creates no connection rows (11-11: one write transaction per featured card).
+            cards = [_card_data(r,store,create_connections=False) for r in _diverse_hosts(rows, 6)]
             if key == 'verified':
                 cards = [card for card in cards if card.get('connection_readiness',{}).get('verified_callable')]
             feat_list.append({"key": key, "title": title, "items": cards})
@@ -1442,7 +1454,7 @@ def get_front_insights(store: Store) -> dict:
         "kinds": kinds_out,
     }
     if redis_hub.is_available():
-        redis_hub.set_json(f"{pfx}cache:insights:v2", out, ttl_seconds=300)
+        redis_hub.set_json(f"{pfx}cache:insights:v2", out, ttl_seconds=int(INSIGHTS_SECONDS))
     _front_insights_cache["at"] = now
     _front_insights_cache["data"] = out
     _front_insights_cache["store_id"] = store_id

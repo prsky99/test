@@ -25,12 +25,14 @@ def test_duplicate_cards_reuse_one_lookup_but_own_independent_projection_values(
     store = Resources('First request')
     projections = []
 
-    def project(registry, resource):
+    def project(registry, resource, version=None):
         projections.append(resource['id'])
         return {'connection_readiness': {'verified_callable': True, 'reason': resource['name']},
                 'capability_contracts': [{'id': 'docs.search.v1', 'verified': True}]}
 
     monkeypatch.setattr(Registry, 'projection', project)
+    # 11-11: the refresh reads the recorded version without creating one (a public read writes nothing).
+    monkeypatch.setattr(Registry, 'current', lambda registry, resource, create=True: {'id': 'cv_fixture'})
     card = {'id': 1, 'agent_ref': 'agent_1', 'connection_readiness': {'verified_callable': False}}
     cached = {'overview': [card, copy.deepcopy(card)], 'explore': {'items': [copy.deepcopy(card)]}}
     before = copy.deepcopy(cached)
@@ -46,8 +48,9 @@ def test_duplicate_cards_reuse_one_lookup_but_own_independent_projection_values(
 
 
 def test_memo_is_reset_for_next_request_and_different_store(monkeypatch):
-    monkeypatch.setattr(Registry, 'projection', lambda registry, resource: {
+    monkeypatch.setattr(Registry, 'projection', lambda registry, resource, version=None: {
         'connection_readiness': {'verified_callable': True, 'reason': resource['name']}})
+    monkeypatch.setattr(Registry, 'current', lambda registry, resource, create=True: {'id': 'cv_fixture'})
     first, second = Resources('Current'), Resources('Other store')
     card = {'id': 1, 'agent_ref': 'agent_1'}
     assert refresh_connection_states(first, [card, card])[0]['connection_readiness']['reason'] == 'Current'

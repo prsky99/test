@@ -233,7 +233,7 @@ def gateway_router(front,read_json_object):
     front.managed_gateway=gateway
 
     def rate(request,execution=True):
-        # 11-11 user decision ("연결 호출은 한도에서 빼기"): only calls that reach the Provider
+        # 11-11 user decision ("leave connection calls out of the limit"): only calls that reach the Provider
         # (tools/call, message/send, the x402 probe) use the 10-a-minute execution limit. Connection
         # calls (initialize, notifications, ping, tools/list, the GET description) answer locally and use a
         # separate, much higher server-protection limit, so an agent doing ten tasks in a minute
