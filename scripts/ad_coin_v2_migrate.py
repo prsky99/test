@@ -7,6 +7,7 @@
   drop-public    drop those leftovers (2026-11-10 outage) when they hold no data; needs approval
   migrate-paid   create the paid Sponsored bookings table (USDC, 11-11) in ad_coin_v2; needs approval
   migrate-impressions  create the Sponsored served-count table (11-11) in ad_coin_v2; needs approval
+  migrate-usdc   both of the above in one run (the USDC switch bundle, 11-11); needs approval
 
 migrate changes the production database, so it runs only with the operator's approval and
 the --i-have-approval flag. No server launch, restart or data copy. One connection.
@@ -69,7 +70,7 @@ def _connect(args):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument('action', choices=('plan', 'status', 'migrate', 'public-status', 'drop-public', 'migrate-paid', 'migrate-impressions'))
+    parser.add_argument('action', choices=('plan', 'status', 'migrate', 'public-status', 'drop-public', 'migrate-paid', 'migrate-impressions', 'migrate-usdc'))
     parser.add_argument('--dsn-file')
     parser.add_argument('--key-file')
     parser.add_argument('--i-have-approval', action='store_true',
@@ -80,24 +81,27 @@ def main(argv=None):
         return 0
     if not (args.dsn_file and args.key_file):
         parser.error(args.action + ' needs --dsn-file and --key-file')
-    if args.action in ('migrate', 'drop-public', 'migrate-paid', 'migrate-impressions') and not args.i_have_approval:
+    if args.action in ('migrate', 'drop-public', 'migrate-paid', 'migrate-impressions', 'migrate-usdc') and not args.i_have_approval:
         parser.error(args.action + ' changes the production database; pass --i-have-approval only after approval')
     from agent_market.ad_coin.v2.live_service import store_from_application
     runtime = _connect(args)
     try:
         import os
         os.environ['AD_COIN_V2_POOL_MAXIMUM'] = '1'
-        if args.action in ('migrate', 'drop-public', 'migrate-paid', 'migrate-impressions'):
+        if args.action in ('migrate', 'drop-public', 'migrate-paid', 'migrate-impressions', 'migrate-usdc'):
             preflight(runtime.store)  # stop before touching anything if the application is not healthy
         if args.action == 'migrate-paid':
             result = migrate_paid(store_from_application(runtime.store))
         elif args.action == 'migrate-impressions':
             result = migrate_impressions(store_from_application(runtime.store))
+        elif args.action == 'migrate-usdc':
+            v2 = store_from_application(runtime.store)
+            result = {**migrate_paid(v2), **migrate_impressions(v2)}
         elif args.action in ('public-status', 'drop-public'):
             result = public_leftovers(store_from_application(runtime.store), drop=args.action == 'drop-public')
         else:
             result = run(store_from_application(runtime.store), args.action)
-        if args.action in ('migrate', 'drop-public', 'migrate-paid', 'migrate-impressions'):
+        if args.action in ('migrate', 'drop-public', 'migrate-paid', 'migrate-impressions', 'migrate-usdc'):
             preflight(runtime.store)  # the application must still start afterwards
         print(json.dumps(result, sort_keys=True))
     finally:
