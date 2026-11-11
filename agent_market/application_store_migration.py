@@ -399,6 +399,9 @@ def _receipt(store, value, *, first=False):
         if updated.rowcount != 1: raise MigrationDenied('migration_revision_conflict')
     store._execute('INSERT INTO agent_migration_control.events VALUES(%s,%s,%s,%s)',
         (value['operation_id'], value['revision'], raw, signature))
+    # This store just changed its own migration gate: its next read must check the gate again instead of
+    # reusing a pass from the last READ_GATE_SECONDS (3d91f613 let a quarantined target serve reads).
+    if hasattr(store, '_read_gates_at'): store._read_gates_at = float('-inf')
     return {'receipt': value, 'signature': signature}
 
 
