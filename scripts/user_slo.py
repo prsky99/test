@@ -10,6 +10,9 @@ queries the site has never seen. Targets (CLAUDE.md response-time policy, qualit
   connect      the top recommended agent answers initialize + tools/list through our gateway with >= 1 tool
   pages        the Explore and Chat pages download within 1.0 s
 
+Each sample opens its own connection (DNS, TCP, TLS included), as a first-time visitor does (11-11 PM); page and
+explore samples record the Cloudflare cache state and airport.
+
 Writes one JSON line to logs/ops/user-slo.jsonl and prints it. "breaches" lists only failed targets, each with
 the owning team, so scripts/ops_auto.py can hand them over on the status board.
 """
@@ -42,6 +45,18 @@ def unseen(n):
     return [f'{t} {random.choice(MODIFIERS)} {random.randint(10, 999)}' for t in picks]
 
 
+def fresh():
+    """A new client, so each sample pays its own DNS, TCP and TLS like a first-time visitor (11-11 PM: the hour's
+    samples used to share one keep-alive connection, which left the handshake out of every sample after the first)."""
+    return httpx.Client(timeout=30, headers={'User-Agent': UA, **QA_HEADER}, follow_redirects=True)
+
+
+def on_fresh(fn):
+    """Run fn(client) on a new connection and return its result (the response body is read before closing)."""
+    with fresh() as client:
+        return fn(client)
+
+
 def timed(fn):
     started = time.time()
     try:
@@ -63,16 +78,20 @@ def mcp(client, url, method, params=None, session=None, rid=1):
     return response, json.loads(text)
 
 
+def cache(response):
+    return response.headers.get('cf-cache-status') if response is not None else None
+
+
 def colo(response):
     """Cloudflare airport from cf-ray (e.g. '...-LAX'), so a slow hour can be matched to its path (11-11 PM)."""
     ray = response.headers.get('cf-ray', '') if response is not None else ''
     return ray.rsplit('-', 1)[-1] if '-' in ray else None
 
 
-def check_explore(client, n=6):
+def check_explore(n=6):
     rows = []
     for query in unseen(n):
-        took, response, error = timed(lambda: client.get(f'{BASE}/api/explore', params={'q': query}))
+        took, response, error = timed(lambda: on_fresh(lambda c: c.get(f'{BASE}/api/explore', params={'q': query})))
         total = None
         if response is not None and response.status_code == 200:
             try:
@@ -80,16 +99,16 @@ def check_explore(client, n=6):
             except ValueError:
                 pass
         rows.append({'q': query, 's': took, 'status': getattr(response, 'status_code', error), 'total': total,
-                     'colo': colo(response)})
+                     'colo': colo(response), 'cache': cache(response)})
     bad = [r for r in rows if r['s'] > TARGET['explore_s'] or r['status'] != 200 or not r['total']]
     return {'samples': rows, 'max_s': max(r['s'] for r in rows), 'ok': not bad, 'bad': bad}
 
 
-def check_recommend_and_connect(client, n=2):
+def check_recommend_and_connect(n=2):
     rec, conn = [], []
     for task in unseen(n):
-        took, result, error = timed(lambda: mcp(client, f'{BASE}/mcp', 'tools/call',
-                                                {'name': 'find_agents', 'arguments': {'task': task}}))
+        took, result, error = timed(lambda: on_fresh(lambda c: mcp(c, f'{BASE}/mcp', 'tools/call',
+                                                                   {'name': 'find_agents', 'arguments': {'task': task}})))
         text = ''
         if result:
             try:
@@ -102,17 +121,17 @@ def check_recommend_and_connect(client, n=2):
         if not endpoint:
             continue
         if '/api/gateway/mcp/' in endpoint:
-            def connect():
+            def connect(client):  # one connection for the pair: the session belongs to it
                 init, _ = mcp(client, endpoint, 'initialize', {'protocolVersion': '2025-06-18', 'capabilities': {},
                                                                 'clientInfo': {'name': 'user-slo', 'version': '1'}})
                 listed, body = mcp(client, endpoint, 'tools/list', session=init.headers.get('mcp-session-id'), rid=2)
                 return len((body.get('result') or {}).get('tools') or [])
         else:
             # A2A recommendation (11-11): connecting means the gateway serves the agent's card; no message is sent.
-            def connect():
+            def connect(client):
                 response = client.get(endpoint, headers={'Accept': 'application/json'})
                 return 1 if response.status_code == 200 else 0
-        took_c, tools, error_c = timed(connect)
+        took_c, tools, error_c = timed(lambda: on_fresh(connect))
         conn.append({'endpoint': endpoint.rsplit('/', 2)[-2] + '/' + endpoint.rsplit('/', 1)[-1], 's': took_c,
                      'tools': tools, 'error': error_c})
     rec_bad = [r for r in rec if r['s'] > TARGET['recommend_s'] or not r['answered']]
@@ -123,22 +142,21 @@ def check_recommend_and_connect(client, n=2):
             {'samples': conn, 'ok': not conn_bad, 'bad': conn_bad, 'measured': bool(conn)})
 
 
-def check_pages(client):
+def check_pages():
     rows = []
     for path in ('/new/en/explore.html', '/new/en/chat.html', '/'):
-        took, response, error = timed(lambda: client.get(BASE + path, headers={'Accept': 'text/html'}))
+        took, response, error = timed(lambda: on_fresh(lambda c: c.get(BASE + path, headers={'Accept': 'text/html'})))
         rows.append({'path': path, 's': took, 'status': getattr(response, 'status_code', error), 'colo': colo(response),
-                     'cache': response.headers.get('cf-cache-status') if response is not None else None})  # 11-11 PM
+                     'cache': cache(response)})  # 11-11 PM: edge state next to the time
     bad = [r for r in rows if r['s'] > TARGET['page_s'] or r['status'] != 200]
     return {'samples': rows, 'ok': not bad, 'bad': bad}
 
 
 def main():
-    client = httpx.Client(timeout=30, headers={'User-Agent': UA, **QA_HEADER}, follow_redirects=True)
-    record = {'at': datetime.now().strftime('%Y-%m-%d %H:%M'), 'targets': TARGET}
-    record['explore'] = check_explore(client)
-    record['recommend'], record['connect'] = check_recommend_and_connect(client)
-    record['pages'] = check_pages(client)
+    record = {'at': datetime.now().strftime('%Y-%m-%d %H:%M'), 'targets': TARGET, 'connection': 'new per sample'}
+    record['explore'] = check_explore()
+    record['recommend'], record['connect'] = check_recommend_and_connect()
+    record['pages'] = check_pages()
     record['breaches'] = {k: {'team': OWNER[k], 'bad': record[k]['bad'][:3]}
                           for k in ('explore', 'recommend', 'connect', 'pages') if not record[k]['ok']}
     OUT.parent.mkdir(parents=True, exist_ok=True)
