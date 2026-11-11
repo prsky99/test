@@ -33,7 +33,7 @@ DISCOVERY_CACHE = 'public, max-age=30, s-maxage=3600, stale-while-revalidate=360
 GROWTH_PAGES = frozenset(('/connect','/agents/tasks','/agents/best','/badges','/reports/state-of-ai-agents',
     '/claude-plugins/marketplace.json'))
 GROWTH_PREFIXES = ('/agents/task/','/agents/best/','/agent/','/agents/compare/','/reports/state-of-ai-agents/',
-    '/claude-plugins/')
+    '/claude-plugins/','/agents/category/','/reports/weekly/')  # 11-11: category and weekly pages (user approved edge rule)
 GROWTH_CACHE = 'public, max-age=300, stale-while-revalidate=600'
 ANALYTICS_COOKIES = ('_ga','_gid','_gcl')
 TITLES = {400:'Bad request',401:'Authentication required',403:'Forbidden',404:'Not found',

@@ -108,3 +108,11 @@ def test_bootstrap_data_has_no_visitor_fields(client):
         text = json.dumps(json.loads(data[1].replace('\\u003c', '<'))).lower()
         for key in ('"visitor"', '"token"', '"email"', '"signed_in"', '"account"'):
             assert key not in text
+
+
+def test_category_and_weekly_paths_are_growth_pages_for_the_edge():
+    # 11-11 (user approved adding them to Cloudflare rule 2): same public cache policy as the other growth pages.
+    from agent_market.concierge.public_http_contract import GROWTH_CACHE, growth_path, shared_path
+    for path in ('/agents/category/web_search', '/reports/weekly/2026-W45'):
+        assert growth_path(path) and shared_path(path)
+    assert not growth_path('/agent/1/reported') and GROWTH_CACHE.startswith('public, max-age=300')
