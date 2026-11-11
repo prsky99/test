@@ -13,6 +13,7 @@ deploys, stops processes or writes the production database (the batch runner doe
 """
 import hashlib
 import json
+import re
 import subprocess
 import sys
 import time
@@ -61,17 +62,36 @@ def append(path, line):
 
 
 def board_handoff(kind, text):
+    """One open line per kind in the board's handoff section (11-11 PM): a repeat refreshes that line.
+
+    The line is tagged '자동 점검 [kind]'; a repeat replaces its text and counts how many times it came back
+    since it was first raised. A team closes it by changing the status from '대기'; the next alert of that kind
+    then opens a new line. Board edits hold the heavy_slot file lock."""
     if not BOARD.is_file():
         return
-    content = BOARD.read_text()
-    marker = '## 넘기는 일'
-    if marker not in content:
-        return
-    head, rest = content.split(marker, 1)
-    table, sep, tail = rest.partition('\n## ')
-    row = f'| 자동 점검 | {TEAM.get(kind, "운영·SRE")} | {now()} {text[:150]} | 대기 |'
-    BOARD.write_text(head + marker + table.rstrip('\n') + '\n' + row + '\n' + (sep + tail if sep else ''))
-
+    from heavy_slot import board_lock
+    with board_lock():
+        content = BOARD.read_text()
+        marker = '## 넘기는 일'
+        if marker not in content:
+            return
+        head, rest = content.split(marker, 1)
+        table, sep, tail = rest.partition('\n## ')
+        tag = f'| 자동 점검 [{kind}] |'
+        rows = table.rstrip('\n').split('\n')
+        open_at = next((i for i, row in enumerate(rows) if row.startswith(tag) and row.rstrip().endswith('| 대기 |')), None)
+        count, first = 1, now()
+        if open_at is not None:
+            seen = re.search(r'\(같은 경고 (\d+)회째, 처음 ([\d-]+ [\d:]+)\)', rows[open_at])
+            count = int(seen.group(1)) + 1 if seen else 2
+            first = seen.group(2) if seen else rows[open_at].split('|')[3].strip()[:16]
+        note = f' (같은 경고 {count}회째, 처음 {first})' if count > 1 else ''
+        row = f'{tag} {TEAM.get(kind, "운영·SRE")} | {now()} {text[:150]}{note} | 대기 |'
+        if open_at is None:
+            rows.append(row)
+        else:
+            rows[open_at] = row
+        BOARD.write_text(head + marker + '\n'.join(rows) + '\n' + (sep + tail if sep else ''))
 
 SLO_EVERY = 3600  # user-facing targets, measured from outside every hour (scripts/user_slo.py)
 SLO_STATE = ROOT / 'logs/ops/user-slo-state.json'
@@ -93,9 +113,6 @@ def user_slo():
         return
     for kind, breach in (record.get('breaches') or {}).items():
         text = f'사용자 기준 목표 미달 [{kind}] ' + json.dumps(breach.get('bad'), ensure_ascii=False)[:110]
-        open_rows = [l for l in (BOARD.read_text().splitlines() if BOARD.is_file() else []) if f'목표 미달 [{kind}]' in l and '대기' in l]
-        if open_rows:
-            continue  # one open hand-off per target; the team closes it when fixed
         TEAM[f'slo_{kind}'] = breach.get('team', '운영·SRE')
         board_handoff(f'slo_{kind}', text)
     append(ACTIONS, f'{now()} user_slo: 미달 {",".join(record.get("breaches") or {}) or "없음"}')

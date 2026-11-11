@@ -41,3 +41,23 @@ def test_auto_watch_alerts_once_and_writes_handoff(tmp_path, monkeypatch):
     assert board.read_text().count('자동 점검') == 1
     assert (tmp_path / 'desk.txt').read_text().count('[운영 이상]') == 1
     assert '## PM 결정 대기' in board.read_text()
+
+
+def test_board_handoff_refreshes_one_open_line_per_kind(tmp_path, monkeypatch):
+    from scripts import ops_auto
+    board = tmp_path / 'board.md'
+    board.write_text('## 넘기는 일\n| 보낸 팀 | 받는 팀 | 내용 | 상태 |\n|---|---|---|---|\n\n## PM 결정 대기\n- x\n')
+    monkeypatch.setattr(ops_auto, 'BOARD', board)
+    ops_auto.board_handoff('lock', 'lock held 48 min')
+    ops_auto.board_handoff('lock', 'lock held 79 min')
+    ops_auto.board_handoff('site', 'site slow')
+    text = board.read_text()
+    assert text.count('자동 점검 [lock]') == 1 and 'lock held 79 min' in text and '같은 경고 2회째' in text
+    ops_auto.board_handoff('lock', 'lock held 109 min')
+    assert '같은 경고 3회째' in board.read_text() and board.read_text().count('자동 점검 [lock]') == 1
+    closed = board.read_text().replace('| 대기 |', '| 해결 |', 1)   # the team closes the lock line
+    board.write_text(closed)
+    ops_auto.board_handoff('lock', 'lock held again')
+    text = board.read_text()
+    assert text.count('자동 점검 [lock]') == 2 and text.count('자동 점검 [site]') == 1
+    assert text.rstrip().endswith('- x') and '## PM 결정 대기' in text
