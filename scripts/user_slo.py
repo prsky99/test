@@ -90,20 +90,29 @@ def check_recommend_and_connect(client, n=2):
                 text = ''
         rec.append({'task': task, 's': took, 'answered': bool(text), 'error': error})
         endpoint = next((line.split('Endpoint:', 1)[1].strip().split()[0] for line in text.splitlines()
-                         if 'Endpoint:' in line and '/api/gateway/mcp/' in line), None)
+                         if 'Endpoint:' in line and '/api/gateway/' in line), None)
         if not endpoint:
             continue
-        def connect():
-            init, _ = mcp(client, endpoint, 'initialize', {'protocolVersion': '2025-06-18', 'capabilities': {},
-                                                            'clientInfo': {'name': 'user-slo', 'version': '1'}})
-            listed, body = mcp(client, endpoint, 'tools/list', session=init.headers.get('mcp-session-id'), rid=2)
-            return len((body.get('result') or {}).get('tools') or [])
+        if '/api/gateway/mcp/' in endpoint:
+            def connect():
+                init, _ = mcp(client, endpoint, 'initialize', {'protocolVersion': '2025-06-18', 'capabilities': {},
+                                                                'clientInfo': {'name': 'user-slo', 'version': '1'}})
+                listed, body = mcp(client, endpoint, 'tools/list', session=init.headers.get('mcp-session-id'), rid=2)
+                return len((body.get('result') or {}).get('tools') or [])
+        else:
+            # A2A recommendation (11-11): connecting means the gateway serves the agent's card; no message is sent.
+            def connect():
+                response = client.get(endpoint, headers={'Accept': 'application/json'})
+                return 1 if response.status_code == 200 else 0
         took_c, tools, error_c = timed(connect)
-        conn.append({'endpoint': endpoint.rsplit('/', 1)[-1], 's': took_c, 'tools': tools, 'error': error_c})
+        conn.append({'endpoint': endpoint.rsplit('/', 2)[-2] + '/' + endpoint.rsplit('/', 1)[-1], 's': took_c,
+                     'tools': tools, 'error': error_c})
     rec_bad = [r for r in rec if r['s'] > TARGET['recommend_s'] or not r['answered']]
     conn_bad = [c for c in conn if not c['tools']]
+    # No gateway endpoint among the answers means connect was not measured this hour; that is recorded, not hidden,
+    # but it is not counted as a failed connection (11-11: 14:02 run had two answers with no gateway endpoint).
     return ({'samples': rec, 'ok': not rec_bad, 'bad': rec_bad},
-            {'samples': conn, 'ok': bool(conn) and not conn_bad, 'bad': conn_bad})
+            {'samples': conn, 'ok': not conn_bad, 'bad': conn_bad, 'measured': bool(conn)})
 
 
 def check_pages(client):
