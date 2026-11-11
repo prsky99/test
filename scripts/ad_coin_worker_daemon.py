@@ -42,6 +42,7 @@ class WorkerDaemon:
         sponsored_settled = SponsoredBookings(self.store, self.workers.ledger, taxonomy=(), regions=()).settle_due(
             now_ms=now_ms)
         sponsored_settled += self.paid_cycle(now_ms)
+        reports_published = self.workers.publish_reports(now_ms=now_ms)  # due advertiser report revisions
         pruned = self.prune_if_due(now_ms)
 
         cycle_summary = {
@@ -51,9 +52,11 @@ class WorkerDaemon:
             "signed_receipts": signed_receipts,
             "stale_attention": stale_attention,
             "sponsored_settled": sponsored_settled,
+            "reports_published": reports_published,
             "pruned": pruned,
         }
-        if any([reclaimed_leases, processed_outbox, signed_receipts, stale_attention, sponsored_settled, pruned]):
+        if any([reclaimed_leases, processed_outbox, signed_receipts, stale_attention, sponsored_settled,
+                reports_published, pruned]):
             logger.info("Cycle completed with activity: %s", cycle_summary)
         return cycle_summary
 

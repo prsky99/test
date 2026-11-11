@@ -21,6 +21,7 @@ def test_worker_daemon_cycle(store):  # noqa: F811
     assert summary["processed_outbox"] == 0
     assert summary["signed_receipts"] == 0
     assert summary["stale_attention"] == 0
+    assert summary["reports_published"] == 0  # the cycle publishes due advertiser reports (11-11)
 
 
 def test_daemon_refuses_a_relative_key_folder():
@@ -94,3 +95,13 @@ def test_production_wiring_on_a_real_application_database(cluster, tmp_path, mon
     finally:
         store.close()
         runtime.close()
+
+
+def test_daemon_cycle_publishes_due_advertiser_reports(store, monkeypatch):  # noqa: F811
+    """11-11: publish_reports had no caller, so advertisers never received report revisions."""
+    store.migrate_model()
+    daemon = WorkerDaemon(store, vault=KeyVault())
+    calls = []
+    monkeypatch.setattr(daemon.workers, "publish_reports", lambda **kw: calls.append(kw) or 2)
+    assert daemon.run_cycle(now_ms=1_800_000_000_000)["reports_published"] == 2
+    assert calls == [{"now_ms": 1_800_000_000_000}]

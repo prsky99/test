@@ -242,3 +242,18 @@ def test_missing_krw_rate_sends_the_payment_to_review(world):
     q = quote(world)
     assert service.submit(suite.advertiser, q['id'], rpc.send(int(q['amount_units'])), now_ms=NOW + 60_000)['state'] == 'review'
     assert suite.service.store.one('paid_booking_get', (q['id'],))['note'] == 'krw_rate_unavailable'
+
+
+def test_router_assembles_with_the_switch_on(store, monkeypatch):  # noqa: F811
+    """11-11 journey: switching paid bookings on must not break the v2 router (import path regression)."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from agent_market.ad_coin.v2.key_vault import KeyVault
+    from agent_market.ad_coin.v2.live_service import create_live_ad_coin_v2_router
+    monkeypatch.setenv(paid.ENABLED_ENV, '1')
+    monkeypatch.setenv('AD_COIN_PAID_PAY_TO', PAY_TO)
+    store.migrate_model()
+    app = FastAPI()
+    app.include_router(create_live_ad_coin_v2_router(store, key_vault=KeyVault()))
+    response = TestClient(app).post('/api/ad-coin/v2/advertisers/' + str(uuid4()) + '/paid-bookings', json={})
+    assert response.status_code == 401                                    # mounted: asks for sign-in
