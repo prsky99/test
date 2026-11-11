@@ -84,3 +84,23 @@ Cloudflare 설정 변경이라 PM 결정이 필요합니다. 비용은 0입니�
   - `/.well-known/mcp/server-card.json`: 301, MISS → HIT (1.13 → 0.50~0.55초)
   - `/agents/tasks`: HTML은 HIT, Markdown은 DYNAMIC (변화 없음)
 - `/skill.md`와 `/.well-known/llms.txt` 추가는 아직 사용자 확인을 받지 않아 넣지 않았습니다.
+
+## 6. 경로 추가 계획: /agents/category/*, /reports/weekly/* (11-11 사용자 "추가 승인", PM 경유, 이번 한 건)
+- 순서: 원서버 변경 d5fb6159가 먼저 운영에 나가야 한다. 이 변경으로 두 경로가 public, max-age=300, swr=600, Vary: Accept가 된다. 지금은 no-store라 규칙에 더해도 캐시되지 않는다. 11-12 08:00 이후 묶음 배포 뒤에 적용한다.
+- 같은 주소가 Accept에 따라 Markdown을 돌려줄 수 있고, 무료 플랜은 Vary를 캐시 키에 쓰지 않는다. 그래서 공개 HTML 규칙(3번)처럼 "text/html, 쿠키 없음, Markdown·JSON 아님"에만 걸리는 별도 절로 2번 규칙 식에 OR로 더한다. 기존 절은 그대로 둔다.
+
+```
+or (http.request.method in {"GET" "HEAD"}
+    and (starts_with(http.request.uri.path, "/agents/category/") or starts_with(http.request.uri.path, "/reports/weekly/"))
+    and http.cookie eq ""
+    and any(lower(http.request.headers["accept"][*])[*] contains "text/html")
+    and not any(lower(http.request.headers["accept"][*])[*] contains "text/markdown")
+    and not any(lower(http.request.headers["accept"][*])[*] contains "application/json"))
+```
+
+- 적용 직후 확인: 두 경로에서 처음 보는 주소로
+  1. 브라우저형 Accept 두 번 → MISS 다음 HIT, 시간
+  2. `Accept: text/markdown` → DYNAMIC, 본문 Markdown
+  3. `Accept: application/json` → DYNAMIC
+  4. 쿠키 있는 요청 → DYNAMIC
+- 되돌리기: 2번 규칙 식에서 위 OR 절을 지운다(기존 절은 그대로). 급하면 Purge Everything. 원서버 헤더는 그대로 둬도 규칙이 없으면 캐시되지 않는다.
