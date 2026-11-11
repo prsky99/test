@@ -41,6 +41,10 @@ TESTS = (
     'tests/test_cookie_banner_phone.py',
     # Sponsored on main Explore and Chat (11-11): apart from results, nothing without a booking or when off.
     'tests/test_main_sponsored_browser.py',
+    # 11-11 (PM): the public HTML policy itself: same bytes for everyone, no Set-Cookie, CSP hashes match the
+    # inline scripts, live pages s-maxage=60, others no-store (about 25 s together).
+    'tests/test_public_page_cache.py',
+    'tests/test_publication_security_audit.py::test_every_published_page_has_fresh_nonces_and_no_inline_handlers',
 )
 # Each role runs the tests for the code it serves. jobs releases run the collector, health checks,
 # crawler and evaluation without the typed execution engine, so the opening-path list above
