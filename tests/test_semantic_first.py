@@ -1,5 +1,17 @@
 """Stage 2 (2026-11-04): the candidate whose chosen tool is closest in meaning leads."""
+import pytest
+
+from agent_market.concierge import fast_chat
 from agent_market.concierge.fast_chat import semantic_first
+
+
+@pytest.fixture(autouse=True)
+def fresh_vectors():
+    """a3167389 (11-11) keeps candidate vectors per process; these stub engines answer fixed vector lists,
+    so each test starts with nothing remembered (an earlier test's vector made one stub answer one too many)."""
+    fast_chat._SEMANTIC_VECTORS.clear()
+    yield
+    fast_chat._SEMANTIC_VECTORS.clear()
 
 
 class Engine:
