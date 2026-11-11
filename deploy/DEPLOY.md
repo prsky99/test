@@ -207,3 +207,14 @@ frontend·admin 배포는 이전 칸(직전 버전 프로세스)을 남겨 즉�
   - `deploy`는 그 상태가 ready가 될 때까지 기다린다(`wait_snapshot`, 최대 600초, 넘어도 배포는 막지 않음). 그다음 데우고 전환한다. 결과는 배포 출력의 `report_snapshot: {state, seconds}`에 남는다.
   - 데우기 요청마다 Server-Timing을 `warmed[].server_timing`에 남긴다.
 - 그래서 frontend 배포는 스냅샷을 만드는 몇 분만큼 길어진다. 속도 정책(첫 요청 2초)을 위한 대가다.
+
+## 배포 잠금은 도구가 확인한다 (2026-11-11)
+- 11-11에 다른 팀이 잠금을 쥐고 있는 동안 배포를 시작했다가 게이트에서 멈춘 일, 잠금이 풀리길 기다리거나 짐작한 일이 여러 번 있었다.
+- 이제 `./agentcon deploy …`와 `./agentcon worker-deploy …`에는 `--lock-owner <팀>`이 반드시 있어야 한다.
+  - 팀 이름: 운영·SRE, 검색과 RAG, 성장·유통, AI AD Coin, 오류 감시, 프론트앤드, PM
+- 도구는 `logs/ops/status-board.md`의 `## 배포 잠금` 칸을 읽는다.
+  - 다른 팀 줄(팀 이름으로 시작하지 않는 줄 포함)이 있으면 `deploy_lock_held_by_another_team`으로 거부하고 그 줄을 보여 준다.
+  - 칸이 비었거나 `(비어 있음)`이면 `deploy_lock_not_taken`으로 거부한다. 먼저 `- <팀> <시각> <역할> <버전>` 한 줄을 적는다.
+  - 자기 팀 줄만 있으면 그대로 진행한다(base 확인 → 게이트 → 배포).
+- 현황판 파일이 없는 곳(시험, 다른 머신)에서는 검사하지 않는다.
+- 끝나면 자기 줄을 지우고 `(비어 있음)`으로 되돌린다. 현황판은 바뀔 때마다 `logs/ops/status-board-history/`에 사본이 남는다(`ops_auto.py board-snapshot`).

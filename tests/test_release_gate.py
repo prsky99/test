@@ -59,7 +59,9 @@ def test_deploy_command_runs_the_gate_only_for_frontend(monkeypatch):
 
     monkeypatch.setattr(service_deploy, 'Deployment', Manager)
     for argv in (['deploy', 'frontend', 'f1'], ['deploy', 'admin', 'a1'], ['deploy', 'frontend', 'f2', '--skip-gate']):
-        monkeypatch.setattr('sys.argv', ['service_deploy', *argv])
+        from scripts import service_deploy as _sd
+        monkeypatch.setattr(_sd, 'check_board_lock', lambda root, owner: None)
+        monkeypatch.setattr('sys.argv', ['service_deploy', *argv, '--lock-owner', '운영·SRE'])
         service_deploy.main()
     assert gated == ['f1'] and deployed == [('frontend', 'f1'), ('admin', 'a1'), ('frontend', 'f2')]
 

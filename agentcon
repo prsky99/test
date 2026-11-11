@@ -278,10 +278,11 @@ Commands:
   rollback frontend|admin
                     Managed mode: route to the previous web release
   package <release> Prepare a fixed release without switching traffic
-  deploy frontend|admin <release>
+  deploy frontend|admin <release> --lock-owner <team>
                     Managed mode: verify and activate a prepared web release
-  worker-deploy jobs|execution <release>
+  worker-deploy jobs|execution <release> --lock-owner <team>
                     Managed mode: drain and replace one background service
+  (11-11: both refuse unless logs/ops/status-board.md '## 배포 잠금' holds your team's line and no other team's)
   (deploy and worker-deploy delete old releases after a verified switch; --no-prune keeps them)
   prune-releases [--apply] [--keep N] [--min-age-days D]
                     Managed mode: list (or with --apply delete) old releases;

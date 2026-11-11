@@ -1190,6 +1190,47 @@ def release_gate(root, release, runner=subprocess.run):
         raise SystemExit('release_gate_failed: %s (see the test output above)' % release)
 
 
+# 11-11: teams started deploys while another team held the status-board deploy lock (one stopped at the
+# gate, others waited or guessed). deploy and worker-deploy now read the lock section and require the
+# caller's own lock line; another team's line refuses the deploy.
+BOARD_TEAMS = ('운영·SRE', '검색과 RAG', '성장·유통', 'AI AD Coin', '오류 감시', '프론트앤드', 'PM')
+
+
+def board_locks(board):
+    """[(team or None, line)] for each line under '## 배포 잠금' in the status board."""
+    try:
+        text = Path(board).read_text(encoding='utf-8')
+    except OSError:
+        return None
+    locks, inside = [], False
+    for line in text.splitlines():
+        if line.startswith('## '):
+            inside = line.strip() == '## 배포 잠금'
+            continue
+        entry = line.strip().lstrip('-*').strip().strip('*').strip()
+        if not inside or not entry or entry.startswith('(비어 있음)'):
+            continue
+        team = next((t for t in sorted(BOARD_TEAMS, key=len, reverse=True) if entry.startswith(t)), None)
+        locks.append((team, entry))
+    return locks
+
+
+def check_board_lock(root, owner):
+    """Refuse unless the status board's lock section holds OWNER's line and no other team's line."""
+    if owner not in BOARD_TEAMS:
+        raise RuntimeError('deploy_lock_owner_unknown: --lock-owner must be one of ' + ', '.join(BOARD_TEAMS))
+    locks = board_locks(Path(root) / 'logs/ops/status-board.md')
+    if locks is None:
+        return None   # no status board on this machine (tests, another host)
+    others = [entry for team, entry in locks if team != owner]
+    if others:
+        raise RuntimeError('deploy_lock_held_by_another_team: ' + ' / '.join(e[:120] for e in others)
+                           + ' (wait for that team to clear its line, or ask the PM)')
+    if not locks:
+        raise RuntimeError('deploy_lock_not_taken: write "- %s <time> <role> <release>" under ## 배포 잠금 first' % owner)
+    return [entry for _, entry in locks]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', default=str(Path(__file__).resolve().parents[1]))
@@ -1202,6 +1243,7 @@ def main():
     deploy.add_argument('--force-base', action='store_true', help='deploy although the release was built on a release that is no longer active')
     deploy.add_argument('--skip-gate', action='store_true', help='emergency only: deploy a frontend release without scripts.release_gate')
     deploy.add_argument('--no-prune', action='store_true', help='keep old releases after a successful deploy')
+    deploy.add_argument('--lock-owner', required=True, help='your team; the status board lock section must hold your line only')
     rollback = commands.add_parser('rollback'); rollback.add_argument('role', choices=PORTS)
     commands.add_parser('status')
     reclaim = commands.add_parser('reclaim-standby', help='stop previous web slots retained longer than --min-age')
@@ -1221,12 +1263,14 @@ def main():
     worker = commands.add_parser('worker-deploy'); worker.add_argument('role', choices=('jobs', 'execution')); worker.add_argument('release')
     worker.add_argument('--no-prune', action='store_true', help='keep old releases after a successful deploy')
     worker.add_argument('--force-base', action='store_true', help='deploy although the release was built on a release that is no longer active')
+    worker.add_argument('--lock-owner', required=True, help='your team; the status board lock section must hold your line only')
     args = parser.parse_args()
     manager = Deployment(args.root)
     if args.command == 'package':
         with manager.lock():
             result = manager.package(args.release, args.base, None if args.from_tree else args.commit)
     elif args.command == 'deploy':
+        check_board_lock(args.root, args.lock_owner)
         forced = {'force_base': True} if args.force_base else {}
         if not args.force_base:
             manager.check_base(args.role, args.release)  # before the gate's minute of tests; deploy checks again
@@ -1249,6 +1293,7 @@ def main():
     elif args.command == 'cutover':
         result = manager.cutover(args.release, args.legacy_pid)
     elif args.command == 'worker-deploy':
+        check_board_lock(args.root, args.lock_owner)
         result = manager.deploy_worker(args.role, args.release, **({'force_base': True} if args.force_base else {}))
         if not args.no_prune:
             result['pruned'] = manager.prune_after_deploy()
