@@ -155,3 +155,19 @@ def test_a_failed_deploy_deletes_nothing(monkeypatch):
 def service_deploy_module():
     from scripts import service_deploy
     return service_deploy
+
+
+def test_releases_waiting_on_the_board_or_pinned_survive_the_after_deploy_prune(deployment):
+    """11-12: the post-deploy prune removed the morning bundle r2 and am08-jobs-r1 while they waited for their turn."""
+    manager, now = deployment
+    board = manager.root / 'logs/ops/status-board.md'
+    board.parent.mkdir(parents=True)
+    board.write_text('# 현황판\n\n## 배포 대기\n| 검색과 RAG | r10 묶음(frontend·jobs) | 대기 |\n'
+                     '| 운영·SRE | r100 is not r11 | 대기 |\n\n## 넘기는 일\n| r12 here is not a waiting release |\n',
+                     encoding='utf-8')
+    (manager.directory / 'pinned-releases.txt').write_text('r13   # morning bundle pair\n# r14 commented out\n')
+    assert manager.waiting_releases(set(names(manager))) == {'r10', 'r11', 'r13'}
+    manager.prune_after_deploy()
+    left = names(manager)
+    assert {'r10', 'r11', 'r13'} <= set(left)                 # waiting or pinned: kept although old
+    assert 'r12' not in left and 'r14' not in left            # another section or a comment does not protect

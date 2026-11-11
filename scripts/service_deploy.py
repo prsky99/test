@@ -1115,7 +1115,8 @@ class Deployment:
                     created = path.stat().st_mtime
                 found.append((created, path.name))
             found.sort(reverse=True)
-            protected = (named | self.running_releases()) & {name for _, name in found}
+            protected = (named | self.running_releases() | self.waiting_releases({name for _, name in found})) \
+                & {name for _, name in found}
             recent = {name for _, name in found[:max(0, keep)]}
             young = {name for created, name in found if now - created < min_age_days * 86400}
             remove = [name for _, name in reversed(found) if name not in protected | recent | young]
@@ -1136,6 +1137,33 @@ class Deployment:
                 'kept_young': len(young - recent - protected), 'to_remove': len(remove),
                 'removed': len(removed), 'applied': apply, 'oldest_removed': remove[:3], 'newest_removed': remove[-3:],
                 'unused_environments': environments}
+
+    def waiting_releases(self, names):
+        """Releases a team is waiting to deploy: named in the status board's '## 배포 대기' section or listed in
+        gateway-data/services/pinned-releases.txt (one name per line, '#' starts a comment).
+
+        11-12: the post-deploy prune removed the morning bundle r2 and am08-jobs-r1, packaged more than six hours
+        earlier and still waiting for their turn. A name counts when it appears there as a whole word."""
+        texts = []
+        board = self.root / 'logs/ops/status-board.md'
+        try:
+            lines = board.read_text(encoding='utf-8').split('\n')
+        except OSError:
+            lines = []
+        inside = False
+        for line in lines:
+            if line.startswith('## '):
+                inside = line.strip() == '## 배포 대기'
+                continue
+            if inside:
+                texts.append(line)
+        try:
+            for line in (self.directory / 'pinned-releases.txt').read_text(encoding='utf-8').splitlines():
+                texts.append(line.split('#', 1)[0])
+        except OSError:
+            pass
+        words = set(re.findall(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,79}', '\n'.join(texts)))
+        return {name for name in names if name in words}
 
     def prune_after_deploy(self):
         """After a verified deploy keep only what is deployed (11-04 user decision).
