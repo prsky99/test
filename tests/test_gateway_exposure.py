@@ -144,3 +144,22 @@ def test_answers_are_classified_from_their_own_text():
     assert classify({'isError': True, 'content': []}) == 'failed'
     assert standing({'failed': 1, 'tools': {'other': {'failed': 1}}}, 'mine') == 0  # another tool failed
     assert standing({'succeeded': 1, 'failed': 1}) == 1 and standing({'failed': 2}) == -1
+
+
+def test_chat_meaning_order_embeds_a_candidate_text_once():
+    """11-11: each Chat answer re-embedded the same ten candidate texts (0.3 s)."""
+    from agent_market.concierge import fast_chat
+    fast_chat._SEMANTIC_VECTORS.clear()
+    calls = []
+
+    class Engine:
+        embeddings_enabled = True
+        embed_model = 'fixture'
+
+        def embed_texts(self, texts, timeout_seconds=None):
+            calls.append(list(texts))
+            return [[1.0, 0.0] if 'pdf' in text.lower() else [0.0, 1.0] for text in texts]
+    items = [{'name': 'Weather', 'tools_schema': [{'name': 'forecast'}]}, {'name': 'PDF', 'tools_schema': [{'name': 'pdf_text'}]}]
+    assert fast_chat.semantic_first(Engine(), 'pdf to text', items)[0]['name'] == 'PDF'
+    assert fast_chat.semantic_first(Engine(), 'read a pdf', items)[0]['name'] == 'PDF'
+    assert len(calls[0]) == 3 and calls[1] == ['read a pdf']  # the second answer embeds only the task

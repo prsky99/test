@@ -409,6 +409,11 @@ def _cosine(a, b):
     return sum(x * y for x, y in zip(a, b)) / (na * nb) if na and nb else 0.0
 
 
+SEMANTIC_MEMO = 5000  # candidate texts kept with their vectors (768 floats each, about 30 MB in all)
+_SEMANTIC_VECTORS = __import__('collections').OrderedDict()
+_SEMANTIC_LOCK = __import__('threading').Lock()
+
+
 def semantic_first(engine, task, items):
     """The ranked list with the closest tool first; one candidate needs no embedding call."""
     return items if len(items) < 2 else semantic_rank(engine, task, items)[0]
@@ -429,12 +434,26 @@ def semantic_rank(engine, task, items):
         tool = (item.get('tools_schema') or [{}])[0] or {}
         docs.append((str(item.get('name') or '')[:80] + ': ' + str(tool.get('name') or '') + ' ' +
                      str(tool.get('description') or item.get('description') or '')[:300]).strip() or 'agent')
+    # A listing's text is embedded once per process (11-11: 0.3 s of each Chat answer re-embedded the
+    # same ten candidate texts); only the task and texts not seen before go to the embedding model.
+    model = getattr(engine, 'embed_model', None)
+    missing = [doc for doc in dict.fromkeys(docs) if (model, doc) not in _SEMANTIC_VECTORS]
     try:
-        vectors = engine.embed_texts([str(task)[:1000]] + docs, timeout_seconds=SEMANTIC_BUDGET)
+        fresh = engine.embed_texts([str(task)[:1000]] + missing, timeout_seconds=SEMANTIC_BUDGET)
     except Exception:
         return items, None
-    if not isinstance(vectors, list) or len(vectors) != len(items) + 1:
+    if not isinstance(fresh, list) or len(fresh) != len(missing) + 1:
         return items, None
+    with _SEMANTIC_LOCK:
+        for doc, vector in zip(missing, fresh[1:]):
+            _SEMANTIC_VECTORS[(model, doc)] = vector
+            _SEMANTIC_VECTORS.move_to_end((model, doc))
+        while len(_SEMANTIC_VECTORS) > SEMANTIC_MEMO:
+            _SEMANTIC_VECTORS.popitem(last=False)
+        known = [_SEMANTIC_VECTORS.get((model, doc)) for doc in docs]
+    if any(vector is None for vector in known):
+        return items, None
+    vectors = [fresh[0]] + known
     scores = [_cosine(vectors[0], vector) for vector in vectors[1:]]
     best = max(range(len(items)), key=lambda i: (scores[i], -i))
     return ([items[best]] + items[:best] + items[best + 1:] if best else items), scores[best]
