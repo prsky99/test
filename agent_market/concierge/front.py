@@ -3124,7 +3124,7 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
         from ..workflow_webapp import export_config, build_package
         from ..workflows import public_template
         headers = workflow_cors()
-        if not front.security.allow_probe(front.security.resolve_ip(req), base_limit=60):
+        if not front.security.allow_feature(front.security.resolve_ip(req), 'workflow_webapp', 60):
             return JSONResponse({'error':'Too many downloads. Please try again shortly.'}, status_code=429, headers=headers)
         if not 0 < template_id < 2**31:
             return JSONResponse({'error':'Published workflow not found.'}, status_code=404, headers=headers)
@@ -3201,7 +3201,7 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
     @router.post('/api/workflows/events/{workflow_id}')
     async def api_workflow_event(workflow_id: int,req: Request):
         from ..workflows import WorkflowError
-        if not front.security.allow_probe(front.security.resolve_ip(req),base_limit=20):raise HTTPException(429,'Event limit reached.')
+        if not front.security.allow_feature(front.security.resolve_ip(req),'workflow_event',20):raise HTTPException(429,'Event limit reached.')
         raw=await read_body(req)
         try:result=front.workflows.receive_event(workflow_id,raw,req.headers.get('x-workflow-timestamp'),req.headers.get('x-workflow-event-id'),req.headers.get('x-workflow-signature'))
         except WorkflowError:raise HTTPException(403,'Event rejected.')
@@ -3211,7 +3211,7 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
     async def api_rum(req: Request):
         # Field Core Web Vitals beacon (rum.py). Nothing identifying is stored; a bad or limited beacon is dropped quietly.
         from . import rum
-        if front.security.allow_probe(front.security.resolve_ip(req), base_limit=30):
+        if front.security.allow_feature(front.security.resolve_ip(req), 'rum', 30):
             try:
                 rum.record(await read_body(req))
             except (rum.RumError, OSError):

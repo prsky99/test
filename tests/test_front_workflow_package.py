@@ -47,7 +47,7 @@ def test_private_inactive_unsafe_or_absent_workflow_is_not_exported(tmp_path):
         response = client.get(f'/api/workflows/{identity}/webapp')
         assert response.status_code == 404
         assert response.headers.get('content-type','').startswith(('application/json','application/problem+json'))
-    front.security.allow_probe = lambda *args, **kwargs: False
+    front.security.allow_feature = lambda *args, **kwargs: False   # the web app has its own bucket (11-11)
     assert client.get('/api/workflows/2/webapp').status_code == 429
     client.close(); store._db.close()
 

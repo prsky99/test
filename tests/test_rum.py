@@ -63,3 +63,21 @@ def test_pages_mark_the_leading_number_and_label_the_close_button():
     script = (ROOT / 'new/en/assets/panels-bootstrap.js').read_text()
     assert 'navigator.globalPrivacyControl' in script and 'sendBeacon("/api/rum"' in script
     assert 'document.cookie' not in script and 'localStorage' not in script.split('five-point step 3')[1]
+
+
+def test_page_signals_do_not_use_up_the_test_run_limit(monkeypatch, tmp_path):
+    """11-11 PM: 12 RUM beacons then Run test answered 429 (one 'probe' bucket per IP for both).
+
+    Beacons, workflow events and workflow web apps now have buckets of their own; the execution routes still
+    share one, and every limit number is unchanged."""
+    from agent_market.concierge.front import create_front_app
+    from tests.test_gateway import populated
+    monkeypatch.setenv('LOG_DIR', str(tmp_path))
+    front = populated().app.state.front
+    monkeypatch.setattr(front.security.redis, 'is_available', lambda: False)   # in-process windows only
+    client = TestClient(create_front_app(front))
+    for _ in range(30):                                                      # a visitor browsing a few pages
+        assert client.post('/api/rum', content=beacon(), headers={'content-type': 'text/plain'}).status_code == 204
+    statuses = [client.post('/api/test/execute', json={}).status_code for _ in range(11)]
+    assert statuses[:10] == [400] * 10          # reached the handler: not limited by the beacons
+    assert statuses[10] == 429                  # the test-run limit itself is still 10 a minute
