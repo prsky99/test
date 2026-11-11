@@ -58,6 +58,13 @@ def retrieval_text(task):
     # A URL is the task's input, not a capability: "give me the main text: https://…/news" found
     # nothing while the same request without it found page readers (11-11 real task p04).
     text = re.sub(r'(?:https?://|www\.)\S+', ' web page ', str(task or ''), flags=re.I)
+    # "Need a tool that returns current price of BTC in USD as JSON": "returns" and "json" became
+    # required capability words and nothing matched, while "current price of BTC in USD" finds price
+    # tools (11-11 real task a02). What the tool returns is the capability; its format is a condition.
+    framed = OUTPUT_FRAME.sub('', text)
+    framed = OUTPUT_FORMAT.sub('', framed)
+    if framed.strip():
+        text = framed
     text = re.sub(r'\b([a-z]+)\s+sending\b', r'send \1', text, flags=re.I)
     text = re.sub(r'\bsending\b', 'send', text, flags=re.I)
     # Tools say "postgres" (postgres__sql_read); the lexical index does not equate the two spellings.
@@ -75,6 +82,13 @@ def retrieval_text(task):
     if terms and set(terms) <= DATABASE_PRODUCTS:
         text += ' database'
     return text
+
+
+OUTPUT_FRAME = re.compile(
+    r'^\s*(?:i\s+)?(?:need|want|looking\s+for|find(?:\s+me)?|get(?:\s+me)?)\s+(?:an?\s+|the\s+|some\s+)?'
+    r'(?:tool|agent|api|endpoint|mcp\s+server|server|service)\s+(?:that|which|to)\s+'
+    r'(?:returns?|gives?|provides?|outputs?)\s+(?:me\s+|us\s+|back\s+)?', re.I)
+OUTPUT_FORMAT = re.compile(r'\s+(?:as|in)\s+(?:a\s+)?(?:json|csv|xml|yaml)(?:\s+(?:format|object|response|output))?\s*[.!?]?\s*$', re.I)
 
 
 STATED_REQUIREMENT = re.compile(
