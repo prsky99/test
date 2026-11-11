@@ -129,6 +129,12 @@ def arguments_for(schema, sample, task_text):
             if alias in props and alias not in args:
                 args[alias] = value if not isinstance(value, list) else ','.join(map(str, value))
                 break
+        else:
+            # One value for a list field named in the plural ("cve" -> cves: [..], "address" -> addresses):
+            # an agent passes the one item it has (11-11 p05, a05 were called with {}).
+            plural = next((p for p in (key + 's', key + 'es') if (props.get(p) or {}).get('type') == 'array'), None)
+            if plural and plural not in args:
+                args[plural] = value if isinstance(value, list) else [value]
     for key in required:
         if key in args:
             continue

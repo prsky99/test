@@ -95,3 +95,14 @@ def test_enum_values_and_aliases_follow_the_schema():
     assert set(rts.arguments_for(schema, {'schema': {'type': 'object'}, 'instance': {'b': 1}}, 'x')) == {'value', 'schema'}
     tools = [{'name': 'reverse_geocode', 'description': 'coordinates to address'}, {'name': 'geocode_address', 'description': 'address to coordinates'}]
     assert rts.pick_tool(tools, 'forward geocoding of an address', {'reverse_geocode'})['name'] == 'geocode_address'
+
+
+def test_one_value_fills_a_plural_list_field():
+    """11-11 p05/a05: check_cves {cves: [..]} and geocode_address {addresses: [..]} were called with {}."""
+    from scripts.real_task_score import arguments_for
+    cves = {'type': 'object', 'required': ['cves'], 'properties': {'cves': {'type': 'array', 'items': {'type': 'string'}}}}
+    assert arguments_for(cves, {'cve': 'CVE-2024-3094'}, 'Is CVE-2024-3094 actively exploited?') == {'cves': ['CVE-2024-3094']}
+    addresses = {'type': 'object', 'properties': {'addresses': {'type': 'array', 'items': {'type': 'string'}}}}
+    assert arguments_for(addresses, {'address': '1600 Pennsylvania Avenue NW'}, 'Geocode') == {'addresses': ['1600 Pennsylvania Avenue NW']}
+    plain = {'type': 'object', 'properties': {'address': {'type': 'string'}}}
+    assert arguments_for(plain, {'address': 'x'}, 'Geocode') == {'address': 'x'}
