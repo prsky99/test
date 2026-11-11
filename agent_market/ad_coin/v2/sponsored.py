@@ -94,14 +94,16 @@ class SponsoredSlots:
                     break
         return chosen
 
-    def response(self, category, region, placement="explore", limit=MAX_CARDS):
-        """Booked cards for a placement; an empty list when nothing is booked or the region is not sold."""
+    def response(self, category, region, placement="explore", limit=MAX_CARDS, count=True):
+        """Booked cards for a placement; an empty list when nothing is booked or the region is not sold.
+        count=False serves the same cards without adding to the served counts (a request that may be a
+        replay, such as TLS 0-RTT early data)."""
         category = SITE_CATEGORIES.get(category, category)
         if category not in self.taxonomy or placement not in PLACEMENTS or type(limit) is not int \
                 or not 1 <= limit <= MAX_CARDS:
             raise ContractError("unsupported_targeting", 422)
         cards = self.cards(category, region)[:limit] if region in self.regions else []
-        if cards:
+        if cards and count:
             self._count(cards, category, region, placement)
         return {"label": LABEL, "disclosure": DISCLOSURE, "reward": None, "placement": placement, "cards": cards}
 

@@ -403,6 +403,9 @@ def test_ad_relay_gateway_lifecycle(store):  # noqa: F811
     assert viewer_session["view_requirement"]["min_duration_ms"] == 15000
     assert viewer_session["user_reward_atoms"] == "100"
 
+    # The same GET again (a retry, or a TLS 0-RTT replay) returns the same session, not 409 (11-12 PM)
+    assert gateway.open_viewer_session(dispatch_a2a["id"], dispatch_a2a["relay_token"]) == viewer_session
+
     # Wrong token rejected
     with pytest.raises(ContractError, match="invalid_relay_token"):
         gateway.open_viewer_session(dispatch_a2a["id"], "wrong-token-abc")
@@ -600,6 +603,9 @@ def test_ad_relay_http_routes(store):  # noqa: F811
     settle_res = client.post(f"/api/ad-coin/v2/relays/{dispatch_id}/settle", headers=staff)
     assert settle_res.status_code == 403 and settle_res.json()["error"]["code"] == "issuance_only"
 
-    # 9. Negative Test: View settled dispatch returns 409 closed
-    view_closed = client.get(f"/api/ad-coin/v2/relays/{dispatch_id}/view?token={relay_token}")
-    assert view_closed.status_code == 409
+    # 9. Settlement is closed (issuance only), so the dispatch stays 'viewed': the same GET again (a retry or
+    # a TLS 0-RTT replay) returns the same viewer session with 200, not 409 (11-12 PM); a wrong token is refused.
+    view_again = client.get(f"/api/ad-coin/v2/relays/{dispatch_id}/view?token={relay_token}")
+    assert view_again.status_code == 200 and view_again.json() == view_res.json()
+    wrong = client.get(f"/api/ad-coin/v2/relays/{dispatch_id}/view?token=wrong-token-abc")
+    assert wrong.status_code == 403

@@ -334,7 +334,9 @@ class AdRelayGateway:
             if row["expires_at"] <= now:
                 self.store.execute("relay_dispatch_expire", (disp_id,))
                 raise ContractError("relay_dispatch_expired", 409)
-            if row["status"] not in ("dispatched", "consented"):
+            # 'viewed' with the same token returns the same session again (11-12 PM: a retried or replayed
+            # GET, e.g. TLS 0-RTT, must not turn into 409); later states stay closed.
+            if row["status"] not in ("dispatched", "consented", "viewed"):
                 raise ContractError("viewer_session_closed", 409)
 
             if row["status"] == "consented":

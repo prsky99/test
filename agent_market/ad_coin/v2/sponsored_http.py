@@ -20,7 +20,9 @@ def router_for(slots) -> APIRouter:
         neither stored nor logged; only served counts per day, campaign, category, region and placement."""
         try:
             region = (region or request.headers.get("cf-ipcountry", "")).upper()[:2]
-            body = await run_in_threadpool(slots.response, category, region, placement, limit)
+            # Early-Data: 1 (RFC 8470) marks a request that may be replayed: answer it, but do not count it.
+            counted = request.headers.get("early-data", "") != "1"
+            body = await run_in_threadpool(slots.response, category, region, placement, limit, counted)
             return JSONResponse(body, headers={"Cache-Control": "private, max-age=60", "Vary": "CF-IPCountry",
                                                "X-Robots-Tag": "noindex"})
         except ContractError as exc:

@@ -197,3 +197,20 @@ def test_advertiser_report_shows_daily_served_counts_only(p1_suite):  # noqa: F8
     assert set(report['rows'][0]) == {'day', 'campaign_id', 'campaign', 'placement', 'task_category', 'region', 'served'}
     other = str(__import__('uuid').uuid4())
     assert sponsored_report(store, other, now_ms=NOW)['rows'] == []          # another advertiser sees nothing
+
+
+def test_early_data_requests_are_answered_but_not_counted(p1_suite):  # noqa: F811
+    """11-12 PM: a request marked Early-Data: 1 (RFC 8470, may be a TLS 0-RTT replay) gets the same cards and
+    adds nothing to the served counts."""
+    book_today(p1_suite, _activate_campaign(p1_suite))
+    slots = slots_for(p1_suite)
+    app = FastAPI()
+    app.include_router(router_for(slots))
+    client = TestClient(app)
+    url = '/api/ad-coin/v2/sponsored?placement=explore&category=research'
+    early = client.get(url, headers={'CF-IPCountry': 'US', 'Early-Data': '1'})
+    assert early.status_code == 200 and len(early.json()['cards']) == 1
+    assert sum(slots._served.values()) == 0
+    normal = client.get(url, headers={'CF-IPCountry': 'US'})
+    assert normal.json()['cards'] == early.json()['cards']
+    assert sum(slots._served.values()) == 1
