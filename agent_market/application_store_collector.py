@@ -99,8 +99,11 @@ class PostgresCollectorMixin:
                 if batch is None or now - batch[0] > CHECK_BATCH_SECONDS or not batch[1]:
                     if fresh or served:
                         break
-                    batch, fresh = (now, [row['id'] for row in self._collector_rows(
-                        sql, params + [per_host, max(limit, CHECK_BATCH)])]), True
+                    if batch is not None and len(batch) > 2 and batch[2] and now - batch[0] <= CHECK_BATCH_SECONDS:
+                        break   # complete ranking already handed out (see due_for_capability)
+                    size = max(limit, CHECK_BATCH)
+                    ids = [row['id'] for row in self._collector_rows(sql, params + [per_host, size])]
+                    batch, fresh = (now, ids, len(ids) < size), True
                     batches[key] = batch
                     if not batch[1]:
                         break
@@ -165,12 +168,19 @@ class PostgresCollectorMixin:
                 if batch is None or now - batch[0] > CAP_BATCH_SECONDS or not batch[1]:
                     if fresh or served:
                         break   # ranked during this call and nothing left, or a partial answer is enough
-                    batch, fresh = (now, [row['id'] for row in self._collector_rows('''SELECT id FROM (
+                    if batch is not None and len(batch) > 2 and batch[2] and now - batch[0] <= CAP_BATCH_SECONDS:
+                        break   # the last ranking was complete and has been handed out: wait for it to age
+                    size = max(limit, CAP_BATCH)
+                    ids = [row['id'] for row in self._collector_rows('''SELECT id FROM (
             SELECT id,cap_checked_at,ROW_NUMBER() OVER(PARTITION BY host ORDER BY cap_checked_at IS NOT NULL,cap_checked_at) AS rn
             FROM resources WHERE active=1 AND kind=%s AND health_status='healthy'
             AND (cap_checked_at IS NULL OR cap_checked_at<%s)) AS candidates
             WHERE rn<=%s ORDER BY cap_checked_at IS NOT NULL,cap_checked_at,random() LIMIT %s''',
-                        (kind, cutoff, per_host, max(limit, CAP_BATCH)))]), True
+                        (kind, cutoff, per_host, size))]
+                    # 11-11 22h: A2A ranked 152k rows of one host to return 2 ids, so the batch emptied at
+                    # once and the ranking ran 19 times a minute (2.1M blocks). A ranking shorter than its
+                    # LIMIT was complete: nothing else was due, so it is not repeated until it ages.
+                    batch, fresh = (now, ids, len(ids) < size), True
                     batches[key] = batch
                     if not batch[1]:
                         break

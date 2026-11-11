@@ -53,8 +53,12 @@ def test_due_pick_and_idle_cleanup_on_postgresql():
             first = store.due_for_capability(1000.0, 100.0, 1, per_host=2, kind='a2a')
             second = store.due_for_capability(1001.0, 100.0, 1, per_host=2, kind='a2a')
             assert len(first) == len(second) == 1 and first[0]['id'] != second[0]['id'] and len(ranked) == 1
-            # both ranked ids are taken; the next call ranks again (nothing was surveyed, so they are due again)
-            assert len(store.due_for_capability(1002.0, 100.0, 1, per_host=2, kind='a2a')) == 1 and len(ranked) == 2
+            # both ranked ids are taken and that ranking was complete (2 < its LIMIT): no new ranking until it
+            # ages (11-11 22h: A2A re-ranked 152k rows 19 times a minute to get 2 ids each time)
+            assert store.due_for_capability(1002.0, 100.0, 1, per_host=2, kind='a2a') == [] and len(ranked) == 1
+            from agent_market import application_store_collector as collector_module
+            later = 1001.0 + collector_module.CAP_BATCH_SECONDS + 1
+            assert len(store.due_for_capability(later, 100.0, 1, per_host=2, kind='a2a')) == 1 and len(ranked) == 2
             store._collector_rows = rank
             postgres_ann.install(store)
             calls = []
@@ -144,10 +148,12 @@ def test_health_due_pick_on_postgresql_ranks_narrow_ids_once_per_batch():
             assert len(first) == 2 and len(second) == 1                                   # 2 per host: 3 ids in all
             assert {r['id'] for r in first + second} <= set(ids) and len({r['id'] for r in first + second}) == 3
             assert all(r['name'].startswith('Agent') and 'rn' not in r for r in first + second)
-            # empty batch: the next call ranks again; a row postponed meanwhile is no longer handed out
+            # the complete ranking is handed out: nothing more until it ages, then a new ranking; a row
+            # postponed meanwhile is no longer handed out
+            assert store.due_for_check(1002.0, 10, per_host=2, kind='a2a') == [] and len(ranked) == 1
             store.postpone([first[0]['id']], 5000.0)
-            again = store.due_for_check(1002.0, 10, per_host=2, kind='a2a')
-            assert len(ranked) == 2 and first[0]['id'] not in {r['id'] for r in again}
+            again = store.due_for_check(1002.0 + module.CHECK_BATCH_SECONDS + 1, 10, per_host=2, kind='a2a')
+            assert len(ranked) == 2 and again and first[0]['id'] not in {r['id'] for r in again}
             # a batch row that stopped being due before it was taken is dropped on the re-read
             store.__dict__.pop('_cap_batches', None)
             store._collector_rows = rank
