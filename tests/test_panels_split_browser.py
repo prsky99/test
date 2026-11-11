@@ -52,15 +52,12 @@ def test_the_page_is_the_same_with_the_panels_in_a_shared_script(adoption, brows
     try:
         split = page.evaluate(STATE)
         fetched = any(p.endswith('/panels.js') for p in page.asked)
-        link = page.locator('a[href="/new/en/learn.html"], a[href="learn.html"]').first if name != 'learn.html' else \
-            page.locator('a[href="/new/en/explore.html"], a[href="explore.html"]').first
         target = 'learn' if name != 'learn.html' else 'explore'
-        if link.count():
-            link.click()
-            page.wait_for_timeout(400)
-            moved = page.evaluate(STATE)['visible']
-        else:
-            moved = None
+        link = page.locator('a[data-tab="%s"]:visible, a[href$="/%s.html"]:visible' % (target, target)).first
+        assert link.count(), 'no visible link to ' + target  # pages link absolutely (https://agentconcierge.biz/...)
+        link.click()
+        page.wait_for_timeout(400)
+        moved = page.evaluate(STATE)['visible']
     finally:
         context.close()
     with monkeypatch.context() as m:
@@ -74,8 +71,7 @@ def test_the_page_is_the_same_with_the_panels_in_a_shared_script(adoption, brows
     assert fetched, 'the split page did not load panels.js'
     assert split['templates'] == 0 and split['panels'] == whole['panels']
     assert split['visible'] == whole['visible']
-    if moved is not None:
-        assert target in moved, moved
+    assert target in moved, moved
 
 
 def test_without_panels_js_the_first_screen_still_shows(adoption, browser):  # noqa: F811
