@@ -211,6 +211,7 @@ class Traffic:
         self.status = Counter()        # "entry|client|2xx" -> requests
         self.distinct = defaultdict(set)  # "entry|client" -> {short salted digests}
         self.bots = Counter()          # "bot|entry" -> requests
+        self.bot_errors = Counter()    # "bot|entry|status[:cause]" -> 4xx/5xx answers to AI bots (11-11)
         self.mcp_clients = Counter()   # MCP clientInfo.name -> initialize requests (non-internal)
         self.rpc = Counter()           # "entry|rpc method|probe|real|unknown" -> requests (non-internal)
         self.errors = Counter()        # "entry|status|request shape|rpc method" -> 4xx/5xx protocol requests (non-internal)
@@ -235,6 +236,10 @@ class Traffic:
                 bucket.add(digest)
             if bot:
                 self.bots[bot + '|' + entry] += 1
+                # 11-11: ClaudeBot got 151 4xx on agent pages and the day file only said "4xx"; the
+                # status code (and our own block cause) per bot shows a 404 apart from a 429 or 403.
+                if isinstance(status, int) and status >= 400:
+                    self.bot_errors[bot + '|' + entry + '|' + str(status) + (':' + cause if cause else '')] += 1
             if entry == 'mcp' and client != 'internal' and method == 'POST':
                 name = mcp_client_name(body)
                 if name:
@@ -283,6 +288,7 @@ class Traffic:
     def _snapshot_locked(self):
         return {'day': self.day, 'updated': int(self.clock()), 'requests': dict(self.requests), 'status': dict(self.status),
                 'distinct': {k: len(v) for k, v in self.distinct.items()}, 'bots': dict(self.bots),
+                'bot_errors': dict(self.bot_errors),
                 'mcp_clients': dict(self.mcp_clients.most_common(200)),
                 'rpc': dict(self.rpc), 'errors': dict(self.errors.most_common(300))}
 
@@ -324,7 +330,7 @@ EXTERNAL = ('browser', 'ai_bot', 'verifier', 'script', 'headless', 'other')
 
 def load_day(root, day):
     merged = {'requests': Counter(), 'status': Counter(), 'distinct': Counter(), 'bots': Counter(), 'mcp_clients': Counter(),
-              'rpc': Counter(), 'errors': Counter()}
+              'rpc': Counter(), 'errors': Counter(), 'bot_errors': Counter()}
     for path in sorted(Path(root).glob(day + '.*.json')):
         try:
             data = json.loads(path.read_text())
@@ -396,11 +402,12 @@ def main(argv):
     print('\t'.join(keys))
     for row in rows:
         print('\t'.join(str(row[k]) for k in keys))
-    names, bots, growth = Counter(), Counter(), Counter()
+    names, bots, growth, bot_errors = Counter(), Counter(), Counter(), Counter()
     today = datetime.now(timezone.utc).date()
     for offset in range(days):
         d = load_day(root, (today - timedelta(days=offset)).isoformat())
         names.update(d['mcp_clients'])
+        bot_errors.update(d['bot_errors'])
         for key, value in d['bots'].items():
             bot, entry = key.split('|', 1)
             bots[bot] += value
@@ -409,6 +416,7 @@ def main(argv):
     print('MCP clients:', dict(names.most_common(15)))
     print('Bots:', dict(bots.most_common(15)))
     print('Growth pages by bot:', dict(growth.most_common(20)))
+    print('Bot 4xx/5xx (bot|entry|status[:cause]):', dict(bot_errors.most_common(20)))
     errors, rows_usage = Counter(), []
     for offset in range(days - 1, -1, -1):
         day = (today - timedelta(days=offset)).isoformat()

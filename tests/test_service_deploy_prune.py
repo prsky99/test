@@ -134,7 +134,7 @@ def test_deploy_commands_prune_only_after_success(monkeypatch, capsys, argv, exp
     from scripts import service_deploy
     Recorder.calls, Recorder.fail = [], False
     monkeypatch.setattr(service_deploy, 'Deployment', Recorder)
-    monkeypatch.setattr(service_deploy_module(), 'check_board_lock', lambda root, owner: None)
+    monkeypatch.setattr(service_deploy_module(), 'check_board_lock', lambda *a, **k: None)
     monkeypatch.setattr('sys.argv', ['service_deploy', *argv, '--lock-owner', '운영·SRE'])
     service_deploy.main()
     assert Recorder.calls == expected
@@ -145,7 +145,7 @@ def test_a_failed_deploy_deletes_nothing(monkeypatch):
     from scripts import service_deploy
     Recorder.calls, Recorder.fail = [], True
     monkeypatch.setattr(service_deploy, 'Deployment', Recorder)
-    monkeypatch.setattr(service_deploy_module(), 'check_board_lock', lambda root, owner: None)
+    monkeypatch.setattr(service_deploy_module(), 'check_board_lock', lambda *a, **k: None)
     monkeypatch.setattr('sys.argv', ['service_deploy', 'deploy', 'admin', 'x-r1', '--lock-owner', '운영·SRE'])
     with pytest.raises(RuntimeError):
         service_deploy.main()

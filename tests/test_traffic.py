@@ -176,3 +176,19 @@ def test_spec_answers_and_missing_well_known_files_are_counted_apart(tmp_path):
     assert any(k.startswith('well_known|404:spec|GET|/.well-known/oauth-protected-resource/mcp|') for k in keys)
     assert any(k.startswith('well_known|404|GET|/.well-known/agents.json|') for k in keys)
     assert any(k.startswith('well_known|404|GET|other|') for k in keys) and all(len(k) < 160 for k in keys)
+
+
+def test_ai_bot_errors_are_kept_per_status_and_cause(tmp_path):
+    """11-11: ClaudeBot's 151 agent-page 4xx showed only as '4xx'; the day file now keeps each code."""
+    from agent_market.concierge import traffic as t
+    ua = 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; ClaudeBot/1.0; +claudebot@anthropic.com)'
+    rec = t.Traffic(tmp_path)
+    rec.observe('GET', '/agent/5', 404, '216.73.217.9', ua)
+    rec.observe('GET', '/agent/6', 404, '216.73.217.9', ua)
+    rec.observe('GET', '/agents/compare/1-vs-2', 429, '216.73.217.9', ua)
+    rec.observe('GET', '/agent/7', 403, '216.73.217.9', ua, cause='blocked_ip')
+    rec.observe('GET', '/agent/8', 200, '216.73.217.9', ua)
+    rec.observe('GET', '/agent/9', 404, '203.0.113.9', 'Mozilla/5.0 Chrome/120')   # people are not bots
+    rec.flush()
+    day = t.load_day(tmp_path, rec.day)['bot_errors']
+    assert dict(day) == {'ClaudeBot|agent_pages|404': 2, 'ClaudeBot|rankings|429': 1, 'ClaudeBot|agent_pages|403:blocked_ip': 1}

@@ -1215,19 +1215,112 @@ def board_locks(board):
     return locks
 
 
-def check_board_lock(root, owner):
-    """Refuse unless the status board's lock section holds OWNER's line and no other team's line."""
+LOCK_STALE_SECONDS = 3600
+_LOCK_PID = re.compile(r'\bpid=(\d+)')
+_LOCK_DATE = re.compile(r'\b(\d{2})-(\d{2}) (\d{1,2}):(\d{2})\b')
+_LOCK_TIME = re.compile(r'\b(\d{1,2}):(\d{2})\b')
+
+
+def _pid_alive(pid):
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def session_pid():
+    """The nearest ancestor that is a Claude session (lives as long as the team's session), else the parent."""
+    pid = os.getppid()
+    for _ in range(8):
+        try:
+            out = subprocess.run(['ps', '-o', 'ppid=,args=', '-p', str(pid)], capture_output=True, text=True, timeout=5).stdout.strip()
+        except Exception:
+            break
+        if not out:
+            break
+        parent, _, args = out.partition(' ')
+        shell = args.split(' ', 1)[0].rsplit('/', 1)[-1] in ('zsh', 'bash', 'sh', 'dash', 'fish')
+        if not shell and '/claude-code/' in args:   # the session binary (its path has spaces)
+            return pid
+        pid = int(parent.strip() or 0)
+        if pid <= 1:
+            break
+    return os.getppid()
+
+
+def lock_staleness(entry, now=None, alive=_pid_alive):
+    """Why a lock line is stale ('pid_gone', 'older_than_60m') or None (11-11 PM decision).
+
+    The line names the holder's long-lived process as pid=<PID> (a Claude session: $PPID) and its time
+    as MM-DD HH:MM or HH:MM. 11-11: a lock outlived its session by four and a half hours."""
+    import datetime as dt
+    now = dt.datetime.now() if now is None else now
+    pid = _LOCK_PID.search(entry)
+    if pid and not alive(int(pid.group(1))):
+        return 'pid_gone'
+    stamp = _LOCK_DATE.search(entry)
+    try:
+        if stamp:
+            month, day, hour, minute = map(int, stamp.groups())
+            at = now.replace(month=month, day=day, hour=hour, minute=minute, second=0, microsecond=0)
+            if at > now + dt.timedelta(days=1):
+                at = at.replace(year=now.year - 1)
+        else:
+            clock = _LOCK_TIME.search(entry)
+            if not clock:
+                return None
+            at = now.replace(hour=int(clock.group(1)), minute=int(clock.group(2)), second=0, microsecond=0)
+            if at > now:
+                at -= dt.timedelta(days=1)
+    except ValueError:
+        return None
+    return 'older_than_60m' if (now - at).total_seconds() > LOCK_STALE_SECONDS else None
+
+
+def check_board_lock(root, owner, take_stale=False, now=None, alive=_pid_alive):
+    """Refuse unless the status board's lock section holds OWNER's line and no other team's live line.
+
+    With take_stale, another team's stale line (its pid gone or older than 60 minutes) is replaced by
+    OWNER's line that names the line taken over, and the takeover is appended to logs/ops/deploy-lock-takeovers.md."""
+    import datetime as dt
     if owner not in BOARD_TEAMS:
         raise RuntimeError('deploy_lock_owner_unknown: --lock-owner must be one of ' + ', '.join(BOARD_TEAMS))
-    locks = board_locks(Path(root) / 'logs/ops/status-board.md')
+    board = Path(root) / 'logs/ops/status-board.md'
+    locks = board_locks(board)
     if locks is None:
         return None   # no status board on this machine (tests, another host)
-    others = [entry for team, entry in locks if team != owner]
-    if others:
-        raise RuntimeError('deploy_lock_held_by_another_team: ' + ' / '.join(e[:120] for e in others)
+    others = [(entry, lock_staleness(entry, now, alive)) for team, entry in locks if team != owner]
+    live = [entry for entry, stale in others if not stale]
+    if live:
+        raise RuntimeError('deploy_lock_held_by_another_team: ' + ' / '.join(e[:120] for e in live)
                            + ' (wait for that team to clear its line, or ask the PM)')
+    if others and not take_stale:
+        raise RuntimeError('deploy_lock_stale: ' + ' / '.join(f'{e[:120]} [{why}]' for e, why in others)
+                           + ' (another team\'s line is stale; take it over with --take-stale-lock)')
+    if others:
+        stamp = (now or dt.datetime.now()).strftime('%m-%d %H:%M')
+        taken = '; '.join(f'{e[:100]} [{why}]' for e, why in others)
+        text = board.read_text(encoding='utf-8')
+        lines, inside, replaced = text.split('\n'), False, False
+        for i, line in enumerate(lines):
+            if line.startswith('## '):
+                inside = line.strip() == '## 배포 잠금'
+                continue
+            entry = line.strip().lstrip('-*').strip().strip('*').strip()
+            if inside and any(entry == e for e, _ in others):
+                lines[i] = None if replaced else (f'- {owner} {stamp} pid={session_pid()} 넘겨받음(오래된 잠금): {taken}')
+                replaced = True
+        board.write_text('\n'.join(l for l in lines if l is not None), encoding='utf-8')
+        log = Path(root) / 'logs/ops/deploy-lock-takeovers.md'
+        with log.open('a', encoding='utf-8') as fh:
+            fh.write(f'- {stamp} {owner} took over: {taken}\n')
+        return [f'{owner} {stamp} took over: {taken}']
     if not locks:
-        raise RuntimeError('deploy_lock_not_taken: write "- %s <time> <role> <release>" under ## 배포 잠금 first' % owner)
+        raise RuntimeError('deploy_lock_not_taken: write "- %s <MM-DD HH:MM> pid=<session PID, $PPID> <role> <release>" '
+                           'under ## 배포 잠금 first' % owner)
     return [entry for _, entry in locks]
 
 
@@ -1244,6 +1337,7 @@ def main():
     deploy.add_argument('--skip-gate', action='store_true', help='emergency only: deploy a frontend release without scripts.release_gate')
     deploy.add_argument('--no-prune', action='store_true', help='keep old releases after a successful deploy')
     deploy.add_argument('--lock-owner', required=True, help='your team; the status board lock section must hold your line only')
+    deploy.add_argument('--take-stale-lock', action='store_true', help="take over another team's stale lock line (pid gone or older than 60 minutes)")
     rollback = commands.add_parser('rollback'); rollback.add_argument('role', choices=PORTS)
     commands.add_parser('status')
     reclaim = commands.add_parser('reclaim-standby', help='stop previous web slots retained longer than --min-age')
@@ -1264,13 +1358,14 @@ def main():
     worker.add_argument('--no-prune', action='store_true', help='keep old releases after a successful deploy')
     worker.add_argument('--force-base', action='store_true', help='deploy although the release was built on a release that is no longer active')
     worker.add_argument('--lock-owner', required=True, help='your team; the status board lock section must hold your line only')
+    worker.add_argument('--take-stale-lock', action='store_true', help="take over another team's stale lock line (pid gone or older than 60 minutes)")
     args = parser.parse_args()
     manager = Deployment(args.root)
     if args.command == 'package':
         with manager.lock():
             result = manager.package(args.release, args.base, None if args.from_tree else args.commit)
     elif args.command == 'deploy':
-        check_board_lock(args.root, args.lock_owner)
+        check_board_lock(args.root, args.lock_owner, args.take_stale_lock)
         forced = {'force_base': True} if args.force_base else {}
         if not args.force_base:
             manager.check_base(args.role, args.release)  # before the gate's minute of tests; deploy checks again
@@ -1293,7 +1388,7 @@ def main():
     elif args.command == 'cutover':
         result = manager.cutover(args.release, args.legacy_pid)
     elif args.command == 'worker-deploy':
-        check_board_lock(args.root, args.lock_owner)
+        check_board_lock(args.root, args.lock_owner, args.take_stale_lock)
         result = manager.deploy_worker(args.role, args.release, **({'force_base': True} if args.force_base else {}))
         if not args.no_prune:
             result['pruned'] = manager.prune_after_deploy()

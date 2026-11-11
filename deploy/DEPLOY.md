@@ -218,3 +218,6 @@ frontend·admin 배포는 이전 칸(직전 버전 프로세스)을 남겨 즉�
   - 자기 팀 줄만 있으면 그대로 진행한다(base 확인 → 게이트 → 배포).
 - 현황판 파일이 없는 곳(시험, 다른 머신)에서는 검사하지 않는다.
 - 끝나면 자기 줄을 지우고 `(비어 있음)`으로 되돌린다. 현황판은 바뀔 때마다 `logs/ops/status-board-history/`에 사본이 남는다(`ops_auto.py board-snapshot`).
+- 오래된 잠금(11-11 PM 결정): 잠금 줄에는 `pid=<세션 PID>`(Claude 세션의 Bash에서는 `$PPID`)와 `MM-DD HH:MM` 시각을 적는다. 예: `- 운영·SRE 11-11 11:50 pid=45463 frontend warm-frontend-20261111-r1`
+  - 다른 팀 줄의 PID가 없거나 60분이 지났으면 `deploy_lock_stale`로 알린다. `--take-stale-lock`을 붙이면 그 줄을 내 줄(`넘겨받음(오래된 잠금): <원래 줄> [pid_gone|older_than_60m]`)로 바꾸고, `logs/ops/deploy-lock-takeovers.md`에 기록한 뒤 진행한다.
+  - 살아 있는 잠금은 넘겨받을 수 없다. 오늘(11-11)은 세션이 끝난 뒤 잠금이 4시간 반 남은 일이 있었다.
