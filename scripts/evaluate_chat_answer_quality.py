@@ -44,9 +44,12 @@ if config.workspace_model_enabled:
     from agent_market.concierge.llm import LocalLLM
     # 11-11: share the model server's 4 slots with the running services, from the batch share only.
     os.environ.setdefault('AGENTCON_PROJECT_ROOT', ROOT)
+    import inspect
+    # Releases before dc3f8dcd have no shared slots (11-12 00:0x: the gate's active-release run failed on slot_kind).
+    slots = {'slot_kind': 'long'} if 'slot_kind' in inspect.signature(LocalLLM.__init__).parameters else {}
     llm = LocalLLM(config.workspace_model_url, config.workspace_model_name, timeout=2, lead=False, http=rag.http,
                    concurrency=int(os.environ.get('EVAL_LLM_CONCURRENCY') or 2), provider=config.workspace_model_provider,
-                   allow_http=config.workspace_model_allow_http, slot_kind='long')
+                   allow_http=config.workspace_model_allow_http, **slots)
 from agent_market.concierge import fast_chat
 class _Journal:
     def begin(self, *a, **k): return self
