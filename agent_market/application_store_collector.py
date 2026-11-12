@@ -53,6 +53,16 @@ class PostgresCollectorMixin:
                 max_bytes=MAX_COLLECTOR_BYTES).fetchall()
         return [{key: row[key] for key in row.keys() if key != 'rn'} for row in rows]
 
+    def _rows_by_id(self, ids):
+        """Whole rows for IDS, 200 at a time: a statement binds at most 256 values (11-12: the x402 health
+        loop asked for up to 2 x its batch at once and failed every round with invalid_parameters)."""
+        rows = {}
+        for start in range(0, len(ids), 200):
+            chunk = ids[start:start + 200]
+            rows.update({row['id']: row for row in self._collector_rows(
+                'SELECT * FROM resources WHERE id IN (' + ','.join(['%s'] * len(chunk)) + ')', tuple(chunk))})
+        return rows
+
     def due_for_check(self, now, limit, per_host=None, kind=None):
         _number(now); _limit(limit)
         if per_host is not None: _limit(per_host)
@@ -108,8 +118,7 @@ class PostgresCollectorMixin:
                     if not batch[1]:
                         break
                 chunk = [batch[1].pop(0) for _ in range(min(limit - len(served), len(batch[1])))]
-                rows = {row['id']: row for row in self._collector_rows(
-                    'SELECT * FROM resources WHERE id IN (' + ','.join(['%s'] * len(chunk)) + ')', tuple(chunk))}
+                rows = self._rows_by_id(chunk)
                 served += [rows[rid] for rid in chunk if rid in rows and still_due(rows[rid])]
         return served
 
@@ -185,8 +194,7 @@ class PostgresCollectorMixin:
                     if not batch[1]:
                         break
                 chunk = [batch[1].pop(0) for _ in range(min(limit - len(served), len(batch[1])))]
-                rows = {row['id']: row for row in self._collector_rows(
-                    'SELECT * FROM resources WHERE id IN (' + ','.join(['%s'] * len(chunk)) + ')', tuple(chunk))}
+                rows = self._rows_by_id(chunk)
                 for rid in chunk:
                     row = rows.get(rid)
                     checked = row.get('cap_checked_at') if row else None

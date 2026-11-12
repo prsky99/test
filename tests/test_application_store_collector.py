@@ -34,7 +34,8 @@ def test_selector_and_host_caps_are_bound_not_interpolated():
     collector = CapturingCollector()
     text = "mcp' OR 1=1 --"
     collector.due_for_check(100, 10, per_host=2, kind=[text, 'a2a'])
-    assert text not in collector.statement and collector.parameters == [text, 'a2a', 100, 2, 10]
+    # The ranking asks for a whole batch (CHECK_BATCH, 18db93cf), not the caller's limit.
+    assert text not in collector.statement and collector.parameters == [text, 'a2a', 100, 2, 1000]
     assert 'ROW_NUMBER()' in collector.statement
 
 
@@ -90,3 +91,26 @@ def test_actual_native_current_collector_parity_and_concurrent_observation_owner
     assert len(result['checks']) >= 14 and all(value is True for value in result['checks'].values())
     assert result['temporary_cluster_removed'] and result['provider_calls'] == result['production_actions'] == 0
     assert not result['full_application_ready']
+
+
+class RankingCollector(PostgresCollectorMixin):
+    """Ranking returns 1,000 due ids; whole-row reads must bind at most 256 values each."""
+    def __init__(self):
+        self.bound = []
+
+    def _collector_rows(self, sql, params=()):
+        if 'ROW_NUMBER()' in sql:
+            return [{'id': rid} for rid in range(1, 1001)]
+        assert len(params) <= 256, len(params)  # _values refuses more (invalid_parameters)
+        self.bound.append(len(params))
+        return [{'id': rid, 'active': 1, 'health_status': 'healthy', 'next_check_at': None, 'kind': 'x402'}
+                for rid in params]
+
+
+def test_a_large_health_batch_reads_rows_in_bounded_statements():
+    """11-12 10:54~: the x402 health loop asked for 2 x its batch (over 256 ids) in one IN list and every
+    round failed with invalid_parameters; rows are now read 200 ids at a time."""
+    collector = RankingCollector()
+    rows = collector.due_for_check(100, 600, per_host=2, kind='x402')
+    assert len(rows) == 600 and [row['id'] for row in rows] == list(range(1, 601))
+    assert collector.bound == [200, 200, 200]
