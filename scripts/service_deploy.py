@@ -40,7 +40,7 @@ WARM_OBJECTS = ('csv files', 'pdf invoices', 'news articles', 'github issues', '
                 'images', 'web pages', 'calendar events', 'product reviews', 'sql tables', 'audio notes')
 SNAPSHOT_WAIT_SECONDS = 600     # the new slot's start report snapshot (about 3 min unpaused, 11-11)
 WARM_EXPLORE_GOAL_MS = 2000      # the Explore target (CLAUDE.md response-time policy)
-WARM_RECOMMEND_GOAL_MS = 3000    # the recommendation target
+WARM_RECOMMEND_GOAL_MS = 2000    # the recommendation target (2 s since 11-11 19:00), information only
 # 11-12 (PM decision (a), 검색과 RAG): the first public Chat after the 13:30 switch took 7.91 s while Explore and
 # find_agents had been warmed; one MCP 'chat' call with an unseen action task now warms that path too.
 WARM_CHAT_TASKS = ('send email with history', 'post a message to a slack channel', 'create a calendar event',
