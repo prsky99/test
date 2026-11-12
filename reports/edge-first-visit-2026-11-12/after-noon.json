@@ -782,5 +782,397 @@
     }
    ]
   }
+ },
+ {
+  "label": "오후 묶음 데우기(13:30:36) 6분 30초 뒤",
+  "at": "2026-11-12 13:37:09",
+  "rows": {
+   "live": [
+    {
+     "path": "/",
+     "at": "13:37:10",
+     "s": 0.88,
+     "status": 200,
+     "cache": "UPDATING",
+     "age": "357",
+     "cache_control": "public, max-age=300, stale-while-revalidate=600",
+     "colo": "LAX"
+    },
+    {
+     "path": "/new/en/index.html",
+     "at": "13:37:12",
+     "s": 1.78,
+     "status": 200,
+     "cache": "UPDATING",
+     "age": "354",
+     "cache_control": "public, max-age=300, stale-while-revalidate=600",
+     "colo": "LAX"
+    },
+    {
+     "path": "/new/en/explore.html",
+     "at": "13:37:14",
+     "s": 0.84,
+     "status": 200,
+     "cache": "UPDATING",
+     "age": "353",
+     "cache_control": "public, max-age=300, stale-while-revalidate=600",
+     "colo": "LAX"
+    },
+    {
+     "path": "/new/en/chat.html",
+     "at": "13:37:17",
+     "s": 2.4,
+     "status": 200,
+     "cache": "UPDATING",
+     "age": "398",
+     "cache_control": "public, max-age=300, stale-while-revalidate=600",
+     "colo": "LAX"
+    },
+    {
+     "path": "/new/en/test.html",
+     "at": "13:37:18",
+     "s": 0.86,
+     "status": 200,
+     "cache": "UPDATING",
+     "age": "355",
+     "cache_control": "public, max-age=300, stale-while-revalidate=600",
+     "colo": "LAX"
+    },
+    {
+     "path": "/new/en/learn.html",
+     "at": "13:37:21",
+     "s": 2.53,
+     "status": 200,
+     "cache": "UPDATING",
+     "age": "355",
+     "cache_control": "public, max-age=300, stale-while-revalidate=600",
+     "colo": "LAX"
+    },
+    {
+     "path": "/new/en/workflows.html",
+     "at": "13:37:26",
+     "s": 4.39,
+     "status": 200,
+     "cache": "UPDATING",
+     "age": "356",
+     "cache_control": "public, max-age=300, stale-while-revalidate=600",
+     "colo": "LAX"
+    },
+    {
+     "path": "/new/en/list-agent.html",
+     "at": "13:37:29",
+     "s": 2.14,
+     "status": 200,
+     "cache": "UPDATING",
+     "age": "359",
+     "cache_control": "public, max-age=300, stale-while-revalidate=600",
+     "colo": "LAX"
+    },
+    {
+     "path": "/new/en/about.html",
+     "at": "13:37:31",
+     "s": 2.07,
+     "status": 200,
+     "cache": "UPDATING",
+     "age": "360",
+     "cache_control": "public, max-age=300, stale-while-revalidate=600",
+     "colo": "LAX"
+    },
+    {
+     "path": "/new/en/agent-status.html",
+     "at": "13:37:33",
+     "s": 0.85,
+     "status": 200,
+     "cache": "UPDATING",
+     "age": "361",
+     "cache_control": "public, max-age=300, stale-while-revalidate=600",
+     "colo": "LAX"
+    }
+   ],
+   "category_weekly": [
+    {
+     "path": "/agents/category/agent_infra",
+     "at": "13:37:34",
+     "s": 0.76,
+     "status": 200,
+     "cache": "HIT",
+     "age": "1786",
+     "cache_control": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+     "colo": "LAX"
+    },
+    {
+     "path": "/agents/category/ai_models",
+     "at": "13:37:35",
+     "s": 0.82,
+     "status": 200,
+     "cache": "HIT",
+     "age": "1760",
+     "cache_control": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+     "colo": "LAX"
+    },
+    {
+     "path": "/agents/category/commerce_marketing",
+     "at": "13:37:37",
+     "s": 1.77,
+     "status": 200,
+     "cache": "HIT",
+     "age": "1774",
+     "cache_control": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+     "colo": "LAX"
+    },
+    {
+     "path": "/agents/category/communication_messaging",
+     "at": "13:37:39",
+     "s": 0.83,
+     "status": 200,
+     "cache": "HIT",
+     "age": "1787",
+     "cache_control": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+     "colo": "LAX"
+    },
+    {
+     "path": "/agents/category/data_utility",
+     "at": "13:37:42",
+     "s": 2.71,
+     "status": 200,
+     "cache": "HIT",
+     "age": "1799",
+     "cache_control": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+     "colo": "LAX"
+    },
+    {
+     "path": "/agents/category/database_analytics",
+     "at": "13:37:43",
+     "s": 0.8,
+     "status": 200,
+     "cache": "HIT",
+     "age": "1799",
+     "cache_control": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+     "colo": "LAX"
+    },
+    {
+     "path": "/agents/category/dev_tools",
+     "at": "13:37:45",
+     "s": 0.83,
+     "status": 200,
+     "cache": "HIT",
+     "age": "1768",
+     "cache_control": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+     "colo": "LAX"
+    },
+    {
+     "path": "/agents/category/docs_knowledge",
+     "at": "13:37:46",
+     "s": 0.82,
+     "status": 200,
+     "cache": "HIT",
+     "age": "1788",
+     "cache_control": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+     "colo": "LAX"
+    },
+    {
+     "path": "/agents/category/education_culture",
+     "at": "13:37:48",
+     "s": 1.72,
+     "status": 200,
+     "cache": "HIT",
+     "age": "1780",
+     "cache_control": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+     "colo": "LAX"
+    },
+    {
+     "path": "/agents/category/finance_crypto",
+     "at": "13:37:50",
+     "s": 0.82,
+     "status": 200,
+     "cache": "HIT",
+     "age": "1808",
+     "cache_control": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+     "colo": "LAX"
+    },
+    {
+     "path": "/agents/category/health_science",
+     "at": "13:37:51",
+     "s": 0.82,
+     "status": 200,
+     "cache": "HIT",
+     "age": "1785",
+     "cache_control": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+     "colo": "LAX"
+    },
+    {
+     "path": "/agents/category/media_generation",
+     "at": "13:37:52",
+     "s": 0.89,
+     "status": 200,
+     "cache": "HIT",
+     "age": "1802",
+     "cache_control": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+     "colo": "LAX"
+    },
+    {
+     "path": "/agents/category/network_ops",
+     "at": "13:37:55",
+     "s": 1.82,
+     "status": 200,
+     "cache": "HIT",
+     "age": "1781",
+     "cache_control": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+     "colo": "LAX"
+    },
+    {
+     "path": "/agents/category/productivity",
+     "at": "13:37:57",
+     "s": 1.74,
+     "status": 200,
+     "cache": "HIT",
+     "age": "1801",
+     "cache_control": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+     "colo": "LAX"
+    },
+    {
+     "path": "/agents/category/public_legal",
+     "at": "13:37:58",
+     "s": 0.82,
+     "status": 200,
+     "cache": "HIT",
+     "age": "1804",
+     "cache_control": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+     "colo": "LAX"
+    },
+    {
+     "path": "/agents/category/security",
+     "at": "13:38:00",
+     "s": 0.82,
+     "status": 200,
+     "cache": "HIT",
+     "age": "1796",
+     "cache_control": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+     "colo": "LAX"
+    },
+    {
+     "path": "/agents/category/social",
+     "at": "13:38:01",
+     "s": 0.73,
+     "status": 200,
+     "cache": "HIT",
+     "age": "1783",
+     "cache_control": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+     "colo": "LAX"
+    },
+    {
+     "path": "/agents/category/trading_derivatives",
+     "at": "13:38:04",
+     "s": 2.72,
+     "status": 200,
+     "cache": "HIT",
+     "age": "1803",
+     "cache_control": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+     "colo": "LAX"
+    },
+    {
+     "path": "/agents/category/travel_maps_weather",
+     "at": "13:38:05",
+     "s": 0.5,
+     "status": 200,
+     "cache": "HIT",
+     "age": "1806",
+     "cache_control": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+     "colo": "LAX"
+    },
+    {
+     "path": "/agents/category/web_search",
+     "at": "13:38:06",
+     "s": 0.65,
+     "status": 200,
+     "cache": "HIT",
+     "age": "1813",
+     "cache_control": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+     "colo": "LAX"
+    },
+    {
+     "path": "/reports/weekly",
+     "at": "13:38:09",
+     "s": 2.08,
+     "status": 200,
+     "cache": "HIT",
+     "age": "1753",
+     "cache_control": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+     "colo": "LAX"
+    },
+    {
+     "path": "/reports/weekly/2026-W45",
+     "at": "13:38:10",
+     "s": 0.81,
+     "status": 200,
+     "cache": "HIT",
+     "age": "1754",
+     "cache_control": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+     "colo": "LAX"
+    }
+   ],
+   "agent": [
+    {
+     "path": "/agent/43485",
+     "at": "13:38:14",
+     "s": 3.15,
+     "status": 200,
+     "cache": "MISS",
+     "age": null,
+     "cache_control": "public, max-age=3600, stale-while-revalidate=86400",
+     "colo": "LAX"
+    },
+    {
+     "path": "/agent/303157",
+     "at": "13:38:15",
+     "s": 0.91,
+     "status": 200,
+     "cache": "REVALIDATED",
+     "age": null,
+     "cache_control": "public, max-age=3600, stale-while-revalidate=86400",
+     "colo": "LAX"
+    },
+    {
+     "path": "/agent/87362",
+     "at": "13:38:17",
+     "s": 0.96,
+     "status": 200,
+     "cache": "EXPIRED",
+     "age": null,
+     "cache_control": "public, max-age=3600, stale-while-revalidate=86400",
+     "colo": "LAX"
+    },
+    {
+     "path": "/agent/214980",
+     "at": "13:38:18",
+     "s": 0.97,
+     "status": 200,
+     "cache": "REVALIDATED",
+     "age": null,
+     "cache_control": "public, max-age=3600, stale-while-revalidate=86400",
+     "colo": "LAX"
+    },
+    {
+     "path": "/agent/264292",
+     "at": "13:38:20",
+     "s": 1.36,
+     "status": 200,
+     "cache": "EXPIRED",
+     "age": null,
+     "cache_control": "public, max-age=3600, stale-while-revalidate=86400",
+     "colo": "LAX"
+    },
+    {
+     "path": "/agent/108523",
+     "at": "13:38:21",
+     "s": 0.78,
+     "status": 200,
+     "cache": "MISS",
+     "age": null,
+     "cache_control": "public, max-age=3600, stale-while-revalidate=86400",
+     "colo": "LAX"
+    }
+   ]
+  }
  }
 ]

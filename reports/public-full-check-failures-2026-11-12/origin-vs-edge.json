@@ -1,0 +1,389 @@
+[
+ {
+  "label": "13:4x 오후 묶음 뒤",
+  "at": "2026-11-12 13:38:35",
+  "from_run": "2026-11-12 13:13",
+  "rows": [
+   {
+    "path": "/agents/task/video-generation",
+    "at_13_13": {
+     "s": 11.25,
+     "detail": "11.25s (LAX MISS)"
+    },
+    "origin": {
+     "s": 0.036,
+     "status": 200,
+     "bytes": 12108,
+     "cache": null,
+     "cache_control": "public, max-age=3600, stale-while-revalidate=86400",
+     "etag": "W/\"b24422989f9974f49edd52fc\"",
+     "last_modified": null,
+     "server_timing": null,
+     "vary": "Accept, Accept-Encoding, Accept-Encoding"
+    },
+    "origin_conditional": {
+     "s": 0.015,
+     "status": 304,
+     "bytes": 0,
+     "cache": null,
+     "cache_control": "public, max-age=3600, stale-while-revalidate=86400",
+     "etag": "W/\"b24422989f9974f49edd52fc\"",
+     "last_modified": null,
+     "server_timing": null,
+     "vary": "Accept, Accept-Encoding"
+    },
+    "public": {
+     "s": 3.021,
+     "status": 200,
+     "bytes": 12108,
+     "cache": "HIT",
+     "cache_control": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+     "etag": null,
+     "last_modified": null,
+     "server_timing": null,
+     "vary": "Accept, Accept-Encoding, Accept-Encoding"
+    }
+   },
+   {
+    "path": "/new/en/contact.html",
+    "at_13_13": {
+     "s": 8.08,
+     "detail": "8.08s (LAX DYNAMIC)"
+    },
+    "origin": {
+     "s": 0.032,
+     "status": 200,
+     "bytes": 29153,
+     "cache": null,
+     "cache_control": "no-store",
+     "etag": null,
+     "last_modified": null,
+     "server_timing": null,
+     "vary": "Accept-Encoding"
+    },
+    "origin_conditional": null,
+    "public": {
+     "s": 0.999,
+     "status": 200,
+     "bytes": 29559,
+     "cache": "DYNAMIC",
+     "cache_control": "no-store",
+     "etag": null,
+     "last_modified": null,
+     "server_timing": null,
+     "vary": "Accept-Encoding"
+    }
+   },
+   {
+    "path": "/new/en/agent-status.html",
+    "at_13_13": {
+     "s": 8.02,
+     "detail": "8.02s (LAX EXPIRED)"
+    },
+    "origin": {
+     "s": 0.049,
+     "status": 200,
+     "bytes": 129612,
+     "cache": null,
+     "cache_control": "public, max-age=300, stale-while-revalidate=600",
+     "etag": null,
+     "last_modified": null,
+     "server_timing": null,
+     "vary": "Accept-Encoding"
+    },
+    "origin_conditional": null,
+    "public": {
+     "s": 1.163,
+     "status": 200,
+     "bytes": 129612,
+     "cache": "HIT",
+     "cache_control": "public, max-age=300, stale-while-revalidate=600",
+     "etag": null,
+     "last_modified": "Thu, 12 Nov 2026 04:37:33 GMT",
+     "server_timing": null,
+     "vary": "Accept-Encoding"
+    }
+   },
+   {
+    "path": "/agent/136351",
+    "at_13_13": {
+     "s": 5.47,
+     "detail": "5.47s (LAX MISS)"
+    },
+    "origin": {
+     "s": 0.015,
+     "status": 200,
+     "bytes": 8076,
+     "cache": null,
+     "cache_control": "public, max-age=3600, stale-while-revalidate=86400",
+     "etag": "W/\"f4aecf64fe0b9d1120e29746\"",
+     "last_modified": null,
+     "server_timing": null,
+     "vary": "Accept, Accept-Encoding, Accept-Encoding"
+    },
+    "origin_conditional": {
+     "s": 0.013,
+     "status": 304,
+     "bytes": 0,
+     "cache": null,
+     "cache_control": "public, max-age=3600, stale-while-revalidate=86400",
+     "etag": "W/\"f4aecf64fe0b9d1120e29746\"",
+     "last_modified": null,
+     "server_timing": null,
+     "vary": "Accept, Accept-Encoding"
+    },
+    "public": {
+     "s": 1.999,
+     "status": 200,
+     "bytes": 8076,
+     "cache": "HIT",
+     "cache_control": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+     "etag": null,
+     "last_modified": null,
+     "server_timing": null,
+     "vary": "Accept, Accept-Encoding, Accept-Encoding"
+    }
+   },
+   {
+    "path": "/agents/task/arxiv-papers",
+    "at_13_13": {
+     "s": 4.85,
+     "detail": "4.85s (LAX HIT)"
+    },
+    "origin": {
+     "s": 0.01,
+     "status": 200,
+     "bytes": 12329,
+     "cache": null,
+     "cache_control": "public, max-age=3600, stale-while-revalidate=86400",
+     "etag": "W/\"8e194a98ca4a3abc34cf7af4\"",
+     "last_modified": null,
+     "server_timing": null,
+     "vary": "Accept, Accept-Encoding, Accept-Encoding"
+    },
+    "origin_conditional": {
+     "s": 0.009,
+     "status": 304,
+     "bytes": 0,
+     "cache": null,
+     "cache_control": "public, max-age=3600, stale-while-revalidate=86400",
+     "etag": "W/\"8e194a98ca4a3abc34cf7af4\"",
+     "last_modified": null,
+     "server_timing": null,
+     "vary": "Accept, Accept-Encoding"
+    },
+    "public": {
+     "s": 1.766,
+     "status": 200,
+     "bytes": 12329,
+     "cache": "HIT",
+     "cache_control": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+     "etag": null,
+     "last_modified": null,
+     "server_timing": null,
+     "vary": "Accept, Accept-Encoding, Accept-Encoding"
+    }
+   },
+   {
+    "path": "/agents/best/travel_maps_weather/mcp",
+    "at_13_13": {
+     "s": 4.59,
+     "detail": "4.59s (LAX HIT)"
+    },
+    "origin": {
+     "s": 0.013,
+     "status": 200,
+     "bytes": 21090,
+     "cache": null,
+     "cache_control": "public, max-age=3600, stale-while-revalidate=86400",
+     "etag": "W/\"02c1461435a9c5156e7d3ec9\"",
+     "last_modified": null,
+     "server_timing": "server;dur=6",
+     "vary": "Accept, Accept-Encoding, Accept-Encoding"
+    },
+    "origin_conditional": {
+     "s": 0.014,
+     "status": 304,
+     "bytes": 0,
+     "cache": null,
+     "cache_control": "public, max-age=3600, stale-while-revalidate=86400",
+     "etag": "W/\"02c1461435a9c5156e7d3ec9\"",
+     "last_modified": null,
+     "server_timing": "server;dur=7",
+     "vary": "Accept, Accept-Encoding"
+    },
+    "public": {
+     "s": 0.815,
+     "status": 200,
+     "bytes": 21090,
+     "cache": "HIT",
+     "cache_control": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+     "etag": null,
+     "last_modified": null,
+     "server_timing": "server;dur=7",
+     "vary": "Accept, Accept-Encoding, Accept-Encoding"
+    }
+   },
+   {
+    "path": "/robots.txt",
+    "at_13_13": {
+     "s": 4.14,
+     "detail": "4.14s (LAX REVALIDATED)"
+    },
+    "origin": {
+     "s": 0.012,
+     "status": 200,
+     "bytes": 799,
+     "cache": null,
+     "cache_control": "public, max-age=600, stale-while-revalidate=3600",
+     "etag": "W/\"d0a90249789453da\"",
+     "last_modified": null,
+     "server_timing": null,
+     "vary": "Accept-Encoding"
+    },
+    "origin_conditional": {
+     "s": 0.009,
+     "status": 304,
+     "bytes": 0,
+     "cache": null,
+     "cache_control": "public, max-age=600, stale-while-revalidate=3600",
+     "etag": "W/\"d0a90249789453da\"",
+     "last_modified": null,
+     "server_timing": null,
+     "vary": null
+    },
+    "public": {
+     "s": 1.064,
+     "status": 200,
+     "bytes": 799,
+     "cache": "HIT",
+     "cache_control": "public, max-age=600, stale-while-revalidate=3600",
+     "etag": "W/\"d0a90249789453da\"",
+     "last_modified": null,
+     "server_timing": null,
+     "vary": "Accept-Encoding"
+    }
+   },
+   {
+    "path": "/agents/best/health_science/x402",
+    "at_13_13": {
+     "s": 3.91,
+     "detail": "3.91s (LAX REVALIDATED)"
+    },
+    "origin": {
+     "s": 0.022,
+     "status": 200,
+     "bytes": 24099,
+     "cache": null,
+     "cache_control": "public, max-age=3600, stale-while-revalidate=86400",
+     "etag": "W/\"4e2be6f2cb5746cee9b73ffb\"",
+     "last_modified": null,
+     "server_timing": "server;dur=15",
+     "vary": "Accept, Accept-Encoding, Accept-Encoding"
+    },
+    "origin_conditional": {
+     "s": 0.011,
+     "status": 304,
+     "bytes": 0,
+     "cache": null,
+     "cache_control": "public, max-age=3600, stale-while-revalidate=86400",
+     "etag": "W/\"4e2be6f2cb5746cee9b73ffb\"",
+     "last_modified": null,
+     "server_timing": "server;dur=5",
+     "vary": "Accept, Accept-Encoding"
+    },
+    "public": {
+     "s": 2.026,
+     "status": 200,
+     "bytes": 24099,
+     "cache": "HIT",
+     "cache_control": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+     "etag": null,
+     "last_modified": null,
+     "server_timing": "server;dur=5",
+     "vary": "Accept, Accept-Encoding, Accept-Encoding"
+    }
+   },
+   {
+    "path": "/agent/327386",
+    "at_13_13": {
+     "s": 3.83,
+     "detail": "3.83s (LAX REVALIDATED)"
+    },
+    "origin": {
+     "s": 0.011,
+     "status": 200,
+     "bytes": 8091,
+     "cache": null,
+     "cache_control": "public, max-age=3600, stale-while-revalidate=86400",
+     "etag": "W/\"1490d1f9fff2622bf78cc6d4\"",
+     "last_modified": null,
+     "server_timing": null,
+     "vary": "Accept, Accept-Encoding, Accept-Encoding"
+    },
+    "origin_conditional": {
+     "s": 0.01,
+     "status": 304,
+     "bytes": 0,
+     "cache": null,
+     "cache_control": "public, max-age=3600, stale-while-revalidate=86400",
+     "etag": "W/\"1490d1f9fff2622bf78cc6d4\"",
+     "last_modified": null,
+     "server_timing": null,
+     "vary": "Accept, Accept-Encoding"
+    },
+    "public": {
+     "s": 1.76,
+     "status": 200,
+     "bytes": 8091,
+     "cache": "HIT",
+     "cache_control": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+     "etag": null,
+     "last_modified": null,
+     "server_timing": null,
+     "vary": "Accept, Accept-Encoding, Accept-Encoding"
+    }
+   },
+   {
+    "path": "/agent/292293",
+    "at_13_13": {
+     "s": 3.83,
+     "detail": "3.83s (LAX REVALIDATED)"
+    },
+    "origin": {
+     "s": 0.012,
+     "status": 200,
+     "bytes": 7975,
+     "cache": null,
+     "cache_control": "public, max-age=3600, stale-while-revalidate=86400",
+     "etag": "W/\"d0687fcfc8de058e3fddba0e\"",
+     "last_modified": null,
+     "server_timing": null,
+     "vary": "Accept, Accept-Encoding, Accept-Encoding"
+    },
+    "origin_conditional": {
+     "s": 0.011,
+     "status": 304,
+     "bytes": 0,
+     "cache": null,
+     "cache_control": "public, max-age=3600, stale-while-revalidate=86400",
+     "etag": "W/\"d0687fcfc8de058e3fddba0e\"",
+     "last_modified": null,
+     "server_timing": null,
+     "vary": "Accept, Accept-Encoding"
+    },
+    "public": {
+     "s": 3.117,
+     "status": 200,
+     "bytes": 7975,
+     "cache": "HIT",
+     "cache_control": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+     "etag": null,
+     "last_modified": null,
+     "server_timing": null,
+     "vary": "Accept, Accept-Encoding, Accept-Encoding"
+    }
+   }
+  ]
+ }
+]
