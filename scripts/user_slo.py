@@ -186,6 +186,21 @@ def connection_route(text):
     return None
 
 
+def first_card_available(body):
+    """connection_available of the first recommendation card in find_agents' structured reply, or None.
+
+    False means the gateway does not relay that recommendation (an action tool); a failed sample with True is a real
+    connection failure (검색과 RAG 11-12: separates the two causes). Recorded only; the verdict is unchanged."""
+    try:
+        cards = body['result']['structuredContent']['recommendations']
+    except (KeyError, TypeError):
+        return None
+    if not isinstance(cards, list) or not cards or not isinstance(cards[0], dict):
+        return None
+    value = cards[0].get('connection_available')
+    return value if isinstance(value, bool) else None
+
+
 def connector(endpoint):
     """A read-only connect through the gateway: MCP initialize + tools/list, or the A2A card. No tools/call."""
     if '/api/gateway/a2a/' in endpoint:
@@ -214,17 +229,18 @@ def check_recommend_and_connect(n=2):
                 text = result[1]['result']['content'][0]['text']
             except (KeyError, IndexError, TypeError):
                 text = ''
+        available = first_card_available(result[1] if result else None)
         rec.append({'task': task, 's': took, 'answered': bool(text), 'error': error,
                     **phases(result[0] if result else None)})
         endpoint = connection_route(text)
         if not endpoint:
             # No gateway path for the first recommendation (or no recommendation): a failed connection (PM 11-12).
-            conn.append({'endpoint': None, 's': 0.0, 'tools': 0,
+            conn.append({'endpoint': None, 's': 0.0, 'tools': 0, 'connection_available': available,
                          'error': 'no_gateway_endpoint' if text else 'no_recommendation'})
             continue
         took_c, tools, error_c = timed(lambda: on_fresh(connector(endpoint)))
         conn.append({'endpoint': endpoint.rsplit('/', 2)[-2] + '/' + endpoint.rsplit('/', 1)[-1], 's': took_c,
-                     'tools': tools, 'error': error_c})
+                     'tools': tools, 'error': error_c, 'connection_available': available})
     rec_bad = [r for r in rec if r['s'] > TARGET['recommend_s'] or not r['answered']]
     conn_bad = [c for c in conn if not c['tools']]
     # A first recommendation without a gateway path is a failed connection (PM 11-12, replacing the 11-11 rule

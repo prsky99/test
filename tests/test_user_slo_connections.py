@@ -40,7 +40,8 @@ class Client:
         self.calls.append(url)
         if json['method'] == 'tools/call':
             text = '1. Pick one [MCP]\nEndpoint: https://agentconcierge.biz/api/gateway/mcp/12'   # the real answer format
-            return Response(url, {'result': {'content': [{'text': text}]}})
+            return Response(url, {'result': {'content': [{'text': text}],
+                                             'structuredContent': {'recommendations': [{'connection_available': True}]}}})
         return Response(url, {'result': {'tools': [{'name': 'x'}]}})
 
 
@@ -54,5 +55,6 @@ def test_every_sample_has_its_own_connection(monkeypatch, tmp_path):
     # 6 explore + 2 recommend + 3 pages alone; 2 connect checks with initialize + tools/list each
     assert sizes == [1] * 11 + [2, 2]
     assert record['connection'] == 'new per sample'
+    assert [c['connection_available'] for c in record['connect']['samples']] == [True, True]
     for kind in ('explore', 'pages'):
         assert all(s['cache'] == 'MISS' and s['colo'] == 'LAX' for s in record[kind]['samples'])

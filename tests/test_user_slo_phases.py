@@ -45,3 +45,21 @@ def test_connect_follows_the_gateway_endpoint_of_the_first_recommendation_only()
     assert user_slo.connection_route(first) == 'https://agentconcierge.biz/api/gateway/mcp/43775'
     assert user_slo.connection_route(second_only) is None           # not the second recommendation's endpoint
     assert user_slo.connection_route('no recommendations') is None
+
+
+def test_a_documentation_link_is_never_a_connection_path():
+    """01982678's line for an action tool names documentation, not an address to connect to (검색과 RAG 11-12)."""
+    answer = ('1. Palmyr email_send [MCP]\nConnection: This tool performs an action, so the Agent Concierge gateway does '
+              'not relay it. Connect through the provider\'s own documentation: https://palmyr.example/docs\n')
+    assert user_slo.connection_route(answer) is None
+
+
+def test_the_first_card_connection_available_is_recorded_as_given():
+    def body(cards):
+        return {'result': {'structuredContent': {'recommendations': cards}}}
+    assert user_slo.first_card_available(body([{'connection_available': False}, {'connection_available': True}])) is False
+    assert user_slo.first_card_available(body([{'connection_available': True}])) is True
+    assert user_slo.first_card_available(body([{}])) is None
+    assert user_slo.first_card_available(body([])) is None
+    assert user_slo.first_card_available({'result': {'content': []}}) is None
+    assert user_slo.first_card_available(None) is None
