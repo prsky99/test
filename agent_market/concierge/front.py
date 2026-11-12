@@ -210,7 +210,7 @@ class Front:
         data = {
             "overview": measured('overview', lambda: get_snapshot_overview(self.store)),
             "explore": measured('explore', lambda: get_front_explore(self.store, "", None, None, False, False, 12)),
-            "insights": measured('insights', lambda: get_front_insights(self.store)),
+            "insights": measured('insights', lambda: served_insights(self.store)),
             "workflow_default": default_template,
             "workflow_templates": templates,
             "testbench_presets": list(FRONT_TESTBENCH_PRESETS.values()),
@@ -1346,23 +1346,33 @@ def get_snapshot_overview(store: Store) -> dict:
     return res
 
 
+def served_insights(store: Store) -> dict:
+    """The public /api/insights answer: the jobs snapshot (insights_snapshot)."""
+    from .insights_snapshot import served
+    return served(store)
+
+
 # Catalog statistics and featured listings change slowly, and every served copy still rechecks each
 # listing's execution badge (refresh_connection_states). A first computation takes 3-3.5 s (11-11
 # /api/insights 4.15 s on the public site), so it runs at most once per half hour per process.
 INSIGHTS_SECONDS = 1800.0
 
 
-def get_front_insights(store: Store) -> dict:
-    """Protocol statistics and featured agents for Learn section. Cached for 60s."""
+def get_front_insights(store: Store, fresh: bool = False) -> dict:
+    """Protocol statistics and featured agents for Learn section.
+
+    Public requests read the jobs snapshot (insights_snapshot.served); this computation runs in the jobs service
+    with FRESH set, and in a request only before the first snapshot exists (11-13 01:49: a 500 at the 5 s
+    statement timeout under load)."""
     now = time.time()
     store_id = id(store)
     cached = _front_insights_cache.get("data")
-    if cached and (_front_insights_cache.get("store_id") == store_id) and (now - _front_insights_cache["at"] < INSIGHTS_SECONDS):
+    if not fresh and cached and (_front_insights_cache.get("store_id") == store_id) and (now - _front_insights_cache["at"] < INSIGHTS_SECONDS):
         return refresh_connection_states(store, cached)
 
     redis_hub = RedisHub.get_instance()
     pfx = _redis_cache_prefix(store)
-    if redis_hub.is_available():
+    if not fresh and redis_hub.is_available():
         cached_redis = redis_hub.get_json(f"{pfx}cache:insights:v2")
         if cached_redis is not None:
             _front_insights_cache["at"] = now
@@ -2012,6 +2022,8 @@ def get_recent_registered_agents(store: Store) -> list[dict]:
 
 
 def clear_front_caches(store: Store | None = None):
+    from .insights_snapshot import reset as reset_insights_snapshot
+    reset_insights_snapshot()   # the next read goes back to the file (or the computation when there is none)
     _front_insights_cache["at"] = 0.0
     _front_insights_cache["data"] = None
     _front_insights_cache["store_id"] = None
@@ -2846,7 +2858,7 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
 
     @router.get("/api/insights")
     def api_insights():
-        return get_front_insights(front.store)
+        return served_insights(front.store)
 
     @router.get("/api/explore")
     def api_explore(request: Request, q: str = Query("", max_length=500), kind: str | None = None,
