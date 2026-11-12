@@ -258,7 +258,61 @@ def project(value, gateway, raw_urls=(), depth=0):
     return walk(value,depth,tool_list=isinstance(value,list))
 
 
-def gateway_mcp_steps(endpoint, tool=None):
+def _simple_example(value):
+    return (type(value) in (int, float, bool) or isinstance(value, str) and 0 < len(value) <= 60
+            and re.fullmatch(r"[\w .,:/@+-]+", value) is not None and '://' not in value)
+
+
+def example_arguments(tool):
+    """The required inputs of TOOL with example values (11-12 PM): a declared enum or default when it is a
+    plain short value, else a typed placeholder. Provider example strings are not copied (they are free text)."""
+    if not isinstance(tool, dict):
+        return {}
+    schema = tool.get('inputSchema') if isinstance(tool.get('inputSchema'), dict) else {
+        'properties': tool.get('parameters') or tool.get('params') or {}, 'required': tool.get('required') or []}
+    properties = schema.get('properties') if isinstance(schema.get('properties'), dict) else {}
+    required = schema.get('required') if isinstance(schema.get('required'), list) else []
+    out = {}
+    for name in required[:12]:
+        if not isinstance(name, str) or not name or len(name) > 64:
+            continue
+        spec = properties.get(name) if isinstance(properties.get(name), dict) else {}
+        enum = spec.get('enum')
+        kind = spec.get('type')[0] if isinstance(spec.get('type'), list) and spec.get('type') else spec.get('type')
+        if isinstance(enum, list) and enum and _simple_example(enum[0]):
+            out[name] = enum[0]
+        elif 'default' in spec and _simple_example(spec['default']):
+            out[name] = spec['default']
+        elif kind == 'integer':
+            out[name] = int(spec['minimum']) if type(spec.get('minimum')) in (int, float) else 1
+        elif kind == 'number':
+            out[name] = spec['minimum'] if type(spec.get('minimum')) in (int, float) else 1
+        elif kind == 'boolean':
+            out[name] = False
+        elif kind == 'array':
+            out[name] = []
+        elif kind == 'object':
+            out[name] = {}
+        else:
+            out[name] = '<' + re.sub(r'[^\w-]', '_', name)[:40] + '>'
+    return out
+
+
+def run_here(rid, tool):
+    """Our /mcp `call` tool runs a recommended informational tool in the same session (11-12 PM): an MCP host
+    cannot add a new server during a conversation, so this is the only way to run it without a config change."""
+    if type(rid) is not int or not isinstance(tool, dict) or not isinstance(tool.get('name'), str) or not tool['name']:
+        return None
+    return {'tool': 'call', 'arguments': {'resource_id': rid, 'tool': tool['name'], 'arguments': example_arguments(tool)}}
+
+
+def mcp_config(name, endpoint):
+    """One mcpServers entry a person can paste into an MCP host's settings for the gateway endpoint."""
+    key = re.sub(r'[^a-z0-9-]+', '-', str(name or 'agent').lower()).strip('-')[:40] or 'agent'
+    return {'mcpServers': {key: {'type': 'http', 'url': endpoint}}}
+
+
+def gateway_mcp_steps(endpoint, tool=None, arguments=None):
     """How to call a listed MCP server through our gateway: stateless JSON, no session to open or close (11-11).
 
     The stored guide describes the provider's own server (session header, SSE, DELETE); a caller reaches it
@@ -266,7 +320,8 @@ def gateway_mcp_steps(endpoint, tool=None):
     """
     name = tool if isinstance(tool, str) and tool else '<tool name from tools_schema>'
     call = json.dumps({'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call',
-                       'params': {'name': name, 'arguments': {}}}, separators=(',', ':'))
+                       'params': {'name': name, 'arguments': arguments if isinstance(arguments, dict) else {}}},
+                      separators=(',', ':'))
     return [f"POST {endpoint} with 'Content-Type: application/json' and 'Accept: application/json'. Each request stands alone: no session header, no initialize required, answers are JSON.",
             "1) Optional: tools/list returns the current tool schemas: {\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}",
             f"2) tools/call, filling arguments from that tool's inputSchema: {call}",
@@ -295,7 +350,8 @@ def _public_agent(value, resource=None, *, store=None, create_connections=True):
     if 'host' in result:result['host']='agentconcierge.biz' if gateway else ''
     # 'Available' means our gateway serves the recommended tool (11-12 PM): an MCP server whose chosen tool
     # is not on the gateway's tools/list (an action tool such as send_email) is not connectable through us.
-    result['connection_available']=bool(gateway) and value.get('tool_unlisted') is not True
+    available=bool(gateway) and value.get('tool_unlisted') is not True
+    result['connection_available']=available
     if value.get('tool_unlisted') is True and isinstance(value.get('connection_note'),str):
         result['connection_note']=value['connection_note'][:600]
     # A listing that states a price is never answered as price 0 / free (11-12, price_status.py).
@@ -304,14 +360,26 @@ def _public_agent(value, resource=None, *, store=None, create_connections=True):
         text=lambda key:value.get(key) if value.get(key) is not None else resource.get(key)
         result['price_usdc'],result['price_status']=price_fields(value.get('kind'),value.get('price_usdc'),
                                                                  text('name'),text('description'))
+    schemas=[t for t in (result.get('tools_schema') or []) if isinstance(t,dict)]
     if gateway and value.get('kind')=='mcp' and isinstance(result.get('connect_steps'),list):
-        schemas=[t for t in (result.get('tools_schema') or []) if isinstance(t,dict)]
-        result['connect_steps']=gateway_mcp_steps(gateway,schemas[0].get('name') if schemas else None)
-    result['gateway_ready']=False
+        result['connect_steps']=gateway_mcp_steps(gateway,schemas[0].get('name') if schemas else None,
+                                                  example_arguments(schemas[0]) if schemas else None)
+    registry_ready=None
     if store is not None and gateway:
         from ..capability_registry import Registry
         current=store.resource(value['id'])
         if current:
             registry=Registry(store);version=registry.current(current,create=create_connections)
-            if version:result.update(registry.projection(current,version=version))
+            if version:
+                projection=registry.projection(current,version=version)
+                result.update(projection)
+                registry_ready=projection.get('gateway_ready')
+    # One meaning for both fields (11-12 PM): usable through our gateway now.
+    available=available and registry_ready is not False
+    result['connection_available']=result['gateway_ready']=available
+    if available and value.get('kind')=='mcp' and schemas:
+        step=run_here(value.get('id'),schemas[0])
+        if step:
+            result['run_here']=step
+        result['mcp_config']=mcp_config(result.get('display_name') or result.get('name'),gateway)
     return result

@@ -1,4 +1,5 @@
 """Up to three concise choices, selected only from recorded verification data."""
+import json
 import re
 import threading
 import time
@@ -616,7 +617,7 @@ class FastConcierge(Concierge):
         return Reply(message, 'find_workflow', result)
 
     @staticmethod
-    def _brief(item):
+    def _brief(item, first=True):
         kind = item['kind']
         name = agent_display_name(item)
         call = {'mcp':'initialize → tools/list → tools/call',
@@ -626,6 +627,16 @@ class FastConcierge(Concierge):
                  'Call: '+call]
         if item.get('tool_unlisted') is True and isinstance(item.get('connection_note'), str):
             lines.append('Connection: '+item['connection_note'][:600])  # 11-12 PM: not relayed by our gateway
+        elif first and kind == 'mcp':
+            # 11-12 PM: an MCP host cannot add a server mid-conversation; our /mcp `call` tool runs the
+            # recommended informational tool in the same session, and a person can paste the config line.
+            from .connections import run_here, mcp_config, gateway_agent_url
+            step = run_here(item.get('id'), (item.get('tools_schema') or [None])[0])
+            if step:
+                lines.append('Run here: call ' + json.dumps(step['arguments'], separators=(',', ':')))
+            gateway = gateway_agent_url(item.get('id'), 'mcp')
+            if gateway:
+                lines.append('MCP config: ' + json.dumps(mcp_config(name, gateway), separators=(',', ':')))
         summary=next((part.strip() for part in re.split(r'(?<=[.!?])\s+|;',str(item.get('description') or '')) if part.strip() and not DISPLAY_RESTRICTED.search(part)), '')
         if summary:lines.append('Capability: '+summary[:220])
         from .task_conditions import explanation
@@ -862,7 +873,15 @@ class FastConcierge(Concierge):
                   and (strong_closeness(getattr(self.rec, 'rag_engine', None), task, items[0]) or 1.0) < CHOICE_CLOSENESS)
         if unsure:
             lead = CHOICE_LEAD + lead
-        return Reply(lead+'\n\n'.join(str(i+1)+'. '+self._brief(item) for i,item in enumerate(items)),'find',
+        # The first listing that our gateway runs is offered as a `call` in this session (11-12 PM).
+        from .connections import run_here
+        runnable = next((item for item in items[:1] if item.get('kind') == 'mcp' and item.get('tool_unlisted') is not True), None)
+        here = run_here(runnable.get('id'), (runnable.get('tools_schema') or [None])[0]) if runnable else None
+        if here:
+            # next_steps stay follow-up listings (their own contract and safety gates, test_b2a_retention);
+            # running the recommended tool here is a continuation of this answer.
+            continuation_plan['run_here'] = here
+        return Reply(lead+'\n\n'.join(str(i+1)+'. '+self._brief(item, first=i == 0) for i,item in enumerate(items)),'find',
                      {**({'status':'needs_choice','confidence':'low'} if unsure else {}),
                       'task':task,'watch_task':' '.join(search_terms(task))[:160],'protocol':protocol,
                       'category':items[0]['category'],'revalidate_after_sec':3600,

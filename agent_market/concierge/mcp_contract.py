@@ -19,7 +19,7 @@ def mcp_tools():
              "auth": {"type": "string", "enum": ["none", "agent"], "description": "Compatibility field; authentication preference does not affect ranking."},
              "k": {"type": "integer", "description": "Compatibility field; at most three results is returned."},
              **TOKEN_ARG}, "required": ["task"]}},
-        {"name": "find_agents", "description": "Read-only catalog lookup without saving a conversation. Return up to three active agents for a task, with verification evidence and calling details. price_status is free, paid (price_usdc per call in micro-USDC) or paid_or_unknown (the provider states a price or none is known; price_usdc is null).",
+        {"name": "find_agents", "description": "Read-only catalog lookup without saving a conversation. Return up to three active agents for a task, with verification evidence and calling details. price_status is free, paid (price_usdc per call in micro-USDC) or paid_or_unknown (the provider states a price or none is known; price_usdc is null). A listing our gateway can run has connection_available (same as gateway_ready) and run_here: pass its arguments to this server's call tool to run it in this session; mcp_config is a settings entry for an MCP host.",
          "inputSchema": {"type": "object", "properties": {
              "task": {"type": "string", "description": "What you need done"},
              "kind": {"type": "string", "enum": [*KINDS, "any"], "description": "Explicit recommendation protocol filter; Any searches A2A then MCP, excluding x402. Defaults to A2A first, then MCP; x402 requires an explicit choice."},

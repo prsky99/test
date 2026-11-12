@@ -62,6 +62,21 @@ discovery arguments remain accepted for transport compatibility. An irrelevant o
 an empty result: return `status: no_match` with an empty array instead. Explicit
 session, contact, and notification commands remain separate from discovery.
 
+### 여기서 바로 실행 (11-12, PM 배정, 성장·유통 깔때기 분석 ②④)
+- MCP 호스트(데스크톱·IDE)는 대화 중에 새 서버를 붙이지 못한다. 그래서 우리 /mcp의 `call` 도구가 추천 도구를 같은 세션에서 실행하는 길이다(익명, 정보형 도구만, 게이트웨이 경유).
+- 게이트웨이가 중계하는 MCP 추천 카드에는 아래 두 칸이 붙는다(`connections._public_agent`).
+  - `run_here`: `{"tool":"call","arguments":{"resource_id":…,"tool":…,"arguments":{필수 칸 예시}}}`
+  - `mcp_config`: `{"mcpServers":{"<이름>":{"type":"http","url":"<게이트웨이 주소>"}}}`
+- 답 텍스트의 1위 항목에는 `Run here: call {...}`와 `MCP config: {...}` 줄이 붙는다(find_agents·Chat 공통, `fast_chat._brief`).
+- `continuation_plan.run_here`도 같은 값이다. `next_steps`는 지금처럼 다음에 쓸 다른 목록만 담는다(follow_up_query·안전 관문 계약, test_b2a_retention).
+- 필수 칸 예시(`example_arguments`)
+  - enum 첫 값이나 default를 쓴다. 짧고 평범한 값일 때만 쓰며, URL은 쓰지 않는다.
+  - 없으면 타입별 값(integer는 minimum 또는 1, boolean은 false)을, 그것도 없으면 `<칸 이름>` 자리표시를 쓴다.
+  - 제공자의 examples 문자열은 자유 문장이라 옮기지 않는다.
+  - connect_steps의 tools/call 예시 arguments도 같은 값으로 채운다.
+- `gateway_ready`와 `connection_available`은 같은 뜻이다. 우리 게이트웨이로 지금 쓸 수 있으면 참이다. 고른 도구가 게이트웨이 목록에 있어야 하고, 등록 정보를 읽은 경우에는 그 준비 상태도 반영한다. 작업형 도구(01982678)는 둘 다 False이고 `run_here`가 없다.
+- 호출 주소는 늘 숨긴다는 응답 경계 원칙은 그대로다. 예시와 설정 조각에 들어가는 주소는 게이트웨이 주소뿐이다.
+
 ### 게이트웨이가 중계하지 않는 도구 (11-12, PM 결정 (나-1)(다))
 - `connection_available`은 "우리 게이트웨이로 그 과제의 도구를 실제로 쓸 수 있음"을 뜻한다.
   - 추천한 도구가 게이트웨이 tools/list에 없으면 False다. 메일 보내기(`send_email`·`email_send`) 같은 작업형 도구는 `safe_registered_tool`에 걸려 게이트웨이가 내놓지 않는다.
