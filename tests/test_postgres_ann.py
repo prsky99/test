@@ -191,6 +191,19 @@ def test_per_kind_halfvec_indexes_are_used_once_present_and_rolled_back_cleanly(
                 plan=store._execute("""EXPLAIN SELECT e.resource_id FROM agentcon_search.embeddings e WHERE e.kind='mcp'
                     ORDER BY e.embedding::public.halfvec(768) <=> %s::public.halfvec(768) LIMIT 10""",(vector_literal(blob),)).fetchall()
                 assert any('embeddings_half_mcp' in line[0] for line in plan)
+            # The shared graph dropped (separate approval, after 72 h without scans): the store still opens and
+            # every search reads the per-kind graphs with the same answers; restored, nothing changes either.
+            from agent_market.postgres_ann import available
+            conn.execute('DROP INDEX agentcon_search.embeddings_cosine_hnsw')
+            index._kind_layout=None
+            assert available(store) is True
+            with store.tx(readonly=True):
+                assert nearest(store,blob,descriptor,kind='mcp')==before
+                assert nearest(store,blob,descriptor)==before_any
+                assert nearest(store,blob,descriptor,kind='skill')==[]   # no graph, no exact scan
+            conn.execute('''CREATE INDEX embeddings_cosine_hnsw ON agentcon_search.embeddings
+                USING hnsw (embedding vector_cosine_ops) WITH (m='16', ef_construction='64')''')
+            assert available(store) is True
             # A new vector carries its kind.
             rid=ids[1][0]
             store.upsert_resource({'key':'fixture:kind:1','source':'fixture','kind':'a2a','name':'Kind 1 changed','url':'https://kind1.example/a2a',

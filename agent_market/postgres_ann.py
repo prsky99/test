@@ -56,6 +56,10 @@ def kind_graph_search(store, kind, run, limit=100):
     the shared graph's answer, and nothing reads the shared graph (embeddings_cosine_hnsw), which is then
     only maintained on insert and may be dropped after 72 h without scans (separate approval)."""
     own = kind_search(store, kind)
+    if kind is not None and own is None and layout(store)['kind_indexes']:
+        # Every stored vector is one of KINDS (its own graph); another kind has none, and without the
+        # shared graph this would be an exact scan of every vector.
+        return []
     if kind is not None or own is not None or not layout(store)['kind_indexes']:
         clause, order, cast = own or ('TRUE', 'e.embedding', 'public.vector')
         return [row[0] for row in run(clause, order, cast)]
@@ -84,9 +88,16 @@ def available(store):
             raise VectorError('invalid_schema')
         column=store._execute("SELECT format_type(atttypid,atttypmod) FROM pg_attribute WHERE attrelid='agentcon_search.embeddings'::regclass AND attname='embedding' AND NOT attisdropped").fetchone()
         indexes=store._execute("SELECT indexdef FROM pg_indexes WHERE schemaname='agentcon_search' AND indexname='embeddings_cosine_hnsw'").fetchall()
-        if not column or column[0]!='vector(768)' or len(indexes)!=1 or 'USING hnsw (embedding vector_cosine_ops)' not in indexes[0][0]:
+        if not column or column[0]!='vector(768)':
             raise VectorError('invalid_schema')
-        return True
+        if len(indexes)==1 and 'USING hnsw (embedding vector_cosine_ops)' in indexes[0][0]:
+            return True
+        # Without the shared graph (dropped after 72 h without scans, a separately approved DB change) every
+        # search reads the per-kind graphs (kind_graph_search), so the vector store stays usable only while
+        # all three are valid. Any other layout is still refused.
+        if not indexes and layout(store)['kind_indexes']:
+            return True
+        raise VectorError('invalid_schema')
 
 
 def publish(store, claim, blob, descriptor, vector_hash):
