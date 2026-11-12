@@ -388,3 +388,15 @@ def test_public_http_result_removes_unbound_url_credentials_and_malformed_endpoi
     for private in ('synthetic-user','synthetic-private-marker','bad-target.example'):assert private not in response.text
     assert '[REDACTED]' in response.text
     assert sum(json.loads(call.content).get('method')=='tools/call' for call in calls)==1
+
+
+def test_a_recommendation_whose_tool_the_gateway_does_not_list_is_not_connection_available():
+    """11-12 user_slo 12:07: "send email" recommended Palmyr's email_send, an action tool the gateway never
+    lists (tools/list was empty), yet the card said connection_available. The recommender marks such an
+    item tool_unlisted (gateway_exposure); the card now says it cannot be connected through us."""
+    resource={'id':8,'kind':'mcp','url':BASE}
+    listed=public_agent({'id':8,'kind':'mcp','url':BASE,'tools':['search']},resource)
+    unlisted=public_agent({'id':8,'kind':'mcp','url':BASE,'tools':['email_send'],'tool_unlisted':True},resource)
+    assert listed['connection_available'] is True
+    assert unlisted['connection_available'] is False and unlisted['url']==GATEWAY
+    assert 'tool_unlisted' not in unlisted or unlisted['tool_unlisted'] is True

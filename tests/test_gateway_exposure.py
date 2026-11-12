@@ -225,3 +225,34 @@ def test_a_link_task_moves_tools_that_only_take_files_or_bytes_after_the_others(
     store = Store({})
     rec = ExposedFirstRecommender(Recommender([local, b64, by_link]), store)
     assert [i['id'] for i in rec.search(task, limit=3)][0] == 4
+
+
+SEND = {'name': 'send_email', 'description': 'Send an email to a recipient', 'required': ['to'],
+        'params': {'to': {'type': 'string'}}, 'annotations': {}}
+
+
+def test_an_unrelayed_tool_gets_an_honest_note_with_the_provider_source_never_its_endpoint():
+    """11-12 PM (나-1): "send email" put Palmyr's email_send first though the gateway never lists it. The item
+    keeps its place when nothing relayable remains, but says the gateway does not relay the tool and points at
+    the provider's website (else repository); the invocation URL is never offered."""
+    details = {'remotes': [{'url': 'https://mail.example/mcp'}], 'website': 'https://mail.example',
+               'repository': 'https://github.com/example/mail'}
+    rows = {7: {**_row(7, [SAFE, SEND]), 'url': 'https://mail.example/mcp', 'details': json.dumps(details)},
+            8: {**_row(8, [SAFE, SEND]), 'url': 'https://other.example/mcp',
+                'details': json.dumps({'website': 'https://other.example/mcp', 'repository': None})}}
+    rec = ExposedFirstRecommender(Recommender([{'id': 7, 'kind': 'mcp', 'name': 'Mail', 'tools': ['send_email']},
+                                               {'id': 8, 'kind': 'mcp', 'name': 'Other', 'tools': ['send_email']}]),
+                                  Store(rows))
+    first, second = rec.search('send an email', limit=2)
+    assert first['tool_unlisted'] is True and second['tool_unlisted'] is True
+    assert first['connection_note'].endswith("Connect through the provider's own documentation: https://mail.example")
+    assert 'mcp' not in first['connection_note'].split(': ')[-1]
+    # The only "website" is the endpoint itself (a binding): no URL, the provider's name instead.
+    assert second['connection_note'].endswith('Connect through the provider (Other) directly.')
+    from agent_market.concierge.connections import public_agent
+    card = public_agent(first, rows[7])
+    assert card['connection_available'] is False and card['connection_note'] == first['connection_note']
+    from agent_market.concierge.fast_chat import FastConcierge
+    brief = FastConcierge._brief({**first, 'url': 'https://agentconcierge.biz/api/gateway/mcp/7', 'description': 'Mail tools',
+                                 'active_checked_at': 1794400000})
+    assert 'Connection: This tool performs an action' in brief

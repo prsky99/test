@@ -62,6 +62,20 @@ discovery arguments remain accepted for transport compatibility. An irrelevant o
 an empty result: return `status: no_match` with an empty array instead. Explicit
 session, contact, and notification commands remain separate from discovery.
 
+### 게이트웨이가 중계하지 않는 도구 (11-12, PM 결정 (나-1)(다))
+- `connection_available`은 "우리 게이트웨이로 그 과제의 도구를 실제로 쓸 수 있음"을 뜻한다.
+  - 추천한 도구가 게이트웨이 tools/list에 없으면 False다. 메일 보내기(`send_email`·`email_send`) 같은 작업형 도구는 `safe_registered_tool`에 걸려 게이트웨이가 내놓지 않는다.
+  - 판정: `gateway_exposure`가 이런 항목에 `tool_unlisted`를 붙이고, `connections._public_agent`가 False로 둔다.
+- 이런 추천의 카드에는 `connection_note`가 붙는다. 답 텍스트에는 `Connection:` 줄이 들어간다(영어 공개 문구).
+  - 문장: "This tool performs an action, so the Agent Concierge gateway does not relay it. Connect through the provider's own documentation: <website 또는 repository>"
+  - 출처 URL이 없으면 "Connect through the provider (<이름>) directly."로 끝난다.
+- 제공자의 호출 주소(바인딩)는 늘 숨긴다. 응답 경계의 `project()`가 게이트웨이 주소로 바꾸는 원칙은 그대로다.
+  - 안내에 쓰는 URL은 `details.website`, 없으면 `details.repository`다.
+  - https만 쓰고, 쿼리·`@`가 있거나 바인딩과 같은 주소는 쓰지 않는다.
+- 순위: 같은 과제에 게이트웨이가 중계하는 대안이 있으면 그 대안이 앞선다(11-11 `tool_unlisted` 순위 보정).
+- 측정: user_slo connect는 답이 준 연결 경로를 그대로 따른다. 이런 추천은 연결 미달로 남는다(표본 제외 없음).
+- 품질: 실제 과제 성공률에서 '직접 연결 필요'로 답한 작업형 과제는 성공으로 세지 않는다.
+
 ### Price fields (11-12)
 
 Every card that carries `price_usdc` also carries `price_status` (`agent_market/concierge/price_status.py`):

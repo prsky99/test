@@ -37,6 +37,36 @@ ACCOUNT = re.compile(r"""\b(?:requires?|needs?)\s+(?:an?\s+|your\s+(?:own\s+)?)?
     (?:api[\s_-]?key|access\s+token|oauth|login|sign[\s-]?in|account)\b""", re.I | re.X)
 SHOWN = 3  # recommendations a visitor sees
 PAID_NOTE = 'Paid plan: the description of this tool says it needs a paid plan.'
+# A tool our gateway does not relay (an action tool such as send_email, 11-12 PM (나-1)): the card says so and
+# points at the provider's own website or repository; invocation URLs stay hidden at the response boundary.
+UNRELAYED_NOTE = 'This tool performs an action, so the Agent Concierge gateway does not relay it.'
+
+
+def unrelayed_note(name, source):
+    """The public sentence for a recommendation whose chosen tool the gateway does not list."""
+    if source:
+        return UNRELAYED_NOTE + " Connect through the provider's own documentation: " + source
+    return UNRELAYED_NOTE + ' Connect through the provider (' + (str(name or 'this provider')[:120]) + ') directly.'
+
+
+def source_url(resource):
+    """The provider's website, else its repository: https only, never an invocation binding."""
+    import json
+    from .connections import bindings
+    details = (resource or {}).get('details') or {}
+    try:
+        details = json.loads(details) if isinstance(details, str) else details
+    except ValueError:
+        return None
+    if not isinstance(details, dict):
+        return None
+    bound = bindings(resource)
+    for key in ('website', 'repository'):
+        value = details.get(key)
+        if isinstance(value, str) and value.startswith('https://') and len(value) <= 300 and value not in bound \
+                and not any(c in value for c in ' "<>') and '?' not in value and '@' not in value:
+            return value
+    return None
 ACCOUNT_NOTE = 'Account: the description of this tool says it needs your own key or account.'
 
 
@@ -257,6 +287,8 @@ class ExposedFirstRecommender:
                     # air_quality_index is not an admitted tool, so the caller could only try another one).
                     item['task_standing'] = min(item['task_standing'], -1)
                     item['tool_unlisted'] = True
+                    facts = self._facts(item)
+                    item['connection_note'] = unrelayed_note(item.get('name'), facts[4] if facts and len(facts) > 4 else None)
             ranked = sorted(ranked, key=order_key)
             free = [item for item in ranked if order_key(item)[:2] == (False, False)]
         # Leave them out while any callable choice remains: Chat re-ranks a ten-item shortlist by
@@ -308,7 +340,8 @@ class ExposedFirstRecommender:
             value = (bool(resource) and bool(listed),
                      {str(spec.get('name')): str(spec.get('description') or '')[:4000]
                       for spec in specs if isinstance(spec, dict)},
-                     str((resource or {}).get('regions') or ''), listed if resource else None)
+                     str((resource or {}).get('regions') or ''), listed if resource else None,
+                     source_url(resource) if resource else None)
         except Exception:
             return None  # an unreadable row is judged by the recommender as before
         with self._lock:

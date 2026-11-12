@@ -624,6 +624,8 @@ class FastConcierge(Concierge):
                 'x402':item.get('method') or 'GET'}[kind]
         lines = [f"{display_label(name, 'Recommended agent')} [{kind.upper()}]", 'Endpoint: '+(item.get('usage_endpoint') or item['url']),
                  'Call: '+call]
+        if item.get('tool_unlisted') is True and isinstance(item.get('connection_note'), str):
+            lines.append('Connection: '+item['connection_note'][:600])  # 11-12 PM: not relayed by our gateway
         summary=next((part.strip() for part in re.split(r'(?<=[.!?])\s+|;',str(item.get('description') or '')) if part.strip() and not DISPLAY_RESTRICTED.search(part)), '')
         if summary:lines.append('Capability: '+summary[:220])
         from .task_conditions import explanation

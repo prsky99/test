@@ -293,7 +293,11 @@ def _public_agent(value, resource=None, *, store=None, create_connections=True):
     for key in ('url','usage_endpoint','agent_url'):
         if key in result or key!='agent_url':result[key]=gateway
     if 'host' in result:result['host']='agentconcierge.biz' if gateway else ''
-    result['connection_available']=bool(gateway)
+    # 'Available' means our gateway serves the recommended tool (11-12 PM): an MCP server whose chosen tool
+    # is not on the gateway's tools/list (an action tool such as send_email) is not connectable through us.
+    result['connection_available']=bool(gateway) and value.get('tool_unlisted') is not True
+    if value.get('tool_unlisted') is True and isinstance(value.get('connection_note'),str):
+        result['connection_note']=value['connection_note'][:600]
     # A listing that states a price is never answered as price 0 / free (11-12, price_status.py).
     from .price_status import price_fields
     if 'price_usdc' in value:  # cards built without a price (events, tool specs) stay without one
