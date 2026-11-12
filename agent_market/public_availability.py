@@ -8,7 +8,32 @@ from urllib.parse import urlsplit
 from .concierge.http_security import bounded_client, outbound_operation
 
 WINDOW_DAYS=30
+# Aligned with scripts/net_path.py (PM 11-12 net-path report, item 3): both give up after 5 s (curl -m 5 there),
+# and net_path calls a 200 slower than 4 s a stall. The public judgement is unchanged (200 within TIMEOUT_S);
+# the log now says when a check was slow by the net_path rule, which phase it stopped in, and when the answer
+# was a block (403/429: our own edge or app block, or a Cloudflare rule) rather than a path stall.
+TIMEOUT_S=5
+SLOW_S=4.0
+BLOCKED=(403,429)
+# httpcore trace step names ('<module>.<step>.started|complete|failed') and the phase each one is.
+PHASES={'connect_tcp':'tcp','start_tls':'tls','send_request_headers':'send','send_request_body':'send',
+        'receive_response_headers':'first_byte','receive_response_body':'body'}
 log=logging.getLogger(__name__)
+
+
+class PhaseTrace:
+    """httpcore trace callback: remembers the last phase that started and whether it completed."""
+    def __init__(self):self.phase=None;self.done=False
+    def __call__(self,event,info):
+        step,_,state=event.rpartition('.')
+        name=PHASES.get(step.rpartition('.')[2])
+        if name is None:return
+        if state=='started':self.phase,self.done=name,False
+        elif state=='complete':self.phase,self.done=name,True
+    def stalled_at(self):
+        """The phase a failed request stopped in; 'before_connect' when no connection step started."""
+        if self.phase is None:return 'before_connect'
+        return self.phase if not self.done else 'after_'+self.phase
 
 
 class AvailabilityMonitor:
@@ -22,10 +47,10 @@ class AvailabilityMonitor:
         parsed=urlsplit(origin)
         if parsed.scheme!='https' or parsed.username or parsed.password or parsed.path not in ('','/'):
             return
-        status=None;ok=False;started=time.monotonic()
+        status=None;ok=False;started=time.monotonic();trace=PhaseTrace()
         try:
-            with outbound_operation(5),closing(bounded_client(self.http,timeout=5,headers={'User-Agent':'AgentConciergeAvailability/1.0'})) as client:
-                response=client.get(origin.rstrip('/')+'/status.json')
+            with outbound_operation(TIMEOUT_S),closing(bounded_client(self.http,timeout=TIMEOUT_S,headers={'User-Agent':'AgentConciergeAvailability/1.0'})) as client:
+                response=client.get(origin.rstrip('/')+'/status.json',extensions={'trace':trace})
                 status=response.status_code
                 data=response.json() if status==200 else {}
                 ok=status==200 and data.get('service')=='Agent Concierge'
@@ -34,15 +59,19 @@ class AvailabilityMonitor:
             # Network failures become failed observations; never a fabricated success.
             pass
         latency=round((time.monotonic()-started)*1000,1)
-        if not ok:self.record_origin(status,latency)
+        if not ok:self.record_origin(status,latency,trace.stalled_at())
+        elif latency>SLOW_S*1000:
+            log.info('Public availability check slow (%.0f ms over the %.0f s net_path stall line); counted as available',
+                     latency,SLOW_S)
         with self.front.store.tx() as db:
             db.execute('INSERT INTO public_availability_checks (checked_at,ok,status_code,latency_ms) VALUES (?,?,?,?)',(now,int(ok),status,latency))
             db.execute('DELETE FROM public_availability_checks WHERE checked_at<?',(now-WINDOW_DAYS*86400,))
 
 
-    def record_origin(self,status,latency):
+    def record_origin(self,status,latency,stalled_at=None):
         """Internal log only: ask the local proxy the same question, to tell an origin problem
-        from a network-path problem (Cloudflare edge and tunnel). The public status is unchanged."""
+        from a network-path problem (Cloudflare edge and tunnel), or a block (403/429) from either.
+        The public status is unchanged."""
         origin=os.environ.get('AVAILABILITY_LOCAL_ORIGIN','http://127.0.0.1:8400')
         local=None;started=time.monotonic()
         try:
@@ -53,9 +82,10 @@ class AvailabilityMonitor:
         except Exception:
             pass
         local_ms=round((time.monotonic()-started)*1000,1)
-        verdict='origin' if local!=200 or local_ms>=3000 else 'path'
-        log.warning('Public availability check failed (status %s, %.0f ms); local origin %s in %.0f ms -> %s problem',
-                    status,latency,local,local_ms,verdict)
+        verdict='origin' if local!=200 or local_ms>=3000 else 'blocked' if status in BLOCKED else 'path'
+        where='' if status is not None or not stalled_at else '; stopped at '+stalled_at
+        log.warning('Public availability check failed (status %s, %.0f ms%s); local origin %s in %.0f ms -> %s problem',
+                    status,latency,where,local,local_ms,verdict)
         return verdict
 
 

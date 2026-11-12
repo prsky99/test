@@ -169,7 +169,7 @@ def test_start_build_always_runs_and_later_refreshes_use_the_standby_stop(monkey
     from agent_market.concierge import report_snapshot
     stop, calls = threading.Event(), []
 
-    def refresh(store, halt):
+    def refresh(store, halt, ratio=None):   # c7423539 added the pause ratio; a 2-argument fake looped forever
         calls.append(halt)
         if len(calls) == 2:
             stop.set()
@@ -200,7 +200,7 @@ def test_a_start_build_without_a_snapshot_is_not_reported_as_a_failure(monkeypat
     from agent_market.concierge import report_snapshot
     stop = threading.Event()
 
-    def refresh(store, halt):
+    def refresh(store, halt, ratio=None):
         stop.set()
         return None  # a build that produced no snapshot
     monkeypatch.setattr(report_snapshot, 'refresh', refresh)
