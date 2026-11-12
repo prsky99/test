@@ -76,11 +76,76 @@ def _run(args, env, *, timeout=30, input=None):
     return result
 
 
+ORPHAN_MIN_HOURS = 6        # a private cluster whose test process died is left running (11-12: two since 11-11 11:25)
+OLD_FOLDER_DAYS = 7
+_ORPHAN_ARGS = re.compile(r'-D\s+(/private/tmp/' + re.escape(TEMP_PREFIX) + r'[A-Za-z0-9_]+)/data(?:\s|$)')
+
+
+def _etime_seconds(text):
+    days, _, clock = text.strip().rpartition('-')
+    parts = [int(p) for p in clock.split(':')]
+    while len(parts) < 3:
+        parts.insert(0, 0)
+    return (int(days) if days else 0) * 86400 + parts[0] * 3600 + parts[1] * 60 + parts[2]
+
+
+def stop_orphan_clusters(min_hours=ORPHAN_MIN_HOURS, ps=None, connections=None, stop=None, folders=None, now=None):
+    """Stop private test clusters left behind by a dead test process; never delete their folders (PM 11-12).
+
+    A cluster is an orphan when its postmaster's parent is launchd (ppid 1), it is older than MIN_HOURS, no other
+    process names its folder and no client is connected. Returns {'stopped': [...], 'kept': [...], 'old_folders': [...]} where old_folders lists
+    /private/tmp/a2a-adapter-pg-* folders untouched for OLD_FOLDER_DAYS (deleting them is the user's decision)."""
+    pg_bin = Path('/opt/homebrew/opt/postgresql@18/bin')
+    rows = (ps or (lambda: subprocess.run(['ps', '-Ao', 'pid=,ppid=,etime=,args='], capture_output=True, text=True).stdout))()
+
+    def clients(root):
+        out = subprocess.run([str(pg_bin / 'psql'), '-h', str(Path(root) / 'socket'), '-p', str(PORT), '-U', 'postgres',
+                              '-d', 'postgres', '-At', '-c', "SELECT count(*) FROM pg_stat_activity WHERE "
+                              "backend_type='client backend' AND pid<>pg_backend_pid()"], capture_output=True, text=True,
+                             timeout=10)
+        return int(out.stdout.strip()) if out.returncode == 0 and out.stdout.strip().isdigit() else None
+
+    def halt(root):
+        return subprocess.run([str(pg_bin / 'pg_ctl'), '-D', str(Path(root) / 'data'), '-m', 'fast', '-w', '-t', '20',
+                               'stop'], capture_output=True, text=True, timeout=30).returncode == 0
+    stopped, kept = [], []
+    lines = [line.split(None, 3) for line in rows.splitlines()]
+    # pg_ctl daemonises, so every postmaster has ppid 1: a cluster is also kept while any other process (a migrate,
+    # a script holding its DSN file) names its folder.
+    users = [parts[3] for parts in lines if len(parts) == 4 and not _ORPHAN_ARGS.search(parts[3])]
+    for line in rows.splitlines():
+        parts = line.split(None, 3)
+        if len(parts) < 4 or not parts[0].isdigit():
+            continue
+        found = _ORPHAN_ARGS.search(parts[3])
+        if not found or parts[1] != '1':
+            continue
+        root = found.group(1)
+        if _etime_seconds(parts[2]) < min_hours * 3600:
+            continue
+        if any(root in args for args in users):
+            kept.append({'root': root, 'in_use': True})
+            continue
+        busy = (connections or clients)(root)
+        if busy != 0:
+            kept.append({'root': root, 'clients': busy})
+            continue
+        (stopped if (stop or halt)(root) else kept).append({'root': root})
+    now = time.time() if now is None else now
+    old = sorted(str(path) for path in (folders if folders is not None else Path('/private/tmp').glob(TEMP_PREFIX + '*'))
+                 if Path(path).is_dir() and now - Path(path).stat().st_mtime > OLD_FOLDER_DAYS * 86400)
+    return {'stopped': stopped, 'kept': kept, 'old_folders': old}
+
+
 @contextmanager
 def _private_cluster(tools):
     """An internal explicit-connection fixture; never use a caller DSN."""
     # Automatic TemporaryDirectory cleanup would remove files even after both
     # stop commands fail. Keep ownership explicit until shutdown is confirmed.
+    try:   # orphans of earlier runs hold memory and the shared port; stop them first (never fails the fixture)
+        stop_orphan_clusters()
+    except Exception:  # noqa: BLE001
+        pass
     root = Path(tempfile.mkdtemp(prefix=TEMP_PREFIX, dir='/private/tmp'))
     data = root / 'data'
     env = None

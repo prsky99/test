@@ -390,6 +390,36 @@ def provenance(clock=time.time, run=None):
     return 'warned' if found else 'clean'
 
 
+ORPHAN_STATE = ROOT / 'logs/ops/orphan-clusters-state.json'
+
+
+def orphan_clusters(clock=time.time, run=None):
+    """Once a day: stop private test clusters a dead test left running (ppid 1, over 6 hours, no clients; PM 11-12).
+
+    Folders are never deleted; those untouched for 7 days are listed on the board line (deleting is the user's
+    decision)."""
+    day = datetime.fromtimestamp(clock()).strftime('%Y-%m-%d')
+    state = json.loads(ORPHAN_STATE.read_text()) if ORPHAN_STATE.is_file() else {}
+    if state.get('day') == day:
+        return None
+    ORPHAN_STATE.write_text(json.dumps({'day': day}))
+    if run is None:
+        from rehearse_storage_adapter_postgres import stop_orphan_clusters as run
+    result = run()
+    stopped, kept, old = result.get('stopped') or [], result.get('kept') or [], result.get('old_folders') or []
+    if stopped or kept or old:
+        parts = []
+        if stopped:
+            parts.append(f"고아 시험 클러스터 {len(stopped)}개 멈춤({', '.join(Path(r['root']).name for r in stopped)})")
+        if kept:
+            parts.append(f"연결 있어 남김 {len(kept)}개")
+        if old:
+            parts.append(f"7일 넘은 폴더 {len(old)}개(삭제는 사용자 결정): {', '.join(Path(f).name for f in old)}")
+        board_handoff('orphan_clusters', '; '.join(parts))
+    append(ACTIONS, f'{now()} 고아 시험 클러스터: 멈춤 {len(stopped)}, 남김 {len(kept)}, 7일 넘은 폴더 {len(old)}')
+    return {'stopped': len(stopped), 'kept': len(kept), 'old_folders': len(old)}
+
+
 TEST_PYTHON = ROOT / '.venv-tests/bin/python'   # the browser part needs playwright, which only .venv-tests has (11-11)
 
 
@@ -489,6 +519,10 @@ def watch():
         provenance()
     except Exception as error:  # noqa: BLE001
         append(ACTIONS, f'{now()} 출처 대조 실패: {type(error).__name__}')
+    try:
+        orphan_clusters()
+    except Exception as error:  # noqa: BLE001
+        append(ACTIONS, f'{now()} 고아 시험 클러스터 정리 실패: {type(error).__name__}')
     try:
         full_check()
     except Exception as error:  # noqa: BLE001
