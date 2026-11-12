@@ -175,6 +175,7 @@ def test_per_kind_halfvec_indexes_are_used_once_present_and_rolled_back_cleanly(
             with store.tx(readonly=True):
                 assert kind_search(store,'mcp') is None  # nothing built yet: the shared graph
                 before=nearest(store,blob,descriptor,kind='mcp')
+                before_any=nearest(store,blob,descriptor)  # no kind: the shared graph before D'
             steps=migration.migrate(conn,cover=True)
             assert steps['filled']==3
             state=migration.status(conn)
@@ -184,6 +185,8 @@ def test_per_kind_halfvec_indexes_are_used_once_present_and_rolled_back_cleanly(
             with store.tx(readonly=True):
                 assert layout(store)=={'kind_column':True,'kind_indexes':True}
                 assert nearest(store,blob,descriptor,kind='mcp')==before
+                # No kind: each kind's graph, merged by distance, gives the shared graph's answer (11-12 A3).
+                assert nearest(store,blob,descriptor)==before_any and len(before_any)==3
                 store._execute('SET LOCAL enable_seqscan=off')
                 plan=store._execute("""EXPLAIN SELECT e.resource_id FROM agentcon_search.embeddings e WHERE e.kind='mcp'
                     ORDER BY e.embedding::public.halfvec(768) <=> %s::public.halfvec(768) LIMIT 10""",(vector_literal(blob),)).fetchall()

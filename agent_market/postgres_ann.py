@@ -47,6 +47,25 @@ def kind_search(store, kind):
     return "e.kind='%s'" % kind, 'e.embedding::public.halfvec(768)', 'public.halfvec(768)'
 
 
+def kind_graph_search(store, kind, run, limit=100):
+    """Ids nearest first through the per-kind graphs, also when no kind is asked for (11-12 PM, A3).
+
+    RUN(clause, order, cast) executes one caller's query and returns (resource_id, distance) rows, nearest
+    first. With a kind (or before D' exists) it runs once, as before. Without a kind it runs once per kind
+    graph and merges by distance: every global top-LIMIT row is in its own kind's top LIMIT, so the merge is
+    the shared graph's answer, and nothing reads the shared graph (embeddings_cosine_hnsw), which is then
+    only maintained on insert and may be dropped after 72 h without scans (separate approval)."""
+    own = kind_search(store, kind)
+    if kind is not None or own is not None or not layout(store)['kind_indexes']:
+        clause, order, cast = own or ('TRUE', 'e.embedding', 'public.vector')
+        return [row[0] for row in run(clause, order, cast)]
+    rows = []
+    for each in KINDS:
+        rows += list(run(*kind_search(store, each)))
+    rows.sort(key=lambda row: (row[1], row[0]))
+    return [row[0] for row in rows[:limit]]
+
+
 def vector_literal(blob):
     if type(blob) is not bytes or len(blob) != 3072:
         raise VectorError('invalid_vector')
@@ -94,9 +113,10 @@ def nearest(store, blob, descriptor, *, kind=None, category=None, verified_only=
     # Metadata filtering is not execution authorization. Publication proofs are
     # still checked by the caller in the same read snapshot.
     configure_scan(store, filtered=True)
-    own = kind_search(store, kind)
-    clause, order, cast = own or ('TRUE', 'e.embedding', 'public.vector')
-    return [row[0] for row in store._execute('''SELECT e.resource_id
+    literal = vector_literal(blob)
+
+    def run(clause, order, cast):
+        return store._execute('''SELECT e.resource_id, ''' + order + ''' <=> %s::''' + cast + ''' AS distance
         FROM agentcon_search.embeddings e JOIN public.resources r ON r.id=e.resource_id
         WHERE e.descriptor_hash=%s AND ''' + clause + ''' AND r.active=1 AND r.health_status!='retired'
           AND COALESCE(r.eval_security,'')!='quarantine'
@@ -104,7 +124,8 @@ def nearest(store, blob, descriptor, *, kind=None, category=None, verified_only=
           AND (%s::text IS NULL OR r.category=%s)
           AND (%s=0 OR r.trial_ok=1)
         ORDER BY ''' + order + ''' <=> %s::''' + cast + ''' LIMIT 100''',
-        (descriptor.digest,kind,kind,category,category,int(verified_only),vector_literal(blob))).fetchall()]
+        (literal,descriptor.digest,kind,kind,category,category,int(verified_only),literal)).fetchall()
+    return kind_graph_search(store, kind, run)
 
 
 def configure_scan(store, *, filtered=False):

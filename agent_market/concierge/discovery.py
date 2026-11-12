@@ -228,27 +228,24 @@ def candidates(
     if vector is not None and index and index.ann_enabled:
         blob = validate_vector(vector, descriptor)[0]
         with stage('ann'), index.read_snapshot():
-            from ..postgres_ann import configure_scan, kind_search
-            configure_scan(store, filtered=kind is not None or category is not None)
-            # A kind's own halfvec graph when it exists (draft D'), else the shared graph.
-            clause, order, cast = kind_search(store, kind) or ('TRUE', 'e.embedding', 'public.vector')
-            found = store._execute(
-                """SELECT e.resource_id FROM agentcon_search.embeddings e
-                JOIN public.resources r ON r.id=e.resource_id
-                WHERE e.descriptor_hash=%s AND """ + clause + """ AND r.active=1 AND r.health_status IN ('healthy','reachable')
-                 AND COALESCE(r.eval_security,'') NOT IN ('quarantine','review')
-                 AND (%s::text IS NULL OR r.kind=%s) AND (%s::text IS NULL OR r.category=%s)
-                ORDER BY """ + order + """ <=> %s::""" + cast + """ LIMIT 100""",
-                (
-                    descriptor.digest,
-                    kind,
-                    kind,
-                    category,
-                    category,
-                    vector_literal(blob),
-                ),
-            ).fetchall()
-            ids = [row[0] for row in found]
+            from ..postgres_ann import configure_scan, kind_graph_search, layout
+            # Without a kind the per-kind graphs are read one by one (11-12 A3), so the scan is filtered too.
+            configure_scan(store, filtered=kind is not None or category is not None or layout(store)['kind_indexes'])
+            literal = vector_literal(blob)
+
+            def run(clause, order, cast):
+                # A kind's own halfvec graph when it exists (draft D'), else the shared graph.
+                return store._execute(
+                    """SELECT e.resource_id, """ + order + """ <=> %s::""" + cast + """ AS distance
+                    FROM agentcon_search.embeddings e
+                    JOIN public.resources r ON r.id=e.resource_id
+                    WHERE e.descriptor_hash=%s AND """ + clause + """ AND r.active=1 AND r.health_status IN ('healthy','reachable')
+                     AND COALESCE(r.eval_security,'') NOT IN ('quarantine','review')
+                     AND (%s::text IS NULL OR r.kind=%s) AND (%s::text IS NULL OR r.category=%s)
+                    ORDER BY """ + order + """ <=> %s::""" + cast + """ LIMIT 100""",
+                    (literal, descriptor.digest, kind, kind, category, category, literal),
+                ).fetchall()
+            ids = kind_graph_search(store, kind, run)
             current = index.current_ids(ids, descriptor)
             dense = [rid for rid in ids if rid in current]
     count('dense_candidates', len(dense))
