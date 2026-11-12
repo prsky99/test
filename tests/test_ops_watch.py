@@ -191,3 +191,42 @@ def test_user_slo_runs_once_in_every_clock_hour(tmp_path, monkeypatch):
     (tmp_path / 'slo.json').write_text(__import__('json').dumps(state))
     ops_auto.user_slo()
     assert len(calls) == 2
+
+
+def test_site_retry_moves_single_connection_stall_to_path(monkeypatch, tmp_path):
+    """11-12 16:12: one 8.5 s llms.txt timeout from this Mac's line is recorded, not alerted, when a retry answers."""
+    calls = {}
+
+    def fake_fetch(url):
+        calls[url] = calls.get(url, 0) + 1
+        if url.endswith('/llms.txt') and calls[url] == 1:
+            return 'TimeoutError', 8.5
+        if url.endswith('weather'):
+            return 'TimeoutError', 8.4  # fails twice: a real anomaly
+        return 200, 0.8
+    monkeypatch.setattr(ops_watch, 'fetch', fake_fetch)
+    monkeypatch.setattr(ops_watch, 'NET_PATH', tmp_path / 'none.jsonl')
+    bad, path = ops_watch.check_site(retry_wait=0)
+    assert [b['url'].rsplit('/', 1)[-1] for b in bad] == ['explore?q=weather']
+    assert bad[0]['retry']['status'] == 'TimeoutError'
+    assert len(path) == 1 and path[0]['status'] == 'TimeoutError' and path[0]['retry'] == {'status': 200, 'seconds': 0.8}
+    assert calls['https://agentconcierge.biz/'] == 1
+
+
+def test_site_security_answers_are_not_retried(monkeypatch):
+    calls = []
+    monkeypatch.setattr(ops_watch, 'fetch', lambda url: (calls.append(url), (429, 0.9))[1])
+    bad, path = ops_watch.check_site(retry_wait=0)
+    assert len(bad) == 3 and not path and len(calls) == 3
+
+
+def test_nearest_path_record(tmp_path, monkeypatch):
+    import json
+    from datetime import datetime
+    f = tmp_path / 'p.jsonl'
+    f.write_text(json.dumps({'at': '2026-11-12 16:12:34', 'edge': {'status': 200}, 'gateway_ms': 0.6}) + '\n'
+                 + json.dumps({'at': '2026-11-12 16:14:38', 'edge': {'status': 0}}) + '\n')
+    monkeypatch.setattr(ops_watch, 'NET_PATH', f)
+    at = datetime(2026, 11, 12, 16, 12, 10).timestamp()
+    assert ops_watch.nearest_path_record(at)['at'] == '2026-11-12 16:12:34'
+    assert ops_watch.nearest_path_record(at + 3600) is None

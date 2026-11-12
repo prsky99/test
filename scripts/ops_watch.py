@@ -2,7 +2,8 @@
 """Ten-minute work-status check (11-10 user request). Cheap, read-only, no Claude needed.
 
 Prints one JSON line and appends it to logs/ops/watch.jsonl. "anomalies" lists only what needs action:
-- site: public pages that do not answer 200 within 8 s
+- site: public pages that do not answer 200 within 8 s on two fresh connections
+  (one failed try that the retry answers is kept under "site_path" with the net-path line, not alerted)
 - deploy_lock: the status board deploy lock held for more than 40 minutes
 - long_tests: pytest or release_gate processes running for more than 60 minutes
 - deploy_stuck: service_deploy processes running for more than 30 minutes
@@ -22,6 +23,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 BOARD = ROOT / 'logs/ops/status-board.md'
 OUT = ROOT / 'logs/ops/watch.jsonl'
+NET_PATH = ROOT / 'logs/ops/net-path.jsonl'
 URLS = ('https://agentconcierge.biz/', 'https://agentconcierge.biz/llms.txt',
         'https://agentconcierge.biz/api/explore?q=weather')
 
@@ -42,20 +44,60 @@ def processes():
         yield int(pid), etime_seconds(etime), args
 
 
-def check_site():
-    bad = []
-    for url in URLS:
-        started = time.time()
+def fetch(url):
+    """One GET on a fresh connection: (status or error name, seconds)."""
+    started = time.time()
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'agentcon-ops-watch/1 (site owner QA)'})
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            code = resp.status
+    except Exception as error:  # noqa: BLE001 - any failure is the signal
+        code = getattr(error, 'code', None) or type(error).__name__
+    return code, round(time.time() - started, 2)
+
+
+def nearest_path_record(at=None, window=150):
+    """The logs/ops/net-path.jsonl line closest to now (within window s), for the measuring side's line."""
+    at = at or time.time()
+    best = None
+    try:
+        lines = NET_PATH.read_text().splitlines()[-30:]
+    except OSError:
+        return None
+    for line in lines:
         try:
-            req = urllib.request.Request(url, headers={'User-Agent': 'agentcon-ops-watch/1 (site owner QA)'})
-            with urllib.request.urlopen(req, timeout=8) as resp:
-                code = resp.status
-        except Exception as error:  # noqa: BLE001 - any failure is the signal
-            code = getattr(error, 'code', None) or type(error).__name__
-        took = round(time.time() - started, 2)
-        if code != 200 or took > 8:
-            bad.append({'url': url, 'status': code, 'seconds': took})
-    return bad
+            row = json.loads(line)
+            gap = abs(datetime.strptime(row['at'], '%Y-%m-%d %H:%M:%S').timestamp() - at)
+        except (ValueError, KeyError, TypeError):
+            continue
+        if gap <= window and (best is None or gap < best[0]):
+            best = (gap, {k: row.get(k) for k in ('at', 'gateway_ms', 'internet_ms', 'edge', 'public')})
+    return best[1] if best else None
+
+
+def check_site(retry_wait=2.0):
+    """Returns (bad, path). A failure that a second fresh connection answers with 200 within 8 s goes to path:
+    the site answered, the stall was one connection from this Mac (11-12 16:12: llms.txt 8.5 s while the
+    net-path probe saw TLS 1.4 s and a 5 s TCP stall to Cloudflare LAX, gateway and origin clean).
+    Both tries are kept; only a failure on both counts as a site anomaly."""
+    bad, path = [], []
+    for url in URLS:
+        code, took = fetch(url)
+        if code == 200 and took <= 8:
+            continue
+        first = {'url': url, 'status': code, 'seconds': took}
+        if code in (403, 429):  # our own security answer: a real signal, retrying would only add a violation
+            bad.append(first)
+            continue
+        time.sleep(retry_wait)
+        code2, took2 = fetch(url)
+        first['retry'] = {'status': code2, 'seconds': took2}
+        if code2 == 200 and took2 <= 8:
+            first['net_path'] = nearest_path_record()
+            path.append(first)
+        else:
+            bad.append(first)
+    return bad, path
 
 
 def check_board():
@@ -96,7 +138,7 @@ def check_disk():
 
 def main():
     anomalies = {}
-    site = check_site()
+    site, site_path = check_site()
     if site:
         anomalies['site'] = site
     long_tests, stuck = [], []
@@ -118,6 +160,8 @@ def main():
     anomalies.update(check_board())
     record = {'at': datetime.now().strftime('%Y-%m-%d %H:%M'), 'memory_free_percent': free,
               'anomalies': anomalies}
+    if site_path:  # recorded, not alerted: the second fresh connection got 200 (see check_site)
+        record['site_path'] = site_path
     OUT.parent.mkdir(parents=True, exist_ok=True)
     with OUT.open('a') as fh:
         fh.write(json.dumps(record, ensure_ascii=False) + '\n')
