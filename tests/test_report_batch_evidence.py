@@ -67,7 +67,8 @@ def test_a_recorded_collector_trial_turns_an_mcp_candidate_into_an_execution_rep
     builder = _load_builder(monkeypatch, tmp_path / 'drafts')
     now = 1794460000.0
     trial = {'tool': 'get_growth_metrics', 'arguments': '{"region": "kr"}', 'at': now - 600.25, 'ok': True,
-             'output_chars': 5530, 'latency_ms': 50, 'finished_at': now - 600.2}
+             'output_chars': 5530, 'latency_ms': 50, 'finished_at': now - 600.2,
+             'sample_output': '{"schema": "kallipolis.growth-metrics.v1", "metrics": [{"name": "users"}]}'}
 
     class Store:
         def __init__(self, row): self.row = row
@@ -101,3 +102,14 @@ def test_a_recorded_collector_trial_turns_an_mcp_candidate_into_an_execution_rep
     assert rec['executed_at'] == found['started'] and rec['execution_finished_at'] == found['finished']
     assert rec['tool_name'] == 'get_growth_metrics' and rec['output_wire']['tool_call']['output_chars'] == 5530
     assert 'No tool was invoked' not in rec['content_md'] and builder.lint(rec) == []
+
+
+def test_a_trial_that_answered_with_failure_or_nothing_is_not_evidence(monkeypatch, tmp_path):
+    """PM 11-12: three reports stood on {"ok": false} and one on an empty guide list; such trials are not used."""
+    builder = _load_builder(monkeypatch, tmp_path / 'drafts')
+    for sample in ('{"ok":false}', '{"success": false, "data": {"x": 1}}', '{"guides":[],"directory":"https://clefdrills.com/x"}',
+                   '[]', '', None):
+        assert builder.empty_or_refused(sample), sample
+    for sample in ('{"count": 122, "destinations": [{"slug": "london"}]}', '1 newest incident: Git flaw',
+                   '{"total_matching":16,"returned":1,"signals":[{"id":"s-001"}]}', '{"answer": "Found 1 asset", "facts": []}'):
+        assert not builder.empty_or_refused(sample), sample

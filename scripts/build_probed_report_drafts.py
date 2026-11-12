@@ -365,6 +365,26 @@ LATEST_EXECUTION = ("SELECT * FROM capability_evidence WHERE version_id=? AND sc
 TRIAL_MAX_AGE = 7 * 86400   # publication matches the exact record and does not read its expiry; keep reports recent
 
 
+def empty_or_refused(sample):
+    """True when a tool answered but said it did nothing useful (PM 11-12: {"ok": false} from browser-url-ok on three
+    servers, an empty guide list), so the call cannot stand as evidence that the agent did a task."""
+    text = (sample or '').strip()
+    if not text:
+        return True
+    try:
+        value = json.loads(text)
+    except ValueError:
+        return False                      # plain text answers are judged by their content elsewhere
+    if not isinstance(value, dict):
+        return isinstance(value, list) and not value
+    if any(value.get(key) is False for key in ('ok', 'success')):
+        return True
+    lists = [v for v in value.values() if isinstance(v, list)]
+    substantive = [v for k, v in value.items() if not isinstance(v, list) and v not in (None, '', {}) and k not in (
+        'directory', 'url', 'source', 'docs', 'link', 'more', 'next', 'query', 'input', 'inputText')]
+    return bool(lists) and all(not v for v in lists) and not substantive
+
+
 def recorded_trial(store, resource, version, now=None, listed=None):
     """The catalog collector's read-only trial call when it is this version's latest execution evidence (11-12).
 
@@ -391,6 +411,8 @@ def recorded_trial(store, resource, version, now=None, listed=None):
         return None
     if listed is not None and str(info['tool']) not in listed:
         return None     # the tool is gone from the server's current list
+    if empty_or_refused(info.get('sample_output')):
+        return None     # answered, but reported failure or an empty result
     try:
         arguments = json.loads(info.get('arguments') or '{}') if isinstance(info.get('arguments'), str) else info.get('arguments')
     except ValueError:
