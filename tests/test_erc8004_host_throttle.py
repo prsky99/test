@@ -39,6 +39,7 @@ def _crawler(store):
 
 def test_a_throttled_host_stops_at_the_hourly_cap_and_others_keep_their_pace(monkeypatch):
     monkeypatch.setattr(registries, 'THROTTLE_HOURLY', 12)
+    monkeypatch.setattr(registries, 'THROTTLE_WINDOW', 3600)  # one window: the hourly cap alone
     store = Store({'kinds': {'a2a': 100}, 'hosts': [('big.example', 'a2a', 97, 3)]})
     crawler = _crawler(store)
     now = 10_000.0
@@ -74,3 +75,18 @@ def test_sqlite_store_counts_active_rows_per_host_and_kind():
     shares = store.host_kind_shares(2)
     assert shares['kinds'] == {'a2a': 4, 'mcp': 1}
     assert shares['hosts'] == [('big.example', 'a2a', 4, 0)]
+
+
+def test_the_hourly_cap_is_spread_over_ten_minute_windows(monkeypatch):
+    """PM 11-12: after the 13:35 restart 200 came in 8 minutes and then none for the rest of the hour."""
+    monkeypatch.setattr(registries, 'THROTTLE_HOURLY', 200)
+    store = Store({'kinds': {'a2a': 100}, 'hosts': [('big.example', 'a2a', 97, 3)]})
+    crawler = _crawler(store)
+    now, per_window = 50_000.0, []
+    for window in range(7):
+        for step in range(20):  # many rounds inside one 10-minute window
+            crawler._pending_rows(now + window * 600 + step * 25, 200)
+        taken = sum(take for host, take in store.picks if host == 'big.example') - sum(per_window)
+        per_window.append(taken)
+    assert per_window[:6] == [34, 34, 34, 34, 34, 30]  # 34 a window, 200 in the hour
+    assert per_window[6] == 34  # the first window's picks left the hour

@@ -132,6 +132,7 @@ THROTTLE_SHARE = float(os.environ.get('ERC8004_THROTTLE_SHARE', '0.20'))   # hos
 THROTTLE_TRIAL = float(os.environ.get('ERC8004_THROTTLE_TRIAL', '0.20'))   # below this trial_ok rate
 THROTTLE_HOURLY = int(os.environ.get('ERC8004_THROTTLE_HOURLY', '200'))    # registrations resolved per host per hour
 THROTTLE_MIN_ROWS = 1000      # smaller hosts are never throttled
+THROTTLE_WINDOW = 600         # the hourly cap is spread over 10-minute windows (PM 11-12: no burst)
 THROTTLE_REFRESH = 600        # seconds between rule evaluations (two GROUP BYs)
 
 
@@ -449,10 +450,15 @@ class Erc8004Crawler:
         return getattr(self, '_throttle', set())
 
     def _hourly_room(self, host: str, now: float) -> int:
-        """Registrations HOST may still resolve in the last hour (taken counts picks, success or not)."""
+        """Registrations HOST may still resolve: at most THROTTLE_HOURLY in the last hour and an even share of
+        it in the last THROTTLE_WINDOW seconds (200 an hour = 34 per 10 minutes), so a restart or a new hour
+        does not let the whole hour's share in at once. Taken counts picks, success or not."""
         taken = [t for t in self.__dict__.setdefault('_taken', {}).get(host, ()) if now - t < 3600]
         self._taken[host] = taken
-        return max(0, THROTTLE_HOURLY - len(taken))
+        windows = max(1, 3600 // THROTTLE_WINDOW)
+        per_window = -(-THROTTLE_HOURLY // windows)
+        recent = sum(1 for t in taken if now - t < THROTTLE_WINDOW)
+        return max(0, min(THROTTLE_HOURLY - len(taken), per_window - recent))
 
     def _pending_rows(self, now: float, limit: int) -> list:
         """Up to per_host due registrations per host, earliest first (11-11).
