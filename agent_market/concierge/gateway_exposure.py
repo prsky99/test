@@ -37,7 +37,7 @@ ACCOUNT = re.compile(r"""\b(?:requires?|needs?)\s+(?:an?\s+|your\s+(?:own\s+)?)?
     (?:api[\s_-]?key|access\s+token|oauth|login|sign[\s-]?in|account)\b""", re.I | re.X)
 SHOWN = 3  # recommendations a visitor sees
 PAID_NOTE = 'Paid plan: the description of this tool says it needs a paid plan.'
-# A tool our gateway does not relay (an action tool such as send_email, 11-12 PM (나-1)): the card says so and
+# A tool our gateway does not relay (an action tool such as send_email, 11-12 PM option b-1): the card says so and
 # points at the provider's own website or repository; invocation URLs stay hidden at the response boundary.
 UNRELAYED_NOTE = 'This tool performs an action, so the Agent Concierge gateway does not relay it.'
 
