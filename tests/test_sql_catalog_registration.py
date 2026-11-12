@@ -83,3 +83,23 @@ def test_a_rebuild_keeps_every_registered_statement_and_its_dialect_pair():
     twice = keep_registered({'statements': list(model['statements'])}, {'statements': once})['statements']
     assert [item['name'] for item in twice] == [item['name'] for item in once]
     assert not [item['name'] for item in once if re.search(r'\.\d{1,5}$', item['name'])]
+
+
+def test_check_judges_what_the_runtime_reads_not_names_or_source_hashes():
+    """PM 11-12: --check ignores source_manifest and names; a changed dialect pair or schema script still counts."""
+    from scripts.build_application_store_postgres_catalog import runtime_view
+    base = {'statements': [{'name': 'm.source.aaaaaaaaaaaa', 'sqlite': 'SELECT 1 FROM t', 'postgres': 'SELECT 1 FROM t',
+                            'readonly': True, 'generated_id': None}],
+            'scripts': {'CREATE TABLE t(x)': ['CREATE TABLE t(x)']}, 'source_manifest': [{'file': 'a.py', 'sha256': '1'}]}
+    def variant(**change):
+        model = json.loads(json.dumps(base))
+        for key, value in change.items():
+            if key == 'name' or key == 'postgres':
+                model['statements'][0][key] = value
+            else:
+                model[key] = value
+        return model
+    assert runtime_view(variant(source_manifest=[{'file': 'a.py', 'sha256': '2'}])) == runtime_view(base)
+    assert runtime_view(variant(name='m.source.bbbbbbbbbbbb')) == runtime_view(base)
+    assert runtime_view(variant(postgres='SELECT 2 FROM t')) != runtime_view(base)
+    assert runtime_view(variant(scripts={'CREATE TABLE t(x)': ['CREATE TABLE t(y)']})) != runtime_view(base)

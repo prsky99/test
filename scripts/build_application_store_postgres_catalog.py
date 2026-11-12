@@ -723,6 +723,17 @@ def encoded(model):
     return '\n'.join(lines)+'\n'
 
 
+def runtime_view(model):
+    """What the PostgreSQL runtime reads from a catalog: the statement found for each normalized SQLite text
+    (the last entry wins, as in application_store_postgres._STATEMENTS) without its name, and every other
+    section except source_manifest. --check judges on this only (PM 11-12): names and source file hashes
+    move with ordinary edits and are reported as information."""
+    from agent_market.application_store_postgres import _normalized
+    statements = {_normalized(item['sqlite']): {k: v for k, v in item.items() if k != 'name'}
+                  for item in model.get('statements', [])}
+    return {'statements': statements, **{k: v for k, v in model.items() if k not in ('statements', 'source_manifest')}}
+
+
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__,allow_abbrev=False)
     mode=parser.add_mutually_exclusive_group(required=True)
@@ -741,9 +752,12 @@ def main(argv=None):
     target=Path(__file__).resolve().parents[1]/'agent_market/application_store_sql.json'
     keep_registered(model, json.loads(target.read_text()) if target.exists() else None)
     data=encoded(model)
-    changed=target.read_text()!=data if target.exists() else True
+    existing=json.loads(target.read_text()) if target.exists() else {}
+    changed=runtime_view(existing)!=runtime_view(model) if existing else True
+    names_changed=sorted(i['name'] for i in existing.get('statements',[]))!=sorted(i['name'] for i in model['statements'])
     if args.write: target.write_text(data)
     print(json.dumps({'profile':model['profile'],'changed':changed,'written':args.write,
+        'manifest_changed':existing.get('source_manifest')!=model['source_manifest'],'names_changed':names_changed,
         'tables':len(model['tables']),'statements':len(model['statements'])},sort_keys=True))
     return 1 if args.check and changed else 0
 
