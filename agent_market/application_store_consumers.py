@@ -38,8 +38,9 @@ class PostgresConsumerMixin:
         if protocol:conditions.append("COALESCE(requested_protocol,'any')=%s");values.append(protocol)
         if case_state:conditions.append('case_status=%s');values.append(case_state)
         if tier:conditions.append('tier=%s');values.append(tier)
-        if source=='live':conditions.append("COALESCE(channel,'')!='admin-test'")
+        if source=='live':conditions.append("COALESCE(channel,'')!='admin-test' AND COALESCE(user_agent,'')<>'internal'")
         elif source=='simulation':conditions.append("channel='admin-test'")
+        elif source=='internal':conditions.append("user_agent='internal'")
         where=' WHERE '+' AND '.join(conditions) if conditions else ''
         # Exact source CTE placeholders only; this source-owned native constant
         # does not accept or rewrite SQL from a caller.
@@ -58,10 +59,12 @@ class PostgresConsumerMixin:
         return {'items':rows,'filtered_stats':summary,'pagination':{'total':summary['total'],'offset':offset,'limit':limit,'has_more':offset+len(rows)<summary['total']}}
 
     def agent_telemetry_raw(self, since: float, now: float, source: str = 'live') -> dict:
-        if source == 'live':
-            src_cond = "COALESCE(v.channel, '') != 'admin-test'"
+        if source == 'live':   # 11-12 PM: our own measurements ('internal') are not live traffic
+            src_cond = "COALESCE(v.channel, '') != 'admin-test' AND COALESCE(v.user_agent, '') <> 'internal'"
         elif source == 'simulation':
             src_cond = "v.channel = 'admin-test'"
+        elif source == 'internal':
+            src_cond = "v.user_agent = 'internal'"
         else:
             src_cond = "1=1"
         with self.tx(readonly=True):

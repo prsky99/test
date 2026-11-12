@@ -89,6 +89,17 @@ def entry_of(method, path):
     return None
 
 
+INTERNAL_MARK = 'internal'
+
+
+def internal_request(ua, qa=None):
+    """Our own measurements and checks: an internal User-Agent or the X-Agentcon-QA header (11-12 PM).
+
+    The same rule the traffic report uses, plus the header, so visitors created by user_slo, the public full check
+    or the deploy warm-up are counted apart. A forged header only moves the sender's own visit to 'internal'."""
+    return bool(qa) or bool(INTERNAL_UA.search(ua or ''))
+
+
 def client_of(ip, ua, internal_ips):
     """Client class and, for bots, the bot name."""
     ua = ua or ''

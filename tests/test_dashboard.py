@@ -803,3 +803,49 @@ def test_agent_telemetry_ax_remediation_and_circuit_breaker(dash):
 
 
 
+
+
+def test_visitor_counts_set_our_own_measurements_apart(dash):
+    """11-12 PM: visitors created by user_slo, the public full check or the deploy warm-up (an internal
+    User-Agent or X-Agentcon-QA) are counted apart; nothing else about an agent is stored."""
+    world, c = dash
+    from agent_market.concierge.front import create_front_app
+    front = TestClient(create_front_app(world.app.state.front))
+    front.post("/chat", json={"message": "find web search API"})
+    front.post("/chat", json={"message": "send email with history 4821"}, headers={"X-Agentcon-QA": "user_slo"})
+    front.post("/chat", json={"message": "translate text 77"}, headers={"User-Agent": "agentcon-deploy-warm"})
+    stored = sorted(str(r["user_agent"]) for r in world.store.query("SELECT user_agent FROM agent_visitors"))
+    assert stored == ["None", "internal", "internal"]          # no real agent's User-Agent is kept
+    d = c.get("/admin/api/visitors", headers=H).json()
+    assert d["stats"]["total"] == 1 and d["stats"]["messages_24h"] == 1
+    assert sum(d["stats"]["channels"].values()) == 1
+    assert d["stats"]["internal"]["total"] == 2 and d["stats"]["internal"]["messages_24h"] == 2
+    assert sum(d["stats"]["internal"]["channels"].values()) == 2
+    assert c.get("/admin/api/visitors", params={"source": "live"}, headers=H).json()["pagination"]["total"] == 1
+    assert c.get("/admin/api/visitors", params={"source": "internal"}, headers=H).json()["pagination"]["total"] == 2
+    assert c.get("/admin/api/visitors", params={"source": "all"}, headers=H).json()["pagination"]["total"] == 3
+
+
+def test_postgres_visitor_queries_use_the_same_internal_rule():
+    from agent_market.application_store_consumers import PostgresConsumerMixin
+    seen = []
+
+    class Cursor:
+        def fetchall(self): return []
+        def fetchone(self): return {'total': 0}
+
+    class Native(PostgresConsumerMixin):
+        from contextlib import nullcontext
+        def tx(self, readonly=False): return self.nullcontext()
+        def _execute(self, sql, params=()): seen.append(sql); return Cursor()
+    Native().visitor_desk_list(source='live')
+    assert all("COALESCE(user_agent,'')<>'internal'" in sql for sql in seen)
+    seen.clear(); Native().visitor_desk_list(source='internal')
+    assert all("user_agent='internal'" in sql for sql in seen)
+    seen.clear()
+    try:   # only the statements matter here; the fake rows end the aggregation early
+        Native().agent_telemetry_raw(0.0, 1.0, 'live')
+    except (KeyError, TypeError):
+        pass
+    visitor_sql = [sql for sql in seen if 'agent_visitors v' in sql]
+    assert visitor_sql and all("COALESCE(v.user_agent, '') <> 'internal'" in sql for sql in visitor_sql)

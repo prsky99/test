@@ -12,7 +12,7 @@ export async function render(main, ctx) {
     body.replaceChildren(
       ui.freshness(data.captured_at * 1000 || result.at, api.GRADES.list.stale),
       ui.el('div', {class: 'adm-grid adm-kpis'},
-        card('방문 에이전트', v.total, '24시간 활동 ' + ui.number(v.active_24h)),
+        card('방문 에이전트', v.total, '24시간 활동 ' + ui.number(v.active_24h) + ' · 내부 측정 ' + ui.number(v.internal?.total) + '명 별도'),
         card('검증 연락처', v.verified_contacts, '등록과 광고 동의는 별개입니다.'),
         card('작업 알림', v.active_task_watches, '인증 대기 ' + ui.number(v.pending_task_watches)),
         card('지원 문의', requests.inquiries?.pending, '처리 중 ' + ui.number(requests.inquiries?.in_progress))),

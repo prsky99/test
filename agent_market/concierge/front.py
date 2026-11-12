@@ -310,13 +310,15 @@ class Front:
         if context_id and context_id.startswith('ctx_') and not context_owner:
             raise HTTPException(400, 'This conversation context is unavailable. Start without a contextId.')
         v = token_visitor or context_visitor
+        # Our own measurements (X-Agentcon-QA) are kept apart in visitor counts; nothing else about the agent is stored.
+        stored_ua = 'internal' if request.headers.get('x-agentcon-qa') else ua
         if v is not None:
-            self.book.touch(v, channel, ua, fp)
+            self.book.touch(v, channel, stored_ua, fp)
         elif create:
             if not self.new_limit.allow(ip or "unknown"):
                 raise TooManyVisitors(self.new_limit.retry_after(ip or "unknown"))
             maybe = self.book.seen_fingerprint(fp)
-            v = self.book.create(channel, ua, fp, name)
+            v = self.book.create(channel, stored_ua, fp, name)
             v.extra["maybe_known"] = maybe
             if supplied_token:
                 v.extra['session_status'] = 'reset'
@@ -360,8 +362,8 @@ class Front:
             ip = self.security.resolve_ip(request)
             self.book.record_hit(fingerprint(ip, request.headers.get("user-agent")), request.headers.get("user-agent"), request.url.path)
         else:
-            self.book.touch(v, "rest", request.headers.get("user-agent"), fingerprint(self.security.resolve_ip(request),
-                                                                                     request.headers.get("user-agent")))
+            self.book.touch(v, "rest", 'internal' if request.headers.get('x-agentcon-qa') else request.headers.get("user-agent"),
+                            fingerprint(self.security.resolve_ip(request), request.headers.get("user-agent")))
         reply = self.concierge.greeting(v)
         counts = self.live_counts()
         return {

@@ -65,10 +65,12 @@ class VisitorDesk:
             conditions.append('case_status=?');params.append(case_state)
         if tier:
             conditions.append('tier=?');params.append(tier)
-        if source=='live':
-            conditions.append("COALESCE(channel,'')!='admin-test'")
+        if source=='live':   # 11-12 PM: our own measurements ('internal') are not live traffic
+            conditions.append("COALESCE(channel,'')!='admin-test' AND COALESCE(user_agent,'')<>'internal'")
         elif source=='simulation':
             conditions.append("channel='admin-test'")
+        elif source=='internal':
+            conditions.append("user_agent='internal'")
         where=' WHERE '+' AND '.join(conditions) if conditions else ''
         rows=[dict(r) for r in self.store.query(base+'SELECT * FROM base'+where+' ORDER BY last_seen DESC,id LIMIT ? OFFSET ?',(*params,limit,offset))]
         summary=dict(self.store.query(base+'''SELECT COUNT(*) AS total,

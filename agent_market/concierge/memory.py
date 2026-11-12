@@ -71,6 +71,13 @@ def _write(store):
     with stack:
         yield db
 
+def _mark(user_agent: str | None) -> str | None:
+    """What agent_visitors.user_agent keeps: 'internal' for our own measurements, otherwise nothing (11-10: no user
+    agent is stored). 11-12 PM: admin visitor counts set internal visitors apart."""
+    from .traffic import INTERNAL_MARK, internal_request
+    return INTERNAL_MARK if user_agent == INTERNAL_MARK or internal_request(user_agent) else None
+
+
 def token_hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
@@ -224,7 +231,7 @@ class VisitorBook:
         with _write(self.store) as db:
             db.execute("""INSERT INTO agent_visitors (id, token_hash, name, channel, user_agent, fingerprint, lang, first_seen, last_seen)
                           VALUES (?,?,?,?,?,?,?,?,?)""",
-                       (vid, token_hash(token), None, channel, None, fp, lang, now, now))  # 11-10: no name or user agent stored
+                       (vid, token_hash(token), None, channel, _mark(user_agent), fp, lang, now, now))  # 11-10: no name or user agent stored
         if secrets.randbelow(100) == 0:
             self.prune()
         v = self.by_id(vid)
@@ -257,7 +264,7 @@ class VisitorBook:
                 db.execute("UPDATE agent_visitors SET last_results=NULL,last_offset=0,last_tool_resource=NULL,last_tool_name=NULL WHERE id=?",(v.id,))
             db.execute("""UPDATE agent_visitors SET last_seen=?, visits=?, visit_days=?, tier=?, channel=?, user_agent=?,
                           fingerprint=?, lang=COALESCE(?, lang) WHERE id=?""",
-                       (now, visits, days, tier, channel, None, fp, lang, v.id))
+                       (now, visits, days, tier, channel, _mark(user_agent), fp, lang, v.id))
         v.previous_seen, v.last_seen, v.new_visit = v.last_seen, now, new_visit
         if tier != v.tier:
             v.tier_up = tier

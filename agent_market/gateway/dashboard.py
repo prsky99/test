@@ -1411,22 +1411,34 @@ def dashboard_router(store: Store, db_path: str, admin_token: str | None, collec
                  contact: str=Query('all',pattern='^(all|registered|authorized|marketing|pending|legacy|none)$'),
                  protocol: str=Query('',pattern='^(|any|a2a|mcp|x402)$'),
                  case_state: str=Query('',pattern='^(|new|reviewing|waiting|resolved|archived)$'),
-                 source: str=Query('all',pattern='^(all|live|simulation)$')):
+                 source: str=Query('all',pattern='^(all|live|simulation|internal)$')):
         now = time.time()
         with reader() as db:
+            # 11-12 PM: our own measurements (user_slo, the public full check, the deploy warm-up) are marked
+            # 'internal' when the visitor is created; every count below is external, the internal share is shown apart.
             stats = db.execute("""SELECT COUNT(*) AS total, SUM(tier='new') AS new, SUM(tier='returning') AS "returning",
                        SUM(tier='regular') AS regular, SUM(visits >= 2) AS came_back, SUM(last_seen > ?) AS active_24h,
-                       SUM(first_seen > ?) AS new_24h FROM agent_visitors""", (now - 86400, now - 86400)).fetchone()
+                       SUM(first_seen > ?) AS new_24h FROM agent_visitors WHERE COALESCE(user_agent,'')<>'internal'""",
+                       (now - 86400, now - 86400)).fetchone()
+            internal = db.execute("""SELECT COUNT(*) AS total, SUM(last_seen > ?) AS active_24h,
+                       (SELECT COUNT(*) FROM agent_messages WHERE role='agent' AND at > ? AND visitor_id IN
+                        (SELECT id FROM agent_visitors WHERE user_agent='internal')) AS messages_24h
+                       FROM agent_visitors WHERE user_agent='internal'""", (now - 86400, now - 86400)).fetchone()
+            internal_channels = {r["channel"]: r["n"] for r in db.execute(
+                "SELECT channel, COUNT(*) AS n FROM agent_visitors WHERE user_agent='internal' GROUP BY channel")}
             extra = db.execute("""SELECT
-                       (SELECT COUNT(*) FROM agent_messages WHERE role='agent' AND at > ?) AS messages_24h,
+                       (SELECT COUNT(*) FROM agent_messages WHERE role='agent' AND at > ? AND visitor_id NOT IN
+                        (SELECT id FROM agent_visitors WHERE user_agent='internal')) AS messages_24h,
                        (SELECT COUNT(DISTINCT visitor_id) FROM agent_contacts WHERE status='verified') AS verified_contacts,
                        (SELECT COUNT(*) FROM agent_notifications WHERE status='sent' AND at > ?) AS digests_7d,
                        (SELECT COUNT(*) FROM agent_notifications WHERE kind IN ('welcome_audit', 'health_advisory', 'weekly_intelligence', 'pro_sla_invitation') AND status='sent' AND at > ?) AS nurture_dispatches_7d,
                        (SELECT COUNT(*) FROM agent_hits) AS anonymous_readers,
                        (SELECT COALESCE(SUM(hits), 0) FROM agent_hits) AS anonymous_reads""", (now - 86400, now - 7 * 86400, now - 7 * 86400)).fetchone()
             nurture_stages = {r["stage"] or "onboarded": r["n"] for r in db.execute(
-                "SELECT COALESCE(nurture_stage, 'onboarded') AS stage, COUNT(*) AS n FROM agent_visitors GROUP BY nurture_stage")}
-            channels = {r["channel"]: r["n"] for r in db.execute("SELECT channel, COUNT(*) AS n FROM agent_visitors GROUP BY channel")}
+                "SELECT COALESCE(nurture_stage, 'onboarded') AS stage, COUNT(*) AS n FROM agent_visitors "
+                "WHERE COALESCE(user_agent,'')<>'internal' GROUP BY nurture_stage")}
+            channels = {r["channel"]: r["n"] for r in db.execute(
+                "SELECT channel, COUNT(*) AS n FROM agent_visitors WHERE COALESCE(user_agent,'')<>'internal' GROUP BY channel")}
             watch_stats = dict(db.execute("""SELECT
                 SUM(state='active' AND expires>?) AS active_task_watches,
                 SUM(state='pending_verification' AND code_expires>?) AS pending_task_watches,
@@ -1438,7 +1450,8 @@ def dashboard_router(store: Store, db_path: str, admin_token: str | None, collec
             if clean_front_url.startswith("http://"):
                 clean_front_url = "https://" + clean_front_url[7:]
         desk=VisitorDesk(store,front.updates if front else None).list(q or '',contact,protocol,case_state,offset,limit,tier or '',source)
-        return {"stats": {**dict(stats), **dict(extra), **watch_stats, "channels": channels, "nurture_stages": nurture_stages, "nurture_active": extra["verified_contacts"]},
+        return {"stats": {**dict(stats), **dict(extra), **watch_stats, "channels": channels, "nurture_stages": nurture_stages, "nurture_active": extra["verified_contacts"],
+                          "internal": {**{k: int(v or 0) for k, v in dict(internal).items()}, "channels": internal_channels}},
                 **desk, "front_url": clean_front_url, "llm": llm}
 
     @router.post("/admin/api/visitors/simulate", dependencies=auth)
@@ -1607,7 +1620,7 @@ def dashboard_router(store: Store, db_path: str, admin_token: str | None, collec
     @router.get("/admin/api/agent-telemetry", dependencies=auth)
     def agent_telemetry(
         days: int = Query(7, ge=1, le=90),
-        source: str = Query("live", pattern="^(all|live|simulation)$"),
+        source: str = Query("live", pattern="^(all|live|simulation|internal)$"),
     ):
         """Autonomous agent visit funnel, post-visit activity trajectories, and automated AX improvement discovery."""
         from ..concierge.token_hygiene import redact_visitor_tokens
@@ -1620,10 +1633,12 @@ def dashboard_router(store: Store, db_path: str, admin_token: str | None, collec
 
         now = time.time()
         since = now - days * 86400
-        if source == "live":
-            src_cond = "COALESCE(v.channel, '') != 'admin-test'"
+        if source == "live":   # 11-12 PM: our own measurements ('internal') are not live traffic
+            src_cond = "COALESCE(v.channel, '') != 'admin-test' AND COALESCE(v.user_agent, '') <> 'internal'"
         elif source == "simulation":
             src_cond = "v.channel = 'admin-test'"
+        elif source == "internal":
+            src_cond = "v.user_agent = 'internal'"
         else:
             src_cond = "1=1"
 
@@ -4594,8 +4609,11 @@ def dashboard_router(store: Store, db_path: str, admin_token: str | None, collec
                         'active_task_watches', 'pending_task_watches', 'paused_task_watches')
         templates, total = store.list_workflows(limit=50, offset=0, active_only=True, is_template=1,
                                                 sort_by='updated_at')
-        return {'visitors': {key: (raw['stats'][key] if raw['stats'][key] is not None else 0)
-                             if key in raw['stats'] else None for key in visitor_keys},
+        internal = raw['stats'].get('internal') or {}
+        return {'visitors': {**{key: (raw['stats'][key] if raw['stats'][key] is not None else 0)
+                                if key in raw['stats'] else None for key in visitor_keys},
+                             # 11-12 PM: our own measurements, counted apart from the numbers above
+                             'internal': {key: internal.get(key, 0) for key in ('total', 'active_24h', 'messages_24h')}},
                 'requests': store.get_customer_requests_summary(),
                 'templates': [{key: row.get(key) for key in ('id', 'name', 'category', 'runs_count', 'updated_at')}
                               for row in templates], 'template_total': total,
