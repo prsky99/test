@@ -47,7 +47,10 @@ def test_control_only_metadata_and_cleanup_on_failed_handoff(edge, catalog, monk
             assert not mcp_control.close(edge.service, run, attempt, {**capsule, 'expires': 0})
             assert methods == before
             assert mcp_control.close(edge.service, run, attempt, capsule)
-    assert response.status_code == (200 if failure is None else 409 if failure == 'schema' else 410 if failure == 'deadline' else 503)
+    # 11-12: a failed handshake (here an invalid session id) hands the request to the Origin gateway; no tool ran
+    assert response.status_code == (200 if failure in (None, 'session') else 409 if failure == 'schema' else 410)
+    if failure == 'session':
+        assert response.json() == {'backend': 'origin'}
     if failure is None:
         prepared = response.json()['binding']['mcp_prepared']
         assert prepared['protocol_version'] == '2025-06-18' and prepared['session_id'] == 'private-session'
@@ -56,3 +59,48 @@ def test_control_only_metadata_and_cleanup_on_failed_handoff(edge, catalog, monk
     elif failure in ('schema', 'deadline'):
         assert methods[-1] == 'DELETE'
     assert not edge.calls
+
+
+@pytest.mark.parametrize('notification_status', [202, 400])
+def test_a_refused_initialized_notification_does_not_stop_the_edge_path(edge, catalog, monkeypatch, notification_status):
+    """11-12: 45532 answers notifications/initialized with HTTP 400 (-32600) and still lists and runs tools."""
+    from agent_market.edge_gateway import mcp_control
+    from agent_market.concierge.http_security import bounded_client
+    enable(edge, monkeypatch); rid = mcp_resource(edge, catalog)
+    with edge.store.tx() as db:
+        db.execute('UPDATE resources SET usage_guide=? WHERE id=?', (json.dumps({'protocol_version': '2025-06-18'}), rid))
+
+    def handle(request):
+        wire = json.loads(request.content)
+        if wire['method'] == 'notifications/initialized':
+            return httpx.Response(notification_status, json={'jsonrpc': '2.0', 'id': None,
+                                                             'error': {'code': -32600, 'message': 'Invalid Request'}})
+        assert wire['method'] in ('initialize', 'tools/list')
+        result = {'protocolVersion': '2025-06-18'} if wire['method'] == 'initialize' else {'tools': [WEATHER_TOOL]}
+        return httpx.Response(200, json={'jsonrpc': '2.0', 'id': wire['id'], 'result': result})
+
+    with httpx.Client(transport=httpx.MockTransport(handle)) as http:
+        monkeypatch.setattr(mcp_control, 'bounded_client', lambda _http, **kw: bounded_client(http, **kw))
+        response = bridge(edge, rid, {'tool': 'get_weather', 'arguments': {'city': 'Tokyo'}})
+    assert response.status_code == 200 and response.json()['backend'] == 'worker'
+    assert response.json()['binding']['mcp_prepared']['protocol_version'] == '2025-06-18'
+
+
+def test_an_unreachable_provider_handshake_hands_the_call_to_the_origin_gateway(edge, catalog, monkeypatch):
+    """11-12: past the 5 s budget on slow daytime paths the Worker answered gateway_unavailable; Origin ran it."""
+    from agent_market.edge_gateway import mcp_control
+    from agent_market.concierge.http_security import bounded_client
+    enable(edge, monkeypatch); rid = mcp_resource(edge, catalog)
+    with edge.store.tx() as db:
+        db.execute('UPDATE resources SET usage_guide=? WHERE id=?', (json.dumps({'protocol_version': '2025-06-18'}), rid))
+    seen = []
+
+    def handle(request):
+        seen.append(json.loads(request.content)['method'])
+        raise httpx.ConnectTimeout('slow path')
+
+    with httpx.Client(transport=httpx.MockTransport(handle)) as http:
+        monkeypatch.setattr(mcp_control, 'bounded_client', lambda _http, **kw: bounded_client(http, **kw))
+        response = bridge(edge, rid, {'tool': 'get_weather', 'arguments': {'city': 'Tokyo'}})
+    assert response.status_code == 200 and response.json() == {'backend': 'origin'}
+    assert 'tools/call' not in seen and not edge.calls

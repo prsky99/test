@@ -254,7 +254,17 @@ def install(app, front):
                 raise
             return JSONResponse({'backend': 'origin'}, headers={'Cache-Control': 'private, no-store'})
         backend = 'worker' if grant['stream_path'].startswith('/api/edge-') else 'origin'
-        binding = await run_in_threadpool(current.claim, grant['access_token'], value['origin'], grant['run_id'], payload, 'worker') if backend == 'worker' else None
+        try:
+            binding = await run_in_threadpool(current.claim, grant['access_token'], value['origin'], grant['run_id'], payload, 'worker') if backend == 'worker' else None
+        except EdgeError as exc:
+            # 11-12: the MCP handshake the claim prepares (initialize, tools/list) failed or ran past its 5 s
+            # budget on slow daytime paths, and the caller got gateway_unavailable (5 of 30 real tasks) while the
+            # Origin gateway ran the same call. No tool has run, so hand the request to the Origin gateway, as
+            # for the rate gate above.
+            if exc.code != 'UNAVAILABLE':
+                raise
+            log.info('Edge public prepare: the provider handshake failed; handed to the Origin gateway')
+            return JSONResponse({'backend': 'origin'}, headers={'Cache-Control': 'private, no-store'})
         return JSONResponse({'backend': backend, **grant, 'input': payload, **({'binding': binding} if binding else {})},
                             headers={'Cache-Control': 'private, no-store'})
 

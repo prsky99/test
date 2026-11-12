@@ -64,8 +64,11 @@ def prepare(service, run_id, attempt, provider, payload, deadline_ms, *, http=No
             client.client.cookies.clear()
             response = client.post(provider.endpoint, headers=headers,
                                    json={'jsonrpc': '2.0', 'method': 'notifications/initialized'})
+            # A notification has no answer to wait for; some stateless servers reply 400 to it (11-12: 45532,
+            # -32600 Invalid Request) yet list and run tools normally. The Origin proxy never read this reply,
+            # so the Edge path does not refuse on it either.
             if not 200 <= response.status_code < 300:
-                raise EdgeError('UNAVAILABLE', 503)
+                log.info('MCP provider answered notifications/initialized with HTTP %s; continuing', response.status_code)
         listed, error = rpc('tools/list', {}, 2)
         if error is not None or not isinstance((listed or {}).get('tools'), list):
             raise EdgeError('UNAVAILABLE', 503)
