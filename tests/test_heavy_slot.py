@@ -99,3 +99,19 @@ def test_one_slot_by_day_and_two_at_night(tmp_path, monkeypatch):
     board = _board(tmp_path, f'- A 11-12 00:50 pid={me} one (예상 30분)')
     ok, _ = hs.claim(board, '운영·SRE', 'x', 5, me, 'n1', now=night, is_alive=lambda pid: True)
     assert ok
+
+
+def test_daytime_refuses_restores_rehearsals_and_long_work_but_night_allows_them(tmp_path):
+    """PM 11-12 12:23: copy restores and rehearsals only 00:00-08:00; in the day only work of 30 minutes or less."""
+    from datetime import datetime
+    from scripts import heavy_slot
+    day, night = datetime(2026, 11, 12, 13, 0), datetime(2026, 11, 13, 2, 0)
+    assert heavy_slot.night_only('사본 full 복원', ['bash', 'x.sh'], 20, now=day)
+    assert heavy_slot.night_only('copy check', ['.venv/bin/python', '-m', 'scripts.db_change_rehearsal', 'run'], 20, now=day)
+    assert heavy_slot.night_only('full pytest', ['pytest'], 45, now=day)              # over 30 minutes in the day
+    assert heavy_slot.night_only('public_full_check', ['python', 'scripts/public_full_check.py'], 15, now=day) is None
+    assert heavy_slot.night_only('사본 리허설', ['bash', 'x.sh'], 120, now=night) is None
+    board = tmp_path / 'board.md'
+    board.write_text('## 무거운 작업\n\n## 배포 잠금\n', encoding='utf-8')
+    code = heavy_slot.run(['true'], '운영·SRE', 'pg_restore of the copy', 10, board=board, lock=tmp_path / 'l', now=day)
+    assert code == heavy_slot.NIGHT_ONLY and '[slot' not in board.read_text(encoding='utf-8')   # nothing claimed or run

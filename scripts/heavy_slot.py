@@ -8,6 +8,8 @@ This Mac is also the production server. On 11-11 two broad test runs and a brows
 with a public measurement (load 6-8, Chat 3-10 s). The wrapper:
 - refuses when the hour's slots are taken in '## 무거운 작업' (one 08:00-24:00, two 00:00-08:00;
   exit 75, nothing runs);
+- 08:00-24:00 refuses copy restores and rehearsals (restore / rehearsal in the name or command) and any estimate
+  over 30 minutes (exit 77, nothing runs; PM decision 11-12);
 - otherwise appends its own line (with its own pid and a slot token), runs the command under
   nice -n 10, and removes its line when the command ends, fails or the wrapper is interrupted;
 - marks a line whose pid is gone as stale and does not count it.
@@ -37,6 +39,22 @@ def slots(now=None):
     hour = (now or datetime.now()).hour
     return SLOTS if hour < 8 else DAY_SLOTS
 BUSY = 75          # EX_TEMPFAIL: try again later
+NIGHT_ONLY = 77    # EX_NOPERM: this kind of work runs only 00:00-08:00 (PM decision 11-12)
+DAY_MAX_MINUTES = 30
+# 11-12 12:23 PM decision: copy restores and rehearsals only at night; in the day only gates of 30 minutes or less
+# (a full copy restore beside the production database at 10:44 left 92 public checks failing at load 4.9).
+NIGHT_ONLY_WORDS = re.compile(r'restore|rehears|pg_restore|db_change_rehearsal|복원|리허설', re.IGNORECASE)
+
+
+def night_only(what, command, minutes, now=None):
+    """The reason this run may not start now, or None. Night (00:00-08:00) allows everything."""
+    if (now or datetime.now()).hour < 8:
+        return None
+    if NIGHT_ONLY_WORDS.search(' '.join([what, *command])):
+        return 'copy restores and rehearsals run only 00:00-08:00'
+    if minutes > DAY_MAX_MINUTES:
+        return f'daytime work must be {DAY_MAX_MINUTES} minutes or less (estimate {minutes})'
+    return None
 STALE = ' [오래됨: pid 없음]'
 TIMED_OUT = ' [오래됨: 시간 초과]'
 NO_ESTIMATE_MINUTES = 180   # a line without an estimate counts for at most three hours
@@ -153,7 +171,11 @@ def release(board, token):
     return False
 
 
-def run(command, team, what, minutes, board=None, lock=None):
+def run(command, team, what, minutes, board=None, lock=None, now=None):
+    reason = night_only(what, command, minutes, now)
+    if reason:
+        print(f'heavy_slot: refused ({reason}); nothing runs', file=sys.stderr)
+        return NIGHT_ONLY
     board, token = Path(board or BOARD), secrets.token_hex(4)
     with board_lock(lock):
         ok, live = claim(board, team, what, minutes, os.getpid(), token)
