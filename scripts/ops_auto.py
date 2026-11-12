@@ -37,7 +37,7 @@ PSQL = ['/opt/homebrew/opt/postgresql@18/bin/psql', '-h', str(ROOT / 'gateway-da
         '-d', 'agentcon_cutover_20261020_191757', '-Atc']
 TEAM = {'site': '운영·SRE', 'memory': '운영·SRE', 'disk': '운영·SRE', 'deploy_stuck': '운영·SRE',
         'deploy_lock': '잠금을 잡은 팀', 'long_tests': '시험을 돌린 팀', 'stale_handoffs': '받는 팀',
-        'ad_coin_ledger': 'AI AD Coin'}
+        'ad_coin_ledger': 'AI AD Coin', 'vector_index_usage': '검색과 RAG'}
 ALERT_SYSTEM = (
     'You write operations alerts in Korean for the owner of the Agent Concierge website. '
     'Input is JSON describing detected anomalies. Write at most three short lines in plain Korean: what is wrong, '
@@ -143,6 +143,35 @@ def user_slo():
                 and part.get('samples')):
             board_close(f'slo_{kind}', f'해결(자동 {now()[11:]} 통과)')
     append(ACTIONS, f'{now()} user_slo: 미달 {",".join(record.get("breaches") or {}) or "없음"}')
+
+
+VECTOR_USAGE_STATE = ROOT / 'logs/ops/vector-index-usage-state.json'
+
+
+def vector_index_usage(clock=time.time, run=None):
+    """Once in every clock hour: scripts/vector_index_usage.py (one read-only connection, under a second).
+
+    검색과 RAG 11-12 (PM): 72 hours of zero scans on the shared graph come before its drop is put up for approval,
+    so a failed hour is handed to them (a gap in the record)."""
+    hour = datetime.fromtimestamp(clock()).strftime('%Y-%m-%d %H')
+    state = json.loads(VECTOR_USAGE_STATE.read_text()) if VECTOR_USAGE_STATE.is_file() else {}
+    if state.get('hour') == hour:
+        return None
+    VECTOR_USAGE_STATE.write_text(json.dumps({'hour': hour}))
+    run = run or (lambda: subprocess.run([str(ROOT / '.venv/bin/python'), '-m', 'scripts.vector_index_usage'],
+                                         capture_output=True, text=True, cwd=ROOT, timeout=60))
+    try:
+        done = run()
+        summary = json.loads(done.stdout.strip().splitlines()[-1]) if done.returncode == 0 else None
+    except (subprocess.TimeoutExpired, ValueError, IndexError):
+        summary = None
+    if summary is None:
+        board_handoff('vector_index_usage', '벡터 인덱스 사용 기록(vector_index_usage.py)이 이번 시간에 실패함(72시간 기록에 빈칸)')
+        append(ACTIONS, f'{now()} 벡터 인덱스 사용 기록 실패')
+        return 'failed'
+    append(ACTIONS, f"{now()} 벡터 인덱스 사용: 공유 그래프 스캔 {summary.get('shared_graph_scans')}, "
+                    f"읽기 {summary.get('shared_graph_read')}")
+    return summary
 
 
 REAL_TASK_STATE = ROOT / 'logs/ops/real-task-score-state.json'
@@ -495,6 +524,10 @@ def watch():
         edge_transitions()
     except Exception as error:  # noqa: BLE001
         append(ACTIONS, f'{now()} 엣지 전환 알림 실패: {type(error).__name__}')
+    try:
+        vector_index_usage()
+    except Exception as error:  # noqa: BLE001
+        append(ACTIONS, f'{now()} 벡터 인덱스 사용 기록 실패: {type(error).__name__}')
     try:
         user_slo()
     except Exception as error:  # noqa: BLE001 - the 10-minute watch must keep running
