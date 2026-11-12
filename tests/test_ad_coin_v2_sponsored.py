@@ -214,3 +214,6 @@ def test_early_data_requests_are_answered_but_not_counted(p1_suite):  # noqa: F8
     normal = client.get(url, headers={'CF-IPCountry': 'US'})
     assert normal.json()['cards'] == early.json()['cards']
     assert sum(slots._served.values()) == 1
+    qa = client.get(url, headers={'CF-IPCountry': 'US', 'X-Agentcon-QA': 'public_full_check'})
+    assert qa.json()['cards'] == early.json()['cards']
+    assert sum(slots._served.values()) == 1                      # our own measurements are not counted
