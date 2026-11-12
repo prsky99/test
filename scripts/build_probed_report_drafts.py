@@ -362,7 +362,10 @@ LATEST_EXECUTION = ("SELECT * FROM capability_evidence WHERE version_id=? AND sc
                     "ORDER BY finished DESC,recorded DESC,id DESC LIMIT 1")   # the registered text report_evidence uses
 
 
-def recorded_trial(store, resource, version, now=None):
+TRIAL_MAX_AGE = 7 * 86400   # publication matches the exact record and does not read its expiry; keep reports recent
+
+
+def recorded_trial(store, resource, version, now=None, listed=None):
     """The catalog collector's read-only trial call when it is this version's latest execution evidence (11-12).
 
     Publication accepts a successful report only with recorded execution evidence whose start and finish match
@@ -384,8 +387,10 @@ def recorded_trial(store, resource, version, now=None):
         same = float(info['at']) == float(row['started']) and float(info['finished_at']) == float(row['finished'])
     except (KeyError, TypeError, ValueError):
         return None
-    if row.get('outcome') != 'succeeded' or not same or float(row.get('expires') or 0) <= now:
+    if row.get('outcome') != 'succeeded' or not same or now - float(row['finished']) > TRIAL_MAX_AGE:
         return None
+    if listed is not None and str(info['tool']) not in listed:
+        return None     # the tool is gone from the server's current list
     try:
         arguments = json.loads(info.get('arguments') or '{}') if isinstance(info.get('arguments'), str) else info.get('arguments')
     except ValueError:
@@ -594,7 +599,8 @@ def main():
             scope = probe_evidence_scope(normalize_test_method(kind, p['method']))
             safe_record_evidence(registry, ver, scope=scope, outcome='succeeded', started=p['t0'], finished=p['t1'])
             if scope not in PUBLISHABLE_SCOPES and kind == 'mcp':
-                trial = recorded_trial(store, store.resource(res['id']), ver) if store is not None else None
+                listed = {str(t.get('name')) for t in _dict(p.get('data')).get('tools', []) if isinstance(t, dict)}
+                trial = recorded_trial(store, store.resource(res['id']), ver, listed=listed) if store is not None else None
                 if trial:
                     p = {**p, 'trial': trial, 'method': 'MCP Tool Call', 'ok': True, 'code': 200,
                          'handshake_ms': p['ms'], 'ms': trial['latency_ms'], 't0': trial['started'], 't1': trial['finished'],

@@ -80,8 +80,13 @@ def test_a_recorded_collector_trial_turns_an_mcp_candidate_into_an_execution_rep
     assert found == {'tool': 'get_growth_metrics', 'output_chars': 5530, 'latency_ms': 50.0, 'argument_names': ['region'],
                      'started': now - 600.25, 'finished': now - 600.2}
     # a newer failed run, a different timestamp, an expired or missing record: no execution report
-    for row in ({**evidence, 'outcome': 'failed'}, {**evidence, 'started': now - 10}, {**evidence, 'expires': now - 1}, None):
+    for row in ({**evidence, 'outcome': 'failed'}, {**evidence, 'started': now - 10}, None):
         assert builder.recorded_trial(Store(row), {'trial_info': json.dumps(trial)}, {'id': 'v1'}, now=now) is None
+    # past its expiry but within a week: still the exact record publication matches; older than a week: not used
+    assert builder.recorded_trial(Store({**evidence, 'expires': now - 1}), {'trial_info': json.dumps(trial)}, {'id': 'v1'}, now=now)
+    assert builder.recorded_trial(Store(evidence), {'trial_info': json.dumps(trial)}, {'id': 'v1'}, now=now + 8 * 86400) is None
+    # the tool must still be on the server's list from this run's probe
+    assert builder.recorded_trial(Store(evidence), {'trial_info': json.dumps(trial)}, {'id': 'v1'}, now=now, listed={'other'}) is None
     assert builder.recorded_trial(Store(evidence), {'trial_info': json.dumps({**trial, 'ok': False})}, {'id': 'v1'}, now=now) is None
 
     res = {'id': 7, 'kind': 'mcp', 'name': 'Kallipolis Metrics', 'url': 'https://kallipolis.example/mcp', 'category': 'data_analytics',

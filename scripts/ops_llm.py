@@ -59,7 +59,10 @@ def ask(system, user, purpose, max_tokens=1200, effort='low'):
         return None
     if spent(_today()) >= DAILY_CAP_USD:
         return None
-    import anthropic  # only available in the ops virtualenv
+    try:
+        import anthropic  # only available in the ops virtualenv
+    except ImportError:   # 11-12: a manual run from .venv ended in a traceback after the batch had finished
+        return None
     client = anthropic.Anthropic(api_key=KEY_FILE.read_text().strip(), max_retries=2, timeout=60.0)
     try:
         response = client.messages.create(
