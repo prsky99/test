@@ -1,0 +1,771 @@
+{
+ "summary": {
+  "at": "2026-11-12T09:57:39+00:00",
+  "base": "https://agentconcierge.biz",
+  "tasks": 30,
+  "passed": 24,
+  "score": 0.8,
+  "causes": {
+   "bad_answer": 2,
+   "listing_only": 1,
+   "connection_failed": 2,
+   "call_failed": 1
+  },
+  "by_who": {
+   "person": "13/15",
+   "agent": "11/15"
+  },
+  "scorer_commit": "a8bd5dea"
+ },
+ "rows": [
+  {
+   "id": "p01",
+   "who": "person",
+   "task": "What's the weather forecast for Seoul tomorrow?",
+   "recommend_s": 3.83,
+   "agent": {
+    "id": 214768,
+    "name": "Faceabot Weather",
+    "kind": "mcp",
+    "tools": [
+     "weather_forecast"
+    ]
+   },
+   "tool_source": "recommendation",
+   "call": {
+    "tool": "weather_forecast",
+    "arguments": {
+     "location": "Seoul",
+     "days": 2
+    }
+   },
+   "connect_call_s": 3.28,
+   "answer_chars": 5501,
+   "outcome": "pass",
+   "total_s": 7.11
+  },
+  {
+   "id": "p02",
+   "who": "person",
+   "task": "Convert 250 US dollars to Korean won at today's rate",
+   "recommend_s": 4.16,
+   "agent": {
+    "id": 148501,
+    "name": "Zovo Currency Converter",
+    "kind": "mcp",
+    "tools": [
+     "convert_currency"
+    ]
+   },
+   "tool_source": "recommendation",
+   "call": {
+    "tool": "convert_currency",
+    "arguments": {
+     "from": "USD",
+     "to": "KRW",
+     "amount": 250
+    }
+   },
+   "connect_call_s": 6.48,
+   "answer_chars": 786,
+   "outcome": "pass",
+   "total_s": 10.64
+  },
+  {
+   "id": "p03",
+   "who": "person",
+   "task": "Show me Apple's most recent SEC filings",
+   "recommend_s": 5.44,
+   "agent": {
+    "id": 239723,
+    "name": "mkts Market Data",
+    "kind": "mcp",
+    "tools": [
+     "get_filings"
+    ]
+   },
+   "tool_source": "recommendation",
+   "call": {
+    "tool": "get_filings",
+    "arguments": {
+     "symbol": "AAPL"
+    }
+   },
+   "connect_call_s": 5.75,
+   "answer_chars": 8140,
+   "outcome": "pass",
+   "total_s": 11.18
+  },
+  {
+   "id": "p04",
+   "who": "person",
+   "task": "Read this page and give me the main text: https://www.anthropic.com/news",
+   "recommend_s": 9.75,
+   "agent": {
+    "id": 145470,
+    "name": "WebRead",
+    "kind": "mcp",
+    "tools": [
+     "read_url"
+    ]
+   },
+   "tool_source": "recommendation",
+   "call": {
+    "tool": "read_url",
+    "arguments": {
+     "url": "https://www.anthropic.com/news"
+    }
+   },
+   "connect_call_s": 31.48,
+   "answer_chars": 29320,
+   "outcome": "pass",
+   "total_s": 41.23
+  },
+  {
+   "id": "p05",
+   "who": "person",
+   "task": "Is CVE-2024-3094 actively exploited?",
+   "recommend_s": 6.83,
+   "agent": {
+    "id": 42798,
+    "name": "Kevscope CVE Check",
+    "kind": "mcp",
+    "tools": [
+     "check_cves"
+    ]
+   },
+   "tool_source": "recommendation",
+   "call": {
+    "tool": "check_cves",
+    "arguments": {
+     "cves": [
+      "CVE-2024-3094"
+     ]
+    }
+   },
+   "connect_call_s": 4.58,
+   "answer_chars": 3817,
+   "outcome": "pass",
+   "total_s": 11.41
+  },
+  {
+   "id": "p06",
+   "who": "person",
+   "task": "What are the public holidays in Japan in 2026?",
+   "recommend_s": 3.36,
+   "agent": {
+    "id": 178542,
+    "name": "A.U.G.U.R Foresight · World",
+    "kind": "mcp",
+    "tools": [
+     "holidays"
+    ]
+   },
+   "tool_source": "recommendation",
+   "call": {
+    "tool": "holidays",
+    "arguments": {
+     "country": "JP",
+     "year": 2026
+    }
+   },
+   "connect_call_s": 3.56,
+   "answer_chars": 6117,
+   "outcome": "pass",
+   "total_s": 6.93
+  },
+  {
+   "id": "p07",
+   "who": "person",
+   "task": "Look up the DNS records for example.com",
+   "recommend_s": 4.24,
+   "agent": {
+    "id": 58706,
+    "name": "Hivex: .si names, DNS and WHOIS",
+    "kind": "mcp",
+    "tools": [
+     "dns_lookup"
+    ]
+   },
+   "tool_source": "recommendation",
+   "call": {
+    "tool": "dns_lookup",
+    "arguments": {
+     "name": "example.com"
+    }
+   },
+   "connect_call_s": 36.47,
+   "answer_chars": 634,
+   "outcome": "pass",
+   "total_s": 40.7
+  },
+  {
+   "id": "p08",
+   "who": "person",
+   "task": "Find recent research papers about retrieval augmented generation",
+   "recommend_s": 2.5,
+   "agent": {
+    "id": 413095,
+    "name": "arXiv & OpenAlex Academic Search MCP",
+    "kind": "mcp",
+    "tools": [
+     "academic_search"
+    ]
+   },
+   "tool_source": "recommendation",
+   "call": {
+    "tool": "academic_search",
+    "arguments": {
+     "query": "retrieval augmented generation",
+     "limit": 5
+    }
+   },
+   "connect_call_s": 14.52,
+   "answer_chars": 9758,
+   "outcome": "pass",
+   "total_s": 17.01
+  },
+  {
+   "id": "p09",
+   "who": "person",
+   "task": "What's the latest version of the Python package requests, and does it have known vulnerabilities?",
+   "recommend_s": 6.95,
+   "agent": {
+    "id": 35565,
+    "name": "Vigía",
+    "kind": "mcp",
+    "tools": [
+     "find_compatible_version"
+    ]
+   },
+   "recommended_tool_mismatch": [
+    "find_compatible_version"
+   ],
+   "tool_source": "tools/list",
+   "call": {
+    "tool": "package_status",
+    "arguments": {
+     "ecosystem": "pypi",
+     "name": "requests"
+    }
+   },
+   "connect_call_s": 8.38,
+   "answer_chars": 2392,
+   "outcome": "pass",
+   "total_s": 15.33
+  },
+  {
+   "id": "p10",
+   "who": "person",
+   "task": "Translate 'Where is the train station?' into Korean",
+   "recommend_s": 2.46,
+   "agent": {
+    "id": 143969,
+    "name": "Faceabot Translate",
+    "kind": "mcp",
+    "tools": [
+     "translate_text"
+    ]
+   },
+   "tool_source": "recommendation",
+   "call": {
+    "tool": "translate_text",
+    "arguments": {
+     "text": "Where is the train station?",
+     "target_lang": "ko"
+    }
+   },
+   "connect_call_s": 28.46,
+   "answer_chars": 854,
+   "outcome": "pass",
+   "total_s": 30.91
+  },
+  {
+   "id": "p11",
+   "who": "person",
+   "task": "Get the coordinates of the Eiffel Tower",
+   "recommend_s": 5.4,
+   "agent": {
+    "id": 214764,
+    "name": "Faceabot Geocoding",
+    "kind": "mcp",
+    "tools": [
+     "geocode_address"
+    ]
+   },
+   "tool_source": "recommendation",
+   "call": {
+    "tool": "geocode_address",
+    "arguments": {
+     "query": "Eiffel Tower, Paris"
+    }
+   },
+   "connect_call_s": 9.1,
+   "answer_chars": 1862,
+   "outcome": "pass",
+   "total_s": 14.5
+  },
+  {
+   "id": "p12",
+   "who": "person",
+   "task": "Are there any weather alerts in California right now?",
+   "recommend_s": 2.21,
+   "agent": {
+    "id": 37322,
+    "name": "Weather & Geo Intel MCP",
+    "kind": "mcp",
+    "tools": [
+     "weather_alerts"
+    ]
+   },
+   "tool_source": "recommendation",
+   "call": {
+    "tool": "weather_alerts",
+    "arguments": {
+     "area": "CA"
+    }
+   },
+   "connect_call_s": 11.48,
+   "answer_chars": 19381,
+   "outcome": "pass",
+   "total_s": 13.69
+  },
+  {
+   "id": "p13",
+   "who": "person",
+   "task": "What time is it in New York and in Seoul right now?",
+   "recommend_s": 8.25,
+   "agent": {
+    "id": 67762,
+    "name": "FinzData Research Agent",
+    "kind": "a2a",
+    "tools": [
+     "Free strategy re-runs"
+    ]
+   },
+   "connect_call_s": 18.46,
+   "answer_chars": 1058,
+   "outcome": "bad_answer",
+   "detail": "check failed: (?i)new.?york, (?i)seoul, \\b\\d{1,2}:\\d{2}",
+   "answer_head": "{\"kind\": \"message\", \"role\": \"agent\", \"messageId\": \"626393b5acedb3616ebe2ed57941e881\", \"parts\": [{\"kind\": \"text\", \"text\": \"FinzData datasets matching your request:\\n- none matched; try simpler words (e.g. 'gamma', 'crude oil', 'CPI')\\n\\nFetch the data with the FinzData MCP server at https://agentconc",
+   "total_s": 26.71
+  },
+  {
+   "id": "p14",
+   "who": "person",
+   "task": "When does the SSL certificate for example.com expire?",
+   "recommend_s": 3.42,
+   "agent": {
+    "id": 302633,
+    "name": "SteadySite",
+    "kind": "mcp",
+    "tools": [
+     "check_ssl_domain_expiry"
+    ]
+   },
+   "tool_source": "recommendation",
+   "call": {
+    "tool": "check_ssl_domain_expiry",
+    "arguments": {
+     "domain": "example.com"
+    }
+   },
+   "connect_call_s": 12.51,
+   "answer_chars": 940,
+   "outcome": "pass",
+   "total_s": 15.94
+  },
+  {
+   "id": "p15",
+   "who": "person",
+   "task": "Find an API that gives me the transcript of a YouTube video",
+   "recommend_s": 4.77,
+   "agent": {
+    "id": 43528,
+    "name": "agentsvc.io",
+    "kind": "mcp",
+    "tools": [
+     "audio_transcribe"
+    ]
+   },
+   "outcome": "listing_only",
+   "detail": "not called: the task needs a paid or keyed source (free_check false)",
+   "relevant": false,
+   "total_s": 4.77
+  },
+  {
+   "id": "a01",
+   "who": "agent",
+   "task": "Find an agent that converts PDF to text",
+   "recommend_s": 2.35,
+   "agent": {
+    "id": 45424,
+    "name": "io.github.MLTCorp/convertfilefast",
+    "kind": "mcp",
+    "tools": [
+     "convert_file"
+    ]
+   },
+   "tool_source": "recommendation",
+   "call": {
+    "tool": "convert_file",
+    "arguments": {
+     "source_url": "https://arxiv.org/pdf/1706.03762",
+     "target_format": "txt"
+    }
+   },
+   "connect_call_s": 5.87,
+   "answer_chars": 317,
+   "outcome": "bad_answer",
+   "detail": "check failed: (?i)attention is all you need",
+   "answer_head": "{\"content\": [{\"text\": \"{\\\"status\\\":\\\"error\\\",\\\"detail\\\":\\\"Conversion '03762-to-txt' is not supported.\\\",\\\"supported_targets_for_source\\\":null}\", \"type\": \"text\"}], \"isError\": false, \"structuredContent\": {\"status\": \"error\", \"detail\": \"Conversion '03762-to-txt' is not supported.\", \"supported_targets_fo",
+   "total_s": 8.22
+  },
+  {
+   "id": "a02",
+   "who": "agent",
+   "task": "Need a tool that returns current price of BTC in USD as JSON",
+   "recommend_s": 3.37,
+   "agent": {
+    "id": 45639,
+    "name": "Octodamus Intelligence Oracle",
+    "kind": "mcp",
+    "tools": [
+     "get_prices"
+    ]
+   },
+   "tool_source": "recommendation",
+   "call": {
+    "tool": "get_prices",
+    "arguments": {}
+   },
+   "connect_call_s": 38.6,
+   "outcome": "connection_failed",
+   "detail": "tools/call 200 {\"code\": -32000, \"message\": \"The execution outcome is unconfirmed. Inspect this run before retrying.\", \"data\": {\"error_code\": \"UPSTREAM_PROTOCOL\", \"correlation_id\": \"ex_bfd1fe70036699574961c914\"}}",
+   "total_s": 41.98
+  },
+  {
+   "id": "a03",
+   "who": "agent",
+   "task": "Find an MCP server that can search GitHub repositories by keyword",
+   "recommend_s": 3.83,
+   "agent": {
+    "id": 241601,
+    "name": "web2mcp",
+    "kind": "mcp",
+    "tools": [
+     "github_search_repos"
+    ]
+   },
+   "tool_source": "recommendation",
+   "call": {
+    "tool": "github_search_repos",
+    "arguments": {
+     "query": "model context protocol"
+    }
+   },
+   "connect_call_s": 5.89,
+   "answer_chars": 3367,
+   "outcome": "pass",
+   "total_s": 9.72
+  },
+  {
+   "id": "a04",
+   "who": "agent",
+   "task": "Tool to fetch a web page and return clean markdown",
+   "recommend_s": 3.71,
+   "agent": {
+    "id": 145470,
+    "name": "WebRead",
+    "kind": "mcp",
+    "tools": [
+     "read_url"
+    ]
+   },
+   "tool_source": "recommendation",
+   "call": {
+    "tool": "read_url",
+    "arguments": {
+     "url": "https://example.com"
+    }
+   },
+   "connect_call_s": 6.65,
+   "answer_chars": 1340,
+   "outcome": "pass",
+   "total_s": 10.36
+  },
+  {
+   "id": "a05",
+   "who": "agent",
+   "task": "Geocode a street address to latitude and longitude",
+   "recommend_s": 4.83,
+   "agent": {
+    "id": 55392,
+    "name": "Pinloft: Batch Geocoder — Address to Lat/Long + Census FIPS",
+    "kind": "mcp",
+    "tools": [
+     "geocode_address"
+    ]
+   },
+   "tool_source": "recommendation",
+   "call": {
+    "tool": "geocode_address",
+    "arguments": {
+     "addresses": [
+      "1600 Pennsylvania Avenue NW, Washington, DC"
+     ]
+    }
+   },
+   "connect_call_s": 27.14,
+   "answer_chars": 2038,
+   "outcome": "pass",
+   "total_s": 31.96
+  },
+  {
+   "id": "a06",
+   "who": "agent",
+   "task": "Get the abstract of an arXiv paper by its id",
+   "recommend_s": 3.26,
+   "agent": {
+    "id": 34807,
+    "name": "Paper Finder",
+    "kind": "mcp",
+    "tools": [
+     "get_paper"
+    ]
+   },
+   "tool_source": "recommendation",
+   "call": {
+    "tool": "get_paper",
+    "arguments": {
+     "arxiv_id": "1706.03762"
+    }
+   },
+   "connect_call_s": 16.34,
+   "answer_chars": 4048,
+   "outcome": "pass",
+   "total_s": 19.61
+  },
+  {
+   "id": "a07",
+   "who": "agent",
+   "task": "Look up a company's ticker symbol and latest stock quote",
+   "recommend_s": 8.0,
+   "agent": {
+    "id": 61464,
+    "name": "Fodda Research Agent",
+    "kind": "a2a",
+    "tools": [
+     "Per-Ticker Earnings Intelligence"
+    ]
+   },
+   "connect_call_s": 0.95,
+   "outcome": "call_failed",
+   "detail": "message/send 200 {\"code\": -32000, \"message\": \"The execution is unavailable.\", \"data\": {\"error_code\": \"gateway_unavailable\", \"retryable\": true, \"next\": \"Retry later, or call find_agents for another agent.\"}}",
+   "total_s": 8.95
+  },
+  {
+   "id": "a08",
+   "who": "agent",
+   "task": "Find an agent that answers WHOIS for a domain",
+   "recommend_s": 2.97,
+   "agent": {
+    "id": 58706,
+    "name": "Hivex: .si names, DNS and WHOIS",
+    "kind": "mcp",
+    "tools": [
+     "whois_lookup"
+    ]
+   },
+   "tool_source": "recommendation",
+   "call": {
+    "tool": "whois_lookup",
+    "arguments": {
+     "domain": "example.com"
+    }
+   },
+   "connect_call_s": 3.47,
+   "answer_chars": 1114,
+   "outcome": "pass",
+   "total_s": 6.43
+  },
+  {
+   "id": "a09",
+   "who": "agent",
+   "task": "Need a tool to get npm package metadata (latest version)",
+   "recommend_s": 3.17,
+   "agent": {
+    "id": 133021,
+    "name": "Package Metadata",
+    "kind": "mcp",
+    "tools": [
+     "get_package_metadata"
+    ]
+   },
+   "tool_source": "recommendation",
+   "call": {
+    "tool": "get_package_metadata",
+    "arguments": {
+     "package": "express"
+    }
+   },
+   "connect_call_s": 37.24,
+   "answer_chars": 730,
+   "outcome": "pass",
+   "total_s": 40.41
+  },
+  {
+   "id": "a10",
+   "who": "agent",
+   "task": "Search Wikipedia and return the summary of an article",
+   "recommend_s": 5.27,
+   "agent": {
+    "id": 143970,
+    "name": "Faceabot Wikipedia",
+    "kind": "mcp",
+    "tools": [
+     "wiki_search"
+    ]
+   },
+   "tool_source": "recommendation",
+   "call": {
+    "tool": "wiki_search",
+    "arguments": {
+     "query": "Seoul"
+    }
+   },
+   "outcome": "connection_failed",
+   "detail": "ConnectTimeout",
+   "connect_call_s": 47.58,
+   "total_s": 52.85
+  },
+  {
+   "id": "a11",
+   "who": "agent",
+   "task": "Convert an amount between two currencies using a daily rate API",
+   "recommend_s": 8.82,
+   "agent": {
+    "id": 37318,
+    "name": "Market Intel MCP",
+    "kind": "mcp",
+    "tools": [
+     "fx_convert"
+    ]
+   },
+   "tool_source": "recommendation",
+   "call": {
+    "tool": "fx_convert",
+    "arguments": {
+     "from": "EUR",
+     "to": "JPY",
+     "amount": 100
+    }
+   },
+   "connect_call_s": 10.45,
+   "answer_chars": 892,
+   "outcome": "pass",
+   "total_s": 19.27
+  },
+  {
+   "id": "a12",
+   "who": "agent",
+   "task": "Get air quality index for a city",
+   "recommend_s": 14.35,
+   "agent": {
+    "id": 87163,
+    "name": "AirScout",
+    "kind": "a2a",
+    "tools": [
+     "which pollutant is driving the air quality"
+    ]
+   },
+   "connect_call_s": 3.73,
+   "answer_chars": 2739,
+   "outcome": "pass",
+   "total_s": 18.08
+  },
+  {
+   "id": "a13",
+   "who": "agent",
+   "task": "Find a tool that validates JSON against a JSON Schema",
+   "recommend_s": 11.3,
+   "agent": {
+    "id": 206517,
+    "name": "IA-QA Data & Dev — 36 tools",
+    "kind": "mcp",
+    "tools": [
+     "json_schema_validate"
+    ]
+   },
+   "tool_source": "recommendation",
+   "call": {
+    "tool": "json_schema_validate",
+    "arguments": {
+     "schema": {
+      "type": "object",
+      "required": [
+       "a"
+      ]
+     },
+     "value": {
+      "b": 1
+     }
+    }
+   },
+   "connect_call_s": 7.63,
+   "answer_chars": 424,
+   "outcome": "pass",
+   "total_s": 18.94
+  },
+  {
+   "id": "a14",
+   "who": "agent",
+   "task": "Need an agent to list upcoming earthquakes data feed (USGS) above magnitude 5",
+   "recommend_s": 20.56,
+   "agent": {
+    "id": 37322,
+    "name": "Weather & Geo Intel MCP",
+    "kind": "mcp",
+    "tools": [
+     "earthquakes"
+    ]
+   },
+   "tool_source": "recommendation",
+   "call": {
+    "tool": "earthquakes",
+    "arguments": {
+     "min_magnitude": 5
+    }
+   },
+   "connect_call_s": 8.89,
+   "answer_chars": 9598,
+   "outcome": "pass",
+   "total_s": 29.45
+  },
+  {
+   "id": "a15",
+   "who": "agent",
+   "task": "Resolve the IP address location (country, city) for an IP",
+   "recommend_s": 7.29,
+   "agent": {
+    "id": 43528,
+    "name": "agentsvc.io",
+    "kind": "mcp",
+    "tools": [
+     "ip_lookup"
+    ]
+   },
+   "tool_source": "recommendation",
+   "call": {
+    "tool": "ip_lookup",
+    "arguments": {
+     "ip": "8.8.8.8"
+    }
+   },
+   "connect_call_s": 4.32,
+   "answer_chars": 696,
+   "outcome": "pass",
+   "total_s": 11.6
+  }
+ ]
+}

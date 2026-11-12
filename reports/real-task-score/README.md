@@ -12,18 +12,18 @@
 
 
 <!-- latest:start -->
-## 최신 점수 (자동 갱신, 2026-11-12 14:38 KST, 한국에서 잼)
+## 최신 점수 (자동 갱신, 2026-11-12 18:57 KST, 한국에서 잼)
 
-**19 / 30 통과 (63%)**: 사람 과제 10/15, 에이전트 과제 9/15. 원자료: `2026-11-12-1438.json`
+**24 / 30 통과 (80%)**: 사람 과제 13/15, 에이전트 과제 11/15. 원자료: `2026-11-12-1857.json`
 
 | 실패 원인 | 건수 | 과제(1순위 추천 · 내용) |
 |---|---|---|
-| 호출 오류 call_failed | 7 | p02 NetArz FX Rates · tools/call 200 {"code": -32000, "message": "The execution is; p07 drwho.me network and develop · tools/call 200 {"code": -32602, "message": "Review the tool ; p12 Weather & Geo Intel MCP · tools/call 200 {"code": -32000, "message": "The execution is; a02 Munchausen Crypto Analytics · tools/call 200 {"code": -32000, "message": "The execution is; a07 Fodda Research Agent · message/send 200 {"code": -32000, "message": "The execution ; a08 AIPayGen Site Intel · tools/call 200 {"code": -32000, "message": "The execution is; a12 io.github.ContentWriterco/po · tools/call 200 {"code": -32000, "message": "The execution is |
 | 응답 불량 bad_answer | 2 | p13 FinzData Research Agent · check failed: (?i)new.?york, (?i)seoul, \b\d{1,2}:\d{2}; a01 io.github.MLTCorp/convertfil · check failed: (?i)attention is all you need |
+| 연결 실패 connection_failed | 2 | a02 Octodamus Intelligence Oracl · tools/call 200 {"code": -32000, "message": "The execution ou; a10 Faceabot Wikipedia · ConnectTimeout |
+| 호출 오류 call_failed | 1 | a07 Fodda Research Agent · message/send 200 {"code": -32000, "message": "The execution  |
 | 목록만 listing_only | 1 | p15 agentsvc.io · not called: the task needs a paid or keyed source (free_chec |
-| 추천 없음 no_recommendation | 1 | a14 - · find_agents status 200, no agents |
 
-최근 기록(logs/ops/real-task-score.jsonl): 11-11 11:22 1/30, 11-11 11:26 12/30, 11-11 11:43 12/30, 11-11 13:11 16/30, 11-11 13:21 18/30, 11-11 22:12 18/30, 11-12 04:08 21/30, 11-12 14:38 19/30
+최근 기록(logs/ops/real-task-score.jsonl): 11-11 11:26 12/30, 11-11 11:43 12/30, 11-11 13:11 16/30, 11-11 13:21 18/30, 11-11 22:12 18/30, 11-12 04:08 21/30, 11-12 14:38 19/30, 11-12 18:57 24/30
 <!-- latest:end -->
 
 ## 첫 기준 점수 (2026-11-11 11:26 KST, 한국에서 잼)
