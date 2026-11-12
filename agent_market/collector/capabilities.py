@@ -168,6 +168,9 @@ class CapabilityProber:
         changes = usage.diff_tools(old, tools) if old is not None and r.get("usage_tools_hash") != digest else None
         if changes and not any(changes.values()):
             changes = None
+        if changes:
+            from . import cap_changes
+            cap_changes.record(r, old, tools, changes)  # 11-12 PM: words lost by a re-survey, file only
         trial = probed.get("trial")
         last_trial = trial or json.loads(r.get("trial_info") or "null")
         if last_trial and last_trial.get("tool") not in {t["name"] for t in tools}:

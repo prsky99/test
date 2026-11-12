@@ -691,6 +691,9 @@ class AgentProber:
         changes = usage.diff_tools(old, card["skills"]) if old is not None and r.get("usage_tools_hash") != digest else None
         if changes and not any(changes.values()):
             changes = None
+        if changes:
+            from . import cap_changes
+            cap_changes.record(r, old, card["skills"], changes)  # 11-12 PM: words lost by a re-survey, file only
         text = " ".join([card["description"]] + [f"{k['title']} {k['description']} {' '.join(k['tags'])}" for k in card["skills"]])
         langs = sorted({cons.detect_language(text)} - {None}) if text.strip() else []
         caps = {"languages": langs, "regions": sorted(cons.regions_in_text(text))[:10], "currencies": [],

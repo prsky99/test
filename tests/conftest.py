@@ -46,6 +46,14 @@ def isolated_task_outcomes(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def isolated_cap_changes(monkeypatch, tmp_path):
+    """Collector surveys write re-survey word losses under logs/collector (11-12); tests write to tmp."""
+    from agent_market.collector import cap_changes
+    monkeypatch.setattr(cap_changes, 'default_directory', lambda: tmp_path / 'cap-changes')
+    yield
+
+
+@pytest.fixture(autouse=True)
 def fresh_agent_pacing():
     """Provider pacing is process-wide; each test starts without earlier dispatch times."""
     from agent_market import workspace_typed_flows
