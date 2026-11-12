@@ -19,6 +19,15 @@ SDK = Path(__file__).with_name('sdk.js')
 log = logging.getLogger(__name__)
 
 
+def fallback(reason):
+    """Count one hand-off to the Origin gateway in the day's anonymous traffic file (11-12 PM)."""
+    try:
+        from ..concierge.traffic import recorder
+        recorder().note('edge_fallback|' + reason)
+    except Exception:  # noqa: BLE001 - counting never changes the answer
+        pass
+
+
 def errors(function):
     @wraps(function)
     async def wrapped(*args, **kwargs):
@@ -231,6 +240,7 @@ def install(app, front):
             if exc.code != 'CAPACITY_EXCEEDED':
                 raise
             log.info('Edge public prepare over the execution gate: handed to the Origin gateway')
+            fallback('rate')
             return JSONResponse({'backend': 'origin'}, headers={'Cache-Control': 'private, no-store'})
         ip = front.security.resolve_ip(request)
         principal = hmac.new(derived(current.config.key, 'edge-public-principal-v1'), ip.encode(), hashlib.sha256).hexdigest()
@@ -264,6 +274,7 @@ def install(app, front):
             if exc.code != 'UNAVAILABLE':
                 raise
             log.info('Edge public prepare: the provider handshake failed; handed to the Origin gateway')
+            fallback('handshake')
             return JSONResponse({'backend': 'origin'}, headers={'Cache-Control': 'private, no-store'})
         return JSONResponse({'backend': backend, **grant, 'input': payload, **({'binding': binding} if binding else {})},
                             headers={'Cache-Control': 'private, no-store'})

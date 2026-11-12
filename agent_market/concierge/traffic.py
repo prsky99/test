@@ -373,6 +373,18 @@ class Traffic:
                 if len(bucket) < 50_000:
                     bucket.add(digest + str(gateway.get('rid')).encode())
 
+    def note(self, key):
+        """Count one internal event of the day in the funnel section, such as 'edge_fallback|handshake' (11-12 PM:
+        how often the Edge gateway hands a call to the Origin gateway). Keys are fixed names, never request data."""
+        if not NAME.fullmatch(key.replace('|', '/')):
+            return
+        with self.lock:
+            today = self._today()
+            if today != self.day:
+                self._write_locked()
+                self._reset(today)
+            self.funnel[key] += 1
+
     def _kind(self, entry, client, body, headers, response_headers):
         """'probe' for registries and checkers, 'real' for other clients, 'unknown' when it cannot be told."""
         if client == 'ai_bot':

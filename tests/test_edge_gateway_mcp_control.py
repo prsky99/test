@@ -99,8 +99,12 @@ def test_an_unreachable_provider_handshake_hands_the_call_to_the_origin_gateway(
         seen.append(json.loads(request.content)['method'])
         raise httpx.ConnectTimeout('slow path')
 
+    from agent_market.concierge import traffic
+    recorder = traffic.Traffic(root=None)
+    monkeypatch.setattr(traffic, 'recorder', lambda: recorder)
     with httpx.Client(transport=httpx.MockTransport(handle)) as http:
         monkeypatch.setattr(mcp_control, 'bounded_client', lambda _http, **kw: bounded_client(http, **kw))
         response = bridge(edge, rid, {'tool': 'get_weather', 'arguments': {'city': 'Tokyo'}})
     assert response.status_code == 200 and response.json() == {'backend': 'origin'}
     assert 'tools/call' not in seen and not edge.calls
+    assert recorder.snapshot()['funnel'] == {'edge_fallback|handshake': 1}   # PM 11-12: how often it happens

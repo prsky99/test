@@ -144,7 +144,11 @@ def build(day, files=None, edge=None):
     stages = (('recommend', external['recommend']['requests']), ('connect', external['connect']['pairs']
               if recorded else external['connect']['ok']), ('execute', north))
     breaks = next((name for name, value in stages if not value), None)
+    fallbacks = Counter()
+    for data in files:
+        fallbacks.update({k.split('|', 1)[1]: v for k, v in (data.get('funnel') or {}).items() if k.startswith('edge_fallback|')})
     return {'day': day, 'at': time.strftime('%Y-%m-%d %H:%M'), 'north_star': north,
+            'edge_fallbacks': dict(fallbacks),   # Edge -> Origin gateway hand-offs by reason (handshake, rate)
             'basis': 'recorded' if recorded else 'approx', 'processes': len(files),
             'breaks_at': breaks, 'funnel': external, 'edge': edge,
             'excluded': {cls: by[cls] for cls in ('internal', 'probe', 'outreach', 'crawler')}}

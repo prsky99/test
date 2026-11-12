@@ -57,12 +57,13 @@ def _edge(external=0, internal=0):
 
 
 def test_the_day_line_sums_processes_and_names_the_broken_stage():
-    files = [{'funnel': {'recommend|find_agents|external|all': 5, 'recommend|find_agents|external|ok': 5,
+    files = [{'funnel': {'edge_fallback|handshake': 2, 'recommend|find_agents|external|all': 5, 'recommend|find_agents|external|ok': 5,
                          'connect|external|attempt': 2, 'connect|external|ok': 2, 'recommend|chat|internal|all': 9},
               'funnel_distinct': {'recommend|external': 4, 'connect|external': 2, 'recommend|internal': 1}},
              {'funnel': {'recommend|explore|external|all': 3}, 'funnel_distinct': {'recommend|external': 2}}]
     line = north_star.build('2026-11-16', files=files, edge=_edge(internal=7))
     assert line['basis'] == 'recorded' and line['processes'] == 2
+    assert line['edge_fallbacks'] == {'handshake': 2}
     assert line['funnel']['recommend']['requests'] == 8 and line['funnel']['recommend']['clients'] == 6
     assert line['funnel']['connect']['pairs'] == 2 and line['north_star'] == 0 and line['breaks_at'] == 'execute'
     assert line['excluded']['internal']['recommend']['requests'] == 9 and line['edge']['internal']['pairs'] == 7
@@ -112,6 +113,7 @@ def test_ops_auto_writes_the_line_once_a_morning_from_the_first_day(monkeypatch,
     assert ops_auto.north_star(clock=at(2026, 11, 16, 9, 5), run=run) is None             # once a day
     assert handed[0][0] == 'north_star' and '외부 추천 요청 12 → 게이트웨이 연결 쌍 0' in handed[0][1]
     assert '끊긴 단계 connect' in handed[0][1] and ops_auto.TEAM['north_star'] == 'PM'
+    assert '엣지→원서버 넘김 0' in handed[0][1]
 
 
 def test_the_in_session_call_tool_counts_as_an_execution(managed, monkeypatch):

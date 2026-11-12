@@ -210,7 +210,8 @@ def north_star(clock=time.time, run=None):
             f"({'근사' if record.get('basis') == 'approx' else '기록'}) | 외부 추천 요청 "
             f"{show((funnel.get('recommend') or {}).get('requests'))} → 게이트웨이 연결 쌍 "
             f"{show((funnel.get('connect') or {}).get('pairs'))} → 성공 실행 쌍 {record['north_star']}"
-            f" | 끊긴 단계 {record.get('breaks_at') or '없음'} (logs/ops/north-star.jsonl)")
+            f" | 끊긴 단계 {record.get('breaks_at') or '없음'}"
+            f" | 엣지→원서버 넘김 {sum((record.get('edge_fallbacks') or {}).values())} (logs/ops/north-star.jsonl)")
     board_handoff('north_star', text)
     append(ACTIONS, f'{now()} 북극성: {text}')
     return record
