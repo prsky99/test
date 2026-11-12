@@ -14,7 +14,7 @@ both are reported.
 
 Screen check ("after", also run "before" for the old version): each page at 1280 and 375 px in Chromium. It must
 load with no console error, leave no inactive panel template unfilled, and move to another panel through the main
-navigation. Results go to logs/ops/post-deploy-check/<date>-<before|after>.json; "after" prints the comparison and
+navigation. Results go to logs/ops/post-deploy-check/<date>-<before|after>[-<label>]-<HHMM>.json, one file per run; "after" prints the comparison and
 exits 1 when the screen check fails (then ask 검색과 RAG to roll the frontend back, PM 조건 ②).
 """
 import argparse
@@ -145,11 +145,27 @@ def compare(before, after):
     return '\n'.join(lines)
 
 
-def main():
+def result_path(day, stage, label=''):
+    """One file per run, never overwritten (PM 11-12: after results must stay comparable across deploys):
+    <day>-<stage>[-<label>]-<HHMM>.json, with -2, -3 ... if a run in the same minute already wrote one."""
+    stem = '-'.join(x for x in (day, stage, label, datetime.now().strftime('%H%M')) if x)
+    path, n = OUT / (stem + '.json'), 2
+    while path.exists():
+        path, n = OUT / ('%s-%d.json' % (stem, n)), n + 1
+    return path
+
+
+def latest_before(day):
+    found = sorted(OUT.glob('%s-before*.json' % day), key=lambda f: f.stat().st_mtime)
+    return found[-1] if found else None
+
+
+def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('stage', choices=('before', 'after'))
     parser.add_argument('--no-screens', action='store_true', help='numbers only')
-    args = parser.parse_args()
+    parser.add_argument('--label', default='', help='the release, e.g. noon (goes into the file name)')
+    args = parser.parse_args(argv)
     record = {'at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'stage': args.stage}
     if args.stage == 'after':
         from scripts import warm_edge
@@ -164,19 +180,22 @@ def main():
         record['screen_problems'] = [r for r in record['screens'] if r['problems']]
     OUT.mkdir(parents=True, exist_ok=True)
     day = datetime.now().strftime('%Y-%m-%d')
-    path = OUT / ('%s-%s.json' % (day, args.stage))
+    path = result_path(day, args.stage, args.label)
+    record['label'] = args.label
     path.write_text(json.dumps(record, ensure_ascii=False, indent=1))
+    print('결과: %s' % path)
     print(json.dumps(record['summary'], ensure_ascii=False, indent=1))
     if not args.no_screens:
         print('화면 확인: %d개 중 문제 %d개' % (len(record['screens']), len(record['screen_problems'])))
         for row in record['screen_problems']:
             print(' -', row['path'], row['width'], '; '.join(row['problems']))
     if args.stage == 'after':
-        before_path = OUT / ('%s-before.json' % day)
-        if before_path.is_file():
+        before_path = latest_before(day)
+        if before_path:
+            print('비교 기준: %s' % before_path.name)
             print(compare(json.loads(before_path.read_text()), record))
         else:
-            print('배포 전 기준값 파일 없음: %s' % before_path)
+            print('배포 전 기준값 파일 없음: %s-before*.json' % day)
         if record.get('screen_problems'):
             print('화면 확인 실패: 검색과 RAG에 frontend 되돌리기 요청(PM 조건 ②)')
             return 1

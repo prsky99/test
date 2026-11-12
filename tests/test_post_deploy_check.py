@@ -24,3 +24,17 @@ def test_compare_lists_every_page():
     after = {'summary': {p: check.summary({p: [sample(0.9, 'HIT', 20000)]})[p] for p in check.PAGES}}
     table = check.compare(before, after)
     assert len(table.splitlines()) == 1 + len(check.PAGES) and '39.1→19.5' in table
+
+
+def test_every_run_keeps_its_own_file_and_after_compares_with_the_latest_before(tmp_path, monkeypatch):
+    # PM 11-12: after results must stay comparable across deploys, so nothing is overwritten.
+    import os
+    monkeypatch.setattr(check, 'OUT', tmp_path)
+    first = check.result_path('2026-11-12', 'after', 'noon')
+    first.write_text('{}')
+    second = check.result_path('2026-11-12', 'after', 'noon')
+    assert first.name.startswith('2026-11-12-after-noon-') and second != first and not second.exists()
+    old, new = tmp_path / '2026-11-12-before-0735.json', tmp_path / '2026-11-12-before-1130.json'
+    old.write_text('{}'); new.write_text('{}')
+    os.utime(old, (1, 1))
+    assert check.latest_before('2026-11-12') == new and check.latest_before('2026-11-13') is None
