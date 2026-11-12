@@ -165,3 +165,25 @@ def test_health_due_pick_on_postgresql_ranks_narrow_ids_once_per_batch():
             # an old batch is ranked again: once the postponement passes, rows are due again
             assert len(store.due_for_check(5001.0 + module.CHECK_BATCH_SECONDS, 10, per_host=2, kind=['a2a'])) == 3
             store.close()
+
+
+def test_feedback_stats_many_on_postgresql_reads_more_than_256_ids():
+    """11-12: one statement binds at most 256 values; the PostgreSQL store now reads 200 ids at a time."""
+    import psycopg
+    from scripts.rehearse_storage_adapter_postgres import _private_cluster, PORT
+    from agent_market.storage_adapter import open_store
+    binary = Path('/opt/homebrew/opt/postgresql@18/bin')
+    if not (binary / 'initdb').is_file():
+        pytest.skip('PostgreSQL 18 fixture tools unavailable')
+    with _private_cluster({name: str(binary / name) for name in ('initdb', 'pg_ctl')}) as cluster:
+        with psycopg.connect(host=cluster['socket'], port=PORT, dbname='postgres', user='postgres', autocommit=True) as conn:
+            conn.execute('CREATE EXTENSION vector')
+            store = open_store('postgresql', connection=conn, initialize=True, workflow_key=b'q' * 32)
+            rid = store.upsert_resource(_agent(1, 'fb.example'), now=10)
+            with store.tx():
+                store._execute("INSERT INTO feedback VALUES ('f1', %s, 1, 5, 0)", (rid,))
+                store._execute("INSERT INTO feedback VALUES ('f2', %s, 0, 1, 0)", (rid,))
+            ids = [10_000_000 + n for n in range(299)]
+            ids.insert(250, rid)                               # in the second chunk
+            assert store.feedback_stats_many(ids) == {rid: (2, 1, 3.0)}
+            store.close()

@@ -1324,8 +1324,11 @@ class Store:
         """여러 후보의 고객 평가를 한 번에 (후보마다 쿼리하지 않게). 평가가 없는 후보는 결과에 없다."""
         if not rids:
             return {}
-        rows = self.query(f"""SELECT resource_id, COUNT(*) AS n, COALESCE(SUM(success),0) AS s, AVG(rating) AS r FROM feedback
-                              WHERE resource_id IN ({','.join('?' * len(rids))}) GROUP BY resource_id""", list(rids))
+        rids, rows = list(rids), []
+        for start in range(0, len(rids), 200):   # same 200-id chunks as the PostgreSQL store (11-12)
+            chunk = rids[start:start + 200]
+            rows += self.query(f"""SELECT resource_id, COUNT(*) AS n, COALESCE(SUM(success),0) AS s, AVG(rating) AS r FROM feedback
+                                   WHERE resource_id IN ({','.join('?' * len(chunk))}) GROUP BY resource_id""", chunk)
         return {r["resource_id"]: (r["n"], r["s"], r["r"]) for r in rows}
 
     def record_tool_transition(self, from_rid: int, from_tool: str, to_rid: int, to_tool: str) -> None:

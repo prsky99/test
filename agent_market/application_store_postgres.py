@@ -157,6 +157,8 @@ def _invariant_ddl(namespace='public', vector_health=None):
     return tuple(commands)
 
 
+FEEDBACK_STATS_CHUNK = 200   # ids per feedback statement (a statement binds at most 256 values)
+FEEDBACK_STATS_MAX = 10000   # one call's upper bound
 READ_GATE_SECONDS = 2.0  # a read-only transaction reuses a passing gate and invariant check this long
 
 class ApplicationStoreError(StorageError, sqlite3.DatabaseError):
@@ -734,12 +736,18 @@ class PostgresApplicationStore(PostgresCollectorMixin, PostgresFinanceMixin, Pos
                 '+1,probe_latency_ms=%s,probed_at=%s WHERE id=%s', (latency_ms, time.time(), rid))
 
     def feedback_stats_many(self, rids):
-        if not isinstance(rids, list) or len(rids) > 256:
+        # 200 ids per statement: a statement binds at most 256 values, and callers pass whatever their search
+        # returned (11-12: ranking.rank hands over every candidate; a search limit above 256 would fail here).
+        if not isinstance(rids, list) or len(rids) > FEEDBACK_STATS_MAX:
             raise ApplicationStoreError('invalid_parameters')
         if not rids: return {}
+        rows = []
         with self.tx(readonly=True):
-            rows = self._execute('SELECT resource_id,COUNT(*) AS n,COALESCE(SUM(success),0) AS s,AVG(rating) AS r '
-                'FROM feedback WHERE resource_id IN (' + ','.join(['%s'] * len(rids)) + ') GROUP BY resource_id', rids).fetchall()
+            for start in range(0, len(rids), FEEDBACK_STATS_CHUNK):
+                chunk = rids[start:start + FEEDBACK_STATS_CHUNK]
+                rows += self._execute('SELECT resource_id,COUNT(*) AS n,COALESCE(SUM(success),0) AS s,AVG(rating) AS r '
+                    'FROM feedback WHERE resource_id IN (' + ','.join(['%s'] * len(chunk)) + ') GROUP BY resource_id',
+                    chunk).fetchall()
         return {r['resource_id']: (r['n'], r['s'], float(r['r']) if r['r'] is not None else None) for r in rows}
 
     def update_workflow(self, workflow_id, data):

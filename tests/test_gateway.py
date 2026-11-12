@@ -467,3 +467,13 @@ def test_rescan_processes_oldest_needs_first_in_batches():
     assert seen == set(ids[:2])
     assert world.service.rescan()["checked"] == 2  # 이번에는 아직 안 본 요청부터
     assert world.store.query("SELECT COUNT(*) AS n FROM needs WHERE rescanned_at IS NOT NULL")[0]["n"] == 3
+
+
+def test_feedback_stats_many_reads_any_number_of_ids(w):
+    """11-12: ranking hands every search candidate over; 257+ ids must not fail (200 ids per statement)."""
+    rid = w.store.query("SELECT id FROM resources LIMIT 1")[0]["id"]
+    with w.store.tx() as db:
+        db.execute("INSERT INTO feedback VALUES ('m1', ?, 1, 4, 0)", (rid,))
+    ids = [10_000_000 + n for n in range(299)]
+    ids.insert(250, rid)                                   # in the second chunk
+    assert w.store.feedback_stats_many(ids) == {rid: w.store.feedback_stats(rid)}
