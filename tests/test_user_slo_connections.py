@@ -39,7 +39,7 @@ class Client:
     def post(self, url, json=None, headers=None):
         self.calls.append(url)
         if json['method'] == 'tools/call':
-            text = 'Pick one\nEndpoint: https://agentconcierge.biz/api/gateway/mcp/12'
+            text = '1. Pick one [MCP]\nEndpoint: https://agentconcierge.biz/api/gateway/mcp/12'   # the real answer format
             return Response(url, {'result': {'content': [{'text': text}]}})
         return Response(url, {'result': {'tools': [{'name': 'x'}]}})
 

@@ -161,35 +161,35 @@ def check_explore(n=6):
     return {'samples': rows, 'max_s': max(r['s'] for r in rows), 'ok': not bad, 'bad': bad}
 
 
-# How an answer says to connect without the gateway (검색과 RAG, 11-12: tools the gateway does not relay). The exact
-# line is confirmed by 검색과 RAG before their release; only this pattern needs to change if it differs.
-DIRECT = re.compile(r'^\s*(?:[-*]\s*)?Direct connection:\s*(https://\S+)', re.IGNORECASE)
 GATEWAY = re.compile(r'Endpoint:\s*(\S*/api/gateway/\S+)')
+FIRST_ITEM = re.compile(r'^\s*1\.\s')
+NEXT_ITEM = re.compile(r'^\s*[2-9]\d*\.\s|^\s*1\d+\.\s')
 
 
 def connection_route(text):
-    """The connection path of the answer's first recommendation: ('gateway', url), ('direct', url) or (None, None).
+    """The gateway endpoint of the answer's first recommendation, or None.
 
-    11-12 PM: follow the path the answer gives, whichever comes first; no recommendation is skipped."""
-    for line in text.splitlines():
+    11-12 PM decision (나-1): the answer never shows a provider's own address; a recommendation the gateway does not
+    relay carries connection_available=False and a documentation link only. Such a first recommendation has no
+    path to follow and counts as a failed connection; nothing is skipped."""
+    lines, inside = text.splitlines(), False
+    for line in lines:
+        if not inside:
+            inside = bool(FIRST_ITEM.match(line))
+            if not inside:
+                continue
+        elif NEXT_ITEM.match(line):
+            break
         found = GATEWAY.search(line)
         if found:
-            return 'gateway', found.group(1)
-        found = DIRECT.search(line)
-        if found:
-            return 'direct', found.group(1).rstrip('.,);')
-    return None, None
+            return found.group(1)
+    return None
 
 
-def connector(route, endpoint):
-    """A read-only connect: MCP initialize + tools/list, or an A2A card GET. No credentials, payment or tools/call."""
-    if route == 'direct':
-        import sys
-        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-        from agent_market.broker.discovery import check_public_url
-        check_public_url(endpoint)            # private addresses are refused before any request
-    if endpoint.rstrip('/').endswith(('agent.json', 'agent-card.json')) or '/api/gateway/a2a/' in endpoint:
-        # A2A (11-11): connecting means the card is served; no message is sent.
+def connector(endpoint):
+    """A read-only connect through the gateway: MCP initialize + tools/list, or the A2A card. No tools/call."""
+    if '/api/gateway/a2a/' in endpoint:
+        # A2A (11-11): connecting means the gateway serves the agent's card; no message is sent.
         def connect(client):
             response = client.get(endpoint, headers={'Accept': 'application/json'})
             return 1 if response.status_code == 200 else 0
@@ -216,22 +216,19 @@ def check_recommend_and_connect(n=2):
                 text = ''
         rec.append({'task': task, 's': took, 'answered': bool(text), 'error': error,
                     **phases(result[0] if result else None)})
-        route, endpoint = connection_route(text)
+        endpoint = connection_route(text)
         if not endpoint:
+            # No gateway path for the first recommendation (or no recommendation): a failed connection (PM 11-12).
+            conn.append({'endpoint': None, 's': 0.0, 'tools': 0,
+                         'error': 'no_gateway_endpoint' if text else 'no_recommendation'})
             continue
-        try:
-            connect = connector(route, endpoint)
-        except Exception as exc:  # noqa: BLE001 - a refused address is a failed connection, recorded as such
-            connect = None
-            took_c, tools, error_c = 0.0, 0, 'refused_' + type(exc).__name__
-        if connect is not None:
-            took_c, tools, error_c = timed(lambda: on_fresh(connect))
-        conn.append({'route': route, 'endpoint': endpoint.rsplit('/', 2)[-2] + '/' + endpoint.rsplit('/', 1)[-1],
-                     's': took_c, 'tools': tools, 'error': error_c})
+        took_c, tools, error_c = timed(lambda: on_fresh(connector(endpoint)))
+        conn.append({'endpoint': endpoint.rsplit('/', 2)[-2] + '/' + endpoint.rsplit('/', 1)[-1], 's': took_c,
+                     'tools': tools, 'error': error_c})
     rec_bad = [r for r in rec if r['s'] > TARGET['recommend_s'] or not r['answered']]
     conn_bad = [c for c in conn if not c['tools']]
-    # No gateway endpoint among the answers means connect was not measured this hour; that is recorded, not hidden,
-    # but it is not counted as a failed connection (11-11: 14:02 run had two answers with no gateway endpoint).
+    # A first recommendation without a gateway path is a failed connection (PM 11-12, replacing the 11-11 rule
+    # that left such an hour unmeasured).
     return ({'samples': rec, 'ok': not rec_bad, 'bad': rec_bad},
             {'samples': conn, 'ok': not conn_bad, 'bad': conn_bad, 'measured': bool(conn)})
 
