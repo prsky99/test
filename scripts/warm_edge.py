@@ -45,8 +45,23 @@ def fetch(url, headers):
     except httpx.HTTPError as exc:
         return None, {'s': round(time.monotonic() - start, 2), 'status': type(exc).__name__}
     ray = r.headers.get('cf-ray', '')
-    return r, {'s': round(time.monotonic() - start, 2), 'status': r.status_code,
+    return r, {'s': round(time.monotonic() - start, 2), 'status': r.status_code, 'age': r.headers.get('age'),
                'cache': r.headers.get('cf-cache-status'), 'colo': ray.rsplit('-', 1)[-1] if '-' in ray else None}
+
+
+# 11-12 19시 (PM ②, live pages swr 86400): a copy older than max-age answers UPDATING with the OLD page and the edge
+# refreshes it behind. After a deploy that first answer is the previous release, so each such page is asked once
+# more a second later; the second answer must be a fresh copy (age under REFRESHED_AGE), and its assets are warmed.
+SERVED_STALE = ('UPDATING', 'STALE')
+REFRESHED_AGE = 60
+
+
+def refreshed(row):
+    try:
+        age = int(row.get('age') or 0)
+    except ValueError:
+        age = REFRESHED_AGE
+    return row.get('status') == 200 and row.get('cache') not in SERVED_STALE and age < REFRESHED_AGE
 
 
 def assets_of(text):
@@ -75,21 +90,30 @@ def main(argv=None):
     for path in growth:
         _, row = fetch(BASE + path, HEADERS)
         rows.append({'path': path, **row})
+    stale = []
     for path in () if args.growth_only else PAGES:
         r, row = fetch(BASE + path, HEADERS)
         rows.append({'path': path, **row})
+        if row.get('cache') in SERVED_STALE:
+            time.sleep(1)
+            r, row = fetch(BASE + path, HEADERS)
+            rows.append({'path': path + ' (again)', **row})
+            if not refreshed(row):
+                stale.append(path)
         if r is not None and r.status_code == 200:
             assets.update(assets_of(r.text))
     for path in sorted(assets):
         _, row = fetch(BASE + path, {k: v for k, v in HEADERS.items() if k != 'Accept'})
         rows.append({'path': path.split('?')[0] + ('?f=' + path.split('f=')[1].split('&')[0] if 'f=' in path else ''), **row})
     record = {'at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'rows': rows,
-              'failed': [r['path'] for r in rows if r['status'] != 200]}
+              'failed': [r['path'] for r in rows if r['status'] != 200], 'still_stale': stale}
     LOG.parent.mkdir(parents=True, exist_ok=True)
     with LOG.open('a') as f:
         f.write(json.dumps(record, ensure_ascii=False) + '\n')
     for r in rows:
         print('%-48s %s %-8s %s %.2fs' % (r['path'][:48], r['status'], r.get('cache'), r.get('colo'), r['s']))
+    if stale:
+        print('두 번째 요청도 옛 사본: %s' % ', '.join(stale))
     raise SystemExit(1 if record['failed'] else 0)
 
 

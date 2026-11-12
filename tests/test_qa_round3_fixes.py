@@ -143,7 +143,7 @@ def test_static_assets_are_cacheable_by_content_and_pages_stay_private(catalog):
     import re as _re
     _, _, client, _, _ = catalog
     page = client.get('/new/en/explore.html')
-    assert page.headers['cache-control'] == 'public, max-age=300, stale-while-revalidate=600'  # 11-11 PM decision A: same bytes for everyone, edge 60 s
+    assert page.headers['cache-control'] == 'public, max-age=300, stale-while-revalidate=86400'  # 11-11 PM decision A: same bytes for everyone, edge 60 s
     # 11-11: pages load operating.js inside one content-addressed bundle; a single file keeps its own pinned URL.
     bundle = _re.search(r'src="(/new/en/assets/bundle\.js\?f=[^"]*operating[^"]*&amp;v=[0-9a-f]{16})"', page.text)
     assert bundle and client.get(bundle[1].replace('&amp;', '&')).headers['cache-control'] == 'public, max-age=31536000, immutable'

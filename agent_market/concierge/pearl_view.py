@@ -190,7 +190,10 @@ def bundled(value):
 # (UPDATING 0.85 s instead of an origin round trip), so a page left alone for a while no longer costs EXPIRED 3.8-4.9 s.
 # No s-maxage: Cloudflare reads it as proxy-revalidate and never serves stale (noon bundle with s-maxage=300:
 # all 10 pages EXPIRED 6.5 min after warming). The same bytes go to everyone, so browsers may keep it 5 min too.
-PUBLIC_PAGE_CACHE = 'public, max-age=300, stale-while-revalidate=600'
+# 11-12 19시 (PM approved): swr 600 -> 86400. Live pages are visited rarely, so a copy left alone for more than
+# 15 min went EXPIRED and the visitor waited for the origin (user_slo 18:04: 3/3 EXPIRED, 1.06-2.25 s). Within a day
+# the edge now answers UPDATING at once. Old copies name old assets, which earlier releases and panels-cache keep.
+PUBLIC_PAGE_CACHE = 'public, max-age=300, stale-while-revalidate=86400'
 INLINE_SCRIPT = re.compile(r'<script\b([^>]*)>(.*?)</script>', re.S | re.I)
 DATA_TYPE = re.compile(r'\btype\s*=\s*["\']?(application/(?:ld\+)?json|text/plain|text/template)', re.I)
 

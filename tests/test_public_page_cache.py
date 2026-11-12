@@ -39,7 +39,7 @@ def client(tmp_path):
 
     @app.get('/__cookie_test', include_in_schema=False)
     def cookie_test():
-        response = Response('x', headers={'Cache-Control': 'public, max-age=300, stale-while-revalidate=600'})
+        response = Response('x', headers={'Cache-Control': 'public, max-age=300, stale-while-revalidate=86400'})
         response.set_cookie('probe', '1')
         return response
     c = TestClient(app, base_url='https://agentconcierge.biz')
@@ -64,7 +64,7 @@ def test_every_visitor_gets_the_same_bytes_and_no_cookie(client, path):
         assert r.status_code == 200 and r.headers['content-type'].startswith('text/html')
         assert 'set-cookie' not in r.headers
         # Live pages may sit at the edge; the policy and design-sample pages stay no-store (and noindex).
-        expected = 'no-store' if path.endswith(('privacy.html', 'disclosures.html')) else 'public, max-age=300, stale-while-revalidate=600'
+        expected = 'no-store' if path.endswith(('privacy.html', 'disclosures.html')) else 'public, max-age=300, stale-while-revalidate=86400'
         assert r.headers['cache-control'] == expected
         bodies.append(r.text)
     assert all(body == bodies[0] for body in bodies[1:]), 'the HTML depends on who asks'

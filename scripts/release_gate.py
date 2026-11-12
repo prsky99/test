@@ -42,7 +42,7 @@ TESTS = (
     # Sponsored on main Explore and Chat (11-11): apart from results, nothing without a booking or when off.
     'tests/test_main_sponsored_browser.py',
     # 11-11 (PM): the public HTML policy itself: same bytes for everyone, no Set-Cookie, CSP hashes match the
-    # inline scripts, live pages max-age=300 + swr 600 (no s-maxage), others no-store (about 25 s together).
+    # inline scripts, live pages max-age=300 + swr 86400 (no s-maxage), others no-store (about 25 s together).
     'tests/test_public_page_cache.py',
     'tests/test_publication_security_audit.py::test_every_published_page_has_fresh_nonces_and_no_inline_handlers',
     # 11-11 (PM decision B): first-screen CSS is current and draws the first screen exactly like the full CSS.
@@ -52,6 +52,7 @@ TESTS = (
     'tests/test_prerendered_segmented.py',  # 11-11: protocol groups drawn by the server, Chat phone CLS 0
     'tests/test_direct_sign_in_links.py',  # 11-12: our pages link to /customer/sign-in directly, no 303
     'tests/test_a2a_card_aliases.py',  # 11-12: the A2A card beside /a2a (two aliases that answered 404)
+    'tests/test_public_html_long_swr.py',  # 11-12: live HTML swr 86400, private answers stay no-store
     # 11-12: discovery cards keep their public keys (usage_endpoint, tools_schema); ed37c569 dropped one.
     'tests/test_managed_agent_gateway.py::test_raw_discovery_json_and_text_hide_bindings_preserve_schema',
     # 11-12 (PM): the other public contracts, about 41 s together: MCP tools/list and search/find_agents,

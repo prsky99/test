@@ -41,7 +41,7 @@ def test_front_initial_load_under_3_seconds_and_swr_caching(performance_store):
 
     # 3. Check Cache-Control header (Strict no-store for visitor privacy and token protection)
     cc = res.headers.get("cache-control", "")
-    assert cc == "public, max-age=300, stale-while-revalidate=600"  # 11-11 PM decision A: no visitor value in the page, edge 60 s
+    assert cc == "public, max-age=300, stale-while-revalidate=86400"  # 11-11 PM decision A: no visitor value in the page, edge 60 s
 
     # 4. Measure Subsequent Warm Page Load (RFC 5861 SWR - sub-50ms)
     t1 = time.time()
