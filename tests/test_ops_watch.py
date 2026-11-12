@@ -156,3 +156,38 @@ def test_outside_load_names_other_projects_and_closes_when_the_load_drops(tmp_pa
     assert 'driver_agent 프로세스 2개 CPU 170%' in line and 'load 23.5' in line
     ops_auto.outside_load(load=3.0, ps=ps, cwd_of=folders.get)
     assert '해결(자동' in [l for l in board.read_text().splitlines() if '[outside_load]' in l][0]
+
+
+def test_full_check_goes_ahead_after_two_deferrals_and_records_the_overlap(tmp_path, monkeypatch):
+    """11-12 PM: deferred four times from 07:47 by other work; the third try now runs regardless, outside the slot."""
+    import json as _json
+    ops_auto, board = _board(tmp_path, monkeypatch)
+    monkeypatch.setattr(ops_auto, 'FULL_CHECK_STATE', tmp_path / 'fc.json')
+    monkeypatch.setattr(ops_auto, 'busy', lambda: 'tests_or_deploy_running')
+    launched = []
+    run = lambda t: ops_auto.full_check(clock=lambda: t, launch=lambda *a, **k: launched.append((a, k)), free=True)
+    assert run(10_000) == 'deferred' and run(10_600) == 'deferred' and not launched
+    assert run(11_200) == 'forced'
+    command, env = launched[0][0][0], launched[0][1]['env']
+    assert command[:3] == ['nice', '-n', '10'] and 'scripts.heavy_slot' not in command
+    context = _json.loads(env['AGENTCON_RUN_CONTEXT'])
+    assert context['forced_after_deferrals'] == 2 and context['overlap'] == 'tests_or_deploy_running' and 'load_1' in context
+    assert '겹친 채 실행' in [l for l in board.read_text().splitlines() if '[full_check_deferred]' in l][0]
+    assert _json.loads((tmp_path / 'fc.json').read_text())['deferred'] == 0     # the count starts again
+
+
+def test_user_slo_runs_once_in_every_clock_hour(tmp_path, monkeypatch):
+    """11-12 PM: 'last run + 3600' drifted by up to ten minutes a run and left 09:22~10:23 without a record."""
+    import subprocess, types
+    ops_auto, board = _board(tmp_path, monkeypatch)
+    monkeypatch.setattr(ops_auto, 'SLO_STATE', tmp_path / 'slo.json')
+    calls = []
+    record = '{"pages": {"ok": true, "samples": [{"path": "/", "s": 0.5}]}, "breaches": {}}'
+    monkeypatch.setattr(subprocess, 'run', lambda *a, **k: calls.append(1) or types.SimpleNamespace(stdout=record))
+    ops_auto.user_slo(); ops_auto.user_slo()
+    assert len(calls) == 1                                         # same hour: once
+    state = __import__('json').loads((tmp_path / 'slo.json').read_text())
+    state['hour'] = '2000-01-01 00'                                # an earlier hour
+    (tmp_path / 'slo.json').write_text(__import__('json').dumps(state))
+    ops_auto.user_slo()
+    assert len(calls) == 2

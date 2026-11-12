@@ -17,6 +17,7 @@ Writes one JSON line to logs/ops/user-slo.jsonl and prints it. "breaches" lists 
 the owning team, so scripts/ops_auto.py can hand them over on the status board.
 """
 import json
+import os
 import random
 import re
 import socket
@@ -211,9 +212,11 @@ def check_pages():
 
 def main():
     record = {'at': datetime.now().strftime('%Y-%m-%d %H:%M'), 'targets': TARGET, 'connection': 'new per sample'}
+    record['load_1_start'] = round(os.getloadavg()[0], 2)   # 11-12 PM: never put off for load; record it
     record['explore'] = check_explore()
     record['recommend'], record['connect'] = check_recommend_and_connect()
     record['pages'] = check_pages()
+    record['load_1_end'] = round(os.getloadavg()[0], 2)
     record['breaches'] = {k: {'team': OWNER[k], 'bad': record[k]['bad'][:3]}
                           for k in ('explore', 'recommend', 'connect', 'pages') if not record[k]['ok']}
     OUT.parent.mkdir(parents=True, exist_ok=True)

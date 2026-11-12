@@ -118,9 +118,12 @@ SLO_STATE = ROOT / 'logs/ops/user-slo-state.json'
 def user_slo():
     """Every hour: measure the user-facing targets; hand every breach to its owning team. Nothing is excluded."""
     state = json.loads(SLO_STATE.read_text()) if SLO_STATE.is_file() else {}
-    if time.time() - state.get('at', 0) < SLO_EVERY:
+    # Once in every clock hour, at the first watch of the hour (11-12 PM: 'at + 3600' drifted ten minutes a run,
+    # 08:21 -> 09:22 -> 10:2x, and left hours without a record). Never put off for load: the load is recorded.
+    hour = datetime.now().strftime('%Y-%m-%d %H')
+    if state.get('hour') == hour:
         return
-    state['at'] = time.time()
+    state['at'], state['hour'] = time.time(), hour
     SLO_STATE.write_text(json.dumps(state))
     out = subprocess.run([str(ROOT / '.venv/bin/python'), str(ROOT / 'scripts/user_slo.py')], capture_output=True, text=True,
                          cwd=ROOT, timeout=600).stdout
@@ -390,6 +393,9 @@ def provenance(clock=time.time, run=None):
 TEST_PYTHON = ROOT / '.venv-tests/bin/python'   # the browser part needs playwright, which only .venv-tests has (11-11)
 
 
+FULL_CHECK_MAX_DEFERRALS = 2   # 11-12 PM: two deferrals in a row, then the next run goes ahead regardless
+
+
 def full_check(clock=time.time, launch=None, free=None):
     """Every two hours: run scripts/public_full_check.py through heavy_slot (it drives a browser).
 
@@ -404,20 +410,33 @@ def full_check(clock=time.time, launch=None, free=None):
         lines = heavy_slot.BOARD.read_text(encoding='utf-8').split('\n') if heavy_slot.BOARD.is_file() else []
         live = [line for _, line, ok in heavy_slot.entries(lines) if ok]
         free = len(live) < heavy_slot.slots()
-    if not free or reason:
-        why = reason or '무거운 작업 칸이 모두 참'
-        board_handoff('full_check_deferred', f'전수 점검(public_full_check) 2시간 주기 실행을 미룸: {why}. 10분 뒤 다시 시도')
+    deferred = int(state.get('deferred') or 0)
+    why = reason or (None if free else '무거운 작업 칸이 모두 참')
+    if why and deferred < FULL_CHECK_MAX_DEFERRALS:
+        state['deferred'] = deferred + 1
+        FULL_CHECK_STATE.write_text(json.dumps(state))
+        board_handoff('full_check_deferred', f'전수 점검(public_full_check) 2시간 주기 실행을 미룸: {why} '
+                                             f'({deferred + 1}/{FULL_CHECK_MAX_DEFERRALS}). 10분 뒤 다시 시도, '
+                                             f'{FULL_CHECK_MAX_DEFERRALS}번 미룬 뒤에는 무조건 실행')
         append(ACTIONS, f'{now()} public_full_check 미룸: {why}')
         return 'deferred'
-    FULL_CHECK_STATE.write_text(json.dumps({'started': clock()}))
+    FULL_CHECK_STATE.write_text(json.dumps({'started': clock(), 'deferred': 0}))
     log = (ROOT / 'logs/ops/public-full-check.out').open('a')
-    (launch or subprocess.Popen)([str(ROOT / '.venv/bin/python'), '-m', 'scripts.heavy_slot', '--team', '운영·SRE',
-                                  '--what', 'public_full_check (ops_auto 2시간)', '--minutes', str(FULL_CHECK_MINUTES), '--',
-                                  str(TEST_PYTHON), str(ROOT / 'scripts/public_full_check.py')],
-                                 cwd=ROOT, stdout=log, stderr=log, start_new_session=True)
-    board_close('full_check_deferred', f'해결(자동 {now()[11:]} 실행 시작)')
-    append(ACTIONS, f'{now()} public_full_check 시작')
-    return 'started'
+    check = [str(TEST_PYTHON), str(ROOT / 'scripts/public_full_check.py')]
+    env = dict(os.environ)
+    if why:
+        # 11-12 PM: after two deferrals it runs anyway (outside the heavy slot, at low priority) and the record
+        # says what it overlapped; the result is judged like any other run.
+        env['AGENTCON_RUN_CONTEXT'] = json.dumps({'forced_after_deferrals': deferred, 'overlap': why,
+                                                  'load_1': round(os.getloadavg()[0], 2)}, ensure_ascii=False)
+        command = ['nice', '-n', '10'] + check
+    else:
+        command = [str(ROOT / '.venv/bin/python'), '-m', 'scripts.heavy_slot', '--team', '운영·SRE',
+                   '--what', 'public_full_check (ops_auto 2시간)', '--minutes', str(FULL_CHECK_MINUTES), '--'] + check
+    (launch or subprocess.Popen)(command, cwd=ROOT, stdout=log, stderr=log, start_new_session=True, env=env)
+    board_close('full_check_deferred', f'해결(자동 {now()[11:]} 실행 시작' + (f', {deferred}번 미룬 뒤 겹친 채 실행: {why})' if why else ')'))
+    append(ACTIONS, f'{now()} public_full_check 시작' + (f' (미룸 {deferred}번 뒤 강제, 겹침: {why})' if why else ''))
+    return 'forced' if why else 'started'
 
 
 GATE_STATE = ROOT / 'logs/ops/stability-gate-state.json'

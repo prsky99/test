@@ -20,6 +20,7 @@ Writes one JSON line to logs/ops/public-full-check.jsonl; "failures" lists each 
 """
 import argparse
 import json
+import os
 import random
 import re
 import sys
@@ -414,8 +415,14 @@ def main():
                     extra['browser'] = part_browser(run)
             except Exception as e:  # noqa: BLE001 - a crashed part is a failure, never a silent pass
                 run.ok(part, f'{part} part crashed', False, f'{type(e).__name__}: {e}')
+    context = {}
+    try:   # set by ops_auto when the run went ahead after deferrals: what it overlapped and the load (11-12 PM)
+        context = json.loads(os.environ.get('AGENTCON_RUN_CONTEXT') or '{}')
+    except ValueError:
+        context = {'unreadable': True}
+    context['load_1_end'] = round(os.getloadavg()[0], 2)
     record = {'at': datetime.now().strftime('%Y-%m-%d %H:%M'), 'minutes': round((time.time() - started) / 60, 1),
-              'checks': run.checks, 'failed': len(run.failures),
+              'checks': run.checks, 'failed': len(run.failures), 'context': context,
               'pass_rate': round(100 * (run.checks - len(run.failures)) / max(run.checks, 1), 1),
               'failures': run.failures, **extra}
     OUT.parent.mkdir(parents=True, exist_ok=True)
