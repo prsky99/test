@@ -315,12 +315,20 @@ def facts_mcp(res, p):
     documented = sum(1 for t in tools if t.get('description'))
     schemas = sum(1 for t in tools if t.get('inputSchema'))
 
+    trial = p.get('trial')
     pros = [
-        f"Completed initialize and tools/list in {p['ms']:.0f} ms for the two calls (across {p.get('trials', 3)} handshake "
+        f"Completed initialize and tools/list in {p.get('handshake_ms', p['ms']):.0f} ms for the two calls (across {p.get('trials', 3)} handshake "
         f"requests including the initialized notification: median {p50:.0f} ms, slowest {p95:.0f} ms, range {jitter:.0f} ms).",
         f"{len(tools)} tool(s) listed; {documented} documented, {schemas} with input schemas."
     ]
     cons = ['No tool was invoked; verification covered the handshake and tool listing only.']
+    if trial:
+        # 11-12: the catalog collector's read-only trial call is recorded execution evidence for this version
+        rows.append(('Tool invoked (read-only)', str(trial['tool'])))
+        rows.append(('Tool call result', f"{trial['output_chars']} characters in {trial['latency_ms']:.0f} ms"))
+        pros.insert(0, f"One read-only tool call ({trial['tool']}) completed in {trial['latency_ms']:.0f} ms and returned "
+                       f"{trial['output_chars']} characters.")
+        cons = ['Verification covered one read-only tool call; the other tools were not invoked.']
     if documented < len(tools):
         cons.append(f"{len(tools) - documented} tool(s) have no description.")
     if schemas < len(tools):
@@ -342,7 +350,50 @@ def facts_mcp(res, p):
                 'has_input_schema': bool(t.get('inputSchema'))} for t in tools[:10]],
         telemetry={'p50_ms': p50, 'p95_ms': p95, 'jitter_ms': jitter, 'trials': p.get('trials', 3)}
     )
+    if trial:
+        wire['tool_call'] = {'tool': trial['tool'], 'argument_names': trial['argument_names'],
+                             'output_chars': trial['output_chars'], 'latency_ms': trial['latency_ms'],
+                             'recorded_by': 'catalog collector', 'started': trial['started'], 'finished': trial['finished']}
+        return rows, pros, cons, desc, dict(tool=trial['tool'], wire=wire)
     return rows, pros, cons, desc, dict(tool=names[0] if names else None, wire=wire)
+
+
+LATEST_EXECUTION = ("SELECT * FROM capability_evidence WHERE version_id=? AND scope='execution' "
+                    "ORDER BY finished DESC,recorded DESC,id DESC LIMIT 1")   # the registered text report_evidence uses
+
+
+def recorded_trial(store, resource, version, now=None):
+    """The catalog collector's read-only trial call when it is this version's latest execution evidence (11-12).
+
+    Publication accepts a successful report only with recorded execution evidence whose start and finish match
+    the report exactly. The collector records one for every trial call (collector/capabilities.py); the
+    tools/list probe of this script is transport evidence and cannot be. Nothing new is recorded here."""
+    now = time.time() if now is None else now
+    info = resource.get('trial_info') if resource else None
+    try:
+        info = json.loads(info) if isinstance(info, str) else info
+    except ValueError:
+        return None
+    if not isinstance(info, dict) or info.get('ok') is not True or not info.get('tool'):
+        return None
+    rows = store.query(LATEST_EXECUTION, (version['id'],))
+    if not rows:
+        return None
+    row = dict(rows[0])
+    try:
+        same = float(info['at']) == float(row['started']) and float(info['finished_at']) == float(row['finished'])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if row.get('outcome') != 'succeeded' or not same or float(row.get('expires') or 0) <= now:
+        return None
+    try:
+        arguments = json.loads(info.get('arguments') or '{}') if isinstance(info.get('arguments'), str) else info.get('arguments')
+    except ValueError:
+        arguments = {}
+    return {'tool': str(info['tool'])[:80], 'output_chars': int(info.get('output_chars') or 0),
+            'latency_ms': float(info.get('latency_ms') or (row['finished'] - row['started']) * 1000),
+            'argument_names': sorted(arguments)[:10] if isinstance(arguments, dict) else [],
+            'started': row['started'], 'finished': row['finished']}
 
 
 def build(res, p, version_id=None):
@@ -542,6 +593,13 @@ def main():
             # ('a connection-only probe is not task execution', 30 of 30 on 11-12 02:30).
             scope = probe_evidence_scope(normalize_test_method(kind, p['method']))
             safe_record_evidence(registry, ver, scope=scope, outcome='succeeded', started=p['t0'], finished=p['t1'])
+            if scope not in PUBLISHABLE_SCOPES and kind == 'mcp':
+                trial = recorded_trial(store, store.resource(res['id']), ver) if store is not None else None
+                if trial:
+                    p = {**p, 'trial': trial, 'method': 'MCP Tool Call', 'ok': True, 'code': 200,
+                         'handshake_ms': p['ms'], 'ms': trial['latency_ms'], 't0': trial['started'], 't1': trial['finished'],
+                         'request': 'initialize, tools/list and one read-only tools/call recorded by the catalog collector'}
+                    scope = 'execution'
             if scope not in PUBLISHABLE_SCOPES:
                 summary.append((res['id'], 'SKIP_TRANSPORT_ONLY', 'connection-only probe: no task execution evidence'))
                 transport_only += 1

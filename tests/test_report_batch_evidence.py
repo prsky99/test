@@ -59,3 +59,40 @@ def test_submit_withholds_transport_only_drafts_without_failing(tmp_path):
     assert done.returncode == 0, done.stdout + done.stderr
     assert 'withheld=1 failed=0 reason=no_execution_evidence' in done.stdout
     assert 'connection-only probe is not task execution' in done.stdout   # the rule still applies
+
+
+def test_a_recorded_collector_trial_turns_an_mcp_candidate_into_an_execution_report(monkeypatch, tmp_path):
+    """11-12: the collector's read-only trial call is the version's latest execution evidence; the draft reuses its
+    exact start and finish (publication matches them) and records nothing new."""
+    builder = _load_builder(monkeypatch, tmp_path / 'drafts')
+    now = 1794460000.0
+    trial = {'tool': 'get_growth_metrics', 'arguments': '{"region": "kr"}', 'at': now - 600.25, 'ok': True,
+             'output_chars': 5530, 'latency_ms': 50, 'finished_at': now - 600.2}
+
+    class Store:
+        def __init__(self, row): self.row = row
+        def query(self, sql, params):
+            assert sql == builder.LATEST_EXECUTION and params == ('v1',)
+            return [self.row] if self.row else []
+    evidence = {'scope': 'execution', 'outcome': 'succeeded', 'started': now - 600.25, 'finished': now - 600.2,
+                'expires': now + 86400}
+    found = builder.recorded_trial(Store(evidence), {'trial_info': json.dumps(trial)}, {'id': 'v1'}, now=now)
+    assert found == {'tool': 'get_growth_metrics', 'output_chars': 5530, 'latency_ms': 50.0, 'argument_names': ['region'],
+                     'started': now - 600.25, 'finished': now - 600.2}
+    # a newer failed run, a different timestamp, an expired or missing record: no execution report
+    for row in ({**evidence, 'outcome': 'failed'}, {**evidence, 'started': now - 10}, {**evidence, 'expires': now - 1}, None):
+        assert builder.recorded_trial(Store(row), {'trial_info': json.dumps(trial)}, {'id': 'v1'}, now=now) is None
+    assert builder.recorded_trial(Store(evidence), {'trial_info': json.dumps({**trial, 'ok': False})}, {'id': 'v1'}, now=now) is None
+
+    res = {'id': 7, 'kind': 'mcp', 'name': 'Kallipolis Metrics', 'url': 'https://kallipolis.example/mcp', 'category': 'data_analytics',
+           'health_status': 'healthy', 'active': 1, 'eval_grade': 'A', 'description': 'Growth metrics for audits.'}
+    p = {'ok': True, 'code': 200, 'ms': 50.0, 'handshake_ms': 420.0, 'p50_ms': 140.0, 'p95_ms': 160.0, 'jitter_ms': 20.0, 'trials': 3,
+         'method': 'MCP Tool Call', 't0': found['started'], 't1': found['finished'], 'trial': found,
+         'request': 'initialize, tools/list and one read-only tools/call recorded by the catalog collector',
+         'data': {'init': {'protocolVersion': '2025-06-18', 'serverInfo': {'name': 'kallipolis', 'version': '1.1.0'}},
+                  'tools': [{'name': 'get_growth_metrics', 'description': 'Metrics', 'inputSchema': {'type': 'object'}}]}}
+    rec = builder.build(res, p, version_id='v1')
+    assert rec['evidence_scope'] == 'execution' and rec['test_method'] == 'MCP Tool Call' and rec['is_success'] == 1
+    assert rec['executed_at'] == found['started'] and rec['execution_finished_at'] == found['finished']
+    assert rec['tool_name'] == 'get_growth_metrics' and rec['output_wire']['tool_call']['output_chars'] == 5530
+    assert 'No tool was invoked' not in rec['content_md'] and builder.lint(rec) == []
