@@ -1584,6 +1584,17 @@ class Store:
         }
 
     # ---------------- 헬스체크 ----------------
+    def host_kind_shares(self, min_rows: int = 1000) -> dict:
+        """{'kinds': {kind: active rows}, 'hosts': [(host, kind, active rows, trial_ok rows)]} for hosts with at
+        least MIN_ROWS active rows of one kind (11-12: one registry host held 97% of active A2A listings)."""
+        if type(min_rows) is not int or not 1 <= min_rows <= 10**9:
+            raise ValueError('min_rows')
+        kinds = {r[0]: r[1] for r in self.query("SELECT kind, COUNT(*) AS n FROM resources WHERE active=1 GROUP BY kind")}
+        hosts = [(r[0], r[1], r[2], r[3] or 0) for r in self.query(
+            """SELECT host, kind, COUNT(*) AS n, SUM(CASE WHEN trial_ok=1 THEN 1 ELSE 0 END) AS ok FROM resources
+               WHERE active=1 AND host IS NOT NULL GROUP BY host, kind HAVING COUNT(*) >= ?""", (min_rows,))]
+        return {'kinds': kinds, 'hosts': hosts}
+
     def due_for_check(self, now: float, limit: int, per_host: int | None = None,
                       kind: str | list[str] | tuple[str, ...] | None = None) -> list[dict]:
         """점검 시각이 된 에이전트. 한 번도 점검하지 않은 것(새로 수집된 것)이 먼저, 그다음 오래 기다린 순.

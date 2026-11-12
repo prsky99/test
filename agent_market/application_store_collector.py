@@ -53,6 +53,16 @@ class PostgresCollectorMixin:
                 max_bytes=MAX_COLLECTOR_BYTES).fetchall()
         return [{key: row[key] for key in row.keys() if key != 'rn'} for row in rows]
 
+    def host_kind_shares(self, min_rows=1000):
+        """Same answer as Store.host_kind_shares; native read-only statements (two GROUP BYs, run every few minutes)."""
+        if type(min_rows) is not int or not 1 <= min_rows <= 10**9: _invalid()
+        kinds = {row['kind']: row['n'] for row in self._collector_rows(
+            'SELECT kind, COUNT(*) AS n FROM resources WHERE active=1 GROUP BY kind')}
+        hosts = [(row['host'], row['kind'], row['n'], row['ok'] or 0) for row in self._collector_rows(
+            """SELECT host, kind, COUNT(*) AS n, SUM(CASE WHEN trial_ok=1 THEN 1 ELSE 0 END) AS ok FROM resources
+               WHERE active=1 AND host IS NOT NULL GROUP BY host, kind HAVING COUNT(*) >= %s""", (min_rows,))]
+        return {'kinds': kinds, 'hosts': hosts}
+
     def _rows_by_id(self, ids):
         """Whole rows for IDS, 200 at a time: a statement binds at most 256 values (11-12: the x402 health
         loop asked for up to 2 x its batch at once and failed every round with invalid_parameters)."""

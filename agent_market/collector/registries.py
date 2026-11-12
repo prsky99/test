@@ -14,6 +14,7 @@ import base64
 import hashlib
 import json
 import logging
+import os
 import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
@@ -121,6 +122,28 @@ def services_of(doc) -> list[dict]:
 def _is_revert(error) -> bool:
     msg = str(error.get("message") if isinstance(error, dict) else error).lower()
     return "revert" in msg or "nonexistent" in msg or "invalid token" in msg or (isinstance(error, dict) and error.get("code") == 3)
+
+
+# A registry host that makes up most of a kind while few of its listings pass a trial adds listings
+# slowly (11-12 PM decision): one host sent ~1,900 A2A listings an hour, 97% of active A2A, 3.8% trial_ok,
+# with 848k registrations still pending; each new listing is embedded into the per-kind HNSW graph.
+# Collection scope and stored data are unchanged; other hosts and kinds keep their pace.
+THROTTLE_SHARE = float(os.environ.get('ERC8004_THROTTLE_SHARE', '0.20'))   # host share of its kind's active listings
+THROTTLE_TRIAL = float(os.environ.get('ERC8004_THROTTLE_TRIAL', '0.20'))   # below this trial_ok rate
+THROTTLE_HOURLY = int(os.environ.get('ERC8004_THROTTLE_HOURLY', '200'))    # registrations resolved per host per hour
+THROTTLE_MIN_ROWS = 1000      # smaller hosts are never throttled
+THROTTLE_REFRESH = 600        # seconds between rule evaluations (two GROUP BYs)
+
+
+def throttled_hosts(shares, share=THROTTLE_SHARE, trial=THROTTLE_TRIAL):
+    """Hosts whose active listings of one kind are at least SHARE of that kind and pass trials below TRIAL."""
+    kinds = shares.get('kinds') or {}
+    out = set()
+    for host, kind, n, ok in shares.get('hosts') or ():
+        total = kinds.get(kind) or 0
+        if host and total and n / total >= share and (ok or 0) / n < trial:
+            out.add(host)
+    return out
 
 
 class Erc8004Crawler:
@@ -409,6 +432,28 @@ class Erc8004Crawler:
             self._hosts_at = now
         return self._hosts
 
+    def _throttled(self, now: float) -> set:
+        """Hosts under the share/trial rule, re-evaluated every THROTTLE_REFRESH seconds; empty if unknown."""
+        if now - getattr(self, '_throttle_at', 0.0) >= THROTTLE_REFRESH:
+            self._throttle_at = now
+            shares = getattr(self.store, 'host_kind_shares', None)
+            try:
+                found = throttled_hosts(shares(THROTTLE_MIN_ROWS)) if callable(shares) else set()
+            except Exception as exc:  # a failed evaluation keeps the previous set
+                log.warning("erc8004: throttle rule not evaluated (%s)", type(exc).__name__)
+                found = getattr(self, '_throttle', set())
+            if found != getattr(self, '_throttle', set()):
+                log.info("erc8004: throttled hosts %s (share >= %.2f, trial_ok < %.2f, %d an hour)",
+                         sorted(found), THROTTLE_SHARE, THROTTLE_TRIAL, THROTTLE_HOURLY)
+            self._throttle = found
+        return getattr(self, '_throttle', set())
+
+    def _hourly_room(self, host: str, now: float) -> int:
+        """Registrations HOST may still resolve in the last hour (taken counts picks, success or not)."""
+        taken = [t for t in self.__dict__.setdefault('_taken', {}).get(host, ()) if now - t < 3600]
+        self._taken[host] = taken
+        return max(0, THROTTLE_HOURLY - len(taken))
+
     def _pending_rows(self, now: float, limit: int) -> list:
         """Up to per_host due registrations per host, earliest first (11-11).
 
@@ -416,11 +461,20 @@ class Erc8004Crawler:
         read 13.6k blocks per call (21% of all database disk reads); one indexed LIMIT per host reads
         a few hundred."""
         rows = []
+        throttled = self._throttled(now)
         for host in self._pending_hosts(now):
-            rows += [dict(r) for r in self.store.query(
+            take = self.per_host
+            if host in throttled:
+                take = min(take, self._hourly_room(host, now))
+                if take < 1:
+                    continue
+            picked = [dict(r) for r in self.store.query(
                 """SELECT * FROM erc8004_tokens WHERE host = ? AND status IN ('pending','error','deferred')
                    AND uri IS NOT NULL AND (next_at IS NULL OR next_at <= ?) ORDER BY next_at LIMIT ?""",
-                (host, now, self.per_host))]
+                (host, now, take))]
+            rows += picked
+            if host in throttled:
+                self.__dict__.setdefault('_taken', {}).setdefault(host, []).extend([now] * len(picked))
         rows.sort(key=lambda r: (r["next_at"] is None, r["next_at"] or 0))
         return rows[:limit]
 

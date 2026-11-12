@@ -114,3 +114,23 @@ def test_a_large_health_batch_reads_rows_in_bounded_statements():
     rows = collector.due_for_check(100, 600, per_host=2, kind='x402')
     assert len(rows) == 600 and [row['id'] for row in rows] == list(range(1, 601))
     assert collector.bound == [200, 200, 200]
+
+
+class GroupingCollector(PostgresCollectorMixin):
+    def __init__(self):
+        self.statements = []
+
+    def _collector_rows(self, sql, params=()):
+        self.statements.append((sql, params))
+        if 'GROUP BY kind' in sql and 'host' not in sql.split('FROM')[0]:
+            return [{'kind': 'a2a', 'n': 100}]
+        return [{'host': 'big.example', 'kind': 'a2a', 'n': 97, 'ok': None}]
+
+
+def test_host_kind_shares_binds_its_threshold_and_reads_two_groupings():
+    collector = GroupingCollector()
+    assert collector.host_kind_shares(1000) == {'kinds': {'a2a': 100}, 'hosts': [('big.example', 'a2a', 97, 0)]}
+    assert collector.statements[1][1] == (1000,) and 'HAVING COUNT(*) >= %s' in collector.statements[1][0]
+    import pytest
+    with pytest.raises(ApplicationStoreError):
+        collector.host_kind_shares(0)
