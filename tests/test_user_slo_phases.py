@@ -18,8 +18,17 @@ def test_phases_come_from_trace_events_and_server_timing():
     p.trace('connection.connect_tcp.complete', None)          # a repeat keeps the first time
     response = httpx.Response(200, headers={'server-timing': 'explore;dur=985, server;dur=991.4, ann;dur=688'})
     assert p.summary(response) == {'dns_s': 0.002, 'tcp_s': 0.15, 'tls_s': 0.5, 'first_byte_s': 2.1, 'body_s': 9.8,
-                                   'server_ms': 991}
+                                   'server_ms': 991, 'stages': {'explore': 985, 'ann': 688}}
     assert p.summary(httpx.Response(200))['server_ms'] is None
+    assert p.summary(httpx.Response(200))['stages'] == {}
+
+
+def test_only_the_eight_slowest_stages_are_kept():
+    p = user_slo._Phases()
+    p.dns_s = None
+    timing = 'server;dur=900, ' + ', '.join(f's{i};dur={i * 10}' for i in range(1, 13))
+    stages = p.summary(httpx.Response(200, headers={'server-timing': timing}))['stages']
+    assert list(stages) == [f's{i}' for i in range(12, 4, -1)]
 
 
 def test_the_traced_transport_hands_each_request_the_trace_hook(monkeypatch):

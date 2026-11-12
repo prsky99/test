@@ -72,6 +72,13 @@ class _Phases:
         timing = response.headers.get('server-timing', '') if response is not None else ''
         server = re.search(r'(?:^|,)\s*server\s*;[^,]*?dur=([\d.]+)', timing)
         out['server_ms'] = round(float(server.group(1))) if server else None
+        # The server's own stages, largest first (PM 11-12 19:0x: the 18:04 misses kept only the total, so the
+        # stage split had to be measured again). The slowest 8 are enough to name where server time went.
+        found = {}
+        for name, value in re.findall(r'(?:^|,)\s*([\w.]+)\s*;[^,]*?dur=([\d.]+)', timing):
+            if name != 'server':
+                found[name] = max(found.get(name, 0), round(float(value)))
+        out['stages'] = dict(sorted(found.items(), key=lambda item: -item[1])[:8])
         return out
 
 
