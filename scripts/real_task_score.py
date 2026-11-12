@@ -163,6 +163,11 @@ def arguments_for(schema, sample, task_text):
         named = [e for e in enum if names(e, after_to)] or [e for e in enum if names(e, want)]  # "PDF to text": the target
         if named and (key in required or key in args):
             args[key] = named[0]
+        elif key in required or key in args:
+            # 11-12 p07: a required enum field got the task's first string ("type": "example.com") and the call
+            # failed INVALID_INPUT; with no allowed value named, take the first one (the same rule as answers'
+            # example arguments, e1e8012c).
+            args[key] = enum[0]
     for key, value in list(args.items()):  # follow the declared scalar types
         kind = (props.get(key) or {}).get('type')
         if kind == 'string' and not isinstance(value, str):

@@ -133,3 +133,13 @@ def test_one_value_fills_a_plural_list_field():
     assert arguments_for(addresses, {'address': '1600 Pennsylvania Avenue NW'}, 'Geocode') == {'addresses': ['1600 Pennsylvania Avenue NW']}
     plain = {'type': 'object', 'properties': {'address': {'type': 'string'}}}
     assert arguments_for(plain, {'address': 'x'}, 'Geocode') == {'address': 'x'}
+
+
+def test_a_required_enum_field_never_keeps_a_value_outside_its_list():
+    """11-12 14:38 p07: dns_lookup got {"name": "example.com", "type": "example.com"} -> INVALID_INPUT."""
+    schema = {'properties': {'name': {'type': 'string'},
+                             'type': {'type': 'string', 'enum': ['A', 'AAAA', 'MX', 'TXT']}}, 'required': ['name', 'type']}
+    assert rts.arguments_for(schema, {'domain': 'example.com'}, 'Look up the DNS records for example.com') == \
+        {'name': 'example.com', 'type': 'A'}
+    # A value the task names still wins over the first one.
+    assert rts.arguments_for(schema, {'domain': 'example.com'}, 'Look up the TXT records for example.com')['type'] == 'TXT'
