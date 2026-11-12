@@ -2,7 +2,7 @@
 
 The user target is measured from outside (scripts/user_slo.py), so a slow answer must be split into
 network and server time, and server time into its stages. This turns on the opt-in retrieval
-measurements for /mcp, /a2a, /chat, /agents/best and /api/explore and adds them to the Server-Timing header.
+measurements for /mcp, /a2a, /chat, /agents/best, /api/explore, /api/agents and /api/feed and adds them to the Server-Timing header.
 Nothing about the task, the visitor or the result is recorded.
 """
 import time
@@ -11,7 +11,8 @@ from starlette.datastructures import MutableHeaders
 
 from .retrieval_metrics import capture
 
-PATHS = ('/mcp', '/a2a', '/chat', '/agents/best', '/api/explore')
+# /api/agents and /api/feed (11-12 PM): the 13:04 full check saw 18.9 s and 11.4 s there with no server stages.
+PATHS = ('/mcp', '/a2a', '/chat', '/agents/best', '/api/explore', '/api/agents', '/api/feed')
 
 
 def timed_path(path):
