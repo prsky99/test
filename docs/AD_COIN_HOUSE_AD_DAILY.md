@@ -47,8 +47,8 @@
   - 유료 광고주가 2칸을 다 원하면 PM 결정으로 그날 시작 전에 `cancel-regions`로 비운다.
   - 이미 2칸이 다 찬 날·나라는 `full`로 건너뛴다.
 - **스위치:**
-  - `gateway-data/sponsored.env`에 `AD_COIN_HOUSE_AD_DAILY=1`이 있을 때만 예약한다. 없거나 0이면 계획만 기록한다.
-  - agentcon.env는 쓰지 않는다(11-11 f7cd7a83 규칙).
+  - `gateway-data/house-ad.env`(git 제외)에 `AD_COIN_HOUSE_AD_DAILY=1`이 있을 때만 예약한다. 없거나 0이면 계획만 기록한다.
+  - 이 파일은 이 스크립트만 읽는다. 서비스는 `agentcon.env`와 `sponsored.env`를 엄격한 이름 목록으로 읽는다. 그래서 그 파일들에 새 이름을 넣으면 그 이름을 모르는 버전(롤백 대상 포함)이 뜨지 않는다.
 
 ## 3. 멈추는 조건 (예약하지 않고 기록·알림만)
 
@@ -83,4 +83,4 @@
 
 1. 사용자 승인(PM): 매일 예약, 하루 250 coins, 38일 한도, 12월 발행은 따로 결정
 2. 스크립트에 `daily` 동작(D+1·D+2, 멈춤 조건, 스위치)과 시험 D1~D7을 추가한다. 사본 리허설을 한다.
-3. `ops_auto` 등록(운영·SRE)과 `sponsored.env`의 스위치를 켠다. 첫날 결과를 확인한다.
+3. `ops_auto` 등록(운영·SRE)과 `house-ad.env`의 스위치를 켠다. 첫날 결과를 확인한다.
