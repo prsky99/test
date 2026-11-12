@@ -38,3 +38,25 @@ def test_every_run_keeps_its_own_file_and_after_compares_with_the_latest_before(
     old.write_text('{}'); new.write_text('{}')
     os.utime(old, (1, 1))
     assert check.latest_before('2026-11-12') == new and check.latest_before('2026-11-13') is None
+
+
+def test_chat_check_asks_a_task_and_an_information_question_never_seen_before():
+    # 11-12 검색과 RAG: 'send email with history <n>' and 'weather forecast for <city> <n>', 5 s target.
+    import random
+    first, second = check.chat_questions(random.Random(1)), check.chat_questions(random.Random(2))
+    assert first[0].startswith('send email with history ') and first[1].startswith('weather forecast for ')
+    assert first != second and check.CHAT_S == 5.0
+
+
+def test_chat_once_records_time_server_timing_and_the_connection_line(monkeypatch):
+    class Reply:
+        status_code, text, headers = 200, '... Connection: This tool performs an action ...', {'server-timing': 'chat;dur=900'}
+
+    class Client:
+        def __init__(self, **_): pass
+        def __enter__(self): return self
+        def __exit__(self, *_): return False
+        def post(self, url, json): assert url.endswith('/chat') and json['protocol'] == 'auto'; return Reply()
+    monkeypatch.setattr(check.httpx, 'Client', Client)
+    row = check.chat_once('send email with history 123')
+    assert row['ok'] and row['status'] == 200 and row['connection_line'] and row['server_timing'] == 'chat;dur=900'

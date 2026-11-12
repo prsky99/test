@@ -12,6 +12,8 @@ on the wire with gzip, and three full downloads with cf-cache-status and the cf-
 of each page is the first-visit number. "after" runs warm_edge first, so its later downloads show the warmed edge;
 both are reported.
 
+Chat check ("after"): one task-type and one information-type question on new connections, 5 s target.
+
 Screen check ("after", also run "before" for the old version): each page at 1280 and 375 px in Chromium. It must
 load with no console error, leave no inactive panel template unfilled, and move to another panel through the main
 navigation. Results go to logs/ops/post-deploy-check/<date>-<before|after>[-<label>]-<HHMM>.json, one file per run; "after" prints the comparison and
@@ -19,6 +21,7 @@ exits 1 when the screen check fails (then ask 검색과 RAG to roll the frontend
 """
 import argparse
 import json
+import random
 import statistics
 import sys
 import time
@@ -54,6 +57,35 @@ def download(path):
                         'colo': ray.rsplit('-', 1)[-1] if '-' in ray else None}
     except httpx.HTTPError as exc:
         return {'s': round(time.monotonic() - start, 2), 'status': type(exc).__name__}
+
+
+# 11-12 (검색과 RAG, PM): the first public Chat after a deploy took 7.91 s while the deploy tool warmed only explore
+# and find_agents. "after" sends one task-type and one information-type question, each on a new connection, right
+# after warm_edge, and records the time and Server-Timing. Target: within 5 s (complex answer target).
+CHAT_S = 5.0
+CITIES = ('Seoul', 'Busan', 'Tokyo', 'Osaka', 'Paris', 'Berlin', 'Madrid', 'Toronto', 'Sydney', 'Chicago')
+
+
+def chat_questions(rng=random):
+    return ['send email with history %d' % rng.randint(100, 999),
+            'weather forecast for %s %d' % (rng.choice(CITIES), rng.randint(100, 999))]
+
+
+def chat_once(question):
+    headers = {'Accept': 'application/json', 'User-Agent': UA, **QA}
+    start = time.monotonic()
+    try:
+        with httpx.Client(timeout=60, headers=headers) as client:  # a new connection per question
+            r = client.post(BASE + '/chat', json={'message': question, 'protocol': 'auto'})
+    except httpx.HTTPError as exc:
+        return {'question': question, 's': round(time.monotonic() - start, 2), 'status': type(exc).__name__, 'ok': False}
+    took = round(time.monotonic() - start, 2)
+    return {'question': question, 's': took, 'status': r.status_code, 'server_timing': r.headers.get('server-timing'),
+            'connection_line': 'Connection:' in r.text, 'ok': r.status_code == 200 and took <= CHAT_S}
+
+
+def chat_check():
+    return [chat_once(q) for q in chat_questions()]
 
 
 def numbers():
@@ -165,6 +197,7 @@ def main(argv=None):
     parser.add_argument('stage', choices=('before', 'after'))
     parser.add_argument('--no-screens', action='store_true', help='numbers only')
     parser.add_argument('--label', default='', help='the release, e.g. noon (goes into the file name)')
+    parser.add_argument('--no-chat', action='store_true', help='skip the two public Chat questions')
     args = parser.parse_args(argv)
     record = {'at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'stage': args.stage}
     if args.stage == 'after':
@@ -173,6 +206,8 @@ def main(argv=None):
             warm_edge.main([])  # its own flags, not this command line
         except SystemExit as done:
             record['warm_edge_exit'] = done.code
+        if not args.no_chat:
+            record['chat'] = chat_check()
     record['numbers'] = numbers()
     record['summary'] = summary(record['numbers'])
     if not args.no_screens:
@@ -189,6 +224,9 @@ def main(argv=None):
         print('화면 확인: %d개 중 문제 %d개' % (len(record['screens']), len(record['screen_problems'])))
         for row in record['screen_problems']:
             print(' -', row['path'], row['width'], '; '.join(row['problems']))
+    for row in record.get('chat', []):
+        print('Chat %s: %s %.2f초 %s (기준 %.0f초) Server-Timing=%s' % (
+            row['question'], row['status'], row['s'], '통과' if row['ok'] else '미달', CHAT_S, row.get('server_timing')))
     if args.stage == 'after':
         before_path = latest_before(day)
         if before_path:
