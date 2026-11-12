@@ -161,6 +161,48 @@ def check_explore(n=6):
     return {'samples': rows, 'max_s': max(r['s'] for r in rows), 'ok': not bad, 'bad': bad}
 
 
+# How an answer says to connect without the gateway (검색과 RAG, 11-12: tools the gateway does not relay). The exact
+# line is confirmed by 검색과 RAG before their release; only this pattern needs to change if it differs.
+DIRECT = re.compile(r'^\s*(?:[-*]\s*)?Direct connection:\s*(https://\S+)', re.IGNORECASE)
+GATEWAY = re.compile(r'Endpoint:\s*(\S*/api/gateway/\S+)')
+
+
+def connection_route(text):
+    """The connection path of the answer's first recommendation: ('gateway', url), ('direct', url) or (None, None).
+
+    11-12 PM: follow the path the answer gives, whichever comes first; no recommendation is skipped."""
+    for line in text.splitlines():
+        found = GATEWAY.search(line)
+        if found:
+            return 'gateway', found.group(1)
+        found = DIRECT.search(line)
+        if found:
+            return 'direct', found.group(1).rstrip('.,);')
+    return None, None
+
+
+def connector(route, endpoint):
+    """A read-only connect: MCP initialize + tools/list, or an A2A card GET. No credentials, payment or tools/call."""
+    if route == 'direct':
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+        from agent_market.broker.discovery import check_public_url
+        check_public_url(endpoint)            # private addresses are refused before any request
+    if endpoint.rstrip('/').endswith(('agent.json', 'agent-card.json')) or '/api/gateway/a2a/' in endpoint:
+        # A2A (11-11): connecting means the card is served; no message is sent.
+        def connect(client):
+            response = client.get(endpoint, headers={'Accept': 'application/json'})
+            return 1 if response.status_code == 200 else 0
+        return connect
+
+    def connect(client):  # one connection for the pair: the session belongs to it
+        init, _ = mcp(client, endpoint, 'initialize', {'protocolVersion': '2025-06-18', 'capabilities': {},
+                                                        'clientInfo': {'name': 'user-slo', 'version': '1'}})
+        listed, body = mcp(client, endpoint, 'tools/list', session=init.headers.get('mcp-session-id'), rid=2)
+        return len((body.get('result') or {}).get('tools') or [])
+    return connect
+
+
 def check_recommend_and_connect(n=2):
     rec, conn = [], []
     for task in unseen(n):
@@ -174,24 +216,18 @@ def check_recommend_and_connect(n=2):
                 text = ''
         rec.append({'task': task, 's': took, 'answered': bool(text), 'error': error,
                     **phases(result[0] if result else None)})
-        endpoint = next((line.split('Endpoint:', 1)[1].strip().split()[0] for line in text.splitlines()
-                         if 'Endpoint:' in line and '/api/gateway/' in line), None)
+        route, endpoint = connection_route(text)
         if not endpoint:
             continue
-        if '/api/gateway/mcp/' in endpoint:
-            def connect(client):  # one connection for the pair: the session belongs to it
-                init, _ = mcp(client, endpoint, 'initialize', {'protocolVersion': '2025-06-18', 'capabilities': {},
-                                                                'clientInfo': {'name': 'user-slo', 'version': '1'}})
-                listed, body = mcp(client, endpoint, 'tools/list', session=init.headers.get('mcp-session-id'), rid=2)
-                return len((body.get('result') or {}).get('tools') or [])
-        else:
-            # A2A recommendation (11-11): connecting means the gateway serves the agent's card; no message is sent.
-            def connect(client):
-                response = client.get(endpoint, headers={'Accept': 'application/json'})
-                return 1 if response.status_code == 200 else 0
-        took_c, tools, error_c = timed(lambda: on_fresh(connect))
-        conn.append({'endpoint': endpoint.rsplit('/', 2)[-2] + '/' + endpoint.rsplit('/', 1)[-1], 's': took_c,
-                     'tools': tools, 'error': error_c})
+        try:
+            connect = connector(route, endpoint)
+        except Exception as exc:  # noqa: BLE001 - a refused address is a failed connection, recorded as such
+            connect = None
+            took_c, tools, error_c = 0.0, 0, 'refused_' + type(exc).__name__
+        if connect is not None:
+            took_c, tools, error_c = timed(lambda: on_fresh(connect))
+        conn.append({'route': route, 'endpoint': endpoint.rsplit('/', 2)[-2] + '/' + endpoint.rsplit('/', 1)[-1],
+                     's': took_c, 'tools': tools, 'error': error_c})
     rec_bad = [r for r in rec if r['s'] > TARGET['recommend_s'] or not r['answered']]
     conn_bad = [c for c in conn if not c['tools']]
     # No gateway endpoint among the answers means connect was not measured this hour; that is recorded, not hidden,
