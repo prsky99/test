@@ -120,8 +120,21 @@ def client_of(ip, ua, internal_ips, qa=None):
 
 
 # MCP clients that only list or check servers (registries, directories, uptime probes), by clientInfo.name.
-PROBE_NAME = re.compile(r'probe|check|registry|catalog|index|scan|monitor|beat|rank|glama|smithery|pulse|directory|crawler|'
-                        r'inspector|validator|health|test|atlas|bazaar|status', re.I)
+def _classes():
+    """The class lists of traffic_classes.json (11-12 PM: configuration, not a growing list in code)."""
+    try:
+        return json.loads((Path(__file__).with_name('traffic_classes.json')).read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def _words(name):
+    words = [w for w in _classes().get(name, []) if isinstance(w, str) and w]
+    return re.compile('|'.join(re.escape(w) for w in words), re.I) if words else re.compile(r'(?!x)x')
+
+
+# MCP clientInfo names of registries, evaluators and monitors ('probe' in the rpc counts and the funnel)
+PROBE_NAME = _words('probe_client_names')
 RPC_ENTRIES = ('mcp', 'a2a')
 WELL_KNOWN_NAME = re.compile(r'/\.well-known/[A-Za-z0-9._-]{1,60}(?:/[A-Za-z0-9._-]{1,60})?')
 # 4xx answers the protocols ask for (11-11): an auth-free MCP server answers 404 to OAuth discovery
@@ -170,8 +183,9 @@ def request_shape(method, path, headers):
 RECOMMEND_TOOLS = ('find_agents', 'chat', 'search')
 # Registry and uptime checkers by User-Agent. Narrower than PROBE_NAME (MCP clientInfo names), whose 'test',
 # 'health' or 'index' would drop real clients when read from a User-Agent.
-PROBE_UA = re.compile(r'probe|prober|checker|uptime|monitor|scanner|mcpbeat|glama|smithery|agentrank|pulsemcp|'
-                      r'registry|crawler', re.I)
+PROBE_UA = _words('probe_user_agents')
+# Marketing contacts (11-12: ziwei-alliance-marketing sent 84 A2A messages a day)
+OUTREACH_UA = _words('outreach_user_agents')
 
 
 def tool_name(body):
@@ -188,13 +202,18 @@ def tool_name(body):
     return name if isinstance(name, str) and NAME.fullmatch(name) else None
 
 
-def funnel_class(client, ua):
-    """'external', 'internal', 'probe' (registry checkers) or 'crawler' (AI bots); only 'external' counts."""
+def funnel_class(client, ua, client_name=None, session_kind=None):
+    """'external', 'internal', 'probe' (registries, evaluators, monitors), 'outreach' (marketing contacts) or
+    'crawler' (AI bots); only 'external' counts. CLIENT_NAME is an initialize request's clientInfo.name and
+    SESSION_KIND what the session's initialize was judged to be, so later calls in a probe's session stay probe."""
     if client == 'internal':
         return 'internal'
     if client == 'ai_bot':
         return 'crawler'
-    if client in ('verifier',) or PROBE_UA.search(ua or ''):
+    if OUTREACH_UA.search(ua or ''):
+        return 'outreach'
+    if (client in ('verifier',) or PROBE_UA.search(ua or '') or session_kind == 'probe'
+            or (client_name and PROBE_NAME.search(client_name))):
         return 'probe'
     return 'external'
 
@@ -323,16 +342,18 @@ class Traffic:
                     # cause (11-10): our own security blocks (blocked_ip, policy_denied) are counted apart
                     # from protocol failures so a block window does not read as a client problem.
                     self.errors[entry + '|' + str(status) + (':' + cause if cause else '') + '|' + request_shape(method, path, headers) + '|' + (rpc or '-')] += 1
-            self._funnel_locked(entry, method, status, ua, client, body, digest, gateway)
+            self._funnel_locked(entry, method, status, ua, client, body, digest, gateway, headers)
             if self.clock() - self.flushed >= FLUSH_SECONDS:
                 self._write_locked()
 
-    def _funnel_locked(self, entry, method, status, ua, client, body, digest, gateway):
+    def _funnel_locked(self, entry, method, status, ua, client, body, digest, gateway, headers=None):
         """North star funnel (11-12 PM): recommendation requests, gateway connections and successful executions.
 
         GATEWAY is what the gateway handler decided: {'step': 'connect'|'execute', 'ok': bool, 'rid': int}. Pairs
         are (this day's salted client digest, agent id); nothing that identifies a client is kept."""
-        cls = funnel_class(client, ua)
+        sid = ((headers or {}).get('mcp-session-id') or '')[:64]
+        cls = funnel_class(client, ua, mcp_client_name(body) if entry == 'mcp' else None,
+                           self.sessions.get(sid) if sid else None)
         ok = isinstance(status, int) and 200 <= status < 300
         surface = recommend_surface(entry, method, body)
         if surface:
@@ -342,7 +363,8 @@ class Traffic:
             bucket = self.funnel_sets['recommend|' + cls]
             if len(bucket) < 50_000:
                 bucket.add(digest)
-        if entry == 'gateway' and isinstance(gateway, dict) and gateway.get('step') in ('connect', 'execute'):
+        # /api/gateway/* connections and executions, and the in-session MCP 'call' tool on /mcp (11-12 PM)
+        if entry in ('gateway', 'mcp') and isinstance(gateway, dict) and gateway.get('step') in ('connect', 'execute'):
             step, done = gateway['step'], bool(gateway.get('ok')) and ok
             self.funnel[step + '|' + cls + '|attempt'] += 1
             if done:

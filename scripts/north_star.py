@@ -3,11 +3,12 @@
     .venv/bin/python -m scripts.north_star [--day YYYY-MM-DD] [--no-write]
 
 The north star is the number of distinct (client, agent) pairs per KST day where an outside client got a
-successful execution through our gateway: MCP tools/call answered 2xx and not isError, A2A message/send answered,
-or an edge run that succeeded. The funnel beside it: (1) outside recommendation requests (find_agents, Chat, MCP
+successful execution: a gateway MCP tools/call answered 2xx and not isError, a gateway A2A message/send answered,
+the in-session MCP 'call' tool on /mcp that succeeded, or an edge run that succeeded. The funnel beside it: (1) outside recommendation requests (find_agents, Chat, MCP
 search, A2A, Explore API), (2) gateway connection pairs (tools/list, A2A card), (3) successful execution pairs.
-Internal requests (our User-Agents, X-Agentcon-QA, internal addresses, our edge principals), registry checkers and
-AI crawlers are not counted but kept in their own columns. Nothing is excluded silently.
+Internal requests (our User-Agents, X-Agentcon-QA, internal addresses, our edge principals), registry checkers,
+evaluators and monitors ('probe'), marketing contacts ('outreach') and AI crawlers are not counted but kept in their
+own columns; the names are in agent_market/concierge/traffic_classes.json. Nothing is excluded silently.
 
 Sources: the frontend's anonymous day files (logs/service-frontend/traffic/<day>.<pid>.json; pairs are distinct
 within one process, so a day with a deploy switch may count a pair twice — 'processes' says how many there were)
@@ -26,7 +27,7 @@ TRAFFIC = ROOT / 'logs/service-frontend/traffic'
 OUT = ROOT / 'logs/ops/north-star.jsonl'
 DSN = ROOT / 'gateway-data/postgres18/application.dsn'
 INTERNAL_PRINCIPALS = ROOT / 'gateway-data/ops/internal-edge-principals.txt'
-CLASSES = ('external', 'internal', 'probe', 'crawler')
+CLASSES = ('external', 'internal', 'probe', 'outreach', 'crawler')
 # Client classes of the older day files (traffic.client_of) and the funnel class they stand for.
 OLD_CLASS = {'internal': 'internal', 'ai_bot': 'crawler', 'verifier': 'probe', 'browser': 'external',
              'script': 'external', 'other': 'external', 'headless': 'external'}
@@ -146,7 +147,7 @@ def build(day, files=None, edge=None):
     return {'day': day, 'at': time.strftime('%Y-%m-%d %H:%M'), 'north_star': north,
             'basis': 'recorded' if recorded else 'approx', 'processes': len(files),
             'breaks_at': breaks, 'funnel': external, 'edge': edge,
-            'excluded': {cls: by[cls] for cls in ('internal', 'probe', 'crawler')}}
+            'excluded': {cls: by[cls] for cls in ('internal', 'probe', 'outreach', 'crawler')}}
 
 
 def main(argv=None):

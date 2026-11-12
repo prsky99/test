@@ -3498,6 +3498,8 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
                     return JSONResponse({'backend':'origin'},headers={'Cache-Control':'private, no-store'})
             v = await run_in_threadpool(front.identify, request, "mcp", token, agent_name, create=True)
             rid_val = args.get("resource_id")
+            # North star funnel (11-12 PM): an in-session 'call' is an execution like a gateway tools/call.
+            request.scope['traffic_gateway'] = {'step': 'execute', 'ok': False, 'rid': rid_val if type(rid_val) is int else None}
             tool_val = str(args.get("tool") or "")
             call_args = args.get("arguments") if isinstance(args.get("arguments"), dict) else {}
             task_str = str(args.get("task") or "")
@@ -3548,6 +3550,7 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
                 exec_res['error']=('The execution outcome is unconfirmed. Keep this request paused for review.'
                     if exec_res.get('retry_safe') is False else execution_failure_fields(exec_res.get('error_code'))['error_message'])
             ok_val = exec_res.get("ok", False)
+            request.scope['traffic_gateway'] = {'step': 'execute', 'ok': bool(ok_val), 'rid': rid_val}
             alternative = None
 
             if (bound_resource and isinstance(rid_val,int) and not exec_res.get('payment_required')

@@ -112,3 +112,44 @@ def test_ops_auto_writes_the_line_once_a_morning_from_the_first_day(monkeypatch,
     assert ops_auto.north_star(clock=at(2026, 11, 16, 9, 5), run=run) is None             # once a day
     assert handed[0][0] == 'north_star' and '외부 추천 요청 12 → 게이트웨이 연결 쌍 0' in handed[0][1]
     assert '끊긴 단계 connect' in handed[0][1] and ops_auto.TEAM['north_star'] == 'PM'
+
+
+def test_the_in_session_call_tool_counts_as_an_execution(managed, monkeypatch):
+    """11-12 PM: /mcp 'call' (the only way an MCP host can run a recommendation without a new server) executes."""
+    store, front, client, _, rid, calls, _ = managed
+    recorder = traffic.Traffic(root=None)
+    recorder.internal_ips = set()
+    monkeypatch.setattr(traffic, 'recorder', lambda: recorder)
+    rpc(client, '/mcp', 'tools/call', {'name': 'call', 'arguments': {'resource_id': rid, 'tool': 'get_weather',
+                                                                      'arguments': {'city': 'Tokyo'}}})
+    rpc(client, '/mcp', 'tools/call', {'name': 'call', 'arguments': {'resource_id': 999999, 'tool': 'x', 'arguments': {}}})
+    snap = recorder.snapshot()
+    assert snap['funnel']['execute|external|attempt'] == 2 and snap['funnel']['execute|external|ok'] == 1
+    assert snap['funnel_distinct']['execute|external'] == 1
+
+
+def test_checkers_by_client_name_session_or_user_agent_and_outreach_are_kept_apart():
+    recorder = traffic.Traffic(root=None)
+    init = b'{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"posthog-mcp-registry-probe"}}}'
+    find = b'{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"find_agents","arguments":{"task":"x"}}}'
+    send = b'{"jsonrpc":"2.0","id":3,"method":"message/send","params":{"message":{"parts":[{"text":"hi"}]}}}'
+    recorder.observe('POST', '/mcp', 200, '203.0.113.7', 'node', init, {}, {'mcp-session-id': 'S1'})
+    recorder.observe('POST', '/mcp', 200, '203.0.113.7', 'node', find, {'mcp-session-id': 'S1'})       # same session
+    recorder.observe('POST', '/mcp', 200, '203.0.113.8', 'x402-observer/2', find, {})                  # UA rule
+    recorder.observe('POST', '/mcp', 200, '203.0.113.9', 'python-requests/2.32', find, {})              # outside
+    recorder.observe('POST', '/a2a', 200, '203.0.113.10', 'ziwei-alliance-marketing/1.0', send, {})    # outreach
+    funnel = recorder.snapshot()['funnel']
+    assert funnel['recommend|find_agents|probe|all'] == 2 and funnel['recommend|find_agents|external|all'] == 1
+    assert funnel['recommend|a2a|outreach|all'] == 1 and 'recommend|a2a|external|all' not in funnel
+
+
+def test_the_class_names_live_in_the_configuration_file():
+    import json
+    from pathlib import Path
+    config = json.loads((Path(traffic.__file__).with_name('traffic_classes.json')).read_text())
+    for key in ('probe_client_names', 'probe_user_agents', 'outreach_user_agents'):
+        assert config[key] and all(isinstance(word, str) for word in config[key])
+    assert traffic.PROBE_NAME.search('mcpbeat') and traffic.PROBE_NAME.search('talaria-catalog')
+    assert traffic.PROBE_NAME.search('coda-agent-runtime') and traffic.PROBE_UA.search('AgentRankProbe/1.0')
+    assert not traffic.PROBE_UA.search('python-requests/2.32') and not traffic.PROBE_UA.search('testclient')
+    assert traffic.OUTREACH_UA.search('ziwei-alliance-marketing/1.0')

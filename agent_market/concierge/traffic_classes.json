@@ -1,0 +1,9 @@
+{
+  "_doc": "Traffic classes for the anonymous day counts and the north star funnel (agent_market/concierge/traffic.py). Each list is matched as case-insensitive substrings. Add a name here instead of in code. 11-12 PM: registry checkers, evaluators and monitors are 'probe'; marketing contacts are 'outreach'; neither counts as an outside recommendation request.",
+  "probe_client_names": ["probe", "check", "registry", "catalog", "index", "scan", "monitor", "beat", "rank", "glama",
+    "smithery", "pulse", "directory", "crawler", "inspector", "validator", "health", "test", "atlas", "bazaar", "status",
+    "observer", "coda-agent-runtime", "histor"],
+  "probe_user_agents": ["probe", "prober", "checker", "uptime", "monitor", "scanner", "mcpbeat", "glama", "smithery",
+    "agentrank", "pulsemcp", "registry", "crawler", "observer", "sealkeeper", "brickbluebot"],
+  "outreach_user_agents": ["marketing", "outreach", "ziwei-alliance"]
+}

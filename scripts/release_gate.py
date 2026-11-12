@@ -64,6 +64,7 @@ TESTS = (
     'tests/test_qa10_contracts.py',
     'tests/test_qa11_contracts.py',
     'tests/test_sql_catalog_registration.py',  # 11-12: every SQL pair the code produces is registered
+    'tests/test_front_dashboard_menus.py',  # 11-12 PM: the public frontend has no Korean text (01982678 slipped past the gate)
     'tests/test_panels_split_browser.py::test_the_page_is_the_same_with_the_panels_in_a_shared_script[index.html]',
     'tests/test_critical_css_browser.py::test_first_screen_with_inline_css_alone_matches_the_full_css[1280-light]',
     'tests/test_critical_css_browser.py::test_first_screen_with_inline_css_alone_matches_the_full_css[375-light]',
