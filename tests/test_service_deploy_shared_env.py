@@ -148,10 +148,17 @@ def test_a_new_frontend_slot_is_warmed_with_fresh_queries_until_fast_then_recomm
     import random
     import httpx
     from scripts import service_deploy
-    seen, slow = [], iter([9000, 0, 0])
+    import json
+    seen, slow, bodies, marks = [], iter([9000, 0, 0]), [], []
 
     def handler(request):
         seen.append((request.url.port, request.method, request.url.path, request.url.params.get('q'), request.headers['host']))
+        marks.append({'user-agent': request.headers.get('user-agent'), 'x-agentcon-qa': request.headers.get('x-agentcon-qa')})
+        if request.method == 'POST':
+            bodies.append(json.loads(request.content))
+            if bodies[-1]['params']['name'] == 'chat':
+                return httpx.Response(200, json={'jsonrpc': '2.0', 'id': 2, 'result': {}},
+                                      headers={'Server-Timing': 'step_search;dur=812, ann;dur=400'})
         if request.url.path == '/api/explore':
             delay = next(slow, 0)
             if delay == 9000:
@@ -162,12 +169,20 @@ def test_a_new_frontend_slot_is_warmed_with_fresh_queries_until_fast_then_recomm
     timings = manager.warm_web('frontend', 'a', transport=httpx.MockTransport(handler), rng=random.Random(7))
     explore = [t for t in timings if t['kind'] == 'explore']
     assert [t['status'] for t in explore][:1] == ['ConnectError'] and all(t['status'] == 200 for t in explore[1:])
-    assert len(explore) >= 3 and timings[-1]['kind'] == 'recommend' and timings[-1]['status'] == 200
+    assert len(explore) >= 3 and [t['kind'] for t in timings[-2:]] == ['recommend', 'chat']
+    assert all(t['status'] == 200 for t in timings[-2:])
     assert not set(t['q'] for t in explore) & set(service_deploy.WARM_QUERIES)   # never the cached fixed queries
     assert seen[0][:3] == (8401, 'GET', '/api/explore') and seen[0][4] == 'agentconcierge.biz'
-    assert seen[-1][1:3] == ('POST', '/mcp')
+    assert [s[1:3] for s in seen[-2:]] == [('POST', '/mcp'), ('POST', '/mcp')]
+    # 11-12: the warm-up Chat is an unseen action task, marked as our own measurement
+    assert bodies[-1]['params']['name'] == 'chat' and bodies[-2]['params']['name'] == 'find_agents'
+    message = bodies[-1]['params']['arguments']['message']
+    assert message.rsplit(' ', 1)[0] in service_deploy.WARM_CHAT_TASKS and message.rsplit(' ', 1)[1].isdigit()
+    assert all(h['user-agent'] == 'agentcon-deploy-warm' and h['x-agentcon-qa'] == 'deploy-warm' for h in marks)
+    assert timings[-1]['server_timing'] == 'step_search;dur=812, ann;dur=400' and timings[-1]['q'] == message
     summary = manager.warm_summary(timings)
     assert summary['explore_goal_met'] and summary['recommend_goal_met'] and summary['first_explore_ms'] is not None
+    assert summary['chat_ms'] is not None and summary['chat_goal_met'] and summary['chat_timing'].startswith('step_search')
     assert manager.warm_web('admin', 'a', transport=httpx.MockTransport(handler)) == []
     assert manager.warm_web('frontend', 'b') == []  # tests never reach a real slot
 
@@ -179,7 +194,8 @@ def test_warm_summary_reports_a_missed_target():
                {'kind': 'recommend', 'q': 'c', 'status': 200, 'ms': 5300}]
     summary = Deployment.warm_summary(timings)
     assert summary == {'explore_calls': 2, 'first_explore_ms': 14400, 'last_explore_ms': 2600, 'explore_goal_met': False,
-                       'recommend_ms': 5300, 'recommend_goal_met': False}
+                       'recommend_ms': 5300, 'recommend_goal_met': False, 'chat_ms': None, 'chat_timing': None,
+                       'chat_goal_met': False}
 
 
 def test_deploy_warms_before_switching():

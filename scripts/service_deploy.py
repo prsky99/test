@@ -41,6 +41,13 @@ WARM_OBJECTS = ('csv files', 'pdf invoices', 'news articles', 'github issues', '
 SNAPSHOT_WAIT_SECONDS = 600     # the new slot's start report snapshot (about 3 min unpaused, 11-11)
 WARM_EXPLORE_GOAL_MS = 2000      # the Explore target (CLAUDE.md response-time policy)
 WARM_RECOMMEND_GOAL_MS = 3000    # the recommendation target
+# 11-12 (PM decision (a), 검색과 RAG): the first public Chat after the 13:30 switch took 7.91 s while Explore and
+# find_agents had been warmed; one MCP 'chat' call with an unseen action task now warms that path too.
+WARM_CHAT_TASKS = ('send email with history', 'post a message to a slack channel', 'create a calendar event',
+                   'open a github issue')
+WARM_CHAT_GOAL_MS = 2000         # the recommendation target (Chat), information only
+WARM_HEADERS = {'Host': 'agentconcierge.biz', 'User-Agent': 'agentcon-deploy-warm',   # traffic.INTERNAL_UA
+                'X-Agentcon-QA': 'deploy-warm'}   # our own measurement: never a Sponsored count
 # Undeployed releases younger than this survive the post-deploy prune (another session may deploy them next).
 AFTER_DEPLOY_MIN_AGE_HOURS = 6
 RELEASE = re.compile(r'[a-zA-Z0-9][a-zA-Z0-9_.-]{0,79}\Z')
@@ -555,8 +562,10 @@ class Deployment:
         """Warm the new frontend slot with queries it has never seen before traffic moves to it.
 
         Explore runs fresh queries until two in a row finish within the Explore target, then one MCP
-        find_agents call (read-only, not recorded) warms the recommendation path. Failures and slowness
-        never block the deploy; the timings and whether the targets were met are returned."""
+        find_agents call (read-only, not recorded) warms the recommendation path and one MCP chat call with
+        an unseen action task warms Chat (it creates an internal visitor, like the hourly user_slo; Chat
+        uses no paid model). Failures and slowness never block the deploy; the timings, the full
+        Server-Timing of the chat call and whether the targets were met are returned."""
         if role != 'frontend' or (transport is None and os.environ.get('PYTEST_CURRENT_TEST')):
             return []
         import httpx
@@ -565,13 +574,13 @@ class Deployment:
         timings, deadline = [], time.monotonic() + budget
         base = 'http://127.0.0.1:' + str(PORTS[role][slot])
 
-        def timed(kind, call, label):
+        def timed(kind, call, label, keep=400):
             began, stages = time.monotonic(), None
             try:
                 response = call()
                 status = response.status_code
                 # Server-Timing stages show which part of a cold process is slow (11-11).
-                stages = response.headers.get('server-timing', '')[:400] or None
+                stages = response.headers.get('server-timing', '')[:keep] or None
             except Exception as error:
                 status = type(error).__name__
             item = {'kind': kind, 'q': label, 'status': status, 'ms': round((time.monotonic() - began) * 1000)}
@@ -582,7 +591,7 @@ class Deployment:
 
         try:
             with httpx.Client(base_url=base, trust_env=False, follow_redirects=False, timeout=20, transport=transport,
-                              headers={'Host': 'agentconcierge.biz', 'User-Agent': 'AgentConcierge-Deployment-Warmup/1.0'}) as client:
+                              headers=WARM_HEADERS) as client:
                 streak = 0
                 while time.monotonic() < deadline and streak < 2:
                     query = rng.choice(WARM_VERBS) + ' ' + rng.choice(WARM_OBJECTS)
@@ -594,21 +603,31 @@ class Deployment:
                             'params': {'name': 'find_agents', 'arguments': {'task': task}}}
                     timed('recommend', lambda: client.post('/mcp', json=body, headers={
                         'Accept': 'application/json, text/event-stream'}), task)
+                if time.monotonic() < deadline:
+                    message = rng.choice(WARM_CHAT_TASKS) + ' ' + str(rng.randint(1000, 999999))
+                    chat = {'jsonrpc': '2.0', 'id': 2, 'method': 'tools/call',
+                            'params': {'name': 'chat', 'arguments': {'message': message}}}
+                    timed('chat', lambda: client.post('/mcp', json=chat, headers={
+                        'Accept': 'application/json, text/event-stream'}), message, keep=4000)
         except Exception as error:
             timings.append({'error': type(error).__name__})
         return timings
 
     @staticmethod
     def warm_summary(timings):
-        """First fresh Explore time, last Explore time and whether the targets were met before the switch."""
+        """First fresh Explore time, last Explore time, the warm-up Chat and whether the targets were met."""
         explore = [t for t in timings if t.get('kind') == 'explore']
         recommend = [t for t in timings if t.get('kind') == 'recommend']
+        chat = [t for t in timings if t.get('kind') == 'chat']
         met = (len(explore) >= 2 and all(t['status'] == 200 and t['ms'] <= WARM_EXPLORE_GOAL_MS for t in explore[-2:]))
         return {'explore_calls': len(explore), 'first_explore_ms': explore[0]['ms'] if explore else None,
                 'last_explore_ms': explore[-1]['ms'] if explore else None, 'explore_goal_met': met,
                 'recommend_ms': recommend[-1]['ms'] if recommend else None,
                 'recommend_goal_met': bool(recommend) and recommend[-1]['status'] == 200
-                    and recommend[-1]['ms'] <= WARM_RECOMMEND_GOAL_MS}
+                    and recommend[-1]['ms'] <= WARM_RECOMMEND_GOAL_MS,
+                'chat_ms': chat[-1]['ms'] if chat else None,
+                'chat_timing': chat[-1].get('server_timing') if chat else None,
+                'chat_goal_met': bool(chat) and chat[-1]['status'] == 200 and chat[-1]['ms'] <= WARM_CHAT_GOAL_MS}
 
     def verify_web(self, role, slot):
         import httpx
