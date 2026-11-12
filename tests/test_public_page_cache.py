@@ -39,7 +39,7 @@ def client(tmp_path):
 
     @app.get('/__cookie_test', include_in_schema=False)
     def cookie_test():
-        response = Response('x', headers={'Cache-Control': 'public, max-age=0, s-maxage=300, stale-while-revalidate=600'})
+        response = Response('x', headers={'Cache-Control': 'public, max-age=300, stale-while-revalidate=600'})
         response.set_cookie('probe', '1')
         return response
     c = TestClient(app, base_url='https://agentconcierge.biz')
@@ -64,7 +64,7 @@ def test_every_visitor_gets_the_same_bytes_and_no_cookie(client, path):
         assert r.status_code == 200 and r.headers['content-type'].startswith('text/html')
         assert 'set-cookie' not in r.headers
         # Live pages may sit at the edge; the policy and design-sample pages stay no-store (and noindex).
-        expected = 'no-store' if path.endswith(('privacy.html', 'disclosures.html')) else 'public, max-age=0, s-maxage=300, stale-while-revalidate=600'
+        expected = 'no-store' if path.endswith(('privacy.html', 'disclosures.html')) else 'public, max-age=300, stale-while-revalidate=600'
         assert r.headers['cache-control'] == expected
         bodies.append(r.text)
     assert all(body == bodies[0] for body in bodies[1:]), 'the HTML depends on who asks'
@@ -115,4 +115,14 @@ def test_category_and_weekly_paths_are_growth_pages_for_the_edge():
     from agent_market.concierge.public_http_contract import GROWTH_CACHE, growth_path, shared_path
     for path in ('/agents/category/web_search', '/reports/weekly/2026-W45', '/reports/weekly'):  # list: 11-12 PM
         assert growth_path(path) and shared_path(path)
-    assert not growth_path('/agent/1/reported') and GROWTH_CACHE.startswith('public, max-age=300')
+    assert not growth_path('/agent/1/reported') and GROWTH_CACHE.startswith('public, max-age=3600')
+
+
+def test_edge_policies_never_carry_s_maxage():
+    # 11-12 noon bundle: Cloudflare treats s-maxage as proxy-revalidate and will not serve a stale copy, so every
+    # live page was EXPIRED (1.0-4.0 s) instead of UPDATING 6.5 min after warming. max-age + swr gave UPDATING.
+    from agent_market.concierge.pearl_view import PUBLIC_PAGE_CACHE
+    from agent_market.concierge.public_http_contract import GROWTH_CACHE
+    for policy in (PUBLIC_PAGE_CACHE, GROWTH_CACHE):
+        assert 's-maxage' not in policy and 'must-revalidate' not in policy and 'proxy-revalidate' not in policy
+        assert 'stale-while-revalidate=' in policy and 'max-age=0' not in policy

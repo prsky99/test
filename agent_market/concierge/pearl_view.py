@@ -186,9 +186,11 @@ def bundled(value):
     return value
 
 
-# 11-12 (PM: A, measured 08:3x): past s-maxage the edge hands out its copy at once and refreshes it behind
+# 11-12 (PM: A, measured 08:3x): past max-age the edge hands out its copy at once and refreshes it behind
 # (UPDATING 0.85 s instead of an origin round trip), so a page left alone for a while no longer costs EXPIRED 3.8-4.9 s.
-PUBLIC_PAGE_CACHE = 'public, max-age=0, s-maxage=300, stale-while-revalidate=600'
+# No s-maxage: Cloudflare reads it as proxy-revalidate and never serves stale (noon bundle with s-maxage=300:
+# all 10 pages EXPIRED 6.5 min after warming). The same bytes go to everyone, so browsers may keep it 5 min too.
+PUBLIC_PAGE_CACHE = 'public, max-age=300, stale-while-revalidate=600'
 INLINE_SCRIPT = re.compile(r'<script\b([^>]*)>(.*?)</script>', re.S | re.I)
 DATA_TYPE = re.compile(r'\btype\s*=\s*["\']?(application/(?:ld\+)?json|text/plain|text/template)', re.I)
 

@@ -63,7 +63,7 @@ def test_every_published_page_has_fresh_nonces_and_no_inline_handlers(isolated_p
         response = client.get('/new/en/' + filename)
         assert response.status_code == 200
         headers = response.headers
-        expected = 'public, max-age=0, s-maxage=300, stale-while-revalidate=600' if filename in MANIFEST['live_pages'] else 'no-store'
+        expected = 'public, max-age=300, stale-while-revalidate=600' if filename in MANIFEST['live_pages'] else 'no-store'
         assert headers['cache-control'] == expected
         assert 'set-cookie' not in headers
         assert headers['x-frame-options'] == 'DENY'

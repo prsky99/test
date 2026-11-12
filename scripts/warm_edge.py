@@ -9,7 +9,7 @@ request. Only the airport this Mac reaches (LAX from Korea) is filled; visitors 
 It is not a keep-warm loop: run it once per deploy, never on a timer (that would only flatter user_slo).
 
 11-12 (PM: B): the category pages and the weekly report (list and latest issue) are fetched too, about 22
-requests. With the origin's s-maxage 3600 / stale-while-revalidate 86400 one fetch keeps them at the edge for a
+requests. With the origin's max-age 3600 / stale-while-revalidate 86400 one fetch keeps them at the edge for a
 day, so the first visitor gets a HIT or UPDATING instead of a MISS (measured 08:32: HIT 0.45-0.58 s, UPDATING
 0.85 s vs MISS 0.98-1.34 s). Only these may be warmed daily, with --growth-only; the live pages stay once per
 deploy. public_full_check samples category pages, so its category numbers include this warming.
