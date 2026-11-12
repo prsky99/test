@@ -239,3 +239,83 @@ def test_region_query_only_steers_uncounted_measurements(p1_suite):  # noqa: F81
     assert kr.json()['cards'] == []                                                       # ③ KR is KR (nothing booked)
     us = client.get('/api/ad-coin/v2/sponsored', params=base, headers={'CF-IPCountry': 'US'})
     assert len(us.json()['cards']) == 1 and sum(slots._served.values()) == 1
+
+
+# ---- served counts are never left in memory (11-12 PM): timer, shutdown, no double count, retry on DB error ----
+
+def _served_in_db(store):  # noqa: F811
+    from agent_market.ad_coin.sql_registry import unchecked
+    with unchecked(), store.atomic():
+        row = store.database.one("SELECT COALESCE(SUM(served),0) AS n FROM adc2_sponsored_impressions")
+    return int(row['n'])
+
+
+def _counting_world(p1_suite):  # noqa: F811
+    from scripts.ad_coin_v2_migrate import migrate_impressions
+    book_today(p1_suite, _activate_campaign(p1_suite))
+    migrate_impressions(p1_suite.service.store)
+    return slots_for(p1_suite)                     # fixed clock: requests alone never make a flush due
+
+
+def test_timer_writes_pending_counts_without_another_request(p1_suite):  # noqa: F811
+    slots = _counting_world(p1_suite)
+    for _ in range(3):
+        slots.response('research', 'US', 'explore', 1)
+    assert _served_in_db(p1_suite.service.store) == 0 and sum(slots._served.values()) == 3
+    slots.start_timer(interval=0.05)
+    deadline = time.time() + 5
+    while _served_in_db(p1_suite.service.store) < 3 and time.time() < deadline:
+        time.sleep(0.05)
+    assert _served_in_db(p1_suite.service.store) == 3 and slots._served == {}
+    assert slots.stop() == 0                                      # nothing left
+
+
+def test_shutdown_writes_what_is_left(p1_suite):  # noqa: F811
+    slots = _counting_world(p1_suite)
+    app = FastAPI()
+    app.include_router(router_for(slots))
+    with TestClient(app) as client:                               # startup starts the timer (60 s: never fires here)
+        for _ in range(2):
+            client.get('/api/ad-coin/v2/sponsored', params={'category': 'research'}, headers={'CF-IPCountry': 'US'})
+        assert _served_in_db(p1_suite.service.store) == 0
+    assert _served_in_db(p1_suite.service.store) == 2 and slots._served == {}   # the slot going down wrote them
+
+
+def test_concurrent_requests_and_flushes_never_count_twice(p1_suite):  # noqa: F811
+    import threading
+    slots = _counting_world(p1_suite)
+    store = p1_suite.service.store
+
+    def serve():
+        for _ in range(50):
+            slots.response('research', 'US', 'chat', 1)
+
+    def flush():
+        for _ in range(20):
+            slots.flush_now()
+    workers = [threading.Thread(target=serve) for _ in range(4)] + [threading.Thread(target=flush) for _ in range(2)]
+    for w in workers:
+        w.start()
+    for w in workers:
+        w.join()
+    slots.flush_now()
+    assert _served_in_db(store) == 200 and slots._served == {}
+
+
+def test_a_failed_write_keeps_the_counts_for_the_next_try(p1_suite, monkeypatch):  # noqa: F811
+    slots = _counting_world(p1_suite)
+    store = p1_suite.service.store
+    for _ in range(4):
+        slots.response('research', 'US', 'explore', 1)
+    real = store.execute
+
+    def broken(name, *args, **kw):
+        if name == 'sponsored_impression_add':
+            raise RuntimeError('database unavailable')
+        return real(name, *args, **kw)
+    monkeypatch.setattr(store, 'execute', broken)
+    slots.flush_now()
+    assert _served_in_db(store) == 0 and sum(slots._served.values()) == 4    # kept, not lost, not doubled
+    monkeypatch.setattr(store, 'execute', real)
+    slots.flush_now()
+    assert _served_in_db(store) == 4 and slots._served == {}

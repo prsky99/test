@@ -7,7 +7,7 @@ request is a dictionary lookup however many campaigns exist.
 """
 
 import json
-from threading import Lock
+from threading import Event, Lock, Thread
 import time
 
 from .contracts import ContractError
@@ -119,6 +119,39 @@ class SponsoredSlots:
                 pending, self._served, self._flushed = self._served, {}, now
         if due:
             self.flush(pending)
+
+    def flush_now(self):
+        """Write what has been counted so far (timer, shutdown). The memory is taken and emptied under the lock
+        before the write, so a request counting at the same moment goes into the next batch, never twice."""
+        with self._lock:
+            pending, self._served, self._flushed = self._served, {}, self._clock()
+        if pending:
+            self.flush(pending)
+        return sum(pending.values())
+
+    def start_timer(self, interval=FLUSH_SECONDS):
+        """Write every `interval` seconds even when no request comes (11-12 PM: counts were lost at deploy).
+        Writes only when something is pending; the store lends a connection just for that write."""
+        if getattr(self, "_timer", None) is not None:
+            return
+        self._stop = Event()
+
+        def loop():
+            while not self._stop.wait(interval):
+                if self._served:
+                    try:
+                        self.flush_now()
+                    except Exception:  # flush() already keeps the counts for the next try
+                        pass
+        self._timer = Thread(target=loop, name="sponsored-flush", daemon=True)
+        self._timer.start()
+
+    def stop(self):
+        """Shutdown (a slot going down at deploy, SIGTERM): stop the timer and write what is left, once."""
+        stop = getattr(self, "_stop", None)
+        if stop is not None:
+            stop.set()
+        return self.flush_now()
 
     def flush(self, pending):
         """Add counts to adc2_sponsored_impressions once it exists (operator migration); keep them until then."""

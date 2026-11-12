@@ -12,6 +12,11 @@ from .http import _error
 
 def router_for(slots) -> APIRouter:
     router = APIRouter(prefix="/api/ad-coin/v2")
+    # Served counts are written every minute and once more at shutdown (11-12 PM), so a slot that goes down at
+    # deploy keeps nothing in memory. Handlers may run more than once through nested routers; both are idempotent.
+    if hasattr(slots, "start_timer"):
+        router.add_event_handler("startup", slots.start_timer)
+        router.add_event_handler("shutdown", slots.stop)
 
     @router.get("/sponsored")
     async def sponsored(request: Request, category: str = "", region: str = "", placement: str = "explore",
