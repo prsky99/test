@@ -290,6 +290,20 @@ def part_agent(run, c):
     return {'tools': [t.get('name') for t in tools], 'gateway_endpoint': bool(endpoint)}
 
 
+# The Test page writes 'Latest test · ' + the status cell: 'Completed' on success, otherwise the server's task status
+# as sent (11-12 17:02: 'failed' in lower case, which the old 'Completed|Failed|Error' pattern never matched, so a
+# real upstream failure was recorded as a 30 s TimeoutError).
+TEST_DONE = re.compile(r'Latest test\W+(Completed|Failed|Error|Authorization required|[a-z][a-z -]{2,30})\b', re.I)
+SUPPORT_REF = re.compile(r'Support reference:\s*(ex_[0-9a-f]+)')
+
+
+def test_outcome(match, body):
+    """(status text with the support reference when there is one, completed?) for a finished Test run."""
+    status = match.group(1).strip()
+    ref = SUPPORT_REF.search(body or '')
+    return status + (' (%s)' % ref.group(1) if ref else ''), status.lower() == 'completed'
+
+
 def wait_text(page, pattern, timeout):
     """Poll the page text from Python: the site's CSP forbids string eval, so wait_for_function cannot be used."""
     end = time.time() + timeout
@@ -374,11 +388,11 @@ def part_browser(run):
                 page.wait_for_timeout(800)
                 t = time.time()
                 page.locator('#tbRunBtn').click()
-                m = wait_text(page, r'Latest test\W+(Completed|Failed|Error)', 30)
+                m = wait_text(page, TEST_DONE, 30)
                 took = round(time.time() - t, 2)
                 flows.append(('test', width, took))
-                status = m.group(1)
-                run.ok('browser', f'{width} test run completes', status == 'Completed', status, took)
+                status, done = test_outcome(m, page.inner_text('body'))
+                run.ok('browser', f'{width} test run completes', done, status, took)
                 run.ok('browser', f'{width} test run time', took <= 5.0, f'{took}s', took)
             except Exception as e:  # noqa: BLE001
                 # 11-11: say what the page showed, so a limit, a wording change and a real failure differ.

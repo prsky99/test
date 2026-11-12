@@ -61,3 +61,14 @@ def test_sign_in_is_measured_at_both_addresses():
     from scripts import public_full_check as check
     assert '/new/en/sign-in.html' in check.NAV and '/customer/sign-in' in check.NAV
     assert '/customer/sign-in' not in check.SLOW_OK and '/new/en/sign-in.html' not in check.SLOW_OK
+
+
+def test_a_finished_test_run_is_read_in_any_case_with_its_reference():
+    # 11-12 17:02: the page said 'Latest test · failed'; the old pattern wanted 'Failed' and timed out after 30 s.
+    from scripts import public_full_check as check
+    body = 'Test result\nLatest test · failed\nSTATUS\nfailed\nSupport reference: ex_04439821bd57a053492130a7'
+    status, done = check.test_outcome(check.TEST_DONE.search(body), body)
+    assert status == 'failed (ex_04439821bd57a053492130a7)' and done is False
+    body = 'Latest test · Completed\nSTATUS\nCompleted'
+    assert check.test_outcome(check.TEST_DONE.search(body), body) == ('Completed', True)
+    assert check.TEST_DONE.search('Checking the selected request…') is None
