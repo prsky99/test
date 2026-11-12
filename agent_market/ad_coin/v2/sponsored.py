@@ -7,10 +7,13 @@ request is a dictionary lookup however many campaigns exist.
 """
 
 import json
+import logging
 from threading import Event, Lock, Thread
 import time
 
 from .contracts import ContractError
+
+logger = logging.getLogger(__name__)
 
 LABEL = "Sponsored"
 DISCLOSURE = "Sponsored by the advertiser. Ads never change which agents are recommended."
@@ -151,7 +154,10 @@ class SponsoredSlots:
         stop = getattr(self, "_stop", None)
         if stop is not None:
             stop.set()
-        return self.flush_now()
+        written = self.flush_now()
+        logger.info("Sponsored served counts flushed at shutdown: %d (still pending after the write: %d)",
+                    written, sum(self._served.values()))
+        return written
 
     def flush(self, pending):
         """Add counts to adc2_sponsored_impressions once it exists (operator migration); keep them until then."""

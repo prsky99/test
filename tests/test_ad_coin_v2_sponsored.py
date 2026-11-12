@@ -270,7 +270,9 @@ def test_timer_writes_pending_counts_without_another_request(p1_suite):  # noqa:
     assert slots.stop() == 0                                      # nothing left
 
 
-def test_shutdown_writes_what_is_left(p1_suite):  # noqa: F811
+def test_shutdown_writes_what_is_left(p1_suite, caplog):  # noqa: F811
+    import logging
+    caplog.set_level(logging.INFO, logger='agent_market.ad_coin.v2.sponsored')
     slots = _counting_world(p1_suite)
     app = FastAPI()
     app.include_router(router_for(slots))
@@ -279,6 +281,7 @@ def test_shutdown_writes_what_is_left(p1_suite):  # noqa: F811
             client.get('/api/ad-coin/v2/sponsored', params={'category': 'research'}, headers={'CF-IPCountry': 'US'})
         assert _served_in_db(p1_suite.service.store) == 0
     assert _served_in_db(p1_suite.service.store) == 2 and slots._served == {}   # the slot going down wrote them
+    assert 'Sponsored served counts flushed at shutdown: 2 (still pending after the write: 0)' in caplog.text
 
 
 def test_concurrent_requests_and_flushes_never_count_twice(p1_suite):  # noqa: F811
