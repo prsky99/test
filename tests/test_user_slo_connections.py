@@ -6,6 +6,8 @@ for its initialize + tools/list pair), and page and explore samples carry cf-cac
 """
 import json
 
+import pytest
+
 from scripts import user_slo
 
 
@@ -61,3 +63,27 @@ def test_every_sample_has_its_own_connection(monkeypatch, tmp_path):
     assert [c['connection_available'] for c in record['connect']['samples']] == [True, True]
     for kind in ('explore', 'pages'):
         assert all(s['cache'] == 'MISS' and s['colo'] == 'LAX' for s in record[kind]['samples'])
+
+
+@pytest.mark.parametrize('listed_names,active,expect_ok', [(['x'], True, False), (['x', 'wanted'], True, True),
+                                                           (['x'], False, True)])
+def test_connect_needs_the_recommended_tool_on_the_gateway_list(monkeypatch, listed_names, active, expect_ok):
+    """PM 11-12: 16:01 mcp/43775 connected (27 tools) while the recommended tool was not relayed."""
+    import types
+
+    class Card(Client):
+        def post(self, url, json=None, headers=None):
+            self.calls.append(url)
+            if json['method'] == 'tools/call':
+                text = '1. Pick one [MCP]\nEndpoint: https://agentconcierge.biz/api/gateway/mcp/43775'
+                return Response(url, {'result': {'content': [{'text': text}], 'structuredContent': {
+                    'recommendations': [{'connection_available': False, 'tools': ['wanted']}]}}})
+            return Response(url, {'result': {'tools': [{'name': n} for n in listed_names]}})
+    monkeypatch.setattr(user_slo, 'httpx', types.SimpleNamespace(Client=Card, HTTPTransport=user_slo.httpx.HTTPTransport))
+    monkeypatch.setattr(user_slo, 'TOOL_LISTED_FROM', 0 if active else float('inf'))
+    monkeypatch.setattr(user_slo, 'unseen', lambda n: ['weather in Seoul'][:n])
+    _, connect = user_slo.check_recommend_and_connect(1)
+    sample = connect['samples'][0]
+    assert sample['recommended_tool'] == 'wanted' and sample['tool_listed'] is ('wanted' in listed_names)
+    assert sample['tools'] == len(listed_names) and connect['ok'] is expect_ok
+    assert (sample['error'] == 'tool_unlisted') is (not expect_ok)

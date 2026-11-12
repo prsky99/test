@@ -187,19 +187,34 @@ def connection_route(text):
     return None
 
 
+def first_card(body):
+    """The first recommendation card of find_agents' structured reply, or None."""
+    try:
+        cards = body['result']['structuredContent']['recommendations']
+    except (KeyError, TypeError):
+        return None
+    return cards[0] if isinstance(cards, list) and cards and isinstance(cards[0], dict) else None
+
+
 def first_card_available(body):
     """connection_available of the first recommendation card in find_agents' structured reply, or None.
 
     False means the gateway does not relay that recommendation (an action tool); a failed sample with True is a real
     connection failure (검색과 RAG 11-12: separates the two causes). Recorded only; the verdict is unchanged."""
-    try:
-        cards = body['result']['structuredContent']['recommendations']
-    except (KeyError, TypeError):
-        return None
-    if not isinstance(cards, list) or not cards or not isinstance(cards[0], dict):
-        return None
-    value = cards[0].get('connection_available')
+    value = (first_card(body) or {}).get('connection_available')
     return value if isinstance(value, bool) else None
+
+
+def recommended_tool(body):
+    """The tool the first recommendation names (card 'tools'[0]), or None."""
+    tools = (first_card(body) or {}).get('tools')
+    return tools[0] if isinstance(tools, list) and tools and isinstance(tools[0], str) else None
+
+
+# PM 11-12 16:2x: a connect counts only when the recommended tool is on the gateway's tools/list (16:01 mcp/43775
+# connected with 27 tools while the recommended tool was not relayed). Judged from the hour after the 11-13 08:10
+# alignment bundle; before that it is recorded only.
+TOOL_LISTED_FROM = time.mktime((2026, 11, 13, 9, 0, 0, 0, 0, -1))
 
 
 def connector(endpoint):
@@ -208,14 +223,14 @@ def connector(endpoint):
         # A2A (11-11): connecting means the gateway serves the agent's card; no message is sent.
         def connect(client):
             response = client.get(endpoint, headers={'Accept': 'application/json'})
-            return 1 if response.status_code == 200 else 0
+            return ['(agent card)'] if response.status_code == 200 else []
         return connect
 
     def connect(client):  # one connection for the pair: the session belongs to it
         init, _ = mcp(client, endpoint, 'initialize', {'protocolVersion': '2025-06-18', 'capabilities': {},
                                                         'clientInfo': {'name': 'user-slo', 'version': '1'}})
         listed, body = mcp(client, endpoint, 'tools/list', session=init.headers.get('mcp-session-id'), rid=2)
-        return len((body.get('result') or {}).get('tools') or [])
+        return [t.get('name') for t in (body.get('result') or {}).get('tools') or [] if isinstance(t, dict)]
     return connect
 
 
@@ -231,6 +246,7 @@ def check_recommend_and_connect(n=2):
             except (KeyError, IndexError, TypeError):
                 text = ''
         available = first_card_available(result[1] if result else None)
+        wanted = recommended_tool(result[1] if result else None)
         rec.append({'task': task, 's': took, 'answered': bool(text), 'error': error,
                     **phases(result[0] if result else None)})
         endpoint = connection_route(text)
@@ -239,11 +255,16 @@ def check_recommend_and_connect(n=2):
             conn.append({'endpoint': None, 's': 0.0, 'tools': 0, 'connection_available': available,
                          'error': 'no_gateway_endpoint' if text else 'no_recommendation'})
             continue
-        took_c, tools, error_c = timed(lambda: on_fresh(connector(endpoint)))
+        took_c, names, error_c = timed(lambda: on_fresh(connector(endpoint)))
+        names = names or []
+        listed = (wanted in names) if wanted and '/api/gateway/mcp/' in endpoint and names else None
+        if listed is False and time.time() >= TOOL_LISTED_FROM:
+            error_c = error_c or 'tool_unlisted'
         conn.append({'endpoint': endpoint.rsplit('/', 2)[-2] + '/' + endpoint.rsplit('/', 1)[-1], 's': took_c,
-                     'tools': tools, 'error': error_c, 'connection_available': available})
+                     'tools': len(names), 'error': error_c, 'connection_available': available,
+                     'recommended_tool': wanted, 'tool_listed': listed})
     rec_bad = [r for r in rec if r['s'] > TARGET['recommend_s'] or not r['answered']]
-    conn_bad = [c for c in conn if not c['tools']]
+    conn_bad = [c for c in conn if not c['tools'] or c.get('error') == 'tool_unlisted']
     # A first recommendation without a gateway path is a failed connection (PM 11-12, replacing the 11-11 rule
     # that left such an hour unmeasured).
     return ({'samples': rec, 'ok': not rec_bad, 'bad': rec_bad},
