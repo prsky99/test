@@ -37,7 +37,7 @@ PSQL = ['/opt/homebrew/opt/postgresql@18/bin/psql', '-h', str(ROOT / 'gateway-da
         '-d', 'agentcon_cutover_20261020_191757', '-Atc']
 TEAM = {'site': '운영·SRE', 'memory': '운영·SRE', 'disk': '운영·SRE', 'deploy_stuck': '운영·SRE',
         'deploy_lock': '잠금을 잡은 팀', 'long_tests': '시험을 돌린 팀', 'stale_handoffs': '받는 팀',
-        'ad_coin_ledger': 'AI AD Coin', 'vector_index_usage': '검색과 RAG'}
+        'ad_coin_ledger': 'AI AD Coin', 'vector_index_usage': '검색과 RAG', 'north_star': 'PM'}
 ALERT_SYSTEM = (
     'You write operations alerts in Korean for the owner of the Agent Concierge website. '
     'Input is JSON describing detected anomalies. Write at most three short lines in plain Korean: what is wrong, '
@@ -143,6 +143,46 @@ def user_slo():
                 and part.get('samples')):
             board_close(f'slo_{kind}', f'해결(자동 {now()[11:]} 통과)')
     append(ACTIONS, f'{now()} user_slo: 미달 {",".join(record.get("breaches") or {}) or "없음"}')
+
+
+NORTH_STAR_STATE = ROOT / 'logs/ops/north-star-state.json'
+NORTH_STAR_AFTER_HOUR = 8   # 11-12 PM: the previous day's line every morning from 08:00, first on 11-16
+NORTH_STAR_FIRST_RUN = '2026-11-16'   # PM: counting starts Monday 11-16 08:00 (the line for 11-15)
+
+
+def north_star(clock=time.time, run=None):
+    """Once a day after 08:00: scripts/north_star.py for the previous KST day; the board line shows the funnel."""
+    local = datetime.fromtimestamp(clock())
+    if local.hour < NORTH_STAR_AFTER_HOUR:
+        return None
+    day = local.strftime('%Y-%m-%d')
+    if day < NORTH_STAR_FIRST_RUN:
+        return None
+    state = json.loads(NORTH_STAR_STATE.read_text()) if NORTH_STAR_STATE.is_file() else {}
+    if state.get('day') == day:
+        return None
+    NORTH_STAR_STATE.write_text(json.dumps({'day': day}))
+    run = run or (lambda: subprocess.run([str(ROOT / '.venv/bin/python'), '-m', 'scripts.north_star'],
+                                         capture_output=True, text=True, cwd=ROOT, timeout=120))
+    try:
+        done = run()
+        record = json.loads(done.stdout.strip().splitlines()[-1]) if done.returncode == 0 else None
+    except (subprocess.TimeoutExpired, ValueError, IndexError):
+        record = None
+    if record is None:
+        board_handoff('north_star', '북극성 집계(scripts/north_star.py)가 결과를 내지 못함 → 운영·SRE 확인')
+        append(ACTIONS, f'{now()} 북극성 집계 실패')
+        return 'failed'
+    funnel = record.get('funnel') or {}
+    show = lambda value: '?' if value is None else value   # noqa: E731 - approx days have no pair counts
+    text = (f"{record['day']} 성공 실행 쌍 {record['north_star']}"
+            f"({'근사' if record.get('basis') == 'approx' else '기록'}) | 외부 추천 요청 "
+            f"{show((funnel.get('recommend') or {}).get('requests'))} → 게이트웨이 연결 쌍 "
+            f"{show((funnel.get('connect') or {}).get('pairs'))} → 성공 실행 쌍 {record['north_star']}"
+            f" | 끊긴 단계 {record.get('breaks_at') or '없음'} (logs/ops/north-star.jsonl)")
+    board_handoff('north_star', text)
+    append(ACTIONS, f'{now()} 북극성: {text}')
+    return record
 
 
 VECTOR_USAGE_STATE = ROOT / 'logs/ops/vector-index-usage-state.json'
@@ -524,6 +564,10 @@ def watch():
         edge_transitions()
     except Exception as error:  # noqa: BLE001
         append(ACTIONS, f'{now()} 엣지 전환 알림 실패: {type(error).__name__}')
+    try:
+        north_star()
+    except Exception as error:  # noqa: BLE001
+        append(ACTIONS, f'{now()} 북극성 집계 실패: {type(error).__name__}')
     try:
         vector_index_usage()
     except Exception as error:  # noqa: BLE001

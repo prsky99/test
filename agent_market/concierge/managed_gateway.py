@@ -294,6 +294,10 @@ def gateway_router(front,read_json_object):
             return_error.headers={'X-Execution-Reference':getattr(exc,'correlation_id',None) or reference(),'X-Execution-Error':exc.error_code}
             raise return_error from exc
 
+    def noted(request,rid,step,ok):
+        # North star funnel (11-12 PM): what this gateway request achieved, read by the traffic recorder.
+        request.scope['traffic_gateway']={'step':step,'ok':bool(ok),'rid':rid}
+
     @router.get('/api/gateway/{kind}/{rid}')
     async def get_connection(kind:str,rid:int,request:Request):
         rate(request,execution=False);row=resource(rid,kind)
@@ -304,6 +308,7 @@ def gateway_router(front,read_json_object):
             return JSONResponse({'profile':'stateless-jsonrpc','endpoint':url,'methods':['initialize','ping','tools/list','tools/call'],
                                  'streaming':False,'sessions':False},status_code=405,headers={'Allow':'POST'})
         if kind=='a2a':
+            noted(request,rid,'connect',True)
             return {'name':public_metadata(row.get('name') or 'Agent'),'description':'Informational requests with synchronous results.',
                     'protocolVersion':'0.3.0','url':url,'preferredTransport':'JSONRPC',
                     'capabilities':{'streaming':False,'pushNotifications':False},'defaultInputModes':['text/plain'],
@@ -380,8 +385,10 @@ def gateway_router(front,read_json_object):
                         'inputSchema':spec.get('inputSchema') or {'type':'object','properties':spec.get('params',{}),
                                                                'required':spec.get('required',[])}}))
                 tools=project(tools,gateway_agent_url(rid,kind),bindings(row))
+                noted(request,rid,'connect',True)
                 return {'jsonrpc':'2.0','id':request_id,'result':{'tools':tools}}
             if method!='tools/call':return error(-32601,'Method not supported by this connection profile.')
+            noted(request,rid,'execute',False)
             try:result=await gateway.execute(rid,kind=kind,tool=params.get('name'),arguments=params.get('arguments',{}))
             except ExecutionDenied as exc:
                 if exc.error_code=='POLICY_DENIED':
@@ -393,7 +400,9 @@ def gateway_router(front,read_json_object):
             from .task_outcomes import record
             record(rid,result['output'] if result['ok'] else {'isError':True,'content':[]},tool=params.get('name'))
             if not result['ok']:return error(-32000,result['error_message'],result)
-            return {'jsonrpc':'2.0','id':request_id,'result':result['output']}
+            output=result['output']
+            noted(request,rid,'execute',not (isinstance(output,dict) and output.get('isError') is True))
+            return {'jsonrpc':'2.0','id':request_id,'result':output}
         if method not in ('message/send','SendMessage'):return error(-32601,'This connection supports synchronous messages only.')
         msg=params.get('message') or {}
         if not isinstance(msg,dict) or set(params)-{'message','configuration'} or any(k in msg for k in ('contextId','taskId')):
@@ -404,6 +413,7 @@ def gateway_router(front,read_json_object):
         parts=msg.get('parts')
         if not isinstance(parts,list) or not parts or any(not isinstance(p,dict) or not isinstance(p.get('text'),str) for p in parts):
             return error(-32602,'Text message parts are required.')
+        noted(request,rid,'execute',False)
         try:result=await gateway.execute(rid,kind=kind,message='\n'.join(p['text'] for p in parts))
         except ExecutionDenied as exc:
             if exc.error_code=='POLICY_DENIED':
@@ -422,6 +432,7 @@ def gateway_router(front,read_json_object):
             elif isinstance(part.get('data'),dict):
                 parts.append({'data':part['data']} if method=='SendMessage' else {'kind':'data','data':part['data']})
         if not parts:return error(-32000,'The agent returned no supported message output.')
+        noted(request,rid,'execute',True)
         response={'role':'agent','kind':'message','messageId':secrets.token_hex(16),'parts':parts}
         if method=='SendMessage':response={'message':{'messageId':response['messageId'],'parts':parts,'role':'ROLE_AGENT'}}
         return {'jsonrpc':'2.0','id':request_id,'result':response}

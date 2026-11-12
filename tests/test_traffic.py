@@ -119,7 +119,7 @@ def test_public_app_counts_requests_through_the_real_middleware(catalog, tmp_pat
 def test_middleware_hook_is_present_and_guarded():
     from pathlib import Path
     src = (Path(__file__).resolve().parents[1] / 'agent_market/concierge/front.py').read_text()
-    hook = src.split("# 11-09 outside-traffic plan stage 0", 1)[1][:500]
+    hook = src.split("# 11-09 outside-traffic plan stage 0", 1)[1][:800]   # 11-12: the call also passes the gateway outcome
     assert 'recorder().observe(request.method, request.url.path, response.status_code, client_ip,' in hook
     assert 'except Exception:\n            pass' in hook
 
