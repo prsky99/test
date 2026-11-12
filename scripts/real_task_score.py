@@ -69,6 +69,20 @@ SYNONYMS = {
 }
 
 
+def scorer_commit():
+    """The commit this scorer ran from (and whether its file differs from it), so a score change can be split
+    into the product's part and the scorer's own (11-12 PM)."""
+    import subprocess
+    try:
+        head = subprocess.run(['git', '-C', str(ROOT), 'rev-parse', '--short=8', 'HEAD'], capture_output=True, text=True,
+                              timeout=5).stdout.strip()
+        dirty = subprocess.run(['git', '-C', str(ROOT), 'diff', '--quiet', 'HEAD', '--', 'scripts/real_task_score.py'],
+                               timeout=5).returncode != 0
+        return head + ('+local' if dirty else '') if head else None
+    except Exception:
+        return None
+
+
 def words(text):
     return {w for w in re.findall(r'[a-z0-9]+', str(text).lower()) if len(w) > 2 and w not in STOP}
 
@@ -161,6 +175,9 @@ def arguments_for(schema, sample, task_text):
             e = str(e).lower()
             return e in pool or (e == 'txt' and 'text' in pool)
         named = [e for e in enum if names(e, after_to)] or [e for e in enum if names(e, want)]  # "PDF to text": the target
+        # Short values (MX, A, NS) are below words()' three letters; take one only when the task writes the same
+        # word exactly, case included, so the article "a" never picks record type "A" (11-12 PM).
+        named = named or [e for e in enum if isinstance(e, str) and len(e) <= 2 and re.search(r'(?<![\w-])' + re.escape(e) + r'(?![\w-])', task_text)]
         if named and (key in required or key in args):
             args[key] = named[0]
         elif key in required or key in args:
@@ -384,6 +401,7 @@ def main(argv=None):
                'score': round(passed / len(rows), 3) if rows else 0.0, 'causes': causes,
                'by_who': {w: '%d/%d' % (sum(r['outcome'] == 'pass' for r in rows if r.get('who') == w), sum(r.get('who') == w for r in rows))
                           for w in ('person', 'agent')}}
+    summary['scorer_commit'] = scorer_commit()  # 11-12 PM: a score change can be the scorer's own (69657ea9)
     report = {'summary': summary, 'rows': rows}
     # 11-12: twice a day now, so the file carries the KST start time and the night run is not overwritten
     out = Path(args.out) if args.out else ROOT / 'reports/real-task-score' / (

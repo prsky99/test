@@ -143,3 +143,11 @@ def test_a_required_enum_field_never_keeps_a_value_outside_its_list():
         {'name': 'example.com', 'type': 'A'}
     # A value the task names still wins over the first one.
     assert rts.arguments_for(schema, {'domain': 'example.com'}, 'Look up the TXT records for example.com')['type'] == 'TXT'
+    # Two-letter values count only as the exact same word; the article "a" is not record type A.
+    schema['properties']['type']['enum'] = ['AAAA', 'MX', 'A']
+    assert rts.arguments_for(schema, {'domain': 'example.com'}, 'Look up the MX records for example.com')['type'] == 'MX'
+    assert rts.arguments_for(schema, {'domain': 'example.com'}, 'Find a record for example.com')['type'] == 'AAAA'
+
+
+def test_the_report_names_the_scorer_commit():
+    assert rts.scorer_commit() is None or len(rts.scorer_commit().split('+')[0]) == 8
