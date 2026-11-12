@@ -13,6 +13,7 @@ deploys, stops processes or writes the production database (the batch runner doe
 """
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -263,6 +264,50 @@ FULL_CHECK_EVERY = 7200   # 11-11 PM: every two hours
 FULL_CHECK_MINUTES = 15
 
 
+OUTSIDE_LOAD = 10.0                      # 1-minute load that is worth a board line when another project causes it
+WORKSPACE = ROOT.parent                  # sibling project folders (driver_agent, ...)
+
+
+def outside_load(load=None, ps=None, cwd_of=None):
+    """Alert, never stop: name the other projects whose processes carry the load when it is OUTSIDE_LOAD or more.
+
+    11-12 09:16~09:24: driver_agent's parallel tests (pytest -n 8, eight test PostgreSQL clusters) pushed the load
+    to 23~58 and our jobs and execution rounds timed out (PM: add a board alert; the user asked that project to run
+    its tests at low priority). A process belongs to the workspace folder that is its working directory."""
+    load = os.getloadavg()[0] if load is None else load
+    if load < OUTSIDE_LOAD:
+        board_close('outside_load', f'해결(자동 {now()[11:]} load {load:.1f})')
+        return None
+    rows = (ps or (lambda: subprocess.run(['ps', '-Ao', 'pcpu=,pid='], capture_output=True, text=True).stdout))()
+    top = []
+    for line in rows.splitlines():
+        parts = line.split()
+        if len(parts) == 2:
+            try:
+                top.append((float(parts[0]), int(parts[1])))
+            except ValueError:
+                continue
+    top.sort(reverse=True)
+
+    def cwd(pid):
+        out = subprocess.run(['lsof', '-a', '-p', str(pid), '-d', 'cwd', '-Fn'], capture_output=True, text=True).stdout
+        return next((l[1:] for l in out.splitlines() if l.startswith('n')), '')
+    projects = {}
+    for cpu, pid in top[:30]:
+        folder = (cwd_of or cwd)(pid)
+        if folder.startswith(str(WORKSPACE) + '/') and not folder.startswith(str(ROOT)):
+            name = folder[len(str(WORKSPACE)) + 1:].split('/', 1)[0]
+            count, total = projects.get(name, (0, 0.0))
+            projects[name] = (count + 1, total + cpu)
+    if not projects:
+        return None
+    listed = ', '.join(f'{name} 프로세스 {count}개 CPU {total:.0f}%' for name, (count, total) in
+                       sorted(projects.items(), key=lambda kv: -kv[1][1]))
+    board_handoff('outside_load', f'다른 프로젝트 부하: load {load:.1f}(기준 {OUTSIDE_LOAD:.0f}) — {listed}. '
+                                  f'알림만 함(끄지 않음). 낮은 우선순위(nice)로 돌려 달라는 사용자 결정(11-12)')
+    return projects
+
+
 ADC_LEDGER_STATE = ROOT / 'logs/ops/ad-coin-ledger-state.json'
 ADC_LEDGER_AFTER_MINUTE = 9 * 60          # daily after 09:00, outside the 03:00-08:00 database change window
 AGENTCON_ENV = ROOT / 'gateway-data/agentcon.env'
@@ -413,6 +458,10 @@ def watch():
         error_ledger()
     except Exception as error:  # noqa: BLE001
         append(ACTIONS, f'{now()} 오류 장부 실패: {type(error).__name__}')
+    try:
+        outside_load()
+    except Exception as error:  # noqa: BLE001
+        append(ACTIONS, f'{now()} 다른 프로젝트 부하 확인 실패: {type(error).__name__}')
     try:
         ad_coin_ledger()
     except Exception as error:  # noqa: BLE001

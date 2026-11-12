@@ -119,9 +119,9 @@ def test_a_deferred_workflow_round_counts_from_the_moment_it_was_added(tmp_path)
         '2026-11-12 08:21:01 WARNING __main__: Due workflow round deferred after a storage error: statement_failed at workflows.py:883 run_due',
         '2026-11-12 08:22:01 WARNING agent_market.other: something harmless',
     ]) + '\n')
-    counts = e.from_logs('2026-11-12', logs=tmp_path)
+    counts = e.from_logs('2026-11-12', logs=tmp_path, windows=[])
     assert counts == {'warn|main|__main__|Due workflow round deferred after a storage error: statement_failed|workflows.py:883 run_due': 2}
-    rows = e.explain(counts, known=[], day='2026-11-12')
+    rows = e.explain(counts, known=[], day='2026-11-12', windows={})
     assert rows[0]['explained'] is False
 
 
@@ -136,3 +136,31 @@ def test_a_failure_seen_only_by_a_measurement_is_counted_and_stays_unexplained(t
     counts = e.from_manual('2026-11-12', path)
     assert counts == {'measure|explore_timeout_30s|no_trace': 1}
     assert e.explain(counts, known=[], day='2026-11-12')[0]['explained'] is False
+
+
+def test_a_recorded_window_explains_only_the_lines_of_its_own_minutes(tmp_path):
+    """11-12 PM: an outside test load (09:16~09:24, load 11~54) explains those minutes, not the same error at 10:02."""
+    from scripts import error_ledger as e
+    log = tmp_path / 'biz.agentconcierge.x.execution.main.log'
+    line = '2026-11-12 {} WARNING __main__: Due workflow round deferred after a storage error: statement_failed'
+    log.write_text('\n'.join(line.format(t) for t in ('09:16:19', '09:23:59', '10:02:17')) + '\n')
+    windows = [{'day': '2026-11-12', 'start': '09:16:00', 'end': '09:24:59', 'tag': 'outside_test_load',
+                'reason': 'driver_agent 병렬 시험', 'team': '운영·SRE'}]
+    counts = e.from_logs('2026-11-12', logs=tmp_path, windows=windows)
+    key = 'warn|main|__main__|Due workflow round deferred after a storage error: statement_failed'
+    assert counts == {'window|outside_test_load|' + key: 2, key: 1}
+    rows = {r['key']: r for r in e.explain(counts, known=[], day='2026-11-12', windows={w['tag']: w for w in windows})}
+    assert rows['window|outside_test_load|' + key]['explained'] and not rows[key]['explained']
+
+
+def test_a_window_with_a_pattern_covers_only_matching_keys(tmp_path):
+    from scripts import error_ledger as e
+    log = tmp_path / 'biz.agentconcierge.x.admin.b.log'
+    log.write_text('\n'.join([
+        '2026-11-12 06:41:08 ERROR uvicorn.access: 127.0.0.1:1 - "GET /internal/service/ready HTTP/1.1" 503',
+        '2026-11-12 06:41:09 ERROR agent_market.x: something else broke']) + '\n')
+    windows = [{'day': '2026-11-12', 'start': '06:41:00', 'end': '08:32:59', 'tag': 'old_admin_standby',
+                'pattern': r'GET /internal/service/ready 503$', 'reason': 'r'}]
+    counts = e.from_logs('2026-11-12', logs=tmp_path, windows=windows)
+    assert 'window|old_admin_standby|log|b|uvicorn.access|GET /internal/service/ready 503' in counts
+    assert 'log|b|agent_market.x|something else broke' in counts          # not covered by the window

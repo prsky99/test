@@ -37,6 +37,7 @@ def test_auto_watch_alerts_once_and_writes_handoff(tmp_path, monkeypatch):
     monkeypatch.setattr(ops_auto, 'error_ledger', lambda: None)  # tested in test_error_ledger.py
     monkeypatch.setattr(ops_auto, 'provenance', lambda: None)    # tested below and in test_provenance_check.py
     monkeypatch.setattr(ops_auto, 'ad_coin_ledger', lambda: None)  # tested below
+    monkeypatch.setattr(ops_auto, 'outside_load', lambda: None)    # tested below
     monkeypatch.setattr(ops_auto, 'stability_gate', lambda: None)  # tested in test_stability_gate.py
     monkeypatch.setattr(ops_auto, 'full_check', lambda: None)  # tested below
     ops_auto.watch()
@@ -141,3 +142,17 @@ def test_ad_coin_ledger_runs_once_a_day_after_nine_and_reports(tmp_path, monkeyp
     ok = lambda c: types.SimpleNamespace(returncode=0, stdout='{"ok": true}', stderr='')
     assert ops_auto.ad_coin_ledger(clock=lambda: at(9, 13), run=ok) == 'clean'
     assert '해결(자동' in [l for l in board.read_text().splitlines() if '[ad_coin_ledger]' in l][0]
+
+
+def test_outside_load_names_other_projects_and_closes_when_the_load_drops(tmp_path, monkeypatch):
+    ops_auto, board = _board(tmp_path, monkeypatch)
+    ws = str(ops_auto.WORKSPACE)
+    folders = {11: ws + '/driver_agent', 12: ws + '/driver_agent/tests', 13: str(ops_auto.ROOT), 14: '/'}
+    ps = lambda: '  90.0 11\n  80.0 12\n  70.0 13\n  60.0 14\n'
+    assert ops_auto.outside_load(load=4.0, ps=ps, cwd_of=folders.get) is None          # quiet below the threshold
+    found = ops_auto.outside_load(load=23.5, ps=ps, cwd_of=folders.get)
+    assert found == {'driver_agent': (2, 170.0)}                                        # our own and system processes left out
+    line = [l for l in board.read_text().splitlines() if '[outside_load]' in l][0]
+    assert 'driver_agent 프로세스 2개 CPU 170%' in line and 'load 23.5' in line
+    ops_auto.outside_load(load=3.0, ps=ps, cwd_of=folders.get)
+    assert '해결(자동' in [l for l in board.read_text().splitlines() if '[outside_load]' in l][0]

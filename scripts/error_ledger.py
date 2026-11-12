@@ -36,6 +36,7 @@ _FAILURE = re.compile(r'^(\d{4}-\d{2}-\d{2}) .*Execution failure reference=\S+ r
 WARNINGS_AS_ERRORS = [(re.compile(r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) WARNING ([\w.]+): '
                                   r'(Due workflow round deferred after a storage error: \w+)(?: at (\S+ \w+))?'),
                        '2026-11-12 08:14:00')]
+WINDOWS = ROOT / 'logs/ops/error-ledger-windows.json'
 INTERNAL = 'qa|'   # our own measurement requests (X-Agentcon-QA, 11-11 PM): counted on their own rows, not hidden
 _TRACE = re.compile(r'^(\d{4}-\d{2}-\d{2}) \d{2}:\d{2}:\d{2} \w+ ([\w.]+): .*')
 
@@ -49,8 +50,34 @@ def normalize(text):
     return re.sub(r'\s+', ' ', text).strip()[:140]
 
 
-def from_logs(day, logs=None):
+def load_windows(path=None):
+    """Time windows with a recorded cause: [{"day", "start": "HH:MM:SS", "end", "tag", "reason", "team"}] (11-12 PM).
+
+    A log line inside a window is counted under 'window|<tag>|<key>' and explained by that window's reason, so one
+    cause explains only the lines of its own minutes; the same error outside the window stays unexplained."""
+    try:
+        items = json.loads(Path(path or WINDOWS).read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return []
+    return [w for w in items if isinstance(w, dict) and re.fullmatch(r'[a-z0-9_]{1,40}', str(w.get('tag', '')))]
+
+
+def _window(day, at, windows, key=''):
+    """The tag of the window holding this line; a window with a 'pattern' covers only keys matching it."""
+    for w in windows:
+        if (w.get('day') == day and str(w.get('start')) <= at <= str(w.get('end'))
+                and (not w.get('pattern') or re.search(w['pattern'], key))):
+            return w['tag']
+    return None
+
+
+def from_logs(day, logs=None, windows=None):
     counts = Counter()
+    windows = load_windows() if windows is None else windows
+
+    def add(key, line):
+        tag = None if key.startswith(INTERNAL) else _window(day, line[11:19], windows, key)
+        counts[(f'window|{tag}|' if tag else '') + key] += 1
     for path in sorted(Path(logs or LOGS).glob('*.log')):
         role = path.name.split('.')[-2] if path.name.count('.') >= 2 else path.stem
         try:
@@ -63,7 +90,7 @@ def from_logs(day, logs=None):
             failure = _FAILURE.match(line)
             if failure:
                 key = f'gateway|{failure.group(2)}|{failure.group(3)}|{failure.group(4)}'
-                counts[(f'{INTERNAL}{failure.group(5)}|' if failure.group(5) else '') + key] += 1
+                add((f'{INTERNAL}{failure.group(5)}|' if failure.group(5) else '') + key, line)
                 continue
             match = _LINE.match(line)
             if not match:
@@ -71,7 +98,7 @@ def from_logs(day, logs=None):
                     warned = pattern.match(line)
                     if warned and warned.group(1) >= since:
                         step = f'|{warned.group(4)}' if warned.group(4) else ''
-                        counts[f'warn|{role}|{warned.group(2)}|{normalize(warned.group(3))}{step}'] += 1
+                        add(f'warn|{role}|{warned.group(2)}|{normalize(warned.group(3))}{step}', line)
                 continue
             logger, message = match.group(3), match.group(4)
             if logger == 'uvicorn.access':
@@ -86,7 +113,7 @@ def from_logs(day, logs=None):
                 last = re.match(r'^([\w.]+(?:Error|Exception|Timeout|Busy|Failed|Disconnect)\w*)(?::|$)', follow)
                 if last:
                     exception = last.group(1)
-            counts[f'log|{role}|{logger}|{message}' + (f'|{exception}' if exception else '')] += 1
+            add(f'log|{role}|{logger}|{message}' + (f'|{exception}' if exception else ''), line)
     return counts
 
 
@@ -183,11 +210,18 @@ def from_manual(day, path=None):
     return counts
 
 
-def explain(counts, known=None, day=None):
+def explain(counts, known=None, day=None, windows=None):
     """A rule with 'until' (a fixed bug) explains only days up to that date; a later return is unexplained."""
     rules = known if known is not None else (json.loads(KNOWN.read_text()) if KNOWN.is_file() else [])
     rows = []
+    windows = {w['tag']: w for w in load_windows()} if windows is None else windows
     for key, n in counts.most_common():
+        if key.startswith('window|'):
+            w = windows.get(key.split('|', 2)[1])
+            if w:
+                rows.append({'key': key, 'count': n, 'explained': True, 'window': True,
+                             'reason': w.get('reason', ''), 'team': w.get('team', '운영·SRE')})
+                continue
         if key.startswith(INTERNAL):
             rows.append({'key': key, 'count': n, 'explained': True, 'internal': True,
                          'reason': '내부 측정 요청(X-Agentcon-QA)', 'team': '측정 도구 주인'})
