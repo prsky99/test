@@ -62,6 +62,7 @@ TESTS = (
     'tests/test_front_seo_and_agent_discovery.py',
     'tests/test_qa10_contracts.py',
     'tests/test_qa11_contracts.py',
+    'tests/test_sql_catalog_registration.py',  # 11-12: every SQL pair the code produces is registered
     'tests/test_panels_split_browser.py::test_the_page_is_the_same_with_the_panels_in_a_shared_script[index.html]',
     'tests/test_critical_css_browser.py::test_first_screen_with_inline_css_alone_matches_the_full_css[1280-light]',
     'tests/test_critical_css_browser.py::test_first_screen_with_inline_css_alone_matches_the_full_css[375-light]',
@@ -76,6 +77,7 @@ JOBS_TESTS = (
     'tests/test_crawler_x402_retry.py',
     'tests/test_a2a.py',
     'tests/test_evaluation.py',
+    'tests/test_sql_catalog_registration.py',  # 11-12: jobs reads the same registered SQL list
 )
 ROLE_TESTS = {'frontend': TESTS, 'admin': TESTS, 'execution': TESTS, 'jobs': JOBS_TESTS}
 ROLES = tuple(ROLE_TESTS)

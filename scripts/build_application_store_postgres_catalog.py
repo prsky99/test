@@ -53,6 +53,15 @@ def source_constant(node, environment=None, *, _depth=0):
     raise ValueError('Unreviewed source constant expression.')
 
 
+def stable_name(prefix, sql):
+    """PREFIX plus the first 12 hex digits of the statement text's sha256 (whitespace collapsed).
+
+    11-12 (PM): names carried the source line number or the list position, so one added line renamed
+    hundreds of statements and every --check reported 'changed'. Runtime looks statements up by their
+    normalized SQLite text only (application_store_postgres._STATEMENTS); the name is for review."""
+    return prefix + '.' + hashlib.sha256(' '.join(sql.split()).encode()).hexdigest()[:12]
+
+
 def build_catalog():
     from agent_market.gateway.store import Store
     root = Path(__file__).resolve().parents[1]
@@ -95,7 +104,7 @@ def build_catalog():
                 if 'SUM(outcome IN' in pg:pg=pg.replace("SUM(outcome IN ('healthy','reachable'))","SUM(CASE WHEN outcome IN ('healthy','reachable') THEN 1 ELSE 0 END)")
                 pg=pg.replace('MAX(COALESCE(observed_at,0),excluded.observed_at)','GREATEST(COALESCE(observed_at,0),excluded.observed_at)')
                 if re.match(r'\s*INSERT INTO (resources|agent_test_reports|agent_workflows|admin_users)\b',sql,re.I):pg+=' RETURNING id';lastrowid='id'
-                entries.append({'name':('auth.' if 'admin_auth' in file else 'store.')+node.name+'.'+str(len(entries)),'sqlite':sql,'postgres':pg,'readonly':bool(re.match(r'\s*SELECT\b',sql,re.I)),'generated_id':lastrowid})
+                entries.append({'name':stable_name(('auth.' if 'admin_auth' in file else 'store.')+node.name,sql),'sqlite':sql,'postgres':pg,'readonly':bool(re.match(r'\s*SELECT\b',sql,re.I)),'generated_id':lastrowid})
     # Native schema collected from a new in-memory fixture only, never an operating DB.
     s=Store();db=s._db;schema=[];tables=[]
     for name,ddl in db.execute("SELECT name,sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'resources_fts%' AND name != 'resources_vocab' AND name NOT LIKE 'vec_resources%' ORDER BY name"):
@@ -312,7 +321,7 @@ def build_catalog():
       if char==';' and sqlite3.complete_statement(pending):segments.append(pending);pending=''
      if pending.strip():segments.append(pending)
      if len(segments)>1:continue
-     statement(name+'.source.'+str(node.lineno),sql)
+     statement(stable_name(name+'.source',sql),sql)
     script_entries={}
     for name,script in schemas:
      # Native SQLite only parses trusted source scripts in the owned fixture. This
@@ -322,7 +331,7 @@ def build_catalog():
       pending+=char
       if char==';' and sqlite3.complete_statement(pending):parts.append(pending.strip().rstrip(';'));pending=''
      if pending.strip():parts.append(pending.strip())
-     for index,sql in enumerate(parts):statement(name+'.schema.'+str(index),sql)
+     for sql in parts:statement(stable_name(name+'.schema',sql),sql)
      script_entries[script]=parts
     # Exact dynamic forms emitted only by current fixed source allowlists.
     for name,cols in [('workspace_private_tickets',['id','workspace_id','draft_id','snapshot_id','actor_user_id','created','expires','payload','signature','run_id','revoked']),('workspace_private_runs',[])]:pass
@@ -677,6 +686,25 @@ def build_catalog():
     return model
 
 
+def keep_registered(model, existing):
+    """Append the already-registered pairs this build does not produce; registration only ever grows.
+
+    11-12: a --write dropped 18 registered pairs the build could not see, among them the report query
+    front._trusted_report_rows builds from REPORT_COLUMNS in an f-string; Explore cards would have failed on
+    PostgreSQL (unsupported_application_sql). Removing a registration is a separate, reviewed change.
+    Kept entries are renamed by their text, like generated ones."""
+    produced = {(item['sqlite'], item['postgres']) for item in model['statements']}
+    kept = []
+    for item in (existing or {}).get('statements', []):
+        if (item['sqlite'], item['postgres']) in produced:
+            continue
+        produced.add((item['sqlite'], item['postgres']))
+        prefix = re.sub(r'(\.source|\.schema|\.registered)?(\.[0-9a-f]{12}|\.\d+)(\.limit\d+)?$', '', item['name'])
+        kept.append({**item, 'name': stable_name(prefix + '.registered', item['sqlite'])})
+    model['statements'] = model['statements'] + kept
+    return model
+
+
 def encoded(model):
     # Keep each dialect pair and each table's metadata on one reviewable line.
     lines = ['{']
@@ -711,6 +739,7 @@ def main(argv=None):
     try: model=build_catalog()
     finally: store_module.init_admin_auth_db=original
     target=Path(__file__).resolve().parents[1]/'agent_market/application_store_sql.json'
+    keep_registered(model, json.loads(target.read_text()) if target.exists() else None)
     data=encoded(model)
     changed=target.read_text()!=data if target.exists() else True
     if args.write: target.write_text(data)
