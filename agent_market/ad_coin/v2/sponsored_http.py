@@ -19,11 +19,14 @@ def router_for(slots) -> APIRouter:
         """docs/AD_COIN_SPONSORED_CONTRACT.md. The region comes from the Cloudflare country header and is
         neither stored nor logged; only served counts per day, campaign, category, region and placement."""
         try:
-            region = (region or request.headers.get("cf-ipcountry", "")).upper()[:2]
+            # The country comes from Cloudflare (CF-IPCountry). ?region= only steers our own measurement requests
+            # (X-Agentcon-QA), which are never counted, so it cannot be used to inflate or redirect counts (11-12 PM).
+            qa = bool(request.headers.get("x-agentcon-qa"))
+            region = ((region if qa and region else "") or request.headers.get("cf-ipcountry", "")).upper()[:2]
             # Answer every request, but count only real visitors: not Early-Data: 1 (RFC 8470, may be a TLS 0-RTT
             # replay) and not our own measurements (X-Agentcon-QA, 11-12 PM). A forged QA header only lowers
             # the sender's own count.
-            counted = request.headers.get("early-data", "") != "1" and not request.headers.get("x-agentcon-qa")
+            counted = request.headers.get("early-data", "") != "1" and not qa
             body = await run_in_threadpool(slots.response, category, region, placement, limit, counted)
             return JSONResponse(body, headers={"Cache-Control": "private, max-age=60", "Vary": "CF-IPCountry",
                                                "X-Robots-Tag": "noindex"})

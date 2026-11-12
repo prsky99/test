@@ -217,3 +217,25 @@ def test_early_data_requests_are_answered_but_not_counted(p1_suite):  # noqa: F8
     qa = client.get(url, headers={'CF-IPCountry': 'US', 'X-Agentcon-QA': 'public_full_check'})
     assert qa.json()['cards'] == early.json()['cards']
     assert sum(slots._served.values()) == 1                      # our own measurements are not counted
+
+
+def test_region_query_only_steers_uncounted_measurements(p1_suite):  # noqa: F811
+    """11-12 PM: the country comes from CF-IPCountry; ?region= is ignored unless X-Agentcon-QA is present,
+    and those requests are not counted, so nobody can redirect or inflate served counts with the query."""
+    book_today(p1_suite, _activate_campaign(p1_suite))      # booked for research, US
+    slots = slots_for(p1_suite)
+    app = FastAPI()
+    app.include_router(router_for(slots))
+    client = TestClient(app)
+    base = {'placement': 'explore', 'category': 'research'}
+    ignored = client.get('/api/ad-coin/v2/sponsored', params={**base, 'region': 'US'}, headers={'CF-IPCountry': 'KR'})
+    assert ignored.json()['cards'] == [] and sum(slots._served.values()) == 0           # ① query ignored: KR
+    no_header = client.get('/api/ad-coin/v2/sponsored', params={**base, 'region': 'US'})
+    assert no_header.json()['cards'] == []                                                # no country, no QA: nothing
+    qa = client.get('/api/ad-coin/v2/sponsored', params={**base, 'region': 'US'},
+                    headers={'CF-IPCountry': 'KR', 'X-Agentcon-QA': 'house_check'})
+    assert len(qa.json()['cards']) == 1 and sum(slots._served.values()) == 0              # ② QA sees US, not counted
+    kr = client.get('/api/ad-coin/v2/sponsored', params=base, headers={'CF-IPCountry': 'KR'})
+    assert kr.json()['cards'] == []                                                       # ③ KR is KR (nothing booked)
+    us = client.get('/api/ad-coin/v2/sponsored', params=base, headers={'CF-IPCountry': 'US'})
+    assert len(us.json()['cards']) == 1 and sum(slots._served.values()) == 1
