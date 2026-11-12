@@ -25,7 +25,7 @@ import argparse
 import json
 import re
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import httpx
@@ -295,6 +295,59 @@ def score_task(client, task):
     return row
 
 
+README = ROOT / 'reports/real-task-score/README.md'
+LATEST_START, LATEST_END = '<!-- latest:start -->', '<!-- latest:end -->'
+CAUSE_KO = {'call_failed': '호출 오류', 'bad_answer': '응답 불량', 'wrong_recommendation': '추천 틀림',
+            'no_recommendation': '추천 없음', 'connection_failed': '연결 실패', 'no_tool': '도구 없음',
+            'listing_only': '목록만', 'paid_or_auth_required': '유료·인증 필요'}
+
+
+def latest_section(report, history=()):
+    """README block with the latest score and its failure table, written after every full run (PM 11-12)."""
+    summary, rows = report['summary'], report['rows']
+    at = datetime.fromisoformat(summary['at']).astimezone(timezone(timedelta(hours=9))).strftime('%Y-%m-%d %H:%M')
+    lines = [LATEST_START, f"## 최신 점수 (자동 갱신, {at} KST, 한국에서 잼)", '',
+             f"**{summary['passed']} / {summary['tasks']} 통과 ({round(100 * summary['score'])}%)**: "
+             f"사람 과제 {summary['by_who'].get('person')}, 에이전트 과제 {summary['by_who'].get('agent')}. "
+             f"원자료: `{datetime.fromisoformat(summary['at']).astimezone(timezone(timedelta(hours=9))).strftime('%Y-%m-%d')}.json`", '',
+             '| 실패 원인 | 건수 | 과제(1순위 추천 · 내용) |', '|---|---|---|']
+    failed = {}
+    for row in rows:
+        if row.get('outcome') != 'pass':
+            failed.setdefault(row.get('outcome'), []).append(row)
+    for cause, items in sorted(failed.items(), key=lambda kv: (-len(kv[1]), kv[0] or '')):
+        detail = '; '.join(f"{r.get('id')} {((r.get('agent') or {}).get('name') or '-')[:28]}"
+                           + (f" · {str(r.get('detail'))[:60]}" if r.get('detail') else '') for r in items)
+        lines.append(f"| {CAUSE_KO.get(cause, cause)} {cause} | {len(items)} | {detail.replace('|', '/')} |")
+    if not failed:
+        lines.append('| (없음) | 0 | - |')
+    if history:
+        lines += ['', '최근 기록(logs/ops/real-task-score.jsonl): ' + ', '.join(
+            datetime.fromisoformat(h['at']).astimezone(timezone(timedelta(hours=9))).strftime('%m-%d %H:%M')
+            + f" {h['passed']}/{h['tasks']}" for h in history)]
+    lines.append(LATEST_END)
+    return '\n'.join(lines)
+
+
+def update_readme(report, readme=README, log=None):
+    log = log or ROOT / 'logs/ops/real-task-score.jsonl'
+    history = []
+    try:
+        history = [json.loads(line) for line in log.read_text().splitlines() if line.strip()][-8:]
+    except (OSError, ValueError):
+        pass
+    block = latest_section(report, history)
+    text = readme.read_text() if readme.exists() else ''
+    if LATEST_START in text and LATEST_END in text:
+        head, rest = text.split(LATEST_START, 1)
+        text = head + block + rest.split(LATEST_END, 1)[1]
+    else:   # the first time: right after the introduction, before the first fixed section
+        marker = '\n## '
+        cut = text.find(marker)
+        text = (text[:cut] + '\n\n' + block + '\n' + text[cut:]) if cut >= 0 else (text + '\n' + block + '\n')
+    readme.write_text(text)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument('--only')
@@ -335,6 +388,8 @@ def main(argv=None):
         log.parent.mkdir(parents=True, exist_ok=True)
         with log.open('a') as fh:
             fh.write(json.dumps(summary, ensure_ascii=False) + '\n')
+        if not args.out:
+            update_readme(report, log=log)
     print(json.dumps(summary, ensure_ascii=False))
     return report
 

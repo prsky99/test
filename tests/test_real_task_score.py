@@ -54,13 +54,40 @@ def test_ops_auto_starts_the_score_once_a_night(tmp_path, monkeypatch):
     launch = lambda cmd, **kw: started.append(cmd)  # noqa: E731
     at = lambda h: datetime(2026, 11, 12, h, 5).timestamp()  # noqa: E731
     monkeypatch.setattr(ops_auto, 'busy', lambda: None)
-    assert ops_auto.real_task_score(clock=lambda: at(13), launch=launch) is None and not started
-    assert ops_auto.real_task_score(clock=lambda: at(4), launch=launch) == '2026-11-12' and len(started) == 1
-    assert 'scripts.real_task_score' in started[0] and started[0][:3] == ['nice', '-n', '10']
-    assert ops_auto.real_task_score(clock=lambda: at(4), launch=launch) is None and len(started) == 1  # once a day
+    # 11-12 PM: twice a day, night (04-05) and afternoon (15-17), through heavy_slot
+    assert ops_auto.real_task_score(clock=lambda: at(13), launch=launch, free=True) is None and not started
+    assert ops_auto.real_task_score(clock=lambda: at(4), launch=launch, free=True) == '2026-11-12|night'
+    command = started[0]
+    assert command[1:3] == ['-m', 'scripts.heavy_slot'] and command[command.index('--minutes') + 1] == '20'
+    assert command[command.index('--') + 1:command.index('--') + 4] == ['nice', '-n', '10']
+    assert command[-2:] == ['-m', 'scripts.real_task_score']
+    assert ops_auto.real_task_score(clock=lambda: at(5), launch=launch, free=True) is None and len(started) == 1
+    assert ops_auto.real_task_score(clock=lambda: at(15), launch=launch, free=False) is None and len(started) == 1
+    assert ops_auto.real_task_score(clock=lambda: at(16), launch=launch, free=True) == '2026-11-12|afternoon'
+    assert ops_auto.real_task_score(clock=lambda: at(17), launch=launch, free=True) is None and len(started) == 2
     (tmp_path / 'state.json').unlink()
     monkeypatch.setattr(ops_auto, 'busy', lambda: 'tests_or_deploy_running')
-    assert ops_auto.real_task_score(clock=lambda: at(4), launch=launch) is None and len(started) == 1
+    assert ops_auto.real_task_score(clock=lambda: at(4), launch=launch, free=True) is None and len(started) == 2
+
+
+def test_every_full_run_rewrites_the_latest_block_of_the_readme(tmp_path):
+    report = {'summary': {'at': '2026-11-12T06:00:00+00:00', 'tasks': 3, 'passed': 1, 'score': 0.333,
+                          'by_who': {'person': '1/2', 'agent': '0/1'}, 'causes': {'call_failed': 2}},
+              'rows': [{'id': 'p01', 'outcome': 'pass'},
+                       {'id': 'p02', 'outcome': 'call_failed', 'agent': {'name': 'Zaleso'}, 'detail': 'tools/call 403'},
+                       {'id': 'a01', 'outcome': 'call_failed', 'agent': {'name': 'X'}, 'detail': 'a|b'}]}
+    readme = tmp_path / 'README.md'
+    readme.write_text('# 실제 과제 채점\n\n소개\n\n## 첫 기준 점수\n\n표\n')
+    log = tmp_path / 'log.jsonl'
+    log.write_text(json.dumps(report['summary']) + '\n')
+    rts.update_readme(report, readme=readme, log=log)
+    once = readme.read_text()
+    assert once.index('## 최신 점수') < once.index('## 첫 기준 점수') and '**1 / 3 통과 (33%)**' in once
+    assert '15:00 KST' in once and '| 호출 오류 call_failed | 2 | p02 Zaleso · tools/call 403; a01 X · a/b |' in once
+    report['summary']['passed'] = 3
+    rts.update_readme(report, readme=readme, log=log)
+    twice = readme.read_text()
+    assert twice.count('<!-- latest:start -->') == 1 and '**3 / 3 통과' in twice and '## 첫 기준 점수' in twice
 
 
 def test_paid_or_sign_in_answers_count_as_failed():

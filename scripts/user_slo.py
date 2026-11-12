@@ -14,7 +14,8 @@ Each sample opens its own connection (DNS, TCP, TLS included), as a first-time v
 explore samples record the Cloudflare cache state and airport.
 
 Writes one JSON line to logs/ops/user-slo.jsonl and prints it. "breaches" lists only failed targets, each with
-the owning team, so scripts/ops_auto.py can hand them over on the status board.
+the owning team, up to three example samples ('bad'), the exact number of failed samples ('bad_count') and of
+samples taken ('n'), so scripts/ops_auto.py can hand them over on the status board.
 """
 import json
 import os
@@ -249,6 +250,14 @@ def check_recommend_and_connect(n=2):
             {'samples': conn, 'ok': not conn_bad, 'bad': conn_bad, 'measured': bool(conn)})
 
 
+def breaches(record):
+    """Failed targets with their owner, up to three example samples and the exact count (11-12 PM: 'bad' is a
+    sample list, so the number of failed samples is kept apart as bad_count and n as the samples taken)."""
+    return {k: {'team': OWNER[k], 'bad': record[k]['bad'][:3], 'bad_count': len(record[k]['bad']),
+                'n': len(record[k].get('samples') or [])}
+            for k in ('explore', 'recommend', 'connect', 'pages') if not record[k]['ok']}
+
+
 def check_pages():
     rows = []
     for path in ('/new/en/explore.html', '/new/en/chat.html', '/'):
@@ -266,8 +275,7 @@ def main():
     record['recommend'], record['connect'] = check_recommend_and_connect()
     record['pages'] = check_pages()
     record['load_1_end'] = round(os.getloadavg()[0], 2)
-    record['breaches'] = {k: {'team': OWNER[k], 'bad': record[k]['bad'][:3]}
-                          for k in ('explore', 'recommend', 'connect', 'pages') if not record[k]['ok']}
+    record['breaches'] = breaches(record)
     OUT.parent.mkdir(parents=True, exist_ok=True)
     with OUT.open('a') as fh:
         fh.write(json.dumps(record, ensure_ascii=False) + '\n')

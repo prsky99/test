@@ -8,7 +8,7 @@
   2. 1순위를 `/api/gateway/{mcp|a2a}/{id}`로 호출합니다. MCP는 initialize → tools/list → 읽기 전용 tools/call 한 번, A2A는 message/send입니다.
   3. `check` 패턴으로 채점합니다.
 - 결제·자격 증명은 보내지 않습니다. 이름이 쓰기 동작(create, delete, send …)인 도구는 부르지 않고, 게이트웨이도 등록된 정보 조회 도구만 허용합니다.
-- 실행: 매일 04시대 `ops_auto watch`가 낮은 우선순위로 한 번 시작합니다. 결과는 `reports/real-task-score/<날짜>.json`, `logs/ops/real-task-score.jsonl`에 남습니다.
+- 실행: 하루 2번(밤 04~05시, 오후 15~17시) `ops_auto watch`가 heavy_slot으로 낮은 우선순위로 시작합니다(11-12 PM). 결과는 `reports/real-task-score/<날짜>.json`, `logs/ops/real-task-score.jsonl`에 남고, 아래 '최신 점수'가 실행마다 자동으로 바뀝니다.
 
 ## 첫 기준 점수 (2026-11-11 11:26 KST, 한국에서 잼)
 

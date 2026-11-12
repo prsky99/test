@@ -63,3 +63,15 @@ def test_the_first_card_connection_available_is_recorded_as_given():
     assert user_slo.first_card_available(body([])) is None
     assert user_slo.first_card_available({'result': {'content': []}}) is None
     assert user_slo.first_card_available(None) is None
+
+
+def test_breaches_keep_the_exact_number_of_failed_samples():
+    """11-12 PM: 'bad' holds at most three examples; bad_count and n are exact."""
+    bad = [{'s': 2.5 + i} for i in range(5)]
+    record = {'explore': {'ok': False, 'bad': bad, 'samples': bad + [{'s': 0.4}] * 5},
+              'recommend': {'ok': True, 'bad': [], 'samples': [{}, {}]},
+              'connect': {'ok': False, 'bad': [{'error': 'no_gateway_endpoint'}], 'samples': [{}, {}]},
+              'pages': {'ok': True, 'bad': [], 'samples': [{}]}}
+    out = user_slo.breaches(record)
+    assert out['explore']['bad'] == bad[:3] and out['explore']['bad_count'] == 5 and out['explore']['n'] == 10
+    assert out['connect']['bad_count'] == 1 and out['connect']['n'] == 2 and set(out) == {'explore', 'connect'}

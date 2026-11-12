@@ -47,7 +47,10 @@ class Client:
 
 def test_every_sample_has_its_own_connection(monkeypatch, tmp_path):
     Client.made = []
-    monkeypatch.setattr(user_slo.httpx, 'Client', Client)
+    # Only user_slo's own reference: patching the shared httpx module also caught clients that background
+    # threads of earlier tests opened meanwhile (11-12: 8 extra clients in a 51-file run).
+    import types
+    monkeypatch.setattr(user_slo, 'httpx', types.SimpleNamespace(Client=Client, HTTPTransport=user_slo.httpx.HTTPTransport))
     monkeypatch.setattr(user_slo, 'OUT', tmp_path / 'slo.jsonl')
     user_slo.main()
     record = json.loads((tmp_path / 'slo.jsonl').read_text())

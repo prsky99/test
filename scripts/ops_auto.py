@@ -18,7 +18,7 @@ import re
 import subprocess
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -133,7 +133,8 @@ def user_slo():
         board_handoff('user_slo', '사용자 기준 측정(user_slo.py)이 결과를 내지 못함')
         return
     for kind, breach in (record.get('breaches') or {}).items():
-        text = f'사용자 기준 목표 미달 [{kind}] ' + json.dumps(breach.get('bad'), ensure_ascii=False)[:110]
+        count = f" {breach['bad_count']}/{breach['n']}건" if 'bad_count' in breach and 'n' in breach else ''
+        text = f'사용자 기준 목표 미달 [{kind}]{count} ' + json.dumps(breach.get('bad'), ensure_ascii=False)[:110]
         TEAM[f'slo_{kind}'] = breach.get('team', '운영·SRE')
         board_handoff(f'slo_{kind}', text)
     breaches = record.get('breaches') or {}
@@ -143,6 +144,36 @@ def user_slo():
                 and part.get('samples')):
             board_close(f'slo_{kind}', f'해결(자동 {now()[11:]} 통과)')
     append(ACTIONS, f'{now()} user_slo: 미달 {",".join(record.get("breaches") or {}) or "없음"}')
+
+
+STALE_STATE = ROOT / 'logs/ops/board-stale-state.json'
+STALE_AFTER_HOUR = 10   # 11-12 PM: once a morning, one line per receiving team
+
+
+def stale_handoffs(clock=time.time, find=None):
+    """Once a day: hand-off lines still '대기' and untouched for 24 hours (scripts/board_stale.py), one board line
+    per receiving team asking it to set '진행 중', '완료' or '보류(이유)'."""
+    local = datetime.fromtimestamp(clock())
+    if local.hour < STALE_AFTER_HOUR:
+        return None
+    day = local.strftime('%Y-%m-%d')
+    state = json.loads(STALE_STATE.read_text()) if STALE_STATE.is_file() else {}
+    if state.get('day') == day:
+        return None
+    STALE_STATE.write_text(json.dumps({'day': day}))
+    if find is None:
+        import board_stale
+        find = board_stale.stale
+    found = find(24)
+    for team, rows in found.items():
+        kind = 'stale|' + team
+        TEAM[kind] = team
+        oldest = max(row['age_hours'] for row in rows)
+        sample = ' / '.join(row['text'][:40] for row in rows[:2])
+        board_handoff(kind, f"24시간 넘게 갱신 없는 대기 줄 {len(rows)}개(가장 오래된 것 {oldest:.0f}시간), "
+                            f"'진행 중·완료·보류(이유)' 중 하나로 고쳐 주세요: {sample}")
+    append(ACTIONS, f"{now()} 오래된 대기 줄: {', '.join(f'{t} {len(r)}' for t, r in found.items()) or '없음'}")
+    return {team: len(rows) for team, rows in found.items()}
 
 
 NORTH_STAR_STATE = ROOT / 'logs/ops/north-star-state.json'
@@ -215,32 +246,44 @@ def vector_index_usage(clock=time.time, run=None):
 
 
 REAL_TASK_STATE = ROOT / 'logs/ops/real-task-score-state.json'
-REAL_TASK_HOUR = 4  # local time; the quietest hour on this production Mac (11-11 PM: once a day, at night)
+REAL_TASK_WINDOWS = {'night': (4, 5), 'afternoon': (15, 17)}   # 11-12 PM: twice a day (was 04 only)
 
 
-def real_task_score(clock=time.time, launch=None):
-    """Once a day at night: score the 30-task answer set on the public site (scripts/real_task_score.py).
+def real_task_score(clock=time.time, launch=None, free=None):
+    """Twice a day (night, afternoon): score the 30-task answer set on the public site (scripts/real_task_score.py).
 
-    Started in the background at low priority so the 10-minute watch never waits for it; skipped while tests or
-    deploys run. Results: reports/real-task-score/<date>.json and logs/ops/real-task-score.jsonl."""
+    Started in the background through heavy_slot (one heavy job at a time; daytime runs stay under 30 minutes)
+    so the 10-minute watch never waits for it; skipped while tests or deploys run or the slot is full, and
+    tried again at the next watch inside the window. Results: reports/real-task-score/<date>.json,
+    logs/ops/real-task-score.jsonl and the 'latest' block of reports/real-task-score/README.md."""
     local = datetime.fromtimestamp(clock())
-    if local.hour != REAL_TASK_HOUR:
+    window = next((name for name, (first, last) in REAL_TASK_WINDOWS.items() if first <= local.hour <= last), None)
+    if window is None:
         return None
     state = json.loads(REAL_TASK_STATE.read_text()) if REAL_TASK_STATE.is_file() else {}
-    today = local.strftime('%Y-%m-%d')
-    if state.get('day') == today:
+    key = local.strftime('%Y-%m-%d') + '|' + window
+    if key in (state.get('runs') or {}) or (window == 'night' and state.get('day') == key.split('|')[0]):
         return None
     reason = busy()
+    if free is None:
+        import heavy_slot
+        lines = heavy_slot.BOARD.read_text(encoding='utf-8').split('\n') if heavy_slot.BOARD.is_file() else []
+        free = len([line for _, line, ok in heavy_slot.entries(lines) if ok]) < heavy_slot.slots()
+    reason = reason or (None if free else '무거운 작업 칸이 모두 참')
     if reason:
-        append(ACTIONS, f'{now()} real_task_score 미룸: {reason}')
+        append(ACTIONS, f'{now()} real_task_score({window}) 미룸: {reason}')
         return None
+    runs = {k: v for k, v in (state.get('runs') or {}).items() if k >= (local - timedelta(days=7)).strftime('%Y-%m-%d')}
+    runs[key] = clock()
     REAL_TASK_STATE.parent.mkdir(parents=True, exist_ok=True)
-    REAL_TASK_STATE.write_text(json.dumps({'day': today, 'started': clock()}))
+    REAL_TASK_STATE.write_text(json.dumps({'runs': runs, 'day': state.get('day'), 'started': clock()}))
     log = (ROOT / 'logs/ops/real-task-score.out').open('a')
-    (launch or subprocess.Popen)(['nice', '-n', '10', str(ROOT / '.venv/bin/python'), '-m', 'scripts.real_task_score'],
-                                 cwd=ROOT, stdout=log, stderr=log, start_new_session=True)
-    append(ACTIONS, f'{now()} real_task_score 시작')
-    return today
+    command = [str(ROOT / '.venv/bin/python'), '-m', 'scripts.heavy_slot', '--team', '운영·SRE',
+               '--what', f'real_task_score {window}(ops_auto)', '--minutes', '20', '--',
+               'nice', '-n', '10', str(ROOT / '.venv/bin/python'), '-m', 'scripts.real_task_score']
+    (launch or subprocess.Popen)(command, cwd=ROOT, stdout=log, stderr=log, start_new_session=True)
+    append(ACTIONS, f'{now()} real_task_score({window}) 시작')
+    return key
 
 
 def board_snapshot(board=None, history=None, clock=time.time):
@@ -282,11 +325,14 @@ def edge_transitions(rows=None):
         out = query(f"SELECT revision||'|'||action||'|'||actor||'|'||replace(reason,'|','/') FROM edge_gateway_host_audit "
                     f"WHERE revision>{int(last)} ORDER BY revision LIMIT 20")
         rows = [line.split('|', 3) for line in out.splitlines() if line.count('|') >= 3]
-    posted = []
+    posted, parts = [], []
     for revision, action, actor, reason in rows:
-        board_handoff('edge_gateway', f'엣지 게이트웨이: {EDGE_WORDS.get(action, action)} ({actor}, rev {revision}: {reason[:80]})')
+        parts.append(f'{EDGE_WORDS.get(action, action)} ({actor}, rev {revision}: {reason[:40]})')
         last = max(last, int(revision)); posted.append(action)
     if rows:
+        # One line for the whole batch: board_handoff keeps one line per kind, so a block and the clear that
+        # followed it in the same check would otherwise overwrite each other (11-12).
+        board_handoff('edge_gateway', '엣지 게이트웨이: ' + ' → '.join(parts))
         EDGE_STATE.write_text(json.dumps({'revision': last}))
     return posted
 
@@ -564,6 +610,10 @@ def watch():
         edge_transitions()
     except Exception as error:  # noqa: BLE001
         append(ACTIONS, f'{now()} 엣지 전환 알림 실패: {type(error).__name__}')
+    try:
+        stale_handoffs()
+    except Exception as error:  # noqa: BLE001
+        append(ACTIONS, f'{now()} 오래된 대기 줄 확인 실패: {type(error).__name__}')
     try:
         north_star()
     except Exception as error:  # noqa: BLE001
