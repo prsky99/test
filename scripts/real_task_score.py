@@ -309,7 +309,7 @@ def latest_section(report, history=()):
     lines = [LATEST_START, f"## 최신 점수 (자동 갱신, {at} KST, 한국에서 잼)", '',
              f"**{summary['passed']} / {summary['tasks']} 통과 ({round(100 * summary['score'])}%)**: "
              f"사람 과제 {summary['by_who'].get('person')}, 에이전트 과제 {summary['by_who'].get('agent')}. "
-             f"원자료: `{datetime.fromisoformat(summary['at']).astimezone(timezone(timedelta(hours=9))).strftime('%Y-%m-%d')}.json`", '',
+             f"원자료: `{report.get('file') or datetime.fromisoformat(summary['at']).astimezone(timezone(timedelta(hours=9))).strftime('%Y-%m-%d-%H%M') + '.json'}`", '',
              '| 실패 원인 | 건수 | 과제(1순위 추천 · 내용) |', '|---|---|---|']
     failed = {}
     for row in rows:
@@ -380,7 +380,9 @@ def main(argv=None):
                'by_who': {w: '%d/%d' % (sum(r['outcome'] == 'pass' for r in rows if r.get('who') == w), sum(r.get('who') == w for r in rows))
                           for w in ('person', 'agent')}}
     report = {'summary': summary, 'rows': rows}
-    out = Path(args.out) if args.out else ROOT / 'reports/real-task-score' / (started.strftime('%Y-%m-%d') + '.json')
+    # 11-12: twice a day now, so the file carries the KST start time and the night run is not overwritten
+    out = Path(args.out) if args.out else ROOT / 'reports/real-task-score' / (
+        started.astimezone(timezone(timedelta(hours=9))).strftime('%Y-%m-%d-%H%M') + '.json')
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, ensure_ascii=False, indent=1) + '\n')
     log = ROOT / 'logs/ops/real-task-score.jsonl'

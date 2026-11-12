@@ -254,7 +254,7 @@ def real_task_score(clock=time.time, launch=None, free=None):
 
     Started in the background through heavy_slot (one heavy job at a time; daytime runs stay under 30 minutes)
     so the 10-minute watch never waits for it; skipped while tests or deploys run or the slot is full, and
-    tried again at the next watch inside the window. Results: reports/real-task-score/<date>.json,
+    tried again at the next watch inside the window. Results: reports/real-task-score/<date>-<HHMM>.json,
     logs/ops/real-task-score.jsonl and the 'latest' block of reports/real-task-score/README.md."""
     local = datetime.fromtimestamp(clock())
     window = next((name for name, (first, last) in REAL_TASK_WINDOWS.items() if first <= local.hour <= last), None)
