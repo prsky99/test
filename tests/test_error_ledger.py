@@ -123,3 +123,16 @@ def test_a_deferred_workflow_round_counts_from_the_moment_it_was_added(tmp_path)
     assert counts == {'warn|main|__main__|Due workflow round deferred after a storage error: statement_failed|workflows.py:883 run_due': 2}
     rows = e.explain(counts, known=[], day='2026-11-12')
     assert rows[0]['explained'] is False
+
+
+def test_a_failure_seen_only_by_a_measurement_is_counted_and_stays_unexplained(tmp_path):
+    from scripts import error_ledger as e
+    path = tmp_path / 'manual.jsonl'
+    path.write_text('\n'.join([
+        '{"day": "2026-11-12", "key": "measure|explore_timeout_30s|no_trace", "count": 1, "note": "10:03"}',
+        '{"day": "2026-11-11", "key": "measure|other", "count": 4}',
+        '{"day": "2026-11-12", "key": "log|not|a|measure", "count": 9}',
+        'not json']) + '\n')
+    counts = e.from_manual('2026-11-12', path)
+    assert counts == {'measure|explore_timeout_30s|no_trace': 1}
+    assert e.explain(counts, known=[], day='2026-11-12')[0]['explained'] is False

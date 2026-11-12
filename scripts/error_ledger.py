@@ -160,6 +160,29 @@ def from_privacy(day, run=None):
         counts['ledger|privacy_unreadable|empty'] += 1
     return counts
 
+MANUAL = ROOT / 'logs/ops/error-ledger-manual.jsonl'
+
+
+def from_manual(day, path=None):
+    """Failures seen only by a measurement, with no trace in any log (11-12 PM: a 30 s Explore timeout at 10:03).
+
+    One JSON line each: {"day": "YYYY-MM-DD", "key": "measure|...", "count": N, "note": "..."}. They are counted
+    like any other row, so an entry stays unexplained until a rule with its reason is added."""
+    counts = Counter()
+    try:
+        lines = Path(path or MANUAL).read_text(encoding='utf-8').splitlines()
+    except OSError:
+        return counts
+    for line in lines:
+        try:
+            item = json.loads(line)
+        except ValueError:
+            continue
+        if item.get('day') == day and str(item.get('key', '')).startswith('measure|'):
+            counts[item['key']] += int(item.get('count') or 1)
+    return counts
+
+
 def explain(counts, known=None, day=None):
     """A rule with 'until' (a fixed bug) explains only days up to that date; a later return is unexplained."""
     rules = known if known is not None else (json.loads(KNOWN.read_text()) if KNOWN.is_file() else [])
@@ -177,7 +200,7 @@ def explain(counts, known=None, day=None):
 
 
 def ledger(day, counts=None, known=None):
-    counts = counts if counts is not None else from_logs(day) + from_edge(day) + from_privacy(day)
+    counts = counts if counts is not None else from_logs(day) + from_edge(day) + from_privacy(day) + from_manual(day)
     rows = explain(counts, known, day)
     unexplained = [r for r in rows if not r['explained']]
     internal = sum(r['count'] for r in rows if r.get('internal'))
