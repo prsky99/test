@@ -2456,6 +2456,10 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
         return PlainTextResponse(llms_full_txt(front.base(request), front.live_counts(), front.daily_statistics.read()), media_type="text/markdown; charset=utf-8")
 
     @router.get("/.well-known/agent-card.json", include_in_schema=False)
+    # 11-12 (PM, funnel review): A2A clients also look for the card beside the endpoint; each of these two answered
+    # 404 about 28 times a day. Same card, same cache policy (public_http_contract.CARD_ALIASES).
+    @router.get("/a2a/agent-card.json", include_in_schema=False)
+    @router.get("/a2a/.well-known/agent-card.json", include_in_schema=False)
     def card(request: Request):
         ip = front.security.resolve_ip(request)
         front.book.record_hit(fingerprint(ip, request.headers.get("user-agent")), request.headers.get("user-agent"), request.url.path)
