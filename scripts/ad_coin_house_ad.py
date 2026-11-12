@@ -144,9 +144,95 @@ def run(commercial, *, month, issue_atoms, day, category="research", region="US"
     return out
 
 
+def _house(store):
+    """The house advertiser (same id the application step derives) and its active campaign, or (id, None)."""
+    advertiser = str(uuid5(NAMESPACE_URL, "https://agentconcierge.biz/ad-coin/applications/"
+                           + SCRIPT_PRINCIPAL + "/" + HOUSE_LISTING))
+    with store.atomic():
+        row = store.one("advertiser_get", (advertiser,))
+        campaigns = [c for c in store.all("ui_campaigns", (advertiser, "")) if c["state"] == "active"] if row else []
+    return advertiser, row, (campaigns[0]["id"] if campaigns else None)
+
+
+def _booking_id(advertiser, request_id):
+    return str(uuid5(NAMESPACE_URL, "https://agentconcierge.biz/ad-coin/sponsored/" + advertiser + "/" + request_id))
+
+
+def _request_id(day, category, region):
+    return uuid5(NAMESPACE_URL, BASE + "house-booking/" + day + "/" + category + "/" + region).hex
+
+
+def book_regions(commercial, *, day, regions, category="research", check=False, now_ms=None):
+    """Book the house ad for one UTC day in more regions (11-12 PM: KR, JP, GB, DE), paid in free coins.
+
+    check=True writes nothing and returns the plan. Otherwise: top up the house account from the growth
+    budget by exactly the shortfall (operator grant, audited), then book each region (idempotent)."""
+    from agent_market.ad_coin.v2.economy import CoinEconomy
+    from agent_market.ad_coin.v2.sponsored_booking import PLACEMENTS_PER_DAY, PRICE_ATOMS, SponsoredBookings, day_ms_of
+    store, access = commercial.store, commercial.access
+    advertiser, row, campaign = _house(store)
+    if row is None or campaign is None:
+        raise RuntimeError("house advertiser or its active campaign is missing; run `run` first")
+    day_ms = day_ms_of(day)
+    plan, to_book = [], []
+    with store.atomic():
+        balance = int(store.one("account_get", (row["available_account"],))["balance_atoms"])
+        for region in regions:
+            existing = store.one("sponsored_booking_get", (_booking_id(advertiser, _request_id(day, category, region)),))
+            taken = int(store.one("sponsored_booking_day_count", (day_ms, category, region))["n"])
+            state = existing["state"] if existing else ("full" if taken >= PLACEMENTS_PER_DAY else "to_book")
+            plan.append({"region": region, "state": state, "placements_taken": taken})
+            if state == "to_book":
+                to_book.append(region)
+    shortfall = max(0, len(to_book) * PRICE_ATOMS - balance)
+    out = {"advertiser_id": advertiser, "campaign_id": campaign, "day": day, "category": category, "plan": plan,
+           "balance_atoms": str(balance), "top_up_atoms": str(shortfall), "written": False}
+    if check or not to_book:
+        return out
+    me = _principal()
+    if shortfall:
+        out["top_up"] = CoinEconomy(store, commercial.ledger, access).operator_grant(
+            me, account_id=row["available_account"], amount_atoms=shortfall,
+            reason="house ad Sponsored days " + day + " " + ",".join(to_book),
+            request_id=uuid5(NAMESPACE_URL, BASE + "house-topup/" + day + "/" + ",".join(to_book)).hex)
+    bookings = SponsoredBookings(store, commercial.ledger, taxonomy=commercial.taxonomy, regions=commercial.regions,
+                                 access=access)
+    out["bookings"] = []
+    for region in to_book:
+        booked = bookings.book(advertiser, campaign_id=campaign, day=day, task_category=category, region=region,
+                               request_id=_request_id(day, category, region), now_ms=now_ms)
+        out["bookings"].append({"region": region, **{k: booked.get(k) for k in ("id", "state", "paid_by", "replayed")}})
+    out["written"] = True
+    return out
+
+
+def cancel_regions(commercial, *, day, regions, category="research", check=False, now_ms=None):
+    """Rollback, or free a placement for a paying advertiser: cancel the house bookings before the day starts
+    (UTC). Coins go back to whoever paid (house account or growth budget); the placement is free again."""
+    from agent_market.ad_coin.v2.sponsored_booking import SponsoredBookings
+    store = commercial.store
+    advertiser, _, _ = _house(store)
+    bookings = SponsoredBookings(store, commercial.ledger, taxonomy=commercial.taxonomy, regions=commercial.regions,
+                                 access=commercial.access)
+    out = {"day": day, "cancelled": [], "skipped": [], "written": not check}
+    for region in regions:
+        booking_id = _booking_id(advertiser, _request_id(day, category, region))
+        with store.atomic():
+            existing = store.one("sponsored_booking_get", (booking_id,))
+        if existing is None or existing["state"] != "booked":
+            out["skipped"].append({"region": region, "state": existing["state"] if existing else "none"})
+        elif check:
+            out["cancelled"].append({"region": region, "id": booking_id, "would_cancel": True})
+        else:
+            out["cancelled"].append({"region": region, **bookings.cancel(advertiser, booking_id, now_ms=now_ms)})
+    return out
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("action", choices=("plan", "run"))
+    parser.add_argument("action", choices=("plan", "run", "book-regions", "cancel-regions"))
+    parser.add_argument("--regions", default="KR,JP,GB,DE")
+    parser.add_argument("--check", action="store_true", help="book-regions / cancel-regions: show the plan, write nothing")
     parser.add_argument("--issue-coins", type=int)
     parser.add_argument("--month", default=time.strftime("%Y-%m", time.gmtime()))
     parser.add_argument("--day", help="UTC day to book (tomorrow up to 30 days ahead)")
@@ -160,10 +246,11 @@ def main(argv=None):
     if args.action == "plan":
         print(__doc__)
         return 0
-    if not (args.issue_coins and args.day and args.dsn_file and args.key_file and args.key_dir):
-        parser.error("run needs --issue-coins, --day, --dsn-file, --key-file and --key-dir")
-    if not args.i_have_approval:
-        parser.error("run writes the production ledger; pass --i-have-approval only after approval")
+    regions = [r.strip().upper() for r in args.regions.split(",") if r.strip()]
+    if not (args.day and args.dsn_file and args.key_file and args.key_dir) or (args.action == "run" and not args.issue_coins):
+        parser.error(args.action + " needs --day, --dsn-file, --key-file and --key-dir (run also --issue-coins)")
+    if not args.check and not args.i_have_approval:
+        parser.error(args.action + " writes the production ledger; pass --i-have-approval only after approval")
     import os
     os.environ["AD_COIN_V2_POOL_MAXIMUM"] = "1"
     os.environ["AD_COIN_V2_KEY_DIR"] = args.key_dir
@@ -173,8 +260,13 @@ def main(argv=None):
     runtime = _connect(args)
     try:
         commercial, _, _ = build_live_service(store_from_application(runtime.store), key_vault=default_key_vault())
-        result = run(commercial, month=args.month, issue_atoms=args.issue_coins * ATOMS_PER_COIN, day=args.day,
-                     category=args.category, region=args.region)
+        if args.action == "book-regions":
+            result = book_regions(commercial, day=args.day, regions=regions, category=args.category, check=args.check)
+        elif args.action == "cancel-regions":
+            result = cancel_regions(commercial, day=args.day, regions=regions, category=args.category, check=args.check)
+        else:
+            result = run(commercial, month=args.month, issue_atoms=args.issue_coins * ATOMS_PER_COIN, day=args.day,
+                         category=args.category, region=args.region)
     finally:
         runtime.close()
     print(json.dumps(result, sort_keys=True, default=str))
