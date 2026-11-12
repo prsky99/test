@@ -42,11 +42,12 @@ def test_security_txt_is_publicly_cacheable():
         assert reply.headers['cache-control'].startswith('public') and 'no-store' not in reply.headers['cache-control']
 
 
-def test_agent_documents_stay_at_the_edge_longer_than_in_browsers():
+def test_agent_documents_stay_at_the_edge_and_are_served_stale_while_refreshing():
     c = client()
     # Discovery documents stay an hour at the edge (11-11 PM decision); security.txt keeps ten minutes.
+    # 11-12: max-age, not s-maxage: Cloudflare serves no stale copy when s-maxage is present.
     for path, edge in (('/llms.txt', 3600), ('/.well-known/agent-card.json', 3600), ('/.well-known/security.txt', 600)):
         value = c.get(path).headers['cache-control']
-        assert 'max-age=30' in value and f's-maxage={edge},' in value, (path, value)
+        assert f'max-age={edge},' in value and 'stale-while-revalidate=' in value and 's-maxage' not in value, (path, value)
     # Search and catalog reads keep the short shared lifetime.
     assert 's-maxage' not in c.get('/api/overview').headers.get('cache-control', '')

@@ -27,7 +27,10 @@ EDGE_DOCUMENTS = frozenset(('/robots.txt','/sitemap.xml','/llms.txt','/llms-full
 # No purge on deploy: an edit may take up to an hour to reach the edge.
 DISCOVERY_DOCUMENTS = frozenset(('/llms.txt','/llms-full.txt','/skill.md','/.well-known/agent-card.json',
     '/.well-known/mcp.json','/.well-known/mcp/server.json','/openapi.json')) | EDGE_REDIRECTS
-DISCOVERY_CACHE = 'public, max-age=30, s-maxage=3600, stale-while-revalidate=3600'
+# 11-12: no s-maxage. Cloudflare reads s-maxage as proxy-revalidate and never hands out a stale copy, so the
+# swr part never worked; max-age now sets the edge time, and browsers and agents keep the same time.
+DISCOVERY_CACHE = 'public, max-age=3600, stale-while-revalidate=3600'
+EDGE_DOCUMENT_CACHE = 'public, max-age=600, stale-while-revalidate=3600'  # robots, sitemap, security.txt
 # Public growth pages (11-10 PM approval): login-free, never personalized HTML/Markdown/JSON. Browsers
 # and the edge may keep them for five minutes and serve a stale copy while refreshing for ten.
 GROWTH_PAGES = frozenset(('/connect','/agents/tasks','/agents/best','/badges','/reports/state-of-ai-agents',
@@ -126,7 +129,7 @@ class PublicHTTPContract:
                     if status==429:headers.setdefault('Retry-After','60')
             if cache and (status in (200,304) or status==301 and path in EDGE_REDIRECTS) and 'set-cookie' not in headers:
                 headers['cache-control']=(DISCOVERY_CACHE if path in DISCOVERY_DOCUMENTS
-                    else 'public, max-age=30, s-maxage=600, stale-while-revalidate=3600'
+                    else EDGE_DOCUMENT_CACHE
                     if path in EDGE_DOCUMENTS else GROWTH_CACHE if growth_path(path)
                     else 'public, max-age=30, stale-while-revalidate=30')
                 if growth_path(path):  # the same URL answers HTML or Markdown by Accept
