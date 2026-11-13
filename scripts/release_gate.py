@@ -77,6 +77,8 @@ TESTS = (
     'tests/test_noindex_tiers.py',  # 11-14 PM 03:1x search B: x402/thin/duplicate pages noindex and out of the sitemap
     'tests/test_a2a_run.py',  # 11-14 PM 04:0x: A2A "run N" within the MCP call tool's scope
     'tests/test_mcp_tool_descriptions.py',  # 11-14 PM 04:1x: tool purposes distinct, hints match behaviour (Glama)
+    'tests/test_task_pages_job.py',  # 11-14 PM 03:2x: usage lines fill missing days; indexed fixtures after noindex tiers
+    'tests/test_traffic.py',  # 11-14: day counts (tools/call by client name, Accept on /, funnel)
 )
 # Each role runs the tests for the code it serves. jobs releases run the collector, health checks,
 # crawler and evaluation without the typed execution engine, so the opening-path list above

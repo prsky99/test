@@ -293,6 +293,8 @@ class Traffic:
         self.rpc = Counter()           # "entry|rpc method|probe|real|unknown" -> requests (non-internal)
         self.errors = Counter()        # "entry|status|request shape|rpc method" -> 4xx/5xx protocol requests (non-internal)
         self.sessions = {}             # MCP session id -> 'probe' | 'real' (memory only, today)
+        self.session_names = {}        # MCP session id -> clientInfo name (memory only, today)
+        self.mcp_calls = Counter()     # MCP clientInfo name -> tools/call (non-internal; 11-14 PM: real use recomputable)
         self.funnel = Counter()        # "recommend|surface|class|all|ok", "connect|class|...", "execute|class|..." (11-12)
         self.funnel_sets = defaultdict(set)  # "recommend|class" clients, "connect|class" / "execute|class" (client, agent) pairs
         self.home_accept = Counter()   # "class|accept kind|served kind" for GET / (11-14 PM, search C)
@@ -345,6 +347,12 @@ class Traffic:
                 kind = self._kind(entry, client, body, headers, response_headers)
                 if rpc:
                     self.rpc[entry + '|' + rpc + '|' + kind] += 1
+                if entry == 'mcp' and rpc == 'tools/call':
+                    # By client name, so real use can be recounted when the probe list changes (11-13 histor shift).
+                    sid = ((headers or {}).get('mcp-session-id') or '')[:64]
+                    name = (mcp_client_name(body) or self.session_names.get(sid) or '-')[:80]
+                    if name in self.mcp_calls or len(self.mcp_calls) < 2000:
+                        self.mcp_calls[name] += 1
                 if isinstance(status, int) and status >= 400:
                     # cause (11-10): our own security blocks (blocked_ip, policy_denied) are counted apart
                     # from protocol failures so a block window does not read as a client problem.
@@ -432,6 +440,7 @@ class Traffic:
             sid = (response_headers or {}).get('mcp-session-id')
             if sid and len(self.sessions) < 100_000:
                 self.sessions[sid[:64]] = kind
+                self.session_names[sid[:64]] = name[:80]
             return kind
         sid = (headers or {}).get('mcp-session-id')
         return self.sessions.get(sid[:64], 'unknown') if sid else 'unknown'
@@ -447,7 +456,7 @@ class Traffic:
                 'mcp_clients': dict(self.mcp_clients.most_common(200)),
                 'rpc': dict(self.rpc), 'errors': dict(self.errors.most_common(300)),
                 'funnel': dict(self.funnel), 'funnel_distinct': {k: len(v) for k, v in self.funnel_sets.items()},
-                'home_accept': dict(self.home_accept)}
+                'home_accept': dict(self.home_accept), 'mcp_calls': dict(self.mcp_calls.most_common(300))}
 
     def _write_locked(self):
         self.flushed = self.clock()
@@ -509,7 +518,7 @@ EXTERNAL = ('browser', 'ai_bot', 'verifier', 'script', 'headless', 'other')
 
 def load_day(root, day):
     merged = {'requests': Counter(), 'status': Counter(), 'distinct': Counter(), 'bots': Counter(), 'mcp_clients': Counter(),
-              'rpc': Counter(), 'errors': Counter(), 'bot_errors': Counter()}
+              'rpc': Counter(), 'errors': Counter(), 'bot_errors': Counter(), 'mcp_calls': Counter()}
     for path in sorted(Path(root).glob(day + '.*.json')):
         try:
             data = json.loads(path.read_text())
@@ -543,7 +552,28 @@ def usage(day_data):
             'mcp_client_names_real': sum(1 for n in names if not PROBE_NAME.search(n)),
             'mcp_client_names_probe': sum(1 for n in names if PROBE_NAME.search(n)),
             'external_distinct_clients': sum(v for k, v in dist.items() if k.split('|')[1] in external),
-            'protocol_errors': sum(day_data['errors'].values())}
+            'protocol_errors': sum(day_data['errors'].values()),
+            # 405/404 that the protocol itself prescribes (GET SSE, DELETE session, optional discovery files) apart
+            # from the rest (11-14 PM): only protocol_errors_other is worth fixing.
+            'protocol_errors_spec': sum(v for k, v in day_data['errors'].items() if ':spec' in k.split('|')[1]),
+            'protocol_errors_other': sum(v for k, v in day_data['errors'].items() if ':spec' not in k.split('|')[1]),
+            **real_calls(day_data)}
+
+
+def probe_list_version():
+    import hashlib
+    return hashlib.sha256(PROBE_NAME.pattern.encode()).hexdigest()[:8]   # which probe list counted the day
+
+
+def real_calls(day_data):
+    """Real MCP use, one rule (11-14 PM): tools/call from MCP clients whose clientInfo name is not on today's probe
+    list (traffic_classes.json). Counted by name from 11-14, so a list change recounts every day that has names
+    (calls_by_name True); earlier days only have the kind fixed when they were recorded."""
+    calls = day_data.get('mcp_calls') or {}
+    if not calls:
+        return {'mcp_tool_calls_real_by_name': None, 'probe_list': probe_list_version()}
+    real = sum(v for n, v in calls.items() if n != '-' and not PROBE_NAME.search(n))
+    return {'mcp_tool_calls_real_by_name': real, 'probe_list': probe_list_version()}
 
 
 def summarize(root, days=7, today=None):

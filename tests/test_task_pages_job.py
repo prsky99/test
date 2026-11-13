@@ -16,8 +16,10 @@ def kst(hour):
     return datetime(2026, 11, 10, hour, 30, tzinfo=job.ZONE).timestamp()
 
 
-def item(rid, name='Weather forecast service', **extra):
-    value = {'id': rid, 'kind': 'mcp', 'name': name, 'description': 'Weather forecast for any city', 'category': 'travel_maps_weather',
+def item(rid, name=None, **extra):
+    # A distinct name, a 40+ character description and tools: an indexed detail page (11-14 noindex tiers).
+    value = {'id': rid, 'kind': 'mcp', 'name': name or 'Weather forecast service %d' % rid,
+             'description': 'Weather forecast for any city, hourly and daily', 'tool_count': 2, 'category': 'travel_maps_weather',
              'health_status': 'healthy', 'last_check_at': NOW-3600, 'trial_ok': 1, 'eval_grade': 'A', 'eval_score': 90,
              'price_usdc': 0, 'connection_readiness': {}}
     value.update(extra)
@@ -218,3 +220,67 @@ def test_usage_line_is_written_once_per_day(tmp_path):
     assert len(lines) == 1
     row = json.loads(lines[0])
     assert row['day'] == '2026-11-09' and row['mcp_sessions_real'] == 1 and row['mcp_tool_calls_real'] == 1
+
+
+def _traffic_day(root, day, name=None, calls=1, clients=None):
+    """One recorder per day (the day file is named by process id, so a second recorder would replace it)."""
+    from datetime import datetime, timezone
+    from agent_market.concierge import traffic
+    at = datetime.fromisoformat(day + 'T12:00:00+00:00').timestamp()
+    rec = traffic.Traffic(root / 'service-frontend' / 'traffic', clock=lambda: at)
+    for name, calls in (clients or {name: calls}).items():
+        rec.observe('POST', '/mcp', 200, '203.0.113.5', 'node',
+                    b'{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"' + name.encode() + b'"}}}',
+                    {}, {'mcp-session-id': 's-' + name})
+        for _ in range(calls):
+            rec.observe('POST', '/mcp', 200, '203.0.113.5', 'node', b'{"jsonrpc":"2.0","id":2,"method":"tools/call"}',
+                        {'mcp-session-id': 's-' + name}, {})
+        rec.observe('GET', '/mcp', 405, '203.0.113.5', 'node', b'', {'accept': 'text/event-stream'}, {})
+    rec.flush()
+
+
+def test_missing_usage_days_are_filled_in_order_and_a_day_without_files_is_skipped(tmp_path):
+    """11-14 PM: a late or failed build left 11-12 and 11-13 out; the next run writes every finished day."""
+    import json
+    from datetime import datetime, timezone
+    from agent_market.concierge.task_pages_job import TaskPagesRefresher
+    root = tmp_path / 'logs'
+    for day in ('2026-11-10', '2026-11-12', '2026-11-13'):
+        _traffic_day(root, day, 'Cursor')
+    (root / 'growth').mkdir(parents=True)
+    (root / 'growth' / 'usage-daily.jsonl').write_text(json.dumps({'day': '2026-11-10'}) + '\n')
+    job = TaskPagesRefresher(None, out=root / 'service-frontend' / 'public-pages' / 'task-pages.json',
+                             clock=lambda: datetime(2026, 11, 14, 3, tzinfo=timezone.utc).timestamp(), categories=[])
+    job.record_usage()
+    days = [json.loads(line)['day'] for line in (root / 'growth' / 'usage-daily.jsonl').read_text().splitlines()]
+    assert days == ['2026-11-10', '2026-11-12', '2026-11-13']   # 11-11 had no files; 11-14 is not finished
+
+
+def test_usage_line_recounts_real_calls_by_name_and_splits_spec_errors(tmp_path):
+    """11-13: adding 'histor' to the probe list moved its calls from real to probe; by name the rule is one."""
+    import json
+    from datetime import datetime, timezone
+    from agent_market.concierge.task_pages_job import TaskPagesRefresher
+    root = tmp_path / 'logs'
+    _traffic_day(root, '2026-11-13', clients={'Cursor': 2, 'histor': 5})
+    job = TaskPagesRefresher(None, out=root / 'service-frontend' / 'public-pages' / 'task-pages.json',
+                             clock=lambda: datetime(2026, 11, 14, 3, tzinfo=timezone.utc).timestamp(), categories=[])
+    job.record_usage()
+    row = json.loads((root / 'growth' / 'usage-daily.jsonl').read_text())
+    assert row['mcp_tool_calls_real_by_name'] == 2 and row['mcp_tool_calls_real'] == 2 and row['probe_list']
+    assert row['protocol_errors_spec'] == 2 and row['protocol_errors_other'] == 0
+    assert row['protocol_errors'] == row['protocol_errors_spec'] + row['protocol_errors_other']
+
+
+def test_the_build_start_writes_the_usage_line_before_the_snapshot_finishes(tmp_path):
+    import json
+    from datetime import datetime, timezone
+    from agent_market.concierge.task_pages_job import TaskPagesRefresher
+    root = tmp_path / 'logs'
+    _traffic_day(root, '2026-11-12', 'Cursor')
+    job = TaskPagesRefresher(object(), out=root / 'service-frontend' / 'public-pages' / 'task-pages.json',
+                             clock=lambda: datetime(2026, 11, 13, 18, tzinfo=timezone.utc).timestamp(),
+                             monotonic=iter(range(0, 10**6, 100)).__next__, search=lambda *a: [], categories=['weather'])
+    job.run()            # the first slice only plans and starts; the snapshot is far from done
+    assert job.steps is not None
+    assert [json.loads(l)['day'] for l in (root / 'growth' / 'usage-daily.jsonl').read_text().splitlines()] == ['2026-11-12']
