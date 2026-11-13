@@ -4,6 +4,7 @@ from contextvars import ContextVar
 from time import perf_counter
 import threading
 from functools import wraps
+import gc
 
 _current = ContextVar('retrieval_quality_measurements', default=None)
 _lock = threading.Lock()
@@ -12,7 +13,52 @@ _STAGES = frozenset(('lexical', 'embedding', 'ann', 'expansion', 'projection', '
                      'public_agent', 'states', 'describe', 'opensearch', 'documents', 'relax', 'near',
                      'shared_cache', 'revalidate', 'pool_wait', 'lock_wait', 'thread_wait', 'cpu',
                      # Recommendation legs that had no stage (11-12 PM: find_agents 4.7 s, about half unnamed)
-                     'semantic', 'selection_rows', 'report_evidence', 'choice_rank', 'admission_loop', 'registry'))
+                     'semantic', 'selection_rows', 'report_evidence', 'choice_rank', 'admission_loop', 'registry',
+                     # Garbage collection (PM 11-13 20:2x: registry 1,538 ms in one request, 68 ms when replayed):
+                     # gc = passes run by this request's own thread, gc_all = every pass in the process meanwhile
+                     # (the interpreter lock stops all threads during one).
+                     'gc', 'gc_all'))
+
+
+_gc_state = threading.local()
+_gc_total_ms = [0.0]
+
+
+def _gc_watch(phase, info):
+    """No lock here: a collection can start while this thread holds _lock."""
+    if phase == 'start':
+        _gc_state.at = perf_counter()
+        return
+    at = getattr(_gc_state, 'at', None)
+    if at is None:
+        return
+    _gc_state.at = None
+    milliseconds = (perf_counter() - at) * 1000
+    _gc_total_ms[0] += milliseconds
+    value = _current.get()
+    if value is not None:
+        value['gc_ms'] = value.get('gc_ms', 0.0) + milliseconds
+
+
+if _gc_watch not in gc.callbacks:
+    gc.callbacks.append(_gc_watch)
+
+
+def gc_total_ms():
+    """Milliseconds spent in garbage collection by this process since import."""
+    return _gc_total_ms[0]
+
+
+def gc_stages(values, since):
+    """Stages for a finished capture: its own collection time and the process-wide time since `since`."""
+    found = {}
+    own = values.get('gc_ms', 0.0)
+    every = gc_total_ms() - since
+    if own >= 0.5:
+        found['gc'] = own
+    if every >= 0.5:
+        found['gc_all'] = every
+    return found
 
 
 def timed(name):
@@ -43,6 +89,8 @@ def capture():
         _current.reset(token)
         if outer is not None:
             with _lock:
+                if values.get('gc_ms'):
+                    outer['gc_ms'] = outer.get('gc_ms', 0.0) + values['gc_ms']
                 for group in ('stages_ms', 'counts'):
                     for name, value in values[group].items():
                         outer[group][name] = outer[group].get(name, 0) + value
