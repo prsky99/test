@@ -76,6 +76,10 @@ HOLIDAYS = {"name": "holidays (Python library, Vacanza team)", "url": "https://g
             "notice": "National public holidays only, computed offline from the library's published rules. "
                       "Festivals, concerts and other events are not covered; regional holidays are not included."}
 
+SCORECARD = {"name": "OpenSSF Scorecard API", "url": "https://scorecard.dev/",
+             "license": "CDLA-Permissive-2.0 (https://github.com/ossf/scorecard)",
+             "notice": "Automated heuristic checks of the source repository, not a security audit."}
+
 SPECS = {
     "nvd-cve": {
         "name": "AgentValCon NVD CVE Record", "tool": "get_cve_record", "contract": "cve.record.v1",
@@ -188,6 +192,27 @@ SPECS = {
                        "with dates. National public holidays only: no festivals or local events; read-only.",
         "sources": [HOLIDAYS],
         "rate": "no network calls; rules ship with the pinned library version",
+    },
+    "sec-filings": {
+        "name": "AgentValCon SEC EDGAR Filings", "tool": "list_sec_filings", "contract": "sec.filings.v1",
+        "description": "List the recent EDGAR filings (form type and date) of one SEC filer by ticker, CIK or exact "
+                       "company name, with the periodic and current reports picked out; read-only.",
+        "sources": [SEC],
+        "rate": "at most 5 requests per second (SEC allows 10); cached 1 hour",
+    },
+    "software-incident": {
+        "name": "AgentValCon Advisory Fix Lookup", "tool": "find_fix_guidance", "contract": "software.incident.v1",
+        "description": "Find reviewed security advisories for a CVE id or an exact package name, with the first "
+                       "fixed version and the advisory link, shown as data only; read-only.",
+        "sources": [GHSA, NVD],
+        "rate": "GitHub: at most 50 requests per hour, cached 1 hour; NVD from the local snapshot",
+    },
+    "scorecard": {
+        "name": "AgentValCon OpenSSF Scorecard", "tool": "get_scorecard", "contract": "package.risk.v1",
+        "description": "Get the OpenSSF Scorecard aggregate and lowest checks for a GitHub repository, or for an npm "
+                       "or PyPI package through its listed source repository; read-only.",
+        "sources": [SCORECARD],
+        "rate": "5 requests per second, cached 6 hours",
     },
 }
 

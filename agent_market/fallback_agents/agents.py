@@ -38,12 +38,14 @@ MAX_AGE = {"nvd-cve": 6 * 3600, "cve-org": 24 * 3600, "cisa-kev": 24 * 3600, "gi
            "package-registry": 6 * 3600, "depsdev-package": 24 * 3600, "gleif-lei": 24 * 3600,
            "sec-edgar": 24 * 3600, "wikipedia-summary": 24 * 3600, "arxiv-search": 48 * 3600,
            "worldbank-indicator": 24 * 3600, "met-weather": 3 * 3600,
-           "public-holidays": 400 * 86400, "holiday-calendar": 400 * 86400}  # rules age from the library release; update the pin at least yearly
+           "public-holidays": 400 * 86400, "holiday-calendar": 400 * 86400, "sec-filings": 24 * 3600,
+           "software-incident": 6 * 3600, "scorecard": 24 * 3600}  # rules age from the library release; update the pin at least yearly
 TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "github-advisory": (3600, 6 * 3600),
        "epss": (6 * 3600, 48 * 3600), "package-registry": (3600, 6 * 3600), "depsdev-package": (6 * 3600, 24 * 3600),
        "gleif-lei": (6 * 3600, 24 * 3600), "sec-edgar": (6 * 3600, 24 * 3600), "sec-tickers": (6 * 3600, 24 * 3600),
        "wikipedia-summary": (6 * 3600, 24 * 3600), "arxiv-search": (24 * 3600, 48 * 3600),
-       "worldbank-indicator": (6 * 3600, 24 * 3600)}  # (serve from cache without asking, longest a cached copy may serve)
+       "worldbank-indicator": (6 * 3600, 24 * 3600), "sec-filings": (3600, 24 * 3600),
+       "software-incident": (3600, 6 * 3600), "scorecard": (6 * 3600, 24 * 3600)}  # (serve from cache without asking, longest a cached copy may serve)
 KEV_TTL, KEV_MAX_STALE = 3600, 24 * 3600
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 PACKAGE = re.compile(r"(?:@[a-z0-9][a-z0-9._~-]*/)?[A-Za-z0-9][A-Za-z0-9._~-]*")
@@ -443,22 +445,28 @@ class FallbackAgents:
         (out, as_of), cache = self._cached(("gleif-lei", company_key(name), country), TTL["gleif-lei"], live, remaining)
         return out, cache, False, {"GLEIF": as_of}
 
-    def _sec_edgar(self, args, remaining):
-        name, country = self._company_args(args)
-
+    def _sec_index(self, remaining):
+        """EDGAR ticker list (daily cache): name key -> CIKs, ticker -> CIK."""
         def tickers(rem):
             raw = self._get_json("https://www.sec.gov/files/company_tickers.json", rem, limit=4 * 1024 * 1024,
                                  not_found=())
-            index = {}
+            index, by_ticker = {}, {}
             for row in raw.values():
                 if isinstance(row, dict) and isinstance(row.get("cik_str"), int) and isinstance(row.get("title"), str):
                     # EDGAR titles may carry a state tag ("QUALCOMM INC/DE"); it is not part of the name.
                     title = re.sub(r"\s*/[A-Z]{2,3}/?$", "", row["title"].strip())
                     index.setdefault(company_key(title), set()).add(row["cik_str"])
+                    if isinstance(row.get("ticker"), str):
+                        by_ticker[row["ticker"].upper()] = row["cik_str"]
             if len(index) < 1000:
                 raise ValueError("ticker list too small")
-            return index, _now_iso(self.utc_now())
-        (index, list_as_of), list_cache = self._cached(("sec-tickers",), TTL["sec-tickers"], tickers, remaining)
+            return (index, by_ticker), _now_iso(self.utc_now())
+        ((index, by_ticker), _), list_cache = self._cached(("sec-tickers",), TTL["sec-tickers"], tickers, remaining)
+        return index, by_ticker, list_cache
+
+    def _sec_edgar(self, args, remaining):
+        name, country = self._company_args(args)
+        index, _, list_cache = self._sec_index(remaining)
         ciks = index.get(company_key(name)) or set()
         if not ciks:
             raise FallbackUnavailable("not_found", "No SEC company with a ticker has this name.")
@@ -707,6 +715,135 @@ class FallbackAgents:
         out = {"answer": answer, "url": "https://github.com/vacanza/holidays",
                "source": f"holidays {version} (MIT): national public holidays only"}
         return out, cache, False, as_of
+
+    def _sec_filings(self, args, remaining):
+        cik = None
+        raw_cik = str(args.get("cik") or "").strip()
+        if raw_cik:
+            if not re.fullmatch(r"(?:CIK)?0*[0-9]{1,10}", raw_cik, re.I):
+                raise FallbackUnavailable("invalid_input", "Use a numeric SEC CIK.")
+            cik = int(re.sub(r"\D", "", raw_cik))
+        if cik is None:
+            index, by_ticker, _ = self._sec_index(remaining)
+            ticker = str(args.get("ticker") or "").strip().upper()
+            if ticker and re.fullmatch(r"[A-Z0-9.\-]{1,10}", ticker):
+                cik = by_ticker.get(ticker)
+            for key in ("company", "query"):
+                if cik is None and args.get(key):
+                    found = index.get(company_key(str(args[key]))) or set()
+                    if len(found) == 1:
+                        cik = next(iter(found))
+                    elif len(found) > 1:
+                        raise FallbackUnavailable("not_found", "Several SEC companies share this name; use the ticker or CIK.")
+            if cik is None:
+                raise FallbackUnavailable("not_found", "No SEC filer matches; use a ticker, CIK or the exact company name.")
+
+        def live(rem):
+            raw = self._get_json(f"https://data.sec.gov/submissions/CIK{cik:010d}.json", rem, limit=8 * 1024 * 1024)
+            if int(raw.get("cik", -1)) != cik:
+                raise ValueError("CIK mismatch")
+            recent = (raw.get("filings") or {}).get("recent") or {}
+            forms, dates = recent.get("form") or [], recent.get("filingDate") or []
+            accessions, docs = recent.get("accessionNumber") or [], recent.get("primaryDocument") or []
+            rows = []
+            for i in range(min(len(forms), len(dates), len(accessions), 200)):
+                rows.append((_text(dates[i], 10), _text(forms[i], 20), _text(accessions[i], 25),
+                             _text(docs[i] if i < len(docs) else "", 120)))
+            if not rows:
+                raise FallbackUnavailable("not_found", "EDGAR lists no recent filings for this filer.")
+            main = [r for r in rows if r[1] in ("10-K", "10-Q", "8-K", "20-F", "6-K", "40-F", "10-K/A", "10-Q/A")][:8]
+            name = _text(raw.get("name"), 200)
+            lines = "; ".join(f"{d} {f}" for d, f, _, _ in rows[:10])
+            key = "; ".join(f"{d} {f} (accession {a})" for d, f, a, _ in main) or "none in the latest list"
+            answer = (f"{name} (SEC CIK {cik}) recent EDGAR filings: {lines}. Periodic and current reports "
+                      f"(10-K, 10-Q, 8-K and foreign equivalents): {key}.")[:8000]
+            out = {"answer": answer, "url": f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik:010d}",
+                   "source": "SEC EDGAR"}
+            return out, rows[0][0] or None
+        (out, as_of), cache = self._cached(("sec-filings", cik), TTL["sec-filings"], live, remaining)
+        return out, cache, False, {"SEC EDGAR (latest filing date)": as_of}
+
+    def _software_incident(self, args, remaining):
+        query = " ".join(args["query"].split())
+        cve = query.upper() if CVE_ID.fullmatch(query.upper()) else None
+        if not cve and not PACKAGE.fullmatch(query):
+            raise FallbackUnavailable("invalid_input", "Use a CVE id or an exact package name.")
+
+        def live(rem):
+            params = {"cve_id": cve} if cve else {"affects": query}
+            raw = self._get_json("https://api.github.com/advisories", rem, not_found=(), params={
+                **params, "type": "reviewed", "per_page": 20, "sort": "published", "direction": "desc"})
+            if not isinstance(raw, list):
+                raise ValueError("unexpected advisory list")
+            return raw[:20], _now_iso(self.utc_now())
+        (rows, as_of), cache = self._cached(("software-incident", query.lower()), TTL["software-incident"], live, remaining)
+        items = []
+        for row in rows:
+            if not isinstance(row, dict) or not isinstance(row.get("ghsa_id"), str) or row.get("withdrawn_at"):
+                continue
+            title = _text(f"{row['ghsa_id']}: {row.get('summary') or ''}", 400)
+            fixes = [f"{v['package'].get('name')}@{v['first_patched_version']}" for v in row.get("vulnerabilities") or []
+                     if isinstance(v, dict) and isinstance(v.get("package"), dict) and isinstance(v.get("first_patched_version"), str)
+                     and (cve or str(v["package"].get("name", "")).lower() == query.lower())]
+            item = {"title": title}
+            if fixes:
+                # A fixed version is data to read, never an instruction to run (contract rule).
+                item["fixed_version"] = _text(fixes[0].rsplit("@", 1)[1], 64)
+                item["title"] = _text(f"{title} (patched in {', '.join(dict.fromkeys(fixes))[:90]})", 500)
+            if isinstance(row.get("html_url"), str) and row["html_url"].startswith("https://github.com/advisories/"):
+                item["url"] = row["html_url"]
+            if _text(row.get("published_at"), 40):
+                item["published"] = _text(row.get("published_at"), 40)
+            items.append(item)
+        source = "GitHub Advisory Database (CC BY 4.0)"
+        if cve and not items:
+            # Not an open-source package advisory: give the NVD record's references instead.
+            try:
+                body, status, _ = self.snapshot.lookup(cve)
+            except Exception:
+                body, status = None, None
+            if body and status != "Rejected":
+                patch = next((r for r in body.get("references") or []), None)
+                item = {"title": _text(f"{cve}: {body.get('description', '')}", 500)}
+                if patch:
+                    item["url"] = patch
+                if body.get("published"):
+                    item["published"] = body["published"]
+                items, source = [item], "NVD (references; no reviewed package advisory)"
+        if not items:
+            raise FallbackUnavailable("not_found", "No reviewed advisory for this exact package or CVE; this agent covers "
+                                                   "packages in the GitHub Advisory Database and CVE ids.")
+        return {"items": items[:20], "source": source}, cache, False, {"GitHub Advisory Database": as_of}
+
+    def _scorecard(self, args, remaining):
+        repo = next((str(args[k]) for k in ("repo", "repository") if args.get(k)), "")
+        m = re.fullmatch(r"(?:https?://)?(github\.com|gitlab\.com)/([\w.-]+)/([\w.-]+?)(?:\.git)?/?", repo.strip())
+        if not m and args.get("package"):
+            ecosystem = {"npm": "npm", "pypi": "PyPI"}.get(str(args.get("ecosystem") or "npm").lower())
+            if ecosystem:
+                found = self.execute("package-registry", {"package": str(args["package"]), "ecosystem": ecosystem})
+                m = re.fullmatch(r"https://(github\.com|gitlab\.com)/([\w.-]+)/([\w.-]+)",
+                                 found["result"].get("repository") or "")
+        if not m:
+            raise FallbackUnavailable("invalid_input", "Use a github.com/owner/repo, or an npm or PyPI package with a "
+                                                       "listed source repository.")
+        project = f"{m[1]}/{m[2]}/{m[3]}"
+
+        def live(rem):
+            raw = self._get_json("https://api.scorecard.dev/projects/" + project, rem, limit=1024 * 1024)
+            score = raw.get("score")
+            if not isinstance(score, (int, float)) or not 0 <= score <= 10:
+                raise ValueError("no score")
+            checks = sorted((c for c in raw.get("checks") or [] if isinstance(c, dict) and isinstance(c.get("score"), int)
+                             and c["score"] >= 0), key=lambda c: c["score"])
+            low = ", ".join(f"{_text(c.get('name'), 40)} {c['score']}" for c in checks[:5])
+            answer = (f"OpenSSF Scorecard for {project}: aggregate score {score}/10 (scored {raw.get('date')}). "
+                      f"Lowest checks: {low or 'none listed'}.")
+            out = {"answer": answer[:8000], "url": f"https://scorecard.dev/viewer/?uri={project}",
+                   "source": "OpenSSF Scorecard (CDLA-Permissive-2.0)"}
+            return out, _text(raw.get("date"), 40) or None
+        (out, as_of), cache = self._cached(("scorecard", project.lower()), TTL["scorecard"], live, remaining)
+        return out, cache, False, {"OpenSSF Scorecard": as_of}
 
     # ---------------------------------------------------------------- usage
     def _usage(self, agent_id, envelope, code, started):

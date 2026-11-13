@@ -70,7 +70,7 @@ def agents(tmp_path, routes, calls=None, clock=None, snapshot=None):
 
 # ------------------------------------------------------------------ catalog and contracts
 def test_tools_are_read_only_and_use_the_slot_contracts():
-    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar"}
+    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard"}
     for agent_id, spec in SPECS.items():
         tool = tool_spec(agent_id)
         c = contract(spec["contract"])
@@ -1061,3 +1061,61 @@ def test_holiday_calendar_answers_the_holiday_contract(tmp_path):
     with pytest.raises(FallbackUnavailable) as err:
         a.execute("holiday-calendar", {"country": "Atlantis"})
     assert err.value.code == "not_found"
+
+
+# ------------------------------------------------------------------ sec.filings, software.incident, package.risk
+def test_sec_filings_resolves_ticker_and_lists_periodic_reports(tmp_path):
+    routes = sec_routes()
+    routes["https://data.sec.gov/submissions/CIK0000789019.json"] = httpx.Response(200, json={
+        "cik": "0000789019", "name": "MICROSOFT CORP", "filings": {"recent": {
+            "form": ["4", "8-K", "10-Q", "10-K"], "filingDate": ["2026-11-12", "2026-10-29", "2026-10-29", "2026-07-30"],
+            "accessionNumber": ["a1", "a2", "a3", "a4"], "primaryDocument": ["f4.xml", "8k.htm", "10q.htm", "10k.htm"]}}})
+    a, _ = agents(tmp_path, routes)
+    env = a.execute("sec-filings", {"ticker": "msft"})
+    answer = env["result"]["answer"]
+    assert answer.startswith("MICROSOFT CORP (SEC CIK 789019) recent EDGAR filings: 2026-11-12 4; 2026-10-29 8-K")
+    assert "2026-07-30 10-K (accession a4)" in answer and env["freshness"]["data_as_of"] == {"SEC EDGAR (latest filing date)": "2026-11-12"}
+    assert a.execute("sec-filings", {"cik": "CIK0000789019"})["result"]["answer"] == answer
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("sec-filings", {"cik": "12ab"})
+    assert err.value.code == "invalid_input"
+
+
+def test_software_incident_by_cve_shows_fixed_versions_as_data(tmp_path):
+    calls = []
+    row = dict(GH_ROW, published_at="2021-02-15T17:20:12Z",
+               vulnerabilities=[{"package": {"ecosystem": "npm", "name": "lodash"}, "first_patched_version": "4.17.21"}])
+    a, _ = agents(tmp_path, {"https://api.github.com/advisories": httpx.Response(200, json=[row])}, calls)
+    out = a.execute("software-incident", {"query": "cve-2021-23337"})["result"]
+    assert out["items"][0] == {"title": "GHSA-35jh-r3h4-6jhm: Command Injection in lodash (patched in lodash@4.17.21)",
+                               "fixed_version": "4.17.21", "url": "https://github.com/advisories/GHSA-35jh-r3h4-6jhm",
+                               "published": "2021-02-15T17:20:12Z"}
+    assert "cve_id=CVE-2021-23337" in calls[0]
+
+
+def test_software_incident_falls_back_to_the_nvd_record_and_states_its_coverage(tmp_path):
+    a, _ = agents(tmp_path, {"https://api.github.com/advisories": httpx.Response(200, json=[])},
+                  snapshot=seeded_snapshot(tmp_path, nvd_cve("CVE-2021-44228")))
+    out = a.execute("software-incident", {"query": "CVE-2021-44228"})["result"]
+    assert out["source"].startswith("NVD") and out["items"][0]["url"] == "https://logging.apache.org/log4j/2.x/security.html"
+    with pytest.raises(FallbackUnavailable, match="covers packages in the GitHub Advisory Database and CVE ids"):
+        a.execute("software-incident", {"query": "xz-utils"})
+
+
+def test_scorecard_reads_the_repository_or_the_package_repository(tmp_path):
+    calls = []
+    body = {"date": "2026-11-09", "score": 7.3, "checks": [{"name": "Fuzzing", "score": 0}, {"name": "Maintained", "score": 10},
+                                                          {"name": "SAST", "score": 0}, {"name": "Unknown", "score": -1}]}
+    routes = {"https://api.scorecard.dev/projects/github.com/facebook/react": httpx.Response(200, json=body),
+              "https://registry.npmjs.org/react/latest": httpx.Response(200, json={
+                  "name": "react", "version": "19.0.0", "repository": {"url": "git+https://github.com/facebook/react.git"}})}
+    a, _ = agents(tmp_path, routes, calls)
+    env = a.execute("scorecard", {"repo": "github.com/facebook/react"})
+    assert env["result"]["answer"] == ("OpenSSF Scorecard for github.com/facebook/react: aggregate score 7.3/10 (scored "
+                                       "2026-11-09). Lowest checks: Fuzzing 0, SAST 0, Maintained 10.")
+    assert env["sources"][0]["license"].startswith("CDLA-Permissive-2.0")
+    b, _ = agents(tmp_path / "b", routes)
+    assert "7.3/10" in b.execute("scorecard", {"package": "react", "ecosystem": "npm"})["result"]["answer"]
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("scorecard", {"repo": "example.com/x"})
+    assert err.value.code == "invalid_input"

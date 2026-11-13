@@ -19,6 +19,9 @@
 | `met-weather` (`get_weather_forecast`) | trip-brief 날씨 자리, `weather.forecast.v1` | MET Norway Locationforecast 2.0 | 고정 과제 2/2(온도 실측 비교는 안 함, 2-8), 세계 30개 도시 30/30 | 1,191 ms / 1,199 ms | 정답 세트 요청 |
 | `public-holidays` (`list_public_holidays`) | trip-brief 행사 자리(공휴일 한정), `events.search.v1` | holidays 0.108 라이브러리(네트워크 없음) | 고정 과제 0/2(둘 다 범위 밖, 설계대로), 30개국 30/30 | 최대 88 ms | 운영 lock 반영 대기(2-9) |
 | `holiday-calendar` (`get_holidays`) | 공휴일 역할, `holiday.calendar.v1` | holidays 0.108(같은 계산) | 고정 과제(검색과 RAG) 1/1, 계약 입력 1/1 | 수 ms | 관문 신청(운영 lock 반영 뒤 운영 동작) |
+| `sec-filings` (`list_sec_filings`) | 회사 목걸이 보조, `sec.filings.v1` | SEC EDGAR submissions | 고정 과제 1/1, 계약 입력 1/1 | 캐시 0 ms(목록 공유) | 정답 세트 요청 |
+| `software-incident` (`find_fix_guidance`) | cve-incident-brief 수정 안내 자리, `software.incident.v1` | GitHub Advisory + NVD 스냅샷 | 계약 입력 2/3(lodash·CVE-2021-44228), 고정 과제 0/2(xz-utils·log4j 같은 프로그램 이름은 범위 밖) | 0.9~1.2 s | 목걸이는 CVE id로 물어 지장 없음 |
+| `scorecard` (`get_scorecard`) | 패키지 위험, `package.risk.v1` | OpenSSF Scorecard 원 API | 고정 과제 1/1(실측 비교는 허용 목록 밖이라 not checked), 계약 입력 1/1 | 0.1 s | 정답 세트 요청 |
 | `github-advisory` (`list_package_advisories`) | package-risk-audit 취약점 자리, `package.advisories.v1` | GitHub Advisory Database(reviewed) | 1차 27/30 → 범위 직접 판정으로 고친 뒤 **30/30**(05:36 재측정), 고정 과제 3/3 | 1,010 ms / 1,412 ms | 관문 신청 가능 |
 
 - 계약 시험 입력(`test_inputs`) 3건씩: nvd-cve·cve-org·cisa-kev 9/9 통과(`contract-test-inputs.json`). 고정 과제(role-tasks-v1): nvd-cve 3/3, cisa-kev 3/3, cve-org 3/3, package-registry 2/2, depsdev-package 2/2.
@@ -114,6 +117,11 @@
 - 응답: 국가(이름 또는 ISO 코드)·연도·월·이름 검색어로 국가 공휴일을 돌려줍니다. 제목마다 "(national public holiday)", 출처에 "holidays 0.108 (MIT): national public holidays only", 데이터 기준일 = 라이브러리 출시일(2026-11-02), 나이 상한 400일(최소 1년에 한 번 버전 갱신). 축제·공연·지역 행사는 다루지 않는다고 고지에 적고, 그런 질문에는 범위 밖이라고 실패합니다.
 - 영어 이름이 있는 나라는 영어로(고유명사 악센트는 그대로, 예: Atatürk), 영어가 없는 나라는 "Public holiday (local name: …)"로 표기합니다.
 
+### 2-10. 수정 안내·SEC 신고·Scorecard (PM 조사 뒤 착수, 조건 명확한 셋)
+- software-incident: CVE id면 GitHub Advisory `cve_id`로 첫 수정 버전·링크를 주고, 오픈소스 패키지 권고가 없으면(상용 제품 CVE) NVD 스냅샷의 참고 링크를 줍니다. 패키지 이름은 GHSA의 정확한 패키지명만 됩니다("log4j"는 실제 이름이 `org.apache.logging.log4j:log4j-core`라 못 찾음). 수정 버전은 데이터로만 보여 주고 실행하지 않습니다(계약 규칙).
+- sec-filings: ticker·CIK·정확한 회사명으로 CIK를 찾고(sec-edgar와 같은 하루 캐시), submissions의 최근 신고와 정기·수시 보고서(10-K·10-Q·8-K 등)를 접수번호와 함께 답합니다. 데이터 시각 = 가장 최근 신고일.
+- scorecard: Scorecard 원 API(CDLA-Permissive-2.0). 같은 React 점수가 원 API는 11-09 기준, deps.dev는 08-24 기준이라 원 API가 더 새롭습니다. 패키지만 주면 package-registry로 저장소를 찾아 묻습니다.
+
 ## 3. 관문 신청 묶음 (deploy/NECKLACE_GATE.md 10절 대비)
 
 | 조건 | 상태 | 근거 |
@@ -177,7 +185,7 @@
 ## 6. 시험·재현
 
 ```bash
-nice -n 10 .venv-tests/bin/python -m pytest -q tests/test_fallback_agents.py     # 81 passed (네트워크 없음)
+nice -n 10 .venv-tests/bin/python -m pytest -q tests/test_fallback_agents.py     # 85 passed (네트워크 없음)
 .venv/bin/python -m agent_market.fallback_agents.nvd_sync --full                  # 스냅샷 첫 빌드
 .venv/bin/python -m agent_market.fallback_agents.gold_check nvd-cve cisa-kev --out /tmp/x.json
 ```
