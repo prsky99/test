@@ -252,10 +252,11 @@ def report_text(r):
 
 def writing_points(r, text):
     """10 points: limits stated (4), the input disclosed (3), the accuracy source, data time and blanks named (3)."""
-    points = 4 if 'Limits:' in text else 0
-    points += 3 if r.get('arguments') is not None and 'arguments' in text else 0
-    points += 3 if r['outcome'] != 'succeeded' or ('Accuracy checked against' in text and 'Data time' in text) else 0
-    return points
+    share = DQ.WRITING_WEIGHT / 10
+    points = 4 * share if 'Limits:' in text else 0
+    points += 3 * share if r.get('arguments') is not None and 'arguments' in text else 0
+    points += 3 * share if r['outcome'] != 'succeeded' or ('Accuracy checked against' in text and 'Data time' in text) else 0
+    return round(points, 1)
 
 
 def consistency_points(r, now):
@@ -273,8 +274,8 @@ def consistency_points(r, now):
             continue
         same_acc = (v.get('data_quality') or {}).get('accuracy', {}).get('points') == r['data_quality']['accuracy']['points']
         if DQ.FRESHNESS.get(r['role']) is None:
-            return 5 if (v.get('response_hash') == r.get('response_hash') or same_acc) else 0
-        return 5 if same_acc else 0
+            return DQ.WEIGHTS['consistency'] if (v.get('response_hash') == r.get('response_hash') or same_acc) else 0
+        return DQ.WEIGHTS['consistency'] if same_acc else 0
     return 0
 
 
@@ -284,11 +285,12 @@ def quality(r, success_days):
     dq = r.get('data_quality') or {}
     if r['outcome'] == 'succeeded':
         data = {k: dq.get(k, {}).get('points', 0) for k in ('accuracy', 'freshness', 'completeness', 'clean', 'consistency')}
-        evidence = {'arguments': 0 if not args else (5 if r.get('source') == 'collector message' else 10),
-                    'repeat': min(10, 5 * success_days), 'latency': DQ.latency_points(r.get('latency_ms'))}
+        full = DQ.EVIDENCE_WEIGHTS
+        evidence = {'arguments': 0 if not args else (full['arguments'] / 2 if r.get('source') == 'collector message' else full['arguments']),
+                    'repeat': min(full['repeat'], full['repeat'] / CONFIRM_DAYS * success_days), 'latency': DQ.latency_points(r.get('latency_ms'))}
     else:
         data = {k: 0 for k in ('accuracy', 'freshness', 'completeness', 'clean', 'consistency')}
-        evidence = {'arguments': 0 if not args else 10, 'repeat': 0, 'latency': 0}
+        evidence = {'arguments': 0 if not args else DQ.EVIDENCE_WEIGHTS['arguments'], 'repeat': 0, 'latency': 0}
     text = report_text(r)
     write = writing_points(r, text)
     return {'score': round(sum(data.values()) + sum(evidence.values()) + write, 1), 'data': data,
@@ -313,7 +315,7 @@ def assess(r, text, structured, case):
     r['data_quality'] = {'accuracy': {'points': acc_points, 'source': source, 'reasons': reasons},
                          'freshness': {'points': fresh_points, 'rule': rule, 'newest': newest},
                          'completeness': {'points': comp_points, 'blanks': blanks, 'fields': fields},
-                         'clean': {'points': 0 if issues else 10, 'issues': issues}}
+                         'clean': {'points': 0 if issues else DQ.WEIGHTS['clean'], 'issues': issues}}
     r['data_quality']['consistency'] = {'points': consistency_points(r, time.time())}
     if issues:
         r['outcome'], r['reason'] = 'failed', 'unclean answer: ' + ', '.join(issues)

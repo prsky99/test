@@ -11,6 +11,12 @@ import json
 import re
 import time
 
+# Points of each data-quality item (methodology v1 reads these; change them here only).
+WEIGHTS = {'accuracy': 25, 'freshness': 10, 'completeness': 10, 'clean': 10, 'consistency': 5}
+EVIDENCE_WEIGHTS = {'arguments': 10, 'repeat': 10, 'latency': 10}
+WRITING_WEIGHT = 10
+LATENCY_STEPS = ((1000, 10), (2000, 8), (5000, 5), (10000, 2))   # ms -> points (of EVIDENCE_WEIGHTS['latency'])
+
 # Freshness per role: ('age', days) newest data time within N days; ('future',) a date today or later;
 # ('now', minutes) a clock time of now. Roles not listed state fixed facts: freshness does not apply (full points).
 FRESHNESS = {
@@ -67,21 +73,21 @@ def freshness(role, text, now=None):
     """(points of 10, rule, newest data time or None)."""
     rule = FRESHNESS.get(role)
     if rule is None:
-        return 10, 'fixed facts', None
+        return WEIGHTS['freshness'], 'fixed facts', None
     now_dt = dt.datetime.fromtimestamp(now or time.time())
     dates = dates_in(text, now)
     if rule[0] == 'now':
         clock = CLOCK.search(text or '')
-        return (10 if clock else 0), 'a clock time of now', None
+        return (WEIGHTS['freshness'] if clock else 0), 'a clock time of now', None
     if not dates:
         return 0, f'{rule[0]} {rule[1:]}', None
     newest = max(dates)
     if rule[0] == 'future':
         ok = any(d.date() >= now_dt.date() for d in dates)
-        return (10 if ok else 0), 'today or later', newest.isoformat(timespec='minutes')
+        return (WEIGHTS['freshness'] if ok else 0), 'today or later', newest.isoformat(timespec='minutes')
     days = rule[1] + (2 if now_dt.weekday() in (0, 6) and role in ('fx.rate.v1', 'stock.quote.v1') else 0)  # weekend close
     ok = (now_dt - newest).total_seconds() <= days * 86400 and newest <= now_dt + dt.timedelta(days=1)
-    return (10 if ok else 0), f'within {days} days', newest.isoformat(timespec='minutes')
+    return (WEIGHTS['freshness'] if ok else 0), f'within {days} days', newest.isoformat(timespec='minutes')
 
 
 def _leaves(value, out):
@@ -112,9 +118,9 @@ def completeness(text, structured=None):
         _leaves(data, leaves)
         blanks = sum(1 for v in leaves if v is None or (isinstance(v, str) and v.strip().lower() in ('', 'n/a', 'na', 'unknown', 'none', 'null', '-')))
         total = max(1, len(leaves))
-        return round(10 * (1 - blanks / total), 1), blanks, total
+        return round(WEIGHTS['completeness'] * (1 - blanks / total), 1), blanks, total
     blanks = len(BLANK_TEXT.findall(text or ''))
-    return max(0, 10 - 2 * blanks), blanks, None
+    return max(0, WEIGHTS['completeness'] - 2 * blanks), blanks, None
 
 
 def clean_issues(text):
@@ -220,16 +226,16 @@ def accuracy(case, text, structured, live=None, live_value=None, role_tasks=None
             return 0, f"answer set {case['case_id']} (live-only expectation not checkable)", reasons
         good = passed and (dynamic_ok is not False)
         source = f"answer set {case['case_id']}" + (f" + live {', '.join(k for k, _, _ in checks)}" if checks else '')
-        return (25 if good else 0), source, reasons + [f'{k} off the reference' for k, _, ok in checks if ok is False]
+        return (WEIGHTS['accuracy'] if good else 0), source, reasons + [f'{k} off the reference' for k, _, ok in checks if ok is False]
     if live:
         if live_value is None:
             return 0, f"public reference {live['reference']} (unavailable)", []
         ok = any(abs(n - live_value) <= live['tolerance'] * live_value for n in _numbers(text) if n > 0)
-        return (25 if ok else 0), f"public reference {live['reference']} = {live_value:g}", [] if ok else ['off the reference']
+        return (WEIGHTS['accuracy'] if ok else 0), f"public reference {live['reference']} = {live_value:g}", [] if ok else ['off the reference']
     return 0, 'none (no answer set or public reference yet)', []
 
 
 def latency_points(ms):
     if ms is None:
         return 0
-    return 10 if ms <= 1000 else 8 if ms <= 2000 else 5 if ms <= 5000 else 2 if ms <= 10000 else 0
+    return next((points for limit, points in LATENCY_STEPS if ms <= limit), 0)
