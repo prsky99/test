@@ -1269,6 +1269,23 @@ test('A2A posts with a trailing slash reach Origin once instead of the Worker 40
   }finally{globalThis.fetch=originalFetch;}
 });
 
+test('the A2A card beside the endpoint is fetched from Origin, not answered with the Worker 404 (11-13)', async () => {
+  const originalFetch=globalThis.fetch,pending=[],forwarded=[];
+  globalThis.fetch=async(url,init)=>{
+    if(new URL(url).pathname.endsWith('/output-observation'))return new Response('{"ok":true}');
+    forwarded.push(new URL(url instanceof Request?url.url:url).pathname);
+    return new Response('{"name":"Agent Concierge","url":"https://agentconcierge.biz/a2a"}',{headers:{'Content-Type':'application/json'}});
+  };
+  try{
+    for(const path of ['/a2a/agent-card.json','/a2a/.well-known/agent-card.json']){
+      const response=await worker.fetch(new Request(origin+path),
+        {PUBLIC_ORIGIN:origin,CONTROL_ORIGIN:controlOrigin,SHARED_SECRET:secret.toString('base64')},{waitUntil:promise=>pending.push(promise)});
+      assert.equal(response.status,200);assert.equal((await response.json()).url,'https://agentconcierge.biz/a2a');
+    }
+    await Promise.all(pending);assert.deepEqual(forwarded,['/a2a/agent-card.json','/a2a/.well-known/agent-card.json']);
+  }finally{globalThis.fetch=originalFetch;}
+});
+
 test('a gateway failure answers a public reason code, whether a retry helps and what to do (11-11)', async () => {
   // 11-11: 7 of 30 real tasks got "The execution is unavailable." with no code; the cause was our own rate gate.
   const {gatewayFailure} = await import('./worker.mjs');

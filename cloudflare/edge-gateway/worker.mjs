@@ -1173,7 +1173,8 @@ export default {
     if(!eligible){
       let response;
       // '/a2a/' (trailing slash) reaches the same Origin handler; some A2A clients post there (11-10).
-      if(['/','/chat','/a2a','/a2a/'].includes(path)){
+      // The A2A card beside the endpoint is an Origin document too (11-12 ba82a248; it answered the Worker 404).
+      if(['/','/chat','/a2a','/a2a/','/a2a/agent-card.json','/a2a/.well-known/agent-card.json'].includes(path)){
         try{response=await originRequest(request,request.body,request.headers.get('CF-Connecting-IP'));}
         catch{
           // A lost connection does not prove that Origin skipped processing.
