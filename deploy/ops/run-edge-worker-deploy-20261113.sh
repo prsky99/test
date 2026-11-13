@@ -31,7 +31,7 @@ summary=$(cd cloudflare/edge-gateway && "$ROOT/$NODE" --test --test-reporter=tap
 echo "$summary" | sed 's/^/    /'
 grep -q '^# fail 0$' <<<"$summary" || { echo "    중지: 시험 실패"; exit 1; }
 
-echo "4/5 운영 Worker 버전이 $PREV인지 확인하고 배포 잠금을 잡은 뒤 배포"
+echo "4/5 운영 Worker 버전이 ${PREV}인지 확인하고 배포 잠금을 잡은 뒤 배포"
 current=$(cd cloudflare/edge-gateway && ./npmw exec -- wrangler deployments list 2>/dev/null | grep -oE '\(100%\) [0-9a-f-]{36}' | tail -1 | awk '{print $2}')
 [ "$current" = "$PREV" ] || { echo "    중지: 운영 Worker가 예상과 다릅니다: $current"; exit 1; }
 LINE="- 운영·SRE $(date '+%m-%d %H:%M') pid=$$ edge-worker cause-alias-worker-20261113-r1 (사용자 실행)"
