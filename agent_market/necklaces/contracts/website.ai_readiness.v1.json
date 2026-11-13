@@ -1,0 +1,53 @@
+{
+  "id": "website.ai_readiness.v1",
+  "role": "AI search visibility and agent readiness signals of a public website",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "domain": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 253
+      }
+    },
+    "required": [
+      "domain"
+    ],
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "domain": {
+        "type": "string"
+      },
+      "signals": {
+        "type": "object"
+      },
+      "score": {
+        "type": "number"
+      },
+      "source": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "domain",
+      "signals",
+      "source"
+    ],
+    "additionalProperties": false
+  },
+  "rules": [
+    "reads public pages only (robots.txt, llms.txt, sitemap, certificates)",
+    "no form submission or login"
+  ],
+  "test_inputs": [
+    {
+      "domain": "wikipedia.org"
+    },
+    {
+      "domain": "python.org"
+    }
+  ]
+}

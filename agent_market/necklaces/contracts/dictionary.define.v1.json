@@ -1,0 +1,57 @@
+{
+  "id": "dictionary.define.v1",
+  "role": "dictionary define (default role from the pearl tests; input keys are alternatives, a member uses the ones it accepts)",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "word": {
+        "type": "string",
+        "maxLength": 500
+      },
+      "term": {
+        "type": "string",
+        "maxLength": 500
+      },
+      "query": {
+        "type": "string",
+        "maxLength": 500
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "answer": {
+        "type": "string",
+        "maxLength": 8000
+      },
+      "url": {
+        "type": "string",
+        "pattern": "^https://",
+        "maxLength": 2000
+      },
+      "source": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "answer",
+      "source"
+    ],
+    "additionalProperties": false
+  },
+  "rules": [
+    "word echoed: serendipity",
+    "a definition: chance|accident|fortunate|luck|unexpected",
+    "read-only lookup; no account, payment or write"
+  ],
+  "test_inputs": [
+    {
+      "word": "serendipity",
+      "term": "serendipity",
+      "query": "serendipity"
+    }
+  ]
+}

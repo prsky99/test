@@ -1,0 +1,62 @@
+{
+  "id": "crypto.price.v1",
+  "role": "crypto price (default role from the pearl tests; input keys are alternatives, a member uses the ones it accepts)",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "symbol": {
+        "type": "string",
+        "maxLength": 500
+      },
+      "coin": {
+        "type": "string",
+        "maxLength": 500
+      },
+      "id": {
+        "type": "string",
+        "maxLength": 500
+      },
+      "query": {
+        "type": "string",
+        "maxLength": 500
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "answer": {
+        "type": "string",
+        "maxLength": 8000
+      },
+      "url": {
+        "type": "string",
+        "pattern": "^https://",
+        "maxLength": 2000
+      },
+      "source": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "answer",
+      "source"
+    ],
+    "additionalProperties": false
+  },
+  "rules": [
+    "bitcoin named: bitcoin|\\bbtc\\b",
+    "a price: \\b\\d{2,3},?\\d{3}(?:\\.\\d+)?\\b",
+    "read-only lookup; no account, payment or write"
+  ],
+  "test_inputs": [
+    {
+      "symbol": "BTC",
+      "coin": "bitcoin",
+      "id": "bitcoin",
+      "query": "bitcoin"
+    }
+  ]
+}

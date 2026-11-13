@@ -1,0 +1,100 @@
+"""One shared daily budget for outside test calls per registrable domain (PM 11-14)."""
+import threading
+from datetime import datetime
+
+import pytest
+
+from agent_market import provider_budget as pb
+
+
+def at(day, h=12):
+    return datetime(2026, 11, day, h, 0, tzinfo=pb.KST).timestamp()
+
+
+def test_calls_are_grouped_by_registrable_domain_and_hosting_tenant():
+    assert pb.domain('https://api.example.com/mcp') == 'example.com'
+    assert pb.domain('https://www.example.com/a2a') == 'example.com'
+    assert pb.domain('https://x.y.example.co.uk/') == 'example.co.uk'
+    assert pb.domain('https://alice.vercel.app/mcp') == 'alice.vercel.app'       # each tenant is its own provider
+    assert pb.domain('https://deep.alice.vercel.app/') == 'alice.vercel.app'
+    assert pb.domain('https://bob.up.railway.app/') == 'bob.up.railway.app'
+    assert pb.domain('hub.rssa.getvda.ai') == 'getvda.ai'
+
+
+def test_the_daily_total_and_each_system_share_hold_across_systems(tmp_path):
+    url, now = 'https://api.example.com/mcp', at(14)
+    assert all(pb.reserve(url, 'pearl_batch', now=now, directory=tmp_path)[0] for _ in range(3))
+    assert pb.reserve(url, 'pearl_batch', now=now, directory=tmp_path) == (False, 'system_share')
+    assert pb.reserve(url, 'necklace_retest', n=35, now=now, directory=tmp_path) == (True, 'ok')
+    assert pb.reserve('https://www.example.com/', 'gate', n=22, now=now, directory=tmp_path) == (True, 'ok')   # 60 - 38
+    assert pb.reserve(url, 'gate', now=now, directory=tmp_path) == (False, 'domain_daily_total')
+    assert pb.reserve('https://other.org/', 'gate', n=60, now=now, directory=tmp_path) == (True, 'ok')
+    day = pb.status(pb.today(now), tmp_path)['domains']['example.com']
+    assert day['total'] == 60 and day['by'] == {'pearl_batch': 3, 'necklace_retest': 35, 'gate': 22}
+    assert pb.reserve(url, 'pearl_batch', now=at(15), directory=tmp_path) == (True, 'ok')     # a new KST day
+    with pytest.raises(ValueError):
+        pb.reserve(url, 'someone_new', now=now, directory=tmp_path)
+
+
+def test_a_429_stops_every_system_on_that_domain_for_the_rest_of_the_day(tmp_path):
+    now = at(14, 9)
+    assert pb.reserve('https://a.example.com/', 'role_tests', now=now, directory=tmp_path)[0]
+    assert pb.note('https://a.example.com/', 'role_tests', 429, now=now, directory=tmp_path)
+    assert not pb.note('https://a.example.com/', 'role_tests', 200, now=now, directory=tmp_path)
+    for system in ('necklace_retest', 'gate', 'pearl_batch', 'substitute_tests'):
+        assert pb.reserve('https://b.example.com/', system, now=at(14, 23), directory=tmp_path) == (False, 'paused_429')
+    assert pb.reserve('https://b.example.com/', 'necklace_retest', now=at(15, 1), directory=tmp_path)[0]
+
+
+def test_concurrent_reservations_never_pass_the_total(tmp_path):
+    now, granted = at(14), []
+
+    def worker():
+        for _ in range(20):
+            ok, _ = pb.reserve('https://c.example.net/', 'gate', now=now, directory=tmp_path)
+            granted.append(ok)
+    threads = [threading.Thread(target=worker) for _ in range(5)]
+    for t in threads: t.start()
+    for t in threads: t.join()
+    assert sum(granted) == pb.DAILY_TOTAL == pb.status(pb.today(now), tmp_path)['domains']['example.net']['total']
+
+
+def test_github_hourly_share_floor_and_summary(tmp_path):
+    """PM 11-14: GitHub's unauthenticated 60 an hour is split by system and everyone stops under 5 left."""
+    now = at(14, 7)
+    assert all(pb.github_reserve('role_tests', now=now, directory=tmp_path)[0] for _ in range(5))
+    assert pb.github_reserve('role_tests', now=now, directory=tmp_path) == (False, 'system_share')
+    assert pb.github_reserve('fallback_live', n=30, now=now, directory=tmp_path) == (True, 'ok')
+    assert pb.github_reserve('gate', n=21, now=now, directory=tmp_path) == (False, 'github_hourly_total')  # 55 usable
+    assert pb.github_reserve('gate', n=20, now=now, directory=tmp_path) == (True, 'ok')
+    # GitHub says only 4 are left (another user of this IP): everybody stops until the reset
+    reset = int(now) + 1200
+    assert pb.github_observe({'x-ratelimit-remaining': '4', 'x-ratelimit-reset': str(reset)}, 'gate', now=now,
+                             directory=tmp_path) == 4
+    later = at(14, 7) + 600
+    assert pb.github_reserve('adhoc', now=later, directory=tmp_path) == (False, 'github_floor')
+    assert pb.github_reserve('adhoc', now=at(14, 8), directory=tmp_path) == (True, 'ok')   # a new hour
+    summary = pb.github_summary(hours=2, now=at(14, 8), directory=tmp_path)
+    assert summary['total'] == 56 and list(summary['by'])[0] == 'fallback_live'
+    assert summary['refused'] == {'role_tests': 1, 'gate': 21, 'adhoc': 1}
+    with pytest.raises(ValueError):
+        pb.github_reserve('collector', now=now, directory=tmp_path)
+
+
+def test_fallback_github_calls_go_through_the_shared_allowance(tmp_path, monkeypatch):
+    import httpx
+    from agent_market.fallback_agents import net
+    from agent_market.fallback_agents.limits import limiters
+    monkeypatch.setattr(pb, 'DIR', tmp_path)
+    seen = []
+
+    def handler(request):
+        seen.append(request.url.path)
+        return httpx.Response(200, json={}, headers={'x-ratelimit-remaining': '3', 'x-ratelimit-reset': '9999999999'})
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    net.get('https://api.github.com/repos/a/b', limiters=limiters(), seconds=5, limit=65536, http=client, preflight=False)
+    with pytest.raises(net.SourceBusy):
+        net.get('https://api.github.com/repos/a/c', limiters=limiters(), seconds=5, limit=65536, http=client, preflight=False)
+    net.get('https://api.github.com/rate_limit', limiters=limiters(), seconds=5, limit=65536, http=client, preflight=False)
+    assert seen == ['/repos/a/b', '/rate_limit']
+    assert pb.github_summary(1, directory=tmp_path)['by'] == {'fallback_live': 1}

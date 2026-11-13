@@ -2,6 +2,7 @@
 import hashlib
 import hmac
 import json
+import logging
 import re
 import time
 from datetime import datetime,timezone
@@ -11,12 +12,27 @@ from ..concierge.connections import public_agent
 from ..concierge.discovery_state import execution_state
 from .storage import transaction,ready,enqueue,identity
 
+log=logging.getLogger(__name__)
+# 11-13 (PM 23:0x, plan A): pending rows read per round. The round still evaluates at most `limit` rows; the wider window
+# only lets it mark the empty repeats of a resource it already evaluated (96% of the 508k backlog). It starts at 200 and
+# grows by 50 up to 500 while a round's transaction stays under a quarter of the 5 s statement limit, and halves back
+# toward 200 when it passes half of it.
+WINDOW_START,WINDOW_MAX,WINDOW_STEP=200,2000,100
+GROW_BELOW_S,SHRINK_ABOVE_S=1.75,3.0
+# 11-14 (PM 03:1x, plan A2): after plan A the backlog held at 512k and 102 h behind: 32 evaluations a round, one round a
+# tick (19 rounds in 10 minutes, slowest 0.54 s) barely passed the inflow. A round now evaluates until EVAL_BUDGET_S has
+# passed or EVAL_MAX rows (the same oldest-first order, one evaluation per resource a round), and while a round fills its
+# whole window (a backlog) the tick runs further rounds, each its own transaction, for up to TICK_BUDGET_S.
+EVAL_MAX,EVAL_BUDGET_S=256,1.0
+TICK_ROUNDS,TICK_BUDGET_S=8,6.0
+
 EVENT_TYPES=('verified','withdrawn','execution_verification_changed','health_changed','schema_changed','quality_changed')
 
 
 class Events:
     def __init__(self,front):
         self.front=front;self.store=front.store
+        self.window=WINDOW_START;self.backlogged=False;self.rounds={'rounds':0,'evaluated':0,'superseded':0,'published':0,'max_s':0.0,'since':time.monotonic()}
         self.key=hmac.new(front.updates.key,b'adoption-feed-cursor-v1',hashlib.sha256).digest()
 
     def sweep(self,limit=32):
@@ -27,15 +43,30 @@ class Events:
             for row in rows:enqueue(self.store,db,row['resource_id'],'recheck',row['version_id'],int(time.time()/60))
         return len(rows)
 
-    def publish(self,limit=32):
-        """Store.tx serializes publishers; sequence and projection commit together."""
+    def publish(self,limit=None,window=None,budget=None):
+        """Store.tx serializes publishers; sequence and projection commit together.
+
+        11-13 (PM, plan A): the round reads up to `window` pending rows, oldest first, and evaluates at most `limit`.
+        A row without an observation payload for a resource this round already evaluated is marked ignored without a
+        second evaluation: the outcome is decided by the resource's current state, which a second evaluation in the
+        same round reads unchanged, so it would be ignored one by one too. The published events, their ids and their
+        order are those of the one-by-one way; only the empty repeats are settled sooner."""
         if not ready(self.store):return 0
-        changed=0
+        if limit is None:limit,budget=EVAL_MAX,EVAL_BUDGET_S if budget is None else budget
+        window=max(limit,int(self.window if window is None else window))
+        started=time.monotonic();changed=evaluated=superseded=0;self.backlogged=False
         with transaction(self.store)as db:
-            pending=db.execute("SELECT * FROM adoption_changes WHERE status='pending' ORDER BY created,id LIMIT ?",(limit,)).fetchall()
+            pending=db.execute("SELECT * FROM adoption_changes WHERE status='pending' ORDER BY created,id LIMIT ?",(window,)).fetchall()
+            self.backlogged=len(pending)>=window   # more pending rows beyond this round's window
             seq=int((self.store.get_meta('adoption_published_sequence')or{}).get('value',0))
+            done=set()
             for raw in pending:
-                row=dict(raw);rid=row['resource_id'];resource=self.store.resource(rid)
+                row=dict(raw);rid=row['resource_id']
+                if not row['payload'] and rid in done:
+                    db.execute("UPDATE adoption_changes SET status='ignored' WHERE id=?",(row['id'],));superseded+=1;continue
+                if evaluated>=limit or budget is not None and evaluated and time.monotonic()-started>budget:continue
+                evaluated+=1;done.add(rid)
+                resource=self.store.resource(rid)
                 observation=json.loads(row['payload'])if row['payload']else{}
                 state=execution_state(self.store,resource)
                 before=db.execute('SELECT * FROM adoption_publications WHERE resource_id=?',(rid,)).fetchone()
@@ -72,7 +103,19 @@ class Events:
                 changed+=1
             db.execute('INSERT INTO meta(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
                        ('adoption_published_sequence',json.dumps({'value':seq})))
+        self._paced(time.monotonic()-started,window,evaluated,superseded,changed)
         return changed
+
+    def _paced(self,elapsed,window,evaluated,superseded,changed):
+        """Adjust the window from this round's time and log a summary every ten minutes (11-13 PM plan A)."""
+        if elapsed<GROW_BELOW_S and window>=self.window:self.window=min(WINDOW_MAX,self.window+WINDOW_STEP)
+        elif elapsed>SHRINK_ABOVE_S:self.window=max(WINDOW_START,self.window//2)
+        r=self.rounds;r['rounds']+=1;r['evaluated']+=evaluated;r['superseded']+=superseded;r['published']+=changed
+        r['max_s']=max(r['max_s'],elapsed)
+        if time.monotonic()-r['since']>=600:
+            log.info('Change feed rounds: %d, evaluated %d, superseded %d, published %d, slowest %.2f s, window now %d',
+                     r['rounds'],r['evaluated'],r['superseded'],r['published'],r['max_s'],self.window)
+            self.rounds={'rounds':0,'evaluated':0,'superseded':0,'published':0,'max_s':0.0,'since':time.monotonic()}
 
     def cursor(self,snapshot,after,protocol,expires=None):
         # A fixed UTC-hour boundary keeps equivalent pages conditionally cacheable.
@@ -188,8 +231,16 @@ class Events:
                     count+=1
         return count
 
+    def catch_up(self,rounds=TICK_ROUNDS,budget=TICK_BUDGET_S):
+        """One round, and more while a round reads a full window (a backlog), within the tick's time budget."""
+        started=time.monotonic();changed=0
+        for _ in range(max(1,rounds)):
+            changed+=self.publish()
+            if not self.backlogged or time.monotonic()-started>budget:break
+        return changed
+
     def tick(self):
-        self.sweep();self.publish();count=self.notify()
+        self.sweep();self.catch_up();count=self.notify()
         with transaction(self.store)as db:
             db.execute("DELETE FROM adoption_changes WHERE id IN (SELECT id FROM adoption_changes WHERE status IN ('ignored','published') AND created<? LIMIT 100)",(time.time()-30*86400,))
             db.execute("UPDATE adoption_preparations SET sealed='' WHERE id IN (SELECT p.id FROM adoption_preparations p WHERE p.created<? AND p.sealed!='' AND NOT EXISTS(SELECT 1 FROM adoption_operations o WHERE o.preparation_id=p.id AND o.status IN ('prepared','dispatched')) LIMIT 100)",(time.time()-86400,))

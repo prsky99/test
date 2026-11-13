@@ -187,3 +187,32 @@ def test_postgres_batch_halves_when_rows_exceed_the_result_cap_and_skips_a_giant
 def test_grade_follows_the_score_as_shown():
     from agent_market.collector.evaluation import grade_for
     assert grade_for(84.96) == 'A' and grade_for(84.94) == 'B' and grade_for(85.0) == 'A'
+
+
+def test_inactive_x402_grade_a_gets_the_policy_cap_once():
+    """PM 11-14: 861 inactive x402 rows kept grade A from before the policy; only they are re-graded (no network)."""
+    store = Store()
+    old = add_resource(store, "paid", "x402", {**raw("x402", verified=True), "version": 1})
+    live = add_resource(store, "live", "x402", {**raw("x402", verified=True), "version": 1})
+    mcp = add_resource(store, "mcpoff", "mcp", raw())
+    with store.tx() as db:
+        db.execute("UPDATE resources SET active=0 WHERE id IN (?,?)", (old, mcp))
+    assert store.quality_policy_inactive_x402_batch(limit=10) == 1
+    assert store.resource(old)["eval_grade"] == "B"
+    assert json.loads(store.resource(old)["eval_info"])["quality_policy"] == evaluation.POLICY_VERSION
+    assert store.resource(live)["eval_grade"] == "A" and store.resource(mcp)["eval_grade"] == "A"  # not this pass
+    assert store.quality_policy_inactive_x402_batch(limit=10) == 0
+    assert store.get_meta("quality_policy_inactive_x402_done") == evaluation.POLICY_VERSION
+    assert store.get_meta("quality_policy_inactive_x402_cursor")["changed_total"] == 1
+
+
+def test_inactive_policy_pass_stays_out_of_measurement_minutes():
+    from datetime import datetime
+    from agent_market.collector.agent import CollectorAgent
+    agent = CollectorAgent.__new__(CollectorAgent)
+    at = lambda h, m: datetime(2026, 11, 14, h, m).timestamp()
+    assert agent._inactive_policy_due(at(6, 20)) is True
+    assert agent._inactive_policy_due(at(6, 20) + 30) is False      # at most once a minute
+    assert agent._inactive_policy_due(at(6, 57)) is False and agent._inactive_policy_due(at(7, 5)) is False
+    assert agent._inactive_policy_due(at(4, 30)) is False
+    assert agent._inactive_policy_due(at(7, 10)) is True

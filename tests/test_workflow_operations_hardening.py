@@ -320,3 +320,22 @@ def test_retention_preserves_tampered_checkpoint_for_investigation(runtime,tampe
     result=rt.maintenance.run(apply=True)
     assert result['held_invalid_evidence']==1 and not result['bodies_compacted']
     assert rt.store.query('SELECT * FROM workflow_checkpoints WHERE run_id=?',(job['run_id'],))
+
+
+def test_unknown_outcome_bodies_go_after_30_days_and_the_run_stays(runtime):
+    """PM 11-14: an unknown (or unrecorded) execution outcome keeps its body 30 days, then only the body goes."""
+    rt,rid,_=runtime;wf=save(rt.store,[node(resource_id=rid,action='get_weather',input={'city':'Tokyo'})])
+    old=wait(rt,rt.submit(wf));young=wait(rt,rt.submit(wf));unset=wait(rt,rt.submit(wf))
+    with rt.store.tx() as db:
+        for run_id,days,outcome in ((old['run_id'],31,'unknown'),(young['run_id'],20,'unknown'),(unset['run_id'],45,None)):
+            db.execute('UPDATE workflow_runs SET finished=?,execution_outcome=? WHERE id=?',(time.time()-days*86400,outcome,run_id))
+    preview=rt.maintenance.run()
+    assert preview['unknown_candidates']==2 and preview['unknown_days']==30 and not preview['bodies_compacted']
+    applied=rt.maintenance.run(apply=True);assert applied['bodies_compacted']==2
+    for run_id in (old['run_id'],unset['run_id']):
+        row=rt.store.query('SELECT status,finished,execution_outcome,result FROM workflow_runs WHERE id=?',(run_id,))[0]
+        assert row['status']=='succeeded' and row['finished'] and json.loads(row['result'])['retained_summary']
+        assert not rt.store.query('SELECT * FROM workflow_checkpoints WHERE run_id=?',(run_id,))
+    assert rt.store.query('SELECT * FROM workflow_checkpoints WHERE run_id=?',(young['run_id'],))   # 20 days: kept
+    assert rt.maintenance.run(apply=True)['metadata_pruned']==0     # events of unknown runs are never pruned
+    assert rt.store.query('SELECT 1 FROM workflow_run_events WHERE run_id=?',(old['run_id'],))

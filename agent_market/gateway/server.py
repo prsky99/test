@@ -247,9 +247,13 @@ def _compose_app(
         if config.scheduler and service_role in ('legacy', 'jobs'):
             from ..workspace_admin_summaries import HealthSummaries
             from ..workspace_admin_retention import Retention
+            from ..workflow_retention_schedule import WorkflowRetention
+            from ..nvd_snapshot_schedule import NvdSnapshotRefresh
+            from ..fallback_schedule import AirportIndexRefresh, FallbackWatchStep
             scheduler = Scheduler(collector, service, config.rescan_interval, front.digest,
                                   front.workflows if service_role == 'legacy' else None,
-                                  summaries=[HealthSummaries(store), Retention(store)])
+                                  summaries=[HealthSummaries(store), Retention(store), WorkflowRetention(front.workflows),
+                                             NvdSnapshotRefresh(), FallbackWatchStep(), AirportIndexRefresh()])
             scheduler.start()
         try:
             yield

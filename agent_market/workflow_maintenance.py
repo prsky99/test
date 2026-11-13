@@ -1,4 +1,7 @@
-"""Explicit bounded retention; replay tombstones and unknown evidence are kept."""
+"""Explicit bounded retention; replay tombstones and undelivered evidence are kept.
+
+Runs whose execution outcome is unknown keep their bodies for UNKNOWN_DAYS (PM 11-14: 30 days, the same as the
+update-event promise); then only the bodies go, while the run id, times, status and events stay."""
 import argparse
 import hashlib
 import hmac
@@ -17,6 +20,7 @@ CREATE INDEX IF NOT EXISTS workflow_retention_due ON workflow_runs(status,finish
 '''
 BODY_DAYS=14
 METADATA_DAYS=90
+UNKNOWN_DAYS=30
 
 
 class Maintenance:
@@ -33,22 +37,34 @@ class Maintenance:
             AND NOT EXISTS (SELECT 1 FROM workflow_manual_deliveries m WHERE m.run_id=r.id AND m.status IN ('pending','claimed','dispatched','unknown'))
             ORDER BY r.finished LIMIT ?''',(cutoff,limit)).fetchall()
 
+    def unknown_candidates(self,db,cutoff,limit):
+        # Outcome unknown (or never recorded) after UNKNOWN_DAYS: bodies only; metadata pruning still skips these runs.
+        return db.execute('''SELECT r.* FROM workflow_runs r
+            WHERE r.status IN ('succeeded','failed','cancelled') AND r.finished<?
+            AND (r.execution_outcome IS NULL OR r.execution_outcome='unknown')
+            AND NOT EXISTS (SELECT 1 FROM workflow_run_archives a WHERE a.run_id=r.id)
+            AND NOT EXISTS (SELECT 1 FROM workflow_result_outbox o WHERE o.run_id=r.id AND o.status IN ('pending','claimed','dispatched','unknown'))
+            AND NOT EXISTS (SELECT 1 FROM workflow_manual_deliveries m WHERE m.run_id=r.id AND m.status IN ('pending','claimed','dispatched','unknown'))
+            ORDER BY r.finished LIMIT ?''',(cutoff,limit)).fetchall()
+
     def run(self,*,apply=False,limit=20,actor=0,now=None):
         if type(apply) is not bool or type(limit) is not int or not 1<=limit<=20:raise ValueError('Use a bounded retention batch of one to twenty runs.')
         now=time.time() if now is None else now
         with self.store.tx() as db:
             if apply:db.execute('UPDATE workflow_runs SET fence=fence WHERE id IN (SELECT run_id FROM workflow_run_archives LIMIT 1)')
             bodies=self.candidates(db,now-BODY_DAYS*86400,limit)
+            unknown=self.unknown_candidates(db,now-UNKNOWN_DAYS*86400,limit-len(bodies)) if len(bodies)<limit else []
+            bodies=list(bodies)+list(unknown)
             metadata=db.execute('''SELECT r.id FROM workflow_runs r JOIN workflow_run_archives a ON a.run_id=r.id
                 WHERE r.finished<? AND r.status IN ('succeeded','failed','cancelled') AND r.execution_outcome!='unknown'
                 AND NOT EXISTS (SELECT 1 FROM workflow_result_outbox o WHERE o.run_id=r.id AND o.status IN ('pending','claimed','dispatched','unknown'))
                 AND NOT EXISTS (SELECT 1 FROM workflow_manual_deliveries m WHERE m.run_id=r.id AND m.status IN ('pending','claimed','dispatched','unknown'))
                 AND EXISTS (SELECT 1 FROM workflow_run_events e WHERE e.run_id=r.id)
                 ORDER BY r.finished LIMIT ?''',(now-METADATA_DAYS*86400,limit)).fetchall()
-            result={'dry_run':not apply,'body_days':BODY_DAYS,'metadata_days':METADATA_DAYS,
-                    'body_candidates':len(bodies),'metadata_candidates':len(metadata),
+            result={'dry_run':not apply,'body_days':BODY_DAYS,'metadata_days':METADATA_DAYS,'unknown_days':UNKNOWN_DAYS,
+                    'body_candidates':len(bodies),'unknown_candidates':len(unknown),'metadata_candidates':len(metadata),
                     'bodies_compacted':0,'metadata_pruned':0,'held_invalid_evidence':0,
-                    'replay_tombstones_retained':True,'unknown_outcomes_retained':True,
+                    'replay_tombstones_retained':True,
                     'busy':bool(db.execute("SELECT 1 FROM workflow_runs WHERE status IN ('queued','running') LIMIT 1").fetchone()
                         or db.execute("SELECT 1 FROM workflow_result_outbox WHERE status IN ('claimed','dispatched') LIMIT 1").fetchone()
                         or db.execute("SELECT 1 FROM workflow_manual_deliveries WHERE status IN ('claimed','dispatched') LIMIT 1").fetchone())}

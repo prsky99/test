@@ -1,0 +1,63 @@
+{
+  "id": "weather.forecast.v1",
+  "role": "Current conditions and forecast at a place",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "city": {
+        "type": "string",
+        "maxLength": 200
+      },
+      "latitude": {
+        "type": "number"
+      },
+      "longitude": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "latitude",
+      "longitude"
+    ],
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "temperature_c": {
+        "type": "number"
+      },
+      "forecast": {
+        "type": "string",
+        "maxLength": 4000
+      },
+      "time": {
+        "type": "string",
+        "maxLength": 40
+      },
+      "source": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "temperature_c",
+      "source"
+    ],
+    "additionalProperties": false
+  },
+  "rules": [
+    "a member limited to a region states it when the place is outside"
+  ],
+  "test_inputs": [
+    {
+      "city": "Seoul",
+      "latitude": 37.5665,
+      "longitude": 126.978
+    },
+    {
+      "city": "Berlin",
+      "latitude": 52.52,
+      "longitude": 13.405
+    }
+  ]
+}

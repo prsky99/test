@@ -1,0 +1,66 @@
+{
+  "id": "translate.text.v1",
+  "role": "translate text (default role from the pearl tests; input keys are alternatives, a member uses the ones it accepts)",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "maxLength": 500
+      },
+      "target": {
+        "type": "string",
+        "maxLength": 500
+      },
+      "target_language": {
+        "type": "string",
+        "maxLength": 500
+      },
+      "target_lang": {
+        "type": "string",
+        "maxLength": 500
+      },
+      "to": {
+        "type": "string",
+        "maxLength": 500
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "answer": {
+        "type": "string",
+        "maxLength": 8000
+      },
+      "url": {
+        "type": "string",
+        "pattern": "^https://",
+        "maxLength": 2000
+      },
+      "source": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "answer",
+      "source"
+    ],
+    "additionalProperties": false
+  },
+  "rules": [
+    "French greeting: bonjour",
+    "read-only lookup; no account, payment or write"
+  ],
+  "test_inputs": [
+    {
+      "text": "Good morning",
+      "target": "fr",
+      "target_language": "fr",
+      "target_lang": "fr",
+      "to": "fr"
+    }
+  ]
+}
