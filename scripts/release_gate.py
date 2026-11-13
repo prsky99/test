@@ -75,6 +75,7 @@ TESTS = (
     'tests/test_page_meta_trim.py',  # 11-13 PM 22:5x decision (b)
     'tests/test_brand_signals.py',  # 11-14 PM 02:2x search: brand title, JSON-LD names, visible brand
     'tests/test_noindex_tiers.py',  # 11-14 PM 03:1x search B: x402/thin/duplicate pages noindex and out of the sitemap
+    'tests/test_a2a_run.py',  # 11-14 PM 04:0x: A2A "run N" within the MCP call tool's scope
 )
 # Each role runs the tests for the code it serves. jobs releases run the collector, health checks,
 # crawler and evaluation without the typed execution engine, so the opening-path list above

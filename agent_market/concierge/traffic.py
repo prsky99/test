@@ -362,7 +362,8 @@ class Traffic:
         cls = funnel_class(client, ua, mcp_client_name(body) if entry == 'mcp' else None,
                            self.sessions.get(sid) if sid else None)
         ok = isinstance(status, int) and 200 <= status < 300
-        surface = recommend_surface(entry, method, body)
+        # an A2A "run" message carries an execution, not a recommendation request (11-14)
+        surface = None if entry == 'a2a' and isinstance(gateway, dict) else recommend_surface(entry, method, body)
         if surface:
             self.funnel['recommend|' + surface + '|' + cls + '|all'] += 1
             if ok:
@@ -373,7 +374,12 @@ class Traffic:
             if digest in self.recommended or len(self.recommended) < 50_000:
                 self.recommended.setdefault(digest, set()).add(surface)
         # /api/gateway/* connections and executions, and the in-session MCP 'call' tool on /mcp (11-12 PM)
-        if entry in ('gateway', 'mcp') and isinstance(gateway, dict) and gateway.get('step') in ('connect', 'execute'):
+        if entry in ('gateway', 'mcp', 'a2a') and isinstance(gateway, dict) and gateway.get('step') in ('connect', 'execute'):
+            if entry == 'a2a':
+                # 11-14: an A2A "run" connects and executes in one message; it counts as both steps.
+                for step in ('connect', 'execute'):
+                    self._gateway_step(step, cls, bool(gateway.get('ok')) and ok, digest, gateway)
+                return
             step, done = gateway['step'], bool(gateway.get('ok')) and ok
             self.funnel[step + '|' + cls + '|attempt'] += 1
             if done:
@@ -387,6 +393,20 @@ class Traffic:
                     follow = self.funnel_sets['follow|' + origin + '|' + step + '|' + cls]
                     if len(follow) < 50_000:
                         follow.add(digest + str(gateway.get('rid')).encode())
+
+    def _gateway_step(self, step, cls, done, digest, gateway):
+        self.funnel[step + '|' + cls + '|attempt'] += 1
+        if not done:
+            return
+        self.funnel[step + '|' + cls + '|ok'] += 1
+        pair = digest + str(gateway.get('rid')).encode()
+        bucket = self.funnel_sets[step + '|' + cls]
+        if len(bucket) < 50_000:
+            bucket.add(pair)
+        for origin in sorted(self.recommended.get(digest) or ('none',)):
+            follow = self.funnel_sets['follow|' + origin + '|' + step + '|' + cls]
+            if len(follow) < 50_000:
+                follow.add(pair)
 
     def note(self, key):
         """Count one internal event of the day in the funnel section, such as 'edge_fallback|handshake' (11-12 PM:

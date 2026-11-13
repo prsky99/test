@@ -173,3 +173,19 @@ def test_connections_and_executions_name_the_surface_that_recommended_them():
     assert snap['funnel_distinct']['follow|none|connect|external'] == 1   # a connection without a recommendation
     line = north_star.build('2026-11-16', files=[snap], edge=_edge())
     assert line['funnel']['follow'] == {'a2a': {'connect': 1, 'execute': 1}, 'none': {'connect': 1, 'execute': 0}}
+
+
+def test_an_a2a_run_counts_as_connection_and_execution_not_as_a_recommendation():
+    # 11-14 (PM 04:0x): "run N" on /a2a connects and executes in one message.
+    recorder = traffic.Traffic(root=None)
+    ua = 'python-httpx/0.28'
+    body = lambda text: json.dumps({'jsonrpc': '2.0', 'id': '1', 'method': 'message/send',
+                                    'params': {'message': {'role': 'user', 'parts': [{'kind': 'text', 'text': text}]}}}).encode()
+    recorder.observe('POST', '/a2a', 200, '203.0.113.9', ua, body('find a weather agent'))
+    recorder.observe('POST', '/a2a', 200, '203.0.113.9', ua, body('run 1 {"city": "Paris"}'),
+                     gateway={'step': 'execute', 'ok': True, 'rid': 9})
+    snap = recorder.snapshot()
+    assert snap['funnel']['recommend|a2a|external|all'] == 1
+    assert snap['funnel_distinct']['connect|external'] == 1 and snap['funnel_distinct']['execute|external'] == 1
+    assert snap['funnel_distinct']['follow|a2a|execute|external'] == 1
+    assert north_star.build('2026-11-16', files=[snap], edge=_edge())['north_star'] == 1

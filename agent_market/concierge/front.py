@@ -3275,6 +3275,127 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
         return Response(status_code=204)
 
     # ---------------- A2A ----------------
+    async def run_admitted_call(request, v, rid_val, tool_val, call_args, *, task_str="", account_id=None,
+                                payment_info=None, idempotency_key=None, edge_mode=None, service=None):
+        """Run one admitted tool through the gateway and record the outcome, as the MCP `call` tool does.
+
+        11-14 (PM 04:0x): the A2A "run" command uses this same path, so both share the gateway admit, the
+        execution policy (relay verbs, read-only, action tools blocked), timeouts, outcome records and recovery.
+        Returns (ok, execution, reply text, structured content)."""
+        from ..edge_gateway.machine import execute as execute_ticket
+        alternative = None
+        exec_res = await run_in_threadpool(execute_ticket, front, rid_val, tool_val, call_args,
+            principal=v.id, idempotency_key=idempotency_key, payment=payment_info,
+            **({'stored_run':edge_mode['run_id']} if edge_mode and edge_mode['mode']=='result' else {}))
+        if edge_mode and edge_mode['mode']=='result':
+            if exec_res is None:
+                from ..edge_gateway.machine import refused
+                exec_res = refused(unknown=True)
+            elif exec_res.get('ok'):
+                from ..edge_gateway.result_transport import load_result
+                request.scope['edge_result_sources'] = [await run_in_threadpool(load_result, service, edge_mode['run_id'])]
+        if exec_res is None:
+            exec_res = await run_in_threadpool(front.proxy.execute, rid_val, tool_val, call_args, account_id, payment_info, public=True)
+        if exec_res.get('error_code') in ('UPSTREAM_TIMEOUT', 'UPSTREAM_NETWORK', 'UPSTREAM_PROTOCOL'):
+            exec_res['retry_safe'] = False
+        bound_resource=front.store.resource(rid_val) or {}
+        exec_res=project(public_metadata(exec_res),gateway_agent_url(rid_val,bound_resource.get('kind')),bindings(bound_resource))
+        if not exec_res.get('ok') and not exec_res.get('payment_required'):
+            from .execution_errors import fields as execution_failure_fields
+            exec_res['error']=('The execution outcome is unconfirmed. Keep this request paused for review.'
+                if exec_res.get('retry_safe') is False else execution_failure_fields(exec_res.get('error_code'))['error_message'])
+        ok_val = exec_res.get("ok", False)
+        request.scope['traffic_gateway'] = {'step': 'execute', 'ok': bool(ok_val), 'rid': rid_val}
+        alternative = None
+
+        if (bound_resource and isinstance(rid_val,int) and not exec_res.get('payment_required')
+                and (ok_val or exec_res.get('retry_safe') is not False and exec_res.get('error_code') in ('UPSTREAM_TOOL_ERROR','EXECUTION_FAILED'))):
+            if v:
+                await run_in_threadpool(front.book.record_outcome, v, rid_val, ok_val)
+                last_rid, last_tool = await run_in_threadpool(front.book.get_last_tool, v.id)
+                if last_rid and last_tool:
+                    await run_in_threadpool(front.inertia.record_transition, last_rid, last_tool, rid_val, tool_val)
+                await run_in_threadpool(front.book.save_last_tool, v, rid_val, tool_val)
+            with front.store.tx() as db:
+                db.execute(
+                    "INSERT INTO feedback (need_id, resource_id, success, rating, created) VALUES (?, ?, ?, ?, ?)",
+                    (f"mcp_{uuid.uuid4().hex[:8]}", rid_val, int(ok_val), 5 if ok_val else 1, time.time())
+                )
+
+        prefetched = []
+        code_template = None
+        recovery = {'alternatives': [], 'workflows': []}
+        if not ok_val and not exec_res.get("payment_required") and exec_res.get('retry_safe') is not False:
+            search_task = task_str
+            if not search_task and v:
+                interests = front.book.interests(v.id)
+                if interests:
+                    search_task = interests[0]["task"]
+            if not search_task:
+                search_task = tool_val.replace("_", " ")
+            from .recovery import alternatives as recover_alternatives
+            recovery = await run_in_threadpool(recover_alternatives, front, v, rid_val, search_task)
+            alternative = recovery['alternative']
+        elif isinstance(rid_val, int) and ok_val:
+            # Suggest optional next tools from recorded usage and affinities.
+            from .recovery import session_task
+            _, suggestion_protocol = await run_in_threadpool(session_task, front, v)
+            suggestion_excluded = await run_in_threadpool(front.book.failed_resources, v.id) if v else set()
+            prefetched = await run_in_threadpool(front.inertia.predict_next, rid_val, tool_val, limit=2,
+                protocol=suggestion_protocol, exclude=suggestion_excluded)
+            projected_hints = []
+            for hint in prefetched:
+                target = front.store.resource(hint.get('resource_id')) or {}
+                if target.get('kind') in KINDS:
+                    projected_hints.append(project(public_metadata(hint),
+                        gateway_agent_url(target['id'], target['kind']), bindings(target)))
+            prefetched = projected_hints
+            if prefetched:
+                chain = [{"resource_id": rid_val, "name": tool_val}] + prefetched
+                code_template = front.inertia.generate_code_mode_template(chain, base_url=f"{front.base(request)}/mcp")
+
+        pay_note = ""
+        if exec_res.get("payment"):
+            pay_st = exec_res["payment"]
+            if pay_st.get("status") == "settled":
+                pay_note = f"\n[Clearinghouse] Paid {pay_st.get('amount')} micro-USDC (SLA verified, tx: {pay_st.get('tx_id')})"
+            elif pay_st.get("status") == "refunded":
+                pay_note = f"\n[Clearinghouse] Payment refunded: {pay_st.get('amount')} micro-USDC (reason: {pay_st.get('reason')})"
+
+        if ok_val:
+            out_sample = exec_res.get("sample_output") or json.dumps(exec_res.get("result", {}), ensure_ascii=False)
+            next_info = ""
+            if prefetched:
+                names_p = [f"{p['tool']['name']} (p={p['probability']})" for p in prefetched]
+                next_info = f"\n\n[Next-tool suggestions] Next recommended tools: {', '.join(names_p)}"
+            reply_text = f"Tool '{tool_val}' on resource {rid_val} executed successfully ({exec_res.get('latency_ms', 0)}ms):\n{out_sample[:500]}{pay_note}{next_info}"
+        else:
+            err_msg = exec_res.get("error") or "execution failed"
+            if exec_res.get('retry_safe') is False:
+                reply_text = f"The outcome of '{tool_val}' on resource {rid_val} is unconfirmed. Keep this request paused for review."
+            elif exec_res.get("payment_required"):
+                reply_text = f"Payment Required for resource {rid_val}: {err_msg}"
+            elif alternative:
+                reply_text = (f"Execution of '{tool_val}' on resource {rid_val} failed: {err_msg}{pay_note}\n"
+                              f"Self-reflection alternative found: {alternative['name']} ({alternative['url']}).")
+            else:
+                reply_text = f"Execution of '{tool_val}' on resource {rid_val} failed: {err_msg}{pay_note}"
+
+        structured = {
+            "intent": "call",
+            "ok": ok_val,
+            "resource_id": rid_val,
+            "tool": tool_val,
+            "execution": exec_res,
+            "alternative": alternative,
+            "alternatives": recovery.get('alternatives', []),
+            "workflows": recovery.get('workflows', []),
+            "prefetched_tools": prefetched,
+            "code_mode_template": code_template,
+            "visitor": front.visitor_info(v) if v else None,
+        }
+        return ok_val, exec_res, reply_text, structured
+
     @router.post("/a2a")
     @router.post("/a2a/", include_in_schema=False)
     async def a2a(request: Request):
@@ -3320,6 +3441,40 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
         ctx = msg.get("contextId") if isinstance(msg.get("contextId"), str) else None
         if 'contextId' in msg and (ctx is None or not ctx or len(ctx)>200):
             return {"jsonrpc": "2.0", "id": rid, "error": {"code": -32602, "message": "Provide a non-empty contextId of at most 200 characters."}}
+        from . import a2a_run
+        wanted = a2a_run.parse("\n".join(texts).replace("\x00", "")[:MAX_MESSAGE])
+        if wanted is not None:
+            # 11-14 (PM 04:0x): "run N {arguments}" runs item N we recommended in this conversation, through the
+            # same path as the MCP `call` tool (run_admitted_call); nothing wider. See a2a_run.
+            v = None
+            if ctx:
+                try:
+                    v = await run_in_threadpool(front.identify, request, "a2a", token, name if isinstance(name, str) else None,
+                                                ctx, create=False)
+                except HTTPException as exc:
+                    if exc.status_code != 400:
+                        raise
+            if v is None:
+                text, payload = a2a_run.refusal('no_conversation')
+            else:
+                results, _ = await run_in_threadpool(front.book.last_results, v.id)
+                chosen = await run_in_threadpool(a2a_run.choose, front, results, wanted[0], wanted[1])
+                if len(chosen) == 2:
+                    text, payload = chosen
+                else:
+                    item, run_rid, tool = chosen
+                    ok, execution, reply_text, _structured = await run_admitted_call(
+                        request, v, run_rid, tool, wanted[1], task_str=str(item.get('name') or ''),
+                        service=getattr(front, 'edge_gateway', None))
+                    text, payload = a2a_run.answer(item, run_rid, tool, ok, execution, reply_text)
+                payload['visitor'] = front.visitor_info(v)
+            mid = str(uuid.uuid4())
+            parts_out = ([{"text": text}, {"data": {"data": payload}}] if method == "SendMessage"
+                         else [{"kind": "text", "text": text}, {"kind": "data", "data": payload}])
+            message = ({"message": {"role": "ROLE_AGENT", "messageId": mid, "contextId": ctx, "parts": parts_out}}
+                       if method == "SendMessage" else
+                       {"kind": "message", "role": "agent", "messageId": mid, "contextId": ctx, "parts": parts_out})
+            return JSONResponse({"jsonrpc": "2.0", "id": rid, "result": message})
         try:
             v, reply = await run_in_threadpool(front.chat, request, "a2a", "\n".join(texts).replace("\x00", "")[:MAX_MESSAGE], data, token,
                                                name if isinstance(name, str) else None, ctx)
@@ -3333,6 +3488,8 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             front.book.bind_context(v, ctx, fingerprint(front.security.resolve_ip(request),
                                                         request.headers.get("user-agent")), issued=True)
         reply=await run_in_threadpool(front.public_reply, reply)
+        # 11-14 (PM 04:0x): an A2A client cannot use the MCP `call` tool; it runs a recommendation with "run N".
+        reply = a2a_run.a2a_wording(reply)
         payload = {"intent": reply.intent, "suggested_replies": reply.suggested, "visitor": front.visitor_info(v), **reply.data}
         if first_contact:
             payload.setdefault("return_visit", A2A_RETURN_VISIT)
@@ -3573,116 +3730,10 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
                     return JSONResponse({**plan,'visitor':front.visitor_info(v)},headers={'Cache-Control':'private, no-store'})
                 return mcp_result(rid, {'content':[{'type':'text','text':'The execution is unavailable. Keep this request paused for review.'}],
                     'structuredContent':{'intent':'call','ok':False,'execution':plan,'visitor':front.visitor_info(v)}, 'isError':True})
-            exec_res = await run_in_threadpool(execute_ticket, front, rid_val, tool_val, call_args,
-                principal=v.id, idempotency_key=args.get('idempotency_key'), payment=payment_info,
-                **({'stored_run':edge_mode['run_id']} if edge_mode and edge_mode['mode']=='result' else {}))
-            if edge_mode and edge_mode['mode']=='result':
-                if exec_res is None:
-                    from ..edge_gateway.machine import refused
-                    exec_res = refused(unknown=True)
-                elif exec_res.get('ok'):
-                    from ..edge_gateway.result_transport import load_result
-                    request.scope['edge_result_sources'] = [await run_in_threadpool(load_result, service, edge_mode['run_id'])]
-            if exec_res is None:
-                exec_res = await run_in_threadpool(front.proxy.execute, rid_val, tool_val, call_args, account_id, payment_info, public=True)
-            if exec_res.get('error_code') in ('UPSTREAM_TIMEOUT', 'UPSTREAM_NETWORK', 'UPSTREAM_PROTOCOL'):
-                exec_res['retry_safe'] = False
-            bound_resource=front.store.resource(rid_val) or {}
-            exec_res=project(public_metadata(exec_res),gateway_agent_url(rid_val,bound_resource.get('kind')),bindings(bound_resource))
-            if not exec_res.get('ok') and not exec_res.get('payment_required'):
-                from .execution_errors import fields as execution_failure_fields
-                exec_res['error']=('The execution outcome is unconfirmed. Keep this request paused for review.'
-                    if exec_res.get('retry_safe') is False else execution_failure_fields(exec_res.get('error_code'))['error_message'])
-            ok_val = exec_res.get("ok", False)
-            request.scope['traffic_gateway'] = {'step': 'execute', 'ok': bool(ok_val), 'rid': rid_val}
-            alternative = None
-
-            if (bound_resource and isinstance(rid_val,int) and not exec_res.get('payment_required')
-                    and (ok_val or exec_res.get('retry_safe') is not False and exec_res.get('error_code') in ('UPSTREAM_TOOL_ERROR','EXECUTION_FAILED'))):
-                if v:
-                    await run_in_threadpool(front.book.record_outcome, v, rid_val, ok_val)
-                    last_rid, last_tool = await run_in_threadpool(front.book.get_last_tool, v.id)
-                    if last_rid and last_tool:
-                        await run_in_threadpool(front.inertia.record_transition, last_rid, last_tool, rid_val, tool_val)
-                    await run_in_threadpool(front.book.save_last_tool, v, rid_val, tool_val)
-                with front.store.tx() as db:
-                    db.execute(
-                        "INSERT INTO feedback (need_id, resource_id, success, rating, created) VALUES (?, ?, ?, ?, ?)",
-                        (f"mcp_{uuid.uuid4().hex[:8]}", rid_val, int(ok_val), 5 if ok_val else 1, time.time())
-                    )
-
-            prefetched = []
-            code_template = None
-            recovery = {'alternatives': [], 'workflows': []}
-            if not ok_val and not exec_res.get("payment_required") and exec_res.get('retry_safe') is not False:
-                search_task = task_str
-                if not search_task and v:
-                    interests = front.book.interests(v.id)
-                    if interests:
-                        search_task = interests[0]["task"]
-                if not search_task:
-                    search_task = tool_val.replace("_", " ")
-                from .recovery import alternatives as recover_alternatives
-                recovery = await run_in_threadpool(recover_alternatives, front, v, rid_val, search_task)
-                alternative = recovery['alternative']
-            elif isinstance(rid_val, int) and ok_val:
-                # Suggest optional next tools from recorded usage and affinities.
-                from .recovery import session_task
-                _, suggestion_protocol = await run_in_threadpool(session_task, front, v)
-                suggestion_excluded = await run_in_threadpool(front.book.failed_resources, v.id) if v else set()
-                prefetched = await run_in_threadpool(front.inertia.predict_next, rid_val, tool_val, limit=2,
-                    protocol=suggestion_protocol, exclude=suggestion_excluded)
-                projected_hints = []
-                for hint in prefetched:
-                    target = front.store.resource(hint.get('resource_id')) or {}
-                    if target.get('kind') in KINDS:
-                        projected_hints.append(project(public_metadata(hint),
-                            gateway_agent_url(target['id'], target['kind']), bindings(target)))
-                prefetched = projected_hints
-                if prefetched:
-                    chain = [{"resource_id": rid_val, "name": tool_val}] + prefetched
-                    code_template = front.inertia.generate_code_mode_template(chain, base_url=f"{front.base(request)}/mcp")
-
-            pay_note = ""
-            if exec_res.get("payment"):
-                pay_st = exec_res["payment"]
-                if pay_st.get("status") == "settled":
-                    pay_note = f"\n[Clearinghouse] Paid {pay_st.get('amount')} micro-USDC (SLA verified, tx: {pay_st.get('tx_id')})"
-                elif pay_st.get("status") == "refunded":
-                    pay_note = f"\n[Clearinghouse] Payment refunded: {pay_st.get('amount')} micro-USDC (reason: {pay_st.get('reason')})"
-
-            if ok_val:
-                out_sample = exec_res.get("sample_output") or json.dumps(exec_res.get("result", {}), ensure_ascii=False)
-                next_info = ""
-                if prefetched:
-                    names_p = [f"{p['tool']['name']} (p={p['probability']})" for p in prefetched]
-                    next_info = f"\n\n[Next-tool suggestions] Next recommended tools: {', '.join(names_p)}"
-                reply_text = f"Tool '{tool_val}' on resource {rid_val} executed successfully ({exec_res.get('latency_ms', 0)}ms):\n{out_sample[:500]}{pay_note}{next_info}"
-            else:
-                err_msg = exec_res.get("error") or "execution failed"
-                if exec_res.get('retry_safe') is False:
-                    reply_text = f"The outcome of '{tool_val}' on resource {rid_val} is unconfirmed. Keep this request paused for review."
-                elif exec_res.get("payment_required"):
-                    reply_text = f"Payment Required for resource {rid_val}: {err_msg}"
-                elif alternative:
-                    reply_text = (f"Execution of '{tool_val}' on resource {rid_val} failed: {err_msg}{pay_note}\n"
-                                  f"Self-reflection alternative found: {alternative['name']} ({alternative['url']}).")
-                else:
-                    reply_text = f"Execution of '{tool_val}' on resource {rid_val} failed: {err_msg}{pay_note}"
-
-            structured = {
-                "intent": "call",
-                "ok": ok_val,
-                "resource_id": rid_val,
-                "tool": tool_val,
-                "execution": exec_res,
-                "alternative": alternative,
-                "alternatives": recovery.get('alternatives', []),
-                "workflows": recovery.get('workflows', []),
-                "prefetched_tools": prefetched,
-                "code_mode_template": code_template,
-                "visitor": front.visitor_info(v) if v else None,
-            }
+            ok_val, exec_res, reply_text, structured = await run_admitted_call(
+                request, v, rid_val, tool_val, call_args, task_str=task_str, account_id=account_id,
+                payment_info=payment_info, idempotency_key=args.get('idempotency_key'), edge_mode=edge_mode,
+                service=getattr(front, 'edge_gateway', None))  # what /mcp binds to `service` in edge mode
             answer = mcp_result(rid, {"content": [{"type": "text", "text": reply_text}], "structuredContent": structured, "isError": not bool(ok_val)})
             if edge_mode and edge_mode['mode']=='result' and ok_val:
                 return JSONResponse(answer, headers={'X-Edge-Result-Run':edge_mode['run_id']})
