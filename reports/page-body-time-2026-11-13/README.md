@@ -151,3 +151,29 @@
   - (나) 화면마다 자기 화면과 홈(overview) 몫만 남기고, 나머지 page:* meta를 `/llms-full.txt`와 JSON 문서(`<link rel="alternate" type="application/json">`)로 옮긴다. 2.0~2.5KB가 준다. 외부 영향을 모르므로 PM·사용자 결정이 필요하다.
   - (다) (나)에 더해 첫 화면 CSS를 HTML에서 빼고 지연 로딩 예외를 쓴다. 14KB 안에 들어가지만, CSS 요청 왕복이 하나 는다. 사용자 결정이 필요하다(화면 정책 예외).
 - 성장·유통 의견: (나)만 먼저 하는 것을 권한다. (다)는 같은 경로에서 CSS 별도 요청의 전후를 재 본 뒤에 판단한다.
+
+## page:* meta (나) 배포 결과 (meta-frontend-20261113-r1 = 660f21bb, 11-13 23:51, PM 22:5x 결정)
+
+- 배포 버전: 운영 중이던 운영·SRE 버전(sre-reads 9b0885f4) 위에 512dddaf만 얹었다. 정책 해시 파일 변경은 없고, 정책 해시 40851c1a…가 frontend·jobs와 같음을 확인했다.
+- 게이트 441개 통과, Chat 92/110(새 실패 0), 화면 10개 문제 0, Chat 3.29·2.83초.
+- 화면마다 자기 화면과 홈 몫 page:* meta만 남긴다(67개 → 홈·상태 18개, 나머지 25개). 각 화면에 `<link rel="alternate" type="application/json" href="/page-metadata.json">` 한 줄을 둔다.
+- 전체 67개는 `/page-metadata.json`(public, max-age=3600, swr=3600, HEAD 응답)과 `/llms-full.txt` "8. Page Metadata"에 있다.
+- 공개 주소 압축 뒤 크기(11-13 23:1x → 11-14 00:1x, 같은 날 데이터 차이 포함)
+
+| 화면 | 전 | 후 | 차이 |
+|---|---|---|---|
+| / | 35,191 | 33,286 | -1,905 |
+| agent-status | 29,628 | 27,699 | -1,929 |
+| explore | 32,458 | 30,913 | -1,545 |
+| learn | 31,052 | 29,494 | -1,558 |
+| test | 37,651 | 36,016 | -1,635 |
+| workflows | 40,469 | 38,907 | -1,562 |
+| chat | 31,520 | 29,804 | -1,716 |
+| list-agent | 32,536 | 30,823 | -1,713 |
+| about | 27,938 | 26,193 | -1,745 |
+
+- 발견 확인(공개 주소)
+  - 에이전트 시나리오 llm_fetcher·readiness·registry·coding_agent: 전 PASS 19·WARN 1·FAIL 0, 후 같음.
+  - 발견 감사 documents: 전 PASS 28·FAIL 0, 후 같음.
+  - crawler 시나리오는 sitemap 페이지 883개를 차례로 받아 운영 맥 IP가 분당 읽기 한도에 걸릴 수 있어 돌리지 않았다.
+- 14KB 안에는 여전히 들어가지 않는다(첫 화면 CSS 15.7~17.1KB). (다) 첫 화면 CSS 지연 로딩은 PM 결정으로 하지 않는다.
