@@ -62,6 +62,11 @@ ARXIV = {"name": "arXiv API (Cornell University)", "url": "https://arxiv.org/",
          "license": "arXiv metadata CC0 1.0 (https://info.arxiv.org/help/api/tou.html); paper texts keep their own licenses",
          "notice": "Thank you to arXiv for use of its open access interoperability. At most one request every 3 seconds."}
 
+WORLDBANK = {"name": "World Bank Open Data (World Development Indicators)", "url": "https://data.worldbank.org/",
+             "license": "CC BY 4.0 (https://datacatalog.worldbank.org/public-licenses#cc-by)",
+             "notice": "Source: World Bank, World Development Indicators. The latest value is the latest published "
+                       "observation, not a current-year measurement."}
+
 SPECS = {
     "nvd-cve": {
         "name": "AgentValCon NVD CVE Record", "tool": "get_cve_record", "contract": "cve.record.v1",
@@ -142,6 +147,16 @@ SPECS = {
                        "ranked by how many query words the title holds; read-only.",
         "sources": [ARXIV],
         "rate": "1 request every 3 seconds (arXiv API terms), cached 24 hours",
+    },
+    "worldbank-indicator": {
+        "name": "AgentValCon World Bank Country Indicator", "tool": "get_country_indicator",
+        "contract": "country.indicator.v1",
+        "description": "Get one World Bank indicator value for a country (ISO2 or ISO3) and an optional year: "
+                       "common names such as population, gdp, gdp per capita, gdp growth, inflation, "
+                       "unemployment, life expectancy, area or capital, or a World Bank indicator code; "
+                       "states the year and unit; read-only.",
+        "sources": [WORLDBANK],
+        "rate": "5 requests per second, cached 6 hours",
     },
 }
 

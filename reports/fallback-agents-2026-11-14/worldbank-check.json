@@ -1,0 +1,249 @@
+{
+ "note": "self check, not a gold set",
+ "role_tasks": {
+  "worldbank-indicator": {
+   "passed": 3,
+   "cases": 3,
+   "rows": [
+    {
+     "case_id": "country-kor-population-2023",
+     "pass": true,
+     "why": []
+    },
+    {
+     "case_id": "country-deu-gdp-2022",
+     "pass": true,
+     "why": []
+    },
+    {
+     "case_id": "country-jpn-capital",
+     "pass": true,
+     "why": []
+    }
+   ]
+  }
+ },
+ "latest_values_30": [
+  {
+   "country": "KOR",
+   "indicator": "population",
+   "year": 2025,
+   "value": 51684564,
+   "ms": 210
+  },
+  {
+   "country": "KOR",
+   "indicator": "gdp",
+   "year": 2025,
+   "value": 1872374961553.15,
+   "ms": 188
+  },
+  {
+   "country": "KOR",
+   "indicator": "unemployment",
+   "year": 2025,
+   "value": 2.683,
+   "ms": 217
+  },
+  {
+   "country": "USA",
+   "indicator": "population",
+   "year": 2025,
+   "value": 341784857,
+   "ms": 209
+  },
+  {
+   "country": "USA",
+   "indicator": "gdp",
+   "year": 2025,
+   "value": 30769700000000,
+   "ms": 202
+  },
+  {
+   "country": "USA",
+   "indicator": "unemployment",
+   "year": 2025,
+   "value": 4.198,
+   "ms": 1465
+  },
+  {
+   "country": "DEU",
+   "indicator": "population",
+   "year": 2025,
+   "value": 83491249,
+   "ms": 191
+  },
+  {
+   "country": "DEU",
+   "indicator": "gdp",
+   "year": 2025,
+   "value": 5050922925047.05,
+   "ms": 206
+  },
+  {
+   "country": "DEU",
+   "indicator": "unemployment",
+   "year": 2025,
+   "value": 3.711,
+   "ms": 213
+  },
+  {
+   "country": "JPN",
+   "indicator": "population",
+   "year": 2025,
+   "value": 123366734,
+   "ms": 184
+  },
+  {
+   "country": "JPN",
+   "indicator": "gdp",
+   "year": 2025,
+   "value": 4435162999976.94,
+   "ms": 209
+  },
+  {
+   "country": "JPN",
+   "indicator": "unemployment",
+   "year": 2025,
+   "value": 2.451,
+   "ms": 195
+  },
+  {
+   "country": "BRA",
+   "indicator": "population",
+   "year": 2025,
+   "value": 212812405,
+   "ms": 203
+  },
+  {
+   "country": "BRA",
+   "indicator": "gdp",
+   "year": 2025,
+   "value": 2279920092492.13,
+   "ms": 215
+  },
+  {
+   "country": "BRA",
+   "indicator": "unemployment",
+   "year": 2025,
+   "value": 5.97,
+   "ms": 204
+  },
+  {
+   "country": "IND",
+   "indicator": "population",
+   "year": 2025,
+   "value": 1463865525,
+   "ms": 195
+  },
+  {
+   "country": "IND",
+   "indicator": "gdp",
+   "year": 2025,
+   "value": 3956067115771.63,
+   "ms": 198
+  },
+  {
+   "country": "IND",
+   "indicator": "unemployment",
+   "year": 2025,
+   "value": 4.219,
+   "ms": 204
+  },
+  {
+   "country": "NGA",
+   "indicator": "population",
+   "year": 2025,
+   "value": 237527782,
+   "ms": 211
+  },
+  {
+   "country": "NGA",
+   "indicator": "gdp",
+   "year": 2025,
+   "value": 290794361542.112,
+   "ms": 202
+  },
+  {
+   "country": "NGA",
+   "indicator": "unemployment",
+   "year": 2025,
+   "value": 3.064,
+   "ms": 193
+  },
+  {
+   "country": "FRA",
+   "indicator": "population",
+   "year": 2025,
+   "value": 68720337,
+   "ms": 205
+  },
+  {
+   "country": "FRA",
+   "indicator": "gdp",
+   "year": 2025,
+   "value": 3366315927447.33,
+   "ms": 210
+  },
+  {
+   "country": "FRA",
+   "indicator": "unemployment",
+   "year": 2025,
+   "value": 7.542,
+   "ms": 200
+  },
+  {
+   "country": "GB",
+   "indicator": "population",
+   "year": 2025,
+   "value": 69487000,
+   "ms": 206
+  },
+  {
+   "country": "GB",
+   "indicator": "gdp",
+   "year": 2025,
+   "value": 4002587541846.01,
+   "ms": 198
+  },
+  {
+   "country": "GB",
+   "indicator": "unemployment",
+   "year": 2025,
+   "value": 4.746,
+   "ms": 210
+  },
+  {
+   "country": "ZA",
+   "indicator": "population",
+   "year": 2025,
+   "value": 64747319,
+   "ms": 205
+  },
+  {
+   "country": "ZA",
+   "indicator": "gdp",
+   "year": 2025,
+   "value": 427184325997.307,
+   "ms": 196
+  },
+  {
+   "country": "ZA",
+   "indicator": "unemployment",
+   "year": 2025,
+   "value": 32.391,
+   "ms": 198
+  }
+ ],
+ "summary": {
+  "answered": 30,
+  "cases": 30,
+  "p50_p95_ms": [
+   204,
+   215
+  ],
+  "years": [
+   2025
+  ]
+ }
+}

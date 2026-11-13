@@ -70,7 +70,7 @@ def agents(tmp_path, routes, calls=None, clock=None, snapshot=None):
 
 # ------------------------------------------------------------------ catalog and contracts
 def test_tools_are_read_only_and_use_the_slot_contracts():
-    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search"}
+    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator"}
     for agent_id, spec in SPECS.items():
         tool = tool_spec(agent_id)
         c = contract(spec["contract"])
@@ -837,3 +837,65 @@ def test_arxiv_feed_with_a_dtd_is_refused(tmp_path):
 
 def test_arxiv_requests_are_three_seconds_apart():
     assert limiters()["export.arxiv.org"].spacing >= 3.0
+
+
+# ------------------------------------------------------------------ country.indicator agent
+def wb_routes():
+    return {
+        "https://api.worldbank.org/v2/country/KOR/indicator/SP.POP.TOTL": httpx.Response(200, json=[
+            {"page": 1, "lastupdated": "2026-11-11"},
+            [{"indicator": {"id": "SP.POP.TOTL", "value": "Population, total"}, "country": {"id": "KR", "value": "Korea, Rep."},
+              "countryiso3code": "KOR", "date": "2023", "value": 51712619}]]),
+        "https://api.worldbank.org/v2/country/JPN": httpx.Response(200, json=[{"page": 1}, [
+            {"id": "JPN", "name": "Japan", "capitalCity": "Tokyo"}]]),
+        "https://api.worldbank.org/v2/country/XXX/indicator/": httpx.Response(200, json=[
+            {"message": [{"id": "120", "value": "Invalid value"}]}]),
+    }
+
+
+def test_worldbank_agent_maps_names_and_states_year_and_unit(tmp_path):
+    calls = []
+    a, _ = agents(tmp_path, wb_routes(), calls)
+    env = a.execute("worldbank-indicator", {"country": "kor", "indicator": "Population", "year": 2023})
+    assert env["result"] == {"country": "Korea, Rep. (KOR)", "indicator": "Population, total (SP.POP.TOTL)", "year": 2023,
+                             "value": 51712619, "source": "World Bank WDI (CC BY 4.0)", "unit": "people"}
+    assert "date=" not in calls[0] and "mrnev" not in calls[0] and env["freshness"]["data_as_of"] == {"World Bank": "2026-11-11"}
+    assert env["sources"][0]["license"].startswith("CC BY 4.0")
+    cap = a.execute("worldbank-indicator", {"country": "JPN", "indicator": "capital"})["result"]
+    assert cap["value"] == "Tokyo" and "year" not in cap
+
+
+def test_worldbank_agent_unknown_inputs(tmp_path):
+    calls = []
+    a, _ = agents(tmp_path, wb_routes(), calls)
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("worldbank-indicator", {"country": "KOR", "indicator": "happiness"})
+    assert err.value.code == "invalid_input" and calls == []
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("worldbank-indicator", {"country": "XXX", "indicator": "gdp"})
+    assert err.value.code == "not_found"
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("worldbank-indicator", {"country": "KOR", "indicator": "gdp", "year": 1900})
+    assert err.value.code == "invalid_input"
+
+
+def test_worldbank_agent_asks_once_more_in_the_other_form_after_a_stall(tmp_path):
+    calls = []
+
+    def answer(request):
+        if "mrnev" not in str(request.url):
+            raise httpx.ReadTimeout("stalled", request=request)
+        return httpx.Response(200, json=[{"lastupdated": "2026-11-11"}, [
+            {"indicator": {"id": "SP.POP.TOTL", "value": "Population, total"}, "country": {"value": "South Africa"},
+             "countryiso3code": "ZAF", "date": "2025", "value": 64000000}]])
+    a, _ = agents(tmp_path, {"https://api.worldbank.org/": answer}, calls)
+    out = a.execute("worldbank-indicator", {"country": "ZAF", "indicator": "population"})["result"]
+    assert out["year"] == 2025 and len(calls) == 2 and "mrnev=1" in calls[1]
+
+
+def test_worldbank_agent_does_not_ask_again_after_a_refusal(tmp_path):
+    calls = []
+    a, _ = agents(tmp_path, {"https://api.worldbank.org/": httpx.Response(429, headers={"retry-after": "60"})}, calls)
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("worldbank-indicator", {"country": "ZAF", "indicator": "population"})
+    assert err.value.code == "rate_limited" and len(calls) == 1

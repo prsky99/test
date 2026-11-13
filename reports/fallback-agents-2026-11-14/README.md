@@ -15,6 +15,7 @@
 | `sec-edgar` (`find_sec_company`) | 같은 자리 두 번째, `company.registry.v1` | SEC EDGAR(ticker 목록 + submissions) | 고정 과제 2/2, 계약 입력 2/2, 자체 점검 29/30(둘 중 하나로는 30/30) | 40 ms / 136 ms | 정답 세트 요청 |
 | `wikipedia-summary` (`get_wikipedia_summary`) | topic-evidence-brief 백과 자리, `encyclopedia.summary.v1` | 영어 Wikipedia action API | 고정 과제 2/2, 계약 입력 3/3, 자체 점검 30개 제목 30/30 | 474 ms / 503 ms | 정답 세트 요청 |
 | `arxiv-search` (`search_arxiv_papers`) | paper-cross-search·topic-evidence-brief 논문 자리, `papers.search.v1` | arXiv API | 고정 과제 3/3, 자체 점검 유명 논문 30편 제목 질의 1위 25/30 | 3초 간격 대기 포함 p50 3.0초 | 한계 있음(2-6) |
+| `worldbank-indicator` (`get_country_indicator`) | country-economy-snapshot 지표 자리, `country.indicator.v1` | World Bank WDI | 고정 과제 3/3, 자체 점검 10개국×3지표 30/30 | 204 ms / 215 ms | 정답 세트 요청 |
 | `github-advisory` (`list_package_advisories`) | package-risk-audit 취약점 자리, `package.advisories.v1` | GitHub Advisory Database(reviewed) | 1차 27/30 → 고친 뒤 재측정은 5절 | 987 ms / 1,301 ms | 재측정 뒤 결정 |
 
 - 계약 시험 입력(`test_inputs`) 3건씩: nvd-cve·cve-org·cisa-kev 9/9 통과(`contract-test-inputs.json`). 고정 과제(role-tasks-v1): nvd-cve 3/3, cisa-kev 3/3, cve-org 3/3, package-registry 2/2, depsdev-package 2/2.
@@ -89,6 +90,11 @@
 - arXiv 한계: API 검색 순서가 제목 일치를 우선하지 않아, 50건을 받아 "제목에 든 질의 단어 수 → 군더더기 단어가 적은 순"으로 다시 줄 세웁니다. 그래도 "Attention Is All You Need"·"Generative Adversarial Networks"처럼 같은 말이 든 제목이 수백 개인 경우는 50건 안에 원 논문이 없습니다(제목 한정 질의면 36위). 3초 규칙 때문에 한 번에 두 번 물을 수 없어 고치지 않았습니다. 이 자리에는 외부 멤버 4개와 자체 Crossref(133019)가 있으니 arXiv는 뒤 순위가 맞습니다.
 - 자체 점검(`reference-check.json`, 정답 세트 아님): 시험 30회를 이어 보내 3초 간격 대기가 지연에 들어갔고, 마지막 3회는 arXiv가 상한 응답을 줘 쉬는 동안 `rate_limited`로 실패했습니다(쉬기 규칙대로 동작).
 
+### 2-7. 국가 지표 자리(World Bank; IMF는 만들지 않음)
+- 지표 이름(population, gdp, gdp per capita, gdp growth, inflation, unemployment, life expectancy, population growth, area, internet users, capital)이나 World Bank 코드를 받습니다. 계약 규칙대로 population = SP.POP.TOTL, gdp = NY.GDP.MKTP.CD. 응답에 연도·단위·원천 갱신일(`lastupdated`)을 적습니다. 연도를 안 주면 가장 최근 발표값이고, 올해 측정값이 아니라고 고지에 적었습니다.
+- World Bank API는 보통 0.03~0.3초인데 가끔 한 URL이 15초 넘게 멈춥니다(11-14 실측). 그래서 첫 요청을 1.4초에서 끊고, 시간 초과일 때만 캐시 키가 다른 형식(`mrnev`·`date`)으로 한 번 더 묻습니다. 429 같은 거절 뒤에는 다시 묻지 않습니다. 고치기 전 자체 점검 27/30 → 고친 뒤 30/30.
+- **IMF는 만들지 않았습니다(PM 결정 필요).** IMF 저작권·이용 조건(https://www.imf.org/en/About/copyright-and-terms)은 데이터를 출처 표기로 쓰게 하지만, "상업적 재사용은 copyright@imf.org에 허락 요청", "콘텐츠의 체계적인 내려받기는 서면 허락 필요", "LLM 학습 사용 금지"를 적고 있습니다. 하루 1회 전체 지표 스냅샷은 체계적 내려받기에 해당할 수 있어, 허락 없이 만들지 않았습니다. 허락 요청은 외부 연락이라 사용자 승인 대상입니다.
+
 ## 3. 관문 신청 묶음 (deploy/NECKLACE_GATE.md 10절 대비)
 
 | 조건 | 상태 | 근거 |
@@ -113,7 +119,7 @@
 |---|---|---|---|
 | package.health (package-risk-audit 공급망 자리, 외부 0) | ① npm 레지스트리·PyPI JSON ② deps.dev(OpenSSF Scorecard 포함) | npm 0.03초, PyPI 0.02초, deps.dev 0.18~0.32초 | **만듦(PM 승인, 05:0x)**: package-registry·depsdev-package 30/30 |
 | package.metadata (성공 멤버 0) | 위 ①(기존 자체 133021은 npm만) | 위와 같음 | **해결**: package-registry가 npm·PyPI 둘 다(계약은 package.health.v1) |
-| country.indicator (외부 1) | World Bank(기존 자체 133020·133022), IMF DataMapper | World Bank 0.04초, IMF 6.65초에 전 국가 응답(국가 필터가 무시됨) | 만들 수 있음. IMF는 지표별 하루 1회 스냅샷 방식이어야 함 |
+| country.indicator (외부 1) | World Bank(기존 자체 133020·133022), IMF DataMapper | World Bank 0.04초, IMF 0.96~6.65초에 전 국가 응답 | **World Bank로 만듦(worldbank-indicator)**. IMF는 이용 조건상 상업적 재사용·체계적 내려받기에 허락이 필요해 보류(2-7) |
 | news.search (외부 1) | GDELT DOC 2.0(키 없음, 5초에 1회), 기존 자체 133018(HN, 기술 뉴스만) | GDELT 첫 호출이 13.7초 뒤 429("5초에 1회") | **실시간 대체로는 불안정**. 캐시·범위 표시를 붙여도 성공률이 낮을 것. 보류 권장 |
 | weather.forecast (대체 1개) | MET Norway Locationforecast(api.met.no: 키 없음, 전 세계, CC BY 4.0·NLOD, 식별 가능한 User-Agent 필수, 초당 20회 상한, If-Modified-Since 캐시 요구). Open-Meteo 무료판은 비상업 전용이라 제외. 미국 NWS(api.weather.gov)는 미국만·공공 저작물 | 아직 호출 안 함, 이용 조건은 기억 기준이라 문서로 다시 확인 필요 | 만들 수 있을 것으로 봄(MET Norway 1순위, NWS는 coverage US) |
 | events.search (범용 멤버 없음) | 키 없는 범용 행사 API 없음(Ticketmaster·Eventbrite·PredictHQ는 키 필요). Nager.Date 공휴일, Wikidata 축제 | Nager.Date 0.46초 200 | **범용 불가**. "국가 공휴일·정기 축제 한정 + coverage 표시"로만 가능 |

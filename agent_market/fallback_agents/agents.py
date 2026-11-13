@@ -36,11 +36,13 @@ CODES = ("invalid_input", "not_found", "rate_limited", "source_unavailable", "in
 # old our copy is. A copy older than MAX_AGE is an error ("stale") so the slot moves to the next member.
 MAX_AGE = {"nvd-cve": 6 * 3600, "cve-org": 24 * 3600, "cisa-kev": 24 * 3600, "github-advisory": 6 * 3600,
            "package-registry": 6 * 3600, "depsdev-package": 24 * 3600, "gleif-lei": 24 * 3600,
-           "sec-edgar": 24 * 3600, "wikipedia-summary": 24 * 3600, "arxiv-search": 48 * 3600}
+           "sec-edgar": 24 * 3600, "wikipedia-summary": 24 * 3600, "arxiv-search": 48 * 3600,
+           "worldbank-indicator": 24 * 3600}
 TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "github-advisory": (3600, 6 * 3600),
        "epss": (6 * 3600, 48 * 3600), "package-registry": (3600, 6 * 3600), "depsdev-package": (6 * 3600, 24 * 3600),
        "gleif-lei": (6 * 3600, 24 * 3600), "sec-edgar": (6 * 3600, 24 * 3600), "sec-tickers": (6 * 3600, 24 * 3600),
-       "wikipedia-summary": (6 * 3600, 24 * 3600), "arxiv-search": (24 * 3600, 48 * 3600)}  # (serve from cache without asking, longest a cached copy may serve)
+       "wikipedia-summary": (6 * 3600, 24 * 3600), "arxiv-search": (24 * 3600, 48 * 3600),
+       "worldbank-indicator": (6 * 3600, 24 * 3600)}  # (serve from cache without asking, longest a cached copy may serve)
 KEV_TTL, KEV_MAX_STALE = 3600, 24 * 3600
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 PACKAGE = re.compile(r"(?:@[a-z0-9][a-z0-9._~-]*/)?[A-Za-z0-9][A-Za-z0-9._~-]*")
@@ -548,6 +550,66 @@ class FallbackAgents:
                 items.append(item)
         return {"items": items[:limit], "source": "arXiv"}, cache, False, {"arXiv": as_of}
 
+    def _worldbank_indicator(self, args, remaining):
+        country = args["country"].upper()
+        if not re.fullmatch(r"[A-Z]{2,3}", country):
+            raise FallbackUnavailable("invalid_input", "Use an ISO 3166 alpha-2 or alpha-3 country code.")
+        wanted = " ".join(args["indicator"].lower().replace("_", " ").split())
+        code, label, unit = WB_ALIASES.get(wanted, (None, None, None))
+        if code is None and re.fullmatch(r"[A-Za-z]{2,3}(\.[A-Za-z0-9]{1,8}){1,5}", args["indicator"].strip()):
+            code = args["indicator"].strip().upper()
+            unit = next((u for c, _, u in WB_ALIASES.values() if c == code), None)
+        if code is None:
+            raise FallbackUnavailable("invalid_input", "Unknown indicator. Use a common name such as population or "
+                                                       "gdp, or a World Bank indicator code.")
+        year = args.get("year")
+        if year is not None and not 1960 <= year <= self.utc_now().year:
+            raise FallbackUnavailable("invalid_input", "Use a year from 1960 to the current year.")
+
+        def live(rem):
+            if code == "CAPITAL":
+                raw = self._get_json(f"https://api.worldbank.org/v2/country/{country}", rem, params={"format": "json"},
+                                     limit=65536)
+                row = (raw[1] or [None])[0] if isinstance(raw, list) and len(raw) > 1 and raw[1] else None
+                if not row or not _text(row.get("capitalCity"), 200):
+                    raise FallbackUnavailable("not_found", "No capital city is listed for this country code.")
+                out = {"country": f"{_text(row.get('name'), 120)} ({row.get('id')})", "indicator": "Capital city",
+                       "value": _text(row["capitalCity"], 200), "source": "World Bank (CC BY 4.0)"}
+                return out, None
+            # The API usually answers in 0.03-0.3 s but now and then one cached URL stalls for 15 s or more
+            # while another form of the same question answers at once (11-14 measurements). So: ask the plain
+            # path with a 1.4 s cap, and only on a timeout ask once more in the other form. Read-only GETs,
+            # at most two per call, never after a 429.
+            url = f"https://api.worldbank.org/v2/country/{country}/indicator/{quote(code, safe='.')}"
+            recent = year is None or year > self.utc_now().year - 49
+            first = {"format": "json", **({} if recent else {"date": str(year)})}
+            second = {"format": "json", **({"date": str(year)} if year else {"mrnev": 1})}
+            try:
+                raw = self._get_json(url, lambda: min(1.5, rem()), params=first, limit=262144)
+            except SourceError as exc:
+                if exc.status is not None or rem() < 1.0 or second == first:
+                    raise
+                raw = self._get_json(url, rem, params=second, limit=262144)
+            if not isinstance(raw, list) or len(raw) < 2 or not isinstance(raw[1], list):
+                # The API answers an unknown country or indicator with a message object, not data.
+                raise FallbackUnavailable("not_found", "The World Bank has no data for this country and indicator.")
+            rows = [r for r in raw[1] if isinstance(r, dict) and isinstance(r.get("value"), (int, float))
+                    and (r.get("indicator") or {}).get("id") == code and str(r.get("date", "")).isdigit()
+                    and (year is None or int(r["date"]) == year)]
+            rows.sort(key=lambda r: -int(r["date"]))
+            if not rows:
+                raise FallbackUnavailable("not_found", "No published value for this country, indicator and year.")
+            r = rows[0]
+            out = {"country": f"{_text((r.get('country') or {}).get('value'), 120)} ({_text(r.get('countryiso3code'), 3)})",
+                   "indicator": f"{_text((r.get('indicator') or {}).get('value'), 160)} ({code})",
+                   "year": int(r["date"]), "value": r["value"], "source": "World Bank WDI (CC BY 4.0)"}
+            if unit:
+                out["unit"] = unit
+            return out, _text(raw[0].get("lastupdated"), 40) or None
+        (out, as_of), cache = self._cached(("worldbank-indicator", country, code, year), TTL["worldbank-indicator"],
+                                           live, remaining)
+        return out, cache, False, {"World Bank": as_of or _now_iso(self.utc_now())}
+
     # ---------------------------------------------------------------- usage
     def _usage(self, agent_id, envelope, code, started):
         line = {"at": _now_iso(self.utc_now()), "agent": agent_id if agent_id in SPECS else "unknown",
@@ -692,6 +754,22 @@ def core_name(name: str) -> str:
         words.pop()
     return " ".join(w for w in words if w)
 
+
+WB_ALIASES = {  # common name -> (World Bank code, label, unit); the contract fixes population and gdp
+    "population": ("SP.POP.TOTL", "Population, total", "people"),
+    "gdp": ("NY.GDP.MKTP.CD", "GDP", "current US dollars"),
+    "gdp per capita": ("NY.GDP.PCAP.CD", "GDP per capita", "current US dollars"),
+    "gdp growth": ("NY.GDP.MKTP.KD.ZG", "GDP growth", "annual %"),
+    "inflation": ("FP.CPI.TOTL.ZG", "Inflation, consumer prices", "annual %"),
+    "unemployment": ("SL.UEM.TOTL.ZS", "Unemployment", "% of labor force (modeled ILO estimate)"),
+    "life expectancy": ("SP.DYN.LE00.IN", "Life expectancy at birth", "years"),
+    "population growth": ("SP.POP.GROW", "Population growth", "annual %"),
+    "area": ("AG.SRF.TOTL.K2", "Surface area", "square kilometers"),
+    "internet users": ("IT.NET.USER.ZS", "Individuals using the Internet", "% of population"),
+    "capital": ("CAPITAL", "Capital city", None), "capital city": ("CAPITAL", "Capital city", None),
+}
+WB_ALIASES.update({"gross domestic product": WB_ALIASES["gdp"], "total population": WB_ALIASES["population"],
+                   "unemployment rate": WB_ALIASES["unemployment"], "inflation rate": WB_ALIASES["inflation"]})
 
 STOPWORDS = frozenset("a an and are as at be by for from in is it of on or the to with all you we our this that "
                       "using via towards".split())
