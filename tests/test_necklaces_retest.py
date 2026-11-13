@@ -95,3 +95,52 @@ def test_gateway_caller_uses_the_public_relay_with_the_qa_header():
     assert out == {"items": ["CVE-1"]}
     assert sent == [("https://example.test/api/gateway/mcp/5", "initialize", "necklace_retest"),
                     ("https://example.test/api/gateway/mcp/5", "tools/call", "necklace_retest")]
+
+
+def test_relay_throttle_is_not_a_provider_pause():
+    class Resp:
+        def __init__(self, status, data):
+            self.status_code, self.data = status, data
+
+        def json(self):
+            return self.data
+    noted = []
+
+    class Budget:
+        def reserve(self, url, system, n=1):
+            return True, "ok"
+
+        def note(self, url, system, status):
+            noted.append(url)
+
+    def client_with(resp):
+        class Client:
+            def post(self, url, json, headers):
+                return Resp(200, {"result": {}}) if json["method"] == "initialize" else resp
+        return Client()
+    member = {"kind": "external", "resource_id": 1, "tool": "t", "registrable_domain": "p.example"}
+    relay_429 = runner.budgeted_caller(retest.gateway_caller(client_with(Resp(429, {}))), "necklace_retest",
+                                       retest.provider_url, Budget())
+    try:
+        relay_429(member, {}, 3)
+    except Exception as exc:
+        assert exc.error_code == "relay_throttled"
+    assert noted == []
+    paused = Resp(200, {"error": {"message": "The provider asked for a pause", "data": {"retry_after": 30}}})
+    provider_429 = runner.budgeted_caller(retest.gateway_caller(client_with(paused)), "necklace_retest",
+                                          retest.provider_url, Budget())
+    try:
+        provider_429(member, {}, 3)
+    except Exception as exc:
+        assert exc.error_code == "PROVIDER_429"
+    assert noted == ["https://p.example/"]
+
+
+def test_relay_pacer_waits_between_cases_and_never_oversends():
+    now = [0.0]
+    slept = []
+    pacer = retest.RelayPacer(per_minute=4, clock=lambda: now[0], sleep=lambda s: (slept.append(s), now.__setitem__(0, now[0] + s)))
+    assert all(pacer.take() for _ in range(4)) and not pacer.take()
+    pacer.wait_for(2)
+    assert slept and now[0] >= 60
+    assert retest.requests_per_case(next(d for d in model.load_valid() if d["slug"] == "cve-incident-brief")) == 6

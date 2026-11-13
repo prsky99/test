@@ -183,7 +183,23 @@ def build_entry(defn: dict, approval: dict | None, summary: dict, now: float,
 EVENT_DAYS = 60
 
 
-def record_events(entries: list[dict], judge_state: dict, now: float) -> list[dict]:
+def _sign_event(event: dict, signing_dir: Path | None) -> dict | None:
+    """DSSE-sign a held, retired, replaced or restored event (deploy/EVIDENCE_SIGNING.md); pending without a key."""
+    if signing_dir is None:
+        return None
+    from . import evidence
+    body = evidence.necklace_event(event)
+    if body is None:
+        return None
+    name = f"{event['slug']}-{body['event']}-{event['at'].replace(':', '').replace('-', '')}"
+    try:
+        out = evidence.sign_and_store(body, name, signing_dir)
+    except FileExistsError:
+        return {"signed": True, "path": str(signing_dir / "envelopes" / "necklace_event" / f"{name}.json")}
+    return out if out.get("signed") else {"signed": False, "reason": out.get("reason")}
+
+
+def record_events(entries: list[dict], judge_state: dict, now: float, signing_dir: Path | None = None) -> list[dict]:
     """Status changes as public events (launched, held, resumed, retired) and held_at.
 
     ``judge_state`` keeps the last status per slug and the events of the last 60 days;
@@ -198,8 +214,10 @@ def record_events(entries: list[dict], judge_state: dict, now: float) -> list[di
             kind = {"live": "resumed" if before.get("ever_live") else "launched",
                     "held": "held", "retired": "retired"}.get(status)
             if kind and not (kind == "held" and not before.get("ever_live")):
-                events.append({"slug": slug, "kind": kind, "at": stamp, "reason": entry.get("held_reason"),
-                               "replaced_by": entry.get("replaced_by")})
+                event = {"slug": slug, "kind": kind, "at": stamp, "reason": entry.get("held_reason"),
+                         "replaced_by": entry.get("replaced_by")}
+                event["signature"] = _sign_event(event, signing_dir)
+                events.append(event)
             before = {"status": status, "since": stamp, "ever_live": before.get("ever_live") or status == "live"}
             last[slug] = before
         if status == "held":
@@ -223,7 +241,12 @@ def snapshot(definitions: list[dict], approvals: dict[str, dict], root: Path, no
         entry = build_entry(defn, approvals.get(defn["slug"]), load_summary(root, defn["slug"]), now, watch_state)
         if entry is not None:
             entries.append(entry)
-    events = record_events(entries, {} if judge_state is None else judge_state, now)
+    signing_dir = Path(root).parent / "signing"
+    from . import evidence
+    for entry in entries:
+        entry["evidence"] = {"gate": evidence.latest_envelope("gate_result", f"{entry['slug']}-v{entry['version']}",
+                                                              signing_dir)}
+    events = record_events(entries, {} if judge_state is None else judge_state, now, signing_dir)
     return {"schema": SCHEMA, "generated_at": _iso(now), "judge_commit": judge_commit, "necklaces": entries,
             "events": events}
 

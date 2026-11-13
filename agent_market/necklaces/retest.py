@@ -29,8 +29,49 @@ CONTRAST = {"package-risk-audit": "advisories", "cve-incident-brief": "record"}
 
 
 # ---------------------------------------------------------------- public relay caller
-def gateway_caller(client, base: str = BASE):
+RELAY_PER_MINUTE = 9      # the public gateway allows 10 agent requests a minute per address
+
+
+class RelayPacer:
+    """Our own relay's per-address limit. Waiting happens between cases (wait_for), never inside a case,
+    so the 5-second necklace deadline is not spent queueing; a call over the limit is not sent."""
+
+    def __init__(self, per_minute: int = RELAY_PER_MINUTE, clock=time.monotonic, sleep=time.sleep):
+        self.per_minute, self.clock, self.sleep, self.sent = per_minute, clock, sleep, []
+
+    def _trim(self):
+        now = self.clock()
+        self.sent = [t for t in self.sent if now - t < 60]
+        return now
+
+    def wait_for(self, n: int):
+        n = min(n, self.per_minute)
+        while True:
+            now = self._trim()
+            if len(self.sent) + n <= self.per_minute:
+                return
+            self.sleep(60 - (now - self.sent[0]) + 0.2)
+
+    def take(self) -> bool:
+        self._trim()
+        if len(self.sent) >= self.per_minute:
+            return False
+        self.sent.append(self.clock())
+        return True
+
+
+def _fail(code: str, message: str = ""):
+    error = Exception(message or code)
+    error.error_code = code
+    return error
+
+
+def gateway_caller(client, base: str = BASE, pacer: RelayPacer | None = None):
+    pacer = pacer or RelayPacer()
+
     def rpc(url, method, params):
+        if not pacer.take():
+            raise _fail("relay_throttled", "local relay pace reached")
         r = client.post(url, json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params},
                         headers={"Content-Type": "application/json", "Accept": "application/json",
                                  "MCP-Protocol-Version": "2025-06-18", "X-Agentcon-QA": QA})
@@ -39,11 +80,13 @@ def gateway_caller(client, base: str = BASE):
         except ValueError:
             data = {}
         if r.status_code == 429:
-            raise runner.BudgetDenied("RATE_LIMITED_429")
+            raise _fail("relay_throttled", "our relay rate limit")      # not the provider's pause
         if "result" not in data:
-            error = Exception((data.get("error") or {}).get("message") or f"HTTP {r.status_code}")
-            error.error_code = f"relay_{r.status_code}"
-            raise error
+            err = data.get("error") or {}
+            detail = err.get("data") if isinstance(err.get("data"), dict) else {}
+            if detail.get("retry_after") or "pause" in str(err.get("message", "")).lower():
+                raise _fail("PROVIDER_429", str(err.get("message")))   # the provider asked for a pause
+            raise _fail(f"relay_{r.status_code}", str(err.get("message") or f"HTTP {r.status_code}"))
         return data["result"]
 
     def call(member, args, timeout_s):
@@ -115,6 +158,11 @@ def grade(defn: dict, case: dict, output: dict) -> dict:
     return {"slots": per, "ok": all(per[s] for s in required)}
 
 
+def requests_per_case(defn: dict) -> int:
+    """Relay requests one case may need when the leads answer: initialize and tools/call per lead."""
+    return 2 * sum(min(slot.get("fanout", 1), len(model.live_members(slot, "external"))) for slot in defn["slots"])
+
+
 def single_definition(defn: dict, slot_name: str, member: dict) -> dict:
     """The necklace reduced to one slot answered by one member (no fallbacks): the single baseline."""
     single = copy.deepcopy(defn)
@@ -132,7 +180,7 @@ def load_cases(root: Path, slug: str, split: str) -> list[dict]:
 
 def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT, split: str = "tuning",
             singles: bool = False, budget_s: float = BUDGET_SECONDS, watch_state: dict | None = None,
-            clock=time.monotonic, now=time.time) -> dict:
+            clock=time.monotonic, now=time.time, pacer: RelayPacer | None = None) -> dict:
     started = clock()
     day = time.strftime("%Y%m%d", time.localtime(now()))
     lines, details = [], []
@@ -141,6 +189,8 @@ def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT,
     for case in cases:
         if clock() - started > budget_s:
             break
+        if pacer is not None:
+            pacer.wait_for(requests_per_case(defn))
         result = runner.Runner(caller, watch_state=watch_state).run(defn, case["input"])
         verdict = grade(defn, case, result["output"])
         at = _iso(now())
@@ -160,6 +210,8 @@ def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT,
             slot = next(s for s in defn["slots"] if s["slot"] == contrast)
             for member in model.live_members(slot, "external"):
                 one = single_definition(defn, contrast, member)
+                if pacer is not None:
+                    pacer.wait_for(2)
                 out = runner.Runner(caller).run(one, case["input"])
                 lines.append({"type": "single", "slug": defn["slug"], "resource_id": member["resource_id"],
                               "tool": member["tool"], "case_id": case["case_id"], "at": at,
@@ -199,10 +251,11 @@ def main(argv: list[str] | None = None) -> int:
                 if m["kind"] == "agentcon" and m.get("state") == "planned":
                     m["state"] = "active"
     import httpx
+    pacer = RelayPacer()
     with httpx.Client(timeout=12, headers={"User-Agent": "AgentValCon-NecklaceRetest/1.0"}) as client:
-        call = runner.budgeted_caller(gateway_caller(client, args.base), args.system, provider_url)
+        call = runner.budgeted_caller(gateway_caller(client, args.base, pacer), args.system, provider_url)
         result = run_set(defn, load_cases(args.root, args.slug, args.split)[:args.limit], call,
-                         root=args.root, split=args.split, singles=args.singles)
+                         root=args.root, split=args.split, singles=args.singles, pacer=pacer)
     print(json.dumps(result, ensure_ascii=False))
     return 0
 

@@ -182,7 +182,7 @@ class FakeBudget:
 
 def test_budget_wraps_external_calls_only_and_denial_moves_on():
     budget = FakeBudget(allow=lambda url: not url.endswith("/1"))
-    rate_limited = Fail("RATE_LIMITED_429")
+    rate_limited = Fail("PROVIDER_429")        # a pause the provider asked for (our relay's 429 never counts)
     answers = {1: "CVE-1", 2: "CVE-2020-28500", 3: rate_limited, 4: Fail(), 11: "not in the CISA KEV catalog"}
     call = runner.budgeted_caller(caller_from(answers), "necklace_retest",
                                   lambda m: f"https://p{m['resource_id']}.example/{m['resource_id']}", budget)
@@ -203,3 +203,11 @@ def test_stale_fallback_moves_to_the_next_member():
     out = runner.Runner(caller_from(answers)).run(defn, {"q": "x"})
     news = out["attempts"]["news"]
     assert [a["error_class"] for a in news][-2:] == ["stale", None] and out["slots"]["news"]["stage"] == 3
+
+
+def test_relay_throttle_does_not_pause_the_provider():
+    budget = FakeBudget()
+    call = runner.budgeted_caller(caller_from({1: Fail("relay_throttled"), 2: "CVE-1", 3: "kev"}), "necklace_retest",
+                                  lambda m: f"https://p{m['resource_id']}.example/", budget)
+    runner.Runner(call).run(necklace(), {"q": "x"})
+    assert budget.noted == []

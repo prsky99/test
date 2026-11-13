@@ -162,3 +162,27 @@ def test_run_once_keeps_judge_state(tmp_path):
     judge.run_once(tmp_path)
     assert json.loads((tmp_path / "judge_state.json").read_text()) == {"status": {}, "events": []}
     assert json.loads((tmp_path / "necklaces.json").read_text())["events"] == []
+
+
+def test_events_are_signed_when_a_key_exists(tmp_path):
+    from tests.test_necklaces_evidence import make_key
+    from agent_market import evidence_signing as signing
+    doc = make_key(tmp_path / "signing")
+    state = {}
+    judge.record_events([{"slug": "s", "status": "live"}], state, 1_800_000_000, tmp_path / "signing")
+    judge.record_events([{"slug": "s", "status": "held", "held_reason": "security"}], state, 1_800_000_060,
+                        tmp_path / "signing")
+    launched, held = state["events"]
+    assert launched["signature"] is None                    # launch is covered by the signed gate result
+    envelope = json.loads(open(held["signature"]["path"]).read())
+    assert signing.verify(envelope, doc)["event"] == "held"
+
+
+def test_snapshot_links_the_signed_gate_result(tmp_path):
+    root = tmp_path / "necklaces"
+    folder = tmp_path / "signing" / "envelopes" / "gate_result"
+    folder.mkdir(parents=True)
+    (folder / "topic-brief-v1-20261120.json").write_text("{}")
+    defn = live_defn()
+    payload = judge.snapshot([defn], {}, root, now=NOW)
+    assert payload["necklaces"][0]["evidence"]["gate"].endswith("topic-brief-v1-20261120.json")

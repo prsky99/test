@@ -301,7 +301,9 @@ class BudgetDenied(Exception):
         self.error_code = "budget_" + why
 
 
-RATE_LIMITED = ("429", "RATE_LIMIT", "TOO_MANY")
+# Only a pause the provider itself asked for counts against its domain. Our own relay's rate limit
+# (HTTP 429 from agentconcierge.biz, error "relay_throttled") never does (11-14 05:1x incident).
+RATE_LIMITED = ("PROVIDER_429",)
 
 
 def budgeted_caller(caller, system: str, url_of, budget=None):
