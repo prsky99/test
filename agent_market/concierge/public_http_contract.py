@@ -39,6 +39,15 @@ EDGE_DOCUMENT_CACHE = 'public, max-age=600, stale-while-revalidate=3600'  # robo
 # max-age, not s-maxage, for the same reason as above. Credentialed requests stay no-store (_credentials).
 SNAPSHOT_READS = frozenset(('/api/insights',))
 SNAPSHOT_CACHE = 'public, max-age=300, stale-while-revalidate=300'
+# 11-13 PM 22:3x: the public agent detail (/api/agents/{id}) and the verification feed answered in 80-190 ms at the
+# origin but 1.3-9.8 s from Korea, every time through the tunnel (no-store, DYNAMIC). Neither reads the request:
+# the detail is the same record as the /agent/{id} page (kept an hour at the edge, GROWTH_CACHE), and its health and
+# grade move with checks hours apart, so five minutes (plus five stale) is far inside that. The feed is an event list
+# readers poll with ETag; a minute (plus one stale) delays a new event by at most two minutes, and its signed
+# _next_cursor lives an hour. Credentialed requests stay no-store (_credentials), and 404s are never stored.
+AGENT_DETAIL_CACHE = 'public, max-age=300, stale-while-revalidate=300'
+FEED_READS = frozenset(('/api/feed/verified.json',))
+FEED_CACHE = 'public, max-age=60, stale-while-revalidate=60'
 # Public growth pages (11-10 PM approval): login-free, never personalized HTML/Markdown/JSON. Browsers
 # and the edge may keep them for five minutes and serve a stale copy while refreshing for ten.
 GROWTH_PAGES = frozenset(('/connect','/agents/tasks','/agents/best','/badges','/reports/state-of-ai-agents',
@@ -76,9 +85,15 @@ def growth_path(path):
     return (path in GROWTH_PAGES or path.startswith(GROWTH_PREFIXES)) and not path.endswith('/reported')
 
 
+def agent_detail_path(path):
+    rest = path[len('/api/agents/'):] if path.startswith('/api/agents/') else ''
+    return rest.isdigit() and rest.isascii() and len(rest) <= 12
+
+
 def shared_path(path):
     return (path in PUBLIC_READS or path.startswith('/api/workflows/templates/') or growth_path(path)
-            or sitemap_part(path))  # 11-13: the sitemap parts are kept like /sitemap.xml
+            or sitemap_part(path)  # 11-13: the sitemap parts are kept like /sitemap.xml
+            or path in FEED_READS or agent_detail_path(path))  # 11-13 PM 22:3x
 
 
 def _session_cookie(header):
@@ -141,6 +156,8 @@ class PublicHTTPContract:
                     else EDGE_DOCUMENT_CACHE
                     if path in EDGE_DOCUMENTS or sitemap_part(path) else GROWTH_CACHE if growth_path(path)
                     else SNAPSHOT_CACHE if path in SNAPSHOT_READS
+                    else AGENT_DETAIL_CACHE if agent_detail_path(path)
+                    else FEED_CACHE if path in FEED_READS
                     else 'public, max-age=30, stale-while-revalidate=30')
                 if growth_path(path):  # the same URL answers HTML or Markdown by Accept
                     vary=[v.strip() for v in headers.get('vary','').split(',') if v.strip()]

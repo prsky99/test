@@ -68,3 +68,24 @@ def test_insights_snapshot_is_kept_five_minutes_at_the_edge_but_never_for_creden
         assert reply.headers['cache-control'] == 'no-store' and reply.json() == plain.json(), headers
     # Other public reads keep their short shared lifetime.
     assert 'max-age=30,' in c.get('/api/overview').headers['cache-control']
+
+
+def test_agent_detail_is_kept_five_minutes_at_the_edge_but_never_for_credentialed_requests():
+    """PM 11-13 22:3x: /api/agents/{id} answered in 80-190 ms at the origin but 1.3-9.8 s from Korea (no-store,
+    DYNAMIC). It reads no request, so the edge may keep it five minutes; cookies and Authorization keep no-store."""
+    from agent_market.concierge.public_http_contract import agent_detail_path, shared_path
+    c = client()
+    rid = c.app.state.front.store.query("SELECT id FROM resources WHERE active=1 ORDER BY id LIMIT 1")[0]['id']
+    plain = c.get(f'/api/agents/{rid}')
+    value = plain.headers['cache-control']
+    assert plain.status_code == 200 and value == 'public, max-age=300, stale-while-revalidate=300'
+    assert plain.headers['etag'].startswith('W/"') and 'set-cookie' not in plain.headers
+    assert c.get(f'/api/agents/{rid}', headers={'If-None-Match': plain.headers['etag']}).status_code == 304
+    for headers in ({'Cookie': 'sid=abc'}, {'Authorization': 'Bearer x'}):
+        reply = c.get(f'/api/agents/{rid}', headers=headers)
+        assert reply.headers['cache-control'] == 'no-store' and reply.json() == plain.json(), headers
+    missing = c.get('/api/agents/999999999')
+    assert missing.status_code == 404 and 'public' not in missing.headers.get('cache-control', '')
+    assert agent_detail_path('/api/agents/42') and not agent_detail_path('/api/agents/42/reported')
+    assert not agent_detail_path('/api/agents/') and not agent_detail_path('/api/agents/４２')
+    assert shared_path('/api/feed/verified.json') and not shared_path('/api/feed/other.json')
