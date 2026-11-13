@@ -70,6 +70,12 @@ class AdminReaderPool:
                 try:resource[0].close()
                 finally:resource[1].close()
 
+    def free_sessions(self):
+        """Sessions a lease could take right now without waiting (idle ones plus room to open). A hint only:
+        another thread may take one first, and lease_store then waits as usual."""
+        with self.condition:
+            return 0 if self.closed else len(self.idle) + max(0, self.maximum - self.total)
+
     def _start_reaper(self):
         # Caller holds the condition.
         if self.idle_seconds is None or self.reaper is not None or self.closed:return

@@ -416,6 +416,8 @@ def _subject_words(terms, item):
 SEMANTIC_SHORTLIST = 10
 FALLBACK_DEADLINE = 8.0  # seconds into a request after which the split and neighbor searches do not start
 SEMANTIC_BUDGET = 0.8  # seconds; past it the ranked order stands
+# One request at a time searches its parts at once (two read-pool sessions), as Explore does (11-13).
+_parallel_parts = threading.BoundedSemaphore(1)
 
 
 def _cosine(a, b):
@@ -913,14 +915,51 @@ class FastConcierge(Concierge):
                 result.append({**item, 'condition_check':check})
         return result
 
+    def _part_searches(self, parts, protocol, excluded):
+        """Each part's own search as the in-turn loop asks it when nothing is chosen yet (exclude=EXCLUDED), two
+        at a time on read-pool sessions (PM 11-13 21:0x). None when the pool has no two free sessions, another
+        request is doing this, or the store has no read pool: the caller then searches in turn as before."""
+        source = getattr(self, 'store', None)
+        pool = getattr(source, '_admin_read_pool', None)
+        if (len(parts) < 2 or getattr(source, 'backend', None) != 'postgresql' or pool is None
+                or getattr(pool, 'maximum', 0) < 2 or not _parallel_parts.acquire(blocking=False)):
+            return None
+        try:
+            if pool.free_sessions() < 2:
+                return None
+            from concurrent.futures import ThreadPoolExecutor
+            from contextvars import copy_context
+            from copy import copy
+            from .discovery import discovery_store
+            from .discovery_contracts import isolated_contract_reads
+
+            def search(part):
+                # The caller holds no read-pool lease, so the workers cannot wait on their parent.
+                with discovery_store(source) as store, isolated_contract_reads():
+                    recommender = copy(self.rec)
+                    recommender.store = store
+                    return recommender.search(part_text(part), kind=protocol, limit=3, offset=0, exclude=excluded)
+
+            with ThreadPoolExecutor(max_workers=2, thread_name_prefix='chat-part') as executor:
+                pending = [executor.submit(copy_context().run, search, part) for part in parts]
+                return [future.result() for future in pending]
+        except Exception:
+            return None  # a failed early read only loses the head start
+        finally:
+            _parallel_parts.release()
+
     def _cover_parts(self, task, items, protocol, excluded):
         """'Monitor my website and alert me on Telegram': when the matches cover only one
-        named capability, keep the best match for each part instead of three for the first."""
+        named capability, keep the best match for each part instead of three for the first.
+        The parts are searched at once when the read pool allows (_part_searches); a part whose early result
+        names a listing an earlier part already took is searched again in turn, with that listing excluded,
+        so the answer is the one the in-turn loop gives."""
         from .chat_guidance import separate_requests
         from .selection import capability_terms, _term_in
         split = separate_requests(task)
         if not split:
             return items, []
+        early = FastConcierge._part_searches(self, split, protocol, excluded)
         def text(item):
             tools = ' '.join(str(t) for t in (item.get('tools') or []))
             return ' '.join(str(item.get(k) or '') for k in ('name', 'description', 'capability')).lower() + ' ' + tools.lower()
@@ -928,11 +967,14 @@ class FastConcierge(Concierge):
             terms = capability_terms(part_text(part))
             return bool(terms) and all(_term_in(term, text(item)) for term in terms)
         chosen, parts = [], []
-        for part in split:
+        for index, part in enumerate(split):
             # The part's own best match first: in the whole-sentence ranking, the other part's
             # words promote listings that only mention this part.
-            found = self.rec.search(part_text(part), kind=protocol, limit=3, offset=0,
-                                    exclude=excluded | {item['id'] for item in chosen})
+            taken = {item['id'] for item in chosen}
+            found = early[index] if early is not None else None
+            if found is None or taken & {item.get('id') for item in found}:
+                found = self.rec.search(part_text(part), kind=protocol, limit=3, offset=0,
+                                        exclude=excluded | taken)
             match = found[0] if found else next(
                 (item for item in items if covers(item, part) and item['id'] not in {c['id'] for c in chosen}), None)
             if match is None:
