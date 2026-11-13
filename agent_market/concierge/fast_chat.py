@@ -97,7 +97,7 @@ OUTPUT_FORMAT = re.compile(r'\s+(?:as|in)\s+(?:a\s+)?(?:json|csv|xml|yaml)(?:\s+
 # business" found nothing with these words required, fell to narrow -> split (2.2-4.1 s) and led with value_business,
 # send_message_to_vendor and business_services; without them translate, send_email and invoice_ocr in 0.5-1.3 s.
 # They stay in the task, so conditions and the answer still see them. "bulk" stays: batch processing is a capability.
-QUALIFIERS = re.compile(r'\b(?:today|in\s+real[\s-]time|quickly|for\s+my\s+team|for\s+agents|(?:for\s+(?:a\s+|my\s+)?)?small\s+business(?:es)?)\b', re.I)
+from .selection import QUALIFIER_PHRASES as QUALIFIERS  # one list for the search text and the required words
 
 
 STATED_REQUIREMENT = re.compile(
