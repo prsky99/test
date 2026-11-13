@@ -1,0 +1,540 @@
+{
+ "name": "AgentValCon Verification Method",
+ "version": "v1",
+ "candidates": {
+  "grade_minimum": "A",
+  "grade_thresholds": {
+   "A": 85,
+   "B": 70,
+   "C": 55,
+   "D": 40,
+   "F": 0
+  },
+  "also_required": [
+   "active",
+   "healthy in the last 7 days",
+   "not quarantined or under security review"
+  ]
+ },
+ "role_test": {
+  "calls_per_test": 1,
+  "read_only_tools_only": true,
+  "no_credentials_or_payment": true,
+  "tests_per_day": 120,
+  "new_candidates_per_day": 80,
+  "retests_per_day": 40,
+  "per_registrable_domain_per_day": 5,
+  "stop_domain_for_the_day_on": 429,
+  "answer_judged_up_to_bytes": 20000,
+  "excerpt_kept_chars": 1000,
+  "answer_hash": "sha256"
+ },
+ "score": {
+  "total": 100,
+  "data_quality": {
+   "accuracy": 25,
+   "freshness": 10,
+   "completeness": 10,
+   "clean": 10,
+   "consistency": 5
+  },
+  "evidence": {
+   "arguments": 10,
+   "repeat": 10,
+   "latency": 10
+  },
+  "report_text": 10,
+  "latency_points": [
+   {
+    "up_to_ms": 1000,
+    "points": 10
+   },
+   {
+    "up_to_ms": 2000,
+    "points": 8
+   },
+   {
+    "up_to_ms": 5000,
+    "points": 5
+   },
+   {
+    "up_to_ms": 10000,
+    "points": 2
+   }
+  ],
+  "accuracy_rule": "points only when the answer matches an answer set or a public reference at the same time; no answer source means 0",
+  "clean_answer_failures": [
+   "broken encoding",
+   "cut answer",
+   "demo or placeholder",
+   "error text",
+   "payment demand"
+  ],
+  "completeness_rule": "null, empty, N/A and unknown values lower the score by their share"
+ },
+ "verified_pearl": {
+  "min_score": 85,
+  "successes_on_different_days": 2
+ },
+ "final_pearl": {
+  "rule": "the top verified pearl of a role",
+  "one_place_per_registrable_domain_in_a_role": true,
+  "reranked": "daily"
+ },
+ "necklace_gate": {
+  "necklace": {
+   "held_out_cases": 60,
+   "pass_total": 57,
+   "rounds": 2,
+   "cases_per_round": 30,
+   "pass_per_round": 28,
+   "round_gap_hours": 4,
+   "completion": 0.95,
+   "p95_ms": 5000,
+   "delta": "> 0"
+  },
+  "retest": {
+   "pass_rate": 0.95,
+   "immediate_hold_below": 0.8
+  },
+  "substitute": {
+   "held_out_cases": 30,
+   "pass": 29
+  },
+  "report_v2": {
+   "score": 85,
+   "musts": [
+    "accuracy_check",
+    "clean_answer"
+   ]
+  },
+  "answer_sets": "withheld"
+ },
+ "roles": [
+  {
+   "role": "airport.lookup.v1",
+   "field": "travel",
+   "example_input": {
+    "code": "ICN"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer"
+   ],
+   "freshness": "fixed facts (not time-bound)"
+  },
+  {
+   "role": "book.search.v1",
+   "field": "reference",
+   "example_input": {
+    "query": "Pride and Prejudice",
+    "title": "Pride and Prejudice"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer"
+   ],
+   "freshness": "fixed facts (not time-bound)"
+  },
+  {
+   "role": "company.registry.v1",
+   "field": "business",
+   "example_input": {
+    "country": "US",
+    "domain": "apple.com",
+    "name": "Apple Inc"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer"
+   ],
+   "freshness": "fixed facts (not time-bound)"
+  },
+  {
+   "role": "country.indicator.v1",
+   "field": "economics",
+   "example_input": {
+    "country": "KOR",
+    "indicator": "population",
+    "year": 2023
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer"
+   ],
+   "freshness": "fixed facts (not time-bound)"
+  },
+  {
+   "role": "crypto.price.v1",
+   "field": "finance",
+   "example_input": {
+    "symbol": "BTC",
+    "coin": "bitcoin",
+    "id": "bitcoin",
+    "query": "bitcoin"
+   },
+   "answer_source": "none (public reference suspended until its terms are confirmed)",
+   "checks": [
+    "same-time public reference within 2%"
+   ],
+   "freshness": "data time within 2 days"
+  },
+  {
+   "role": "cve.exploited.v1",
+   "field": "security",
+   "example_input": {
+    "cve_id": "CVE-2021-44228"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "numeric fields match",
+    "KEV listing stated correctly"
+   ],
+   "freshness": "data time within 1 days"
+  },
+  {
+   "role": "cve.record.v1",
+   "field": "security",
+   "example_input": {
+    "cve_id": "CVE-2021-44228"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer",
+    "numeric fields match"
+   ],
+   "freshness": "data time within 1 days"
+  },
+  {
+   "role": "dictionary.define.v1",
+   "field": "reference",
+   "example_input": {
+    "word": "serendipity"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer"
+   ],
+   "freshness": "fixed facts (not time-bound)"
+  },
+  {
+   "role": "domain.lookup.v1",
+   "field": "internet",
+   "example_input": {
+    "domain": "python.org"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer"
+   ],
+   "freshness": "fixed facts (not time-bound)"
+  },
+  {
+   "role": "earthquake.feed.v1",
+   "field": "science",
+   "example_input": {
+    "min_magnitude": 5
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer",
+    "same-time public reference: usgs_places"
+   ],
+   "freshness": "data time within 30 days"
+  },
+  {
+   "role": "encyclopedia.summary.v1",
+   "field": "reference",
+   "example_input": {
+    "title": "Seoul"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer"
+   ],
+   "freshness": "fixed facts (not time-bound)"
+  },
+  {
+   "role": "events.search.v1",
+   "field": "events",
+   "example_input": {
+    "limit": 5,
+    "place": "San Francisco",
+    "query": "concert"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer",
+    "published recently"
+   ],
+   "freshness": "dates today or later"
+  },
+  {
+   "role": "fx.rate.v1",
+   "field": "finance",
+   "example_input": {
+    "amount": 100,
+    "from": "USD",
+    "to": "EUR"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer",
+    "same-time public reference: rate"
+   ],
+   "freshness": "data time within 2 days"
+  },
+  {
+   "role": "geocode.address.v1",
+   "field": "maps",
+   "example_input": {
+    "address": "1600 Pennsylvania Avenue NW, Washington, DC"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer"
+   ],
+   "freshness": "fixed facts (not time-bound)"
+  },
+  {
+   "role": "github.repo.v1",
+   "field": "developer",
+   "example_input": {
+    "repo": "facebook/react"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer"
+   ],
+   "freshness": "fixed facts (not time-bound)"
+  },
+  {
+   "role": "holiday.calendar.v1",
+   "field": "reference",
+   "example_input": {
+    "country": "US",
+    "year": 2026
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer"
+   ],
+   "freshness": "fixed facts (not time-bound)"
+  },
+  {
+   "role": "ip.lookup.v1",
+   "field": "internet",
+   "example_input": {
+    "ip": "8.8.8.8"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer"
+   ],
+   "freshness": "fixed facts (not time-bound)"
+  },
+  {
+   "role": "news.search.v1",
+   "field": "news",
+   "example_input": {
+    "limit": 5,
+    "query": "artificial intelligence"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "published recently"
+   ],
+   "freshness": "data time within 7 days"
+  },
+  {
+   "role": "package.advisories.v1",
+   "field": "security",
+   "example_input": {
+    "ecosystem": "npm",
+    "package": "lodash",
+    "version": "4.17.20"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer"
+   ],
+   "freshness": "fixed facts (not time-bound)"
+  },
+  {
+   "role": "package.health.v1",
+   "field": "developer",
+   "example_input": {
+    "ecosystem": "npm",
+    "package": "express"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer",
+    "same-time public reference: latest_version"
+   ],
+   "freshness": "fixed facts (not time-bound)"
+  },
+  {
+   "role": "package.risk.v1",
+   "field": "security",
+   "example_input": {
+    "ecosystem": "npm",
+    "package": "react",
+    "repo": "github.com/facebook/react"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer",
+    "same-time public reference: scorecard"
+   ],
+   "freshness": "fixed facts (not time-bound)"
+  },
+  {
+   "role": "papers.search.v1",
+   "field": "research",
+   "example_input": {
+    "query": "attention is all you need transformer"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer"
+   ],
+   "freshness": "fixed facts (not time-bound)"
+  },
+  {
+   "role": "place.search.v1",
+   "field": "travel",
+   "example_input": {
+    "query": "Eiffel Tower"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer"
+   ],
+   "freshness": "fixed facts (not time-bound)"
+  },
+  {
+   "role": "sec.filings.v1",
+   "field": "business",
+   "example_input": {
+    "cik": "320193",
+    "company": "Apple Inc",
+    "ticker": "AAPL"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer"
+   ],
+   "freshness": "fixed facts (not time-bound)"
+  },
+  {
+   "role": "software.incident.v1",
+   "field": "security",
+   "example_input": {
+    "query": "xz-utils"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer"
+   ],
+   "freshness": "data time within 7 days"
+  },
+  {
+   "role": "stock.quote.v1",
+   "field": "finance",
+   "example_input": {
+    "symbol": "AAPL",
+    "ticker": "AAPL"
+   },
+   "answer_source": "none (public reference suspended until its terms are confirmed)",
+   "checks": [
+    "same-time public reference within 2%"
+   ],
+   "freshness": "data time within 2 days"
+  },
+  {
+   "role": "timezone.time.v1",
+   "field": "reference",
+   "example_input": {
+    "city": "New York",
+    "timezone": "America/New_York"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "same-time public reference: clock_tz"
+   ],
+   "freshness": "clock time within 5 minutes of now"
+  },
+  {
+   "role": "translate.text.v1",
+   "field": "language",
+   "example_input": {
+    "target": "fr",
+    "text": "Good morning"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer"
+   ],
+   "freshness": "fixed facts (not time-bound)"
+  },
+  {
+   "role": "unit.convert.v1",
+   "field": "reference",
+   "example_input": {
+    "from": "mile",
+    "to": "kilometer",
+    "value": 10
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer"
+   ],
+   "freshness": "fixed facts (not time-bound)"
+  },
+  {
+   "role": "weather.forecast.v1",
+   "field": "weather",
+   "example_input": {
+    "city": "Seoul",
+    "latitude": 37.5665,
+    "longitude": 126.978
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer",
+    "same-time public reference: temperature_c"
+   ],
+   "freshness": "dates today or later"
+  },
+  {
+   "role": "web.grounding.v1",
+   "field": "reference",
+   "example_input": {
+    "question": "What is the capital city of Australia?"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer"
+   ],
+   "freshness": "fixed facts (not time-bound)"
+  },
+  {
+   "role": "website.ai_readiness.v1",
+   "field": "internet",
+   "example_input": {
+    "domain": "wikipedia.org"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer"
+   ],
+   "freshness": "fixed facts (not time-bound)"
+  }
+ ],
+ "limits": [
+  "One call per test with one input; a role is judged on a small number of tasks.",
+  "Answer sets are withheld; examples show inputs only.",
+  "Live checks depend on the public reference being available at test time; when it is not, accuracy is not awarded."
+ ]
+}
