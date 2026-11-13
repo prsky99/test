@@ -1,0 +1,992 @@
+{
+ "split": "tuning",
+ "agents": {
+  "package-registry": {
+   "summary": {
+    "cases": 30,
+    "passed": 30,
+    "errors": {},
+    "p50_ms": 204,
+    "p95_ms": 331,
+    "gold_sha256": "7ae34e9d26176043bb90fd101bc4711ea8fda5abfe0f868de622862246b8844f",
+    "gold_created_at": "2026-11-13T20:01:09Z"
+   },
+   "cases": [
+    {
+     "case_id": "PyPI:aiohttp@3.14.5",
+     "stratum": "clean",
+     "ms": 495,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "3.14.5",
+     "want": "3.14.5",
+     "signals": [
+      "latest_version",
+      "released_at",
+      "repository"
+     ]
+    },
+    {
+     "case_id": "npm:ejs@7.0.2",
+     "stratum": "clean",
+     "ms": 206,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "7.0.2",
+     "want": "7.0.2",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "repository"
+     ]
+    },
+    {
+     "case_id": "npm:hosted-git-info@10.1.1",
+     "stratum": "clean",
+     "ms": 213,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "10.1.1",
+     "want": "10.1.1",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "repository"
+     ]
+    },
+    {
+     "case_id": "PyPI:pillow@13.0.0",
+     "stratum": "clean",
+     "ms": 94,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "13.0.0",
+     "want": "13.0.0",
+     "signals": [
+      "latest_version",
+      "released_at",
+      "repository"
+     ]
+    },
+    {
+     "case_id": "npm:semver@7.8.6",
+     "stratum": "clean",
+     "ms": 190,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "7.8.6",
+     "want": "7.8.6",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "repository"
+     ]
+    },
+    {
+     "case_id": "npm:handlebars@4.7.10",
+     "stratum": "clean",
+     "ms": 211,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "4.7.10",
+     "want": "4.7.10",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "repository"
+     ]
+    },
+    {
+     "case_id": "npm:express@5.3.0",
+     "stratum": "clean",
+     "ms": 41,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "5.3.0",
+     "want": "5.3.0",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "repository"
+     ]
+    },
+    {
+     "case_id": "PyPI:pyyaml@6.0.3",
+     "stratum": "clean",
+     "ms": 41,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "6.0.3",
+     "want": "6.0.3",
+     "signals": [
+      "latest_version",
+      "released_at",
+      "repository"
+     ]
+    },
+    {
+     "case_id": "npm:qs@6.17.1",
+     "stratum": "clean",
+     "ms": 316,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "6.17.1",
+     "want": "6.17.1",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "repository"
+     ]
+    },
+    {
+     "case_id": "PyPI:django@6.1.3",
+     "stratum": "clean",
+     "ms": 39,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "6.1.3",
+     "want": "6.1.3",
+     "signals": [
+      "latest_version",
+      "released_at",
+      "repository"
+     ]
+    },
+    {
+     "case_id": "PyPI:flask@3.1.3",
+     "stratum": "clean",
+     "ms": 195,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "3.1.3",
+     "want": "3.1.3",
+     "signals": [
+      "latest_version",
+      "released_at",
+      "repository"
+     ]
+    },
+    {
+     "case_id": "PyPI:sqlalchemy@2.1.8",
+     "stratum": "clean",
+     "ms": 289,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "2.1.8",
+     "want": "2.1.8",
+     "signals": [
+      "latest_version",
+      "released_at",
+      "repository"
+     ]
+    },
+    {
+     "case_id": "npm:minimist@1.2.8",
+     "stratum": "clean",
+     "ms": 202,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "1.2.8",
+     "want": "1.2.8",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "repository"
+     ]
+    },
+    {
+     "case_id": "npm:moment@2.31.0",
+     "stratum": "clean",
+     "ms": 201,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "2.31.0",
+     "want": "2.31.0",
+     "signals": [
+      "deprecated",
+      "latest_version"
+     ]
+    },
+    {
+     "case_id": "PyPI:jinja2@3.1.6",
+     "stratum": "clean",
+     "ms": 30,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "3.1.6",
+     "want": "3.1.6",
+     "signals": [
+      "latest_version",
+      "released_at",
+      "repository"
+     ]
+    },
+    {
+     "case_id": "npm:marked@18.2.0",
+     "stratum": "clean",
+     "ms": 197,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "18.2.0",
+     "want": "18.2.0",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "repository"
+     ]
+    },
+    {
+     "case_id": "npm:tar@7.5.1",
+     "stratum": "vulnerable",
+     "ms": 203,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "7.5.23",
+     "want": "7.5.23",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "repository"
+     ]
+    },
+    {
+     "case_id": "npm:glob-parent@6.0.0",
+     "stratum": "vulnerable",
+     "ms": 217,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "6.0.2",
+     "want": "6.0.2",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "repository"
+     ]
+    },
+    {
+     "case_id": "PyPI:numpy@1.2.1",
+     "stratum": "vulnerable",
+     "ms": 209,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "2.5.4",
+     "want": "2.5.4",
+     "signals": [
+      "latest_version",
+      "released_at",
+      "repository"
+     ]
+    },
+    {
+     "case_id": "PyPI:notebook@5.0.0rc1",
+     "stratum": "vulnerable",
+     "ms": 216,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "7.6.5",
+     "want": "7.6.5",
+     "signals": [
+      "latest_version",
+      "released_at",
+      "repository"
+     ]
+    },
+    {
+     "case_id": "npm:node-fetch@3.0.0",
+     "stratum": "vulnerable",
+     "ms": 230,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "3.3.2",
+     "want": "3.3.2",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "repository"
+     ]
+    },
+    {
+     "case_id": "npm:y18n@4.0.0",
+     "stratum": "vulnerable",
+     "ms": 208,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "5.0.8",
+     "want": "5.0.8",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "repository"
+     ]
+    },
+    {
+     "case_id": "PyPI:bleach@1.5.0",
+     "stratum": "vulnerable",
+     "ms": 221,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "6.4.0",
+     "want": "6.4.0",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "released_at",
+      "repository"
+     ]
+    },
+    {
+     "case_id": "PyPI:twisted@18.7.0rc1",
+     "stratum": "vulnerable",
+     "ms": 230,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "26.10.0",
+     "want": "26.10.0",
+     "signals": [
+      "latest_version",
+      "released_at",
+      "repository"
+     ]
+    },
+    {
+     "case_id": "PyPI:lxml@3.3.1",
+     "stratum": "vulnerable",
+     "ms": 97,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "6.1.3",
+     "want": "6.1.3",
+     "signals": [
+      "latest_version",
+      "released_at",
+      "repository"
+     ]
+    },
+    {
+     "case_id": "PyPI:sqlalchemy@0.8.0b2",
+     "stratum": "vulnerable",
+     "ms": 0,
+     "error": null,
+     "cache": "fresh_cache",
+     "pass": true,
+     "got": "2.1.8",
+     "want": "2.1.8",
+     "signals": [
+      "latest_version",
+      "released_at",
+      "repository"
+     ]
+    },
+    {
+     "case_id": "PyPI:tornado@4.5b1",
+     "stratum": "vulnerable",
+     "ms": 331,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "6.6.1",
+     "want": "6.6.1",
+     "signals": [
+      "latest_version",
+      "released_at",
+      "repository"
+     ]
+    },
+    {
+     "case_id": "PyPI:scrapy@1.1.1",
+     "stratum": "vulnerable",
+     "ms": 221,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "2.20.0",
+     "want": "2.20.0",
+     "signals": [
+      "latest_version",
+      "released_at",
+      "repository"
+     ]
+    },
+    {
+     "case_id": "npm:hosted-git-info@3.0.0",
+     "stratum": "vulnerable",
+     "ms": 0,
+     "error": null,
+     "cache": "fresh_cache",
+     "pass": true,
+     "got": "10.1.1",
+     "want": "10.1.1",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "repository"
+     ]
+    },
+    {
+     "case_id": "npm:marked@1.1.1",
+     "stratum": "vulnerable",
+     "ms": 0,
+     "error": null,
+     "cache": "fresh_cache",
+     "pass": true,
+     "got": "18.2.0",
+     "want": "18.2.0",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "repository"
+     ]
+    }
+   ]
+  },
+  "depsdev-package": {
+   "summary": {
+    "cases": 30,
+    "passed": 30,
+    "errors": {},
+    "p50_ms": 739,
+    "p95_ms": 1045,
+    "gold_sha256": "7ae34e9d26176043bb90fd101bc4711ea8fda5abfe0f868de622862246b8844f",
+    "gold_created_at": "2026-11-13T20:01:09Z"
+   },
+   "cases": [
+    {
+     "case_id": "PyPI:aiohttp@3.14.5",
+     "stratum": "clean",
+     "ms": 824,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "3.14.5",
+     "want": "3.14.5",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "released_at",
+      "repository",
+      "scorecard"
+     ]
+    },
+    {
+     "case_id": "npm:ejs@7.0.2",
+     "stratum": "clean",
+     "ms": 993,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "7.0.2",
+     "want": "7.0.2",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "released_at",
+      "repository",
+      "scorecard"
+     ]
+    },
+    {
+     "case_id": "npm:hosted-git-info@10.1.1",
+     "stratum": "clean",
+     "ms": 523,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "10.1.1",
+     "want": "10.1.1",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "released_at",
+      "repository",
+      "scorecard"
+     ]
+    },
+    {
+     "case_id": "PyPI:pillow@13.0.0",
+     "stratum": "clean",
+     "ms": 654,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "13.0.0",
+     "want": "13.0.0",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "released_at",
+      "repository",
+      "scorecard"
+     ]
+    },
+    {
+     "case_id": "npm:semver@7.8.6",
+     "stratum": "clean",
+     "ms": 912,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "7.8.6",
+     "want": "7.8.6",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "released_at",
+      "repository",
+      "scorecard"
+     ]
+    },
+    {
+     "case_id": "npm:handlebars@4.7.10",
+     "stratum": "clean",
+     "ms": 735,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "4.7.10",
+     "want": "4.7.10",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "released_at",
+      "repository",
+      "scorecard"
+     ]
+    },
+    {
+     "case_id": "npm:express@5.3.0",
+     "stratum": "clean",
+     "ms": 535,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "5.3.0",
+     "want": "5.3.0",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "released_at",
+      "repository",
+      "scorecard"
+     ]
+    },
+    {
+     "case_id": "PyPI:pyyaml@6.0.3",
+     "stratum": "clean",
+     "ms": 616,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "6.0.3",
+     "want": "6.0.3",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "released_at",
+      "repository",
+      "scorecard"
+     ]
+    },
+    {
+     "case_id": "npm:qs@6.17.1",
+     "stratum": "clean",
+     "ms": 828,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "6.17.1",
+     "want": "6.17.1",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "released_at",
+      "repository",
+      "scorecard"
+     ]
+    },
+    {
+     "case_id": "PyPI:django@6.1.3",
+     "stratum": "clean",
+     "ms": 1045,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "6.1.3",
+     "want": "6.1.3",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "released_at",
+      "repository",
+      "scorecard"
+     ]
+    },
+    {
+     "case_id": "PyPI:flask@3.1.3",
+     "stratum": "clean",
+     "ms": 526,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "3.1.3",
+     "want": "3.1.3",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "released_at",
+      "repository",
+      "scorecard"
+     ]
+    },
+    {
+     "case_id": "PyPI:sqlalchemy@2.1.8",
+     "stratum": "clean",
+     "ms": 998,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "2.1.8",
+     "want": "2.1.8",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "released_at",
+      "repository",
+      "scorecard"
+     ]
+    },
+    {
+     "case_id": "npm:minimist@1.2.8",
+     "stratum": "clean",
+     "ms": 518,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "1.2.8",
+     "want": "1.2.8",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "released_at",
+      "repository",
+      "scorecard"
+     ]
+    },
+    {
+     "case_id": "npm:moment@2.31.0",
+     "stratum": "clean",
+     "ms": 944,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "2.31.0",
+     "want": "2.31.0",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "released_at",
+      "repository",
+      "scorecard"
+     ]
+    },
+    {
+     "case_id": "PyPI:jinja2@3.1.6",
+     "stratum": "clean",
+     "ms": 744,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "3.1.6",
+     "want": "3.1.6",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "released_at",
+      "repository",
+      "scorecard"
+     ]
+    },
+    {
+     "case_id": "npm:marked@18.2.0",
+     "stratum": "clean",
+     "ms": 853,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "18.2.0",
+     "want": "18.2.0",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "released_at",
+      "repository",
+      "scorecard"
+     ]
+    },
+    {
+     "case_id": "npm:tar@7.5.1",
+     "stratum": "vulnerable",
+     "ms": 745,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "7.5.23",
+     "want": "7.5.23",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "released_at",
+      "repository",
+      "scorecard"
+     ]
+    },
+    {
+     "case_id": "npm:glob-parent@6.0.0",
+     "stratum": "vulnerable",
+     "ms": 647,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "6.0.2",
+     "want": "6.0.2",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "released_at",
+      "repository",
+      "scorecard"
+     ]
+    },
+    {
+     "case_id": "PyPI:numpy@1.2.1",
+     "stratum": "vulnerable",
+     "ms": 924,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "2.5.4",
+     "want": "2.5.4",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "released_at",
+      "repository",
+      "scorecard"
+     ]
+    },
+    {
+     "case_id": "PyPI:notebook@5.0.0rc1",
+     "stratum": "vulnerable",
+     "ms": 524,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "7.6.5",
+     "want": "7.6.5",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "released_at",
+      "repository",
+      "scorecard"
+     ]
+    },
+    {
+     "case_id": "npm:node-fetch@3.0.0",
+     "stratum": "vulnerable",
+     "ms": 918,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "3.3.2",
+     "want": "3.3.2",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "released_at",
+      "repository",
+      "scorecard"
+     ]
+    },
+    {
+     "case_id": "npm:y18n@4.0.0",
+     "stratum": "vulnerable",
+     "ms": 637,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "5.0.8",
+     "want": "5.0.8",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "released_at",
+      "repository",
+      "scorecard"
+     ]
+    },
+    {
+     "case_id": "PyPI:bleach@1.5.0",
+     "stratum": "vulnerable",
+     "ms": 841,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "6.4.0",
+     "want": "6.4.0",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "released_at",
+      "repository",
+      "scorecard"
+     ]
+    },
+    {
+     "case_id": "PyPI:twisted@18.7.0rc1",
+     "stratum": "vulnerable",
+     "ms": 731,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "26.10.0",
+     "want": "26.10.0",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "released_at",
+      "repository",
+      "scorecard"
+     ]
+    },
+    {
+     "case_id": "PyPI:lxml@3.3.1",
+     "stratum": "vulnerable",
+     "ms": 1049,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "6.1.3",
+     "want": "6.1.3",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "released_at",
+      "repository",
+      "scorecard"
+     ]
+    },
+    {
+     "case_id": "PyPI:sqlalchemy@0.8.0b2",
+     "stratum": "vulnerable",
+     "ms": 0,
+     "error": null,
+     "cache": "fresh_cache",
+     "pass": true,
+     "got": "2.1.8",
+     "want": "2.1.8",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "released_at",
+      "repository",
+      "scorecard"
+     ]
+    },
+    {
+     "case_id": "PyPI:tornado@4.5b1",
+     "stratum": "vulnerable",
+     "ms": 815,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "6.6.1",
+     "want": "6.6.1",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "released_at",
+      "repository",
+      "scorecard"
+     ]
+    },
+    {
+     "case_id": "PyPI:scrapy@1.1.1",
+     "stratum": "vulnerable",
+     "ms": 645,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "2.20.0",
+     "want": "2.20.0",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "released_at",
+      "repository",
+      "scorecard"
+     ]
+    },
+    {
+     "case_id": "npm:hosted-git-info@3.0.0",
+     "stratum": "vulnerable",
+     "ms": 0,
+     "error": null,
+     "cache": "fresh_cache",
+     "pass": true,
+     "got": "10.1.1",
+     "want": "10.1.1",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "released_at",
+      "repository",
+      "scorecard"
+     ]
+    },
+    {
+     "case_id": "npm:marked@1.1.1",
+     "stratum": "vulnerable",
+     "ms": 0,
+     "error": null,
+     "cache": "fresh_cache",
+     "pass": true,
+     "got": "18.2.0",
+     "want": "18.2.0",
+     "signals": [
+      "deprecated",
+      "latest_version",
+      "released_at",
+      "repository",
+      "scorecard"
+     ]
+    }
+   ]
+  }
+ },
+ "at": "2026-11-14T05:01:55+0900"
+}

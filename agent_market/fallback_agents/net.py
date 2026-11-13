@@ -1,6 +1,6 @@
 """One outbound GET to an allowed public source host.
 
-- Fixed host allowlist, HTTPS only, no credentials, no redirects.
+- Fixed host allowlist (public sources only), HTTPS only, no credentials, no redirects.
 - Private and internal addresses are refused twice: a bounded DNS preflight
   (``validate_public_url``, the ``check_public_url`` rule) and the public-only
   connection backend of ``bounded_client``.
@@ -15,7 +15,8 @@ from .catalog import USER_AGENT
 from .limits import SourceBusy
 
 ALLOWED_HOSTS = frozenset({"services.nvd.nist.gov", "nvd.nist.gov", "cveawg.mitre.org", "www.cisa.gov",
-                           "api.first.org", "api.github.com"})
+                           "api.first.org", "api.github.com", "registry.npmjs.org", "pypi.org",
+                           "api.deps.dev"})
 
 
 class SourceError(RuntimeError):

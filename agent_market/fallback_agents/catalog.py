@@ -33,6 +33,20 @@ GHSA = {"name": "GitHub Advisory Database", "url": "https://github.com/advisorie
         "notice": "Reviewed advisories only. An empty list means no reviewed advisory matched; "
                   "it is not a security guarantee."}
 
+NPM = {"name": "npm public registry", "url": "https://registry.npmjs.org/",
+       "license": "npm Open-Source Terms (https://docs.npmjs.com/policies/open-source-terms); "
+                  "metadata as published by package authors",
+       "notice": "Registry facts only; no scripts, maintainers or emails are returned."}
+PYPI = {"name": "PyPI JSON API", "url": "https://pypi.org/",
+        "license": "PyPI Terms of Use (https://policies.python.org/pypi.org/Terms-of-Use/); "
+                   "metadata as published by package authors",
+        "notice": "PyPI has no deprecation flag: deprecated=true only for a yanked release or an "
+                  "'Inactive' development status; otherwise the field is left out."}
+DEPSDEV = {"name": "Open Source Insights (deps.dev), Google", "url": "https://deps.dev/",
+           "license": "Generated data CC BY 4.0; API use under the Google APIs Terms of Service "
+                      "(https://docs.deps.dev/api/v3/)",
+           "notice": "The scorecard value is the OpenSSF Scorecard aggregate as served by deps.dev, with its date."}
+
 SPECS = {
     "nvd-cve": {
         "name": "AgentValCon NVD CVE Record", "tool": "get_cve_record", "contract": "cve.record.v1",
@@ -66,6 +80,24 @@ SPECS = {
         "sources": [GHSA],
         # Unauthenticated GitHub REST allows 60 requests per hour per address.
         "rate": "at most 50 requests per hour, cached 1 hour",
+    },
+    "package-registry": {
+        "name": "AgentValCon Package Registry Facts", "tool": "get_package_release",
+        "contract": "package.health.v1",
+        "description": "Read the latest version of one npm or PyPI package straight from its public "
+                       "registry: version, deprecation or yanked flag, source repository, and the "
+                       "release time on PyPI; read-only.",
+        "sources": [NPM, PYPI],
+        "rate": "5 requests per second per registry, cached 1 hour",
+    },
+    "depsdev-package": {
+        "name": "AgentValCon deps.dev Package Health", "tool": "get_package_scorecard",
+        "contract": "package.health.v1",
+        "description": "Look up one npm or PyPI package in Open Source Insights (deps.dev): default "
+                       "version and its release time, deprecation, source repository and the OpenSSF "
+                       "Scorecard aggregate; read-only.",
+        "sources": [DEPSDEV],
+        "rate": "5 requests per second, cached 6 hours",
     },
 }
 

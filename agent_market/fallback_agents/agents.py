@@ -21,6 +21,7 @@ import time
 from collections import OrderedDict
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import quote
 
 import jsonschema
 
@@ -30,10 +31,14 @@ from .net import SourceError, get
 from .nvd_store import CVE_ID, Snapshot, _text, record as nvd_record
 from .versions import in_range
 
-CODES = ("invalid_input", "not_found", "rate_limited", "source_unavailable", "invalid_output")
-TTL = {"nvd-cve": (21600, 7 * 86400), "cve-org": (21600, 7 * 86400), "github-advisory": (3600, 21600),
-       "epss": (21600, 3 * 86400)}
-KEV_TTL, KEV_MAX_STALE = 3600, 72 * 3600
+CODES = ("invalid_input", "not_found", "rate_limited", "source_unavailable", "invalid_output", "stale")
+# Data age (PM 11-14, user emphasis): every answer states when its source data was updated and how
+# old our copy is. A copy older than MAX_AGE is an error ("stale") so the slot moves to the next member.
+MAX_AGE = {"nvd-cve": 6 * 3600, "cve-org": 24 * 3600, "cisa-kev": 24 * 3600, "github-advisory": 6 * 3600,
+           "package-registry": 6 * 3600, "depsdev-package": 24 * 3600}
+TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "github-advisory": (3600, 6 * 3600),
+       "epss": (6 * 3600, 48 * 3600), "package-registry": (3600, 6 * 3600), "depsdev-package": (6 * 3600, 24 * 3600)}  # (serve from cache without asking, longest a cached copy may serve)
+KEV_TTL, KEV_MAX_STALE = 3600, 24 * 3600
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 PACKAGE = re.compile(r"(?:@[a-z0-9][a-z0-9._~-]*/)?[A-Za-z0-9][A-Za-z0-9._~-]*")
 GHSA_ID = re.compile(r"GHSA(?:-[23456789cfghjmpqrvwx]{4}){3}")
@@ -92,7 +97,10 @@ class FallbackAgents:
         except jsonschema.ValidationError as exc:
             raise FallbackUnavailable("invalid_input", "Arguments do not match the tool input schema.") from exc
         handler = getattr(self, "_" + agent_id.replace("-", "_"))
-        result, cache, partial = handler(arguments, lambda: self.budget - (self.clock() - started))
+        result, cache, partial, as_of = handler(arguments, lambda: self.budget - (self.clock() - started))
+        if cache["age_seconds"] > MAX_AGE[agent_id]:
+            raise FallbackUnavailable("stale", f"Our copy of the source is {cache['age_seconds']} s old, over the "
+                                               f"{MAX_AGE[agent_id]} s limit. No answer was given from it.")
         try:
             jsonschema.Draft202012Validator(c["output_schema"]).validate(result)
         except jsonschema.ValidationError as exc:
@@ -103,7 +111,9 @@ class FallbackAgents:
             raise FallbackUnavailable("invalid_output", "Score and version must come together.")
         return {"agent": agent_id, "tool": spec["tool"], "result": result,
                 "sources": [dict(s) for s in spec["sources"]], "retrieved_at": _now_iso(self.utc_now()),
-                "cache": cache, "partial": bool(partial)}
+                "cache": cache, "partial": bool(partial),
+                "freshness": {"data_as_of": as_of, "age_seconds": cache["age_seconds"],
+                              "max_age_seconds": MAX_AGE[agent_id]}}
 
     def _cached(self, key, ttl, fetch, remaining):
         """Fresh cache, else live fetch, else stale cache within max_stale, else error."""
@@ -156,8 +166,9 @@ class FallbackAgents:
         if body is not None:
             if status == "Rejected":
                 raise FallbackUnavailable("not_found", "The CVE is rejected in the NVD.")
-            age = int(max(0, self.wall() - synced_at)) if synced_at else 0
-            return body, {"status": "snapshot", "age_seconds": age}, False
+            age = int(max(0, self.wall() - synced_at)) if synced_at else MAX_AGE["nvd-cve"] + 1
+            as_of = {"NVD": self.snapshot.meta("source_updated_at") or None}
+            return body, {"status": "snapshot", "age_seconds": age}, False, as_of
 
         def live(rem):
             # Snapshot miss (new CVE or no snapshot): one paced NVD API call if time allows.
@@ -170,9 +181,9 @@ class FallbackAgents:
             cve = rows[0]["cve"]
             if cve.get("vulnStatus") == "Rejected":
                 raise FallbackUnavailable("not_found", "The CVE is rejected in the NVD.")
-            return nvd_record(cve)
-        value, cache = self._cached(("nvd-cve", cve_id), TTL["nvd-cve"], live, remaining)
-        return value, cache, False
+            return nvd_record(cve), _text(cve.get("lastModified"), 40) or None
+        (value, as_of), cache = self._cached(("nvd-cve", cve_id), TTL["nvd-cve"], live, remaining)
+        return value, cache, False, {"NVD": as_of}
 
     def _cve_org(self, args, remaining):
         cve_id = args["cve_id"]
@@ -184,9 +195,9 @@ class FallbackAgents:
                 raise ValueError("record id mismatch")
             if meta.get("state") != "PUBLISHED":
                 raise FallbackUnavailable("not_found", "The CVE Record is not published (rejected or reserved).")
-            return cve_org_record(raw)
-        value, cache = self._cached(("cve-org", cve_id), TTL["cve-org"], live, remaining)
-        return value, cache, False
+            return cve_org_record(raw), _text(meta.get("dateUpdated"), 40) or None
+        (value, as_of), cache = self._cached(("cve-org", cve_id), TTL["cve-org"], live, remaining)
+        return value, cache, False, {"CVE Program": as_of}
 
     def _kev_catalog(self, remaining):
         now = self.clock()
@@ -202,7 +213,8 @@ class FallbackAgents:
                     if isinstance(r, dict) and isinstance(r.get("cveID"), str) and CVE_ID.fullmatch(r["cveID"])}
             if len(rows) < 100:
                 raise ValueError("catalog too small")
-            kev = (self.clock(), self.wall(), rows, _text(raw.get("catalogVersion"), 40))
+            kev = (self.clock(), self.wall(), rows, _text(raw.get("catalogVersion"), 40),
+                   _text(raw.get("dateReleased"), 40))
             self._kev_to_disk(kev)
             with self.lock:
                 self.kev = kev
@@ -220,7 +232,8 @@ class FallbackAgents:
         try:
             saved = json.loads(path.read_text(encoding="utf-8"))
             age = max(0.0, self.wall() - float(saved["fetched_at"]))
-            return (self.clock() - age, float(saved["fetched_at"]), dict(saved["rows"]), saved.get("catalog_version", ""))
+            return (self.clock() - age, float(saved["fetched_at"]), dict(saved["rows"]), saved.get("catalog_version", ""),
+                    saved.get("date_released", ""))
         except Exception:
             return None
 
@@ -228,7 +241,8 @@ class FallbackAgents:
         try:
             self.data_dir.mkdir(parents=True, exist_ok=True)
             tmp = self.data_dir / "kev-catalog.json.tmp"
-            tmp.write_text(json.dumps({"fetched_at": kev[1], "catalog_version": kev[3], "rows": kev[2]}), encoding="utf-8")
+            tmp.write_text(json.dumps({"fetched_at": kev[1], "catalog_version": kev[3], "date_released": kev[4],
+                                       "rows": kev[2]}), encoding="utf-8")
             os.replace(tmp, self.data_dir / "kev-catalog.json")
         except OSError:
             pass  # the in-memory copy still serves
@@ -244,15 +258,17 @@ class FallbackAgents:
         def live(rem):
             raw = self._get_json("https://api.first.org/data/v1/epss", rem, params={"cve": cve_id}, limit=65536)
             rows = [r for r in raw.get("data") or [] if isinstance(r, dict) and r.get("cve") == cve_id]
-            return float(rows[0]["epss"]) if rows else None
+            return (float(rows[0]["epss"]), _text(rows[0].get("date"), 40) or None) if rows else (None, None)
+        as_of = {"CISA KEV": kev[4] or None}
         try:
-            score, _ = self._cached(("epss", cve_id), TTL["epss"], live, remaining)
+            (score, epss_date), _ = self._cached(("epss", cve_id), TTL["epss"], live, remaining)
         except FallbackUnavailable:
             score, partial = None, True
         if score is not None and 0 <= score <= 1:
             result["epss"] = score
             result["source"] = "CISA KEV; FIRST EPSS"
-        return result, cache, partial
+            as_of["FIRST EPSS"] = epss_date
+        return result, cache, partial, as_of
 
     def _github_advisory(self, args, remaining):
         package, ecosystem = args["package"], args["ecosystem"]
@@ -268,12 +284,96 @@ class FallbackAgents:
                 "ecosystem": gh_eco, "affects": package, "type": "reviewed", "per_page": 100})
             if not isinstance(raw, list):
                 raise ValueError("unexpected advisory list")
-            return raw[:100], len(raw) >= 100
-        (rows, more), cache = self._cached(("github-advisory", ecosystem, package.lower()),
-                                           TTL["github-advisory"], live, remaining)
+            # The database has no single release stamp; the listing is current as of retrieval.
+            return raw[:100], len(raw) >= 100, _now_iso(self.utc_now())
+        (rows, more, as_of), cache = self._cached(("github-advisory", ecosystem, package.lower()),
+                                                  TTL["github-advisory"], live, remaining)
         items, unknown = github_items(rows, package, gh_eco, version)
         partial = more or unknown
-        return {"items": items, "partial": partial, "source": "GitHub Advisory Database"}, cache, partial
+        result = {"items": items, "partial": partial, "source": "GitHub Advisory Database"}
+        return result, cache, partial, {"GitHub Advisory Database": as_of}
+
+    def _package_args(self, args):
+        package, ecosystem = args["package"], args["ecosystem"]
+        if not PACKAGE.fullmatch(package):
+            raise FallbackUnavailable("invalid_input", "Use a valid package name.")
+        return package, ecosystem
+
+    def _package_registry(self, args, remaining):
+        package, ecosystem = self._package_args(args)
+
+        def live(rem):
+            if ecosystem == "npm":
+                raw = self._get_json("https://registry.npmjs.org/" + quote(package, safe="@") + "/latest", rem,
+                                     limit=1024 * 1024)
+                if raw.get("name") != package or not isinstance(raw.get("version"), str):
+                    raise ValueError("package mismatch")
+                repo = raw.get("repository")
+                out = {"latest_version": _text(raw["version"], 64), "deprecated": bool(raw.get("deprecated")),
+                       "source": "npm public registry"}
+                url = repository_url(repo.get("url") if isinstance(repo, dict) else repo)
+            else:
+                raw = self._get_json("https://pypi.org/pypi/" + quote(package, safe="") + "/json", rem,
+                                     limit=12 * 1024 * 1024)
+                info = raw.get("info") or {}
+                if pep503(info.get("name", "")) != pep503(package) or not isinstance(info.get("version"), str):
+                    raise ValueError("package mismatch")
+                files = [f for f in raw.get("urls") or [] if isinstance(f, dict)]
+                out = {"latest_version": _text(info["version"], 64), "source": "PyPI JSON API"}
+                times = sorted(_text(f.get("upload_time_iso_8601"), 40) for f in files if f.get("upload_time_iso_8601"))
+                if times:
+                    out["released_at"] = times[0]
+                inactive = any("Development Status :: 7 - Inactive" in str(c) for c in info.get("classifiers") or [])
+                if inactive or info.get("yanked") or (files and all(f.get("yanked") for f in files)):
+                    out["deprecated"] = True
+                links = info.get("project_urls") or {}
+                ordered = [links.get(k) for k in ("Source", "Source Code", "Repository", "Code", "GitHub", "source")]
+                ordered += list(links.values()) + [info.get("home_page")]
+                url = next((u for u in (repository_url(x, hosted_only=True) for x in ordered) if u), None)
+            if url:
+                out["repository"] = url
+            return out, _now_iso(self.utc_now())
+        (out, as_of), cache = self._cached(("package-registry", ecosystem, package.lower()),
+                                           TTL["package-registry"], live, remaining)
+        return out, cache, False, {out["source"]: as_of}
+
+    def _depsdev_package(self, args, remaining):
+        package, ecosystem = self._package_args(args)
+        system = {"npm": "npm", "PyPI": "pypi"}[ecosystem]
+        base = "https://api.deps.dev/v3/systems/" + system + "/packages/" + quote(package, safe="")
+
+        def live(rem):
+            raw = self._get_json(base, rem, limit=4 * 1024 * 1024)
+            default = next((v for v in raw.get("versions") or [] if isinstance(v, dict) and v.get("isDefault")), None)
+            if not default:
+                raise FallbackUnavailable("not_found", "deps.dev has no default version for this package.")
+            version = default["versionKey"]["version"]
+            out = {"latest_version": _text(version, 64), "deprecated": bool(default.get("isDeprecated")),
+                   "source": "deps.dev"}
+            if _text(default.get("publishedAt"), 40):
+                out["released_at"] = _text(default.get("publishedAt"), 40)
+            as_of = {"deps.dev": _now_iso(self.utc_now())}
+            partial = False
+            try:
+                doc = self._get_json(base + "/versions/" + quote(version, safe=""), rem, limit=2 * 1024 * 1024)
+                project = next((p["projectKey"]["id"] for p in doc.get("relatedProjects") or []
+                                if isinstance(p, dict) and p.get("relationType") == "SOURCE_REPO"
+                                and isinstance((p.get("projectKey") or {}).get("id"), str)), None)
+                if project and re.fullmatch(r"(github\.com|gitlab\.com|bitbucket\.org)/[\w.-]+/[\w.-]+", project):
+                    out["repository"] = "https://" + project
+                    proj = self._get_json("https://api.deps.dev/v3/projects/" + quote(project, safe=""), rem,
+                                          limit=1024 * 1024)
+                    card = proj.get("scorecard") or {}
+                    if isinstance(card.get("overallScore"), (int, float)) and 0 <= card["overallScore"] <= 10:
+                        out["scorecard"] = float(card["overallScore"])
+                        out["source"] = "deps.dev; OpenSSF Scorecard"
+                        as_of["OpenSSF Scorecard"] = _text(card.get("date"), 40) or None
+            except (SourceBusy, SourceError, FallbackUnavailable, ValueError, KeyError, TypeError):
+                partial = True  # version facts stand; repository/scorecard could not be read in time
+            return out, as_of, partial
+        (out, as_of, partial), cache = self._cached(("depsdev-package", ecosystem, package.lower()),
+                                                    TTL["depsdev-package"], live, remaining)
+        return out, cache, partial, as_of
 
     # ---------------------------------------------------------------- usage
     def _usage(self, agent_id, envelope, code, started):
@@ -306,6 +406,8 @@ def cve_org_record(raw: dict) -> dict:
             if found:
                 break
         if found:
+            who = _text((block.get("providerMetadata") or {}).get("shortName"), 40) or "unnamed"
+            out["source"] = f"CVE Program (score from {'CNA' if block is cna else 'ADP'} {who})"
             out["cvss_score"] = float(found["baseScore"])
             out["cvss_version"] = found["version"][:8]
             if _text(found.get("vectorString"), 200):
@@ -373,6 +475,32 @@ def github_items(rows: list, package: str, gh_eco: str, version: str = "") -> tu
             unknown = True
             break
     return items, unknown
+
+
+REPO_HOST = re.compile(r"(?:git\+)?(?:https?|git|ssh)?:?/*(?:git@)?(github\.com|gitlab\.com|bitbucket\.org)[:/]"
+                       r"([\w.-]+)/([\w.-]+?)(?:\.git)?(?:[/#?].*)?$")
+
+
+def repository_url(value, hosted_only: bool = False):
+    """Normalize a repository field to https://host/owner/repo; other https URLs pass unless hosted_only."""
+    if isinstance(value, dict):
+        value = value.get("url")
+    if not isinstance(value, str) or len(value) > 2000 or " " in value.strip():
+        return None
+    value = value.strip()
+    short = re.fullmatch(r"(?:github:)?([\w.-]+)/([\w.-]+)", value)
+    if short and not value.startswith(("http", "git+", "git:", "git@")):
+        return f"https://github.com/{short[1]}/{short[2]}"
+    m = REPO_HOST.match(value)
+    if m:
+        return f"https://{m[1]}/{m[2]}/{m[3]}"
+    if not hosted_only and value.startswith("https://"):
+        return value
+    return None
+
+
+def pep503(name: str) -> str:
+    return re.sub(r"[-_.]+", "-", name or "").lower()
 
 
 _DEFAULT: FallbackAgents | None = None

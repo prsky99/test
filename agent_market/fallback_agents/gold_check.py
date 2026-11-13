@@ -8,8 +8,9 @@ rounds belong to the ops launch gate. Every case is a real call through the agen
 (its pacing and cache included), so this is the same path a necklace slot uses.
 
 Pass rules (per case):
-- cve.record agents: an answer with CVSS version equal to the truth and score within 0.1.
-  When the truth came from cvelistV5 (NVD had no score at build time) the same rule applies.
+- nvd-cve: CVSS version equal to the NVD truth and score within 0.1 (cvelistV5 truth when NVD had none).
+- cve-org (PM 11-14): the score equals the value of the source it names, the CVE record's CNA or ADP
+  block (``truth.cvss_record``), and that source is named; no score when the record has none.
 - cisa-kev: ``kev`` equal to the truth (and the listing date when listed). EPSS is
   reported separately: same band (<0.01, 0.01-0.1, 0.1-0.5, >=0.5) as the truth; EPSS
   moves daily, so a band change is shown, not counted as a failure.
@@ -26,9 +27,11 @@ import time
 from pathlib import Path
 
 from .agents import FallbackAgents, FallbackUnavailable
+from .catalog import SPECS, contract
 
 SLUG = {"nvd-cve": "cve-incident-brief", "cve-org": "cve-incident-brief", "cisa-kev": "cve-incident-brief",
-        "github-advisory": "package-risk-audit"}
+        "github-advisory": "package-risk-audit", "package-registry": "package-risk-audit",
+        "depsdev-package": "package-risk-audit"}
 BANDS = (0.01, 0.1, 0.5)
 
 
@@ -42,7 +45,18 @@ def judge(agent_id: str, case: dict, result: dict | None) -> dict:
     truth = case["truth"]
     if result is None:
         return {"pass": False}
-    if agent_id in ("nvd-cve", "cve-org"):
+    if agent_id == "cve-org":
+        # PM 11-14: the value must equal the value of the source it names (CNA or ADP in the CVE record).
+        want = truth.get("cvss_record")
+        if want is None or want.get("score") is None:
+            return {"pass": result.get("cvss_score") is None, "got": [result.get("cvss_score"), result.get("source")],
+                    "want": None}
+        label = f"{str(want.get('from', '')).upper()} {want.get('provider', '')}"
+        ok = (result.get("cvss_version") == want.get("version") and result.get("cvss_score") is not None
+              and abs(result["cvss_score"] - float(want["score"])) <= 0.1 and label in str(result.get("source")))
+        return {"pass": ok, "got": [result.get("cvss_score"), result.get("cvss_version"), result.get("source")],
+                "want": [want.get("score"), want.get("version"), label]}
+    if agent_id == "nvd-cve":
         want = truth["cvss"]
         ok = (result.get("cvss_version") == want.get("version") and result.get("cvss_score") is not None
               and abs(result["cvss_score"] - float(want["score"])) <= 0.1)
@@ -71,7 +85,39 @@ def judge(agent_id: str, case: dict, result: dict | None) -> dict:
         return {"pass": ok, "recall_all": round(len(hit) / len(groups), 3) if groups else None,
                 "recall_ghsa": round(len(hit_cov) / len(coverable), 3) if coverable else None,
                 "got": len(result["items"]), "want_groups": len(groups), "want_ghsa_groups": len(coverable)}
+    if agent_id in ("package-registry", "depsdev-package"):
+        # Gold truth is the registry's latest version at build time; a release since then shows as a miss
+        # and is listed, not hidden.
+        return {"pass": result.get("latest_version") == truth.get("latest_version"),
+                "got": result.get("latest_version"), "want": truth.get("latest_version"),
+                "signals": sorted(k for k in result if k != "source")}
     raise ValueError(agent_id)
+
+
+def role_task_check(agent_ids, agents: FallbackAgents | None = None) -> dict:
+    """Run the workflow team's fixed role tasks (role_tasks/role-tasks-v1.jsonl) for each agent's contract."""
+    from ..necklaces import role_tasks
+    from .net import get
+    agents = agents or FallbackAgents()
+    out = {}
+    for agent_id in agent_ids:
+        rows = []
+        for case in role_tasks.load():
+            if case["contract"] != SPECS[agent_id]["contract"]:
+                continue
+            try:
+                result = agents.execute(agent_id, case["input"])["result"]
+            except FallbackUnavailable as exc:
+                rows.append({"case_id": case["case_id"], "pass": False, "error": exc.code})
+                continue
+            ok, why = role_tasks.score(case, json.dumps(result), result)
+            for field, url in ((case.get("expect") or {}).get("dynamic") or {}).items():
+                live = json.loads(get(url, limiters=agents.limiters, seconds=5, limit=1 << 20).content)
+                if result.get(field) != live.get("version"):
+                    ok, why = False, why + [f"{field} {result.get(field)} != live {live.get('version')}"]
+            rows.append({"case_id": case["case_id"], "pass": ok, "why": why})
+        out[agent_id] = {"passed": sum(r["pass"] for r in rows), "cases": len(rows), "rows": rows}
+    return out
 
 
 def check(agent_ids, root: Path, split: str = "tuning", agents: FallbackAgents | None = None,
@@ -85,8 +131,10 @@ def check(agent_ids, root: Path, split: str = "tuning", agents: FallbackAgents |
         for case in cases:
             started = time.monotonic()
             result, code, cache = None, None, None
+            allowed = contract(SPECS[agent_id]["contract"])["input_schema"]["properties"]
+            arguments = {k: v for k, v in case["input"].items() if k in allowed}
             try:
-                envelope = agents.execute(agent_id, case["input"])
+                envelope = agents.execute(agent_id, arguments)
                 result, cache = envelope["result"], envelope["cache"]["status"]
             except FallbackUnavailable as exc:
                 code = exc.code
@@ -119,8 +167,12 @@ def main(argv=None) -> int:
     parser.add_argument("--split", default="tuning")
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--pause", type=float, default=0.0, help="seconds between cases")
+    parser.add_argument("--role-tasks", action="store_true", help="also run the fixed role tasks")
     args = parser.parse_args(argv)
     report = check(args.agents, args.root, args.split, pause=args.pause)
+    if args.role_tasks:
+        report["role_tasks"] = role_task_check(args.agents)
+        print(json.dumps({k: [v["passed"], v["cases"]] for k, v in report["role_tasks"].items()}))
     report["at"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(report, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")

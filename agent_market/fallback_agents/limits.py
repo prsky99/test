@@ -80,4 +80,7 @@ def limiters(clock=time.monotonic, sleep=time.sleep) -> dict[str, HostLimiter]:
         "www.cisa.gov": HostLimiter(60.0, None, None, clock, sleep),
         "api.first.org": HostLimiter(0.5, 60, 60.0, clock, sleep),
         "api.github.com": HostLimiter(1.0, 50, 3600.0, clock, sleep),
+        "registry.npmjs.org": HostLimiter(0.2, 300, 60.0, clock, sleep),
+        "pypi.org": HostLimiter(0.2, 300, 60.0, clock, sleep),
+        "api.deps.dev": HostLimiter(0.2, 300, 60.0, clock, sleep),
     }

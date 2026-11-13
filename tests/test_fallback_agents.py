@@ -70,7 +70,7 @@ def agents(tmp_path, routes, calls=None, clock=None, snapshot=None):
 
 # ------------------------------------------------------------------ catalog and contracts
 def test_tools_are_read_only_and_use_the_slot_contracts():
-    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory"}
+    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package"}
     for agent_id, spec in SPECS.items():
         tool = tool_spec(agent_id)
         c = contract(spec["contract"])
@@ -246,7 +246,8 @@ def test_invalid_input_never_reaches_a_source(tmp_path):
 # ------------------------------------------------------------------ cve-org agent
 def cve5(cve_id="CVE-2024-3094", state="PUBLISHED"):
     return {"cveMetadata": {"cveId": cve_id, "state": state, "datePublished": "2024-03-29T15:51:12.001Z"},
-            "containers": {"cna": {"descriptions": [{"lang": "en", "value": "Malicious code in xz"}],
+            "containers": {"cna": {"providerMetadata": {"shortName": "redhat"},
+                                   "descriptions": [{"lang": "en", "value": "Malicious code in xz"}],
                                    "references": [{"url": "https://access.redhat.com/security/cve/CVE-2024-3094"}],
                                    "metrics": [{"other": {}}, {"cvssV3_1": {"version": "3.1", "baseScore": 10,
                                                                             "vectorString": "CVSS:3.1/AV:N"}}]},
@@ -256,7 +257,7 @@ def cve5(cve_id="CVE-2024-3094", state="PUBLISHED"):
 def test_cve_org_agent_reads_the_cna_score_first(tmp_path):
     a, _ = agents(tmp_path, {"https://cveawg.mitre.org/api/cve/CVE-2024-3094": httpx.Response(200, json=cve5())})
     out = slot_output(a.execute("cve-org", {"cve_id": "CVE-2024-3094"}))
-    assert out == {"cve_id": "CVE-2024-3094", "source": "CVE Program", "cvss_score": 10.0, "cvss_version": "3.1",
+    assert out == {"cve_id": "CVE-2024-3094", "source": "CVE Program (score from CNA redhat)", "cvss_score": 10.0, "cvss_version": "3.1",
                    "cvss_vector": "CVSS:3.1/AV:N", "description": "Malicious code in xz",
                    "published": "2024-03-29T15:51:12.001Z",
                    "references": ["https://access.redhat.com/security/cve/CVE-2024-3094"]}
@@ -440,12 +441,12 @@ def test_network_guard_refuses_other_hosts_and_private_preflight(monkeypatch):
 def test_output_that_breaks_the_contract_is_an_error(tmp_path, monkeypatch):
     a, _ = agents(tmp_path, {"https://cveawg.mitre.org/": httpx.Response(200, json=cve5())})
     monkeypatch.setattr(a, "_cve_org", lambda args, rem: ({"cve_id": args["cve_id"], "source": "x", "cvss_score": 11},
-                                                         {"status": "live", "age_seconds": 0}, False))
+                                                         {"status": "live", "age_seconds": 0}, False, {}))
     with pytest.raises(FallbackUnavailable) as err:
         a.execute("cve-org", {"cve_id": "CVE-2024-3094"})
     assert err.value.code == "invalid_output"
     monkeypatch.setattr(a, "_cve_org", lambda args, rem: ({"cve_id": "CVE-2000-0001", "source": "x"},
-                                                         {"status": "live", "age_seconds": 0}, False))
+                                                         {"status": "live", "age_seconds": 0}, False, {}))
     with pytest.raises(FallbackUnavailable) as err:
         a.execute("cve-org", {"cve_id": "CVE-2024-3094"})
     assert err.value.code == "invalid_output"
@@ -528,3 +529,163 @@ def test_gold_check_rules():
     assert got["pass"] and got["recall_ghsa"] == 1.0 and got["recall_all"] == 0.5
     assert not judge("github-advisory", {"truth": {"advisories": []}}, {"items": [{"id": "GHSA-b"}]})["pass"]
     assert not judge("github-advisory", pkg, {"items": []})["pass"]
+
+
+# ------------------------------------------------------------------ data age (PM 11-14)
+def test_every_answer_states_source_time_and_age(tmp_path):
+    snap = seeded_snapshot(tmp_path, nvd_cve())
+    db = snap._open(snap.path)
+    with db:
+        db.execute("INSERT OR REPLACE INTO meta VALUES ('source_updated_at', '2026-11-13T14:00:06-05:00')")
+    db.close()
+    a, _ = agents(tmp_path, kev_routes(), snapshot=snap)
+    env = a.execute("nvd-cve", {"cve_id": "CVE-2021-44228"})
+    assert env["freshness"] == {"data_as_of": {"NVD": "2026-11-13T14:00:06-05:00"}, "age_seconds": 600,
+                                "max_age_seconds": 21600}
+    body = dict(KEV_BODY, dateReleased="2026-11-13T17:49:24.9532Z")
+    a2, _ = agents(tmp_path / "k", {**kev_routes(), "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json":
+                                    httpx.Response(200, json=body),
+                                    "https://api.first.org/data/v1/epss": httpx.Response(200, json={"data": [
+                                        {"cve": "CVE-2021-44228", "epss": "0.9", "date": "2026-11-13"}]})})
+    env = a2.execute("cisa-kev", {"cve_id": "CVE-2021-44228"})
+    assert env["freshness"]["data_as_of"] == {"CISA KEV": "2026-11-13T17:49:24.9532Z", "FIRST EPSS": "2026-11-13"}
+
+
+def test_a_snapshot_over_six_hours_old_is_stale_not_an_answer(tmp_path):
+    snap = Snapshot(tmp_path / "nvd.sqlite3")
+    db = snap._open(snap.path)
+    with db:
+        snap.ingest(db, [nvd_cve()])
+        db.execute("INSERT INTO meta VALUES ('synced_at', ?)", (repr(1.8e9 + 1000.0 - 6 * 3600 - 1),))
+    db.close()
+    a, _ = agents(tmp_path, {}, snapshot=snap)
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("nvd-cve", {"cve_id": "CVE-2021-44228"})
+    assert err.value.code == "stale"
+
+
+def test_kev_catalog_older_than_a_day_is_stale(tmp_path):
+    a, clock = agents(tmp_path, kev_routes())
+    a.execute("cisa-kev", {"cve_id": "CVE-2021-44228"})
+    failing = {"https://www.cisa.gov/": httpx.Response(500)}
+    c2 = Clock()
+    c2.t = clock.t + 25 * 3600
+    b = FallbackAgents(http=client(failing), data_dir=tmp_path, clock=c2, wall=lambda: 1.8e9 + c2.t,
+                       limiters=limiters(c2, c2.sleep))
+    with pytest.raises(FallbackUnavailable) as err:
+        b.execute("cisa-kev", {"cve_id": "CVE-2021-44228"})
+    assert err.value.code == "source_unavailable"
+
+
+def test_sync_records_the_modified_feed_time(tmp_path):
+    clock = Clock()
+    snap = Snapshot(tmp_path / "nvd.sqlite3")
+    db = snap._open(snap.path)
+    with db:
+        db.execute("INSERT INTO meta VALUES ('synced_at', ?)", (repr(1.8e9),))
+    db.close()
+    snap.sync("update", http=client(feed_routes({"modified": feed_bytes([nvd_cve()])})),
+              limiters=limiters(clock, clock.sleep), now=lambda: 1.8e9 + 60, log=lambda *_: None)
+    assert snap.meta("source_updated_at") == "2026-11-13T14:00:06-05:00"
+
+
+# ------------------------------------------------------------------ package.health agents
+def test_package_registry_npm_reads_latest_only(tmp_path):
+    calls = []
+    a, _ = agents(tmp_path, {"https://registry.npmjs.org/request/latest": httpx.Response(200, json={
+        "name": "request", "version": "2.88.2", "deprecated": "request has been deprecated",
+        "repository": {"type": "git", "url": "git+https://github.com/request/request.git"},
+        "maintainers": [{"email": "x@y.z"}], "scripts": {"postinstall": "evil"}})}, calls)
+    env = a.execute("package-registry", {"package": "request", "ecosystem": "npm"})
+    assert env["result"] == {"latest_version": "2.88.2", "deprecated": True, "source": "npm public registry",
+                             "repository": "https://github.com/request/request"}
+    assert calls == ["https://registry.npmjs.org/request/latest"]
+    assert "npm public registry" in env["freshness"]["data_as_of"] and env["freshness"]["max_age_seconds"] == 21600
+
+
+def test_package_registry_scoped_npm_name_is_encoded(tmp_path):
+    calls = []
+    a, _ = agents(tmp_path, {"https://registry.npmjs.org/@types%2Fnode/latest": httpx.Response(
+        200, json={"name": "@types/node", "version": "26.6.6", "repository": "github:DefinitelyTyped/DefinitelyTyped"})}, calls)
+    out = a.execute("package-registry", {"package": "@types/node", "ecosystem": "npm"})["result"]
+    assert out["repository"] == "https://github.com/DefinitelyTyped/DefinitelyTyped" and out["deprecated"] is False
+
+
+def test_package_registry_pypi_release_time_yank_and_repository(tmp_path):
+    body = {"info": {"name": "Django", "version": "6.1.3", "yanked": False, "classifiers": [],
+                     "home_page": "https://www.djangoproject.com/",
+                     "project_urls": {"Documentation": "https://docs.djangoproject.com/", "Source": "https://github.com/django/django"}},
+            "urls": [{"upload_time_iso_8601": "2026-11-03T15:21:22Z", "yanked": False},
+                     {"upload_time_iso_8601": "2026-11-03T15:21:19Z", "yanked": False}]}
+    a, _ = agents(tmp_path, {"https://pypi.org/pypi/django/json": httpx.Response(200, json=body)})
+    out = a.execute("package-registry", {"package": "django", "ecosystem": "PyPI"})["result"]
+    assert out == {"latest_version": "6.1.3", "source": "PyPI JSON API", "released_at": "2026-11-03T15:21:19Z",
+                   "repository": "https://github.com/django/django"}
+    body["info"]["classifiers"] = ["Development Status :: 7 - Inactive"]
+    b, _ = agents(tmp_path / "b", {"https://pypi.org/pypi/django/json": httpx.Response(200, json=body)})
+    assert b.execute("package-registry", {"package": "django", "ecosystem": "PyPI"})["result"]["deprecated"] is True
+
+
+def test_package_registry_missing_package_is_not_found(tmp_path):
+    a, _ = agents(tmp_path, {})
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("package-registry", {"package": "no-such-pkg-x", "ecosystem": "npm"})
+    assert err.value.code == "not_found"
+
+
+def depsdev_routes(scorecard=True):
+    routes = {
+        "https://api.deps.dev/v3/systems/npm/packages/lodash/versions/4.18.1": httpx.Response(200, json={
+            "relatedProjects": [{"projectKey": {"id": "github.com/lodash/lodash"}, "relationType": "ISSUE_TRACKER"},
+                                {"projectKey": {"id": "github.com/lodash/lodash"}, "relationType": "SOURCE_REPO"}]}),
+        "https://api.deps.dev/v3/systems/npm/packages/lodash": httpx.Response(200, json={"versions": [
+            {"versionKey": {"version": "4.17.21"}, "isDefault": False},
+            {"versionKey": {"version": "4.18.1"}, "isDefault": True, "isDeprecated": False, "publishedAt": "2026-04-01T21:01:20Z"}]}),
+        "https://api.deps.dev/v3/projects/github.com%2Flodash%2Flodash": httpx.Response(200, json={
+            "scorecard": {"date": "2026-08-24T00:00:00Z", "overallScore": 7.5}} if scorecard else {}),
+    }
+    return routes
+
+
+def test_depsdev_agent_reports_default_version_repo_and_scorecard(tmp_path):
+    a, _ = agents(tmp_path, depsdev_routes())
+    env = a.execute("depsdev-package", {"package": "lodash", "ecosystem": "npm"})
+    assert env["result"] == {"latest_version": "4.18.1", "deprecated": False, "source": "deps.dev; OpenSSF Scorecard",
+                             "released_at": "2026-04-01T21:01:20Z", "repository": "https://github.com/lodash/lodash",
+                             "scorecard": 7.5}
+    assert env["freshness"]["data_as_of"]["OpenSSF Scorecard"] == "2026-08-24T00:00:00Z"
+    assert env["sources"][0]["license"].startswith("Generated data CC BY 4.0")
+
+
+def test_depsdev_agent_without_scorecard_keeps_version_facts(tmp_path):
+    routes = depsdev_routes(scorecard=False)
+    a, _ = agents(tmp_path, routes)
+    out = a.execute("depsdev-package", {"package": "lodash", "ecosystem": "npm"})["result"]
+    assert "scorecard" not in out and out["source"] == "deps.dev" and out["latest_version"] == "4.18.1"
+    del routes["https://api.deps.dev/v3/projects/github.com%2Flodash%2Flodash"]
+    routes["https://api.deps.dev/v3/projects/"] = httpx.Response(500)
+    b, _ = agents(tmp_path / "b", routes)
+    env = b.execute("depsdev-package", {"package": "lodash", "ecosystem": "npm"})
+    assert env["partial"] is True and env["result"]["latest_version"] == "4.18.1"
+
+
+def test_repository_url_normalization():
+    from agent_market.fallback_agents.agents import repository_url
+    assert repository_url("git+https://github.com/a/b.git") == "https://github.com/a/b"
+    assert repository_url("git://github.com/a/b.git") == "https://github.com/a/b"
+    assert repository_url("git@github.com:a/b.git") == "https://github.com/a/b"
+    assert repository_url("https://github.com/a/b/tree/main/pkg") == "https://github.com/a/b"
+    assert repository_url("a/b") == "https://github.com/a/b"
+    assert repository_url("https://docs.example.org/", hosted_only=True) is None
+    assert repository_url("http://insecure.example/") is None
+
+
+def test_cve_org_gold_rule_uses_the_named_source():
+    from agent_market.fallback_agents.gold_check import judge
+    case = {"truth": {"cvss": {"score": 8.0, "version": "3.1", "source": "NVD"},
+                      "cvss_record": {"from": "cna", "provider": "cisco", "score": 10.0, "version": "3.1"}}}
+    assert judge("cve-org", case, {"cvss_score": 10.0, "cvss_version": "3.1", "source": "CVE Program (score from CNA cisco)"})["pass"]
+    assert not judge("cve-org", case, {"cvss_score": 10.0, "cvss_version": "3.1", "source": "CVE Program"})["pass"]
+    none = {"truth": {"cvss": {"score": 6.4, "version": "2.0"}, "cvss_record": None}}
+    assert judge("cve-org", none, {"source": "CVE Program"})["pass"]
+    assert not judge("cve-org", none, {"cvss_score": 6.4, "cvss_version": "2.0", "source": "CVE Program"})["pass"]

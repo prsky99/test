@@ -164,6 +164,16 @@ class Snapshot:
             return None, "missing", synced_at
         return json.loads(zlib.decompress(row[1])), row[0], synced_at
 
+    def meta(self, key: str):
+        if not self.path.exists():
+            return None
+        db = sqlite3.connect(f"file:{self.path}?mode=ro", uri=True, timeout=1.0)
+        try:
+            row = db.execute("SELECT value FROM meta WHERE key=?", (key,)).fetchone()
+        finally:
+            db.close()
+        return row[0] if row else None
+
     # ---- write path (sync job) ----
     def _open(self, path: Path) -> sqlite3.Connection:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -220,6 +230,11 @@ class Snapshot:
                                 limit=4096, accept="*/*").text
                 meta = dict(line.split(":", 1) for line in meta_text.splitlines() if ":" in line)
                 want = meta.get("sha256", "").strip().lower()
+                if name == "modified" and meta.get("lastModifiedDate"):
+                    # Source data time shown in answers: the modified feed's own update stamp.
+                    with db:
+                        db.execute("INSERT OR REPLACE INTO meta VALUES ('source_updated_at', ?)",
+                                   (meta["lastModifiedDate"].strip()[:40],))
                 seen = db.execute("SELECT value FROM meta WHERE key=?", ("feed:" + name,)).fetchone()
                 if seen and seen[0] == want:
                     report["feeds"][name] = {"skipped": "unchanged"}
