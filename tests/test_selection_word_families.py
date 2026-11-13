@@ -38,3 +38,14 @@ def test_required_words(task, core):
 
 def test_one_qualifier_list():
     assert QUALIFIERS is QUALIFIER_PHRASES
+
+
+@pytest.mark.parametrize('task, text', [
+    ('post to a Discord channel', 'send Discord message'),
+    ('send a message to my Slack channel', 'send Slack message'),
+    ('look up details for a CVE', 'look up CVE vulnerability'),
+    ('post a tweet', 'post a tweet'),
+])
+def test_channel_and_cve_rewrites(task, text):
+    """PM 11-14 02:3x: gate telegram-en1 lost "Discord" at "to", cve_scan-en1 lost "CVE" at "for"."""
+    assert retrieval_text(task) == text
