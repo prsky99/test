@@ -248,9 +248,11 @@ def _compose_app(
             from ..workspace_admin_summaries import HealthSummaries
             from ..workspace_admin_retention import Retention
             from ..workflow_retention_schedule import WorkflowRetention
+            from ..nvd_snapshot_schedule import NvdSnapshotRefresh
             scheduler = Scheduler(collector, service, config.rescan_interval, front.digest,
                                   front.workflows if service_role == 'legacy' else None,
-                                  summaries=[HealthSummaries(store), Retention(store), WorkflowRetention(front.workflows)])
+                                  summaries=[HealthSummaries(store), Retention(store), WorkflowRetention(front.workflows),
+                                             NvdSnapshotRefresh()])
             scheduler.start()
         try:
             yield
