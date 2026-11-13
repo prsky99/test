@@ -197,6 +197,9 @@ PUBLIC_PAGE_CACHE = 'public, max-age=300, stale-while-revalidate=86400'
 # 11-13 PM 20:5x: the notice pages are the same bytes for every visitor too, but were no-store (DYNAMIC: every visit
 # went LAX -> tunnel -> this Mac; disclosures 6.68 s at 18:31). They get the live pages' cache unless the request
 # carries a cookie or credentials. They stay noindex as before (reports/page-body-time-2026-11-13).
+LIVE_PANELS = {'index.html': 'overview', 'agent-status.html': 'status', 'explore.html': 'explore', 'learn.html': 'learn',
+               'test.html': 'test', 'workflows.html': 'workflows', 'chat.html': 'chat', 'list-agent.html': 'register',
+               'about.html': 'about'}  # new/build_en.py PANELS (tests/test_page_meta_trim.py keeps them equal)
 NOTICE_PAGES = frozenset(('accessibility.html', 'contact.html', 'cookies.html', 'disclosures.html', 'privacy.html',
                           'service-disclosures.html', 'terms.html'))
 INLINE_SCRIPT = re.compile(r'<script\b([^>]*)>(.*?)</script>', re.S | re.I)
@@ -392,9 +395,42 @@ CSP_META = re.compile(r'<meta http-equiv="Content-Security-Policy" content="defa
                       r'(?:\'|&#x27;)">\n?')
 
 
+# 11-13 PM 22:5x decision (b): every live page carried the page:<panel>:* meta of all nine panels (67 tags, 2.0-2.5 KB
+# gzip of the first flight). A page now keeps its own panel's and the home page's; the full set is
+# /page-metadata.json (linked from each page) and the "Page metadata" part of /llms-full.txt. Nothing in the pages
+# reads these tags (screen changes use operating.js PAGE_METAS).
+PAGE_META = re.compile(r'<meta name="page:([a-z-]+):[a-z0-9:-]+" content="[^"]*">\n?')
+PAGE_METADATA_PATH = '/page-metadata.json'
+PAGE_METADATA_LINK = ('<link rel="alternate" type="application/json" title="Page metadata of every Agent Concierge page" '
+                      'href="' + PAGE_METADATA_PATH + '">\n')
+
+
+def own_page_meta(value, panel):
+    """Keep the page:* meta of this panel and of the home page; point to the document with all of them."""
+    keep = {'overview', panel}
+    trimmed, removed = PAGE_META.subn(lambda m: m[0] if m[1] in keep else '', value)
+    if trimmed == value:
+        return value
+    first = PAGE_META.search(trimmed)
+    at = first.start() if first else trimmed.find('</head>')
+    return trimmed[:at] + PAGE_METADATA_LINK + trimmed[at:]
+
+
+def page_metadata(source_html):
+    """{panel: {key: content}} from a page that still carries every panel's page:* meta."""
+    import html as _h
+    found = {}
+    for m in re.finditer(r'<meta name="page:([a-z-]+):([a-z0-9:-]+)" content="([^"]*)">', source_html):
+        found.setdefault(m[1], {})[m[2]] = _h.unescape(m[3])
+    return found
+
+
 def page_response(value, *, public=False, page=None, noindex=None):
     """Use the same nonce policy for the default and named presentation routes."""
     value = CSP_META.sub('', value, count=1)
+    panel = LIVE_PANELS.get(page)
+    if panel:
+        value = own_page_meta(value, panel)
     value = critical_css(split_panels(versioned(bundled(prerender_segmented(value)))), page)
     if os.environ.get('MAIN_SPONSORED', '0') == '1':  # 11-11 Sponsored on main Explore and Chat; off by default
         value = re.sub(r'<body\b', '<body data-sponsored="on"', value, count=1)
@@ -536,6 +572,16 @@ def install(app, front, *, workspace_access_enabled=False, workspace_link_enable
         if not path.is_relative_to(base) or not path.is_file() or path.is_symlink():
             raise HTTPException(404, 'Page not found.')
         return path.read_bytes()
+
+    @app.get(PAGE_METADATA_PATH, include_in_schema=False)
+    def all_page_metadata():
+        # The page:* meta each page no longer carries for the other panels (11-13 PM decision b).
+        from fastapi.responses import JSONResponse
+        return JSONResponse({'about': 'page:<panel>:<key> meta of every public Agent Concierge page; each page '
+                             'carries only its own panel and the home page (overview).',
+                             'pages': {panel: {'url': '/new/en/' + name if name != 'index.html' else '/'}
+                                       for name, panel in LIVE_PANELS.items()},
+                             'meta': page_metadata(read(en, 'index.html').decode())})
 
     @app.get('/new/en', include_in_schema=False)
     @app.get('/new/en/', include_in_schema=False)
