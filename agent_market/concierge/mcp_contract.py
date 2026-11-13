@@ -148,6 +148,10 @@ def mcp_tools():
             'required': ['text'],
             'additionalProperties': True,
         }
+    # 11-14 PM super-gap 2: Check-and-Route (verify snapshot only)
+    import copy as _copy
+    from .check_route import TOOLS as CHECK_TOOLS
+    TOOLS.extend({**_copy.deepcopy(tool), 'outputSchema': _copy.deepcopy(TOOLS[0]['outputSchema'])} for tool in CHECK_TOOLS)
     # run_workflow starts a public run and may answer with an MCP task (mcp_tasks.py), so it keeps its own
     # annotations (not read-only, open world) and its execution.taskSupport.
     import copy

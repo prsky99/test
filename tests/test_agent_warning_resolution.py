@@ -34,7 +34,7 @@ def test_every_observed_26_warning_and_11_failure_has_passing_candidate_evidence
     targets = ['documents:head:' + path for path in heads]
     targets += ['documents:category:/agents/category/social', 'mcp:browser-preflight', 'mcp:origin-denial']
     targets += [prefix + tool['name'] for tool in mcp_tools() for prefix in ('mcp:hints:', 'mcp:output-schema:')]
-    assert len(targets) == len(set(targets)) == 39  # 11-04: run_workflow (MCP tasks); 11-11: check_agent; 11-14: subscribe unlisted
+    assert len(targets) == len(set(targets)) == 43  # 11-14: verify_agent, best_for_role; 11-04: run_workflow (MCP tasks); 11-11: check_agent; 11-14: subscribe unlisted
     assert all(values[key]['status'] == 'PASS' for key in targets)
     assert all(row['status'] == 'PASS' for row in audit.results)
     output = Path('reports/agent-warnings-failures-2026-10-27')
@@ -64,6 +64,7 @@ def test_every_declared_tool_schema_matches_its_actual_result(catalog, tool_name
             'servers': [{'url': 'https://public-api.example'}],
             'paths': {'/status': {'get': {'operationId': 'read_status', 'responses': {'200': {'description': 'Status'}}}}}}},
         'search_workflows': {'task': 'documentation search'}, 'workflow_details': {'template_id': 2147483647},
+        'verify_agent': {'agent_id': 1}, 'best_for_role': {'role': 'weather.forecast.v1'},
         'run_workflow': {'template_id': 2147483647, 'definition_hash': 'a' * 64},
     }
     response = client.post('/mcp', headers={'X-Visitor-Token': token}, json={
