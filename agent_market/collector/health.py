@@ -335,13 +335,27 @@ class HealthChecker:
         return "other"
 
     def next_check_at(self, state_failures: int, in_use: bool, now: float, host_size: int = 1,
-                      resource: dict | None = None) -> float:
+                      resource: dict | None = None, member: bool = False) -> float:
         s = self.schedule
         # Cannot be shorter than the time required to complete one full cycle of the same host
         host_min = host_size * (self.per_host_delay + 0.5) * 1.2
         interval = max(s.interval, host_min)
-        if state_failures >= s.down_after:
-            delay = interval
+        if member:
+            # 운영·SRE 11-14: a necklace member is checked every 15 minutes even when down, so the watch (hourly,
+            # RESTORE_AFTER=6) sees a recovery in time; a customer's in_use agent keeps the old order.
+            delay = s.in_use_interval
+        elif state_failures >= s.down_after:
+            # PM 11-14: down follows the grade rules too. Grade A keeps the 6-hour backoff to catch a recovery early,
+            # a bulk host (suspect ones included) keeps its daily sample / weekly pass, any other down agent is
+            # checked daily. The 7-day retire rule is unchanged (it counts from failing_since, not from checks).
+            tier = self.tier(resource)
+            if tier == "default" or (resource or {}).get("eval_grade") == "A":
+                delay = interval
+            elif tier == "bulk":
+                sample = random.random() < min(1.0, s.bulk_sample_per_day / max(1, host_size))
+                delay = max(s.other_interval, host_min) if sample else max(s.bulk_full_interval, host_min)
+            else:
+                delay = max(s.other_interval, host_min)
         elif in_use:
             delay = s.in_use_interval
         elif state_failures:
@@ -379,8 +393,8 @@ class HealthChecker:
         host_size = self.host_sizes().get(resource.get("host") or urlparse(resource["url"]).hostname, 1)
         state = self.store.record_health(
             resource["id"], result.outcome, result.status_code, result.latency_ms, result.error,
-            next_check_at=self.next_check_at(failures, in_use or resource["id"] in self.necklace_members(), time.time(),
-                                             host_size, resource),
+            next_check_at=self.next_check_at(failures, in_use, time.time(), host_size, resource,
+                                             member=resource["id"] in self.necklace_members()),
             down_after=self.schedule.down_after,
             retire_after=self.schedule.retire_after,
             observed_price=result.observed_price, observed_pay_to=result.observed_pay_to, auth_observed=result.auth,

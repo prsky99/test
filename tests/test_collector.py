@@ -112,8 +112,9 @@ def test_down_after_three_failures_still_checked_and_recovers(env):
     statuses = [checker.check_and_record(store.resource(rid))["status"] for _ in range(3)]
     assert statuses == ["failing", "failing", "down"]
     r = store.resource(rid)
-    # down이어도 정상 주기(기본 6시간)로 계속 점검 예정
-    assert 0.8 * checker.schedule.interval < r["next_check_at"] - time.time() < 1.2 * checker.schedule.interval
+    # down이어도 계속 점검 예정. 11-14 PM: 등급 A가 아닌 down은 24시간(등급 A는 기본 6시간)
+    day = checker.schedule.other_interval
+    assert 0.8 * day < r["next_check_at"] - time.time() < 1.2 * day
     assert rid not in [x["id"] for x in store.search("web search", "web_search", None, [], ["x402"])]
     net.responses["https://c.example/api"] = x402_ok
     state = checker.check_and_record(store.resource(rid))
