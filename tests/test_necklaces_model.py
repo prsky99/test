@@ -57,11 +57,11 @@ def test_slug_rule(slug):
 def test_agentcon_members_must_come_last_and_at_most_two():
     defn = base()
     chain = defn["slots"][0]["chain"]
-    chain.insert(0, chain.pop())  # Agentcon first
+    chain.insert(0, chain.pop())  # AgentValCon fallback first
     assert any("after every external" in e for e in errors(defn))
     defn = base()
     defn["slots"][0]["chain"] += [own(12, agent_id="o3"), own(13, agent_id="o4")]
-    assert any("at most 2 Agentcon" in e for e in errors(defn))
+    assert any("at most 2 AgentValCon fallback" in e for e in errors(defn))
 
 
 def test_external_member_needs_explicit_read_only_hint():
@@ -120,7 +120,7 @@ def test_readiness_reports_missing_members_and_shared_domain():
     slot["chain"][2]["state"] = "planned"
     gaps = model.readiness(defn)
     assert "slot papers: 1 active external members, need 2" in gaps
-    assert "slot papers: no active Agentcon member" in gaps
+    assert "slot papers: no active AgentValCon fallback member" in gaps
     assert "slot papers: no member outside the primary's failure domain" in gaps
     assert any("not a strict pearl" in g for g in model.readiness(base(), pearl_ids={99}))
 

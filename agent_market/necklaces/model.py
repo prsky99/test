@@ -5,7 +5,7 @@ PM decisions of 2026-11-14:
 
 - a slug is a task name, ``^[a-z][a-z0-9]*(-[a-z0-9]+)*$``, 3 to 40 characters
 - every slot has an ordered chain: external members first, then at most two
-  Agentcon-built members at the end
+  AgentValCon fallback members at the end
 - every external member must carry an explicit ``readOnlyHint=true``, must not be
   destructive, and its tool name must not look like an action or payment verb
 - a member without an explicit idempotent hint cannot be marked ``resend_safe``
@@ -106,9 +106,9 @@ def _member_errors(slot_id: str, idx: int, m: dict) -> list[str]:
             errors.append(f"{where}: external member needs registrable_domain (failure domain)")
     if kind == "agentcon":
         if m.get("state", "active") == "active" and not isinstance(m.get("resource_id"), int):
-            errors.append(f"{where}: an active Agentcon member needs its resource_id")
+            errors.append(f"{where}: an active AgentValCon fallback member needs its resource_id")
         if not m.get("agent_id"):
-            errors.append(f"{where}: Agentcon member needs agent_id")
+            errors.append(f"{where}: AgentValCon fallback member needs agent_id")
     if m.get("destructive_hint") is True:
         errors.append(f"{where}: destructive tools are not allowed")
     if m.get("resend_safe") is True and m.get("idempotent_hint") is not True:
@@ -169,9 +169,9 @@ def validate(defn: dict, *, check_contracts: bool = True) -> list[str]:
             continue
         kinds = [m.get("kind") for m in chain]
         if "agentcon" in kinds and "external" in kinds[kinds.index("agentcon"):]:
-            errors.append(f"slot {sid}: Agentcon members must come after every external member")
+            errors.append(f"slot {sid}: AgentValCon fallback members must come after every external member")
         if kinds.count("agentcon") > MAX_AGENTCON:
-            errors.append(f"slot {sid}: at most {MAX_AGENTCON} Agentcon members")
+            errors.append(f"slot {sid}: at most {MAX_AGENTCON} AgentValCon fallback members")
         if kinds.count("external") > MAX_EXTERNAL:
             errors.append(f"slot {sid}: at most {MAX_EXTERNAL} external members")
         pairs = set()
@@ -213,7 +213,7 @@ def readiness(defn: dict, pearl_ids: set[int] | None = None) -> list[str]:
         if len(externals) < 2:
             gaps.append(f"slot {sid}: {len(externals)} active external members, need 2")
         if not agentcon:
-            gaps.append(f"slot {sid}: no active Agentcon member")
+            gaps.append(f"slot {sid}: no active AgentValCon fallback member")
         lead = primary(slot)
         if lead is not None:
             if pearl_ids is not None and lead.get("resource_id") not in pearl_ids:

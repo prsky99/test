@@ -78,6 +78,9 @@ def test_fingerprint_change_on_called_member_holds_on_standby_only_excludes():
     assert [m["resource_id"] for m in watch.runtime_chain(defn["slots"][0], "topic-brief", state)] == [1, 10]
     state = run(defn, rows, prints={"resources": {"1": {"baseline": "a", "current": "b"}}})
     assert state["holds"]["topic-brief"]["reason"] == "fingerprint_changed"
+    assert [(r["resource_id"], r["reason"]) for r in state["retest_requests"]] == [(1, "fingerprint_changed")]
+    run(defn, rows, prints={"resources": {"1": {"baseline": "a", "current": "b"}}}, state=state)
+    assert len(state["retest_requests"]) == 1
 
 
 def test_dynamic_description_and_risk_signal():

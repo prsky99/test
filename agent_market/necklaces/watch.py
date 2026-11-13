@@ -28,9 +28,10 @@ from ..collector.usage import _DENY
 WATCHED = ("qualifying", "trial", "live", "held")
 DEMOTE_AFTER = 2       # hours in a row unhealthy before a lead member is demoted
 RESTORE_AFTER = 6      # hours in a row healthy before a demoted member returns
-# PM decision 1 (pending): an ordinary definition change holds the necklace only
-# when it hits a member that is called now (lead or fan-out); a standby member is
-# taken out of the chain instead. Set True to hold on any member change.
+# PM decision 11-14: an ordinary definition change (dynamic descriptions excluded by
+# the ops normalized fingerprint) holds the necklace only when it hits a member that
+# is called now (lead or fan-out) and queues a same-day retest of that member; a
+# standby member is taken out of the chain instead. True holds on any member change.
 HOLD_ON_STANDBY_CHANGE = False
 QUIET = ((55, 60), (0, 10))          # minutes of every hour kept free for measurement
 QUIET_DAILY = ((3, 50), (5, 10))     # 03:50-05:10 local
@@ -111,7 +112,7 @@ def healthy(row: dict | None) -> bool:
 
 def runtime_chain(slot: dict, slug: str, state: dict) -> list[dict]:
     """The approved chain in its current order: excluded members dropped, demoted
-    members moved behind the other members of their kind (externals stay before Agentcon)."""
+    members moved behind the other members of their kind (externals stay before AgentValCon fallbacks)."""
     marks = state.get("members", {})
     chain = [m for m in slot["chain"] if m.get("state", "active") == "active"
              and not marks.get(member_key(slug, slot["slot"], m), {}).get("excluded")]
@@ -144,6 +145,15 @@ def _alert(state: dict, now: float, slug: str, slot: str, alert: str, count: int
     if any(a["slug"] == slug and a["slot"] == slot and a["alert"] == alert and a["at"][:10] == day for a in alerts):
         return
     alerts.append({"at": _now_iso(now), "slug": slug, "slot": slot, "alert": alert, "count": count})
+
+
+def _retest_request(state: dict, now: float, slug: str, slot: str, m: dict):
+    requests = state.setdefault("retest_requests", [])
+    key = (slug, slot, m["resource_id"], m["tool"])
+    if any((r["slug"], r["slot"], r["resource_id"], r["tool"]) == key and not r.get("done") for r in requests):
+        return
+    requests.append({"slug": slug, "slot": slot, "resource_id": m["resource_id"], "tool": m["tool"],
+                     "reason": "fingerprint_changed", "since": _now_iso(now), "due": _now_iso(now)[:10]})
 
 
 def observe(definitions: list[dict], fetch, prints: dict, state: dict, now: float) -> list[dict]:
@@ -182,6 +192,8 @@ def observe(definitions: list[dict], fetch, prints: dict, state: dict, now: floa
                     mark["excluded"], action = True, "excluded_fingerprint_changed"
                     if key in called or HOLD_ON_STANDBY_CHANGE:
                         _hold(state, slug, "fingerprint_changed", f"{m['resource_id']}: definition changed", now)
+                        # PM 11-14: retest only that member the same day; a pass goes to ops for re-approval.
+                        _retest_request(state, now, slug, slot["slot"], m)
                 if not mark.get("excluded"):
                     if key in called and mark["fail_streak"] >= DEMOTE_AFTER and not mark.get("demoted"):
                         mark["demoted"], action = True, "demoted"

@@ -13,12 +13,12 @@ PM 첫 과제: (a) 데이터 모델·수명주기, (b) 대체 사슬과 기존 f
 | 실행기 | `workflows.py:961` 위상 정렬 순서로 **한 노드씩** 실행, 전체 마감 25초 | 그래프로 fan-out을 그려도 실제로는 순차. 5초 목표에 병렬 실행이 필요 |
 | 대체 실행 | 전역 스위치 `workflow_fallback_control.enabled=1`(10-24 22:15부터) / 정책 3개(41·42·43, mode active, 133019↔34807) 모두 **10-25 20:28 만료** / 라우팅 시도 44건 모두 10-24 | 스위치는 켜져 있지만 유효 정책 0 → 실질적으로 꺼짐 |
 | 대체 한계 | 계약 2개(news.search.v1·docs.search.v1), 노드당 대체 1개, **실행 전체에서 대체 시도 1회**(`workflow_fallback.py:372`), 주 12초·대체 8초 | 목걸이의 "자리마다 여러 대체"를 못 함 |
-| 독립성 검사 | 같은 호스트·같은 상위 의존성 거부(`fallback_independence.py:80`) | Agentcon 대체 2개는 둘 다 agentconcierge.biz라 지금 규칙으론 서로 거부됨 |
+| 독립성 검사 | 같은 호스트·같은 상위 의존성 거부(`fallback_independence.py:80`) | AgentValCon fallback 2개는 둘 다 agentconcierge.biz라 지금 규칙으론 서로 거부됨 |
 | 품질 평가 | 워크플로우와 단일 에이전트를 정답 세트로 비교하는 장치 없음 | Δ 측정 틀을 새로 만들어야 함 |
 | 공개 노출 | MCP `search_workflows`·`workflow_details`·`run_workflow`(template_id+definition_hash), A2A는 `find_workflows`(발견만) | MCP 실행은 재사용 가능, A2A 실행 기술은 없음(성장·유통 몫) |
 | 진주 33개 | 일 도구 25, 모두 MCP, 분야가 흩어짐(같은 역할 2개 이상인 묶음 거의 없음) | 진주 표만으로는 자리별 대체 사슬을 못 채움 → 역할별 후보를 넓은 카탈로그에서 뽑아 실행 시험을 맡겨야 함 |
 
-자체 에이전트의 원천(대체 사슬의 "Agentcon 대체"가 됨): 133018 기술 뉴스 = HN Algolia, 133019 논문 = Crossref, 133020 국가 = World Bank, 133021 패키지 = npm, 133022 경제 지표 = World Bank, 133023 보안 권고 = OSV.
+자체 에이전트의 원천(대체 사슬의 "AgentValCon fallback"가 됨): 133018 기술 뉴스 = HN Algolia, 133019 논문 = Crossref, 133020 국가 = World Bank, 133021 패키지 = npm, 133022 경제 지표 = World Bank, 133023 보안 권고 = OSV.
 
 ---
 
@@ -70,7 +70,7 @@ candidate → qualifying → trial → live ⇄ held → retired
 | 상태 | 들어가는 조건 | 하는 일 | 나가는 조건 |
 |---|---|---|---|
 | candidate | 백앤드가 정의 파일 작성 | 자리·계약·사슬 후보 | 계약 파일·정답 세트 준비 |
-| qualifying | — | **자리 자격 시험**: 사슬의 각 멤버를 계약 시험 입력 3개로 읽기 전용 호출(실제 경로), 출력이 계약 검증 통과·지연 기록. io_profile 서명(24시간) | 필수 자리마다 외부 멤버 2개 이상 + Agentcon 멤버 1개 이상 통과 |
+| qualifying | — | **자리 자격 시험**: 사슬의 각 멤버를 계약 시험 입력 3개로 읽기 전용 호출(실제 경로), 출력이 계약 검증 통과·지연 기록. io_profile 서명(24시간) | 필수 자리마다 외부 멤버 2개 이상 + AgentValCon 멤버 1개 이상 통과 |
 | trial | — | 정답 세트 90건(조정 30 + 보류 60)으로 목걸이 실행 + 사슬의 외부 멤버 각각을 단일로 실행, 채점 | **종단 성공률 95% 이상**(PM 06:2x·06:3x), Δ > 0, 완주율 95% 이상, 외부만 완주 70% 이상, p95 ≤ 5초(공개 주소·새 연결), 보안 시험 통과. 세부는 reports/necklace-production-2026-11-14/process.md 4절 |
 | live | trial 통과 → 운영·SRE 95% 출시 관문 검수 통과(메뉴 적용) | necklaces.json `status: live`, 공개 표면 노출, 매일 재시험 | 아래 보류 조건 |
 | held | 자동: 아래 조건 하나 | 표면은 200으로 남기고 실행만 막음(계약 3절) | 원인 해소 뒤 재시험 통과 |
@@ -87,7 +87,7 @@ candidate → qualifying → trial → live ⇄ held → retired
 - 멤버의 도구 정의 지문이 바뀜(운영·SRE ①) → 그 멤버를 사슬에서 즉시 빼고 다음 순위가 올라감. 백앤드가 새 정의를 검토·재자격 시험 뒤 복귀.
 - 멤버가 이틀 연속 재시험 실패 → 빼기. 7일 연속 통과하면 원래 순위로 복귀.
 - 자리별 외부 멤버가 2개 아래 → 경보(운영·SRE) + 백앤드가 검색과 RAG에 그 역할의 진주 시험을 요청.
-- Agentcon 대체 사용률이 한 자리에서 30% 넘음(7일) → 그 자리 외부 진주를 다시 찾음.
+- AgentValCon fallback 사용률이 한 자리에서 30% 넘음(7일) → 그 자리 외부 진주를 다시 찾음.
 
 **버전 규칙**: 사슬 순서·멤버 교체는 같은 version(정책 revision만 올림, 재시험으로 확인). 자리·계약·합성 규칙·입력 스키마가 바뀌면 version+1 → qualifying부터.
 
@@ -98,9 +98,9 @@ candidate → qualifying → trial → live ⇄ held → retired
 | 최고 단일 성공률 | 사슬에 든 외부 진주 각각을 같은 정답 세트로 단독 실행(같은 채점기)한 성공률의 최댓값 |
 | **Δ** | 목걸이 성공률 − 최고 단일 성공률(%p). 과제 유형별로 나눠 함께 보고: ① 여러 측면 과제(구조적으로 단일이 불리), ② 같은 역할 과제(단일 대 fan-out 대조). ②의 Δ도 0보다 커야 공개 |
 | 완주율 | 필수 자리가 모두 채워져 유효한 최종 답이 나온 실행 / 실행 |
-| 외부만 완주율 | Agentcon 대체를 한 번도 쓰지 않고 완주한 비율 |
+| 외부만 완주율 | AgentValCon fallback를 한 번도 쓰지 않고 완주한 비율 |
 | 단계별 성공률·대체 발생률 | 자리별: 1순위로 끝남 / 2순위 이상으로 넘어감 |
-| Agentcon 대체 사용률 | 자리 출력 중 Agentcon 멤버가 낸 비율 |
+| AgentValCon fallback 사용률 | 자리 출력 중 AgentValCon 멤버가 낸 비율 |
 | 1회 비용·지연 | 호출 수, USDC(지금 0), p50·p95(공개 주소·새 연결·처음 보는 입력, 표본 제외 없음) |
 | 보안 시험 | 도구 설명 지문 고정 확인, 출력에 든 지시문 패턴은 데이터로만 다룸(합성은 결정적 규칙), 자격 증명·사설 주소 차단(check_public_url) |
 
@@ -119,11 +119,11 @@ candidate → qualifying → trial → live ⇄ held → retired
 ### b-2. 바꾸는 것
 | # | 바꿀 곳 | 지금 | 목걸이용 | DB 영향 |
 |---|---|---|---|---|
-| 1 | 정책 형식 | `pairs[{node, primary, alternate}]` 최대 6쌍 | `workflow-fallback-policy-v2`: `slots[{node, chain:[pin…]}]`. 외부 멤버 최대 6, Agentcon 최대 2(맨 뒤), 순서 검증 | 없음(payload TEXT) |
+| 1 | 정책 형식 | `pairs[{node, primary, alternate}]` 최대 6쌍 | `workflow-fallback-policy-v2`: `slots[{node, chain:[pin…]}]`. 외부 멤버 최대 6, AgentValCon 최대 2(맨 뒤), 순서 검증 | 없음(payload TEXT) |
 | 2 | 시도 제한 | 실행 전체 대체 1회(`attempt()` ordinal==2 검사) | 자리별 사슬 길이까지, 실행 전체 대체 시도 상한 = 필수 자리 수 × 3 | 없음. 새 조회 SQL 등록 필요 |
 | 3 | 시간 예산 | 주 12초 + 대체 8초 | 마감 기반: 자리 3.5초 안에서 1순위 2초, 남은 시간을 다음 순위가 나눠 씀. 남은 시간 < 0.6초면 중단 | 없음 |
 | 4 | 병렬 실행 | 위상 순서로 한 노드씩 | 정의에 `parallel: true`인 그래프만 **웨이브 실행**(부모가 끝난 노드들을 스레드 풀에서 동시에). 체크포인트·fence는 노드 단위 그대로. 기존 워크플로우는 순차 유지 | 없음 |
-| 5 | 독립성 | 쌍 단위 같은 호스트·의존성 거부 | 사슬 전체 쌍별 검사. 단 Agentcon 멤버끼리는 호스트 검사 면제, 대신 `upstream`이 서로 달라야 함. 외부와 Agentcon이 upstream을 공유하면(예: osv-advisory ↔ 133023 OSV) 허용하되 "같은 원천" 표시, 그 자리 사슬에 원천이 다른 멤버가 하나 이상 있어야 함. 등록 도메인이 같으면(*.caseyjhand.com, *.openkrill.app) 한 장애 영역으로 셈 | 없음 |
+| 5 | 독립성 | 쌍 단위 같은 호스트·의존성 거부 | 사슬 전체 쌍별 검사. 단 AgentValCon 멤버끼리는 호스트 검사 면제, 대신 `upstream`이 서로 달라야 함. 외부와 AgentValCon이 upstream을 공유하면(예: osv-advisory ↔ 133023 OSV) 허용하되 "같은 원천" 표시, 그 자리 사슬에 원천이 다른 멤버가 하나 이상 있어야 함. 등록 도메인이 같으면(*.caseyjhand.com, *.openkrill.app) 한 장애 영역으로 셈 | 없음 |
 | 6 | 계약 | news.search.v1·docs.search.v1 | 역할 계약 추가(아래 c의 9개). 검증기는 `capability_contracts.validate` 방식(HTTPS 출처, 중복, 최신성 + 역할별 필수 칸) | 없음 |
 | 7 | io_profile | 24시간 만료, 수동 시험 | 매일 재시험이 실제 호출로 다시 서명(만료 = 재시험 누락 경보) | 없음 |
 | 8 | 제품 승인 | `Products.accept` "정확히 2회 시도" 장애 드릴 | 자리마다 1순위 강제 실패(preflight 모의) → 다음 멤버가 계약 통과하는지 확인, 사슬 깊이만큼 | 없음 |
@@ -133,7 +133,7 @@ candidate → qualifying → trial → live ⇄ held → retired
 1. 자리 시작: 사슬에서 지금 쓸 수 있는 멤버만 남김(재시험 결과·지문·회로 상태, 요청 경로에서 DB 재확인 추가 없이 정책에 서명된 값 사용 — 속도 원칙)
 2. `fanout` 수만큼 앞 순위 멤버를 동시에 호출
 3. 확실한 실패면 다음 순위로, 불확실하면 그 멤버는 끝으로 처리(재호출 안 함)
-4. fan-out 결과가 하나 이상 계약 통과면 자리 성공. 모두 실패하고 남은 외부가 없으면 Agentcon 멤버(최대 2)
+4. fan-out 결과가 하나 이상 계약 통과면 자리 성공. 모두 실패하고 남은 외부가 없으면 AgentValCon 멤버(최대 2)
 5. 각 시도는 `workflow_routing_attempts`(ordinal 1..N), 자리 결과는 `workflow_routing_decisions`에 기록 → 지표 계산 원천
 
 ### b-4. 남의 서버 부하
@@ -154,7 +154,7 @@ candidate → qualifying → trial → live ⇄ held → retired
 
 ### N1. `topic-evidence-brief` — 주제 하나의 논문·배경·최신 뉴스
 - 입력: `{topic}` / 출력: 논문 목록(DOI·arXiv id), 백과 요약, 최근 뉴스, 출처 일치 표시
-| 자리 | 계약 | fanout | 사슬(순서) | Agentcon |
+| 자리 | 계약 | fanout | 사슬(순서) | AgentValCon |
 |---|---|---|---|---|
 | papers | papers.search.v1 | 2 | 47151 OpenAlex `openalex_search_entities` → 39577 NobleBlocks `search_papers` → 34550 CutGPT `search_papers` → 34807 Paper Finder `search_papers` → 130450 arXiv digest | 133019(Crossref) |
 | background | encyclopedia.summary.v1 | 1 | 47189 Wikipedia `wikipedia_get_summary` → 143970 Faceabot `wiki_summary` | 새로 만듦: Wikipedia REST 요약(키 없음) |
@@ -164,7 +164,7 @@ candidate → qualifying → trial → live ⇄ held → retired
 
 ### N2. `package-risk-audit` — 패키지 하나의 취약점·릴리스 상태
 - 입력: `{package, ecosystem, version?}`
-| 자리 | 계약 | fanout | 사슬 | Agentcon |
+| 자리 | 계약 | fanout | 사슬 | AgentValCon |
 |---|---|---|---|---|
 | advisories | package.advisories.v1 | 2 | 47161 OSV advisory `osv_query_package` → 286623 Threatist `search_vulnerabilities` → 130453 AgentDiet CVE `scan_package_cve_advisories` → 367249 Fixlane `check_software`(진주) | 133023(OSV), 새로 만듦: GitHub Advisory DB(키 없는 REST) |
 | release | package.metadata.v1 | 1 | 50709 Commit 공급망 `lookup_npm_package`/`lookup_pypi_package`(B 등급·표시 없음, 검토 필요) → 40897 Velora `get_package_profile`(확인 필요) | 133021(npm), PyPI JSON 확장 |
@@ -174,7 +174,7 @@ candidate → qualifying → trial → live ⇄ held → retired
 
 ### N3. `country-economy-snapshot` — 국가 하나(또는 둘)의 핵심 지표·환율
 - 입력: `{country, compare_with?}`
-| 자리 | 계약 | fanout | 사슬 | Agentcon |
+| 자리 | 계약 | fanout | 사슬 | AgentValCon |
 |---|---|---|---|---|
 | indicators | country.indicator.v1 | 2 | 47130 IMF `imf_query_dataset` → 34791 Country Stats `get_country_indicator` → 37316 Economy Intel `country_indicator` → 33130 dsght `get_country_indicator` | 133022(World Bank 지표), 133020(World Bank 국가) |
 | fx | fx.rate.v1 | 2 | 48762 Frankfurter `convert` → 47112 exchange-rates `fx_get_rate` → 226724 FXHUB → 36306 AllRatesToday `get_exchange_rate` | 새로 만듦: ECB 기준환율(키 없음) |
@@ -184,7 +184,7 @@ candidate → qualifying → trial → live ⇄ held → retired
 
 ### N4. `trip-brief` — 도시 하나의 날씨·환율·행사 (성장·유통 계약 예시와 같은 이름)
 - 입력: `{city, home_currency?, date_from?}`
-| 자리 | 계약 | fanout | 사슬 | Agentcon |
+| 자리 | 계약 | fanout | 사슬 | AgentValCon |
 |---|---|---|---|---|
 | weather | weather.forecast.v1 | 1 | 37322 Weather & Geo `weather_forecast` → 56036 MET Norway `get_forecast`(표시 없음, 검토) → 38062 get4agent `weather` | 새로 만듦: Open-Meteo(키 없음, 지오코딩 포함) |
 | fx | fx.rate.v1 | 1 | N3와 같은 사슬 | ECB(새로 만듦) |
@@ -195,7 +195,7 @@ candidate → qualifying → trial → live ⇄ held → retired
 
 ### N5. `cve-incident-brief` — CVE 하나의 심각도·악용 여부·영향 패키지 (새 목걸이)
 - 입력: `{cve_id}`
-| 자리 | 계약 | fanout | 사슬 | Agentcon |
+| 자리 | 계약 | fanout | 사슬 | AgentValCon |
 |---|---|---|---|---|
 | cve | cve.lookup.v1 | 2 | 37259 CVE Security `get_cve` → 286623 Threatist `get_vulnerability` → 47161 OSV `osv_get_vulnerability` | 새로 만듦: NVD API(키 없음, 속도 제한 지킴) |
 | exploited | kev.status.v1 | 1 | 55398 CyberMax `cve_kev_lookup` → 286623 Threatist `list_exploited` | 새로 만듦: CISA KEV JSON |
@@ -207,7 +207,7 @@ papers.search.v1(docs.search.v1 확장), encyclopedia.summary.v1, news.search.v1
 ### c-2. 검색과 RAG에 요청할 실행 시험(진주 판정 우선순위)
 위 사슬의 외부 멤버 31개: 47151, 39577, 34550, 34807, 130450, 47189, 143970, 147960, 41195, 47161, 286623, 130453, 367249, 50709, 40897, 47130, 34791, 37316, 33130, 48762, 47112, 226724, 36306, 37322, 56036, 38062, 115024, 47538, 38634, 37259, 55398. 각 멤버의 "일 도구"(표의 도구 이름)로 실행 보고서를 만들어 주면 진주 판정과 자리 자격 시험을 함께 씁니다. 지금 진주 33개에 든 것은 367249·115024·47538·38634 4개뿐입니다.
 
-### c-3. 새로 만들 Agentcon 대체 에이전트 (모두 키 없는 공개 원천, 지출 0)
+### c-3. 새로 만들 AgentValCon fallback 에이전트 (모두 키 없는 공개 원천, 지출 0)
 Wikipedia 요약, GitHub Advisory, ECB 환율, Open-Meteo 날씨, NVD CVE, CISA KEV — 6개. 기존 owned_data_agents 틀(`catalog.py` SPECS, 같은 MCP 엔드포인트 형식)로 만들고 자원 등록은 기존 `activation.install`.
 
 ---
@@ -224,7 +224,7 @@ Wikipedia 요약, GitHub Advisory, ECB 환율, Open-Meteo 날씨, NVD CVE, CISA 
 | 기간 | 백앤드 | 다른 팀 |
 |---|---|---|
 | 11-14~16 | 역할 계약 10개, 정의 파일 5개, 정답 세트 생성기(고정 스냅샷), 자리 자격 시험 스크립트(읽기 전용) | 검색과 RAG: c-2 실행 시험 |
-| 11-16~19 | 정책 v2·자리별 다중 시도·웨이브 병렬 실행(기존 순차 워크플로우 무변경 시험 포함, SQLite·PG 둘 다), Agentcon 대체 6개 | 운영·SRE: 지문 ①, 재시험 형식 맞춤 |
+| 11-16~19 | 정책 v2·자리별 다중 시도·웨이브 병렬 실행(기존 순차 워크플로우 무변경 시험 포함, SQLite·PG 둘 다), AgentValCon fallback 6개 | 운영·SRE: 지문 ①, 재시험 형식 맞춤 |
 | 11-19~22 | trial: 목걸이 대 단일 채점, necklaces.json 작성기(jobs) | 성장·유통: 표면 시험 |
 | 11-22~25 | 판정·보류 자동화 | 운영·SRE: shadow → canary |
 | 11-25~28 | live 5개(Δ > 0인 것만), 옛 워크플로우 정리 | 성장·유통: 공개 |

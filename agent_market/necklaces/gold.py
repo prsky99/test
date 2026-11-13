@@ -29,7 +29,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote, urlparse
 
-USER_AGENT = "AgentconGoldSet/1.0 (+https://agentconcierge.biz; contact@agentconcierge.biz)"
+USER_AGENT = "AgentValCon-GoldSet/1.0 (+https://agentconcierge.biz; contact@agentconcierge.biz)"
 SPLITS = ("tuning", "holdout-r1", "holdout-r2")
 PER_SPLIT = 30
 SEED = "necklace-gold-v1"

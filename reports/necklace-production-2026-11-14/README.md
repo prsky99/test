@@ -57,7 +57,7 @@ PM 06:3x 결정 반영: ① 파일 방식 승인 ② 읽기 전용 기준 완화
    - 같은 역할 fan-out: 출처마다 수록 범위가 달라 재현율이 오르고, 일치 여부를 표시할 수 있습니다(보안 DB, 논문 색인, 뉴스).
    - 여러 측면 합성: 단일 진주가 못 채우는 칸이 있습니다(등기 + 위험 + 면허).
    - 순차 의존이 강한 과제는 피합니다(Google·MIT: 순차 과제에서 39~70% 악화).
-4. **진주 공급**: 주 자리에 엄격 기준 진주가 있거나 이번 주 실행 시험으로 진주가 될 후보가 있고, 자리마다 외부 대체 2개 이상과 Agentcon 대체 1개 이상을 세울 수 있어야 합니다.
+4. **진주 공급**: 주 자리에 엄격 기준 진주가 있거나 이번 주 실행 시험으로 진주가 될 후보가 있고, 자리마다 외부 대체 2개 이상과 AgentValCon fallback 1개 이상을 세울 수 있어야 합니다.
 5. **정답을 결정적으로 확인할 수 있는가**: 공개 원천(OSV, KEV, NVD, SEC, 등기, World Bank 등)으로 고정 정답을 만들 수 있으면 95% 관문을 빨리 넘깁니다.
 
 ### 2-2. 분야 우선순위
@@ -73,18 +73,18 @@ PM 06:3x 결정 반영: ① 파일 방식 승인 ② 읽기 전용 기준 완화
 ### 2-3. 첫 10개 후보
 "진주"는 엄격 기준 진주(검색과 RAG 11-14, 33개)입니다. 다른 번호는 후보이고, 검색과 RAG의 역할 도구 실행 시험을 통과해야 자리에 들어갑니다. 사슬 순서는 자리 자격 시험 뒤 확정합니다. **ceadigital.io(276982)는 같은 도구 묶음을 33개로 등록한 한 장애 영역**이라, 한 사슬에 하나만 넣고 그 자리에 다른 원천의 멤버를 반드시 둡니다.
 
-| # | slug | 과제(입력 → 출력) | 수요 근거 | 진주 자리와 사슬(주 → 외부 대체 → Agentcon) | Δ 구조 | 정답 세트 계획(보류 60 + 조정 30) |
+| # | slug | 과제(입력 → 출력) | 수요 근거 | 진주 자리와 사슬(주 → 외부 대체 → AgentValCon) | Δ 구조 | 정답 세트 계획(보류 60 + 조정 30) |
 |---|---|---|---|---|---|---|
-| 1 | `package-risk-audit` | 패키지@버전 → 알려진 취약점·공급망 점수·릴리스 상태, 출처 일치 표시 | Shai-Hulud CISA 경보, NPM Sentinel 13,278, 1-1 | 취약점(fanout 2): **367249** check_software → 47161 osv_query_package → 286623 search_vulnerabilities → 130453 → Agentcon 133023(OSV)·GitHub Advisory(새로) / 공급망: **276982** depsdev_openssf_scorecard·package_health_pulse → 50709 → Agentcon 133021(npm) | DB마다 수록 범위·반영 속도가 다름(재현율), 일치 표시 | npm·PyPI 패키지@버전(취약 절반). 정답 = OSV·GHSA 고정 스냅샷. 채점: 권고 id 재현율 ≥0.9, 취약한데 "깨끗함"이면 실패 |
-| 2 | `cve-incident-brief` | CVE id → CVSS·KEV 등재·EPSS·영향 제품·수정 안내 | NVD 12,481, KEV·EPSS 결합 연구(2502.11070) | 위험(fanout 2): **276982** security_cve_audit·cisa_kev_exploited_vulns·epss_exploit_score → 37259 get_cve → 286623 get_vulnerability → 55398 cve_kev_lookup → Agentcon NVD·KEV(새로) / 수정: **367249** latest_incidents·get_fix_prompt → 47161 | CVSS만 주는 단일 대비 KEV·EPSS 결합, 출처 교차 | CVE(KEV 등재 절반). 정답 = NVD·KEV·EPSS 고정 스냅샷. 채점: KEV 여부·CVSS·EPSS 구간 정확 |
-| 3 | `company-due-diligence` | 회사명·도메인 → 등기·식별자, 위험 신호, 미국 면허(해당 시), 최근 뉴스 | 수요 2위(영국 실사 60,881, 기업 신원 16,045, Zapier·Gumloop 템플릿) | 등기(fanout 2): **50972** company_register_search·company_facts → 47686 foretak lookup_company → 42345 eu-registry → 32966 BUMIT / 위험: **276982** corporate_kyb_and_risk_dossier·gleif_lei_kyb → 50243 MORVS / 면허(선택): **156012** verify_business·verify_license / 뉴스(선택): 50972 news_search → 147960 → Agentcon 133018 / Agentcon: GLEIF·SEC EDGAR(새로) | 등기만으로는 위험·평판을 모름. 등기 출처 교차 | 상장사·비상장사(미국·영국·EU). 정답 = SEC CIK·Companies House·GLEIF LEI 고정. 채점: 식별자·설립일·상태 정확, 위험 칸 출처 HTTPS |
-| 4 | `topic-evidence-brief` | 주제 → 인용 달린 브리프(논문·백과·웹·뉴스) | 수요 1위(리서치 24.4%, 정보 찾기 24%, 딥리서치 템플릿 47,644) | 웹 근거: **50972** ask_pipeworx_grounded·web_search → 276982 agent_clean_web_grounding / 논문(fanout 2): 47151 → 39577 → 34550 → 34807 → Agentcon 133019(Crossref) / 백과: 47189 → 143970 → Agentcon Wikipedia(새로) / 뉴스(선택): 50972 news_search → 147960 → Agentcon 133018 | 깊이(논문)+최신(뉴스)+교차 확인 | 주제 90개. 같은 역할 과제: 대표 논문 재현율(정답 = OpenAlex 인용 상위 + Crossref 고정). 여러 측면: DOI 실재·주제 관련(LLM 채점, 사람 30건 일치 80% 이상) |
-| 5 | `paper-cross-search` | 질의 → 여러 색인을 합친 중복 없는 논문 목록 | 논문 검색 59,106, PubMed 42,137, Semantic Scholar 10,296 | 논문(fanout 3): 47151 openalex → 39577 nobleblocks → 34550 cutgpt → 34807 Paper Finder → 130450 arXiv → 276982 openalex_citation_graph / Agentcon 133019(Crossref)·arXiv(새로) | 색인마다 수록 범위가 달라 재현율이 오름(가장 깨끗한 Δ) | 질의 90개(분야 고르게). 정답 = 각 색인 상위를 합쳐 사람 판정한 관련 논문 집합. 채점: 재현율@10, 중복 0 |
-| 6 | `website-ai-readiness` | 도메인 → AI 검색 노출, 에이전트 준비도, 인증서 이력, llms.txt | n8n SEO 템플릿 266개(온페이지 감사 36,255), Google 보고서 마케팅 46% | 노출: **50972** ai_visibility_check·scan_competitor_ai_presence / 준비도: **79081** check_brand_agent_readiness / 인증서: 276982 crtsh_cert_recon / Agentcon: robots·llms.txt·sitemap 직접 읽기(새로) / 34856 Quotalis는 readOnlyHint가 없어 제외 | 한 도구는 한 면만 봄 | 도메인 90개. 정답 = 직접 받은 robots·llms.txt·인증서 사실(결정적) + 노출 점수는 측정값 표시만 |
-| 7 | `trip-brief` | 도시·날짜 → 날씨, 환율, 행사, 볼거리 | 미국 소비자 29%(Adobe), 날씨 17,177, 도시 비교 12,406 | 행사(fanout 2): **115024** search_events → 57384 / 장소: **38634** num_search_places / 날씨: 37322 → 56036(표시 없음, 제외 가능) → 38062 → Agentcon Open-Meteo(새로) / 환율: 48762 → 47112 → 226724 → Agentcon ECB(새로) | 한 곳에서 못 얻는 묶음 | 도시 90개. 날씨 ±3°C(같은 시각 Open-Meteo), 환율 ±0.5%(ECB), 행사는 기간 안 1건 또는 coverage 밖이면 "없음" |
-| 8 | `country-economy-snapshot` | 국가(1~2) → 핵심 지표, 환율, 불일치 표시 | SEC·거시 40,620, 정부 통계 도구 노출(중간) | 지표(fanout 2): 47130 IMF → 34791 → 37316 → 33130 → Agentcon 133022·133020(World Bank) / 브라질이면 **47609** / 환율: 7번과 같음 | 출처 교차·불일치 표시 | 국가 90개 × 지표. 정답 = World Bank·IMF 고정(같은 연도 ±2%) |
-| 9 | `news-digest` | 주제 → 여러 매체의 중복 묶은 최신 뉴스 | n8n news 템플릿 385개, Agent News 43,392, Gumloop 브랜드 모니터링[업체] | 뉴스(fanout 3): **50972** news_search → 147960 → 41195(표시 없음, 제외) → 281854 → 43528 → Agentcon 133018(HN) | 매체 치우침 상쇄, 중복 묶기 | 주제 90개. 정답 = 같은 시각 여러 원천을 합쳐 사람 판정한 주요 기사. 채점: 재현율, 날짜 7일 안, 중복 0 |
-| 10 | `library-upgrade-brief` | 패키지·현재 버전 → 최신 버전, 변경 위험, 알려진 취약점, 저장소 활동 | Context7 1m/주[업체 집계], 코딩 비중 36~44%(Anthropic) | 릴리스: 50709 → Agentcon 133021 / 취약점: 1번 사슬 재사용 / 저장소: **276982** github_repo_pulse → Agentcon GitHub(133021 확장) | 패키지 감사와 문서·활동을 합침 | 패키지 90개. 정답 = 레지스트리·GitHub API 고정 |
+| 1 | `package-risk-audit` | 패키지@버전 → 알려진 취약점·공급망 점수·릴리스 상태, 출처 일치 표시 | Shai-Hulud CISA 경보, NPM Sentinel 13,278, 1-1 | 취약점(fanout 2): **367249** check_software → 47161 osv_query_package → 286623 search_vulnerabilities → 130453 → AgentValCon 133023(OSV)·GitHub Advisory(새로) / 공급망: **276982** depsdev_openssf_scorecard·package_health_pulse → 50709 → AgentValCon 133021(npm) | DB마다 수록 범위·반영 속도가 다름(재현율), 일치 표시 | npm·PyPI 패키지@버전(취약 절반). 정답 = OSV·GHSA 고정 스냅샷. 채점: 권고 id 재현율 ≥0.9, 취약한데 "깨끗함"이면 실패 |
+| 2 | `cve-incident-brief` | CVE id → CVSS·KEV 등재·EPSS·영향 제품·수정 안내 | NVD 12,481, KEV·EPSS 결합 연구(2502.11070) | 위험(fanout 2): **276982** security_cve_audit·cisa_kev_exploited_vulns·epss_exploit_score → 37259 get_cve → 286623 get_vulnerability → 55398 cve_kev_lookup → AgentValCon NVD·KEV(새로) / 수정: **367249** latest_incidents·get_fix_prompt → 47161 | CVSS만 주는 단일 대비 KEV·EPSS 결합, 출처 교차 | CVE(KEV 등재 절반). 정답 = NVD·KEV·EPSS 고정 스냅샷. 채점: KEV 여부·CVSS·EPSS 구간 정확 |
+| 3 | `company-due-diligence` | 회사명·도메인 → 등기·식별자, 위험 신호, 미국 면허(해당 시), 최근 뉴스 | 수요 2위(영국 실사 60,881, 기업 신원 16,045, Zapier·Gumloop 템플릿) | 등기(fanout 2): **50972** company_register_search·company_facts → 47686 foretak lookup_company → 42345 eu-registry → 32966 BUMIT / 위험: **276982** corporate_kyb_and_risk_dossier·gleif_lei_kyb → 50243 MORVS / 면허(선택): **156012** verify_business·verify_license / 뉴스(선택): 50972 news_search → 147960 → AgentValCon 133018 / AgentValCon: GLEIF·SEC EDGAR(새로) | 등기만으로는 위험·평판을 모름. 등기 출처 교차 | 상장사·비상장사(미국·영국·EU). 정답 = SEC CIK·Companies House·GLEIF LEI 고정. 채점: 식별자·설립일·상태 정확, 위험 칸 출처 HTTPS |
+| 4 | `topic-evidence-brief` | 주제 → 인용 달린 브리프(논문·백과·웹·뉴스) | 수요 1위(리서치 24.4%, 정보 찾기 24%, 딥리서치 템플릿 47,644) | 웹 근거: **50972** ask_pipeworx_grounded·web_search → 276982 agent_clean_web_grounding / 논문(fanout 2): 47151 → 39577 → 34550 → 34807 → AgentValCon 133019(Crossref) / 백과: 47189 → 143970 → AgentValCon Wikipedia(새로) / 뉴스(선택): 50972 news_search → 147960 → AgentValCon 133018 | 깊이(논문)+최신(뉴스)+교차 확인 | 주제 90개. 같은 역할 과제: 대표 논문 재현율(정답 = OpenAlex 인용 상위 + Crossref 고정). 여러 측면: DOI 실재·주제 관련(LLM 채점, 사람 30건 일치 80% 이상) |
+| 5 | `paper-cross-search` | 질의 → 여러 색인을 합친 중복 없는 논문 목록 | 논문 검색 59,106, PubMed 42,137, Semantic Scholar 10,296 | 논문(fanout 3): 47151 openalex → 39577 nobleblocks → 34550 cutgpt → 34807 Paper Finder → 130450 arXiv → 276982 openalex_citation_graph / AgentValCon 133019(Crossref)·arXiv(새로) | 색인마다 수록 범위가 달라 재현율이 오름(가장 깨끗한 Δ) | 질의 90개(분야 고르게). 정답 = 각 색인 상위를 합쳐 사람 판정한 관련 논문 집합. 채점: 재현율@10, 중복 0 |
+| 6 | `website-ai-readiness` | 도메인 → AI 검색 노출, 에이전트 준비도, 인증서 이력, llms.txt | n8n SEO 템플릿 266개(온페이지 감사 36,255), Google 보고서 마케팅 46% | 노출: **50972** ai_visibility_check·scan_competitor_ai_presence / 준비도: **79081** check_brand_agent_readiness / 인증서: 276982 crtsh_cert_recon / AgentValCon: robots·llms.txt·sitemap 직접 읽기(새로) / 34856 Quotalis는 readOnlyHint가 없어 제외 | 한 도구는 한 면만 봄 | 도메인 90개. 정답 = 직접 받은 robots·llms.txt·인증서 사실(결정적) + 노출 점수는 측정값 표시만 |
+| 7 | `trip-brief` | 도시·날짜 → 날씨, 환율, 행사, 볼거리 | 미국 소비자 29%(Adobe), 날씨 17,177, 도시 비교 12,406 | 행사(fanout 2): **115024** search_events → 57384 / 장소: **38634** num_search_places / 날씨: 37322 → 56036(표시 없음, 제외 가능) → 38062 → AgentValCon Open-Meteo(새로) / 환율: 48762 → 47112 → 226724 → AgentValCon ECB(새로) | 한 곳에서 못 얻는 묶음 | 도시 90개. 날씨 ±3°C(같은 시각 Open-Meteo), 환율 ±0.5%(ECB), 행사는 기간 안 1건 또는 coverage 밖이면 "없음" |
+| 8 | `country-economy-snapshot` | 국가(1~2) → 핵심 지표, 환율, 불일치 표시 | SEC·거시 40,620, 정부 통계 도구 노출(중간) | 지표(fanout 2): 47130 IMF → 34791 → 37316 → 33130 → AgentValCon 133022·133020(World Bank) / 브라질이면 **47609** / 환율: 7번과 같음 | 출처 교차·불일치 표시 | 국가 90개 × 지표. 정답 = World Bank·IMF 고정(같은 연도 ±2%) |
+| 9 | `news-digest` | 주제 → 여러 매체의 중복 묶은 최신 뉴스 | n8n news 템플릿 385개, Agent News 43,392, Gumloop 브랜드 모니터링[업체] | 뉴스(fanout 3): **50972** news_search → 147960 → 41195(표시 없음, 제외) → 281854 → 43528 → AgentValCon 133018(HN) | 매체 치우침 상쇄, 중복 묶기 | 주제 90개. 정답 = 같은 시각 여러 원천을 합쳐 사람 판정한 주요 기사. 채점: 재현율, 날짜 7일 안, 중복 0 |
+| 10 | `library-upgrade-brief` | 패키지·현재 버전 → 최신 버전, 변경 위험, 알려진 취약점, 저장소 활동 | Context7 1m/주[업체 집계], 코딩 비중 36~44%(Anthropic) | 릴리스: 50709 → AgentValCon 133021 / 취약점: 1번 사슬 재사용 / 저장소: **276982** github_repo_pulse → AgentValCon GitHub(133021 확장) | 패키지 감사와 문서·활동을 합침 | 패키지 90개. 정답 = 레지스트리·GitHub API 고정 |
 
 **역할 도구 실행 시험 반영(검색과 RAG 9292edf7, reports/pearls-2026-11-14/role_tests.json, 30건 중 21건 성공)**
 
@@ -96,7 +96,7 @@ PM 06:3x 결정 반영: ① 파일 방식 승인 ② 읽기 전용 기준 완화
 | encyclopedia.summary | 47189·143970 (2/2) | — | 백과 자리 확보 |
 | fx.rate | 48762·47112·226724·36306 (4/4) | — | 환율 자리 확보 |
 | news.search | 147960 | 41195는 읽기 전용 판정 탈락 | 뉴스 자리는 50972 news_search(11-15) 결과 필요 |
-| package.metadata | 40897 | 50709는 읽기 전용 판정 탈락 | 공급망 자리 주는 276982(11-15), 외부 대체 1개뿐 → Agentcon 133021 필요 |
+| package.metadata | 40897 | 50709는 읽기 전용 판정 탈락 | 공급망 자리 주는 276982(11-15), 외부 대체 1개뿐 → AgentValCon 133021 필요 |
 | weather.forecast | 56036·38062 | 37322는 미국 좌표만(NWS) | 날씨는 지역 제한 표시 필요 |
 | events.search | 47538(힌두 축제) | 115024는 SF Bay Area만, 38634는 unauthorized | **trip-brief의 행사 자리가 범용으로 서지 않음** |
 | country.indicator | 34791 | 37316 지표 코드 실패, 47130·33130 필수 인자를 못 채움 | country-economy-snapshot은 io 변환(지표 코드 대응표)이 필요해 뒤로 |
@@ -114,7 +114,7 @@ PM 06:3x 결정 반영: ① 파일 방식 승인 ② 읽기 전용 기준 완화
 - 4·5의 논문 자리는 11-14 역할 시험으로 외부 4개가 확보됐습니다(47151은 caseyjhand.com 영역이라 주 자리는 39577 또는 34807).
 - 진주 276982가 1~5 중 4개에 들어갑니다. 한 사슬에 하나만 넣고 다른 원천 멤버를 반드시 둡니다. 이 진주가 멈추는 날의 완주율을 매일 따로 기록합니다.
 
-새로 만들 Agentcon 대체 에이전트(키 없는 공개 원천, 지출 0): GitHub Advisory, NVD, CISA KEV, GLEIF, SEC EDGAR, Wikipedia, arXiv, Open-Meteo, ECB, 사이트 공개 파일(robots·llms.txt·sitemap) — 10개. 1~5에 필요한 것부터 만듭니다(GitHub Advisory, NVD, KEV, GLEIF, SEC EDGAR, Wikipedia, arXiv).
+새로 만들 AgentValCon fallback 에이전트(키 없는 공개 원천, 지출 0): GitHub Advisory, NVD, CISA KEV, GLEIF, SEC EDGAR, Wikipedia, arXiv, Open-Meteo, ECB, 사이트 공개 파일(robots·llms.txt·sitemap) — 10개. 1~5에 필요한 것부터 만듭니다(GitHub Advisory, NVD, KEV, GLEIF, SEC EDGAR, Wikipedia, arXiv).
 
 ---
 
@@ -126,7 +126,7 @@ PM 06:3x 결정 반영: ① 파일 방식 승인 ② 읽기 전용 기준 완화
 |---|---|---|
 | 수요 선정 | 워크플로우 | 수요 근거 2개, 읽기 전용, 자리 사이 의존 없음 |
 | 자리 설계 | 워크플로우 | 필수 자리 2개 이상 또는 fan-out 2, 역할 계약 |
-| 진주·대체 배정 | 워크플로우(판정)·검색과 RAG(진주·실행 시험) | 멤버마다 계약 시험 3/3, 자리마다 외부 2 + Agentcon 1 이상, 주는 엄격 기준 진주 |
+| 진주·대체 배정 | 워크플로우(판정)·검색과 RAG(진주·실행 시험) | 멤버마다 계약 시험 3/3, 자리마다 외부 2 + AgentValCon 1 이상, 주는 엄격 기준 진주 |
 | 조립 | 워크플로우 | 정의 검증, 자리마다 1순위 강제 실패 드릴 통과 |
 | 자체 시험 | 워크플로우 | 4절 관문 전부(보류 60건 중 57건, Δ > 0, 완주 95%, p95 5초, 보안) |
 | 출시 관문 | 운영·SRE | 넘김 묶음으로 공개 주소에서 다시 재서 95% 이상 → 메뉴 적용 |
@@ -157,7 +157,7 @@ PM 06:3x 결정 반영: ① 파일 방식 승인 ② 읽기 전용 기준 완화
 | 기간 | 워크플로우 | 검색과 RAG | 운영·SRE | 성장·유통 |
 |---|---|---|---|---|
 | 11-14~16 | 역할 계약(1~5에 필요한 9개), 정의 파일 5개, 정답 세트 생성기와 고정 스냅샷(1·2 먼저), 자리 자격 시험 스크립트 | 역할 도구 실행 시험(후보 31개 + 이 문서 1~5의 새 후보) | 도구 정의 지문 설계 | 계약 확정본으로 표면 1주 차 틀 |
-| 11-16~19 | 정책 v2·자리별 다중 시도·웨이브 병렬 실행(기존 순차 워크플로우 무변경 시험 포함, SQLite·PG 둘 다), Agentcon 대체 7개 | 진주 판정 갱신, Neo4j 같은 역할 묶음·장애 영역 | 재시험 형식 맞춤 | 동의 문구 검토 |
+| 11-16~19 | 정책 v2·자리별 다중 시도·웨이브 병렬 실행(기존 순차 워크플로우 무변경 시험 포함, SQLite·PG 둘 다), AgentValCon fallback 7개 | 진주 판정 갱신, Neo4j 같은 역할 묶음·장애 영역 | 재시험 형식 맞춤 | 동의 문구 검토 |
 | 11-19~22 | 1·2 자체 시험 → 넘김 묶음 제출, `necklace_judge` | — | 1·2 출시 관문, 켜는 절차(shadow → canary) | 1·2 메뉴·페이지 |
 | 11-22~26 | 3·4 자체 시험·제출, 1·2 첫 교체(기존 40·46·47·55·62) | — | 3·4 관문 | 홍보 시작 |
 | 11-26~28 | 5(또는 trip-brief) 제출 | — | 5 관문 | — |
@@ -185,5 +185,5 @@ PM 06:3x 결정 반영: ① 파일 방식 승인 ② 읽기 전용 기준 완화
 1. ~~첫 5개 순서~~ → PM 승인, 예비 website-ai-readiness 확정
 2. ~~품질 주장 방식~~ → PM 07:5x 승인. 관문은 보류 60건을 4시간 간격 30건씩 두 번, 합계 57/60 이상·각 회 28/30 이상. "검증된 95%"는 누적 110건 중 실패 1건 이하일 때만, 그 전에는 실제 수치("29/30 passed on 11-20")만
 3. ~~동의 문구~~ → PM 07:5x 승인("in parallel"은 병렬 그래프에만). 보존 문장은 아래 5번이 해결돼야 씁니다
-4. ~~Agentcon 대체 10개~~ → PM 07:5x 승인. 조건: 공개 원천 이용 규칙 준수(SEC EDGAR User-Agent에 공개 연락 메일 contact@agentconcierge.biz, Wikipedia·arXiv·NVD 권장 호출 간격), 결과에 출처·라이선스 표기, 키·유료·개인정보 없음, 진주처럼 시험 보고서를 남기고 Agentcon 대체 사용률 기록
+4. ~~AgentValCon fallback 10개~~ → PM 07:5x 승인. 조건: 공개 원천 이용 규칙 준수(SEC EDGAR User-Agent에 공개 연락 메일 contact@agentconcierge.biz, Wikipedia·arXiv·NVD 권장 호출 간격), 결과에 출처·라이선스 표기, 키·유료·개인정보 없음, 진주처럼 시험 보고서를 남기고 AgentValCon fallback 사용률 기록
 5. ~~실행 본문 정리~~ → PM 08:0x: 운영·SRE에 배정(처리방침 보관 약속 감사·정리 작업 켜기 안, 기존 데이터 삭제는 사용자 승인 뒤). 원래 발견: **실행 본문 정리 작업이 운영에서 돌지 않음**: 코드는 14일(`workflow_maintenance.py:18`)인데, 14일 지난 실행 135건 중 127건에 결과가 남아 있음(11-14 읽기 전용 확인). 목걸이 공개 전에 운영·SRE가 정리 작업을 켜는지, 실제 보존 기간을 문구에 쓸지 결정 필요
