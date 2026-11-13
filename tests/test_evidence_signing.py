@@ -77,3 +77,23 @@ def test_command_line_verification(tmp_path, capsys):
     assert json.loads(capsys.readouterr().out)['valid'] is True
     (tmp_path / 'keys.json').write_text(json.dumps(keys_doc()))
     assert es.main(['verify', str(tmp_path / 'env.json'), '--keys', str(tmp_path / 'keys.json')]) == 1
+
+
+def test_a_chain_shows_a_dropped_or_changed_version_and_the_day_root_lists_every_envelope():
+    key = Ed25519PrivateKey.generate()
+    doc = keys_doc(es.key_entry(key, '2026-11-01T00:00:00Z', '2027-11-01T00:00:00Z'))
+    a = es.sign_chained({'kind': 'test_report', 'v': 1, 'outcome': 'fail'}, key, signed_at='2026-11-14T01:00:00Z')
+    b = es.sign_chained({'kind': 'test_report', 'v': 2, 'outcome': 'pass'}, key, previous=a, signed_at='2026-11-14T02:00:00Z')
+    c = es.sign_chained({'kind': 'test_report', 'v': 3, 'outcome': 'pass'}, key, previous=b, signed_at='2026-11-14T03:00:00Z')
+    assert [x['v'] for x in es.verify_chain([a, b, c], doc)] == [1, 2, 3]
+    with pytest.raises(es.SigningError, match='chain broken at position 1'):
+        es.verify_chain([a, c], doc)                        # the middle version was dropped
+    with pytest.raises(es.SigningError, match='chain broken at position 0'):
+        es.verify_chain([b, c], doc)                        # the first (failed) version was hidden
+    day = es.daily_root('2026-11-14', [a, b, c], key, signed_at='2026-11-14T23:59:00Z')
+    assert es.verify_daily_root(day, [c, a, b], doc)['count'] == 3
+    with pytest.raises(es.SigningError, match='does not match'):
+        es.verify_daily_root(day, [b, c], doc)              # an envelope of that day was withheld
+    nxt = es.daily_root('2026-11-15', [], key, previous_root=day, signed_at='2026-11-15T23:59:00Z')
+    assert es.verify(nxt, doc)['prev'] == es.envelope_digest(day)
+    assert es.merkle_root([]) == es.merkle_root([]) and len(es.merkle_root([es.envelope_digest(a)])) == 64

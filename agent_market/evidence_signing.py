@@ -217,6 +217,65 @@ def verify(envelope, keys_doc):
     raise SigningError('no valid signature: ' + (', '.join(reasons) or 'no signatures'))
 
 
+# ---------------- tamper evidence (PM 11-14) ----------------
+def envelope_digest(envelope):
+    """sha256 (hex) of the JCS form of a whole envelope: the link the next envelope of the same chain names as prev."""
+    return hashlib.sha256(canonical_bytes(envelope)).hexdigest()
+
+
+def sign_chained(evidence, private_key, previous=None, **kwargs):
+    """Sign EVIDENCE as the next link of a chain (one chain per resource and role, or per necklace): the payload carries
+    prev = the digest of the previous envelope (None for the first). Dropping a version breaks the chain."""
+    body = dict(evidence)
+    body['prev'] = envelope_digest(previous) if previous is not None else None
+    return sign(body, private_key, **kwargs)
+
+
+def verify_chain(envelopes, keys_doc):
+    """Verify every envelope of a chain in order and that each names the one before it. Returns the evidence list."""
+    bodies, previous = [], None
+    for index, envelope in enumerate(envelopes):
+        body = verify(envelope, keys_doc)
+        want = envelope_digest(previous) if previous is not None else None
+        if body.get('prev') != want:
+            raise SigningError(f'chain broken at position {index}')
+        bodies.append(body)
+        previous = envelope
+    return bodies
+
+
+def merkle_root(digests):
+    """RFC 6962-style Merkle tree head over hex digests in the given order (leaf = sha256(0x00 || d),
+    node = sha256(0x01 || left || right); an odd node is carried up). Empty list: sha256 of nothing."""
+    level = [hashlib.sha256(b'\x00' + bytes.fromhex(d)).digest() for d in digests]
+    if not level:
+        return hashlib.sha256(b'').hexdigest()
+    while len(level) > 1:
+        nxt = []
+        for i in range(0, len(level), 2):
+            nxt.append(hashlib.sha256(b'\x01' + level[i] + level[i + 1]).digest() if i + 1 < len(level) else level[i])
+        level = nxt
+    return level[0].hex()
+
+
+def daily_root(day, envelopes, private_key, previous_root=None, **kwargs):
+    """The signed transparency record of a day: every envelope digest of the day, their Merkle root, and the previous
+    day's root envelope digest (so days also form a chain). Published as /signing/roots/<day>.json."""
+    digests = sorted(envelope_digest(e) for e in envelopes)
+    return sign({'kind': 'transparency_root', 'day': day, 'count': len(digests), 'root': merkle_root(digests),
+                 'leaves': digests, 'prev': envelope_digest(previous_root) if previous_root is not None else None},
+                private_key, **kwargs)
+
+
+def verify_daily_root(root_envelope, envelopes, keys_doc):
+    """True when the signed day record lists exactly these envelopes and its root matches them."""
+    body = verify(root_envelope, keys_doc)
+    digests = sorted(envelope_digest(e) for e in envelopes)
+    if body.get('leaves') != digests or body.get('count') != len(digests) or body.get('root') != merkle_root(digests):
+        raise SigningError('the day record does not match these envelopes')
+    return body
+
+
 def key_entry(private_key, not_before, not_after):
     raw = public_raw(private_key)
     return {'keyid': keyid_for(raw), 'alg': 'ed25519', 'public_key': _b64(raw), 'not_before': not_before, 'not_after': not_after}

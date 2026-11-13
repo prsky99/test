@@ -20,12 +20,25 @@
 **증거 내용(필수 칸)**
 | 종류 `kind` | 칸 |
 |---|---|
-| `test_report` (검색과 RAG) | `resource_id`, `report_version`, `input`(공개 가능한 과제 입력), `response_sha256`, `score_items`(항목별 점수), `accuracy_source`(정답 세트 이름·해시 또는 공개 기준값과 그 시각), `data_as_of`, `methodology_version`, `tested_at` |
-| `gate_result` (워크플로우·운영·SRE) | `slug`, `version`, `definition_digest`, `answer_set`(이름·해시), `rounds`(회차별 성공 수), `delta_pp`, `completion`, `p95_ms`, `security`, `verdict`, `gate_record`(판정 파일 경로·해시) |
-| `necklace_event` (워크플로우) | `slug`, `event`(held·retired·replaced·restored), `reason`, `replaced_by`, `at`, `evidence`(근거 판정 해시) |
+| `test_report` (검색과 RAG) | `resource_id`, `role`(계약 id), `tool`, `endpoint`(호스트·주소), `tool_fingerprint`(도구 정의 지문: 이 판이 어떤 정의에서 나왔는지 묶음), `report_version`, `input`(공개 가능한 과제 입력), `response_sha256`, `outcome`, `score_items`(항목별 점수), `total_score`, `status`(provisional·verified·none), `data_quality`(최신성 나이·빈 칸 비율·깨끗함 결과), `accuracy_source`(정답 세트 이름·해시 또는 공개 기준값과 그 시각), `data_as_of`, `methodology_version`, `tested_at`, `prev` |
+| `gate_result` (워크플로우·운영·SRE) | `slug`, `version`, `definition_digest`, `members`(자리별 주 진주·외부 대체·자체 대체 id와 각자의 도구 지문), `answer_set`(이름·해시), `rounds`(회차별 성공 수와 **시각**: 4시간 간격 증명), `delta_pp`, `completion`, `p95_ms`, `security`, `verdict`, `methodology_version`, `gate_record`(판정 파일 경로·해시), `prev` |
+| `necklace_event` (워크플로우) | `slug`, `stage`(1~4), `event`(held·retired·replaced·restored), `reason`, `replaced_by`, `notices`(공지가 나간 위치 주소 목록: 4단계 공지 증명), `at`, `evidence`(근거 판정 해시), `prev` |
+| `transparency_root` (운영·SRE) | `day`, `count`, `root`(Merkle), `leaves`(그날 봉투 digest 전부), `prev`(전날 루트 봉투 digest) |
 
 - 비공개 보류 정답 세트의 내용은 넣지 않는다. 이름과 해시만 넣는다.
 - 원문 응답은 sha256만 넣는다. 응답 원문은 시험 보고서 페이지가 따로 보여 준다.
+
+## 1-1. 기록을 고칠 수 없게 하기 (PM 11-14, 비용 0)
+- **해시 사슬**
+  - 같은 사슬의 봉투마다 `prev` = 앞 봉투의 digest를 서명 내용에 넣는다(`sign_chained`). digest는 봉투 전체를 JCS로 정규화한 sha256이다.
+  - 사슬 단위는 판이면 (resource_id, role), 관문이면 slug, 사건이면 slug다.
+  - 실패한 판을 몰래 빼거나 순서를 바꾸면 `verify_chain`이 끊긴 위치를 알려 준다. 첫 봉투의 `prev`는 null이다.
+- **하루 투명성 기록**
+  - 운영·SRE가 매일 00:10 KST에 전날의 모든 봉투 digest를 정렬한다.
+  - 그 Merkle 루트(RFC 6962 방식: 잎 0x00, 마디 0x01)를 `transparency_root` 봉투로 서명한다(`daily_root`).
+  - 날마다 앞날 루트를 `prev`로 이어 날짜끼리도 사슬이 된다.
+  - 공개 주소는 `/signing/roots/<YYYY-MM-DD>.json`이다. 누구나 `verify_daily_root`로 그날 봉투 전부가 들어 있는지 확인할 수 있다. 빠진 봉투가 있으면 맞지 않는다.
+- 이것으로 "좋은 결과만 골라 보여 준다"는 의심을 원천에서 막는다. 판·관문·사건을 지우거나 고치려면 사슬과 그날 루트를 함께 바꿔야 하는데, 루트는 이미 서명돼 공개된 뒤다.
 
 ## 2. 공개 키 문서 `/.well-known/agentvalcon-keys.json`
 ```json
@@ -84,5 +97,19 @@ cd /Users/kingstonelee/workspace/A2A_Discovery
 | 11-20 | `/.well-known/agentvalcon-keys.json`, `/api/verify-signature`, 배지 | 성장·유통(화면), 운영·SRE(사양·시험) |
 | 11-21 | 첫 목걸이 공개: 관문 결과 봉투와 함께 | 전체 |
 
-- 서명 실패가 공개를 막지는 않는다. 다만 서명 없는 판·결과는 "서명 대기"로 표시하고, 검증 진주·목걸이 공개 조건에는 넣는다(11-21부터).
-- 봉투 저장은 1단계가 파일이다(`gateway-data/signing/envelopes/<kind>/…`). 표는 2단계(DB 변경 절차)다.
+- 서명 대기(PM 동의): 11-21 전에는 서명 없는 판·결과를 "서명 대기"로 표시하고 공개를 막지 않는다. **11-21부터는 검증 진주와 목걸이 공개 조건에 서명을 넣는다.**
+- 경보: 서명 실패(키 읽기 실패, 서명 오류, 그날 루트 미생성)가 **1시간 넘게** 이어지면 오류 감시(ops_auto watch)가 현황판에 경보를 올린다. 서명 코드는 실패를 `logs/ops/signing-failures.jsonl`에 남긴다.
+- **봉투 저장과 공개 경로**(1단계 파일, 표는 2단계 DB 변경 절차)
+
+| 무엇 | 저장(원본) | 공개 주소(frontend가 그대로 읽음) |
+|---|---|---|
+| 판 봉투 | `gateway-data/signing/envelopes/test_report/<resource_id>/<role>/<report_version>.json` | `/signing/envelopes/test_report/<resource_id>/<role>/<report_version>.json` |
+| 관문 결과 | `gateway-data/signing/envelopes/gate_result/<slug>/<version>-<n>.json` | `/signing/envelopes/gate_result/<slug>/<version>-<n>.json` |
+| 사건 | `gateway-data/signing/envelopes/necklace_event/<slug>/<at>.json` | `/signing/envelopes/necklace_event/<slug>/<at>.json` |
+| 하루 루트 | `gateway-data/signing/roots/<day>.json` | `/signing/roots/<day>.json` |
+| 사슬 목록 | `gateway-data/signing/chains/<kind>/<chain>.json`(봉투 digest 순서) | `/signing/chains/...` |
+| 공개 키 | `gateway-data/signing/agentvalcon-keys.json` | `/.well-known/agentvalcon-keys.json` |
+
+- 공개 주소는 읽기 전용 정적 응답이다(`public, max-age=300`, 하루 루트는 `max-age=86400`).
+- 파일 이름의 각 부분은 숫자·소문자·하이픈·점만 허용하고, 경로를 벗어나는 이름은 거부한다.
+- 개인 키 파일(`*.pem`)은 이 경로들 밖에 있어 공개 경로로 닿지 않는다.
