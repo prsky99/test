@@ -51,3 +51,20 @@ def test_agent_documents_stay_at_the_edge_and_are_served_stale_while_refreshing(
         assert f'max-age={edge},' in value and 'stale-while-revalidate=' in value and 's-maxage' not in value, (path, value)
     # Search and catalog reads keep the short shared lifetime.
     assert 's-maxage' not in c.get('/api/overview').headers.get('cache-control', '')
+
+
+def test_insights_snapshot_is_kept_five_minutes_at_the_edge_but_never_for_credentialed_requests():
+    """PM 11-13 15:2x: /api/insights is the jobs snapshot rewritten every five minutes, the same for everyone.
+
+    The edge and browsers keep it for one snapshot (max-age, not s-maxage: Cloudflare serves no stale copy with
+    s-maxage). Requests with a cookie or Authorization keep no-store, and the body does not depend on them."""
+    c = client()
+    plain = c.get('/api/insights')
+    value = plain.headers['cache-control']
+    assert plain.status_code == 200 and 'max-age=300,' in value and 'stale-while-revalidate=300' in value
+    assert value.startswith('public') and 's-maxage' not in value and 'set-cookie' not in plain.headers
+    for headers in ({'Cookie': 'sid=abc'}, {'Authorization': 'Bearer x'}):
+        reply = c.get('/api/insights', headers=headers)
+        assert reply.headers['cache-control'] == 'no-store' and reply.json() == plain.json(), headers
+    # Other public reads keep their short shared lifetime.
+    assert 'max-age=30,' in c.get('/api/overview').headers['cache-control']

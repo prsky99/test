@@ -42,12 +42,14 @@
 2. `Cookie`가 있는 요청과 `Authorization`이 있는 요청은 `DYNAMIC`이어야 하고, `Cache-Control: no-store`가 그대로여야 한다.
 3. 첫 요청 시간을 새 연결로 잰다(표본 제외 없음, 한국 측정으로 표시). 판정에는 공개 주소 수치만 쓴다.
 
-### 알아 둘 한계
-- 원서버가 `max-age=30`만 보내므로 엣지 사본은 30초(+stale-while-revalidate 30초) 동안만 쓰인다. 요청이 드물면 첫 요청은 여전히 `MISS`일 수 있다. 11-04 에이전트 문서도 같은 이유로 처음에 HIT가 적었고, `s-maxage`를 더해 풀었다.
-- 다음 안: 원서버가 insights에 `s-maxage=300`(스냅샷 주기와 같음)을 보내게 하는 frontend 코드 변경. 규칙은 그대로 두고, 코드 배포만으로 엣지 보관 시간이 5분으로 늘어난다.
+### 원서버 헤더 (PM 11-13 15:2x 결정, 같은 날 frontend 배포)
+- 쿠키·인증 없는 `/api/insights` 응답은 `public, max-age=300, stale-while-revalidate=300`이다. 스냅샷 주기(5분)와 같다(`public_http_contract.SNAPSHOT_CACHE`).
+- `s-maxage`는 쓰지 않는다. Cloudflare가 s-maxage를 proxy-revalidate로 읽어 stale 사본을 주지 않기 때문이다(11-12 실측, `max-age`로 엣지 시간을 정한다).
+- 쿠키·Authorization 요청은 `no-store` 그대로다(`_credentials`).
+- 이 헤더가 배포되기 전에는 원서버가 `max-age=30`만 보내므로, 엣지 사본은 30초(+stale-while-revalidate 30초)만 쓰인다.
 - 캐시 키에는 질의 문자열이 들어간다. 측정 때 질의 문자열을 매번 바꾸면 항상 `MISS`가 된다. 실제 화면(`learn` 탭)은 질의 문자열 없이 부른다.
 
 ## 4. 되돌리기
 - 대시보드 Caching → Cache Rules에서 `Public insights (11-13)` 규칙을 끄거나(Disable) 지우면 바로 원래대로 돌아간다. 데이터 변경은 없다.
-- 엣지에 남은 사본은 길어야 60초 안에 만료된다. 급하면 Caching → Configuration → Custom Purge로 `https://agentconcierge.biz/api/insights`를 지운다.
+- 엣지에 남은 사본은 길어야 10분(max-age 300 + stale 300) 안에 만료된다. 급하면 Caching → Configuration → Custom Purge로 `https://agentconcierge.biz/api/insights`를 지운다.
 - 문제가 생기면 규칙을 끄고 PM에 보고한다.

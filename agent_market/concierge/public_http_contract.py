@@ -33,6 +33,11 @@ DISCOVERY_DOCUMENTS = frozenset(('/llms.txt','/llms-full.txt','/skill.md','/.wel
 # swr part never worked; max-age now sets the edge time, and browsers and agents keep the same time.
 DISCOVERY_CACHE = 'public, max-age=3600, stale-while-revalidate=3600'
 EDGE_DOCUMENT_CACHE = 'public, max-age=600, stale-while-revalidate=3600'  # robots, sitemap, security.txt
+# 11-13 PM decision: /api/insights is a jobs snapshot rewritten every five minutes, the same bytes for every
+# visitor, so the edge (cache rule 'Public insights') and browsers keep it as long as one snapshot lives.
+# max-age, not s-maxage, for the same reason as above. Credentialed requests stay no-store (_credentials).
+SNAPSHOT_READS = frozenset(('/api/insights',))
+SNAPSHOT_CACHE = 'public, max-age=300, stale-while-revalidate=300'
 # Public growth pages (11-10 PM approval): login-free, never personalized HTML/Markdown/JSON. Browsers
 # and the edge may keep them for five minutes and serve a stale copy while refreshing for ten.
 GROWTH_PAGES = frozenset(('/connect','/agents/tasks','/agents/best','/badges','/reports/state-of-ai-agents',
@@ -133,6 +138,7 @@ class PublicHTTPContract:
                 headers['cache-control']=(DISCOVERY_CACHE if path in DISCOVERY_DOCUMENTS
                     else EDGE_DOCUMENT_CACHE
                     if path in EDGE_DOCUMENTS else GROWTH_CACHE if growth_path(path)
+                    else SNAPSHOT_CACHE if path in SNAPSHOT_READS
                     else 'public, max-age=30, stale-while-revalidate=30')
                 if growth_path(path):  # the same URL answers HTML or Markdown by Accept
                     vary=[v.strip() for v in headers.get('vary','').split(',') if v.strip()]
