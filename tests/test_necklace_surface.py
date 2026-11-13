@@ -222,3 +222,33 @@ def test_without_necklaces_the_tool_list_is_unchanged(tmp_path, monkeypatch, cli
     monkeypatch.setenv('AGENTCON_PROJECT_ROOT', str(tmp_path))
     names = [t['name'] for t in client.post('/mcp', json={'jsonrpc': '2.0', 'id': 1, 'method': 'tools/list'}).json()['result']['tools']]
     assert not any(n.startswith('necklace_') for n in names)
+
+
+def a2a(client, text):
+    r = client.post('/a2a', json={'jsonrpc': '2.0', 'id': 1, 'method': 'message/send', 'params': {
+        'message': {'role': 'user', 'messageId': 'm1', 'parts': [{'kind': 'text', 'text': text}]}}}).json()['result']
+    return r['parts'][0]['text'], r['parts'][1]['data']
+
+
+def test_a2a_card_lists_necklace_skills_and_run_necklace_follows_the_same_rules(mcp_site, client, monkeypatch):  # noqa: F811
+    card = client.get('/.well-known/agent-card.json').json()
+    skill = next(s for s in card['skills'] if s['id'] == 'necklace-trip-brief')
+    assert skill['examples'] == ['run necklace trip-brief {"city":"<city>"}'] and 'necklace-paper-digest' not in str(card['skills'])
+    text, data = a2a(client, 'run necklace trip-brief')
+    assert data['error_code'] == 'needs_arguments' and 'run necklace trip-brief {"city":"<city>"}' in text
+    text, data = a2a(client, 'run necklace paper-digest {"city": "Paris"}')
+    assert data['ok'] is False and data['ran'] is False and text.startswith('Necklace paper-digest is paused')
+    text, data = a2a(client, 'run necklace nope {}')
+    assert data['error_code'] == 'unknown_necklace'
+    calls = []
+    monkeypatch.setattr(ns, 'RUN', lambda front, entry, arguments, source: calls.append(source) or {'ok': True, 'output': 'done'})
+    text, data = a2a(client, 'run necklace trip-brief {"city": "Paris"}')
+    assert data['ok'] is True and calls == ['a2a'] and text.startswith('Ran necklace trip-brief.')
+    text, data = a2a(client, 'run necklace trip-brief {"city": ')
+    assert data['error_code'] == 'bad_arguments' and calls == ['a2a']
+
+
+def test_parse_reads_only_the_run_necklace_command():
+    assert ns.parse_a2a('run necklace trip-brief {"city": "Paris"}') == ('trip-brief', {'city': 'Paris'})
+    assert ns.parse_a2a('Run Necklace trip-brief') == ('trip-brief', None)
+    assert ns.parse_a2a('run 1 {"city": "Paris"}') is None and ns.parse_a2a('find a necklace') is None
