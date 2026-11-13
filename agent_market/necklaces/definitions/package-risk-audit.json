@@ -204,6 +204,27 @@
         },
         {
           "kind": "agentcon",
+          "agent_id": "package-registry",
+          "resource_id": null,
+          "tool": "get_package_release",
+          "registrable_domain": "agentconcierge.biz",
+          "upstream": [
+            "npm-registry",
+            "pypi-json"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "planned",
+          "input_map": {
+            "package": "{{input.package}}",
+            "ecosystem": "{{input.ecosystem}}"
+          },
+          "note": "Agent team cb477793, tuning 30/30, role tasks 2/2; npm and PyPI. Active after the ops substitute gate. Then 133021 (npm only, same npm registry source) gives way to depsdev-package only if a second source is needed; depsdev-package shares deps.dev with 276982."
+        },
+        {
+          "kind": "agentcon",
           "agent_id": "package-metadata",
           "resource_id": 133021,
           "tool": "get_package_metadata",

@@ -155,3 +155,12 @@ def test_record_truth_prefers_cna_then_adp():
     cases = [{"case_id": "CVE-2024-1", "truth": {}, "truth_sources": []}]
     assert gold.add_record_truth(F(adp), cases) == 1 and cases[0]["truth"]["cvss_record"]["score"] == 7.5
     assert gold.add_record_truth(F(adp), cases) == 0
+
+
+def test_record_truth_takes_the_newest_version_in_a_block():
+    class F:
+        def json(self, url, body=None):
+            return {"containers": {"cna": {"providerMetadata": {"shortName": "DSF"}, "metrics": [
+                {"cvssV3_1": {"baseScore": 7.5, "version": "3.1"}}, {"cvssV4_0": {"baseScore": 8.7, "version": "4.0"}}]}}}
+    assert gold.cvelist_metrics(F(), "CVE-2026-48587")["version"] == "4.0"
+    assert gold.cvelist_cvss(F(), "CVE-2026-48587")["score"] == 8.7

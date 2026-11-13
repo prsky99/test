@@ -197,8 +197,9 @@ def cvelist_cvss(f: Fetcher, cve_id: str) -> dict | None:
     containers = out.get("containers") or {}
     blocks = [containers.get("cna") or {}] + list(containers.get("adp") or [])
     for block in blocks:
-        for metric in block.get("metrics") or []:
-            for key in ("cvssV4_0", "cvssV3_1", "cvssV3_0", "cvssV2_0"):
+        # The newest CVSS version a block carries, the same order as the NVD metric choice.
+        for key in ("cvssV4_0", "cvssV3_1", "cvssV3_0", "cvssV2_0"):
+            for metric in block.get("metrics") or []:
                 if key in metric:
                     return {"score": metric[key].get("baseScore"), "version": metric[key].get("version"),
                             "source": "cvelistV5", "published": (out.get("cveMetadata") or {}).get("datePublished")}
@@ -217,8 +218,10 @@ def cvelist_metrics(f: Fetcher, cve_id: str) -> dict | None:
     containers = out.get("containers") or {}
     blocks = [("cna", containers.get("cna") or {})] + [("adp", b) for b in containers.get("adp") or []]
     for kind, block in blocks:
-        for metric in block.get("metrics") or []:
-            for key in ("cvssV4_0", "cvssV3_1", "cvssV3_0", "cvssV2_0"):
+        # The newest CVSS version a block carries (a CNA may publish 3.1 and 4.0 together),
+        # the same order as the NVD metric choice and the record agents.
+        for key in ("cvssV4_0", "cvssV3_1", "cvssV3_0", "cvssV2_0"):
+            for metric in block.get("metrics") or []:
                 if key in metric and metric[key].get("baseScore") is not None:
                     provider = (block.get("providerMetadata") or {}).get("shortName")
                     return {"score": metric[key]["baseScore"], "version": metric[key].get("version"),
@@ -226,13 +229,14 @@ def cvelist_metrics(f: Fetcher, cve_id: str) -> dict | None:
     return {"score": None, "version": None, "from": None, "provider": None}
 
 
-def add_record_truth(f: Fetcher, cases: list[dict]) -> int:
-    """Add truth.cvss_record (cvelistV5 CNA, else ADP) to CVE cases that lack it."""
+def add_record_truth(f: Fetcher, cases: list[dict], force: bool = False) -> int:
+    """Add truth.cvss_record (cvelistV5 CNA, else ADP) to CVE cases that lack it (or all, with force)."""
     added = 0
     for case in cases:
-        if "cvss_record" in case["truth"]:
+        if "cvss_record" in case["truth"] and not force:
             continue
         case["truth"]["cvss_record"] = cvelist_metrics(f, case["case_id"])
+        case["truth_sources"] = [s for s in case["truth_sources"] if s.get("name") != "cvelistV5"]
         case["truth_sources"].append({"name": "cvelistV5", "url": "https://github.com/CVEProject/cvelistV5",
                                       "fetched_at": _now()})
         added += 1

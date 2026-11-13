@@ -188,3 +188,14 @@ def test_budget_wraps_external_calls_only_and_denial_moves_on():
     assert ("https://p3.example/3", "necklace_retest", 429) in budget.noted
     assert all(not url.endswith("/11") for url, _ in budget.reserved)   # AgentValCon fallback not counted
     assert out["slots"]["news"]["stage"] == 3
+
+
+def test_stale_fallback_moves_to_the_next_member():
+    class Stale(Exception):
+        code = "stale"
+    defn = necklace()
+    defn["slots"][1]["chain"].append(own(12, agent_id="owned3"))
+    answers = {1: "CVE-2020-28500", 3: Fail(), 4: Fail(), 11: Stale(), 12: "listed in CISA KEV"}
+    out = runner.Runner(caller_from(answers)).run(defn, {"q": "x"})
+    news = out["attempts"]["news"]
+    assert [a["error_class"] for a in news][-2:] == ["stale", None] and out["slots"]["news"]["stage"] == 3

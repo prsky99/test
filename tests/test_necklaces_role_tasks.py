@@ -65,3 +65,18 @@ def test_contracts_are_the_canonical_role_list():
     assert {c["role"] for c in role_tasks.load()} <= ids
     for defn in model.load_valid():
         assert {slot["contract"] for slot in defn["slots"]} <= ids
+
+
+def test_every_role_task_file_uses_contract_names_and_public_inputs():
+    from agent_market.necklaces import model
+    ids = set(model.contract_ids())
+    files = sorted(role_tasks.FILE.parent.glob("*.jsonl"))
+    assert len(files) >= 2          # the workflow file and the search team's file
+    seen = set()
+    for path in files:
+        for case in role_tasks.load(path):
+            assert case["role"] in ids, (path.name, case["case_id"])
+            assert case["case_id"] not in seen, case["case_id"]
+            seen.add(case["case_id"])
+            text = " ".join(str(v) for v in case["input"].values())
+            assert not PERSONAL.search(text) and not WRITE_VERBS.search(text), case["case_id"]
