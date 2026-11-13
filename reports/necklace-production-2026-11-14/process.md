@@ -31,7 +31,7 @@ README.md가 이 파일의 내용을 요약해 씁니다. 세부 규칙의 기�
 - 정답 원천: 공개 원천(OSV, NVD, CISA KEV, World Bank, ECB, Open-Meteo, Crossref·OpenAlex, 정부 면허 기록 등)을 만든 날 받아 **고정 스냅샷**으로 저장하고, 만든 날짜와 원천 URL을 기록합니다. 시간에 따라 바뀌는 정답(날씨·환율·뉴스)은 실행 시각에 같은 원천을 함께 받아 비교합니다.
 - 채점: 결정적 검증(값·id·날짜·HTTPS)을 우선합니다. 열린 답(관련성)만 LLM 채점을 씁니다. 그 채점기는 사람 판정 30건과 80% 이상 일치해야 쓰고(2306.05685), 운영 중에도 20%는 사람이 확인합니다. LLM 채점은 Anthropic 키 하루 4달러 상한 안에서 씁니다.
 - 반복 신뢰도: 보류 세트 중 10건은 3번씩 돌려 pass^3를 기록합니다(τ-bench 2406.12045). 한 번 성공률이 0.95여도 3연속 성공 확률은 0.857입니다.
-- **통계(Wilson 95% 하한, CLT 구간 금지 2503.01747)**
+- **통계(Wilson 95% 하한, CLT 구간 금지 2503.01747)** — 공개 화면은 "검증된 95%"를 누적 110건 중 실패 1건 이하일 때만 쓰고, 그 전에는 실제 수치("29/30 passed on 11-20")만 씁니다(PM 07:5x)
 
 | 결과 | 하한 |
 |---|---|
@@ -42,7 +42,7 @@ README.md가 이 파일의 내용을 요약해 씁니다. 세부 규칙의 기�
 | 109/110, 196/200 | 95.0% |
 
   - 관문 한 번(60건)으로는 "하한 95%"를 증명할 수 없습니다. 그래서 둘로 나눠 적습니다.
-    - **출시 관문(점추정)**: 보류 60건 중 57건 이상(95%). PM이 정한 95% 관문이 이것입니다.
+    - **출시 관문(점추정)**: 보류 60건을 4시간 간격 30건씩 두 번, 합계 57건 이상(95%)이고 각 회 28건 이상(PM 07:5x).
     - **품질 주장(하한)**: 공개 뒤 매일 재시험을 누적해 110건 중 실패 1건 이하(하한 95%)가 되면 공개 화면에 "검증된 95%"를 씁니다. 그 전에는 측정값과 하한을 그대로 보여 줍니다. 하한이 90% 아래로 내려가면 보류 조건(6절 4번)입니다.
 - **Δ 유의성**: 같은 문항으로 목걸이와 최고 단일 진주를 짝지어 정확 McNemar 검정을 합니다(2411.00640). 관문은 Δ > 0입니다. 유의 여부(양측 p < 0.05)는 공개 수치 옆에 표시하고, 유의하지 않으면 "Δ +n%p (유의하지 않음)"로 씁니다. 참고로 단일 진주만 맞힌 문항이 0개일 때, 목걸이만 맞힌 문항이 6개 이상이어야 유의합니다(1개면 8개, 2개면 10개).
 - 남의 서버 부하: 보류 60건 × (목걸이 1 + 단일 기준선 n)회를 하루에 몰지 않습니다. 같은 호스트에는 동시 1건, 60초 간격, 하루 상한을 두고, 429가 오면 그날 그 호스트를 멈춥니다(검색과 RAG 실행 시험 규칙과 같음). 그래서 정답 세트 시험은 2~3일에 걸쳐 돕니다.
@@ -89,7 +89,7 @@ README.md가 이 파일의 내용을 요약해 씁니다. 세부 규칙의 기�
 
 | 항목 | 기준 | 잼 |
 |---|---|---|
-| 종단 성공률 | 보류 세트 60건 중 57건 이상(95%, 점추정). 조정 세트 30건 중 29건 이상 | 정답 세트, 채점기 커밋 기록. 공개 뒤 누적 하한은 2절. 운영·SRE 관문은 이 보류 세트에서 뽑은 **관문 세트 30건**(서로 다른 입력, 같은 역할 대조 절반 이상)을 4시간 이상 간격으로 두 번 돌려 두 번 모두 95%(29건) 이상이어야 통과(deploy/NECKLACE_GATE.md, PM 07:3x) |
+| 종단 성공률 | 보류 세트 60건 중 57건 이상(95%, 점추정). 조정 세트 30건 중 29건 이상 | 정답 세트, 채점기 커밋 기록. 공개 뒤 누적 하한은 2절. 운영·SRE 관문(PM 07:5x 확정): **보류 60건을 4시간 이상 간격으로 30건씩 두 번** 나눠 돌려, 합계 57/60 이상이고 각 회 28/30 이상이어야 통과. 조정 30건은 워크플로우 자체 시험에만 씀 |
 | Δ | 목걸이 성공률 − 최고 단일 진주 성공률 > 0. 같은 역할 과제만 따로 셌을 때도 > 0 | 같은 정답 세트로 사슬의 외부 진주 각각을 단독 실행 |
 | 완주율 | 95% 이상(필수 자리가 모두 채워진 비율) | 같은 실행 |
 | 외부만 완주율 | 70% 이상(Agentcon 대체 없이 완주) | 같은 실행 |
@@ -113,7 +113,7 @@ README.md가 이 파일의 내용을 요약해 씁니다. 세부 규칙의 기�
 | `definition.json` | 정의 파일 사본(자리·계약 id·사슬·합성 규칙·예산) |
 | `contracts/*.json` | 이 목걸이가 쓰는 역할 계약 |
 | `chain.json` | 자리별 사슬과 자리 자격 시험 결과(멤버마다 시험 3건, 지연, 지문, 같은 원천 표시) |
-| `gold/tuning.jsonl`, `gold/holdout.jsonl`, `gold/gate.jsonl` | 정답 세트(입력, 정답, 정답 원천과 받은 시각). gate.jsonl은 보류 세트에서 뽑은 30건으로, 운영·SRE 관문 전용(`--answer-set`) |
+| `gold/tuning.jsonl`, `gold/holdout-r1.jsonl`, `gold/holdout-r2.jsonl` | 정답 세트(입력, 정답, 정답 원천과 받은 시각). 보류 60건을 서로 다른 입력 30건씩 두 파일로 나눔(각각 같은 역할 대조 절반 이상). 운영·SRE 관문 1회차·2회차 전용(`--answer-set`) |
 | `results/necklace.jsonl` | 목걸이 실행 60건 원자료(자리별 시도·대체·지연·채점) |
 | `results/single-<resource_id>.jsonl` | 단일 진주 기준선 실행 원자료 |
 | `results/security.jsonl` | 보안 시험 결과 |
@@ -148,15 +148,15 @@ held(자동)
 - 사슬 순서·멤버 교체는 같은 버전(정책 revision만 올림). 매일 재시험으로 확인합니다.
 - 자리·계약·합성 규칙·입력 스키마가 바뀌면 버전을 올리고 3단계부터 다시 합니다. 관문도 다시 제출합니다.
 
-## 7. 공개 동의 문구 초안 `necklace-v1` (PM 06:3x ⑤, 성장·유통 검토 반영, PM 확인 전 미사용)
+## 7. 공개 동의 문구 초안 `necklace-v1` (PM 06:3x ⑤, 성장·유통 검토 반영, **PM 07:5x 승인**, 보존 문장만 보류)
 
-공개 실행 버튼 옆 확인란, MCP 도구 설명, A2A 기술 설명에 같은 뜻으로 씁니다. 영어, 사실만, 약속 문구 없음. `{BRAND}`는 서버 BRAND 상수에서 넣습니다(브랜드 이름은 사용자 결정 대기). `{mode}`는 정의에 따라 "in parallel" 또는 "in sequence"를 넣습니다(자리 사이 의존이 있으면 sequence).
+공개 실행 버튼 옆 확인란, MCP 도구 설명, A2A 기술 설명에 같은 뜻으로 씁니다. 영어, 사실만, 약속 문구 없음. `{BRAND}`는 서버 BRAND 상수에서 넣습니다(브랜드 이름은 사용자 결정 대기). `{mode}`는 정의의 그래프가 병렬일 때만 " in parallel"이고, 아니면 빈 문자열입니다(PM 07:5x).
 
 - 확인란(웹, 기본 해제, 실행마다 새로 묻고 저장하지 않음):
   > I understand that this necklace sends my input to the verified agents listed below. If one of them fails, the same input may be sent to another verified agent listed for that step, including agents run by {BRAND}. Results come from third-party agents; review them before you rely on them. Do not include passwords, keys, payment details or personal data.
 - 목록(확인란 바로 아래, 정의에서 자동 생성, 이름마다 진주 카드 `/agent/<id>` 링크): `Step <role>: <agent name> (<host>), then <alternate name> (<host>), …`
 - MCP 도구 설명 끝 문장(세부 도구 이름은 성장·유통 확정 `necklace_details`):
-  > Runs several verified read-only agents {mode}. Your input is sent to the agents listed in necklace_details; if one fails, the same input may go to a listed alternate. Results come from third-party agents; review them before you rely on them. No credentials or payments are sent.
+  > Runs several verified read-only agents{mode}. Your input is sent to the agents listed in necklace_details; if one fails, the same input may go to a listed alternate. Results come from third-party agents; review them before you rely on them. No credentials or payments are sent.
 - A2A 기술 설명: MCP와 같은 문장
 - **보존 문장(사실 확인 필요, 아래 참고)**: "Your input and the results are kept for up to 14 days to check reliability, then deleted." — 실행 본문 정리 작업이 운영에서 돌고 있음을 확인한 뒤에만 씁니다.
 - 쓰지 않는 표현: "guaranteed", "always", "private", "secure"(측정 근거 없는 약속)
