@@ -527,15 +527,36 @@ const PAGE_METAS = {
 
 const PUBLIC_PAGE_METADATA = {"overview": {"title": "Agent Concierge \u2014 Connected Intelligence, with Evidence", "desc": "Find up to three relevant agents or published workflows. A2A first, then MCP; x402 is available by explicit choice. Review recorded checks before running."}, "status": {"title": "Agent Status & Recorded Checks \u2014 Agent Concierge", "desc": "Explore recorded agent availability and execution observations. Distinguish catalog status from completed task results."}, "explore": {"title": "Explore AI Agents \u2014 A2A, MCP & x402 | Agent Concierge", "desc": "Find AI agents by task and protocol. Review available quality evidence, connection details and recent activity before choosing an agent."}, "learn": {"title": "Learn About AI Agent Connections \u2014 Agent Concierge", "desc": "Learn how A2A, MCP and x402 connect AI agents and tools. Understand recorded checks, task inputs, workflow connections and optional updates."}, "test": {"title": "Test AI Agents with Live Data \u2014 Agent Concierge", "desc": "Try technology news, research papers, country profiles and package metadata. Inspect English results, source links and retrieval timestamps."}, "workflows": {"title": "AI Agent Workflows & Web App Downloads \u2014 Agent Concierge", "desc": "Find published workflows by purpose and step capability. Review news, research, country indicators and package advisory inputs, then run or download a web app."}, "chat": {"title": "Find AI Agents & Published Workflows \u2014 Agent Concierge", "desc": "Describe a task to compare up to three relevant agents or published workflows. Prefer A2A, then MCP; select x402 explicitly. Agent selection uses recent successful verification, activity and quality."}, "register": {"title": "List Your AI Agent \u2014 Agent Concierge", "desc": "Submit your authorized public AI agent endpoint so others can discover it. Review capabilities, available connection evidence and listing status."}, "about": {"title": "About Agent Concierge \u2014 Service & Vision", "desc": "Discover our purpose and vision: useful connections between AI agents, inspectable evidence, reusable workflows and clear choices about permission."}};
 
-const DAILY_HOME_METADATA = (() => {
+const DAILY_HOME_METADATA_URL = "/daily-home-metadata.json";
+let DAILY_HOME_METADATA = (() => {
   try {
     const node = document.getElementById("dailyHomeMetadata");
-    return node ? JSON.parse(node.textContent) : null;
-  } catch (error) { return null; }
+    if (node) return JSON.parse(node.textContent);
+    if (location.pathname === "/" || location.pathname.endsWith("/index.html")) {
+      const ld = document.head.querySelector('script[type="application/ld+json"]');
+      const desc = document.head.querySelector('meta[name="description"]');
+      if (ld && desc) return {description: desc.getAttribute("content"), graph: JSON.parse(ld.textContent)};
+    }
+  } catch (error) {}
+  return null;
 })();
+let dailyHomeMetadataRequest = null;
+function loadDailyHomeMetadata() {
+  if (DAILY_HOME_METADATA || dailyHomeMetadataRequest) return;
+  dailyHomeMetadataRequest = fetch(DAILY_HOME_METADATA_URL, {credentials: "omit"})
+    .then((r) => r.ok ? r.json() : null)
+    .then((data) => {
+      if (data && data.description && data.graph) {
+        DAILY_HOME_METADATA = data;
+        if (typeof currentTab === "undefined" || currentTab === "overview") updatePageMeta("overview");
+      }
+    })
+    .catch(() => {});
+}
 
 function updatePageMeta(tabId) {
   const m = {...(PAGE_METAS[tabId] || PAGE_METAS.overview), ...(PUBLIC_PAGE_METADATA[tabId] || PUBLIC_PAGE_METADATA.overview)};
+  if (tabId === "overview" && !DAILY_HOME_METADATA) loadDailyHomeMetadata();
   if (tabId === "overview" && DAILY_HOME_METADATA) m.desc = DAILY_HOME_METADATA.description;
   document.title = m.title;
   const setMeta = (attr, val, content) => {

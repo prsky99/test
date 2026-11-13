@@ -164,7 +164,13 @@ def test_crawlers_receive_matching_visible_meta_and_dataset_without_javascript(d
     assert PAGES['explore'][2] in explore
     ld = json.loads(re.search(r'<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>',explore,re.S)[1])
     assert not any(n['@type']=='Dataset' for n in ld['@graph'])
-    assert 'id="dailyHomeMetadata"' in explore
+    # 11-14 PM plan 1: no page carries the inline payload; Home's own head is it, others ask the JSON once.
+    assert 'id="dailyHomeMetadata"' not in explore
+    assert 'id="dailyHomeMetadata"' not in client.get('/', headers={'accept': 'text/html'}).text
+    payload = client.get('/daily-home-metadata.json')
+    assert payload.status_code == 200 and payload.headers['cache-control'] == 'public, max-age=300, stale-while-revalidate=300'
+    assert payload.json()['description'] == description(value)
+    assert any(n['@type'] == 'Dataset' for n in payload.json()['graph']['@graph'])
 
 
 def test_static_metadata_fallback_has_no_fake_dates_or_counts():
@@ -188,13 +194,17 @@ def test_browser_navigation_preserves_daily_home_metadata_and_layout(browser, da
                       headers={k:v for k,v in response.headers.items() if k not in ('content-length','content-encoding','transfer-encoding')})
     context.route('**/*',serve)
     page = context.new_page()
-    errors = []
+    errors, asked = [], []
     page.on('pageerror',lambda e:errors.append(str(e)))
+    page.on('request',lambda r:asked.append(urlsplit(r.url).path))
     try:
         page.goto('https://agentconcierge.biz'+entry)
         page.wait_for_function('typeof updatePageMeta === "function"')
         # Follow the visible navigation controls, including the return to Home.
         page.locator('header .brand-box').click()
+        # 11-14: the Home panel is drawn at once from the page itself; only <head> metadata may wait for the JSON.
+        assert page.locator('#daily-catalog-statistics').is_visible()
+        assert len(page.locator('#secOverview').inner_text().strip()) > 200
         page.wait_for_function('document.querySelector("meta[name=description]").content.includes("12,345")')
         assert page.locator('#daily-catalog-statistics').is_visible()
         REPORT.mkdir(exist_ok=True)
@@ -205,6 +215,9 @@ def test_browser_navigation_preserves_daily_home_metadata_and_layout(browser, da
         assert '"@type":"Dataset"' not in page.locator('script[type="application/ld+json"]').inner_text()
         page.locator('header .brand-box').click()
         assert page.locator('meta[name=description]').get_attribute('content') == description(value)
+        assert '"@type":"Dataset"' in page.locator('script[type="application/ld+json"]').inner_text().replace(' ','')
+        # Home itself never asks for the payload (its head is the payload); another entry asks once.
+        assert asked.count('/daily-home-metadata.json') == (0 if entry == '/' else 1)
         page.set_viewport_size({'width':390,'height':844})
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
         page.screenshot(path=str(REPORT/f'home-daily-{label}-mobile.png'),full_page=True)

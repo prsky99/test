@@ -401,6 +401,8 @@ CSP_META = re.compile(r'<meta http-equiv="Content-Security-Policy" content="defa
 # reads these tags (screen changes use operating.js PAGE_METAS).
 PAGE_META = re.compile(r'<meta name="page:([a-z-]+):[a-z0-9:-]+" content="[^"]*">\n?')
 PAGE_METADATA_PATH = '/page-metadata.json'
+DAILY_HOME_JSON = re.compile(r'<script type="application/json" id="dailyHomeMetadata">.*?</script>', re.S)
+DAILY_HOME_PATH = '/daily-home-metadata.json'
 PAGE_METADATA_LINK = ('<link rel="alternate" type="application/json" title="Page metadata of every Agent Concierge page" '
                       'href="' + PAGE_METADATA_PATH + '">\n')
 
@@ -431,6 +433,9 @@ def page_response(value, *, public=False, page=None, noindex=None):
     panel = LIVE_PANELS.get(page)
     if panel:
         value = own_page_meta(value, panel)
+        # 11-14 PM plan 1: the daily home payload (3.4 KB, on every page) is the home page's own ld+json and
+        # description; other pages ask /daily-home-metadata.json when Home is opened (daily_metadata_runtime).
+        value = DAILY_HOME_JSON.sub('', value, count=1)
     value = critical_css(split_panels(versioned(bundled(prerender_segmented(value)))), page)
     if os.environ.get('MAIN_SPONSORED', '0') == '1':  # 11-11 Sponsored on main Explore and Chat; off by default
         value = re.sub(r'<body\b', '<body data-sponsored="on"', value, count=1)
@@ -572,6 +577,17 @@ def install(app, front, *, workspace_access_enabled=False, workspace_link_enable
         if not path.is_relative_to(base) or not path.is_file() or path.is_symlink():
             raise HTTPException(404, 'Page not found.')
         return path.read_bytes()
+
+    @app.get(DAILY_HOME_PATH, include_in_schema=False)
+    def daily_home_metadata():
+        # The home page's daily description and structured data, for a page that opens Home without a reload.
+        from fastapi.responses import JSONResponse
+        from .daily_statistics import description, valid
+        from .public_metadata import graph
+        snapshot = front.daily_statistics.read()
+        if not valid(snapshot):
+            raise HTTPException(404, 'No daily snapshot yet.')
+        return JSONResponse({'description': description(snapshot), 'graph': graph(snapshot=snapshot)})
 
     @app.get(PAGE_METADATA_PATH, include_in_schema=False)
     def all_page_metadata():

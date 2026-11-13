@@ -117,3 +117,35 @@ def test_every_built_file_was_made_from_the_current_bundle():
         client.close()
         front.book.close()
         store._db.close()
+
+
+def test_prune_leaves_out_only_declarations_a_later_rule_always_overrides():
+    # 11-14 PM plan 1: the five stylesheets override each other; the first-screen copy keeps only what wins.
+    from scripts.build_critical_css import prune
+    css = ('.a{color:red;margin:0}.b{color:blue!important}.c{color:red}'
+           '@media (max-width:700px){.a{color:pink}}'
+           '.a{color:green}.b{color:black}.c{color:color-mix(in srgb,red 50%,blue)}'
+           '.d{-webkit-box-flex:1}.d{-webkit-box-flex:2}.e{background:url("x;y.png")}.e{width:1px}'
+           '.f :hover{x:1}.f:hover{x:2}')
+    out = prune(css)
+    assert '.a{margin:0}' in out and '.a{color:green}' in out          # the earlier red always loses
+    assert '@media (max-width:700px){.a{color:pink}}' in out            # another context is never touched
+    assert '.b{color:blue!important}' in out                            # !important wins over a later plain one
+    assert '.c{color:red}' in out                                       # fallback when color-mix is not understood
+    assert '.d{-webkit-box-flex:1}' in out                              # vendor properties are left alone
+    assert '.e{background:url("x;y.png")}' in out                       # ; inside url() is not a separator
+    assert '.f :hover{x:1}' in out and '.f:hover{x:2}' in out           # a descendant space stays
+
+
+def test_every_protocol_card_colour_is_kept_when_the_page_shows_protocol_cards():
+    # 11-14: a build that saw only A2A cards dropped the MCP colours; the cards come from live data.
+    from scripts.build_critical_css import critical
+    css = ('.acard{a:b}.k-a2a{c:a}.k-mcp{c:m}.k-x402{c:x}.acard.k-mcp{d:m}'
+           '[data-protocol="mcp"]{e:m}body[data-theme="dark"] [data-protocol="x402"]{e:x}.other.k-mcp{f:g}')
+    used = [(0, len('.acard{a:b}')), (css.index('.k-a2a'), css.index('.k-a2a') + len('.k-a2a{c:a}'))]
+    out = critical(css, used, dom={'acard', 'k-a2a'})
+    for kept in ('.k-mcp{c:m}', '.k-x402{c:x}', '.acard.k-mcp{d:m}', '[data-protocol="mcp"]{e:m}',
+                 'body[data-theme="dark"] [data-protocol="x402"]{e:x}'):
+        assert kept in out, kept
+    assert '.other.k-mcp' not in out                    # a class the page never has stays out
+    assert '.k-mcp' not in critical(css, used[:1], dom={'acard'})   # no protocol card on the page: nothing added

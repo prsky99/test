@@ -104,6 +104,93 @@ def blocks(css, i=0, n=None):
     return out
 
 
+# 11-14 PM decision (plan 1): the first-screen CSS repeats the five stylesheets' overrides (13-15 % of its
+# declarations are redefined later for the same selector in the same @media). A declaration is left out only when a
+# later rule with the very same selector text, in the very same @media/@supports context, sets the same property
+# with a value every current browser understands (so the earlier one can never be used as a fallback) and the
+# !important order allows it. What the first screen draws does not change (tests/test_critical_css_browser.py).
+SAFE_VALUE = re.compile(r'^(?:[^()]|\b(?:var|url|calc|min|max|clamp|rgb|rgba|hsl|hsla|linear-gradient|radial-gradient|'
+                        r'repeating-linear-gradient|translate|translateX|translateY|scale|rotate|cubic-bezier|'
+                        r'minmax|repeat|attr|counter|blur|drop-shadow)\([^()]*(?:\([^()]*\)[^()]*)*\))*$')
+
+
+def declarations(body):
+    """'a:b;c:url(x;y)' -> ['a:b', 'c:url(x;y)'], splitting on ; outside parentheses and strings."""
+    out, cur, depth, quote = [], '', 0, None
+    for ch in body:
+        if quote:
+            quote = None if ch == quote else quote
+        elif ch in '"\'':
+            quote = ch
+        elif ch == '(':
+            depth += 1
+        elif ch == ')':
+            depth -= 1
+        elif ch == ';' and depth == 0:
+            out.append(cur.strip()); cur = ''
+            continue
+        cur += ch
+    if cur.strip():
+        out.append(cur.strip())
+    return [d for d in out if d]
+
+
+def prune(css):
+    """Leave out declarations a later rule always overrides (see SAFE_VALUE), and collapse whitespace."""
+    tree = blocks(css)
+
+    def leaves(items, ctx):
+        for start, end, prelude, children in items:
+            if children is None:
+                if not prelude.startswith('@') and '{' in css[start:end]:
+                    yield ctx, prelude, (start, end)
+            elif not prelude.lower().startswith(('@keyframes', '@-webkit-keyframes')):
+                yield from leaves(children, ctx + (prelude,))
+    seen = {}  # (ctx, selector, property) -> [(rule offsets, important, value)], in order
+    for ctx, prelude, span in leaves(tree, ()):
+        text = css[span[0]:span[1]]
+        for d in declarations(text[text.index('{') + 1:text.rindex('}')]):
+            if ':' not in d:
+                continue
+            prop, value = d.split(':', 1)
+            seen.setdefault((ctx, prelude, prop.strip().lower()), []).append(
+                (span, '!important' in value.lower(), value.strip()))
+    dead = set()
+    for key, uses in seen.items():
+        for i, (span, important, _) in enumerate(uses):
+            later = [u for u in uses[i + 1:] if u[0] != span]
+            if any((imp or not important) and not prop_vendor(key[2]) and SAFE_VALUE.match(val.replace('!important', ''))
+                   for _, imp, val in later):
+                dead.add((span, key[2]))
+
+    def draw(items):
+        out = []
+        for start, end, prelude, children in items:
+            text = css[start:end]
+            if children is not None:
+                inner = draw(children)
+                if inner:
+                    out.append(squeeze(prelude) + '{' + inner + '}')
+            elif prelude.startswith('@') or '{' not in text:
+                out.append(text.strip())
+            else:
+                body = [d for d in declarations(text[text.index('{') + 1:text.rindex('}')])
+                        if ':' not in d or ((start, end), d.split(':', 1)[0].strip().lower()) not in dead]
+                if body:
+                    out.append(squeeze(prelude) + '{' + ';'.join(body) + '}')
+        return ''.join(out)
+    return draw(tree)
+
+
+def prop_vendor(prop):
+    return prop.startswith(('-webkit-', '-moz-', '-ms-'))
+
+
+def squeeze(prelude):
+    """Whitespace runs to one space; around { , > + ~ none (a space before ':' is kept: it is a descendant)."""
+    return re.sub(r'\s*([,>+~])\s*', r'\1', re.sub(r'\s+', ' ', prelude.strip()))
+
+
 URL = re.compile(r'url\(\s*([\'"]?)(?!data:|https?:|/|#)([^)\'"]+)\1\s*\)', re.I)
 
 
@@ -122,10 +209,20 @@ def state_rule(prelude, dom, scripted):
     return bool(tokens) and tokens <= (dom | scripted) and bool(tokens & dom)
 
 
+# 11-11~14: result cards take one protocol class (and data-protocol) per agent, set from live data. A build that saw
+# only A2A cards dropped the MCP and x402 colours, and the first screen drew those cards plain until the bundle came
+# (explore, three times). When a page shows any protocol card, every protocol's card rules are first-screen rules.
+KIND_FAMILY = frozenset(('k-a2a', 'k-mcp', 'k-x402'))
+PROTOCOL_ATTR = re.compile(r'\[data-protocol(?:=["\']?(?:a2a|mcp|x402|any)["\']?)?\]')
+
+
 def critical(css, used_ranges, dom=frozenset(), scripted=frozenset()):
     """The used part of a stylesheet, given (start, end) offsets of used style rules, plus state rules."""
     used = {(s, e) for s, e in used_ranges}
     starts = {s for s, _ in used_ranges}
+    cards = bool(set(dom) & KIND_FAMILY)
+    if cards:
+        scripted = set(scripted) | KIND_FAMILY
 
     def keep(item):
         start, end, prelude, children = item
@@ -137,6 +234,9 @@ def critical(css, used_ranges, dom=frozenset(), scripted=frozenset()):
         if prelude.lower().startswith(KEEP_AT) or prelude.lower().startswith('@import') or prelude.lower().startswith('@charset'):
             return text
         if (start, end) in used or start in starts or ALWAYS.match(text) or (dom and state_rule(prelude, dom, scripted)):
+            return text
+        if cards and (PROTOCOL_ATTR.search(prelude) or set(TOKEN.findall(prelude)) & KIND_FAMILY
+                      and set(TOKEN.findall(prelude)) <= set(dom) | set(scripted)):
             return text
         return ''
     return absolute_urls('\n'.join(x for x in (keep(item) for item in blocks(css)) if x) + '\n')
@@ -241,7 +341,7 @@ def main():
             report[page] = 'no bundle stylesheet seen'
             continue
         import hashlib
-        text = '/* source %s */\n' % hashlib.sha256(sheet.encode()).hexdigest()[:16] + critical(sheet, used, dom, scripted)
+        text = '/* source %s */\n' % hashlib.sha256(sheet.encode()).hexdigest()[:16] + prune(critical(sheet, used, dom, scripted)) + '\n'
         (OUT / (page.removesuffix('.html') + '.css')).write_text(text)
         report[page] = {'rules': len(used), 'raw': len(text), 'gzip': len(gzip.compress(text.encode(), 9))}
     print(json.dumps(report, indent=1))
