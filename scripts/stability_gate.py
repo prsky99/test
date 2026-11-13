@@ -18,11 +18,11 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 try:  # run as python -m scripts.<name> or as a file
-    from scripts.slo_targets import FINAL, INTERIM, INTERIM_QUALITY, attainment, connect_ok
+    from scripts.slo_targets import FINAL, INTERIM, INTERIM_DAYS, INTERIM_DAY_RATE, INTERIM_QUALITY, attainment, connect_ok
 except ImportError:
     import sys as _sys
     _sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from slo_targets import FINAL, INTERIM, INTERIM_QUALITY, attainment, connect_ok
+    from slo_targets import FINAL, INTERIM, INTERIM_DAYS, INTERIM_DAY_RATE, INTERIM_QUALITY, attainment, connect_ok
 
 ROOT = Path(__file__).resolve().parents[1]
 OPS = ROOT / 'logs/ops'
@@ -78,7 +78,9 @@ def interim_days(rows):
         if day:
             runs, bad = days.get(day, (0, 0))
             days[day] = (runs + 1, bad + (0 if attainment(r, INTERIM)['ok'] else 1))
-    return {d: {'ok': bad == 0 and runs >= MIN_SLO_RUNS, 'runs': runs, 'failed_runs': bad} for d, (runs, bad) in days.items()}
+    # PM 02:5x: a day passes when at least INTERIM_DAY_RATE of its runs passed (and the day was really measured).
+    return {d: {'ok': runs >= MIN_SLO_RUNS and (runs - bad) / runs >= INTERIM_DAY_RATE, 'runs': runs, 'failed_runs': bad,
+                'run_rate': round((runs - bad) / runs, 3)} for d, (runs, bad) in days.items()}
 
 
 def slo_rates(rows, today, days=7):
@@ -137,6 +139,12 @@ def task_latest(rows):
             'ok': int(last.get('passed') or 0) >= TASK_TARGET}
 
 
+def task_previous(rows):
+    """Passed count of the scored run before the latest one (PM 02:5x: no single lucky pass)."""
+    scored = sorted((r for r in rows if _day(r.get('at'))), key=lambda r: str(r['at']))
+    return int(scored[-2].get('passed') or 0) if len(scored) >= 2 else None
+
+
 def ledger_day(day, folder=None):
     path = Path(folder or OPS / 'error-ledger') / f'{day}.json'
     try:
@@ -174,17 +182,19 @@ def judge(today=None, ops=None):
     }
     result['user_slo']['ok'] = result['user_slo']['streak'] >= SLO_DAYS
     # 11-14: reported beside the gate, never part of it (the gate opens on the final target only).
-    result['user_slo_interim'] = {'streak': streak(interim, today), 'need': SLO_DAYS, 'today': interim.get(today)}
-    result['user_slo_interim']['ok'] = result['user_slo_interim']['streak'] >= SLO_DAYS
+    result['user_slo_interim'] = {'streak': streak(interim, today), 'need': INTERIM_DAYS, 'today': interim.get(today)}
+    result['user_slo_interim']['ok'] = result['user_slo_interim']['streak'] >= INTERIM_DAYS
     result['slo_rates'] = slo_rates(slo_rows, today)
     # 11-14 02:3x: the interim target is reached when its three speeds (7-day user_slo streak) and quality
     # (real_task_score 27/30) both pass; the connection share and the Chat comparison are recorded, not judged.
     passed = (task or {}).get('passed')
+    previous = task_previous(_rows(ops / 'real-task-score.jsonl'))
     chat = chat_latest(ops / 'chat-gate')
     result['interim'] = {
         'speed': result['user_slo_interim']['ok'],
-        'quality': passed is not None and passed >= INTERIM_QUALITY['real_tasks'],
-        'real_tasks': passed, 'connect': connect_rate(slo_rows, today), 'chat': chat,
+        'quality': (passed is not None and passed >= INTERIM_QUALITY['real_tasks'] and previous is not None
+                    and previous >= INTERIM_QUALITY['previous_real_tasks']),
+        'real_tasks': passed, 'previous_real_tasks': previous, 'connect': connect_rate(slo_rows, today), 'chat': chat,
         'connect_ok': (connect_rate(slo_rows, today)['rate'] or 0) >= INTERIM_QUALITY['connect_rate'],
         'chat_ok': bool(chat) and chat['passed'] >= INTERIM_QUALITY['chat']}
     result['interim']['ok'] = result['interim']['speed'] and result['interim']['quality']
@@ -206,7 +216,8 @@ def interim_text(r):
     rate = '-' if conn.get('rate') is None else f"{round(conn['rate'] * 100)}%"
     chat_text = f"{chat.get('passed')}/{chat.get('total')}" if chat else '-'
     return (f"차선 달성 {'통과' if i.get('ok') else '미달'}(속도 {'통과' if i.get('speed') else '미달'}, "
-            f"품질 실제 과제 {i.get('real_tasks')}/{INTERIM_QUALITY['real_tasks_of']} 목표 {INTERIM_QUALITY['real_tasks']}; "
+            f"품질 실제 과제 {i.get('real_tasks')}/{INTERIM_QUALITY['real_tasks_of']} 목표 {INTERIM_QUALITY['real_tasks']}"
+            f"·직전 {i.get('previous_real_tasks')} 목표 {INTERIM_QUALITY['previous_real_tasks']}; "
             f"보조 연결 표본 {rate}·Chat {chat_text})")
 
 
@@ -218,7 +229,7 @@ def board_line(r):
     unexplained = '장부 없음' if ledger['unexplained'] is None else f"{ledger['unexplained']}건"
     return (f"{MARK} {r['judged_at']} 자동 판정: {'열림' if r['open'] else '닫힘'}]** "
             f"user_slo {r['user_slo']['streak']}/{SLO_DAYS}일({mark(r['user_slo']['ok'])}) · "
-            f"차선 목표 user_slo {r.get('user_slo_interim', {}).get('streak', 0)}/{SLO_DAYS}일 · "
+            f"차선 속도(하루 회차 {round(INTERIM_DAY_RATE * 100)}% 이상) {r.get('user_slo_interim', {}).get('streak', 0)}/{INTERIM_DAYS}일 · "
             f"7일 달성률 최종 {pct(r, 'final')}·차선 {pct(r, 'interim')} · {interim_text(r)} · "
             f"전수 점검 실패 0 {r['full_check']['streak']}/{FULL_DAYS}일({mark(r['full_check']['ok'])}) · "
             f"실제 과제 {task.get('passed')}/{task.get('tasks')}(목표 {TASK_TARGET}, {mark(task['ok'])}) · "

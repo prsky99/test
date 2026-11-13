@@ -35,11 +35,11 @@ def test_the_gate_reports_the_interim_streak_and_rates_without_opening_on_them(t
         r['breaches'] = {} if attainment(r, FINAL)['ok'] else {'explore': {'bad_count': 1}}
     (tmp_path / 'user-slo.jsonl').write_text('\n'.join(json.dumps(r) for r in rows) + '\n')
     result = gate.judge(today='2026-11-14', ops=tmp_path)   # streaks end yesterday
-    assert result['user_slo_interim']['streak'] == 7 and result['user_slo_interim']['ok']
+    assert result['user_slo_interim']['streak'] == 7 and result['user_slo_interim']['ok'] and result['user_slo_interim']['need'] == 3
     assert result['user_slo']['streak'] == 0 and not result['open']
     assert result['slo_rates']['final']['run_rate'] == 0.0 and result['slo_rates']['interim']['run_rate'] == 1.0
     line = gate.board_line(result)
-    assert '차선 목표 user_slo 7/7일' in line and '7일 달성률 최종 0%·차선 100%' in line
+    assert '차선 속도(하루 회차 90% 이상) 7/3일' in line and '7일 달성률 최종 0%·차선 100%' in line
 
 
 def test_the_interim_target_needs_speed_and_quality_and_records_the_supporting_measures(tmp_path):
@@ -54,15 +54,32 @@ def test_the_interim_target_needs_speed_and_quality_and_records_the_supporting_m
     (tmp_path / 'chat-gate' / 'a.json').write_text(json.dumps(
         {'active': 'rel-1', 'active_verdicts': {f'c{i}': i < 100 for i in range(110)}}))
 
-    def judged(passed):
-        (tmp_path / 'real-task-score.jsonl').write_text(json.dumps({'at': '2026-11-13T07:40:16+00:00', 'tasks': 30,
-                                                                    'passed': passed}) + '\n')
+    def judged(passed, previous=26):
+        (tmp_path / 'real-task-score.jsonl').write_text(
+            json.dumps({'at': '2026-11-12T19:07:00+00:00', 'tasks': 30, 'passed': previous}) + '\n'
+            + json.dumps({'at': '2026-11-13T07:40:16+00:00', 'tasks': 30, 'passed': passed}) + '\n')
         return gate.judge(today='2026-11-14', ops=tmp_path)
 
-    low, high = judged(24), judged(27)
+    low, high, lucky = judged(24), judged(27), judged(27, previous=25)
+    assert not lucky['interim']['quality'] and lucky['interim']['previous_real_tasks'] == 25   # one lucky pass is not enough
     assert low['interim']['speed'] and not low['interim']['quality'] and not low['interim']['ok']
     assert high['interim']['ok'] and not high['open']                             # never opens the gate
     assert high['interim']['connect']['rate'] == 0.5 and not high['interim']['connect_ok']   # recorded, not judged
     assert high['interim']['chat'] == {'passed': 100, 'total': 110, 'release': 'rel-1', 'file': 'a.json'}
     assert high['interim']['chat_ok']
-    assert '차선 달성 통과(속도 통과, 품질 실제 과제 27/30 목표 27; 보조 연결 표본 50%·Chat 100/110)' in gate.board_line(high)
+    assert '차선 달성 통과(속도 통과, 품질 실제 과제 27/30 목표 27·직전 26 목표 26; 보조 연결 표본 50%·Chat 100/110)' in gate.board_line(high)
+
+
+def test_an_interim_day_passes_with_ninety_percent_of_its_runs_and_three_days_make_the_speed(tmp_path):
+    """PM 02:5x: one tail sample no longer fails a whole day; a run with any slow sample is still a failed run."""
+    rows = []
+    for d in range(10, 14):
+        for h in range(20):
+            slow = (d == 10 and h < 3) or (d >= 11 and h < 2)          # 11-10: 17/20 = 85%; later days 18/20 = 90%
+            rows.append({**run(f'2026-11-{d:02d} {h:02d}:00', explore=3.5 if slow else 1.0), 'breaches': {'x': 1} if slow else {}})
+    (tmp_path / 'user-slo.jsonl').write_text('\n'.join(json.dumps(r) for r in rows) + '\n')
+    days = gate.interim_days(rows)
+    assert not days['2026-11-10']['ok'] and days['2026-11-11']['ok'] and days['2026-11-11']['run_rate'] == 0.9
+    result = gate.judge(today='2026-11-14', ops=tmp_path)
+    assert result['user_slo_interim']['streak'] == 3 and result['interim']['speed']
+    assert result['user_slo']['streak'] == 0 and not result['open']                # the final gate is unchanged

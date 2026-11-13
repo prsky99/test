@@ -11,7 +11,11 @@ INTERIM = {'explore_s': 3.0, 'recommend_s': 5.0, 'complex_s': 5.0, 'page_s': 3.0
 TIMED_PARTS = ('explore', 'recommend', 'pages')
 # 11-14 02:3x user decision (via PM): the interim target also needs quality of 90% or more. Judged on real_task_score
 # (27 of 30); the user_slo connection samples (90%) and the Chat answer comparison (99 of 110) are recorded beside it.
-INTERIM_QUALITY = {'real_tasks': 27, 'real_tasks_of': 30, 'connect_rate': 0.9, 'chat': 99, 'chat_of': 110}
+INTERIM_QUALITY = {'real_tasks': 27, 'real_tasks_of': 30, 'connect_rate': 0.9, 'chat': 99, 'chat_of': 110,
+                   'previous_real_tasks': 26}   # PM 02:5x: the run before the latest must have 26/30 or more too
+# PM 02:5x (user intent "grow fast once the interim target is reached"): the interim speed passes after INTERIM_DAYS days
+# in a row on which at least INTERIM_DAY_RATE of the runs passed; a run with any sample over a limit is a failed run.
+INTERIM_DAYS, INTERIM_DAY_RATE = 3, 0.9
 
 
 def sample_ok(part, row, targets):
