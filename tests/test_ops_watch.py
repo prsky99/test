@@ -97,7 +97,8 @@ def test_full_check_runs_every_two_hours_and_records_a_deferral(tmp_path, monkey
     monkeypatch.setattr(ops_auto, 'FULL_CHECK_STATE', tmp_path / 'fc.json')
     monkeypatch.setattr(ops_auto, 'busy', lambda: None)
     launched = []
-    run = lambda t, free: ops_auto.full_check(clock=lambda: t, launch=lambda *a, **k: launched.append(a), free=free)
+    run = lambda t, free: ops_auto.full_check(clock=lambda: t, launch=lambda *a, **k: launched.append(a), free=free,
+                                              window=False)
     assert run(10_000, False) == 'deferred' and not launched
     assert '자동 점검 [full_check_deferred]' in board.read_text()
     assert run(10_600, False) == 'deferred' and board.read_text().count('[full_check_deferred]') == 1
@@ -158,22 +159,40 @@ def test_outside_load_names_other_projects_and_closes_when_the_load_drops(tmp_pa
     assert '해결(자동' in [l for l in board.read_text().splitlines() if '[outside_load]' in l][0]
 
 
-def test_full_check_goes_ahead_after_two_deferrals_and_records_the_overlap(tmp_path, monkeypatch):
-    """11-12 PM: deferred four times from 07:47 by other work; the third try now runs regardless, outside the slot."""
+def test_full_check_never_forces_and_runs_at_the_first_free_watch_with_its_waits(tmp_path, monkeypatch):
+    """11-13 PM 10:21: the 10:19 run was forced beside tests and a deploy (84.8%); an overlap now only defers it."""
     import json as _json
     ops_auto, board = _board(tmp_path, monkeypatch)
     monkeypatch.setattr(ops_auto, 'FULL_CHECK_STATE', tmp_path / 'fc.json')
-    monkeypatch.setattr(ops_auto, 'busy', lambda: 'tests_or_deploy_running')
+    reasons = ['tests_or_deploy_running'] * 4 + [None, None]
+    monkeypatch.setattr(ops_auto, 'busy', lambda: reasons.pop(0))
     launched = []
-    run = lambda t: ops_auto.full_check(clock=lambda: t, launch=lambda *a, **k: launched.append((a, k)), free=True)
-    assert run(10_000) == 'deferred' and run(10_600) == 'deferred' and not launched
-    assert run(11_200) == 'forced'
+    run = lambda t, window=False: ops_auto.full_check(clock=lambda: t, launch=lambda *a, **k: launched.append((a, k)),
+                                                      free=True, window=window)
+    for t in (10_000, 10_600, 11_200, 11_800):                       # past the old two-deferral limit: still waits
+        assert run(t) == 'deferred'
+    assert not launched
+    assert run(12_400, window='hourly measurement') == 'deferred' and not launched   # :55-:10 also waits
+    assert run(13_000) == 'started'
     command, env = launched[0][0][0], launched[0][1]['env']
-    assert command[:3] == ['nice', '-n', '10'] and 'scripts.heavy_slot' not in command
+    assert 'scripts.heavy_slot' in command and command[:3] != ['nice', '-n', '10']  # always inside the heavy slot
     context = _json.loads(env['AGENTCON_RUN_CONTEXT'])
-    assert context['forced_after_deferrals'] == 2 and context['overlap'] == 'tests_or_deploy_running' and 'load_1' in context
-    assert '겹친 채 실행' in [l for l in board.read_text().splitlines() if '[full_check_deferred]' in l][0]
+    assert context['deferred_before'] == 5 and len(context['overlaps']) == 5 and 'load_1' in context
+    assert context['overlaps'][0].endswith('tests_or_deploy_running') and '(:55~:10)' in context['overlaps'][-1]
+    assert '빈 시간에 실행 시작, 5번 미룬 뒤' in [l for l in board.read_text().splitlines() if '[full_check_deferred]' in l][0]
     assert _json.loads((tmp_path / 'fc.json').read_text())['deferred'] == 0     # the count starts again
+
+
+def test_full_check_reads_the_measurement_window_from_heavy_slot(tmp_path, monkeypatch):
+    from datetime import datetime as _dt
+    ops_auto, _ = _board(tmp_path, monkeypatch)
+    monkeypatch.setattr(ops_auto, 'FULL_CHECK_STATE', tmp_path / 'fc.json')
+    monkeypatch.setattr(ops_auto, 'busy', lambda: None)
+    launched = []
+    at = lambda h, m: _dt(2026, 11, 13, h, m).timestamp()
+    run = lambda t: ops_auto.full_check(clock=lambda: t, launch=lambda *a, **k: launched.append(a), free=True)
+    assert run(at(10, 58)) == 'deferred' and run(at(11, 5)) == 'deferred' and not launched
+    assert run(at(11, 12)) == 'started' and len(launched) == 1
 
 
 def test_user_slo_runs_once_in_every_clock_hour(tmp_path, monkeypatch):

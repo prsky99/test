@@ -539,50 +539,51 @@ def orphan_clusters(clock=time.time, run=None):
 TEST_PYTHON = ROOT / '.venv-tests/bin/python'   # the browser part needs playwright, which only .venv-tests has (11-11)
 
 
-FULL_CHECK_MAX_DEFERRALS = 2   # 11-12 PM: two deferrals in a row, then the next run goes ahead regardless
+FULL_CHECK_OVERLAPS_KEPT = 12  # the reasons of the last two hours of deferrals travel with the run's record
 
 
-def full_check(clock=time.time, launch=None, free=None):
+def full_check(clock=time.time, launch=None, free=None, window=None):
     """Every two hours: run scripts/public_full_check.py through heavy_slot (it drives a browser).
 
-    When every heavy-work slot is taken the run is put off to the next watch (ten minutes later) and the board
-    gets one refreshed line saying so; the line closes when a run starts."""
+    11-13 PM 10:21: never forced. The 10:19 run went ahead after two deferrals beside tests and a deploy and read
+    84.8%. Now an overlap (tests, a deploy, a full heavy slot, the :55-:10 measurement window) only puts the run off
+    to the next watch (ten minutes later) and keeps the reasons; the run starts at the first free watch and its
+    record carries how often and why it waited. Nothing is excluded from the result."""
     state = json.loads(FULL_CHECK_STATE.read_text()) if FULL_CHECK_STATE.is_file() else {}
     if clock() - state.get('started', 0) < FULL_CHECK_EVERY:
         return None
+    import heavy_slot
     reason = busy()
     if free is None:
-        import heavy_slot
         lines = heavy_slot.BOARD.read_text(encoding='utf-8').split('\n') if heavy_slot.BOARD.is_file() else []
         live = [line for _, line, ok in heavy_slot.entries(lines) if ok]
         free = len(live) < heavy_slot.slots()
+    if window is None:   # heavy_slot would refuse inside it and the two-hour turn would be lost
+        window = heavy_slot.measurement_window(datetime.fromtimestamp(clock()))
     deferred = int(state.get('deferred') or 0)
-    why = reason or (None if free else '무거운 작업 칸이 모두 참')
-    if why and deferred < FULL_CHECK_MAX_DEFERRALS:
+    overlaps = list(state.get('overlaps') or [])
+    why = reason or (None if free else '무거운 작업 칸이 모두 참') or (window and '매시 측정 시간(:55~:10)')
+    if why:
         state['deferred'] = deferred + 1
-        FULL_CHECK_STATE.write_text(json.dumps(state))
+        state['overlaps'] = (overlaps + [f'{datetime.fromtimestamp(clock()):%H:%M} {why}'])[-FULL_CHECK_OVERLAPS_KEPT:]
+        FULL_CHECK_STATE.write_text(json.dumps(state, ensure_ascii=False))
         board_handoff('full_check_deferred', f'전수 점검(public_full_check) 2시간 주기 실행을 미룸: {why} '
-                                             f'({deferred + 1}/{FULL_CHECK_MAX_DEFERRALS}). 10분 뒤 다시 시도, '
-                                             f'{FULL_CHECK_MAX_DEFERRALS}번 미룬 뒤에는 무조건 실행')
+                                             f'({deferred + 1}번째). 겹친 채 강제 실행하지 않고 10분 뒤 빈 시간에 다시 시도')
         append(ACTIONS, f'{now()} public_full_check 미룸: {why}')
         return 'deferred'
     FULL_CHECK_STATE.write_text(json.dumps({'started': clock(), 'deferred': 0}))
     log = (ROOT / 'logs/ops/public-full-check.out').open('a')
     check = [str(TEST_PYTHON), str(ROOT / 'scripts/public_full_check.py')]
     env = dict(os.environ)
-    if why:
-        # 11-12 PM: after two deferrals it runs anyway (outside the heavy slot, at low priority) and the record
-        # says what it overlapped; the result is judged like any other run.
-        env['AGENTCON_RUN_CONTEXT'] = json.dumps({'forced_after_deferrals': deferred, 'overlap': why,
+    if deferred:
+        env['AGENTCON_RUN_CONTEXT'] = json.dumps({'deferred_before': deferred, 'overlaps': overlaps,
                                                   'load_1': round(os.getloadavg()[0], 2)}, ensure_ascii=False)
-        command = ['nice', '-n', '10'] + check
-    else:
-        command = [str(ROOT / '.venv/bin/python'), '-m', 'scripts.heavy_slot', '--team', '운영·SRE',
-                   '--what', 'public_full_check (ops_auto 2시간)', '--minutes', str(FULL_CHECK_MINUTES), '--'] + check
+    command = [str(ROOT / '.venv/bin/python'), '-m', 'scripts.heavy_slot', '--team', '운영·SRE',
+               '--what', 'public_full_check (ops_auto 2시간)', '--minutes', str(FULL_CHECK_MINUTES), '--'] + check
     (launch or subprocess.Popen)(command, cwd=ROOT, stdout=log, stderr=log, start_new_session=True, env=env)
-    board_close('full_check_deferred', f'해결(자동 {now()[11:]} 실행 시작' + (f', {deferred}번 미룬 뒤 겹친 채 실행: {why})' if why else ')'))
-    append(ACTIONS, f'{now()} public_full_check 시작' + (f' (미룸 {deferred}번 뒤 강제, 겹침: {why})' if why else ''))
-    return 'forced' if why else 'started'
+    board_close('full_check_deferred', f'해결(자동 {now()[11:]} 빈 시간에 실행 시작' + (f', {deferred}번 미룬 뒤)' if deferred else ')'))
+    append(ACTIONS, f'{now()} public_full_check 시작' + (f' (미룸 {deferred}번 뒤)' if deferred else ''))
+    return 'started'
 
 
 GATE_STATE = ROOT / 'logs/ops/stability-gate-state.json'

@@ -10,12 +10,14 @@ from scripts import heavy_slot as hs
 
 NOW = datetime.now().strftime('%m-%d %H:%M')   # lines that started just now are within their estimate
 REAL_SLOTS = hs.slots
+REAL_WINDOW = hs.measurement_window
 
 
 @pytest.fixture(autouse=True)
 def two_slots(monkeypatch):
-    """Most tests are about counting lines, not the hour; the hour rule has its own test."""
+    """Most tests are about counting lines, not the hour; the hour rules have their own tests."""
     monkeypatch.setattr(hs, 'slots', lambda now=None: 2)
+    monkeypatch.setattr(hs, 'measurement_window', lambda now=None: None)
 
 BOARD = """# 현황판
 ## 무거운 작업 (최대 2개)
@@ -115,3 +117,18 @@ def test_daytime_refuses_restores_rehearsals_and_long_work_but_night_allows_them
     board.write_text('## 무거운 작업\n\n## 배포 잠금\n', encoding='utf-8')
     code = heavy_slot.run(['true'], '운영·SRE', 'pg_restore of the copy', 10, board=board, lock=tmp_path / 'l', now=day)
     assert code == heavy_slot.NIGHT_ONLY and '[slot' not in board.read_text(encoding='utf-8')   # nothing claimed or run
+
+
+def test_daytime_starts_nothing_new_around_the_hourly_measurement(tmp_path, monkeypatch):
+    """PM 11-13 10:21: the 09:00 user_slo ran at load 13.46 beside a gate and a deploy; :55-:10 stays free by day."""
+    monkeypatch.setattr(hs, 'measurement_window', REAL_WINDOW)
+    at = lambda h, m: datetime(2026, 11, 13, h, m)
+    for h, m in ((8, 0), (9, 9), (9, 55), (23, 59), (12, 5)):
+        assert hs.measurement_window(at(h, m)), (h, m)
+    for h, m in ((9, 10), (9, 54), (13, 30), (0, 5), (3, 58), (7, 59)):   # night keeps every minute
+        assert hs.measurement_window(at(h, m)) is None, (h, m)
+    board = _board(tmp_path)
+    marker = tmp_path / 'ran'
+    code = hs.run([sys.executable, '-c', f'open({str(marker)!r}, "w")'], '운영·SRE', 'gate', 10,
+                  board=board, lock=tmp_path / 'lock', now=at(9, 57))
+    assert code == hs.BUSY and not marker.exists() and '[slot' not in board.read_text(encoding='utf-8')

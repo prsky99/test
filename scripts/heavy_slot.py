@@ -10,6 +10,7 @@ with a public measurement (load 6-8, Chat 3-10 s). The wrapper:
   exit 75, nothing runs);
 - 08:00-24:00 refuses copy restores and rehearsals (restore / rehearsal in the name or command) and any estimate
   over 30 minutes (exit 77, nothing runs; PM decision 11-12);
+- 08:00-24:00 starts nothing new from :55 to :10, the hourly public measurement's window (exit 75; PM 11-13);
 - otherwise appends its own line (with its own pid and a slot token), runs the command under
   nice -n 10, and removes its line when the command ends, fails or the wrapper is interrupted;
 - marks a line whose pid is gone as stale and does not count it.
@@ -55,6 +56,24 @@ def night_only(what, command, minutes, now=None):
     if minutes > DAY_MAX_MINUTES:
         return f'daytime work must be {DAY_MAX_MINUTES} minutes or less (estimate {minutes})'
     return None
+
+
+# 11-13 PM 10:21: the 09:00 user_slo ran at load 13.46 (explore 6/6 over) because a gate and a deploy started
+# just before it. In the day no new heavy work starts from :55 to :10 (the hourly public measurement's window);
+# work already running is left alone. Exit 75, as for a full slot: the caller tries again later.
+QUIET_FROM, QUIET_UNTIL = 55, 10
+
+
+def measurement_window(now=None):
+    """The reason a new run may not start now because of the hourly measurement, or None."""
+    now = now or datetime.now()
+    if now.hour < 8:
+        return None
+    if now.minute >= QUIET_FROM or now.minute < QUIET_UNTIL:
+        return f'08:00-24:00 no new heavy work starts from :{QUIET_FROM} to :{QUIET_UNTIL:02d} (hourly public measurement)'
+    return None
+
+
 STALE = ' [오래됨: pid 없음]'
 TIMED_OUT = ' [오래됨: 시간 초과]'
 NO_ESTIMATE_MINUTES = 180   # a line without an estimate counts for at most three hours
@@ -176,6 +195,10 @@ def run(command, team, what, minutes, board=None, lock=None, now=None):
     if reason:
         print(f'heavy_slot: refused ({reason}); nothing runs', file=sys.stderr)
         return NIGHT_ONLY
+    reason = measurement_window(now)
+    if reason:
+        print(f'heavy_slot: refused ({reason}); nothing runs, try again later', file=sys.stderr)
+        return BUSY
     board, token = Path(board or BOARD), secrets.token_hex(4)
     with board_lock(lock):
         ok, live = claim(board, team, what, minutes, os.getpid(), token)
