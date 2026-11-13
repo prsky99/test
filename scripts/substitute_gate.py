@@ -19,9 +19,12 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+import sys  # noqa: E402
+sys.path.insert(0, str(ROOT))
 OUT = ROOT / 'logs/ops/necklace-gate/substitutes'
 CONTRACT_INPUTS = ROOT / 'reports/fallback-agents-2026-11-14/contract-test-inputs.json'
-NEED = 29
+from agent_market.necklaces.gate_rules import SUBSTITUTE_CASES, SUBSTITUTE_PASS  # noqa: E402 - one source of the numbers
+NEED = SUBSTITUTE_PASS
 UNCLEAN = re.compile(r'lorem|ipsum|\bplaceholder\b|\bmock\b|\bdummy\b|\bexample\.(com|org)\b|\bsample data\b|'
                      r'traceback|internal server error|payment required|\bx402\b|insufficient (funds|credit)|�', re.I)
 # Upper bounds of calls a run may make per source domain, reserved before the run (over-reserving is safe).
@@ -95,7 +98,7 @@ def run(agent_ids, split, raw_path, agents=None):
             report['agents'][agent_id] = {
                 'answer_set': f'{passed}/{len(rows)}', 'data_quality_failures': dirty,
                 'contract_inputs': f'{sum(contract_rows)}/{len(contract_rows)}', 'role_tasks': f"{roles['passed']}/{roles['cases']}",
-                'pass': (passed >= NEED and len(rows) >= 30 and not dirty and all(contract_rows)
+                'pass': (passed >= NEED and len(rows) >= SUBSTITUTE_CASES and not dirty and all(contract_rows)
                          and roles['passed'] == roles['cases']),
                 'rows': rows}
     return report
