@@ -3305,6 +3305,17 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             exec_res['error']=('The execution outcome is unconfirmed. Keep this request paused for review.'
                 if exec_res.get('retry_safe') is False else execution_failure_fields(exec_res.get('error_code'))['error_message'])
         ok_val = exec_res.get("ok", False)
+        if not ok_val and not exec_res.get('payment_required'):
+            # How to get past it, with the tool's required arguments for bad input (growth plan 7 item 4).
+            from .execution_errors import fix_for
+            from .execution_policy import tools_for
+            try:
+                spec = next((t for t in (tools_for(bound_resource) if bound_resource else [])
+                             if isinstance(t, dict) and t.get('name') == tool_val), None)
+            except Exception:   # the fix line is advice; it never turns a failure answer into a server error
+                spec = None
+            exec_res['fix'] = fix_for('UPSTREAM_TIMEOUT' if exec_res.get('retry_safe') is False
+                                      else exec_res.get('error_code'), spec)
         request.scope['traffic_gateway'] = {'step': 'execute', 'ok': bool(ok_val), 'rid': rid_val}
         alternative = None
 
@@ -3380,6 +3391,8 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
                               f"Self-reflection alternative found: {alternative['name']} ({alternative['url']}).")
             else:
                 reply_text = f"Execution of '{tool_val}' on resource {rid_val} failed: {err_msg}{pay_note}"
+            if exec_res.get('fix'):
+                reply_text += f"\nHow to fix: {exec_res['fix']}"
 
         structured = {
             "intent": "call",
@@ -3681,6 +3694,8 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
                 'structuredContent': {'workflow': workflow, 'status': 'found' if workflow else 'not_found'},
                 'isError': workflow is None})
         elif name == "subscribe":
+            from . import traffic as day_traffic
+            day_traffic.recorder().note('hidden_tool|subscribe')   # still answered, no longer listed (PM 11-14 04:5x)
             data = {"intent": "contact", "contact": {"type": args.get("contact_type") or "webhook", "url": str(args.get("contact_url") or "")}}
         elif name == "verify_contact":
             data = {"intent": "verify", "code": str(args.get("code") or "")}

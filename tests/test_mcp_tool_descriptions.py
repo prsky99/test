@@ -4,8 +4,9 @@ search = browse a list, find_agents = recommend and connect, chat = conversation
 """
 from agent_market.collector import usage
 from agent_market.concierge.mcp_contract import mcp_tools
+from tests.test_concierge import w  # noqa: F401 - fixture
 
-NAMES = ['hello', 'chat', 'search', 'find_agents', 'check_agent', 'whats_new', 'subscribe', 'verify_contact', 'call',
+NAMES = ['hello', 'chat', 'search', 'find_agents', 'check_agent', 'whats_new', 'verify_contact', 'call',
          'report', 'credit', 'adapt_rest', 'search_workflows', 'workflow_details', 'run_workflow']
 
 
@@ -47,3 +48,19 @@ def test_call_is_not_destructive_because_the_gateway_relays_only_read_only_tools
     assert not usage.is_relay_safe_tool({'name': 'send_message', 'annotations': {'readOnlyHint': False}})
     assert 'Only tools classified read-only are relayed' in by_name()['call']['description']
     assert 'POST, PUT or DELETE' in by_name()['adapt_rest']['description']
+
+
+def test_subscribe_is_not_listed_but_still_answers_and_is_counted(w, monkeypatch):  # noqa: F811
+    """PM 11-14 04:5x: out of tools/list and /.well-known/mcp.json; the handler stays and each call is counted."""
+    from agent_market.concierge import traffic
+    recorder = traffic.Traffic(root=None)
+    recorder.internal_ips = set()
+    monkeypatch.setattr(traffic, 'recorder', lambda: recorder)
+    _, client, _ = w
+    listed = client.post('/mcp', json={'jsonrpc': '2.0', 'id': 1, 'method': 'tools/list'}).json()['result']['tools']
+    assert 'subscribe' not in [t['name'] for t in listed] and 'verify_contact' in [t['name'] for t in listed]
+    assert 'subscribe' not in [t['name'] for t in client.get('/.well-known/mcp.json').json()['tools']]
+    r = client.post('/mcp', json={'jsonrpc': '2.0', 'id': 2, 'method': 'tools/call', 'params': {
+        'name': 'subscribe', 'arguments': {'contact_url': 'https://example.org/hook'}}}).json()
+    assert 'result' in r and 'Unknown tool' not in str(r)
+    assert recorder.snapshot()['funnel']['hidden_tool|subscribe'] == 1

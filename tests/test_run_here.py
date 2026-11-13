@@ -33,6 +33,9 @@ def test_the_first_runnable_listing_gets_run_here_config_next_step_and_one_meani
     assert card['mcp_config'] == {'mcpServers': {'weather': {'type': 'http', 'url': gateway}}}
     text = body['reply']
     assert 'Run here: call ' + json.dumps(expected['arguments'], separators=(',', ':')) in text
+    lines = text.splitlines()
+    # growth plan 7 item 3 (PM 11-14): the run line sits right under the first recommendation's name
+    assert lines[lines.index('Run here: call ' + json.dumps(expected['arguments'], separators=(',', ':'))) - 1].endswith('[MCP]')
     assert 'MCP config: ' in text and gateway in text and '.example/api' not in text
     assert body['data']['continuation_plan']['run_here'] == expected
     assert all(step.get('action') != 'run_here' for step in body['data']['next_steps'])  # follow-up listings only

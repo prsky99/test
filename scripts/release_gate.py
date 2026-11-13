@@ -79,6 +79,8 @@ TESTS = (
     'tests/test_mcp_tool_descriptions.py',  # 11-14 PM 04:1x: tool purposes distinct, hints match behaviour (Glama)
     'tests/test_task_pages_job.py',  # 11-14 PM 03:2x: usage lines fill missing days; indexed fixtures after noindex tiers
     'tests/test_traffic.py',  # 11-14: day counts (tools/call by client name, Accept on /, funnel)
+    'tests/test_first_run_fixes.py',  # 11-14 growth plan 7 item 4: a failed run says how to fix it
+    'tests/test_run_here.py',  # 11-14 growth plan 7 item 3: the run line right under the first recommendation
 )
 # Each role runs the tests for the code it serves. jobs releases run the collector, health checks,
 # crawler and evaluation without the typed execution engine, so the opening-path list above

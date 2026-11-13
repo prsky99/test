@@ -34,7 +34,7 @@ def test_every_observed_26_warning_and_11_failure_has_passing_candidate_evidence
     targets = ['documents:head:' + path for path in heads]
     targets += ['documents:category:/agents/category/social', 'mcp:browser-preflight', 'mcp:origin-denial']
     targets += [prefix + tool['name'] for tool in mcp_tools() for prefix in ('mcp:hints:', 'mcp:output-schema:')]
-    assert len(targets) == len(set(targets)) == 41  # 11-04: run_workflow (MCP tasks); 11-11: check_agent
+    assert len(targets) == len(set(targets)) == 39  # 11-04: run_workflow (MCP tasks); 11-11: check_agent; 11-14: subscribe unlisted
     assert all(values[key]['status'] == 'PASS' for key in targets)
     assert all(row['status'] == 'PASS' for row in audit.results)
     output = Path('reports/agent-warnings-failures-2026-10-27')

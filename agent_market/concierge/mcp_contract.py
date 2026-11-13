@@ -153,7 +153,12 @@ def mcp_tools():
     import copy
     from .mcp_tasks import TOOL as RUN_WORKFLOW
     TOOLS.append({**copy.deepcopy(RUN_WORKFLOW), 'outputSchema': copy.deepcopy(TOOLS[-1]['outputSchema'])})
-    return TOOLS
+    # PM 11-14 04:5x (Glama TDQS): the legacy contact command is no longer listed; tools/call still answers it
+    # (front.py counts each call as hidden_tool|subscribe) so a caller that already uses it keeps working.
+    return [tool for tool in TOOLS if tool['name'] not in HIDDEN]
+
+
+HIDDEN = frozenset(('subscribe',))
 
 
 def discovery_arguments(arguments):
