@@ -164,10 +164,27 @@ def _default_fallback_spec(agent_id: str) -> dict | None:
         return None
 
 
-def _check_fallback(state: dict, slug: str, slot: str, m: dict, now: float, fallback_spec) -> dict:
-    """An in-process AgentValCon fallback: its published tool must still be a safe read-only lookup."""
+def _default_fallback_health(agent_id: str) -> str:
+    """The agent team's hourly fallback watch (278c3aaa): healthy, degraded, failing, idle or unknown."""
+    try:
+        from ..fallback_agents.watch import health
+        return health(agent_id).get("status", "unknown")
+    except Exception:
+        return "unknown"
+
+
+def _check_fallback(state: dict, slug: str, slot: str, m: dict, now: float, fallback_spec,
+                    fallback_health=_default_fallback_health) -> dict:
+    """An in-process AgentValCon fallback: its published tool must still be a safe read-only lookup, and a
+    fallback whose source the agent team's watch reports as failing is demoted like an external member
+    (two failing hours), then restored after six good ones. Unknown and idle are not failures."""
     key = member_key(slug, slot, m)
     mark = state.setdefault("members", {}).setdefault(key, {"fail_streak": 0, "ok_streak": 0})
+    status = fallback_health(m["agent_id"])
+    if status == "failing":
+        mark["fail_streak"], mark["ok_streak"] = mark.get("fail_streak", 0) + 1, 0
+    elif status in ("healthy", "degraded", "idle"):
+        mark["fail_streak"], mark["ok_streak"] = 0, mark.get("ok_streak", 0) + 1
     spec = fallback_spec(m["agent_id"])
     ann = (spec or {}).get("annotations") or {}
     problem = ("tool_missing" if not spec or spec.get("name") != m["tool"] else
@@ -177,14 +194,21 @@ def _check_fallback(state: dict, slug: str, slot: str, m: dict, now: float, fall
     if problem and not mark.get("excluded"):
         mark["excluded"], action = True, "excluded_" + problem
         _alert(state, now, slug, slot, "fallback_" + problem, 0)
+    elif not problem:
+        if mark["fail_streak"] >= DEMOTE_AFTER and not mark.get("demoted"):
+            mark["demoted"], action = True, "demoted"
+            _alert(state, now, slug, slot, "fallback_failing", 0)
+        elif mark.get("demoted") and mark["ok_streak"] >= RESTORE_AFTER:
+            mark["demoted"], action = False, "restored"
     mark["last"] = _now_iso(now)
     return {"at": _now_iso(now), "slug": slug, "slot": slot, "resource_id": None, "agent_id": m["agent_id"],
-            "tool": m["tool"], "kind": "agentcon", "healthy": problem is None, "health_status": None,
-            "fingerprint": "same", "problem": problem, "fail_streak": 0, "action": action}
+            "tool": m["tool"], "kind": "agentcon", "healthy": problem is None and status != "failing",
+            "health_status": status, "fingerprint": "same", "problem": problem,
+            "fail_streak": mark["fail_streak"], "action": action}
 
 
 def observe(definitions: list[dict], fetch, prints: dict, state: dict, now: float,
-            fallback_spec=_default_fallback_spec) -> list[dict]:
+            fallback_spec=_default_fallback_spec, fallback_health=_default_fallback_health) -> list[dict]:
     """One watch round. ``fetch(rid)`` returns the resource row or None. Mutates ``state``."""
     lines = []
     marks = state.setdefault("members", {})
@@ -201,7 +225,7 @@ def observe(definitions: list[dict], fetch, prints: dict, state: dict, now: floa
                     continue
                 if not isinstance(m.get("resource_id"), int):
                     if m.get("kind") == "agentcon":
-                        lines.append(_check_fallback(state, slug, slot["slot"], m, now, fallback_spec))
+                        lines.append(_check_fallback(state, slug, slot["slot"], m, now, fallback_spec, fallback_health))
                     continue
                 key = member_key(slug, slot["slot"], m)
                 mark = marks.setdefault(key, {"fail_streak": 0, "ok_streak": 0})

@@ -2,7 +2,7 @@ import json
 import time
 
 from agent_market.necklaces import judge, model, watch
-from tests.test_necklaces_model import base
+from tests.test_necklaces_model import base, ext, own
 
 NOW = 1_800_000_000.0
 
@@ -144,3 +144,32 @@ def test_task_writes_state_and_daily_lines(tmp_path):
     assert not task.due()
     assert (tmp_path / "watch" / "state.json").exists()
     assert len((tmp_path / "watch" / "20261120.jsonl").read_text().splitlines()) == 6
+
+
+def test_failing_fallback_is_demoted_after_two_hours_and_restored_after_six():
+    defn = trial()
+    slot = defn["slots"][0]
+    slot["chain"] = [ext(1, "a.com"), ext(2, "b.com"),
+                     dict(own(None, agent_id="fb1"), resource_id=None, tool="t1"),
+                     dict(own(None, agent_id="fb2"), resource_id=None, tool="t2")]
+    status = {"fb1": "failing", "fb2": "healthy"}
+    spec = lambda agent_id: {"name": {"fb1": "t1", "fb2": "t2"}[agent_id],
+                             "annotations": {"readOnlyHint": True, "destructiveHint": False}}
+    state, rows = {}, healthy_rows()
+
+    def hour(h):
+        watch.observe([defn], lambda rid: rows.get(rid), {}, state, NOW + h * 3600,
+                      fallback_spec=spec, fallback_health=lambda a: status[a])
+    hour(0)
+    order = lambda: [m.get("agent_id") for m in watch.runtime_chain(slot, "topic-brief", state) if m["kind"] == "agentcon"]
+    assert order() == ["fb1", "fb2"]
+    hour(1)
+    assert order() == ["fb2", "fb1"]
+    status["fb1"] = "unknown"
+    for h in range(2, 8):
+        hour(h)
+    assert order() == ["fb2", "fb1"]          # unknown is neither failing nor good
+    status["fb1"] = "healthy"
+    for h in range(8, 14):
+        hour(h)
+    assert order() == ["fb1", "fb2"]
