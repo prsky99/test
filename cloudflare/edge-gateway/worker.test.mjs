@@ -506,7 +506,9 @@ test('redirect is never followed and its target or body is never exposed', async
     const response = await f.send(), text = await response.text();
     assert.equal(response.status, 503); assert.ok(!text.includes(endpoint) && !text.includes('127.0.0.1'));
     assert.equal(f.calls.filter(r => new URL(r.url).hostname === 'provider.example').length, 1);
-    assert.equal((await f.completion).outcome, 'outcome_unknown');
+    // 11-14: a redirect is a known Provider answer (the endpoint moved), as on the MCP path; still never followed.
+    const receipt = await f.completion;
+    assert.equal(receipt.outcome, 'failed'); assert.equal(receipt.outcome_code, 'PROVIDER_ENDPOINT_UNAVAILABLE');
   } finally { await f.mf.dispose(); }
 });
 
@@ -1356,4 +1358,17 @@ test('a provider handshake failure from Origin is the provider\'s code, not our 
   const {gatewayFailure} = await import('./worker.mjs');
   const unavailable = gatewayFailure(Object.assign(new Error('Control unavailable'), {code: 'PROVIDER_UNAVAILABLE', provider: 'PROVIDER_UNAVAILABLE'}));
   assert.deepEqual([unavailable.error_code, unavailable.cause, unavailable.retryable], ['provider_error', 'provider_unavailable', false]);
+});
+
+test('a moved endpoint (308) and HTTP 402 payment-required are named causes, not outcome_unknown (11-14 a02, a07)', async () => {
+  for (const [status, code, reason] of [[308, 'PROVIDER_ENDPOINT_UNAVAILABLE', 'provider_error'], [402, 'PROVIDER_AUTH_REQUIRED', 'provider_auth_required']]) {
+    const f = await fixture(() => new EdgeResponse('{"type":"payment-required"}', {status, headers: {'Content-Type': 'application/json', Location: 'https://apex.example/a2a'}}), unary);
+    try {
+      const value = await (await f.sendLegacy()).json(), receipt = await f.completion;
+      assert.equal(receipt.outcome, 'failed'); assert.equal(receipt.outcome_code, code);
+      assert.equal(value.error.data.error_code, reason); assert.equal(value.error.data.cause, code.toLowerCase());
+      assert.ok(!JSON.stringify(value).includes('apex.example'));
+      assert.equal(f.calls.filter(r => r.url === endpoint).length, 1);
+    } finally { await f.mf.dispose(); }
+  }
 });

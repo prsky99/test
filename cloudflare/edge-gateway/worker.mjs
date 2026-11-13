@@ -742,7 +742,11 @@ async function deliver(request, env, ctx, binding, run, clientIP, directJSON = f
       const media = upstream.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase();
       if (!upstream.ok) {
         await upstream.body?.cancel();
-        const code = {404: 'PROVIDER_ENDPOINT_UNAVAILABLE', 401: 'PROVIDER_AUTH_REQUIRED', 403: 'PROVIDER_AUTH_REQUIRED', 429: 'PROVIDER_RATE_LIMITED'}[upstream.status];
+        // 11-14 (real tasks a02, a07): a permanent move (www to apex, 308) and HTTP 402 payment-required were reported as
+        // outcome_unknown. Both are known Provider answers: the endpoint moved, or the skill needs the Provider's own payment.
+        const code = {404: 'PROVIDER_ENDPOINT_UNAVAILABLE', 401: 'PROVIDER_AUTH_REQUIRED', 402: 'PROVIDER_AUTH_REQUIRED', 403: 'PROVIDER_AUTH_REQUIRED',
+          429: 'PROVIDER_RATE_LIMITED', 301: 'PROVIDER_ENDPOINT_UNAVAILABLE', 302: 'PROVIDER_ENDPOINT_UNAVAILABLE',
+          307: 'PROVIDER_ENDPOINT_UNAVAILABLE', 308: 'PROVIDER_ENDPOINT_UNAVAILABLE'}[upstream.status];
         throw providerError(code ? 'failed' : 'outcome_unknown', code || 'OUTCOME_UNKNOWN');
       }
       if (!['text/event-stream', 'application/json'].includes(media) ||
