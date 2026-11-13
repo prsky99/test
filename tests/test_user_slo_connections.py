@@ -87,3 +87,21 @@ def test_connect_needs_the_recommended_tool_on_the_gateway_list(monkeypatch, lis
     assert sample['recommended_tool'] == 'wanted' and sample['tool_listed'] is ('wanted' in listed_names)
     assert sample['tools'] == len(listed_names) and connect['ok'] is expect_ok
     assert (sample['error'] == 'tool_unlisted') is (not expect_ok)
+
+
+@pytest.mark.parametrize('cards,expected', [([], 'no_recommendation'), ([{'connection_available': None}], 'no_gateway_endpoint')])
+def test_a_no_match_answer_is_no_recommendation(monkeypatch, cards, expected):
+    """PM 11-13 22:2x: 22:07 'customer support bulk 926' answered "No currently active, relevant agent found."
+    and was recorded as a card without a gateway path. It still fails; the reason names what happened."""
+    import types
+
+    class NoMatch(Client):
+        def post(self, url, json=None, headers=None):
+            self.calls.append(url)
+            text = 'No currently active, relevant agent found.' if not cards else '1. Pick one [MCP]\nDocs: https://example.org'
+            return Response(url, {'result': {'content': [{'text': text}], 'structuredContent': {'recommendations': cards}}})
+    monkeypatch.setattr(user_slo, 'httpx', types.SimpleNamespace(Client=NoMatch, HTTPTransport=user_slo.httpx.HTTPTransport))
+    monkeypatch.setattr(user_slo, 'unseen', lambda n: ['customer support bulk'][:n])
+    _, connect = user_slo.check_recommend_and_connect(1)
+    sample = connect['samples'][0]
+    assert sample['error'] == expected and sample['reason'] == expected and connect['ok'] is False

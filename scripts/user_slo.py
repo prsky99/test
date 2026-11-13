@@ -282,8 +282,11 @@ def check_recommend_and_connect(n=2):
         endpoint = connection_route(text)
         if not endpoint:
             # No gateway path for the first recommendation (or no recommendation): a failed connection (PM 11-12).
+            # A no-match answer has text but no card: no recommendation, not a card without a gateway path
+            # (PM 11-13 22:2x, 22:07 'customer support bulk 926').
+            card = first_card(result[1] if result else None)
             entry = {'endpoint': None, 's': 0.0, 'tools': 0, 'connection_available': available,
-                     'error': 'no_gateway_endpoint' if text else 'no_recommendation'}
+                     'error': 'no_gateway_endpoint' if text and card is not None else 'no_recommendation'}
             entry['reason'] = failure_reason(entry, first_card(result[1] if result else None))
             conn.append(entry)
             continue
