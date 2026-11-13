@@ -286,7 +286,8 @@ def test_one(http, candidate, resource, pacer):
             pacer.called(host, code, {'Retry-After': retry} if retry else None, url=url)
             return {**out, 'outcome': 'failed', 'reason': f'initialize HTTP {code}'}
         listed = http.post(url, json={'jsonrpc': '2.0', 'id': 2, 'method': 'tools/list'}, headers=headers, timeout=TIMEOUT)
-        tools = usage.compact_tools(((parse_jsonrpc(listed) or {}).get('result') or {}).get('tools') or [])
+        raw_tools = ((parse_jsonrpc(listed) or {}).get('result') or {}).get('tools') or []
+        tools = usage.compact_tools(raw_tools)
         tool = next((t for t in tools if t['name'] == candidate['tool']), None)
         if tool is None:
             pacer.called(host, listed.status_code, url=url)
@@ -294,9 +295,11 @@ def test_one(http, candidate, resource, pacer):
         if not usage.is_relay_safe_tool(tool):
             pacer.called(host, listed.status_code, url=url)
             return {**out, 'outcome': 'skipped', 'reason': 'not a relay-safe read-only tool'}
-        # 11-14 EVIDENCE_SIGNING 22df08aa: the signed version names the tool definition it came from.
-        import hashlib
-        out['tool_fingerprint'] = hashlib.sha256(json.dumps(tool, sort_keys=True, separators=(',', ':')).encode('utf-8')).hexdigest()
+        # 11-14 EVIDENCE_SIGNING 22df08aa / 운영·SRE 18fd6858: the shared fingerprint-v1 (name, description,
+        # inputSchema in capability_registry.canonical form), comparable with the pearl baselines and the rug-pull watch.
+        from agent_market.tool_fingerprint import VERSION as FP_VERSION, tool_fp
+        raw = next((t for t in raw_tools if isinstance(t, dict) and t.get('name') == candidate['tool']), None) or tool
+        out['tool_fingerprint'], out['fingerprint_version'] = tool_fp(raw), FP_VERSION
         args, why = role_arguments(tool, candidate['role'], resource.get('category'), (candidate.get('case') or {}).get('input'))
         if args is None:
             pacer.called(host, listed.status_code, url=url)

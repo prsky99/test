@@ -366,6 +366,7 @@ def save_version(result, now=None):
          'reason': result.get('reason'), 'latency_ms': result.get('latency_ms'), 'http': result.get('http'),
          'excerpt': (result.get('excerpt') or '')[:1000], 'host': result.get('host'),
          'endpoint': result.get('endpoint'), 'tool_fingerprint': result.get('tool_fingerprint'),
+         'fingerprint_version': result.get('fingerprint_version'),
          'registrable_domain': registrable(result.get('host')), 'source': result.get('source', 'role tool call'),
          'tested': tested}
     case = result.get('case')
@@ -442,6 +443,7 @@ def evidence_for(r, case):
     clean = dq.get('clean') or {}
     return {'kind': 'test_report', 'resource_id': r['resource_id'], 'role': r['role'], 'tool': r['tool'],
             'endpoint': r.get('endpoint') or r.get('host'), 'tool_fingerprint': r.get('tool_fingerprint'),
+            'fingerprint_version': r.get('fingerprint_version'),
             'report_version': r.get('version'), 'input': r.get('arguments') or {}, 'response_sha256': r.get('response_hash'),
             'outcome': r['outcome'],
             'score_items': {'data_quality': r['quality'].get('data'), 'evidence': r['quality'].get('evidence'),
