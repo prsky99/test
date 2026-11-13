@@ -63,7 +63,10 @@ def test_every_published_page_has_fresh_nonces_and_no_inline_handlers(isolated_p
         response = client.get('/new/en/' + filename)
         assert response.status_code == 200
         headers = response.headers
-        expected = 'public, max-age=300, stale-while-revalidate=86400' if filename in MANIFEST['live_pages'] else 'no-store'
+        # 11-13 PM 20:5x: the notice pages are shared too for a request without cookies or credentials.
+        from agent_market.concierge.pearl_view import NOTICE_PAGES
+        shared = filename in MANIFEST['live_pages'] or filename in NOTICE_PAGES
+        expected = 'public, max-age=300, stale-while-revalidate=86400' if shared else 'no-store'
         assert headers['cache-control'] == expected
         assert 'set-cookie' not in headers
         assert headers['x-frame-options'] == 'DENY'

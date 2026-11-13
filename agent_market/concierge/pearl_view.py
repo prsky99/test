@@ -543,7 +543,7 @@ def install(app, front, *, workspace_access_enabled=False, workspace_link_enable
         return RedirectResponse('/new/en/index.html', status_code=307)
 
     @app.get('/new/en/{filename}', include_in_schema=False)
-    def page(filename: str, request: Request):
+    def page(filename: str, request: Request = None):  # asset() calls it without a request to rebuild panels.js
         if filename not in pages:
             raise HTTPException(404, 'Page not found.')
         if workspace_access_enabled and filename in ('workspace.html', 'account.html', 'sign-in.html', 'sign-up.html'):
@@ -562,8 +562,8 @@ def install(app, front, *, workspace_access_enabled=False, workspace_link_enable
         live = filename in manifest['live_pages']
         if filename in NOTICE_PAGES:
             from .public_http_contract import _credentials
-            return page_response(value, public=not _credentials(request.headers, request.url.path), page=filename,
-                                 noindex=True)
+            shared = request is not None and not _credentials(request.headers, request.url.path)
+            return page_response(value, public=shared, page=filename, noindex=True)
         return page_response(value, public=live, page=filename)
 
     @app.get('/new/en/assets/{filename:path}', include_in_schema=False)
