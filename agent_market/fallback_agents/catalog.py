@@ -84,6 +84,24 @@ SITE = {"name": "The website's own public files (robots.txt, llms.txt, sitemap.x
         "license": "Facts read from the site's public files; no page content is copied",
         "notice": "The score is a simple AgentValCon heuristic over these files, not a search-engine ranking."}
 
+ECB = {"name": "European Central Bank euro foreign exchange reference rates", "url": "https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html",
+       "license": "Free use with the ECB cited as the source (https://www.ecb.europa.eu/home/disclaimer/html/index.en.html)",
+       "notice": "Reference rates for information only, published on TARGET working days around 16:00 CET; "
+                 "non-EUR pairs are crossed through the euro."}
+
+USGS = {"name": "USGS Earthquake Hazards Program real-time feeds", "url": "https://earthquake.usgs.gov/earthquakes/feed/",
+        "license": "U.S. Public Domain; credit USGS as the source (https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits)",
+        "notice": "Magnitude 4.5 and above only; automatic solutions can be revised by USGS."}
+
+TZDB = {"name": "IANA Time Zone Database (system zoneinfo)", "url": "https://www.iana.org/time-zones",
+        "license": "Public domain (tz code and data, https://github.com/eggert/tz/blob/main/LICENSE)",
+        "notice": "Computed on our server from the installed tz data; cities are matched to zone names only."}
+
+OURAIRPORTS = {"name": "OurAirports", "url": "https://ourairports.com/data/",
+               "license": "Public domain (\"All data is released to the Public Domain\", https://ourairports.com/data/)",
+               "notice": "Community-maintained data, refreshed daily into a local index; airports without an IATA "
+                         "or ICAO code are not included."}
+
 SPECS = {
     "nvd-cve": {
         "name": "AgentValCon NVD CVE Record", "tool": "get_cve_record", "contract": "cve.record.v1",
@@ -232,6 +250,34 @@ SPECS = {
                        "is the only source; read-only.",
         "sources": [WIKIPEDIA],
         "rate": "one search request per question, 5 per second at most, cached 6 hours",
+    },
+    "ecb-fx": {
+        "name": "AgentValCon ECB Reference Rate", "tool": "get_reference_rate", "contract": "fx.rate.v1",
+        "description": "Get the ECB euro reference exchange rate between two currencies (crossed through the euro "
+                       "when neither is EUR), with the rate date, for information only; read-only.",
+        "sources": [ECB],
+        "rate": "one download per hour at most (the ECB publishes once a working day)",
+    },
+    "usgs-quakes": {
+        "name": "AgentValCon USGS Recent Earthquakes", "tool": "list_recent_earthquakes", "contract": "earthquake.feed.v1",
+        "description": "List recent earthquakes of magnitude 4.5 or more worldwide (optionally a higher minimum) from the "
+                       "USGS real-time feeds: magnitude, time, place and tsunami flag; read-only.",
+        "sources": [USGS],
+        "rate": "one feed request per 5 minutes at most (USGS updates the feeds every minute)",
+    },
+    "tz-time": {
+        "name": "AgentValCon Local Time", "tool": "get_local_time", "contract": "timezone.time.v1",
+        "description": "Give the current local time, UTC offset and abbreviation for an IANA time zone or a city that "
+                       "names a zone (for example New York or Seoul), from the IANA tz database; read-only.",
+        "sources": [TZDB],
+        "rate": "no network calls",
+    },
+    "airport-lookup": {
+        "name": "AgentValCon Airport Lookup", "tool": "lookup_airport", "contract": "airport.lookup.v1",
+        "description": "Look up an airport by IATA or ICAO code, or by part of its name: name, city, country, "
+                       "region, type, codes, coordinates and elevation, from a daily OurAirports index; read-only.",
+        "sources": [OURAIRPORTS],
+        "rate": "no network calls per request; the index is refreshed once a day",
     },
 }
 

@@ -70,7 +70,7 @@ def agents(tmp_path, routes, calls=None, clock=None, snapshot=None):
 
 # ------------------------------------------------------------------ catalog and contracts
 def test_tools_are_read_only_and_use_the_slot_contracts():
-    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard", "site-readiness", "wiki-grounding"}
+    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard", "site-readiness", "wiki-grounding", "ecb-fx", "usgs-quakes", "tz-time", "airport-lookup"}
     for agent_id, spec in SPECS.items():
         tool = tool_spec(agent_id)
         c = contract(spec["contract"])
@@ -1101,8 +1101,27 @@ def test_software_incident_falls_back_to_the_nvd_record_and_states_its_coverage(
                   snapshot=seeded_snapshot(tmp_path, nvd_cve("CVE-2021-44228")))
     out = a.execute("software-incident", {"query": "CVE-2021-44228"})["result"]
     assert out["source"].startswith("NVD") and out["items"][0]["url"] == "https://logging.apache.org/log4j/2.x/security.html"
-    with pytest.raises(FallbackUnavailable, match="covers packages in the GitHub Advisory Database and CVE ids"):
+    with pytest.raises(FallbackUnavailable, match="use a CVE id, an exact package name or the program's product name"):
         a.execute("software-incident", {"query": "xz-utils"})
+
+
+def test_software_incident_maps_a_program_name_to_nvd_cpe_products(tmp_path):
+    xz = nvd_cve("CVE-2024-3094", published="2024-03-29T17:15:21.150",
+                 descriptions=[{"lang": "en", "value": "Malicious code was discovered in the upstream tarballs of xz."}],
+                 configurations=[{"nodes": [{"cpeMatch": [
+                     {"vulnerable": True, "criteria": "cpe:2.3:a:tukaani:xz:5.6.0:*:*:*:*:*:*:*"},
+                     {"vulnerable": True, "criteria": "cpe:2.3:a:tukaani:xz:*:*:*:*:*:*:*:*", "versionEndExcluding": "5.6.2"},
+                     {"vulnerable": False, "criteria": "cpe:2.3:o:linux:linux_kernel:-:*:*:*:*:*:*:*"}]}]}])
+    old = nvd_cve("CVE-2022-1271", published="2022-08-31T16:15:09.347",
+                  configurations=[{"nodes": [{"cpeMatch": [{"vulnerable": True, "criteria": "cpe:2.3:a:tukaani:xz:*:*:*:*:*:*:*:*",
+                                                            "versionEndExcluding": "5.2.5"}]}]}])
+    snap = seeded_snapshot(tmp_path, xz, old)
+    a, _ = agents(tmp_path, {"https://api.github.com/advisories": httpx.Response(200, json=[])}, snapshot=snap)
+    out = a.execute("software-incident", {"query": "xz-utils"})["result"]
+    assert [i["title"][:28] for i in out["items"]] == ["CVE-2024-3094 (tukaani:xz): ", "CVE-2022-1271 (tukaani:xz): "]
+    assert out["items"][0]["fixed_version"] == "5.6.2" and out["source"].startswith("NVD (CPE product match")
+    from agent_market.fallback_agents.nvd_store import product_variants
+    assert product_variants("xz-utils") == ["xz-utils", "xz_utils", "xz"] and product_variants("Log4j") == ["log4j"]
 
 
 def test_scorecard_reads_the_repository_or_the_package_repository(tmp_path):
@@ -1203,3 +1222,112 @@ def test_wiki_grounding_without_a_match_is_not_found(tmp_path):
     with pytest.raises(FallbackUnavailable) as err:
         a.execute("wiki-grounding", {"question": "who is the what?"})
     assert err.value.code == "invalid_input"
+
+
+# ------------------------------------------------------------------ fx.rate (ECB reference rates)
+ECB_XML = b"""<?xml version="1.0" encoding="UTF-8"?>
+<gesmes:Envelope xmlns:gesmes="http://www.gesmes.org/xml/2002-08-01" xmlns="http://www.ecb.int/vocabulary/2002-08-01/eurofxref">
+<Cube><Cube time='2026-11-13'>""" + b"".join(f"<Cube currency='{c}' rate='{r}'/>".encode() for c, r in [
+    ("USD", "1.1052"), ("JPY", "176.83"), ("KRW", "1477.80"), ("GBP", "0.8412"), ("CHF", "0.9301"), ("CAD", "1.5300"),
+    ("AUD", "1.6900"), ("CNY", "7.9100"), ("SEK", "11.20"), ("NOK", "11.70")]) + b"</Cube></Cube></gesmes:Envelope>"
+
+
+def test_ecb_fx_states_the_rate_date_and_crosses_through_the_euro(tmp_path):
+    from datetime import datetime, timezone
+    calls = []
+    clock = Clock()
+    a = FallbackAgents(http=client({"https://www.ecb.europa.eu/": httpx.Response(200, content=ECB_XML)}, calls), data_dir=tmp_path,
+                       clock=clock, wall=lambda: 1.8e9 + clock.t, utc_now=lambda: datetime(2026, 11, 14, 6, 0, tzinfo=timezone.utc),
+                       limiters=limiters(clock, clock.sleep))
+    usd_eur = a.execute("ecb-fx", {"from": "USD", "to": "EUR", "amount": 100})
+    assert usd_eur["result"] == {"from": "USD", "to": "EUR", "rate": 0.904814, "date": "2026-11-13",
+                                 "source": "ECB euro foreign exchange reference rates"}
+    usd_jpy = a.execute("ecb-fx", {"from": "USD", "to": "JPY"})["result"]
+    assert usd_jpy["rate"] == round(176.83 / 1.1052, 3) and usd_jpy["source"].endswith("(crossed through EUR)")
+    assert len(calls) == 1 and usd_eur["freshness"]["data_as_of"] == {"ECB": "2026-11-13"}
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("ecb-fx", {"from": "USD", "to": "XYZ"})
+    assert err.value.code == "not_found"
+
+
+def test_ecb_fx_refuses_old_rates_and_dtd_feeds(tmp_path):
+    from datetime import datetime, timezone
+    from agent_market.fallback_agents.agents import ecb_rates
+    clock = Clock()
+    a = FallbackAgents(http=client({"https://www.ecb.europa.eu/": httpx.Response(200, content=ECB_XML)}), data_dir=tmp_path,
+                       clock=clock, utc_now=lambda: datetime(2026, 11, 25, tzinfo=timezone.utc), limiters=limiters(clock, clock.sleep))
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("ecb-fx", {"from": "USD", "to": "EUR"})
+    assert err.value.code == "stale"
+    with pytest.raises(ValueError):
+        ecb_rates(b'<?xml version="1.0"?><!DOCTYPE x [<!ENTITY a "b">]><x/>')
+
+
+# ------------------------------------------------------------------ earthquake.feed (USGS)
+def quake(mag, t, place, tsunami=0):
+    return {"properties": {"mag": mag, "time": t, "place": place, "tsunami": tsunami, "url": "https://earthquake.usgs.gov/x"}}
+
+
+def test_usgs_quakes_filters_by_magnitude_and_widens_to_the_month(tmp_path):
+    week = {"metadata": {"generated": 1794604050000}, "features": [quake(4.8, 1794599361768, "A"), quake(5.3, 1794590000000, "B", 1)]}
+    month = {"metadata": {"generated": 1794604050000}, "features": [quake(7.0, 1792680000000, "C")]}
+    calls = []
+    a, _ = agents(tmp_path, {"https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_week.geojson": httpx.Response(200, json=week),
+                             "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_month.geojson": httpx.Response(200, json=month)}, calls)
+    out = a.execute("usgs-quakes", {"min_magnitude": 5})["result"]
+    assert out["answer"].startswith("1 earthquake of magnitude 5 or more in the past 7 days") and "M5.3" in out["answer"]
+    assert "(tsunami flag)" in out["answer"] and out["source"].startswith("USGS")
+    big = a.execute("usgs-quakes", {"magnitude": 7})["result"]["answer"]
+    assert "past 30 days" in big and "M7.0" in big and len(calls) == 2
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("usgs-quakes", {"magnitude": 11})
+    assert err.value.code == "invalid_input"
+
+
+# ------------------------------------------------------------------ timezone.time (IANA tz, offline)
+def test_tz_time_answers_from_zone_or_city_without_network(tmp_path):
+    from datetime import datetime, timezone
+    calls = []
+    clock = Clock()
+    a = FallbackAgents(http=client({}, calls), data_dir=tmp_path, clock=clock,
+                       utc_now=lambda: datetime(2026, 11, 13, 21, 0, tzinfo=timezone.utc), limiters=limiters(clock, clock.sleep))
+    ny = a.execute("tz-time", {"city": "New York", "timezone": "America/New_York"})["result"]
+    assert ny["answer"].startswith("Local time in America/New_York: 2026-11-13 16:00:00 EST (UTC-05:00).")
+    assert a.execute("tz-time", {"city": "seoul"})["result"]["answer"].startswith("Local time in Asia/Seoul: 2026-11-14 06:00:00 KST")
+    assert ny["source"].startswith("IANA Time Zone Database") and calls == []
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("tz-time", {"city": "Atlantis"})
+    assert err.value.code == "not_found"
+
+
+# ------------------------------------------------------------------ airport.lookup (OurAirports index)
+AIRPORT_CSV = ('"id","ident","type","name","latitude_deg","longitude_deg","elevation_ft","continent","iso_country","iso_region",'
+               '"municipality","scheduled_service","icao_code","iata_code","gps_code","local_code","home_link","wikipedia_link","keywords"\n'
+               '1,"RKSI","large_airport","Incheon International Airport",37.469101,126.450996,23,"AS","KR","KR-28","Seoul","yes","RKSI","ICN","RKSI",,,,\n'
+               '2,"XX00","closed","Old Field",1,1,1,"NA","US","US-CA","Nowhere","no",,"OLD",,,,,\n'
+               + "".join(f'{i},"K{i:03d}","small_airport","Field {i}",1,1,1,"NA","US","US-TX","Town","no","K{i:03d}",,,,,,\n' for i in range(3, 5100)))
+
+
+def test_airport_index_keeps_coded_open_airports_and_answers_offline(tmp_path):
+    from agent_market.fallback_agents.airports import build_index, sync
+    index = build_index(AIRPORT_CSV)
+    assert "ICN" in index and "RKSI" in index and "OLD" not in index
+    calls = []
+    sync(tmp_path / "airports.json", http=client({"https://davidmegginson.github.io/": httpx.Response(
+        200, text=AIRPORT_CSV, headers={"last-modified": "Fri, 13 Nov 2026 02:53:52 GMT"})}, calls), now=lambda: 1.8e9)
+    a, _ = agents(tmp_path, {}, calls)
+    env = a.execute("airport-lookup", {"code": "icn"})
+    assert env["result"]["answer"].startswith("Incheon International Airport (IATA ICN, ICAO RKSI): Seoul, KR (KR-28), large airport")
+    assert env["result"]["url"] == "https://ourairports.com/airports/RKSI/" and len(calls) == 1
+    assert env["freshness"]["data_as_of"] == {"OurAirports": "Fri, 13 Nov 2026 02:53:52 GMT"}
+    assert "Incheon" in a.execute("airport-lookup", {"query": "incheon"})["result"]["answer"]
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("airport-lookup", {"code": "ZZZ"})
+    assert err.value.code == "not_found"
+
+
+def test_airport_lookup_without_an_index_fails_closed(tmp_path):
+    a, _ = agents(tmp_path / "empty", {})
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("airport-lookup", {"code": "ICN"})
+    assert err.value.code == "source_unavailable"

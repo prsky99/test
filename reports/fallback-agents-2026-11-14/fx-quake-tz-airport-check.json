@@ -1,0 +1,79 @@
+{
+ "role_tasks": {
+  "ecb-fx": {
+   "passed": 2,
+   "cases": 2,
+   "rows": [
+    {
+     "case_id": "fx-usd-eur",
+     "pass": true,
+     "why": [
+      "rate: live reference api.frankfurter.app not checked"
+     ]
+    },
+    {
+     "case_id": "fx-usd-jpy",
+     "pass": true,
+     "why": [
+      "rate: live reference api.frankfurter.app not checked"
+     ]
+    }
+   ]
+  },
+  "usgs-quakes": {
+   "passed": 1,
+   "cases": 1,
+   "rows": [
+    {
+     "case_id": "quakes-m5-month",
+     "pass": true,
+     "why": []
+    }
+   ]
+  },
+  "tz-time": {
+   "passed": 1,
+   "cases": 1,
+   "rows": [
+    {
+     "case_id": "time-new-york",
+     "pass": true,
+     "why": [
+      "clock_tz: live reference None not checked"
+     ]
+    }
+   ]
+  },
+  "airport-lookup": {
+   "passed": 2,
+   "cases": 2,
+   "rows": [
+    {
+     "case_id": "airport-icn",
+     "pass": true,
+     "why": []
+    },
+    {
+     "case_id": "airport-lax",
+     "pass": true,
+     "why": []
+    }
+   ]
+  }
+ },
+ "contract_test_inputs": {
+  "ecb-fx": [
+   "ok",
+   "ok"
+  ],
+  "usgs-quakes": [
+   "ok"
+  ],
+  "tz-time": [
+   "ok"
+  ],
+  "airport-lookup": [
+   "ok"
+  ]
+ }
+}

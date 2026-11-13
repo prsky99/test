@@ -24,6 +24,10 @@
 | `scorecard` (`get_scorecard`) | 패키지 위험, `package.risk.v1` | OpenSSF Scorecard 원 API | 고정 과제 1/1(실측 비교는 허용 목록 밖이라 not checked), 계약 입력 1/1 | 0.1 s | 정답 세트 요청 |
 | `site-readiness` (`check_site_files`) | website-ai-readiness(예비 목걸이), `website.ai_readiness.v1` | 대상 사이트의 robots.txt·llms.txt·sitemap.xml | 고정 과제 2/2 | 0.6~2.5 s | 정답 세트 요청 |
 | `wiki-grounding` (`answer_from_wikipedia`) | topic-evidence-brief 웹 근거 자리, `web.grounding.v1` | 영어 Wikipedia 검색 + 첫 문단 | 고정 과제 2/2, 자체 점검 20문항 18/20 | p95 0.8 s | 정답 세트 요청 |
+| `ecb-fx` (`get_reference_rate`) | trip-brief·국가 목걸이 환율, `fx.rate.v1` | ECB 기준환율 XML | 고정 과제 2/2(실측 비교 기준이 Frankfurter라 not checked), 계약 입력 2/2 | 캐시 0 ms, 첫 요청 1.6 s | 정답 세트 요청 |
+| `usgs-quakes` (`list_recent_earthquakes`) | `earthquake.feed.v1` | USGS 실시간 GeoJSON | 고정 과제 1/1, 계약 입력 1/1 | 0.4 s | 정답 세트 요청 |
+| `tz-time` (`get_local_time`) | `timezone.time.v1` | IANA tz 2026f(서버 설치본, 네트워크 없음) | 고정 과제 1/1, 계약 입력 1/1 | 수 ms | 정답 세트 요청 |
+| `airport-lookup` (`lookup_airport`) | `airport.lookup.v1` | OurAirports 일일 색인(공공 저작물) | 고정 과제 2/2, 계약 입력 1/1 | 수 ms | 색인 일일 갱신 jobs 필요 |
 | `github-advisory` (`list_package_advisories`) | package-risk-audit 취약점 자리, `package.advisories.v1` | GitHub Advisory Database(reviewed) | 1차 27/30 → 범위 직접 판정으로 고친 뒤 **30/30**(05:36 재측정), 고정 과제 3/3 | 1,010 ms / 1,412 ms | 관문 신청 가능 |
 
 - 계약 시험 입력(`test_inputs`) 3건씩: nvd-cve·cve-org·cisa-kev 9/9 통과(`contract-test-inputs.json`). 고정 과제(role-tasks-v1): nvd-cve 3/3, cisa-kev 3/3, cve-org 3/3, package-registry 2/2, depsdev-package 2/2.
@@ -135,6 +139,13 @@
 - 질문 유형 단서: who → created·developed·founded·wrote 등, when → 연도, how tall/high/long → 숫자+단위·height·elevation, where → "in/on + 고유명사", capital → "capital". 문서 제목이 질문 주제와 같으면 가산, 괄호로 구분된 파생 문서(영화 등)는 감점. "capital of X"는 X로 검색합니다(질문 그대로면 "Capital punishment in X"가 먼저 나옴).
 - 자체 점검 20문항 18/20(`wiki-grounding-check.json`). 놓친 2건: 가장 큰 대양(일반 "Ocean" 문서가 먼저), 한국 수도(국가 문서 첫 20문장 안에서 수도 문장을 못 고름). 규칙을 이 20문항에 더 맞추지 않았습니다. 이 자리의 주 멤버는 외부 진주(50972·276982)이고 이것은 마지막 대체입니다.
 
+### 2-13. 환율·지진·시간대·공항 (PM 지시 9 순서)
+- ecb-fx: ECB 일일 기준환율(1.5KB XML, 1시간 캐시). EUR이 아닌 쌍은 EUR을 거쳐 교차 계산하고 그렇게 표기합니다. 기준일이 5일보다 오래되면(가장 긴 휴일 간격보다 김) stale 실패. ECB 고지: 정보 제공용, ECB 출처 표기.
+- usgs-quakes: 규모 4.5 이상 1주 피드에서 최소 규모로 거르고, 없으면 30일 피드로 넓힙니다. 5분 캐시, 피드 생성 시각을 데이터 시각으로 적습니다.
+- tz-time: 서버에 설치된 IANA tz(2026f)로 계산합니다. 도시 이름은 시간대 이름의 도시 부분과만 맞춥니다(New York → America/New_York). 네트워크 없음.
+- airport-lookup: OurAirports 공식 미러 CSV(12.7MB)를 하루 한 번 받아 IATA·ICAO 코드가 있는 공항만 색인(53,570개 코드, 15MB)으로 저장합니다. 요청은 색인만 읽고, 색인이 없으면 실패합니다. **`python -m agent_market.fallback_agents.airports --sync`를 하루 1회 돌리는 jobs 단계가 필요합니다**(운영·SRE에 넘김). 나이 상한 8일.
+- 채점기 수정: 고정 과제의 실시간 기준값은 레지스트리 최신 버전만 대조하고, 나머지(Frankfurter·Open-Meteo·USGS 등)는 "not checked"로 남깁니다(이전에는 USGS 기준값이 뜻 없이 통과로 셈해질 수 있었음).
+
 ## 3. 관문 신청 묶음 (deploy/NECKLACE_GATE.md 10절 대비)
 
 | 조건 | 상태 | 근거 |
@@ -205,7 +216,7 @@
 ## 6. 시험·재현
 
 ```bash
-nice -n 10 .venv-tests/bin/python -m pytest -q tests/test_fallback_agents.py     # 90 passed (네트워크 없음)
+nice -n 10 .venv-tests/bin/python -m pytest -q tests/test_fallback_agents.py     # 97 passed (네트워크 없음)
 .venv/bin/python -m agent_market.fallback_agents.nvd_sync --full                  # 스냅샷 첫 빌드
 .venv/bin/python -m agent_market.fallback_agents.gold_check nvd-cve cisa-kev --out /tmp/x.json
 ```

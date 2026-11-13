@@ -40,14 +40,16 @@ MAX_AGE = {"nvd-cve": 6 * 3600, "cve-org": 24 * 3600, "cisa-kev": 24 * 3600, "gi
            "worldbank-indicator": 24 * 3600, "met-weather": 3 * 3600,
            "public-holidays": 400 * 86400, "holiday-calendar": 400 * 86400, "sec-filings": 24 * 3600,
            "software-incident": 6 * 3600, "scorecard": 24 * 3600, "site-readiness": 24 * 3600,
-           "wiki-grounding": 24 * 3600}  # rules age from the library release; update the pin at least yearly
+           "wiki-grounding": 24 * 3600, "ecb-fx": 26 * 3600, "usgs-quakes": 3600,
+           "tz-time": 400 * 86400, "airport-lookup": 8 * 86400}  # rules age from the library release; update the pin at least yearly
 TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "github-advisory": (3600, 6 * 3600),
        "epss": (6 * 3600, 48 * 3600), "package-registry": (3600, 6 * 3600), "depsdev-package": (6 * 3600, 24 * 3600),
        "gleif-lei": (6 * 3600, 24 * 3600), "sec-edgar": (6 * 3600, 24 * 3600), "sec-tickers": (6 * 3600, 24 * 3600),
        "wikipedia-summary": (6 * 3600, 24 * 3600), "arxiv-search": (24 * 3600, 48 * 3600),
        "worldbank-indicator": (6 * 3600, 24 * 3600), "sec-filings": (3600, 24 * 3600),
        "software-incident": (3600, 6 * 3600), "scorecard": (6 * 3600, 24 * 3600),
-       "site-readiness": (6 * 3600, 24 * 3600), "wiki-grounding": (6 * 3600, 24 * 3600)}  # (serve from cache without asking, longest a cached copy may serve)
+       "site-readiness": (6 * 3600, 24 * 3600), "wiki-grounding": (6 * 3600, 24 * 3600), "ecb-fx": (3600, 26 * 3600),
+       "usgs-quakes": (300, 3600)}  # (serve from cache without asking, longest a cached copy may serve)
 KEV_TTL, KEV_MAX_STALE = 3600, 24 * 3600
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 PACKAGE = re.compile(r"(?:@[a-z0-9][a-z0-9._~-]*/)?[A-Za-z0-9][A-Za-z0-9._~-]*")
@@ -80,6 +82,7 @@ class FallbackAgents:
         self.cache: OrderedDict = OrderedDict()
         self.kev = None  # (monotonic fetched, wall fetched, {cve: dateAdded}, catalogVersion)
         self.weather: OrderedDict = OrderedDict()  # (lat, lon) -> dict(value, as_of, expires, last_modified, at)
+        self.airports = None
 
     # ---------------------------------------------------------------- public
     def execute(self, agent_id: str, arguments: dict) -> dict:
@@ -815,9 +818,27 @@ class FallbackAgents:
                 if body.get("published"):
                     item["published"] = body["published"]
                 items, source = [item], "NVD (references; no reviewed package advisory)"
+        if not cve and not items:
+            # A program name, not a package (PM 11-14): NVD CPE products give the CVEs and the first fixed versions.
+            try:
+                found = self.snapshot.products(query, limit=10)
+            except Exception:
+                found = []
+            for row in found:
+                rec = row["record"]
+                item = {"title": _text(f"{row['cve_id']} ({row['vendor']}:{row['product']}): {rec.get('description', '')}", 500)}
+                if row["fixed"]:
+                    item["fixed_version"] = _text(row["fixed"].split(", ")[0], 64)
+                if rec.get("references"):
+                    item["url"] = rec["references"][0]
+                if rec.get("published"):
+                    item["published"] = rec["published"]
+                items.append(item)
+            if items:
+                source = "NVD (CPE product match; fixed version = the CPE versionEndExcluding bound)"
         if not items:
-            raise FallbackUnavailable("not_found", "No reviewed advisory for this exact package or CVE; this agent covers "
-                                                   "packages in the GitHub Advisory Database and CVE ids.")
+            raise FallbackUnavailable("not_found", "No reviewed advisory or NVD product record for this name; use a CVE id, "
+                                                   "an exact package name or the program's product name.")
         return {"items": items[:20], "source": source}, cache, False, {"GitHub Advisory Database": as_of}
 
     def _scorecard(self, args, remaining):
@@ -975,6 +996,119 @@ class FallbackAgents:
         answer = (f"From Wikipedia (quoted, not generated): {quotes}")[:4000]
         return {"answer": answer, "sources": sources, "source": "Wikipedia (CC BY-SA 4.0, Wikipedia contributors)"}, \
             cache, False, {"Wikipedia": as_of}
+
+    def _ecb_fx(self, args, remaining):
+        base, quote_ccy = args["from"], args["to"]
+
+        def live(rem):
+            response = get("https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml", limiters=self.limiters,
+                           http=self.http, seconds=max(0.1, rem() - 0.1), limit=65536, accept="application/xml, text/xml")
+            return ecb_rates(response.content), _now_iso(self.utc_now())
+        ((day, rates), _), cache = self._cached(("ecb-fx",), TTL["ecb-fx"], live, remaining)
+        rates = dict(rates, EUR=1.0)
+        missing = [c for c in (base, quote_ccy) if c not in rates]
+        if missing:
+            raise FallbackUnavailable("not_found", "The ECB publishes no reference rate for " + ", ".join(missing) + ".")
+        published = datetime.fromisoformat(day).replace(tzinfo=timezone.utc)
+        if (self.utc_now() - published).days > 5:  # longer than any TARGET holiday gap: the copy is stale
+            raise FallbackUnavailable("stale", f"The newest ECB reference rates are from {day}.")
+        rate = rates[quote_ccy] / rates[base]
+        out = {"from": base, "to": quote_ccy, "rate": float(f"{rate:.6g}"), "date": day,
+               "source": "ECB euro foreign exchange reference rates" + ("" if "EUR" in (base, quote_ccy) else
+                                                                        " (crossed through EUR)")}
+        return out, cache, False, {"ECB": day}
+
+    def _usgs_quakes(self, args, remaining):
+        floor = next((args[k] for k in ("min_magnitude", "minmagnitude", "magnitude") if args.get(k) is not None), 4.5)
+        if not isinstance(floor, (int, float)) or not 0 <= floor <= 10:
+            raise FallbackUnavailable("invalid_input", "Use a minimum magnitude from 0 to 10.")
+        floor = max(4.5, float(floor))  # the feeds start at 4.5; a lower minimum is answered from 4.5
+
+        def feed(period):
+            def live(rem):
+                raw = self._get_json(f"https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_{period}.geojson",
+                                     rem, limit=2 * 1024 * 1024)
+                rows = []
+                for f in raw.get("features") or []:
+                    p = (f or {}).get("properties") or {}
+                    if isinstance(p.get("mag"), (int, float)) and isinstance(p.get("time"), int):
+                        rows.append((float(p["mag"]), p["time"], _text(p.get("place"), 160), bool(p.get("tsunami")),
+                                     _text(p.get("url"), 300)))
+                generated = (raw.get("metadata") or {}).get("generated")
+                when = datetime.fromtimestamp(generated / 1000, timezone.utc) if isinstance(generated, int) else self.utc_now()
+                return rows, _now_iso(when)
+            return self._cached(("usgs-quakes", period), TTL["usgs-quakes"], live, remaining)
+        (rows, as_of), cache = feed("week")
+        period = "past 7 days"
+        hits = [r for r in rows if r[0] >= floor]
+        if not hits and remaining() > 1.0:
+            (rows, as_of), cache = feed("month")
+            period, hits = "past 30 days", [r for r in rows if r[0] >= floor]
+        hits.sort(key=lambda r: -r[1])
+        if not hits:
+            answer = f"No earthquake of magnitude {floor:g} or more in the USGS feed for the {period}."
+        else:
+            lines = "; ".join(
+                f"M{m:.1f} {datetime.fromtimestamp(t / 1000, timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC, {place}"
+                + (" (tsunami flag)" if tsunami else "") for m, t, place, tsunami, _ in hits[:15])
+            answer = (f"{len(hits)} earthquake{'s' if len(hits) != 1 else ''} of magnitude {floor:g} or more in the "
+                      f"{period} (USGS, newest first): "
+                      f"{lines}.")
+        out = {"answer": answer[:8000], "url": "https://earthquake.usgs.gov/earthquakes/map/",
+               "source": "USGS Earthquake Hazards Program (U.S. Public Domain)"}
+        return out, cache, False, {"USGS feed generated": as_of}
+
+    def _tz_time(self, args, remaining):
+        import zoneinfo
+        wanted = next((str(args[k]).strip() for k in ("timezone", "tz", "city", "location") if args.get(k)), "")
+        zone = tz_zone(wanted)
+        if not zone:
+            raise FallbackUnavailable("not_found", "Use an IANA time zone (Region/City) or a city that names a zone.")
+        now = self.utc_now().astimezone(zoneinfo.ZoneInfo(zone))
+        offset = now.strftime("%z")
+        version = tz_version()
+        answer = (f"Local time in {zone}: {now.strftime('%Y-%m-%d %H:%M:%S')} {now.tzname()} "
+                  f"(UTC{offset[:3]}:{offset[3:]}). Daylight saving time is {'in effect' if now.dst() else 'not in effect'}.")
+        out = {"answer": answer, "url": "https://www.iana.org/time-zones",
+               "source": f"IANA Time Zone Database {version or '(version unknown)'} (public domain)"}
+        return out, {"status": "snapshot", "age_seconds": 0}, False, {"IANA tz database": version}
+
+    def _airport_lookup(self, args, remaining):
+        from .airports import AirportIndex
+        if self.airports is None:
+            self.airports = AirportIndex(self.data_dir / "airports.json")
+        data = self.airports.data()
+        if not data:
+            raise FallbackUnavailable("source_unavailable", "The airport index is not built on this server yet.")
+        index = data["airports"]
+        wanted = next((str(args[k]).strip() for k in ("code", "iata", "iata_code", "query") if args.get(k)), "")
+        if not wanted or len(wanted) > 80:
+            raise FallbackUnavailable("invalid_input", "Use an IATA or ICAO code or part of an airport name.")
+        rows = [index[wanted.upper()]] if wanted.upper() in index else []
+        if not rows and len(wanted) >= 4:
+            needle = wanted.lower()
+            seen, rows = set(), []
+            for rec in index.values():
+                if needle in rec["name"].lower() and rec["ident"] not in seen:
+                    seen.add(rec["ident"])
+                    rows.append(rec)
+                    if len(rows) == 5:
+                        break
+        if not rows:
+            raise FallbackUnavailable("not_found", "No airport with this code or name in the OurAirports index.")
+        parts = []
+        for r in rows:
+            codes = ", ".join(c for c in (f"IATA {r['iata_code']}" if r["iata_code"] else "",
+                                         f"ICAO {r['icao_code']}" if r["icao_code"] else "") if c)
+            parts.append(f"{r['name']} ({codes}): {r['municipality'] or 'city not listed'}, {r['iso_country']} "
+                         f"({r['iso_region']}), {r['type'].replace('_', ' ')}, lat {r['latitude_deg']} lon "
+                         f"{r['longitude_deg']}, elevation {r['elevation_ft'] or '?'} ft, scheduled service "
+                         f"{r['scheduled_service'] or 'unknown'}")
+        out = {"answer": "; ".join(parts)[:8000], "url": "https://ourairports.com/airports/" + rows[0]["ident"] + "/",
+               "source": "OurAirports (public domain)"}
+        age = int(max(0, self.wall() - float(data.get("fetched_at") or 0)))
+        return out, {"status": "snapshot", "age_seconds": age}, False, \
+            {"OurAirports": data.get("source_last_modified") or None}
 
     # ---------------------------------------------------------------- usage
     def _usage(self, agent_id, envelope, code, started):
@@ -1268,6 +1402,61 @@ def arxiv_entries(body: bytes) -> list[dict]:
             item["year"] = int(year)
         items.append(item)
     return items
+
+
+def ecb_rates(body: bytes):
+    """ECB daily XML -> (date, {currency: units per euro}). Feeds with a DTD or entities are refused."""
+    import xml.etree.ElementTree as ET
+    if b"<!DOCTYPE" in body or b"<!ENTITY" in body:
+        raise ValueError("DTD in feed")
+    root = ET.fromstring(body)
+    day, rates = None, {}
+    for cube in root.iter():
+        if cube.tag.endswith("Cube") and cube.get("time"):
+            day = cube.get("time")
+        if cube.tag.endswith("Cube") and cube.get("currency") and cube.get("rate"):
+            code, value = cube.get("currency"), float(cube.get("rate"))
+            if re.fullmatch(r"[A-Z]{3}", code) and value > 0:
+                rates[code] = value
+    if not day or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", day) or len(rates) < 10:
+        raise ValueError("unexpected ECB feed")
+    return day, rates
+
+
+def tz_zone(text: str) -> str | None:
+    """An IANA zone from a zone name or a city that is a zone's last part ("new york" -> America/New_York)."""
+    import zoneinfo
+    zones = zoneinfo.available_timezones()
+    text = (text or "").strip()
+    if text in zones:
+        return text
+    key = re.sub(r"[\s_-]+", "_", text.lower())
+    exact = {z.lower(): z for z in zones}
+    if key in exact:
+        return exact[key]
+    cities = {}
+    for z in zones:
+        if "/" in z and not z.startswith(("Etc/", "SystemV/", "US/")):
+            cities.setdefault(z.rsplit("/", 1)[1].lower(), []).append(z)
+    found = cities.get(key) or []
+    return sorted(found)[0] if len(found) >= 1 and len({z.split("/")[0] for z in found}) == 1 else None
+
+
+def tz_version() -> str | None:
+    import zoneinfo
+    for root in zoneinfo.TZPATH:
+        try:
+            first = (Path(root) / "tzdata.zi").read_text(encoding="utf-8", errors="ignore").splitlines()[0]
+            m = re.search(r"version (\S+)", first)
+            if m:
+                return m[1]
+        except (OSError, IndexError):
+            continue
+    try:
+        import tzdata
+        return tzdata.IANA_VERSION
+    except Exception:
+        return None
 
 
 def pep503(name: str) -> str:

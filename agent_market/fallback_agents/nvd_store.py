@@ -87,6 +87,36 @@ def record(cve: dict) -> dict:
     return out
 
 
+def cpe_products(cve: dict) -> list[tuple[str, str, str]]:
+    """(vendor, product, first fixed versions) of the vulnerable CPE matches; the fixed version is the CPE
+    versionEndExcluding bound when NVD gives one."""
+    found: dict[tuple[str, str], list[str]] = {}
+    for conf in cve.get("configurations") or []:
+        for node in (conf.get("nodes") or []) if isinstance(conf, dict) else []:
+            for match in (node.get("cpeMatch") or []) if isinstance(node, dict) else []:
+                if not isinstance(match, dict) or not match.get("vulnerable"):
+                    continue
+                parts = str(match.get("criteria", "")).split(":")
+                if len(parts) < 6 or parts[0] != "cpe" or parts[2] not in ("a", "o"):
+                    continue
+                key = (_text(parts[3], 80).lower(), _text(parts[4], 120).lower())
+                fixes = found.setdefault(key, [])
+                end = _text(match.get("versionEndExcluding"), 40)
+                if end and end not in fixes and len(fixes) < 3:
+                    fixes.append(end)
+    return [(v, p, ", ".join(f)) for (v, p), f in found.items() if v and p][:50]
+
+
+def product_variants(name: str) -> list[str]:
+    """CPE product spellings to try for a program name ("xz-utils" -> xz-utils, xz_utils, xz)."""
+    base = re.sub(r"\s+", "_", name.strip().lower())
+    out = [base, base.replace("-", "_"), base.replace("_", "-")]
+    for suffix in ("-utils", "_utils", "-lib", "_lib", "-core", "_core", "-js", ".js"):
+        if base.endswith(suffix) and len(base) > len(suffix) + 1:
+            out.append(base[: -len(suffix)])
+    return list(dict.fromkeys(v for v in out if re.fullmatch(r"[a-z0-9][a-z0-9._+-]{0,119}", v)))
+
+
 def iter_feed(fh, chunk: int = 1 << 20):
     """Yield items of the top-level ``vulnerabilities`` array from a text stream, one at a time."""
     decoder = json.JSONDecoder()
@@ -164,6 +194,31 @@ class Snapshot:
             return None, "missing", synced_at
         return json.loads(zlib.decompress(row[1])), row[0], synced_at
 
+    def products(self, name: str, limit: int = 10) -> list[dict]:
+        """Newest CVEs whose vulnerable CPE product matches a spelling of NAME (empty without the index)."""
+        if not self.path.exists():
+            return []
+        variants = product_variants(name)
+        if not variants:
+            return []
+        db = sqlite3.connect(f"file:{self.path}?mode=ro", uri=True, timeout=1.0)
+        try:
+            if not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='cpe'").fetchone():
+                return []
+            marks = ",".join("?" * len(variants))
+            rows = db.execute(f"SELECT c.cve, c.vendor, c.product, c.fixed, v.status, v.body FROM cpe c JOIN cve v "
+                              f"ON v.id = c.cve WHERE c.product IN ({marks}) LIMIT 2000", variants).fetchall()
+        finally:
+            db.close()
+        out = []
+        for cve_id, vendor, product, fixed, status, body in rows:
+            if status == "Rejected":
+                continue
+            out.append({"cve_id": cve_id, "vendor": vendor, "product": product, "fixed": fixed,
+                        "record": json.loads(zlib.decompress(body))})
+        out.sort(key=lambda r: r["record"].get("published", ""), reverse=True)
+        return out[:limit]
+
     def meta(self, key: str):
         if not self.path.exists():
             return None
@@ -182,6 +237,10 @@ class Snapshot:
         db.execute("CREATE TABLE IF NOT EXISTS cve (id TEXT PRIMARY KEY, last_modified TEXT NOT NULL, "
                    "status TEXT NOT NULL, body BLOB NOT NULL)")
         db.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+        db.execute("CREATE TABLE IF NOT EXISTS cpe (product TEXT NOT NULL, vendor TEXT NOT NULL, cve TEXT NOT NULL, "
+                   "fixed TEXT NOT NULL)")
+        db.execute("CREATE INDEX IF NOT EXISTS cpe_product ON cpe(product)")
+        db.execute("CREATE INDEX IF NOT EXISTS cpe_cve ON cpe(cve)")
         return db
 
     @staticmethod
@@ -198,10 +257,15 @@ class Snapshot:
                 continue
             modified = _text(cve.get("lastModified"), 40)
             status = _text(cve.get("vulnStatus"), 40) or "Unknown"
-            db.execute("INSERT INTO cve(id,last_modified,status,body) VALUES (?,?,?,?) "
-                       "ON CONFLICT(id) DO UPDATE SET last_modified=excluded.last_modified, status=excluded.status, "
-                       "body=excluded.body WHERE excluded.last_modified >= cve.last_modified",
-                       (body["cve_id"], modified, status, zlib.compress(json.dumps(body, separators=(",", ":")).encode(), 6)))
+            cur = db.execute("INSERT INTO cve(id,last_modified,status,body) VALUES (?,?,?,?) "
+                             "ON CONFLICT(id) DO UPDATE SET last_modified=excluded.last_modified, status=excluded.status, "
+                             "body=excluded.body WHERE excluded.last_modified >= cve.last_modified",
+                             (body["cve_id"], modified, status,
+                              zlib.compress(json.dumps(body, separators=(",", ":")).encode(), 6)))
+            if cur.rowcount:  # the row was written: its product index follows the same version
+                db.execute("DELETE FROM cpe WHERE cve=?", (body["cve_id"],))
+                db.executemany("INSERT INTO cpe(product,vendor,cve,fixed) VALUES (?,?,?,?)",
+                               [(p, v, body["cve_id"], f) for v, p, f in cpe_products(cve)])
             n += 1
         return n
 
