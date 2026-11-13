@@ -136,6 +136,9 @@ _CACHE = {}
 
 def reference(kind, url):
     """A public reference value at test time (cached ten minutes): fx rate, current temperature, latest version."""
+    if kind == 'clock_tz':                  # the time of day now in that zone (IANA tz via zoneinfo), not fetched
+        from zoneinfo import ZoneInfo
+        return dt.datetime.now(ZoneInfo(url))
     key = (kind, url)
     if key in _CACHE and time.time() - _CACHE[key][0] < 600:
         return _CACHE[key][1]
@@ -148,6 +151,11 @@ def reference(kind, url):
             value = float(data['current']['temperature_2m'])
         elif kind == 'latest_version':
             value = str(data['version'])
+        elif kind == 'usgs_places':        # places of M5+ events in the USGS month feed (earthquake.feed)
+            value = [f['properties']['place'] for f in data['features'] if (f['properties'].get('mag') or 0) >= 5
+                     and f['properties'].get('place')]
+        elif kind == 'scorecard':
+            value = float(data['score'])
     except Exception:
         value = None
     _CACHE[key] = (time.time(), value)
@@ -169,6 +177,25 @@ def dynamic_match(kind, ref, text, case_input=None, tolerance=None):
         return any(abs(t - ref) <= tol for t in temps)
     if kind == 'latest_version':
         return ref in (text or '')
+    if kind == 'usgs_places':
+        low = (text or '').lower()
+        names = set()
+        for place in ref:
+            tail = place.split(' of ')[-1]
+            names.update(part.strip().lower() for part in tail.split(',') if len(part.strip()) > 3)
+        return any(name in low for name in names)
+    if kind == 'clock_tz':
+        tol = tolerance or 5
+        minutes_now = ref.hour * 60 + ref.minute
+        for m in CLOCK.finditer(text or ''):
+            diff = abs(int(m[1]) * 60 + int(m[2]) - minutes_now)
+            if min(diff, 1440 - diff) <= tol or min(abs(diff - 720), 1440 - abs(diff - 720)) <= tol and \
+                    re.search(r'\b[ap]\.?m\b', text or '', re.I):
+                return True
+        return False
+    if kind == 'scorecard':
+        tol = tolerance or 0.5
+        return any(abs(n - ref) <= tol for n in _numbers(text) if 0 <= n <= 10)
     return None
 
 

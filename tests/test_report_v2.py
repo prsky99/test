@@ -193,3 +193,23 @@ def test_dynamic_references():
     assert DQ.dynamic_match('temperature_c', 8.0, 'Seoul now 10°C, cloudy', None, 3)
     assert not DQ.dynamic_match('temperature_c', 8.0, 'Seoul now 70°F', None, 3)
     assert DQ.dynamic_match('latest_version', '5.1.0', 'express 5.1.0 published', None)
+
+
+def test_rag_role_tasks_cover_every_role():
+    """PM 11-14: by 11-16 every role is judged against an answer set or a same-time public reference."""
+    from scripts import role_catalog
+    for role in role_catalog.ROLES:
+        assert V.case_for(role, day=0) or role_catalog.live_spec(role), role
+    for case in V.role_tasks_rag():
+        assert case['truth_sources'] and all(t['url'].startswith('https://') and t['checked_on'] for t in case['truth_sources'])
+
+
+def test_same_time_references():
+    from scripts import data_quality as DQ
+    import datetime as dt
+    ny = dt.datetime(2026, 11, 14, 15, 2)
+    assert DQ.dynamic_match('clock_tz', ny, 'It is 15:04 in New York', None, 5)
+    assert not DQ.dynamic_match('clock_tz', ny, 'It is 09:30 in New York', None, 5)
+    places = ['120 km SSE of Tobelo, Indonesia', '45 km W of Ovalle, Chile']
+    assert DQ.dynamic_match('usgs_places', places, 'M5.4 near Tobelo, Indonesia') and not DQ.dynamic_match('usgs_places', places, 'M5.0 Fiji')
+    assert DQ.dynamic_match('scorecard', 7.2, 'OpenSSF score 7.4/10', None, 0.5)

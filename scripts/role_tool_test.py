@@ -114,6 +114,20 @@ CASE_KEYS = {
     'place': r'place|city|location|destination|area|region',
     'latitude': r'^lat',
     'longitude': r'^(?:lon|lng)',
+    # 11-14 RAG role tasks (role-tasks-rag-v1.jsonl)
+    'code': r'code|iata|icao|airport',
+    'word': r'word|term|query|^q$|lemma',
+    'ip': r'^ip|ip_?address|address|query|^q$|target',
+    'repo': r'repo|repository|project|slug|full_name',
+    'address': r'address|query|^q$|location|text|street',
+    'text': r'^text$|query|^q$|input|content|source_text',
+    'target': r'target|^to$|lang|language',
+    'value': r'value|amount|quantity|number',
+    'ticker': r'ticker|symbol',
+    'cik': r'^cik$',
+    'company': r'company|name|query|^q$',
+    'timezone': r'timezone|^tz$|zone',
+    'min_magnitude': r'mag',
 }
 # World Bank codes for members that want an indicator code rather than a word (workflow team, 11-14).
 INDICATOR_CODES = {'population': 'SP.POP.TOTL', 'gdp': 'NY.GDP.MKTP.CD'}

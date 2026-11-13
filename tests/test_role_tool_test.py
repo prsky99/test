@@ -86,3 +86,11 @@ def test_new_role_task_inputs_map():
         {'country': 'KOR', 'indicator_code': 'SP.POP.TOTL', 'year': 2023}
     wx = tool(['latitude', 'longitude'], {'latitude': {'type': 'number'}, 'longitude': {'type': 'number'}})
     assert case_arguments(wx, {'city': 'Seoul', 'latitude': 37.5665, 'longitude': 126.978})[0] == {'latitude': 37.5665, 'longitude': 126.978}
+
+
+def test_rag_task_inputs_map():
+    from scripts.role_tool_test import case_arguments
+    assert case_arguments(tool(['iata'], {'iata': {'type': 'string'}}), {'code': 'ICN'})[0] == {'iata': 'ICN'}
+    assert case_arguments(tool(['ip_address'], {'ip_address': {'type': 'string'}}), {'ip': '8.8.8.8'})[0] == {'ip_address': '8.8.8.8'}
+    conv = tool(['value', 'from_unit', 'to_unit'], {'value': {'type': 'number'}, 'from_unit': {'type': 'string'}, 'to_unit': {'type': 'string'}})
+    assert case_arguments(conv, {'value': 10, 'from': 'mile', 'to': 'kilometer'})[0] == {'value': 10, 'from_unit': 'mile', 'to_unit': 'kilometer'}

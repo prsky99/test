@@ -21,6 +21,7 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 
 OUT = ROOT / 'exports/pearls'
 GROUPS = ROOT / 'reports/pearls-2026-11-14/role_groups.json'
+RAG_TASKS = ROOT / 'agent_market/necklaces/role_tasks/role-tasks-rag-v1.jsonl'
 BOARD = ROOT / 'logs/ops/status-board.md'
 RULES = 'v2-2026-11-14'
 PASS_MARK = 85
@@ -85,11 +86,18 @@ def quiet_now(now=None):
     return not (t.tm_min >= 55 or t.tm_min < 10 or 230 <= minutes < 310)
 
 
+def role_tasks_rag():
+    from agent_market.necklaces import role_tasks
+    return role_tasks.load(RAG_TASKS) if RAG_TASKS.exists() else []
+
+
 def case_for(role, day=None):
     """One role task for ROLE, rotating by day so every case is used over the week; None when the role has none."""
     try:
         from agent_market.necklaces import role_tasks
         cases = role_tasks.by_role().get(canonical(role), [])
+        if not cases and RAG_TASKS.exists():      # 11-14: RAG's verified tasks for the roles without a workflow set
+            cases = role_tasks.by_role(RAG_TASKS).get(canonical(role), [])
     except Exception:
         return None
     if not cases:
@@ -385,7 +393,8 @@ def rescore():
         if v.get('case_id'):
             try:
                 from agent_market.necklaces import role_tasks
-                case = next((c for c in role_tasks.load() if c['case_id'] == v['case_id']), None)
+                every = role_tasks.load() + (role_tasks.load(RAG_TASKS) if RAG_TASKS.exists() else [])
+                case = next((c for c in every if c['case_id'] == v['case_id']), None)
             except Exception:
                 case = None
         assess(v, v.get('excerpt') or '', None, case)
@@ -427,6 +436,8 @@ def rank(versions):
         for v in members:
             entry = {k: v.get(k) for k in ('resource_id', 'tool', 'outcome', 'reason', 'latency_ms', 'host',
                                            'registrable_domain', 'arguments', 'content_verdict', 'version')}
+            # PM 11-14: a version with no accuracy comparison (0 points) never appears on a pearl candidate screen.
+            entry['pearl_screen'] = bool(((v.get('data_quality') or {}).get('accuracy') or {}).get('points'))
             entry.update(score=v['quality']['score'], domain=v['domain'], tested=time.strftime('%Y-%m-%d %H:%M', time.localtime(v['tested'])),
                          success_days=success_days(v['resource_id'], role, v['tool'], time.time()))
             usable = v['outcome'] == 'succeeded' and v['registrable_domain'] not in seen
