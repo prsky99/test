@@ -83,3 +83,19 @@
 - explore.css는 오늘 공개 데이터에 MCP 결과 카드가 나오지 않아 .acard.k-mcp 규칙 하나가 빠졌다. 그래서 원래 파일의 규칙을 그대로 두고 출처 해시만 현재 묶음 값으로 바꿨다.
   - explore 화면의 규칙은 이번 변경과 무관하다.
   - test_critical_css(현재 묶음에 있는 규칙인지)와 test_critical_css_browser(첫 화면 CSS만으로 그린 화면이 전체 CSS와 같은지)가 통과한다.
+
+## 4. 배포 뒤 (homeui-frontend-20261113-r1 = 59247e8b, 10:20, 공개 주소)
+- 배포 직후 엣지 사본: swr 86400 때문에 처음에는 배포 전 HTML(토글 있음, 목걸이 없음)이 나갔다. post_deploy_check after의 데우기는 옛 사본을 받은 화면에 1초 뒤 다시 요청한다. 그 두 번째 요청에서 홈·About 등 8개 화면은 새 사본(HIT, age 1~3초)이었다. learn·workflows는 두 번째에도 UPDATING이었고 몇 분 뒤 HIT(새 사본)가 되었다. 그 뒤 측정은 모두 새 화면이다(About 1280 어두운 화면 첫 요청 1건만 옛 사본).
+- ① 홈 데이터 칸(새 화면, 6초 대기): 392,661 등록 · 303,306 응답 · 388,547 Status checked · 3,179 실행 확인 / "11,067 new listings in the last 24 hours" / "3,179 recorded execution checks" / "2,061 succeeded · 1,115 failed · 3 unknown". 빈 칸('—')·"refreshing status…" 없음. after(--local) 사진의 빈 칸은 로컬에 데이터가 없어서였다.
+- 홈 배치(deployed/layout.json): 세 폭 모두 after(--local)와 같다(왼쪽 선 하나, 오른쪽 선 하나, 토글 없음, 카드 24·24, hero 위 끝 차이 0).
+- ③ About
+  - 첫 요청(1초 1건, 새 연결): 전 0.87·4.66·3.27초 → 후 2.70·0.99·1.06초(모두 HIT)
+  - 압축 크기: 전 27.3KB → 후 28.1KB
+  - 자원 수: 전 5개(문서·CSS·스크립트 2·이미지 1) → 후 6개(이미지 about-pearls-760.webp 추가)
+  - ERR_ABORTED 0건. 다른 화면(/, explore, chat, test, agent-status)의 about-pearls 요청 0건.
+- ④ 화면 10개(1280·375 × 5화면) 문제 0. Chat 3.71·3.13초(5초 안).
+  - 전수 점검은 운영·SRE가 PM 10:21 지시로 10:29~10:37에 돌렸다. 같은 점검이 겹치지 않게 성장·유통은 돌리지 않았다.
+  - 결과는 실패 105건(배포 전 10:19는 97건, 새벽 07:54는 7건)으로, 기능 실패는 0이고 전부 시간 항목이다(페이지 시간 87 → 90).
+  - 같은 시간대 경로 바닥값(net_path 중앙값)은 0.97초(10:11~10:20)와 1.00초(10:29~10:38)였다.
+- ② 1280 About의 마지막 큰 진주가 히어로 아래 구분선(y≈508)을 넘고 오른쪽 여백선 1240 밖(1256)까지 나간다. 다음 묶음에서 그림을 700×400으로 조금 줄이고 위·오른쪽으로 옮겨, 구분선 위·여백선 안에서 끝나게 다듬는다.
+- 사용자용 전후 사진(공개 주소, 1280 어두운 화면): for-user/home-1280-dark-{before,after}.png, for-user/about-1280-dark-{before,after}.png

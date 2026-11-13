@@ -96,7 +96,7 @@ def open_page(browser, path, width, scheme, local):
 
 def main(argv=None):
     parser = argparse.ArgumentParser()
-    parser.add_argument('stage', choices=('before', 'after'))
+    parser.add_argument('stage', choices=('before', 'after', 'deployed'))
     parser.add_argument('--local', action='store_true', help='serve /new/en/ from this working tree')
     args = parser.parse_args(argv)
     from playwright.sync_api import sync_playwright
