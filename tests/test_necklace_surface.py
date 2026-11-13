@@ -151,3 +151,18 @@ def test_routes_read_the_snapshot_file_and_ignore_other_schemas(tmp_path, monkey
     import os
     os.utime(path, None)
     assert client.get('/api/necklaces').json()['necklaces'] == []
+
+
+def test_llms_and_sitemap_put_offered_necklaces_first_and_stay_unchanged_without_any(tmp_path, monkeypatch, snapshot):
+    from agent_market.concierge.front import llms_txt
+    from agent_market.concierge.growth_pages import sitemap_paths
+    monkeypatch.setenv('AGENTCON_PROJECT_ROOT', str(tmp_path))
+    empty_llms = llms_txt('https://agentconcierge.biz', {}, None)
+    assert 'Necklaces you can run' not in empty_llms and '/necklaces/' not in ' '.join(sitemap_paths({'tasks': [], 'catalog': [], 'captured': 0}))
+    (tmp_path / 'gateway-data/necklaces').mkdir(parents=True)
+    live = necklace('trip-brief', quality={'cases': 30, 'success_rate': 0.9, 'best_single_rate': 0.7, 'delta_pp': 20.0,
+                                           'tested_at': iso(datetime.now(timezone.utc))})
+    (tmp_path / 'gateway-data/necklaces/necklaces.json').write_text(json.dumps({**snapshot, 'necklaces': [live]}))
+    text = llms_txt('https://agentconcierge.biz', {}, None)
+    assert text.index('## Necklaces you can run') < text.index('Compact remote MCP')
+    assert sitemap_paths({'tasks': [], 'catalog': [], 'captured': 0})[0] == '/necklaces/trip-brief'
