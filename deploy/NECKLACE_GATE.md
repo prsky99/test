@@ -157,6 +157,12 @@
 | 데이터 시각·스냅샷 나이 | 응답마다 데이터 시각(원천이 그 값을 만든·갱신한 시각)과 스냅샷 나이(초)가 있고, 역할 기준 안이다(예: KEV·CVE는 원천 갱신 1일 안, 환율·가격 2일, 뉴스 7일). 표기가 없으면 탈락 | 정답 세트 실행 응답 전부. 표기된 시각을 원천의 갱신 시각과 대조 |
 | 보안·지문 | 4절 보안 시험 전부 통과. 도구 정의 지문 기준값을 이때 남긴다 | 4절. `gateway-data/fingerprints/pearls.json`과 같은 형식으로 기록 |
 
+- **답할 수 있는 사례만 센다(11-14 운영·SRE, `scripts/substitute_gate.py`)**
+  - 원천이 원래 답할 수 없는 사례(예: GLEIF는 LEI가 없는 회사, SEC는 CIK가 없는 회사)는 부르지 않고 30건에서도 뺀다. 판단은 `gold_check.applies`로 한다.
+  - 보류 1회차에서 30건이 안 되면 `--fill-from holdout-r2`로 2회차의 답할 수 있는 사례를 채운다.
+  - 두 회차를 합쳐도 30건이 안 되면 판정하지 않는다(exit 76, 호출 0). 정답 세트를 늘리거나 PM이 기준을 정한다.
+  - 계약 시험 입력(`reports/fallback-agents-2026-11-14/contract-test-inputs.json`)이 없는 에이전트는 통과할 수 없다.
+  - 측정 시간(:55~:10, 03:50~05:10)에는 시작하지 않는다(exit 75).
 - **기록과 승인**
   - 판정은 `logs/ops/necklace-gate/substitutes/<resource_id>-v<version>.json`에 남기고, 장부에 한 줄 적는다.
   - 통과하면 `gateway-data/necklaces/approvals.json`의 `substitutes`에 승인을 쓴다: `{resource_id, slot_role, version, definition_digest, state: "approved", at}`

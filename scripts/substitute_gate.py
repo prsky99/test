@@ -30,7 +30,9 @@ UNCLEAN = re.compile(r'lorem|ipsum|\bplaceholder\b|\bmock\b|\bdummy\b|\bexample\
 # Upper bounds of calls a run may make per source domain, reserved before the run (over-reserving is safe).
 DOMAINS = {'nvd-cve': ['https://services.nvd.nist.gov/'], 'cisa-kev': ['https://www.cisa.gov/', 'https://api.first.org/'],
            'package-registry': ['https://registry.npmjs.org/', 'https://pypi.org/'], 'depsdev-package': ['https://api.deps.dev/'],
-           'cve-org': ['https://cveawg.mitre.org/'], 'github-advisory': ['https://api.github.com/']}
+           'cve-org': ['https://cveawg.mitre.org/'], 'github-advisory': ['https://api.github.com/'],
+           'gleif-lei': ['https://api.gleif.org/'], 'sec-edgar': ['https://data.sec.gov/'],
+           'wikipedia-summary': ['https://en.wikipedia.org/']}
 
 
 def quality(envelope):
@@ -60,7 +62,20 @@ def reserve_calls(agent_ids, n):
     return refused
 
 
-def run(agent_ids, split, raw_path, agents=None):
+def held_out(agent_id, split, fill_from=None):
+    """The held-out cases the source can answer (gold_check.applies), SUBSTITUTE_CASES of them: the split first, then
+    the fill split (11-14: GLEIF and SEC only answer cases with an LEI or a CIK). Cases a source cannot answer are
+    never called."""
+    from agent_market.fallback_agents.gold_check import SLUG, applies
+    cases = []
+    for name in [split] + ([fill_from] if fill_from else []):
+        path = ROOT / 'gateway-data/necklaces/gold' / SLUG[agent_id] / f'{name}.jsonl'
+        rows = [json.loads(line) for line in path.read_text(encoding='utf-8').splitlines() if line.strip()]
+        cases += [dict(c, split=name) for c in rows if applies(agent_id, c)]
+    return cases[:SUBSTITUTE_CASES]
+
+
+def run(agent_ids, split, raw_path, agents=None, fill_from=None):
     from agent_market.fallback_agents.agents import FallbackAgents, FallbackUnavailable
     from agent_market.fallback_agents.catalog import SPECS, contract
     from agent_market.fallback_agents.gold_check import SLUG, judge, role_task_check
@@ -68,8 +83,7 @@ def run(agent_ids, split, raw_path, agents=None):
     report = {'split': split, 'agents': {}}
     with open(raw_path, 'a', encoding='utf-8') as raw:
         for agent_id in agent_ids:
-            path = ROOT / 'gateway-data/necklaces/gold' / SLUG[agent_id] / f'{split}.jsonl'
-            cases = [json.loads(line) for line in path.read_text(encoding='utf-8').splitlines() if line.strip()]
+            cases = held_out(agent_id, split, fill_from)
             allowed = contract(SPECS[agent_id]['contract'])['input_schema']['properties']
             rows = []
             for case in cases:
@@ -86,7 +100,8 @@ def run(agent_ids, split, raw_path, agents=None):
                 rows.append({'case_id': case['case_id'], 'pass': bool(verdict.get('pass')), 'data_quality': dq,
                              'error': code, 'ms': int((time.monotonic() - started) * 1000)})
             contract_rows = []
-            for arguments, expect, *_ in (json.loads(CONTRACT_INPUTS.read_text()).get(agent_id) or []):
+            inputs = json.loads(CONTRACT_INPUTS.read_text()).get(agent_id) or []
+            for arguments, expect, *_ in inputs:
                 try:
                     agents.execute(agent_id, arguments)
                     contract_rows.append(expect == 'ok')
@@ -98,8 +113,10 @@ def run(agent_ids, split, raw_path, agents=None):
             report['agents'][agent_id] = {
                 'answer_set': f'{passed}/{len(rows)}', 'data_quality_failures': dirty,
                 'contract_inputs': f'{sum(contract_rows)}/{len(contract_rows)}', 'role_tasks': f"{roles['passed']}/{roles['cases']}",
-                'pass': (passed >= NEED and len(rows) >= SUBSTITUTE_CASES and not dirty and all(contract_rows)
-                         and roles['passed'] == roles['cases']),
+                'pass': (passed >= NEED and len(rows) >= SUBSTITUTE_CASES and not dirty and bool(contract_rows)
+                         and all(contract_rows) and roles['passed'] == roles['cases']),
+                'missing': [m for m, bad in (('held_out_cases', len(rows) < SUBSTITUTE_CASES),
+                                             ('contract_inputs', not contract_rows)) if bad],
                 'rows': rows}
     return report
 
@@ -108,15 +125,26 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('agents', nargs='+')
     parser.add_argument('--split', default='holdout-r1')
+    parser.add_argument('--fill-from', default=None, help='take more answerable cases from this split (e.g. holdout-r2)')
     args = parser.parse_args(argv)
+    local = time.localtime()
+    hm = local.tm_hour * 100 + local.tm_min
+    if local.tm_min >= 55 or local.tm_min < 10 or 350 <= hm <= 510:  # never inside the measurement windows
+        print(json.dumps({'ok': False, 'reason': 'measurement_window'}))
+        return 75
     stamp = time.strftime('%Y%m%d-%H%M')
     OUT.mkdir(parents=True, exist_ok=True)
+    short = {a: len(held_out(a, args.split, args.fill_from)) for a in args.agents}
+    short = {a: n for a, n in short.items() if n < SUBSTITUTE_CASES}
+    if short:  # no calls when a source cannot reach the case count (an answer set to extend, not a verdict)
+        print(json.dumps({'ok': False, 'reason': 'held_out_cases', 'answerable': short, 'need': SUBSTITUTE_CASES}))
+        return 76
     refused = reserve_calls(args.agents, 34)
     if refused:
         print(json.dumps({'ok': False, 'reason': 'budget', 'refused': refused}))
         return 75
     raw = OUT / f'raw-{args.split}-{stamp}.jsonl'
-    report = run(args.agents, args.split, raw)
+    report = run(args.agents, args.split, raw, fill_from=args.fill_from)
     report.update(at=stamp, raw=str(raw.relative_to(ROOT)))
     out = OUT / f'verdict-{args.split}-{stamp}.json'
     out.write_text(json.dumps(report, ensure_ascii=False, indent=1))
