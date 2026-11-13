@@ -28,16 +28,16 @@ def test_window_avoids_the_hourly_measurement_and_the_night_scoring():
     assert in_window(at(3, 40))
 
 
-def test_it_runs_once_an_hour_and_applies_only_when_switched_on():
+def test_it_runs_once_an_hour_and_applies_unless_switched_off():
     clock = [at(6, 25)]
     maintenance = Maintenance()
-    job = WorkflowRetention(SimpleNamespace(maintenance=maintenance), clock=lambda: clock[0], env={})
+    job = WorkflowRetention(SimpleNamespace(maintenance=maintenance), clock=lambda: clock[0], env={ENV: '0'})
     first = job.run_due()
     assert maintenance.calls == [(False, 20, 0)] and first['workflow_retention']['dry_run'] is True
     clock[0] += 600
     assert job.run_due() is None                                   # within the hour
     clock[0] = at(7, 25)
-    job.env = {ENV: '1'}
+    job.env = {}                                                   # applied by default (user approval 11-14)
     second = job.run_due()
     assert maintenance.calls[-1] == (True, 20, 0) and second['workflow_retention']['bodies_compacted'] == 3
 

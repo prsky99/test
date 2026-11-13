@@ -5,7 +5,9 @@ admin API and the CLI ran it. The jobs scheduler now calls it once an hour betwe
 hourly public measurement, :55-:10, nor during the night task scoring, 03:50-05:10), at most 20 runs and 0.5 s of
 work a call, and nothing while a run or a delivery is in flight (the maintenance code's own guards).
 
-WORKFLOW_RETENTION_SCHEDULE=1 applies it; anything else only counts the candidates (a dry run) and logs them.
+It applies by default (the user approved it). WORKFLOW_RETENTION_SCHEDULE=0 in the process environment turns it into a
+dry run that only counts and logs the candidates. 11-14 04:44: the switch is not read from gateway-data/agentcon.env,
+whose keys are an allow-list (scripts/agentcon_config.py ALLOWED_KEYS); an unlisted key there stops every reader.
 """
 import logging
 import os
@@ -31,7 +33,7 @@ class WorkflowRetention:
         self.next_run = 0.0
 
     def enabled(self):
-        return self.env.get(ENV, '').strip() == '1'
+        return self.env.get(ENV, '').strip() != '0'
 
     def run_due(self, force=False):
         now = self.clock()
