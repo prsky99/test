@@ -15,6 +15,9 @@ short timeouts (the line is written within about 6 s):
   origin), with DNS/TCP/TLS/first-byte times and the edge airport;
 - the whole public path through the tunnel: a new connection to a cache-busted /robots.txt;
 - the tunnel: cloudflared metrics (live edge connections and their airports, request errors, registrations).
+- the origin from this Mac (11-13 PM 16:2x): the same cache-busted /robots.txt straight to the local proxy
+  (127.0.0.1:8400, Caddy -> frontend). When the public path stalls while this answers at once, the time was
+  lost between Cloudflare and the proxy (edge, tunnel); when this stalls too, it was the origin itself.
 Nothing here sends credentials or changes settings; requests carry X-Agentcon-QA: net_path.
 """
 import argparse
@@ -31,6 +34,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'logs/ops/net-path.jsonl'
 HOST = 'agentconcierge.biz'
 METRICS = 'http://127.0.0.1:20241/metrics'
+ORIGIN = 'http://127.0.0.1:8400'
 KST = timezone(timedelta(hours=9))
 SLOW_S = 4.0     # this Mac reaches Cloudflare at LAX; ~2 s is its normal (11-11 18:33: trace 1.9 s)
 CURL_FORMAT = '%{http_code} %{time_namelookup} %{time_connect} %{time_appconnect} %{time_starttransfer} %{time_total}'
@@ -83,9 +87,10 @@ def dns():
     return int(took.group(1)) if code == 0 and took else None
 
 
-def curl(url, body=False):
+def curl(url, body=False, host=None):
     """A new connection each time; the times show how far a timed-out request got (exit 28)."""
     code, out = run(['curl', '-s', '-m', '5', '-H', 'X-Agentcon-QA: net_path', '-w', '\n' + CURL_FORMAT]
+                    + (['-H', f'Host: {host}'] if host else [])
                     + ([] if body else ['-o', '/dev/null']) + [url], 7)
     text, _, last = (out or '').rpartition('\n')
     parts = last.split()
@@ -150,16 +155,20 @@ def stalled_hop(r):
         return 'tunnel'
     public = r.get('public') or {}
     if public.get('status') != 200 or public.get('total_s', 99) > SLOW_S:
-        return 'cloudflare_to_origin'
+        origin = r.get('origin')
+        if origin is not None and (origin.get('status') != 200 or origin.get('total_s', 99) > SLOW_S / 2):
+            return 'origin'              # the local proxy or app was slow too: not the tunnel
+        return 'cloudflare_to_origin'    # the origin answered locally at once (or was not probed)
     return None
 
 
 def record():
     gateway, interface = default_route()
-    with ThreadPoolExecutor(max_workers=6) as pool:
+    with ThreadPoolExecutor(max_workers=7) as pool:
         jobs = {'gateway_ms': pool.submit(ping, gateway), 'internet_ms': pool.submit(ping, '1.1.1.1'),
                 'dns_ms': pool.submit(dns), 'edge': pool.submit(curl, f'https://{HOST}/cdn-cgi/trace', True),
                 'public': pool.submit(curl, f'https://{HOST}/robots.txt?net_path={int(time.time())}'),
+                'origin': pool.submit(curl, f'{ORIGIN}/robots.txt?net_path={int(time.time())}', False, HOST),
                 'tunnel': pool.submit(tunnel)}
         row = {'at': datetime.now(KST).strftime('%Y-%m-%d %H:%M:%S'), 'interface': interface,
                'port': port_name(interface) if interface else None, 'errors': counters(interface) if interface else None}

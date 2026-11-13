@@ -20,6 +20,15 @@ def test_stalled_hop_names_the_first_failing_hop():
     assert net_path.stalled_hop({**OK, 'public': {'status': 200, 'total_s': 5.0, 'exit': 28}}) == 'cloudflare_to_origin'
 
 
+def test_a_public_stall_is_placed_on_the_origin_only_when_the_local_proxy_was_slow_too():
+    """PM 11-13 16:2x: 16:08 explore 15.5 s with server 0.9 s; edge, tunnel or the origin's own queue?"""
+    stalled = {'status': 0, 'total_s': 5.1, 'exit': 28}
+    assert net_path.stalled_hop({**OK, 'public': stalled, 'origin': {'status': 200, 'total_s': 0.02}}) == 'cloudflare_to_origin'
+    assert net_path.stalled_hop({**OK, 'public': stalled, 'origin': {'status': 0, 'total_s': 5.0, 'exit': 28}}) == 'origin'
+    assert net_path.stalled_hop({**OK, 'public': stalled, 'origin': {'status': 200, 'total_s': 3.1}}) == 'origin'
+    assert net_path.stalled_hop({**OK, 'origin': {'status': 0, 'exit': 7}}) is None   # the public path was fine
+
+
 def test_summary_counts_stalled_minutes_by_hop():
     from datetime import datetime
     now = datetime.now(net_path.KST).strftime('%Y-%m-%d %H:%M:%S')
