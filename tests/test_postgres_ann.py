@@ -183,7 +183,7 @@ def test_per_kind_halfvec_indexes_are_used_once_present_and_rolled_back_cleanly(
             assert all(state['indexes']['embeddings_half_'+k][0] for k in ('a2a','mcp','x402'))
             index._kind_layout=None
             with store.tx(readonly=True):
-                assert layout(store)=={'kind_column':True,'kind_indexes':True}
+                assert layout(store)=={'kind_column':True,'kind_indexes':True,'capped':frozenset()}
                 assert nearest(store,blob,descriptor,kind='mcp')==before
                 # No kind: each kind's graph, merged by distance, gives the shared graph's answer (11-12 A3).
                 assert nearest(store,blob,descriptor)==before_any and len(before_any)==3
@@ -203,4 +203,83 @@ def test_per_kind_halfvec_indexes_are_used_once_present_and_rolled_back_cleanly(
             index._kind_layout=None
             with store.tx(readonly=True):
                 assert layout(store)['kind_column'] is False and nearest(store,blob,descriptor,kind='mcp')==before
+            store.close()
+
+
+def test_per_host_graph_cap_marks_rows_and_is_used_once_present(monkeypatch):
+    """P1 ① (11-13): one host adds at most CAP rows of a kind to that kind's graph; new rows enter at once,
+    refresh trims them, rollback returns to the per-kind graphs. Public triggers are untouched."""
+    import psycopg
+    from scripts.rehearse_storage_adapter_postgres import _private_cluster,PORT
+    from scripts import embeddings_kind_indexes as kinds
+    from scripts import embeddings_graph_cap as cap
+    from agent_market.storage_adapter import open_store
+    from agent_market.legacy_vector_index import ModelDescriptor
+    from agent_market.postgres_ann import install,nearest,layout,kind_search
+    binary=Path('/opt/homebrew/opt/postgresql@18/bin')
+    if not (binary/'initdb').is_file():pytest.skip('PostgreSQL 18 fixture tools unavailable')
+    monkeypatch.setattr(cap,'CAP',2)
+    with _private_cluster({name:str(binary/name) for name in ('initdb','pg_ctl')}) as cluster:
+        with psycopg.connect(host=cluster['socket'],port=PORT,dbname='postgres',user='postgres',autocommit=True) as conn:
+            conn.execute('CREATE EXTENSION vector')
+            store=open_store('postgresql',connection=conn,initialize=True,workflow_key=b'k'*32)
+            descriptor=ModelDescriptor('synthetic-ann',revision='fixture-v1')
+            index=store._vector_index
+            def add(n,kind,host,path):
+                vector=[0.]*768;vector[0]=1.;vector[n+1]=0.05*(n+1)
+                row={'key':'fixture:cap:%d'%n,'source':'fixture','kind':kind,'name':'Cap %d'%n,'url':'https://%s/%s'%(host,path),
+                     'description':'Synthetic','category':'research','networks':[],'details':{}}
+                rid=store.upsert_resource(row,now=10)
+                index.ensure_jobs(descriptor,limit=1,resource_ids=(rid,))
+                claim=index.claim_batch(descriptor,limit=1,resource_ids=(rid,))[0]
+                assert index.publish(claim,vector,descriptor)=='indexed'
+                return rid
+            crowd=[add(n,'a2a','crowd.example','agent%d'%n) for n in range(3)]
+            single=add(3,'a2a','single.example','agent')
+            tool=add(4,'mcp','tools.example','mcp')
+            install(store)
+            with store.tx():store._execute("UPDATE resources SET health_status='healthy'")
+            kinds.migrate(conn)
+            triggers=cap.status(conn)['public_triggers']
+            blob=struct.pack('<768f',*([1.]+[0.]*767))
+            index._kind_layout=None
+            with store.tx(readonly=True):
+                everything=nearest(store,blob,descriptor,kind='a2a')
+            assert sorted(everything)==sorted(crowd+[single])
+            steps=cap.migrate(conn)
+            assert (steps['set_in'],steps['set_out'])==(3,0)  # crowd's best two and single; the rest stay out
+            state=cap.status(conn)
+            assert state['marks']['a2a']=={'in':3,'out':1} and state['public_triggers']==triggers
+            assert all(state['indexes'][name][0] for name in cap.INDEXES.values())
+            index._kind_layout=None
+            with store.tx(readonly=True):
+                assert layout(store)['capped']==frozenset(('a2a','x402'))
+                assert kind_search(store,'a2a')[0]=="e.kind='a2a' AND e.in_kind_graph" and kind_search(store,'mcp')[0]=="e.kind='mcp'"
+                capped=nearest(store,blob,descriptor,kind='a2a')
+                assert sorted(capped)==sorted(crowd[:2]+[single])  # ties rank by id
+                assert nearest(store,blob,descriptor,kind='mcp')==[tool]
+                assert set(nearest(store,blob,descriptor))==set(crowd[:2]+[single,tool])
+                store._execute('SET LOCAL enable_seqscan=off')
+                plan=store._execute("""EXPLAIN SELECT e.resource_id FROM agentcon_search.embeddings e WHERE e.kind='a2a' AND e.in_kind_graph
+                    ORDER BY e.embedding::public.halfvec(768) <=> %s::public.halfvec(768) LIMIT 10""",(vector_literal(blob),)).fetchall()
+                assert any('embeddings_half_a2a_cap' in line[0] for line in plan)
+            # A new listing enters the graph at once (default true); refresh trims the crowded host again.
+            late=add(5,'a2a','crowd.example','agent5')
+            assert conn.execute('SELECT in_kind_graph FROM agentcon_search.embeddings WHERE resource_id=%s',(late,)).fetchone()[0] is True
+            assert cap.refresh(conn)['set_out']==1
+            assert cap.status(conn)['marks']['a2a']=={'in':3,'out':2}
+            # Re-embedding keeps the mark (the ON CONFLICT update does not name the column).
+            store.upsert_resource({'key':'fixture:cap:0','source':'fixture','kind':'a2a','name':'Cap 0 changed','url':'https://crowd.example/agent0',
+                                   'description':'Changed','category':'research','networks':[],'details':{}},now=20)
+            index.ensure_jobs(descriptor,limit=1,resource_ids=(crowd[0],))
+            claim=index.claim_batch(descriptor,limit=1,resource_ids=(crowd[0],))[0]
+            vector=[0.]*768;vector[0]=1.;vector[7]=0.3
+            assert index.publish(claim,vector,descriptor)=='indexed'
+            assert conn.execute('SELECT in_kind_graph FROM agentcon_search.embeddings WHERE resource_id=%s',(crowd[0],)).fetchone()[0] is True
+            cap.rollback(conn)
+            index._kind_layout=None
+            with store.tx(readonly=True):
+                assert layout(store)['capped']==frozenset() and layout(store)['kind_indexes']
+                assert sorted(nearest(store,blob,descriptor,kind='a2a'))==sorted(crowd+[single,late])
+            assert cap.status(conn)['public_triggers']==triggers and not cap.status(conn)['column']
             store.close()

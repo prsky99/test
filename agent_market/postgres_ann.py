@@ -18,6 +18,9 @@ PROFILE = 'agentcon-pgvector-hnsw-768-cosine-v1'
 KINDS = ('a2a', 'mcp', 'x402')
 KIND_INDEXES = {kind: 'embeddings_half_' + kind for kind in KINDS}
 LAYOUT_SECONDS = 300
+# Per-host cap (P1 ①, 11-13): the a2a and x402 graphs over the rows marked in_kind_graph, at most 1,000
+# per host and kind (scripts.embeddings_graph_cap). Used per kind only when the column and that index exist.
+CAP_INDEXES = {'a2a': 'embeddings_half_a2a_cap', 'x402': 'embeddings_half_x402_cap'}
 
 
 def layout(store):
@@ -29,11 +32,13 @@ def layout(store):
         return cached[1]
     column = bool(store._execute("""SELECT 1 FROM pg_attribute WHERE attrelid='agentcon_search.embeddings'::regclass
         AND attname='kind' AND NOT attisdropped""").fetchall())
-    valid = store._execute("""SELECT count(*) FROM pg_index i JOIN pg_class c ON c.oid=i.indexrelid
+    names = {name for (name,) in store._execute("""SELECT c.relname FROM pg_index i JOIN pg_class c ON c.oid=i.indexrelid
         JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='agentcon_search'
-        AND c.relname IN ('embeddings_half_a2a','embeddings_half_mcp','embeddings_half_x402')
-        AND i.indisvalid AND i.indisready""").fetchone()[0]
-    value = {'kind_column': column, 'kind_indexes': column and valid == len(KINDS)}
+        AND c.relname LIKE 'embeddings_half_%%' AND i.indisvalid AND i.indisready""").fetchall()}
+    marked = bool(store._execute("""SELECT 1 FROM pg_attribute WHERE attrelid='agentcon_search.embeddings'::regclass
+        AND attname='in_kind_graph' AND NOT attisdropped""").fetchall())
+    value = {'kind_column': column, 'kind_indexes': column and set(KIND_INDEXES.values()) <= names,
+             'capped': frozenset(kind for kind, name in CAP_INDEXES.items() if column and marked and name in names)}
     if index is not None:
         index._kind_layout = (time.monotonic(), value)
     return value
@@ -42,8 +47,11 @@ def layout(store):
 def kind_search(store, kind):
     """(kind clause, order expression, query cast) for one kind's own graph, or None for the shared graph.
     The kind is a literal from KINDS, so the planner can prove the partial index predicate."""
-    if kind not in KINDS or not layout(store)['kind_indexes']:
+    shape = layout(store)
+    if kind not in KINDS or not shape['kind_indexes']:
         return None
+    if kind in shape.get('capped', ()):
+        return "e.kind='%s' AND e.in_kind_graph" % kind, 'e.embedding::public.halfvec(768)', 'public.halfvec(768)'
     return "e.kind='%s'" % kind, 'e.embedding::public.halfvec(768)', 'public.halfvec(768)'
 
 
