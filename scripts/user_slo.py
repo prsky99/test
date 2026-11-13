@@ -237,9 +237,28 @@ def failure_reason(entry, card):
         return 'policy_blocked'
     if reason == 'not_verified_read_only':
         return 'unverified_tool'
+    failure = entry.get('failure') or {}
+    if 'provider authorization' in str(failure.get('detail') or '').lower() or failure.get('error_code') in (
+            'provider_auth_required', 'not_authorized'):
+        return 'provider_auth_required'     # 11-14: the recommended agent needs the caller's own provider key
     if entry.get('connection_available') is False or entry.get('error') == 'tool_unlisted':
         return 'unrelayed'
+    if failure.get('stage') == 'tools/list' and failure.get('status') == 200 and not failure.get('error_code'):
+        return 'no_relayed_tools'           # 11-14: connected, but no tool is verified read-only for relaying
+    if failure.get('cause'):
+        return 'gateway:' + str(failure['cause'])[:40]   # the edge Worker's error.data.cause (09da7f12, 11-14)
     return 'connect_failed'
+
+
+def failure_detail(stage, response, body):
+    """What a failed connect step answered (11-14 PM: count connection failures by their cause): HTTP status, the
+    JSON-RPC or problem error code, the edge Worker's cause and a short detail. No provider text beyond 120 chars."""
+    body = body if isinstance(body, dict) else {}
+    error = body.get('error') if isinstance(body.get('error'), dict) else {}
+    data = error.get('data') if isinstance(error.get('data'), dict) else {}
+    return {'stage': stage, 'status': getattr(response, 'status_code', None),
+            'error_code': data.get('error_code') or body.get('error_code'), 'cause': data.get('cause'),
+            'detail': str(error.get('message') or body.get('detail') or '')[:120] or None}
 
 
 def recommended_tool(body):
@@ -254,20 +273,36 @@ def recommended_tool(body):
 TOOL_LISTED_FROM = time.mktime((2026, 11, 13, 9, 0, 0, 0, 0, -1))
 
 
-def connector(endpoint):
-    """A read-only connect through the gateway: MCP initialize + tools/list, or the A2A card. No tools/call."""
+def connector(endpoint, seen=None):
+    """A read-only connect through the gateway: MCP initialize + tools/list, or the A2A card. No tools/call.
+    A failed step leaves its failure_detail in `seen` (11-14)."""
+    seen = {} if seen is None else seen
+
+    def parsed(response):
+        try:
+            return response.json()
+        except ValueError:
+            return {}
     if '/api/gateway/a2a/' in endpoint:
         # A2A (11-11): connecting means the gateway serves the agent's card; no message is sent.
         def connect(client):
             response = client.get(endpoint, headers={'Accept': 'application/json'})
+            if response.status_code != 200:
+                seen.update(failure_detail('agent card', response, parsed(response)))
             return ['(agent card)'] if response.status_code == 200 else []
         return connect
 
     def connect(client):  # one connection for the pair: the session belongs to it
-        init, _ = mcp(client, endpoint, 'initialize', {'protocolVersion': '2025-06-18', 'capabilities': {},
-                                                        'clientInfo': {'name': 'user-slo', 'version': '1'}})
+        init, first = mcp(client, endpoint, 'initialize', {'protocolVersion': '2025-06-18', 'capabilities': {},
+                                                            'clientInfo': {'name': 'user-slo', 'version': '1'}})
+        if init.status_code != 200 or 'error' in first:
+            seen.update(failure_detail('initialize', init, first))
+            return []
         listed, body = mcp(client, endpoint, 'tools/list', session=init.headers.get('mcp-session-id'), rid=2)
-        return [t.get('name') for t in (body.get('result') or {}).get('tools') or [] if isinstance(t, dict)]
+        names = [t.get('name') for t in (body.get('result') or {}).get('tools') or [] if isinstance(t, dict)]
+        if not names:
+            seen.update(failure_detail('tools/list', listed, body))
+        return names
     return connect
 
 
@@ -297,7 +332,8 @@ def check_recommend_and_connect(n=2):
             entry['reason'] = failure_reason(entry, first_card(result[1] if result else None))
             conn.append(entry)
             continue
-        took_c, names, error_c = timed(lambda: on_fresh(connector(endpoint)))
+        seen = {}
+        took_c, names, error_c = timed(lambda: on_fresh(connector(endpoint, seen)))
         names = names or []
         listed = (wanted in names) if wanted and '/api/gateway/mcp/' in endpoint and names else None
         if listed is False and time.time() >= TOOL_LISTED_FROM:
@@ -305,6 +341,8 @@ def check_recommend_and_connect(n=2):
         entry = {'endpoint': endpoint.rsplit('/', 2)[-2] + '/' + endpoint.rsplit('/', 1)[-1], 's': took_c,
                  'tools': len(names), 'error': error_c, 'connection_available': available,
                  'recommended_tool': wanted, 'tool_listed': listed}
+        if seen:
+            entry['failure'] = seen
         entry['reason'] = failure_reason(entry, first_card(result[1] if result else None))
         conn.append(entry)
     rec_bad = [r for r in rec if r['s'] > TARGET['recommend_s'] or not r['answered']]

@@ -55,3 +55,17 @@
 3. **추천 서버 시간**(검색과 RAG): 서버 p50 4.2초 → 3초 안.
 4. **연결 실패 원인 코드 집계**(운영·SRE): 새 Worker의 cause로 나눠 담당을 정한다.
 5. 경로(한국↔엣지) 몫은 측정 위치의 무료 플랜 경로라 우리가 직접 줄이기 어렵다. 서버 몫을 줄여 여유를 만든다.
+
+## 5. 연결 실패 원인 (PM 03:1x ③, 운영·SRE 02:3x)
+11-11~11-14 user_slo 77회의 연결 실패 17표본. 원인이 없던 것은 같은 엔드포인트에 새 Worker로 다시 연결해 받았다(02:32, 읽기 전용 initialize·tools/list·카드).
+
+| 원인 | 표본 | 예 | 담당·대책 |
+|---|---|---|---|
+| 추천 도구가 중계 안 됨(unrelayed / tool_unlisted) | 6 | 35275 vivid_fulfilment_shipping, 43775 x711_email_send, 56920 invoice_ocr | 실행 도구(이메일 발송 등)는 정책상 중계 안 함. 읽기 도구는 검증 대상. 추천이 연결 가능한 도구를 먼저 보이게(검색과 RAG) |
+| 연결은 되지만 중계 도구 0개(no_relayed_tools) | 3(+11-11 1) | 33685(도구 33), 50143(3), 36139(8) | 읽기 전용으로 검증된 도구가 없어 게이트웨이가 아무것도 중계하지 않음. 검증 대상에 넣거나 추천에서 연결 가능 표시를 정확히(검색과 RAG) |
+| 제공자 인증 필요(provider_auth_required) | 2(+11-11 1) | 270822(bearer), 86992 A2A(bearer) | 게이트웨이가 400 "separate provider authorization"을 답함. 추천 1위로 키가 필요한 에이전트가 나옴(검색과 RAG) |
+| 일시 실패(지금은 정상) | 1 | 36577 지금 도구 23개 | 재현 안 됨 |
+| 게이트웨이 경로 없음(no_gateway_endpoint) | 2 | 11-13 02:05, 22:07 | 추천 카드에 연결 경로가 없음(검색과 RAG) |
+
+- 이 실패들은 새 Worker까지 가기 전, 원서버 게이트웨이의 연결 준비 단계에서 생긴다. 그래서 Worker의 cause가 붙지 않는다.
+- 앞으로는 user_slo가 실패한 단계의 상태·오류 코드·cause·설명을 `connect.samples[].failure`에 남긴다. reason에 provider_auth_required, no_relayed_tools, gateway:<cause>를 더했다.

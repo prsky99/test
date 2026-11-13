@@ -105,3 +105,23 @@ def test_a_no_match_answer_is_no_recommendation(monkeypatch, cards, expected):
     _, connect = user_slo.check_recommend_and_connect(1)
     sample = connect['samples'][0]
     assert sample['error'] == expected and sample['reason'] == expected and connect['ok'] is False
+
+
+def test_a_failed_connect_step_keeps_its_cause_and_names_the_reason():
+    """11-14 PM 03:1x: connection failures are counted by cause; the gateway's answer is kept, not thrown away."""
+    from types import SimpleNamespace
+    from scripts import user_slo as u
+    auth = u.failure_detail('initialize', SimpleNamespace(status_code=400), {
+        'type': 'https://agentconcierge.biz/errors/bad-request', 'status': 400, 'error_code': 'HTTP_400',
+        'detail': 'This connection requires separate provider authorization.'})
+    assert auth == {'stage': 'initialize', 'status': 400, 'error_code': 'HTTP_400', 'cause': None,
+                    'detail': 'This connection requires separate provider authorization.'}
+    assert u.failure_reason({'tools': 0, 'failure': auth}, None) == 'provider_auth_required'
+    empty = u.failure_detail('tools/list', SimpleNamespace(status_code=200), {'jsonrpc': '2.0', 'id': 2, 'result': {'tools': []}})
+    assert u.failure_reason({'tools': 0, 'failure': empty}, None) == 'no_relayed_tools'
+    edge = u.failure_detail('initialize', SimpleNamespace(status_code=200), {'jsonrpc': '2.0', 'id': 1, 'error': {
+        'code': -32000, 'message': 'The execution is unavailable.',
+        'data': {'error_code': 'gateway_unavailable', 'cause': 'provider_timeout'}}})
+    assert edge['cause'] == 'provider_timeout' and u.failure_reason({'tools': 0, 'failure': edge}, None) == 'gateway:provider_timeout'
+    assert u.failure_reason({'tools': 0}, None) == 'connect_failed'
+    assert u.failure_reason({'tools': 3, 'failure': edge}, None) is None
