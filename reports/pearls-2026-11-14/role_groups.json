@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-14 04:25",
+ "generated": "2026-11-14 04:38",
  "source": "scripts/report_v2.py (role task test v2)",
  "rank_rule": "quality score (evidence 60 + writing 40), one place per registrable domain; #1 at 85+ is the final pearl, #2-#3 are external fallbacks",
  "roles": {
@@ -23,6 +23,7 @@
      "score": 88.0,
      "domain": "research",
      "tested": "2026-11-14 04:01",
+     "success_days": 1,
      "rank": 1,
      "id": 34550,
      "name": "CutGPT Research & Fact-Check",
@@ -45,6 +46,7 @@
      "score": 88.0,
      "domain": "research",
      "tested": "2026-11-14 04:02",
+     "success_days": 1,
      "rank": 2,
      "id": 34807,
      "name": "Paper Finder",
@@ -68,6 +70,7 @@
      "score": 86.0,
      "domain": "research",
      "tested": "2026-11-14 04:03",
+     "success_days": 1,
      "rank": 3,
      "id": 47151,
      "name": "io.github.cyanheads/openalex-mcp-server",
@@ -90,13 +93,15 @@
      "score": 78.0,
      "domain": "research",
      "tested": "2026-11-14 04:01",
+     "success_days": 1,
      "rank": 4,
      "id": 39577,
      "name": "com.nobleblocks/nobleblocks-mcp",
      "coverage": "worldwide or not stated"
     }
    ],
-   "final_pearl": 34550,
+   "final_pearl": null,
+   "provisional_pearl": 34550,
    "fallbacks": [
     34807,
     47151
@@ -123,6 +128,7 @@
      "score": 88.0,
      "domain": "events",
      "tested": "2026-11-14 04:01",
+     "success_days": 1,
      "rank": 1,
      "id": 47538,
      "name": "FestivalFinder",
@@ -146,6 +152,7 @@
      "score": 55,
      "domain": "events",
      "tested": "2026-11-14 04:02",
+     "success_days": 0,
      "rank": null,
      "id": 38634,
      "name": "NUM",
@@ -169,13 +176,15 @@
      "score": 55,
      "domain": "events",
      "tested": "2026-11-14 04:01",
+     "success_days": 0,
      "rank": null,
      "id": 115024,
      "name": "Things To Do API",
      "coverage": "San Francisco Bay Area"
     }
    ],
-   "final_pearl": 47538,
+   "final_pearl": null,
+   "provisional_pearl": 47538,
    "fallbacks": [],
    "needs_agentcon_fallback": true
   },
@@ -199,6 +208,7 @@
      "score": 88.0,
      "domain": "economics",
      "tested": "2026-11-14 04:01",
+     "success_days": 1,
      "rank": 1,
      "id": 34791,
      "name": "Country Stats Facts",
@@ -221,6 +231,7 @@
      "score": 55,
      "domain": "economics",
      "tested": "2026-11-14 04:01",
+     "success_days": 0,
      "rank": null,
      "id": 37316,
      "name": "Economy Intel MCP",
@@ -240,6 +251,7 @@
      "score": 30,
      "domain": "economics",
      "tested": "2026-11-14 04:24",
+     "success_days": 0,
      "rank": null,
      "id": 47130,
      "name": "io.github.cyanheads/imf-mcp-server",
@@ -259,13 +271,15 @@
      "score": 30,
      "domain": "economics",
      "tested": "2026-11-14 04:24",
+     "success_days": 0,
      "rank": null,
      "id": 33130,
      "name": "ai.dsght/public",
      "coverage": "worldwide or not stated"
     }
    ],
-   "final_pearl": 34791,
+   "final_pearl": null,
+   "provisional_pearl": 34791,
    "fallbacks": [],
    "needs_agentcon_fallback": true
   },
@@ -289,6 +303,7 @@
      "score": 88.0,
      "domain": "news",
      "tested": "2026-11-14 04:01",
+     "success_days": 1,
      "rank": 1,
      "id": 147960,
      "name": "Galactic",
@@ -308,13 +323,15 @@
      "score": 30,
      "domain": "news",
      "tested": "2026-11-14 04:24",
+     "success_days": 0,
      "rank": null,
      "id": 41195,
      "name": "TechSnif",
      "coverage": "worldwide or not stated"
     }
    ],
-   "final_pearl": 147960,
+   "final_pearl": null,
+   "provisional_pearl": 147960,
    "fallbacks": [],
    "needs_agentcon_fallback": true
   },
@@ -337,6 +354,7 @@
      "score": 78.0,
      "domain": "security",
      "tested": "2026-11-14 04:01",
+     "success_days": 1,
      "rank": 1,
      "id": 37259,
      "name": "com.cve-security/cve-intelligence",
@@ -356,6 +374,7 @@
      "score": 30,
      "domain": "security",
      "tested": "2026-11-14 04:24",
+     "success_days": 0,
      "rank": null,
      "id": 55398,
      "name": "CyberMax Data",
@@ -363,6 +382,7 @@
     }
    ],
    "final_pearl": null,
+   "provisional_pearl": null,
    "fallbacks": [],
    "needs_agentcon_fallback": true
   },
@@ -387,6 +407,7 @@
      "score": 86.0,
      "domain": "finance",
      "tested": "2026-11-14 04:02",
+     "success_days": 1,
      "rank": 1,
      "id": 226724,
      "name": "FXHUB",
@@ -409,6 +430,7 @@
      "score": 78.0,
      "domain": "finance",
      "tested": "2026-11-14 04:02",
+     "success_days": 1,
      "rank": 2,
      "id": 36306,
      "name": "AllRatesToday exchange rates (hosted)",
@@ -432,6 +454,7 @@
      "score": 78.0,
      "domain": "finance",
      "tested": "2026-11-14 04:01",
+     "success_days": 1,
      "rank": 3,
      "id": 48762,
      "name": "Frankfurter",
@@ -454,13 +477,15 @@
      "score": 68.0,
      "domain": "finance",
      "tested": "2026-11-14 04:01",
+     "success_days": 1,
      "rank": 4,
      "id": 47112,
      "name": "io.github.cyanheads/exchange-rates-mcp-server",
      "coverage": "worldwide or not stated"
     }
    ],
-   "final_pearl": 226724,
+   "final_pearl": null,
+   "provisional_pearl": 226724,
    "fallbacks": [
     36306,
     48762
@@ -484,6 +509,7 @@
      "score": 53.0,
      "domain": "developer",
      "tested": "2026-11-14 04:01",
+     "success_days": 1,
      "rank": 1,
      "id": 40897,
      "name": "com.somosvelora/velora",
@@ -503,6 +529,7 @@
      "score": 30,
      "domain": "developer",
      "tested": "2026-11-14 04:24",
+     "success_days": 0,
      "rank": null,
      "id": 50709,
      "name": "Commit — Supply Chain Risk Scoring",
@@ -510,6 +537,7 @@
     }
    ],
    "final_pearl": null,
+   "provisional_pearl": null,
    "fallbacks": [],
    "needs_agentcon_fallback": true
   },
@@ -534,6 +562,7 @@
      "score": 88.0,
      "domain": "security",
      "tested": "2026-11-14 04:03",
+     "success_days": 1,
      "rank": 1,
      "id": 47161,
      "name": "io.github.cyanheads/osv-advisory-mcp-server",
@@ -555,6 +584,7 @@
      "score": 78.0,
      "domain": "security",
      "tested": "2026-11-14 04:01",
+     "success_days": 1,
      "rank": 2,
      "id": 286623,
      "name": "Threatist",
@@ -576,6 +606,7 @@
      "score": 78.0,
      "domain": "security",
      "tested": "2026-11-14 04:02",
+     "success_days": 1,
      "rank": 3,
      "id": 367249,
      "name": "Fixlane",
@@ -597,13 +628,15 @@
      "score": 68.0,
      "domain": "security",
      "tested": "2026-11-14 04:01",
+     "success_days": 1,
      "rank": 4,
      "id": 130453,
      "name": "AgentDiet Real-Time Open-Source Package CVE & GHSA Vulnerability Scanner (OSV.dev)",
      "coverage": "worldwide or not stated"
     }
    ],
-   "final_pearl": 47161,
+   "final_pearl": null,
+   "provisional_pearl": 47161,
    "fallbacks": [
     286623,
     367249
@@ -629,6 +662,7 @@
      "score": 88.0,
      "domain": "reference",
      "tested": "2026-11-14 04:01",
+     "success_days": 1,
      "rank": 1,
      "id": 47189,
      "name": "io.github.cyanheads/wikipedia-mcp-server",
@@ -650,13 +684,15 @@
      "score": 88.0,
      "domain": "reference",
      "tested": "2026-11-14 04:01",
+     "success_days": 1,
      "rank": 2,
      "id": 143970,
      "name": "Faceabot Wikipedia",
      "coverage": "worldwide or not stated"
     }
    ],
-   "final_pearl": 47189,
+   "final_pearl": null,
+   "provisional_pearl": 47189,
    "fallbacks": [
     143970
    ],
@@ -682,6 +718,7 @@
      "score": 86.0,
      "domain": "weather",
      "tested": "2026-11-14 04:01",
+     "success_days": 1,
      "rank": 1,
      "id": 56036,
      "name": "io.github.trondbjoroy/met-mcp",
@@ -704,6 +741,7 @@
      "score": 78.0,
      "domain": "weather",
      "tested": "2026-11-14 04:02",
+     "success_days": 1,
      "rank": 2,
      "id": 38062,
      "name": "get4agent",
@@ -726,13 +764,15 @@
      "score": 55,
      "domain": "weather",
      "tested": "2026-11-14 04:01",
+     "success_days": 0,
      "rank": null,
      "id": 37322,
      "name": "Weather & Geo Intel MCP",
      "coverage": "US (NWS data: points in the US and its territories)"
     }
    ],
-   "final_pearl": 56036,
+   "final_pearl": null,
+   "provisional_pearl": 56036,
    "fallbacks": [
     38062
    ],

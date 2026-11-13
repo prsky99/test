@@ -66,7 +66,8 @@ ROLE_VALUES = {
     'fx.rate': [(r'(?:^|_)(?:to|target|quote|symbols?)(?:_|$)', 'EUR'),
                 (r'(?:^|_)(?:from|base|source)(?:_|$)', 'USD'), (r'amount|value', 100)],
     'weather.forecast': [(r'city|location|place|query|^q$|name', 'Seoul'), (r'lat', 37.5665), (r'lon|lng', 126.978)],
-    'events.search': [(r'city|location|place|destination|query|^q$', 'Seoul'), (r'month', 5)],
+    # PM 11-14: events are tested on coming dates (47538 had answered for May 2020). Values are set per run below.
+    'events.search': [(r'city|location|place|destination|query|^q$', 'Seoul')],
     'cve.kev': [(r'cve|id|query|^q$', 'CVE-2021-44228')],
     # 11-14 07:3x (workflow team, company-due-diligence): a listed public company, never a person
     'company.lookup': [(r'company|name|query|^q$|search|term|business|entity|legal', 'Apple Inc'),
@@ -138,6 +139,28 @@ def full_text(result, cap=20000):
     return '\n'.join(parts)[:cap]
 
 
+def coming_dates(now=None):
+    """Next month and a date a week ahead, for roles about upcoming events."""
+    import datetime as dt
+    today = dt.date.fromtimestamp(now or time.time())
+    month = today.month % 12 + 1
+    year = today.year + (1 if month == 1 else 0)
+    return {'year': year, 'month': month, 'date': (today + dt.timedelta(days=7)).isoformat()}
+
+
+def _event_value(name, spec):
+    """Coming date values for events.search: year, month, start/date fields (never a past default or minimum)."""
+    soon = coming_dates()
+    key = name.lower()
+    if re.search(r'year', key):
+        return soon['year']
+    if re.search(r'month', key):
+        return soon['month'] if spec.get('type') in ('integer', 'number') else '%04d-%02d' % (soon['year'], soon['month'])
+    if re.search(r'date|from|start|after', key):
+        return soon['date']
+    return None
+
+
 def role_arguments(tool, role, category=None, case_input=None):
     """Arguments for TOOL (compact form), or (None, reason)."""
     if any(usage._PII_PARAM.search(p) for p in tool.get('required') or []):
@@ -156,6 +179,8 @@ def role_arguments(tool, role, category=None, case_input=None):
         value = None
         if spec.get('enum'):
             value = spec['enum'][0]
+        elif role == 'events.search' and _event_value(name, spec) is not None:
+            value = _event_value(name, spec)
         elif spec.get('default') is not None:
             value = spec['default']
         elif isinstance(spec.get('examples'), list) and spec['examples']:

@@ -65,3 +65,11 @@ def test_role_task_input_maps_onto_parameter_names():
 def test_case_input_wins_over_generic_values():
     args = role_arguments(tool(['cve_id'], {'cve_id': {'type': 'string'}}), 'cve.kev', case_input={'cve_id': 'CVE-2024-3094'})[0]
     assert args == {'cve_id': 'CVE-2024-3094'}
+
+
+def test_events_use_coming_dates():
+    from scripts.role_tool_test import coming_dates
+    params = {'year': {'type': 'integer', 'default': 2020, 'minimum': 2020}, 'month': {'type': 'integer', 'minimum': 1}}
+    args = role_arguments(tool(['year', 'month'], params), 'events.search')[0]
+    soon = coming_dates()
+    assert args == {'year': soon['year'], 'month': soon['month']} and args['year'] >= 2026

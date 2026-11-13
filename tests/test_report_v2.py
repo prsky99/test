@@ -53,7 +53,8 @@ def test_rank_final_pearl_and_failure_domains():
     ranked = V.rank(V.latest_versions())['fx.rate']
     places = {m['resource_id']: m['rank'] for m in ranked['members']}
     assert places[1] == 1 and places[2] is None and places[3] == 2 and places[4] is None
-    assert ranked['final_pearl'] == 1 and ranked['fallbacks'] == [3] and ranked['domain'] == 'finance'
+    assert ranked['provisional_pearl'] == 1 and ranked['final_pearl'] is None      # one day only
+    assert ranked['fallbacks'] == [3] and ranked['domain'] == 'finance'
 
 
 def test_below_the_mark_is_not_a_final_pearl():
@@ -89,3 +90,12 @@ def test_measurement_windows():
         return _t.mktime((2026, 11, 15, h, m, 0, 0, 0, -1))
     assert V.quiet_now(at(9, 12)) and not V.quiet_now(at(9, 56)) and not V.quiet_now(at(10, 5))
     assert not V.quiet_now(at(4, 30)) and V.quiet_now(at(5, 12))
+
+
+def test_one_day_is_provisional_two_days_confirm():
+    V.save_version(result(rid=11, latency=200))
+    ranked = V.rank(V.latest_versions())['fx.rate']
+    assert ranked['final_pearl'] is None and ranked['provisional_pearl'] == 11
+    V.save_version(result(rid=11, latency=200, started=time.time() - V.DAY))
+    ranked = V.rank(V.latest_versions())['fx.rate']
+    assert ranked['final_pearl'] == 11 and ranked['provisional_pearl'] is None

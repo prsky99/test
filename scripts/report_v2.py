@@ -24,6 +24,7 @@ GROUPS = ROOT / 'reports/pearls-2026-11-14/role_groups.json'
 BOARD = ROOT / 'logs/ops/status-board.md'
 RULES = 'v2-2026-11-14'
 PASS_MARK = 85
+CONFIRM_DAYS = 2            # PM 11-14: a final pearl needs successes on two different days; before that it is provisional
 DAY = 86400
 ROLE_DAILY_LIMIT = 60       # PM 11-14: role tests a day (back to 30 if refusals pass 5% in the first 3 days)
 # Our role names -> the workflow team's role task contracts (agent_market/necklaces/role_tasks, v1 11-14).
@@ -257,15 +258,18 @@ def rank(versions):
         for v in members:
             entry = {k: v.get(k) for k in ('resource_id', 'tool', 'outcome', 'reason', 'latency_ms', 'host',
                                            'registrable_domain', 'arguments', 'content_verdict', 'version')}
-            entry.update(score=v['quality']['score'], domain=v['domain'], tested=time.strftime('%Y-%m-%d %H:%M', time.localtime(v['tested'])))
+            entry.update(score=v['quality']['score'], domain=v['domain'], tested=time.strftime('%Y-%m-%d %H:%M', time.localtime(v['tested'])),
+                         success_days=success_days(v['resource_id'], role, v['tool'], time.time()))
             usable = v['outcome'] == 'succeeded' and v['registrable_domain'] not in seen
             entry['rank'] = len([e for e in ranked if e['rank']]) + 1 if usable else None
             if usable:
                 seen.add(v['registrable_domain'])
             ranked.append(entry)
         top = next((e for e in ranked if e['rank'] == 1), None)
+        good = bool(top and top['score'] >= PASS_MARK)
         out[role] = {'domain': ROLE_DOMAIN.get(role, 'other'), 'members': ranked,
-                     'final_pearl': top['resource_id'] if top and top['score'] >= PASS_MARK else None,
+                     'final_pearl': top['resource_id'] if good and top['success_days'] >= CONFIRM_DAYS else None,
+                     'provisional_pearl': top['resource_id'] if good and top['success_days'] < CONFIRM_DAYS else None,
                      'fallbacks': [e['resource_id'] for e in ranked if e['rank'] in (2, 3)],
                      'needs_agentcon_fallback': len([e for e in ranked if e['rank'] and e['rank'] >= 2]) <= 1}
     return out
@@ -289,8 +293,12 @@ def funnel(versions, ranked, candidates_a=None):
     ok = sum(v['outcome'] == 'succeeded' for v in versions)
     high = sum(v['quality']['score'] >= PASS_MARK for v in versions)
     finals = sum(1 for r in ranked.values() if r['final_pearl'])
+    provisional = sum(1 for r in ranked.values() if r.get('provisional_pearl'))
+    thin = sorted(role for role, r in ranked.items() if r['needs_agentcon_fallback'])
     return (f"{time.strftime('%m-%d %H:%M')} 진주 깔때기(검색과 RAG, report_v2): 후보 A {candidates_a if candidates_a is not None else '?'} → "
-            f"v2 보고서 {len(versions)}(성공 {ok}·실패 {len(versions) - ok}) → 85점 이상 {high} → 최종 진주 {finals}(역할 {finals}/{len(ranked)})")
+            f"v2 보고서 {len(versions)}(성공 {ok}·실패 {len(versions) - ok}) → 85점 이상 {high} → "
+            f"최종 진주 확정 {finals}·잠정 {provisional}(역할 {finals + provisional}/{len(ranked)}, 확정은 서로 다른 날 2회 성공) · "
+            f"외부 대체 1개 이하(AgentValCon 대체 필요): {', '.join(thin) or '없음'}")
 
 
 def candidates_a():
