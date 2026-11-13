@@ -26,7 +26,9 @@ def test_false_families_do_not(term, text):
     ('track solana price changes over 24 hours', ['track', 'solana', 'changes', 'price']),
     ('list the largest wallets holding USDC', ['wallets', 'holding', 'usdc']),
     ('embed documents for a vector database', ['embed']),
-    ('analyze competitors of a SaaS startup', ['analyze', 'competitors']),
+    # "of a/an" is not a subject boundary: "the abstract of an arXiv paper" and "the transcript of a YouTube
+    # video" lost what the abstract and the transcript are of (real tasks a06, p15, 11-14 00:4x).
+    ('get the abstract of an arxiv paper by its id', ['abstract', 'arxiv', 'paper', 'id']),
     ('history of the roman empire', ['history', 'roman', 'empire']),
     ('price of bitcoin', ['bitcoin', 'price']),
 ])

@@ -338,7 +338,7 @@ def _tool_text(tool, described):
     return text.lower().replace('_', ' ')
 
 
-TOPIC_BOUNDARY = re.compile(r'\b(?:(?:and\s+)?(?:return|include|provide|output)|about|regarding|concerning|related to|with|for|on|from|to|into|in|across|throughout|that|which|of\s+(?:a|an))\b', re.I)
+TOPIC_BOUNDARY = re.compile(r'\b(?:(?:and\s+)?(?:return|include|provide|output)|about|regarding|concerning|related to|with|for|on|from|to|into|in|across|throughout|that|which)\b', re.I)
 # A leading "Search for papers" names the papers search itself, so its "for" is no topic
 # boundary. "web search for AI news" (a search with its own object) and normalize_task's
 # "academic paper search for <task>" keep the boundary.
