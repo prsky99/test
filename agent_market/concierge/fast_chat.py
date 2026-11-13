@@ -76,6 +76,13 @@ def retrieval_text(task):
     # "alert me on Telegram": the place after "on" is the channel, not a subject to drop.
     text = re.sub(r'\b(?:alert|notify|ping|message|tell)\s+(?:me|us|the team|my team)?\s*(?:on|via|through|in|over)\s+'
                   r'(telegram|slack|discord|whatsapp|teams)\b', r'send \1 message', text, flags=re.I)
+    # "post to a Discord channel": "to" ended the capability before the channel, which named it (gate telegram-en1).
+    text = re.sub(r'\b(?:post|send|write|publish)\s+(?:a\s+|the\s+)?(?:message\s+|text\s+)?(?:to|in|on|into)\s+'
+                  r'(?:a\s+|the\s+|my\s+|our\s+)?(telegram|slack|discord|whatsapp|teams)(?:\s+(?:channel|group|chat|server))?\b',
+                  r'send \1 message', text, flags=re.I)
+    # "look up details for a CVE": the CVE is what is looked up, not a subject after the capability (gate cve_scan-en1).
+    text = re.sub(r'\b(?:details?|info(?:rmation)?|data)\s+(?:for|on|about|of)\s+(?:a\s+|an\s+|the\s+)?(cves?)\b',
+                  r'\1 vulnerability', text, flags=re.I)
     # "Context: a small shop. Requirement: compose a jingle. Nothing else is needed": the labelled
     # requirement is the capability; the original stays after "for" for its conditions (stage 1, 11-04).
     stated = STATED_REQUIREMENT.search(text)
