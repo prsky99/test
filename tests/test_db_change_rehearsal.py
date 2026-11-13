@@ -53,3 +53,13 @@ def test_restore_workers_apply_to_the_restore_sessions_only(monkeypatch):
     monkeypatch.setenv('AGENTCON_RESTORE_MAINTENANCE_WORKERS', '1; DROP')
     assert 'PGOPTIONS' not in R._restore_environment()
     assert 'PGOPTIONS' not in R._environment()                          # the checks after the restore keep defaults
+
+
+def test_restore_timeout_is_raised_only_by_its_variable_within_bounds(monkeypatch):
+    """11-14: the graph-cap full rehearsal hit the 3600 s restore limit under load; one run may raise it."""
+    from scripts import db_change_rehearsal as rehearsal
+    monkeypatch.delenv('AGENTCON_RESTORE_TIMEOUT_SECONDS', raising=False)
+    assert rehearsal.restore_timeout() == 3600
+    for value, expected in (('5400', 5400), ('60', 600), ('999999', 14400), ('soon', 3600), ('', 3600)):
+        monkeypatch.setenv('AGENTCON_RESTORE_TIMEOUT_SECONDS', value)
+        assert rehearsal.restore_timeout() == expected

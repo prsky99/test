@@ -123,6 +123,20 @@ def _restore_environment():
     return env
 
 
+# 11-14 02:10 the graph-cap full rehearsal stopped at this limit while restoring under load 7~9 (PM 03:4x).
+# AGENTCON_RESTORE_TIMEOUT_SECONDS raises it for one run, within RESTORE_TIMEOUT_BOUNDS; the default is unchanged.
+RESTORE_TIMEOUT_SECONDS = 3600
+RESTORE_TIMEOUT_BOUNDS = (600, 14400)
+
+
+def restore_timeout():
+    value = os.environ.get('AGENTCON_RESTORE_TIMEOUT_SECONDS', '')
+    if not value.strip().isdigit():
+        return RESTORE_TIMEOUT_SECONDS
+    low, high = RESTORE_TIMEOUT_BOUNDS
+    return min(high, max(low, int(value)))
+
+
 def restore(backup, cluster, mode, port):
     dump = backup / 'database.dump'
     target = ['--host', cluster['socket'], '--port', str(port), '--username', 'postgres', '--dbname', 'postgres']
@@ -139,7 +153,7 @@ def restore(backup, cluster, mode, port):
         order = Path(cluster['root']) / 'restore.list'
         order.write_text('\n'.join(keep) + '\n')
         command = common + ['-L', str(order)] + target + [str(dump)]
-    result = subprocess.run(command, env=_restore_environment(), capture_output=True, timeout=3600)
+    result = subprocess.run(command, env=_restore_environment(), capture_output=True, timeout=restore_timeout())
     if result.returncode:
         return {'ok': False, 'stderr': result.stderr.decode(errors='replace')[-2000:]}
     gates = []
