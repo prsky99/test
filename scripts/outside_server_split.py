@@ -155,6 +155,12 @@ def markdown(result):
             whole['n'], ms(whole['total']['p50']), ms(whole['server']['p50']), ms(whole['outside']['p50']),
             ms(whole['client_edge']['p50']), ms(whole['edge_origin']['p50']), ms(whole['body']['p50'])))
         lines.append('')
+    lines += ['## Stalled minutes by hop (net_path)', '',
+              '"origin": the local probe (127.0.0.1:8400) was slow too; "cloudflare_to_origin": the origin answered',
+              'locally at once, or was not probed yet (before 11-13 16:28).', '']
+    for b, counts in sorted(result.get('stalls', {}).items(), reverse=True):
+        lines.append('- %s: %s' % (b, ', '.join('%s %d' % (k, v) for k, v in sorted(counts.items()))))
+    lines += ['']
     lines += ['## net_path one probe a minute (robots.txt vs edge-only trace)', '',
               '| date hour | n | client->edge | edge-only wait | c2o (tunnel+origin) | body |', '|---|---|---|---|---|---|']
     for (date, hour), s in result['probe_hours'].items():
@@ -190,12 +196,26 @@ def band_table(slo_rows, probe_rows):
             {b: summarize(v, ('client_edge', 'edge_wait', 'c2o', 'body')) for b, v in probe.items()})
 
 
+def stall_table(probe_rows):
+    """Stalled minutes by hop and band (net_path.stalled_hop). 'origin' exists from 11-13 16:28 (local probe):
+    before that a stall past the edge is 'cloudflare_to_origin' whether the tunnel or the origin held it."""
+    by_band, probed = defaultdict(lambda: defaultdict(int)), defaultdict(int)
+    for row in probe_rows:
+        b = band(row['at'][11:13])
+        probed[b] += 1
+        if row.get('origin') is not None:
+            by_band[b]['(local origin probed)'] += 1
+        if row.get('stalled'):
+            by_band[b][row['stalled']] += 1
+    return {b: dict(by_band[b], minutes=probed[b]) for b in probed}
+
+
 def build(slo_path, probe_path, since, until=''):
     slo_rows, probe_rows = read_jsonl(slo_path, since, until), read_jsonl(probe_path, since, until)
     slo_hours, slo_whole, slo_colos = slo_table(slo_rows)
     probe_hours, probe_colos = probe_table(probe_rows)
     slo_bands, probe_bands = band_table(slo_rows, probe_rows)
-    return {'since': since, 'until': until, 'slo_hours': slo_hours, 'slo_whole': slo_whole, 'slo_colos': slo_colos,
+    return {'stalls': stall_table(probe_rows), 'since': since, 'until': until, 'slo_hours': slo_hours, 'slo_whole': slo_whole, 'slo_colos': slo_colos,
             'probe_hours': probe_hours, 'probe_colos': probe_colos, 'slo_bands': slo_bands, 'probe_bands': probe_bands}
 
 

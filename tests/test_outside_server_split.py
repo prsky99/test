@@ -52,3 +52,17 @@ def test_until_bounds_the_window(tmp_path):
     probes = tmp_path / 'net.jsonl'
     probes.write_text('')
     assert split.build(str(slo), str(probes), '2026-11-13 00:00', '2026-11-14 00:00')['slo_whole'] == {}
+
+
+def test_stalls_are_counted_by_hop_and_band(tmp_path):
+    slo = tmp_path / 'slo.jsonl'
+    slo.write_text('')
+    rows = [dict(probe('2026-11-13 16:08:58', 1.1, 2.0, 2.3, 0.0), stalled='cloudflare_to_origin'),
+            dict(probe('2026-11-13 16:30:00', 1.1, 2.0, 1.1, 2.2), stalled='origin', origin={'status': 0}),
+            dict(probe('2026-11-13 03:00:00', 0.3, 0.45, 0.3, 0.65), origin={'status': 200})]
+    probes = tmp_path / 'net.jsonl'
+    probes.write_text('\n'.join(json.dumps(r) for r in rows))
+    result = split.build(str(slo), str(probes), '2026-11-13 00:00')
+    assert result['stalls']['day 09-24'] == {'cloudflare_to_origin': 1, 'origin': 1, '(local origin probed)': 1, 'minutes': 2}
+    assert result['stalls']['night 01-08'] == {'(local origin probed)': 1, 'minutes': 1}
+    assert '- day 09-24: (local origin probed) 1, cloudflare_to_origin 1, minutes 2, origin 1' in split.markdown(result)
