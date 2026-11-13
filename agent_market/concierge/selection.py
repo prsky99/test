@@ -4,6 +4,7 @@ from collections import Counter
 from functools import lru_cache
 import json
 import math
+import os
 import re
 import time
 
@@ -420,7 +421,8 @@ def capability_terms(task):
     focused_task = NARRATIVE_LEAD.sub('', task)
     if focused_task != task:
         focused_task = LEAD_CLAUSE_END.split(focused_task, maxsplit=1)[0]
-    head = TOPIC_BOUNDARY.split(SEEK_PHRASE.sub(r'\1', focused_task), maxsplit=1)[0]
+    split = TOPIC_BOUNDARY.split(SEEK_PHRASE.sub(r'\1', focused_task), maxsplit=1)
+    head = split[0]
     terms = search_terms(head) or search_terms(focused_task) or search_terms(task)
     # Generic verbs match almost any tool ("Get an API key"), and modifiers such
     # as "research" in "research papers" do not name the capability; keep the nouns.
@@ -432,6 +434,14 @@ def capability_terms(task):
     # "embed documents", "read a figma design file": the file or document is the input, not the capability,
     # when another word names what is done with it (Chat gate embeddings-en2, figma-ko0, 11-13).
     specific = [term for term in specific if term not in INPUT_OBJECTS] or specific
+    # A head that only says "details", "data" or "post" names no capability; the object after the boundary does
+    # ("look up details for a CVE", "post to a Discord channel"), when the catalog knows the word well enough that
+    # it is a product or a domain rather than a person ("send a message to John": john is in 20 listings).
+    if len(split) > 1 and specific and set(specific) <= WEAK_HEAD:
+        objects = [term for term in search_terms(split[1]) if term not in WEAK_HEAD and term not in GENERIC_ACTIONS
+                   and term not in CAPABILITY_MODIFIERS and term not in INPUT_OBJECTS and _catalog_count(term) >= 50][:2]
+        if objects:
+            specific = objects
     # The place, company or document is what the capability is applied to, not the capability.
     if set(specific).intersection({'weather','forecast','temperature','tide','tides','surf','surfing','swell','air','aqi'}):
         specific = [term for term in specific if term in WEATHER_TERMS] or specific
@@ -476,6 +486,22 @@ QUALIFIER_PHRASES = re.compile(r'\b(?:today|in\s+real[\s-]time|quickly|for\s+my\
 
 
 INPUT_OBJECTS = frozenset('document documents file files read reads reading'.split())
+WEAK_HEAD = frozenset('details detail info information data message messages post posts send result results content '
+                      'record records lookup channel channels'.split())
+
+
+@lru_cache(maxsize=1)
+def _catalog_words():
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'catalog_vocabulary.json')
+    try:
+        with open(path, encoding='utf-8') as stream:
+            return json.load(stream).get('words') or {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _catalog_count(term):
+    return _catalog_words().get(term, 0)
 OPEN_SOURCE = re.compile(r'\bopen[\s-]+source\b', re.I)
 IMAGE_KINDS = {'illustration', 'illustrations', 'drawing', 'drawings', 'painting', 'paintings', 'artwork', 'logo', 'logos'}
 SPEECH_PHRASE = re.compile(r'\b(?:text[\s-]+to[\s-]+(?:speech|voice)|speech[\s-]+to[\s-]+text)\b', re.I)

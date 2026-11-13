@@ -40,12 +40,14 @@ def test_one_qualifier_list():
     assert QUALIFIERS is QUALIFIER_PHRASES
 
 
-@pytest.mark.parametrize('task, text', [
-    ('post to a Discord channel', 'send Discord message'),
-    ('send a message to my Slack channel', 'send Slack message'),
-    ('look up details for a CVE', 'look up CVE vulnerability'),
-    ('post a tweet', 'post a tweet'),
+@pytest.mark.parametrize('task, core', [
+    ('look up details for a CVE', ['cve']),
+    ('post to a Discord channel', ['discord']),
+    ('send a message to my Slack channel', ['slack']),
+    ('send a message to John', ['send', 'message']),        # a person (20 listings) is not a capability
+    ('SEC filings for Apple', ['sec', 'filings']),           # the head already names the capability
+    ('weather forecast for Seoul', ['weather', 'forecast']),
 ])
-def test_channel_and_cve_rewrites(task, text):
-    """PM 11-14 02:3x: gate telegram-en1 lost "Discord" at "to", cve_scan-en1 lost "CVE" at "for"."""
-    assert retrieval_text(task) == text
+def test_a_weak_head_takes_the_object_after_the_boundary(task, core):
+    """PM 11-14 02:5x: a general rule, not phrase rewrites (gate cve_scan-en1, telegram-en1)."""
+    assert capability_terms(normalize_task(retrieval_text(task))) == core
