@@ -25,7 +25,7 @@ from .judge import DEFAULT_ROOT, _iso
 BASE = "https://agentconcierge.biz"
 QA = "necklace_retest"
 BUDGET_SECONDS = 35 * 60
-CONTRAST = {"package-risk-audit": "advisories", "cve-incident-brief": "record"}
+CONTRAST = {"package-risk-audit": "advisories", "cve-incident-brief": "record", "company-due-diligence": "registry"}
 
 
 # ---------------------------------------------------------------- public relay caller
@@ -143,8 +143,17 @@ def grade_exploited(case, slot_out) -> bool:
     return bool(slot_out) and not slot_out.get("missing") and slot_out.get("kev") is case["truth"]["kev"]
 
 
+def grade_registry(case, slot_out) -> bool:
+    """A company identity passes when it names the truth's SEC CIK or GLEIF LEI."""
+    if not slot_out or slot_out.get("missing"):
+        return False
+    text = _text(slot_out)
+    ids = [case["truth"].get("lei"), case["truth"].get("cik")]
+    return any(i and i.lower() in text for i in ids)
+
+
 GRADERS = {"advisories": grade_advisories, "health": grade_health, "record": grade_record,
-           "exploited": grade_exploited}
+           "exploited": grade_exploited, "registry": grade_registry}
 
 
 def grade(defn: dict, case: dict, output: dict) -> dict:

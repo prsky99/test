@@ -164,3 +164,9 @@ def test_record_truth_takes_the_newest_version_in_a_block():
                 {"cvssV3_1": {"baseScore": 7.5, "version": "3.1"}}, {"cvssV4_0": {"baseScore": 8.7, "version": "4.0"}}]}}}
     assert gold.cvelist_metrics(F(), "CVE-2026-48587")["version"] == "4.0"
     assert gold.cvelist_cvss(F(), "CVE-2026-48587")["score"] == 8.7
+
+
+def test_typed_company_names():
+    assert gold.typed_name("HUNTINGTON BANCSHARES INC /MD/") == "Huntington Bancshares Inc"
+    assert gold.typed_name("US BANCORP DE") == "US Bancorp"
+    assert gold.typed_name("Howmet Aerospace Inc.") == "Howmet Aerospace Inc."

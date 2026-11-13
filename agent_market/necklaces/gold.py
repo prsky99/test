@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import time
 import urllib.error
 import urllib.request
@@ -36,7 +37,8 @@ SEED = "necklace-gold-v1"
 # Minimum seconds between calls to one host. NVD asks keyless clients for at most
 # 5 requests in 30 seconds.
 SPACING = {"services.nvd.nist.gov": 6.5, "api.osv.dev": 0.5, "registry.npmjs.org": 0.5, "pypi.org": 0.5,
-           "api.first.org": 1.0, "www.cisa.gov": 1.0, "raw.githubusercontent.com": 1.0}
+           "api.first.org": 1.0, "www.cisa.gov": 1.0, "raw.githubusercontent.com": 1.0,
+           "www.sec.gov": 1.0, "api.gleif.org": 1.0}
 
 NPM = ["lodash", "minimist", "express", "axios", "jsonwebtoken", "moment", "handlebars", "marked", "node-fetch",
        "ws", "semver", "tar", "qs", "follow-redirects", "ejs", "jquery", "underscore", "shell-quote", "glob-parent",
@@ -295,6 +297,69 @@ def cve_cases(f: Fetcher, package_case_list: list[dict], per_stratum: int = 45) 
     return cases
 
 
+# Non-US listed companies whose English legal name is registered as such in GLEIF; only an exact,
+# active, single match in the expected country is kept as truth.
+NON_US = [("SAP SE", "SAP", "DE"), ("Siemens Aktiengesellschaft", "Siemens", "DE"), ("Allianz SE", "Allianz", "DE"),
+          ("BASF SE", "BASF", "DE"), ("Deutsche Bank Aktiengesellschaft", "Deutsche Bank", "DE"),
+          ("ASML Holding N.V.", "ASML", "NL"), ("Novartis AG", "Novartis", "CH"), ("Roche Holding AG", "Roche", "CH"),
+          ("Nestlé S.A.", "Nestle", "CH"), ("HSBC Holdings plc", "HSBC", "GB"), ("Unilever PLC", "Unilever", "GB"),
+          ("AstraZeneca PLC", "AstraZeneca", "GB"), ("Shell plc", "Shell", "GB"), ("BP P.L.C.", "BP", "GB"),
+          ("TotalEnergies SE", "TotalEnergies", "FR"), ("LVMH Moët Hennessy Louis Vuitton SE", "LVMH", "FR"),
+          ("Banco Santander, S.A.", "Santander", "ES"), ("Nokia Oyj", "Nokia", "FI"), ("Equinor ASA", "Equinor", "NO"),
+          ("Novo Nordisk A/S", "Novo Nordisk", "DK"), ("Telefonaktiebolaget LM Ericsson", "Ericsson", "SE")]
+
+
+def gleif_exact(f: Fetcher, legal_name: str, country: str) -> str | None:
+    """The LEI of the one active entity whose legal name equals LEGAL_NAME (case-insensitive) in COUNTRY."""
+    out = f.json("https://api.gleif.org/api/v1/lei-records?page%5Bsize%5D=10&filter%5Bentity.legalName%5D="
+                  + quote(legal_name)) or {}
+    hits = [r for r in out.get("data") or []
+            if r["attributes"]["entity"]["legalName"]["name"].casefold() == legal_name.casefold()
+            and r["attributes"]["entity"]["legalAddress"]["country"] == country
+            and r["attributes"]["entity"].get("status") == "ACTIVE"]
+    return hits[0]["id"] if len(hits) == 1 else None
+
+
+def typed_name(sec_title: str) -> str:
+    """How a person would type an SEC filer title: no state markers (/MD/, a trailing DE), plain capitals."""
+    name = re.sub(r"\s*/[A-Z]{2,}/\s*", " ", sec_title).strip()
+    parts = name.split()
+    if len(parts) >= 3 and re.fullmatch(r"[A-Z]{2}", parts[-1]):
+        name = " ".join(parts[:-1])
+    if name.isupper():
+        name = " ".join(w if len(w) <= 3 and w.isalpha() and w not in ("INC", "CO", "THE", "AND") else w.capitalize()
+                        for w in name.split())
+    return name
+
+
+def company_cases(f: Fetcher, us: int = 75) -> list[dict]:
+    tickers = f.json("https://www.sec.gov/files/company_tickers.json") or {}
+    rows = sorted(tickers.values(), key=lambda r: r["cik_str"])        # deterministic, then ranked below
+    rows = sorted(rows[:600], key=lambda r: _rank(str(r["cik_str"])))  # the first 600 CIKs: long-listed issuers
+    cases, seen = [], set()
+    for row in rows:
+        if sum(1 for c in cases if c["stratum"] == "us") >= us:
+            break
+        title = row["title"].strip()
+        if row["cik_str"] in seen or not title:
+            continue
+        seen.add(row["cik_str"])
+        lei = gleif_exact(f, title, "US")
+        cases.append({"case_id": f"US:CIK{row['cik_str']}", "task_type": "same_role", "stratum": "us",
+                      "input": {"name": typed_name(title), "country": "US"},
+                      "truth": {"cik": str(row["cik_str"]), "ticker": row["ticker"], "lei": lei, "sec_title": title},
+                      "truth_sources": [{"name": "SEC company tickers", "url": "https://www.sec.gov/files/company_tickers.json", "fetched_at": _now()},
+                                        {"name": "GLEIF", "url": "https://api.gleif.org/api/v1/lei-records", "fetched_at": _now()}]})
+    for legal, common, country in NON_US:
+        lei = gleif_exact(f, legal, country)
+        if lei and not any(c["truth"].get("lei") == lei for c in cases):
+            cases.append({"case_id": f"{country}:{lei}", "task_type": "same_role", "stratum": "non_us",
+                          "input": {"name": common, "country": country},
+                          "truth": {"lei": lei, "legal_name": legal, "cik": None},
+                          "truth_sources": [{"name": "GLEIF", "url": f"https://api.gleif.org/api/v1/lei-records/{lei}", "fetched_at": _now()}]})
+    return cases
+
+
 def split(cases: list[dict], per_split: int = PER_SPLIT) -> dict[str, list[dict]]:
     """Stratified and deterministic.
 
@@ -341,10 +406,11 @@ def write_set(root: Path, slug: str, parts: dict[str, list[dict]], meta: dict) -
 def build(root: Path, which: list[str], fetcher: Fetcher | None = None, raw_dir: Path | None = None) -> dict:
     f = fetcher or Fetcher()
     out = {}
-    pkg = package_cases(f)
+    pkg = package_cases(f) if {"package-risk-audit", "cve-incident-brief"} & set(which) else []
     if raw_dir:
         raw_dir.mkdir(parents=True, exist_ok=True)
-        (raw_dir / "package-cases.json").write_text(json.dumps(pkg, ensure_ascii=False))
+        if pkg:
+            (raw_dir / "package-cases.json").write_text(json.dumps(pkg, ensure_ascii=False))
     if "package-risk-audit" in which:
         out["package-risk-audit"] = write_set(root, "package-risk-audit", split(pkg),
                                               {"answer_set": "package-risk-audit-v1", "built_from": len(pkg)})
@@ -355,6 +421,12 @@ def build(root: Path, which: list[str], fetcher: Fetcher | None = None, raw_dir:
             (raw_dir / "cve-cases.json").write_text(json.dumps(cves, ensure_ascii=False))
         out["cve-incident-brief"] = write_set(root, "cve-incident-brief", split(cves),
                                               {"answer_set": "cve-incident-brief-v1", "built_from": len(cves)})
+    if "company-due-diligence" in which:
+        companies = company_cases(f)
+        if raw_dir:
+            (raw_dir / "company-cases.json").write_text(json.dumps(companies, ensure_ascii=False))
+        out["company-due-diligence"] = write_set(root, "company-due-diligence", split(companies),
+                                                 {"answer_set": "company-due-diligence-v1", "built_from": len(companies)})
     out["calls"] = f.calls
     return out
 
@@ -363,7 +435,8 @@ def resplit(root: Path, raw_dir: Path) -> dict:
     """Write the sets again from saved raw cases, without calling any source."""
     out = {}
     for slug, name, answer_set in (("package-risk-audit", "package-cases.json", "package-risk-audit-v1"),
-                                   ("cve-incident-brief", "cve-cases.json", "cve-incident-brief-v1")):
+                                   ("cve-incident-brief", "cve-cases.json", "cve-incident-brief-v1"),
+                                   ("company-due-diligence", "company-cases.json", "company-due-diligence-v1")):
         path = raw_dir / name
         if path.exists():
             cases = json.loads(path.read_text(encoding="utf-8"))

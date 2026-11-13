@@ -144,3 +144,11 @@ def test_relay_pacer_waits_between_cases_and_never_oversends():
     pacer.wait_for(2)
     assert slept and now[0] >= 60
     assert retest.requests_per_case(next(d for d in model.load_valid() if d["slug"] == "cve-incident-brief")) == 6
+
+
+def test_registry_grader_accepts_cik_or_lei():
+    us = {"truth": {"cik": "320193", "lei": None}}
+    assert retest.grade_registry(us, {"answers": [{"text": "Apple Inc. CIK 0000320193"}]})
+    eu = {"truth": {"cik": None, "lei": "529900D6BF99LW9R2E68"}}
+    assert retest.grade_registry(eu, {"legal_name": "SAP SE", "identifiers": {"lei": "529900D6BF99LW9R2E68"}})
+    assert not retest.grade_registry(eu, {"legal_name": "SAP SE"})
