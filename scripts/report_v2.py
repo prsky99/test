@@ -489,19 +489,25 @@ def sign_version(r, case, name=None):
 
 def import_fallbacks(folder=None):
     """Stack the own fallback agents' role-task results (에이전트 팀 writes exports/pearls/avc-results-<date>.json) as
-    report v2 versions, once per file (a .imported mark beside it)."""
+    report v2 versions. The .imported mark beside each file lists the results already stacked (id, role, start time),
+    so a file the team appends to later in the day adds only its new results."""
     folder = Path(folder or OUT)
     done = 0
     for path in sorted(folder.glob('avc-results-*.json')):
         mark = path.with_suffix('.imported')
-        if mark.exists():
-            continue
+        seen = set(mark.read_text().split('\n')) if mark.exists() else set()
         data = json.loads(path.read_text())
-        for result in data.get('results', data if isinstance(data, list) else []):
-            if is_own_fallback(result.get('id')) and result.get('outcome') in ('succeeded', 'failed', 'skipped'):
-                save_version(result)
-                done += 1
-        mark.write_text(time.strftime('%Y-%m-%d %H:%M') + '\n')
+        added = []
+        for result in data.get('results', []) if isinstance(data, dict) else data:
+            key = f"{result.get('id')}|{result.get('role')}|{result.get('started')}"
+            if key in seen or not is_own_fallback(result.get('id')) or \
+                    result.get('outcome') not in ('succeeded', 'failed', 'skipped'):
+                continue
+            save_version(result)
+            added.append(key)
+            done += 1
+        if added or not mark.exists():
+            mark.write_text('\n'.join(sorted(seen | set(added))).strip() + '\n')
     return done
 
 

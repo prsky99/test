@@ -269,7 +269,10 @@ def test_own_fallbacks_stack_versions_but_never_rank(tmp_path, out):
     results = {'results': [{**result(rid='avc:nvd-cve', role='cve.record.v1', tool='nvd_cve', host='services.nvd.nist.gov'),
                             'endpoint': 'in-process:nvd-cve', 'source': 'agentvalcon fallback (in-process)'}]}
     (out / 'avc-results-2026-11-15.json').write_text(_json.dumps(results))
-    assert V.import_fallbacks() == 1 and V.import_fallbacks() == 0          # once per file
+    assert V.import_fallbacks() == 1 and V.import_fallbacks() == 0          # once per result
+    results['results'].append({**results['results'][0], 'started': results['results'][0]['started'] + 60})
+    (out / 'avc-results-2026-11-15.json').write_text(_json.dumps(results))     # the team appends later that day
+    assert V.import_fallbacks() == 1 and V.import_fallbacks() == 0
     versions = V.latest_versions()
     assert any(v['resource_id'] == 'avc:nvd-cve' for v in versions)
     assert all(m['resource_id'] != 'avc:nvd-cve' for r in V.rank(versions).values() for m in r['members'])
