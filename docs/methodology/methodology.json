@@ -173,7 +173,7 @@
     "id": "bitcoin",
     "query": "bitcoin"
    },
-   "answer_source": "same-time public reference",
+   "answer_source": "none (public reference suspended until its terms are confirmed)",
    "checks": [
     "same-time public reference within 2%"
    ],
@@ -446,7 +446,7 @@
     "symbol": "AAPL",
     "ticker": "AAPL"
    },
-   "answer_source": "same-time public reference",
+   "answer_source": "none (public reference suspended until its terms are confirmed)",
    "checks": [
     "same-time public reference within 2%"
    ],

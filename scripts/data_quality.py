@@ -131,10 +131,28 @@ def _numbers(text):
     return [float(n.replace(',', '')) for n in re.findall(r'-?\d{1,3}(?:,\d{3})+(?:\.\d+)?|-?\d+(?:\.\d+)?', text or '')]
 
 
+UA = 'AgentConcierge-Verification/1.0 contact@agentconcierge.biz'   # MET Norway requires a contact in the User-Agent
+MET = 'https://api.met.no/weatherapi/locationforecast/2.0/compact?lat={lat}&lon={lon}'
+# The source of an answer is never used to judge that same answer (PM 11-14: MET Norway is also a tested member).
+SAME_SOURCE = {'temperature_c': re.compile(r'met\.no|met norway|norwegian meteorological', re.I)}
+
+
 def _fetch_json(url):
     import httpx
-    resp = httpx.get(url, timeout=10, headers={'User-Agent': 'AgentConcierge-Verification/1.0'})
+    resp = httpx.get(url, timeout=10, headers={'User-Agent': UA})
     return resp.json() if resp.status_code == 200 else None
+
+
+def _met_temperature(url):
+    """Air temperature now from MET Norway Locationforecast (CC BY 4.0 / NLOD, commercial use allowed), replacing
+    Open-Meteo (its free tier is non-commercial; PM 11-14). Coordinates at 4 decimals; the Expires header is kept by
+    the ten-minute cache, so the same point is not fetched again before it expires."""
+    from urllib.parse import parse_qs, urlsplit
+    query = parse_qs(urlsplit(url).query)
+    lat = round(float(query.get('latitude', query.get('lat'))[0]), 4)
+    lon = round(float(query.get('longitude', query.get('lon'))[0]), 4)
+    data = _fetch_json(MET.format(lat=lat, lon=lon))
+    return float(data['properties']['timeseries'][0]['data']['instant']['details']['air_temperature'])
 
 
 _CACHE = {}
@@ -150,11 +168,14 @@ def reference(kind, url):
         return _CACHE[key][1]
     value = None
     try:
-        data = _fetch_json(url)
+        data = None if kind == 'temperature_c' else _fetch_json(url)
+        if kind == 'temperature_c':
+            _CACHE[key] = (time.time(), _met_temperature(url))
+            return _CACHE[key][1]
         if kind == 'rate':
             value = float(next(iter((data or {}).get('rates', {}).values())))
         elif kind == 'temperature_c':
-            value = float(data['current']['temperature_2m'])
+            value = None   # fetched below from MET Norway, never from the URL written in the task
         elif kind == 'latest_version':
             value = str(data['version'])
         elif kind == 'usgs_places':        # places of M5+ events in the USGS month feed (earthquake.feed)
@@ -217,6 +238,8 @@ def accuracy(case, text, structured, live=None, live_value=None, role_tasks=None
         for kind, url in (expect.get('dynamic') or {}).items():
             if kind == 'tolerance':
                 continue
+            if kind in SAME_SOURCE and SAME_SOURCE[kind].search(text or ''):
+                return 0, f"answer set {case['case_id']} (not checked: the answer comes from the reference source itself)", reasons
             ok = dynamic_match(kind, reference(kind, url), text, case.get('input'), expect['dynamic'].get('tolerance'))
             checks.append((kind, url, ok))
         dynamic_ok = all(ok for _, _, ok in checks) if checks else None
@@ -228,6 +251,8 @@ def accuracy(case, text, structured, live=None, live_value=None, role_tasks=None
         source = f"answer set {case['case_id']}" + (f" + live {', '.join(k for k, _, _ in checks)}" if checks else '')
         return (WEIGHTS['accuracy'] if good else 0), source, reasons + [f'{k} off the reference' for k, _, ok in checks if ok is False]
     if live:
+        if live.get('terms_ok') is False:
+            return 0, f"public reference suspended: {live.get('note')}", []
         if live_value is None:
             return 0, f"public reference {live['reference']} (unavailable)", []
         ok = any(abs(n - live_value) <= live['tolerance'] * live_value for n in _numbers(text) if n > 0)

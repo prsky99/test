@@ -64,7 +64,9 @@ def build():
         roles.append({
             'role': role, 'field': V.domain_of(role),
             'example_input': (case or {}).get('input') or R.catalog_input(role) or None,
-            'answer_source': ('answer set (withheld)' if case else 'same-time public reference' if live else 'none'),
+            'answer_source': ('answer set (withheld)' if case else
+                              'none (public reference suspended until its terms are confirmed)' if live and live.get('terms_ok') is False
+                              else 'same-time public reference' if live else 'none'),
             'checks': _check_kinds(case) if case else (['same-time public reference within %d%%' % round(live['tolerance'] * 100)] if live else []),
             'freshness': _freshness(DQ.FRESHNESS.get(role)),
         })

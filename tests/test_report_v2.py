@@ -245,3 +245,19 @@ def test_versions_are_signed_when_a_key_exists(tmp_path, monkeypatch):
     import pytest as _pytest
     with _pytest.raises(ES.SigningError):
         ES.verify_chain(envelopes[1:], doc)                                    # dropping version 1 breaks the chain
+
+
+def test_reference_sources_respect_their_terms(monkeypatch):
+    """PM 11-14: Open-Meteo (non-commercial) is replaced by MET Norway; an answer from MET Norway is not judged by MET
+    Norway; references whose terms are not confirmed are suspended, not used."""
+    from scripts import data_quality as DQ
+    monkeypatch.setattr(DQ, '_met_temperature', lambda url: 8.0)
+    DQ._CACHE.clear()
+    case = {'case_id': 'weather-seoul', 'role': 'weather.forecast.v1', 'input': {'city': 'Seoul'},
+            'expect': {'must_include_any': ['°C'], 'dynamic': {'temperature_c': 'https://api.open-meteo.com/v1/forecast?latitude=37.5665&longitude=126.978', 'tolerance': 3}}}
+    from agent_market.necklaces import role_tasks
+    assert DQ.accuracy(case, 'Seoul 9°C now', None, role_tasks=role_tasks)[0] == DQ.WEIGHTS['accuracy']
+    own = DQ.accuracy(case, 'Seoul 9°C now (data: MET Norway, api.met.no)', None, role_tasks=role_tasks)
+    assert own[0] == 0 and 'not checked' in own[1]
+    suspended = DQ.accuracy(None, 'BTC 68,900 USD', None, live={'reference': 'x', 'tolerance': 0.02, 'terms_ok': False, 'note': 'n'})
+    assert suspended[0] == 0 and suspended[1].startswith('public reference suspended')

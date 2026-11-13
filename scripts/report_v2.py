@@ -311,7 +311,7 @@ def assess(r, text, structured, case):
     live = role_catalog.live_spec(r['role'])
     from agent_market.necklaces import role_tasks
     acc_points, source, reasons = DQ.accuracy(case, text, structured, live=live,
-                                              live_value=reference_value(live['reference']) if live else None,
+                                              live_value=reference_value(live['reference']) if live and live.get('terms_ok') is not False else None,
                                               role_tasks=role_tasks)
     fresh_points, rule, newest = DQ.freshness(r['role'], text)
     comp_points, blanks, fields = DQ.completeness(text, structured)
