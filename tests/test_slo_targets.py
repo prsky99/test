@@ -40,3 +40,29 @@ def test_the_gate_reports_the_interim_streak_and_rates_without_opening_on_them(t
     assert result['slo_rates']['final']['run_rate'] == 0.0 and result['slo_rates']['interim']['run_rate'] == 1.0
     line = gate.board_line(result)
     assert '차선 목표 user_slo 7/7일' in line and '7일 달성률 최종 0%·차선 100%' in line
+
+
+def test_the_interim_target_needs_speed_and_quality_and_records_the_supporting_measures(tmp_path):
+    """11-14 02:3x (user via PM): interim = the three speeds and real_task_score 27/30; connection share (90%) and the
+    Chat comparison (99/110) are recorded, not judged."""
+    rows = [run(f'2026-11-{d:02d} {h:02d}:00', explore=2.5) for d in range(7, 14) for h in range(12)]
+    for r in rows:
+        r['breaches'] = {'explore': {'bad_count': 1}}
+        r['connect'] = {'ok': True, 'samples': [{'tools': 4}, {'tools': 0}]}         # 50% of connections
+    (tmp_path / 'user-slo.jsonl').write_text('\n'.join(json.dumps(r) for r in rows) + '\n')
+    (tmp_path / 'chat-gate').mkdir()
+    (tmp_path / 'chat-gate' / 'a.json').write_text(json.dumps(
+        {'active': 'rel-1', 'active_verdicts': {f'c{i}': i < 100 for i in range(110)}}))
+
+    def judged(passed):
+        (tmp_path / 'real-task-score.jsonl').write_text(json.dumps({'at': '2026-11-13T07:40:16+00:00', 'tasks': 30,
+                                                                    'passed': passed}) + '\n')
+        return gate.judge(today='2026-11-14', ops=tmp_path)
+
+    low, high = judged(24), judged(27)
+    assert low['interim']['speed'] and not low['interim']['quality'] and not low['interim']['ok']
+    assert high['interim']['ok'] and not high['open']                             # never opens the gate
+    assert high['interim']['connect']['rate'] == 0.5 and not high['interim']['connect_ok']   # recorded, not judged
+    assert high['interim']['chat'] == {'passed': 100, 'total': 110, 'release': 'rel-1', 'file': 'a.json'}
+    assert high['interim']['chat_ok']
+    assert '차선 달성 통과(속도 통과, 품질 실제 과제 27/30 목표 27; 보조 연결 표본 50%·Chat 100/110)' in gate.board_line(high)

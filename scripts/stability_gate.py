@@ -18,11 +18,11 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 try:  # run as python -m scripts.<name> or as a file
-    from scripts.slo_targets import FINAL, INTERIM, attainment
+    from scripts.slo_targets import FINAL, INTERIM, INTERIM_QUALITY, attainment, connect_ok
 except ImportError:
     import sys as _sys
     _sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from slo_targets import FINAL, INTERIM, attainment
+    from slo_targets import FINAL, INTERIM, INTERIM_QUALITY, attainment, connect_ok
 
 ROOT = Path(__file__).resolve().parents[1]
 OPS = ROOT / 'logs/ops'
@@ -95,6 +95,29 @@ def slo_rates(rows, today, days=7):
     return out
 
 
+def connect_rate(rows, today, days=7):
+    """Share of user_slo connection samples that passed over the last `days` days (interim quality, recorded only)."""
+    first = (datetime.strptime(today, '%Y-%m-%d') - timedelta(days=days - 1)).strftime('%Y-%m-%d')
+    samples = [s for r in rows if (_day(r.get('at')) or '') >= first for s in (r.get('connect') or {}).get('samples') or []]
+    return {'passed': sum(1 for s in samples if connect_ok(s)), 'n': len(samples),
+            'rate': round(sum(1 for s in samples if connect_ok(s)) / len(samples), 3) if samples else None}
+
+
+def chat_latest(folder):
+    """The latest Chat answer comparison of the active release (release_gate keeps each case's verdict)."""
+    files = sorted(Path(folder).glob('*.json'), key=lambda f: f.stat().st_mtime) if Path(folder).is_dir() else []
+    for f in reversed(files):
+        try:
+            data = json.loads(f.read_text())
+        except (OSError, ValueError):
+            continue
+        verdicts = data.get('active_verdicts')
+        if isinstance(verdicts, dict) and verdicts:
+            return {'passed': sum(1 for v in verdicts.values() if v), 'total': len(verdicts),
+                    'release': data.get('active'), 'file': f.name}
+    return None
+
+
 def full_days(rows):
     days = {}
     for r in rows:
@@ -154,6 +177,17 @@ def judge(today=None, ops=None):
     result['user_slo_interim'] = {'streak': streak(interim, today), 'need': SLO_DAYS, 'today': interim.get(today)}
     result['user_slo_interim']['ok'] = result['user_slo_interim']['streak'] >= SLO_DAYS
     result['slo_rates'] = slo_rates(slo_rows, today)
+    # 11-14 02:3x: the interim target is reached when its three speeds (7-day user_slo streak) and quality
+    # (real_task_score 27/30) both pass; the connection share and the Chat comparison are recorded, not judged.
+    passed = (task or {}).get('passed')
+    chat = chat_latest(ops / 'chat-gate')
+    result['interim'] = {
+        'speed': result['user_slo_interim']['ok'],
+        'quality': passed is not None and passed >= INTERIM_QUALITY['real_tasks'],
+        'real_tasks': passed, 'connect': connect_rate(slo_rows, today), 'chat': chat,
+        'connect_ok': (connect_rate(slo_rows, today)['rate'] or 0) >= INTERIM_QUALITY['connect_rate'],
+        'chat_ok': bool(chat) and chat['passed'] >= INTERIM_QUALITY['chat']}
+    result['interim']['ok'] = result['interim']['speed'] and result['interim']['quality']
     result['full_check']['ok'] = result['full_check']['streak'] >= FULL_DAYS
     result['open'] = all(result[k]['ok'] for k in ('user_slo', 'full_check', 'real_tasks', 'error_ledger'))
     return result
@@ -162,6 +196,18 @@ def judge(today=None, ops=None):
 def pct(r, name):
     rate = ((r.get('slo_rates') or {}).get(name) or {}).get('run_rate')
     return '-' if rate is None else f"{round(rate * 100)}%"
+
+
+def interim_text(r):
+    i = r.get('interim') or {}
+    if not i:
+        return '차선 품질 기록 없음'
+    conn, chat = i.get('connect') or {}, i.get('chat') or {}
+    rate = '-' if conn.get('rate') is None else f"{round(conn['rate'] * 100)}%"
+    chat_text = f"{chat.get('passed')}/{chat.get('total')}" if chat else '-'
+    return (f"차선 달성 {'통과' if i.get('ok') else '미달'}(속도 {'통과' if i.get('speed') else '미달'}, "
+            f"품질 실제 과제 {i.get('real_tasks')}/{INTERIM_QUALITY['real_tasks_of']} 목표 {INTERIM_QUALITY['real_tasks']}; "
+            f"보조 연결 표본 {rate}·Chat {chat_text})")
 
 
 def board_line(r):
@@ -173,7 +219,7 @@ def board_line(r):
     return (f"{MARK} {r['judged_at']} 자동 판정: {'열림' if r['open'] else '닫힘'}]** "
             f"user_slo {r['user_slo']['streak']}/{SLO_DAYS}일({mark(r['user_slo']['ok'])}) · "
             f"차선 목표 user_slo {r.get('user_slo_interim', {}).get('streak', 0)}/{SLO_DAYS}일 · "
-            f"7일 달성률 최종 {pct(r, 'final')}·차선 {pct(r, 'interim')} · "
+            f"7일 달성률 최종 {pct(r, 'final')}·차선 {pct(r, 'interim')} · {interim_text(r)} · "
             f"전수 점검 실패 0 {r['full_check']['streak']}/{FULL_DAYS}일({mark(r['full_check']['ok'])}) · "
             f"실제 과제 {task.get('passed')}/{task.get('tasks')}(목표 {TASK_TARGET}, {mark(task['ok'])}) · "
             f"설명되지 않은 오류 {ledger['day']} {unexplained}({mark(ledger['ok'])}). "
