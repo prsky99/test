@@ -154,9 +154,9 @@
         },
         {
           "kind": "agentcon",
-          "agent_id": "github-advisories",
+          "agent_id": "github-advisory",
           "resource_id": null,
-          "tool": "search_github_advisories",
+          "tool": "list_package_advisories",
           "registrable_domain": "agentconcierge.biz",
           "upstream": [
             "github-advisory-database"
@@ -168,8 +168,10 @@
           "state": "planned",
           "input_map": {
             "package": "{{input.package}}",
-            "ecosystem": "{{input.ecosystem}}"
-          }
+            "ecosystem": "{{input.ecosystem}}",
+            "version": "{{input.version}}"
+          },
+          "note": "Built by the agent team (82219181, agent_market/fallback_agents); tuning 27/30 first run, re-measured after a fix. Becomes active with its resource_id once registered (PM decision on the public path)."
         }
       ]
     },
