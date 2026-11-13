@@ -232,6 +232,23 @@ def recommend_surface(entry, method, body):
     return None
 
 
+def call_shape(body, salt):
+    """(tool name, salted digest of the arguments) of an MCP tools/call body, or (None, None). Only the tool name
+    (a public identifier) and a day-salted digest are kept: whether a client repeats one fixed request or sends
+    varied ones (11-14 PM: is a named client a checker?), never what it asked."""
+    try:
+        data = json.loads(body[:65536])
+    except (ValueError, UnicodeDecodeError, TypeError):
+        return None, None
+    params = data.get('params') if isinstance(data, dict) else None
+    if not isinstance(params, dict):
+        return None, None
+    tool = params.get('name')
+    tool = tool if isinstance(tool, str) and NAME.fullmatch(tool) else 'other'
+    digest = hashlib.sha256(salt + json.dumps(params.get('arguments'), sort_keys=True, default=str).encode()).hexdigest()[:12]
+    return tool, digest
+
+
 def mcp_client_name(body):
     """clientInfo.name of an MCP initialize request (a software name), or None."""
     if not body or b'"initialize"' not in body[:4096]:
@@ -293,8 +310,15 @@ class Traffic:
         self.rpc = Counter()           # "entry|rpc method|probe|real|unknown" -> requests (non-internal)
         self.errors = Counter()        # "entry|status|request shape|rpc method" -> 4xx/5xx protocol requests (non-internal)
         self.sessions = {}             # MCP session id -> 'probe' | 'real' (memory only, today)
+        self.session_names = {}        # MCP session id -> clientInfo name (memory only, today)
+        self.mcp_calls = Counter()     # MCP clientInfo name -> tools/call (non-internal; 11-14 PM: real use recomputable)
+        self.mcp_call_tools = Counter()   # "name|tool" -> tools/call (11-14 PM: which tools a named client calls)
+        self.mcp_call_inputs = defaultdict(set)  # name -> salted argument digests (only the count is written)
+        self.mcp_call_minutes = defaultdict(set)  # name -> minutes of the day with a call (spread, not times)
         self.funnel = Counter()        # "recommend|surface|class|all|ok", "connect|class|...", "execute|class|..." (11-12)
         self.funnel_sets = defaultdict(set)  # "recommend|class" clients, "connect|class" / "execute|class" (client, agent) pairs
+        self.home_accept = Counter()   # "class|accept kind|served kind" for GET / (11-14 PM, search C)
+        self.recommended = {}          # salted client digest -> surfaces that recommended to it today (memory only)
 
     def observe(self, method, path, status, ip, ua, body=None, headers=None, response_headers=None, cause=None,
                 gateway=None):
@@ -310,6 +334,11 @@ class Traffic:
                 self._write_locked()
                 self._reset(today)
             self.requests[key] += 1
+            if entry == 'home' and method in ('GET', 'HEAD'):
+                # 11-14 (PM, search C): "/" answers JSON to Accept */* and to no Accept; before changing that,
+                # count who sends what and what they got (kinds only, never the raw header).
+                self.home_accept[client + '|' + accept_kind((headers or {}).get('accept')) + '|'
+                                 + served_kind((response_headers or {}).get('content-type'))] += 1
             self.status[key + '|' + (str(status)[0] + 'xx' if isinstance(status, int) else 'other')] += 1
             bucket = self.distinct[key]
             if len(bucket) < 50_000:
@@ -338,6 +367,19 @@ class Traffic:
                 kind = self._kind(entry, client, body, headers, response_headers)
                 if rpc:
                     self.rpc[entry + '|' + rpc + '|' + kind] += 1
+                if entry == 'mcp' and rpc == 'tools/call':
+                    # By client name, so real use can be recounted when the probe list changes (11-13 histor shift).
+                    sid = ((headers or {}).get('mcp-session-id') or '')[:64]
+                    name = (mcp_client_name(body) or self.session_names.get(sid) or '-')[:80]
+                    if name in self.mcp_calls or len(self.mcp_calls) < 2000:
+                        self.mcp_calls[name] += 1
+                        # not 'digest': that name holds this client's salted digest for the funnel below
+                        tool, input_digest = call_shape(body, self.salt)
+                        if tool and len(self.mcp_call_tools) < 5000:
+                            self.mcp_call_tools[name + '|' + tool] += 1
+                        if input_digest and len(self.mcp_call_inputs[name]) < 1000:
+                            self.mcp_call_inputs[name].add(input_digest)
+                        self.mcp_call_minutes[name].add(int(self.clock() // 60) % 1440)
                 if isinstance(status, int) and status >= 400:
                     # cause (11-10): our own security blocks (blocked_ip, policy_denied) are counted apart
                     # from protocol failures so a block window does not read as a client problem.
@@ -355,7 +397,8 @@ class Traffic:
         cls = funnel_class(client, ua, mcp_client_name(body) if entry == 'mcp' else None,
                            self.sessions.get(sid) if sid else None)
         ok = isinstance(status, int) and 200 <= status < 300
-        surface = recommend_surface(entry, method, body)
+        # an A2A "run" message carries an execution, not a recommendation request (11-14)
+        surface = None if entry == 'a2a' and isinstance(gateway, dict) else recommend_surface(entry, method, body)
         if surface:
             self.funnel['recommend|' + surface + '|' + cls + '|all'] += 1
             if ok:
@@ -363,8 +406,15 @@ class Traffic:
             bucket = self.funnel_sets['recommend|' + cls]
             if len(bucket) < 50_000:
                 bucket.add(digest)
+            if digest in self.recommended or len(self.recommended) < 50_000:
+                self.recommended.setdefault(digest, set()).add(surface)
         # /api/gateway/* connections and executions, and the in-session MCP 'call' tool on /mcp (11-12 PM)
-        if entry in ('gateway', 'mcp') and isinstance(gateway, dict) and gateway.get('step') in ('connect', 'execute'):
+        if entry in ('gateway', 'mcp', 'a2a') and isinstance(gateway, dict) and gateway.get('step') in ('connect', 'execute'):
+            if entry == 'a2a':
+                # 11-14: an A2A "run" connects and executes in one message; it counts as both steps.
+                for step in ('connect', 'execute'):
+                    self._gateway_step(step, cls, bool(gateway.get('ok')) and ok, digest, gateway)
+                return
             step, done = gateway['step'], bool(gateway.get('ok')) and ok
             self.funnel[step + '|' + cls + '|attempt'] += 1
             if done:
@@ -372,6 +422,26 @@ class Traffic:
                 bucket = self.funnel_sets[step + '|' + cls]
                 if len(bucket) < 50_000:
                     bucket.add(digest + str(gateway.get('rid')).encode())
+                # 11-14 (growth plan 7, item 1): which surface's recommendation the connection or execution
+                # followed, for the same client (same salted digest) on the same day; 'none' when it had none.
+                for origin in sorted(self.recommended.get(digest) or ('none',)):
+                    follow = self.funnel_sets['follow|' + origin + '|' + step + '|' + cls]
+                    if len(follow) < 50_000:
+                        follow.add(digest + str(gateway.get('rid')).encode())
+
+    def _gateway_step(self, step, cls, done, digest, gateway):
+        self.funnel[step + '|' + cls + '|attempt'] += 1
+        if not done:
+            return
+        self.funnel[step + '|' + cls + '|ok'] += 1
+        pair = digest + str(gateway.get('rid')).encode()
+        bucket = self.funnel_sets[step + '|' + cls]
+        if len(bucket) < 50_000:
+            bucket.add(pair)
+        for origin in sorted(self.recommended.get(digest) or ('none',)):
+            follow = self.funnel_sets['follow|' + origin + '|' + step + '|' + cls]
+            if len(follow) < 50_000:
+                follow.add(pair)
 
     def note(self, key):
         """Count one internal event of the day in the funnel section, such as 'edge_fallback|handshake' (11-12 PM:
@@ -397,6 +467,7 @@ class Traffic:
             sid = (response_headers or {}).get('mcp-session-id')
             if sid and len(self.sessions) < 100_000:
                 self.sessions[sid[:64]] = kind
+                self.session_names[sid[:64]] = name[:80]
             return kind
         sid = (headers or {}).get('mcp-session-id')
         return self.sessions.get(sid[:64], 'unknown') if sid else 'unknown'
@@ -411,7 +482,11 @@ class Traffic:
                 'bot_errors': dict(self.bot_errors),
                 'mcp_clients': dict(self.mcp_clients.most_common(200)),
                 'rpc': dict(self.rpc), 'errors': dict(self.errors.most_common(300)),
-                'funnel': dict(self.funnel), 'funnel_distinct': {k: len(v) for k, v in self.funnel_sets.items()}}
+                'funnel': dict(self.funnel), 'funnel_distinct': {k: len(v) for k, v in self.funnel_sets.items()},
+                'home_accept': dict(self.home_accept), 'mcp_calls': dict(self.mcp_calls.most_common(300)),
+                'mcp_call_tools': dict(self.mcp_call_tools.most_common(600)),
+                'mcp_call_inputs': {n: len(v) for n, v in self.mcp_call_inputs.items()},
+                'mcp_call_minutes': {n: len(v) for n, v in self.mcp_call_minutes.items()}}
 
     def _write_locked(self):
         self.flushed = self.clock()
@@ -436,6 +511,28 @@ class Traffic:
 _SINGLETON = None
 
 
+def accept_kind(accept):
+    """none, html, json, markdown, star or other: the first media type the Accept header names, roughly."""
+    value = (accept or '').strip().lower()
+    if not value:
+        return 'none'
+    first = value.split(',')[0].split(';')[0].strip()
+    if 'text/html' in first or 'application/xhtml' in first:
+        return 'html'
+    if 'json' in first:
+        return 'json'
+    if 'markdown' in first:
+        return 'markdown'
+    if first == '*/*':
+        return 'star'
+    return 'other'
+
+
+def served_kind(content_type):
+    value = (content_type or '').lower()
+    return 'html' if 'html' in value else 'json' if 'json' in value else 'markdown' if 'markdown' in value else 'other'
+
+
 def recorder():
     global _SINGLETON
     if _SINGLETON is None:
@@ -451,7 +548,8 @@ EXTERNAL = ('browser', 'ai_bot', 'verifier', 'script', 'headless', 'other')
 
 def load_day(root, day):
     merged = {'requests': Counter(), 'status': Counter(), 'distinct': Counter(), 'bots': Counter(), 'mcp_clients': Counter(),
-              'rpc': Counter(), 'errors': Counter(), 'bot_errors': Counter()}
+              'rpc': Counter(), 'errors': Counter(), 'bot_errors': Counter(), 'mcp_calls': Counter(),
+              'mcp_call_tools': Counter(), 'mcp_call_inputs': Counter(), 'mcp_call_minutes': Counter()}
     for path in sorted(Path(root).glob(day + '.*.json')):
         try:
             data = json.loads(path.read_text())
@@ -485,7 +583,47 @@ def usage(day_data):
             'mcp_client_names_real': sum(1 for n in names if not PROBE_NAME.search(n)),
             'mcp_client_names_probe': sum(1 for n in names if PROBE_NAME.search(n)),
             'external_distinct_clients': sum(v for k, v in dist.items() if k.split('|')[1] in external),
-            'protocol_errors': sum(day_data['errors'].values())}
+            'protocol_errors': sum(day_data['errors'].values()),
+            # 405/404 that the protocol itself prescribes (GET SSE, DELETE session, optional discovery files) apart
+            # from the rest (11-14 PM): only protocol_errors_other is worth fixing.
+            'protocol_errors_spec': sum(v for k, v in day_data['errors'].items() if ':spec' in k.split('|')[1]),
+            'protocol_errors_other': sum(v for k, v in day_data['errors'].items() if ':spec' not in k.split('|')[1]),
+            **real_calls(day_data)}
+
+
+def call_profiles(day_data, top=20):
+    """Per MCP client name: tools/call, the tools it called, how many different argument sets and in how many
+    minutes of the day (11-14 PM: tell a checker that repeats one fixed request on a timer from real use).
+    Inputs and minutes are summed over the day's process files, so they are upper bounds."""
+    calls, tools = day_data.get('mcp_calls') or {}, day_data.get('mcp_call_tools') or {}
+    rows = []
+    for name, count in sorted(calls.items(), key=lambda x: -x[1])[:top]:
+        used = {k.split('|', 1)[1]: v for k, v in tools.items() if k.split('|', 1)[0] == name}
+        rows.append({'name': name, 'calls': count, 'tools': used,
+                     'distinct_inputs': (day_data.get('mcp_call_inputs') or {}).get(name),
+                     'minutes': (day_data.get('mcp_call_minutes') or {}).get(name),
+                     'probe_listed': bool(PROBE_NAME.search(name))})
+    return rows
+
+
+def probe_list_version():
+    import hashlib
+    return hashlib.sha256(PROBE_NAME.pattern.encode()).hexdigest()[:8]   # which probe list counted the day
+
+
+def real_calls(day_data):
+    """Real MCP use, one rule (11-14 PM): tools/call from MCP clients whose clientInfo name is not on today's probe
+    list (traffic_classes.json). Counted by name from 11-14, so a list change recounts every day that has names
+    (calls_by_name True); earlier days only have the kind fixed when they were recorded."""
+    calls = day_data.get('mcp_calls') or {}
+    if not calls:
+        return {'mcp_tool_calls_real_by_name': None, 'probe_list': probe_list_version()}
+    real = sum(v for n, v in calls.items() if n != '-' and not PROBE_NAME.search(n))
+    # Calls by names whose probe class is still being judged (traffic_classes.json _probe_evidence), so the day can
+    # be read both ways until the judgement lands (11-14 PM).
+    disputed = _words('probe_disputed')
+    return {'mcp_tool_calls_real_by_name': real, 'probe_list': probe_list_version(),
+            'mcp_tool_calls_disputed': sum(v for n, v in calls.items() if n != '-' and disputed.search(n))}
 
 
 def summarize(root, days=7, today=None):

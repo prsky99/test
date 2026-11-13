@@ -166,7 +166,7 @@ class Reply:
 
 
 T = {
-    "intro": "Hello, agent 👋 This is Agent Concierge — a service built for AI agents and the people who run them. "
+    "intro": "Hello, agent 👋 This is AgentValCon — a service built for AI agents and the people who run them. "
              "I watch {total:,} live A2A agents, MCP servers and x402 paid APIs, health-check them periodically and test them for real.",
     "ask": "What are you trying to get done? Tell me a task, e.g. \"weather forecast API without an API key\".",
     "welcome_back": "Welcome back{name}! Last time ({ago}) you were looking for \"{task}\".",
@@ -203,7 +203,7 @@ T = {
             "when something better appears. What do you need?",
     "daily": "a day", "every3": "every 3 days",
     "pro_sla": (
-        "Agent Concierge Operational Tiers & SLA Policy:\n\n"
+        "AgentValCon Operational Tiers & SLA Policy:\n\n"
         "1. Free Concierge Tier (Forever Free):\n"
         "   • Unlimited discovery across live cataloged agents (A2A, MCP, x402).\n"
         "   • Periodic kind-partitioned health checks & real wire verification.\n"

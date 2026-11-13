@@ -12,7 +12,7 @@ def test_unrelayed_reason_and_note():
     assert unrelayed_reason(tool('send_email', 'Send an email.')) == ACTION_TOOL
     assert unrelayed_reason(tool('get_x', readOnlyHint=False)) == ACTION_TOOL
     assert unrelayed_reason(tool('invoice_ocr', 'OCR a scanned invoice.')) == UNVERIFIED_TOOL
-    assert unrelayed_note('X', None, UNVERIFIED_TOOL).startswith('The Agent Concierge gateway has not verified')
+    assert unrelayed_note('X', None, UNVERIFIED_TOOL).startswith('The AgentValCon gateway has not verified')
     assert unrelayed_note('X', None, ACTION_TOOL).startswith('This tool performs an action')
     assert unrelayed_note('X', None).startswith('This tool performs an action')
 

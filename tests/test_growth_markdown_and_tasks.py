@@ -84,7 +84,7 @@ def test_markdown_view_of_the_connect_page(client):
     assert md.status_code == 200 and md.headers['content-type'].startswith('text/markdown')
     assert md.headers['vary'] == 'Accept' and 'x-robots-tag' not in md.headers
     text = md.text
-    assert text.splitlines()[0] == '# Use Agent Concierge from your MCP client'  # no navigation label first
+    assert text.splitlines()[0] == '# Use AgentValCon from your MCP client'  # no navigation label first
     assert '```\nclaude mcp add --transport http agent-concierge https://agentconcierge.biz/mcp\n```' in text
     assert '[llms.txt](https://agentconcierge.biz/llms.txt)' in text  # links become absolute
     assert 'whats_new' in text and '<' not in text.replace('<=', '')
@@ -209,7 +209,7 @@ def test_public_growth_pages_are_cached_only_without_credentials(monkeypatch, tm
     public = ['/connect', '/agents/tasks', '/agents/task/weather-forecast', '/badges', '/claude-plugins/marketplace.json']
     for path in public:
         r = c.get(path, headers={'Accept': 'text/html'})
-        assert r.status_code == 200 and r.headers['cache-control'] == 'public, max-age=3600, stale-while-revalidate=86400', path
+        assert r.status_code == 200 and r.headers['cache-control'] == 'public, max-age=21600, stale-while-revalidate=86400', path
         assert 'accept' in r.headers['vary'].lower(), path
         assert r.headers.get('etag') and r.headers['x-content-type-options'] == 'nosniff', path
         assert c.get(path, headers={'Accept': 'text/html', 'If-None-Match': r.headers['etag']}).status_code == 304, path

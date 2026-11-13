@@ -103,7 +103,9 @@ def test_hints_agree_in_runtime_and_discovery_documents(catalog):
         }
     for name in ("hello", "chat", "report"):
         assert not by_name[name]["annotations"]["readOnlyHint"]
-    assert by_name["call"]["annotations"]["destructiveHint"]
+    # call relays only read-only tools (not destructive, open world); adapt_rest can send POST/PUT/DELETE.
+    assert not by_name["call"]["annotations"]["destructiveHint"] and by_name["call"]["annotations"]["openWorldHint"]
+    assert by_name["adapt_rest"]["annotations"]["destructiveHint"]
     assert client.get("/.well-known/mcp/server.json").status_code == 200
 
 

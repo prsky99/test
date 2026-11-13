@@ -124,3 +124,23 @@ def test_outside_a_releases_folder_panels_stay_in_memory(tmp_path, monkeypatch):
     assert pearl_view.panels_dir() is None
     pearl_view.keep_panels_on_disk('abcdefabcdefabcd', b'x')  # nothing written, nothing raised
     assert not list(tmp_path.rglob('*.js'))
+
+
+def test_a_bundle_served_before_compaction_is_still_found_by_its_digest(deployed):
+    # 11-14 (PM plan 3 step 2): bundle.css is compacted now; HTML cached before that names the plain bytes' digest.
+    client, old, new = deployed
+    plain = pearl_view.bundle_body(['a', 'b'], 'css', old, compact=False)
+    assert plain != pearl_view.bundle_body(['a', 'b'], 'css', old)
+    r = client.get('/new/en/assets/bundle.css?f=a,b&v=%s' % pearl_view.asset_version(plain))
+    assert r.status_code == 200 and r.content == plain and 'immutable' in r.headers['cache-control']
+
+
+def test_the_served_bundle_leaves_out_what_its_own_later_rules_override(tmp_path):
+    root = tmp_path / 'new'
+    (root / 'en' / 'assets').mkdir(parents=True)
+    (root / 'en' / 'assets' / 'one.css').write_text('/* kept in the source */\n.x { color: red; margin: 0 }\n')
+    (root / 'en' / 'assets' / 'two.css').write_text('.x{color:blue}\n')
+    served = pearl_view.bundle_body(['one', 'two'], 'css', root).decode()
+    assert '.x{margin:0}' in served and '.x{color:blue}' in served and 'red' not in served and '/*' not in served
+    assert 'red' in pearl_view.bundle_body(['one', 'two'], 'css', root, compact=False).decode()
+    assert 'red' in (root / 'en' / 'assets' / 'one.css').read_text()  # the source file is untouched

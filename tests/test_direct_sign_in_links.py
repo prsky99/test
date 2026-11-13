@@ -38,7 +38,13 @@ def test_with_workspace_on_pages_link_directly_and_the_old_address_still_redirec
         assert page.status_code == 200
         assert 'href="/customer/sign-in"' in page.text and not OLD.search(page.text)
         old = site.get('/new/en/sign-in.html', follow_redirects=False)
-        assert old.status_code == 303 and old.headers['location'] == '/customer/sign-in'
+        # 11-14 PM: a fixed, cookie-free move a cache may keep for a day; the sign-in page itself stays no-store.
+        assert old.status_code == 308 and old.headers['location'] == '/customer/sign-in'
+        assert old.headers['cache-control'] == 'public, max-age=86400' and 'set-cookie' not in old.headers
+        assert site.get('/new/en/sign-in.html', follow_redirects=False, headers={'Cookie': 'customer_session=x'}).headers['location'] == '/customer/sign-in'
+        for other in ('sign-up.html', 'workspace.html', 'account.html'):
+            moved = site.get('/new/en/' + other, follow_redirects=False)
+            assert moved.status_code == 303 and moved.headers['cache-control'] == 'no-store', other
 
 
 def test_with_workspace_off_the_static_pages_keep_their_links(client):  # noqa: F811

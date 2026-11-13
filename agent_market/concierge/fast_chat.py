@@ -633,7 +633,8 @@ class FastConcierge(Concierge):
             from .connections import run_here, mcp_config, gateway_agent_url
             step = run_here(item.get('id'), (item.get('tools_schema') or [None])[0])
             if step:
-                lines.append('Run here: call ' + json.dumps(step['arguments'], separators=(',', ':')))
+                # growth plan 7 item 3 (PM 11-14): the line to run it comes right under the name, before the details
+                lines.insert(1, 'Run here: call ' + json.dumps(step['arguments'], separators=(',', ':')))
             gateway = gateway_agent_url(item.get('id'), 'mcp')
             if gateway:
                 lines.append('MCP config: ' + json.dumps(mcp_config(name, gateway), separators=(',', ':')))

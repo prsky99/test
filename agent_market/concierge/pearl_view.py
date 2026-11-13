@@ -65,8 +65,31 @@ BUNDLE_NAME = re.compile(r'[A-Za-z0-9_-]{1,40}')
 BUNDLE_MAX = 12
 
 
-def bundle_body(names, kind, root=None):
-    """The concatenated files of one bundle, in page order; None if any name is not a shipped asset."""
+# 11-14 (PM plan 3, step 2): the five stylesheets override each other; 18 % of bundle.css (58.4 KB gzip) never wins.
+# The served bundle leaves out declarations a later rule of the same bundle always overrides and collapses
+# whitespace (css_compact.prune; the same files in the same order, so the cascade is that bundle's own). Source files
+# keep their comments; a file served alone (styles.css on category pages) is untouched. Results are kept per content.
+_compacted = collections.OrderedDict()
+_compacted_lock = threading.Lock()
+
+
+def compact_css(body):
+    key = hashlib.sha256(body).digest()
+    with _compacted_lock:
+        found = _compacted.get(key)
+    if found is None:
+        from .css_compact import prune
+        found = (prune(body.decode()) + '\n').encode()
+        with _compacted_lock:
+            _compacted[key] = found
+            while len(_compacted) > 32:
+                _compacted.popitem(last=False)
+    return found
+
+
+def bundle_body(names, kind, root=None, compact=True):
+    """The concatenated files of one bundle, in page order; None if any name is not a shipped asset.
+    compact=False gives the bytes releases before 11-14 served (their digests are still asked by old pages)."""
     root = root or ROOT
     parts = []
     for name in names:
@@ -76,7 +99,10 @@ def bundle_body(names, kind, root=None):
         parts.append(path.read_bytes())
     joiner = b'\n' if kind == 'css' else b'\n;\n'
     body = joiner.join(parts) + b'\n'
-    return versioned_css_urls(body, root) if kind == 'css' else body
+    if kind != 'css':
+        return body
+    body = versioned_css_urls(body, root)
+    return compact_css(body) if compact else body
 
 
 # 11-11 (PM: page target 1 s; stale-while-revalidate only once old asset URLs keep working): an edge may hand a
@@ -117,8 +143,9 @@ def earlier_asset(key, version, build):
                 body = build(root)
             except OSError:
                 body = None
-            if body is not None:
-                found.setdefault(asset_version(body), body)
+            for one in (body if isinstance(body, (list, tuple)) else (body,)):
+                if one is not None:
+                    found.setdefault(asset_version(one), one)
         with _earlier_lock:
             _earlier[key] = found
             while len(_earlier) > 128:
@@ -403,7 +430,7 @@ PAGE_META = re.compile(r'<meta name="page:([a-z-]+):[a-z0-9:-]+" content="[^"]*"
 PAGE_METADATA_PATH = '/page-metadata.json'
 DAILY_HOME_JSON = re.compile(r'<script type="application/json" id="dailyHomeMetadata">.*?</script>', re.S)
 DAILY_HOME_PATH = '/daily-home-metadata.json'
-PAGE_METADATA_LINK = ('<link rel="alternate" type="application/json" title="Page metadata of every Agent Concierge page" '
+PAGE_METADATA_LINK = ('<link rel="alternate" type="application/json" title="Page metadata of every AgentValCon page" '
                       'href="' + PAGE_METADATA_PATH + '">\n')
 
 
@@ -593,7 +620,7 @@ def install(app, front, *, workspace_access_enabled=False, workspace_link_enable
     def all_page_metadata():
         # The page:* meta each page no longer carries for the other panels (11-13 PM decision b).
         from fastapi.responses import JSONResponse
-        return JSONResponse({'about': 'page:<panel>:<key> meta of every public Agent Concierge page; each page '
+        return JSONResponse({'about': 'page:<panel>:<key> meta of every public AgentValCon page; each page '
                              'carries only its own panel and the home page (overview).',
                              'pages': {panel: {'url': '/new/en/' + name if name != 'index.html' else '/'}
                                        for name, panel in LIVE_PANELS.items()},
@@ -608,7 +635,11 @@ def install(app, front, *, workspace_access_enabled=False, workspace_link_enable
     def page(filename: str, request: Request = None):  # asset() calls it without a request to rebuild panels.js
         if filename not in pages:
             raise HTTPException(404, 'Page not found.')
-        if workspace_access_enabled and filename in ('workspace.html', 'account.html', 'sign-in.html', 'sign-up.html'):
+        if workspace_access_enabled and filename == 'sign-in.html':
+            # 11-14 PM: the old sign-in address always goes to the same fixed page, sets no cookie, so a cache may keep
+            # the move (308) for a day; /customer/sign-in itself stays no-store.
+            return RedirectResponse('/customer/sign-in', status_code=308, headers={'Cache-Control': 'public, max-age=86400'})
+        if workspace_access_enabled and filename in ('workspace.html', 'account.html', 'sign-up.html'):
             return RedirectResponse('/customer/sign-in', status_code=303, headers={'Cache-Control': 'no-store'})
         value = workspace_shell(read(en, filename).decode(),
                                 workspace_access_enabled and workspace_link_enabled)
@@ -657,7 +688,8 @@ def install(app, front, *, workspace_access_enabled=False, workspace_link_enable
             body, wanted = bundle_body(names, kind), request.query_params.get('v')
             if wanted and (body is None or asset_version(body) != wanted):
                 body = earlier_asset((kind, tuple(names)), wanted,
-                                     lambda root: bundle_body(names, kind, root)) or body
+                                     lambda root: (bundle_body(names, kind, root),
+                                                   bundle_body(names, kind, root, compact=False))) or body
             if body is None:
                 raise HTTPException(404, 'Asset not found.')
             version = asset_version(body)
@@ -691,7 +723,7 @@ def install(app, front, *, workspace_access_enabled=False, workspace_link_enable
             handler=app.exception_handlers.get(StarletteHTTPException,http_exception_handler)
             return await handler(request,exc)
         return HTMLResponse('<!doctype html><html lang="en"><head><meta charset="utf-8">'
-            '<meta name="viewport" content="width=device-width,initial-scale=1"><title>Page not found | Agent Concierge</title>'
+            '<meta name="viewport" content="width=device-width,initial-scale=1"><title>Page not found | AgentValCon</title>'
             '<meta name="robots" content="noindex"><link rel="stylesheet" href="/new/en/assets/styles.css"></head>'
             '<body><main class="container" id="main"><section class="card page-heading"><p class="eyebrow">404</p>'
             '<h1>Find your next connection.</h1><p>This page is unavailable. Continue from Home or explore the agent catalog.</p>'

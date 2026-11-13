@@ -19,7 +19,10 @@ NOW = time.time()
 
 
 def agent(rid, **extra):
-    value = {'id': rid, 'kind': 'mcp', 'name': f'Agent {rid}', 'description': 'Weather forecasts for any city.',
+    # 11-14 (search B): like the live catalog, an MCP listing has tools and a description of 40+ characters; thin
+    # listings are noindex and leave the sitemap (tests/test_noindex_tiers.py).
+    value = {'id': rid, 'kind': 'mcp', 'name': f'Agent {rid}', 'description': 'Weather forecasts for any city, hourly and daily.',
+             'tool_count': 2,
              'health_status': 'healthy', 'last_check_at': NOW-3600, 'verified_at': None, 'trial_ok': True,
              'eval_grade': 'A', 'report_grade': None, 'probe_latency_ms': 120, 'auth_required': False, 'price_usdc': 0}
     value.update(extra)

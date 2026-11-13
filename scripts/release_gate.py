@@ -72,6 +72,15 @@ TESTS = (
     'tests/test_critical_css_browser.py::test_first_screen_with_inline_css_alone_matches_the_full_css[375-light]',
     'tests/test_notice_page_cache.py', 'tests/test_sitemap_parts.py', 'tests/test_csp_meta_removed.py',  # 11-13 PM 20:5x
     'tests/test_page_meta_trim.py',  # 11-13 PM 22:5x decision (b)
+    'tests/test_brand_signals.py',  # 11-14 PM 02:2x search: brand title, JSON-LD names, visible brand
+    'tests/test_noindex_tiers.py',  # 11-14 PM 03:1x search B: x402/thin/duplicate pages noindex and out of the sitemap
+    'tests/test_a2a_run.py',  # 11-14 PM 04:0x: A2A "run N" within the MCP call tool's scope
+    'tests/test_mcp_tool_descriptions.py',  # 11-14 PM 04:1x: tool purposes distinct, hints match behaviour (Glama)
+    'tests/test_task_pages_job.py',  # 11-14 PM 03:2x: usage lines fill missing days; indexed fixtures after noindex tiers
+    'tests/test_traffic.py',  # 11-14: day counts (tools/call by client name, Accept on /, funnel)
+    'tests/test_first_run_fixes.py',  # 11-14 growth plan 7 item 4: a failed run says how to fix it
+    'tests/test_run_here.py',  # 11-14 growth plan 7 item 3: the run line right under the first recommendation
+    'tests/test_pearl_frontend.py',  # 11-14: the workspace text replacement follows the brand (AgentValCon broke it unseen)
 )
 # Each role runs the tests for the code it serves. jobs releases run the collector, health checks,
 # crawler and evaluation without the typed execution engine, so the opening-path list above

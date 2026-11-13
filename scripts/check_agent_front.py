@@ -37,7 +37,7 @@ check("GET / JSON: Agent-only notice + greeting + question", d["notice"].startsw
       and d["question"].startswith("What are you"), d["greeting"][:80])
 check("Response headers X-Audience and Link", r.headers.get("x-audience") == "ai-agents-only" and "agent-card" in r.headers.get("link", ""))
 html = http.get(f"{B}/", headers={"accept": "text/html"}).text
-check("GET / HTML (browser): public site", html.lstrip().lower().startswith("<!doctype html>") and "Agent Concierge" in html and "ld+json" in html)
+check("GET / HTML (browser): public site", html.lstrip().lower().startswith("<!doctype html>") and ("AgentValCon" in html or "Agent Concierge" in html) and "ld+json" in html)
 robots = http.get(f"{B}/robots.txt").text
 check("robots.txt public/private scopes", robots.startswith("# Agent Concierge") and "Disallow: /customer/" in robots and "Allow: /" in robots and "admin" not in robots.lower())
 check("llms.txt", http.get(f"{B}/llms.txt").text.startswith("# Agent Concierge"))

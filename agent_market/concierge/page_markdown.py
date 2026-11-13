@@ -194,8 +194,8 @@ def route_class():
                     headers['Vary'] = 'Accept'
                     info = {}
                     text = html_to_markdown(response.body.decode('utf-8'), info)
-                    if info['noindex']:
-                        headers['X-Robots-Tag'] = 'noindex'
+                    if info['noindex'] and not any(k.lower() == 'x-robots-tag' for k in headers):
+                        headers['X-Robots-Tag'] = 'noindex'  # the page's own header, when it has one, is kept as is
                     return PlainTextResponse(text, status_code=response.status_code,
                                              media_type='text/markdown; charset=utf-8', headers=headers)
                 response.headers['Vary'] = 'Accept'

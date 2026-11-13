@@ -39,9 +39,9 @@ SHOWN = 3  # recommendations a visitor sees
 PAID_NOTE = 'Paid plan: the description of this tool says it needs a paid plan.'
 # A tool our gateway does not relay (an action tool such as send_email, 11-12 PM option b-1): the card says so and
 # points at the provider's own website or repository; invocation URLs stay hidden at the response boundary.
-UNRELAYED_NOTE = 'This tool performs an action, so the Agent Concierge gateway does not relay it.'
+UNRELAYED_NOTE = 'This tool performs an action, so the AgentValCon gateway does not relay it.'
 # 11-13 PM: a read tool the gateway has not verified as read-only (invoice_ocr) is not an action; the card says which.
-UNVERIFIED_NOTE = 'The Agent Concierge gateway has not verified this tool as read-only, so it does not relay it.'
+UNVERIFIED_NOTE = 'The AgentValCon gateway has not verified this tool as read-only, so it does not relay it.'
 ACTION_TOOL, UNVERIFIED_TOOL = 'action_tool', 'not_verified_read_only'
 
 

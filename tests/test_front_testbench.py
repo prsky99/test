@@ -56,14 +56,14 @@ def test_front_testbench_meta_and_microdata(w):
     html = res.text
 
     # 1. Page-level head meta tags
-    assert '<meta name="page:test:title" content="Agent Concierge — Interactive Agent Testbench &amp; Protocol Sandbox">' in html
+    assert '<meta name="page:test:title" content="AgentValCon — Interactive Agent Testbench &amp; Protocol Sandbox">' in html
     assert '<meta name="page:test:target-action" content="test-agent-endpoints">' in html
     assert '<meta name="page:test:retention-hook"' in html
 
     # 2. Section-level DOM microdata
     idx_sec = html.find('id="secTest"')
     sec_head = html[idx_sec:idx_sec + 700]
-    assert 'meta itemprop="name" content="Agent Concierge — Interactive Agent Testbench &amp; Protocol Sandbox"' in sec_head
+    assert 'meta itemprop="name" content="AgentValCon — Interactive Agent Testbench &amp; Protocol Sandbox"' in sec_head
     assert 'meta name="agent:page" content="test"' in sec_head
     assert 'meta name="agent:action" content="test-agent-endpoints"' in sec_head
     assert 'meta name="agent:retention-hook"' in sec_head

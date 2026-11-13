@@ -35,7 +35,7 @@ def test_about_deep_link_has_current_seo_and_native_keyboard_navigation(about_pa
     assert page.locator('head script[type="application/ld+json"]').inner_text().find('AboutPage')>=0
     about=page.get_by_role('button',name='About',exact=True);expect(about).to_have_attribute('aria-current','page')
     listing=page.get_by_role('button',name='List Your Agent',exact=True);listing.focus();page.keyboard.press('Tab');expect(about).to_be_focused();page.keyboard.press('Enter');expect(page.locator('#secAbout')).to_be_visible()
-    brand=page.get_by_role('link',name='Agent Concierge Home',exact=True);brand.focus();page.keyboard.press('Enter');expect(page.locator('#secOverview')).to_be_visible();expect(page).to_have_title(PAGES['overview'][1]);expect(brand).to_have_attribute('aria-current','page')
+    brand=page.get_by_role('link',name='AgentValCon Home',exact=True);brand.focus();page.keyboard.press('Enter');expect(page.locator('#secOverview')).to_be_visible();expect(page).to_have_title(PAGES['overview'][1]);expect(brand).to_have_attribute('aria-current','page')
     assert not any(method=='POST' for method,_ in calls) and not errors
 
 

@@ -196,6 +196,6 @@ def test_front_learn_updated_existing_sections(w):
     # 8. FAQ expansions
     assert "How does the continuous agent relationship work in chat?" in html
     assert "Can I download and run multi-agent workflows offline?" in html
-    assert "Can I connect legacy REST APIs to Agent Concierge?" in html
-    assert "How does Agent Concierge prevent SSRF attacks?" in html
+    assert "Can I connect legacy REST APIs to AgentValCon?" in html
+    assert "How does AgentValCon prevent SSRF attacks?" in html
 

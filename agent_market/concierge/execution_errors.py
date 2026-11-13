@@ -52,7 +52,43 @@ MESSAGES = {
     'CAPACITY_EXCEEDED': 'Agent execution is busy. Please try again shortly.',
     'EXECUTION_FAILED': 'The agent execution failed. Review its connection and registered tool.',
 }
+# What the caller can do next, per code (growth plan 7 item 4, PM 11-14): returned after a failed first run so a
+# connection does not end in a bare error. INVALID_INPUT adds the tool's required arguments (fix_for).
+FIXES = {
+    'INVALID_INPUT': 'Send it again with the tool\'s required arguments.',
+    'AUTH_REQUIRED': 'This provider needs its own account or key, which this gateway does not pass on. Connect to the provider directly with your credentials, or choose another recommendation.',
+    'RESOURCE_UNAVAILABLE': 'Our latest check found this agent unavailable. Choose another recommendation, or ask again later.',
+    'POLICY_DENIED': 'Choose another recommendation; this connection did not pass our security checks.',
+    'UNSAFE_TOOL': 'This gateway runs only tools that read. Use the provider directly, with its own authorization, for tools that change data.',
+    'TOOL_UNAVAILABLE': 'Use the tool named in the recommendation, or list the tools on its gateway endpoint (tools/list) first.',
+    'UNSUPPORTED_SCHEMA': 'Call the provider directly; its input schema uses features this gateway cannot validate.',
+    'SCHEMA_CHANGED': 'The provider changed its tools since our last check. Ask for agents again to get the current tool and arguments.',
+    'UPSTREAM_TIMEOUT': 'The provider did not answer in time and the outcome is unknown. Check before repeating it, or choose another recommendation.',
+    'UPSTREAM_NETWORK': 'The provider could not be reached. Try again later, or choose another recommendation.',
+    'UPSTREAM_PROTOCOL': 'The provider did not answer in the MCP protocol. Choose another recommendation.',
+    'UPSTREAM_TOOL_ERROR': 'The provider\'s tool reported an error. Check the argument values, then try once more or choose another recommendation.',
+    'PENDING_RESULT': 'The provider returned no finished output. Choose another recommendation.',
+    'CAPACITY_EXCEEDED': 'Wait a few seconds and send it again.',
+    'EXECUTION_FAILED': 'Ask for agents again, or choose another recommendation.',
+}
 _REFERENCE = re.compile(r'ex_[0-9a-f]{24}\Z')
+
+
+def fix_for(code, tool_spec=None, retry_after=None):
+    """One line on how to get past CODE; for INVALID_INPUT the required arguments of TOOL_SPEC with examples.
+    A provider that asked for a pause (429 Retry-After, b47872a5: RESOURCE_UNAVAILABLE with retry_after) is not
+    down: the line says how long to wait instead."""
+    code = failure_code(code)
+    if code == 'RESOURCE_UNAVAILABLE' and isinstance(retry_after, (int, float)) and 0 < retry_after <= 86400:
+        return 'The provider asked for a pause. Wait %d seconds, then send it again.' % max(1, round(retry_after))
+    text = FIXES[code]
+    if code == 'INVALID_INPUT' and isinstance(tool_spec, dict):
+        import json
+        from .connections import example_arguments
+        example = example_arguments(tool_spec)
+        if example:
+            text = text[:-1] + ', for example ' + json.dumps(example, separators=(',', ':')) + ' (fill in the values).'
+    return text
 
 
 def reference():

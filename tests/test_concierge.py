@@ -51,15 +51,15 @@ def test_every_first_read_says_agents_only(w):
     assert "What are you trying to get done?" in body["question"] and body["how_to_reply"]["rest"]["url"].endswith("/chat")
     assert root.headers["X-Audience"] == "ai-agents-only" and "agent-card" in root.headers["Link"]
     robots = c.get("/robots.txt").text  # public discovery guide; admin paths are never advertised
-    assert robots.startswith("# Agent Concierge") and "/llms.txt" in robots and "admin" not in robots.lower()
+    assert robots.startswith("# AgentValCon") and "/llms.txt" in robots and "admin" not in robots.lower()
     llms = c.get("/llms.txt").text  # machine guide for agents and the public pages
-    assert llms.startswith("# Agent Concierge") and "English" in llms
+    assert llms.startswith("# AgentValCon") and "English" in llms
     card = c.get("/.well-known/agent-card.json").json()
     assert card["description"].startswith("FOR AI AGENTS.") and card["url"].endswith("/a2a")
     assert TestClient(world.app).get("/.well-known/agent.json").json()["audience"] == "ai-agents-only"
     html = c.get("/", headers={"accept": "text/html"}).text
     # Browsers receive the public Pearl site; agents keep the JSON notice above.
-    assert html.startswith("<!doctype html>") and "Agent Concierge" in html
+    assert html.startswith("<!doctype html>") and "AgentValCon" in html
 
 
 def test_read_only_visits_are_counted_not_remembered(w):
@@ -230,7 +230,7 @@ def test_mcp_initialize_tools_and_calls(w):
     sid = init.headers["Mcp-Session-Id"]
     assert c.post("/mcp", json={"jsonrpc": "2.0", "method": "notifications/initialized"}, headers={"Mcp-Session-Id": sid}).status_code == 202
     names = [t["name"] for t in c.post("/mcp", json={"jsonrpc": "2.0", "id": 2, "method": "tools/list"}).json()["result"]["tools"]]
-    assert names == ["hello", "chat", "search", "find_agents", "check_agent", "whats_new", "subscribe", "verify_contact", "call", "report", "credit", "adapt_rest", "search_workflows", "workflow_details", "run_workflow"]
+    assert names == ["hello", "chat", "search", "find_agents", "check_agent", "whats_new", "verify_contact", "call", "report", "credit", "adapt_rest", "search_workflows", "workflow_details", "run_workflow"]
     call = c.post("/mcp", json={"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {
         "name": "find_agents", "arguments": {"task": "x402 web search API for SERP results", "kind": "x402"}}},
                   headers={"Mcp-Session-Id": sid}).json()["result"]
@@ -257,7 +257,7 @@ def test_mcp_initialize_tools_and_calls(w):
 
     # Stateless 2026-07-28 revision server/discover
     disc = c.post("/mcp", json={"jsonrpc": "2.0", "id": 5, "method": "server/discover", "params": {}}).json()
-    assert disc.get("result", {}).get("serverInfo", {}).get("name") == "agent-concierge"
+    assert disc.get("result", {}).get("serverInfo", {}).get("name") == "agent-concierge"  # identifier kept (11-14 brand AgentValCon)
 
     # Self-Reflection report tool test (success and failure retry)
     rep_ok = c.post("/mcp", json={"jsonrpc": "2.0", "id": 6, "method": "tools/call", "params": {

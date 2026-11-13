@@ -41,7 +41,7 @@ def test_robots_txt_crawler_directives_and_sitemap(w):
     _, c, _ = w
     r = c.get("/robots.txt")
     assert r.status_code == 200
-    assert r.text.startswith("# Agent Concierge public pages")
+    assert r.text.startswith("# AgentValCon public pages")
 
     # Verify bot user agents
     for bot in ["Googlebot", "GPTBot", "PerplexityBot", "ClaudeBot", "OAI-SearchBot", "anthropic-ai"]:
@@ -69,7 +69,7 @@ def test_llms_txt_and_llms_full_txt(w):
     assert r_full.status_code == 200
     assert "text/markdown" in r_full.headers.get("content-type", "")
     full_text = r_full.text
-    assert "# Agent Concierge — Deep Context & Multi-Agent Architecture Guide" in full_text
+    assert "# AgentValCon — Deep Context & Multi-Agent Architecture Guide" in full_text
     assert "Public English pages and machine interfaces" in full_text
 
     # Check all 3 protocols documented
@@ -101,7 +101,7 @@ def test_mcp_json_manifest_endpoint(w):
     r = c.get("/.well-known/mcp.json")
     assert r.status_code == 200
     d = r.json()
-    assert d.get("name") == "Agent Concierge"
+    assert d.get("name") == "AgentValCon"
     assert "modelcontextprotocol.io" in d.get("$schema", "")
     endpoints = d.get("endpoints", [])
     assert any(ep.get("url", "").endswith("/mcp") for ep in endpoints)

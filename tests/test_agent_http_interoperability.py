@@ -111,7 +111,9 @@ def test_tool_hints_schemas_and_continuation_are_truthful(catalog):
         assert set(tool['annotations']) == {'readOnlyHint', 'destructiveHint', 'idempotentHint', 'openWorldHint'}
     by_name = {t['name']: t for t in tools}
     assert by_name['search']['annotations']['readOnlyHint']  # Stateless catalog lookup.
-    assert by_name['call']['annotations']['destructiveHint']
+    # call relays only tools classified read-only (PM 11-14 04:1x); adapt_rest can send POST/PUT/DELETE.
+    assert not by_name['call']['annotations']['destructiveHint'] and by_name['call']['annotations']['openWorldHint']
+    assert by_name['adapt_rest']['annotations']['destructiveHint']
     assert by_name['workflow_details']['annotations']['readOnlyHint']
     hello = client.post('/mcp', json={'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call',
         'params': {'name': 'hello'}}).json()['result']

@@ -96,7 +96,7 @@ def category_page(front,category):
     category_name=CATEGORIES[category].name_en or category.replace('_',' ').title()
     esc=lambda value:html.escape(str(value),quote=True)
     canonical='https://agentconcierge.biz/agents/category/'+category
-    title=category_name+' Agents — Agent Concierge'
+    title=category_name+' Agents — AgentValCon'
     description='Explore recorded execution checks and public connections for '+category_name.lower()+'. Revalidate before running.'
     entries=[]
     if not rows:
@@ -111,7 +111,7 @@ def category_page(front,category):
         '<title>'+esc(title)+'</title><meta name="description" content="'+esc(description)+'"><meta property="og:title" content="'+esc(title)+'">'
         '<meta property="og:description" content="'+esc(description)+'"><meta property="og:url" content="'+esc(canonical)+'">'
         '<link rel="canonical" href="'+esc(canonical)+'"><link rel="stylesheet" href="/new/en/assets/styles.css">'
-        '<script type="application/ld+json">'+structured+'</script></head><body><main><a href="/">Agent Concierge</a><h1>'+esc(category_name)+
+        '<script type="application/ld+json">'+structured+'</script></head><body><main><a href="/">AgentValCon</a><h1>'+esc(category_name)+
         ' Agents</h1><p>'+esc(description)+'</p><ul>'+''.join(entries)+'</ul>'+about_category(CATEGORIES[category],category_name)+
         '<p>Checks describe recorded evidence and do not guarantee continuous availability.</p>'
         '<a href="/new/en/explore.html">Explore agents</a></main></body></html>')
@@ -121,7 +121,7 @@ def about_category(definition,category_name):
     """What the category covers and how listings are checked, so the page explains itself to readers and crawlers."""
     esc=lambda value:html.escape(str(value),quote=True)
     return ('<section><h2>About '+esc(category_name)+'</h2><p>'+esc(definition.description)+'</p></section>'
-        '<section><h2>How these listings are checked</h2><p>Agent Concierge collects public A2A agents and MCP servers, '
+        '<section><h2>How these listings are checked</h2><p>AgentValCon collects public A2A agents and MCP servers, '
         'checks that their endpoints respond, and records execution checks against their published tools. A listing appears '
         'in this preview only while its latest recorded check for the current connection version succeeded. The date shown '
         'is when that check ran; providers can change or go offline afterwards, so revalidate the connection before you rely on it.</p>'

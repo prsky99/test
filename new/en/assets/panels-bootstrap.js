@@ -16,7 +16,7 @@
   const tools = [
     {
       name: "search_agent_catalog",
-      description: "Search the Agent Concierge catalog of A2A agents, MCP servers and x402 APIs. Read-only; returns listings with health and grade.",
+      description: "Search the AgentValCon catalog of A2A agents, MCP servers and x402 APIs. Read-only; returns listings with health and grade.",
       inputSchema: { type: "object", properties: {
         query: { type: "string", minLength: 2, maxLength: 200, description: "Words describing the capability, e.g. weather forecast" },
         protocol: { type: "string", enum: protocols, description: "Limit results to one protocol" },

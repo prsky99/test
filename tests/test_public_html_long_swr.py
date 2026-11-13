@@ -20,9 +20,13 @@ def test_the_live_page_policy_serves_stale_for_a_day_without_s_maxage():
 
 def test_sign_in_and_account_answers_stay_private(client):  # noqa: F811
     with published(client, True) as site:
-        for path in ('/new/en/sign-in.html', '/new/en/workspace.html', '/new/en/account.html'):
+        for path in ('/new/en/workspace.html', '/new/en/account.html'):
             r = site.get(path, follow_redirects=False)
             assert r.status_code == 303 and r.headers['cache-control'] == 'no-store', path
+        # 11-14 PM: the old sign-in address is one fixed, cookie-free move (308) a cache may keep for a day
+        r = site.get('/new/en/sign-in.html', follow_redirects=False)
+        assert r.status_code == 308 and r.headers['cache-control'] == 'public, max-age=86400' and 'set-cookie' not in r.headers
+        assert site.get('/customer/sign-in').headers['cache-control'] == 'no-store'
 
 
 def test_a_cookie_answer_is_never_given_the_shared_policy(page_client):  # noqa: F811

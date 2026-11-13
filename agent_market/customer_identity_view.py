@@ -30,8 +30,9 @@ def workspace_shell(page, enabled):
         page = page.replace('List Your Agent to be discovered, or read About our service and vision.',
                             'List Your Agent to be discovered, or read About our service and vision. '
                             'Sign in with Google or GitHub to manage your workspaces.')
-        page = page.replace('About: our service, value and vision. Select the Agent Concierge logo',
-                            'About: our service, value and vision; Workspace: Google or GitHub sign-in and workspace access. Select the Agent Concierge logo')
+        # 11-14 brand AgentValCon: the pages name the logo by the new brand
+        page = page.replace('About: our service, value and vision. Select the AgentValCon logo',
+                            'About: our service, value and vision; Workspace: Google or GitHub sign-in and workspace access. Select the AgentValCon logo')
     return page
 
 

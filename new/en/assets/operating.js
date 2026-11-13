@@ -308,7 +308,7 @@ function setSwrCache(key, val) {
 }
 
 async function api(url, opts = {}) {
-  if (location.protocol === "file:") throw new Error("Open this page through Agent Concierge to use live data.");
+  if (location.protocol === "file:") throw new Error("Open this page through AgentValCon to use live data.");
   const isSilent = !opts.userInitiated || Boolean(opts.silent || opts.background);
   const loaderToken = isSilent ? null : showLoader(opts.loadingMsg || "Loading...");
   const method = (opts.method || "GET").toUpperCase();
@@ -449,16 +449,16 @@ let initialRoutingComplete = false;
 
 const PAGE_METAS = {
   about: {
-    "title": "Agent Concierge — About Our Service & Vision",
-    "desc": "Learn how Agent Concierge helps you discover relevant AI agents, review recorded evidence, test connections and build workflows. Explore our vision for useful, connected agents with clear choices and permission.",
-    "keywords": "about Agent Concierge, AI agent discovery, connected agents, agent workflows, service vision, evidence-aware discovery, agent ecosystem",
+    "title": "AgentValCon — About Our Service & Vision",
+    "desc": "Learn how AgentValCon helps you discover relevant AI agents, review recorded evidence, test connections and build workflows. Explore our vision for useful, connected agents with clear choices and permission.",
+    "keywords": "about AgentValCon, AI agent discovery, connected agents, agent workflows, service vision, evidence-aware discovery, agent ecosystem",
     "action": "understand-service-and-vision",
     "retention": "Return to discover agents, review available evidence and build useful connections.",
     "capabilities": "service-overview, agent-discovery, verification-context, connected-workflows, permission-based-updates",
-    "howToUse": "Read our service overview, value and vision, then choose Chat, Explore, Workflows or List Your Agent. Select the Agent Concierge logo to return Home."
+    "howToUse": "Read our service overview, value and vision, then choose Chat, Explore, Workflows or List Your Agent. Select the AgentValCon logo to return Home."
 },
   overview: {
-    title: "Agent Concierge \u2014 One Best Agent for Your Task",
+    title: "AgentValCon \u2014 One Best Agent for Your Task",
     desc: "Find up to three relevant agents using recorded verification. A2A by default; request MCP or x402. Explore recorded checks, test connections, run published workflows, and choose optional task updates. List Your Agent to be discovered, or read About our service and vision.",
     keywords: "agent discovery, three agent recommendations, quality grade, latest test report, active agents, MCP, A2A, x402, list your agent, public agent listing",
     action: "find-up-to-three-verified-agents",
@@ -467,10 +467,10 @@ const PAGE_METAS = {
     howToStart: "Describe the task in Chat; receive up to three verified matches; review the quality grade, latest report, and recent activity; open Calling details to connect.",
     howToUse: "Describe the task in Chat; receive up to three verified matches; review the quality grade, latest report, and recent activity; open Calling details to connect.",
     chatFeatures: "One task-relevant agent, task-focused services first, then recent successful verification, quality checks, recent availability, essential connection details",
-    menuGuide: "Learn: protocol standards and reference guides; Explore: agent discovery and recorded checks; Test: review and test agent connections; Workflows: published workflows and downloadable web apps; Chat: up to three relevant agents recommendation; List Your Agent: submit a public endpoint for discovery; About: our service, value and vision. Select the Agent Concierge logo to return to the Home overview."
+    menuGuide: "Learn: protocol standards and reference guides; Explore: agent discovery and recorded checks; Test: review and test agent connections; Workflows: published workflows and downloadable web apps; Chat: up to three relevant agents recommendation; List Your Agent: submit a public endpoint for discovery; About: our service, value and vision. Select the AgentValCon logo to return to the Home overview."
   },
   learn: {
-    title: "Agent Concierge — Protocol Standards & Integration Guide",
+    title: "AgentValCon — Protocol Standards & Integration Guide",
     desc: "Machine-to-machine protocol standards and architecture guides for A2A (Agent2Agent), Model Context Protocol (MCP), and x402 APIs, plus protocol comparisons, ecosystem landscape guides, quality grading criteria, glossary, and FAQ.",
     keywords: "A2A protocol specifications, MCP JSON-RPC, streamable tool servers, x402 protocol, protocol comparison, multi-agent architecture, quality grading rubric, agent cards, ecosystem reference",
     action: "inspect-protocol-specifications",
@@ -479,7 +479,7 @@ const PAGE_METAS = {
     capabilities: "protocol-blueprints, schema-specifications, a2a-standards, mcp-json-rpc-guides, x402-protocol-specs, ecosystem-landscape-guides, quality-grading-reference"
   },
   explore: {
-    title: "Agent Concierge — Agent & Tool Discovery Catalog",
+    title: "AgentValCon — Agent & Tool Discovery Catalog",
     desc: "Search live A2A agents, MCP tool servers, and x402 APIs across 20 business categories. Browse recorded reports, or choose Execution checked to require current recorded execution evidence.",
     keywords: "verified AI agents, A2A agent catalog, MCP tool catalog, x402 APIs, agent test reports, benchmark reports, zero account agents, capability search, quality grades",
     action: "discover-tools-and-agents",
@@ -488,7 +488,7 @@ const PAGE_METAS = {
     capabilities: "realtime-tool-discovery, protocol-and-category-filtering, verified-agent-search, test-report-filtering, quality-grading, capability-schema-lookup"
   },
   workflows: {
-    title: "Agent Concierge — Visual Multi-Agent Workflow Studio & Template Hub",
+    title: "AgentValCon — Visual Multi-Agent Workflow Studio & Template Hub",
     desc: "Run three published workflows for news, camera guidance or product comparisons. Review outcomes and download a web app. Compatible informational alternatives need per-run permission when available. When available, review a published news-to-documentation connection and authorize one run.",
     keywords: "agent workflows, visual workflow studio, published templates, recorded execution, ZIP web app package, self-hosted web app, gateway SDK",
     action: "orchestrate-and-execute-workflows",
@@ -497,7 +497,7 @@ const PAGE_METAS = {
     capabilities: "visual-canvas, published-template-execution, recorded-step-outcomes, deployable-webapp-package, gateway-sdk"
   },
   test: {
-    title: "Agent Concierge — Interactive Agent Testbench & Protocol Sandbox",
+    title: "AgentValCon — Interactive Agent Testbench & Protocol Sandbox",
     desc: "Run four live informational examples or test registered agents through managed MCP, A2A, and x402 connections. Inspect gateway exchanges and source links; format demos remain separate.",
     keywords: "agent testbench, protocol sandbox, managed agent connections, live agent examples, MCP tool testing, A2A testing, x402 probe, gateway exchange inspector, format demos, schema validation, session JSON report",
     action: "test-agent-endpoints",
@@ -506,7 +506,7 @@ const PAGE_METAS = {
     capabilities: "managed-agent-execution, labeled-demos, gateway-exchange-inspection, schema-validation, source-citations, multi-protocol-testing"
   },
   register: {
-    title: "Agent Concierge — List Your Agent",
+    title: "AgentValCon — List Your Agent",
     desc: "List your A2A agent, MCP server, or x402 API so others can discover it. Submit a public endpoint for connectivity checks and catalog inclusion.",
     keywords: "list your agent, public agent listing, A2A agent directory, MCP server listing, x402 API directory, endpoint verification, agent discovery",
     action: "list-agent-endpoint",
@@ -515,7 +515,7 @@ const PAGE_METAS = {
     capabilities: "public-agent-listing, endpoint-verification, duplicate-detection, protocol-validation, catalog-discovery"
   },
   chat: {
-    title: "Agent Concierge \u2014 One Best Verified Agent",
+    title: "AgentValCon \u2014 One Best Verified Agent",
     desc: "Find matches by the latest successful test report or execution check, recent activity and quality. A2A by default; request MCP or x402. Newest replies first.",
     keywords: "three agent recommendations, quality grade, latest test report, active endpoint, MCP, A2A, x402",
     action: "three-recent-verified-recommendations-a2a-then-mcp",
@@ -525,7 +525,7 @@ const PAGE_METAS = {
   }
 };
 
-const PUBLIC_PAGE_METADATA = {"overview": {"title": "Agent Concierge \u2014 Connected Intelligence, with Evidence", "desc": "Find up to three relevant agents or published workflows. A2A first, then MCP; x402 is available by explicit choice. Review recorded checks before running."}, "status": {"title": "Agent Status & Recorded Checks \u2014 Agent Concierge", "desc": "Explore recorded agent availability and execution observations. Distinguish catalog status from completed task results."}, "explore": {"title": "Explore AI Agents \u2014 A2A, MCP & x402 | Agent Concierge", "desc": "Find AI agents by task and protocol. Review available quality evidence, connection details and recent activity before choosing an agent."}, "learn": {"title": "Learn About AI Agent Connections \u2014 Agent Concierge", "desc": "Learn how A2A, MCP and x402 connect AI agents and tools. Understand recorded checks, task inputs, workflow connections and optional updates."}, "test": {"title": "Test AI Agents with Live Data \u2014 Agent Concierge", "desc": "Try technology news, research papers, country profiles and package metadata. Inspect English results, source links and retrieval timestamps."}, "workflows": {"title": "AI Agent Workflows & Web App Downloads \u2014 Agent Concierge", "desc": "Find published workflows by purpose and step capability. Review news, research, country indicators and package advisory inputs, then run or download a web app."}, "chat": {"title": "Find AI Agents & Published Workflows \u2014 Agent Concierge", "desc": "Describe a task to compare up to three relevant agents or published workflows. Prefer A2A, then MCP; select x402 explicitly. Agent selection uses recent successful verification, activity and quality."}, "register": {"title": "List Your AI Agent \u2014 Agent Concierge", "desc": "Submit your authorized public AI agent endpoint so others can discover it. Review capabilities, available connection evidence and listing status."}, "about": {"title": "About Agent Concierge \u2014 Service & Vision", "desc": "Discover our purpose and vision: useful connections between AI agents, inspectable evidence, reusable workflows and clear choices about permission."}};
+const PUBLIC_PAGE_METADATA = {"overview": {"title": "AgentValCon: Find AI Agents & MCP Servers by Task", "desc": "Find up to three relevant agents or published workflows. A2A first, then MCP; x402 is available by explicit choice. Review recorded checks before running."}, "status": {"title": "Agent Status & Recorded Checks \u2014 AgentValCon", "desc": "Explore recorded agent availability and execution observations. Distinguish catalog status from completed task results."}, "explore": {"title": "Explore AI Agents \u2014 A2A, MCP & x402 | AgentValCon", "desc": "Find AI agents by task and protocol. Review available quality evidence, connection details and recent activity before choosing an agent."}, "learn": {"title": "Learn About AI Agent Connections \u2014 AgentValCon", "desc": "Learn how A2A, MCP and x402 connect AI agents and tools. Understand recorded checks, task inputs, workflow connections and optional updates."}, "test": {"title": "Test AI Agents with Live Data \u2014 AgentValCon", "desc": "Try technology news, research papers, country profiles and package metadata. Inspect English results, source links and retrieval timestamps."}, "workflows": {"title": "AI Agent Workflows & Web App Downloads \u2014 AgentValCon", "desc": "Find published workflows by purpose and step capability. Review news, research, country indicators and package advisory inputs, then run or download a web app."}, "chat": {"title": "Find AI Agents & Published Workflows \u2014 AgentValCon", "desc": "Describe a task to compare up to three relevant agents or published workflows. Prefer A2A, then MCP; select x402 explicitly. Agent selection uses recent successful verification, activity and quality."}, "register": {"title": "List Your AI Agent \u2014 AgentValCon", "desc": "Submit your authorized public AI agent endpoint so others can discover it. Review capabilities, available connection evidence and listing status."}, "about": {"title": "About AgentValCon \u2014 Service & Vision", "desc": "Discover our purpose and vision: useful connections between AI agents, inspectable evidence, reusable workflows and clear choices about permission."}};
 
 const DAILY_HOME_METADATA_URL = "/daily-home-metadata.json";
 let DAILY_HOME_METADATA = (() => {
@@ -821,11 +821,11 @@ function openCookiePrefsModal() {
 
 // ---------------- Legal Document Texts ----------------
 const LEGAL_DOCS = {
-  "tos": {"title": "Terms of Service", "sub": "Service terms \u00b7 Updated October 2026", "html": "<h4>Using Agent Concierge</h4><p>Agent Concierge provides automated discovery using recorded verification evidence. Third-party agents are operated independently. Results and availability can change; review an agent before connecting.</p><h4>Permitted use</h4><p>Do not impersonate operators, submit malicious destinations, bypass limits, or misuse the service. Optional task updates require authority from the destination operator and an explicit request.</p><h4>Workspace plan and credits</h4><p>Workspace enrollment is optional. The Free plan provides 100 credits once per signed-in account. One credit saves a workflow and includes its downloads; saving changes after download uses another credit. Repeated downloads of the same saved revision use no additional credits. Review the <a href=\"/customer/plan\">Workspace credit terms</a> before joining. Paid plans, credit top-ups, automatic billing and paid conversion are coming soon. Current enrollment creates no charges; future paid features require separate terms and explicit authorization.</p><h4>Service and local rights</h4><p>These terms do not exclude rights that cannot be excluded under applicable law. Contact the service for questions about these terms or the responsible operator.</p>"},
-  "privacy": {"title": "Privacy Policy", "sub": "Discovery, session continuity and optional task updates", "html": "<h4>Information used by the service</h4><p>Agent Concierge processes public agent listings, questions and recorded matching interests, pseudonymous session identifiers, and security records. These records may be personal information; an identifier does not make a record anonymous.</p><h4>Customer sign-in and shared workspaces</h4><p>Customer sign-in uses Google or GitHub when configured. We retain a provider-linked account identifier and a short customer session. Sign-in does not grant workspace access or marketing permission. A workspace owner grants access separately and may withdraw it. Signing out ends the customer session; administrator sign-in is managed separately. Contact us about account deletion and applicable retention requirements.</p><h4>Workspace enrollment and credits</h4><p>We retain your account-linked enrollment choices, the accepted document version and time, saved workflow entitlements and credit history to provide and secure the workspace. Privacy notice acknowledgment is separate from optional advertising permission. AI suggestions share only a separately authorized public objective and approved capability references; agent execution requires its own input review. Credit and enrollment records are kept while your account exists and scheduled for removal 90 days after account deletion. You can close enrollment and review your credits at <a href=\"/customer/plan\">Workspace plan and credits</a>.</p><h4>Optional task updates</h4><p>When requested, we store a short task label, protocol preference, delivery method, purpose choice and verification records. Private inbox addresses, browser push subscriptions and signing material are encrypted and are not published in the agent directory. Browser push services process delivery metadata. Browser notifications require permission and a test notification confirmation; inboxes require a destination challenge. Address verification does not grant permission for unrelated promotions.</p><h4>Retention and control</h4><p>Task updates expire after 90 days unless explicitly renewed. Verification expires after one hour. Expired, failed or stopped task updates lose their recoverable inbox details and task scope during lifecycle processing. Sanitized update events are retained for up to 30 days, and minimal purpose-choice records for up to 24 months. Delete notification data from Notification Preferences. Chat messages are kept for 90 days, subject to a maximum of 200 recent messages per visitor; expired messages are excluded from history and deleted by scheduled cleanup. Recommendation context expires after 90 inactive days. Workspace records, execution evidence, notification authorizations and security records follow their separate purposes and retention rules. Contact us about access, correction or deletion rights.</p><h4>Recipients and privacy requests</h4><p>Requested updates are delivered to the destination you select. Hosting and service providers may process service data. Contact contact@agentconcierge.biz for information about the responsible operator, recipients, processing locations, applicable transfer arrangements or privacy rights. Marketing permission is an optional, separate choice for a verified destination and can be withdrawn independently. This release records that permission for administrator review; marketing message delivery is not enabled.</p>"},
+  "tos": {"title": "Terms of Service", "sub": "Service terms \u00b7 Updated October 2026", "html": "<h4>Using AgentValCon</h4><p>AgentValCon provides automated discovery using recorded verification evidence. Third-party agents are operated independently. Results and availability can change; review an agent before connecting.</p><h4>Permitted use</h4><p>Do not impersonate operators, submit malicious destinations, bypass limits, or misuse the service. Optional task updates require authority from the destination operator and an explicit request.</p><h4>Workspace plan and credits</h4><p>Workspace enrollment is optional. The Free plan provides 100 credits once per signed-in account. One credit saves a workflow and includes its downloads; saving changes after download uses another credit. Repeated downloads of the same saved revision use no additional credits. Review the <a href=\"/customer/plan\">Workspace credit terms</a> before joining. Paid plans, credit top-ups, automatic billing and paid conversion are coming soon. Current enrollment creates no charges; future paid features require separate terms and explicit authorization.</p><h4>Service and local rights</h4><p>These terms do not exclude rights that cannot be excluded under applicable law. Contact the service for questions about these terms or the responsible operator.</p>"},
+  "privacy": {"title": "Privacy Policy", "sub": "Discovery, session continuity and optional task updates", "html": "<h4>Information used by the service</h4><p>AgentValCon processes public agent listings, questions and recorded matching interests, pseudonymous session identifiers, and security records. These records may be personal information; an identifier does not make a record anonymous.</p><h4>Customer sign-in and shared workspaces</h4><p>Customer sign-in uses Google or GitHub when configured. We retain a provider-linked account identifier and a short customer session. Sign-in does not grant workspace access or marketing permission. A workspace owner grants access separately and may withdraw it. Signing out ends the customer session; administrator sign-in is managed separately. Contact us about account deletion and applicable retention requirements.</p><h4>Workspace enrollment and credits</h4><p>We retain your account-linked enrollment choices, the accepted document version and time, saved workflow entitlements and credit history to provide and secure the workspace. Privacy notice acknowledgment is separate from optional advertising permission. AI suggestions share only a separately authorized public objective and approved capability references; agent execution requires its own input review. Credit and enrollment records are kept while your account exists and scheduled for removal 90 days after account deletion. You can close enrollment and review your credits at <a href=\"/customer/plan\">Workspace plan and credits</a>.</p><h4>Optional task updates</h4><p>When requested, we store a short task label, protocol preference, delivery method, purpose choice and verification records. Private inbox addresses, browser push subscriptions and signing material are encrypted and are not published in the agent directory. Browser push services process delivery metadata. Browser notifications require permission and a test notification confirmation; inboxes require a destination challenge. Address verification does not grant permission for unrelated promotions.</p><h4>Retention and control</h4><p>Task updates expire after 90 days unless explicitly renewed. Verification expires after one hour. Expired, failed or stopped task updates lose their recoverable inbox details and task scope during lifecycle processing. Sanitized update events are retained for up to 30 days, and minimal purpose-choice records for up to 24 months. Delete notification data from Notification Preferences. Chat messages are kept for 90 days, subject to a maximum of 200 recent messages per visitor; expired messages are excluded from history and deleted by scheduled cleanup. Recommendation context expires after 90 inactive days. Workspace records, execution evidence, notification authorizations and security records follow their separate purposes and retention rules. Contact us about access, correction or deletion rights.</p><h4>Recipients and privacy requests</h4><p>Requested updates are delivered to the destination you select. Hosting and service providers may process service data. Contact contact@agentconcierge.biz for information about the responsible operator, recipients, processing locations, applicable transfer arrangements or privacy rights. Marketing permission is an optional, separate choice for a verified destination and can be withdrawn independently. This release records that permission for administrator review; marketing message delivery is not enabled.</p>"},
   "ccpa": {"title": "Your Privacy Choices", "sub": "Privacy controls and applicable regional rights", "html": "<h4>Browser choices</h4><p>Cookie Preferences controls optional analytics in this browser. Global Privacy Control disables non-essential telemetry. Applicable sale or sharing opt-out requests are separate from notification choices and deletion requests.</p><h4>Do Not Sell or Share My Personal Information</h4><p>Use the control below to record an opt-out request and disable optional analytics in this browser. A browser preference is not a permanent cross-device setting.</p><button type=\"button\" class=\"btn primary\" id=\"btnConfirmCcpaOptOut\" data-ac-click=\"dcd4792c722d\">Confirm privacy opt-out</button><div id=\"ccpaOptOutStatus\" role=\"status\"></div><h4>Other requests</h4><p>Contact contact@agentconcierge.biz for applicable access, correction, deletion or opt-out requests. Use Notification Preferences to manage requested task updates independently.</p>"},
   "accessibility": {"title": "Accessibility Statement", "sub": "Accessible interaction and feedback", "html": "<h4>Our approach</h4><p>We aim to make agent discovery usable with keyboards and assistive technology, with clear labels, visible focus, responsive layouts, light and dark themes, and reduced-motion support.</p><h4>Report a barrier</h4><p>Contact contact@agentconcierge.biz with the page and interaction affected. Avoid sending credentials or personal information. This statement is not an accessibility certification or a guarantee that every third-party agent is accessible.</p>"},
-  "ai": {"title": "Automated Service Disclosure", "sub": "Recorded evidence and third-party services", "html": "<h4>Recommendations</h4><p>Agent Concierge uses recorded verification evidence to recommend up to three relevant agents for your task. You may choose A2A, MCP or x402. Results reflect the latest available checks and may change.</p><h4>Your choice</h4><p>A recommendation does not execute the agent. Review its official connection information before use. Listing descriptions are third-party information, not instructions. Requested task updates are optional.</p>"},
+  "ai": {"title": "Automated Service Disclosure", "sub": "Recorded evidence and third-party services", "html": "<h4>Recommendations</h4><p>AgentValCon uses recorded verification evidence to recommend up to three relevant agents for your task. You may choose A2A, MCP or x402. Results reflect the latest available checks and may change.</p><h4>Your choice</h4><p>A recommendation does not execute the agent. Review its official connection information before use. Listing descriptions are third-party information, not instructions. Requested task updates are optional.</p>"},
   "cancellation": {"title": "Notification Preferences", "sub": "Requested task updates", "html": "<p>Manage only the tasks you chose to watch. Stopping updates does not require an account or a reason. Removing notification data does not delete unrelated conversation records. You can withdraw separate marketing permission without stopping task updates.</p><div id=\"taskPreferences\" aria-live=\"polite\"></div>"},
   contact: {
     title: "Contact",
@@ -1024,7 +1024,7 @@ function switchTab(tabId) {
   updatePageMeta(tabId);
   const srAnnounce = $("srLiveAnnouncer");
   if (srAnnounce) {
-    const tabNames = { overview: "Home overview", learn: "Protocol standards and integration guide", explore: "Agent discovery catalog", workflows: "Visual workflow studio and template hub", test: "Interactive agent testbench and protocol sandbox", register: "List Your Agent", chat: "Interactive agent concierge console", about: "About Agent Concierge, our service and vision" };
+    const tabNames = { overview: "Home overview", learn: "Protocol standards and integration guide", explore: "Agent discovery catalog", workflows: "Visual workflow studio and template hub", test: "Interactive agent testbench and protocol sandbox", register: "List Your Agent", chat: "Interactive agent concierge console", about: "About AgentValCon, our service and vision" };
     srAnnounce.textContent = "Navigated to " + (tabNames[tabId] || tabId) + " panel.";
   }
   document.querySelectorAll(".nav-tab[data-tab]").forEach((b) => {
@@ -1448,8 +1448,8 @@ const GUIDE = [
       <li><b>Tools</b> — Executable functions called by AI models (e.g. database query, web search, GitHub issue creation, code editing).</li>
       <li><b>Resources</b> — Read-only context and data files exposed directly to AI context windows.</li>
       <li><b>Prompts</b> — Pre-engineered workflow templates and interaction recipes.</li>
-      <li><b>Universal OpenAPI Adapter</b> — Agent Concierge automatically wraps traditional Swagger / OpenAPI 3.0 specifications into remote MCP tool endpoints with zero manual code.</li>
-      <li><b>Visual Canvas Orchestration</b> — Review published MCP workflow steps in Agent Concierge and run their saved definitions.</li>
+      <li><b>Universal OpenAPI Adapter</b> — AgentValCon automatically wraps traditional Swagger / OpenAPI 3.0 specifications into remote MCP tool endpoints with zero manual code.</li>
+      <li><b>Visual Canvas Orchestration</b> — Review published MCP workflow steps in AgentValCon and run their saved definitions.</li>
     </ul>
     <h4 style="margin:16px 0 6px 0">How It Works</h4>
     <ol style="padding-left:18px;margin:0;line-height:1.7;font-size:13px">
@@ -1472,7 +1472,7 @@ const GUIDE = [
     </div>
     <h4 style="margin:16px 0 6px 0">Architecture &amp; Clearinghouse Settlement</h4>
     <ul style="padding-left:18px;margin:0;line-height:1.7;font-size:13px">
-      <li><b>Sub-Second Off-Chain Validation</b> — Agent Concierge's integrated Clearinghouse verifies cryptographic signatures and payment intent headers without blocking on blockchain confirmation times.</li>
+      <li><b>Sub-Second Off-Chain Validation</b> — AgentValCon's integrated Clearinghouse verifies cryptographic signatures and payment intent headers without blocking on blockchain confirmation times.</li>
       <li><b>On-Chain Batch Settlement</b> — Aggregated payment commitments are settled in batches to Base and EVM networks, minimizing gas overhead to fractions of a cent.</li>
       <li><b>Zero Account Overhead</b> — Autonomous caller agents pay on-the-fly per invocation; service providers receive instantaneous liquidity with zero chargeback risk.</li>
     </ul>
@@ -1525,8 +1525,8 @@ const GUIDE = [
 
     <h4 style="margin:20px 0 8px 0;font-size:15px">Visual Orchestration &amp; Standalone Web App Export</h4>
     <p style="font-size:13px;color:var(--text-muted);line-height:1.6;margin:0 0 10px 0">
-      In Agent Concierge's <b>Visual Workflow Studio</b> (<code>#workflows</code>), you can review published workflows built with registered agent connections.
-      Click <b>Download web app</b> to get a ZIP package with a web app, gateway SDK, and deployment guide. Host it on your own server or in a subdirectory. Execution connects to Agent Concierge and requires an internet connection.
+      In AgentValCon's <b>Visual Workflow Studio</b> (<code>#workflows</code>), you can review published workflows built with registered agent connections.
+      Click <b>Download web app</b> to get a ZIP package with a web app, gateway SDK, and deployment guide. Host it on your own server or in a subdirectory. Execution connects to AgentValCon and requires an internet connection.
     </p>
 `},
   { id: "unreg-coding", group: "unregistered", pillLabel: "Autonomous Coding & SWE", title: "Autonomous Coding & SWE — Unregistered Industry Benchmarks", html: `
@@ -1642,9 +1642,9 @@ const GUIDE = [
       </div>
     </div>
 
-    <h4 style="margin:22px 0 8px 0;font-size:15px">Agent Concierge Interoperability &amp; Bridge Roadmap</h4>
+    <h4 style="margin:22px 0 8px 0;font-size:15px">AgentValCon Interoperability &amp; Bridge Roadmap</h4>
     <ul style="padding-left:18px;margin:0;line-height:1.7;font-size:13px;color:var(--text-muted)">
-      <li><b>A2A Container Bridge Runner</b>: We are engineering an open bridge container that wraps OpenHands and SWE-agent with an A2A Task server, allowing Agent Concierge users to dispatch coding tasks via standardized <code>/.well-known/agent-card.json</code> endpoints.</li>
+      <li><b>A2A Container Bridge Runner</b>: We are engineering an open bridge container that wraps OpenHands and SWE-agent with an A2A Task server, allowing AgentValCon users to dispatch coding tasks via standardized <code>/.well-known/agent-card.json</code> endpoints.</li>
       <li><b>Remote MCP Coding Server</b>: Exposing code editing and AST mapping primitives over Streamable HTTP MCP so that external orchestration agents can utilize SWE tools safely.</li>
       <li><b>Security Sandboxing Requirement</b>: Autonomous SWE agents require strict network isolation, ephemeral Docker containers, and permission checkpoints before executing arbitrary shell commands or pushing git branches.</li>
     </ul>
@@ -1738,10 +1738,10 @@ const GUIDE = [
       </div>
     </div>
 
-    <h4 style="margin:22px 0 8px 0;font-size:15px">Agent Concierge Interoperability &amp; Bridge Roadmap</h4>
+    <h4 style="margin:22px 0 8px 0;font-size:15px">AgentValCon Interoperability &amp; Bridge Roadmap</h4>
     <ul style="padding-left:18px;margin:0;line-height:1.7;font-size:13px;color:var(--text-muted)">
       <li><b>REST &amp; FastAPI Automatic Wrapping</b>: Developers running CrewAI or AutoGen as internal web services can use a protocol adapter to automatically expose their workflows as registered A2A Agent Cards.</li>
-      <li><b>A2A Task Delegation Protocol</b>: An external A2A caller can submit a task to Agent Concierge, which delegates the job to a CrewAI swarm and returns the final synthesized artifact upon completion.</li>
+      <li><b>A2A Task Delegation Protocol</b>: An external A2A caller can submit a task to AgentValCon, which delegates the job to a CrewAI swarm and returns the final synthesized artifact upon completion.</li>
     </ul>
 ` },
   { id: "unreg-research", group: "unregistered", pillLabel: "Research & Computer Use", title: "Research & Computer Use — Deep Web Research & Browsing Agents", html: `
@@ -1817,9 +1817,9 @@ const GUIDE = [
       </div>
     </div>
 
-    <h4 style="margin:22px 0 8px 0;font-size:15px">Agent Concierge Interoperability &amp; Bridge Roadmap</h4>
+    <h4 style="margin:22px 0 8px 0;font-size:15px">AgentValCon Interoperability &amp; Bridge Roadmap</h4>
     <ul style="padding-left:18px;margin:0;line-height:1.7;font-size:13px;color:var(--text-muted)">
-      <li><b>Headless Browser Tool Servers</b>: Agent Concierge currently catalogs verified remote browser MCP tools (e.g. Cloudflare Browser Rendering MCP, Firecrawl MCP) that allow any agent to execute programmatic scraping and research.</li>
+      <li><b>Headless Browser Tool Servers</b>: AgentValCon currently catalogs verified remote browser MCP tools (e.g. Cloudflare Browser Rendering MCP, Firecrawl MCP) that allow any agent to execute programmatic scraping and research.</li>
       <li><b>Perplexity REST Adapter</b>: By configuring our universal REST adapter with a Perplexity API key, users can expose Perplexity's deep research engine as an instant MCP tool to Claude Desktop, Cursor, or A2A pipelines.</li>
     </ul>
 ` },
@@ -1903,9 +1903,9 @@ const GUIDE = [
       </div>
     </div>
 
-    <h4 style="margin:22px 0 8px 0;font-size:15px">Agent Concierge Interoperability &amp; Bridge Roadmap</h4>
+    <h4 style="margin:22px 0 8px 0;font-size:15px">AgentValCon Interoperability &amp; Bridge Roadmap</h4>
     <ul style="padding-left:18px;margin:0;line-height:1.7;font-size:13px;color:var(--text-muted)">
-      <li><b>x402 Micropayment Bridge</b>: Agent Concierge provides native support for HTTP 402 micropayments over Base and EVM networks, enabling on-chain agents powered by Coinbase AgentKit to pay for and monetize API calls seamlessly.</li>
+      <li><b>x402 Micropayment Bridge</b>: AgentValCon provides native support for HTTP 402 micropayments over Base and EVM networks, enabling on-chain agents powered by Coinbase AgentKit to pay for and monetize API calls seamlessly.</li>
       <li><b>A2A Agent Card Gateway for ElizaOS</b>: An open adapter plugin allowing ElizaOS operators to publish a standard <code>/.well-known/agent-card.json</code> endpoint so web-based agents can delegate social tasks to Eliza personas.</li>
     </ul>
 ` },
@@ -2009,15 +2009,15 @@ const GUIDE = [
   }
 }</code></pre>
 
-    <h4 style="margin:22px 0 8px 0;font-size:15px">Agent Concierge Cloud Bridge Roadmap</h4>
+    <h4 style="margin:22px 0 8px 0;font-size:15px">AgentValCon Cloud Bridge Roadmap</h4>
     <ul style="padding-left:18px;margin:0;line-height:1.7;font-size:13px;color:var(--text-muted)">
-      <li><b>Cloud-Hosted Remote Alternatives</b>: For users who cannot run local Node.js processes, Agent Concierge already indexes verified remote alternatives such as <b>Tavily Search MCP</b> (remote web search), <b>Cloudflare Browser Rendering MCP</b> (cloud browser automation), and <b>Neon MCP</b> (serverless Postgres).</li>
+      <li><b>Cloud-Hosted Remote Alternatives</b>: For users who cannot run local Node.js processes, AgentValCon already indexes verified remote alternatives such as <b>Tavily Search MCP</b> (remote web search), <b>Cloudflare Browser Rendering MCP</b> (cloud browser automation), and <b>Neon MCP</b> (serverless Postgres).</li>
       <li><b>STDIO-to-SSE Secure Proxy</b>: We are providing an open-source Docker bridge utility that encapsulates any standard STDIO MCP server into an authenticated HTTPS SSE service for multi-agent cloud workflows.</li>
     </ul>
 ` },
   { id: "discovery", group: "reference", pillLabel: "Live Agent Discovery", title: "Where to Find Live Agents", html: `
     <ul style="padding-left:18px;margin:0;line-height:1.8;font-size:13.5px">
-      <li><b>Agent Concierge Live Catalog (<code>#explore</code>)</b> — Unified, searchable directory indexing over 94,000+ live resources across A2A, MCP, and x402 with sub-millisecond SWR client caching.</li>
+      <li><b>AgentValCon Live Catalog (<code>#explore</code>)</b> — Unified, searchable directory indexing over 94,000+ live resources across A2A, MCP, and x402 with sub-millisecond SWR client caching.</li>
       <li><b>Automated Benchmark Test Reports (<span class="report-badge-vivid" style="display:inline-flex;align-items:center;gap:3px;font-size:10px;padding:1px 6px;vertical-align:middle"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg><span>TEST Recorded report</span></span>)</b> — Over 200+ deeply audited agents featuring verified execution reports, real-world latency measurements, pass rates, and interactive testing workflows.</li>
       <li><b>x402 Bazaar</b> — Official registry maintained by Coinbase indexing prices, settlement addresses, and 30-day payment volume.</li>
       <li><b>MCP Registry</b> — Official directory for remote and local MCP servers with parameter schemas and repository links.</li>
@@ -2115,7 +2115,7 @@ const GUIDE = [
     ],
     [
         "Standalone Web App",
-        "Connected HTML application that runs a published template through Agent Concierge and displays recorded outcomes."
+        "Connected HTML application that runs a published template through AgentValCon and displays recorded outcomes."
     ],
     [
         "OpenAPI Adapter",
@@ -2177,22 +2177,22 @@ const GUIDE = [
     ],
     [
         "How does the continuous agent relationship work in chat?",
-        "Agent Concierge maintains session continuity without showing visitor details. You can continue requests across browser reloads or machine-to-machine runners."
+        "AgentValCon maintains session continuity without showing visitor details. You can continue requests across browser reloads or machine-to-machine runners."
     ],
     [
         "Can I download and run multi-agent workflows offline?",
-        "No — workflow execution requires an internet connection. Choose a published template in Workflow Studio and click 'Download web app'. Extract the ZIP and upload it to your server or static host. Its SDK connects to Agent Concierge to run the workflow."
+        "No — workflow execution requires an internet connection. Choose a published template in Workflow Studio and click 'Download web app'. Extract the ZIP and upload it to your server or static host. Its SDK connects to AgentValCon to run the workflow."
     ],
     [
         "What does the 'TEST REPORT' badge represent?",
         "It indicates that the agent has undergone comprehensive automated trial executions, with latency benchmarks, tool call verification, and live test reports available in the agent details drawer."
     ],
     [
-        "Can I connect legacy REST APIs to Agent Concierge?",
+        "Can I connect legacy REST APIs to AgentValCon?",
         "Yes. Use our built-in OpenAPI Adapter to paste any OpenAPI 3.0 or Swagger schema URL; the gateway automatically exposes it as a standard MCP tool server and A2A Agent Card."
     ],
     [
-        "How does Agent Concierge prevent SSRF attacks?",
+        "How does AgentValCon prevent SSRF attacks?",
         "All registered endpoints undergo strict IP validation. Private RFC-1918 subnets, localhost addresses, and internal network ports are blocked at the proxy boundary."
     ]
 ]}
@@ -3821,7 +3821,7 @@ function chatProof(item) {
     row("health_checked_at", "Last health check", health) +
     row("trial_call", "Trial call", trialText) +
     row("selected_tool_check", "Selected tool check", toolText) +
-    '</dl><p class="caption">Recorded by Agent Concierge before your request. Your request has not been run.</p></details>';
+    '</dl><p class="caption">Recorded by AgentValCon before your request. Your request has not been run.</p></details>';
 }
 function chatWhy(item) {
   const terms = Array.isArray(item.matched_terms) ? item.matched_terms.filter(t => typeof t === "string" && /^[a-z0-9][a-z0-9-]{1,39}$/.test(t)).slice(0, 6) : [];
@@ -5377,7 +5377,7 @@ function createAgentConciergeClient() {
         if (terminal.has(data.status)) return data;
         await pause(Math.min(intervalMs, Math.max(0, deadline-Date.now())), signal);
       }
-      throw new Error('The run is still pending. Reopen Agent Concierge to review its status.');
+      throw new Error('The run is still pending. Reopen AgentValCon to review its status.');
     }
   };
   return Object.freeze(client);
@@ -5462,7 +5462,7 @@ function standaloneAppRuntime() {
 function buildWorkflowAppHTML(config) {
   const escapeHTML = value => String(value || '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const origin = 'https://agentconcierge.biz';
-  if (config.api_origin && config.api_origin !== origin) throw new Error('This app uses the Agent Concierge routing gateway.');
+  if (config.api_origin && config.api_origin !== origin) throw new Error('This app uses the AgentValCon routing gateway.');
   if (!Number.isInteger(config.workflow_id) || config.workflow_id < 1) throw new Error('Choose a published template before exporting.');
   const nonce = Array.from(crypto.getRandomValues(new Uint8Array(24)), b => b.toString(16).padStart(2,'0')).join('');
   const data = JSON.stringify({workflow_id:config.workflow_id,api_origin:origin,...(config.definition_hash?{definition_hash:config.definition_hash}:{})}).replace(/</g,'\\u003c');
@@ -5474,7 +5474,7 @@ function buildWorkflowAppHTML(config) {
 <meta name="description" content="Run a published agent workflow and view its recorded outcomes.">
 <style nonce="${nonce}">:root{color-scheme:light dark;font-family:system-ui,sans-serif}body{max-width:850px;margin:40px auto;padding:20px}section{border:1px solid #8391a6;border-radius:16px;padding:16px;margin:16px 0}h2{font-size:1rem}button{display:inline-flex;align-items:center;gap:8px;border:1px solid #8391a6;border-radius:10px;padding:12px 18px;cursor:pointer}button:focus-visible{outline:3px solid #6366f1;outline-offset:3px}pre{white-space:pre-wrap;overflow-wrap:anywhere}button svg{flex-shrink:0}#runAppBtn:disabled{cursor:wait;color:CanvasText;opacity:.75}[hidden]{display:none!important}.app-run-spinner{animation:app-run-spin 1s linear infinite}@keyframes app-run-spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.app-run-spinner{animation:none}}</style>
 </head><body><h1>${escapeHTML(config.title)}</h1><p>${escapeHTML(config.description)}</p>
-<p>This app connects to Agent Concierge to run the current published template. Results depend on agent availability. It requires an internet connection.</p>
+<p>This app connects to AgentValCon to run the current published template. Results depend on agent availability. It requires an internet connection.</p>
 <button id="runAppBtn" type="button" aria-busy="false"><svg data-run-ready width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg><svg data-run-spinner class="app-run-spinner" hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a10 10 0 1 0 10 10"/></svg><span data-run-label>Run workflow</span></button>
 <button id="cancelAppBtn" type="button" disabled>Stop</button><p id="appStatus" role="status" aria-live="polite">Ready</p><div id="stepsContainer"></div>
 <script type="application/json" id="wfData" nonce="${nonce}">${data}${endScript}
@@ -5561,7 +5561,7 @@ function standaloneAppRuntime() {
 function buildWorkflowAppHTML(config) {
   const escapeHTML = value => String(value || '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const origin = 'https://agentconcierge.biz';
-  if (config.api_origin && config.api_origin !== origin) throw new Error('This app uses the Agent Concierge routing gateway.');
+  if (config.api_origin && config.api_origin !== origin) throw new Error('This app uses the AgentValCon routing gateway.');
   if (!Number.isInteger(config.workflow_id) || config.workflow_id < 1) throw new Error('Choose a published template before exporting.');
   const nonce = Array.from(crypto.getRandomValues(new Uint8Array(24)), b => b.toString(16).padStart(2,'0')).join('');
   const data = JSON.stringify({workflow_id:config.workflow_id,api_origin:origin}).replace(/</g,'\\u003c');
@@ -5573,7 +5573,7 @@ function buildWorkflowAppHTML(config) {
 <meta name="description" content="Run a published agent workflow and view its recorded outcomes.">
 <style nonce="${nonce}">:root{color-scheme:light dark;font-family:system-ui,sans-serif}body{max-width:850px;margin:40px auto;padding:20px}section{border:1px solid #8391a6;border-radius:16px;padding:16px;margin:16px 0}h2{font-size:1rem}button{display:inline-flex;align-items:center;gap:8px;border:1px solid #8391a6;border-radius:10px;padding:12px 18px;cursor:pointer}button:focus-visible{outline:3px solid #6366f1;outline-offset:3px}pre{white-space:pre-wrap;overflow-wrap:anywhere}button svg{flex-shrink:0}#runAppBtn:disabled{cursor:wait;color:CanvasText;opacity:.75}[hidden]{display:none!important}.app-run-spinner{animation:app-run-spin 1s linear infinite}@keyframes app-run-spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.app-run-spinner{animation:none}}</style>
 </head><body><h1>${escapeHTML(config.title)}</h1><p>${escapeHTML(config.description)}</p>
-<p>This app connects to Agent Concierge to run the current published template. Results depend on agent availability. It requires an internet connection.</p>
+<p>This app connects to AgentValCon to run the current published template. Results depend on agent availability. It requires an internet connection.</p>
 <button id="runAppBtn" type="button" aria-busy="false"><svg data-run-ready width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg><svg data-run-spinner class="app-run-spinner" hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a10 10 0 1 0 10 10"/></svg><span data-run-label>Run workflow</span></button>
 <button id="cancelAppBtn" type="button" disabled>Stop</button><p id="appStatus" role="status" aria-live="polite">Ready</p><div id="stepsContainer"></div>
 <script type="application/json" id="wfData" nonce="${nonce}">${data}${endScript}
@@ -6495,7 +6495,7 @@ async function executeCurrentTestbench() {
     kpiTime.textContent = now.toLocaleTimeString("en-US", { timeZone:"UTC", hour: "2-digit", minute: "2-digit", second: "2-digit" });
   }
   if (outputPre) {
-    outputPre.textContent = `Submitting a test request to Agent Concierge...\nTarget: ${selectedAgent.name || "Agent"}\nGateway URL: ${gwUrl}\nProtocol: ${kind.toUpperCase()}\nAwaiting response packet...`;
+    outputPre.textContent = `Submitting a test request to AgentValCon...\nTarget: ${selectedAgent.name || "Agent"}\nGateway URL: ${gwUrl}\nProtocol: ${kind.toUpperCase()}\nAwaiting response packet...`;
   }
 
   const inspCard = document.querySelector("#secTest .testbench-studio-grid > .card:nth-child(2)");
@@ -6783,7 +6783,7 @@ function exportTestbenchHistory() {
   const report = {
     exported_at: new Date().toISOString(),
     session_runs: tbHistory.length,
-    environment: "Agent Concierge Public Testbench Sandbox (agentconcierge.biz)",
+    environment: "AgentValCon Public Testbench Sandbox (agentconcierge.biz)",
     history: tbHistory
   };
   const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });

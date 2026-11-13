@@ -14,7 +14,8 @@ eight times; unsent changes stay in the next day's difference.
 import logging
 import os
 import time
-from datetime import datetime
+import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -22,6 +23,35 @@ from .task_catalog import Assembler, plan, write
 
 log = logging.getLogger(__name__)
 ZONE = ZoneInfo('Asia/Seoul')
+USAGE_BACKFILL_DAYS = 7     # finished UTC days the usage file is checked for
+
+
+def write_usage_lines(logs, today, days, traffic):
+    """Append the missing usage lines for the finished UTC days before TODAY (at most DAYS back), oldest first.
+    A day without traffic files is skipped (nothing was recorded, a zero line would read as no use); days before the
+    newest line are not added, so the file stays in day order."""
+    target = Path(logs) / 'growth' / 'usage-daily.jsonl'
+    root = Path(logs) / 'service-frontend' / 'traffic'
+    have = set()
+    if target.exists():
+        for line in target.read_text(encoding='utf-8').splitlines():
+            try:
+                have.add(json.loads(line).get('day'))
+            except ValueError:
+                continue
+    written = []
+    for offset in range(days, 0, -1):
+        day = (today - timedelta(days=offset)).isoformat()
+        if day in have or day <= max(have - {None}, default='') or not any(root.glob(day + '.*.json')):
+            continue
+        row = {'day': day, **traffic.usage(traffic.load_day(root, day))}
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with open(target, 'a', encoding='utf-8') as out:
+            out.write(json.dumps(row) + '\n')
+        written.append(row)
+    return written
+
+
 QUIET_HOURS = range(3, 7)   # start only in this window; an unfinished build waits for the next night
 MIN_AGE = 20*3600           # rebuild once a day
 SLICE_SECONDS = 20.0
@@ -105,6 +135,7 @@ class TaskPagesRefresher:
             self.steps, self.position, self.assembler = plan(self.categories), 0, Assembler()
             self.attempted_day = datetime.fromtimestamp(self.clock(), ZONE).date()
             log.info('Task page snapshot: starting %d searches', len(self.steps))
+            self.record_usage()   # not tied to the snapshot finishing (11-14: a slow build held the line back)
         started = self.monotonic()
         try:
             while self.position < len(self.steps) and self.monotonic()-started < SLICE_SECONDS:
@@ -136,22 +167,17 @@ class TaskPagesRefresher:
             self.record_usage()
             self.prepare_notice(snapshot)
 
-    def record_usage(self):
-        """Yesterday's (UTC) real-use line from the anonymous traffic counts: logs/growth/usage-daily.jsonl."""
+    def record_usage(self, days=USAGE_BACKFILL_DAYS):
+        """Real-use lines from the anonymous traffic counts: logs/growth/usage-daily.jsonl, one per finished UTC day.
+
+        Every finished day of the last DAYS that has traffic files and no line yet is written, oldest first, so a
+        day whose build failed or ran late is filled on the next run (11-14 PM: 11-12 and 11-13 were missing)."""
         try:
-            import json
-            from datetime import timedelta, timezone as tz
             from . import traffic
             logs = self.out.parent.parent.parent        # <root>/logs/service-frontend/public-pages -> <root>/logs
-            day = (datetime.fromtimestamp(self.clock(), tz.utc).date() - timedelta(days=1)).isoformat()
-            target = logs / 'growth' / 'usage-daily.jsonl'
-            if target.exists() and ('"day": "' + day + '"') in target.read_text(encoding='utf-8'):
-                return
-            row = {'day': day, **traffic.usage(traffic.load_day(logs / 'service-frontend' / 'traffic', day))}
-            target.parent.mkdir(parents=True, exist_ok=True)
-            with open(target, 'a', encoding='utf-8') as out:
-                out.write(json.dumps(row) + '\n')
-            log.info('Usage line for %s: %s', day, row)
+            written = write_usage_lines(logs, datetime.fromtimestamp(self.clock(), timezone.utc).date(), days, traffic)
+            for row in written:
+                log.info('Usage line for %s: %s', row['day'], row)
         except Exception:
             log.exception('Usage line was not written')
 

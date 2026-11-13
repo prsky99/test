@@ -160,7 +160,7 @@ def test_front_header_and_footer_ac_lightning_logo(w):
 
     # 1. Header has AC Lightning Logo
     assert 'class="ac-logo-svg"' in html
-    assert 'aria-label="Agent Concierge Logo"' in html
+    assert 'aria-label="AgentValCon Logo"' in html
     assert 'id="acHeadGrad"' in html
     assert 'id="acHeadBolt"' in html
     # Ensure robot face is no longer used in brand-box

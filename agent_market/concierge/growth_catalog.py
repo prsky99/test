@@ -65,6 +65,36 @@ def pairs(snapshot):
     return snapshot['_pairs']
 
 
+# 11-14 PM decision (search B): Google judges a site with many generated pages as a whole. Agent pages keep only
+# A2A and MCP listings with a real description; x402 listings (collection paused, grade capped at B), thin listings
+# (description under 40 characters, an MCP server with no tools) and the extra pages of a name listed more than once
+# (the best score stays) are noindex, follow and leave the sitemap. Compare and best pages that involve x402 too.
+# The pages and every API stay as they are (agents still find x402 through Explore, MCP and llms.txt).
+THIN_DESCRIPTION = 40
+
+
+def indexed_agents(snapshot):
+    """Ids of the agent pages that are indexed and listed in the sitemap."""
+    if '_indexed' not in snapshot:
+        best = {}
+        for agent in snapshot['catalog'].values():
+            if agent['kind'] == 'x402' or len((agent.get('description') or '').strip()) < THIN_DESCRIPTION:
+                continue
+            if agent['kind'] == 'mcp' and not agent.get('tool_count'):
+                continue
+            name = (agent.get('name') or '').strip().lower()
+            held = best.get(name)
+            if held is None or ((agent.get('eval_score') or 0), -agent['id']) > ((held.get('eval_score') or 0), -held['id']):
+                best[name] = agent
+        snapshot['_indexed'] = {a['id'] for a in best.values()}
+    return snapshot['_indexed']
+
+
+def compare_indexed(snapshot, a, b):
+    catalog = snapshot['catalog']
+    return all(catalog.get(i, {}).get('kind') not in (None, 'x402') for i in (a, b))
+
+
 def compare_path(a, b):
     left, right = sorted((a, b))
     return f'/agents/compare/{left}-vs-{right}'
@@ -74,9 +104,9 @@ def sitemap_paths(snapshot):
     by_cat, by_kind = groups(snapshot)
     paths = ['/agents/best', '/reports/state-of-ai-agents/'+month(snapshot), '/badges']
     paths += ['/agents/best/'+c for c in sorted(by_cat) if len(by_cat[c]) >= g.MIN_AGENTS]
-    paths += [f'/agents/best/{c}/{k}' for c, k in sorted(by_kind)]
-    paths += [compare_path(a, b) for a, b in sorted(pairs(snapshot))]
-    paths += ['/agent/'+str(i) for i in sorted(snapshot['catalog'])]
+    paths += [f'/agents/best/{c}/{k}' for c, k in sorted(by_kind) if k != 'x402']
+    paths += [compare_path(a, b) for a, b in sorted(pairs(snapshot)) if compare_indexed(snapshot, a, b)]
+    paths += ['/agent/'+str(i) for i in sorted(indexed_agents(snapshot))]
     return paths
 
 
@@ -86,12 +116,12 @@ def month(snapshot):
 
 # ---------------------------------------------------------------- agent page
 def badge_markdown(agent):
-    return f'[![Agent Concierge check status]({BADGE.format(id=agent["id"])})]({g.ORIGIN}/agent/{agent["id"]})'
+    return f'[![AgentValCon check status]({BADGE.format(id=agent["id"])})]({g.ORIGIN}/agent/{agent["id"]})'
 
 
 def card_html(agent):
     return (f'<a href="{g.ORIGIN}/agent/{agent["id"]}"><img src="{g.ORIGIN}/agent/{agent["id"]}/card.svg" '
-            f'alt="{esc(agent["name"])} recorded checks on Agent Concierge" width="360" height="120"></a>')
+            f'alt="{esc(agent["name"])} recorded checks on AgentValCon" width="360" height="120"></a>')
 
 
 def outcome_section(rid):
@@ -115,7 +145,7 @@ def reported_page(rid, result):
     name = agent['name'] if agent else 'this agent'
     text = ('Thanks. Your report for '+name+' was recorded.' if result == 'recorded'
             else 'Thanks. We already have enough reports from you for now, so this one was not recorded.')
-    return g.shell(title='Report received | Agent Concierge', description=text, canonical=g.ORIGIN+'/agent/'+str(rid), index=False,
+    return g.shell(title='Report received | AgentValCon', description=text, canonical=g.ORIGIN+'/agent/'+str(rid), index=False,
                    body=g.heading('Report', 'Report received', text)
                    + '<div class="actions"><a class="btn primary" href="/agent/'+str(rid)+'">Back to the agent</a>'
                    '<a class="btn" href="/new/en/explore.html">Explore</a></div>')
@@ -140,12 +170,12 @@ def agent_page(rid, snapshot=None):
                    + ([('Published tools', str(agent['tool_count']))] if agent.get('tool_count') else []))
     title = agent['name']
     description = (f"{title}: {kind} {'agent' if agent['kind'] == 'a2a' else 'server' if agent['kind'] == 'mcp' else 'API'}"
-                   + (f' for {category.lower()}' if category else '') + '. Recorded checks, quality grade and how to connect, from Agent Concierge.')
+                   + (f' for {category.lower()}' if category else '') + '. Recorded checks, quality grade and how to connect, from AgentValCon.')
     sections = [
         '<section class="card stack" aria-labelledby="ev-h"><h2 id="ev-h">Recorded evidence</h2>'+rows
         + '<p class="caption">Snapshot captured '+esc(_date(snapshot['captured']))+'. Checks show what happened when they ran, not that the agent works now.</p></section>',
         '<section class="card stack" aria-labelledby="use-h"><h2 id="use-h">Use it</h2>'
-        '<p>Open the listing in Explore for the connection details and current status, or ask Agent Concierge from your MCP client to compare it with alternatives for your task.</p>'
+        '<p>Open the listing in Explore for the connection details and current status, or ask AgentValCon from your MCP client to compare it with alternatives for your task.</p>'
         '<div class="actions"><a class="btn primary" href="/new/en/explore.html#explore?q='+esc(quote(title))+'">Open in Explore</a>'
         '<a class="btn" href="/connect">Connect your MCP client</a></div></section>']
     if tasks:
@@ -173,8 +203,9 @@ def agent_page(rid, snapshot=None):
                   'applicationCategory': 'DeveloperApplication', 'operatingSystem': 'Web',
                   'description': agent.get('description') or description, 'url': g.ORIGIN+'/agent/'+str(rid),
                   'isAccessibleForFree': bool(agent.get('free')), 'dateModified': snapshot['captured_at']}
-    return g.shell(title=title+' — '+kind+' recorded checks | Agent Concierge', description=description,
-                   canonical=g.ORIGIN+'/agent/'+str(rid), body=body, structured=structured, index=g.fresh(snapshot))
+    return g.shell(title=title+' — '+kind+' recorded checks | AgentValCon', description=description,
+                   canonical=g.ORIGIN+'/agent/'+str(rid), body=body, structured=structured,
+                   index=g.fresh(snapshot) and rid in indexed_agents(snapshot))
 
 
 def _svg_text(value, limit):
@@ -196,7 +227,7 @@ def card_svg(rid, snapshot=None):
     grade = 'Grade ' + agent['eval_grade'] if agent.get('eval_grade') else 'Not graded'
     return ('<svg xmlns="http://www.w3.org/2000/svg" width="360" height="120" viewBox="0 0 360 120" role="img" '
             'aria-label="'+_svg_text(agent['name'], 60)+': '+_svg_text(line, 80)+'">'
-            '<title>'+_svg_text(agent['name'], 60)+' — recorded checks on Agent Concierge</title>'
+            '<title>'+_svg_text(agent['name'], 60)+' — recorded checks on AgentValCon</title>'
             '<rect width="360" height="120" rx="14" fill="#f8f5ee" stroke="#a48154"/>'
             '<circle cx="30" cy="30" r="9" fill="#ffffff" stroke="#a48154" stroke-width="1.5"/>'
             '<text x="48" y="35" font-family="Georgia,serif" font-size="17" fill="#10272b">'+_svg_text(agent['name'], 30)+'</text>'
@@ -251,9 +282,9 @@ def best_page(category, kind=None, snapshot=None):
                   'itemListOrder': 'https://schema.org/ItemListOrderDescending',
                   'itemListElement': [{'@type': 'ListItem', 'position': i+1, 'name': a['name'], 'url': g.ORIGIN+'/agent/'+str(a['id'])}
                                       for i, a in enumerate(top)]}
-    return g.shell(title=title+' — Agent Concierge', description=description,
+    return g.shell(title=title+' — AgentValCon', description=description,
                    canonical=g.ORIGIN+'/agents/best/'+category+('/'+kind if kind else ''), body=body, structured=structured,
-                   index=g.fresh(snapshot))
+                   index=g.fresh(snapshot) and kind != 'x402')
 
 
 def best_index(snapshot=None):
@@ -268,7 +299,7 @@ def best_index(snapshot=None):
                     + '</div></section>' for c in sorted(by_cat, key=lambda c: names[c]) if len(by_cat[c]) >= g.MIN_AGENTS)
     body = (g.heading('Rankings', 'Best AI agents and MCP servers by category', BASIS)
             + '<div class="grid two">'+cards+'</div>')
-    return g.shell(title='Best AI Agents and MCP Servers by Category — Agent Concierge',
+    return g.shell(title='Best AI Agents and MCP Servers by Category — AgentValCon',
                    description='Category rankings of AI agents, MCP servers and x402 APIs, ordered by recorded execution checks, trial calls and quality scores.',
                    canonical=g.ORIGIN+'/agents/best', body=body,
                    structured={'@context': 'https://schema.org', '@type': 'CollectionPage', 'name': 'Best AI agents by category', 'url': g.ORIGIN+'/agents/best'},
@@ -305,18 +336,18 @@ def compare_page(left, right, snapshot=None):
             + table+'</section><div class="grid two">'
             + ''.join('<section class="card stack"><h2>'+esc(x['name'])+'</h2><p>'+esc(x.get('description') or '')+'</p>'
                       '<a class="btn small" href="/agent/'+str(x['id'])+'">Agent page</a></section>' for x in (a, b))+'</div></div>')
-    return g.shell(title=title+' — Agent Concierge', description=description,
+    return g.shell(title=title+' — AgentValCon', description=description,
                    canonical=g.ORIGIN+compare_path(left, right), body=body,
                    structured={'@context': 'https://schema.org', '@type': 'WebPage', 'name': title, 'url': g.ORIGIN+compare_path(left, right),
                                'about': [{'@type': 'SoftwareApplication', 'name': x['name'], 'url': g.ORIGIN+'/agent/'+str(x['id'])} for x in (a, b)]},
-                   index=g.fresh(snapshot))
+                   index=g.fresh(snapshot) and compare_indexed(snapshot, left, right))
 
 
 # ---------------------------------------------------------------- badges guide
 def badges_page():
     example = {'id': 244554, 'name': 'Your agent'}
     body = (g.heading('Badges', 'Show your agent\'s recorded checks',
-                      'Every agent with recorded evidence has a page on Agent Concierge. Link to it from your README with a live badge or an evidence card.')
+                      'Every agent with recorded evidence has a page on AgentValCon. Link to it from your README with a live badge or an evidence card.')
             + '<div class="stack"><section class="card stack"><h2>Live status badge</h2>'
             '<p>The badge reads the latest recorded check for the current version of your listing and is cached for at most five minutes. '
             'It shows Verified only while a successful execution check is less than 24 hours old; otherwise it shows Unverified.</p>'
@@ -328,10 +359,10 @@ def badges_page():
             '<a href="/new/en/list-agent.html">List your agent</a>; checks are read-only.</p></section>'
             '<section class="card stack"><h2>What the badge does not mean</h2><p>A badge reports recorded checks. It is not an endorsement, '
             'a security review or a guarantee that the agent works now, and it cannot be bought.</p></section></div>')
-    return g.shell(title='Agent Concierge Badges for AI Agents and MCP Servers',
+    return g.shell(title='AgentValCon Badges for AI Agents and MCP Servers',
                    description='Add a live check-status badge or an evidence card for your AI agent or MCP server to your README.',
                    canonical=g.ORIGIN+'/badges', body=body,
-                   structured={'@context': 'https://schema.org', '@type': 'TechArticle', 'headline': 'Agent Concierge badges', 'url': g.ORIGIN+'/badges'})
+                   structured={'@context': 'https://schema.org', '@type': 'TechArticle', 'headline': 'AgentValCon badges', 'url': g.ORIGIN+'/badges'})
 
 
 # ---------------------------------------------------------------- monthly report
@@ -394,7 +425,7 @@ def report_page(requested=None, snapshot=None):
               'keeping listings with a successful execution check in the last 30 days, or a successful trial call with a healthy status in the last '
               '14 days and quality grade A or B. Each category and protocol query returns at most 300 listings, so these are lower bounds, not '
               'totals. Recorded checks describe what happened when they ran.</p>'
-              '<p>Cite as: Agent Concierge, "State of AI Agents, '+esc(datetime.fromisoformat(snapshot['captured_at']).strftime('%B %Y'))+'", '
+              '<p>Cite as: AgentValCon, "State of AI Agents, '+esc(datetime.fromisoformat(snapshot['captured_at']).strftime('%B %Y'))+'", '
               + esc(g.ORIGIN+'/reports/state-of-ai-agents/'+current)+'.</p></section>')
     title = 'State of AI Agents — ' + datetime.fromisoformat(snapshot['captured_at']).strftime('%B %Y')
     description = ' '.join(headline)[:300]
@@ -403,8 +434,8 @@ def report_page(requested=None, snapshot=None):
             + '<p>Explore further: <a href="/agents/best">rankings by category</a> · <a href="/agents/tasks">agents by task</a></p></div>')
     structured = {'@context': 'https://schema.org', '@type': 'Report', 'name': title, 'description': description,
                   'url': g.ORIGIN+'/reports/state-of-ai-agents/'+current, 'datePublished': snapshot['captured_at'],
-                  'publisher': {'@type': 'Organization', 'name': 'Agent Concierge', 'url': g.ORIGIN+'/'}}
-    return g.shell(title=title+' | Agent Concierge', description=description,
+                  'publisher': {'@type': 'Organization', 'name': 'AgentValCon', 'url': g.ORIGIN+'/'}}
+    return g.shell(title=title+' | AgentValCon', description=description,
                    canonical=g.ORIGIN+'/reports/state-of-ai-agents/'+current, body=body, structured=structured, index=g.fresh(snapshot))
 
 
@@ -463,7 +494,7 @@ def _render_basic(store, rid):
         rows.append(('Quality grade', str(agent['eval_grade'])))
     if agent.get('url'):
         rows.append(('Connection address', str(agent['url'])[:300]))
-    description = (f'{name}: {kind} {noun} listed in Agent Concierge. No recorded evidence yet; '
+    description = (f'{name}: {kind} {noun} listed in AgentValCon. No recorded evidence yet; '
                    'see its current status and connection address.')
     body = (g.heading(kind + (' · ' + category if category else ''), name, agent.get('description') or description)
             + '<div class="grid two">'
@@ -472,11 +503,11 @@ def _render_basic(store, rid):
             + '<p class="caption">No recorded evidence yet. An evidence page appears once a test report or a recent '
               'successful check is recorded.</p></section>'
             '<section class="card stack" aria-labelledby="use-h"><h2 id="use-h">Use it</h2>'
-            '<p>Open the listing in Explore for the connection details, or ask Agent Concierge from your MCP client '
+            '<p>Open the listing in Explore for the connection details, or ask AgentValCon from your MCP client '
             'to compare it with alternatives that already have recorded evidence.</p>'
             '<div class="actions"><a class="btn primary" href="/new/en/explore.html#explore?q='+esc(quote(name))+'">Open in Explore</a>'
             '<a class="btn" href="/agents/best">Agents with evidence</a></div></section></div>')
-    return g.shell(title=name + ' | Agent Concierge', description=description, canonical=g.ORIGIN + '/agent/' + str(rid),
+    return g.shell(title=name + ' | AgentValCon', description=description, canonical=g.ORIGIN + '/agent/' + str(rid),
                    body=body, index=False)
 
 
@@ -485,7 +516,11 @@ def install(router, page_headers, not_found, store=None):
     from starlette.concurrency import run_in_threadpool
 
     def page(value):
-        return HTMLResponse(value, headers=page_headers) if value else not_found()
+        if not value:
+            return not_found()
+        # A noindex page says so in its head and in the header (Markdown copies and non-HTML readers see the header).
+        noindex = 'name="robots" content="noindex' in value[:3000]
+        return HTMLResponse(value, headers={**page_headers, **({'X-Robots-Tag': 'noindex, follow'} if noindex else {})})
 
     @router.get('/agent/{rid}', include_in_schema=False)
     async def agent(rid: str):
