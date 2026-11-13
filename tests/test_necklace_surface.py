@@ -33,7 +33,7 @@ def necklace(slug, status='live', **extra):
              'input_schema': {'type': 'object', 'properties': {'city': {'type': 'string'}}, 'required': ['city']},
              'completion': {'runs': 30, 'completed': 29, 'completed_external_only': 26, 'since': '2026-11-13T03:00:00Z',
                             'retested_at': iso(NOW - timedelta(hours=3))},
-             'quality': {'cases': 30, 'success_rate': 0.9, 'best_single_rate': 0.7, 'delta_pp': 20.0,
+             'quality': {'cases_7d': 30, 'success_rate': 0.9, 'best_single_rate': 0.7, 'delta_pp': 20.0,
                          'tested_at': iso(NOW - timedelta(hours=3))},
              'cost': {'usdc_per_run': 0, 'p50_ms': 3200, 'p95_ms': 4800}, 'replaces_templates': [], 'replaced_at': None}
     value.update(extra)
@@ -77,7 +77,7 @@ def test_only_gated_fresh_better_multi_pearl_necklaces_are_offered(snapshot):
 def test_a_live_page_shows_measured_numbers_completion_and_pearls(snapshot):
     status, value = ns.page('trip-brief', snapshot=snapshot, now=NOW)
     assert status == 200
-    for text in ('+20.0 points (90% vs 70%)', '90% of 30 cases', 'free', '3.2 s (95%: 4.8 s)',
+    for text in ('+20.0 points (90% vs 70%)', '27/30 cases (last 7 days)', 'free', '3.2 s; slowest 5% within 4.8 s',
                  '29 of 30 test runs finished (since 2026-11-13)', 'Without AgentValCon fallbacks', '26 of 30',
                  '1 external + 1 AgentValCon fallback', 'Last retest', '/agent/133020', 'necklace_trip_brief',
                  'necklace-trip-brief', 'index, follow'):
@@ -166,3 +166,17 @@ def test_llms_and_sitemap_put_offered_necklaces_first_and_stay_unchanged_without
     text = llms_txt('https://agentconcierge.biz', {}, None)
     assert text.index('## Necklaces you can run') < text.index('Compact remote MCP')
     assert sitemap_paths({'tasks': [], 'catalog': [], 'captured': 0})[0] == '/necklaces/trip-brief'
+
+
+@pytest.mark.parametrize('cumulative, shown', [
+    (None, False), ({'cases': 60, 'passed': 60}, False), ({'cases': 110, 'passed': 108}, False),
+    ({'cases': 110, 'passed': 109}, True), ({'cases': 200, 'passed': 200}, True)])
+def test_verified_95_only_after_110_cumulative_retests_with_at_most_one_failure(snapshot, cumulative, shown):
+    """PM 11-14 (workflow 98fe294c): before that, only the measured n/N."""
+    entry = snapshot['necklaces'][0]
+    if cumulative:
+        entry['quality']['cumulative'] = cumulative
+    _, value = ns.page('trip-brief', snapshot=snapshot, now=NOW)
+    assert ('Verified 95%' in value) is shown and ('95%' in value) is shown
+    assert '27/30 cases (last 7 days)' in value
+    assert ns.public_item(entry, now=NOW)['quality']['verified_95'] is shown
