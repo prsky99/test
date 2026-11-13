@@ -137,8 +137,13 @@ class CapabilityProber:
                 res = data.get("result") if isinstance(data.get("result"), dict) else {}
                 out.update(ok=not res.get("isError") and bool(res), sample_output=usage.result_text(res) or None,
                            output_chars=len(json.dumps(res, ensure_ascii=False)))
+                from .auth_discovery import asks_for_key
                 if res.get("isError"):
                     out["error"] = (usage.result_text(res) or "tool returned an error")[:300]
+                elif asks_for_key(out.get("sample_output")):
+                    # 11-13 (PM): "API key required" sent as an ordinary result is not a working call; the tool's own
+                    # words go to the tool-level auth survey below.
+                    out.update(ok=False, key_required=True, error=out["sample_output"][:300])
                 elif not res:
                     out["error"] = f"no result (HTTP {resp.status_code})"
         except httpx.HTTPError as exc:
@@ -187,7 +192,12 @@ class CapabilityProber:
             except Exception as exc:
                 log.debug("capability registry record failed for %s: %s", r["id"], exc)
                 raise
+        from .auth_discovery import asks_for_key
         if trial and not trial.get("ok") and usage.is_auth_error(trial.get("error")):
+            self.store.mark_tool_level_auth(r["id"])
+        elif (not trial and last_trial and r.get("auth_scope") != "tool" and r.get("auth_method") in (None, "none", "unknown")
+              and asks_for_key(last_trial.get("sample_output"))):
+            # 11-13 (PM): a recorded call whose answer asked for a key, from before this check existed.
             self.store.mark_tool_level_auth(r["id"])  # 도구 단계 인증 → 인증 방법 조사로 넘김
         return changed and old is not None, trial, changes, last_trial
 
