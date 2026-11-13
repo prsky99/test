@@ -63,14 +63,16 @@ def test_pick_affected_version_prefers_listed_versions_then_introduced():
 
 
 def test_split_is_disjoint_stratified_and_deterministic():
-    cases = [{"case_id": f"c{i}", "stratum": "a" if i % 2 else "b"} for i in range(100)]
+    cases = [{"case_id": f"c{i}", "stratum": "a" if i % 7 < 4 else "b"} for i in range(103)]
     first, again = gold.split(cases), gold.split(list(reversed(cases)))
     assert first == again
     ids = [c["case_id"] for name in gold.SPLITS for c in first[name]]
     assert len(ids) == len(set(ids)) == 90
     for name in gold.SPLITS:
         strata = [c["stratum"] for c in first[name]]
-        assert len(strata) == 30 and abs(strata.count("a") - strata.count("b")) <= 2
+        assert len(strata) == 30
+    counts = [[c["stratum"] for c in first[name]].count("a") for name in gold.SPLITS]
+    assert max(counts) - min(counts) <= 1
 
 
 def test_build_writes_three_files_and_manifest(tmp_path):
@@ -124,3 +126,14 @@ def test_fetcher_backs_off_on_429_and_gives_up_on_404(monkeypatch):
                         lambda req, timeout: (_ for _ in ()).throw(urllib.error.HTTPError("u", 403, "no", {}, None)))
     with pytest.raises(urllib.error.HTTPError):
         f.json("https://example.org/z")
+
+
+def test_resplit_reads_saved_cases_without_network(tmp_path):
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    cases = [{"case_id": f"c{i}", "stratum": "x" if i % 3 else "y", "task_type": "same_role",
+              "input": {}, "truth": {}, "truth_sources": [{"name": "s"}]} for i in range(95)]
+    (raw / "package-cases.json").write_text(json.dumps(cases))
+    out = gold.resplit(tmp_path, raw)
+    assert set(out) == {"package-risk-audit"}
+    assert all(v["cases"] == 30 for v in out["package-risk-audit"]["files"].values())

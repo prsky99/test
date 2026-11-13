@@ -261,23 +261,27 @@ def cve_cases(f: Fetcher, package_case_list: list[dict], per_stratum: int = 45) 
 def split(cases: list[dict], per_split: int = PER_SPLIT) -> dict[str, list[dict]]:
     """Stratified and deterministic.
 
-    Strata are interleaved in proportion to their size (always taking from the
-    stratum with the smallest share used so far), then dealt round-robin over the
-    three splits, so every split carries the same mix.
+    Each stratum gets a quota of the total in proportion to its size; its cases are
+    then dealt round-robin over the three splits, continuing the turn from the
+    previous stratum, so every split holds the same mix within one case.
     """
     out = {name: [] for name in SPLITS}
     strata: dict[str, list[dict]] = {}
     for case in sorted(cases, key=lambda c: _rank(c["case_id"])):
         strata.setdefault(case["stratum"], []).append(case)
-    taken = {name: 0 for name in strata}
-    order = []
-    while any(taken[n] < len(strata[n]) for n in strata):
-        name = min((n for n in sorted(strata) if taken[n] < len(strata[n])),
-                   key=lambda n: (taken[n] + 1) / len(strata[n]))
-        order.append(strata[name][taken[name]])
-        taken[name] += 1
-    for i, case in enumerate(order[:per_split * len(SPLITS)]):
-        out[SPLITS[i % len(SPLITS)]].append(case)
+    total = min(len(cases), per_split * len(SPLITS))
+    names = sorted(strata)
+    quotas = {n: (total * len(strata[n])) // len(cases) for n in names} if cases else {}
+    for n in sorted(names, key=lambda n: -len(strata[n])):
+        if sum(quotas.values()) >= total:
+            break
+        if quotas[n] < len(strata[n]):
+            quotas[n] += 1
+    turn = 0
+    for n in names:
+        for case in strata[n][:quotas[n]]:
+            out[SPLITS[turn % len(SPLITS)]].append(case)
+            turn += 1
     return out
 
 
@@ -317,12 +321,31 @@ def build(root: Path, which: list[str], fetcher: Fetcher | None = None, raw_dir:
     return out
 
 
+def resplit(root: Path, raw_dir: Path) -> dict:
+    """Write the sets again from saved raw cases, without calling any source."""
+    out = {}
+    for slug, name, answer_set in (("package-risk-audit", "package-cases.json", "package-risk-audit-v1"),
+                                   ("cve-incident-brief", "cve-cases.json", "cve-incident-brief-v1")):
+        path = raw_dir / name
+        if path.exists():
+            cases = json.loads(path.read_text(encoding="utf-8"))
+            out[slug] = write_set(root, slug, split(cases), {"answer_set": answer_set, "built_from": len(cases),
+                                                             "resplit_from": str(path)})
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Freeze necklace gold sets from public sources.")
     parser.add_argument("--root", type=Path, default=Path("gateway-data/necklaces"))
     parser.add_argument("--raw", type=Path, default=None, help="also keep the unsplit cases here")
+    parser.add_argument("--resplit", action="store_true", help="re-split saved raw cases from --raw, no network")
     parser.add_argument("slugs", nargs="*", default=["package-risk-audit", "cve-incident-brief"])
     args = parser.parse_args(argv)
+    if args.resplit:
+        if not args.raw:
+            parser.error("--resplit needs --raw")
+        print(json.dumps(resplit(args.root, args.raw), ensure_ascii=False, indent=1))
+        return 0
     print(json.dumps(build(args.root, args.slugs, raw_dir=args.raw), ensure_ascii=False, indent=1))
     return 0
 
