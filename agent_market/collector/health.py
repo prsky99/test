@@ -50,6 +50,16 @@ MCP_INIT = {
 }
 MAX_BODY = 64 * 1024
 LEASE = 900  # 고른 뒤 결과를 기록할 때까지 '점검 중'으로 잡아 두는 시간
+# 11-14 사용자 결정 "등급별로 변경"(PM): necklace members every 15 minutes, grade A and every MCP every 6 hours,
+# other healthy/reachable every 24 hours, bulk hosts (1,000+ active, no grade A) a daily sample of 100 and a weekly
+# pass for the rest. Both files are written outside the request path (scripts/health_tiers.py, the workflow runner).
+# Relative to the working directory like config.py (services run from the repository root; a release folder has
+# no gateway-data of its own).
+import os as _os
+from pathlib import Path as _Path
+TIERS_FILE = _os.environ.get("HEALTH_TIERS_FILE", "gateway-data/health/host-tiers.json")
+MEMBERS_FILE = _os.environ.get("NECKLACE_MEMBERS_FILE", "gateway-data/necklaces/members.json")
+FILE_TTL = 600
 
 
 @dataclass
@@ -90,6 +100,9 @@ class Schedule:
     down_after: int = 3
     retire_after: float = 7 * 86400  # 7일 넘게 계속 실패하면 제외
     jitter: float = 0.1
+    other_interval: float = 86400        # healthy/reachable that are neither grade A nor MCP
+    bulk_full_interval: float = 7 * 86400  # bulk hosts: everything at least weekly
+    bulk_sample_per_day: int = 100       # bulk hosts: about this many a day are checked again after 24 hours
 
 
 class HealthChecker:
@@ -110,6 +123,7 @@ class HealthChecker:
         # 여러 묶음을 동시에 돌릴 때: 고르는 순간 '점검 중'으로 잡아 두고(lease), 다른 묶음이 점검 중인 호스트는 고르지 않는다
         self._claim_lock = threading.Lock()
         self._busy_hosts: set[str] = set()
+        self._files: dict = {}
 
     def host_sizes(self) -> Counter:
         """호스트별 점검 대상 엔드포인트 수 (10분마다 갱신)."""
@@ -292,7 +306,35 @@ class HealthChecker:
         return CheckResult("reachable", last, error=f"HTTP {last}")
 
     # ---------------- Schedule & Recording ----------------
-    def next_check_at(self, state_failures: int, in_use: bool, now: float, host_size: int = 1) -> float:
+    def _json_file(self, path):
+        """A small JSON file written by another job, read at most every FILE_TTL seconds; {} when missing."""
+        cached = self._files.get(path)
+        if cached and time.time() - cached[0] < FILE_TTL:
+            return cached[1]
+        try:
+            data = json.loads(_Path(path).read_text())
+        except (OSError, ValueError):
+            data = {}
+        self._files[path] = (time.time(), data if isinstance(data, dict) else {})
+        return self._files[path][1]
+
+    def necklace_members(self) -> set[int]:
+        """Resource ids in a necklace (main, external and own substitutes): checked like agents in use."""
+        return {int(i) for i in self._json_file(MEMBERS_FILE).get("resource_ids") or [] if str(i).isdigit()}
+
+    def tier(self, resource: dict | None) -> str:
+        """core (grade A or MCP), bulk (a bulk host), or other."""
+        if not resource:
+            return "core"
+        if resource.get("eval_grade") == "A" or resource.get("kind") == "mcp":
+            return "core"
+        host = resource.get("host") or urlparse(resource.get("url") or "").hostname or ""
+        if host in (self._json_file(TIERS_FILE).get("bulk_hosts") or {}):
+            return "bulk"
+        return "other"
+
+    def next_check_at(self, state_failures: int, in_use: bool, now: float, host_size: int = 1,
+                      resource: dict | None = None) -> float:
         s = self.schedule
         # Cannot be shorter than the time required to complete one full cycle of the same host
         host_min = host_size * (self.per_host_delay + 0.5) * 1.2
@@ -305,7 +347,15 @@ class HealthChecker:
             # Prevent dense clusters of failing endpoints on large hosts from collapsing schedule
             delay = max(s.in_use_interval, host_min) if host_size > 10 else s.in_use_interval
         else:
-            delay = interval
+            tier = self.tier(resource)
+            if tier == "core":
+                delay = interval
+            elif tier == "bulk":
+                # a daily sample of about bulk_sample_per_day per host; the rest wait for the weekly pass
+                sample = random.random() < min(1.0, s.bulk_sample_per_day / max(1, host_size))
+                delay = max(s.other_interval, host_min) if sample else max(s.bulk_full_interval, host_min)
+            else:
+                delay = max(s.other_interval, host_min)
         return now + delay * (1 + random.uniform(-s.jitter, s.jitter))
 
     def check_and_record(self, resource: dict, in_use: bool = False) -> dict:
@@ -326,7 +376,9 @@ class HealthChecker:
         host_size = self.host_sizes().get(resource.get("host") or urlparse(resource["url"]).hostname, 1)
         state = self.store.record_health(
             resource["id"], result.outcome, result.status_code, result.latency_ms, result.error,
-            next_check_at=self.next_check_at(failures, in_use, time.time(), host_size), down_after=self.schedule.down_after,
+            next_check_at=self.next_check_at(failures, in_use or resource["id"] in self.necklace_members(), time.time(),
+                                             host_size, resource),
+            down_after=self.schedule.down_after,
             retire_after=self.schedule.retire_after,
             observed_price=result.observed_price, observed_pay_to=result.observed_pay_to, auth_observed=result.auth,
         )

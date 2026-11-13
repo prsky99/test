@@ -27,6 +27,11 @@ def main(argv=None):
         print(f'{day}: already run ({done})')
         return 0
     V.OUT.mkdir(parents=True, exist_ok=True)
+    try:                                          # 11-14 grade-tiered health: bulk hosts and suspects, once a day
+        import health_tiers
+        health_tiers.main()
+    except Exception as exc:
+        print(f'health_tiers failed: {type(exc).__name__}: {exc}')
     queue = V.build_queue()
     (V.OUT / f'queue-{day}.json').write_text(json.dumps(queue, indent=1))
     V.run(queue)
