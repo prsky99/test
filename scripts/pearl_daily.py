@@ -31,6 +31,8 @@ def main(argv=None):
     (V.OUT / f'queue-{day}.json').write_text(json.dumps(queue, indent=1))
     V.run(queue)
     line = V.publish(board=True)
+    import verify_snapshot                       # PM 11-14 supplement 2: the Check-and-Route tools read this
+    verify_snapshot.main()
     done.write_text(line + '\n')
     print(line)
     return 0
