@@ -20,6 +20,9 @@ BUDGET = 2.0  # seconds of deletion per scheduler step
 # Rows one scheduler step may remove from a table, on top of the time budget (11-11 user decision:
 # security_events keeps 90 days and each run removes at most 10,000 rows).
 STEP_LIMIT = {'security_events': 10000}
+# Periods applied by code without a reviewed command (PM 11-14, carrying out the 11-11 user decision of 90 days).
+# A reviewed policy for the same table wins, and a reviewed None stops it.
+DEFAULT_DAYS = {'security_events': 90}
 # table -> (time column, shortest period in days, label, extra condition, required index or None).
 # A table qualifies only with a time index, so each batch reads a bounded range.
 TABLES = {
@@ -66,8 +69,12 @@ class Retention:
         with transaction(self.store) as db:
             execute(db, 'put_state', (key, json.dumps(value, sort_keys=True)))
 
+    def effective(self):
+        """The code defaults overlaid by the reviewed policy (a reviewed None stops a default)."""
+        return {**DEFAULT_DAYS, **self._get(POLICY)}
+
     def policy(self):
-        return {name: self._get(POLICY).get(name) for name in TABLES} if self.ready() else {}
+        return {name: self.effective().get(name) for name in TABLES} if self.ready() else {}
 
     def apply(self, payload, user_id):
         """Reviewed command applier: store the approved period; deletion happens in later steps."""
@@ -125,7 +132,8 @@ class Retention:
         try:
             if not self.ready():
                 return {'ready': False}
-            policy, removed, started = self._get(POLICY), {}, time.monotonic()
+            reviewed = self._get(POLICY)
+            policy, removed, started = {**DEFAULT_DAYS, **reviewed}, {}, time.monotonic()
             for table, (column, *_rest) in TABLES.items():
                 days = policy.get(table)
                 if days is None:
@@ -141,6 +149,8 @@ class Retention:
                     removed[table] += count
                     if count < BATCH:
                         break
+                if removed[table] == 0 and table not in reviewed:
+                    del removed[table]  # a quiet code default is not reported as a run
             if removed:
                 self._put(LAST, {'at': now, 'removed': removed})
                 if any(isinstance(v, int) and v for v in removed.values()):
