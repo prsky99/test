@@ -67,6 +67,12 @@ ROLE_VALUES = {
     'weather.forecast': [(r'city|location|place|query|^q$|name', 'Seoul'), (r'lat', 37.5665), (r'lon|lng', 126.978)],
     'events.search': [(r'city|location|place|destination|query|^q$', 'Seoul'), (r'month', 5)],
     'cve.kev': [(r'cve|id|query|^q$', 'CVE-2021-44228')],
+    # 11-14 07:3x (workflow team, company-due-diligence): a listed public company, never a person
+    'company.lookup': [(r'company|name|query|^q$|search|term|business|entity|legal', 'Apple Inc'),
+                       (r'country|jurisdiction|region', 'US'), (r'domain|website', 'apple.com')],
+    'package.risk': [(r'repo|repository|project|package|name|query|^q$', 'github.com/facebook/react'),
+                     (r'ecosystem|system', 'npm')],
+    'topic.answer': [(r'question|query|^q$|prompt|topic|text', 'What is the Model Context Protocol?')],
 }
 
 
@@ -205,9 +211,11 @@ def main(argv=None):
     argv = argv or sys.argv[1:]
     candidates = json.loads(Path(argv[0]).read_text())
     only = {int(i) for i in argv[2].split(',')} if len(argv) > 2 else None   # retest some, keep the others' results
+    key = lambda r: (r['id'], r['tool'])          # one agent can fill several roles with different tools
     previous = {}
-    if only and Path(argv[1]).exists():
-        previous = {r['id']: r for r in json.loads(Path(argv[1]).read_text()).get('results', [])}
+    if Path(argv[1]).exists():
+        previous = {key(r): r for r in json.loads(Path(argv[1]).read_text()).get('results', [])}
+    if only:
         candidates = [c for c in candidates if c['id'] in only]
     pacer = PB.Pacer(state_dir=PB.STATE_DIR)
     found = resources({c['id'] for c in candidates})
@@ -217,8 +225,9 @@ def main(argv=None):
             results.append(test_one(http, candidate, found.get(candidate['id'], {}), pacer))
             print(json.dumps({k: results[-1].get(k) for k in ('role', 'id', 'tool', 'outcome', 'reason', 'latency_ms')}))
     if previous:
-        fresh = {r['id']: r for r in results}
-        results = [fresh.get(rid, r) for rid, r in previous.items()]
+        merged = dict(previous)
+        merged.update({key(r): r for r in results})
+        results = list(merged.values())
     Path(argv[1]).write_text(json.dumps({'generated': time.strftime('%Y-%m-%d %H:%M'), 'results': results},
                                         indent=1, ensure_ascii=False))
 
