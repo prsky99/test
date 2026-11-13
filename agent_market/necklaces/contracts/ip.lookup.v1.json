@@ -1,0 +1,57 @@
+{
+  "id": "ip.lookup.v1",
+  "role": "ip lookup (default role from the pearl tests; input keys are alternatives, a member uses the ones it accepts)",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "ip": {
+        "type": "string",
+        "maxLength": 500
+      },
+      "ip_address": {
+        "type": "string",
+        "maxLength": 500
+      },
+      "query": {
+        "type": "string",
+        "maxLength": 500
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "answer": {
+        "type": "string",
+        "maxLength": 8000
+      },
+      "url": {
+        "type": "string",
+        "pattern": "^https://",
+        "maxLength": 2000
+      },
+      "source": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "answer",
+      "source"
+    ],
+    "additionalProperties": false
+  },
+  "rules": [
+    "8.8.8.8 echoed: 8\\.8\\.8\\.8",
+    "Google or AS15169: google|15169",
+    "read-only lookup; no account, payment or write"
+  ],
+  "test_inputs": [
+    {
+      "ip": "8.8.8.8",
+      "ip_address": "8.8.8.8",
+      "query": "8.8.8.8"
+    }
+  ]
+}

@@ -55,7 +55,9 @@ def test_any_words_and_https_link():
 def test_contracts_are_the_canonical_role_list():
     from agent_market.necklaces import model
     ids = set(model.contract_ids())
-    assert len(ids) == 15
+    # One list (PM 11-14): the search team's pearl-test catalog names exactly these contracts.
+    from scripts.role_catalog import ROLES
+    assert ids == set(ROLES)
     for contract_id in ids:
         contract = model.load_contract(contract_id)
         assert contract["id"] == contract_id and contract["test_inputs"]
