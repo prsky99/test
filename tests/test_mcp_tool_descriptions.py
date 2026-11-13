@@ -7,7 +7,8 @@ from agent_market.concierge.mcp_contract import mcp_tools
 from tests.test_concierge import w  # noqa: F401 - fixture
 
 NAMES = ['hello', 'chat', 'search', 'find_agents', 'check_agent', 'whats_new', 'verify_contact', 'call',
-         'report', 'credit', 'adapt_rest', 'search_workflows', 'workflow_details', 'run_workflow']
+         'report', 'credit', 'adapt_rest', 'search_workflows', 'workflow_details', 'verify_agent', 'best_for_role',
+         'run_workflow']
 
 
 def by_name():

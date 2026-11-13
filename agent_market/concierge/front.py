@@ -3657,6 +3657,19 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
         if not isinstance(name, str) or not isinstance(params.get('arguments', {}), dict):
             return {"jsonrpc": "2.0", "id": rid, "error": {"code": -32602, "message": "Provide a tool name and object arguments."}}
         args = params.get("arguments") if isinstance(params, dict) and isinstance(params.get("arguments"), dict) else {}
+        if name in ("verify_agent", "best_for_role"):  # 11-14 PM super-gap 2: answers from the verify snapshot only
+            from . import check_route
+            if name == "verify_agent":
+                rid_found = await run_in_threadpool(check_route.resolve, front.store, args.get("agent_id"), args.get("url"))
+                found = check_route.verify(rid_found, front.base(request)) if rid_found else None
+            else:
+                found = check_route.best_for_role(str(args.get("role") or ""), front.base(request))
+            if found is None:
+                miss = ("We have not tested this agent yet." if name == "verify_agent"
+                        else "Unknown role. Roles: " + ", ".join(check_route.roles()))
+                return mcp_result(rid, {"content": [{"type": "text", "text": miss}],
+                                        "structuredContent": {"found": False}, "isError": False})
+            return mcp_result(rid, {"content": [{"type": "text", "text": found[0]}], "structuredContent": found[1], "isError": False})
         if isinstance(name, str) and name.startswith("necklace_"):
             from . import necklace_surface
             if name == "necklace_details":
@@ -3920,6 +3933,8 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
     app.include_router(growth_router(front.store))
     from .necklace_surface import necklace_router  # 11-14 PM: public surface of judged necklaces (read-only)
     app.include_router(necklace_router())
+    from .check_route import check_router  # 11-14 PM super-gap 2: Check-and-Route REST from the verify snapshot
+    app.include_router(check_router(front.store))
     from .feedback import feedback_router
     app.include_router(feedback_router(front))
     from ..agent_access.service import router_for as adoption_router
