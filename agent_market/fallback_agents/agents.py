@@ -37,7 +37,7 @@ CODES = ("invalid_input", "not_found", "rate_limited", "source_unavailable", "in
 MAX_AGE = {"nvd-cve": 6 * 3600, "cve-org": 24 * 3600, "cisa-kev": 24 * 3600, "github-advisory": 6 * 3600,
            "package-registry": 6 * 3600, "depsdev-package": 24 * 3600, "gleif-lei": 24 * 3600,
            "sec-edgar": 24 * 3600, "wikipedia-summary": 24 * 3600, "arxiv-search": 48 * 3600,
-           "worldbank-indicator": 24 * 3600}
+           "worldbank-indicator": 24 * 3600, "met-weather": 3 * 3600}
 TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "github-advisory": (3600, 6 * 3600),
        "epss": (6 * 3600, 48 * 3600), "package-registry": (3600, 6 * 3600), "depsdev-package": (6 * 3600, 24 * 3600),
        "gleif-lei": (6 * 3600, 24 * 3600), "sec-edgar": (6 * 3600, 24 * 3600), "sec-tickers": (6 * 3600, 24 * 3600),
@@ -74,6 +74,7 @@ class FallbackAgents:
         self.lock = threading.Lock()
         self.cache: OrderedDict = OrderedDict()
         self.kev = None  # (monotonic fetched, wall fetched, {cve: dateAdded}, catalogVersion)
+        self.weather: OrderedDict = OrderedDict()  # (lat, lon) -> dict(value, as_of, expires, last_modified, at)
 
     # ---------------------------------------------------------------- public
     def execute(self, agent_id: str, arguments: dict) -> dict:
@@ -610,6 +611,42 @@ class FallbackAgents:
                                            live, remaining)
         return out, cache, False, {"World Bank": as_of or _now_iso(self.utc_now())}
 
+    def _met_weather(self, args, remaining):
+        lat, lon = args["latitude"], args["longitude"]
+        if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+            raise FallbackUnavailable("invalid_input", "Use a latitude from -90 to 90 and a longitude from -180 to 180.")
+        key = (round(lat, 2), round(lon, 2))  # MET asks for at most 4 decimals; 0.01 degree is about 1 km
+        now = self.clock()
+        with self.lock:
+            hit = self.weather.get(key)
+        if hit and now < hit["expires"]:
+            return hit["value"], {"status": "fresh_cache", "age_seconds": int(now - hit["at"])}, False, hit["as_of"]
+        try:
+            if remaining() < 0.5:
+                raise SourceBusy("No time left for a live call.")
+            response = get("https://api.met.no/weatherapi/locationforecast/2.0/compact", limiters=self.limiters,
+                           http=self.http, params={"lat": f"{key[0]:.2f}", "lon": f"{key[1]:.2f}"},
+                           seconds=max(0.1, remaining() - 0.1), limit=1024 * 1024, ok=(200, 304),
+                           headers={"If-Modified-Since": hit["last_modified"]} if hit and hit["last_modified"] else None)
+            expires = expires_in(response.headers.get("expires"), self.wall())
+            if response.status_code == 304 and hit:
+                value, as_of = hit["value"], hit["as_of"]
+            else:
+                value, as_of = met_forecast(json.loads(response.content), self.utc_now())
+            entry = {"value": value, "as_of": as_of, "expires": self.clock() + expires,
+                     "last_modified": response.headers.get("last-modified") or "", "at": self.clock()}
+        except (SourceBusy, SourceError, ValueError, KeyError, TypeError, IndexError) as exc:
+            if hit and now - hit["at"] <= MAX_AGE["met-weather"]:
+                return hit["value"], {"status": "stale_cache", "age_seconds": int(now - hit["at"])}, False, hit["as_of"]
+            code = "rate_limited" if isinstance(exc, SourceBusy) else "source_unavailable"
+            raise FallbackUnavailable(code, "MET Norway is unavailable. No replacement data was generated.") from exc
+        with self.lock:
+            self.weather[key] = entry
+            self.weather.move_to_end(key)
+            while len(self.weather) > 1024:
+                self.weather.popitem(last=False)
+        return value, {"status": "live", "age_seconds": 0}, False, as_of
+
     # ---------------------------------------------------------------- usage
     def _usage(self, agent_id, envelope, code, started):
         line = {"at": _now_iso(self.utc_now()), "agent": agent_id if agent_id in SPECS else "unknown",
@@ -770,6 +807,60 @@ WB_ALIASES = {  # common name -> (World Bank code, label, unit); the contract fi
 }
 WB_ALIASES.update({"gross domestic product": WB_ALIASES["gdp"], "total population": WB_ALIASES["population"],
                    "unemployment rate": WB_ALIASES["unemployment"], "inflation rate": WB_ALIASES["inflation"]})
+
+def expires_in(header, wall_now) -> float:
+    """Seconds until the source's Expires time, between 60 s and 1 h (missing or past: 10 minutes)."""
+    from email.utils import parsedate_to_datetime
+    try:
+        left = parsedate_to_datetime(header).timestamp() - wall_now
+    except (TypeError, ValueError):
+        return 600.0
+    return min(3600.0, max(60.0, left)) if left > 0 else 600.0
+
+
+_SYMBOL_WORDS = ("partly", "cloudy", "clear", "sky", "fair", "light", "heavy", "rain", "sleet", "snow",
+                 "showers", "and", "thunder", "fog")
+
+
+def symbol_text(code: str) -> str:
+    """MET symbol code -> words ("lightrainshowers_day" -> "light rain showers")."""
+    base, words = (code or "").split("_")[0], []
+    while base:
+        word = next((w for w in _SYMBOL_WORDS if base.startswith(w)), None)
+        if not word:
+            return _text(code, 40)
+        words.append(word)
+        base = base[len(word):]
+    return " ".join(words)
+
+
+def met_forecast(raw: dict, now: datetime):
+    """Locationforecast compact -> weather.forecast.v1 output, using the hour nearest to now."""
+    props = raw["properties"]
+    series = [t for t in props["timeseries"] if isinstance(t, dict)]
+    def gap(t):
+        return abs((datetime.fromisoformat(t["time"].replace("Z", "+00:00")) - now).total_seconds())
+    point = min(series[:6], key=gap)
+    details = point["data"]["instant"]["details"]
+    temp = details["air_temperature"]
+    if not isinstance(temp, (int, float)):
+        raise ValueError("no temperature")
+    parts = []
+    nxt1, nxt6 = point["data"].get("next_1_hours") or {}, point["data"].get("next_6_hours") or {}
+    if nxt1.get("summary", {}).get("symbol_code"):
+        parts.append("next hour: " + symbol_text(nxt1["summary"]["symbol_code"]))
+    if nxt6.get("summary", {}).get("symbol_code"):
+        rain = (nxt6.get("details") or {}).get("precipitation_amount")
+        parts.append("next 6 hours: " + symbol_text(nxt6["summary"]["symbol_code"])
+                     + (f", {rain} mm precipitation" if isinstance(rain, (int, float)) else ""))
+    if isinstance(details.get("wind_speed"), (int, float)):
+        parts.append(f"wind {details['wind_speed']} m/s")
+    if isinstance(details.get("relative_humidity"), (int, float)):
+        parts.append(f"humidity {details['relative_humidity']}%")
+    out = {"temperature_c": float(temp), "forecast": ("Temperature %.1f °C; " % temp + "; ".join(parts))[:4000],
+           "time": _text(point["time"], 40), "source": "MET Norway (CC BY 4.0)"}
+    return out, {"MET Norway": _text(props.get("meta", {}).get("updated_at"), 40) or None}
+
 
 STOPWORDS = frozenset("a an and are as at be by for from in is it of on or the to with all you we our this that "
                       "using via towards".split())

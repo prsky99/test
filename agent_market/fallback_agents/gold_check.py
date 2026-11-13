@@ -97,7 +97,8 @@ def judge(agent_id: str, case: dict, result: dict | None) -> dict:
 def role_task_check(agent_ids, agents: FallbackAgents | None = None) -> dict:
     """Run the workflow team's fixed role tasks (role_tasks/role-tasks-v1.jsonl) for each agent's contract."""
     from ..necklaces import role_tasks
-    from .net import get
+    from urllib.parse import urlsplit
+    from .net import ALLOWED_HOSTS, get
     agents = agents or FallbackAgents()
     out = {}
     for agent_id in agent_ids:
@@ -112,6 +113,12 @@ def role_task_check(agent_ids, agents: FallbackAgents | None = None) -> dict:
                 continue
             ok, why = role_tasks.score(case, json.dumps(result), result)
             for field, url in ((case.get("expect") or {}).get("dynamic") or {}).items():
+                # Only registry "latest" checks run here; other live references (e.g. a weather service this
+                # project does not use) are listed as not checked, never as passed.
+                if not isinstance(url, str) or urlsplit(url).hostname not in ALLOWED_HOSTS:
+                    if isinstance(url, str):
+                        why = why + [f"{field}: live reference {urlsplit(url).hostname} not checked"]
+                    continue
                 live = json.loads(get(url, limiters=agents.limiters, seconds=5, limit=1 << 20).content)
                 if result.get(field) != live.get("version"):
                     ok, why = False, why + [f"{field} {result.get(field)} != live {live.get('version')}"]

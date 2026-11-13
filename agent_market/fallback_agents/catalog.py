@@ -67,6 +67,10 @@ WORLDBANK = {"name": "World Bank Open Data (World Development Indicators)", "url
              "notice": "Source: World Bank, World Development Indicators. The latest value is the latest published "
                        "observation, not a current-year measurement."}
 
+MET = {"name": "MET Norway Locationforecast 2.0 (Norwegian Meteorological Institute)", "url": "https://api.met.no/",
+       "license": "CC BY 4.0 and NLOD 2.0 (https://api.met.no/doc/License); Data from MET Norway",
+       "notice": "Model forecast for the given coordinates (rounded to 0.01 degree), not a station observation."}
+
 SPECS = {
     "nvd-cve": {
         "name": "AgentValCon NVD CVE Record", "tool": "get_cve_record", "contract": "cve.record.v1",
@@ -157,6 +161,13 @@ SPECS = {
                        "states the year and unit; read-only.",
         "sources": [WORLDBANK],
         "rate": "5 requests per second, cached 6 hours",
+    },
+    "met-weather": {
+        "name": "AgentValCon MET Norway Weather", "tool": "get_weather_forecast", "contract": "weather.forecast.v1",
+        "description": "Get the current-hour temperature and a short forecast for any latitude and longitude "
+                       "worldwide from MET Norway Locationforecast; read-only.",
+        "sources": [MET],
+        "rate": "under 20 requests per second; a place is asked again only after the source's Expires time",
     },
 }
 

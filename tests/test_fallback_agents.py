@@ -70,7 +70,7 @@ def agents(tmp_path, routes, calls=None, clock=None, snapshot=None):
 
 # ------------------------------------------------------------------ catalog and contracts
 def test_tools_are_read_only_and_use_the_slot_contracts():
-    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator"}
+    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather"}
     for agent_id, spec in SPECS.items():
         tool = tool_spec(agent_id)
         c = contract(spec["contract"])
@@ -899,3 +899,58 @@ def test_worldbank_agent_does_not_ask_again_after_a_refusal(tmp_path):
     with pytest.raises(FallbackUnavailable) as err:
         a.execute("worldbank-indicator", {"country": "ZAF", "indicator": "population"})
     assert err.value.code == "rate_limited" and len(calls) == 1
+
+
+# ------------------------------------------------------------------ weather agent
+def met_body(temp=9.7):
+    return {"properties": {"meta": {"updated_at": "2026-11-13T19:20:28Z"}, "timeseries": [
+        {"time": "2026-11-13T19:00:00Z", "data": {"instant": {"details": {"air_temperature": 9.0}}}},
+        {"time": "2026-11-13T20:00:00Z", "data": {
+            "instant": {"details": {"air_temperature": temp, "wind_speed": 2.1, "relative_humidity": 98.3}},
+            "next_1_hours": {"summary": {"symbol_code": "lightrainshowers_day"}},
+            "next_6_hours": {"summary": {"symbol_code": "rain"}, "details": {"precipitation_amount": 5.4}}}}]}}
+
+
+def test_met_agent_rounds_coordinates_credits_met_and_waits_for_expires(tmp_path):
+    from datetime import datetime, timezone
+    calls = []
+    clock = Clock()
+    wall = lambda: 1794600000.0 + clock.t  # noqa: E731
+    expires = "Fri, 13 Nov 2026 20:25:59 GMT"
+
+    def answer(request):
+        calls.append(dict(request.headers))
+        if request.headers.get("if-modified-since"):
+            return httpx.Response(304, headers={"expires": expires})
+        return httpx.Response(200, json=met_body(), headers={"expires": expires, "last-modified": "Fri, 13 Nov 2026 19:54:21 GMT"})
+    a = FallbackAgents(http=client({"https://api.met.no/": answer}), data_dir=tmp_path, clock=clock, wall=wall,
+                       utc_now=lambda: datetime(2026, 11, 13, 20, 5, tzinfo=timezone.utc), limiters=limiters(clock, clock.sleep))
+    env = a.execute("met-weather", {"city": "Seoul", "latitude": 37.56654, "longitude": 126.97796})
+    assert env["result"] == {"temperature_c": 9.7, "time": "2026-11-13T20:00:00Z", "source": "MET Norway (CC BY 4.0)",
+                             "forecast": "Temperature 9.7 °C; next hour: light rain showers; next 6 hours: rain, 5.4 mm "
+                                         "precipitation; wind 2.1 m/s; humidity 98.3%"}
+    assert env["freshness"]["data_as_of"] == {"MET Norway": "2026-11-13T19:20:28Z"}
+    assert env["sources"][0]["license"].startswith("CC BY 4.0 and NLOD 2.0")
+    a.execute("met-weather", {"latitude": 37.5701, "longitude": 126.9801})
+    assert len(calls) == 1, "same 0.01-degree cell before Expires: no new request"
+    clock.t += 3600
+    again = a.execute("met-weather", {"latitude": 37.57, "longitude": 126.98})
+    assert len(calls) == 2 and calls[1]["if-modified-since"] == "Fri, 13 Nov 2026 19:54:21 GMT"
+    assert again["result"]["temperature_c"] == 9.7 and again["cache"]["status"] == "live"
+
+
+def test_met_agent_rejects_bad_coordinates_and_fails_closed(tmp_path):
+    a, _ = agents(tmp_path, {"https://api.met.no/": httpx.Response(500)})
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("met-weather", {"latitude": 91, "longitude": 0})
+    assert err.value.code == "invalid_input"
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("met-weather", {"latitude": 10, "longitude": 10})
+    assert err.value.code == "source_unavailable"
+
+
+def test_symbol_text_and_expires():
+    from agent_market.fallback_agents.agents import expires_in, symbol_text
+    assert symbol_text("partlycloudy_night") == "partly cloudy" and symbol_text("heavysnowshowersandthunder") == "heavy snow showers and thunder"
+    assert expires_in("Fri, 13 Nov 2026 20:25:59 GMT", 1794600000.0 + 0) > 0
+    assert expires_in(None, 0) == 600.0

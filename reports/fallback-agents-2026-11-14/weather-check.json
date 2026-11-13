@@ -1,0 +1,219 @@
+{
+ "note": "self check, not a gold set; the role tasks' Open-Meteo reference is not called (non-commercial terms)",
+ "role_tasks": {
+  "met-weather": {
+   "passed": 2,
+   "cases": 2,
+   "rows": [
+    {
+     "case_id": "weather-seoul",
+     "pass": true,
+     "why": [
+      "temperature_c: live reference api.open-meteo.com not checked"
+     ]
+    },
+    {
+     "case_id": "weather-berlin",
+     "pass": true,
+     "why": [
+      "temperature_c: live reference api.open-meteo.com not checked"
+     ]
+    }
+   ]
+  }
+ },
+ "cities_30": [
+  {
+   "city": "Seoul",
+   "temperature_c": 9.7,
+   "time": "2026-11-13T20:00:00Z",
+   "ms": 0
+  },
+  {
+   "city": "Tokyo",
+   "temperature_c": 9.8,
+   "time": "2026-11-13T20:00:00Z",
+   "ms": 1186
+  },
+  {
+   "city": "Beijing",
+   "temperature_c": 3.4,
+   "time": "2026-11-13T20:00:00Z",
+   "ms": 1196
+  },
+  {
+   "city": "Delhi",
+   "temperature_c": 21.2,
+   "time": "2026-11-13T20:00:00Z",
+   "ms": 1189
+  },
+  {
+   "city": "Mumbai",
+   "temperature_c": 25.8,
+   "time": "2026-11-13T20:00:00Z",
+   "ms": 1196
+  },
+  {
+   "city": "Jakarta",
+   "temperature_c": 26.8,
+   "time": "2026-11-13T20:00:00Z",
+   "ms": 1190
+  },
+  {
+   "city": "Bangkok",
+   "temperature_c": 26.0,
+   "time": "2026-11-13T20:00:00Z",
+   "ms": 1181
+  },
+  {
+   "city": "Singapore",
+   "temperature_c": 24.9,
+   "time": "2026-11-13T20:00:00Z",
+   "ms": 1188
+  },
+  {
+   "city": "Sydney",
+   "temperature_c": 20.9,
+   "time": "2026-11-13T20:00:00Z",
+   "ms": 1201
+  },
+  {
+   "city": "Auckland",
+   "temperature_c": 16.2,
+   "time": "2026-11-13T20:00:00Z",
+   "ms": 1190
+  },
+  {
+   "city": "Dubai",
+   "temperature_c": 26.2,
+   "time": "2026-11-13T20:00:00Z",
+   "ms": 1193
+  },
+  {
+   "city": "Cairo",
+   "temperature_c": 20.2,
+   "time": "2026-11-13T20:00:00Z",
+   "ms": 1191
+  },
+  {
+   "city": "Lagos",
+   "temperature_c": 27.6,
+   "time": "2026-11-13T20:00:00Z",
+   "ms": 1193
+  },
+  {
+   "city": "Nairobi",
+   "temperature_c": 17.1,
+   "time": "2026-11-13T20:00:00Z",
+   "ms": 1190
+  },
+  {
+   "city": "Johannesburg",
+   "temperature_c": 25.1,
+   "time": "2026-11-13T20:00:00Z",
+   "ms": 1184
+  },
+  {
+   "city": "Istanbul",
+   "temperature_c": 18.6,
+   "time": "2026-11-13T20:00:00Z",
+   "ms": 1192
+  },
+  {
+   "city": "Moscow",
+   "temperature_c": 4.2,
+   "time": "2026-11-13T20:00:00Z",
+   "ms": 1190
+  },
+  {
+   "city": "Berlin",
+   "temperature_c": 4.7,
+   "time": "2026-11-13T20:00:00Z",
+   "ms": 0
+  },
+  {
+   "city": "Paris",
+   "temperature_c": 6.9,
+   "time": "2026-11-13T20:00:00Z",
+   "ms": 1200
+  },
+  {
+   "city": "London",
+   "temperature_c": 2.6,
+   "time": "2026-11-13T20:00:00Z",
+   "ms": 1196
+  },
+  {
+   "city": "Madrid",
+   "temperature_c": 11.7,
+   "time": "2026-11-13T20:00:00Z",
+   "ms": 1187
+  },
+  {
+   "city": "Reykjavik",
+   "temperature_c": -0.3,
+   "time": "2026-11-13T20:00:00Z",
+   "ms": 956
+  },
+  {
+   "city": "New York",
+   "temperature_c": 5.3,
+   "time": "2026-11-13T20:00:00Z",
+   "ms": 1195
+  },
+  {
+   "city": "Chicago",
+   "temperature_c": 5.0,
+   "time": "2026-11-13T20:00:00Z",
+   "ms": 1197
+  },
+  {
+   "city": "Los Angeles",
+   "temperature_c": 17.3,
+   "time": "2026-11-13T20:00:00Z",
+   "ms": 1193
+  },
+  {
+   "city": "Mexico City",
+   "temperature_c": 19.4,
+   "time": "2026-11-13T20:00:00Z",
+   "ms": 1195
+  },
+  {
+   "city": "Bogota",
+   "temperature_c": 18.3,
+   "time": "2026-11-13T20:00:00Z",
+   "ms": 1190
+  },
+  {
+   "city": "Lima",
+   "temperature_c": 25.6,
+   "time": "2026-11-13T20:00:00Z",
+   "ms": 1199
+  },
+  {
+   "city": "Sao Paulo",
+   "temperature_c": 21.5,
+   "time": "2026-11-13T20:00:00Z",
+   "ms": 1191
+  },
+  {
+   "city": "Buenos Aires",
+   "temperature_c": 25.2,
+   "time": "2026-11-13T20:00:00Z",
+   "ms": 1198
+  }
+ ],
+ "summary": {
+  "answered": 30,
+  "cases": 30,
+  "p50_p95_ms": [
+   1191,
+   1199
+  ],
+  "temperature_range": [
+   -0.3,
+   27.6
+  ]
+ }
+}

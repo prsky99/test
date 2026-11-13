@@ -17,7 +17,8 @@ from .limits import SourceBusy
 ALLOWED_HOSTS = frozenset({"services.nvd.nist.gov", "nvd.nist.gov", "cveawg.mitre.org", "www.cisa.gov",
                            "api.first.org", "api.github.com", "registry.npmjs.org", "pypi.org",
                            "api.deps.dev", "api.gleif.org", "www.sec.gov", "data.sec.gov",
-                           "en.wikipedia.org", "export.arxiv.org", "api.worldbank.org"})
+                           "en.wikipedia.org", "export.arxiv.org", "api.worldbank.org",
+                           "api.met.no"})
 
 
 class SourceError(RuntimeError):
@@ -29,14 +30,16 @@ class SourceError(RuntimeError):
 
 
 def get(url: str, *, limiters: dict, http=None, params=None, seconds: float, limit: int,
-        accept: str = "application/json", preflight: bool = True):
-    """Return the httpx response for a 200 answer; raise SourceBusy or SourceError otherwise."""
+        accept: str = "application/json", preflight: bool = True, headers: dict | None = None, ok=(200,)):
+    """Return the httpx response for an ``ok`` status (200; 304 for conditional requests); raise SourceBusy
+    or SourceError otherwise. ``headers`` may only add conditional request headers."""
+    extra = {k: v for k, v in (headers or {}).items() if k in ("If-Modified-Since", "If-None-Match")}
     parsed = urlsplit(url)
     if (parsed.scheme != "https" or parsed.hostname not in ALLOWED_HOSTS or parsed.port not in (None, 443)
             or parsed.username or parsed.password or parsed.fragment):
         raise SourceError("Source not allowed.")
     limiter = limiters[parsed.hostname]
-    headers = {"User-Agent": USER_AGENT, "Accept": accept}
+    headers = {"User-Agent": USER_AGENT, "Accept": accept, **extra}
     if parsed.hostname == "api.github.com":
         headers["X-GitHub-Api-Version"] = "2022-11-28"
     with outbound_operation(seconds) as budget:
@@ -58,6 +61,6 @@ def get(url: str, *, limiters: dict, http=None, params=None, seconds: float, lim
                 client.close()
     if response.status_code in (429, 503):
         raise SourceBusy(f"Source answered HTTP {response.status_code}; resting.")
-    if response.status_code != 200:
+    if response.status_code not in ok:
         raise SourceError(f"Source answered HTTP {response.status_code}.", response.status_code)
     return response

@@ -16,6 +16,7 @@
 | `wikipedia-summary` (`get_wikipedia_summary`) | topic-evidence-brief 백과 자리, `encyclopedia.summary.v1` | 영어 Wikipedia action API | 고정 과제 2/2, 계약 입력 3/3, 자체 점검 30개 제목 30/30 | 474 ms / 503 ms | 정답 세트 요청 |
 | `arxiv-search` (`search_arxiv_papers`) | paper-cross-search·topic-evidence-brief 논문 자리, `papers.search.v1` | arXiv API | 고정 과제 3/3, 자체 점검 유명 논문 30편 제목 질의 1위 25/30 | 3초 간격 대기 포함 p50 3.0초 | 한계 있음(2-6) |
 | `worldbank-indicator` (`get_country_indicator`) | country-economy-snapshot 지표 자리, `country.indicator.v1` | World Bank WDI | 고정 과제 3/3, 자체 점검 10개국×3지표 30/30 | 204 ms / 215 ms | 정답 세트 요청 |
+| `met-weather` (`get_weather_forecast`) | trip-brief 날씨 자리, `weather.forecast.v1` | MET Norway Locationforecast 2.0 | 고정 과제 2/2(온도 실측 비교는 안 함, 2-8), 세계 30개 도시 30/30 | 1,191 ms / 1,199 ms | 정답 세트 요청 |
 | `github-advisory` (`list_package_advisories`) | package-risk-audit 취약점 자리, `package.advisories.v1` | GitHub Advisory Database(reviewed) | 1차 27/30 → 고친 뒤 재측정은 5절 | 987 ms / 1,301 ms | 재측정 뒤 결정 |
 
 - 계약 시험 입력(`test_inputs`) 3건씩: nvd-cve·cve-org·cisa-kev 9/9 통과(`contract-test-inputs.json`). 고정 과제(role-tasks-v1): nvd-cve 3/3, cisa-kev 3/3, cve-org 3/3, package-registry 2/2, depsdev-package 2/2.
@@ -95,6 +96,11 @@
 - World Bank API는 보통 0.03~0.3초인데 가끔 한 URL이 15초 넘게 멈춥니다(11-14 실측). 그래서 첫 요청을 1.4초에서 끊고, 시간 초과일 때만 캐시 키가 다른 형식(`mrnev`·`date`)으로 한 번 더 묻습니다. 429 같은 거절 뒤에는 다시 묻지 않습니다. 고치기 전 자체 점검 27/30 → 고친 뒤 30/30.
 - **IMF는 만들지 않았습니다(PM 결정 필요).** IMF 저작권·이용 조건(https://www.imf.org/en/About/copyright-and-terms)은 데이터를 출처 표기로 쓰게 하지만, "상업적 재사용은 copyright@imf.org에 허락 요청", "콘텐츠의 체계적인 내려받기는 서면 허락 필요", "LLM 학습 사용 금지"를 적고 있습니다. 하루 1회 전체 지표 스냅샷은 체계적 내려받기에 해당할 수 있어, 허락 없이 만들지 않았습니다. 허락 요청은 외부 연락이라 사용자 승인 대상입니다.
 
+### 2-8. 날씨 자리(MET Norway)
+- 이용 조건(https://api.met.no/doc/TermsOfService, /doc/License, 11-14 확인): 연락처가 든 User-Agent 필수, 전체 초당 20회 미만, 좌표는 소수 넷째 자리까지, Expires 전에는 같은 요청을 되풀이하지 않기, If-Modified-Since 사용, 라이선스 CC BY 4.0·NLOD 2.0("Data from MET Norway"). 상업적 이용 가능.
+- 구현: 좌표를 0.01도(약 1km)로 반올림해 같은 칸은 Expires(최대 1시간)까지 캐시로 답하고, 그 뒤에는 If-Modified-Since로 다시 확인합니다(304면 내용 재사용). 지금 시각에 가장 가까운 시간대의 기온과 다음 1·6시간 날씨·강수·바람·습도를 영어 문장으로 냅니다. 데이터 시각 = 예보 `updated_at`, 나이 상한 3시간.
+- 고정 과제 weather-*의 온도 기준값은 Open-Meteo 주소입니다. Open-Meteo 무료판은 비상업 전용이라 부르지 않았고, 채점 기록에 "not checked"로 남깁니다(통과로 치지 않음). 워크플로우에 기준 원천을 바꿀지 물었습니다.
+
 ## 3. 관문 신청 묶음 (deploy/NECKLACE_GATE.md 10절 대비)
 
 | 조건 | 상태 | 근거 |
@@ -121,7 +127,7 @@
 | package.metadata (성공 멤버 0) | 위 ①(기존 자체 133021은 npm만) | 위와 같음 | **해결**: package-registry가 npm·PyPI 둘 다(계약은 package.health.v1) |
 | country.indicator (외부 1) | World Bank(기존 자체 133020·133022), IMF DataMapper | World Bank 0.04초, IMF 0.96~6.65초에 전 국가 응답 | **World Bank로 만듦(worldbank-indicator)**. IMF는 이용 조건상 상업적 재사용·체계적 내려받기에 허락이 필요해 보류(2-7) |
 | news.search (외부 1) | GDELT DOC 2.0(키 없음, 5초에 1회), 기존 자체 133018(HN, 기술 뉴스만) | GDELT 첫 호출이 13.7초 뒤 429("5초에 1회") | **실시간 대체로는 불안정**. 캐시·범위 표시를 붙여도 성공률이 낮을 것. 보류 권장 |
-| weather.forecast (대체 1개) | MET Norway Locationforecast(api.met.no: 키 없음, 전 세계, CC BY 4.0·NLOD, 식별 가능한 User-Agent 필수, 초당 20회 상한, If-Modified-Since 캐시 요구). Open-Meteo 무료판은 비상업 전용이라 제외. 미국 NWS(api.weather.gov)는 미국만·공공 저작물 | 아직 호출 안 함, 이용 조건은 기억 기준이라 문서로 다시 확인 필요 | 만들 수 있을 것으로 봄(MET Norway 1순위, NWS는 coverage US) |
+| weather.forecast (대체 1개) | MET Norway Locationforecast. Open-Meteo 무료판은 비상업 전용이라 제외 | 1.2초 | **만듦(met-weather, 2-8)**, 이용 조건 문서로 확인함 |
 | events.search (범용 멤버 없음) | 키 없는 범용 행사 API 없음(Ticketmaster·Eventbrite·PredictHQ는 키 필요). Nager.Date 공휴일, Wikidata 축제 | Nager.Date 0.46초 200 | **범용 불가**. "국가 공휴일·정기 축제 한정 + coverage 표시"로만 가능 |
 
 ## 5. GitHub Advisory 재측정
