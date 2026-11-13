@@ -178,8 +178,10 @@ def public_item(entry, base='https://agentconcierge.biz', now=None):
                         'alternates': {'external': sum(1 for a in p.get('alternates') or [] if a.get('kind') == 'external'),
                                        'agentcon': sum(1 for a in p.get('alternates') or [] if a.get('kind') == 'agentcon')}}
                        for p in entry.get('pearls') or [] if isinstance(p, dict)],
-            'quality': {k: quality.get(k) for k in ('success_rate', 'best_single_rate', 'delta_pp', 'cases', 'tested_at')
-                        if quality.get(k) is not None},
+            'quality': {**{k: quality.get(k) for k in ('success_rate', 'best_single_rate', 'delta_pp', 'tested_at')
+                           if quality.get(k) is not None},
+                        **({'passed': tested(quality)[0], 'cases': tested(quality)[1]} if tested(quality) else {}),
+                        'verified_95': verified(quality) is not None},
             'completion': {k: completion.get(k) for k in ('runs', 'completed', 'completed_external_only', 'since', 'retested_at')
                            if completion.get(k) is not None},
             'cost': {k: cost.get(k) for k in ('usdc_per_run', 'p50_ms', 'p95_ms') if cost.get(k) is not None}}
@@ -236,6 +238,31 @@ def feed(base='https://agentconcierge.biz', snapshot=None):
             'items': items}
 
 
+VERIFIED_CASES = 110   # PM 11-14 (workflow 98fe294c): "Verified 95%" only after 110 cumulative retests
+VERIFIED_FAILURES = 1  # with at most one failure (Wilson lower bound 95%); before that only n/N
+
+
+def tested(quality):
+    """(passed, cases) of the recent window: cases_7d/success_rate from the daily summary (cases in the first draft)."""
+    cases = quality.get('cases_7d', quality.get('cases'))
+    if not isinstance(cases, int) or cases <= 0:
+        return None
+    passed = quality.get('success_7d')
+    if not isinstance(passed, int):
+        rate = quality.get('success_rate')
+        passed = round(rate * cases) if isinstance(rate, (int, float)) else None
+    return (passed, cases) if isinstance(passed, int) else None
+
+
+def verified(quality):
+    """The cumulative claim, or None: cumulative cases >= 110 with at most one failure."""
+    cumulative = quality.get('cumulative') or {}
+    cases, passed = cumulative.get('cases'), cumulative.get('passed')
+    if isinstance(cases, int) and isinstance(passed, int) and cases >= VERIFIED_CASES and 0 <= cases - passed <= VERIFIED_FAILURES:
+        return passed, cases
+    return None
+
+
 def _pct(value):
     return str(round(value * 100)) + '%' if isinstance(value, (int, float)) else None
 
@@ -270,14 +297,18 @@ def page(slug, base='https://agentconcierge.biz', snapshot=None, now=None):
         facts.append(('Better than the best single agent', '+' + str(round(quality['delta_pp'], 1)) + ' points'
                       + (' (' + _pct(quality.get('success_rate')) + ' vs ' + _pct(quality.get('best_single_rate')) + ')'
                          if _pct(quality.get('success_rate')) and _pct(quality.get('best_single_rate')) else '')))
-    if 'success_rate' in quality and 'cases' in quality:
-        facts.append(('Recent test success', _pct(quality['success_rate']) + ' of ' + str(quality['cases']) + ' cases'))
+    window = tested(entry.get('quality') or {})
+    if window:
+        facts.append(('Recent test success', str(window[0]) + '/' + str(window[1]) + ' cases (last 7 days)'))
+    claim = verified(entry.get('quality') or {})
+    if claim:  # only after 110 cumulative retests with at most one failure (PM 11-14)
+        facts.append(('Verified 95%', str(claim[0]) + '/' + str(claim[1]) + ' cumulative retests passed'))
     cost = item['cost']
     if 'usdc_per_run' in cost:
         facts.append(('Cost per run', 'free' if cost['usdc_per_run'] == 0 else str(cost['usdc_per_run']) + ' USDC'))
     if 'p50_ms' in cost:
         facts.append(('Typical time', str(round(cost['p50_ms'] / 1000, 1)) + ' s'
-                      + (' (95%: ' + str(round(cost['p95_ms'] / 1000, 1)) + ' s)' if 'p95_ms' in cost else '')))
+                      + ('; slowest 5% within ' + str(round(cost['p95_ms'] / 1000, 1)) + ' s' if 'p95_ms' in cost else '')))
     if facts:
         parts.append('<section aria-labelledby="factsTitle"><h2 id="factsTitle">What the tests show</h2><dl class="evidence-list">'
                      + ''.join('<dt>' + esc(k) + '</dt><dd>' + esc(v) + '</dd>' for k, v in facts) + '</dl></section>')
