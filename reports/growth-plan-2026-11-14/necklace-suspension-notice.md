@@ -15,7 +15,10 @@
 | 정지 시각 | `replaced_at`(retired), 정지 시각 필드(held용, 워크플로우 팀에 요청) | 시각 줄을 숨김 |
 | 30일 기간 | `replaced_at + 30일` | 기간 안내를 숨김 |
 
-- **워크플로우 팀에 요청**: held에도 정지 시각 `held_at`을 넣어 달라. retired에는 이미 `replaced_at`이 있다.
+- 워크플로우 팀 반영(9f4f02df)
+  - `held_at`: 보류가 시작된 시각. 같은 보류가 이어지는 동안 바뀌지 않는다.
+  - 최상위 `events`: [{slug, kind: launched|held|resumed|retired, at, reason, replaced_by}], 최근 60일. 한 번도 live였던 적이 없는 목걸이의 보류는 공개 사건이 아니다.
+  - 항목별 `stage` {slots, failed, max}. 4단계 보류는 held_reason `stage4`.
 
 ## 2. 정지 이유 문구 (코드 → 한 문장, 사실만)
 
@@ -28,6 +31,7 @@
 | security | A security check on one of its agents did not pass. |
 | stale_retest | It has not been retested recently, so we stopped it until it is. |
 | manual | Our operators stopped it for review. |
+| stage4 | Every agent for one step failed, including its fallbacks, so it stopped (step 4 of our recovery plan). |
 
 - 숫자를 붙일 수 있으면 붙인다. 예: "Completed 18 of 30 test runs (since 2026-11-20)". 값은 스냅샷의 completion·quality에서만 가져온다.
 
@@ -76,7 +80,10 @@
 - 자리: 워크스페이스 **알림 페이지**(`/new/en/notifications.html`, 기존 화면)의 목록 맨 위와 헤더 알림 점.
 - 대상: 지난 30일 안에 그 목걸이(또는 그 목걸이가 대체한 옛 템플릿)를 실행한 계정. 실행 기록의 계정 기준이다.
 - 문구: 3-1/3-2와 같다. 링크는 새 목걸이 페이지로 간다.
-- 만드는 쪽: 계정별 알림 저장은 워크스페이스 데이터라 워크플로우 팀(정지 사건을 낸 쪽)이나 워크스페이스 담당이 넣는다. 성장·유통은 화면 자리와 문구를 맡는다. **DB 구조가 바뀌면 리허설과 사용자 승인 절차를 따른다.**
+- 만드는 쪽: **워크플로우 팀**(9f4f02df 회신). 판정 작업이 `gateway-data/necklaces/notices.json`({계정 번호: [{slug, kind, at, replaced_by}]}, 30일)을 쓴다.
+  - 로그인 실행의 내부 계정 번호(메일 아님)는 실행기가 30일만 남긴다.
+  - 옛 템플릿 사용자는 workflow_runs.actor로 찾는다(읽기 전용, 대체하는 날 한 번).
+  - 표면(성장·유통)은 현재 로그인 계정의 항목만 읽어 알림 페이지에 보여 준다. DB 구조 변경은 없다.
 - 익명 사용자와 에이전트에게는 계정이 없어 개별 알림을 보내지 않는다. 대신 다음 세 가지로 알린다.
   - 다음 호출 때의 응답(3-3)
   - 공개 피드(5)
