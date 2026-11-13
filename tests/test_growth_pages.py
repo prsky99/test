@@ -206,7 +206,8 @@ def test_front_app_routes_sitemap_and_llms(monkeypatch, tmp_path):
     llms = c.get('/llms.txt').text
     assert '/connect' in llms and '/agents/tasks' in llms and '/agents/best' in llms and '/agent/{id}' in llms
     assert 'official MCP Registry as `biz.agentconcierge/agent-concierge`' in llms
-    locs = [e.text for e in ET.fromstring(c.get('/sitemap.xml').text).iter('{http://www.sitemaps.org/schemas/sitemap/0.9}loc')]
+    from tests.test_sitemap_parts import sitemap_locs
+    locs = sitemap_locs(c)  # 11-13: an index of parts
     assert 'https://agentconcierge.biz/connect' in locs
     assert 'https://agentconcierge.biz/agents/task/weather-forecast' in locs
     assert 'https://agentconcierge.biz/agents/task/current-weather' not in locs

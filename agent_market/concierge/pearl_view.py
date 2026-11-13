@@ -194,6 +194,11 @@ def bundled(value):
 # 15 min went EXPIRED and the visitor waited for the origin (user_slo 18:04: 3/3 EXPIRED, 1.06-2.25 s). Within a day
 # the edge now answers UPDATING at once. Old copies name old assets, which earlier releases and panels-cache keep.
 PUBLIC_PAGE_CACHE = 'public, max-age=300, stale-while-revalidate=86400'
+# 11-13 PM 20:5x: the notice pages are the same bytes for every visitor too, but were no-store (DYNAMIC: every visit
+# went LAX -> tunnel -> this Mac; disclosures 6.68 s at 18:31). They get the live pages' cache unless the request
+# carries a cookie or credentials. They stay noindex as before (reports/page-body-time-2026-11-13).
+NOTICE_PAGES = frozenset(('accessibility.html', 'contact.html', 'cookies.html', 'disclosures.html', 'privacy.html',
+                          'service-disclosures.html', 'terms.html'))
 INLINE_SCRIPT = re.compile(r'<script\b([^>]*)>(.*?)</script>', re.S | re.I)
 DATA_TYPE = re.compile(r'\btype\s*=\s*["\']?(application/(?:ld\+)?json|text/plain|text/template)', re.I)
 
@@ -378,8 +383,18 @@ def prerender_segmented(value):
     return SELECT.sub(draw, value)
 
 
-def page_response(value, *, public=False, page=None):
+# 11-13 (PM 14 KB task B): the live pages carry the build's standard CSP meta. The response header below is at
+# least as strict in every directive (default-src 'none', hashed inline scripts, frame-ancestors), so that meta only
+# cost bytes in the first flight and is left out. Any other meta (the notice pages carry a stricter one: no inline
+# style, connect-src 'none') stays (tests/test_csp_meta_removed.py).
+CSP_META = re.compile(r'<meta http-equiv="Content-Security-Policy" content="default-src (?:\'|&#x27;)self(?:\'|&#x27;); '
+                      r'script-src (?:\'|&#x27;)self(?:\'|&#x27;); script-src-attr [^"]*worker-src (?:\'|&#x27;)self'
+                      r'(?:\'|&#x27;)">\n?')
+
+
+def page_response(value, *, public=False, page=None, noindex=None):
     """Use the same nonce policy for the default and named presentation routes."""
+    value = CSP_META.sub('', value, count=1)
     value = critical_css(split_panels(versioned(bundled(prerender_segmented(value)))), page)
     if os.environ.get('MAIN_SPONSORED', '0') == '1':  # 11-11 Sponsored on main Explore and Chat; off by default
         value = re.sub(r'<body\b', '<body data-sponsored="on"', value, count=1)
@@ -394,7 +409,7 @@ def page_response(value, *, public=False, page=None):
     headers = {'Content-Security-Policy': policy,
                'Cache-Control': PUBLIC_PAGE_CACHE if public else 'no-store',
                'X-Content-Type-Options': 'nosniff'}
-    if not public:
+    if (not public) if noindex is None else noindex:
         headers['X-Robots-Tag'] = 'noindex,noarchive'
     return HTMLResponse(value, headers=headers)
 
@@ -528,7 +543,7 @@ def install(app, front, *, workspace_access_enabled=False, workspace_link_enable
         return RedirectResponse('/new/en/index.html', status_code=307)
 
     @app.get('/new/en/{filename}', include_in_schema=False)
-    def page(filename: str):
+    def page(filename: str, request: Request = None):  # asset() calls it without a request to rebuild panels.js
         if filename not in pages:
             raise HTTPException(404, 'Page not found.')
         if workspace_access_enabled and filename in ('workspace.html', 'account.html', 'sign-in.html', 'sign-up.html'):
@@ -544,7 +559,12 @@ def install(app, front, *, workspace_access_enabled=False, workspace_link_enable
                      else daily_home_text(home_metadata_payload(value, snapshot), snapshot))
         if filename in ('test.html', 'workflows.html'):
             value = current_fixed_content(value, filename)
-        return page_response(value, public=filename in manifest['live_pages'], page=filename)
+        live = filename in manifest['live_pages']
+        if filename in NOTICE_PAGES:
+            from .public_http_contract import _credentials
+            shared = request is not None and not _credentials(request.headers, request.url.path)
+            return page_response(value, public=shared, page=filename, noindex=True)
+        return page_response(value, public=live, page=filename)
 
     @app.get('/new/en/assets/{filename:path}', include_in_schema=False)
     def asset(filename: str, request: Request):

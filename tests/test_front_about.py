@@ -55,7 +55,8 @@ def test_about_metadata_discovery_and_home_guide_are_consistent(about_client):
     assert 'A2A first, then MCP' in metas['description'] and 'Daily snapshot:' in metas['description']
     assert '"@type": "WebPage"' in html  # Initial document describes Home; navigation updates its graph.
     from agent_market.concierge.public_metadata import url
-    sitemap=about_client.get('/sitemap.xml');assert sitemap.status_code==200 and url('about') in sitemap.text and url('overview') in sitemap.text
+    assert about_client.get('/sitemap.xml').status_code==200  # 11-13: an index; the public pages are in its pages part
+    sitemap=about_client.get('/sitemaps/pages.xml');assert sitemap.status_code==200 and url('about') in sitemap.text and url('overview') in sitemap.text
     for path in ('/llms.txt','/llms-full.txt'):
         response=about_client.get(path);assert response.status_code==200 and url('about') in response.text
 

@@ -692,7 +692,7 @@ Agent Concierge enforces continuous empirical quality evaluation:
 - A2A Agent Card: `{base}/.well-known/agent-card.json`
 - MCP Manifest: `{base}/.well-known/mcp.json`
 - OpenAPI Specification: `{base}/openapi.json`
-- Web Sitemap: `{base}/sitemap.xml`
+- Web Sitemap: `{base}/sitemap.xml` (a sitemap index; its parts are `{base}/sitemaps/pages.xml` and `{base}/sitemaps/agents-N.xml`)
 - About the Service: `{base}/new/en/about.html` (overview, value, principles and vision)
 - Home Overview: select the Agent Concierge logo or open `{base}/`
 """
@@ -2446,14 +2446,26 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
         return Response(body, media_type=web_bot_auth.DIRECTORY_MEDIA_TYPE,
                         headers={**signature, "Cache-Control": "public, max-age=86400"})
 
+    def sitemap_parts(request: Request):
+        from ..agent_access.pages import category_links
+        from .growth_pages import sitemap_paths
+        from .public_metadata import sitemap as public_sitemap
+        from .sitemap_parts import split
+        return split(public_sitemap(front.base(request), front.daily_statistics.read()),
+                     [*category_links(front), *sitemap_paths()])
+
+    # 11-13 PM 20:5x: an index and parts of at most ~9 KB gzip each (one urlset was 39 KB: 5-6 s from Korea).
     @router.get("/sitemap.xml", include_in_schema=False)
     def sitemap(request: Request):
-        from ..agent_access.pages import category_links
-        import html
-        from .growth_pages import sitemap_paths
-        extra=''.join('<url><loc>https://agentconcierge.biz'+html.escape(path)+'</loc></url>'for path in [*category_links(front),*sitemap_paths()])
-        from .public_metadata import sitemap as public_sitemap
-        return Response(content=public_sitemap(front.base(request), front.daily_statistics.read()).replace('</urlset>',extra+'</urlset>'), media_type="application/xml")
+        from .sitemap_parts import index
+        return Response(content=index(front.base(request), sitemap_parts(request)), media_type="application/xml")
+
+    @router.get("/sitemaps/{name}.xml", include_in_schema=False)
+    def sitemap_part(name: str, request: Request):
+        part = sitemap_parts(request).get(name)
+        if part is None:
+            raise HTTPException(404, "Sitemap not found.")
+        return Response(content=part, media_type="application/xml")
 
     @router.get("/llms.txt", include_in_schema=False)
     def llms(request: Request):

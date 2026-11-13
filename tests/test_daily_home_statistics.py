@@ -157,7 +157,7 @@ def test_crawlers_receive_matching_visible_meta_and_dataset_without_javascript(d
         assert "script-src 'self' 'sha256-" in response.headers['content-security-policy']
         assert 'stale-while-revalidate=86400' in response.headers['cache-control']  # 11-11 PM decision A
         assert not re.search(r'[\uac00-\ud7af]',body)
-    xml = ET.fromstring(client.get('/sitemap.xml').text)
+    xml = ET.fromstring(client.get('/sitemaps/pages.xml').text)  # 11-13: the public pages part of the index
     dates = xml.findall('.//{*}lastmod')
     assert len(dates)==1 and dates[0].text==value['modified_at']
     explore = client.get('/new/en/explore.html').text

@@ -9,6 +9,7 @@ import json
 from starlette.datastructures import Headers, MutableHeaders
 from .conditional_http import etag_matches
 from .security import _QUOTA_SINK, quota_headers
+from .sitemap_parts import is_part as sitemap_part
 
 # Permanent aliases of discovery documents (11-11): a 301 the edge can keep like the target.
 EDGE_REDIRECTS = frozenset(('/.well-known/llms.txt','/.well-known/mcp/server-card.json'))
@@ -76,7 +77,8 @@ def growth_path(path):
 
 
 def shared_path(path):
-    return path in PUBLIC_READS or path.startswith('/api/workflows/templates/') or growth_path(path)
+    return (path in PUBLIC_READS or path.startswith('/api/workflows/templates/') or growth_path(path)
+            or sitemap_part(path))  # 11-13: the sitemap parts are kept like /sitemap.xml
 
 
 def _session_cookie(header):
@@ -137,7 +139,7 @@ class PublicHTTPContract:
             if cache and (status in (200,304) or status==301 and path in EDGE_REDIRECTS) and 'set-cookie' not in headers:
                 headers['cache-control']=(DISCOVERY_CACHE if path in DISCOVERY_DOCUMENTS
                     else EDGE_DOCUMENT_CACHE
-                    if path in EDGE_DOCUMENTS else GROWTH_CACHE if growth_path(path)
+                    if path in EDGE_DOCUMENTS or sitemap_part(path) else GROWTH_CACHE if growth_path(path)
                     else SNAPSHOT_CACHE if path in SNAPSHOT_READS
                     else 'public, max-age=30, stale-while-revalidate=30')
                 if growth_path(path):  # the same URL answers HTML or Markdown by Accept

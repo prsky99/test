@@ -145,7 +145,9 @@ def test_default_entry_retains_deep_links_published_layout_and_safe_footer(pearl
     page.locator('.nav-tab[data-tab="about"]').click()
     expect(page.locator('#secAbout .reference-about-hero')).to_be_visible()
     expect(page.locator('#secAbout h1')).to_contain_text('Individual strengths.')
-    expect(page.locator('#secAbout .about-necklace-art')).to_be_hidden()
+    # 11-13 (user): the decorative necklace is shown again beside the heading; it stays hidden from assistive tech.
+    expect(page.locator('#secAbout .about-necklace-art')).to_be_visible()
+    expect(page.locator('#secAbout .about-necklace-art')).to_have_attribute('aria-hidden','true')
     heading=page.locator('#secAbout h1').bounding_box()
     assert heading and heading['x']>=0 and heading['x']+heading['width']<=page.viewport_size['width']
     page.locator('.nav-tab[data-tab="explore"]').click()
