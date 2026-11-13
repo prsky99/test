@@ -250,41 +250,69 @@ REAL_TASK_STATE = ROOT / 'logs/ops/real-task-score-state.json'
 REAL_TASK_WINDOWS = {'night': (4, 5), 'afternoon': (15, 17)}   # 11-12 PM: twice a day (was 04 only)
 
 
-def real_task_score(clock=time.time, launch=None, free=None):
+def real_task_score(clock=time.time, launch=None, free=None, window=None):
     """Twice a day (night, afternoon): score the 30-task answer set on the public site (scripts/real_task_score.py).
 
     Started in the background through heavy_slot (one heavy job at a time; daytime runs stay under 30 minutes)
     so the 10-minute watch never waits for it; skipped while tests or deploys run or the slot is full, and
     tried again at the next watch inside the window. Results: reports/real-task-score/<date>-<HHMM>.json,
-    logs/ops/real-task-score.jsonl and the 'latest' block of reports/real-task-score/README.md."""
+    logs/ops/real-task-score.jsonl and the 'latest' block of reports/real-task-score/README.md.
+
+    11-13 PM 16:2x: the 15:07 afternoon run was refused by heavy_slot (:55-:10 measurement window, exit 75) but its
+    turn was already recorded, so the afternoon went unscored. Now the window is checked before starting, and the
+    detached run (real_task_run) gives the turn back when heavy_slot refuses, so the next watch tries again."""
     local = datetime.fromtimestamp(clock())
-    window = next((name for name, (first, last) in REAL_TASK_WINDOWS.items() if first <= local.hour <= last), None)
-    if window is None:
+    turn = next((name for name, (first, last) in REAL_TASK_WINDOWS.items() if first <= local.hour <= last), None)
+    if turn is None:
         return None
     state = json.loads(REAL_TASK_STATE.read_text()) if REAL_TASK_STATE.is_file() else {}
-    key = local.strftime('%Y-%m-%d') + '|' + window
-    if key in (state.get('runs') or {}) or (window == 'night' and state.get('day') == key.split('|')[0]):
+    key = local.strftime('%Y-%m-%d') + '|' + turn
+    if key in (state.get('runs') or {}) or (turn == 'night' and state.get('day') == key.split('|')[0]):
         return None
     reason = busy()
     if free is None:
         import heavy_slot
         lines = heavy_slot.BOARD.read_text(encoding='utf-8').split('\n') if heavy_slot.BOARD.is_file() else []
         free = len([line for _, line, ok in heavy_slot.entries(lines) if ok]) < heavy_slot.slots()
-    reason = reason or (None if free else '무거운 작업 칸이 모두 참')
+    if window is None:
+        import heavy_slot
+        window = heavy_slot.measurement_window(local)
+    reason = reason or (None if free else '무거운 작업 칸이 모두 참') or (window and '매시 측정 시간(:55~:10)')
     if reason:
-        append(ACTIONS, f'{now()} real_task_score({window}) 미룸: {reason}')
+        append(ACTIONS, f'{now()} real_task_score({turn}) 미룸: {reason}')
         return None
     runs = {k: v for k, v in (state.get('runs') or {}).items() if k >= (local - timedelta(days=7)).strftime('%Y-%m-%d')}
     runs[key] = clock()
     REAL_TASK_STATE.parent.mkdir(parents=True, exist_ok=True)
     REAL_TASK_STATE.write_text(json.dumps({'runs': runs, 'day': state.get('day'), 'started': clock()}))
     log = (ROOT / 'logs/ops/real-task-score.out').open('a')
-    command = [str(ROOT / '.venv/bin/python'), '-m', 'scripts.heavy_slot', '--team', '운영·SRE',
-               '--what', f'real_task_score {window}(ops_auto)', '--minutes', '20', '--',
-               'nice', '-n', '10', str(ROOT / '.venv/bin/python'), '-m', 'scripts.real_task_score']
+    command = [str(ROOT / '.venv/bin/python'), str(ROOT / 'scripts/ops_auto.py'), 'real-task-run', key]
     (launch or subprocess.Popen)(command, cwd=ROOT, stdout=log, stderr=log, start_new_session=True)
-    append(ACTIONS, f'{now()} real_task_score({window}) 시작')
+    append(ACTIONS, f'{now()} real_task_score({turn}) 시작')
     return key
+
+
+def real_task_command():
+    return ['nice', '-n', '10', str(ROOT / '.venv/bin/python'), '-m', 'scripts.real_task_score']
+
+
+def real_task_run(key, run=None):
+    """The detached half of real_task_score: run the scorer through heavy_slot and, when heavy_slot refuses
+    (75 slot full or measurement window, 77 night only), take the turn's record back so a later watch retries."""
+    import heavy_slot
+    turn = key.split('|', 1)[-1]
+    run = run or heavy_slot.run
+    code = run(real_task_command(), '운영·SRE', f'real_task_score {turn}(ops_auto)', 20)
+    if code in (heavy_slot.BUSY, heavy_slot.NIGHT_ONLY):
+        state = json.loads(REAL_TASK_STATE.read_text()) if REAL_TASK_STATE.is_file() else {}
+        runs = state.get('runs') or {}
+        runs.pop(key, None)
+        state['runs'] = runs
+        REAL_TASK_STATE.write_text(json.dumps(state))
+        append(ACTIONS, f'{now()} real_task_score({turn}) heavy_slot 거부(종료 {code}): 실행 기록을 되돌림, 다음 watch에 다시 시도')
+    elif code:
+        append(ACTIONS, f'{now()} real_task_score({turn}) 끝: 종료 {code}')
+    return code
 
 
 def board_snapshot(board=None, history=None, clock=time.time):
@@ -743,4 +771,5 @@ def test_reports():
 
 if __name__ == '__main__':
     command = sys.argv[1] if len(sys.argv) > 1 else ''
-    raise SystemExit({'watch': watch, 'test-reports': test_reports, 'board-snapshot': lambda: board_snapshot() and 0}.get(command, lambda: 2)())
+    raise SystemExit({'watch': watch, 'test-reports': test_reports, 'board-snapshot': lambda: board_snapshot() and 0,
+                     'real-task-run': lambda: real_task_run(sys.argv[2])}.get(command, lambda: 2)())

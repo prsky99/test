@@ -54,13 +54,14 @@ def test_ops_auto_starts_the_score_once_a_night(tmp_path, monkeypatch):
     launch = lambda cmd, **kw: started.append(cmd)  # noqa: E731
     at = lambda h: datetime(2026, 11, 12, h, 5).timestamp()  # noqa: E731
     monkeypatch.setattr(ops_auto, 'busy', lambda: None)
+    import heavy_slot
+    monkeypatch.setattr(heavy_slot, 'measurement_window', lambda now=None: None)
     # 11-12 PM: twice a day, night (04-05) and afternoon (15-17), through heavy_slot
     assert ops_auto.real_task_score(clock=lambda: at(13), launch=launch, free=True) is None and not started
     assert ops_auto.real_task_score(clock=lambda: at(4), launch=launch, free=True) == '2026-11-12|night'
     command = started[0]
-    assert command[1:3] == ['-m', 'scripts.heavy_slot'] and command[command.index('--minutes') + 1] == '20'
-    assert command[command.index('--') + 1:command.index('--') + 4] == ['nice', '-n', '10']
-    assert command[-2:] == ['-m', 'scripts.real_task_score']
+    assert command[1].endswith('scripts/ops_auto.py') and command[2:] == ['real-task-run', '2026-11-12|night']
+    assert ops_auto.real_task_command()[:3] == ['nice', '-n', '10'] and ops_auto.real_task_command()[-2:] == ['-m', 'scripts.real_task_score']
     assert ops_auto.real_task_score(clock=lambda: at(5), launch=launch, free=True) is None and len(started) == 1
     assert ops_auto.real_task_score(clock=lambda: at(15), launch=launch, free=False) is None and len(started) == 1
     assert ops_auto.real_task_score(clock=lambda: at(16), launch=launch, free=True) == '2026-11-12|afternoon'
@@ -68,6 +69,53 @@ def test_ops_auto_starts_the_score_once_a_night(tmp_path, monkeypatch):
     (tmp_path / 'state.json').unlink()
     monkeypatch.setattr(ops_auto, 'busy', lambda: 'tests_or_deploy_running')
     assert ops_auto.real_task_score(clock=lambda: at(4), launch=launch, free=True) is None and len(started) == 2
+
+
+def _ops_auto(tmp_path, monkeypatch):
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
+    import ops_auto
+    monkeypatch.setattr(ops_auto, 'REAL_TASK_STATE', tmp_path / 'state.json')
+    monkeypatch.setattr(ops_auto, 'ACTIONS', tmp_path / 'actions.log')
+    monkeypatch.setattr(ops_auto, 'ROOT', tmp_path)
+    monkeypatch.setattr(ops_auto, 'busy', lambda: None)
+    (tmp_path / 'logs/ops').mkdir(parents=True)
+    return ops_auto
+
+
+def test_the_score_waits_out_the_hourly_measurement_window(tmp_path, monkeypatch):
+    """PM 11-13 16:2x: 15:07 was started inside :55-:10, refused by heavy_slot, and the afternoon was lost."""
+    from datetime import datetime
+    ops_auto = _ops_auto(tmp_path, monkeypatch)
+    started = []
+    launch = lambda cmd, **kw: started.append(cmd)  # noqa: E731
+    at = lambda h, m: datetime(2026, 11, 13, h, m).timestamp()  # noqa: E731
+    assert ops_auto.real_task_score(clock=lambda: at(15, 7), launch=launch, free=True) is None and not started
+    assert not (tmp_path / 'state.json').exists() and '매시 측정 시간' in (tmp_path / 'actions.log').read_text()
+    assert ops_auto.real_task_score(clock=lambda: at(15, 17), launch=launch, free=True) == '2026-11-13|afternoon'
+
+
+def test_a_refused_run_gives_its_turn_back_and_the_next_watch_starts_it(tmp_path, monkeypatch):
+    """A refusal that slips past the check (the slot filled in between) must not count as the afternoon's run."""
+    from datetime import datetime
+    import heavy_slot
+    ops_auto = _ops_auto(tmp_path, monkeypatch)
+    started = []
+    launch = lambda cmd, **kw: started.append(cmd)  # noqa: E731
+    at = lambda h, m: datetime(2026, 11, 13, h, m).timestamp()  # noqa: E731
+    key = ops_auto.real_task_score(clock=lambda: at(15, 17), launch=launch, free=True, window=False)
+    assert key == '2026-11-13|afternoon'
+    seen = []
+    refuse = lambda command, team, what, minutes: seen.append((command, what, minutes)) or heavy_slot.BUSY  # noqa: E731
+    assert ops_auto.real_task_run(key, run=refuse) == heavy_slot.BUSY
+    assert seen[0][0][-2:] == ['-m', 'scripts.real_task_score'] and seen[0][2] == 20
+    assert key not in json.loads((tmp_path / 'state.json').read_text())['runs']
+    assert '거부(종료 75)' in (tmp_path / 'actions.log').read_text()
+    assert ops_auto.real_task_score(clock=lambda: at(15, 27), launch=launch, free=True, window=False) == key
+    assert ops_auto.real_task_run(key, run=lambda *a: 0) == 0
+    assert key in json.loads((tmp_path / 'state.json').read_text())['runs']          # a real run keeps its turn
+    assert ops_auto.real_task_score(clock=lambda: at(15, 37), launch=launch, free=True, window=False) is None
+    assert len(started) == 2
 
 
 def test_every_full_run_rewrites_the_latest_block_of_the_readme(tmp_path):
