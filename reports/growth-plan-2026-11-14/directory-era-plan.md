@@ -1,0 +1,135 @@
+# 2주 성장 계획 (11-14 ~ 11-27, 성장·유통, PM 11-14 02:2x 지시)
+
+사용자 결정(11-14 02시)에 따라 성장은 차선 목표를 기준으로 다시 시작한다. 무료 경로만 쓴다(지출 0, GitHub 홍보 금지). 외부 게시, 등록, 계정, 약관은 사용자 승인 뒤에만 한다.
+
+## 0. 전제 조건: 차선 목표 (사용자 11-14 02시, 02:3x 품질 추가)
+
+| 기준 | 차선 목표 | 재는 곳 |
+|---|---|---|
+| 탐색 | 3초 안 | user_slo(공개 주소·처음 보는 질의·새 연결·표본 제외 없음) |
+| 추천(Chat·find_agents·A2A) | 5초 안 | user_slo |
+| 페이지 | 3초 안 | user_slo |
+| 품질 | **90% 이상**: real_task_score 27/30 이상(보조 기준: 연결 90%, Chat 비교 99/110) | real_task_score, Chat 게이트 비교 |
+
+- **달성 전(지금):** 무료이면서 승인이 필요 없는 성장 일만 한다(4절).
+- **달성한 뒤:** 빠른 성장 단계로 넘어간다. 승인이 필요한 일은 5절에 미리 묶어 두었다. PM이 한 번에 사용자 승인을 받는다.
+- 판정: 속도는 user_slo 3일 연속, 품질은 같은 기간의 real_task_score와 Chat 비교로 한다.
+
+## 1. 북극성 지표와 지금 값
+
+- 북극성: 외부 클라이언트의 실행 성공(`scripts/north_star.py`)이다. KST 하루 동안 외부 클라이언트가 게이트웨이·엣지에서 실행에 성공한 (클라이언트, 에이전트) 쌍의 수다.
+- 지금(11-11~13): **0 / 2 / 1**.
+  - 11-13 깔때기: 외부 추천 요청 3건(A2A) → 연결 0 → 실행 0. 엣지 외부 실행 성공 1.
+  - 끊기는 곳: 11-12는 추천, 11-13은 연결.
+- 참고 지표(`logs/growth/usage-daily.jsonl`, 11-10~11)
+  - 사람 방문자: 37~46명/일
+  - 실제 MCP 세션: 63~97개/일
+  - 실제 MCP 도구 호출: 40~79회/일
+  - 외부 A2A 메시지: 15건/일
+  - Chat 외부: 0~2건, Explore 외부: 7건
+
+## 2. 깔때기 단계별 목표 (하루 값, 7일 평균)
+
+| 단계 | 지금 | 1주 차(11-20) | 2주 차(11-27) | 재는 곳 |
+|---|---|---|---|---|
+| 발견: 사람 방문자 | 37~46 | 60 | 90 | usage-daily human_visitors |
+| 발견: 실제 MCP 세션 | 63~97 | 110 | 150 | usage-daily mcp_sessions_real |
+| 추천 요청(외부: find_agents·Chat·MCP 검색·A2A·Explore API) | 3~106(들쭉날쭉) | 40 | 80 | north_star funnel.recommend |
+| 연결 쌍(게이트웨이 tools/list, A2A 카드) | 0~1 | 5 | 15 | north_star funnel.connect |
+| **실행 성공 쌍(북극성)** | 0~2 | **5** | **10** | north_star |
+| 구글 "agent concierge" | 평균 11위(1쪽 밖) | 측정만(core update 중) | 1쪽 복귀(판정은 11-24 뒤) | Search Console |
+
+- 2주 누적 북극성 목표는 80 이상이다.
+- 0절의 차선 목표(속도 3/5/3초, 품질 90%)를 달성하면 "빠른 성장"으로 넘어간다. 그때 5절의 승인 묶음을 요청한다.
+
+## 3. 채널별 할 일
+
+| 채널 | 할 일 | 승인 |
+|---|---|---|
+| 검색(구글·Bing) | A 브랜드 신호(title·JSON-LD·첫 화면 글자) 배포 | 필요 없음(낮 묶음) |
+| 검색 | B 상세 페이지 noindex(x402 5,239 등, 사이트맵 9,885 → 약 4,300) | **PM 결정** |
+| 검색 | C `/`의 `*/*`·Accept 없음 → HTML. 먼저 Accept별 요청 수 기록 | 기록은 필요 없음, 바꾸기는 **PM 결정** |
+| 검색 | B·C 뒤 IndexNow로 바뀐 주소 알림(기존 운영 도구 `scripts.indexnow_submit`) | 필요 없음(우리 주소만 보냄) |
+| 검색 | Search Console 한 줄 매일 기록(읽기만) | 필요 없음 |
+| MCP 디렉터리 | 공식 Registry 등록 유지, 설명·버전 갱신 | 재게시는 **사용자 승인** |
+| MCP 디렉터리 | ① mcpservers.org **완료**(11-14 03:3x PM 제출, 무료 웹 양식, 심사 최대 2주) ② PulseMCP **해당 없음**(09-03부터 제출 중단, 공식 Registry에서 자동 수집) ③ mcp.so **해당 없음**(유료 $39만 있음, 지출 0) | 사용자 승인 03:2x. 효과는 11-14 기준선으로 북극성·MCP clientInfo 전후 |
+| A2A 등록처 | 등록된 두 곳의 카드 최신 유지, 카드 별칭 404 0 확인 | 필요 없음 |
+| 제품 안(연결 단계) | 추천 결과마다 "바로 연결" 한 줄(MCP 엔드포인트·Claude/Cursor 설정 조각)과 `/connect` 안내 강화 → 추천에서 연결로 넘어가는 비율 올리기 | 필요 없음 |
+| 제품 안(실행 단계) | 연결 뒤 첫 실행 실패 사유를 깔때기에 남기고 상위 3개 고치기 | 필요 없음 |
+| 콘텐츠 | task 페이지 202개 중 방문 상위 20개 내용 보강(검증 근거, 연결 예시), 주간 보고 갱신 | 필요 없음 |
+| 소셜·커뮤니티(X, Reddit, HN) | 런칭 글 | 11-10 결정으로 **보류**(성장세가 보이면 사용자가 직접) |
+
+## 4. 지금 바로 시작하는 일 (승인 필요 없음)
+
+1. A 브랜드 신호를 낮 frontend 묶음에 넣는다(시험·사진 준비 끝나는 대로).
+2. `/` 요청의 Accept 종류별 하루 수를 트래픽 기록에 넣는다. C 결정의 근거가 된다.
+3. Search Console 한 줄을 매일 현황판에 적는다.
+4. 연결 단계 개선
+   - 추천 결과에 바로 쓸 수 있는 연결 조각을 넣는다.
+   - 실행 실패 사유를 깔때기에 남긴다.
+   - 위 둘의 범위·문구는 PM에 보고하고 시작한다.
+5. 매일 09시 북극성·깔때기 한 줄을 현황판에 적는다(`north_star --day 어제`).
+
+## 5. 승인이 필요한 일 (빠른 성장 단계 묶음, PM이 모아서 사용자에게)
+
+B와 C는 검색 대응이라 차선 목표와 관계없이 PM 결정으로 바로 할 수 있다. 나머지 외부 등록·게시는 차선 목표 달성 뒤 한 번에 요청한다.
+
+| 일 | 이유 | 비용 |
+|---|---|---|
+| B noindex 범위 확정 | 색인 쪽수가 크게 바뀜 | 0 |
+| C `/` 협상 변경 | 에이전트 쪽 응답이 바뀜 | 0 |
+| ~~PulseMCP·mcp.so·mcpservers.org 등록~~ | 완료(①)·해당 없음(②③), 11-14 03:3x | 0 |
+| 공식 MCP Registry 재게시(설명 갱신) | 외부 게시 | 0 |
+| 런칭 글(X·Reddit·HN) | 외부 게시, 11-10 보류 결정 | 0 |
+
+## 6. 점검 시각
+
+- 매일: 북극성·깔때기 한 줄, Search Console 한 줄.
+- 11-20: 1주 차 목표와 비교해 채널별로 무엇이 움직였는지 PM에 보고한다.
+- 11-24 뒤: 검색 판정.
+- 11-27: 2주 결과 보고와 다음 2주 계획.
+
+## 7. 연결 단계 개선 범위 (11-14 04시 조사, PM 보고용)
+
+공개 주소에서 확인한 지금 상태(내부 표시 헤더로 요청)는 다음과 같다.
+- MCP `find_agents`("get current weather for a city", 4.54초): 추천마다 게이트웨이 엔드포인트, 호출 순서(initialize → tools/list → tools/call), "Run here" 실행 예시(`call` 도구), MCP 설정 조각이 있다. 연결 정보가 모자라지 않다.
+- A2A `message/send`("find an agent that converts currency", 4.99초): 같은 정보가 글로 들어 있다. 그러나 A2A 카드의 기술은 find_workflows, find_agents, remember_and_update, stay_in_touch 넷뿐이다. **A2A 대화 안에서 추천 결과를 바로 실행하는 길이 없다.** 11-13 외부 추천 3건이 모두 A2A였고 연결 0이었다.
+- `/connect`: `claude mcp add --transport http agent-concierge https://agentconcierge.biz/mcp` 한 줄 명령과 Cursor 설정이 있다.
+- 덧붙여 본 것: 날씨 질문의 2위가 MailerDot(메일 도구)이었다. 관련성 문제라 검색과 RAG 몫으로 넘긴다.
+
+제안 (모두 무료, 외부 게시 없음):
+
+| # | 일 | 기대 효과 | 범위·위험 |
+|---|---|---|---|
+| 1 | 연결이 끊기는 곳을 표면별로 나눠 센다: 추천을 받은 클라이언트가 24시간 안에 게이트웨이 tools/list·tools/call·call 도구까지 갔는지(이미 있는 funnel 쌍 기록을 표면별로 합쳐 북극성 줄에 붙임) | 어디서 끊기는지 매일 숫자로 본다 | 집계 스크립트만, 요청 경로 변경 없음 |
+| 2 | A2A 대화에서 "run 1 {arguments}"로 추천 도구를 바로 실행하는 기술 추가(지금 MCP `call` 도구와 같은 게이트웨이·실행 정책·읽기 전용 제한 재사용) | A2A 추천을 실행 성공으로 바꾸는 가장 짧은 길(북극성 직접) | 실행 경로라 execution_policy 파일이 정책 해시 대상이면 jobs와 함께 배포. **실행 정책·인가 범위를 PM이 먼저 정해야 함** |
+| 3 | 추천 답의 첫 줄을 "바로 실행" 한 줄로: MCP는 `call {...}`, A2A는 2번 문법을 맨 위에 두고 설명은 뒤로 | 읽는 쪽이 첫 줄만 보고 실행 | 답 문구 변경(Chat 품질 비교 99/110 유지 확인) |
+| 4 | 첫 실행 실패 사유 상위 3개(인자 누락, 인증 요구, 제공자 시간 초과)를 실행 직후 답에 고칠 방법과 함께 돌려줌 | 연결은 했지만 실행 실패로 끝나는 쌍을 줄임 | 실행 오류 문구만 |
+
+- 권하는 순서: 1 → 3 → 4 → 2(2는 PM 범위 결정 뒤).
+- 2·3·4는 frontend 배포가 필요하다. 하루 묶음 원칙에 맞춰 다음 frontend 묶음에 넣는다.
+
+## 8. Glama TDQS 대응: 도구 설명·주석 (PM 11-14 04:1x)
+
+이름은 바꾸지 않고 설명과 주석만 고쳤다(`agent_market/concierge/mcp_contract.py`, 출처는 이 파일 하나).
+
+| 도구 | 첫 마디(전 → 후) | 주석 |
+|---|---|---|
+| search | Read-only catalog lookup… → **Browse:** 후보 비교용 목록, find_agents와 같은 순위임을 밝힘 | 그대로(읽기 전용) |
+| find_agents | Read-only catalog lookup… → **Recommend and connect:** 연결 정보·run_here | 그대로(읽기 전용) |
+| chat | Talk in plain English… → **Converse:** 여러 번 다듬는 대화, 방문자 토큰에 대화 저장 | 그대로 |
+| call | External effects may occur → 읽기 전용으로 분류된 도구만 중계, 파괴적·제공자 자격 증명 필요 도구는 거부, 유료는 호출자 결제 증명이 있을 때만 | destructiveHint **True → False**, openWorldHint True, readOnlyHint False(외부 서버 호출·유료 실행 가능) |
+| adapt_rest | Universal Adapter… → list_tools는 문서만 읽음, call은 문서가 정한 POST·PUT·DELETE도 보냄(자격 증명 없이) | destructiveHint **True 유지**(실제로 공개 API의 데이터를 바꿀 수 있음) |
+
+- 근거: call은 `proxy._execute_registered`에서 `usage.is_relay_safe_tool`이 거짓이면 UNSAFE_TOOL로 거부한다. adapt_rest call은 `rest_adapter.execute`가 문서의 method를 그대로 보낸다.
+- adapt_rest를 읽기 전용으로 표시하려면 call을 GET·HEAD로 제한하는 동작 변경이 필요하다(PM 결정 사항, 이번에는 하지 않음).
+- 시험: `tests/test_mcp_tool_descriptions.py`(게이트 목록), 기존 주석 시험 2곳 갱신. MCP 도구 목록·시나리오 관련 시험 63개 파일 1,380개 통과.
+- Chat 엔진은 도구 설명을 읽지 않는다(`mcp_tools()` 사용처는 tools/list·서버 카드뿐). 그래서 Chat 답변 경로는 바뀌지 않는다. 묶음 게이트의 Chat 비교로 다시 확인한다.
+
+### subscribe·verify_contact 숨김 안 (결정 대기)
+
+- 지금: subscribe 설명은 "Legacy contact command…cannot grant permission"이다. 작업 알림은 `/api/task-updates`로 옮겨졌다. verify_contact는 subscribe 뒤에만 쓴다.
+- 안 1(권함): 두 도구를 tools/list와 `/.well-known/mcp.json`에서 뺀다. tools/call 처리기는 남겨 기존 호출자가 깨지지 않게 한다. Glama 점수에서 "목적이 겹치거나 쓰지 말라는 도구"가 빠진다.
+- 안 2: 목록에 두되 설명 첫 마디를 "Deprecated:"로 바꾼다. 점수 개선은 작다.
+- 사용량 근거: 도구별 호출 수는 트래픽 기록에 없다(tools/call 총계만 있음). 안 1을 고르면 처리기 호출 수를 하루 세는 줄을 같이 넣어 제거 판단의 근거로 삼는다.
+- 영향: 공식 MCP Registry의 `server.json`에는 도구 목록이 없어 재게시가 필요 없다. 시험 중 도구 이름 목록을 고정한 곳(`tests/test_mcp_tool_descriptions.py` 등)을 함께 고친다.

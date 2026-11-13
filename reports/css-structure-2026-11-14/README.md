@@ -53,3 +53,20 @@
   - 1건(daily home 화면 전환)은 시험의 기다리기 방식이 페이지 CSP(eval 금지)에 막힌 것이었다. eval을 쓰지 않는 `expect(...).to_have_attribute`로 바꾼 뒤 4번 연속 통과했다.
 - 사진: `gateway-data/css-pixels/`의 `baseline/`, `baseline-2/`, `step2/`, `step2b/`(80MB, git 제외).
 - 다음 3단계: 한 번도 쓰이지 않는 규칙 후보 목록(상태 포함 coverage)을 만들어 PM에 올린다.
+
+## 3단계: 어떤 화면·상태에서도 맞지 않는 규칙 후보 (11-14, 목록만, 지우지 않음)
+
+- 도구: `scripts/css_unused_candidates.py`(무거운 작업 칸에서 실행)
+  - 화면 10개 × 1280·375 × 밝음·어두움 = 40개 상태
+  - 상태마다 접힌 것 펼치기(`[aria-expanded=false]`, `<details>`), Explore·Chat은 질의 한 번까지 모은다.
+  - 의사 클래스(:hover 등)는 떼고 요소가 있는지만 본다.
+- 결과(`unused-candidates.json`)
+  - 선택자 3,833개 중 맞음 2,940, 형식상 확인 불가 10, **한 번도 맞지 않음 883**
+  - 883개 가운데 808개는 클래스·id 이름이 페이지 JS나 서버 코드에 나온다("dynamic"). 이 도구가 몰지 않은 상태(로그인, 워크스페이스, 오류, 결과 종류)에서 쓰일 수 있어 후보에서 뺐다.
+  - **후보 75개**: bundle.css 60, 인라인 critical 15
+- 주의: 후보에도 직접 확인이 필요한 것이 섞여 있다.
+  - `.necklace-thread`: About 진주 목걸이 그림 쪽(11-13 시안 그림 유지 결정, `keep-design-visuals`)
+  - `.chat-message`·`.chat-user-bubble`·`.chat-assistant-bubble`: 대화 말풍선. JS가 이름을 이어 붙여 만들면 코드 검색에 안 걸린다.
+  - `.binary-loader`·`.fake-lines`: 로딩 표시
+  - 그래서 **지우기 전에 PM 검토**를 받고, 지운 뒤에는 픽셀 비교(0)와 화면 시험을 다시 돈다.
+- 크기: 후보 75개를 모두 지워도 bundle.css에서 줄어드는 양은 작다(규칙 2,339개 중 60개). 3단계의 효과는 크기보다 "남은 규칙은 쓰인다"는 정리에 있다.
