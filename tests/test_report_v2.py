@@ -142,3 +142,14 @@ def test_catalog_roles_have_checks_and_names():
     assert role_catalog.roles_for_tool('whois_lookup') == ['domain.lookup.v1']
     v = V.save_version(result(rid=41, role='timezone.time.v1', tool='get_time', excerpt='New York 08:41 EST', args={'timezone': 'America/New_York'}))
     assert v['judgement']['passed'] == v['judgement']['total'] == 2 and v['domain'] == 'reference'
+
+
+def test_moving_prices_are_judged_by_range_format_and_time(monkeypatch):
+    monkeypatch.setattr(V, 'reference_value', lambda url, ttl=600: 100000.0)
+    ok = V.judge('crypto.price.v1', 'BTC price 101,250.50 USD, updated 2026-11-15T09:12Z', {})
+    assert ok['passed'] == ok['total'] == 4
+    off = V.judge('crypto.price.v1', 'BTC price 90,000 USD, updated 2026-11-15T09:12Z', {})
+    assert off['passed'] == 3                                     # 10% away: the range check fails
+    monkeypatch.setattr(V, 'reference_value', lambda url, ttl=600: None)
+    unknown = V.judge('stock.quote.v1', 'AAPL last 231.40 USD as of 16:00', {})
+    assert unknown['passed'] == 3 and unknown['not_checked_live']  # no reference: not passed, said so

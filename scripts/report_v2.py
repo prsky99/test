@@ -151,6 +151,34 @@ CHECKS = {
 }
 
 
+_REFERENCE = {}
+
+
+def reference_value(url, ttl=600):
+    """A public reference value (Coinbase spot, the last regular-market stock price), cached for ten minutes; None when unavailable."""
+    hit = _REFERENCE.get(url)
+    if hit and time.time() - hit[0] < ttl:
+        return hit[1]
+    value = None
+    try:
+        import httpx
+        resp = httpx.get(url, timeout=10, headers={'User-Agent': 'AgentConcierge-Verification/1.0'})
+        if resp.status_code == 200:
+            if 'coinbase' in url:
+                value = float(resp.json()['data']['amount'])
+            elif 'finance/chart' in url:   # last regular-market price (Stooq's CSV page answered 'does not exist', 11-14)
+                value = float(resp.json()['chart']['result'][0]['meta']['regularMarketPrice'])
+    except Exception:
+        value = None
+    _REFERENCE[url] = (time.time(), value)
+    return value
+
+
+def within_reference(text, reference, tolerance):
+    numbers = [float(n.replace(',', '')) for n in re.findall(r'\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?', text or '')]
+    return any(abs(n - reference) <= tolerance * reference for n in numbers if n > 0)
+
+
 def judge(role, text, args):
     checks = []
     rules = CHECKS.get(role) or [(name, lambda t, a, _p=pattern: _has(_p, t))
@@ -161,7 +189,20 @@ def judge(role, text, args):
         except (ValueError, TypeError):
             passed = False
         checks.append({'check': name, 'passed': passed})
-    return {'rules': RULES, 'checks': checks, 'passed': sum(c['passed'] for c in checks), 'total': len(checks)}
+    live = role_catalog.live_spec(canonical(role))
+    not_live = []
+    if live:
+        reference = reference_value(live['reference'])
+        if reference is None:
+            not_live.append(live['reference'])
+            checks.append({'check': 'within the public reference (not checked: reference unavailable)', 'passed': False})
+        else:
+            checks.append({'check': f"within {int(live['tolerance'] * 100)}% of the public reference {reference:g}",
+                           'passed': within_reference(text, reference, live['tolerance'])})
+    out = {'rules': RULES, 'checks': checks, 'passed': sum(c['passed'] for c in checks), 'total': len(checks)}
+    if not_live:
+        out['not_checked_live'] = not_live
+    return out
 
 
 def registrable(host):

@@ -37,12 +37,18 @@ ROLES = {
     'book.search.v1': {'tools': r'^(?:search_books|find_books|book_search|lookup_book|search_book|get_book_by_title)$',
                        'input': {'query': 'Pride and Prejudice', 'title': 'Pride and Prejudice'},
                        'checks': [('author', r'austen')]},
+    # Prices move: judged by format, a time stamp and a range against a public reference at the same time
+    # (PM 11-14: +-2%), never by an exact number.
     'crypto.price.v1': {'tools': r'^(?:get_crypto_price|crypto_price|get_coin_price|get_token_price|coin_price|get_bitcoin_price|price_of_coin)$',
                         'input': {'symbol': 'BTC', 'coin': 'bitcoin', 'id': 'bitcoin', 'query': 'bitcoin'},
-                        'checks': [('bitcoin named', r'bitcoin|\bbtc\b'), ('a price', r'\b\d{2,3},?\d{3}(?:\.\d+)?\b')]},
+                        'checks': [('bitcoin named', r'bitcoin|\bbtc\b'), ('USD stated', r'\busd\b|\$'),
+                                   ('a time stamp', r'\b(?:19|20)\d{2}-\d{2}-\d{2}|\b\d{1,2}:\d{2}|timestamp|updated|as of|"time')],
+                        'live': {'reference': 'https://api.coinbase.com/v2/prices/BTC-USD/spot', 'tolerance': 0.02}},
     'stock.quote.v1': {'tools': r'^(?:get_quote|get_stock_quote|stock_quote|get_stock_price|quote_stock)$',
                        'input': {'symbol': 'AAPL', 'ticker': 'AAPL'},
-                       'checks': [('AAPL named', r'\baapl\b|apple'), ('a price', r'\b\d{2,4}\.\d{1,2}\b')]},
+                       'checks': [('AAPL named', r'\baapl\b|apple'), ('USD or a price field', r'\busd\b|\$|price|close|last'),
+                                  ('a time stamp', r'\b(?:19|20)\d{2}-\d{2}-\d{2}|\b\d{1,2}:\d{2}|timestamp|updated|as of|"time')],
+                       'live': {'reference': 'https://query1.finance.yahoo.com/v8/finance/chart/AAPL?range=1d&interval=1d', 'tolerance': 0.02}},
     'geocode.address.v1': {'tools': r'^(?:geocode|geocode_address|forward_geocode|address_to_coordinates)$',
                            'input': {'address': '1600 Pennsylvania Avenue NW, Washington, DC', 'query': '1600 Pennsylvania Avenue NW, Washington, DC'},
                            'checks': [('latitude 38.89', r'38\.89'), ('longitude -77.03', r'-77\.0[34]')]},
@@ -87,6 +93,10 @@ def roles_for_tool(name):
 
 def default_checks(role):
     return ROLES.get(role, {}).get('checks') or []
+
+
+def live_spec(role):
+    return ROLES.get(role, {}).get('live')
 
 
 def catalog_input(role):
