@@ -4,7 +4,7 @@ import re
 from functools import lru_cache
 
 from ..collector import usage
-from .recommendation_security import (usable_endpoint, endpoint_origin, SCHEMA_MAP_KEYS,
+from .recommendation_security import (usable_endpoint, same_site_origin, SCHEMA_MAP_KEYS,
     SCHEMA_SINGLE_KEYS, SCHEMA_ARRAY_KEYS)
 from .execution_errors import failure_code, policy_code
 
@@ -266,10 +266,10 @@ def resolve_a2a(resource, courier, *, public=False):
     if guide.get('binding') not in (None,'JSONRPC'):
         raise ExecutionDenied('This connection supports JSON-RPC agents only.')
     url=guide.get('endpoint') or (endpoint.get('url') if endpoint else resource['url'])
-    if not usable_endpoint(url) or endpoint_origin(url)!=endpoint_origin(resource['url']):
+    if not usable_endpoint(url) or not same_site_origin(url,resource['url']):
         raise ExecutionDenied('The agent endpoint must match its registered public origin.')
     target=courier.resolve('a2a',url,public_only=True) if public else courier.resolve('a2a',url)
-    if not usable_endpoint(target.get('url')) or endpoint_origin(target['url'])!=endpoint_origin(resource['url']):
+    if not usable_endpoint(target.get('url')) or not same_site_origin(target['url'],resource['url']):
         raise ExecutionDenied('The agent endpoint must match its registered public origin.')
     methods=guide.get('methods') or {}
     send=methods.get('send') if isinstance(methods,dict) else None

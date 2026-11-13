@@ -58,6 +58,24 @@ def endpoint_origin(value):
     return parsed.scheme,parsed.hostname.rstrip('.').encode('idna').decode('ascii').lower(),parsed.port or (443 if parsed.scheme=='https' else 80)
 
 
+def same_site_origin(value,registered):
+    """An endpoint on the registered origin, where example.com and www.example.com count as one site.
+
+    11-13 (PM, a02): a card registered at www.example.com that its own server moves to example.com with a
+    301/308 left the agent unreachable, because the endpoint had to match the registered host exactly. Only a
+    single leading "www." label is ignored; scheme, port and every other label still have to match, and the
+    network clients still validate public addresses and never follow redirects."""
+    try:
+        scheme,host,port=endpoint_origin(value)
+        other_scheme,other_host,other_port=endpoint_origin(registered)
+    except (TypeError,ValueError,AttributeError,UnicodeError):
+        return False
+    if (scheme,port)!=(other_scheme,other_port):
+        return False
+    bare=lambda h:h[4:] if h.startswith('www.') and h.count('.')>=2 else h
+    return host==other_host or bare(host)==bare(other_host)
+
+
 def _text(value):
     return _CREDENTIAL_VALUE.sub(lambda m:m[1]+_MARKER,
         _AUTH_VALUE.sub(lambda m:m[1]+_MARKER,redact_visitor_tokens(value)))

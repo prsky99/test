@@ -31,7 +31,7 @@ from ..gateway.store import Store
 from ..observation_guards import GuardError
 from .percentile_cache import score_percentile as cached_percentile
 from . import evaluation, usage
-from .auth_discovery import compact, instructions
+from .auth_discovery import asks_for_key, compact, instructions
 
 log = logging.getLogger("agent_market.collector.a2a")
 
@@ -516,11 +516,41 @@ class AgentProber:
                 self._cache[url] = (time.time(), data)
         return resp.status_code, data, resp.headers.get("content-type")
 
+    def _same_site_move(self, http: httpx.Client, url: str) -> str | None:
+        """Where a card's own server permanently moves it between example.com and www.example.com (301/308), with the
+        path and query unchanged; None otherwise. One hop only, and the target must pass the public address check
+        (11-13 PM, a02: www.agentreeve.com moved to agentreeve.com and the agent became unreachable). Any other
+        redirect is still not followed."""
+        from urllib.parse import urljoin
+        from ..concierge.recommendation_security import same_site_origin
+        try:
+            self._check(url)
+            resp = http.get(url, headers={"accept": "application/json", "user-agent": USER_AGENT})
+        except (httpx.HTTPError, DiscoveryError):
+            return None
+        location = resp.headers.get("location") if resp.status_code in (301, 308) else None
+        if not location:
+            return None
+        target, src, dst = urljoin(url, location), urlparse(url), urlparse(urljoin(url, location))
+        if (target == url or dst.netloc == src.netloc or (dst.path, dst.query) != (src.path, src.query)
+                or not same_site_origin(target, url)):
+            return None
+        try:
+            self._check(target)
+        except DiscoveryError:
+            return None
+        return target
+
     def fetch_card(self, http: httpx.Client, resource: dict) -> tuple[dict | None, dict, str | None]:
         details = json.loads(resource.get("details") or "{}")
         meta = {"tried": []}
         for url in card_candidates(resource["url"], details.get("agent_card"))[:4]:
             status, data, ctype = self._get_json(http, url)
+            moved = self._same_site_move(http, url) if status in (301, 308) else None
+            if moved:
+                meta["moved"] = {"from": url, "to": moved, "status": status}
+                url = moved
+                status, data, ctype = self._get_json(http, url)
             meta["tried"].append({"url": url, "status": status})
             if data is not None:
                 card = normalize_card(data, url)
@@ -623,7 +653,9 @@ class AgentProber:
                 from ..concierge.result_quality import usable_a2a_parts
                 out["ok"] = summary["state"] == "completed" and usable_a2a_parts([{
                     "kind":"text","text":summary["text"]}], text)
-                if not out["ok"]:
+                if asks_for_key(summary["text"]):   # 11-13 a07: "Provide an API key…" is not a working answer
+                    out.update(ok=False, key_required=True, error="The agent answered that an API key is required.")
+                elif not out["ok"]:
                     out["error"] = "The agent returned no usable task result." if summary["state"] == "completed" else f"Task is not completed: {summary['state'] or 'no response'}."
                     if summary["state"] == "payment-required" or is_payment_error(summary["text"]):
                         out["payment_required"] = True
@@ -680,6 +712,12 @@ class AgentProber:
                 picked = pick_message(card)
                 if picked:
                     trial = self.trial(http, card, picked)
+        # 11-13 (PM, a07): the card declares no scheme but the agent's own answer asks for a key, so it is not open.
+        said = trial or json.loads(resource.get("trial_info") or "null") or {}
+        if method == "none" and (said.get("key_required") or asks_for_key(f"{said.get('sample_output') or ''} {said.get('error') or ''}")):
+            method, autonomy, auth_required = "api_key", "human_once", True
+            auth_info = {**auth_info, "observed_in": "agent_reply",
+                         "api_key": {"header": "Authorization", "description": "The agent's reply asks for an API key."}}
         verified = self._domain_verified(http, resource, card)
         return {"card": card, "meta": meta, "live": live, "auth": {"method": method, "autonomy": autonomy, "info": auth_info},
                 "auth_required": auth_required, "trial": trial, "domain_verified": verified}

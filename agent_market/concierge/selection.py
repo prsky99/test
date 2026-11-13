@@ -10,7 +10,7 @@ import time
 from ..gateway.classify import query_terms
 from ..gateway.ranking import Scored, _relevance
 from .engine import Recommender, clean_external
-from .recommendation_security import usable_endpoint, endpoint_origin, public_recommendation
+from .recommendation_security import usable_endpoint, same_site_origin, public_recommendation
 from .connections import public_agent
 from .discovery_contracts import contract_reads
 from .retrieval_metrics import timed, stage, add as add_stage
@@ -1070,7 +1070,7 @@ class QualityRecommender(Recommender):
                             (evidence.get('execution_outcome') == 'succeeded' and
                              _number(evidence.get('execution_expires')) > now)),
                         selection_policy='single_recent_verified_first')
-            if not usable_endpoint(item.get('usage_endpoint')) or endpoint_origin(item['usage_endpoint']) != endpoint_origin(item['url']):
+            if not usable_endpoint(item.get('usage_endpoint')) or not same_site_origin(item['usage_endpoint'], item['url']):
                 item['usage_endpoint'] = item['url']
             item['test_report'] = ({'id':evidence['report_id'],'created_at':evidence['report_created_at'],
                                     'executed_at':evidence['report_executed_at'],

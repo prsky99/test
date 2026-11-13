@@ -326,3 +326,62 @@ x402 Bazaar 30개와 MCP Registry 15개를 점검하는 데 12.7초 걸렸습니
   - 걸리는 호스트는 centralcity.ai(a2a 97.3%, trial 3.7%)와 market.datapackvibe.com(x402 64.6%, trial 0%)이다.
   - 후자는 ERC-8004로 들어오지 않아 이 상한의 영향을 받지 않는다.
 - 정식 해결(가)은 DB 변경 절차로 따로 진행한다. 보류 호스트의 새 자원은 성공 증거가 생길 때까지 임베딩 작업을 만들지 않는 방식이다(application_vector_enqueue 조건).
+
+## A2A 카드의 www↔apex 이동과 키 요구 답변 (11-13, PM 20:3x, 운영·SRE)
+
+real_task_score에서 호출 실패 3건이 같은 오류로 보였는데, 원인은 서로 달랐다. 그중 두 건을 수집기에서 고쳤다(a05 지역 불일치는 검색과 RAG 담당).
+
+### a02: 카드가 www에서 apex로 옮겨 간 경우
+- 증상
+  - 등록 주소는 `https://www.agentreeve.com/.well-known/agent-card.json`이다. 이 주소가 301로 `agentreeve.com`에 넘어가고, `/a2a`는 308로 넘어간다.
+  - 게이트웨이는 리다이렉트를 따라가지 않으므로 OUTCOME_UNKNOWN이 났다.
+  - apex 주소에 SendMessage(A2A 1.0)를 보내면 0.48초에 답한다.
+- 수집기(`a2a.AgentProber._same_site_move`)
+  - 카드 요청이 301·308이고, 같은 경로·질의로 www↔apex만 바뀌는 경우에만 한 번 따라간다.
+  - 옮겨 간 주소도 `check_public_url`을 통과해야 한다.
+  - 302·307, 다른 도메인, 다른 경로나 질의로 가는 이동은 따라가지 않는다.
+  - 최종 카드를 사용 안내(`usage_guide.agent_card`·`endpoint`)에 기록하고, `meta.moved`에 이동 기록을 남긴다.
+- 출처 비교(`recommendation_security.same_site_origin`)
+  - 엔드포인트가 등록 출처와 같아야 한다는 검사 다섯 곳에서, 앞의 `www.` 한 칸만 무시한다.
+    - execution_policy.resolve_a2a 두 곳
+    - task_requirements
+    - selection(usage_endpoint)
+    - workflows
+  - scheme·port·다른 라벨은 그대로 같아야 한다.
+  - 카드가 스스로 apex 엔드포인트를 적은 경우도 같은 사이트로 받아들인다. 게이트웨이 중계는 여전히 리다이렉트를 따라가지 않는다.
+  - `resources.url`은 바꾸지 않는다. 새 SQL을 만들지 않기 위해서다.
+- 실데이터(340953, 20:3x, 임시 저장소라 운영 DB 쓰기 없음)
+  - moved 301 www→apex
+  - 카드 `https://agentreeve.com/.well-known/agent-card.json`
+  - GetTask 확인 -32001 conformant
+  - 시험 호출 ok("Free preview: BTC spot index ≈ $69,238…")
+  - 안내 endpoint `https://agentreeve.com/a2a`, SendMessage
+  - resolve_a2a 통과
+
+### a07: 카드에는 인증이 없는데 답이 키를 요구하는 경우
+- 증상
+  - Fodda(61464) 카드에는 securitySchemes가 없어 auth_method가 none이었고, 시험 호출도 성공(trial_ok)으로 기록됐다.
+  - 그런데 답 자체는 "Provide an API key via Authorization: Bearer <key> … Get a key at …"였다.
+- 감지(`auth_discovery.asks_for_key`)
+  - 키가 없다·필요하다는 좁은 문구만 잡는다.
+    - missing API key
+    - API key (is) required/needed/missing
+    - provide/supply/include/pass an API key
+    - requires an API key
+  - 바로 앞 40자 안에 부정어(no, without, not …)가 있으면 세지 않는다.
+- 적용
+  - A2A 시험 호출의 답이 키를 요구하면 그 시험은 실패다(`key_required`).
+  - 카드가 none이어도, 새 시험 또는 기록된 시험의 답이 키를 요구하면 auth_method를 api_key(human_once, observed_in=agent_reply)로 기록하고, 평가에서 그 시험을 쓰지 않는다.
+- 오탐 확인(운영 PG 읽기 전용)
+  - 키 낱말이 든 시험 출력 4,206건 중 139건이 잡혔다.
+  - 그중 none·미분류로 기록됐던 것은 A2A 4건(Fodda 2, Nefesh 2)과 MCP 12건이었고, 모두 실제로 키를 요구했다. 나머지는 이미 키 필요로 기록돼 있었다.
+  - 다음 두 문구는 키 없이도 쓸 수 있는 경우라 일부러 잡지 않는다.
+    - "Send your API key to see saved keys"
+    - "For more, get an API key at …"
+  - 이번 적용은 A2A만이다. MCP 12건은 MCP 쪽 연결이 필요해 따로 다룬다.
+- 실데이터(61464, 20:41)
+  - auth api_key / human_once, auth_required
+  - 시험 ok False, key_required True
+- 재평가 부하
+  - A2A 조사 주기(max_age 하루)에 따라 다시 조사될 때 반영된다. 평가 VERSION은 올리지 않았다.
+  - 그래서 전체 22만 행을 재평가하는 부하는 없다.

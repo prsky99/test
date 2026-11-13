@@ -124,6 +124,6 @@ def supported_discovery_connection(resource):
         methods=guide.get('methods')or{}
         if isinstance(methods,dict)and methods.get('send')not in(None,'SendMessage','message/send'):return False
         if guide.get('endpoint'):
-            from .recommendation_security import usable_endpoint,endpoint_origin
-            if not usable_endpoint(guide['endpoint'])or endpoint_origin(guide['endpoint'])!=endpoint_origin(resource.get('url')):return False
+            from .recommendation_security import usable_endpoint,same_site_origin
+            if not usable_endpoint(guide['endpoint'])or not same_site_origin(guide['endpoint'],resource.get('url')):return False
     return True

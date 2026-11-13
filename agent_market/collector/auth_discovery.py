@@ -36,6 +36,23 @@ USER_AGENT = "agent-collector/0.1 (+auth method discovery; no credentials are se
 MAX_JSON = 256 * 1024
 _URL = re.compile(r"https?://[^\s\"'<>)\]]+")
 _KEYWORDS_API_KEY = re.compile(r"\b(api[ _-]?key|apikey|x-api-key|access key|personal access token|pat)\b", re.I)
+# 11-13 (PM, a07): an agent's own answer that says a key is needed ("Missing API key", "Provide an API key via
+# Authorization"). Kept narrow: every phrase below names the key as missing or required, and a negation just before it
+# ("no account or API key required", "without an API key") does not count. On 4,206 production trial outputs that
+# mention keys, the phrases matched 139: 4 A2A and 12 MCP recorded as needing no key all ask for one, the rest were
+# already recorded as keyed. "Send your API key to see saved keys" and "for more, get an API key" (free use still
+# works) are deliberately not matched.
+_ASKS_FOR_KEY = re.compile(r"\b(?:missing (?:an? )?api[ _-]?key|api[ _-]?key (?:is )?(?:missing|required|needed)|"
+                           r"(?:provide|supply|include|pass) (?:an?|your) api[ _-]?key|requires? (?:an?|your) api[ _-]?key)\b", re.I)
+_NEGATED = re.compile(r"\b(?:no|without|not|never|don't|doesn't|isn't)\b", re.I)
+
+
+def asks_for_key(text: str | None) -> bool:
+    """True when a reply says that an API key is missing or required (not when it says none is needed)."""
+    text = str(text or "")
+    return any(not _NEGATED.search(text[max(0, m.start() - 40):m.start()]) for m in _ASKS_FOR_KEY.finditer(text))
+
+
 AS_FIELDS = ("issuer", "authorization_endpoint", "token_endpoint", "registration_endpoint", "device_authorization_endpoint",
              "grant_types_supported", "code_challenge_methods_supported", "token_endpoint_auth_methods_supported",
              "scopes_supported", "client_id_metadata_document_supported")
