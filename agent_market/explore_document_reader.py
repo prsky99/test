@@ -25,12 +25,43 @@ from .postgres_capability_text import SEARCHABLE
 # (A2A about 24%, MCP about 7%: usage_tools stays, it is bound into the document).
 SKIPPED = frozenset(("usage_full_tools", "eval_info", "usage_changes", "content_hash", "last_error"))
 
+# A policy change that leaves every document byte-identical (11-13: the gateway relay verbs change
+# collector/usage.py and execution_policy.py, which policy_hash() covers, but no document input; 2,995 sampled
+# listings, 1,507 of them with changed relay tools, built identically with both releases) declares the previous
+# hash compatible here. Without it every visitor search falls to the complete-contract path for the ~2 h 40 min jobs
+# needs to rebuild 416k documents. Keyed by the current hash, so any later policy change ends it by itself;
+# jobs still rebuilds every document under the new hash, after which the entry does nothing.
+COMPATIBLE_POLICIES = {
+    "40851c1a2575526dae44743875407043c6abc5f431f98919692f59f4d6f6def5":
+        ("d1d9688a148c1e19ec001fd76d68f4763e7601e2072cb563ca523e0518535bd4",),
+}
+
+
+def accepted_policies():
+    current = documents.policy_hash()
+    return (current, *COMPATIBLE_POLICIES.get(current, ()))
+
+
+def _each_policy(store, ids, one):
+    """Read with the current policy, then the declared compatible ones for the ids still missing (same SQL text)."""
+    found = {}
+    for policy in accepted_policies():
+        missing = [rid for rid in ids if rid not in found]
+        if not missing:
+            break
+        found.update(one(store, missing, policy))
+    return found
+
 
 @timed("search_document")
 def read(store, ids):
     """Current rows with their documents when generation, policy and document hash all match."""
     if not ids or not documents.available(store):
         return {}
+    return _each_policy(store, ids, _read)
+
+
+def _read(store, ids, policy):
     from .application_store_postgres import _CATALOG
     from psycopg import sql
 
@@ -57,7 +88,7 @@ def read(store, ids):
     ).format(sizes, sql.SQL(",").join(sql.SQL("r.{}").format(sql.Identifier(name)) for name in columns))
     rows = store._execute(
         statement.as_string(),
-        (16 * len(columns) + 256, json.dumps(ids), documents.policy_hash(), documents.MAX_DOCUMENT_BYTES,
+        (16 * len(columns) + 256, json.dumps(ids), policy, documents.MAX_DOCUMENT_BYTES,
          documents.MAX_READ_BYTES),
         max_rows=len(ids),
         max_bytes=32 * 1024 * 1024,
@@ -95,6 +126,10 @@ def texts(store, ids):
     json casts reject, which would fail the whole search."""
     if not ids or not documents.available(store):
         return {}
+    return _each_policy(store, ids, _texts)
+
+
+def _texts(store, ids, policy):
     rows = store._execute(
         """SELECT r.id,d.document FROM resources r
         JOIN agentcon_search.explore_documents d ON d.resource_id=r.id
@@ -103,7 +138,7 @@ def texts(store, ids):
         AND d.policy_hash=%s AND octet_length(d.document)<=%s AND d.source_generation=g.generation
         AND d.document_hash=encode(sha256(convert_to(d.document,'UTF8')),'hex')
         AND """ + SEARCHABLE,
-        (json.dumps(ids), documents.policy_hash(), documents.MAX_DOCUMENT_BYTES),
+        (json.dumps(ids), policy, documents.MAX_DOCUMENT_BYTES),
         max_rows=len(ids),
         max_bytes=32 * 1024 * 1024,
     ).fetchall()
