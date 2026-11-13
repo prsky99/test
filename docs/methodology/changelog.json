@@ -4,7 +4,7 @@
     "date": "2026-11-14",
     "changes": [
       "First public version: candidates, how a test runs, the score out of 100, verified and final pearls, the necklace gate, 32 roles and limits.",
-      "Necklace gate values are pending until the gate exposes its constants."
+      "Necklace gate values come from the gate's own constants (agent_market/necklaces/gate_rules); held-out answer sets stay withheld."
     ]
   }
 ]

@@ -15,3 +15,11 @@ def test_no_expected_answers_are_published():
     text = json.dumps(M.build())
     for secret in ('Incheon', 'Austen', 'CVE-2021-23337', 'HWUPKR0MPOU8FGXBT394', '2026-11-26', 'Tokyo', '"expect"', 'must_include'):
         assert secret not in text, secret
+
+
+def test_changelog_names_the_current_version():
+    """성장·유통 618f48e6: the page reads dateModified from the newest changelog entry; bump both together."""
+    from pathlib import Path
+    log = json.loads((Path(M.ROOT) / 'docs/methodology/changelog.json').read_text())
+    assert log[0]['version'] == M.VERSION and log[0]['date'] and log[0]['changes']
+    assert not any('pending' in c for c in log[0]['changes']) or M.build()['necklace_gate'].get('status')
