@@ -422,6 +422,24 @@ def _subject_words(terms, item):
 
 
 SEMANTIC_SHORTLIST = 10
+RELAY_WIDEN = 30          # candidates read once more when none of the admitted ones is relayed by the gateway
+RELAY_WIDEN_BEFORE = 2.5  # seconds into a request after which that wider read does not start (recommend: 5 s interim)
+
+
+def relayable(item):
+    """False for an MCP recommendation whose chosen tool is left out of the gateway's tools/list (an action tool or
+    one not verified read-only), so the caller could not run it through the gateway."""
+    return not (isinstance(item, dict) and item.get('tool_unlisted') is True)
+
+
+def relayable_only(items):
+    """PM 11-14: a tool the relay policy will not run is not recommended while a relayed one is admitted; later
+    re-orders (subject_first, condition_first) could otherwise move it back to first. When none is relayed, the
+    honest documentation-link answer stays (11-12 PM decision 나-1)."""
+    kept = [item for item in items if relayable(item)]
+    return kept or items
+
+
 FALLBACK_DEADLINE = 8.0  # seconds into a request after which the split and neighbor searches do not start
 SEMANTIC_BUDGET = 0.8  # seconds; past it the ranked order stands
 # One request at a time searches its parts at once (two read-pool sessions), as Explore does (11-13).
@@ -811,6 +829,16 @@ class FastConcierge(Concierge):
                     focus = focus or shared
         # Rewrites, narrowing and part searches cannot discard the original conditions.
         items = self._condition_admit(task, items)
+        if items and offset == 0 and not any(relayable(item) for item in items) and \
+                time.monotonic() - started < RELAY_WIDEN_BEFORE:
+            # Every admitted candidate's tool is one the gateway does not relay (an action such as translate_file,
+            # 11-14 user_slo 06:04 mcp/36882): look once further down the same search for one it does relay.
+            step('relay')
+            further = [item for item in self.rec.search(retrieval_text(task), kind=protocol, limit=RELAY_WIDEN,
+                                                        exclude=excluded | {item.get('id') for item in items})
+                       if relayable(item)]
+            items = self._condition_admit(task, further)[:3] or items
+        items = relayable_only(items)
         if not items:
             if persist:
                 with self.book.batch():
