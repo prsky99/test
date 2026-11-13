@@ -5,5 +5,11 @@
     "observer", "coda-agent-runtime", "histor"],
   "probe_user_agents": ["probe", "prober", "checker", "uptime", "monitor", "scanner", "mcpbeat", "glama", "smithery",
     "agentrank", "pulsemcp", "registry", "crawler", "observer", "sealkeeper", "brickbluebot"],
-  "outreach_user_agents": ["marketing", "outreach", "ziwei-alliance"]
+  "outreach_user_agents": ["marketing", "outreach", "ziwei-alliance"],
+  "probe_disputed": ["histor", "coda-agent-runtime", "observer"],
+  "_probe_evidence": {
+    "histor": "Pending (PM 11-14 03:4x). Listed since 6fb52641 (11-12 15:02). Initialize 5-6/day on 11-10..11, 34-36/day on 11-12..13. Tools, input variety and minute spread per name are recorded from 11-14 (traffic.call_profiles): a checker repeats one input on a timer.",
+    "coda-agent-runtime": "Pending (PM 11-14 03:4x): the name reads like an agent runtime. Initialize 10-14/day, steady on 11-10..13. Varied inputs and tools in call_profiles mean real use: then remove it here and recount from mcp_tool_calls_real_by_name.",
+    "observer": "Matches x402-observer (6-9 initialize/day) and x402-mcptools-observer (1/day), steady on 11-10..13; the names describe x402 tool monitors. Kept as probe; confirm with call_profiles."
+  }
 }

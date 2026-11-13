@@ -209,3 +209,34 @@ def test_home_requests_keep_the_kind_of_accept_and_what_was_served(tmp_path):
     assert data['home_accept'] == {'browser|html|html': 1, 'ai_bot|star|json': 1, 'script|none|json': 1}
     assert accept_kind('application/json, text/html') == 'json' and accept_kind('text/markdown') == 'markdown'
     assert accept_kind('image/webp') == 'other' and served_kind(None) == 'other'
+
+
+def test_call_profiles_tell_a_fixed_repeating_checker_from_varied_use(tmp_path):
+    """11-14 PM: per client name, which tools, how many different inputs, how many minutes; never the inputs."""
+    import json
+    from agent_market.concierge import traffic
+    now = [1_800_000_000.0]
+    rec = traffic.Traffic(tmp_path, clock=lambda: now[0])
+    def session(name, args_list):
+        rec.observe('POST', '/mcp', 200, '203.0.113.9', 'node', json.dumps({'jsonrpc': '2.0', 'id': 1, 'method': 'initialize',
+                    'params': {'clientInfo': {'name': name}}}).encode(), {}, {'mcp-session-id': 's-' + name})
+        for args in args_list:
+            now[0] += 60
+            rec.observe('POST', '/mcp', 200, '203.0.113.9', 'node', json.dumps({'jsonrpc': '2.0', 'id': 2, 'method': 'tools/call',
+                        'params': {'name': 'find_agents', 'arguments': args}}).encode(), {'mcp-session-id': 's-' + name}, {})
+    session('steady-checker', [{'task': 'ping'}] * 4)
+    session('claude-code', [{'task': 'weather in Paris'}, {'task': 'convert 5 USD'}, {'task': 'pdf to text'}])
+    rec.flush()
+    saved = json.loads(next(tmp_path.glob('*.json')).read_text())
+    assert 'ping' not in json.dumps(saved) and 'Paris' not in json.dumps(saved)    # inputs are never written
+    rows = {r['name']: r for r in traffic.call_profiles(traffic.load_day(tmp_path, saved['day']))}
+    assert rows['steady-checker']['distinct_inputs'] == 1 and rows['steady-checker']['tools'] == {'find_agents': 4}
+    assert rows['claude-code']['distinct_inputs'] == 3 and rows['claude-code']['minutes'] == 3
+
+
+def test_disputed_names_are_counted_apart_so_a_day_reads_both_ways():
+    from agent_market.concierge import traffic
+    day = {'mcp_calls': {'histor': 5, 'cursor': 2, 'x402-observer': 1, 'mcpbeat': 3, '-': 4}}
+    row = traffic.real_calls(day)
+    assert row['mcp_tool_calls_real_by_name'] == 2 and row['mcp_tool_calls_disputed'] == 6
+    assert set(traffic._classes()['_probe_evidence']) == set(traffic._classes()['probe_disputed'])

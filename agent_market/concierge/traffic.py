@@ -232,6 +232,23 @@ def recommend_surface(entry, method, body):
     return None
 
 
+def call_shape(body, salt):
+    """(tool name, salted digest of the arguments) of an MCP tools/call body, or (None, None). Only the tool name
+    (a public identifier) and a day-salted digest are kept: whether a client repeats one fixed request or sends
+    varied ones (11-14 PM: is a named client a checker?), never what it asked."""
+    try:
+        data = json.loads(body[:65536])
+    except (ValueError, UnicodeDecodeError, TypeError):
+        return None, None
+    params = data.get('params') if isinstance(data, dict) else None
+    if not isinstance(params, dict):
+        return None, None
+    tool = params.get('name')
+    tool = tool if isinstance(tool, str) and NAME.fullmatch(tool) else 'other'
+    digest = hashlib.sha256(salt + json.dumps(params.get('arguments'), sort_keys=True, default=str).encode()).hexdigest()[:12]
+    return tool, digest
+
+
 def mcp_client_name(body):
     """clientInfo.name of an MCP initialize request (a software name), or None."""
     if not body or b'"initialize"' not in body[:4096]:
@@ -295,6 +312,9 @@ class Traffic:
         self.sessions = {}             # MCP session id -> 'probe' | 'real' (memory only, today)
         self.session_names = {}        # MCP session id -> clientInfo name (memory only, today)
         self.mcp_calls = Counter()     # MCP clientInfo name -> tools/call (non-internal; 11-14 PM: real use recomputable)
+        self.mcp_call_tools = Counter()   # "name|tool" -> tools/call (11-14 PM: which tools a named client calls)
+        self.mcp_call_inputs = defaultdict(set)  # name -> salted argument digests (only the count is written)
+        self.mcp_call_minutes = defaultdict(set)  # name -> minutes of the day with a call (spread, not times)
         self.funnel = Counter()        # "recommend|surface|class|all|ok", "connect|class|...", "execute|class|..." (11-12)
         self.funnel_sets = defaultdict(set)  # "recommend|class" clients, "connect|class" / "execute|class" (client, agent) pairs
         self.home_accept = Counter()   # "class|accept kind|served kind" for GET / (11-14 PM, search C)
@@ -353,6 +373,13 @@ class Traffic:
                     name = (mcp_client_name(body) or self.session_names.get(sid) or '-')[:80]
                     if name in self.mcp_calls or len(self.mcp_calls) < 2000:
                         self.mcp_calls[name] += 1
+                        # not 'digest': that name holds this client's salted digest for the funnel below
+                        tool, input_digest = call_shape(body, self.salt)
+                        if tool and len(self.mcp_call_tools) < 5000:
+                            self.mcp_call_tools[name + '|' + tool] += 1
+                        if input_digest and len(self.mcp_call_inputs[name]) < 1000:
+                            self.mcp_call_inputs[name].add(input_digest)
+                        self.mcp_call_minutes[name].add(int(self.clock() // 60) % 1440)
                 if isinstance(status, int) and status >= 400:
                     # cause (11-10): our own security blocks (blocked_ip, policy_denied) are counted apart
                     # from protocol failures so a block window does not read as a client problem.
@@ -456,7 +483,10 @@ class Traffic:
                 'mcp_clients': dict(self.mcp_clients.most_common(200)),
                 'rpc': dict(self.rpc), 'errors': dict(self.errors.most_common(300)),
                 'funnel': dict(self.funnel), 'funnel_distinct': {k: len(v) for k, v in self.funnel_sets.items()},
-                'home_accept': dict(self.home_accept), 'mcp_calls': dict(self.mcp_calls.most_common(300))}
+                'home_accept': dict(self.home_accept), 'mcp_calls': dict(self.mcp_calls.most_common(300)),
+                'mcp_call_tools': dict(self.mcp_call_tools.most_common(600)),
+                'mcp_call_inputs': {n: len(v) for n, v in self.mcp_call_inputs.items()},
+                'mcp_call_minutes': {n: len(v) for n, v in self.mcp_call_minutes.items()}}
 
     def _write_locked(self):
         self.flushed = self.clock()
@@ -518,7 +548,8 @@ EXTERNAL = ('browser', 'ai_bot', 'verifier', 'script', 'headless', 'other')
 
 def load_day(root, day):
     merged = {'requests': Counter(), 'status': Counter(), 'distinct': Counter(), 'bots': Counter(), 'mcp_clients': Counter(),
-              'rpc': Counter(), 'errors': Counter(), 'bot_errors': Counter(), 'mcp_calls': Counter()}
+              'rpc': Counter(), 'errors': Counter(), 'bot_errors': Counter(), 'mcp_calls': Counter(),
+              'mcp_call_tools': Counter(), 'mcp_call_inputs': Counter(), 'mcp_call_minutes': Counter()}
     for path in sorted(Path(root).glob(day + '.*.json')):
         try:
             data = json.loads(path.read_text())
@@ -560,6 +591,21 @@ def usage(day_data):
             **real_calls(day_data)}
 
 
+def call_profiles(day_data, top=20):
+    """Per MCP client name: tools/call, the tools it called, how many different argument sets and in how many
+    minutes of the day (11-14 PM: tell a checker that repeats one fixed request on a timer from real use).
+    Inputs and minutes are summed over the day's process files, so they are upper bounds."""
+    calls, tools = day_data.get('mcp_calls') or {}, day_data.get('mcp_call_tools') or {}
+    rows = []
+    for name, count in sorted(calls.items(), key=lambda x: -x[1])[:top]:
+        used = {k.split('|', 1)[1]: v for k, v in tools.items() if k.split('|', 1)[0] == name}
+        rows.append({'name': name, 'calls': count, 'tools': used,
+                     'distinct_inputs': (day_data.get('mcp_call_inputs') or {}).get(name),
+                     'minutes': (day_data.get('mcp_call_minutes') or {}).get(name),
+                     'probe_listed': bool(PROBE_NAME.search(name))})
+    return rows
+
+
 def probe_list_version():
     import hashlib
     return hashlib.sha256(PROBE_NAME.pattern.encode()).hexdigest()[:8]   # which probe list counted the day
@@ -573,7 +619,11 @@ def real_calls(day_data):
     if not calls:
         return {'mcp_tool_calls_real_by_name': None, 'probe_list': probe_list_version()}
     real = sum(v for n, v in calls.items() if n != '-' and not PROBE_NAME.search(n))
-    return {'mcp_tool_calls_real_by_name': real, 'probe_list': probe_list_version()}
+    # Calls by names whose probe class is still being judged (traffic_classes.json _probe_evidence), so the day can
+    # be read both ways until the judgement lands (11-14 PM).
+    disputed = _words('probe_disputed')
+    return {'mcp_tool_calls_real_by_name': real, 'probe_list': probe_list_version(),
+            'mcp_tool_calls_disputed': sum(v for n, v in calls.items() if n != '-' and disputed.search(n))}
 
 
 def summarize(root, days=7, today=None):
