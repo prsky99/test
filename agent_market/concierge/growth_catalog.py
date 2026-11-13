@@ -65,6 +65,36 @@ def pairs(snapshot):
     return snapshot['_pairs']
 
 
+# 11-14 PM decision (search B): Google judges a site with many generated pages as a whole. Agent pages keep only
+# A2A and MCP listings with a real description; x402 listings (collection paused, grade capped at B), thin listings
+# (description under 40 characters, an MCP server with no tools) and the extra pages of a name listed more than once
+# (the best score stays) are noindex, follow and leave the sitemap. Compare and best pages that involve x402 too.
+# The pages and every API stay as they are (agents still find x402 through Explore, MCP and llms.txt).
+THIN_DESCRIPTION = 40
+
+
+def indexed_agents(snapshot):
+    """Ids of the agent pages that are indexed and listed in the sitemap."""
+    if '_indexed' not in snapshot:
+        best = {}
+        for agent in snapshot['catalog'].values():
+            if agent['kind'] == 'x402' or len((agent.get('description') or '').strip()) < THIN_DESCRIPTION:
+                continue
+            if agent['kind'] == 'mcp' and not agent.get('tool_count'):
+                continue
+            name = (agent.get('name') or '').strip().lower()
+            held = best.get(name)
+            if held is None or ((agent.get('eval_score') or 0), -agent['id']) > ((held.get('eval_score') or 0), -held['id']):
+                best[name] = agent
+        snapshot['_indexed'] = {a['id'] for a in best.values()}
+    return snapshot['_indexed']
+
+
+def compare_indexed(snapshot, a, b):
+    catalog = snapshot['catalog']
+    return all(catalog.get(i, {}).get('kind') not in (None, 'x402') for i in (a, b))
+
+
 def compare_path(a, b):
     left, right = sorted((a, b))
     return f'/agents/compare/{left}-vs-{right}'
@@ -74,9 +104,9 @@ def sitemap_paths(snapshot):
     by_cat, by_kind = groups(snapshot)
     paths = ['/agents/best', '/reports/state-of-ai-agents/'+month(snapshot), '/badges']
     paths += ['/agents/best/'+c for c in sorted(by_cat) if len(by_cat[c]) >= g.MIN_AGENTS]
-    paths += [f'/agents/best/{c}/{k}' for c, k in sorted(by_kind)]
-    paths += [compare_path(a, b) for a, b in sorted(pairs(snapshot))]
-    paths += ['/agent/'+str(i) for i in sorted(snapshot['catalog'])]
+    paths += [f'/agents/best/{c}/{k}' for c, k in sorted(by_kind) if k != 'x402']
+    paths += [compare_path(a, b) for a, b in sorted(pairs(snapshot)) if compare_indexed(snapshot, a, b)]
+    paths += ['/agent/'+str(i) for i in sorted(indexed_agents(snapshot))]
     return paths
 
 
@@ -174,7 +204,8 @@ def agent_page(rid, snapshot=None):
                   'description': agent.get('description') or description, 'url': g.ORIGIN+'/agent/'+str(rid),
                   'isAccessibleForFree': bool(agent.get('free')), 'dateModified': snapshot['captured_at']}
     return g.shell(title=title+' — '+kind+' recorded checks | Agent Concierge', description=description,
-                   canonical=g.ORIGIN+'/agent/'+str(rid), body=body, structured=structured, index=g.fresh(snapshot))
+                   canonical=g.ORIGIN+'/agent/'+str(rid), body=body, structured=structured,
+                   index=g.fresh(snapshot) and rid in indexed_agents(snapshot))
 
 
 def _svg_text(value, limit):
@@ -253,7 +284,7 @@ def best_page(category, kind=None, snapshot=None):
                                       for i, a in enumerate(top)]}
     return g.shell(title=title+' — Agent Concierge', description=description,
                    canonical=g.ORIGIN+'/agents/best/'+category+('/'+kind if kind else ''), body=body, structured=structured,
-                   index=g.fresh(snapshot))
+                   index=g.fresh(snapshot) and kind != 'x402')
 
 
 def best_index(snapshot=None):
@@ -309,7 +340,7 @@ def compare_page(left, right, snapshot=None):
                    canonical=g.ORIGIN+compare_path(left, right), body=body,
                    structured={'@context': 'https://schema.org', '@type': 'WebPage', 'name': title, 'url': g.ORIGIN+compare_path(left, right),
                                'about': [{'@type': 'SoftwareApplication', 'name': x['name'], 'url': g.ORIGIN+'/agent/'+str(x['id'])} for x in (a, b)]},
-                   index=g.fresh(snapshot))
+                   index=g.fresh(snapshot) and compare_indexed(snapshot, left, right))
 
 
 # ---------------------------------------------------------------- badges guide
@@ -485,7 +516,11 @@ def install(router, page_headers, not_found, store=None):
     from starlette.concurrency import run_in_threadpool
 
     def page(value):
-        return HTMLResponse(value, headers=page_headers) if value else not_found()
+        if not value:
+            return not_found()
+        # A noindex page says so in its head and in the header (Markdown copies and non-HTML readers see the header).
+        noindex = 'name="robots" content="noindex' in value[:3000]
+        return HTMLResponse(value, headers={**page_headers, **({'X-Robots-Tag': 'noindex, follow'} if noindex else {})})
 
     @router.get('/agent/{rid}', include_in_schema=False)
     async def agent(rid: str):

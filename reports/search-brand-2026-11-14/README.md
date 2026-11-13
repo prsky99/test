@@ -79,3 +79,17 @@ PM이 확인한 사실은 다음과 같다.
 - Search Console은 사용자 Chrome의 로그인 화면에서 읽기만 한다.
 - 구글 검색 결과를 자동으로 긁는 순위 확인은 하지 않는다. 약관 위반 위험이 있고 봇 확인에 걸린다.
 - 판정은 core update가 끝난 뒤(약 11-24)에 한다.
+
+## B 구현 (PM 03:1x 승인, 배포 대기: A·안 3 2단계와 같은 묶음)
+
+- `growth_catalog.indexed_agents`: x402, 설명 40자 미만, 도구 0개 MCP, 같은 이름의 나머지(점수 최고 하나만 남김)를 뺀 상세 페이지만 색인한다.
+- 비교 페이지는 양쪽 모두 x402가 아닐 때만, `/agents/best/<cat>/x402`는 색인하지 않는다.
+- 빠진 페이지는 `<meta name="robots" content="noindex, follow">`와 `X-Robots-Tag: noindex, follow`를 준다. Markdown 사본도 같은 헤더를 준다(Markdown 변환이 헤더를 겹쳐 넣던 것도 고침).
+- canonical, 페이지 내용, 에이전트 API·Explore·MCP는 그대로다.
+- 사이트맵·IndexNow는 같은 기준만 싣는다.
+- 11-12 스냅샷 기준 성장 부분 사이트맵: 상세 3,867, 비교 351, best 61, 합 4,281(전 9,885 중 성장 부분).
+- 시험: `tests/test_noindex_tiers.py`(게이트 목록)
+  - 사이트맵의 페이지는 모두 색인, 빠진 페이지는 사이트맵에 없음
+  - noindex 페이지도 200·canonical 그대로
+  - Markdown 헤더
+- 게이트 목록과 성장·발견·시나리오 시험 529개 통과.
