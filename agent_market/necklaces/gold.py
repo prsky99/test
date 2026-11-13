@@ -206,6 +206,39 @@ def cvelist_cvss(f: Fetcher, cve_id: str) -> dict | None:
             "published": (out.get("cveMetadata") or {}).get("datePublished")}
 
 
+def cvelist_metrics(f: Fetcher, cve_id: str) -> dict | None:
+    """The score the CVE record itself carries: the CNA's metric, else the first ADP metric (for
+    example CISA-ADP), with the provider's short name. Used to score agents that report the CVE
+    record rather than NVD (agent team, PM approval 11-14)."""
+    _, year, number = cve_id.split("-")
+    out = f.json(f"https://raw.githubusercontent.com/CVEProject/cvelistV5/main/cves/{year}/{number[:-3]}xxx/{cve_id}.json")
+    if not out:
+        return None
+    containers = out.get("containers") or {}
+    blocks = [("cna", containers.get("cna") or {})] + [("adp", b) for b in containers.get("adp") or []]
+    for kind, block in blocks:
+        for metric in block.get("metrics") or []:
+            for key in ("cvssV4_0", "cvssV3_1", "cvssV3_0", "cvssV2_0"):
+                if key in metric and metric[key].get("baseScore") is not None:
+                    provider = (block.get("providerMetadata") or {}).get("shortName")
+                    return {"score": metric[key]["baseScore"], "version": metric[key].get("version"),
+                            "from": kind, "provider": provider}
+    return {"score": None, "version": None, "from": None, "provider": None}
+
+
+def add_record_truth(f: Fetcher, cases: list[dict]) -> int:
+    """Add truth.cvss_record (cvelistV5 CNA, else ADP) to CVE cases that lack it."""
+    added = 0
+    for case in cases:
+        if "cvss_record" in case["truth"]:
+            continue
+        case["truth"]["cvss_record"] = cvelist_metrics(f, case["case_id"])
+        case["truth_sources"].append({"name": "cvelistV5", "url": "https://github.com/CVEProject/cvelistV5",
+                                      "fetched_at": _now()})
+        added += 1
+    return added
+
+
 def epss(f: Fetcher, cve_ids: list[str]) -> dict[str, float]:
     scores = {}
     for i in range(0, len(cve_ids), 50):
@@ -313,6 +346,7 @@ def build(root: Path, which: list[str], fetcher: Fetcher | None = None, raw_dir:
                                               {"answer_set": "package-risk-audit-v1", "built_from": len(pkg)})
     if "cve-incident-brief" in which:
         cves = cve_cases(f, pkg)
+        add_record_truth(f, cves)
         if raw_dir:
             (raw_dir / "cve-cases.json").write_text(json.dumps(cves, ensure_ascii=False))
         out["cve-incident-brief"] = write_set(root, "cve-incident-brief", split(cves),

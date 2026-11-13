@@ -137,3 +137,21 @@ def test_resplit_reads_saved_cases_without_network(tmp_path):
     out = gold.resplit(tmp_path, raw)
     assert set(out) == {"package-risk-audit"}
     assert all(v["cases"] == 30 for v in out["package-risk-audit"]["files"].values())
+
+
+def test_record_truth_prefers_cna_then_adp():
+    class F:
+        def __init__(self, doc):
+            self.doc = doc
+
+        def json(self, url, body=None):
+            return self.doc
+    cna = {"containers": {"cna": {"providerMetadata": {"shortName": "apache"},
+                                  "metrics": [{"cvssV3_1": {"baseScore": 10.0, "version": "3.1"}}]}}}
+    assert gold.cvelist_metrics(F(cna), "CVE-2021-44228") == {"score": 10.0, "version": "3.1", "from": "cna", "provider": "apache"}
+    adp = {"containers": {"cna": {}, "adp": [{"providerMetadata": {"shortName": "CISA-ADP"},
+                                              "metrics": [{"cvssV3_1": {"baseScore": 7.5, "version": "3.1"}}]}]}}
+    assert gold.cvelist_metrics(F(adp), "CVE-2024-1")["from"] == "adp"
+    cases = [{"case_id": "CVE-2024-1", "truth": {}, "truth_sources": []}]
+    assert gold.add_record_truth(F(adp), cases) == 1 and cases[0]["truth"]["cvss_record"]["score"] == 7.5
+    assert gold.add_record_truth(F(adp), cases) == 0
