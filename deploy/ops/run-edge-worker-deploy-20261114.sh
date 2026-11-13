@@ -1,7 +1,8 @@
 #!/bin/bash
 # Run by the user (the Claude session's permission check refuses production Worker deploys).
-# Deploys the edge Worker with b47872a5: a provider handshake failure from Origin is answered with the provider's
-# code (PROVIDER_UNAVAILABLE / PROVIDER_RATE_LIMITED, 502, Retry-After) instead of our UNAVAILABLE 503 (PM 11-14 04:5x).
+# Deploys the edge Worker with b47872a5 + 810d933f: a provider handshake failure from Origin is answered with the provider's
+# code (PROVIDER_UNAVAILABLE / PROVIDER_RATE_LIMITED, 502, Retry-After) instead of our UNAVAILABLE 503 (PM 11-14 04:5x);
+# 810d933f names an A2A provider's 402 and 3xx as failures (PROVIDER_AUTH_REQUIRED / PROVIDER_ENDPOINT_UNAVAILABLE).
 # Needs the user's approval (via PM) before it is run.
 # Production before this: 09da7f12-5b08-4708-9439-009d8e89910e (533306aa, 11-14 02:19 KST).
 # Rollback: deploy/cloudflare-edge-worker-20261114.md
@@ -21,10 +22,10 @@ if [ "${m#0}" -ge 55 ] || [ "${m#0}" -lt 10 ] || { [ "$hm" -ge 2045 ] && [ "$hm"
 fi
 echo "    통과"
 
-echo "2/5 코드 확인: Worker 폴더가 b47872a5와 같고, 운영(533306aa) 이후 커밋이 b47872a5 하나뿐인지"
-git diff --quiet b47872a5 -- cloudflare/edge-gateway || { echo "    중지: Worker 폴더가 b47872a5와 다릅니다"; exit 1; }
-commits=$(git log --format=%h 533306aa..b47872a5 -- cloudflare/edge-gateway | tr '\n' ' ')
-[ "$commits" = "b47872a5 " ] || { echo "    중지: 예상 밖 커밋: $commits"; exit 1; }
+echo "2/5 코드 확인: Worker 폴더가 810d933f와 같고, 운영(533306aa) 이후 커밋이 b47872a5·810d933f 두 개뿐인지"
+git diff --quiet 810d933f -- cloudflare/edge-gateway || { echo "    중지: Worker 폴더가 810d933f와 다릅니다"; exit 1; }
+commits=$(git log --format=%h 533306aa..810d933f -- cloudflare/edge-gateway | tr '\n' ' ')
+[ "$commits" = "810d933f b47872a5 " ] || { echo "    중지: 예상 밖 커밋: $commits"; exit 1; }
 echo "    통과"
 
 echo "3/5 Worker 시험(worker.test.mjs)"
@@ -60,7 +61,7 @@ EOF
 }
 lock take || exit 1
 trap 'lock release' EXIT
-(cd cloudflare/edge-gateway && ./npmw exec -- wrangler deploy --message "provider-code-worker-20261114-r1 (b47872a5)") \
+(cd cloudflare/edge-gateway && ./npmw exec -- wrangler deploy --message "provider-code-worker-20261114-r1 (b47872a5 + 810d933f)") \
   || { echo "    중지: 배포 실패(운영 Worker는 그대로일 수 있음, deployments list로 확인)"; exit 4; }
 
 echo "5/5 공개 주소 확인(새 연결): 공개 경로가 그대로인지(A2A 카드 별칭 2개가 200)"
