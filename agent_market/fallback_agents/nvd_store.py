@@ -111,6 +111,9 @@ def product_variants(name: str) -> list[str]:
     """CPE product spellings to try for a program name ("xz-utils" -> xz-utils, xz_utils, xz)."""
     base = re.sub(r"\s+", "_", name.strip().lower())
     out = [base, base.replace("-", "_"), base.replace("_", "-")]
+    words = base.split("_")
+    if len(words) > 1:  # "apache tomcat": the first word is often the vendor (CPE apache:tomcat)
+        out.append("_".join(words[1:]))
     for suffix in ("-utils", "_utils", "-lib", "_lib", "-core", "_core", "-js", ".js"):
         if base.endswith(suffix) and len(base) > len(suffix) + 1:
             out.append(base[: -len(suffix)])

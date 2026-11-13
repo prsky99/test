@@ -774,10 +774,13 @@ class FallbackAgents:
     def _software_incident(self, args, remaining):
         query = " ".join(args["query"].split())
         cve = query.upper() if CVE_ID.fullmatch(query.upper()) else None
-        if not cve and not PACKAGE.fullmatch(query):
-            raise FallbackUnavailable("invalid_input", "Use a CVE id or an exact package name.")
+        package_name = bool(PACKAGE.fullmatch(query))
+        if not cve and not (package_name or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 ._+-]{1,99}", query)):
+            raise FallbackUnavailable("invalid_input", "Use a CVE id, a package name or a program name.")
 
         def live(rem):
+            if not cve and not package_name:
+                return [], _now_iso(self.utc_now())  # a program name with spaces is not a package: NVD only
             params = {"cve_id": cve} if cve else {"affects": query}
             raw = self._get_json("https://api.github.com/advisories", rem, not_found=(), params={
                 **params, "type": "reviewed", "per_page": 20, "sort": "published", "direction": "desc"})
@@ -818,12 +821,14 @@ class FallbackAgents:
                 if body.get("published"):
                     item["published"] = body["published"]
                 items, source = [item], "NVD (references; no reviewed package advisory)"
-        if not cve and not items:
-            # A program name, not a package (PM 11-14): NVD CPE products give the CVEs and the first fixed versions.
+        if not cve:
+            # Program names (PM 11-14): NVD CPE products give the CVEs and the first fixed versions. They come
+            # before package advisories, so "openssl" answers about OpenSSL before a same-named library package.
             try:
                 found = self.snapshot.products(query, limit=10)
             except Exception:
                 found = []
+            program = []
             for row in found:
                 rec = row["record"]
                 item = {"title": _text(f"{row['cve_id']} ({row['vendor']}:{row['product']}): {rec.get('description', '')}", 500)}
@@ -833,9 +838,11 @@ class FallbackAgents:
                     item["url"] = rec["references"][0]
                 if rec.get("published"):
                     item["published"] = rec["published"]
-                items.append(item)
-            if items:
-                source = "NVD (CPE product match; fixed version = the CPE versionEndExcluding bound)"
+                program.append(item)
+            if program:
+                nvd = "NVD (CPE product match; fixed version = the CPE versionEndExcluding bound)"
+                source = nvd + ("; then GitHub Advisory Database (CC BY 4.0) package advisories" if items else "")
+                items = program + items
         if not items:
             raise FallbackUnavailable("not_found", "No reviewed advisory or NVD product record for this name; use a CVE id, "
                                                    "an exact package name or the program's product name.")

@@ -1,0 +1,126 @@
+{
+ "role_tasks": {
+  "software-incident": {
+   "passed": 2,
+   "cases": 2,
+   "rows": [
+    {
+     "case_id": "incident-xz-utils",
+     "pass": true,
+     "why": []
+    },
+    {
+     "case_id": "incident-log4j",
+     "pass": true,
+     "why": []
+    }
+   ]
+  }
+ },
+ "names": [
+  {
+   "q": "lodash",
+   "n": 20,
+   "source": "NVD (CPE product match; fixed version = the CPE versionEndEx",
+   "first": "CVE-2026-4800 (lodash:lodash): The fix for CVE-2021-23337 added validation for the variabl",
+   "fixed": "4.18.0",
+   "ms": 1012
+  },
+  {
+   "q": "xz-utils",
+   "n": 6,
+   "source": "NVD (CPE product match; fixed version = the CPE versionEndEx",
+   "first": "CVE-2026-34743 (tukaani:xz): XZ Utils provide a general-purpose data-compression library p",
+   "fixed": "5.8.3",
+   "ms": 2
+  },
+  {
+   "q": "CVE-2021-44228",
+   "n": 1,
+   "source": "GitHub Advisory Database (CC BY 4.0)",
+   "first": "GHSA-jfh8-c2jp-5v3q: Remote code injection in Log4j (patched in org.apache.logging.log4j:l",
+   "fixed": "2.15.0",
+   "ms": 992
+  },
+  {
+   "q": "log4j",
+   "n": 10,
+   "source": "NVD (CPE product match; fixed version = the CPE versionEndEx",
+   "first": "CVE-2026-49844 (apache:log4j): Improper encoding of non-finite floating-point values durin",
+   "fixed": "2.25.5",
+   "ms": 5
+  },
+  {
+   "q": "openssl",
+   "n": 20,
+   "source": "NVD (CPE product match; fixed version = the CPE versionEndEx",
+   "first": "CVE-2026-84784 (openssl:openssl): Issue summary: A malicious remote peer may flood the loc",
+   "fixed": "3.4.8",
+   "ms": 1064
+  },
+  {
+   "q": "curl",
+   "n": 12,
+   "source": "NVD (CPE product match; fixed version = the CPE versionEndEx",
+   "first": "CVE-2026-82209 (haxx:curl): When libpsl support is enabled, libcurl fails to enforce the P",
+   "fixed": "8.22.0",
+   "ms": 980
+  },
+  {
+   "q": "nginx",
+   "n": 10,
+   "source": "NVD (CPE product match; fixed version = the CPE versionEndEx",
+   "first": "CVE-2025-23419 (f5:nginx): When multiple server blocks are configured to share the same IP",
+   "fixed": "1.26.3",
+   "ms": 985
+  },
+  {
+   "q": "apache tomcat",
+   "n": 10,
+   "source": "NVD (CPE product match; fixed version = the CPE versionEndEx",
+   "first": "CVE-2026-73180 (apache:tomcat): Insufficient Session Expiration vulnerability in Apache To",
+   "fixed": "9.0.121",
+   "ms": 43
+  },
+  {
+   "q": "chrome",
+   "n": 10,
+   "source": "NVD (CPE product match; fixed version = the CPE versionEndEx",
+   "first": "CVE-2018-20072 (google:chrome): Insufficient data validation in PDF in Google Chrome prior",
+   "fixed": "73.0.3683.75",
+   "ms": 994
+  },
+  {
+   "q": "exchange server",
+   "n": 10,
+   "source": "NVD (CPE product match; fixed version = the CPE versionEndEx",
+   "first": "CVE-2026-87696 (microsoft:exchange_server): Improper verification of cryptographic signatu",
+   "fixed": null,
+   "ms": 44
+  },
+  {
+   "q": "struts",
+   "n": 10,
+   "source": "NVD (CPE product match; fixed version = the CPE versionEndEx",
+   "first": "CVE-2026-104714 (apache:struts): Concurrent execution using shared resource with improper ",
+   "fixed": "6.12.0",
+   "ms": 943
+  },
+  {
+   "q": "spring framework",
+   "n": 10,
+   "source": "NVD (CPE product match; fixed version = the CPE versionEndEx",
+   "first": "CVE-2026-59314 (vmware:spring_framework): Applications that build a Content-Disposition he",
+   "fixed": null,
+   "ms": 20
+  },
+  {
+   "q": "moveit transfer",
+   "n": 10,
+   "source": "NVD (CPE product match; fixed version = the CPE versionEndEx",
+   "first": "CVE-2026-89077 (progress:moveit_transfer): Incorrect implementation of authentication algo",
+   "fixed": "2025.1.6",
+   "ms": 8
+  }
+ ]
+}

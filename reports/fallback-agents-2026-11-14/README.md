@@ -20,7 +20,7 @@
 | `public-holidays` (`list_public_holidays`) | trip-brief 행사 자리(공휴일 한정), `events.search.v1` | holidays 0.108 라이브러리(네트워크 없음) | 고정 과제 0/2(둘 다 범위 밖, 설계대로), 30개국 30/30 | 최대 88 ms | 운영 lock 반영 대기(2-9) |
 | `holiday-calendar` (`get_holidays`) | 공휴일 역할, `holiday.calendar.v1` | holidays 0.108(같은 계산) | 고정 과제(검색과 RAG) 1/1, 계약 입력 1/1 | 수 ms | 관문 신청(운영 lock 반영 뒤 운영 동작) |
 | `sec-filings` (`list_sec_filings`) | 회사 목걸이 보조, `sec.filings.v1` | SEC EDGAR submissions | 고정 과제 1/1, 계약 입력 1/1 | 캐시 0 ms(목록 공유) | 정답 세트 요청 |
-| `software-incident` (`find_fix_guidance`) | cve-incident-brief 수정 안내 자리, `software.incident.v1` | GitHub Advisory + NVD 스냅샷 | 계약 입력 2/3(lodash·CVE-2021-44228), 고정 과제 0/2(xz-utils·log4j 같은 프로그램 이름은 범위 밖) | 0.9~1.2 s | 목걸이는 CVE id로 물어 지장 없음 |
+| `software-incident` (`find_fix_guidance`) | cve-incident-brief 수정 안내 자리, `software.incident.v1` | GitHub Advisory + NVD 스냅샷(CPE 제품 색인) | **고정 과제 2/2**(이름 변환 뒤), 계약 입력 3/3, 프로그램 이름 13개 13/13 | 이름 수 ms~1.1 s | 관문 신청 가능(PM 지시 8 충족) |
 | `scorecard` (`get_scorecard`) | 패키지 위험, `package.risk.v1` | OpenSSF Scorecard 원 API | 고정 과제 1/1(실측 비교는 허용 목록 밖이라 not checked), 계약 입력 1/1 | 0.1 s | 정답 세트 요청 |
 | `site-readiness` (`check_site_files`) | website-ai-readiness(예비 목걸이), `website.ai_readiness.v1` | 대상 사이트의 robots.txt·llms.txt·sitemap.xml | 고정 과제 2/2 | 0.6~2.5 s | 정답 세트 요청 |
 | `wiki-grounding` (`answer_from_wikipedia`) | topic-evidence-brief 웹 근거 자리, `web.grounding.v1` | 영어 Wikipedia 검색 + 첫 문단 | 고정 과제 2/2, 자체 점검 20문항 18/20 | p95 0.8 s | 정답 세트 요청 |
@@ -146,6 +146,11 @@
 - airport-lookup: OurAirports 공식 미러 CSV(12.7MB)를 하루 한 번 받아 IATA·ICAO 코드가 있는 공항만 색인(53,570개 코드, 15MB)으로 저장합니다. 요청은 색인만 읽고, 색인이 없으면 실패합니다. **`python -m agent_market.fallback_agents.airports --sync`를 하루 1회 돌리는 jobs 단계가 필요합니다**(운영·SRE에 넘김). 나이 상한 8일.
 - 채점기 수정: 고정 과제의 실시간 기준값은 레지스트리 최신 버전만 대조하고, 나머지(Frankfurter·Open-Meteo·USGS 등)는 "not checked"로 남깁니다(이전에는 USGS 기준값이 뜻 없이 통과로 셈해질 수 있었음).
 
+### 2-14. 프로그램 이름 → 정확한 대상 (PM 지시 8)
+- NVD 스냅샷을 만들 때 CVE마다 취약 CPE의 vendor·product와 `versionEndExcluding`(고쳐진 첫 버전)을 색인(`cpe` 표: 724,003행, 제품 92,285개)으로 함께 저장합니다. 스냅샷은 322MB가 됐습니다(06:06~06:12 재빌드).
+- 이름 질의는 CPE 제품 표기 후보(xz-utils → xz-utils, xz_utils, xz; "apache tomcat" → apache_tomcat, tomcat)로 찾아 최신 CVE 10개를 주고, 그 뒤에 같은 이름의 패키지 권고(GHSA)를 붙입니다. 그래서 "openssl"은 OpenSSL 프로그램 CVE가 먼저, Rust 패키지 권고가 뒤에 나옵니다. 띄어쓰기가 있는 이름은 패키지 검색을 하지 않습니다.
+- 결과(`software-incident-check.json`): 고정 과제 2/2(xz-utils, log4j), 계약 입력 3/3, 프로그램 이름 13개(openssl, curl, nginx, apache tomcat, chrome, exchange server, struts, spring framework, moveit transfer 등) 모두 답함.
+
 ## 3. 관문 신청 묶음 (deploy/NECKLACE_GATE.md 10절 대비)
 
 | 조건 | 상태 | 근거 |
@@ -216,7 +221,7 @@
 ## 6. 시험·재현
 
 ```bash
-nice -n 10 .venv-tests/bin/python -m pytest -q tests/test_fallback_agents.py     # 97 passed (네트워크 없음)
+nice -n 10 .venv-tests/bin/python -m pytest -q tests/test_fallback_agents.py     # 98 passed (네트워크 없음)
 .venv/bin/python -m agent_market.fallback_agents.nvd_sync --full                  # 스냅샷 첫 빌드
 .venv/bin/python -m agent_market.fallback_agents.gold_check nvd-cve cisa-kev --out /tmp/x.json
 ```

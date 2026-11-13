@@ -1331,3 +1331,22 @@ def test_airport_lookup_without_an_index_fails_closed(tmp_path):
     with pytest.raises(FallbackUnavailable) as err:
         a.execute("airport-lookup", {"code": "ICN"})
     assert err.value.code == "source_unavailable"
+
+
+def test_software_incident_puts_programs_before_same_named_packages_and_takes_spaced_names(tmp_path):
+    ossl = nvd_cve("CVE-2026-0001", published="2026-01-01T00:00:00.000",
+                   configurations=[{"nodes": [{"cpeMatch": [{"vulnerable": True, "criteria": "cpe:2.3:a:openssl:openssl:*:*:*:*:*:*:*:*",
+                                                             "versionEndExcluding": "3.4.8"}]}]}])
+    tomcat = nvd_cve("CVE-2026-0002", published="2026-01-02T00:00:00.000",
+                     configurations=[{"nodes": [{"cpeMatch": [{"vulnerable": True, "criteria": "cpe:2.3:a:apache:tomcat:*:*:*:*:*:*:*:*",
+                                                               "versionEndExcluding": "9.0.121"}]}]}])
+    rust = dict(GH_ROW, ghsa_id="GHSA-phqj-4mhp-q6mq", summary="rust-openssl issue",
+                vulnerabilities=[{"package": {"ecosystem": "rust", "name": "openssl"}, "first_patched_version": "0.10.80"}])
+    calls = []
+    a, _ = agents(tmp_path, {"https://api.github.com/advisories": httpx.Response(200, json=[rust])}, calls,
+                  snapshot=seeded_snapshot(tmp_path, ossl, tomcat))
+    out = a.execute("software-incident", {"query": "openssl"})["result"]
+    assert [i["title"][:13] for i in out["items"]] == ["CVE-2026-0001", "GHSA-phqj-4mh"]
+    assert out["source"].startswith("NVD (CPE product match") and "then GitHub Advisory" in out["source"]
+    spaced = a.execute("software-incident", {"query": "Apache Tomcat"})["result"]
+    assert spaced["items"][0]["fixed_version"] == "9.0.121" and len(calls) == 1, "spaced program names skip the package search"
