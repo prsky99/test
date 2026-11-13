@@ -192,3 +192,20 @@ def test_ai_bot_errors_are_kept_per_status_and_cause(tmp_path):
     rec.flush()
     day = t.load_day(tmp_path, rec.day)['bot_errors']
     assert dict(day) == {'ClaudeBot|agent_pages|404': 2, 'ClaudeBot|rankings|429': 1, 'ClaudeBot|agent_pages|403:blocked_ip': 1}
+
+
+def test_home_requests_keep_the_kind_of_accept_and_what_was_served(tmp_path):
+    # 11-14 (PM, search C): "/" answers JSON to */* and to no Accept; count who sends what before changing it.
+    from agent_market.concierge.traffic import accept_kind, served_kind
+    t = Traffic(tmp_path, clock=lambda: 1794200000.0)
+    google = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
+    t.observe('GET', '/', 200, '203.0.113.3', CHROME, headers={'accept': 'text/html,application/xhtml+xml,*/*;q=0.8'},
+              response_headers={'content-type': 'text/html; charset=utf-8'})
+    t.observe('GET', '/', 200, '203.0.113.4', google, headers={'accept': '*/*'}, response_headers={'content-type': 'application/json'})
+    t.observe('GET', '/', 200, '203.0.113.5', 'python-httpx/0.28', headers={}, response_headers={'content-type': 'application/json'})
+    t.observe('GET', '/llms.txt', 200, '203.0.113.5', 'python-httpx/0.28', headers={'accept': '*/*'})
+    t.flush()
+    data = json.loads(next(tmp_path.glob('*.json')).read_text())
+    assert data['home_accept'] == {'browser|html|html': 1, 'ai_bot|star|json': 1, 'script|none|json': 1}
+    assert accept_kind('application/json, text/html') == 'json' and accept_kind('text/markdown') == 'markdown'
+    assert accept_kind('image/webp') == 'other' and served_kind(None) == 'other'

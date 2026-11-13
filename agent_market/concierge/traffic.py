@@ -295,6 +295,7 @@ class Traffic:
         self.sessions = {}             # MCP session id -> 'probe' | 'real' (memory only, today)
         self.funnel = Counter()        # "recommend|surface|class|all|ok", "connect|class|...", "execute|class|..." (11-12)
         self.funnel_sets = defaultdict(set)  # "recommend|class" clients, "connect|class" / "execute|class" (client, agent) pairs
+        self.home_accept = Counter()   # "class|accept kind|served kind" for GET / (11-14 PM, search C)
 
     def observe(self, method, path, status, ip, ua, body=None, headers=None, response_headers=None, cause=None,
                 gateway=None):
@@ -310,6 +311,11 @@ class Traffic:
                 self._write_locked()
                 self._reset(today)
             self.requests[key] += 1
+            if entry == 'home' and method in ('GET', 'HEAD'):
+                # 11-14 (PM, search C): "/" answers JSON to Accept */* and to no Accept; before changing that,
+                # count who sends what and what they got (kinds only, never the raw header).
+                self.home_accept[client + '|' + accept_kind((headers or {}).get('accept')) + '|'
+                                 + served_kind((response_headers or {}).get('content-type'))] += 1
             self.status[key + '|' + (str(status)[0] + 'xx' if isinstance(status, int) else 'other')] += 1
             bucket = self.distinct[key]
             if len(bucket) < 50_000:
@@ -411,7 +417,8 @@ class Traffic:
                 'bot_errors': dict(self.bot_errors),
                 'mcp_clients': dict(self.mcp_clients.most_common(200)),
                 'rpc': dict(self.rpc), 'errors': dict(self.errors.most_common(300)),
-                'funnel': dict(self.funnel), 'funnel_distinct': {k: len(v) for k, v in self.funnel_sets.items()}}
+                'funnel': dict(self.funnel), 'funnel_distinct': {k: len(v) for k, v in self.funnel_sets.items()},
+                'home_accept': dict(self.home_accept)}
 
     def _write_locked(self):
         self.flushed = self.clock()
@@ -434,6 +441,28 @@ class Traffic:
 
 
 _SINGLETON = None
+
+
+def accept_kind(accept):
+    """none, html, json, markdown, star or other: the first media type the Accept header names, roughly."""
+    value = (accept or '').strip().lower()
+    if not value:
+        return 'none'
+    first = value.split(',')[0].split(';')[0].strip()
+    if 'text/html' in first or 'application/xhtml' in first:
+        return 'html'
+    if 'json' in first:
+        return 'json'
+    if 'markdown' in first:
+        return 'markdown'
+    if first == '*/*':
+        return 'star'
+    return 'other'
+
+
+def served_kind(content_type):
+    value = (content_type or '').lower()
+    return 'html' if 'html' in value else 'json' if 'json' in value else 'markdown' if 'markdown' in value else 'other'
 
 
 def recorder():
