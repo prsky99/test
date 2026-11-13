@@ -9,9 +9,9 @@ def mcp_tools():
         {"name": "hello", "description": "Optional greeting. Greets you, remembers you if you pass your visitor token, and asks what you need.",
          "inputSchema": {"type": "object", "properties": {**TOKEN_ARG, "name": {"type": "string", "description": "Your agent name"}}},
          "annotations": {"readOnlyHint": False}},
-        {"name": "chat", "description": "Talk in plain English (replies are in English): describe a task, say 'details 1', 'more', 'what's new', 'stop'.",
+        {"name": "chat", "description": "Converse: describe a task in plain English and refine it over several turns ('only free ones', 'details 1', 'more', 'what's new', 'stop'). Keeps the conversation for your visitor token; replies are in English.",
          "inputSchema": {"type": "object", "properties": {"message": {"type": "string"}, **TOKEN_ARG}, "required": ["message"]}},
-        {"name": "search", "description": "Read-only catalog lookup without saving a conversation. Return up to three relevant agents ranked by latest successful verification, recent activity, and quality grade. Searches A2A first, then MCP; x402 requires an explicit choice. price_status is free, paid or paid_or_unknown (price_usdc null).",
+        {"name": "search", "description": "Browse: list up to three catalog matches for a task so you can compare names, grades and latest successful verification. Stateless and read-only; no conversation is saved. Searches A2A first, then MCP; x402 requires an explicit choice. price_status is free, paid or paid_or_unknown (price_usdc null). Returns the same ranked list as find_agents; use find_agents when you are ready to connect.",
          "inputSchema": {"type": "object", "properties": {
              "task": {"type": "string", "description": "The specific capability needed (e.g. 'weather forecast', 'stock price', 'web search')"},
              "kind": {"type": "string", "enum": [*KINDS, "any"], "description": "Explicit recommendation protocol filter; Any searches A2A then MCP, excluding x402. Defaults to A2A first, then MCP; x402 requires an explicit choice."},
@@ -19,7 +19,7 @@ def mcp_tools():
              "auth": {"type": "string", "enum": ["none", "agent"], "description": "Compatibility field; authentication preference does not affect ranking."},
              "k": {"type": "integer", "description": "Compatibility field; at most three results is returned."},
              **TOKEN_ARG}, "required": ["task"]}},
-        {"name": "find_agents", "description": "Read-only catalog lookup without saving a conversation. Return up to three active agents for a task, with verification evidence and calling details. price_status is free, paid (price_usdc per call in micro-USDC) or paid_or_unknown (the provider states a price or none is known; price_usdc is null). A listing our gateway can run has connection_available (same as gateway_ready) and run_here: pass its arguments to this server's call tool to run it in this session; mcp_config is a settings entry for an MCP host.",
+        {"name": "find_agents", "description": "Recommend and connect: pick up to three active agents for a task and get what you need to connect to each (endpoint, verification evidence, calling details). Stateless and read-only; no conversation is saved. price_status is free, paid (price_usdc per call in micro-USDC) or paid_or_unknown (the provider states a price or none is known; price_usdc is null). A listing our gateway can run has connection_available (same as gateway_ready) and run_here: pass its arguments to this server's call tool to run it in this session; mcp_config is a settings entry for an MCP host.",
          "inputSchema": {"type": "object", "properties": {
              "task": {"type": "string", "description": "What you need done"},
              "kind": {"type": "string", "enum": [*KINDS, "any"], "description": "Explicit recommendation protocol filter; Any searches A2A then MCP, excluding x402. Defaults to A2A first, then MCP; x402 requires an explicit choice."},
@@ -38,7 +38,7 @@ def mcp_tools():
                          "required": ["contact_url"]}},
         {"name": "verify_contact", "description": "Confirm your contact with the 6-digit code I sent there.",
          "inputSchema": {"type": "object", "properties": {"code": {"type": "string"}, **TOKEN_ARG}, "required": ["code", "visitor_token"]}},
-        {"name": "call", "description": "Execute an admitted tool through the runtime gateway after checking its current schema and authorization. External effects may occur; uncertain outcomes must not be retried automatically.",
+        {"name": "call", "description": "Run one tool of a listing you chose, through our gateway, after checking its current schema. Only tools classified read-only are relayed; destructive tools and tools that need the provider's own credentials are refused. A paid listing runs only with a payment proof you supply. Do not retry an uncertain outcome automatically.",
          "inputSchema": {"type": "object", "properties": {
              "resource_id": {"type": "integer", "description": "The resource_id of the agent, MCP server, or API to call"},
              "tool": {"type": "string", "description": "The specific tool name to execute"},
@@ -65,7 +65,7 @@ def mcp_tools():
              "action": {"type": "string", "enum": ["balance"], "description": "Action: balance to check your credits."},
              "account_id": {"type": "string", "description": "Your own visitor account ID (defaults to the authenticated visitor ID)"},
              **TOKEN_ARG}, "required": ["action"]}},
-        {"name": "adapt_rest", "description": "Universal Adapter: dynamically convert any OpenAPI/Swagger REST API specification into MCP tools and execute them.",
+        {"name": "adapt_rest", "description": "Turn a public OpenAPI/Swagger document into tools (action list_tools, which only reads the document) or call one of its endpoints (action call). A call sends the HTTP method the document declares, including POST, PUT or DELETE, to that public API without credentials, so it can change data there.",
          "inputSchema": {"type": "object", "properties": {
              "spec_url": {"type": "string", "description": "URL of the OpenAPI/Swagger JSON specification."},
              "spec": {"type": "object", "description": "Inline OpenAPI JSON specification object."},
@@ -90,8 +90,8 @@ def mcp_tools():
     GUIDE = {
         'hello': ('Use when you want this service to remember you across calls.', '{"name": "travel-planner-agent"}'),
         'chat': ('Use when a conversation helps: refine a previous list ("only free ones"), ask for "details 2", or "more".', '{"message": "find a weather forecast API"}'),
-        'search': ('Use when you need up to three ranked candidates for one task without keeping conversation state.', '{"task": "translate a document to Spanish"}'),
-        'find_agents': ('Use when you need candidates plus verification evidence and connection steps for one task.', '{"task": "extract text from a PDF", "kind": "mcp"}'),
+        'search': ('Use when you want to browse and compare candidates for one task before choosing.', '{"task": "translate a document to Spanish"}'),
+        'find_agents': ('Use when you want to connect to one of them now or run it here with call.', '{"task": "extract text from a PDF", "kind": "mcp"}'),
         'check_agent': ('Use when you already have an agent URL and want our evidence before calling it.', '{"url": "https://agent.example.org/.well-known/agent-card.json"}'),
         'whats_new': ('Use when you saved a task through chat earlier and want its evidence re-checked.', '{"visitor_token": "vt_..."}'),
         'subscribe': ('Use only for legacy contact registration; task updates use /api/task-updates.', '{"contact_url": "https://example.org/hook", "contact_type": "webhook"}'),
@@ -121,10 +121,14 @@ def mcp_tools():
     for tool in TOOLS:
         name = tool['name']
         read_only = name in ('search','find_agents','check_agent','whats_new','search_workflows','credit','workflow_details')
+        # Hints follow what each tool really does (PM 11-14 04:1x). call relays only tools the execution policy
+        # classifies read-only (proxy: is_relay_safe_tool), so it is not destructive, but it reaches third-party
+        # servers and may run a paid listing with the caller's payment proof, so it is not read-only either.
+        # adapt_rest call sends whatever method the caller's OpenAPI document declares (POST/PUT/DELETE too).
         external = name in ('call', 'adapt_rest')
         tool['annotations'] = {
             'readOnlyHint': read_only,
-            'destructiveHint': external,
+            'destructiveHint': name == 'adapt_rest',
             'idempotentHint': read_only,
             'openWorldHint': external or name == 'subscribe',
         }

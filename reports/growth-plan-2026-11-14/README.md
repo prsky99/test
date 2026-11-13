@@ -108,3 +108,28 @@ B와 C는 검색 대응이라 차선 목표와 관계없이 PM 결정으로 바�
 
 - 권하는 순서: 1 → 3 → 4 → 2(2는 PM 범위 결정 뒤).
 - 2·3·4는 frontend 배포가 필요하다. 하루 묶음 원칙에 맞춰 다음 frontend 묶음에 넣는다.
+
+## 8. Glama TDQS 대응: 도구 설명·주석 (PM 11-14 04:1x)
+
+이름은 바꾸지 않고 설명과 주석만 고쳤다(`agent_market/concierge/mcp_contract.py`, 출처는 이 파일 하나).
+
+| 도구 | 첫 마디(전 → 후) | 주석 |
+|---|---|---|
+| search | Read-only catalog lookup… → **Browse:** 후보 비교용 목록, find_agents와 같은 순위임을 밝힘 | 그대로(읽기 전용) |
+| find_agents | Read-only catalog lookup… → **Recommend and connect:** 연결 정보·run_here | 그대로(읽기 전용) |
+| chat | Talk in plain English… → **Converse:** 여러 번 다듬는 대화, 방문자 토큰에 대화 저장 | 그대로 |
+| call | External effects may occur → 읽기 전용으로 분류된 도구만 중계, 파괴적·제공자 자격 증명 필요 도구는 거부, 유료는 호출자 결제 증명이 있을 때만 | destructiveHint **True → False**, openWorldHint True, readOnlyHint False(외부 서버 호출·유료 실행 가능) |
+| adapt_rest | Universal Adapter… → list_tools는 문서만 읽음, call은 문서가 정한 POST·PUT·DELETE도 보냄(자격 증명 없이) | destructiveHint **True 유지**(실제로 공개 API의 데이터를 바꿀 수 있음) |
+
+- 근거: call은 `proxy._execute_registered`에서 `usage.is_relay_safe_tool`이 거짓이면 UNSAFE_TOOL로 거부한다. adapt_rest call은 `rest_adapter.execute`가 문서의 method를 그대로 보낸다.
+- adapt_rest를 읽기 전용으로 표시하려면 call을 GET·HEAD로 제한하는 동작 변경이 필요하다(PM 결정 사항, 이번에는 하지 않음).
+- 시험: `tests/test_mcp_tool_descriptions.py`(게이트 목록), 기존 주석 시험 2곳 갱신. MCP 도구 목록·시나리오 관련 시험 63개 파일 1,380개 통과.
+- Chat 엔진은 도구 설명을 읽지 않는다(`mcp_tools()` 사용처는 tools/list·서버 카드뿐). 그래서 Chat 답변 경로는 바뀌지 않는다. 묶음 게이트의 Chat 비교로 다시 확인한다.
+
+### subscribe·verify_contact 숨김 안 (결정 대기)
+
+- 지금: subscribe 설명은 "Legacy contact command…cannot grant permission"이다. 작업 알림은 `/api/task-updates`로 옮겨졌다. verify_contact는 subscribe 뒤에만 쓴다.
+- 안 1(권함): 두 도구를 tools/list와 `/.well-known/mcp.json`에서 뺀다. tools/call 처리기는 남겨 기존 호출자가 깨지지 않게 한다. Glama 점수에서 "목적이 겹치거나 쓰지 말라는 도구"가 빠진다.
+- 안 2: 목록에 두되 설명 첫 마디를 "Deprecated:"로 바꾼다. 점수 개선은 작다.
+- 사용량 근거: 도구별 호출 수는 트래픽 기록에 없다(tools/call 총계만 있음). 안 1을 고르면 처리기 호출 수를 하루 세는 줄을 같이 넣어 제거 판단의 근거로 삼는다.
+- 영향: 공식 MCP Registry의 `server.json`에는 도구 목록이 없어 재게시가 필요 없다. 시험 중 도구 이름 목록을 고정한 곳(`tests/test_mcp_tool_descriptions.py` 등)을 함께 고친다.

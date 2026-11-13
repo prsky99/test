@@ -2,7 +2,8 @@
 
 An A2A client cannot use our MCP `call` tool, so a recommendation ended there (11-13: three outside A2A
 recommendations, no connection). The scope is exactly that of the MCP `call` tool and no wider:
-- only item N of the list we recommended last in this conversation (no URL, no endpoint, no other agent);
+- only item N of the list we recommended last to this visitor (book.last_results is per visitor, not per
+  contextId; no URL, no endpoint, no other agent);
 - only an MCP listing our gateway relays, its recommended tool, through the same run_admitted_call (gateway
   admit, execution policy: relay verbs, read-only, action tools blocked; timeouts; outcome records);
 - never a payment, an x402 listing, a priced listing, or arguments that carry credentials;
@@ -16,7 +17,7 @@ from datetime import datetime, timezone
 RUN = re.compile(r'^\s*run\s+#?([1-9])\b(.*)$', re.I | re.S)
 MESSAGES = {
     'no_conversation': 'Run works inside a conversation: ask for agents first, then send "run 1" with the contextId I gave you.',
-    'not_recommended': 'There is no recommendation with that number in this conversation. Ask for agents first.',
+    'not_recommended': 'There is no recommendation with that number in your latest results. Ask for agents first.',
     'not_runnable_kind': 'Only an MCP tool our gateway relays can be run here. Use its endpoint from the recommendation instead.',
     'payment_not_supported': 'Paid listings cannot be run here.',
     'not_relayed': 'Our gateway does not relay this tool. Use the provider link from the recommendation.',
