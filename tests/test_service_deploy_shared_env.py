@@ -220,6 +220,9 @@ def test_package_from_a_commit_ignores_working_tree_edits_and_records_the_hash(t
     (root / 'new' / 'index.html').write_text('<p>ok</p>\n')
     (root / 'pyproject.toml').write_text('[project]\nname = "x"\n')
     (root / '.gitignore').write_text('.venv/\n')
+    (root / 'docs' / 'methodology').mkdir(parents=True)
+    (root / 'docs' / 'methodology' / 'methodology.json').write_text('{"version": "v1"}\n')
+    (root / 'docs' / 'notes.md').write_text('internal\n')
     git('add', '.'); git('commit', '-q', '-m', 'one')
     sha = git('rev-parse', 'HEAD')
     (root / 'agent_market' / 'x.py').write_text('x = 2  # uncommitted\n')
@@ -231,6 +234,8 @@ def test_package_from_a_commit_ignores_working_tree_edits_and_records_the_hash(t
     assert json.loads((release / 'release.json').read_text())['commit'] == sha
     assert (release / 'agent_market' / 'x.py').read_text() == 'x = 1\n'
     assert not (release / 'scripts' / 'stray.py').exists()
+    assert (release / 'docs' / 'methodology' / 'methodology.json').exists()      # served by /methodology (11-14)
+    assert not (release / 'docs' / 'notes.md').exists()                          # the rest of docs/ stays out
     assert manager.release_commit('git-frontend-r1') == sha
     import pytest
     with pytest.raises(ValueError, match='unknown_commit'):

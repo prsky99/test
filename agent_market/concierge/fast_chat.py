@@ -435,7 +435,7 @@ def relayable(item):
 def relayable_only(items):
     """PM 11-14: a tool the relay policy will not run is not recommended while a relayed one is admitted; later
     re-orders (subject_first, condition_first) could otherwise move it back to first. When none is relayed, the
-    honest documentation-link answer stays (11-12 PM decision 나-1)."""
+    honest documentation-link answer stays (11-12 PM decision on unrelayed recommendations)."""
     kept = [item for item in items if relayable(item)]
     return kept or items
 

@@ -134,6 +134,9 @@ def caddyfile(directory, frontend, admin, public_port=8400, admin_port=8200, app
 ''' % (json.dumps(socket), public_port, path_app_routes(apps), frontend, admin_port, admin)
 
 
+PUBLISHED_DOCS = 'docs/methodology'  # served by /methodology and /methodology.json (growth team 618f48e6)
+
+
 class Deployment:
     def __init__(self, root, *, state_dir=None):
         self.root = Path(root).resolve()
@@ -221,6 +224,10 @@ class Deployment:
         listed = subprocess.run(['git', 'ls-tree', '--name-only', sha], cwd=self.root, capture_output=True, text=True).stdout.split()
         wanted = [name for name in listed if name in ('agent_market', 'scripts', 'new', 'deploy', 'pyproject.toml', 'extracted_html.txt')
                   or name.startswith('requirements')]
+        # docs/ stays out except the data the public pages serve (11-14: /methodology reads docs/methodology).
+        if 'docs' in listed and subprocess.run(['git', 'cat-file', '-e', sha + ':' + PUBLISHED_DOCS], cwd=self.root,
+                                               capture_output=True).returncode == 0:
+            wanted.append(PUBLISHED_DOCS)
         destination = Path(tempfile.mkdtemp(prefix='release-commit-'))
         archive = subprocess.run(['git', 'archive', sha, *wanted], cwd=self.root, capture_output=True)
         if archive.returncode:
@@ -239,6 +246,8 @@ class Deployment:
         ignore = shutil.ignore_patterns('__pycache__', '*.pyc', '.DS_Store', 'node_modules', 'qa')
         for name in ('agent_market', 'scripts', 'new'):
             shutil.copytree(source_root / name, target / name, ignore=ignore)
+        if (source_root / PUBLISHED_DOCS).is_dir():
+            shutil.copytree(source_root / PUBLISHED_DOCS, target / PUBLISHED_DOCS, ignore=ignore)
         metadata = {source_root / name for name in ('pyproject.toml', 'extracted_html.txt')}
         metadata.update(source_root.glob('requirements*.txt'))
         metadata.update(source_root.glob('requirements*.lock'))
