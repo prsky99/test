@@ -53,6 +53,7 @@ TESTS = (
     'tests/test_direct_sign_in_links.py',  # 11-12: our pages link to /customer/sign-in directly, no 303
     'tests/test_a2a_card_aliases.py',  # 11-12: the A2A card beside /a2a (two aliases that answered 404)
     'tests/test_public_html_long_swr.py',  # 11-12: live HTML swr 86400, private answers stay no-store
+    'tests/test_home_about_layout.py',  # 11-13: Home without the toggle, spacing tokens; About necklace as a background
     # 11-12: discovery cards keep their public keys (usage_endpoint, tools_schema); ed37c569 dropped one.
     'tests/test_managed_agent_gateway.py::test_raw_discovery_json_and_text_hide_bindings_preserve_schema',
     # 11-12 (PM): the other public contracts, about 41 s together: MCP tools/list and search/find_agents,

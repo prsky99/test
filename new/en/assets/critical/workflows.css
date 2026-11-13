@@ -1,4 +1,4 @@
-/* source 7672be9d067a3567 */
+/* source c6ba53ad5d116e13 */
 :root {
   --bg: #0b0f19;
   --panel: #111827;
@@ -1121,6 +1121,10 @@ body[data-theme="dark"] #chatSubmit,body[data-theme="dark"] #chatSubmit :is(span
 #chatMessages .chat-choice-actions .btn,#chatMessages .chat-choose-btn{min-height:44px!important}
 @media(max-width:700px){body #cookieConsentBanner:not(.hidden){top:84px!important;max-height:calc(100dvh - 96px)}body #cookieConsentBanner .cookie-banner-close{min-height:44px!important;min-width:44px!important;top:8px;right:8px}body #cookieConsentBanner .cookie-purpose-details>summary{margin-right:124px}body header.pearl-header:has(.nav-tabs.pearl-open){z-index:100000}}
 @media(max-width:700px){body #secOverview .catalog-band{order:0}}
+:root{--space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:24px;--space-6:32px;--space-7:40px;--space-8:48px}
+#secOverview>section.section>h2:not(:has(+.lead)){margin-bottom:var(--space-5)}
+#secOverview>section.section>.lead{margin:0 0 var(--space-5)}
+#secOverview>section.section>:is(h2,.lead)+*{margin-top:0}
 #secWorkflows .pearl-workflow-identity{min-height:156px}
 #secWorkflows #frontWfActiveName{min-height:72px}
 #secWorkflows #pearlWorkflowDescription{min-height:68px}

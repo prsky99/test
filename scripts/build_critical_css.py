@@ -134,7 +134,9 @@ def collect(base, page, local=None):
                 cdp.send('CSS.enable')
                 cdp.send('CSS.startRuleUsageTracking')
                 pg.goto(base.rstrip('/') + '/new/en/' + page, wait_until='load')
-                pg.wait_for_timeout(1200)
+                # --local reads live data from the public API (1-3 s from Korea): wait longer so result cards are
+                # drawn and their rules are kept (11-13: explore lost its .acard rules with 1.2 s).
+                pg.wait_for_timeout(2500 if local is not None else 1200)
                 dom |= set(pg.evaluate("""() => { const t = new Set();
                   const add = el => { for (const c of el.classList) t.add(c); if (el.id) t.add(el.id); };
                   for (const el of document.querySelectorAll('body *')) {

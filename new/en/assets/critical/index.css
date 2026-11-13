@@ -1,4 +1,4 @@
-/* source 7672be9d067a3567 */
+/* source c6ba53ad5d116e13 */
 :root {
   --bg: #0b0f19;
   --panel: #111827;
@@ -872,6 +872,22 @@ body[data-theme="dark"] #chatSubmit,body[data-theme="dark"] #chatSubmit :is(span
 #chatMessages .chat-choice-actions .btn,#chatMessages .chat-choose-btn{min-height:44px!important}
 @media(max-width:700px){body #cookieConsentBanner:not(.hidden){top:84px!important;max-height:calc(100dvh - 96px)}body #cookieConsentBanner .cookie-banner-close{min-height:44px!important;min-width:44px!important;top:8px;right:8px}body #cookieConsentBanner .cookie-purpose-details>summary{margin-right:124px}body header.pearl-header:has(.nav-tabs.pearl-open){z-index:100000}}
 @media(max-width:700px){body #secOverview .catalog-band{order:0}}
+:root{--space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:24px;--space-6:32px;--space-7:40px;--space-8:48px}
+#secOverview>.catalog-hero{align-items:start}
+#secOverview>.catalog-hero>:first-child>:first-child,#secOverview>.catalog-hero>.necklace{margin-top:0}
+#secOverview>.catalog-band{margin:var(--space-6) 0 0;padding:var(--space-5) 0;border-width:1px 0;border-radius:0;background:none}
+#secOverview>.catalog-band .metric-grid{margin:0}
+#secOverview>.catalog-band .metric-grid~*{margin-top:var(--space-4);margin-bottom:0}
+#secOverview>.home-protocols{margin:0;padding-block:var(--space-7)}
+#secOverview :is(.home-protocols,.category-cards){gap:var(--space-5)}
+#secOverview>:is(section.section,.end-cta){padding-block:var(--space-7)}
+#secOverview>section.section>h2{margin:0 0 var(--space-3)}
+#secOverview>section.section>h2:not(:has(+.lead)){margin-bottom:var(--space-5)}
+#secOverview>section.section>.lead{margin:0 0 var(--space-5)}
+#secOverview>section.section>:is(h2,.lead)+*{margin-top:0}
+#secOverview>.home-evidence>:is(.definition-grid,.note,details){margin-block:0}
+#secOverview>.home-evidence>:is(.definition-grid,.note)+*{margin-top:var(--space-5)}
+@media(max-width:700px){#secOverview>:is(section.section,.end-cta,.home-protocols){padding-block:var(--space-6)}#secOverview>.catalog-band{padding-block:var(--space-4)}}
 .necklace-center h2{font:inherit;font-weight:600;font-size:24px;line-height:1.2}
 body:not([data-pearl-entry]){--ink:var(--text);--surface:var(--panel);--soft:var(--chip);--teal:var(--accent);--text-dim:#a8b5c8}
 body:not([data-pearl-entry]) :is(.skip-link,.nav-tab.on,.btn.primary){background:#1d4ed8;color:#fff}
