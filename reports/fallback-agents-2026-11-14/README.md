@@ -22,6 +22,7 @@
 | `sec-filings` (`list_sec_filings`) | 회사 목걸이 보조, `sec.filings.v1` | SEC EDGAR submissions | 고정 과제 1/1, 계약 입력 1/1 | 캐시 0 ms(목록 공유) | 정답 세트 요청 |
 | `software-incident` (`find_fix_guidance`) | cve-incident-brief 수정 안내 자리, `software.incident.v1` | GitHub Advisory + NVD 스냅샷 | 계약 입력 2/3(lodash·CVE-2021-44228), 고정 과제 0/2(xz-utils·log4j 같은 프로그램 이름은 범위 밖) | 0.9~1.2 s | 목걸이는 CVE id로 물어 지장 없음 |
 | `scorecard` (`get_scorecard`) | 패키지 위험, `package.risk.v1` | OpenSSF Scorecard 원 API | 고정 과제 1/1(실측 비교는 허용 목록 밖이라 not checked), 계약 입력 1/1 | 0.1 s | 정답 세트 요청 |
+| `site-readiness` (`check_site_files`) | website-ai-readiness(예비 목걸이), `website.ai_readiness.v1` | 대상 사이트의 robots.txt·llms.txt·sitemap.xml | 고정 과제 2/2 | 0.6~2.5 s | 정답 세트 요청 |
 | `github-advisory` (`list_package_advisories`) | package-risk-audit 취약점 자리, `package.advisories.v1` | GitHub Advisory Database(reviewed) | 1차 27/30 → 범위 직접 판정으로 고친 뒤 **30/30**(05:36 재측정), 고정 과제 3/3 | 1,010 ms / 1,412 ms | 관문 신청 가능 |
 
 - 계약 시험 입력(`test_inputs`) 3건씩: nvd-cve·cve-org·cisa-kev 9/9 통과(`contract-test-inputs.json`). 고정 과제(role-tasks-v1): nvd-cve 3/3, cisa-kev 3/3, cve-org 3/3, package-registry 2/2, depsdev-package 2/2.
@@ -122,6 +123,12 @@
 - sec-filings: ticker·CIK·정확한 회사명으로 CIK를 찾고(sec-edgar와 같은 하루 캐시), submissions의 최근 신고와 정기·수시 보고서(10-K·10-Q·8-K 등)를 접수번호와 함께 답합니다. 데이터 시각 = 가장 최근 신고일.
 - scorecard: Scorecard 원 API(CDLA-Permissive-2.0). 같은 React 점수가 원 API는 11-09 기준, deps.dev는 08-24 기준이라 원 API가 더 새롭습니다. 패키지만 주면 package-registry로 저장소를 찾아 묻습니다.
 
+### 2-11. 웹사이트 준비도(사이트 공개 파일만)
+- 이 에이전트만 허용 목록 밖의 임의 도메인을 읽습니다. 그래서 따로 막습니다: HTTPS만, IP 주소·포트·단일 이름·.local 같은 내부 이름 거부, 매 요청 사설 주소 사전 검사(`validate_public_url`)와 공개 전용 연결, 같은 상위 도메인 안에서만 최대 2번 리다이렉트(wikipedia.org → www → en), 응답 256KB 상한, 사이트당 0.3초 간격·분당 30회, robots.txt가 우리 User-Agent에 막은 파일은 읽지 않음, 페이지 본문은 복사하지 않고 사실만 냄.
+- 신호: robots.txt 유무·선언된 sitemap 수, AI 크롤러 6종(GPTBot·ClaudeBot·anthropic-ai·Google-Extended·PerplexityBot·CCBot)의 허용·차단(이름이 없으면 "* 규칙으로"), llms.txt 유무·크기·제목·링크 수, sitemap.xml 종류. 점수는 우리 휴리스틱(robots 20 + 크롤러 개방 30 + llms.txt 30 + sitemap 20)이라고 고지합니다.
+- 파일 하나가 406 등으로 실패해도 그 파일 신호에 이유를 남기고 계속합니다. 세 파일 모두 연결이 안 될 때만 실패합니다.
+- 참고: 우리 사이트(agentconcierge.biz)는 100점이지만 llms.txt 제목이 아직 옛 이름 "Agent Concierge"입니다(성장·유통 몫).
+
 ## 3. 관문 신청 묶음 (deploy/NECKLACE_GATE.md 10절 대비)
 
 | 조건 | 상태 | 근거 |
@@ -185,7 +192,7 @@
 ## 6. 시험·재현
 
 ```bash
-nice -n 10 .venv-tests/bin/python -m pytest -q tests/test_fallback_agents.py     # 85 passed (네트워크 없음)
+nice -n 10 .venv-tests/bin/python -m pytest -q tests/test_fallback_agents.py     # 88 passed (네트워크 없음)
 .venv/bin/python -m agent_market.fallback_agents.nvd_sync --full                  # 스냅샷 첫 빌드
 .venv/bin/python -m agent_market.fallback_agents.gold_check nvd-cve cisa-kev --out /tmp/x.json
 ```

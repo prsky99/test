@@ -46,15 +46,34 @@ class SourceError(RuntimeError):
         self.status = status
 
 
+SITE_HOST = __import__("re").compile(r"(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}")
+
+
+def site_host(host: str | None) -> bool:
+    """A public DNS name for the website-readiness agent: no IP literals, no single labels, no local names."""
+    host = (host or "").lower()
+    return bool(SITE_HOST.fullmatch(host)) and not host.endswith((".local", ".localhost", ".internal", ".lan",
+                                                                    ".home", ".corp", ".test", ".invalid"))
+
+
 def get(url: str, *, limiters: dict, http=None, params=None, seconds: float, limit: int,
-        accept: str = "application/json", preflight: bool = True, headers: dict | None = None, ok=(200,)):
+        accept: str = "application/json", preflight: bool = True, headers: dict | None = None, ok=(200,),
+        any_site: bool = False):
     """Return the httpx response for an ``ok`` status (200; 304 for conditional requests); raise SourceBusy
     or SourceError otherwise. ``headers`` may only add conditional request headers."""
     extra = {k: v for k, v in (headers or {}).items() if k in ("If-Modified-Since", "If-None-Match")}
     parsed = urlsplit(url)
-    if (parsed.scheme != "https" or parsed.hostname not in ALLOWED_HOSTS or parsed.port not in (None, 443)
+    allowed = site_host(parsed.hostname) if any_site else parsed.hostname in ALLOWED_HOSTS
+    if (parsed.scheme != "https" or not allowed or parsed.port not in (None, 443)
             or parsed.username or parsed.password or parsed.fragment):
         raise SourceError("Source not allowed.")
+    if any_site and parsed.hostname not in limiters:
+        from .limits import HostLimiter
+        if len(limiters) > 512:  # bound the per-site table; old sites start fresh
+            for key in [k for k in limiters if k not in ALLOWED_HOSTS][:256]:
+                limiters.pop(key, None)
+        ref = next(iter(limiters.values()), None)  # same clock as the fixed hosts (tests use a fake one)
+        limiters[parsed.hostname] = HostLimiter(0.3, 30, 60.0, *((ref.clock, ref.sleep) if ref else ()))
     limiter = limiters[parsed.hostname]
     headers = {"User-Agent": USER_AGENT, "Accept": accept, **extra}
     if parsed.hostname == "api.github.com":

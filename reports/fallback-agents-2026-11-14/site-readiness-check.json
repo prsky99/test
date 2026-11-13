@@ -1,0 +1,20 @@
+{
+ "role_tasks": {
+  "site-readiness": {
+   "passed": 2,
+   "cases": 2,
+   "rows": [
+    {
+     "case_id": "site-wikipedia",
+     "pass": true,
+     "why": []
+    },
+    {
+     "case_id": "site-python",
+     "pass": true,
+     "why": []
+    }
+   ]
+  }
+ }
+}

@@ -80,6 +80,10 @@ SCORECARD = {"name": "OpenSSF Scorecard API", "url": "https://scorecard.dev/",
              "license": "CDLA-Permissive-2.0 (https://github.com/ossf/scorecard)",
              "notice": "Automated heuristic checks of the source repository, not a security audit."}
 
+SITE = {"name": "The website's own public files (robots.txt, llms.txt, sitemap.xml)", "url": "https://www.rfc-editor.org/rfc/rfc9309",
+        "license": "Facts read from the site's public files; no page content is copied",
+        "notice": "The score is a simple AgentValCon heuristic over these files, not a search-engine ranking."}
+
 SPECS = {
     "nvd-cve": {
         "name": "AgentValCon NVD CVE Record", "tool": "get_cve_record", "contract": "cve.record.v1",
@@ -213,6 +217,13 @@ SPECS = {
                        "or PyPI package through its listed source repository; read-only.",
         "sources": [SCORECARD],
         "rate": "5 requests per second, cached 6 hours",
+    },
+    "site-readiness": {
+        "name": "AgentValCon Website Agent Readiness", "tool": "check_site_files", "contract": "website.ai_readiness.v1",
+        "description": "Read one public website's robots.txt, llms.txt and sitemap.xml: whether they exist, which AI "
+                       "crawlers robots.txt allows or blocks, and a simple readiness score; read-only.",
+        "sources": [SITE],
+        "rate": "0.3 s apart and at most 30 a minute per website, cached 6 hours; files robots.txt disallows are not read",
     },
 }
 

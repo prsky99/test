@@ -70,7 +70,7 @@ def agents(tmp_path, routes, calls=None, clock=None, snapshot=None):
 
 # ------------------------------------------------------------------ catalog and contracts
 def test_tools_are_read_only_and_use_the_slot_contracts():
-    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard"}
+    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard", "site-readiness"}
     for agent_id, spec in SPECS.items():
         tool = tool_spec(agent_id)
         c = contract(spec["contract"])
@@ -1119,3 +1119,53 @@ def test_scorecard_reads_the_repository_or_the_package_repository(tmp_path):
     with pytest.raises(FallbackUnavailable) as err:
         a.execute("scorecard", {"repo": "example.com/x"})
     assert err.value.code == "invalid_input"
+
+
+# ------------------------------------------------------------------ website readiness (public files only)
+ROBOTS = "User-agent: *\nAllow: /\n\nUser-agent: GPTBot\nDisallow: /\n\nUser-agent: AgentValCon-FallbackAgents\nDisallow: /sitemap.xml\n\nSitemap: https://www.example.org/sitemap.xml\n"
+
+
+def test_site_readiness_reads_files_respects_robots_and_scores(tmp_path):
+    calls = []
+    routes = {"https://example.org/robots.txt": httpx.Response(301, headers={"location": "https://www.example.org/robots.txt"}),
+              "https://www.example.org/robots.txt": httpx.Response(200, text=ROBOTS),
+              "https://example.org/llms.txt": httpx.Response(200, text="# Example\n\n- [Docs](https://example.org/docs)\n"),
+              "https://example.org/sitemap.xml": httpx.Response(200, text="<urlset><url><loc>x</loc></url></urlset>")}
+    a, _ = agents(tmp_path, routes, calls)
+    env = a.execute("site-readiness", {"domain": "https://Example.org/"})
+    out = env["result"]
+    assert out["domain"] == "example.org" and out["signals"]["robots_txt"] == {"present": True, "sitemaps_declared": 1}
+    assert out["signals"]["ai_crawlers"]["GPTBot"] == "blocked" and out["signals"]["ai_crawlers"]["ClaudeBot"] == "allowed (by the * rule)"
+    assert out["signals"]["llms_txt"] == {"present": True, "bytes": 46, "title": "Example", "links": 1}
+    assert out["signals"]["sitemap_xml"]["present"] is None, "robots.txt disallows it for our user agent: not read"
+    assert not any("sitemap.xml" in c for c in calls)
+    assert out["score"] == round(20 + 30 * 5 / 6 + 30, 1)
+
+
+def test_site_readiness_refuses_off_site_redirects_and_non_public_names(tmp_path):
+    routes = {"https://example.org/robots.txt": httpx.Response(302, headers={"location": "https://evil.example.net/robots.txt"}),
+              "https://example.org/llms.txt": httpx.Response(406),
+              "https://example.org/sitemap.xml": httpx.Response(404)}
+    calls = []
+    a, _ = agents(tmp_path, routes, calls)
+    out = a.execute("site-readiness", {"domain": "example.org"})["result"]
+    assert out["signals"]["robots_txt"] == {"present": False, "note": "redirects off the site"}
+    assert out["signals"]["llms_txt"] == {"present": False, "note": "HTTP 406"}
+    assert not any("evil" in c for c in calls)
+    for bad in ("localhost", "10.0.0.1", "intranet", "printer.local", "example.org:8443"):
+        with pytest.raises(FallbackUnavailable) as err:
+            a.execute("site-readiness", {"domain": bad})
+        assert err.value.code == "invalid_input"
+
+
+def test_site_requests_pass_the_public_address_preflight(monkeypatch):
+    clock = Clock()
+    seen = []
+    monkeypatch.setattr(net, "validate_public_url", lambda url: seen.append(url) or (_ for _ in ()).throw(
+        net.validate_public_url.__globals__.get("DiscoveryError", ValueError)("private")))
+    with pytest.raises(net.SourceError, match="public destination"):
+        net.get("https://rebinding.example.com/robots.txt", limiters=limiters(clock, clock.sleep), seconds=2, limit=10,
+                any_site=True)
+    assert seen == ["https://rebinding.example.com/robots.txt"]
+    with pytest.raises(net.SourceError, match="not allowed"):
+        net.get("https://127.0.0.1/robots.txt", limiters=limiters(clock, clock.sleep), seconds=2, limit=10, any_site=True)

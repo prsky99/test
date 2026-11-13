@@ -21,7 +21,7 @@ import time
 from collections import OrderedDict
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 import jsonschema
 
@@ -39,13 +39,14 @@ MAX_AGE = {"nvd-cve": 6 * 3600, "cve-org": 24 * 3600, "cisa-kev": 24 * 3600, "gi
            "sec-edgar": 24 * 3600, "wikipedia-summary": 24 * 3600, "arxiv-search": 48 * 3600,
            "worldbank-indicator": 24 * 3600, "met-weather": 3 * 3600,
            "public-holidays": 400 * 86400, "holiday-calendar": 400 * 86400, "sec-filings": 24 * 3600,
-           "software-incident": 6 * 3600, "scorecard": 24 * 3600}  # rules age from the library release; update the pin at least yearly
+           "software-incident": 6 * 3600, "scorecard": 24 * 3600, "site-readiness": 24 * 3600}  # rules age from the library release; update the pin at least yearly
 TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "github-advisory": (3600, 6 * 3600),
        "epss": (6 * 3600, 48 * 3600), "package-registry": (3600, 6 * 3600), "depsdev-package": (6 * 3600, 24 * 3600),
        "gleif-lei": (6 * 3600, 24 * 3600), "sec-edgar": (6 * 3600, 24 * 3600), "sec-tickers": (6 * 3600, 24 * 3600),
        "wikipedia-summary": (6 * 3600, 24 * 3600), "arxiv-search": (24 * 3600, 48 * 3600),
        "worldbank-indicator": (6 * 3600, 24 * 3600), "sec-filings": (3600, 24 * 3600),
-       "software-incident": (3600, 6 * 3600), "scorecard": (6 * 3600, 24 * 3600)}  # (serve from cache without asking, longest a cached copy may serve)
+       "software-incident": (3600, 6 * 3600), "scorecard": (6 * 3600, 24 * 3600),
+       "site-readiness": (6 * 3600, 24 * 3600)}  # (serve from cache without asking, longest a cached copy may serve)
 KEV_TTL, KEV_MAX_STALE = 3600, 24 * 3600
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 PACKAGE = re.compile(r"(?:@[a-z0-9][a-z0-9._~-]*/)?[A-Za-z0-9][A-Za-z0-9._~-]*")
@@ -845,6 +846,91 @@ class FallbackAgents:
         (out, as_of), cache = self._cached(("scorecard", project.lower()), TTL["scorecard"], live, remaining)
         return out, cache, False, {"OpenSSF Scorecard": as_of}
 
+    def _site_get(self, url, rem, domain):
+        """GET one public file; follow at most two redirects within the same site (the domain or its subdomains,
+        e.g. wikipedia.org -> www.wikipedia.org -> en.wikipedia.org). Every hop is checked as a public address."""
+        from urllib.parse import urljoin
+        root = domain[4:] if domain.startswith("www.") else domain
+
+        def same_site(host):
+            host = (host or "").lower()
+            return host == root or host.endswith("." + root)
+        for _ in range(3):
+            try:
+                response = get(url, limiters=self.limiters, http=self.http, seconds=max(0.1, min(2.0, rem() - 0.1)),
+                               limit=256 * 1024, accept="text/plain, application/xml, text/xml, */*",
+                               ok=tuple(range(200, 600)), any_site=True)
+            except (SourceBusy, SourceError) as exc:
+                return None, "could not read: " + str(exc)[:80]
+            if response.status_code in (301, 302, 303, 307, 308):
+                target = urljoin(url, response.headers.get("location") or "")
+                if urlsplit(target).scheme != "https" or not same_site(urlsplit(target).hostname):
+                    return None, "redirects off the site"
+                url = target
+                continue
+            if response.status_code != 200:
+                return None, f"HTTP {response.status_code}"
+            return response.text, None
+        return None, "too many redirects"
+
+    def _site_readiness(self, args, remaining):
+        from urllib.robotparser import RobotFileParser
+        from .catalog import USER_AGENT
+        from .net import site_host
+        domain = args["domain"].strip().lower().rstrip(".")
+        domain = re.sub(r"^https?://", "", domain).split("/")[0]
+        if not site_host(domain):
+            raise FallbackUnavailable("invalid_input", "Use a public domain name such as example.com.")
+
+        def live(rem):
+            base = f"https://{domain}"
+            signals = {}
+            robots, why = self._site_get(base + "/robots.txt", rem, domain)
+            signals["robots_txt"] = {"present": robots is not None, **({"note": why} if why else {})}
+            parser = RobotFileParser()
+            parser.parse((robots or "").splitlines())
+            if robots is not None:
+                bots = {}
+                for bot in AI_CRAWLERS:
+                    named = re.search(r"(?im)^\s*user-agent:\s*" + re.escape(bot) + r"\s*$", robots) is not None
+                    bots[bot] = ("allowed" if parser.can_fetch(bot, base + "/") else "blocked") + \
+                        ("" if named else " (by the * rule)")
+                signals["ai_crawlers"] = bots
+                maps = re.findall(r"(?im)^\s*sitemap:\s*(\S+)", robots)
+                signals["robots_txt"]["sitemaps_declared"] = len(maps)
+            for name, path in (("llms_txt", "/llms.txt"), ("sitemap_xml", "/sitemap.xml")):
+                if robots is not None and not parser.can_fetch(USER_AGENT, base + path):
+                    signals[name] = {"present": None, "note": "not read: robots.txt disallows it for our user agent"}
+                    continue
+                if rem() < 0.6:
+                    signals[name] = {"present": None, "note": "not read: time budget"}
+                    continue
+                body, why = self._site_get(base + path, rem, domain)
+                entry = {"present": body is not None, **({"note": why} if why else {})}
+                if body is not None and name == "llms_txt":
+                    title = next((ln.lstrip("# ").strip() for ln in body.splitlines() if ln.startswith("#")), "")
+                    entry.update(bytes=len(body.encode("utf-8")), title=_text(title, 120),
+                                 links=len(re.findall(r"\]\(https?://", body)))
+                if body is not None and name == "sitemap_xml":
+                    entry.update(kind="index" if "<sitemapindex" in body[:2000] else
+                                 "urlset" if "<urlset" in body[:2000] else "unrecognized",
+                                 entries_in_first_256kb=body.count("<loc>"))
+                    entry["present"] = entry["kind"] != "unrecognized"
+                signals[name] = entry
+            if all(str((signals.get(k) or {}).get("note", "")).startswith("could not read")
+                   for k in ("robots_txt", "llms_txt", "sitemap_xml")):
+                raise SourceError("The website did not answer.")
+            bots = signals.get("ai_crawlers") or {}
+            open_share = (sum(v.startswith("allowed") for v in bots.values()) / len(bots)) if bots else 1.0
+            score = round(20 * bool(signals["robots_txt"]["present"]) + 30 * open_share
+                          + 30 * bool((signals.get("llms_txt") or {}).get("present"))
+                          + 20 * bool((signals.get("sitemap_xml") or {}).get("present")), 1)
+            out = {"domain": domain, "signals": signals, "score": score,
+                   "source": f"{domain} public files (robots.txt, llms.txt, sitemap.xml)"}
+            return out, _now_iso(self.utc_now())
+        (out, as_of), cache = self._cached(("site-readiness", domain), TTL["site-readiness"], live, remaining)
+        return out, cache, False, {domain: as_of}
+
     # ---------------------------------------------------------------- usage
     def _usage(self, agent_id, envelope, code, started):
         line = {"at": _now_iso(self.utc_now()), "agent": agent_id if agent_id in SPECS else "unknown",
@@ -1081,6 +1167,8 @@ def country_name(code: str, countries: dict) -> str:
             return module.replace("_", " ").title()
     return code
 
+
+AI_CRAWLERS = ("GPTBot", "ClaudeBot", "anthropic-ai", "Google-Extended", "PerplexityBot", "CCBot")
 
 STOPWORDS = frozenset("a an and are as at be by for from in is it of on or the to with all you we our this that "
                       "using via towards".split())
