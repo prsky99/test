@@ -205,7 +205,9 @@ def test_browser_navigation_preserves_daily_home_metadata_and_layout(browser, da
         # 11-14: the Home panel is drawn at once from the page itself; only <head> metadata may wait for the JSON.
         assert page.locator('#daily-catalog-statistics').is_visible()
         assert len(page.locator('#secOverview').inner_text().strip()) > 200
-        page.wait_for_function('document.querySelector("meta[name=description]").content.includes("12,345")')
+        # 11-14: polling with a string predicate needs eval, which the page's CSP refuses; expect() does not.
+        from playwright.sync_api import expect
+        expect(page.locator('meta[name=description]')).to_have_attribute('content', re.compile('12,345'))
         assert page.locator('#daily-catalog-statistics').is_visible()
         REPORT.mkdir(exist_ok=True)
         label = 'root' if entry=='/' else 'from-explore'
