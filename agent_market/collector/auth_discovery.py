@@ -218,7 +218,8 @@ class AuthDiscoverer:
             # 연결은 되지만 도구 호출에서 인증 요구: 도구 호출 때 받은 오류 메시지로 판단
             status = None
             trial = json.loads(resource.get("trial_info") or "null") or {}
-            body = str(trial.get("error") or "")[:2000]
+            said = trial.get("sample_output") if asks_for_key(trial.get("sample_output")) else None
+            body = str(trial.get("error") or said or "")[:2000]
         www = parse_www_authenticate(resp.headers.get("www-authenticate"))
 
         prm, prm_url = None, None

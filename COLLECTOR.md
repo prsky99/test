@@ -378,10 +378,28 @@ real_task_score에서 호출 실패 3건이 같은 오류로 보였는데, 원�
   - 다음 두 문구는 키 없이도 쓸 수 있는 경우라 일부러 잡지 않는다.
     - "Send your API key to see saved keys"
     - "For more, get an API key at …"
-  - 이번 적용은 A2A만이다. MCP 12건은 MCP 쪽 연결이 필요해 따로 다룬다.
+  - MCP 12건은 PM 20:5x 지시로 이어서 연결했다(아래 MCP 항목).
 - 실데이터(61464, 20:41)
   - auth api_key / human_once, auth_required
   - 시험 ok False, key_required True
 - 재평가 부하
   - A2A 조사 주기(max_age 하루)에 따라 다시 조사될 때 반영된다. 평가 VERSION은 올리지 않았다.
   - 그래서 전체 22만 행을 재평가하는 부하는 없다.
+
+### MCP: 결과로 온 "API key required" (11-13, PM 20:5x)
+- 증상
+  - 키가 필요 없음(none 또는 미분류)으로 기록된 MCP 12개는 시험 호출의 답이 isError 없는 보통 결과였다.
+  - 그 답이 키를 요구했는데도 시험은 성공으로 기록됐다. 예: 'API Error: Status 403 (Forbidden). Response: {"message":"API Key is required"}'
+- 수정
+  - `capabilities._trial`: 결과가 `asks_for_key`에 걸리면 시험을 실패로 바꾸고 `key_required`를 남긴다. error에는 도구가 한 말을 그대로 둔다.
+    - 그러면 기존 도구 단계 인증 경로를 탄다(`mark_tool_level_auth` → 인증 조사).
+  - 새 시험 없이 다시 조사될 때도, 이 검사 전에 기록된 시험의 답이 키를 요구하면 같은 경로로 보낸다. 대상은 인증 방식이 none·unknown·미분류인 경우만이다.
+  - `AuthDiscoverer.discover`: 도구 단계 인증일 때 시험 error가 없으면, 키를 요구한 답을 근거 본문으로 쓴다.
+- 실데이터(20:46, 임시 저장소라 운영 DB 쓰기 없음)
+  - mcp.ludo.ai: getAccount ok False·key_required, 도구 단계, 인증 조사 결과 oauth2(OAuth 메타데이터 있음)
+  - disco.leap-labs.com: ok False, api_key
+  - supplymaven.com: ok False, api_key
+- 반영
+  - 시험 호출이 다시 될 때(도구 목록 변경, 또는 trial_max_age) 바뀐다.
+  - 다시 조사만 될 때는 기록된 시험으로 바뀐다.
+  - 평가 VERSION은 올리지 않았다.
