@@ -68,7 +68,8 @@ class OriginLimiter:
 
 
 def public_read(path):
-    return path in DOCUMENTS or path == '/api/explore' or path.startswith(PUBLIC_READS[1:])
+    from .sitemap_parts import is_part
+    return path in DOCUMENTS or is_part(path) or path == '/api/explore' or path.startswith(PUBLIC_READS[1:])
 
 
 def trusted_origins(public_origin):
@@ -183,7 +184,8 @@ class AgentHTTP:
                 **self.security_headers, 'Access-Control-Allow-Origin': '*',
                 'Access-Control-Allow-Methods': 'GET, HEAD', 'Access-Control-Allow-Headers': 'accept, content-type, if-none-match',
                 'Access-Control-Max-Age': '600'})(scope, receive, send)
-        head = method == 'HEAD' and (path in DOCUMENTS or path.startswith('/agents/category/'))
+        from .sitemap_parts import is_part
+        head = method == 'HEAD' and (path in DOCUMENTS or is_part(path) or path.startswith('/agents/category/'))
         if head:
             scope = {**scope, 'method': 'GET'}
 

@@ -13,18 +13,21 @@ import re
 import sys
 import time
 import urllib.request
-from xml.etree import ElementTree as ET
 
 ORIGIN = 'https://agentconcierge.biz'
 USER_AGENT = 'AgentConcierge-indexnow/1.0 (site owner)'
 
 
 def sitemap_urls(base=ORIGIN):
-    request = urllib.request.Request(base+'/sitemap.xml', headers={'User-Agent': USER_AGENT})
-    with urllib.request.urlopen(request, timeout=60) as response:
-        tree = ET.fromstring(response.read())
-    return [e.text.strip() for e in tree.iter('{http://www.sitemaps.org/schemas/sitemap/0.9}loc')
-            if e.text and e.text.startswith(ORIGIN+'/')]
+    from agent_market.concierge.sitemap_parts import expand
+
+    def get(url):  # 11-13: /sitemap.xml is an index of parts; only this site's addresses are followed
+        if not url.startswith(base + '/'):
+            return ''
+        request = urllib.request.Request(url, headers={'User-Agent': USER_AGENT})
+        with urllib.request.urlopen(request, timeout=60) as response:
+            return response.read().decode()
+    return [u for u in expand(get, base + '/sitemap.xml') if u.startswith(ORIGIN + '/')]
 
 
 def live_key(key, base=ORIGIN):

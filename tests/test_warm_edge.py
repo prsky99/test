@@ -46,7 +46,7 @@ def test_growth_only_skips_the_live_pages(monkeypatch):
     except SystemExit as done:
         assert done.code == 0
     paths = [u.replace(warm_edge.BASE, '') for u in asked]
-    assert paths[0] == '/sitemap.xml' and '/reports/weekly' in paths
+    assert paths[0] == '/sitemaps/pages.xml' and '/reports/weekly' in paths
     assert not any(p in warm_edge.PAGES for p in paths[1:])
 
 

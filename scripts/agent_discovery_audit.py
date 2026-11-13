@@ -6,7 +6,6 @@ import re
 import time
 from pathlib import Path
 from urllib.parse import urlsplit
-from xml.etree import ElementTree
 
 import httpx
 from jsonschema import Draft202012Validator, SchemaError
@@ -43,10 +42,12 @@ class Audit:
         if sitemap.status_code != 200:
             self.record('documents:sitemap', False, http=sitemap.status_code)
             return
-        # Follow only local category paths, even if the XML advertises another host.
-        root = ElementTree.fromstring(sitemap.content)
-        paths = sorted({urlsplit(loc.text or '').path for loc in root.iter(
-            '{http://www.sitemaps.org/schemas/sitemap/0.9}loc') if loc.text and '/agents/category/' in loc.text})
+        # Follow only local category paths, even if the XML advertises another host. 11-13: /sitemap.xml is an
+        # index; its parts are read through the same client.
+        from agent_market.concierge.sitemap_parts import expand
+        locs = expand(lambda url: sitemap.text if urlsplit(url).path == '/sitemap.xml'
+                      else self.request('GET', urlsplit(url).path).text, '/sitemap.xml')
+        paths = sorted({urlsplit(loc).path for loc in locs if '/agents/category/' in loc})
         for path in [p for p in paths if re.fullmatch(r'/agents/category/[a-z_]+', p)][:30]:
             response = self.request('GET', path)
             self.record('documents:category:' + path, response.status_code == 200, http=response.status_code)

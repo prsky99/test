@@ -64,7 +64,9 @@ def test_every_visitor_gets_the_same_bytes_and_no_cookie(client, path):
         assert r.status_code == 200 and r.headers['content-type'].startswith('text/html')
         assert 'set-cookie' not in r.headers
         # Live pages may sit at the edge; the policy and design-sample pages stay no-store (and noindex).
-        expected = 'no-store' if path.endswith(('privacy.html', 'disclosures.html')) else 'public, max-age=300, stale-while-revalidate=86400'
+        # 11-13 PM 20:5x: the notice pages are shared too, but only for a request without cookies or credentials.
+        notice = path.endswith(('privacy.html', 'disclosures.html'))
+        expected = 'no-store' if notice and extra else 'public, max-age=300, stale-while-revalidate=86400'
         assert r.headers['cache-control'] == expected
         bodies.append(r.text)
     assert all(body == bodies[0] for body in bodies[1:]), 'the HTML depends on who asks'

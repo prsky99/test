@@ -25,6 +25,33 @@ ALWAYS = re.compile(r'^\s*(?::root|html|body)\b[^{]*\{', re.I)
 KEEP_AT = ('@font-face', '@keyframes', '@-webkit-keyframes', '@property', '@counter-style', '@layer')
 MAX_GZIP = 20 * 1024
 PASSES = 2
+# 11-13 (PM 14 KB task A): keep a used rule only when it matches an element that starts above the fold (in the first
+# viewport, or moved off it upwards or sideways like the skip link), or an element without a box (hidden, a closed
+# menu) whose nearest boxed ancestor does. Rules used only below
+# the fold arrive with the full bundle, which loads without blocking the first paint. The whole-page set was
+# 15.7-17.1 KB gzip, more than the TCP first flight (reports/page-body-time-2026-11-13). Off by default
+# (--first-viewport): it saved only 0.8-1.9 KB, and data-dependent cards near the fold (explore MCP cards) and
+# two home elements still differed from the full CSS in tests/test_critical_css_browser.py.
+FIRST_VIEWPORT = """sels => {
+  const H = innerHeight, keep = [];
+  const near = el => { for (let a = el; a; a = a.parentElement) { const r = a.getBoundingClientRect();
+    if (r.width || r.height) return r.top < H; } return true; };  // above or beside the screen (a skip link) stays
+  const strip = s => s.replace(/::?(?:before|after|placeholder|marker|selection|first-letter|first-line|backdrop|file-selector-button|-webkit-[\\w-]+|-moz-[\\w-]+)/g, '')
+    .replace(/:(?:hover|focus-visible|focus-within|focus|active|visited|link|target|checked|disabled|enabled|invalid|valid|placeholder-shown|autofill|default|indeterminate|required|optional|read-only|read-write|popover-open|open)(?![\\w-])/g, '');
+  const parts = s => { const out = []; let depth = 0, cur = '';
+    for (const ch of s) { if (ch === '(') depth++; if (ch === ')') depth--; if (ch === ',' && !depth) { out.push(cur); cur = ''; } else cur += ch; }
+    out.push(cur); return out; };
+  for (const sel of sels) {
+    let ok = false;
+    for (const part of parts(sel)) {
+      const q = strip(part).trim() || '*';
+      let found; try { found = document.querySelectorAll(q); } catch (e) { ok = true; break; }  // not testable: keep
+      for (const el of found) { if (!el.closest('template') && near(el)) { ok = true; break; } }
+      if (ok) break;
+    }
+    if (ok) keep.push(sel);
+  }
+  return keep; }"""
 
 
 def blocks(css, i=0, n=None):
@@ -115,7 +142,7 @@ def critical(css, used_ranges, dom=frozenset(), scripted=frozenset()):
     return absolute_urls('\n'.join(x for x in (keep(item) for item in blocks(css)) if x) + '\n')
 
 
-def collect(base, page, local=None):
+def collect(base, page, local=None, whole_page=False):
     from playwright.sync_api import sync_playwright
     used, sheet, dom, script_text = set(), None, set(), ''
     with sync_playwright() as p:
@@ -149,12 +176,18 @@ def collect(base, page, local=None):
                 if not script_text:
                     src = pg.evaluate("(document.querySelector('script[src*=bundle]') || {}).src || ''")
                     script_text = pg.evaluate('async u => u ? (await fetch(u)).text() : ""', src)
+                found = []
                 for rule in cdp.send('CSS.stopRuleUsageTracking')['ruleUsage']:
                     if not rule['used'] or 'bundle.css' not in urls.get(rule['styleSheetId'], ''):
                         continue
                     if sheet is None:
                         sheet = cdp.send('CSS.getStyleSheetText', {'styleSheetId': rule['styleSheetId']})['text']
-                    used.add((int(rule['startOffset']), int(rule['endOffset'])))
+                    found.append((int(rule['startOffset']), int(rule['endOffset'])))
+                if not whole_page and sheet:
+                    prelude = {r: sheet[r[0]:r[1]].split('{', 1)[0].strip() for r in found}
+                    near = set(pg.evaluate(FIRST_VIEWPORT, sorted(set(prelude.values()))))
+                    found = [r for r in found if prelude[r] in near]
+                used.update(found)
                 ctx.close()
         browser.close()
     scripted = set(re.findall(r'[\'"`\s.#]([_a-zA-Z][\w-]{1,60})(?=[\'"`\s.#,:\[\])])', script_text))
@@ -188,6 +221,10 @@ def main():
     parser.add_argument('--base', help='a running frontend (the active slot), never a public URL')
     parser.add_argument('--local', action='store_true',
                         help='serve /new/en/ from this working tree and read live data from the public API')
+    parser.add_argument('--first-viewport', action='store_true',
+                        help='only rules for elements above the fold (11-13 trial: 0.8-1.9 KB gzip less; not yet equal '
+                             'on data-dependent cards, see reports/page-body-time-2026-11-13)')
+    parser.add_argument('--pages', nargs='*', help='only these live pages (e.g. index.html chat.html)')
     args = parser.parse_args()
     if not args.base and not args.local:
         parser.error('give --base or --local')
@@ -197,7 +234,9 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
     report = {}
     for page in sorted(manifest['live_pages']):
-        sheet, used, dom, scripted = collect(base, page, local)
+        if args.pages and page not in args.pages:
+            continue
+        sheet, used, dom, scripted = collect(base, page, local, not args.first_viewport)
         if not sheet:
             report[page] = 'no bundle stylesheet seen'
             continue

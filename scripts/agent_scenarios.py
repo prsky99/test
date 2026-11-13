@@ -109,7 +109,11 @@ def crawler(R):
     R.check(k, "AI 수집기 UA를 막지 않음", all(s == 200 for s, _ in sizes.values()), json.dumps(sizes))
     if not sitemap:
         return
-    locs = re.findall(r"<loc>([^<]+)</loc>", R.get(sitemap.group(1)).text)
+    text = R.get(sitemap.group(1)).text
+    if "<sitemapindex" in text:  # 11-13: an index; a crawler reads the public pages part (agents parts: ~9,000 URLs)
+        parts = re.findall(r"<loc>([^<]+)</loc>", text)
+        text = R.get(next((p for p in parts if p.endswith("/sitemaps/pages.xml")), parts[0])).text
+    locs = re.findall(r"<loc>([^<]+)</loc>", text)
     bad, thin, words = [], [], {}
     for u in locs:
         path = u.replace(R.base, "") or "/"

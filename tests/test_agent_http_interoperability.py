@@ -25,11 +25,9 @@ def test_document_head_agrees_with_get_without_body(catalog, path):
 
 
 def test_sitemap_categories_remain_pages_when_evidence_changes(catalog):
-    from xml.etree import ElementTree
     _, _, client, _, _ = catalog
-    tree = ElementTree.fromstring(client.get('/sitemap.xml').text)
-    paths = [x.text.split('https://agentconcierge.biz', 1)[-1]
-        for x in tree.iter('{http://www.sitemaps.org/schemas/sitemap/0.9}loc') if '/agents/category/' in x.text]
+    from tests.test_sitemap_parts import sitemap_locs
+    paths = [x.split('https://agentconcierge.biz', 1)[-1] for x in sitemap_locs(client) if '/agents/category/' in x]
     assert paths
     for path in paths:
         for method in ('get', 'head'):

@@ -84,7 +84,8 @@ def main(argv=None):
     rows, assets = [], set()
     try:
         with httpx.Client(timeout=30, headers={k: v for k, v in HEADERS.items() if k != 'Accept'}) as client:
-            growth = growth_paths(client.get(BASE + '/sitemap.xml').text)
+            # 11-13: /sitemap.xml is an index; the category and weekly pages are in its pages part
+            growth = growth_paths(client.get(BASE + '/sitemaps/pages.xml').text)
     except httpx.HTTPError:
         growth = []
     for path in growth:
