@@ -1,0 +1,271 @@
+{
+ "split": "tuning",
+ "agents": {
+  "wikipedia-summary": {
+   "summary": {
+    "cases": 25,
+    "passed": 25,
+    "not_applicable": 0,
+    "not_run": 5,
+    "errors": {},
+    "p50_ms": 494,
+    "p95_ms": 525,
+    "gold_sha256": "b504a5e59c5757cc1e4658fe036fbd350fe33a48e5e0a682ab534c026846e17e",
+    "gold_created_at": "2026-11-13T20:29:55Z"
+   },
+   "cases": [
+    {
+     "case_id": "topic:Radiocarbon dating",
+     "stratum": "society",
+     "ms": 485,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "Radiocarbon dating",
+     "want": "Radiocarbon dating"
+    },
+    {
+     "case_id": "topic:Digital divide",
+     "stratum": "society",
+     "ms": 491,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "Digital divide",
+     "want": "Digital divide"
+    },
+    {
+     "case_id": "topic:Gig economy",
+     "stratum": "society",
+     "ms": 519,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "Gig economy",
+     "want": "Gig economy"
+    },
+    {
+     "case_id": "topic:Game theory",
+     "stratum": "society",
+     "ms": 496,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "Game theory",
+     "want": "Game theory"
+    },
+    {
+     "case_id": "topic:Food security",
+     "stratum": "society",
+     "ms": 471,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "Food security",
+     "want": "Food security"
+    },
+    {
+     "case_id": "topic:Minimum wage",
+     "stratum": "society",
+     "ms": 509,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "Minimum wage",
+     "want": "Minimum wage"
+    },
+    {
+     "case_id": "topic:Mental health",
+     "stratum": "society",
+     "ms": 518,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "Mental health",
+     "want": "Mental health"
+    },
+    {
+     "case_id": "topic:International migration",
+     "stratum": "society",
+     "ms": 500,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "International migration",
+     "want": "International migration"
+    },
+    {
+     "case_id": "topic:Remote work",
+     "stratum": "society",
+     "ms": 546,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "Remote work",
+     "want": "Remote work"
+    },
+    {
+     "case_id": "topic:Sustainable tourism",
+     "stratum": "society",
+     "ms": 525,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "Sustainable tourism",
+     "want": "Sustainable tourism"
+    },
+    {
+     "case_id": "topic:Superconductivity",
+     "stratum": "stem",
+     "ms": 494,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "Superconductivity",
+     "want": "Superconductivity"
+    },
+    {
+     "case_id": "topic:Perovskite solar cell",
+     "stratum": "stem",
+     "ms": 487,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "Perovskite solar cell",
+     "want": "Perovskite solar cell"
+    },
+    {
+     "case_id": "topic:Reinforcement learning",
+     "stratum": "stem",
+     "ms": 481,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "Reinforcement learning",
+     "want": "Reinforcement learning"
+    },
+    {
+     "case_id": "topic:Malaria",
+     "stratum": "stem",
+     "ms": 494,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "Malaria",
+     "want": "Malaria"
+    },
+    {
+     "case_id": "topic:Graph neural network",
+     "stratum": "stem",
+     "ms": 507,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "Graph neural network",
+     "want": "Graph neural network"
+    },
+    {
+     "case_id": "topic:Obesity",
+     "stratum": "stem",
+     "ms": 509,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "Obesity",
+     "want": "Obesity"
+    },
+    {
+     "case_id": "topic:Sleep deprivation",
+     "stratum": "stem",
+     "ms": 500,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "Sleep deprivation",
+     "want": "Sleep deprivation"
+    },
+    {
+     "case_id": "topic:Climate change",
+     "stratum": "stem",
+     "ms": 476,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "Climate change",
+     "want": "Climate change"
+    },
+    {
+     "case_id": "topic:Internet of things",
+     "stratum": "stem",
+     "ms": 506,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "Internet of things",
+     "want": "Internet of things"
+    },
+    {
+     "case_id": "topic:Intrusion detection system",
+     "stratum": "stem",
+     "ms": 493,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "Intrusion detection system",
+     "want": "Intrusion detection system"
+    },
+    {
+     "case_id": "topic:Zika virus",
+     "stratum": "stem",
+     "ms": 497,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "Zika virus",
+     "want": "Zika virus"
+    },
+    {
+     "case_id": "topic:Self-driving car",
+     "stratum": "stem",
+     "ms": 479,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "Self-driving car",
+     "want": "Self-driving car"
+    },
+    {
+     "case_id": "topic:Hydrogen fuel cell",
+     "stratum": "stem",
+     "ms": 472,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "Fuel cell",
+     "want": "Fuel cell"
+    },
+    {
+     "case_id": "topic:Plate tectonics",
+     "stratum": "stem",
+     "ms": 477,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "Plate tectonics",
+     "want": "Plate tectonics"
+    },
+    {
+     "case_id": "topic:Stem cell",
+     "stratum": "stem",
+     "ms": 482,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "Stem cell",
+     "want": "Stem cell"
+    }
+   ]
+  }
+ },
+ "at": "2026-11-14T06:51:05+0900"
+}

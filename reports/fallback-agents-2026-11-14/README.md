@@ -264,21 +264,22 @@
 - 첫 실제 회차(11-14 06:2x): 실패 에이전트 0, 스냅샷 모두 상한 안, **GitHub 무인증 한도 0/60 소진 경보**(이 맥 IP를 여러 팀이 공유; 06:36 KST 리셋). 토큰 같은 자격 증명은 쓰지 않습니다(PM 지시) → 6시간 캐시로 버팀.
 - 만들다 고친 버그 둘: 같은 날짜 파일을 두 번 읽어 수가 두 배가 되던 것, 정상 거절(not_found)까지 실패로 세던 것.
 
-## 5-5. 회사·주제 정답 세트 측정 (11-14 06:3x, 워크플로우 cbe79aa1·38fb9a2b)
+## 5-5. 회사·주제 정답 세트 측정 (11-14 06:3x~06:5x, 워크플로우 cbe79aa1·38fb9a2b)
 
 워크플로우가 만든 company-due-diligence(30건)와 topic-evidence-brief(30건) 조정(tuning) 세트로 gleif-lei·sec-edgar·wikipedia-summary를 처음 쟀습니다. 보류(holdout) 세트는 열지 않았습니다.
 
 - **회사 이름 3단계 맞추기**: 정답 세트 입력은 "Allianz", "ASML", "Nestle"처럼 짧은 이름이고, 기록은 "Allianz SE", "ASML Holding N.V.", "Nestlé S.A."입니다. 정확히 같은 이름만 받던 규칙으로는 틀립니다. 그래서 ① 정확히 같은 이름 → ② 법인 형태(SE·S.A.·N.V.·P.L.C.·Aktiengesellschaft 등)와 악센트를 뺀 이름 → ③ 맨 끝의 Holding·Group도 뺀 이름 순서로, **가장 엄격한 단계에서 하나만 맞을 때만** 답합니다. 같은 단계에서 두 개 이상 맞으면 추측하지 않고 not_found(나라나 정식 이름을 더 달라는 안내)로 답합니다. GLEIF는 발급(ISSUED) LEI를 우선합니다. SEC 색인도 같은 3단계입니다.
 - **채점**: GLEIF는 정답에 LEI가 있는 사례만(11건), SEC는 CIK가 있는 사례만(24건) 셉니다. 원천이 답할 수 없는 사례는 호출하지 않고 "해당 없음"으로 둡니다. Wikipedia는 정답의 위키 제목과 같은지 봅니다(입력 topic → title).
 
-| 에이전트 | 잰 사례 | 통과 | 응답 시간 | 남은 사례 |
+| 에이전트 | 잰 사례 | 통과 | 응답 시간(p50, 성공) | 비고 |
 |---|---|---|---|---|
-| gleif-lei | 5 (Allianz, ASML, Siemens, Nestle, Deutsche Bank) | 5/5 | 0.8~2.7초 | 6 |
-| sec-edgar | 4 | 4/4 | 0.04~0.33초 | 20 |
-| wikipedia-summary | 5 | 5/5 | 0.47초 | 25 |
+| gleif-lei | 11 (LEI가 있는 사례 전부: 미국 밖 6, 미국 5) | **10/11** | 0.7~2.7초(10건 중 8건 1초 안) | BP 1건은 GLEIF 응답이 3.2초 걸려 시간 한도 안에 못 받아 source_unavailable. 바로 다시 부르니 1.4초에 정답 LEI. 규칙 문제가 아니라 원천 지연이라 그대로 실패로 셈 |
+| sec-edgar | 24 (CIK가 있는 사례 전부) | **24/24** | 0.24초 | |
+| wikipedia-summary | 30 | **30/30** | 0.49초 | |
 
-- 결과 파일: `gold-company-gleif-tuning.json`·`-b.json`, `gold-company-sec-tuning.json`, `gold-topic-wikipedia-tuning.json`·`-b.json`
-- **모두 재지 못한 이유 = 공용 시험 예산**: 자체 대체 시험 몫(`substitute_tests`)은 도메인당 하루 5회라, 오늘은 sec.gov 5/5, gleif.org 5/5, wikipedia.org 5/5를 다 썼습니다. 이 몫은 외부 제공자를 보호하려고 정한 것인데, GLEIF(분당 60회)·SEC(초당 10회)·Wikimedia 같은 공개 데이터 기관에도 똑같이 적용돼 조정 세트 30건을 재는 데 6일이 걸립니다. 운영·SRE와 PM에 몫 조정을 물었습니다(공개 데이터 기관에 한해 자체 시험 몫 30). 결정 전에는 `gold_check --offset N --limit M`으로 날마다 몫 안에서 이어 잽니다.
+- 결과 파일: `gold-company-gleif-tuning{,-b,-c}.json`, `gold-company-sec-tuning{,-c}.json`, `gold-topic-wikipedia-tuning{,-b,-c}.json`(한 세트를 하루 몫에 맞춰 나눠 잼)
+- **시험 몫**: 처음엔 자체 대체 시험 몫(`substitute_tests`)이 도메인당 하루 5회라 5건씩만 잴 수 있었습니다. PM 결정(11-14 06:4x)으로 공개 데이터 기관(gleif.org·sec.gov·nist.gov·cisa.gov·wikipedia.org·wikidata.org·wiktionary.org)에 한해 30회가 됐고, 운영·SRE가 장부에 반영했습니다(119725d6). 도메인당 하루 합계 60, github.com 제외, 기관별 속도 상한 준수, 측정 시간(:55~:10, 03:50~05:10)에는 재지 않음(0de007c2)이 조건입니다.
+- 다음: 보류(holdout) 세트 판정은 운영·SRE 관문에서 합니다.
 
 ## 6. 시험·재현
 

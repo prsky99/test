@@ -1,0 +1,295 @@
+{
+ "split": "tuning",
+ "agents": {
+  "sec-edgar": {
+   "summary": {
+    "cases": 20,
+    "passed": 20,
+    "not_applicable": 6,
+    "not_run": 4,
+    "errors": {},
+    "p50_ms": 241,
+    "p95_ms": 456,
+    "gold_sha256": "9f2ff07de5bd02b060c30edbd5fba26e0e866aa5610466803158a2289e47b586",
+    "gold_created_at": "2026-11-13T20:18:29Z"
+   },
+   "cases": [
+    {
+     "case_id": "DE:529900K9B0N5BT694847",
+     "stratum": "non_us",
+     "ms": 0,
+     "error": null,
+     "cache": null,
+     "pass": null,
+     "applicable": false
+    },
+    {
+     "case_id": "NL:724500Y6DUVHQD6OXN27",
+     "stratum": "non_us",
+     "ms": 0,
+     "error": null,
+     "cache": null,
+     "pass": null,
+     "applicable": false
+    },
+    {
+     "case_id": "DE:W38RGI023J3WT1HWRP32",
+     "stratum": "non_us",
+     "ms": 0,
+     "error": null,
+     "cache": null,
+     "pass": null,
+     "applicable": false
+    },
+    {
+     "case_id": "CH:KY37LUS27QQX7BB93L28",
+     "stratum": "non_us",
+     "ms": 0,
+     "error": null,
+     "cache": null,
+     "pass": null,
+     "applicable": false
+    },
+    {
+     "case_id": "DE:7LTWFZYICNSX8D621K86",
+     "stratum": "non_us",
+     "ms": 0,
+     "error": null,
+     "cache": null,
+     "pass": null,
+     "applicable": false
+    },
+    {
+     "case_id": "GB:213800LH1BZH3DI6G760",
+     "stratum": "non_us",
+     "ms": 0,
+     "error": null,
+     "cache": null,
+     "pass": null,
+     "applicable": false
+    },
+    {
+     "case_id": "US:CIK96223",
+     "stratum": "us",
+     "ms": 456,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "applicable": true,
+     "got": "96223",
+     "want": "96223"
+    },
+    {
+     "case_id": "US:CIK57515",
+     "stratum": "us",
+     "ms": 343,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "applicable": true,
+     "got": "57515",
+     "want": "57515"
+    },
+    {
+     "case_id": "US:CIK39020",
+     "stratum": "us",
+     "ms": 61,
+     "error": null,
+     "cache": "fresh_cache",
+     "pass": true,
+     "applicable": true,
+     "got": "39020",
+     "want": "39020"
+    },
+    {
+     "case_id": "US:CIK71508",
+     "stratum": "us",
+     "ms": 315,
+     "error": null,
+     "cache": "fresh_cache",
+     "pass": true,
+     "applicable": true,
+     "got": "71508",
+     "want": "71508"
+    },
+    {
+     "case_id": "US:CIK63330",
+     "stratum": "us",
+     "ms": 47,
+     "error": null,
+     "cache": "fresh_cache",
+     "pass": true,
+     "applicable": true,
+     "got": "63330",
+     "want": "63330"
+    },
+    {
+     "case_id": "US:CIK32621",
+     "stratum": "us",
+     "ms": 560,
+     "error": null,
+     "cache": "fresh_cache",
+     "pass": true,
+     "applicable": true,
+     "got": "32621",
+     "want": "32621"
+    },
+    {
+     "case_id": "US:CIK86115",
+     "stratum": "us",
+     "ms": 372,
+     "error": null,
+     "cache": "fresh_cache",
+     "pass": true,
+     "applicable": true,
+     "got": "86115",
+     "want": "86115"
+    },
+    {
+     "case_id": "US:CIK28917",
+     "stratum": "us",
+     "ms": 408,
+     "error": null,
+     "cache": "fresh_cache",
+     "pass": true,
+     "applicable": true,
+     "got": "28917",
+     "want": "28917"
+    },
+    {
+     "case_id": "US:CIK49826",
+     "stratum": "us",
+     "ms": 63,
+     "error": null,
+     "cache": "fresh_cache",
+     "pass": true,
+     "applicable": true,
+     "got": "49826",
+     "want": "49826"
+    },
+    {
+     "case_id": "US:CIK71557",
+     "stratum": "us",
+     "ms": 359,
+     "error": null,
+     "cache": "fresh_cache",
+     "pass": true,
+     "applicable": true,
+     "got": "71557",
+     "want": "71557"
+    },
+    {
+     "case_id": "US:CIK1750",
+     "stratum": "us",
+     "ms": 240,
+     "error": null,
+     "cache": "fresh_cache",
+     "pass": true,
+     "applicable": true,
+     "got": "1750",
+     "want": "1750"
+    },
+    {
+     "case_id": "US:CIK97745",
+     "stratum": "us",
+     "ms": 222,
+     "error": null,
+     "cache": "fresh_cache",
+     "pass": true,
+     "applicable": true,
+     "got": "97745",
+     "want": "97745"
+    },
+    {
+     "case_id": "US:CIK91440",
+     "stratum": "us",
+     "ms": 231,
+     "error": null,
+     "cache": "fresh_cache",
+     "pass": true,
+     "applicable": true,
+     "got": "91440",
+     "want": "91440"
+    },
+    {
+     "case_id": "US:CIK84839",
+     "stratum": "us",
+     "ms": 55,
+     "error": null,
+     "cache": "fresh_cache",
+     "pass": true,
+     "applicable": true,
+     "got": "84839",
+     "want": "84839"
+    },
+    {
+     "case_id": "US:CIK40211",
+     "stratum": "us",
+     "ms": 73,
+     "error": null,
+     "cache": "fresh_cache",
+     "pass": true,
+     "applicable": true,
+     "got": "40211",
+     "want": "40211"
+    },
+    {
+     "case_id": "US:CIK4281",
+     "stratum": "us",
+     "ms": 58,
+     "error": null,
+     "cache": "fresh_cache",
+     "pass": true,
+     "applicable": true,
+     "got": "4281",
+     "want": "4281"
+    },
+    {
+     "case_id": "US:CIK89800",
+     "stratum": "us",
+     "ms": 242,
+     "error": null,
+     "cache": "fresh_cache",
+     "pass": true,
+     "applicable": true,
+     "got": "89800",
+     "want": "89800"
+    },
+    {
+     "case_id": "US:CIK76282",
+     "stratum": "us",
+     "ms": 325,
+     "error": null,
+     "cache": "fresh_cache",
+     "pass": true,
+     "applicable": true,
+     "got": "76282",
+     "want": "76282"
+    },
+    {
+     "case_id": "US:CIK14177",
+     "stratum": "us",
+     "ms": 66,
+     "error": null,
+     "cache": "fresh_cache",
+     "pass": true,
+     "applicable": true,
+     "got": "14177",
+     "want": "14177"
+    },
+    {
+     "case_id": "US:CIK67215",
+     "stratum": "us",
+     "ms": 332,
+     "error": null,
+     "cache": "fresh_cache",
+     "pass": true,
+     "applicable": true,
+     "got": "67215",
+     "want": "67215"
+    }
+   ]
+  }
+ },
+ "at": "2026-11-14T06:50:40+0900"
+}
