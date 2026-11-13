@@ -146,14 +146,14 @@ def test_listing_text_is_escaped(client):
 
 def test_stale_or_missing_snapshot_leaves_the_sitemap(client):
     c, folder = client
-    assert g.sitemap_paths() == ['/connect']
+    assert g.sitemap_paths() == ['/methodology', '/methodology/changelog', '/connect']
     assert c.get('/agents/tasks').status_code == 200  # still a page, with a fallback
     write(folder, snapshot())
     paths = g.sitemap_paths()
-    assert paths[:3] == ['/connect', '/agents/tasks', '/agents/task/weather-forecast']
+    assert paths[2:5] == ['/connect', '/agents/tasks', '/agents/task/weather-forecast']  # after /methodology (11-14)
     assert '/agent/1' in paths and '/agent/2' in paths and '/agent/4' not in paths  # agents from task pages get pages too
     write(folder, snapshot(captured=datetime.now(timezone.utc)-timedelta(days=30)))
-    assert g.sitemap_paths() == ['/connect']
+    assert g.sitemap_paths() == ['/methodology', '/methodology/changelog', '/connect']
     assert 'noindex' in c.get('/agents/task/weather-forecast').text
 
 

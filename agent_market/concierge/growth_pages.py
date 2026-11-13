@@ -209,7 +209,8 @@ def sitemap_paths(snapshot=None):
     """Only pages with evidence: the connect guide, and task pages from a fresh snapshot."""
     snapshot = SNAPSHOT.read() if snapshot is None else snapshot
     from .necklace_surface import sitemap_paths as necklace_paths  # 11-14 PM: offered necklaces come first
-    paths = necklace_paths() + ['/connect']
+    from .methodology_page import sitemap_paths as method_paths  # 11-14 PM super-gap 1
+    paths = necklace_paths() + method_paths() + ['/connect']
     if fresh(snapshot) and snapshot['tasks']:
         paths.append('/agents/tasks')
         paths += ['/agents/task/'+t['slug'] for t in snapshot['tasks']]
@@ -619,4 +620,6 @@ def growth_router(store=None):
                           ('/.well-known/mcp/server-card.json', '/.well-known/mcp/server.json')):
         router.add_api_route(alias, moved(target), methods=['GET', 'HEAD'], include_in_schema=False)
 
+    from .methodology_page import methodology_router  # 11-14 PM super-gap 1: in the sitemap with these pages
+    router.include_router(methodology_router())
     return router

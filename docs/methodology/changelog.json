@@ -1,0 +1,10 @@
+[
+  {
+    "version": "v1",
+    "date": "2026-11-14",
+    "changes": [
+      "First public version: candidates, how a test runs, the score out of 100, verified and final pearls, the necklace gate, 32 roles and limits.",
+      "Necklace gate values are pending until the gate exposes its constants."
+    ]
+  }
+]
