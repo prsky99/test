@@ -17,7 +17,8 @@ def test_the_page_shows_the_generated_numbers_and_no_promise_words():
     text = re.sub(r'<[^>]+>', ' ', value)
     for expected in ('scores 85 or more on 2 different days', 'Score (out of 100)', 'Tests per day', '120',
                      'up to 1000 ms: 10 points', 'Roles (' + str(len(data['roles'])) + ')', 'airport.lookup.v1',
-                     'values pending', 'Changelog', 'Machine-readable (JSON)'):
+                     'necklace · pass total', 'necklace · held out cases', 'report v2 · musts', 'Changelog',
+                     'Machine-readable (JSON)'):
         assert expected in text or expected in value, expected
     for word in ('guaranteed', 'Guaranteed', '#1', ' best '):
         assert word not in text, word
