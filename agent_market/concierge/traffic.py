@@ -296,6 +296,7 @@ class Traffic:
         self.funnel = Counter()        # "recommend|surface|class|all|ok", "connect|class|...", "execute|class|..." (11-12)
         self.funnel_sets = defaultdict(set)  # "recommend|class" clients, "connect|class" / "execute|class" (client, agent) pairs
         self.home_accept = Counter()   # "class|accept kind|served kind" for GET / (11-14 PM, search C)
+        self.recommended = {}          # salted client digest -> surfaces that recommended to it today (memory only)
 
     def observe(self, method, path, status, ip, ua, body=None, headers=None, response_headers=None, cause=None,
                 gateway=None):
@@ -369,6 +370,8 @@ class Traffic:
             bucket = self.funnel_sets['recommend|' + cls]
             if len(bucket) < 50_000:
                 bucket.add(digest)
+            if digest in self.recommended or len(self.recommended) < 50_000:
+                self.recommended.setdefault(digest, set()).add(surface)
         # /api/gateway/* connections and executions, and the in-session MCP 'call' tool on /mcp (11-12 PM)
         if entry in ('gateway', 'mcp') and isinstance(gateway, dict) and gateway.get('step') in ('connect', 'execute'):
             step, done = gateway['step'], bool(gateway.get('ok')) and ok
@@ -378,6 +381,12 @@ class Traffic:
                 bucket = self.funnel_sets[step + '|' + cls]
                 if len(bucket) < 50_000:
                     bucket.add(digest + str(gateway.get('rid')).encode())
+                # 11-14 (growth plan 7, item 1): which surface's recommendation the connection or execution
+                # followed, for the same client (same salted digest) on the same day; 'none' when it had none.
+                for origin in sorted(self.recommended.get(digest) or ('none',)):
+                    follow = self.funnel_sets['follow|' + origin + '|' + step + '|' + cls]
+                    if len(follow) < 50_000:
+                        follow.add(digest + str(gateway.get('rid')).encode())
 
     def note(self, key):
         """Count one internal event of the day in the funnel section, such as 'edge_fallback|handshake' (11-12 PM:

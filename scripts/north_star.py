@@ -54,6 +54,13 @@ def from_funnel(files):
                             'ok': counts.get('connect|' + cls + '|ok', 0)},
                 'execute': {'pairs': distinct.get('execute|' + cls, 0), 'attempts': counts.get('execute|' + cls + '|attempt', 0),
                             'ok': counts.get('execute|' + cls + '|ok', 0)}} for cls in CLASSES}
+    # 11-14 (growth plan 7, item 1): connections and executions by the surface whose recommendation the same
+    # client (same salted digest, same day) had received; 'none' = it came without one.
+    for key, value in distinct.items():
+        parts = key.split('|')
+        if parts[0] == 'follow' and len(parts) == 4 and parts[3] in by:
+            block = by[parts[3]].setdefault('follow', {})
+            block.setdefault(parts[1], {'connect': 0, 'execute': 0})[parts[2]] = value
     for key, value in counts.items():
         parts = key.split('|')
         if parts[0] == 'recommend' and len(parts) == 4 and parts[2] in by:

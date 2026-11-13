@@ -155,3 +155,21 @@ def test_the_class_names_live_in_the_configuration_file():
     assert traffic.PROBE_NAME.search('coda-agent-runtime') and traffic.PROBE_UA.search('AgentRankProbe/1.0')
     assert not traffic.PROBE_UA.search('python-requests/2.32') and not traffic.PROBE_UA.search('testclient')
     assert traffic.OUTREACH_UA.search('ziwei-alliance-marketing/1.0')
+
+
+def test_connections_and_executions_name_the_surface_that_recommended_them():
+    # 11-14 (growth plan 7, item 1): where does the recommendation -> connection step break, per surface?
+    recorder = traffic.Traffic(root=None)
+    ua = 'python-httpx/0.28'
+    ask = json.dumps({'jsonrpc': '2.0', 'id': '1', 'method': 'message/send',
+                      'params': {'message': {'role': 'user', 'parts': [{'kind': 'text', 'text': 'convert currency'}]}}}).encode()
+    recorder.observe('POST', '/a2a', 200, '203.0.113.7', ua, ask)
+    recorder.observe('POST', '/api/gateway/mcp/9', 200, '203.0.113.7', ua, gateway={'step': 'connect', 'ok': True, 'rid': 9})
+    recorder.observe('POST', '/api/gateway/mcp/9', 200, '203.0.113.7', ua, gateway={'step': 'execute', 'ok': True, 'rid': 9})
+    recorder.observe('POST', '/api/gateway/mcp/9', 200, '203.0.113.8', ua, gateway={'step': 'connect', 'ok': True, 'rid': 9})
+    snap = recorder.snapshot()
+    assert snap['funnel_distinct']['follow|a2a|connect|external'] == 1
+    assert snap['funnel_distinct']['follow|a2a|execute|external'] == 1
+    assert snap['funnel_distinct']['follow|none|connect|external'] == 1   # a connection without a recommendation
+    line = north_star.build('2026-11-16', files=[snap], edge=_edge())
+    assert line['funnel']['follow'] == {'a2a': {'connect': 1, 'execute': 1}, 'none': {'connect': 1, 'execute': 0}}
