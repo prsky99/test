@@ -35,6 +35,9 @@ ALLOWED_KEYS = frozenset((
     # AI AD Coin v2 in points mode. AD_COIN_REAL_VALUE_ENABLED is deliberately absent: real value
     # (sale, cash-out, on-chain) cannot be switched on through production settings.
     'AD_COIN_V2_ENABLED', 'AD_COIN_V2_POOL_MAXIMUM', 'AD_COIN_V2_KEY_DIR',
+    # 11-14 (PM): off-only switch for the jobs workflow run retention, which is on by default (user approval);
+    # 0 makes it a dry run. Write it to agentcon.env only after all four roles run a release with this key.
+    'WORKFLOW_RETENTION_SCHEDULE',
 ))
 # 11-11: Sponsored cards on main Explore and Chat, and paid Sponsored bookings in USDC (receive only; the
 # receiving wallet's key never lives on the server, so no key setting exists). They live in their own file,

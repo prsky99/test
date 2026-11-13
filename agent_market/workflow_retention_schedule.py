@@ -49,7 +49,7 @@ class WorkflowRetention:
         except Exception:
             log.exception('workflow retention step failed')
             return {'workflow_retention': 'failed'}
-        summary = {key: result.get(key) for key in ('dry_run', 'busy', 'body_candidates', 'metadata_candidates',
+        summary = {key: result.get(key) for key in ('dry_run', 'busy', 'body_candidates', 'unknown_candidates', 'metadata_candidates',
                                                    'bodies_compacted', 'metadata_pruned', 'held_invalid_evidence')}
         if apply or summary.get('body_candidates') or summary.get('metadata_candidates'):
             log.info('workflow retention: %s', summary)

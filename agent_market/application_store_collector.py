@@ -302,6 +302,37 @@ class PostgresCollectorMixin:
         self.set_meta('quality_policy_cursor', {'version': POLICY_VERSION, 'id': rows[-1]['id'], 'changed': changed})
         return len(rows)
 
+    def quality_policy_inactive_x402_batch(self, limit=50):
+        """Same answer as Store.quality_policy_inactive_x402_batch (PM 11-14: inactive x402 grade A -> policy cap B)."""
+        import json
+        from .collector.evaluation import POLICY_VERSION, POLICY_WINDOW_DAYS, apply_quality_policy
+        _limit(limit)
+        if self.get_meta('quality_policy_inactive_x402_done') == POLICY_VERSION:
+            return 0
+        cursor = self.get_meta('quality_policy_inactive_x402_cursor') or {}
+        after = cursor.get('id', 0) if cursor.get('version') == POLICY_VERSION else 0
+        rows = self._collector_rows("""SELECT * FROM resources WHERE id > %s AND active=0 AND kind='x402' AND eval_grade='A'
+               AND eval_score IS NOT NULL ORDER BY id LIMIT %s""", (after, limit))
+        if not rows:
+            self.set_meta('quality_policy_inactive_x402_done', POLICY_VERSION)
+            return 0
+        counts = self.health_counts([row['id'] for row in rows], time.time() - POLICY_WINDOW_DAYS * 86400)
+        changed = 0
+        for resource in rows:
+            try: ev = json.loads(resource.get('eval_info') or 'null')
+            except ValueError: continue
+            new = apply_quality_policy(resource, ev, counts.get(resource['id']))
+            if new is ev: continue
+            try:
+                token = self.observation_guard(resource['id'], 'evaluation', expected_resource=resource)
+                with self.observation_transaction(token): self.record_evaluation(resource['id'], {**new, 'at': time.time()})
+                changed += 1
+            except GuardError: continue
+        done = cursor.get('changed_total', 0) if cursor.get('version') == POLICY_VERSION else 0
+        self.set_meta('quality_policy_inactive_x402_cursor',
+                      {'version': POLICY_VERSION, 'id': rows[-1]['id'], 'changed': changed, 'changed_total': done + changed})
+        return len(rows)
+
     def score_percentile(self, score, kind='mcp'):
         if type(score) not in (int, float) or not -2**63 <= score < 2**63 or not math.isfinite(score): _invalid()
         _kind(kind)

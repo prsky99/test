@@ -138,3 +138,21 @@ def test_security_events_step_stops_at_its_row_limit(migrated, monkeypatch):
     assert runner.run_due(force=True)['removed'] == {'security_events': 3}   # the rest on the next step
     assert runner.status()['last']['removed'] == {'security_events': 3}
     assert module.STEP_LIMIT['security_events'] == 4 and module.TABLES['security_events'][1] <= 90
+
+
+def test_security_events_keep_90_days_by_default_and_a_reviewed_policy_wins(migrated, monkeypatch):
+    """PM 11-14: the 11-11 user decision (90 days, at most 10,000 rows a step) runs without a console request."""
+    world, client, _ = migrated
+    with world.store.tx() as db:
+        for days_ago in (120, 91, 89, 5):
+            db.execute('INSERT INTO security_events(at,event_type,ip,path,detail) VALUES(?,?,?,?,?)',
+                       (NOW - days_ago * DAY, 'synthetic', '192.0.2.1', '/x', 'fixture'))
+    runner = Retention(world.store)
+    assert runner.policy()['security_events'] == 90 and runner.policy()['health_checks'] is None
+    assert runner.run_due(force=True)['removed'] == {'security_events': 2}
+    assert count(world.store, 'security_events', 0) == 2
+    assert runner.run_due(force=True)['removed'] == {}                  # nothing left: a quiet default is not reported
+    runner.apply({'table': 'security_events', 'days': None, 'backup_confirmed': True}, 1)
+    assert runner.policy()['security_events'] is None                   # a reviewed stop wins over the default
+    runner.apply({'table': 'security_events', 'days': 60, 'backup_confirmed': True}, 1)
+    assert runner.run_due(force=True)['removed'] == {'security_events': 1}

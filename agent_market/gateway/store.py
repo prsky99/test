@@ -2053,6 +2053,43 @@ class Store:
         self.set_meta("quality_policy_cursor", {"version": POLICY_VERSION, "id": rows[-1]["id"], "changed": changed})
         return len(rows)
 
+    def quality_policy_inactive_x402_batch(self, limit: int = 50) -> int:
+        """PM 11-14: inactive x402 rows still carry grade A from before the quality policy (x402 is capped at B).
+        The policy pass above covers active rows only, so this pass applies the same policy to inactive x402
+        rows graded A, once per policy version. No network requests; the caller spreads the writes."""
+        from ..collector.evaluation import POLICY_VERSION, POLICY_WINDOW_DAYS, apply_quality_policy
+        if self.get_meta("quality_policy_inactive_x402_done") == POLICY_VERSION:
+            return 0
+        cursor = self.get_meta("quality_policy_inactive_x402_cursor") or {}
+        after = cursor.get("id", 0) if cursor.get("version") == POLICY_VERSION else 0
+        rows = [dict(r) for r in self.query(
+            """SELECT * FROM resources WHERE id > ? AND active=0 AND kind='x402' AND eval_grade='A'
+               AND eval_score IS NOT NULL ORDER BY id LIMIT ?""", (after, limit))]
+        if not rows:
+            self.set_meta("quality_policy_inactive_x402_done", POLICY_VERSION)
+            return 0
+        counts = self.health_counts([r["id"] for r in rows], time.time() - POLICY_WINDOW_DAYS * 86400)
+        changed = 0
+        for resource in rows:
+            try:
+                ev = json.loads(resource.get("eval_info") or "null")
+            except ValueError:
+                continue
+            new = apply_quality_policy(resource, ev, counts.get(resource["id"]))
+            if new is ev:
+                continue
+            try:
+                token = self.observation_guard(resource["id"], "evaluation", expected_resource=resource)
+                with self.observation_transaction(token):
+                    self.record_evaluation(resource["id"], {**new, "at": time.time()})
+                changed += 1
+            except GuardError:
+                continue
+        done = cursor.get("changed_total", 0) if cursor.get("version") == POLICY_VERSION else 0
+        self.set_meta("quality_policy_inactive_x402_cursor",
+                      {"version": POLICY_VERSION, "id": rows[-1]["id"], "changed": changed, "changed_total": done + changed})
+        return len(rows)
+
     def score_percentile(self, score: float, kind: str = "mcp") -> float | None:
         """같은 종류에서 평가 점수가 이보다 낮은 비율 (0~1). 등급이 A에 몰려도 상대 위치를 알 수 있게."""
         row = self.query("""SELECT COUNT(*) AS n, SUM(eval_score < ?) AS lower FROM resources

@@ -156,6 +156,18 @@ class CollectorAgent:
             # Resume next round; wait longer on failure to reduce registry burden
             self.stop_event.wait(self.min_gap * (5 if failed else 1))
 
+    _inactive_policy_last = 0.0
+
+    def _inactive_policy_due(self, now: float | None = None) -> bool:
+        """At most once a minute, never in the measurement minutes (:55-:10) or 03:50-05:10 local."""
+        now = time.time() if now is None else now
+        local = time.localtime(now)
+        hm = local.tm_hour * 100 + local.tm_min
+        if local.tm_min >= 55 or local.tm_min < 10 or 350 <= hm <= 510 or now - self._inactive_policy_last < 60:
+            return False
+        self._inactive_policy_last = now
+        return True
+
     def _capability_loop(self) -> None:
         while not self.stop_event.is_set():
             if self._idle_if_paused():
@@ -188,6 +200,11 @@ class CollectorAgent:
                     stats["checked"] += self.store.quality_policy_batch(limit=500)
                 except Exception:
                     log.exception("quality policy batch error")
+                if self._inactive_policy_due():
+                    try:  # PM 11-14: inactive x402 grade A -> policy cap B, a small batch a minute outside measurement times
+                        stats["checked"] += self.store.quality_policy_inactive_x402_batch(limit=50)
+                    except Exception:
+                        log.exception("inactive x402 quality policy error")
             if not stats["checked"]:
                 self.stop_event.wait(300)  # Sleep 5 minutes if no items are due
             elif stats.get("local_network_problem"):
