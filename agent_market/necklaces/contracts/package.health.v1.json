@@ -1,0 +1,78 @@
+{
+  "id": "package.health.v1",
+  "role": "Release and maintenance signals for one package",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "package": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 214
+      },
+      "ecosystem": {
+        "type": "string",
+        "enum": [
+          "npm",
+          "PyPI"
+        ]
+      }
+    },
+    "required": [
+      "package",
+      "ecosystem"
+    ],
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "latest_version": {
+        "type": "string",
+        "maxLength": 64
+      },
+      "released_at": {
+        "type": "string",
+        "maxLength": 40
+      },
+      "deprecated": {
+        "type": "boolean"
+      },
+      "scorecard": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 10
+      },
+      "repository": {
+        "type": "string",
+        "pattern": "^https://",
+        "maxLength": 2000
+      },
+      "source": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "source"
+    ],
+    "minProperties": 2,
+    "additionalProperties": false
+  },
+  "rules": [
+    "at least one signal besides source is present",
+    "scorecard is the OpenSSF Scorecard aggregate when given"
+  ],
+  "test_inputs": [
+    {
+      "package": "express",
+      "ecosystem": "npm"
+    },
+    {
+      "package": "lodash",
+      "ecosystem": "npm"
+    },
+    {
+      "package": "django",
+      "ecosystem": "PyPI"
+    }
+  ]
+}
