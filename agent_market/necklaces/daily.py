@@ -76,7 +76,9 @@ def day_stages(cases: list[dict]) -> tuple[dict[str, int], dict[str, int]]:
     for r in cases:
         for slot, used in (r.get("slots") or {}).items():
             used = used or {}
-            stage = 4 if used.get("failed") else 3 if used.get("kind") == "agentcon" else 2 if used.get("rank", 1) > 1 else 1
+            # The runner writes the stage itself (it knows the fan-out); older lines fall back to rank and kind.
+            stage = used.get("stage") or (4 if used.get("failed") else 3 if used.get("kind") == "agentcon"
+                                          else 2 if (used.get("rank") or 1) > 1 else 1)
             stages[slot] = max(stages.get(slot, 1), stage)
             if used.get("failed"):
                 failed[slot] = failed.get(slot, 0) + 1
