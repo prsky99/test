@@ -271,7 +271,7 @@ def mcp_session(http, url):
 
 
 def test_one(http, candidate, resource, pacer):
-    out = {**candidate, 'host': PB.host_of(resource.get('url')), 'at': time.strftime('%Y-%m-%d %H:%M')}
+    out = {**candidate, 'host': PB.host_of(resource.get('url')), 'endpoint': resource.get('url'), 'at': time.strftime('%Y-%m-%d %H:%M')}
     url = str(resource.get('url') or '')
     if resource.get('kind') != 'mcp' or not public_https(url):
         return {**out, 'outcome': 'skipped', 'reason': 'not a public https MCP endpoint'}
@@ -294,6 +294,9 @@ def test_one(http, candidate, resource, pacer):
         if not usage.is_relay_safe_tool(tool):
             pacer.called(host, listed.status_code, url=url)
             return {**out, 'outcome': 'skipped', 'reason': 'not a relay-safe read-only tool'}
+        # 11-14 EVIDENCE_SIGNING 22df08aa: the signed version names the tool definition it came from.
+        import hashlib
+        out['tool_fingerprint'] = hashlib.sha256(json.dumps(tool, sort_keys=True, separators=(',', ':')).encode('utf-8')).hexdigest()
         args, why = role_arguments(tool, candidate['role'], resource.get('category'), (candidate.get('case') or {}).get('input'))
         if args is None:
             pacer.called(host, listed.status_code, url=url)

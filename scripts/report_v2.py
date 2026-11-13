@@ -365,6 +365,7 @@ def save_version(result, now=None):
          'tool': result['tool'], 'arguments': result.get('arguments'), 'outcome': result['outcome'],
          'reason': result.get('reason'), 'latency_ms': result.get('latency_ms'), 'http': result.get('http'),
          'excerpt': (result.get('excerpt') or '')[:1000], 'host': result.get('host'),
+         'endpoint': result.get('endpoint'), 'tool_fingerprint': result.get('tool_fingerprint'),
          'registrable_domain': registrable(result.get('host')), 'source': result.get('source', 'role tool call'),
          'tested': tested}
     case = result.get('case')
@@ -411,33 +412,63 @@ def signing_key(now=None):
     return None
 
 
+def version_status(r):
+    """provisional / verified / none at signing time (charter 0): accuracy compared, 85+, and two different days."""
+    acc = ((r.get('data_quality') or {}).get('accuracy') or {}).get('points')
+    if r['outcome'] != 'succeeded' or not acc or r['quality']['score'] < PASS_MARK:
+        return 'none'
+    days = success_days(r['resource_id'], r['role'], r['tool'], time.time(), extra=r['tested'])
+    return 'verified' if days >= CONFIRM_DAYS else 'provisional'
+
+
 def evidence_for(r, case):
-    """The signed fields of a test_report (EVIDENCE_SIGNING.md 1): no withheld answers, the response only as sha256."""
+    """The signed fields of a test_report (EVIDENCE_SIGNING.md 1, 22df08aa): no withheld answers, the response only as
+    sha256; `prev` is added by sign_chained."""
     import hashlib
-    acc = (r.get('data_quality') or {}).get('accuracy') or {}
+    dq = r.get('data_quality') or {}
+    acc = dq.get('accuracy') or {}
     source = {'source': acc.get('source') or 'none'}
     if case:
         source['answer_set_sha256'] = hashlib.sha256(json.dumps(case, sort_keys=True).encode('utf-8')).hexdigest()
-    return {'kind': 'test_report', 'resource_id': r['resource_id'], 'report_version': r.get('version'),
-            'role': r['role'], 'tool': r['tool'], 'input': r.get('arguments') or {}, 'outcome': r['outcome'],
-            'response_sha256': r.get('response_hash'),
-            'score_items': {'score': r['quality']['score'], 'data_quality': r['quality'].get('data'),
-                            'evidence': r['quality'].get('evidence'), 'report_text': r['quality'].get('writing')},
-            'accuracy_source': source, 'data_as_of': ((r.get('data_quality') or {}).get('freshness') or {}).get('newest'),
-            'methodology_version': METHODOLOGY_VERSION,
+    newest = (dq.get('freshness') or {}).get('newest')
+    age = None
+    if newest:
+        try:
+            from datetime import datetime
+            age = round((r['tested'] - datetime.fromisoformat(newest).timestamp()) / DAY, 2)
+        except ValueError:
+            age = None
+    comp = dq.get('completeness') or {}
+    clean = dq.get('clean') or {}
+    return {'kind': 'test_report', 'resource_id': r['resource_id'], 'role': r['role'], 'tool': r['tool'],
+            'endpoint': r.get('endpoint') or r.get('host'), 'tool_fingerprint': r.get('tool_fingerprint'),
+            'report_version': r.get('version'), 'input': r.get('arguments') or {}, 'response_sha256': r.get('response_hash'),
+            'outcome': r['outcome'],
+            'score_items': {'data_quality': r['quality'].get('data'), 'evidence': r['quality'].get('evidence'),
+                            'report_text': r['quality'].get('writing')},
+            'total_score': r['quality']['score'], 'status': version_status(r),
+            'data_quality': {'freshness_age_days': age, 'freshness_rule': (dq.get('freshness') or {}).get('rule'),
+                             'blank_ratio': (round(comp['blanks'] / comp['fields'], 3) if comp.get('fields') else None),
+                             'blank_fields': comp.get('blanks'),
+                             'clean': ('failed: ' + ', '.join(clean['issues'])) if clean.get('issues') else
+                                      ('passed' if clean else None)},
+            'accuracy_source': source, 'data_as_of': newest, 'methodology_version': METHODOLOGY_VERSION,
             'tested_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(r['tested']))}
 
 
-def sign_version(r, case, name):
-    """A DSSE envelope for this version under gateway-data/signing/envelopes/test_report/, or None without a key."""
+def sign_version(r, case, name=None):
+    """The next link of the (resource, role) chain under gateway-data/signing/envelopes/test_report/<id>/<role>/
+    <report_version>.json, failures included (a dropped version breaks verify_chain); None without a key."""
     key = signing_key()
     if key is None:
         return None
     from agent_market import evidence_signing as ES
-    envelope = ES.sign(evidence_for(r, case), key)
     folder = SIGNING / 'envelopes' / 'test_report' / str(r['resource_id']) / r['role']
     folder.mkdir(parents=True, exist_ok=True)
-    path = folder / f'{name}.dsse.json'
+    earlier = sorted((p for p in folder.glob('*.json') if p.stem.isdigit()), key=lambda p: int(p.stem))
+    previous = json.loads(earlier[-1].read_text()) if earlier else None
+    envelope = ES.sign_chained(evidence_for(r, case), key, previous=previous)
+    path = folder / f"{r.get('version')}.json"
     path.write_text(json.dumps(envelope, indent=1))
     return str(path.relative_to(ROOT))
 

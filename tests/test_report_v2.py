@@ -232,7 +232,16 @@ def test_versions_are_signed_when_a_key_exists(tmp_path, monkeypatch):
     (tmp_path / 'signing' / 'agentvalcon-keys.json').write_text(__import__('json').dumps(doc))
     monkeypatch.setattr(V, 'ROOT', tmp_path)
     v = V.save_version(result(rid=62))
-    envelope = __import__('json').loads((tmp_path / v['signed_report']).read_text())
-    body = ES.verify(envelope, doc)
+    failed = V.save_version(result(rid=62, outcome='failed', excerpt=''))       # failures stay in the chain
+    paths = [tmp_path / v['signed_report'], tmp_path / failed['signed_report']]
+    assert [p.name for p in paths] == ['1.json', '2.json']
+    envelopes = [__import__('json').loads(p.read_text()) for p in paths]
+    bodies = ES.verify_chain(envelopes, doc)
+    body = bodies[0]
     assert body['kind'] == 'test_report' and body['resource_id'] == 62 and body['methodology_version'] == 'v1'
-    assert body['response_sha256'] == v['response_hash'] and 'excerpt' not in body
+    assert body['response_sha256'] == v['response_hash'] and 'excerpt' not in body and body['prev'] is None
+    assert body['status'] in ('none', 'provisional', 'verified') and body['total_score'] == v['quality']['score']
+    assert set(body['data_quality']) >= {'freshness_age_days', 'blank_ratio', 'clean'} and bodies[1]['outcome'] == 'failed'
+    import pytest as _pytest
+    with _pytest.raises(ES.SigningError):
+        ES.verify_chain(envelopes[1:], doc)                                    # dropping version 1 breaks the chain
