@@ -41,7 +41,8 @@ MAX_AGE = {"nvd-cve": 6 * 3600, "cve-org": 24 * 3600, "cisa-kev": 24 * 3600, "gi
            "public-holidays": 400 * 86400, "holiday-calendar": 400 * 86400, "sec-filings": 24 * 3600,
            "software-incident": 6 * 3600, "scorecard": 24 * 3600, "site-readiness": 24 * 3600,
            "wiki-grounding": 24 * 3600, "ecb-fx": 26 * 3600, "usgs-quakes": 3600,
-           "tz-time": 400 * 86400, "airport-lookup": 8 * 86400}  # rules age from the library release; update the pin at least yearly
+           "tz-time": 400 * 86400, "airport-lookup": 8 * 86400, "wiktionary-define": 7 * 86400,
+           "github-repo": 24 * 3600, "rdap-domain": 7 * 86400, "unit-convert": 10 * 365 * 86400}  # rules age from the library release; update the pin at least yearly
 TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "github-advisory": (3600, 6 * 3600),
        "epss": (6 * 3600, 48 * 3600), "package-registry": (3600, 6 * 3600), "depsdev-package": (6 * 3600, 24 * 3600),
        "gleif-lei": (6 * 3600, 24 * 3600), "sec-edgar": (6 * 3600, 24 * 3600), "sec-tickers": (6 * 3600, 24 * 3600),
@@ -49,7 +50,8 @@ TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "githu
        "worldbank-indicator": (6 * 3600, 24 * 3600), "sec-filings": (3600, 24 * 3600),
        "software-incident": (3600, 6 * 3600), "scorecard": (6 * 3600, 24 * 3600),
        "site-readiness": (6 * 3600, 24 * 3600), "wiki-grounding": (6 * 3600, 24 * 3600), "ecb-fx": (3600, 26 * 3600),
-       "usgs-quakes": (300, 3600)}  # (serve from cache without asking, longest a cached copy may serve)
+       "usgs-quakes": (300, 3600), "wiktionary-define": (86400, 7 * 86400), "github-repo": (6 * 3600, 24 * 3600),
+       "rdap-domain": (6 * 3600, 7 * 86400), "rdap-bootstrap": (86400, 7 * 86400)}  # (serve from cache without asking, longest a cached copy may serve)
 KEV_TTL, KEV_MAX_STALE = 3600, 24 * 3600
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 PACKAGE = re.compile(r"(?:@[a-z0-9][a-z0-9._~-]*/)?[A-Za-z0-9][A-Za-z0-9._~-]*")
@@ -1117,6 +1119,121 @@ class FallbackAgents:
         return out, {"status": "snapshot", "age_seconds": age}, False, \
             {"OurAirports": data.get("source_last_modified") or None}
 
+    def _wiktionary_define(self, args, remaining):
+        word = next((" ".join(str(args[k]).split()) for k in ("word", "term", "query") if args.get(k)), "")
+        if not word or len(word) > 80 or any(c in word for c in "|#<>[]{}/"):
+            raise FallbackUnavailable("invalid_input", "Use one word or short phrase.")
+
+        def live(rem):
+            raw = self._get_json("https://en.wiktionary.org/api/rest_v1/page/definition/" + quote(word.replace(" ", "_"), safe=""),
+                                 rem, limit=512 * 1024)
+            groups = []
+            for entry in (raw.get("en") or [])[:4]:
+                defs = [_text(re.sub(r"<[^>]+>", "", d.get("definition") or ""), 300) for d in entry.get("definitions") or []
+                        if isinstance(d, dict)]
+                defs = [d for d in defs if d][:3]
+                if defs:
+                    groups.append((_text(entry.get("partOfSpeech"), 30), defs))
+            if not groups:
+                raise FallbackUnavailable("not_found", "Wiktionary has no English definition for this word.")
+            return groups, _now_iso(self.utc_now())
+        (groups, as_of), cache = self._cached(("wiktionary-define", word.lower()), TTL["wiktionary-define"], live, remaining)
+        lines = " ".join(f"{pos}: " + " ".join(f"({i}) {d}" for i, d in enumerate(defs, 1)) for pos, defs in groups)
+        out = {"answer": f"{word} — {lines}"[:8000], "url": "https://en.wiktionary.org/wiki/" + quote(word.replace(" ", "_")),
+               "source": "Wiktionary (CC BY-SA 4.0, Wiktionary contributors)"}
+        return out, cache, False, {"Wiktionary": as_of}
+
+    def _github_repo(self, args, remaining):
+        repo = next((str(args[k]).strip() for k in ("repo", "repository") if args.get(k)), "")
+        if not repo and args.get("owner") and args.get("name"):
+            repo = f"{args['owner']}/{args['name']}"
+        repo = re.sub(r"^(?:https?://)?github\.com/", "", repo).strip("/").removesuffix(".git")
+        if not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})/[A-Za-z0-9._-]{1,100}", repo):
+            raise FallbackUnavailable("invalid_input", "Use a GitHub repository as owner/name.")
+
+        def live(rem):
+            response = get("https://api.github.com/repos/" + repo, limiters=self.limiters, http=self.http,
+                           seconds=max(0.1, rem() - 0.1), limit=1024 * 1024, ok=(200, 301, 404))
+            if response.status_code == 301:  # a moved repository: one hop to its numeric address, same host
+                target = response.headers.get("location") or ""
+                if not re.fullmatch(r"https://api\.github\.com/repositories/\d{1,12}", target):
+                    raise ValueError("unexpected redirect")
+                response = get(target, limiters=self.limiters, http=self.http, seconds=max(0.1, rem() - 0.1),
+                               limit=1024 * 1024, ok=(200, 404))
+            if response.status_code == 404:
+                raise FallbackUnavailable("not_found", "No public GitHub repository with this name.")
+            raw = json.loads(response.content)
+            lic = (raw.get("license") or {}).get("spdx_id") or "none stated"
+            facts = (f"{raw.get('full_name')}: {_text(raw.get('description'), 300).rstrip('.') or 'no description'}. License {lic}; "
+                     f"{raw.get('stargazers_count')} stars; {raw.get('forks_count')} forks; {raw.get('open_issues_count')} open "
+                     f"issues and pull requests; default branch {raw.get('default_branch')}; "
+                     f"{'archived' if raw.get('archived') else 'not archived'}; last push {raw.get('pushed_at')}.")
+            if raw.get("full_name", "").lower() != repo.lower():
+                facts += f" (Requested {repo}; GitHub redirects it here.)"
+            return {"answer": facts[:8000], "url": _text(raw.get("html_url"), 300) or "https://github.com/" + repo,
+                    "source": "GitHub REST API"}, _text(raw.get("pushed_at"), 40) or None
+        (out, as_of), cache = self._cached(("github-repo", repo.lower()), TTL["github-repo"], live, remaining)
+        return out, cache, False, {"GitHub (last push)": as_of}
+
+    def _rdap_domain(self, args, remaining):
+        from .net import site_host
+        domain = str(args.get("domain") or "").strip().lower().rstrip(".")
+        domain = re.sub(r"^https?://", "", domain).split("/")[0]
+        if not site_host(domain):
+            raise FallbackUnavailable("invalid_input", "Use a public domain name such as example.com.")
+
+        def bootstrap(rem):
+            raw = self._get_json("https://data.iana.org/rdap/dns.json", rem, limit=1024 * 1024)
+            table = {}
+            for tlds, urls in (s[:2] for s in raw.get("services") or [] if isinstance(s, list) and len(s) >= 2):
+                base = next((u for u in urls if isinstance(u, str) and u.startswith("https://")), None)
+                for tld in tlds if base else []:
+                    table[str(tld).lower()] = base
+            if len(table) < 100:
+                raise ValueError("bootstrap too small")
+            return table, _text(raw.get("publication"), 40)
+        (table, _), _ = self._cached(("rdap-bootstrap",), TTL["rdap-bootstrap"], bootstrap, remaining)
+        labels = domain.split(".")
+        base = next((table[".".join(labels[i:])] for i in range(1, len(labels)) if ".".join(labels[i:]) in table), None)
+        if not base:
+            raise FallbackUnavailable("not_found", "This top-level domain has no RDAP server in the IANA bootstrap.")
+
+        def live(rem):
+            response = get(base.rstrip("/") + "/domain/" + domain, limiters=self.limiters, http=self.http,
+                           seconds=max(0.1, rem() - 0.1), limit=512 * 1024, accept="application/rdap+json, application/json",
+                           ok=(200, 404), any_site=True)
+            if response.status_code == 404:
+                raise FallbackUnavailable("not_found", "The registry has no registration for this domain.")
+            raw = json.loads(response.content)
+            events = {e.get("eventAction"): _text(e.get("eventDate"), 40) for e in raw.get("events") or [] if isinstance(e, dict)}
+            registrar = next((v[3] for e in raw.get("entities") or [] if "registrar" in (e.get("roles") or [])
+                              for v in ((e.get("vcardArray") or [None, []])[1] or []) if isinstance(v, list) and v[:1] == ["fn"]), None)
+            ns = [_text(n.get("ldhName"), 100).lower() for n in raw.get("nameservers") or [] if isinstance(n, dict)][:6]
+            parts = [f"{domain}: registered {events.get('registration', '?')[:10]}",
+                     f"expires {events.get('expiration', '?')[:10]}", f"last changed {events.get('last changed', '?')[:10]}",
+                     f"registrar {_text(registrar, 120) or 'not listed'}",
+                     "status " + (", ".join(_text(x, 40) for x in raw.get("status") or []) or "not listed"),
+                     "name servers " + (", ".join(ns) or "not listed")]
+            return {"answer": "; ".join(parts) + ".", "url": "https://lookup.icann.org/en/lookup?name=" + domain,
+                    "source": f"RDAP ({urlsplit(base).hostname})"}, events.get("last update of RDAP database")
+        (out, as_of), cache = self._cached(("rdap-domain", domain), TTL["rdap-domain"], live, remaining)
+        return out, cache, False, {"RDAP registry": as_of}
+
+    def _unit_convert(self, args, remaining):
+        value = next((args[k] for k in ("value", "amount") if isinstance(args.get(k), (int, float))), None)
+        src = next((str(args[k]) for k in ("from", "from_unit") if args.get(k)), "")
+        dst = next((str(args[k]) for k in ("to", "to_unit") if args.get(k)), "")
+        if value is None or not src or not dst:
+            raise FallbackUnavailable("invalid_input", "Give a value and the units to convert from and to.")
+        try:
+            result, a_unit, b_unit = convert_units(float(value), src, dst)
+        except ValueError as exc:
+            raise FallbackUnavailable("invalid_input", str(exc)) from exc
+        shown = f"{result:.10g}"
+        out = {"answer": f"{value:g} {a_unit} = {shown} {b_unit}", "url": "https://www.nist.gov/pml/special-publication-811",
+               "source": "Exact SI definitions (NIST SP 811)"}
+        return out, {"status": "snapshot", "age_seconds": 0}, False, {"NIST SP 811": "2008 edition"}
+
     # ---------------------------------------------------------------- usage
     def _usage(self, agent_id, envelope, code, started):
         line = {"at": _now_iso(self.utc_now()), "agent": agent_id if agent_id in SPECS else "unknown",
@@ -1374,6 +1491,63 @@ def search_terms(question: str) -> str:
 
 QUESTION_WORDS = frozenset("what who whom whose which when where why how does did do was were is are can could "
                            "the city name".split())
+
+# Unit -> (dimension, factor to the SI base unit). Exact definitions (NIST SP 811); US customary units.
+UNITS = {
+    "meter": ("length", 1.0), "kilometer": ("length", 1000.0), "centimeter": ("length", 0.01), "millimeter": ("length", 0.001),
+    "mile": ("length", 1609.344), "yard": ("length", 0.9144), "foot": ("length", 0.3048), "inch": ("length", 0.0254),
+    "nautical mile": ("length", 1852.0),
+    "kilogram": ("mass", 1.0), "gram": ("mass", 0.001), "milligram": ("mass", 1e-6), "tonne": ("mass", 1000.0),
+    "pound": ("mass", 0.45359237), "ounce": ("mass", 0.028349523125), "stone": ("mass", 6.35029318), "short ton": ("mass", 907.18474),
+    "liter": ("volume", 0.001), "milliliter": ("volume", 1e-6), "cubic meter": ("volume", 1.0),
+    "gallon": ("volume", 0.003785411784), "quart": ("volume", 0.000946352946), "pint": ("volume", 0.000473176473),
+    "cup": ("volume", 0.0002365882365), "fluid ounce": ("volume", 2.95735295625e-5),
+    "square meter": ("area", 1.0), "square kilometer": ("area", 1e6), "hectare": ("area", 1e4), "acre": ("area", 4046.8564224),
+    "square foot": ("area", 0.09290304), "square mile": ("area", 2589988.110336),
+    "meter per second": ("speed", 1.0), "kilometer per hour": ("speed", 1000 / 3600), "mile per hour": ("speed", 0.44704),
+    "knot": ("speed", 1852 / 3600),
+    "second": ("time", 1.0), "minute": ("time", 60.0), "hour": ("time", 3600.0), "day": ("time", 86400.0), "week": ("time", 604800.0),
+    "byte": ("data", 1.0), "kilobyte": ("data", 1e3), "megabyte": ("data", 1e6), "gigabyte": ("data", 1e9), "terabyte": ("data", 1e12),
+    "kibibyte": ("data", 1024.0), "mebibyte": ("data", 1024.0 ** 2), "gibibyte": ("data", 1024.0 ** 3), "bit": ("data", 0.125),
+    "celsius": ("temperature", None), "fahrenheit": ("temperature", None), "kelvin": ("temperature", None),
+}
+UNIT_ALIASES = {"m": "meter", "metre": "meter", "km": "kilometer", "kilometre": "kilometer", "cm": "centimeter", "mm": "millimeter",
+                "mi": "mile", "yd": "yard", "ft": "foot", "feet": "foot", "in": "inch", "inches": "inch", "nmi": "nautical mile",
+                "kg": "kilogram", "g": "gram", "mg": "milligram", "t": "tonne", "metric ton": "tonne", "lb": "pound", "lbs": "pound",
+                "oz": "ounce", "l": "liter", "litre": "liter", "ml": "milliliter", "gal": "gallon", "us gallon": "gallon",
+                "fl oz": "fluid ounce", "m2": "square meter", "km2": "square kilometer", "ha": "hectare", "sq ft": "square foot",
+                "m/s": "meter per second", "km/h": "kilometer per hour", "kph": "kilometer per hour", "mph": "mile per hour",
+                "kn": "knot", "s": "second", "sec": "second", "min": "minute", "h": "hour", "hr": "hour",
+                "b": "byte", "kb": "kilobyte", "mb": "megabyte", "gb": "gigabyte", "tb": "terabyte", "kib": "kibibyte",
+                "mib": "mebibyte", "gib": "gibibyte", "c": "celsius", "°c": "celsius", "f": "fahrenheit", "°f": "fahrenheit",
+                "k": "kelvin"}
+
+
+def unit_name(text: str) -> str:
+    key = " ".join(text.strip().lower().split())
+    if key in UNIT_ALIASES:
+        return UNIT_ALIASES[key]
+    if key in UNITS:
+        return key
+    for plural, single in (("ies", "y"), ("es", ""), ("s", "")):  # miles, inches, centuries
+        if key.endswith(plural) and key[: -len(plural)] + single in UNITS:
+            return key[: -len(plural)] + single
+    key = key.replace("kilometres", "kilometer").replace("metres", "meter")
+    if key in UNITS:
+        return key
+    raise ValueError(f"Unknown unit: {text[:40]}")
+
+
+def convert_units(value: float, src: str, dst: str):
+    a, b = unit_name(src), unit_name(dst)
+    (dim_a, fa), (dim_b, fb) = UNITS[a], UNITS[b]
+    if dim_a != dim_b:
+        raise ValueError(f"Cannot convert {dim_a} ({a}) to {dim_b} ({b}).")
+    if dim_a == "temperature":
+        kelvin = {"celsius": value + 273.15, "fahrenheit": (value - 32) * 5 / 9 + 273.15, "kelvin": value}[a]
+        return {"celsius": kelvin - 273.15, "fahrenheit": (kelvin - 273.15) * 9 / 5 + 32, "kelvin": kelvin}[b], a, b
+    return value * fa / fb, a, b
+
 
 STOPWORDS = frozenset("a an and are as at be by for from in is it of on or the to with all you we our this that "
                       "using via towards".split())

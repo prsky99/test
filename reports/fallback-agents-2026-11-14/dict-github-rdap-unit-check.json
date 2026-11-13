@@ -1,0 +1,74 @@
+{
+ "role_tasks": {
+  "wiktionary-define": {
+   "passed": 1,
+   "cases": 1,
+   "rows": [
+    {
+     "case_id": "define-serendipity",
+     "pass": true,
+     "why": []
+    }
+   ]
+  },
+  "github-repo": {
+   "passed": 1,
+   "cases": 1,
+   "rows": [
+    {
+     "case_id": "github-react-license",
+     "pass": true,
+     "why": []
+    }
+   ]
+  },
+  "rdap-domain": {
+   "passed": 1,
+   "cases": 1,
+   "rows": [
+    {
+     "case_id": "domain-python-org",
+     "pass": true,
+     "why": []
+    }
+   ]
+  },
+  "unit-convert": {
+   "passed": 1,
+   "cases": 1,
+   "rows": [
+    {
+     "case_id": "convert-10-miles-km",
+     "pass": true,
+     "why": []
+    }
+   ]
+  }
+ },
+ "contract_test_inputs": {
+  "wiktionary-define": [
+   [
+    "ok",
+    "serendipity — Noun: (1) The phenomenon of making an unplanned, fortunate discovery through a combination of unexpected circumstances and insightful recognition."
+   ]
+  ],
+  "github-repo": [
+   [
+    "ok",
+    "react/react: The library for web and native user interfaces.. License MIT; 252591 stars; 52610 forks; 1532 open issues and pull requests; default branch main; n"
+   ]
+  ],
+  "rdap-domain": [
+   [
+    "ok",
+    "python.org: registered 1995-03-27; expires 2033-03-28; last changed 2026-08-12; registrar Gandi SAS; status client transfer prohibited; name servers ns-1134.aws"
+   ]
+  ],
+  "unit-convert": [
+   [
+    "ok",
+    "10 mile = 16.09344 kilometer"
+   ]
+  ]
+ }
+}

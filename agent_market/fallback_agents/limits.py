@@ -94,4 +94,6 @@ def limiters(clock=time.monotonic, sleep=time.sleep) -> dict[str, HostLimiter]:
         "www.ecb.europa.eu": HostLimiter(2.0, 60, 3600.0, clock, sleep),
         "earthquake.usgs.gov": HostLimiter(1.0, 60, 3600.0, clock, sleep),
         "davidmegginson.github.io": HostLimiter(60.0, 4, 86400.0, clock, sleep),  # airport CSV: a few a day
+        "en.wiktionary.org": HostLimiter(0.2, 300, 60.0, clock, sleep),
+        "data.iana.org": HostLimiter(10.0, 24, 86400.0, clock, sleep),
     }

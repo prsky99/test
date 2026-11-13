@@ -21,7 +21,8 @@ ALLOWED_HOSTS = frozenset({"services.nvd.nist.gov", "nvd.nist.gov", "cveawg.mitr
                            "api.deps.dev", "api.gleif.org", "www.sec.gov", "data.sec.gov",
                            "en.wikipedia.org", "export.arxiv.org", "api.worldbank.org",
                            "api.met.no", "api.scorecard.dev",
-                           "www.ecb.europa.eu", "earthquake.usgs.gov", "davidmegginson.github.io"})
+                           "www.ecb.europa.eu", "earthquake.usgs.gov", "davidmegginson.github.io",
+                           "en.wiktionary.org", "data.iana.org"})
 
 
 # Test runs we start ourselves (answer sets, gate rounds, report runs) count every outside call in the shared

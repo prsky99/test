@@ -102,6 +102,19 @@ OURAIRPORTS = {"name": "OurAirports", "url": "https://ourairports.com/data/",
                "notice": "Community-maintained data, refreshed daily into a local index; airports without an IATA "
                          "or ICAO code are not included."}
 
+WIKTIONARY = {"name": "Wiktionary (English), Wikimedia Foundation", "url": "https://en.wiktionary.org/",
+              "license": "CC BY-SA 4.0 and GFDL (https://en.wiktionary.org/wiki/Wiktionary:Copyrights); text by Wiktionary contributors",
+              "notice": "Definitions are quoted from the entry; reuse must credit Wiktionary contributors and keep the license."}
+GITHUB_REPO = {"name": "GitHub REST API (public repositories)", "url": "https://docs.github.com/en/rest/repos/repos",
+               "license": "Public repository metadata under the GitHub Terms of Service; each repository's own license applies to its code",
+               "notice": "Unauthenticated requests share 60 per hour per address; answers are cached."}
+RDAP = {"name": "RDAP (registry servers from the IANA bootstrap)", "url": "https://data.iana.org/rdap/dns.json",
+        "license": "Registry RDAP terms: lawful use only, no bulk or automated high-volume querying, no marketing use",
+        "notice": "Only the registrar, dates, status and name servers are given; no personal contact data is returned."}
+NIST = {"name": "NIST Special Publication 811 conversion factors", "url": "https://www.nist.gov/pml/special-publication-811",
+        "license": "U.S. Government work, public domain in the United States",
+        "notice": "Computed on our server from exact SI definitions; US customary units (US gallon, avoirdupois pound)."}
+
 SPECS = {
     "nvd-cve": {
         "name": "AgentValCon NVD CVE Record", "tool": "get_cve_record", "contract": "cve.record.v1",
@@ -278,6 +291,34 @@ SPECS = {
                        "region, type, codes, coordinates and elevation, from a daily OurAirports index; read-only.",
         "sources": [OURAIRPORTS],
         "rate": "no network calls per request; the index is refreshed once a day",
+    },
+    "wiktionary-define": {
+        "name": "AgentValCon Wiktionary Definition", "tool": "define_word", "contract": "dictionary.define.v1",
+        "description": "Give the English definitions of one word from Wiktionary, grouped by part of speech, with the "
+                       "entry link and CC BY-SA attribution; read-only.",
+        "sources": [WIKTIONARY],
+        "rate": "5 requests per second at most, cached 24 hours",
+    },
+    "github-repo": {
+        "name": "AgentValCon GitHub Repository Facts", "tool": "get_repo_facts", "contract": "github.repo.v1",
+        "description": "Get the public facts of one GitHub repository (owner/name): description, license, stars, "
+                       "forks, open issues, default branch, read-only status and latest activity time; read-only.",
+        "sources": [GITHUB_REPO],
+        "rate": "shares the 50-per-hour GitHub allowance, cached 6 hours",
+    },
+    "rdap-domain": {
+        "name": "AgentValCon Domain Registration (RDAP)", "tool": "lookup_domain", "contract": "domain.lookup.v1",
+        "description": "Look up one domain's registration through the registry's own RDAP server: registrar, "
+                       "registration, expiry and last-change dates, status and name servers; read-only.",
+        "sources": [RDAP],
+        "rate": "one lookup per domain per 6 hours; the IANA bootstrap is cached for a day",
+    },
+    "unit-convert": {
+        "name": "AgentValCon Unit Conversion", "tool": "convert_units", "contract": "unit.convert.v1",
+        "description": "Convert a value between units of length, mass, volume, area, speed, time, data size or "
+                       "temperature using exact SI definitions; read-only and offline.",
+        "sources": [NIST],
+        "rate": "no network calls",
     },
 }
 

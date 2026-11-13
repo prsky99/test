@@ -28,6 +28,10 @@
 | `usgs-quakes` (`list_recent_earthquakes`) | `earthquake.feed.v1` | USGS 실시간 GeoJSON | 고정 과제 1/1, 계약 입력 1/1 | 0.4 s | 정답 세트 요청 |
 | `tz-time` (`get_local_time`) | `timezone.time.v1` | IANA tz 2026f(서버 설치본, 네트워크 없음) | 고정 과제 1/1, 계약 입력 1/1 | 수 ms | 정답 세트 요청 |
 | `airport-lookup` (`lookup_airport`) | `airport.lookup.v1` | OurAirports 일일 색인(공공 저작물) | 고정 과제 2/2, 계약 입력 1/1 | 수 ms | 색인 일일 갱신 jobs 필요 |
+| `wiktionary-define` (`define_word`) | `dictionary.define.v1` | Wiktionary REST(CC BY-SA 4.0·GFDL) | 고정 과제 1/1, 계약 입력 1/1 | 0.7 s | 관문 신청 |
+| `github-repo` (`get_repo_facts`) | `github.repo.v1` | GitHub REST(공개 저장소) | 고정 과제 1/1, 계약 입력 1/1 | 0.5 s | 관문 신청(이 맥 IP의 GitHub 시간당 60회 공유 주의) |
+| `rdap-domain` (`lookup_domain`) | `domain.lookup.v1` | IANA 부트스트랩 → 레지스트리 RDAP | 고정 과제 1/1, 계약 입력 1/1 | 0.2 s | 관문 신청 |
+| `unit-convert` (`convert_units`) | `unit.convert.v1` | 정확한 SI 정의(NIST SP 811), 네트워크 없음 | 고정 과제 1/1, 계약 입력 1/1 | 수 ms | 관문 신청 |
 | `github-advisory` (`list_package_advisories`) | package-risk-audit 취약점 자리, `package.advisories.v1` | GitHub Advisory Database(reviewed) | 1차 27/30 → 범위 직접 판정으로 고친 뒤 **30/30**(05:36 재측정), 고정 과제 3/3 | 1,010 ms / 1,412 ms | 관문 신청 가능 |
 
 - 계약 시험 입력(`test_inputs`) 3건씩: nvd-cve·cve-org·cisa-kev 9/9 통과(`contract-test-inputs.json`). 고정 과제(role-tasks-v1): nvd-cve 3/3, cisa-kev 3/3, cve-org 3/3, package-registry 2/2, depsdev-package 2/2.
@@ -151,6 +155,12 @@
 - 이름 질의는 CPE 제품 표기 후보(xz-utils → xz-utils, xz_utils, xz; "apache tomcat" → apache_tomcat, tomcat)로 찾아 최신 CVE 10개를 주고, 그 뒤에 같은 이름의 패키지 권고(GHSA)를 붙입니다. 그래서 "openssl"은 OpenSSL 프로그램 CVE가 먼저, Rust 패키지 권고가 뒤에 나옵니다. 띄어쓰기가 있는 이름은 패키지 검색을 하지 않습니다.
 - 결과(`software-incident-check.json`): 고정 과제 2/2(xz-utils, log4j), 계약 입력 3/3, 프로그램 이름 13개(openssl, curl, nginx, apache tomcat, chrome, exchange server, struts, spring framework, moveit transfer 등) 모두 답함.
 
+### 2-15. 사전·GitHub 저장소·도메인·단위 변환 (PM 지시 9 나머지)
+- wiktionary-define: Wiktionary REST 정의 API, 영어 항목만 품사별 최대 3개 정의. HTML 표시를 지우고 출처·라이선스(CC BY-SA 4.0, 기여자) 표기.
+- github-repo: 공개 저장소 사실(설명·라이선스·별·포크·열린 이슈·기본 브랜치·보관 여부·마지막 활동). 저장소가 옮겨졌으면 같은 호스트의 `/repositories/<id>`로 한 번만 따라가고 그렇게 적습니다. 소유자 메일 등은 내보내지 않습니다. GitHub 비인증 한도(IP당 시간당 60회)를 github-advisory·software-incident와 함께 씁니다(11-14 06시대에 남은 한도 2회까지 내려감 → 6시간 캐시).
+- rdap-domain: IANA RDAP 부트스트랩(하루 캐시)에서 최상위 도메인의 공식 레지스트리 RDAP 서버를 찾아 직접 묻습니다(매 요청 사설 주소 검사). 레지스트리 약관(합법 목적, 대량 자동 조회·광고 금지)에 맞춰 도메인당 6시간 캐시, 등록기관·날짜·상태·네임서버만 내고 등록자 등 개인 연락처는 내보내지 않습니다.
+- unit-convert: 길이·질량·부피·넓이·속도·시간·데이터·온도를 정확한 SI 정의(NIST SP 811)로 계산합니다. 다른 차원끼리는 거부. 미국 관습 단위(미국 갤런, 상형 파운드).
+
 ## 3. 관문 신청 묶음 (deploy/NECKLACE_GATE.md 10절 대비)
 
 | 조건 | 상태 | 근거 |
@@ -221,7 +231,7 @@
 ## 6. 시험·재현
 
 ```bash
-nice -n 10 .venv-tests/bin/python -m pytest -q tests/test_fallback_agents.py     # 98 passed (네트워크 없음)
+nice -n 10 .venv-tests/bin/python -m pytest -q tests/test_fallback_agents.py     # 102 passed (네트워크 없음)
 .venv/bin/python -m agent_market.fallback_agents.nvd_sync --full                  # 스냅샷 첫 빌드
 .venv/bin/python -m agent_market.fallback_agents.gold_check nvd-cve cisa-kev --out /tmp/x.json
 ```

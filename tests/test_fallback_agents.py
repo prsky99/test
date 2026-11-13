@@ -70,7 +70,7 @@ def agents(tmp_path, routes, calls=None, clock=None, snapshot=None):
 
 # ------------------------------------------------------------------ catalog and contracts
 def test_tools_are_read_only_and_use_the_slot_contracts():
-    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard", "site-readiness", "wiki-grounding", "ecb-fx", "usgs-quakes", "tz-time", "airport-lookup"}
+    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard", "site-readiness", "wiki-grounding", "ecb-fx", "usgs-quakes", "tz-time", "airport-lookup", "wiktionary-define", "github-repo", "rdap-domain", "unit-convert"}
     for agent_id, spec in SPECS.items():
         tool = tool_spec(agent_id)
         c = contract(spec["contract"])
@@ -1350,3 +1350,59 @@ def test_software_incident_puts_programs_before_same_named_packages_and_takes_sp
     assert out["source"].startswith("NVD (CPE product match") and "then GitHub Advisory" in out["source"]
     spaced = a.execute("software-incident", {"query": "Apache Tomcat"})["result"]
     assert spaced["items"][0]["fixed_version"] == "9.0.121" and len(calls) == 1, "spaced program names skip the package search"
+
+
+# ------------------------------------------------------------------ dictionary, github.repo, domain (RDAP), unit.convert
+def test_wiktionary_define_strips_markup_and_credits(tmp_path):
+    body = {"en": [{"partOfSpeech": "Noun", "definitions": [
+        {"definition": 'The <a href="/wiki/x">phenomenon</a> of making an unplanned, fortunate discovery.'}]}]}
+    a, _ = agents(tmp_path, {"https://en.wiktionary.org/api/rest_v1/page/definition/serendipity": httpx.Response(200, json=body)})
+    out = a.execute("wiktionary-define", {"word": "serendipity"})["result"]
+    assert out["answer"] == "serendipity — Noun: (1) The phenomenon of making an unplanned, fortunate discovery."
+    assert out["source"].startswith("Wiktionary (CC BY-SA 4.0") and out["url"] == "https://en.wiktionary.org/wiki/serendipity"
+
+
+def test_github_repo_follows_one_move_on_the_same_host(tmp_path):
+    calls = []
+    repo = {"full_name": "react/react", "description": "UI library", "license": {"spdx_id": "MIT"}, "stargazers_count": 252591,
+            "forks_count": 50000, "open_issues_count": 900, "default_branch": "main", "archived": False,
+            "pushed_at": "2026-11-13T10:28:38Z", "html_url": "https://github.com/react/react", "owner": {"email": "x@y.z"}}
+    a, _ = agents(tmp_path, {"https://api.github.com/repos/facebook/react": httpx.Response(301, headers={"location": "https://api.github.com/repositories/10270250"}),
+                             "https://api.github.com/repositories/10270250": httpx.Response(200, json=repo)}, calls)
+    env = a.execute("github-repo", {"repo": "https://github.com/facebook/react"})
+    answer = env["result"]["answer"]
+    assert answer.startswith("react/react: UI library. License MIT; 252591 stars;") and "Requested facebook/react" in answer
+    assert "x@y.z" not in json.dumps(env) and len(calls) == 2
+
+
+def test_rdap_domain_uses_the_bootstrap_server_and_drops_contacts(tmp_path):
+    boot = {"publication": "2026-10-28T22:00:04Z", "services": [[["org"], ["https://rdap.example-registry.org/rdap/"]]]
+            + [[[f"t{i}"], [f"https://rdap{i}.example/"]] for i in range(120)]}
+    rdap = {"events": [{"eventAction": "registration", "eventDate": "1995-03-27T05:00:00Z"},
+                       {"eventAction": "expiration", "eventDate": "2033-03-28T05:00:00Z"},
+                       {"eventAction": "last update of RDAP database", "eventDate": "2026-11-13T21:15:25Z"}],
+            "entities": [{"roles": ["registrar"], "vcardArray": ["vcard", [["fn", {}, "text", "Gandi SAS"]]]},
+                         {"roles": ["registrant"], "vcardArray": ["vcard", [["fn", {}, "text", "Jane Private"], ["email", {}, "text", "jane@x.org"]]]}],
+            "status": ["client transfer prohibited"], "nameservers": [{"ldhName": "NS1.EXAMPLE.ORG"}]}
+    calls = []
+    a, _ = agents(tmp_path, {"https://data.iana.org/rdap/dns.json": httpx.Response(200, json=boot),
+                             "https://rdap.example-registry.org/rdap/domain/python.org": httpx.Response(200, json=rdap)}, calls)
+    env = a.execute("rdap-domain", {"domain": "Python.org"})
+    assert env["result"]["answer"] == ("python.org: registered 1995-03-27; expires 2033-03-28; last changed ?; registrar Gandi SAS; "
+                                       "status client transfer prohibited; name servers ns1.example.org.")
+    assert "Jane" not in json.dumps(env) and "jane@" not in json.dumps(env)
+    assert env["freshness"]["data_as_of"] == {"RDAP registry": "2026-11-13T21:15:25Z"}
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("rdap-domain", {"domain": "example.zzzz"})
+    assert err.value.code == "not_found"
+
+
+def test_unit_convert_exact_factors_temperature_and_mismatch(tmp_path):
+    from agent_market.fallback_agents.agents import convert_units
+    a, _ = agents(tmp_path, {})
+    assert a.execute("unit-convert", {"value": 10, "from": "miles", "to": "km"})["result"]["answer"] == "10 mile = 16.09344 kilometer"
+    assert convert_units(212, "°F", "C")[0] == pytest.approx(100)
+    assert convert_units(1, "gallon", "liter")[0] == pytest.approx(3.785411784)
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("unit-convert", {"value": 3, "from": "kg", "to": "mile"})
+    assert err.value.code == "invalid_input"
