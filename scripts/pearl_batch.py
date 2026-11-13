@@ -62,7 +62,10 @@ def host_of(url):
 class Pacer:
     """Per-provider limits for one day, kept in a file so a second run the same day obeys them too."""
 
-    def __init__(self, day=None, state_dir=STATE_DIR, clock=time.time, sleep=time.sleep):
+    def __init__(self, day=None, state_dir=STATE_DIR, clock=time.time, sleep=time.sleep, system=None):
+        # 11-14 운영·SRE d16764e1: with SYSTEM set, every call is first reserved in the shared provider ledger
+        # (agent_market/provider_budget: per registrable domain a day, a 429 pauses the domain for all systems).
+        self.system = system
         self.day = day or time.strftime('%Y%m%d')
         # state_dir None: limits kept in memory only (tests, manual runs without PEARL_BATCH=1).
         self.path = Path(state_dir) / f'hosts-{self.day}.json' if state_dir else None
@@ -86,19 +89,30 @@ class Pacer:
     def room(self):
         return max(0, DAILY_LIMIT - int(self.state['reports']))
 
-    def allowed(self, host, a2a=False):
+    def allowed(self, host, a2a=False, url=None):
         if not host or host in self.state['blocked']:
             return False
         if self.state['calls'].get(host, 0) >= PER_HOST_DAY:
             return False
-        return not (a2a and self.state['a2a'].get(host, 0) >= A2A_PER_HOST_DAY)
+        if a2a and self.state['a2a'].get(host, 0) >= A2A_PER_HOST_DAY:
+            return False
+        if self.system and url:
+            from agent_market.provider_budget import reserve
+            ok, why = reserve(url, self.system)
+            if not ok:
+                self.state.setdefault('budget_refused', {})[host] = why
+                return False
+        return True
 
     def wait(self, host):
         gap = HOST_GAP_S - (self.clock() - float(self.state['last'].get(host, 0)))
         if gap > 0:
             self.sleep(gap)
 
-    def called(self, host, code=None, headers=None, a2a=False):
+    def called(self, host, code=None, headers=None, a2a=False, url=None):
+        if self.system and url and code is not None:
+            from agent_market.provider_budget import note
+            note(url, self.system, code)
         self.state['calls'][host] = self.state['calls'].get(host, 0) + 1
         if a2a:
             self.state['a2a'][host] = self.state['a2a'].get(host, 0) + 1

@@ -77,3 +77,21 @@ def test_a2a_reply_classes():
     assert PB.classify_a2a_reply(None)[0] == 'failed'
     long = {'result': {'kind': 'message', 'parts': [{'kind': 'text', 'text': 'x' * 10000}]}}
     assert len(PB.classify_a2a_reply(long)[2]) == PB.REPLY_KEEP
+
+
+def test_shared_provider_ledger(tmp_path, monkeypatch):
+    """운영·SRE d16764e1: every call is reserved in the shared ledger; a 429 there pauses the domain for all systems."""
+    monkeypatch.setenv('PROVIDER_BUDGET_DIR', str(tmp_path / 'ledger'))
+    import importlib
+    import agent_market.provider_budget as budget
+    importlib.reload(budget)
+    pacer = PB.Pacer(day='x', state_dir=None, system='role_tests', sleep=lambda s: None)
+    url = 'https://api.example-provider.com/mcp'
+    allowed = 0
+    for _ in range(10):
+        if pacer.allowed(f'h{allowed}.example-provider.com', url=url):
+            allowed += 1
+    assert allowed == budget.SHARE['role_tests']                 # the domain's role_tests share, across hosts
+    other = PB.Pacer(day='x', state_dir=None, system='pearl_batch')
+    other.called('h.other.com', 429, url='https://h.other.com/mcp')
+    assert not pacer.allowed('x.other.com', url='https://x.other.com/mcp')   # paused for every system

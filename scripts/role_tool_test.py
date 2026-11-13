@@ -262,32 +262,33 @@ def test_one(http, candidate, resource, pacer):
     if resource.get('kind') != 'mcp' or not public_https(url):
         return {**out, 'outcome': 'skipped', 'reason': 'not a public https MCP endpoint'}
     host = out['host']
-    if not pacer.allowed(host):
+    if not pacer.allowed(host, url=url):
         return {**out, 'outcome': 'skipped', 'reason': 'provider limit for today'}
     pacer.wait(host)
     started = time.monotonic()
     try:
         headers, code, retry = mcp_session(http, url)
         if headers is None:
-            pacer.called(host, code, {'Retry-After': retry} if retry else None)
+            pacer.called(host, code, {'Retry-After': retry} if retry else None, url=url)
             return {**out, 'outcome': 'failed', 'reason': f'initialize HTTP {code}'}
         listed = http.post(url, json={'jsonrpc': '2.0', 'id': 2, 'method': 'tools/list'}, headers=headers, timeout=TIMEOUT)
         tools = usage.compact_tools(((parse_jsonrpc(listed) or {}).get('result') or {}).get('tools') or [])
         tool = next((t for t in tools if t['name'] == candidate['tool']), None)
         if tool is None:
-            pacer.called(host, listed.status_code)
+            pacer.called(host, listed.status_code, url=url)
             return {**out, 'outcome': 'skipped', 'reason': 'tool not in the current tools/list'}
         if not usage.is_relay_safe_tool(tool):
-            pacer.called(host, listed.status_code)
+            pacer.called(host, listed.status_code, url=url)
             return {**out, 'outcome': 'skipped', 'reason': 'not a relay-safe read-only tool'}
         args, why = role_arguments(tool, candidate['role'], resource.get('category'), (candidate.get('case') or {}).get('input'))
         if args is None:
-            pacer.called(host, listed.status_code)
+            pacer.called(host, listed.status_code, url=url)
             return {**out, 'outcome': 'skipped', 'reason': why}
         t0 = time.time()
         resp = http.post(url, json=usage.jsonrpc_call(tool['name'], args), headers=headers, timeout=TIMEOUT)
         t1 = time.time()
-        pacer.called(host, resp.status_code, {'Retry-After': resp.headers.get('Retry-After')} if resp.headers.get('Retry-After') else None)
+        pacer.called(host, resp.status_code, {'Retry-After': resp.headers.get('Retry-After')} if resp.headers.get('Retry-After') else None,
+                     url=url)
         data = parse_jsonrpc(resp) or {}
         result = data.get('result') if isinstance(data.get('result'), dict) else {}
         text = full_text(result) if result else ''
@@ -327,7 +328,7 @@ def main(argv=None):
         previous = {key(r): r for r in json.loads(Path(argv[1]).read_text()).get('results', [])}
     if only:
         candidates = [c for c in candidates if c['id'] in only]
-    pacer = PB.Pacer(state_dir=PB.STATE_DIR)
+    pacer = PB.Pacer(state_dir=PB.STATE_DIR, system='role_tests')
     found = resources({c['id'] for c in candidates})
     results = []
     with httpx.Client(follow_redirects=False) as http:

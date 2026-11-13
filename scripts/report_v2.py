@@ -613,7 +613,7 @@ def run(queue):
     import httpx
     import pearl_batch as PB
     from role_tool_test import resources, test_one
-    pacer = PB.Pacer(state_dir=PB.STATE_DIR)
+    pacer = PB.Pacer(state_dir=PB.STATE_DIR, system='role_tests')
     for key in ('role_tests', 'refusals', 'new_tests', 'retests'):
         pacer.state.setdefault(key, 0)
     found = resources({c['id'] for c in queue})

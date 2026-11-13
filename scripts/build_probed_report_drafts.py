@@ -613,7 +613,7 @@ def main():
     registry = Registry(store)
     # PM 11-14 06:1x: pearl candidates first, 30 reports a day in all, per-provider limits (scripts/pearl_batch.py).
     pearl = os.environ.get('PEARL_BATCH') == '1'     # set by batch_report_runner.py; off for tests and manual runs
-    pacer = PB.Pacer(state_dir=PB.STATE_DIR if pearl else None)
+    pacer = PB.Pacer(state_dir=PB.STATE_DIR if pearl else None, system='pearl_batch' if pearl else None)
     per_kind = dict(PB_KIND_LIMITS) if pearl else {}
     for part in os.environ.get('REPORT_PER_KIND', '').split(','):
         if '=' in part:
@@ -677,13 +677,14 @@ def main():
                 continue
 
             host = PB.host_of(res['url'])
-            if not pacer.allowed(host):
+            if not pacer.allowed(host, url=res['url']):
                 summary.append((res['id'], 'SKIP_PROVIDER_LIMIT', host))
                 continue
             pacer.wait(host)
             probed += 1
             p = {'x402': probe_x402, 'a2a': probe_a2a, 'mcp': probe_mcp}[kind](full_res)
-            pacer.called(host, (p or {}).get('code'), {'Retry-After': (p or {}).get('retry_after')} if (p or {}).get('retry_after') else None)
+            pacer.called(host, (p or {}).get('code'), {'Retry-After': (p or {}).get('retry_after')} if (p or {}).get('retry_after') else None,
+                         url=res['url'])
             if not p or not p['ok']: continue
 
             ver = safe_current_version(registry, res['id'])
@@ -706,11 +707,12 @@ def main():
                          'handshake_ms': p['ms'], 'ms': trial['latency_ms'], 't0': trial['started'], 't1': trial['finished'],
                          'request': 'initialize, tools/list and one read-only tools/call recorded by the catalog collector'}
                     scope = 'execution'
-            if scope not in PUBLISHABLE_SCOPES and kind == 'a2a' and pacer.allowed(host, a2a=True):
+            if scope not in PUBLISHABLE_SCOPES and kind == 'a2a' and pacer.allowed(host, a2a=True, url=res['url']):
                 pacer.wait(host)
                 task = probe_a2a_task(full_res, p.get('data'))
                 if task is not None:
-                    pacer.called(host, task['code'], {'Retry-After': task['retry_after']} if task.get('retry_after') else None, a2a=True)
+                    pacer.called(host, task['code'], {'Retry-After': task['retry_after']} if task.get('retry_after') else None, a2a=True,
+                                 url=res['url'])
                     if task['ok']:
                         safe_record_evidence(registry, ver, scope='execution', outcome='succeeded', started=task['t0'], finished=task['t1'])
                         p, scope = task, 'execution'
