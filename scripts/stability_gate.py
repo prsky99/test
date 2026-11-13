@@ -17,6 +17,13 @@ import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+try:  # run as python -m scripts.<name> or as a file
+    from scripts.slo_targets import FINAL, INTERIM, attainment
+except ImportError:
+    import sys as _sys
+    _sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from slo_targets import FINAL, INTERIM, attainment
+
 ROOT = Path(__file__).resolve().parents[1]
 OPS = ROOT / 'logs/ops'
 BOARD = OPS / 'status-board.md'
@@ -63,6 +70,31 @@ def slo_days(rows):
             for d, (runs, bad) in days.items()}
 
 
+def interim_days(rows):
+    """user_slo days against the interim target (11-14), recomputed from the recorded samples so earlier runs count."""
+    days = {}
+    for r in rows:
+        day = _day(r.get('at'))
+        if day:
+            runs, bad = days.get(day, (0, 0))
+            days[day] = (runs + 1, bad + (0 if attainment(r, INTERIM)['ok'] else 1))
+    return {d: {'ok': bad == 0 and runs >= MIN_SLO_RUNS, 'runs': runs, 'failed_runs': bad} for d, (runs, bad) in days.items()}
+
+
+def slo_rates(rows, today, days=7):
+    """Share of runs and of timed samples within the final and the interim target over the last `days` days."""
+    first = (datetime.strptime(today, '%Y-%m-%d') - timedelta(days=days - 1)).strftime('%Y-%m-%d')
+    recent = [r for r in rows if (_day(r.get('at')) or '') >= first]
+    out = {'days': days, 'runs': len(recent)}
+    for name, targets in (('final', FINAL), ('interim', INTERIM)):
+        judged = [attainment(r, targets) for r in recent]
+        good = sum(sum(p['passed'] for p in j['parts'].values()) for j in judged)
+        total = sum(sum(p['n'] for p in j['parts'].values()) for j in judged)
+        out[name] = {'run_rate': round(sum(j['ok'] for j in judged) / len(judged), 3) if judged else None,
+                     'sample_rate': round(good / total, 3) if total else None}
+    return out
+
+
 def full_days(rows):
     days = {}
     for r in rows:
@@ -104,7 +136,9 @@ def judge(today=None, ops=None):
     ops = Path(ops or OPS)
     today = today or datetime.now(KST).strftime('%Y-%m-%d')
     yesterday = (datetime.strptime(today, '%Y-%m-%d') - timedelta(days=1)).strftime('%Y-%m-%d')
-    slo = slo_days(_rows(ops / 'user-slo.jsonl'))
+    slo_rows = _rows(ops / 'user-slo.jsonl')
+    slo = slo_days(slo_rows)
+    interim = interim_days(slo_rows)
     full = full_days(_rows(ops / 'public-full-check.jsonl'))
     task = task_latest(_rows(ops / 'real-task-score.jsonl'))
     ledger = ledger_day(yesterday, ops / 'error-ledger')
@@ -116,9 +150,18 @@ def judge(today=None, ops=None):
         'error_ledger': ledger,
     }
     result['user_slo']['ok'] = result['user_slo']['streak'] >= SLO_DAYS
+    # 11-14: reported beside the gate, never part of it (the gate opens on the final target only).
+    result['user_slo_interim'] = {'streak': streak(interim, today), 'need': SLO_DAYS, 'today': interim.get(today)}
+    result['user_slo_interim']['ok'] = result['user_slo_interim']['streak'] >= SLO_DAYS
+    result['slo_rates'] = slo_rates(slo_rows, today)
     result['full_check']['ok'] = result['full_check']['streak'] >= FULL_DAYS
     result['open'] = all(result[k]['ok'] for k in ('user_slo', 'full_check', 'real_tasks', 'error_ledger'))
     return result
+
+
+def pct(r, name):
+    rate = ((r.get('slo_rates') or {}).get(name) or {}).get('run_rate')
+    return '-' if rate is None else f"{round(rate * 100)}%"
 
 
 def board_line(r):
@@ -129,6 +172,8 @@ def board_line(r):
     unexplained = '장부 없음' if ledger['unexplained'] is None else f"{ledger['unexplained']}건"
     return (f"{MARK} {r['judged_at']} 자동 판정: {'열림' if r['open'] else '닫힘'}]** "
             f"user_slo {r['user_slo']['streak']}/{SLO_DAYS}일({mark(r['user_slo']['ok'])}) · "
+            f"차선 목표 user_slo {r.get('user_slo_interim', {}).get('streak', 0)}/{SLO_DAYS}일 · "
+            f"7일 달성률 최종 {pct(r, 'final')}·차선 {pct(r, 'interim')} · "
             f"전수 점검 실패 0 {r['full_check']['streak']}/{FULL_DAYS}일({mark(r['full_check']['ok'])}) · "
             f"실제 과제 {task.get('passed')}/{task.get('tasks')}(목표 {TASK_TARGET}, {mark(task['ok'])}) · "
             f"설명되지 않은 오류 {ledger['day']} {unexplained}({mark(ledger['ok'])}). "

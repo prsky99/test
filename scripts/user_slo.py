@@ -28,6 +28,13 @@ from pathlib import Path
 
 import httpx
 
+try:  # run as python -m scripts.<name> or as a file
+    from scripts.slo_targets import FINAL, INTERIM, attainment
+except ImportError:
+    import sys as _sys
+    _sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from slo_targets import FINAL, INTERIM, attainment
+
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'logs/ops/user-slo.jsonl'
 BASE = 'https://agentconcierge.biz'
@@ -39,7 +46,7 @@ TOPICS = ['weather forecast', 'translate pdf', 'send email', 'crypto price', 'su
           'shipping tracking', 'customer support', 'code review', '날씨', '번역', '이메일 보내기']
 MODIFIERS = ['for my team', 'in real time', 'free', 'api', 'for agents', 'quickly', 'with history', 'in korea',
              'small business', 'json output', 'today', 'bulk']
-TARGET = {'explore_s': 2.0, 'recommend_s': 2.0, 'complex_s': 5.0, 'page_s': 1.0}  # 11-11 19시 사용자 결정(추천 2초·페이지 1초)
+TARGET = FINAL  # 11-11 19시 사용자 결정(추천 2초·페이지 1초); the interim target (11-14) is judged beside it
 OWNER = {'explore': '검색과 RAG', 'recommend': '검색과 RAG', 'connect': '검색과 RAG', 'pages': '성장·유통'}
 MCP_HEADERS = {'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream'}
 
@@ -334,6 +341,9 @@ def main():
     record['pages'] = check_pages()
     record['load_1_end'] = round(os.getloadavg()[0], 2)
     record['breaches'] = breaches(record)
+    # 11-14 (user, via PM): the same samples judged against the final and the interim target, none left out.
+    record['interim_targets'] = INTERIM
+    record['attainment'] = {'final': attainment(record, TARGET), 'interim': attainment(record, INTERIM)}
     OUT.parent.mkdir(parents=True, exist_ok=True)
     with OUT.open('a') as fh:
         fh.write(json.dumps(record, ensure_ascii=False) + '\n')
