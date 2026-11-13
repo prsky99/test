@@ -19,7 +19,7 @@ the rows whose mark differs. Nothing here touches public-schema triggers. One co
     .venv/bin/python -m scripts.embeddings_graph_cap status   --dsn-file <dsn>
     .venv/bin/python -m scripts.embeddings_graph_cap migrate  --dsn-file <dsn> --i-have-approval
     .venv/bin/python -m scripts.embeddings_graph_cap refresh  --dsn-file <dsn> --i-have-approval
-    .venv/bin/python -m scripts.embeddings_graph_cap rollback --dsn-file <dsn> --i-have-approval
+    .venv/bin/python -m scripts.embeddings_graph_cap rollback --dsn-file <dsn> --i-have-approval   # waits 330 s between steps
 """
 import argparse
 import json
@@ -127,9 +127,12 @@ def refresh(connection):
     return {'refreshed': True, 'set_in': set_in, 'set_out': set_out, 'seconds': round(time.monotonic() - began, 1)}
 
 
-def rollback(connection):
+def rollback(connection, wait_seconds=0):
+    """Indexes first; the column only after every process re-read its layout (postgres_ann.LAYOUT_SECONDS),
+    since a process that still sees the capped indexes names the column in its search."""
     for name in INDEXES.values():
         connection.execute('DROP INDEX CONCURRENTLY IF EXISTS agentcon_search.' + name)
+    time.sleep(wait_seconds)
     connection.execute("SET lock_timeout='2s'")
     connection.execute('ALTER TABLE agentcon_search.embeddings DROP COLUMN IF EXISTS in_kind_graph')
     return {'rolled_back': True}
@@ -141,11 +144,16 @@ def main(argv=None):
     parser.add_argument('--dsn-file', required=True)
     parser.add_argument('--i-have-approval', action='store_true',
                         help='required for migrate/refresh/rollback: run only after the rehearsal passed and the user approved')
+    parser.add_argument('--wait-seconds', type=int, default=330,
+                        help='rollback: seconds between dropping the indexes and the column (layout cache 300 s)')
     args = parser.parse_args(argv)
     if args.action != 'status' and not args.i_have_approval:
         parser.error(args.action + ' changes the database; pass --i-have-approval only after approval')
     with _connect(args.dsn_file) as connection:
-        result = {'migrate': migrate, 'refresh': refresh, 'rollback': rollback}.get(args.action, lambda c: {})(connection)
+        if args.action == 'rollback':
+            result = rollback(connection, args.wait_seconds)
+        else:
+            result = {'migrate': migrate, 'refresh': refresh}.get(args.action, lambda c: {})(connection)
         result['status'] = status(connection)
     print(json.dumps(result, default=str))
     return 0
