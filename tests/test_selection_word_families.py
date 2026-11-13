@@ -43,10 +43,16 @@ def test_one_qualifier_list():
 @pytest.mark.parametrize('task, core', [
     ('look up details for a CVE', ['cve']),
     ('post to a Discord channel', ['discord']),
-    ('send a message to my Slack channel', ['slack']),
+    ('send a message to my Slack channel', ['slack', 'message']),
     ('send a message to John', ['send', 'message']),        # a person (20 listings) is not a capability
     ('SEC filings for Apple', ['sec', 'filings']),           # the head already names the capability
     ('weather forecast for Seoul', ['weather', 'forecast']),
+    ('send a message to a Telegram group', ['telegram', 'message']),  # telegram+group matched no tool; a
+                                                                       # messaging tool names the message (11-14)
+    ('get details for a Shopify order', ['shopify']),
+    ('post to a Slack channel when a deploy finishes', ['slack']),
+    ('get details for an ethereum transaction', ['ethereum', 'transaction']),  # a broad first word keeps the next
+    ('show details for a crypto wallet address', ['crypto', 'wallet']),
 ])
 def test_a_weak_head_takes_the_object_after_the_boundary(task, core):
     """PM 11-14 02:5x: a general rule, not phrase rewrites (gate cve_scan-en1, telegram-en1)."""

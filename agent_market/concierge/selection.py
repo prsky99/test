@@ -440,8 +440,14 @@ def capability_terms(task):
     if len(split) > 1 and specific and set(specific) <= WEAK_HEAD:
         objects = [term for term in search_terms(split[1]) if term not in WEAK_HEAD and term not in GENERIC_ACTIONS
                    and term not in CAPABILITY_MODIFIERS and term not in INPUT_OBJECTS and _catalog_count(term) >= 50][:2]
+        # A rare word ("telegram", 269 listings) names the product by itself; a second word ("group") would
+        # require both and can leave nothing. A broad one ("crypto", "domain") needs the next noun (wallet, name).
+        if len(objects) == 2 and _catalog_count(objects[0]) < BROAD_OBJECT:
+            objects = objects[:1]
         if objects:
-            specific = objects
+            # "send a message to a Telegram group": the product says where, the message says what is done;
+            # a messaging tool names the message, rarely the product (11-14 03:4x, Fast MCP Telegram send_message).
+            specific = objects + [term for term in specific if term in MESSAGE_HEAD]
     # The place, company or document is what the capability is applied to, not the capability.
     if set(specific).intersection({'weather','forecast','temperature','tide','tides','surf','surfing','swell','air','aqi'}):
         specific = [term for term in specific if term in WEATHER_TERMS] or specific
@@ -488,6 +494,8 @@ QUALIFIER_PHRASES = re.compile(r'\b(?:today|in\s+real[\s-]time|quickly|for\s+my\
 INPUT_OBJECTS = frozenset('document documents file files read reads reading'.split())
 WEAK_HEAD = frozenset('details detail info information data message messages post posts send result results content '
                       'record records lookup channel channels'.split())
+MESSAGE_HEAD = frozenset('message messages'.split())  # not post: 'discord'+'post' left "post to a Discord channel" empty
+BROAD_OBJECT = 2000  # listings; below it the first object word is specific enough alone
 
 
 @lru_cache(maxsize=1)
