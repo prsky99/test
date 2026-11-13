@@ -298,6 +298,26 @@ def example_arguments(tool):
     return out
 
 
+_FILE_URL_PARAM = re.compile(r'(?:^|_)(?:url|uri|link|source|file|document|pdf)(?:_url|_uri|_link)?$', re.I)
+_PDF = re.compile(r'\bpdf\b', re.I)
+
+
+def file_url_note(schemas, name=None, description=None):
+    """PM 11-14 (real task a01): a converter that takes a file URL usually reads the format from the URL's extension,
+    so an arXiv address without .pdf ("…/pdf/1706.03762") is refused. Tell the caller which address to pass."""
+    text = ' '.join(str(x or '') for x in (name, description))
+    for tool in schemas or []:
+        if not isinstance(tool, dict):
+            continue
+        schema = tool.get('inputSchema') if isinstance(tool.get('inputSchema'), dict) else {}
+        props = schema.get('properties') if isinstance(schema.get('properties'), dict) else {}
+        about = text + ' ' + str(tool.get('name') or '') + ' ' + str(tool.get('description') or '')
+        if _PDF.search(about) and any(_FILE_URL_PARAM.search(str(key)) for key in props):
+            return ("Pass a direct file URL that ends in the file's extension; for an arXiv paper use "
+                    "https://arxiv.org/pdf/<id>.pdf (an abs page or a URL without .pdf may be refused).")
+    return None
+
+
 def run_here(rid, tool):
     """Our /mcp `call` tool runs a recommended informational tool in the same session (11-12 PM): an MCP host
     cannot add a new server during a conversation, so this is the only way to run it without a config change."""
@@ -363,6 +383,8 @@ def _public_agent(value, resource=None, *, store=None, create_connections=True):
         result['price_usdc'],result['price_status']=price_fields(value.get('kind'),value.get('price_usdc'),
                                                                  text('name'),text('description'))
     schemas=[t for t in (result.get('tools_schema') or []) if isinstance(t,dict)]
+    note=file_url_note(schemas,value.get('name'),value.get('description'))
+    if note:result['input_notes']=[note]
     if gateway and value.get('kind')=='mcp' and isinstance(result.get('connect_steps'),list):
         result['connect_steps']=gateway_mcp_steps(gateway,schemas[0].get('name') if schemas else None,
                                                   example_arguments(schemas[0]) if schemas else None)
