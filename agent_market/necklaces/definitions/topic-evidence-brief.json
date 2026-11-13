@@ -1,0 +1,357 @@
+{
+  "slug": "topic-evidence-brief",
+  "version": 1,
+  "status": "candidate",
+  "name": "Topic evidence brief",
+  "summary": "A cited brief on one topic: a grounded web answer, the most relevant papers from more than one index, an encyclopedia summary and recent news.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "topic": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 200
+      }
+    },
+    "required": [
+      "topic"
+    ],
+    "additionalProperties": false
+  },
+  "budget_ms": {
+    "total": 5000,
+    "slot": 3500
+  },
+  "synthesis": {
+    "kind": "merge-v1",
+    "rules": [
+      "papers from two indexes are merged by DOI or arXiv id and marked agreed when both list them",
+      "every statement keeps its source link",
+      "news is optional and dated"
+    ]
+  },
+  "answer_set": "topic-evidence-brief-v1",
+  "slots": [
+    {
+      "slot": "web",
+      "contract": "web.grounding.v1",
+      "required": true,
+      "fanout": 1,
+      "chain": [
+        {
+          "kind": "external",
+          "resource_id": 50972,
+          "tool": "ask_pipeworx_grounded",
+          "registrable_domain": "pipeworx.io",
+          "upstream": [
+            "brave-search"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "pearl": true,
+          "state": "active",
+          "input_map": {
+            "question": "{{input.topic}}"
+          }
+        },
+        {
+          "kind": "external",
+          "resource_id": 276982,
+          "tool": "agent_clean_web_grounding",
+          "registrable_domain": "ceadigital.io",
+          "upstream": [
+            "unknown"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": null,
+          "resend_safe": false,
+          "pearl": true,
+          "state": "pending_test",
+          "input_map": {
+            "query": "{{input.topic}}"
+          },
+          "note": "Pearl 276982, web grounding tool; role-tool test pending (search and RAG). No AgentValCon fallback for web.grounding yet (requested from the agent team)."
+        },
+        {
+          "kind": "agentcon",
+          "agent_id": "wiki-grounding",
+          "resource_id": null,
+          "tool": "answer_from_wikipedia",
+          "registrable_domain": "agentconcierge.biz",
+          "upstream": [
+            "wikipedia"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "planned",
+          "input_map": {
+            "question": "{{input.topic}}"
+          },
+          "note": "Agent team (wiki-grounding, extractive Wikipedia answer with links); planned until the ops substitute gate approves it."
+        }
+      ]
+    },
+    {
+      "slot": "papers",
+      "contract": "papers.search.v1",
+      "required": true,
+      "fanout": 2,
+      "chain": [
+        {
+          "kind": "external",
+          "resource_id": 39577,
+          "tool": "search_papers",
+          "registrable_domain": "nobleblocks.com",
+          "upstream": [
+            "unknown"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "pearl": false,
+          "state": "active",
+          "input_map": {
+            "query": "{{input.topic}}",
+            "limit": 10
+          }
+        },
+        {
+          "kind": "external",
+          "resource_id": 34550,
+          "tool": "search_papers",
+          "registrable_domain": "cutgpt.app",
+          "upstream": [
+            "unknown"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "pearl": false,
+          "state": "active",
+          "input_map": {
+            "query": "{{input.topic}}",
+            "limit": 10
+          }
+        },
+        {
+          "kind": "external",
+          "resource_id": 34807,
+          "tool": "search_papers",
+          "registrable_domain": "openkrill.app",
+          "upstream": [
+            "unknown"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "pearl": false,
+          "state": "active",
+          "input_map": {
+            "query": "{{input.topic}}",
+            "limit": 10
+          }
+        },
+        {
+          "kind": "external",
+          "resource_id": 47151,
+          "tool": "openalex_search_entities",
+          "registrable_domain": "caseyjhand.com",
+          "upstream": [
+            "openalex"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "pearl": false,
+          "state": "active",
+          "input_map": {
+            "entity_type": "works",
+            "query": "{{input.topic}}"
+          }
+        },
+        {
+          "kind": "agentcon",
+          "agent_id": "arxiv-search",
+          "resource_id": null,
+          "tool": "search_arxiv_papers",
+          "registrable_domain": "agentconcierge.biz",
+          "upstream": [
+            "arxiv"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "planned",
+          "input_map": {
+            "query": "{{input.topic}}",
+            "limit": 10
+          },
+          "note": "Agent team 342891f4; planned until the ops substitute gate approves it."
+        },
+        {
+          "kind": "agentcon",
+          "agent_id": "research-papers",
+          "resource_id": 133019,
+          "tool": "search_research_papers",
+          "registrable_domain": "agentconcierge.biz",
+          "upstream": [
+            "crossref"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "active",
+          "input_map": {
+            "query": "{{input.topic}}",
+            "limit": 5
+          },
+          "note": "Existing owned agent 133019 (Crossref)."
+        }
+      ]
+    },
+    {
+      "slot": "background",
+      "contract": "encyclopedia.summary.v1",
+      "required": true,
+      "fanout": 1,
+      "chain": [
+        {
+          "kind": "external",
+          "resource_id": 47189,
+          "tool": "wikipedia_get_summary",
+          "registrable_domain": "caseyjhand.com",
+          "upstream": [
+            "wikipedia"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": null,
+          "resend_safe": false,
+          "pearl": false,
+          "state": "active",
+          "input_map": {
+            "title": "{{input.topic}}"
+          }
+        },
+        {
+          "kind": "external",
+          "resource_id": 143970,
+          "tool": "wiki_summary",
+          "registrable_domain": "faceabot.com",
+          "upstream": [
+            "wikipedia"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "pearl": false,
+          "state": "active",
+          "input_map": {
+            "title": "{{input.topic}}"
+          }
+        },
+        {
+          "kind": "agentcon",
+          "agent_id": "wikipedia-summary",
+          "resource_id": null,
+          "tool": "get_wikipedia_summary",
+          "registrable_domain": "agentconcierge.biz",
+          "upstream": [
+            "wikipedia"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "planned",
+          "input_map": {
+            "title": "{{input.topic}}"
+          },
+          "note": "Agent team 342891f4; planned until the ops substitute gate approves it."
+        }
+      ]
+    },
+    {
+      "slot": "news",
+      "contract": "news.search.v1",
+      "required": false,
+      "fanout": 1,
+      "chain": [
+        {
+          "kind": "external",
+          "resource_id": 147960,
+          "tool": "search_news",
+          "registrable_domain": "galactic.inc",
+          "upstream": [
+            "unknown"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": null,
+          "resend_safe": false,
+          "pearl": false,
+          "state": "active",
+          "input_map": {
+            "query": "{{input.topic}}",
+            "limit": 5
+          }
+        },
+        {
+          "kind": "external",
+          "resource_id": 50972,
+          "tool": "news_search",
+          "registrable_domain": "pipeworx.io",
+          "upstream": [
+            "brave-search"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "pearl": false,
+          "state": "active",
+          "input_map": {
+            "q": "{{input.topic}}",
+            "count": 5
+          }
+        },
+        {
+          "kind": "agentcon",
+          "agent_id": "technology-news",
+          "resource_id": 133018,
+          "tool": "search_technology_news",
+          "registrable_domain": "agentconcierge.biz",
+          "upstream": [
+            "hacker-news"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "active",
+          "input_map": {
+            "query": "{{input.topic}}",
+            "limit": 5
+          },
+          "note": "Existing owned agent 133018 (Hacker News, technology topics)."
+        }
+      ]
+    }
+  ],
+  "replaces_templates": [
+    38
+  ],
+  "notes": "v1 candidate (workflow team 11-14). Primaries by failure domain: pipeworx.io owns web, nobleblocks.com papers, caseyjhand.com background, galactic.inc news. Both background externals read Wikipedia (one upstream); the AgentValCon fallback reads it too."
+}

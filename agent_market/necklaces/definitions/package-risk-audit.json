@@ -1,0 +1,258 @@
+{
+  "slug": "package-risk-audit",
+  "version": 1,
+  "status": "candidate",
+  "name": "Package risk audit",
+  "summary": "Known vulnerabilities and maintenance signals for one npm or PyPI package, cross-checked across independent advisory sources.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "package": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 214
+      },
+      "ecosystem": {
+        "type": "string",
+        "enum": [
+          "npm",
+          "PyPI"
+        ]
+      },
+      "version": {
+        "type": "string",
+        "maxLength": 64
+      }
+    },
+    "required": [
+      "package",
+      "ecosystem"
+    ],
+    "additionalProperties": false
+  },
+  "budget_ms": {
+    "total": 5000,
+    "slot": 3500
+  },
+  "synthesis": {
+    "kind": "merge-v1",
+    "rules": [
+      "fold advisory aliases (GHSA/CVE/OSV) into one item",
+      "mark items reported by two or more sources as agreed",
+      "list items from one source as single-source",
+      "show conflicting severity values side by side"
+    ]
+  },
+  "answer_set": "package-risk-audit-v1",
+  "slots": [
+    {
+      "slot": "advisories",
+      "contract": "package.advisories.v1",
+      "required": true,
+      "fanout": 2,
+      "chain": [
+        {
+          "kind": "external",
+          "resource_id": 367249,
+          "tool": "check_software",
+          "registrable_domain": "poparecon.com",
+          "upstream": [
+            "fixlane-reviewed"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": null,
+          "resend_safe": false,
+          "pearl": true,
+          "state": "active",
+          "input_map": {
+            "query": "{{input.package}}"
+          }
+        },
+        {
+          "kind": "external",
+          "resource_id": 286623,
+          "tool": "search_vulnerabilities",
+          "registrable_domain": "threatist.io",
+          "upstream": [
+            "threatist"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "pearl": false,
+          "state": "active",
+          "input_map": {
+            "q": "{{input.package}}",
+            "limit": 20
+          }
+        },
+        {
+          "kind": "external",
+          "resource_id": 47161,
+          "tool": "osv_query_package",
+          "registrable_domain": "caseyjhand.com",
+          "upstream": [
+            "osv"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "pearl": false,
+          "state": "active",
+          "input_map": {
+            "name": "{{input.package}}",
+            "ecosystem": "{{input.ecosystem}}",
+            "version": "{{input.version}}"
+          }
+        },
+        {
+          "kind": "external",
+          "resource_id": 130453,
+          "tool": "scan_package_cve_advisories",
+          "registrable_domain": "agentdiet.dev",
+          "upstream": [
+            "unknown"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "pearl": false,
+          "state": "active",
+          "input_map": {
+            "package": "{{input.package}}"
+          },
+          "note": "The tool also accepts x402 payment fields (agent_id, tx_hash); they are never sent."
+        },
+        {
+          "kind": "agentcon",
+          "agent_id": "package-advisories",
+          "resource_id": 133023,
+          "tool": "check_package_advisories",
+          "registrable_domain": "agentconcierge.biz",
+          "upstream": [
+            "osv"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "active",
+          "input_map": {
+            "package": "{{input.package}}",
+            "version": "{{input.version}}",
+            "limit": 20
+          },
+          "coverage": {
+            "ecosystem": [
+              "npm"
+            ]
+          }
+        },
+        {
+          "kind": "agentcon",
+          "agent_id": "github-advisory",
+          "resource_id": null,
+          "tool": "list_package_advisories",
+          "registrable_domain": "agentconcierge.biz",
+          "upstream": [
+            "github-advisory-database"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "planned",
+          "input_map": {
+            "package": "{{input.package}}",
+            "ecosystem": "{{input.ecosystem}}",
+            "version": "{{input.version}}"
+          },
+          "note": "Built by the agent team (82219181, agent_market/fallback_agents); tuning 27/30 first run, re-measured after a fix. Becomes active with its resource_id once registered (PM decision on the public path)."
+        }
+      ]
+    },
+    {
+      "slot": "health",
+      "contract": "package.health.v1",
+      "required": true,
+      "fanout": 1,
+      "chain": [
+        {
+          "kind": "external",
+          "resource_id": 276982,
+          "tool": "depsdev_openssf_scorecard",
+          "registrable_domain": "ceadigital.io",
+          "upstream": [
+            "deps.dev",
+            "openssf-scorecard"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": null,
+          "resend_safe": false,
+          "pearl": true,
+          "state": "pending_test",
+          "input_map": {
+            "package": "{{input.package}}",
+            "ecosystem": "{{input.ecosystem}}"
+          },
+          "note": "Role-tool retest scheduled 11-15 09:12 (search and RAG). ceadigital.io registers the same toolbox 33 times: one failure domain."
+        },
+        {
+          "kind": "agentcon",
+          "agent_id": "package-registry",
+          "resource_id": null,
+          "tool": "get_package_release",
+          "registrable_domain": "agentconcierge.biz",
+          "upstream": [
+            "npm-registry",
+            "pypi-json"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "planned",
+          "input_map": {
+            "package": "{{input.package}}",
+            "ecosystem": "{{input.ecosystem}}"
+          },
+          "note": "Agent team cb477793, tuning 30/30, role tasks 2/2; npm and PyPI registries. Active after the ops substitute gate (PM 11-14: first gate with package-registry and depsdev-package)."
+        },
+        {
+          "kind": "agentcon",
+          "agent_id": "depsdev-package",
+          "resource_id": null,
+          "tool": "get_package_scorecard",
+          "registrable_domain": "agentconcierge.biz",
+          "upstream": [
+            "deps.dev",
+            "openssf-scorecard"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "planned",
+          "input_map": {
+            "package": "{{input.package}}",
+            "ecosystem": "{{input.ecosystem}}"
+          },
+          "note": "Agent team cb477793, tuning 30/30. Same deps.dev source as the external 276982 (marked same_source); package-registry keeps a different source in the slot."
+        }
+      ]
+    }
+  ],
+  "replaces_templates": [
+    40,
+    46,
+    47,
+    55,
+    62
+  ],
+  "notes": "v1 candidate (workflow team 11-14). PM 11-14 super-gap: first gate together with cve-incident-brief, with the agent team's package-registry and depsdev-package; the former 133021 (npm only) leaves the chain."
+}

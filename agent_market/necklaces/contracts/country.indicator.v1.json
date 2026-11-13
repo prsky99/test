@@ -1,0 +1,76 @@
+{
+  "id": "country.indicator.v1",
+  "role": "One indicator value for a country and year",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "country": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 3
+      },
+      "indicator": {
+        "type": "string",
+        "maxLength": 100
+      },
+      "year": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "country",
+      "indicator"
+    ],
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "country": {
+        "type": "string"
+      },
+      "indicator": {
+        "type": "string"
+      },
+      "year": {
+        "type": "integer"
+      },
+      "value": {
+        "type": [
+          "number",
+          "string"
+        ]
+      },
+      "unit": {
+        "type": "string",
+        "maxLength": 60
+      },
+      "source": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "country",
+      "indicator",
+      "value",
+      "source"
+    ],
+    "additionalProperties": false
+  },
+  "rules": [
+    "the year of the value is stated",
+    "population means SP.POP.TOTL and gdp means NY.GDP.MKTP.CD in World Bank terms"
+  ],
+  "test_inputs": [
+    {
+      "country": "KOR",
+      "indicator": "population",
+      "year": 2023
+    },
+    {
+      "country": "DEU",
+      "indicator": "gdp",
+      "year": 2022
+    }
+  ]
+}

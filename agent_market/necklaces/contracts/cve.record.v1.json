@@ -1,0 +1,79 @@
+{
+  "id": "cve.record.v1",
+  "role": "Published record of one CVE: score, vector, description, references",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "cve_id": {
+        "type": "string",
+        "pattern": "^CVE-[0-9]{4}-[0-9]{4,}$"
+      }
+    },
+    "required": [
+      "cve_id"
+    ],
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "cve_id": {
+        "type": "string",
+        "pattern": "^CVE-[0-9]{4}-[0-9]{4,}$"
+      },
+      "cvss_score": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 10
+      },
+      "cvss_version": {
+        "type": "string",
+        "maxLength": 8
+      },
+      "cvss_vector": {
+        "type": "string",
+        "maxLength": 200
+      },
+      "description": {
+        "type": "string",
+        "maxLength": 4000
+      },
+      "published": {
+        "type": "string",
+        "maxLength": 40
+      },
+      "references": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "pattern": "^https://",
+          "maxLength": 2000
+        },
+        "maxItems": 20
+      },
+      "source": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "cve_id",
+      "source"
+    ],
+    "additionalProperties": false
+  },
+  "rules": [
+    "cve_id equals the input",
+    "cvss_score and cvss_version come together"
+  ],
+  "test_inputs": [
+    {
+      "cve_id": "CVE-2021-44228"
+    },
+    {
+      "cve_id": "CVE-2023-4863"
+    },
+    {
+      "cve_id": "CVE-2024-3094"
+    }
+  ]
+}

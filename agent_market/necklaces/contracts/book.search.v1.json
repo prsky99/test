@@ -1,0 +1,51 @@
+{
+  "id": "book.search.v1",
+  "role": "book search (default role from the pearl tests; input keys are alternatives, a member uses the ones it accepts)",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string",
+        "maxLength": 500
+      },
+      "title": {
+        "type": "string",
+        "maxLength": 500
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "answer": {
+        "type": "string",
+        "maxLength": 8000
+      },
+      "url": {
+        "type": "string",
+        "pattern": "^https://",
+        "maxLength": 2000
+      },
+      "source": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "answer",
+      "source"
+    ],
+    "additionalProperties": false
+  },
+  "rules": [
+    "author: austen",
+    "read-only lookup; no account, payment or write"
+  ],
+  "test_inputs": [
+    {
+      "query": "Pride and Prejudice",
+      "title": "Pride and Prejudice"
+    }
+  ]
+}

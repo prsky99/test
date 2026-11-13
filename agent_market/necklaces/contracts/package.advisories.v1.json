@@ -1,0 +1,110 @@
+{
+  "id": "package.advisories.v1",
+  "role": "Known vulnerabilities and advisories for one package",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "package": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 214
+      },
+      "ecosystem": {
+        "type": "string",
+        "enum": [
+          "npm",
+          "PyPI"
+        ]
+      },
+      "version": {
+        "type": "string",
+        "maxLength": 64
+      }
+    },
+    "required": [
+      "package",
+      "ecosystem"
+    ],
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "items": {
+        "type": "array",
+        "maxItems": 50,
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 64
+            },
+            "aliases": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 20
+            },
+            "summary": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "severity": {
+              "type": "string",
+              "maxLength": 32
+            },
+            "affected": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "url": {
+              "type": "string",
+              "pattern": "^https://",
+              "maxLength": 2000
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "partial": {
+        "type": "boolean"
+      },
+      "source": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "items",
+      "source"
+    ],
+    "additionalProperties": false
+  },
+  "rules": [
+    "item ids are unique after alias folding (GHSA, CVE, OSV ids of one advisory count once)",
+    "every url is public HTTPS",
+    "an empty list is a valid answer and means the source reported no advisory"
+  ],
+  "test_inputs": [
+    {
+      "package": "lodash",
+      "ecosystem": "npm",
+      "version": "4.17.20"
+    },
+    {
+      "package": "minimist",
+      "ecosystem": "npm",
+      "version": "1.2.5"
+    },
+    {
+      "package": "requests",
+      "ecosystem": "PyPI",
+      "version": "2.31.0"
+    }
+  ]
+}
