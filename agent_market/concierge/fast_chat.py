@@ -93,7 +93,7 @@ OUTPUT_FRAME = re.compile(
     r'(?:tool|agent|api|endpoint|mcp\s+server|server|service)\s+(?:that|which|to)\s+'
     r'(?:returns?|gives?|provides?|outputs?)\s+(?:me\s+|us\s+|back\s+)?', re.I)
 OUTPUT_FORMAT = re.compile(r'\s+(?:as|in)\s+(?:a\s+)?(?:json|csv|xml|yaml)(?:\s+(?:format|object|response|output))?\s*[.!?]?\s*$', re.I)
-# When or for whom, not what (PM 11-13 22:3x): "번역 small business", "send email small business" and "invoice ocr small
+# When or for whom, not what (PM 11-13 22:3x): "<Korean for translation> small business", "send email small business" and "invoice ocr small
 # business" found nothing with these words required, fell to narrow -> split (2.2-4.1 s) and led with value_business,
 # send_message_to_vendor and business_services; without them translate, send_email and invoice_ocr in 0.5-1.3 s.
 # They stay in the task, so conditions and the answer still see them. "bulk" stays: batch processing is a capability.
