@@ -228,10 +228,26 @@
 
 `roles-32-survey.md`: 외부 대체 현황, 원천별 상업 이용 조건(약관 원문 확인), 만들 수 있는 역할과 원천이 없는 역할(crypto.price·ip.lookup·stock.quote).
 
+## 5-4. 자체 대체 상시 감시 (PM 11-14, 목걸이 멤버와 같은 상시 감시)
+
+`agent_market/fallback_agents/watch.py` — jobs 정비 칸 모양(`FallbackWatch.due()`/`run()`, 매시 :25, 측정 시간 :55~:10과 03:50~05:10 피함). 기록 `gateway-data/fallback-agents/watch/<날짜>.jsonl`, 상태 `watch/state.json`.
+
+| 기록 | 방법 |
+|---|---|
+| 원천 헬스 | 지난 1시간 에이전트별 사용 기록(호출·성공·원천 실패·stale·429). 매시간 바깥 원천을 따로 부르지 않음(하루 호출 예산 보호). not_found·invalid_input은 요청에 대한 정상 답이라 실패로 안 셈 |
+| 스냅샷 나이 | NVD(상한 6시간), 공항 색인(8일), KEV 사본(24시간) |
+| 한도 | GitHub 무인증 한도(`/rate_limit`는 한도를 쓰지 않음), 오늘의 공용 시험 예산 장부 중 우리 원천 도메인 |
+| stale 실패 수 | 지난 1시간 합계 |
+
+- 경보(키마다 하루 한 번): 스냅샷 상한 초과, 원천 실패 3회 연속, GitHub 남은 한도 5 미만.
+- `watch.health(agent_id)`: 워크플로우 감시가 자체 대체 상태(healthy·degraded·failing·idle·unknown)를 읽어 사슬에서 내릴 수 있게 함. 스냅샷이 상한을 넘으면 그 스냅샷을 쓰는 에이전트는 failing.
+- 첫 실제 회차(11-14 06:4x): 실패 에이전트 0, 스냅샷 모두 상한 안, **GitHub 무인증 한도 0/60 소진 경보**(이 맥 IP를 여러 팀이 공유; 06:36 KST 리셋). 토큰 같은 자격 증명은 쓰지 않습니다(PM 지시) → 6시간 캐시로 버팀.
+- 만들다 고친 버그 둘: 같은 날짜 파일을 두 번 읽어 수가 두 배가 되던 것, 정상 거절(not_found)까지 실패로 세던 것.
+
 ## 6. 시험·재현
 
 ```bash
-nice -n 10 .venv-tests/bin/python -m pytest -q tests/test_fallback_agents.py     # 102 passed (네트워크 없음)
+nice -n 10 .venv-tests/bin/python -m pytest -q tests/test_fallback_agents.py     # 104 passed (네트워크 없음)
 .venv/bin/python -m agent_market.fallback_agents.nvd_sync --full                  # 스냅샷 첫 빌드
 .venv/bin/python -m agent_market.fallback_agents.gold_check nvd-cve cisa-kev --out /tmp/x.json
 ```

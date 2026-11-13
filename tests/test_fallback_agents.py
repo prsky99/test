@@ -1406,3 +1406,52 @@ def test_unit_convert_exact_factors_temperature_and_mismatch(tmp_path):
     with pytest.raises(FallbackUnavailable) as err:
         a.execute("unit-convert", {"value": 3, "from": "kg", "to": "mile"})
     assert err.value.code == "invalid_input"
+
+
+# ------------------------------------------------------------------ hourly watch of the fallback agents
+def write_usage(root, rows):
+    folder = root / "usage"
+    folder.mkdir(parents=True, exist_ok=True)
+    with open(folder / f"{rows[0]['at'][:10]}.jsonl", "a") as fh:
+        for row in rows:
+            fh.write(json.dumps(row) + "\n")
+
+
+def test_watch_records_health_snapshots_quota_and_alerts_once_a_day(tmp_path):
+    from agent_market.fallback_agents.watch import health, observe
+    import sqlite3
+    now = 1794600000.0
+    at = lambda s: __import__("datetime").datetime.fromtimestamp(now - s, __import__("datetime").timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")  # noqa: E731
+    write_usage(tmp_path, [{"at": at(900), "agent": "cve-org", "ok": False, "code": "source_unavailable"},
+                           {"at": at(800), "agent": "cve-org", "ok": False, "code": "rate_limited"},
+                           {"at": at(700), "agent": "cve-org", "ok": False, "code": "source_unavailable"},
+                           {"at": at(600), "agent": "public-holidays", "ok": False, "code": "not_found"},
+                           {"at": at(500), "agent": "nvd-cve", "ok": False, "code": "stale"},
+                           {"at": at(400), "agent": "nvd-cve", "ok": True, "code": None}])
+    db = sqlite3.connect(tmp_path / "nvd-cve.sqlite3")
+    db.execute("CREATE TABLE meta (key TEXT, value TEXT)")
+    db.execute("INSERT INTO meta VALUES ('synced_at', ?)", (repr(now - 7 * 3600),))
+    db.commit(); db.close()
+    state = {}
+    line = observe(state, tmp_path, now, (0, 60, int(now) + 1200))
+    assert line["agents"]["cve-org"]["status"] == "failing" and line["agents"]["public-holidays"]["status"] == "healthy"
+    assert line["agents"]["nvd-cve"]["stale"] == 1 and line["stale_failures"] == 1
+    assert line["snapshots"]["nvd"]["over_limit"] is True and line["snapshots"]["airports"]["present"] is False
+    assert {a["key"] for a in line["alerts"]} == {"source_failing:cve-org", "snapshot_stale:nvd", "quota_low:github"}
+    assert observe(state, tmp_path, now + 3600, (0, 60, int(now) + 4800))["alerts"] == [], "one alert a day per key"
+    (tmp_path / "watch").mkdir()
+    (tmp_path / "watch" / "state.json").write_text(json.dumps(state))
+    assert health("nvd-cve", tmp_path)["status"] == "failing" and health("nvd-cve", tmp_path)["snapshot_problem"]
+    assert health("unit-convert", tmp_path)["status"] == "idle"
+
+
+def test_watch_runs_outside_the_measurement_window(tmp_path):
+    from agent_market.fallback_agents.watch import FallbackWatch
+    import time as _t
+    base = _t.mktime((2026, 11, 14, 10, 30, 0, 0, 0, -1))
+    w = FallbackWatch(data_dir=tmp_path, clock=lambda: base, quota=lambda: None)
+    assert w.due()
+    out = w.run()
+    assert out["failing"] == [] and (tmp_path / "watch" / "state.json").exists() and not w.due()
+    quiet = FallbackWatch(data_dir=tmp_path, clock=lambda: base + 26 * 60, quota=lambda: None)  # 10:56
+    assert not quiet.due()
