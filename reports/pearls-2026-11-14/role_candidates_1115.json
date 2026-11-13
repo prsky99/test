@@ -68,5 +68,100 @@
   "role": "cve.kev",
   "id": 55398,
   "tool": "cve_kev_lookup"
+ },
+ {
+  "role": "events.search",
+  "id": 32887,
+  "tool": "search_events"
+ },
+ {
+  "role": "news.search",
+  "id": 32841,
+  "tool": "search_news"
+ },
+ {
+  "role": "weather.forecast",
+  "id": 35273,
+  "tool": "get_weather_forecast"
+ },
+ {
+  "role": "package.metadata",
+  "id": 38162,
+  "tool": "get_package"
+ },
+ {
+  "role": "cve.kev",
+  "id": 34216,
+  "tool": "get_kev_catalog"
+ },
+ {
+  "role": "country.indicator",
+  "id": 46576,
+  "tool": "get_indicator"
+ },
+ {
+  "role": "encyclopedia.summary",
+  "id": 127639,
+  "tool": "get_article_summary"
+ },
+ {
+  "role": "events.search",
+  "id": 33892,
+  "tool": "search_events"
+ },
+ {
+  "role": "news.search",
+  "id": 32997,
+  "tool": "search_articles"
+ },
+ {
+  "role": "weather.forecast",
+  "id": 36950,
+  "tool": "get_forecast"
+ },
+ {
+  "role": "package.metadata",
+  "id": 40687,
+  "tool": "get_package_link"
+ },
+ {
+  "role": "cve.kev",
+  "id": 37141,
+  "tool": "cve_lookup"
+ },
+ {
+  "role": "country.indicator",
+  "id": 58183,
+  "tool": "get_indicator"
+ },
+ {
+  "role": "encyclopedia.summary",
+  "id": 241601,
+  "tool": "wikipedia_search"
+ },
+ {
+  "role": "events.search",
+  "id": 34238,
+  "tool": "get_events"
+ },
+ {
+  "role": "news.search",
+  "id": 32998,
+  "tool": "search_articles"
+ },
+ {
+  "role": "weather.forecast",
+  "id": 37218,
+  "tool": "get_forecast"
+ },
+ {
+  "role": "package.metadata",
+  "id": 46139,
+  "tool": "get_npm_packages"
+ },
+ {
+  "role": "cve.kev",
+  "id": 47477,
+  "tool": "get_kev_exposure"
  }
 ]
