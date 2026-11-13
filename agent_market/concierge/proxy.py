@@ -191,7 +191,7 @@ class McpProxy:
         if not tool_spec:
             return {"ok": False, "error": f"Tool '{tool_name}' is not in the registered capability schema for resource {resource_id}.", "error_code": "TOOL_UNAVAILABLE"}
 
-        if not usage.is_safe_tool(tool_spec):
+        if not usage.is_relay_safe_tool(tool_spec):  # the same relay judgment as safe_registered_tool (PM 11-13)
             return {"ok": False, "error": f"Tool '{tool_name}' is classified as potentially destructive or requiring credentials. Execution refused.", "error_code": "UNSAFE_TOOL"}
 
         pinned_hash = res.get("usage_tools_hash")

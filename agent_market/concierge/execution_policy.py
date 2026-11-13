@@ -59,7 +59,8 @@ def safe_registered_tool(spec):
             or any(not isinstance(key, str) for key in required)
             or not isinstance(spec.get('description') or '', str)):
         return False
-    if (not usage.is_safe_tool({**spec, 'required': required}) or dangerous_tool_name(
+    # Relay judgment (PM 11-13 decision 1): collector trial calls keep usage.is_safe_tool.
+    if (not usage.is_relay_safe_tool({**spec, 'required': required}) or dangerous_tool_name(
             name, declared_readonly=annotations.get('readOnlyHint') is True)):
         return False
     try:supported_schema(spec)

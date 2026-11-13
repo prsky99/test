@@ -89,6 +89,74 @@ def is_safe_tool(tool: dict) -> bool:
     return bool(_ALLOW.search(name.replace("-", "_").split("__")[-1]))
 
 
+# 게이트웨이 중계 판정 전용 (PM 11-13 결정 1). collector 시험 호출(pick_trial)은 위 is_safe_tool을 그대로 쓴다.
+# - 동사 뒤에는 단어 경계가 와야 한다: 끝, '_', 숫자, 또는 대문자(camelCase). 'browse'가 browser_drag를,
+#   'check'가 checkout_link·checkpoint_put을, 'count'가 counter_quote를 통과시키던 오탐을 막는다(11-13 운영 집계 2,644개).
+#   summar(summary, summarize)만 뒤에 소문자가 이어져도 된다. 복수·과거·진행형 어미(s, es, ed, ing)는 인정한다.
+# - 이름 앞에 접두어가 한 단계만 붙은 경우(invoice_parse_text) 그 뒤 동사도 인정한다. 두 단계(a_b_get)는 인정하지 않는다.
+# - '.'은 '-'처럼 구분자로 본다(validate.bic, weather.forecast).
+# - 지금까지 접두어로 우연히 통과하던 비영어 조회 동사(listar, lister, lista, calcular, comparer, analyser)는 그대로 둔다.
+# - destructiveHint, 개인정보 인자, readOnlyHint=false, 이름·설명 앞 200자의 거부 목록을 먼저 적용하고,
+#   readOnlyHint=true가 명시돼 있으면 그것을 근거로 쓴다.
+_RELAY_VERB = re.compile(
+    r"(?:summar[a-z]*|(?:" + _ALLOW.pattern[2:-1] + r"|listar|lister|lista|calcular|comparer|analyser)(?:s|es|ed|ing)?"
+    r"(?:(?=[_\d])|(?-i:(?=[A-Z]))|$))", re.I)
+_RELAY_PREFIX = re.compile(r"[A-Za-z0-9]+_")
+# 접두어 뒤에서는 명사로도 쓰이는 version·quote·recommend·suggest를 동사로 보지 않는다
+# (11-13 표본 검토: armory_version_bumper는 버전 올리기, gpu_quote·gf.quote는 수수료·거래가 붙은 견적).
+_RELAY_AFTER_PREFIX = re.compile(r"(?!(?:version|quote|recommend|suggest)(?:s|es|ed|ing)?(?![a-z]))", re.I)
+# 접두어로만 들어오는 도구는 설명 앞 200자에 동작 표현이 있으면 넣지 않는다
+# (11-13 2차 표본: agentlux_list_item은 마켓에 판매 등록, me_compare는 사람에게 비교를 맡김).
+_RELAY_PREFIX_DENY = re.compile(
+    r"\b(?:for sale|marketplace|ask(?:s|ed|ing)?|humans?|hire|crowd|bump|orchestrat\w*|enqueue|trigger|dispatch|"
+    r"broadcast|forward|enrol\w*|apply|toggle|tick)\b", re.I)
+
+
+# 접두어로만 들어오는 도구는 설명도 조회 동사로 시작해야 한다(11-13 3차 표본: screen_show "Put ONE match on the
+# screen", record_view_results "Stores the result", haven_check_out "Leave Haven"). 앞의 [출처] 꼬리표와 PRO./FREE.는 건너뛴다.
+_RELAY_DESC_READ = re.compile(
+    r"^\W*(?:\[[^\]]{0,80}\]\s*)?(?:(?:PRO|FREE)\.\s*)?(?:gets?|returns?|lists?|search(?:es)?|look(?:s)? ?up|lookup|"
+    r"fetch(?:es)?|retrieves?|reads?|checks?|validates?|verif(?:y|ies)|converts?|calculates?|computes?|compares?|shows?|"
+    r"finds?|resolves?|detects?|parses?|counts?|estimates?|summari[sz]es?|analy[sz]es?|scores?|quer(?:y|ies)|describes?|"
+    r"translates?|inspects?|reports?|extracts?|screens?)\b", re.I)
+# 그 자체로 동작인 접두어와 check_in·check_out(체크인·나가기)은 접두어 확장에서 인정하지 않는다.
+_RELAY_ACTION_PREFIX = re.compile(r"(?:refresh|record|load|save|store|put|leave|join|enter|exit|mark|track|log|clear|"
+                                  r"flush|sync|import|haven)_", re.I)
+_RELAY_CHECK_INOUT = re.compile(r"check_?(?:in|out)(?![a-z])", re.I)
+
+
+def relay_tool_name(name: str, description: str = "") -> bool:
+    """이름만 보고 중계해도 되는 조회형인지: 동사로 시작하거나, 접두어 한 단계 뒤가 동사다(설명에 동작 표현이 없을 때)."""
+    base = re.sub(r"[-.]", "_", name).split("__")[-1]
+    if _RELAY_VERB.match(base):
+        return True
+    if _ALLOW.match(base):
+        # 접두어가 동사 줄기로 시작하면(counter_quote, checklists_checkItem, calculator_describe) 그 뒤를 보지 않는다:
+        # counter·check는 그 자체로 동작일 수 있다.
+        return False
+    prefix = _RELAY_PREFIX.match(base)
+    return bool(prefix and not _RELAY_ACTION_PREFIX.fullmatch(prefix.group(0))
+                and _RELAY_AFTER_PREFIX.match(base, prefix.end()) and _RELAY_VERB.match(base, prefix.end())
+                and not _RELAY_CHECK_INOUT.match(base, prefix.end())
+                and _RELAY_DESC_READ.search(description[:200]) and not _RELAY_PREFIX_DENY.search(description[:200]))
+
+
+def is_relay_safe_tool(tool: dict) -> bool:
+    ann = tool.get("annotations") or {}
+    if ann.get("destructiveHint") is True:
+        return False
+    if any(_PII_PARAM.search(p) for p in tool.get("required") or []):
+        return False
+    if ann.get("readOnlyHint") is True:
+        return True
+    if ann.get("readOnlyHint") is False:
+        return False
+    name, desc = tool["name"], tool.get("description") or ""
+    if _DENY.search(name) or _DENY.search(desc[:200]):
+        return False
+    return relay_tool_name(name, desc)
+
+
 def _example_value(name: str, spec: dict, category: str | None):
     if "enum" in spec and spec["enum"]:
         return spec["enum"][0]
