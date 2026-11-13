@@ -1,0 +1,78 @@
+--- requirements.txt	2026-10-26 08:41:56
++++ requirements.txt	2026-11-14 05:30:13
+@@ -17,3 +17,5 @@
+ referencing==0.37.0
+ starlette==1.10.0
+ uvicorn==0.54.0
++# Offline national public-holiday rules for the AgentValCon holiday fallback (MIT, agent team 11-14, PM approved)
++holidays==0.108
+--- requirements-runtime.lock	2026-10-26 09:19:13
++++ requirements-runtime.lock	2026-11-14 05:30:27
+@@ -1125,6 +1125,9 @@
+     # via
+     #   eth-account
+     #   eth-rlp
++holidays==0.108 \
++    --hash=sha256:5a08fdccd0b8737093d483ba0d0d9696560396d99d3fa6ef9264fd2ac48749c7
++    # via -r requirements.txt
+ http-ece==1.2.1 \
+     --hash=sha256:8c6ab23116bbf6affda894acfd5f2ca0fb8facbcbb72121c11c75c33e7ce8cff
+     # via pywebpush
+@@ -1657,6 +1660,9 @@
+     --hash=sha256:f77ac30b19221cd9bd3fcfa3d4614eff93140d0572ab730cded17b64adca05f3 \
+     --hash=sha256:fe90228920fd8ff2be62622b6bb8a2b11acd65046d50c6b130614b5879605a20
+     # via pydantic
++python-dateutil==2.9.0.post0 \
++    --hash=sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427
++    # via holidays
+ pywebpush==2.5.0 \
+     --hash=sha256:b5f5d45024223a04e73fe17f7a8e62540f35bbcc62b49e64d0a1080ff2dc26f2
+     # via -r requirements.txt
+@@ -1939,6 +1945,9 @@
+     # via
+     #   jsonschema
+     #   referencing
++six==1.17.0 \
++    --hash=sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274
++    # via python-dateutil
+ starlette==1.10.0 \
+     --hash=sha256:478c0ab3b4ced6e82719849c118fa406f0278a3499c1a898cd15cd31bdc38ce4
+     # via
+--- requirements-dev.lock	2026-11-02 12:38:47
++++ requirements-dev.lock	2026-11-14 05:30:33
+@@ -1249,6 +1249,11 @@
+     #   -c requirements-runtime.lock
+     #   eth-account
+     #   eth-rlp
++holidays==0.108 \
++    --hash=sha256:5a08fdccd0b8737093d483ba0d0d9696560396d99d3fa6ef9264fd2ac48749c7
++    # via
++    #   -c requirements-runtime.lock
++    #   -r requirements.txt
+ http-ece==1.2.1 \
+     --hash=sha256:8c6ab23116bbf6affda894acfd5f2ca0fb8facbcbb72121c11c75c33e7ce8cff
+     # via
+@@ -1841,6 +1846,11 @@
+ pytest==9.1.1 \
+     --hash=sha256:37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c
+     # via -r requirements-dev.txt
++python-dateutil==2.9.0.post0 \
++    --hash=sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427
++    # via
++    #   -c requirements-runtime.lock
++    #   holidays
+ pywebpush==2.5.0 \
+     --hash=sha256:b5f5d45024223a04e73fe17f7a8e62540f35bbcc62b49e64d0a1080ff2dc26f2
+     # via
+@@ -2134,6 +2144,11 @@
+     #   -c requirements-runtime.lock
+     #   jsonschema
+     #   referencing
++six==1.17.0 \
++    --hash=sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274
++    # via
++    #   -c requirements-runtime.lock
++    #   python-dateutil
+ sqlite-vec==0.1.9 \
+     --hash=sha256:1515727990b49e79bcaf75fdee2ffc7d461f8b66905013231251f1c8938e7786 \
+     --hash=sha256:1b62a7f0a060d9475575d4e599bbf94a13d85af896bc1ce86ee80d1b5b48e5fb \

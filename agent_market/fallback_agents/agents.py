@@ -37,7 +37,8 @@ CODES = ("invalid_input", "not_found", "rate_limited", "source_unavailable", "in
 MAX_AGE = {"nvd-cve": 6 * 3600, "cve-org": 24 * 3600, "cisa-kev": 24 * 3600, "github-advisory": 6 * 3600,
            "package-registry": 6 * 3600, "depsdev-package": 24 * 3600, "gleif-lei": 24 * 3600,
            "sec-edgar": 24 * 3600, "wikipedia-summary": 24 * 3600, "arxiv-search": 48 * 3600,
-           "worldbank-indicator": 24 * 3600, "met-weather": 3 * 3600}
+           "worldbank-indicator": 24 * 3600, "met-weather": 3 * 3600,
+           "public-holidays": 400 * 86400}  # rules age from the library release; update the pin at least yearly
 TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "github-advisory": (3600, 6 * 3600),
        "epss": (6 * 3600, 48 * 3600), "package-registry": (3600, 6 * 3600), "depsdev-package": (6 * 3600, 24 * 3600),
        "gleif-lei": (6 * 3600, 24 * 3600), "sec-edgar": (6 * 3600, 24 * 3600), "sec-tickers": (6 * 3600, 24 * 3600),
@@ -647,6 +648,52 @@ class FallbackAgents:
                 self.weather.popitem(last=False)
         return value, {"status": "live", "age_seconds": 0}, False, as_of
 
+    def _public_holidays(self, args, remaining):
+        try:
+            import holidays as lib
+            from holidays import registry
+        except ImportError as exc:
+            raise FallbackUnavailable("source_unavailable", "Holiday rules are not installed on this server.") from exc
+        place = " ".join((args.get("place") or "").split())
+        if not place:
+            raise FallbackUnavailable("not_found", "National public holidays only: give a country as place.")
+        code = holiday_country(place, registry.COUNTRIES)
+        if not code:
+            raise FallbackUnavailable("not_found", "National public holidays only: the place is not a supported country.")
+        year = args.get("year") or self.utc_now().year
+        if not 1950 <= year <= self.utc_now().year + 5:
+            raise FallbackUnavailable("invalid_input", "Use a year from 1950 to five years ahead.")
+        month, limit = args.get("month"), args.get("limit", 20)
+        base = lib.country_holidays(code, years=year)
+        langs = getattr(base, "supported_languages", ()) or ()
+        english = "en_US" in langs
+        table = lib.country_holidays(code, years=year, language="en_US") if english else base
+        country = getattr(base, "country", code)
+        words = [w for w in re.findall(r"[a-z0-9]+", (args.get("query") or "").lower())
+                 if w not in STOPWORDS | {"holiday", "holidays", "public", "national", "day", "days"}]
+        items = []
+        for day, names in sorted(table.items()):
+            if month and day.month != month:
+                continue
+            for name in str(names).split("; "):
+                name = _text(name, 300)
+                if words and not any(w in name.lower() for w in words):
+                    continue
+                # English names may keep accented proper names (Atatürk); only a non-English table is labeled.
+                title = name if english or name.isascii() else f"Public holiday (local name: {name})"
+                items.append({"title": f"{title} (national public holiday)", "date": day.isoformat(),
+                              "place": _text(f"{country_name(code, registry.COUNTRIES)} ({country})", 200)})
+        if not items:
+            raise FallbackUnavailable("not_found", "No national public holiday matches; festivals, concerts and "
+                                                   "other events are not covered.")
+        version = getattr(lib, "__version__", "")
+        out = {"items": items[:limit], "source": f"holidays {version} (MIT): national public holidays only"}
+        released = HOLIDAYS_RELEASES.get(version)
+        age = int(max(0, self.wall() - released)) if released else MAX_AGE["public-holidays"] + 1
+        as_of = {f"holidays {version}": datetime.fromtimestamp(released, timezone.utc).strftime("%Y-%m-%d")
+                 if released else None}
+        return out, {"status": "snapshot", "age_seconds": age}, len(items) > limit, as_of
+
     # ---------------------------------------------------------------- usage
     def _usage(self, agent_id, envelope, code, started):
         line = {"at": _now_iso(self.utc_now()), "agent": agent_id if agent_id in SPECS else "unknown",
@@ -860,6 +907,28 @@ def met_forecast(raw: dict, now: datetime):
     out = {"temperature_c": float(temp), "forecast": ("Temperature %.1f °C; " % temp + "; ".join(parts))[:4000],
            "time": _text(point["time"], 40), "source": "MET Norway (CC BY 4.0)"}
     return out, {"MET Norway": _text(props.get("meta", {}).get("updated_at"), 40) or None}
+
+
+# Release time of each pinned library version: the "data as of" date of its holiday rules.
+HOLIDAYS_RELEASES = {"0.108": datetime(2026, 11, 2, 22, 32, 10, tzinfo=timezone.utc).timestamp()}  # PyPI upload
+
+
+def holiday_country(place: str, countries: dict) -> str | None:
+    """Country code from an ISO alpha-2/alpha-3 code or an English country name ("South Korea")."""
+    key = re.sub(r"[^a-z]", "", place.lower())
+    for module, entry in countries.items():
+        class_name, alpha2, alpha3 = entry[0], entry[1], entry[2]
+        names = {re.sub(r"[^a-z]", "", module), class_name.lower(), alpha2.lower(), alpha3.lower()}
+        if key in names:
+            return alpha2
+    return None
+
+
+def country_name(code: str, countries: dict) -> str:
+    for module, entry in countries.items():
+        if entry[1] == code:
+            return module.replace("_", " ").title()
+    return code
 
 
 STOPWORDS = frozenset("a an and are as at be by for from in is it of on or the to with all you we our this that "

@@ -71,6 +71,11 @@ MET = {"name": "MET Norway Locationforecast 2.0 (Norwegian Meteorological Instit
        "license": "CC BY 4.0 and NLOD 2.0 (https://api.met.no/doc/License); Data from MET Norway",
        "notice": "Model forecast for the given coordinates (rounded to 0.01 degree), not a station observation."}
 
+HOLIDAYS = {"name": "holidays (Python library, Vacanza team)", "url": "https://github.com/vacanza/holidays",
+            "license": "MIT (https://github.com/vacanza/holidays/blob/main/LICENSE)",
+            "notice": "National public holidays only, computed offline from the library's published rules. "
+                      "Festivals, concerts and other events are not covered; regional holidays are not included."}
+
 SPECS = {
     "nvd-cve": {
         "name": "AgentValCon NVD CVE Record", "tool": "get_cve_record", "contract": "cve.record.v1",
@@ -168,6 +173,14 @@ SPECS = {
                        "worldwide from MET Norway Locationforecast; read-only.",
         "sources": [MET],
         "rate": "under 20 requests per second; a place is asked again only after the source's Expires time",
+    },
+    "public-holidays": {
+        "name": "AgentValCon National Public Holidays", "tool": "list_public_holidays", "contract": "events.search.v1",
+        "description": "List the national public holidays of one country (place = country name or ISO code) for a "
+                       "year and optional month, optionally filtered by words in the holiday name. National public "
+                       "holidays only: no festivals, concerts or local events; read-only.",
+        "sources": [HOLIDAYS],
+        "rate": "no network calls; rules ship with the pinned library version",
     },
 }
 

@@ -70,7 +70,7 @@ def agents(tmp_path, routes, calls=None, clock=None, snapshot=None):
 
 # ------------------------------------------------------------------ catalog and contracts
 def test_tools_are_read_only_and_use_the_slot_contracts():
-    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather"}
+    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays"}
     for agent_id, spec in SPECS.items():
         tool = tool_spec(agent_id)
         c = contract(spec["contract"])
@@ -954,3 +954,47 @@ def test_symbol_text_and_expires():
     assert symbol_text("partlycloudy_night") == "partly cloudy" and symbol_text("heavysnowshowersandthunder") == "heavy snow showers and thunder"
     assert expires_in("Fri, 13 Nov 2026 20:25:59 GMT", 1794600000.0 + 0) > 0
     assert expires_in(None, 0) == 600.0
+
+
+# ------------------------------------------------------------------ public holidays (events.search, PM 11-14: national holidays only)
+def test_public_holidays_lists_national_holidays_with_scope_and_version(tmp_path):
+    pytest.importorskip("holidays")
+    calls = []
+    a, _ = agents(tmp_path, {}, calls)
+    env = a.execute("public-holidays", {"query": "Diwali", "place": "India", "year": 2026})
+    assert env["result"] == {"items": [{"title": "Diwali (national public holiday)", "date": "2026-11-08", "place": "India (IN)"}],
+                             "source": "holidays 0.108 (MIT): national public holidays only"}
+    assert calls == [], "no network"
+    assert env["freshness"]["data_as_of"] == {"holidays 0.108": "2026-11-02"} and env["cache"]["status"] == "snapshot"
+    assert "Festivals, concerts and other events are not covered" in env["sources"][0]["notice"]
+    kr = a.execute("public-holidays", {"place": "KOR", "year": 2026, "month": 10})["result"]["items"]
+    assert [i["title"] for i in kr][:1] == ["National Foundation Day (national public holiday)"]
+    assert all(i["title"].isascii() for i in kr)
+    tr = a.execute("public-holidays", {"query": "Ataturk youth", "place": "Turkey", "year": 2026})["result"]["items"]
+    assert tr[0]["title"].startswith("Commemoration of Atatürk"), "English names keep their accents unlabeled"
+
+
+def test_public_holidays_states_its_coverage_when_asked_for_events(tmp_path):
+    pytest.importorskip("holidays")
+    a, _ = agents(tmp_path, {})
+    for args, words in (({"query": "concert", "place": "San Francisco"}, "not a supported country"),
+                        ({"query": "festival", "year": 2026, "month": 11}, "give a country"),
+                        ({"query": "concert", "place": "United States", "year": 2026}, "concerts")):
+        with pytest.raises(FallbackUnavailable, match=words) as err:
+            a.execute("public-holidays", args)
+        assert err.value.code == "not_found"
+
+
+def test_public_holidays_without_the_library_fails_closed(tmp_path, monkeypatch):
+    import builtins
+    real = builtins.__import__
+
+    def no_holidays(name, *args, **kwargs):
+        if name == "holidays" or name.startswith("holidays."):
+            raise ImportError("not installed")
+        return real(name, *args, **kwargs)
+    monkeypatch.setattr(builtins, "__import__", no_holidays)
+    a, _ = agents(tmp_path, {})
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("public-holidays", {"place": "Japan"})
+    assert err.value.code == "source_unavailable"

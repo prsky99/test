@@ -1,0 +1,233 @@
+{
+ "note": "self check, no network; role tasks fail by design (outside national-holiday coverage)",
+ "role_tasks": {
+  "public-holidays": {
+   "passed": 0,
+   "cases": 2,
+   "rows": [
+    {
+     "case_id": "events-san-francisco",
+     "pass": false,
+     "error": "not_found"
+    },
+    {
+     "case_id": "events-diwali-2026",
+     "pass": false,
+     "error": "not_found"
+    }
+   ]
+  }
+ },
+ "countries_30": [
+  {
+   "place": "South Korea",
+   "count": 20,
+   "first": "New Year's Day (national public holiday)",
+   "ascii": true,
+   "ms": 88
+  },
+  {
+   "place": "Japan",
+   "count": 18,
+   "first": "New Year's Day (national public holiday)",
+   "ascii": true,
+   "ms": 1
+  },
+  {
+   "place": "China",
+   "count": 20,
+   "first": "New Year's Day (national public holiday)",
+   "ascii": true,
+   "ms": 1
+  },
+  {
+   "place": "India",
+   "count": 18,
+   "first": "Republic Day (national public holiday)",
+   "ascii": true,
+   "ms": 1
+  },
+  {
+   "place": "Indonesia",
+   "count": 17,
+   "first": "New Year's Day (national public holiday)",
+   "ascii": true,
+   "ms": 1
+  },
+  {
+   "place": "Thailand",
+   "count": 20,
+   "first": "New Year's Day (national public holiday)",
+   "ascii": true,
+   "ms": 1
+  },
+  {
+   "place": "Vietnam",
+   "count": 14,
+   "first": "New Year's Day (national public holiday)",
+   "ascii": true,
+   "ms": 1
+  },
+  {
+   "place": "Philippines",
+   "count": 20,
+   "first": "New Year's Day (national public holiday)",
+   "ascii": true,
+   "ms": 1
+  },
+  {
+   "place": "Australia",
+   "count": 7,
+   "first": "New Year's Day (national public holiday)",
+   "ascii": true,
+   "ms": 0
+  },
+  {
+   "place": "New Zealand",
+   "count": 13,
+   "first": "New Year's Day (national public holiday)",
+   "ascii": true,
+   "ms": 0
+  },
+  {
+   "place": "United Arab Emirates",
+   "count": 13,
+   "first": "New Year's Day (national public holiday)",
+   "ascii": true,
+   "ms": 1
+  },
+  {
+   "place": "Saudi Arabia",
+   "count": 13,
+   "first": "Founding Day Holiday (national public holiday)",
+   "ascii": true,
+   "ms": 1
+  },
+  {
+   "place": "Egypt",
+   "count": 16,
+   "first": "Coptic Christmas Day (national public holiday)",
+   "ascii": true,
+   "ms": 1
+  },
+  {
+   "place": "Nigeria",
+   "count": 14,
+   "first": "New Year's Day (national public holiday)",
+   "ascii": true,
+   "ms": 1
+  },
+  {
+   "place": "Kenya",
+   "count": 11,
+   "first": "New Year's Day (national public holiday)",
+   "ascii": true,
+   "ms": 0
+  },
+  {
+   "place": "South Africa",
+   "count": 14,
+   "first": "New Year's Day (national public holiday)",
+   "ascii": true,
+   "ms": 0
+  },
+  {
+   "place": "Turkey",
+   "count": 14,
+   "first": "New Year's Day (national public holiday)",
+   "ascii": false,
+   "ms": 1
+  },
+  {
+   "place": "Russia",
+   "count": 18,
+   "first": "New Year Holidays (national public holiday)",
+   "ascii": true,
+   "ms": 1
+  },
+  {
+   "place": "Germany",
+   "count": 9,
+   "first": "New Year's Day (national public holiday)",
+   "ascii": true,
+   "ms": 0
+  },
+  {
+   "place": "France",
+   "count": 11,
+   "first": "New Year's Day (national public holiday)",
+   "ascii": true,
+   "ms": 0
+  },
+  {
+   "place": "United Kingdom",
+   "count": 7,
+   "first": "New Year's Day (national public holiday)",
+   "ascii": true,
+   "ms": 0
+  },
+  {
+   "place": "Spain",
+   "count": 8,
+   "first": "New Year's Day (national public holiday)",
+   "ascii": true,
+   "ms": 0
+  },
+  {
+   "place": "Italy",
+   "count": 14,
+   "first": "New Year's Day (national public holiday)",
+   "ascii": true,
+   "ms": 1
+  },
+  {
+   "place": "Brazil",
+   "count": 10,
+   "first": "Universal Fraternization Day (national public holiday)",
+   "ascii": true,
+   "ms": 0
+  },
+  {
+   "place": "Argentina",
+   "count": 20,
+   "first": "New Year's Day (national public holiday)",
+   "ascii": false,
+   "ms": 1
+  },
+  {
+   "place": "Mexico",
+   "count": 7,
+   "first": "New Year's Day (national public holiday)",
+   "ascii": false,
+   "ms": 0
+  },
+  {
+   "place": "Canada",
+   "count": 5,
+   "first": "New Year's Day (national public holiday)",
+   "ascii": true,
+   "ms": 0
+  },
+  {
+   "place": "United States",
+   "count": 12,
+   "first": "New Year's Day (national public holiday)",
+   "ascii": true,
+   "ms": 1
+  },
+  {
+   "place": "US",
+   "count": 12,
+   "first": "New Year's Day (national public holiday)",
+   "ascii": true,
+   "ms": 0
+  },
+  {
+   "place": "KOR",
+   "count": 20,
+   "first": "New Year's Day (national public holiday)",
+   "ascii": true,
+   "ms": 1
+  }
+ ]
+}

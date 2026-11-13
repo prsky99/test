@@ -17,6 +17,7 @@
 | `arxiv-search` (`search_arxiv_papers`) | paper-cross-search·topic-evidence-brief 논문 자리, `papers.search.v1` | arXiv API | 고정 과제 3/3, 자체 점검 유명 논문 30편 제목 질의 1위 25/30 | 3초 간격 대기 포함 p50 3.0초 | 한계 있음(2-6) |
 | `worldbank-indicator` (`get_country_indicator`) | country-economy-snapshot 지표 자리, `country.indicator.v1` | World Bank WDI | 고정 과제 3/3, 자체 점검 10개국×3지표 30/30 | 204 ms / 215 ms | 정답 세트 요청 |
 | `met-weather` (`get_weather_forecast`) | trip-brief 날씨 자리, `weather.forecast.v1` | MET Norway Locationforecast 2.0 | 고정 과제 2/2(온도 실측 비교는 안 함, 2-8), 세계 30개 도시 30/30 | 1,191 ms / 1,199 ms | 정답 세트 요청 |
+| `public-holidays` (`list_public_holidays`) | trip-brief 행사 자리(공휴일 한정), `events.search.v1` | holidays 0.108 라이브러리(네트워크 없음) | 고정 과제 0/2(둘 다 범위 밖, 설계대로), 30개국 30/30 | 최대 88 ms | 운영 lock 반영 대기(2-9) |
 | `github-advisory` (`list_package_advisories`) | package-risk-audit 취약점 자리, `package.advisories.v1` | GitHub Advisory Database(reviewed) | 1차 27/30 → 고친 뒤 재측정은 5절 | 987 ms / 1,301 ms | 재측정 뒤 결정 |
 
 - 계약 시험 입력(`test_inputs`) 3건씩: nvd-cve·cve-org·cisa-kev 9/9 통과(`contract-test-inputs.json`). 고정 과제(role-tasks-v1): nvd-cve 3/3, cisa-kev 3/3, cve-org 3/3, package-registry 2/2, depsdev-package 2/2.
@@ -101,6 +102,17 @@
 - 구현: 좌표를 0.01도(약 1km)로 반올림해 같은 칸은 Expires(최대 1시간)까지 캐시로 답하고, 그 뒤에는 If-Modified-Since로 다시 확인합니다(304면 내용 재사용). 지금 시각에 가장 가까운 시간대의 기온과 다음 1·6시간 날씨·강수·바람·습도를 영어 문장으로 냅니다. 데이터 시각 = 예보 `updated_at`, 나이 상한 3시간.
 - 고정 과제 weather-*의 온도 기준값은 Open-Meteo 주소입니다. Open-Meteo 무료판은 비상업 전용이라 부르지 않았고, 채점 기록에 "not checked"로 남깁니다(통과로 치지 않음). 워크플로우에 기준 원천을 바꿀지 물었습니다.
 
+### 2-9. 행사 자리(국가 공휴일 한정, PM 승인 (가))
+- Nager.Date는 약관(https://date.nager.at/TermsOfService)이 "개인·비영리만, 상업적 이용은 후원 필요"라 쓰지 않았습니다(지출 0).
+- 대신 오픈소스 holidays 라이브러리로 네트워크 없이 계산합니다. 확인 내용:
+  - 버전 0.108(PyPI 2026-11-02 출시), 라이선스 MIT(저장소 LICENSE 원문 확인), 관리자 3명(Vacanza team), 개발 단계 Beta, 최근 개발판이 매일 올라오는 활발한 프로젝트.
+  - 의존성: python-dateutil 2.9.0.post0(Apache-2.0·BSD-3), six 1.17.0(MIT). 셋 다 운영 lock에 새로 들어갑니다.
+  - lock 변경안(`deps/holidays-0.108.patch`): 기존 lock 명령(pip-compile --generate-hashes, 같은 pip 인자)으로 다시 만들었고, runtime·dev 두 lock 모두 이 세 패키지만 늘고 다른 버전 변화는 없습니다.
+  - pip-audit(runtime·dev): 새 세 패키지 취약점 0. 다만 기존 `opentelemetry-api 1.45.1`에 CVE-2026-126360(1.45.2 수정)이 있어 운영·SRE에 알렸습니다(이번 변경과 무관).
+  - 설치: 시험 환경 `.venv-tests`에만 해시 고정(`--require-hashes --no-deps`)으로 넣었습니다. 운영 `.venv`와 lock 반영은 릴리스 패키징이 lock과 환경을 대조하므로 운영·SRE가 네 역할 릴리스와 함께 맞춥니다. 그 전까지 운영에서 이 에이전트는 `source_unavailable`로 실패합니다(라이브러리 없음).
+- 응답: 국가(이름 또는 ISO 코드)·연도·월·이름 검색어로 국가 공휴일을 돌려줍니다. 제목마다 "(national public holiday)", 출처에 "holidays 0.108 (MIT): national public holidays only", 데이터 기준일 = 라이브러리 출시일(2026-11-02), 나이 상한 400일(최소 1년에 한 번 버전 갱신). 축제·공연·지역 행사는 다루지 않는다고 고지에 적고, 그런 질문에는 범위 밖이라고 실패합니다.
+- 영어 이름이 있는 나라는 영어로(고유명사 악센트는 그대로, 예: Atatürk), 영어가 없는 나라는 "Public holiday (local name: …)"로 표기합니다.
+
 ## 3. 관문 신청 묶음 (deploy/NECKLACE_GATE.md 10절 대비)
 
 | 조건 | 상태 | 근거 |
@@ -128,7 +140,7 @@
 | country.indicator (외부 1) | World Bank(기존 자체 133020·133022), IMF DataMapper | World Bank 0.04초, IMF 0.96~6.65초에 전 국가 응답 | **World Bank로 만듦(worldbank-indicator)**. IMF는 이용 조건상 상업적 재사용·체계적 내려받기에 허락이 필요해 보류(2-7) |
 | news.search (외부 1) | GDELT DOC 2.0(키 없음, 5초에 1회), 기존 자체 133018(HN, 기술 뉴스만) | GDELT 첫 호출이 13.7초 뒤 429("5초에 1회") | **실시간 대체로는 불안정**. 캐시·범위 표시를 붙여도 성공률이 낮을 것. 보류 권장 |
 | weather.forecast (대체 1개) | MET Norway Locationforecast. Open-Meteo 무료판은 비상업 전용이라 제외 | 1.2초 | **만듦(met-weather, 2-8)**, 이용 조건 문서로 확인함 |
-| events.search (범용 멤버 없음) | 키 없는 범용 행사 API 없음(Ticketmaster·Eventbrite·PredictHQ는 키 필요). Nager.Date 공휴일, Wikidata 축제 | Nager.Date 0.46초 200 | **범용 불가**. "국가 공휴일·정기 축제 한정 + coverage 표시"로만 가능 |
+| events.search (범용 멤버 없음) | Nager.Date는 약관상 상업 이용에 후원 필요 → 제외 | — | **만듦(public-holidays, 국가 공휴일 한정, 2-9)**. 운영 lock 반영 대기 |
 
 ## 5. GitHub Advisory 재측정
 
