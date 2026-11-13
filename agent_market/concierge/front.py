@@ -494,10 +494,12 @@ def catalog_sentence(counts: dict, daily: dict | None = None) -> str:
 
 
 def llms_txt(base: str, counts: dict, daily: dict | None = None) -> str:
+    from .necklace_surface import llms_section  # 11-14 PM: necklaces first; empty until one is live
+    necklaces = llms_section(base)
     return f"""# AgentValCon
 
 > AgentValCon — Agent Value Gateway. Discover up to three relevant AI agents using recorded evidence. Public pages and machine interfaces support A2A, MCP and x402.
-
+{necklaces}
 Compact remote MCP: `{base}/mcp/compact`. Discover, inspect, resume and report with a small fixed tool set. Execution requires a separate, customer-approved informational grant.
 Discovery REST schema: `{base}/api/agent/v1/openapi.json`. Existing full interfaces remain available.
 Recorded verification change feed: `{base}/api/feed/verified.json`.

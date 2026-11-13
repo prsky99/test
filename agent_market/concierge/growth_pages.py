@@ -208,7 +208,8 @@ SNAPSHOT = Snapshot()
 def sitemap_paths(snapshot=None):
     """Only pages with evidence: the connect guide, and task pages from a fresh snapshot."""
     snapshot = SNAPSHOT.read() if snapshot is None else snapshot
-    paths = ['/connect']
+    from .necklace_surface import sitemap_paths as necklace_paths  # 11-14 PM: offered necklaces come first
+    paths = necklace_paths() + ['/connect']
     if fresh(snapshot) and snapshot['tasks']:
         paths.append('/agents/tasks')
         paths += ['/agents/task/'+t['slug'] for t in snapshot['tasks']]
