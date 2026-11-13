@@ -57,3 +57,15 @@ def test_missing_records_close_and_the_board_line_is_replaced(tmp_path):
     text = board.read_text()
     assert text.count(gate.MARK) == 1 and text.index(gate.MARK) < text.index('> 공지')
     assert '닫힘' in text and '장부 없음' in text
+
+
+def test_the_line_says_what_stays_frozen_and_reports_the_final_and_interim_targets_apart(tmp_path):
+    """11-14 (PM, user instruction): only the USDC switch and advertiser outreach wait for the gate; pearls,
+    necklaces, self-made substitutes, brand and growth go ahead. Interim reached is the fast-growth signal."""
+    r = gate.judge(TODAY, tmp_path)
+    line = gate.board_line(r)
+    assert '관문 전 동결: USDC 결제 스위치·광고주 유치' in line and '11-14 사용자 지시로 진행' in line
+    assert '새 기능 동결' not in line
+    assert '최종 목표 관문 닫힘' in line and '차선 목표 미달' in line
+    r['interim'] = {**(r.get('interim') or {}), 'ok': True}
+    assert '차선 목표 달성(빠른 성장 신호)' in gate.board_line(r)

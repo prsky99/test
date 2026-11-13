@@ -227,14 +227,20 @@ def board_line(r):
     task = r['real_tasks']
     ledger = r['error_ledger']
     unexplained = '장부 없음' if ledger['unexplained'] is None else f"{ledger['unexplained']}건"
+    interim_ok = bool((r.get('interim') or {}).get('ok'))
+    # 11-14 (PM, user instruction): the final gate and the interim target are reported apart; interim reached = the
+    # signal for fast growth. The gate criteria themselves are unchanged.
     return (f"{MARK} {r['judged_at']} 자동 판정: {'열림' if r['open'] else '닫힘'}]** "
+            f"최종 목표 관문 {'열림' if r['open'] else '닫힘'} · 차선 목표 {'달성' if interim_ok else '미달'}"
+            f"({'빠른 성장 신호' if interim_ok else '달성하면 빠른 성장'}) · "
             f"user_slo {r['user_slo']['streak']}/{SLO_DAYS}일({mark(r['user_slo']['ok'])}) · "
             f"차선 속도(하루 회차 {round(INTERIM_DAY_RATE * 100)}% 이상) {r.get('user_slo_interim', {}).get('streak', 0)}/{INTERIM_DAYS}일 · "
             f"7일 달성률 최종 {pct(r, 'final')}·차선 {pct(r, 'interim')} · {interim_text(r)} · "
             f"전수 점검 실패 0 {r['full_check']['streak']}/{FULL_DAYS}일({mark(r['full_check']['ok'])}) · "
             f"실제 과제 {task.get('passed')}/{task.get('tasks')}(목표 {TASK_TARGET}, {mark(task['ok'])}) · "
             f"설명되지 않은 오류 {ledger['day']} {unexplained}({mark(ledger['ok'])}). "
-            f"관문 전에는 USDC 스위치·유치·새 기능 동결(11-11 사용자 결정). 기록 logs/ops/stability-gate.json")
+            f"관문 전 동결: USDC 결제 스위치·광고주 유치. 진주·목걸이·자체 대체·브랜드·성장은 11-14 사용자 지시로 진행. "
+            f"차선 목표 달성 시 빠른 성장. 기록 logs/ops/stability-gate.json")
 
 
 def update_board(line, board=None):
