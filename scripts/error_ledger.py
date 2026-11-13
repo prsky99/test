@@ -226,8 +226,11 @@ def explain(counts, known=None, day=None, windows=None):
             rows.append({'key': key, 'count': n, 'explained': True, 'internal': True,
                          'reason': '내부 측정 요청(X-Agentcon-QA)', 'team': '측정 도구 주인'})
             continue
+        # 'until': a fixed bug explains days up to that date; 'day' (11-14): an event explained for that one day only,
+        # so the same key on another day stays unexplained (edge events carry no time to place in a window).
         rule = None if key.startswith('privacy|') else next((r for r in rules if re.search(r['pattern'], key)
-                     and not (day and r.get('until') and day > r['until'])), None)
+                     and not (day and r.get('until') and day > r['until'])
+                     and not (day and r.get('day') and day != r['day'])), None)
         rows.append({'key': key, 'count': n, 'explained': bool(rule),
                      **({'reason': rule['reason'], 'team': rule.get('team', '운영·SRE')} if rule else {})})
     return rows

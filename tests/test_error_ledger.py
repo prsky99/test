@@ -164,3 +164,13 @@ def test_a_window_with_a_pattern_covers_only_matching_keys(tmp_path):
     counts = e.from_logs('2026-11-12', logs=tmp_path, windows=windows)
     assert 'window|old_admin_standby|log|b|uvicorn.access|GET /internal/service/ready 503' in counts
     assert 'log|b|agent_market.x|something else broke' in counts          # not covered by the window
+
+
+def test_a_rule_with_a_day_explains_that_day_only():
+    """11-14: an edge event has no time to place in a window, so a one-off explanation names its day."""
+    from collections import Counter
+    from scripts import error_ledger as el
+    rules = [{'pattern': r'^edge\|error:public:edge_http_503$', 'reason': 'provider 429 on 11-13', 'day': '2026-11-13'}]
+    counts = Counter({'edge|error:public:edge_http_503': 1})
+    assert el.explain(counts, rules, '2026-11-13', windows={})[0]['explained']
+    assert not el.explain(counts, rules, '2026-11-14', windows={})[0]['explained']
