@@ -13,6 +13,8 @@
 | `depsdev-package` (`get_package_scorecard`) | 같은 자리 두 번째, `package.health.v1` | deps.dev(OpenSSF Scorecard 포함) | **30/30**, 고정 과제 2/2 | 739 ms / 1,045 ms | 관문 신청 |
 | `gleif-lei` (`find_lei_record`) | company-due-diligence 등기 자리, `company.registry.v1` | GLEIF LEI API | 정답 세트 없음 → 고정 과제 2/2, 계약 입력 2/2, 자체 점검(미국 상장사 30곳) 28/30 | 945 ms / 1,718 ms | 정답 세트 요청 |
 | `sec-edgar` (`find_sec_company`) | 같은 자리 두 번째, `company.registry.v1` | SEC EDGAR(ticker 목록 + submissions) | 고정 과제 2/2, 계약 입력 2/2, 자체 점검 29/30(둘 중 하나로는 30/30) | 40 ms / 136 ms | 정답 세트 요청 |
+| `wikipedia-summary` (`get_wikipedia_summary`) | topic-evidence-brief 백과 자리, `encyclopedia.summary.v1` | 영어 Wikipedia action API | 고정 과제 2/2, 계약 입력 3/3, 자체 점검 30개 제목 30/30 | 474 ms / 503 ms | 정답 세트 요청 |
+| `arxiv-search` (`search_arxiv_papers`) | paper-cross-search·topic-evidence-brief 논문 자리, `papers.search.v1` | arXiv API | 고정 과제 3/3, 자체 점검 유명 논문 30편 제목 질의 1위 25/30 | 3초 간격 대기 포함 p50 3.0초 | 한계 있음(2-6) |
 | `github-advisory` (`list_package_advisories`) | package-risk-audit 취약점 자리, `package.advisories.v1` | GitHub Advisory Database(reviewed) | 1차 27/30 → 고친 뒤 재측정은 5절 | 987 ms / 1,301 ms | 재측정 뒤 결정 |
 
 - 계약 시험 입력(`test_inputs`) 3건씩: nvd-cve·cve-org·cisa-kev 9/9 통과(`contract-test-inputs.json`). 고정 과제(role-tasks-v1): nvd-cve 3/3, cisa-kev 3/3, cve-org 3/3, package-registry 2/2, depsdev-package 2/2.
@@ -80,6 +82,12 @@
 - SEC: `company_tickers.json`(ticker가 있는 회사 약 1만 곳, 하루 캐시)으로 CIK를 찾고 submissions에서 법인명·CIK·ticker·거래소·신고자 구분·사업장 도시를 읽습니다. 전화·EIN 같은 연락·세금 항목은 내보내지 않습니다. EDGAR 이름의 주(州) 꼬리표("QUALCOMM INC/DE")는 무시합니다. User-Agent에 contact@agentconcierge.biz, 0.2초 간격(SEC 상한 초당 10회).
 - 자체 점검 실패 3건(`company-check.json`): Exxon(SEC 등록명이 "ExxonMobil Holdings Corp"로 바뀜), Chevron(GLEIF에서 정확히 같은 이름을 못 찾음), Oracle(GLEIF 미국에 같은 법인명 여러 개 → 추측 안 함). 사슬로 두 개를 함께 두면 30/30.
 - 관문용 정답 세트(보류 60건)는 워크플로우 팀 몫이라 요청했습니다(정답 = SEC CIK·GLEIF LEI 고정).
+
+### 2-6. 백과·논문 자리(Wikipedia·arXiv, PM ⑤)
+- Wikipedia: action API로 리다이렉트 제목을 서버에서 풀고(`redirects=1`), 동음이의 문서는 답하지 않습니다(`not_found`). 첫 문단을 문장 끝에서 1,500자 안으로 자릅니다. 응답 `source`와 `sources.license`에 CC BY-SA 4.0과 "Wikipedia contributors"를, `url`에 문서 링크를 넣어 재사용 조건(출처·라이선스 표기)을 지킵니다. `maxlag=5`로 Wikimedia 서버가 바쁠 때는 물러납니다. 데이터 시각 = 문서 `touched`.
+- arXiv: API 이용 약관대로 3초에 1회, 감사 문구를 고지에 넣었습니다. 메타데이터는 CC0. XML은 DTD·ENTITY가 든 응답을 거부한 뒤 읽습니다(defusedxml이 설치돼 있지 않음).
+- arXiv 한계: API 검색 순서가 제목 일치를 우선하지 않아, 50건을 받아 "제목에 든 질의 단어 수 → 군더더기 단어가 적은 순"으로 다시 줄 세웁니다. 그래도 "Attention Is All You Need"·"Generative Adversarial Networks"처럼 같은 말이 든 제목이 수백 개인 경우는 50건 안에 원 논문이 없습니다(제목 한정 질의면 36위). 3초 규칙 때문에 한 번에 두 번 물을 수 없어 고치지 않았습니다. 이 자리에는 외부 멤버 4개와 자체 Crossref(133019)가 있으니 arXiv는 뒤 순위가 맞습니다.
+- 자체 점검(`reference-check.json`, 정답 세트 아님): 시험 30회를 이어 보내 3초 간격 대기가 지연에 들어갔고, 마지막 3회는 arXiv가 상한 응답을 줘 쉬는 동안 `rate_limited`로 실패했습니다(쉬기 규칙대로 동작).
 
 ## 3. 관문 신청 묶음 (deploy/NECKLACE_GATE.md 10절 대비)
 

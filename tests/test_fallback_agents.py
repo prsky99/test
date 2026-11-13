@@ -70,7 +70,7 @@ def agents(tmp_path, routes, calls=None, clock=None, snapshot=None):
 
 # ------------------------------------------------------------------ catalog and contracts
 def test_tools_are_read_only_and_use_the_slot_contracts():
-    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar"}
+    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search"}
     for agent_id, spec in SPECS.items():
         tool = tool_spec(agent_id)
         c = contract(spec["contract"])
@@ -771,3 +771,69 @@ def test_company_key_treats_suffix_spellings_alike():
     assert company_key("Siemens Aktiengesellschaft") == company_key("Siemens AG")
     assert core_name("NVIDIA Corp.") == "NVIDIA" and core_name("Corp") == "Corp"
     assert core_name("Amazon.com, Inc.") == "Amazon.com"
+
+
+# ------------------------------------------------------------------ encyclopedia and papers agents
+def test_wikipedia_agent_follows_redirects_and_credits_cc_by_sa(tmp_path):
+    calls = []
+    page = {"title": "Python (programming language)", "fullurl": "https://en.wikipedia.org/wiki/Python_(programming_language)",
+            "touched": "2026-11-13T07:06:55Z", "extract": "Python is a high-level language.\nGuido van Rossum began work on it."}
+    a, _ = agents(tmp_path, {"https://en.wikipedia.org/w/api.php": httpx.Response(200, json={"query": {"pages": [page]}})}, calls)
+    env = a.execute("wikipedia-summary", {"title": "Python programming language"})
+    assert env["result"] == {"title": "Python (programming language)",
+                             "summary": "Python is a high-level language. Guido van Rossum began work on it.",
+                             "url": "https://en.wikipedia.org/wiki/Python_(programming_language)",
+                             "source": "Wikipedia (CC BY-SA 4.0, Wikipedia contributors)"}
+    assert "redirects=1" in calls[0] and "maxlag=5" in calls[0]
+    assert env["sources"][0]["license"].startswith("CC BY-SA 4.0")
+    assert env["freshness"]["data_as_of"] == {"Wikipedia": "2026-11-13T07:06:55Z"}
+
+
+def test_wikipedia_agent_refuses_missing_and_disambiguation(tmp_path):
+    a, _ = agents(tmp_path, {"https://en.wikipedia.org/w/api.php": lambda r: httpx.Response(200, json={"query": {"pages": [
+        {"title": r.url.params["titles"], "missing": True} if r.url.params["titles"] == "Nope" else
+        {"title": "Mercury", "pageprops": {"disambiguation": ""}, "extract": "Mercury may refer to:"}]}})})
+    for title in ("Nope", "Mercury"):
+        with pytest.raises(FallbackUnavailable) as err:
+            a.execute("wikipedia-summary", {"title": title})
+        assert err.value.code == "not_found"
+
+
+def test_lead_cuts_at_a_sentence():
+    from agent_market.fallback_agents.agents import lead
+    assert lead("One. Two three. Four five six.", 20) == "One. Two three."
+    assert len(lead("word " * 1000, 100)) <= 104
+
+
+ATOM = b"""<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+<entry><id>http://arxiv.org/abs/2304.06446v2</id><published>2023-04-13T00:00:00Z</published>
+<title>SpectFormer: Frequency and Attention is what you need in a Vision Transformer</title></entry>
+<entry><id>http://arxiv.org/abs/1706.03762v7</id><published>2017-06-12T17:57:34Z</published>
+<title>Attention Is All You
+  Need</title></entry>
+<entry><id>http://arxiv.org/abs/1706.03762v6</id><published>2017-06-12T17:57:34Z</published>
+<title>Attention Is All You Need</title></entry>
+</feed>"""
+
+
+def test_arxiv_agent_ranks_title_matches_and_keeps_ids(tmp_path):
+    calls = []
+    a, _ = agents(tmp_path, {"https://export.arxiv.org/api/query": httpx.Response(
+        200, content=ATOM, headers={"content-type": "application/atom+xml"})}, calls)
+    env = a.execute("arxiv-search", {"query": "attention is all you need", "limit": 5})
+    assert env["result"]["items"][0] == {"title": "Attention Is All You Need", "id": "arXiv:1706.03762",
+                                         "url": "https://arxiv.org/abs/1706.03762", "year": 2017}
+    assert len(env["result"]["items"]) == 2, "duplicate titles are folded"
+    assert "search_query=all%3Aattention+AND+all%3Aneed" in calls[0]
+    assert "Thank you to arXiv" in env["sources"][0]["notice"]
+
+
+def test_arxiv_feed_with_a_dtd_is_refused(tmp_path):
+    from agent_market.fallback_agents.agents import arxiv_entries
+    with pytest.raises(ValueError):
+        arxiv_entries(b'<?xml version="1.0"?><!DOCTYPE x [<!ENTITY a "aaaa">]><feed/>')
+
+
+def test_arxiv_requests_are_three_seconds_apart():
+    assert limiters()["export.arxiv.org"].spacing >= 3.0

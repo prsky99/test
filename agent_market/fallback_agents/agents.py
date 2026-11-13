@@ -36,10 +36,11 @@ CODES = ("invalid_input", "not_found", "rate_limited", "source_unavailable", "in
 # old our copy is. A copy older than MAX_AGE is an error ("stale") so the slot moves to the next member.
 MAX_AGE = {"nvd-cve": 6 * 3600, "cve-org": 24 * 3600, "cisa-kev": 24 * 3600, "github-advisory": 6 * 3600,
            "package-registry": 6 * 3600, "depsdev-package": 24 * 3600, "gleif-lei": 24 * 3600,
-           "sec-edgar": 24 * 3600}
+           "sec-edgar": 24 * 3600, "wikipedia-summary": 24 * 3600, "arxiv-search": 48 * 3600}
 TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "github-advisory": (3600, 6 * 3600),
        "epss": (6 * 3600, 48 * 3600), "package-registry": (3600, 6 * 3600), "depsdev-package": (6 * 3600, 24 * 3600),
-       "gleif-lei": (6 * 3600, 24 * 3600), "sec-edgar": (6 * 3600, 24 * 3600), "sec-tickers": (6 * 3600, 24 * 3600)}  # (serve from cache without asking, longest a cached copy may serve)
+       "gleif-lei": (6 * 3600, 24 * 3600), "sec-edgar": (6 * 3600, 24 * 3600), "sec-tickers": (6 * 3600, 24 * 3600),
+       "wikipedia-summary": (6 * 3600, 24 * 3600), "arxiv-search": (24 * 3600, 48 * 3600)}  # (serve from cache without asking, longest a cached copy may serve)
 KEV_TTL, KEV_MAX_STALE = 3600, 24 * 3600
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 PACKAGE = re.compile(r"(?:@[a-z0-9][a-z0-9._~-]*/)?[A-Za-z0-9][A-Za-z0-9._~-]*")
@@ -490,6 +491,63 @@ class FallbackAgents:
             cache = list_cache
         return out, cache, False, {"SEC EDGAR": as_of}
 
+    def _wikipedia_summary(self, args, remaining):
+        title = " ".join(args["title"].split())
+        if not title or any(c in title for c in "|#<>[]{}"):
+            raise FallbackUnavailable("invalid_input", "Use a plain article title.")
+
+        def live(rem):
+            raw = self._get_json("https://en.wikipedia.org/w/api.php", rem, limit=512 * 1024, params={
+                "action": "query", "prop": "extracts|info|pageprops", "exintro": 1, "explaintext": 1,
+                "redirects": 1, "inprop": "url", "ppprop": "disambiguation", "titles": title,
+                "format": "json", "formatversion": 2, "maxlag": 5})
+            pages = (raw.get("query") or {}).get("pages") or []
+            if len(pages) != 1 or pages[0].get("missing") or pages[0].get("invalid"):
+                raise FallbackUnavailable("not_found", "Wikipedia has no article with this title.")
+            page = pages[0]
+            if "disambiguation" in (page.get("pageprops") or {}):
+                raise FallbackUnavailable("not_found", "This title is a disambiguation page; use a more specific title.")
+            summary = lead(page.get("extract") or "", 1500)
+            url = page.get("fullurl") or ""
+            if not summary or not url.startswith("https://en.wikipedia.org/wiki/"):
+                raise ValueError("no extract")
+            out = {"title": _text(page.get("title"), 4000), "summary": summary, "url": url,
+                   "source": "Wikipedia (CC BY-SA 4.0, Wikipedia contributors)"}
+            return out, _text(page.get("touched"), 40) or None
+        (out, as_of), cache = self._cached(("wikipedia-summary", title.casefold()), TTL["wikipedia-summary"],
+                                           live, remaining)
+        return out, cache, False, {"Wikipedia": as_of}
+
+    def _arxiv_search(self, args, remaining):
+        query = " ".join(args["query"].split())
+        limit = args.get("limit", 5)
+        words = re.findall(r"[A-Za-z0-9]+", query.lower())
+        terms = [w for w in words if w not in STOPWORDS] or words
+        if not terms or len(terms) > 12:
+            raise FallbackUnavailable("invalid_input", "Use 1 to 12 plain keywords.")
+
+        def live(rem):
+            response = get("https://export.arxiv.org/api/query", limiters=self.limiters, http=self.http,
+                           seconds=max(0.1, rem() - 0.1), limit=2 * 1024 * 1024, accept="application/atom+xml",
+                           params={"search_query": " AND ".join("all:" + t for t in terms),
+                                   "start": 0, "max_results": 50})
+            return arxiv_entries(response.content), _now_iso(self.utc_now())
+        (entries, as_of), cache = self._cached(("arxiv-search", " ".join(terms)), TTL["arxiv-search"], live, remaining)
+        # The API's own order does not favor title matches: rank by query words in the title, then by fewer
+        # extra title words, then by the API order.
+        def rank(pair):
+            title_words = re.findall(r"[a-z0-9]+", pair[1]["title"].lower())
+            hit = sum(w in set(title_words) for w in set(words))
+            return (-hit, len([w for w in title_words if w not in set(words)]), pair[0])
+        ranked = sorted(enumerate(entries), key=rank)
+        items, seen = [], set()
+        for _, item in ranked:
+            key = item["title"].casefold()
+            if key not in seen:
+                seen.add(key)
+                items.append(item)
+        return {"items": items[:limit], "source": "arXiv"}, cache, False, {"arXiv": as_of}
+
     # ---------------------------------------------------------------- usage
     def _usage(self, agent_id, envelope, code, started):
         line = {"at": _now_iso(self.utc_now()), "agent": agent_id if agent_id in SPECS else "unknown",
@@ -633,6 +691,42 @@ def core_name(name: str) -> str:
     while len(words) > 1 and re.sub(r"\W", "", words[-1]).lower() in _LEGAL_FORMS:
         words.pop()
     return " ".join(w for w in words if w)
+
+
+STOPWORDS = frozenset("a an and are as at be by for from in is it of on or the to with all you we our this that "
+                      "using via towards".split())
+
+
+def lead(text: str, limit: int) -> str:
+    """The first paragraphs of an extract, cut at a sentence end within ``limit`` characters."""
+    text = " ".join(text.split())
+    if len(text) <= limit:
+        return text
+    cut = text[:limit]
+    end = max(cut.rfind(". "), cut.rfind("? "), cut.rfind("! "))
+    return cut[:end + 1] if end > limit // 3 else cut.rsplit(" ", 1)[0] + " ..."
+
+
+def arxiv_entries(body: bytes) -> list[dict]:
+    """Atom feed -> papers.search items. Feeds with a DTD or entities are refused (no entity expansion)."""
+    import xml.etree.ElementTree as ET
+    if b"<!DOCTYPE" in body or b"<!ENTITY" in body:
+        raise ValueError("DTD in feed")
+    ns = {"a": "http://www.w3.org/2005/Atom"}
+    root = ET.fromstring(body)
+    items = []
+    for entry in root.findall("a:entry", ns)[:50]:
+        raw_id = (entry.findtext("a:id", "", ns) or "").strip()
+        m = re.fullmatch(r"https?://arxiv\.org/abs/([a-z.-]*/?[0-9.]+?)(v[0-9]+)?", raw_id)
+        title = _text(entry.findtext("a:title", "", ns), 4000)
+        if not m or not title:
+            continue
+        item = {"title": title, "id": "arXiv:" + m[1], "url": "https://arxiv.org/abs/" + m[1]}
+        year = (entry.findtext("a:published", "", ns) or "")[:4]
+        if year.isdigit():
+            item["year"] = int(year)
+        items.append(item)
+    return items
 
 
 def pep503(name: str) -> str:

@@ -1,0 +1,390 @@
+{
+ "note": "self check, not a gold set; arXiv budget 8 s here to see coverage, slot budget is 3.3 s",
+ "role_tasks": {
+  "wikipedia-summary": {
+   "passed": 2,
+   "cases": 2,
+   "rows": [
+    {
+     "case_id": "wiki-seoul",
+     "pass": true,
+     "why": []
+    },
+    {
+     "case_id": "wiki-python",
+     "pass": true,
+     "why": []
+    }
+   ]
+  },
+  "arxiv-search": {
+   "passed": 3,
+   "cases": 3,
+   "rows": [
+    {
+     "case_id": "papers-attention",
+     "pass": true,
+     "why": []
+    },
+    {
+     "case_id": "papers-bert",
+     "pass": true,
+     "why": []
+    },
+    {
+     "case_id": "papers-rag",
+     "pass": true,
+     "why": []
+    }
+   ]
+  }
+ },
+ "arxiv_30_known_titles": [
+  {
+   "id": "1706.03762",
+   "rank_in_5": null,
+   "ms": 2908
+  },
+  {
+   "id": "1810.04805",
+   "rank_in_5": 1,
+   "ms": 2800
+  },
+  {
+   "id": "2005.11401",
+   "rank_in_5": 1,
+   "ms": 0
+  },
+  {
+   "id": "1512.03385",
+   "rank_in_5": 1,
+   "ms": 3617
+  },
+  {
+   "id": "1412.6980",
+   "rank_in_5": 1,
+   "ms": 2515
+  },
+  {
+   "id": "1406.2661",
+   "rank_in_5": null,
+   "ms": 3048
+  },
+  {
+   "id": "1312.6114",
+   "rank_in_5": 1,
+   "ms": 3000
+  },
+  {
+   "id": "2005.14165",
+   "rank_in_5": 1,
+   "ms": 3344
+  },
+  {
+   "id": "1301.3781",
+   "rank_in_5": 1,
+   "ms": 2505
+  },
+  {
+   "id": "1409.0473",
+   "rank_in_5": 1,
+   "ms": 2963
+  },
+  {
+   "id": "1502.03167",
+   "rank_in_5": 1,
+   "ms": 3013
+  },
+  {
+   "id": "2010.11929",
+   "rank_in_5": 1,
+   "ms": 2948
+  },
+  {
+   "id": "1910.10683",
+   "rank_in_5": 1,
+   "ms": 3058
+  },
+  {
+   "id": "1907.11692",
+   "rank_in_5": 1,
+   "ms": 2969
+  },
+  {
+   "id": "2103.00020",
+   "rank_in_5": 1,
+   "ms": 3464
+  },
+  {
+   "id": "2006.11239",
+   "rank_in_5": 1,
+   "ms": 2694
+  },
+  {
+   "id": "2112.10752",
+   "rank_in_5": 1,
+   "ms": 3526
+  },
+  {
+   "id": "1409.1556",
+   "rank_in_5": 1,
+   "ms": 3292
+  },
+  {
+   "id": "1505.04597",
+   "rank_in_5": 1,
+   "ms": 2495
+  },
+  {
+   "id": "1506.02640",
+   "rank_in_5": 1,
+   "ms": 2559
+  },
+  {
+   "id": "1312.5602",
+   "rank_in_5": 1,
+   "ms": 3224
+  },
+  {
+   "id": "1707.06347",
+   "rank_in_5": 1,
+   "ms": 3055
+  },
+  {
+   "id": "2203.02155",
+   "rank_in_5": 1,
+   "ms": 3077
+  },
+  {
+   "id": "2201.11903",
+   "rank_in_5": 1,
+   "ms": 3213
+  },
+  {
+   "id": "2106.09685",
+   "rank_in_5": 1,
+   "ms": 3210
+  },
+  {
+   "id": "2302.13971",
+   "rank_in_5": 1,
+   "ms": 2377
+  },
+  {
+   "id": "1609.02907",
+   "rank_in_5": 1,
+   "ms": 3227
+  },
+  {
+   "id": "1710.10903",
+   "error": "rate_limited",
+   "ms": 2387
+  },
+  {
+   "id": "1503.02531",
+   "error": "rate_limited",
+   "ms": 0
+  },
+  {
+   "id": "2001.08361",
+   "error": "rate_limited",
+   "ms": 0
+  }
+ ],
+ "wikipedia_30_titles": [
+  {
+   "title": "Seoul",
+   "got": "Seoul",
+   "chars": 1368,
+   "ms": 0
+  },
+  {
+   "title": "Photosynthesis",
+   "got": "Photosynthesis",
+   "chars": 1322,
+   "ms": 472
+  },
+  {
+   "title": "Python (programming language)",
+   "got": "Python (programming language)",
+   "chars": 1198,
+   "ms": 0
+  },
+  {
+   "title": "Albert Einstein",
+   "got": "Albert Einstein",
+   "chars": 1408,
+   "ms": 500
+  },
+  {
+   "title": "World War II",
+   "got": "World War II",
+   "chars": 1439,
+   "ms": 463
+  },
+  {
+   "title": "Mount Everest",
+   "got": "Mount Everest",
+   "chars": 1435,
+   "ms": 463
+  },
+  {
+   "title": "Linux",
+   "got": "Linux",
+   "chars": 1424,
+   "ms": 479
+  },
+  {
+   "title": "Bitcoin",
+   "got": "Bitcoin",
+   "chars": 1298,
+   "ms": 490
+  },
+  {
+   "title": "Climate change",
+   "got": "Climate change",
+   "chars": 1458,
+   "ms": 452
+  },
+  {
+   "title": "Leonardo da Vinci",
+   "got": "Leonardo da Vinci",
+   "chars": 1481,
+   "ms": 460
+  },
+  {
+   "title": "COVID-19",
+   "got": "COVID-19",
+   "chars": 1348,
+   "ms": 450
+  },
+  {
+   "title": "Amazon River",
+   "got": "Amazon River",
+   "chars": 1490,
+   "ms": 459
+  },
+  {
+   "title": "Tokyo",
+   "got": "Tokyo",
+   "chars": 1240,
+   "ms": 455
+  },
+  {
+   "title": "Machine learning",
+   "got": "Machine learning",
+   "chars": 1177,
+   "ms": 473
+  },
+  {
+   "title": "Great Wall of China",
+   "got": "Great Wall of China",
+   "chars": 1381,
+   "ms": 481
+  },
+  {
+   "title": "Moon",
+   "got": "Moon",
+   "chars": 1370,
+   "ms": 477
+  },
+  {
+   "title": "DNA",
+   "got": "DNA",
+   "chars": 1440,
+   "ms": 487
+  },
+  {
+   "title": "Olympic Games",
+   "got": "Olympic Games",
+   "chars": 1416,
+   "ms": 505
+  },
+  {
+   "title": "United Nations",
+   "got": "United Nations",
+   "chars": 1266,
+   "ms": 503
+  },
+  {
+   "title": "Shakespeare",
+   "got": "William Shakespeare",
+   "chars": 1278,
+   "ms": 486
+  },
+  {
+   "title": "Eiffel Tower",
+   "got": "Eiffel Tower",
+   "chars": 1490,
+   "ms": 505
+  },
+  {
+   "title": "Jazz",
+   "got": "Jazz",
+   "chars": 1425,
+   "ms": 472
+  },
+  {
+   "title": "Volcano",
+   "got": "Volcano",
+   "chars": 1462,
+   "ms": 474
+  },
+  {
+   "title": "Penicillin",
+   "got": "Penicillin",
+   "chars": 1476,
+   "ms": 469
+  },
+  {
+   "title": "Internet",
+   "got": "Internet",
+   "chars": 1338,
+   "ms": 469
+  },
+  {
+   "title": "Black hole",
+   "got": "Black hole",
+   "chars": 1456,
+   "ms": 487
+  },
+  {
+   "title": "Renaissance",
+   "got": "Renaissance",
+   "chars": 1264,
+   "ms": 478
+  },
+  {
+   "title": "Coffee",
+   "got": "Coffee",
+   "chars": 1412,
+   "ms": 495
+  },
+  {
+   "title": "Hangul",
+   "got": "Hangul",
+   "chars": 1467,
+   "ms": 461
+  },
+  {
+   "title": "K-pop",
+   "got": "K-pop",
+   "chars": 1423,
+   "ms": 495
+  }
+ ],
+ "summary": {
+  "arxiv_top1": 25,
+  "arxiv_top5": 25,
+  "arxiv_errors": 3,
+  "arxiv_p50_p95_ms": [
+   3000,
+   3464
+  ],
+  "wiki_ok": 30,
+  "wiki_p50_p95_ms": [
+   474,
+   503
+  ]
+ }
+}

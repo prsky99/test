@@ -54,6 +54,14 @@ SEC = {"name": "SEC EDGAR (U.S. Securities and Exchange Commission)", "url": "ht
        "license": "U.S. Government public data; SEC fair-access policy (declared User-Agent, at most 10 requests per second)",
        "notice": "Covers companies with SEC tickers. Not endorsed by the SEC."}
 
+WIKIPEDIA = {"name": "Wikipedia (English), Wikimedia Foundation", "url": "https://en.wikipedia.org/",
+             "license": "CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/); text by Wikipedia contributors",
+             "notice": "Summary text is the article's lead section; reuse must credit Wikipedia contributors and "
+                       "keep the CC BY-SA 4.0 license, with the article link given in url."}
+ARXIV = {"name": "arXiv API (Cornell University)", "url": "https://arxiv.org/",
+         "license": "arXiv metadata CC0 1.0 (https://info.arxiv.org/help/api/tou.html); paper texts keep their own licenses",
+         "notice": "Thank you to arXiv for use of its open access interoperability. At most one request every 3 seconds."}
+
 SPECS = {
     "nvd-cve": {
         "name": "AgentValCon NVD CVE Record", "tool": "get_cve_record", "contract": "cve.record.v1",
@@ -120,6 +128,20 @@ SPECS = {
                        "exchange, filer category and business city from EDGAR; read-only.",
         "sources": [SEC],
         "rate": "at most 5 requests per second (SEC allows 10); ticker list cached 24 hours",
+    },
+    "wikipedia-summary": {
+        "name": "AgentValCon Wikipedia Summary", "tool": "get_wikipedia_summary", "contract": "encyclopedia.summary.v1",
+        "description": "Read the lead section of one English Wikipedia article by title (redirect titles resolve; "
+                       "disambiguation pages are not answered), with the article link and CC BY-SA attribution; read-only.",
+        "sources": [WIKIPEDIA],
+        "rate": "5 requests per second, cached 6 hours",
+    },
+    "arxiv-search": {
+        "name": "AgentValCon arXiv Search", "tool": "search_arxiv_papers", "contract": "papers.search.v1",
+        "description": "Search arXiv for papers matching keywords: title, arXiv id, abstract link and year, "
+                       "ranked by how many query words the title holds; read-only.",
+        "sources": [ARXIV],
+        "rate": "1 request every 3 seconds (arXiv API terms), cached 24 hours",
     },
 }
 
