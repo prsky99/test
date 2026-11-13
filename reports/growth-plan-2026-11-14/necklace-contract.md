@@ -20,9 +20,14 @@
   "template_id": 31,
   "status": "live",
   "pearls": [
-    {"resource_id": 133020, "role": "weather", "tool": "get_forecast"},
-    {"resource_id": 140112, "role": "exchange rate", "tool": "convert"}
+    {"resource_id": 133020, "role": "weather", "tool": "get_forecast",
+     "alternates": [{"resource_id": 133511, "tool": "forecast", "kind": "external"},
+                    {"resource_id": 900001, "tool": "weather", "kind": "agentcon"}]},
+    {"resource_id": 140112, "role": "exchange rate", "tool": "convert",
+     "alternates": [{"resource_id": 140377, "tool": "rate", "kind": "external"}]}
   ],
+  "completion": {"runs": 30, "completed": 29, "completed_external_only": 26,
+                 "since": "2026-11-13T03:00:00Z", "retested_at": "2026-11-20T03:10:00Z"},
   "input_schema": {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
   "quality": {
     "answer_set": "trip-brief-v1", "cases": 30,
@@ -41,6 +46,8 @@
 | `pearls` | 쓰인 진주(외부 에이전트 id·역할·도구) | 진주 카드 링크(`/agent/<id>`) |
 | `template_id` | 실행할 공개 워크플로우 | 실행은 기존 공개 실행 경로(run_workflow) |
 | `input_schema` | 목걸이 입력 | MCP 도구 inputSchema, 웹 입력 양식, A2A "run" 예시 |
+| `pearls[].alternates` | 자리별 대체(순서대로 시도). `kind`는 `external` 또는 `agentcon`. agentcon은 자리당 최대 2개이고 맨 뒤에 둔다(사용자 05:1x) | 완주 보증 칸 "자리별 대체 수" |
+| `completion` | 재시험 실행 수, 대체 포함 완주 수, 외부 진주만으로 완주한 수, 집계 시작·마지막 재시험 시각 | 완주 보증 칸 "최근 완주율", "마지막 재시험". 없으면 칸을 숨긴다 |
 | `quality` | 같은 정답 세트에서 목걸이·최고 단일 진주 성공률과 Δ | 페이지 "단일 대비 Δ", "최근 시험 성공률" |
 | `cost` | 1회 비용(지금은 0)과 지연 | 페이지 "1회 비용·지연" |
 
@@ -50,7 +57,9 @@
   - `pearls` 2개 이상
   - `delta_pp > 0`
   - `tested_at`이 48시간 안
-- 숫자는 파일 값을 그대로 쓴다. 표면에서 반올림 외의 계산은 하지 않는다.
+- 숫자는 파일 값을 그대로 쓴다. 표면에서 반올림 외의 계산은 하지 않는다(완주율 = completed/runs, 비율 표시만).
+- 완주 보증 문구는 측정값만 쓴다. 값이 없는 칸은 숨긴다. 약속 문구("guaranteed")는 쓰지 않는다.
+- 자리별 agentcon 대체가 2개를 넘거나 external보다 앞에 있으면 계약 위반으로 보고 그 목걸이를 노출하지 않는다.
 - 실행 범위는 MCP `call`·A2A run과 같다(읽기 전용 중계, 결제·자격 증명 없음).
 
 ## 4. 정할 것 (검색과 RAG·운영·SRE와)
