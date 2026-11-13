@@ -141,7 +141,10 @@ def test_feed_uses_committed_publication_and_current_state(adoption):
     assert core.events.publish()==1
     first=client.get('/api/feed/verified.json?protocol=mcp')
     assert first.status_code==200 and first.json()['items'][0]['_agentconcierge']['currently_verified']
-    assert client.get('/api/feed/verified.json?protocol=mcp',headers={'If-None-Match':'W/'+first.headers['etag']}).status_code==304
+    # 11-13: the feed is now a shared public read, so its ETag comes back weak (W/) like the other public reads;
+    # a reader sends back the tag it got.
+    assert first.headers['etag'].startswith('W/"') and 'max-age=60' in first.headers['cache-control']
+    assert client.get('/api/feed/verified.json?protocol=mcp',headers={'If-None-Match':first.headers['etag']}).status_code==304
     with core.front.store.tx()as db:db.execute('UPDATE resources SET active=0 WHERE id=?',(ids[0],))
     second=client.get('/api/feed/verified.json?protocol=mcp',headers={'If-None-Match':first.headers['etag']})
     assert second.status_code==200
