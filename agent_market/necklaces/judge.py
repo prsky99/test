@@ -98,12 +98,12 @@ def pearls(defn: dict) -> list[dict]:
     out = []
     for slot in defn["slots"]:
         externals = model.live_members(slot, "external")
-        agentcon = [m for m in model.live_members(slot, "agentcon") if isinstance(m.get("resource_id"), int)]
+        agentcon = model.live_members(slot, "agentcon")
         fanout = slot.get("fanout", 1)
         leads, rest = externals[:fanout], externals[fanout:]
         alternates = [{"resource_id": m["resource_id"], "tool": m["tool"], "kind": "external"} for m in rest]
-        alternates += [{"resource_id": m["resource_id"], "tool": m["tool"], "kind": "agentcon"}
-                       for m in agentcon[:model.MAX_AGENTCON]]
+        alternates += [{"resource_id": m.get("resource_id"), "agent_id": m.get("agent_id"), "tool": m["tool"],
+                        "kind": "agentcon"} for m in agentcon[:model.MAX_AGENTCON]]
         for lead in leads:
             out.append({"resource_id": lead["resource_id"], "role": slot["slot"], "tool": lead["tool"],
                         "required": bool(slot.get("required", True)), "pearl": bool(lead.get("pearl")),

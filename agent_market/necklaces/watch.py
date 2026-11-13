@@ -156,7 +156,35 @@ def _retest_request(state: dict, now: float, slug: str, slot: str, m: dict):
                      "reason": "fingerprint_changed", "since": _now_iso(now), "due": _now_iso(now)[:10]})
 
 
-def observe(definitions: list[dict], fetch, prints: dict, state: dict, now: float) -> list[dict]:
+def _default_fallback_spec(agent_id: str) -> dict | None:
+    try:
+        from ..fallback_agents import tool_spec
+        return tool_spec(agent_id)
+    except Exception:
+        return None
+
+
+def _check_fallback(state: dict, slug: str, slot: str, m: dict, now: float, fallback_spec) -> dict:
+    """An in-process AgentValCon fallback: its published tool must still be a safe read-only lookup."""
+    key = member_key(slug, slot, m)
+    mark = state.setdefault("members", {}).setdefault(key, {"fail_streak": 0, "ok_streak": 0})
+    spec = fallback_spec(m["agent_id"])
+    ann = (spec or {}).get("annotations") or {}
+    problem = ("tool_missing" if not spec or spec.get("name") != m["tool"] else
+               "read_only_hint_lost" if ann.get("readOnlyHint") is not True else
+               "destructive" if ann.get("destructiveHint") is True else None)
+    action = None
+    if problem and not mark.get("excluded"):
+        mark["excluded"], action = True, "excluded_" + problem
+        _alert(state, now, slug, slot, "fallback_" + problem, 0)
+    mark["last"] = _now_iso(now)
+    return {"at": _now_iso(now), "slug": slug, "slot": slot, "resource_id": None, "agent_id": m["agent_id"],
+            "tool": m["tool"], "kind": "agentcon", "healthy": problem is None, "health_status": None,
+            "fingerprint": "same", "problem": problem, "fail_streak": 0, "action": action}
+
+
+def observe(definitions: list[dict], fetch, prints: dict, state: dict, now: float,
+            fallback_spec=_default_fallback_spec) -> list[dict]:
     """One watch round. ``fetch(rid)`` returns the resource row or None. Mutates ``state``."""
     lines = []
     marks = state.setdefault("members", {})
@@ -169,7 +197,11 @@ def observe(definitions: list[dict], fetch, prints: dict, state: dict, now: floa
             called = {member_key(slug, slot["slot"], m)
                       for m in [x for x in order if x.get("kind") == "external"][:slot.get("fanout", 1)]}
             for m in slot["chain"]:
-                if m.get("state", "active") != "active" or not isinstance(m.get("resource_id"), int):
+                if m.get("state", "active") != "active":
+                    continue
+                if not isinstance(m.get("resource_id"), int):
+                    if m.get("kind") == "agentcon":
+                        lines.append(_check_fallback(state, slug, slot["slot"], m, now, fallback_spec))
                     continue
                 key = member_key(slug, slot["slot"], m)
                 mark = marks.setdefault(key, {"fail_streak": 0, "ok_streak": 0})

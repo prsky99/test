@@ -178,7 +178,8 @@ class Runner:
             canon = NORMALIZERS.get(contract, norm_generic)(raw, values)
             ok, error = canon is not None, None if canon is not None else "contract_invalid"
         except Exception as exc:   # every failure of one member is that member's, never the run's
-            canon, ok, error = None, False, getattr(exc, "error_code", None) or type(exc).__name__
+            canon, ok, error = None, False, (getattr(exc, "error_code", None) or getattr(exc, "code", None)
+                                            or type(exc).__name__)
         ms = int((self.clock() - started) * 1000)
         return Attempt(member.get("resource_id"), member["tool"], member["kind"], rank, ok, ms, error), canon
 
@@ -279,9 +280,16 @@ def append_event(root: Path, event: dict):
         handle.write(json.dumps(event, ensure_ascii=False, sort_keys=True) + "\n")
 
 
-def engine_caller(engine):
-    """Production caller: the workflow engine's registered-agent path with all its guards."""
+def engine_caller(engine, fallbacks=None):
+    """Production caller. External members (and any member with a resource_id) go through the
+    workflow engine's registered-agent path with all its guards. AgentValCon fallbacks without a
+    resource_id run in-process through agent_market.fallback_agents (PM path A)."""
     def call(member, args, timeout_s):
+        if member.get("kind") == "agentcon" and not isinstance(member.get("resource_id"), int):
+            lib = fallbacks
+            if lib is None:
+                from .. import fallback_agents as lib
+            return lib.slot_output(lib.run(member["agent_id"], args))
         node = {"resource_id": member["resource_id"], "kind": "mcp", "data": {"tool": member["tool"]}}
         return engine._call_registered(node, args)
     return call

@@ -110,10 +110,13 @@ def _member_errors(slot_id: str, idx: int, m: dict) -> list[str]:
         if not m.get("registrable_domain"):
             errors.append(f"{where}: external member needs registrable_domain (failure domain)")
     if kind == "agentcon":
-        if m.get("state", "active") == "active" and not isinstance(m.get("resource_id"), int):
-            errors.append(f"{where}: an active AgentValCon fallback member needs its resource_id")
+        # Runs in-process through agent_market.fallback_agents by agent_id (path A), or through the
+        # registered-agent path when it has a resource_id (path B); either way agent_id names it.
         if not m.get("agent_id"):
             errors.append(f"{where}: AgentValCon fallback member needs agent_id")
+        rid = m.get("resource_id")
+        if rid is not None and not isinstance(rid, int):
+            errors.append(f"{where}: resource_id must be an integer or absent")
     if m.get("destructive_hint") is True:
         errors.append(f"{where}: destructive tools are not allowed")
     if m.get("resend_safe") is True and m.get("idempotent_hint") is not True:
