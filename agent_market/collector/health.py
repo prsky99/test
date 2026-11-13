@@ -100,6 +100,7 @@ class Schedule:
     down_after: int = 3
     retire_after: float = 7 * 86400  # 7일 넘게 계속 실패하면 제외
     jitter: float = 0.1
+    core_interval: float = 12 * 3600     # grade A and every MCP (사용자 수정 11-14: 6 -> 12 hours; 14 a week >= the pearl's 3)
     other_interval: float = 86400        # healthy/reachable that are neither grade A nor MCP
     bulk_full_interval: float = 7 * 86400  # bulk hosts: everything at least weekly
     bulk_sample_per_day: int = 100       # bulk hosts: about this many a day are checked again after 24 hours
@@ -323,9 +324,9 @@ class HealthChecker:
         return {int(i) for i in self._json_file(MEMBERS_FILE).get("resource_ids") or [] if str(i).isdigit()}
 
     def tier(self, resource: dict | None) -> str:
-        """core (grade A or MCP), bulk (a bulk host), or other."""
+        """core (grade A or MCP), bulk (a bulk host), other, or default (no resource given: the plain interval)."""
         if not resource:
-            return "core"
+            return "default"
         if resource.get("eval_grade") == "A" or resource.get("kind") == "mcp":
             return "core"
         host = resource.get("host") or urlparse(resource.get("url") or "").hostname or ""
@@ -348,8 +349,10 @@ class HealthChecker:
             delay = max(s.in_use_interval, host_min) if host_size > 10 else s.in_use_interval
         else:
             tier = self.tier(resource)
-            if tier == "core":
+            if tier == "default":
                 delay = interval
+            elif tier == "core":
+                delay = max(s.core_interval, host_min)
             elif tier == "bulk":
                 # a daily sample of about bulk_sample_per_day per host; the rest wait for the weekly pass
                 sample = random.random() < min(1.0, s.bulk_sample_per_day / max(1, host_size))

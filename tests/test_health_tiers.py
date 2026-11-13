@@ -24,11 +24,19 @@ def delay(checker, resource, host_size=1, failures=0, in_use=False):
     return checker.next_check_at(failures, in_use, 0.0, host_size, resource) / (1 + 0)
 
 
-def test_grade_a_and_mcp_keep_six_hours(checker):
-    six = checker.schedule.interval
+def test_grade_a_and_mcp_every_twelve_hours(checker):
+    twelve = 12 * 3600
+    assert checker.schedule.core_interval == twelve
     for r in ({'eval_grade': 'A', 'kind': 'a2a', 'host': 'x.com'}, {'eval_grade': 'B', 'kind': 'mcp', 'host': 'y.com'}):
-        assert abs(delay(checker, r) - six) <= six * checker.schedule.jitter
-    # the pearl rule (3+ checks in 7 days) is about grade A: still about 28 a week
+        assert abs(delay(checker, r) - twelve) <= twelve * checker.schedule.jitter
+    # the pearl rule needs 3+ health checks in 7 days: at 12 hours with +10% jitter that is at least 12 a week
+    worst = twelve * (1 + checker.schedule.jitter)
+    assert int(7 * DAY // worst) >= 3
+
+
+def test_down_agents_keep_the_default_interval(checker):
+    down = delay(checker, {'eval_grade': 'A', 'kind': 'mcp', 'host': 'x.com'}, failures=checker.schedule.down_after)
+    assert abs(down - checker.schedule.interval) <= checker.schedule.interval * checker.schedule.jitter
 
 
 def test_other_healthy_is_daily_and_bulk_is_sampled(checker):
