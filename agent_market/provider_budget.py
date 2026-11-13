@@ -25,7 +25,10 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
-DIR = Path(os.environ.get('PROVIDER_BUDGET_DIR', ROOT / 'gateway-data/provider-budget'))
+# A release folder has no gateway-data of its own; services run from the repository root (launchd WorkingDirectory),
+# so the ledger is shared by the scripts and every service role.
+DIR = Path(os.environ.get('PROVIDER_BUDGET_DIR') or ((ROOT if (ROOT / 'gateway-data').is_dir() else Path.cwd())
+                                                    / 'gateway-data/provider-budget'))
 KST = timezone(timedelta(hours=9))
 DAILY_TOTAL = 60
 SHARE = {
@@ -122,6 +125,83 @@ def note(url, system, status, now=None, directory=None):
     return True
 
 
+# GitHub's unauthenticated REST allowance is 60 core calls an hour per IP, and every system on this Mac shares it
+# (PM 11-14: the fallback watch found it used up). An hourly ledger splits it; /rate_limit is free and not counted.
+GITHUB_HOST = 'api.github.com'
+GITHUB_HOURLY = 60
+GITHUB_FLOOR = 5          # below this many left (GitHub's own count), every system stops until the hour resets
+GITHUB_SHARE = {
+    'fallback_live': 50,     # live answers of the own GitHub agents (their per-process limiter also stops at 50)
+    'necklace_retest': 8,
+    'role_tests': 5,
+    'substitute_tests': 5,
+    'pearl_batch': 2,
+    'adhoc': 2,
+    'gate': GITHUB_HOURLY - GITHUB_FLOOR,   # whatever is left
+}
+
+
+def hour(now=None):
+    return datetime.fromtimestamp(time.time() if now is None else now, KST).strftime('%Y%m%d%H')
+
+
+def github_reserve(system, n=1, now=None, directory=None):
+    """Count N GitHub core calls of SYSTEM in this hour if the shared allowance allows them. Returns (ok, reason)."""
+    if system not in GITHUB_SHARE:
+        raise ValueError(f'unknown system {system!r}; add it to provider_budget.GITHUB_SHARE')
+    now = time.time() if now is None else now
+    with _ledger('github-' + hour(now), directory) as data:
+        entry = data.setdefault('github', {'total': 0, 'by': {}, 'refused': {}})
+        paused = entry.get('paused_until')
+        why = None
+        if paused and now < paused:
+            why = 'github_floor'
+        elif entry['total'] + n > GITHUB_HOURLY - GITHUB_FLOOR:
+            why = 'github_hourly_total'
+        elif entry['by'].get(system, 0) + n > GITHUB_SHARE[system]:
+            why = 'system_share'
+        if why:
+            entry['refused'][system] = entry['refused'].get(system, 0) + n
+            return False, why
+        entry['total'] += n
+        entry['by'][system] = entry['by'].get(system, 0) + n
+        return True, 'ok'
+
+
+def github_observe(headers, system=None, now=None, directory=None):
+    """Record GitHub's own remaining count from a response; under GITHUB_FLOOR every system stops until the reset."""
+    try:
+        remaining = int((headers or {}).get('x-ratelimit-remaining'))
+        reset = int((headers or {}).get('x-ratelimit-reset'))
+    except (TypeError, ValueError):
+        return None
+    now = time.time() if now is None else now
+    with _ledger('github-' + hour(now), directory) as data:
+        entry = data.setdefault('github', {'total': 0, 'by': {}, 'refused': {}})
+        entry['remaining'] = {'left': remaining, 'reset': reset, 'seen_by': system,
+                              'at': datetime.fromtimestamp(now, KST).strftime('%H:%M:%S')}
+        if remaining < GITHUB_FLOOR:
+            entry['paused_until'] = max(entry.get('paused_until') or 0, min(reset, now + 3600))
+    return remaining
+
+
+def github_summary(hours=1, now=None, directory=None):
+    """Calls by system over the last HOURS hours (the hourly board line: who uses the shared allowance most)."""
+    now = time.time() if now is None else now
+    by, refused, total, last = {}, {}, 0, None
+    for back in range(hours):
+        with _ledger('github-' + hour(now - back * 3600), directory) as data:
+            entry = data.get('github') or {}
+        total += entry.get('total', 0)
+        for k, v in (entry.get('by') or {}).items():
+            by[k] = by.get(k, 0) + v
+        for k, v in (entry.get('refused') or {}).items():
+            refused[k] = refused.get(k, 0) + v
+        last = last or entry.get('remaining')
+    return {'hours': hours, 'total': total, 'by': dict(sorted(by.items(), key=lambda kv: -kv[1])),
+            'refused': refused, 'github_remaining': last}
+
+
 def status(day=None, directory=None):
     with _ledger(day or today(), directory) as data:
         return json.loads(json.dumps(data))
@@ -132,7 +212,11 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description='Show the shared outside-call budget of a day.')
     parser.add_argument('--day', default=None, help='YYYYMMDD (KST), default today')
     parser.add_argument('--top', type=int, default=20)
+    parser.add_argument('--github', type=int, default=0, metavar='HOURS', help='GitHub calls by system over HOURS hours')
     args = parser.parse_args(argv)
+    if args.github:
+        print(json.dumps(github_summary(args.github), ensure_ascii=False, indent=1))
+        return
     data = status(args.day)
     rows = sorted(data['domains'].items(), key=lambda kv: -kv[1]['total'])[:args.top]
     print(json.dumps({'day': args.day or today(), 'limit': DAILY_TOTAL, 'domains': len(data['domains']),

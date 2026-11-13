@@ -108,3 +108,11 @@ def staff_session(store, token=STAFF_TOKEN):
             db.execute('INSERT INTO admin_sessions (token, user_id, username, role, name, created_at, expires_at) VALUES (?,?,?,?,?,?,?)',
                        (admin_auth.session_reference(token), row[0], 'synthetic-staff', 'superadmin', 'Synthetic staff', time.time(), time.time() + 86400))
     return {'X-Dashboard': '1', 'Authorization': 'Bearer ' + token}
+
+
+@pytest.fixture(autouse=True)
+def isolated_provider_budget(monkeypatch, tmp_path_factory):
+    """The shared outside-call ledger (provider_budget, GitHub hourly share) is a real file under gateway-data;
+    tests count into a temporary folder so they never use up the services' allowance."""
+    from agent_market import provider_budget
+    monkeypatch.setattr(provider_budget, 'DIR', tmp_path_factory.mktemp('provider-budget'))

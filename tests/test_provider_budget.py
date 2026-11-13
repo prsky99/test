@@ -57,3 +57,44 @@ def test_concurrent_reservations_never_pass_the_total(tmp_path):
     for t in threads: t.start()
     for t in threads: t.join()
     assert sum(granted) == pb.DAILY_TOTAL == pb.status(pb.today(now), tmp_path)['domains']['example.net']['total']
+
+
+def test_github_hourly_share_floor_and_summary(tmp_path):
+    """PM 11-14: GitHub's unauthenticated 60 an hour is split by system and everyone stops under 5 left."""
+    now = at(14, 7)
+    assert all(pb.github_reserve('role_tests', now=now, directory=tmp_path)[0] for _ in range(5))
+    assert pb.github_reserve('role_tests', now=now, directory=tmp_path) == (False, 'system_share')
+    assert pb.github_reserve('fallback_live', n=30, now=now, directory=tmp_path) == (True, 'ok')
+    assert pb.github_reserve('gate', n=21, now=now, directory=tmp_path) == (False, 'github_hourly_total')  # 55 usable
+    assert pb.github_reserve('gate', n=20, now=now, directory=tmp_path) == (True, 'ok')
+    # GitHub says only 4 are left (another user of this IP): everybody stops until the reset
+    reset = int(now) + 1200
+    assert pb.github_observe({'x-ratelimit-remaining': '4', 'x-ratelimit-reset': str(reset)}, 'gate', now=now,
+                             directory=tmp_path) == 4
+    later = at(14, 7) + 600
+    assert pb.github_reserve('adhoc', now=later, directory=tmp_path) == (False, 'github_floor')
+    assert pb.github_reserve('adhoc', now=at(14, 8), directory=tmp_path) == (True, 'ok')   # a new hour
+    summary = pb.github_summary(hours=2, now=at(14, 8), directory=tmp_path)
+    assert summary['total'] == 56 and list(summary['by'])[0] == 'fallback_live'
+    assert summary['refused'] == {'role_tests': 1, 'gate': 21, 'adhoc': 1}
+    with pytest.raises(ValueError):
+        pb.github_reserve('collector', now=now, directory=tmp_path)
+
+
+def test_fallback_github_calls_go_through_the_shared_allowance(tmp_path, monkeypatch):
+    import httpx
+    from agent_market.fallback_agents import net
+    from agent_market.fallback_agents.limits import limiters
+    monkeypatch.setattr(pb, 'DIR', tmp_path)
+    seen = []
+
+    def handler(request):
+        seen.append(request.url.path)
+        return httpx.Response(200, json={}, headers={'x-ratelimit-remaining': '3', 'x-ratelimit-reset': '9999999999'})
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    net.get('https://api.github.com/repos/a/b', limiters=limiters(), seconds=5, limit=65536, http=client, preflight=False)
+    with pytest.raises(net.SourceBusy):
+        net.get('https://api.github.com/repos/a/c', limiters=limiters(), seconds=5, limit=65536, http=client, preflight=False)
+    net.get('https://api.github.com/rate_limit', limiters=limiters(), seconds=5, limit=65536, http=client, preflight=False)
+    assert seen == ['/repos/a/b', '/rate_limit']
+    assert pb.github_summary(1, directory=tmp_path)['by'] == {'fallback_live': 1}

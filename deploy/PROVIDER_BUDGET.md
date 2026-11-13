@@ -54,3 +54,34 @@ note(url, 'necklace_retest', response.status_code)   # 부른 뒤에. 429면 그
 4. 운영·SRE가 매일 아침 전날 장부를 보고 현황판에 한 줄로 적는다.
    - 내용: 도메인 수, 상한에 닿은 도메인, 429로 멈춘 도메인
    - 몫이 모자라거나 남으면 수치를 조정하는 커밋을 낸다.
+
+## GitHub 시간당 몫 (PM 11-14)
+
+GitHub 무인증 REST 한도는 이 맥 IP 하나에 시간당 60번(core)이다. 여러 시스템이 이 한도를 함께 쓴다(자체 대체 github-advisory·software-incident·github-repo, 역할 시험, 목걸이 재시험, 관문).
+
+- **시간 단위 장부:** `gateway-data/provider-budget/github-YYYYMMDDHH.json`
+  - 하루 장부와 같은 파일 잠금을 쓴다.
+  - 서비스는 저장소 루트에서 돌기 때문에 모든 역할과 스크립트가 같은 파일을 본다.
+- **함수**
+  - `github_reserve(system)`: 호출 전에 몫을 확인한다.
+  - `github_observe(headers)`: 응답 뒤에 GitHub가 알려 준 남은 수를 기록한다.
+- **몫(시간당):** 두 칸을 합친 규칙이다.
+  - 전체 상한은 60에서 바닥값 5를 뺀 55다.
+  - 시스템별 몫
+
+    | 시스템 | 몫 |
+    |---|---|
+    | fallback_live | 50 |
+    | necklace_retest | 8 |
+    | role_tests | 5 |
+    | substitute_tests | 5 |
+    | pearl_batch | 2 |
+    | adhoc | 2 |
+    | gate | 나머지 |
+- **공동 정지:** GitHub 헤더의 남은 수가 5 미만이면 모든 시스템이 reset 시각까지 멈춘다. 다른 사용자가 이 IP 한도를 쓴 경우도 여기서 잡힌다.
+- `/rate_limit` 조회는 GitHub가 세지 않으므로 장부에도 세지 않는다.
+- **연결된 곳:** `agent_market/fallback_agents/net.py` 한 곳이다. 자체 대체와 그 시험이 모두 이 경로를 지난다.
+  - 시험 맥락이면 그 시스템 이름으로 센다.
+  - 실제 답변이면 fallback_live로 센다.
+- **사용량 보기:** `.venv/bin/python -m agent_market.provider_budget --github 1` (지난 1시간, 시스템별 사용 수와 거절 수, GitHub가 마지막으로 알려 준 남은 수)
+- **토큰:** 토큰을 쓰면 시간당 5,000번이다. 하지만 계정과 자격 증명 문제라서 사용자가 결정한다. 필요하면 필요 호출량을 근거로 PM에 올린다.

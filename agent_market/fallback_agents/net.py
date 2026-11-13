@@ -87,6 +87,12 @@ def get(url: str, *, limiters: dict, http=None, params=None, seconds: float, lim
         allowed, why = reserve(url, system)
         if not allowed:
             raise SourceBusy(f"Shared test budget refused the call ({why}).")
+    github = parsed.hostname == "api.github.com" and parsed.path != "/rate_limit"  # /rate_limit is not counted
+    if github:  # PM 11-14: the unauthenticated 60 an hour is shared by every system on this Mac
+        from ..provider_budget import github_reserve
+        allowed, why = github_reserve(system or "fallback_live")
+        if not allowed:
+            raise SourceBusy(f"Shared GitHub allowance refused the call ({why}).")
     with outbound_operation(seconds) as op_budget:
         with limiter.slot(op_budget.remaining()):
             if preflight and http is None:
@@ -102,6 +108,9 @@ def get(url: str, *, limiters: dict, http=None, params=None, seconds: float, lim
                 except Exception as exc:
                     raise SourceError("Source did not answer in time.") from exc
                 limiter.observed(response.status_code, response.headers)
+                if github:
+                    from ..provider_budget import github_observe
+                    github_observe(response.headers, system or "fallback_live")
                 if system:
                     from ..provider_budget import note
                     note(url, system, response.status_code)
