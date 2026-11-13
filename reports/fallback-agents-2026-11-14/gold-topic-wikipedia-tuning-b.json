@@ -1,0 +1,41 @@
+{
+ "split": "tuning",
+ "agents": {
+  "wikipedia-summary": {
+   "summary": {
+    "cases": 2,
+    "passed": 2,
+    "not_applicable": 0,
+    "not_run": 28,
+    "errors": {},
+    "p50_ms": 474,
+    "p95_ms": 475,
+    "gold_sha256": "b504a5e59c5757cc1e4658fe036fbd350fe33a48e5e0a682ab534c026846e17e",
+    "gold_created_at": "2026-11-13T20:29:55Z"
+   },
+   "cases": [
+    {
+     "case_id": "topic:Gender pay gap",
+     "stratum": "society",
+     "ms": 475,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "Gender pay gap",
+     "want": "Gender pay gap"
+    },
+    {
+     "case_id": "topic:Circular economy",
+     "stratum": "society",
+     "ms": 474,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "Circular economy",
+     "want": "Circular economy"
+    }
+   ]
+  }
+ },
+ "at": "2026-11-14T06:34:45+0900"
+}

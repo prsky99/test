@@ -715,9 +715,23 @@ def test_gleif_agent_exact_name_only_and_core_name_search(tmp_path):
     assert "filter%5Bentity.names%5D=Apple&" in calls[0] and "country%5D=US" in calls[0]
     assert env["freshness"]["data_as_of"] == {"GLEIF": "2026-03-03T16:34:33Z"}
     assert env["sources"][0]["license"].startswith("CC0")
-    with pytest.raises(FallbackUnavailable) as err:
-        a.execute("gleif-lei", {"name": "Apple"})
-    assert err.value.code == "not_found"
+    # A short name matches at the core tier (legal form dropped) when exactly one record does.
+    assert a.execute("gleif-lei", {"name": "Apple"})["result"]["identifiers"]["LEI"] == "HWUPKR0MPOU8FGXBT394"
+
+
+def test_company_name_tiers_exact_first_then_core_then_loose(tmp_path):
+    from agent_market.fallback_agents.agents import name_keys
+    assert name_keys("Nestlé S.A.") == ("nestle sa", "nestle", "nestle")
+    assert name_keys("ASML Holding N.V.") == ("asml holding nv", "asml holding", "asml")
+    assert name_keys("The Coca-Cola Company")[1] == "coca cola"
+    rows = [gleif_row("AAAAAAAAAAAAAAAAAA01", "Allianz SE", "Munich"),
+            gleif_row("AAAAAAAAAAAAAAAAAA02", "Allianz Ltd", "London"),
+            gleif_row("AAAAAAAAAAAAAAAAAA03", "ASML Holding N.V.", "Veldhoven")]
+    a, _ = agents(tmp_path, {"https://api.gleif.org/": httpx.Response(200, json={"data": rows})})
+    assert a.execute("gleif-lei", {"name": "Allianz SE"})["result"]["identifiers"]["LEI"].endswith("01")  # exact wins
+    with pytest.raises(FallbackUnavailable, match="Several"):  # two records at the core tier: never a guess
+        a.execute("gleif-lei", {"name": "Allianz"})
+    assert a.execute("gleif-lei", {"name": "ASML"})["result"]["identifiers"]["LEI"].endswith("03")  # loose tier
 
 
 def test_gleif_agent_matches_other_names_and_refuses_ambiguity(tmp_path):
@@ -759,6 +773,7 @@ def test_sec_agent_maps_name_to_cik_and_omits_contact_fields(tmp_path):
     with pytest.raises(FallbackUnavailable) as err:
         a.execute("sec-edgar", {"name": "Unknown Holdings"})
     assert err.value.code == "not_found"
+    assert a.execute("sec-edgar", {"name": "Microsoft"})["result"]["identifiers"]["SEC CIK"] == "789019"  # core tier
 
 
 def test_sec_user_agent_names_the_public_contact():
@@ -1051,6 +1066,26 @@ def test_a_429_in_a_test_run_pauses_the_domain_for_everyone(tmp_path, monkeypatc
 def test_gold_check_uses_gate_for_holdout_rounds():
     from agent_market.fallback_agents.gold_check import budget_system
     assert budget_system("holdout-r1") == "gate" and budget_system("tuning") == "substitute_tests"
+
+
+def test_gold_check_company_cases_skip_without_truth_and_respect_limit(tmp_path):
+    from agent_market.fallback_agents.gold_check import check
+    folder = tmp_path / "gold" / "company-due-diligence"
+    folder.mkdir(parents=True)
+    cases = [{"case_id": "c1", "input": {"name": "Allianz", "country": "DE"}, "truth": {"lei": "L1", "cik": None}},
+             {"case_id": "c2", "input": {"name": "Balchem Corp"}, "truth": {"lei": None, "cik": "9326"}},
+             {"case_id": "c3", "input": {"name": "ASML"}, "truth": {"lei": "L3", "cik": None}}]
+    (folder / "tuning.jsonl").write_text("\n".join(json.dumps(c) for c in cases))
+    seen = []
+
+    class Fake:
+        def execute(self, agent_id, args):
+            seen.append(args["name"])
+            return {"result": {"identifiers": {"LEI": "L1"}}, "cache": {"status": "live"}}
+
+    out = check(["gleif-lei"], tmp_path, agents=Fake(), limit=1)["agents"]["gleif-lei"]["summary"]
+    assert seen == ["Allianz"]  # no call for the CIK-only case, none past the limit
+    assert (out["cases"], out["passed"], out["not_applicable"], out["not_run"]) == (1, 1, 1, 1)
 
 
 def test_holiday_calendar_answers_the_holiday_contract(tmp_path):

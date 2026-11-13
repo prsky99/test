@@ -424,16 +424,16 @@ class FallbackAgents:
             # GLEIF matches names loosely. Search legal and other names by the core name first (legal suffix
             # removed, so "NVIDIA Corp" finds "NVIDIA CORPORATION"), then by the full name when a common core
             # name crowds the exact one out of the first page; keep only exact name keys either way.
-            key = company_key(name)
-            exact = [r for r in search(core_name(name), rem) if any(company_key(n) == key for n in names(r))]
-            if not exact and core_name(name) != name and rem() > 1.2:
-                exact = [r for r in search(name, rem) if any(company_key(n) == key for n in names(r))]
-            issued = [r for r in exact if (r.get("registration") or {}).get("status") == "ISSUED"] or exact
-            if not issued:
-                raise FallbackUnavailable("not_found", "GLEIF has no LEI record with this exact legal name.")
-            if len(issued) > 1:
-                raise FallbackUnavailable("not_found", "Several LEI records share this legal name; add the country.")
-            rec = issued[0]
+            wanted = name_keys(name)
+            rows = search(core_name(name), rem)
+            rec = tiered_match(rows, wanted, lambda r: [name_keys(n) for n in names(r)],
+                               lambda r: (r.get("registration") or {}).get("status") == "ISSUED")
+            if rec is None and core_name(name) != name and rem() > 1.2:
+                rows = search(name, rem)
+                rec = tiered_match(rows, wanted, lambda r: [name_keys(n) for n in names(r)],
+                                   lambda r: (r.get("registration") or {}).get("status") == "ISSUED")
+            if rec is None:
+                raise FallbackUnavailable("not_found", "GLEIF has no LEI record with this legal name.")
             entity, reg = rec.get("entity") or {}, rec.get("registration") or {}
             ids = {"LEI": rec["lei"]}
             if _text(entity.get("registeredAs"), 64):
@@ -462,15 +462,16 @@ class FallbackAgents:
         def tickers(rem):
             raw = self._get_json("https://www.sec.gov/files/company_tickers.json", rem, limit=4 * 1024 * 1024,
                                  not_found=())
-            index, by_ticker = {}, {}
+            index, by_ticker = ({}, {}, {}), {}
             for row in raw.values():
                 if isinstance(row, dict) and isinstance(row.get("cik_str"), int) and isinstance(row.get("title"), str):
                     # EDGAR titles may carry a state tag ("QUALCOMM INC/DE"); it is not part of the name.
                     title = re.sub(r"\s*/[A-Z]{2,3}/?$", "", row["title"].strip())
-                    index.setdefault(company_key(title), set()).add(row["cik_str"])
+                    for tier, key in enumerate(name_keys(title)):
+                        index[tier].setdefault(key, set()).add(row["cik_str"])
                     if isinstance(row.get("ticker"), str):
                         by_ticker[row["ticker"].upper()] = row["cik_str"]
-            if len(index) < 1000:
+            if len(index[0]) < 1000:
                 raise ValueError("ticker list too small")
             return (index, by_ticker), _now_iso(self.utc_now())
         ((index, by_ticker), _), list_cache = self._cached(("sec-tickers",), TTL["sec-tickers"], tickers, remaining)
@@ -479,12 +480,7 @@ class FallbackAgents:
     def _sec_edgar(self, args, remaining):
         name, country = self._company_args(args)
         index, _, list_cache = self._sec_index(remaining)
-        ciks = index.get(company_key(name)) or set()
-        if not ciks:
-            raise FallbackUnavailable("not_found", "No SEC company with a ticker has this name.")
-        if len(ciks) > 1:
-            raise FallbackUnavailable("not_found", "Several SEC companies share this name.")
-        cik = next(iter(ciks))
+        cik = sec_lookup(index, name)
 
         def live(rem):
             raw = self._get_json(f"https://data.sec.gov/submissions/CIK{cik:010d}.json", rem, limit=8 * 1024 * 1024)
@@ -742,11 +738,12 @@ class FallbackAgents:
                 cik = by_ticker.get(ticker)
             for key in ("company", "query"):
                 if cik is None and args.get(key):
-                    found = index.get(company_key(str(args[key]))) or set()
-                    if len(found) == 1:
-                        cik = next(iter(found))
-                    elif len(found) > 1:
-                        raise FallbackUnavailable("not_found", "Several SEC companies share this name; use the ticker or CIK.")
+                    try:
+                        cik = sec_lookup(index, str(args[key]))
+                    except FallbackUnavailable as exc:
+                        if "Several" in str(exc):
+                            raise
+                        cik = None
             if cik is None:
                 raise FallbackUnavailable("not_found", "No SEC filer matches; use a ticker, CIK or the exact company name.")
 
@@ -1441,10 +1438,55 @@ _LEGAL_FORMS = {"inc", "corp", "co", "ltd", "llc", "plc", "ag", "gmbh", "sa", "n
                 "llp", "pte", "incorporated", "corporation", "company", "limited", "aktiengesellschaft"}
 
 
+_GENERIC = {"holding", "holdings", "group", "international", "the"}
+
+
+def name_keys(name: str) -> tuple[str, str, str]:
+    """(exact, core, loose) keys of a company name. Exact: case, accents, punctuation and suffix spellings do
+    not matter (Nestlé S.A. = NESTLE SA, Inc. = Incorporated). Core: trailing legal forms dropped (Allianz SE ->
+    allianz). Loose: also leading "the" and trailing holding/group words (ASML Holding N.V. -> asml)."""
+    import unicodedata
+    text = unicodedata.normalize("NFKD", (name or "").replace("&amp;", "&"))
+    text = "".join(c for c in text if not unicodedata.combining(c)).lower()
+    text = re.sub(r"(?<=\b[a-z])\.(?=[a-z]\b)", "", text)          # S.A. / N.V. / P.L.C. -> sa / nv / plc
+    words = [w for w in (_SUFFIX.get(w, w) for w in re.sub(r"[^0-9a-z&]+", " ", text).split()) if w]
+    exact = " ".join(words)
+    core = list(words)
+    while len(core) > 1 and core[-1] in _LEGAL_FORMS:
+        core.pop()
+    loose = [w for w in core if w != "the"] or core
+    while len(loose) > 1 and loose[-1] in _GENERIC | _LEGAL_FORMS:
+        loose.pop()
+    return exact, " ".join(core), " ".join(loose)
+
+
 def company_key(name: str) -> str:
-    """Legal-name key: case, punctuation and common suffix spellings do not matter (Inc. = Incorporated)."""
-    words = re.sub(r"[^0-9a-z&]+", " ", (name or "").lower().replace("&amp;", "&")).split()
-    return " ".join(w for w in (_SUFFIX.get(w, w) for w in words) if w)
+    """Exact legal-name key (see name_keys)."""
+    return name_keys(name)[0]
+
+
+def tiered_match(rows, wanted, keys_of, preferred):
+    """The single row matching WANTED at the strictest tier that matches at all (exact, core, loose).
+    Preferred rows (e.g. an issued LEI) win a tie; a tie that remains is an error, never a guess."""
+    for tier in range(3):
+        hits = [r for r in rows if any(k[tier] == wanted[tier] for k in keys_of(r))]
+        if not hits:
+            continue
+        best = [r for r in hits if preferred(r)] or hits
+        if len(best) > 1:
+            raise FallbackUnavailable("not_found", "Several records share this name; add the country or the full legal name.")
+        return best[0]
+    return None
+
+
+def sec_lookup(index, name: str) -> int:
+    for tier, key in enumerate(name_keys(name)):
+        ciks = index[tier].get(key) or set()
+        if len(ciks) == 1:
+            return next(iter(ciks))
+        if len(ciks) > 1:
+            raise FallbackUnavailable("not_found", "Several SEC companies share this name; use the ticker or CIK.")
+    raise FallbackUnavailable("not_found", "No SEC company with a ticker has this name.")
 
 
 def core_name(name: str) -> str:

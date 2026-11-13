@@ -1,0 +1,119 @@
+{
+ "split": "tuning",
+ "agents": {
+  "sec-edgar": {
+   "summary": {
+    "cases": 4,
+    "passed": 4,
+    "not_applicable": 6,
+    "not_run": 20,
+    "errors": {},
+    "p50_ms": 0,
+    "p95_ms": 332,
+    "gold_sha256": "9f2ff07de5bd02b060c30edbd5fba26e0e866aa5610466803158a2289e47b586",
+    "gold_created_at": "2026-11-13T20:18:29Z"
+   },
+   "cases": [
+    {
+     "case_id": "DE:529900K9B0N5BT694847",
+     "stratum": "non_us",
+     "ms": 0,
+     "error": null,
+     "cache": null,
+     "pass": null,
+     "applicable": false
+    },
+    {
+     "case_id": "NL:724500Y6DUVHQD6OXN27",
+     "stratum": "non_us",
+     "ms": 0,
+     "error": null,
+     "cache": null,
+     "pass": null,
+     "applicable": false
+    },
+    {
+     "case_id": "DE:W38RGI023J3WT1HWRP32",
+     "stratum": "non_us",
+     "ms": 0,
+     "error": null,
+     "cache": null,
+     "pass": null,
+     "applicable": false
+    },
+    {
+     "case_id": "CH:KY37LUS27QQX7BB93L28",
+     "stratum": "non_us",
+     "ms": 0,
+     "error": null,
+     "cache": null,
+     "pass": null,
+     "applicable": false
+    },
+    {
+     "case_id": "DE:7LTWFZYICNSX8D621K86",
+     "stratum": "non_us",
+     "ms": 0,
+     "error": null,
+     "cache": null,
+     "pass": null,
+     "applicable": false
+    },
+    {
+     "case_id": "GB:213800LH1BZH3DI6G760",
+     "stratum": "non_us",
+     "ms": 0,
+     "error": null,
+     "cache": null,
+     "pass": null,
+     "applicable": false
+    },
+    {
+     "case_id": "US:CIK9326",
+     "stratum": "us",
+     "ms": 208,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "applicable": true,
+     "got": "9326",
+     "want": "9326"
+    },
+    {
+     "case_id": "US:CIK38725",
+     "stratum": "us",
+     "ms": 67,
+     "error": null,
+     "cache": "fresh_cache",
+     "pass": true,
+     "applicable": true,
+     "got": "38725",
+     "want": "38725"
+    },
+    {
+     "case_id": "US:CIK80172",
+     "stratum": "us",
+     "ms": 38,
+     "error": null,
+     "cache": "fresh_cache",
+     "pass": true,
+     "applicable": true,
+     "got": "80172",
+     "want": "80172"
+    },
+    {
+     "case_id": "US:CIK100826",
+     "stratum": "us",
+     "ms": 332,
+     "error": null,
+     "cache": "fresh_cache",
+     "pass": true,
+     "applicable": true,
+     "got": "100826",
+     "want": "100826"
+    }
+   ]
+  }
+ },
+ "at": "2026-11-14T06:34:15+0900"
+}

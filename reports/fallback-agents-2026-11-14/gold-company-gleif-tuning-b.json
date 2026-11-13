@@ -1,0 +1,214 @@
+{
+ "split": "tuning",
+ "agents": {
+  "gleif-lei": {
+   "summary": {
+    "cases": 2,
+    "passed": 2,
+    "not_applicable": 19,
+    "not_run": 9,
+    "errors": {},
+    "p50_ms": 940,
+    "p95_ms": 996,
+    "gold_sha256": "9f2ff07de5bd02b060c30edbd5fba26e0e866aa5610466803158a2289e47b586",
+    "gold_created_at": "2026-11-13T20:18:29Z"
+   },
+   "cases": [
+    {
+     "case_id": "CH:KY37LUS27QQX7BB93L28",
+     "stratum": "non_us",
+     "ms": 884,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "applicable": true,
+     "got": "KY37LUS27QQX7BB93L28",
+     "want": "KY37LUS27QQX7BB93L28"
+    },
+    {
+     "case_id": "DE:7LTWFZYICNSX8D621K86",
+     "stratum": "non_us",
+     "ms": 996,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "applicable": true,
+     "got": "7LTWFZYICNSX8D621K86",
+     "want": "7LTWFZYICNSX8D621K86"
+    },
+    {
+     "case_id": "US:CIK9326",
+     "stratum": "us",
+     "ms": 0,
+     "error": null,
+     "cache": null,
+     "pass": null,
+     "applicable": false
+    },
+    {
+     "case_id": "US:CIK38725",
+     "stratum": "us",
+     "ms": 0,
+     "error": null,
+     "cache": null,
+     "pass": null,
+     "applicable": false
+    },
+    {
+     "case_id": "US:CIK80172",
+     "stratum": "us",
+     "ms": 0,
+     "error": null,
+     "cache": null,
+     "pass": null,
+     "applicable": false
+    },
+    {
+     "case_id": "US:CIK100826",
+     "stratum": "us",
+     "ms": 0,
+     "error": null,
+     "cache": null,
+     "pass": null,
+     "applicable": false
+    },
+    {
+     "case_id": "US:CIK57515",
+     "stratum": "us",
+     "ms": 0,
+     "error": null,
+     "cache": null,
+     "pass": null,
+     "applicable": false
+    },
+    {
+     "case_id": "US:CIK39020",
+     "stratum": "us",
+     "ms": 0,
+     "error": null,
+     "cache": null,
+     "pass": null,
+     "applicable": false
+    },
+    {
+     "case_id": "US:CIK63330",
+     "stratum": "us",
+     "ms": 0,
+     "error": null,
+     "cache": null,
+     "pass": null,
+     "applicable": false
+    },
+    {
+     "case_id": "US:CIK32621",
+     "stratum": "us",
+     "ms": 0,
+     "error": null,
+     "cache": null,
+     "pass": null,
+     "applicable": false
+    },
+    {
+     "case_id": "US:CIK86115",
+     "stratum": "us",
+     "ms": 0,
+     "error": null,
+     "cache": null,
+     "pass": null,
+     "applicable": false
+    },
+    {
+     "case_id": "US:CIK28917",
+     "stratum": "us",
+     "ms": 0,
+     "error": null,
+     "cache": null,
+     "pass": null,
+     "applicable": false
+    },
+    {
+     "case_id": "US:CIK49826",
+     "stratum": "us",
+     "ms": 0,
+     "error": null,
+     "cache": null,
+     "pass": null,
+     "applicable": false
+    },
+    {
+     "case_id": "US:CIK1750",
+     "stratum": "us",
+     "ms": 0,
+     "error": null,
+     "cache": null,
+     "pass": null,
+     "applicable": false
+    },
+    {
+     "case_id": "US:CIK91440",
+     "stratum": "us",
+     "ms": 0,
+     "error": null,
+     "cache": null,
+     "pass": null,
+     "applicable": false
+    },
+    {
+     "case_id": "US:CIK84839",
+     "stratum": "us",
+     "ms": 0,
+     "error": null,
+     "cache": null,
+     "pass": null,
+     "applicable": false
+    },
+    {
+     "case_id": "US:CIK40211",
+     "stratum": "us",
+     "ms": 0,
+     "error": null,
+     "cache": null,
+     "pass": null,
+     "applicable": false
+    },
+    {
+     "case_id": "US:CIK89800",
+     "stratum": "us",
+     "ms": 0,
+     "error": null,
+     "cache": null,
+     "pass": null,
+     "applicable": false
+    },
+    {
+     "case_id": "US:CIK76282",
+     "stratum": "us",
+     "ms": 0,
+     "error": null,
+     "cache": null,
+     "pass": null,
+     "applicable": false
+    },
+    {
+     "case_id": "US:CIK14177",
+     "stratum": "us",
+     "ms": 0,
+     "error": null,
+     "cache": null,
+     "pass": null,
+     "applicable": false
+    },
+    {
+     "case_id": "US:CIK67215",
+     "stratum": "us",
+     "ms": 0,
+     "error": null,
+     "cache": null,
+     "pass": null,
+     "applicable": false
+    }
+   ]
+  }
+ },
+ "at": "2026-11-14T06:34:42+0900"
+}

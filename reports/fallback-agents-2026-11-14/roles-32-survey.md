@@ -56,7 +56,7 @@
 4. **news.search**: 상업 조건은 GDELT가 통과하지만 속도·429 문제로 보류 유지 여부를 결정해야 합니다.
 5. **원천이 없는 역할(crypto.price, ip.lookup, stock.quote)**: 자체 대체를 만들지 않습니다. 목걸이 설계에서 이 역할을 필수 자리로 두지 않기를 권합니다.
 
-## 4. 재조사 결과 (11-14 06:5x, README 2-16)
+## 4. 재조사 결과 (11-14 06:2x, README 2-16)
 
 - place.search·book.search: Wikidata(CC0)로 만듦(wikidata-place, wikidata-book).
 - geocode.address: 전 세계 키 없는 실시간 경로 없음(Nominatim 정책상 불가). 국가 한정 정부 API나 OSM 덤프 자체 설치(약 95GB)만 남음.

@@ -1,0 +1,51 @@
+{
+ "split": "tuning",
+ "agents": {
+  "wikipedia-summary": {
+   "summary": {
+    "cases": 3,
+    "passed": 3,
+    "not_applicable": 0,
+    "not_run": 27,
+    "errors": {},
+    "p50_ms": 474,
+    "p95_ms": 477,
+    "gold_sha256": "b504a5e59c5757cc1e4658fe036fbd350fe33a48e5e0a682ab534c026846e17e",
+    "gold_created_at": "2026-11-13T20:29:55Z"
+   },
+   "cases": [
+    {
+     "case_id": "topic:Corporate social responsibility",
+     "stratum": "society",
+     "ms": 477,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "Corporate social responsibility",
+     "want": "Corporate social responsibility"
+    },
+    {
+     "case_id": "topic:Child poverty",
+     "stratum": "society",
+     "ms": 464,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "Child poverty",
+     "want": "Child poverty"
+    },
+    {
+     "case_id": "topic:Organizational culture",
+     "stratum": "society",
+     "ms": 474,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": "Organizational culture",
+     "want": "Organizational culture"
+    }
+   ]
+  }
+ },
+ "at": "2026-11-14T06:34:19+0900"
+}

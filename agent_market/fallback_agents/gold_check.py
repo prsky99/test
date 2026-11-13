@@ -30,7 +30,8 @@ from .agents import FallbackAgents, FallbackUnavailable
 from .catalog import SPECS, contract
 from .net import budget
 
-SLUG = {"nvd-cve": "cve-incident-brief", "cve-org": "cve-incident-brief", "cisa-kev": "cve-incident-brief",
+SLUG = {"gleif-lei": "company-due-diligence", "sec-edgar": "company-due-diligence",
+        "wikipedia-summary": "topic-evidence-brief", "nvd-cve": "cve-incident-brief", "cve-org": "cve-incident-brief", "cisa-kev": "cve-incident-brief",
         "github-advisory": "package-risk-audit", "package-registry": "package-risk-audit",
         "depsdev-package": "package-risk-audit"}
 BANDS = (0.01, 0.1, 0.5)
@@ -86,6 +87,17 @@ def judge(agent_id: str, case: dict, result: dict | None) -> dict:
         return {"pass": ok, "recall_all": round(len(hit) / len(groups), 3) if groups else None,
                 "recall_ghsa": round(len(hit_cov) / len(coverable), 3) if coverable else None,
                 "got": len(result["items"]), "want_groups": len(groups), "want_ghsa_groups": len(coverable)}
+    if agent_id in ("gleif-lei", "sec-edgar"):
+        # Each source is judged on the cases it can answer: an LEI for GLEIF, a CIK for SEC (None = not applicable).
+        key, field = ("lei", "LEI") if agent_id == "gleif-lei" else ("cik", "SEC CIK")
+        want = truth.get(key)
+        if not want:
+            return {"pass": None, "applicable": False}
+        got = ((result or {}).get("identifiers") or {}).get(field)
+        return {"pass": got == want, "applicable": True, "got": got, "want": want}
+    if agent_id == "wikipedia-summary":
+        want = (truth.get("wiki") or {}).get("title")
+        return {"pass": bool(want) and (result or {}).get("title") == want, "got": (result or {}).get("title"), "want": want}
     if agent_id in ("package-registry", "depsdev-package"):
         # Gold truth is the registry's latest version at build time; a release since then shows as a miss
         # and is listed, not hidden.
@@ -137,24 +149,41 @@ def budget_system(split: str) -> str:
     return "gate" if split.startswith("holdout") else "substitute_tests"
 
 
+def applies(agent_id: str, case: dict) -> bool:
+    """False when the source cannot answer the case at all (no LEI for GLEIF, no CIK for SEC): no call is made."""
+    if agent_id in ("gleif-lei", "sec-edgar"):
+        return bool((case.get("truth") or {}).get("lei" if agent_id == "gleif-lei" else "cik"))
+    return True
+
+
 def check(agent_ids, root: Path, split: str = "tuning", agents: FallbackAgents | None = None,
-          pause: float = 0.0, sleep=time.sleep) -> dict:
+          pause: float = 0.0, sleep=time.sleep, limit: int | None = None, offset: int = 0) -> dict:
     with budget(budget_system(split)):
-        return _check(agent_ids, root, split, agents, pause, sleep)
+        return _check(agent_ids, root, split, agents, pause, sleep, limit, offset)
 
 
-def _check(agent_ids, root, split, agents, pause, sleep):
+def _check(agent_ids, root, split, agents, pause, sleep, limit=None, offset=0):
     agents = agents or FallbackAgents()
     report = {"split": split, "agents": {}}
     for agent_id in agent_ids:
         path = root / "gold" / SLUG[agent_id] / f"{split}.jsonl"
         cases = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
-        rows = []
+        rows, run, seen = [], 0, 0
         for case in cases:
+            if not applies(agent_id, case):
+                rows.append({"case_id": case["case_id"], "stratum": case.get("stratum"), "ms": 0, "error": None,
+                             "cache": None, "pass": None, "applicable": False})
+                continue
+            seen += 1
+            if seen <= offset or (limit is not None and run >= limit):  # the daily test share is small; the rest waits for another day
+                continue
+            run += 1
             started = time.monotonic()
             result, code, cache = None, None, None
             allowed = contract(SPECS[agent_id]["contract"])["input_schema"]["properties"]
             arguments = {k: v for k, v in case["input"].items() if k in allowed}
+            if "title" in allowed and "title" not in arguments and case["input"].get("topic"):
+                arguments["title"] = case["input"]["topic"]  # topic-evidence-brief names its topic
             try:
                 envelope = agents.execute(agent_id, arguments)
                 result, cache = envelope["result"], envelope["cache"]["status"]
@@ -165,8 +194,11 @@ def _check(agent_ids, root, split, agents, pause, sleep):
             rows.append(row)
             if pause:
                 sleep(pause)
-        ms = [r["ms"] for r in rows if r["error"] is None]
-        summary = {"cases": len(rows), "passed": sum(r["pass"] for r in rows),
+        ms = [r["ms"] for r in rows if r["error"] is None and r.get("applicable", True)]
+        applicable = [r for r in rows if r.get("applicable", True)]
+        summary = {"cases": len(applicable), "passed": sum(bool(r["pass"]) for r in applicable),
+                   "not_applicable": len(rows) - len(applicable),
+                   "not_run": len(cases) - len(rows),
                    "errors": {c: sum(r["error"] == c for r in rows) for c in {r["error"] for r in rows if r["error"]}},
                    "p50_ms": int(statistics.median(ms)) if ms else None,
                    "p95_ms": int(sorted(ms)[max(0, int(len(ms) * 0.95 + 0.5) - 1)]) if ms else None,
@@ -190,8 +222,10 @@ def main(argv=None) -> int:
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--pause", type=float, default=0.0, help="seconds between cases")
     parser.add_argument("--role-tasks", action="store_true", help="also run the fixed role tasks")
+    parser.add_argument("--limit", type=int, default=None, help="run at most N applicable cases per agent")
+    parser.add_argument("--offset", type=int, default=0, help="skip the first N applicable cases (another day's share)")
     args = parser.parse_args(argv)
-    report = check(args.agents, args.root, args.split, pause=args.pause)
+    report = check(args.agents, args.root, args.split, pause=args.pause, limit=args.limit, offset=args.offset)
     if args.role_tasks:
         with budget(budget_system(args.split)):
             report["role_tasks"] = role_task_check(args.agents)
