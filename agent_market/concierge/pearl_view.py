@@ -635,7 +635,11 @@ def install(app, front, *, workspace_access_enabled=False, workspace_link_enable
     def page(filename: str, request: Request = None):  # asset() calls it without a request to rebuild panels.js
         if filename not in pages:
             raise HTTPException(404, 'Page not found.')
-        if workspace_access_enabled and filename in ('workspace.html', 'account.html', 'sign-in.html', 'sign-up.html'):
+        if workspace_access_enabled and filename == 'sign-in.html':
+            # 11-14 PM: the old sign-in address always goes to the same fixed page, sets no cookie, so a cache may keep
+            # the move (308) for a day; /customer/sign-in itself stays no-store.
+            return RedirectResponse('/customer/sign-in', status_code=308, headers={'Cache-Control': 'public, max-age=86400'})
+        if workspace_access_enabled and filename in ('workspace.html', 'account.html', 'sign-up.html'):
             return RedirectResponse('/customer/sign-in', status_code=303, headers={'Cache-Control': 'no-store'})
         value = workspace_shell(read(en, filename).decode(),
                                 workspace_access_enabled and workspace_link_enabled)

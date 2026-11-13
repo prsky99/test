@@ -117,7 +117,7 @@ def test_category_and_weekly_paths_are_growth_pages_for_the_edge():
     from agent_market.concierge.public_http_contract import GROWTH_CACHE, growth_path, shared_path
     for path in ('/agents/category/web_search', '/reports/weekly/2026-W45', '/reports/weekly'):  # list: 11-12 PM
         assert growth_path(path) and shared_path(path)
-    assert not growth_path('/agent/1/reported') and GROWTH_CACHE.startswith('public, max-age=3600')
+    assert not growth_path('/agent/1/reported') and GROWTH_CACHE.startswith('public, max-age=21600')
 
 
 def test_edge_policies_never_carry_s_maxage():

@@ -73,7 +73,7 @@ def _contracts(cluster, *, provisional=False):
             require(not (root/'must-not-open.sqlite3').exists(), 'gateway_does_not_create_sqlite_fallback')
             with TestClient(create_front_app(app.state.front,manage_book_lifecycle=False)) as public:
                 response = public.get('/')
-                require(response.status_code == 200 and 'Agent Concierge' in response.text,
+                require(response.status_code == 200 and ('AgentValCon' in response.text or 'Agent Concierge' in response.text),
                     'actual_public_front_bootstrap_uses_native')
                 require(public.get('/customer/sign-in').status_code == 404,
                     'native_backend_does_not_open_public_workspace')

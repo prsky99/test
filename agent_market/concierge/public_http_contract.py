@@ -58,7 +58,9 @@ GROWTH_PREFIXES = ('/agents/task/','/agents/best/','/agent/','/agents/compare/',
 # 11-12 (PM: A): the edge keeps growth, category and weekly pages an hour and may hand out its copy for a day
 # past that while it refreshes; the pages change with the daily snapshot and carry no Sponsored slot.
 # No s-maxage (it turns stale-while-revalidate off at Cloudflare, see pearl_view.PUBLIC_PAGE_CACHE).
-GROWTH_CACHE = 'public, max-age=3600, stale-while-revalidate=86400'
+# 11-14 PM: the growth pages come from the once-a-day task snapshot, so the edge keeps them six hours (a stale copy
+# of a page the new snapshot dropped can show for up to that long; the sitemap, kept 10 minutes, drops it first).
+GROWTH_CACHE = 'public, max-age=21600, stale-while-revalidate=86400'
 ANALYTICS_COOKIES = ('_ga','_gid','_gcl')
 TITLES = {400:'Bad request',401:'Authentication required',403:'Forbidden',404:'Not found',
     405:'Method not allowed',408:'Request timed out',409:'Conflict',413:'Payload too large',

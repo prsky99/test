@@ -2242,6 +2242,12 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
                             and response.headers.get("cache-control") == PUBLIC_PAGE_CACHE
                             and response.headers.get("content-type", "").startswith("text/html")
                             and "set-cookie" not in response.headers)
+        # 11-14 PM: the old sign-in address moves to one fixed page for everyone (308, no cookie): a cache may keep it a day.
+        static = static or (request.method in ("GET", "HEAD") and request.url.path == "/new/en/sign-in.html"
+                            and response.status_code == 308
+                            and response.headers.get("location") == "/customer/sign-in"
+                            and response.headers.get("cache-control") == "public, max-age=86400"
+                            and "set-cookie" not in response.headers)
         for k, val in SECURITY_HEADERS.items():
             if static and k == "Cache-Control":
                 continue
