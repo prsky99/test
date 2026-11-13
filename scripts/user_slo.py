@@ -79,6 +79,8 @@ class _Phases:
             if name != 'server':
                 found[name] = max(found.get(name, 0), round(float(value)))
         out['stages'] = dict(sorted(found.items(), key=lambda item: -item[1])[:8])
+        # Garbage collection is kept even when it is not among the slowest 8 (PM 11-13 20:2x).
+        out['stages'].update({name: found[name] for name in ('gc', 'gc_all') if name in found})
         return out
 
 

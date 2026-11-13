@@ -108,3 +108,27 @@ def test_recommendation_legs_without_a_stage_now_have_one():
     app.add_middleware(RequestTiming)
     timing = TestClient(app).post('/mcp').headers['server-timing']
     assert timing.count(';dur=') == 21  # server plus all twenty stages
+
+
+def test_garbage_collection_is_its_own_stage():
+    """PM 11-13 20:2x: one request spent 1,538 ms in registry, a 68 ms stage when replayed; collection pauses show."""
+    import gc
+    from agent_market.concierge.retrieval_metrics import capture, gc_stages, gc_total_ms
+
+    def collect(request):
+        gc.collect()
+        return JSONResponse({'ok': True})
+
+    app = Starlette(routes=[Route('/mcp', collect, methods=['POST'])])
+    app.add_middleware(RequestTiming)
+    timing = TestClient(app).post('/mcp').headers['server-timing']
+    assert 'gc;dur=' in timing and 'gc_all;dur=' in timing
+
+    since = gc_total_ms()
+    with capture() as outer:
+        with capture():
+            gc.collect()
+    assert outer.get('gc_ms', 0) > 0
+    found = gc_stages(outer, since)
+    assert found['gc_all'] >= found['gc'] > 0
+    assert gc_stages({}, gc_total_ms()) == {}
