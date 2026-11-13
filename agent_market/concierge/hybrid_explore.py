@@ -81,7 +81,12 @@ def cleaned_query(query):
     """The query without numbers, delivery words and function words, or None when nothing changes.
     "to" between two content words names a direction and stays ("speech to text" is not
     "text to speech", 11-11)."""
-    words = [w for w in _words(query) if not re.fullmatch(r"[\d.,:/-]+", w) and w.casefold() not in DELIVERY]
+    # When or for whom (PM 11-14 03:2x): the same list Chat removes from its catalog search (selection.QUALIFIER_PHRASES).
+    # "crypto price for my team" searched "crypto price team", found nothing and relaxed, reading documents twice.
+    from .selection import QUALIFIER_PHRASES
+    unqualified = re.sub(r"\s{2,}", " ", QUALIFIER_PHRASES.sub(" ", str(query or ""))).strip()
+    source = unqualified if re.search(r"[^\W\d_]", unqualified) else query
+    words = [w for w in _words(source) if not re.fullmatch(r"[\d.,:/-]+", w) and w.casefold() not in DELIVERY]
     def content(word):
         return word.casefold() not in STOPWORDS
     kept = [w for i, w in enumerate(words) if content(w) or (
