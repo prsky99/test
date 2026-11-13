@@ -40,13 +40,34 @@ PAID_NOTE = 'Paid plan: the description of this tool says it needs a paid plan.'
 # A tool our gateway does not relay (an action tool such as send_email, 11-12 PM option b-1): the card says so and
 # points at the provider's own website or repository; invocation URLs stay hidden at the response boundary.
 UNRELAYED_NOTE = 'This tool performs an action, so the Agent Concierge gateway does not relay it.'
+# 11-13 PM: a read tool the gateway has not verified as read-only (invoice_ocr) is not an action; the card says which.
+UNVERIFIED_NOTE = 'The Agent Concierge gateway has not verified this tool as read-only, so it does not relay it.'
+ACTION_TOOL, UNVERIFIED_TOOL = 'action_tool', 'not_verified_read_only'
 
 
-def unrelayed_note(name, source):
+def unrelayed_reason(spec):
+    """Why the gateway leaves a tool out: ACTION_TOOL when the tool itself acts (destructive or not-read-only
+    annotation, an action word in its name or description, a personal-data input), else UNVERIFIED_TOOL."""
+    from ..collector import usage
+    if not isinstance(spec, dict) or not isinstance(spec.get('name'), str):
+        return UNVERIFIED_TOOL
+    annotations = spec.get('annotations') if isinstance(spec.get('annotations'), dict) else {}
+    schema = spec.get('inputSchema') if isinstance(spec.get('inputSchema'), dict) else {}
+    required = schema.get('required') or spec.get('required') or []
+    description = str(spec.get('description') or '')[:200]
+    if (annotations.get('destructiveHint') is True or annotations.get('readOnlyHint') is False
+            or usage._DENY.search(spec['name']) or usage._DENY.search(description)
+            or any(isinstance(key, str) and usage._PII_PARAM.search(key) for key in required)):
+        return ACTION_TOOL
+    return UNVERIFIED_TOOL
+
+
+def unrelayed_note(name, source, reason=ACTION_TOOL):
     """The public sentence for a recommendation whose chosen tool the gateway does not list."""
+    note = UNVERIFIED_NOTE if reason == UNVERIFIED_TOOL else UNRELAYED_NOTE
     if source:
-        return UNRELAYED_NOTE + " Connect through the provider's own documentation: " + source
-    return UNRELAYED_NOTE + ' Connect through the provider (' + (str(name or 'this provider')[:120]) + ') directly.'
+        return note + " Connect through the provider's own documentation: " + source
+    return note + ' Connect through the provider (' + (str(name or 'this provider')[:120]) + ') directly.'
 
 
 def source_url(resource):
@@ -288,7 +309,10 @@ class ExposedFirstRecommender:
                     item['task_standing'] = min(item['task_standing'], -1)
                     item['tool_unlisted'] = True
                     facts = self._facts(item)
-                    item['connection_note'] = unrelayed_note(item.get('name'), facts[4] if facts and len(facts) > 4 else None)
+                    reason = facts[5].get(chosen, UNVERIFIED_TOOL) if facts and len(facts) > 5 else ACTION_TOOL
+                    item['connection_reason'] = reason
+                    item['connection_note'] = unrelayed_note(item.get('name'), facts[4] if facts and len(facts) > 4 else None,
+                                                             reason)
             ranked = sorted(ranked, key=order_key)
             free = [item for item in ranked if order_key(item)[:2] == (False, False)]
         # Leave them out while any callable choice remains: Chat re-ranks a ten-item shortlist by
@@ -341,7 +365,9 @@ class ExposedFirstRecommender:
                      {str(spec.get('name')): str(spec.get('description') or '')[:4000]
                       for spec in specs if isinstance(spec, dict)},
                      str((resource or {}).get('regions') or ''), listed if resource else None,
-                     source_url(resource) if resource else None)
+                     source_url(resource) if resource else None,
+                     {str(spec.get('name')): unrelayed_reason(spec) for spec in specs
+                      if isinstance(spec, dict) and str(spec.get('name')) not in listed})
         except Exception:
             return None  # an unreadable row is judged by the recommender as before
         with self._lock:

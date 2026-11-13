@@ -1,0 +1,4459 @@
+{
+ "rounds": [
+  {
+   "round": 1,
+   "sample": 220,
+   "mixed": {
+    "armory_version_bumper": "action (version bump orchestration)",
+    "gpu_quote": "ambiguous (quote with a 5% fee)",
+    "gf.quote": "ambiguous (commerce outcome)",
+    "request_quote": "ambiguous (advisory price request, 3 servers)"
+   },
+   "tools": [
+    {
+     "resource_id": 43132,
+     "name": "agora_list_threads",
+     "description": "List open problem specifications and challenges on the Agora square."
+    },
+    {
+     "resource_id": 56748,
+     "name": "artifacts_status",
+     "description": "Return mode, ids, /artifacts/?id= URLs, and node/label counts."
+    },
+    {
+     "resource_id": 58205,
+     "name": "crossload_read_content",
+     "description": "Read the transcript of one content item, sequentially, in portions. Pass the uid from a crossload_se"
+    },
+    {
+     "resource_id": 145801,
+     "name": "audit_listing",
+     "description": "Full granularity audit of a listing ($0.04 after the one-time free trial, or pass). Args: listing, s"
+    },
+    {
+     "resource_id": 64887,
+     "name": "tld.info",
+     "description": "TLD registry intelligence and public-suffix analysis. Mode 1 (tld=io): IANA root-zone metadata — typ"
+    },
+    {
+     "resource_id": 232253,
+     "name": "regime_list",
+     "description": "PRO. All listings for a country/regime (e.g. Russia, Iran, Belarus), optionally only those listed si"
+    },
+    {
+     "resource_id": 37936,
+     "name": "case.convert",
+     "description": "Convert an identifier between camelCase, snake_case, kebab-case, CONSTANT_CASE, and Title Case. [dev"
+    },
+    {
+     "resource_id": 34313,
+     "name": "sigil_score_batch",
+     "description": "Scores up to 200 entities in one round-trip — built for agents evaluating many supply sources during"
+    },
+    {
+     "resource_id": 41254,
+     "name": "agent_get_control",
+     "description": "Get detailed information about a specific control  Returns full details for a single control by its "
+    },
+    {
+     "resource_id": 46152,
+     "name": "clerk.list_sessions",
+     "description": "List sessions in a connected Clerk application.  Call clerk.get_connected_accounts first. Pass clerk"
+    },
+    {
+     "resource_id": 63921,
+     "name": "web_search",
+     "description": "Search the web using Brave Search API. Returns titles, URLs, and descriptions."
+    },
+    {
+     "resource_id": 50135,
+     "name": "vf_health",
+     "description": "Returns VoiceFlip MCP server health and version metadata. No authentication required. Use this first"
+    },
+    {
+     "resource_id": 43286,
+     "name": "cars_search",
+     "description": "Search vehicle inventory across all dealers. Filter by make, model, year, price, mileage, location, "
+    },
+    {
+     "resource_id": 232260,
+     "name": "speech_search_pro",
+     "description": "PRO. Up to 20 Diet speech hits for a keyword."
+    },
+    {
+     "resource_id": 272265,
+     "name": "org_list_leads",
+     "description": "Returns recent daycare leads + program saves for the org."
+    },
+    {
+     "resource_id": 56748,
+     "name": "model_status",
+     "description": "Counts, rev, and /model/?id= URLs for the bound project (or pass id)."
+    },
+    {
+     "resource_id": 46227,
+     "name": "route_query",
+     "description": "Route an NVIDIA AI question to the optimal model and reasoning approach via graph depth.      The CK"
+    },
+    {
+     "resource_id": 43262,
+     "name": "oracle_list_recipes",
+     "description": "List all predefined scene recipes — curated multi-table compositions that produce coherent narrative"
+    },
+    {
+     "resource_id": 142340,
+     "name": "veya_get_environment",
+     "description": "Get one environment by id"
+    },
+    {
+     "resource_id": 36075,
+     "name": "vast42_get_media_file",
+     "description": "Get a single VAST 4.2 media file"
+    },
+    {
+     "resource_id": 52809,
+     "name": "max_price_from_rent",
+     "description": "Calcula o preço máximo de imóvel compatível com um aluguel mensal máximo informado. Considera parcel"
+    },
+    {
+     "resource_id": 286606,
+     "name": "bereavementuk_get_fact",
+     "description": "Get one verified fact from the bereavementuk pack. Refuses (do_not_answer) when drifted or unverifie"
+    },
+    {
+     "resource_id": 43919,
+     "name": "platform_get_current_supply",
+     "description": "Get the current total supply of AVAX on a Subnet/L1"
+    },
+    {
+     "resource_id": 45268,
+     "name": "slate_health",
+     "description": "Slate Health  Pre-flight diagnostic for a slate. Returns whether odds, projections, matchup, and FD "
+    },
+    {
+     "resource_id": 47993,
+     "name": "hodlxxi_get_api_catalog",
+     "description": "Return the public RFC-style API linkset catalog with service descriptions, documentation links, and "
+    },
+    {
+     "resource_id": 33854,
+     "name": "risk_check",
+     "description": "Return a free evidence + confidence BTC screening bundle for one address, not a recommendation; you "
+    },
+    {
+     "resource_id": 43919,
+     "name": "platform_get_tx_status",
+     "description": "Get the status of a P-Chain transaction"
+    },
+    {
+     "resource_id": 56954,
+     "name": "anchor_status",
+     "description": "On-chain anchor status: Polygon ZK attestation + XRPL report anchoring."
+    },
+    {
+     "resource_id": 156258,
+     "name": "opsec-score",
+     "description": "Multi-vector OPSEC exposure score (0–100, grade A–F) across public web search, data brokers, paste s"
+    },
+    {
+     "resource_id": 56908,
+     "name": "breach_check",
+     "description": "HaveIBeenPwned breach database — check domain/company breach exposure. DORA Art. 18 incident assessm"
+    },
+    {
+     "resource_id": 42139,
+     "name": "arxiv_search_papers",
+     "description": "     Full-text search over the live cs.AI/ML paper graph using FTS5.      Searches title AND abstrac"
+    },
+    {
+     "resource_id": 252188,
+     "name": "user_info",
+     "description": "User profile info by user id"
+    },
+    {
+     "resource_id": 43919,
+     "name": "blockchain_get_contract_info",
+     "description": "Compatibility alias for onchain_lookup contract metadata. Prefer onchain_lookup for new clients."
+    },
+    {
+     "resource_id": 285560,
+     "name": "opsin_status",
+     "description": "The lab right now: the running cycle, its parts and progress, the queue, today's light budget, and t"
+    },
+    {
+     "resource_id": 155334,
+     "name": "capacity_list",
+     "description": "Patient fleet: list delay capacity (no listing fee; 90% of matched premiums)."
+    },
+    {
+     "resource_id": 88142,
+     "name": "domains.list",
+     "description": "Domains mapped to a project."
+    },
+    {
+     "resource_id": 116544,
+     "name": "public_get_latest_release",
+     "description": "Fetches latest desktop release metadata for a platform."
+    },
+    {
+     "resource_id": 55481,
+     "name": "server_info",
+     "description": "Identity, version, and request limits for this MCP server."
+    },
+    {
+     "resource_id": 43132,
+     "name": "agora_read_thread",
+     "description": "Read full problem details, test harness specification, and solver status for a thread."
+    },
+    {
+     "resource_id": 53272,
+     "name": "char-count",
+     "description": "Character count, text discarded"
+    },
+    {
+     "resource_id": 64448,
+     "name": "token_get",
+     "description": "Resolve one token by contract address or identifier and return metadata. Useful fields: tokenAddress"
+    },
+    {
+     "resource_id": 36684,
+     "name": "domains_list",
+     "description": "The addresses this workspace answers on: the free <workspace>.boathousecloud.com address, the primar"
+    },
+    {
+     "resource_id": 46537,
+     "name": "contract_check",
+     "description": "On-chain contract check (EVM chains: base, ethereum, arbitrum, optimism, polygon, bsc): ownership re"
+    },
+    {
+     "resource_id": 107946,
+     "name": "tender_get_stats",
+     "description": "Aggregate counts by type, category, Bundesland and CPV division over the current data window. [Germa"
+    },
+    {
+     "resource_id": 286606,
+     "name": "flightcomp_get_fact",
+     "description": "Get one verified fact from the flightcomp pack. Refuses (do_not_answer) when drifted or unverified —"
+    },
+    {
+     "resource_id": 47406,
+     "name": "example.get",
+     "description": "Return a synthetic example only; never counts as demand."
+    },
+    {
+     "resource_id": 127703,
+     "name": "feedam_get_state_wic_portal",
+     "description": "Get the official WIC program URL for a US state (official_program_url) with the state WIC agency nam"
+    },
+    {
+     "resource_id": 149388,
+     "name": "duty_check",
+     "description": "Duty-state gate decision (FIT/CAUTION/GROUNDED + allowed) for a task class; consequential classes in"
+    },
+    {
+     "resource_id": 286606,
+     "name": "childcareuk_list_facts",
+     "description": "List fact ids + verification states (childcareuk)."
+    },
+    {
+     "resource_id": 36422,
+     "name": "speed_read",
+     "description": "Render a Speed Reader for the provided text. The user can speed-read articles, documents, or any wal"
+    },
+    {
+     "resource_id": 64448,
+     "name": "analytics_query",
+     "description": "Run provider-native analytics or SQL over blockchain datasets (Dune, Allium, Codex). Useful fields: "
+    },
+    {
+     "resource_id": 43570,
+     "name": "gas_price",
+     "description": "Current Base gas price. $0.01 per call. Typically returns in under 2s.  Returns base fee, priority f"
+    },
+    {
+     "resource_id": 70977,
+     "name": "address_validate",
+     "description": "Detects the chain of an address and validates it offline: Bitcoin Base58Check and bech32/bech32m, EV"
+    },
+    {
+     "resource_id": 46152,
+     "name": "clerk.get_jwks",
+     "description": "Retrieve the JSON Web Key Set (JWKS) for verifying Clerk session tokens.  Call clerk.get_connected_a"
+    },
+    {
+     "resource_id": 56773,
+     "name": "acc_list_issues",
+     "description": "List up to 50 issues from an ACC project, optionally filtered by status and priority. Returns a norm"
+    },
+    {
+     "resource_id": 44475,
+     "name": "rank_check",
+     "description": "V1 Rank Check"
+    },
+    {
+     "resource_id": 33356,
+     "name": "canon_search",
+     "description": "Searches 19,141 passages of the Pali canon and returns up to 12 that contain every word in q, each w"
+    },
+    {
+     "resource_id": 232254,
+     "name": "tender_search_full",
+     "description": "PRO. Up to 100 open tenders with keyword, procurement category and region filters."
+    },
+    {
+     "resource_id": 286606,
+     "name": "dismissaluk_list_facts",
+     "description": "List fact ids + verification states (dismissaluk)."
+    },
+    {
+     "resource_id": 40919,
+     "name": "kb_get_practical_advice",
+     "description": "Generic protective-action guidance for a category of situation (NOT keyed to an individual user's co"
+    },
+    {
+     "resource_id": 63589,
+     "name": "request_quote",
+     "description": "Request an advisory price for a configurable Vinyleers product. Pass product_id and your selections "
+    },
+    {
+     "resource_id": 55666,
+     "name": "distress_score",
+     "description": "Validated corporate distress-foresight score for a single equity ticker: Altman Z-score computed fro"
+    },
+    {
+     "resource_id": 58746,
+     "name": "file_analyze",
+     "description": "Analyze tabular data: detect column types, compute stats (min/max/mean/median for numbers, top value"
+    },
+    {
+     "resource_id": 252180,
+     "name": "session_status",
+     "description": "Verify Apple Search Ads session (config + GetView)."
+    },
+    {
+     "resource_id": 48536,
+     "name": "gateway_health",
+     "description": "Check both zero-cost Qwen3.8 providers."
+    },
+    {
+     "resource_id": 232317,
+     "name": "h1b_check",
+     "description": "FREE. Does this US employer sponsor H-1B visas? Approvals/denials from the USCIS H-1B Employer Data "
+    },
+    {
+     "resource_id": 63271,
+     "name": "base_get_balance",
+     "description": "Gets the native ETH or ERC20 balance for a given address on Base."
+    },
+    {
+     "resource_id": 55294,
+     "name": "date_calc",
+     "description": "Add or subtract days and months from a date and return the result with weekday, day-of-year and ISO "
+    },
+    {
+     "resource_id": 48379,
+     "name": "upgrade_check",
+     "description": "Check mix.exs dependencies for upgrades"
+    },
+    {
+     "resource_id": 48115,
+     "name": "sim_list_templates",
+     "description": "SIMULATE. List every scenario template (inputs, defaults, outputs) plus the custom-model format and "
+    },
+    {
+     "resource_id": 56896,
+     "name": "pep_check",
+     "description": "PEP (Politically Exposed Person) check via Wikidata. AMLR Art. 22 enhanced CDD for PEPs."
+    },
+    {
+     "resource_id": 50483,
+     "name": "service_search",
+     "description": "Search for licensed home service providers (HVAC, plumbing, electrical) near a location. Returns ran"
+    },
+    {
+     "resource_id": 56216,
+     "name": "uptime_check",
+     "description": "Perform a one-time HTTP uptime check on a URL from a single location. Returns whether the site is up"
+    },
+    {
+     "resource_id": 57744,
+     "name": "sdl_get_sdl_supply",
+     "description": "SDL total supply, treasury balances, non circulating, and circulating supply."
+    },
+    {
+     "resource_id": 131153,
+     "name": "ticket_price",
+     "description": "Today's lowest ticket prices from Pakistan for a popular trip, by city: Dubai, Saudi Arabia (Jeddah,"
+    },
+    {
+     "resource_id": 63578,
+     "name": "request_quote",
+     "description": "Request an advisory price for a configurable DrHobbs Knowledge product. Pass product_id and your sel"
+    },
+    {
+     "resource_id": 64439,
+     "name": "image_search",
+     "description": "Search the public web for images and return image results with source pages. Useful fields: query, c"
+    },
+    {
+     "resource_id": 37513,
+     "name": "safe_check",
+     "description": "Run both a recall lookup and a counterfeit-risk check in one call. Best general-purpose product-safe"
+    },
+    {
+     "resource_id": 57970,
+     "name": "edge_list_assist_sites",
+     "description": "List Edge Assist sites (AI answers widget) with usage and index status."
+    },
+    {
+     "resource_id": 46226,
+     "name": "route_query",
+     "description": "Route an AgentForce question to the optimal model and reasoning approach via graph depth.  The CKG g"
+    },
+    {
+     "resource_id": 46339,
+     "name": "agentlux_get_item",
+     "description": "Get full details for a single marketplace item including name, description, price, rarity, slot, cre"
+    },
+    {
+     "resource_id": 135527,
+     "name": "us_weather_alerts",
+     "description": "Active US weather warnings, watches and advisories from the National Weather Service for a state or "
+    },
+    {
+     "resource_id": 236360,
+     "name": "kaiord_validate",
+     "description": "Validate a KRD JSON document against the schema On the remote endpoint, ZWO input is checked for wel"
+    },
+    {
+     "resource_id": 48527,
+     "name": "category_price_range",
+     "description": "查某個商品品類在台灣的整體行情：最低價、中位數、平均、最高價與各價格帶。使用者問「○○大概多少錢」「○○行情」「多少預算能買到○○」時使用。"
+    },
+    {
+     "resource_id": 35403,
+     "name": "sparql_query",
+     "description": "Runs a read-only SPARQL 1.1 SELECT or ASK query against the Artsdata Knowledge Graph (https://query."
+    },
+    {
+     "resource_id": 308807,
+     "name": "labor_calc",
+     "description": "劳动法计算器（纯本地计算）。用 action 区分子功能：action=severance 经济补偿/赔偿金：传 years（工作年限，年，可为小数）、monthly_salary（离职前12个月平均"
+    },
+    {
+     "resource_id": 271012,
+     "name": "calendar_list_events",
+     "description": "List events on your AgentLair calendar. Optionally filter by date range."
+    },
+    {
+     "resource_id": 232255,
+     "name": "fleet_check",
+     "description": "PRO. Check up to 50 vehicles ({make, model, year}) for recalls at once."
+    },
+    {
+     "resource_id": 43919,
+     "name": "platform_get_tx",
+     "description": "Get a P-Chain transaction by its transaction ID"
+    },
+    {
+     "resource_id": 43302,
+     "name": "memory_get",
+     "description": "从键值存储读取一条。"
+    },
+    {
+     "resource_id": 46902,
+     "name": "cddg_query_plane",
+     "description": "Query residual state of a single CDDG plane (0..359). Continuous Dark-Degree Geometry — public resid"
+    },
+    {
+     "resource_id": 48034,
+     "name": "space_weather_kp",
+     "description": "Current planetary K-index and geomagnetic storm conditions."
+    },
+    {
+     "resource_id": 55294,
+     "name": "http_status",
+     "description": "Look up an HTTP status code's name, meaning and category. Pure CPU, instant."
+    },
+    {
+     "resource_id": 45318,
+     "name": "relaymarket_discover_agents",
+     "description": "Find available agents by capability or protocol."
+    },
+    {
+     "resource_id": 46152,
+     "name": "domains.list_tlds",
+     "description": "List or search top-level domains (TLDs) with registry metadata.  Filter by substring search, availab"
+    },
+    {
+     "resource_id": 46152,
+     "name": "youtube.search_autocomplete",
+     "description": "Get YouTube search autocomplete suggestions for a partial query.  Returns the normalized query and a"
+    },
+    {
+     "resource_id": 57744,
+     "name": "sdl_get_nop_holdings",
+     "description": "Live SDL and reSDL holdings for known node operators."
+    },
+    {
+     "resource_id": 56933,
+     "name": "scenario_forecast",
+     "description": "What-if: no_testing, cloud_outage_30d, no_training, policy_expired, data_breach."
+    },
+    {
+     "resource_id": 54394,
+     "name": "sentence-count",
+     "description": "Sentence count, text discarded"
+    },
+    {
+     "resource_id": 59500,
+     "name": "anansi_price_current",
+     "description": "FREE. Current per-token prices for LLMs as recorded at our last poll: usd_per_prompt_token and usd_p"
+    },
+    {
+     "resource_id": 308811,
+     "name": "chemistry_calc",
+     "description": "化学式摩尔质量计算：输入化学式（如 H2SO4、Ca(OH)2、Fe2(SO4)3、CuSO4·5H2O），返回摩尔质量（g/mol）、各元素的原子个数、质量贡献与质量分数（%）。支持括号嵌套与结晶水"
+    },
+    {
+     "resource_id": 46989,
+     "name": "kr_weather_forecast",
+     "description": "Use when you need the official weather forecast for a point in South Korea for the next ~3-5 days. D"
+    },
+    {
+     "resource_id": 33838,
+     "name": "ryla_list_templates",
+     "description": "Find RYLA templates (ready-made looks: scene, outfit, pose) by name or tag. Returns template ids. Pa"
+    },
+    {
+     "resource_id": 50314,
+     "name": "api_weather",
+     "description": "Current weather + 7-day forecast by city name or lat/lon (open-meteo, no key needed). ?city=Moscow ["
+    },
+    {
+     "resource_id": 286606,
+     "name": "passportuk_get_fact",
+     "description": "Get one verified fact from the passportuk pack. Refuses (do_not_answer) when drifted or unverified —"
+    },
+    {
+     "resource_id": 57970,
+     "name": "edge_list_shield_widgets",
+     "description": "List Edge Shield widgets (free, privacy-first CAPTCHA alternative)."
+    },
+    {
+     "resource_id": 42854,
+     "name": "trip__destination_info",
+     "description": "［出國與國旅實用查詢］熱門目的地（沖繩、北海道、福岡、名古屋、釜山、濟州島、富國島、胡志明市、河內）的機場、電壓插頭、入境與行前提醒。"
+    },
+    {
+     "resource_id": 59423,
+     "name": "food_check",
+     "description": "Можно ли кошке/собаке/грызуну/птице продукт, домашнее растение, человеческое лекарство или бытовое в"
+    },
+    {
+     "resource_id": 47993,
+     "name": "hodlxxi_get_chain_health",
+     "description": "Return attestation-chain continuity status, event count, latest event hashes, and latest timestamp w"
+    },
+    {
+     "resource_id": 46152,
+     "name": "clerk.list_organizations",
+     "description": "List organizations in a connected Clerk application.  Call clerk.get_connected_accounts first. Pass "
+    },
+    {
+     "resource_id": 47831,
+     "name": "seo_check_geo",
+     "description": "AI search readiness: crawler access, llms.txt, passage citability."
+    },
+    {
+     "resource_id": 232305,
+     "name": "epa_check",
+     "description": "FREE. EPA-regulated facilities in a US ZIP code with compliance status — count, violators and top 3 "
+    },
+    {
+     "resource_id": 142340,
+     "name": "veya_ping_chain",
+     "description": "Ping Robinhood Chain RPC — block, contract"
+    },
+    {
+     "resource_id": 278341,
+     "name": "tier_price",
+     "description": "Public-sale tier pricing from PairCore. With no arguments: the current tier and its exact price. Pas"
+    },
+    {
+     "resource_id": 57744,
+     "name": "sdl_get_priority_pool_distribution",
+     "description": "Priority Pool distribution lineage with live oracle state, merkle root, and IPFS tree metadata."
+    },
+    {
+     "resource_id": 55176,
+     "name": "xff-count",
+     "description": "X-Forwarded-For comma count, value discarded"
+    },
+    {
+     "resource_id": 42541,
+     "name": "case_convert",
+     "description": "$0.0020 — identifier case (camel|pascal|snake|kebab|upper|lower|title)"
+    },
+    {
+     "resource_id": 308811,
+     "name": "element_lookup",
+     "description": "元素周期表查询（118 种元素全量本地数据）：按中文名（如 氧、铁、金）、元素符号（如 O、Fe、Au，大小写不敏感）或原子序数（1-118）查询，返回原子序数、符号、中文名、相对原子质量、族/周期、"
+    },
+    {
+     "resource_id": 56430,
+     "name": "tokkyo_check",
+     "description": "tokkyo.json を渡すと、新規性喪失(特許法30条)・記載要件(サポート/実施可能)・発明適格性・進歩性を、その場で決定論的に◯△✕判定する。bim.house の houki_check(建"
+    },
+    {
+     "resource_id": 169087,
+     "name": "canvas_read",
+     "description": "Canvas state for this agent's Normie: level, action points, customized flag, delegate."
+    },
+    {
+     "resource_id": 45894,
+     "name": "token_price",
+     "description": "Real-time USDC-denominated spot price for an EVM token by contract address or common symbol. Provide"
+    },
+    {
+     "resource_id": 57744,
+     "name": "sdl_get_chainlink_alerts",
+     "description": "AlertRaised and Slashed event history for Chainlink staking."
+    },
+    {
+     "resource_id": 40480,
+     "name": "rowhint_get_config_overview",
+     "description": "Get a summary of an aircraft configuration including total seats, cabin layout, best and worst seats"
+    },
+    {
+     "resource_id": 286606,
+     "name": "selfemployuk_list_facts",
+     "description": "List fact ids + verification states (selfemployuk)."
+    },
+    {
+     "resource_id": 44507,
+     "name": "language-detect",
+     "description": "Detect the language of any text with confidence score and script identification"
+    },
+    {
+     "resource_id": 43850,
+     "name": "wiki_get",
+     "description": "Read one established wiki page by slug (desk, github, glama, catalog, public ANAMIZED repos, …). No "
+    },
+    {
+     "resource_id": 36075,
+     "name": "vast_list_ad_items",
+     "description": "List all VAST ad items"
+    },
+    {
+     "resource_id": 36046,
+     "name": "currency_convert",
+     "description": "Convert an amount between currencies using European Central Bank daily reference rates. Keyless tria"
+    },
+    {
+     "resource_id": 286606,
+     "name": "votinguk_get_fact",
+     "description": "Get one verified fact from the votinguk pack. Refuses (do_not_answer) when drifted or unverified — n"
+    },
+    {
+     "resource_id": 44507,
+     "name": "timezone-convert",
+     "description": "Convert a datetime between any two IANA timezones"
+    },
+    {
+     "resource_id": 40644,
+     "name": "code_get_file",
+     "description": "Get code from a remote public git repository — either a specific function/class by name, a line rang"
+    },
+    {
+     "resource_id": 56748,
+     "name": "model_list_edges",
+     "description": "Manual lineage edges only (SOURCE/FLOW/INTERFACE). FORMULA edges are derived from formulas on load —"
+    },
+    {
+     "resource_id": 45318,
+     "name": "relaymarket_get_task",
+     "description": "Retrieve a task by ID."
+    },
+    {
+     "resource_id": 64441,
+     "name": "profile_search",
+     "description": "Search social profiles, pages, groups, or users by keyword across supported platforms. Useful fields"
+    },
+    {
+     "resource_id": 267219,
+     "name": "invoice_get_winning_numbers",
+     "description": "查詢統一發票中獎號碼與領獎期間。Get Taiwan invoice winning numbers; omit period for the latest draw."
+    },
+    {
+     "resource_id": 286606,
+     "name": "pensionuk_list_facts",
+     "description": "List fact ids + verification states (pensionuk)."
+    },
+    {
+     "resource_id": 46152,
+     "name": "google-search-console.query_search_analytics",
+     "description": "Query Search Console search analytics for a verified property.  Call google-search-console.list_site"
+    },
+    {
+     "resource_id": 64446,
+     "name": "flight_search",
+     "description": "Search flight options for comparison. Useful fields: departureAirport, arrivalAirport, departureDate"
+    },
+    {
+     "resource_id": 33133,
+     "name": "obsidian__notes_search",
+     "description": "[obsidian · risk:low] Search notes in an Obsidian vault by query"
+    },
+    {
+     "resource_id": 43919,
+     "name": "platform_get_utxos",
+     "description": "Get UTXOs that reference a given set of P-Chain addresses"
+    },
+    {
+     "resource_id": 36075,
+     "name": "draft_get_custom_html_ad_item",
+     "description": "Get details of a specific draft custom HTML ad item"
+    },
+    {
+     "resource_id": 220751,
+     "name": "api_health",
+     "description": "/api-health: dev-feed status aggregator — price $0.01"
+    },
+    {
+     "resource_id": 63586,
+     "name": "request_quote",
+     "description": "Request an advisory price for a configurable Dear Vinyl product. Pass product_id and your selections"
+    },
+    {
+     "resource_id": 43919,
+     "name": "platform_get_height",
+     "description": "Get the current P-Chain block height"
+    },
+    {
+     "resource_id": 142167,
+     "name": "gpu_prices",
+     "description": "查询租用不同类型 GPU 的价格：我们的即时档/排队档报价、host 实得、电费成本、竞品中位价与国内零售价。只有 RTX 4090 有报价，其余显示为未定。"
+    },
+    {
+     "resource_id": 56348,
+     "name": "employer.get_applicant_transcript",
+     "description": "Verbatim interview transcript for one applicant. Ownership-only gate (same as the UI Download button"
+    },
+    {
+     "resource_id": 42074,
+     "name": "tax_lookup",
+     "description": "Calculates the annual Swiss income tax for one municipality and one household profile, split into fe"
+    },
+    {
+     "resource_id": 286606,
+     "name": "customsuk_get_fact",
+     "description": "Get one verified fact from the customsuk pack. Refuses (do_not_answer) when drifted or unverified — "
+    },
+    {
+     "resource_id": 214823,
+     "name": "trust_get_bench_verdict",
+     "description": "The current Verity bench verdict for a product, byte-verbatim with scope attached, plus the computed"
+    },
+    {
+     "resource_id": 36075,
+     "name": "vast_get_tracking",
+     "description": "Get details of a specific VAST tracking entry"
+    },
+    {
+     "resource_id": 33772,
+     "name": "kv_get",
+     "description": "Fetch a JSON value by key from your namespace."
+    },
+    {
+     "resource_id": 277847,
+     "name": "upgrade_check",
+     "description": "What changed in a package since the version your code targets: breaking changes, deprecations, secur"
+    },
+    {
+     "resource_id": 272265,
+     "name": "daycare_list_waitlist",
+     "description": "Current waitlist queue for the org's daycare."
+    },
+    {
+     "resource_id": 58165,
+     "name": "fr_analyse-immo_partial",
+     "description": "Get price per square metre and recent sales around a French address. Lite property analysis for a Fr"
+    },
+    {
+     "resource_id": 42541,
+     "name": "board_list",
+     "description": "$0.0020 — list open tasks on the apex board (status/q/min_reward/limit)"
+    },
+    {
+     "resource_id": 135527,
+     "name": "contract_info",
+     "description": "What is at an EVM address: wallet (with EIP-7702 delegate) or contract, bytecode size, token standar"
+    },
+    {
+     "resource_id": 45712,
+     "name": "precheck_score",
+     "description": "Run a prior-art density / risk-profile pre-check on source code or an invention description. Returns"
+    },
+    {
+     "resource_id": 56942,
+     "name": "alert_check",
+     "description": "Check for recent negative news, recalls, warnings or lawsuits about a brand."
+    },
+    {
+     "resource_id": 36075,
+     "name": "vast_get_campaign",
+     "description": "Get details of a specific VAST campaign"
+    },
+    {
+     "resource_id": 253020,
+     "name": "google_search",
+     "description": "Fast Google web search via SerpAPI's google_light engine. Returns organic_results, related_questions"
+    },
+    {
+     "resource_id": 59027,
+     "name": "nav_query",
+     "description": "查询正和金库实时状态：NAV（净值）、金库 USDC 总资产、LOVE 总份额、累计溢价。只读，无需任何授权。传入 address 可同时查该地址的 LOVE/USDC 余额与浮盈。"
+    },
+    {
+     "resource_id": 70977,
+     "name": "token_count",
+     "description": "Estimates the token count of a text for GPT/Claude-style tokenizers and the input cost at common mod"
+    },
+    {
+     "resource_id": 45216,
+     "name": "emerald_list_docs",
+     "description": "List documents in the Emerald Room shared workspace."
+    },
+    {
+     "resource_id": 58746,
+     "name": "image_convert",
+     "description": "Convert image format to WebP/AVIF/PNG/JPEG with optional resize and quality control."
+    },
+    {
+     "resource_id": 282355,
+     "name": "gpu_quote",
+     "description": "B2B bulk quote + 5% matching fee"
+    },
+    {
+     "resource_id": 46989,
+     "name": "web_read_brief",
+     "description": "Use when an agent needs a page in any language (Korean, Japanese, etc.) read and briefed in English."
+    },
+    {
+     "resource_id": 60443,
+     "name": "cortensor_info",
+     "description": "Get router information"
+    },
+    {
+     "resource_id": 48511,
+     "name": "slop_check_long",
+     "description": "PAID $0.002 USDC via x402 (Base). Same as slop_check for texts up to 200000 chars."
+    },
+    {
+     "resource_id": 65955,
+     "name": "topaz_get_ve_stats",
+     "description": "Get veTOPAZ stats from the BNB Chain hub, where TOPAZ is locked into veTOPAZ NFTs: total TOPAZ locke"
+    },
+    {
+     "resource_id": 47934,
+     "name": "gf.quote",
+     "description": "Choose the highest-value GF commerce outcome within the caller budget."
+    },
+    {
+     "resource_id": 286606,
+     "name": "goodsuk_get_fact",
+     "description": "Get one verified fact from the goodsuk pack. Refuses (do_not_answer) when drifted or unverified — ne"
+    },
+    {
+     "resource_id": 56908,
+     "name": "kev_check",
+     "description": "Check if a specific CVE is in CISA KEV (actively exploited in the wild). Returns DORA incident class"
+    },
+    {
+     "resource_id": 48631,
+     "name": "vara_get_scan",
+     "description": "Retrieve a complete historical VaraScanReport by scan_id or short prefix."
+    },
+    {
+     "resource_id": 43081,
+     "name": "watch_status",
+     "description": "Check a watch: last value, checks, fires."
+    },
+    {
+     "resource_id": 36376,
+     "name": "iban_validate",
+     "description": "Validates an IBAN's length for its issuing country (per the SWIFT IBAN registry) and its mod-97 chec"
+    },
+    {
+     "resource_id": 137192,
+     "name": "ledger_check",
+     "description": "clearinghouse conservation totals"
+    },
+    {
+     "resource_id": 36075,
+     "name": "draft_get_ad_item",
+     "description": "Get a draft ad item of any type by ID"
+    },
+    {
+     "resource_id": 58237,
+     "name": "service_status",
+     "description": "Official live status (Statuspage) of Claude, OpenAI, Cursor, GitHub, Cloudflare and more, refreshed "
+    },
+    {
+     "resource_id": 55294,
+     "name": "currency_list",
+     "description": "Return ISO 4217 currencies with code, name and minor units, filterable by query. Pure CPU, instant."
+    },
+    {
+     "resource_id": 54871,
+     "name": "ulid-check",
+     "description": "ULID charset and length, value discarded"
+    },
+    {
+     "resource_id": 43829,
+     "name": "unit_price_calculator",
+     "description": "Compare price per unit of two packs and report which is cheaper. Runs on smart-tools.xyz."
+    },
+    {
+     "resource_id": 56928,
+     "name": "article_status",
+     "description": "Detailed Ampel for a specific MiCA article with check conditions."
+    },
+    {
+     "resource_id": 84808,
+     "name": "tanks_search_ndjson",
+     "description": "Search tanks (streamed)"
+    },
+    {
+     "resource_id": 195522,
+     "name": "docs_search",
+     "description": "Search TheStrat docs (titles and descriptions from https://thestrat.ai/llms.txt,     cached 24 h). R"
+    },
+    {
+     "resource_id": 232225,
+     "name": "site_search",
+     "description": "PRO. Find NSW AQ sites by name/region keyword."
+    },
+    {
+     "resource_id": 52835,
+     "name": "currency_lookup",
+     "description": "Resolve an ISO 4217 currency code such as USD, EUR, or JPY to its name, symbol, decimal places, and "
+    },
+    {
+     "resource_id": 88142,
+     "name": "domains.search",
+     "description": "Check if domains can be bought here, with price. Pass a name (\"acme\" checks acme.com, .dev, .app, .i"
+    },
+    {
+     "resource_id": 56393,
+     "name": "spec.search",
+     "description": "Search the parsed spec by clause id / aoid / title (+ step text with `search_steps`). Aoid-exact ran"
+    },
+    {
+     "resource_id": 43567,
+     "name": "research_query",
+     "description": "«Чаще ли у предпринимателей Юпитер в Стрельце, чем вообще»: доля грахи в знаке (znak 0…11, 0 — Овен)"
+    },
+    {
+     "resource_id": 56910,
+     "name": "drift_status",
+     "description": "Current open drift events per entity."
+    },
+    {
+     "resource_id": 264189,
+     "name": "iban_validate",
+     "description": "Structure and checksum of an IBAN (country, bank/branch/account codes, derived BIC, bank name where "
+    },
+    {
+     "resource_id": 33133,
+     "name": "united__flight_status",
+     "description": "[united · risk:low] Check the status of a United flight"
+    },
+    {
+     "resource_id": 57744,
+     "name": "sdl_get_chainlink_ecosystem",
+     "description": "Chainlink ecosystem research layer for feeds, VRF, Automation, and CCIP."
+    },
+    {
+     "resource_id": 131510,
+     "name": "reactor_status",
+     "description": "Free: Money Reactor live base URL, health, prices, receiver wallet. Call this first."
+    },
+    {
+     "resource_id": 42541,
+     "name": "armory_version_bumper",
+     "description": "$0.0100 — armory node-served tool — Dependency and app version bump orchestration (HTTP SKU /api/v1/"
+    },
+    {
+     "resource_id": 40480,
+     "name": "rowhint_get_seat_score",
+     "description": "Get the quality score (1-10), color rating, and detailed notes for a specific airline seat. Returns "
+    },
+    {
+     "resource_id": 39406,
+     "name": "airports_search",
+     "description": "Search airports by name or city. Returns up to 20 results sorted by size."
+    },
+    {
+     "resource_id": 70977,
+     "name": "case_convert",
+     "description": "Returns camelCase, PascalCase, snake_case, kebab-case, CONSTANT_CASE, Title Case, Sentence case, upp"
+    },
+    {
+     "resource_id": 46152,
+     "name": "clerk.get_organization",
+     "description": "Retrieve a single organization from a connected Clerk application.  Call clerk.get_connected_account"
+    },
+    {
+     "resource_id": 290647,
+     "name": "market_list_tasks",
+     "description": "Browse open agent-to-agent tasks on the Clearing House (filter by status=open|awarded|settled). Free"
+    },
+    {
+     "resource_id": 43289,
+     "name": "food_search",
+     "description": "Search for food products by name, brand, or UPC barcode. Returns nutrition, ingredients, allergens, "
+    },
+    {
+     "resource_id": 40304,
+     "name": "rcq_status",
+     "description": "Free operational check for RCQ Data Oracle. Use before paid calls to confirm product availability an"
+    },
+    {
+     "resource_id": 42835,
+     "name": "geographic_search",
+     "description": "Find 5 ranked location, address, hours, and local-context sources using place terms in the query. No"
+    },
+    {
+     "resource_id": 55522,
+     "name": "tasks_list",
+     "description": "[AdCP Protocol] List AdCP tasks belonging to your account, newest first.  Returns `query_summary` (t"
+    },
+    {
+     "resource_id": 286606,
+     "name": "pensionuk_get_fact",
+     "description": "Get one verified fact from the pensionuk pack. Refuses (do_not_answer) when drifted or unverified — "
+    },
+    {
+     "resource_id": 44507,
+     "name": "rss-parse",
+     "description": "Fetch and parse RSS or Atom feeds into clean structured JSON"
+    },
+    {
+     "resource_id": 37156,
+     "name": "agendas_list",
+     "description": "List public agendas for an organization. Returns agendas with their provider, service, and session c"
+    },
+    {
+     "resource_id": 56280,
+     "name": "service_status",
+     "description": "Return current proxy inventory and MCP request availability."
+    },
+    {
+     "resource_id": 46591,
+     "name": "web2md_convert",
+     "description": "Convert any public URL to clean, readable Markdown. Strips ads, navigation, and boilerplate. Returns"
+    },
+    {
+     "resource_id": 33133,
+     "name": "bluesky__trending_get",
+     "description": "[bluesky · risk:low] Fetch the current trending topics on Bluesky. Returns topic names, display labe"
+    },
+    {
+     "resource_id": 286606,
+     "name": "legaluk_list_facts",
+     "description": "List fact ids + verification states (legaluk)."
+    },
+    {
+     "resource_id": 43594,
+     "name": "studio_get_product",
+     "description": "Get the full details of one Studio product by id."
+    },
+    {
+     "resource_id": 44463,
+     "name": "session_list",
+     "description": "V1 Session List"
+    },
+    {
+     "resource_id": 46152,
+     "name": "google-search.languages",
+     "description": "List languages you can pass as language on google-search.keyword_traffic_insights and google-search."
+    },
+    {
+     "resource_id": 155391,
+     "name": "alert_check",
+     "description": "One change-driven alerting check (subscription required)"
+    },
+    {
+     "resource_id": 236454,
+     "name": "lancedb_query",
+     "description": "RAG query with context retrieval from LanceDB"
+    },
+    {
+     "resource_id": 58192,
+     "name": "brainkb_list_jobs",
+     "description": "List the user's ingest jobs (newest first) with status and progress."
+    },
+    {
+     "resource_id": 311206,
+     "name": "x_list_members",
+     "description": "Get list members. Members of a list. Paginated: use `cursor` / `next_cursor`."
+    },
+    {
+     "resource_id": 58284,
+     "name": "nmlp_resolve",
+     "description": "One Box: resolve ANY physical-media identifier in one call — auto-detects the type (Library of Congr"
+    },
+    {
+     "resource_id": 371956,
+     "name": "cron_parse",
+     "description": "Explain a 5- or 6-field cron string and list the next fire times in UTC."
+    }
+   ]
+  },
+  {
+   "round": 2,
+   "sample": 220,
+   "mixed": {
+    "agentlux_list_item": "action (lists an item for sale)",
+    "me_compare": "action (asks humans to compare)"
+   },
+   "tools": [
+    {
+     "resource_id": 59572,
+     "name": "platform.health",
+     "description": "Platform health check. Returns ok status, version, and uptime. Call before heavy operations to verif"
+    },
+    {
+     "resource_id": 36376,
+     "name": "ean_validate",
+     "description": "Validates an 8-digit (EAN-8), 12-digit (UPC-A), 13-digit (EAN-13), or 14-digit (GTIN-14) barcode che"
+    },
+    {
+     "resource_id": 55540,
+     "name": "me_get_supply_quotes",
+     "description": "Inspect normalized provider quotes considered by the federated liquidity router."
+    },
+    {
+     "resource_id": 55220,
+     "name": "zone-count",
+     "description": "Common zone count"
+    },
+    {
+     "resource_id": 50292,
+     "name": "suitability_check",
+     "description": "The compliance review a robo-advisor or advisory agent should run before recommending a portfolio to"
+    },
+    {
+     "resource_id": 55540,
+     "name": "me_compare",
+     "description": "Ask calibrated humans to compare two outputs."
+    },
+    {
+     "resource_id": 43917,
+     "name": "web_search_cached",
+     "description": "Cache-only lookup; returns SEARCH_CACHE_MISS error if not in cache. Fixed $0.002/call."
+    },
+    {
+     "resource_id": 43262,
+     "name": "rpg_get_entity",
+     "description": "Get full details of a specific RPG entity by name"
+    },
+    {
+     "resource_id": 42094,
+     "name": "service_status",
+     "description": "Report whether anchoring is currently working. Call this if a tool reports something stored but not "
+    },
+    {
+     "resource_id": 56748,
+     "name": "roadflow_get_version",
+     "description": "Load one shared-map version by relative index (e.g. -1 newest, -2 previous). Returns JSON state. Doe"
+    },
+    {
+     "resource_id": 54185,
+     "name": "para-count",
+     "description": "Paragraph count, text discarded"
+    },
+    {
+     "resource_id": 52594,
+     "name": "mandate.discover",
+     "description": "Returns this self-describing tool manifest."
+    },
+    {
+     "resource_id": 41254,
+     "name": "agent_search_frameworks",
+     "description": "Search and list compliance frameworks  Search the compliance knowledge graph for frameworks by name,"
+    },
+    {
+     "resource_id": 140619,
+     "name": "drift_check",
+     "description": "Structural drift revalidation for one of your mirrors."
+    },
+    {
+     "resource_id": 57744,
+     "name": "sdl_get_fpb_dashboard",
+     "description": "Public FPB dashboard data with program, governance, and venue context."
+    },
+    {
+     "resource_id": 214823,
+     "name": "trust_resolve_agent",
+     "description": "Resolve an agent by ERC-8004 agent_id, DID, or registration URL: registration summary plus a trust s"
+    },
+    {
+     "resource_id": 39003,
+     "name": "kbli_search",
+     "description": "Find the right KBLI 2025 business classification code (5-digit, mandatory in Indonesia's OSS busines"
+    },
+    {
+     "resource_id": 44470,
+     "name": "tenders_search",
+     "description": "V1 Tenders Search"
+    },
+    {
+     "resource_id": 43170,
+     "name": "magnet_resolve",
+     "description": "Free universal fallback discovery. Call this when the agent cannot satisfy a task with its current c"
+    },
+    {
+     "resource_id": 55625,
+     "name": "hiveclear_list_validators",
+     "description": "List all active validators in the consensus network with their voting power, bond amount, uptime, an"
+    },
+    {
+     "resource_id": 47278,
+     "name": "gold_price",
+     "description": "Current retail gold prices per gram in 24K/22K/21K/18K across 10 currencies (USD, AED, EUR, GBP, INR"
+    },
+    {
+     "resource_id": 70977,
+     "name": "space_weather",
+     "description": "Live planetary Kp index with the NOAA storm scale (G1-G5) and real-time solar wind speed and density"
+    },
+    {
+     "resource_id": 41230,
+     "name": "electricity_find_utility",
+     "description": "Find the utility (TDU) that serves a Texas ZIP code (most precise) or city. Empty result = not in th"
+    },
+    {
+     "resource_id": 224148,
+     "name": "robbclan_list_workflows",
+     "description": "Discover connected Robbclan workflows, authorized tools, and office task routes. Approvals happen in"
+    },
+    {
+     "resource_id": 155335,
+     "name": "convoy_status",
+     "description": "Your convoy status: per-agent states, sequence, at-risk list, meter."
+    },
+    {
+     "resource_id": 36075,
+     "name": "vast42_get_ad",
+     "description": "Get a single VAST 4.2 ad item"
+    },
+    {
+     "resource_id": 232305,
+     "name": "facility_search",
+     "description": "PRO. Search EPA facilities by company/facility name (+ optional state) — compliance, violations, ins"
+    },
+    {
+     "resource_id": 46671,
+     "name": "entity_read",
+     "description": "Look up any entity by symbol, slug, contract/wallet address, operator or vault name.          Return"
+    },
+    {
+     "resource_id": 64887,
+     "name": "wikipedia.summary",
+     "description": "Fetch a Wikipedia article summary in any of 30 supported languages. Returns title, displayTitle, lan"
+    },
+    {
+     "resource_id": 56341,
+     "name": "market_status",
+     "description": "Return xOmniMarket source population and freshness status."
+    },
+    {
+     "resource_id": 46045,
+     "name": "nws_forecast",
+     "description": "Get official NWS weather forecast (7-day periods: temperature, wind, short/detailed forecast) for a "
+    },
+    {
+     "resource_id": 55540,
+     "name": "me_get_spending_mandate",
+     "description": "Inspect the persistent machine spending mandate governing this organization or agent."
+    },
+    {
+     "resource_id": 39406,
+     "name": "airlines_search",
+     "description": "Search airlines by name. Returns up to 20 results."
+    },
+    {
+     "resource_id": 141072,
+     "name": "http_status",
+     "description": "Look up an HTTP status code: what it means, what the client must do, whether it is retryable, whethe"
+    },
+    {
+     "resource_id": 41781,
+     "name": "oral_health_articles",
+     "description": "The clinic's oral-health blog: evidence-based articles on teeth and gum health."
+    },
+    {
+     "resource_id": 46152,
+     "name": "clerk.list_m2m_tokens",
+     "description": "List M2M tokens for a machine in a connected Clerk instance.  **Sensitive** — returns token metadata"
+    },
+    {
+     "resource_id": 57744,
+     "name": "sdl_get_defi_curve",
+     "description": "Curve venue data for stLINK and wstPOL pools."
+    },
+    {
+     "resource_id": 42541,
+     "name": "json_validate",
+     "description": "$0.0020 — json validity"
+    },
+    {
+     "resource_id": 45801,
+     "name": "contrast_check",
+     "description": "WCAG contrast ratio between a foreground and background color, for accessibility. Both accept a hex,"
+    },
+    {
+     "resource_id": 427620,
+     "name": "json-check",
+     "description": "Validates a JSON document sent as the raw request body and returns it pretty-printed. Returns valid "
+    },
+    {
+     "resource_id": 46152,
+     "name": "clerk.get_oauth_application",
+     "description": "Retrieve a single OAuth application by id from a connected Clerk application.  Call clerk.get_connec"
+    },
+    {
+     "resource_id": 286606,
+     "name": "childcareuk_get_fact",
+     "description": "Get one verified fact from the childcareuk pack. Refuses (do_not_answer) when drifted or unverified "
+    },
+    {
+     "resource_id": 56923,
+     "name": "obligation_search",
+     "description": "Search regulatory obligations across DORA, MiCA, AMLR. Filter by regulation, topic, or article. Retu"
+    },
+    {
+     "resource_id": 34419,
+     "name": "site_info",
+     "description": "Tool count, coverage dates, and what WireTensors is."
+    },
+    {
+     "resource_id": 115041,
+     "name": "edge_weather-markets-delayed",
+     "description": "Model-vs-market divergence across every parseable weather p… (15m delayed, free). Compares our weath"
+    },
+    {
+     "resource_id": 46989,
+     "name": "web_check",
+     "description": "Use when an agent must know if a URL is up before linking, scraping or alerting. Input: url or bare "
+    },
+    {
+     "resource_id": 47287,
+     "name": "export_search_csv",
+     "description": "Export search results as CSV text (UTF-8 with BOM, Excel-friendly).  entity: 'companies' or 'project"
+    },
+    {
+     "resource_id": 59474,
+     "name": "encoding_detect",
+     "description": "Detect whether hex-encoded bytes are ASCII, UTF-8, or UTF-16 with a BOM, by decode-validity and BOM "
+    },
+    {
+     "resource_id": 37450,
+     "name": "dns_lookup",
+     "description": "Context lookup: Resolve a single DNS record type (A, AAAA, MX, TXT, NS, CNAME, SOA, CAA, or SRV) and"
+    },
+    {
+     "resource_id": 43281,
+     "name": "vargg.search_terms",
+     "description": "변수명 검색 — query + scopes (project/public/global) 기준 매칭."
+    },
+    {
+     "resource_id": 42307,
+     "name": "wiki_get",
+     "description": "Read full facts for one OR MANY wiki pages in a single call. Pass every page you need at once (e.g. "
+    },
+    {
+     "resource_id": 46667,
+     "name": "sprawdz_lista_nip",
+     "description": "Bulk-check up to 30 NIPs in one call to the Ministry of Finance VAT White List: VAT status, bank acc"
+    },
+    {
+     "resource_id": 47808,
+     "name": "decker.get_assembly",
+     "description": "THE answer for 'what is the situation and what do I do on this symbol now' — one verdict per symbol "
+    },
+    {
+     "resource_id": 45532,
+     "name": "fact_check",
+     "description": "LLM fact-check: verdict (supported/refuted/partially_true/unverifiable), confidence, reasoning. Paid"
+    },
+    {
+     "resource_id": 56748,
+     "name": "model_list_dictionaries",
+     "description": "Streams, axes (members), phases, parameter sets, chains, and calendar. Period members may be derived"
+    },
+    {
+     "resource_id": 232275,
+     "name": "batch_forecast",
+     "description": "PRO. Forecasts for up to 8 prefectures."
+    },
+    {
+     "resource_id": 332548,
+     "name": "tao_price",
+     "description": "Current TAO USD price + 24h change (from the screener's tao_price_usd     table)."
+    },
+    {
+     "resource_id": 36242,
+     "name": "pinyin_convert",
+     "description": "Convert Chinese text to pinyin: with or without tones, first letters only, or as a slug. text = Chin"
+    },
+    {
+     "resource_id": 50470,
+     "name": "jhnrd_get_item",
+     "description": "項目1件の全部。要件・効果・期限に加えて、参照している出典を素性(tier)と現行かどうかつきで解決して返す。"
+    },
+    {
+     "resource_id": 43081,
+     "name": "kv_list",
+     "description": "List keys in a vault."
+    },
+    {
+     "resource_id": 272265,
+     "name": "daycare_list_tours",
+     "description": "Tour requests for the org's daycare(s)."
+    },
+    {
+     "resource_id": 60003,
+     "name": "web_search",
+     "description": "Search the web for information"
+    },
+    {
+     "resource_id": 57744,
+     "name": "sdl_get_sdl_pool",
+     "description": "SDL staking pool state and boost controller configuration."
+    },
+    {
+     "resource_id": 42541,
+     "name": "board_get",
+     "description": "$0.0020 — get one board task incl. badge + settlement view"
+    },
+    {
+     "resource_id": 46152,
+     "name": "tiktok.search_users",
+     "description": "Search TikTok users by keyword. Requires query. Pass cursor from a previous response to fetch the ne"
+    },
+    {
+     "resource_id": 252211,
+     "name": "channel_info",
+     "description": "Channel name and member count for a channel id."
+    },
+    {
+     "resource_id": 46339,
+     "name": "agentlux_list_item",
+     "description": "List a generated item on the marketplace for sale. Requires a completed generation (draft)."
+    },
+    {
+     "resource_id": 47831,
+     "name": "seo_check_content",
+     "description": "E-E-A-T and content quality analysis powered by AI."
+    },
+    {
+     "resource_id": 36075,
+     "name": "vast42_list_icons",
+     "description": "List all VAST 4.2 icons"
+    },
+    {
+     "resource_id": 34314,
+     "name": "scry_check_bulk",
+     "description": "Look up many IPv4 addresses in one request. Up to 100 IPs per call. Same per-IP shape as scry_check,"
+    },
+    {
+     "resource_id": 254846,
+     "name": "abn_lookup",
+     "description": "Look up detailed information for a specific Australian Business Number (ABN)."
+    },
+    {
+     "resource_id": 56944,
+     "name": "backlink_check",
+     "description": "Check backlink presence in CommonCrawl index and Open PageRank score."
+    },
+    {
+     "resource_id": 40618,
+     "name": "tiktok_search_creators",
+     "description": "Search TikTok creators by keyword/name, returning matching profiles. Use for influencer discovery an"
+    },
+    {
+     "resource_id": 43763,
+     "name": "fuse_read_contract",
+     "description": "Calls a view/pure function on a Fuse contract. ABI is auto-fetched from the verified Fuse explorer w"
+    },
+    {
+     "resource_id": 42976,
+     "name": "exponent_calc",
+     "description": "Compute the result of raising a base to an exponent (base^exponent). Handles positive and negative e"
+    },
+    {
+     "resource_id": 43917,
+     "name": "web_search_medium",
+     "description": "Default web search via Brave for ambiguous or general queries. Fixed $0.008/call."
+    },
+    {
+     "resource_id": 243632,
+     "name": "constitution_status",
+     "description": "Installed? If yes: consent already given. A new key reads step_zero(page=1..N) once, then turn every"
+    },
+    {
+     "resource_id": 44507,
+     "name": "domain-check",
+     "description": "Check domain availability via RDAP"
+    },
+    {
+     "resource_id": 55294,
+     "name": "cidr_calc",
+     "description": "Expand a CIDR block into network address, broadcast, netmask, wildcard, usable host range and host c"
+    },
+    {
+     "resource_id": 43262,
+     "name": "hex_get_info",
+     "description": "Get info about a specific hex coordinate (terrain, neighbours, distance)"
+    },
+    {
+     "resource_id": 56497,
+     "name": "url_read",
+     "description": "PAID $0.004 (x402, USDC on Base). Fetch a PUBLIC url and return clean Markdown + a token estimate fo"
+    },
+    {
+     "resource_id": 36740,
+     "name": "hla_get_report",
+     "description": "One synthetic report: its text and the 10 slot names (A.1, A.2, B.1 … DQB1.2) to answer."
+    },
+    {
+     "resource_id": 56902,
+     "name": "notification_check",
+     "description": "Check Art. 30 contract clause compliance per provider."
+    },
+    {
+     "resource_id": 46152,
+     "name": "google-search-console.inspect_url",
+     "description": "Inspect indexing status for a single URL in Search Console.  Call google-search-console.list_sites t"
+    },
+    {
+     "resource_id": 44507,
+     "name": "semantic-search",
+     "description": "AI-powered semantic search across web content"
+    },
+    {
+     "resource_id": 56917,
+     "name": "hotel_search",
+     "description": "Search hotels in a city or area. Returns names, ratings, prices, amenities, and deals. Sortable by p"
+    },
+    {
+     "resource_id": 286606,
+     "name": "drivinguk_get_fact",
+     "description": "Get one verified fact from the drivinguk pack. Refuses (do_not_answer) when drifted or unverified — "
+    },
+    {
+     "resource_id": 168388,
+     "name": "risk_check",
+     "description": "查一只 A 股标的的风险读数。给一个 A 股标的：个股名字或 6 位代码、申万一级行业名、ETF/基金名字或代码、宽基指数名。返回：三个月内跌 ≥15% 的概率、平时的概率、它自己历史的概率、在不在安"
+    },
+    {
+     "resource_id": 48621,
+     "name": "sparql_query",
+     "description": "Run a SPARQL SELECT `query` against DanNet and return standard SPARQL JSON results ({\"head\": ..., \"r"
+    },
+    {
+     "resource_id": 42541,
+     "name": "url_parse",
+     "description": "$0.0020 — url -> components + query params"
+    },
+    {
+     "resource_id": 33772,
+     "name": "queue_list_names",
+     "description": "List queue names under a namespace matching a glob pattern. Owner-only — scoped access_keys cannot c"
+    },
+    {
+     "resource_id": 262228,
+     "name": "palanor_get_entity",
+     "description": "One entity in the Palanor company graph by any identifier (cik:…, lei:…, ticker:…, crd:…, uei:…, qid"
+    },
+    {
+     "resource_id": 55596,
+     "name": "depin_get_match_fee",
+     "description": "Get the current DePIN marketplace match fee (currently 0.15%). Returned alongside settlement currenc"
+    },
+    {
+     "resource_id": 33133,
+     "name": "duvera__wiki_search",
+     "description": "[duvera · risk:low] Search Wikipedia articles by keyword. Returns matching page titles, keys, and ex"
+    },
+    {
+     "resource_id": 40510,
+     "name": "rubrkit_read_audit",
+     "description": "Read a single audit run. Requires artifact_bundles:read for API keys."
+    },
+    {
+     "resource_id": 70977,
+     "name": "http_check",
+     "description": "Requests a URL and reports the final status code, redirect chain, response time, content type and si"
+    },
+    {
+     "resource_id": 37156,
+     "name": "client_get",
+     "description": "Get complete details of a client including financial summary and recent sessions."
+    },
+    {
+     "resource_id": 278903,
+     "name": "graph.get_node",
+     "description": "Retrieve a node and all its stored properties by ID."
+    },
+    {
+     "resource_id": 44222,
+     "name": "tokenintel_describe",
+     "description": "Get the full input schema for a specific tool. Returns the JSON Schema (parameters, types, required "
+    },
+    {
+     "resource_id": 232313,
+     "name": "recall_search",
+     "description": "PRO. CPSC recalls by product, manufacturer, retailer or hazard text, with date range."
+    },
+    {
+     "resource_id": 41120,
+     "name": "svgrid_check_code",
+     "description": "Verify SvGrid code BEFORE handing it to the user. Checks the source against the real exported surfac"
+    },
+    {
+     "resource_id": 43763,
+     "name": "fuse_get_balance",
+     "description": "Returns the native FUSE balance for an address, or an ERC-20 token balance when `tokenAddress` is su"
+    },
+    {
+     "resource_id": 43567,
+     "name": "muhurta_search",
+     "description": "Хорошие дни и часы на отрезке до 31 суток («хорошие даты с 1 по 20 октября»): по суткам — годен или "
+    },
+    {
+     "resource_id": 46193,
+     "name": "citerank_check_agentic_readiness",
+     "description": "Check how ready a website is for AI agent interactions. Tests for MCP endpoint, WebMCP declarative t"
+    },
+    {
+     "resource_id": 33133,
+     "name": "googlecalendar__availability_find",
+     "description": "[googlecalendar · risk:low] Find open time slots within a date range in Google Calendar"
+    },
+    {
+     "resource_id": 232236,
+     "name": "screen_search",
+     "description": "PRO. Up to 100 DFAT sanction matches for a name/keyword."
+    },
+    {
+     "resource_id": 33465,
+     "name": "kooma_translate",
+     "description": "Traduit un texte entre le bambara et 13 autres langues. Les codes de langue combinent langue et ecri"
+    },
+    {
+     "resource_id": 46152,
+     "name": "clerk.get_instance_oauth_settings",
+     "description": "Retrieve OAuth settings for a connected Clerk instance.  Call clerk.get_connected_accounts first. Pa"
+    },
+    {
+     "resource_id": 107916,
+     "name": "batch_lookup_ip",
+     "description": "Look up 1-100 IPv4/IPv6 addresses at once. Each result has version, scope, country, timezone, ASN, n"
+    },
+    {
+     "resource_id": 218655,
+     "name": "dcv.check",
+     "description": "DCV 预检 — DNS(TXT/CNAME)或 HTTP 文件验证模式。返回完整事件流(同步等待)。"
+    },
+    {
+     "resource_id": 52616,
+     "name": "fda_lookup",
+     "description": "US FDA open data: drug adverse events, drug/food/device recalls, drug labels."
+    },
+    {
+     "resource_id": 131153,
+     "name": "airport_info",
+     "description": "A Pakistani airport (Allama Iqbal Lahore, Jinnah Karachi, Islamabad, Bacha Khan Peshawar, Sialkot an"
+    },
+    {
+     "resource_id": 64627,
+     "name": "seo_price_sheet",
+     "description": "Free tool that returns current x402 pricing, margin, network, and asset."
+    },
+    {
+     "resource_id": 248051,
+     "name": "exportar_lista",
+     "description": "Exporta a busca avançada em CSV (grátis, até 1.000 linhas, 10 exportações/hora por IP; Pro 5.000 lin"
+    },
+    {
+     "resource_id": 164911,
+     "name": "vadyu_get_outreach_ledger",
+     "description": "Retrieve the Vadyu Outbound Prospecting & Agency Campaign Ledger of QA-passed video ads (`quality_st"
+    },
+    {
+     "resource_id": 58420,
+     "name": "appboard_browse_taxonomy",
+     "description": "List the controlled vocabulary for a dimension — categories, use cases, platforms, audiences or pric"
+    },
+    {
+     "resource_id": 232304,
+     "name": "sites_check",
+     "description": "PRO. Recent quakes (last N days) near up to 25 ZIPs — facilities, insured properties, data centres."
+    },
+    {
+     "resource_id": 286606,
+     "name": "holidayuk_get_fact",
+     "description": "Get one verified fact from the holidayuk pack. Refuses (do_not_answer) when drifted or unverified — "
+    },
+    {
+     "resource_id": 232295,
+     "name": "sanctions_check",
+     "description": "FREE. Screen one person or company name against the UK Sanctions List (FCDO/OFSI). Returns best 3 ma"
+    },
+    {
+     "resource_id": 85175,
+     "name": "participation_check",
+     "description": "Cached participation status and evidence. Not a legal finding."
+    },
+    {
+     "resource_id": 46152,
+     "name": "clerk.list_domains",
+     "description": "List custom domains configured for a connected Clerk instance.  Call clerk.get_connected_accounts fi"
+    },
+    {
+     "resource_id": 59538,
+     "name": "serp_read",
+     "description": "Web search plus page reading in one call: answer with sources. Runs a web search, scrapes the top re"
+    },
+    {
+     "resource_id": 45268,
+     "name": "betting_analyze_prop",
+     "description": "Analyze Prop  Model a single player's prop vs tonight's FanDuel line -> edge.  ### Responses:  **200"
+    },
+    {
+     "resource_id": 56911,
+     "name": "barcode_lookup",
+     "description": "Look up product by EAN/UPC barcode. Returns full product details, prices from multiple merchants."
+    },
+    {
+     "resource_id": 64362,
+     "name": "baidu-search",
+     "description": "Search Baidu, China's leading search engine, and return organic web results with titles, URLs, snipp"
+    },
+    {
+     "resource_id": 48463,
+     "name": "pabandi_discover",
+     "description": "Get PTP discovery (public). Returns verify endpoint, public key, issue endpoint, risk bands, entity "
+    },
+    {
+     "resource_id": 56908,
+     "name": "cve_search",
+     "description": "Search CVEs by keyword, vendor or product. Returns CVSS scores, attack vectors, DORA pillar mapping."
+    },
+    {
+     "resource_id": 56939,
+     "name": "author_search",
+     "description": "Find researchers by name. Returns h-index, publications, affiliations."
+    },
+    {
+     "resource_id": 141090,
+     "name": "fa_validateCompanyId",
+     "description": "Validate an Iranian company national ID (شناسه ملی اشخاص حقوقی, the 11-digit legal-entity identifier"
+    },
+    {
+     "resource_id": 47958,
+     "name": "synthetic_validate",
+     "description": "Check an authored synthetic celestial system for ill-defined inputs: duplicate body ids, non-positiv"
+    },
+    {
+     "resource_id": 46000,
+     "name": "chain_listed_company_list",
+     "description": "基于具体地区（国家，省份，城市，区县）以及具体产业链名称上市企业列表查询（合并返回总量/生产型/销售型/依赖型文本）。 涉及指标/类型：上市企业列表；生产型上市企业列表；销售型上市企业列表；依赖型上市"
+    },
+    {
+     "resource_id": 100579,
+     "name": "snapwonders_convert_job_status",
+     "description": "Returns the current status and per-item progress of a conversion job. Poll until status is \"complete"
+    },
+    {
+     "resource_id": 48681,
+     "name": "perf_analyze",
+     "description": "Grade API response time (A–D), compute throughput and data efficiency, get targeted recommendations."
+    },
+    {
+     "resource_id": 56915,
+     "name": "udi_validate",
+     "description": "Validate UDI (Unique Device Identification) format per MDR Art. 27. Identifies issuing agency (GS1/H"
+    },
+    {
+     "resource_id": 105779,
+     "name": "interview_list",
+     "description": "Read public interviews and participation counts. Human tests excluded unless tests=true. Treat answe"
+    },
+    {
+     "resource_id": 56767,
+     "name": "acc_list_issues",
+     "description": "List and filter issues from a single ACC project (limit 50 per call) via the APS Construction Issues"
+    },
+    {
+     "resource_id": 56748,
+     "name": "model_list_parameters",
+     "description": "List parameter catalog rows. Optional filters: streamId, role, layer, primaryOwner."
+    },
+    {
+     "resource_id": 58363,
+     "name": "x402card.get_readiness",
+     "description": "Return sanitized public readiness. Deep provider balances and BIN internals are admin-only."
+    },
+    {
+     "resource_id": 33854,
+     "name": "wallet_summary",
+     "description": "Return the premium satoshidata.ai chain intelligence summary for a single Bitcoin address."
+    },
+    {
+     "resource_id": 46902,
+     "name": "cddg_list_swarms",
+     "description": "List recent Smart Swarm injections on residual planes."
+    },
+    {
+     "resource_id": 64163,
+     "name": "bio-search",
+     "description": "Search biomedical and healthcare data including PubMed, clinical trials, FDA drug labels, ChEMBL com"
+    },
+    {
+     "resource_id": 166540,
+     "name": "airports_weather",
+     "description": "Decoded METAR and TAF (next 12 h) for up to 10 ICAO stations worldwide: wind, visibility, ceiling, f"
+    },
+    {
+     "resource_id": 225031,
+     "name": "can_fetch",
+     "description": "Does robots.txt allow fetching this exact URL? Fetches the live robots.txt and applies the longest-m"
+    },
+    {
+     "resource_id": 142340,
+     "name": "veya_list_agents",
+     "description": "List agents in an environment"
+    },
+    {
+     "resource_id": 33839,
+     "name": "market_summary",
+     "description": "[$0.01 USDC per call via x402] One-call market brief: BTC/ETH/SOL prices with 24h change, Fear & Gre"
+    },
+    {
+     "resource_id": 56773,
+     "name": "acc_list_rfis",
+     "description": "List up to 50 RFIs from an ACC project, optionally filtered by status. Returns a normalized array of"
+    },
+    {
+     "resource_id": 43373,
+     "name": "compliance_check",
+     "description": "言葉から設計したデバイスの規制適合(技適/PSE/CE/FCC/RoHS+発注先+部品調達)を機械チェック。設計で制御可能な指標は判定、実世界の試験/申請は要対応で正直表示(盛らない)"
+    },
+    {
+     "resource_id": 43287,
+     "name": "private_resolve",
+     "description": "Resolve a messy or partial business name to ONE canonical government record, with a computed confide"
+    },
+    {
+     "resource_id": 84808,
+     "name": "players_compare",
+     "description": "Compare players"
+    },
+    {
+     "resource_id": 123621,
+     "name": "notes_search",
+     "description": "Find notes you may see by their words, across every record in a shop. Optional target_kind narrows i"
+    },
+    {
+     "resource_id": 286606,
+     "name": "rentinguk_list_facts",
+     "description": "List fact ids + verification states (rentinguk)."
+    },
+    {
+     "resource_id": 39181,
+     "name": "alerts_list_watches",
+     "description": "List the calling user's saved watches."
+    },
+    {
+     "resource_id": 107946,
+     "name": "mastr_search_units",
+     "description": "Search/filter MaStR energy units by PLZ, type, status, capacity (kW), Bundesland, or keyword. [Germa"
+    },
+    {
+     "resource_id": 43373,
+     "name": "parts_search",
+     "description": "パーツをキーワード検索(型番/説明/用途)"
+    },
+    {
+     "resource_id": 308811,
+     "name": "physics_calc",
+     "description": "中学物理公式计算器（力学+电学）：传入已知物理量，自动匹配公式求未知量。覆盖公式族：牛顿第二定律 F=ma（F力N/m质量kg/a加速度m/s²）、重力 G=mg（g默认9.8N/kg，可传g=10）"
+    },
+    {
+     "resource_id": 41077,
+     "name": "macro_read_source",
+     "description": "Read the source text of one procedure (module + procedure name from macro_list). Read-only; runs not"
+    },
+    {
+     "resource_id": 184122,
+     "name": "testlens_health",
+     "description": "Check the TestLens API is up. Takes no arguments."
+    },
+    {
+     "resource_id": 50231,
+     "name": "smard_prices",
+     "description": "Get latest SMARD day-ahead prices (DE-LU)"
+    },
+    {
+     "resource_id": 286606,
+     "name": "dismissaluk_get_fact",
+     "description": "Get one verified fact from the dismissaluk pack. Refuses (do_not_answer) when drifted or unverified "
+    },
+    {
+     "resource_id": 64454,
+     "name": "places_search",
+     "description": "Search places by text query or nearby context. Useful fields: query, center, radius, limit.  Price: "
+    },
+    {
+     "resource_id": 50314,
+     "name": "api_search",
+     "description": "Google web search. ?q=query&num=5 returns organic results with title, link, snippet. [HTTP x402 pric"
+    },
+    {
+     "resource_id": 42854,
+     "name": "glossary__classify_search_intent",
+     "description": "［AI 與科技名詞白話解釋］判斷一句搜尋或提問屬於資訊探索、商業比較、技術除錯或行動指引哪種意圖，並給出建議答案結構、結構化資料類型與本站相關內容。"
+    },
+    {
+     "resource_id": 226677,
+     "name": "dk_weather",
+     "description": "Latest observed weather in Denmark from the nearest DMI station to a lat/lon (or a station id): temp"
+    },
+    {
+     "resource_id": 56884,
+     "name": "word_count",
+     "description": "Count words in text."
+    },
+    {
+     "resource_id": 278903,
+     "name": "graph.counts",
+     "description": "Return the total number of nodes in the graph, optionally filtered by label.  A cheap situational-aw"
+    },
+    {
+     "resource_id": 55931,
+     "name": "kaggle_search",
+     "description": "Search 200K+ Kaggle datasets by keyword. Returns dataset refs, titles, license info, download counts"
+    },
+    {
+     "resource_id": 46677,
+     "name": "mcp_lookup_npi",
+     "description": "Look up healthcare providers in the NPPES NPI registry.          Args:             name: Provider in"
+    },
+    {
+     "resource_id": 33854,
+     "name": "pulse_summary",
+     "description": "Return satoshidata.ai on-chain Pulse scanner health and 24-hour event totals."
+    },
+    {
+     "resource_id": 44483,
+     "name": "track_check",
+     "description": "V1 Track Check"
+    },
+    {
+     "resource_id": 384247,
+     "name": "sns_query_dataset",
+     "description": "Run an ODSQL query on any SNS Transparency portal dataset (Opendatasoft Explore API v2.1).  Use afte"
+    },
+    {
+     "resource_id": 36874,
+     "name": "verify_price",
+     "description": "Cross-chain value truth for an XRPL token — 'is the price real?' Reconstructs the token's USD price "
+    },
+    {
+     "resource_id": 54354,
+     "name": "robots-count",
+     "description": "robots.txt group count"
+    },
+    {
+     "resource_id": 104190,
+     "name": "loop_status",
+     "description": "Show a run's loops so far, whether it is halted, and its last 10 steps."
+    },
+    {
+     "resource_id": 56943,
+     "name": "peg_status",
+     "description": "Current peg status — deviation, stability"
+    },
+    {
+     "resource_id": 43919,
+     "name": "acp_lookup",
+     "description": "Look up Avalanche Community Proposals (ACPs) by number, title, or topic. When a number is provided t"
+    },
+    {
+     "resource_id": 56901,
+     "name": "sod_check",
+     "description": "Detect Segregation of Duties violations across all changes."
+    },
+    {
+     "resource_id": 33854,
+     "name": "entity_lookup",
+     "description": "Return one named Bitcoin entity rollup and a bounded member-address sample. coverage_status indicate"
+    },
+    {
+     "resource_id": 38057,
+     "name": "LP_Get_Terrain_3D",
+     "description": "Generate a 3-D perspective terrain surface map (Plotly go.Surface) coloured by elevation with a red "
+    },
+    {
+     "resource_id": 48081,
+     "name": "invoice_query",
+     "description": "查询当前 App Key 名下的发票草稿与开票记录（需 App Key）。可按状态筛选：draft（草稿）/ issued（已开具）/ all。"
+    },
+    {
+     "resource_id": 34973,
+     "name": "x402_discover",
+     "description": "[x402] Search the Coinbase x402 Bazaar for paid resources by natural-language query. Costs $0.001."
+    },
+    {
+     "resource_id": 232277,
+     "name": "kalshi_weather_series",
+     "description": "FREE. List Kalshi weather series (daily high/low temperature, rain, snow) by city or keyword, with s"
+    },
+    {
+     "resource_id": 43262,
+     "name": "rpg_list_categories",
+     "description": "List entity categories for an RPG system (spells, monsters, classes, equipment, etc)"
+    },
+    {
+     "resource_id": 257960,
+     "name": "crypto_price",
+     "description": "Crypto price and token price in USD with 24h change and market cap for one or more CoinGecko ids (bi"
+    },
+    {
+     "resource_id": 385788,
+     "name": "analytics_summary",
+     "description": "Shop-level totals: views, leads, and listing counts by status."
+    },
+    {
+     "resource_id": 36684,
+     "name": "users_list",
+     "description": "Everyone in the workspace: role (owner, member or guest), name, and whether they have set a password"
+    },
+    {
+     "resource_id": 56393,
+     "name": "proposal.list",
+     "description": "List TC39 proposals from the static index (tc39/proposals). Filter by spec ('262'|'402'), stage ('0'"
+    },
+    {
+     "resource_id": 232312,
+     "name": "provider_search",
+     "description": "PRO. Providers by specialty (taxonomy text, e.g. 'Dentist', 'Physical Therapist') + city/state/ZIP —"
+    },
+    {
+     "resource_id": 32956,
+     "name": "ssl_info",
+     "description": "Get SSL certificate information for a site.  Returns certificate details, expiry date, and issuer.  "
+    },
+    {
+     "resource_id": 57930,
+     "name": "entity_find",
+     "description": "Extracts named entities (people, companies, places) from text. Wikidata resolution next iteration. ["
+    },
+    {
+     "resource_id": 41397,
+     "name": "chess_list_bots",
+     "description": "List predetermined deterministic Chess Hall computer opponents. These are conventional bots, not LLM"
+    },
+    {
+     "resource_id": 43567,
+     "name": "corpus_search",
+     "description": "Какие известные люди (корпус 76 тыс.) родились с этой грахой в этом знаке и сколько их. znak 0…11, 0"
+    },
+    {
+     "resource_id": 40510,
+     "name": "rubrkit_list_evals",
+     "description": "List eval history. Requires artifact_bundles:read for API keys."
+    },
+    {
+     "resource_id": 56884,
+     "name": "shuffle_list",
+     "description": "Shuffle a list of items."
+    },
+    {
+     "resource_id": 37936,
+     "name": "json.validate",
+     "description": "Validate JSON and report the parse error position if invalid. [data · v1.0.0 · deterministic: true ·"
+    },
+    {
+     "resource_id": 48364,
+     "name": "currency_convert_open",
+     "description": "Converts a monetary amount between two fiat currencies using live exchange rates from an open curren"
+    },
+    {
+     "resource_id": 48364,
+     "name": "crypto_price_lite",
+     "description": "Retrieves the current spot price and 24-hour change for any cryptocurrency using the CoinGecko publi"
+    },
+    {
+     "resource_id": 46152,
+     "name": "domains.get_managed",
+     "description": "Get full details for one domain this Vee3 account owns or manages.  Returns registration status, exp"
+    },
+    {
+     "resource_id": 58419,
+     "name": "aon_resolve_category",
+     "description": "Turn a free-text product or service description into AON Taxonomy v1 category ids you can safely pas"
+    },
+    {
+     "resource_id": 47993,
+     "name": "hodlxxi_get_nostr_dm_policy",
+     "description": "Return public NIP-17/NIP-59 messaging policy metadata, including intake status, custody limitations,"
+    },
+    {
+     "resource_id": 46799,
+     "name": "cert_parse",
+     "description": "[cert] [x509_certificate] 解析 X.509 证书或证书链（国际 / 国密 GM SM2 双路径）。输入 PEM：单张证书，或多张证书的整链（叶子在前，合计≤32KB）。顶层字"
+    },
+    {
+     "resource_id": 45683,
+     "name": "crawl_status",
+     "description": "Fetch a crawl that outlived its call."
+    },
+    {
+     "resource_id": 43917,
+     "name": "web_search_deep",
+     "description": "Deep research search via Exa (academic, boolean, multi-source synthesis). Fixed $0.015/call."
+    },
+    {
+     "resource_id": 46152,
+     "name": "clerk.list_organization_invitations",
+     "description": "List organization invitations across a Clerk instance. Optionally filter to one organization via org"
+    },
+    {
+     "resource_id": 48362,
+     "name": "cortex_prices",
+     "description": "Free: complete tool/price table for this MCP gateway (served locally, no upstream call)."
+    },
+    {
+     "resource_id": 56365,
+     "name": "rug_check",
+     "description": "Detailed composite rug/honeypot report for one token: red/green flags, 0-100 risk, live-simulation r"
+    },
+    {
+     "resource_id": 60409,
+     "name": "caesarresearchagent_get_research_result",
+     "description": "Retrieve the results of a Caesar research query by its research ID. Returns the research status and "
+    },
+    {
+     "resource_id": 47789,
+     "name": "web_search",
+     "description": "Neural and keyword web search over the live web. Returns ranked results with title, URL, publication"
+    },
+    {
+     "resource_id": 253033,
+     "name": "youtube_search",
+     "description": "Search YouTube live via SerpAPI. Returns video_results (videos), plus channels, playlists, movies an"
+    },
+    {
+     "resource_id": 250558,
+     "name": "corpusfetch_lookup_symptom",
+     "description": "Look up operational experience for a specific runtime symptom or boundary failure (e.g., UNICODE_HOM"
+    },
+    {
+     "resource_id": 232242,
+     "name": "recall_search",
+     "description": "PRO. Up to 100 recalls with filters: keyword, category, recall class, since date (YYYY-MM-DD)."
+    },
+    {
+     "resource_id": 42541,
+     "name": "market_price",
+     "description": "$0.0020 — spot price + 24h stats via kraken ticker — the 'price of X' query"
+    },
+    {
+     "resource_id": 232238,
+     "name": "aqhi_forecast",
+     "description": "PRO. AQHI forecasts for the nearest station (next periods), plus the current observation."
+    },
+    {
+     "resource_id": 47958,
+     "name": "sky_view_sequence",
+     "description": "A time sequence of sky frames for an animation: the same place, aim, and lens stepped through time. "
+    },
+    {
+     "resource_id": 286606,
+     "name": "schooluk_list_facts",
+     "description": "List fact ids + verification states (schooluk)."
+    },
+    {
+     "resource_id": 39406,
+     "name": "ferryhopper_search_trips",
+     "description": "[ferryhopper] Deprecated: prefer search_ferry_trips, which covers this tool plus round-trip and mult"
+    },
+    {
+     "resource_id": 55592,
+     "name": "computegrid_list_agents",
+     "description": "List the 15-agent compute grid fleet across all 6 driver types. Returns agent type, count, and reven"
+    },
+    {
+     "resource_id": 290647,
+     "name": "wikipedia_lookup",
+     "description": "$0.01 via x402: Wikipedia knowledge lookup — article titles, extract snippets and canonical URLs for"
+    },
+    {
+     "resource_id": 272265,
+     "name": "parent_list_tours",
+     "description": "Returns the parent's daycare tour requests with status."
+    },
+    {
+     "resource_id": 65955,
+     "name": "topaz_compare_ve_strategies",
+     "description": "Compare the three veTOPAZ strategy modes — Manual, veTOPAZ Maxi, and Reward & Distribute — and recom"
+    },
+    {
+     "resource_id": 228004,
+     "name": "pre_check_building_plan",
+     "description": "Run an automated multi-point regulatory validation on building plan specifications and return a comp"
+    }
+   ]
+  },
+  {
+   "round": 3,
+   "sample": 220,
+   "mixed": {
+    "screen_show": "action (puts a match on a screen)",
+    "record_view_results": "write (stores a result)",
+    "haven_check_out": "action (leaves a space)",
+    "refresh_prices": "write (refreshes stored prices)",
+    "loop_check_step": "write (records a step)",
+    "artifacts_get_version": "write when load=true (replaces the workspace)",
+    "shelf_get": "write (writes a fetched item back to the store)"
+   },
+   "tools": [
+    {
+     "resource_id": 42826,
+     "name": "fx_convert",
+     "description": "Use when an agent has to convert money in a figure someone will audit: between any two of the ~30 cu"
+    },
+    {
+     "resource_id": 58233,
+     "name": "ieunit_convert",
+     "description": "Convert an amount between the ieUnit and about 60 other units: roughly 30 fiat currencies, the 30 la"
+    },
+    {
+     "resource_id": 56934,
+     "name": "amazon_search",
+     "description": "Search Amazon/open product database for prices and product info."
+    },
+    {
+     "resource_id": 135527,
+     "name": "arxiv_search",
+     "description": "Search arXiv preprints (AI, physics, math, CS, quant finance...) by keywords or field query: title, "
+    },
+    {
+     "resource_id": 33133,
+     "name": "duvera__github_search_repos",
+     "description": "[duvera · risk:low] Search public GitHub repositories by keyword. Returns top 5 results by stars. No"
+    },
+    {
+     "resource_id": 41397,
+     "name": "wilds_discover",
+     "description": "Discover Agent Wilds rules, capabilities, limits, provenance levels, and the canonical spectator URL"
+    },
+    {
+     "resource_id": 36243,
+     "name": "unit_convert",
+     "description": "Convert units: length, weight, temperature, area, volume, speed, data size. value + from + to (e.g. "
+    },
+    {
+     "resource_id": 56935,
+     "name": "neural_status",
+     "description": "Show OracleNet mesh intelligence — learned weights, rewards, synapse history, top-performing oracles"
+    },
+    {
+     "resource_id": 56953,
+     "name": "yield_compare",
+     "description": "Compare two protocols side by side — average APY, max APY, TVL, chains supported, top pools. E.g. 'a"
+    },
+    {
+     "resource_id": 60434,
+     "name": "zerionwalletanalysisagent_fetch_wallet_tokens",
+     "description": "Fetch token holdings of an EVM wallet. The result includes the amount, USD value, 1-day price change"
+    },
+    {
+     "resource_id": 36075,
+     "name": "vast_get_companion",
+     "description": "Get details of a specific VAST companion"
+    },
+    {
+     "resource_id": 56915,
+     "name": "gdpr_health_check",
+     "description": "GDPR Art.9 health data processing compliance assessment. Returns required legal basis, DPIA requirem"
+    },
+    {
+     "resource_id": 52835,
+     "name": "timezone_convert",
+     "description": "Convert an ISO-8601 datetime from one IANA timezone to another while preserving the same instant, in"
+    },
+    {
+     "resource_id": 43132,
+     "name": "agora_get_stats",
+     "description": "Retrieve platform statistics (threads, solves, community agents, 24h activity)."
+    },
+    {
+     "resource_id": 56919,
+     "name": "solvency_check",
+     "description": "Solvency II compliance news and GLEIF registration status for an insurer."
+    },
+    {
+     "resource_id": 142340,
+     "name": "veya_list_api_memory",
+     "description": "List memory entries via product API for an environment"
+    },
+    {
+     "resource_id": 34248,
+     "name": "arcade_status",
+     "description": "Show authentication state, recover any active session, and suggest the next step."
+    },
+    {
+     "resource_id": 175558,
+     "name": "stage_status",
+     "description": "Check a queued staging job. Returns queued, working, delivered (with the labelled staged image URL a"
+    },
+    {
+     "resource_id": 57970,
+     "name": "edge_discover",
+     "description": "Get everything about the connected Edge account: plan, budget, enabled products with limits and regi"
+    },
+    {
+     "resource_id": 36711,
+     "name": "smart_discover",
+     "description": "Describe what you need in plain language; Aegis maps it to the best verified services (LLM intent ma"
+    },
+    {
+     "resource_id": 47214,
+     "name": "domain_whois",
+     "description": "Structured WHOIS via RDAP for any domain: registrar, IANA id, statuses, expiry/registration dates, n"
+    },
+    {
+     "resource_id": 289491,
+     "name": "screen_show",
+     "description": "Put ONE match on the venue call screen FOR ITS COURT — every court has its own screen with its own l"
+    },
+    {
+     "resource_id": 45051,
+     "name": "team_summary",
+     "description": "A club's results so far, goals for/against, clean sheets, upcoming fixtures and top FPL players."
+    },
+    {
+     "resource_id": 123621,
+     "name": "approvals_listRules",
+     "description": "The shop's approval rules: which agent actions wait for the owner."
+    },
+    {
+     "resource_id": 46152,
+     "name": "google-search-console.get_site",
+     "description": "Get one Search Console property for this account.  Call google-search-console.list_sites to discover"
+    },
+    {
+     "resource_id": 39224,
+     "name": "token_info",
+     "description": "Read an ERC-20's name, symbol, decimals and total supply straight from the contract on the chain you"
+    },
+    {
+     "resource_id": 166540,
+     "name": "carry_convert",
+     "description": "Convert an amount between ~50 currencies at the official reference rate (Bank Al-Maghrib for MAD pai"
+    },
+    {
+     "resource_id": 41397,
+     "name": "colosseum_list_matches",
+     "description": "Read deterministic public battle results and round-by-round replays."
+    },
+    {
+     "resource_id": 56748,
+     "name": "roadflow_get",
+     "description": "Return the current workspace as JSON and/or markup."
+    },
+    {
+     "resource_id": 262228,
+     "name": "palanor_get_current",
+     "description": "Get one Current's live Momentum / Belief / Maturity reads and its brand phrase."
+    },
+    {
+     "resource_id": 63414,
+     "name": "bounty_status",
+     "description": "Get current status of a warp bounty target"
+    },
+    {
+     "resource_id": 33133,
+     "name": "wallet__boardingpass_show",
+     "description": "[wallet · risk:low] Pull up a boarding pass stored in Apple Wallet"
+    },
+    {
+     "resource_id": 38860,
+     "name": "refresh_prices",
+     "description": "Fetch fresh market prices now. With no ticker this refreshes every priced holding; with one it refre"
+    },
+    {
+     "resource_id": 47398,
+     "name": "grade_lookup",
+     "description": "Look up a steel grade: properties, chemistry, forms, applications, weldability. Aliases accepted (e."
+    },
+    {
+     "resource_id": 45288,
+     "name": "incumbent_lookup",
+     "description": "Use this to answer \"who am I displacing and when?\": a vendor name (plus optional agency scope) retur"
+    },
+    {
+     "resource_id": 46152,
+     "name": "domains.get_dns_hosts",
+     "description": "List DNS host records for one domain this Vee3 account manages.  Use for managed Namecheap DNS only."
+    },
+    {
+     "resource_id": 107997,
+     "name": "loop_check_step",
+     "description": "[loop-breaker] Call AFTER each tool call or agent step with what you just did and whether it failed."
+    },
+    {
+     "resource_id": 56922,
+     "name": "job_compare",
+     "description": "Compare job markets across cities for a role: job count and salaries."
+    },
+    {
+     "resource_id": 40644,
+     "name": "code_find_usages",
+     "description": "Find which files in a repository use a given technology, library or framework — with the line number"
+    },
+    {
+     "resource_id": 55294,
+     "name": "area_convert",
+     "description": "Convert area units: m2, km2, hectares, acres and square feet. Pure CPU, instant."
+    },
+    {
+     "resource_id": 55294,
+     "name": "pixel_convert",
+     "description": "Convert between pixels, points, ems and inches at a given DPI. Pure CPU, instant."
+    },
+    {
+     "resource_id": 33133,
+     "name": "delta__boardingpass_show",
+     "description": "[delta · risk:low] Pull up the boarding pass for a Delta flight"
+    },
+    {
+     "resource_id": 39003,
+     "name": "wilayah_search",
+     "description": "Search official Indonesian administrative regions (province, regency/city, district, village) by nam"
+    },
+    {
+     "resource_id": 59518,
+     "name": "cpf_validate",
+     "description": "Validate a Brazilian CPF (mod-11 check digits, rejects all-same). Stateless validator: records no de"
+    },
+    {
+     "resource_id": 52623,
+     "name": "agent_status",
+     "description": "Get details of one of your agents (mode, status, risk, triggers, last activity)."
+    },
+    {
+     "resource_id": 43919,
+     "name": "platform_get_blockchains",
+     "description": "Get all blockchains that exist on the P-Chain (paginated; use limit/offset)"
+    },
+    {
+     "resource_id": 59500,
+     "name": "anansi_search",
+     "description": "FREE. Resolves a partial name into exact model IDs and dataset names you can pass to the other tools"
+    },
+    {
+     "resource_id": 126513,
+     "name": "board_get_query",
+     "description": "Returns a question with its replies and the thread's `last_seq`.  Pass `after_seq` with the last `la"
+    },
+    {
+     "resource_id": 40126,
+     "name": "spot_price",
+     "description": "Live Chainlink on-chain spot price for an asset (latestRoundData, with round metadata). Pass `to` as"
+    },
+    {
+     "resource_id": 232273,
+     "name": "storm_list",
+     "description": "PRO. Full JMA target tropical cyclone list."
+    },
+    {
+     "resource_id": 123621,
+     "name": "jobs_findByTag",
+     "description": "Jobs in the shop that carry all the given tags (set with jobs.setTags), newest first, up to 200."
+    },
+    {
+     "resource_id": 56897,
+     "name": "escalation_status",
+     "description": "Get findings, SLA breaches, escalation status per entity."
+    },
+    {
+     "resource_id": 426183,
+     "name": "refinery_health",
+     "description": "Free — service health and cache size Origin: https://re-data-refinery.ares-hms.workers.dev. Price: f"
+    },
+    {
+     "resource_id": 40644,
+     "name": "code_get_files",
+     "description": "Get contents of multiple files from a remote public git repository in a single call. Reduces round-t"
+    },
+    {
+     "resource_id": 278903,
+     "name": "rag.query",
+     "description": "Flat Vector RAG — retrieves the most relevant graph nodes by pure vector similarity (HNSW + RRF fusi"
+    },
+    {
+     "resource_id": 232230,
+     "name": "region_search",
+     "description": "PRO. USGS earthquakes around Australia (bbox) for up to 90 days."
+    },
+    {
+     "resource_id": 36075,
+     "name": "draft_get_campaign",
+     "description": "Get details of a specific draft standard campaign"
+    },
+    {
+     "resource_id": 142129,
+     "name": "color_convert",
+     "description": "Convert a HEX color into RGB / HSL / HSV / CSS forms."
+    },
+    {
+     "resource_id": 36075,
+     "name": "vast42_list_icon_click_fallback_images",
+     "description": "List all VAST 4.2 icon click fallback images"
+    },
+    {
+     "resource_id": 286606,
+     "name": "motuk_get_fact",
+     "description": "Get one verified fact from the motuk pack. Refuses (do_not_answer) when drifted or unverified — neve"
+    },
+    {
+     "resource_id": 286606,
+     "name": "privacyuk_list_facts",
+     "description": "List fact ids + verification states (privacyuk)."
+    },
+    {
+     "resource_id": 42854,
+     "name": "hub_search_mcp_servers",
+     "description": "搜尋官方 MCP Registry 的 MCP 伺服器，可依關鍵字、分類、是否可遠端連線篩選。分類：資料庫、檔案與文件、瀏覽器與爬蟲、搜尋、開發工具、雲端與基礎設施、通訊與協作、財經與加密、地圖與旅遊"
+    },
+    {
+     "resource_id": 41397,
+     "name": "chess_list_tournaments",
+     "description": "List public Chess Hall round-robin tournaments and standings."
+    },
+    {
+     "resource_id": 59503,
+     "name": "company_check",
+     "description": "Who is this company? Identity from the public registries: GLEIF (legal name, LEI, jurisdiction, stat"
+    },
+    {
+     "resource_id": 33356,
+     "name": "questions_read",
+     "description": "Returns both open questions and the identifier for answering each."
+    },
+    {
+     "resource_id": 52616,
+     "name": "wikipedia_summary",
+     "description": "Short summary of a Wikipedia article by title."
+    },
+    {
+     "resource_id": 50470,
+     "name": "jhnrd_list_sources",
+     "description": "出典の一覧。素性ごと、現行かどうかごとに数えたものも返す。statute が何件あるかだけを言うと実態より良く見えるので、現行版の数を分けて出す。"
+    },
+    {
+     "resource_id": 57747,
+     "name": "places_geocode",
+     "description": "Resolve a place name or address to coordinates"
+    },
+    {
+     "resource_id": 127703,
+     "name": "feedam_get_state_snap_portal",
+     "description": "Get the official SNAP application portal URL for a US state (official_portal_url) with the state age"
+    },
+    {
+     "resource_id": 43262,
+     "name": "oracle_list_games",
+     "description": "List all supported RPG systems with oracle tables and entity data availability"
+    },
+    {
+     "resource_id": 58904,
+     "name": "record_view_results",
+     "description": "Stores the result of a diagram run in the BlockWerk chat view."
+    },
+    {
+     "resource_id": 33535,
+     "name": "reverse_geocode",
+     "description": "Turn coordinates into the nearest places: addresses, POIs and localities with distance in metres. Th"
+    },
+    {
+     "resource_id": 47308,
+     "name": "cve_lookup",
+     "description": "Security vulnerability lookup (CVE) against the official NVD (NIST) database — by exact CVE id or by"
+    },
+    {
+     "resource_id": 232312,
+     "name": "npi_lookup",
+     "description": "FREE. Look up a US healthcare provider by NPI number or name (+ state): specialty, status, practice "
+    },
+    {
+     "resource_id": 36078,
+     "name": "adcritter_get_api_reference",
+     "description": "Returns the REST API contract for an AdCritter entity. Without an action parameter, returns a summar"
+    },
+    {
+     "resource_id": 135527,
+     "name": "option_price",
+     "description": "Black-Scholes price and greeks (delta, gamma, vega, theta, rho) of a European call or put, probabili"
+    },
+    {
+     "resource_id": 57970,
+     "name": "edge_list_projects",
+     "description": "List all projects (groupings of resources) on the connected Edge account."
+    },
+    {
+     "resource_id": 70977,
+     "name": "package_info",
+     "description": "Metadata for an npm or PyPI package: latest version and release date, license, description, reposito"
+    },
+    {
+     "resource_id": 155999,
+     "name": "census_info",
+     "description": "Product, prices, cap and limits."
+    },
+    {
+     "resource_id": 368704,
+     "name": "vebhost_get",
+     "description": "Карточка одного сайта: ссылка, доступ, SEO, версия."
+    },
+    {
+     "resource_id": 107916,
+     "name": "dns_lookup",
+     "description": "Resolve DNS records for a domain via Cloudflare 1.1.1.1 DNS-over-HTTPS. Types: A, AAAA, MX, TXT, NS,"
+    },
+    {
+     "resource_id": 55295,
+     "name": "verification_status",
+     "description": "Check this account's Know-Your-Agent verification tier (unverified / operator / enterprise) and any "
+    },
+    {
+     "resource_id": 46989,
+     "name": "fx_convert",
+     "description": "Use when you need to convert an amount between currencies (USD↔KRW, EUR→JPY, ...) at the official EC"
+    },
+    {
+     "resource_id": 38057,
+     "name": "LP_Get_Terrain_Map",
+     "description": "Generate a composite terrain map: Google Hybrid satellite (EPSG:3857) + smoothed contours with label"
+    },
+    {
+     "resource_id": 58301,
+     "name": "reconstitution_calc",
+     "description": "Berechnet die Rekonstitution eines Peptid-Vials: aus Vial-Wirkstoffmenge (mg), BAC-Wasser-Volumen (m"
+    },
+    {
+     "resource_id": 56748,
+     "name": "artifacts_get_version",
+     "description": "Load one shared Artifacts version by relative index (-1 newest). Optional load=true replaces the MCP"
+    },
+    {
+     "resource_id": 38057,
+     "name": "LP_Get_Slope_Stats",
+     "description": "Get terrain slope statistics (Min, Average, Max) in degrees for 3×3, 5×5 and 7×7 pixel windows. WGS-"
+    },
+    {
+     "resource_id": 41432,
+     "name": "ref_geocode",
+     "description": "Convert a free-form address or place name into coordinates with normalised address components, a cal"
+    },
+    {
+     "resource_id": 84808,
+     "name": "clans_search_ndjson",
+     "description": "Search clans (streamed)"
+    },
+    {
+     "resource_id": 46597,
+     "name": "batch_get_products",
+     "description": "【电商核心工具】批量查询多个商品的实时价格和库存。用户对比多个商品、推荐多个选项时优先使用此工具，一次调用获取全部数据，比逐个调用更高效。"
+    },
+    {
+     "resource_id": 56926,
+     "name": "viral_score",
+     "description": "🔒 PREMIUM (not available anonymously on this endpoint): Viral potential analysis combining Google Tr"
+    },
+    {
+     "resource_id": 107946,
+     "name": "mastr_get_stats",
+     "description": "Aggregate counts by type, status and Bundesland over the current snapshot. [German MaStR energy unit"
+    },
+    {
+     "resource_id": 55610,
+     "name": "morph_get_supermodel",
+     "description": "Fetch a single supermodel by name or id (e.g. 'MONROE', 'W1'). Returns full role, lane, lead-shape, "
+    },
+    {
+     "resource_id": 84808,
+     "name": "servers_compare",
+     "description": "Compare regions"
+    },
+    {
+     "resource_id": 48707,
+     "name": "consistency_check",
+     "description": "Check consistency across multiple LLM responses"
+    },
+    {
+     "resource_id": 286606,
+     "name": "motuk_list_facts",
+     "description": "List fact ids + verification states (motuk)."
+    },
+    {
+     "resource_id": 42541,
+     "name": "date_calc",
+     "description": "$0.0020 — date parse/shift/diff (iso|unix input)"
+    },
+    {
+     "resource_id": 55540,
+     "name": "me_get_request",
+     "description": "Poll a durable request until terminal."
+    },
+    {
+     "resource_id": 42139,
+     "name": "arxiv_get_paper",
+     "description": "     Full paper object with all connected data.      Returns: paper metadata, author list with posit"
+    },
+    {
+     "resource_id": 57747,
+     "name": "web_fetch",
+     "description": "Fetch a web page by URL and return its cleaned readable content, stripping ads, popups and navigatio"
+    },
+    {
+     "resource_id": 232253,
+     "name": "sanctions_check",
+     "description": "FREE. Screen one person, company or vessel name against Canada's consolidated autonomous sanctions l"
+    },
+    {
+     "resource_id": 45235,
+     "name": "parlayapi_list_sports",
+     "description": "List available sport keys. Use these in subsequent calls.      Examples: baseball_mlb, basketball_nb"
+    },
+    {
+     "resource_id": 40510,
+     "name": "rubrkit_search_api_docs",
+     "description": "Search the canonical docs/api Markdown guides and OpenAPI operation summaries."
+    },
+    {
+     "resource_id": 64887,
+     "name": "chinese.convert",
+     "description": "Convert Chinese text between Simplified and Traditional scripts (and regional variants). from/to tak"
+    },
+    {
+     "resource_id": 50580,
+     "name": "haven_check_out",
+     "description": "Leave Haven. Returns your identity_summary, next_goals and a memory_capsule. The capsule is handed b"
+    },
+    {
+     "resource_id": 232264,
+     "name": "wbgt_search",
+     "description": "PRO. Find WBGT rows by prefecture or station name substring (up to 50)."
+    },
+    {
+     "resource_id": 33133,
+     "name": "datadog__logs_view",
+     "description": "[datadog · risk:low] Search and read logs from Datadog over a time range"
+    },
+    {
+     "resource_id": 46000,
+     "name": "chain_listed_company_num",
+     "description": "基于具体地区（国家，省份，城市，区县）以及具体产业链名称上市企业数量查询（合并返回总量/生产型/销售型/依赖型文本）。 涉及指标/类型：上市企业数量；生产型上市企业数量；销售型上市企业数量；依赖型上市"
+    },
+    {
+     "resource_id": 56428,
+     "name": "catalog_list_devices",
+     "description": "List the `@Preview(device = ...)` ids this server's render lane recognises, with each one's dp size "
+    },
+    {
+     "resource_id": 46152,
+     "name": "google-search.keyword_traffic_insights",
+     "description": "Get Google keyword traffic insights and related keyword suggestions for a seed keyword.  Returns an "
+    },
+    {
+     "resource_id": 103866,
+     "name": "qrblox.ping",
+     "description": "Confirm that the Qrblox MCP server is reachable for the authenticated merchant."
+    },
+    {
+     "resource_id": 50470,
+     "name": "jhnrd_get_source",
+     "description": "出典1件の素性。tier(statute/agency/secondary)と、現行版かどうか(current)を必ず返す。"
+    },
+    {
+     "resource_id": 232317,
+     "name": "sponsor_search",
+     "description": "PRO. H-1B sponsors by state, city and/or NAICS industry prefix, ranked by approvals — lead lists for"
+    },
+    {
+     "resource_id": 33133,
+     "name": "duvera__github_read_file",
+     "description": "[duvera · risk:low] Read a file from a public GitHub repository. Read-only."
+    },
+    {
+     "resource_id": 272265,
+     "name": "org_list_programs",
+     "description": "Returns the org's programs."
+    },
+    {
+     "resource_id": 46745,
+     "name": "charm_lookup",
+     "description": "Look up verified OEM part numbers, torque specs, fluid capacities, and service procedures for vehicl"
+    },
+    {
+     "resource_id": 34182,
+     "name": "experiment_get",
+     "description": "Fetch a stored experiment in full: the recipe (settings, interventions, windows, spec_version), the "
+    },
+    {
+     "resource_id": 61033,
+     "name": "chain_summary",
+     "description": "Summarize chain activity for a network."
+    },
+    {
+     "resource_id": 43919,
+     "name": "blockchain_get_native_balance",
+     "description": "Compatibility alias for onchain_lookup address balances. Prefer onchain_lookup for new clients."
+    },
+    {
+     "resource_id": 56773,
+     "name": "acc_list_projects",
+     "description": "List every Autodesk Construction Cloud (ACC) / BIM 360 project the configured APS 2-legged app has a"
+    },
+    {
+     "resource_id": 286606,
+     "name": "insuranceuk_get_fact",
+     "description": "Get one verified fact from the insuranceuk pack. Refuses (do_not_answer) when drifted or unverified "
+    },
+    {
+     "resource_id": 207953,
+     "name": "loop_status",
+     "description": "Fetch a loop run's status and receipt."
+    },
+    {
+     "resource_id": 43919,
+     "name": "docs_list_sections",
+     "description": "List available documentation sections and their page counts"
+    },
+    {
+     "resource_id": 191948,
+     "name": "starproof_health",
+     "description": "Check the StarProof API is up. Takes no arguments."
+    },
+    {
+     "resource_id": 33158,
+     "name": "bulk_check",
+     "description": "Check up to 200 part numbers in one call (read-only, no auth; for a single part use lookup_part). Re"
+    },
+    {
+     "resource_id": 123621,
+     "name": "calendar_listFeeds",
+     "description": "Calendar feeds in a shop, newest first, with whether each is active and how often it was fetched. Fi"
+    },
+    {
+     "resource_id": 58363,
+     "name": "x402card.get_esim_readiness",
+     "description": "Return eSIM-only readiness without unrelated card-provider or treasury gates."
+    },
+    {
+     "resource_id": 286606,
+     "name": "taxfreeuk_list_facts",
+     "description": "List fact ids + verification states (taxfreeuk)."
+    },
+    {
+     "resource_id": 136729,
+     "name": "reeling_get_platform_matrix",
+     "description": "PUBLIC DISCOVERY TOOL (No API key required): Returns Reeling's 15 supported social and community pla"
+    },
+    {
+     "resource_id": 64163,
+     "name": "paper-search",
+     "description": "Search academic papers from arXiv, PubMed, bioRxiv, and medRxiv. The API handles semantic search - u"
+    },
+    {
+     "resource_id": 41254,
+     "name": "agent_get_control_cross_references",
+     "description": "Get cross-framework mappings for a control  Returns all controls in other frameworks that map to the"
+    },
+    {
+     "resource_id": 65955,
+     "name": "topaz_get_protocol_history",
+     "description": "Get historical protocol trends for Topaz on one chain or each of the five — daily volume and fees pl"
+    },
+    {
+     "resource_id": 45216,
+     "name": "ruby_get_doc",
+     "description": "Read a document from the Ruby Office shared workspace."
+    },
+    {
+     "resource_id": 250558,
+     "name": "corpusfetch_lookup_exception",
+     "description": "Look up operational experience for an exact Python exception class (e.g., KeyError, TimeoutError, Co"
+    },
+    {
+     "resource_id": 43919,
+     "name": "blockchain_lookup_chain",
+     "description": "Look up a blockchain by its ID — name, VM type, and Subnet/L1."
+    },
+    {
+     "resource_id": 43903,
+     "name": "ag_calc_stats",
+     "description": "Deterministic descriptive statistics for a numeric series.  count/sum/min/max/mean/median/stdev/vari"
+    },
+    {
+     "resource_id": 41077,
+     "name": "document_read",
+     "description": "Paragraph text as a window: from = index of the first paragraph (0-based), count = how many (max 40)"
+    },
+    {
+     "resource_id": 39630,
+     "name": "tax_estimate",
+     "description": "Federal income tax estimate (2025/2026): ordinary brackets, standard/itemized deduction, LTCG stacki"
+    },
+    {
+     "resource_id": 64448,
+     "name": "token_search",
+     "description": "Search tokens by name, symbol, or contract metadata. Useful fields: query, chainId, limit.  Price: ~"
+    },
+    {
+     "resource_id": 43262,
+     "name": "oracle_list_tables",
+     "description": "List available oracle tables for a system"
+    },
+    {
+     "resource_id": 283977,
+     "name": "bmi_check",
+     "description": "Body mass index from weight and height, with the NHS adult category and the healthy-weight range for"
+    },
+    {
+     "resource_id": 57970,
+     "name": "edge_list_vms",
+     "description": "List all virtual machines on the account with status, size, and IPs."
+    },
+    {
+     "resource_id": 57744,
+     "name": "sdl_get_reward_history",
+     "description": "Reward distribution history from the LinkPool subgraph."
+    },
+    {
+     "resource_id": 33465,
+     "name": "kooma_list_voices",
+     "description": "Liste les voix bambara disponibles pour la synthese vocale, avec leur identifiant, leur nom et leur "
+    },
+    {
+     "resource_id": 123621,
+     "name": "visits_get",
+     "description": "One visit with its job and workers."
+    },
+    {
+     "resource_id": 41179,
+     "name": "tariffmonkee-search",
+     "description": "Web search results as clean JSON: up to 10 ranked results per query with title, URL and snippet. Thr"
+    },
+    {
+     "resource_id": 47579,
+     "name": "recall_check",
+     "description": "Official US product recalls (CPSC saferproducts.gov API) touching a product category in the last 365"
+    },
+    {
+     "resource_id": 56769,
+     "name": "nwd_get_clashes",
+     "description": "Detect geometric/logical clashes between two element sets in an already-translated Navisworks model."
+    },
+    {
+     "resource_id": 43917,
+     "name": "web_search_simple",
+     "description": "Simple factual web search via Brave (lookups, definitions, short queries). Fixed $0.003/call."
+    },
+    {
+     "resource_id": 43262,
+     "name": "hex_list_games",
+     "description": "List all available hex map game types with configuration options"
+    },
+    {
+     "resource_id": 39406,
+     "name": "fcdo_list_countries",
+     "description": "[fcdo] List all countries with UK FCDO travel advice."
+    },
+    {
+     "resource_id": 88142,
+     "name": "analytics.get",
+     "description": "Visitors and page views per day, top pages, where visitors come from, and phone vs desktop. No cooki"
+    },
+    {
+     "resource_id": 59381,
+     "name": "hive_search",
+     "description": "Search all items by keyword. Best matches first."
+    },
+    {
+     "resource_id": 36075,
+     "name": "draft_list_rich_media_ad_items",
+     "description": "List all draft rich media ad items"
+    },
+    {
+     "resource_id": 59518,
+     "name": "sin_validate",
+     "description": "Validate a Canadian SIN (Luhn checksum); returns series region + masked form. Stateless validator: r"
+    },
+    {
+     "resource_id": 283977,
+     "name": "compounds_get",
+     "description": "Get one compound's UK legal status: whether it is licensed, in trials, cosmetic or unlicensed, the e"
+    },
+    {
+     "resource_id": 36740,
+     "name": "dilemma_get_match",
+     "description": "A prisoner's dilemma match: every round so far, the reasons given and the score. The opponent is rev"
+    },
+    {
+     "resource_id": 41254,
+     "name": "agent_get_framework_controls",
+     "description": "Get all controls for a compliance framework  Returns all controls belonging to a framework, optional"
+    },
+    {
+     "resource_id": 34902,
+     "name": "scan_summary",
+     "description": "Return the latest weekly scan of the official MCP registry: how many servers passed a directory heal"
+    },
+    {
+     "resource_id": 43302,
+     "name": "shelf_get",
+     "description": "取公共仓库里的成品（带来源与时间）。库里没有且给了网址，会实时加工并写回库内。"
+    },
+    {
+     "resource_id": 100579,
+     "name": "snapwonders_analyse_result",
+     "description": "Returns clean forensic result JSON by job_uid — file names, grades (A–F), detection counts, and anal"
+    },
+    {
+     "resource_id": 58615,
+     "name": "drive_read",
+     "description": "Read a file's content from a workspace."
+    },
+    {
+     "resource_id": 402792,
+     "name": "grid_health",
+     "description": "$0.007 — Simplified grid health snapshot for Kraken APEX grid bots. Returns active pairs, fill rate,"
+    },
+    {
+     "resource_id": 46152,
+     "name": "clerk.get_redirect_url",
+     "description": "Retrieve an allowed redirect URL by id from a connected Clerk instance.  Call clerk.get_connected_ac"
+    },
+    {
+     "resource_id": 39925,
+     "name": "destination_info",
+     "description": "熱門目的地（沖繩、北海道、福岡、名古屋、釜山、濟州島、富國島、胡志明市、河內）的機場、電壓插頭、入境與行前提醒。"
+    },
+    {
+     "resource_id": 41230,
+     "name": "electricity_price_trends",
+     "description": "How much electricity prices have risen versus overall inflation: U.S. CPI electricity vs all items ("
+    },
+    {
+     "resource_id": 59066,
+     "name": "procurement_forecast",
+     "description": "採購預告：機關在正式招標前公布的「幾月要招、預算多少」，通常早 1～3 個月，     是唯一能搶在公告前準備的來源。q 篩標案名稱或機關（空白＝且，台／臺互通），unit 給機關代碼（含下級機關）。"
+    },
+    {
+     "resource_id": 58746,
+     "name": "base_convert",
+     "description": "Convert numbers between decimal, binary, octal, hexadecimal."
+    },
+    {
+     "resource_id": 44350,
+     "name": "service_status",
+     "description": "Aktueller Verfügbarkeitsstatus der überwachten Dienste.  name: optionaler Teilstring auf Name/Slug ("
+    },
+    {
+     "resource_id": 215730,
+     "name": "site_check",
+     "description": "Website health, search-visibility and conversion check for any public URL. Returns a 0-100 score and"
+    },
+    {
+     "resource_id": 55294,
+     "name": "ipv4_validate",
+     "description": "Validate an IPv4 address and report whether it is private, loopback, link-local or public, with its "
+    },
+    {
+     "resource_id": 286606,
+     "name": "parkinguk_get_fact",
+     "description": "Get one verified fact from the parkinguk pack. Refuses (do_not_answer) when drifted or unverified — "
+    },
+    {
+     "resource_id": 48034,
+     "name": "judges_search",
+     "description": "Search federal and state judges."
+    },
+    {
+     "resource_id": 107997,
+     "name": "memory_list_checkpoints",
+     "description": "[run-memory] List recent checkpoints (step, size, time) for one run or all runs on your key."
+    },
+    {
+     "resource_id": 123621,
+     "name": "notes_get",
+     "description": "One note you may see, with every earlier wording (history, oldest first)."
+    },
+    {
+     "resource_id": 39509,
+     "name": "card_get",
+     "description": "[FIND · door] Fetch one card (the full record) from the keeping by id."
+    },
+    {
+     "resource_id": 166540,
+     "name": "odds_search",
+     "description": "Search open Polymarket and Kalshi markets by keywords; each market with outcomes and implied probabi"
+    },
+    {
+     "resource_id": 48034,
+     "name": "aurora_forecast",
+     "description": "NOAA aurora oval forecast."
+    },
+    {
+     "resource_id": 56216,
+     "name": "uptime_check_multi",
+     "description": "Check if a website is up or down from 7 global locations simultaneously: Amsterdam, Sydney, London, "
+    },
+    {
+     "resource_id": 57970,
+     "name": "edge_list_buckets",
+     "description": "List storage buckets on the account."
+    },
+    {
+     "resource_id": 44062,
+     "name": "studios_get",
+     "description": "Get full profile of a specific studio by slug."
+    },
+    {
+     "resource_id": 115041,
+     "name": "edge_weather-markets",
+     "description": "Model-vs-market divergence across every parseable weather prediction market. Compares our weather mo"
+    },
+    {
+     "resource_id": 43289,
+     "name": "food_compare",
+     "description": "Compare nutrition facts between 2-5 food products side by side. Great for \"which is healthier\" quest"
+    },
+    {
+     "resource_id": 286606,
+     "name": "vehicleuk_get_fact",
+     "description": "Get one verified fact from the vehicleuk pack. Refuses (do_not_answer) when drifted or unverified — "
+    },
+    {
+     "resource_id": 42507,
+     "name": "stripe.get_stripe_account_info",
+     "description": "This will get the account info for the logged in Stripe account. "
+    },
+    {
+     "resource_id": 55294,
+     "name": "vat_validate",
+     "description": "Validate an EU or UK VAT number format and checksum and return the country and normalised form. Pure"
+    },
+    {
+     "resource_id": 36075,
+     "name": "vast_get_placement",
+     "description": "Get details of a specific VAST placement"
+    },
+    {
+     "resource_id": 36242,
+     "name": "phone_info",
+     "description": "中国大陆手机号识别:validity, carrier (移动/联通/电信/虚拟运营商), formatted forms. phone = 11-digit number."
+    },
+    {
+     "resource_id": 48034,
+     "name": "space_weather",
+     "description": "NOAA space weather — solar flares, geomagnetic storms, solar wind speed, Kp index."
+    },
+    {
+     "resource_id": 124741,
+     "name": "refrigerant_info",
+     "description": "Reference card for a refrigerant: GWP, ASHRAE safety class, composition, typical oil, temperature gl"
+    },
+    {
+     "resource_id": 70977,
+     "name": "ai_summarize",
+     "description": "LLM summary of long text: a concise summary in the requested length and language plus bullet key poi"
+    },
+    {
+     "resource_id": 384247,
+     "name": "ine_search",
+     "description": "Find INE indicators by keyword (e.g. \"inflação\", \"desemprego\", \"população\", \"rendas\", \"turismo\").  S"
+    },
+    {
+     "resource_id": 36075,
+     "name": "vast42_list_ads",
+     "description": "List all VAST 4.2 ad items"
+    },
+    {
+     "resource_id": 38694,
+     "name": "tryouts_get",
+     "description": "A tryout by id, or the tryout on a job: candidates, deadlines, submissions and advisory Spec Referee"
+    },
+    {
+     "resource_id": 38694,
+     "name": "notifications_list",
+     "description": "Your own notifications, newest first (job awards, deliveries, disputes, mentions…). Paginate with th"
+    },
+    {
+     "resource_id": 35452,
+     "name": "uxc_search_catalog",
+     "description": "Search a merchant catalog (text query + price filters + pagination). The merchant is resolved from a"
+    },
+    {
+     "resource_id": 37156,
+     "name": "service_list",
+     "description": "List services of an organization. Can filter by active status, discoverability, or category."
+    },
+    {
+     "resource_id": 57656,
+     "name": "gleif_resolve",
+     "description": "Resolve a legal entity from public LEI registry records by LEI, legal name, jurisdiction, registrati"
+    },
+    {
+     "resource_id": 84808,
+     "name": "glossary_search",
+     "description": "Search the glossary"
+    },
+    {
+     "resource_id": 48689,
+     "name": "risk_score",
+     "description": "Calculate 0-100 risk score with severity breakdown"
+    },
+    {
+     "resource_id": 129228,
+     "name": "coin_price",
+     "description": "Current coin market prices via CoinGecko simple price."
+    },
+    {
+     "resource_id": 232298,
+     "name": "tenders_discover",
+     "description": "Free peek: up to 5 live Contracts Finder notices for a query (keyword / region / CPV). Cached 24h. S"
+    },
+    {
+     "resource_id": 232288,
+     "name": "insolvency_check",
+     "description": "FREE. Has this UK company (name or company number) appeared in Gazette insolvency notices — winding-"
+    },
+    {
+     "resource_id": 204390,
+     "name": "domain_lookup_batch",
+     "description": "Batch domain intelligence for due diligence and lead lists: up to 10 domains per call, 60% cheaper t"
+    },
+    {
+     "resource_id": 232237,
+     "name": "contract_search",
+     "description": "PRO. AusTender contracts in a date range (YYYY-MM-DD, max 31 days) with optional keyword."
+    },
+    {
+     "resource_id": 41015,
+     "name": "sti_search",
+     "description": "Authoritative semantic search over the official Stimulsoft Reports & Dashboards developer documentat"
+    },
+    {
+     "resource_id": 46989,
+     "name": "time_convert",
+     "description": "Use when scheduling across time zones or turning a local time into UTC without guessing DST. Input: "
+    },
+    {
+     "resource_id": 271012,
+     "name": "vault_list",
+     "description": "List all keys stored in your AgentLair Vault (metadata only, values not returned)."
+    },
+    {
+     "resource_id": 41171,
+     "name": "fax_ping",
+     "description": "Prüft, ob Faxversand verfügbar ist und ob er bezahlt (Stripe) läuft."
+    },
+    {
+     "resource_id": 34313,
+     "name": "sigil_score_weights",
+     "description": "Returns the active, versioned default weights used to combine an entity's trust-score components, pl"
+    },
+    {
+     "resource_id": 232274,
+     "name": "volcano_search",
+     "description": "PRO. Search volcano bulletins by keyword (volcano name / level text)."
+    },
+    {
+     "resource_id": 46152,
+     "name": "clerk.list_organization_memberships",
+     "description": "List members of a Clerk organization.  Call clerk.get_connected_accounts first. Pass clerk_instance_"
+    },
+    {
+     "resource_id": 129014,
+     "name": "wallet-lookup-pro",
+     "description": "Multi-chain EVM wallet portfolio lookup: native coin plus curated token balances with best-effort US"
+    },
+    {
+     "resource_id": 39509,
+     "name": "cards_browse",
+     "description": "[FIND · internal] Browse the keeping — paginated, optional shelf filter. Returns card briefs."
+    },
+    {
+     "resource_id": 57673,
+     "name": "datafeed_info",
+     "description": "[FREE] AgentWorld Economy Data Feed - monthly API subscriptions to the live AgentWorld economy: trea"
+    },
+    {
+     "resource_id": 58192,
+     "name": "brainkb_list_access_rules",
+     "description": "List a space's fine-grained access rules (member/manager of the space)."
+    },
+    {
+     "resource_id": 286606,
+     "name": "nhsuk_list_facts",
+     "description": "List fact ids + verification states (nhsuk)."
+    },
+    {
+     "resource_id": 36075,
+     "name": "vast_list_channels",
+     "description": "List all VAST channels"
+    },
+    {
+     "resource_id": 35550,
+     "name": "web-search",
+     "description": "Keyless web search for agents: pass a query, get a concise web-grounded answer plus the top source r"
+    },
+    {
+     "resource_id": 40510,
+     "name": "rubrkit_list_golden_cases",
+     "description": "List the golden cases for an artifact bundle via /api/v1/artifact-bundles/{artifactBundleId}/golden-"
+    }
+   ]
+  },
+  {
+   "round": 4,
+   "sample": 220,
+   "mixed": {},
+   "tools": [
+    {
+     "resource_id": 264465,
+     "name": "syntropy_get_world_axioms",
+     "description": "Retrieve all atomic ground-truth axioms and metadata for a given Small World handle or ID."
+    },
+    {
+     "resource_id": 39406,
+     "name": "peek_search_experiences",
+     "description": "[peek] Search for travel experiences with comprehensive filtering options. Returns available categor"
+    },
+    {
+     "resource_id": 286606,
+     "name": "holidayuk_list_facts",
+     "description": "List fact ids + verification states (holidayuk)."
+    },
+    {
+     "resource_id": 44446,
+     "name": "xrplme_get_survey_questions",
+     "description": "Get survey questions for AI agents to provide feedback. FREE."
+    },
+    {
+     "resource_id": 43262,
+     "name": "rules_get_variant",
+     "description": "Get rules for a specific game variant"
+    },
+    {
+     "resource_id": 57790,
+     "name": "account_status",
+     "description": "Show the API key's plan, monthly quota and how much has been used."
+    },
+    {
+     "resource_id": 46152,
+     "name": "clerk.get_connected_accounts",
+     "description": "List Clerk applications connected to the authenticated Vee3 account.  Returns clerk_instance_id, dis"
+    },
+    {
+     "resource_id": 50128,
+     "name": "creator_lookup",
+     "description": "Look up a Zora creator's profile and all their launched coins."
+    },
+    {
+     "resource_id": 232318,
+     "name": "sites_check",
+     "description": "PRO. Check up to 25 ZIPs (stores, job sites, fleet depots, properties) for active alerts at once, wo"
+    },
+    {
+     "resource_id": 283977,
+     "name": "compounds_list",
+     "description": "List the UK peptide/compound profiles with their UK legal status (licensed, in trials, cosmetic, or "
+    },
+    {
+     "resource_id": 170709,
+     "name": "crypto_forecast",
+     "description": "Get a high-confidence ETH/USD price forecast (1h horizon) from BunnBase AI. Costs $0.05 USDC via x40"
+    },
+    {
+     "resource_id": 56897,
+     "name": "contract_analyze",
+     "description": "Analyze contract against 15 DORA Art. 30 mandatory clauses. Returns compliance status per clause wit"
+    },
+    {
+     "resource_id": 48379,
+     "name": "toolbox_search",
+     "description": "Search packages through Elixir Toolbox"
+    },
+    {
+     "resource_id": 64169,
+     "name": "web-search",
+     "description": "Search the web and return results as clean markdown with titles, URLs, descriptions, and content sni"
+    },
+    {
+     "resource_id": 286606,
+     "name": "selfemployuk_get_fact",
+     "description": "Get one verified fact from the selfemployuk pack. Refuses (do_not_answer) when drifted or unverified"
+    },
+    {
+     "resource_id": 46518,
+     "name": "apihub_read_content",
+     "description": "Read web content through a paid content gateway. Returns clean, structured text extracted from the U"
+    },
+    {
+     "resource_id": 42976,
+     "name": "slope_calc",
+     "description": "Calculate the slope, y-intercept, line equation, angle, and distance between two points in a 2D Cart"
+    },
+    {
+     "resource_id": 50128,
+     "name": "token_price",
+     "description": "Get current token price from CoinGecko by id, symbol, or contract address."
+    },
+    {
+     "resource_id": 264189,
+     "name": "unit_convert",
+     "description": "Converts a value between physical units (length, mass, speed, temperature with correct offset handli"
+    },
+    {
+     "resource_id": 56934,
+     "name": "idealo_search",
+     "description": "Search Idealo price comparison for any product."
+    },
+    {
+     "resource_id": 47993,
+     "name": "hodlxxi_get_reputation",
+     "description": "Return aggregate public operating history, evidenced job counts, attestation count, trust and confid"
+    },
+    {
+     "resource_id": 40510,
+     "name": "rubrkit_read_artifact_bundle",
+     "description": "Read artifact bundle details, files, and file tree. Requires artifact_bundles:read for API keys."
+    },
+    {
+     "resource_id": 46745,
+     "name": "charm_list_makes",
+     "description": "List all vehicle manufacturers covered by CHARM (1982-2013). Use to check coverage before a lookup."
+    },
+    {
+     "resource_id": 57744,
+     "name": "sdl_get_priority_pool_batch_compare",
+     "description": "Compare the latest Priority Pool cumulative tree against the previous one."
+    },
+    {
+     "resource_id": 43763,
+     "name": "fuse_get_receipt",
+     "description": "Fetches the receipt for a mined transaction (status, gasUsed, logs). Returns null if the transaction"
+    },
+    {
+     "resource_id": 46152,
+     "name": "clerk.get_machine",
+     "description": "Retrieve a machine by id from a connected Clerk instance.  Call clerk.get_connected_accounts first. "
+    },
+    {
+     "resource_id": 59463,
+     "name": "reverse_geocode",
+     "description": "Convert latitude and longitude coordinates into an address."
+    },
+    {
+     "resource_id": 56884,
+     "name": "port_info",
+     "description": "Get information about a port number."
+    },
+    {
+     "resource_id": 58363,
+     "name": "x402card.get_config",
+     "description": "Return public runtime config: network, USDC asset, receive address, fees, limits, and treasury mode."
+    },
+    {
+     "resource_id": 35452,
+     "name": "uxc_get_product",
+     "description": "Fetch a single catalog product by id. Public (no key); pair with uxc_search_catalog to find ids."
+    },
+    {
+     "resource_id": 43788,
+     "name": "asn_lookup",
+     "description": "Resolve an Autonomous System by IP address, AS number, or organization name. Returns the AS number, "
+    },
+    {
+     "resource_id": 283060,
+     "name": "rbq_resolve",
+     "description": "Resolves a Quebec construction licence by 10-digit RBQ licence number, NEQ, or holder name prefix ag"
+    },
+    {
+     "resource_id": 36742,
+     "name": "qm_validate_machine_files",
+     "description": "Checks a site's machine-readable files (llms.txt, agent.json, robots.txt) for presence and validity."
+    },
+    {
+     "resource_id": 46152,
+     "name": "clerk.get_organization_invitation",
+     "description": "Retrieve a single Clerk organization invitation by id.  Call clerk.get_connected_accounts first. Pas"
+    },
+    {
+     "resource_id": 39406,
+     "name": "visa_check",
+     "description": "Check visa requirement for a passport country visiting a destination."
+    },
+    {
+     "resource_id": 232288,
+     "name": "watchlist_check",
+     "description": "PRO. Check up to 50 customers/suppliers (names or company numbers) at once for insolvency notices, o"
+    },
+    {
+     "resource_id": 88142,
+     "name": "project.list",
+     "description": "List projects with their environments, live releases and URLs."
+    },
+    {
+     "resource_id": 56884,
+     "name": "network_info",
+     "description": "Get information about a network."
+    },
+    {
+     "resource_id": 36075,
+     "name": "vast_get_channel",
+     "description": "Get details of a specific VAST channel"
+    },
+    {
+     "resource_id": 56348,
+     "name": "employer.list_jobs",
+     "description": "List jobs owned by the current employer account."
+    },
+    {
+     "resource_id": 43763,
+     "name": "fuse_get_user_operations",
+     "description": "Returns the ERC-4337 UserOperation history for a smart account on Fuse, indexed via the Fusebox Grap"
+    },
+    {
+     "resource_id": 36376,
+     "name": "url_validate",
+     "description": "Checks value is a well-formed absolute URL (has both a scheme and a host) — syntax only, not a reach"
+    },
+    {
+     "resource_id": 286606,
+     "name": "legaluk_get_fact",
+     "description": "Get one verified fact from the legaluk pack. Refuses (do_not_answer) when drifted or unverified — ne"
+    },
+    {
+     "resource_id": 52835,
+     "name": "language_lookup",
+     "description": "Resolve an ISO 639-1 language code such as en, fr, or ja to its English name and native name when yo"
+    },
+    {
+     "resource_id": 39181,
+     "name": "freshness_list",
+     "description": "List the calling user's freshness webhook subscriptions (the stored secret is never returned)."
+    },
+    {
+     "resource_id": 252211,
+     "name": "session_status",
+     "description": "Verify Slack mobile session (run before other tools)."
+    },
+    {
+     "resource_id": 286606,
+     "name": "vehicleuk_list_facts",
+     "description": "List fact ids + verification states (vehicleuk)."
+    },
+    {
+     "resource_id": 48034,
+     "name": "cve_search",
+     "description": "Search NIST NVD CVE database."
+    },
+    {
+     "resource_id": 278903,
+     "name": "journey.status",
+     "description": "Return the full state and audit trail for a journey instance — every stage transition, AI recommenda"
+    },
+    {
+     "resource_id": 33087,
+     "name": "drive_list_files",
+     "description": "List files in a drive (by drive name or drv_… id), optionally under a path prefix."
+    },
+    {
+     "resource_id": 64446,
+     "name": "airport_get",
+     "description": "Retrieve a known airport record. Useful fields: airportCode (IATA or ICAO).  Price: ~$0.010 per call"
+    },
+    {
+     "resource_id": 44062,
+     "name": "studios_search",
+     "description": "Find the active Pody partner podcast studios in Israel. Filter by city."
+    },
+    {
+     "resource_id": 43763,
+     "name": "fuse_get_transaction",
+     "description": "Fetches a transaction by hash. Returns null if the transaction is not found."
+    },
+    {
+     "resource_id": 55294,
+     "name": "word_count",
+     "description": "Count words, characters, sentences, paragraphs with stats"
+    },
+    {
+     "resource_id": 48536,
+     "name": "provider_list",
+     "description": "List configured zero-cost providers."
+    },
+    {
+     "resource_id": 43262,
+     "name": "rules_get_diagram",
+     "description": "Get board diagram SVG URL for a game variant. Returns the diagram path, topology, and rendering meta"
+    },
+    {
+     "resource_id": 55294,
+     "name": "case_convert",
+     "description": "Convert text between upper, lower, title, sentence, camel, snake and kebab case. Pure CPU, instant."
+    },
+    {
+     "resource_id": 60434,
+     "name": "zerionwalletanalysisagent_fetch_wallet_nfts",
+     "description": "Fetch NFT collections held by an EVM wallet. The result includes the number of NFTs, the collection "
+    },
+    {
+     "resource_id": 286606,
+     "name": "mileageuk_get_fact",
+     "description": "Get one verified fact from the mileageuk pack. Refuses (do_not_answer) when drifted or unverified — "
+    },
+    {
+     "resource_id": 43921,
+     "name": "vouch_find",
+     "description": "Search Vouch's independently measured corpus of MCP tools by free-text query. Call this when choosin"
+    },
+    {
+     "resource_id": 36075,
+     "name": "vast42_get_creative",
+     "description": "Get a single VAST 4.2 creative"
+    },
+    {
+     "resource_id": 240652,
+     "name": "business_info",
+     "description": "Get the facts about Joey George Plumbing: an owner-operator residential plumbing business in South O"
+    },
+    {
+     "resource_id": 52835,
+     "name": "unit_convert",
+     "description": "Convert a numeric value between supported length, mass, or temperature units—for example miles to ki"
+    },
+    {
+     "resource_id": 142340,
+     "name": "veya_list_environments",
+     "description": "List environments for a product API key (guest JWT sees showcase / Use scope only)"
+    },
+    {
+     "resource_id": 47406,
+     "name": "system.status",
+     "description": "Read R/IV production system status."
+    },
+    {
+     "resource_id": 163312,
+     "name": "fmagenticl_get_workarounds",
+     "description": "Query collective friction advisories and verified community workarounds for a specific target packag"
+    },
+    {
+     "resource_id": 42835,
+     "name": "product_search",
+     "description": "Find 5 ranked public-web product, price, specification, and review sources. Not a live inventory gua"
+    },
+    {
+     "resource_id": 36075,
+     "name": "vast42_list_placements",
+     "description": "List all VAST 4.2 placements"
+    },
+    {
+     "resource_id": 43594,
+     "name": "studio_read_html",
+     "description": "Read the current HTML source of an app-type Studio product."
+    },
+    {
+     "resource_id": 42835,
+     "name": "web_search",
+     "description": "Return 5 current ranked web results with compact source excerpts in a fixed JSON schema. Costs $0.01"
+    },
+    {
+     "resource_id": 278903,
+     "name": "journey.list",
+     "description": "List journey instances with optional filters.  Use this to discover what is in flight, find instance"
+    },
+    {
+     "resource_id": 41254,
+     "name": "agent_get_framework_controls_by_name",
+     "description": "Get all controls for a framework, naming it as a query parameter  Identical to agent_get_framework_c"
+    },
+    {
+     "resource_id": 33133,
+     "name": "applehealth__sleep_read",
+     "description": "[applehealth · risk:medium] Read sleep-analysis data from Apple Health"
+    },
+    {
+     "resource_id": 55540,
+     "name": "me_find_resource",
+     "description": "Find fresh, rights-aware intelligence resources from the generalized Resource Index."
+    },
+    {
+     "resource_id": 38014,
+     "name": "docs_fetch",
+     "description": "Fetch the complete content of a documentation page. Use this after searching to get the full markdow"
+    },
+    {
+     "resource_id": 55294,
+     "name": "fuel_calc",
+     "description": "Compute fuel needed and trip cost from distance, consumption and price. Pure CPU, instant."
+    },
+    {
+     "resource_id": 40618,
+     "name": "tiktok_resolve_username",
+     "description": "Resolve a TikTok @username to its stable numeric user_id and sec_uid. Cheap utility — call this firs"
+    },
+    {
+     "resource_id": 56748,
+     "name": "artifacts_get",
+     "description": "Return the current Artifacts workspace as JSON."
+    },
+    {
+     "resource_id": 37156,
+     "name": "comms_get_campaign",
+     "description": "Get details of a specific campaign with optional delivery logs per recipient."
+    },
+    {
+     "resource_id": 46518,
+     "name": "apihub_list_services",
+     "description": "Read-only. Lists onboarded APIHub services alphabetically, returning each service's slug, name, desc"
+    },
+    {
+     "resource_id": 39003,
+     "name": "wilayah_get",
+     "description": "Resolve an official Indonesian region code (Kemendagri 2025, e.g. '34.71' or '34.04.12.2001') to its"
+    },
+    {
+     "resource_id": 52609,
+     "name": "nostr_search_intents",
+     "description": "Search Freeport ride/service/product intents (offers & requests). Filter by side, category/area topi"
+    },
+    {
+     "resource_id": 46152,
+     "name": "google-search.url_traffic_insights",
+     "description": "Get Google keyword traffic insights and related keyword suggestions for a URL.  Returns an array of "
+    },
+    {
+     "resource_id": 36075,
+     "name": "vast42_get_linear",
+     "description": "Get a single VAST 4.2 linear media"
+    },
+    {
+     "resource_id": 36075,
+     "name": "vast42_get_resource",
+     "description": "Get a single VAST 4.2 resource"
+    },
+    {
+     "resource_id": 56920,
+     "name": "invoice_parse_text",
+     "description": "Extract all text from a PDF invoice. Returns text per page and full combined text."
+    },
+    {
+     "resource_id": 36376,
+     "name": "tokens_count",
+     "description": "Counts tokens under an OpenAI-compatible (tiktoken) encoding. Provide exactly one of model (e.g. \"gp"
+    },
+    {
+     "resource_id": 84808,
+     "name": "tanks_search",
+     "description": "Search tanks"
+    },
+    {
+     "resource_id": 153628,
+     "name": "pulse_analyze",
+     "description": "Estimate a causal effect from a dataset and answer a business question.  Provide exactly one of ``cs"
+    },
+    {
+     "resource_id": 47072,
+     "name": "get_badge_json_api_badges__agent_id__json_get",
+     "description": "Get Badge Json  Return badge metadata in shields.io endpoint format.  Can be used with: https://img."
+    },
+    {
+     "resource_id": 47195,
+     "name": "ddg_list_local_runtime_options",
+     "description": "List free-seat status plus requestable local runtimes such as Ollama, llama.cpp, LM Studio, OpenAI-c"
+    },
+    {
+     "resource_id": 39054,
+     "name": "memory_list",
+     "description": "List keys in a memory namespace (prefix list when KV supports it)."
+    },
+    {
+     "resource_id": 147221,
+     "name": "contracts_search_opportunities",
+     "description": "Search live federal contract opportunities on SAM.gov, newest-modified first. Filter by keyword, NAI"
+    },
+    {
+     "resource_id": 42835,
+     "name": "news_search",
+     "description": "Search recent public web coverage from the last seven days and return 5 ranked results. Not comprehe"
+    },
+    {
+     "resource_id": 36075,
+     "name": "draft_list_image_ad_items",
+     "description": "List all draft image ad items"
+    },
+    {
+     "resource_id": 250558,
+     "name": "corpusfetch_search",
+     "description": "Search operational records for distributed systems failures, AI agent protocol issues, MCP/A2A probl"
+    },
+    {
+     "resource_id": 43919,
+     "name": "blockchain_lookup_transaction",
+     "description": "Look up a transaction by hash on Avalanche (C-Chain, P-Chain, or X-Chain). Supports 0x format (C-Cha"
+    },
+    {
+     "resource_id": 36376,
+     "name": "pesel_validate",
+     "description": "Validates the checksum of an 11-digit Polish national identification number (PESEL). Checksum uses w"
+    },
+    {
+     "resource_id": 36075,
+     "name": "vast_list_zones",
+     "description": "List all VAST zones"
+    },
+    {
+     "resource_id": 286606,
+     "name": "parkinguk_list_facts",
+     "description": "List fact ids + verification states (parkinguk)."
+    },
+    {
+     "resource_id": 56901,
+     "name": "approval_check",
+     "description": "Verify approval chain, SoD compliance, and prerequisites."
+    },
+    {
+     "resource_id": 43919,
+     "name": "platform_get_pending_validators",
+     "description": "Get the pending validators of a Subnet/L1 (paginated; use limit/offset)"
+    },
+    {
+     "resource_id": 43919,
+     "name": "docs_fetch",
+     "description": "Fetch a specific documentation page as markdown"
+    },
+    {
+     "resource_id": 40618,
+     "name": "tiktok_search_lives",
+     "description": "Search live TikTok streams by keyword. Use for real-time/live-content discovery. Paginate with `curs"
+    },
+    {
+     "resource_id": 64441,
+     "name": "ephemeral_list",
+     "description": "List a profile's ephemeral content (stories or highlights). Useful fields: platform, handle OR profi"
+    },
+    {
+     "resource_id": 84808,
+     "name": "players_search_ndjson",
+     "description": "Search players (streamed)"
+    },
+    {
+     "resource_id": 36075,
+     "name": "vast42_list_linears",
+     "description": "List all VAST 4.2 linear media"
+    },
+    {
+     "resource_id": 56348,
+     "name": "employer.list_applicants",
+     "description": "List the live (APPLIED) applicants on one of the employer's jobs. The candidate showcase + interview"
+    },
+    {
+     "resource_id": 48711,
+     "name": "faostat_search_dimension",
+     "description": "Search a FAOSTAT domain's area, item, element, unit, or other definition table."
+    },
+    {
+     "resource_id": 43763,
+     "name": "fuse_list_wallet_tokens",
+     "description": "Lists all ERC-20 tokens held by a wallet on Fuse, enriched with Fusebox metadata (symbol, decimals, "
+    },
+    {
+     "resource_id": 56032,
+     "name": "federated_search",
+     "description": "Search connected knowledge bases. Returns snippets with heading breadcrumbs (title > section > subse"
+    },
+    {
+     "resource_id": 47195,
+     "name": "ddg_list_models",
+     "description": "List local/free Ollama models and queryable paid/account-backed route labels."
+    },
+    {
+     "resource_id": 42835,
+     "name": "company_search",
+     "description": "Find 5 ranked company and corporate-web results for market research, vendor discovery, and diligence"
+    },
+    {
+     "resource_id": 43262,
+     "name": "chess_list_puzzle_types",
+     "description": "List available puzzle variants, themes, and per-variant counts from the puzzle pool"
+    },
+    {
+     "resource_id": 236360,
+     "name": "kaiord_list_formats",
+     "description": "List all supported fitness data formats with capabilities"
+    },
+    {
+     "resource_id": 55294,
+     "name": "language_list",
+     "description": "Return ISO 639 languages with code, English name and native name, filterable by query. Pure CPU, ins"
+    },
+    {
+     "resource_id": 286606,
+     "name": "ferryuk_get_fact",
+     "description": "Get one verified fact from the ferryuk pack. Refuses (do_not_answer) when drifted or unverified — ne"
+    },
+    {
+     "resource_id": 291317,
+     "name": "crime_compare",
+     "description": "Compare incident stats (by category, violent vs property, hour, weekday, 90-day trend) for 2-5 point"
+    },
+    {
+     "resource_id": 40919,
+     "name": "kb_get_monitoring_explainer",
+     "description": "Get plain-language explanations of monitoring methods and limitations.  Args:     topic: One of \"how"
+    },
+    {
+     "resource_id": 36075,
+     "name": "vast42_get_placement",
+     "description": "Get a single VAST 4.2 placement"
+    },
+    {
+     "resource_id": 129014,
+     "name": "wallet-lookup",
+     "description": "Look up a Base wallet address: native ETH plus balances for a curated list of 513 tokens, read direc"
+    },
+    {
+     "resource_id": 36376,
+     "name": "color_convert",
+     "description": "Converts a color between hex, rgb, hsl, and hsv. value's shape depends on from/to: a string for hex,"
+    },
+    {
+     "resource_id": 45235,
+     "name": "parlayapi_get_props",
+     "description": "Get player prop odds for a sport.      Args:         sport_key: e.g. \"baseball_mlb\", \"basketball_nba"
+    },
+    {
+     "resource_id": 46152,
+     "name": "clerk.list_users",
+     "description": "List users in a connected Clerk application.  Call clerk.get_connected_accounts first. Pass clerk_in"
+    },
+    {
+     "resource_id": 33133,
+     "name": "instacart__menu_search",
+     "description": "[instacart · risk:low] Search for grocery items and stores in the Instacart app"
+    },
+    {
+     "resource_id": 36108,
+     "name": "solana_getLatestBlockhash",
+     "description": "Get latest blockhash for transaction building. Returns blockhash + lastValidBlockHeight."
+    },
+    {
+     "resource_id": 278903,
+     "name": "schema.validate",
+     "description": "Validate the tenant's live graph data against the defined schema.  Reports missing required properti"
+    },
+    {
+     "resource_id": 46045,
+     "name": "fx_convert",
+     "description": "Convert an amount from one currency to another at current exchange rates. Sources: ECB + 84 central "
+    },
+    {
+     "resource_id": 43594,
+     "name": "studio_list_products",
+     "description": "List all products in the creator's Boonful Studio (id, name, type, slug, public URL, HTML file). Use"
+    },
+    {
+     "resource_id": 39046,
+     "name": "lunarwerx_find_tool",
+     "description": "Search LunarWerx's catalogue of free developer tools and desktop utilities by task or keyword, e.g. "
+    },
+    {
+     "resource_id": 56331,
+     "name": "hivelearn_list_member_tags",
+     "description": "List the community's member tags (id, name, color)."
+    },
+    {
+     "resource_id": 46193,
+     "name": "citerank_check_brand_citations",
+     "description": "Check whether a brand/domain is cited in AI-generated answers (Google AI Overviews, Gemini). Returns"
+    },
+    {
+     "resource_id": 253027,
+     "name": "noclegi_search",
+     "description": "Search places to stay in a Polish town or region on noclegi.pl — hotels, guest houses, pensions, apa"
+    },
+    {
+     "resource_id": 56769,
+     "name": "nwd_list_objects",
+     "description": "List elements (objects) in the translated Navisworks model with their objectid, name, externalId, an"
+    },
+    {
+     "resource_id": 43919,
+     "name": "platform_get_subnets",
+     "description": "Get information about Subnets/L1s on the P-Chain"
+    },
+    {
+     "resource_id": 100084,
+     "name": "cad_get_stats",
+     "description": "Returns comprehensive statistics of the current drawing: entity count, breakdown by type, layers, bo"
+    },
+    {
+     "resource_id": 286606,
+     "name": "flightcomp_list_facts",
+     "description": "List fact ids + verification states (flightcomp)."
+    },
+    {
+     "resource_id": 55540,
+     "name": "me_get_supply_forecast",
+     "description": "Inspect forecast demand, supply, fill rate, shortage probability, and recommended compensation."
+    },
+    {
+     "resource_id": 58363,
+     "name": "x402card.get_openapi",
+     "description": "Return the OpenAPI 3.1 document for direct HTTP API usage."
+    },
+    {
+     "resource_id": 47792,
+     "name": "career_health_check",
+     "description": "Score the health of a job search across three factors — application volume, interview conversion, an"
+    },
+    {
+     "resource_id": 36376,
+     "name": "csv_validate",
+     "description": "Reports whether CSV text is structurally well-formed: every row has the same field count as the firs"
+    },
+    {
+     "resource_id": 42243,
+     "name": "stocktoken_get",
+     "description": "Get metadata for one canonical Stock Token or core asset by symbol (e.g. NVDA) or contract address o"
+    },
+    {
+     "resource_id": 34973,
+     "name": "dns_lookup",
+     "description": "[Web] Resolve DNS records over DNS-over-HTTPS (A, AAAA, CNAME, MX, NS, TXT, and more). Costs $0.001."
+    },
+    {
+     "resource_id": 46152,
+     "name": "domains.lookup",
+     "description": "Look up a domain and return normalized registration details.  Combines registry and registrar RDAP a"
+    },
+    {
+     "resource_id": 250510,
+     "name": "invoiceflow_list_invoices",
+     "description": "List invoices with their status and totals. Invoices belonging to other accounts are not visible and"
+    },
+    {
+     "resource_id": 33854,
+     "name": "pool_list",
+     "description": "Return the free satoshidata.ai mining-pool roster with recent block-share windows."
+    },
+    {
+     "resource_id": 43921,
+     "name": "vouch_compare",
+     "description": "Compare 2-5 MCP tools' measured behaviour side by side before picking one. Call this when weighing a"
+    },
+    {
+     "resource_id": 58344,
+     "name": "kcp_validate",
+     "description": "Validate (lint) a knowledge.yaml: structural errors and navigation-weakening warnings."
+    },
+    {
+     "resource_id": 42507,
+     "name": "stripe.search_stripe_documentation",
+     "description": "Search the Stripe documentation for the given question and language.  It takes two arguments: - ques"
+    },
+    {
+     "resource_id": 40510,
+     "name": "rubrkit_read_eval",
+     "description": "Read one eval run, including the `stats` statistical verdict on advanced-mode runs (empty for standa"
+    },
+    {
+     "resource_id": 46152,
+     "name": "pages.list",
+     "description": "List static websites this Vee3 account hosts.  Returns page ids, names, slugs, status, public URLs, "
+    },
+    {
+     "resource_id": 43262,
+     "name": "play_list_families",
+     "description": "List all playable game families supported by the engine (chess, draughts, go, reversi, shogi, xiangq"
+    },
+    {
+     "resource_id": 40510,
+     "name": "rubrkit_list_audits",
+     "description": "List persisted audit history. Requires artifact_bundles:read for API keys."
+    },
+    {
+     "resource_id": 226289,
+     "name": "moltbound_list_services",
+     "description": "List all 20 services across 9 categories with partner counts, descriptions, and required fields. Ans"
+    },
+    {
+     "resource_id": 34313,
+     "name": "sigil_score_entity",
+     "description": "Returns the pre-computed 0.0–1.0 trust score for one entity, its component breakdown, and the 14-day"
+    },
+    {
+     "resource_id": 56904,
+     "name": "clause_check",
+     "description": "Validate a contract against all DORA Art. 30 mandatory clauses (standard + CIF)."
+    },
+    {
+     "resource_id": 204390,
+     "name": "timezone_convert",
+     "description": "Convert time between timezones for scheduling meetings and coordinating deadlines across IANA time z"
+    },
+    {
+     "resource_id": 56939,
+     "name": "arxiv_search",
+     "description": "Search arXiv preprints — cutting-edge research before peer review."
+    },
+    {
+     "resource_id": 39514,
+     "name": "unit_convert",
+     "description": "Convert between units: length (mm/cm/m/km/in/ft/yd/mi), weight (mg/g/kg/oz/lb), temperature (c/f/k),"
+    },
+    {
+     "resource_id": 38038,
+     "name": "gns_get_compliance_report",
+     "description": "Returns a full EU AI Act compliance report for a GNS agent, including trust score, chain verificatio"
+    },
+    {
+     "resource_id": 243632,
+     "name": "drive_read",
+     "description": "Read a file from this line's Drive folder. Text and PDF come back as text. Large files return one pa"
+    },
+    {
+     "resource_id": 64887,
+     "name": "airport.lookup",
+     "description": "Look up an airport by 3-letter IATA (e.g. SFO) or 4-letter ICAO (e.g. KSFO) code. Query: code (3-5 c"
+    },
+    {
+     "resource_id": 36075,
+     "name": "vast_get_linear_media",
+     "description": "Get details of a specific VAST linear media"
+    },
+    {
+     "resource_id": 56331,
+     "name": "hivelearn_list_ai_jobs",
+     "description": "List the key creator's AI course generation jobs in this community, newest first, with status and pr"
+    },
+    {
+     "resource_id": 46152,
+     "name": "clerk.list_api_keys",
+     "description": "List API keys in a connected Clerk application.  Call clerk.get_connected_accounts first. Pass clerk"
+    },
+    {
+     "resource_id": 43919,
+     "name": "platform_get_current_validators",
+     "description": "Get the current validators of a Subnet/L1 (paginated; use limit/offset)"
+    },
+    {
+     "resource_id": 56428,
+     "name": "catalog_list_projects",
+     "description": "List every remote catalog with its stable id and preview count. Call this first: catalog_list_previe"
+    },
+    {
+     "resource_id": 43919,
+     "name": "platform_get_block_by_height",
+     "description": "Get a P-Chain block by its height"
+    },
+    {
+     "resource_id": 37503,
+     "name": "provider_lookup",
+     "description": "Look up US healthcare providers from the public CMS NPPES registry by NPI, or search by specialty + "
+    },
+    {
+     "resource_id": 48364,
+     "name": "currency_convert_lite",
+     "description": "Converts a monetary amount between any two fiat currencies using live exchange rates from the Frankf"
+    },
+    {
+     "resource_id": 37936,
+     "name": "timestamp.convert",
+     "description": "Convert Unix seconds/milliseconds to ISO 8601 (UTC) and back. [dev · v1.0.0 · deterministic: true · "
+    },
+    {
+     "resource_id": 127703,
+     "name": "feedam_get_resource_details",
+     "description": "Get full details on a single food-assistance resource by ID, including hours, requirements, services"
+    },
+    {
+     "resource_id": 46152,
+     "name": "clerk.list_organization_domains",
+     "description": "List organization domains across a Clerk instance. Optionally filter to one organization via organiz"
+    },
+    {
+     "resource_id": 57747,
+     "name": "text_summarise",
+     "description": "Summarise text into a few sentences. Pass style=bullets for a list, or a sentence count. Capped at 3"
+    },
+    {
+     "resource_id": 286606,
+     "name": "debtuk_list_facts",
+     "description": "List fact ids + verification states (debtuk)."
+    },
+    {
+     "resource_id": 286606,
+     "name": "drivinguk_list_facts",
+     "description": "List fact ids + verification states (drivinguk)."
+    },
+    {
+     "resource_id": 36075,
+     "name": "vast42_get_icon_click_fallback_image",
+     "description": "Get a single VAST 4.2 icon click fallback image"
+    },
+    {
+     "resource_id": 286606,
+     "name": "energyuk_list_facts",
+     "description": "List fact ids + verification states (energyuk)."
+    },
+    {
+     "resource_id": 43850,
+     "name": "swarm_status",
+     "description": "Read the ANAMIZED discovery swarm: nodes, channels, last cycle, held briefs. No auth."
+    },
+    {
+     "resource_id": 56884,
+     "name": "cidr_info",
+     "description": "Get information about a CIDR range."
+    },
+    {
+     "resource_id": 39406,
+     "name": "peek_list_tags",
+     "description": "[peek] List all category tags"
+    },
+    {
+     "resource_id": 47993,
+     "name": "hodlxxi_get_report",
+     "description": "Return a public machine-readable trust or readiness report by validated report identifier, including"
+    },
+    {
+     "resource_id": 39181,
+     "name": "carbon_estimate_compute_emissions",
+     "description": "Estimate electricity CO2e (kg) from energy use (kWh) and a regional grid-intensity factor (defaults "
+    },
+    {
+     "resource_id": 43763,
+     "name": "fuse_list_wallet_nfts",
+     "description": "Lists all NFTs (ERC-721 / ERC-1155 collectibles) owned by a wallet on Fuse. Powered by the Fusebox S"
+    },
+    {
+     "resource_id": 42507,
+     "name": "metamesh.search_tools",
+     "description": "Search the catalog of 13k+ MCP tools by keyword. Returns concise matches (name, category, descriptio"
+    },
+    {
+     "resource_id": 40510,
+     "name": "rubrkit_list_drift_monitors",
+     "description": "List the drift monitors for an artifact bundle via /api/v1/artifact-bundles/{artifactBundleId}/drift"
+    },
+    {
+     "resource_id": 226128,
+     "name": "slack_list_channels",
+     "description": "List accessible channels in the connected Slack workspace."
+    },
+    {
+     "resource_id": 43921,
+     "name": "vouch_check",
+     "description": "Get an MCP tool's independently measured trust score before relying on it: real invocation trials, n"
+    },
+    {
+     "resource_id": 46902,
+     "name": "cddg_list_bindings",
+     "description": "List residual contract bindings on the residual fabric."
+    },
+    {
+     "resource_id": 344250,
+     "name": "gridlabs_get_agent_discovery",
+     "description": "Returns the API catalog (RFC 9727), OpenAPI JSON, and llms.txt for the site. Also see /.well-known/a"
+    },
+    {
+     "resource_id": 286606,
+     "name": "debtuk_get_fact",
+     "description": "Get one verified fact from the debtuk pack. Refuses (do_not_answer) when drifted or unverified — nev"
+    },
+    {
+     "resource_id": 44062,
+     "name": "podcasts_search",
+     "description": "Find Israeli podcasts. Filter by category or language."
+    },
+    {
+     "resource_id": 65955,
+     "name": "topaz_get_wallet_token_balances",
+     "description": "Get a wallet's token balances on one Topaz chain or all five: the native gas asset (BNB, ETH, or USD"
+    },
+    {
+     "resource_id": 264465,
+     "name": "syntropy_list_worlds",
+     "description": "List available public and official verified Small Worlds (@domain:tag) in the Synproof Syntropy Libr"
+    },
+    {
+     "resource_id": 47064,
+     "name": "cc0pedia-search",
+     "description": "Search the largest machine-readable CC0 database — ranked matches (slug, title, kind, license, contr"
+    },
+    {
+     "resource_id": 232311,
+     "name": "nonprofit_check",
+     "description": "FREE. Find a US nonprofit/charity by name or EIN — top 3 with city, state and 501(c) type."
+    },
+    {
+     "resource_id": 135527,
+     "name": "crypto_convert",
+     "description": "Convert an amount of any token (BTC, ETH, SOL, symbols or chain:address) into one or more fiat curre"
+    },
+    {
+     "resource_id": 272265,
+     "name": "parent_list_kids",
+     "description": "Returns the parent's kids on file (names + ages, no PII beyond what they shared)."
+    },
+    {
+     "resource_id": 58443,
+     "name": "namesniper_check_social",
+     "description": "Check username availability across the major social platforms concurrently. Returns JSON with per-pl"
+    },
+    {
+     "resource_id": 36075,
+     "name": "draft_list_ad_items",
+     "description": "List all draft ad items across all types"
+    },
+    {
+     "resource_id": 48279,
+     "name": "buildflow_discover_capabilities",
+     "description": "Return BuildFlow's public currently wired enterprise-operations capabilities and safety boundaries."
+    },
+    {
+     "resource_id": 37156,
+     "name": "finance_list_ventas",
+     "description": "List sales (ventas) for an organization. Filter by client, service, provider, or status."
+    },
+    {
+     "resource_id": 59530,
+     "name": "ava_list_mandates",
+     "description": "List capital mandates for a userId (optional filter by agentInstanceId)."
+    },
+    {
+     "resource_id": 46388,
+     "name": "artifact_get",
+     "description": "Retrieve the latest version of an artifact, or a specific immutable version."
+    },
+    {
+     "resource_id": 262228,
+     "name": "palanor_get_index",
+     "description": "Get one Palanor Custom Index in full — live value, component breakdown, and methodology. Palanor sho"
+    },
+    {
+     "resource_id": 47934,
+     "name": "gf.list_services",
+     "description": "List GF Agent Toll services, prices, schemas and discovery endpoints."
+    },
+    {
+     "resource_id": 36075,
+     "name": "vast42_list_non_linears",
+     "description": "List all VAST 4.2 non-linear media"
+    },
+    {
+     "resource_id": 243632,
+     "name": "cube_search",
+     "description": "Search shared cubes (relevance-ranked, latest versions only)."
+    },
+    {
+     "resource_id": 56942,
+     "name": "review_search",
+     "description": "Search for product reviews, tests, and ratings from news sources. Returns articles with sentiment an"
+    },
+    {
+     "resource_id": 56945,
+     "name": "product_search",
+     "description": "Search for products across Google Shopping, Amazon, and eBay. Returns prices, ratings, links. Suppor"
+    },
+    {
+     "resource_id": 41397,
+     "name": "chess_list_matches",
+     "description": "List open, active, and completed public Chess Hall matches."
+    },
+    {
+     "resource_id": 36075,
+     "name": "draft_list_placements",
+     "description": "List all draft placements"
+    },
+    {
+     "resource_id": 56249,
+     "name": "markdown_convert",
+     "description": "Convert a web page to clean Markdown format. Great for LLM consumption. Cost: 0.01 USDC"
+    },
+    {
+     "resource_id": 286606,
+     "name": "energyuk_get_fact",
+     "description": "Get one verified fact from the energyuk pack. Refuses (do_not_answer) when drifted or unverified — n"
+    },
+    {
+     "resource_id": 40644,
+     "name": "code_get_findings",
+     "description": "Get detailed code quality findings from a remote public git repository. Returns rule IDs, line numbe"
+    },
+    {
+     "resource_id": 33133,
+     "name": "uber__fare_estimate",
+     "description": "[uber · risk:low] Estimate the fare for a trip in the Uber app"
+    },
+    {
+     "resource_id": 37156,
+     "name": "comms_list_audiences",
+     "description": "List the saved audiences/segments used for campaign targeting, each with its filter definition and c"
+    },
+    {
+     "resource_id": 100579,
+     "name": "snapwonders_analyse_job_status",
+     "description": "Returns the current status and per-item progress of an analysis job. Poll until status is \"completed"
+    },
+    {
+     "resource_id": 43287,
+     "name": "private_search",
+     "description": "Find US businesses by name when you do not yet know which one you want. Full-text ranked search over"
+    },
+    {
+     "resource_id": 33854,
+     "name": "entity_list",
+     "description": "Return named Bitcoin entity rollups, optionally filtered by category. coverage_status indicates whet"
+    }
+   ]
+  }
+ ],
+ "final_rule_summary": {
+  "servers": 26062,
+  "tools_old": 219706,
+  "tools_new": 217873,
+  "added": 1171,
+  "removed": 3004,
+  "servers_gain_first": 254,
+  "servers_lose_all": 139,
+  "added_servers": 402,
+  "removed_readonly_false": 409
+ }
+}

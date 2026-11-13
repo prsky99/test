@@ -354,6 +354,8 @@ def _public_agent(value, resource=None, *, store=None, create_connections=True):
     result['connection_available']=available
     if value.get('tool_unlisted') is True and isinstance(value.get('connection_note'),str):
         result['connection_note']=value['connection_note'][:600]
+        if value.get('connection_reason') in ('action_tool','not_verified_read_only'):
+            result['connection_reason']=value['connection_reason']  # 11-13 PM: action vs. not verified read-only
     # A listing that states a price is never answered as price 0 / free (11-12, price_status.py).
     from .price_status import price_fields
     if 'price_usdc' in value:  # cards built without a price (events, tool specs) stay without one

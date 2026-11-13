@@ -212,6 +212,27 @@ def first_card_available(body):
     return value if isinstance(value, bool) else None
 
 
+def failure_reason(entry, card):
+    """Why a connect sample failed, recorded beside the verdict (PM 11-13 decision 2: nothing is excluded).
+
+    policy_blocked: the gateway does not relay the recommended tool because the tool itself acts (send_email);
+    unverified_tool: a read tool the gateway has not verified as read-only (fixable on our side);
+    unrelayed: not relayed, from a card that predates the reason field; connect_failed: the connection itself failed;
+    no_gateway_endpoint / no_recommendation as before. None for a passing sample."""
+    if entry.get('tools') and entry.get('error') != 'tool_unlisted':
+        return None
+    if entry.get('error') in ('no_gateway_endpoint', 'no_recommendation'):
+        return entry['error']
+    reason = (card or {}).get('connection_reason')
+    if reason == 'action_tool':
+        return 'policy_blocked'
+    if reason == 'not_verified_read_only':
+        return 'unverified_tool'
+    if entry.get('connection_available') is False or entry.get('error') == 'tool_unlisted':
+        return 'unrelayed'
+    return 'connect_failed'
+
+
 def recommended_tool(body):
     """The tool the first recommendation names (card 'tools'[0]), or None."""
     tools = (first_card(body) or {}).get('tools')
@@ -259,17 +280,21 @@ def check_recommend_and_connect(n=2):
         endpoint = connection_route(text)
         if not endpoint:
             # No gateway path for the first recommendation (or no recommendation): a failed connection (PM 11-12).
-            conn.append({'endpoint': None, 's': 0.0, 'tools': 0, 'connection_available': available,
-                         'error': 'no_gateway_endpoint' if text else 'no_recommendation'})
+            entry = {'endpoint': None, 's': 0.0, 'tools': 0, 'connection_available': available,
+                     'error': 'no_gateway_endpoint' if text else 'no_recommendation'}
+            entry['reason'] = failure_reason(entry, first_card(result[1] if result else None))
+            conn.append(entry)
             continue
         took_c, names, error_c = timed(lambda: on_fresh(connector(endpoint)))
         names = names or []
         listed = (wanted in names) if wanted and '/api/gateway/mcp/' in endpoint and names else None
         if listed is False and time.time() >= TOOL_LISTED_FROM:
             error_c = error_c or 'tool_unlisted'
-        conn.append({'endpoint': endpoint.rsplit('/', 2)[-2] + '/' + endpoint.rsplit('/', 1)[-1], 's': took_c,
-                     'tools': len(names), 'error': error_c, 'connection_available': available,
-                     'recommended_tool': wanted, 'tool_listed': listed})
+        entry = {'endpoint': endpoint.rsplit('/', 2)[-2] + '/' + endpoint.rsplit('/', 1)[-1], 's': took_c,
+                 'tools': len(names), 'error': error_c, 'connection_available': available,
+                 'recommended_tool': wanted, 'tool_listed': listed}
+        entry['reason'] = failure_reason(entry, first_card(result[1] if result else None))
+        conn.append(entry)
     rec_bad = [r for r in rec if r['s'] > TARGET['recommend_s'] or not r['answered']]
     conn_bad = [c for c in conn if not c['tools'] or c.get('error') == 'tool_unlisted']
     # A first recommendation without a gateway path is a failed connection (PM 11-12, replacing the 11-11 rule
