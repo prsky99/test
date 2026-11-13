@@ -3889,6 +3889,8 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
     app.include_router(router)
     from .growth_pages import growth_router
     app.include_router(growth_router(front.store))
+    from .necklace_surface import necklace_router  # 11-14 PM: public surface of judged necklaces (read-only)
+    app.include_router(necklace_router())
     from .feedback import feedback_router
     app.include_router(feedback_router(front))
     from ..agent_access.service import router_for as adoption_router
