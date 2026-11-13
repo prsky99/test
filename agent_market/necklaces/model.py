@@ -40,6 +40,9 @@ MEMBER_STATES = ("active", "pending_test", "planned", "removed")
 MAX_AGENTCON = 2
 MAX_EXTERNAL = 6
 MAX_TOTAL_MS = 5000
+# PM decision 11-14 (agent team survey): no keyless free source allows commercial redistribution, so these
+# roles get no AgentValCon fallback; they may only be optional slots with at least two external members.
+NO_FALLBACK_ROLES = ("crypto.price.v1", "ip.lookup.v1", "stock.quote.v1")
 # Fields that describe where a definition is in its lifecycle. They do not change
 # what runs, so they are left out of the digest that the ops approval binds to.
 NON_MATERIAL = ("status", "notes", "replaced_by")
@@ -200,6 +203,11 @@ def validate(defn: dict, *, check_contracts: bool = True) -> list[str]:
             if domain in owner_domains:
                 errors.append(f"slot {sid}: failure domain {domain} already owns slot {owner_domains[domain]}")
             owner_domains[domain] = sid
+        if contract in NO_FALLBACK_ROLES:
+            if slot.get("required", True):
+                errors.append(f"slot {sid}: {contract} has no AgentValCon fallback and may only be an optional slot")
+            if kinds.count("external") < 2:
+                errors.append(f"slot {sid}: {contract} needs at least two external members")
         for dep in slot.get("depends_on") or []:
             if dep not in seen_slots:
                 errors.append(f"slot {sid}: depends_on {dep!r} must name an earlier slot")

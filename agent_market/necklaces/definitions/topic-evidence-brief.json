@@ -74,6 +74,25 @@
             "query": "{{input.topic}}"
           },
           "note": "Pearl 276982, web grounding tool; role-tool test pending (search and RAG). No AgentValCon fallback for web.grounding yet (requested from the agent team)."
+        },
+        {
+          "kind": "agentcon",
+          "agent_id": "wiki-grounding",
+          "resource_id": null,
+          "tool": "answer_from_wikipedia",
+          "registrable_domain": "agentconcierge.biz",
+          "upstream": [
+            "wikipedia"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "planned",
+          "input_map": {
+            "question": "{{input.topic}}"
+          },
+          "note": "Agent team (wiki-grounding, extractive Wikipedia answer with links); planned until the ops substitute gate approves it."
         }
       ]
     },

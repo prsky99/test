@@ -143,3 +143,14 @@ def test_shipped_definitions_are_valid():
         for slot in defn["slots"]:
             for member in slot["chain"]:
                 assert "tx_hash" not in member["input_map"] and "agent_id" not in member["input_map"]
+
+
+def test_roles_without_fallback_are_optional_with_two_externals_only():
+    defn = base()
+    defn["slots"].append({"slot": "price", "contract": "crypto.price.v1", "required": True, "fanout": 1,
+                          "chain": [ext(5, "e.com")]})
+    errs = errors(defn)
+    assert any("may only be an optional slot" in e for e in errs)
+    assert any("at least two external members" in e for e in errs)
+    defn["slots"][-1].update(required=False, chain=[ext(5, "e.com"), ext(6, "f.com")])
+    assert errors(defn) == []
