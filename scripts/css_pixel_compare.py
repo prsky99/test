@@ -7,7 +7,7 @@
 
 shoot: ten screens (the nine live pages and privacy) x 1280 and 375 x light and dark, full page, from this working
 tree, served by an in-process app with a fixed catalog (no live data, no network), animations and transitions off,
-fonts settled. PNGs go to reports/css-structure-2026-11-14/<stage>/.
+fonts settled. PNGs go to gateway-data/css-pixels/<stage>/ (not in git).
 diff: the number of differing pixels per screenshot (and a red diff picture when there is any). The rule is 0.
 """
 import argparse
@@ -18,7 +18,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / 'reports/css-structure-2026-11-14'
+OUT = ROOT / 'gateway-data/css-pixels'  # 160 pictures are 80 MB: kept out of git (reports/css-structure-2026-11-14 has the results)
 SCREENS = ('/', '/new/en/agent-status.html', '/new/en/explore.html', '/new/en/learn.html', '/new/en/test.html',
            '/new/en/workflows.html', '/new/en/chat.html', '/new/en/list-agent.html', '/new/en/about.html',
            '/new/en/privacy.html')
