@@ -99,3 +99,16 @@ def test_unrelated_frontend_files_still_skip_the_check(tmp_path, monkeypatch):
 def test_the_real_chat_path_imports_are_covered():
     paths = gate.chat_imports(gate.ROOT)
     assert 'agent_market/concierge/hybrid_explore.py' in paths and 'agent_market/concierge/task_capability.py' in paths
+
+
+def test_each_case_verdict_is_kept(monkeypatch, tmp_path):
+    """PM 11-13 23:3x: the active release moved from 93 to 92 of 110 and no record said which case."""
+    import json
+    monkeypatch.setattr(gate, 'chat_changed', lambda release, active: ['agent_market/concierge/fast_chat.py'])
+    monkeypatch.setattr(gate, 'CHAT_RECORDS', tmp_path)
+    evaluate, _ = fake({'old': {'a': True, 'b': False}, 'new': {'a': True, 'b': True}})
+    assert gate.chat_check('new', 'old', evaluate=evaluate) == 0
+    [record] = list(tmp_path.glob('*-new.json'))
+    body = json.loads(record.read_text())
+    assert body['active_verdicts'] == {'a': True, 'b': False} and body['release_verdicts'] == {'a': True, 'b': True}
+    assert body['new_passes'] == ['b'] and body['active'] == 'old'

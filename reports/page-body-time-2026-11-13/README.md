@@ -100,3 +100,54 @@
   - 첫 화면 CSS를 아예 빼도 홈 17.2KB, chat·explore 약 14.6KB다.
   - 화면마다 다른 화면 8개 분량의 `page:*` meta가 2.0~2.5KB 들어 있다(chat 67개). agent:* meta는 0.5~1.2KB다.
   - 그래서 meta를 그대로 두는 한 14KB는 어렵다. 다른 화면 몫의 page:* meta를 옮길지는 PM 결정 사항이다(외부 등록처가 읽는지 확인되지 않음).
+
+## 배포 뒤 (notice-frontend-20261113-r2 = 9abb2745, 22:36, base pearls-frontend-20261113-r1)
+
+- 배포 버전은 원격 HEAD가 아니라 진주 커밋 위에 21a114cb와 cadb4f50만 얹은 것이다(42376c97의 정책 해시 변경은 넣지 않음).
+- 정책 해시 40851c1a…가 frontend·jobs와 같음을 배포 직전에 확인했다. 게이트 429개 통과, Chat 92/110(새 실패 0), 화면 10개 문제 0.
+- 첫 게이트(r1)에서 결함을 잡았다. panels.js를 다시 만들 때 내부에서 부르는 `page(name)`가 500이 났다. cadb4f50으로 고쳤다.
+
+| 항목 | 전(21:52) | 후(22:41) |
+|---|---|---|
+| /sitemap.xml 전송 크기 | 35,482B(gzip) | 184B(gzip, 색인) |
+| sitemap 자식 | 없음 | pages 6.8KB, agents-1 6.1KB … (DYNAMIC, 규칙 추가 전) |
+| 고지 화면 Cache-Control | no-store | public, max-age=300, swr=86400(쿠키 있으면 no-store) |
+| 고지 화면 엣지 | DYNAMIC | DYNAMIC(Cloudflare 3번 규칙에 경로 추가 전까지 그대로) |
+| chat CSP meta | 있음 | 없음(헤더가 더 엄격) |
+
+- 시간(공개 주소, 새 연결, 3회씩, 표본 제외 없음)
+  - 고지 화면: 전 0.96~6.40초, 후 0.93~4.19초.
+  - /sitemap.xml: 전 0.66~1.50초, 후 1.66~3.47초.
+  - 22:4x에는 경로 자체가 흔들려(TLS 0.45~2.28초, robots·llms도 같이 느림) 전후 차이를 판정하지 않는다. 판정은 11-14 user_slo와 public_full_check로 한다.
+- 원자료: `notice-before-2152.json`, `notice-after-2241.json`.
+
+## PM 22:2x 지시: 20:34 전수 점검의 큰 페이지
+
+| 페이지(20:34 공개) | 압축 뒤 크기 | 14KB 초과 | 엣지 캐시 | 원서버 시간(22:24) |
+|---|---|---|---|---|
+| contact 6.18초(DYNAMIC) | 8.3KB | 아님 | 고지 화면이라 이제 public. 엣지 규칙 추가 전까지 DYNAMIC | 0.015초 |
+| category data_utility 7.80초 / public_legal 6.84초(UPDATING) | 1.6KB | 아님 | 대상(성장 규칙, 묵은 사본 바로 줌) | 0.29 / 0.24초 |
+| /reports/weekly 6.77초(UPDATING) | 1.3KB | 아님 | 대상 | 0.011초 |
+| task redirect-chain-check 6.86초(REVALIDATED) / read-epub-books 5.90초(UPDATING) | 2.6 / 2.3KB | 아님 | 대상 | 0.008 / 0.007초 |
+| best docs_knowledge/mcp 6.11초 / education_culture/a2a 5.97초(REVALIDATED) | 3.7 / 4.7KB | 아님 | 대상 | 0.011 / 0.021초 |
+| sitemap.xml 6.64초(HIT, 분할 전) | 35.5KB → 0.18KB | 전에는 초과, 지금은 아님 | 대상 | 0.04초 |
+
+- 모두 서버 시간은 0.3초 이하이고, sitemap 말고는 첫 전송 한 번에 들어가는 크기다.
+- 같은 시각 경로 바닥값(ref.edge_s)이 0.77~2.93초, TLS가 0.46~1.92초였다. 6~8초는 한국→LAX 손실 대기가 겹친 표본이다.
+- 원서버에서 더 줄일 것은 category의 0.24~0.29초 정도다(다른 페이지 0.01초대). 처음 한 번 만드는 비용으로 보여, 다음에 원인을 본다.
+- REVALIDATED는 max-age(3600)가 지나 엣지가 원서버에 다시 확인한 경우다. 경로가 나쁠 때 한 번 더 왕복이 생긴다.
+
+## PM 결정 요청: page:* meta (첫 화면 14KB)
+
+- 사실
+  - 화면마다 화면 9개 분량의 `page:<화면>:*` meta가 있다. chat에는 67개가 있고, 다른 화면 몫이 압축 뒤 2.0~2.5KB다.
+  - 우리 코드(JS·서버)는 이것을 실행 중에 읽지 않는다. 시험 2개(test_front_about, test_front_dashboard_menus)가 내용을 확인한다.
+  - 외부 등록처나 수집기가 읽는지는 확인되지 않았다.
+- 계산(압축 뒤): 첫 화면 CSS를 빼고 다른 화면 몫 meta를 옮겨도 홈 약 15.2KB, chat·explore 약 12.1KB다. 첫 화면 CSS(15.7~17.1KB)를 넣으면 다시 26~33KB가 된다.
+  - 그래서 meta만 옮겨서는 14KB에 들어가지 않는다. 첫 화면 CSS를 HTML에서 빼야 들어간다.
+  - 하지만 CSS를 따로 불러오면 첫 그림이 CSS 요청 한 번(왕복 약 0.32초 이상)을 더 기다린다. 손실 대기가 줄어드는 것보다 손해일 수 있다.
+- 안
+  - (가) 그대로 둔다(14KB 목표는 포기하고 크기만 조금씩 줄임).
+  - (나) 화면마다 자기 화면과 홈(overview) 몫만 남기고, 나머지 page:* meta를 `/llms-full.txt`와 JSON 문서(`<link rel="alternate" type="application/json">`)로 옮긴다. 2.0~2.5KB가 준다. 외부 영향을 모르므로 PM·사용자 결정이 필요하다.
+  - (다) (나)에 더해 첫 화면 CSS를 HTML에서 빼고 지연 로딩 예외를 쓴다. 14KB 안에 들어가지만, CSS 요청 왕복이 하나 는다. 사용자 결정이 필요하다(화면 정책 예외).
+- 성장·유통 의견: (나)만 먼저 하는 것을 권한다. (다)는 같은 경로에서 CSS 별도 요청의 전후를 재 본 뒤에 판단한다.

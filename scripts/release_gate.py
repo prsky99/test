@@ -16,6 +16,7 @@ import argparse
 import ast
 import hashlib
 import json
+import time
 import os
 import shutil
 import subprocess
@@ -71,6 +72,7 @@ TESTS = (
     'tests/test_critical_css_browser.py::test_first_screen_with_inline_css_alone_matches_the_full_css[1280-light]',
     'tests/test_critical_css_browser.py::test_first_screen_with_inline_css_alone_matches_the_full_css[375-light]',
     'tests/test_notice_page_cache.py', 'tests/test_sitemap_parts.py', 'tests/test_csp_meta_removed.py',  # 11-13 PM 20:5x
+    'tests/test_page_meta_trim.py',  # 11-13 PM 22:5x decision (b)
 )
 # Each role runs the tests for the code it serves. jobs releases run the collector, health checks,
 # crawler and evaluation without the typed execution engine, so the opening-path list above
@@ -193,6 +195,22 @@ def compare(before, after):
     return broken, fixed
 
 
+CHAT_RECORDS = ROOT / 'logs' / 'ops' / 'chat-gate'
+
+
+def record_chat_check(release, active, before, after, broken, fixed):
+    """Keep each case's verdict (PM 11-13 23:3x): the active release went from 93 to 92 of 110 between two gates
+    and no record said which case moved. A failed write never fails the gate."""
+    try:
+        CHAT_RECORDS.mkdir(parents=True, exist_ok=True)
+        stamp = time.strftime('%Y%m%d-%H%M%S')
+        (CHAT_RECORDS / f'{stamp}-{release}.json').write_text(json.dumps(
+            {'at': stamp, 'release': release, 'active': active, 'active_verdicts': before, 'release_verdicts': after,
+             'new_failures': broken, 'new_passes': fixed}, indent=1, sort_keys=True), encoding='utf-8')
+    except OSError:
+        pass
+
+
 def chat_check(release, active=None, *, evaluate=evaluate):
     """0 when the release answers the sample no worse than the active frontend, 1 otherwise."""
     active = active or active_frontend()
@@ -216,6 +234,7 @@ def chat_check(release, active=None, *, evaluate=evaluate):
             broken = [i for i in broken if not again.get(i, False) and still.get(i, False)]
     print(f'chat check: active {sum(before.values())}/{len(before)}, release {sum(after.values())}/{len(after)}; '
           f'new failures {len(broken)} {broken[:10]}, new passes {len(fixed)}')
+    record_chat_check(release, active, before, after, broken, fixed)
     if len(broken) - len(fixed) >= CHAT_MARGIN:
         print('chat check: FAILED (more new failures than passes; see scripts/evaluate_chat_answer_quality.py)')
         return 1

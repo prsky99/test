@@ -12,7 +12,7 @@ from starlette.responses import JSONResponse, Response
 DOCUMENTS = frozenset(('/robots.txt', '/sitemap.xml', '/llms.txt', '/llms-full.txt',
     '/skill.md', '/.well-known/agent-card.json', '/.well-known/agent.json',
     '/.well-known/mcp.json', '/.well-known/mcp/server.json', '/status.json', '/.well-known/agent-entry.json', '/openapi.json',
-    '/a2a/agent-card.json', '/a2a/.well-known/agent-card.json'))
+    '/a2a/agent-card.json', '/a2a/.well-known/agent-card.json', '/page-metadata.json'))
 TRANSPORTS = frozenset(('/chat', '/mcp', '/a2a'))
 ALLOWED_HEADERS = frozenset(('content-type', 'authorization', 'x-visitor-token',
     'mcp-session-id', 'mcp-protocol-version', 'a2a-version', 'last-event-id', 'accept', 'idempotency-key'))
