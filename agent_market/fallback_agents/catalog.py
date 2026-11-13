@@ -115,6 +115,10 @@ NIST = {"name": "NIST Special Publication 811 conversion factors", "url": "https
         "license": "U.S. Government work, public domain in the United States",
         "notice": "Computed on our server from exact SI definitions; US customary units (US gallon, avoirdupois pound)."}
 
+WIKIDATA = {"name": "Wikidata, Wikimedia Foundation", "url": "https://www.wikidata.org/",
+            "license": "CC0 1.0 (structured data, https://www.wikidata.org/wiki/Wikidata:Licensing)",
+            "notice": "Community-edited data; the first matching item with the needed property is chosen and named with its Q-id."}
+
 SPECS = {
     "nvd-cve": {
         "name": "AgentValCon NVD CVE Record", "tool": "get_cve_record", "contract": "cve.record.v1",
@@ -319,6 +323,20 @@ SPECS = {
                        "temperature using exact SI definitions; read-only and offline.",
         "sources": [NIST],
         "rate": "no network calls",
+    },
+    "wikidata-place": {
+        "name": "AgentValCon Wikidata Place", "tool": "find_place", "contract": "place.search.v1",
+        "description": "Find a named place or landmark in Wikidata and give its coordinates, description, "
+                       "administrative location and country with the item link; read-only.",
+        "sources": [WIKIDATA],
+        "rate": "three sequential requests per question at most, cached 24 hours",
+    },
+    "wikidata-book": {
+        "name": "AgentValCon Wikidata Written Work", "tool": "find_written_work", "contract": "book.search.v1",
+        "description": "Find a novel or other written work by title in Wikidata and give its author, first "
+                       "publication date, genre and language with the item link; read-only.",
+        "sources": [WIKIDATA],
+        "rate": "three sequential requests per question at most, cached 24 hours",
     },
 }
 

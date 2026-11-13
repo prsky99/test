@@ -32,6 +32,8 @@
 | `github-repo` (`get_repo_facts`) | `github.repo.v1` | GitHub REST(공개 저장소) | 고정 과제 1/1, 계약 입력 1/1 | 0.5 s | 관문 신청(이 맥 IP의 GitHub 시간당 60회 공유 주의) |
 | `rdap-domain` (`lookup_domain`) | `domain.lookup.v1` | IANA 부트스트랩 → 레지스트리 RDAP | 고정 과제 1/1, 계약 입력 1/1 | 0.2 s | 관문 신청 |
 | `unit-convert` (`convert_units`) | `unit.convert.v1` | 정확한 SI 정의(NIST SP 811), 네트워크 없음 | 고정 과제 1/1, 계약 입력 1/1 | 수 ms | 관문 신청 |
+| `wikidata-place` (`find_place`) | `place.search.v1` | Wikidata 검색 + SPARQL(CC0) | 고정 과제 1/1, 계약 입력 1/1 | 1.0~2.2 s | 관문 신청 |
+| `wikidata-book` (`find_written_work`) | `book.search.v1` | Wikidata 검색 + SPARQL(CC0) | 고정 과제 2/2, 계약 입력 1/1 | 1.3~2.5 s | 관문 신청 |
 | `github-advisory` (`list_package_advisories`) | package-risk-audit 취약점 자리, `package.advisories.v1` | GitHub Advisory Database(reviewed) | 1차 27/30 → 범위 직접 판정으로 고친 뒤 **30/30**(05:36 재측정), 고정 과제 3/3 | 1,010 ms / 1,412 ms | 관문 신청 가능 |
 
 - 계약 시험 입력(`test_inputs`) 3건씩: nvd-cve·cve-org·cisa-kev 9/9 통과(`contract-test-inputs.json`). 고정 과제(role-tasks-v1): nvd-cve 3/3, cisa-kev 3/3, cve-org 3/3, package-registry 2/2, depsdev-package 2/2.
@@ -161,6 +163,24 @@
 - rdap-domain: IANA RDAP 부트스트랩(하루 캐시)에서 최상위 도메인의 공식 레지스트리 RDAP 서버를 찾아 직접 묻습니다(매 요청 사설 주소 검사). 레지스트리 약관(합법 목적, 대량 자동 조회·광고 금지)에 맞춰 도메인당 6시간 캐시, 등록기관·날짜·상태·네임서버만 내고 등록자 등 개인 연락처는 내보내지 않습니다.
 - unit-convert: 길이·질량·부피·넓이·속도·시간·데이터·온도를 정확한 SI 정의(NIST SP 811)로 계산합니다. 다른 차원끼리는 거부. 미국 관습 단위(미국 갤런, 상형 파운드).
 
+### 2-16. 약관이 불분명했던 4개 역할 재조사 (PM 11-14, 각 원천 문서 원문 확인)
+
+| 역할 | 후보 | 상업 이용·제3자 백엔드 | 판정 |
+|---|---|---|---|
+| geocode.address | Nominatim 공개판 | "지오코딩이 주 기능인 서비스는 자체 서버를 써야 함" → 불가 | 실시간 불가 |
+| | Photon(komoot) | 약관 명시 없음, 많이 쓰면 감속 | 위험해서 안 함 |
+| | US Census·프랑스 Géoplateforme | 국가 한정, 약관 일부 미확인 | 보류 |
+| | OSM 덤프 자체 설치 | ODbL 표기로 가능, 약 95GB | 용량상 지금은 안 함 |
+| place.search | **Wikidata(CC0)** | 콘텐츠 재게시 허용, API 재판매만 금지, 연락처 User-Agent 필수 | **만듦(wikidata-place)** |
+| | GeoNames | 웹 API는 계정 필요(불가), 덤프는 CC BY 4.0 | 필요하면 덤프로 |
+| book.search | Open Library API | "제3자 서비스의 데이터 백엔드용이 아님" → 불가(월간 덤프는 가능, 수 GB) | 실시간 불가 |
+| | **Wikidata(CC0)** | 위와 같음 | **만듦(wikidata-book)** |
+| | Library of Congress | 키 없음, 분당 10회 | 보조용으로만 가능 |
+| translate.text | LibreTranslate 공개판(키 필요), MyMemory(재판매 금지, 하루 5,000자), Lingva(Google 화면 긁기), MinT(외부 공개 API 없음) | 모두 불가 | 공개 원천 **없음** |
+| | Argos Translate·Apertium 자체 실행 | 소프트웨어 MIT·CC0·GPL, Argos 모델별 라이선스 미확인 | 모델 라이선스 확인 뒤 맥미니 자체 실행 후보(PM 결정) |
+
+- wikidata-place·wikidata-book: 검색(wbsearchentities) 한 번으로 후보를 받고, SPARQL 한 번으로 필요한 속성(장소: 좌표·소재지·국가 / 책: 저자·첫 출판일·장르·언어)과 이름표만 받습니다. 처음엔 후보 전체를 받는 방식이라 2~3초가 걸려, 이렇게 바꿔 1~2.5초로 줄였습니다. 같은 이름의 그림·판본은 필요한 속성(좌표·저자)이 없으면 건너뜁니다.
+
 ## 3. 관문 신청 묶음 (deploy/NECKLACE_GATE.md 10절 대비)
 
 | 조건 | 상태 | 근거 |
@@ -247,7 +267,7 @@
 ## 6. 시험·재현
 
 ```bash
-nice -n 10 .venv-tests/bin/python -m pytest -q tests/test_fallback_agents.py     # 104 passed (네트워크 없음)
+nice -n 10 .venv-tests/bin/python -m pytest -q tests/test_fallback_agents.py     # 106 passed (네트워크 없음)
 .venv/bin/python -m agent_market.fallback_agents.nvd_sync --full                  # 스냅샷 첫 빌드
 .venv/bin/python -m agent_market.fallback_agents.gold_check nvd-cve cisa-kev --out /tmp/x.json
 ```

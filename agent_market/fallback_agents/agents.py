@@ -42,7 +42,8 @@ MAX_AGE = {"nvd-cve": 6 * 3600, "cve-org": 24 * 3600, "cisa-kev": 24 * 3600, "gi
            "software-incident": 6 * 3600, "scorecard": 24 * 3600, "site-readiness": 24 * 3600,
            "wiki-grounding": 24 * 3600, "ecb-fx": 26 * 3600, "usgs-quakes": 3600,
            "tz-time": 400 * 86400, "airport-lookup": 8 * 86400, "wiktionary-define": 7 * 86400,
-           "github-repo": 24 * 3600, "rdap-domain": 7 * 86400, "unit-convert": 10 * 365 * 86400}  # rules age from the library release; update the pin at least yearly
+           "github-repo": 24 * 3600, "rdap-domain": 7 * 86400, "unit-convert": 10 * 365 * 86400,
+           "wikidata-place": 7 * 86400, "wikidata-book": 7 * 86400}  # rules age from the library release; update the pin at least yearly
 TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "github-advisory": (3600, 6 * 3600),
        "epss": (6 * 3600, 48 * 3600), "package-registry": (3600, 6 * 3600), "depsdev-package": (6 * 3600, 24 * 3600),
        "gleif-lei": (6 * 3600, 24 * 3600), "sec-edgar": (6 * 3600, 24 * 3600), "sec-tickers": (6 * 3600, 24 * 3600),
@@ -51,7 +52,8 @@ TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "githu
        "software-incident": (3600, 6 * 3600), "scorecard": (6 * 3600, 24 * 3600),
        "site-readiness": (6 * 3600, 24 * 3600), "wiki-grounding": (6 * 3600, 24 * 3600), "ecb-fx": (3600, 26 * 3600),
        "usgs-quakes": (300, 3600), "wiktionary-define": (86400, 7 * 86400), "github-repo": (6 * 3600, 24 * 3600),
-       "rdap-domain": (6 * 3600, 7 * 86400), "rdap-bootstrap": (86400, 7 * 86400)}  # (serve from cache without asking, longest a cached copy may serve)
+       "rdap-domain": (6 * 3600, 7 * 86400), "rdap-bootstrap": (86400, 7 * 86400),
+       "wikidata-place": (86400, 7 * 86400), "wikidata-book": (86400, 7 * 86400)}  # (serve from cache without asking, longest a cached copy may serve)
 KEV_TTL, KEV_MAX_STALE = 3600, 24 * 3600
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 PACKAGE = re.compile(r"(?:@[a-z0-9][a-z0-9._~-]*/)?[A-Za-z0-9][A-Za-z0-9._~-]*")
@@ -1233,6 +1235,81 @@ class FallbackAgents:
         out = {"answer": f"{value:g} {a_unit} = {shown} {b_unit}", "url": "https://www.nist.gov/pml/special-publication-811",
                "source": "Exact SI definitions (NIST SP 811)"}
         return out, {"status": "snapshot", "age_seconds": 0}, False, {"NIST SP 811": "2008 edition"}
+
+    def _wikidata_item(self, text, needed, props, rem):
+        """Search Wikidata, then one SPARQL query for the candidates: the first hit (search order) that carries
+        NEEDED, with the values and English labels of PROPS. Two requests; whole items are never downloaded."""
+        found = self._get_json("https://www.wikidata.org/w/api.php", rem, limit=256 * 1024, params={
+            "action": "wbsearchentities", "search": text, "language": "en", "type": "item", "limit": 7,
+            "format": "json", "maxlag": 5})
+        ids = [h["id"] for h in found.get("search") or [] if isinstance(h, dict)
+               and re.fullmatch(r"Q\d{1,12}", str(h.get("id")))]
+        if not ids:
+            raise FallbackUnavailable("not_found", "Wikidata has no item with this name.")
+        optional = " ".join(f"OPTIONAL {{ ?item wdt:{p} ?{p} }}" for p in props)
+        select = " ".join(f"?{p} ?{p}Label" for p in props)
+        query = (f"SELECT ?item ?itemLabel ?itemDescription {select} WHERE {{ VALUES ?item {{ "
+                 + " ".join("wd:" + i for i in ids) + f" }} {optional} "
+                 'SERVICE wikibase:label { bd:serviceParam wikibase:language "en". } } LIMIT 300')
+        response = get("https://query.wikidata.org/sparql", limiters=self.limiters, http=self.http,
+                       params={"query": query, "format": "json"}, seconds=max(0.1, rem() - 0.1), limit=512 * 1024,
+                       accept="application/sparql-results+json")
+        rows = json.loads(response.content).get("results", {}).get("bindings") or []
+        items: dict[str, dict] = {}
+        for row in rows:
+            qid = str((row.get("item") or {}).get("value", "")).rsplit("/", 1)[-1]
+            entry = items.setdefault(qid, {"id": qid, "label": (row.get("itemLabel") or {}).get("value", qid),
+                                           "description": (row.get("itemDescription") or {}).get("value", "")})
+            for p in props:
+                value = (row.get(p) or {}).get("value")
+                if value is not None:
+                    label = (row.get(p + "Label") or {}).get("value", value)
+                    entry.setdefault(p, [])
+                    if label not in entry[p]:
+                        entry[p].append(label)
+        item = next((items[i] for i in ids if i in items and items[i].get(needed)), None)
+        if not item:
+            raise FallbackUnavailable("not_found", f"No Wikidata item with this name has the needed facts ({needed}).")
+        return item
+
+    def _wikidata_place(self, args, remaining):
+        query = " ".join(str(args.get("query") or "").split())
+        if len(query) < 2 or len(query) > 120:
+            raise FallbackUnavailable("invalid_input", "Give the name of a place or landmark.")
+
+        def live(rem):
+            item = self._wikidata_item(query, "P625", ("P625", "P131", "P17"), rem)
+            answer = f"{item['label']} — {item['description']} (Wikidata {item['id']})"
+            m = re.match(r"Point\(([-\d.]+) ([-\d.]+)\)", item["P625"][0])
+            if m:
+                answer += f": coordinates latitude {float(m[2]):.5f}, longitude {float(m[1]):.5f}"
+            where = ", ".join(dict.fromkeys(item.get("P131", [])[:2] + item.get("P17", [])[:1]))
+            if where:
+                answer += f"; located in {where}"
+            return {"answer": _text(answer + ".", 8000), "url": "https://www.wikidata.org/wiki/" + item["id"],
+                    "source": "Wikidata (CC0)"}, _now_iso(self.utc_now())
+        (out, as_of), cache = self._cached(("wikidata-place", query.lower()), TTL["wikidata-place"], live, remaining)
+        return out, cache, False, {"Wikidata": as_of}
+
+    def _wikidata_book(self, args, remaining):
+        title = " ".join(str(args.get("title") or args.get("query") or "").split())
+        if len(title) < 2 or len(title) > 200:
+            raise FallbackUnavailable("invalid_input", "Give a book title.")
+
+        def live(rem):
+            item = self._wikidata_item(title, "P50", ("P50", "P577", "P136", "P407"), rem)
+            parts = [f"{item['label']} — {item['description']} (Wikidata {item['id']})", "author " + ", ".join(item["P50"][:5])]
+            dates = sorted(d[:10] for d in item.get("P577", []) if re.match(r"\d{4}-", d))
+            if dates:  # a year-precision date comes back as YYYY-01-01
+                parts.append("first published " + (dates[0][:4] if dates[0].endswith("-01-01") else dates[0]))
+            if item.get("P136"):
+                parts.append("genre " + ", ".join(item["P136"][:4]))
+            if item.get("P407"):
+                parts.append("language " + ", ".join(item["P407"][:3]))
+            return {"answer": _text("; ".join(parts) + ".", 8000), "url": "https://www.wikidata.org/wiki/" + item["id"],
+                    "source": "Wikidata (CC0)"}, _now_iso(self.utc_now())
+        (out, as_of), cache = self._cached(("wikidata-book", title.lower()), TTL["wikidata-book"], live, remaining)
+        return out, cache, False, {"Wikidata": as_of}
 
     # ---------------------------------------------------------------- usage
     def _usage(self, agent_id, envelope, code, started):

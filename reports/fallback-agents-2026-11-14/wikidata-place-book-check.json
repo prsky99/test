@@ -1,0 +1,39 @@
+{
+ "role_tasks": {
+  "wikidata-place": {
+   "passed": 1,
+   "cases": 1,
+   "rows": [
+    {
+     "case_id": "place-eiffel-tower",
+     "pass": true,
+     "why": []
+    }
+   ]
+  },
+  "wikidata-book": {
+   "passed": 2,
+   "cases": 2,
+   "rows": [
+    {
+     "case_id": "book-pride-prejudice",
+     "pass": true,
+     "why": []
+    },
+    {
+     "case_id": "book-1984",
+     "pass": true,
+     "why": []
+    }
+   ]
+  }
+ },
+ "contract_test_inputs": {
+  "wikidata-place": [
+   "ok"
+  ],
+  "wikidata-book": [
+   "ok"
+  ]
+ }
+}

@@ -70,7 +70,7 @@ def agents(tmp_path, routes, calls=None, clock=None, snapshot=None):
 
 # ------------------------------------------------------------------ catalog and contracts
 def test_tools_are_read_only_and_use_the_slot_contracts():
-    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard", "site-readiness", "wiki-grounding", "ecb-fx", "usgs-quakes", "tz-time", "airport-lookup", "wiktionary-define", "github-repo", "rdap-domain", "unit-convert"}
+    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard", "site-readiness", "wiki-grounding", "ecb-fx", "usgs-quakes", "tz-time", "airport-lookup", "wiktionary-define", "github-repo", "rdap-domain", "unit-convert", "wikidata-place", "wikidata-book"}
     for agent_id, spec in SPECS.items():
         tool = tool_spec(agent_id)
         c = contract(spec["contract"])
@@ -1455,3 +1455,39 @@ def test_watch_runs_outside_the_measurement_window(tmp_path):
     assert out["failing"] == [] and (tmp_path / "watch" / "state.json").exists() and not w.due()
     quiet = FallbackWatch(data_dir=tmp_path, clock=lambda: base + 26 * 60, quota=lambda: None)  # 10:56
     assert not quiet.due()
+
+
+# ------------------------------------------------------------------ place.search and book.search (Wikidata, CC0)
+def wikidata_routes(search_ids, bindings):
+    return {"https://www.wikidata.org/w/api.php": httpx.Response(200, json={"search": [{"id": i} for i in search_ids]}),
+            "https://query.wikidata.org/sparql": httpx.Response(200, json={"results": {"bindings": bindings}})}
+
+
+def b(**kw):
+    return {k: {"value": v} for k, v in kw.items()}
+
+
+def test_wikidata_place_takes_the_first_hit_with_coordinates(tmp_path):
+    calls = []
+    rows = [b(item="http://www.wikidata.org/entity/Q18927486", itemLabel="Eiffel Tower", itemDescription="painting"),
+            b(item="http://www.wikidata.org/entity/Q243", itemLabel="Eiffel Tower", itemDescription="tower in Paris, France",
+              P625="Point(2.294479 48.858296)", P131="x", P131Label="7th arrondissement of Paris", P17="y", P17Label="France")]
+    a, _ = agents(tmp_path, wikidata_routes(["Q18927486", "Q243"], rows), calls)
+    out = a.execute("wikidata-place", {"query": "Eiffel Tower"})["result"]
+    assert out["answer"] == ("Eiffel Tower — tower in Paris, France (Wikidata Q243): coordinates latitude 48.85830, "
+                             "longitude 2.29448; located in 7th arrondissement of Paris, France.")
+    assert out["url"] == "https://www.wikidata.org/wiki/Q243" and out["source"] == "Wikidata (CC0)" and len(calls) == 2
+    assert "VALUES+%3Fitem" in calls[1] or "VALUES" in __import__("urllib.parse").parse.unquote_plus(calls[1])
+
+
+def test_wikidata_book_names_the_author_and_year(tmp_path):
+    rows = [b(item="http://www.wikidata.org/entity/Q161531", itemLabel="War and Peace", itemDescription="1869 novel by Leo Tolstoy",
+              P50="a", P50Label="Leo Tolstoy", P577="1869-01-01T00:00:00Z", P136="g", P136Label="historical fiction")]
+    a, _ = agents(tmp_path, wikidata_routes(["Q161531"], rows))
+    out = a.execute("wikidata-book", {"title": "War and Peace"})["result"]
+    assert out["answer"] == ("War and Peace — 1869 novel by Leo Tolstoy (Wikidata Q161531); author Leo Tolstoy; "
+                             "first published 1869; genre historical fiction.")
+    b2, _ = agents(tmp_path / "b", wikidata_routes(["Q1"], [b(item="http://www.wikidata.org/entity/Q1", itemLabel="X")]))
+    with pytest.raises(FallbackUnavailable) as err:
+        b2.execute("wikidata-book", {"title": "No author here"})
+    assert err.value.code == "not_found"

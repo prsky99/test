@@ -96,4 +96,6 @@ def limiters(clock=time.monotonic, sleep=time.sleep) -> dict[str, HostLimiter]:
         "davidmegginson.github.io": HostLimiter(60.0, 4, 86400.0, clock, sleep),  # airport CSV: a few a day
         "en.wiktionary.org": HostLimiter(0.2, 300, 60.0, clock, sleep),
         "data.iana.org": HostLimiter(10.0, 24, 86400.0, clock, sleep),
+        "www.wikidata.org": HostLimiter(0.2, 300, 60.0, clock, sleep),  # sequential requests only
+        "query.wikidata.org": HostLimiter(0.5, 60, 60.0, clock, sleep),  # WDQS: few parallel, 60 s of query time a minute
     }
