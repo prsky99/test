@@ -92,10 +92,13 @@ ACCOUNT_NOTE = 'Account: the description of this tool says it needs your own key
 
 
 def order_key(item):
-    """Free and not failing first, then recent real successes first; a stable sort keeps the rest's order."""
+    """Free and not failing first; then, for a task that names no place, listings serving any place before
+    those serving one or two named regions (real task a05, 11-13); then recent real successes first. A stable
+    sort keeps the rest's order."""
     standing = item.get('task_standing') if isinstance(item, dict) else 0
     standing = standing if type(standing) is int else 0
-    return (bool(isinstance(item, dict) and item.get('access_note')), standing < 0, standing <= 0)
+    return (bool(isinstance(item, dict) and item.get('access_note')), standing < 0,
+            bool(isinstance(item, dict) and item.get('region_limited')), standing <= 0)
 
 
 # The task asks to take data out of a document; a tool that makes the document does the reverse
@@ -171,6 +174,41 @@ def _coverage(text):
         elif first in ('us', 'u.s'):
             regions.add('us')
     return regions
+
+
+def tool_direction_fits(task, tool):
+    """False for a reverse geocoder chosen for a forward geocoding task. Real task a05 (11-13): the words
+    "latitude and longitude" made reverse_geocode outscore geocode_address in the same listing."""
+    if not isinstance(task, str) or not isinstance(tool, dict):
+        return True
+    text = str(tool.get('name') or tool.get('id') or '') + ' ' + str(tool.get('description') or '')
+    return not (FORWARD_TASK.search(task) and not REVERSE_TASK.search(task) and REVERSE_TOOL.search(text))
+
+
+# Coverage of the whole world, said outright. "Any address" is not: a US geocoder says it too (Pinloft, a05).
+WORLDWIDE = re.compile(r'\b(?:worldwide|world-wide|global(?:ly)?|international|(?:all|every|most) countries|'
+                       r'\d+\+?\s+countries|anywhere in the world|around the world)\b', re.I)
+
+
+def region_limited(task, item, descriptions=None, regions=None):
+    """True when the task names no place and the listing serves only one or two named regions (real task
+    a05, 11-13: a Swiss solar estimate and a Polish property register led "Geocode a street address").
+    A listing that states global coverage, or names three or more regions, is not limited."""
+    if not isinstance(item, dict) or not isinstance(task, str):
+        return False
+    from ..gateway.constraints import places_in_text, regions_in_text
+    if task_region(task) or places_in_text(task):
+        return False
+    chosen = (item.get('tools') or [''])[0] or ''
+    tool_text = str((descriptions or {}).get(chosen) or next(
+        (t.get('description') for t in item.get('tools_schema') or () if isinstance(t, dict) and t.get('name') == chosen), '') or '')
+    listing = str(item.get('name') or '') + ' ' + str(item.get('description') or '')
+    if WORLDWIDE.search(listing + ' ' + tool_text):
+        return False
+    stated = {code for code in str(regions or '').strip(',').split(',') if code}
+    stated |= set(regions_in_text(listing)) | _coverage(tool_text)
+    stated -= {'global', 'world', 'worldwide'}
+    return 1 <= len(stated) <= 2
 
 
 def region_mismatch(task, item, descriptions=None, regions=None):
@@ -299,6 +337,8 @@ class ExposedFirstRecommender:
                 if note is not None:
                     item['access_note'] = note
                 item['task_standing'] = score
+                if region_limited(task, item, texts, self.regions(item)):
+                    item['region_limited'] = True
                 if (wrong_direction(task, item, texts) or region_mismatch(task, item, texts, self.regions(item))
                         or input_mismatch(task, item)):
                     item['task_standing'] = min(score, -1)

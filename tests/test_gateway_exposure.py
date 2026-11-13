@@ -256,3 +256,38 @@ def test_an_unrelayed_tool_gets_an_honest_note_with_the_provider_source_never_it
     brief = FastConcierge._brief({**first, 'url': 'https://agentconcierge.biz/api/gateway/mcp/7', 'description': 'Mail tools',
                                  'active_checked_at': 1794400000})
     assert 'Connection: This tool performs an action' in brief
+
+
+def test_forward_geocoding_never_leads_with_a_reverse_geocoder():
+    """Real task a05 (11-13): 'latitude and longitude' made reverse_geocode outscore geocode_address."""
+    from agent_market.concierge.gateway_exposure import tool_direction_fits
+    task = 'Geocode a street address to latitude and longitude'
+    assert not tool_direction_fits(task, {'name': 'reverse_geocode', 'description': 'Convert latitude and longitude to an address'})
+    assert tool_direction_fits(task, {'name': 'geocode_address', 'description': 'Convert an address to coordinates'})
+    assert tool_direction_fits('reverse geocode 37.5, 127.0 to a street address', {'name': 'reverse_geocode'})
+    assert tool_direction_fits('weather in Seoul', {'name': 'reverse_geocode'})
+
+
+def test_a_task_without_a_place_puts_single_region_listings_after_the_others():
+    """Real task a05 (11-13): a Swiss solar estimate and a Polish property register led a placeless geocoding task."""
+    from agent_market.concierge.gateway_exposure import region_limited, order_key
+    task = 'Geocode a street address to latitude and longitude'
+    polish = {'name': 'ceny-nieruchomosci', 'description': 'Polish real-estate deed prices and parcel checks',
+              'tools': ['find_address'], 'tools_schema': [{'name': 'find_address', 'description': 'Resolve a Polish address to coordinates'}]}
+    swiss = {'name': 'Soljo Solar', 'description': 'Rooftop solar estimate', 'tools': ['geocode_address']}
+    plain = {'name': 'Faceabot Geocoding', 'description': 'Forward and reverse geocoding', 'tools': ['geocode_address']}
+    world = {'name': 'Geo', 'description': 'Geocode any address worldwide; covers the US and the UK', 'tools': ['geocode']}
+    many = {'name': 'Weather', 'description': 'Forecasts for the US, the UK, Japan and Germany', 'tools': ['forecast']}
+    assert region_limited(task, polish)                          # from the listing's own words
+    assert region_limited(task, swiss, regions=',ch,')           # from the stored regions
+    us_only = {'name': 'Pinloft', 'description': 'US address to lat/lon, county, FIPS', 'tools': ['geocode_address']}
+    assert region_limited(task, us_only, {'geocode_address': 'Geocode any address'}, ',us,')  # "any address" is not the world
+    assert not region_limited(task, plain) and not region_limited(task, world) and not region_limited(task, many)
+    # A task that names the place is judged by region_mismatch instead.
+    assert not region_limited('geocode an address in Warsaw, Poland', polish)
+    assert not region_limited('geocode an address in Poland', polish)
+    ranked = sorted([dict(polish, region_limited=True, task_standing=1), dict(plain, task_standing=0)], key=order_key)
+    assert ranked[0]['name'] == 'Faceabot Geocoding'
+    # A paid or failing listing still follows a limited one.
+    ranked = sorted([dict(plain, task_standing=-1), dict(polish, region_limited=True, task_standing=0)], key=order_key)
+    assert ranked[0]['name'] == 'ceny-nieruchomosci'

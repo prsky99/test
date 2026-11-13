@@ -1091,7 +1091,10 @@ class QualityRecommender(Recommender):
                 item['tools']=[];item['tools_schema']=[]
             if tools:
                 described = {id(t) for t in _described_tools(resource, tools)}
+                from .gateway_exposure import tool_direction_fits
+                # A tool doing the task the other way round never leads (real task a05: reverse_geocode).
                 tool = max(tools,key=lambda t:(
+                    tool_direction_fits(task, t),
                     sum(_term_in(term, _tool_text(t, described)) for term in core),
                     sum(_term_in(term, _tool_text(t, described)) for term in terms),
                     t.get('name')==evidence['report_tool']))

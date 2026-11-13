@@ -25,15 +25,17 @@ from .postgres_capability_text import SEARCHABLE
 # (A2A about 24%, MCP about 7%: usage_tools stays, it is bound into the document).
 SKIPPED = frozenset(("usage_full_tools", "eval_info", "usage_changes", "content_hash", "last_error"))
 
-# A policy change that leaves every document byte-identical (11-13: the gateway relay verbs change
-# collector/usage.py and execution_policy.py, which policy_hash() covers, but no document input; 2,995 sampled
-# listings, 1,507 of them with changed relay tools, built identically with both releases) declares the previous
-# hash compatible here. Without it every visitor search falls to the complete-contract path for the ~2 h 40 min jobs
-# needs to rebuild 416k documents. Keyed by the current hash, so any later policy change ends it by itself;
-# jobs still rebuilds every document under the new hash, after which the entry does nothing.
+# A policy change that leaves every document byte-identical declares the previous hash compatible here.
+# Without it every visitor search falls to the complete-contract path for the ~2 h 40 min jobs needs to
+# rebuild 416k documents. Keyed by the current hash, so any later policy change ends it by itself; jobs still
+# rebuilds every document under the new hash, after which the entry does nothing.
+# 11-13 (a05): selection.py lets a forward geocoding task never lead with a reverse geocoder; documents do not
+# depend on the chosen tool. 2,995 sampled listings built byte-identically with relay-frontend-20261113-r2
+# (40851c1a) and this code (5d3d8f6a). The 11-13 relay entry (40851c1a -> d1d9688a) is removed: tonight's
+# rebuild leaves no d1d9688a document that a 5d3d8f6a release would need.
 COMPATIBLE_POLICIES = {
-    "40851c1a2575526dae44743875407043c6abc5f431f98919692f59f4d6f6def5":
-        ("d1d9688a148c1e19ec001fd76d68f4763e7601e2072cb563ca523e0518535bd4",),
+    "5d3d8f6a1d61faac5da83354fa3ebff7a61702a5b89c83a2824d2d3327b9c54c":
+        ("40851c1a2575526dae44743875407043c6abc5f431f98919692f59f4d6f6def5",),
 }
 
 
