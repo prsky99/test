@@ -1,0 +1,97 @@
+import json
+
+from agent_market.necklaces import model, retest, runner
+from tests.test_necklaces_runner import Fail, caller_from
+
+
+def pkg_case(case_id, ids, latest="4.17.21"):
+    return {"case_id": case_id, "input": {"package": "lodash", "ecosystem": "npm", "version": "4.17.20"},
+            "truth": {"advisories": [{"id": i, "ids": [i]} for i in ids], "latest_version": latest}, "stratum": "x"}
+
+
+def package_defn():
+    defn = next(d for d in model.load_valid() if d["slug"] == "package-risk-audit")
+    for slot in defn["slots"]:
+        for m in slot["chain"]:
+            if m["kind"] == "agentcon":
+                m["state"] = "active"
+    return defn
+
+
+def test_graders():
+    case = pkg_case("a", ["CVE-2021-23337", "CVE-2020-28500"])
+    assert retest.grade_advisories(case, {"items": [{"id": "CVE-2021-23337"}, {"id": "CVE-2020-28500"}]})
+    assert not retest.grade_advisories(case, {"items": [{"id": "CVE-2021-23337"}]})
+    assert retest.grade_advisories(pkg_case("b", []), {"items": []})
+    assert retest.grade_health(case, {"answers": [{"text": "latest 4.17.21"}]})
+    cve = {"truth": {"cvss": {"score": 10.0}, "cvss_record": {"score": 9.8}, "kev": False}}
+    assert retest.grade_record(cve, {"cvss_scores": [9.8]}) and not retest.grade_record(cve, {"cvss_scores": [7.0]})
+    assert retest.grade_exploited(cve, {"kev": False}) and not retest.grade_exploited(cve, {"kev": None})
+
+
+def test_run_set_writes_daily_lines_and_single_baselines(tmp_path):
+    defn = package_defn()
+    cases = [pkg_case("c1", ["CVE-2021-23337"]), pkg_case("c2", [])]
+    answers = {367249: "CVE-2021-23337", 286623: Fail(), 130453: "CVE-2021-23337", 47161: "nothing",
+               "package-registry": {"latest_version": "4.17.21"}}
+    clock = iter(range(0, 1000, 1))
+    out = retest.run_set(defn, cases, caller_from(answers), root=tmp_path, singles=True,
+                         clock=lambda: next(clock), now=lambda: 1_800_000_000)
+    assert out == {"slug": "package-risk-audit", "split": "tuning", "cases": 2, "passed": 2, "of": 2,
+                   "stopped_by_budget": False, "seconds": out["seconds"]}
+    lines = [json.loads(l) for l in (tmp_path / "retest" / "20270115.jsonl").read_text().splitlines()]
+    kinds = {l["type"] for l in lines}
+    assert kinds == {"case", "member", "single"}
+    singles = [l for l in lines if l["type"] == "single"]
+    assert {l["resource_id"] for l in singles} == {367249, 286623, 47161, 130453}
+    assert any(l["ok"] is False for l in singles if l["resource_id"] == 286623)
+    assert (tmp_path / "results" / "package-risk-audit" / "selftest-20270115.jsonl").exists()
+
+
+def test_run_set_stops_at_the_time_budget(tmp_path):
+    defn = package_defn()
+    cases = [pkg_case(f"c{i}", []) for i in range(5)]
+    ticks = iter(range(0, 100_000, 100))       # every clock read moves 100 s on
+    out = retest.run_set(defn, cases, caller_from({367249: "none", 286623: "none", "package-registry": "4.17.21"}),
+                         root=tmp_path, budget_s=300, clock=lambda: next(ticks), now=lambda: 1_800_000_000)
+    assert out["stopped_by_budget"] and out["cases"] == 3
+
+
+def test_budget_counts_the_provider_domain_not_our_relay():
+    member = {"kind": "external", "resource_id": 367249, "registrable_domain": "poparecon.com"}
+    assert retest.provider_url(member) == "https://poparecon.com/"
+    seen = []
+
+    class Budget:
+        def reserve(self, url, system, n=1):
+            seen.append(url)
+            return True, "ok"
+
+        def note(self, *a):
+            pass
+    call = runner.budgeted_caller(lambda m, a, t: "ok", "necklace_retest", retest.provider_url, Budget())
+    call(member, {}, 1)
+    assert seen == ["https://poparecon.com/"]
+
+
+def test_gateway_caller_uses_the_public_relay_with_the_qa_header():
+    sent = []
+
+    class Resp:
+        def __init__(self, data, status=200):
+            self.data, self.status_code = data, status
+
+        def json(self):
+            return self.data
+
+    class Client:
+        def post(self, url, json, headers):
+            sent.append((url, json["method"], headers.get("X-Agentcon-QA")))
+            if json["method"] == "initialize":
+                return Resp({"result": {}})
+            return Resp({"result": {"structuredContent": {"items": ["CVE-1"]}}})
+    call = retest.gateway_caller(Client(), "https://example.test")
+    out = call({"kind": "external", "resource_id": 5, "tool": "t"}, {"q": 1}, 3)
+    assert out == {"items": ["CVE-1"]}
+    assert sent == [("https://example.test/api/gateway/mcp/5", "initialize", "necklace_retest"),
+                    ("https://example.test/api/gateway/mcp/5", "tools/call", "necklace_retest")]

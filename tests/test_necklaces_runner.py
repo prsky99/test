@@ -31,7 +31,7 @@ def caller_from(answers, calls=None, delay=0.0):
                 calls.append((member.get("resource_id"), args))
         if delay:
             time.sleep(delay)
-        value = answers.get(member.get("resource_id"))
+        value = answers.get(member.get("resource_id") or member.get("agent_id"))
         if isinstance(value, Exception):
             raise value
         if value is None:
@@ -129,13 +129,17 @@ def test_run_event_has_no_input_or_output(tmp_path):
     assert json.loads(text)["stages"] == {"papers": 1, "news": 1}
 
 
-def test_shipped_definition_runs_with_a_fake_caller():
+def test_shipped_definition_runs_once_its_fallbacks_pass_the_gate():
     defn = next(d for d in model.load_valid() if d["slug"] == "package-risk-audit")
+    for slot in defn["slots"]:
+        for m in slot["chain"]:
+            if m["kind"] == "agentcon":
+                m["state"] = "active"        # what the ops substitute gate turns on
     answers = {367249: "CVE-2021-23337", 286623: "GHSA-35jh-r3h4-6jhm CVE-2021-23337",
-               133021: {"version": "4.17.21"}}
+               "package-registry": {"latest_version": "4.17.21", "source": "npm"}}
     out = runner.Runner(caller_from(answers)).run(defn, {"package": "lodash", "ecosystem": "npm", "version": "4.17.20"})
     assert out["ok"] and out["slots"]["advisories"]["stage"] == 1
-    assert out["slots"]["health"]["stage"] == 3      # only the AgentValCon fallback is active there today
+    assert out["slots"]["health"]["stage"] == 3 and out["slots"]["health"]["kind"] == "agentcon"
     assert own(1)["kind"] == "agentcon" and ext(1, "a")["kind"] == "external"
 
 

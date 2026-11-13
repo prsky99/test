@@ -1,0 +1,211 @@
+"""The one necklace retest runner: trial self-tests, daily retests and gate rounds.
+
+- External members are called through the public relay ``/api/gateway/mcp/<resource_id>`` with
+  ``X-Agentcon-QA: necklace_retest`` (all relay guards apply; the error ledger and the north star
+  set the calls apart) and the shared provider budget (deploy/PROVIDER_BUDGET.md).
+- AgentValCon fallbacks without a resource_id run in-process (fallback_agents, PM path A).
+- Each case is graded per slot against the frozen gold truth; the case passes when every required
+  slot passes. The contrast slot (advisories, record) is also run with each external member alone
+  for the single baseline (Δ).
+- Lines go to ``<root>/retest/<YYYYMMDD>.jsonl`` in the shape daily.py reads; full answers for
+  review go to ``<root>/results/<slug>/selftest-<YYYYMMDD>.jsonl`` (inputs are public gold cases).
+- A run stops when its time budget (35 minutes by default) is spent; the rest waits for the next day.
+"""
+from __future__ import annotations
+
+import argparse
+import copy
+import json
+import time
+from pathlib import Path
+
+from . import model, runner
+from .judge import DEFAULT_ROOT, _iso
+
+BASE = "https://agentconcierge.biz"
+QA = "necklace_retest"
+BUDGET_SECONDS = 35 * 60
+CONTRAST = {"package-risk-audit": "advisories", "cve-incident-brief": "record"}
+
+
+# ---------------------------------------------------------------- public relay caller
+def gateway_caller(client, base: str = BASE):
+    def rpc(url, method, params):
+        r = client.post(url, json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params},
+                        headers={"Content-Type": "application/json", "Accept": "application/json",
+                                 "MCP-Protocol-Version": "2025-06-18", "X-Agentcon-QA": QA})
+        try:
+            data = r.json()
+        except ValueError:
+            data = {}
+        if r.status_code == 429:
+            raise runner.BudgetDenied("RATE_LIMITED_429")
+        if "result" not in data:
+            error = Exception((data.get("error") or {}).get("message") or f"HTTP {r.status_code}")
+            error.error_code = f"relay_{r.status_code}"
+            raise error
+        return data["result"]
+
+    def call(member, args, timeout_s):
+        if member.get("kind") == "agentcon" and not isinstance(member.get("resource_id"), int):
+            from .. import fallback_agents
+            return fallback_agents.slot_output(fallback_agents.run(member["agent_id"], args))
+        url = f"{base}/api/gateway/mcp/{member['resource_id']}"
+        rpc(url, "initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
+                                "clientInfo": {"name": "necklace-retest", "version": "1"}})
+        result = rpc(url, "tools/call", {"name": member["tool"], "arguments": args})
+        if result.get("isError"):
+            error = Exception("tool error")
+            error.error_code = "UPSTREAM_TOOL_ERROR"
+            raise error
+        return result.get("structuredContent") or result.get("content") or result
+    return call
+
+
+def provider_url(member: dict) -> str:
+    """The budget counts the pearl provider's registrable domain, never our relay host."""
+    return f"https://{member['registrable_domain']}/"
+
+
+# ---------------------------------------------------------------- graders (frozen gold truth)
+def _text(value) -> str:
+    return json.dumps(value, ensure_ascii=False, default=str).lower()
+
+
+def grade_advisories(case, slot_out) -> bool:
+    if not slot_out or slot_out.get("missing"):
+        return False
+    found = {i["id"].upper() for i in slot_out.get("items", [])}
+    truth = case["truth"]["advisories"]
+    if not truth:
+        return True                       # a clean version: nothing to miss
+    hit = sum(1 for adv in truth if {x.upper() for x in adv["ids"]} & found)
+    return hit / len(truth) >= 0.9
+
+
+def grade_health(case, slot_out) -> bool:
+    latest = case["truth"].get("latest_version")
+    return bool(slot_out) and not slot_out.get("missing") and bool(latest) and latest.lower() in _text(slot_out)
+
+
+def grade_record(case, slot_out) -> bool:
+    if not slot_out or slot_out.get("missing"):
+        return False
+    truth = {case["truth"]["cvss"].get("score"), (case["truth"].get("cvss_record") or {}).get("score")} - {None}
+    scores = [s for s in (slot_out.get("cvss_scores") or [slot_out.get("cvss_score")]) if s is not None]
+    return any(abs(s - t) <= 0.1 for s in scores for t in truth)
+
+
+def grade_exploited(case, slot_out) -> bool:
+    return bool(slot_out) and not slot_out.get("missing") and slot_out.get("kev") is case["truth"]["kev"]
+
+
+GRADERS = {"advisories": grade_advisories, "health": grade_health, "record": grade_record,
+           "exploited": grade_exploited}
+
+
+def grade(defn: dict, case: dict, output: dict) -> dict:
+    """Pass per slot; the case passes when every required slot passes (optional slots are reported only)."""
+    per = {}
+    for slot in defn["slots"]:
+        grader = GRADERS.get(slot["slot"])
+        if grader:
+            per[slot["slot"]] = grader(case, output.get(slot["slot"]))
+    required = [s["slot"] for s in defn["slots"] if s.get("required", True) and s["slot"] in per]
+    return {"slots": per, "ok": all(per[s] for s in required)}
+
+
+def single_definition(defn: dict, slot_name: str, member: dict) -> dict:
+    """The necklace reduced to one slot answered by one member (no fallbacks): the single baseline."""
+    single = copy.deepcopy(defn)
+    slot = next(s for s in single["slots"] if s["slot"] == slot_name)
+    slot["chain"], slot["fanout"], slot["required"] = [dict(member, state="active")], 1, True
+    single["slots"] = [slot]
+    return single
+
+
+# ---------------------------------------------------------------- run
+def load_cases(root: Path, slug: str, split: str) -> list[dict]:
+    path = Path(root) / "gold" / slug / f"{split}.jsonl"
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT, split: str = "tuning",
+            singles: bool = False, budget_s: float = BUDGET_SECONDS, watch_state: dict | None = None,
+            clock=time.monotonic, now=time.time) -> dict:
+    started = clock()
+    day = time.strftime("%Y%m%d", time.localtime(now()))
+    lines, details = [], []
+    done = passed = 0
+    contrast = CONTRAST.get(defn["slug"])
+    for case in cases:
+        if clock() - started > budget_s:
+            break
+        result = runner.Runner(caller, watch_state=watch_state).run(defn, case["input"])
+        verdict = grade(defn, case, result["output"])
+        at = _iso(now())
+        lines.append({"type": "case", "slug": defn["slug"], "version": defn["version"], "case_id": case["case_id"],
+                      "set": split, "at": at, "ok": verdict["ok"], "completed": result["completed"],
+                      "completed_external_only": result["completed_external_only"],
+                      "latency_ms": result["latency_ms"], "slots": result["slots"], "graded": verdict["slots"]})
+        for slot, attempts in result["attempts"].items():
+            for a in attempts:
+                lines.append({"type": "member", "slug": defn["slug"], "version": defn["version"], "slot": slot,
+                              "resource_id": a["resource_id"], "tool": a["tool"], "kind": a["kind"], "at": at,
+                              "ok": a["ok"], "contract_valid": a["error_class"] != "contract_invalid",
+                              "latency_ms": a["ms"], "error_class": a["error_class"]})
+        details.append({"case_id": case["case_id"], "verdict": verdict, "output": result["output"],
+                        "slots": result["slots"]})
+        if singles and contrast:
+            slot = next(s for s in defn["slots"] if s["slot"] == contrast)
+            for member in model.live_members(slot, "external"):
+                one = single_definition(defn, contrast, member)
+                out = runner.Runner(caller).run(one, case["input"])
+                lines.append({"type": "single", "slug": defn["slug"], "resource_id": member["resource_id"],
+                              "tool": member["tool"], "case_id": case["case_id"], "at": at,
+                              "ok": GRADERS[contrast](case, out["output"].get(contrast))})
+        done += 1
+        passed += verdict["ok"]
+    retest = Path(root) / "retest" / f"{day}.jsonl"
+    retest.parent.mkdir(parents=True, exist_ok=True)
+    with retest.open("a", encoding="utf-8") as handle:
+        for line in lines:
+            handle.write(json.dumps(line, ensure_ascii=False, sort_keys=True) + "\n")
+    review = Path(root) / "results" / defn["slug"] / f"selftest-{day}.jsonl"
+    review.parent.mkdir(parents=True, exist_ok=True)
+    with review.open("a", encoding="utf-8") as handle:
+        for line in details:
+            handle.write(json.dumps(line, ensure_ascii=False, sort_keys=True, default=str) + "\n")
+    return {"slug": defn["slug"], "split": split, "cases": done, "passed": passed, "of": len(cases),
+            "stopped_by_budget": done < len(cases), "seconds": round(clock() - started, 1)}
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Run a necklace on its gold set through the public relay.")
+    parser.add_argument("slug")
+    parser.add_argument("--split", default="tuning", choices=("tuning", "holdout-r1", "holdout-r2"))
+    parser.add_argument("--limit", type=int, default=30)
+    parser.add_argument("--singles", action="store_true", help="also run the single baseline (weekly)")
+    parser.add_argument("--activate-planned", action="store_true",
+                        help="treat planned AgentValCon fallbacks as active (self-test before the substitute gate)")
+    parser.add_argument("--root", type=Path, default=DEFAULT_ROOT)
+    parser.add_argument("--base", default=BASE)
+    parser.add_argument("--system", default="necklace_retest", choices=("necklace_retest", "gate", "adhoc"))
+    args = parser.parse_args(argv)
+    defn = next(d for d in model.load_valid() if d["slug"] == args.slug)
+    if args.activate_planned:
+        for slot in defn["slots"]:
+            for m in slot["chain"]:
+                if m["kind"] == "agentcon" and m.get("state") == "planned":
+                    m["state"] = "active"
+    import httpx
+    with httpx.Client(timeout=12, headers={"User-Agent": "AgentValCon-NecklaceRetest/1.0"}) as client:
+        call = runner.budgeted_caller(gateway_caller(client, args.base), args.system, provider_url)
+        result = run_set(defn, load_cases(args.root, args.slug, args.split)[:args.limit], call,
+                         root=args.root, split=args.split, singles=args.singles)
+    print(json.dumps(result, ensure_ascii=False))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
