@@ -41,7 +41,10 @@
 | 중계 도구가 0개가 되는 서버 | 139 |
 
 - 빠지는 도구 상위 항목
-  - browser-url-ok: 2,339개. "Check whether a URL can be opened"인 조회 도구지만 'browse' 접두 일치로 통과하던 것이다. 이 서버들은 다른 중계 도구가 있다.
+  - browser-url-ok: 2,339개. 브라우저 자동화 때문에 빠지는 것이 아니다.
+    - 설명은 "Check whether a URL can be opened. No browser is launched."이고 annotation이 없다.
+    - 이름이 'browse'+'r'이라 단어 경계에 걸리고, 접두어 'browser' 뒤 'url_ok'는 동사가 아니라서 빠진다. 이름 규칙의 부수 효과다.
+    - 2,339개 서버 모두 새 규칙에서도 다른 중계 도구가 있어, 중계 도구가 0개가 되는 서버는 없다.
   - calculator_describe 60, checker_answer 51, checker_tree 46
   - counter_quote 11, checkout_link 5
 - 처음 사례 mcp/56920(InvoiceOracle)
