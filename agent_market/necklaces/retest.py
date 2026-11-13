@@ -70,12 +70,13 @@ def _fail(code: str, message: str = ""):
 def gateway_caller(client, base: str = BASE, pacer: RelayPacer | None = None):
     pacer = pacer or RelayPacer()
 
-    def rpc(url, method, params):
+    def rpc(url, method, params, timeout_s=12.0):
         if not pacer.take():
             raise _fail("relay_throttled", "local relay pace reached")
         r = client.post(url, json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params},
                         headers={"Content-Type": "application/json", "Accept": "application/json",
-                                 "MCP-Protocol-Version": "2025-06-18", "X-Agentcon-QA": QA})
+                                 "MCP-Protocol-Version": "2025-06-18", "X-Agentcon-QA": QA},
+                        timeout=max(0.5, timeout_s))
         try:
             data = r.json()
         except ValueError:
@@ -95,9 +96,12 @@ def gateway_caller(client, base: str = BASE, pacer: RelayPacer | None = None):
             from .. import fallback_agents
             return fallback_agents.slot_output(fallback_agents.run(member["agent_id"], args))
         url = f"{base}/api/gateway/mcp/{member['resource_id']}"
+        started = time.monotonic()
         rpc(url, "initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
-                                "clientInfo": {"name": "necklace-retest", "version": "1"}})
-        result = rpc(url, "tools/call", {"name": member["tool"], "arguments": args})
+                                "clientInfo": {"name": "necklace-retest", "version": "1"}}, timeout_s)
+        # the call gets what is left of the slot deadline, so one slow provider cannot overrun the necklace
+        result = rpc(url, "tools/call", {"name": member["tool"], "arguments": args},
+                     timeout_s - (time.monotonic() - started))
         if result.get("isError"):
             error = Exception("tool error")
             error.error_code = "UPSTREAM_TOOL_ERROR"
@@ -229,7 +233,7 @@ def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT,
             break
         if pacer is not None:
             pacer.wait_for(requests_per_case(defn))
-        result = runner.Runner(caller, watch_state=watch_state).run(defn, case["input"])
+        result = runner.Runner(caller, watch_state=watch_state, keep_raw=2000).run(defn, case["input"])
         verdict = grade(defn, case, result["output"])
         at = _iso(now())
         lines.append({"type": "case", "slug": defn["slug"], "version": defn["version"], "case_id": case["case_id"],
@@ -243,7 +247,7 @@ def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT,
                               "ok": a["ok"], "contract_valid": a["error_class"] != "contract_invalid",
                               "latency_ms": a["ms"], "error_class": a["error_class"]})
         details.append({"case_id": case["case_id"], "verdict": verdict, "output": result["output"],
-                        "slots": result["slots"]})
+                        "slots": result["slots"], "attempts": result["attempts"]})
         if singles and contrast:
             slot = next(s for s in defn["slots"] if s["slot"] == contrast)
             for member in model.live_members(slot, "external"):

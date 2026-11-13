@@ -85,7 +85,7 @@ def test_gateway_caller_uses_the_public_relay_with_the_qa_header():
             return self.data
 
     class Client:
-        def post(self, url, json, headers):
+        def post(self, url, json, headers, timeout=None):
             sent.append((url, json["method"], headers.get("X-Agentcon-QA")))
             if json["method"] == "initialize":
                 return Resp({"result": {}})
@@ -115,7 +115,7 @@ def test_relay_throttle_is_not_a_provider_pause():
 
     def client_with(resp):
         class Client:
-            def post(self, url, json, headers):
+            def post(self, url, json, headers, timeout=None):
                 return Resp(200, {"result": {}}) if json["method"] == "initialize" else resp
         return Client()
     member = {"kind": "external", "resource_id": 1, "tool": "t", "registrable_domain": "p.example"}

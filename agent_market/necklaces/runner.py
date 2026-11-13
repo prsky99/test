@@ -41,6 +41,7 @@ class Attempt:
     ok: bool
     ms: int
     error_class: str | None = None
+    raw: str | None = None
 
 
 @dataclass
@@ -93,7 +94,28 @@ def in_coverage(member: dict, values: dict) -> bool:
 
 # ---------------------------------------------------------------- normalizers
 ADVISORY_ID = re.compile(r"\b(GHSA(?:-[23456789cfghjmpqrvwx]{4}){3}|CVE-\d{4}-\d{4,}|PYSEC-\d{4}-\d+|OSV-\d{4}-\d+|RUSTSEC-\d{4}-\d{4}|GO-\d{4}-\d{4})\b", re.I)
-CVSS = re.compile(r"(?:cvss[^0-9]{0,40}|base[ _]?score[^0-9]{0,10}|\"score\"\s*:\s*)(\d{1,2}(?:\.\d)?)", re.I)
+# A CVSS base score, never the CVSS version ("CVSS:3.1/AV:...", "cvssV3_1", "version": "3.1").
+SCORE_KEYS = ("baseScore", "base_score", "cvss_score", "cvssScore", "score")
+CVSS_TEXT = re.compile(r"(?:base[ _-]?score|cvss[ _-]?score)\W{0,12}(\d{1,2}(?:\.\d)?)", re.I)
+CVSS_VECTOR = re.compile(r"cvss:\d\.\d/|cvssv\d_\d|\bv\d\.\d\b", re.I)
+
+
+def find_score(raw):
+    """The first numeric base score in a structured answer (depth-first), else one written in the text."""
+    stack = [raw]
+    while stack:
+        node = stack.pop(0)
+        if isinstance(node, dict):
+            for key in SCORE_KEYS:
+                value = node.get(key)
+                if isinstance(value, (int, float)) and not isinstance(value, bool) and 0 <= value <= 10:
+                    return float(value)
+            stack.extend(node.values())
+        elif isinstance(node, list):
+            stack.extend(node)
+    text = CVSS_VECTOR.sub(" ", _text(raw))
+    match = CVSS_TEXT.search(text)
+    return float(match.group(1)) if match and 0 <= float(match.group(1)) <= 10 else None
 URL = re.compile(r"https://[^\s\"'<>)\]]+")
 KEV_YES = re.compile(r"(known exploited|\bkev\b|cisa kev|actively exploited|exploited in the wild)", re.I)
 KEV_NO = re.compile(r"(not (in|on|listed in) (the )?(cisa )?(kev|known exploited)|\"kev\"\s*:\s*false|\"in_kev\"\s*:\s*false)", re.I)
@@ -115,8 +137,7 @@ def norm_record(raw, values):
     text = _text(raw)
     if values.get("cve_id", "").upper() not in text.upper():
         return None
-    score = next((float(m.group(1)) for m in CVSS.finditer(text) if 0 <= float(m.group(1)) <= 10), None)
-    return {"cve_id": values["cve_id"], "cvss_score": score, "references": URL.findall(text)[:20]}
+    return {"cve_id": values["cve_id"], "cvss_score": find_score(raw), "references": URL.findall(text)[:20]}
 
 
 def norm_exploited(raw, values):
@@ -164,9 +185,12 @@ def merge(contract: str, answers: list) -> dict:
 
 # ---------------------------------------------------------------- runner
 class Runner:
-    def __init__(self, caller, *, watch_state: dict | None = None, clock=time.monotonic, workers: int = 8):
-        """``caller(member, args, timeout_s)`` returns the raw tool output or raises."""
+    def __init__(self, caller, *, watch_state: dict | None = None, clock=time.monotonic, workers: int = 8,
+                 keep_raw: int = 0):
+        """``caller(member, args, timeout_s)`` returns the raw tool output or raises. ``keep_raw`` keeps that
+        many characters of each raw answer on the attempt (self-tests only; public gold inputs)."""
         self.caller, self.watch_state, self.clock, self.workers = caller, watch_state or {}, clock, workers
+        self.keep_raw = keep_raw
 
     def _call(self, member, rank, values, contract, deadline):
         started = self.clock()
@@ -177,11 +201,13 @@ class Runner:
             raw = self.caller(member, render(member.get("input_map") or {}, values), left)
             canon = NORMALIZERS.get(contract, norm_generic)(raw, values)
             ok, error = canon is not None, None if canon is not None else "contract_invalid"
+            kept = _text(raw)[:self.keep_raw] if self.keep_raw else None
         except Exception as exc:   # every failure of one member is that member's, never the run's
             canon, ok, error = None, False, (getattr(exc, "error_code", None) or getattr(exc, "code", None)
                                             or type(exc).__name__)
+            kept = str(exc)[:self.keep_raw] if self.keep_raw else None
         ms = int((self.clock() - started) * 1000)
-        return Attempt(member.get("resource_id"), member["tool"], member["kind"], rank, ok, ms, error), canon
+        return Attempt(member.get("resource_id"), member["tool"], member["kind"], rank, ok, ms, error, kept), canon
 
     def run_slot(self, slug: str, slot: dict, values: dict, deadline: float) -> SlotResult:
         result = SlotResult(slot["slot"], bool(slot.get("required", True)), max(1, slot.get("fanout", 1)))

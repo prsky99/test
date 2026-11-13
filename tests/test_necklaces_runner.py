@@ -211,3 +211,20 @@ def test_relay_throttle_does_not_pause_the_provider():
                                   lambda m: f"https://p{m['resource_id']}.example/", budget)
     runner.Runner(call).run(necklace(), {"q": "x"})
     assert budget.noted == []
+
+
+def test_cvss_score_is_never_the_cvss_version():
+    nvd_like = {"metrics": {"cvssMetricV31": [{"cvssData": {"version": "3.1", "vectorString": "CVSS:3.1/AV:N/AC:L",
+                                                           "baseScore": 10.0}}]}}
+    assert runner.find_score(nvd_like) == 10.0
+    assert runner.find_score("CVSS:3.1/AV:N/AC:L/PR:N base score 9.8 (critical)") == 9.8
+    assert runner.find_score("cvssV3_1 vector only, no score") is None
+    assert runner.find_score({"version": "3.1", "severity": "HIGH"}) is None
+    assert runner.norm_record({"id": "CVE-2021-44228", "score": 10.0}, {"cve_id": "CVE-2021-44228"})["cvss_score"] == 10.0
+
+
+def test_raw_answers_are_kept_on_attempts_for_self_tests():
+    out = runner.Runner(caller_from({1: "CVE-2020-28500 raw", 3: "kev"}), keep_raw=10).run(necklace(), {"q": "x"})
+    assert out["attempts"]["papers"][0]["raw"] == "CVE-2020-2"
+    plain = runner.Runner(caller_from({1: "CVE-2020-28500", 3: "kev"})).run(necklace(), {"q": "x"})
+    assert plain["attempts"]["papers"][0]["raw"] is None
