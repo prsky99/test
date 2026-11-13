@@ -33,7 +33,7 @@ def test_category_csp_escaping_and_compact_discovery_in_browser(adoption,browser
         assert not re.search('[\uac00-\ud7af]',page.locator('body').inner_text())
         result=page.evaluate('''async()=>{
             const first=await fetch('/api/feed/verified.json?protocol=mcp');
-            const second=await fetch('/api/feed/verified.json?protocol=mcp',{headers:{'If-None-Match':'W/'+first.headers.get('etag')}});
+            const second=await fetch('/api/feed/verified.json?protocol=mcp',{headers:{'If-None-Match':first.headers.get('etag')}});  // 11-13: a shared public read, its ETag is already weak
             const found=await fetch('/api/agent/v1/discover',{method:'POST',headers:{'Content-Type':'application/json'},
                 body:JSON.stringify({task:'public documentation search',protocol:'mcp'})});
             return {first:first.status,second:second.status,found:found.status,text:await found.text()};
