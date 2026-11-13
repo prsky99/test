@@ -81,6 +81,7 @@ TESTS = (
     'tests/test_first_run_fixes.py',  # 11-14 growth plan 7 item 4: a failed run says how to fix it
     'tests/test_run_here.py',  # 11-14 growth plan 7 item 3: the run line right under the first recommendation
     'tests/test_pearl_frontend.py',  # 11-14: the workspace text replacement follows the brand (AgentValCon broke it unseen)
+    'tests/test_necklace_surface.py',  # 11-14 PM: necklace pages, list, feed and notices read the judged snapshot only
 )
 # Each role runs the tests for the code it serves. jobs releases run the collector, health checks,
 # crawler and evaluation without the typed execution engine, so the opening-path list above
