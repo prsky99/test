@@ -67,7 +67,7 @@
 | GitHub Advisory Database | CC BY 4.0 | reviewed만, 빈 목록 ≠ 안전 |
 | npm 레지스트리 | npm Open-Source Terms, 저자가 올린 메타데이터 | 스크립트·관리자·메일은 내보내지 않음 |
 | PyPI JSON API | PyPI Terms of Use, 저자가 올린 메타데이터 | PyPI에는 deprecated 표시가 없어 yanked·Inactive일 때만 true |
-| deps.dev | 생성 데이터 CC BY 4.0, API는 Google APIs 약관, 캐시 명시 허용 | Scorecard 값은 deps.dev가 주는 OpenSSF 총점과 날짜 |
+| deps.dev | 생성 데이터 CC BY 4.0, API는 Google APIs 약관, 캐시 명시 허용 — **11-14 하위 조사에서 상업 조건 "불분명"으로 판정, Scorecard 원 API(CDLA-Permissive-2.0)로 바꿀지 PM 결정 대기** | Scorecard 값은 deps.dev가 주는 OpenSSF 총점과 날짜 |
 
 ### 2-4. 호출 간격 (원천 공개 제한 대비)
 | 호스트 | 우리 간격 | 원천 제한 |
@@ -149,12 +149,30 @@
 - 공용 호출 예산(운영·SRE 요청, `agent_market/provider_budget.py`): 우리가 시작하는 시험 실행에서만 바깥 호출마다 `reserve()`를 먼저, 응답 뒤 `note()`를 부릅니다(429면 그 도메인을 그날 모든 시스템이 멈춤). 보류 세트(`--split holdout-*`)는 `gate`, 조정 세트·보고서 입력 실행은 `substitute_tests`(도메인당 하루 5회). 목걸이 실시간 호출은 세지 않습니다. 몫을 넘으면 그 호출은 보내지 않고 `rate_limited`로 실패합니다.
 - 시험 보고서 v2(PM 11-14): 자체 대체는 resource_id가 없어(안 A) `avc:<agent_id>` 이름공간으로 판·점수·서명 사슬을 쌓습니다. `agent_market/fallback_agents/report_input.py`가 workflow 고정 과제를 실제로 돌려 `scripts.report_v2 import` 입력을 만듭니다(응답 envelope 전체를 본문으로 넘겨 데이터 품질 60점 규칙을 그대로 적용). 첫 파일 `exports/pearls/avc-results-2026-11-14.json`(git 제외): nvd-cve 3/3, cisa-kev 3/3, package-registry 2/2, depsdev-package 2/2(lodash는 예산 몫 소진으로 Scorecard 없이 partial), github-advisory 3/3, cve-org 3/3. 문자열 id 처리와 진주 순위 제외는 검색과 RAG의 report_v2 쪽에 요청했습니다.
 
+### 5-0. 시험 보고서 v2 결과 (검색과 RAG가 05:39에 avc: 판을 쌓음, `exports/pearls/reports/avc:*`)
+
+| 판 | 결과 | 점수(통과 85) | 데이터 60 중 | 증거 30 중 | 글 10 |
+|---|---|---|---|---|---|
+| avc:nvd-cve / cve.record.v1 | accurate | 90 | 정확 25·최신 10·완전 10·깨끗 10·일관 0 | 인자 10·반복 5·지연 10 | 10 |
+| avc:cisa-kev / cve.exploited.v1 | accurate | 90 | 같음 | 인자 10·반복 5·지연 10 | 10 |
+| avc:package-registry / package.health.v1 | accurate | 90 | 같음 | 인자 10·반복 5·지연 10 | 10 |
+| avc:depsdev-package / package.health.v1 | accurate | 90 | 같음 | 인자 10·반복 5·지연 10 | 10 |
+| avc:github-advisory / package.advisories.v1 | accurate | 88 | 같음 | 인자 10·반복 5·지연 8 | 10 |
+| avc:cve-org / cve.record.v1 | accurate | 88 | 같음 | 인자 10·반복 5·지연 8 | 10 |
+
+- 반복 증거는 하루치라 5/10, 일관성은 이전 판이 없어 0입니다. 내일 다시 쌓으면 오릅니다.
+- 판의 서명(`signed_report`)이 비어 있습니다. 서명 열쇠는 운영·SRE 문서(deploy/EVIDENCE_SIGNING.md) 몫이라 확인을 요청합니다.
+
 ## 5-1. 운영 연결 점검과 stale 실제 시험 (11-14 05:4x, PM 지시)
 
 - 운영 중인 버전(frontend `brand-frontend-20261114-r2`, jobs `retention-jobs-20261114-r2`, execution `align-execution-20261113-r2`)에는 `fallback_agents`, NVD 갱신 단계(운영·SRE c6893817 `nvd_snapshot_schedule.py`), 목걸이 실행기의 agentcon 경로가 **아직 없습니다**. 다음 jobs·frontend 묶음에 함께 실려야 합니다.
 - NVD 갱신: jobs 스케줄러가 2시간마다 :15~:50에 `Snapshot.sync('update')`를 배경 스레드로 돌립니다(운영·SRE). 스냅샷 파일이 없으면 아무것도 안 하므로, 운영 데이터 폴더(`FALLBACK_AGENTS_DATA`, 기본 `gateway-data/fallback-agents`)에 지금 있는 사본(04:57 동기화)을 씁니다. 묶음 배포가 늦어지면 첫 배포 직후 한 번 갱신이 돌아야 6시간 상한 안에 듭니다.
 - KEV: 별도 작업이 필요 없습니다. 요청 때 1시간이 지난 목록이면 다시 받고(0.08초, 60초 간격), 실패하면 디스크 사본을 24시간까지 쓰고, 그보다 오래되면 실패합니다. EPSS는 질의마다 받고 48시간 넘은 값은 빼고 partial입니다.
 - stale 실제 시험(`stale-check.json`, 운영 스냅샷의 sqlite 백업 사본에서, 원본 무변경): 동기화 시각을 6시간 1분 전으로 바꾸자 nvd-cve는 `stale`("21660 s old, over the 21600 s limit")로 답하지 않았고, 갱신 작업(meta 1회, 0.6초) 뒤에는 나이 0으로 다시 답했습니다. 사용 기록에도 `code=stale`이 남았습니다. 실행기는 이 실패를 다음 순위로 넘깁니다(워크플로우 cc96f227).
+
+## 5-2. 32개 역할 원천 조사
+
+`roles-32-survey.md`: 외부 대체 현황, 원천별 상업 이용 조건(약관 원문 확인), 만들 수 있는 역할과 원천이 없는 역할(crypto.price·ip.lookup·stock.quote).
 
 ## 6. 시험·재현
 
