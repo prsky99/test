@@ -14,10 +14,11 @@ def test_sitemap_xml_endpoint(w):
     assert r.status_code == 200
     assert "application/xml" in r.headers.get("content-type", "")
 
-    # Validate XML parsing
+    # Validate XML parsing. 11-13: /sitemap.xml is an index; its parts list the pages in the same order.
     root = ET.fromstring(r.text)
-    assert root.tag.endswith("urlset")
-    urls = [elem.text for elem in root.findall(".//{http://www.sitemaps.org/schemas/sitemap/0.9}loc")]
+    assert root.tag.endswith("sitemapindex")
+    from tests.test_sitemap_parts import sitemap_locs
+    urls = sitemap_locs(c)
     assert len(urls) >= 8
 
     from agent_market.concierge.public_metadata import PAGES, url

@@ -73,6 +73,8 @@
    - 지금은 `presentation_only_pages`라서 `no-store`(DYNAMIC)이다. 매 요청이 LAX→터널→이 맥까지 다녀온다.
    - 방문자마다 같은 바이트이므로 live 페이지와 같은 `PUBLIC_PAGE_CACHE`를 주면 HIT가 된다. X-Robots-Tag(noindex)는 그대로 둔다.
    - pearl_view.py 한 줄과 시험이면 된다. PM이 승인하면 다음 frontend 묶음에 넣는다.
+   - 같은 `presentation_only_pages`인 terms.html, service-disclosures.html도 고지 문서라 같이 넣을 수 있다.
+   - 시안·시험용 화면(components, gallery, workspace-* 등)은 넣지 않는다. 명시한 목록만 캐시한다.
 2. **sitemap.xml을 sitemap 색인과 종류별 sitemap으로 나눈다.** 각각 gzip 14KB 이하로 만든다(sitemap 규약 안). 지금 35.5KB는 HIT에서도 본문 멈춤이 난다.
 3. 큰 HTML 화면(learn 31KB, workflows 40.6KB, test 37.7KB, agent-status 29.7KB, /customer/sign-in 42.7KB)은 ①의 첫 화면 CSS 축소로 함께 줄어든다.
 4. 바꿀 수 없는 것: 한국→LAX 경로(무료 플랜)와 그 경로의 손실.
@@ -85,3 +87,16 @@
 원서버에 직접 1초 간격 없이 약 100회 요청해서 127.0.0.1이 분당 60회 읽기 한도에 걸렸다(429 23건, 1분 뒤 풀림, 가둠 없음).
 - 공개 방문자는 CF-Connecting-IP로 따로 세므로 영향이 없다. 공개 주소는 그동안 200이었다.
 - 이후 원서버 측정은 1.2초 간격으로 했다.
+
+## 14KB 과제 A·B·C 결과 (11-13 21시, PM 20:5x 지시 ①)
+
+| 항목 | 결과 | 이번 묶음 |
+|---|---|---|
+| B: CSP meta 제거 | 압축 뒤 약 0.12KB. live 화면의 빌드 기본 meta만 빼고, 응답 헤더가 모든 지시어에서 같거나 더 엄격한지 시험한다. 고지 화면에는 더 엄격한 별도 meta(인라인 style 금지, connect-src 'none')가 있어 그대로 남긴다 | 넣음 |
+| C: SVG 아이콘 합치기(`<use>`) | 압축 뒤 오히려 48~57바이트 커짐. gzip이 이미 같은 아이콘을 줄이고 있다 | 하지 않음 |
+| A: 첫 뷰포트 CSS | 접힌 선 아래만 쓰는 규칙을 빼면 화면당 압축 뒤 0.8~1.9KB 준다(홈 14.6→13.2, chat 16.6→15.7, explore 17.5→16.7KB). 그러나 데이터에 따라 달라지는 요소(explore MCP 카드 색, 홈 숨김 요소 2개, workflows 레이아웃 이동)가 시험에서 전체 CSS와 달랐다 | 넣지 않음. 빌더에 `--first-viewport` 선택지로만 남김 |
+
+- 14KB 안에 들어가지 못하는 이유(압축 뒤 크기)
+  - 첫 화면 CSS를 아예 빼도 홈 17.2KB, chat·explore 약 14.6KB다.
+  - 화면마다 다른 화면 8개 분량의 `page:*` meta가 2.0~2.5KB 들어 있다(chat 67개). agent:* meta는 0.5~1.2KB다.
+  - 그래서 meta를 그대로 두는 한 14KB는 어렵다. 다른 화면 몫의 page:* meta를 옮길지는 PM 결정 사항이다(외부 등록처가 읽는지 확인되지 않음).
