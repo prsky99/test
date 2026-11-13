@@ -118,3 +118,18 @@ def test_run_once_with_shipped_definitions_publishes_nothing_yet(tmp_path):
     result = judge.run_once(tmp_path)
     assert result["entries"] == {}
     assert json.loads((tmp_path / "necklaces.json").read_text())["necklaces"] == []
+    members = json.loads((tmp_path / "members.json").read_text())
+    assert members["schema"] == "agentcon-necklace-members-v1"
+    assert {367249, 276982, 37259} <= set(members["resource_ids"])
+    assert result["member_resources"] == len(members["resource_ids"])
+
+
+def test_members_lists_every_chain_member_with_rank_and_skips_retired():
+    defn = base()
+    retired = dict(base(), slug="old-one", status="retired")
+    out = judge.members([defn, retired], now=NOW)
+    rows = out["members"]
+    assert {r["slug"] for r in rows} == {"topic-brief"}
+    papers = [r for r in rows if r["slot"] == "papers"]
+    assert [r["rank"] for r in papers] == [1, 2, 3] and papers[-1]["kind"] == "agentcon"
+    assert out["resource_ids"] == [1, 2, 3, 4, 10, 11]

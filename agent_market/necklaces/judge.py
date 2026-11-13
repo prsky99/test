@@ -175,6 +175,25 @@ def snapshot(definitions: list[dict], approvals: dict[str, dict], root: Path, no
     return {"schema": SCHEMA, "generated_at": _iso(now), "judge_commit": judge_commit, "necklaces": entries}
 
 
+def members(definitions: list[dict], now: float | None = None) -> dict:
+    """Every chain member of every necklace in a non-retired state, for the ops fingerprint
+    watch (reports/tool-fingerprint-design-2026-11-14, section 3) and the hourly necklace watch."""
+    rows = []
+    for defn in definitions:
+        if defn.get("status") == "retired":
+            continue
+        for slot in defn["slots"]:
+            for rank, m in enumerate(slot["chain"], start=1):
+                rows.append({"slug": defn["slug"], "version": defn["version"], "necklace_status": defn["status"],
+                             "slot": slot["slot"], "required": bool(slot.get("required", True)), "rank": rank,
+                             "kind": m["kind"], "resource_id": m.get("resource_id"), "agent_id": m.get("agent_id"),
+                             "tool": m["tool"], "state": m.get("state", "active"),
+                             "registrable_domain": m.get("registrable_domain"), "pearl": bool(m.get("pearl"))})
+    resource_ids = sorted({r["resource_id"] for r in rows if isinstance(r["resource_id"], int)})
+    return {"schema": "agentcon-necklace-members-v1", "generated_at": _iso(time.time() if now is None else now),
+            "resource_ids": resource_ids, "members": rows}
+
+
 def write_atomic(path: Path, payload: dict) -> int:
     data = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
     if len(data) > MAX_BYTES:
@@ -208,7 +227,9 @@ def run_once(root: Path = DEFAULT_ROOT, definitions_dir: Path = model.DEFINITION
     definitions = model.load_valid(definitions_dir)
     payload = snapshot(definitions, load_approvals(root / "approvals.json"), root, judge_commit=_commit())
     size = write_atomic(root / "necklaces.json", payload)
-    return {"written": str(root / "necklaces.json"), "bytes": size,
+    member_list = members(definitions)
+    write_atomic(root / "members.json", member_list)
+    return {"written": str(root / "necklaces.json"), "bytes": size, "member_resources": len(member_list["resource_ids"]),
             "entries": {e["slug"]: e["status"] for e in payload["necklaces"]}}
 
 
