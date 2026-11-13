@@ -100,3 +100,15 @@ def test_a_store_without_a_read_pool_and_a_busy_slot_keep_the_in_turn_loop():
         assert [item['id'] for item in answer(bot)[0]] == [1, 4] and bot.store._admin_read_pool.leases == 0
     finally:
         fast_chat._parallel_parts.release()
+
+
+def test_qualifiers_leave_the_catalog_search_but_bulk_stays():
+    """PM 11-13 22:3x: when or for whom is not a capability; batch processing is."""
+    from agent_market.concierge.fast_chat import retrieval_text
+    assert retrieval_text('send email small business 13') == 'send email 13'
+    assert retrieval_text('book flights in real time') == 'book flights'
+    assert retrieval_text('weather forecast for my team today') == 'weather forecast'
+    assert retrieval_text('stock quotes for agents quickly') == 'stock quotes'
+    assert retrieval_text('customer support bulk') == 'customer support bulk'
+    assert retrieval_text('real-time stock prices') == 'real-time stock prices'
+    assert retrieval_text('small business') == 'small business'      # nothing else to search for

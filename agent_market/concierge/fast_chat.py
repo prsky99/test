@@ -66,6 +66,9 @@ def retrieval_text(task):
     framed = OUTPUT_FORMAT.sub('', framed)
     if framed.strip():
         text = framed
+    unqualified = re.sub(r'\s{2,}', ' ', QUALIFIERS.sub(' ', text)).strip()
+    if re.search(r'[^\W\d_]', unqualified):
+        text = unqualified
     text = re.sub(r'\b([a-z]+)\s+sending\b', r'send \1', text, flags=re.I)
     text = re.sub(r'\bsending\b', 'send', text, flags=re.I)
     # Tools say "postgres" (postgres__sql_read); the lexical index does not equate the two spellings.
@@ -90,6 +93,11 @@ OUTPUT_FRAME = re.compile(
     r'(?:tool|agent|api|endpoint|mcp\s+server|server|service)\s+(?:that|which|to)\s+'
     r'(?:returns?|gives?|provides?|outputs?)\s+(?:me\s+|us\s+|back\s+)?', re.I)
 OUTPUT_FORMAT = re.compile(r'\s+(?:as|in)\s+(?:a\s+)?(?:json|csv|xml|yaml)(?:\s+(?:format|object|response|output))?\s*[.!?]?\s*$', re.I)
+# When or for whom, not what (PM 11-13 22:3x): "번역 small business", "send email small business" and "invoice ocr small
+# business" found nothing with these words required, fell to narrow -> split (2.2-4.1 s) and led with value_business,
+# send_message_to_vendor and business_services; without them translate, send_email and invoice_ocr in 0.5-1.3 s.
+# They stay in the task, so conditions and the answer still see them. "bulk" stays: batch processing is a capability.
+QUALIFIERS = re.compile(r'\b(?:today|in\s+real[\s-]time|quickly|for\s+my\s+team|for\s+agents|(?:for\s+(?:a\s+|my\s+)?)?small\s+business(?:es)?)\b', re.I)
 
 
 STATED_REQUIREMENT = re.compile(
