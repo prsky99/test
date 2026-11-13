@@ -34,8 +34,15 @@ def test_one_spacing_scale_drives_the_home_rhythm():
 
 def test_the_about_necklace_is_shown_by_a_background_not_by_images():
     assert 'about-necklace-art{display:none}' not in CSS
-    rule = re.search(r'#secAbout \.reference-about-hero \.about-necklace-art\{([^}]*)\}', CSS)[1]
-    assert 'display:block' in rule and 'about-pearls-760.webp' in rule and 'image-set(' in rule and 'about-pearls-1520.webp' in rule
+    box = re.search(r'#secAbout \.reference-about-hero \.about-necklace-art\{([^}]*)\}', CSS)[1]
+    assert 'display:block' in box
+    # User 11-13 15:2x: the pearls sit on top of the string. The svg string is the box's child, so a background on
+    # the box would be painted under it; the pearls are the box's ::after, painted over the svg.
+    assert 'background' not in box
+    pearls = re.search(r'#secAbout \.reference-about-hero \.about-necklace-art::after\{([^}]*)\}', CSS)[1]
+    assert 'content:""' in pearls and 'position:absolute' in pearls and 'inset:0' in pearls
+    assert 'about-pearls-760.webp' in pearls and 'image-set(' in pearls and 'about-pearls-1520.webp' in pearls
+    assert 'about-pearls' not in CSS.replace(pearls, '')  # nowhere else, so nothing else requests the picture
     for name in ('about-pearls-760.webp', 'about-pearls-1520.webp'):
         data = (ASSETS / name).read_bytes()
         assert data[:4] == b'RIFF' and data[8:12] == b'WEBP' and len(data) < 60 * 1024
@@ -56,3 +63,4 @@ def test_first_screen_css_carries_the_new_rules():
     assert '--space-5:24px' in (critical / 'index.css').read_text()
     about = (critical / 'about.css').read_text()
     assert 'about-pearls-760.webp' in about and 'about-necklace-art{display:none}' not in about
+    assert 'about-necklace-art::after{' in about

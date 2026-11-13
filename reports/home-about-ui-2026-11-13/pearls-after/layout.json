@@ -1,0 +1,800 @@
+{
+ "stage": "pearls-after",
+ "local": true,
+ "home": [
+  {
+   "width": 1280,
+   "toggle": false,
+   "left": {
+    "hero": 40,
+    "band_content": 40,
+    "band_box": 40,
+    "protocols": 40
+   },
+   "right": {
+    "hero": 1240,
+    "band_grid": 1240,
+    "band_box": 1240,
+    "protocols": 1240
+   },
+   "gaps": {
+    "hero_text_top_vs_necklace_top": 0,
+    "hero_to_band": 32,
+    "band_to_protocols": 0,
+    "grid_to_next": 16,
+    "grid_next": "caption",
+    "protocol_cards": [
+     24,
+     24
+    ],
+    "protocols_section_top_to_first_card": 41
+   },
+   "sections": [
+    {
+     "title": "See what's new.",
+     "left": 40,
+     "right": 1240,
+     "from_previous": 0,
+     "section_top_to_first": 41,
+     "h2_to_next": 12,
+     "lead_to_next": 24
+    },
+    {
+     "title": "Turn individual strengths into a",
+     "left": 40,
+     "right": 1240,
+     "from_previous": 0,
+     "section_top_to_first": 41,
+     "h2_to_next": 24,
+     "lead_to_next": null
+    },
+    {
+     "title": "Start with something useful.",
+     "left": 40,
+     "right": 1240,
+     "from_previous": 0,
+     "section_top_to_first": 41,
+     "h2_to_next": 12,
+     "lead_to_next": 24
+    },
+    {
+     "title": "Evidence you can inspect.",
+     "left": 40,
+     "right": 1240,
+     "from_previous": 0,
+     "section_top_to_first": 41,
+     "h2_to_next": 12,
+     "lead_to_next": 24,
+     "grid_to_note": 24,
+     "note_to_details": 24
+    },
+    {
+     "title": "end-cta pearl-cta",
+     "left": 40,
+     "right": 1240,
+     "from_previous": 0,
+     "section_top_to_first": 41,
+     "h2_to_next": null,
+     "lead_to_next": null
+    }
+   ],
+   "page_right": 1240,
+   "scheme": "dark",
+   "failed": []
+  },
+  {
+   "width": 1280,
+   "toggle": false,
+   "left": {
+    "hero": 40,
+    "band_content": 40,
+    "band_box": 40,
+    "protocols": 40
+   },
+   "right": {
+    "hero": 1240,
+    "band_grid": 1240,
+    "band_box": 1240,
+    "protocols": 1240
+   },
+   "gaps": {
+    "hero_text_top_vs_necklace_top": 0,
+    "hero_to_band": 32,
+    "band_to_protocols": 0,
+    "grid_to_next": 16,
+    "grid_next": "caption",
+    "protocol_cards": [
+     24,
+     24
+    ],
+    "protocols_section_top_to_first_card": 41
+   },
+   "sections": [
+    {
+     "title": "See what's new.",
+     "left": 40,
+     "right": 1240,
+     "from_previous": 0,
+     "section_top_to_first": 41,
+     "h2_to_next": 12,
+     "lead_to_next": 24
+    },
+    {
+     "title": "Turn individual strengths into a",
+     "left": 40,
+     "right": 1240,
+     "from_previous": 0,
+     "section_top_to_first": 41,
+     "h2_to_next": 24,
+     "lead_to_next": null
+    },
+    {
+     "title": "Start with something useful.",
+     "left": 40,
+     "right": 1240,
+     "from_previous": 0,
+     "section_top_to_first": 41,
+     "h2_to_next": 12,
+     "lead_to_next": 24
+    },
+    {
+     "title": "Evidence you can inspect.",
+     "left": 40,
+     "right": 1240,
+     "from_previous": 0,
+     "section_top_to_first": 41,
+     "h2_to_next": 12,
+     "lead_to_next": 24,
+     "grid_to_note": 24,
+     "note_to_details": 24
+    },
+    {
+     "title": "end-cta pearl-cta",
+     "left": 40,
+     "right": 1240,
+     "from_previous": 0,
+     "section_top_to_first": 41,
+     "h2_to_next": null,
+     "lead_to_next": null
+    }
+   ],
+   "page_right": 1240,
+   "scheme": "light",
+   "failed": []
+  },
+  {
+   "width": 768,
+   "toggle": false,
+   "left": {
+    "hero": 24,
+    "band_content": 24,
+    "band_box": 24,
+    "protocols": 24
+   },
+   "right": {
+    "hero": 744,
+    "band_grid": 744,
+    "band_box": 744,
+    "protocols": 744
+   },
+   "gaps": {
+    "hero_text_top_vs_necklace_top": 0,
+    "hero_to_band": 32,
+    "band_to_protocols": 0,
+    "grid_to_next": 16,
+    "grid_next": "caption",
+    "protocol_cards": [
+     24,
+     24
+    ],
+    "protocols_section_top_to_first_card": 41
+   },
+   "sections": [
+    {
+     "title": "See what's new.",
+     "left": 24,
+     "right": 744,
+     "from_previous": 0,
+     "section_top_to_first": 41,
+     "h2_to_next": 12,
+     "lead_to_next": 24
+    },
+    {
+     "title": "Turn individual strengths into a",
+     "left": 24,
+     "right": 744,
+     "from_previous": 0,
+     "section_top_to_first": 41,
+     "h2_to_next": 24,
+     "lead_to_next": null
+    },
+    {
+     "title": "Start with something useful.",
+     "left": 24,
+     "right": 744,
+     "from_previous": 0,
+     "section_top_to_first": 41,
+     "h2_to_next": 12,
+     "lead_to_next": 24
+    },
+    {
+     "title": "Evidence you can inspect.",
+     "left": 24,
+     "right": 744,
+     "from_previous": 0,
+     "section_top_to_first": 41,
+     "h2_to_next": 12,
+     "lead_to_next": 24,
+     "grid_to_note": 24,
+     "note_to_details": 24
+    },
+    {
+     "title": "end-cta pearl-cta",
+     "left": 24,
+     "right": 744,
+     "from_previous": 0,
+     "section_top_to_first": 41,
+     "h2_to_next": null,
+     "lead_to_next": null
+    }
+   ],
+   "page_right": 744,
+   "scheme": "dark",
+   "failed": []
+  },
+  {
+   "width": 768,
+   "toggle": false,
+   "left": {
+    "hero": 24,
+    "band_content": 24,
+    "band_box": 24,
+    "protocols": 24
+   },
+   "right": {
+    "hero": 744,
+    "band_grid": 744,
+    "band_box": 744,
+    "protocols": 744
+   },
+   "gaps": {
+    "hero_text_top_vs_necklace_top": 0,
+    "hero_to_band": 32,
+    "band_to_protocols": 0,
+    "grid_to_next": 16,
+    "grid_next": "caption",
+    "protocol_cards": [
+     24,
+     24
+    ],
+    "protocols_section_top_to_first_card": 41
+   },
+   "sections": [
+    {
+     "title": "See what's new.",
+     "left": 24,
+     "right": 744,
+     "from_previous": 0,
+     "section_top_to_first": 41,
+     "h2_to_next": 12,
+     "lead_to_next": 24
+    },
+    {
+     "title": "Turn individual strengths into a",
+     "left": 24,
+     "right": 744,
+     "from_previous": 0,
+     "section_top_to_first": 41,
+     "h2_to_next": 24,
+     "lead_to_next": null
+    },
+    {
+     "title": "Start with something useful.",
+     "left": 24,
+     "right": 744,
+     "from_previous": 0,
+     "section_top_to_first": 41,
+     "h2_to_next": 12,
+     "lead_to_next": 24
+    },
+    {
+     "title": "Evidence you can inspect.",
+     "left": 24,
+     "right": 744,
+     "from_previous": 0,
+     "section_top_to_first": 41,
+     "h2_to_next": 12,
+     "lead_to_next": 24,
+     "grid_to_note": 24,
+     "note_to_details": 24
+    },
+    {
+     "title": "end-cta pearl-cta",
+     "left": 24,
+     "right": 744,
+     "from_previous": 0,
+     "section_top_to_first": 41,
+     "h2_to_next": null,
+     "lead_to_next": null
+    }
+   ],
+   "page_right": 744,
+   "scheme": "light",
+   "failed": []
+  },
+  {
+   "width": 375,
+   "toggle": false,
+   "left": {
+    "hero": 18,
+    "band_content": 18,
+    "band_box": 18,
+    "protocols": 18
+   },
+   "right": {
+    "hero": 357,
+    "band_grid": 357,
+    "band_box": 357,
+    "protocols": 357
+   },
+   "gaps": {
+    "hero_text_top_vs_necklace_top": -534,
+    "hero_to_band": 32,
+    "band_to_protocols": 0,
+    "grid_to_next": 16,
+    "grid_next": "caption",
+    "protocol_cards": [
+     24,
+     24
+    ],
+    "protocols_section_top_to_first_card": 33
+   },
+   "sections": [
+    {
+     "title": "See what's new.",
+     "left": 18,
+     "right": 357,
+     "from_previous": 0,
+     "section_top_to_first": 33,
+     "h2_to_next": 12,
+     "lead_to_next": 24
+    },
+    {
+     "title": "Turn individual strengths into a",
+     "left": 18,
+     "right": 357,
+     "from_previous": 0,
+     "section_top_to_first": 33,
+     "h2_to_next": 24,
+     "lead_to_next": null
+    },
+    {
+     "title": "Start with something useful.",
+     "left": 18,
+     "right": 357,
+     "from_previous": 0,
+     "section_top_to_first": 33,
+     "h2_to_next": 12,
+     "lead_to_next": 24
+    },
+    {
+     "title": "Evidence you can inspect.",
+     "left": 18,
+     "right": 357,
+     "from_previous": 0,
+     "section_top_to_first": 33,
+     "h2_to_next": 12,
+     "lead_to_next": 24,
+     "grid_to_note": 24,
+     "note_to_details": 24
+    },
+    {
+     "title": "end-cta pearl-cta",
+     "left": 18,
+     "right": 357,
+     "from_previous": 0,
+     "section_top_to_first": 33,
+     "h2_to_next": null,
+     "lead_to_next": null
+    }
+   ],
+   "page_right": 357,
+   "scheme": "dark",
+   "failed": []
+  },
+  {
+   "width": 375,
+   "toggle": false,
+   "left": {
+    "hero": 18,
+    "band_content": 18,
+    "band_box": 18,
+    "protocols": 18
+   },
+   "right": {
+    "hero": 357,
+    "band_grid": 357,
+    "band_box": 357,
+    "protocols": 357
+   },
+   "gaps": {
+    "hero_text_top_vs_necklace_top": -534,
+    "hero_to_band": 32,
+    "band_to_protocols": 0,
+    "grid_to_next": 16,
+    "grid_next": "caption",
+    "protocol_cards": [
+     24,
+     24
+    ],
+    "protocols_section_top_to_first_card": 33
+   },
+   "sections": [
+    {
+     "title": "See what's new.",
+     "left": 18,
+     "right": 357,
+     "from_previous": 0,
+     "section_top_to_first": 33,
+     "h2_to_next": 12,
+     "lead_to_next": 24
+    },
+    {
+     "title": "Turn individual strengths into a",
+     "left": 18,
+     "right": 357,
+     "from_previous": 0,
+     "section_top_to_first": 33,
+     "h2_to_next": 24,
+     "lead_to_next": null
+    },
+    {
+     "title": "Start with something useful.",
+     "left": 18,
+     "right": 357,
+     "from_previous": 0,
+     "section_top_to_first": 33,
+     "h2_to_next": 12,
+     "lead_to_next": 24
+    },
+    {
+     "title": "Evidence you can inspect.",
+     "left": 18,
+     "right": 357,
+     "from_previous": 0,
+     "section_top_to_first": 33,
+     "h2_to_next": 12,
+     "lead_to_next": 24,
+     "grid_to_note": 24,
+     "note_to_details": 24
+    },
+    {
+     "title": "end-cta pearl-cta",
+     "left": 18,
+     "right": 357,
+     "from_previous": 0,
+     "section_top_to_first": 33,
+     "h2_to_next": null,
+     "lead_to_next": null
+    }
+   ],
+   "page_right": 357,
+   "scheme": "light",
+   "failed": []
+  }
+ ],
+ "about": [
+  {
+   "width": 1280,
+   "art": {
+    "l": 589,
+    "t": 133,
+    "r": 1249,
+    "b": 510
+   },
+   "art_background": "image-set(url(\"https://agentconcierge.biz/new/en/assets/about-pearls-760.webp?v=83052c0da76058fb\") 1dppx, url(\"https://agentconcierge.biz/new/en/assets/about-pe",
+   "pearls_on_top_of_string": true,
+   "last_pearl": {
+    "l": 1122,
+    "t": 363,
+    "r": 1240,
+    "b": 481
+   },
+   "hero_divider_y": 509,
+   "hero_right_line": 1240,
+   "last_pearl_clear_of_divider": 28,
+   "last_pearl_inside_right_line": 0,
+   "art_hidden_to_assistive_tech": true,
+   "quote": {
+    "l": 1040,
+    "t": 189,
+    "r": 1240,
+    "b": 327
+   },
+   "quote_text": "Differentcapabilities.Greaterpossibilitiestogether.",
+   "h1": {
+    "l": 40,
+    "t": 228,
+    "r": 640,
+    "b": 360
+   },
+   "lead": {
+    "l": 40,
+    "t": 380,
+    "r": 640,
+    "b": 452
+   },
+   "lead_color": "rgb(177, 197, 202)",
+   "h1_color": "rgb(238, 243, 239)",
+   "background": "rgb(16, 31, 37)",
+   "scheme": "dark",
+   "images": [
+    "about-pearls-760.webp",
+    "pearl.webp"
+   ],
+   "failed": []
+  },
+  {
+   "width": 1280,
+   "art": {
+    "l": 589,
+    "t": 133,
+    "r": 1249,
+    "b": 510
+   },
+   "art_background": "image-set(url(\"https://agentconcierge.biz/new/en/assets/about-pearls-760.webp?v=83052c0da76058fb\") 1dppx, url(\"https://agentconcierge.biz/new/en/assets/about-pe",
+   "pearls_on_top_of_string": true,
+   "last_pearl": {
+    "l": 1122,
+    "t": 363,
+    "r": 1240,
+    "b": 481
+   },
+   "hero_divider_y": 509,
+   "hero_right_line": 1240,
+   "last_pearl_clear_of_divider": 28,
+   "last_pearl_inside_right_line": 0,
+   "art_hidden_to_assistive_tech": true,
+   "quote": {
+    "l": 1040,
+    "t": 189,
+    "r": 1240,
+    "b": 327
+   },
+   "quote_text": "Differentcapabilities.Greaterpossibilitiestogether.",
+   "h1": {
+    "l": 40,
+    "t": 228,
+    "r": 640,
+    "b": 360
+   },
+   "lead": {
+    "l": 40,
+    "t": 380,
+    "r": 640,
+    "b": 452
+   },
+   "lead_color": "rgb(77, 104, 128)",
+   "h1_color": "rgb(16, 53, 64)",
+   "background": "rgb(248, 247, 243)",
+   "scheme": "light",
+   "images": [
+    "about-pearls-760.webp",
+    "pearl.webp"
+   ],
+   "failed": []
+  },
+  {
+   "width": 768,
+   "art": {
+    "l": 264,
+    "t": 462,
+    "r": 744,
+    "b": 736
+   },
+   "art_background": "image-set(url(\"https://agentconcierge.biz/new/en/assets/about-pearls-760.webp?v=83052c0da76058fb\") 1dppx, url(\"https://agentconcierge.biz/new/en/assets/about-pe",
+   "pearls_on_top_of_string": true,
+   "last_pearl": {
+    "l": 652,
+    "t": 629,
+    "r": 737,
+    "b": 715
+   },
+   "hero_divider_y": 769,
+   "hero_right_line": 744,
+   "last_pearl_clear_of_divider": 54,
+   "last_pearl_inside_right_line": 7,
+   "art_hidden_to_assistive_tech": true,
+   "quote": null,
+   "quote_text": "Differentcapabilities.Greaterpossibilitiestogether.",
+   "h1": {
+    "l": 24,
+    "t": 237,
+    "r": 624,
+    "b": 339
+   },
+   "lead": {
+    "l": 24,
+    "t": 359,
+    "r": 624,
+    "b": 422
+   },
+   "lead_color": "rgb(177, 197, 202)",
+   "h1_color": "rgb(238, 243, 239)",
+   "background": "rgb(16, 31, 37)",
+   "scheme": "dark",
+   "images": [
+    "about-pearls-760.webp",
+    "pearl.webp"
+   ],
+   "failed": []
+  },
+  {
+   "width": 768,
+   "art": {
+    "l": 264,
+    "t": 462,
+    "r": 744,
+    "b": 736
+   },
+   "art_background": "image-set(url(\"https://agentconcierge.biz/new/en/assets/about-pearls-760.webp?v=83052c0da76058fb\") 1dppx, url(\"https://agentconcierge.biz/new/en/assets/about-pe",
+   "pearls_on_top_of_string": true,
+   "last_pearl": {
+    "l": 652,
+    "t": 629,
+    "r": 737,
+    "b": 715
+   },
+   "hero_divider_y": 769,
+   "hero_right_line": 744,
+   "last_pearl_clear_of_divider": 54,
+   "last_pearl_inside_right_line": 7,
+   "art_hidden_to_assistive_tech": true,
+   "quote": null,
+   "quote_text": "Differentcapabilities.Greaterpossibilitiestogether.",
+   "h1": {
+    "l": 24,
+    "t": 237,
+    "r": 624,
+    "b": 339
+   },
+   "lead": {
+    "l": 24,
+    "t": 359,
+    "r": 624,
+    "b": 422
+   },
+   "lead_color": "rgb(77, 104, 128)",
+   "h1_color": "rgb(16, 53, 64)",
+   "background": "rgb(248, 247, 243)",
+   "scheme": "light",
+   "images": [
+    "about-pearls-760.webp",
+    "pearl.webp"
+   ],
+   "failed": []
+  },
+  {
+   "width": 375,
+   "art": {
+    "l": 18,
+    "t": 536,
+    "r": 357,
+    "b": 730
+   },
+   "art_background": "image-set(url(\"https://agentconcierge.biz/new/en/assets/about-pearls-760.webp?v=83052c0da76058fb\") 1dppx, url(\"https://agentconcierge.biz/new/en/assets/about-pe",
+   "pearls_on_top_of_string": true,
+   "last_pearl": {
+    "l": 292,
+    "t": 655,
+    "r": 352,
+    "b": 715
+   },
+   "hero_divider_y": 753,
+   "hero_right_line": 357,
+   "last_pearl_clear_of_divider": 38,
+   "last_pearl_inside_right_line": 5,
+   "art_hidden_to_assistive_tech": true,
+   "quote": null,
+   "quote_text": "Differentcapabilities.Greaterpossibilitiestogether.",
+   "h1": {
+    "l": 18,
+    "t": 303,
+    "r": 357,
+    "b": 385
+   },
+   "lead": {
+    "l": 18,
+    "t": 405,
+    "r": 357,
+    "b": 486
+   },
+   "lead_color": "rgb(177, 197, 202)",
+   "h1_color": "rgb(238, 243, 239)",
+   "background": "rgb(16, 31, 37)",
+   "scheme": "dark",
+   "images": [
+    "about-pearls-760.webp",
+    "pearl.webp"
+   ],
+   "failed": []
+  },
+  {
+   "width": 375,
+   "art": {
+    "l": 18,
+    "t": 536,
+    "r": 357,
+    "b": 730
+   },
+   "art_background": "image-set(url(\"https://agentconcierge.biz/new/en/assets/about-pearls-760.webp?v=83052c0da76058fb\") 1dppx, url(\"https://agentconcierge.biz/new/en/assets/about-pe",
+   "pearls_on_top_of_string": true,
+   "last_pearl": {
+    "l": 292,
+    "t": 655,
+    "r": 352,
+    "b": 715
+   },
+   "hero_divider_y": 753,
+   "hero_right_line": 357,
+   "last_pearl_clear_of_divider": 38,
+   "last_pearl_inside_right_line": 5,
+   "art_hidden_to_assistive_tech": true,
+   "quote": null,
+   "quote_text": "Differentcapabilities.Greaterpossibilitiestogether.",
+   "h1": {
+    "l": 18,
+    "t": 303,
+    "r": 357,
+    "b": 385
+   },
+   "lead": {
+    "l": 18,
+    "t": 405,
+    "r": 357,
+    "b": 486
+   },
+   "lead_color": "rgb(77, 104, 128)",
+   "h1_color": "rgb(16, 53, 64)",
+   "background": "rgb(248, 247, 243)",
+   "scheme": "light",
+   "images": [
+    "about-pearls-760.webp",
+    "pearl.webp"
+   ],
+   "failed": []
+  }
+ ],
+ "other_pages_images": {
+  "/": {
+   "about_art": [
+    "pearl.webp"
+   ],
+   "aborted": []
+  },
+  "/new/en/explore.html": {
+   "about_art": [
+    "pearl.webp"
+   ],
+   "aborted": []
+  },
+  "/new/en/chat.html": {
+   "about_art": [
+    "pearl.webp"
+   ],
+   "aborted": []
+  },
+  "/new/en/test.html": {
+   "about_art": [
+    "pearl.webp"
+   ],
+   "aborted": []
+  },
+  "/new/en/agent-status.html": {
+   "about_art": [
+    "pearl.webp"
+   ],
+   "aborted": []
+  }
+ }
+}

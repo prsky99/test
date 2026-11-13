@@ -889,11 +889,14 @@ body[data-theme="dark"] #chatSubmit,body[data-theme="dark"] #chatSubmit :is(span
 @media(max-width:700px){#secOverview>:is(section.section,.end-cta,.home-protocols){padding-block:var(--space-6)}#secOverview>.catalog-band{padding-block:var(--space-4)}}
 /* About: the pearl necklace beside the heading again (user 11-13; design 08-about.png). The pearls are one
    picture used as a background, so the hidden About panels of the other pages request nothing; the string is
-   vector and takes the theme's gold. Decorative: aria-hidden, behind the text, never under it. */
+   vector and takes the theme's gold. The pearls lie on top of the string (::after paints over the svg), as in the
+   design. At 1280 px the last pearl ends above the hero's divider and inside the page's right line.
+   Decorative: aria-hidden, behind the text, never under it. */
 #secAbout .reference-about-hero{position:relative;isolation:isolate}
 #secAbout .reference-about-intro{max-width:600px}
 #secAbout .reference-about-quote{position:relative;inset:auto;z-index:1;align-self:start}
-#secAbout .reference-about-hero .about-necklace-art{display:block;position:absolute;z-index:-1;pointer-events:none;width:760px;height:435px;right:-40px;top:-8px;color:var(--gold);background:url(about-pearls-760.webp) center/contain no-repeat;background-image:image-set(url(about-pearls-760.webp) 1x,url(about-pearls-1520.webp) 2x)}
+#secAbout .reference-about-hero .about-necklace-art{display:block;position:absolute;z-index:-1;pointer-events:none;width:660px;height:377px;right:-9px;top:-16px;color:var(--gold)}
 #secAbout .about-necklace-art svg{display:block;width:100%;height:100%;overflow:visible}
+#secAbout .reference-about-hero .about-necklace-art::after{content:"";position:absolute;inset:0;pointer-events:none;background:url(about-pearls-760.webp) center/contain no-repeat;background-image:image-set(url(about-pearls-760.webp) 1x,url(about-pearls-1520.webp) 2x)}
 /* Below 1180 px the text needs the width: the necklace follows the text, right-aligned, instead of lying under it. */
 @media(max-width:1180px){#secAbout .reference-about-hero .about-necklace-art{position:relative;grid-column:1/-1;right:auto;top:auto;width:100%;max-width:480px;height:auto;aspect-ratio:700/400;margin:0 0 0 auto;z-index:0}}

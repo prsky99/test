@@ -72,8 +72,15 @@ ABOUT = """() => {
     return {l: Math.round(b.left), t: Math.round(b.top + scrollY), r: Math.round(b.right), b: Math.round(b.bottom + scrollY)}; };
   const art = document.querySelector('#secAbout .about-necklace-art'), quote = document.querySelector('#secAbout .reference-about-quote');
   const h1 = document.querySelector('#secAbout .reference-about-intro h1'), lead = document.querySelector('#secAbout .reference-about-intro .lead');
-  const bg = art ? getComputedStyle(art).backgroundImage : null;
-  return {width: innerWidth, art: R(art), art_background: bg && bg !== 'none' ? bg.slice(0, 160) : null,
+  const pick = v => v && v !== 'none' ? v.slice(0, 160) : null;
+  const bg = art ? pick(getComputedStyle(art).backgroundImage) : null, over = art ? pick(getComputedStyle(art, '::after').backgroundImage) : null;
+  // The last (largest) pearl of the picture, in the svg's 700x400 viewBox; the picture is drawn with 'contain'.
+  let last = null; const a = R(art), hero = R(document.querySelector('#secAbout .reference-about-hero'));
+  if (a) { const w = a.r - a.l, h = a.b - a.t, k = Math.min(w / 700, h / 400), ox = a.l + (w - 700 * k) / 2, oy = a.t + (h - 400 * k) / 2;
+    last = {l: Math.round(ox + 565.5 * k), t: Math.round(oy + 244.5 * k), r: Math.round(ox + 690.5 * k), b: Math.round(oy + 369.5 * k)}; }
+  return {width: innerWidth, art: a, art_background: over || bg, pearls_on_top_of_string: !!over && !bg,
+          last_pearl: last, hero_divider_y: hero ? hero.b : null, hero_right_line: hero ? hero.r : null,
+          last_pearl_clear_of_divider: last && hero ? hero.b - last.b : null, last_pearl_inside_right_line: last && hero ? hero.r - last.r : null,
           art_hidden_to_assistive_tech: art ? art.getAttribute('aria-hidden') === 'true' : null,
           quote: R(quote), quote_text: quote ? quote.textContent.replace(/\\s+/g, ' ').trim() : null, h1: R(h1), lead: R(lead),
           lead_color: lead ? getComputedStyle(lead).color : null, h1_color: h1 ? getComputedStyle(h1).color : null,
@@ -96,7 +103,7 @@ def open_page(browser, path, width, scheme, local):
 
 def main(argv=None):
     parser = argparse.ArgumentParser()
-    parser.add_argument('stage', choices=('before', 'after', 'deployed'))
+    parser.add_argument('stage', help='output folder name, e.g. before, after, deployed, pearls-before')
     parser.add_argument('--local', action='store_true', help='serve /new/en/ from this working tree')
     args = parser.parse_args(argv)
     from playwright.sync_api import sync_playwright
@@ -124,6 +131,12 @@ def main(argv=None):
                 row.update(scheme=scheme, images=images, failed=failed)
                 record['about'].append(row)
                 page.screenshot(path=str(out_dir / f'about-{width}-{scheme}.png'))
+                box = row.get('art')
+                if box:  # a close-up of the necklace: do the pearls cover the string?
+                    page.screenshot(path=str(out_dir / f'about-{width}-{scheme}-necklace.png'), full_page=True,
+                                    clip={'x': max(box['l'] - 8, 0), 'y': max(box['t'] - 8, 0),
+                                          'width': min(box['r'] - box['l'] + 16, width - max(box['l'] - 8, 0)),
+                                          'height': box['b'] - box['t'] + 16})
                 ctx.close()
         for path in ('/', '/new/en/explore.html', '/new/en/chat.html', '/new/en/test.html', '/new/en/agent-status.html'):
             ctx, page, images, failed = open_page(browser, path, 1280, 'dark', local)
@@ -138,7 +151,10 @@ def main(argv=None):
             for s in row['sections']:
                 print('   ', s)
     for row in record['about']:
-        print('about', row['width'], row['scheme'], 'art', row['art'], 'bg', bool(row['art_background']), 'quote', row['quote'],
+        print('about', row['width'], row['scheme'], 'art', row['art'], 'bg', bool(row['art_background']),
+              'pearls on top', row.get('pearls_on_top_of_string'), 'last pearl', row.get('last_pearl'),
+              'clear of divider', row.get('last_pearl_clear_of_divider'), 'inside right line', row.get('last_pearl_inside_right_line'),
+              'quote', row['quote'],
               'images', row['images'], 'failed', row['failed'])
     print('other pages', record['other_pages_images'])
     return 0

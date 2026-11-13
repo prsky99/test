@@ -1,4 +1,4 @@
-/* source c6ba53ad5d116e13 */
+/* source 9c0abc2600d67159 */
 :root {
   --bg: #0b0f19;
   --panel: #111827;
@@ -802,8 +802,9 @@ body[data-theme="dark"] #chatSubmit,body[data-theme="dark"] #chatSubmit :is(span
 #secAbout .reference-about-hero{position:relative;isolation:isolate}
 #secAbout .reference-about-intro{max-width:600px}
 #secAbout .reference-about-quote{position:relative;inset:auto;z-index:1;align-self:start}
-#secAbout .reference-about-hero .about-necklace-art{display:block;position:absolute;z-index:-1;pointer-events:none;width:760px;height:435px;right:-40px;top:-8px;color:var(--gold);background:url(/new/en/assets/about-pearls-760.webp?v=83052c0da76058fb) center/contain no-repeat;background-image:image-set(url(/new/en/assets/about-pearls-760.webp?v=83052c0da76058fb) 1x,url(/new/en/assets/about-pearls-1520.webp?v=19cf1298045aeb91) 2x)}
+#secAbout .reference-about-hero .about-necklace-art{display:block;position:absolute;z-index:-1;pointer-events:none;width:660px;height:377px;right:-9px;top:-16px;color:var(--gold)}
 #secAbout .about-necklace-art svg{display:block;width:100%;height:100%;overflow:visible}
+#secAbout .reference-about-hero .about-necklace-art::after{content:"";position:absolute;inset:0;pointer-events:none;background:url(/new/en/assets/about-pearls-760.webp?v=83052c0da76058fb) center/contain no-repeat;background-image:image-set(url(/new/en/assets/about-pearls-760.webp?v=83052c0da76058fb) 1x,url(/new/en/assets/about-pearls-1520.webp?v=19cf1298045aeb91) 2x)}
 @media(max-width:1180px){#secAbout .reference-about-hero .about-necklace-art{position:relative;grid-column:1/-1;right:auto;top:auto;width:100%;max-width:480px;height:auto;aspect-ratio:700/400;margin:0 0 0 auto;z-index:0}}
 body:not([data-pearl-entry]){--ink:var(--text);--surface:var(--panel);--soft:var(--chip);--teal:var(--accent);--text-dim:#a8b5c8}
 body:not([data-pearl-entry]) :is(.skip-link,.nav-tab.on,.btn.primary){background:#1d4ed8;color:#fff}
