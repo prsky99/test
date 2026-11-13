@@ -38,7 +38,7 @@ SEED = "necklace-gold-v1"
 # 5 requests in 30 seconds.
 SPACING = {"services.nvd.nist.gov": 6.5, "api.osv.dev": 0.5, "registry.npmjs.org": 0.5, "pypi.org": 0.5,
            "api.first.org": 1.0, "www.cisa.gov": 1.0, "raw.githubusercontent.com": 1.0,
-           "www.sec.gov": 1.0, "api.gleif.org": 1.0}
+           "www.sec.gov": 1.0, "api.gleif.org": 1.0, "en.wikipedia.org": 1.0, "api.openalex.org": 0.5}
 
 NPM = ["lodash", "minimist", "express", "axios", "jsonwebtoken", "moment", "handlebars", "marked", "node-fetch",
        "ws", "semver", "tar", "qs", "follow-redirects", "ejs", "jquery", "underscore", "shell-quote", "glob-parent",
@@ -360,6 +360,61 @@ def company_cases(f: Fetcher, us: int = 75) -> list[dict]:
     return cases
 
 
+# topic-evidence-brief: (Wikipedia title, phrase that must be in a paper title, stratum)
+TOPICS = [(t, k or t.lower(), "stem") for t, k in [
+    ("CRISPR", "crispr"), ("Transformer (deep learning architecture)", "transformer"), ("Graph neural network", None),
+    ("Reinforcement learning", None), ("Quantum computing", None), ("Black hole", None), ("Gravitational wave", None),
+    ("Exoplanet", None), ("Dark matter", None), ("Higgs boson", None), ("Superconductivity", None), ("Graphene", None),
+    ("Perovskite solar cell", "perovskite solar"), ("Lithium-ion battery", "lithium-ion batter"), ("Photosynthesis", None),
+    ("MRNA vaccine", "mrna vaccine"), ("Alzheimer's disease", "alzheimer"), ("Gut microbiota", None),
+    ("Antimicrobial resistance", None), ("Ocean acidification", None), ("Coral reef", None), ("Plate tectonics", None),
+    ("Malaria", None), ("Tuberculosis", None), ("Type 2 diabetes", None), ("Obesity", None), ("Stem cell", None),
+    ("Cancer immunotherapy", None), ("Blockchain", None), ("Federated learning", None), ("Differential privacy", None),
+    ("Object detection", None), ("Large language model", None), ("Diffusion model", None),
+    ("Generative adversarial network", None), ("Self-driving car", "autonomous driving"), ("Internet of things", None),
+    ("Edge computing", None), ("Intrusion detection system", "intrusion detection"), ("Ransomware", None),
+    ("Protein structure prediction", None), ("DNA methylation", None), ("Synaptic plasticity", None),
+    ("Sleep deprivation", None), ("Hydrogen fuel cell", "fuel cell"), ("Wind power", "wind turbine"),
+    ("Climate change", None), ("Earthquake early warning system", "earthquake early warning"), ("Microplastics", None),
+    ("Zika virus", None)]] + [(t, k or t.lower(), "society") for t, k in [
+    ("Inflation", None), ("Universal basic income", None), ("Minimum wage", None), ("Remote work", None),
+    ("Urbanization", None), ("International migration", None), ("Social media", None), ("Misinformation", None),
+    ("Democratic backsliding", None), ("Income inequality", None), ("Online learning", None), ("Mental health", None),
+    ("Renewable energy", None), ("Carbon tax", None), ("Circular economy", None), ("Sustainable development", None),
+    ("Food security", None), ("Water scarcity", None), ("Sustainable tourism", None), ("Behavioral economics", None),
+    ("Game theory", None), ("Supply chain resilience", None), ("Bitcoin", None), ("Gig economy", None),
+    ("Population ageing", None), ("Loneliness", None), ("Subjective well-being", None), ("Corporate governance", None),
+    ("Microfinance", None), ("Second-language acquisition", "second language acquisition"),
+    ("Radiocarbon dating", None), ("Financial literacy", None), ("Corporate social responsibility", None),
+    ("Entrepreneurship", None), ("Foreign direct investment", None), ("Monetary policy", None), ("Populism", None),
+    ("Social capital", None), ("Work–life balance", "work-life balance"), ("Organizational culture", None),
+    ("Brand loyalty", None), ("Electronic commerce", "e-commerce"), ("Smart city", None), ("Public transport", None),
+    ("Housing affordability", None), ("Child poverty", None), ("Gender pay gap", None), ("Teacher burnout", None),
+    ("Digital divide", None), ("Cultural heritage", None)]]
+
+
+def topic_cases(f: Fetcher, per_topic: int = 10) -> list[dict]:
+    cases = []
+    for title, phrase, stratum in TOPICS:
+        wiki = f.json("https://en.wikipedia.org/api/rest_v1/page/summary/" + quote(title.replace(" ", "_"), safe=""))
+        if not wiki or wiki.get("type") not in ("standard", None) or not wiki.get("title"):
+            continue
+        works = f.json("https://api.openalex.org/works?per-page=%d&sort=cited_by_count:desc&select=doi,title,publication_year"
+                       "&filter=type:article,title.search:%s" % (per_topic, quote(phrase))) or {}
+        papers = [{"doi": (w.get("doi") or "").replace("https://doi.org/", "").lower(), "title": w.get("title")}
+                  for w in works.get("results") or [] if w.get("doi") and w.get("title")]
+        if len(papers) < 3:
+            continue
+        cases.append({"case_id": "topic:" + title, "task_type": "same_role", "stratum": stratum,
+                      "input": {"topic": wiki["title"]},
+                      "truth": {"wiki": {"title": wiki["title"], "description": wiki.get("description"),
+                                         "url": (wiki.get("content_urls") or {}).get("desktop", {}).get("page")},
+                                "papers": papers, "paper_phrase": phrase},
+                      "truth_sources": [{"name": "Wikipedia REST summary", "url": "https://en.wikipedia.org/api/rest_v1/", "fetched_at": _now()},
+                                        {"name": "OpenAlex (title search, most cited)", "url": "https://api.openalex.org/works", "fetched_at": _now()}]})
+    return cases
+
+
 def split(cases: list[dict], per_split: int = PER_SPLIT) -> dict[str, list[dict]]:
     """Stratified and deterministic.
 
@@ -421,6 +476,12 @@ def build(root: Path, which: list[str], fetcher: Fetcher | None = None, raw_dir:
             (raw_dir / "cve-cases.json").write_text(json.dumps(cves, ensure_ascii=False))
         out["cve-incident-brief"] = write_set(root, "cve-incident-brief", split(cves),
                                               {"answer_set": "cve-incident-brief-v1", "built_from": len(cves)})
+    if "topic-evidence-brief" in which:
+        topics = topic_cases(f)
+        if raw_dir:
+            (raw_dir / "topic-cases.json").write_text(json.dumps(topics, ensure_ascii=False))
+        out["topic-evidence-brief"] = write_set(root, "topic-evidence-brief", split(topics),
+                                                {"answer_set": "topic-evidence-brief-v1", "built_from": len(topics)})
     if "company-due-diligence" in which:
         companies = company_cases(f)
         if raw_dir:
@@ -436,7 +497,8 @@ def resplit(root: Path, raw_dir: Path) -> dict:
     out = {}
     for slug, name, answer_set in (("package-risk-audit", "package-cases.json", "package-risk-audit-v1"),
                                    ("cve-incident-brief", "cve-cases.json", "cve-incident-brief-v1"),
-                                   ("company-due-diligence", "company-cases.json", "company-due-diligence-v1")):
+                                   ("company-due-diligence", "company-cases.json", "company-due-diligence-v1"),
+                                   ("topic-evidence-brief", "topic-cases.json", "topic-evidence-brief-v1")):
         path = raw_dir / name
         if path.exists():
             cases = json.loads(path.read_text(encoding="utf-8"))

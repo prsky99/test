@@ -152,3 +152,15 @@ def test_registry_grader_accepts_cik_or_lei():
     eu = {"truth": {"cik": None, "lei": "529900D6BF99LW9R2E68"}}
     assert retest.grade_registry(eu, {"legal_name": "SAP SE", "identifiers": {"lei": "529900D6BF99LW9R2E68"}})
     assert not retest.grade_registry(eu, {"legal_name": "SAP SE"})
+
+
+def test_topic_graders():
+    case = {"truth": {"papers": [{"doi": "10.1038/nprot.2013.143", "title": "Genome engineering using the CRISPR-Cas9 system"}],
+                      "wiki": {"title": "CRISPR gene editing", "description": "Gene editing method"}}}
+    assert retest.grade_papers(case, {"answers": [{"text": "doi 10.1038/NPROT.2013.143"}]})
+    assert retest.grade_papers(case, {"items": [{"title": "Genome engineering using the CRISPR-Cas9 system"}]})
+    assert not retest.grade_papers(case, {"items": [{"title": "Something else"}]})
+    assert retest.grade_background(case, {"text": "CRISPR gene editing is a gene editing method"})
+    assert retest.grade_background(case, {"text": "a method for gene editing"})
+    assert not retest.grade_background(case, {"text": "a recipe for bread"})
+    assert retest.grade_web(case, {"answer": "see https://example.org"}) and not retest.grade_web(case, {"answer": "x"})

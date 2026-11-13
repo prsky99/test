@@ -25,7 +25,8 @@ from .judge import DEFAULT_ROOT, _iso
 BASE = "https://agentconcierge.biz"
 QA = "necklace_retest"
 BUDGET_SECONDS = 35 * 60
-CONTRAST = {"package-risk-audit": "advisories", "cve-incident-brief": "record", "company-due-diligence": "registry"}
+CONTRAST = {"package-risk-audit": "advisories", "cve-incident-brief": "record", "company-due-diligence": "registry",
+            "topic-evidence-brief": "papers"}
 
 
 # ---------------------------------------------------------------- public relay caller
@@ -152,8 +153,36 @@ def grade_registry(case, slot_out) -> bool:
     return any(i and i.lower() in text for i in ids)
 
 
+STOP = {"the", "of", "and", "a", "an", "in", "for", "to", "or", "by", "on", "with"}
+
+
+def grade_papers(case, slot_out) -> bool:
+    """At least one of the topic's most-cited papers (OpenAlex, title search), by DOI or title."""
+    if not slot_out or slot_out.get("missing"):
+        return False
+    text = _text(slot_out)
+    return any((p.get("doi") and p["doi"].lower() in text) or (p.get("title") and p["title"].lower()[:60] in text)
+               for p in case["truth"]["papers"])
+
+
+def grade_background(case, slot_out) -> bool:
+    """The encyclopedia answer is about the topic: its title, or two words of its short description."""
+    if not slot_out or slot_out.get("missing"):
+        return False
+    text, wiki = _text(slot_out), case["truth"]["wiki"]
+    if wiki["title"].lower() in text:
+        return True
+    words = {w for w in (wiki.get("description") or "").lower().split() if w not in STOP and len(w) > 2}
+    return len([w for w in words if w in text]) >= 2
+
+
+def grade_web(case, slot_out) -> bool:
+    return bool(slot_out) and not slot_out.get("missing") and "https://" in _text(slot_out)
+
+
 GRADERS = {"advisories": grade_advisories, "health": grade_health, "record": grade_record,
-           "exploited": grade_exploited, "registry": grade_registry}
+           "exploited": grade_exploited, "registry": grade_registry, "papers": grade_papers,
+           "background": grade_background, "web": grade_web}
 
 
 def grade(defn: dict, case: dict, output: dict) -> dict:
