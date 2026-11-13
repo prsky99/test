@@ -132,3 +132,19 @@ def test_daytime_starts_nothing_new_around_the_hourly_measurement(tmp_path, monk
     code = hs.run([sys.executable, '-c', f'open({str(marker)!r}, "w")'], '운영·SRE', 'gate', 10,
                   board=board, lock=tmp_path / 'lock', now=at(9, 57))
     assert code == hs.BUSY and not marker.exists() and '[slot' not in board.read_text(encoding='utf-8')
+
+
+def test_a_window_reserved_for_copy_rehearsals_refuses_other_heavy_work(tmp_path):
+    """PM 11-14 03:4x: 11-15 00:30~03:30 is kept for copy rehearsals; other heavy runs wait (exit 75)."""
+    board = tmp_path / 'status-board.md'
+    board.write_text(BOARD.format(rows='').replace('## 배포 잠금', '## 리허설 전용 시간 (설명)\n'
+                     '- 11-15 00:30~03:30 그래프 상한 → due_for_check (PM 03:4x)\n## 배포 잠금'), encoding='utf-8')
+    inside, outside = datetime(2026, 11, 15, 1, 0), datetime(2026, 11, 15, 3, 30)
+    assert 'reserved for copy rehearsals' in hs.reserved(inside, board)
+    assert hs.reserved(outside, board) is None and hs.reserved(datetime(2026, 11, 14, 1, 0), board) is None
+    out = tmp_path / 'ran.txt'
+    probe = [sys.executable, '-c', f'open({str(out)!r}, "w").write("x")']
+    assert hs.run(probe, '운영·SRE', 'full pytest', 5, board=board, lock=tmp_path / 'lock', now=inside) == hs.BUSY
+    assert not out.exists()
+    assert hs.run(probe, '운영·SRE', 'db_change_rehearsal due index', 5, board=board, lock=tmp_path / 'lock', now=inside) == 0
+    assert out.exists()

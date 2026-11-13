@@ -74,6 +74,38 @@ def measurement_window(now=None):
     return None
 
 
+# PM 11-14 03:4x: a night window may be kept for copy rehearsals only. Lines under RESERVED on the board,
+# '- MM-DD HH:MM~HH:MM <note>', make every other heavy run (and pytest_slot's small runs) wait (exit 75).
+RESERVED = '## 리허설 전용 시간'
+_RESERVED_LINE = re.compile(r'^- (\d{2})-(\d{2}) (\d{1,2}):(\d{2})~(\d{1,2}):(\d{2})')
+
+
+def reserved(now=None, board=None):
+    """The reason non-rehearsal work may not start now (a reserved window on the board), or None."""
+    now = now or datetime.now()
+    try:
+        lines = Path(board or BOARD).read_text(encoding='utf-8').split('\n')
+    except OSError:
+        return None
+    inside = False
+    for line in lines:
+        if line.startswith('## '):
+            inside = line.startswith(RESERVED)
+            continue
+        match = _RESERVED_LINE.match(line) if inside else None
+        if not match:
+            continue
+        month, day, h1, m1, h2, m2 = map(int, match.groups())
+        try:
+            start = now.replace(month=month, day=day, hour=h1, minute=m1, second=0, microsecond=0)
+            end = now.replace(month=month, day=day, hour=h2, minute=m2, second=0, microsecond=0)
+        except ValueError:
+            continue
+        if start <= now < end:
+            return f'reserved for copy rehearsals: {line[2:].strip()}'
+    return None
+
+
 STALE = ' [오래됨: pid 없음]'
 TIMED_OUT = ' [오래됨: 시간 초과]'
 NO_ESTIMATE_MINUTES = 180   # a line without an estimate counts for at most three hours
@@ -196,6 +228,8 @@ def run(command, team, what, minutes, board=None, lock=None, now=None):
         print(f'heavy_slot: refused ({reason}); nothing runs', file=sys.stderr)
         return NIGHT_ONLY
     reason = measurement_window(now)
+    if reason is None and not NIGHT_ONLY_WORDS.search(' '.join([what, *command])):
+        reason = reserved(now, board)
     if reason:
         print(f'heavy_slot: refused ({reason}); nothing runs, try again later', file=sys.stderr)
         return BUSY

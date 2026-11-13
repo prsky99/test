@@ -24,3 +24,12 @@ def test_small_runs_directly_and_wide_runs_through_heavy_slot(tmp_path):
     assert wide[1:3] == ['-m', 'scripts.heavy_slot'] and wide[wide.index('--minutes') + 1] == '20'
     assert wide[wide.index('--') + 1:wide.index('--') + 4] == ['nice', '-n', '10']
     assert pytest_slot.command(['tests'], root=tmp_path)[1:3] == ['-m', 'scripts.heavy_slot']   # a directory is wide
+
+
+def test_small_runs_wait_inside_a_window_reserved_for_rehearsals(monkeypatch, capsys):
+    from scripts import heavy_slot, pytest_slot
+    monkeypatch.setattr(heavy_slot, 'reserved', lambda now=None, board=None: 'reserved for copy rehearsals: 11-15 00:30~03:30')
+    ran = []
+    monkeypatch.setattr(pytest_slot.subprocess, 'run', lambda *a, **k: ran.append(a))
+    assert pytest_slot.main(['tests/test_pytest_slot.py']) == heavy_slot.BUSY
+    assert not ran and 'reserved for copy rehearsals' in capsys.readouterr().err
