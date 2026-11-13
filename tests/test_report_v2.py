@@ -261,3 +261,17 @@ def test_reference_sources_respect_their_terms(monkeypatch):
     assert own[0] == 0 and 'not checked' in own[1]
     suspended = DQ.accuracy(None, 'BTC 68,900 USD', None, live={'reference': 'x', 'tolerance': 0.02, 'terms_ok': False, 'note': 'n'})
     assert suspended[0] == 0 and suspended[1].startswith('public reference suspended')
+
+
+def test_own_fallbacks_stack_versions_but_never_rank(tmp_path, out):
+    """PM 11-14 plan A: avc:<agent_id> versions, scores and chains are kept; pearls and role_groups leave them out."""
+    import json as _json
+    results = {'results': [{**result(rid='avc:nvd-cve', role='cve.record.v1', tool='nvd_cve', host='services.nvd.nist.gov'),
+                            'endpoint': 'in-process:nvd-cve', 'source': 'agentvalcon fallback (in-process)'}]}
+    (out / 'avc-results-2026-11-15.json').write_text(_json.dumps(results))
+    assert V.import_fallbacks() == 1 and V.import_fallbacks() == 0          # once per file
+    versions = V.latest_versions()
+    assert any(v['resource_id'] == 'avc:nvd-cve' for v in versions)
+    assert all(m['resource_id'] != 'avc:nvd-cve' for r in V.rank(versions).values() for m in r['members'])
+    V.save_version(result(rid=3, role='cve.record.v1', tool='get_cve'))
+    assert V.retest_queue(V.latest_versions(), day=1) is not None             # string ids do not break the queue

@@ -32,6 +32,7 @@ def main(argv=None):
         health_tiers.main()
     except Exception as exc:
         print(f'health_tiers failed: {type(exc).__name__}: {exc}')
+    print(f'own fallback versions imported: {V.import_fallbacks()}')   # 에이전트 팀 avc-results files (PM plan A)
     queue = V.build_queue()
     (V.OUT / f'queue-{day}.json').write_text(json.dumps(queue, indent=1))
     V.run(queue)

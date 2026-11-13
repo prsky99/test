@@ -56,6 +56,18 @@ ROLE_DOMAIN_V1 = {'domain.lookup.v1': 'internet', 'place.search.v1': 'travel', '
                   'website.ai_readiness.v1': 'internet', 'web.grounding.v1': 'reference'}
 
 
+def is_own_fallback(rid):
+    """AgentValCon's own fallback agents use the id namespace avc:<agent_id> (PM 11-14, plan A): their versions,
+    scores and signed chains are kept, but they never compete with external pearls (last in every chain)."""
+    return isinstance(rid, str) and rid.startswith('avc:')
+
+
+def _parity(rid, day):
+    import zlib
+    number = rid if isinstance(rid, int) else zlib.crc32(str(rid).encode('utf-8'))
+    return (day + number) % 2
+
+
 def canonical(role):
     """One list of role names (PM 11-14): the workflow team's contract ids (cve.exploited.v1), ours mapped onto them."""
     role = str(role or '')
@@ -475,6 +487,24 @@ def sign_version(r, case, name=None):
     return str(path.relative_to(ROOT))
 
 
+def import_fallbacks(folder=None):
+    """Stack the own fallback agents' role-task results (에이전트 팀 writes exports/pearls/avc-results-<date>.json) as
+    report v2 versions, once per file (a .imported mark beside it)."""
+    folder = Path(folder or OUT)
+    done = 0
+    for path in sorted(folder.glob('avc-results-*.json')):
+        mark = path.with_suffix('.imported')
+        if mark.exists():
+            continue
+        data = json.loads(path.read_text())
+        for result in data.get('results', data if isinstance(data, list) else []):
+            if is_own_fallback(result.get('id')) and result.get('outcome') in ('succeeded', 'failed', 'skipped'):
+                save_version(result)
+                done += 1
+        mark.write_text(time.strftime('%Y-%m-%d %H:%M') + '\n')
+    return done
+
+
 def rescore():
     """Score every stored version again with the current rules (PM 11-14 data quality), from the stored excerpt."""
     for path in (OUT / 'reports').glob('*/*/*.json') if (OUT / 'reports').exists() else []:
@@ -517,7 +547,8 @@ def rank(versions):
     """Per role: by quality score; one place per registrable domain; #1 at 85+ is the final pearl, #2-#3 fall back."""
     roles = defaultdict(list)
     for v in versions:
-        roles[v['role']].append(v)
+        if not is_own_fallback(v['resource_id']):          # own fallbacks never compete with external pearls
+            roles[v['role']].append(v)
     out = {}
     for role, members in roles.items():
         # Ties (e.g. no answer source yet, accuracy 0 for all) go to the answer that passed more field checks for the
@@ -562,6 +593,7 @@ def refusal_note():
 
 
 def funnel(versions, ranked, candidates_a=None):
+    versions = [v for v in versions if not is_own_fallback(v['resource_id'])]
     ok = sum(v['outcome'] == 'succeeded' for v in versions)
     high = sum(v['quality']['score'] >= PASS_MARK for v in versions)
     finals = sum(1 for r in ranked.values() if r['final_pearl'])
@@ -642,7 +674,7 @@ def retest_queue(versions, day=None, limit=RETEST_A_DAY):
     out = []
     for role, entry in sorted(rank(versions).items()):
         for m in entry['members']:
-            if m['rank'] and (m['rank'] <= 2 or (m['rank'] <= 5 and (day + m['resource_id']) % 2 == 0)):
+            if m['rank'] and (m['rank'] <= 2 or (m['rank'] <= 5 and _parity(m['resource_id'], day) == 0)):
                 out.append({'role': role, 'id': m['resource_id'], 'tool': m['tool'], 'kind': 'retest', 'rank': m['rank']})
     out.sort(key=lambda c: c['rank'])
     return out[:limit]
@@ -749,6 +781,8 @@ def main(argv=None):
         for result in json.loads(Path(argv[1]).read_text()).get('results', []):
             if result.get('outcome') in ('succeeded', 'failed', 'skipped'):
                 save_version(result)
+    elif argv[0] == 'import-fallbacks':
+        import_fallbacks()
     elif argv[0] == 'rescore':
         rescore()
     elif argv[0] == 'queue':

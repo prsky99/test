@@ -62,7 +62,7 @@ def build(versions=None, facts=None, necklaces=None, now=None):
     versions = V.latest_versions() if versions is None else versions
     ranked = V.rank(versions)
     necklaces = necklaces_by_role() if necklaces is None else necklaces
-    facts = catalog_facts({v['resource_id'] for v in versions}) if facts is None else facts
+    facts = catalog_facts({v['resource_id'] for v in versions if isinstance(v['resource_id'], int)}) if facts is None else facts
     verified = {(v['resource_id'], v['role']) for v in versions if is_verified(v, now)}
     roles = {}
     for role, entry in ranked.items():
