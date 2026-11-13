@@ -180,6 +180,8 @@ def status():
 
 
 def main():
+    print('그래프 상한 운영 적용: 이 창을 닫지 마세요. 맥이 잠들지 않게 caffeinate -i로 실행하세요. '
+          '조건을 확인한 뒤 05:12, 06:12, 07:12 중 맞는 시각까지 기다렸다가 적용합니다.', flush=True)
     reasons, measured = rehearsal_conditions()
     result['rehearsal'] = {'reasons': reasons, 'apply_seconds': measured}
     save()
@@ -198,6 +200,7 @@ def main():
     if slot is None:
         stop('맞는 시작 칸 없음(05:12·06:12·07:12, 예상 {:.0f}분)'.format(expected.total_seconds() / 60))
     log('waiting for {} (expected {:.0f} min)'.format(result['slot'], expected.total_seconds() / 60))
+    print('예상 시작 {}, 예상 소요 {:.0f}분. 이 창을 닫지 마세요.'.format(result['slot'], expected.total_seconds() / 60), flush=True)
     board('{} 시작 대기(예상 {:.0f}분)'.format(result['slot'], expected.total_seconds() / 60))
     while datetime.now() < slot:
         time.sleep(15)
@@ -234,8 +237,12 @@ def main():
             and result['after']['explore']['errors'] == 0 and result['after']['explore']['empty'] == 0)
     if not good:
         back = subprocess.run(ROLLBACK, cwd=ROOT, capture_output=True, text=True, timeout=3600)
-        result['rolled_back'] = {'returncode': back.returncode, 'stdout': back.stdout[-600:], 'attach': attach(), 'status': status()}
+        reattached = attach()
+        result['rolled_back'] = {'returncode': back.returncode, 'stdout': back.stdout[-600:], 'attach': reattached, 'status': status()}
         save()
+        if back.returncode != 0 or not reattached[0]:
+            # PM 02:4x: the application cannot attach even after the recovery -> the PM must see it at once.
+            board('긴급: 복구 뒤에도 앱 연결 실패(복구 rc {}, attach {}) — {}'.format(back.returncode, reattached[0], reattached[1][:200]))
         stop('적용 뒤 확인 실패 → 복구함. apply rc {}, attach {}, 트리거 {}, 탐색 {}, 복구 rc {}'.format(
             done.returncode, attached, after.get('public_triggers'), result['after']['explore'], back.returncode))
     log('applied in {} s'.format(result['apply']['seconds']))
