@@ -122,10 +122,24 @@ def _quality_hold(entry: dict, now: float) -> str | None:
     return None
 
 
-def build_entry(defn: dict, approval: dict | None, summary: dict, now: float) -> dict | None:
+def watch_hold(slug: str, watch_state: dict | None, approval: dict | None) -> str | None:
+    """An open watch hold, unless ops approved again after it started (two keys)."""
+    hold = ((watch_state or {}).get("holds") or {}).get(slug)
+    if not hold or hold.get("released"):
+        return None
+    since = _parse_time(hold.get("since")) or 0
+    if approval and approval.get("state") == "approved" and (_parse_time(approval.get("at")) or 0) > since:
+        return None
+    return hold.get("reason") or "manual"
+
+
+def build_entry(defn: dict, approval: dict | None, summary: dict, now: float,
+                watch_state: dict | None = None) -> dict | None:
     status = defn["status"]
     if status not in PUBLIC:
         return None
+    from .watch import runtime_definition
+    running = runtime_definition(defn, watch_state or {})
     entry = {
         "slug": defn["slug"],
         "name": defn["name"],
@@ -136,7 +150,7 @@ def build_entry(defn: dict, approval: dict | None, summary: dict, now: float) ->
         "status": status,
         "held_reason": None,
         "gate_passed_at": None,
-        "pearls": pearls(defn),
+        "pearls": pearls(running),
         "input_schema": defn["input_schema"],
         "completion": summary.get("completion"),
         "quality": summary.get("quality"),
@@ -156,6 +170,7 @@ def build_entry(defn: dict, approval: dict | None, summary: dict, now: float) ->
     # The surface contract needs at least two pearls; summary holds come from the
     # daily retest (security, completion_low, quality_low and the like).
     reason = (reason
+              or watch_hold(defn["slug"], watch_state, approval)
               or ("no_member" if len(entry["pearls"]) < 2 else None)
               or summary.get("held_reason")
               or _quality_hold(entry, now))
@@ -165,11 +180,16 @@ def build_entry(defn: dict, approval: dict | None, summary: dict, now: float) ->
 
 
 def snapshot(definitions: list[dict], approvals: dict[str, dict], root: Path, now: float | None = None,
-             judge_commit: str | None = None) -> dict:
+             judge_commit: str | None = None, watch_state: dict | None = None) -> dict:
     now = time.time() if now is None else now
+    if watch_state is None:
+        try:
+            watch_state = json.loads((root / "watch" / "state.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            watch_state = {}
     entries = []
     for defn in definitions:
-        entry = build_entry(defn, approvals.get(defn["slug"]), load_summary(root, defn["slug"]), now)
+        entry = build_entry(defn, approvals.get(defn["slug"]), load_summary(root, defn["slug"]), now, watch_state)
         if entry is not None:
             entries.append(entry)
     return {"schema": SCHEMA, "generated_at": _iso(now), "judge_commit": judge_commit, "necklaces": entries}
