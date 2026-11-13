@@ -15,7 +15,7 @@ import re
 # ID(user ID), MX(DNS MX 레코드), PE(P/E 비율), AR(증강현실), CO, CA(캘리포니아·인증기관) → 나라 이름으로만 인식
 REGIONS = {
     "us": ("미국", r"\b(US|USA|U\.S\.A?\.?)\b", r"\b(united states|american|sec filings?|edgar|irs|fda|nasdaq|nyse|us-only)\b"),
-    "eu": ("EU·유럽", r"\bEU\b|\bPolish\b(?!\s+(?:language|translation|text|grammar|speakers?|words?|your|my|the|up|and|it|this)\b)",
+    "eu": ("EU·유럽", r"\bEU\b|(?<!,\s)\bPolish\b(?!\s*[,)/]|\s+(?:language|translation|text|grammar|speakers?|words?|your|my|the|up|and|or|it|this)\b)",
            r"\b(european union|european|europe|esma|gdpr|eur-lex|eurostat|mifid|poland|gugik|teryt|ceidg|spain|italy|netherlands|"
            r"portugal|austria|belgium|ireland|sweden|finland|denmark|czechia|czech republic)\b"),
     "gb": ("영국", r"\b(UK|GB)\b", r"\b(united kingdom|british|hmrc|companies house|england|scotland)\b"),
@@ -42,7 +42,18 @@ REGIONS = {
     "il": ("이스라엘", r"(?!x)x", r"\b(israel)\b"),
     "nz": ("뉴질랜드", r"(?!x)x", r"\b(new zealand)\b"),
 }
+# 11-14 PM 04:0x: every ISO country by name (gateway/countries.py), so a one-country listing is never read as worldwide.
+from .countries import COUNTRIES, NOT_COUNTRY, OWN_REGIONS
+_NOT_COUNTRY = re.compile(NOT_COUNTRY, re.I)
+for _code, _name in OWN_REGIONS.items():
+    REGIONS.setdefault(_code, (_name, r"(?!x)x", r"(?!x)x"))
 _REGION_PATTERNS = {code: (re.compile(cs), re.compile(ci, re.I)) for code, (_, cs, ci) in REGIONS.items()}
+_COUNTRY_NAMES = {}
+for _iso, _target, _names in COUNTRIES:
+    _COUNTRY_NAMES.setdefault(_target, []).extend(_names.split('|'))
+_COUNTRY_PATTERNS = {code: re.compile(r"\b(?:" + "|".join(
+    re.escape(name).replace(r"\ ", r"\s+") for name in sorted(set(names), key=len, reverse=True)) + r")\b", re.I)
+    for code, names in _COUNTRY_NAMES.items()}
 # 도구 파라미터 값(ISO 국가 코드 등) → 지역 코드
 _COUNTRY_TO_REGION = {
     "us": "us", "usa": "us", "gb": "gb", "uk": "gb", "br": "br", "in": "in", "jp": "jp", "kr": "kr", "cn": "cn",
@@ -51,6 +62,8 @@ _COUNTRY_TO_REGION = {
     "id": "sea", "vn": "sea", "th": "sea", "ph": "sea", "my": "sea", "ae": "me", "sa": "me",
     "es": "eu", "it": "eu", "nl": "eu", "pl": "eu", "pt": "eu", "se": "eu", "at": "eu", "be": "eu", "ie": "eu",
 }
+for _iso, _target, _names in COUNTRIES:
+    _COUNTRY_TO_REGION.setdefault(_iso, _target)
 
 LANGUAGES = {"en": "영어", "ko": "한국어", "ja": "일본어", "zh": "중국어", "es": "스페인어", "pt": "포르투갈어", "fr": "프랑스어",
              "de": "독일어", "it": "이탈리아어", "ru": "러시아어", "ar": "아랍어", "hi": "힌디어", "th": "태국어", "pl": "폴란드어",
@@ -96,7 +109,10 @@ def detect_language(text: str) -> str | None:
 
 def regions_in_text(text: str) -> list[str]:
     """설명문에 나오는 나라·지역 (데이터 대상 지역). 특정 지역이 없으면 빈 목록 = 전 세계 공통."""
-    return sorted(code for code, (cs, ci) in _REGION_PATTERNS.items() if cs.search(text) or ci.search(text))
+    text = _NOT_COUNTRY.sub(' ', text)
+    found = {code for code, (cs, ci) in _REGION_PATTERNS.items() if cs.search(text) or ci.search(text)}
+    found.update(code for code, pattern in _COUNTRY_PATTERNS.items() if code not in found and pattern.search(text))
+    return sorted(found)
 
 
 # Focused gazetteer: cities and regions that listings name as their only coverage

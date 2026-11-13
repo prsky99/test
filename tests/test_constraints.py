@@ -226,3 +226,34 @@ def test_country_names_added_for_real_task_a05():
     assert regions_in_text('Company registry of Türkiye') == ['tr']
     assert regions_in_text('Weather in Norway') == ['no'] and regions_in_text('Spanish translation') == []
     assert regions_in_text('Land registry of Spain') == ['eu']
+
+
+@pytest.mark.parametrize('text, codes', [
+    ('Cambio Uruguay: geocode an address', ['latam']),        # 11-14 a05: led a worldwide geocoding task
+    ('Russia company registry', ['ru']), ('Taiwan stock quotes', ['tw']), ('Sri Lanka tea prices', ['lk']),
+    ('Hong Kong exchange filings', ['hk']), ('Kenya and Ghana mobile money', ['africa']),
+    ('Republic of Georgia land records', ['ge']), ('Papua New Guinea tides', ['pg']),
+    ('Iceland weather', ['is']), ('Serbia business register', ['eu']), ("People's Republic of China customs", ['cn']),
+    # not places: a US state or region, a person, an animal, a language
+    ('New Mexico state parks', []), ('New England weather', []), ('Georgia state law search', []),
+    ('Air Jordan sneaker prices', []), ('guinea pig care tips', []), ('Russian text to speech', []),
+    ('Chad from sales', []), ('New Jersey tax forms', []),
+    # "new" is usually an adjective: only the named US places are removed (11-14 sample of the 2,658 changed rows)
+    ('Credit limit for a new French customer', ['fr']), ('New Swiss building permits', ['ch']),
+    ('Translate into English, Spanish, Polish, Dutch', []),  # Polish in a list of languages is a language
+])
+def test_every_iso_country_by_name(text, codes):
+    """PM 11-14 04:0x: the whole ISO 3166 list, not one country at a time; modifiers stay out."""
+    assert cons.regions_in_text(text) == codes
+
+
+def test_country_table_is_consistent():
+    from agent_market.gateway.countries import COUNTRIES, OWN_REGIONS, AMBIGUOUS
+    codes = [iso for iso, _, _ in COUNTRIES]
+    assert len(codes) == len(set(codes)) and len(codes) >= 190
+    assert all(target in cons.REGIONS for _, target, _ in COUNTRIES)
+    assert set(OWN_REGIONS) <= set(cons.REGIONS)
+    names = {name for _, _, value in COUNTRIES for name in value.split('|')}
+    assert not names & AMBIGUOUS
+    assert cons.normalize_region('UY') == 'latam' and cons.normalize_region('RU') == 'ru'
+    assert cons.normalize_region('me') == 'me'          # the Middle East group, as before (not Montenegro)
