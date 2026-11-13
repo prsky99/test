@@ -1,0 +1,9 @@
+/                            31176
+/new/en/agent-status.html    25528
+/new/en/explore.html         28540
+/new/en/learn.html           27334
+/new/en/test.html            33459
+/new/en/workflows.html       36484
+/new/en/chat.html            27167
+/new/en/list-agent.html      28421
+/new/en/about.html           24036

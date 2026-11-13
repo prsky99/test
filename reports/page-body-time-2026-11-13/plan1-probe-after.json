@@ -1,0 +1,479 @@
+[
+ {
+  "i": 0,
+  "path": "/",
+  "s": 0.843,
+  "status": 200,
+  "wire_bytes": 31013,
+  "chunks": 26,
+  "tls_s": 0.48,
+  "headers_s": 0.819,
+  "first_chunk_s": 0.79,
+  "last_chunk_s": 0.813,
+  "chunk_times": [
+   [
+    0.79,
+    869
+   ],
+   [
+    0.791,
+    2238
+   ],
+   [
+    0.791,
+    3607
+   ],
+   [
+    0.813,
+    29966
+   ],
+   [
+    0.813,
+    31003
+   ],
+   [
+    0.813,
+    31013
+   ]
+  ],
+  "gap": [
+   0.003,
+   23121
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "210",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59f2f8bae6d53e6-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": "1",
+  "last-modified": "Fri, 13 Nov 2026 16:31:15 GMT",
+  "etag": null,
+  "vary": "Accept, Accept-Encoding"
+ },
+ {
+  "i": 0,
+  "path": "/new/en/chat.html",
+  "s": 0.883,
+  "status": 200,
+  "wire_bytes": 27197,
+  "chunks": 21,
+  "tls_s": 0.469,
+  "headers_s": 0.865,
+  "first_chunk_s": 0.853,
+  "last_chunk_s": 0.87,
+  "chunk_times": [
+   [
+    0.853,
+    907
+   ],
+   [
+    0.853,
+    2276
+   ],
+   [
+    0.853,
+    3645
+   ],
+   [
+    0.868,
+    24553
+   ],
+   [
+    0.87,
+    25922
+   ],
+   [
+    0.87,
+    27197
+   ]
+  ],
+  "gap": [
+   0.005,
+   16345
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "199",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59f2f972f742b75-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": "Fri, 13 Nov 2026 16:31:27 GMT",
+  "etag": null,
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 0,
+  "path": "/new/en/explore.html",
+  "s": 2.543,
+  "status": 200,
+  "wire_bytes": 28540,
+  "chunks": 22,
+  "tls_s": 0.468,
+  "headers_s": 0.817,
+  "first_chunk_s": 0.804,
+  "last_chunk_s": 2.53,
+  "chunk_times": [
+   [
+    0.804,
+    910
+   ],
+   [
+    0.804,
+    2279
+   ],
+   [
+    0.804,
+    3648
+   ],
+   [
+    2.528,
+    26921
+   ],
+   [
+    2.53,
+    28290
+   ],
+   [
+    2.53,
+    28540
+   ]
+  ],
+  "gap": [
+   1.086,
+   10493
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "207",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59f2fa2fa7ec6f9-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": "Fri, 13 Nov 2026 16:31:22 GMT",
+  "etag": null,
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 1,
+  "path": "/",
+  "s": 2.381,
+  "status": 200,
+  "wire_bytes": 31161,
+  "chunks": 30,
+  "tls_s": 0.48,
+  "headers_s": 0.848,
+  "first_chunk_s": 0.837,
+  "last_chunk_s": 2.367,
+  "chunk_times": [
+   [
+    0.837,
+    876
+   ],
+   [
+    0.837,
+    2245
+   ],
+   [
+    0.837,
+    3547
+   ],
+   [
+    2.367,
+    30189
+   ],
+   [
+    2.367,
+    31144
+   ],
+   [
+    2.367,
+    31161
+   ]
+  ],
+  "gap": [
+   1.189,
+   23111
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "217",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59f2fb94a1c2f3d-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": "1",
+  "last-modified": "Fri, 13 Nov 2026 16:31:15 GMT",
+  "etag": null,
+  "vary": "Accept, Accept-Encoding"
+ },
+ {
+  "i": 1,
+  "path": "/new/en/chat.html",
+  "s": 1.107,
+  "status": 200,
+  "wire_bytes": 27167,
+  "chunks": 21,
+  "tls_s": 0.736,
+  "headers_s": 1.086,
+  "first_chunk_s": 1.075,
+  "last_chunk_s": 1.095,
+  "chunk_times": [
+   [
+    1.075,
+    907
+   ],
+   [
+    1.075,
+    2276
+   ],
+   [
+    1.075,
+    3645
+   ],
+   [
+    1.092,
+    25549
+   ],
+   [
+    1.095,
+    26918
+   ],
+   [
+    1.095,
+    27167
+   ]
+  ],
+  "gap": [
+   0.003,
+   25549
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "208",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59f2fd00db4f7ab-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": "Fri, 13 Nov 2026 16:31:27 GMT",
+  "etag": null,
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 1,
+  "path": "/new/en/explore.html",
+  "s": 0.807,
+  "status": 200,
+  "wire_bytes": 28540,
+  "chunks": 22,
+  "tls_s": 0.443,
+  "headers_s": 0.789,
+  "first_chunk_s": 0.776,
+  "last_chunk_s": 0.794,
+  "chunk_times": [
+   [
+    0.776,
+    910
+   ],
+   [
+    0.776,
+    2279
+   ],
+   [
+    0.776,
+    3648
+   ],
+   [
+    0.792,
+    26921
+   ],
+   [
+    0.794,
+    28290
+   ],
+   [
+    0.794,
+    28540
+   ]
+  ],
+  "gap": [
+   0.002,
+   26921
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "216",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59f2fdb6c0d5901-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": "Fri, 13 Nov 2026 16:31:22 GMT",
+  "etag": null,
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 2,
+  "path": "/",
+  "s": 0.769,
+  "status": 200,
+  "wire_bytes": 31099,
+  "chunks": 26,
+  "tls_s": 0.394,
+  "headers_s": 0.751,
+  "first_chunk_s": 0.739,
+  "last_chunk_s": 0.755,
+  "chunk_times": [
+   [
+    0.739,
+    878
+   ],
+   [
+    0.739,
+    2247
+   ],
+   [
+    0.739,
+    3517
+   ],
+   [
+    0.755,
+    30339
+   ],
+   [
+    0.755,
+    30694
+   ],
+   [
+    0.755,
+    31099
+   ]
+  ],
+  "gap": [
+   0.002,
+   27601
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "225",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59f2fe66c205fb8-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": "1",
+  "last-modified": "Fri, 13 Nov 2026 16:31:15 GMT",
+  "etag": null,
+  "vary": "Accept, Accept-Encoding"
+ },
+ {
+  "i": 2,
+  "path": "/new/en/chat.html",
+  "s": 0.814,
+  "status": 200,
+  "wire_bytes": 27167,
+  "chunks": 21,
+  "tls_s": 0.469,
+  "headers_s": 0.795,
+  "first_chunk_s": 0.779,
+  "last_chunk_s": 0.796,
+  "chunk_times": [
+   [
+    0.779,
+    895
+   ],
+   [
+    0.779,
+    2264
+   ],
+   [
+    0.779,
+    3633
+   ],
+   [
+    0.796,
+    25537
+   ],
+   [
+    0.796,
+    26906
+   ],
+   [
+    0.796,
+    27167
+   ]
+  ],
+  "gap": [
+   0.003,
+   24168
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "214",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59f2ff20f40637e-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": "Fri, 13 Nov 2026 16:31:27 GMT",
+  "etag": null,
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 2,
+  "path": "/new/en/explore.html",
+  "s": 1.185,
+  "status": 200,
+  "wire_bytes": 28540,
+  "chunks": 22,
+  "tls_s": 0.476,
+  "headers_s": 1.178,
+  "first_chunk_s": 1.174,
+  "last_chunk_s": 1.18,
+  "chunk_times": [
+   [
+    1.174,
+    906
+   ],
+   [
+    1.174,
+    2275
+   ],
+   [
+    1.175,
+    3644
+   ],
+   [
+    1.179,
+    26917
+   ],
+   [
+    1.18,
+    28286
+   ],
+   [
+    1.18,
+    28540
+   ]
+  ],
+  "gap": [
+   0.002,
+   5013
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "221",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59f2ffd7c502ad7-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": "Fri, 13 Nov 2026 16:31:22 GMT",
+  "etag": null,
+  "vary": "Accept-Encoding"
+ }
+]
