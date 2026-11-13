@@ -54,7 +54,7 @@
 1. 대응 목걸이가 운영·SRE 검수를 통과해 메뉴에 오릅니다.
 2. **전후 품질 기록**: 옛 워크플로우를 목걸이의 정답 세트 중 입력이 맞는 과제(최소 10건)로 한 번 돌리고, 목걸이 결과와 나란히 `reports/necklace-production-2026-11-14/replacements/<id>.md`에 적습니다(성공률, 지연, 쓰인 외부 진주 수).
 3. 그 목걸이가 대체하는 옛 워크플로우만 공개 목록에서 내립니다(`is_active=0`, PM 06:3x ④ 승인). 삭제하지 않고 실행 기록을 보존하며, 되돌리기 SQL(`is_active=1`)과 바꾼 시각을 `replacements/<id>.md`에 적습니다. 운영·SRE와 함께 합니다.
-4. 옛 공개 주소와 MCP `template_id`는 대체 목걸이로 안내합니다. 웹 주소는 목걸이 페이지로 301, MCP `run_workflow`로 옛 id를 부르면 "replaced by necklace <slug>" 안내를 붙여 기존 결과를 돌려줍니다(30일). 세부 구현은 성장·유통과 맞춥니다.
+4. 옛 공개 링크와 MCP `template_id`는 대체 목걸이로 안내합니다(성장·유통 확정안). workflows.html의 대체된 카드에 "Replaced by necklace <name>" 링크를 30일 동안 붙입니다(워크플로우별 주소는 지금 없음). 옛 id로 `run_workflow`·`workflow_details`를 부르면 실행하지 않고(is_active=0) `replaced_by {slug, url, until}`과 "no longer runs; use necklace <slug>"를 돌려줍니다. 판정 작업이 스냅샷에 `replaces_templates`·`replaced_at`을 씁니다.
 5. 공지: 목걸이 페이지와 `llms.txt` 변경 기록에 한 줄 남깁니다(성장·유통).
 6. ② 중 꺼진 4개(27·28·35·36)는 첫 목걸이가 메뉴에 오르는 날 함께 정리합니다(PM 06:3x ④, 그 전에 PM이 사용자에게 목록 보고). ② 중 공개 10개(48·51·53·54·56·57·60·61·64·65)는 PM 승인 범위 밖이라, 안내할 일반 목걸이(`topic-evidence-brief`·`package-risk-audit`)가 메뉴에 오른 뒤 목록과 실행 수를 PM에 다시 올려 승인을 받고 내립니다.
 7. ③은 대응 목걸이 live 뒤 2주 동안 실행 수를 보고 다시 분류합니다.

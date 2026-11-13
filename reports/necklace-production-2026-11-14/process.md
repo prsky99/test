@@ -52,8 +52,9 @@ README.md가 이 파일의 내용을 요약해 씁니다. 세부 규칙의 기�
 ### 3-1. 파일 경로와 쓰는 쪽
 - 경로: `gateway-data/necklaces/necklaces.json`(git 제외). 성장·유통 초안 그대로입니다.
 - 쓰는 쪽: **워크플로우 팀의 jobs 작업 `necklace_judge` 하나뿐**입니다. 다른 팀은 이 파일을 쓰지 않습니다.
-  - 입력: 정의 파일(git), 정답 세트 시험 결과(워크플로우), 매일 재시험 `gateway-data/necklaces/retest/<date>.jsonl`(운영·SRE), 진주 표(검색과 RAG, `reports/pearls-*/pearls.json` 또는 그 팀이 정하는 경로), 운영 개입 파일 `gateway-data/necklaces/overrides.json`, 출시 관문 기록 `gateway-data/necklaces/gate/<slug>-v<version>.json`(운영·SRE가 검수 통과 때 씀: `{"passed_at", "by", "submission", "success_rate", "cases"}`)
-  - 실행: 재시험 파일이나 overrides가 바뀌면 바로, 그 밖에는 10분마다
+  - 입력: 정의 파일(git), 정답 세트 시험 결과(워크플로우), 매일 재시험 `gateway-data/necklaces/retest/<date>.jsonl`(운영·SRE), 진주 표(검색과 RAG, `reports/pearls-*/pearls.json` 또는 그 팀이 정하는 경로), 운영·SRE 승인 파일 `gateway-data/necklaces/approvals.json`(deploy/NECKLACE_GATE.md 형식: `{slug, version, definition_digest, gate_record, state: approved|held|revoked, at}`)
+  - 실행: 재시험 파일이나 approvals.json이 바뀌면 바로(파일 수정 시각 감시, 수 초 안), 그 밖에는 10분마다
+  - **두 열쇠(PM 07:3x)**: `live`는 approvals.json에 같은 slug·`version`·`definition_digest`인 `state: approved` 항목이 있을 때만 씁니다. 항목이 없거나, version·digest가 다르거나, state가 `held`·`revoked`면 `held`로 쓰고 `held_reason`에 `not_approved`·`approval_mismatch`·`gate_held`·`approval_revoked`를 적습니다.
   - 쓰기: 임시 파일 → rename(원자적 교체), 1MB 상한, 실패하면 이전 파일 유지
 - 최상위 형식(초안에 추가하는 것):
 ```json
@@ -61,10 +62,11 @@ README.md가 이 파일의 내용을 요약해 씁니다. 세부 규칙의 기�
  "necklaces": [ { …초안 항목… } ]}
 ```
 - 항목에 더하는 필드(모두 선택, 표면이 몰라도 됨):
-  - `version`(정의 버전), `gate_passed_at`(운영·SRE 95% 관문 통과 시각 = 워크플로우 메뉴에 오른 시각, 없으면 null. 성장·유통 요청). 홍보 대상은 `status: live`이고 `gate_passed_at`이 있는 항목입니다
+  - `version`(정의 버전), `definition_digest`, `gate_passed_at`(approvals의 approved 항목 `at` = 워크플로우 메뉴에 오른 시각, 없으면 null. 성장·유통 요청). 홍보 대상은 `status: live`이고 `gate_passed_at`이 있는 항목입니다
+  - `replaces_templates`(이 목걸이가 대체한 옛 template_id 목록)와 `replaced_at`(대체 시각). 성장·유통이 옛 template_id로 온 run_workflow·workflow_details에 `replaced_by {slug, url, until = replaced_at + 30일}`를 붙이는 데 씁니다. 대체된 옛 템플릿은 is_active=0이라 **더 실행되지 않습니다**. 안내 문구는 "no longer runs; use necklace <slug>"입니다.
   - `quality.delta_significant`(McNemar p < 0.05), `quality.lower_bound`(누적 재시험 Wilson 하한), `quality.delta_by_type`({"same_role": …, "multi_facet": …})
   - `pearls[].pearl`(엄격 기준 진주 여부), `pearls[].alternates[].same_source_as`(같은 원천을 쓰는 멤버)
-  - `held_reason` 코드: `no_member`, `delta_nonpositive`, `completion_low`, `quality_low`, `security`, `stale_retest`, `manual`
+  - `held_reason` 코드: `no_member`, `delta_nonpositive`, `completion_low`, `quality_low`, `security`, `stale_retest`, `not_approved`, `approval_mismatch`, `gate_held`, `approval_revoked`
   - `status: "retired"`와 `replaced_by`(대체한 목걸이 slug). 표면은 모르는 상태를 노출하지 않는다는 초안 규칙 그대로입니다. retired는 페이지를 `replaced_by`로 안내하는 데만 씁니다.
 - 바뀌지 않는 것: 초안의 노출 조건(`live`, 진주 2개 이상, `delta_pp > 0`, `tested_at` 48시간 안, Agentcon 대체는 자리당 2개 이하·맨 뒤). 판정 작업도 같은 조건으로 스스로 검사하고, 어기면 `live`로 쓰지 않습니다.
 
@@ -78,7 +80,7 @@ README.md가 이 파일의 내용을 요약해 씁니다. 세부 규칙의 기�
 ### 3-3. held 전환 주체
 - **판단은 워크플로우 팀(`necklace_judge`)** 이 합니다. PM 의견과 같습니다. 운영·SRE 재시험 결과는 입력입니다.
 - 자동 held 조건(6절)이 하나라도 맞으면 다음 판정 때 `held`로 씁니다(최대 10분, 재시험 파일이 들어오면 바로).
-- 긴급 개입: 운영·SRE와 PM은 `overrides.json`에 `{"slug", "status": "held", "reason", "by", "at"}`를 적을 수 있습니다. 판정 작업은 overrides가 바뀌면 바로 반영합니다. 개입을 푸는 것도 같은 파일로 합니다. 판정 작업이 개입을 무시하는 경우는 없습니다.
+- 긴급 개입: 운영·SRE는 approvals.json의 그 항목을 `held` 또는 `revoked`로 바꿉니다. 판정 작업이 파일 변경을 감시해 수 초 안에 `held`를 씁니다. 그래서 `necklaces.json`을 직접 고칠 필요가 없습니다(직접 고쳐도 다음 판정 때 approvals 기준으로 다시 씀). PM 요청 보류도 운영·SRE가 approvals로 합니다. 별도 overrides 파일은 두지 않습니다.
 - held에서 live로 돌아가는 것은 판정 작업만 합니다. 원인이 해소되고 재시험이 통과해야 합니다.
 
 ## 4. 품질 관문 (생산 공정의 합격선, PM 06:2x로 95%)
@@ -87,7 +89,7 @@ README.md가 이 파일의 내용을 요약해 씁니다. 세부 규칙의 기�
 
 | 항목 | 기준 | 잼 |
 |---|---|---|
-| 종단 성공률 | 보류 세트 60건 중 57건 이상(95%, 점추정). 조정 세트 30건 중 29건 이상 | 정답 세트, 채점기 커밋 기록. 공개 뒤 누적 하한은 2절 |
+| 종단 성공률 | 보류 세트 60건 중 57건 이상(95%, 점추정). 조정 세트 30건 중 29건 이상 | 정답 세트, 채점기 커밋 기록. 공개 뒤 누적 하한은 2절. 운영·SRE 관문은 이 보류 세트에서 뽑은 **관문 세트 30건**(서로 다른 입력, 같은 역할 대조 절반 이상)을 4시간 이상 간격으로 두 번 돌려 두 번 모두 95%(29건) 이상이어야 통과(deploy/NECKLACE_GATE.md, PM 07:3x) |
 | Δ | 목걸이 성공률 − 최고 단일 진주 성공률 > 0. 같은 역할 과제만 따로 셌을 때도 > 0 | 같은 정답 세트로 사슬의 외부 진주 각각을 단독 실행 |
 | 완주율 | 95% 이상(필수 자리가 모두 채워진 비율) | 같은 실행 |
 | 외부만 완주율 | 70% 이상(Agentcon 대체 없이 완주) | 같은 실행 |
@@ -111,7 +113,7 @@ README.md가 이 파일의 내용을 요약해 씁니다. 세부 규칙의 기�
 | `definition.json` | 정의 파일 사본(자리·계약 id·사슬·합성 규칙·예산) |
 | `contracts/*.json` | 이 목걸이가 쓰는 역할 계약 |
 | `chain.json` | 자리별 사슬과 자리 자격 시험 결과(멤버마다 시험 3건, 지연, 지문, 같은 원천 표시) |
-| `gold/tuning.jsonl`, `gold/holdout.jsonl` | 정답 세트(입력, 정답, 정답 원천과 받은 시각) |
+| `gold/tuning.jsonl`, `gold/holdout.jsonl`, `gold/gate.jsonl` | 정답 세트(입력, 정답, 정답 원천과 받은 시각). gate.jsonl은 보류 세트에서 뽑은 30건으로, 운영·SRE 관문 전용(`--answer-set`) |
 | `results/necklace.jsonl` | 목걸이 실행 60건 원자료(자리별 시도·대체·지연·채점) |
 | `results/single-<resource_id>.jsonl` | 단일 진주 기준선 실행 원자료 |
 | `results/security.jsonl` | 보안 시험 결과 |
@@ -133,7 +135,9 @@ held(자동)
 2. 재시험 Δ ≤ 0이 2일 연속 → `delta_nonpositive`
 3. 완주율 95% 아래가 2일 연속 → `completion_low`
 4. 누적 성공률 Wilson 하한 90% 아래 → `quality_low`
-5. 보안 시험 실패, 멤버가 쓰기·결제 도구로 바뀜, 출력 주입 탐지 → `security`(즉시)
+5. 보안 시험 실패, 멤버가 쓰기·결제·실행 도구로 바뀌거나 사슬에 들어감, 출력 주입 탐지 → `security`(즉시)
+7. 하루 종단 성공률 80% 미만 → `quality_low`(즉시, PM 07:3x). 80~95%는 운영·SRE가 2시간 안에 재실행하고 두 번째도 95% 아래면 approvals를 held로 바꿈 → `gate_held`
+8. 도구 정의 지문이 바뀐 멤버가 **주 자리**에 있고 대체로 내릴 수 없음 → 즉시 `security`(대체로 내릴 수 있으면 사슬 정비로 처리)
 6. 재시험 결과가 48시간 넘게 없음 → `stale_retest`
 
 폐기
@@ -144,15 +148,18 @@ held(자동)
 - 사슬 순서·멤버 교체는 같은 버전(정책 revision만 올림). 매일 재시험으로 확인합니다.
 - 자리·계약·합성 규칙·입력 스키마가 바뀌면 버전을 올리고 3단계부터 다시 합니다. 관문도 다시 제출합니다.
 
-## 7. 공개 동의 문구 초안 `necklace-v1` (PM 06:3x ⑤, PM 확인 전 미사용)
+## 7. 공개 동의 문구 초안 `necklace-v1` (PM 06:3x ⑤, 성장·유통 검토 반영, PM 확인 전 미사용)
 
-공개 실행 버튼 옆 확인란, MCP 도구 설명, A2A 기술 설명에 같은 뜻으로 씁니다. 영어, 사실만, 약속 문구 없음.
+공개 실행 버튼 옆 확인란, MCP 도구 설명, A2A 기술 설명에 같은 뜻으로 씁니다. 영어, 사실만, 약속 문구 없음. `{BRAND}`는 서버 BRAND 상수에서 넣습니다(브랜드 이름은 사용자 결정 대기). `{mode}`는 정의에 따라 "in parallel" 또는 "in sequence"를 넣습니다(자리 사이 의존이 있으면 sequence).
 
 - 확인란(웹, 기본 해제, 실행마다 새로 묻고 저장하지 않음):
-  > I understand that this necklace sends my input to the verified agents listed below. If one of them fails, the same input may be sent to another verified agent listed for that step, including agents run by Agentcon. Do not include passwords, keys, payment details or personal data.
-- 목록(확인란 바로 아래, 정의에서 자동 생성): `Step <role>: <agent name> (<host>), then <alternate name> (<host>), …`
-- MCP 도구 설명 끝 문장:
-  > Runs several verified read-only agents in parallel. Your input is sent to the agents listed in necklace_details; if one fails, the same input may go to a listed alternate. No credentials or payments are sent.
+  > I understand that this necklace sends my input to the verified agents listed below. If one of them fails, the same input may be sent to another verified agent listed for that step, including agents run by {BRAND}. Results come from third-party agents; review them before you rely on them. Do not include passwords, keys, payment details or personal data.
+- 목록(확인란 바로 아래, 정의에서 자동 생성, 이름마다 진주 카드 `/agent/<id>` 링크): `Step <role>: <agent name> (<host>), then <alternate name> (<host>), …`
+- MCP 도구 설명 끝 문장(세부 도구 이름은 성장·유통 확정 `necklace_details`):
+  > Runs several verified read-only agents {mode}. Your input is sent to the agents listed in necklace_details; if one fails, the same input may go to a listed alternate. Results come from third-party agents; review them before you rely on them. No credentials or payments are sent.
 - A2A 기술 설명: MCP와 같은 문장
+- **보존 문장(사실 확인 필요, 아래 참고)**: "Your input and the results are kept for up to 14 days to check reliability, then deleted." — 실행 본문 정리 작업이 운영에서 돌고 있음을 확인한 뒤에만 씁니다.
 - 쓰지 않는 표현: "guaranteed", "always", "private", "secure"(측정 근거 없는 약속)
 - 동의 값 이름: 기존 `fallback_notice=readonly-fallback-v1`과 같은 방식으로 `necklace_notice=necklace-v1`(실행마다, 저장 안 함)
+
+**보존 기간 확인 결과(11-14 운영 DB 읽기 전용)**: 코드의 정리 규칙은 실행 본문 14일·메타데이터 90일(`agent_market/workflow_maintenance.py:18-19`)입니다. 그런데 14일이 지난 실행 135건 중 127건에 결과가 남아 있고, 정리 기록은 2건뿐입니다. 정리 작업이 운영에서 주기적으로 돌지 않는 것으로 보입니다. 목걸이 공개 전에 정리 작업을 켜거나(운영·SRE), 실제 보존 기간을 문구에 써야 합니다. PM에 보고했습니다.

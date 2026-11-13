@@ -86,9 +86,32 @@ PM 06:3x 결정 반영: ① 파일 방식 승인 ② 읽기 전용 기준 완화
 | 9 | `news-digest` | 주제 → 여러 매체의 중복 묶은 최신 뉴스 | n8n news 템플릿 385개, Agent News 43,392, Gumloop 브랜드 모니터링[업체] | 뉴스(fanout 3): **50972** news_search → 147960 → 41195(표시 없음, 제외) → 281854 → 43528 → Agentcon 133018(HN) | 매체 치우침 상쇄, 중복 묶기 | 주제 90개. 정답 = 같은 시각 여러 원천을 합쳐 사람 판정한 주요 기사. 채점: 재현율, 날짜 7일 안, 중복 0 |
 | 10 | `library-upgrade-brief` | 패키지·현재 버전 → 최신 버전, 변경 위험, 알려진 취약점, 저장소 활동 | Context7 1m/주[업체 집계], 코딩 비중 36~44%(Anthropic) | 릴리스: 50709 → Agentcon 133021 / 취약점: 1번 사슬 재사용 / 저장소: **276982** github_repo_pulse → Agentcon GitHub(133021 확장) | 패키지 감사와 문서·활동을 합침 | 패키지 90개. 정답 = 레지스트리·GitHub API 고정 |
 
-**11-28까지 출시 목표 5개(순서)**: 1 `package-risk-audit`, 2 `cve-incident-brief`, 3 `company-due-diligence`, 4 `topic-evidence-brief`, 5 `paper-cross-search`(예비 `trip-brief`).
+**역할 도구 실행 시험 반영(검색과 RAG 9292edf7, reports/pearls-2026-11-14/role_tests.json, 30건 중 21건 성공)**
+
+| 역할 | 성공 | 실패·건너뜀과 이유 | 영향 |
+|---|---|---|---|
+| papers.search | 47151·39577·34550·34807 (4/4) | 130450은 하루 상한으로 11-15 | topic-evidence-brief·paper-cross-search 논문 자리 확보(11-20 조건 충족) |
+| package.advisories | 47161·286623·130453·367249 (4/4) | — | package-risk-audit 취약점 자리 확보 |
+| cve.kev | 37259 | 55398은 429로 11-15 재시도 | cve-incident-brief는 276982 재시험(11-15)과 함께 확정 |
+| encyclopedia.summary | 47189·143970 (2/2) | — | 백과 자리 확보 |
+| fx.rate | 48762·47112·226724·36306 (4/4) | — | 환율 자리 확보 |
+| news.search | 147960 | 41195는 읽기 전용 판정 탈락 | 뉴스 자리는 50972 news_search(11-15) 결과 필요 |
+| package.metadata | 40897 | 50709는 읽기 전용 판정 탈락 | 공급망 자리 주는 276982(11-15), 외부 대체 1개뿐 → Agentcon 133021 필요 |
+| weather.forecast | 56036·38062 | 37322는 미국 좌표만(NWS) | 날씨는 지역 제한 표시 필요 |
+| events.search | 47538(힌두 축제) | 115024는 SF Bay Area만, 38634는 unauthorized | **trip-brief의 행사 자리가 범용으로 서지 않음** |
+| country.indicator | 34791 | 37316 지표 코드 실패, 47130·33130 필수 인자를 못 채움 | country-economy-snapshot은 io 변환(지표 코드 대응표)이 필요해 뒤로 |
+| company 자리 | (11-15 09:12 예약 14건) | — | company-due-diligence는 11-15 결과로 확정 |
+
+- **예비 후보 변경**: `trip-brief` → `website-ai-readiness`(진주 50972·79081, 둘 다 readOnlyHint 명시). trip-brief는 행사 자리를 "지역 제한 멤버 + coverage 밖이면 없음"으로 다시 설계한 뒤 12월 후보로 둡니다.
+- **장애 영역 규칙 추가**: caseyjhand.com 한 곳이 47151·47189·47161·47112·47130으로 5개 역할에 걸칩니다. 그래서 다음을 지킵니다.
+  1. 한 목걸이 안에서 같은 장애 영역(등록 도메인 묶음: caseyjhand.com, ceadigital.io, agentdiet.dev, datakoot.com, openkrill.app 등)이 **주 멤버인 자리는 하나까지**입니다.
+  2. 모든 필수 자리에 그 영역 밖의 멤버가 하나 이상 있어야 합니다.
+  3. 판정 작업은 장애 영역별 "그 영역이 멈춘 날 완주율"을 매일 계산합니다(재시험 결과로).
+- **지역 제한 멤버**: 사슬 정의에 `coverage`(예: `{"country": ["US"]}`, `{"region": "SF Bay Area"}`)를 적습니다. 입력이 범위 밖이면 그 멤버를 건너뛰고, 실패로 세지 않습니다.
+
+**11-28까지 출시 목표 5개(순서)**: 1 `package-risk-audit`, 2 `cve-incident-brief`, 3 `company-due-diligence`, 4 `topic-evidence-brief`, 5 `paper-cross-search`(예비 `website-ai-readiness`).
 - 1~3은 주 자리에 진주가 이미 있고 정답이 결정적입니다.
-- 4·5는 수요 1위 분야지만 논문 자리 진주를 검색과 RAG 실행 시험으로 확정해야 합니다. 11-20까지 확정되지 않으면 7 `trip-brief`(진주 115024·38634)로 바꿉니다.
+- 4·5의 논문 자리는 11-14 역할 시험으로 외부 4개가 확보됐습니다(47151은 caseyjhand.com 영역이라 주 자리는 39577 또는 34807).
 - 진주 276982가 1~5 중 4개에 들어갑니다. 한 사슬에 하나만 넣고 다른 원천 멤버를 반드시 둡니다. 이 진주가 멈추는 날의 완주율을 매일 따로 기록합니다.
 
 새로 만들 Agentcon 대체 에이전트(키 없는 공개 원천, 지출 0): GitHub Advisory, NVD, CISA KEV, GLEIF, SEC EDGAR, Wikipedia, arXiv, Open-Meteo, ECB, 사이트 공개 파일(robots·llms.txt·sitemap) — 10개. 1~5에 필요한 것부터 만듭니다(GitHub Advisory, NVD, KEV, GLEIF, SEC EDGAR, Wikipedia, arXiv).
@@ -119,13 +142,13 @@ PM 06:3x 결정 반영: ① 파일 방식 승인 ② 읽기 전용 기준 완화
 - 보안 시험 통과(도구 고정·지문·출력 주입·자격 증명 0)
 - 차선 목표 품질 90%와의 관계: 차선 품질은 탐색·추천 지표이고, 목걸이 관문 95%는 그보다 높은 별도 합격선입니다. 목걸이 보류 과제 5건씩을 real_task_score 묶음에 넘겨 함께 잽니다.
 
-넘김 묶음(운영·SRE 제출): `gateway-data/necklaces/submissions/<slug>-v<version>-<시각>/`에 manifest, 목걸이 계약 JSON, 정의, 역할 계약, 대체 사슬과 자격 시험 결과, 정답 세트(조정·보류), 목걸이·단일 기준선·보안 시험 원자료, 정책 v2, 재실행 명령. 상세는 process.md 5절입니다.
+넘김 묶음(운영·SRE 제출, 관문은 deploy/NECKLACE_GATE.md: 관문 세트 30건을 4시간 간격 두 번, 둘 다 95%, approvals.json 두 열쇠): `gateway-data/necklaces/submissions/<slug>-v<version>-<시각>/`에 manifest, 목걸이 계약 JSON, 정의, 역할 계약, 대체 사슬과 자격 시험 결과, 정답 세트(조정·보류), 목걸이·단일 기준선·보안 시험 원자료, 정책 v2, 재실행 명령. 상세는 process.md 5절입니다.
 
 공개 스냅샷 계약 확정(PM 05:4x 요청, 성장·유통 초안 기준, process.md 3절)
 - 경로 `gateway-data/necklaces/necklaces.json`, 쓰는 쪽은 워크플로우 jobs 작업 `necklace_judge` 하나
 - slug: `^[a-z][a-z0-9]*(-[a-z0-9]+)*$`, 3~40자, 과제 이름, 바꾸지도 다시 쓰지도 않음. 표면 이름은 `/necklaces/<slug>`, `necklace-<slug>`, `necklace_<slug>`(MCP 접두는 성장·유통 확인 중)
-- held 판단은 워크플로우. 운영·SRE 재시험은 입력이고, 긴급할 때는 운영·SRE·PM이 overrides 파일에 적습니다.
-- 더한 필드: `version`, `gate_passed_at`(성장·유통 요청: 메뉴 오른 시각), 품질 하한·유의 여부, held_reason 코드, retired·replaced_by
+- held 판단은 워크플로우. 운영·SRE 재시험은 입력이고, 긴급할 때는 운영·SRE가 approvals.json을 held·revoked로 바꿉니다(두 열쇠: approved 항목의 version·digest가 같을 때만 live).
+- 더한 필드: `version`, `definition_digest`, `gate_passed_at`(성장·유통 요청: 메뉴 오른 시각), `replaces_templates`·`replaced_at`(옛 template_id 안내용), 품질 하한·유의 여부, held_reason 코드, retired·replaced_by
 
 ---
 
@@ -148,7 +171,7 @@ PM 06:3x 결정 반영: ① 파일 방식 승인 ② 읽기 전용 기준 완화
 - ① 대체 16개(공개 15): 같은 수요의 목걸이가 메뉴에 오른 날, 그 목걸이가 대체하는 것만 하나씩 내립니다(is_active=0, 삭제 없음, 되돌리기 기록). 대체 전후 품질을 `replacements/<id>.md`에 남깁니다.
 - ② 대체 없이 내림 14개: 꺼진 4개(27·28·35·36)는 첫 목걸이가 메뉴에 오르는 날 정리합니다(PM 승인, 사용자 보고는 PM). 공개 10개는 안내할 목걸이가 생긴 뒤 PM에 다시 승인을 받습니다.
 - ③ 예제 유지 3개(41·42·43): 엔진·대체 실행 회귀 예제입니다.
-- 옛 링크는 대체 목걸이나 워크플로우 메뉴로 301, 옛 template_id로 run_workflow를 부르면 30일 동안 안내를 붙입니다(성장·유통과 맞춤).
+- 옛 링크(성장·유통과 맞춤): 지금 공개 화면에는 워크플로우별 주소가 없어(workflows.html 한 장, 카드는 template_id만), 대체된 카드에 "Replaced by necklace <name>" 링크를 30일 동안 붙입니다. 옛 template_id로 run_workflow·workflow_details를 부르면 실행하지 않고 `replaced_by {slug, url, until}`과 "no longer runs; use necklace <slug>"를 돌려줍니다(스냅샷의 `replaces_templates`·`replaced_at`). 폐기된 목걸이 주소는 replaced_by로 301합니다.
 - 11-04 뒤 공개 실행 0건, 예약 실행 0건입니다.
 
 ## 6. 팀 의존 (맞춘 상태, 11-14)
@@ -159,7 +182,8 @@ PM 06:3x 결정 반영: ① 파일 방식 승인 ② 읽기 전용 기준 완화
 | 성장·유통 | 공개 표면(MCP·A2A·웹), 홍보, 옛 링크 안내 | 계약 확정안 전달(경로·slug·held·gate_passed_at). MCP 도구 이름 접두 `necklace_` 확인 요청, 동의 문구 검토 요청 | 답 대기 |
 
 ## 7. PM 확인 요청
-1. 첫 5개 순서(package-risk-audit, cve-incident-brief, company-due-diligence, topic-evidence-brief, paper-cross-search / 예비 trip-brief)
+1. 첫 5개 순서(package-risk-audit, cve-incident-brief, company-due-diligence, topic-evidence-brief, paper-cross-search / 예비 website-ai-readiness)
 2. 품질 주장 방식: 출시는 점추정 95%(보류 60건 중 57건), 공개 화면의 "검증된 95%"는 누적 110건 중 실패 1건 이하일 때만
-3. 동의 문구 `necklace-v1` 초안(process.md 7절)
+3. 동의 문구 `necklace-v1` 초안(process.md 7절, 성장·유통 검토 반영). 보존 문장은 아래 5번이 해결돼야 씁니다
 4. 새 Agentcon 대체 에이전트 10개를 워크플로우 팀이 만듦(owned_data_agents 틀, 지출 0)
+5. **실행 본문 정리 작업이 운영에서 돌지 않음**: 코드는 14일(`workflow_maintenance.py:18`)인데, 14일 지난 실행 135건 중 127건에 결과가 남아 있음(11-14 읽기 전용 확인). 목걸이 공개 전에 운영·SRE가 정리 작업을 켜는지, 실제 보존 기간을 문구에 쓸지 결정 필요
