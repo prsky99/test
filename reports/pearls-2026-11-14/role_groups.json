@@ -1,635 +1,742 @@
 {
- "generated": "2026-11-14 04:07",
- "source": "role_tests.json (role tool called once, read-only); Neo4j SAME_ROLE grouping replaces this first cut",
- "rank_rule": "succeeded first, then coverage not limited, then lower latency; failed/skipped members have rank null",
- "failure_domains_note": "registrable_domain is the failure domain (eTLD+1; hosting platforms such as workers.dev count their first label). Workflow rule: one owner slot per domain per necklace.",
+ "generated": "2026-11-14 04:25",
+ "source": "scripts/report_v2.py (role task test v2)",
+ "rank_rule": "quality score (evidence 60 + writing 40), one place per registrable domain; #1 at 85+ is the final pearl, #2-#3 are external fallbacks",
  "roles": {
   "papers.search": {
+   "domain": "research",
    "members": [
     {
-     "id": 39577,
-     "name": "com.nobleblocks/nobleblocks-mcp",
+     "resource_id": 34550,
      "tool": "search_papers",
-     "host": "mcp.nobleblocks.com",
-     "registrable_domain": "nobleblocks.com",
-     "coverage": "worldwide or not stated",
-     "grade": "A",
-     "outcome": "succeeded",
-     "reason": null,
-     "latency_ms": 70,
-     "arguments": {
-      "query": "large language models",
-      "limit": 1
-     },
-     "tested_at": "2026-11-14 04:01",
-     "rank": 1,
-     "domain_shared_in_role": false
-    },
-    {
-     "id": 34550,
-     "name": "CutGPT Research & Fact-Check",
-     "tool": "search_papers",
-     "host": "mcp.cutgpt.app",
-     "registrable_domain": "cutgpt.app",
-     "coverage": "worldwide or not stated",
-     "grade": "A",
      "outcome": "succeeded",
      "reason": null,
      "latency_ms": 258,
+     "host": "mcp.cutgpt.app",
+     "registrable_domain": "cutgpt.app",
      "arguments": {
       "query": "large language models",
       "limit": 1
      },
-     "tested_at": "2026-11-14 04:01",
-     "rank": 2,
-     "domain_shared_in_role": false
+     "content_verdict": "passed",
+     "version": 1,
+     "score": 88.0,
+     "domain": "research",
+     "tested": "2026-11-14 04:01",
+     "rank": 1,
+     "id": 34550,
+     "name": "CutGPT Research & Fact-Check",
+     "coverage": "worldwide or not stated"
     },
     {
-     "id": 34807,
-     "name": "Paper Finder",
+     "resource_id": 34807,
      "tool": "search_papers",
-     "host": "papers.openkrill.app",
-     "registrable_domain": "openkrill.app",
-     "coverage": "worldwide or not stated",
-     "grade": "A",
      "outcome": "succeeded",
      "reason": null,
      "latency_ms": 361,
+     "host": "papers.openkrill.app",
+     "registrable_domain": "openkrill.app",
      "arguments": {
       "query": "large language models",
       "limit": 1
      },
-     "tested_at": "2026-11-14 04:02",
-     "rank": 3,
-     "domain_shared_in_role": false
+     "content_verdict": "passed",
+     "version": 1,
+     "score": 88.0,
+     "domain": "research",
+     "tested": "2026-11-14 04:02",
+     "rank": 2,
+     "id": 34807,
+     "name": "Paper Finder",
+     "coverage": "worldwide or not stated"
     },
     {
-     "id": 47151,
-     "name": "io.github.cyanheads/openalex-mcp-server",
+     "resource_id": 47151,
      "tool": "openalex_search_entities",
-     "host": "openalex.caseyjhand.com",
-     "registrable_domain": "caseyjhand.com",
-     "coverage": "worldwide or not stated",
-     "grade": "A",
      "outcome": "succeeded",
      "reason": null,
      "latency_ms": 1743,
+     "host": "openalex.caseyjhand.com",
+     "registrable_domain": "caseyjhand.com",
      "arguments": {
       "entity_type": "works",
       "query": "large language models",
       "per_page": 1
      },
-     "tested_at": "2026-11-14 04:03",
-     "rank": 4,
-     "domain_shared_in_role": false
-    }
-   ],
-   "succeeded": 4,
-   "external_fallbacks": 3,
-   "needs_agentcon_fallback": false
-  },
-  "encyclopedia.summary": {
-   "members": [
-    {
-     "id": 47189,
-     "name": "io.github.cyanheads/wikipedia-mcp-server",
-     "tool": "wikipedia_get_summary",
-     "host": "wikipedia.caseyjhand.com",
-     "registrable_domain": "caseyjhand.com",
-     "coverage": "worldwide or not stated",
-     "grade": "A",
-     "outcome": "succeeded",
-     "reason": null,
-     "latency_ms": 161,
-     "arguments": {
-      "title": "Seoul"
-     },
-     "tested_at": "2026-11-14 04:01",
-     "rank": 1,
-     "domain_shared_in_role": false
+     "content_verdict": "passed",
+     "version": 1,
+     "score": 86.0,
+     "domain": "research",
+     "tested": "2026-11-14 04:03",
+     "rank": 3,
+     "id": 47151,
+     "name": "io.github.cyanheads/openalex-mcp-server",
+     "coverage": "worldwide or not stated"
     },
     {
-     "id": 143970,
-     "name": "Faceabot Wikipedia",
-     "tool": "wiki_summary",
-     "host": "faceabot.com",
-     "registrable_domain": "faceabot.com",
-     "coverage": "worldwide or not stated",
-     "grade": "A",
+     "resource_id": 39577,
+     "tool": "search_papers",
      "outcome": "succeeded",
      "reason": null,
-     "latency_ms": 287,
+     "latency_ms": 70,
+     "host": "mcp.nobleblocks.com",
+     "registrable_domain": "nobleblocks.com",
      "arguments": {
-      "title": "Seoul"
-     },
-     "tested_at": "2026-11-14 04:01",
-     "rank": 2,
-     "domain_shared_in_role": false
-    }
-   ],
-   "succeeded": 2,
-   "external_fallbacks": 1,
-   "needs_agentcon_fallback": true
-  },
-  "news.search": {
-   "members": [
-    {
-     "id": 147960,
-     "name": "Galactic",
-     "tool": "search_news",
-     "host": "mcp.galactic.inc",
-     "registrable_domain": "galactic.inc",
-     "coverage": "worldwide or not stated",
-     "grade": "A",
-     "outcome": "succeeded",
-     "reason": null,
-     "latency_ms": 226,
-     "arguments": {
-      "query": "bitcoin",
+      "query": "large language models",
       "limit": 1
      },
-     "tested_at": "2026-11-14 04:01",
-     "rank": 1,
-     "domain_shared_in_role": false
-    },
-    {
-     "id": 41195,
-     "name": "TechSnif",
-     "tool": "search_articles",
-     "host": "mcp.techsnif.com",
-     "registrable_domain": "techsnif.com",
-     "coverage": "worldwide or not stated",
-     "grade": "A",
-     "outcome": "skipped",
-     "reason": "not a relay-safe read-only tool",
-     "latency_ms": null,
-     "arguments": null,
-     "tested_at": "2026-11-14 04:01",
-     "rank": null,
-     "domain_shared_in_role": false
-    }
-   ],
-   "succeeded": 1,
-   "external_fallbacks": 0,
-   "needs_agentcon_fallback": true
-  },
-  "package.advisories": {
-   "members": [
-    {
-     "id": 130453,
-     "name": "AgentDiet Real-Time Open-Source Package CVE & GHSA Vulnerability Scanner (OSV.dev)",
-     "tool": "scan_package_cve_advisories",
-     "host": "cve-intel.agentdiet.dev",
-     "registrable_domain": "agentdiet.dev",
-     "coverage": "worldwide or not stated",
-     "grade": "A",
-     "outcome": "succeeded",
-     "reason": null,
-     "latency_ms": 246,
-     "arguments": {
-      "package": "lodash"
-     },
-     "tested_at": "2026-11-14 04:01",
-     "rank": 1,
-     "domain_shared_in_role": false
-    },
-    {
-     "id": 47161,
-     "name": "io.github.cyanheads/osv-advisory-mcp-server",
-     "tool": "osv_query_package",
-     "host": "osv-advisory.caseyjhand.com",
-     "registrable_domain": "caseyjhand.com",
-     "coverage": "worldwide or not stated",
-     "grade": "A",
-     "outcome": "succeeded",
-     "reason": null,
-     "latency_ms": 325,
-     "arguments": {
-      "name": "lodash",
-      "ecosystem": "npm",
-      "version": "4.17.20"
-     },
-     "tested_at": "2026-11-14 04:03",
-     "rank": 2,
-     "domain_shared_in_role": false
-    },
-    {
-     "id": 286623,
-     "name": "Threatist",
-     "tool": "search_vulnerabilities",
-     "host": "threatist.io",
-     "registrable_domain": "threatist.io",
-     "coverage": "worldwide or not stated",
-     "grade": "A",
-     "outcome": "succeeded",
-     "reason": null,
-     "latency_ms": 472,
-     "arguments": {
-      "limit": 1
-     },
-     "tested_at": "2026-11-14 04:01",
-     "rank": 3,
-     "domain_shared_in_role": false
-    },
-    {
-     "id": 367249,
-     "name": "Fixlane",
-     "tool": "check_software",
-     "host": "fixlane.poparecon.com",
-     "registrable_domain": "poparecon.com",
-     "coverage": "worldwide or not stated",
-     "grade": "A",
-     "outcome": "succeeded",
-     "reason": null,
-     "latency_ms": 492,
-     "arguments": {
-      "query": "lodash"
-     },
-     "tested_at": "2026-11-14 04:02",
+     "content_verdict": "partial",
+     "version": 1,
+     "score": 78.0,
+     "domain": "research",
+     "tested": "2026-11-14 04:01",
      "rank": 4,
-     "domain_shared_in_role": false
+     "id": 39577,
+     "name": "com.nobleblocks/nobleblocks-mcp",
+     "coverage": "worldwide or not stated"
     }
    ],
-   "succeeded": 4,
-   "external_fallbacks": 3,
+   "final_pearl": 34550,
+   "fallbacks": [
+    34807,
+    47151
+   ],
    "needs_agentcon_fallback": false
-  },
-  "package.metadata": {
-   "members": [
-    {
-     "id": 40897,
-     "name": "com.somosvelora/velora",
-     "tool": "get_package_profile",
-     "host": "tools.somosvelora.com",
-     "registrable_domain": "somosvelora.com",
-     "coverage": "worldwide or not stated",
-     "grade": "A",
-     "outcome": "succeeded",
-     "reason": null,
-     "latency_ms": 221,
-     "arguments": {},
-     "tested_at": "2026-11-14 04:01",
-     "rank": 1,
-     "domain_shared_in_role": false
-    },
-    {
-     "id": 50709,
-     "name": "Commit — Supply Chain Risk Scoring",
-     "tool": "lookup_npm_package",
-     "host": "poc-backend.amdal-dev.workers.dev",
-     "registrable_domain": "amdal-dev.workers.dev",
-     "coverage": "worldwide or not stated",
-     "grade": "B",
-     "outcome": "skipped",
-     "reason": "not a relay-safe read-only tool",
-     "latency_ms": null,
-     "arguments": null,
-     "tested_at": "2026-11-14 04:01",
-     "rank": null,
-     "domain_shared_in_role": false
-    }
-   ],
-   "succeeded": 1,
-   "external_fallbacks": 0,
-   "needs_agentcon_fallback": true
-  },
-  "country.indicator": {
-   "members": [
-    {
-     "id": 34791,
-     "name": "Country Stats Facts",
-     "tool": "get_country_indicator",
-     "host": "countrystats.openkrill.app",
-     "registrable_domain": "openkrill.app",
-     "coverage": "worldwide or not stated",
-     "grade": "A",
-     "outcome": "succeeded",
-     "reason": null,
-     "latency_ms": 419,
-     "arguments": {
-      "country": "KOR",
-      "indicator": "population"
-     },
-     "tested_at": "2026-11-14 04:01",
-     "rank": 1,
-     "domain_shared_in_role": false
-    },
-    {
-     "id": 47130,
-     "name": "io.github.cyanheads/imf-mcp-server",
-     "tool": "imf_query_dataset",
-     "host": "imf.caseyjhand.com",
-     "registrable_domain": "caseyjhand.com",
-     "coverage": "worldwide or not stated",
-     "grade": "A",
-     "outcome": "skipped",
-     "reason": "cannot fill dataflow_id",
-     "latency_ms": null,
-     "arguments": null,
-     "tested_at": "2026-11-14 04:01",
-     "rank": null,
-     "domain_shared_in_role": false
-    },
-    {
-     "id": 33130,
-     "name": "ai.dsght/public",
-     "tool": "get_country_indicator",
-     "host": "www.dsght.ai",
-     "registrable_domain": "dsght.ai",
-     "coverage": "worldwide or not stated",
-     "grade": "A",
-     "outcome": "skipped",
-     "reason": "cannot fill jurisdiction",
-     "latency_ms": null,
-     "arguments": null,
-     "tested_at": "2026-11-14 04:02",
-     "rank": null,
-     "domain_shared_in_role": false
-    },
-    {
-     "id": 37316,
-     "name": "Economy Intel MCP",
-     "tool": "country_indicator",
-     "host": "economy.datakoot.com",
-     "registrable_domain": "datakoot.com",
-     "coverage": "regions: us",
-     "grade": "A",
-     "outcome": "failed",
-     "reason": "tool error",
-     "latency_ms": 437,
-     "arguments": {
-      "country": "KOR",
-      "indicator": "NGDP_RPCH"
-     },
-     "tested_at": "2026-11-14 04:01",
-     "rank": null,
-     "domain_shared_in_role": false
-    }
-   ],
-   "succeeded": 1,
-   "external_fallbacks": 0,
-   "needs_agentcon_fallback": true
-  },
-  "fx.rate": {
-   "members": [
-    {
-     "id": 47112,
-     "name": "io.github.cyanheads/exchange-rates-mcp-server",
-     "tool": "fx_get_rate",
-     "host": "exchange-rates.caseyjhand.com",
-     "registrable_domain": "caseyjhand.com",
-     "coverage": "worldwide or not stated",
-     "grade": "A",
-     "outcome": "succeeded",
-     "reason": null,
-     "latency_ms": 166,
-     "arguments": {
-      "base_currency": "USD",
-      "quote_currency": "USD"
-     },
-     "tested_at": "2026-11-14 04:01",
-     "rank": 1,
-     "domain_shared_in_role": false
-    },
-    {
-     "id": 36306,
-     "name": "AllRatesToday exchange rates (hosted)",
-     "tool": "get_exchange_rate",
-     "host": "allratestoday.com",
-     "registrable_domain": "allratestoday.com",
-     "coverage": "worldwide or not stated",
-     "grade": "A",
-     "outcome": "succeeded",
-     "reason": null,
-     "latency_ms": 300,
-     "arguments": {
-      "source": "USD",
-      "target": "EUR"
-     },
-     "tested_at": "2026-11-14 04:02",
-     "rank": 2,
-     "domain_shared_in_role": false
-    },
-    {
-     "id": 48762,
-     "name": "Frankfurter",
-     "tool": "convert",
-     "host": "mcp.frankfurter.dev",
-     "registrable_domain": "frankfurter.dev",
-     "coverage": "worldwide or not stated",
-     "grade": "A",
-     "outcome": "succeeded",
-     "reason": null,
-     "latency_ms": 777,
-     "arguments": {
-      "amount": 100,
-      "from": "USD",
-      "to": "EUR"
-     },
-     "tested_at": "2026-11-14 04:01",
-     "rank": 3,
-     "domain_shared_in_role": false
-    },
-    {
-     "id": 226724,
-     "name": "FXHUB",
-     "tool": "convert_currency",
-     "host": "fxhub.ge",
-     "registrable_domain": "fxhub.ge",
-     "coverage": "worldwide or not stated",
-     "grade": "A",
-     "outcome": "succeeded",
-     "reason": null,
-     "latency_ms": 1148,
-     "arguments": {
-      "amount": 100,
-      "from": "USD",
-      "to": "EUR"
-     },
-     "tested_at": "2026-11-14 04:01",
-     "rank": 4,
-     "domain_shared_in_role": false
-    }
-   ],
-   "succeeded": 4,
-   "external_fallbacks": 3,
-   "needs_agentcon_fallback": false
-  },
-  "weather.forecast": {
-   "members": [
-    {
-     "id": 38062,
-     "name": "get4agent",
-     "tool": "weather",
-     "host": "get4agent.com",
-     "registrable_domain": "get4agent.com",
-     "coverage": "worldwide or not stated",
-     "grade": "A",
-     "outcome": "succeeded",
-     "reason": null,
-     "latency_ms": 202,
-     "arguments": {
-      "lat": 37.5665,
-      "lon": 126.978
-     },
-     "tested_at": "2026-11-14 04:02",
-     "rank": 1,
-     "domain_shared_in_role": false
-    },
-    {
-     "id": 56036,
-     "name": "io.github.trondbjoroy/met-mcp",
-     "tool": "get_forecast",
-     "host": "met-mcp.met-mcp-worker.workers.dev",
-     "registrable_domain": "met-mcp-worker.workers.dev",
-     "coverage": "worldwide or not stated",
-     "grade": "A",
-     "outcome": "succeeded",
-     "reason": null,
-     "latency_ms": 1471,
-     "arguments": {
-      "latitude": 37.5665,
-      "longitude": 126.978
-     },
-     "tested_at": "2026-11-14 04:01",
-     "rank": 2,
-     "domain_shared_in_role": false
-    },
-    {
-     "id": 37322,
-     "name": "Weather & Geo Intel MCP",
-     "tool": "weather_forecast",
-     "host": "weather.datakoot.com",
-     "registrable_domain": "datakoot.com",
-     "coverage": "US (NWS data: points in the US and its territories)",
-     "grade": "A",
-     "outcome": "failed",
-     "reason": "tool error",
-     "latency_ms": 505,
-     "arguments": {
-      "lat": 37.5665,
-      "lon": 126.978
-     },
-     "tested_at": "2026-11-14 04:01",
-     "rank": null,
-     "domain_shared_in_role": false
-    }
-   ],
-   "succeeded": 2,
-   "external_fallbacks": 1,
-   "needs_agentcon_fallback": true
   },
   "events.search": {
+   "domain": "events",
    "members": [
     {
-     "id": 47538,
-     "name": "FestivalFinder",
+     "resource_id": 47538,
      "tool": "festivals_in_month",
-     "host": "festival-finder.magicteams.ai",
-     "registrable_domain": "magicteams.ai",
-     "coverage": "worldwide or not stated",
-     "grade": "A",
      "outcome": "succeeded",
      "reason": null,
      "latency_ms": 199,
+     "host": "festival-finder.magicteams.ai",
+     "registrable_domain": "magicteams.ai",
      "arguments": {
       "year": 2020,
       "month": 5
      },
-     "tested_at": "2026-11-14 04:01",
+     "content_verdict": "passed",
+     "version": 1,
+     "score": 88.0,
+     "domain": "events",
+     "tested": "2026-11-14 04:01",
      "rank": 1,
-     "domain_shared_in_role": false
+     "id": 47538,
+     "name": "FestivalFinder",
+     "coverage": "worldwide or not stated"
     },
     {
-     "id": 38634,
-     "name": "NUM",
+     "resource_id": 38634,
      "tool": "num_search_places",
-     "host": "itsnum.com",
-     "registrable_domain": "itsnum.com",
-     "coverage": "worldwide or not stated",
-     "grade": "A",
      "outcome": "failed",
      "reason": "unauthorized",
      "latency_ms": 305,
+     "host": "itsnum.com",
+     "registrable_domain": "itsnum.com",
      "arguments": {
       "city": "Seoul",
       "q": "Seoul",
       "limit": 1
      },
-     "tested_at": "2026-11-14 04:02",
+     "content_verdict": "not run",
+     "version": 1,
+     "score": 55,
+     "domain": "events",
+     "tested": "2026-11-14 04:02",
      "rank": null,
-     "domain_shared_in_role": false
+     "id": 38634,
+     "name": "NUM",
+     "coverage": "worldwide or not stated"
     },
     {
-     "id": 115024,
-     "name": "Things To Do API",
+     "resource_id": 115024,
      "tool": "search_events",
-     "host": "api.thingstodoapi.com",
-     "registrable_domain": "thingstodoapi.com",
-     "coverage": "San Francisco Bay Area",
-     "grade": "A",
      "outcome": "failed",
      "reason": "refused or out of coverage",
      "latency_ms": 429,
+     "host": "api.thingstodoapi.com",
+     "registrable_domain": "thingstodoapi.com",
      "arguments": {
       "query": "Seoul",
       "place": "Seoul",
       "limit": 1
      },
-     "tested_at": "2026-11-14 04:01",
+     "content_verdict": "not run",
+     "version": 1,
+     "score": 55,
+     "domain": "events",
+     "tested": "2026-11-14 04:01",
      "rank": null,
-     "domain_shared_in_role": false
+     "id": 115024,
+     "name": "Things To Do API",
+     "coverage": "San Francisco Bay Area"
     }
    ],
-   "succeeded": 1,
-   "external_fallbacks": 0,
+   "final_pearl": 47538,
+   "fallbacks": [],
+   "needs_agentcon_fallback": true
+  },
+  "country.indicator": {
+   "domain": "economics",
+   "members": [
+    {
+     "resource_id": 34791,
+     "tool": "get_country_indicator",
+     "outcome": "succeeded",
+     "reason": null,
+     "latency_ms": 419,
+     "host": "countrystats.openkrill.app",
+     "registrable_domain": "openkrill.app",
+     "arguments": {
+      "country": "KOR",
+      "indicator": "population"
+     },
+     "content_verdict": "passed",
+     "version": 1,
+     "score": 88.0,
+     "domain": "economics",
+     "tested": "2026-11-14 04:01",
+     "rank": 1,
+     "id": 34791,
+     "name": "Country Stats Facts",
+     "coverage": "worldwide or not stated"
+    },
+    {
+     "resource_id": 37316,
+     "tool": "country_indicator",
+     "outcome": "failed",
+     "reason": "tool error",
+     "latency_ms": 437,
+     "host": "economy.datakoot.com",
+     "registrable_domain": "datakoot.com",
+     "arguments": {
+      "country": "KOR",
+      "indicator": "NGDP_RPCH"
+     },
+     "content_verdict": "not run",
+     "version": 1,
+     "score": 55,
+     "domain": "economics",
+     "tested": "2026-11-14 04:01",
+     "rank": null,
+     "id": 37316,
+     "name": "Economy Intel MCP",
+     "coverage": "regions: us"
+    },
+    {
+     "resource_id": 47130,
+     "tool": "imf_query_dataset",
+     "outcome": "skipped",
+     "reason": "cannot fill dataflow_id",
+     "latency_ms": null,
+     "host": "imf.caseyjhand.com",
+     "registrable_domain": "caseyjhand.com",
+     "arguments": null,
+     "content_verdict": "not run",
+     "version": 1,
+     "score": 30,
+     "domain": "economics",
+     "tested": "2026-11-14 04:24",
+     "rank": null,
+     "id": 47130,
+     "name": "io.github.cyanheads/imf-mcp-server",
+     "coverage": "worldwide or not stated"
+    },
+    {
+     "resource_id": 33130,
+     "tool": "get_country_indicator",
+     "outcome": "skipped",
+     "reason": "cannot fill jurisdiction",
+     "latency_ms": null,
+     "host": "www.dsght.ai",
+     "registrable_domain": "dsght.ai",
+     "arguments": null,
+     "content_verdict": "not run",
+     "version": 1,
+     "score": 30,
+     "domain": "economics",
+     "tested": "2026-11-14 04:24",
+     "rank": null,
+     "id": 33130,
+     "name": "ai.dsght/public",
+     "coverage": "worldwide or not stated"
+    }
+   ],
+   "final_pearl": 34791,
+   "fallbacks": [],
+   "needs_agentcon_fallback": true
+  },
+  "news.search": {
+   "domain": "news",
+   "members": [
+    {
+     "resource_id": 147960,
+     "tool": "search_news",
+     "outcome": "succeeded",
+     "reason": null,
+     "latency_ms": 226,
+     "host": "mcp.galactic.inc",
+     "registrable_domain": "galactic.inc",
+     "arguments": {
+      "query": "bitcoin",
+      "limit": 1
+     },
+     "content_verdict": "passed",
+     "version": 1,
+     "score": 88.0,
+     "domain": "news",
+     "tested": "2026-11-14 04:01",
+     "rank": 1,
+     "id": 147960,
+     "name": "Galactic",
+     "coverage": "worldwide or not stated"
+    },
+    {
+     "resource_id": 41195,
+     "tool": "search_articles",
+     "outcome": "skipped",
+     "reason": "not a relay-safe read-only tool",
+     "latency_ms": null,
+     "host": "mcp.techsnif.com",
+     "registrable_domain": "techsnif.com",
+     "arguments": null,
+     "content_verdict": "not run",
+     "version": 1,
+     "score": 30,
+     "domain": "news",
+     "tested": "2026-11-14 04:24",
+     "rank": null,
+     "id": 41195,
+     "name": "TechSnif",
+     "coverage": "worldwide or not stated"
+    }
+   ],
+   "final_pearl": 147960,
+   "fallbacks": [],
    "needs_agentcon_fallback": true
   },
   "cve.kev": {
+   "domain": "security",
    "members": [
     {
-     "id": 37259,
-     "name": "com.cve-security/cve-intelligence",
+     "resource_id": 37259,
      "tool": "get_cve",
-     "host": "cve-security.com",
-     "registrable_domain": "cve-security.com",
-     "coverage": "worldwide or not stated",
-     "grade": "A",
      "outcome": "succeeded",
      "reason": null,
      "latency_ms": 663,
+     "host": "cve-security.com",
+     "registrable_domain": "cve-security.com",
      "arguments": {
       "id": "CVE-2021-44228"
      },
-     "tested_at": "2026-11-14 04:01",
+     "content_verdict": "partial",
+     "version": 1,
+     "score": 78.0,
+     "domain": "security",
+     "tested": "2026-11-14 04:01",
      "rank": 1,
-     "domain_shared_in_role": false
+     "id": 37259,
+     "name": "com.cve-security/cve-intelligence",
+     "coverage": "worldwide or not stated"
     },
     {
-     "id": 55398,
-     "name": "CyberMax Data",
+     "resource_id": 55398,
      "tool": "cve_kev_lookup",
-     "host": "data.cybermax-tools.workers.dev",
-     "registrable_domain": "cybermax-tools.workers.dev",
-     "coverage": "regions: us",
-     "grade": "A",
      "outcome": "skipped",
      "reason": "provider limit for today",
      "latency_ms": null,
+     "host": "data.cybermax-tools.workers.dev",
+     "registrable_domain": "cybermax-tools.workers.dev",
      "arguments": null,
-     "tested_at": "2026-11-14 04:01",
+     "content_verdict": "not run",
+     "version": 1,
+     "score": 30,
+     "domain": "security",
+     "tested": "2026-11-14 04:24",
      "rank": null,
-     "domain_shared_in_role": false
+     "id": 55398,
+     "name": "CyberMax Data",
+     "coverage": "regions: us"
     }
    ],
-   "succeeded": 1,
-   "external_fallbacks": 0,
+   "final_pearl": null,
+   "fallbacks": [],
+   "needs_agentcon_fallback": true
+  },
+  "fx.rate": {
+   "domain": "finance",
+   "members": [
+    {
+     "resource_id": 226724,
+     "tool": "convert_currency",
+     "outcome": "succeeded",
+     "reason": null,
+     "latency_ms": 1148,
+     "host": "fxhub.ge",
+     "registrable_domain": "fxhub.ge",
+     "arguments": {
+      "amount": 100,
+      "from": "USD",
+      "to": "EUR"
+     },
+     "content_verdict": "passed",
+     "version": 1,
+     "score": 86.0,
+     "domain": "finance",
+     "tested": "2026-11-14 04:02",
+     "rank": 1,
+     "id": 226724,
+     "name": "FXHUB",
+     "coverage": "worldwide or not stated"
+    },
+    {
+     "resource_id": 36306,
+     "tool": "get_exchange_rate",
+     "outcome": "succeeded",
+     "reason": null,
+     "latency_ms": 300,
+     "host": "allratestoday.com",
+     "registrable_domain": "allratestoday.com",
+     "arguments": {
+      "source": "USD",
+      "target": "EUR"
+     },
+     "content_verdict": "partial",
+     "version": 1,
+     "score": 78.0,
+     "domain": "finance",
+     "tested": "2026-11-14 04:02",
+     "rank": 2,
+     "id": 36306,
+     "name": "AllRatesToday exchange rates (hosted)",
+     "coverage": "worldwide or not stated"
+    },
+    {
+     "resource_id": 48762,
+     "tool": "convert",
+     "outcome": "succeeded",
+     "reason": null,
+     "latency_ms": 777,
+     "host": "mcp.frankfurter.dev",
+     "registrable_domain": "frankfurter.dev",
+     "arguments": {
+      "amount": 100,
+      "from": "USD",
+      "to": "EUR"
+     },
+     "content_verdict": "partial",
+     "version": 1,
+     "score": 78.0,
+     "domain": "finance",
+     "tested": "2026-11-14 04:01",
+     "rank": 3,
+     "id": 48762,
+     "name": "Frankfurter",
+     "coverage": "worldwide or not stated"
+    },
+    {
+     "resource_id": 47112,
+     "tool": "fx_get_rate",
+     "outcome": "succeeded",
+     "reason": null,
+     "latency_ms": 166,
+     "host": "exchange-rates.caseyjhand.com",
+     "registrable_domain": "caseyjhand.com",
+     "arguments": {
+      "base_currency": "USD",
+      "quote_currency": "USD"
+     },
+     "content_verdict": "failed",
+     "version": 1,
+     "score": 68.0,
+     "domain": "finance",
+     "tested": "2026-11-14 04:01",
+     "rank": 4,
+     "id": 47112,
+     "name": "io.github.cyanheads/exchange-rates-mcp-server",
+     "coverage": "worldwide or not stated"
+    }
+   ],
+   "final_pearl": 226724,
+   "fallbacks": [
+    36306,
+    48762
+   ],
+   "needs_agentcon_fallback": false
+  },
+  "package.metadata": {
+   "domain": "developer",
+   "members": [
+    {
+     "resource_id": 40897,
+     "tool": "get_package_profile",
+     "outcome": "succeeded",
+     "reason": null,
+     "latency_ms": 221,
+     "host": "tools.somosvelora.com",
+     "registrable_domain": "somosvelora.com",
+     "arguments": {},
+     "content_verdict": "failed",
+     "version": 1,
+     "score": 53.0,
+     "domain": "developer",
+     "tested": "2026-11-14 04:01",
+     "rank": 1,
+     "id": 40897,
+     "name": "com.somosvelora/velora",
+     "coverage": "worldwide or not stated"
+    },
+    {
+     "resource_id": 50709,
+     "tool": "lookup_npm_package",
+     "outcome": "skipped",
+     "reason": "not a relay-safe read-only tool",
+     "latency_ms": null,
+     "host": "poc-backend.amdal-dev.workers.dev",
+     "registrable_domain": "amdal-dev.workers.dev",
+     "arguments": null,
+     "content_verdict": "not run",
+     "version": 1,
+     "score": 30,
+     "domain": "developer",
+     "tested": "2026-11-14 04:24",
+     "rank": null,
+     "id": 50709,
+     "name": "Commit — Supply Chain Risk Scoring",
+     "coverage": "worldwide or not stated"
+    }
+   ],
+   "final_pearl": null,
+   "fallbacks": [],
+   "needs_agentcon_fallback": true
+  },
+  "package.advisories": {
+   "domain": "security",
+   "members": [
+    {
+     "resource_id": 47161,
+     "tool": "osv_query_package",
+     "outcome": "succeeded",
+     "reason": null,
+     "latency_ms": 325,
+     "host": "osv-advisory.caseyjhand.com",
+     "registrable_domain": "caseyjhand.com",
+     "arguments": {
+      "name": "lodash",
+      "ecosystem": "npm",
+      "version": "4.17.20"
+     },
+     "content_verdict": "passed",
+     "version": 1,
+     "score": 88.0,
+     "domain": "security",
+     "tested": "2026-11-14 04:03",
+     "rank": 1,
+     "id": 47161,
+     "name": "io.github.cyanheads/osv-advisory-mcp-server",
+     "coverage": "worldwide or not stated"
+    },
+    {
+     "resource_id": 286623,
+     "tool": "search_vulnerabilities",
+     "outcome": "succeeded",
+     "reason": null,
+     "latency_ms": 472,
+     "host": "threatist.io",
+     "registrable_domain": "threatist.io",
+     "arguments": {
+      "limit": 1
+     },
+     "content_verdict": "partial",
+     "version": 1,
+     "score": 78.0,
+     "domain": "security",
+     "tested": "2026-11-14 04:01",
+     "rank": 2,
+     "id": 286623,
+     "name": "Threatist",
+     "coverage": "worldwide or not stated"
+    },
+    {
+     "resource_id": 367249,
+     "tool": "check_software",
+     "outcome": "succeeded",
+     "reason": null,
+     "latency_ms": 492,
+     "host": "fixlane.poparecon.com",
+     "registrable_domain": "poparecon.com",
+     "arguments": {
+      "query": "lodash"
+     },
+     "content_verdict": "partial",
+     "version": 1,
+     "score": 78.0,
+     "domain": "security",
+     "tested": "2026-11-14 04:02",
+     "rank": 3,
+     "id": 367249,
+     "name": "Fixlane",
+     "coverage": "worldwide or not stated"
+    },
+    {
+     "resource_id": 130453,
+     "tool": "scan_package_cve_advisories",
+     "outcome": "succeeded",
+     "reason": null,
+     "latency_ms": 246,
+     "host": "cve-intel.agentdiet.dev",
+     "registrable_domain": "agentdiet.dev",
+     "arguments": {
+      "package": "lodash"
+     },
+     "content_verdict": "failed",
+     "version": 1,
+     "score": 68.0,
+     "domain": "security",
+     "tested": "2026-11-14 04:01",
+     "rank": 4,
+     "id": 130453,
+     "name": "AgentDiet Real-Time Open-Source Package CVE & GHSA Vulnerability Scanner (OSV.dev)",
+     "coverage": "worldwide or not stated"
+    }
+   ],
+   "final_pearl": 47161,
+   "fallbacks": [
+    286623,
+    367249
+   ],
+   "needs_agentcon_fallback": false
+  },
+  "encyclopedia.summary": {
+   "domain": "reference",
+   "members": [
+    {
+     "resource_id": 47189,
+     "tool": "wikipedia_get_summary",
+     "outcome": "succeeded",
+     "reason": null,
+     "latency_ms": 161,
+     "host": "wikipedia.caseyjhand.com",
+     "registrable_domain": "caseyjhand.com",
+     "arguments": {
+      "title": "Seoul"
+     },
+     "content_verdict": "passed",
+     "version": 1,
+     "score": 88.0,
+     "domain": "reference",
+     "tested": "2026-11-14 04:01",
+     "rank": 1,
+     "id": 47189,
+     "name": "io.github.cyanheads/wikipedia-mcp-server",
+     "coverage": "worldwide or not stated"
+    },
+    {
+     "resource_id": 143970,
+     "tool": "wiki_summary",
+     "outcome": "succeeded",
+     "reason": null,
+     "latency_ms": 287,
+     "host": "faceabot.com",
+     "registrable_domain": "faceabot.com",
+     "arguments": {
+      "title": "Seoul"
+     },
+     "content_verdict": "passed",
+     "version": 1,
+     "score": 88.0,
+     "domain": "reference",
+     "tested": "2026-11-14 04:01",
+     "rank": 2,
+     "id": 143970,
+     "name": "Faceabot Wikipedia",
+     "coverage": "worldwide or not stated"
+    }
+   ],
+   "final_pearl": 47189,
+   "fallbacks": [
+    143970
+   ],
+   "needs_agentcon_fallback": true
+  },
+  "weather.forecast": {
+   "domain": "weather",
+   "members": [
+    {
+     "resource_id": 56036,
+     "tool": "get_forecast",
+     "outcome": "succeeded",
+     "reason": null,
+     "latency_ms": 1471,
+     "host": "met-mcp.met-mcp-worker.workers.dev",
+     "registrable_domain": "met-mcp-worker.workers.dev",
+     "arguments": {
+      "latitude": 37.5665,
+      "longitude": 126.978
+     },
+     "content_verdict": "passed",
+     "version": 1,
+     "score": 86.0,
+     "domain": "weather",
+     "tested": "2026-11-14 04:01",
+     "rank": 1,
+     "id": 56036,
+     "name": "io.github.trondbjoroy/met-mcp",
+     "coverage": "worldwide or not stated"
+    },
+    {
+     "resource_id": 38062,
+     "tool": "weather",
+     "outcome": "succeeded",
+     "reason": null,
+     "latency_ms": 202,
+     "host": "get4agent.com",
+     "registrable_domain": "get4agent.com",
+     "arguments": {
+      "lat": 37.5665,
+      "lon": 126.978
+     },
+     "content_verdict": "partial",
+     "version": 1,
+     "score": 78.0,
+     "domain": "weather",
+     "tested": "2026-11-14 04:02",
+     "rank": 2,
+     "id": 38062,
+     "name": "get4agent",
+     "coverage": "worldwide or not stated"
+    },
+    {
+     "resource_id": 37322,
+     "tool": "weather_forecast",
+     "outcome": "failed",
+     "reason": "tool error",
+     "latency_ms": 505,
+     "host": "weather.datakoot.com",
+     "registrable_domain": "datakoot.com",
+     "arguments": {
+      "lat": 37.5665,
+      "lon": 126.978
+     },
+     "content_verdict": "not run",
+     "version": 1,
+     "score": 55,
+     "domain": "weather",
+     "tested": "2026-11-14 04:01",
+     "rank": null,
+     "id": 37322,
+     "name": "Weather & Geo Intel MCP",
+     "coverage": "US (NWS data: points in the US and its territories)"
+    }
+   ],
+   "final_pearl": 56036,
+   "fallbacks": [
+    38062
+   ],
    "needs_agentcon_fallback": true
   }
- },
- "domains_over_roles": {
-  "caseyjhand.com": 5,
-  "openkrill.app": 2,
-  "datakoot.com": 2
  }
 }

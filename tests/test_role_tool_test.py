@@ -44,3 +44,8 @@ def test_refusals_are_not_success():
     assert refused('{ "error": "No NWS data for that point." }') and refused('')
     assert not refused('# Seoul *Capital and largest city of South Korea*')
     assert not refused('546 news items. ### Tron, Tether and Chainalysis Launch Digital Crime Task Force')
+
+
+def test_fx_currency_pairs_differ():
+    params = {'base_currency': {'type': 'string'}, 'quote_currency': {'type': 'string'}}
+    assert role_arguments(tool(['base_currency', 'quote_currency'], params), 'fx.rate')[0] == {'base_currency': 'USD', 'quote_currency': 'EUR'}

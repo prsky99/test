@@ -48,7 +48,7 @@ def public_https(url):
         return False
 
 UA = 'AgentConcierge-Verification/1.0'
-EXCERPT = 300
+EXCERPT = 1000  # v2 reports judge the content on this excerpt (PM pearl audit 11-14)
 TIMEOUT = httpx.Timeout(20.0, connect=5.0)
 
 # Public generic values by role when the schema gives no example (PM 07:0x). Keys are matched against the
@@ -62,8 +62,9 @@ ROLE_VALUES = {
     'package.metadata': [(r'ecosystem|registry', 'npm'), (r'package|name|query|^q$|library', 'react')],
     'country.indicator': [(r'country|iso|code', 'KOR'), (r'indicator|series|metric|dataset', 'NGDP_RPCH'),
                           (r'year', 2024)],
-    'fx.rate': [(r'^(to|target|quote|symbols?|to_currency|target_currency)$', 'EUR'),
-                (r'^(from|base|source|from_currency|base_currency)$', 'USD'), (r'amount|value', 100)],
+    # Names like quote_currency / base_currency too (11-14: 47112 got USD/USD from the generic 'currency' value).
+    'fx.rate': [(r'(?:^|_)(?:to|target|quote|symbols?)(?:_|$)', 'EUR'),
+                (r'(?:^|_)(?:from|base|source)(?:_|$)', 'USD'), (r'amount|value', 100)],
     'weather.forecast': [(r'city|location|place|query|^q$|name', 'Seoul'), (r'lat', 37.5665), (r'lon|lng', 126.978)],
     'events.search': [(r'city|location|place|destination|query|^q$', 'Seoul'), (r'month', 5)],
     'cve.kev': [(r'cve|id|query|^q$', 'CVE-2021-44228')],
