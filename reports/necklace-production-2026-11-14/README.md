@@ -114,7 +114,7 @@ PM 06:3x 결정 반영: ① 파일 방식 승인 ② 읽기 전용 기준 완화
 - 4·5의 논문 자리는 11-14 역할 시험으로 외부 4개가 확보됐습니다(47151은 caseyjhand.com 영역이라 주 자리는 39577 또는 34807).
 - 진주 276982가 1~5 중 4개에 들어갑니다. 한 사슬에 하나만 넣고 다른 원천 멤버를 반드시 둡니다. 이 진주가 멈추는 날의 완주율을 매일 따로 기록합니다.
 
-새로 만들 AgentValCon fallback 에이전트(키 없는 공개 원천, 지출 0): GitHub Advisory, NVD, CISA KEV, GLEIF, SEC EDGAR, Wikipedia, arXiv, Open-Meteo, ECB, 사이트 공개 파일(robots·llms.txt·sitemap) — 10개. 1~5에 필요한 것부터 만듭니다(GitHub Advisory, NVD, KEV, GLEIF, SEC EDGAR, Wikipedia, arXiv).
+새로 만들 AgentValCon fallback 에이전트(키 없는 공개 원천, 지출 0): GitHub Advisory, NVD, CISA KEV, GLEIF, SEC EDGAR, Wikipedia, arXiv, Open-Meteo, ECB, 사이트 공개 파일 — 10개. **헌장 956c74b3(사용자 11-14)으로 개발은 에이전트 팀 몫**입니다. 워크플로우 팀은 자리별 필요 목록과 역할 계약을 넘기고, 2단계(외부 대체 가동)가 생긴 자리를 그날 PM에 보고합니다. 첫 5개에 필요한 순서: ① NVD(cve-incident-brief record) ② CISA KEV(cve-incident-brief exploited) ③ GitHub Advisory(package-risk-audit advisories 두 번째) ④ GLEIF·SEC EDGAR(company-due-diligence) ⑤ Wikipedia·arXiv(topic-evidence-brief, paper-cross-search). 역할 계약은 agent_market/necklaces/contracts/, 고정 과제는 role_tasks/role-tasks-v1.jsonl.
 
 ---
 
@@ -185,5 +185,5 @@ PM 06:3x 결정 반영: ① 파일 방식 승인 ② 읽기 전용 기준 완화
 1. ~~첫 5개 순서~~ → PM 승인, 예비 website-ai-readiness 확정
 2. ~~품질 주장 방식~~ → PM 07:5x 승인. 관문은 보류 60건을 4시간 간격 30건씩 두 번, 합계 57/60 이상·각 회 28/30 이상. "검증된 95%"는 누적 110건 중 실패 1건 이하일 때만, 그 전에는 실제 수치("29/30 passed on 11-20")만
 3. ~~동의 문구~~ → PM 07:5x 승인("in parallel"은 병렬 그래프에만). 보존 문장은 아래 5번이 해결돼야 씁니다
-4. ~~AgentValCon fallback 10개~~ → PM 07:5x 승인. 조건: 공개 원천 이용 규칙 준수(SEC EDGAR User-Agent에 공개 연락 메일 contact@agentconcierge.biz, Wikipedia·arXiv·NVD 권장 호출 간격), 결과에 출처·라이선스 표기, 키·유료·개인정보 없음, 진주처럼 시험 보고서를 남기고 AgentValCon fallback 사용률 기록
+4. ~~AgentValCon fallback 10개~~ → PM 07:5x 승인. 조건: 공개 원천 이용 규칙 준수(SEC EDGAR User-Agent에 공개 연락 메일 contact@agentconcierge.biz, Wikipedia·arXiv·NVD 권장 호출 간격), 결과에 출처·라이선스 표기, 키·유료·개인정보 없음, 진주처럼 시험 보고서를 남기고 AgentValCon fallback 사용률 기록 → **헌장 956c74b3: 개발 주체는 에이전트 팀으로 바뀜**(목걸이 단계 1~4 대응, 워크플로우는 2단계 그날 보고)
 5. ~~실행 본문 정리~~ → PM 08:0x: 운영·SRE에 배정(처리방침 보관 약속 감사·정리 작업 켜기 안, 기존 데이터 삭제는 사용자 승인 뒤). 원래 발견: **실행 본문 정리 작업이 운영에서 돌지 않음**: 코드는 14일(`workflow_maintenance.py:18`)인데, 14일 지난 실행 135건 중 127건에 결과가 남아 있음(11-14 읽기 전용 확인). 목걸이 공개 전에 운영·SRE가 정리 작업을 켜는지, 실제 보존 기간을 문구에 쓸지 결정 필요

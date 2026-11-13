@@ -81,6 +81,9 @@ def summarize(slug: str, today: list[dict], window: list[dict], singles: list[di
     delta = round((week_rate - best_single) * 100, 1) if week_rate is not None and best_single is not None else None
     latencies = [r["latency_ms"] for r in cases_week if isinstance(r.get("latency_ms"), (int, float))]
     slot_counts: dict[str, list[int]] = {}
+    # Charter stages (user 11-14): 1 normal, 2 an external fallback ran, 3 an AgentValCon
+    # fallback ran, 4 the slot failed even after every fallback (the case did not complete).
+    stages: dict[str, int] = {}
     fallback_uses = agentcon_uses = slot_total = 0
     for r in cases_week:
         for slot, used in (r.get("slots") or {}).items():
@@ -92,6 +95,9 @@ def summarize(slug: str, today: list[dict], window: list[dict], singles: list[di
                 fallback_uses += 1
             if (used or {}).get("kind") == "agentcon":
                 agentcon_uses += 1
+            used = used or {}
+            stage = 4 if used.get("failed") else 3 if used.get("kind") == "agentcon" else 2 if used.get("rank", 1) > 1 else 1
+            stages[slot] = max(stages.get(slot, 1), stage)
     external = [r for r in runs if r.get("slug") == slug and r.get("source") == "external"]
     summary = {
         "quality": {
@@ -111,6 +117,7 @@ def summarize(slug: str, today: list[dict], window: list[dict], singles: list[di
         },
         "cost": {"usdc_per_run": 0, "p50_ms": percentile(latencies, 0.5), "p95_ms": percentile(latencies, 0.95)},
         "fallback": {slot: (c[0] / c[1] if c[1] else None) for slot, c in slot_counts.items()},
+        "stage": {"slots": stages, "max": max(stages.values(), default=1)},
         "agentvalcon_fallback_rate": agentcon_uses / slot_total if slot_total else None,
         "external_runs": {"total": len(external), "succeeded": sum(1 for r in external if r.get("outcome") == "succeeded")},
     }
@@ -135,7 +142,7 @@ def digest_line(slug: str, version, status: str, s: dict) -> str:
         return "-" if v is None else f"{v * 100:.0f}%"
     delta = "-" if q["delta_pp"] is None else f"{q['delta_pp']:+.1f}%p ({(q['baseline_at'] or '-')[:10]})"
     p95 = "-" if s["cost"]["p95_ms"] is None else f"{s['cost']['p95_ms'] / 1000:.1f}s"
-    return (f"{slug} v{version} | {status} | 7일 완주율 {pct(completion)} | Δ {delta} | p95 {p95} | "
+    return (f"{slug} v{version} | {status} | {s['stage']['max']}단계 | 7일 완주율 {pct(completion)} | Δ {delta} | p95 {p95} | "
             f"대체 발생률 최대 {pct(worst)} | AgentValCon 사용률 {pct(s['agentvalcon_fallback_rate'])} | "
             f"외부 실행 성공 {s['external_runs']['succeeded']} | 문제 {', '.join(problems) or '없음'}")
 
@@ -171,6 +178,10 @@ def run(definitions: list[dict], root: Path, logs: Path, now: float | None = Non
             alerts.append({"at": stamp, "slug": slug, "alert": "completion_below_95", "value": c["completed"] / c["runs"]})
         if summary.get("held_reason"):
             alerts.append({"at": stamp, "slug": slug, "alert": "hold", "reason": summary["held_reason"]})
+        for slot, stage in summary["stage"]["slots"].items():
+            if stage >= 2:
+                # Stage 2 goes to PM the same day so the agent team can build that slot's fallback.
+                alerts.append({"at": stamp, "slug": slug, "alert": f"stage{stage}", "slot": slot})
     logs.mkdir(parents=True, exist_ok=True)
     (logs / f"{names[0]}.md").write_text("# 목걸이 점검 " + day.strftime("%Y-%m-%d") + "\n\n" +
                                          "".join(f"- {line}\n" for line in lines), encoding="utf-8")
