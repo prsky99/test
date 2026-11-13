@@ -249,3 +249,15 @@ def test_nearest_path_record(tmp_path, monkeypatch):
     at = datetime(2026, 11, 12, 16, 12, 10).timestamp()
     assert ops_watch.nearest_path_record(at)['at'] == '2026-11-12 16:12:34'
     assert ops_watch.nearest_path_record(at + 3600) is None
+
+
+def test_busy_ignores_the_sleeping_reclaim_of_the_old_slot(monkeypatch):
+    """11-13: the 30-minute reclaim-standby waiter after a deploy is not a deploy in progress."""
+    from types import SimpleNamespace
+    from scripts import ops_auto
+    monkeypatch.setattr(ops_auto.ops_watch, 'check_memory', lambda: 50)
+    ps = ['python -m scripts.service_deploy --root /x reclaim-standby --after 1800']
+    monkeypatch.setattr(ops_auto.subprocess, 'run', lambda *a, **k: SimpleNamespace(stdout='\n'.join(ps)))
+    assert ops_auto.busy() is None
+    ps.append('python -m scripts.service_deploy deploy frontend r1 --lock-owner x')
+    assert ops_auto.busy() == 'tests_or_deploy_running'

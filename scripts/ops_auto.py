@@ -687,6 +687,9 @@ def watch():
 
 def busy():
     procs = subprocess.run(['ps', '-eo', 'args'], capture_output=True, text=True).stdout
+    # 11-13: 'service_deploy reclaim-standby --after 1800' only sleeps for 30 minutes after a deploy before it stops
+    # the old slot; counting it as a deploy put every check off for half an hour after each switch.
+    procs = '\n'.join(line for line in procs.splitlines() if 'reclaim-standby' not in line)
     if 'pytest' in procs or 'scripts.service_deploy' in procs or 'release_gate' in procs:
         return 'tests_or_deploy_running'
     if (ops_watch.check_memory() or 100) < 15:
