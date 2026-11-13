@@ -998,3 +998,53 @@ def test_public_holidays_without_the_library_fails_closed(tmp_path, monkeypatch)
     with pytest.raises(FallbackUnavailable) as err:
         a.execute("public-holidays", {"place": "Japan"})
     assert err.value.code == "source_unavailable"
+
+
+# ------------------------------------------------------------------ test report v2 input (PM 11-14: avc: namespace)
+def test_report_input_rows_use_the_avc_namespace_and_whole_envelope(tmp_path):
+    from agent_market.fallback_agents.report_input import results
+    a, _ = agents(tmp_path, kev_routes())
+    cases = {"cve.exploited.v1": [{"case_id": "kev-log4shell", "input": {"cve_id": "CVE-2021-44228"}, "expect": {"kev": True}},
+                                  {"case_id": "kev-bad", "input": {"cve_id": "nope"}, "expect": {}}]}
+    rows = results(["cisa-kev"], agents=a, cases_for=lambda: cases, clock=lambda: 1.8e9)
+    ok, bad = rows
+    assert ok["id"] == "avc:cisa-kev" and ok["role"] == "cve.exploited.v1" and ok["tool"] == "check_kev"
+    assert ok["outcome"] == "succeeded" and ok["structured"]["kev"] is True and ok["case"]["case_id"] == "kev-log4shell"
+    assert '"freshness"' in ok["full_text"] and '"license"' in ok["full_text"] and ok["started"] == 1.8e9
+    assert ok["endpoint"].startswith("in-process:") and ok["host"] == "www.cisa.gov"
+    assert bad["outcome"] == "failed" and bad["reason"].startswith("invalid_input")
+
+
+# ------------------------------------------------------------------ shared daily test budget (ops 11-14)
+def test_test_runs_count_calls_in_the_shared_ledger_and_stop_at_the_share(tmp_path, monkeypatch):
+    from agent_market import provider_budget
+    from agent_market.fallback_agents.net import budget
+    monkeypatch.setattr(provider_budget, "DIR", tmp_path / "ledger")
+    calls = []
+    a, clock = agents(tmp_path, {"https://cveawg.mitre.org/": lambda r: httpx.Response(200, json=cve5(r.url.path.rsplit("/", 1)[1]))}, calls)
+    with budget("substitute_tests"):
+        for i in range(provider_budget.SHARE["substitute_tests"]):
+            a.execute("cve-org", {"cve_id": f"CVE-2024-{3000 + i}"})
+            clock.t += 2
+        with pytest.raises(FallbackUnavailable) as err:
+            a.execute("cve-org", {"cve_id": "CVE-2024-3999"})
+    assert err.value.code == "rate_limited" and len(calls) == provider_budget.SHARE["substitute_tests"]
+    clock.t += 2
+    a.execute("cve-org", {"cve_id": "CVE-2024-3998"})  # a live necklace call outside the block is not counted
+    assert len(calls) == provider_budget.SHARE["substitute_tests"] + 1
+
+
+def test_a_429_in_a_test_run_pauses_the_domain_for_everyone(tmp_path, monkeypatch):
+    from agent_market import provider_budget
+    from agent_market.fallback_agents.net import budget
+    monkeypatch.setattr(provider_budget, "DIR", tmp_path / "ledger")
+    a, _ = agents(tmp_path, {"https://cveawg.mitre.org/": httpx.Response(429)})
+    with budget("gate"):
+        with pytest.raises(FallbackUnavailable):
+            a.execute("cve-org", {"cve_id": "CVE-2024-3094"})
+    assert provider_budget.reserve("https://cveawg.mitre.org/x", "gate") == (False, "paused_429")
+
+
+def test_gold_check_uses_gate_for_holdout_rounds():
+    from agent_market.fallback_agents.gold_check import budget_system
+    assert budget_system("holdout-r1") == "gate" and budget_system("tuning") == "substitute_tests"

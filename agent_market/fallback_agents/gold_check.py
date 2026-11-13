@@ -28,6 +28,7 @@ from pathlib import Path
 
 from .agents import FallbackAgents, FallbackUnavailable
 from .catalog import SPECS, contract
+from .net import budget
 
 SLUG = {"nvd-cve": "cve-incident-brief", "cve-org": "cve-incident-brief", "cisa-kev": "cve-incident-brief",
         "github-advisory": "package-risk-audit", "package-registry": "package-risk-audit",
@@ -127,8 +128,18 @@ def role_task_check(agent_ids, agents: FallbackAgents | None = None) -> dict:
     return out
 
 
+def budget_system(split: str) -> str:
+    """Held-out rounds are gate runs (ops 11-14); tuning runs are our own readiness tests."""
+    return "gate" if split.startswith("holdout") else "substitute_tests"
+
+
 def check(agent_ids, root: Path, split: str = "tuning", agents: FallbackAgents | None = None,
           pause: float = 0.0, sleep=time.sleep) -> dict:
+    with budget(budget_system(split)):
+        return _check(agent_ids, root, split, agents, pause, sleep)
+
+
+def _check(agent_ids, root, split, agents, pause, sleep):
     agents = agents or FallbackAgents()
     report = {"split": split, "agents": {}}
     for agent_id in agent_ids:
@@ -178,7 +189,8 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     report = check(args.agents, args.root, args.split, pause=args.pause)
     if args.role_tasks:
-        report["role_tasks"] = role_task_check(args.agents)
+        with budget(budget_system(args.split)):
+            report["role_tasks"] = role_task_check(args.agents)
         print(json.dumps({k: [v["passed"], v["cases"]] for k, v in report["role_tasks"].items()}))
     report["at"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
     args.out.parent.mkdir(parents=True, exist_ok=True)

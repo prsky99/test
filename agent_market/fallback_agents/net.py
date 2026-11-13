@@ -8,6 +8,8 @@
 """
 from __future__ import annotations
 
+import contextvars
+from contextlib import contextmanager
 from urllib.parse import urlsplit
 
 from ..concierge.http_security import bounded_client, outbound_operation, validate_public_url
@@ -19,6 +21,21 @@ ALLOWED_HOSTS = frozenset({"services.nvd.nist.gov", "nvd.nist.gov", "cveawg.mitr
                            "api.deps.dev", "api.gleif.org", "www.sec.gov", "data.sec.gov",
                            "en.wikipedia.org", "export.arxiv.org", "api.worldbank.org",
                            "api.met.no"})
+
+
+# Test runs we start ourselves (answer sets, gate rounds, report runs) count every outside call in the shared
+# per-domain daily ledger (agent_market.provider_budget, deploy/PROVIDER_BUDGET.md). Live necklace calls do not.
+_BUDGET_SYSTEM = contextvars.ContextVar("fallback_budget_system", default=None)
+
+
+@contextmanager
+def budget(system: str | None):
+    """Within this block every outside call reserves one call of SYSTEM first and records its status after."""
+    token = _BUDGET_SYSTEM.set(system)
+    try:
+        yield
+    finally:
+        _BUDGET_SYSTEM.reset(token)
 
 
 class SourceError(RuntimeError):
@@ -42,21 +59,30 @@ def get(url: str, *, limiters: dict, http=None, params=None, seconds: float, lim
     headers = {"User-Agent": USER_AGENT, "Accept": accept, **extra}
     if parsed.hostname == "api.github.com":
         headers["X-GitHub-Api-Version"] = "2022-11-28"
-    with outbound_operation(seconds) as budget:
-        with limiter.slot(budget.remaining()):
+    system = _BUDGET_SYSTEM.get()
+    if system:
+        from ..provider_budget import reserve
+        allowed, why = reserve(url, system)
+        if not allowed:
+            raise SourceBusy(f"Shared test budget refused the call ({why}).")
+    with outbound_operation(seconds) as op_budget:
+        with limiter.slot(op_budget.remaining()):
             if preflight and http is None:
                 try:
                     validate_public_url(url)
                 except Exception as exc:  # DiscoveryError and DNS failures alike
                     raise SourceError("Source address is not a public destination.") from exc
-            client = bounded_client(http, timeout=min(seconds, budget.remaining()), limit=limit, headers=headers)
+            client = bounded_client(http, timeout=min(seconds, op_budget.remaining()), limit=limit, headers=headers)
             try:
                 try:
                     response = client.request("GET", url, params=params, headers=headers,
-                                              timeout=min(seconds, budget.remaining()))
+                                              timeout=min(seconds, op_budget.remaining()))
                 except Exception as exc:
                     raise SourceError("Source did not answer in time.") from exc
                 limiter.observed(response.status_code, response.headers)
+                if system:
+                    from ..provider_budget import note
+                    note(url, system, response.status_code)
             finally:
                 client.close()
     if response.status_code in (429, 503):

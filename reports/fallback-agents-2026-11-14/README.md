@@ -18,7 +18,7 @@
 | `worldbank-indicator` (`get_country_indicator`) | country-economy-snapshot 지표 자리, `country.indicator.v1` | World Bank WDI | 고정 과제 3/3, 자체 점검 10개국×3지표 30/30 | 204 ms / 215 ms | 정답 세트 요청 |
 | `met-weather` (`get_weather_forecast`) | trip-brief 날씨 자리, `weather.forecast.v1` | MET Norway Locationforecast 2.0 | 고정 과제 2/2(온도 실측 비교는 안 함, 2-8), 세계 30개 도시 30/30 | 1,191 ms / 1,199 ms | 정답 세트 요청 |
 | `public-holidays` (`list_public_holidays`) | trip-brief 행사 자리(공휴일 한정), `events.search.v1` | holidays 0.108 라이브러리(네트워크 없음) | 고정 과제 0/2(둘 다 범위 밖, 설계대로), 30개국 30/30 | 최대 88 ms | 운영 lock 반영 대기(2-9) |
-| `github-advisory` (`list_package_advisories`) | package-risk-audit 취약점 자리, `package.advisories.v1` | GitHub Advisory Database(reviewed) | 1차 27/30 → 고친 뒤 재측정은 5절 | 987 ms / 1,301 ms | 재측정 뒤 결정 |
+| `github-advisory` (`list_package_advisories`) | package-risk-audit 취약점 자리, `package.advisories.v1` | GitHub Advisory Database(reviewed) | 1차 27/30 → 범위 직접 판정으로 고친 뒤 **30/30**(05:36 재측정), 고정 과제 3/3 | 1,010 ms / 1,412 ms | 관문 신청 가능 |
 
 - 계약 시험 입력(`test_inputs`) 3건씩: nvd-cve·cve-org·cisa-kev 9/9 통과(`contract-test-inputs.json`). 고정 과제(role-tasks-v1): nvd-cve 3/3, cisa-kev 3/3, cve-org 3/3, package-registry 2/2, depsdev-package 2/2.
 - cve 정답 세트는 20:01Z에 다시 만들어졌습니다(tuning sha256 fd476464…, `cvss_record` 추가). nvd-cve·cisa-kev는 새 세트에서도 30/30입니다(`gold-package-health-tuning.json`과 같은 회차).
@@ -142,14 +142,16 @@
 | weather.forecast (대체 1개) | MET Norway Locationforecast. Open-Meteo 무료판은 비상업 전용이라 제외 | 1.2초 | **만듦(met-weather, 2-8)**, 이용 조건 문서로 확인함 |
 | events.search (범용 멤버 없음) | Nager.Date는 약관상 상업 이용에 후원 필요 → 제외 | — | **만듦(public-holidays, 국가 공휴일 한정, 2-9)**. 운영 lock 반영 대기 |
 
-## 5. GitHub Advisory 재측정
+## 5. GitHub Advisory 재측정과 공용 호출 예산, 시험 보고서 v2
 
-1차(이름@버전 필터) 27/30. 고친 판(패키지 단위 + 직접 범위 판정)은 시간당 한도(이 맥 IP 공유 60회) 때문에 05:35 리셋 뒤 다시 잽니다. 결과는 이 절과 `gold-github-advisory-tuning-v2.json`에 적습니다.
+- GitHub Advisory: 1차(`affects=이름@버전` 필터) 27/30 → 패키지 단위로 받아 범위를 직접 판정하도록 고친 뒤 **30/30**(`gold-github-advisory-tuning-v2.json`, 11-14 05:36, 시간당 한도 리셋 뒤).
+- 공용 호출 예산(운영·SRE 요청, `agent_market/provider_budget.py`): 우리가 시작하는 시험 실행에서만 바깥 호출마다 `reserve()`를 먼저, 응답 뒤 `note()`를 부릅니다(429면 그 도메인을 그날 모든 시스템이 멈춤). 보류 세트(`--split holdout-*`)는 `gate`, 조정 세트·보고서 입력 실행은 `substitute_tests`(도메인당 하루 5회). 목걸이 실시간 호출은 세지 않습니다. 몫을 넘으면 그 호출은 보내지 않고 `rate_limited`로 실패합니다.
+- 시험 보고서 v2(PM 11-14): 자체 대체는 resource_id가 없어(안 A) `avc:<agent_id>` 이름공간으로 판·점수·서명 사슬을 쌓습니다. `agent_market/fallback_agents/report_input.py`가 workflow 고정 과제를 실제로 돌려 `scripts.report_v2 import` 입력을 만듭니다(응답 envelope 전체를 본문으로 넘겨 데이터 품질 60점 규칙을 그대로 적용). 첫 파일 `exports/pearls/avc-results-2026-11-14.json`(git 제외): nvd-cve 3/3, cisa-kev 3/3, package-registry 2/2, depsdev-package 2/2(lodash는 예산 몫 소진으로 Scorecard 없이 partial), github-advisory 3/3, cve-org 3/3. 문자열 id 처리와 진주 순위 제외는 검색과 RAG의 report_v2 쪽에 요청했습니다.
 
 ## 6. 시험·재현
 
 ```bash
-nice -n 10 .venv-tests/bin/python -m pytest -q tests/test_fallback_agents.py     # 55 passed (네트워크 없음)
+nice -n 10 .venv-tests/bin/python -m pytest -q tests/test_fallback_agents.py     # 80 passed (네트워크 없음)
 .venv/bin/python -m agent_market.fallback_agents.nvd_sync --full                  # 스냅샷 첫 빌드
 .venv/bin/python -m agent_market.fallback_agents.gold_check nvd-cve cisa-kev --out /tmp/x.json
 ```
