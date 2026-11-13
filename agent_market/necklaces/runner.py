@@ -232,10 +232,40 @@ class Runner:
         }
 
 
-def run_event(result: dict, source: str, at: float | None = None) -> dict:
+# ---------------------------------------------------------------- run source (north star)
+# Runs we start ourselves always carry their origin; nothing we run can count as external.
+OUR_ORIGINS = ("retest", "watch", "gate", "qa", "user_slo", "public_check", "growth_check", "rehearsal")
+# The traffic rule's internal User-Agents predate the AgentValCon brand; ours are caught here too.
+OUR_UA = re.compile(r"agentvalcon|agentcon", re.I)
+# Same funnel classes as scripts/north_star.py (OLD_CLASS maps traffic.client_of classes onto them).
+CLIENT_CLASS = {"internal": "internal", "ai_bot": "crawler", "verifier": "probe", "browser": "external",
+                "script": "external", "other": "external", "headless": "external"}
+
+
+def classify_source(origin: str | None = None, *, ip: str | None = None, ua: str | None = None,
+                    qa: str | None = None, principal: str | None = None, internal_ips=frozenset(),
+                    internal_principals=frozenset()) -> tuple[str, str]:
+    """(source class, origin) for a run event. Only ``external`` counts for the north star.
+
+    Our own runs (daily retest, watch, ops gate, QA tools, user_slo, public checks, growth screen
+    checks) are internal by origin. Public requests use the traffic rule: X-Agentcon-QA, our
+    User-Agents, internal addresses and our edge principals are internal; crawlers and probes are
+    kept apart. An unknown origin is never treated as external by default."""
+    if origin in OUR_ORIGINS:
+        return "internal", origin
+    if origin != "public":
+        return "internal", origin or "unknown"
+    if qa or (principal and principal in internal_principals) or OUR_UA.search(ua or ""):
+        return "internal", "public"
+    from ..concierge.traffic import client_of
+    client, _ = client_of(ip, ua, internal_ips, qa)
+    return CLIENT_CLASS.get(client, "external"), "public"
+
+
+def run_event(result: dict, source: str, origin: str | None = None, at: float | None = None) -> dict:
     """The body-free line for ``runs/<date>.jsonl``: no input, no output."""
     return {"at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() if at is None else at)),
-            "slug": result["slug"], "version": result["version"], "source": source,
+            "slug": result["slug"], "version": result["version"], "source": source, "origin": origin,
             "outcome": "succeeded" if result["ok"] else "failed", "failed_slot": result["failed_slot"],
             "latency_ms": result["latency_ms"],
             "stages": {name: s["stage"] for name, s in result["slots"].items()},

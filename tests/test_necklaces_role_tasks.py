@@ -50,3 +50,16 @@ def test_any_words_and_https_link():
     assert role_tasks.score(c, "Canberra is the capital. https://en.wikipedia.org/wiki/Canberra")[0]
     assert role_tasks.score(c, "Canberra")[1] == ["no https link"]
     assert role_tasks.score(case("papers-bert"), "arXiv 1810.04805")[0]
+
+
+def test_contracts_are_the_canonical_role_list():
+    from agent_market.necklaces import model
+    ids = set(model.contract_ids())
+    assert len(ids) == 15
+    for contract_id in ids:
+        contract = model.load_contract(contract_id)
+        assert contract["id"] == contract_id and contract["test_inputs"]
+        assert contract["input_schema"]["type"] == contract["output_schema"]["type"] == "object"
+    assert {c["role"] for c in role_tasks.load()} <= ids
+    for defn in model.load_valid():
+        assert {slot["contract"] for slot in defn["slots"]} <= ids

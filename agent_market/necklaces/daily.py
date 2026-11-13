@@ -112,7 +112,10 @@ def summarize(slug: str, today: list[dict], window: list[dict], singles: list[di
             if (used or {}).get("kind") == "agentcon":
                 agentcon_uses += 1
     stages, failed = day_stages(cases_today)
-    external = [r for r in runs if r.get("slug") == slug and r.get("source") == "external"]
+    # North star: external clients only. Our own runs carry an internal origin and are never counted.
+    from .runner import OUR_ORIGINS
+    external = [r for r in runs if r.get("slug") == slug and r.get("source") == "external"
+                and r.get("origin") not in OUR_ORIGINS]
     summary = {
         "quality": {
             "cases_today": len(cases_today), "success_today": success_today,

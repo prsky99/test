@@ -57,6 +57,11 @@ def load_all(directory: Path | str = DEFINITIONS) -> list[dict]:
     return [load(p) for p in sorted(Path(directory).glob("*.json"))]
 
 
+def contract_ids(directory: Path | str = CONTRACTS) -> list[str]:
+    """The canonical role names (PM 11-14): every role used anywhere must be one of these files."""
+    return sorted(p.stem for p in Path(directory).glob("*.json"))
+
+
 def load_contract(contract_id: str, directory: Path | str = CONTRACTS) -> dict | None:
     path = Path(directory) / f"{contract_id}.json"
     return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None

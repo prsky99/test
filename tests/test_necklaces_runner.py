@@ -137,3 +137,28 @@ def test_shipped_definition_runs_with_a_fake_caller():
     assert out["ok"] and out["slots"]["advisories"]["stage"] == 1
     assert out["slots"]["health"]["stage"] == 3      # only the AgentValCon fallback is active there today
     assert own(1)["kind"] == "agentcon" and ext(1, "a")["kind"] == "external"
+
+
+def test_our_runs_never_count_as_external():
+    for origin in runner.OUR_ORIGINS:
+        assert runner.classify_source(origin, ua="Mozilla/5.0 Chrome/120") == ("internal", origin)
+    assert runner.classify_source(None) == ("internal", "unknown")      # unknown origin is not external
+    assert runner.classify_source("public", ua="Mozilla/5.0", qa="real_task_score")[0] == "internal"
+    assert runner.classify_source("public", ua="AgentValCon-Check/1.0")[0] == "internal"
+    assert runner.classify_source("public", ua="Mozilla/5.0", ip="10.0.0.5", internal_ips={"10.0.0.5"})[0] == "internal"
+    assert runner.classify_source("public", ua="curl/8", principal="p1", internal_principals={"p1"})[0] == "internal"
+    assert runner.classify_source("public", ua="Mozilla/5.0 (compatible; GPTBot/1.2)")[0] == "crawler"
+    assert runner.classify_source("public", ua="Mozilla/5.0 (Macintosh) AppleWebKit Chrome/120 Safari/537")[0] == "external"
+
+
+def test_daily_north_star_counts_external_clients_only(tmp_path):
+    from agent_market.necklaces import daily
+    out = runner.Runner(caller_from({1: "CVE-2020-28500", 3: "kev"})).run(necklace(), {"q": "x"})
+    now = 1_800_000_000
+    events = [runner.run_event(out, *runner.classify_source("public", ua="Mozilla/5.0 Chrome/120 Safari/537"), at=now)]
+    events.append(runner.run_event(out, *runner.classify_source("retest"), at=now))
+    events.append(runner.run_event(out, *runner.classify_source("public", ua="x", qa="user_slo"), at=now))
+    forged = runner.run_event(out, "external", at=now, origin="gate")    # an internal origin can never be external
+    events.append(forged)
+    summary = daily.summarize("topic-brief", [], [], [], events)
+    assert summary["external_runs"] == {"total": 1, "succeeded": 1}

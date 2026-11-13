@@ -1,0 +1,80 @@
+{
+  "id": "papers.search.v1",
+  "role": "Scholarly papers for a query",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 300
+      },
+      "limit": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 20
+      }
+    },
+    "required": [
+      "query"
+    ],
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "items": {
+        "type": "array",
+        "maxItems": 20,
+        "items": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "id": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "url": {
+              "type": "string",
+              "pattern": "^https://",
+              "maxLength": 2000
+            },
+            "year": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "title"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "source": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "items",
+      "source"
+    ],
+    "additionalProperties": false
+  },
+  "rules": [
+    "each item names a DOI, arXiv id or other persistent id when the source has one",
+    "no duplicate titles"
+  ],
+  "test_inputs": [
+    {
+      "query": "attention is all you need transformer"
+    },
+    {
+      "query": "retrieval augmented generation"
+    },
+    {
+      "query": "protein structure prediction"
+    }
+  ]
+}
