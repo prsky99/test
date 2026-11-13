@@ -72,3 +72,16 @@ def test_a_finished_test_run_is_read_in_any_case_with_its_reference():
     body = 'Latest test · Completed\nSTATUS\nCompleted'
     assert check.test_outcome(check.TEST_DONE.search(body), body) == ('Completed', True)
     assert check.TEST_DONE.search('Checking the selected request…') is None
+
+
+def test_an_agent_time_sample_carries_its_server_time_and_what_the_path_took(monkeypatch):
+    """PM 11-13 20:2x: 18:31 chat 3.54 s had no server time, so the side that went over could not be named."""
+    class Timed:
+        headers = {'server-timing': 'server;dur=2320, step_search;dur=1527', 'cf-ray': 'x-LAX', 'cf-cache-status': 'DYNAMIC'}
+    monkeypatch.setattr(pfc, 'path_floor', lambda: None)
+    assert pfc.split(Timed(), 3.54) == {'server_s': 2.32, 'outside_s': 1.22, 'edge': 'LAX DYNAMIC'}
+
+    class Untimed:
+        headers = {'cf-ray': 'x-SEA'}
+    assert pfc.split(Untimed(), 2.4) == {'server_s': None, 'outside_s': None, 'edge': 'SEA -'}
+    assert pfc.split(None, 2.4) is None

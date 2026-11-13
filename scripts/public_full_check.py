@@ -128,6 +128,21 @@ def path_floor(at=None, window=90):
     return best[1] if best else None
 
 
+def split(r, took):
+    """Server time (Server-Timing "server;dur") and what was left for the path, for an agent time check, so a slow
+    sample says which side went over (PM 11-13 20:2x: 18:31 chat 3.54 s, find_agents 2.32 s, A2A 2.41 s had none).
+    Reference only: the verdict is the public total."""
+    if r is None:
+        return None
+    m = re.search(r'(?:^|,)\s*server;dur=([\d.]+)', r.headers.get('server-timing', ''))
+    server = round(float(m.group(1)) / 1000, 2) if m else None
+    ref = {'server_s': server, 'outside_s': round(took - server, 2) if server is not None else None, 'edge': edge(r)}
+    floor = path_floor()
+    if floor:
+        ref.update(floor)
+    return ref
+
+
 def sitemap_pages(c):
     _, r, _ = timed(c, 'GET', BASE + '/sitemap.xml')
     locs = re.findall(r'<loc>https://agentconcierge\.biz([^<]+)</loc>', r.text if r else '')
@@ -259,7 +274,7 @@ def part_agent(run, c):
         run.ok('agent', f'MCP tool {name}', bool(text) and not res.get('isError'),
                err or text[:160] or getattr(r, 'status_code', ''), took)
         limit = RECOMMEND_S if name in ('find_agents', 'search', 'chat') else 5.0
-        run.ok('agent', f'MCP tool {name} time', took <= limit, f'{took}s > {limit}s', took)
+        run.ok('agent', f'MCP tool {name} time', took <= limit, f'{took}s > {limit}s', took, split(r, took))
         if name == 'find_agents' and not endpoint:
             m = re.search(r'Endpoint:\s*(\S*/api/gateway/mcp/\d+)', text)
             endpoint = m.group(1) if m else None
@@ -286,7 +301,7 @@ def part_agent(run, c):
     except Exception:  # noqa: BLE001
         body = {}
     run.ok('agent', 'A2A message/send', ok, err or str(body.get('error') or getattr(r, 'status_code', '')), took)
-    run.ok('agent', 'A2A time', took <= RECOMMEND_S, f'{took}s', took)
+    run.ok('agent', 'A2A time', took <= RECOMMEND_S, f'{took}s', took, split(r, took))
     return {'tools': [t.get('name') for t in tools], 'gateway_endpoint': bool(endpoint)}
 
 
