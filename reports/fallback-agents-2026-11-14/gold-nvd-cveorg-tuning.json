@@ -1,0 +1,1052 @@
+{
+ "split": "tuning",
+ "agents": {
+  "nvd-cve": {
+   "summary": {
+    "cases": 30,
+    "passed": 30,
+    "errors": {},
+    "p50_ms": 0,
+    "p95_ms": 2,
+    "gold_sha256": "4678bce6916bbe9dad6773fbaa30c6148573551aaf972332fed5de0be2d8783f",
+    "gold_created_at": "2026-11-13T19:46:41Z"
+   },
+   "cases": [
+    {
+     "case_id": "CVE-2019-1064",
+     "stratum": "kev",
+     "ms": 2,
+     "error": null,
+     "cache": "snapshot",
+     "pass": true,
+     "got": [
+      7.8,
+      "3.1"
+     ],
+     "want": [
+      7.8,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2026-53266",
+     "stratum": "kev",
+     "ms": 1,
+     "error": null,
+     "cache": "snapshot",
+     "pass": true,
+     "got": [
+      8.8,
+      "3.1"
+     ],
+     "want": [
+      8.8,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2018-0167",
+     "stratum": "kev",
+     "ms": 0,
+     "error": null,
+     "cache": "snapshot",
+     "pass": true,
+     "got": [
+      8.8,
+      "3.1"
+     ],
+     "want": [
+      8.8,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2021-20123",
+     "stratum": "kev",
+     "ms": 0,
+     "error": null,
+     "cache": "snapshot",
+     "pass": true,
+     "got": [
+      7.5,
+      "3.1"
+     ],
+     "want": [
+      7.5,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2024-28986",
+     "stratum": "kev",
+     "ms": 1,
+     "error": null,
+     "cache": "snapshot",
+     "pass": true,
+     "got": [
+      9.8,
+      "3.1"
+     ],
+     "want": [
+      9.8,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2022-20708",
+     "stratum": "kev",
+     "ms": 0,
+     "error": null,
+     "cache": "snapshot",
+     "pass": true,
+     "got": [
+      8.0,
+      "3.1"
+     ],
+     "want": [
+      8.0,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2025-9242",
+     "stratum": "kev",
+     "ms": 1,
+     "error": null,
+     "cache": "snapshot",
+     "pass": true,
+     "got": [
+      9.3,
+      "4.0"
+     ],
+     "want": [
+      9.3,
+      "4.0",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2024-43451",
+     "stratum": "kev",
+     "ms": 1,
+     "error": null,
+     "cache": "snapshot",
+     "pass": true,
+     "got": [
+      6.5,
+      "3.1"
+     ],
+     "want": [
+      6.5,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2024-24919",
+     "stratum": "kev",
+     "ms": 0,
+     "error": null,
+     "cache": "snapshot",
+     "pass": true,
+     "got": [
+      8.6,
+      "3.1"
+     ],
+     "want": [
+      8.6,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2014-0502",
+     "stratum": "kev",
+     "ms": 1,
+     "error": null,
+     "cache": "snapshot",
+     "pass": true,
+     "got": [
+      8.8,
+      "3.1"
+     ],
+     "want": [
+      8.8,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2023-27997",
+     "stratum": "kev",
+     "ms": 1,
+     "error": null,
+     "cache": "snapshot",
+     "pass": true,
+     "got": [
+      9.8,
+      "3.1"
+     ],
+     "want": [
+      9.8,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2023-20118",
+     "stratum": "kev",
+     "ms": 3,
+     "error": null,
+     "cache": "snapshot",
+     "pass": true,
+     "got": [
+      7.2,
+      "3.1"
+     ],
+     "want": [
+      7.2,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2021-43890",
+     "stratum": "kev",
+     "ms": 0,
+     "error": null,
+     "cache": "snapshot",
+     "pass": true,
+     "got": [
+      7.1,
+      "3.1"
+     ],
+     "want": [
+      7.1,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2024-11120",
+     "stratum": "kev",
+     "ms": 0,
+     "error": null,
+     "cache": "snapshot",
+     "pass": true,
+     "got": [
+      9.8,
+      "3.1"
+     ],
+     "want": [
+      9.8,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2021-35464",
+     "stratum": "kev",
+     "ms": 0,
+     "error": null,
+     "cache": "snapshot",
+     "pass": true,
+     "got": [
+      9.8,
+      "3.1"
+     ],
+     "want": [
+      9.8,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2026-54060",
+     "stratum": "not_kev",
+     "ms": 0,
+     "error": null,
+     "cache": "snapshot",
+     "pass": true,
+     "got": [
+      7.5,
+      "3.1"
+     ],
+     "want": [
+      7.5,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2019-12855",
+     "stratum": "not_kev",
+     "ms": 0,
+     "error": null,
+     "cache": "snapshot",
+     "pass": true,
+     "got": [
+      7.4,
+      "3.0"
+     ],
+     "want": [
+      7.4,
+      "3.0",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2014-0012",
+     "stratum": "not_kev",
+     "ms": 0,
+     "error": null,
+     "cache": "snapshot",
+     "pass": true,
+     "got": [
+      4.4,
+      "2.0"
+     ],
+     "want": [
+      4.4,
+      "2.0",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2023-45803",
+     "stratum": "not_kev",
+     "ms": 0,
+     "error": null,
+     "cache": "snapshot",
+     "pass": true,
+     "got": [
+      4.2,
+      "3.1"
+     ],
+     "want": [
+      4.2,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2026-44405",
+     "stratum": "not_kev",
+     "ms": 0,
+     "error": null,
+     "cache": "snapshot",
+     "pass": true,
+     "got": [
+      3.4,
+      "3.1"
+     ],
+     "want": [
+      3.4,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2021-23437",
+     "stratum": "not_kev",
+     "ms": 0,
+     "error": null,
+     "cache": "snapshot",
+     "pass": true,
+     "got": [
+      7.5,
+      "3.1"
+     ],
+     "want": [
+      7.5,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2012-4520",
+     "stratum": "not_kev",
+     "ms": 0,
+     "error": null,
+     "cache": "snapshot",
+     "pass": true,
+     "got": [
+      6.4,
+      "2.0"
+     ],
+     "want": [
+      6.4,
+      "2.0",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2026-48587",
+     "stratum": "not_kev",
+     "ms": 2,
+     "error": null,
+     "cache": "snapshot",
+     "pass": true,
+     "got": [
+      2.3,
+      "4.0"
+     ],
+     "want": [
+      2.3,
+      "4.0",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2026-34516",
+     "stratum": "not_kev",
+     "ms": 1,
+     "error": null,
+     "cache": "snapshot",
+     "pass": true,
+     "got": [
+      6.6,
+      "4.0"
+     ],
+     "want": [
+      6.6,
+      "4.0",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2020-1739",
+     "stratum": "not_kev",
+     "ms": 1,
+     "error": null,
+     "cache": "snapshot",
+     "pass": true,
+     "got": [
+      3.9,
+      "3.1"
+     ],
+     "want": [
+      3.9,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2024-14029",
+     "stratum": "not_kev",
+     "ms": 0,
+     "error": null,
+     "cache": "snapshot",
+     "pass": true,
+     "got": [
+      9.0,
+      "4.0"
+     ],
+     "want": [
+      9.0,
+      "4.0",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2026-111063",
+     "stratum": "not_kev",
+     "ms": 0,
+     "error": null,
+     "cache": "snapshot",
+     "pass": true,
+     "got": [
+      6.3,
+      "4.0"
+     ],
+     "want": [
+      6.3,
+      "4.0",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2025-45768",
+     "stratum": "not_kev",
+     "ms": 0,
+     "error": null,
+     "cache": "snapshot",
+     "pass": true,
+     "got": [
+      7.0,
+      "3.1"
+     ],
+     "want": [
+      7.0,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2022-29217",
+     "stratum": "not_kev",
+     "ms": 0,
+     "error": null,
+     "cache": "snapshot",
+     "pass": true,
+     "got": [
+      7.5,
+      "3.1"
+     ],
+     "want": [
+      7.5,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2026-15830",
+     "stratum": "not_kev",
+     "ms": 0,
+     "error": null,
+     "cache": "snapshot",
+     "pass": true,
+     "got": [
+      6.9,
+      "4.0"
+     ],
+     "want": [
+      6.9,
+      "4.0",
+      "NVD"
+     ]
+    }
+   ]
+  },
+  "cve-org": {
+   "summary": {
+    "cases": 30,
+    "passed": 24,
+    "errors": {},
+    "p50_ms": 1001,
+    "p95_ms": 1081,
+    "gold_sha256": "4678bce6916bbe9dad6773fbaa30c6148573551aaf972332fed5de0be2d8783f",
+    "gold_created_at": "2026-11-13T19:46:41Z"
+   },
+   "cases": [
+    {
+     "case_id": "CVE-2019-1064",
+     "stratum": "kev",
+     "ms": 823,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": [
+      7.8,
+      "3.1"
+     ],
+     "want": [
+      7.8,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2026-53266",
+     "stratum": "kev",
+     "ms": 991,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": [
+      8.8,
+      "3.1"
+     ],
+     "want": [
+      8.8,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2018-0167",
+     "stratum": "kev",
+     "ms": 1011,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": [
+      8.8,
+      "3.1"
+     ],
+     "want": [
+      8.8,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2021-20123",
+     "stratum": "kev",
+     "ms": 976,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": [
+      7.5,
+      "3.1"
+     ],
+     "want": [
+      7.5,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2024-28986",
+     "stratum": "kev",
+     "ms": 999,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": [
+      9.8,
+      "3.1"
+     ],
+     "want": [
+      9.8,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2022-20708",
+     "stratum": "kev",
+     "ms": 1045,
+     "error": null,
+     "cache": "live",
+     "pass": false,
+     "got": [
+      10.0,
+      "3.1"
+     ],
+     "want": [
+      8.0,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2025-9242",
+     "stratum": "kev",
+     "ms": 1009,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": [
+      9.3,
+      "4.0"
+     ],
+     "want": [
+      9.3,
+      "4.0",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2024-43451",
+     "stratum": "kev",
+     "ms": 968,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": [
+      6.5,
+      "3.1"
+     ],
+     "want": [
+      6.5,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2024-24919",
+     "stratum": "kev",
+     "ms": 1020,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": [
+      8.6,
+      "3.1"
+     ],
+     "want": [
+      8.6,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2014-0502",
+     "stratum": "kev",
+     "ms": 1000,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": [
+      8.8,
+      "3.1"
+     ],
+     "want": [
+      8.8,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2023-27997",
+     "stratum": "kev",
+     "ms": 968,
+     "error": null,
+     "cache": "live",
+     "pass": false,
+     "got": [
+      9.2,
+      "3.1"
+     ],
+     "want": [
+      9.8,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2023-20118",
+     "stratum": "kev",
+     "ms": 1048,
+     "error": null,
+     "cache": "live",
+     "pass": false,
+     "got": [
+      6.5,
+      "3.1"
+     ],
+     "want": [
+      7.2,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2021-43890",
+     "stratum": "kev",
+     "ms": 988,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": [
+      7.1,
+      "3.1"
+     ],
+     "want": [
+      7.1,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2024-11120",
+     "stratum": "kev",
+     "ms": 1006,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": [
+      9.8,
+      "3.1"
+     ],
+     "want": [
+      9.8,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2021-35464",
+     "stratum": "kev",
+     "ms": 986,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": [
+      9.8,
+      "3.1"
+     ],
+     "want": [
+      9.8,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2026-54060",
+     "stratum": "not_kev",
+     "ms": 996,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": [
+      7.5,
+      "3.1"
+     ],
+     "want": [
+      7.5,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2019-12855",
+     "stratum": "not_kev",
+     "ms": 998,
+     "error": null,
+     "cache": "live",
+     "pass": false,
+     "got": [
+      null,
+      null
+     ],
+     "want": [
+      7.4,
+      "3.0",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2014-0012",
+     "stratum": "not_kev",
+     "ms": 1050,
+     "error": null,
+     "cache": "live",
+     "pass": false,
+     "got": [
+      null,
+      null
+     ],
+     "want": [
+      4.4,
+      "2.0",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2023-45803",
+     "stratum": "not_kev",
+     "ms": 974,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": [
+      4.2,
+      "3.1"
+     ],
+     "want": [
+      4.2,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2026-44405",
+     "stratum": "not_kev",
+     "ms": 1017,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": [
+      3.4,
+      "3.1"
+     ],
+     "want": [
+      3.4,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2021-23437",
+     "stratum": "not_kev",
+     "ms": 996,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": [
+      7.5,
+      "3.1"
+     ],
+     "want": [
+      7.5,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2012-4520",
+     "stratum": "not_kev",
+     "ms": 1003,
+     "error": null,
+     "cache": "live",
+     "pass": false,
+     "got": [
+      null,
+      null
+     ],
+     "want": [
+      6.4,
+      "2.0",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2026-48587",
+     "stratum": "not_kev",
+     "ms": 1004,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": [
+      2.3,
+      "4.0"
+     ],
+     "want": [
+      2.3,
+      "4.0",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2026-34516",
+     "stratum": "not_kev",
+     "ms": 1014,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": [
+      6.6,
+      "4.0"
+     ],
+     "want": [
+      6.6,
+      "4.0",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2020-1739",
+     "stratum": "not_kev",
+     "ms": 1002,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": [
+      3.9,
+      "3.1"
+     ],
+     "want": [
+      3.9,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2024-14029",
+     "stratum": "not_kev",
+     "ms": 1074,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": [
+      9.0,
+      "4.0"
+     ],
+     "want": [
+      9.0,
+      "4.0",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2026-111063",
+     "stratum": "not_kev",
+     "ms": 1809,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": [
+      6.3,
+      "4.0"
+     ],
+     "want": [
+      6.3,
+      "4.0",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2025-45768",
+     "stratum": "not_kev",
+     "ms": 778,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": [
+      7.0,
+      "3.1"
+     ],
+     "want": [
+      7.0,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2022-29217",
+     "stratum": "not_kev",
+     "ms": 1081,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": [
+      7.4,
+      "3.1"
+     ],
+     "want": [
+      7.5,
+      "3.1",
+      "NVD"
+     ]
+    },
+    {
+     "case_id": "CVE-2026-15830",
+     "stratum": "not_kev",
+     "ms": 970,
+     "error": null,
+     "cache": "live",
+     "pass": true,
+     "got": [
+      6.9,
+      "4.0"
+     ],
+     "want": [
+      6.9,
+      "4.0",
+      "NVD"
+     ]
+    }
+   ]
+  }
+ },
+ "at": "2026-11-14T04:50:58+0900"
+}

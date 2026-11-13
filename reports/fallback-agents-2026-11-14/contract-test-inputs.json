@@ -1,0 +1,107 @@
+{
+ "nvd-cve": [
+  [
+   {
+    "cve_id": "CVE-2021-44228"
+   },
+   "ok",
+   "snapshot",
+   {
+    "cvss_score": 10.0,
+    "cvss_version": "3.1"
+   }
+  ],
+  [
+   {
+    "cve_id": "CVE-2023-4863"
+   },
+   "ok",
+   "snapshot",
+   {
+    "cvss_score": 8.8,
+    "cvss_version": "3.1"
+   }
+  ],
+  [
+   {
+    "cve_id": "CVE-2024-3094"
+   },
+   "ok",
+   "snapshot",
+   {
+    "cvss_score": 10.0,
+    "cvss_version": "3.1"
+   }
+  ]
+ ],
+ "cve-org": [
+  [
+   {
+    "cve_id": "CVE-2021-44228"
+   },
+   "ok",
+   "live",
+   {
+    "cvss_score": 10.0,
+    "cvss_version": "3.1"
+   }
+  ],
+  [
+   {
+    "cve_id": "CVE-2023-4863"
+   },
+   "ok",
+   "live",
+   {
+    "cvss_score": 8.8,
+    "cvss_version": "3.1"
+   }
+  ],
+  [
+   {
+    "cve_id": "CVE-2024-3094"
+   },
+   "ok",
+   "live",
+   {
+    "cvss_score": 10.0,
+    "cvss_version": "3.1"
+   }
+  ]
+ ],
+ "cisa-kev": [
+  [
+   {
+    "cve_id": "CVE-2021-44228"
+   },
+   "ok",
+   "fresh_cache",
+   {
+    "kev": true,
+    "epss": 0.99999
+   }
+  ],
+  [
+   {
+    "cve_id": "CVE-2023-4863"
+   },
+   "ok",
+   "fresh_cache",
+   {
+    "kev": true,
+    "epss": 0.99979
+   }
+  ],
+  [
+   {
+    "cve_id": "CVE-2019-0001"
+   },
+   "ok",
+   "fresh_cache",
+   {
+    "kev": false,
+    "epss": 0.03049
+   }
+  ]
+ ]
+}

@@ -1,0 +1,88 @@
+"""Fallback agents, the necklace contract each one fills, and their public sources.
+
+Input and output schemas are the necklace slot contracts themselves
+(``agent_market/necklaces/contracts``), so a fallback answer can stand in a slot
+without any mapping. Each agent publishes exactly one read-only tool.
+"""
+from __future__ import annotations
+
+import json
+from copy import deepcopy
+from functools import lru_cache
+from pathlib import Path
+
+CONTRACTS = Path(__file__).resolve().parent.parent / "necklaces" / "contracts"
+USER_AGENT = "AgentValCon-FallbackAgents/1.0 (+https://agentconcierge.biz; contact@agentconcierge.biz)"
+
+NVD = {"name": "NVD (National Vulnerability Database), NIST", "url": "https://nvd.nist.gov/",
+       "license": "U.S. Government work, not subject to copyright in the United States",
+       "notice": "This product uses data from the NVD API but is not endorsed or certified by the NVD."}
+CVE_ORG = {"name": "CVE Program (CVE Services API)", "url": "https://www.cve.org/",
+           "license": "CVE Program Terms of Use (https://www.cve.org/Legal/TermsOfUse)",
+           "notice": "CVE is a registered trademark of The MITRE Corporation. Record content is "
+                     "provided by the assigning CNA and ADPs."}
+KEV = {"name": "CISA Known Exploited Vulnerabilities Catalog",
+       "url": "https://www.cisa.gov/known-exploited-vulnerabilities-catalog",
+       "license": "U.S. Government work (CISA), public domain in the United States",
+       "notice": "A CVE absent from the catalog is not known to CISA as exploited; it is not a safety claim."}
+EPSS = {"name": "FIRST EPSS", "url": "https://www.first.org/epss/",
+        "license": "Free to use with attribution to FIRST (https://www.first.org/epss/)",
+        "notice": "EPSS is a probability of exploitation activity in the next 30 days, not a severity score."}
+GHSA = {"name": "GitHub Advisory Database", "url": "https://github.com/advisories",
+        "license": "CC BY 4.0 (https://github.com/github/advisory-database)",
+        "notice": "Reviewed advisories only. An empty list means no reviewed advisory matched; "
+                  "it is not a security guarantee."}
+
+SPECS = {
+    "nvd-cve": {
+        "name": "AgentValCon NVD CVE Record", "tool": "get_cve_record", "contract": "cve.record.v1",
+        "description": "Look up one CVE in the NVD: CVSS score, version and vector, English description, "
+                       "publication date and HTTPS references. Answers from a local NVD feed snapshot "
+                       "refreshed every two hours; read-only.",
+        "sources": [NVD],
+        # NVD asks keyless clients for at most 5 requests per rolling 30 seconds.
+        "rate": "NVD feeds: one download per 6.5 s; live API only for snapshot misses, 5 per 30 s",
+    },
+    "cve-org": {
+        "name": "AgentValCon CVE.org Record", "tool": "get_cve_org_record", "contract": "cve.record.v1",
+        "description": "Look up one CVE Record from the CVE Program: CNA or ADP CVSS score, English "
+                       "description, release date and HTTPS references. Rejected records and IDs "
+                       "without a record are not returned; read-only.",
+        "sources": [CVE_ORG],
+        "rate": "1 request per second, cached 6 hours",
+    },
+    "cisa-kev": {
+        "name": "AgentValCon CISA KEV and EPSS", "tool": "check_kev", "contract": "cve.exploited.v1",
+        "description": "Check whether one CVE is in the CISA Known Exploited Vulnerabilities catalog "
+                       "(with the date it was added) and add its FIRST EPSS probability; read-only.",
+        "sources": [KEV, EPSS],
+        "rate": "KEV catalog: one download per hour; EPSS: 2 requests per second, cached 6 hours",
+    },
+    "github-advisory": {
+        "name": "AgentValCon GitHub Advisories", "tool": "list_package_advisories",
+        "contract": "package.advisories.v1",
+        "description": "List reviewed GitHub Security Advisories that affect one npm or PyPI package "
+                       "(optionally an exact version), with aliases, severity and affected range; read-only.",
+        "sources": [GHSA],
+        # Unauthenticated GitHub REST allows 60 requests per hour per address.
+        "rate": "at most 50 requests per hour, cached 1 hour",
+    },
+}
+
+
+@lru_cache(maxsize=None)
+def _contract(contract_id: str) -> dict:
+    return json.loads((CONTRACTS / f"{contract_id}.json").read_text(encoding="utf-8"))
+
+
+def contract(contract_id: str) -> dict:
+    return deepcopy(_contract(contract_id))
+
+
+def tool_spec(agent_id: str) -> dict:
+    spec = SPECS[agent_id]
+    c = _contract(spec["contract"])
+    return deepcopy({"name": spec["tool"], "description": spec["description"],
+                     "inputSchema": c["input_schema"], "outputSchema": c["output_schema"],
+                     "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                                     "idempotentHint": True, "openWorldHint": True}})
