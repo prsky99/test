@@ -85,9 +85,10 @@ SPECS = {
         'category': 'security',
         'input': obj({'package': PACKAGE, 'version': VERSION, 'limit': LIMIT}),
         'data': obj({'package': PACKAGE, 'version': VERSION,
-            'items': array(obj({'id': text(128), 'summary': text(), 'url': text(2000), 'modified_at': text(40)})),
-            'returned_matches': {'type': 'integer', 'minimum': 0}, 'partial': {'type': 'boolean'},
-            'scope': text()}),
+            'items': array(obj({'id': text(128), 'summary': text(), 'url': text(2000), 'modified_at': text(40),
+                                'source': text(160)})),
+            'returned_matches': {'type': 'integer', 'minimum': 0}, 'excluded_matches': {'type': 'integer', 'minimum': 0},
+            'partial': {'type': 'boolean'}, 'scope': text()}),
         'example': {'package': 'express', 'version': '4.17.1', 'limit': 3}},
     'github-issues': {
         'name': 'GitHub Issues and Pull Requests', 'tool': 'search_github_issues',

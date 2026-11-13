@@ -109,6 +109,7 @@ class FallbackAgents:
             raise FallbackUnavailable("invalid_input", "Arguments do not match the tool input schema.") from exc
         handler = getattr(self, "_" + agent_id.replace("-", "_"))
         result, cache, partial, as_of = handler(arguments, lambda: self.budget - (self.clock() - started))
+        field_sources = cache.pop("field_sources", None)
         if cache["age_seconds"] > MAX_AGE[agent_id]:
             raise FallbackUnavailable("stale", f"Our copy of the source is {cache['age_seconds']} s old, over the "
                                                f"{MAX_AGE[agent_id]} s limit. No answer was given from it.")
@@ -124,7 +125,8 @@ class FallbackAgents:
                 "sources": [dict(s) for s in spec["sources"]], "retrieved_at": _now_iso(self.utc_now()),
                 "cache": cache, "partial": bool(partial),
                 "freshness": {"data_as_of": as_of, "age_seconds": cache["age_seconds"],
-                              "max_age_seconds": MAX_AGE[agent_id]}}
+                              "max_age_seconds": MAX_AGE[agent_id]},
+                **({"field_sources": field_sources} if field_sources else {})}
 
     def _cached(self, key, ttl, fetch, remaining):
         """Fresh cache, else live fetch, else stale cache within max_stale, else error."""
@@ -349,6 +351,9 @@ class FallbackAgents:
         return out, cache, False, {out["source"]: as_of}
 
     def _depsdev_package(self, args, remaining):
+        """deps.dev for its own generated data only (default-version choice, source-repository association; CC BY 4.0)
+        and the Scorecard API for the score (CDLA-Permissive-2.0); PM 11-14. Registry facts (release time,
+        deprecation) are left to package-registry, which reads the registries directly."""
         package, ecosystem = self._package_args(args)
         system = {"npm": "npm", "PyPI": "pypi"}[ecosystem]
         base = "https://api.deps.dev/v3/systems/" + system + "/packages/" + quote(package, safe="")
@@ -359,10 +364,8 @@ class FallbackAgents:
             if not default:
                 raise FallbackUnavailable("not_found", "deps.dev has no default version for this package.")
             version = default["versionKey"]["version"]
-            out = {"latest_version": _text(version, 64), "deprecated": bool(default.get("isDeprecated")),
-                   "source": "deps.dev"}
-            if _text(default.get("publishedAt"), 40):
-                out["released_at"] = _text(default.get("publishedAt"), 40)
+            out = {"latest_version": _text(version, 64)}
+            fields = {"latest_version": "deps.dev default version (CC BY 4.0)"}
             as_of = {"deps.dev": _now_iso(self.utc_now())}
             partial = False
             try:
@@ -372,19 +375,19 @@ class FallbackAgents:
                                 and isinstance((p.get("projectKey") or {}).get("id"), str)), None)
                 if project and re.fullmatch(r"(github\.com|gitlab\.com|bitbucket\.org)/[\w.-]+/[\w.-]+", project):
                     out["repository"] = "https://" + project
-                    proj = self._get_json("https://api.deps.dev/v3/projects/" + quote(project, safe=""), rem,
-                                          limit=1024 * 1024)
-                    card = proj.get("scorecard") or {}
-                    if isinstance(card.get("overallScore"), (int, float)) and 0 <= card["overallScore"] <= 10:
-                        out["scorecard"] = float(card["overallScore"])
-                        out["source"] = "deps.dev; OpenSSF Scorecard"
+                    fields["repository"] = "deps.dev source-repository association (CC BY 4.0)"
+                    card = self._get_json("https://api.scorecard.dev/projects/" + project, rem, limit=1024 * 1024)
+                    if isinstance(card.get("score"), (int, float)) and 0 <= card["score"] <= 10:
+                        out["scorecard"] = float(card["score"])
+                        fields["scorecard"] = "OpenSSF Scorecard API (CDLA-Permissive-2.0)"
                         as_of["OpenSSF Scorecard"] = _text(card.get("date"), 40) or None
             except (SourceBusy, SourceError, FallbackUnavailable, ValueError, KeyError, TypeError):
-                partial = True  # version facts stand; repository/scorecard could not be read in time
-            return out, as_of, partial
-        (out, as_of, partial), cache = self._cached(("depsdev-package", ecosystem, package.lower()),
-                                                    TTL["depsdev-package"], live, remaining)
-        return out, cache, partial, as_of
+                partial = True  # the version stands; repository or score could not be read in time
+            out["source"] = "; ".join(f"{k}: {v}" for k, v in fields.items())
+            return out, as_of, partial, fields
+        (out, as_of, partial, fields), cache = self._cached(("depsdev-package", ecosystem, package.lower()),
+                                                            TTL["depsdev-package"], live, remaining)
+        return out, dict(cache, field_sources=fields), partial, as_of
 
     def _company_args(self, args):
         name = " ".join(args["name"].split())

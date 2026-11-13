@@ -72,7 +72,7 @@
 | GitHub Advisory Database | CC BY 4.0 | reviewed만, 빈 목록 ≠ 안전 |
 | npm 레지스트리 | npm Open-Source Terms, 저자가 올린 메타데이터 | 스크립트·관리자·메일은 내보내지 않음 |
 | PyPI JSON API | PyPI Terms of Use, 저자가 올린 메타데이터 | PyPI에는 deprecated 표시가 없어 yanked·Inactive일 때만 true |
-| deps.dev | 생성 데이터 CC BY 4.0, API는 Google APIs 약관, 캐시 명시 허용 — **11-14 하위 조사에서 상업 조건 "불분명"으로 판정, Scorecard 원 API(CDLA-Permissive-2.0)로 바꿀지 PM 결정 대기** | Scorecard 값은 deps.dev가 주는 OpenSSF 총점과 날짜 |
+| deps.dev | 생성 데이터 CC BY 4.0만 씀(기본 버전 판정, 소스 저장소 연결). **PM 결정(11-14): Scorecard는 원 API(CDLA-Permissive-2.0)로 바꾸고 출처를 필드별로 표기** — 반영함, 출시일·deprecated는 레지스트리 데이터라 deps.dev에서 받지 않음 | 응답 `field_sources`에 필드마다 원천·라이선스 |
 
 ### 2-4. 호출 간격 (원천 공개 제한 대비)
 | 호스트 | 우리 간격 | 원천 제한 |
@@ -190,6 +190,13 @@
 - NVD 갱신: jobs 스케줄러가 2시간마다 :15~:50에 `Snapshot.sync('update')`를 배경 스레드로 돌립니다(운영·SRE). 스냅샷 파일이 없으면 아무것도 안 하므로, 운영 데이터 폴더(`FALLBACK_AGENTS_DATA`, 기본 `gateway-data/fallback-agents`)에 지금 있는 사본(04:57 동기화)을 씁니다. 묶음 배포가 늦어지면 첫 배포 직후 한 번 갱신이 돌아야 6시간 상한 안에 듭니다.
 - KEV: 별도 작업이 필요 없습니다. 요청 때 1시간이 지난 목록이면 다시 받고(0.08초, 60초 간격), 실패하면 디스크 사본을 24시간까지 쓰고, 그보다 오래되면 실패합니다. EPSS는 질의마다 받고 48시간 넘은 값은 빼고 partial입니다.
 - stale 실제 시험(`stale-check.json`, 운영 스냅샷의 sqlite 백업 사본에서, 원본 무변경): 동기화 시각을 6시간 1분 전으로 바꾸자 nvd-cve는 `stale`("21660 s old, over the 21600 s limit")로 답하지 않았고, 갱신 작업(meta 1회, 0.6초) 뒤에는 나이 0으로 다시 답했습니다. 사용 기록에도 `code=stale`이 남았습니다. 실행기는 이 실패를 다음 순위로 넘깁니다(워크플로우 cc96f227).
+
+## 5-3. 기존 자체 133023(OSV) 비상업 출처 점검 (PM 최우선, 11-14 06:1x)
+
+- OSV 원천 표(osv.dev data 문서, 11-14 확인)에서 비상업 라이선스는 Chainguard/Wolfi(CC-BY-NC-ND 4.0) 하나입니다. Ubuntu·Alpine·Debian은 CC-BY-SA로 상업 이용 가능합니다.
+- 133023은 npm 생태계·정확한 버전으로만 묻고, OSV는 생태계별로 거릅니다. 실측(`osv-133023-license-check.json`): 45개 질의, 135건 모두 GHSA(GitHub Advisory, CC BY 4.0), Chainguard·Wolfi 0건.
+- 그래도 안전장치를 넣었습니다(`owned_data_agents/engine.py·catalog.py`): 레코드마다 `source`(데이터베이스와 라이선스)를 붙이고, 허용 목록(GHSA·MAL·PYSEC·GO·RUSTSEC·GSD·OSS-Fuzz·PSF) 밖 레코드는 내보내지 않고 `excluded_matches`로 셉니다. `returned_matches`는 이제 내보낸 레코드 수입니다.
+- **배포 주의**: 이 두 파일은 `owned_capability_adapter.IMPLEMENTATION` 해시에 들어갑니다. frontend 배포 뒤 `scripts.approve_model_contracts`를 다시 돌려야 기존 연구·뉴스 계약 연결이 유지됩니다(운영·SRE에 넘김).
 
 ## 5-2. 32개 역할 원천 조사
 

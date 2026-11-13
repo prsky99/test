@@ -43,9 +43,9 @@ PYPI = {"name": "PyPI JSON API", "url": "https://pypi.org/",
         "notice": "PyPI has no deprecation flag: deprecated=true only for a yanked release or an "
                   "'Inactive' development status; otherwise the field is left out."}
 DEPSDEV = {"name": "Open Source Insights (deps.dev), Google", "url": "https://deps.dev/",
-           "license": "Generated data CC BY 4.0; API use under the Google APIs Terms of Service "
-                      "(https://docs.deps.dev/api/v3/)",
-           "notice": "The scorecard value is the OpenSSF Scorecard aggregate as served by deps.dev, with its date."}
+           "license": "Generated data CC BY 4.0 (https://docs.deps.dev/api/v3/); only generated data is used: the "
+                      "default-version choice and the source-repository association",
+           "notice": "Release time and deprecation are not taken from deps.dev (they are registry data)."}
 
 GLEIF = {"name": "GLEIF LEI records (Global Legal Entity Identifier Foundation)", "url": "https://www.gleif.org/",
          "license": "CC0 1.0 (GLEIF LEI data, https://www.gleif.org/en/meta/lei-data-terms-of-use)",
@@ -130,10 +130,10 @@ SPECS = {
     "depsdev-package": {
         "name": "AgentValCon deps.dev Package Health", "tool": "get_package_scorecard",
         "contract": "package.health.v1",
-        "description": "Look up one npm or PyPI package in Open Source Insights (deps.dev): default "
-                       "version and its release time, deprecation, source repository and the OpenSSF "
-                       "Scorecard aggregate; read-only.",
-        "sources": [DEPSDEV],
+        "description": "Look up one npm or PyPI package: its default version and source repository from Open "
+                       "Source Insights (deps.dev), and the repository's OpenSSF Scorecard aggregate from the "
+                       "Scorecard API, each field labeled with its source; read-only.",
+        "sources": [DEPSDEV, SCORECARD],
         "rate": "5 requests per second, cached 6 hours",
     },
     "gleif-lei": {

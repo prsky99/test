@@ -641,8 +641,8 @@ def depsdev_routes(scorecard=True):
         "https://api.deps.dev/v3/systems/npm/packages/lodash": httpx.Response(200, json={"versions": [
             {"versionKey": {"version": "4.17.21"}, "isDefault": False},
             {"versionKey": {"version": "4.18.1"}, "isDefault": True, "isDeprecated": False, "publishedAt": "2026-04-01T21:01:20Z"}]}),
-        "https://api.deps.dev/v3/projects/github.com%2Flodash%2Flodash": httpx.Response(200, json={
-            "scorecard": {"date": "2026-08-24T00:00:00Z", "overallScore": 7.5}} if scorecard else {}),
+        "https://api.scorecard.dev/projects/github.com/lodash/lodash": httpx.Response(200, json={
+            "date": "2026-11-09", "score": 7.5} if scorecard else {}),
     }
     return routes
 
@@ -650,20 +650,23 @@ def depsdev_routes(scorecard=True):
 def test_depsdev_agent_reports_default_version_repo_and_scorecard(tmp_path):
     a, _ = agents(tmp_path, depsdev_routes())
     env = a.execute("depsdev-package", {"package": "lodash", "ecosystem": "npm"})
-    assert env["result"] == {"latest_version": "4.18.1", "deprecated": False, "source": "deps.dev; OpenSSF Scorecard",
-                             "released_at": "2026-04-01T21:01:20Z", "repository": "https://github.com/lodash/lodash",
-                             "scorecard": 7.5}
-    assert env["freshness"]["data_as_of"]["OpenSSF Scorecard"] == "2026-08-24T00:00:00Z"
-    assert env["sources"][0]["license"].startswith("Generated data CC BY 4.0")
+    assert env["result"] == {"latest_version": "4.18.1", "repository": "https://github.com/lodash/lodash", "scorecard": 7.5,
+                             "source": "latest_version: deps.dev default version (CC BY 4.0); repository: deps.dev "
+                                       "source-repository association (CC BY 4.0); scorecard: OpenSSF Scorecard API "
+                                       "(CDLA-Permissive-2.0)"}
+    assert env["field_sources"]["scorecard"].startswith("OpenSSF Scorecard API")
+    assert env["freshness"]["data_as_of"]["OpenSSF Scorecard"] == "2026-11-09"
+    assert [s["name"].split(" ")[0] for s in env["sources"]] == ["Open", "OpenSSF"]
+    assert "released_at" not in env["result"] and "deprecated" not in env["result"], "registry facts are not taken from deps.dev"
 
 
 def test_depsdev_agent_without_scorecard_keeps_version_facts(tmp_path):
     routes = depsdev_routes(scorecard=False)
     a, _ = agents(tmp_path, routes)
     out = a.execute("depsdev-package", {"package": "lodash", "ecosystem": "npm"})["result"]
-    assert "scorecard" not in out and out["source"] == "deps.dev" and out["latest_version"] == "4.18.1"
-    del routes["https://api.deps.dev/v3/projects/github.com%2Flodash%2Flodash"]
-    routes["https://api.deps.dev/v3/projects/"] = httpx.Response(500)
+    assert "scorecard" not in out and "OpenSSF" not in out["source"] and out["latest_version"] == "4.18.1"
+    del routes["https://api.scorecard.dev/projects/github.com/lodash/lodash"]
+    routes["https://api.scorecard.dev/"] = httpx.Response(500)
     b, _ = agents(tmp_path / "b", routes)
     env = b.execute("depsdev-package", {"package": "lodash", "ecosystem": "npm"})
     assert env["partial"] is True and env["result"]["latest_version"] == "4.18.1"
