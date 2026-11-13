@@ -100,3 +100,11 @@ def test_a_store_without_a_read_pool_and_a_busy_slot_keep_the_in_turn_loop():
         assert [item['id'] for item in answer(bot)[0]] == [1, 4] and bot.store._admin_read_pool.leases == 0
     finally:
         fast_chat._parallel_parts.release()
+
+
+def test_korean_aliases_for_scan_figma_and_vulnerability():
+    """11-13 gate cve_scan-ko0 / figma-ko0: "스캔" alone is scanning; "스캔된" stays "scanned"."""
+    from agent_market.concierge.chat_task_spec import canonical_text
+    assert canonical_text('취약점 스캔') == 'vulnerability scan'
+    assert canonical_text('피그마 디자인 파일 읽기') == 'figma design file read'
+    assert canonical_text('스캔된 PDF') == 'scanned PDF'
