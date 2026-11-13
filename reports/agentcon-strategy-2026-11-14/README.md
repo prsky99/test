@@ -164,8 +164,8 @@
 
 **Neo4j 활용 연결**: 맥미니 Neo4j(GDS)는 진주 사이의 "함께 쓸 수 있는" 관계를 만드는 데 씁니다. 관계는 입출력 타입 맞춤과 같은 분야를 기준으로 합니다. 앞서 정한 호스트·중복 묶기(P1)는 진주 후보를 정리하는 단계로 바로 이어집니다.
 
-## 7. 사용자 결정이 필요한 것
-1. **공개 브랜드 전환 방식**
+## 7. 사용자 결정
+1. **공개 브랜드 전환 방식 — 11-14 사용자 결정 "권장안대로"**: 이름은 Agentcon, "Agent Concierge"는 alternateName과 부제로 남깁니다. 도메인(agentconcierge.biz)과 MCP Registry 이름(biz.agentconcierge/agent-concierge)은 그대로 둡니다.
    - 권장: 화면·구조화 데이터의 이름을 "Agentcon"으로 하고, "Agent Concierge"는 alternateName과 부제로 남깁니다. 도메인은 그대로 둡니다.
    - 이유: 11-14 구글 대응으로 "Agent Concierge" 브랜드 신호를 막 넣었습니다. 한 번에 바꾸면 검색 신호가 끊길 수 있습니다.
 2. 목걸이를 공식 MCP Registry와 A2A 레지스트리에 개별로 올리는 시점(외부 게시)
