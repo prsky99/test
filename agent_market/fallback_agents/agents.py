@@ -38,7 +38,7 @@ MAX_AGE = {"nvd-cve": 6 * 3600, "cve-org": 24 * 3600, "cisa-kev": 24 * 3600, "gi
            "package-registry": 6 * 3600, "depsdev-package": 24 * 3600, "gleif-lei": 24 * 3600,
            "sec-edgar": 24 * 3600, "wikipedia-summary": 24 * 3600, "arxiv-search": 48 * 3600,
            "worldbank-indicator": 24 * 3600, "met-weather": 3 * 3600,
-           "public-holidays": 400 * 86400}  # rules age from the library release; update the pin at least yearly
+           "public-holidays": 400 * 86400, "holiday-calendar": 400 * 86400}  # rules age from the library release; update the pin at least yearly
 TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "github-advisory": (3600, 6 * 3600),
        "epss": (6 * 3600, 48 * 3600), "package-registry": (3600, 6 * 3600), "depsdev-package": (6 * 3600, 24 * 3600),
        "gleif-lei": (6 * 3600, 24 * 3600), "sec-edgar": (6 * 3600, 24 * 3600), "sec-tickers": (6 * 3600, 24 * 3600),
@@ -648,51 +648,65 @@ class FallbackAgents:
                 self.weather.popitem(last=False)
         return value, {"status": "live", "age_seconds": 0}, False, as_of
 
-    def _public_holidays(self, args, remaining):
+    def _holiday_rows(self, place, year):
+        """[(date, English title)] of one country's national public holidays, the place label, and freshness."""
         try:
             import holidays as lib
             from holidays import registry
         except ImportError as exc:
             raise FallbackUnavailable("source_unavailable", "Holiday rules are not installed on this server.") from exc
-        place = " ".join((args.get("place") or "").split())
+        place = " ".join((place or "").split())
         if not place:
-            raise FallbackUnavailable("not_found", "National public holidays only: give a country as place.")
+            raise FallbackUnavailable("not_found", "National public holidays only: give a country.")
         code = holiday_country(place, registry.COUNTRIES)
         if not code:
             raise FallbackUnavailable("not_found", "National public holidays only: the place is not a supported country.")
-        year = args.get("year") or self.utc_now().year
+        year = year or self.utc_now().year
         if not 1950 <= year <= self.utc_now().year + 5:
             raise FallbackUnavailable("invalid_input", "Use a year from 1950 to five years ahead.")
-        month, limit = args.get("month"), args.get("limit", 20)
         base = lib.country_holidays(code, years=year)
-        langs = getattr(base, "supported_languages", ()) or ()
-        english = "en_US" in langs
+        english = "en_US" in (getattr(base, "supported_languages", ()) or ())
         table = lib.country_holidays(code, years=year, language="en_US") if english else base
-        country = getattr(base, "country", code)
-        words = [w for w in re.findall(r"[a-z0-9]+", (args.get("query") or "").lower())
-                 if w not in STOPWORDS | {"holiday", "holidays", "public", "national", "day", "days"}]
-        items = []
+        rows = []
         for day, names in sorted(table.items()):
-            if month and day.month != month:
-                continue
             for name in str(names).split("; "):
                 name = _text(name, 300)
-                if words and not any(w in name.lower() for w in words):
-                    continue
                 # English names may keep accented proper names (Atatürk); only a non-English table is labeled.
-                title = name if english or name.isascii() else f"Public holiday (local name: {name})"
-                items.append({"title": f"{title} (national public holiday)", "date": day.isoformat(),
-                              "place": _text(f"{country_name(code, registry.COUNTRIES)} ({country})", 200)})
-        if not items:
-            raise FallbackUnavailable("not_found", "No national public holiday matches; festivals, concerts and "
-                                                   "other events are not covered.")
+                rows.append((day, name if english or name.isascii() else f"Public holiday (local name: {name})"))
+        label = _text(f"{country_name(code, registry.COUNTRIES)} ({getattr(base, 'country', code)})", 200)
         version = getattr(lib, "__version__", "")
-        out = {"items": items[:limit], "source": f"holidays {version} (MIT): national public holidays only"}
         released = HOLIDAYS_RELEASES.get(version)
         age = int(max(0, self.wall() - released)) if released else MAX_AGE["public-holidays"] + 1
         as_of = {f"holidays {version}": datetime.fromtimestamp(released, timezone.utc).strftime("%Y-%m-%d")
                  if released else None}
-        return out, {"status": "snapshot", "age_seconds": age}, len(items) > limit, as_of
+        return rows, label, version, year, {"status": "snapshot", "age_seconds": age}, as_of
+
+    def _public_holidays(self, args, remaining):
+        rows, label, version, _, cache, as_of = self._holiday_rows(args.get("place"), args.get("year"))
+        month, limit = args.get("month"), args.get("limit", 20)
+        words = [w for w in re.findall(r"[a-z0-9]+", (args.get("query") or "").lower())
+                 if w not in STOPWORDS | {"holiday", "holidays", "public", "national", "day", "days"}]
+        items = [{"title": f"{title} (national public holiday)", "date": day.isoformat(), "place": label}
+                 for day, title in rows if (not month or day.month == month)
+                 and (not words or any(w in title.lower() for w in words))]
+        if not items:
+            raise FallbackUnavailable("not_found", "No national public holiday matches; festivals, concerts and "
+                                                   "other events are not covered.")
+        out = {"items": items[:limit], "source": f"holidays {version} (MIT): national public holidays only"}
+        return out, cache, len(items) > limit, as_of
+
+    def _holiday_calendar(self, args, remaining):
+        place = next((args.get(k) for k in ("country_code", "countryCode", "country") if args.get(k)), "")
+        year = args.get("year")
+        if year is not None and not isinstance(year, int):
+            raise FallbackUnavailable("invalid_input", "Use a year as a number.")
+        rows, label, version, year, cache, as_of = self._holiday_rows(place, year)
+        lines = "; ".join(f"{day.isoformat()} {title}" for day, title in rows)
+        answer = (f"National public holidays in {label}, {year} (national public holidays only; regional holidays, "
+                  f"festivals and events are not included): {lines}.")[:8000]
+        out = {"answer": answer, "url": "https://github.com/vacanza/holidays",
+               "source": f"holidays {version} (MIT): national public holidays only"}
+        return out, cache, False, as_of
 
     # ---------------------------------------------------------------- usage
     def _usage(self, agent_id, envelope, code, started):

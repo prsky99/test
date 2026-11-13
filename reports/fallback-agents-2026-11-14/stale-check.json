@@ -1,0 +1,22 @@
+{
+ "at": "2026-11-14T05:39:49+0900",
+ "copy_of": "gateway-data/fallback-agents/nvd-cve.sqlite3 (sqlite .backup, original untouched)",
+ "steps": [
+  {
+   "step": "synced_at set to now - 6 h - 60 s",
+   "result": "stale: Our copy of the source is 21660 s old, over the 21600 s limit. No answer was given from it."
+  },
+  {
+   "step": "Snapshot.sync('update') (the jobs refresh step)",
+   "result": "modified feed unchanged, 0.6 s, one meta request"
+  },
+  {
+   "step": "same call again",
+   "result": "snapshot, age 0 s, data_as_of NVD 2026-11-13T14:00:06-05:00, CVSS 10.0"
+  }
+ ],
+ "usage_lines": [
+  "nvd-cve ok=false code=stale",
+  "nvd-cve ok=true cache=snapshot"
+ ]
+}

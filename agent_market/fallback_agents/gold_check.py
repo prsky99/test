@@ -104,7 +104,9 @@ def role_task_check(agent_ids, agents: FallbackAgents | None = None) -> dict:
     out = {}
     for agent_id in agent_ids:
         rows = []
-        for case in role_tasks.load():
+        rag = Path(role_tasks.FILE).with_name("role-tasks-rag-v1.jsonl")  # search & RAG's verified tasks
+        cases = role_tasks.load() + (role_tasks.load(rag) if rag.exists() else [])
+        for case in cases:
             if case["contract"] != SPECS[agent_id]["contract"]:
                 continue
             try:

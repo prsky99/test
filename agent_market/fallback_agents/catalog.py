@@ -182,6 +182,13 @@ SPECS = {
         "sources": [HOLIDAYS],
         "rate": "no network calls; rules ship with the pinned library version",
     },
+    "holiday-calendar": {
+        "name": "AgentValCon National Holiday Calendar", "tool": "get_holidays", "contract": "holiday.calendar.v1",
+        "description": "List the national public holidays of one country (ISO code or English name) for a year, "
+                       "with dates. National public holidays only: no festivals or local events; read-only.",
+        "sources": [HOLIDAYS],
+        "rate": "no network calls; rules ship with the pinned library version",
+    },
 }
 
 

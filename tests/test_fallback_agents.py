@@ -70,7 +70,7 @@ def agents(tmp_path, routes, calls=None, clock=None, snapshot=None):
 
 # ------------------------------------------------------------------ catalog and contracts
 def test_tools_are_read_only_and_use_the_slot_contracts():
-    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays"}
+    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar"}
     for agent_id, spec in SPECS.items():
         tool = tool_spec(agent_id)
         c = contract(spec["contract"])
@@ -1048,3 +1048,16 @@ def test_a_429_in_a_test_run_pauses_the_domain_for_everyone(tmp_path, monkeypatc
 def test_gold_check_uses_gate_for_holdout_rounds():
     from agent_market.fallback_agents.gold_check import budget_system
     assert budget_system("holdout-r1") == "gate" and budget_system("tuning") == "substitute_tests"
+
+
+def test_holiday_calendar_answers_the_holiday_contract(tmp_path):
+    pytest.importorskip("holidays")
+    a, _ = agents(tmp_path, {})
+    env = a.execute("holiday-calendar", {"country": "US", "country_code": "US", "countryCode": "US", "year": 2026})
+    answer = env["result"]["answer"]
+    assert answer.startswith("National public holidays in United States (US), 2026 (national public holidays only;")
+    assert "2026-11-26 Thanksgiving Day" in answer and "2026-07-03 Independence Day (observed)" in answer
+    assert env["result"]["source"] == "holidays 0.108 (MIT): national public holidays only"
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("holiday-calendar", {"country": "Atlantis"})
+    assert err.value.code == "not_found"

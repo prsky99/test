@@ -18,6 +18,7 @@
 | `worldbank-indicator` (`get_country_indicator`) | country-economy-snapshot 지표 자리, `country.indicator.v1` | World Bank WDI | 고정 과제 3/3, 자체 점검 10개국×3지표 30/30 | 204 ms / 215 ms | 정답 세트 요청 |
 | `met-weather` (`get_weather_forecast`) | trip-brief 날씨 자리, `weather.forecast.v1` | MET Norway Locationforecast 2.0 | 고정 과제 2/2(온도 실측 비교는 안 함, 2-8), 세계 30개 도시 30/30 | 1,191 ms / 1,199 ms | 정답 세트 요청 |
 | `public-holidays` (`list_public_holidays`) | trip-brief 행사 자리(공휴일 한정), `events.search.v1` | holidays 0.108 라이브러리(네트워크 없음) | 고정 과제 0/2(둘 다 범위 밖, 설계대로), 30개국 30/30 | 최대 88 ms | 운영 lock 반영 대기(2-9) |
+| `holiday-calendar` (`get_holidays`) | 공휴일 역할, `holiday.calendar.v1` | holidays 0.108(같은 계산) | 고정 과제(검색과 RAG) 1/1, 계약 입력 1/1 | 수 ms | 관문 신청(운영 lock 반영 뒤 운영 동작) |
 | `github-advisory` (`list_package_advisories`) | package-risk-audit 취약점 자리, `package.advisories.v1` | GitHub Advisory Database(reviewed) | 1차 27/30 → 범위 직접 판정으로 고친 뒤 **30/30**(05:36 재측정), 고정 과제 3/3 | 1,010 ms / 1,412 ms | 관문 신청 가능 |
 
 - 계약 시험 입력(`test_inputs`) 3건씩: nvd-cve·cve-org·cisa-kev 9/9 통과(`contract-test-inputs.json`). 고정 과제(role-tasks-v1): nvd-cve 3/3, cisa-kev 3/3, cve-org 3/3, package-registry 2/2, depsdev-package 2/2.
@@ -148,10 +149,17 @@
 - 공용 호출 예산(운영·SRE 요청, `agent_market/provider_budget.py`): 우리가 시작하는 시험 실행에서만 바깥 호출마다 `reserve()`를 먼저, 응답 뒤 `note()`를 부릅니다(429면 그 도메인을 그날 모든 시스템이 멈춤). 보류 세트(`--split holdout-*`)는 `gate`, 조정 세트·보고서 입력 실행은 `substitute_tests`(도메인당 하루 5회). 목걸이 실시간 호출은 세지 않습니다. 몫을 넘으면 그 호출은 보내지 않고 `rate_limited`로 실패합니다.
 - 시험 보고서 v2(PM 11-14): 자체 대체는 resource_id가 없어(안 A) `avc:<agent_id>` 이름공간으로 판·점수·서명 사슬을 쌓습니다. `agent_market/fallback_agents/report_input.py`가 workflow 고정 과제를 실제로 돌려 `scripts.report_v2 import` 입력을 만듭니다(응답 envelope 전체를 본문으로 넘겨 데이터 품질 60점 규칙을 그대로 적용). 첫 파일 `exports/pearls/avc-results-2026-11-14.json`(git 제외): nvd-cve 3/3, cisa-kev 3/3, package-registry 2/2, depsdev-package 2/2(lodash는 예산 몫 소진으로 Scorecard 없이 partial), github-advisory 3/3, cve-org 3/3. 문자열 id 처리와 진주 순위 제외는 검색과 RAG의 report_v2 쪽에 요청했습니다.
 
+## 5-1. 운영 연결 점검과 stale 실제 시험 (11-14 05:4x, PM 지시)
+
+- 운영 중인 버전(frontend `brand-frontend-20261114-r2`, jobs `retention-jobs-20261114-r2`, execution `align-execution-20261113-r2`)에는 `fallback_agents`, NVD 갱신 단계(운영·SRE c6893817 `nvd_snapshot_schedule.py`), 목걸이 실행기의 agentcon 경로가 **아직 없습니다**. 다음 jobs·frontend 묶음에 함께 실려야 합니다.
+- NVD 갱신: jobs 스케줄러가 2시간마다 :15~:50에 `Snapshot.sync('update')`를 배경 스레드로 돌립니다(운영·SRE). 스냅샷 파일이 없으면 아무것도 안 하므로, 운영 데이터 폴더(`FALLBACK_AGENTS_DATA`, 기본 `gateway-data/fallback-agents`)에 지금 있는 사본(04:57 동기화)을 씁니다. 묶음 배포가 늦어지면 첫 배포 직후 한 번 갱신이 돌아야 6시간 상한 안에 듭니다.
+- KEV: 별도 작업이 필요 없습니다. 요청 때 1시간이 지난 목록이면 다시 받고(0.08초, 60초 간격), 실패하면 디스크 사본을 24시간까지 쓰고, 그보다 오래되면 실패합니다. EPSS는 질의마다 받고 48시간 넘은 값은 빼고 partial입니다.
+- stale 실제 시험(`stale-check.json`, 운영 스냅샷의 sqlite 백업 사본에서, 원본 무변경): 동기화 시각을 6시간 1분 전으로 바꾸자 nvd-cve는 `stale`("21660 s old, over the 21600 s limit")로 답하지 않았고, 갱신 작업(meta 1회, 0.6초) 뒤에는 나이 0으로 다시 답했습니다. 사용 기록에도 `code=stale`이 남았습니다. 실행기는 이 실패를 다음 순위로 넘깁니다(워크플로우 cc96f227).
+
 ## 6. 시험·재현
 
 ```bash
-nice -n 10 .venv-tests/bin/python -m pytest -q tests/test_fallback_agents.py     # 80 passed (네트워크 없음)
+nice -n 10 .venv-tests/bin/python -m pytest -q tests/test_fallback_agents.py     # 81 passed (네트워크 없음)
 .venv/bin/python -m agent_market.fallback_agents.nvd_sync --full                  # 스냅샷 첫 빌드
 .venv/bin/python -m agent_market.fallback_agents.gold_check nvd-cve cisa-kev --out /tmp/x.json
 ```

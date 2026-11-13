@@ -30,7 +30,13 @@ def report_id(agent_id: str) -> str:
 def results(agent_ids=None, agents: FallbackAgents | None = None, cases_for=None, clock=time.time) -> list[dict]:
     from ..necklaces import role_tasks
     agents = agents or FallbackAgents()
-    by_role = cases_for() if cases_for else role_tasks.by_role()
+    if cases_for:
+        by_role = cases_for()
+    else:
+        by_role = role_tasks.by_role()
+        rag = Path(role_tasks.FILE).with_name("role-tasks-rag-v1.jsonl")  # search & RAG's verified tasks
+        for role, extra in (role_tasks.by_role(rag) if rag.exists() else {}).items():
+            by_role.setdefault(role, []).extend(extra)
     out = []
     for agent_id in agent_ids or sorted(SPECS):
         spec = SPECS[agent_id]
