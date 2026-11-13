@@ -37,3 +37,19 @@ def test_active_releases_reads_both_state_shapes(tmp_path, monkeypatch):
     state.write_text(json.dumps({'services': {'frontend': {'active': 'b', 'slots': {'a': 'f1', 'b': {'release': 'f2', 'pid': 1}}},
                                               'jobs': {'release': 'j1'}}}))
     assert rehearsal.active_releases() == ['f2', 'j1']
+
+
+def test_restore_workers_apply_to_the_restore_sessions_only(monkeypatch):
+    """PM 11-14 00:2x: the restore's HNSW builds used every core; a worker count goes to pg_restore through PGOPTIONS."""
+    from scripts import db_change_rehearsal as R
+    monkeypatch.delenv('AGENTCON_RESTORE_MAINTENANCE_WORKERS', raising=False)
+    monkeypatch.setenv('PGOPTIONS', '-c work_mem=1GB')                 # never inherited from the caller
+    monkeypatch.setattr(R, 'RESTORE_MAINTENANCE_WORKERS', None)
+    assert 'PGOPTIONS' not in R._restore_environment()
+    monkeypatch.setattr(R, 'RESTORE_MAINTENANCE_WORKERS', 0)
+    assert R._restore_environment()['PGOPTIONS'] == '-c max_parallel_maintenance_workers=0'
+    monkeypatch.setenv('AGENTCON_RESTORE_MAINTENANCE_WORKERS', '1')
+    assert R._restore_environment()['PGOPTIONS'] == '-c max_parallel_maintenance_workers=1'
+    monkeypatch.setenv('AGENTCON_RESTORE_MAINTENANCE_WORKERS', '1; DROP')
+    assert 'PGOPTIONS' not in R._restore_environment()
+    assert 'PGOPTIONS' not in R._environment()                          # the checks after the restore keep defaults

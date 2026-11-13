@@ -108,6 +108,21 @@ def _environment():
     return {k: v for k, v in os.environ.items() if not k.startswith('PG')}
 
 
+# 11-14 PM 00:2x: a full restore rebuilt the two embeddings HNSW indexes with two parallel workers each (all four cores
+# for 17 minutes, load 10 while user_slo and the full check measured). A worker count here applies to the restore's own
+# sessions only (PGOPTIONS), so the steps after the restore keep the production setting. None keeps the server default;
+# AGENTCON_RESTORE_MAINTENANCE_WORKERS overrides it for one run.
+RESTORE_MAINTENANCE_WORKERS = None
+
+
+def _restore_environment():
+    env = _environment()
+    workers = os.environ.get('AGENTCON_RESTORE_MAINTENANCE_WORKERS', RESTORE_MAINTENANCE_WORKERS)
+    if workers is not None and str(workers).isdigit():
+        env['PGOPTIONS'] = f'-c max_parallel_maintenance_workers={int(workers)}'
+    return env
+
+
 def restore(backup, cluster, mode, port):
     dump = backup / 'database.dump'
     target = ['--host', cluster['socket'], '--port', str(port), '--username', 'postgres', '--dbname', 'postgres']
@@ -124,7 +139,7 @@ def restore(backup, cluster, mode, port):
         order = Path(cluster['root']) / 'restore.list'
         order.write_text('\n'.join(keep) + '\n')
         command = common + ['-L', str(order)] + target + [str(dump)]
-    result = subprocess.run(command, env=_environment(), capture_output=True, timeout=3600)
+    result = subprocess.run(command, env=_restore_environment(), capture_output=True, timeout=3600)
     if result.returncode:
         return {'ok': False, 'stderr': result.stderr.decode(errors='replace')[-2000:]}
     gates = []
