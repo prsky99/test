@@ -40,6 +40,7 @@ CASE_ROLE = {'papers.search': 'papers.search.v1', 'encyclopedia.summary': 'encyc
 
 SHORT = {contract: short for short, contract in CASE_ROLE.items()}
 import role_catalog  # noqa: E402
+import data_quality as DQ  # noqa: E402
 # Roles RAG judges with its default field/word checks until an answer set exists (PM 11-14: 30 roles by 11-21).
 RAG_ROLES = {role for role, spec in role_catalog.ROLES.items() if spec.get('checks')}
 ROLE_DOMAIN_V1 = {'domain.lookup.v1': 'internet', 'place.search.v1': 'travel', 'book.search.v1': 'reference',
@@ -224,43 +225,90 @@ def latency_points(ms):
 
 
 def report_text(r):
-    """The English report body: what was sent, what came back, what was checked, and what was not."""
-    verdict = r['judgement']
+    """The English report body: what was sent, what came back, how the data was judged, and what was not."""
+    dq = r.get('data_quality') or {}
     lines = [f"Role task test for {r['role']}: tool `{r['tool']}` was called once, read-only, "
              f"with arguments {json.dumps(r.get('arguments') or {}, ensure_ascii=False)}."]
     if r['outcome'] == 'succeeded':
-        lines.append(f"It answered in {r.get('latency_ms')} ms. Content checks passed: {verdict['passed']} of {verdict['total']} "
-                     f"({', '.join(c['check'] + (' ok' if c['passed'] else ' failed') for c in verdict['checks'])}).")
+        acc, fresh, comp = dq.get('accuracy', {}), dq.get('freshness', {}), dq.get('completeness', {})
+        lines.append(f"It answered in {r.get('latency_ms')} ms. Accuracy checked against: {acc.get('source', 'none')} "
+                     f"({'matched' if acc.get('points') else 'not matched'}). Data time: {fresh.get('newest') or 'not stated'} "
+                     f"(rule: {fresh.get('rule')}). Blank fields: {comp.get('blanks', 0)}"
+                     + (f" of {comp['fields']}" if comp.get('fields') else '') + '.')
     else:
         lines.append(f"Outcome: {r['outcome']} ({r.get('reason') or 'no reason given'}).")
-    lines.append('Limits: one call with one input; the checks look for expected fields and words in the reply, '
-                 'not for factual accuracy against an independent source.')
+    lines.append('Limits: one call with one input; accuracy is only claimed where an answer set or a public reference '
+                 'at the same time was compared.')
     return ' '.join(lines)
 
 
 def writing_points(r, text):
-    """40 points for the AQEF failures seen in the 11-10 audit: limits stated, claims tied to measured facts."""
-    points = 0
-    points += 10 if 'Limits:' in text else 0                                   # limitations stated
-    points += 10 if r.get('arguments') is not None and 'arguments' in text else 0  # input disclosed
-    points += 10 if (r['outcome'] != 'succeeded' or (r.get('excerpt') and r.get('latency_ms') is not None)) else 0  # claims backed
-    points += 10 if r['judgement']['total'] else 0                              # what was checked is named
+    """10 points: limits stated (4), the input disclosed (3), the accuracy source, data time and blanks named (3)."""
+    points = 4 if 'Limits:' in text else 0
+    points += 3 if r.get('arguments') is not None and 'arguments' in text else 0
+    points += 3 if r['outcome'] != 'succeeded' or ('Accuracy checked against' in text and 'Data time' in text) else 0
     return points
 
 
+def consistency_points(r, now):
+    """5 when the same input on another day gave the same result (fixed facts: the same answer hash or accuracy)."""
+    folder = version_dir(r['resource_id'], r['role'])
+    today = time.strftime('%Y-%m-%d', time.localtime(r['tested']))
+    for path in sorted(folder.glob('*.json'), reverse=True) if folder.exists() else []:
+        try:
+            v = json.loads(path.read_text())
+        except (OSError, ValueError):
+            continue
+        if v.get('tool') != r['tool'] or v.get('outcome') != 'succeeded' or v.get('arguments') != r.get('arguments'):
+            continue
+        if time.strftime('%Y-%m-%d', time.localtime(v['tested'])) == today:
+            continue
+        same_acc = (v.get('data_quality') or {}).get('accuracy', {}).get('points') == r['data_quality']['accuracy']['points']
+        if DQ.FRESHNESS.get(r['role']) is None:
+            return 5 if (v.get('response_hash') == r.get('response_hash') or same_acc) else 0
+        return 5 if same_acc else 0
+    return 0
+
+
 def quality(r, success_days):
+    """Data 60 + evidence 30 + report text 10 (PM 11-14 data quality decision)."""
     args = r.get('arguments')
-    arg_points = 0 if not args else (7.5 if r.get('source') == 'collector message' else 15)
-    verdict = r['judgement']
-    if r['outcome'] != 'succeeded':
-        evidence = {'arguments': arg_points, 'content': 0, 'repeat': 0, 'latency': 0}
+    dq = r.get('data_quality') or {}
+    if r['outcome'] == 'succeeded':
+        data = {k: dq.get(k, {}).get('points', 0) for k in ('accuracy', 'freshness', 'completeness', 'clean', 'consistency')}
+        evidence = {'arguments': 0 if not args else (5 if r.get('source') == 'collector message' else 10),
+                    'repeat': min(10, 5 * success_days), 'latency': DQ.latency_points(r.get('latency_ms'))}
     else:
-        evidence = {'arguments': arg_points,
-                    'content': round(20 * verdict['passed'] / verdict['total'], 1) if verdict['total'] else 0,
-                    'repeat': min(15, 3 * success_days), 'latency': latency_points(r.get('latency_ms'))}
+        data = {k: 0 for k in ('accuracy', 'freshness', 'completeness', 'clean', 'consistency')}
+        evidence = {'arguments': 0 if not args else 10, 'repeat': 0, 'latency': 0}
     text = report_text(r)
     write = writing_points(r, text)
-    return {'score': round(sum(evidence.values()) + write, 1), 'evidence': evidence, 'writing': write, 'text': text}
+    return {'score': round(sum(data.values()) + sum(evidence.values()) + write, 1), 'data': data,
+            'evidence': evidence, 'writing': write, 'text': text}
+
+
+def assess(r, text, structured, case):
+    """Fill r['data_quality'] from the whole answer; an unclean answer fails the version (PM 11-14)."""
+    import hashlib
+    r['response_hash'] = hashlib.sha256((text or '').encode('utf-8')).hexdigest() if text else None
+    if r['outcome'] != 'succeeded':
+        r['data_quality'] = {}
+        return
+    issues = DQ.clean_issues(text)
+    live = role_catalog.live_spec(r['role'])
+    from agent_market.necklaces import role_tasks
+    acc_points, source, reasons = DQ.accuracy(case, text, structured, live=live,
+                                              live_value=reference_value(live['reference']) if live else None,
+                                              role_tasks=role_tasks)
+    fresh_points, rule, newest = DQ.freshness(r['role'], text)
+    comp_points, blanks, fields = DQ.completeness(text, structured)
+    r['data_quality'] = {'accuracy': {'points': acc_points, 'source': source, 'reasons': reasons},
+                         'freshness': {'points': fresh_points, 'rule': rule, 'newest': newest},
+                         'completeness': {'points': comp_points, 'blanks': blanks, 'fields': fields},
+                         'clean': {'points': 0 if issues else 10, 'issues': issues}}
+    r['data_quality']['consistency'] = {'points': consistency_points(r, time.time())}
+    if issues:
+        r['outcome'], r['reason'] = 'failed', 'unclean answer: ' + ', '.join(issues)
 
 
 def version_dir(rid, role):
@@ -307,22 +355,16 @@ def save_version(result, now=None):
          'registrable_domain': registrable(result.get('host')), 'source': result.get('source', 'role tool call'),
          'tested': tested}
     case = result.get('case')
-    if case and r['outcome'] == 'succeeded':
-        from agent_market.necklaces import role_tasks
-        passed, reasons = role_tasks.score(case, result.get('full_text') or r['excerpt'], result.get('structured'))
-        live = [k for k in ('published_within_days', 'dynamic') if k in (case.get('expect') or {})]
-        r['judgement'] = {'rules': 'role-tasks-v1 ' + case['case_id'], 'checks': [{'check': case['case_id'], 'passed': passed}],
-                          'passed': int(passed), 'total': 1, 'reasons': reasons, 'not_checked_live': live}
-    elif r['outcome'] == 'succeeded':
-        r['judgement'] = judge(short(r['role']), result.get('full_text') or r['excerpt'], r['arguments'])
-    else:
-        r['judgement'] = {'rules': RULES, 'checks': [], 'passed': 0, 'total': len(CHECKS.get(short(r['role']), [])) or 1}
+    text = result.get('full_text') or r['excerpt']
+    r['judgement'] = judge(short(r['role']), text, r['arguments']) if r['outcome'] == 'succeeded' else \
+        {'rules': RULES, 'checks': [], 'passed': 0, 'total': 0}
     if case:
         r['case_id'] = case['case_id']
-    if r['outcome'] == 'succeeded' and r['judgement']['total'] and r['judgement']['passed'] < r['judgement']['total']:
-        r['content_verdict'] = 'partial' if r['judgement']['passed'] else 'failed'
-    else:
-        r['content_verdict'] = 'passed' if r['outcome'] == 'succeeded' else 'not run'
+    assess(r, text, result.get('structured'), case)
+    acc = (r.get('data_quality') or {}).get('accuracy', {})
+    r['content_verdict'] = ('not run' if r['outcome'] != 'succeeded' else
+                            'accurate' if acc.get('points') else 'no answer source' if acc.get('source', '').startswith('none')
+                            else 'not accurate')
     folder = version_dir(r['resource_id'], r['role'])
     folder.mkdir(parents=True, exist_ok=True)
     r['version'] = len(list(folder.glob('*.json'))) + 1
@@ -331,6 +373,29 @@ def save_version(result, now=None):
     stamp = time.strftime('%Y%m%d-%H%M%S', time.localtime(tested))
     (folder / f"{stamp}-{re.sub(r'[^A-Za-z0-9_.-]', '_', r['tool'])[:60]}.json").write_text(json.dumps(r, indent=1, ensure_ascii=False))
     return r
+
+
+def rescore():
+    """Score every stored version again with the current rules (PM 11-14 data quality), from the stored excerpt."""
+    for path in (OUT / 'reports').glob('*/*/*.json') if (OUT / 'reports').exists() else []:
+        v = json.loads(path.read_text())
+        if v.get('outcome') == 'failed' and str(v.get('reason', '')).startswith('unclean answer'):
+            v['outcome'], v['reason'] = 'succeeded', None       # judged again below
+        case = None
+        if v.get('case_id'):
+            try:
+                from agent_market.necklaces import role_tasks
+                case = next((c for c in role_tasks.load() if c['case_id'] == v['case_id']), None)
+            except Exception:
+                case = None
+        assess(v, v.get('excerpt') or '', None, case)
+        acc = (v.get('data_quality') or {}).get('accuracy', {})
+        v['content_verdict'] = ('not run' if v['outcome'] != 'succeeded' else 'accurate' if acc.get('points')
+                                else 'no answer source' if acc.get('source', '').startswith('none') else 'not accurate')
+        days = success_days(v['resource_id'], v['role'], v['tool'], time.time())
+        v['quality'] = quality(v, days)
+        v['rescored'] = time.strftime('%Y-%m-%d %H:%M') + ' (judged on the stored excerpt)'
+        path.write_text(json.dumps(v, indent=1, ensure_ascii=False))
 
 
 def latest_versions():
@@ -354,7 +419,10 @@ def rank(versions):
         roles[v['role']].append(v)
     out = {}
     for role, members in roles.items():
-        members.sort(key=lambda v: (-v['quality']['score'], v.get('latency_ms') or 10 ** 9))
+        # Ties (e.g. no answer source yet, accuracy 0 for all) go to the answer that passed more field checks for the
+        # role, so a billing envelope (130453) does not lead a role over real advisories (47161).
+        fit = lambda v: (v.get('judgement') or {}).get('passed', 0) / max(1, (v.get('judgement') or {}).get('total', 0))
+        members.sort(key=lambda v: (-v['quality']['score'], -fit(v), v.get('latency_ms') or 10 ** 9))
         seen, ranked = set(), []
         for v in members:
             entry = {k: v.get(k) for k in ('resource_id', 'tool', 'outcome', 'reason', 'latency_ms', 'host',
@@ -578,6 +646,8 @@ def main(argv=None):
         for result in json.loads(Path(argv[1]).read_text()).get('results', []):
             if result.get('outcome') in ('succeeded', 'failed', 'skipped'):
                 save_version(result)
+    elif argv[0] == 'rescore':
+        rescore()
     elif argv[0] == 'queue':
         Path(argv[1]).write_text(json.dumps(build_queue(), indent=1))
     elif argv[0] == 'run':

@@ -36,16 +36,23 @@ def test_versions_stack():
     first = V.save_version(result(started=time.time() - 2 * V.DAY))
     second = V.save_version(result())
     assert (first['version'], second['version']) == (1, 2)
-    assert second['quality']['evidence']['repeat'] == 6          # two successful days in the last 7
+    assert second['quality']['evidence']['repeat'] == 10         # two successful days in the last 7 (5 a day)
 
 
 def test_no_arguments_and_collector_message_score_less():
     assert V.save_version(result(args={}))['quality']['evidence']['arguments'] == 0
     collector = dict(result(rid=2), source='collector message')
-    assert V.save_version(collector)['quality']['evidence']['arguments'] == 7.5
+    assert V.save_version(collector)['quality']['evidence']['arguments'] == 5
 
 
-def test_rank_final_pearl_and_failure_domains():
+@pytest.fixture
+def accurate(monkeypatch):
+    """Answers that matched an answer set and are fresh, so ranking is what is under test."""
+    monkeypatch.setattr(V.DQ, 'accuracy', lambda *a, **k: (25, 'answer set test', []))
+    monkeypatch.setattr(V.DQ, 'freshness', lambda role, text, now=None: (10, 'test', '2026-11-14T09:00'))
+
+
+def test_rank_final_pearl_and_failure_domains(accurate):
     V.save_version(result(rid=1, host='a.caseyjhand.com', latency=200))
     V.save_version(result(rid=2, host='b.caseyjhand.com', latency=250))      # same failure domain: no second place
     V.save_version(result(rid=3, host='fx.other.com', latency=1500))
@@ -76,8 +83,9 @@ def test_role_task_case_scores_the_full_answer():
     else:
         text = case['input']['cve_id'] + ' is not in the CISA KEV catalog.'
     good = V.save_version({**result(rid=9, role='cve.kev', tool='kev', excerpt=text[:20]), 'case': case, 'full_text': text})
-    assert good['judgement']['total'] == 1 and good['case_id'] == case['case_id']
-    assert good['judgement']['passed'] == 1 or good['judgement']['reasons']
+    acc = good['data_quality']['accuracy']
+    assert good['case_id'] == case['case_id'] and acc['source'].startswith('answer set ' + case['case_id'])
+    assert acc['points'] in (0, 25) and (acc['points'] == 25 or acc['reasons'])
 
 
 def test_no_case_for_roles_without_tasks():
@@ -93,7 +101,7 @@ def test_measurement_windows():
     assert not V.quiet_now(at(4, 30)) and V.quiet_now(at(5, 12))
 
 
-def test_one_day_is_provisional_two_days_confirm():
+def test_one_day_is_provisional_two_days_confirm(accurate):
     V.save_version(result(rid=11, latency=200))
     ranked = V.rank(V.latest_versions())[V.canonical('fx.rate')]
     assert ranked['final_pearl'] is None and ranked['provisional_pearl'] == 11
@@ -153,3 +161,35 @@ def test_moving_prices_are_judged_by_range_format_and_time(monkeypatch):
     monkeypatch.setattr(V, 'reference_value', lambda url, ttl=600: None)
     unknown = V.judge('stock.quote.v1', 'AAPL last 231.40 USD as of 16:00', {})
     assert unknown['passed'] == 3 and unknown['not_checked_live']  # no reference: not passed, said so
+
+
+
+def test_data_quality_decides_the_score():
+    """PM 11-14: no answer source -> no accuracy points -> never 85; an unclean answer fails the version."""
+    plain = V.save_version(result(rid=51, role='airport.lookup.v1', tool='airport', excerpt='ICN Incheon International Airport'))
+    assert plain['data_quality']['accuracy']['points'] == 0 and plain['quality']['score'] < V.PASS_MARK
+    demo = V.save_version(result(rid=52, excerpt='[DEMO] sample data: 1 USD = 0.92 EUR on 2026-11-14'))
+    assert demo['outcome'] == 'failed' and 'unclean' in demo['reason']
+    blank = V.save_version({**result(rid=53, role='papers.search.v1', tool='search_papers', excerpt=''),
+                            'full_text': '{"title": "Attention Is All You Need", "authors": [], "year": 2017, "journal": null}'})
+    assert blank['data_quality']['completeness']['blanks'] == 2 and blank['data_quality']['completeness']['points'] < 10
+    assert 'Blank fields: 2' in blank['quality']['text'] and 'Accuracy checked against' in blank['quality']['text']
+
+
+def test_freshness_rules():
+    from scripts import data_quality as DQ
+    now = V.time.mktime((2026, 11, 14, 12, 0, 0, 0, 0, -1))
+    assert DQ.freshness('events.search.v1', 'Festival on 2020-05-15', now)[0] == 0          # 47538: a past date
+    assert DQ.freshness('events.search.v1', 'Concert on 2026-11-20', now)[0] == 10
+    assert DQ.freshness('news.search.v1', 'no date at all', now)[0] == 0
+    assert DQ.freshness('fx.rate.v1', '{"date": "2026-11-13", "rate": 0.92}', now)[0] == 10
+    assert DQ.freshness('airport.lookup.v1', 'ICN', now)[0] == 10                            # fixed facts
+
+
+def test_dynamic_references():
+    from scripts import data_quality as DQ
+    assert DQ.dynamic_match('rate', 0.92, '100 USD = 92.10 EUR', {'amount': 100}, 0.02)
+    assert not DQ.dynamic_match('rate', 0.92, '100 USD = 80 EUR', {'amount': 100}, 0.02)
+    assert DQ.dynamic_match('temperature_c', 8.0, 'Seoul now 10°C, cloudy', None, 3)
+    assert not DQ.dynamic_match('temperature_c', 8.0, 'Seoul now 70°F', None, 3)
+    assert DQ.dynamic_match('latest_version', '5.1.0', 'express 5.1.0 published', None)

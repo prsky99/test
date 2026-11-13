@@ -1,34 +1,11 @@
 {
- "generated": "2026-11-14 04:52",
+ "generated": "2026-11-14 05:00",
  "source": "scripts/report_v2.py (role task test v2)",
  "rank_rule": "quality score (evidence 60 + writing 40), one place per registrable domain; #1 at 85+ is the final pearl, #2-#3 are external fallbacks",
  "roles": {
   "papers.search.v1": {
    "domain": "research",
    "members": [
-    {
-     "resource_id": 34550,
-     "tool": "search_papers",
-     "outcome": "succeeded",
-     "reason": null,
-     "latency_ms": 258,
-     "host": "mcp.cutgpt.app",
-     "registrable_domain": "cutgpt.app",
-     "arguments": {
-      "query": "large language models",
-      "limit": 1
-     },
-     "content_verdict": "passed",
-     "version": 1,
-     "score": 88.0,
-     "domain": "research",
-     "tested": "2026-11-14 04:01",
-     "success_days": 1,
-     "rank": 1,
-     "id": 34550,
-     "name": "CutGPT Research & Fact-Check",
-     "coverage": "worldwide or not stated"
-    },
     {
      "resource_id": 34807,
      "tool": "search_papers",
@@ -41,15 +18,38 @@
       "query": "large language models",
       "limit": 1
      },
-     "content_verdict": "passed",
+     "content_verdict": "no answer source",
      "version": 1,
-     "score": 88.0,
+     "score": 65,
      "domain": "research",
      "tested": "2026-11-14 04:02",
      "success_days": 1,
-     "rank": 2,
+     "rank": 1,
      "id": 34807,
      "name": "Paper Finder",
+     "coverage": "worldwide or not stated"
+    },
+    {
+     "resource_id": 39577,
+     "tool": "search_papers",
+     "outcome": "succeeded",
+     "reason": null,
+     "latency_ms": 70,
+     "host": "mcp.nobleblocks.com",
+     "registrable_domain": "nobleblocks.com",
+     "arguments": {
+      "query": "large language models",
+      "limit": 1
+     },
+     "content_verdict": "no answer source",
+     "version": 1,
+     "score": 65,
+     "domain": "research",
+     "tested": "2026-11-14 04:01",
+     "success_days": 1,
+     "rank": 2,
+     "id": 39577,
+     "name": "com.nobleblocks/nobleblocks-mcp",
      "coverage": "worldwide or not stated"
     },
     {
@@ -65,9 +65,9 @@
       "query": "large language models",
       "per_page": 1
      },
-     "content_verdict": "passed",
+     "content_verdict": "no answer source",
      "version": 1,
-     "score": 86.0,
+     "score": 63,
      "domain": "research",
      "tested": "2026-11-14 04:03",
      "success_days": 1,
@@ -77,33 +77,33 @@
      "coverage": "worldwide or not stated"
     },
     {
-     "resource_id": 39577,
+     "resource_id": 34550,
      "tool": "search_papers",
      "outcome": "succeeded",
      "reason": null,
-     "latency_ms": 70,
-     "host": "mcp.nobleblocks.com",
-     "registrable_domain": "nobleblocks.com",
+     "latency_ms": 258,
+     "host": "mcp.cutgpt.app",
+     "registrable_domain": "cutgpt.app",
      "arguments": {
       "query": "large language models",
       "limit": 1
      },
-     "content_verdict": "partial",
+     "content_verdict": "no answer source",
      "version": 1,
-     "score": 78.0,
+     "score": 61,
      "domain": "research",
      "tested": "2026-11-14 04:01",
      "success_days": 1,
      "rank": 4,
-     "id": 39577,
-     "name": "com.nobleblocks/nobleblocks-mcp",
+     "id": 34550,
+     "name": "CutGPT Research & Fact-Check",
      "coverage": "worldwide or not stated"
     }
    ],
    "final_pearl": null,
-   "provisional_pearl": 34550,
+   "provisional_pearl": null,
    "fallbacks": [
-    34807,
+    39577,
     47151
    ],
    "needs_agentcon_fallback": false
@@ -123,9 +123,9 @@
       "year": 2020,
       "month": 5
      },
-     "content_verdict": "passed",
+     "content_verdict": "no answer source",
      "version": 1,
-     "score": 88.0,
+     "score": 55.0,
      "domain": "events",
      "tested": "2026-11-14 04:01",
      "success_days": 1,
@@ -149,7 +149,7 @@
      },
      "content_verdict": "not run",
      "version": 1,
-     "score": 55,
+     "score": 20,
      "domain": "events",
      "tested": "2026-11-14 04:02",
      "success_days": 0,
@@ -173,7 +173,7 @@
      },
      "content_verdict": "not run",
      "version": 1,
-     "score": 55,
+     "score": 20,
      "domain": "events",
      "tested": "2026-11-14 04:01",
      "success_days": 0,
@@ -184,7 +184,7 @@
     }
    ],
    "final_pearl": null,
-   "provisional_pearl": 47538,
+   "provisional_pearl": null,
    "fallbacks": [],
    "needs_agentcon_fallback": true
   },
@@ -203,9 +203,9 @@
       "country": "KOR",
       "indicator": "population"
      },
-     "content_verdict": "passed",
+     "content_verdict": "no answer source",
      "version": 1,
-     "score": 88.0,
+     "score": 65,
      "domain": "economics",
      "tested": "2026-11-14 04:01",
      "success_days": 1,
@@ -228,7 +228,7 @@
      },
      "content_verdict": "not run",
      "version": 1,
-     "score": 55,
+     "score": 20,
      "domain": "economics",
      "tested": "2026-11-14 04:01",
      "success_days": 0,
@@ -248,7 +248,7 @@
      "arguments": null,
      "content_verdict": "not run",
      "version": 1,
-     "score": 30,
+     "score": 7,
      "domain": "economics",
      "tested": "2026-11-14 04:24",
      "success_days": 0,
@@ -268,7 +268,7 @@
      "arguments": null,
      "content_verdict": "not run",
      "version": 1,
-     "score": 30,
+     "score": 7,
      "domain": "economics",
      "tested": "2026-11-14 04:24",
      "success_days": 0,
@@ -279,7 +279,7 @@
     }
    ],
    "final_pearl": null,
-   "provisional_pearl": 34791,
+   "provisional_pearl": null,
    "fallbacks": [],
    "needs_agentcon_fallback": true
   },
@@ -298,9 +298,9 @@
       "query": "bitcoin",
       "limit": 1
      },
-     "content_verdict": "passed",
+     "content_verdict": "no answer source",
      "version": 1,
-     "score": 88.0,
+     "score": 55,
      "domain": "news",
      "tested": "2026-11-14 04:01",
      "success_days": 1,
@@ -320,7 +320,7 @@
      "arguments": null,
      "content_verdict": "not run",
      "version": 1,
-     "score": 30,
+     "score": 7,
      "domain": "news",
      "tested": "2026-11-14 04:24",
      "success_days": 0,
@@ -331,7 +331,7 @@
     }
    ],
    "final_pearl": null,
-   "provisional_pearl": 147960,
+   "provisional_pearl": null,
    "fallbacks": [],
    "needs_agentcon_fallback": true
   },
@@ -349,9 +349,9 @@
      "arguments": {
       "id": "CVE-2021-44228"
      },
-     "content_verdict": "partial",
+     "content_verdict": "no answer source",
      "version": 1,
-     "score": 78.0,
+     "score": 55,
      "domain": "security",
      "tested": "2026-11-14 04:01",
      "success_days": 1,
@@ -371,7 +371,7 @@
      "arguments": null,
      "content_verdict": "not run",
      "version": 1,
-     "score": 30,
+     "score": 7,
      "domain": "security",
      "tested": "2026-11-14 04:24",
      "success_days": 0,
@@ -390,30 +390,6 @@
    "domain": "finance",
    "members": [
     {
-     "resource_id": 226724,
-     "tool": "convert_currency",
-     "outcome": "succeeded",
-     "reason": null,
-     "latency_ms": 1148,
-     "host": "fxhub.ge",
-     "registrable_domain": "fxhub.ge",
-     "arguments": {
-      "amount": 100,
-      "from": "USD",
-      "to": "EUR"
-     },
-     "content_verdict": "passed",
-     "version": 1,
-     "score": 86.0,
-     "domain": "finance",
-     "tested": "2026-11-14 04:02",
-     "success_days": 1,
-     "rank": 1,
-     "id": 226724,
-     "name": "FXHUB",
-     "coverage": "worldwide or not stated"
-    },
-    {
      "resource_id": 36306,
      "tool": "get_exchange_rate",
      "outcome": "succeeded",
@@ -425,15 +401,38 @@
       "source": "USD",
       "target": "EUR"
      },
-     "content_verdict": "partial",
+     "content_verdict": "no answer source",
      "version": 1,
-     "score": 78.0,
+     "score": 65,
      "domain": "finance",
      "tested": "2026-11-14 04:02",
      "success_days": 1,
-     "rank": 2,
+     "rank": 1,
      "id": 36306,
      "name": "AllRatesToday exchange rates (hosted)",
+     "coverage": "worldwide or not stated"
+    },
+    {
+     "resource_id": 47112,
+     "tool": "fx_get_rate",
+     "outcome": "succeeded",
+     "reason": null,
+     "latency_ms": 166,
+     "host": "exchange-rates.caseyjhand.com",
+     "registrable_domain": "caseyjhand.com",
+     "arguments": {
+      "base_currency": "USD",
+      "quote_currency": "USD"
+     },
+     "content_verdict": "no answer source",
+     "version": 1,
+     "score": 65,
+     "domain": "finance",
+     "tested": "2026-11-14 04:01",
+     "success_days": 1,
+     "rank": 2,
+     "id": 47112,
+     "name": "io.github.cyanheads/exchange-rates-mcp-server",
      "coverage": "worldwide or not stated"
     },
     {
@@ -449,9 +448,9 @@
       "from": "USD",
       "to": "EUR"
      },
-     "content_verdict": "partial",
+     "content_verdict": "no answer source",
      "version": 1,
-     "score": 78.0,
+     "score": 55.0,
      "domain": "finance",
      "tested": "2026-11-14 04:01",
      "success_days": 1,
@@ -461,33 +460,34 @@
      "coverage": "worldwide or not stated"
     },
     {
-     "resource_id": 47112,
-     "tool": "fx_get_rate",
+     "resource_id": 226724,
+     "tool": "convert_currency",
      "outcome": "succeeded",
      "reason": null,
-     "latency_ms": 166,
-     "host": "exchange-rates.caseyjhand.com",
-     "registrable_domain": "caseyjhand.com",
+     "latency_ms": 1148,
+     "host": "fxhub.ge",
+     "registrable_domain": "fxhub.ge",
      "arguments": {
-      "base_currency": "USD",
-      "quote_currency": "USD"
+      "amount": 100,
+      "from": "USD",
+      "to": "EUR"
      },
-     "content_verdict": "failed",
+     "content_verdict": "no answer source",
      "version": 1,
-     "score": 68.0,
+     "score": 53,
      "domain": "finance",
-     "tested": "2026-11-14 04:01",
+     "tested": "2026-11-14 04:02",
      "success_days": 1,
      "rank": 4,
-     "id": 47112,
-     "name": "io.github.cyanheads/exchange-rates-mcp-server",
+     "id": 226724,
+     "name": "FXHUB",
      "coverage": "worldwide or not stated"
     }
    ],
    "final_pearl": null,
-   "provisional_pearl": 226724,
+   "provisional_pearl": null,
    "fallbacks": [
-    36306,
+    47112,
     48762
    ],
    "needs_agentcon_fallback": false
@@ -498,19 +498,19 @@
     {
      "resource_id": 40897,
      "tool": "get_package_profile",
-     "outcome": "succeeded",
-     "reason": null,
+     "outcome": "failed",
+     "reason": "unclean answer: demo or placeholder",
      "latency_ms": 221,
      "host": "tools.somosvelora.com",
      "registrable_domain": "somosvelora.com",
      "arguments": {},
-     "content_verdict": "failed",
+     "content_verdict": "not run",
      "version": 1,
-     "score": 53.0,
+     "score": 10,
      "domain": "developer",
      "tested": "2026-11-14 04:01",
-     "success_days": 1,
-     "rank": 1,
+     "success_days": 0,
+     "rank": null,
      "id": 40897,
      "name": "com.somosvelora/velora",
      "coverage": "worldwide or not stated"
@@ -526,7 +526,7 @@
      "arguments": null,
      "content_verdict": "not run",
      "version": 1,
-     "score": 30,
+     "score": 7,
      "domain": "developer",
      "tested": "2026-11-14 04:24",
      "success_days": 0,
@@ -545,52 +545,6 @@
    "domain": "security",
    "members": [
     {
-     "resource_id": 47161,
-     "tool": "osv_query_package",
-     "outcome": "succeeded",
-     "reason": null,
-     "latency_ms": 325,
-     "host": "osv-advisory.caseyjhand.com",
-     "registrable_domain": "caseyjhand.com",
-     "arguments": {
-      "name": "lodash",
-      "ecosystem": "npm",
-      "version": "4.17.20"
-     },
-     "content_verdict": "passed",
-     "version": 1,
-     "score": 88.0,
-     "domain": "security",
-     "tested": "2026-11-14 04:03",
-     "success_days": 1,
-     "rank": 1,
-     "id": 47161,
-     "name": "io.github.cyanheads/osv-advisory-mcp-server",
-     "coverage": "worldwide or not stated"
-    },
-    {
-     "resource_id": 286623,
-     "tool": "search_vulnerabilities",
-     "outcome": "succeeded",
-     "reason": null,
-     "latency_ms": 472,
-     "host": "threatist.io",
-     "registrable_domain": "threatist.io",
-     "arguments": {
-      "limit": 1
-     },
-     "content_verdict": "partial",
-     "version": 1,
-     "score": 78.0,
-     "domain": "security",
-     "tested": "2026-11-14 04:01",
-     "success_days": 1,
-     "rank": 2,
-     "id": 286623,
-     "name": "Threatist",
-     "coverage": "worldwide or not stated"
-    },
-    {
      "resource_id": 367249,
      "tool": "check_software",
      "outcome": "succeeded",
@@ -601,13 +555,13 @@
      "arguments": {
       "query": "lodash"
      },
-     "content_verdict": "partial",
+     "content_verdict": "no answer source",
      "version": 1,
-     "score": 78.0,
+     "score": 65,
      "domain": "security",
      "tested": "2026-11-14 04:02",
      "success_days": 1,
-     "rank": 3,
+     "rank": 1,
      "id": 367249,
      "name": "Fixlane",
      "coverage": "worldwide or not stated"
@@ -623,23 +577,69 @@
      "arguments": {
       "package": "lodash"
      },
-     "content_verdict": "failed",
+     "content_verdict": "no answer source",
      "version": 1,
-     "score": 68.0,
+     "score": 65,
+     "domain": "security",
+     "tested": "2026-11-14 04:01",
+     "success_days": 1,
+     "rank": 2,
+     "id": 130453,
+     "name": "AgentDiet Real-Time Open-Source Package CVE & GHSA Vulnerability Scanner (OSV.dev)",
+     "coverage": "worldwide or not stated"
+    },
+    {
+     "resource_id": 47161,
+     "tool": "osv_query_package",
+     "outcome": "succeeded",
+     "reason": null,
+     "latency_ms": 325,
+     "host": "osv-advisory.caseyjhand.com",
+     "registrable_domain": "caseyjhand.com",
+     "arguments": {
+      "name": "lodash",
+      "ecosystem": "npm",
+      "version": "4.17.20"
+     },
+     "content_verdict": "no answer source",
+     "version": 1,
+     "score": 63,
+     "domain": "security",
+     "tested": "2026-11-14 04:03",
+     "success_days": 1,
+     "rank": 3,
+     "id": 47161,
+     "name": "io.github.cyanheads/osv-advisory-mcp-server",
+     "coverage": "worldwide or not stated"
+    },
+    {
+     "resource_id": 286623,
+     "tool": "search_vulnerabilities",
+     "outcome": "succeeded",
+     "reason": null,
+     "latency_ms": 472,
+     "host": "threatist.io",
+     "registrable_domain": "threatist.io",
+     "arguments": {
+      "limit": 1
+     },
+     "content_verdict": "no answer source",
+     "version": 1,
+     "score": 61,
      "domain": "security",
      "tested": "2026-11-14 04:01",
      "success_days": 1,
      "rank": 4,
-     "id": 130453,
-     "name": "AgentDiet Real-Time Open-Source Package CVE & GHSA Vulnerability Scanner (OSV.dev)",
+     "id": 286623,
+     "name": "Threatist",
      "coverage": "worldwide or not stated"
     }
    ],
    "final_pearl": null,
-   "provisional_pearl": 47161,
+   "provisional_pearl": null,
    "fallbacks": [
-    286623,
-    367249
+    130453,
+    47161
    ],
    "needs_agentcon_fallback": false
   },
@@ -657,9 +657,9 @@
      "arguments": {
       "title": "Seoul"
      },
-     "content_verdict": "passed",
+     "content_verdict": "no answer source",
      "version": 1,
-     "score": 88.0,
+     "score": 65,
      "domain": "reference",
      "tested": "2026-11-14 04:01",
      "success_days": 1,
@@ -679,9 +679,9 @@
      "arguments": {
       "title": "Seoul"
      },
-     "content_verdict": "passed",
+     "content_verdict": "no answer source",
      "version": 1,
-     "score": 88.0,
+     "score": 65,
      "domain": "reference",
      "tested": "2026-11-14 04:01",
      "success_days": 1,
@@ -692,7 +692,7 @@
     }
    ],
    "final_pearl": null,
-   "provisional_pearl": 47189,
+   "provisional_pearl": null,
    "fallbacks": [
     143970
    ],
@@ -701,29 +701,6 @@
   "weather.forecast.v1": {
    "domain": "weather",
    "members": [
-    {
-     "resource_id": 56036,
-     "tool": "get_forecast",
-     "outcome": "succeeded",
-     "reason": null,
-     "latency_ms": 1471,
-     "host": "met-mcp.met-mcp-worker.workers.dev",
-     "registrable_domain": "met-mcp-worker.workers.dev",
-     "arguments": {
-      "latitude": 37.5665,
-      "longitude": 126.978
-     },
-     "content_verdict": "passed",
-     "version": 1,
-     "score": 86.0,
-     "domain": "weather",
-     "tested": "2026-11-14 04:01",
-     "success_days": 1,
-     "rank": 1,
-     "id": 56036,
-     "name": "io.github.trondbjoroy/met-mcp",
-     "coverage": "worldwide or not stated"
-    },
     {
      "resource_id": 38062,
      "tool": "weather",
@@ -736,15 +713,38 @@
       "lat": 37.5665,
       "lon": 126.978
      },
-     "content_verdict": "partial",
+     "content_verdict": "no answer source",
      "version": 1,
-     "score": 78.0,
+     "score": 55,
      "domain": "weather",
      "tested": "2026-11-14 04:02",
      "success_days": 1,
-     "rank": 2,
+     "rank": 1,
      "id": 38062,
      "name": "get4agent",
+     "coverage": "worldwide or not stated"
+    },
+    {
+     "resource_id": 56036,
+     "tool": "get_forecast",
+     "outcome": "succeeded",
+     "reason": null,
+     "latency_ms": 1471,
+     "host": "met-mcp.met-mcp-worker.workers.dev",
+     "registrable_domain": "met-mcp-worker.workers.dev",
+     "arguments": {
+      "latitude": 37.5665,
+      "longitude": 126.978
+     },
+     "content_verdict": "no answer source",
+     "version": 1,
+     "score": 53,
+     "domain": "weather",
+     "tested": "2026-11-14 04:01",
+     "success_days": 1,
+     "rank": 2,
+     "id": 56036,
+     "name": "io.github.trondbjoroy/met-mcp",
      "coverage": "worldwide or not stated"
     },
     {
@@ -761,7 +761,7 @@
      },
      "content_verdict": "not run",
      "version": 1,
-     "score": 55,
+     "score": 20,
      "domain": "weather",
      "tested": "2026-11-14 04:01",
      "success_days": 0,
@@ -772,9 +772,9 @@
     }
    ],
    "final_pearl": null,
-   "provisional_pearl": 56036,
+   "provisional_pearl": null,
    "fallbacks": [
-    38062
+    56036
    ],
    "needs_agentcon_fallback": true
   }
