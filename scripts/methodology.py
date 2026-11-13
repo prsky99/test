@@ -20,14 +20,9 @@ VERSION = 'v1'
 
 
 def _gate():
-    """Necklace gate values from the gate's own code once it exposes them (운영·SRE); otherwise a pointer only."""
-    try:
-        from agent_market.necklaces import gate_rules  # expected: TOTAL, TOTAL_PASS, ROUND, ROUND_PASS, COMPLETION, P95_MS, ROUND_GAP_HOURS
-        return {'cases_total': gate_rules.TOTAL, 'pass_total': gate_rules.TOTAL_PASS, 'cases_per_round': gate_rules.ROUND,
-                'pass_per_round': gate_rules.ROUND_PASS, 'completion_min': gate_rules.COMPLETION, 'latency_p95_ms': gate_rules.P95_MS,
-                'hours_between_rounds': gate_rules.ROUND_GAP_HOURS, 'delta_over_best_single': '> 0', 'answer_sets': 'withheld'}
-    except Exception:
-        return {'status': 'values pending: the gate does not expose its constants in code yet', 'answer_sets': 'withheld'}
+    """Gate numbers from agent_market/necklaces/gate_rules (운영·SRE 897baf3a); held-out sets are not in it."""
+    from agent_market.necklaces import gate_rules
+    return {**gate_rules.summary(), 'answer_sets': 'withheld'}
 
 
 def _freshness(rule):

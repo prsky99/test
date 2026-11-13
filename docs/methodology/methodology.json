@@ -82,7 +82,32 @@
   "reranked": "daily"
  },
  "necklace_gate": {
-  "status": "values pending: the gate does not expose its constants in code yet",
+  "necklace": {
+   "held_out_cases": 60,
+   "pass_total": 57,
+   "rounds": 2,
+   "cases_per_round": 30,
+   "pass_per_round": 28,
+   "round_gap_hours": 4,
+   "completion": 0.95,
+   "p95_ms": 5000,
+   "delta": "> 0"
+  },
+  "retest": {
+   "pass_rate": 0.95,
+   "immediate_hold_below": 0.8
+  },
+  "substitute": {
+   "held_out_cases": 30,
+   "pass": 29
+  },
+  "report_v2": {
+   "score": 85,
+   "musts": [
+    "accuracy_check",
+    "clean_answer"
+   ]
+  },
   "answer_sets": "withheld"
  },
  "roles": [

@@ -22,9 +22,12 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 OUT = ROOT / 'exports/pearls'
 GROUPS = ROOT / 'reports/pearls-2026-11-14/role_groups.json'
 RAG_TASKS = ROOT / 'agent_market/necklaces/role_tasks/role-tasks-rag-v1.jsonl'
+SIGNING = ROOT / 'gateway-data/signing'        # 운영·SRE deploy/EVIDENCE_SIGNING.md: keys doc, <keyid>.pem, envelopes/
+METHODOLOGY_VERSION = 'v1'
 BOARD = ROOT / 'logs/ops/status-board.md'
 RULES = 'v2-2026-11-14'
-PASS_MARK = 85
+from agent_market.necklaces import gate_rules  # noqa: E402  (운영·SRE 897baf3a: one source for the gate numbers)
+PASS_MARK = gate_rules.REPORT_SCORE
 CONFIRM_DAYS = 2            # PM 11-14: a final pearl needs successes on two different days; before that it is provisional
 DAY = 86400
 ROLE_DAILY_LIMIT = 120      # PM 11-14 (charter 0): 80 new candidates + 40 retests a day; 60 when refusals pass 5%
@@ -381,8 +384,62 @@ def save_version(result, now=None):
     days = success_days(r['resource_id'], r['role'], r['tool'], now, extra=tested if r['outcome'] == 'succeeded' else None)
     r['quality'] = quality(r, days)
     stamp = time.strftime('%Y%m%d-%H%M%S', time.localtime(tested))
-    (folder / f"{stamp}-{re.sub(r'[^A-Za-z0-9_.-]', '_', r['tool'])[:60]}.json").write_text(json.dumps(r, indent=1, ensure_ascii=False))
+    name = f"{stamp}-{re.sub(r'[^A-Za-z0-9_.-]', '_', r['tool'])[:60]}"
+    r['signed_report'] = sign_version(r, case, name)
+    (folder / f'{name}.json').write_text(json.dumps(r, indent=1, ensure_ascii=False))
     return r
+
+
+def signing_key(now=None):
+    """The private key of the newest key valid now whose PEM file exists (11-17 운영 키); None when there is none."""
+    from datetime import datetime, timezone
+    from agent_market import evidence_signing as ES
+    try:
+        doc = json.loads((SIGNING / 'agentvalcon-keys.json').read_text())
+    except (OSError, ValueError):
+        return None
+    when = datetime.fromtimestamp(now or time.time(), timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    revoked = {r.get('keyid') for r in doc.get('revoked', [])}
+    for key in sorted(doc.get('keys', []), key=lambda k: k.get('not_before', ''), reverse=True):
+        path = SIGNING / f"{key.get('keyid')}.pem"
+        if key.get('keyid') in revoked or not (key.get('not_before', '') <= when <= key.get('not_after', '')) or not path.exists():
+            continue
+        try:
+            return ES.load_private_key(path)
+        except Exception:
+            return None
+    return None
+
+
+def evidence_for(r, case):
+    """The signed fields of a test_report (EVIDENCE_SIGNING.md 1): no withheld answers, the response only as sha256."""
+    import hashlib
+    acc = (r.get('data_quality') or {}).get('accuracy') or {}
+    source = {'source': acc.get('source') or 'none'}
+    if case:
+        source['answer_set_sha256'] = hashlib.sha256(json.dumps(case, sort_keys=True).encode('utf-8')).hexdigest()
+    return {'kind': 'test_report', 'resource_id': r['resource_id'], 'report_version': r.get('version'),
+            'role': r['role'], 'tool': r['tool'], 'input': r.get('arguments') or {}, 'outcome': r['outcome'],
+            'response_sha256': r.get('response_hash'),
+            'score_items': {'score': r['quality']['score'], 'data_quality': r['quality'].get('data'),
+                            'evidence': r['quality'].get('evidence'), 'report_text': r['quality'].get('writing')},
+            'accuracy_source': source, 'data_as_of': ((r.get('data_quality') or {}).get('freshness') or {}).get('newest'),
+            'methodology_version': METHODOLOGY_VERSION,
+            'tested_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(r['tested']))}
+
+
+def sign_version(r, case, name):
+    """A DSSE envelope for this version under gateway-data/signing/envelopes/test_report/, or None without a key."""
+    key = signing_key()
+    if key is None:
+        return None
+    from agent_market import evidence_signing as ES
+    envelope = ES.sign(evidence_for(r, case), key)
+    folder = SIGNING / 'envelopes' / 'test_report' / str(r['resource_id']) / r['role']
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / f'{name}.dsse.json'
+    path.write_text(json.dumps(envelope, indent=1))
+    return str(path.relative_to(ROOT))
 
 
 def rescore():

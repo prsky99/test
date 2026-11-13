@@ -213,3 +213,26 @@ def test_same_time_references():
     places = ['120 km SSE of Tobelo, Indonesia', '45 km W of Ovalle, Chile']
     assert DQ.dynamic_match('usgs_places', places, 'M5.4 near Tobelo, Indonesia') and not DQ.dynamic_match('usgs_places', places, 'M5.0 Fiji')
     assert DQ.dynamic_match('scorecard', 7.2, 'OpenSSF score 7.4/10', None, 0.5)
+
+
+def test_versions_are_signed_when_a_key_exists(tmp_path, monkeypatch):
+    """운영·SRE EVIDENCE_SIGNING.md: DSSE over the JCS evidence; without a key nothing is signed."""
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from agent_market import evidence_signing as ES
+    monkeypatch.setattr(V, 'SIGNING', tmp_path / 'signing')
+    assert V.save_version(result(rid=61))['signed_report'] is None
+    key = Ed25519PrivateKey.generate()
+    entry = ES.key_entry(key, '2026-01-01T00:00:00Z', '2030-01-01T00:00:00Z')
+    (tmp_path / 'signing').mkdir()
+    pem = tmp_path / 'signing' / f"{entry['keyid']}.pem"
+    pem.write_bytes(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
+    pem.chmod(0o600)
+    doc = {'keys': [entry], 'revoked': []}
+    (tmp_path / 'signing' / 'agentvalcon-keys.json').write_text(__import__('json').dumps(doc))
+    monkeypatch.setattr(V, 'ROOT', tmp_path)
+    v = V.save_version(result(rid=62))
+    envelope = __import__('json').loads((tmp_path / v['signed_report']).read_text())
+    body = ES.verify(envelope, doc)
+    assert body['kind'] == 'test_report' and body['resource_id'] == 62 and body['methodology_version'] == 'v1'
+    assert body['response_sha256'] == v['response_hash'] and 'excerpt' not in body
