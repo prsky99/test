@@ -70,7 +70,7 @@ def agents(tmp_path, routes, calls=None, clock=None, snapshot=None):
 
 # ------------------------------------------------------------------ catalog and contracts
 def test_tools_are_read_only_and_use_the_slot_contracts():
-    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard", "site-readiness"}
+    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard", "site-readiness", "wiki-grounding"}
     for agent_id, spec in SPECS.items():
         tool = tool_spec(agent_id)
         c = contract(spec["contract"])
@@ -1169,3 +1169,34 @@ def test_site_requests_pass_the_public_address_preflight(monkeypatch):
     assert seen == ["https://rebinding.example.com/robots.txt"]
     with pytest.raises(net.SourceError, match="not allowed"):
         net.get("https://127.0.0.1/robots.txt", limiters=limiters(clock, clock.sleep), seconds=2, limit=10, any_site=True)
+
+
+# ------------------------------------------------------------------ web.grounding (Wikipedia, extractive)
+def test_wiki_grounding_quotes_the_best_sentences_with_links(tmp_path):
+    calls = []
+    pages = [{"index": 1, "title": "Python (programming language)", "fullurl": "https://en.wikipedia.org/wiki/Python_(programming_language)",
+              "touched": "2026-11-13T07:06:55Z",
+              "extract": "Python is a high-level, general-purpose programming language. Guido van Rossum began working on "
+                         "Python in the late 1980s. It is widely used."},
+             {"index": 2, "title": "Monty Python", "fullurl": "https://en.wikipedia.org/wiki/Monty_Python",
+              "extract": "Monty Python were a British comedy troupe."}]
+    a, _ = agents(tmp_path, {"https://en.wikipedia.org/w/api.php": httpx.Response(200, json={"query": {"pages": pages}})}, calls)
+    env = a.execute("wiki-grounding", {"question": "Who created the Python programming language?"})
+    out = env["result"]
+    assert out["answer"].startswith("From Wikipedia (quoted, not generated): ")
+    assert "Guido van Rossum began working on Python in the late 1980s." in out["answer"]
+    assert out["sources"][0] == "https://en.wikipedia.org/wiki/Python_(programming_language)"
+    from agent_market.fallback_agents.agents import search_terms
+    assert search_terms("What is the capital city of South Korea?") == "South Korea"
+    assert out["source"].startswith("Wikipedia (CC BY-SA 4.0")
+    assert "gsrsearch=Who+created+the+Python+programming+language" in calls[0] and "maxlag=5" in calls[0]
+
+
+def test_wiki_grounding_without_a_match_is_not_found(tmp_path):
+    a, _ = agents(tmp_path, {"https://en.wikipedia.org/w/api.php": httpx.Response(200, json={"query": {"pages": []}})})
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("wiki-grounding", {"question": "What is the qwzx of plorb?"})
+    assert err.value.code == "not_found"
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("wiki-grounding", {"question": "who is the what?"})
+    assert err.value.code == "invalid_input"

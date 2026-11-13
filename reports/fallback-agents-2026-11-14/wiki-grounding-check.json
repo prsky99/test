@@ -1,0 +1,167 @@
+{
+ "note": "self check, not a gold set: answer word present in the quoted sentences (3 sentences)",
+ "role_tasks": {
+  "wiki-grounding": {
+   "passed": 2,
+   "cases": 2,
+   "rows": [
+    {
+     "case_id": "web-canberra",
+     "pass": true,
+     "why": []
+    },
+    {
+     "case_id": "web-python-creator",
+     "pass": true,
+     "why": []
+    }
+   ]
+  }
+ },
+ "questions_20": [
+  {
+   "q": "What is the capital of Japan?",
+   "want": "Tokyo",
+   "hit": true,
+   "ms": 665,
+   "answer": "From Wikipedia (quoted, not generated): Tokyo is the country's capital and largest city. [Japan] Japan is an island country in East Asia. [Japan] Located in the Pacific Ocean off the northeast coast of the Asian mainland, it is bordered to the west by the Sea of Japan, the Sea of Okhotsk in the north, and the East China Sea in the south. [Japan]"
+  },
+  {
+   "q": "Who painted the Mona Lisa?",
+   "want": "Leonardo",
+   "hit": true,
+   "ms": 629,
+   "answer": "From Wikipedia (quoted, not generated): The Mona Lisa is a half-length portrait painting by the Italian artist Leonardo da Vinci. [Mona Lisa] The theft and subsequent recovery in 1914 generated unprecedented publicity for an art theft, and led to the publication of many cultural depictions such as the 1915 opera Mona Lisa, two early 1930s films (The Theft of the Mona Lisa and Arsène Lupin), and th"
+  },
+  {
+   "q": "When did World War II end?",
+   "want": "1945",
+   "hit": true,
+   "ms": 826,
+   "answer": "From Wikipedia (quoted, not generated): World War II, or the Second World War (1 September 1939 – 2 September 1945), was a global conflict between two coalitions: the Allies and the Axis powers. [World War II] World War II began on 1 September 1939, when Nazi Germany, under Adolf Hitler, invaded Poland, after which the United Kingdom and France declared war on Germany. [World War II] World War II "
+  },
+  {
+   "q": "Who developed the theory of relativity?",
+   "want": "Einstein",
+   "hit": true,
+   "ms": 694,
+   "answer": "From Wikipedia (quoted, not generated): Relativity: The Special and the General Theory (German: Über die spezielle und die allgemeine Relativitätstheorie) is a popular science book by Albert Einstein. [Relativity: The Special and the General Theory] Though some of these criticisms had the support of reputable scientists, Einstein's theory of relativity is now accepted by the scientific community. "
+  },
+  {
+   "q": "What is the largest ocean on Earth?",
+   "want": "Pacific",
+   "hit": false,
+   "ms": 720,
+   "answer": "From Wikipedia (quoted, not generated): The ocean is the body of salt water that covers approximately 70.8% of Earth. [Ocean] The ocean contains 97% of Earth's water and is the primary component of Earth's hydrosphere, acting as a huge reservoir of heat for Earth's energy budget, as well as for its carbon cycle and water cycle, forming the basis for climate and weather patterns worldwide. [Ocean] "
+  },
+  {
+   "q": "Who founded Microsoft?",
+   "want": "Gates",
+   "hit": true,
+   "ms": 695,
+   "answer": "From Wikipedia (quoted, not generated): Founded in 1975 by Bill Gates and Paul Allen to market BASIC interpreters for the Altair 8800, Microsoft rose to dominate the PC operating system market with MS-DOS in the mid-1980s, followed by Windows. [Microsoft] A Big Tech company, Microsoft is the largest software company by revenue, one of the most valuable public companies, and one of the most valuabl"
+  },
+  {
+   "q": "When was the Eiffel Tower built?",
+   "want": "1889",
+   "hit": true,
+   "ms": 663,
+   "answer": "From Wikipedia (quoted, not generated): It is named after the engineer Gustave Eiffel, whose company designed and built the tower from 1887 to 1889. [Eiffel Tower] The Eiffel Tower is the most visited monument with an entrance fee in the world: 6.91 million people ascended it in 2015. [Eiffel Tower] During its construction, the Eiffel Tower surpassed the Washington Monument to become by far the ta"
+  },
+  {
+   "q": "What is the chemical symbol for gold?",
+   "want": "Au",
+   "hit": true,
+   "ms": 668,
+   "answer": "From Wikipedia (quoted, not generated): Gold is a chemical element; its chemical symbol is Au (from Latin aurum) and atomic number 79. [Gold] Chemical symbols are the abbreviations used in chemistry, mainly for chemical elements, but also for functional groups, chemical compounds, and other entities. [Chemical symbol] Element symbols for chemical elements, also known as atomic symbols, normally co"
+  },
+  {
+   "q": "Who wrote Hamlet?",
+   "want": "Shakespeare",
+   "hit": true,
+   "ms": 703,
+   "answer": "From Wikipedia (quoted, not generated): Hamlet () is a tragedy written by William Shakespeare sometime between 1599 and 1601. [Hamlet] Hamlet is considered among the \"most powerful and influential tragedies in the English language\", with a story capable of \"seemingly endless retelling and adaptation by others\". [Hamlet] Hamlet is a 1996 epic historical drama film written and directed by Kenneth Br"
+  },
+  {
+   "q": "What is the capital of Canada?",
+   "want": "Ottawa",
+   "hit": true,
+   "ms": 711,
+   "answer": "From Wikipedia (quoted, not generated): Its capital is Ottawa and its three largest metropolitan areas are Toronto, Montreal, and Vancouver. [Canada] Canada is a country in North America. [Canada] Indigenous peoples have continuously inhabited what is now Canada for thousands of years. [Canada]"
+  },
+  {
+   "q": "Who invented the telephone?",
+   "want": "Bell",
+   "hit": true,
+   "ms": 721,
+   "answer": "From Wikipedia (quoted, not generated): Those patents were used by the American Bell Telephone Company and the Bell System, although they had also acquired critical microphone patents from Emile Berliner. [The Telephone Cases] A telephone, commonly shortened to phone, is a telecommunications device that enables two or more users to conduct a conversation when they are too far apart to be easily he"
+  },
+  {
+   "q": "When did the Titanic sink?",
+   "want": "1912",
+   "hit": true,
+   "ms": 679,
+   "answer": "From Wikipedia (quoted, not generated): RMS Titanic sank in the North Atlantic Ocean on 15 April 1912. [Sinking of the Titanic] Lifeboats played a crucial role during the sinking of the Titanic on 14–15 April 1912. [Lifeboats of the Titanic] On the night of 14–15 April 1912 in the North Atlantic, the passenger liner Titanic collided with an iceberg and sank. [Iceberg that sank the Titanic]"
+  },
+  {
+   "q": "What is the longest river in Africa?",
+   "want": "Nile",
+   "hit": true,
+   "ms": 727,
+   "answer": "From Wikipedia (quoted, not generated): The Congo River, formerly also known as the Zaire River, is the second-longest river in Africa, shorter only than the Nile, as well as the third largest river in the world by discharge volume, following the Amazon and Ganges–Brahmaputra rivers. [Congo River] The Congo–Lualaba–Luvua–Luapula–Chambeshi River system has an overall length of 4,700 km (2,900 mi), "
+  },
+  {
+   "q": "Who discovered penicillin?",
+   "want": "Fleming",
+   "hit": true,
+   "ms": 588,
+   "answer": "From Wikipedia (quoted, not generated): A number of natural penicillins have been discovered, but only two purified compounds are in clinical use: penicillin G (intramuscular or intravenous use) and penicillin V (given by mouth). [Penicillin] Penicillin was discovered in 1928 by the Scottish physician Alexander Fleming as a crude extract of P. [Penicillin] In the United States, 10% of the populati"
+  },
+  {
+   "q": "What is the capital of Brazil?",
+   "want": "Brasília",
+   "hit": true,
+   "ms": 662,
+   "answer": "From Wikipedia (quoted, not generated): Brazil is a federation composed of 26 states and a Federal District, which hosts the capital, Brasília. [Brazil] Brazil, officially the Federative Republic of Brazil, is the largest country in South America. [Brazil] Brazil has the largest Lusophone population in the world and is the only Portuguese-speaking country in the Americas, where it is the official "
+  },
+  {
+   "q": "Who founded Apple Inc.?",
+   "want": "Jobs",
+   "hit": true,
+   "ms": 760,
+   "answer": "From Wikipedia (quoted, not generated): Founded in 1976 as Apple Computer Company by Steve Jobs, Steve Wozniak and Ronald Wayne, the company was incorporated by Jobs and Wozniak as Apple Computer, Inc. [Apple Inc.] The company was founded to market Wozniak's Apple I computer. [Apple Inc.] Apple introduced the Lisa in 1983 and the Macintosh in 1984, popularizing graphical user interfaces navigated "
+  },
+  {
+   "q": "When did humans first land on the Moon?",
+   "want": "1969",
+   "hit": true,
+   "ms": 769,
+   "answer": "From Wikipedia (quoted, not generated): The first human-made object to touch the Moon was Luna 2 in 1959, and the first crewed mission to land on the Moon was Apollo 11 in 1969. [Moon landing] All crewed missions to the Moon were conducted by the Apollo program, with the last departing in December 1972. [Moon landing] After Luna 24 in 1976, there were no soft landings—landings without significant "
+  },
+  {
+   "q": "What language is spoken in Brazil?",
+   "want": "Portuguese",
+   "hit": true,
+   "ms": 731,
+   "answer": "From Wikipedia (quoted, not generated): Portuguese is the official and national language of Brazil, being widely spoken by nearly all of its population. [Languages of Brazil] Hunsrik (also known as Riograndenser Hunsrückisch) is a Germanic language also spoken in Argentina, Paraguay and Venezuela, which derived from the Hunsrückisch dialect. [Languages of Brazil] In 2005, no indigenous language wa"
+  },
+  {
+   "q": "Who created Linux?",
+   "want": "Torvalds",
+   "hit": true,
+   "ms": 670,
+   "answer": "From Wikipedia (quoted, not generated): Linux ( LIN-uuks) is a family of free and open-source software Unix-like operating systems based on the Linux kernel, which was first released on 17 September 1991 by Linus Torvalds. [Linux] distro), which includes the kernel alongside supporting system software and libraries developed by third parties—such as GNU, Red Hat, and X.Org—to create a complete ope"
+  },
+  {
+   "q": "What is the capital of South Korea?",
+   "want": "Seoul",
+   "hit": false,
+   "ms": 765,
+   "answer": "From Wikipedia (quoted, not generated): South Korea’s economy demonstrates robust high growth and structural stability, underpinned by world-class technological innovation and a thriving capital market. [Economy of South Korea] South Korea, officially the Republic of Korea (ROK), is a country in East Asia. [South Korea] South Korea endured a series of dictatorships punctuated by coups, revolutions"
+  }
+ ],
+ "summary": {
+  "hits": 18,
+  "cases": 20
+ }
+}

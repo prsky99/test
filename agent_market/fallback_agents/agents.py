@@ -39,14 +39,15 @@ MAX_AGE = {"nvd-cve": 6 * 3600, "cve-org": 24 * 3600, "cisa-kev": 24 * 3600, "gi
            "sec-edgar": 24 * 3600, "wikipedia-summary": 24 * 3600, "arxiv-search": 48 * 3600,
            "worldbank-indicator": 24 * 3600, "met-weather": 3 * 3600,
            "public-holidays": 400 * 86400, "holiday-calendar": 400 * 86400, "sec-filings": 24 * 3600,
-           "software-incident": 6 * 3600, "scorecard": 24 * 3600, "site-readiness": 24 * 3600}  # rules age from the library release; update the pin at least yearly
+           "software-incident": 6 * 3600, "scorecard": 24 * 3600, "site-readiness": 24 * 3600,
+           "wiki-grounding": 24 * 3600}  # rules age from the library release; update the pin at least yearly
 TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "github-advisory": (3600, 6 * 3600),
        "epss": (6 * 3600, 48 * 3600), "package-registry": (3600, 6 * 3600), "depsdev-package": (6 * 3600, 24 * 3600),
        "gleif-lei": (6 * 3600, 24 * 3600), "sec-edgar": (6 * 3600, 24 * 3600), "sec-tickers": (6 * 3600, 24 * 3600),
        "wikipedia-summary": (6 * 3600, 24 * 3600), "arxiv-search": (24 * 3600, 48 * 3600),
        "worldbank-indicator": (6 * 3600, 24 * 3600), "sec-filings": (3600, 24 * 3600),
        "software-incident": (3600, 6 * 3600), "scorecard": (6 * 3600, 24 * 3600),
-       "site-readiness": (6 * 3600, 24 * 3600)}  # (serve from cache without asking, longest a cached copy may serve)
+       "site-readiness": (6 * 3600, 24 * 3600), "wiki-grounding": (6 * 3600, 24 * 3600)}  # (serve from cache without asking, longest a cached copy may serve)
 KEV_TTL, KEV_MAX_STALE = 3600, 24 * 3600
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 PACKAGE = re.compile(r"(?:@[a-z0-9][a-z0-9._~-]*/)?[A-Za-z0-9][A-Za-z0-9._~-]*")
@@ -931,6 +932,47 @@ class FallbackAgents:
         (out, as_of), cache = self._cached(("site-readiness", domain), TTL["site-readiness"], live, remaining)
         return out, cache, False, {domain: as_of}
 
+    def _wiki_grounding(self, args, remaining):
+        question = " ".join(args["question"].split())
+        words = [w for w in re.findall(r"[a-z0-9]+", question.lower()) if w not in STOPWORDS | QUESTION_WORDS]
+        if not words:
+            raise FallbackUnavailable("invalid_input", "Ask a factual question with some content words.")
+
+        def live(rem):
+            raw = self._get_json("https://en.wikipedia.org/w/api.php", rem, limit=512 * 1024, params={
+                "action": "query", "generator": "search", "gsrsearch": search_terms(question), "gsrlimit": 3,
+                "prop": "extracts|info", "exintro": 1, "explaintext": 1, "inprop": "url", "redirects": 1,
+                "format": "json", "formatversion": 2, "maxlag": 5})
+            pages = sorted((p for p in (raw.get("query") or {}).get("pages") or []
+                            if isinstance(p, dict) and p.get("extract") and str(p.get("fullurl", "")).startswith(
+                                "https://en.wikipedia.org/wiki/")), key=lambda p: p.get("index", 99))
+            if not pages:
+                raise FallbackUnavailable("not_found", "Wikipedia has no article matching this question.")
+            return pages, max((_text(p.get("touched"), 40) for p in pages), default=None)
+        (pages, as_of), cache = self._cached(("wiki-grounding", " ".join(words)), TTL["wiki-grounding"], live, remaining)
+        cues = [re.compile(pattern, re.I) for trigger, pattern in ANSWER_CUES if re.search(trigger, question, re.I)]
+        scored = []
+        for rank, page in enumerate(pages):
+            title = str(page.get("title", ""))
+            title_words = set(re.findall(r"[a-z0-9]+", re.sub(r"\(.*?\)", "", title).lower())) - STOPWORDS
+            # The article about the asked subject itself beats a derived one ("... (2005 film)").
+            topic = (1.5 if title_words and title_words <= set(words) else 0) - (1.0 if "(" in title else 0)
+            for n, sentence in enumerate(re.split(r"(?<=[.!?])\s+", " ".join(page["extract"].split()))[:20]):
+                hits = len(set(words) & set(re.findall(r"[a-z0-9]+", sentence.lower())))
+                # A sentence that carries the kind of fact asked for (a maker, a year, a measure) counts double.
+                bonus = 2 * sum(bool(c.search(sentence)) for c in cues)
+                if hits:
+                    scored.append((-(hits + bonus + topic - 0.5 * rank), rank, n, sentence, page))
+        if not scored:
+            raise FallbackUnavailable("not_found", "No Wikipedia lead sentence matches this question.")
+        scored.sort(key=lambda x: x[:3])
+        best = scored[:3]
+        quotes = " ".join(f"{s[3]} [{s[4]['title']}]" for s in best)
+        sources = list(dict.fromkeys(s[4]["fullurl"] for s in best))
+        answer = (f"From Wikipedia (quoted, not generated): {quotes}")[:4000]
+        return {"answer": answer, "sources": sources, "source": "Wikipedia (CC BY-SA 4.0, Wikipedia contributors)"}, \
+            cache, False, {"Wikipedia": as_of}
+
     # ---------------------------------------------------------------- usage
     def _usage(self, agent_id, envelope, code, started):
         line = {"at": _now_iso(self.utc_now()), "agent": agent_id if agent_id in SPECS else "unknown",
@@ -1169,6 +1211,25 @@ def country_name(code: str, countries: dict) -> str:
 
 
 AI_CRAWLERS = ("GPTBot", "ClaudeBot", "anthropic-ai", "Google-Extended", "PerplexityBot", "CCBot")
+
+ANSWER_CUES = (  # (question pattern, sentence pattern) for extractive answers
+    (r"\bwho\b", r"\b(?:created|designed|developed|invented|founded|wrote|written|authored|conceived|began|by)\b"),
+    (r"\bwhen\b|\bwhat year\b", r"\b(?:1[0-9]{3}|20[0-9]{2})\b"),
+    (r"\bhow (?:tall|high|long|big|deep|far|heavy|old|many|much)\b",
+     r"\b\d[\d,.]*\s?(?:m|km|metres|meters|feet|ft|kg|tonnes|years|°C|°F|%|percent|million|billion)\b"),
+    (r"\bhow (?:tall|high)\b", r"\b(?:height|elevation|tall|high)\b"),
+    (r"\bcapital\b", r"\bcapital\b"),
+    (r"\bwhere\b", r"\b(?:located|lies|situated|in|on)\s+(?:the\s+)?[A-Z][a-z]+"),
+)
+def search_terms(question: str) -> str:
+    """Wikipedia search text: the question itself, except "capital (city) of X" searches X (the full question
+    ranks "Capital punishment in X" first)."""
+    m = re.search(r"\bcapital(?: city)? of (.+?)\??$", question, re.I)
+    return (m[1] if m else question.rstrip("?"))[:300]
+
+
+QUESTION_WORDS = frozenset("what who whom whose which when where why how does did do was were is are can could "
+                           "the city name".split())
 
 STOPWORDS = frozenset("a an and are as at be by for from in is it of on or the to with all you we our this that "
                       "using via towards".split())

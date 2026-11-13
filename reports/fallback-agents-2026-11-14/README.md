@@ -23,6 +23,7 @@
 | `software-incident` (`find_fix_guidance`) | cve-incident-brief 수정 안내 자리, `software.incident.v1` | GitHub Advisory + NVD 스냅샷 | 계약 입력 2/3(lodash·CVE-2021-44228), 고정 과제 0/2(xz-utils·log4j 같은 프로그램 이름은 범위 밖) | 0.9~1.2 s | 목걸이는 CVE id로 물어 지장 없음 |
 | `scorecard` (`get_scorecard`) | 패키지 위험, `package.risk.v1` | OpenSSF Scorecard 원 API | 고정 과제 1/1(실측 비교는 허용 목록 밖이라 not checked), 계약 입력 1/1 | 0.1 s | 정답 세트 요청 |
 | `site-readiness` (`check_site_files`) | website-ai-readiness(예비 목걸이), `website.ai_readiness.v1` | 대상 사이트의 robots.txt·llms.txt·sitemap.xml | 고정 과제 2/2 | 0.6~2.5 s | 정답 세트 요청 |
+| `wiki-grounding` (`answer_from_wikipedia`) | topic-evidence-brief 웹 근거 자리, `web.grounding.v1` | 영어 Wikipedia 검색 + 첫 문단 | 고정 과제 2/2, 자체 점검 20문항 18/20 | p95 0.8 s | 정답 세트 요청 |
 | `github-advisory` (`list_package_advisories`) | package-risk-audit 취약점 자리, `package.advisories.v1` | GitHub Advisory Database(reviewed) | 1차 27/30 → 범위 직접 판정으로 고친 뒤 **30/30**(05:36 재측정), 고정 과제 3/3 | 1,010 ms / 1,412 ms | 관문 신청 가능 |
 
 - 계약 시험 입력(`test_inputs`) 3건씩: nvd-cve·cve-org·cisa-kev 9/9 통과(`contract-test-inputs.json`). 고정 과제(role-tasks-v1): nvd-cve 3/3, cisa-kev 3/3, cve-org 3/3, package-registry 2/2, depsdev-package 2/2.
@@ -129,6 +130,11 @@
 - 파일 하나가 406 등으로 실패해도 그 파일 신호에 이유를 남기고 계속합니다. 세 파일 모두 연결이 안 될 때만 실패합니다.
 - 참고: 우리 사이트(agentconcierge.biz)는 100점이지만 llms.txt 제목이 아직 옛 이름 "Agent Concierge"입니다(성장·유통 몫).
 
+### 2-12. 웹 근거 답변(Wikipedia 한정, 추출형)
+- 생성 모델을 쓰지 않습니다. Wikipedia 검색 한 번으로 상위 3개 문서의 첫 문단을 받고, 질문 단어와 겹치는 문장 3개를 그대로 인용해 링크와 함께 답합니다("quoted, not generated"). 근거는 Wikipedia뿐이라고 설명·출처에 적습니다(CC BY-SA 4.0).
+- 질문 유형 단서: who → created·developed·founded·wrote 등, when → 연도, how tall/high/long → 숫자+단위·height·elevation, where → "in/on + 고유명사", capital → "capital". 문서 제목이 질문 주제와 같으면 가산, 괄호로 구분된 파생 문서(영화 등)는 감점. "capital of X"는 X로 검색합니다(질문 그대로면 "Capital punishment in X"가 먼저 나옴).
+- 자체 점검 20문항 18/20(`wiki-grounding-check.json`). 놓친 2건: 가장 큰 대양(일반 "Ocean" 문서가 먼저), 한국 수도(국가 문서 첫 20문장 안에서 수도 문장을 못 고름). 규칙을 이 20문항에 더 맞추지 않았습니다. 이 자리의 주 멤버는 외부 진주(50972·276982)이고 이것은 마지막 대체입니다.
+
 ## 3. 관문 신청 묶음 (deploy/NECKLACE_GATE.md 10절 대비)
 
 | 조건 | 상태 | 근거 |
@@ -192,7 +198,7 @@
 ## 6. 시험·재현
 
 ```bash
-nice -n 10 .venv-tests/bin/python -m pytest -q tests/test_fallback_agents.py     # 88 passed (네트워크 없음)
+nice -n 10 .venv-tests/bin/python -m pytest -q tests/test_fallback_agents.py     # 90 passed (네트워크 없음)
 .venv/bin/python -m agent_market.fallback_agents.nvd_sync --full                  # 스냅샷 첫 빌드
 .venv/bin/python -m agent_market.fallback_agents.gold_check nvd-cve cisa-kev --out /tmp/x.json
 ```

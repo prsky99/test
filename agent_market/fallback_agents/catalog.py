@@ -225,6 +225,14 @@ SPECS = {
         "sources": [SITE],
         "rate": "0.3 s apart and at most 30 a minute per website, cached 6 hours; files robots.txt disallows are not read",
     },
+    "wiki-grounding": {
+        "name": "AgentValCon Wikipedia Grounded Answer", "tool": "answer_from_wikipedia", "contract": "web.grounding.v1",
+        "description": "Answer a factual question with sentences quoted from the lead sections of the best-matching "
+                       "English Wikipedia articles, with their links. Extractive only: no generated text, and Wikipedia "
+                       "is the only source; read-only.",
+        "sources": [WIKIPEDIA],
+        "rate": "one search request per question, 5 per second at most, cached 6 hours",
+    },
 }
 
 
