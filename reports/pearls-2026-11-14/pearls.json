@@ -1,0 +1,973 @@
+{
+ "generated": "2026-11-14 03:45",
+ "definition": "PM 11-14 05:5x strict: grade A, not quarantined/review, healthy now, >=3 health checks in 7 days with 0 failures, trial call ok within 7 days, latest successful test report with evidence_scope=execution. Tool-definition fingerprint (운영·SRE) pending.",
+ "count": 33,
+ "pearls": [
+  {
+   "id": 33328,
+   "kind": "mcp",
+   "name": "ai.getvda/rssa",
+   "host": "hub.rssa.getvda.ai",
+   "url": "https://hub.rssa.getvda.ai/mcp",
+   "category": "agent_infra",
+   "eval_score": 89.6,
+   "tools": [
+    "rssa_read_feed",
+    "rssa_read_group",
+    "rssa_validate",
+    "rssa_board_profile",
+    "rssa_board_post",
+    "rssa_board_changes",
+    "rssa_board_thread",
+    "rssa_board_react",
+    "rssa_board_edit",
+    "rssa_board_delete"
+   ],
+   "description": "Read and verify signed RSS-A agent feeds; post, reply and react on the RSS-A Agent Network board.",
+   "execution_report": {
+    "id": 21479,
+    "slug": "report-mcp-6187c385a4534c13bfd385a6883a866c",
+    "tool": "rssa_board_changes",
+    "at": "2026-11-12 16:06",
+    "latency_ms": 374.0,
+    "metadata_tool": false
+   }
+  },
+  {
+   "id": 33722,
+   "kind": "mcp",
+   "name": "Popdot AI",
+   "host": "popdot.ai",
+   "url": "https://popdot.ai/api/mcp",
+   "category": "finance_crypto",
+   "eval_score": 92.7,
+   "tools": [
+    "try_domain",
+    "answer_trial_canary",
+    "search_domains",
+    "get_price_quote",
+    "check_availability",
+    "rent_domain",
+    "upgrade_trial"
+   ],
+   "description": "Rent verified subdomains by the hour, day, or month. Free 24h trials, x402 USDC on Base.",
+   "execution_report": {
+    "id": 21496,
+    "slug": "report-mcp-d4dfbc399c9d4f4080e22704f2663577",
+    "tool": "search_domains",
+    "at": "2026-11-13 02:37",
+    "latency_ms": 753.0,
+    "metadata_tool": false
+   }
+  },
+  {
+   "id": 34856,
+   "kind": "mcp",
+   "name": "Quotalis",
+   "host": "quotalis.app",
+   "url": "https://quotalis.app/mcp",
+   "category": "web_search",
+   "eval_score": 86.1,
+   "tools": [
+    "get_benchmark_latest",
+    "get_benchmark_history",
+    "audit_site"
+   ],
+   "description": "Weekly benchmark of AI search visibility tools, plus on-demand AI-readiness site audits.",
+   "execution_report": {
+    "id": 21497,
+    "slug": "report-mcp-d3e3cecaf9274e899b73d6b7e876c291",
+    "tool": "get_benchmark_history",
+    "at": "2026-11-13 02:37",
+    "latency_ms": 317.0,
+    "metadata_tool": false
+   }
+  },
+  {
+   "id": 38634,
+   "kind": "mcp",
+   "name": "NUM",
+   "host": "itsnum.com",
+   "url": "https://itsnum.com/mcp",
+   "category": "travel_maps_weather",
+   "eval_score": 89.1,
+   "tools": [
+    "num_search_places",
+    "num_list_destinations",
+    "num_get_place",
+    "num_submit_business",
+    "num_submit_promo",
+    "num_list_submissions",
+    "num_search_photos",
+    "num_quote_photo",
+    "num_license_photo",
+    "num_photo_wallet"
+   ],
+   "description": "Real places for your agent: search 2.5M+ travel places, list businesses, license place photos.",
+   "execution_report": {
+    "id": 21480,
+    "slug": "report-mcp-002001d9b0b24861893668802fc71c14",
+    "tool": "num_list_destinations",
+    "at": "2026-11-12 16:06",
+    "latency_ms": 165.0,
+    "metadata_tool": false
+   }
+  },
+  {
+   "id": 47538,
+   "kind": "mcp",
+   "name": "FestivalFinder",
+   "host": "festival-finder.magicteams.ai",
+   "url": "https://festival-finder.magicteams.ai/mcp",
+   "category": "productivity",
+   "eval_score": 92.6,
+   "tools": [
+    "list_festivals",
+    "next_festival",
+    "festival_details",
+    "festivals_in_month"
+   ],
+   "description": "Computed Hindu festival dates: Diwali, Holi, Navratri, more.",
+   "execution_report": {
+    "id": 21484,
+    "slug": "report-mcp-63efbff17dfd4b41a17e69baf5c2a9c4",
+    "tool": "list_festivals",
+    "at": "2026-11-12 16:07",
+    "latency_ms": 239.0,
+    "metadata_tool": false
+   }
+  },
+  {
+   "id": 47609,
+   "kind": "mcp",
+   "name": "Open Economics",
+   "host": "open-economics-data.knbf982hkn.chatgpt.site",
+   "url": "https://open-economics-data.knbf982hkn.chatgpt.site/api/mcp",
+   "category": "finance_crypto",
+   "eval_score": 90.7,
+   "tools": [
+    "search_official_data",
+    "describe_official_dataset",
+    "get_bcb_series",
+    "get_bcb_schema",
+    "get_ibge_schema",
+    "get_ibge_data",
+    "get_siconfi_schema",
+    "get_siconfi_data",
+    "get_comexstat_data",
+    "get_anp_fuel_prices",
+    "get_epe_electricity_consumption",
+    "get_mte_formal_employment_schema",
+    "get_mte_formal_employment",
+    "get_cvm_investment_funds_schema",
+    "get_tesouro_rtn_schema",
+    "get_tesouro_rtn",
+    "get_tesouro_dpf_schema",
+    "get_tesouro_dpf",
+    "get_cvm_investment_funds"
+   ],
+   "description": "Discover, resolve, and query official Brazilian economic data with semantic search and provenance.",
+   "execution_report": {
+    "id": 21513,
+    "slug": "report-mcp-e60b0a053f914477b494fbc4f407650c",
+    "tool": "search_official_data",
+    "at": "2026-11-14 02:38",
+    "latency_ms": 68.0,
+    "metadata_tool": false
+   }
+  },
+  {
+   "id": 47857,
+   "kind": "mcp",
+   "name": "SODAX Builders MCP",
+   "host": "builders.sodax.com",
+   "url": "https://builders.sodax.com/mcp",
+   "category": "finance_crypto",
+   "eval_score": 86.4,
+   "tools": [
+    "sodax_get_supported_chains",
+    "sodax_get_swap_tokens",
+    "sodax_get_transaction",
+    "sodax_get_user_transactions",
+    "sodax_get_volume",
+    "sodax_get_volume_stats",
+    "sodax_get_orderbook",
+    "sodax_get_money_market_assets",
+    "sodax_get_user_position",
+    "sodax_get_partners",
+    "sodax_get_token_supply",
+    "sodax_get_all_config",
+    "sodax_get_relay_chain_id_map",
+    "sodax_get_all_chains_configs",
+    "sodax_get_hub_assets",
+    "sodax_get_money_market_tokens",
+    "sodax_get_money_market_reserve_assets",
+    "sodax_get_amm_positions",
+    "sodax_get_amm_pool_candles",
+    "sodax_get_intent"
+   ],
+   "description": "Cross-network DeFi API data, AMM analytics, and SDK docs for 17+ networks.",
+   "execution_report": {
+    "id": 21514,
+    "slug": "report-mcp-75bf7e26d8b14adcabe72348d2e1aec3",
+    "tool": "docs_health",
+    "at": "2026-11-14 02:38",
+    "latency_ms": 1337.0,
+    "metadata_tool": true
+   }
+  },
+  {
+   "id": 50972,
+   "kind": "mcp",
+   "name": "Brave Search",
+   "host": "gateway.pipeworx.io",
+   "url": "https://gateway.pipeworx.io/brave-search/mcp",
+   "category": "web_search",
+   "eval_score": 87.4,
+   "tools": [
+    "ask_pipeworx",
+    "ask_pipeworx_beta",
+    "ask_pipeworx_grounded",
+    "search_within",
+    "deep_research",
+    "discover_tools",
+    "resolve_entity",
+    "compare_entities",
+    "subscribe",
+    "unsubscribe",
+    "list_subscriptions",
+    "recent_alerts",
+    "entity_profile",
+    "recent_changes",
+    "validate_claim",
+    "company_facts",
+    "company_register_search",
+    "scan_dependency",
+    "bet_research",
+    "polymarket_arbitrage"
+   ],
+   "description": "Brave Search MCP — independent web index (no Google/Bing dependency)",
+   "execution_report": {
+    "id": 21515,
+    "slug": "report-mcp-5663d9d4873b44ad90e185a2f7cc6392",
+    "tool": "kalshi_weather_edge",
+    "at": "2026-11-14 02:38",
+    "latency_ms": 556.0,
+    "metadata_tool": false
+   }
+  },
+  {
+   "id": 56056,
+   "kind": "mcp",
+   "name": "HOTLIKESHOP",
+   "host": "hotlikeshop.com",
+   "url": "https://hotlikeshop.com/api/mcp",
+   "category": "social",
+   "eval_score": 88.8,
+   "tools": [
+    "search_products",
+    "get_product",
+    "list_categories",
+    "list_category_products",
+    "get_2fa",
+    "check_live_facebook",
+    "check_health_bulk",
+    "deep_inspect",
+    "recommend_products",
+    "topup_guide",
+    "how_to_start",
+    "best_sellers",
+    "latest_products",
+    "compare_products",
+    "similar_products",
+    "get_my_balance",
+    "quote_order",
+    "buy_product",
+    "check_order_status",
+    "submit_complaint"
+   ],
+   "description": "Search & buy MMO/social accounts, proxies & digital services from HOTLIKESHOP in your AI chat.",
+   "execution_report": {
+    "id": 21500,
+    "slug": "report-mcp-cd69a9876786469098f162811eac48b4",
+    "tool": "list_categories",
+    "at": "2026-11-13 02:37",
+    "latency_ms": 457.0,
+    "metadata_tool": true
+   }
+  },
+  {
+   "id": 58874,
+   "kind": "mcp",
+   "name": "Sleeper Hit Studio — Public Discovery",
+   "host": "sleeperhit.studio",
+   "url": "https://sleeperhit.studio/api/mcp",
+   "category": "docs_knowledge",
+   "eval_score": 85.2,
+   "tools": [
+    "search",
+    "fetch",
+    "find_writers",
+    "get_writer_profile",
+    "find_projects",
+    "get_project_summary",
+    "list_writer_assets",
+    "list_project_assets",
+    "get_public_pitch_assets",
+    "get_access_info"
+   ],
+   "description": "Browse published podcasts, video shows, and screenplays. Read-only public discovery.",
+   "execution_report": {
+    "id": 21501,
+    "slug": "report-mcp-6a7ff2fe05324edd8b2a60ee0bc29fb5",
+    "tool": "find_writers",
+    "at": "2026-11-13 02:37",
+    "latency_ms": 416.0,
+    "metadata_tool": false
+   }
+  },
+  {
+   "id": 79081,
+   "kind": "mcp",
+   "name": "AUN — Agent Upgrade Network",
+   "host": "a-upgradenet.com",
+   "url": "https://a-upgradenet.com/mcp",
+   "category": "finance_crypto",
+   "eval_score": 91.5,
+   "tools": [
+    "list_products",
+    "get_payment_requirements",
+    "find_agent_services",
+    "find_open_requests",
+    "get_agent_credential",
+    "check_tool_schemas",
+    "scan_memory_secrets",
+    "check_brand_agent_readiness",
+    "get_brand_plan_checkout"
+   ],
+   "description": "Audit AI agents' tool calls, planning and memory; Base on-chain data; pay per call via x402.",
+   "execution_report": {
+    "id": 21503,
+    "slug": "report-mcp-ed7f4a67dbb74897ab4b645bfb874a76",
+    "tool": "find_agent_services",
+    "at": "2026-11-13 02:37",
+    "latency_ms": 242.0,
+    "metadata_tool": false
+   }
+  },
+  {
+   "id": 85834,
+   "kind": "mcp",
+   "name": "CourtlyGo",
+   "host": "courtlygo.com",
+   "url": "https://courtlygo.com/mcp",
+   "category": "public_legal",
+   "eval_score": 92.2,
+   "tools": [
+    "search_courts",
+    "get_court",
+    "list_coverage"
+   ],
+   "description": "Tennis, pickleball and padel courts from OpenStreetMap: surface, lighting, access, fee. Read-only.",
+   "execution_report": {
+    "id": 21518,
+    "slug": "report-mcp-899837bff9a340bfa7d4dd02e3afdb01",
+    "tool": "list_coverage",
+    "at": "2026-11-14 02:39",
+    "latency_ms": 187.0,
+    "metadata_tool": true
+   }
+  },
+  {
+   "id": 85893,
+   "kind": "mcp",
+   "name": "genMC – AI Minecraft studio",
+   "host": "genmc.app",
+   "url": "https://genmc.app/api/mcp",
+   "category": "docs_knowledge",
+   "eval_score": 88.9,
+   "tools": [
+    "genmc_pair",
+    "genmc_status",
+    "genmc_call",
+    "genmc_docs"
+   ],
+   "description": "Minecraft builds and skins made by your AI agent, live in your browser tab. Export .schem.",
+   "execution_report": {
+    "id": 21488,
+    "slug": "report-mcp-b56438c81e5e4c049d89173f69aed4c4",
+    "tool": "genmc_docs",
+    "at": "2026-11-12 16:07",
+    "latency_ms": 766.0,
+    "metadata_tool": true
+   }
+  },
+  {
+   "id": 100769,
+   "kind": "mcp",
+   "name": "MnogoReels",
+   "host": "mcp.mnogo-reels.ru",
+   "url": "https://mcp.mnogo-reels.ru/mcp",
+   "category": "media_generation",
+   "eval_score": 88.2,
+   "tools": [
+    "get_account",
+    "get_options_guide",
+    "check_video_source",
+    "quote_clip_job",
+    "create_clip_job",
+    "get_clip_job",
+    "list_clip_jobs",
+    "recut_clip_job",
+    "retry_clip_job",
+    "create_transcription",
+    "get_transcription",
+    "create_article",
+    "get_article",
+    "search_broll",
+    "get_broll_asset",
+    "list_packs",
+    "get_pack",
+    "create_youtube_thumbnails",
+    "get_youtube_thumbnails"
+   ],
+   "description": "Turn long videos into captioned vertical shorts, transcripts and articles with MnogoReels.",
+   "execution_report": {
+    "id": 21504,
+    "slug": "report-mcp-655081ee85424325a0dd5f7ee2e0cc94",
+    "tool": "get_account",
+    "at": "2026-11-14 02:38",
+    "latency_ms": 298.0,
+    "metadata_tool": true
+   }
+  },
+  {
+   "id": 107583,
+   "kind": "mcp",
+   "name": "Tyndall AI",
+   "host": "www.tyndallai.com",
+   "url": "https://www.tyndallai.com/api/mcp",
+   "category": "media_generation",
+   "eval_score": 86.2,
+   "tools": [
+    "list_models",
+    "list_capabilities",
+    "get_pricing"
+   ],
+   "description": "Read-only catalog of Tyndall AI image and video models, tools, and pricing.",
+   "execution_report": {
+    "id": 21489,
+    "slug": "report-mcp-2d1eac2001b645728ac31a826cbb8416",
+    "tool": "list_capabilities",
+    "at": "2026-11-13 02:36",
+    "latency_ms": 338.0,
+    "metadata_tool": true
+   }
+  },
+  {
+   "id": 115024,
+   "kind": "mcp",
+   "name": "Things To Do API",
+   "host": "api.thingstodoapi.com",
+   "url": "https://api.thingstodoapi.com/mcp",
+   "category": "web_search",
+   "eval_score": 85.5,
+   "tools": [
+    "search_events",
+    "get_event",
+    "list_coverage"
+   ],
+   "description": "Search local events in plain words: shows, pop-ups, markets, classes, with times, venues, prices.",
+   "execution_report": {
+    "id": 21505,
+    "slug": "report-mcp-8cc7fdd6925b484ab66cc5ba3b1cba5f",
+    "tool": "list_coverage",
+    "at": "2026-11-14 02:38",
+    "latency_ms": 702.0,
+    "metadata_tool": true
+   }
+  },
+  {
+   "id": 124295,
+   "kind": "mcp",
+   "name": "Mode VC Atlas: TCV Partner & Fund Intelligence",
+   "host": "modevc.com",
+   "url": "https://modevc.com/api/mcp/firm-tcv",
+   "category": "web_search",
+   "eval_score": 87.9,
+   "tools": [
+    "get_distribution_moat_score",
+    "get_venture_chart_of_the_day",
+    "search_charts",
+    "get_chart_data",
+    "search_investors",
+    "get_investor_details",
+    "get_mode_vc_thesis_and_criteria",
+    "calc_safe_dilution",
+    "calc_83b_qsbs_delaware",
+    "calc_term_sheet_waterfall",
+    "calc_burn_multiple_runway",
+    "calc_saas_metrics",
+    "calc_llm_inference_cost",
+    "calc_fundraising_readiness",
+    "calc_cofounder_equity",
+    "calc_shopify_fundraising",
+    "get_new_raises",
+    "get_firm_filings",
+    "get_daily_ai_raises",
+    "apply_to_mode_vc"
+   ],
+   "description": "Query partner roster, headquarters (California), sector focus, and fund benchmarks for TCV in.",
+   "execution_report": {
+    "id": 21490,
+    "slug": "report-mcp-d8568ef2c03c40b887a9ebf1671f50db",
+    "tool": "calc_83b_qsbs_delaware",
+    "at": "2026-11-13 02:36",
+    "latency_ms": 2151.0,
+    "metadata_tool": false
+   }
+  },
+  {
+   "id": 127562,
+   "kind": "mcp",
+   "name": "Casimo Research — casino terms & changes",
+   "host": "casimo.org",
+   "url": "https://casimo.org/mcp",
+   "category": "docs_knowledge",
+   "eval_score": 86.0,
+   "tools": [
+    "search_brands",
+    "get_brand",
+    "list_recent_events",
+    "get_payout_sample",
+    "list_conversations",
+    "get_conversation",
+    "get_missing_proof",
+    "get_knowledge_loss",
+    "get_source_map",
+    "get_public_receipt",
+    "get_market_watch",
+    "get_amoe_source"
+   ],
+   "description": "Source-backed US casino conditions, actual observed changes and explicit data limitations.",
+   "execution_report": {
+    "id": 21491,
+    "slug": "report-mcp-71e26b683d4d49e5b722d8c4bfed291a",
+    "tool": "get_knowledge_loss",
+    "at": "2026-11-13 02:36",
+    "latency_ms": 437.0,
+    "metadata_tool": false
+   }
+  },
+  {
+   "id": 141727,
+   "kind": "mcp",
+   "name": "Imperium MCP Gateway — Universal 490+ Tool Discovery, Safe-Proxy & Router",
+   "host": "mcp-gateway.agentdiet.dev",
+   "url": "https://mcp-gateway.agentdiet.dev/mcp",
+   "category": "finance_crypto",
+   "eval_score": 93.9,
+   "tools": [
+    "search_x402_mcp_marketplace",
+    "execute_marketplace_tool",
+    "execute_workflow_bundle",
+    "get_agent_wallet_status"
+   ],
+   "description": "Single-connection MCP & A2A gateway indexing 490+ verified tools with x402 & MPP settlement.",
+   "execution_report": {
+    "id": 21492,
+    "slug": "report-mcp-d0f15731be0c4144b09d98a252101e8f",
+    "tool": "get_agent_wallet_status",
+    "at": "2026-11-13 02:36",
+    "latency_ms": 219.0,
+    "metadata_tool": false
+   }
+  },
+  {
+   "id": 142402,
+   "kind": "mcp",
+   "name": "Dmitry Voluntary Support",
+   "host": "dmitry-agent-appeal.orangeslug16.chatgpt.site",
+   "url": "https://dmitry-agent-appeal.orangeslug16.chatgpt.site/agent-mcp",
+   "category": "finance_crypto",
+   "eval_score": 85.5,
+   "tools": [
+    "get_appeal",
+    "get_open_tasks",
+    "get_crypto_support",
+    "submit_offer",
+    "get_receipt"
+   ],
+   "description": "Read a voluntary personal appeal, USDC receiving details, and submit private proposals.",
+   "execution_report": {
+    "id": 21506,
+    "slug": "report-mcp-a08043897ccc4fbca0abd7d35c354a7f",
+    "tool": "get_appeal",
+    "at": "2026-11-14 02:38",
+    "latency_ms": 959.0,
+    "metadata_tool": false
+   }
+  },
+  {
+   "id": 156012,
+   "kind": "mcp",
+   "name": "DouxProcess Directory",
+   "host": "douxprocess.directory",
+   "url": "https://douxprocess.directory/mcp",
+   "category": "education_culture",
+   "eval_score": 86.0,
+   "tools": [
+    "find_businesses",
+    "get_business",
+    "verify_license",
+    "list_categories",
+    "ask",
+    "request_contact",
+    "request_service",
+    "license_history",
+    "watch_licenses",
+    "verify_business",
+    "watch_business",
+    "request_quotes",
+    "book_estimate"
+   ],
+   "description": "Is a US business licensed, bonded and insured today? From the government record. Free, no paid rank.",
+   "execution_report": {
+    "id": 21493,
+    "slug": "report-mcp-3d7332d27a6242a88560d31b77bbcb03",
+    "tool": "find_businesses",
+    "at": "2026-11-13 02:36",
+    "latency_ms": 992.0,
+    "metadata_tool": false
+   }
+  },
+  {
+   "id": 224120,
+   "kind": "mcp",
+   "name": "heidi.living furnished stays",
+   "host": "heidi.living",
+   "url": "https://heidi.living/mcp",
+   "category": "web_search",
+   "eval_score": 86.1,
+   "tools": [
+    "list_regions",
+    "application_link",
+    "faq"
+   ],
+   "description": "Furnished monthly stays in Los Angeles: regions, application links, answers. Read-only, no sign-in.",
+   "execution_report": {
+    "id": 21474,
+    "slug": "report-mcp-bfad912538cd4c5c82eca278f0d3fa3c",
+    "tool": "application_link",
+    "at": "2026-11-12 16:05",
+    "latency_ms": 165.0,
+    "metadata_tool": false
+   }
+  },
+  {
+   "id": 233543,
+   "kind": "mcp",
+   "name": "ComputePrep",
+   "host": "mcp.computeprep.com",
+   "url": "https://mcp.computeprep.com/mcp",
+   "category": "other",
+   "eval_score": 88.9,
+   "tools": [
+    "get_daily_drill",
+    "submit_drill_answer",
+    "get_drill_hint",
+    "get_practice_drill"
+   ],
+   "description": "Daily verified quant drill for IBPS, SBI and SSC exams: graded answers, hints, worked solutions.",
+   "execution_report": {
+    "id": 21507,
+    "slug": "report-mcp-0abad68d48a743e9bb132341edf2df28",
+    "tool": "get_daily_drill",
+    "at": "2026-11-14 02:38",
+    "latency_ms": 645.0,
+    "metadata_tool": false
+   }
+  },
+  {
+   "id": 249728,
+   "kind": "mcp",
+   "name": "Draw Schedule: multifamily construction financing",
+   "host": "multifamilyconstruction.loan",
+   "url": "https://multifamilyconstruction.loan/mcp",
+   "category": "public_legal",
+   "eval_score": 89.8,
+   "tools": [
+    "compare_construction_options",
+    "size_construction_loan",
+    "get_construction_market",
+    "get_build_timeline"
+   ],
+   "description": "Apartment construction loans: HUD vs bank vs fund rules, sizing, Census starts and build times.",
+   "execution_report": {
+    "id": 21494,
+    "slug": "report-mcp-61f1cf8824774e01b583a8ad05a6a379",
+    "tool": "compare_construction_options",
+    "at": "2026-11-13 02:37",
+    "latency_ms": 224.0,
+    "metadata_tool": false
+   }
+  },
+  {
+   "id": 252258,
+   "kind": "mcp",
+   "name": "UNIALL RWA Index",
+   "host": "api.uniall.co",
+   "url": "https://api.uniall.co/v1/agent/mcp",
+   "category": "finance_crypto",
+   "eval_score": 88.6,
+   "tools": [
+    "find_assets",
+    "compare_underlying",
+    "get_asset_summary",
+    "check_transferability",
+    "get_index_stats",
+    "check_eligibility",
+    "screen_eligible_assets"
+   ],
+   "description": "Sourced RWA index: find assets, AUM, issuers, transfer standards on 30+ chains.",
+   "execution_report": {
+    "id": 21476,
+    "slug": "report-mcp-c4ce9c014d5545f383232f70e2b3bc39",
+    "tool": "find_assets",
+    "at": "2026-11-12 16:06",
+    "latency_ms": 5220.0,
+    "metadata_tool": false
+   }
+  },
+  {
+   "id": 252990,
+   "kind": "mcp",
+   "name": "FBA Prep Finder",
+   "host": "fbaprepfinder.com",
+   "url": "https://fbaprepfinder.com/api/mcp/",
+   "category": "commerce_marketing",
+   "eval_score": 91.6,
+   "tools": [
+    "search_prep_centers",
+    "get_prep_center",
+    "get_directory_summary"
+   ],
+   "description": "Search verified Amazon FBA prep centers in the US, UK, Germany and Canada. Read-only, no auth.",
+   "execution_report": {
+    "id": 21509,
+    "slug": "report-mcp-b1085bc8decc47f8b046b073c21db7c0",
+    "tool": "get_directory_summary",
+    "at": "2026-11-14 02:38",
+    "latency_ms": 374.0,
+    "metadata_tool": true
+   }
+  },
+  {
+   "id": 276982,
+   "kind": "mcp",
+   "name": "Base L2 Transaction Simulator & Wallet Drain Guard",
+   "host": "ceadigital.io",
+   "url": "https://ceadigital.io/mcp/tx-simulate",
+   "category": "finance_crypto",
+   "eval_score": 88.2,
+   "tools": [
+    "gcp_catalog_search",
+    "vault_knowledge_search",
+    "sec_edgar_cik_lookup",
+    "github_repo_pulse",
+    "security_cve_audit",
+    "package_health_pulse",
+    "fdic_bank_health",
+    "openalex_citation_graph",
+    "usgs_seismic_hazard",
+    "dexscreener_token_audit",
+    "npi_medical_registry",
+    "crtsh_cert_recon",
+    "epss_exploit_score",
+    "gleif_lei_kyb",
+    "cfpb_complaints",
+    "usaspending_awards",
+    "depsdev_openssf_scorecard",
+    "nyfed_sofr_reference_rates",
+    "cisa_kev_exploited_vulns",
+    "corporate_kyb_and_risk_dossier"
+   ],
+   "description": "Pre-execution Base eth_call/eth_estimateGas simulator & ERC-20 approve drain detector.",
+   "execution_report": {
+    "id": 21495,
+    "slug": "report-mcp-cd77940e6219447a9caa9136ce6b29da",
+    "tool": "cisa_kev_exploited_vulns",
+    "at": "2026-11-13 02:37",
+    "latency_ms": 612.0,
+    "metadata_tool": false
+   }
+  },
+  {
+   "id": 278531,
+   "kind": "mcp",
+   "name": "RWA Leads",
+   "host": "rwaleads.com",
+   "url": "https://rwaleads.com/api/mcp",
+   "category": "web_search",
+   "eval_score": 88.5,
+   "tools": [
+    "search_signals",
+    "get_signal_brief"
+   ],
+   "description": "Scored RWA, tokenization and family-office intent signals with source URLs. x402 pay-per-call.",
+   "execution_report": {
+    "id": 21477,
+    "slug": "report-mcp-07e9d919cafa4c8b95580375161a967f",
+    "tool": "search_signals",
+    "at": "2026-11-12 16:06",
+    "latency_ms": 295.0,
+    "metadata_tool": false
+   }
+  },
+  {
+   "id": 305726,
+   "kind": "mcp",
+   "name": "Bramvia: Business Central & Dynamics NAV",
+   "host": "bramvia.net",
+   "url": "https://bramvia.net/mcp",
+   "category": "health_science",
+   "eval_score": 90.8,
+   "tools": [
+    "search_bramvia_knowledge",
+    "get_bramvia_article",
+    "check_nav_support_status",
+    "estimate_migration",
+    "check_deca_obligation",
+    "estimate_bridge_to_cloud_savings",
+    "check_compliance_deadlines",
+    "assess_erp_health",
+    "find_profit_leaks",
+    "find_business_central_partner",
+    "get_bramvia_services",
+    "request_contact"
+   ],
+   "description": "Dynamics 365 Business Central & NAV: migration cost, NAV end of support, SII/Verifactu/KSeF, partner",
+   "execution_report": {
+    "id": 21510,
+    "slug": "report-mcp-dac9a8e4779749948c8116590b070da9",
+    "tool": "check_compliance_deadlines",
+    "at": "2026-11-14 02:38",
+    "latency_ms": 325.0,
+    "metadata_tool": false
+   }
+  },
+  {
+   "id": 359307,
+   "kind": "mcp",
+   "name": "Amaltash Investment & Retirement Calculators",
+   "host": "tools.amaltash.com",
+   "url": "https://tools.amaltash.com/mcp",
+   "category": "trading_derivatives",
+   "eval_score": 86.3,
+   "tools": [
+    "plan_recurring_investment",
+    "list_assets",
+    "replay_past_investing",
+    "sp500_since_date",
+    "retirement_plan",
+    "safe_spending",
+    "compound_interest",
+    "net_worth_check",
+    "crash_impact",
+    "drawdown_recovery",
+    "sequence_risk",
+    "position_size",
+    "dca_vs_lump_sum",
+    "tbill_ladder",
+    "search_stocks",
+    "card_event"
+   ],
+   "description": "Compound interest, investment, retirement, CD, S&P 500 and DCA calculators with charts.",
+   "execution_report": {
+    "id": 21511,
+    "slug": "report-mcp-05c2f0b455df4fe19c6c120c6ce4fa8f",
+    "tool": "list_assets",
+    "at": "2026-11-14 02:38",
+    "latency_ms": 229.0,
+    "metadata_tool": false
+   }
+  },
+  {
+   "id": 367249,
+   "kind": "mcp",
+   "name": "Fixlane",
+   "host": "fixlane.poparecon.com",
+   "url": "https://fixlane.poparecon.com/mcp",
+   "category": "security",
+   "eval_score": 89.8,
+   "tools": [
+    "check_software",
+    "get_fix_prompt",
+    "latest_incidents",
+    "get_digest",
+    "check_inventory"
+   ],
+   "description": "Known security incidents in developer software, with reviewed fix procedures.",
+   "execution_report": {
+    "id": 21473,
+    "slug": "report-mcp-66a8176d43fc480b988d92bab5271907",
+    "tool": "latest_incidents",
+    "at": "2026-11-12 15:50",
+    "latency_ms": 391.0,
+    "metadata_tool": false
+   }
+  },
+  {
+   "id": 380532,
+   "kind": "mcp",
+   "name": "NHLA Liberty Ratings",
+   "host": "api.nhliberty.org",
+   "url": "https://api.nhliberty.org/mcp",
+   "category": "dev_tools",
+   "eval_score": 87.5,
+   "tools": [
+    "grade_key",
+    "legislator_record",
+    "legislator_votes",
+    "legislators_for_town"
+   ],
+   "description": "Liberty Ratings for every New Hampshire state legislator since 2006, and who represents a town.",
+   "execution_report": {
+    "id": 21499,
+    "slug": "report-mcp-4bddc51828f04e478be1b2ed2093811c",
+    "tool": "grade_key",
+    "at": "2026-11-13 02:37",
+    "latency_ms": 509.0,
+    "metadata_tool": false
+   }
+  },
+  {
+   "id": 392189,
+   "kind": "mcp",
+   "name": "ChineseWorkSheet — Vector Hanzi Grid Geometry, Stroke Order & HSK Analyzer",
+   "host": "chineseworksheet.com",
+   "url": "https://chineseworksheet.com/api/mcp",
+   "category": "data_utility",
+   "eval_score": 93.2,
+   "tools": [
+    "calculate_worksheet_grid_geometry",
+    "lookup_chinese_stroke_order_rules",
+    "analyze_hsk_vocabulary_level",
+    "convert_pinyin_tone_format",
+    "lookup_kangxi_radical_info",
+    "recommend_chinese_practice_pack"
+   ],
+   "description": "Calculate Tian Zi Ge grids, decompose Hanzi strokes, grade HSK 3.0 words & convert Pinyin tones.",
+   "execution_report": {
+    "id": 21481,
+    "slug": "report-mcp-747b3400358849c4b4f99c8c56cf0a34",
+    "tool": "analyze_hsk_vocabulary_level",
+    "at": "2026-11-12 16:06",
+    "latency_ms": 355.0,
+    "metadata_tool": false
+   }
+  }
+ ],
+ "work_tool_count": 25,
+ "note": "metadata_tool=true: the execution report called an account/docs/coverage/category tool, which proves the connection but not the task value; such a pearl needs a work-tool execution report."
+}
