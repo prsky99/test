@@ -119,10 +119,49 @@ def test_the_window_grows_while_rounds_are_quick_and_shrinks_when_slow(adoption,
     core, *_ = adoption
     events = core.events
     assert events.window == events_module.WINDOW_START == 200
-    for _ in range(10):
+    for _ in range(30):
         events._paced(0.1, events.window, 1, 0, 0)
-    assert events.window == events_module.WINDOW_MAX == 500
-    events._paced(3.0, events.window, 1, 0, 0)
-    assert events.window == 250
-    events._paced(3.0, events.window, 1, 0, 0)
+    assert events.window == events_module.WINDOW_MAX == 2000    # 11-14 plan A2 (was 500)
+    events._paced(3.5, events.window, 1, 0, 0)
+    assert events.window == 1000
+    for _ in range(3):
+        events._paced(3.5, events.window, 1, 0, 0)
     assert events.window == 200                                 # never below the start
+
+
+def test_time_budgeted_rounds_and_tick_catch_up_publish_exactly_what_one_row_at_a_time_publishes(adoption, monkeypatch):
+    """11-14 (PM 03:1x, plan A2): a round evaluates until its time budget or EVAL_MAX, and the tick runs more rounds while
+    a round fills its window. The published events, ids, sequence and publications equal the one-by-one way."""
+    core, visitor, ids, *_ = adoption
+    store = core.front.store
+    backlog(core, ids)
+    start = snapshot(store)
+    drain(core.events, limit=1, window=1)
+    before = outcome(store)
+    for budget in (0.0, 10.0):                     # one evaluation a round (budget spent at once) and no time limit
+        restore(store, start)
+        drain(core.events, budget=budget)
+        assert outcome(store) == before, budget
+    restore(store, start)
+    monkeypatch.setattr(events_module, 'WINDOW_START', 4)
+    events = core.events
+    events.window = 4                              # a small window, so the backlog fills it and the tick goes on
+    ticks = 0
+    while store.query("SELECT 1 FROM adoption_changes WHERE status='pending' LIMIT 1"):
+        events.catch_up(rounds=8, budget=10.0)
+        ticks += 1
+        assert ticks < 100
+    assert outcome(store) == before
+    assert ticks == 1                              # one tick settled the whole backlog in several rounds
+
+
+def test_a_round_stops_evaluating_when_its_time_budget_is_spent(adoption, monkeypatch):
+    core, visitor, ids, *_ = adoption
+    store = core.front.store
+    backlog(core, ids)
+    clock = iter(range(0, 10_000, 5))              # every reading of the clock is 5 s later
+    monkeypatch.setattr(events_module.time, 'monotonic', lambda: next(clock))
+    core.events.publish(budget=1.0)
+    evaluated = {r['resource_id'] for r in store.query(
+        "SELECT resource_id FROM adoption_changes WHERE status IN ('published','ignored') AND payload IS NULL")}
+    assert len(evaluated) == 1                      # the first evaluation always runs; the budget stops the rest
