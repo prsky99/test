@@ -631,8 +631,8 @@ class WorkflowRuntime:
             from .concierge.execution_policy import resolve_a2a
             try:target=resolve_a2a(resource,self.courier)
             except ExecutionDenied as exc:raise WorkflowError(str(exc),error_code=exc.error_code) from exc
-            from .concierge.recommendation_security import endpoint_origin
-            if endpoint_origin(target['url'])!=endpoint_origin(resource['url']):raise WorkflowError('The A2A endpoint must match the registered origin.')
+            from .concierge.recommendation_security import same_site_origin
+            if not same_site_origin(target['url'],resource['url']):raise WorkflowError('The A2A endpoint must match the registered origin.')
             from .edge_gateway.native import execute as edge_execute
             try:edge_result=None if data.get('credential_refs') else edge_execute(self.store,resource,{'message':text(args)},courier=self.courier)
             except ExecutionDenied as exc:raise WorkflowError(str(exc),error_code=exc.error_code) from exc
