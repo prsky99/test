@@ -53,6 +53,15 @@ def fresh_agent_pacing():
     yield
 
 
+@pytest.fixture(autouse=True)
+def rested_providers_cleared():
+    """The 429 rest book is process-wide (provider_rest.BOOK); each test starts with no host resting."""
+    from agent_market.provider_rest import BOOK
+    BOOK.clear()
+    yield
+    BOOK.clear()
+
+
 @pytest.fixture
 def rotated_bootstrap_admin(monkeypatch):
     """Legacy feature tests sign in as the bootstrap superadmin; treat it as already rotated.

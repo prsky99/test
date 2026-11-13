@@ -4,7 +4,9 @@ const decoder = new TextDecoder();
 const strictDecoder = new TextDecoder('utf-8', {fatal: true});
 const keys = new Map();
 const RUN = /^er_[a-f0-9]{32}$/;
-const CODES = new Set(['AUTH_REQUIRED', 'ORIGIN_REQUIRED', 'ALREADY_CLAIMED', 'CAPACITY_EXCEEDED', 'SCHEMA_CHANGED', 'INPUT_CHANGED', 'POLICY_DENIED', 'EXPIRED']);
+const CODES = new Set(['AUTH_REQUIRED', 'ORIGIN_REQUIRED', 'ALREADY_CLAIMED', 'CAPACITY_EXCEEDED', 'SCHEMA_CHANGED', 'INPUT_CHANGED', 'POLICY_DENIED', 'EXPIRED',
+  // 11-14 (PM 04:5x): the provider's handshake failed (502), apart from our own UNAVAILABLE (503).
+  'PROVIDER_UNAVAILABLE', 'PROVIDER_RATE_LIMITED']);
 
 const hexPairs = Array.from({length: 256}, (_, b) => b.toString(16).padStart(2, '0'));
 function hex(bytes) { let result = ''; for (const b of new Uint8Array(bytes)) result += hexPairs[b]; return result; }
@@ -26,18 +28,19 @@ function header(origin) {
   return {'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'private, no-store',
     'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'"};
 }
-function failure(code = 'UNAVAILABLE', status = 503) {
+function failure(code = 'UNAVAILABLE', status = 503, retryAfter) {
   const denied = status === 403;
   const message = denied ? (code === 'POLICY_DENIED'
     ? 'Security checks blocked this agent connection. Choose another agent, or ask the provider to review its published connection.'
     : 'This request is not authorized. Review the connection and authorization before trying again.')
     : 'The approved execution is unavailable. Review this run before trying again.';
   const body = {type: 'https://agentconcierge.biz/errors/' + code.toLowerCase().replaceAll('_','-'),
-    title: denied ? 'Forbidden' : 'Request failed', status, error_code: code, message, detail: message, retryable: false};
+    title: denied ? 'Forbidden' : 'Request failed', status, error_code: code, message, detail: message, retryable: Boolean(retryAfter),
+    ...(retryAfter ? {retry_after_seconds: retryAfter} : {})};
   if (denied) body.next_action = {action: code === 'POLICY_DENIED' ? 'choose_another_agent' : 'review_authorization',
     url: code === 'POLICY_DENIED' ? '/new/en/explore.html' : '/customer/sign-in'};
   return new Response(JSON.stringify(body), {status, headers: {'Content-Type': 'application/problem+json',
-    'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff'}});
+    'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff', ...(retryAfter ? {'Retry-After': String(retryAfter)} : {})}});
 }
 function inspectionNotice(value, origin, rid) {
   return {...value, gateway_mode: 'inspection_only', inspection_only: true, provider_url: null,
@@ -94,7 +97,11 @@ async function control(env, operation, value, clientIP) {
   if (!response.ok) {
     const error = new Error('Control unavailable');
     error.code = CODES.has(result?.error_code) ? result.error_code : 'UNAVAILABLE';
-    error.status = [400, 401, 403, 409, 410, 429, 503].includes(response.status) ? response.status : 503;
+    error.status = [400, 401, 403, 409, 410, 429, 502, 503].includes(response.status) ? response.status : 503;
+    // A provider code from Origin (its handshake failed, or it answered 429) is the provider's, not ours.
+    if (error.code.startsWith('PROVIDER_')) error.provider = error.code;
+    const wait = Number(response.headers.get('Retry-After'));
+    if (error.code === 'PROVIDER_RATE_LIMITED' && Number.isInteger(wait) && wait > 0) error.retryAfter = Math.min(wait, 3600);
     throw error;
   }
   return result;
@@ -961,7 +968,7 @@ async function legacy(request, env, ctx, rid, testbench, kind = 'a2a') {
     // no Provider detail, address or internal path is included.
     if (!testbench && kind !== 'x402') return jsonReply({jsonrpc: '2.0', id: requestId, error: {code: -32000,
       message: 'The execution is unavailable.', data: gatewayFailure(error)}}, 200);
-    return failure(CODES.has(error.code) ? error.code : 'UNAVAILABLE', error.status || 503);
+    return failure(CODES.has(error.code) ? error.code : 'UNAVAILABLE', error.status || 503, error.retryAfter);
   }
 }
 
@@ -1047,7 +1054,7 @@ const gateway = {
       }
       return await deliver(request, env, ctx, binding, run, clientIP);
     } catch (error) {
-      return failure(CODES.has(error.code) ? error.code : 'UNAVAILABLE', error.status || 503);
+      return failure(CODES.has(error.code) ? error.code : 'UNAVAILABLE', error.status || 503, error.retryAfter);
     }
   }
 };
@@ -1103,14 +1110,15 @@ export function gatewayFailure(error) {
     SCHEMA_CHANGED: 'tool_changed', INPUT_CHANGED: 'input_changed', EXPIRED: 'expired', ALREADY_CLAIMED: 'already_running',
     ORIGIN_REQUIRED: 'not_authorized', PROVIDER_FAILED: 'provider_error', UPSTREAM_TOOL_ERROR: 'provider_error',
     PROVIDER_TIMEOUT: 'provider_timeout', PROVIDER_AUTH_REQUIRED: 'provider_auth_required',
-    PROVIDER_RATE_LIMITED: 'provider_rate_limited'}[code]
+    PROVIDER_RATE_LIMITED: 'provider_rate_limited', PROVIDER_UNAVAILABLE: 'provider_error'}[code]
     || (error.provider ? 'provider_error' : 'gateway_unavailable');
-  const retryable = ['rate_limited', 'provider_timeout', 'gateway_unavailable', 'already_running'].includes(reason);
+  const retryable = ['rate_limited', 'provider_rate_limited', 'provider_timeout', 'gateway_unavailable', 'already_running'].includes(reason);
   // 11-11: a public cause next to the reason, so a failed call says where it stopped (Provider code or Edge step).
   const cause = error.provider && /^[A-Z_]{3,40}$/.test(error.provider) ? error.provider.toLowerCase()
     : reason === 'gateway_unavailable' ? (typeof error.edge === 'string' && /^[a-z_]{3,40}$/.test(error.edge) ? error.edge
       : error.code === 'UNAVAILABLE' ? 'control_unavailable' : marker(error)) : undefined;
   return {error_code: reason, retryable, ...(cause ? {cause} : {}), ...(reason === 'rate_limited' ? {retry_after_seconds: 60} : {}),
+    ...(reason === 'provider_rate_limited' ? {retry_after_seconds: error.retryAfter || 60} : {}),
     next: retryable ? 'Retry later, or call find_agents for another agent.' : 'Call find_agents for another agent for this task.'};
 }
 function outputSource(path) {

@@ -13,7 +13,21 @@ from .auth import canonical, derived
 log = logging.getLogger(__name__)
 
 
+def provider_failure(code='PROVIDER_UNAVAILABLE', retry_after=None):
+    """The provider's handshake failed (HTTP error, invalid JSON-RPC, unreachable): 502 with a provider code, so
+    callers tell it apart from our own 503 UNAVAILABLE (PM 11-14 04:5x). A 429 carries the provider's wait."""
+    error = EdgeError(code, 502)
+    if retry_after:
+        error.retry_after = retry_after
+    return error
+
+
 def prepare(service, run_id, attempt, provider, payload, deadline_ms, *, http=None):
+    from ..provider_rest import BOOK
+    resting = BOOK.remaining(provider.endpoint)
+    if resting:
+        # The provider asked us to wait (HTTP 429, Retry-After): do not contact it again before then.
+        raise provider_failure('PROVIDER_RATE_LIMITED', resting)
     client = bounded_client(http, allow_private=False, limit=65536, budget=OutboundBudget(5))
     headers = {'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream',
                'User-Agent': 'agent-concierge/1.0', 'Accept-Encoding': 'identity'}
@@ -24,41 +38,50 @@ def prepare(service, run_id, attempt, provider, payload, deadline_ms, *, http=No
         nonlocal session
         # Protocol sessions are fresh; browser credentials and cookies never enter.
         client.client.cookies.clear()
-        response = client.post(provider.endpoint, headers=headers,
-                               json={'jsonrpc': '2.0', 'id': identity, 'method': method, 'params': params})
+        try:
+            response = client.post(provider.endpoint, headers=headers,
+                                   json={'jsonrpc': '2.0', 'id': identity, 'method': method, 'params': params})
+        except Exception:
+            raise provider_failure() from None
+        waited = BOOK.note(provider.endpoint, response)
+        if waited:
+            raise provider_failure('PROVIDER_RATE_LIMITED', waited)
         value = parse_jsonrpc(response) or {}
         if (not 200 <= response.status_code < 300 or value.get('jsonrpc') != '2.0'
                 or type(value.get('id')) is not type(identity) or value.get('id') != identity
                 or ('result' in value) == ('error' in value)):
-            raise EdgeError('UNAVAILABLE', 503)
+            raise provider_failure()
         if 'error' in value:
             error = value['error']
             if not isinstance(error, dict) or type(error.get('code')) is not int:
-                raise EdgeError('UNAVAILABLE', 503)
+                raise provider_failure()
             return None, error['code']
         result = value['result']
         if not isinstance(result, dict):
-            raise EdgeError('UNAVAILABLE', 503)
+            raise provider_failure()
         if method in ('initialize', 'server/discover') and response.headers.get('mcp-session-id'):
             session = response.headers['mcp-session-id']
             if not re.fullmatch(r'[\x21-\x7e]{1,256}', session):
                 session = None
-                raise EdgeError('UNAVAILABLE', 503)
+                raise provider_failure()
             headers['Mcp-Session-Id'] = session
         return result, None
 
     try:
-        pinned = mcp_revision(service.store.resource(provider.resource_id))
+        try:
+            pinned = mcp_revision(service.store.resource(provider.resource_id))
+        except Exception:
+            raise EdgeError('UNAVAILABLE', 503) from None   # our store, not the provider
         discovery, error = (None, None) if pinned else rpc('server/discover', {}, 1)
         if error is not None and error not in (-32600, -32601):
-            raise EdgeError('UNAVAILABLE', 503)
+            raise provider_failure()
         initialize = not discovery or not discovery.get('protocolVersion')
         if initialize:
             discovery, error = rpc('initialize', {'protocolVersion': pinned or '2025-06-18', 'capabilities': {},
                 'clientInfo': {'name': 'agent-concierge', 'version': '1.0'}}, 1)
         version = (discovery or {}).get('protocolVersion')
         if error is not None or type(version) is not str or version not in ('2024-11-05', '2025-03-26', '2025-06-18', '2025-11-25'):
-            raise EdgeError('UNAVAILABLE', 503)
+            raise provider_failure()
         headers['Mcp-Protocol-Version'] = version
         if initialize:
             client.client.cookies.clear()
@@ -71,8 +94,13 @@ def prepare(service, run_id, attempt, provider, payload, deadline_ms, *, http=No
                 log.info('MCP provider answered notifications/initialized with HTTP %s; continuing', response.status_code)
         listed, error = rpc('tools/list', {}, 2)
         if error is not None or not isinstance((listed or {}).get('tools'), list):
-            raise EdgeError('UNAVAILABLE', 503)
-        review_mcp(service, run_id, attempt, listed['tools'], payload)
+            raise provider_failure()
+        try:
+            review_mcp(service, run_id, attempt, listed['tools'], payload)
+        except EdgeError:
+            raise
+        except Exception:
+            raise EdgeError('UNAVAILABLE', 503) from None   # our schema review and store, not the provider
         if service.clock() * 1000 >= deadline_ms:
             raise EdgeError('EXPIRED', 410)
         handed_off = True
@@ -87,7 +115,8 @@ def prepare(service, run_id, attempt, provider, payload, deadline_ms, *, http=No
     except EdgeError:
         raise
     except Exception:
-        raise EdgeError('UNAVAILABLE', 503) from None
+        # Only the provider exchange (the initialized notification, reading its replies) is left unguarded here.
+        raise provider_failure() from None
     finally:
         if session and not handed_off:
             try:

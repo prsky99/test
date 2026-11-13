@@ -194,6 +194,13 @@ class McpProxy:
         if not usage.is_relay_safe_tool(tool_spec):  # the same relay judgment as safe_registered_tool (PM 11-13)
             return {"ok": False, "error": f"Tool '{tool_name}' is classified as potentially destructive or requiring credentials. Execution refused.", "error_code": "UNSAFE_TOOL"}
 
+        from ..provider_rest import BOOK, RateLimited
+        resting = BOOK.remaining(url)
+        if resting:
+            # 11-14 (PM 04:5x): this provider answered 429; wait out its Retry-After before calling it again.
+            return {'ok': False, 'error': 'The agent asked for a pause before the next call.', 'error_code': 'RESOURCE_UNAVAILABLE',
+                    'retry_after': resting, 'retry_safe': True, 'provider_dispatched': False}
+
         pinned_hash = res.get("usage_tools_hash")
         client = self._client(public=public)
         headers = dict(HEADERS)
@@ -206,6 +213,8 @@ class McpProxy:
             valid=(data.get('jsonrpc')=='2.0' and type(data.get('id')) is type(expected_id)
                    and data.get('id')==expected_id and ('result' in data)!=('error' in data))
             if observed is not None:observed.update(transport_ok=200<=response.status_code<300,protocol_valid=valid)
+            waited=BOOK.note(url,response)
+            if waited:raise RateLimited(waited)
             if not 200<=response.status_code<300 or not valid:
                 raise ValueError('Invalid MCP protocol response')
             return data
@@ -223,6 +232,8 @@ class McpProxy:
                                                                   "params": {"_meta": {"io.modelcontextprotocol/protocolVersion": str(pv or "2026-07-28")}}},
                                                        headers=headers), 2)
                     remote_tools = (listed.get("result") or {}).get("tools")
+            except RateLimited:
+                raise   # never follow a 429 with the initialize handshake
             except Exception:
                 log.debug('Optional MCP discovery unavailable; checking registered tools.')
 
@@ -318,6 +329,9 @@ class McpProxy:
 
         except ExecutionDenied as exc:
             return {'ok':False,'error':str(exc),'error_code':exc.error_code}
+        except RateLimited as exc:
+            return {'ok':False,'error':'The agent is limiting requests (HTTP 429).','error_code':'RESOURCE_UNAVAILABLE',
+                    'retry_after':exc.seconds,'retry_safe':True}
         except ValueError:
             return {'ok':False,'error':'The agent returned an invalid protocol response.','error_code':'UPSTREAM_PROTOCOL'}
         except httpx.HTTPError as exc:

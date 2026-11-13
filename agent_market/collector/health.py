@@ -32,6 +32,7 @@ import httpx
 
 from ..broker.discovery import DiscoveryError, check_public_url, public_client
 from ..config import DEFAULT_HEALTH_INTERVAL_SECONDS
+from ..provider_rest import BOOK as REST
 from ..gateway.crawler import usdc_price
 from ..gateway.store import Store
 from ..observation_guards import GuardError
@@ -155,6 +156,9 @@ class HealthChecker:
                 check_public_url(url)
             except DiscoveryError as exc:
                 return CheckResult("fail", error=f"blocked: {exc}")
+        if REST.remaining(url):
+            # 11-14 (PM 04:5x): this host answered 429 to us; wait out its Retry-After (postponed, not recorded).
+            return CheckResult("fail", error="resting after HTTP 429", local=True)
         started = time.monotonic()
         try:
             if resource["kind"] == "mcp":
@@ -220,6 +224,8 @@ class HealthChecker:
             return CheckResult("healthy", code, auth=False)
         if code in (401, 403):
             return CheckResult("reachable", code, error="auth required", auth=True)
+        if REST.note(url, resp):  # 429: the provider asked us to wait; no initialize right after it (11-14)
+            return CheckResult("reachable", code, error=f"HTTP {code}")
         # server/discover를 모르는 기존 서버는 -32601(Method not found)이나 에러를 반환할 수 있으므로 initialize로 폴백
         # 2. 구형 사양: initialize (세션 핸드셰이크)
         with http.stream("POST", url, json=MCP_INIT, headers=headers) as resp:
@@ -237,6 +243,7 @@ class HealthChecker:
             return CheckResult("reachable", code, error="auth required", auth=True)
         if code in (404, 410) or code >= 500:
             return CheckResult("fail", code, error=f"HTTP {code}")
+        REST.note(url, resp)
         return CheckResult("reachable", code, error=f"HTTP {code}")
 
     def _check_a2a(self, http: httpx.Client, resource: dict) -> CheckResult:
@@ -269,6 +276,8 @@ class HealthChecker:
             with http.stream("GET", url, headers={"accept": "application/json"}) as resp:
                 body = self._read(resp, 512 * 1024)
             last = resp.status_code
+            if REST.note(url, resp):  # 429: stop trying the other card addresses of this host (11-14)
+                break
             if resp.status_code == 200:
                 try:
                     data = json.loads(body)

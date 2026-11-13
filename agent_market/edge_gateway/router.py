@@ -38,8 +38,10 @@ def errors(function):
                 # 11-11 22:18: a public-prepare 503 left only the access line; the code
                 # (NOT_PROVISIONED, CAPACITY_EXCEEDED, ...) tells which limit refused it.
                 log.warning('Edge gateway %s refused: %s %s', function.__name__, exc.code, exc.status)
+            wait = getattr(exc, 'retry_after', None)   # PROVIDER_RATE_LIMITED: the provider's own Retry-After
             return JSONResponse({'error_code': exc.code, 'message': 'The approved execution is unavailable.'},
-                                status_code=exc.status, headers={'Cache-Control': 'private, no-store'})
+                                status_code=exc.status, headers={'Cache-Control': 'private, no-store',
+                                                                 **({'Retry-After': str(wait)} if wait else {})})
         except Exception as exc:
             # Provider text, configuration paths and internal diagnostics stay private: only the
             # error class and store code reach the server log (11-10 00:36: a 503 left no cause).
@@ -270,8 +272,10 @@ def install(app, front):
             # 11-12: the MCP handshake the claim prepares (initialize, tools/list) failed or ran past its 5 s
             # budget on slow daytime paths, and the caller got gateway_unavailable (5 of 30 real tasks) while the
             # Origin gateway ran the same call. No tool has run, so hand the request to the Origin gateway, as
-            # for the rate gate above.
-            if exc.code != 'UNAVAILABLE':
+            # for the rate gate above. 11-14 (PM 04:5x): provider handshake failures carry PROVIDER_UNAVAILABLE (502)
+            # apart from our own UNAVAILABLE (503); both are handed over. A provider that answered 429 is not called
+            # again through the Origin gateway: PROVIDER_RATE_LIMITED goes back with its Retry-After.
+            if exc.code not in ('UNAVAILABLE', 'PROVIDER_UNAVAILABLE'):
                 raise
             log.info('Edge public prepare: the provider handshake failed; handed to the Origin gateway')
             fallback('handshake')

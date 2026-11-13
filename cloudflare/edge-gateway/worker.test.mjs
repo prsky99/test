@@ -19,6 +19,10 @@ const delta = text => frame({kind: 'artifact-update', artifact: {parts: [{kind: 
 const done = frame({kind: 'status-update', status: {state: 'completed'}, final: true});
 const path = '/api/edge-gateway/v1/runs/' + run + '/stream';
 
+function providerFailure(value) {
+  return new EdgeResponse(JSON.stringify({error_code: value.code}), {status: value.status, headers: {'Content-Type': 'application/json',
+    ...(value.wait ? {'Retry-After': String(value.wait)} : {})}});
+}
 async function fixture(provider, overrides = {}, controlBase = controlOrigin, options = {}) {
   const calls = [], receipts = [], results = [], observations = []; let claimed = false, complete;
   const completion = new Promise(resolve => { complete = resolve; });
@@ -56,6 +60,7 @@ async function fixture(provider, overrides = {}, controlBase = controlOrigin, op
           return new EdgeResponse(JSON.stringify({ok:true,run_id:run,wire_hash:body.wire_hash}),{headers:{'Content-Type':'application/json'}});
         }
         if (u.pathname.endsWith('/public-prepare')) {
+          if (options.prepareFailure) return providerFailure(options.prepareFailure);
           if (options.prepareDenied) return new EdgeResponse(JSON.stringify({error_code: 'POLICY_DENIED', detail: 'private control policy'}), {status: 403, headers: {'Content-Type': 'application/json'}});
           assert.equal(body.resource_id, 1);
           if (!binding.protocol || binding.protocol === 'a2a') assert.equal(body.input.message, 'Weather?');
@@ -69,6 +74,7 @@ async function fixture(provider, overrides = {}, controlBase = controlOrigin, op
             {status: options.reviewDenied ? 409 : 200, headers: {'Content-Type': 'application/json'}});
         }
         if (u.pathname.endsWith('/claim')) {
+          if (options.claimFailure) return providerFailure(options.claimFailure);
           if (claimed) return new EdgeResponse(JSON.stringify({error_code: 'ALREADY_CLAIMED'}), {status: 409});
           claimed = true;
           assert.equal(body.run_id, run);
@@ -1324,4 +1330,30 @@ test('a Provider failure on the gateway path answers its cause instead of a bare
       assert.ok(!JSON.stringify(value).includes(endpoint));
     } finally { await f.mf.dispose(); }
   }
+});
+
+test('a provider handshake failure from Origin is the provider\'s code, not our 503 (11-14)', async () => {
+  // 11-13 05:42: the provider of 42798 answered 429 and the caller read our own "unavailable" (edge_http_503).
+  const limited = await fixture(done, unary, controlOrigin, {prepareFailure: {code: 'PROVIDER_RATE_LIMITED', status: 502, wait: 120}});
+  try {
+    const value = await (await limited.sendLegacy()).json();
+    assert.deepEqual(value.error.data, {error_code: 'provider_rate_limited', retryable: true, cause: 'provider_rate_limited',
+      retry_after_seconds: 120, next: 'Retry later, or call find_agents for another agent.'});
+    assert.equal(limited.calls.filter(r => r.url === endpoint).length, 0);
+  } finally { await limited.mf.dispose(); }
+  const down = await fixture(done, unary, controlOrigin, {claimFailure: {code: 'PROVIDER_UNAVAILABLE', status: 502}});
+  try {
+    const response = await down.send(), body = await response.json();
+    assert.equal(response.status, 502); assert.equal(body.error_code, 'PROVIDER_UNAVAILABLE'); assert.equal(body.retryable, false);
+    assert.equal(down.calls.filter(r => r.url === endpoint).length, 0);
+  } finally { await down.mf.dispose(); }
+  const waiting = await fixture(done, unary, controlOrigin, {claimFailure: {code: 'PROVIDER_RATE_LIMITED', status: 502, wait: 90}});
+  try {
+    const response = await waiting.send(), body = await response.json();
+    assert.equal(response.status, 502); assert.equal(response.headers.get('Retry-After'), '90');
+    assert.deepEqual([body.error_code, body.retryable, body.retry_after_seconds], ['PROVIDER_RATE_LIMITED', true, 90]);
+  } finally { await waiting.mf.dispose(); }
+  const {gatewayFailure} = await import('./worker.mjs');
+  const unavailable = gatewayFailure(Object.assign(new Error('Control unavailable'), {code: 'PROVIDER_UNAVAILABLE', provider: 'PROVIDER_UNAVAILABLE'}));
+  assert.deepEqual([unavailable.error_code, unavailable.cause, unavailable.retryable], ['provider_error', 'provider_unavailable', false]);
 });

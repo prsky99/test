@@ -145,6 +145,15 @@ the same vocabulary. Existing result/state/protocol fields retain their meaning.
 These references grant no access and are unrelated to visitor/authentication tokens.
 Admission messages and raw provider errors are not used as a public diagnostic dump.
 
+Provider handshake failures, 14 November 2026: when the provider's own MCP handshake
+fails before any tool runs, the gateway answers a provider code instead of its own
+`UNAVAILABLE` (503): `PROVIDER_UNAVAILABLE` (502; JSON-RPC `error.data` reason
+`provider_error`, cause `provider_unavailable`) or, when the provider answered HTTP 429,
+`PROVIDER_RATE_LIMITED` (502 with `Retry-After`; reason `provider_rate_limited`,
+`retryable: true`, `retry_after_seconds`). The gateway then does not call that provider
+again until its Retry-After has passed (30 seconds to 1 hour, 5 minutes without one); health
+checks and capability surveys rest the same host for the same time.
+
 The `agent_market.execution` logger records only the reference, public resource ID,
 protocol, fixed category/stage and exception class. It records no arguments,
 messages, URLs, headers, tokens or visitor identities. This is a diagnostic logging

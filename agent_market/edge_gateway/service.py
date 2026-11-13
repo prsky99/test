@@ -248,8 +248,9 @@ class Service:
             try:
                 binding['mcp_prepared'] = prepare(self, run_id, attempt, provider, payload, int((now + 8) * 1000))
             except Exception as error:
-                self.finish(run_id, attempt, 'failed', 0,
-                            'PROVIDER_SCHEMA_CHANGED' if getattr(error, 'code', '') == 'SCHEMA_CHANGED' else 'EXECUTION_FAILED')
+                code = getattr(error, 'code', '')
+                self.finish(run_id, attempt, 'failed', 0, 'PROVIDER_SCHEMA_CHANGED' if code == 'SCHEMA_CHANGED' else
+                            'PROVIDER_RATE_LIMITED' if code == 'PROVIDER_RATE_LIMITED' else 'EXECUTION_FAILED')
                 raise
         return binding
 

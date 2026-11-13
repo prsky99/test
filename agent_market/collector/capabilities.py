@@ -15,6 +15,7 @@ from concurrent.futures import ThreadPoolExecutor
 import httpx
 
 from ..broker.discovery import DiscoveryError, check_public_url, public_client
+from ..provider_rest import BOOK as REST, RateLimited
 from ..gateway import constraints as cons
 from ..gateway.store import Store
 from ..observation_guards import GuardError
@@ -72,8 +73,10 @@ class CapabilityProber:
             check_public_url(url)
         headers = dict(HEADERS)
         # 1. 최신 2026-07-28 사양: server/discover 시도 (무상태)
+        waited = 0
         try:
             disc_resp = http.post(url, json={"jsonrpc": "2.0", "id": 1, "method": "server/discover", "params": {}}, headers=headers)
+            waited = REST.note(url, disc_resp)
             disc_data = parse_jsonrpc(disc_resp) or {}
             disc_res = disc_data.get("result")
             if isinstance(disc_res, dict) and disc_res:
@@ -91,9 +94,13 @@ class CapabilityProber:
                             "instructions": disc_res.get("instructions"), "trial": trial}
         except Exception:
             pass  # 기존 서버이거나 오류 발생 시 initialize로 폴백
+        if waited:  # 429: no initialize right after it; the host rests for its Retry-After (11-14)
+            raise RateLimited(waited)
 
         # 2. 구형 사양: initialize -> notifications/initialized -> tools/list (세션 핸드셰이크)
         init = http.post(url, json=INIT, headers=HEADERS)
+        if REST.note(url, init):
+            raise RateLimited(REST.remaining(url))
         result = (parse_jsonrpc(init) or {}).get("result") or {}
         if not result:
             raise ValueError(f"initialize failed (HTTP {init.status_code})")
@@ -266,10 +273,14 @@ class CapabilityProber:
                 guard = None
                 try:
                     guard = self.store.observation_guard(r["id"], "survey", expected_resource=r)
-                    probed, err = self.probe(r["url"], http, trial_for=self._trial_decider(r)), None
+                    if REST.remaining(r["url"]):
+                        # 11-14 (PM 04:5x): this host answered 429; postpone instead of calling it again.
+                        probed, err = None, "local"
+                    else:
+                        probed, err = self.probe(r["url"], http, trial_for=self._trial_decider(r)), None
                 except GuardError:
                     probed, err = None, "stale"
-                except (httpx.PoolTimeout, httpx.ProxyError):
+                except (httpx.PoolTimeout, httpx.ProxyError, RateLimited):
                     probed, err = None, "local"
                 except (httpx.HTTPError, DiscoveryError, ValueError) as exc:
                     probed, err = None, f"{type(exc).__name__}: {exc}"[:300]
