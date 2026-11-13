@@ -50,7 +50,7 @@ def test_rank_final_pearl_and_failure_domains():
     V.save_version(result(rid=2, host='b.caseyjhand.com', latency=250))      # same failure domain: no second place
     V.save_version(result(rid=3, host='fx.other.com', latency=1500))
     V.save_version(result(rid=4, host='bad.example.org', outcome='failed', excerpt=''))
-    ranked = V.rank(V.latest_versions())['fx.rate']
+    ranked = V.rank(V.latest_versions())[V.canonical('fx.rate')]
     places = {m['resource_id']: m['rank'] for m in ranked['members']}
     assert places[1] == 1 and places[2] is None and places[3] == 2 and places[4] is None
     assert ranked['provisional_pearl'] == 1 and ranked['final_pearl'] is None      # one day only
@@ -59,7 +59,7 @@ def test_rank_final_pearl_and_failure_domains():
 
 def test_below_the_mark_is_not_a_final_pearl():
     V.save_version(result(rid=5, excerpt='no data', latency=9000))
-    assert V.rank(V.latest_versions())['fx.rate']['final_pearl'] is None
+    assert V.rank(V.latest_versions())[V.canonical('fx.rate')]['final_pearl'] is None
 
 
 def test_registrable_domain():
@@ -95,8 +95,50 @@ def test_measurement_windows():
 
 def test_one_day_is_provisional_two_days_confirm():
     V.save_version(result(rid=11, latency=200))
-    ranked = V.rank(V.latest_versions())['fx.rate']
+    ranked = V.rank(V.latest_versions())[V.canonical('fx.rate')]
     assert ranked['final_pearl'] is None and ranked['provisional_pearl'] == 11
     V.save_version(result(rid=11, latency=200, started=time.time() - V.DAY))
-    ranked = V.rank(V.latest_versions())['fx.rate']
+    ranked = V.rank(V.latest_versions())[V.canonical('fx.rate')]
     assert ranked['final_pearl'] == 11 and ranked['provisional_pearl'] is None
+
+
+def test_one_list_of_role_names():
+    """PM 11-14: the workflow contracts, the role tasks and our files use the same role names."""
+    import json
+    from pathlib import Path
+    known = V.known_roles()
+    contracts = {p.name[:-5] for p in (V.ROOT / 'agent_market/necklaces/contracts').glob('*.json')}
+    assert contracts <= known
+    assert V.canonical('cve.kev') == 'cve.exploited.v1' and V.canonical('fx.rate.v1') == 'fx.rate.v1'
+    assert V.short('cve.exploited.v1') == 'cve.kev'
+    V.save_version(result(rid=21, role='cve.kev', tool='t', excerpt='CVE-2021-44228 critical'))
+    assert set(V.rank(V.latest_versions())) <= known
+    groups = V.ROOT / 'reports/pearls-2026-11-14/role_groups.json'
+    if groups.exists():
+        names = set(json.loads(groups.read_text()).get('roles', {}))
+        assert all(V.canonical(n) in known for n in names)
+
+
+def test_new_queue_spreads_roles_domains_and_hosts():
+    cands = [('domain.lookup.v1', 1, 'whois', 'a.x.com'), ('domain.lookup.v1', 2, 'whois', 'b.x.com'),   # same domain
+             ('domain.lookup.v1', 3, 'whois', 'c.y.com'), ('ip.lookup.v1', 4, 'ip_info', 'h.z.com'),
+             ('ip.lookup.v1', 5, 'ip_info', 'h.z.com'), ('ip.lookup.v1', 6, 'ip_info', 'h.z.com'), ('ip.lookup.v1', 7, 'ip_info', 'h.z.com')]
+    q = V.new_queue([], cands, limit=10, per_host=3)
+    ids = [c['id'] for c in q]
+    assert 2 not in ids and {1, 3, 4} <= set(ids)                 # one per registrable domain in a role
+    assert all(c['kind'] == 'new' for c in q) and len(q) == 3        # h.z.com: same domain as 4 in ip.lookup
+
+
+def test_retest_queue_takes_the_top_members():
+    for rid, lat in ((31, 200), (32, 300), (33, 400)):
+        V.save_version(result(rid=rid, host=f'h{rid}.example{rid}.com', latency=lat))
+    q = V.retest_queue(V.latest_versions(), day=0)
+    assert [c['id'] for c in q][:2] == [31, 32] and all(c['kind'] == 'retest' for c in q)
+
+
+def test_catalog_roles_have_checks_and_names():
+    from scripts import role_catalog
+    assert len(role_catalog.ROLES) >= 30 and all(r.endswith('.v1') for r in role_catalog.ROLES)
+    assert role_catalog.roles_for_tool('whois_lookup') == ['domain.lookup.v1']
+    v = V.save_version(result(rid=41, role='timezone.time.v1', tool='get_time', excerpt='New York 08:41 EST', args={'timezone': 'America/New_York'}))
+    assert v['judgement']['passed'] == v['judgement']['total'] == 2 and v['domain'] == 'reference'

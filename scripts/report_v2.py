@@ -26,7 +26,8 @@ RULES = 'v2-2026-11-14'
 PASS_MARK = 85
 CONFIRM_DAYS = 2            # PM 11-14: a final pearl needs successes on two different days; before that it is provisional
 DAY = 86400
-ROLE_DAILY_LIMIT = 60       # PM 11-14: role tests a day (back to 30 if refusals pass 5% in the first 3 days)
+ROLE_DAILY_LIMIT = 120      # PM 11-14 (charter 0): 80 new candidates + 40 retests a day; 60 when refusals pass 5%
+NEW_A_DAY, RETEST_A_DAY, FALLBACK_LIMIT = 80, 40, 60
 # Our role names -> the workflow team's role task contracts (agent_market/necklaces/role_tasks, v1 11-14).
 CASE_ROLE = {'papers.search': 'papers.search.v1', 'encyclopedia.summary': 'encyclopedia.summary.v1',
              'news.search': 'news.search.v1', 'package.advisories': 'package.advisories.v1',
@@ -35,6 +36,45 @@ CASE_ROLE = {'papers.search': 'papers.search.v1', 'encyclopedia.summary': 'encyc
              'software.incident': 'software.incident.v1', 'website.ai_readiness': 'website.ai_readiness.v1',
              'country.indicator': 'country.indicator.v1', 'fx.rate': 'fx.rate.v1', 'weather.forecast': 'weather.forecast.v1',
              'events.search': 'events.search.v1'}
+
+
+SHORT = {contract: short for short, contract in CASE_ROLE.items()}
+import role_catalog  # noqa: E402
+# Roles RAG judges with its default field/word checks until an answer set exists (PM 11-14: 30 roles by 11-21).
+RAG_ROLES = {role for role, spec in role_catalog.ROLES.items() if spec.get('checks')}
+ROLE_DOMAIN_V1 = {'domain.lookup.v1': 'internet', 'place.search.v1': 'travel', 'book.search.v1': 'reference',
+                  'crypto.price.v1': 'finance', 'stock.quote.v1': 'finance', 'geocode.address.v1': 'maps',
+                  'ip.lookup.v1': 'internet', 'timezone.time.v1': 'reference', 'dictionary.define.v1': 'reference',
+                  'translate.text.v1': 'language', 'github.repo.v1': 'developer', 'holiday.calendar.v1': 'reference',
+                  'sec.filings.v1': 'business', 'airport.lookup.v1': 'travel', 'unit.convert.v1': 'reference',
+                  'earthquake.feed.v1': 'science', 'cve.record.v1': 'security', 'software.incident.v1': 'security',
+                  'website.ai_readiness.v1': 'internet', 'web.grounding.v1': 'reference'}
+
+
+def canonical(role):
+    """One list of role names (PM 11-14): the workflow team's contract ids (cve.exploited.v1), ours mapped onto them."""
+    role = str(role or '')
+    return CASE_ROLE.get(role, role if role.endswith('.v1') else role + '.v1')
+
+
+def short(role):
+    """The name role_tool_test and the default checks use (ROLE_VALUES, CHECKS)."""
+    return SHORT.get(role, role[:-3] if role.endswith('.v1') else role)
+
+
+def domain_of(role):
+    return ROLE_DOMAIN.get(short(canonical(role))) or ROLE_DOMAIN_V1.get(canonical(role), 'other')
+
+
+def known_roles():
+    """Every role name in use: workflow contracts, workflow role tasks, and RAG's default-check roles."""
+    names = {path.name[:-5] for path in (ROOT / 'agent_market/necklaces/contracts').glob('*.json')}
+    try:
+        from agent_market.necklaces import role_tasks
+        names |= set(role_tasks.by_role())
+    except Exception:
+        pass
+    return names | {canonical(r) for r in CASE_ROLE} | {canonical(r) for r in RAG_ROLES}
 
 
 def quiet_now(now=None):
@@ -48,7 +88,7 @@ def case_for(role, day=None):
     """One role task for ROLE, rotating by day so every case is used over the week; None when the role has none."""
     try:
         from agent_market.necklaces import role_tasks
-        cases = role_tasks.by_role().get(CASE_ROLE.get(role, ''), [])
+        cases = role_tasks.by_role().get(canonical(role), [])
     except Exception:
         return None
     if not cases:
@@ -113,7 +153,9 @@ CHECKS = {
 
 def judge(role, text, args):
     checks = []
-    for name, rule in CHECKS.get(role, []):
+    rules = CHECKS.get(role) or [(name, lambda t, a, _p=pattern: _has(_p, t))
+                                 for name, pattern in role_catalog.default_checks(canonical(role))]
+    for name, rule in rules:
         try:
             passed = bool(rule(text or '', args or {}))
         except (ValueError, TypeError):
@@ -181,7 +223,22 @@ def quality(r, success_days):
 
 
 def version_dir(rid, role):
-    return OUT / 'reports' / str(rid) / role.replace('/', '_')
+    return OUT / 'reports' / str(rid) / canonical(role).replace('/', '_')
+
+
+def migrate_names():
+    """Move versions saved under the old short names (fx.rate) to the contract ids (fx.rate.v1), once."""
+    for folder in list((OUT / 'reports').glob('*/*')) if (OUT / 'reports').exists() else []:
+        target = folder.parent / canonical(folder.name)
+        if not folder.is_dir() or target == folder:
+            continue
+        target.mkdir(exist_ok=True)
+        for path in folder.glob('*.json'):
+            v = json.loads(path.read_text())
+            v['role'] = canonical(v['role'])
+            (target / path.name).write_text(json.dumps(v, indent=1, ensure_ascii=False))
+            path.unlink()
+        folder.rmdir()
 
 
 def success_days(rid, role, tool, now, extra=None):
@@ -202,7 +259,7 @@ def save_version(result, now=None):
     """One more version for (resource, role); earlier versions stay."""
     now = time.time() if now is None else now
     tested = float(result.get('started') or now)
-    r = {'resource_id': result['id'], 'role': result['role'], 'domain': ROLE_DOMAIN.get(result['role'], 'other'),
+    r = {'resource_id': result['id'], 'role': canonical(result['role']), 'domain': domain_of(result['role']),
          'tool': result['tool'], 'arguments': result.get('arguments'), 'outcome': result['outcome'],
          'reason': result.get('reason'), 'latency_ms': result.get('latency_ms'), 'http': result.get('http'),
          'excerpt': (result.get('excerpt') or '')[:1000], 'host': result.get('host'),
@@ -216,9 +273,9 @@ def save_version(result, now=None):
         r['judgement'] = {'rules': 'role-tasks-v1 ' + case['case_id'], 'checks': [{'check': case['case_id'], 'passed': passed}],
                           'passed': int(passed), 'total': 1, 'reasons': reasons, 'not_checked_live': live}
     elif r['outcome'] == 'succeeded':
-        r['judgement'] = judge(r['role'], result.get('full_text') or r['excerpt'], r['arguments'])
+        r['judgement'] = judge(short(r['role']), result.get('full_text') or r['excerpt'], r['arguments'])
     else:
-        r['judgement'] = {'rules': RULES, 'checks': [], 'passed': 0, 'total': len(CHECKS.get(r['role'], [])) or 1}
+        r['judgement'] = {'rules': RULES, 'checks': [], 'passed': 0, 'total': len(CHECKS.get(short(r['role']), [])) or 1}
     if case:
         r['case_id'] = case['case_id']
     if r['outcome'] == 'succeeded' and r['judgement']['total'] and r['judgement']['passed'] < r['judgement']['total']:
@@ -242,6 +299,7 @@ def latest_versions():
             v = json.loads(path.read_text())
         except (OSError, ValueError):
             continue
+        v['role'] = canonical(v['role'])
         key = (v['resource_id'], v['role'], v['tool'])
         if key not in latest or v['tested'] > latest[key]['tested']:
             latest[key] = v
@@ -269,7 +327,7 @@ def rank(versions):
             ranked.append(entry)
         top = next((e for e in ranked if e['rank'] == 1), None)
         good = bool(top and top['score'] >= PASS_MARK)
-        out[role] = {'domain': ROLE_DOMAIN.get(role, 'other'), 'members': ranked,
+        out[role] = {'domain': domain_of(role), 'members': ranked,
                      'final_pearl': top['resource_id'] if good and top['success_days'] >= CONFIRM_DAYS else None,
                      'provisional_pearl': top['resource_id'] if good and top['success_days'] < CONFIRM_DAYS else None,
                      'fallbacks': [e['resource_id'] for e in ranked if e['rank'] in (2, 3)],
@@ -300,7 +358,15 @@ def funnel(versions, ranked, candidates_a=None):
     return (f"{time.strftime('%m-%d %H:%M')} 진주 깔때기(검색과 RAG, report_v2): 후보 A {candidates_a if candidates_a is not None else '?'} → "
             f"v2 보고서 {len(versions)}(성공 {ok}·실패 {len(versions) - ok}) → 85점 이상 {high} → "
             f"최종 진주 확정 {finals}·잠정 {provisional}(역할 {finals + provisional}/{len(ranked)}, 확정은 서로 다른 날 2회 성공) · "
+            f"검증 확정 {verified(versions)} / 목표 {TARGETS['verified']}, 최종 진주 역할 {finals} / 목표 {TARGETS['roles']} · "
             f"외부 대체 1개 이하(AgentValCon 대체 필요): {', '.join(thin) or '없음'}")
+
+
+def verified(versions):
+    """Verified pearls (charter 0): latest version at 85+ with successes on two different days, any rank."""
+    now = time.time()
+    return sum(1 for v in versions if v['quality']['score'] >= PASS_MARK
+               and success_days(v['resource_id'], v['role'], v['tool'], now) >= CONFIRM_DAYS)
 
 
 def candidates_a():
@@ -322,7 +388,11 @@ def write_board(line):
         BOARD.write_text('\n'.join(lines), encoding='utf-8')
 
 
+TARGETS = {'verified': 200, 'roles': 30}   # 11-28 (charter 0, PM 11-14); 12-26: 1,000 and 100
+
+
 def publish(board=True):
+    migrate_names()
     versions = latest_versions()
     ranked = rank(versions)
     day = time.strftime('%Y-%m-%d')
@@ -354,35 +424,123 @@ def publish(board=True):
     return line
 
 
+def retest_queue(versions, day=None, limit=RETEST_A_DAY):
+    """Top members of each role again: ranks 1-2 every day, 3-5 every other day (PM 11-14: 40 a day)."""
+    day = int(time.strftime('%j')) if day is None else day
+    out = []
+    for role, entry in sorted(rank(versions).items()):
+        for m in entry['members']:
+            if m['rank'] and (m['rank'] <= 2 or (m['rank'] <= 5 and (day + m['resource_id']) % 2 == 0)):
+                out.append({'role': role, 'id': m['resource_id'], 'tool': m['tool'], 'kind': 'retest', 'rank': m['rank']})
+    out.sort(key=lambda c: c['rank'])
+    return out[:limit]
+
+
+def catalog_candidates():
+    """(role, id, tool, host) for every active A, healthy, relay-safe MCP tool whose name fits a role (read only)."""
+    import psycopg
+    from agent_market.collector.usage import is_relay_safe_tool
+    dsn = (ROOT / 'gateway-data/postgres18/application.dsn').read_text().strip()
+    found = []
+    with psycopg.connect(dsn, autocommit=True, options='-c default_transaction_read_only=on -c statement_timeout=60000') as c:
+        for rid, host, tools in c.execute("""SELECT id, host, usage_tools FROM public.resources WHERE active=1 AND kind='mcp'
+                AND eval_grade='A' AND health_status='healthy' AND COALESCE(eval_security,'') NOT IN ('quarantine','review')
+                AND usage_tools IS NOT NULL"""):
+            try:
+                tools = json.loads(tools)
+            except (TypeError, ValueError):
+                continue
+            for tool in tools if isinstance(tools, list) else []:
+                if isinstance(tool, dict) and tool.get('name') and is_relay_safe_tool({**tool, 'required': tool.get('required') or []}):
+                    for role in role_catalog.roles_for_tool(tool['name']):
+                        found.append((role, rid, tool['name'], host))
+    return found
+
+
+def new_queue(versions, candidates, seeds=(), limit=NEW_A_DAY, per_host=3):
+    """Untested members, roles with the fewest successes first, one per registrable domain in a role, 3 per host."""
+    tested = {(v['resource_id'], v['tool']) for v in versions}
+    successes = Counter(v['role'] for v in versions if v['outcome'] == 'succeeded')
+    taken_domains = defaultdict(set)
+    for v in versions:
+        taken_domains[v['role']].add(v['registrable_domain'])
+    pools = defaultdict(list)
+    for seed in seeds:
+        pools[canonical(seed['role'])].append((seed['id'], seed['tool'], seed.get('host')))
+    for role, rid, tool, host in candidates:
+        pools[role].append((rid, tool, host))
+    hosts, out = Counter(), []
+    roles = sorted(pools, key=lambda role: (successes[role], role))
+    while len(out) < limit and any(pools.values()):
+        for role in roles:
+            while pools[role]:
+                rid, tool, host = pools[role].pop(0)
+                domain = registrable(host) if host else None
+                if (rid, tool) in tested or (domain and domain in taken_domains[role]) or (host and hosts[host] >= per_host):
+                    continue
+                tested.add((rid, tool))
+                if domain:
+                    taken_domains[role].add(domain)
+                if host:
+                    hosts[host] += 1
+                out.append({'role': role, 'id': rid, 'tool': tool, 'kind': 'new'})
+                break
+            if len(out) >= limit:
+                break
+    return out
+
+
+def build_queue(seed_file=ROOT / 'reports/pearls-2026-11-14/role_candidates_1115.json'):
+    versions = latest_versions()
+    try:
+        seeds = json.loads(Path(seed_file).read_text())
+    except (OSError, ValueError):
+        seeds = []
+    return retest_queue(versions) + new_queue(versions, catalog_candidates(), seeds)
+
+
+def run(queue):
+    """Role tests for QUEUE within today's limits: 80 new + 40 retests, 120 in all, 60 after refusals pass 5%."""
+    import httpx
+    import pearl_batch as PB
+    from role_tool_test import resources, test_one
+    pacer = PB.Pacer(state_dir=PB.STATE_DIR)
+    for key in ('role_tests', 'refusals', 'new_tests', 'retests'):
+        pacer.state.setdefault(key, 0)
+    found = resources({c['id'] for c in queue})
+    with httpx.Client(follow_redirects=False) as http:
+        for candidate in queue:
+            tests = pacer.state['role_tests']
+            limit = FALLBACK_LIMIT if tests >= 20 and pacer.state['refusals'] * 100 > 5 * tests else ROLE_DAILY_LIMIT
+            if tests >= limit:
+                break
+            kind = 'retests' if candidate.get('kind') == 'retest' else 'new_tests'
+            if pacer.state[kind] >= (RETEST_A_DAY if kind == 'retests' else NEW_A_DAY):
+                continue
+            while not quiet_now():
+                time.sleep(30)
+            candidate = {**candidate, 'role': short(canonical(candidate['role'])) if canonical(candidate['role']) in SHORT else
+                         canonical(candidate['role']), 'case': case_for(candidate['role'])}
+            result = test_one(http, candidate, found.get(candidate['id'], {}), pacer)
+            if not (result.get('outcome') == 'skipped' and 'limit' in str(result.get('reason'))):
+                pacer.state['role_tests'] += 1
+                pacer.state[kind] += 1
+            if result.get('http') in (403, 429) or str(result.get('reason', '')).endswith(('HTTP 429', 'HTTP 403')):
+                pacer.state['refusals'] += 1
+            pacer.save()
+            save_version(result)
+
+
 def main(argv=None):
     argv = argv or sys.argv[1:]
     if argv[0] == 'import':
         for result in json.loads(Path(argv[1]).read_text()).get('results', []):
             if result.get('outcome') in ('succeeded', 'failed', 'skipped'):
                 save_version(result)
+    elif argv[0] == 'queue':
+        Path(argv[1]).write_text(json.dumps(build_queue(), indent=1))
     elif argv[0] == 'run':
-        import httpx
-        import pearl_batch as PB
-        from role_tool_test import resources, test_one
-        candidates = json.loads(Path(argv[1]).read_text())
-        pacer = PB.Pacer(state_dir=PB.STATE_DIR)
-        pacer.state.setdefault('role_tests', 0)
-        pacer.state.setdefault('refusals', 0)
-        found = resources({c['id'] for c in candidates})
-        with httpx.Client(follow_redirects=False) as http:
-            for candidate in candidates:
-                if pacer.state['role_tests'] >= ROLE_DAILY_LIMIT:
-                    break
-                while not quiet_now():
-                    time.sleep(30)
-                candidate = {**candidate, 'case': case_for(candidate['role'])}
-                result = test_one(http, candidate, found.get(candidate['id'], {}), pacer)
-                if result.get('outcome') != 'skipped' or 'limit' not in str(result.get('reason')):
-                    pacer.state['role_tests'] += 1
-                if result.get('http') in (403, 429) or str(result.get('reason', '')).endswith(('HTTP 429', 'HTTP 403')):
-                    pacer.state['refusals'] += 1
-                pacer.save()
-                save_version(result)
+        run(json.loads(Path(argv[1]).read_text()))
     print(publish(board='--no-board' not in argv))
 
 

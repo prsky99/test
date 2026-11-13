@@ -1,9 +1,9 @@
 {
- "generated": "2026-11-14 04:38",
+ "generated": "2026-11-14 04:52",
  "source": "scripts/report_v2.py (role task test v2)",
  "rank_rule": "quality score (evidence 60 + writing 40), one place per registrable domain; #1 at 85+ is the final pearl, #2-#3 are external fallbacks",
  "roles": {
-  "papers.search": {
+  "papers.search.v1": {
    "domain": "research",
    "members": [
     {
@@ -108,7 +108,7 @@
    ],
    "needs_agentcon_fallback": false
   },
-  "events.search": {
+  "events.search.v1": {
    "domain": "events",
    "members": [
     {
@@ -188,7 +188,7 @@
    "fallbacks": [],
    "needs_agentcon_fallback": true
   },
-  "country.indicator": {
+  "country.indicator.v1": {
    "domain": "economics",
    "members": [
     {
@@ -283,7 +283,7 @@
    "fallbacks": [],
    "needs_agentcon_fallback": true
   },
-  "news.search": {
+  "news.search.v1": {
    "domain": "news",
    "members": [
     {
@@ -335,7 +335,7 @@
    "fallbacks": [],
    "needs_agentcon_fallback": true
   },
-  "cve.kev": {
+  "cve.exploited.v1": {
    "domain": "security",
    "members": [
     {
@@ -386,7 +386,7 @@
    "fallbacks": [],
    "needs_agentcon_fallback": true
   },
-  "fx.rate": {
+  "fx.rate.v1": {
    "domain": "finance",
    "members": [
     {
@@ -492,7 +492,7 @@
    ],
    "needs_agentcon_fallback": false
   },
-  "package.metadata": {
+  "package.health.v1": {
    "domain": "developer",
    "members": [
     {
@@ -541,7 +541,7 @@
    "fallbacks": [],
    "needs_agentcon_fallback": true
   },
-  "package.advisories": {
+  "package.advisories.v1": {
    "domain": "security",
    "members": [
     {
@@ -643,7 +643,7 @@
    ],
    "needs_agentcon_fallback": false
   },
-  "encyclopedia.summary": {
+  "encyclopedia.summary.v1": {
    "domain": "reference",
    "members": [
     {
@@ -698,7 +698,7 @@
    ],
    "needs_agentcon_fallback": true
   },
-  "weather.forecast": {
+  "weather.forecast.v1": {
    "domain": "weather",
    "members": [
     {

@@ -128,8 +128,14 @@ def case_arguments(tool, case_input):
         if usage._PII_PARAM.search(name) or (name not in (tool.get('required') or []) and OPTION_NAME.search(name)
                                               and not re.search(CASE_KEYS['limit'], name)):
             continue
+        used = [k for k, _ in args.values()]
+        flat = lambda x: re.sub(r'[^a-z0-9]', '', str(x).lower())
+        exact = next((k for k in case_input if k not in used and flat(k) == flat(name)), None)
+        if exact is not None:
+            args[name] = (exact, case_input[exact])
+            continue
         for key, value in case_input.items():
-            if key in CASE_KEYS and re.search(CASE_KEYS[key], name, re.I) and key not in [k for k, _ in args.values()]:
+            if key in CASE_KEYS and re.search(CASE_KEYS[key], name, re.I) and key not in used:
                 if key == 'domain' and re.search(r'url', name, re.I):
                     value = 'https://' + str(value)
                 if key == 'indicator' and str(value).lower() in INDICATOR_CODES and (
@@ -182,6 +188,9 @@ def role_arguments(tool, role, category=None, case_input=None):
     """Arguments for TOOL (compact form), or (None, reason)."""
     if any(usage._PII_PARAM.search(p) for p in tool.get('required') or []):
         return None, 'personal-data parameter'
+    if not case_input:
+        import role_catalog
+        case_input = role_catalog.catalog_input(role if str(role).endswith('.v1') else str(role) + '.v1') or None
     if case_input:
         mapped, missing = case_arguments(tool, case_input)
         if not missing:
