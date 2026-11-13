@@ -106,7 +106,15 @@ def page_html(base='https://agentconcierge.biz', data=None, log=None):
                  + ('one place per registrable domain in a role; ' if fp.get('one_place_per_registrable_domain_in_a_role') else '')
                  + 'reranked ' + esc(fp.get('reranked', '')) + '.</p></section>')
     gate = data.get('necklace_gate') or {}
-    gate_rows = [[esc(k.replace('_', ' ')), esc(v)] for k, v in gate.items() if not isinstance(v, (dict, list))]
+    def flat(prefix, value):  # nested gate constants become 'part · item' rows, whatever their shape
+        if isinstance(value, dict):
+            for key, inner in value.items():
+                yield from flat((prefix + ' · ' if prefix else '') + key.replace('_', ' '), inner)
+        elif isinstance(value, list):
+            yield prefix, ', '.join(str(v).replace('_', ' ') for v in value)
+        else:
+            yield prefix, value
+    gate_rows = [[esc(k), esc(v)] for k, v in flat('', gate)]
     parts.append('<section aria-labelledby="mGate"><h2 id="mGate">5. Necklace gate</h2>'
                  '<p>A necklace (a workflow of pearls) is offered only after it passes this gate and keeps passing its retests. '
                  'Its page shows its own recent results.</p>' + _table(['Item', 'Value'], gate_rows) + '</section>')
