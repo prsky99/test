@@ -11,6 +11,8 @@
 | `cve-org` (`get_cve_org_record`) | 기록 자리 두 번째 대체, `cve.record.v1` | CVE Services API(cveawg.mitre.org) | NVD 기준 24/30 → **PM 승인 기준(표기한 CNA·ADP 값과 같은지) 28/30** | 1,008 ms / 1,066 ms | 남은 2건은 고르는 규칙 차이(3절 ③), 맞춘 뒤 신청 |
 | `package-registry` (`get_package_release`) | package-risk-audit health 자리, `package.health.v1` | npm 레지스트리 `/latest`·PyPI JSON | **30/30**, 고정 과제 2/2 | 204 ms / 331 ms | 관문 신청 |
 | `depsdev-package` (`get_package_scorecard`) | 같은 자리 두 번째, `package.health.v1` | deps.dev(OpenSSF Scorecard 포함) | **30/30**, 고정 과제 2/2 | 739 ms / 1,045 ms | 관문 신청 |
+| `gleif-lei` (`find_lei_record`) | company-due-diligence 등기 자리, `company.registry.v1` | GLEIF LEI API | 정답 세트 없음 → 고정 과제 2/2, 계약 입력 2/2, 자체 점검(미국 상장사 30곳) 28/30 | 945 ms / 1,718 ms | 정답 세트 요청 |
+| `sec-edgar` (`find_sec_company`) | 같은 자리 두 번째, `company.registry.v1` | SEC EDGAR(ticker 목록 + submissions) | 고정 과제 2/2, 계약 입력 2/2, 자체 점검 29/30(둘 중 하나로는 30/30) | 40 ms / 136 ms | 정답 세트 요청 |
 | `github-advisory` (`list_package_advisories`) | package-risk-audit 취약점 자리, `package.advisories.v1` | GitHub Advisory Database(reviewed) | 1차 27/30 → 고친 뒤 재측정은 5절 | 987 ms / 1,301 ms | 재측정 뒤 결정 |
 
 - 계약 시험 입력(`test_inputs`) 3건씩: nvd-cve·cve-org·cisa-kev 9/9 통과(`contract-test-inputs.json`). 고정 과제(role-tasks-v1): nvd-cve 3/3, cisa-kev 3/3, cve-org 3/3, package-registry 2/2, depsdev-package 2/2.
@@ -71,6 +73,13 @@
 | api.first.org (EPSS) | 0.5초, 분당 60회, 6시간 캐시 | — |
 | registry.npmjs.org·pypi.org·api.deps.dev | 0.2초, 분당 300회, 1~6시간 캐시 | 공개 상한 문서 없음(보수적으로 잡음). npm 전체 문서는 최대 16MB라 `/latest`(약 4KB)만 씀 |
 | api.github.com | 시간당 50회, 1시간 캐시, `x-ratelimit-remaining: 0`이면 reset까지 쉼 | 키 없으면 IP당 시간당 60회(이 맥 전체 공유) |
+
+### 2-5. 회사 자리(GLEIF·SEC EDGAR, PM ④)
+- 정확한 법인명만 돌려줍니다. 대소문자·문장부호·접미사 표기(Inc.=Incorporated, Corp=Corporation, AG=Aktiengesellschaft)는 같은 것으로 보고, 같은 이름이 여럿이면 추측하지 않고 `not_found`("several ... add the country")로 실패합니다.
+- GLEIF: 법인명과 등록된 다른 이름(영문 표기 등)을 모두 대조합니다. 원어 법인명이면 영문 이름을 괄호로 붙입니다(예: `トヨタ自動車株式会社 (Toyota Motor Corporation)`). 검색은 핵심 이름(접미사 뺀 것) → 없으면 전체 이름, 한 페이지 100건. GLEIF 상한(분당 60회)에 맞춰 1초 간격.
+- SEC: `company_tickers.json`(ticker가 있는 회사 약 1만 곳, 하루 캐시)으로 CIK를 찾고 submissions에서 법인명·CIK·ticker·거래소·신고자 구분·사업장 도시를 읽습니다. 전화·EIN 같은 연락·세금 항목은 내보내지 않습니다. EDGAR 이름의 주(州) 꼬리표("QUALCOMM INC/DE")는 무시합니다. User-Agent에 contact@agentconcierge.biz, 0.2초 간격(SEC 상한 초당 10회).
+- 자체 점검 실패 3건(`company-check.json`): Exxon(SEC 등록명이 "ExxonMobil Holdings Corp"로 바뀜), Chevron(GLEIF에서 정확히 같은 이름을 못 찾음), Oracle(GLEIF 미국에 같은 법인명 여러 개 → 추측 안 함). 사슬로 두 개를 함께 두면 30/30.
+- 관문용 정답 세트(보류 60건)는 워크플로우 팀 몫이라 요청했습니다(정답 = SEC CIK·GLEIF LEI 고정).
 
 ## 3. 관문 신청 묶음 (deploy/NECKLACE_GATE.md 10절 대비)
 

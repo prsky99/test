@@ -47,6 +47,13 @@ DEPSDEV = {"name": "Open Source Insights (deps.dev), Google", "url": "https://de
                       "(https://docs.deps.dev/api/v3/)",
            "notice": "The scorecard value is the OpenSSF Scorecard aggregate as served by deps.dev, with its date."}
 
+GLEIF = {"name": "GLEIF LEI records (Global Legal Entity Identifier Foundation)", "url": "https://www.gleif.org/",
+         "license": "CC0 1.0 (GLEIF LEI data, https://www.gleif.org/en/meta/lei-data-terms-of-use)",
+         "notice": "Only an exact legal-name match is returned; several equal matches are reported as ambiguous, not guessed."}
+SEC = {"name": "SEC EDGAR (U.S. Securities and Exchange Commission)", "url": "https://www.sec.gov/edgar",
+       "license": "U.S. Government public data; SEC fair-access policy (declared User-Agent, at most 10 requests per second)",
+       "notice": "Covers companies with SEC tickers. Not endorsed by the SEC."}
+
 SPECS = {
     "nvd-cve": {
         "name": "AgentValCon NVD CVE Record", "tool": "get_cve_record", "contract": "cve.record.v1",
@@ -98,6 +105,21 @@ SPECS = {
                        "Scorecard aggregate; read-only.",
         "sources": [DEPSDEV],
         "rate": "5 requests per second, cached 6 hours",
+    },
+    "gleif-lei": {
+        "name": "AgentValCon GLEIF LEI Lookup", "tool": "find_lei_record", "contract": "company.registry.v1",
+        "description": "Find the Legal Entity Identifier (LEI) record of one company by its exact legal "
+                       "name (optional ISO country): legal name, LEI, company number, entity and LEI status "
+                       "and city; read-only.",
+        "sources": [GLEIF],
+        "rate": "1 request per second (GLEIF allows 60 per minute), cached 6 hours",
+    },
+    "sec-edgar": {
+        "name": "AgentValCon SEC EDGAR Company", "tool": "find_sec_company", "contract": "company.registry.v1",
+        "description": "Find one SEC filer with a stock ticker by its name: legal name, SEC CIK, tickers, "
+                       "exchange, filer category and business city from EDGAR; read-only.",
+        "sources": [SEC],
+        "rate": "at most 5 requests per second (SEC allows 10); ticker list cached 24 hours",
     },
 }
 

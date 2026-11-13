@@ -83,4 +83,7 @@ def limiters(clock=time.monotonic, sleep=time.sleep) -> dict[str, HostLimiter]:
         "registry.npmjs.org": HostLimiter(0.2, 300, 60.0, clock, sleep),
         "pypi.org": HostLimiter(0.2, 300, 60.0, clock, sleep),
         "api.deps.dev": HostLimiter(0.2, 300, 60.0, clock, sleep),
+        "api.gleif.org": HostLimiter(1.0, 50, 60.0, clock, sleep),      # GLEIF: 60 per minute
+        "www.sec.gov": HostLimiter(0.2, 300, 60.0, clock, sleep),       # SEC: at most 10 per second
+        "data.sec.gov": HostLimiter(0.2, 300, 60.0, clock, sleep),
     }

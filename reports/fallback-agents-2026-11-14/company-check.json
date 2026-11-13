@@ -1,0 +1,316 @@
+{
+ "note": "self check, not a gold set: 30 US listed company names as people type them",
+ "role_tasks": {
+  "gleif-lei": {
+   "passed": 2,
+   "cases": 2,
+   "rows": [
+    {
+     "case_id": "company-apple",
+     "pass": true,
+     "why": []
+    },
+    {
+     "case_id": "company-microsoft",
+     "pass": true,
+     "why": []
+    }
+   ]
+  },
+  "sec-edgar": {
+   "passed": 2,
+   "cases": 2,
+   "rows": [
+    {
+     "case_id": "company-apple",
+     "pass": true,
+     "why": []
+    },
+    {
+     "case_id": "company-microsoft",
+     "pass": true,
+     "why": []
+    }
+   ]
+  }
+ },
+ "contract_test_inputs": {
+  "gleif-lei": [
+   [
+    {
+     "name": "Apple Inc",
+     "country": "US"
+    },
+    "ok",
+    {
+     "LEI": "HWUPKR0MPOU8FGXBT394",
+     "company number": "806592",
+     "registration authority (GLEIF RA code)": "RA000598"
+    }
+   ],
+   [
+    {
+     "name": "Microsoft Corporation",
+     "country": "US"
+    },
+    "ok",
+    {
+     "LEI": "INR2EJN1ERAN0W5ZP974",
+     "company number": "600 413 485",
+     "registration authority (GLEIF RA code)": "RA000641"
+    }
+   ]
+  ],
+  "sec-edgar": [
+   [
+    {
+     "name": "Apple Inc",
+     "country": "US"
+    },
+    "ok",
+    {
+     "SEC CIK": "320193",
+     "ticker": "AAPL",
+     "exchange": "Nasdaq"
+    }
+   ],
+   [
+    {
+     "name": "Microsoft Corporation",
+     "country": "US"
+    },
+    "ok",
+    {
+     "SEC CIK": "789019",
+     "ticker": "MSFT",
+     "exchange": "Nasdaq"
+    }
+   ]
+  ]
+ },
+ "coverage_us_30": [
+  {
+   "name": "Alphabet Inc.",
+   "gleif-lei": "5493006MHB84DD0ZWV18",
+   "gleif-lei_ms": 873,
+   "sec-edgar": "1652044",
+   "sec-edgar_ms": 40
+  },
+  {
+   "name": "Amazon.com, Inc.",
+   "gleif-lei": "ZXTILKJKG63JELOEG630",
+   "gleif-lei_ms": 886,
+   "sec-edgar": "1018724",
+   "sec-edgar_ms": 35
+  },
+  {
+   "name": "Meta Platforms, Inc.",
+   "gleif-lei": "BQ4BKCS1HXDV9HN80Z93",
+   "gleif-lei_ms": 842,
+   "sec-edgar": "1326801",
+   "sec-edgar_ms": 37
+  },
+  {
+   "name": "Berkshire Hathaway Inc.",
+   "gleif-lei": "5493000C01ZX7D35SD85",
+   "gleif-lei_ms": 1074,
+   "sec-edgar": "1067983",
+   "sec-edgar_ms": 47
+  },
+  {
+   "name": "JPMorgan Chase & Co.",
+   "gleif-lei": "8I5DZWZKVSZI1NUHU748",
+   "gleif-lei_ms": 1842,
+   "sec-edgar": "19617",
+   "sec-edgar_ms": 136
+  },
+  {
+   "name": "Visa Inc.",
+   "gleif-lei": "549300JZ4OKEHW3DPJ59",
+   "gleif-lei_ms": 886,
+   "sec-edgar": "1403161",
+   "sec-edgar_ms": 41
+  },
+  {
+   "name": "Johnson & Johnson",
+   "gleif-lei": "549300G0CFPGEF6X2043",
+   "gleif-lei_ms": 1718,
+   "sec-edgar": "200406",
+   "sec-edgar_ms": 39
+  },
+  {
+   "name": "Walmart Inc.",
+   "gleif-lei": "Y87794H0US1R65VBXU25",
+   "gleif-lei_ms": 867,
+   "sec-edgar": "104169",
+   "sec-edgar_ms": 36
+  },
+  {
+   "name": "Exxon Mobil Corporation",
+   "gleif-lei": "J3WHBG0MTS7O8ZVMDC91",
+   "gleif-lei_ms": 879,
+   "sec-edgar": "ERR not_found: No SEC company with a ticker has this name.",
+   "sec-edgar_ms": 0
+  },
+  {
+   "name": "Procter & Gamble Company",
+   "gleif-lei": "2572IBTT8CCZW6AU4141",
+   "gleif-lei_ms": 945,
+   "sec-edgar": "80424",
+   "sec-edgar_ms": 50
+  },
+  {
+   "name": "Mastercard Incorporated",
+   "gleif-lei": "AR5L2ODV9HN37376R084",
+   "gleif-lei_ms": 1024,
+   "sec-edgar": "1141391",
+   "sec-edgar_ms": 41
+  },
+  {
+   "name": "Home Depot, Inc.",
+   "gleif-lei": "QEKMOTMBBKA8I816DO57",
+   "gleif-lei_ms": 864,
+   "sec-edgar": "354950",
+   "sec-edgar_ms": 54
+  },
+  {
+   "name": "Chevron Corporation",
+   "gleif-lei": "ERR not_found: GLEIF has no LEI record with this exact legal name.",
+   "gleif-lei_ms": 1927,
+   "sec-edgar": "93410",
+   "sec-edgar_ms": 42
+  },
+  {
+   "name": "Pfizer Inc.",
+   "gleif-lei": "765LHXWGK1KXCLTFYQ30",
+   "gleif-lei_ms": 1170,
+   "sec-edgar": "78003",
+   "sec-edgar_ms": 37
+  },
+  {
+   "name": "Coca-Cola Company",
+   "gleif-lei": "UWJKFUJFZ02DKWI3RY53",
+   "gleif-lei_ms": 1201,
+   "sec-edgar": "21344",
+   "sec-edgar_ms": 40
+  },
+  {
+   "name": "PepsiCo, Inc.",
+   "gleif-lei": "FJSUNZKFNQ5YPJ5OT455",
+   "gleif-lei_ms": 905,
+   "sec-edgar": "77476",
+   "sec-edgar_ms": 49
+  },
+  {
+   "name": "Intel Corporation",
+   "gleif-lei": "KNX4USFCNGPY45LOCE31",
+   "gleif-lei_ms": 1020,
+   "sec-edgar": "50863",
+   "sec-edgar_ms": 37
+  },
+  {
+   "name": "Cisco Systems, Inc.",
+   "gleif-lei": "549300LKFJ962MZ46593",
+   "gleif-lei_ms": 775,
+   "sec-edgar": "858877",
+   "sec-edgar_ms": 37
+  },
+  {
+   "name": "Oracle Corporation",
+   "gleif-lei": "ERR not_found: Several LEI records share this legal name; add the country.",
+   "gleif-lei_ms": 1316,
+   "sec-edgar": "1341439",
+   "sec-edgar_ms": 36
+  },
+  {
+   "name": "Netflix, Inc.",
+   "gleif-lei": "549300Y7VHGU0I7CE873",
+   "gleif-lei_ms": 789,
+   "sec-edgar": "1065280",
+   "sec-edgar_ms": 39
+  },
+  {
+   "name": "Adobe Inc.",
+   "gleif-lei": "FU4LY2G4933NH2E1CP29",
+   "gleif-lei_ms": 1046,
+   "sec-edgar": "796343",
+   "sec-edgar_ms": 41
+  },
+  {
+   "name": "Salesforce, Inc.",
+   "gleif-lei": "RCGZFPDMRW58VJ54VR07",
+   "gleif-lei_ms": 752,
+   "sec-edgar": "1108524",
+   "sec-edgar_ms": 51
+  },
+  {
+   "name": "Tesla, Inc.",
+   "gleif-lei": "54930043XZGB27CTOV49",
+   "gleif-lei_ms": 1190,
+   "sec-edgar": "1318605",
+   "sec-edgar_ms": 64
+  },
+  {
+   "name": "NIKE, Inc.",
+   "gleif-lei": "787RXPR0UX0O0XUXPZ81",
+   "gleif-lei_ms": 912,
+   "sec-edgar": "320187",
+   "sec-edgar_ms": 264
+  },
+  {
+   "name": "Boeing Company",
+   "gleif-lei": "RVHJWBXLJ1RFUBSY1F30",
+   "gleif-lei_ms": 881,
+   "sec-edgar": "12927",
+   "sec-edgar_ms": 38
+  },
+  {
+   "name": "Caterpillar Inc.",
+   "gleif-lei": "WRJR7GS4GTRECRRTVX92",
+   "gleif-lei_ms": 953,
+   "sec-edgar": "18230",
+   "sec-edgar_ms": 44
+  },
+  {
+   "name": "Goldman Sachs Group, Inc.",
+   "gleif-lei": "784F5XWPLTWKTBV3E584",
+   "gleif-lei_ms": 1243,
+   "sec-edgar": "886982",
+   "sec-edgar_ms": 246
+  },
+  {
+   "name": "Starbucks Corporation",
+   "gleif-lei": "OQSJ1DU9TAOC51A47K68",
+   "gleif-lei_ms": 712,
+   "sec-edgar": "829224",
+   "sec-edgar_ms": 38
+  },
+  {
+   "name": "QUALCOMM Incorporated",
+   "gleif-lei": "H1J8DDZKZP6H7RWC0H53",
+   "gleif-lei_ms": 917,
+   "sec-edgar": "804328",
+   "sec-edgar_ms": 38
+  },
+  {
+   "name": "International Business Machines Corporation",
+   "gleif-lei": "VGRQXHF3J8VDLUA7XE92",
+   "gleif-lei_ms": 1014,
+   "sec-edgar": "51143",
+   "sec-edgar_ms": 39
+  }
+ ],
+ "summary": {
+  "gleif-lei": 28,
+  "sec-edgar": 29,
+  "either": 30,
+  "gleif-lei_p50_p95_ms": [
+   945,
+   1718
+  ],
+  "sec-edgar_p50_p95_ms": [
+   40,
+   136
+  ]
+ }
+}

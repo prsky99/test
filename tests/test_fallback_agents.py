@@ -70,7 +70,7 @@ def agents(tmp_path, routes, calls=None, clock=None, snapshot=None):
 
 # ------------------------------------------------------------------ catalog and contracts
 def test_tools_are_read_only_and_use_the_slot_contracts():
-    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package"}
+    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar"}
     for agent_id, spec in SPECS.items():
         tool = tool_spec(agent_id)
         c = contract(spec["contract"])
@@ -689,3 +689,85 @@ def test_cve_org_gold_rule_uses_the_named_source():
     none = {"truth": {"cvss": {"score": 6.4, "version": "2.0"}, "cvss_record": None}}
     assert judge("cve-org", none, {"source": "CVE Program"})["pass"]
     assert not judge("cve-org", none, {"cvss_score": 6.4, "cvss_version": "2.0", "source": "CVE Program"})["pass"]
+
+
+# ------------------------------------------------------------------ company.registry agents
+def gleif_row(lei, legal, city, reg="ISSUED", others=()):
+    return {"attributes": {"lei": lei, "entity": {"legalName": {"name": legal}, "otherNames": [{"name": o} for o in others],
+                                                  "status": "ACTIVE", "registeredAs": "806592", "registeredAt": {"id": "RA000598"},
+                                                  "legalAddress": {"city": city}},
+                           "registration": {"status": reg, "lastUpdateDate": "2026-03-03T16:34:33Z"}}}
+
+
+def test_gleif_agent_exact_name_only_and_core_name_search(tmp_path):
+    calls = []
+    rows = [gleif_row("HWUPKR0MPOU8FGXBT394", "Apple Inc.", "Glendale"),
+            gleif_row("254900KZR24L5GN8TE52", "Apple Ford, Inc.", "Wilmington", "LAPSED")]
+    a, _ = agents(tmp_path, {"https://api.gleif.org/api/v1/lei-records": httpx.Response(200, json={"data": rows})}, calls)
+    env = a.execute("gleif-lei", {"name": "Apple Incorporated", "country": "US"})
+    assert env["result"] == {"legal_name": "Apple Inc.", "identifiers": {"LEI": "HWUPKR0MPOU8FGXBT394", "company number": "806592",
+                                                                         "registration authority (GLEIF RA code)": "RA000598"},
+                             "status": "ACTIVE (LEI ISSUED)", "url": "https://search.gleif.org/#/record/HWUPKR0MPOU8FGXBT394",
+                             "source": "GLEIF", "address_city": "Glendale"}
+    assert "filter%5Bentity.names%5D=Apple&" in calls[0] and "country%5D=US" in calls[0]
+    assert env["freshness"]["data_as_of"] == {"GLEIF": "2026-03-03T16:34:33Z"}
+    assert env["sources"][0]["license"].startswith("CC0")
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("gleif-lei", {"name": "Apple"})
+    assert err.value.code == "not_found"
+
+
+def test_gleif_agent_matches_other_names_and_refuses_ambiguity(tmp_path):
+    rows = [gleif_row("5493006W3QUS5LMH6R84", "トヨタ自動車株式会社", "Toyota", others=["Toyota Motor Corporation"])]
+    a, _ = agents(tmp_path, {"https://api.gleif.org/": httpx.Response(200, json={"data": rows})})
+    out = a.execute("gleif-lei", {"name": "Toyota Motor Corp", "country": "JP"})["result"]
+    assert out["legal_name"] == "トヨタ自動車株式会社 (Toyota Motor Corporation)"
+    two = [gleif_row("AAAAAAAAAAAAAAAAAA01", "Acme Corp", "X"), gleif_row("AAAAAAAAAAAAAAAAAA02", "ACME CORPORATION", "Y")]
+    b, _ = agents(tmp_path / "b", {"https://api.gleif.org/": httpx.Response(200, json={"data": two})})
+    with pytest.raises(FallbackUnavailable, match="Several"):
+        b.execute("gleif-lei", {"name": "Acme Corporation"})
+
+
+def sec_routes():
+    tickers = {str(i): {"cik_str": 100000 + i, "ticker": f"T{i}", "title": f"Company {i} Inc"} for i in range(1200)}
+    tickers["a"] = {"cik_str": 320193, "ticker": "AAPL", "title": "Apple Inc."}
+    tickers["b"] = {"cik_str": 789019, "ticker": "MSFT", "title": "MICROSOFT CORP"}
+    tickers["c"] = {"cik_str": 804328, "ticker": "QCOM", "title": "QUALCOMM INC/DE"}
+    return {"https://www.sec.gov/files/company_tickers.json": httpx.Response(200, json=tickers),
+            "https://data.sec.gov/submissions/CIK0000789019.json": httpx.Response(200, json={
+                "cik": "0000789019", "name": "MICROSOFT CORP", "tickers": ["MSFT"], "exchanges": ["Nasdaq"], "lei": None,
+                "ein": "911144442", "phone": "425-882-8080", "category": "Large accelerated filer",
+                "addresses": {"business": {"city": "REDMOND"}}}),
+            "https://data.sec.gov/submissions/CIK0000804328.json": httpx.Response(200, json={
+                "cik": "0000804328", "name": "QUALCOMM INC/DE", "tickers": ["QCOM"]})}
+
+
+def test_sec_agent_maps_name_to_cik_and_omits_contact_fields(tmp_path):
+    calls = []
+    a, _ = agents(tmp_path, sec_routes(), calls)
+    env = a.execute("sec-edgar", {"name": "Microsoft Corporation", "country": "US"})
+    assert env["result"] == {"legal_name": "MICROSOFT CORP", "identifiers": {"SEC CIK": "789019", "ticker": "MSFT", "exchange": "Nasdaq"},
+                             "url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0000789019",
+                             "source": "SEC EDGAR", "status": "Large accelerated filer", "address_city": "REDMOND"}
+    assert "425" not in json.dumps(env) and "911144442" not in json.dumps(env)
+    a.execute("sec-edgar", {"name": "MICROSOFT CORP"})
+    assert sum("company_tickers" in c for c in calls) == 1, "ticker list is cached"
+    assert a.execute("sec-edgar", {"name": "QUALCOMM Incorporated"})["result"]["identifiers"]["SEC CIK"] == "804328"
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("sec-edgar", {"name": "Unknown Holdings"})
+    assert err.value.code == "not_found"
+
+
+def test_sec_user_agent_names_the_public_contact():
+    from agent_market.fallback_agents.catalog import SEC, USER_AGENT
+    assert "contact@agentconcierge.biz" in USER_AGENT and "10 requests per second" in SEC["license"]
+    lim = limiters()
+    assert lim["data.sec.gov"].spacing >= 0.1 and lim["www.sec.gov"].spacing >= 0.1
+
+
+def test_company_key_treats_suffix_spellings_alike():
+    from agent_market.fallback_agents.agents import company_key, core_name
+    assert company_key("Apple Inc.") == company_key("APPLE INCORPORATED") == "apple inc"
+    assert company_key("Siemens Aktiengesellschaft") == company_key("Siemens AG")
+    assert core_name("NVIDIA Corp.") == "NVIDIA" and core_name("Corp") == "Corp"
+    assert core_name("Amazon.com, Inc.") == "Amazon.com"

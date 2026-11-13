@@ -35,9 +35,11 @@ CODES = ("invalid_input", "not_found", "rate_limited", "source_unavailable", "in
 # Data age (PM 11-14, user emphasis): every answer states when its source data was updated and how
 # old our copy is. A copy older than MAX_AGE is an error ("stale") so the slot moves to the next member.
 MAX_AGE = {"nvd-cve": 6 * 3600, "cve-org": 24 * 3600, "cisa-kev": 24 * 3600, "github-advisory": 6 * 3600,
-           "package-registry": 6 * 3600, "depsdev-package": 24 * 3600}
+           "package-registry": 6 * 3600, "depsdev-package": 24 * 3600, "gleif-lei": 24 * 3600,
+           "sec-edgar": 24 * 3600}
 TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "github-advisory": (3600, 6 * 3600),
-       "epss": (6 * 3600, 48 * 3600), "package-registry": (3600, 6 * 3600), "depsdev-package": (6 * 3600, 24 * 3600)}  # (serve from cache without asking, longest a cached copy may serve)
+       "epss": (6 * 3600, 48 * 3600), "package-registry": (3600, 6 * 3600), "depsdev-package": (6 * 3600, 24 * 3600),
+       "gleif-lei": (6 * 3600, 24 * 3600), "sec-edgar": (6 * 3600, 24 * 3600), "sec-tickers": (6 * 3600, 24 * 3600)}  # (serve from cache without asking, longest a cached copy may serve)
 KEV_TTL, KEV_MAX_STALE = 3600, 24 * 3600
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 PACKAGE = re.compile(r"(?:@[a-z0-9][a-z0-9._~-]*/)?[A-Za-z0-9][A-Za-z0-9._~-]*")
@@ -375,6 +377,119 @@ class FallbackAgents:
                                                     TTL["depsdev-package"], live, remaining)
         return out, cache, partial, as_of
 
+    def _company_args(self, args):
+        name = " ".join(args["name"].split())
+        country = (args.get("country") or "").upper()
+        if not company_key(name) or (country and not re.fullmatch(r"[A-Z]{2}", country)):
+            raise FallbackUnavailable("invalid_input", "Use a company legal name and an optional ISO country code.")
+        return name, country
+
+    def _gleif_lei(self, args, remaining):
+        name, country = self._company_args(args)
+
+        def search(term, rem):
+            params = {"filter[entity.names]": term, "page[size]": 100}
+            if country:
+                params["filter[entity.legalAddress.country]"] = country
+            raw = self._get_json("https://api.gleif.org/api/v1/lei-records", rem, params=params, limit=2 * 1024 * 1024)
+            return [r.get("attributes") or {} for r in raw.get("data") or [] if isinstance(r, dict)]
+
+        def names(r):  # legal name plus registered other names (e.g. a transliterated English name)
+            entity = r.get("entity") or {}
+            yield (entity.get("legalName") or {}).get("name", "")
+            for other in entity.get("otherNames") or []:
+                if isinstance(other, dict):
+                    yield other.get("name", "")
+
+        def live(rem):
+            # GLEIF matches names loosely. Search legal and other names by the core name first (legal suffix
+            # removed, so "NVIDIA Corp" finds "NVIDIA CORPORATION"), then by the full name when a common core
+            # name crowds the exact one out of the first page; keep only exact name keys either way.
+            key = company_key(name)
+            exact = [r for r in search(core_name(name), rem) if any(company_key(n) == key for n in names(r))]
+            if not exact and core_name(name) != name and rem() > 1.2:
+                exact = [r for r in search(name, rem) if any(company_key(n) == key for n in names(r))]
+            issued = [r for r in exact if (r.get("registration") or {}).get("status") == "ISSUED"] or exact
+            if not issued:
+                raise FallbackUnavailable("not_found", "GLEIF has no LEI record with this exact legal name.")
+            if len(issued) > 1:
+                raise FallbackUnavailable("not_found", "Several LEI records share this legal name; add the country.")
+            rec = issued[0]
+            entity, reg = rec.get("entity") or {}, rec.get("registration") or {}
+            ids = {"LEI": rec["lei"]}
+            if _text(entity.get("registeredAs"), 64):
+                ids["company number"] = _text(entity.get("registeredAs"), 64)
+                if _text((entity.get("registeredAt") or {}).get("id"), 16):
+                    ids["registration authority (GLEIF RA code)"] = _text(entity["registeredAt"]["id"], 16)
+            legal = _text(entity["legalName"]["name"], 3000)
+            if not legal.isascii():
+                english = next((_text(n, 900) for n in names(rec) if n and n.isascii()), "")
+                if english:
+                    legal = f"{legal} ({english})"
+            out = {"legal_name": legal, "identifiers": ids,
+                   "status": _text(f"{entity.get('status', '')} (LEI {reg.get('status', '')})", 40),
+                   "url": "https://search.gleif.org/#/record/" + rec["lei"], "source": "GLEIF"}
+            city = _text((entity.get("legalAddress") or {}).get("city"), 200)
+            if city:
+                out["address_city"] = city
+            if not re.fullmatch(r"[A-Z0-9]{18}[0-9]{2}", rec["lei"]):
+                raise ValueError("bad LEI")
+            return out, _text(reg.get("lastUpdateDate"), 40) or None
+        (out, as_of), cache = self._cached(("gleif-lei", company_key(name), country), TTL["gleif-lei"], live, remaining)
+        return out, cache, False, {"GLEIF": as_of}
+
+    def _sec_edgar(self, args, remaining):
+        name, country = self._company_args(args)
+
+        def tickers(rem):
+            raw = self._get_json("https://www.sec.gov/files/company_tickers.json", rem, limit=4 * 1024 * 1024,
+                                 not_found=())
+            index = {}
+            for row in raw.values():
+                if isinstance(row, dict) and isinstance(row.get("cik_str"), int) and isinstance(row.get("title"), str):
+                    # EDGAR titles may carry a state tag ("QUALCOMM INC/DE"); it is not part of the name.
+                    title = re.sub(r"\s*/[A-Z]{2,3}/?$", "", row["title"].strip())
+                    index.setdefault(company_key(title), set()).add(row["cik_str"])
+            if len(index) < 1000:
+                raise ValueError("ticker list too small")
+            return index, _now_iso(self.utc_now())
+        (index, list_as_of), list_cache = self._cached(("sec-tickers",), TTL["sec-tickers"], tickers, remaining)
+        ciks = index.get(company_key(name)) or set()
+        if not ciks:
+            raise FallbackUnavailable("not_found", "No SEC company with a ticker has this name.")
+        if len(ciks) > 1:
+            raise FallbackUnavailable("not_found", "Several SEC companies share this name.")
+        cik = next(iter(ciks))
+
+        def live(rem):
+            raw = self._get_json(f"https://data.sec.gov/submissions/CIK{cik:010d}.json", rem, limit=8 * 1024 * 1024)
+            if int(raw.get("cik", -1)) != cik:
+                raise ValueError("CIK mismatch")
+            ids = {"SEC CIK": str(cik)}
+            tick = [_text(t, 12) for t in raw.get("tickers") or [] if isinstance(t, str)]
+            if tick:
+                ids["ticker"] = ", ".join(tick[:5])
+            exch = [_text(e, 20) for e in raw.get("exchanges") or [] if isinstance(e, str) and e]
+            if exch:
+                ids["exchange"] = ", ".join(exch[:5])
+            if isinstance(raw.get("lei"), str) and re.fullmatch(r"[A-Z0-9]{20}", raw["lei"]):
+                ids["LEI"] = raw["lei"]
+            out = {"legal_name": _text(raw.get("name"), 4000), "identifiers": ids,
+                   "url": f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik:010d}",
+                   "source": "SEC EDGAR"}
+            if _text(raw.get("category"), 40):
+                out["status"] = _text(raw.get("category"), 40)
+            city = _text(((raw.get("addresses") or {}).get("business") or {}).get("city"), 200)
+            if city:
+                out["address_city"] = city
+            if not out["legal_name"]:
+                raise ValueError("no name")
+            return out, _now_iso(self.utc_now())
+        (out, as_of), cache = self._cached(("sec-edgar", cik), TTL["sec-edgar"], live, remaining)
+        if list_cache["age_seconds"] > cache["age_seconds"]:
+            cache = list_cache
+        return out, cache, False, {"SEC EDGAR": as_of}
+
     # ---------------------------------------------------------------- usage
     def _usage(self, agent_id, envelope, code, started):
         line = {"at": _now_iso(self.utc_now()), "agent": agent_id if agent_id in SPECS else "unknown",
@@ -497,6 +612,27 @@ def repository_url(value, hosted_only: bool = False):
     if not hosted_only and value.startswith("https://"):
         return value
     return None
+
+
+_SUFFIX = {"incorporated": "inc", "corporation": "corp", "company": "co", "limited": "ltd", "the": "",
+           "aktiengesellschaft": "ag"}
+_LEGAL_FORMS = {"inc", "corp", "co", "ltd", "llc", "plc", "ag", "gmbh", "sa", "nv", "bv", "se", "spa", "kk", "lp",
+                "llp", "pte", "incorporated", "corporation", "company", "limited", "aktiengesellschaft"}
+
+
+def company_key(name: str) -> str:
+    """Legal-name key: case, punctuation and common suffix spellings do not matter (Inc. = Incorporated)."""
+    words = re.sub(r"[^0-9a-z&]+", " ", (name or "").lower().replace("&amp;", "&")).split()
+    return " ".join(w for w in (_SUFFIX.get(w, w) for w in words) if w)
+
+
+def core_name(name: str) -> str:
+    """The name without trailing legal-form words ("Amazon.com, Inc." -> "Amazon.com"), for a wider
+    GLEIF search (never used for matching)."""
+    words = [w.strip(",;") for w in name.split()]
+    while len(words) > 1 and re.sub(r"\W", "", words[-1]).lower() in _LEGAL_FORMS:
+        words.pop()
+    return " ".join(w for w in words if w)
 
 
 def pep503(name: str) -> str:

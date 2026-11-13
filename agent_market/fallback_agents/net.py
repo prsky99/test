@@ -16,7 +16,7 @@ from .limits import SourceBusy
 
 ALLOWED_HOSTS = frozenset({"services.nvd.nist.gov", "nvd.nist.gov", "cveawg.mitre.org", "www.cisa.gov",
                            "api.first.org", "api.github.com", "registry.npmjs.org", "pypi.org",
-                           "api.deps.dev"})
+                           "api.deps.dev", "api.gleif.org", "www.sec.gov", "data.sec.gov"})
 
 
 class SourceError(RuntimeError):
