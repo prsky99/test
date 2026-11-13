@@ -735,7 +735,7 @@ def mcp_manifest(base: str) -> dict:
 
 def agent_card(base: str) -> dict:
     url = f"{base}/a2a"
-    return {
+    card = {
         "protocolVersion": "0.3.0", "name": "AgentValCon", "version": "1.0.0",
         "description": NOTICE + " Talk to me in plain English (replies are always in English) or send structured data "
                                 "({\"intent\": \"find\", \"task\": \"...\", \"kind\": \"mcp\", \"category\": \"dev_tools\"}).",
@@ -764,6 +764,9 @@ def agent_card(base: str) -> dict:
              "tags": ["notifications", "webhook"], "examples": ["Get updates for this task", "stop"]},
         ],
     }
+    from .necklace_surface import skills as necklace_skills  # 11-14: offered necklaces, none while nothing is live
+    card["skills"] = card["skills"] + necklace_skills(base)
+    return card
 
 
 
@@ -3462,6 +3465,18 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
         ctx = msg.get("contextId") if isinstance(msg.get("contextId"), str) else None
         if 'contextId' in msg and (ctx is None or not ctx or len(ctx)>200):
             return {"jsonrpc": "2.0", "id": rid, "error": {"code": -32602, "message": "Provide a non-empty contextId of at most 200 characters."}}
+        from . import necklace_surface
+        necklace_reply = await run_in_threadpool(necklace_surface.a2a_answer, front,
+                                                 "\n".join(texts).replace("\x00", "")[:MAX_MESSAGE], front.base(request))
+        if necklace_reply is not None:  # 11-14: "run necklace <slug> {...}" (A2A skill necklace-<slug>)
+            text, payload = necklace_reply
+            mid = str(uuid.uuid4())
+            parts_out = ([{"text": text}, {"data": {"data": payload}}] if method == "SendMessage"
+                         else [{"kind": "text", "text": text}, {"kind": "data", "data": payload}])
+            message = ({"message": {"role": "ROLE_AGENT", "messageId": mid, "contextId": ctx, "parts": parts_out}}
+                       if method == "SendMessage" else
+                       {"kind": "message", "role": "agent", "messageId": mid, "contextId": ctx, "parts": parts_out})
+            return JSONResponse({"jsonrpc": "2.0", "id": rid, "result": message})
         from . import a2a_run
         wanted = a2a_run.parse("\n".join(texts).replace("\x00", "")[:MAX_MESSAGE])
         if wanted is not None:

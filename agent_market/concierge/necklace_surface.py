@@ -451,6 +451,60 @@ def call(front, name, arguments, source='mcp', base='https://agentconcierge.biz'
                   'error_code': result.get('error_code'), 'output': result.get('output')}, not ok
 
 
+A2A_RUN = re.compile(r'^\s*run\s+necklace\s+([a-z][a-z0-9-]{0,39})\b(.*)$', re.I | re.S)
+
+
+def example_arguments(schema):
+    props = (schema or {}).get('properties') or {}
+    return {k: '<' + k + '>' for k in ((schema or {}).get('required') or list(props)[:2]) if isinstance(k, str)}
+
+
+def skills(base='https://agentconcierge.biz', snapshot=None, now=None):
+    """A2A card skills for offered necklaces (none while nothing is live)."""
+    out = []
+    for e in live(snapshot, now):
+        example = 'run necklace ' + e['slug'] + ' ' + json.dumps(example_arguments(e.get('input_schema')), separators=(',', ':'))
+        out.append({'id': skill_id(e['slug']), 'name': e.get('name') or e['slug'],
+                    'description': 'Necklace (a workflow of verified agents): ' + (e.get('summary') or '') + ' Send: ' + example
+                                   + ' ' + NOTICE_SENTENCE + ' Details: ' + base + '/necklaces/' + e['slug'],
+                    'tags': ['necklace', 'workflow'], 'examples': [example]})
+    return out
+
+
+def parse_a2a(text):
+    """(slug, arguments | None | 'invalid') for 'run necklace <slug> {...}', or None when the text is not that command."""
+    match = A2A_RUN.match(text or '')
+    if not match:
+        return None
+    slug, rest = match[1].lower(), match[2].strip()
+    if not rest:
+        return slug, None
+    try:
+        value = json.loads(rest)
+    except ValueError:
+        return slug, 'invalid'
+    return (slug, value) if isinstance(value, dict) else (slug, 'invalid')
+
+
+def a2a_answer(front, text, base='https://agentconcierge.biz', snapshot=None, now=None):
+    """(reply text, data) for an A2A 'run necklace' message, or None when it is not one."""
+    wanted = parse_a2a(text)
+    if wanted is None:
+        return None
+    slug, arguments = wanted
+    entry = by_slug(slug, snapshot) if SLUG.fullmatch(slug) else None
+    if entry is None or not _time(entry.get('gate_passed_at')):
+        return 'There is no necklace named ' + slug + '. See ' + base + '/api/necklaces', {'intent': 'necklace', 'ok': False,
+                                                                                              'error_code': 'unknown_necklace'}
+    if arguments is None and offered(entry, now):
+        example = 'run necklace ' + slug + ' ' + json.dumps(example_arguments(entry.get('input_schema')), separators=(',', ':'))
+        return 'Send: ' + example + ' (fill in the values).', {'intent': 'necklace', 'ok': False, 'error_code': 'needs_arguments',
+                                                               'example': {'text': example}}
+    answer = call(front, tool_name(slug), arguments if isinstance(arguments, dict) else 'invalid', 'a2a', base, snapshot, now)
+    reply, data, failed = answer
+    return reply, {'intent': 'necklace', 'ok': not failed, **data}
+
+
 def necklace_router():
     from fastapi import APIRouter
     from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
