@@ -276,5 +276,7 @@ def test_own_fallbacks_stack_versions_but_never_rank(tmp_path, out):
     versions = V.latest_versions()
     assert any(v['resource_id'] == 'avc:nvd-cve' for v in versions)
     assert all(m['resource_id'] != 'avc:nvd-cve' for r in V.rank(versions).values() for m in r['members'])
+    line = V.funnel(versions, V.rank(versions), 1)
+    assert 'v2 보고서 0(' in line and '외부 최고 0점' in line and '자체 대체' in line   # board counts outside agents only
     V.save_version(result(rid=3, role='cve.record.v1', tool='get_cve'))
     assert V.retest_queue(V.latest_versions(), day=1) is not None             # string ids do not break the queue

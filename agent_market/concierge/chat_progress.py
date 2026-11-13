@@ -15,6 +15,7 @@ LABELS = {
     'narrow': 'Searching again with the capability the candidates share',
     'split': 'Matching each part of the request',
     'cover': 'Checking the matches cover the whole task',
+    'relay': 'Looking for an agent our gateway can run',
     'workflows': 'Checking published workflows',
     'prepare': 'Preparing recommendations',
 }

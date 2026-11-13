@@ -599,17 +599,21 @@ def refusal_note():
 
 
 def funnel(versions, ranked, candidates_a=None):
+    own = [v for v in versions if is_own_fallback(v['resource_id'])]
     versions = [v for v in versions if not is_own_fallback(v['resource_id'])]
     ok = sum(v['outcome'] == 'succeeded' for v in versions)
     high = sum(v['quality']['score'] >= PASS_MARK for v in versions)
+    best = max((v['quality']['score'] for v in versions), default=0)
+    own_high = len({v['resource_id'] for v in own if v['quality']['score'] >= PASS_MARK})
     finals = sum(1 for r in ranked.values() if r['final_pearl'])
     provisional = sum(1 for r in ranked.values() if r.get('provisional_pearl'))
     thin = sorted(role for role, r in ranked.items() if r['needs_agentcon_fallback'])
     return (f"{time.strftime('%m-%d %H:%M')} 진주 깔때기(검색과 RAG, report_v2): 후보 A {candidates_a if candidates_a is not None else '?'} → "
-            f"v2 보고서 {len(versions)}(성공 {ok}·실패 {len(versions) - ok}) → 85점 이상 {high} → "
+            f"v2 보고서 {len(versions)}(성공 {ok}·실패 {len(versions) - ok}, 외부 최고 {best:g}점) → 85점 이상 {high} → "
             f"최종 진주 확정 {finals}·잠정 {provisional}(역할 {finals + provisional}/{len(ranked)}, 확정은 서로 다른 날 2회 성공) · "
             f"검증 확정 {verified(versions)} / 목표 {TARGETS['verified']}, 최종 진주 역할 {finals} / 목표 {TARGETS['roles']} · "
-            f"외부 대체 1개 이하(AgentValCon 대체 필요): {', '.join(thin) or '없음'}")
+            f"외부 대체 1개 이하(AgentValCon 대체 필요): {', '.join(thin) or '없음'}"
+            + (f" · 자체 대체 {own_high}개 85점 이상(순위·깔때기 제외)" if own else ''))
 
 
 def verified(versions):
