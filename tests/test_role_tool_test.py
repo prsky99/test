@@ -73,3 +73,16 @@ def test_events_use_coming_dates():
     args = role_arguments(tool(['year', 'month'], params), 'events.search')[0]
     soon = coming_dates()
     assert args == {'year': soon['year'], 'month': soon['month']} and args['year'] >= 2026
+
+
+def test_new_role_task_inputs_map():
+    from scripts.role_tool_test import case_arguments
+    fx = tool(['base_currency', 'quote_currency'], {'base_currency': {'type': 'string'}, 'quote_currency': {'type': 'string'},
+                                                    'amount': {'type': 'number'}})
+    assert case_arguments(fx, {'amount': 100, 'from': 'USD', 'to': 'EUR'})[0] == {'base_currency': 'USD', 'quote_currency': 'EUR', 'amount': 100}
+    wb = tool(['country', 'indicator_code'], {'country': {'type': 'string'}, 'indicator_code': {'type': 'string'},
+                                              'year': {'type': 'integer'}})
+    assert case_arguments(wb, {'country': 'KOR', 'indicator': 'population', 'year': 2023})[0] == \
+        {'country': 'KOR', 'indicator_code': 'SP.POP.TOTL', 'year': 2023}
+    wx = tool(['latitude', 'longitude'], {'latitude': {'type': 'number'}, 'longitude': {'type': 'number'}})
+    assert case_arguments(wx, {'city': 'Seoul', 'latitude': 37.5665, 'longitude': 126.978})[0] == {'latitude': 37.5665, 'longitude': 126.978}

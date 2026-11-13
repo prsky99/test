@@ -32,7 +32,9 @@ CASE_ROLE = {'papers.search': 'papers.search.v1', 'encyclopedia.summary': 'encyc
              'news.search': 'news.search.v1', 'package.advisories': 'package.advisories.v1',
              'package.metadata': 'package.health.v1', 'cve.kev': 'cve.exploited.v1', 'cve.record': 'cve.record.v1',
              'company.lookup': 'company.registry.v1', 'topic.answer': 'web.grounding.v1',
-             'software.incident': 'software.incident.v1', 'website.ai_readiness': 'website.ai_readiness.v1'}
+             'software.incident': 'software.incident.v1', 'website.ai_readiness': 'website.ai_readiness.v1',
+             'country.indicator': 'country.indicator.v1', 'fx.rate': 'fx.rate.v1', 'weather.forecast': 'weather.forecast.v1',
+             'events.search': 'events.search.v1'}
 
 
 def quiet_now(now=None):

@@ -81,7 +81,8 @@ def test_role_task_case_scores_the_full_answer():
 
 
 def test_no_case_for_roles_without_tasks():
-    assert V.case_for('fx.rate') is None
+    assert V.case_for('no.such.role') is None
+    assert V.case_for('fx.rate', day=0)['role'] == 'fx.rate.v1'          # 11-14 bc0aabce
 
 
 def test_measurement_windows():

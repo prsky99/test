@@ -103,7 +103,20 @@ CASE_KEYS = {
     'country': r'country|jurisdiction',
     'question': r'question|query|^q$|prompt|ask',
     'limit': r'^(limit|max_results|count|per_page|num_results|top_k)$',
+    # 11-14 bc0aabce: country, fx, weather and events tasks
+    'indicator': r'indicator|series|metric|dataset',
+    'year': r'year',
+    'month': r'month',
+    'from': r'(?:^|_)(?:from|base|source)(?:_|$)',
+    'to': r'(?:^|_)(?:to|target|quote|symbols?)(?:_|$)',
+    'amount': r'amount|value|quantity',
+    'city': r'city|location|place|^q$|query|name|address',
+    'place': r'place|city|location|destination|area|region',
+    'latitude': r'^lat',
+    'longitude': r'^(?:lon|lng)',
 }
+# World Bank codes for members that want an indicator code rather than a word (workflow team, 11-14).
+INDICATOR_CODES = {'population': 'SP.POP.TOTL', 'gdp': 'NY.GDP.MKTP.CD'}
 
 
 def case_arguments(tool, case_input):
@@ -119,6 +132,10 @@ def case_arguments(tool, case_input):
             if key in CASE_KEYS and re.search(CASE_KEYS[key], name, re.I) and key not in [k for k, _ in args.values()]:
                 if key == 'domain' and re.search(r'url', name, re.I):
                     value = 'https://' + str(value)
+                if key == 'indicator' and str(value).lower() in INDICATOR_CODES and (
+                        re.search(r'code|_id$|^id$', name, re.I) or re.search(r'\bcode\b|SP\.POP|NY\.GDP', str(spec.get('description') or ''))
+                        or any('.' in str(e) for e in spec.get('enum') or [])):
+                    value = INDICATOR_CODES[str(value).lower()]
                 if spec.get('type') in ('integer', 'number') and not isinstance(value, (int, float)):
                     continue
                 args[name] = (key, value)
