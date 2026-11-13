@@ -157,12 +157,14 @@ def applies(agent_id: str, case: dict) -> bool:
 
 
 def check(agent_ids, root: Path, split: str = "tuning", agents: FallbackAgents | None = None,
-          pause: float = 0.0, sleep=time.sleep, limit: int | None = None, offset: int = 0) -> dict:
+          pause: float = 0.0, sleep=time.sleep, limit: int | None = None, offset: int = 0,
+          quiet=None, clock=time.time) -> dict:
+    """QUIET(ts) -> True stops the run before the next case (the CLI passes the measurement windows)."""
     with budget(budget_system(split)):
-        return _check(agent_ids, root, split, agents, pause, sleep, limit, offset)
+        return _check(agent_ids, root, split, agents, pause, sleep, limit, offset, quiet, clock)
 
 
-def _check(agent_ids, root, split, agents, pause, sleep, limit=None, offset=0):
+def _check(agent_ids, root, split, agents, pause, sleep, limit=None, offset=0, quiet=None, clock=time.time):
     agents = agents or FallbackAgents()
     report = {"split": split, "agents": {}}
     for agent_id in agent_ids:
@@ -176,6 +178,9 @@ def _check(agent_ids, root, split, agents, pause, sleep, limit=None, offset=0):
                 continue
             seen += 1
             if seen <= offset or (limit is not None and run >= limit):  # the daily test share is small; the rest waits for another day
+                continue
+            if quiet and quiet(clock()):  # never measure inside the public measurement windows (PM 11-14)
+                report["stopped"] = "quiet_window"
                 continue
             run += 1
             started = time.monotonic()
@@ -225,7 +230,11 @@ def main(argv=None) -> int:
     parser.add_argument("--limit", type=int, default=None, help="run at most N applicable cases per agent")
     parser.add_argument("--offset", type=int, default=0, help="skip the first N applicable cases (another day's share)")
     args = parser.parse_args(argv)
-    report = check(args.agents, args.root, args.split, pause=args.pause, limit=args.limit, offset=args.offset)
+    from ..necklaces.watch import in_quiet_window
+    if in_quiet_window(time.time()):
+        parser.exit(75, "measurement window (:55-:10, 03:50-05:10): try again later\n")
+    report = check(args.agents, args.root, args.split, pause=args.pause, limit=args.limit, offset=args.offset,
+                   quiet=in_quiet_window)
     if args.role_tasks:
         with budget(budget_system(args.split)):
             report["role_tasks"] = role_task_check(args.agents)

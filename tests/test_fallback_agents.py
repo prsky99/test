@@ -1086,6 +1086,10 @@ def test_gold_check_company_cases_skip_without_truth_and_respect_limit(tmp_path)
     out = check(["gleif-lei"], tmp_path, agents=Fake(), limit=1)["agents"]["gleif-lei"]["summary"]
     assert seen == ["Allianz"]  # no call for the CIK-only case, none past the limit
     assert (out["cases"], out["passed"], out["not_applicable"], out["not_run"]) == (1, 1, 1, 1)
+    seen.clear()
+    stopped = check(["gleif-lei"], tmp_path, agents=Fake(), quiet=lambda ts: True)
+    assert seen == [] and stopped["stopped"] == "quiet_window"
+    assert stopped["agents"]["gleif-lei"]["summary"]["not_run"] == 2
 
 
 def test_holiday_calendar_answers_the_holiday_contract(tmp_path):
