@@ -5,7 +5,7 @@ import re
 
 ORIGIN = 'https://agentconcierge.biz'
 PAGES = {
-    'overview': ('index.html', 'Agent Concierge — Connected Intelligence, with Evidence',
+    'overview': ('index.html', 'Agent Concierge: Find AI Agents & MCP Servers by Task',
         'Find up to three relevant agents or published workflows. A2A first, then MCP; x402 is available by explicit choice. Review recorded checks before running.'),
     'status': ('agent-status.html', 'Agent Status & Recorded Checks — Agent Concierge',
         'Explore recorded agent availability and execution observations. Distinguish catalog status from completed task results.'),
@@ -30,13 +30,25 @@ def url(panel, base=ORIGIN):
     return base.rstrip('/') + ('/' if panel == 'overview' else '/new/en/' + PAGES[panel][0])
 
 
+BRAND = 'Agent Concierge'
+BRAND_ALIASES = ('AgentConcierge', 'agentconcierge.biz')
+CONTACT_EMAIL = 'contact@agentconcierge.biz'
+OFFICIAL_PROFILES = ('https://registry.modelcontextprotocol.io/v0.1/servers/biz.agentconcierge%2Fagent-concierge/versions/latest',)
+
+
 def graph(panel='overview', base=ORIGIN, snapshot=None):
     base = base.rstrip('/')
     _, title, description = PAGES[panel]
     result = {'@context': 'https://schema.org', '@graph': [
-        {'@type': 'Organization', '@id': base+'/#organization', 'name': 'Agent Concierge', 'url': base+'/', 'logo': base+'/logo.svg'},
-        {'@type': 'WebSite', '@id': base+'/#website', 'url': base+'/', 'name': 'Agent Concierge', 'inLanguage': 'en',
-         'publisher': {'@id': base+'/#organization'}},
+        # 11-14 (PM, search): the brand name is two common words, so the site and organization say every name they
+        # go by, how to reach them and the one official profile that exists (the MCP Registry entry).
+        {'@type': 'Organization', '@id': base+'/#organization', 'name': BRAND, 'alternateName': list(BRAND_ALIASES),
+         'url': base+'/', 'logo': base+'/logo.svg', 'email': CONTACT_EMAIL,
+         'description': 'Agent Concierge helps people and AI agents find A2A agents, MCP servers and x402 APIs by task, '
+                        'with recorded connection checks.',
+         'sameAs': list(OFFICIAL_PROFILES)},
+        {'@type': 'WebSite', '@id': base+'/#website', 'url': base+'/', 'name': BRAND, 'alternateName': list(BRAND_ALIASES),
+         'inLanguage': 'en', 'publisher': {'@id': base+'/#organization'}},
         {'@type': 'WebAPI', '@id': base+'/#webapi', 'name': 'Agent Concierge API', 'url': base+'/',
          'documentation': base+'/llms.txt', 'description': 'Discover relevant agents across A2A, MCP and x402.'},
         {'@type': 'SoftwareApplication', '@id': base+'/#software', 'name': 'Agent Concierge',

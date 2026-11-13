@@ -73,6 +73,7 @@ TESTS = (
     'tests/test_critical_css_browser.py::test_first_screen_with_inline_css_alone_matches_the_full_css[375-light]',
     'tests/test_notice_page_cache.py', 'tests/test_sitemap_parts.py', 'tests/test_csp_meta_removed.py',  # 11-13 PM 20:5x
     'tests/test_page_meta_trim.py',  # 11-13 PM 22:5x decision (b)
+    'tests/test_brand_signals.py',  # 11-14 PM 02:2x search: brand title, JSON-LD names, visible brand
 )
 # Each role runs the tests for the code it serves. jobs releases run the collector, health checks,
 # crawler and evaluation without the typed execution engine, so the opening-path list above
