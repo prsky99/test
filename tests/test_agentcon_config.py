@@ -339,3 +339,15 @@ def test_owner_proof_secret_lives_in_its_own_file(tmp_path):
         path.write_text(bad)
         with pytest.raises(ConfigError):
             read_owner_proof_settings(path)
+
+
+def test_the_workflow_retention_off_switch_is_an_allowed_setting(tmp_path):
+    """11-14 (PM): WORKFLOW_RETENTION_SCHEDULE=0 turns the default-on retention into a dry run; the 04:34 incident
+    was this key missing from the allow-list."""
+    import os
+    from scripts.agentcon_config import ALLOWED_KEYS, read_settings
+    assert 'WORKFLOW_RETENTION_SCHEDULE' in ALLOWED_KEYS
+    env = tmp_path / 'agentcon.env'
+    env.write_text('WORKFLOW_RETENTION_SCHEDULE=0\n')
+    os.chmod(env, 0o600)
+    assert read_settings(str(env)) == {'WORKFLOW_RETENTION_SCHEDULE': '0'}
