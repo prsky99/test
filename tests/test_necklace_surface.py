@@ -12,6 +12,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from agent_market.concierge import necklace_surface as ns
+from tests.test_pearl_frontend import client  # noqa: F401 - fixture
 
 NOW = datetime(2026, 11, 21, 12, tzinfo=timezone.utc)
 
@@ -180,3 +181,44 @@ def test_verified_95_only_after_110_cumulative_retests_with_at_most_one_failure(
     assert ('Verified 95%' in value) is shown and ('95%' in value) is shown
     assert '27/30 cases (last 7 days)' in value
     assert ns.public_item(entry, now=NOW)['quality']['verified_95'] is shown
+
+
+def mcp(client, name, arguments):
+    return client.post('/mcp', json={'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call',
+                                     'params': {'name': name, 'arguments': arguments}}).json()
+
+
+@pytest.fixture
+def mcp_site(tmp_path, monkeypatch, snapshot):
+    monkeypatch.setenv('AGENTCON_PROJECT_ROOT', str(tmp_path))
+    (tmp_path / 'gateway-data/necklaces').mkdir(parents=True)
+    now = datetime.now(timezone.utc)
+    live_one = necklace('trip-brief', gate_passed_at=iso(now - timedelta(days=1)),
+                        quality={'cases_7d': 30, 'success_rate': 0.9, 'best_single_rate': 0.7, 'delta_pp': 20.0, 'tested_at': iso(now)})
+    held = necklace('paper-digest', status='held', held_reason='completion_low', held_at=iso(now))
+    path = tmp_path / 'gateway-data/necklaces/necklaces.json'
+    path.write_text(json.dumps({**snapshot, 'necklaces': [live_one, held]}))
+    return path
+
+
+def test_mcp_lists_offered_necklaces_and_details_and_never_runs_a_held_one(mcp_site, client, monkeypatch):  # noqa: F811
+    names = [t['name'] for t in client.post('/mcp', json={'jsonrpc': '2.0', 'id': 1, 'method': 'tools/list'}).json()['result']['tools']]
+    assert 'necklace_trip_brief' in names and 'necklace_details' in names and 'necklace_paper_digest' not in names
+    details = mcp(client, 'necklace_details', {'slug': 'trip-brief'})['result']
+    assert details['isError'] is False and details['structuredContent']['mcp_tool'] == 'necklace_trip_brief'
+    held = mcp(client, 'necklace_paper_digest', {'city': 'Paris'})['result']
+    assert held['isError'] is True and held['structuredContent']['ran'] is False
+    assert held['content'][0]['text'].startswith('Necklace paper-digest is paused (completion_low')
+    not_wired = mcp(client, 'necklace_trip_brief', {'city': 'Paris'})['result']
+    assert not_wired['structuredContent']['error_code'] == 'not_wired' and not_wired['structuredContent']['ran'] is False
+    calls = []
+    monkeypatch.setattr(ns, 'RUN', lambda front, entry, arguments, source: calls.append((entry['slug'], arguments, source))
+                        or {'ok': True, 'output': {'brief': 'sunny, 1 EUR = 1.08 USD'}, 'stages': {'weather': 1}})
+    ran = mcp(client, 'necklace_trip_brief', {'city': 'Paris'})['result']
+    assert ran['isError'] is False and ran['structuredContent']['ran'] is True and calls == [('trip-brief', {'city': 'Paris'}, 'mcp')]
+
+
+def test_without_necklaces_the_tool_list_is_unchanged(tmp_path, monkeypatch, client):  # noqa: F811
+    monkeypatch.setenv('AGENTCON_PROJECT_ROOT', str(tmp_path))
+    names = [t['name'] for t in client.post('/mcp', json={'jsonrpc': '2.0', 'id': 1, 'method': 'tools/list'}).json()['result']['tools']]
+    assert not any(n.startswith('necklace_') for n in names)

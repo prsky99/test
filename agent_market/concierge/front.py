@@ -3623,7 +3623,8 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
         if method == "tools/list":
             if params.get('cursor') is not None:
                 return {"jsonrpc": "2.0", "id": rid, "error": {"code": -32602, "message": "This bounded tool list has no continuation cursor."}}
-            return mcp_result(rid, {"tools": TOOLS})
+            from .necklace_surface import tools as necklace_tools  # 11-14: offered necklaces, none while nothing is live
+            return mcp_result(rid, {"tools": TOOLS + necklace_tools()})
         if method in ("tasks/get", "tasks/result", "tasks/cancel"):
             # MCP tasks follow published workflow runs started by run_workflow (mcp_tasks.py).
             handler = {"tasks/get": mcp_tasks.get, "tasks/result": mcp_tasks.result, "tasks/cancel": mcp_tasks.cancel}[method]
@@ -3641,6 +3642,17 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
         if not isinstance(name, str) or not isinstance(params.get('arguments', {}), dict):
             return {"jsonrpc": "2.0", "id": rid, "error": {"code": -32602, "message": "Provide a tool name and object arguments."}}
         args = params.get("arguments") if isinstance(params, dict) and isinstance(params.get("arguments"), dict) else {}
+        if isinstance(name, str) and name.startswith("necklace_"):
+            from . import necklace_surface
+            if name == "necklace_details":
+                found = necklace_surface.details(str(args.get("slug") or ""), front.base(request))
+                if found is None:
+                    return {"jsonrpc": "2.0", "id": rid, "error": {"code": -32602, "message": "Unknown necklace."}}
+                return mcp_result(rid, {"content": [{"type": "text", "text": found[0]}], "structuredContent": found[1], "isError": False})
+            answer = await run_in_threadpool(necklace_surface.call, front, name, args, "mcp", front.base(request))
+            if answer is not None:
+                text, structured, failed = answer
+                return mcp_result(rid, {"content": [{"type": "text", "text": text}], "structuredContent": structured, "isError": failed})
         if name == "run_workflow":
             # The public run limit of POST /api/workflows/run applies to MCP runs too.
             if not front.security.allow_probe(front.security.resolve_ip(request), base_limit=20):

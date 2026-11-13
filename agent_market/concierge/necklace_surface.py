@@ -372,6 +372,85 @@ def llms_section(base='https://agentconcierge.biz', snapshot=None, now=None):
     return ''.join(lines)
 
 
+# The workflow team's public run entry (runner over the registered-agent path); None until it is wired.
+# Signature: run(front, entry, arguments, source) -> {'ok': bool, 'output': ..., 'stages': {...}, 'error_code': str|None}
+RUN = None
+NOTICE_SENTENCE = ('Your input is sent to the agents listed in necklace_details; if one fails, the same input may go to a '
+                   'listed alternate. No credentials or payments are sent. Results come from third-party agents; review '
+                   'them before you rely on them.')
+
+
+def tools(snapshot=None, now=None):
+    """MCP tools for offered necklaces, plus necklace_details when there is at least one (none while nothing is live)."""
+    rows = live(snapshot, now)
+    if not rows:
+        return []
+    out = []
+    for e in rows:
+        window = tested(e.get('quality') or {})
+        claim = verified(e.get('quality') or {})
+        evidence = (' Verified 95%: ' + str(claim[0]) + '/' + str(claim[1]) + ' cumulative retests passed.' if claim
+                    else ' Recent tests: ' + str(window[0]) + '/' + str(window[1]) + ' passed.' if window else '')
+        out.append({'name': tool_name(e['slug']), 'title': e.get('name') or e['slug'],
+                    'description': ('Necklace (a workflow of verified agents): ' + (e.get('summary') or '') + evidence
+                                    + ' ' + NOTICE_SENTENCE),
+                    'inputSchema': e.get('input_schema') or {'type': 'object'},
+                    'annotations': {'readOnlyHint': False, 'destructiveHint': False, 'idempotentHint': False,
+                                    'openWorldHint': True}})
+    out.append({'name': 'necklace_details', 'title': 'Necklace details',
+                'description': ('Read one necklace before you run it: its pearls (agents) and alternates per step, recent '
+                                'test results, completion and cost. Read-only.'),
+                'inputSchema': {'type': 'object', 'required': ['slug'], 'additionalProperties': False,
+                                'properties': {'slug': {'type': 'string', 'pattern': SLUG.pattern, 'maxLength': 40}}},
+                'annotations': {'readOnlyHint': True, 'destructiveHint': False, 'idempotentHint': True,
+                                'openWorldHint': False}})
+    return out
+
+
+def entry_for_tool(name, snapshot=None):
+    if not isinstance(name, str) or not name.startswith('necklace_') or name == 'necklace_details':
+        return None
+    slug = name[len('necklace_'):].replace('_', '-')
+    return by_slug(slug, snapshot) if SLUG.fullmatch(slug) else None
+
+
+def details(slug, base='https://agentconcierge.biz', snapshot=None, now=None):
+    """(text, structured) for necklace_details, or None for an unknown or never-approved necklace."""
+    entry = by_slug(slug, snapshot) if SLUG.fullmatch(slug or '') else None
+    if not entry or not _time(entry.get('gate_passed_at')):
+        return None
+    item = public_item(entry, base, now)
+    lines = [item['name'] + ': ' + (item['summary'] or '')]
+    if 'notice' in item:
+        lines.append(item['notice']['text'])
+    for p in item['pearls']:
+        lines.append('- ' + (p.get('role') or 'step') + ': agent ' + str(p['agent_id']) + ' (' + p['card'] + '), alternates '
+                     + str(p['alternates']['external']) + ' external + ' + str(p['alternates']['agentcon']) + ' AgentValCon')
+    return '\n'.join(lines), item
+
+
+def call(front, name, arguments, source='mcp', base='https://agentconcierge.biz', snapshot=None, now=None):
+    """(text, structured, is_error) for a necklace tool call; runs nothing unless the necklace is offered and RUN is wired."""
+    entry = entry_for_tool(name, snapshot)
+    if entry is None or not _time(entry.get('gate_passed_at')):
+        return None
+    if not offered(entry, now):
+        line = agent_line(entry, base, snapshot) or ('Necklace ' + entry['slug'] + ' is not running now.')
+        found = notice(entry, base, snapshot)
+        return line, {'necklace': entry['slug'], 'ran': False, **(found[2] if found else {})}, True
+    if RUN is None:
+        return ('Necklace ' + entry['slug'] + ' cannot run here yet; open ' + base + '/necklaces/' + entry['slug'] + '.',
+                {'necklace': entry['slug'], 'ran': False, 'error_code': 'not_wired'}, True)
+    if not isinstance(arguments, dict):
+        return 'Arguments must be one JSON object.', {'necklace': entry['slug'], 'ran': False, 'error_code': 'bad_arguments'}, True
+    result = RUN(front, entry, arguments, source) or {}
+    ok = bool(result.get('ok'))
+    text = ('Ran necklace ' + entry['slug'] + '. ' if ok else 'Necklace ' + entry['slug'] + ' did not finish ('
+            + str(result.get('error_code') or 'failed') + '). ') + json.dumps(result.get('output'), ensure_ascii=False)[:4000]
+    return text, {'necklace': entry['slug'], 'ran': True, 'ok': ok, 'stages': result.get('stages'),
+                  'error_code': result.get('error_code'), 'output': result.get('output')}, not ok
+
+
 def necklace_router():
     from fastapi import APIRouter
     from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
