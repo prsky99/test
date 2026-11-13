@@ -598,6 +598,24 @@ class Deployment:
                     item = timed('explore', lambda: client.get('/api/explore', params={'q': query}), query)
                     streak = streak + 1 if item['status'] == 200 and item['ms'] <= WARM_EXPLORE_GOAL_MS else 0
                 if time.monotonic() < deadline:
+                    # 11-14 PM: a category page is built on its first visit after a restart (0.24-0.29 s at the
+                    # origin, then 5-10 ms from its cache); build all of them before traffic moves here.
+                    from agent_market.broker.categories import CATEGORIES
+                    began, failed = time.monotonic(), []
+                    for category in sorted(CATEGORIES):
+                        if time.monotonic() >= deadline:
+                            failed.append('deadline')
+                            break
+                        try:
+                            status = client.get('/agents/category/' + category, headers={'Accept': 'text/html'}).status_code
+                        except Exception as error:
+                            status = type(error).__name__
+                        if status != 200:
+                            failed.append(category + ':' + str(status))
+                    timings.append({'kind': 'categories', 'q': '%d category pages' % len(CATEGORIES),
+                                    'status': 200 if not failed else ','.join(failed[:3]),
+                                    'ms': round((time.monotonic() - began) * 1000)})
+                if time.monotonic() < deadline:
                     task = rng.choice(WARM_VERBS) + ' ' + rng.choice(WARM_OBJECTS)
                     body = {'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call',
                             'params': {'name': 'find_agents', 'arguments': {'task': task}}}

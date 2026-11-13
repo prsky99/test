@@ -20,14 +20,14 @@ def test_home_and_chat_metadata_describe_current_selection(chat_page, request):
     playwright.expect(page).to_have_title(PAGES['overview'][1])
     description = page.locator('head meta[name="description"]').get_attribute('content')
     assert 'A2A first' in description and 'then MCP' in description and 'explicit choice' in description
-    daily = page.locator('#dailyHomeMetadata')
-    if daily.count():
-        import json
-        assert description == json.loads(daily.inner_text())['description']
+    # 11-14 PM plan 1: Home no longer carries an inline #dailyHomeMetadata; with a daily snapshot its head
+    # description is the daily text (the runtime keeps it), otherwise the static one.
+    if page.locator('#daily-catalog-statistics').count():
         assert 'Daily snapshot:' in description
         playwright.expect(page.locator('#daily-catalog-statistics')).to_be_visible()
     else:
         assert description == PAGES['overview'][2]
+    assert not page.locator('#dailyHomeMetadata').count() or published is False
     assert page.locator('head meta[property="og:description"]').get_attribute('content') == description
     assert page.locator('head meta[name="twitter:description"]').get_attribute('content') == description
     playwright.expect(page.locator('#navTabs .nav-tab')).to_have_text(

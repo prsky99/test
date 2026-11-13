@@ -169,8 +169,12 @@ def test_a_new_frontend_slot_is_warmed_with_fresh_queries_until_fast_then_recomm
     timings = manager.warm_web('frontend', 'a', transport=httpx.MockTransport(handler), rng=random.Random(7))
     explore = [t for t in timings if t['kind'] == 'explore']
     assert [t['status'] for t in explore][:1] == ['ConnectError'] and all(t['status'] == 200 for t in explore[1:])
-    assert len(explore) >= 3 and [t['kind'] for t in timings[-2:]] == ['recommend', 'chat']
-    assert all(t['status'] == 200 for t in timings[-2:])
+    assert len(explore) >= 3 and [t['kind'] for t in timings[-3:]] == ['categories', 'recommend', 'chat']
+    assert all(t['status'] == 200 for t in timings[-3:])
+    # 11-14 PM: every category page is built once before the switch (first visit 0.24-0.29 s at the origin)
+    from agent_market.broker.categories import CATEGORIES
+    assert sorted(p for _, m, p, _, _ in seen if p.startswith('/agents/category/')) == \
+        sorted('/agents/category/' + c for c in CATEGORIES)
     assert not set(t['q'] for t in explore) & set(service_deploy.WARM_QUERIES)   # never the cached fixed queries
     assert seen[0][:3] == (8401, 'GET', '/api/explore') and seen[0][4] == 'agentconcierge.biz'
     assert [s[1:3] for s in seen[-2:]] == [('POST', '/mcp'), ('POST', '/mcp')]
