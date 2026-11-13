@@ -1,0 +1,638 @@
+[
+ {
+  "i": 0,
+  "path": "/",
+  "s": 0.848,
+  "status": 200,
+  "wire_bytes": 35319,
+  "chunks": 30,
+  "tls_s": 0.488,
+  "headers_s": 0.821,
+  "first_chunk_s": 0.802,
+  "last_chunk_s": 0.827,
+  "chunk_times": [
+   [
+    0.802,
+    878
+   ],
+   [
+    0.802,
+    1394
+   ],
+   [
+    0.802,
+    2758
+   ],
+   [
+    0.827,
+    32978
+   ],
+   [
+    0.827,
+    34347
+   ],
+   [
+    0.827,
+    35319
+   ]
+  ],
+  "gap": [
+   0.006,
+   10309
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "135",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6d264af169b5-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": "1",
+  "last-modified": "Fri, 13 Nov 2026 11:25:02 GMT",
+  "etag": null,
+  "vary": "Accept, Accept-Encoding"
+ },
+ {
+  "i": 0,
+  "path": "/new/en/assets/pearl-ui.js",
+  "s": 1.703,
+  "status": 200,
+  "wire_bytes": 24400,
+  "chunks": 18,
+  "tls_s": 1.358,
+  "headers_s": 1.685,
+  "first_chunk_s": 1.677,
+  "last_chunk_s": 1.694,
+  "chunk_times": [
+   [
+    1.677,
+    1194
+   ],
+   [
+    1.677,
+    2563
+   ],
+   [
+    1.677,
+    3932
+   ],
+   [
+    1.692,
+    21729
+   ],
+   [
+    1.692,
+    23098
+   ],
+   [
+    1.694,
+    24400
+   ]
+  ],
+  "gap": [
+   0.003,
+   17622
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "79",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6d375eeb8189-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": "\"6aeb0c0001affa60\"",
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 1,
+  "path": "/",
+  "s": 1.474,
+  "status": 200,
+  "wire_bytes": 35245,
+  "chunks": 29,
+  "tls_s": 0.472,
+  "headers_s": 0.823,
+  "first_chunk_s": 0.809,
+  "last_chunk_s": 1.459,
+  "chunk_times": [
+   [
+    0.809,
+    872
+   ],
+   [
+    0.809,
+    2241
+   ],
+   [
+    0.809,
+    3441
+   ],
+   [
+    1.458,
+    33548
+   ],
+   [
+    1.459,
+    34917
+   ],
+   [
+    1.459,
+    35245
+   ]
+  ],
+  "gap": [
+   0.329,
+   7103
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "139",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6d42bb867e62-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": "1",
+  "last-modified": "Fri, 13 Nov 2026 11:25:02 GMT",
+  "etag": null,
+  "vary": "Accept, Accept-Encoding"
+ },
+ {
+  "i": 1,
+  "path": "/new/en/assets/pearl-ui.js",
+  "s": 2.527,
+  "status": 200,
+  "wire_bytes": 24400,
+  "chunks": 18,
+  "tls_s": 0.468,
+  "headers_s": 0.813,
+  "first_chunk_s": 0.803,
+  "last_chunk_s": 2.516,
+  "chunk_times": [
+   [
+    0.803,
+    1194
+   ],
+   [
+    0.803,
+    2563
+   ],
+   [
+    0.803,
+    3932
+   ],
+   [
+    2.514,
+    21729
+   ],
+   [
+    2.516,
+    23098
+   ],
+   [
+    2.516,
+    24400
+   ]
+  ],
+  "gap": [
+   1.085,
+   10777
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "83",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6d523d29dcfa-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": "\"6aeb0c0001affa60\"",
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 2,
+  "path": "/",
+  "s": 0.82,
+  "status": 200,
+  "wire_bytes": 35280,
+  "chunks": 28,
+  "tls_s": 0.47,
+  "headers_s": 0.788,
+  "first_chunk_s": 0.777,
+  "last_chunk_s": 0.807,
+  "chunk_times": [
+   [
+    0.777,
+    874
+   ],
+   [
+    0.777,
+    1365
+   ],
+   [
+    0.777,
+    2729
+   ],
+   [
+    0.805,
+    33132
+   ],
+   [
+    0.807,
+    34501
+   ],
+   [
+    0.807,
+    35280
+   ]
+  ],
+  "gap": [
+   0.003,
+   30394
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "145",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6d684c0212ad-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": "1",
+  "last-modified": "Fri, 13 Nov 2026 11:25:02 GMT",
+  "etag": null,
+  "vary": "Accept, Accept-Encoding"
+ },
+ {
+  "i": 2,
+  "path": "/new/en/assets/pearl-ui.js",
+  "s": 1.12,
+  "status": 200,
+  "wire_bytes": 24400,
+  "chunks": 18,
+  "tls_s": 0.465,
+  "headers_s": 0.8,
+  "first_chunk_s": 0.79,
+  "last_chunk_s": 1.108,
+  "chunk_times": [
+   [
+    0.79,
+    1194
+   ],
+   [
+    0.79,
+    2563
+   ],
+   [
+    0.79,
+    3932
+   ],
+   [
+    1.108,
+    21729
+   ],
+   [
+    1.108,
+    23098
+   ],
+   [
+    1.108,
+    24400
+   ]
+  ],
+  "gap": [
+   0.317,
+   6670
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "88",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6d73b94669c1-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": "\"6aeb0c0001affa60\"",
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 3,
+  "path": "/",
+  "s": 1.11,
+  "status": 200,
+  "wire_bytes": 35324,
+  "chunks": 28,
+  "tls_s": 0.454,
+  "headers_s": 1.089,
+  "first_chunk_s": 1.076,
+  "last_chunk_s": 1.095,
+  "chunk_times": [
+   [
+    1.076,
+    869
+   ],
+   [
+    1.077,
+    2238
+   ],
+   [
+    1.077,
+    3607
+   ],
+   [
+    1.095,
+    33574
+   ],
+   [
+    1.095,
+    34943
+   ],
+   [
+    1.095,
+    35324
+   ]
+  ],
+  "gap": [
+   0.014,
+   25360
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "149",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6d80e872b786-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": "1",
+  "last-modified": "Fri, 13 Nov 2026 11:25:02 GMT",
+  "etag": null,
+  "vary": "Accept, Accept-Encoding"
+ },
+ {
+  "i": 3,
+  "path": "/new/en/assets/pearl-ui.js",
+  "s": 0.844,
+  "status": 200,
+  "wire_bytes": 24400,
+  "chunks": 18,
+  "tls_s": 0.48,
+  "headers_s": 0.825,
+  "first_chunk_s": 0.813,
+  "last_chunk_s": 0.83,
+  "chunk_times": [
+   [
+    0.813,
+    1190
+   ],
+   [
+    0.813,
+    2559
+   ],
+   [
+    0.813,
+    3928
+   ],
+   [
+    0.827,
+    21725
+   ],
+   [
+    0.827,
+    23094
+   ],
+   [
+    0.83,
+    24400
+   ]
+  ],
+  "gap": [
+   0.003,
+   23094
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "93",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6d8e4d006de4-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": "\"6aeb0c0001affa60\"",
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 4,
+  "path": "/",
+  "s": 2.507,
+  "status": 200,
+  "wire_bytes": 35258,
+  "chunks": 29,
+  "tls_s": 1.498,
+  "headers_s": 1.855,
+  "first_chunk_s": 1.844,
+  "last_chunk_s": 2.494,
+  "chunk_times": [
+   [
+    1.844,
+    874
+   ],
+   [
+    1.845,
+    2243
+   ],
+   [
+    1.845,
+    2386
+   ],
+   [
+    2.185,
+    33874
+   ],
+   [
+    2.494,
+    35243
+   ],
+   [
+    2.494,
+    35258
+   ]
+  ],
+  "gap": [
+   0.321,
+   8940
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "154",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6da03fd3c4f9-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": "1",
+  "last-modified": "Fri, 13 Nov 2026 11:25:02 GMT",
+  "etag": null,
+  "vary": "Accept, Accept-Encoding"
+ },
+ {
+  "i": 4,
+  "path": "/new/en/assets/pearl-ui.js",
+  "s": 0.834,
+  "status": 200,
+  "wire_bytes": 24400,
+  "chunks": 18,
+  "tls_s": 0.487,
+  "headers_s": 0.814,
+  "first_chunk_s": 0.81,
+  "last_chunk_s": 0.819,
+  "chunk_times": [
+   [
+    0.81,
+    1192
+   ],
+   [
+    0.81,
+    2561
+   ],
+   [
+    0.81,
+    3930
+   ],
+   [
+    0.817,
+    21727
+   ],
+   [
+    0.817,
+    23096
+   ],
+   [
+    0.819,
+    24400
+   ]
+  ],
+  "gap": [
+   0.003,
+   20358
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "98",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6dafdbaa2602-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": "\"6aeb0c0001affa60\"",
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 5,
+  "path": "/",
+  "s": 1.783,
+  "status": 200,
+  "wire_bytes": 35242,
+  "chunks": 28,
+  "tls_s": 0.473,
+  "headers_s": 0.81,
+  "first_chunk_s": 0.798,
+  "last_chunk_s": 1.769,
+  "chunk_times": [
+   [
+    0.798,
+    870
+   ],
+   [
+    0.798,
+    1365
+   ],
+   [
+    0.798,
+    2357
+   ],
+   [
+    1.769,
+    32925
+   ],
+   [
+    1.769,
+    34294
+   ],
+   [
+    1.769,
+    35242
+   ]
+  ],
+  "gap": [
+   0.634,
+   31556
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "159",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6dbb4f312590-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": "1",
+  "last-modified": "Fri, 13 Nov 2026 11:25:02 GMT",
+  "etag": null,
+  "vary": "Accept, Accept-Encoding"
+ },
+ {
+  "i": 5,
+  "path": "/new/en/assets/pearl-ui.js",
+  "s": 0.845,
+  "status": 200,
+  "wire_bytes": 24400,
+  "chunks": 18,
+  "tls_s": 0.483,
+  "headers_s": 0.828,
+  "first_chunk_s": 0.816,
+  "last_chunk_s": 0.832,
+  "chunk_times": [
+   [
+    0.816,
+    1197
+   ],
+   [
+    0.816,
+    2566
+   ],
+   [
+    0.816,
+    3935
+   ],
+   [
+    0.83,
+    21732
+   ],
+   [
+    0.83,
+    23101
+   ],
+   [
+    0.832,
+    24400
+   ]
+  ],
+  "gap": [
+   0.003,
+   12149
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "103",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6dcccbb52527-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": "\"6aeb0c0001affa60\"",
+  "vary": "Accept-Encoding"
+ }
+]

@@ -1,0 +1,834 @@
+[
+ {
+  "i": 0,
+  "path": "/agents/compare/42233-vs-47175",
+  "s": 4.066,
+  "status": 200,
+  "wire_bytes": 1945,
+  "chunks": 2,
+  "tls_s": 1.377,
+  "headers_s": 4.066,
+  "first_chunk_s": 4.034,
+  "last_chunk_s": 4.034,
+  "chunk_times": [
+   [
+    4.034,
+    1106
+   ],
+   [
+    4.034,
+    1945
+   ],
+   [
+    4.034,
+    1106
+   ],
+   [
+    4.034,
+    1945
+   ]
+  ],
+  "gap": [
+   0.0,
+   1106
+  ],
+  "cf-cache-status": "UPDATING",
+  "cache-control": "public, max-age=3600, stale-while-revalidate=86400",
+  "age": "7546",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d72b58a295730-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": null,
+  "vary": "Accept, Accept-Encoding, Accept-Encoding"
+ },
+ {
+  "i": 0,
+  "path": "/new/en/disclosures.html",
+  "s": 1.231,
+  "status": 200,
+  "wire_bytes": 8265,
+  "chunks": 7,
+  "tls_s": 0.459,
+  "headers_s": 1.227,
+  "first_chunk_s": 1.223,
+  "last_chunk_s": 1.226,
+  "chunk_times": [
+   [
+    1.223,
+    1121
+   ],
+   [
+    1.223,
+    2490
+   ],
+   [
+    1.223,
+    3859
+   ],
+   [
+    1.224,
+    6591
+   ],
+   [
+    1.225,
+    7955
+   ],
+   [
+    1.226,
+    8265
+   ]
+  ],
+  "gap": [
+   0.001,
+   7955
+  ],
+  "cf-cache-status": "DYNAMIC",
+  "cache-control": "no-store",
+  "age": null,
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d72cf797969b0-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": null,
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 0,
+  "path": "/sitemap.xml",
+  "s": 5.186,
+  "status": 200,
+  "wire_bytes": 35482,
+  "chunks": 27,
+  "tls_s": 1.45,
+  "headers_s": 1.797,
+  "first_chunk_s": 1.786,
+  "last_chunk_s": 5.174,
+  "chunk_times": [
+   [
+    1.786,
+    988
+   ],
+   [
+    1.786,
+    2357
+   ],
+   [
+    1.786,
+    3726
+   ],
+   [
+    5.171,
+    33844
+   ],
+   [
+    5.174,
+    35213
+   ],
+   [
+    5.174,
+    35482
+   ]
+  ],
+  "gap": [
+   2.746,
+   14678
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=600, stale-while-revalidate=3600",
+  "age": "336",
+  "content-encoding": "gzip",
+  "content-length": "35482",
+  "cf-ray": "a59d72e3aed2f7b1-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": "W/\"eae2bccdb0118f6e461e1dc0\"",
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 0,
+  "path": "/agents/best/database_analytics/a2a",
+  "s": 3.543,
+  "status": 200,
+  "wire_bytes": 4431,
+  "chunks": 4,
+  "tls_s": 3.197,
+  "headers_s": 3.539,
+  "first_chunk_s": 3.534,
+  "last_chunk_s": 3.537,
+  "chunk_times": [
+   [
+    3.534,
+    1069
+   ],
+   [
+    3.535,
+    2438
+   ],
+   [
+    3.535,
+    3807
+   ],
+   [
+    3.535,
+    2438
+   ],
+   [
+    3.535,
+    3807
+   ],
+   [
+    3.537,
+    4431
+   ]
+  ],
+  "gap": [
+   0.002,
+   3807
+  ],
+  "cf-cache-status": "UPDATING",
+  "cache-control": "public, max-age=3600, stale-while-revalidate=86400",
+  "age": "7456",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d7315499f0d0e-LAX",
+  "server-timing": "server;dur=7",
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": null,
+  "vary": "Accept, Accept-Encoding, Accept-Encoding"
+ },
+ {
+  "i": 0,
+  "path": "/agents/task/us-treasury",
+  "s": 0.837,
+  "status": 200,
+  "wire_bytes": 2820,
+  "chunks": 3,
+  "tls_s": 0.483,
+  "headers_s": 0.836,
+  "first_chunk_s": 0.823,
+  "last_chunk_s": 0.824,
+  "chunk_times": [
+   [
+    0.823,
+    1098
+   ],
+   [
+    0.824,
+    2467
+   ],
+   [
+    0.824,
+    2820
+   ],
+   [
+    0.823,
+    1098
+   ],
+   [
+    0.824,
+    2467
+   ],
+   [
+    0.824,
+    2820
+   ]
+  ],
+  "gap": [
+   0.001,
+   1098
+  ],
+  "cf-cache-status": "UPDATING",
+  "cache-control": "public, max-age=3600, stale-while-revalidate=86400",
+  "age": "7529",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d7320b8892ca0-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": null,
+  "vary": "Accept, Accept-Encoding, Accept-Encoding"
+ },
+ {
+  "i": 0,
+  "path": "/agents/best/health_science/x402",
+  "s": 0.809,
+  "status": 200,
+  "wire_bytes": 5243,
+  "chunks": 5,
+  "tls_s": 0.474,
+  "headers_s": 0.805,
+  "first_chunk_s": 0.791,
+  "last_chunk_s": 0.794,
+  "chunk_times": [
+   [
+    0.791,
+    1075
+   ],
+   [
+    0.791,
+    2444
+   ],
+   [
+    0.791,
+    3813
+   ],
+   [
+    0.791,
+    3813
+   ],
+   [
+    0.793,
+    5182
+   ],
+   [
+    0.794,
+    5243
+   ]
+  ],
+  "gap": [
+   0.002,
+   3813
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=3600, stale-while-revalidate=86400",
+  "age": "77",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d732c3e65312c-LAX",
+  "server-timing": "server;dur=10",
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": null,
+  "vary": "Accept, Accept-Encoding, Accept-Encoding"
+ },
+ {
+  "i": 0,
+  "path": "/agents/best/network_ops/a2a",
+  "s": 0.789,
+  "status": 200,
+  "wire_bytes": 5128,
+  "chunks": 4,
+  "tls_s": 0.46,
+  "headers_s": 0.787,
+  "first_chunk_s": 0.782,
+  "last_chunk_s": 0.782,
+  "chunk_times": [
+   [
+    0.782,
+    1075
+   ],
+   [
+    0.782,
+    2444
+   ],
+   [
+    0.782,
+    3813
+   ],
+   [
+    0.782,
+    2444
+   ],
+   [
+    0.782,
+    3813
+   ],
+   [
+    0.782,
+    5128
+   ]
+  ],
+  "gap": [
+   0.0,
+   3813
+  ],
+  "cf-cache-status": "UPDATING",
+  "cache-control": "public, max-age=3600, stale-while-revalidate=86400",
+  "age": "7475",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d73377b4a2ede-LAX",
+  "server-timing": "server;dur=5",
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": null,
+  "vary": "Accept, Accept-Encoding, Accept-Encoding"
+ },
+ {
+  "i": 0,
+  "path": "/agent/12874",
+  "s": 1.717,
+  "status": 200,
+  "wire_bytes": 2525,
+  "chunks": 3,
+  "tls_s": 0.473,
+  "headers_s": 0.838,
+  "first_chunk_s": 0.826,
+  "last_chunk_s": 0.826,
+  "chunk_times": [
+   [
+    0.826,
+    1107
+   ],
+   [
+    0.826,
+    2476
+   ],
+   [
+    0.826,
+    2525
+   ],
+   [
+    0.826,
+    1107
+   ],
+   [
+    0.826,
+    2476
+   ],
+   [
+    0.826,
+    2525
+   ]
+  ],
+  "gap": [
+   0.0,
+   2476
+  ],
+  "cf-cache-status": "UPDATING",
+  "cache-control": "public, max-age=3600, stale-while-revalidate=86400",
+  "age": "7601",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d7342cf4fb60c-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": null,
+  "vary": "Accept, Accept-Encoding, Accept-Encoding"
+ },
+ {
+  "i": 1,
+  "path": "/agents/compare/42233-vs-47175",
+  "s": 0.812,
+  "status": 200,
+  "wire_bytes": 1945,
+  "chunks": 2,
+  "tls_s": 0.474,
+  "headers_s": 0.811,
+  "first_chunk_s": 0.8,
+  "last_chunk_s": 0.8,
+  "chunk_times": [
+   [
+    0.8,
+    1107
+   ],
+   [
+    0.8,
+    1945
+   ],
+   [
+    0.8,
+    1107
+   ],
+   [
+    0.8,
+    1945
+   ]
+  ],
+  "gap": [
+   0.0,
+   1107
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=3600, stale-while-revalidate=86400",
+  "age": "25",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d7353de9b11d4-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": null,
+  "vary": "Accept, Accept-Encoding, Accept-Encoding"
+ },
+ {
+  "i": 1,
+  "path": "/new/en/disclosures.html",
+  "s": 2.153,
+  "status": 200,
+  "wire_bytes": 8199,
+  "chunks": 7,
+  "tls_s": 0.479,
+  "headers_s": 1.835,
+  "first_chunk_s": 1.823,
+  "last_chunk_s": 2.138,
+  "chunk_times": [
+   [
+    1.823,
+    1126
+   ],
+   [
+    1.823,
+    2495
+   ],
+   [
+    1.823,
+    3851
+   ],
+   [
+    2.135,
+    6583
+   ],
+   [
+    2.137,
+    7952
+   ],
+   [
+    2.138,
+    8199
+   ]
+  ],
+  "gap": [
+   0.312,
+   3851
+  ],
+  "cf-cache-status": "DYNAMIC",
+  "cache-control": "no-store",
+  "age": null,
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d735f3f84685e-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": null,
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 1,
+  "path": "/sitemap.xml",
+  "s": 1.658,
+  "status": 200,
+  "wire_bytes": 35482,
+  "chunks": 27,
+  "tls_s": 1.347,
+  "headers_s": 1.632,
+  "first_chunk_s": 1.622,
+  "last_chunk_s": 1.647,
+  "chunk_times": [
+   [
+    1.622,
+    988
+   ],
+   [
+    1.622,
+    2357
+   ],
+   [
+    1.623,
+    3726
+   ],
+   [
+    1.646,
+    33727
+   ],
+   [
+    1.646,
+    35096
+   ],
+   [
+    1.647,
+    35482
+   ]
+  ],
+  "gap": [
+   0.003,
+   24261
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=600, stale-while-revalidate=3600",
+  "age": "360",
+  "content-encoding": "gzip",
+  "content-length": "35482",
+  "cf-ray": "a59d73786a73dcee-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": "W/\"eae2bccdb0118f6e461e1dc0\"",
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 1,
+  "path": "/agents/best/database_analytics/a2a",
+  "s": 1.714,
+  "status": 200,
+  "wire_bytes": 4431,
+  "chunks": 4,
+  "tls_s": 1.374,
+  "headers_s": 1.71,
+  "first_chunk_s": 1.7,
+  "last_chunk_s": 1.703,
+  "chunk_times": [
+   [
+    1.7,
+    1076
+   ],
+   [
+    1.701,
+    2445
+   ],
+   [
+    1.701,
+    3814
+   ],
+   [
+    1.701,
+    2445
+   ],
+   [
+    1.701,
+    3814
+   ],
+   [
+    1.703,
+    4431
+   ]
+  ],
+  "gap": [
+   0.002,
+   3814
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=3600, stale-while-revalidate=86400",
+  "age": "18",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d73892cc335c8-LAX",
+  "server-timing": "server;dur=7",
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": null,
+  "vary": "Accept, Accept-Encoding, Accept-Encoding"
+ },
+ {
+  "i": 1,
+  "path": "/agents/task/us-treasury",
+  "s": 1.709,
+  "status": 200,
+  "wire_bytes": 2820,
+  "chunks": 3,
+  "tls_s": 1.358,
+  "headers_s": 1.707,
+  "first_chunk_s": 1.701,
+  "last_chunk_s": 1.702,
+  "chunk_times": [
+   [
+    1.701,
+    1111
+   ],
+   [
+    1.701,
+    2480
+   ],
+   [
+    1.702,
+    2820
+   ],
+   [
+    1.701,
+    1111
+   ],
+   [
+    1.701,
+    2480
+   ],
+   [
+    1.702,
+    2820
+   ]
+  ],
+  "gap": [
+   0.001,
+   2480
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=3600, stale-while-revalidate=86400",
+  "age": "19",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d739a1c833dc4-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": null,
+  "vary": "Accept, Accept-Encoding, Accept-Encoding"
+ },
+ {
+  "i": 1,
+  "path": "/agents/best/health_science/x402",
+  "s": 0.788,
+  "status": 200,
+  "wire_bytes": 5243,
+  "chunks": 5,
+  "tls_s": 0.454,
+  "headers_s": 0.786,
+  "first_chunk_s": 0.782,
+  "last_chunk_s": 0.783,
+  "chunk_times": [
+   [
+    0.782,
+    1079
+   ],
+   [
+    0.782,
+    2448
+   ],
+   [
+    0.782,
+    3817
+   ],
+   [
+    0.782,
+    3817
+   ],
+   [
+    0.782,
+    5186
+   ],
+   [
+    0.783,
+    5243
+   ]
+  ],
+  "gap": [
+   0.001,
+   5186
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=3600, stale-while-revalidate=86400",
+  "age": "96",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d73a57e152b0a-LAX",
+  "server-timing": "server;dur=10",
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": null,
+  "vary": "Accept, Accept-Encoding, Accept-Encoding"
+ },
+ {
+  "i": 1,
+  "path": "/agents/best/network_ops/a2a",
+  "s": 0.812,
+  "status": 200,
+  "wire_bytes": 5128,
+  "chunks": 4,
+  "tls_s": 0.473,
+  "headers_s": 0.81,
+  "first_chunk_s": 0.804,
+  "last_chunk_s": 0.805,
+  "chunk_times": [
+   [
+    0.804,
+    1078
+   ],
+   [
+    0.804,
+    2447
+   ],
+   [
+    0.804,
+    3816
+   ],
+   [
+    0.804,
+    2447
+   ],
+   [
+    0.804,
+    3816
+   ],
+   [
+    0.805,
+    5128
+   ]
+  ],
+  "gap": [
+   0.001,
+   3816
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=3600, stale-while-revalidate=86400",
+  "age": "19",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d73b0cd512ba2-LAX",
+  "server-timing": "server;dur=5",
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": null,
+  "vary": "Accept, Accept-Encoding, Accept-Encoding"
+ },
+ {
+  "i": 1,
+  "path": "/agent/12874",
+  "s": 0.811,
+  "status": 200,
+  "wire_bytes": 2525,
+  "chunks": 3,
+  "tls_s": 0.476,
+  "headers_s": 0.811,
+  "first_chunk_s": 0.796,
+  "last_chunk_s": 0.796,
+  "chunk_times": [
+   [
+    0.796,
+    1112
+   ],
+   [
+    0.796,
+    2481
+   ],
+   [
+    0.796,
+    2525
+   ],
+   [
+    0.796,
+    1112
+   ],
+   [
+    0.796,
+    2481
+   ],
+   [
+    0.796,
+    2525
+   ]
+  ],
+  "gap": [
+   0.0,
+   2481
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=3600, stale-while-revalidate=86400",
+  "age": "19",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d73bc39b65ea4-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": null,
+  "vary": "Accept, Accept-Encoding, Accept-Encoding"
+ }
+]

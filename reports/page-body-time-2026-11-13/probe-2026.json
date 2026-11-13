@@ -1,0 +1,1146 @@
+[
+ {
+  "i": 0,
+  "path": "/new/en/assets/experience.css",
+  "s": 1.882,
+  "status": 200,
+  "wire_bytes": 1812,
+  "chunks": 2,
+  "tls_s": 1.38,
+  "headers_s": 1.88,
+  "first_chunk_s": 1.854,
+  "last_chunk_s": 1.854,
+  "chunk_times": [
+   [
+    1.854,
+    1206
+   ],
+   [
+    1.854,
+    1812
+   ],
+   [
+    1.854,
+    1206
+   ],
+   [
+    1.854,
+    1812
+   ]
+  ],
+  "cf-cache-status": "MISS",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": null,
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6b20ff628535-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": "\"ec522e1552eab70b\"",
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 0,
+  "path": "/new/en/assets/sign-in-live.js",
+  "s": 1.369,
+  "status": 200,
+  "wire_bytes": 7438,
+  "chunks": 6,
+  "tls_s": 0.842,
+  "headers_s": 1.365,
+  "first_chunk_s": 1.353,
+  "last_chunk_s": 1.356,
+  "chunk_times": [
+   [
+    1.353,
+    1196
+   ],
+   [
+    1.353,
+    2565
+   ],
+   [
+    1.354,
+    3934
+   ],
+   [
+    1.354,
+    5303
+   ],
+   [
+    1.356,
+    6672
+   ],
+   [
+    1.356,
+    7438
+   ]
+  ],
+  "cf-cache-status": "MISS",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": null,
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6b2fbd262ad8-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": "\"961f19225963349c\"",
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 0,
+  "path": "/new/en/assets/operating.css",
+  "s": 0.957,
+  "status": 200,
+  "wire_bytes": 11464,
+  "chunks": 9,
+  "tls_s": 0.453,
+  "headers_s": 0.952,
+  "first_chunk_s": 0.94,
+  "last_chunk_s": 0.943,
+  "chunk_times": [
+   [
+    0.94,
+    1204
+   ],
+   [
+    0.94,
+    2573
+   ],
+   [
+    0.94,
+    3942
+   ],
+   [
+    0.942,
+    9418
+   ],
+   [
+    0.943,
+    10787
+   ],
+   [
+    0.943,
+    11464
+   ]
+  ],
+  "cf-cache-status": "REVALIDATED",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": null,
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6b3c1d1df018-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": "\"bb81db0a1a8ae50f\"",
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 0,
+  "path": "/new/en/assets/pearl-ui.js",
+  "s": 1.313,
+  "status": 200,
+  "wire_bytes": 24400,
+  "chunks": 19,
+  "tls_s": 0.435,
+  "headers_s": 0.954,
+  "first_chunk_s": 0.949,
+  "last_chunk_s": 1.308,
+  "chunk_times": [
+   [
+    0.949,
+    1200
+   ],
+   [
+    0.949,
+    2569
+   ],
+   [
+    0.95,
+    3938
+   ],
+   [
+    1.308,
+    21781
+   ],
+   [
+    1.308,
+    23150
+   ],
+   [
+    1.308,
+    24400
+   ]
+  ],
+  "cf-cache-status": "MISS",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": null,
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6b484abfd567-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": "\"6aeb0c0001affa60\"",
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 0,
+  "path": "/new/en/assets/pearl-live.css",
+  "s": 1.012,
+  "status": 200,
+  "wire_bytes": 26639,
+  "chunks": 21,
+  "tls_s": 0.485,
+  "headers_s": 0.996,
+  "first_chunk_s": 0.984,
+  "last_chunk_s": 0.999,
+  "chunk_times": [
+   [
+    0.984,
+    1204
+   ],
+   [
+    0.984,
+    2573
+   ],
+   [
+    0.984,
+    3942
+   ],
+   [
+    0.997,
+    24592
+   ],
+   [
+    0.999,
+    25961
+   ],
+   [
+    0.999,
+    26639
+   ]
+  ],
+  "cf-cache-status": "REVALIDATED",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": null,
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6b571a02d908-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": "\"c29ac76629904622\"",
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 0,
+  "path": "/",
+  "s": 1.404,
+  "status": 200,
+  "wire_bytes": 35261,
+  "chunks": 29,
+  "tls_s": 0.435,
+  "headers_s": 0.804,
+  "first_chunk_s": 0.795,
+  "last_chunk_s": 1.393,
+  "chunk_times": [
+   [
+    0.795,
+    883
+   ],
+   [
+    0.795,
+    1365
+   ],
+   [
+    0.795,
+    2357
+   ],
+   [
+    1.393,
+    32838
+   ],
+   [
+    1.393,
+    34207
+   ],
+   [
+    1.393,
+    35261
+   ]
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "63",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6b636e0536e7-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": "1",
+  "last-modified": "Fri, 13 Nov 2026 11:25:02 GMT",
+  "etag": null,
+  "vary": "Accept, Accept-Encoding"
+ },
+ {
+  "i": 1,
+  "path": "/new/en/assets/experience.css",
+  "s": 2.116,
+  "status": 200,
+  "wire_bytes": 1812,
+  "chunks": 2,
+  "tls_s": 1.791,
+  "headers_s": 2.114,
+  "first_chunk_s": 2.101,
+  "last_chunk_s": 2.102,
+  "chunk_times": [
+   [
+    2.101,
+    1204
+   ],
+   [
+    2.102,
+    1812
+   ],
+   [
+    2.101,
+    1204
+   ],
+   [
+    2.102,
+    1812
+   ]
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "14",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6b7ae8dcf7e3-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": "\"ec522e1552eab70b\"",
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 1,
+  "path": "/new/en/assets/sign-in-live.js",
+  "s": 0.741,
+  "status": 200,
+  "wire_bytes": 7438,
+  "chunks": 6,
+  "tls_s": 0.45,
+  "headers_s": 0.74,
+  "first_chunk_s": 0.729,
+  "last_chunk_s": 0.729,
+  "chunk_times": [
+   [
+    0.729,
+    1186
+   ],
+   [
+    0.729,
+    2555
+   ],
+   [
+    0.729,
+    3924
+   ],
+   [
+    0.729,
+    5293
+   ],
+   [
+    0.729,
+    6662
+   ],
+   [
+    0.729,
+    7438
+   ]
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "13",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6b860b4169bb-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": "\"961f19225963349c\"",
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 1,
+  "path": "/new/en/assets/operating.css",
+  "s": 0.812,
+  "status": 200,
+  "wire_bytes": 11464,
+  "chunks": 9,
+  "tls_s": 0.47,
+  "headers_s": 0.805,
+  "first_chunk_s": 0.791,
+  "last_chunk_s": 0.797,
+  "chunk_times": [
+   [
+    0.791,
+    1193
+   ],
+   [
+    0.791,
+    2562
+   ],
+   [
+    0.792,
+    3931
+   ],
+   [
+    0.794,
+    9407
+   ],
+   [
+    0.794,
+    10776
+   ],
+   [
+    0.797,
+    11464
+   ]
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "13",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6b911e134964-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": "\"bb81db0a1a8ae50f\"",
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 1,
+  "path": "/new/en/assets/pearl-ui.js",
+  "s": 1.102,
+  "status": 200,
+  "wire_bytes": 24400,
+  "chunks": 18,
+  "tls_s": 0.473,
+  "headers_s": 1.1,
+  "first_chunk_s": 1.092,
+  "last_chunk_s": 1.093,
+  "chunk_times": [
+   [
+    1.092,
+    1192
+   ],
+   [
+    1.092,
+    2561
+   ],
+   [
+    1.092,
+    3930
+   ],
+   [
+    1.093,
+    21727
+   ],
+   [
+    1.093,
+    23096
+   ],
+   [
+    1.093,
+    24400
+   ]
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "13",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6b9c89a92ec3-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": "\"6aeb0c0001affa60\"",
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 1,
+  "path": "/new/en/assets/pearl-live.css",
+  "s": 0.801,
+  "status": 200,
+  "wire_bytes": 26639,
+  "chunks": 20,
+  "tls_s": 0.448,
+  "headers_s": 0.787,
+  "first_chunk_s": 0.774,
+  "last_chunk_s": 0.787,
+  "chunk_times": [
+   [
+    0.774,
+    1199
+   ],
+   [
+    0.774,
+    2568
+   ],
+   [
+    0.774,
+    3937
+   ],
+   [
+    0.785,
+    24472
+   ],
+   [
+    0.787,
+    25841
+   ],
+   [
+    0.787,
+    26639
+   ]
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "13",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6ba98ddb2f07-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": "\"c29ac76629904622\"",
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 1,
+  "path": "/",
+  "s": 4.375,
+  "status": 200,
+  "wire_bytes": 35246,
+  "chunks": 27,
+  "tls_s": 0.483,
+  "headers_s": 0.834,
+  "first_chunk_s": 0.822,
+  "last_chunk_s": 4.362,
+  "chunk_times": [
+   [
+    0.822,
+    867
+   ],
+   [
+    0.822,
+    2236
+   ],
+   [
+    0.822,
+    3441
+   ],
+   [
+    4.36,
+    33046
+   ],
+   [
+    4.36,
+    34415
+   ],
+   [
+    4.362,
+    35246
+   ]
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "76",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6bb50fd2c4c6-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": "1",
+  "last-modified": "Fri, 13 Nov 2026 11:25:02 GMT",
+  "etag": null,
+  "vary": "Accept, Accept-Encoding"
+ },
+ {
+  "i": 2,
+  "path": "/new/en/assets/experience.css",
+  "s": 0.8,
+  "status": 200,
+  "wire_bytes": 1812,
+  "chunks": 2,
+  "tls_s": 0.463,
+  "headers_s": 0.799,
+  "first_chunk_s": 0.787,
+  "last_chunk_s": 0.787,
+  "chunk_times": [
+   [
+    0.787,
+    1200
+   ],
+   [
+    0.787,
+    1812
+   ],
+   [
+    0.787,
+    1200
+   ],
+   [
+    0.787,
+    1812
+   ]
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "28",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6bd69a81cb92-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": "\"ec522e1552eab70b\"",
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 2,
+  "path": "/new/en/assets/sign-in-live.js",
+  "s": 0.797,
+  "status": 200,
+  "wire_bytes": 7438,
+  "chunks": 6,
+  "tls_s": 0.477,
+  "headers_s": 0.793,
+  "first_chunk_s": 0.782,
+  "last_chunk_s": 0.786,
+  "chunk_times": [
+   [
+    0.782,
+    1192
+   ],
+   [
+    0.782,
+    2561
+   ],
+   [
+    0.782,
+    3930
+   ],
+   [
+    0.784,
+    5299
+   ],
+   [
+    0.784,
+    6668
+   ],
+   [
+    0.786,
+    7438
+   ]
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "28",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6be1f9fe29ab-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": "\"961f19225963349c\"",
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 2,
+  "path": "/new/en/assets/operating.css",
+  "s": 0.81,
+  "status": 200,
+  "wire_bytes": 11464,
+  "chunks": 9,
+  "tls_s": 0.474,
+  "headers_s": 0.805,
+  "first_chunk_s": 0.793,
+  "last_chunk_s": 0.797,
+  "chunk_times": [
+   [
+    0.793,
+    1191
+   ],
+   [
+    0.793,
+    2560
+   ],
+   [
+    0.793,
+    3929
+   ],
+   [
+    0.795,
+    9405
+   ],
+   [
+    0.797,
+    10774
+   ],
+   [
+    0.797,
+    11464
+   ]
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "28",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6bed38f65535-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": "\"bb81db0a1a8ae50f\"",
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 2,
+  "path": "/new/en/assets/pearl-ui.js",
+  "s": 5.713,
+  "status": 200,
+  "wire_bytes": 24400,
+  "chunks": 18,
+  "tls_s": 0.468,
+  "headers_s": 0.808,
+  "first_chunk_s": 0.799,
+  "last_chunk_s": 5.703,
+  "chunk_times": [
+   [
+    0.799,
+    1188
+   ],
+   [
+    0.799,
+    2557
+   ],
+   [
+    0.799,
+    3926
+   ],
+   [
+    5.703,
+    21723
+   ],
+   [
+    5.703,
+    23092
+   ],
+   [
+    5.703,
+    24400
+   ]
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "28",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6bf889f308f7-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": "\"6aeb0c0001affa60\"",
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 2,
+  "path": "/new/en/assets/pearl-live.css",
+  "s": 0.79,
+  "status": 200,
+  "wire_bytes": 26639,
+  "chunks": 20,
+  "tls_s": 0.452,
+  "headers_s": 0.777,
+  "first_chunk_s": 0.772,
+  "last_chunk_s": 0.785,
+  "chunk_times": [
+   [
+    0.772,
+    1199
+   ],
+   [
+    0.772,
+    2568
+   ],
+   [
+    0.772,
+    3937
+   ],
+   [
+    0.785,
+    24472
+   ],
+   [
+    0.785,
+    25841
+   ],
+   [
+    0.785,
+    26639
+   ]
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "32",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6c226ca04ba2-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": "\"c29ac76629904622\"",
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 2,
+  "path": "/",
+  "s": 0.785,
+  "status": 200,
+  "wire_bytes": 35301,
+  "chunks": 30,
+  "tls_s": 0.446,
+  "headers_s": 0.763,
+  "first_chunk_s": 0.757,
+  "last_chunk_s": 0.778,
+  "chunk_times": [
+   [
+    0.757,
+    869
+   ],
+   [
+    0.757,
+    1374
+   ],
+   [
+    0.757,
+    2738
+   ],
+   [
+    0.778,
+    33923
+   ],
+   [
+    0.778,
+    35287
+   ],
+   [
+    0.778,
+    35301
+   ]
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "95",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6c2dac637d9d-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": "1",
+  "last-modified": "Fri, 13 Nov 2026 11:25:02 GMT",
+  "etag": null,
+  "vary": "Accept, Accept-Encoding"
+ },
+ {
+  "i": 3,
+  "path": "/new/en/assets/experience.css",
+  "s": 0.823,
+  "status": 200,
+  "wire_bytes": 1812,
+  "chunks": 2,
+  "tls_s": 0.479,
+  "headers_s": 0.822,
+  "first_chunk_s": 0.812,
+  "last_chunk_s": 0.813,
+  "chunk_times": [
+   [
+    0.812,
+    1194
+   ],
+   [
+    0.813,
+    1812
+   ],
+   [
+    0.812,
+    1194
+   ],
+   [
+    0.813,
+    1812
+   ]
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "44",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6c390fa86150-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": "\"ec522e1552eab70b\"",
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 3,
+  "path": "/new/en/assets/sign-in-live.js",
+  "s": 0.785,
+  "status": 200,
+  "wire_bytes": 7438,
+  "chunks": 6,
+  "tls_s": 0.463,
+  "headers_s": 0.78,
+  "first_chunk_s": 0.768,
+  "last_chunk_s": 0.77,
+  "chunk_times": [
+   [
+    0.768,
+    1194
+   ],
+   [
+    0.768,
+    2563
+   ],
+   [
+    0.768,
+    3932
+   ],
+   [
+    0.768,
+    5301
+   ],
+   [
+    0.77,
+    6670
+   ],
+   [
+    0.77,
+    7438
+   ]
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "44",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6c446c6b5901-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": "\"961f19225963349c\"",
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 3,
+  "path": "/new/en/assets/operating.css",
+  "s": 0.817,
+  "status": 200,
+  "wire_bytes": 11464,
+  "chunks": 9,
+  "tls_s": 0.479,
+  "headers_s": 0.811,
+  "first_chunk_s": 0.8,
+  "last_chunk_s": 0.806,
+  "chunk_times": [
+   [
+    0.8,
+    1195
+   ],
+   [
+    0.8,
+    2564
+   ],
+   [
+    0.8,
+    3933
+   ],
+   [
+    0.803,
+    9409
+   ],
+   [
+    0.806,
+    10778
+   ],
+   [
+    0.806,
+    11464
+   ]
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "43",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6c4fbe2f170b-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": "\"bb81db0a1a8ae50f\"",
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 3,
+  "path": "/new/en/assets/pearl-ui.js",
+  "s": 4.981,
+  "status": 200,
+  "wire_bytes": 24400,
+  "chunks": 18,
+  "tls_s": 1.36,
+  "headers_s": 1.697,
+  "first_chunk_s": 1.686,
+  "last_chunk_s": 4.969,
+  "chunk_times": [
+   [
+    1.686,
+    1192
+   ],
+   [
+    1.686,
+    2561
+   ],
+   [
+    1.688,
+    3930
+   ],
+   [
+    4.968,
+    21727
+   ],
+   [
+    4.968,
+    23096
+   ],
+   [
+    4.969,
+    24400
+   ]
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "44",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6c609816c4d5-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": "\"6aeb0c0001affa60\"",
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 3,
+  "path": "/new/en/assets/pearl-live.css",
+  "s": 0.83,
+  "status": 200,
+  "wire_bytes": 26639,
+  "chunks": 20,
+  "tls_s": 0.479,
+  "headers_s": 0.811,
+  "first_chunk_s": 0.798,
+  "last_chunk_s": 0.817,
+  "chunk_times": [
+   [
+    0.798,
+    1199
+   ],
+   [
+    0.798,
+    2568
+   ],
+   [
+    0.798,
+    3937
+   ],
+   [
+    0.814,
+    24472
+   ],
+   [
+    0.817,
+    25841
+   ],
+   [
+    0.817,
+    26639
+   ]
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "47",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6c807a8668e6-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": "\"c29ac76629904622\"",
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 3,
+  "path": "/",
+  "s": 4.234,
+  "status": 200,
+  "wire_bytes": 35274,
+  "chunks": 27,
+  "tls_s": 0.491,
+  "headers_s": 1.17,
+  "first_chunk_s": 1.152,
+  "last_chunk_s": 4.214,
+  "chunk_times": [
+   [
+    1.152,
+    857
+   ],
+   [
+    1.152,
+    2226
+   ],
+   [
+    1.155,
+    3595
+   ],
+   [
+    4.214,
+    33713
+   ],
+   [
+    4.214,
+    35082
+   ],
+   [
+    4.214,
+    35274
+   ]
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "110",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59d6c8c1a9c23de-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": "1",
+  "last-modified": "Fri, 13 Nov 2026 11:25:02 GMT",
+  "etag": null,
+  "vary": "Accept, Accept-Encoding"
+ }
+]

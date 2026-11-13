@@ -1,0 +1,57 @@
+/agents/compare/42233-vs-47175 200 0.003150 0.003213 1945 0.002968 | public, max-age=3600, stale-while-revalidate=86400
+/new/en/disclosures.html 200 0.006291 0.006468 8068 0.005278 | no-store
+/sitemap.xml 200 0.026403 0.026506 35482 0.023479 | public, max-age=600, stale-while-revalidate=3600
+/agents/best/database_analytics/a2a 200 0.004304 0.004360 4431 0.004498 | public, max-age=3600, stale-while-revalidate=86400
+/agents/task/us-treasury 200 0.003790 0.003866 2820 0.004931 | public, max-age=3600, stale-while-revalidate=86400
+/agents/best/health_science/x402 200 0.005128 0.005206 5243 0.005315 | public, max-age=3600, stale-while-revalidate=86400
+/api/agents/42683 200 0.074176 0.074456 41711 0.054760 | no-store
+/agents/best/network_ops/a2a 200 0.003995 0.004058 5127 0.006583 | public, max-age=3600, stale-while-revalidate=86400
+/agents/best/finance_crypto/a2a 200 0.005792 0.005873 5285 0.006239 | public, max-age=3600, stale-while-revalidate=86400
+/agent/12874 200 0.003609 0.003662 2525 0.003353 | public, max-age=3600, stale-while-revalidate=86400
+/api/agent/v1/badge/42683.svg 200 0.007246 0.007315 358 0.009141 | no-store
+/agents/compare/114707-vs-272838 200 0.003279 0.003349 1917 0.003911 | public, max-age=3600, stale-while-revalidate=86400
+/agents/best 200 0.003770 0.003858 2343 0.005511 | public, max-age=3600, stale-while-revalidate=86400
+/agent/287358 200 0.008231 0.008348 2611 0.006821 | public, max-age=3600, stale-while-revalidate=86400
+/new/en/learn.html 200 0.049137 0.049432 31157 0.048559 | public, max-age=300, stale-while-revalidate=86400
+/agents/best/education_culture 200 0.005760 0.005821 3778 0.005835 | public, max-age=3600, stale-while-revalidate=86400
+/agent/108377 200 0.003190 0.003242 2593 0.003407 | public, max-age=3600, stale-while-revalidate=86400
+/reports/weekly 200 0.003700 0.003767 1294 0.003764 | public, max-age=3600, stale-while-revalidate=86400
+/agents/category/trading_derivatives 200 0.003932 0.004012 1367 0.003650 | public, max-age=3600, stale-while-revalidate=86400
+/agents/best/productivity/a2a 200 0.005912 0.005997 4997 0.007299 | public, max-age=3600, stale-while-revalidate=86400
+/reports/state-of-ai-agents/2026-11 200 0.020085 0.020165 3066 0.017408 | public, max-age=3600, stale-while-revalidate=86400
+/agent/266282 200 0.004796 0.004876 2549 0.005661 | public, max-age=3600, stale-while-revalidate=86400
+/new/en/workflows.html 200 0.036076 0.036333 40565 0.021562 | public, max-age=300, stale-while-revalidate=86400
+/agents/category/media_generation 200 0.003494 0.003554 1520 0.003331 | public, max-age=3600, stale-while-revalidate=86400
+/agents/best/travel_maps_weather/x402 200 0.007615 0.007671 4910 0.008927 | public, max-age=3600, stale-while-revalidate=86400
+/new/en/contact.html 200 0.028214 0.028440 8337 0.010145 | no-store
+/agent/315656 200 0.009889 0.009979 2547 0.006332 | public, max-age=3600, stale-while-revalidate=86400
+/reports/state-of-ai-agents 200 0.008602 0.008707 3066 0.007573 | public, max-age=3600, stale-while-revalidate=86400
+/new/en/explore.html 200 0.014738 0.014962 32549 0.016482 | public, max-age=300, stale-while-revalidate=86400
+/customer/sign-in 200 0.019190 0.019609 42686 0.010141 | no-store
+/agents/category/social 200 0.004183 0.004280 1506 0.003662 | public, max-age=3600, stale-while-revalidate=86400
+/agents/best/agent_infra/x402 200 0.006864 0.006930 4896 0.004142 | public, max-age=3600, stale-while-revalidate=86400
+/agent/238871 200 0.003368 0.003426 2567 0.003361 | public, max-age=3600, stale-while-revalidate=86400
+/agents/category/health_science 200 0.003298 0.003349 1635 0.008571 | no-store
+/agents/category/commerce_marketing 200 0.007581 1574
+/agents/task/brand-mentions 200 0.007462 2452
+/connect 200 0.016636 3362
+/robots.txt 200 0.008959 310
+/new/en/agent-status.html 200 0.056660 29735
+/agent/71289 200 0.016698 2601
+/agent/30922 200 0.010755 2507
+/new/en/sign-in.html 303 0.011137 0
+/agents/category/docs_knowledge 200 0.007940 1552
+/agents/category/dev_tools 200 0.021640 1580
+/agents/best/commerce_marketing/mcp 200 0.006980 3848
+/agents/category/agent_infra 200 0.005765 1397
+/agents/task/local-business-search 200 0.011159 2712
+/agents/category/database_analytics 200 0.005627 1190
+/new/en/test.html 200 0.051547 37749
+/agent/60461 200 0.009373 2525
+/new/en/privacy.html 200 0.021600 8153
+/new/en/accessibility.html 200 0.040039 8065
+/skill.md 200 0.023004 1527
+/new/en/cookies.html 200 0.012613 8181
+/agents/task/order-book 200 0.008554 2748
+/new/en/chat.html 200 0.054941 31611
+/agents/task/cisa-kev 200 0.009539 2949
