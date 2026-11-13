@@ -157,7 +157,9 @@ def markdown(result):
         lines.append('')
     lines += ['## Stalled minutes by hop (net_path)', '',
               '"origin": the local probe (127.0.0.1:8400) was slow too; "cloudflare_to_origin": the origin answered',
-              'locally at once, or was not probed yet (before 11-13 16:28).', '']
+              'locally at once, or was not probed yet (before 11-13 16:28); "mac_or_cloudflare_to_origin": as',
+              'before, but the request\'s own TLS with the edge took over 1 s, so this Mac\'s leg is in play too',
+              '(from 11-13 18:3x; earlier rows keep the older label).', '']
     for b, counts in sorted(result.get('stalls', {}).items(), reverse=True):
         lines.append('- %s: %s' % (b, ', '.join('%s %d' % (k, v) for k, v in sorted(counts.items()))))
     lines += ['']

@@ -37,6 +37,7 @@ METRICS = 'http://127.0.0.1:20241/metrics'
 ORIGIN = 'http://127.0.0.1:8400'
 KST = timezone(timedelta(hours=9))
 SLOW_S = 4.0     # this Mac reaches Cloudflare at LAX; ~2 s is its normal (11-11 18:33: trace 1.9 s)
+CLIENT_TLS_S = 1.0  # the public request's own TLS handshake: 0.3 s at night, 0.5-1.0 s by day, 1.0-2.6 s in the stalls
 CURL_FORMAT = '%{http_code} %{time_namelookup} %{time_connect} %{time_appconnect} %{time_starttransfer} %{time_total}'
 
 
@@ -119,7 +120,29 @@ def tunnel():
             'request_errors': value('cloudflared_tunnel_request_errors'),
             'requests': value('cloudflared_tunnel_total_requests'),
             'registered': sum(float(n) for n in re.findall(r'^cloudflared_tunnel_tunnel_register_success\{[^}]*\} ([\d.]+)$', out, re.M)),
-            'edges': sorted(set(re.findall(r'edge_location="(\w+)"', out)))}
+            'edges': sorted(set(re.findall(r'edge_location="(\w+)"', out))),
+            'quic': quic_connections(out)}
+
+
+def quic_connections(out):
+    """Per tunnel connection: its edge, latest and smoothed RTT (ms), packets lost so far and the congestion window,
+    so a stalled minute can be set against the Mac-to-edge leg of the tunnel itself (11-13 PM 18:2x, quic vs
+    http2). Counters are cumulative; the minute's loss is the difference from the row before."""
+    conns = {}
+    for name, labels, number in re.findall(r'^(quic_client_\w+|cloudflared_tunnel_server_locations)\{([^}]*)\} ([\d.e+-]+)$', out, re.M):
+        index = re.search(r'(?:conn_index|connection_id)="(\d+)"', labels)
+        if not index:
+            continue
+        conn = conns.setdefault(index.group(1), {'lost': 0})
+        if name == 'cloudflared_tunnel_server_locations':
+            edge = re.search(r'edge_location="(\w+)"', labels)
+            conn['edge'] = edge.group(1) if edge else None
+        elif name == 'quic_client_lost_packets':
+            conn['lost'] += int(float(number))
+        elif name in ('quic_client_latest_rtt', 'quic_client_smoothed_rtt', 'quic_client_congestion_window'):
+            conn[{'quic_client_latest_rtt': 'rtt_ms', 'quic_client_smoothed_rtt': 'srtt_ms',
+                  'quic_client_congestion_window': 'cwnd'}[name]] = float(number)
+    return {k: conns[k] for k in sorted(conns)}
 
 
 def host_load():
@@ -158,6 +181,10 @@ def stalled_hop(r):
         origin = r.get('origin')
         if origin is not None and (origin.get('status') != 200 or origin.get('total_s', 99) > SLOW_S / 2):
             return 'origin'              # the local proxy or app was slow too: not the tunnel
+        if (public.get('tls_s') or 0) > CLIENT_TLS_S:
+            # The request's own handshake with the edge was slow, so this Mac's leg to Cloudflare is in play as
+            # well; the stall cannot be put on edge-to-origin alone (11-13 PM 18:2x: 10 of 11 slow minutes).
+            return 'mac_or_cloudflare_to_origin'
         return 'cloudflare_to_origin'    # the origin answered locally at once (or was not probed)
     return None
 
