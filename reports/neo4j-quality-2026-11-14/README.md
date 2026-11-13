@@ -61,5 +61,24 @@
   - `NEO4J_PASSWORD=...`
 - 맥미니는 gemma4 생성 모델(병렬 4)과 메모리를 나눠 씁니다. GDS 계산은 밤에만 하고, 메모리 추정(`gds.graph.project.estimate`)을 먼저 합니다.
 
+
+## 접속 뒤 확인 (11-14 02:5x, 읽기 전용)
+- 인증 성공. 접속 정보는 gateway-data/neo4j.env(권한 600, git 제외)에 있습니다.
+- 두 주소(.24, .25)는 같은 인스턴스로 보입니다. 버전, DB 목록, 설정이 모두 같고, 광고 주소도 둘 다 192.168.0.24입니다.
+- Neo4j 2026.10.2 Community, Cypher 5·25. DB는 neo4j(기본)와 system 두 개뿐입니다.
+- **데이터: 비어 있음(노드 0개, 라벨 없음)**
+- **플러그인: GDS와 APOC가 없습니다.** 프로시저 이름공간은 db, dbms, fleetManagement, tx뿐입니다.
+- 메모리: heap과 pagecache는 자동 크기입니다. 트랜잭션 전체 상한은 11.20GiB이고, procedures.allowlist는 `*`, unrestricted는 비어 있습니다.
+
+### 뜻
+- 계획의 P1·P2(연결 요소, 커뮤니티, 노드 유사도)는 GDS가 있어야 Neo4j 안에서 계산할 수 있습니다. GDS 없이 Cypher만으로는 39만 노드 규모의 커뮤니티 계산이 현실적이지 않습니다.
+- 할 수 있는 길은 둘입니다.
+  1. 맥미니에 GDS Community와 APOC Core 플러그인을 설치합니다(무료). 사용자가 맥미니에서 합니다.
+     - 플러그인 jar를 plugins 폴더에 넣습니다.
+     - `dbms.security.procedures.unrestricted=gds.*,apoc.*`를 설정합니다.
+     - 재시작합니다.
+  2. Neo4j 없이 운영 맥 밖의 계산(Python igraph 등)으로 같은 결과를 만듭니다. 그래프 저장과 조회만 Neo4j에 둡니다.
+- PM 권고는 1입니다. 사용자가 Neo4j 활용을 요청했고, GDS 알고리즘은 무료이며, 맥미니에서 계산하면 운영 맥의 부하가 0입니다.
+
 ## 담당
 - 검색과 RAG(추천·검색 품질)입니다. 순서는 오늘 낮 묶음 → 그래프 상한 적용 → P1입니다.
