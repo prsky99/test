@@ -1,0 +1,956 @@
+[
+ {
+  "i": 0,
+  "path": "/new/en/privacy.html",
+  "s": 5.042,
+  "status": 200,
+  "wire_bytes": 8399,
+  "chunks": 8,
+  "tls_s": 1.384,
+  "headers_s": 4.747,
+  "first_chunk_s": 4.718,
+  "last_chunk_s": 5.012,
+  "chunk_times": [
+   [
+    4.718,
+    1126
+   ],
+   [
+    4.718,
+    2495
+   ],
+   [
+    4.719,
+    3864
+   ],
+   [
+    5.01,
+    6566
+   ],
+   [
+    5.011,
+    7930
+   ],
+   [
+    5.012,
+    8399
+   ]
+  ],
+  "gap": [
+   0.291,
+   3864
+  ],
+  "cf-cache-status": "DYNAMIC",
+  "cache-control": "no-store",
+  "age": null,
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59de896d875c47e-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": null,
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 0,
+  "path": "/new/en/disclosures.html",
+  "s": 3.708,
+  "status": 200,
+  "wire_bytes": 8246,
+  "chunks": 7,
+  "tls_s": 0.449,
+  "headers_s": 2.129,
+  "first_chunk_s": 2.124,
+  "last_chunk_s": 3.703,
+  "chunk_times": [
+   [
+    2.124,
+    1125
+   ],
+   [
+    3.404,
+    2494
+   ],
+   [
+    3.703,
+    3863
+   ],
+   [
+    3.703,
+    6601
+   ],
+   [
+    3.703,
+    7970
+   ],
+   [
+    3.703,
+    8246
+   ]
+  ],
+  "gap": [
+   1.28,
+   1125
+  ],
+  "cf-cache-status": "DYNAMIC",
+  "cache-control": "no-store",
+  "age": null,
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59de8b6d9bab7f2-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": null,
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 0,
+  "path": "/new/en/terms.html",
+  "s": 1.216,
+  "status": 200,
+  "wire_bytes": 8254,
+  "chunks": 8,
+  "tls_s": 0.464,
+  "headers_s": 1.211,
+  "first_chunk_s": 1.207,
+  "last_chunk_s": 1.211,
+  "chunk_times": [
+   [
+    1.207,
+    1117
+   ],
+   [
+    1.207,
+    2486
+   ],
+   [
+    1.207,
+    3855
+   ],
+   [
+    1.211,
+    7962
+   ],
+   [
+    1.211,
+    8244
+   ],
+   [
+    1.211,
+    8254
+   ]
+  ],
+  "gap": [
+   0.002,
+   6593
+  ],
+  "cf-cache-status": "DYNAMIC",
+  "cache-control": "no-store",
+  "age": null,
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59de8d46f1929ab-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": null,
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 0,
+  "path": "/sitemap.xml",
+  "s": 0.728,
+  "status": 200,
+  "wire_bytes": 35482,
+  "chunks": 27,
+  "tls_s": 0.416,
+  "headers_s": 0.707,
+  "first_chunk_s": 0.702,
+  "last_chunk_s": 0.722,
+  "chunk_times": [
+   [
+    0.702,
+    980
+   ],
+   [
+    0.702,
+    2349
+   ],
+   [
+    0.702,
+    3718
+   ],
+   [
+    0.721,
+    33719
+   ],
+   [
+    0.722,
+    35088
+   ],
+   [
+    0.722,
+    35482
+   ]
+  ],
+  "gap": [
+   0.002,
+   30981
+  ],
+  "cf-cache-status": "UPDATING",
+  "cache-control": "public, max-age=600, stale-while-revalidate=3600",
+  "age": "3936",
+  "content-encoding": "gzip",
+  "content-length": "35482",
+  "cf-ray": "a59de8e1e8aac10b-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": "W/\"eae2bccdb0118f6e461e1dc0\"",
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 0,
+  "path": "/",
+  "s": 0.846,
+  "status": 200,
+  "wire_bytes": 35323,
+  "chunks": 31,
+  "tls_s": 0.461,
+  "headers_s": 0.82,
+  "first_chunk_s": 0.816,
+  "last_chunk_s": 0.841,
+  "chunk_times": [
+   [
+    0.816,
+    866
+   ],
+   [
+    0.816,
+    1365
+   ],
+   [
+    0.816,
+    2729
+   ],
+   [
+    0.839,
+    33650
+   ],
+   [
+    0.839,
+    35019
+   ],
+   [
+    0.841,
+    35323
+   ]
+  ],
+  "gap": [
+   0.003,
+   19910
+  ],
+  "cf-cache-status": "UPDATING",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "421",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59de8ed0c08b6c9-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": "1",
+  "last-modified": "Fri, 13 Nov 2026 12:44:45 GMT",
+  "etag": null,
+  "vary": "Accept, Accept-Encoding"
+ },
+ {
+  "i": 0,
+  "path": "/new/en/chat.html",
+  "s": 2.113,
+  "status": 200,
+  "wire_bytes": 31641,
+  "chunks": 24,
+  "tls_s": 1.745,
+  "headers_s": 2.088,
+  "first_chunk_s": 2.083,
+  "last_chunk_s": 2.108,
+  "chunk_times": [
+   [
+    2.083,
+    904
+   ],
+   [
+    2.084,
+    2273
+   ],
+   [
+    2.084,
+    3642
+   ],
+   [
+    2.108,
+    29653
+   ],
+   [
+    2.108,
+    31022
+   ],
+   [
+    2.108,
+    31641
+   ]
+  ],
+  "gap": [
+   0.003,
+   25546
+  ],
+  "cf-cache-status": "UPDATING",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "411",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59de900ab1cc74e-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": "Fri, 13 Nov 2026 12:44:58 GMT",
+  "etag": null,
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 1,
+  "path": "/new/en/privacy.html",
+  "s": 6.396,
+  "status": 200,
+  "wire_bytes": 8390,
+  "chunks": 8,
+  "tls_s": 0.456,
+  "headers_s": 0.951,
+  "first_chunk_s": 0.945,
+  "last_chunk_s": 6.39,
+  "chunk_times": [
+   [
+    0.945,
+    1124
+   ],
+   [
+    0.945,
+    2493
+   ],
+   [
+    0.945,
+    3862
+   ],
+   [
+    0.948,
+    6559
+   ],
+   [
+    3.832,
+    7923
+   ],
+   [
+    6.39,
+    8390
+   ]
+  ],
+  "gap": [
+   2.884,
+   6559
+  ],
+  "cf-cache-status": "DYNAMIC",
+  "cache-control": "no-store",
+  "age": null,
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59de90c08d93b32-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": null,
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 1,
+  "path": "/new/en/disclosures.html",
+  "s": 2.133,
+  "status": 200,
+  "wire_bytes": 8242,
+  "chunks": 7,
+  "tls_s": 1.36,
+  "headers_s": 2.127,
+  "first_chunk_s": 2.123,
+  "last_chunk_s": 2.128,
+  "chunk_times": [
+   [
+    2.123,
+    1125
+   ],
+   [
+    2.123,
+    2494
+   ],
+   [
+    2.123,
+    3863
+   ],
+   [
+    2.126,
+    6601
+   ],
+   [
+    2.128,
+    7970
+   ],
+   [
+    2.128,
+    8242
+   ]
+  ],
+  "gap": [
+   0.003,
+   3863
+  ],
+  "cf-cache-status": "DYNAMIC",
+  "cache-control": "no-store",
+  "age": null,
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59de93ffccb55da-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": null,
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 1,
+  "path": "/new/en/terms.html",
+  "s": 1.835,
+  "status": 200,
+  "wire_bytes": 8264,
+  "chunks": 8,
+  "tls_s": 0.463,
+  "headers_s": 1.835,
+  "first_chunk_s": 1.829,
+  "last_chunk_s": 1.829,
+  "chunk_times": [
+   [
+    1.829,
+    1129
+   ],
+   [
+    1.829,
+    2498
+   ],
+   [
+    1.829,
+    3867
+   ],
+   [
+    1.829,
+    6606
+   ],
+   [
+    1.829,
+    7970
+   ],
+   [
+    1.829,
+    8264
+   ]
+  ],
+  "gap": [
+   0.0,
+   7970
+  ],
+  "cf-cache-status": "DYNAMIC",
+  "cache-control": "no-store",
+  "age": null,
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59de94e0ede6a9f-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": null,
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 1,
+  "path": "/sitemap.xml",
+  "s": 0.661,
+  "status": 200,
+  "wire_bytes": 35482,
+  "chunks": 27,
+  "tls_s": 0.342,
+  "headers_s": 0.631,
+  "first_chunk_s": 0.626,
+  "last_chunk_s": 0.656,
+  "chunk_times": [
+   [
+    0.626,
+    985
+   ],
+   [
+    0.626,
+    2354
+   ],
+   [
+    0.626,
+    3723
+   ],
+   [
+    0.656,
+    33841
+   ],
+   [
+    0.656,
+    35210
+   ],
+   [
+    0.656,
+    35482
+   ]
+  ],
+  "gap": [
+   0.003,
+   32472
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=600, stale-while-revalidate=3600",
+  "age": "19",
+  "content-encoding": "gzip",
+  "content-length": "35482",
+  "cf-ray": "a59de95f0d0016df-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": "W/\"eae2bccdb0118f6e461e1dc0\"",
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 1,
+  "path": "/",
+  "s": 2.606,
+  "status": 200,
+  "wire_bytes": 35229,
+  "chunks": 29,
+  "tls_s": 0.452,
+  "headers_s": 0.815,
+  "first_chunk_s": 0.811,
+  "last_chunk_s": 2.601,
+  "chunk_times": [
+   [
+    0.811,
+    870
+   ],
+   [
+    0.811,
+    1365
+   ],
+   [
+    0.811,
+    2729
+   ],
+   [
+    2.601,
+    33288
+   ],
+   [
+    2.601,
+    34657
+   ],
+   [
+    2.601,
+    35229
+   ]
+  ],
+  "gap": [
+   1.142,
+   17945
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "19",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59de96a2fdb2abd-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": "1",
+  "last-modified": "Fri, 13 Nov 2026 12:51:47 GMT",
+  "etag": null,
+  "vary": "Accept, Accept-Encoding"
+ },
+ {
+  "i": 1,
+  "path": "/new/en/chat.html",
+  "s": 0.754,
+  "status": 200,
+  "wire_bytes": 31641,
+  "chunks": 24,
+  "tls_s": 0.436,
+  "headers_s": 0.737,
+  "first_chunk_s": 0.732,
+  "last_chunk_s": 0.749,
+  "chunk_times": [
+   [
+    0.732,
+    900
+   ],
+   [
+    0.732,
+    2269
+   ],
+   [
+    0.732,
+    3638
+   ],
+   [
+    0.747,
+    29649
+   ],
+   [
+    0.749,
+    31018
+   ],
+   [
+    0.749,
+    31641
+   ]
+  ],
+  "gap": [
+   0.002,
+   29649
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "20",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59de980a9124818-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": "Fri, 13 Nov 2026 12:51:50 GMT",
+  "etag": null,
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 2,
+  "path": "/new/en/privacy.html",
+  "s": 0.957,
+  "status": 200,
+  "wire_bytes": 8396,
+  "chunks": 8,
+  "tls_s": 0.428,
+  "headers_s": 0.951,
+  "first_chunk_s": 0.946,
+  "last_chunk_s": 0.952,
+  "chunk_times": [
+   [
+    0.946,
+    1123
+   ],
+   [
+    0.946,
+    2492
+   ],
+   [
+    0.946,
+    3861
+   ],
+   [
+    0.95,
+    6642
+   ],
+   [
+    0.951,
+    8011
+   ],
+   [
+    0.952,
+    8396
+   ]
+  ],
+  "gap": [
+   0.002,
+   5278
+  ],
+  "cf-cache-status": "DYNAMIC",
+  "cache-control": "no-store",
+  "age": null,
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59de98b9a93dbae-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": null,
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 2,
+  "path": "/new/en/disclosures.html",
+  "s": 0.973,
+  "status": 200,
+  "wire_bytes": 8238,
+  "chunks": 7,
+  "tls_s": 0.464,
+  "headers_s": 0.968,
+  "first_chunk_s": 0.963,
+  "last_chunk_s": 0.966,
+  "chunk_times": [
+   [
+    0.963,
+    1128
+   ],
+   [
+    0.963,
+    2497
+   ],
+   [
+    0.963,
+    3851
+   ],
+   [
+    0.965,
+    6583
+   ],
+   [
+    0.966,
+    7952
+   ],
+   [
+    0.966,
+    8238
+   ]
+  ],
+  "gap": [
+   0.002,
+   3851
+  ],
+  "cf-cache-status": "DYNAMIC",
+  "cache-control": "no-store",
+  "age": null,
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59de9981f4d2533-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": null,
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 2,
+  "path": "/new/en/terms.html",
+  "s": 1.255,
+  "status": 200,
+  "wire_bytes": 8246,
+  "chunks": 7,
+  "tls_s": 0.472,
+  "headers_s": 1.25,
+  "first_chunk_s": 1.239,
+  "last_chunk_s": 1.243,
+  "chunk_times": [
+   [
+    1.239,
+    1129
+   ],
+   [
+    1.239,
+    2498
+   ],
+   [
+    1.239,
+    3867
+   ],
+   [
+    1.241,
+    6605
+   ],
+   [
+    1.241,
+    7974
+   ],
+   [
+    1.243,
+    8246
+   ]
+  ],
+  "gap": [
+   0.002,
+   7974
+  ],
+  "cf-cache-status": "DYNAMIC",
+  "cache-control": "no-store",
+  "age": null,
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59de9a488227e95-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": null,
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 2,
+  "path": "/sitemap.xml",
+  "s": 1.497,
+  "status": 200,
+  "wire_bytes": 35482,
+  "chunks": 27,
+  "tls_s": 0.478,
+  "headers_s": 0.817,
+  "first_chunk_s": 0.804,
+  "last_chunk_s": 1.483,
+  "chunk_times": [
+   [
+    0.804,
+    985
+   ],
+   [
+    0.804,
+    2354
+   ],
+   [
+    0.804,
+    3723
+   ],
+   [
+    1.483,
+    33841
+   ],
+   [
+    1.483,
+    35210
+   ],
+   [
+    1.483,
+    35482
+   ]
+  ],
+  "gap": [
+   0.35,
+   18782
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=600, stale-while-revalidate=3600",
+  "age": "33",
+  "content-encoding": "gzip",
+  "content-length": "35482",
+  "cf-ray": "a59de9b2bc9bf907-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": null,
+  "etag": "W/\"eae2bccdb0118f6e461e1dc0\"",
+  "vary": "Accept-Encoding"
+ },
+ {
+  "i": 2,
+  "path": "/",
+  "s": 1.159,
+  "status": 200,
+  "wire_bytes": 35295,
+  "chunks": 28,
+  "tls_s": 0.471,
+  "headers_s": 0.819,
+  "first_chunk_s": 0.806,
+  "last_chunk_s": 1.144,
+  "chunk_times": [
+   [
+    0.806,
+    869
+   ],
+   [
+    0.806,
+    2238
+   ],
+   [
+    0.806,
+    3607
+   ],
+   [
+    1.144,
+    32878
+   ],
+   [
+    1.144,
+    34247
+   ],
+   [
+    1.144,
+    35295
+   ]
+  ],
+  "gap": [
+   0.324,
+   15599
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "33",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59de9c25b5c2ae3-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": "1",
+  "last-modified": "Fri, 13 Nov 2026 12:51:47 GMT",
+  "etag": null,
+  "vary": "Accept, Accept-Encoding"
+ },
+ {
+  "i": 2,
+  "path": "/new/en/chat.html",
+  "s": 1.507,
+  "status": 200,
+  "wire_bytes": 31641,
+  "chunks": 24,
+  "tls_s": 0.806,
+  "headers_s": 1.164,
+  "first_chunk_s": 1.158,
+  "last_chunk_s": 1.5,
+  "chunk_times": [
+   [
+    1.158,
+    912
+   ],
+   [
+    1.158,
+    2281
+   ],
+   [
+    1.158,
+    3650
+   ],
+   [
+    1.5,
+    29661
+   ],
+   [
+    1.5,
+    31030
+   ],
+   [
+    1.5,
+    31641
+   ]
+  ],
+  "gap": [
+   0.332,
+   11864
+  ],
+  "cf-cache-status": "HIT",
+  "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+  "age": "33",
+  "content-encoding": "gzip",
+  "content-length": null,
+  "cf-ray": "a59de9d1faef2bab-LAX",
+  "server-timing": null,
+  "x-edge-origin-output": null,
+  "last-modified": "Fri, 13 Nov 2026 12:51:50 GMT",
+  "etag": null,
+  "vary": "Accept-Encoding"
+ }
+]
