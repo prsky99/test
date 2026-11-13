@@ -103,5 +103,138 @@
     "epss": 0.03049
    }
   ]
+ ],
+ "gleif-lei": [
+  [
+   {
+    "country": "US",
+    "domain": "apple.com",
+    "name": "Apple Inc"
+   },
+   "ok",
+   "live",
+   {
+    "identifiers": {
+     "LEI": "HWUPKR0MPOU8FGXBT394"
+    }
+   }
+  ],
+  [
+   {
+    "country": "US",
+    "domain": "microsoft.com",
+    "name": "Microsoft Corporation"
+   },
+   "ok",
+   "live",
+   {
+    "identifiers": {
+     "LEI": "INR2EJN1ERAN0W5ZP974"
+    }
+   }
+  ],
+  [
+   {
+    "name": "A"
+   },
+   "invalid_input",
+   null,
+   {}
+  ],
+  [
+   {
+    "name": "Apple Inc",
+    "ticker": "AAPL"
+   },
+   "invalid_input",
+   null,
+   {}
+  ]
+ ],
+ "sec-edgar": [
+  [
+   {
+    "country": "US",
+    "domain": "apple.com",
+    "name": "Apple Inc"
+   },
+   "ok",
+   "live",
+   {
+    "identifiers": {
+     "SEC CIK": "320193"
+    }
+   }
+  ],
+  [
+   {
+    "country": "US",
+    "domain": "microsoft.com",
+    "name": "Microsoft Corporation"
+   },
+   "ok",
+   "live",
+   {
+    "identifiers": {
+     "SEC CIK": "789019"
+    }
+   }
+  ],
+  [
+   {
+    "name": "A"
+   },
+   "invalid_input",
+   null,
+   {}
+  ],
+  [
+   {
+    "name": "Apple Inc",
+    "country": "USA"
+   },
+   "invalid_input",
+   null,
+   {}
+  ]
+ ],
+ "wikipedia-summary": [
+  [
+   {
+    "title": "Seoul"
+   },
+   "ok",
+   "live",
+   {
+    "title": "Seoul"
+   }
+  ],
+  [
+   {
+    "title": "Python (programming language)"
+   },
+   "ok",
+   "live",
+   {
+    "title": "Python (programming language)"
+   }
+  ],
+  [
+   {
+    "title": ""
+   },
+   "invalid_input",
+   null,
+   {}
+  ],
+  [
+   {
+    "title": "Seoul",
+    "lang": "de"
+   },
+   "invalid_input",
+   null,
+   {}
+  ]
  ]
 }
