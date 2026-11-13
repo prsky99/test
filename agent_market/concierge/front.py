@@ -695,7 +695,27 @@ Agent Concierge enforces continuous empirical quality evaluation:
 - Web Sitemap: `{base}/sitemap.xml` (a sitemap index; its parts are `{base}/sitemaps/pages.xml` and `{base}/sitemaps/agents-N.xml`)
 - About the Service: `{base}/new/en/about.html` (overview, value, principles and vision)
 - Home Overview: select the Agent Concierge logo or open `{base}/`
-"""
+- Page Metadata: `{base}/page-metadata.json` (the page:<panel>:* meta of every page; each page carries only its own and the home page's)
+""" + page_metadata_section(base)
+
+
+def page_metadata_section(base: str) -> str:
+    """11-13 PM decision (b): the page:* meta a page no longer carries for the other panels, in short."""
+    from .pearl_view import LIVE_PANELS, ROOT as PEARL_ROOT, page_metadata
+    source = PEARL_ROOT / 'en' / 'index.html'
+    if not source.is_file():
+        return ''
+    meta = page_metadata(source.read_text())
+    lines = ['', '## 8. Page Metadata', 'Title, description and intended action of each public page (full set: '
+             f'`{base}/page-metadata.json`).']
+    for name, panel in LIVE_PANELS.items():
+        if panel not in meta:
+            continue
+        item = meta[panel]
+        url = f'{base}/' if name == 'index.html' else f'{base}/new/en/{name}'
+        lines.append(f"- **{item.get('title', panel)}** ({url}): {item.get('description', '')}"
+                     + (f" Action: `{item['target-action']}`." if item.get('target-action') else ''))
+    return '\n'.join(lines) + '\n'
 
 
 def mcp_manifest(base: str) -> dict:

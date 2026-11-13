@@ -18,7 +18,8 @@ CARD_ALIASES = frozenset(('/a2a/agent-card.json','/a2a/.well-known/agent-card.js
 PUBLIC_READS = frozenset(('/api/overview','/api/insights','/api/explore','/api/agent/v1/check','/api/workflows/templates',
     '/api/test/presets','/robots.txt','/sitemap.xml','/llms.txt','/llms-full.txt',
     '/.well-known/agent-card.json','/.well-known/mcp.json','/.well-known/mcp/server.json',
-    '/.well-known/security.txt','/security.txt','/openapi.json','/skill.md')) | EDGE_REDIRECTS | CARD_ALIASES
+    '/.well-known/security.txt','/security.txt','/openapi.json','/skill.md',
+    '/page-metadata.json')) | EDGE_REDIRECTS | CARD_ALIASES  # 11-13: page:* meta of every page (pearl_view)
 # Agent discovery documents the Cloudflare cache rule keeps at the edge (11-03). s-maxage lets the
 # edge hold them for ten minutes while browsers and agents still revalidate after 30 seconds;
 # with max-age alone the edge copy expired after 30 seconds (4 HITs in 24 cold requests, 11-04).
@@ -29,7 +30,7 @@ EDGE_DOCUMENTS = frozenset(('/robots.txt','/sitemap.xml','/llms.txt','/llms-full
 # sends an agent to the origin (11-11 PM decision: llms.txt took 3.88 s from Korea on a MISS).
 # No purge on deploy: an edit may take up to an hour to reach the edge.
 DISCOVERY_DOCUMENTS = frozenset(('/llms.txt','/llms-full.txt','/skill.md','/.well-known/agent-card.json',
-    '/.well-known/mcp.json','/.well-known/mcp/server.json','/openapi.json')) | EDGE_REDIRECTS | CARD_ALIASES
+    '/.well-known/mcp.json','/.well-known/mcp/server.json','/openapi.json','/page-metadata.json')) | EDGE_REDIRECTS | CARD_ALIASES
 # 11-12: no s-maxage. Cloudflare reads s-maxage as proxy-revalidate and never hands out a stale copy, so the
 # swr part never worked; max-age now sets the edge time, and browsers and agents keep the same time.
 DISCOVERY_CACHE = 'public, max-age=3600, stale-while-revalidate=3600'
