@@ -371,7 +371,13 @@ def facts_mcp(res, p):
         rows.append(('Tool call result', f"{trial['output_chars']} characters in {trial['latency_ms']:.0f} ms"))
         pros.insert(0, f"One read-only tool call ({trial['tool']}) completed in {trial['latency_ms']:.0f} ms and returned "
                        f"{trial['output_chars']} characters.")
-        cons = ['Verification covered one read-only tool call; the other tools were not invoked.']
+        cons = ['Verification covered one read-only tool call; the other tools were not invoked.',
+                # PM 11-14 (pearl audit): say plainly what was not judged.
+                'The returned content was not checked against an expected answer; the check only confirmed a '
+                'non-empty, non-error result.']
+        if not trial.get('argument_names'):
+            cons.append('The tool was called without arguments, so this does not show how it handles a real request.')
+        rows.append(('Arguments sent', ', '.join(trial.get('argument_names') or []) or 'none'))
     if documented < len(tools):
         cons.append(f"{len(tools) - documented} tool(s) have no description.")
     if schemas < len(tools):
@@ -522,7 +528,7 @@ def build(res, p, version_id=None):
           f"{desc_line}\n\n"
           f"## Measured Facts\n\n| Check | Observed |\n| --- | --- |\n{table}\n\n"
           f"### Pros\n\n" + '\n'.join(f'- {x}' for x in pros) + "\n\n### Cons\n\n" + '\n'.join(f'- {x}' for x in cons) +
-          "\n\n## Scope\n\nTransport and task execution evidence verified. Connection version and runtime schema hash cryptographically pinned; no payment, credential or private data was used."
+          "\n\n## Scope\n\nThe connection and one task execution were recorded; whether the returned content is correct was not judged. Connection version and runtime schema hash are pinned; no payment, credential or private data was used."
           f"\n\n## Recommended Workflow Integration\n\n{workflow_rec}\n")
 
     summary_text = f"{res['name']}: {outcome_word} {norm_method} check (HTTP {p['code']}, {p['ms']:.0f} ms, p95 {p.get('p95_ms', p['ms']):.0f} ms)."
