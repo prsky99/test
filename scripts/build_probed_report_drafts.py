@@ -17,6 +17,7 @@ from report_pipeline_common import (
 from agent_market.config import GatewayConfig
 from agent_market.application_runtime import open_runtime_storage
 from agent_market.capability_registry import Registry
+import pearl_batch as PB
 
 DB = 'gateway-data/collector.sqlite3'
 OUT = sys.argv[2] if len(sys.argv) > 2 else '/Users/kingstonelee/.gemini/antigravity/brain/c483b1b9-b552-4e83-b78d-d6f36bf0128d/scratch/drafts'
@@ -24,6 +25,7 @@ PER_KIND = int(sys.argv[1]) if len(sys.argv) > 1 else 2
 PROBE_FACTOR = 3                      # probe at most PER_KIND * 3 candidates per kind (outbound calls are bounded)
 PUBLISHABLE_SCOPES = ('execution', 'contract')   # the same rule submit_report_drafts.py applies
 UA = 'AgentConcierge-Verification/1.0'
+PB_KIND_LIMITS = {'mcp': 25, 'a2a': 5}   # PM 11-14 06:1x: 30 a day in all (pearl_batch.DAILY_LIMIT caps the sum)
 
 
 def public_https(url):
@@ -140,7 +142,37 @@ def probe_a2a(res):
     t1 = time.time()
     stats = _burst_stats(samples)
     return dict(t0=t0, t1=t1, code=r['code'], ms=stats['p50_ms'] or r['ms'], ok=bool(ok), data=data,
-                method='A2A Agent Card', request='GET (3-probe burst)', **stats)
+                method='A2A Agent Card', request='GET (3-probe burst)', retry_after=_retry_after(r), **stats)
+
+
+def _retry_after(r):
+    try:
+        return (r.get('hdrs') or {}).get('Retry-After')
+    except AttributeError:
+        return None
+
+
+def probe_a2a_task(res, card):
+    """PM 11-14 06:1x ②: one message/send with the card's own published example for a read-only skill.
+
+    Returns the execution probe, or a dict with ok False and 'stopped' when the reply asks for more input or keeps
+    the task running (recorded only, never continued)."""
+    chosen = PB.a2a_task_skill(card)
+    endpoint = str(_dict(card).get('url') or '')
+    if not chosen or not public_https(endpoint):
+        return None
+    skill, example = chosen
+    body = json.dumps(PB.a2a_message(example, 'agentcon-verify-%d' % int(time.time() * 1000))).encode()
+    t0 = time.time()
+    r = http('POST', endpoint, body, {'Content-Type': 'application/json'}, timeout=PB.A2A_TIMEOUT_S)
+    t1 = time.time()
+    verdict, state, reply = PB.classify_a2a_reply(jbody(r, expected_id=1) if r.get('code') == 200 else None)
+    task = {'skill': str(skill.get('id') or skill.get('name'))[:80], 'input': example, 'state': state,
+            'verdict': verdict, 'reply_excerpt': reply}
+    return dict(t0=t0, t1=t1, code=r['code'], ms=r['ms'], ok=verdict == 'completed', data=card, task=task,
+                stopped=verdict == 'stopped', retry_after=_retry_after(r), method='A2A Message',
+                request="POST message/send with the card's own example input (one call)",
+                p50_ms=r['ms'], p95_ms=r['ms'], jitter_ms=0.0, trials=1)
 
 
 def probe_mcp(res):
@@ -191,7 +223,7 @@ def probe_mcp(res):
         burst_samples.append(r_notif['ms'])
     stats = _burst_stats(burst_samples)
     total_ms = r['ms'] + r2['ms']
-    return dict(t0=t0, t1=t1, code=r2['code'], ms=total_ms, ok=mcp_tools_ok,
+    return dict(t0=t0, t1=t1, code=r2['code'], ms=total_ms, ok=mcp_tools_ok, retry_after=_retry_after(r2),
                 data=dict(init=init_res or {}, tools=tools or []),
                 method='MCP Tools List', request='POST initialize + notifications/initialized + tools/list (3-step burst)',
                 **stats)
@@ -276,7 +308,15 @@ def facts_a2a(res, p):
         ('Latency profile (p50 / p95 / jitter)', f"{p50:.0f} ms / {p95:.0f} ms / ±{jitter:.0f} ms ({p.get('trials', 3)} probes)")
     ]
     pros = [f"Agent card served in {p50:.0f} ms (p95: {p95:.0f} ms, jitter: ±{jitter:.0f} ms) as valid JSON across {p.get('trials', 3)} burst probes."]
-    cons = ['Task execution (message/send) was not exercised; only the public agent card was checked.']
+    task = p.get('task')
+    if task:
+        pros = [f"Answered the card's own example request for skill '{task['skill']}' through message/send in {p['ms']:.0f} ms."]
+        cons = ["Only the card's published example input was sent, once; the reply was received and recorded, "
+                "not judged for accuracy against other inputs."]
+        rows.append(('Task tested', f"message/send, skill '{task['skill']}', the card's example input"))
+        rows.append(('Task state', str(task['state'])))
+    else:
+        cons = ['Task execution (message/send) was not exercised; only the public agent card was checked.']
     if skills:
         pros.append(f"Card declares {len(skills)} skill(s): " + ', '.join(str(s.get('name') or s.get('id')) for s in skills[:5]) + '.')
     else:
@@ -288,6 +328,9 @@ def facts_a2a(res, p):
     wire = {k: d.get(k) for k in ('name', 'description', 'version', 'protocolVersion', 'capabilities', 'defaultInputModes', 'defaultOutputModes') if k in d}
     wire['skills'] = [{k: s.get(k) for k in ('id', 'name', 'description') if k in s} for s in skills[:10]]
     wire['telemetry'] = {'p50_ms': p50, 'p95_ms': p95, 'jitter_ms': jitter, 'trials': p.get('trials', 3)}
+    if task:
+        wire['task'] = {k: task[k] for k in ('skill', 'input', 'state', 'reply_excerpt')}
+        return rows, pros, cons, desc, dict(tool=task['skill'], wire=wire)
     return rows, pros, cons, desc, dict(tool=(skills[0].get('id') or skills[0].get('name')) if skills else None, wire=wire)
 
 
@@ -562,17 +605,37 @@ def main():
     storage = open_runtime_storage(config.db_path)
     store = storage.store
     registry = Registry(store)
+    # PM 11-14 06:1x: pearl candidates first, 30 reports a day in all, per-provider limits (scripts/pearl_batch.py).
+    pearl = os.environ.get('PEARL_BATCH') == '1'     # set by batch_report_runner.py; off for tests and manual runs
+    pacer = PB.Pacer(state_dir=PB.STATE_DIR if pearl else None)
+    per_kind = dict(PB_KIND_LIMITS) if pearl else {}
+    for part in os.environ.get('REPORT_PER_KIND', '').split(','):
+        if '=' in part:
+            name, value = part.split('=', 1)
+            per_kind[name.strip()] = int(value)
 
     for kind in kinds:
+        limit = per_kind.get(kind, PER_KIND)
         pool = []
+        if kind == 'mcp' and pearl:
+            targets = PB.load_targets()
+            random.shuffle(targets)
+            for rid in targets[:limit * PROBE_FACTOR * 2]:
+                try:
+                    agent = live_api(token, f"/admin/api/agents/{rid}").get('agent') or {}
+                except Exception:
+                    continue
+                if agent.get('kind') == 'mcp' and agent.get('url'):
+                    pool.append({**agent, 'id': rid, 'pearl_target': True})
         for grade_value in ('A', 'B'):
             data = live_api(token, f'/admin/api/agents?kind={kind}&grade={grade_value}&status=healthy&active=1&sort=recent&limit=200&offset=0')
-            pool += data['items']
-        random.shuffle(pool)
+            rest = data['items']
+            random.shuffle(rest)
+            pool += rest
         done = probed = 0
         for res in pool:
-            if done >= PER_KIND: break
-            if probed >= PER_KIND * PROBE_FACTOR:
+            if done >= limit or pacer.room() <= 0: break
+            if probed >= limit * PROBE_FACTOR:
                 summary.append((kind, 'STOP_PROBE_CAP', f'{probed} probes, {done} drafts'))
                 break
             if not res.get('name') or not str(res.get('url') or '').startswith('https://') or not public_https(res['url']): continue
@@ -607,8 +670,14 @@ def main():
             except Exception:
                 continue
 
+            host = PB.host_of(res['url'])
+            if not pacer.allowed(host):
+                summary.append((res['id'], 'SKIP_PROVIDER_LIMIT', host))
+                continue
+            pacer.wait(host)
             probed += 1
             p = {'x402': probe_x402, 'a2a': probe_a2a, 'mcp': probe_mcp}[kind](full_res)
+            pacer.called(host, (p or {}).get('code'), {'Retry-After': (p or {}).get('retry_after')} if (p or {}).get('retry_after') else None)
             if not p or not p['ok']: continue
 
             ver = safe_current_version(registry, res['id'])
@@ -623,11 +692,25 @@ def main():
             if scope not in PUBLISHABLE_SCOPES and kind == 'mcp':
                 listed = {str(t.get('name')) for t in _dict(p.get('data')).get('tools', []) if isinstance(t, dict)}
                 trial = recorded_trial(store, store.resource(res['id']), ver, listed=listed) if store is not None else None
+                if trial and not PB.is_work_tool(trial['tool']):
+                    summary.append((res['id'], 'SKIP_METADATA_TOOL', trial['tool']))
+                    continue
                 if trial:
                     p = {**p, 'trial': trial, 'method': 'MCP Tool Call', 'ok': True, 'code': 200,
                          'handshake_ms': p['ms'], 'ms': trial['latency_ms'], 't0': trial['started'], 't1': trial['finished'],
                          'request': 'initialize, tools/list and one read-only tools/call recorded by the catalog collector'}
                     scope = 'execution'
+            if scope not in PUBLISHABLE_SCOPES and kind == 'a2a' and pacer.allowed(host, a2a=True):
+                pacer.wait(host)
+                task = probe_a2a_task(full_res, p.get('data'))
+                if task is not None:
+                    pacer.called(host, task['code'], {'Retry-After': task['retry_after']} if task.get('retry_after') else None, a2a=True)
+                    if task['ok']:
+                        safe_record_evidence(registry, ver, scope='execution', outcome='succeeded', started=task['t0'], finished=task['t1'])
+                        p, scope = task, 'execution'
+                    else:
+                        summary.append((res['id'], 'A2A_TASK_STOPPED' if task['stopped'] else 'A2A_TASK_FAILED',
+                                        task['task']['state']))
             if scope not in PUBLISHABLE_SCOPES:
                 summary.append((res['id'], 'SKIP_TRANSPORT_ONLY', 'connection-only probe: no task execution evidence'))
                 transport_only += 1
@@ -646,6 +729,7 @@ def main():
             summary.append((res['id'], kind, res['name'], p['code'], round(p['ms'])))
             done += 1
             total_created += 1
+            pacer.reported()
 
     for s_ in summary: print(s_)
     if total_created == 0 and transport_only:
