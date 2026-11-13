@@ -92,3 +92,28 @@ def test_stage_four_holds_when_a_required_slot_fails_in_a_fifth_of_cases(tmp_pat
     alerts = [json.loads(l)["alert"] for l in (tmp_path / "logs" / "alerts.jsonl").read_text().splitlines()]
     assert {"stage4", "stage4_hold", "hold"} <= set(alerts)
     assert "4단계" in (tmp_path / "logs" / f"{DAY}.md").read_text()
+
+
+def test_cumulative_counts_live_retests_once_a_day_and_restarts_on_a_new_version(tmp_path):
+    live = dict(trial(), status="live")
+    write(tmp_path / "retest" / f"{DAY}.jsonl", [case(i, ok=i != 0) for i in range(30)])
+    daily.run([live], tmp_path, tmp_path / "logs", now=NOW)
+    daily.run([live], tmp_path, tmp_path / "logs", now=NOW + 600)          # same day again: no double count
+    q = json.loads((tmp_path / "results" / "topic-brief" / "summary.json").read_text())["quality"]
+    assert q["cumulative"]["cases"] == 30 and q["cumulative"]["passed"] == 29
+    assert q["success_7d"] == 29 and q["cases_7d"] == 30
+    next_day = NOW + 86400
+    write(tmp_path / "retest" / f"{datetime.fromtimestamp(next_day).strftime('%Y%m%d')}.jsonl", [case(i) for i in range(30)])
+    daily.run([live], tmp_path, tmp_path / "logs", now=next_day)
+    q = json.loads((tmp_path / "results" / "topic-brief" / "summary.json").read_text())["quality"]
+    assert q["cumulative"] == {"cases": 60, "passed": 59, "since": q["cumulative"]["since"]}
+    daily.run([dict(live, version=2)], tmp_path, tmp_path / "logs", now=next_day + 60)
+    q = json.loads((tmp_path / "results" / "topic-brief" / "summary.json").read_text())["quality"]
+    assert q["cumulative"]["cases"] == 0                                    # a new version starts over
+
+
+def test_cumulative_is_absent_before_launch(tmp_path):
+    write(tmp_path / "retest" / f"{DAY}.jsonl", [case(i) for i in range(30)])
+    daily.run([trial()], tmp_path, tmp_path / "logs", now=NOW)
+    q = json.loads((tmp_path / "results" / "topic-brief" / "summary.json").read_text())["quality"]
+    assert q["cumulative"] is None

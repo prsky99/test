@@ -119,7 +119,7 @@ def summarize(slug: str, today: list[dict], window: list[dict], singles: list[di
     summary = {
         "quality": {
             "cases_today": len(cases_today), "success_today": success_today,
-            "cases_7d": len(cases_week), "success_rate": week_rate,
+            "cases_7d": len(cases_week), "success_7d": ok_week, "success_rate": week_rate,
             "lower_bound": wilson_lower(ok_week, len(cases_week)),
             "best_single_rate": best_single, "delta_pp": delta,
             "baseline_at": max((r.get("at", "") for r in singles if r.get("slug") == slug), default=None),
@@ -143,6 +143,29 @@ def summarize(slug: str, today: list[dict], window: list[dict], singles: list[di
     if success_today is not None and success_today < HOLD_SUCCESS:
         summary["held_reason"] = "quality_low"
     return summary
+
+
+def cumulate(root: Path, defn: dict, today: list[dict], day: str, stamp: str) -> dict | None:
+    """Retest cases since the necklace went live, added once per day and restarted for a new version.
+
+    The surface writes "Verified 95%" only when cases >= 110 and at most one failed (PM 11-14)."""
+    path = root / "results" / defn["slug"] / "cumulative.json"
+    try:
+        acc = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        acc = {}
+    if defn.get("status") != "live":
+        return acc.get("public") if acc.get("version") == defn["version"] else None
+    if acc.get("version") != defn["version"]:
+        acc = {"version": defn["version"], "days": [], "public": {"cases": 0, "passed": 0, "since": stamp}}
+    if day not in acc["days"]:
+        cases = [r for r in today if r.get("type") == "case" and r.get("slug") == defn["slug"]
+                 and r.get("version") == defn["version"]]
+        acc["public"]["cases"] += len(cases)
+        acc["public"]["passed"] += sum(1 for r in cases if r.get("ok"))
+        acc["days"] = (acc["days"] + [day])[-400:]
+        write_atomic(path, acc)
+    return acc["public"]
 
 
 def digest_line(slug: str, version, status: str, s: dict) -> str:
@@ -195,6 +218,7 @@ def run(definitions: list[dict], root: Path, logs: Path, now: float | None = Non
         for key in ("template_id",):
             if key in previous:
                 summary[key] = previous[key]
+        summary["quality"]["cumulative"] = cumulate(root, defn, today, names[0], stamp)
         # Stage alerts only when a slot reaches a higher stage than it had (the first stage 2
         # goes to PM the same day so the agent team can build that slot's fallback). A required
         # slot that failed after every fallback in 20% of today's cases, or two days running,
