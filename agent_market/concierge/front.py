@@ -1875,7 +1875,9 @@ def get_safe_agent_detail(store: Store, rid: int) -> dict:
             else:
                 published['sample'] = sample
         r['tools'].append(published)
-    r['usage_guide'] = {'endpoint':gw_url,'tools':r['tools']}
+    # One copy of the tool list (11-13 PM 22:4x): usage_guide.tools repeated agent.tools, 115 of 236 KB for listing
+    # 52185, and lost a deeply nested tool one level further down. Nothing in this repository read it.
+    r['usage_guide'] = {'endpoint':gw_url,'tools_ref':'agent.tools'}
 
     # Filter subject bindings before pagination so bad imports cannot hide
     # legitimate older history behind the drawer's five-report limit.
