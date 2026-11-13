@@ -285,3 +285,45 @@ def engine_caller(engine):
         node = {"resource_id": member["resource_id"], "kind": "mcp", "data": {"tool": member["tool"]}}
         return engine._call_registered(node, args)
     return call
+
+
+class BudgetDenied(Exception):
+    def __init__(self, why: str):
+        super().__init__(why)
+        self.error_code = "budget_" + why
+
+
+RATE_LIMITED = ("429", "RATE_LIMIT", "TOO_MANY")
+
+
+def budgeted_caller(caller, system: str, url_of, budget=None):
+    """Wrap a caller for runs we start ourselves (daily retest, gate) with the shared provider
+    budget (deploy/PROVIDER_BUDGET.md): reserve before every external call, report a 429 after it.
+    Public user runs are service traffic and do not use this wrapper. AgentValCon fallbacks run on
+    our own host and are not counted."""
+    if budget is None:
+        from .. import provider_budget as budget
+
+    def call(member, args, timeout_s):
+        if member.get("kind") != "external":
+            return caller(member, args, timeout_s)
+        url = url_of(member)
+        ok, why = budget.reserve(url, system)
+        if not ok:
+            raise BudgetDenied(why)
+        try:
+            return caller(member, args, timeout_s)
+        except Exception as exc:
+            code = str(getattr(exc, "status", "") or getattr(exc, "error_code", "") or "")
+            if any(mark in code.upper() for mark in RATE_LIMITED):
+                budget.note(url, system, 429)
+            raise
+    return call
+
+
+def resource_url(store):
+    """url_of for budgeted_caller: the registered endpoint of the member's resource."""
+    def url_of(member):
+        row = store.resource(member["resource_id"]) or {}
+        return row.get("url") or ""
+    return url_of

@@ -162,3 +162,29 @@ def test_daily_north_star_counts_external_clients_only(tmp_path):
     events.append(forged)
     summary = daily.summarize("topic-brief", [], [], [], events)
     assert summary["external_runs"] == {"total": 1, "succeeded": 1}
+
+
+class FakeBudget:
+    def __init__(self, allow=lambda url: True):
+        self.allow, self.reserved, self.noted = allow, [], []
+
+    def reserve(self, url, system, n=1):
+        self.reserved.append((url, system))
+        return (True, "ok") if self.allow(url) else (False, "system_share")
+
+    def note(self, url, system, status):
+        self.noted.append((url, system, status))
+
+
+def test_budget_wraps_external_calls_only_and_denial_moves_on():
+    budget = FakeBudget(allow=lambda url: not url.endswith("/1"))
+    rate_limited = Fail("RATE_LIMITED_429")
+    answers = {1: "CVE-1", 2: "CVE-2020-28500", 3: rate_limited, 4: Fail(), 11: "not in the CISA KEV catalog"}
+    call = runner.budgeted_caller(caller_from(answers), "necklace_retest",
+                                  lambda m: f"https://p{m['resource_id']}.example/{m['resource_id']}", budget)
+    out = runner.Runner(call).run(necklace(), {"q": "x"})
+    assert out["attempts"]["papers"][0]["error_class"] == "budget_system_share"
+    assert out["slots"]["papers"]["stage"] == 2
+    assert ("https://p3.example/3", "necklace_retest", 429) in budget.noted
+    assert all(not url.endswith("/11") for url, _ in budget.reserved)   # AgentValCon fallback not counted
+    assert out["slots"]["news"]["stage"] == 3
