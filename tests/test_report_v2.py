@@ -65,3 +65,27 @@ def test_registrable_domain():
     assert V.registrable('met-mcp-worker.workers.dev') == 'met-mcp-worker.workers.dev'
     assert V.registrable('openalex.caseyjhand.com') == 'caseyjhand.com'
     assert V.registrable('api.example.co.uk') == 'example.co.uk'
+
+
+def test_role_task_case_scores_the_full_answer():
+    case = V.case_for('cve.kev', day=0)
+    assert case and case['role'] == 'cve.exploited.v1'
+    if case['expect'].get('kev') is True:
+        text = case['input']['cve_id'] + ' is in the CISA KEV catalog (known exploited).'
+    else:
+        text = case['input']['cve_id'] + ' is not in the CISA KEV catalog.'
+    good = V.save_version({**result(rid=9, role='cve.kev', tool='kev', excerpt=text[:20]), 'case': case, 'full_text': text})
+    assert good['judgement']['total'] == 1 and good['case_id'] == case['case_id']
+    assert good['judgement']['passed'] == 1 or good['judgement']['reasons']
+
+
+def test_no_case_for_roles_without_tasks():
+    assert V.case_for('fx.rate') is None
+
+
+def test_measurement_windows():
+    import time as _t
+    def at(h, m):
+        return _t.mktime((2026, 11, 15, h, m, 0, 0, 0, -1))
+    assert V.quiet_now(at(9, 12)) and not V.quiet_now(at(9, 56)) and not V.quiet_now(at(10, 5))
+    assert not V.quiet_now(at(4, 30)) and V.quiet_now(at(5, 12))

@@ -25,6 +25,33 @@ BOARD = ROOT / 'logs/ops/status-board.md'
 RULES = 'v2-2026-11-14'
 PASS_MARK = 85
 DAY = 86400
+ROLE_DAILY_LIMIT = 60       # PM 11-14: role tests a day (back to 30 if refusals pass 5% in the first 3 days)
+# Our role names -> the workflow team's role task contracts (agent_market/necklaces/role_tasks, v1 11-14).
+CASE_ROLE = {'papers.search': 'papers.search.v1', 'encyclopedia.summary': 'encyclopedia.summary.v1',
+             'news.search': 'news.search.v1', 'package.advisories': 'package.advisories.v1',
+             'package.metadata': 'package.health.v1', 'cve.kev': 'cve.exploited.v1', 'cve.record': 'cve.record.v1',
+             'company.lookup': 'company.registry.v1', 'topic.answer': 'web.grounding.v1',
+             'software.incident': 'software.incident.v1', 'website.ai_readiness': 'website.ai_readiness.v1'}
+
+
+def quiet_now(now=None):
+    """Outside the measurement windows (:55-:10 every hour, 03:50-05:10)."""
+    t = time.localtime(now)
+    minutes = t.tm_hour * 60 + t.tm_min
+    return not (t.tm_min >= 55 or t.tm_min < 10 or 230 <= minutes < 310)
+
+
+def case_for(role, day=None):
+    """One role task for ROLE, rotating by day so every case is used over the week; None when the role has none."""
+    try:
+        from agent_market.necklaces import role_tasks
+        cases = role_tasks.by_role().get(CASE_ROLE.get(role, ''), [])
+    except Exception:
+        return None
+    if not cases:
+        return None
+    day = int(time.strftime('%j')) if day is None else day
+    return cases[day % len(cases)]
 
 # The pearl's field comes from its role, not the catalog category (audit: a domain search filed under finance).
 ROLE_DOMAIN = {'papers.search': 'research', 'encyclopedia.summary': 'reference', 'news.search': 'news',
@@ -178,8 +205,19 @@ def save_version(result, now=None):
          'excerpt': (result.get('excerpt') or '')[:1000], 'host': result.get('host'),
          'registrable_domain': registrable(result.get('host')), 'source': result.get('source', 'role tool call'),
          'tested': tested}
-    r['judgement'] = judge(r['role'], r['excerpt'], r['arguments']) if r['outcome'] == 'succeeded' else \
-        {'rules': RULES, 'checks': [], 'passed': 0, 'total': len(CHECKS.get(r['role'], []))}
+    case = result.get('case')
+    if case and r['outcome'] == 'succeeded':
+        from agent_market.necklaces import role_tasks
+        passed, reasons = role_tasks.score(case, result.get('full_text') or r['excerpt'], result.get('structured'))
+        live = [k for k in ('published_within_days', 'dynamic') if k in (case.get('expect') or {})]
+        r['judgement'] = {'rules': 'role-tasks-v1 ' + case['case_id'], 'checks': [{'check': case['case_id'], 'passed': passed}],
+                          'passed': int(passed), 'total': 1, 'reasons': reasons, 'not_checked_live': live}
+    elif r['outcome'] == 'succeeded':
+        r['judgement'] = judge(r['role'], result.get('full_text') or r['excerpt'], r['arguments'])
+    else:
+        r['judgement'] = {'rules': RULES, 'checks': [], 'passed': 0, 'total': len(CHECKS.get(r['role'], [])) or 1}
+    if case:
+        r['case_id'] = case['case_id']
     if r['outcome'] == 'succeeded' and r['judgement']['total'] and r['judgement']['passed'] < r['judgement']['total']:
         r['content_verdict'] = 'partial' if r['judgement']['passed'] else 'failed'
     else:
@@ -231,6 +269,20 @@ def rank(versions):
                      'fallbacks': [e['resource_id'] for e in ranked if e['rank'] in (2, 3)],
                      'needs_agentcon_fallback': len([e for e in ranked if e['rank'] and e['rank'] >= 2]) <= 1}
     return out
+
+
+def refusal_note():
+    """PM 11-14: provider refusals (429/403) of today's role tests; above 5% the limit goes back to 30."""
+    try:
+        import pearl_batch as PB
+        state = PB.Pacer(state_dir=PB.STATE_DIR).state
+        tests, refused = int(state.get('role_tests', 0)), int(state.get('refusals', 0))
+    except Exception:
+        return ''
+    if not tests:
+        return ''
+    rate = 100 * refused / tests
+    return f" · 오늘 역할 시험 {tests}건 중 제공자 거절 {refused}건({rate:.1f}%{', 5% 넘음 → 30건으로 되돌림' if rate > 5 else ''})"
 
 
 def funnel(versions, ranked, candidates_a=None):
@@ -286,7 +338,7 @@ def publish(board=True):
                                   'rank_rule': 'quality score (evidence 60 + writing 40), one place per registrable domain; '
                                                '#1 at 85+ is the final pearl, #2-#3 are external fallbacks',
                                   'roles': ranked}, indent=1, ensure_ascii=False))
-    line = funnel(versions, ranked, candidates_a())
+    line = funnel(versions, ranked, candidates_a()) + refusal_note()
     if board:
         write_board(line)
     return line
@@ -304,10 +356,23 @@ def main(argv=None):
         from role_tool_test import resources, test_one
         candidates = json.loads(Path(argv[1]).read_text())
         pacer = PB.Pacer(state_dir=PB.STATE_DIR)
+        pacer.state.setdefault('role_tests', 0)
+        pacer.state.setdefault('refusals', 0)
         found = resources({c['id'] for c in candidates})
         with httpx.Client(follow_redirects=False) as http:
-            for candidate in candidates[:PB.DAILY_LIMIT]:
-                save_version(test_one(http, candidate, found.get(candidate['id'], {}), pacer))
+            for candidate in candidates:
+                if pacer.state['role_tests'] >= ROLE_DAILY_LIMIT:
+                    break
+                while not quiet_now():
+                    time.sleep(30)
+                candidate = {**candidate, 'case': case_for(candidate['role'])}
+                result = test_one(http, candidate, found.get(candidate['id'], {}), pacer)
+                if result.get('outcome') != 'skipped' or 'limit' not in str(result.get('reason')):
+                    pacer.state['role_tests'] += 1
+                if result.get('http') in (403, 429) or str(result.get('reason', '')).endswith(('HTTP 429', 'HTTP 403')):
+                    pacer.state['refusals'] += 1
+                pacer.save()
+                save_version(result)
     print(publish(board='--no-board' not in argv))
 
 

@@ -163,5 +163,110 @@
   "role": "cve.kev",
   "id": 47477,
   "tool": "get_kev_exposure"
+ },
+ {
+  "role": "papers.search",
+  "id": 47151,
+  "tool": "openalex_search_entities"
+ },
+ {
+  "role": "encyclopedia.summary",
+  "id": 47189,
+  "tool": "wikipedia_get_summary"
+ },
+ {
+  "role": "news.search",
+  "id": 147960,
+  "tool": "search_news"
+ },
+ {
+  "role": "package.advisories",
+  "id": 47161,
+  "tool": "osv_query_package"
+ },
+ {
+  "role": "fx.rate",
+  "id": 48762,
+  "tool": "convert"
+ },
+ {
+  "role": "cve.kev",
+  "id": 37259,
+  "tool": "get_cve"
+ },
+ {
+  "role": "papers.search",
+  "id": 39577,
+  "tool": "search_papers"
+ },
+ {
+  "role": "encyclopedia.summary",
+  "id": 143970,
+  "tool": "wiki_summary"
+ },
+ {
+  "role": "package.advisories",
+  "id": 286623,
+  "tool": "search_vulnerabilities"
+ },
+ {
+  "role": "package.metadata",
+  "id": 40897,
+  "tool": "get_package_profile"
+ },
+ {
+  "role": "country.indicator",
+  "id": 34791,
+  "tool": "get_country_indicator"
+ },
+ {
+  "role": "fx.rate",
+  "id": 47112,
+  "tool": "fx_get_rate"
+ },
+ {
+  "role": "weather.forecast",
+  "id": 56036,
+  "tool": "get_forecast"
+ },
+ {
+  "role": "events.search",
+  "id": 47538,
+  "tool": "festivals_in_month"
+ },
+ {
+  "role": "papers.search",
+  "id": 34550,
+  "tool": "search_papers"
+ },
+ {
+  "role": "package.advisories",
+  "id": 130453,
+  "tool": "scan_package_cve_advisories"
+ },
+ {
+  "role": "fx.rate",
+  "id": 226724,
+  "tool": "convert_currency"
+ },
+ {
+  "role": "weather.forecast",
+  "id": 38062,
+  "tool": "weather"
+ },
+ {
+  "role": "papers.search",
+  "id": 34807,
+  "tool": "search_papers"
+ },
+ {
+  "role": "package.advisories",
+  "id": 367249,
+  "tool": "check_software"
+ },
+ {
+  "role": "fx.rate",
+  "id": 36306,
+  "tool": "get_exchange_rate"
  }
 ]

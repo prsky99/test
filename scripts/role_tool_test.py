@@ -89,10 +89,67 @@ def refused(text):
     return not head or bool(REFUSAL.search(head))
 
 
-def role_arguments(tool, role, category=None):
+# Standard input names of the workflow team's role tasks (agent_market/necklaces/role_tasks) -> parameter names.
+CASE_KEYS = {
+    'package': r'package|^name$|library|module|software|product|pkg',
+    'ecosystem': r'ecosystem|registry|^system$|platform',
+    'version': r'version',
+    'cve_id': r'cve|^id$|vuln',
+    'query': r'query|^q$|search|keyword|term|topic|text',
+    'title': r'title|page|article|topic|term|query|^q$',
+    'name': r'company|^name$|entity|business|legal|org',
+    'domain': r'domain|website|site|url|host',
+    'country': r'country|jurisdiction',
+    'question': r'question|query|^q$|prompt|ask',
+    'limit': r'^(limit|max_results|count|per_page|num_results|top_k)$',
+}
+
+
+def case_arguments(tool, case_input):
+    """Map a role task's standard input onto TOOL's parameters; (args, unmapped required names)."""
+    args, missing = {}, []
+    names = list(tool.get('required') or []) + [n for n in tool['params'] if n not in (tool.get('required') or [])]
+    for name in names:
+        spec = tool['params'].get(name, {})
+        if usage._PII_PARAM.search(name) or (name not in (tool.get('required') or []) and OPTION_NAME.search(name)
+                                              and not re.search(CASE_KEYS['limit'], name)):
+            continue
+        for key, value in case_input.items():
+            if key in CASE_KEYS and re.search(CASE_KEYS[key], name, re.I) and key not in [k for k, _ in args.values()]:
+                if key == 'domain' and re.search(r'url', name, re.I):
+                    value = 'https://' + str(value)
+                if spec.get('type') in ('integer', 'number') and not isinstance(value, (int, float)):
+                    continue
+                args[name] = (key, value)
+                break
+        if name in (tool.get('required') or []) and name not in args:
+            missing.append(name)
+    return {name: value for name, (_, value) in args.items()}, missing
+
+
+def full_text(result, cap=20000):
+    """The tool's answer as text without collector.usage.result_text's 500-character cut (judging needs the whole)."""
+    parts = []
+    for item in result.get('content') or []:
+        if isinstance(item, dict):
+            parts.append(str(item.get('text', '')) if item.get('type') == 'text' else f"[{item.get('type')} content]")
+    if not parts and result.get('structuredContent') is not None:
+        parts.append(json.dumps(result['structuredContent'], ensure_ascii=False))
+    return '\n'.join(parts)[:cap]
+
+
+def role_arguments(tool, role, category=None, case_input=None):
     """Arguments for TOOL (compact form), or (None, reason)."""
     if any(usage._PII_PARAM.search(p) for p in tool.get('required') or []):
         return None, 'personal-data parameter'
+    if case_input:
+        mapped, missing = case_arguments(tool, case_input)
+        if not missing:
+            return mapped, None
+        rest, why = role_arguments(tool, role, category)
+        if rest is None:
+            return None, why
+        return {**rest, **mapped}, None
     args = {}
     for name in tool.get('required') or []:
         spec = tool['params'].get(name, {})
@@ -172,7 +229,7 @@ def test_one(http, candidate, resource, pacer):
         if not usage.is_relay_safe_tool(tool):
             pacer.called(host, listed.status_code)
             return {**out, 'outcome': 'skipped', 'reason': 'not a relay-safe read-only tool'}
-        args, why = role_arguments(tool, candidate['role'], resource.get('category'))
+        args, why = role_arguments(tool, candidate['role'], resource.get('category'), (candidate.get('case') or {}).get('input'))
         if args is None:
             pacer.called(host, listed.status_code)
             return {**out, 'outcome': 'skipped', 'reason': why}
@@ -182,7 +239,7 @@ def test_one(http, candidate, resource, pacer):
         pacer.called(host, resp.status_code, {'Retry-After': resp.headers.get('Retry-After')} if resp.headers.get('Retry-After') else None)
         data = parse_jsonrpc(resp) or {}
         result = data.get('result') if isinstance(data.get('result'), dict) else {}
-        text = usage.result_text(result) if result else ''
+        text = full_text(result) if result else ''
         error = data.get('error')
         from agent_market.collector.auth_discovery import asks_for_key
         ok = resp.status_code == 200 and not error and bool(result) and not result.get('isError') \
@@ -193,6 +250,7 @@ def test_one(http, candidate, resource, pacer):
                                                                            'refused or out of coverage' if text.strip() else 'empty result')),
                 'http': resp.status_code, 'latency_ms': int((t1 - t0) * 1000), 'started': t0, 'finished': t1,
                 'output_chars': len(json.dumps(result, ensure_ascii=False)), 'excerpt': ' '.join(text.split())[:EXCERPT],
+                'full_text': text[:20000], 'structured': result.get('structuredContent') if isinstance(result.get('structuredContent'), dict) else None,
                 'total_ms': int((time.monotonic() - started) * 1000)}
     except httpx.HTTPError as exc:
         pacer.called(host, None)
@@ -223,7 +281,8 @@ def main(argv=None):
     results = []
     with httpx.Client(follow_redirects=False) as http:
         for candidate in candidates[:PB.DAILY_LIMIT]:
-            results.append(test_one(http, candidate, found.get(candidate['id'], {}), pacer))
+            one = test_one(http, candidate, found.get(candidate['id'], {}), pacer)
+            results.append({k: v for k, v in one.items() if k not in ('full_text', 'structured', 'case')})
             print(json.dumps({k: results[-1].get(k) for k in ('role', 'id', 'tool', 'outcome', 'reason', 'latency_ms')}))
     if previous:
         merged = dict(previous)

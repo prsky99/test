@@ -49,3 +49,19 @@ def test_refusals_are_not_success():
 def test_fx_currency_pairs_differ():
     params = {'base_currency': {'type': 'string'}, 'quote_currency': {'type': 'string'}}
     assert role_arguments(tool(['base_currency', 'quote_currency'], params), 'fx.rate')[0] == {'base_currency': 'USD', 'quote_currency': 'EUR'}
+
+
+def test_role_task_input_maps_onto_parameter_names():
+    from scripts.role_tool_test import case_arguments
+    osv = tool(['ecosystem', 'name'], {'ecosystem': {'type': 'string'}, 'name': {'type': 'string'}, 'version': {'type': 'string'},
+                                       'search_mode': {'type': 'string'}})
+    args, missing = case_arguments(osv, {'ecosystem': 'npm', 'package': 'lodash', 'version': '4.17.20'})
+    assert args == {'ecosystem': 'npm', 'name': 'lodash', 'version': '4.17.20'} and missing == []
+    site = tool(['url'], {'url': {'type': 'string'}})
+    assert case_arguments(site, {'domain': 'python.org'})[0] == {'url': 'https://python.org'}
+    assert case_arguments(tool(['record_id'], {'record_id': {'type': 'string'}}), {'query': 'x'})[1] == ['record_id']
+
+
+def test_case_input_wins_over_generic_values():
+    args = role_arguments(tool(['cve_id'], {'cve_id': {'type': 'string'}}), 'cve.kev', case_input={'cve_id': 'CVE-2024-3094'})[0]
+    assert args == {'cve_id': 'CVE-2024-3094'}
