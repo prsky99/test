@@ -39,6 +39,10 @@ SHARE = {
     'gate': DAILY_TOTAL,     # necklace launch gate rounds: whatever is left of the total
     'adhoc': 2,              # one-off checks by a team (reproduce a failure)
 }
+# PM 11-14 06:4x (decision 3): public-data institutions with stated rate limits that the agents' own per-host pacing
+# keeps (agent_market/fallback_agents/limits.py) take more substitute tests a day; the domain total stays DAILY_TOTAL.
+SHARE_OVERRIDE = {('substitute_tests', d): 30 for d in ('gleif.org', 'sec.gov', 'nist.gov', 'cisa.gov', 'wikipedia.org',
+                                                         'wikidata.org', 'wiktionary.org')}
 # Hosting platforms give each tenant its own subdomain; the tenant, not the platform, is the provider.
 SHARED_SUFFIXES = (
     'vercel.app', 'netlify.app', 'pages.dev', 'workers.dev', 'github.io', 'herokuapp.com', 'onrender.com', 'fly.dev',
@@ -106,7 +110,7 @@ def reserve(url, system, n=1, now=None, directory=None):
         used = entry['by'].get(system, 0)
         if entry['total'] + n > DAILY_TOTAL:
             return False, 'domain_daily_total'
-        if used + n > SHARE[system]:
+        if used + n > SHARE_OVERRIDE.get((system, name), SHARE[system]):
             return False, 'system_share'
         entry['total'] += n
         entry['by'][system] = used + n

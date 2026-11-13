@@ -85,3 +85,12 @@ GitHub 무인증 REST 한도는 이 맥 IP 하나에 시간당 60번(core)이다
   - 실제 답변이면 fallback_live로 센다.
 - **사용량 보기:** `.venv/bin/python -m agent_market.provider_budget --github 1` (지난 1시간, 시스템별 사용 수와 거절 수, GitHub가 마지막으로 알려 준 남은 수)
 - **토큰:** 토큰을 쓰면 시간당 5,000번이다. 하지만 계정과 자격 증명 문제라서 사용자가 결정한다. 필요하면 필요 호출량을 근거로 PM에 올린다.
+
+## 공개 데이터 기관의 자체 대체 시험 몫 (PM 결정 3, 11-14 06:4x)
+
+- `SHARE_OVERRIDE`: 공개 데이터 기관에 한해 `substitute_tests` 몫을 하루 5에서 30으로 올린다.
+  - 대상 도메인: gleif.org, sec.gov(www·data), nist.gov, cisa.gov, wikipedia.org, wikidata.org, wiktionary.org
+- 도메인당 하루 합계 60은 그대로다.
+- github.com은 이 덮어쓰기에서 빠진다(GitHub 시간당 몫을 따른다).
+- 기관별 속도 상한은 에이전트의 호스트별 간격이 지킨다(`fallback_agents/limits.py`).
+- 측정 시간에는 시험을 시작하지 않는다(gold_check, 0de007c2).
