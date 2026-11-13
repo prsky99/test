@@ -112,3 +112,11 @@ def test_qualifiers_leave_the_catalog_search_but_bulk_stays():
     assert retrieval_text('customer support bulk') == 'customer support bulk'
     assert retrieval_text('real-time stock prices') == 'real-time stock prices'
     assert retrieval_text('small business') == 'small business'      # nothing else to search for
+
+
+def test_korean_aliases_for_scan_figma_and_vulnerability():
+    """11-13 gate cve_scan-ko0 / figma-ko0: "스캔" alone is scanning; "스캔된" stays "scanned"."""
+    from agent_market.concierge.chat_task_spec import canonical_text
+    assert canonical_text('취약점 스캔') == 'vulnerability scan'
+    assert canonical_text('피그마 디자인 파일 읽기') == 'figma design file read'
+    assert canonical_text('스캔된 PDF') == 'scanned PDF'
