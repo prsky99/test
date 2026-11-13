@@ -170,3 +170,11 @@ def test_typed_company_names():
     assert gold.typed_name("HUNTINGTON BANCSHARES INC /MD/") == "Huntington Bancshares Inc"
     assert gold.typed_name("US BANCORP DE") == "US Bancorp"
     assert gold.typed_name("Howmet Aerospace Inc.") == "Howmet Aerospace Inc."
+
+
+def test_company_names_compare_after_normalizing_legal_forms():
+    assert gold.name_key("Apple Inc.") == gold.name_key("APPLE INC")
+    assert gold.name_key("Huntington Bancshares Incorporated") == gold.name_key("HUNTINGTON BANCSHARES INC")
+    assert gold.name_key("AT&T Inc.") == "at and t inc"
+    cases = [{"truth": {"lei": "X"}}, {"truth": {"lei": None, "cik": "1"}}]
+    assert [c["stratum"] for c in gold.lei_strata(cases)] == ["has_lei", "cik_only"]
