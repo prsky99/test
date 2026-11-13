@@ -49,7 +49,7 @@ def test_summary_digest_and_stage_two_alert(tmp_path):
     assert "held_reason" not in summary and result["alerts"] == 1  # stage 2 on papers
     line = (tmp_path / "logs" / f"{DAY}.md").read_text()
     assert "topic-brief v1 | trial | 2단계 | 7일 완주율 100%" in line and "AgentValCon 사용률 0%" in line
-    assert summary["stage"] == {"slots": {"papers": 2, "news": 1}, "max": 2}
+    assert summary["stage"]["slots"] == {"papers": 2, "news": 1} and summary["stage"]["max"] == 2
     entry = judge.build_entry(dict(trial(), status="live"), None, summary, NOW)
     assert entry["held_reason"] == "not_approved"  # summary alone never makes it live
 
@@ -69,3 +69,26 @@ def test_candidates_are_skipped_and_missing_retest_is_reported(tmp_path):
     result = daily.run([base(), trial()], tmp_path, tmp_path / "logs", now=NOW)
     assert result["necklaces"] == 1
     assert "no retest today" in (tmp_path / "logs" / f"{DAY}.md").read_text()
+
+
+def test_stage_alert_only_when_a_slot_gets_worse(tmp_path):
+    rows = [case(i) for i in range(29)] + [case(29, rank=2)]
+    write(tmp_path / "retest" / f"{DAY}.jsonl", rows)
+    first = daily.run([trial()], tmp_path, tmp_path / "logs", now=NOW)
+    second = daily.run([trial()], tmp_path, tmp_path / "logs", now=NOW + 60)
+    assert first["alerts"] == 1 and second["alerts"] == 0
+
+
+def test_stage_four_holds_when_a_required_slot_fails_in_a_fifth_of_cases(tmp_path):
+    rows = [case(i) for i in range(24)]
+    for i in range(24, 30):
+        r = case(i, ok=False, completed=False, external_only=False)
+        r["slots"]["papers"] = {"rank": 5, "kind": "agentcon", "failed": True}
+        rows.append(r)
+    write(tmp_path / "retest" / f"{DAY}.jsonl", rows)
+    daily.run([trial()], tmp_path, tmp_path / "logs", now=NOW)
+    summary = json.loads((tmp_path / "results" / "topic-brief" / "summary.json").read_text())
+    assert summary["held_reason"] == "stage4" and summary["stage"]["failed"] == {"papers": 6}
+    alerts = [json.loads(l)["alert"] for l in (tmp_path / "logs" / "alerts.jsonl").read_text().splitlines()]
+    assert {"stage4", "stage4_hold", "hold"} <= set(alerts)
+    assert "4단계" in (tmp_path / "logs" / f"{DAY}.md").read_text()

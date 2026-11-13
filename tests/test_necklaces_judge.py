@@ -133,3 +133,32 @@ def test_members_lists_every_chain_member_with_rank_and_skips_retired():
     papers = [r for r in rows if r["slot"] == "papers"]
     assert [r["rank"] for r in papers] == [1, 2, 3] and papers[-1]["kind"] == "agentcon"
     assert out["resource_ids"] == [1, 2, 3, 4, 10, 11]
+
+
+def test_events_and_held_at_follow_status_changes():
+    state = {}
+    t0 = 1_800_000_000.0
+
+    def step(status, t, reason=None):
+        entry = {"slug": "s", "status": status, "held_reason": reason}
+        judge.record_events([entry], state, t)
+        return entry
+
+    held_first = step("held", t0, "not_approved")
+    assert state["events"] == [] and held_first["held_at"] == judge._iso(t0)  # never live: no public event
+    step("live", t0 + 60)
+    held = step("held", t0 + 120, "security")
+    assert held["held_at"] == judge._iso(t0 + 120)
+    again = step("held", t0 + 180, "security")
+    assert again["held_at"] == judge._iso(t0 + 120)  # same pause keeps its start
+    step("live", t0 + 240)
+    assert [e["kind"] for e in state["events"]] == ["launched", "held", "resumed"]
+    assert state["events"][1]["reason"] == "security"
+    judge.record_events([{"slug": "s", "status": "live"}], state, t0 + 61 * 86400)
+    assert state["events"] == []  # older than 60 days
+
+
+def test_run_once_keeps_judge_state(tmp_path):
+    judge.run_once(tmp_path)
+    assert json.loads((tmp_path / "judge_state.json").read_text()) == {"status": {}, "events": []}
+    assert json.loads((tmp_path / "necklaces.json").read_text())["events"] == []

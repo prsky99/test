@@ -155,6 +155,7 @@ def build_entry(defn: dict, approval: dict | None, summary: dict, now: float,
         "completion": summary.get("completion"),
         "quality": summary.get("quality"),
         "cost": summary.get("cost"),
+        "stage": summary.get("stage"),
         "replaces_templates": list(defn.get("replaces_templates") or []),
         "replaced_at": defn.get("replaced_at"),
     }
@@ -179,8 +180,38 @@ def build_entry(defn: dict, approval: dict | None, summary: dict, now: float,
     return entry
 
 
+EVENT_DAYS = 60
+
+
+def record_events(entries: list[dict], judge_state: dict, now: float) -> list[dict]:
+    """Status changes as public events (launched, held, resumed, retired) and held_at.
+
+    ``judge_state`` keeps the last status per slug and the events of the last 60 days;
+    the growth team builds /api/feed/necklaces.json from these events only."""
+    stamp = _iso(now)
+    last = judge_state.setdefault("status", {})
+    events = judge_state.setdefault("events", [])
+    for entry in entries:
+        slug, status = entry["slug"], entry["status"]
+        before = last.get(slug, {})
+        if status != before.get("status"):
+            kind = {"live": "resumed" if before.get("ever_live") else "launched",
+                    "held": "held", "retired": "retired"}.get(status)
+            if kind and not (kind == "held" and not before.get("ever_live")):
+                events.append({"slug": slug, "kind": kind, "at": stamp, "reason": entry.get("held_reason"),
+                               "replaced_by": entry.get("replaced_by")})
+            before = {"status": status, "since": stamp, "ever_live": before.get("ever_live") or status == "live"}
+            last[slug] = before
+        if status == "held":
+            entry["held_at"] = before["since"]
+    cutoff = now - EVENT_DAYS * 86400
+    judge_state["events"] = [e for e in events if (_parse_time(e["at"]) or 0) >= cutoff]
+    return judge_state["events"]
+
+
 def snapshot(definitions: list[dict], approvals: dict[str, dict], root: Path, now: float | None = None,
-             judge_commit: str | None = None, watch_state: dict | None = None) -> dict:
+             judge_commit: str | None = None, watch_state: dict | None = None,
+             judge_state: dict | None = None) -> dict:
     now = time.time() if now is None else now
     if watch_state is None:
         try:
@@ -192,7 +223,9 @@ def snapshot(definitions: list[dict], approvals: dict[str, dict], root: Path, no
         entry = build_entry(defn, approvals.get(defn["slug"]), load_summary(root, defn["slug"]), now, watch_state)
         if entry is not None:
             entries.append(entry)
-    return {"schema": SCHEMA, "generated_at": _iso(now), "judge_commit": judge_commit, "necklaces": entries}
+    events = record_events(entries, {} if judge_state is None else judge_state, now)
+    return {"schema": SCHEMA, "generated_at": _iso(now), "judge_commit": judge_commit, "necklaces": entries,
+            "events": events}
 
 
 def members(definitions: list[dict], now: float | None = None) -> dict:
@@ -245,7 +278,13 @@ def _commit() -> str | None:
 
 def run_once(root: Path = DEFAULT_ROOT, definitions_dir: Path = model.DEFINITIONS) -> dict:
     definitions = model.load_valid(definitions_dir)
-    payload = snapshot(definitions, load_approvals(root / "approvals.json"), root, judge_commit=_commit())
+    try:
+        judge_state = json.loads((root / "judge_state.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        judge_state = {}
+    payload = snapshot(definitions, load_approvals(root / "approvals.json"), root, judge_commit=_commit(),
+                       judge_state=judge_state)
+    write_atomic(root / "judge_state.json", judge_state)
     size = write_atomic(root / "necklaces.json", payload)
     member_list = members(definitions)
     write_atomic(root / "members.json", member_list)
