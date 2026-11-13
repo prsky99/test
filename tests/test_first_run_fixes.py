@@ -17,6 +17,13 @@ def test_every_failure_code_has_a_fix_line():
     assert execution_errors.fix_for('something else') == execution_errors.FIXES['EXECUTION_FAILED']
 
 
+def test_a_provider_pause_says_how_long_to_wait_not_that_it_is_down():
+    """b47872a5: a provider 429 comes back as RESOURCE_UNAVAILABLE with retry_after (SRE review note 2)."""
+    assert execution_errors.fix_for('RESOURCE_UNAVAILABLE', retry_after=30) == 'The provider asked for a pause. Wait 30 seconds, then send it again.'
+    assert execution_errors.fix_for('RESOURCE_UNAVAILABLE') == execution_errors.FIXES['RESOURCE_UNAVAILABLE']
+    assert execution_errors.fix_for('RESOURCE_UNAVAILABLE', retry_after='soon') == execution_errors.FIXES['RESOURCE_UNAVAILABLE']
+
+
 def test_bad_input_names_the_required_arguments():
     text = execution_errors.fix_for('INVALID_INPUT', WEATHER_TOOL)
     assert 'for example {"city":' in text and text.endswith('(fill in the values).')

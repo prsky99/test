@@ -3315,7 +3315,7 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             except Exception:   # the fix line is advice; it never turns a failure answer into a server error
                 spec = None
             exec_res['fix'] = fix_for('UPSTREAM_TIMEOUT' if exec_res.get('retry_safe') is False
-                                      else exec_res.get('error_code'), spec)
+                                      else exec_res.get('error_code'), spec, exec_res.get('retry_after'))
         request.scope['traffic_gateway'] = {'step': 'execute', 'ok': bool(ok_val), 'rid': rid_val}
         alternative = None
 

@@ -74,9 +74,13 @@ FIXES = {
 _REFERENCE = re.compile(r'ex_[0-9a-f]{24}\Z')
 
 
-def fix_for(code, tool_spec=None):
-    """One line on how to get past CODE; for INVALID_INPUT the required arguments of TOOL_SPEC with examples."""
+def fix_for(code, tool_spec=None, retry_after=None):
+    """One line on how to get past CODE; for INVALID_INPUT the required arguments of TOOL_SPEC with examples.
+    A provider that asked for a pause (429 Retry-After, b47872a5: RESOURCE_UNAVAILABLE with retry_after) is not
+    down: the line says how long to wait instead."""
     code = failure_code(code)
+    if code == 'RESOURCE_UNAVAILABLE' and isinstance(retry_after, (int, float)) and 0 < retry_after <= 86400:
+        return 'The provider asked for a pause. Wait %d seconds, then send it again.' % max(1, round(retry_after))
     text = FIXES[code]
     if code == 'INVALID_INPUT' and isinstance(tool_spec, dict):
         import json
