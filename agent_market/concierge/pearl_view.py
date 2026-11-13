@@ -430,7 +430,7 @@ PAGE_META = re.compile(r'<meta name="page:([a-z-]+):[a-z0-9:-]+" content="[^"]*"
 PAGE_METADATA_PATH = '/page-metadata.json'
 DAILY_HOME_JSON = re.compile(r'<script type="application/json" id="dailyHomeMetadata">.*?</script>', re.S)
 DAILY_HOME_PATH = '/daily-home-metadata.json'
-PAGE_METADATA_LINK = ('<link rel="alternate" type="application/json" title="Page metadata of every Agent Concierge page" '
+PAGE_METADATA_LINK = ('<link rel="alternate" type="application/json" title="Page metadata of every AgentValCon page" '
                       'href="' + PAGE_METADATA_PATH + '">\n')
 
 
@@ -620,7 +620,7 @@ def install(app, front, *, workspace_access_enabled=False, workspace_link_enable
     def all_page_metadata():
         # The page:* meta each page no longer carries for the other panels (11-13 PM decision b).
         from fastapi.responses import JSONResponse
-        return JSONResponse({'about': 'page:<panel>:<key> meta of every public Agent Concierge page; each page '
+        return JSONResponse({'about': 'page:<panel>:<key> meta of every public AgentValCon page; each page '
                              'carries only its own panel and the home page (overview).',
                              'pages': {panel: {'url': '/new/en/' + name if name != 'index.html' else '/'}
                                        for name, panel in LIVE_PANELS.items()},
@@ -719,7 +719,7 @@ def install(app, front, *, workspace_access_enabled=False, workspace_link_enable
             handler=app.exception_handlers.get(StarletteHTTPException,http_exception_handler)
             return await handler(request,exc)
         return HTMLResponse('<!doctype html><html lang="en"><head><meta charset="utf-8">'
-            '<meta name="viewport" content="width=device-width,initial-scale=1"><title>Page not found | Agent Concierge</title>'
+            '<meta name="viewport" content="width=device-width,initial-scale=1"><title>Page not found | AgentValCon</title>'
             '<meta name="robots" content="noindex"><link rel="stylesheet" href="/new/en/assets/styles.css"></head>'
             '<body><main class="container" id="main"><section class="card page-heading"><p class="eyebrow">404</p>'
             '<h1>Find your next connection.</h1><p>This page is unavailable. Continue from Home or explore the agent catalog.</p>'

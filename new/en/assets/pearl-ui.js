@@ -66,7 +66,7 @@
     })();
     return pending;
   }
-  PAGE_METAS.status = {...PAGE_METAS.overview,title:'Agent Status | Agent Concierge',desc:'Inspect catalog scale, recorded endpoint observations and execution checks.'};
+  PAGE_METAS.status = {...PAGE_METAS.overview,title:'Agent Status | AgentValCon',desc:'Inspect catalog scale, recorded endpoint observations and execution checks.'};
   if(['overview','status'].includes(currentTab))updatePageMeta(currentTab);
   function activateReportTab(tab) {
     const group=tab.parentElement;
@@ -912,7 +912,7 @@
     if(!modal.open||q('#legalModalTitle')?.textContent!==LEGAL_DOCS[safe]?.title)previousLegal(safe);
     modal.dataset.route=safe;
     history.replaceState(null,'','/#'+safe);
-    document.title=(LEGAL_DOCS[safe]?.title||'Information')+' | Agent Concierge';
+    document.title=(LEGAL_DOCS[safe]?.title||'Information')+' | AgentValCon';
   };
   q('#legalModal')?.addEventListener('close',()=>{
     if(!LEGAL_ROUTES.includes(location.hash.slice(1))){history.replaceState(null,'',route(currentTab));updatePageMeta(currentTab);}
@@ -921,7 +921,7 @@
     if(location.hash==='#cookie-preferences')history.replaceState(null,'',route(currentTab));
   });
   const previousDoc=switchLegalDoc;
-  switchLegalDoc=function(doc){previousDoc(doc);if(q('#legalModal')?.open)document.title=(LEGAL_DOCS[doc]?.title||'Information')+' | Agent Concierge';};
+  switchLegalDoc=function(doc){previousDoc(doc);if(q('#legalModal')?.open)document.title=(LEGAL_DOCS[doc]?.title||'Information')+' | AgentValCon';};
   function syncLocation(){
     const raw=location.hash.slice(1).split('?')[0];
     const hash=['ai-transparency','legal/ai'].includes(raw)?'ai':raw;
@@ -938,7 +938,7 @@
           const link=document.createElement('a');link.href='/new/en/explore.html';link.className='btn';link.textContent='Explore agents';
           notice.append(heading,text,link);(q('main')||document.body).append(notice);}
         for(const panel of document.querySelectorAll('.tab-panel[data-panel]'))panel.classList.add('hidden');
-        document.title='Page not found | Agent Concierge';notice.tabIndex=-1;notice.focus({preventScroll:true});
+        document.title='Page not found | AgentValCon';notice.tabIndex=-1;notice.focus({preventScroll:true});
         return;
       }
       const tab=TABS.includes(hash)?hash:(Object.keys(paths).find(key=>paths[key]===location.pathname)||document.body.dataset.pearlEntry);

@@ -245,7 +245,7 @@ def shell(*, title, description, canonical, body, structured=None, index=True):
             '<title>'+esc(title)+'</title><meta name="description" content="'+esc(description)+'">'
             '<meta name="robots" content="'+('index, follow, max-snippet:-1' if index else 'noindex, follow')+'">'
             '<link rel="canonical" href="'+esc(canonical)+'">'
-            '<meta property="og:type" content="website"><meta property="og:site_name" content="Agent Concierge">'
+            '<meta property="og:type" content="website"><meta property="og:site_name" content="AgentValCon">'
             '<meta property="og:title" content="'+esc(title)+'"><meta property="og:description" content="'+esc(description)+'">'
             '<meta property="og:url" content="'+esc(canonical)+'"><meta property="og:image" content="'+ORIGIN+'/new/en/assets/social-card.png">'
             '<meta name="twitter:card" content="summary_large_image">'
@@ -256,13 +256,13 @@ def shell(*, title, description, canonical, body, structured=None, index=True):
             '<script src="/new/en/assets/app.js" defer></script>'
             '<script type="application/ld+json">'+data+'</script></head>'
             '<body><a href="#mainContent" class="skip-link">Skip to main content</a>'
-            '<header class="top-nav pearl-header"><a href="/" class="brand-box" aria-label="Agent Concierge Home">'
-            '<span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>Agent Concierge</a>'
+            '<header class="top-nav pearl-header"><a href="/" class="brand-box" aria-label="AgentValCon Home">'
+            '<span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>AgentValCon</a>'
             '<nav class="nav-tabs" aria-label="Main navigation">'+nav+'</nav>'
             '<div class="pearl-header-actions"><button class="theme-toggle" type="button" data-action="theme" '
             'aria-label="Toggle dark theme" aria-pressed="false"></button></div></header>'
             '<main id="mainContent" class="main-wrap" tabindex="-1">'+body+'</main>'
-            '<footer class="global-footer"><div class="footer-wrap"><p class="footer-name">Agent Concierge</p>'
+            '<footer class="global-footer"><div class="footer-wrap"><p class="footer-name">AgentValCon</p>'
             '<p class="footer-tagline">Purposeful connections. Inspectable evidence.</p>'
             '<nav class="footer-links" aria-label="Site links">'+links+'</nav></div></footer></body></html>')
 
@@ -285,7 +285,7 @@ def client_settings(url=MCP_URL, name=SERVER_NAME):
          [('Terminal', f'claude mcp add --transport http {name} {url}')]),
         ('claude-desktop', 'Claude Desktop and claude.ai', 'Open Settings, then Connectors, choose Add custom connector, '
          'enter the name and URL below and choose no sign-in. The connection is made from Anthropic\'s servers, so it uses the public URL.',
-         [('Name', 'Agent Concierge'), ('Remote MCP server URL', url)]),
+         [('Name', 'AgentValCon'), ('Remote MCP server URL', url)]),
         ('cursor', 'Cursor', 'Use the install link, or add the entry to .cursor/mcp.json in a project or ~/.cursor/mcp.json for every project.',
          [('.cursor/mcp.json', json.dumps({'mcpServers': {name: {'url': url}}}, indent=2))]),
         ('vscode', 'VS Code', 'Add the entry to .vscode/mcp.json, or run the command to add it to your user settings. Then start the server from the MCP view.',
@@ -293,8 +293,8 @@ def client_settings(url=MCP_URL, name=SERVER_NAME):
           ('Terminal', "code --add-mcp '"+json.dumps({'name': name, 'type': 'http', 'url': url}, separators=(',', ':'))+"'")]),
         ('openai-agents', 'OpenAI Agents SDK (Python)', 'Connect from your own process with MCPServerStreamableHttp, or let the Responses API call it as a hosted MCP tool.',
          [('Local connection', 'from agents import Agent, Runner\nfrom agents.mcp import MCPServerStreamableHttp\n\n'
-           f'async with MCPServerStreamableHttp(name="Agent Concierge", params={{"url": "{url}"}}, cache_tools_list=True) as concierge:\n'
-           '    agent = Agent(name="Assistant", instructions="Use Agent Concierge to find a checked agent for the task.", mcp_servers=[concierge])\n'
+           f'async with MCPServerStreamableHttp(name="AgentValCon", params={{"url": "{url}"}}, cache_tools_list=True) as concierge:\n'
+           '    agent = Agent(name="Assistant", instructions="Use AgentValCon to find a checked agent for the task.", mcp_servers=[concierge])\n'
            '    result = await Runner.run(agent, "Find an agent that returns a weather forecast for Seoul.")\n'
            '    print(result.final_output)'),
           ('Hosted MCP tool', 'from agents import Agent, HostedMCPTool\n\n'
@@ -335,22 +335,22 @@ def connect_page():
     first = ('<section class="card stack" aria-labelledby="first-h"><h2 id="first-h">After you connect</h2>'
              '<p>Ask your assistant in plain words, for example:</p><ul>'
              + ''.join('<li>'+esc(t)+'</li>' for t in (
-                 'Use Agent Concierge to find an agent that returns a weather forecast for Seoul.',
-                 'Search Agent Concierge for an MCP server that reads GitHub issues, without sign-in.',
+                 'Use AgentValCon to find an agent that returns a weather forecast for Seoul.',
+                 'Search AgentValCon for an MCP server that reads GitHub issues, without sign-in.',
                  'Find an x402 API for SEC EDGAR filings and show its recorded checks.'))
              + '</ul><p>Coming back later: call <code>whats_new</code> with the visitor token from your first chat reply to re-check '
              'the agents for your saved task, or opt in to task updates at <code>/api/task-updates</code> (details in '
              '<a href="/llms.txt">llms.txt</a>).</p>'
              '<p class="caption">Agents can read this page and the task pages as Markdown by sending <code>Accept: text/markdown</code>. '
              'Browse checked agents by task on <a href="/agents/tasks">task pages</a>.</p></section>')
-    body = (heading('Connect', 'Use Agent Concierge from your MCP client',
+    body = (heading('Connect', 'Use AgentValCon from your MCP client',
                     'Add one remote MCP server and ask for an agent by task. Copy the settings for your client below.')
             + '<div class="stack">'+endpoint+''.join(blocks)+first+tools+'</div>')
-    structured = {'@context': 'https://schema.org', '@type': 'TechArticle', 'headline': 'Connect Agent Concierge to your MCP client',
-                  'url': ORIGIN+'/connect', 'inLanguage': 'en', 'about': {'@type': 'WebAPI', 'name': 'Agent Concierge MCP server', 'url': MCP_URL,
+    structured = {'@context': 'https://schema.org', '@type': 'TechArticle', 'headline': 'Connect AgentValCon to your MCP client',
+                  'url': ORIGIN+'/connect', 'inLanguage': 'en', 'about': {'@type': 'WebAPI', 'name': 'AgentValCon MCP server', 'url': MCP_URL,
                                                                           'identifier': REGISTRY_NAME, 'sameAs': REGISTRY_URL}}
-    return shell(title='Connect Agent Concierge to Claude, Cursor, VS Code and OpenAI Agents',
-                 description='Copyable settings for the Agent Concierge remote MCP server: Claude Code, Claude Desktop, Cursor, VS Code and the OpenAI Agents SDK.',
+    return shell(title='Connect AgentValCon to Claude, Cursor, VS Code and OpenAI Agents',
+                 description='Copyable settings for the AgentValCon remote MCP server: Claude Code, Claude Desktop, Cursor, VS Code and the OpenAI Agents SDK.',
                  canonical=ORIGIN+'/connect', body=body, structured=structured)
 
 
@@ -443,14 +443,14 @@ def task_page(slug, snapshot=None):
             + '<div class="grid two" role="list" aria-label="Agents with recorded evidence">'+''.join(map(agent_card, task['agents']))+'</div>'
             + '<section class="card stack" aria-labelledby="next-h"><h2 id="next-h">Compare current options</h2>'
             '<p>Rankings change as checks run. Describe the task in <a href="'+chat+'">Chat</a> for up to three current matches, or ask an '
-            'MCP client connected to Agent Concierge (<a href="/connect">setup</a>). Search the full catalog, including listings without '
+            'MCP client connected to AgentValCon (<a href="/connect">setup</a>). Search the full catalog, including listings without '
             'evidence, in <a href="/new/en/explore.html#explore?q='+esc(quote(task['query'] or title))+'">Explore</a>.</p></section>'
             + related_html+'</div>')
     structured = {'@context': 'https://schema.org', '@type': 'CollectionPage', 'name': 'Agents for '+phrase,
                   'description': description, 'url': ORIGIN+'/agents/task/'+slug, 'inLanguage': 'en', 'dateModified': snapshot['captured_at'],
                   'mainEntity': {'@type': 'ItemList', 'numberOfItems': len(task['agents']), 'itemListElement': [
                       {'@type': 'ListItem', 'position': i+1, 'name': a['name']} for i, a in enumerate(task['agents'])]}}
-    return shell(title='Agents for '+phrase+' — Agent Concierge', description=description,
+    return shell(title='Agents for '+phrase+' — AgentValCon', description=description,
                  canonical=ORIGIN+'/agents/task/'+slug, body=body, structured=structured, index=fresh(snapshot))
 
 
@@ -473,7 +473,7 @@ def tasks_index(snapshot=None):
                     + captured) + '<div class="grid two">'+sections+'</div>')
     structured = {'@context': 'https://schema.org', '@type': 'CollectionPage', 'name': 'Find an agent by task',
                   'url': ORIGIN+'/agents/tasks', 'inLanguage': 'en'}
-    return shell(title='Find AI Agents and MCP Servers by Task — Agent Concierge',
+    return shell(title='Find AI Agents and MCP Servers by Task — AgentValCon',
                  description='Task pages listing AI agents and MCP servers with recorded health checks, trial calls and quality grades.',
                  canonical=ORIGIN+'/agents/tasks', body=body, structured=structured, index=fresh(snapshot))
 
@@ -555,7 +555,7 @@ def growth_router(store=None):
         return HTMLResponse(await run_in_threadpool(tasks_index), headers=page_headers)
 
     def not_found():
-        return HTMLResponse(shell(title='Page not found — Agent Concierge', description='This page is not available.',
+        return HTMLResponse(shell(title='Page not found — AgentValCon', description='This page is not available.',
                                   canonical=ORIGIN+'/agents/tasks', index=False,
                                   body=heading('Not found', 'This page is not available',
                                                'Listings change as checks run. Choose a task or a ranking, or search the catalog.')

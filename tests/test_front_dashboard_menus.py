@@ -19,7 +19,7 @@ def test_front_menus_order_and_labels(w):
 
     # 1. The Home overview remains available through the brand link.
     assert 'data-tab="overview"' not in html
-    assert 'class="brand-box"' in html and 'aria-label="Agent Concierge Home"' in html
+    assert 'class="brand-box"' in html and 'aria-label="AgentValCon Home"' in html
     assert 'data-tab="learn"' in html
     assert 'data-tab="explore"' in html
     assert 'data-tab="register"' in html
@@ -291,33 +291,33 @@ def test_front_page_specific_meta_tags_for_non_home_pages(w):
     # 2. Section-level microdata in DOM panels
     assert '<section id="secLearn"' in html
     idx_sec_learn = html.find('id="secLearn"')
-    assert 'meta itemprop="name" content="Agent Concierge — Protocol Standards' in html[idx_sec_learn:idx_sec_learn+600]
+    assert 'meta itemprop="name" content="AgentValCon — Protocol Standards' in html[idx_sec_learn:idx_sec_learn+600]
     assert 'meta name="agent:page" content="learn"' in html[idx_sec_learn:idx_sec_learn+600]
     assert 'meta name="agent:retention-hook"' in html[idx_sec_learn:idx_sec_learn+600]
 
     assert '<section id="secExplore"' in html
     idx_sec_explore = html.find('id="secExplore"')
-    assert 'meta itemprop="name" content="Agent Concierge — Agent &amp; Tool Discovery Catalog' in html[idx_sec_explore:idx_sec_explore+600]
+    assert 'meta itemprop="name" content="AgentValCon — Agent &amp; Tool Discovery Catalog' in html[idx_sec_explore:idx_sec_explore+600]
     assert 'meta name="agent:page" content="explore"' in html[idx_sec_explore:idx_sec_explore+600]
     assert 'meta name="agent:retention-hook"' in html[idx_sec_explore:idx_sec_explore+600]
 
     assert '<section id="secWorkflows"' in html
     idx_sec_workflows = html.find('id="secWorkflows"')
     workflow_metadata = html[idx_sec_workflows:].split('<div', 1)[0]
-    assert 'meta itemprop="name" content="Agent Concierge — Visual Multi-Agent Workflow Studio' in workflow_metadata
+    assert 'meta itemprop="name" content="AgentValCon — Visual Multi-Agent Workflow Studio' in workflow_metadata
     assert 'meta name="agent:page" content="workflows"' in workflow_metadata
     assert 'meta name="agent:action" content="orchestrate-and-execute-workflows"' in workflow_metadata
     assert 'meta name="agent:retention-hook"' in workflow_metadata
 
     assert '<section id="secRegister"' in html
     idx_sec_register = html.find('id="secRegister"')
-    assert 'meta itemprop="name" content="Agent Concierge — List Your Agent' in html[idx_sec_register:idx_sec_register+600]
+    assert 'meta itemprop="name" content="AgentValCon — List Your Agent' in html[idx_sec_register:idx_sec_register+600]
     assert 'meta name="agent:page" content="register"' in html[idx_sec_register:idx_sec_register+600]
     assert 'meta name="agent:retention-hook"' in html[idx_sec_register:idx_sec_register+600]
 
     assert '<section id="secChat"' in html
     idx_sec_chat = html.find('id="secChat"')
-    assert 'meta itemprop="name" content="Agent Concierge — One Best Verified Agent' in html[idx_sec_chat:idx_sec_chat+600]
+    assert 'meta itemprop="name" content="AgentValCon — One Best Verified Agent' in html[idx_sec_chat:idx_sec_chat+600]
     assert 'meta name="agent:page" content="chat"' in html[idx_sec_chat:idx_sec_chat+600]
     assert 'meta name="agent:retention-hook"' in html[idx_sec_chat:idx_sec_chat+600]
 
@@ -1088,7 +1088,7 @@ def test_front_overview_chat_test_meta_tags_for_ai_agents(w):
     html = r.text
 
     # 1. Page: Overview head meta tags for autonomous AI agents
-    assert 'name="page:overview:title" content="Agent Concierge — One Best Agent for Your Task"' in html
+    assert 'name="page:overview:title" content="AgentValCon — One Best Agent for Your Task"' in html
     assert 'name="page:overview:chat-features"' in html
     assert 'name="page:overview:how-to-start"' in html
     assert 'name="page:overview:target-action" content="find-up-to-three-verified-agents"' in html
@@ -1108,7 +1108,7 @@ def test_front_overview_chat_test_meta_tags_for_ai_agents(w):
     idx_ov_banner = html.find('id="ovTelemetryBanner"')
     assert idx_ov_banner != -1
     ov_chunk = html[idx_sec_ov:idx_ov_banner]
-    assert 'meta itemprop="name" content="Agent Concierge — One Best Agent for Your Task"' in ov_chunk
+    assert 'meta itemprop="name" content="AgentValCon — One Best Agent for Your Task"' in ov_chunk
     assert 'meta name="agent:page" content="overview"' in ov_chunk
     assert 'meta name="agent:action" content="find-up-to-three-verified-agents"' in ov_chunk
     assert 'meta name="agent:retention-hook"' in ov_chunk

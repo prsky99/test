@@ -37,7 +37,7 @@ class HeadlessAgent:
         self.endpoint = urlsplit(client.get('/.well-known/mcp.json').json()['endpoints'][0]['url']).path
         initialized = self.rpc('initialize', {'protocolVersion': '2025-06-18', 'capabilities': {},
                                             'clientInfo': {'name': 'SyntheticAutonomousResearchAgent', 'version': '1.0'}})
-        assert initialized['result']['serverInfo']['name'] == 'agent-concierge'
+        assert initialized['result']['serverInfo']['name'] == 'agent-concierge'  # identifier kept (11-14 brand AgentValCon)
         assert self.client.post(self.endpoint, json={'jsonrpc': '2.0', 'method': 'notifications/initialized'}).status_code == 202
         self.tools = {t['name']: t for t in self.rpc('tools/list')['result']['tools']}
 

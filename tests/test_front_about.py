@@ -13,7 +13,7 @@ from agent_market.gateway import admin_auth
 from agent_market.gateway.store import Store
 from agent_market.infra.redis_hub import RedisHub
 
-TITLE='Agent Concierge — About Our Service & Vision'
+TITLE='AgentValCon — About Our Service & Vision'
 pytestmark = pytest.mark.usefixtures('legacy_public_entry')
 
 @pytest.fixture
@@ -40,7 +40,7 @@ def test_about_navigation_order_and_brand_home_are_accessible(about_client):
     html=response.text;tabs=re.findall(r'<button class="nav-tab(?: on)?" data-tab="([^"]+)"',html)
     assert tabs==['learn','explore','test','workflows','chat','register','about']
     document=Document(html);brand=next(attrs for tag,attrs in document.items if tag=='a' and attrs.get('class')=='brand-box')
-    assert brand['href']=='#overview' and brand['aria-label']=='Agent Concierge Home'
+    assert brand['href']=='#overview' and brand['aria-label']=='AgentValCon Home'
     assert 'id="secOverview"' in html and 'id="homeRecommendationIntro"' in html
     assert 'data-tab="overview"' not in html
 

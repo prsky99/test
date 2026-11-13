@@ -171,6 +171,26 @@
 
 ## 7. 사람과 에이전트에게 보내는 브랜드 신호
 
+### 7-0. 사용자 결정 (11-14, PM 전달)
+
+- **브랜드: "AgentValCon"**
+  - 사용자 말: "Agent Value Concierge, Agent Value Connecter 등등 여러 의미에서 좋은 것 같음"
+  - 4-2의 B안이다. 권장안(E Pearlstring)은 채택하지 않았다.
+- 표기
+  - 주 이름은 **AgentValCon**이다. 대소문자를 고정해 검색 엔진이 AgentCon으로 교정해 보여 주는 문제를 줄인다.
+  - 부제는 **"Agent Value Gateway"**다.
+- 이어가기
+  - "Agent Concierge"는 schema.org alternateName에만 남긴다(AgentConcierge, agentconcierge.biz와 함께).
+  - 도메인 agentconcierge.biz, MCP Registry 이름, 연락 메일, MCP serverInfo name(`agent-concierge`), 연결 키는 그대로다.
+- 비용
+  - 새 도메인 등록과 상표 출원은 하지 않는다(지출 0).
+  - **VALCON 등록(미국 7244888, Valcon A/S, 9·35·42류 데이터 소프트웨어)과의 유사 위험, Qualys "Agent Val"은 "수익이 생긴 뒤 상표 검토"로 남긴다.**
+- 적용 범위(첫 frontend 묶음)
+  - 바꾸는 곳: title, og:site_name, application-name, JSON-LD name과 alternateName, 헤더 로고 글자, About, llms.txt, A2A 카드 name, MCP serverInfo title, 응답 서비스 이름, 내려받는 웹 앱 문구
+  - 공개 문구는 영어로 쓰고, "Agentcon" 표기는 남기지 않는다.
+  - 소셜 카드 그림과 워크스페이스·메일은 다음 묶음에서 한다.
+
+
 | 대상 | 신호 | 근거 |
 |---|---|---|
 | 사람 | 첫 화면 한 문장, 목걸이 카드의 숫자, 주간 목걸이 시험 보고서 | Forrester B2A, 신뢰 평가자 조건 |

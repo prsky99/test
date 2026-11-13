@@ -273,7 +273,7 @@ def test_front_workflow_meta_tags_and_english_compliance():
     idx_sec = html.find('id="secWorkflows"')
     assert idx_sec != -1
     sec_head = html[idx_sec:].split('<div', 1)[0]
-    assert 'meta itemprop="name" content="Agent Concierge — Visual Multi-Agent Workflow Studio &amp; Template Hub"' in sec_head
+    assert 'meta itemprop="name" content="AgentValCon — Visual Multi-Agent Workflow Studio &amp; Template Hub"' in sec_head
     assert 'meta itemprop="description" content="Run three published workflows' in sec_head
     assert 'meta name="agent:page" content="workflows"' in sec_head
     assert 'meta name="agent:action" content="orchestrate-and-execute-workflows"' in sec_head

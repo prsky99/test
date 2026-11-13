@@ -24,7 +24,7 @@ def test_the_home_title_starts_with_the_brand_and_says_what_it_finds():
 def test_home_head_carries_the_brand_names_contact_and_profile(client):  # noqa: F811
     html = client.get('/', headers={'Accept': 'text/html'}).text
     assert re.search(r'<title>([^<]*)</title>', html)[1] == PAGES['overview'][1].replace('&', '&amp;')
-    assert '<meta property="og:site_name" content="Agent Concierge">' in html
+    assert '<meta property="og:site_name" content="AgentValCon">' in html
     ld = json.loads(re.search(r'<script[^>]*application/ld\+json[^>]*>(.*?)</script>', html, re.S)[1])
     nodes = {n['@type']: n for n in ld['@graph']}
     for kind in ('Organization', 'WebSite'):
@@ -32,4 +32,4 @@ def test_home_head_carries_the_brand_names_contact_and_profile(client):  # noqa:
     assert nodes['Organization']['email'] == 'contact@agentconcierge.biz'
     assert nodes['Organization']['sameAs'] == list(OFFICIAL_PROFILES) and nodes['Organization']['description']
     hero = html[html.index('<section class="hero catalog-hero">'):]
-    assert re.match(r'<section class="hero catalog-hero">\s*<div>\s*<p class="eyebrow">Agent Concierge · ', hero)
+    assert re.match(r'<section class="hero catalog-hero">\s*<div>\s*<p class="eyebrow">AgentValCon · ', hero)

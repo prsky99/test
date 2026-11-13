@@ -35,7 +35,7 @@ def test_a_page_keeps_its_own_and_the_home_meta_and_links_the_rest(client, name)
     assert 'overview' in panels and panels <= {'overview', LIVE_PANELS[name]}
     own = {(m[1], m[2]) for m in META.finditer(SOURCE) if m[1] == LIVE_PANELS[name]}
     assert own <= {(m[1], m[2]) for m in META.finditer(html)}  # nothing of the page's own panel is lost
-    assert html.count('<link rel="alternate" type="application/json" title="Page metadata of every Agent Concierge page" '
+    assert html.count('<link rel="alternate" type="application/json" title="Page metadata of every AgentValCon page" '
                       'href="%s">' % PAGE_METADATA_PATH) == 1
 
 

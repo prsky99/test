@@ -5,23 +5,23 @@ import re
 
 ORIGIN = 'https://agentconcierge.biz'
 PAGES = {
-    'overview': ('index.html', 'Agent Concierge: Find AI Agents & MCP Servers by Task',
+    'overview': ('index.html', 'AgentValCon: Find AI Agents & MCP Servers by Task',
         'Find up to three relevant agents or published workflows. A2A first, then MCP; x402 is available by explicit choice. Review recorded checks before running.'),
-    'status': ('agent-status.html', 'Agent Status & Recorded Checks — Agent Concierge',
+    'status': ('agent-status.html', 'Agent Status & Recorded Checks — AgentValCon',
         'Explore recorded agent availability and execution observations. Distinguish catalog status from completed task results.'),
-    'explore': ('explore.html', 'Explore AI Agents — A2A, MCP & x402 | Agent Concierge',
+    'explore': ('explore.html', 'Explore AI Agents — A2A, MCP & x402 | AgentValCon',
         'Find AI agents by task and protocol. Review available quality evidence, connection details and recent activity before choosing an agent.'),
-    'learn': ('learn.html', 'Learn About AI Agent Connections — Agent Concierge',
+    'learn': ('learn.html', 'Learn About AI Agent Connections — AgentValCon',
         'Learn how A2A, MCP and x402 connect AI agents and tools. Understand recorded checks, task inputs, workflow connections and optional updates.'),
-    'test': ('test.html', 'Test AI Agents with Live Data — Agent Concierge',
+    'test': ('test.html', 'Test AI Agents with Live Data — AgentValCon',
         'Try technology news, research papers, country profiles and package metadata. Inspect English results, source links and retrieval timestamps.'),
-    'workflows': ('workflows.html', 'AI Agent Workflows & Web App Downloads — Agent Concierge',
+    'workflows': ('workflows.html', 'AI Agent Workflows & Web App Downloads — AgentValCon',
         'Find published workflows by purpose and step capability. Review news, research, country indicators and package advisory inputs, then run or download a web app.'),
-    'chat': ('chat.html', 'Find AI Agents & Published Workflows — Agent Concierge',
+    'chat': ('chat.html', 'Find AI Agents & Published Workflows — AgentValCon',
         'Describe a task to compare up to three relevant agents or published workflows. Prefer A2A, then MCP; select x402 explicitly. Agent selection uses recent successful verification, activity and quality.'),
-    'register': ('list-agent.html', 'List Your AI Agent — Agent Concierge',
+    'register': ('list-agent.html', 'List Your AI Agent — AgentValCon',
         'Submit your authorized public AI agent endpoint so others can discover it. Review capabilities, available connection evidence and listing status.'),
-    'about': ('about.html', 'About Agent Concierge — Service & Vision',
+    'about': ('about.html', 'About AgentValCon — Service & Vision',
         'Discover our purpose and vision: useful connections between AI agents, inspectable evidence, reusable workflows and clear choices about permission.'),
 }
 
@@ -30,8 +30,9 @@ def url(panel, base=ORIGIN):
     return base.rstrip('/') + ('/' if panel == 'overview' else '/new/en/' + PAGES[panel][0])
 
 
-BRAND = 'Agent Concierge'
-BRAND_ALIASES = ('AgentConcierge', 'agentconcierge.biz')
+BRAND = 'AgentValCon'
+# 11-14 user decision: the brand is AgentValCon; the earlier name stays an alternate name so search signals carry over.
+BRAND_ALIASES = ('Agent Concierge', 'AgentConcierge', 'agentconcierge.biz')
 CONTACT_EMAIL = 'contact@agentconcierge.biz'
 OFFICIAL_PROFILES = ('https://registry.modelcontextprotocol.io/v0.1/servers/biz.agentconcierge%2Fagent-concierge/versions/latest',)
 
@@ -44,14 +45,14 @@ def graph(panel='overview', base=ORIGIN, snapshot=None):
         # go by, how to reach them and the one official profile that exists (the MCP Registry entry).
         {'@type': 'Organization', '@id': base+'/#organization', 'name': BRAND, 'alternateName': list(BRAND_ALIASES),
          'url': base+'/', 'logo': base+'/logo.svg', 'email': CONTACT_EMAIL,
-         'description': 'Agent Concierge helps people and AI agents find A2A agents, MCP servers and x402 APIs by task, '
+         'description': 'AgentValCon helps people and AI agents find A2A agents, MCP servers and x402 APIs by task, '
                         'with recorded connection checks.',
          'sameAs': list(OFFICIAL_PROFILES)},
         {'@type': 'WebSite', '@id': base+'/#website', 'url': base+'/', 'name': BRAND, 'alternateName': list(BRAND_ALIASES),
          'inLanguage': 'en', 'publisher': {'@id': base+'/#organization'}},
-        {'@type': 'WebAPI', '@id': base+'/#webapi', 'name': 'Agent Concierge API', 'url': base+'/',
+        {'@type': 'WebAPI', '@id': base+'/#webapi', 'name': 'AgentValCon API', 'url': base+'/',
          'documentation': base+'/llms.txt', 'description': 'Discover relevant agents across A2A, MCP and x402.'},
-        {'@type': 'SoftwareApplication', '@id': base+'/#software', 'name': 'Agent Concierge',
+        {'@type': 'SoftwareApplication', '@id': base+'/#software', 'name': 'AgentValCon',
          'applicationCategory': 'DeveloperApplication', 'operatingSystem': 'Web',
          'description': 'AI agent discovery, live data tests and reusable connected workflows.'},
         {'@type': 'AboutPage' if panel == 'about' else 'WebPage', '@id': url(panel, base)+'#page',
@@ -68,7 +69,7 @@ def graph(panel='overview', base=ORIGIN, snapshot=None):
                       a2a='A2A agents', mcp='MCP agents', x402='x402 agents')
         result['@graph'].insert(-1, {
             '@type': 'Dataset', '@id': base+'/#daily-catalog-statistics',
-            'name': 'Agent Concierge daily catalog statistics',
+            'name': 'AgentValCon daily catalog statistics',
             'identifier': snapshot_id(snapshot),
             'description': 'Counts of active A2A, MCP and x402 catalog listings. Reachable means a recorded healthy or reachable status, not successful task execution. A recorded status check may be historical.',
             'url': base+'/#daily-catalog-statistics', 'inLanguage': 'en',
@@ -103,8 +104,8 @@ def apply(value, panel='overview', *, public=True, filename=None, snapshot=None)
     canonical = url(panel)
     if not public:
         match = re.search(r'<title>(.*?)</title>', value, re.S)
-        title = html.unescape(match[1]) if match else 'Agent Concierge'
-        description = 'Agent Concierge service information and account access.'
+        title = html.unescape(match[1]) if match else 'AgentValCon'
+        description = 'AgentValCon service information and account access.'
         canonical = ORIGIN+'/new/en/'+filename
     def meta(attr, key, content):
         nonlocal value
@@ -119,9 +120,9 @@ def apply(value, panel='overview', *, public=True, filename=None, snapshot=None)
         ('property','og:locale','en_US'), ('property','og:title',title), ('property','og:description',description),
         ('property','og:image',ORIGIN+'/new/en/assets/social-card.png'),
         ('property','og:image:type','image/png'), ('property','og:image:width','1200'), ('property','og:image:height','630'),
-        ('property','og:image:alt','Agent Concierge — Connected intelligence, with evidence.'),
+        ('property','og:image:alt','AgentValCon — Connected intelligence, with evidence.'),
         ('name','twitter:card','summary_large_image'), ('name','twitter:image',ORIGIN+'/new/en/assets/social-card.png'),
-        ('name','twitter:image:alt','Agent Concierge — Connected intelligence, with evidence.'),
+        ('name','twitter:image:alt','AgentValCon — Connected intelligence, with evidence.'),
         ('property','og:url',canonical), ('name','twitter:title',title), ('name','twitter:description',description),
         ('name','twitter:url',canonical), ('name','agent:active-page',panel)]:
         meta(attr,key,content)
@@ -155,7 +156,7 @@ def robots(base):
     private = ['/customer/', '/api/customer-', '/api/workspace-', '/api/task-updates',
         '/api/gateway/', '/api/owned-data-agents/', '/api/workflows/run', '/api/workflows/runs',
         '/new/en/sign-in.html', '/new/en/sign-up.html', '/new/en/workspace.html', '/new/en/account.html']
-    return ('# Agent Concierge public pages and discovery guides\n# '+base+'/llms.txt\n# '+base+'/llms-full.txt\n# '+url('about',base)+'\n'
+    return ('# AgentValCon public pages and discovery guides\n# '+base+'/llms.txt\n# '+base+'/llms-full.txt\n# '+url('about',base)+'\n'
         + ''.join('User-agent: '+bot+'\n' for bot in ['*','Googlebot','Google-Extended','GPTBot','OAI-SearchBot','PerplexityBot','ClaudeBot','anthropic-ai'])
         + ''.join('Disallow: '+path+'\n' for path in private)
         + 'Disallow: /api/task-updates/*/action\nAllow: /\nSitemap: '+base.rstrip('/')+'/sitemap.xml\n')

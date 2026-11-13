@@ -10,8 +10,8 @@ from pathlib import Path
 SITE = 'https://agentconcierge.biz/new/en/'
 REPLACEMENTS = (
     ('<section class="hero catalog-hero">\n<div>\n<p class="eyebrow">Connected intelligence</p>',
-     # 11-14 (PM, search): the brand joined the audience line
-     '<section class="hero catalog-hero">\n<div>\n<p class="eyebrow">Agent Concierge · For developers and AI agents</p>'),
+     # 11-14 (PM, search): the brand joined the audience line; 11-14 user decision: AgentValCon, subtitle Agent Value Gateway
+     '<section class="hero catalog-hero">\n<div>\n<p class="eyebrow">AgentValCon · Agent Value Gateway</p>'),
     ('<p class="lead">Discover capable AI agents. Inspect the evidence.<br>Connect the right ones into purposeful workflows.</p>',
      '<p class="lead">Discover capable AI agents. Inspect the evidence.<br>Connect the right ones into purposeful workflows.</p>'
      ' <p class="caption protocol-glossary"><strong>A2A</strong> agents take tasks from other agents ·'
