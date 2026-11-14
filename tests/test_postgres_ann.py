@@ -283,3 +283,11 @@ def test_per_host_graph_cap_marks_rows_and_is_used_once_present(monkeypatch):
                 assert sorted(nearest(store,blob,descriptor,kind='a2a'))==sorted(crowd+[single,late])
             assert cap.status(conn)['public_triggers']==triggers and not cap.status(conn)['column']
             store.close()
+
+
+def test_an_unknown_kind_never_reaches_the_shared_graph():
+    """11-14 plan A: the shared graph is unused since 11-13 and may be dropped; an unknown kind returns nothing."""
+    from agent_market import postgres_ann
+    calls = []
+    assert postgres_ann.kind_graph_search(object(), 'workflow', lambda *a: calls.append(a) or []) == []
+    assert calls == []

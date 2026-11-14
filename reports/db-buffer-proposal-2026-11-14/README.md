@@ -72,3 +72,36 @@ A의 근거: `agent_market/postgres_ann.py` `kind_graph_search`는 종류를 묻
 - A: 운영 색인 삭제(DDL), DB 재시작 없음
 - B: 운영 확장 만들기(DDL), DB 재시작 없음
 - C: 운영 DB 설정 변경과 재시작(공개 중단 약 80~100초)
+
+## 11-14 16:4x PM 결정 뒤 진행 (안 A)
+
+PM 결정: 안 C는 하지 않음. 안 A는 72시간 관찰(11-17 17시경까지) → 11-17 밤 00:30 사본 측정 → 11-18 아침 PM이 모아서 사용자 승인 요청. 안 B는 안 A 결과를 본 뒤 정함.
+
+### 관찰 기준값과 지금까지의 기록
+
+- 기준값: `baseline-1114.json`(11-14 16:4x, 읽기 전용). 공용 그래프 idx_scan 564,508, **last_idx_scan 2026-11-13 09:31:41 KST**. 색인 정의도 같은 파일에 보관(복구용):
+  `CREATE INDEX embeddings_cosine_hnsw ON agentcon_search.embeddings USING hnsw (embedding vector_cosine_ops) WITH (m='16', ef_construction='64')`
+- 매시간 기록(`logs/ops/vector-index-usage.jsonl`, `scripts/vector_index_usage.py`, 11-12 13:16부터 53줄): 공용 그래프에 검색이 있었던 마지막 시간은 11-13 10:01 줄(55회). 그 뒤 31시간 동안 검색 0회인데 **유지 비용으로 디스크 블록 8,847,202개(약 72.5GB, 시간당 약 2.3GB)를 읽었습니다.** 같은 시간 종류별 그래프 half_a2a는 시간당 57~107만 블록을 읽었습니다(버퍼 경쟁).
+- 72시간 끝: 마지막 검색 기준 11-16 09:31, PM 관찰 기준 11-17 17시. 11-17 17시에 `last_idx_scan`과 매시간 기록을 다시 읽어 0회를 확인합니다.
+
+### 이 색인을 쓸 수 있는 경로 점검 (코드·등록 SQL)
+
+- 벡터 거리 연산자(`<=>`, `<->`, `<#>`)를 쓰는 앱 코드는 두 곳뿐: `agent_market/postgres_ann.py`(`nearest`)와 `agent_market/concierge/discovery.py`(탐색·추천 후보). 둘 다 `kind_graph_search`를 거칩니다.
+- Chat·추천(fast_chat → 추천기 → discovery), MCP(find_agents·chat·search), A2A, REST 탐색은 모두 같은 discovery 경로입니다. jobs와 관리 화면에는 벡터 거리 쿼리가 없습니다(evaluation·수집·정리는 벡터를 쓰기만 함).
+- 등록 SQL 목록(`agent_market/application_store_sql.json`)에 거리 연산 문장은 0개입니다.
+- 평가·리허설 스크립트(`scripts/evaluate_design21_filtered_ann.py`, `scripts/rehearse_quality_native_indexes.py`)는 사본·개인 클러스터 전용이고 운영 DSN을 받지 않습니다.
+- `kind_graph_search`가 공용 그래프로 가는 조건은 둘: ① 종류 그래프 셋 중 하나라도 유효하지 않을 때(`layout()['kind_indexes']` 거짓) ② a2a·mcp·x402가 아닌 종류를 물을 때. **②는 이번에 막음**: 벡터의 종류는 셋뿐이라(운영 a2a 227,767·x402 124,740·mcp 42,692) 다른 종류는 빈 결과를 돌려주게 고침(시험 추가). ①은 종류 그래프가 깨졌을 때의 대체 경로라, 삭제 뒤에는 그 경우 전체 훑기(느림)가 됩니다. 삭제 전에 종류 그래프 셋이 유효한지 확인하는 단계를 복구 절차에 넣습니다.
+
+### 11-15 밤 그래프 상한 리허설과의 관계
+
+- 그래프 상한(`scripts/embeddings_graph_cap.py`)은 a2a·x402 행에 표시(in_kind_graph)를 다는 UPDATE를 약 5만 4천 행(a2a 약 7천, x402 약 4만 7천) 합니다. 표시 칸이 새 부분 색인의 조건이라 이 UPDATE는 HOT가 될 수 없고, **바뀐 행마다 공용 그래프(1.6GB)에도 새 항목이 들어갑니다.** 즉 그래프 상한은 공용 그래프를 건드립니다.
+- 11-15 00:30 사본 리허설 스크립트에 표시 단계 직전·직후의 색인별 블록 적중·읽기·검색 수를 남기는 단계(`apply_index_io`)를 더했습니다(사본 전용). 아침에 공용 그래프 몫을 이 안의 근거에 더합니다. 안 A를 먼저 하면 그래프 상한의 표시 비용도 줄어듭니다.
+
+### 11-17 밤 00:30 사본 측정 (예약)
+
+1. 사본 복원(복원 한도 5400초, 유지 작업자 1).
+2. 종류 그래프 셋 유효 확인, 처음 보는 질의 30개(탐색 15·추천 15)로 ann·projection·디스크 블록 측정.
+3. 사본에서 `DROP INDEX CONCURRENTLY agentcon_search.embeddings_cosine_hnsw` → 사본 재시작 → 같은 30개 다시 측정.
+4. 복구 시간 실측: 사본에서 위 정의로 `CREATE INDEX CONCURRENTLY` 다시 만들기(걸린 시간, 그동안 검색·쓰기 지연 기록).
+5. 네 역할(frontend·jobs·admin·execution) 운영 버전으로 사본 연결 검사(트리거 5개·쓰기·탐색).
+결과와 복구 시간은 이 파일에 적고 11-18 아침 PM에 넘깁니다.

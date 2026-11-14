@@ -63,6 +63,10 @@ def kind_graph_search(store, kind, run, limit=100):
     graph and merges by distance: every global top-LIMIT row is in its own kind's top LIMIT, so the merge is
     the shared graph's answer, and nothing reads the shared graph (embeddings_cosine_hnsw), which is then
     only maintained on insert and may be dropped after 72 h without scans (separate approval)."""
+    if kind is not None and kind not in KINDS:
+        # Every vector belongs to one of KINDS, so no row can match; never fall to the shared graph for it
+        # (11-14 plan A: the shared graph is unused since 11-13 09:31 and may be dropped).
+        return []
     own = kind_search(store, kind)
     if kind is not None or own is not None or not layout(store)['kind_indexes']:
         clause, order, cast = own or ('TRUE', 'e.embedding', 'public.vector')

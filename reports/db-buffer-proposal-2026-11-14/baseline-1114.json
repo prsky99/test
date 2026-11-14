@@ -1,0 +1,42 @@
+{
+ "taken_at": "2026-11-14T16:35:53+0900",
+ "stats_reset": "None",
+ "index_definition": "CREATE INDEX embeddings_cosine_hnsw ON agentcon_search.embeddings USING hnsw (embedding vector_cosine_ops) WITH (m='16', ef_construction='64')",
+ "indexes": {
+  "embeddings_cosine_hnsw": {
+   "idx_scan": 564508,
+   "last_idx_scan": "2026-11-13 09:31:41.926607+09:00",
+   "idx_tup_read": 1059104487,
+   "blks_hit": 8287289046,
+   "blks_read": 2866752251
+  },
+  "embeddings_half_a2a": {
+   "idx_scan": 51903,
+   "last_idx_scan": "2026-11-14 16:35:36.831924+09:00",
+   "idx_tup_read": 5625954,
+   "blks_hit": 184929638,
+   "blks_read": 61978760
+  },
+  "embeddings_half_mcp": {
+   "idx_scan": 45298,
+   "last_idx_scan": "2026-11-14 16:35:36.831924+09:00",
+   "idx_tup_read": 4666093,
+   "blks_hit": 109746166,
+   "blks_read": 17107516
+  },
+  "embeddings_half_x402": {
+   "idx_scan": 1823,
+   "last_idx_scan": "2026-11-14 15:23:07.769710+09:00",
+   "idx_tup_read": 271321,
+   "blks_hit": 3602203,
+   "blks_read": 2085412
+  },
+  "embeddings_pkey": {
+   "idx_scan": 10078416,
+   "last_idx_scan": "2026-11-14 16:35:46.365499+09:00",
+   "idx_tup_read": 64838083730,
+   "blks_hit": 225644472,
+   "blks_read": 58385410
+  }
+ }
+}
