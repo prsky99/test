@@ -195,18 +195,31 @@ SNAPSHOT_MAX_CANDIDATES = 50000
 CANDIDATE_PAGE = 2000
 
 
-def _all_candidates(store, count_sql, candidate_sql, prefix, values, maximum=None):
-    """Like front._report_candidates, with the snapshot's own (larger) window."""
+def _all_candidates(store, count_sql, candidate_sql, prefix, values, maximum=None, pause=None):
+    """Like front._report_candidates, with the snapshot's own (larger) window.
+
+    Each page is its own short read: the caller must not hold the store lock across pages. On 11-14 13:27 the
+    whole candidate list (about 21,000 rows in pages of 2,000) was read under one lock, and visitor pages that
+    waited on it took 21.6 s and over 30 s while the database was busy. PAUSE runs between pages, outside the
+    lock. A row that moves between pages (OFFSET paging without one transaction) is kept once; the snapshot
+    need not be live (2026-11-01 policy) and is rebuilt every REFRESH_SECONDS."""
     maximum = SNAPSHOT_MAX_CANDIDATES if maximum is None else maximum
     count_rows = store.query(count_sql, (*prefix, *values))
     total = int(count_rows[0]['c']) if count_rows else 0
-    candidates = []
-    while len(candidates) < min(total, maximum):
-        size = min(CANDIDATE_PAGE, maximum - len(candidates))
-        rows = store.query(candidate_sql, (*prefix, *values, size, len(candidates)))
+    candidates, seen, offset = [], set(), 0
+    while offset < min(total, maximum):
+        if pause is not None and offset:
+            pause()
+        size = min(CANDIDATE_PAGE, maximum - offset)
+        rows = store.query(candidate_sql, (*prefix, *values, size, offset))
         if not rows:
             break
-        candidates.extend(dict(row) for row in rows)
+        offset += len(rows)
+        for row in rows:
+            row = dict(row)
+            if row.get('id') not in seen:
+                seen.add(row.get('id'))
+                candidates.append(row)
         if len(rows) < size:
             break
     return candidates, total
@@ -222,10 +235,14 @@ def build(store, stop=None, pause_ratio=PAUSE_RATIO):
     for kind in KINDS:
         history = " AND ".join([REPORT_HISTORY_COND, *REPORT_CONDS, "r.kind=?"])
         live = " AND ".join([LIVE_COND, VERIFIED_EXECUTION_COND, *REPORT_CONDS, "r.kind=?"])
-        with store._lock, store.tx(readonly=True):
-            candidates, total = _all_candidates(store, *_report_candidate_sql([], history), [kind])
-            verified_ids = {row['id'] for row in _all_candidates(store, *_report_candidate_sql([], live), [kind])[0]}
-        if total > len(candidates) or total >= SNAPSHOT_MAX_CANDIDATES:
+        # Page by page, each read taking the store lock on its own (store.query), with a pause between pages.
+        between = (lambda: time.sleep(YIELD_SECONDS)) if pause_ratio else None
+        candidates, total = _all_candidates(store, *_report_candidate_sql([], history), [kind], pause=between)
+        verified_ids = {row['id'] for row in _all_candidates(store, *_report_candidate_sql([], live), [kind],
+                                                              pause=between)[0]}
+        # Pages are separate reads now, so listings that change meanwhile may shift a few rows; a larger gap
+        # than 1% (or 50 rows) is treated as an unreliable read, like a window overflow.
+        if total >= SNAPSHOT_MAX_CANDIDATES or total - len(candidates) > max(50, total // 100):
             log.warning('Report snapshot skipped: %d %s listings exceed the window of %d', total, kind, SNAPSHOT_MAX_CANDIDATES)
             return None
         for start in range(0, len(candidates), CHUNK):
