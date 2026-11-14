@@ -64,18 +64,17 @@ def before(root=ROOT, now=None, launchctl=None):
                                {"all_passed": data.get("all_passed"), "generated_utc": data["generated_utc"]}))
         except (OSError, ValueError, KeyError) as error:
             items.append(_item(name, False, type(error).__name__))
-    listing = (launchctl or (lambda: subprocess.run(["launchctl", "list"], capture_output=True, text=True).stdout))()
-    running = any(line.split("\t")[-1] == DAEMON and line.split("\t")[0] not in ("-", "") for line in listing.splitlines())
-    plist = Path.home() / "Library/LaunchAgents" / (DAEMON + ".plist")
-    env_file = None
-    try:
-        import plistlib
-        env_file = plistlib.loads(plist.read_bytes()).get("EnvironmentVariables", {}).get("AD_COIN_RUNTIME_ENV_FILE")
-    except OSError:
-        pass
+    printed = (launchctl or (lambda: subprocess.run(["launchctl", "print", "gui/%d/%s" % (os.getuid(), DAEMON)],
+                                                      capture_output=True, text=True).stdout))()
+    running = "state = running" in printed
+    env_file = next((line.split("=>", 1)[1].strip() for line in printed.splitlines()
+                     if "AD_COIN_RUNTIME_ENV_FILE" in line and "=>" in line), None)
     items.append(_item("worker_daemon_reads_sponsored_env",
                        running and bool(env_file) and env_file.endswith("gateway-data/sponsored.env"),
                        {"running": running, "env_file": env_file}))
+    plist = Path.home() / "Library/LaunchAgents" / (DAEMON + ".plist")
+    items.append(_item("worker_daemon_survives_restart", plist.exists(),
+                       {"plist_on_disk": plist.exists()}))   # without the file launchd will not start it after login
     return items
 
 
