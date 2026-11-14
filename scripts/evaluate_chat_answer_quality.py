@@ -76,11 +76,11 @@ book = VisitorBook(store)
 concierge = fast_chat.FastConcierge(store, book, QualityRecommender(store, rag_engine=rag), None, live_count=lambda: 0)
 if llm is not None:
     concierge.query_rewriter, concierge.query_summarizer = llm.rewrite_task, llm.summarize_task
-try:
-    from agent_market.workflows import runtime_for
-    concierge.workflow_runtime = runtime_for(store, None, None)
-except Exception as exc:
-    print('workflow runtime unavailable', type(exc).__name__, file=sys.stderr)
+# 11-14 (PM): no workflow runtime here. runtime_for() ensures its tables with CREATE TABLE IF NOT EXISTS
+# (platform_operations, workflow_versions), which the read-only production connection refuses, so every gate run
+# left two "cannot execute CREATE TABLE in a read-only transaction" errors in the production log and still ran
+# without a runtime. The evaluation never sends DDL to production; Chat answers are judged without workflow suggestions.
+concierge.workflow_runtime = None
 front = types.SimpleNamespace(concierge=concierge)
 for name in ('add_message', 'save_results', 'remember_interest', 'set_name', 'touch', 'set_notify'):
     setattr(book, name, lambda *a, **k: 0)
