@@ -17,9 +17,10 @@ APPLICATION_EVENTS = {"advertiser_applied": "Application received",
                       "advertiser_rejected": "Application not approved"}
 CAMPAIGN_STATES = {"in_review": "In review", "eligible": "Passed review: approve the budget next",
                    "rejected": "Ad not approved: edit it and request a new review", "active": "Running",
-                   "paused": "Paused", "suspended": "Suspended by Agent Concierge"}
+                   "paused": "Paused", "suspended": "Suspended by AgentValCon"}
 PAID_STATES = {"confirming": "Payment found, confirming on Base", "confirmed": "Payment confirmed: placement booked",
-               "review": "Payment under review", "refund_due": "Refund on the way", "refunded": "Refunded",
+               "review": "Payment under review: we confirm the placement or return the payment to the wallet that paid",
+               "refund_due": "Refund on the way to the wallet that paid", "refunded": "Refunded to the wallet that paid",
                "served": "Placement shown"}
 
 
