@@ -437,12 +437,13 @@ class FallbackAgents:
             issued = lambda r: (r.get("registration") or {}).get("status") == "ISSUED"
             exact = [r for r in rows if any(k[0] == wanted[0] for k in keys(r))]
             rec = tiered_match(exact, wanted, keys, issued) if exact else None
+            read_record = [False]  # GLEIF calls per request: one search plus at most one more (gate budget 11-15)
             if rec is None:
                 leis = linked() if linked else (self._wikidata_leis(name, rem) if rem() > 1.6 else [])
-                rec = self._pick_linked_lei(leis, country, wanted, rows, names, rem)
+                rec = self._pick_linked_lei(leis, country, wanted, rows, names, rem, read_record)
             if rec is None:
                 rec = tiered_match(rows, wanted, keys, issued)
-            if rec is None and core_name(name) != name and rem() > 1.2:
+            if rec is None and core_name(name) != name and rem() > 1.2 and not read_record[0]:
                 rows = search(name, rem)
                 rec = tiered_match(rows, wanted, lambda r: [name_keys(n) for n in names(r)],
                                    lambda r: (r.get("registration") or {}).get("status") == "ISSUED")
@@ -508,14 +509,14 @@ class FallbackAgents:
             return box[0] if not worker.is_alive() else []
         return result
 
-    def _pick_linked_lei(self, leis, country, wanted, rows, names, rem):
+    def _pick_linked_lei(self, leis, country, wanted, rows, names, rem, read_record=None):
         need = set(wanted[1].split())  # every word but the legal form: "HSBC Holdings" never means HSBC Bank plc
         by_lei = {r.get("lei"): r for r in rows}
-        fetched = False
+        read_record = read_record if read_record is not None else [False]
         for lei in leis[:3]:
             rec = by_lei.get(lei)
-            if rec is None and not fetched and rem() > 1.3:
-                fetched = True  # at most one direct record read
+            if rec is None and not read_record[0] and rem() > 1.3:
+                read_record[0] = True  # at most one direct record read
                 try:
                     raw = self._get_json(f"https://api.gleif.org/api/v1/lei-records/{lei}", rem)
                     rec = (raw.get("data") or {}).get("attributes") or None

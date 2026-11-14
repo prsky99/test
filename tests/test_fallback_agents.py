@@ -785,6 +785,22 @@ def test_gleif_short_name_reads_the_linked_parent_outside_the_first_page(tmp_pat
     assert sum("/lei-records/549300NYKK9MWM7GGW15" in c for c in calls) == 1  # one direct record read
 
 
+def test_gleif_makes_at_most_two_gleif_calls_a_request(tmp_path):
+    # A legal-form name that matches nothing: core search, one linked record read (which fails the word check),
+    # and no third call (the full-name search is skipped once a record was read).
+    other = gleif_row("549300NYKK9MWM7GGW15", "Somebody Else N.V.", "Amsterdam")
+    other["attributes"]["entity"]["legalAddress"]["country"] = "NL"
+    calls = []
+    a, _ = agents(tmp_path, {
+        "https://api.gleif.org/api/v1/lei-records/549300NYKK9MWM7GGW15": httpx.Response(200, json={"data": other}),
+        "https://api.gleif.org/api/v1/lei-records": httpx.Response(200, json={"data": []}),
+        "https://query.wikidata.org/sparql": httpx.Response(200, json={"results": {"bindings": [
+            {"lei": {"value": "549300NYKK9MWM7GGW15"}, "ord": {"value": "0"}}]}})}, calls)
+    with pytest.raises(FallbackUnavailable):
+        a.execute("gleif-lei", {"name": "Nowhere Trading B.V.", "country": "NL"})
+    assert sum("api.gleif.org" in c for c in calls) == 2
+
+
 def test_company_names_with_two_part_legal_forms():
     from agent_market.fallback_agents.agents import name_keys
     assert name_keys("Novo Nordisk A/S")[1] == "novo nordisk"
