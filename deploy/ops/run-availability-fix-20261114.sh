@@ -27,12 +27,12 @@ date "+시작 %F %T ($mode)"
 
 n=$("${PSQL[@]}" -c "SET default_transaction_read_only=on; SELECT count(*) FROM public_availability_checks WHERE $WHERE" | tail -1)
 other=$("${PSQL[@]}" -c "SET default_transaction_read_only=on; SELECT count(*) FROM public_availability_checks WHERE checked_at >= $START AND checked_at < $END AND ok = 0 AND status_code IS DISTINCT FROM 200" | tail -1)
-echo "대상(200인데 ok=0): $n건 (예상 $EXPECTED), 같은 구간의 실제 실패(200 아님): $other건(그대로 둠)"
+echo "대상(200인데 ok=0): ${n}건 (예상 $EXPECTED), 같은 구간의 실제 실패(200 아님): ${other}건(그대로 둠)"
 
 if [ "$mode" = "--rollback" ]; then
   [ -s "$BACKUP" ] || { echo "중지: 백업 $BACKUP 이 없습니다"; exit 1; }
   rows=$(wc -l < "$BACKUP" | tr -d ' ')
-  echo "되돌리기: 백업의 $rows건을 ok=0으로 되돌립니다"
+  echo "되돌리기: 백업의 ${rows}건을 ok=0으로 되돌립니다"
   "${PSQL[@]}" <<SQL
 BEGIN;
 CREATE TEMP TABLE fix_backup (checked_at double precision, ok bigint, status_code bigint, latency_ms double precision) ON COMMIT DROP;
