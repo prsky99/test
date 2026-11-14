@@ -148,14 +148,14 @@ TOOLS = [
     {'name': 'verify_agent', 'title': 'Check an agent before calling it',
      'description': ('Read-only check of one agent from our latest tests: result per role, score items out of 100, how '
                      'accuracy was checked, whether it is a verified pearl, test time, response fingerprint, verified '
-                     'alternatives for the same role and necklaces that run the job to the end. Give agent_id or url.'),
+                     'alternatives for the same role and, if one is offered, a necklace for the job. Give agent_id or url.'),
      'inputSchema': {'type': 'object', 'additionalProperties': False,
                      'properties': {'agent_id': {'type': 'integer', 'minimum': 1},
                                     'url': {'type': 'string', 'maxLength': 2000, 'description': 'Endpoint or agent-card URL.'}}},
      'annotations': {'readOnlyHint': True, 'destructiveHint': False, 'idempotentHint': True, 'openWorldHint': False}},
     {'name': 'best_for_role', 'title': 'Verified pearls for a role',
      'description': ('Read-only: the verified pearls (agents that passed our tests for this role) and the necklaces that '
-                     'run this job to the end, from our latest tests. Roles look like weather.forecast.v1.'),
+                     'run this job, if any is offered, from our latest tests. Roles look like weather.forecast.v1.'),
      'inputSchema': {'type': 'object', 'required': ['role'], 'additionalProperties': False,
                      'properties': {'role': {'type': 'string', 'pattern': ROLE.pattern, 'maxLength': 80}}},
      'annotations': {'readOnlyHint': True, 'destructiveHint': False, 'idempotentHint': True, 'openWorldHint': False}},

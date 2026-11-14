@@ -40,6 +40,16 @@
   function restartResults(){if(typeof window.goToFrontTemplatePage==='function')window.goToFrontTemplatePage(1);else renderFrontTemplates();}
   function resetFilters(){search.value='';ready.checked=false;sort.value='default';filterFrontTemplates();selectFrontTmplCategory('all');restartResults();search.focus();}
 
+  // F17 (11-14): a template is not a necklace. Only a necklace that passed its gate is called verified; the state comes
+  // from the workflow snapshot (necklace_status) and a template without one is labelled Template.
+  function standing(template){
+    const state=template.necklace_status;
+    if(state==='verified')return ['Verified necklace','Passed its necklace gate and keeps passing its retests.'];
+    if(state==='testing')return ['In testing','Being tested as a necklace. It is not verified yet.'];
+    if(state==='paused')return ['Paused','Stopped after a retest failed. It does not run until it passes again.'];
+    return ['Template','A published workflow template. It has not passed a necklace gate, so it is not shown as verified.'];
+  }
+  function standingBadge(template){const [label,note]=standing(template),badge=el('span','badge wf-library-standing',label);badge.title=note;badge.dataset.standing=label.toLowerCase().replace(/\s+/g,'-');return badge;}
   function necklace(template,large=false){
     const chain=el('div','wf-library-necklace'+(large?' is-large':''));const steps=agents(template);
     chain.setAttribute('role','img');chain.setAttribute('aria-label',steps.length+' connected agent'+(steps.length===1?'':'s'));
@@ -73,7 +83,7 @@
   function preview(template,trigger){
     previewTrigger=trigger;previewBody.replaceChildren();
     const badge=el('span','badge',category(template)),heading=el('h2','',template.name);heading.id='wfLibraryPreviewTitle';
-    previewBody.append(badge,heading,el('p','wf-library-preview-description',template.description||'A published agent workflow.'),necklace(template,true));
+    previewBody.append(badge,standingBadge(template),heading,el('p','wf-library-preview-standing muted',standing(template)[1]),el('p','wf-library-preview-description',template.description||'A published agent workflow.'),necklace(template,true));
     const steps=agents(template),protocols=[...new Set(steps.map(n=>String(n.kind||'').toUpperCase()).filter(Boolean))];
     previewBody.append(el('p','wf-library-preview-meta',steps.length+' agent'+(steps.length===1?'':'s')+' · '+protocols.join(' + ')),el('h3','','Agents and published inputs'));
     const list=el('ol','wf-library-preview-steps');
@@ -94,7 +104,7 @@
   };
   function renderCard(template){
     const card=el('article','template-card wf-library-card');card.dataset.templateId=String(template.id);
-    const top=el('div','wf-library-card-meta');top.append(el('span','badge',category(template)),el('span','wf-library-agent-count',agents(template).length+' agent'+(agents(template).length===1?'':'s')));
+    const top=el('div','wf-library-card-meta');top.append(el('span','badge',category(template)),standingBadge(template),el('span','wf-library-agent-count',agents(template).length+' agent'+(agents(template).length===1?'':'s')));
     if(String(template.id)===String(frontActiveTemplateId))top.append(el('span','wf-library-selected','Current workflow'));
     const heading=el('h3','',template.name),description=el('p','wf-library-card-description',template.description||'A published agent workflow.');
     const names=el('p','wf-library-agent-names',agents(template).map(n=>n.name||'Agent').join(' · '));
