@@ -138,8 +138,22 @@ SAME_SOURCE = {'temperature_c': re.compile(r'met\.no|met norway|norwegian meteor
 
 
 def _fetch_json(url):
+    """One answer-key reference read, counted in the shared outside-call ledger as 'reference_checks' (PM F15 11-14),
+    apart from users' own runs: no call when the share or the domain total is used up or the domain answered 429
+    today (or GitHub's hourly allowance is low), and a 429 stops every system calling that domain for the day."""
     import httpx
+    from urllib.parse import urlsplit
+    from agent_market import provider_budget
+    ok, _why = provider_budget.reserve(url, 'reference_checks')
+    github = urlsplit(url).hostname == provider_budget.GITHUB_HOST
+    if ok and github:
+        ok, _why = provider_budget.github_reserve('reference_checks')
+    if not ok:
+        return None
     resp = httpx.get(url, timeout=10, headers={'User-Agent': UA})
+    provider_budget.note(url, 'reference_checks', resp.status_code)
+    if github:
+        provider_budget.github_observe(resp.headers, 'reference_checks')
     return resp.json() if resp.status_code == 200 else None
 
 

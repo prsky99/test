@@ -112,3 +112,26 @@ def test_public_data_institutions_take_30_substitute_tests_and_keep_the_domain_t
     assert pb.reserve('https://api.gleif.org/x', 'substitute_tests', n=26, now=now, directory=tmp_path) == \
         (False, 'domain_daily_total')
     assert ('substitute_tests', 'github.com') not in pb.SHARE_OVERRIDE
+
+
+def test_answer_key_references_count_in_the_ledger_and_stop_after_a_429(monkeypatch):
+    """PM F15 11-14: data_quality reference reads are 'reference_checks', apart from users' runs; a 429 is not retried."""
+    import httpx
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
+    import data_quality as dq
+    calls = []
+
+    def fake_get(url, **_):
+        calls.append(url)
+        return httpx.Response(429 if 'busy' in url else 200, json={'version': '1.2.3'})
+    monkeypatch.setattr(httpx, 'get', fake_get)
+    assert dq._fetch_json('https://registry.npmjs.org/left-pad/latest') == {'version': '1.2.3'}
+    assert pb.status()['domains']['npmjs.org']['by'] == {'reference_checks': 1}
+    assert dq._fetch_json('https://api.busy.example/x') is None
+    assert dq._fetch_json('https://api.busy.example/y') is None            # paused for the day: not called again
+    assert calls == ['https://registry.npmjs.org/left-pad/latest', 'https://api.busy.example/x']
+    for i in range(9):
+        dq._fetch_json(f'https://registry.npmjs.org/p{i}/latest')
+    assert dq._fetch_json('https://registry.npmjs.org/one-more/latest') is None   # share of 10 used

@@ -38,6 +38,7 @@ SHARE = {
     'pearl_batch': 3,        # 02:30 report batch (its own earlier rule: 3 a provider a day)
     'gate': DAILY_TOTAL,     # necklace launch gate rounds: whatever is left of the total
     'adhoc': 2,              # one-off checks by a team (reproduce a failure)
+    'reference_checks': 10,  # answer-key references of the data-quality score (fx rate, versions, feeds; PM F15 11-14)
 }
 # PM 11-14 06:4x (decision 3): public-data institutions with stated rate limits that the agents' own per-host pacing
 # keeps (agent_market/fallback_agents/limits.py) take more substitute tests a day; the domain total stays DAILY_TOTAL.
@@ -141,6 +142,7 @@ GITHUB_SHARE = {
     'substitute_tests': 5,
     'pearl_batch': 2,
     'adhoc': 2,
+    'reference_checks': 2,
     'gate': GITHUB_HOURLY - GITHUB_FLOOR,   # whatever is left
 }
 
