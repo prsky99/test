@@ -1,0 +1,42 @@
+{
+ "generated_utc": "2026-11-14T00:35:45Z",
+ "network": "Base Sepolia",
+ "chain_id": 84532,
+ "chain_ok": true,
+ "usdc": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+ "tx_hash": "0x028cadf4d81949537dd972f4f325f36ec80580e5b99e01e65ad581e180234e3f",
+ "amount_units": "1000",
+ "cases": [
+  {
+   "case": "exact amount to the receiving address",
+   "expected": "confirmed",
+   "got": "confirmed",
+   "passed": true
+  },
+  {
+   "case": "one unit less",
+   "expected": "amount_mismatch",
+   "got": "amount_mismatch",
+   "passed": true
+  },
+  {
+   "case": "one unit more",
+   "expected": "amount_mismatch",
+   "got": "amount_mismatch",
+   "passed": true
+  },
+  {
+   "case": "another receiving address",
+   "expected": "payment_not_found",
+   "got": "payment_not_found",
+   "passed": true
+  },
+  {
+   "case": "another token contract",
+   "expected": "payment_not_found",
+   "got": "payment_not_found",
+   "passed": true
+  }
+ ],
+ "all_passed": true
+}

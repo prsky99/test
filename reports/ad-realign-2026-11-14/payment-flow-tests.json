@@ -1,0 +1,214 @@
+{
+ "generated_utc": "2026-11-14T00:35:54Z",
+ "source": "tests/test_ad_coin_v2_payment_flow.py",
+ "chain": "Base (8453), fake RPC receipts",
+ "all_passed": true,
+ "cases": [
+  {
+   "case": "exact payment confirms the booking",
+   "expected": "confirmed",
+   "got": "confirmed",
+   "passed": true,
+   "booking_state": "confirmed",
+   "note": null,
+   "advertiser_sees": "Payment confirmed: placement booked",
+   "refund": null
+  },
+  {
+   "case": "the paid card is shown on its day",
+   "expected": [
+    "6b31a58a-90fc-4d3f-9a0b-92c3cc4bc392"
+   ],
+   "got": [
+    "6b31a58a-90fc-4d3f-9a0b-92c3cc4bc392"
+   ],
+   "passed": true,
+   "booking_state": null,
+   "note": null,
+   "advertiser_sees": null,
+   "refund": null
+  },
+  {
+   "case": "the advertiser report counts it",
+   "expected": {
+    "explore": 1,
+    "chat": 0
+   },
+   "got": {
+    "explore": 1,
+    "chat": 0
+   },
+   "passed": true,
+   "booking_state": null,
+   "note": null,
+   "advertiser_sees": null,
+   "refund": null
+  },
+  {
+   "case": "the receipt carries the transaction hash and amount",
+   "expected": [
+    "0x66af4c132ae1ab2b9250509aae67cb04e794ffd2fa5970064750de7738f5478d",
+    "5009123"
+   ],
+   "got": [
+    "0x66af4c132ae1ab2b9250509aae67cb04e794ffd2fa5970064750de7738f5478d",
+    "5009123"
+   ],
+   "passed": true,
+   "booking_state": null,
+   "note": null,
+   "advertiser_sees": null,
+   "refund": null
+  },
+  {
+   "case": "the monthly export has the KRW rate and hash",
+   "expected": true,
+   "got": true,
+   "passed": true,
+   "booking_state": null,
+   "note": null,
+   "advertiser_sees": null,
+   "refund": null
+  },
+  {
+   "case": "after the day the booking is settled as served",
+   "expected": "served",
+   "got": "served",
+   "passed": true,
+   "booking_state": "served",
+   "note": null,
+   "advertiser_sees": "Placement shown",
+   "refund": null
+  },
+  {
+   "case": "underpaid payment goes to review",
+   "expected": [
+    "review",
+    "amount_mismatch",
+    "refunded"
+   ],
+   "got": [
+    "review",
+    "amount_mismatch",
+    "refunded"
+   ],
+   "passed": true,
+   "booking_state": "review",
+   "note": "amount_mismatch",
+   "advertiser_sees": "Payment under review: we confirm the placement or return the payment to the wallet that paid",
+   "refund": {
+    "operator": "refund -> refund_due -> refunded (user sends USDC by hand, records the hash)",
+    "final_state": "refunded",
+    "advertiser_sees": "2027-01-16 UTC \u00b7 Refunded to the wallet that paid"
+   }
+  },
+  {
+   "case": "overpaid payment goes to review",
+   "expected": [
+    "review",
+    "amount_mismatch",
+    "refunded"
+   ],
+   "got": [
+    "review",
+    "amount_mismatch",
+    "refunded"
+   ],
+   "passed": true,
+   "booking_state": "review",
+   "note": "amount_mismatch",
+   "advertiser_sees": "Payment under review: we confirm the placement or return the payment to the wallet that paid",
+   "refund": {
+    "operator": "refund -> refund_due -> refunded (user sends USDC by hand, records the hash)",
+    "final_state": "refunded",
+    "advertiser_sees": "2027-01-16 UTC \u00b7 Refunded to the wallet that paid"
+   }
+  },
+  {
+   "case": "another token is refused and the quote stays open",
+   "expected": [
+    "payment_not_found",
+    "quoted",
+    null
+   ],
+   "got": [
+    "payment_not_found",
+    "quoted",
+    null
+   ],
+   "passed": true,
+   "booking_state": "quoted",
+   "note": "payment_not_found",
+   "advertiser_sees": "The transfer is not USDC to the quoted address: no booking. Send the exact USDC amount before the quote expires; a token sent by mistake is returned by hand on request.",
+   "refund": null
+  },
+  {
+   "case": "payment after the quote expired is kept for review",
+   "expected": [
+    "review",
+    "late_payment",
+    "refunded"
+   ],
+   "got": [
+    "review",
+    "late_payment",
+    "refunded"
+   ],
+   "passed": true,
+   "booking_state": "review",
+   "note": "late_payment",
+   "advertiser_sees": "Payment under review: we confirm the placement or return the payment to the wallet that paid",
+   "refund": {
+    "operator": "refund -> refund_due -> refunded (user sends USDC by hand, records the hash)",
+    "final_state": "refunded",
+    "advertiser_sees": "2027-01-16 UTC \u00b7 Refunded to the wallet that paid"
+   }
+  },
+  {
+   "case": "late submission without a payment stays expired",
+   "expected": "quote_expired",
+   "got": "quote_expired",
+   "passed": true,
+   "booking_state": null,
+   "note": null,
+   "advertiser_sees": null,
+   "refund": null
+  },
+  {
+   "case": "one transaction pays one booking",
+   "expected": [
+    "payment_already_used",
+    "confirmed",
+    "quoted"
+   ],
+   "got": [
+    "payment_already_used",
+    "confirmed",
+    "quoted"
+   ],
+   "passed": true,
+   "booking_state": null,
+   "note": null,
+   "advertiser_sees": null,
+   "refund": null
+  },
+  {
+   "case": "a payer on the sanctions list is held for review",
+   "expected": [
+    "review",
+    "sanctions_match"
+   ],
+   "got": [
+    "review",
+    "sanctions_match"
+   ],
+   "passed": true,
+   "booking_state": "review",
+   "note": "sanctions_match",
+   "advertiser_sees": "Payment under review: we confirm the placement or return the payment to the wallet that paid",
+   "refund": {
+    "operator": "do not confirm; follow the sanctions procedure before any refund (docs runbook)"
+   }
+  }
+ ]
+}
