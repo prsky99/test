@@ -757,22 +757,52 @@ def refusal_note():
     return f" · 오늘 역할 시험 {tests}건 중 제공자 거절 {refused}건({rate:.1f}%{', 5% 넘음 → 30건으로 되돌림' if rate > 5 else ''})"
 
 
-def funnel(versions, ranked, candidates_a=None):
+SUMMARY = 'final/summary.json'   # PM 11-14 14:2x: the one file the board and the heartbeat read for pearl numbers
+
+
+def summary(versions, ranked, candidates_a=None, now=None):
+    """The official pearl numbers and how they are counted (PM 11-14 14:2x)."""
     own = [v for v in versions if is_own_fallback(v['resource_id'])]
-    versions = [v for v in versions if not is_own_fallback(v['resource_id'])]
-    ok = sum(v['outcome'] == 'succeeded' for v in versions)
-    high = sum(v['quality']['score'] >= PASS_MARK for v in versions)
-    best = max((v['quality']['score'] for v in versions), default=0)
-    own_high = len({v['resource_id'] for v in own if v['quality']['score'] >= PASS_MARK})
-    finals = sum(1 for r in ranked.values() if r['final_pearl'])
-    provisional = sum(1 for r in ranked.values() if r.get('provisional_pearl'))
-    thin = sorted(role for role, r in ranked.items() if r['needs_agentcon_fallback'])
-    return (f"{time.strftime('%m-%d %H:%M')} 진주 깔때기(검색과 RAG, report_v2): 후보 A {candidates_a if candidates_a is not None else '?'} → "
-            f"v2 보고서 {len(versions)}(성공 {ok}·실패 {len(versions) - ok}, 외부 최고 {best:g}점) → 85점 이상 {high} → "
-            f"최종 진주 확정 {finals}·잠정 {provisional}(역할 {finals + provisional}/{len(ranked)}, 확정은 서로 다른 날 2회 성공) · "
-            f"검증 확정 {verified(versions)} / 목표 {TARGETS['verified']}, 최종 진주 역할 {finals} / 목표 {TARGETS['roles']} · "
-            f"외부 대체 1개 이하(AgentValCon 대체 필요): {', '.join(thin) or '없음'}"
-            + (f" · 자체 대체 {own_high}개 85점 이상(순위·깔때기 제외)" if own else ''))
+    outside = [v for v in versions if not is_own_fallback(v['resource_id'])]
+    ok = sum(v['outcome'] == 'succeeded' for v in outside)
+    return {
+        'generated': time.strftime('%Y-%m-%dT%H:%M:%S%z', time.localtime(now)),
+        'rules': {'evaluator_version': EVALUATOR_VERSION, 'pass_mark': PASS_MARK, 'confirm_days': CONFIRM_DAYS,
+                  'counted': 'the latest version of each (resource, role, tool), scored by the evaluator version above',
+                  'excluded': "AgentValCon's own fallback agents (avc: ids) are counted only in own_fallbacks",
+                  'final_pearl': 'rank 1 of a role at the pass mark with successes on two different KST days',
+                  'provisional_pearl': 'rank 1 at the pass mark with one success day so far'},
+        'candidates_grade_a': candidates_a,
+        'reports': len(outside), 'succeeded': ok, 'failed': len(outside) - ok,
+        'best_score': max((v['quality']['score'] for v in outside), default=0),
+        'at_or_above_pass_mark': sum(v['quality']['score'] >= PASS_MARK for v in outside),
+        'final_pearls': sum(1 for r in ranked.values() if r['final_pearl']),
+        'provisional_pearls': sum(1 for r in ranked.values() if r.get('provisional_pearl')),
+        'roles_ranked': len(ranked),
+        'verified_pearls': verified(outside),
+        'targets': TARGETS,
+        'roles_needing_own_fallback': sorted(role for role, r in ranked.items() if r['needs_agentcon_fallback']),
+        'own_fallbacks': {'versions': len(own),
+                          'agents_at_or_above_pass_mark': len({v['resource_id'] for v in own if v['quality']['score'] >= PASS_MARK})},
+    }
+
+
+def funnel_line(s):
+    """The board line, from the official numbers only."""
+    at = time.strftime('%m-%d %H:%M', time.strptime(s['generated'][:19], '%Y-%m-%dT%H:%M:%S'))
+    own = s['own_fallbacks']
+    return (f"{at} 진주 깔때기(검색과 RAG, 공식 숫자 exports/pearls/{SUMMARY}, 평가 {s['rules']['evaluator_version']}, avc: 제외): "
+            f"후보 A {s['candidates_grade_a'] if s['candidates_grade_a'] is not None else '?'} → "
+            f"v2 보고서 {s['reports']}(성공 {s['succeeded']}·실패 {s['failed']}, 외부 최고 {s['best_score']:g}점) → "
+            f"85점 이상 {s['at_or_above_pass_mark']} → 최종 진주 확정 {s['final_pearls']}·잠정 {s['provisional_pearls']}"
+            f"(역할 {s['final_pearls'] + s['provisional_pearls']}/{s['roles_ranked']}, 확정은 서로 다른 날 2회 성공) · "
+            f"검증 확정 {s['verified_pearls']} / 목표 {s['targets']['verified']}, 최종 진주 역할 {s['final_pearls']} / 목표 {s['targets']['roles']} · "
+            f"외부 대체 1개 이하(AgentValCon 대체 필요): {', '.join(s['roles_needing_own_fallback']) or '없음'}"
+            + (f" · 자체 대체 {own['agents_at_or_above_pass_mark']}개 85점 이상(순위·깔때기 제외)" if own['versions'] else ''))
+
+
+def funnel(versions, ranked, candidates_a=None):
+    return funnel_line(summary(versions, ranked, candidates_a))
 
 
 def verified(versions):
@@ -831,7 +861,10 @@ def publish(board=True):
                                   'rank_rule': 'quality score (evidence 60 + writing 40), one place per registrable domain; '
                                                '#1 at 85+ is the final pearl, #2-#3 are external fallbacks',
                                   'roles': ranked}, indent=1, ensure_ascii=False))
-    line = funnel(versions, ranked, candidates_a()) + refusal_note()
+    official = summary(versions, ranked, candidates_a())
+    (OUT / 'final').mkdir(parents=True, exist_ok=True)
+    write_replace(OUT / SUMMARY, json.dumps(official, indent=1, ensure_ascii=False))
+    line = funnel_line(json.loads((OUT / SUMMARY).read_text())) + refusal_note()   # the board reads the file only
     if board:
         write_board(line)
     return line

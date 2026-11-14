@@ -96,3 +96,18 @@ def test_rescore_writes_score_files_and_keeps_the_versions(monkeypatch):
     score = path.parent / 'scores' / f'{path.stem}.{V.EVALUATOR_VERSION}.json'
     assert score.exists() and V.latest_versions()[0]['quality'] == json.loads(score.read_text())['quality']
     assert saved['evaluator_version'] == V.EVALUATOR_VERSION and saved['attempt_id']
+
+
+def test_one_official_pearl_count_excludes_own_fallbacks_and_names_its_rules(monkeypatch):
+    """PM 11-14 14:2x: the heartbeat counted scores files (15/12) while the board said 12/10."""
+    monkeypatch.setattr(V.DQ, 'accuracy', lambda *a, **k: (25, 'answer set test', []))
+    common = {'role': 'fx.rate', 'tool': 'convert', 'outcome': 'succeeded', 'excerpt': '1 USD = 0.92 EUR on 2026-11-14',
+              'arguments': {'from': 'USD', 'to': 'EUR'}, 'latency_ms': 200}
+    V.save_version({**common, 'id': 7, 'host': 'fx.example', 'started': time.time()})
+    V.save_version({**common, 'id': 'avc:fx', 'host': 'in-process', 'started': time.time()})
+    versions = V.latest_versions()
+    s = V.summary(versions, V.rank(versions), 100)
+    assert s['reports'] == 1 and s['own_fallbacks']['versions'] == 1
+    assert s['rules']['evaluator_version'] == V.EVALUATOR_VERSION and 'avc:' in s['rules']['excluded']
+    line = V.funnel_line(json.loads(json.dumps(s)))
+    assert 'final/summary.json' in line and 'v2 보고서 1(' in line and V.EVALUATOR_VERSION in line
