@@ -186,3 +186,24 @@ def test_snapshot_links_the_signed_gate_result(tmp_path):
     defn = live_defn()
     payload = judge.snapshot([defn], {}, root, now=NOW)
     assert payload["necklaces"][0]["evidence"]["gate"].endswith("topic-brief-v1-20261120.json")
+
+
+def test_necklaces_in_testing_are_listed_with_counts_only(tmp_path):
+    trial = base()
+    trial["status"], trial["template_id"] = "trial", 31
+    fresh = dict(base(), slug="fresh-brief", status="qualifying")
+    candidate = dict(base(), slug="idea-brief")
+    summary(tmp_path, "topic-brief", quality={"cases_7d": 30, "success_7d": 28})
+    summary(tmp_path, "idea-brief", quality={"cases_7d": 30, "success_7d": 30})
+    state = {}
+    snap = judge.snapshot([trial, fresh, candidate], {}, tmp_path, NOW, watch_state={}, judge_state=state)
+    assert snap["necklaces"] == [{"slug": "topic-brief", "name": "Topic brief", "version": 1, "status": "testing",
+                                  "tests": {"passed": 28, "total": 30}, "template_id": 31}]
+    assert snap["events"] == [] and "topic-brief" not in state.get("status", {})
+
+
+def test_testing_counts_must_be_sane():
+    defn = dict(base(), status="trial")
+    for quality in ({"cases_7d": 0, "success_7d": 0}, {"cases_7d": 3, "success_7d": 4}, {"cases_7d": "3", "success_7d": 1},
+                    {"cases_7d": 3, "success_7d": True}, {}):
+        assert judge.testing_entry(defn, {"quality": quality}) is None
