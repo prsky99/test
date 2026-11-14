@@ -20,7 +20,7 @@ def router_for(slots) -> APIRouter:
 
     @router.get("/sponsored")
     async def sponsored(request: Request, category: str = "", region: str = "", placement: str = "explore",
-                        limit: int = 2):
+                        limit: int = 2, q: str = ""):
         """docs/AD_COIN_SPONSORED_CONTRACT.md. The region comes from the Cloudflare country header and is
         neither stored nor logged; only served counts per day, campaign, category, region and placement."""
         try:
@@ -32,6 +32,12 @@ def router_for(slots) -> APIRouter:
             # replay) and not our own measurements (X-Agentcon-QA, 11-12 PM). A forged QA header only lowers
             # the sender's own count.
             counted = request.headers.get("early-data", "") != "1" and not qa
+            from .sponsored_offer import sensitive, wants_ads
+            if not wants_ads(dict(request.query_params), dict(request.headers)) or sensitive(text=q[:500]):
+                # ads=none, or an advice-seeking task (q is only read here, never stored or logged): no ad
+                return JSONResponse({"label": "Sponsored", "reward": None, "placement": placement, "cards": []},
+                                    headers={"Cache-Control": "private, max-age=60", "Vary": "CF-IPCountry",
+                                             "X-Robots-Tag": "noindex"})
             body = await run_in_threadpool(slots.response, category, region, placement, limit, counted)
             return JSONResponse(body, headers={"Cache-Control": "private, max-age=60", "Vary": "CF-IPCountry",
                                                "X-Robots-Tag": "noindex"})
