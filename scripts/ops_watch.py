@@ -8,6 +8,8 @@ Prints one JSON line and appends it to logs/ops/watch.jsonl. "anomalies" lists o
 - long_tests: pytest or release_gate processes running for more than 60 minutes
 - deploy_stuck: service_deploy processes running for more than 30 minutes
 - memory: system memory free below 15 percent
+- swap: swap 90 percent used, or growing by 1 GB or more in the last hour (11-14 PM; every run records swap use,
+  its hourly trend and the five processes with the most resident memory)
 - disk: data volume 85 percent used or less than 60 GB free
 - stale_handoffs: status board hand-offs still "대기" (waiting) for more than 6 hours (by board mtime)
 Exit code 0 always; the caller reads "anomalies".
@@ -127,6 +129,61 @@ def check_memory():
     return int(match[1]) if match else None
 
 
+SWAP_FULL, SWAP_GROWTH_MB = 0.90, 1024
+
+
+def check_swap(text=None):
+    """vm.swapusage as used/total MB, or None."""
+    if text is None:
+        text = subprocess.run(['sysctl', '-n', 'vm.swapusage'], capture_output=True, text=True).stdout
+    total, used = re.search(r'total = ([\d.]+)M', text or ''), re.search(r'used = ([\d.]+)M', text or '')
+    return {'used_mb': round(float(used[1])), 'total_mb': round(float(total[1]))} if total and used else None
+
+
+def swap_trend(now_used, records, minutes=60):
+    """MB per hour from the record about MINUTES ago (watch.jsonl rows have 'at' and 'swap'), or None."""
+    target = datetime.now().timestamp() - minutes * 60
+    best = None
+    for row in records:
+        try:
+            at = datetime.strptime(row['at'], '%Y-%m-%d %H:%M').timestamp()
+            used = row['swap']['used_mb']
+        except (KeyError, TypeError, ValueError):
+            continue
+        if abs(at - target) <= 15 * 60 and (best is None or abs(at - target) < abs(best[0] - target)):
+            best = (at, used)
+    if best is None or now_used is None:
+        return None
+    hours = (datetime.now().timestamp() - best[0]) / 3600
+    return round((now_used - best[1]) / hours) if hours > 0 else None
+
+
+def top_memory(n=5, text=None):
+    """The N processes with the most resident memory: [[name#pid, MB], ...]."""
+    if text is None:
+        text = subprocess.run(['ps', '-Ao', 'pid=,rss=,comm='], capture_output=True, text=True).stdout
+    rows = []
+    for line in (text or '').splitlines():
+        parts = line.split(None, 2)
+        if len(parts) == 3 and parts[0].isdigit() and parts[1].isdigit():
+            rows.append((int(parts[1]), f"{parts[2].rsplit('/', 1)[-1][:40]}#{parts[0]}"))
+    return [[name, round(rss / 1024)] for rss, name in sorted(rows, reverse=True)[:n]]
+
+
+def recent_records(path, lines=12):
+    try:
+        tail = path.read_text().splitlines()[-lines:]
+    except OSError:
+        return []
+    out = []
+    for line in tail:
+        try:
+            out.append(json.loads(line))
+        except ValueError:
+            continue
+    return out
+
+
 def check_disk():
     import shutil
     try:
@@ -154,12 +211,17 @@ def main():
     free = check_memory()
     if free is not None and free < 15:
         anomalies['memory'] = {'free_percent': free}
+    swap = check_swap()
+    if swap:
+        swap['trend_mb_per_h'] = swap_trend(swap['used_mb'], recent_records(OUT))
+        if (swap['total_mb'] and swap['used_mb'] >= SWAP_FULL * swap['total_mb']) or (swap['trend_mb_per_h'] or 0) >= SWAP_GROWTH_MB:
+            anomalies['swap'] = dict(swap)
     disk = check_disk()
     if disk and (disk['used_percent'] >= 85 or disk['free_gb'] < 60):
         anomalies['disk'] = disk
     anomalies.update(check_board())
     record = {'at': datetime.now().strftime('%Y-%m-%d %H:%M'), 'memory_free_percent': free,
-              'anomalies': anomalies}
+              'swap': swap, 'top_memory': top_memory(), 'anomalies': anomalies}
     if site_path:  # recorded, not alerted: the second fresh connection got 200 (see check_site)
         record['site_path'] = site_path
     OUT.parent.mkdir(parents=True, exist_ok=True)

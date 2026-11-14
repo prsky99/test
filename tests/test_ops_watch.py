@@ -281,3 +281,21 @@ def test_payment_flow_runs_once_a_day_outside_the_measurement_minutes_and_alerts
     ok = lambda c: types.SimpleNamespace(returncode=0, stdout='{"passed": 18, "total": 18}', stderr='')
     assert ops_auto.payment_flow(clock=lambda: at(10, 20, 15), run=ok) == 'clean'
     assert '해결(자동' in [l for l in board.read_text().splitlines() if '[payment_flow]' in l][0]
+
+
+def test_swap_use_trend_and_top_memory_are_recorded(tmp_path, monkeypatch):
+    """PM 11-14: the 10-minute watch records swap use, its hourly trend and the five biggest processes."""
+    import json as _json
+    from datetime import datetime, timedelta
+    from scripts import ops_watch as w
+    assert w.check_swap('total = 6144.00M  used = 4614.81M  free = 1529.19M  (encrypted)') == {'used_mb': 4615, 'total_mb': 6144}
+    assert w.check_swap('garbage') is None
+    hour_ago = (datetime.now() - timedelta(minutes=60)).strftime('%Y-%m-%d %H:%M')
+    rows = [{'at': hour_ago, 'swap': {'used_mb': 3000}}, {'at': 'bad'}, {'at': hour_ago}]
+    assert 1500 <= w.swap_trend(4600, rows) <= 1700
+    assert w.swap_trend(4600, [{'at': '2026-01-01 00:00', 'swap': {'used_mb': 1}}]) is None   # nothing near an hour ago
+    ps = '  17926 2017280 postgres: agentcon_app\n 58963 659456 /Applications/Claude.app/Helper\n  3361 452608 /opt/ollama\n x y z\n'
+    assert w.top_memory(2, ps) == [['postgres: agentcon_app#17926', 1970], ['Helper#58963', 644]]
+    path = tmp_path / 'watch.jsonl'
+    path.write_text(_json.dumps({'at': hour_ago, 'swap': {'used_mb': 1}}) + '\nnot json\n')
+    assert w.recent_records(path) == [{'at': hour_ago, 'swap': {'used_mb': 1}}]
