@@ -628,6 +628,8 @@ def stability_gate(clock=time.time):
     gate.OUT.write_text(json.dumps(result, ensure_ascii=False, indent=1))
     gate.update_board(gate.board_line(result))
     GATE_STATE.write_text(json.dumps({'hour': hour, 'open': result['open']}))
+    if gate.record_met(result):   # 11-14 PM: the payment stability standard is met -> the PM asks for the wallet address
+        append(ACTIONS, f'{now()} 결제 안정 기준 충족(3/3일·결제 흐름 시험 통과): PM에 알리고 받는 지갑 주소 입력 요청')
     return result['open']
 
 
