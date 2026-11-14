@@ -12,7 +12,8 @@ from starlette.datastructures import MutableHeaders
 from .retrieval_metrics import capture, gc_stages, gc_total_ms
 
 # /api/agents and /api/feed (11-12 PM): the 13:04 full check saw 18.9 s and 11.4 s there with no server stages.
-PATHS = ('/mcp', '/a2a', '/chat', '/agents/best', '/api/explore', '/api/agents', '/api/feed')
+# /api/agent/v1/discover (11-14 PM 16:2x): 2.77 s in the full check with no server stages (F07).
+PATHS = ('/mcp', '/a2a', '/chat', '/agents/best', '/api/explore', '/api/agents', '/api/feed', '/api/agent/v1/discover')
 
 
 def timed_path(path):
