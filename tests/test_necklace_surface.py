@@ -209,10 +209,10 @@ def test_mcp_lists_offered_necklaces_and_details_and_never_runs_a_held_one(mcp_s
     held = mcp(client, 'necklace_paper_digest', {'city': 'Paris'})['result']
     assert held['isError'] is True and held['structuredContent']['ran'] is False
     assert held['content'][0]['text'].startswith('Necklace paper-digest is paused (completion_low')
-    not_wired = mcp(client, 'necklace_trip_brief', {'city': 'Paris'})['result']
-    assert not_wired['structuredContent']['error_code'] == 'not_wired' and not_wired['structuredContent']['ran'] is False
+    from agent_market.necklaces import service
+    assert ns.RUN is service.run_for_surface          # wired at app assembly (PM F05)
     calls = []
-    monkeypatch.setattr(ns, 'RUN', lambda front, entry, arguments, source: calls.append((entry['slug'], arguments, source))
+    monkeypatch.setattr(ns, 'RUN', lambda front, entry, arguments, source, meta: calls.append((entry['slug'], arguments, source))
                         or {'ok': True, 'output': {'brief': 'sunny, 1 EUR = 1.08 USD'}, 'stages': {'weather': 1}})
     ran = mcp(client, 'necklace_trip_brief', {'city': 'Paris'})['result']
     assert ran['isError'] is False and ran['structuredContent']['ran'] is True and calls == [('trip-brief', {'city': 'Paris'}, 'mcp')]
@@ -241,7 +241,7 @@ def test_a2a_card_lists_necklace_skills_and_run_necklace_follows_the_same_rules(
     text, data = a2a(client, 'run necklace nope {}')
     assert data['error_code'] == 'unknown_necklace'
     calls = []
-    monkeypatch.setattr(ns, 'RUN', lambda front, entry, arguments, source: calls.append(source) or {'ok': True, 'output': 'done'})
+    monkeypatch.setattr(ns, 'RUN', lambda front, entry, arguments, source, meta: calls.append(source) or {'ok': True, 'output': 'done'})
     text, data = a2a(client, 'run necklace trip-brief {"city": "Paris"}')
     assert data['ok'] is True and calls == ['a2a'] and text.startswith('Ran necklace trip-brief.')
     text, data = a2a(client, 'run necklace trip-brief {"city": ')
