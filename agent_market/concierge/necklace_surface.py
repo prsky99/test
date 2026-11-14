@@ -191,13 +191,36 @@ def public_item(entry, base='https://agentconcierge.biz', now=None):
     return item
 
 
+TESTING_NOTE = 'Being tested as a necklace. It is not verified yet and cannot be run here.'
+
+
+def testing_item(entry):
+    """F17 (11-14, contract with the workflow team): a necklace in testing shows its name and test count only, never a
+    run tool, a page, its agents or a verified claim. None when the counts are not two whole numbers."""
+    tests = entry.get('tests') if isinstance(entry.get('tests'), dict) else {}
+    passed, total = tests.get('passed'), tests.get('total')
+    if not all(type(v) is int and v >= 0 for v in (passed, total)) or passed > total:
+        return None
+    item = {'slug': entry['slug'], 'name': str(entry.get('name') or entry['slug'])[:120], 'status': 'testing',
+            'standing': 'In testing', 'tests': {'passed': passed, 'total': total}, 'note': TESTING_NOTE}
+    if type(entry.get('template_id')) is int:
+        item['template_id'] = entry['template_id']
+    return item
+
+
 def listing(base='https://agentconcierge.biz', snapshot=None, now=None):
-    """Offered necklaces, then stopped ones still inside their 30-day notice (never a necklace that never went live)."""
+    """Offered necklaces, then stopped ones still inside their 30-day notice (never a necklace that never went live);
+    necklaces in testing are listed apart in `in_testing` with their test count only."""
     snapshot = snapshot or load()
     now = now or datetime.now(timezone.utc)
-    items = []
+    items, testing = [], []
     for entry in snapshot.get('necklaces') or []:
         if not isinstance(entry, dict) or not SLUG.fullmatch(entry.get('slug') or ''):
+            continue
+        if entry.get('status') == 'testing':
+            found = testing_item(entry)
+            if found:
+                testing.append(found)
             continue
         if offered(entry, now):
             items.append(public_item(entry, base, now))
@@ -205,7 +228,7 @@ def listing(base='https://agentconcierge.biz', snapshot=None, now=None):
             at = stopped_at(entry)
             if at is None or now - at <= timedelta(days=NOTICE_DAYS):
                 items.append(public_item(entry, base, now))
-    return {'schema': SCHEMA, 'generated_at': snapshot.get('generated_at'), 'necklaces': items}
+    return {'schema': SCHEMA, 'generated_at': snapshot.get('generated_at'), 'necklaces': items, 'in_testing': testing}
 
 
 def feed(base='https://agentconcierge.biz', snapshot=None):
