@@ -21,6 +21,9 @@ def test_the_served_headers_allow_the_edge_to_keep_them():
     for path in ('/llms.txt', '/skill.md', '/.well-known/agent-card.json'):
         assert client.get(path).headers['cache-control'] == DISCOVERY_CACHE, path
     assert client.get('/robots.txt').headers['cache-control'] == EDGE_DOCUMENT_CACHE  # changes more often
+    # 11-14 16:2x: the agent discovery schema was served no-store (9.54 s from Korea through the tunnel, 10 ms at the origin).
+    agent_spec = client.get('/api/agent/v1/openapi.json')
+    assert agent_spec.status_code == 200 and agent_spec.headers['cache-control'] == DISCOVERY_CACHE
 
 
 def test_no_discovery_policy_turns_stale_while_revalidate_off():
