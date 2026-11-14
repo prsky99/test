@@ -10,10 +10,15 @@ NecklaceStep runs inside the jobs scheduler (gateway/server.py, same place as Fa
 - every run appends one line to logs/ops/necklace-watch/runs-<day>.jsonl, also with nothing to watch
   ("definitions": 0), so "did not run" and "nothing to do" are told apart
 
-Retests (01:15 trial, 03:10 live) are not started here yet: no necklace is in trial or live. The line
-records how many would be due ("retest_targets") so the first one shows up before it is missed.
+RetestStep starts the daily retests (watch design section 4): trial necklaces from 01:15 (done by 02:25,
+before the 02:30 report batch), live necklaces from 03:10 (done by 03:48, before the 03:50 window). Each
+runs 30 held-out cases, r1 and r2 on alternate days, with the single-pearl baseline on Mondays, through the
+public relay under the shared provider budget. A necklace runs at most once a day (retest/started-<day>.json),
+the run is a background thread so the scheduler never waits, and every window leaves a line in
+runs-<day>.jsonl, also with no targets.
 Each part logs and swallows its own failure; a failing part never stops the scheduler.
 """
+import threading
 import json
 import logging
 import time
@@ -106,3 +111,104 @@ class NecklaceStep:
                 handle.write(json.dumps(line, ensure_ascii=False, sort_keys=True) + "\n")
         except OSError as exc:
             log.warning("necklace run line not written: %s", type(exc).__name__)
+
+
+# kind: (status, start HHMM, last start HHMM, finish by HHMM)
+WINDOWS = {"trial": ("trial", 115, 145, 225), "live": ("live", 310, 320, 348)}
+MIN_LEFT_S = 60
+
+
+def _hhmm(now):
+    local = time.localtime(now)
+    return local.tm_hour * 100 + local.tm_min
+
+
+def _at(now, hhmm):
+    local = time.localtime(now)
+    return time.mktime((local.tm_year, local.tm_mon, local.tm_mday, hhmm // 100, hhmm % 100, 0, 0, 0, -1))
+
+
+class RetestStep:
+    def __init__(self, root=Path("gateway-data/necklaces"), logs=Path("logs/ops/necklace-watch"), definitions_dir=None,
+                 clock=time.time, run=None, background=True):
+        from .necklaces import model
+        self.root, self.logs, self.clock = Path(root), Path(logs), clock
+        self.definitions_dir = Path(definitions_dir or model.DEFINITIONS)
+        self._run, self.background = run, background
+        self.last = {}            # kind -> day already handled by this process
+        self.thread = None
+
+    def run_due(self, force_kind=None):
+        now = self.clock()
+        day = time.strftime("%Y%m%d", time.localtime(now))
+        kind = force_kind or next((k for k, (_, start, last, _end) in WINDOWS.items() if start <= _hhmm(now) <= last), None)
+        if kind is None or self.last.get(kind) == day or (self.thread is not None and self.thread.is_alive()):
+            return None
+        self.last[kind] = day
+        try:
+            from .necklaces import model
+            status = WINDOWS[kind][0]
+            started = self._started(day)
+            targets = [d for d in model.load_valid(self.definitions_dir)
+                       if d["status"] == status and d["slug"] not in started]
+        except Exception as exc:
+            line = {"step": "retest", "kind": kind, "ok": False, "error": type(exc).__name__}
+            _append(self.logs, line, now)
+            return {"necklace_retest": line}
+        if not targets:
+            line = {"step": "retest", "kind": kind, "ok": True, "targets": 0}
+            _append(self.logs, line, now)
+            return {"necklace_retest": line}
+        for defn in targets:
+            started[defn["slug"]] = {"kind": kind, "at": time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime(now))}
+        self._write_started(day, started)
+        work = lambda: self._work(kind, targets, now)
+        if self.background:
+            self.thread = threading.Thread(target=work, name="necklace-retest", daemon=True)
+            self.thread.start()
+            return {"necklace_retest": {"kind": kind, "started": [d["slug"] for d in targets]}}
+        return {"necklace_retest": work()}
+
+    def _work(self, kind, targets, started_at):
+        from .necklaces import retest
+        run = self._run or retest.run_daily
+        finish = _at(started_at, WINDOWS[kind][3])
+        split = retest.daily_split(started_at)
+        singles = time.localtime(started_at).tm_wday == 0
+        results, ok = [], True
+        for defn in targets:
+            left = finish - self.clock()
+            if left < MIN_LEFT_S:
+                results.append({"slug": defn["slug"], "skipped": "no_time"})
+                continue
+            try:
+                results.append(run(defn, root=self.root, split=split, singles=singles, budget_s=left))
+            except Exception as exc:
+                ok = False
+                results.append({"slug": defn["slug"], "error": type(exc).__name__})
+                log.warning("necklace retest %s failed: %s", defn["slug"], type(exc).__name__)
+        line = {"step": "retest", "kind": kind, "ok": ok, "targets": len(targets), "split": split, "singles": singles,
+                "results": results}
+        _append(self.logs, line, self.clock())
+        return line
+
+    def _started(self, day):
+        try:
+            return json.loads((self.root / "retest" / f"started-{day}.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+
+    def _write_started(self, day, started):
+        from .necklaces.judge import write_atomic
+        write_atomic(self.root / "retest" / f"started-{day}.json", started)
+
+
+def _append(logs, line, now):
+    line = {"at": time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime(now)), **line}
+    try:
+        Path(logs).mkdir(parents=True, exist_ok=True)
+        path = Path(logs) / ("runs-" + time.strftime("%Y%m%d", time.localtime(now)) + ".jsonl")
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(line, ensure_ascii=False, sort_keys=True) + "\n")
+    except OSError as exc:
+        log.warning("necklace run line not written: %s", type(exc).__name__)

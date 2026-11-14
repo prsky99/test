@@ -4446,7 +4446,7 @@
     {"file": "agent_market/gateway/dashboard.py", "sha256": "e1604dd7e0b7ca1f8cd261bd518cfeb1ed9af3025775104aca68e6c991f589c7"},
     {"file": "agent_market/gateway/deployment_security.py", "sha256": "933b933b825f79ebe7c13cb79b1c65ea12b184097871fac4de52606870a8532f"},
     {"file": "agent_market/gateway/notification_preferences.py", "sha256": "33d78f574b8f229fb0e4f64a1dfde09377dbfd7bd350d76d1ce5ab04ab0e5fa4"},
-    {"file": "agent_market/gateway/server.py", "sha256": "699684ae7c828f766362f66d79bb8f1ac31ad307ccb25d852a64972bf60ca437"},
+    {"file": "agent_market/gateway/server.py", "sha256": "ac64dd3040707852f14cb9136f176ed3f86791ae0ee48b981f55462f4536e278"},
     {"file": "agent_market/gateway/service.py", "sha256": "48c24a94918532ccccbb6cce39175afeea3ae45b66ebe2cfa47f2837c02e80c3"},
     {"file": "agent_market/gateway/sns.py", "sha256": "b106a2f4a185148e477fc700b3b4b9e39ce20ba28fe75f40dabc88d5ac734a69"},
     {"file": "agent_market/gateway/store.py", "sha256": "801aa7a4404807142bd389a32044c9f9ad859b471e4e93b024e4287a9d4b5be5"},
