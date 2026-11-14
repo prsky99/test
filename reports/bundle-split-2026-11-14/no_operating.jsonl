@@ -1,0 +1,18 @@
+{"page": "index", "mode": "full", "errors": [], "panel": "secOverview", "text": 2581, "buttons": 23, "cards": 0, "fns": ["switchTab", "sendChat", "renderFrontTemplates", "loadOverview"]}
+{"page": "index", "mode": "without", "errors": ["pageerror PAGE_METAS is not defined"], "panel": "secOverview", "text": 2528, "buttons": 23, "cards": 0, "fns": []}
+{"page": "explore", "mode": "full", "errors": [], "panel": "secExplore", "text": 8015, "buttons": 81, "cards": 15, "fns": ["switchTab", "sendChat", "renderFrontTemplates", "loadOverview"]}
+{"page": "explore", "mode": "without", "errors": ["pageerror PAGE_METAS is not defined"], "panel": "secExplore", "text": 746, "buttons": 11, "cards": 0, "fns": []}
+{"page": "chat", "mode": "full", "errors": [], "panel": "secChat", "text": 967, "buttons": 15, "cards": 0, "fns": ["switchTab", "sendChat", "renderFrontTemplates", "loadOverview"]}
+{"page": "chat", "mode": "without", "errors": ["pageerror PAGE_METAS is not defined"], "panel": "secChat", "text": 967, "buttons": 15, "cards": 0, "fns": []}
+{"page": "test", "mode": "full", "errors": [], "panel": "secTest", "text": 1291, "buttons": 27, "cards": 0, "fns": ["switchTab", "sendChat", "renderFrontTemplates", "loadOverview"]}
+{"page": "test", "mode": "without", "errors": ["pageerror PAGE_METAS is not defined"], "panel": "secTest", "text": 1054, "buttons": 24, "cards": 0, "fns": []}
+{"page": "workflows", "mode": "full", "errors": [], "panel": "secWorkflows", "text": 881, "buttons": 16, "cards": 8, "fns": ["switchTab", "sendChat", "renderFrontTemplates", "loadOverview"]}
+{"page": "workflows", "mode": "without", "errors": ["pageerror PAGE_METAS is not defined"], "panel": "secWorkflows", "text": 605, "buttons": 10, "cards": 0, "fns": []}
+{"page": "learn", "mode": "full", "errors": [], "panel": "secLearn", "text": 2207, "buttons": 12, "cards": 0, "fns": ["switchTab", "sendChat", "renderFrontTemplates", "loadOverview"]}
+{"page": "learn", "mode": "without", "errors": ["pageerror PAGE_METAS is not defined"], "panel": "secLearn", "text": 2184, "buttons": 11, "cards": 0, "fns": []}
+{"page": "list-agent", "mode": "full", "errors": [], "panel": "secRegister", "text": 1232, "buttons": 29, "cards": 0, "fns": ["switchTab", "sendChat", "renderFrontTemplates", "loadOverview"]}
+{"page": "list-agent", "mode": "without", "errors": ["pageerror PAGE_METAS is not defined"], "panel": "secRegister", "text": 686, "buttons": 19, "cards": 0, "fns": []}
+{"page": "about", "mode": "full", "errors": [], "panel": "secAbout", "text": 2229, "buttons": 8, "cards": 0, "fns": ["switchTab", "sendChat", "renderFrontTemplates", "loadOverview"]}
+{"page": "about", "mode": "without", "errors": ["pageerror PAGE_METAS is not defined"], "panel": "secAbout", "text": 2229, "buttons": 8, "cards": 0, "fns": []}
+{"page": "agent-status", "mode": "full", "errors": [], "panel": "secStatus", "text": 2572, "buttons": 10, "cards": 0, "fns": ["switchTab", "sendChat", "renderFrontTemplates", "loadOverview"]}
+{"page": "agent-status", "mode": "without", "errors": ["pageerror PAGE_METAS is not defined"], "panel": "secStatus", "text": 2572, "buttons": 10, "cards": 0, "fns": []}
