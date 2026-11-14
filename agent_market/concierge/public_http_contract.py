@@ -21,14 +21,14 @@ PUBLIC_READS = frozenset(('/api/overview','/api/insights','/api/explore','/api/a
     '/.well-known/agent-card.json','/.well-known/mcp.json','/.well-known/mcp/server.json',
     '/.well-known/security.txt','/security.txt','/openapi.json','/skill.md',
     '/page-metadata.json', '/daily-home-metadata.json', '/.well-known/glama.json',
-    '/methodology.json')) | EDGE_REDIRECTS | CARD_ALIASES  # 11-13/14: pearl_view
+    '/methodology.json', '/ads/library', '/ads/library.json')) | EDGE_REDIRECTS | CARD_ALIASES  # 11-13/14: pearl_view; 11-14 ad library
 # Agent discovery documents the Cloudflare cache rule keeps at the edge (11-03). s-maxage lets the
 # edge hold them for ten minutes while browsers and agents still revalidate after 30 seconds;
 # with max-age alone the edge copy expired after 30 seconds (4 HITs in 24 cold requests, 11-04).
 EDGE_DOCUMENTS = frozenset(('/robots.txt','/sitemap.xml','/llms.txt','/llms-full.txt',
     '/.well-known/agent-card.json','/.well-known/mcp.json','/.well-known/mcp/server.json',
     '/.well-known/security.txt','/security.txt','/openapi.json','/skill.md',
-    '/methodology.json')) | EDGE_REDIRECTS | CARD_ALIASES
+    '/methodology.json', '/ads/library', '/ads/library.json')) | EDGE_REDIRECTS | CARD_ALIASES  # 11-14 ad library: 10 minutes
 # Static discovery documents change rarely; the edge keeps them an hour so an expiry seldom
 # sends an agent to the origin (11-11 PM decision: llms.txt took 3.88 s from Korea on a MISS).
 # No purge on deploy: an edit may take up to an hour to reach the edge.

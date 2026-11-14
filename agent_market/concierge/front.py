@@ -3512,6 +3512,9 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
                        if method == "SendMessage" else
                        {"kind": "message", "role": "agent", "messageId": mid, "contextId": ctx, "parts": parts_out})
             return JSONResponse({"jsonrpc": "2.0", "id": rid, "result": message})
+        from . import ad_slot  # agent ad plan (A): opt-out read here, the slot filled after the answer is final
+        a2a_ads_opted = ad_slot.opted_out(data, request.headers, request.query_params)
+        data = ad_slot.strip_option(data)
         try:
             v, reply = await run_in_threadpool(front.chat, request, "a2a", "\n".join(texts).replace("\x00", "")[:MAX_MESSAGE], data, token,
                                                name if isinstance(name, str) else None, ctx)
@@ -3530,13 +3533,18 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
         payload = {"intent": reply.intent, "suggested_replies": reply.suggested, "visitor": front.visitor_info(v), **reply.data}
         if first_contact:
             payload.setdefault("return_visit", A2A_RETURN_VISIT)
+        reply_text = reply.text
+        if ad_slot.registered() and isinstance(reply.data.get('recommendations'), list) and reply.data['recommendations']:
+            reply_text, payload = await run_in_threadpool(ad_slot.attach_a2a, reply_text, payload,
+                                                           ad_slot.context('a2a', 'message', reply.data, request.headers),
+                                                           a2a_ads_opted)
         mid = str(uuid.uuid4())
         if method == "SendMessage":
             result = {"message": {"role": "ROLE_AGENT", "messageId": mid, "contextId": ctx,
-                                  "parts": [{"text": reply.text}, {"data": {"data": payload}}]}}
+                                  "parts": [{"text": reply_text}, {"data": {"data": payload}}]}}
         else:
             result = {"kind": "message", "role": "agent", "messageId": mid, "contextId": ctx,
-                      "parts": [{"kind": "text", "text": reply.text}, {"kind": "data", "data": payload}]}
+                      "parts": [{"kind": "text", "text": reply_text}, {"kind": "data", "data": payload}]}
         headers = {"X-Visitor-Token": v.token} if v.token else {}
         return JSONResponse({"jsonrpc": "2.0", "id": rid, "result": result}, headers=headers)
 
@@ -3658,6 +3666,9 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
         if not isinstance(name, str) or not isinstance(params.get('arguments', {}), dict):
             return {"jsonrpc": "2.0", "id": rid, "error": {"code": -32602, "message": "Provide a tool name and object arguments."}}
         args = params.get("arguments") if isinstance(params, dict) and isinstance(params.get("arguments"), dict) else {}
+        from . import ad_slot  # agent ad plan (A), PM 11-14: a labelled offer after the results, never inside them
+        ads_opted = ad_slot.opted_out(args, request.headers)
+        args = ad_slot.strip_option(args)
         if name in ("verify_agent", "best_for_role"):  # 11-14 PM super-gap 2: answers from the verify snapshot only
             from . import check_route
             if name == "verify_agent":
@@ -3670,7 +3681,11 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
                         else "Unknown role. Roles: " + ", ".join(check_route.roles()))
                 return mcp_result(rid, {"content": [{"type": "text", "text": miss}],
                                         "structuredContent": {"found": False}, "isError": False})
-            return mcp_result(rid, {"content": [{"type": "text", "text": found[0]}], "structuredContent": found[1], "isError": False})
+            answer = {"content": [{"type": "text", "text": found[0]}], "structuredContent": found[1], "isError": False}
+            if name == "best_for_role" and ad_slot.registered():
+                answer = await run_in_threadpool(ad_slot.attach_mcp, answer,
+                                                 ad_slot.context("mcp", name, found[1], request.headers), ads_opted)
+            return mcp_result(rid, answer)
         if isinstance(name, str) and name.startswith("necklace_"):
             from . import necklace_surface
             if name == "necklace_details":
@@ -3717,8 +3732,11 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             reply=await run_in_threadpool(front.public_reply,reply)
             structured={'intent':reply.intent,'suggested_replies':reply.suggested,'visitor':None,
                         **reply.data,'conversation_recorded':False}
-            return mcp_result(rid,{'content':[{'type':'text','text':reply.text}],
-                                  'structuredContent':structured,'isError':reply.data.get('status')=='task_context_required'})
+            answer={'content':[{'type':'text','text':reply.text}],
+                    'structuredContent':structured,'isError':reply.data.get('status')=='task_context_required'}
+            if name in ('search','find_agents') and ad_slot.registered():
+                answer=await run_in_threadpool(ad_slot.attach_mcp,answer,ad_slot.context('mcp',name,structured,request.headers),ads_opted)
+            return mcp_result(rid,answer)
         message, data = "", {}
         if name == "hello":
             message = ""
@@ -3936,6 +3954,8 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
     app.include_router(necklace_router())
     from .check_route import check_router  # 11-14 PM super-gap 2: Check-and-Route REST from the verify snapshot
     app.include_router(check_router(front.store))
+    from . import ad_slot as _ad_slot  # agent ad plan (A): facts for an offer come from our own records
+    _ad_slot.configure(store=front.store)
     from .feedback import feedback_router
     app.include_router(feedback_router(front))
     from ..agent_access.service import router_for as adoption_router

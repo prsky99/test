@@ -87,6 +87,8 @@ TESTS = (
     'tests/test_check_route.py',  # 11-14 PM super-gap 2: verify_agent and best_for_role from the verify snapshot only
     'tests/test_glama_claim.py',  # 11-14 PM: /.well-known/glama.json serves only the exact public claim document
     'tests/test_advertise_page.py',  # 11-14 PM: advertiser page with measured audience and trust rules
+    'tests/test_ad_slot.py',  # 11-14 PM agent ad plan (A): one labelled offer after results, ads=none, facts ours
+    'tests/test_ads_library_page.py',  # 11-14 PM: public ad library renderer
 )
 # Each role runs the tests for the code it serves. jobs releases run the collector, health checks,
 # crawler and evaluation without the typed execution engine, so the opening-path list above

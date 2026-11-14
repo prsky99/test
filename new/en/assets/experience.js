@@ -209,7 +209,9 @@
       const item=document.createElement('li');item.className='pearl-sponsored-card';
       const name=document.createElement('strong');name.textContent=String(card.advertiser||'').slice(0,100);
       const text=document.createElement('p');text.textContent=String(card.text||'').slice(0,280);
-      item.append(name,text);list.append(item);
+      item.append(name,text);
+      if(card.why){const why=document.createElement('p');why.className='caption pearl-sponsored-why';why.textContent=String(card.why).slice(0,200);item.append(why);}
+      list.append(item);
     }
     const note=document.createElement('p');note.className='caption pearl-sponsored-disclosure';note.textContent=body.disclosure||'';
     box.append(label,list,note);return box;
