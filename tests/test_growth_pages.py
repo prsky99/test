@@ -266,8 +266,11 @@ def test_comparisons_exist_only_for_published_neighbours(client):
     write(folder, catalog_snapshot())
     assert c.get('/agents/compare/100-vs-101').status_code == 200
     assert 'does not say which agent is better' in c.get('/agents/compare/100-vs-101').text
-    assert c.get('/agents/compare/100-vs-104').status_code == 404  # not neighbours
-    assert c.get('/agents/compare/101-vs-100').status_code == 404  # only the canonical order
+    # Not neighbours today: no page of its own; a link from an older cached page goes to the first agent (11-14).
+    moved = c.get('/agents/compare/100-vs-104', follow_redirects=False)
+    assert moved.status_code == 302 and moved.headers['location'] == '/agent/100'
+    assert c.get('/agents/compare/100-vs-400', follow_redirects=False).status_code == 404  # 400 is not listed
+    assert c.get('/agents/compare/101-vs-100', follow_redirects=False).status_code == 404  # only the canonical order
 
 
 def test_report_and_sitemap_cover_catalog_pages(client):
