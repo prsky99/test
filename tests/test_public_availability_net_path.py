@@ -98,3 +98,13 @@ def test_a_slow_success_is_logged_by_the_net_path_rule_and_still_counts(caplog, 
             monitor.run()
     assert 'Public availability check slow (4500 ms' in caplog.text and 'failed' not in caplog.text
     assert front.store.rows[0][1][1:3] == (1, 200)
+
+
+def test_the_new_public_name_and_the_old_one_both_count_and_another_page_does_not():
+    # 11-14 05:27: the brand moved to AgentValCon and every check after it was recorded as a failure.
+    for name, ok in (('AgentValCon', 1), ('Agent Concierge', 1), ('Some Other Site', 0)):
+        with httpx.Client(transport=httpx.MockTransport(
+                lambda r, n=name: httpx.Response(200, json={'service': n}))) as public:
+            monitor, front = _monitor(public)
+            monitor.run()
+        assert front.store.rows[0][1][1:3] == (ok, 200), name

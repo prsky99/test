@@ -14,6 +14,9 @@ WINDOW_DAYS=30
 # was a block (403/429: our own edge or app block, or a Cloudflare rule) rather than a path stall.
 TIMEOUT_S=5
 SLOW_S=4.0
+# 11-14: the public name changed from Agent Concierge to AgentValCon (05:27 frontend). Either name means our own
+# status page answered; anything else is a wrong page behind the domain.
+SERVICE_NAMES=frozenset({'AgentValCon','Agent Concierge'})
 BLOCKED=(403,429)
 # httpcore trace step names ('<module>.<step>.started|complete|failed') and the phase each one is.
 PHASES={'connect_tcp':'tcp','start_tls':'tls','send_request_headers':'send','send_request_body':'send',
@@ -53,7 +56,7 @@ class AvailabilityMonitor:
                 response=client.get(origin.rstrip('/')+'/status.json',extensions={'trace':trace})
                 status=response.status_code
                 data=response.json() if status==200 else {}
-                ok=status==200 and data.get('service')=='Agent Concierge'
+                ok=status==200 and data.get('service') in SERVICE_NAMES
         except (ValueError,TimeoutError,OSError):pass
         except Exception:
             # Network failures become failed observations; never a fabricated success.
