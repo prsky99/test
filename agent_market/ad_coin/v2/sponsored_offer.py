@@ -8,9 +8,14 @@ signature, data time, 7-day health) that ads cannot change, and show them even w
 This module holds the schema, the screen, the opt-out, the sensitive-topic rule and the "why shown" line. It never
 reads or writes judging data: facts come from a reader the response surface passes in (tests/test_ad_neutrality.py).
 """
+import json
 import re
+import time
 import unicodedata
 from urllib.parse import urlsplit
+
+from .contracts import ContractError
+from .ledger import identifier
 
 PREFIX = "Sponsored: "
 DISCLOSURE_URL = "https://agentconcierge.biz/advertise"
@@ -133,3 +138,79 @@ def agent_block(card, offer, *, category, region, facts=None, paid_by=None):
             "disclosure_url": DISCLOSURE_URL,
             "offer": {k: offer.get(k, "") for k in ("tool", "endpoint", "price", "free_trial", "sla")},
             "facts": facts_block(facts)}
+
+
+# ---- storage (ad_coin_v2 schema, created by `scripts.ad_coin_v2_migrate migrate-agent-ads` after approval) ----
+
+OFFER_STATEMENTS = (
+    "CREATE TABLE IF NOT EXISTS adc2_sponsored_offers (campaign_id TEXT PRIMARY KEY REFERENCES adc2_campaigns(id), "
+    "advertiser_id TEXT NOT NULL REFERENCES adc2_advertisers(id), offer_json TEXT NOT NULL, "
+    "state TEXT NOT NULL CHECK (state IN ('pending','approved','rejected')), reason TEXT, "
+    "submitted_ms BIGINT NOT NULL, decided_ms BIGINT, decided_by TEXT)",
+    "CREATE TABLE IF NOT EXISTS adc2_sponsored_clicks (day_ms BIGINT NOT NULL CHECK (day_ms % 86400000 = 0), "
+    "campaign_id TEXT NOT NULL REFERENCES adc2_campaigns(id), task_category TEXT NOT NULL, region TEXT NOT NULL, "
+    "surface TEXT NOT NULL CHECK (surface IN ('explore','chat','mcp','a2a','rest')), clicks BIGINT NOT NULL CHECK (clicks>=0), "
+    "PRIMARY KEY (day_ms, campaign_id, task_category, region, surface))",
+)
+SURFACES = ("explore", "chat", "mcp", "a2a", "rest")
+DAY_MS = 86_400_000
+
+
+def submit_offer(store, advertiser_id, campaign_id, raw, *, now_ms=None):
+    """An advertiser's offer for one of its campaigns: screened now, then pending an operator's review.
+    A changed offer goes back to pending (the approved one stops showing until it is reviewed again)."""
+    advertiser_id, campaign_id = identifier(advertiser_id), identifier(campaign_id)
+    try:
+        offer = validate_offer(raw)
+    except OfferError as error:
+        raise ContractError("offer_refused:" + ",".join(error.problems)[:200], 422)
+    now_ms = int(time.time() * 1000) if now_ms is None else int(now_ms)
+    with store.atomic():
+        campaign = store.one("campaign_get", (campaign_id,))
+        if campaign is None or campaign["advertiser_id"] != advertiser_id:
+            raise ContractError("unknown_resource", 404)
+        store.execute("sponsored_offer_upsert", (campaign_id, advertiser_id, json.dumps(offer, sort_keys=True), now_ms))
+    return {"campaign_id": campaign_id, "state": "pending", "offer": offer}
+
+
+def decide_offer(store, access, principal, campaign_id, *, approve, reason="", now_ms=None):
+    access.require_operator(principal)
+    campaign_id = identifier(campaign_id)
+    now_ms = int(time.time() * 1000) if now_ms is None else int(now_ms)
+    if not approve and not (isinstance(reason, str) and 3 <= len(reason.strip()) <= 200):
+        raise ContractError("invalid_reason", 422)
+    with store.atomic():
+        row = store.one("sponsored_offer_get", (campaign_id,))
+        if row is None or row["state"] != "pending":
+            raise ContractError("offer_not_pending", 409)
+        validate_offer(json.loads(row["offer_json"]))          # the screen again, in case the rules changed
+        store.execute("sponsored_offer_decide", ("approved" if approve else "rejected", (reason or "").strip() or None,
+                                                 now_ms, str(principal.id), campaign_id))
+    return {"campaign_id": campaign_id, "state": "approved" if approve else "rejected"}
+
+
+def pending_offers(store, access, principal, limit=50):
+    access.require_operator(principal)
+    with store.atomic():
+        rows = store.all("sponsored_offers_pending", (limit,))
+    return {"items": [{"campaign_id": r["campaign_id"], "advertiser_id": r["advertiser_id"],
+                       "offer": json.loads(r["offer_json"]), "submitted_ms": int(r["submitted_ms"])} for r in rows]}
+
+
+def approved_offer(store, campaign_id):
+    with store.atomic():
+        if not store.one("sponsored_offers_table")["present"]:
+            return None
+        row = store.one("sponsored_offer_get", (identifier(campaign_id),))
+    return json.loads(row["offer_json"]) if row and row["state"] == "approved" else None
+
+
+def count_click(store, campaign_id, *, category, region, surface, now_ms=None):
+    """A click on a sponsored card or offer, counted on the server: no cookie, no person, no query text."""
+    if surface not in SURFACES:
+        raise ContractError("unsupported_surface", 422)
+    now_ms = int(time.time() * 1000) if now_ms is None else int(now_ms)
+    with store.atomic():
+        if store.one("sponsored_offers_table")["present"]:
+            store.execute("sponsored_click_add", (now_ms - now_ms % DAY_MS, identifier(campaign_id), category, region,
+                                                  surface))

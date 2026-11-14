@@ -247,6 +247,12 @@ SQL.update(
         "campaigns_sponsored_paid": "SELECT c.id,r.payload_json,r.ends_ms,b.task_category,b.region FROM adc2_paid_bookings b JOIN adc2_campaigns c ON c.id=b.campaign_id JOIN adc2_campaign_revisions r ON r.id=c.current_revision_id "
         "JOIN adc2_advertisers a ON a.id=c.advertiser_id WHERE b.day_ms=? AND b.state IN ('confirmed','served') AND c.state='active' AND c.approval_status='approved' "
         "AND a.status='active' AND r.ends_ms>? ORDER BY b.confirmed_ms,b.id LIMIT ?",
+        "sponsored_offers_table": "SELECT to_regclass('adc2_sponsored_offers') IS NOT NULL AS present",
+        "sponsored_offer_upsert": "INSERT INTO adc2_sponsored_offers (campaign_id,advertiser_id,offer_json,state,submitted_ms) VALUES (?,?,?,'pending',?) ON CONFLICT (campaign_id) DO UPDATE SET offer_json=EXCLUDED.offer_json,state='pending',reason=NULL,submitted_ms=EXCLUDED.submitted_ms,decided_ms=NULL,decided_by=NULL",
+        "sponsored_offer_get": "SELECT * FROM adc2_sponsored_offers WHERE campaign_id=?",
+        "sponsored_offer_decide": "UPDATE adc2_sponsored_offers SET state=?,reason=?,decided_ms=?,decided_by=? WHERE campaign_id=? AND state='pending'",
+        "sponsored_offers_pending": "SELECT * FROM adc2_sponsored_offers WHERE state='pending' ORDER BY submitted_ms LIMIT ?",
+        "sponsored_click_add": "INSERT INTO adc2_sponsored_clicks VALUES (?,?,?,?,?,1) ON CONFLICT (day_ms,campaign_id,task_category,region,surface) DO UPDATE SET clicks=adc2_sponsored_clicks.clicks+1",
         "sponsored_impressions_table": "SELECT to_regclass('adc2_sponsored_impressions') IS NOT NULL AS present",
         "sponsored_impression_add": "INSERT INTO adc2_sponsored_impressions VALUES (?,?,?,?,?,?) ON CONFLICT (day_ms,campaign_id,task_category,region,placement) DO UPDATE SET served=adc2_sponsored_impressions.served+EXCLUDED.served",
         "sponsored_impressions_for_advertiser": "SELECT i.day_ms,i.campaign_id,i.placement,i.task_category,i.region,i.served FROM adc2_sponsored_impressions i JOIN adc2_campaigns c ON c.id=i.campaign_id WHERE c.advertiser_id=? AND i.day_ms>=? ORDER BY i.day_ms DESC,i.campaign_id,i.placement LIMIT 500",

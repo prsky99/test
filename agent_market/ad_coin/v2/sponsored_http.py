@@ -44,4 +44,58 @@ def router_for(slots) -> APIRouter:
         except ContractError as exc:
             return JSONResponse(_error(exc.code, exc.status, str(uuid4())), status_code=exc.status)
 
+    def region_of(request, region):
+        qa = bool(request.headers.get("x-agentcon-qa"))
+        return ((region if qa and region else "") or request.headers.get("cf-ipcountry", "")).upper()[:2]
+
+    @router.get("/sponsored/offer")
+    async def sponsored_offer(request: Request, category: str = "", region: str = "", surface: str = "rest",
+                              q: str = ""):
+        """Agent ads (A): the one `sponsored` object for MCP, A2A and REST answers, after the organic results.
+        Facts (grade, report, health) are attached by the response surface; this route never reads them."""
+        from .sponsored import SITE_CATEGORIES
+        from .sponsored_offer import SURFACES, agent_block, approved_offer, sensitive, wants_ads
+        headers = {"Cache-Control": "private, max-age=60", "Vary": "CF-IPCountry", "X-Robots-Tag": "noindex"}
+        try:
+            if surface not in SURFACES:
+                raise ContractError("unsupported_surface", 422)
+            where = region_of(request, region)
+            if not wants_ads(dict(request.query_params), dict(request.headers)) or sensitive(category, q[:500]):
+                return JSONResponse({"sponsored": None}, headers=headers)
+            body = await run_in_threadpool(slots.response, category, where, "explore", 2, False)
+            mapped = SITE_CATEGORIES.get(category, category)
+            for card in body["cards"]:
+                offer = await run_in_threadpool(approved_offer, slots.store, card["id"])
+                if offer:
+                    block = agent_block(card, offer, category=mapped, region=where)
+                    block["click_url"] = "/api/ad-coin/v2/sponsored/click/%s?surface=%s&category=%s" % (
+                        card["id"], surface, category)
+                    return JSONResponse({"sponsored": block}, headers=headers)
+            return JSONResponse({"sponsored": None}, headers=headers)
+        except ContractError as exc:
+            return JSONResponse(_error(exc.code, exc.status, str(uuid4())), status_code=exc.status)
+
+    @router.get("/sponsored/click/{campaign_id}")
+    async def sponsored_click(campaign_id: str, request: Request, surface: str = "explore", category: str = "",
+                              region: str = ""):
+        """Counts a click on the server (no cookie, no person) and sends the visitor to the offer's endpoint, or to
+        the advertising page when the campaign has no approved offer. Only campaigns shown right now are counted."""
+        from fastapi.responses import RedirectResponse
+        from .sponsored import SITE_CATEGORIES
+        from .sponsored_offer import SURFACES, approved_offer, count_click
+        target = "/advertise"
+        try:
+            where = region_of(request, region)
+            mapped = SITE_CATEGORIES.get(category, category)
+            shown = await run_in_threadpool(slots.cards, mapped, where) if mapped in slots.taxonomy else []
+            if surface in SURFACES and any(card["id"] == campaign_id for card in shown):
+                offer = await run_in_threadpool(approved_offer, slots.store, campaign_id)
+                target = offer["endpoint"] if offer else target
+                if not request.headers.get("x-agentcon-qa"):
+                    await run_in_threadpool(lambda: count_click(slots.store, campaign_id, category=mapped, region=where,
+                                                                surface=surface))
+        except ContractError:
+            pass
+        return RedirectResponse(target, status_code=302, headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
+
     return router

@@ -886,8 +886,16 @@
    "sha256": "a9a9b1de1c24484d7852c805d1b7632d9c39a1856c4456fb358ee76addde11cf"
   },
   {
+   "sql": "INSERT INTO adc2_sponsored_clicks VALUES (?,?,?,?,?,1) ON CONFLICT (day_ms,campaign_id,task_category,region,surface) DO UPDATE SET clicks=adc2_sponsored_clicks.clicks+1",
+   "sha256": "6f1befda0d9f47cd3b99bd49422f5576a5e4f9a4cff88b7f475a3e6982b0ad6f"
+  },
+  {
    "sql": "INSERT INTO adc2_sponsored_impressions VALUES (?+) ON CONFLICT (day_ms,campaign_id,task_category,region,placement) DO UPDATE SET served=adc2_sponsored_impressions.served+EXCLUDED.served",
    "sha256": "8607605d935367e5b441d8bd01a4009520431e5e41ed321674ccd861de8535da"
+  },
+  {
+   "sql": "INSERT INTO adc2_sponsored_offers (campaign_id,advertiser_id,offer_json,state,submitted_ms) VALUES (?,?,?,'pending',?) ON CONFLICT (campaign_id) DO UPDATE SET offer_json=EXCLUDED.offer_json,state='pending',reason=NULL,submitted_ms=EXCLUDED.submitted_ms,decided_ms=NULL,decided_by=NULL",
+   "sha256": "903366b0e24b96b5d14964c4f22d494c7f66b6dc211bd18f047f089a775cc55a"
   },
   {
    "sql": "INSERT INTO adc2_stage_claims VALUES (?+)",
@@ -1426,6 +1434,14 @@
    "sha256": "e83a4423963eb8c8788b8047dd756cb2eb5fb40ab39f339526546448cf68e1d7"
   },
   {
+   "sql": "SELECT * FROM adc2_sponsored_offers WHERE campaign_id=?",
+   "sha256": "ed7a41af037e4d2b961ebe81770a241dd5770c8013bd53c89e499429bd7b15d6"
+  },
+  {
+   "sql": "SELECT * FROM adc2_sponsored_offers WHERE state='pending' ORDER BY submitted_ms LIMIT ?",
+   "sha256": "f7bdf310ffa5b71d036c503a88d7b2928b221fd4dc198d99991c08eb0ab1615b"
+  },
+  {
    "sql": "SELECT * FROM adc2_stage_claims WHERE id=?",
    "sha256": "68f3e9c57475b7357f854d4cedee3884b399738240ad4fd86f4bdd58fe35cf21"
   },
@@ -1926,6 +1942,10 @@
    "sha256": "fd3eb5cc8c94828abc8f624c70bb0fef06ed295b59ef22de5377256ef24700c4"
   },
   {
+   "sql": "SELECT to_regclass('adc2_sponsored_offers') IS NOT NULL AS present",
+   "sha256": "9678fe1145b34150d4437d22c145985fd0748791d571d3933b934ea1ee69e823"
+  },
+  {
    "sql": "SELECT v.*, r.campaign_id FROM ad_coin_vouchers v JOIN ad_coin_reservations r ON r.id=v.reservation_id WHERE v.status='active' AND v.expires_at<? ORDER BY v.expires_at LIMIT 200",
    "sha256": "b94c63246a14c9e55f641d7399de17552d619f840f9c9683decdd54768a9dd48"
   },
@@ -2328,6 +2348,10 @@
   {
    "sql": "UPDATE adc2_sponsored_bookings SET state=?,refund_journal_id=? WHERE id=? AND state=?",
    "sha256": "f2c571f080eb2a11f406ea6725a0a457feaf1637bc2c8d9299105054cebb46d2"
+  },
+  {
+   "sql": "UPDATE adc2_sponsored_offers SET state=?,reason=?,decided_ms=?,decided_by=? WHERE campaign_id=? AND state='pending'",
+   "sha256": "22a092990379ffe0c01489af0dd03d56ed74bafb69eea93b523ace5b7ab3d3e4"
   },
   {
    "sql": "UPDATE adc2_stage_claims SET status='settled',settled_at=? WHERE id=? AND status IN ('claimed','verified')",
