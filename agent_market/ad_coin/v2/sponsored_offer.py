@@ -152,6 +152,12 @@ OFFER_STATEMENTS = (
     "surface TEXT NOT NULL CHECK (surface IN ('explore','chat','mcp','a2a','rest')), clicks BIGINT NOT NULL CHECK (clicks>=0), "
     "PRIMARY KEY (day_ms, campaign_id, task_category, region, surface))",
 )
+TABLES = ("adc2_sponsored_offers", "adc2_sponsored_clicks")
+# Offers shown in MCP and A2A answers are counted in adc2_sponsored_impressions with placement 'mcp' or 'a2a'
+# (PM 11-14: one change with the tables above). The migration replaces the placement CHECK by this one.
+AGENT_PLACEMENTS = ("mcp", "a2a")
+IMPRESSION_PLACEMENT_CHECK = "CHECK (placement IN ('explore','chat','mcp','a2a'))"
+IMPRESSION_PLACEMENT_CONSTRAINT = "adc2_sponsored_impressions_placement_check"
 SURFACES = ("explore", "chat", "mcp", "a2a", "rest")
 
 
@@ -170,6 +176,8 @@ def public_endpoint(url):
         return True
     except Exception:
         return False
+
+
 DAY_MS = 86_400_000
 
 

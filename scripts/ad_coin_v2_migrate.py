@@ -8,7 +8,7 @@
   migrate-paid   create the paid Sponsored bookings table (USDC, 11-11) in ad_coin_v2; needs approval
   migrate-impressions  create the Sponsored served-count table (11-11) in ad_coin_v2; needs approval
   migrate-usdc   both of the above in one run (the USDC switch bundle, 11-11); needs approval
-  migrate-agent-ads  the agent ad offer and click tables (11-14); needs approval
+  migrate-agent-ads  the agent ad offer and click tables, MCP/A2A impression placements (11-14); needs approval
 
 migrate changes the production database, so it runs only with the operator's approval and
 the --i-have-approval flag. No server launch, restart or data copy. One connection.
@@ -150,17 +150,45 @@ def migrate_impressions(store):
 
 
 def migrate_agent_ads(store):
-    """Create adc2_sponsored_offers and adc2_sponsored_clicks (agent ads, 11-14; idempotent).
-    Rollback while empty: DROP TABLE ad_coin_v2.adc2_sponsored_clicks; DROP TABLE ad_coin_v2.adc2_sponsored_offers."""
+    """Agent ads (11-14), one change: create adc2_sponsored_offers and adc2_sponsored_clicks, and let
+    adc2_sponsored_impressions count offers in MCP and A2A answers (placement CHECK + 'mcp','a2a'; PM 11-14).
+    Idempotent. Existing rows are checked against the new CHECK first and the change is refused if any fails.
+    Rollback: deploy/ad_coin/rollback-agent-ads-tables-2026-11-14.sql."""
     from agent_market.ad_coin.sql_registry import unchecked
-    from agent_market.ad_coin.v2.sponsored_offer import OFFER_STATEMENTS
+    from agent_market.ad_coin.v2.sponsored_offer import (IMPRESSION_PLACEMENT_CHECK, IMPRESSION_PLACEMENT_CONSTRAINT,
+                                                         OFFER_STATEMENTS, TABLES)
+    impressions = {'present': False, 'rows': 0, 'rows_failing_new_check': 0, 'placement_checks': []}
     with unchecked(), store.atomic(require_ready=False):
+        connection = store._connection()
         for statement in OFFER_STATEMENTS:
-            store._connection().execute(statement)
+            connection.execute(statement)
+        if store.database.one("SELECT to_regclass('adc2_sponsored_impressions') IS NOT NULL AS present")['present']:
+            impressions['present'] = True
+            counted = store.database.one(
+                "SELECT count(*) AS n, count(*) FILTER (WHERE placement NOT IN ('explore','chat','mcp','a2a')) AS bad "
+                "FROM adc2_sponsored_impressions")
+            impressions['rows'], impressions['rows_failing_new_check'] = int(counted['n']), int(counted['bad'])
+            if impressions['rows_failing_new_check']:
+                raise SystemExit('refused: %d impression rows would fail the new placement CHECK'
+                                 % impressions['rows_failing_new_check'])
+            checks = store.database.all(
+                "SELECT conname, pg_get_constraintdef(oid) AS def FROM pg_constraint "
+                "WHERE conrelid='adc2_sponsored_impressions'::regclass AND contype='c'")
+            for row in checks:   # every CHECK that names placement is replaced by the one below
+                if 'placement' in row['def'] and row['conname'] != IMPRESSION_PLACEMENT_CONSTRAINT:
+                    connection.execute('ALTER TABLE adc2_sponsored_impressions DROP CONSTRAINT "%s"'
+                                       % row['conname'].replace('"', '""'))
+            connection.execute('ALTER TABLE adc2_sponsored_impressions DROP CONSTRAINT IF EXISTS '
+                               + IMPRESSION_PLACEMENT_CONSTRAINT)
+            connection.execute('ALTER TABLE adc2_sponsored_impressions ADD CONSTRAINT '
+                               + IMPRESSION_PLACEMENT_CONSTRAINT + ' ' + IMPRESSION_PLACEMENT_CHECK)
+            impressions['placement_checks'] = [r['def'] for r in store.database.all(
+                "SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint "
+                "WHERE conrelid='adc2_sponsored_impressions'::regclass AND contype='c'") if 'placement' in r['def']]
         rows = store.database.all("SELECT tablename FROM pg_tables WHERE schemaname=current_schema() "
                                   "AND tablename IN ('adc2_sponsored_offers','adc2_sponsored_clicks')")
     names = {r['tablename'] for r in rows}
-    return {'sponsored_offers_table': 'adc2_sponsored_offers' in names, 'sponsored_clicks_table': 'adc2_sponsored_clicks' in names}
+    return {**{name.replace('adc2_', '') + '_table': name in names for name in TABLES}, 'impressions': impressions}
 
 
 # Rows a v2 migration itself writes; anything beyond these means real data and blocks the drop.

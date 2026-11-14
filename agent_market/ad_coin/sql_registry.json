@@ -1506,6 +1506,10 @@
    "sha256": "d0142be3c6da22b624223d9703c3189f47228cfb6c823f2a5bb5fff95aab6378"
   },
   {
+   "sql": "SELECT COALESCE(bool_or(strpos(pg_get_constraintdef(oid),'''mcp''')>0),false) AS present FROM pg_constraint WHERE conrelid=to_regclass('adc2_sponsored_impressions') AND contype='c'",
+   "sha256": "3038355e05321225f7bd61623374dc0c4f4d501df11303caff967626972190a2"
+  },
+  {
    "sql": "SELECT COUNT(*) AS count, COALESCE(SUM(value_atoms), 0) AS total_value FROM adc2_conversions WHERE campaign_id=?",
    "sha256": "a259066db38ada847aed1df5393510e497e249360e81d21ed25a30ca06e83e11"
   },
@@ -1634,6 +1638,14 @@
    "sha256": "ddf02ceae123fc052ecda54cbee91a150427f5431cc876aedaaeec383f3b1324"
   },
   {
+   "sql": "SELECT b.campaign_id,b.day_ms,b.task_category,b.region,b.state,r.payload_json FROM adc2_paid_bookings b JOIN adc2_campaigns c ON c.id=b.campaign_id JOIN adc2_campaign_revisions r ON r.id=c.current_revision_id WHERE b.day_ms>=? AND b.state IN ('confirmed','served','refunded','refund_due') ORDER BY b.day_ms DESC,b.id LIMIT ?",
+   "sha256": "dbfb6a8897a9f0f119523424dc1d7981093a48acac8ff9dd5e08afe2ecc9b8d2"
+  },
+  {
+   "sql": "SELECT b.campaign_id,b.day_ms,b.task_category,b.region,b.state,r.payload_json FROM adc2_sponsored_bookings b JOIN adc2_campaigns c ON c.id=b.campaign_id JOIN adc2_campaign_revisions r ON r.id=c.current_revision_id WHERE b.day_ms>=? ORDER BY b.day_ms DESC,b.id LIMIT ?",
+   "sha256": "8c9e550fa5fe5b739003f473223f7944bbdcaab3c038ef943167014fc9a2c912"
+  },
+  {
    "sql": "SELECT body FROM ad_coin_receipts WHERE user_ref=? ORDER BY created_at DESC LIMIT ?",
    "sha256": "9535497b32d061915466dc50447eed3b185daf1517a4396808d9ed647b883957"
   },
@@ -1700,6 +1712,10 @@
   {
    "sql": "SELECT campaign_id, COUNT(*) AS n FROM ad_coin_offer_acks WHERE created_at>=? AND campaign_id IN (?+) GROUP BY campaign_id",
    "sha256": "2ef78e5d37936cd958321be9d3fa9e7e963194a99c0282405f2ba5b7781b5459"
+  },
+  {
+   "sql": "SELECT campaign_id,offer_json FROM adc2_sponsored_offers WHERE state='approved' ORDER BY campaign_id LIMIT ?",
+   "sha256": "6857f2575b8078b9886257c79bab04a33f52cc7b908aa12369077d91d6b503c4"
   },
   {
    "sql": "SELECT capability FROM adc2_memberships WHERE advertiser_id=? AND principal_id=? AND active=1",

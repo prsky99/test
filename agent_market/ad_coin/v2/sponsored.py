@@ -79,10 +79,15 @@ class SponsoredSlots:
                     self._index, self._built = self._build(int(now * 1000)), now
         return self._index, now
 
-    def cards(self, category, region):
+    def cards(self, category, region, rebuild=True):
+        """rebuild=False reads only the snapshot already in memory (agent answers: never a database read on the
+        request path; the agent offer provider's timer keeps the snapshot fresh)."""
         if category not in self.taxonomy or region not in self.regions:
             raise ContractError("unsupported_targeting", 422)
-        index, now = self._snapshot()
+        if rebuild:
+            index, now = self._snapshot()
+        else:
+            index, now = self._index, self._clock()
         now_ms = int(now * 1000)
         pool = index.get((category, region), ())
         if not pool:

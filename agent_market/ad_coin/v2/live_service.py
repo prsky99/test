@@ -115,9 +115,21 @@ def create_live_ad_coin_v2_router(
     from .sponsored import SponsoredSlots
     from .sponsored_http import router_for as sponsored_router
 
-    base_router.include_router(
-        sponsored_router(SponsoredSlots(commercial.store, taxonomy=commercial.taxonomy, regions=commercial.regions))
-    )
+    slots = SponsoredSlots(commercial.store, taxonomy=commercial.taxonomy, regions=commercial.regions)
+    sponsored_routes = sponsored_router(slots)
+    # Agent ads (A), 11-14: the one Sponsored offer on MCP and A2A answers. The organic side (concierge/ad_slot.py)
+    # calls this provider after the answer is final; the call is a memory lookup, the timer reads the database.
+    from ...concierge import ad_slot
+    from .sponsored_agent import AgentOfferProvider
+
+    agent_offers = AgentOfferProvider(slots)
+    sponsored_routes.add_event_handler("startup", agent_offers.start)
+    sponsored_routes.add_event_handler("shutdown", agent_offers.stop)
+    ad_slot.register(agent_offers)
+    base_router.include_router(sponsored_routes)
+    from .ads_library import router_for as ads_library_router
+
+    base_router.include_router(ads_library_router(commercial.store))  # public /ads/library(.json), 11-14
     from .sponsored_booking import SponsoredBookings
     from .sponsored_booking_http import router_for as sponsored_booking_router
 

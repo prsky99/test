@@ -119,7 +119,8 @@ def test_offer_flow_submit_review_serve_and_click(p1_suite):  # noqa: F811
     from tests.test_ad_coin_v2_p1 import _activate_campaign
     from tests.test_ad_coin_v2_sponsored import book_today, slots_for
     store = p1_suite.service.store
-    assert migrate_agent_ads(store) == {'sponsored_offers_table': True, 'sponsored_clicks_table': True}
+    done = migrate_agent_ads(store)
+    assert done['sponsored_offers_table'] and done['sponsored_clicks_table']
     campaign = _activate_campaign(p1_suite)
     book_today(p1_suite, campaign)
     app = FastAPI()
@@ -184,3 +185,130 @@ def test_redirect_targets_only_public_approved_endpoints(p1_suite, monkeypatch):
     monkeypatch.setattr(so, 'URL_CHECK', lambda u: (_ for _ in ()).throw(ValueError('now private')))
     moved = client.get(url, headers=us, follow_redirects=False)       # the host turned private after approval
     assert moved.headers['location'] == '/advertise'
+
+
+def _approved_offer_suite(p1_suite):  # noqa: F811
+    from scripts.ad_coin_v2_migrate import migrate_agent_ads, migrate_impressions
+    from tests.test_ad_coin_v2_paid_bookings import operator
+    from tests.test_ad_coin_v2_p1 import _activate_campaign
+    from tests.test_ad_coin_v2_sponsored import book_today
+    store = p1_suite.service.store
+    migrate_impressions(store)
+    migrate_agent_ads(store)
+    campaign = _activate_campaign(p1_suite)
+    book_today(p1_suite, campaign)
+    so.submit_offer(store, p1_suite.advertiser, campaign['id'], GOOD)
+    so.decide_offer(store, p1_suite.service.access, operator(p1_suite), campaign['id'], approve=True)
+    return store, campaign
+
+
+def test_agent_offer_provider_is_a_memory_lookup_and_counts_agent_surfaces(p1_suite):  # noqa: F811
+    """Growth's ad_slot calls the provider on MCP and A2A answers (11-14): memory only, sensitive topics and other
+    regions get nothing, counted requests go to adc2_sponsored_impressions as placement mcp or a2a."""
+    from agent_market.ad_coin.sql_registry import unchecked
+    from agent_market.ad_coin.v2.sponsored_agent import AgentOfferProvider
+    from agent_market.concierge import ad_slot
+    from tests.test_ad_coin_v2_sponsored import NOW, slots_for
+    store, campaign = _approved_offer_suite(p1_suite)
+    slots = slots_for(p1_suite)
+    provider = AgentOfferProvider(slots, clock=lambda: NOW / 1000)
+    assert provider(dict(surface='mcp', category='web_search', region='US', counted=True)) is None   # nothing loaded yet
+    assert provider.refresh() == 1
+    ctx = dict(surface='mcp', tool='search', category='web_search', categories=['web_search'], task='find recent papers',
+               region='US', counted=True)
+
+    class NoDatabase:
+        def __getattr__(self, name):
+            raise AssertionError('database read on the request path: ' + name)
+    slots.store = provider.store = NoDatabase()
+    block = provider(ctx)
+    assert block['label'] == 'Sponsored' and block['text'] == 'Sponsored: ' + GOOD['line']
+    assert block['offer']['endpoint'] == GOOD['endpoint'] and 'research' in block['why_shown']
+    assert block['click_url'] == '/api/ad-coin/v2/sponsored/click/%s?surface=mcp&category=web_search' % campaign['id']
+    for other in (dict(ctx, category='health_science'), dict(ctx, categories=['web_search', 'finance_crypto']),
+                  dict(ctx, task='what dosage is safe'), dict(ctx, region='KR'), dict(ctx, surface='chat'),
+                  dict(ctx, category=None, categories=[])):
+        assert provider(other) is None, other
+    provider(dict(ctx, surface='a2a'))
+    provider(dict(ctx, counted=False))                              # Early-Data or our own measurement: not counted
+    slots.store = provider.store = store
+    assert provider.flush_now() == 2
+    with unchecked(), store.atomic():
+        rows = store.database.all("SELECT placement AS surface, served FROM adc2_sponsored_impressions ORDER BY placement")
+    assert [(r['surface'], int(r['served'])) for r in rows] == [('a2a', 1), ('mcp', 1)]
+    ad_slot.register(provider)                                      # what live_service does
+    try:
+        shown = ad_slot.offer(ctx)
+        assert shown['label'] == 'Sponsored' and shown['facts']['independent']
+        assert shown['click_url'].startswith('https://agentconcierge.biz/api/ad-coin/v2/sponsored/click/')
+    finally:
+        ad_slot.register(None)
+
+
+def test_an_offer_whose_endpoint_turns_private_drops_out_at_the_next_refresh(p1_suite):  # noqa: F811
+    from agent_market.ad_coin.v2.sponsored_agent import AgentOfferProvider
+    from tests.test_ad_coin_v2_sponsored import NOW, slots_for
+    _approved_offer_suite(p1_suite)
+    verdict = {'public': True}
+    provider = AgentOfferProvider(slots_for(p1_suite), clock=lambda: NOW / 1000, url_check=lambda u: verdict['public'])
+    ctx = dict(surface='a2a', category='web_search', region='US', counted=False)
+    provider.refresh()
+    assert provider(ctx) is not None
+    verdict['public'] = False
+    assert provider.refresh() == 0 and provider(ctx) is None
+
+
+def test_ads_library_lists_placements_with_their_offer(p1_suite):  # noqa: F811
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from agent_market.ad_coin.v2.ads_library import entries, router_for
+    from tests.test_ad_coin_v2_sponsored import NOW
+    store, campaign = _approved_offer_suite(p1_suite)
+    found = entries(store, NOW)
+    assert len(found) == 1
+    row = found[0]
+    assert row['campaign_id'] == campaign['id'] and row['state'] == 'running' and row['region'] == 'US'
+    assert row['advertiser'] and row['surfaces'] == ['explore', 'chat', 'mcp', 'a2a', 'rest']
+    assert row['offer']['endpoint'] == GOOD['endpoint'] and 'does not change the results' in row['why_shown']
+    assert entries(store, NOW + 2 * 86_400_000)[0]['state'] == 'ended'
+    app = FastAPI()
+    app.include_router(router_for(store, clock=lambda: NOW / 1000))
+    client = TestClient(app)
+    page = client.get('/ads/library')
+    assert page.status_code == 200 and row['advertiser'] in page.text and 'Running and booked (1)' in page.text
+    data = client.get('/ads/library.json').json()
+    assert [r['campaign_id'] for r in data['current']] == [campaign['id']] and data['past'] == []
+
+
+def test_one_migration_widens_the_impression_check_and_keeps_existing_rows(p1_suite):  # noqa: F811
+    """PM 11-14: the placement CHECK change rides with migrate-agent-ads; existing rows must pass the new CHECK, and
+    before the change the provider counts nothing for MCP or A2A and raises nothing."""
+    from agent_market.ad_coin.sql_registry import unchecked
+    from agent_market.ad_coin.v2.sponsored_agent import AgentOfferProvider
+    from scripts.ad_coin_v2_migrate import migrate_agent_ads, migrate_impressions
+    from tests.test_ad_coin_v2_p1 import _activate_campaign
+    from tests.test_ad_coin_v2_sponsored import NOW, book_today, slots_for
+    store = p1_suite.service.store
+    migrate_impressions(store)
+    campaign = _activate_campaign(p1_suite)
+    book_today(p1_suite, campaign)
+    with store.atomic():
+        store.execute("sponsored_impression_add", (NOW - NOW % 86_400_000, campaign['id'], 'research', 'US', 'explore', 3))
+    with pytest.raises(Exception):                                   # the old CHECK: explore and chat only
+        with store.atomic():
+            store.execute("sponsored_impression_add", (NOW - NOW % 86_400_000, campaign['id'], 'research', 'US', 'mcp', 1))
+    early = AgentOfferProvider(slots_for(p1_suite), clock=lambda: NOW / 1000, url_check=lambda u: True)
+    early.refresh()                                                  # offers table absent, old CHECK: no error
+    assert early._counting is False and early.flush_now() == 0
+    done = migrate_agent_ads(store)
+    assert done['impressions'] == {'present': True, 'rows': 1, 'rows_failing_new_check': 0,
+                                   'placement_checks': ["CHECK ((placement = ANY (ARRAY['explore'::text, 'chat'::text, "
+                                                        "'mcp'::text, 'a2a'::text])))"]}
+    assert migrate_agent_ads(store)['impressions']['rows'] == 1      # idempotent
+    with store.atomic():
+        store.execute("sponsored_impression_add", (NOW - NOW % 86_400_000, campaign['id'], 'research', 'US', 'a2a', 1))
+    with unchecked(), store.atomic():
+        assert int(store.database.one("SELECT sum(served) AS n FROM adc2_sponsored_impressions")['n']) == 4
+    with pytest.raises(Exception):
+        with store.atomic():
+            store.execute("sponsored_impression_add", (NOW - NOW % 86_400_000, campaign['id'], 'research', 'US', 'rest', 1))
