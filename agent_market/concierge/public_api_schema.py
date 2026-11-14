@@ -12,7 +12,14 @@ _PUBLIC = frozenset(('/', '/chat', '/me', '/unsubscribe', '/a2a', '/mcp',
     '/api/workflows/runs/{run_id}', '/api/workflows/runs/{run_id}/cancel',
     '/api/task-updates', '/api/task-updates/browser-config', '/api/task-updates/browser-confirm',
     '/api/task-updates/stop', '/api/task-updates/{watch_id}/action', '/api/task-updates/{watch_id}/events',
-    '/api/agent/v1/discover', '/api/agent/v1/resume', '/api/agent/v1/report', '/api/agent/v1/check', '/api/feed/verified.json'))
+    '/api/agent/v1/discover', '/api/agent/v1/resume', '/api/agent/v1/report', '/api/agent/v1/check', '/api/feed/verified.json',
+    '/api/ad-coin/v2/sponsored/offer'))
+# Agent ad plan (A), PM 11-14 decision (a): edge-cached REST answers (/api/explore, /api/roles/<role>/best) carry no ad; a REST
+# agent that wants the one labelled offer asks the ad route itself (listed when the AD Coin router is mounted).
+SPONSORED_OFFER = '/api/ad-coin/v2/sponsored/offer'
+ADS_NOTE = ('Ads: REST answers carry no ads. For the one offer labelled Sponsored for a task category, call GET '
+            + SPONSORED_OFFER + '?category=<site category>&surface=rest; ads=none or the header Ads: none returns null. '
+            'An offer never changes results, grades or their order.')
 _DOCUMENTED = ('/api/agent/v1/entry', '/api/agent/v1/openapi.json', '/api/agent/v1/badge/{resource_id}.svg')
 
 
@@ -23,7 +30,7 @@ def install(app):
             return app.openapi_schema
         # FastAPI can defer included-router expansion. Generate in memory,
         # then publish only explicit paths and their reachable definitions.
-        full = get_openapi(title='Agent Concierge public API', version='1.0.0', routes=app.routes)
+        full = get_openapi(title='AgentValCon public API', version='1.0.0', description=ADS_NOTE, routes=app.routes)
         paths = {path:value for path,value in full['paths'].items() if path in _PUBLIC}
         # llms.txt links the entry, badge and discovery-schema documents; their routes stay
         # out of FastAPI's generated paths, so reuse the discovery contract's definitions.

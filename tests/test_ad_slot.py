@@ -125,3 +125,13 @@ def test_a2a_answer_gets_the_slot_after_the_text_and_data(client, provider, monk
     assert provider[-1]['surface'] == 'a2a' and provider[-1]['categories'] == ['web_search']
     text, data = send({'ads': 'none'})
     assert 'Sponsored:' not in text['text'] and 'sponsored' not in data['data'] and len(provider) == 1
+
+
+def test_rest_agents_are_told_where_the_offer_is(client):  # noqa: F811
+    """PM 11-14 decision (a): edge-cached REST answers carry no ad; openapi and llms.txt point REST agents to the offer route."""
+    spec = client.get('/openapi.json').json()
+    assert spec['info']['title'] == 'AgentValCon public API'
+    assert '/api/ad-coin/v2/sponsored/offer?category=' in spec['info']['description'] and 'ads=none' in spec['info']['description']
+    llms = client.get('/llms.txt').text
+    assert '/api/ad-coin/v2/sponsored/offer?category=<site category>&surface=rest' in llms and '/ads/library' in llms
+    assert 'sponsored' not in client.get('/api/explore?q=research').text.lower()

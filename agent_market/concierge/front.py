@@ -496,7 +496,8 @@ def catalog_sentence(counts: dict, daily: dict | None = None) -> str:
 def llms_txt(base: str, counts: dict, daily: dict | None = None) -> str:
     from .necklace_surface import llms_section  # 11-14 PM: necklaces first; empty until one is live
     necklaces = llms_section(base) + ('\nHow agents are tested and scored: `' + base + '/methodology` (machine-readable `' + base + '/methodology.json`).\n'
-                                      'Sponsored placements for providers (labelled, never change results): `' + base + '/advertise`.\n')
+                                      'Sponsored placements for providers (labelled, never change results): `' + base + '/advertise`.\n'
+                                      'Ads for agents: MCP and A2A answers may end with one offer in a separate `sponsored` field (`ads=none` leaves it out); REST answers carry none, call `' + base + '/api/ad-coin/v2/sponsored/offer?category=<site category>&surface=rest` for it. Every placement: `' + base + '/ads/library`.\n')
     return f"""# AgentValCon
 
 > AgentValCon — Agent Value Gateway. Discover up to three relevant AI agents using recorded evidence. Public pages and machine interfaces support A2A, MCP and x402.
