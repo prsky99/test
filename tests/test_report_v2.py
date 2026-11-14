@@ -280,3 +280,23 @@ def test_own_fallbacks_stack_versions_but_never_rank(tmp_path, out):
     assert 'v2 보고서 0(' in line and '외부 최고 0점' in line and '자체 대체' in line   # board counts outside agents only
     V.save_version(result(rid=3, role='cve.record.v1', tool='get_cve'))
     assert V.retest_queue(V.latest_versions(), day=1) is not None             # string ids do not break the queue
+
+
+def test_our_own_error_on_one_candidate_never_stops_the_run(tmp_path, monkeypatch, out):
+    """11-14 09:12: a RecursionError in argument filling stopped the whole daily run."""
+    import pearl_batch as PB
+    import role_tool_test as RT
+    monkeypatch.setattr(PB, 'STATE_DIR', tmp_path / 'state')
+    monkeypatch.setattr(V, 'quiet_now', lambda: True)
+    monkeypatch.setattr(RT, 'resources', lambda ids: {})
+    calls = []
+
+    def fake(http, candidate, resource, pacer):
+        calls.append(candidate['id'])
+        if candidate['id'] == 1:
+            raise RecursionError('maximum recursion depth exceeded')
+        return result(rid=candidate['id'], role='fx.rate')
+    monkeypatch.setattr(RT, 'test_one', fake)
+    V.run([{'id': 1, 'role': 'fx.rate', 'kind': 'new'}, {'id': 2, 'role': 'fx.rate', 'kind': 'new'}])
+    assert calls == [1, 2]
+    assert [v['resource_id'] for v in V.latest_versions()] == [2]      # our error stores no version

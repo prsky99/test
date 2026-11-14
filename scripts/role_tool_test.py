@@ -198,18 +198,22 @@ def _event_value(name, spec):
     return None
 
 
-def role_arguments(tool, role, category=None, case_input=None):
-    """Arguments for TOOL (compact form), or (None, reason)."""
+def role_arguments(tool, role, category=None, case_input=None, _catalog=True):
+    """Arguments for TOOL (compact form), or (None, reason).
+
+    The role catalog's input fills a missing case input once; the generic fill below supplies what neither covers
+    (11-14 09:12: the fallback call re-read the catalog input, missed the same parameter and recursed until
+    RecursionError, which stopped the whole daily run)."""
     if any(usage._PII_PARAM.search(p) for p in tool.get('required') or []):
         return None, 'personal-data parameter'
-    if not case_input:
+    if not case_input and _catalog:
         import role_catalog
         case_input = role_catalog.catalog_input(role if str(role).endswith('.v1') else str(role) + '.v1') or None
     if case_input:
         mapped, missing = case_arguments(tool, case_input)
         if not missing:
             return mapped, None
-        rest, why = role_arguments(tool, role, category)
+        rest, why = role_arguments(tool, role, category, _catalog=False)
         if rest is None:
             return None, why
         return {**rest, **mapped}, None

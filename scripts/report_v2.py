@@ -775,7 +775,14 @@ def run(queue):
                 time.sleep(30)
             candidate = {**candidate, 'role': short(canonical(candidate['role'])) if canonical(candidate['role']) in SHORT else
                          canonical(candidate['role']), 'case': case_for(candidate['role'])}
-            result = test_one(http, candidate, found.get(candidate['id'], {}), pacer)
+            try:
+                result = test_one(http, candidate, found.get(candidate['id'], {}), pacer)
+            except Exception as error:          # our own bug never stops the day's run (11-14 09:12 RecursionError)
+                print(f"role test skipped, our error: {candidate['id']} {candidate['role']} {type(error).__name__}",
+                      file=sys.stderr)
+                pacer.state['our_errors'] = int(pacer.state.get('our_errors', 0)) + 1
+                pacer.save()
+                continue                        # not the provider's failure: no version is stored
             if not (result.get('outcome') == 'skipped' and 'limit' in str(result.get('reason'))):
                 pacer.state['role_tests'] += 1
                 pacer.state[kind] += 1

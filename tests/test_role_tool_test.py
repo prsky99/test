@@ -94,3 +94,14 @@ def test_rag_task_inputs_map():
     assert case_arguments(tool(['ip_address'], {'ip_address': {'type': 'string'}}), {'ip': '8.8.8.8'})[0] == {'ip_address': '8.8.8.8'}
     conv = tool(['value', 'from_unit', 'to_unit'], {'value': {'type': 'number'}, 'from_unit': {'type': 'string'}, 'to_unit': {'type': 'string'}})
     assert case_arguments(conv, {'value': 10, 'from': 'mile', 'to': 'kilometer'})[0] == {'value': 10, 'from_unit': 'mile', 'to_unit': 'kilometer'}
+
+
+def test_a_parameter_the_catalog_input_cannot_fill_never_recurses():
+    """11-14 09:12 launchd run: the fallback call re-read the catalog input and recursed into RecursionError."""
+    tool = {'name': 'whois', 'required': ['domain', 'record_type'],
+            'params': {'domain': {'type': 'string'}, 'record_type': {'type': 'string', 'enum': ['A', 'MX']}}}
+    args, why = role_arguments(tool, 'domain.lookup', None)
+    assert why is None and args['domain'] == 'python.org' and args['record_type'] == 'A'
+    odd = {'name': 'odd', 'required': ['domain', 'zzqx'], 'params': {'domain': {'type': 'string'}, 'zzqx': {'type': 'object'}}}
+    args, why = role_arguments(odd, 'domain.lookup', None)                   # nothing fills zzqx: a reason, no crash
+    assert args is None and 'zzqx' in why
