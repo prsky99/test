@@ -292,3 +292,19 @@ def test_reconcile_finds_the_day_blocks_and_reads_transfers_in_chunks():
     finally:
         rec.LOG_CHUNK = old
     assert chain.calls.count('eth_getLogs') == 3 and len(found) == 6 and found[0][2] == 5_000_000
+
+
+def test_night_rehearsal_checks_both_rollbacks_and_leaves_the_copy_migrated(store):  # noqa: F811
+    """PM 11-14: the copy rehearsal also proves the paid-events rollback stops when the table holds rows."""
+    from scripts.ad_coin_night_1115_rehearse import check_rollbacks
+    from scripts.ad_coin_v2_migrate import migrate_agent_ads, migrate_impressions, migrate_paid, migrate_paid_events
+    store.migrate_model()
+    migrate_paid(store)
+    migrate_impressions(store)
+    migrate_agent_ads(store)
+    assert migrate_paid_events(store) == {'paid_events_table': True}
+    checks = check_rollbacks(store)
+    assert checks == {'paid_events_rollback_stops_with_rows': True, 'paid_events_table_kept': True,
+                      'paid_events_foreign_key_kept': True, 'paid_events_rollback_drops_when_empty': True,
+                      'agent_ads_rollback_drops_tables': True, 'agent_ads_rollback_restores_check': True,
+                      'left_migrated': True}
