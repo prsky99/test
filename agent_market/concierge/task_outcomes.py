@@ -103,7 +103,19 @@ def _hub():
 def record(rid, output, *, tool=None, now=None):
     """Classify one gateway answer and add it to the listing's (and the tool's) 7-day counts. Never raises."""
     try:
-        outcome = classify(output)
+        return count(rid, classify(output), tool=tool, now=now)
+    except Exception:
+        return None
+
+
+def count(rid, outcome, *, tool=None, now=None):
+    """Add one already classified OUTCOME ('succeeded', 'failed' or 'needs_key') to the 7-day counts. Never raises.
+
+    The edge Worker runs provider calls itself and reports only the outcome (11-14: real tasks a02 and p03 failed
+    at the edge and were recommended again, because nothing reached these counts)."""
+    try:
+        if outcome not in ('succeeded', 'failed', 'needs_key'):
+            return None
         hub = _hub()
         if hub is None or type(rid) is not int:
             return outcome
