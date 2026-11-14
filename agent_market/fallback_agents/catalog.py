@@ -49,7 +49,9 @@ DEPSDEV = {"name": "Open Source Insights (deps.dev), Google", "url": "https://de
 
 GLEIF = {"name": "GLEIF LEI records (Global Legal Entity Identifier Foundation)", "url": "https://www.gleif.org/",
          "license": "CC0 1.0 (GLEIF LEI data, https://www.gleif.org/en/meta/lei-data-terms-of-use)",
-         "notice": "Only an exact legal-name match is returned; several equal matches are reported as ambiguous, not guessed."}
+         "notice": "An exact legal-name match wins. A short name is matched to the GLEIF record that Wikidata links to "
+                   "it (LEI property P1278) only when that record's name holds every word of it; other ties are "
+                   "reported as ambiguous, not guessed."}
 SEC = {"name": "SEC EDGAR (U.S. Securities and Exchange Commission)", "url": "https://www.sec.gov/edgar",
        "license": "U.S. Government public data; SEC fair-access policy (declared User-Agent, at most 10 requests per second)",
        "notice": "Covers companies with SEC tickers. Not endorsed by the SEC."}
@@ -119,6 +121,11 @@ WIKIDATA = {"name": "Wikidata, Wikimedia Foundation", "url": "https://www.wikida
             "license": "CC0 1.0 (structured data, https://www.wikidata.org/wiki/Wikidata:Licensing)",
             "notice": "Community-edited data; the first matching item with the needed property is chosen and named with its Q-id."}
 
+WIKIDATA_LEI = {"name": "Wikidata, Wikimedia Foundation (LEI links, property P1278)", "url": "https://www.wikidata.org/",
+                "license": "CC0 1.0 (structured data, https://www.wikidata.org/wiki/Wikidata:Licensing)",
+                "notice": "Used only to choose which same-name GLEIF record a short company name means; every "
+                          "returned field is GLEIF's."}
+
 SPECS = {
     "nvd-cve": {
         "name": "AgentValCon NVD CVE Record", "tool": "get_cve_record", "contract": "cve.record.v1",
@@ -173,10 +180,10 @@ SPECS = {
     },
     "gleif-lei": {
         "name": "AgentValCon GLEIF LEI Lookup", "tool": "find_lei_record", "contract": "company.registry.v1",
-        "description": "Find the Legal Entity Identifier (LEI) record of one company by its exact legal "
-                       "name (optional ISO country): legal name, LEI, company number, entity and LEI status "
-                       "and city; read-only.",
-        "sources": [GLEIF],
+        "description": "Find the Legal Entity Identifier (LEI) record of one company by its legal name or "
+                       "common short name (optional ISO country): legal name, LEI, company number, entity and "
+                       "LEI status and city; read-only.",
+        "sources": [GLEIF, WIKIDATA_LEI],
         "rate": "1 request per second (GLEIF allows 60 per minute), cached 6 hours",
     },
     "sec-edgar": {

@@ -149,6 +149,18 @@ def budget_system(split: str) -> str:
     return "gate" if split.startswith("holdout") else "substitute_tests"
 
 
+def case_arguments(agent_id: str, case: dict) -> dict:
+    """The tool arguments for a gold case: the case input cut to the slot contract's fields, with the necklace
+    names mapped to the contract's (topic-evidence-brief gives ``topic``; encyclopedia.summary.v1 takes
+    ``title``). One function for tuning runs and the ops gate (scripts.substitute_gate), so both call the agent
+    the same way."""
+    allowed = contract(SPECS[agent_id]["contract"])["input_schema"]["properties"]
+    arguments = {k: v for k, v in case["input"].items() if k in allowed}
+    if "title" in allowed and "title" not in arguments and case["input"].get("topic"):
+        arguments["title"] = case["input"]["topic"]
+    return arguments
+
+
 def applies(agent_id: str, case: dict) -> bool:
     """False when the source cannot answer the case at all (no LEI for GLEIF, no CIK for SEC): no call is made."""
     if agent_id in ("gleif-lei", "sec-edgar"):
@@ -185,10 +197,7 @@ def _check(agent_ids, root, split, agents, pause, sleep, limit=None, offset=0, q
             run += 1
             started = time.monotonic()
             result, code, cache = None, None, None
-            allowed = contract(SPECS[agent_id]["contract"])["input_schema"]["properties"]
-            arguments = {k: v for k, v in case["input"].items() if k in allowed}
-            if "title" in allowed and "title" not in arguments and case["input"].get("topic"):
-                arguments["title"] = case["input"]["topic"]  # topic-evidence-brief names its topic
+            arguments = case_arguments(agent_id, case)
             try:
                 envelope = agents.execute(agent_id, arguments)
                 result, cache = envelope["result"], envelope["cache"]["status"]

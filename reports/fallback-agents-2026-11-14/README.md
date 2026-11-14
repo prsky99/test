@@ -281,6 +281,25 @@
 - **시험 몫**: 처음엔 자체 대체 시험 몫(`substitute_tests`)이 도메인당 하루 5회라 5건씩만 잴 수 있었습니다. PM 결정(11-14 06:4x)으로 공개 데이터 기관(gleif.org·sec.gov·nist.gov·cisa.gov·wikipedia.org·wikidata.org·wiktionary.org)에 한해 30회가 됐고, 운영·SRE가 장부에 반영했습니다(119725d6). 도메인당 하루 합계 60, github.com 제외, 기관별 속도 상한 준수, 측정 시간(:55~:10, 03:50~05:10)에는 재지 않음(0de007c2)이 조건입니다.
 - 다음: 보류(holdout) 세트 판정은 운영·SRE 관문에서 합니다.
 
+## 5-6. 관문 판정 11-15 08:16 실패 원인 (holdout-r1 + r2 채움, `logs/ops/necklace-gate/substitutes/verdict-holdout-r1-20261115-0816.json`)
+
+결과: sec-edgar 30/30 통과, gleif-lei 25/30, wikipedia-summary 0/30. 실패를 건별로 나누면 **데이터 품질 판정 규칙 문제는 없습니다.**
+
+| 에이전트 | 건수 | 판정에 찍힌 것 | 실제 원인 | 분류 | 조치 |
+|---|---|---|---|---|---|
+| wikipedia-summary | 30 | no_answer + invalid_input | 관문 도구(`scripts/substitute_gate.py`)가 입력을 계약 필드로 자르면서 정답 세트의 `topic`을 버려 빈 입력으로 호출함. 에이전트는 한 번도 답하지 않음 | 관문 입력 연결(운영·SRE 파일) | 입력 변환을 `gold_check.case_arguments()` 하나로 모음(topic → title). 관문도 이 함수를 쓰도록 운영·SRE에 요청. 같은 날 조정 세트로 미리 돌리니 26/26 정답·품질 통과(4건은 하루 몫 소진으로 못 부름) |
+| gleif-lei | 3 | 오답 | "Philips" → Philips International B.V., "Zurich Insurance" → Zurich Insurance Company Ltd, "Accenture" → Accenture International Limited. 짧은 상표명이 그룹 최상위 법인 대신 같은 이름의 자회사에 맞음("International"을 일반어로 빼던 규칙 포함) | 응답 문제 | 아래 수정 |
+| gleif-lei | 2 | no_answer(not_found) | "Novo Nordisk"(법인 형태 A/S를 몰라 이름이 안 맞음), "HSBC"(HSBC Holdings plc와 HSBC HOLDINGS B.V.가 같은 단계에서 맞아 추측하지 않음) | 응답 문제 | 아래 수정 |
+
+**gleif-lei 수정**
+- 짧은 이름은 Wikidata의 LEI 연결(P1278)로 판정합니다. Wikidata 검색 1위 항목의 LEI가 가리키는 GLEIF 기록을 고르되, 그 기록의 이름에 입력 낱말(법인 형태 뺀)이 모두 들어 있고 나라가 같을 때만 받습니다. Wikidata는 고르기만 하고 기록과 모든 필드는 GLEIF 것입니다. 출처 목록에 Wikidata(CC0)를 함께 적습니다.
+- 정확한 법인 이름이 맞으면 Wikidata를 부르지 않습니다. Wikidata가 실패하거나 늦으면 기존 이름 규칙으로 답하거나 "여러 건"이라고 답합니다.
+- 법인 형태가 없는 이름은 Wikidata를 GLEIF 검색과 동시에 부릅니다. 최상위 법인이 검색 첫 쪽(100건)에 없을 때 기록을 직접 1번 읽을 시간을 남기기 위해서입니다(처음 고친 판은 순서대로 불러 Philips·ING·Bayer가 시간 한도로 not_found였음).
+- 법인 형태 추가: A/S, ASA, AB, Oy(j), ApS, KGaA, S.à r.l., S.r.l., SAS, Bhd, Pty, Ltda, "public limited company" = plc. "International"은 일반어에서 뺌(자회사 이름의 일부).
+- 확인: Wikidata 검색으로 실패 5개 이름 모두 1순위 LEI가 정답(0.2~0.9초). 실제 GLEIF 재확인은 오늘(11-15) gleif.org 하루 합계 60을 다 써서(관문 34 + 자체 시험 26) 11-16 0시 이후로 미룸. 고치기 전 순차 판으로 Novo Nordisk·Zurich Insurance는 실제로 정답.
+- 조정 세트(워크플로우가 LEI 사례를 20건으로 늘림, sha c9ac83ed): 순차 판 18/20(ING·Bayer가 위 시간 한도 문제), 병렬 판 재측정은 몫이 차서 다음 날.
+- 시험 111개(+ 관문 시험 포함 115개) 통과.
+
 ## 6. 시험·재현
 
 ```bash

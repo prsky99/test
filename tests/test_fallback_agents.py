@@ -734,6 +734,65 @@ def test_company_name_tiers_exact_first_then_core_then_loose(tmp_path):
     assert a.execute("gleif-lei", {"name": "ASML"})["result"]["identifiers"]["LEI"].endswith("03")  # loose tier
 
 
+def test_gleif_short_name_resolved_by_wikidata_lei_link_within_gleif_records(tmp_path):
+    def row(lei, legal):
+        r = gleif_row(lei, legal, "London")
+        r["attributes"]["entity"]["legalAddress"]["country"] = "GB"
+        return r
+    rows = [row("AAAAAAAAAAAAAAAAAA01", "HSBC HOLDINGS B.V."), row("MLU0ZO3ML4LN2LL2TL39", "HSBC Holdings plc"),
+            row("AAAAAAAAAAAAAAAAAA03", "HSBC Bank plc")]
+    gleif = {"https://api.gleif.org/api/v1/lei-records": httpx.Response(200, json={"data": rows})}
+
+    def wikidata(*leis):
+        return {"https://query.wikidata.org/sparql": httpx.Response(200, json={"results": {"bindings": [
+            {"lei": {"value": lei}, "ord": {"value": str(i)}} for i, lei in enumerate(leis)]}})}
+
+    calls = []
+    a, _ = agents(tmp_path / "a", {**gleif, **wikidata("MLU0ZO3ML4LN2LL2TL39")}, calls)
+    env = a.execute("gleif-lei", {"name": "HSBC", "country": "GB"})
+    assert env["result"]["identifiers"]["LEI"] == "MLU0ZO3ML4LN2LL2TL39"  # the parent, not the same-name B.V.
+    assert any("query.wikidata.org" in c for c in calls)
+    assert [s["name"] for s in env["sources"]][1].startswith("Wikidata")
+    # Wikidata never supplies a record: a linked LEI whose GLEIF name lacks a word of the input is ignored,
+    # and the name rules then report the tie instead of guessing.
+    b, _ = agents(tmp_path / "b", {**gleif, **wikidata("AAAAAAAAAAAAAAAAAA03")})
+    with pytest.raises(FallbackUnavailable, match="Several"):
+        b.execute("gleif-lei", {"name": "HSBC Holdings", "country": "GB"})
+    # Wikidata down: the same honest tie.
+    c, _ = agents(tmp_path / "c", {**gleif, "https://query.wikidata.org/sparql": httpx.Response(503)})
+    with pytest.raises(FallbackUnavailable, match="Several"):
+        c.execute("gleif-lei", {"name": "HSBC", "country": "GB"})
+    # An exact legal name never asks Wikidata.
+    calls.clear()
+    d, _ = agents(tmp_path / "d", {**gleif, **wikidata("AAAAAAAAAAAAAAAAAA01")}, calls)
+    assert d.execute("gleif-lei", {"name": "HSBC Bank PLC", "country": "GB"})["result"]["identifiers"]["LEI"].endswith("03")
+    assert not any("query.wikidata.org" in c for c in calls)
+
+
+def test_gleif_short_name_reads_the_linked_parent_outside_the_first_page(tmp_path):
+    bv = gleif_row("AAAAAAAAAAAAAAAAAA01", "ING Bank N.V.", "Amsterdam")
+    parent = gleif_row("549300NYKK9MWM7GGW15", "ING Groep N.V.", "Amsterdam")
+    for r in (bv, parent):
+        r["attributes"]["entity"]["legalAddress"]["country"] = "NL"
+    calls = []
+    a, _ = agents(tmp_path, {
+        "https://api.gleif.org/api/v1/lei-records/549300NYKK9MWM7GGW15": httpx.Response(200, json={"data": parent}),
+        "https://api.gleif.org/api/v1/lei-records": httpx.Response(200, json={"data": [bv]}),
+        "https://query.wikidata.org/sparql": httpx.Response(200, json={"results": {"bindings": [
+            {"lei": {"value": "549300NYKK9MWM7GGW15"}, "ord": {"value": "0"}}]}})}, calls)
+    out = a.execute("gleif-lei", {"name": "ING", "country": "NL"})["result"]
+    assert out["legal_name"] == "ING Groep N.V." and out["identifiers"]["LEI"] == "549300NYKK9MWM7GGW15"
+    assert sum("/lei-records/549300NYKK9MWM7GGW15" in c for c in calls) == 1  # one direct record read
+
+
+def test_company_names_with_two_part_legal_forms():
+    from agent_market.fallback_agents.agents import name_keys
+    assert name_keys("Novo Nordisk A/S")[1] == "novo nordisk"
+    assert name_keys("Accenture public limited company")[:2] == ("accenture plc", "accenture")
+    assert name_keys("Henkel AG & Co. KGaA")[1] == "henkel"
+    assert name_keys("Philips International B.V.")[2] == "philips international"  # a subsidiary keeps its word
+
+
 def test_gleif_agent_matches_other_names_and_refuses_ambiguity(tmp_path):
     rows = [gleif_row("5493006W3QUS5LMH6R84", "トヨタ自動車株式会社", "Toyota", others=["Toyota Motor Corporation"])]
     a, _ = agents(tmp_path, {"https://api.gleif.org/": httpx.Response(200, json={"data": rows})})
@@ -1061,6 +1120,13 @@ def test_a_429_in_a_test_run_pauses_the_domain_for_everyone(tmp_path, monkeypatc
         with pytest.raises(FallbackUnavailable):
             a.execute("cve-org", {"cve_id": "CVE-2024-3094"})
     assert provider_budget.reserve("https://cveawg.mitre.org/x", "gate") == (False, "paused_429")
+
+
+def test_case_arguments_map_the_necklace_topic_to_the_contract_title():
+    from agent_market.fallback_agents.gold_check import case_arguments
+    case = {"input": {"topic": "Dark matter"}}
+    assert case_arguments("wikipedia-summary", case) == {"title": "Dark matter"}
+    assert case_arguments("gleif-lei", {"input": {"name": "ASML", "country": "NL", "extra": 1}}) == {"name": "ASML", "country": "NL"}
 
 
 def test_gold_check_uses_gate_for_holdout_rounds():

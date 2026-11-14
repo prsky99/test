@@ -425,9 +425,23 @@ class FallbackAgents:
             # removed, so "NVIDIA Corp" finds "NVIDIA CORPORATION"), then by the full name when a common core
             # name crowds the exact one out of the first page; keep only exact name keys either way.
             wanted = name_keys(name)
+            # A short or common name ("HSBC", "Philips") usually means the group's parent, which name rules
+            # cannot tell from a same-name subsidiary. Wikidata's LEI link (P1278) on the item that name finds
+            # first decides, and only for a GLEIF record whose name holds every word of the input (and the same
+            # country): Wikidata picks among GLEIF records, it never supplies the record. A name without a legal
+            # form asks Wikidata while GLEIF is searched, so a parent outside the first result page can still be
+            # read directly inside the time limit.
+            linked = self._wikidata_leis_async(name, rem) if core_name(name) == name else None
             rows = search(core_name(name), rem)
-            rec = tiered_match(rows, wanted, lambda r: [name_keys(n) for n in names(r)],
-                               lambda r: (r.get("registration") or {}).get("status") == "ISSUED")
+            keys = lambda r: [name_keys(n) for n in names(r)]
+            issued = lambda r: (r.get("registration") or {}).get("status") == "ISSUED"
+            exact = [r for r in rows if any(k[0] == wanted[0] for k in keys(r))]
+            rec = tiered_match(exact, wanted, keys, issued) if exact else None
+            if rec is None:
+                leis = linked() if linked else (self._wikidata_leis(name, rem) if rem() > 1.6 else [])
+                rec = self._pick_linked_lei(leis, country, wanted, rows, names, rem)
+            if rec is None:
+                rec = tiered_match(rows, wanted, keys, issued)
             if rec is None and core_name(name) != name and rem() > 1.2:
                 rows = search(name, rem)
                 rec = tiered_match(rows, wanted, lambda r: [name_keys(n) for n in names(r)],
@@ -456,6 +470,65 @@ class FallbackAgents:
             return out, _text(reg.get("lastUpdateDate"), 40) or None
         (out, as_of), cache = self._cached(("gleif-lei", company_key(name), country), TTL["gleif-lei"], live, remaining)
         return out, cache, False, {"GLEIF": as_of}
+
+    def _wikidata_leis(self, name, rem) -> list[str]:
+        """LEIs that Wikidata links (P1278) to the items its search ranks for NAME, best first; [] on any failure
+        (the tie-break is optional: the name rules still answer or report the tie)."""
+        query = ('SELECT ?lei ?ord WHERE { SERVICE wikibase:mwapi { bd:serviceParam wikibase:endpoint '
+                 '"www.wikidata.org"; wikibase:api "EntitySearch"; mwapi:search "%s"; mwapi:language "en". '
+                 '?item wikibase:apiOutputItem mwapi:item. ?ord wikibase:apiOrdinal true. } '
+                 '?item wdt:P1278 ?lei. } ORDER BY ?ord LIMIT 10') % name.replace("\\", " ").replace('"', " ")
+        try:
+            response = get("https://query.wikidata.org/sparql", limiters=self.limiters, http=self.http,
+                           params={"query": query, "format": "json"}, seconds=max(0.1, min(1.5, rem() - 1.0)),
+                           limit=128 * 1024, accept="application/sparql-results+json")
+            bindings = json.loads(response.content).get("results", {}).get("bindings") or []
+        except Exception:
+            return []
+        leis = []
+        for row in bindings:
+            lei = str((row.get("lei") or {}).get("value", "")).upper()
+            if re.fullmatch(r"[A-Z0-9]{18}[0-9]{2}", lei) and lei not in leis:
+                leis.append(lei)
+        return leis
+
+    def _wikidata_leis_async(self, name, rem):
+        """Start _wikidata_leis on its own thread (same context, so the shared test ledger still counts it);
+        returns a function that waits for the answer."""
+        import contextvars
+        import threading
+        box: list = [[]]
+        ctx = contextvars.copy_context()
+        worker = threading.Thread(target=lambda: box.__setitem__(0, ctx.run(self._wikidata_leis, name, rem)),
+                                  daemon=True)
+        worker.start()
+
+        def result():
+            worker.join(max(0.0, min(1.6, rem() - 0.5)))
+            return box[0] if not worker.is_alive() else []
+        return result
+
+    def _pick_linked_lei(self, leis, country, wanted, rows, names, rem):
+        need = set(wanted[1].split())  # every word but the legal form: "HSBC Holdings" never means HSBC Bank plc
+        by_lei = {r.get("lei"): r for r in rows}
+        fetched = False
+        for lei in leis[:3]:
+            rec = by_lei.get(lei)
+            if rec is None and not fetched and rem() > 1.3:
+                fetched = True  # at most one direct record read
+                try:
+                    raw = self._get_json(f"https://api.gleif.org/api/v1/lei-records/{lei}", rem)
+                    rec = (raw.get("data") or {}).get("attributes") or None
+                except FallbackUnavailable:
+                    rec = None
+            if not rec:
+                continue
+            entity = rec.get("entity") or {}
+            if country and (entity.get("legalAddress") or {}).get("country") != country:
+                continue
+            if any(need <= set(name_keys(n)[0].split()) for n in names(rec)):
+                return rec
+        return None
 
     def _sec_index(self, remaining):
         """EDGAR ticker list (daily cache): name key -> CIKs, ticker -> CIK."""
@@ -1435,10 +1508,13 @@ def repository_url(value, hosted_only: bool = False):
 _SUFFIX = {"incorporated": "inc", "corporation": "corp", "company": "co", "limited": "ltd", "the": "",
            "aktiengesellschaft": "ag"}
 _LEGAL_FORMS = {"inc", "corp", "co", "ltd", "llc", "plc", "ag", "gmbh", "sa", "nv", "bv", "se", "spa", "kk", "lp",
-                "llp", "pte", "incorporated", "corporation", "company", "limited", "aktiengesellschaft"}
-
-
-_GENERIC = {"holding", "holdings", "group", "international", "the"}
+                "llp", "pte", "incorporated", "corporation", "company", "limited", "aktiengesellschaft",
+                "as", "asa", "ab", "oy", "oyj", "aps", "kgaa", "sarl", "srl", "sas", "bhd", "berhad", "pty", "ltda"}
+# Multi-word legal forms, matched on the joined words before the trailing forms are dropped.
+_LEGAL_PHRASES = ((r"\bpublic ltd co\b", "plc"), (r"\bco kgaa\b", "kgaa"), (r"\bpty ltd\b", "pty ltd"))
+# Trailing words a group adds to its brand. "international" is not one: "Philips International B.V." is a
+# subsidiary, not Philips.
+_GENERIC = {"holding", "holdings", "group", "the"}
 
 
 def name_keys(name: str) -> tuple[str, str, str]:
@@ -1449,13 +1525,18 @@ def name_keys(name: str) -> tuple[str, str, str]:
     text = unicodedata.normalize("NFKD", (name or "").replace("&amp;", "&"))
     text = "".join(c for c in text if not unicodedata.combining(c)).lower()
     text = re.sub(r"(?<=\b[a-z])\.(?=[a-z]\b)", "", text)          # S.A. / N.V. / P.L.C. -> sa / nv / plc
+    text = re.sub(r"(?<=\b[a-z])/(?=[a-z]\b)", "", text)           # A/S -> as
     words = [w for w in (_SUFFIX.get(w, w) for w in re.sub(r"[^0-9a-z&]+", " ", text).split()) if w]
+    joined = " ".join(words)
+    for pattern, form in _LEGAL_PHRASES:
+        joined = re.sub(pattern, form, joined)
+    words = joined.split()
     exact = " ".join(words)
     core = list(words)
-    while len(core) > 1 and core[-1] in _LEGAL_FORMS:
+    while len(core) > 1 and (core[-1] in _LEGAL_FORMS or core[-1] == "&"):
         core.pop()
     loose = [w for w in core if w != "the"] or core
-    while len(loose) > 1 and loose[-1] in _GENERIC | _LEGAL_FORMS:
+    while len(loose) > 1 and (loose[-1] in _GENERIC | _LEGAL_FORMS or loose[-1] == "&"):
         loose.pop()
     return exact, " ".join(core), " ".join(loose)
 
