@@ -308,3 +308,17 @@ def test_night_rehearsal_checks_both_rollbacks_and_leaves_the_copy_migrated(stor
                       'paid_events_foreign_key_kept': True, 'paid_events_rollback_drops_when_empty': True,
                       'agent_ads_rollback_drops_tables': True, 'agent_ads_rollback_restores_check': True,
                       'left_migrated': True}
+
+
+def test_a_failing_finality_watch_is_logged_and_never_stops_confirmations(audited, monkeypatch, caplog):
+    import logging
+    suite, service, rpc, _ = audited
+    q = quote(audited)
+    tx = rpc.send(int(q['amount_units']))
+    rpc.head = 91
+    service.submit(suite.advertiser, q['id'], tx, now_ms=LATER)
+    rpc.head = 100
+    monkeypatch.setattr(paid_audit, 'watch', lambda *a, **k: (_ for _ in ()).throw(RuntimeError('boom')))
+    caplog.set_level(logging.INFO)
+    assert service.recheck(now_ms=LATER) == 1                                 # confirmed anyway
+    assert any('Paid finality watch failed' in r.getMessage() for r in caplog.records)

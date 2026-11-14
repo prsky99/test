@@ -69,9 +69,11 @@ def before(root=ROOT, now=None, launchctl=None):
     running = "state = running" in printed
     env_file = next((line.split("=>", 1)[1].strip() for line in printed.splitlines()
                      if "AD_COIN_RUNTIME_ENV_FILE" in line and "=>" in line), None)
+    release = next((line.split("/releases/", 1)[1].split("/", 1)[0] for line in printed.splitlines()
+                    if line.strip().startswith("working directory") and "/releases/" in line), None)
     items.append(_item("worker_daemon_reads_sponsored_env",
                        running and bool(env_file) and env_file.endswith("gateway-data/sponsored.env"),
-                       {"running": running, "env_file": env_file}))
+                       {"running": running, "env_file": env_file, "release": release}))
     plist = Path.home() / "Library/LaunchAgents" / (DAEMON + ".plist")
     items.append(_item("worker_daemon_survives_restart", plist.exists(),
                        {"plist_on_disk": plist.exists()}))   # without the file launchd will not start it after login

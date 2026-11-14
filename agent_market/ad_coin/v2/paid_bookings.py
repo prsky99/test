@@ -15,6 +15,7 @@ reports/AI-AD-Coin-USDC-유료예약-설계-2026-11-11.md
 
 import csv
 import io
+import logging
 import os
 from pathlib import Path
 import re
@@ -27,6 +28,7 @@ from .contracts import ContractError
 from .ledger import identifier
 from .sponsored_booking import DAY_MS, HORIZON_DAYS, PLACEMENTS_PER_DAY, day_ms_of
 
+logger = logging.getLogger(__name__)
 ENABLED_ENV = "AD_COIN_PAID_BOOKING_ENABLED"
 BASE_CHAIN_ID = 8453
 BASE_USDC = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
@@ -354,8 +356,10 @@ class PaidBookings:
         try:
             watched = watch(self, now_ms=now_ms, limit=limit)
             changed += watched["reorg"] + watched["moved"]
+            if watched["checked"] or watched["rpc_unavailable"]:
+                logger.info("Paid finality watch: %s", " ".join("%s=%d" % kv for kv in sorted(watched.items())))
         except Exception:                               # the watch never stops confirmations; it runs again next time
-            pass
+            logger.warning("Paid finality watch failed; it runs again with the next recheck", exc_info=True)
         return changed
 
     def settle_due(self, *, now_ms=None, limit=50):
