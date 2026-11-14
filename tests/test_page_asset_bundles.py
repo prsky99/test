@@ -15,7 +15,8 @@ def test_pages_load_one_stylesheet_and_one_deferred_script(client):  # noqa: F81
     js = re.search(r'src="(/new/en/assets/bundle\.js\?f=([^"&]+)&amp;v=([0-9a-f]+))"', html)
     assert css and js
     assert css[2].split(',') == ['operating', 'styles', 'necklace', 'pearl-live', 'experience']
-    assert js[2].split(',')[:2] == ['panels-bootstrap', 'operating'] and js[2].split(',')[-1] == 'workflow-library'
+    # 11-14: consent and policy dialogs come first (site-policy.js), before the operating runtime that uses them
+    assert js[2].split(',')[:3] == ['panels-bootstrap', 'site-policy', 'operating'] and js[2].split(',')[-1] == 'workflow-library'
     for match, kind in ((css, 'text/css'), (js, 'text/javascript')):
         r = client.get(match[1].replace('&amp;', '&'))
         assert r.status_code == 200 and r.headers['content-type'].startswith(kind)

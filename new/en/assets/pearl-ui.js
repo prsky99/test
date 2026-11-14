@@ -8,6 +8,13 @@
   const notice = q('#pearlConnectionNotice');
   if (location.protocol === 'file:' && notice) notice.hidden = false;
   function text(selector, value, root=document) { all(selector, root).forEach(node => { node.textContent = value; }); }
+  // 11-14 (PM 17:2x, minimal bundle split): about, agent-status and learn load without operating.js. What wraps an
+  // operating function runs only when operating.js is there; the rest (theme, menu, status refresh, the current menu
+  // item, filter and anchor links) works on its own.
+  const OPERATING = typeof switchTab === 'function';
+  const panelNow = () => OPERATING ? currentTab : (q('section.tab-panel:not(.hidden)')?.dataset.panel || '');
+  const fetchJson = OPERATING ? api : async url => { const r = await fetch(url, {credentials: 'same-origin', signal: AbortSignal.timeout(30000)}); if (!r.ok) throw Error(String(r.status)); return r.json(); };
+  if (!OPERATING) { const tab = panelNow(); all('.nav-tab[data-tab]').forEach(a => { const on = a.dataset.tab === tab; a.classList.toggle('on', on); if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); }); }
   function recordedOverview(data) {
     if(status||!Array.isArray(data?.resources)||!data.resources.length)return;
     const supported=data.resources.filter(row=>row.active&&['a2a','mcp','x402'].includes(row.kind));
@@ -60,14 +67,14 @@
     if(user&&button){button.disabled=true;button.setAttribute('aria-busy','true');}
     pending=(async()=>{
       for(const panel of all('#secOverview .snapshot-panel,#secStatus'))panel.setAttribute('aria-busy','true');
-      try {const data=await api('/api/pearl/status',{silent:true,timeoutMs:30000,retries:0});if(!Array.isArray(data.by_protocol)||!data.execution_24h)throw Error();render(data);lastRefresh=Date.now();}
-      catch {recordedOverview(ovCache);text('#snapshot-feedback','Refresh unavailable. Try Refresh data again.');if(q('#snapshot-feedback'))q('#snapshot-feedback').hidden=false;text('#uxHomeSnapshotState','Status refresh unavailable. Open Agent Status to retry.');if(q('#uxHomeSnapshotState'))q('#uxHomeSnapshotState').hidden=false;}
+      try {const data=await fetchJson('/api/pearl/status',{silent:true,timeoutMs:30000,retries:0});if(!Array.isArray(data.by_protocol)||!data.execution_24h)throw Error();render(data);lastRefresh=Date.now();}
+      catch {recordedOverview(OPERATING?ovCache:null);text('#snapshot-feedback','Refresh unavailable. Try Refresh data again.');if(q('#snapshot-feedback'))q('#snapshot-feedback').hidden=false;text('#uxHomeSnapshotState','Status refresh unavailable. Open Agent Status to retry.');if(q('#uxHomeSnapshotState'))q('#uxHomeSnapshotState').hidden=false;}
       finally {for(const panel of all('#secOverview .snapshot-panel,#secStatus'))panel.setAttribute('aria-busy','false');if(button){button.disabled=false;button.removeAttribute('aria-busy');}pending=null;}
     })();
     return pending;
   }
-  PAGE_METAS.status = {...PAGE_METAS.overview,title:'Agent Status | AgentValCon',desc:'Inspect catalog scale, recorded endpoint observations and execution checks.'};
-  if(['overview','status'].includes(currentTab))updatePageMeta(currentTab);
+  if(OPERATING){PAGE_METAS.status = {...PAGE_METAS.overview,title:'Agent Status | AgentValCon',desc:'Inspect catalog scale, recorded endpoint observations and execution checks.'};
+  if(['overview','status'].includes(currentTab))updatePageMeta(currentTab);}
   function activateReportTab(tab) {
     const group=tab.parentElement;
     all('[role="tab"]',group).forEach(node=>{node.setAttribute('aria-selected',String(node===tab));node.tabIndex=node===tab?0:-1;});
@@ -75,6 +82,7 @@
   }
   document.addEventListener('click',event=>{const tab=event.target.closest('.evidence-preview [role="tab"]');if(tab)activateReportTab(tab);});
   document.addEventListener('keydown',event=>{const tab=event.target.closest('.evidence-preview [role="tab"]');if(!tab||!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;const tabs=all('[role="tab"]',tab.parentElement);const next=event.key==='Home'?0:event.key==='End'?tabs.length-1:(tabs.indexOf(tab)+(event.key==='ArrowLeft'?-1:1)+tabs.length)%tabs.length;event.preventDefault();activateReportTab(tabs[next]);tabs[next].focus();});
+  if(OPERATING){
   const oldExplore = renderExplore;
   function previewAgent(item) {
     const panel=q('#pearlAgentPreview');if(!panel||!item)return;
@@ -176,12 +184,14 @@
   recordedOverview(ovCache);
   const oldSwitch = switchTab;
   switchTab = function(tab){oldSwitch(tab);q('#navTabs')?.classList.remove('pearl-open');q('[data-pearl-action="menu"]')?.setAttribute('aria-expanded','false');if(tab==='status'&&!status)refresh();};
+  }
   try { const theme=sessionStorage.getItem('pearl-preview:theme');document.body.dataset.theme=theme || (matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'); } catch {document.body.dataset.theme='light';}
   const themeButton=q('[data-pearl-action="theme"]');if(themeButton)themeButton.setAttribute('aria-pressed',String(document.body.dataset.theme==='dark'));
-  function filter(query) {
-    populateCategorySelects();
+  function filter(query, link) {
     const params=new URLSearchParams(query),protocol=params.get('protocol'),category=params.get('category');
     const categoryIds={'Docs, Knowledge Bases & RAG':'docs_knowledge','Web Search & Scraping':'web_search','Data Utilities & Format Conversion':'data_utility','Database & Analytics':'database_analytics'};
+    if(!OPERATING){const out=new URLSearchParams();if(['A2A','MCP','x402'].includes(protocol))out.set('kind',protocol.toLowerCase());if(category)out.set('category',categoryIds[category]||category);location.href=(link?.href||'/new/en/explore.html').split('#')[0]+'#explore'+(out.size?'?'+out:'');return;}
+    populateCategorySelects();
     q('#xKind').value=['A2A','MCP','x402'].includes(protocol)?protocol.toLowerCase():'';
     q('#xQ').value='';
     for(const id of ['xVerified','xNoAuth','xHasReport'])q('#'+id).checked=false;
@@ -190,8 +200,8 @@
     const loaded=initializedPanels.has('explore');switchTab('explore');if(loaded)loadExplore(false,false,true);
   }
   document.addEventListener('click',event=>{
-    const anchored=event.target.closest('[data-pearl-anchor]');if(anchored){event.preventDefault();const tab=anchored.getAttribute('href').slice(1);if(TABS.includes(tab)){switchTab(tab);q('#'+CSS.escape(anchored.dataset.pearlAnchor))?.scrollIntoView({behavior:'auto',block:'start'});}return;}
-    const filtered=event.target.closest('[data-pearl-filter]');if(filtered){event.preventDefault();filter(filtered.dataset.pearlFilter);return;}
+    const anchored=event.target.closest('[data-pearl-anchor]');if(anchored){event.preventDefault();const tab=anchored.getAttribute('href').slice(1);if(!OPERATING){const target=q('#'+CSS.escape(anchored.dataset.pearlAnchor));if(panelNow()===tab&&target)target.scrollIntoView({behavior:'auto',block:'start'});else{const link=q('.nav-tab[data-tab="'+CSS.escape(tab)+'"]');if(link)location.href=link.href.split('#')[0]+'#'+tab;}return;}if(TABS.includes(tab)){switchTab(tab);q('#'+CSS.escape(anchored.dataset.pearlAnchor))?.scrollIntoView({behavior:'auto',block:'start'});}return;}
+    const filtered=event.target.closest('[data-pearl-filter]');if(filtered){event.preventDefault();filter(filtered.dataset.pearlFilter,filtered);return;}
     const button=event.target.closest('[data-pearl-action]');if(!button)return;
     const action=button.dataset.pearlAction;
     if(action==='refresh-status')refresh(true);
@@ -201,8 +211,8 @@
   document.addEventListener('keydown',event=>{if(event.key==='Escape'){q('#navTabs')?.classList.remove('pearl-open');q('[data-pearl-action="menu"]')?.setAttribute('aria-expanded','false');}});
   const home=q('.home-query');home?.addEventListener('submit',event=>{event.preventDefault();const input=q('#home-task');switchTab('chat');q('#chatInput').value=input.value;const protocol=q('#chatProtocol');if(protocol){protocol.value=q('#home-protocol').value.toLowerCase();protocol.dispatchEvent(new Event('change',{bubbles:true}));}if(input.value.trim())q('#chatForm').requestSubmit();});
   all('[data-tab="status"]').forEach(button=>button.addEventListener('click',()=>{if(!status)refresh();}));
-  if(currentTab==='overview'||currentTab==='status')refresh();
-  if(location.hash==='#cookie-preferences')openCookiePrefsModal();
+  if(panelNow()==='overview'||panelNow()==='status')refresh();
+  if(location.hash==='#cookie-preferences'&&typeof openCookiePrefsModal==='function')openCookiePrefsModal();
 })();
 
 /* Shared Learn interactions and semantic badge presentation. */
@@ -289,6 +299,7 @@
 /* Approved menu layouts use the existing request, evidence and consent handlers. */
 'use strict';
 (() => {
+  if (typeof switchTab !== 'function') return;  // working pages only: this wraps operating.js (11-14 bundle split)
   const q = (selector, root=document) => root.querySelector(selector);
   const all = (selector, root=document) => [...root.querySelectorAll(selector)];
   function element(tag, className, value) {
@@ -464,6 +475,7 @@
 /* Task-focused layouts preserve the operating request and authorization paths. */
 'use strict';
 (() => {
+  if (typeof switchTab !== 'function') return;  // working pages only: this wraps operating.js (11-14 bundle split)
   const q=(selector,root=document)=>root.querySelector(selector);
   const all=(selector,root=document)=>[...root.querySelectorAll(selector)];
   const node=(tag,cls,value)=>{const el=document.createElement(tag);el.className=cls;if(value!==undefined)el.textContent=value;return el;};
@@ -833,6 +845,7 @@
 
 /* Keep the requested task when the user explicitly reviews a recommended connection. */
 (() => {
+  if (typeof switchTab !== 'function') return;  // working pages only: this wraps operating.js (11-14 bundle split)
   const node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
   let reviewedResourceId=null;
   const applyConnection=applySelectedTestbenchAgent;
@@ -880,6 +893,53 @@
 /* Native links and history share the operating page state and security gates. */
 'use strict';
 (() => {
+  if (typeof switchTab !== 'function') {
+    // Pages without operating.js (11-14 bundle split): the footer's policy links still open the same dialogs, the
+    // address names the open document as on the other pages, and closing restores this page's address and title.
+    if (typeof openLegalModal !== 'function') return;
+    const q=selector=>document.querySelector(selector);
+    const policies={terms:'tos',privacy:'privacy','privacy-choices':'ccpa',accessibility:'accessibility',disclosures:'ai',notifications:'cancellation',contact:'contact',cookies:'cookie-preferences'};
+    const modified=event=>event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey;
+    const pageAddress=location.pathname+location.search,pageTitle=document.title;
+    const back=()=>{history.replaceState(null,'',pageAddress);document.title=pageTitle;};
+    let restoring=false;
+    const previousLegal=openLegalModal;
+    openLegalModal=function(doc='tos'){
+      const safe=VALID_LEGAL_DOCS.has(doc)?doc:'tos',modal=q('#legalModal');
+      if(location.hash!=='#'+safe&&!restoring)history.pushState(null,'','/#'+safe);
+      if(!modal.open||q('#legalModalTitle')?.textContent!==LEGAL_DOCS[safe]?.title)previousLegal(safe);
+      modal.dataset.route=safe;
+      history.replaceState(null,'','/#'+safe);
+      document.title=(LEGAL_DOCS[safe]?.title||'Information')+' | AgentValCon';
+    };
+    q('#legalModal')?.addEventListener('close',back);
+    q('#cookiePrefsModal')?.addEventListener('close',()=>{if(location.hash==='#cookie-preferences')back();});
+    const previousDoc=switchLegalDoc;
+    switchLegalDoc=function(doc){previousDoc(doc);if(q('#legalModal')?.open)document.title=(LEGAL_DOCS[doc]?.title||'Information')+' | AgentValCon';};
+    function syncLocation(){
+      const raw=location.hash.slice(1).split('?')[0],hash=['ai-transparency','legal/ai'].includes(raw)?'ai':raw;
+      restoring=true;
+      try{
+        if(VALID_LEGAL_DOCS.has(hash)){openLegalModal(hash);return;}
+        if(hash==='cookie-preferences'){if(!q('#cookiePrefsModal')?.open)openCookiePrefsModal();return;}
+        for(const id of ['legalModal','cookiePrefsModal'])if(q('#'+id)?.open)q('#'+id).close();
+      }finally{restoring=false;}
+    }
+    addEventListener('popstate',syncLocation);
+    addEventListener('hashchange',syncLocation);
+    document.addEventListener('click',event=>{
+      const link=event.target.closest('a[href]');if(!link)return;
+      if(modified(event))return;
+      const key=link.dataset.footerKey;if(!key)return;
+      event.preventDefault();event.stopImmediatePropagation();
+      if(key==='cookies'){
+        if(location.hash!=='#cookie-preferences')history.pushState(null,'','/#cookie-preferences');
+        openCookiePrefsModal();
+      }else openLegalModal(policies[key]||'tos');
+    },true);
+    syncLocation();
+    return;
+  }
   const q=selector=>document.querySelector(selector);
   const paths=Object.fromEntries([...document.querySelectorAll('#navTabs a[data-tab]')].map(link=>[link.dataset.tab,new URL(link.href).pathname]));
   paths.overview='/';

@@ -3,7 +3,7 @@
 (() => {
   const q=(selector,root=document)=>root.querySelector(selector);
   const view=q('#frontWfTemplatesView'),grid=q('#frontTemplatesGrid'),search=q('#frontTmplSearchInput');
-  if(!view||!grid||!search)return;
+  if(!view||!grid||!search||typeof renderFrontTemplates!=='function')return;  // pages without operating.js (11-14)
   const el=(tag,className='',text)=>{const n=document.createElement(tag);n.className=className;if(text!==undefined)n.textContent=text;return n;};
   const button=(label,action,primary=false)=>{const n=el('button','btn'+(primary?' primary':''),label);n.type='button';n.addEventListener('click',action);return n;};
   const categoryNames={all:'All categories',travel_maps_weather:'Travel & Weather',dev_tools:'Developer Tools',data_utility:'Data & Utility',finance_crypto:'Finance & DeFi',automation:'Automation',sports_health:'Sports & Health',business_productivity:'Productivity',docs_knowledge:'Docs & Knowledge'};
