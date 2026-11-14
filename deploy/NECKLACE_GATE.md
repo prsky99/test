@@ -166,6 +166,7 @@
   - 입력은 조정 실행과 같은 `gold_check.case_arguments`로 만든다(11-15: 계약 칸만 남기다 `topic`이 빠져 wikipedia 30건이 제목 없이 불림).
   - 호출 예약은 원천마다 `사례 수 × 사례당 호출 수 + 4`다. GLEIF는 사례당 2회(검색 + 최상위 법인 읽기)이고 Wikidata(query.wikidata.org)를 사례당 1회까지 함께 예약한다. 한 도메인이 하루 합계 60을 넘으면 아무것도 예약하지 않고 멈춘다(exit 75).
   - 다시 판정할 때는 `--exclude-raw <이전 raw 파일>`로 이미 쓴(분석에 보인) 사례를 뺀다.
+  - 하루 합계 60 안에 30건이 안 들어가는 원천(GLEIF, 사례당 2회)은 이틀에 나눈다(PM 11-15 08:4x): 첫날 `--limit 15`, 둘째 날 `--limit 15 --continue-from <첫날 verdict>`. 둘째 날 판정은 두 날의 행을 합쳐 30건으로 낸다. 첫날 판정은 `part.complete: false`이고 통과로 치지 않는다. 계약 입력과 역할 과제는 날마다 다시 돈다.
 - **기록과 승인**
   - 판정은 `logs/ops/necklace-gate/substitutes/<resource_id>-v<version>.json`에 남기고, 장부에 한 줄 적는다.
   - 통과하면 `gateway-data/necklaces/approvals.json`의 `substitutes`에 승인을 쓴다: `{resource_id, slot_role, version, definition_digest, state: "approved", at}`

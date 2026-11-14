@@ -101,14 +101,25 @@ def held_out(agent_id, split, fill_from=None, exclude=frozenset()):
     return cases[:SUBSTITUTE_CASES]
 
 
-def run(agent_ids, split, raw_path, agents=None, fill_from=None, exclude=frozenset()):
+def remaining(agent_id, split, fill_from=None, exclude=frozenset(), prior=()):
+    """Held-out cases still to run: the case window minus the rows an earlier part already judged."""
+    done = {r['case_id'] for r in prior}
+    return [c for c in held_out(agent_id, split, fill_from, exclude) if c['case_id'] not in done]
+
+
+def run(agent_ids, split, raw_path, agents=None, fill_from=None, exclude=frozenset(), limit=None, previous=None):
+    """With limit, one part of a verdict split over days (11-15 PM: GLEIF 15 cases a day, 2 calls each); with
+    previous (the rows of the earlier parts per agent) the verdict is judged on every part's rows together."""
     from agent_market.fallback_agents.agents import FallbackAgents, FallbackUnavailable
     from agent_market.fallback_agents.gold_check import case_arguments, judge, role_task_check
     agents = agents or FallbackAgents()
     report = {'split': split, 'agents': {}}
     with open(raw_path, 'a', encoding='utf-8') as raw:
         for agent_id in agent_ids:
-            cases = held_out(agent_id, split, fill_from, exclude)
+            prior = list((previous or {}).get(agent_id) or [])
+            cases = remaining(agent_id, split, fill_from, exclude, prior)
+            if limit:
+                cases = cases[:limit]
             rows = []
             for case in cases:
                 started, envelope, code = time.monotonic(), None, None
@@ -134,10 +145,13 @@ def run(agent_ids, split, raw_path, agents=None, fill_from=None, exclude=frozens
                 except FallbackUnavailable as exc:
                     contract_rows.append(expect == exc.code)
             roles = role_task_check([agent_id], agents)[agent_id]
+            part_rows, rows = rows, prior + rows
             passed = sum(r['pass'] for r in rows)
             dirty = [r['case_id'] for r in rows if r['data_quality']]
             report['agents'][agent_id] = {
                 'answer_set': f'{passed}/{len(rows)}', 'data_quality_failures': dirty,
+                'part': {'earlier_rows': len(prior), 'this_part': len(part_rows),
+                         'complete': len(rows) >= SUBSTITUTE_CASES},
                 'contract_inputs': f'{sum(contract_rows)}/{len(contract_rows)}', 'role_tasks': f"{roles['passed']}/{roles['cases']}",
                 'pass': (passed >= NEED and len(rows) >= SUBSTITUTE_CASES and not dirty and bool(contract_rows)
                          and all(contract_rows) and roles['passed'] == roles['cases']),
@@ -153,8 +167,14 @@ def main(argv=None):
     parser.add_argument('--split', default='holdout-r1')
     parser.add_argument('--fill-from', default=None, help='take more answerable cases from this split (e.g. holdout-r2)')
     parser.add_argument('--exclude-raw', nargs='*', default=[], help='skip cases already run in these gate raw files')
+    parser.add_argument('--limit', type=int, default=None, help='run at most this many cases now (a part of a verdict)')
+    parser.add_argument('--continue-from', default=None, help='an earlier part verdict: judge its rows and these together')
     args = parser.parse_args(argv)
     exclude = used_cases(args.exclude_raw)
+    previous = {}
+    if args.continue_from:
+        earlier = json.loads(Path(args.continue_from).read_text(encoding='utf-8'))
+        previous = {a: r.get('rows') or [] for a, r in earlier['agents'].items() if a in args.agents}
     local = time.localtime()
     hm = local.tm_hour * 100 + local.tm_min
     if local.tm_min >= 55 or local.tm_min < 10 or 350 <= hm <= 510:  # never inside the measurement windows
@@ -162,17 +182,21 @@ def main(argv=None):
         return 75
     stamp = time.strftime('%Y%m%d-%H%M')
     OUT.mkdir(parents=True, exist_ok=True)
-    short = {a: len(held_out(a, args.split, args.fill_from, exclude)) for a in args.agents}
-    short = {a: n for a, n in short.items() if n < SUBSTITUTE_CASES}
+    want = {a: SUBSTITUTE_CASES - len(previous.get(a, [])) for a in args.agents}
+    if args.limit:
+        want = {a: min(n, args.limit) for a, n in want.items()}
+    short = {a: len(remaining(a, args.split, args.fill_from, exclude, previous.get(a, []))) for a in args.agents}
+    short = {a: n for a, n in short.items() if n < want[a]}
     if short:  # no calls when a source cannot reach the case count (an answer set to extend, not a verdict)
-        print(json.dumps({'ok': False, 'reason': 'held_out_cases', 'answerable': short, 'need': SUBSTITUTE_CASES}))
+        print(json.dumps({'ok': False, 'reason': 'held_out_cases', 'answerable': short, 'need': want}))
         return 76
-    refused = reserve_calls(args.agents)
+    refused = reserve_calls(args.agents, cases=max(want.values()))
     if refused:
         print(json.dumps({'ok': False, 'reason': 'budget', 'refused': refused}))
         return 75
     raw = OUT / f'raw-{args.split}-{stamp}.jsonl'
-    report = run(args.agents, args.split, raw, fill_from=args.fill_from, exclude=exclude)
+    report = run(args.agents, args.split, raw, fill_from=args.fill_from, exclude=exclude, limit=args.limit,
+                 previous=previous)
     report.update(at=stamp, raw=str(raw.relative_to(ROOT)))
     out = OUT / f'verdict-{args.split}-{stamp}.json'
     out.write_text(json.dumps(report, ensure_ascii=False, indent=1))

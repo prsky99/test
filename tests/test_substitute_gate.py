@@ -80,3 +80,45 @@ def test_reservations_count_calls_per_case_and_refuse_what_cannot_fit_a_day(monk
     assert taken == [] and 'api.gleif.org' in next(iter(refused))     # 64 > 60: nothing reserved at all
     assert gate.reserve_calls(['sec-edgar'], cases=30) == {} and taken == [('https://data.sec.gov/', 'gate', 34)]
     assert gate.reserve_calls(['gleif-lei'], cases=20) == {}           # 2 x 20 + 4 = 44 fits
+
+
+def test_a_verdict_split_over_two_days_is_judged_on_both_parts(tmp_path, monkeypatch, capsys):
+    """PM 11-15 08:4x: GLEIF 15 cases a day (2 calls each), the two days together make the 30-case verdict."""
+    from agent_market.fallback_agents import gold_check
+    from agent_market.fallback_agents.gold_check import SLUG
+    monkeypatch.setattr(gate, 'ROOT', tmp_path)
+    monkeypatch.setattr(gate, 'OUT', tmp_path / 'out')
+    monkeypatch.setattr(gate, 'SUBSTITUTE_CASES', 4)
+    monkeypatch.setattr(gate, 'NEED', 4)
+    write(tmp_path, SLUG['gleif-lei'], 'holdout-r3',
+          [{'case_id': f'g{i}', 'input': {'name': f'Co {i}'}, 'truth': {'lei': f'L{i}'}} for i in range(6)])
+    contract_inputs = tmp_path / 'contract.json'
+    contract_inputs.write_text(json.dumps({'gleif-lei': [[{'name': 'x'}, 'ok']]}))
+    monkeypatch.setattr(gate, 'CONTRACT_INPUTS', contract_inputs)
+    monkeypatch.setattr(gold_check, 'judge', lambda agent, case, result: {'pass': True})
+    monkeypatch.setattr(gold_check, 'role_task_check', lambda ids, agents: {ids[0]: {'passed': 1, 'cases': 1}})
+    monkeypatch.setattr(gate, 'quality', lambda envelope: [])
+    reserved = []
+    monkeypatch.setattr(gate, 'reserve_calls', lambda ids, cases=None: reserved.append(cases) or {})
+    called = []
+
+    class Agents:
+        def execute(self, agent_id, arguments):
+            called.append(arguments.get('name'))
+            return {'result': {}}
+    import agent_market.fallback_agents.agents as agents_module
+    monkeypatch.setattr(agents_module, 'FallbackAgents', Agents)
+    monkeypatch.setattr(gate.time, 'localtime', lambda *a: __import__('time').struct_time((2026, 11, 16, 8, 20, 0, 0, 320, 0)))
+    monkeypatch.setattr(gate.time, 'strftime', lambda fmt, *a: '20261116-0820')
+    assert gate.main(['gleif-lei', '--split', 'holdout-r3', '--limit', '2']) == 0
+    first = json.loads((tmp_path / 'out/verdict-holdout-r3-20261116-0820.json').read_text())['agents']['gleif-lei']
+    assert first['answer_set'] == '2/2' and first['part'] == {'earlier_rows': 0, 'this_part': 2, 'complete': False}
+    assert first['pass'] is False and 'held_out_cases' in first['missing'] and reserved == [2]
+    part1 = tmp_path / 'part1.json'
+    (tmp_path / 'out/verdict-holdout-r3-20261116-0820.json').rename(part1)
+    capsys.readouterr()
+    assert gate.main(['gleif-lei', '--split', 'holdout-r3', '--limit', '2', '--continue-from', str(part1)]) == 0
+    second = json.loads((tmp_path / 'out/verdict-holdout-r3-20261116-0820.json').read_text())['agents']['gleif-lei']
+    assert second['answer_set'] == '4/4' and second['part'] == {'earlier_rows': 2, 'this_part': 2, 'complete': True}
+    assert second['pass'] is True and second['missing'] == [] and reserved == [2, 2]
+    assert called == ['Co 0', 'Co 1', 'x', 'Co 2', 'Co 3', 'x']          # no case runs twice
