@@ -53,6 +53,9 @@ SAMPLE = {'/agent/': 25, '/agents/compare/': 10, '/agents/task/': 15, '/agents/c
 OWNER = {'pages': '성장·유통', 'api': '검색과 RAG', 'agent': '운영·SRE', 'browser': '성장·유통'}
 DEV_TEXT = re.compile(r'(?i)traceback|\bundefined\b|\bNaN\b|lorem ipsum|\{\{ ?[a-z_]+ ?\}\}|\[object Object\]|exception:')
 MCP_H = {'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream'}
+# Pages are measured with the Accept a browser sends (PM 11-14: what people actually receive; '/' answers agents
+# without text/html with JSON, and the edge caches HTML for browser requests).
+BROWSER_ACCEPT = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
 WRITE_TOOLS = {'call', 'run_workflow', 'report', 'credit', 'subscribe', 'verify_contact', 'adapt_rest'}
 
 
@@ -165,7 +168,7 @@ def part_pages(run, c):
     links = set()
     for path in picked:
         with client() as fresh:  # a new connection per page, as a first-time visitor (PM 11-12 01시, like user_slo)
-            took, r, err = timed(fresh, 'GET', BASE + path, headers={'Accept': 'text/html,*/*'})
+            took, r, err = timed(fresh, 'GET', BASE + path, headers={'Accept': BROWSER_ACCEPT})
         if not run.ok('pages', f'GET {path}', r is not None and r.status_code == 200,
                       err or (r.status_code if r is not None else ''), took):
             continue
@@ -187,7 +190,7 @@ def part_pages(run, c):
                      if not h.startswith(('/new/en/assets', '/static', '/cdn-cgi')) and not h.endswith(('.css', '.js')))
     unchecked = [l for l in links if l not in picked]
     for path in random.sample(unchecked, min(40, len(unchecked))):
-        took, r, err = timed(c, 'GET', BASE + path, headers={'Accept': 'text/html,*/*'})
+        took, r, err = timed(c, 'GET', BASE + path, headers={'Accept': BROWSER_ACCEPT})
         run.ok('pages', f'link {path}', r is not None and r.status_code < 400,
                err or (r.status_code if r is not None else ''), took)
     return {'pages_checked': len(picked), 'links_checked': min(40, len(unchecked)), 'sitemap_pages': len(pages)}
