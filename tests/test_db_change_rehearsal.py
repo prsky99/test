@@ -63,3 +63,26 @@ def test_restore_timeout_is_raised_only_by_its_variable_within_bounds(monkeypatc
     for value, expected in (('5400', 5400), ('60', 600), ('999999', 14400), ('soon', 3600), ('', 3600)):
         monkeypatch.setenv('AGENTCON_RESTORE_TIMEOUT_SECONDS', value)
         assert rehearsal.restore_timeout() == expected
+
+
+def test_active_releases_cover_all_four_roles_and_check_names_missing_roles(tmp_path, monkeypatch):
+    """11-15 AI AD Coin: frontend and jobs only made every four-role rehearsal fail check."""
+    state = tmp_path / 'state.json'
+    monkeypatch.setattr(rehearsal, 'STATE', state)
+    state.write_text(json.dumps({'services': {
+        'frontend': {'active': 'a', 'slots': {'a': 'f1', 'b': 'f0'}}, 'jobs': {'release': 'j1'},
+        'admin': {'active': 'b', 'slots': {'a': 'a0', 'b': {'release': 'a1'}}}, 'execution': {'release': 'e1'}}}))
+    assert rehearsal.active_releases() == ['f1', 'j1', 'a1', 'e1']
+    monkeypatch.setattr(rehearsal, 'REPORTS', tmp_path)
+    sql = tmp_path / 'change.sql'
+    sql.write_text('CREATE INDEX z ON meta(key);\n')
+    digest = rehearsal.change_digest(str(sql), None)
+    def passed(releases):
+        (tmp_path / 'passed.json').write_text(json.dumps({digest: {'at': 1000.0, 'releases': releases, 'report': 'r.json'}}))
+    passed(['e1', 'a1', 'j1', 'f1'])
+    assert rehearsal.check(str(sql), now=1000.0 + 60)['ok'] is True
+    passed(['f1', 'j1'])                                   # the old two-role default
+    got = rehearsal.check(str(sql), now=1000.0 + 60)
+    assert got['reason'] == 'roles_not_rehearsed' and got['missing'] == ['a1', 'e1']
+    passed(['f0', 'j1', 'a1', 'e1'])                       # frontend moved on since
+    assert rehearsal.check(str(sql), now=1000.0 + 60)['reason'] == 'active_releases_changed'

@@ -94,7 +94,7 @@ Use the explicit workflow maintenance CLI in [operations hardening](../docs/WORK
    ```bash
    .venv/bin/python -m scripts.db_change_rehearsal check --sql change.sql   # 0이 아니면 실행하지 않는다
    ```
-   - 같은 변경이 24시간 안에, 지금 운영 중인 frontend·jobs 버전으로 통과했을 때만 0을 돌려준다. 버전이 바뀌었으면 다시 리허설한다.
+   - 같은 변경이 24시간 안에, 지금 운영 중인 네 역할(frontend·jobs·admin·execution) 버전으로 통과했을 때만 0을 돌려준다(11-15부터, 그전엔 frontend·jobs만). 버전이 바뀌었으면 `active_releases_changed`, 리허설에 빠진 역할이 있으면 `roles_not_rehearsed`(빠진 버전 목록 포함)로 다시 리허설한다. `run`의 기본 `--releases`도 네 역할이다.
 5. **운영에 실행한다.** 사람이 정한 한 번의 실행으로 한다. 다른 세션의 배포·시험과 겹치지 않게 한다.
 6. **바로 확인한다.**
    - 홈(`/`), `/llms.txt`, `/api/explore?q=…`, `/mcp`가 200인지 본다.

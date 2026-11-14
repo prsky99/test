@@ -84,11 +84,24 @@ def change_digest(sql=None, command=None):
     return 'command:' + hashlib.sha256(command.encode()).hexdigest()
 
 
+ROLES = ('frontend', 'jobs', 'admin', 'execution')
+
+
 def active_releases():
+    """The release each role runs now, all four roles (11-15 AI AD Coin: frontend and jobs only made every
+    four-role rehearsal fail check with active_releases_changed; 11-12 a trigger change also hit execution)."""
     services = json.loads(STATE.read_text())['services']
-    front = services['frontend']
-    slot = front['slots'][front['active']]
-    return [slot['release'] if isinstance(slot, dict) else slot, services['jobs']['release']]
+    out = []
+    for role in ROLES:
+        service = services.get(role)
+        if not service:
+            continue
+        if 'slots' in service:
+            slot = service['slots'][service['active']]
+            out.append(slot['release'] if isinstance(slot, dict) else slot)
+        else:
+            out.append(service['release'])
+    return out
 
 
 def newest_backup():
@@ -304,8 +317,11 @@ def check(sql=None, command=None, now=None):
         return {'ok': False, 'reason': 'no_passed_rehearsal'}
     if now - record['at'] > PASS_HOURS * 3600:
         return {'ok': False, 'reason': 'rehearsal_older_than_%d_hours' % PASS_HOURS}
-    if sorted(record['releases']) != sorted(active_releases()):
-        return {'ok': False, 'reason': 'active_releases_changed', 'rehearsed': record['releases'], 'active': active_releases()}
+    active = active_releases()
+    if sorted(record['releases']) != sorted(active):
+        missing = sorted(set(active) - set(record['releases']))
+        reason = 'roles_not_rehearsed' if missing and set(record['releases']) <= set(active) else 'active_releases_changed'
+        return {'ok': False, 'reason': reason, 'rehearsed': record['releases'], 'active': active, 'missing': missing}
     return {'ok': True, 'report': record['report']}
 
 
@@ -316,7 +332,7 @@ def main(argv=None):
     change.add_argument('--sql')
     change.add_argument('--command')
     parser.add_argument('--backup')
-    parser.add_argument('--releases', help='comma separated; default: active frontend and jobs')
+    parser.add_argument('--releases', help='comma separated; default: the active release of all four roles')
     parser.add_argument('--data', choices=('minimal', 'full'), default='minimal')
     parser.add_argument('--report')
     args = parser.parse_args(argv)
