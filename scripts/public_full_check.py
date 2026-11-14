@@ -256,14 +256,20 @@ def part_agent(run, c):
     took, r, err = timed(c, 'POST', BASE + '/mcp', headers=h, json={'jsonrpc': '2.0', 'id': 2, 'method': 'tools/list'})
     tools = (rpc_json(r).get('result') or {}).get('tools') or [] if r is not None and r.status_code == 200 else []
     run.ok('agent', 'MCP tools/list', len(tools) > 0, err or 'no tools', took)
-    task = f'{random.choice(["convert currency", "weather forecast", "summarize a web page", "github issues"])} {random.randint(100, 999)}'
-    sample_args = {'query': task, 'task': task, 'q': task, 'message': task, 'text': task, 'goal': task}
+    def fresh_task():
+        return f'{random.choice(["convert currency", "weather forecast", "summarize a web page", "github issues"])} {random.randint(100, 999)}'
+    task = fresh_task()   # the A2A check below uses this one
     endpoint = None
     for i, tool in enumerate(tools):
         name = tool.get('name')
         if name in WRITE_TOOLS:
             continue
         req = (tool.get('inputSchema') or {}).get('required') or []
+        # 11-14 (search team): each tool gets its own unseen query, so the first tool in tools/list (chat) no longer
+        # pays the first-seen cost for every tool that follows; every time is a first-seen time.
+        tool_task = fresh_task()
+        sample_args = {'query': tool_task, 'task': tool_task, 'q': tool_task, 'message': tool_task, 'text': tool_task,
+                       'goal': tool_task}
         args = {k: sample_args[k] for k in req if k in sample_args}
         if any(k not in args for k in req):
             continue  # needs an id we do not have; covered by detail checks elsewhere
