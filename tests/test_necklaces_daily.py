@@ -117,3 +117,10 @@ def test_cumulative_is_absent_before_launch(tmp_path):
     daily.run([trial()], tmp_path, tmp_path / "logs", now=NOW)
     q = json.loads((tmp_path / "results" / "topic-brief" / "summary.json").read_text())["quality"]
     assert q["cumulative"] is None
+
+
+def test_digest_has_a_body_with_nothing_to_summarize(tmp_path):
+    result = daily.run([base(), base()], tmp_path, tmp_path / "logs", now=NOW)
+    text = (tmp_path / "logs" / f"{DAY}.md").read_text()
+    assert result == {"necklaces": 0, "alerts": 0, "digest": str(tmp_path / "logs" / f"{DAY}.md")}
+    assert "목걸이 0개 집계, 경보 0건. 정의 2개(candidate 2)." in text and "집계할 것이 없습니다(정상)" in text
