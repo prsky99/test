@@ -292,3 +292,17 @@ def test_reconcile_finds_the_day_blocks_and_reads_transfers_in_chunks():
     finally:
         rec.LOG_CHUNK = old
     assert chain.calls.count('eth_getLogs') == 3 and len(found) == 6 and found[0][2] == 5_000_000
+
+
+def test_a_failing_finality_watch_is_logged_and_never_stops_confirmations(audited, monkeypatch, caplog):
+    import logging
+    suite, service, rpc, _ = audited
+    q = quote(audited)
+    tx = rpc.send(int(q['amount_units']))
+    rpc.head = 91
+    service.submit(suite.advertiser, q['id'], tx, now_ms=LATER)
+    rpc.head = 100
+    monkeypatch.setattr(paid_audit, 'watch', lambda *a, **k: (_ for _ in ()).throw(RuntimeError('boom')))
+    caplog.set_level(logging.INFO)
+    assert service.recheck(now_ms=LATER) == 1                                 # confirmed anyway
+    assert any('Paid finality watch failed' in r.getMessage() for r in caplog.records)
