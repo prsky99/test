@@ -78,6 +78,10 @@ def classify(output):
         value = None
     if isinstance(value, dict) and 'error' in value and len([k for k in value if value[k] not in (None, '', [], {})]) <= 3:
         return 'failed'
+    # {"status": "error", "detail": "Conversion ... is not supported."} without isError (11-15 real task a01): the
+    # answer itself says it failed, so recommendation order must count it as a failure.
+    if isinstance(value, dict) and str(value.get('status') or value.get('state') or '').lower() in ('error', 'failed', 'failure'):
+        return 'failed'
     if _empty_json(value) or EMPTY.search(text[:400]):
         return 'failed'
     if len(text) < 200 and FAILED.search(text):
