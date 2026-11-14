@@ -299,3 +299,32 @@ def test_swap_use_trend_and_top_memory_are_recorded(tmp_path, monkeypatch):
     path = tmp_path / 'watch.jsonl'
     path.write_text(_json.dumps({'at': hour_ago, 'swap': {'used_mb': 1}}) + '\nnot json\n')
     assert w.recent_records(path) == [{'at': hour_ago, 'swap': {'used_mb': 1}}]
+
+
+def test_adcoin_daemon_state_plist_and_reinstall(tmp_path):
+    """PM 11-14: the daemon ran from adv-frontend-20261114-r1 with no plist on disk after newer frontend deploys."""
+    import json as _json
+    from scripts import ops_watch as w
+    rel = tmp_path / 'releases'
+    for name, body in (('old', 'v1'), ('same', 'v1'), ('new', 'v2')):
+        (rel / name / 'scripts').mkdir(parents=True)
+        (rel / name / 'scripts/ad_coin_worker_daemon.py').write_text('daemon')
+        (rel / name / 'agent_market/ad_coin/v2').mkdir(parents=True)
+        (rel / name / 'agent_market/ad_coin/v2/paid_bookings.py').write_text(body)
+        (rel / name / 'agent_market/ad_coin/v2/web').mkdir()
+        (rel / name / 'agent_market/ad_coin/v2/web/admin.js').write_text(name)   # not daemon code
+    plists = tmp_path / 'LaunchAgents'
+    plists.mkdir()
+    state = tmp_path / 'state.json'
+
+    def run(active, printed='\tstate = running\n\tworking directory = /x/releases/old\n'):
+        state.write_text(_json.dumps({'services': {'frontend': {'active': 'a', 'slots': {'a': active}}}}))
+        return w.check_adcoin_daemon(printed, plists, rel, state)
+
+    got = run('new')
+    assert got['release'] == 'old' and got['active_frontend'] == 'new'
+    assert got['problems'] == ['plist_missing', 'reinstall_needed']
+    (plists / (w.DAEMON + '.plist')).write_text('<plist/>')
+    assert run('same')['problems'] == [] and run('same')['code_same_as_active'] is True
+    assert run('old')['problems'] == []
+    assert run('new', printed='')['problems'] == ['not_running']

@@ -37,7 +37,7 @@ PSQL = ['/opt/homebrew/opt/postgresql@18/bin/psql', '-h', str(ROOT / 'gateway-da
         '-d', 'agentcon_cutover_20261020_191757', '-Atc']
 TEAM = {'site': '운영·SRE', 'memory': '운영·SRE', 'disk': '운영·SRE', 'deploy_stuck': '운영·SRE',
         'deploy_lock': '잠금을 잡은 팀', 'long_tests': '시험을 돌린 팀', 'stale_handoffs': '받는 팀',
-        'ad_coin_ledger': 'AI AD Coin', 'payment_flow': 'AI AD Coin', 'vector_index_usage': '검색과 RAG', 'north_star': 'PM'}
+        'ad_coin_ledger': 'AI AD Coin', 'payment_flow': 'AI AD Coin', 'adcoin_daemon': 'AI AD Coin', 'vector_index_usage': '검색과 RAG', 'north_star': 'PM'}
 ALERT_SYSTEM = (
     'You write operations alerts in Korean for the owner of the Agent Concierge website. '
     'Input is JSON describing detected anomalies. Write at most three short lines in plain Korean: what is wrong, '

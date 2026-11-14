@@ -12,6 +12,9 @@ Prints one JSON line and appends it to logs/ops/watch.jsonl. "anomalies" lists o
   its hourly trend and the five processes with the most resident memory)
 - disk: data volume 85 percent used or less than 60 GB free
 - stale_handoffs: status board hand-offs still "대기" (waiting) for more than 6 hours (by board mtime)
+- adcoin_daemon: the AD Coin worker daemon is not running, its LaunchAgents plist is gone (launchd would not start it
+  after a reboot), or its code (the daemon script and agent_market/ad_coin .py/.json) differs from the active
+  frontend release, so it needs a reinstall (11-14 PM). Every run records its state and release.
 Exit code 0 always; the caller reads "anomalies".
 """
 import json
@@ -193,6 +196,59 @@ def check_disk():
     return {'used_percent': round(usage.used * 100 / usage.total), 'free_gb': round(usage.free / 1e9)}
 
 
+DAEMON = 'biz.agentconcierge.498590e0b3.adcoin-worker'
+RELEASES = ROOT / 'gateway-data/services/releases'
+SERVICE_STATE = ROOT / 'gateway-data/services/state.json'
+
+
+def _daemon_code(release_dir):
+    """sha256 over the files the worker daemon runs (its script and agent_market/ad_coin .py/.json), or None."""
+    import hashlib
+    files = [release_dir / 'scripts/ad_coin_worker_daemon.py']
+    files += sorted(f for f in (release_dir / 'agent_market/ad_coin').rglob('*') if f.suffix in ('.py', '.json'))
+    digest = hashlib.sha256()
+    try:
+        for f in files:
+            digest.update(str(f.relative_to(release_dir)).encode() + b'\0' + f.read_bytes())
+    except (OSError, ValueError):
+        return None
+    return digest.hexdigest()
+
+
+def check_adcoin_daemon(printed=None, plist_dir=None, releases=None, state_file=None):
+    """State of the AD Coin worker daemon and the problems to act on ('not_running', 'plist_missing',
+    'reinstall_needed'). 11-14: it ran from adv-frontend-20261114-r1 with no plist on disk."""
+    import os
+    if printed is None:
+        try:
+            printed = subprocess.run(['launchctl', 'print', 'gui/%d/%s' % (os.getuid(), DAEMON)],
+                                     capture_output=True, text=True, timeout=10).stdout
+        except (OSError, subprocess.SubprocessError):
+            printed = ''
+    releases = Path(releases or RELEASES)
+    state = {'running': 'state = running' in printed,
+             'release': next((line.split('/releases/', 1)[1].split('/', 1)[0] for line in printed.splitlines()
+                              if line.strip().startswith('working directory') and '/releases/' in line), None),
+             'plist_on_disk': (Path(plist_dir or Path.home() / 'Library/LaunchAgents') / (DAEMON + '.plist')).exists()}
+    try:
+        fe = json.loads(Path(state_file or SERVICE_STATE).read_text())['services']['frontend']
+        state['active_frontend'] = fe['slots'][fe['active']]
+    except (OSError, ValueError, KeyError):
+        state['active_frontend'] = None
+    problems = []
+    if not state['running']:
+        problems.append('not_running')
+    if not state['plist_on_disk']:
+        problems.append('plist_missing')
+    if state['running'] and state['release'] and state['active_frontend'] and state['release'] != state['active_frontend']:
+        ran, active = _daemon_code(releases / state['release']), _daemon_code(releases / state['active_frontend'])
+        state['code_same_as_active'] = bool(ran and active and ran == active)
+        if ran and active and ran != active:
+            problems.append('reinstall_needed')
+    state['problems'] = problems
+    return state
+
+
 def main():
     anomalies = {}
     site, site_path = check_site()
@@ -220,8 +276,11 @@ def main():
     if disk and (disk['used_percent'] >= 85 or disk['free_gb'] < 60):
         anomalies['disk'] = disk
     anomalies.update(check_board())
+    daemon = check_adcoin_daemon()
+    if daemon['problems']:
+        anomalies['adcoin_daemon'] = daemon
     record = {'at': datetime.now().strftime('%Y-%m-%d %H:%M'), 'memory_free_percent': free,
-              'swap': swap, 'top_memory': top_memory(), 'anomalies': anomalies}
+              'swap': swap, 'top_memory': top_memory(), 'adcoin_daemon': daemon, 'anomalies': anomalies}
     if site_path:  # recorded, not alerted: the second fresh connection got 200 (see check_site)
         record['site_path'] = site_path
     OUT.parent.mkdir(parents=True, exist_ok=True)
