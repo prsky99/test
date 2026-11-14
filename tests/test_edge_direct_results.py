@@ -312,3 +312,19 @@ def test_paid_mcp_fallback_does_not_create_an_authenticated_visitor_during_prepa
     response=edge.client.post('/mcp',content=raw,headers=headers)
     assert response.json()=={'backend':'origin'}
     assert not edge.store.query('SELECT * FROM edge_gateway_runs') and not edge.calls
+
+
+def test_a_worker_finish_reaches_recommendation_order_once(machine_edge,monkeypatch):
+    """11-14 real tasks a02/p03: edge failures never reached task_outcomes, so the same agents were recommended again."""
+    from agent_market.edge_gateway import machine
+    from agent_market.concierge import task_outcomes
+    counted=[]
+    monkeypatch.setattr(task_outcomes,'count',lambda rid,outcome,**k:counted.append((rid,outcome)))
+    edge,rid=machine_edge
+    edge.service.config=replace(edge.service.config,direct_result_delivery=True)
+    monkeypatch.setattr(edge.front.proxy,'execute',lambda *a,**k:pytest.fail('No Provider execution'))
+    plan=machine.execute(edge.front,rid,'get_weather',{'city':'Tokyo'},principal='synthetic-visitor',idempotency_key='needs-key',prepare_only=True)
+    binding=edge.service.claim(plan['access_token'],ORIGIN,plan['run_id'],plan['input'],'worker')
+    edge.service.finish(plan['run_id'],binding['attempt_id'],'failed',outcome_code='PROVIDER_AUTH_REQUIRED')
+    edge.service.finish(plan['run_id'],binding['attempt_id'],'failed',outcome_code='PROVIDER_AUTH_REQUIRED')   # lost ack retry
+    assert counted==[(rid,'needs_key')]

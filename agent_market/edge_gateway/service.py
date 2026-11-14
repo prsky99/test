@@ -264,6 +264,7 @@ class Service:
             raise EdgeError('INVALID_INPUT', 400)
         code = outcome_code or (None if outcome == 'succeeded' else 'OUTCOME_UNKNOWN' if outcome == 'outcome_unknown' else 'EXECUTION_FAILED')
         now = self.clock()
+        fresh = False
         with transaction(self.store) as db:
             self.policy(db, lock=True)
             found = rows(db, 'run', (run_id,))
@@ -278,11 +279,26 @@ class Service:
                 if execute(db, 'finish', (outcome, now, code, run_id, attempt)).rowcount != 1:
                     raise EdgeError('OUTCOME_CONFLICT', 409)
                 row = {**row, 'state': outcome, 'finished': now, 'error_code': code}
+                fresh = True
+        if fresh:
+            self.count_outcome(row)   # outside the transaction; the first finish only, never a retried acknowledgement
         # Worker-owned public endpoints can bypass ManagedGateway entirely.
         # Retry this local projection after a lost completion acknowledgement;
         # never repeat provider IO or refresh the original completion time.
         self.record_mcp_evidence(row)
         return {'ok': True}
+
+    @staticmethod
+    def count_outcome(row):
+        """Recommendation order reads recent task outcomes (concierge.task_outcomes); a run the Worker finished
+        counts once, at its first finish, like a call through ManagedGateway. A provider that asks for its own key
+        counts as needs_key; an unknown outcome (timeout) is not counted."""
+        from ..concierge.task_outcomes import count
+        state, code = row.get('state'), row.get('error_code')
+        outcome = ('succeeded' if state == 'succeeded' else 'needs_key' if code == 'PROVIDER_AUTH_REQUIRED'
+                   else 'failed' if state == 'failed' else None)
+        if outcome is not None:
+            count(row.get('resource_id'), outcome, tool=row.get('tool') if isinstance(row.get('tool'), str) else None)
 
     def record_mcp_evidence(self, row):
         if row['backend'] != 'worker':
