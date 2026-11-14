@@ -15,6 +15,8 @@ Prints one JSON line and appends it to logs/ops/watch.jsonl. "anomalies" lists o
 - adcoin_daemon: the AD Coin worker daemon is not running, its LaunchAgents plist is gone (launchd would not start it
   after a reboot), or its code (the daemon script and agent_market/ad_coin .py/.json) differs from the active
   frontend release, so it needs a reinstall (11-14 PM). Every run records its state and release.
+Every run also records production database connections per role (11-15 PM, no database session: the client side
+of each Unix socket is matched to a backend of the production postmaster with lsof), to learn the daytime peak.
 Exit code 0 always; the caller reads "anomalies".
 """
 import json
@@ -249,6 +251,65 @@ def check_adcoin_daemon(printed=None, plist_dir=None, releases=None, state_file=
     return state
 
 
+PG_PID_FILE = ROOT / 'gateway-data/postgres18/data/postmaster.pid'
+ROLES = ('frontend', 'jobs', 'admin', 'execution')
+
+
+def _unix_sockets(args):
+    out = subprocess.run(['lsof', '-a', '-U', '-F', 'pdn'] + args, capture_output=True, text=True, timeout=20).stdout
+    rows, pid, dev = [], None, None
+    for line in out.splitlines():
+        if line[:1] == 'p':
+            pid = int(line[1:])
+        elif line[:1] == 'd':
+            dev = line[1:]
+        elif line[:1] == 'n':
+            rows.append((pid, dev, line[1:]))
+    return rows
+
+
+def _service_role(args):
+    if 'ad_coin_worker_daemon' in args:
+        return 'adcoin_daemon'
+    release = args.split('/releases/', 1)[1].split('/', 1)[0] if '/releases/' in args else ''
+    return next((role for role in ROLES if '-%s-' % role in '-%s-' % release), None)
+
+
+def db_connections(ps_text=None, sockets=None, postmaster=None):
+    """Connections to the production database per role, by matching sockets; None when it cannot tell."""
+    try:
+        postmaster = postmaster or int(PG_PID_FILE.read_text().split()[0])
+        ps_text = ps_text if ps_text is not None else subprocess.run(['ps', '-Ao', 'pid=,ppid=,args='], capture_output=True,
+                                                                     text=True, timeout=10).stdout
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+    backends, services = set(), {}
+    for line in ps_text.splitlines():
+        parts = line.split(None, 2)
+        if len(parts) < 3 or not parts[0].isdigit():
+            continue
+        pid, ppid, args = int(parts[0]), int(parts[1]), parts[2]
+        if ppid == postmaster:
+            backends.add(pid)
+        elif '/releases/' in args.split(' ', 1)[0] and '/bin/python' in args.split(' ', 1)[0]:   # not shells quoting it
+            role = _service_role(args)
+            if role:
+                services[pid] = role
+    try:
+        given = sockets is not None   # tests pass every socket; live runs ask lsof per service process
+        sockets = sockets if given else _unix_sockets(['-c', 'postgres'])
+        server = {dev for pid, dev, _ in sockets if pid in backends}
+        roles, processes = {}, {}
+        for pid, role in services.items():
+            mine = [row for row in sockets if row[0] == pid] if given else _unix_sockets(['-p', str(pid)])
+            roles[role] = roles.get(role, 0) + sum(1 for _, _, name in mine if name.startswith('->') and name[2:] in server)
+            processes[role] = processes.get(role, 0) + 1
+    except (OSError, subprocess.SubprocessError):
+        return None
+    total = len(server)
+    return {'total': total, 'roles': roles, 'processes': processes, 'other': total - sum(roles.values())}
+
+
 def main():
     anomalies = {}
     site, site_path = check_site()
@@ -280,7 +341,8 @@ def main():
     if daemon['problems']:
         anomalies['adcoin_daemon'] = daemon
     record = {'at': datetime.now().strftime('%Y-%m-%d %H:%M'), 'memory_free_percent': free,
-              'swap': swap, 'top_memory': top_memory(), 'adcoin_daemon': daemon, 'anomalies': anomalies}
+              'swap': swap, 'top_memory': top_memory(), 'adcoin_daemon': daemon,
+              'db_connections': db_connections(), 'anomalies': anomalies}
     if site_path:  # recorded, not alerted: the second fresh connection got 200 (see check_site)
         record['site_path'] = site_path
     OUT.parent.mkdir(parents=True, exist_ok=True)

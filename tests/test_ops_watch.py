@@ -328,3 +328,28 @@ def test_adcoin_daemon_state_plist_and_reinstall(tmp_path):
     assert run('same')['problems'] == [] and run('same')['code_same_as_active'] is True
     assert run('old')['problems'] == []
     assert run('new', printed='')['problems'] == ['not_running']
+
+
+def test_db_connections_per_role_by_socket_pairs():
+    """PM 11-15: daytime peak of production connections per role, without opening a database session."""
+    from scripts import ops_watch as w
+    rel = '/x/gateway-data/services/releases/'
+    ps = '\n'.join([
+        '100 1 /opt/homebrew/bin/postgres -D /x/data',
+        '101 100 postgres: agentcon_app db [local] idle', '102 100 postgres: agentcon_app db [local] idle',
+        '103 100 postgres: agentcon_app db [local] idle', '104 100 postgres: kingstonelee db [local] idle',
+        '105 100 postgres: walwriter',
+        '200 1 %seve-frontend-20261114-r1/.venv/bin/python -B -m agent_market.service_host frontend' % rel,
+        '201 1 %salign-admin-20261113-r2/.venv/bin/python -B -m agent_market.service_host admin' % rel,
+        '202 1 %sadv-frontend-20261114-r1/.venv/bin/python -B %sadv-frontend-20261114-r1/scripts/ad_coin_worker_daemon.py' % (rel, rel),
+        '300 9 /bin/zsh -c grep ad_coin_worker_daemon %sx/.venv/bin/python' % rel,      # a shell quoting it
+        '400 1 /opt/homebrew/bin/postgres -D /other/cluster', '401 400 postgres: other',
+    ])
+    sockets = [(101, 'a', '->f1'), (102, 'b', '->f2'), (103, 'c', '->d1'), (104, 'd', '->ops'), (401, 'e', '->f3'),
+               (200, 'f1', '->a'), (200, 'f2', '->b'), (200, 'f9', '->zz'), (201, 'g1', '->none'),
+               (202, 'd1', '->c'), (200, 'f3x', '->e')]
+    got = w.db_connections(ps, sockets, 100)
+    assert got == {'total': 4, 'roles': {'frontend': 2, 'admin': 0, 'adcoin_daemon': 1},
+                   'processes': {'frontend': 1, 'admin': 1, 'adcoin_daemon': 1}, 'other': 1}
+    assert w._service_role('/r/releases/jobs15-jobs-20261115-r1/.venv/bin/python -B x') == 'jobs'
+    assert w.db_connections('', [], 100) == {'total': 0, 'roles': {}, 'processes': {}, 'other': 0}
