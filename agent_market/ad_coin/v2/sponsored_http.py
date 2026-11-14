@@ -60,10 +60,15 @@ def router_for(slots) -> APIRouter:
             if surface not in SURFACES:
                 raise ContractError("unsupported_surface", 422)
             where = region_of(request, region)
-            if not wants_ads(dict(request.query_params), dict(request.headers)) or sensitive(category, q[:500]):
-                return JSONResponse({"sponsored": None}, headers=headers)
-            body = await run_in_threadpool(slots.response, category, where, "explore", 2, False)
+            # Always 200: no ad is a normal answer, never an outage (PM 11-14). reason says why the slot is empty.
+            if not wants_ads(dict(request.query_params), dict(request.headers)):
+                return JSONResponse({"sponsored": None, "reason": "ads_none"}, headers=headers)
+            if sensitive(category, q[:500]):
+                return JSONResponse({"sponsored": None, "reason": "sensitive_topic"}, headers=headers)
             mapped = SITE_CATEGORIES.get(category, category)
+            if mapped not in slots.taxonomy:                   # an unknown or missing category: no ad, not an error
+                return JSONResponse({"sponsored": None, "reason": "no_offer"}, headers=headers)
+            body = await run_in_threadpool(slots.response, category, where, "explore", 2, False)
             for card in body["cards"]:
                 offer = await run_in_threadpool(approved_offer, slots.store, card["id"])
                 if offer:
@@ -71,7 +76,7 @@ def router_for(slots) -> APIRouter:
                     block["click_url"] = "/api/ad-coin/v2/sponsored/click/%s?surface=%s&category=%s" % (
                         card["id"], surface, category)
                     return JSONResponse({"sponsored": block}, headers=headers)
-            return JSONResponse({"sponsored": None}, headers=headers)
+            return JSONResponse({"sponsored": None, "reason": "no_offer"}, headers=headers)
         except ContractError as exc:
             return JSONResponse(_error(exc.code, exc.status, str(uuid4())), status_code=exc.status)
 

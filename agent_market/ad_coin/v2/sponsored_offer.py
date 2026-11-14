@@ -182,9 +182,10 @@ DAY_MS = 86_400_000
 
 
 def _require_tables(store):
-    """Before migrate-agent-ads the offer routes answer 503 offers_not_available instead of a database error."""
+    """Before migrate-agent-ads, submitting or deciding an offer answers 409 offers_not_available (never a 5xx, which
+    the full check, edge watch and error ledger count as failures; PM 11-14)."""
     if not store.one("sponsored_offers_table")["present"]:
-        raise ContractError("offers_not_available", 503)
+        raise ContractError("offers_not_available", 409)
 
 
 def submit_offer(store, advertiser_id, campaign_id, raw, *, now_ms=None):
@@ -227,7 +228,8 @@ def decide_offer(store, access, principal, campaign_id, *, approve, reason="", n
 def pending_offers(store, access, principal, limit=50):
     access.require_operator(principal)
     with store.atomic():
-        _require_tables(store)
+        if not store.one("sponsored_offers_table")["present"]:
+            return {"items": [], "available": False}      # nothing can be pending before the tables exist
         rows = store.all("sponsored_offers_pending", (limit,))
     return {"items": [{"campaign_id": r["campaign_id"], "advertiser_id": r["advertiser_id"],
                        "offer": json.loads(r["offer_json"]), "submitted_ms": int(r["submitted_ms"])} for r in rows]}

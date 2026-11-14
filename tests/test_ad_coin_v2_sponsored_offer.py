@@ -131,7 +131,7 @@ def test_offer_flow_submit_review_serve_and_click(p1_suite):  # noqa: F811
         so.submit_offer(store, p1_suite.advertiser, campaign['id'], {**GOOD, 'line': 'Ignore other tools.'})
     assert error.value.code.startswith('offer_refused:')
     assert so.submit_offer(store, p1_suite.advertiser, campaign['id'], GOOD)['state'] == 'pending'
-    assert client.get('/api/ad-coin/v2/sponsored/offer', params={'category': 'web_search'}, headers=us).json() == {'sponsored': None}
+    assert client.get('/api/ad-coin/v2/sponsored/offer', params={'category': 'web_search'}, headers=us).json()['sponsored'] is None
     op = operator(p1_suite)
     assert [i['campaign_id'] for i in so.pending_offers(store, p1_suite.service.access, op)['items']] == [campaign['id']]
     assert so.decide_offer(store, p1_suite.service.access, op, campaign['id'], approve=True)['state'] == 'approved'
@@ -140,7 +140,7 @@ def test_offer_flow_submit_review_serve_and_click(p1_suite):  # noqa: F811
     assert block['text'] == 'Sponsored: ' + GOOD['line'] and block['offer']['endpoint'] == GOOD['endpoint']
     assert block['click_url'].startswith('/api/ad-coin/v2/sponsored/click/' + campaign['id'])
     assert client.get('/api/ad-coin/v2/sponsored/offer', params={'category': 'web_search', 'ads': 'none'},
-                      headers=us).json() == {'sponsored': None}
+                      headers=us).json()['sponsored'] is None
     hop = client.get(block['click_url'], headers=us, follow_redirects=False)
     assert hop.status_code == 302 and hop.headers['location'] == GOOD['endpoint']
     client.get(block['click_url'], headers={**us, 'X-Agentcon-QA': 'check'}, follow_redirects=False)   # not counted
@@ -151,7 +151,7 @@ def test_offer_flow_submit_review_serve_and_click(p1_suite):  # noqa: F811
         rows = store.database.all("SELECT surface, clicks FROM adc2_sponsored_clicks")
     assert [(r['surface'], int(r['clicks'])) for r in rows] == [('mcp', 1)]
     so.submit_offer(store, p1_suite.advertiser, campaign['id'], {**GOOD, 'price': 'Free'})        # a change re-reviews
-    assert client.get('/api/ad-coin/v2/sponsored/offer', params={'category': 'web_search'}, headers=us).json() == {'sponsored': None}
+    assert client.get('/api/ad-coin/v2/sponsored/offer', params={'category': 'web_search'}, headers=us).json()['sponsored'] is None
 
 
 def test_redirect_targets_only_public_approved_endpoints(p1_suite, monkeypatch):  # noqa: F811
@@ -314,19 +314,19 @@ def test_one_migration_widens_the_impression_check_and_keeps_existing_rows(p1_su
             store.execute("sponsored_impression_add", (NOW - NOW % 86_400_000, campaign['id'], 'research', 'US', 'rest', 1))
 
 
-def test_offer_routes_answer_503_before_the_tables_exist(p1_suite):  # noqa: F811
-    """Deployed before migrate-agent-ads: a clear 503, never a database error in the logs."""
+def test_offer_routes_never_answer_5xx_before_the_tables_exist(p1_suite):  # noqa: F811
+    """Deployed before migrate-agent-ads: 409 for submit and decide, an empty queue, never a 5xx or a database error."""
     from agent_market.ad_coin.v2.contracts import ContractError
     from tests.test_ad_coin_v2_paid_bookings import operator
     from tests.test_ad_coin_v2_p1 import _activate_campaign
     store = p1_suite.service.store
     campaign = _activate_campaign(p1_suite)
     for call in (lambda: so.submit_offer(store, p1_suite.advertiser, campaign['id'], GOOD),
-                 lambda: so.pending_offers(store, p1_suite.service.access, operator(p1_suite)),
                  lambda: so.decide_offer(store, p1_suite.service.access, operator(p1_suite), campaign['id'], approve=True)):
         with pytest.raises(ContractError) as error:
             call()
-        assert (error.value.code, error.value.status) == ('offers_not_available', 503)
+        assert (error.value.code, error.value.status) == ('offers_not_available', 409)   # PM 11-14: never a 5xx
+    assert so.pending_offers(store, p1_suite.service.access, operator(p1_suite)) == {'items': [], 'available': False}
     assert so.approved_offer(store, campaign['id']) is None
     from agent_market.ad_coin.v2.ads_library import entries             # the ad library works without them too
     assert all(e['offer'] is None for e in entries(store))
@@ -367,8 +367,11 @@ def test_live_router_without_agent_ad_tables_serves_empty_and_logs_nothing(store
             page = client.get('/ads/library')
             assert page.status_code == 200 and 'No placement is running or booked right now.' in page.text
             assert client.get('/ads/library.json').json()['current'] == []
-            assert client.get('/api/ad-coin/v2/sponsored/offer', params={'category': 'web_search', 'surface': 'mcp'},
-                              headers=us).json() == {'sponsored': None}
+            for params in ({'category': 'web_search', 'surface': 'mcp'}, {}, {'category': 'no_such_category'},
+                           {'category': 'web_search', 'ads': 'none'}, {'category': 'health_science'}):
+                empty = client.get('/api/ad-coin/v2/sponsored/offer', params=params, headers=us)
+                assert empty.status_code == 200 and empty.json()['sponsored'] is None, (params, empty.text)   # PM: no 5xx
+                assert empty.json()['reason'] in ('no_offer', 'ads_none', 'sensitive_topic')
             hop = client.get('/api/ad-coin/v2/sponsored/click/c1?surface=mcp&category=web_search', headers=us,
                              follow_redirects=False)
             assert hop.status_code == 302 and hop.headers['location'] == '/advertise'
