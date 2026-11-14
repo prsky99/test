@@ -2,6 +2,7 @@
 import copy
 import hashlib
 import json
+import os
 from pathlib import Path
 import sqlite3
 import subprocess
@@ -22,6 +23,14 @@ from tests.test_admin_security_audit import login,session_headers
 from agent_market.gateway.admin_auth import create_admin_user
 
 
+
+
+def _sqlite_env():
+    """The maintenance CLI picks its backend from the environment; a test run must never reach the
+    production Postgres even if an earlier test left APPLICATION_* values behind (PM 11-15)."""
+    env={k:v for k,v in os.environ.items() if not k.startswith('APPLICATION_')}
+    env['APPLICATION_STORE_BACKEND']='sqlite'
+    return env
 def principal(rt,wf):return rt.principal('admin','internal',wf['id'],role='superadmin')
 
 
@@ -177,7 +186,7 @@ def test_preview_cli_does_not_recover_or_write_live_state(runtime,monkeypatch):
     rt.persistence.claim(job['run_id'],'old',25)
     with rt.store.tx() as db:db.execute('UPDATE workflow_runs SET lease_until=0 WHERE id=?',(job['run_id'],))
     before=dict(rt.store.query('SELECT * FROM workflow_runs WHERE id=?',(job['run_id'],))[0])
-    result=subprocess.run([sys.executable,'-m','agent_market.workflow_maintenance','--db',rt.store._path],capture_output=True,text=True,timeout=10)
+    result=subprocess.run([sys.executable,'-m','agent_market.workflow_maintenance','--db',rt.store._path],env=_sqlite_env(),capture_output=True,text=True,timeout=10)
     assert result.returncode==0,result.stderr
     assert json.loads(result.stdout)['dry_run']
     assert dict(rt.store.query('SELECT * FROM workflow_runs WHERE id=?',(job['run_id'],))[0])==before
@@ -230,7 +239,7 @@ def test_postgres_round_trip_includes_routing_operations_budgets_and_retention(r
 def test_apply_cli_preserves_signatures_and_idempotency(runtime):
     rt,rid,_=runtime;wf=save(rt.store,[node(resource_id=rid,action='get_weather',input={'city':'Tokyo'})]);job=rt.submit(wf,idempotency='cli-retained');wait(rt,job)
     with rt.store.tx() as db:db.execute('UPDATE workflow_runs SET finished=? WHERE id=?',(time.time()-20*86400,job['run_id']))
-    result=subprocess.run([sys.executable,'-m','agent_market.workflow_maintenance','--db',rt.store._path,'--apply'],capture_output=True,text=True,timeout=10)
+    result=subprocess.run([sys.executable,'-m','agent_market.workflow_maintenance','--db',rt.store._path,'--apply'],env=_sqlite_env(),capture_output=True,text=True,timeout=10)
     assert result.returncode==0,result.stderr
     assert json.loads(result.stdout)['bodies_compacted']==1
     proof=rt.store.query('SELECT * FROM workflow_run_archives WHERE run_id=?',(job['run_id'],))[0]

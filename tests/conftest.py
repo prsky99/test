@@ -116,3 +116,20 @@ def isolated_provider_budget(monkeypatch, tmp_path_factory):
     tests count into a temporary folder so they never use up the services' allowance."""
     from agent_market import provider_budget
     monkeypatch.setattr(provider_budget, 'DIR', tmp_path_factory.mktemp('provider-budget'))
+
+
+_PRODUCTION_POINTERS = ('APPLICATION_', 'AGENTCON_PROJECT_ROOT', 'GATEWAY_DB', 'COLLECTOR_DB')
+
+
+@pytest.fixture(autouse=True)
+def _no_production_storage_leak():
+    """PM 11-15: a test that calls a script's main() left APPLICATION_STORE_BACKEND=postgresql and the
+    production DSN file in os.environ, and a later test's subprocess (workflow_maintenance --apply) opened
+    the production Postgres. Values that point at storage are restored after every test, whoever set them."""
+    import os
+    before = {k: v for k, v in os.environ.items() if k.startswith(_PRODUCTION_POINTERS)}
+    yield
+    for key in [k for k in os.environ if k.startswith(_PRODUCTION_POINTERS)]:
+        if key not in before:
+            del os.environ[key]
+    os.environ.update(before)

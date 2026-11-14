@@ -14,6 +14,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def _load_builder(monkeypatch, out, per_kind='2'):
+    # main() sets the production storage defaults with os.environ.setdefault; registering the keys here
+    # makes monkeypatch remove them after the test, so no later test (or its subprocess) inherits a
+    # production Postgres backend (PM 11-15, order-dependent failure in test_workflow_operations_hardening).
+    for key in ('APPLICATION_STORE_BACKEND', 'APPLICATION_POSTGRES_DSN_FILE', 'APPLICATION_WORKFLOW_KEY_FILE'):
+        monkeypatch.delenv(key, raising=False)
     monkeypatch.setattr(sys, 'argv', ['build_probed_report_drafts.py', per_kind, str(out)])
     spec = importlib.util.spec_from_file_location('build_probed_report_drafts', ROOT / 'scripts/build_probed_report_drafts.py')
     module = importlib.util.module_from_spec(spec)
