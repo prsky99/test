@@ -204,3 +204,11 @@ def test_per_kind_halfvec_indexes_are_used_once_present_and_rolled_back_cleanly(
             with store.tx(readonly=True):
                 assert layout(store)['kind_column'] is False and nearest(store,blob,descriptor,kind='mcp')==before
             store.close()
+
+
+def test_an_unknown_kind_never_reaches_the_shared_graph():
+    """11-14 plan A: the shared graph is unused since 11-13 and may be dropped; an unknown kind returns nothing."""
+    from agent_market import postgres_ann
+    calls = []
+    assert postgres_ann.kind_graph_search(object(), 'workflow', lambda *a: calls.append(a) or []) == []
+    assert calls == []
