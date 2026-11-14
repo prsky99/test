@@ -19,7 +19,7 @@ PUBLIC_READS = frozenset(('/api/overview','/api/insights','/api/explore','/api/a
     '/api/test/presets','/robots.txt','/sitemap.xml','/llms.txt','/llms-full.txt',
     '/.well-known/agent-card.json','/.well-known/mcp.json','/.well-known/mcp/server.json',
     '/.well-known/security.txt','/security.txt','/openapi.json','/skill.md',
-    '/page-metadata.json', '/daily-home-metadata.json')) | EDGE_REDIRECTS | CARD_ALIASES  # 11-13/14: pearl_view
+    '/page-metadata.json', '/daily-home-metadata.json', '/.well-known/glama.json')) | EDGE_REDIRECTS | CARD_ALIASES  # 11-13/14: pearl_view
 # Agent discovery documents the Cloudflare cache rule keeps at the edge (11-03). s-maxage lets the
 # edge hold them for ten minutes while browsers and agents still revalidate after 30 seconds;
 # with max-age alone the edge copy expired after 30 seconds (4 HITs in 24 cold requests, 11-04).
@@ -38,7 +38,7 @@ EDGE_DOCUMENT_CACHE = 'public, max-age=600, stale-while-revalidate=3600'  # robo
 # 11-13 PM decision: /api/insights is a jobs snapshot rewritten every five minutes, the same bytes for every
 # visitor, so the edge (cache rule 'Public insights') and browsers keep it as long as one snapshot lives.
 # max-age, not s-maxage, for the same reason as above. Credentialed requests stay no-store (_credentials).
-SNAPSHOT_READS = frozenset(('/api/insights', '/daily-home-metadata.json'))  # 11-14: the daily home payload
+SNAPSHOT_READS = frozenset(('/api/insights', '/daily-home-metadata.json', '/.well-known/glama.json'))  # 11-14 Glama claim: 5 min  # 11-14: the daily home payload
 SNAPSHOT_CACHE = 'public, max-age=300, stale-while-revalidate=300'
 # 11-13 PM 22:3x: the public agent detail (/api/agents/{id}) and the verification feed answered in 80-190 ms at the
 # origin but 1.3-9.8 s from Korea, every time through the tunnel (no-store, DYNAMIC). Neither reads the request:

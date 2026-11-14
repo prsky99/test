@@ -84,6 +84,7 @@ TESTS = (
     'tests/test_necklace_surface.py',  # 11-14 PM: necklace pages, list, feed and notices read the judged snapshot only
     'tests/test_methodology_page.py',  # 11-14 PM super-gap 1: /methodology from the generated method file
     'tests/test_check_route.py',  # 11-14 PM super-gap 2: verify_agent and best_for_role from the verify snapshot only
+    'tests/test_glama_claim.py',  # 11-14 PM: /.well-known/glama.json serves only the exact public claim document
 )
 # Each role runs the tests for the code it serves. jobs releases run the collector, health checks,
 # crawler and evaluation without the typed execution engine, so the opening-path list above
