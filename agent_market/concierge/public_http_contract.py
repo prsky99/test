@@ -5,6 +5,7 @@ only for the login-free public growth pages (GROWTH_PAGES, 11-10).
 """
 import hashlib
 import json
+import re
 
 from starlette.datastructures import Headers, MutableHeaders
 from .conditional_http import etag_matches
@@ -20,14 +21,14 @@ PUBLIC_READS = frozenset(('/api/overview','/api/insights','/api/explore','/api/a
     '/.well-known/agent-card.json','/.well-known/mcp.json','/.well-known/mcp/server.json',
     '/.well-known/security.txt','/security.txt','/openapi.json','/skill.md',
     '/page-metadata.json', '/daily-home-metadata.json', '/.well-known/glama.json',
-    '/methodology.json')) | EDGE_REDIRECTS | CARD_ALIASES  # 11-13/14: pearl_view
+    '/methodology.json', '/ads/library', '/ads/library.json')) | EDGE_REDIRECTS | CARD_ALIASES  # 11-13/14: pearl_view; 11-14 ad library
 # Agent discovery documents the Cloudflare cache rule keeps at the edge (11-03). s-maxage lets the
 # edge hold them for ten minutes while browsers and agents still revalidate after 30 seconds;
 # with max-age alone the edge copy expired after 30 seconds (4 HITs in 24 cold requests, 11-04).
 EDGE_DOCUMENTS = frozenset(('/robots.txt','/sitemap.xml','/llms.txt','/llms-full.txt',
     '/.well-known/agent-card.json','/.well-known/mcp.json','/.well-known/mcp/server.json',
     '/.well-known/security.txt','/security.txt','/openapi.json','/skill.md',
-    '/methodology.json')) | EDGE_REDIRECTS | CARD_ALIASES
+    '/methodology.json', '/ads/library', '/ads/library.json')) | EDGE_REDIRECTS | CARD_ALIASES  # 11-14 ad library: 10 minutes
 # Static discovery documents change rarely; the edge keeps them an hour so an expiry seldom
 # sends an agent to the origin (11-11 PM decision: llms.txt took 3.88 s from Korea on a MISS).
 # No purge on deploy: an edit may take up to an hour to reach the edge.
@@ -98,10 +99,22 @@ def agent_detail_path(path):
     return rest.isdigit() and rest.isascii() and len(rest) <= 12
 
 
+_ROLE_BEST = re.compile(r'/api/roles/[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*\.v[0-9]{1,3}/best')
+
+
+def role_best_path(path):
+    """/api/roles/<role>/best (Check-and-Route, snapshot file only): kept like the role list (PM 11-14 11:1x, was no-store)."""
+    return len(path) <= 120 and _ROLE_BEST.fullmatch(path) is not None
+
+
+def feed_path(path):
+    return path in FEED_READS or role_best_path(path)
+
+
 def shared_path(path):
     return (path in PUBLIC_READS or path.startswith('/api/workflows/templates/') or growth_path(path)
             or sitemap_part(path)  # 11-13: the sitemap parts are kept like /sitemap.xml
-            or path in FEED_READS or agent_detail_path(path))  # 11-13 PM 22:3x
+            or feed_path(path) or agent_detail_path(path))  # 11-13 PM 22:3x
 
 
 def _session_cookie(header):
@@ -165,7 +178,7 @@ class PublicHTTPContract:
                     if path in EDGE_DOCUMENTS or sitemap_part(path) else GROWTH_CACHE if growth_path(path)
                     else SNAPSHOT_CACHE if path in SNAPSHOT_READS
                     else AGENT_DETAIL_CACHE if agent_detail_path(path)
-                    else FEED_CACHE if path in FEED_READS
+                    else FEED_CACHE if feed_path(path)
                     else 'public, max-age=30, stale-while-revalidate=30')
                 if growth_path(path):  # the same URL answers HTML or Markdown by Accept
                     vary=[v.strip() for v in headers.get('vary','').split(',') if v.strip()]

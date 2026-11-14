@@ -62,3 +62,11 @@ def test_switch_is_read_from_the_environment_without_importing_ad_coin(monkeypat
     assert ap.usdc_open() is True and 'from your own wallet, when you book' in text(ap.page_html(rows=[]))
     monkeypatch.setenv(ap.PAID_SWITCH, '0')
     assert ap.usdc_open() is False and 'USDC payments are not open yet' in text(ap.page_html(rows=[]))
+
+
+def test_agent_offer_product_explains_fields_free_trial_facts_and_opt_out():
+    t = text(ap.page_html(rows=[], usdc=True))
+    for expected in ('Offers that agents read', 'Free trial for agents', '120 characters', 'even when they are low',
+                     'ads=none', 'Agent answers (MCP, A2A)'):
+        assert expected in t, expected
+    assert 'href="/ads/library"' in ap.page_html(rows=[], usdc=True)

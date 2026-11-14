@@ -157,6 +157,18 @@ def mcp_tools():
     import copy
     from .mcp_tasks import TOOL as RUN_WORKFLOW
     TOOLS.append({**copy.deepcopy(RUN_WORKFLOW), 'outputSchema': copy.deepcopy(TOOLS[-1]['outputSchema'])})
+    # Agent ad plan (A), PM 11-14: search, find_agents and best_for_role may end with one labelled Sponsored offer in a
+    # separate field (ad_slot.py, filled by the ad side only); the description says so and how to leave it out.
+    from . import ad_slot
+    for tool in TOOLS:
+        if tool['name'] in ('search', 'find_agents', 'best_for_role'):
+            tool['description'] = tool['description'].rstrip() + ' ' + ad_slot.DESCRIPTION_LINE
+            tool['inputSchema'] = {**tool['inputSchema'],
+                                   'properties': {**tool['inputSchema'].get('properties', {}), **ad_slot.ADS_ARGUMENT}}
+            tool['outputSchema'] = {**tool['outputSchema'], 'properties': {
+                **tool['outputSchema'].get('properties', {}),
+                'sponsored': {'type': 'array', 'maxItems': 1, 'items': {'type': 'object'},
+                              'description': 'At most one offer labelled Sponsored, after and apart from the results.'}}}
     # PM 11-14 04:5x (Glama TDQS): the legacy contact command is no longer listed; tools/call still answers it
     # (front.py counts each call as hidden_tool|subscribe) so a caller that already uses it keeps working.
     return [tool for tool in TOOLS if tool['name'] not in HIDDEN]
