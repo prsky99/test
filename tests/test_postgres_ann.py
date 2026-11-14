@@ -245,8 +245,12 @@ def test_per_host_graph_cap_marks_rows_and_is_used_once_present(monkeypatch):
             index._kind_layout=None
             with store.tx(readonly=True):
                 everything=nearest(store,blob,descriptor,kind='a2a')
+                # Without the column (code shipped before the DB change, 11-15 PM ③) nothing changes.
+                assert layout(store)['capped']==frozenset() and kind_search(store,'a2a')[0]=="e.kind='a2a'"
             assert sorted(everything)==sorted(crowd+[single])
+            monkeypatch.setattr(cap,'BATCH',1)  # several short statements, as on production (11-15 PM ①)
             steps=cap.migrate(conn)
+            assert steps['longest_statement_s']<1 and steps['add_column_retries']==0
             assert (steps['set_in'],steps['set_out'])==(3,0)  # crowd's best two and single; the rest stay out
             state=cap.status(conn)
             assert state['marks']['a2a']=={'in':3,'out':1} and state['public_triggers']==triggers

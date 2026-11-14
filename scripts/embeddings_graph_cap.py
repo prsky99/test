@@ -31,7 +31,11 @@ import psycopg
 CAP = 1000
 CAPPED_KINDS = ('a2a', 'x402')
 INDEXES = {kind: 'embeddings_half_' + kind + '_cap' for kind in CAPPED_KINDS}
-BATCH = 2000
+BATCH = 100        # 11-15 PM: no write may wait over 1 s (production lock_timeout 1 s, statement_timeout 5 s)
+BATCH_SECONDS = 0.5   # a statement over this halves the next batch; the 2,000-row batch held row locks 13-15 s
+PAUSE = 0.05       # seconds between statements, so a waiting writer gets the row
+DDL_LOCK = '500ms'  # the column DDL waits at most this for its lock, then retries, so writers never queue behind it
+DDL_TRIES = 20
 
 # Rank within (kind, host): rows a search can return first, then trial success, evaluation score, id.
 _RANKED = """SELECT e.resource_id, row_number() OVER (PARTITION BY e.kind, COALESCE(r.host, 'id:' || r.id::text)
@@ -80,22 +84,45 @@ def _mark(connection):
     counts = {True: 0, False: 0}
     for want in (True, False):
         ids = sorted(rid for rid, wanted in changes if wanted is want)
-        for start in range(0, len(ids), BATCH):
-            chunk = ids[start:start + BATCH]
+        size, start = BATCH, 0
+        while start < len(ids):
+            chunk = ids[start:start + size]
+            began = time.monotonic()
             counts[want] += connection.execute("""UPDATE agentcon_search.embeddings SET in_kind_graph=%s
                 WHERE resource_id = ANY(%s) AND in_kind_graph IS DISTINCT FROM %s""", (want, chunk, want)).rowcount
+            start += len(chunk)
+            took = time.monotonic() - began
+            _LONGEST[0] = max(_LONGEST[0], took)
+            if took > BATCH_SECONDS and size > 10:
+                size = max(10, size // 2)       # each statement holds its rows' locks; keep it short
+            time.sleep(PAUSE)
     return counts[True], counts[False]
+
+
+_LONGEST = [0.0]
+
+
+def _ddl(connection, statement):
+    """Run a DDL statement whose lock must never make writers queue: a short lock wait, retried."""
+    for attempt in range(DDL_TRIES):
+        try:
+            connection.execute("SET lock_timeout='" + DDL_LOCK + "'")
+            connection.execute(statement)
+            return attempt
+        except psycopg.errors.LockNotAvailable:
+            time.sleep(1 + attempt * 0.5)
+        finally:
+            connection.execute("SET lock_timeout='0'")
+    raise RuntimeError('lock_not_available: ' + statement[:60])
 
 
 def migrate(connection):
     steps = {}
     began = time.monotonic()
-    connection.execute("SET lock_timeout='2s'")
     if not _has_column(connection):
         # false for the existing rows (no rewrite), then true for rows inserted from now on.
-        connection.execute('ALTER TABLE agentcon_search.embeddings ADD COLUMN in_kind_graph boolean NOT NULL DEFAULT false')
-        connection.execute('ALTER TABLE agentcon_search.embeddings ALTER COLUMN in_kind_graph SET DEFAULT true')
-    connection.execute("SET lock_timeout='0'")
+        steps['add_column_retries'] = _ddl(connection, 'ALTER TABLE agentcon_search.embeddings ADD COLUMN in_kind_graph boolean NOT NULL DEFAULT false')
+        _ddl(connection, 'ALTER TABLE agentcon_search.embeddings ALTER COLUMN in_kind_graph SET DEFAULT true')
     steps['add_column_s'] = round(time.monotonic() - began, 2)
     began = time.monotonic()
     steps['set_in'], steps['set_out'] = _mark(connection)
@@ -116,6 +143,7 @@ def migrate(connection):
     began = time.monotonic()
     steps['reset_in'], steps['reset_out'] = _mark(connection)
     steps['remark_s'] = round(time.monotonic() - began, 1)
+    steps['longest_statement_s'] = round(_LONGEST[0], 2)
     return steps
 
 
@@ -124,7 +152,8 @@ def refresh(connection):
         return {'refreshed': False, 'reason': 'no_column'}
     began = time.monotonic()
     set_in, set_out = _mark(connection)
-    return {'refreshed': True, 'set_in': set_in, 'set_out': set_out, 'seconds': round(time.monotonic() - began, 1)}
+    return {'refreshed': True, 'set_in': set_in, 'set_out': set_out, 'seconds': round(time.monotonic() - began, 1),
+            'longest_statement_s': round(_LONGEST[0], 2)}
 
 
 def rollback(connection, wait_seconds=0):
@@ -133,8 +162,7 @@ def rollback(connection, wait_seconds=0):
     for name in INDEXES.values():
         connection.execute('DROP INDEX CONCURRENTLY IF EXISTS agentcon_search.' + name)
     time.sleep(wait_seconds)
-    connection.execute("SET lock_timeout='2s'")
-    connection.execute('ALTER TABLE agentcon_search.embeddings DROP COLUMN IF EXISTS in_kind_graph')
+    _ddl(connection, 'ALTER TABLE agentcon_search.embeddings DROP COLUMN IF EXISTS in_kind_graph')
     return {'rolled_back': True}
 
 
