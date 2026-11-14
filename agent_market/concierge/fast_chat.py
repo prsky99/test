@@ -418,6 +418,22 @@ RELAY_WIDEN = 30          # candidates read once more when none of the admitted 
 RELAY_WIDEN_BEFORE = 2.5  # seconds into a request after which that wider read does not start (recommend: 5 s interim)
 
 
+TRAIT_RETRY_BEFORE = 3.5  # seconds into a request after which the search without trait words does not start
+# Traits a request adds to a capability, not the capability itself: how much at once, past records, output format.
+# Price ("free"), place, language and input format ("PDF") stay conditions and are never dropped.
+TRAITS = re.compile(r"""\b(?:in\s+)?bulk\b|\bbatch(?:es|ed)?\b|\bwith\s+(?:full\s+)?history\b|\bhistorical\b
+  |\b(?:as|in)\s+(?:json|csv)\b|\b(?:json|csv)\s+(?:output|format|response)\b|\b(?:json|csv)\b""", re.I | re.X)
+
+
+def without_traits(task):
+    """TASK without its trait words and the words dropped (lower case, in order), or (TASK, [])."""
+    dropped = [' '.join(m.group(0).lower().split()) for m in TRAITS.finditer(str(task or ''))]
+    if not dropped:
+        return task, []
+    rest = ' '.join(TRAITS.sub(' ', str(task)).split())
+    return (rest, list(dict.fromkeys(dropped))) if rest else (task, [])
+
+
 def relayable(item):
     """False for an MCP recommendation whose chosen tool is left out of the gateway's tools/list (an action tool or
     one not verified read-only), so the caller could not run it through the gateway."""
@@ -830,6 +846,21 @@ class FastConcierge(Concierge):
                                                         exclude=excluded | {item.get('id') for item in items})
                        if relayable(item)]
             items = self._condition_admit(task, further)[:3] or items
+        if offset == 0 and (not items or not any(relayable(item) for item in items)) and \
+                time.monotonic() - started < TRAIT_RETRY_BEFORE:
+            # PM 11-14 10:3x decision (c): a trait the request adds to its capability ("shipping tracking bulk",
+            # "crypto price json output") left nothing, or nothing the gateway runs. Search once without those words,
+            # keep only relayed candidates that pass the original conditions, and say plainly which words are not
+            # confirmed; nothing is claimed about them (user_slo 10:07 mcp/35275, 07:05 no_match).
+            relaxed, dropped = without_traits(task)
+            if dropped:
+                step('relay')
+                found = [item for item in self.rec.search(retrieval_text(relaxed), kind=protocol, limit=RELAY_WIDEN,
+                                                          exclude=excluded | {item.get('id') for item in items})
+                         if relayable(item)]
+                found = self._condition_admit(task, found)[:3]
+                if found:
+                    items = [{**item, 'unverified': dropped} for item in found]
         items = relayable_only(items)
         if not items:
             if persist:
@@ -870,6 +901,10 @@ class FastConcierge(Concierge):
             item['display_name'] = agent_display_name(item)
             item['task_fit'] = merged_fit(spec.required, item)
             item['reason'] = recommendation_reason(subject, item)
+            if item.get('unverified'):
+                words = ', '.join(item['unverified'])
+                item['reason']['not_confirmed'] = item['reason']['not_confirmed'] + list(item['unverified'])
+                item['reason']['text'] = item['reason']['text'][:-1] + '; not confirmed (unverified): ' + words + '.'
             item['evidence'] = evidence(item)
         items = condition_first(task, items)
         if persist:
