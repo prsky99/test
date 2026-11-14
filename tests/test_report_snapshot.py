@@ -116,7 +116,7 @@ def test_rebuild_releases_the_front_store_lock_between_short_chunks(monkeypatch)
     monkeypatch.setattr(rs, 'KINDS', ('mcp',))
     monkeypatch.setattr(front, '_report_candidate_sql', lambda *a: ('', []))
     monkeypatch.setattr(front, '_report_candidates', lambda *a: (list(rows), len(rows)))
-    monkeypatch.setattr(rs, '_all_candidates', lambda *a: (list(rows), len(rows)))  # the snapshot's own window
+    monkeypatch.setattr(rs, '_all_candidates', lambda *a, **k: (list(rows), len(rows)))  # the snapshot's own window
     monkeypatch.setattr(front, '_report_prefetch', lambda s, ids: chunk_sizes.append(len(ids)) or ({}, {}))
     monkeypatch.setattr(front, '_report_listing', lambda s, row, current, reports: (row, {'name': row['name']}))
     monkeypatch.setattr(front, '_card_data', lambda row, s, create_connections=True: {})
@@ -268,3 +268,74 @@ def test_snapshot_state_reports_building_ready_and_skipped(monkeypatch):
     monkeypatch.setattr(rs, 'build', lambda s, stop=None, ratio=rs.PAUSE_RATIO: None)
     rs.refresh(other)
     assert rs.state(other) == 'skipped'
+
+
+def test_visitor_reads_finish_quickly_while_the_candidate_list_is_read(monkeypatch):
+    """11-14 13:27: the candidate list (21,000 rows in 2,000-row pages) was read under one store lock and visitor
+    pages took 21.6 s and over 30 s. A real RLock and real threads: while the rebuild reads 2 x 20 slow pages
+    (about 2 s in all), a visitor's store read never waits longer than a quarter of a second."""
+    import contextlib
+    import threading
+    import time as real_time
+    from agent_market.concierge import front, content_policy
+
+    class Store:
+        def __init__(self):
+            self._lock = threading.RLock()
+
+        @contextlib.contextmanager
+        def tx(self, readonly=False):
+            with self._lock:
+                yield
+
+        def query(self, sql, params=()):
+            with self.tx(readonly=True):
+                if sql == 'COUNT':
+                    return [{'c': len(rows)}]
+                if sql == 'VISITOR':
+                    return [{'ok': 1}]
+                real_time.sleep(0.05)                       # one slow page while the database is busy
+                limit, offset = params[-2], params[-1]
+                return rows[offset:offset + limit]
+    rows = [{'id': i, 'kind': 'mcp', 'name': f'n{i}', 'description': 'd'} for i in range(200)]
+    store = Store()
+    monkeypatch.setattr(rs, 'KINDS', ('mcp',))
+    monkeypatch.setattr(rs, 'CANDIDATE_PAGE', 10)
+    monkeypatch.setattr(front, '_report_candidate_sql', lambda *a: ('COUNT', 'PAGE', []))
+    monkeypatch.setattr(front, '_report_prefetch', lambda s, ids: ({}, {}))
+    monkeypatch.setattr(front, '_report_listing', lambda s, row, current, reports: (row, {'name': row['name']}))
+    monkeypatch.setattr(front, '_card_data', lambda row, s, create_connections=True: {})
+    monkeypatch.setattr(rs, '_indexed_text', lambda s, ids: {})
+    monkeypatch.setattr(content_policy, 'adult_listing', lambda resource: False)
+    waits, done = [], threading.Event()
+
+    def visitor():
+        while not done.is_set():
+            began = real_time.perf_counter()
+            store.query('VISITOR')
+            waits.append(real_time.perf_counter() - began)
+            real_time.sleep(0.01)
+    t = threading.Thread(target=visitor)
+    t.start()
+    try:
+        snapshot = rs.build(store)
+    finally:
+        done.set(); t.join()
+    assert snapshot is not None and len(snapshot.entries) == 200
+    assert len(waits) > 20 and max(waits) < 0.25, max(waits)
+
+
+def test_rows_read_page_by_page_are_kept_once_and_a_short_count_still_returns_them(monkeypatch):
+    """Without one transaction a row can appear on two pages, or the list can end a little short of the count."""
+    rows = [{'id': i} for i in range(100)]
+
+    class Store:
+        def query(self, sql, params=()):
+            if sql == 'COUNT':
+                return [{'c': 100}]
+            limit, offset = params[-2], params[-1]
+            page = rows[offset:offset + limit]
+            return ([rows[offset - 1]] + page[:-1]) if offset else page   # each later page repeats one row
+    monkeypatch.setattr(rs, 'CANDIDATE_PAGE', 30)
+    found, total = rs._all_candidates(Store(), 'COUNT', 'PAGE', [], ['mcp'])
+    assert total == 100 and len(found) == len({r['id'] for r in found}) and 95 <= len(found) < 100
