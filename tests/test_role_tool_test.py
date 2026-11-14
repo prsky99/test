@@ -104,4 +104,4 @@ def test_a_parameter_the_catalog_input_cannot_fill_never_recurses():
     assert why is None and args['domain'] == 'python.org' and args['record_type'] == 'A'
     odd = {'name': 'odd', 'required': ['domain', 'zzqx'], 'params': {'domain': {'type': 'string'}, 'zzqx': {'type': 'object'}}}
     args, why = role_arguments(odd, 'domain.lookup', None)                   # nothing fills zzqx: a reason, no crash
-    assert args is None and 'zzqx' in why
+    assert args is None and why.startswith('missing_args') and 'zzqx' in why   # recorded as skipped(missing_args)

@@ -237,7 +237,7 @@ def role_arguments(tool, role, category=None, case_input=None, _catalog=True):
         if value is None:
             value = usage._example_value(name, spec, category)
         if value is None:
-            return None, f'cannot fill {name}'
+            return None, f'missing_args: cannot fill {name}'
         args[name] = value
     # The role's subject ("search_entities" takes an optional search) is filled too, or the call proves little:
     # an unfiltered list answers whatever the slot asks (11-14 07:1x, openalex returned 315 million works).
