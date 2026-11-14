@@ -27,6 +27,7 @@ def test_recommendation_paths_report_their_stages_and_others_do_not():
     assert client.get('/other').headers['server-timing'] == 'concierge;dur=1'
     assert timed_path('/a2a') and timed_path('/agents/best/data') and not timed_path('/mcpx')
     assert timed_path('/api/agents/52185') and timed_path('/api/feed/verified.json') and not timed_path('/api/agentsx')
+    assert timed_path('/api/agent/v1/discover') and not timed_path('/api/agent/v1/check')   # 11-14 F07: discover stages
 
 
 def test_a_nested_capture_adds_its_stages_to_the_request():
