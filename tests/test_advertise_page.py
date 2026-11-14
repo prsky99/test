@@ -43,3 +43,12 @@ def test_route_sitemap_and_llms(client, tmp_path, monkeypatch):  # noqa: F811
     assert '/advertise' in client.get('/llms.txt').text
     from agent_market.concierge.growth_pages import sitemap_paths
     assert '/advertise' in sitemap_paths({'tasks': [], 'catalog': [], 'captured': 0})
+
+
+def test_agent_pages_tell_providers_on_our_own_page_only():
+    """PM 11-14 (charter 1: no unsolicited ad messages): the provider line lives on our agent pages."""
+    from agent_market.concierge import growth_catalog
+    note = growth_catalog.PROVIDER_NOTE
+    assert 'href="/methodology"' in note and 'href="/advertise"' in note and 'Is this your agent?' in note
+    import inspect
+    assert 'PROVIDER_NOTE' in inspect.getsource(growth_catalog.agent_page)
