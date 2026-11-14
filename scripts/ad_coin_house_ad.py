@@ -29,10 +29,11 @@ from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 BASE = "https://agentconcierge.biz/ad-coin/"
 SCRIPT_PRINCIPAL = str(uuid5(NAMESPACE_URL, BASE + "platform-server-script"))
 SCRIPT_OWNER = str(uuid5(NAMESPACE_URL, BASE + "platform-server-script/owner"))
-HOUSE_NAME = "Agent Concierge"
-HOUSE_LISTING = "https://agentconcierge.biz/new/en/index.html"
-HOUSE_TEXT = ("Describe a task and Agent Concierge finds AI agents and tools that can do it, "
-              "checked by real connection tests.")
+LEGACY_HOUSE_NAME = "Agent Concierge"              # the 11-11 house campaign (approved campaigns cannot be revised)
+HOUSE_NAME = "AgentValCon"                        # 11-14 brand (docs/OPERATIONS_CHARTER.md 0)
+HOUSE_LISTING = "https://agentconcierge.biz/new/en/index.html"   # the advertiser's identity: keep it (same advertiser)
+HOUSE_TEXT = ("AgentValCon tests AI agents and MCP tools on real tasks and publishes how it scores them. "
+              "Find one that does your task.")
 SPONSORED_ONLY = "2"          # same marker as the advertiser screen (1ee7bb22)
 REASON = "platform_house_ad"
 DAY_MS = 86_400_000
@@ -155,12 +156,17 @@ def _house(store):
     return advertiser, row, (campaigns[0]["id"] if campaigns else None)
 
 
-def _booking_id(advertiser, request_id):
-    return str(uuid5(NAMESPACE_URL, "https://agentconcierge.biz/ad-coin/sponsored/" + advertiser + "/" + request_id))
+def _house_bookings(store, advertiser, *, day_ms=None, category=None, region=None, states=("booked", "served")):
+    """The house advertiser's own bookings (any campaign), newest days first; filters are optional."""
+    with store.atomic():
+        rows = store.all("sponsored_bookings_by_advertiser", (advertiser,))
+    return [r for r in rows if r["state"] in states and (day_ms is None or int(r["day_ms"]) == day_ms)
+            and (category is None or r["task_category"] == category) and (region is None or r["region"] == region)]
 
 
-def _request_id(day, category, region):
-    return uuid5(NAMESPACE_URL, BASE + "house-booking/" + day + "/" + category + "/" + region).hex
+def _request_id(day, category, region, campaign_id):
+    """One request id per day, category, region and campaign (a rebranded campaign books the day again)."""
+    return uuid5(NAMESPACE_URL, BASE + "house-booking/" + day + "/" + category + "/" + region + "/" + campaign_id).hex
 
 
 def book_regions(commercial, *, day, regions, category="research", check=False, now_ms=None):
@@ -178,10 +184,10 @@ def book_regions(commercial, *, day, regions, category="research", check=False, 
     plan, to_book = [], []
     with store.atomic():
         balance = int(store.one("account_get", (row["available_account"],))["balance_atoms"])
+        mine = {r["region"]: r["state"] for r in _house_bookings(store, advertiser, day_ms=day_ms, category=category)}
         for region in regions:
-            existing = store.one("sponsored_booking_get", (_booking_id(advertiser, _request_id(day, category, region)),))
             taken = int(store.one("sponsored_booking_day_count", (day_ms, category, region))["n"])
-            state = existing["state"] if existing else ("full" if taken >= PLACEMENTS_PER_DAY else "to_book")
+            state = mine.get(region) or ("full" if taken >= PLACEMENTS_PER_DAY else "to_book")
             plan.append({"region": region, "state": state, "placements_taken": taken})
             if state == "to_book":
                 to_book.append(region)
@@ -201,7 +207,7 @@ def book_regions(commercial, *, day, regions, category="research", check=False, 
     out["bookings"] = []
     for region in to_book:
         booked = bookings.book(advertiser, campaign_id=campaign, day=day, task_category=category, region=region,
-                               request_id=_request_id(day, category, region), now_ms=now_ms)
+                               request_id=_request_id(day, category, region, campaign), now_ms=now_ms)
         out["bookings"].append({"region": region, **{k: booked.get(k) for k in ("id", "state", "paid_by", "replayed")}})
     out["written"] = True
     return out
@@ -216,16 +222,114 @@ def cancel_regions(commercial, *, day, regions, category="research", check=False
     bookings = SponsoredBookings(store, commercial.ledger, taxonomy=commercial.taxonomy, regions=commercial.regions,
                                  access=commercial.access)
     out = {"day": day, "cancelled": [], "skipped": [], "written": not check}
+    from agent_market.ad_coin.v2.sponsored_booking import day_ms_of
+    mine = {r["region"]: r for r in _house_bookings(store, advertiser, day_ms=day_ms_of(day), category=category,
+                                                     states=("booked", "served", "refunded"))}
     for region in regions:
-        booking_id = _booking_id(advertiser, _request_id(day, category, region))
-        with store.atomic():
-            existing = store.one("sponsored_booking_get", (booking_id,))
+        existing = mine.get(region)
         if existing is None or existing["state"] != "booked":
             out["skipped"].append({"region": region, "state": existing["state"] if existing else "none"})
         elif check:
-            out["cancelled"].append({"region": region, "id": booking_id, "would_cancel": True})
+            out["cancelled"].append({"region": region, "id": existing["id"], "would_cancel": True})
         else:
-            out["cancelled"].append({"region": region, **bookings.cancel(advertiser, booking_id, now_ms=now_ms)})
+            out["cancelled"].append({"region": region, **bookings.cancel(advertiser, existing["id"], now_ms=now_ms)})
+    return out
+
+
+def _launch_campaign(commercial, client, headers, advertiser, *, name, text, category, region, now_ms):
+    """Create, review (platform server script), approve with a fresh proof and activate one Sponsored-only
+    campaign: the same steps as `run`, for a campaign that replaces another (approved campaigns cannot be revised)."""
+    from agent_market.ad_coin.v2 import operator_review
+    from agent_market.ad_coin.v2.commercial import date_text, etag
+    from agent_market.ad_coin.v2.contracts import canonical_bytes
+    me = _principal()
+    base = "/api/ad-coin/v2/advertisers/" + advertiser + "/campaigns"
+    body = {"name": name, "asset_id": "model:aiac:v2", "total_budget_atoms": SPONSORED_ONLY,
+            "daily_budget_atoms": SPONSORED_ONLY, "gross_p1_atoms": SPONSORED_ONLY, "budget_timezone": "UTC",
+            "starts_at": date_text(now_ms), "ends_at": date_text(now_ms + 90 * DAY_MS),
+            "task_categories": [category], "regions": [region], "creative_text": text,
+            "min_exposure_ms": 15000, "split_policy_id": "default_v5", "renderer_profile": "platform_text_v1"}
+    campaign = _check(client.post(base, json=body, headers=headers()), "create campaign")
+    review = _check(client.post(base + "/" + campaign["id"] + "/review-request",
+                                json={"revision_hash": campaign["revision_hash"]},
+                                headers=headers(**{"If-Match": etag(campaign)})), "request review")
+    operator_review.decide(commercial, me, review["id"], verdict="eligible", reason_code=REASON)
+    campaign = _check(client.get(base + "/" + campaign["id"], headers=headers()), "read campaign")
+    intended = commercial.contract.parse(
+        "approveCampaign", canonical_bytes({"revision_hash": campaign["revision_hash"],
+                                            "fresh_action_id": str(uuid4()), "fresh_action_proof": "p" * 43}),
+        path_parameters={"advertiser_id": advertiser, "campaign_id": campaign["id"]}, if_match=etag(campaign))
+    challenge = _check(client.post("/api/ad-coin/v2/human-challenges", json={
+        "action": "approve_campaign", "target_id": campaign["id"], "target_revision_hash": campaign["revision_hash"],
+        "request_digest": intended.semantic_digest}, headers=headers()), "fresh challenge")
+    campaign = _check(client.post(base + "/" + campaign["id"] + "/approvals", json={
+        "revision_hash": campaign["revision_hash"], "fresh_action_id": challenge["fresh_action_id"],
+        "fresh_action_proof": challenge["proof_challenge"]}, headers=headers(**{"If-Match": etag(campaign)})),
+        "approve budget")
+    return _check(client.post(base + "/" + campaign["id"] + "/activation",
+                              json={"revision_hash": campaign["revision_hash"]},
+                              headers=headers(**{"If-Match": etag(campaign)})), "activate")
+
+
+def rebrand(commercial, *, name=HOUSE_NAME, text=HOUSE_TEXT, category="research", check=False, now_ms=None):
+    """11-14 PM: show the house ad as AgentValCon. Approved campaigns cannot be revised, so: launch a new
+    campaign, move every future house booking (day after today) to it (cancel, then book the same day and
+    region), then pause the old campaign. Today's card stops at the pause (the day cannot be rebooked).
+    Idempotent: when the only active house campaign already has `name`, nothing is written."""
+    from agent_market.ad_coin.v2.commercial import etag
+    from agent_market.ad_coin.v2.sponsored_booking import SponsoredBookings
+    store = commercial.store
+    now_ms = int(time.time() * 1000) if now_ms is None else int(now_ms)
+    today = now_ms - now_ms % DAY_MS
+    advertiser, row, _ = _house(store)
+    with store.atomic():
+        active = [c for c in store.all("ui_campaigns", (advertiser, "")) if c["state"] == "active"] if row else []
+    names = {c["id"]: json.loads(c["payload_json"]).get("name", "") for c in active}
+    out = {"advertiser_id": advertiser, "active_before": names, "written": False}
+    if len(active) != 1:
+        out["stopped"] = "house_campaign_not_single"
+        return out
+    old = active[0]
+    if names[old["id"]] == name:
+        out["stopped"] = "already_" + name
+        return out
+    future = [b for b in _house_bookings(store, advertiser, states=("booked",))
+              if int(b["day_ms"]) > today and b["campaign_id"] == old["id"]]
+    out["future_bookings"] = [{"day": _utc_day(int(b["day_ms"])), "region": b["region"],
+                               "category": b["task_category"]} for b in future]
+    if check:
+        return out
+    from agent_market.ad_coin.v2.economy import CoinEconomy
+    from agent_market.ad_coin.v2.sponsored_booking import PRICE_ATOMS
+    bookings = SponsoredBookings(store, commercial.ledger, taxonomy=commercial.taxonomy, regions=commercial.regions,
+                                 access=commercial.access)
+    for b in future:                            # coins go back to whoever paid (house account or growth budget)
+        bookings.cancel(advertiser, b["id"], now_ms=now_ms)
+    with store.atomic():
+        balance = int(store.one("account_get", (row["available_account"],))["balance_atoms"])
+    need = len(future) * PRICE_ATOMS + int(SPONSORED_ONLY)   # rebooking + the new campaign's marker budget
+    if balance < need:
+        out["top_up"] = CoinEconomy(store, commercial.ledger, commercial.access).operator_grant(
+            _principal(), account_id=row["available_account"], amount_atoms=need - balance,
+            reason="house ad rebrand to " + name,
+            request_id=uuid5(NAMESPACE_URL, BASE + "house-rebrand/" + name + "/" + old["id"]).hex)
+    client, headers = _client(commercial)
+    new = _launch_campaign(commercial, client, headers, advertiser, name=name, text=text, category=category,
+                           region="US", now_ms=now_ms)
+    moved = []
+    for b in future:
+        day = _utc_day(int(b["day_ms"]))
+        again = bookings.book(advertiser, campaign_id=new["id"], day=day, task_category=b["task_category"],
+                              region=b["region"], request_id=_request_id(day, b["task_category"], b["region"], new["id"]),
+                              now_ms=now_ms)
+        moved.append({"day": day, "region": b["region"], "id": again["id"], "state": again["state"]})
+    base = "/api/ad-coin/v2/advertisers/" + advertiser + "/campaigns/" + old["id"]
+    current = _check(client.get(base, headers=headers()), "read old campaign")
+    paused = _check(client.post(base + "/pause", json={"revision_hash": current["revision_hash"],
+                                                       "reason_code": "advertiser_requested"},
+                                headers=headers(**{"If-Match": etag(current)})), "pause old campaign")
+    out.update({"written": True, "new_campaign": {"id": new["id"], "state": new["state"], "name": name},
+                "moved": moved, "old_campaign": {"id": old["id"], "state": paused["state"]}})
     return out
 
 
@@ -291,7 +395,7 @@ def _switch_on(root):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("action", choices=("plan", "run", "book-regions", "cancel-regions", "daily"))
+    parser.add_argument("action", choices=("plan", "run", "book-regions", "cancel-regions", "daily", "rebrand"))
     parser.add_argument("--regions", default="KR,JP,GB,DE")
     parser.add_argument("--check", action="store_true", help="book-regions / cancel-regions: show the plan, write nothing")
     parser.add_argument("--issue-coins", type=int)
@@ -308,8 +412,8 @@ def main(argv=None):
         print(__doc__)
         return 0
     regions = [r.strip().upper() for r in args.regions.split(",") if r.strip()]
-    if args.action == "daily":
-        args.day = args.day or "auto"            # daily derives D+1 and D+2 itself
+    if args.action in ("daily", "rebrand"):
+        args.day = args.day or "auto"            # these derive their days themselves
         regions = [r.strip().upper() for r in (args.regions if args.regions != "KR,JP,GB,DE" else ",".join(DAILY_REGIONS)).split(",")]
     if not (args.day and args.dsn_file and args.key_file and args.key_dir) or (args.action == "run" and not args.issue_coins):
         parser.error(args.action + " needs --day, --dsn-file, --key-file and --key-dir (run also --issue-coins)")
@@ -323,7 +427,9 @@ def main(argv=None):
     runtime = _connect(args)
     try:
         commercial, _, _ = build_live_service(store_from_application(runtime.store), key_vault=default_key_vault())
-        if args.action == "daily":
+        if args.action == "rebrand":
+            result = rebrand(commercial, category=args.category, check=args.check)
+        elif args.action == "daily":
             from scripts.ad_coin_daily_ledger_check import check as ledger_check
             root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             enabled = _switch_on(root) and not args.check

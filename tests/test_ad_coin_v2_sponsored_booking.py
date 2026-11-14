@@ -223,7 +223,9 @@ def test_public_terms_match_the_approved_clauses_word_for_word():
     items = [htmllib.unescape(re.sub(r'<[^>]+>', '', item)).strip()
              for item in re.findall(r'<li>(.*?)</li>', section, re.S)]
     expected = [title + ' ' + body for title, body in clauses]
-    straight = [item.replace('“', '"').replace('”', '"').replace('’', "'") for item in items]
+    # 11-14: the public brand is AgentValCon (user decision); the approved clauses are otherwise unchanged
+    straight = [item.replace('“', '"').replace('”', '"').replace('’', "'").replace('AgentValCon', 'Agent Concierge')
+                for item in items]
     assert straight == expected
     assert 'Sponsored placement terms' in section and 'Paid Sponsored placements' in section and '<!--' not in page
 

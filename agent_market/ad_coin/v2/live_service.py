@@ -182,7 +182,7 @@ def create_live_ad_coin_v2_router(
     from .real_value_http import router_for as real_value_router
 
     if not is_real_value_enabled():
-        return base_router  # Real value needs its own switch (AD_COIN_REAL_VALUE_ENABLED) after legal review.
+        return base_router  # Real value is not offered (11-14: no design that needs legal review); its switch stays off.
 
     clearing_rows = commercial.store.all("accounts_audit", ("",)) or []
     clearing_acc = next(
