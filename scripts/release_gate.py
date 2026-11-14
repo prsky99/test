@@ -90,6 +90,9 @@ TESTS = (
     'tests/test_ad_slot.py',  # 11-14 PM agent ad plan (A): one labelled offer after results, ads=none, facts ours
     'tests/test_ads_library_page.py',  # 11-14 PM: public ad library renderer
     'tests/test_f17_template_standing.py',  # 11-14 review F17: templates are not shown as verified necklaces
+    'tests/test_lite_pages_browser.py',  # 11-14: about, agent-status and learn run without operating.js
+    'tests/test_site_policy_browser.py::test_consent_banner_choices_and_return_visits',  # 11-14: consent on all nine pages
+    'tests/test_site_policy_browser.py::test_notifications_dialog_on_pages_without_operating_links_to_the_home_settings',
 )
 # Each role runs the tests for the code it serves. jobs releases run the collector, health checks,
 # crawler and evaluation without the typed execution engine, so the opening-path list above

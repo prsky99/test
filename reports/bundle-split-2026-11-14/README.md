@@ -54,3 +54,32 @@
   - 11-17까지는 안전하게 어렵다고 봅니다. 의존을 풀고, 화면 코드를 그때 불러오는 장치를 넣고, 9개 화면 전체를 기능 캡처로 시험하는 데 2~3일 걸릴 것으로 봅니다.
   - 효과는 큽니다(페이지마다 압축 64~79KB, 실행 시간도 비례해 감소).
   - 제안: 첫 목걸이 공개(11-21) 뒤 F16의 첫 단계로 index → workflows → chat 순서로 진행합니다.
+
+## (1) 실행: site-policy.js 분리와 about·agent-status·learn의 operating.js 제거 (11-14 18시, PM (가) 결정)
+- 쿠키 동의와 정책 대화상자 코드를 operating.js에서 `site-policy.js`(32KB)로 옮겼습니다.
+  - 옮긴 범위는 옛 637~995행과 1064~1077행입니다. 함수·상수 이름은 그대로입니다.
+  - operating.js는 412KB → 390KB가 됐습니다.
+  - 9개 주 화면 모두 `panels-bootstrap → site-policy → operating(있으면) → …` 순서로 싣습니다.
+  - operating.js가 있는 페이지에서는 정의만 하고, 배너 시작과 버튼 처리는 operating이 예전처럼 합니다(두 번 돌지 않음).
+- about·agent-status·learn에서는 operating.js를 뺐습니다.
+  - 이 세 페이지에서는 site-policy.js가 동의 배너를 시작하고 정책 버튼 23개를 직접 처리합니다.
+  - 확인 대화상자·알림은 operating이 없을 때만 같은 모양의 대체 코드를 씁니다.
+  - pearl-ui.js는 operating이 있을 때만 그 함수를 감쌉니다(PAGE_METAS 오류 해결). 테마·메뉴·상태 새로 고침·현재 메뉴 밑줄·필터·앵커·바닥글 정책 링크는 공통으로 처리합니다.
+- 이 세 페이지에서 달라지는 한 가지(PM 승인): '알림(Notifications)' 대화상자 안의 작업 알림 관리 목록은 Chat 코드에 묶여 있어 옮기지 못했습니다. 그 자리에 "Manage task notifications on the home page" 링크(`/#cancellation`)를 둡니다. 대화상자는 빈 채로 열리지 않습니다(시험).
+
+### 동의 동작: 옛 코드(공개, 운영 중) 대 새 코드(작업본), 같은 클릭 순서 (`consent-before-after.jsonl`)
+| 페이지 | 첫 방문 배너 | 수락 저장 값 | 재방문 배너 | 거절 저장 값 | 설정 저장 값 | 설정 대화상자 닫힘·확인 창 | 저장 키·쿠키 | 오류 |
+|---|---|---|---|---|---|---|---|---|
+| 9개 모두, 옛 = 새 | 뜸 = 뜸 | all, true, true, gpc false = 같음 | 안 뜸·값 유지 = 같음 | essential, false, false = 같음 | custom, true, false = 같음 | 닫힘·"Custom Preferences Saved" = 같음 | `agent_cookie_consent_v2` 하나, 필드 analytics·gpc·level·marketing·timestamp, 쿠키 0 = 같음 | 0 = 0 |
+
+- 위 표는 9개 페이지 각각 옛·새 18건의 원자료를 줄인 것입니다. 다른 localStorage 키(`concierge_swr_…`)는 화면 데이터 캐시라 동의와 관계없습니다.
+- 고친 동의 시험(설정 저장 뒤 확인 창이 뜨고 OK로 닫힘)은 옛 코드에서도 같은 순서로 통과합니다. 기준을 느슨하게 한 것이 아니라 예전 동작에 맞춘 것입니다.
+
+### 불안정했던 시험 1건의 원인 (375·라이트·about 정책 대화상자)
+- 원인은 시험 환경이었습니다. 모듈 단위로 같이 쓰던 앱에 모든 요청이 같은 시험 주소로 들어갔고, 앞의 동의 시험 9개가 요청을 쌓은 뒤 about·agent-status 페이지 요청이 요청 한도(429)에 걸려 빈 오류 페이지가 왔습니다. 진단에서 `(429, '/new/en/about.html')`가 기록됐습니다.
+- 고친 것: 시험마다 앱을 새로 만듭니다. 바닥글이 없으면 응답 상태를 담아 바로 실패하는 진단을 남겼습니다.
+- 이후 `test_site_policy_browser.py` 48건 + `test_lite_pages_browser.py` 5건이 함께 53 passed입니다.
+
+### 시험
+- 화면·번들·보안 묶음 199건 통과: test_pearl_frontend 전체, front_workflow_browser, workflow_library_build, main_ui_touch_targets, front_copy_style, home_about_layout, page_asset_bundles(번들 순서 기대값을 새 순서로 갱신), qa_round3_fixes, f17, front_dashboard_menus, front_security, pyflakes 정의, 새 시험 2개
+- 게이트 목록에 넣은 것: 동의 9건, 알림 대화상자 3건, operating 없는 페이지 5건. 대화상자 36건 행렬은 시간이 길어 게이트 밖에서 돕니다.
