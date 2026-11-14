@@ -330,3 +330,50 @@ def test_offer_routes_answer_503_before_the_tables_exist(p1_suite):  # noqa: F81
     assert so.approved_offer(store, campaign['id']) is None
     from agent_market.ad_coin.v2.ads_library import entries             # the ad library works without them too
     assert all(e['offer'] is None for e in entries(store))
+
+
+@pytest.mark.parametrize('like_production', [False, True])   # True: USDC and impression tables present, as in production
+def test_live_router_without_agent_ad_tables_serves_empty_and_logs_nothing(store, monkeypatch, caplog,  # noqa: F811
+                                                                           like_production):
+    """PM 11-14 (before tonight's migration): on a real PostgreSQL store with no offer, click or widened impression
+    tables, the live router answers /ads/library, the offer slot, a click and the MCP/A2A provider with empty results,
+    and the provider's refresh loop (here every 20 ms instead of 30 s) leaves no warning or error in the logs."""
+    import logging
+    import time as clock
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from agent_market.ad_coin.v2 import sponsored_agent
+    from agent_market.ad_coin.v2.key_vault import KeyVault
+    from agent_market.ad_coin.v2.live_service import create_live_ad_coin_v2_router
+    from agent_market.concierge import ad_slot
+    store.migrate_model()
+    if like_production:
+        from scripts.ad_coin_v2_migrate import migrate_impressions, migrate_paid
+        migrate_paid(store)
+        migrate_impressions(store)
+    start = sponsored_agent.AgentOfferProvider.start
+    monkeypatch.setattr(sponsored_agent.AgentOfferProvider, 'start', lambda self, interval=0.02: start(self, interval))
+    app = FastAPI()
+    app.include_router(create_live_ad_coin_v2_router(store, key_vault=KeyVault()))
+    caplog.set_level(logging.WARNING)
+    us = {'CF-IPCountry': 'US'}
+    try:
+        with TestClient(app) as client:
+            provider = ad_slot._PROVIDER
+            assert isinstance(provider, sponsored_agent.AgentOfferProvider)
+            clock.sleep(0.5)                                         # about 25 refreshes
+            assert provider._counting is False and provider._offers == {}
+            assert ad_slot.offer(dict(surface='mcp', category='web_search', region='US', counted=True)) is None
+            page = client.get('/ads/library')
+            assert page.status_code == 200 and 'No placement is running or booked right now.' in page.text
+            assert client.get('/ads/library.json').json()['current'] == []
+            assert client.get('/api/ad-coin/v2/sponsored/offer', params={'category': 'web_search', 'surface': 'mcp'},
+                              headers=us).json() == {'sponsored': None}
+            hop = client.get('/api/ad-coin/v2/sponsored/click/c1?surface=mcp&category=web_search', headers=us,
+                             follow_redirects=False)
+            assert hop.status_code == 302 and hop.headers['location'] == '/advertise'
+            assert provider.flush_now() == 0
+    finally:
+        ad_slot.register(None)
+    noisy = [r for r in caplog.records if r.levelno >= logging.WARNING]
+    assert noisy == [], [(r.name, r.getMessage()) for r in noisy[:3]]
