@@ -1,0 +1,60 @@
+{
+  "scope": "isolated local mock, no network or DB",
+  "deadline": {
+    "budget_ms": 1000,
+    "elapsed_ms": 1256,
+    "reported_latency_ms": 1256,
+    "accepted_success": true
+  },
+  "schema": [
+    {
+      "case": "integer_minimum",
+      "accepted": true
+    },
+    {
+      "case": "number_finite",
+      "accepted": true
+    },
+    {
+      "case": "array_type",
+      "accepted": true
+    }
+  ],
+  "data_freshness": {
+    "stale_clock": {
+      "input": "Local time is 00:00",
+      "now": "2026-11-14 13:00",
+      "points": 10
+    },
+    "old_news_new_retrieval": {
+      "input": "Article published 2020-01-01. Retrieved 2026-11-14.",
+      "points": 10
+    },
+    "missing_expected_fields": {
+      "input": {
+        "irrelevant": "value"
+      },
+      "points": 10.0
+    }
+  },
+  "repeat_qualification": {
+    "scope": "temporary files, no operating writes",
+    "prior_contract": "old-contract",
+    "current_contract": "new-contract",
+    "prior_accuracy_points": 0,
+    "counted_success_days": 2
+  },
+  "report_version_collision": {
+    "scope": "temporary files, failed mocked attempts; no network, signing or production writes",
+    "distinct_tested_values": [
+      1794627546.1,
+      1794627546.2
+    ],
+    "versions_returned": [
+      1,
+      2
+    ],
+    "persisted_files": 1,
+    "persisted_reason": "second distinct attempt"
+  }
+}
