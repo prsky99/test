@@ -130,7 +130,16 @@
     } catch (e) { text('reviews-status', reason(e.status)); }
   }
   const NOTES = {amount_mismatch: '금액이 견적과 다름', ambiguous_payer: '송금자가 여럿', sanctions_match: '제재 목록에 있음',
-    sanctions_unavailable: '제재 목록 확인 불가', krw_rate_unavailable: '원화 시세 없음'};
+    sanctions_unavailable: '제재 목록 확인 불가', krw_rate_unavailable: '원화 시세 없음', late_payment: '견적 만료 뒤 송금',
+    reorg: '체인 재조직으로 결제 재확인 필요'};
+  // F12: every manual decision needs a reason (3-200 characters); it is kept with the payment records.
+  function paidReason(card) {
+    let input = card.querySelector('input[name="paid-reason"]');
+    if (!input) { input = document.createElement('input'); input.name = 'paid-reason'; input.maxLength = 200;
+      input.placeholder = '처리 사유(3자 이상, 결제 기록에 남음)'; input.setAttribute('aria-label', '처리 사유');
+      card.insertBefore(input, card.querySelector('.actions')); }
+    return input;
+  }
   async function loadPaid(done = '') {
     text('paid-status', '불러오는 중입니다.');
     try {
@@ -138,16 +147,21 @@
       $('paid-list').replaceChildren(...items.map(item => {
         const lines = [item.amount_usdc + ' USDC · ' + (item.state === 'review' ? '검토' : '환불 필요') +
           (item.note ? ' · ' + (NOTES[item.note] || item.note) : ''), '송금자 ' + (item.payer || '—'), '거래 ' + (item.tx_hash || '—')];
-        const decide = (body, okText) => async (b) => { b.disabled = true; try {
-          await post('/paid-bookings/' + item.id + '/decision', body); await loadPaid(okText); }
+        const decide = (body, okText) => async (b, card) => {
+          const why = paidReason(card);
+          if (why.value.trim().length < 3) { why.focus(); text('paid-status', '처리 사유를 3자 이상 적으세요.'); return; }
+          b.disabled = true; try {
+          await post('/paid-bookings/' + item.id + '/decision', {...body, reason: why.value.trim()}); await loadPaid(okText); }
           catch (e) { b.disabled = false; text('paid-status', reason(e.status)); } };
         const actions = item.state === 'review'
           ? [['확정', true, decide({action: 'clear'}, '확정했습니다.')], ['환불 필요', false, decide({action: 'refund'}, '환불 필요로 옮겼습니다.')]]
-          : [['환불함', true, async (b, card) => { let input = card.querySelector('input');
-              if (!input) { input = document.createElement('input'); input.placeholder = '환불 거래 해시 0x…';
+          : [['환불함', true, async (b, card) => { let input = card.querySelector('input[name="refund-tx"]');
+              if (!input) { input = document.createElement('input'); input.name = 'refund-tx'; input.placeholder = '환불 거래 해시 0x…';
                 input.setAttribute('aria-label', '환불 거래 해시'); card.insertBefore(input, card.querySelector('.actions')); input.focus(); return; }
-              await decide({action: 'refunded', refund_tx_hash: input.value.trim()}, '환불을 기록했습니다.')(b); }]];
-        return row(lines, actions);
+              await decide({action: 'refunded', refund_tx_hash: input.value.trim()}, '환불을 기록했습니다.')(b, card); }]];
+        const card = row(lines, actions);
+        paidReason(card);
+        return card;
       }));
       text('paid-status', done || (items.length ? '' : '검토·환불할 결제가 없습니다.'));
     } catch (e) { text('paid-status', e.status === 404 ? 'USDC 결제가 꺼져 있습니다.' : reason(e.status)); }

@@ -85,11 +85,13 @@ def test_full_flow_quote_pay_show_report_receipt_export_settle(world):
 
 
 def _refund_path(world, booking_id):
-    suite, service, _, _ = world
+    suite, service, rpc, _ = world
     access, op = suite.service.access, operator(suite)
-    service.operator_decide(access, op, booking_id, action='refund')
-    refund_tx = '0x' + 'b' * 64
-    service.operator_decide(access, op, booking_id, action='refunded', refund_tx_hash=refund_tx)
+    service.operator_decide(access, op, booking_id, action='refund', reason='operator review: refund')
+    row = _row(suite, booking_id)
+    paid_units = rpc.txs[row['tx_hash']]['amount']                                   # what actually arrived
+    refund_tx = rpc.send(paid_units, sender=PAY_TO, to=row['payer'])                  # the owner sends it by hand
+    service.operator_decide(access, op, booking_id, action='refunded', refund_tx_hash=refund_tx, reason='refund sent')
     texts = [i['text'] for i in updates(suite.service.store, suite.advertiser)['items'] if i['kind'] == 'payment']
     return {'operator': 'refund -> refund_due -> refunded (user sends USDC by hand, records the hash)',
             'final_state': _row(suite, booking_id)['state'], 'advertiser_sees': texts[0] if texts else None}

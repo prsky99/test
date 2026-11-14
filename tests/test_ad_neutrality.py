@@ -86,4 +86,4 @@ def test_sponsored_cards_carry_no_rank_score_or_grade():
 
     body = SponsoredSlots(Store(), taxonomy={'research'}, regions={'US'}).response('research', 'US', 'explore', 2, False)
     assert body['label'] == LABEL == 'Sponsored' and body['reward'] is None and 'never change' in DISCLOSURE
-    assert body['cards'] and all(set(card) == {'id', 'label', 'advertiser', 'text'} for card in body['cards'])
+    assert body['cards'] and all(set(card) == {'id', 'label', 'advertiser', 'text', 'why'} for card in body['cards'])

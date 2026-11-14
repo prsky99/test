@@ -272,3 +272,15 @@ def test_all_three_existing_runtime_graphs_pass_actual_prior_outputs_and_inputs_
             assert run['status'] == 'succeeded', run
             assert run['node_results'][2]['input'][expected[0]] == expected[1]
         assert len(calls) == 12
+
+
+def test_osv_records_carry_their_database_and_noncommercial_sources_are_dropped():
+    body = {'vulns': [{'id': 'GHSA-35jh-r3h4-6jhm', 'summary': 'Command Injection in lodash', 'modified': '2024-01-02T00:00:00Z'},
+                      {'id': 'CGA-abcd-1234-efgh', 'summary': 'Chainguard record', 'modified': '2024-01-03T00:00:00Z'},
+                      {'id': 'MAL-2024-1', 'summary': 'Malicious package', 'modified': '2024-01-01T00:00:00Z'}]}
+    with httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(200, json=body))) as http:
+        data = DataAgents(http=http).execute('package-advisories', {'package': 'lodash', 'version': '4.17.20', 'limit': 5})['data']
+    assert [(i['id'], i['source']) for i in data['items']] == [
+        ('GHSA-35jh-r3h4-6jhm', 'GitHub Advisory Database (CC BY 4.0)'), ('MAL-2024-1', 'OpenSSF Malicious Packages (Apache-2.0)')]
+    assert data['excluded_matches'] == 1 and data['returned_matches'] == 2 and data['partial'] is True
+    assert 'license allows reuse' in data['scope']

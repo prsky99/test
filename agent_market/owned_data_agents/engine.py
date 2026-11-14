@@ -24,6 +24,20 @@ GITHUB_QUALIFIER = re.compile(r'(?<!\S)[A-Za-z-]+:\S*')
 VERSION_PATTERN = r'[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?(?:\+[A-Za-z0-9.-]+)?'
 
 
+# OSV record id prefix -> its database and license (https://google.github.io/osv.dev/data/, checked 11-14).
+# Only databases whose license allows reuse in this service; Chainguard/Wolfi (CC-BY-NC-ND 4.0) is absent on purpose.
+OSV_SOURCES = {
+    'GHSA': 'GitHub Advisory Database (CC BY 4.0)',
+    'MAL': 'OpenSSF Malicious Packages (Apache-2.0)',
+    'PYSEC': 'PyPI Advisory Database (CC BY 4.0)',
+    'GO': 'Go Vulnerability Database (CC BY 4.0)',
+    'RUSTSEC': 'Rust Advisory Database (CC0 1.0)',
+    'GSD': 'Global Security Database (CC0 1.0)',
+    'OSV': 'OSS-Fuzz (CC BY 4.0)',
+    'PSF': 'Python Software Foundation Database (CC BY 4.0)',
+}
+
+
 class DataUnavailable(ValueError):
     """A source failed without exposing its raw response or network details."""
 
@@ -331,15 +345,24 @@ class DataAgents:
         rows = raw.get('vulns', [])
         if type(rows) is not list or set(raw) - {'vulns', 'next_page_token'}:
             raise ValueError('Invalid advisory response')
-        items = []
+        items, excluded = [], 0
         for row in rows[:100]:
             identity = row['id']
             if type(identity) is not str or not re.fullmatch(r'[A-Za-z0-9._-]{1,128}', identity):
                 raise ValueError('Invalid advisory')
+            # OSV merges many databases with different licenses (one is non-commercial: Chainguard/Wolfi,
+            # CC-BY-NC-ND). Only records from databases whose license allows our reuse are returned, each
+            # with its database and license; anything else is dropped and counted (PM 11-14).
+            source = OSV_SOURCES.get(identity.split('-', 1)[0])
+            if not source:
+                excluded += 1
+                continue
             items.append({'id': identity, 'summary': clean(row.get('summary') or row.get('details')),
                           'url': 'https://osv.dev/vulnerability/' + identity,
-                          'modified_at': clean(row.get('modified'), 40)})
+                          'modified_at': clean(row.get('modified'), 40), 'source': source})
         items.sort(key=lambda row: row['modified_at'], reverse=True)
         return {'package': args['package'], 'version': args['version'], 'items': items[:args['limit']],
-            'returned_matches': len(rows), 'partial': bool(raw.get('next_page_token')) or len(rows) > args['limit'],
-            'scope': 'Published advisories for this exact version at retrieval time. Absence is not a security guarantee.'}
+            'returned_matches': len(items), 'excluded_matches': excluded,
+            'partial': bool(raw.get('next_page_token')) or len(items) > args['limit'] or excluded > 0,
+            'scope': 'Published advisories for this exact version at retrieval time, from databases whose license '
+                     'allows reuse. Absence is not a security guarantee.'}

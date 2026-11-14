@@ -144,9 +144,15 @@ def test_adapter_projects_into_docs_contract():
 
 
 def test_research_and_news_digest_is_unchanged():
-    """Saved workflows pin this digest; adding Technical Documentation must not move it."""
+    """Saved workflows pin this digest; adding Technical Documentation must not move it.
+
+    11-14 (948d26df): the package-advisories (OSV) path now names each record's database and license and drops
+    non-commercial databases. That moved this digest because engine.py and catalog.py are hashed whole; the
+    research-papers and technology-news tool specs and code paths are unchanged (same schema digests), so saved
+    research and news digests keep their contracts and need only ``scripts.approve_model_contracts`` after the
+    frontend deploy."""
     from agent_market import owned_capability_adapter
-    assert owned_capability_adapter.IMPLEMENTATION == 'fa0c503834690a530537915e847a1323ee0f072a9570a1ab306ae54415fbe6ad'
+    assert owned_capability_adapter.IMPLEMENTATION == '9afacb80d53ee3c53d59cfc12bd58719716e6c07a1421656e35f9e81afedd1f8'
 
 
 def test_documentation_objectives_use_the_docs_agent_and_research_keeps_papers():

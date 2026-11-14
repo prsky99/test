@@ -79,10 +79,15 @@ class SponsoredSlots:
                     self._index, self._built = self._build(int(now * 1000)), now
         return self._index, now
 
-    def cards(self, category, region):
+    def cards(self, category, region, rebuild=True):
+        """rebuild=False reads only the snapshot already in memory (agent answers: never a database read on the
+        request path; the agent offer provider's timer keeps the snapshot fresh)."""
         if category not in self.taxonomy or region not in self.regions:
             raise ContractError("unsupported_targeting", 422)
-        index, now = self._snapshot()
+        if rebuild:
+            index, now = self._snapshot()
+        else:
+            index, now = self._index, self._clock()
         now_ms = int(now * 1000)
         pool = index.get((category, region), ())
         if not pool:
@@ -101,11 +106,16 @@ class SponsoredSlots:
         """Booked cards for a placement; an empty list when nothing is booked or the region is not sold.
         count=False serves the same cards without adding to the served counts (a request that may be a
         replay, such as TLS 0-RTT early data)."""
+        from .sponsored_offer import SENSITIVE_SITE_CATEGORIES, why_shown
+        site_category = category
         category = SITE_CATEGORIES.get(category, category)
         if category not in self.taxonomy or placement not in PLACEMENTS or type(limit) is not int \
                 or not 1 <= limit <= MAX_CARDS:
             raise ContractError("unsupported_targeting", 422)
+        if site_category in SENSITIVE_SITE_CATEGORIES:     # medical, legal and financial advice topics: no ad (11-14)
+            return {"label": LABEL, "disclosure": DISCLOSURE, "reward": None, "placement": placement, "cards": []}
         cards = self.cards(category, region)[:limit] if region in self.regions else []
+        cards = [{**card, "why": why_shown(category, region)} for card in cards]
         if cards and count:
             self._count(cards, category, region, placement)
         return {"label": LABEL, "disclosure": DISCLOSURE, "reward": None, "placement": placement, "cards": cards}

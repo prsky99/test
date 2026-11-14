@@ -61,6 +61,41 @@ def router_for(commercial, bookings, *, resolve_auth=None) -> APIRouter:
 
     base = "/advertisers/{advertiser_id}/sponsored-bookings"
 
+    # Verified Sponsored Offer (agent ads, 11-14): the advertiser submits fixed fields, an operator reviews them.
+    @router.post("/advertisers/{advertiser_id}/campaigns/{campaign_id}/offer")
+    async def submit_offer(advertiser_id: str, campaign_id: str, request: Request):
+        from .sponsored_offer import submit_offer as submit
+
+        async def call():
+            ctx = await context(request)
+            body = await body_of(request)
+            advertiser = await run_in_threadpool(advertiser_authority, ctx.principal, advertiser_id, "createCampaign")
+            return await run_in_threadpool(lambda: submit(store, advertiser, campaign_id, body))
+        return await respond(call)
+
+    @router.get("/admin/sponsored-offers")
+    async def offers_pending(request: Request):
+        from .sponsored_offer import pending_offers
+
+        async def call():
+            ctx = await context(request)
+            return await run_in_threadpool(pending_offers, store, commercial.access, ctx.principal)
+        return await respond(call)
+
+    @router.post("/admin/sponsored-offers/{campaign_id}/decision")
+    async def offer_decision(campaign_id: str, request: Request):
+        from .sponsored_offer import decide_offer
+
+        async def call():
+            ctx = await context(request)
+            if not ctx.principal.csrf_verified:
+                raise ContractError("csrf_required", 403)
+            body = await body_of(request)
+            return await run_in_threadpool(lambda: decide_offer(store, commercial.access, ctx.principal, campaign_id,
+                                                                approve=body.get("approve") is True,
+                                                                reason=body.get("reason", "")))
+        return await respond(call)
+
     @router.post(base)
     async def book(advertiser_id: str, request: Request):
         async def call():
