@@ -1409,6 +1409,13 @@ def check_board_lock(root, owner, take_stale=False, now=None, alive=_pid_alive):
     if not locks:
         raise RuntimeError('deploy_lock_not_taken: write "- %s <MM-DD HH:MM> pid=<session PID, $PPID> <role> <release>" '
                            'under ## 배포 잠금 first' % owner)
+    # 11-14: a runner wrote its line with the time it started (13:18) and took the lock at 18:10, so other teams'
+    # tools saw a stale lock they could take over and ops_watch reported it held for 301 minutes. A line must carry
+    # the time the lock was taken.
+    old = [entry for team, entry in locks if team == owner and lock_staleness(entry, now, lambda pid: True)]
+    if old:
+        raise RuntimeError('deploy_lock_own_line_old: ' + ' / '.join(e[:120] for e in old)
+                           + ' (stamp your line with the time you take the lock, not when your runner started)')
     return [entry for _, entry in locks]
 
 

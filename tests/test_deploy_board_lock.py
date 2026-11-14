@@ -23,7 +23,16 @@ def _root(tmp_path, locks):
 
 def test_own_lock_line_allows_the_deploy(tmp_path):
     root = _root(tmp_path, '- 운영·SRE 11-11 11:30 jobs diskread-jobs-r1. 다른 배포 금지')
-    assert sd.check_board_lock(root, '운영·SRE') == ['운영·SRE 11-11 11:30 jobs diskread-jobs-r1. 다른 배포 금지']
+    assert sd.check_board_lock(root, '운영·SRE', now=dt.datetime(2026, 11, 11, 11, 35)) == [
+        '운영·SRE 11-11 11:30 jobs diskread-jobs-r1. 다른 배포 금지']
+
+
+def test_own_line_stamped_long_before_the_deploy_refuses(tmp_path):
+    """11-14: the line said 13:18 (runner start) while the lock was taken at 18:10."""
+    root = _root(tmp_path, '- 운영·SRE 11-14 13:18 pid=85836 frontend eve-frontend-20261114-r1')
+    with pytest.raises(RuntimeError, match='deploy_lock_own_line_old'):
+        sd.check_board_lock(root, '운영·SRE', now=dt.datetime(2026, 11, 14, 18, 10))
+    assert sd.check_board_lock(root, '운영·SRE', now=dt.datetime(2026, 11, 14, 13, 20))
 
 
 @pytest.mark.parametrize('locks', [
