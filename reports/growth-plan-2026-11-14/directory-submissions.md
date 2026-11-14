@@ -63,3 +63,37 @@ No API key is needed for search. Endpoint: https://agentconcierge.biz/mcp (Strea
   - 가격·크레딧·결제 문구: `credit` 도구 설명에 "Top-ups… being prepared"가 있지만 소개에는 쓰지 않는다.
   - x402 결제 실행: 수집이 멈춰 있어 소개하지 않는다.
   - 저장소 주소.
+
+## Glama 소유권 확인 완료와 표시 이름 변경안 (11-14, PM 10:2x)
+
+- **소유권 확인 완료**: 11-14 10:2x
+  - 방식: HTTP 파일. `https://agentconcierge.biz/.well-known/glama.json`이 공개 claim 토큰 JSON을 돌려준다(cfb85257, 낮 묶음 day-frontend-20261114-r4).
+  - 커넥터 페이지에 "Ownership verified"와 Admin 탭이 보인다.
+  - 기록: `logs/growth/directory-presence.jsonl`
+- **확인 파일은 그대로 둔다.** 파일이나 토큰이 사라지면 Glama가 7일 유예 뒤 소유권을 거둔다. 같은 토큰을 되살리면 유지된다.
+- **지금 Glama 표시**
+  - 제목: "Agent Concierge - MCP Connector | Glama"
+  - 설명: 공식 Registry `server.json`의 description과 같다("Find AI agents, MCP servers and x402 APIs for a task, ranked by recorded checks and quality.")
+  - 즉 커넥터가 공식 Registry 항목 `biz.agentconcierge/agent-concierge`와 연결돼 있다. Glama 안내상, Registry 연결 커넥터는 Registry가 갱신되면 이름·설명·주소가 기본으로 덮어써진다.
+
+### 이름을 AgentValCon으로 바꾸는 두 길
+
+| 안 | 방법 | 장점 | 단점 | 승인 |
+|---|---|---|---|---|
+| **A(권장)** | 공식 MCP Registry `server.json`의 title·description을 바꿔 재게시한다. 이름 `biz.agentconcierge/agent-concierge`와 주소는 그대로 둔다. Glama는 다음 동기화 때 따라온다 | 한 번에 공식 Registry, Glama, Registry를 가져가는 다른 목록(PulseMCP 등)까지 맞춰진다. 출처가 하나로 남는다 | Glama 반영 시점은 Glama 동기화에 달렸다 | **외부 게시 → 사용자 승인** |
+| B | Glama Admin 탭에서 이름·설명을 고치고 "Use Glama listing details as the source of truth"를 켠다 | 바로 바뀐다 | 그 뒤로는 Registry를 고쳐도 Glama가 따라오지 않는다(두 곳을 따로 관리). 남의 서비스 설정 변경이다 | 외부 계정 설정 변경 → 사용자 승인 |
+
+**A의 server.json 변경 초안**(external-drafts.md 1절과 같다)
+```json
+{
+  "title": "AgentValCon",
+  "description": "Agent Value Gateway: workflows of verified AI agents (necklaces) that run to the end, with per-step fallbacks and published test results. Also finds and checks A2A agents and MCP servers for a task."
+}
+```
+- 첫 목걸이 공개 전에 재게시한다면 목걸이 문구를 빼고 다음처럼 쓴다: "AgentValCon (Agent Value Gateway): find and check A2A agents and MCP servers for a task, with test results and a published method."
+- 재게시 절차는 `deploy/mcp-registry/README.md` 3절을 따른다(키 `~/.mcp-registry/key.pem`, HTTP 확인 파일).
+- 버전을 올린다: 1.0.0 → 1.0.1.
+
+출처
+- [Glama — glama.json 소개(2025-07-08)](https://glama.ai/blog/2025-07-08-what-is-glamajson)
+- Glama 커넥터 페이지 안내(검색 요약): Registry 연결 커넥터는 Registry 갱신이 이름·설명을 덮어쓰고, 소유권 확인 뒤 "Use Glama listing details as the source of truth"로 Glama 쪽 편집을 유지할 수 있다.
