@@ -1,7 +1,7 @@
 """Activity points mode: the economy v2 runs in until real value is switched on separately.
 
 Points are earned only by activity (for example an approved ad view). They cannot be bought,
-cashed out, or moved to another person, and they are redeemed only for Agent Concierge's own
+cashed out, or moved to another person, and they are redeemed only for AgentValCon's own
 benefits. Unused points expire after a period without any activity. These rules keep the
 points outside stored-value and virtual-asset territory; real value stays behind
 AD_COIN_REAL_VALUE_ENABLED, which is off by default.
@@ -18,7 +18,7 @@ POINTS_EXPIRY_DAYS = 365  # points expire after this many days without earning o
 PLATFORM_OWNER = str(uuid5(NAMESPACE_URL, "https://agentconcierge.biz/ad-coin/platform"))
 EXPIRED_POINTS_ACCOUNT = str(uuid5(NAMESPACE_URL, "https://agentconcierge.biz/ad-coin/expired-points"))
 
-# Agent Concierge's own benefits. The redemption account is the platform's, never a third party's.
+# AgentValCon's own benefits. The redemption account is the platform's, never a third party's.
 BENEFITS = {
     str(uuid5(NAMESPACE_URL, "https://agentconcierge.biz/ad-coin/benefit/free-run")): "free_run_credit",
     str(uuid5(NAMESPACE_URL, "https://agentconcierge.biz/ad-coin/benefit/workspace-boost")): "workspace_boost",
@@ -48,7 +48,7 @@ RULES = (
     "Points are earned by activity and cannot be bought.",
     "Points have no cash value and cannot be cashed out.",
     "Points cannot be sent to another person.",
-    "Points are redeemed only for Agent Concierge benefits.",
+    "Points are redeemed only for AgentValCon benefits.",
     "Points expire after %d days without activity." % POINTS_EXPIRY_DAYS,
 )
 

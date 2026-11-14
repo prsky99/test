@@ -26,7 +26,7 @@
     if (error.code==='points_short') return 'You do not have enough points for this exchange.';
     if (error.code==='insufficient_balance') return 'This advertising account does not have enough coins for the budget.';
     if (error.code==='model_activation_disabled') return 'Campaign activation is not available right now.';
-    if (error.status===401) return 'Sign in to your Agent Concierge account, then open your workspace.';
+    if (error.status===401) return 'Sign in to your AgentValCon account, then open your workspace.';
     if (error.status===403) return 'This action is not available for your account. Sign in again if your access changed.';
     if (error.status===409) return 'The conditions changed or this action has ended. Refresh and review the latest details.';
     if (error.status===429) return 'Your limit has been reached. Try again later or review your choices.';
@@ -282,7 +282,7 @@
     for (const campaign of value.items) {
       const card=document.createElement('article');card.className='card';card.dataset.item='campaign';
       const title=document.createElement('h2');title.textContent=campaign.name;
-      const status=document.createElement('p');status.textContent=({draft:'Draft · request a review when ready',in_review:'In review · we check the ad before it can run',eligible:campaign.approval_status==='approved'?'Ready · activate to start':'Passed review · approve the budget next',rejected:'Not approved · edit the ad and request a new review',active:'Running',paused:'Paused',suspended:'Suspended by Agent Concierge'})[campaign.state]||campaign.state;
+      const status=document.createElement('p');status.textContent=({draft:'Draft · request a review when ready',in_review:'In review · we check the ad before it can run',eligible:campaign.approval_status==='approved'?'Ready · activate to start':'Passed review · approve the budget next',rejected:'Not approved · edit the ad and request a new review',active:'Running',paused:'Paused',suspended:'Suspended by AgentValCon'})[campaign.state]||campaign.state;
       const amount=document.createElement('p');amount.textContent=campaign.gross_p1_atoms===SPONSORED_ONLY_ATOMS?'Sponsored placements only · book days below once it is running':'Budget '+coins(campaign.total_budget_atoms)+' coins · up to '+coins(campaign.daily_budget_atoms)+' a day · '+coins(campaign.gross_p1_atoms)+' points per view';
       const actions=document.createElement('div');actions.className='actions';card.append(title,status,amount,actions);
       const add=(label,action)=>{const b=document.createElement('button');b.type='button';b.className='btn';b.textContent=label;b.addEventListener('click',()=>run(b,action));actions.append(b);};

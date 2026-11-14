@@ -198,3 +198,29 @@ def test_daily_switch_is_its_own_file_not_read_by_the_services(tmp_path):
     assert house._switch_on(str(tmp_path)) is True
     from scripts.agentcon_config import SPONSORED_KEYS, ALLOWED_KEYS
     assert 'AD_COIN_HOUSE_AD_DAILY' not in SPONSORED_KEYS | ALLOWED_KEYS   # services never see this name
+
+
+def test_rebrand_moves_future_bookings_to_an_agentvalcon_campaign(store, monkeypatch):  # noqa: F811
+    """11-14 PM: approved campaigns cannot be revised, so rebrand launches a new campaign, moves every future
+    house booking to it and pauses the old one; no placement is held twice and the ledger stays clean."""
+    monkeypatch.setattr(house, 'HOUSE_NAME', house.LEGACY_HOUSE_NAME)
+    commercial, now_ms = _daily_world(store)                          # legacy-named house ad, D+1 booked (US)
+    house.daily(commercial, enabled=True, ledger_check=_clean, now_ms=now_ms)   # D+1, D+2 in 5 regions
+    monkeypatch.undo()
+    plan = house.rebrand(commercial, check=True, now_ms=now_ms)
+    assert not plan['written'] and len(plan['future_bookings']) == 10
+    done = house.rebrand(commercial, now_ms=now_ms)
+    assert done['written'] and done['new_campaign']['name'] == 'AgentValCon' and done['old_campaign']['state'] == 'paused'
+    assert len(done['moved']) == 10 and all(m['state'] == 'booked' for m in done['moved'])
+    advertiser, _, active = house._house(store)
+    assert active == done['new_campaign']['id']
+    for day in {m['day'] for m in done['moved']}:
+        assert _count_booked(store, day) == 5                           # one placement per region, not two
+    day_clock = (now_ms - now_ms % DAY_MS + DAY_MS + 3_600_000) / 1000
+    slots = SponsoredSlots(store, taxonomy={'research', 'coding'}, regions=set(house.DAILY_REGIONS), clock=lambda: day_clock)
+    cards = slots.response('research', 'KR', 'explore', 2, False)['cards']
+    assert [c['advertiser'] for c in cards] == ['AgentValCon'] and 'real tasks' in cards[0]['text']
+    assert _clean(store)['ok']
+    assert house.rebrand(commercial, now_ms=now_ms)['stopped'] == 'already_AgentValCon'
+    again = house.daily(commercial, enabled=True, ledger_check=_clean, now_ms=now_ms)
+    assert again['stopped'] is None and all(not r['written'] for r in again['results'])

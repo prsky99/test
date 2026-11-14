@@ -1,6 +1,6 @@
 """Advertiser applications and operator approval (PM step 2, first criterion c: catalog providers only).
 
-A signed-in person applies with a display name and the Agent Concierge catalog page of the agent or
+A signed-in person applies with a display name and the AgentValCon catalog page of the agent or
 MCP server they provide. No new table: the application is a suspended advertiser record (id derived
 from the applicant and the listing) with the applicant's campaign memberships, and the name and
 listing are kept in the audit log ("advertiser_applied"). A platform operator checks the listing and
