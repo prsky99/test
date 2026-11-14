@@ -436,8 +436,13 @@ def without_traits(task):
 
 def relayable(item):
     """False for an MCP recommendation whose chosen tool is left out of the gateway's tools/list (an action tool or
-    one not verified read-only), so the caller could not run it through the gateway."""
-    return not (isinstance(item, dict) and item.get('tool_unlisted') is True)
+    one not verified read-only), or for a listing that needs the provider's own authorization (the gateway refuses
+    public calls to it, x402 aside: 11-15 user_slo mcp/36513), so the caller could not run it through the gateway."""
+    if not isinstance(item, dict):
+        return True
+    if item.get('tool_unlisted') is True:
+        return False
+    return not (item.get('auth_required') is True and item.get('kind') != 'x402')
 
 
 def relayable_only(items):
