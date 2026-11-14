@@ -2785,7 +2785,7 @@ body:not([data-pearl-entry]) .chat-disclosure a{color:var(--accent)}
 
       <!-- Templates Grid -->
       <div id="frontTemplatesGrid" class="template-grid">
-        <div class="card muted" style="padding:24px;text-align:center">Loading verified templates...</div>
+        <div class="card muted" style="padding:24px;text-align:center">Loading templates...</div>
       </div>
     </div>
 
