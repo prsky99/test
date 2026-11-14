@@ -154,8 +154,9 @@ def _view(row):
             "token_symbol": "USDC", "expires_ms": int(row["expires_ms"]), "tx_hash": row["tx_hash"]}
 
 
-def verify_transfer(rpc, tx_hash, *, token, pay_to, amount_units, min_confirmations):
-    """(state, payer): state is 'confirmed', 'pending' or an error code; reuses agent_market.chain."""
+def verify_transfer(rpc, tx_hash, *, token, pay_to, amount_units, min_confirmations, seen=None):
+    """(state, payer): state is 'confirmed', 'pending' or an error code; reuses agent_market.chain.
+    seen (a dict) receives the receipt that was read, for its block identifiers (F12)."""
     from ...chain import normalize, transfers_in
     try:
         receipt = rpc.receipt(tx_hash)
@@ -163,6 +164,8 @@ def verify_transfer(rpc, tx_hash, *, token, pay_to, amount_units, min_confirmati
         return "pending", None                         # RPC trouble: try again later
     if receipt is None:
         return "pending", None
+    if seen is not None:
+        seen["receipt"] = receipt
     if int(receipt.get("status", "0x0"), 16) != 1:
         return "payment_failed", None
     try:
@@ -270,9 +273,10 @@ class PaidBookings:
         confirms it if the placement is still free or returns it to the wallet that paid. No transfer: quote_expired."""
         if not self._on_base():
             raise ContractError("quote_expired", 409)
+        seen = {}
         state, payer = verify_transfer(self.rpc, tx_hash, token=row["token"], pay_to=row["pay_to"],
                                        amount_units=int(row["amount_units"]),
-                                       min_confirmations=self.config.min_confirmations)
+                                       min_confirmations=self.config.min_confirmations, seen=seen)
         if state in ("payment_failed", "payment_not_found") or payer is None:
             raise ContractError("quote_expired", 409)
         with self.store.atomic():
@@ -283,18 +287,27 @@ class PaidBookings:
             self.store.execute("paid_booking_attach_tx", (tx_hash, row["id"]))
             note = "late_payment" if state in ("confirmed", "pending") else "late_payment_" + state
             self.store.execute("paid_booking_set_state", ("review", payer, self.krw_rate(), note, now_ms, row["id"]))
+            if seen.get("receipt"):
+                self._record_receipt({**dict(row), "tx_hash": tx_hash}, seen["receipt"], now_ms)
             return _view(self.store.one("paid_booking_get", (row["id"],)))
 
     def _check(self, booking_id, now_ms):
         row = self.store.one("paid_booking_get", (booking_id,))
+        seen = {}
         if not self._on_base():
             state, payer = "pending", None             # wrong or unreachable network: never confirm, retry later
         else:
             state, payer = verify_transfer(self.rpc, row["tx_hash"], token=row["token"], pay_to=row["pay_to"],
                                            amount_units=int(row["amount_units"]),
-                                           min_confirmations=self.config.min_confirmations)
+                                           min_confirmations=self.config.min_confirmations, seen=seen)
         refused = None
         with self.store.atomic():
+            # F12 concurrent confirmation: the chain was read outside the transaction, so another check, the late
+            # path or an operator may have moved the booking meanwhile. Write only if it is still waiting for this tx.
+            self.store.lock("paid_booking:" + booking_id)
+            current = self.store.one("paid_booking_get", (booking_id,))
+            if current["state"] not in ("quoted", "confirming") or current["tx_hash"] != row["tx_hash"]:
+                return _view(current)
             if state == "pending":
                 self.store.execute("paid_booking_set_state", ("confirming", payer, None, None, None, booking_id))
             elif state in ("payment_failed", "payment_not_found"):
@@ -311,13 +324,22 @@ class PaidBookings:
                     note = "krw_rate_unavailable"   # the record needs a KRW value; an operator confirms it
                 self.store.execute("paid_booking_set_state", ("confirmed" if note is None else "review", payer, rate,
                                                               note, now_ms, booking_id))
+            if state not in ("pending", "payment_failed", "payment_not_found") and seen.get("receipt"):
+                self._record_receipt(row, seen["receipt"], now_ms)   # money arrived: keep where it was seen
             view = _view(self.store.one("paid_booking_get", (booking_id,)))
         if refused:
             raise ContractError(refused, 409)
         return view
 
+    def _record_receipt(self, row, receipt, now_ms):
+        from .paid_audit import block_of, finality_of, record
+        number, block_hash = block_of(receipt)
+        record(self.store, row["id"], "receipt", tx_hash=row["tx_hash"], block_number=number, block_hash=block_hash,
+               finality=finality_of(self.rpc, number) if number is not None else None, now_ms=now_ms)
+
     def recheck(self, *, now_ms=None, limit=50):
-        """Worker: confirm 'confirming' bookings, expire unpaid quotes; returns how many changed."""
+        """Worker: confirm 'confirming' bookings, expire unpaid quotes, then watch recent payments until their block
+        is finalized (F12: a payment that disappears goes to review); returns how many changed."""
         now_ms, changed = self._now(now_ms), 0
         with self.store.atomic():
             changed += int(getattr(self.store.execute("paid_bookings_expire", (now_ms,)), "rowcount", 0) or 0)
@@ -328,6 +350,12 @@ class PaidBookings:
                     changed += 1
             except ContractError:
                 changed += 1
+        from .paid_audit import watch
+        try:
+            watched = watch(self, now_ms=now_ms, limit=limit)
+            changed += watched["reorg"] + watched["moved"]
+        except Exception:                               # the watch never stops confirmations; it runs again next time
+            pass
         return changed
 
     def settle_due(self, *, now_ms=None, limit=50):
@@ -353,27 +381,81 @@ class PaidBookings:
             rows = self.store.all("paid_bookings_operator_queue", ())
         return {"items": [{**_view(r), "payer": r["payer"], "note": r["note"], "krw_rate": r["krw_rate"]} for r in rows]}
 
-    def operator_decide(self, access, principal, booking_id, *, action, refund_tx_hash=None):
-        """review -> confirmed (cleared) or refund_due; platform outage -> refund_due; refund_due -> refunded."""
+    def operator_decide(self, access, principal, booking_id, *, action, refund_tx_hash=None, reason=None, now_ms=None):
+        """review -> confirmed (cleared) or refund_due; platform outage -> refund_due; refund_due -> refunded.
+        F12: an operator only, with a reason of 3-200 characters, recorded with the payment (adc2_paid_booking_events,
+        kept with the records) and in adc2_audit_log. 'refunded' needs a refund transaction that really sent USDC on
+        Base back to the wallet that paid, no more than it paid, and is not the payment itself."""
         access.require_operator(principal)
         booking_id = identifier(booking_id)
         transitions = {"clear": ("review", "confirmed"), "refund": (None, "refund_due"),
                        "refunded": ("refund_due", "refunded")}
         if action not in transitions:
             raise ContractError("invalid_paid_decision", 422)
+        if not isinstance(reason, str) or not 3 <= len(reason.strip()) <= 200:
+            raise ContractError("invalid_reason", 422)
         if action == "refunded" and (type(refund_tx_hash) is not str or not _TX.match(refund_tx_hash)):
             raise ContractError("invalid_tx_hash", 422)
+        reason, now_ms = reason.strip(), self._now(now_ms)
         source, target = transitions[action]
         with self.store.atomic():
             row = self.store.one("paid_booking_get", (booking_id,))
-            if row is None:
-                raise ContractError("unknown_resource", 404)
+        if row is None:
+            raise ContractError("unknown_resource", 404)
+        refund = None
+        if action == "refunded":
+            refund = self._verify_refund(row, refund_tx_hash.lower())
+        with self.store.atomic():
+            row = self.store.one("paid_booking_get", (booking_id,))
             allowed = (row["state"] == source) if source else row["state"] in ("review", "confirmed", "served")
             if not allowed:
                 raise ContractError("paid_booking_state_changed", 409)
             self.store.execute("paid_booking_operator_set", (
                 target, refund_tx_hash.lower() if refund_tx_hash else None, booking_id, row["state"]))
+            from .paid_audit import record
+            actor = "operator:" + str(principal.id)
+            record(self.store, booking_id, "operator", actor=actor, from_state=row["state"], to_state=target,
+                   reason=reason, tx_hash=refund_tx_hash.lower() if refund_tx_hash else None,
+                   detail={"action": action, **({"refund_units": refund} if refund is not None else {})}, now_ms=now_ms)
+            import json
+            self.store.execute("audit_log_insert", (
+                str(uuid4()), now_ms, "paid_booking_" + action, str(principal.id),
+                str(principal.owner_id) if getattr(principal, "owner_id", None) else None, booking_id, None, None,
+                "succeeded", json.dumps({"from": row["state"], "to": target, "reason": reason}, sort_keys=True)))
             return _view(self.store.one("paid_booking_get", (booking_id,)))
+
+    def _verify_refund(self, row, refund_tx):
+        """Units of USDC the refund transaction sent back to the payer; refuses a wrong refund record (F12)."""
+        from ...chain import normalize, transfers_in
+        if refund_tx == (row["tx_hash"] or "").lower():
+            raise ContractError("refund_is_the_payment", 409)
+        if not row["payer"]:
+            raise ContractError("refund_without_payer", 409)
+        if not self._on_base():
+            raise ContractError("refund_unverifiable", 409)       # RPC down or not Base: record it later
+        try:
+            receipt = self.rpc.receipt(refund_tx)
+        except Exception:
+            raise ContractError("refund_unverifiable", 409)
+        if receipt is None:
+            raise ContractError("refund_not_found", 409)         # not mined yet, or another network
+        if int(receipt.get("status", "0x0"), 16) != 1:
+            raise ContractError("refund_failed", 409)
+        sent = sum(amt for _frm, to, amt in transfers_in(receipt, row["token"]) if to == normalize(row["payer"]))
+        if sent <= 0:
+            raise ContractError("refund_not_to_payer", 409)
+        # the cap is what actually arrived (an underpaid booking returns less than its quote), read from the payment
+        try:
+            payment = self.rpc.receipt(row["tx_hash"]) if row["tx_hash"] else None
+        except Exception:
+            raise ContractError("refund_unverifiable", 409)
+        if payment is None:
+            raise ContractError("refund_unverifiable", 409)
+        received = sum(amt for frm, to, amt in transfers_in(payment, row["token"])
+                       if to == normalize(row["pay_to"]) and frm == normalize(row["payer"]))
+        if sent > received:
+            raise ContractError("refund_more_than_paid", 409)
+        return sent
 
     def monthly_csv(self, access, principal, month):
         """Received payments of a UTC month: time, amount, sender, tx hash, KRW rate and KRW value."""

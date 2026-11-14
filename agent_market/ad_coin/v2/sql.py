@@ -244,6 +244,12 @@ SQL.update(
         "paid_bookings_operator_queue": "SELECT * FROM adc2_paid_bookings WHERE state IN ('review','refund_due') ORDER BY quoted_ms LIMIT 200",
         "paid_booking_operator_set": "UPDATE adc2_paid_bookings SET state=?,refund_tx_hash=COALESCE(?,refund_tx_hash) WHERE id=? AND state=?",
         "paid_bookings_month": "SELECT * FROM adc2_paid_bookings WHERE confirmed_ms>=? AND confirmed_ms<? ORDER BY confirmed_ms",
+        "paid_events_table": "SELECT to_regclass('adc2_paid_booking_events') IS NOT NULL AS present",
+        "paid_event_add": "INSERT INTO adc2_paid_booking_events VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "paid_event_last_block": "SELECT * FROM adc2_paid_booking_events WHERE booking_id=? AND kind IN ('receipt','finality','reorg') AND block_hash IS NOT NULL ORDER BY at_ms DESC,id DESC LIMIT 1",
+        "paid_events_for": "SELECT * FROM adc2_paid_booking_events WHERE booking_id=? ORDER BY at_ms,id",
+        "paid_bookings_watch": "SELECT b.* FROM adc2_paid_bookings b WHERE b.state IN ('confirmed','served','review','refund_due') AND b.tx_hash IS NOT NULL AND b.confirmed_ms>=? AND NOT EXISTS (SELECT 1 FROM adc2_paid_booking_events e WHERE e.booking_id=b.id AND e.finality='finalized') ORDER BY b.confirmed_ms LIMIT ?",
+        "paid_booking_reorg": "UPDATE adc2_paid_bookings SET state='review',note=? WHERE id=? AND state IN ('confirmed','served')",
         "campaigns_sponsored_paid": "SELECT c.id,r.payload_json,r.ends_ms,b.task_category,b.region FROM adc2_paid_bookings b JOIN adc2_campaigns c ON c.id=b.campaign_id JOIN adc2_campaign_revisions r ON r.id=c.current_revision_id "
         "JOIN adc2_advertisers a ON a.id=c.advertiser_id WHERE b.day_ms=? AND b.state IN ('confirmed','served') AND c.state='active' AND c.approval_status='approved' "
         "AND a.status='active' AND r.ends_ms>? ORDER BY b.confirmed_ms,b.id LIMIT ?",

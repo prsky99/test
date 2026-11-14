@@ -31,10 +31,20 @@ def topic(address):
 
 
 class FakeRPC:
-    """Base receipts: tx -> (token, from, to, amount, block); the head block moves with .head."""
+    """Base receipts: tx -> (token, from, to, amount, block); the head block moves with .head. F12: blocks have hashes
+    (.fork changes them, as a reorg would), 'safe' and 'finalized' tags follow .safe and .finalized, .down fails calls."""
 
     def __init__(self):
-        self.txs, self.head = {}, 100
+        self.txs, self.head, self.safe, self.finalized, self.fork, self.down = {}, 100, 0, 0, 0, False
+
+    def _up(self):
+        if self.down:
+            raise RuntimeError('rpc down')
+
+    def call(self, method, *params):
+        self._up()
+        assert method == 'eth_getBlockByNumber'
+        return {'number': hex({'safe': self.safe, 'finalized': self.finalized}[params[0]])}
 
     def send(self, amount, *, token=paid.BASE_USDC, sender=PAYER, to=PAY_TO, block=90, status='0x1'):
         tx = '0x' + secrets.token_hex(32)
@@ -42,16 +52,20 @@ class FakeRPC:
         return tx
 
     def receipt(self, tx):
+        self._up()
         t = self.txs.get(tx)
         if t is None:
             return None
-        return {'status': t['status'], 'blockNumber': hex(t['block']), 'logs': [
+        return {'status': t['status'], 'blockNumber': hex(t['block']),
+                'blockHash': '0x%064x' % (t['block'] * 1000 + self.fork), 'logs': [
             {'address': t['token'], 'topics': [TRANSFER_TOPIC, topic(t['sender']), topic(t['to'])], 'data': hex(t['amount'])}]}
 
     def block_number(self):
+        self._up()
         return self.head
 
     def chain_id(self):
+        self._up()
         return paid.BASE_CHAIN_ID
 
 
@@ -178,11 +192,12 @@ def test_operator_clears_reviews_records_refunds_and_exports_a_month(world):
     q = quote(world)
     service.submit(suite.advertiser, q['id'], rpc.send(5_000_000), now_ms=NOW + 60_000)       # review
     assert [i['id'] for i in service.operator_queue(access, op)['items']] == [q['id']]
-    assert service.operator_decide(access, op, q['id'], action='refund')['state'] == 'refund_due'
+    assert service.operator_decide(access, op, q['id'], action='refund', reason='paid without a quote match')['state'] == 'refund_due'
     with pytest.raises(ContractError):
-        service.operator_decide(access, op, q['id'], action='refunded', refund_tx_hash='nope')
-    refund = '0x' + 'a' * 64
-    assert service.operator_decide(access, op, q['id'], action='refunded', refund_tx_hash=refund)['state'] == 'refunded'
+        service.operator_decide(access, op, q['id'], action='refunded', refund_tx_hash='nope', reason='refund sent')
+    refund = rpc.send(5_000_000, sender=PAY_TO, to=PAYER)
+    assert service.operator_decide(access, op, q['id'], action='refunded', refund_tx_hash=refund,
+                                   reason='refund sent by the owner')['state'] == 'refunded'
     good = quote(world, region='KR')
     service.submit(suite.advertiser, good['id'], rpc.send(int(good['amount_units'])), now_ms=NOW + 60_000)
     month = time.strftime('%Y-%m', time.gmtime((NOW + 60_000) / 1000))
