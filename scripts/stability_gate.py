@@ -10,7 +10,8 @@ The user decided on 11-11 that internal stability comes before advertisers. The 
 - real tasks (scripts/real_task_score.py): the latest scored day passed at least TASK_TARGET of 30;
 - error ledger (scripts/error_ledger.py): yesterday has no unexplained error.
 Since 11-14 this "final gate" is a quality measure only; the USDC switch follows the payment stability standard
-(user decision 11-14 "안정 기준으로 완화", charter be8ffc36), judged here too:
+(user decision 11-14 "안정 기준으로 완화", charter be8ffc36), judged here too. 11-14 09:4x the user turned the switch on
+without waiting (charter 9bdc36cc); the standard stays as an operating measure:
   (1) the payment flow tests (test network, failure cases included) of the AD Coin team all pass (latest result file
       logs/ops/payment-flow-tests/*.json: {"at", "network", "passed", "total", "includes_failure_cases", "failed": []});
   (2) a day with the public status operational (no run of OUTAGE_MINUTES or more failed minute checks, at least
@@ -41,6 +42,8 @@ SLO_DAYS, FULL_DAYS, TASK_TARGET = 7, 3, 27
 MIN_SLO_RUNS = 12          # hourly runs; fewer means the day was not really measured
 MARK = '> **[안정성 관문'
 PAYMENT_DAYS = 3
+SWITCH = 'usdc-switch.json'   # {"state": "on"} once the public quote is checked after the switch (운영·SRE writes it)
+SPONSORED_ENV = ROOT / 'gateway-data/sponsored.env'
 OUTAGE_MINUTES = 5          # consecutive failed minute checks that /status.json shows as an incident (11-10, 11-12: 15)
 MIN_AVAILABILITY_CHECKS = 1200
 AVAILABILITY = 'public-availability-days.json'   # daily summary kept here (the table keeps 30 days only)
@@ -233,6 +236,23 @@ def payment_tests(folder):
     return {'ok': False, 'passed': None, 'total': None, 'file': None}
 
 
+def usdc_switch(ops, env=None):
+    """11-14 user decision: the switch is on regardless of the standard. 'on' when sponsored.env turns it on and the
+    public quote was checked after it (usdc-switch.json), 'turning_on' before that check, 'off' otherwise."""
+    try:
+        text = Path(env or SPONSORED_ENV).read_text()
+    except OSError:
+        text = ''
+    lines = [line.strip() for line in text.splitlines() if line.strip() and not line.lstrip().startswith('#')]
+    if 'AD_COIN_PAID_BOOKING_ENABLED=1' not in lines:
+        return 'off'
+    try:
+        checked = json.loads((Path(ops) / SWITCH).read_text()).get('state') == 'on'
+    except (OSError, ValueError):
+        checked = False
+    return 'on' if checked else 'turning_on'
+
+
 def payment_standard(ops, today, interim, availability=None):
     operational = operational_days(availability if availability is not None else refresh_availability(ops), ops)
     both = {d: {'ok': operational.get(d, {}).get('ok', False) and interim.get(d, {}).get('ok', False)}
@@ -282,6 +302,7 @@ def judge(today=None, ops=None, availability=None):
     result['full_check']['ok'] = result['full_check']['streak'] >= FULL_DAYS
     result['open'] = all(result[k]['ok'] for k in ('user_slo', 'full_check', 'real_tasks', 'error_ledger'))
     result['payment'] = payment_standard(ops, today, interim, availability)
+    result['usdc_switch'] = usdc_switch(ops)
     return result
 
 
@@ -318,7 +339,9 @@ def board_line(r):
                   else f"{tests['passed']}/{tests['total']}{'' if tests.get('failure_cases') else ', 실패 경우 미포함'}")
     y = pay.get('yesterday') or {}
     op, it = y.get('operational') or {}, y.get('interim') or {}
-    pay_text = (f"결제 안정 기준 {pay.get('days', 0)}/{PAYMENT_DAYS}일({'충족' if pay.get('met') else '미충족'}: "
+    switch = {'on': '켜짐(11-14 사용자 결정)', 'turning_on': '켜는 중(11-14 사용자 결정)'}.get(r.get('usdc_switch'), '꺼짐')
+    pay_text = (f"USDC 결제: {switch} · "
+                f"결제 안정 기준 {pay.get('days', 0)}/{PAYMENT_DAYS}일(운영 지표, {'충족' if pay.get('met') else '미충족'}: "
                 f"①결제 흐름 시험 {tests_text}({mark(tests.get('ok'))}) "
                 f"②어제 공개 상태 {mark(op.get('status_ok'))}·설명 안 되는 오류 "
                 f"{'-' if op.get('unexplained') is None else op.get('unexplained')}건 "
@@ -333,7 +356,7 @@ def board_line(r):
             f"전수 점검 실패 0 {r['full_check']['streak']}/{FULL_DAYS}일({mark(r['full_check']['ok'])}) · "
             f"실제 과제 {task.get('passed')}/{task.get('tasks')}(목표 {TASK_TARGET}, {mark(task['ok'])}) · "
             f"설명되지 않은 오류 {ledger['day']} {unexplained}({mark(ledger['ok'])}). "
-            f"USDC 결제 스위치는 결제 안정 기준으로 판단(11-14 사용자 결정). 차선 목표 달성 시 빠른 성장. "
+            f"USDC 결제 스위치는 11-14 사용자 결정으로 관문 없이 켬, 생기는 문제는 그날 처리. 차선 목표 달성 시 빠른 성장. "
             f"기록 logs/ops/stability-gate.json")
 
 
@@ -358,12 +381,13 @@ def update_board(line, board=None):
 
 
 def record_met(result, ops=None):
-    """The first time the payment stability standard is met, write payment-standard-met.json (once) and return True:
-    the PM then asks the user for the receiving wallet address (PM 11-14)."""
+    """The first time the payment stability standard is met, write payment-standard-met.json (once) and return True.
+    11-14 09:4x: the switch is already on, so this only records the operating measure being met."""
     met = Path(ops or OPS) / 'payment-standard-met.json'
     if not (result.get('payment') or {}).get('met') or met.exists():
         return False
-    met.write_text(json.dumps({'met_at': result['judged_at'], 'payment': result['payment']}, ensure_ascii=False))
+    met.write_text(json.dumps({'met_at': result['judged_at'], 'note': '운영 지표 충족', 'payment': result['payment']},
+                               ensure_ascii=False))
     return True
 
 
@@ -378,7 +402,7 @@ def main(argv=None):
         OUT.write_text(json.dumps(result, ensure_ascii=False, indent=1))
         update_board(line)
         if record_met(result):
-            print('PAYMENT STANDARD MET: tell the PM')
+            print('payment stability standard met (operating measure)')
     return 0
 
 

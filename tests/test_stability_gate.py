@@ -73,7 +73,7 @@ def test_the_line_says_what_stays_frozen_and_reports_the_final_and_interim_targe
     interim reached is the fast-growth signal."""
     r = gate.judge(TODAY, tmp_path)
     line = gate.board_line(r)
-    assert 'USDC 결제 스위치·광고주 유치' not in line and 'USDC 결제 스위치는 결제 안정 기준으로 판단' in line
+    assert 'USDC 결제 스위치·광고주 유치' not in line and 'USDC 결제 스위치는 11-14 사용자 결정으로 관문 없이 켬' in line
     assert '새 기능 동결' not in line
     assert '최종 목표 관문(품질 지표) 닫힘' in line and '차선 목표 미달' in line
     r['interim'] = {**(r.get('interim') or {}), 'ok': True}
@@ -101,7 +101,7 @@ def test_payment_standard_needs_all_three_on_three_days(tmp_path):
     r = gate.judge(TODAY, tmp_path, availability=operational(days))
     assert r['payment']['days'] == 3 and r['payment']['tests']['ok'] and r['payment']['met']
     line = gate.board_line(r)
-    assert '결제 안정 기준 3/3일(충족' in line and 'USDC 결제 스위치·광고주 유치' not in line
+    assert '결제 안정 기준 3/3일(운영 지표, 충족' in line and 'USDC 결제 스위치·광고주 유치' not in line
     # a 5-minute outage on one day, a thin day, or an unexplained error breaks the days
     assert gate.judge(TODAY, tmp_path, availability={**operational(days), '2026-11-18': operational(['x'], longest=5)['x']})['payment']['days'] == 1
     assert gate.judge(TODAY, tmp_path, availability=operational(days, checks=900))['payment']['days'] == 0
@@ -133,3 +133,17 @@ def test_met_is_recorded_once(tmp_path):
     r = {'judged_at': '2026-11-20 09:00', 'payment': {'met': True, 'days': 3}}
     assert gate.record_met(r, tmp_path) and not gate.record_met(r, tmp_path)
     assert not gate.record_met({'judged_at': 'x', 'payment': {'met': False}}, tmp_path / 'x')
+
+
+def test_switch_state_comes_from_sponsored_env_and_the_quote_check(tmp_path):
+    env = tmp_path / 'sponsored.env'
+    assert gate.usdc_switch(tmp_path, env) == 'off'
+    env.write_text('MAIN_SPONSORED=1\n# AD_COIN_PAID_BOOKING_ENABLED=1\n')
+    assert gate.usdc_switch(tmp_path, env) == 'off'
+    env.write_text('MAIN_SPONSORED=1\nAD_COIN_PAID_BOOKING_ENABLED=1\n')
+    assert gate.usdc_switch(tmp_path, env) == 'turning_on'
+    (tmp_path / gate.SWITCH).write_text(json.dumps({'state': 'on'}))
+    assert gate.usdc_switch(tmp_path, env) == 'on'
+    r = gate.judge(TODAY, tmp_path)
+    r['usdc_switch'] = 'turning_on'
+    assert gate.board_line(r).split('** ', 1)[1].startswith('USDC 결제: 켜는 중(11-14 사용자 결정) · 결제 안정 기준 0/3일(운영 지표')
