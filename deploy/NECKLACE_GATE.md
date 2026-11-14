@@ -163,6 +163,9 @@
   - 두 회차를 합쳐도 30건이 안 되면 판정하지 않는다(exit 76, 호출 0). 정답 세트를 늘리거나 PM이 기준을 정한다.
   - 계약 시험 입력(`reports/fallback-agents-2026-11-14/contract-test-inputs.json`)이 없는 에이전트는 통과할 수 없다.
   - 측정 시간(:55~:10, 03:50~05:10)에는 시작하지 않는다(exit 75).
+  - 입력은 조정 실행과 같은 `gold_check.case_arguments`로 만든다(11-15: 계약 칸만 남기다 `topic`이 빠져 wikipedia 30건이 제목 없이 불림).
+  - 호출 예약은 원천마다 `사례 수 × 사례당 호출 수 + 4`다. GLEIF는 사례당 2회(검색 + 최상위 법인 읽기)이고 Wikidata(query.wikidata.org)를 사례당 1회까지 함께 예약한다. 한 도메인이 하루 합계 60을 넘으면 아무것도 예약하지 않고 멈춘다(exit 75).
+  - 다시 판정할 때는 `--exclude-raw <이전 raw 파일>`로 이미 쓴(분석에 보인) 사례를 뺀다.
 - **기록과 승인**
   - 판정은 `logs/ops/necklace-gate/substitutes/<resource_id>-v<version>.json`에 남기고, 장부에 한 줄 적는다.
   - 통과하면 `gateway-data/necklaces/approvals.json`의 `substitutes`에 승인을 쓴다: `{resource_id, slot_role, version, definition_digest, state: "approved", at}`

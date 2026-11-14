@@ -31,8 +31,12 @@ UNCLEAN = re.compile(r'lorem|ipsum|\bplaceholder\b|\bmock\b|\bdummy\b|\bexample\
 DOMAINS = {'nvd-cve': ['https://services.nvd.nist.gov/'], 'cisa-kev': ['https://www.cisa.gov/', 'https://api.first.org/'],
            'package-registry': ['https://registry.npmjs.org/', 'https://pypi.org/'], 'depsdev-package': ['https://api.deps.dev/'],
            'cve-org': ['https://cveawg.mitre.org/'], 'github-advisory': ['https://api.github.com/'],
-           'gleif-lei': ['https://api.gleif.org/'], 'sec-edgar': ['https://data.sec.gov/'],
+           'gleif-lei': ['https://api.gleif.org/', 'https://query.wikidata.org/'], 'sec-edgar': ['https://data.sec.gov/'],
            'wikipedia-summary': ['https://en.wikipedia.org/']}
+# Calls per case when an agent may call a source more than once (11-15 agent team, eefdb282: GLEIF search plus one
+# direct read of the top-level entity; Wikidata at most once). Reserved as CASES x this + EXTRA_CALLS.
+CALLS_PER_CASE = {'https://api.gleif.org/': 2}
+EXTRA_CALLS = 4   # contract inputs and role tasks
 
 
 def quality(envelope):
@@ -51,18 +55,40 @@ def quality(envelope):
     return reasons
 
 
-def reserve_calls(agent_ids, n):
-    from agent_market.provider_budget import reserve
+def calls_needed(agent_ids, cases=None):
+    cases = SUBSTITUTE_CASES if cases is None else cases
+    return {url: CALLS_PER_CASE.get(url, 1) * cases + EXTRA_CALLS for a in agent_ids for url in DOMAINS.get(a, [])}
+
+
+def reserve_calls(agent_ids, cases=None):
+    from agent_market.provider_budget import DAILY_TOTAL, reserve
+    needed = calls_needed(agent_ids, cases)
+    over = {url: n for url, n in needed.items() if n > DAILY_TOTAL}
+    if over:  # cannot fit one day's domain total whatever else ran today: reserve nothing
+        return {url: f'needs {n} > daily total {DAILY_TOTAL}' for url, n in over.items()}
     refused = {}
-    for agent_id in agent_ids:
-        for url in DOMAINS.get(agent_id, []):
-            ok, why = reserve(url, 'gate', n=n)
-            if not ok:
-                refused[url] = why
+    for url, n in needed.items():
+        ok, why = reserve(url, 'gate', n=n)
+        if not ok:
+            refused[url] = why
     return refused
 
 
-def held_out(agent_id, split, fill_from=None):
+def used_cases(paths):
+    """(agent, case_id) pairs already run in earlier gate raw files: a rerun takes cases nobody has seen."""
+    used = set()
+    for path in paths or []:
+        for line in Path(path).read_text(encoding='utf-8').splitlines():
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            if row.get('agent') and row.get('case_id'):
+                used.add((row['agent'], row['case_id']))
+    return used
+
+
+def held_out(agent_id, split, fill_from=None, exclude=frozenset()):
     """The held-out cases the source can answer (gold_check.applies), SUBSTITUTE_CASES of them: the split first, then
     the fill split (11-14: GLEIF and SEC only answer cases with an LEI or a CIK). Cases a source cannot answer are
     never called."""
@@ -71,25 +97,25 @@ def held_out(agent_id, split, fill_from=None):
     for name in [split] + ([fill_from] if fill_from else []):
         path = ROOT / 'gateway-data/necklaces/gold' / SLUG[agent_id] / f'{name}.jsonl'
         rows = [json.loads(line) for line in path.read_text(encoding='utf-8').splitlines() if line.strip()]
-        cases += [dict(c, split=name) for c in rows if applies(agent_id, c)]
+        cases += [dict(c, split=name) for c in rows if applies(agent_id, c) and (agent_id, c['case_id']) not in exclude]
     return cases[:SUBSTITUTE_CASES]
 
 
-def run(agent_ids, split, raw_path, agents=None, fill_from=None):
+def run(agent_ids, split, raw_path, agents=None, fill_from=None, exclude=frozenset()):
     from agent_market.fallback_agents.agents import FallbackAgents, FallbackUnavailable
-    from agent_market.fallback_agents.catalog import SPECS, contract
-    from agent_market.fallback_agents.gold_check import SLUG, judge, role_task_check
+    from agent_market.fallback_agents.gold_check import case_arguments, judge, role_task_check
     agents = agents or FallbackAgents()
     report = {'split': split, 'agents': {}}
     with open(raw_path, 'a', encoding='utf-8') as raw:
         for agent_id in agent_ids:
-            cases = held_out(agent_id, split, fill_from)
-            allowed = contract(SPECS[agent_id]['contract'])['input_schema']['properties']
+            cases = held_out(agent_id, split, fill_from, exclude)
             rows = []
             for case in cases:
                 started, envelope, code = time.monotonic(), None, None
                 try:
-                    envelope = agents.execute(agent_id, {k: v for k, v in case['input'].items() if k in allowed})
+                    # The same mapping as the tuning runs (11-15: cutting to the contract fields dropped 'topic',
+                    # so all 30 Wikipedia cases ran without a title)
+                    envelope = agents.execute(agent_id, case_arguments(agent_id, case))
                 except FallbackUnavailable as exc:
                     code = exc.code
                 raw.write(json.dumps({'agent': agent_id, 'case_id': case['case_id'], 'error': code, 'envelope': envelope},
@@ -126,7 +152,9 @@ def main(argv=None):
     parser.add_argument('agents', nargs='+')
     parser.add_argument('--split', default='holdout-r1')
     parser.add_argument('--fill-from', default=None, help='take more answerable cases from this split (e.g. holdout-r2)')
+    parser.add_argument('--exclude-raw', nargs='*', default=[], help='skip cases already run in these gate raw files')
     args = parser.parse_args(argv)
+    exclude = used_cases(args.exclude_raw)
     local = time.localtime()
     hm = local.tm_hour * 100 + local.tm_min
     if local.tm_min >= 55 or local.tm_min < 10 or 350 <= hm <= 510:  # never inside the measurement windows
@@ -134,17 +162,17 @@ def main(argv=None):
         return 75
     stamp = time.strftime('%Y%m%d-%H%M')
     OUT.mkdir(parents=True, exist_ok=True)
-    short = {a: len(held_out(a, args.split, args.fill_from)) for a in args.agents}
+    short = {a: len(held_out(a, args.split, args.fill_from, exclude)) for a in args.agents}
     short = {a: n for a, n in short.items() if n < SUBSTITUTE_CASES}
     if short:  # no calls when a source cannot reach the case count (an answer set to extend, not a verdict)
         print(json.dumps({'ok': False, 'reason': 'held_out_cases', 'answerable': short, 'need': SUBSTITUTE_CASES}))
         return 76
-    refused = reserve_calls(args.agents, 34)
+    refused = reserve_calls(args.agents)
     if refused:
         print(json.dumps({'ok': False, 'reason': 'budget', 'refused': refused}))
         return 75
     raw = OUT / f'raw-{args.split}-{stamp}.jsonl'
-    report = run(args.agents, args.split, raw, fill_from=args.fill_from)
+    report = run(args.agents, args.split, raw, fill_from=args.fill_from, exclude=exclude)
     report.update(at=stamp, raw=str(raw.relative_to(ROOT)))
     out = OUT / f'verdict-{args.split}-{stamp}.json'
     out.write_text(json.dumps(report, ensure_ascii=False, indent=1))
