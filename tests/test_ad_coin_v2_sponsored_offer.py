@@ -312,3 +312,21 @@ def test_one_migration_widens_the_impression_check_and_keeps_existing_rows(p1_su
     with pytest.raises(Exception):
         with store.atomic():
             store.execute("sponsored_impression_add", (NOW - NOW % 86_400_000, campaign['id'], 'research', 'US', 'rest', 1))
+
+
+def test_offer_routes_answer_503_before_the_tables_exist(p1_suite):  # noqa: F811
+    """Deployed before migrate-agent-ads: a clear 503, never a database error in the logs."""
+    from agent_market.ad_coin.v2.contracts import ContractError
+    from tests.test_ad_coin_v2_paid_bookings import operator
+    from tests.test_ad_coin_v2_p1 import _activate_campaign
+    store = p1_suite.service.store
+    campaign = _activate_campaign(p1_suite)
+    for call in (lambda: so.submit_offer(store, p1_suite.advertiser, campaign['id'], GOOD),
+                 lambda: so.pending_offers(store, p1_suite.service.access, operator(p1_suite)),
+                 lambda: so.decide_offer(store, p1_suite.service.access, operator(p1_suite), campaign['id'], approve=True)):
+        with pytest.raises(ContractError) as error:
+            call()
+        assert (error.value.code, error.value.status) == ('offers_not_available', 503)
+    assert so.approved_offer(store, campaign['id']) is None
+    from agent_market.ad_coin.v2.ads_library import entries             # the ad library works without them too
+    assert all(e['offer'] is None for e in entries(store))

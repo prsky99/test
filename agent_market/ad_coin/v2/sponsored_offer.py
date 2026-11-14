@@ -181,6 +181,12 @@ def public_endpoint(url):
 DAY_MS = 86_400_000
 
 
+def _require_tables(store):
+    """Before migrate-agent-ads the offer routes answer 503 offers_not_available instead of a database error."""
+    if not store.one("sponsored_offers_table")["present"]:
+        raise ContractError("offers_not_available", 503)
+
+
 def submit_offer(store, advertiser_id, campaign_id, raw, *, now_ms=None):
     """An advertiser's offer for one of its campaigns: screened now, then pending an operator's review.
     A changed offer goes back to pending (the approved one stops showing until it is reviewed again)."""
@@ -191,6 +197,7 @@ def submit_offer(store, advertiser_id, campaign_id, raw, *, now_ms=None):
         raise ContractError("offer_refused:" + ",".join(error.problems)[:200], 422)
     now_ms = int(time.time() * 1000) if now_ms is None else int(now_ms)
     with store.atomic():
+        _require_tables(store)
         campaign = store.one("campaign_get", (campaign_id,))
         if campaign is None or campaign["advertiser_id"] != advertiser_id:
             raise ContractError("unknown_resource", 404)
@@ -205,6 +212,7 @@ def decide_offer(store, access, principal, campaign_id, *, approve, reason="", n
     if not approve and not (isinstance(reason, str) and 3 <= len(reason.strip()) <= 200):
         raise ContractError("invalid_reason", 422)
     with store.atomic():
+        _require_tables(store)
         row = store.one("sponsored_offer_get", (campaign_id,))
         if row is None or row["state"] != "pending":
             raise ContractError("offer_not_pending", 409)
@@ -219,6 +227,7 @@ def decide_offer(store, access, principal, campaign_id, *, approve, reason="", n
 def pending_offers(store, access, principal, limit=50):
     access.require_operator(principal)
     with store.atomic():
+        _require_tables(store)
         rows = store.all("sponsored_offers_pending", (limit,))
     return {"items": [{"campaign_id": r["campaign_id"], "advertiser_id": r["advertiser_id"],
                        "offer": json.loads(r["offer_json"]), "submitted_ms": int(r["submitted_ms"])} for r in rows]}
