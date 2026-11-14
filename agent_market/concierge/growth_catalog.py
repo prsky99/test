@@ -313,6 +313,18 @@ def best_index(snapshot=None):
 
 
 # ---------------------------------------------------------------- comparisons
+def stale_pair_target(left, right, snapshot=None):
+    """A comparison link from a page the edge still keeps (6 h, served stale up to a day) may name a pair that is no
+    longer neighbours in today's snapshot (11-14 15:34 check: /agents/compare/43107-vs-224153, 404). While both
+    agents are listed, that link goes to the first agent's page, which lists its current comparisons; a temporary
+    redirect, since the pair may return. Only pairs of listed agents qualify, so no new pages appear for any pair."""
+    snapshot = g.SNAPSHOT.read() if snapshot is None else snapshot
+    if not snapshot or left >= right:
+        return None
+    catalog = snapshot.get('catalog') or {}
+    return '/agent/' + str(left) if catalog.get(left) and catalog.get(right) else None
+
+
 def compare_page(left, right, snapshot=None):
     snapshot = g.SNAPSHOT.read() if snapshot is None else snapshot
     if not snapshot or (left, right) not in pairs(snapshot):
@@ -568,7 +580,16 @@ def install(router, page_headers, not_found, store=None):
     @router.get('/agents/compare/{pair}', include_in_schema=False)
     async def compare(pair: str):
         match = re.fullmatch(r'([1-9][0-9]{0,9})-vs-([1-9][0-9]{0,9})', pair)
-        return page(await run_in_threadpool(compare_page, int(match[1]), int(match[2])) if match else None)
+        if not match:
+            return not_found()
+        value = await run_in_threadpool(compare_page, int(match[1]), int(match[2]))
+        if value:
+            return page(value)
+        moved = stale_pair_target(int(match[1]), int(match[2]))
+        if moved:
+            from fastapi.responses import RedirectResponse
+            return RedirectResponse(moved, status_code=302, headers={'Cache-Control': 'public, max-age=3600'})
+        return not_found()
 
     @router.get('/badges', include_in_schema=False)
     def badges():
