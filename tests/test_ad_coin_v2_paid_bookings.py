@@ -156,8 +156,10 @@ def test_slow_confirmation_waits_then_confirms_and_unpaid_quotes_expire(world):
     late = quote(world, region='KR')
     service.recheck(now_ms=NOW + paid.QUOTE_TTL_MS + 1)
     assert suite.service.store.one('paid_booking_get', (late['id'],))['state'] == 'expired'
-    with pytest.raises(ContractError):
-        service.submit(suite.advertiser, late['id'], rpc.send(int(late['amount_units'])), now_ms=NOW + paid.QUOTE_TTL_MS + 2)
+    # 11-14: money that arrives after the quote expired is kept for review, never lost in an error
+    kept = service.submit(suite.advertiser, late['id'], rpc.send(int(late['amount_units'])), now_ms=NOW + paid.QUOTE_TTL_MS + 2)
+    assert kept['state'] == 'review'
+    assert suite.service.store.one('paid_booking_get', (late['id'],))['note'] == 'late_payment'
 
 
 def test_placements_count_coin_and_paid_bookings_together(world):
