@@ -67,3 +67,14 @@ def test_a_trait_word_is_dropped_to_find_a_relayed_choice_and_marked_unverified(
     assert recs and recs[0]['id'] == read and action not in [r['id'] for r in recs]
     assert recs[0]['unverified'] == ['bulk']
     assert 'not confirmed (unverified): bulk' in recs[0]['reason']['text']
+
+
+def test_cards_that_need_provider_authorization_are_not_connectable_for_a2a_and_mcp():
+    """11-15 06:00 user_slo a2a/86992 (agent card 400 provider_auth_required) and 00:04 mcp/36513."""
+    from agent_market.concierge.connections import public_agent
+    for kind, available in (('a2a', False), ('mcp', False), ('x402', True)):
+        card = public_agent({'id': 86992, 'kind': kind, 'name': 'Rooms', 'url': 'https://rooms.example.net/a2a',
+                             'auth_required': True, 'tools': ['review'], 'category': 'dev_tools', 'description': 'd'},
+                            create_connections=False)
+        assert card['connection_available'] is available, kind
+        assert (card.get('connection_reason') == 'provider_authorization') is (not available)
