@@ -3,7 +3,7 @@
 The booking flow, prices and terms live with the AD Coin team (/ad-coin/v2/advertise, /ad-coin/v2#advertising); this
 page adds the measured audience and the trust rules, and links there. Numbers come from logs/growth/usage-daily.jsonl
 (anonymous daily counts, our own checks excluded); a missing value hides its line. USDC wording follows the payment
-switch (agent_market.ad_coin.v2.paid_bookings.enabled). No promise words: no "best", "guaranteed" or "#1".
+switch (AD_COIN_PAID_BOOKING_ENABLED, read without importing ad_coin). No promise words: no "best", "guaranteed" or "#1".
 """
 import html
 import json
@@ -49,12 +49,13 @@ def audience(rows):
     return out
 
 
+PAID_SWITCH = 'AD_COIN_PAID_BOOKING_ENABLED'  # same switch as ad_coin.v2.paid_bookings.ENABLED_ENV (sponsored.env)
+
+
 def usdc_open():
-    try:
-        from ..ad_coin.v2.paid_bookings import enabled
-        return bool(enabled())
-    except Exception:
-        return False
+    """On/off of the USDC booking switch, read from the environment only: organic modules never import ad_coin
+    (tests/test_ad_coin.py::test_organic_selection_cannot_import_ad_coin, no exception, PM 11-14)."""
+    return os.environ.get(PAID_SWITCH, '0') in ('1', 'true', 'True')
 
 
 def page_html(base='https://agentconcierge.biz', rows=None, usdc=None):

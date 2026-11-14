@@ -52,3 +52,13 @@ def test_agent_pages_tell_providers_on_our_own_page_only():
     assert 'href="/methodology"' in note and 'href="/advertise"' in note and 'Is this your agent?' in note
     import inspect
     assert 'PROVIDER_NOTE' in inspect.getsource(growth_catalog.agent_page)
+
+
+def test_switch_is_read_from_the_environment_without_importing_ad_coin(monkeypatch):
+    """No exception to the ad-neutral rule (PM 11-14): same switch name as paid_bookings, read from the environment."""
+    from agent_market.ad_coin.v2 import paid_bookings
+    assert ap.PAID_SWITCH == paid_bookings.ENABLED_ENV
+    monkeypatch.setenv(ap.PAID_SWITCH, '1')
+    assert ap.usdc_open() is True and 'from your own wallet, when you book' in text(ap.page_html(rows=[]))
+    monkeypatch.setenv(ap.PAID_SWITCH, '0')
+    assert ap.usdc_open() is False and 'USDC payments are not open yet' in text(ap.page_html(rows=[]))
