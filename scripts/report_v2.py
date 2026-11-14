@@ -8,6 +8,7 @@ database is stage 2, after a rehearsal and approval.
     .venv/bin/python -m scripts.report_v2 run reports/pearls-2026-11-14/role_candidates_1115.json
     .venv/bin/python -m scripts.report_v2 rank                                                 # ranking, role_groups, board
 """
+import datetime as dt
 import json
 import re
 import sys
@@ -26,6 +27,9 @@ SIGNING = ROOT / 'gateway-data/signing'        # 운영·SRE deploy/EVIDENCE_SIG
 METHODOLOGY_VERSION = 'v1'
 BOARD = ROOT / 'logs/ops/status-board.md'
 RULES = 'v2-2026-11-14'
+# Evaluation rules version (current-state review 11-14 F01-F03, F10). Versions scored under different evaluator
+# versions never count together as repeated successes; rescoring writes a score file per version, never over a version.
+EVALUATOR_VERSION = 'dq-2026-11-14b'
 from agent_market.necklaces import gate_rules  # noqa: E402  (운영·SRE 897baf3a: one source for the gate numbers)
 PASS_MARK = gate_rules.REPORT_SCORE
 CONFIRM_DAYS = 2            # PM 11-14: a final pearl needs successes on two different days; before that it is provisional
@@ -316,6 +320,7 @@ def assess(r, text, structured, case):
     """Fill r['data_quality'] from the whole answer; an unclean answer fails the version (PM 11-14)."""
     import hashlib
     r['response_hash'] = hashlib.sha256((text or '').encode('utf-8')).hexdigest() if text else None
+    r['evaluator_version'] = EVALUATOR_VERSION
     if r['outcome'] != 'succeeded':
         r['data_quality'] = {}
         return
@@ -325,13 +330,19 @@ def assess(r, text, structured, case):
     acc_points, source, reasons = DQ.accuracy(case, text, structured, live=live,
                                               live_value=reference_value(live['reference']) if live and live.get('terms_ok') is not False else None,
                                               role_tasks=role_tasks)
-    fresh_points, rule, newest = DQ.freshness(r['role'], text)
-    comp_points, blanks, fields = DQ.completeness(text, structured)
+    fresh_points, rule, newest = DQ.freshness(r['role'], text, structured=structured, args=r.get('arguments'))
+    comp_points, blanks, fields, comp_detail = DQ.completeness(text, structured, role=r['role'], args=r.get('arguments'))
+    if comp_points is None:                     # a text answer: the share of the role's fact checks it passes
+        j = r.get('judgement') or {}
+        comp_points = (max(0, round(DQ.WEIGHTS['completeness'] * j['passed'] / j['total'] - 2 * blanks, 1))
+                       if j.get('total') else 0)
+        comp_detail += f" {j.get('passed', 0)}/{j.get('total', 0)}" if j.get('total') else ' (none for this role: unconfirmed)'
     r['data_quality'] = {'accuracy': {'points': acc_points, 'source': source, 'reasons': reasons},
                          'freshness': {'points': fresh_points, 'rule': rule, 'newest': newest},
-                         'completeness': {'points': comp_points, 'blanks': blanks, 'fields': fields},
+                         'completeness': {'points': comp_points, 'blanks': blanks, 'fields': fields, 'detail': comp_detail},
                          'clean': {'points': 0 if issues else DQ.WEIGHTS['clean'], 'issues': issues}}
     r['data_quality']['consistency'] = {'points': consistency_points(r, time.time())}
+    r['evaluator_version'] = EVALUATOR_VERSION
     if issues:
         r['outcome'], r['reason'] = 'failed', 'unclean answer: ' + ', '.join(issues)
 
@@ -355,52 +366,185 @@ def migrate_names():
         folder.rmdir()
 
 
-def success_days(rid, role, tool, now, extra=None):
-    days = set()
-    for path in sorted(version_dir(rid, role).glob('*.json')) if version_dir(rid, role).exists() else []:
+def kst_day(ts):
+    import zoneinfo
+    return dt.datetime.fromtimestamp(float(ts), zoneinfo.ZoneInfo('Asia/Seoul')).strftime('%Y-%m-%d')
+
+
+_WORKFLOW_CASES = None
+
+
+def answer_set(r, case=None):
+    """Which answers judged the version: the workflow set, the RAG set or a same-time public reference (F01)."""
+    global _WORKFLOW_CASES
+    case_id = (case or {}).get('case_id') or r.get('case_id')
+    if case_id:
+        if _WORKFLOW_CASES is None:
+            try:
+                from agent_market.necklaces import role_tasks
+                _WORKFLOW_CASES = {c['case_id'] for c in role_tasks.load()}
+            except Exception:
+                _WORKFLOW_CASES = set()
+        return 'workflow:role-tasks-v1' if case_id in _WORKFLOW_CASES else 'rag:role-tasks-rag-v1'
+    live = role_catalog.live_spec(r['role'])
+    return 'live:' + str(live.get('reference')) if live else None
+
+
+def qualification(v):
+    """The contract a repeated success must share (F01): resource, role, tool, endpoint, tool definition, evaluator
+    version and answer set."""
+    return (v.get('tool'), v.get('endpoint'), v.get('tool_fingerprint'), v.get('evaluator_version'), v.get('answer_set'))
+
+
+def qualifies(v, now):
+    """A success that counts toward repetition: accurate, clean, tested in the last 7 days and not in the future."""
+    dq = v.get('data_quality') or {}
+    tested = float(v.get('tested') or 0)
+    return (v.get('outcome') == 'succeeded' and bool((dq.get('accuracy') or {}).get('points'))
+            and (dq.get('clean') or {}).get('points', DQ.WEIGHTS['clean']) > 0
+            and tested <= now + 300 and now - tested <= 7 * DAY)
+
+
+def load_version(path):
+    """A stored version with its newest score file for the current evaluator version laid over it."""
+    v = json.loads(path.read_text())
+    score = path.parent / 'scores' / f'{path.stem}.{EVALUATOR_VERSION}.json'
+    if score.exists():
         try:
-            v = json.loads(path.read_text())
+            v.update(json.loads(score.read_text()))
+        except (OSError, ValueError):
+            pass
+    v['_path'] = str(path)
+    return v
+
+
+def versions_of(rid, role):
+    folder = version_dir(rid, role)
+    out = []
+    for path in sorted(folder.glob('*.json')) if folder.exists() else []:
+        try:
+            out.append(load_version(path))
         except (OSError, ValueError):
             continue
-        if v.get('tool') == tool and v.get('outcome') == 'succeeded' and now - float(v.get('tested', 0)) <= 7 * DAY:
-            days.add(time.strftime('%Y-%m-%d', time.localtime(float(v['tested']))))
-    if extra:
-        days.add(time.strftime('%Y-%m-%d', time.localtime(extra)))
+    return out
+
+
+def success_days(rid, role, tool, now, extra=None, ref=None):
+    """Different KST days with a qualifying success under REF's contract (the latest version of TOOL when REF is
+    None). EXTRA is the time of REF itself while it is being saved. Earlier contracts are kept but never counted."""
+    stored = [v for v in versions_of(rid, role) if v.get('tool') == tool]
+    if ref is None:
+        ref = max((v for v in stored if float(v.get('tested') or 0) <= now + 300),
+                  key=lambda v: float(v.get('tested') or 0), default=None)    # a future-dated record never leads
+        if ref is None:
+            return 0
+    key = qualification(ref)
+    days = {kst_day(v['tested']) for v in stored if qualification(v) == key and qualifies(v, now)}
+    if extra is not None and qualifies(ref, now):
+        days.add(kst_day(extra))
     return len(days)
 
 
+def attempt_id(result):
+    """An immutable id of one test attempt (F10): the same attempt imported twice is the same id."""
+    import hashlib
+    basis = {'id': result.get('id'), 'role': canonical(result.get('role')), 'tool': result.get('tool'),
+             'started': repr(float(result.get('started') or 0)), 'endpoint': result.get('endpoint'),
+             'arguments': result.get('arguments')}
+    return result.get('attempt_id') or hashlib.sha256(json.dumps(basis, sort_keys=True, default=str).encode()).hexdigest()[:24]
+
+
+def write_new(path, text):
+    """Write TEXT to PATH atomically and never over an existing file: temp file, fsync, hard link, directory fsync."""
+    import os
+    tmp = path.parent / f'.{path.name}.tmp-{os.getpid()}'
+    with open(tmp, 'w', encoding='utf-8') as fh:
+        fh.write(text)
+        fh.flush()
+        os.fsync(fh.fileno())
+    try:
+        os.link(tmp, path)                      # fails when PATH exists: a version is never overwritten
+    finally:
+        tmp.unlink(missing_ok=True)
+    fd = os.open(path.parent, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def write_replace(path, text):
+    """Atomic replace for files that are meant to change (score files, signing envelopes are written once)."""
+    import os
+    tmp = path.parent / f'.{path.name}.tmp-{os.getpid()}'
+    with open(tmp, 'w', encoding='utf-8') as fh:
+        fh.write(text)
+        fh.flush()
+        os.fsync(fh.fileno())
+    os.replace(tmp, path)
+
+
+class folder_lock:
+    """One writer per (resource, role) folder while a version is numbered and stored (F10)."""
+    def __init__(self, folder):
+        self.path = folder / '.lock'
+
+    def __enter__(self):
+        import fcntl
+        self.fh = open(self.path, 'a+')
+        fcntl.flock(self.fh, fcntl.LOCK_EX)
+        return self
+
+    def __exit__(self, *exc):
+        import fcntl
+        fcntl.flock(self.fh, fcntl.LOCK_UN)
+        self.fh.close()
+
+
 def save_version(result, now=None):
-    """One more version for (resource, role); earlier versions stay."""
+    """One more immutable version for (resource, role); earlier versions stay and the same attempt is stored once."""
     now = time.time() if now is None else now
     tested = float(result.get('started') or now)
-    r = {'resource_id': result['id'], 'role': canonical(result['role']), 'domain': domain_of(result['role']),
-         'tool': result['tool'], 'arguments': result.get('arguments'), 'outcome': result['outcome'],
-         'reason': result.get('reason'), 'latency_ms': result.get('latency_ms'), 'http': result.get('http'),
-         'excerpt': (result.get('excerpt') or '')[:1000], 'host': result.get('host'),
-         'endpoint': result.get('endpoint'), 'tool_fingerprint': result.get('tool_fingerprint'),
-         'fingerprint_version': result.get('fingerprint_version'),
-         'registrable_domain': registrable(result.get('host')), 'source': result.get('source', 'role tool call'),
-         'tested': tested}
-    case = result.get('case')
-    text = result.get('full_text') or r['excerpt']
-    r['judgement'] = judge(short(r['role']), text, r['arguments']) if r['outcome'] == 'succeeded' else \
-        {'rules': RULES, 'checks': [], 'passed': 0, 'total': 0}
-    if case:
-        r['case_id'] = case['case_id']
-    assess(r, text, result.get('structured'), case)
-    acc = (r.get('data_quality') or {}).get('accuracy', {})
-    r['content_verdict'] = ('not run' if r['outcome'] != 'succeeded' else
-                            'accurate' if acc.get('points') else 'no answer source' if acc.get('source', '').startswith('none')
-                            else 'not accurate')
-    folder = version_dir(r['resource_id'], r['role'])
+    aid = attempt_id(result)
+    folder = version_dir(result['id'], result['role'])
     folder.mkdir(parents=True, exist_ok=True)
-    r['version'] = len(list(folder.glob('*.json'))) + 1
-    days = success_days(r['resource_id'], r['role'], r['tool'], now, extra=tested if r['outcome'] == 'succeeded' else None)
-    r['quality'] = quality(r, days)
-    stamp = time.strftime('%Y%m%d-%H%M%S', time.localtime(tested))
-    name = f"{stamp}-{re.sub(r'[^A-Za-z0-9_.-]', '_', r['tool'])[:60]}"
-    r['signed_report'] = sign_version(r, case, name)
-    (folder / f'{name}.json').write_text(json.dumps(r, indent=1, ensure_ascii=False))
+    with folder_lock(folder):
+        same = sorted(folder.glob(f'*-{aid[:12]}.json'))
+        if same:
+            again = load_version(same[0])       # the same attempt again: nothing new is stored
+            again.pop('_path', None)
+            return again
+        r = {'resource_id': result['id'], 'role': canonical(result['role']), 'domain': domain_of(result['role']),
+             'tool': result['tool'], 'arguments': result.get('arguments'), 'outcome': result['outcome'],
+             'reason': result.get('reason'), 'latency_ms': result.get('latency_ms'), 'http': result.get('http'),
+             'excerpt': (result.get('excerpt') or '')[:1000], 'host': result.get('host'),
+             'endpoint': result.get('endpoint'), 'tool_fingerprint': result.get('tool_fingerprint'),
+             'fingerprint_version': result.get('fingerprint_version'),
+             'registrable_domain': registrable(result.get('host')), 'source': result.get('source', 'role tool call'),
+             'tested': tested, 'attempt_id': aid}
+        case = result.get('case')
+        text = result.get('full_text') or r['excerpt']
+        r['judgement'] = judge(short(r['role']), text, r['arguments']) if r['outcome'] == 'succeeded' else \
+            {'rules': RULES, 'checks': [], 'passed': 0, 'total': 0}
+        if case:
+            r['case_id'] = case['case_id']
+        assess(r, text, result.get('structured'), case)
+        r['evaluator_version'] = EVALUATOR_VERSION
+        r['answer_set'] = answer_set(r, case)
+        acc = (r.get('data_quality') or {}).get('accuracy', {})
+        r['content_verdict'] = ('not run' if r['outcome'] != 'succeeded' else
+                                'accurate' if acc.get('points') else 'no answer source' if acc.get('source', '').startswith('none')
+                                else 'not accurate')
+        earlier = [v for v in versions_of(r['resource_id'], r['role']) if v.get('tool') == r['tool'] and qualifies(v, now)]
+        if any(qualification(v) != qualification(r) for v in earlier):
+            r['revalidation'] = 'the tool contract, endpoint, evaluator or answer set changed; earlier successes are kept but not counted'
+        r['version'] = len(list(folder.glob('*.json'))) + 1
+        days = success_days(r['resource_id'], r['role'], r['tool'], now, extra=tested, ref=r)
+        r['quality'] = quality(r, days)
+        stamp = time.strftime('%Y%m%d-%H%M%S', time.localtime(tested))
+        name = f"{stamp}-{re.sub(r'[^A-Za-z0-9_.-]', '_', r['tool'])[:60]}-{aid[:12]}"
+        r['signed_report'] = sign_version(r, case, name)
+        write_new(folder / f'{name}.json', json.dumps(r, indent=1, ensure_ascii=False))
     return r
 
 
@@ -430,7 +574,7 @@ def version_status(r):
     acc = ((r.get('data_quality') or {}).get('accuracy') or {}).get('points')
     if r['outcome'] != 'succeeded' or not acc or r['quality']['score'] < PASS_MARK:
         return 'none'
-    days = success_days(r['resource_id'], r['role'], r['tool'], time.time(), extra=r['tested'])
+    days = success_days(r['resource_id'], r['role'], r['tool'], time.time(), extra=r['tested'], ref=r)
     return 'verified' if days >= CONFIRM_DAYS else 'provisional'
 
 
@@ -483,7 +627,7 @@ def sign_version(r, case, name=None):
     previous = json.loads(earlier[-1].read_text()) if earlier else None
     envelope = ES.sign_chained(evidence_for(r, case), key, previous=previous)
     path = folder / f"{r.get('version')}.json"
-    path.write_text(json.dumps(envelope, indent=1))
+    write_new(path, json.dumps(envelope, indent=1))
     return str(path.relative_to(ROOT))
 
 
@@ -512,36 +656,51 @@ def import_fallbacks(folder=None):
 
 
 def rescore():
-    """Score every stored version again with the current rules (PM 11-14 data quality), from the stored excerpt."""
-    for path in (OUT / 'reports').glob('*/*/*.json') if (OUT / 'reports').exists() else []:
-        v = json.loads(path.read_text())
+    """Score every stored version again with the current evaluator, from the stored excerpt. The version files stay
+    as they are; each result goes to <folder>/scores/<version>.<EVALUATOR_VERSION>.json (F10: no overwrite)."""
+    from agent_market.necklaces import role_tasks
+    every = role_tasks.load() + (role_tasks.load(RAG_TASKS) if RAG_TASKS.exists() else [])
+    cases = {c['case_id']: c for c in every}
+    judged = []
+    for path in sorted((OUT / 'reports').glob('*/*/*.json')) if (OUT / 'reports').exists() else []:
+        try:
+            v = json.loads(path.read_text())
+        except (OSError, ValueError):
+            continue
         if v.get('outcome') == 'failed' and str(v.get('reason', '')).startswith('unclean answer'):
             v['outcome'], v['reason'] = 'succeeded', None       # judged again below
-        case = None
-        if v.get('case_id'):
-            try:
-                from agent_market.necklaces import role_tasks
-                every = role_tasks.load() + (role_tasks.load(RAG_TASKS) if RAG_TASKS.exists() else [])
-                case = next((c for c in every if c['case_id'] == v['case_id']), None)
-            except Exception:
-                case = None
+        case = cases.get(v.get('case_id'))
+        v['role'] = canonical(v['role'])
         assess(v, v.get('excerpt') or '', None, case)
+        v['answer_set'] = answer_set(v, case)
         acc = (v.get('data_quality') or {}).get('accuracy', {})
         v['content_verdict'] = ('not run' if v['outcome'] != 'succeeded' else 'accurate' if acc.get('points')
                                 else 'no answer source' if acc.get('source', '').startswith('none') else 'not accurate')
-        days = success_days(v['resource_id'], v['role'], v['tool'], time.time())
-        v['quality'] = quality(v, days)
+        folder = path.parent / 'scores'
+        folder.mkdir(exist_ok=True)
+        fields = {k: v[k] for k in ('outcome', 'reason', 'data_quality', 'content_verdict', 'evaluator_version', 'answer_set')}
+        write_replace(folder / f'{path.stem}.{EVALUATOR_VERSION}.json', json.dumps(fields, indent=1, ensure_ascii=False))
+        judged.append(path)
+    now = time.time()
+    for path in judged:                         # repetition reads every version under the same evaluator
+        v = load_version(path)
+        v['quality'] = quality(v, success_days(v['resource_id'], v['role'], v['tool'], now, ref=v))
         v['rescored'] = time.strftime('%Y-%m-%d %H:%M') + ' (judged on the stored excerpt)'
-        path.write_text(json.dumps(v, indent=1, ensure_ascii=False))
+        score = path.parent / 'scores' / f'{path.stem}.{EVALUATOR_VERSION}.json'
+        fields = json.loads(score.read_text())
+        fields.update(quality=v['quality'], rescored=v['rescored'])
+        write_replace(score, json.dumps(fields, indent=1, ensure_ascii=False))
+    return len(judged)
 
 
 def latest_versions():
     latest = {}
     for path in (OUT / 'reports').glob('*/*/*.json') if (OUT / 'reports').exists() else []:
         try:
-            v = json.loads(path.read_text())
+            v = load_version(path)
         except (OSError, ValueError):
             continue
+        v.pop('_path', None)
         v['role'] = canonical(v['role'])
         key = (v['resource_id'], v['role'], v['tool'])
         if key not in latest or v['tested'] > latest[key]['tested']:

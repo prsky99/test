@@ -7,7 +7,9 @@ from scripts import data_quality as DQ, methodology as M, report_v2 as V
 def test_numbers_come_from_the_code():
     data = M.build()
     assert data['score']['data_quality'] == DQ.WEIGHTS and data['score']['evidence'] == DQ.EVIDENCE_WEIGHTS
-    assert data['score']['total'] == 100 and data['verified_pearl'] == {'min_score': V.PASS_MARK, 'successes_on_different_days': V.CONFIRM_DAYS}
+    assert data['score']['total'] == 100 and data['verified_pearl']['min_score'] == V.PASS_MARK
+    assert data['verified_pearl']['successes_on_different_days'] == V.CONFIRM_DAYS
+    assert data['score']['evaluator_version'] == V.EVALUATOR_VERSION and 'KST' in data['verified_pearl']['days_count_when']
     assert data['role_test']['tests_per_day'] == V.ROLE_DAILY_LIMIT
 
 

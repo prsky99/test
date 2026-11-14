@@ -86,8 +86,16 @@ def build():
                   'accuracy_rule': 'points only when the answer matches an answer set or a public reference at the same time; '
                                    'no answer source means 0',
                   'clean_answer_failures': sorted(DQ.UNCLEAN),
-                  'completeness_rule': 'null, empty, N/A and unknown values lower the score by their share'},
-        'verified_pearl': {'min_score': V.PASS_MARK, 'successes_on_different_days': V.CONFIRM_DAYS},
+                  'completeness_rule': "the share of the role's required output present, times the share of non-blank values, "
+                                       'times the items returned against the items asked for; a text answer by the share of '
+                                       'its fact checks passed; an empty search with no error is complete, an empty or error '
+                                       'answer is not',
+                  'freshness_rule': "only the role's own kind of time counts (published, observed, valid, or a clock in the "
+                                    'named zone); retrieval times and unlabelled dates do not',
+                  'evaluator_version': V.EVALUATOR_VERSION},
+        'verified_pearl': {'min_score': V.PASS_MARK, 'successes_on_different_days': V.CONFIRM_DAYS,
+                           'days_count_when': 'accurate and clean, on different KST days, under the same tool, endpoint, '
+                                              'tool definition, evaluator version and answer set'},
         'final_pearl': {'rule': 'the top verified pearl of a role', 'one_place_per_registrable_domain_in_a_role': True,
                         'reranked': 'daily'},
         'necklace_gate': _gate(),

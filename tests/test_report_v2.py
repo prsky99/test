@@ -32,7 +32,7 @@ def test_a_failure_is_kept_and_scores_low():
     assert v['quality']['score'] < V.PASS_MARK
 
 
-def test_versions_stack():
+def test_versions_stack(accurate):
     first = V.save_version(result(started=time.time() - 2 * V.DAY))
     second = V.save_version(result())
     assert (first['version'], second['version']) == (1, 2)
@@ -49,7 +49,7 @@ def test_no_arguments_and_collector_message_score_less():
 def accurate(monkeypatch):
     """Answers that matched an answer set and are fresh, so ranking is what is under test."""
     monkeypatch.setattr(V.DQ, 'accuracy', lambda *a, **k: (25, 'answer set test', []))
-    monkeypatch.setattr(V.DQ, 'freshness', lambda role, text, now=None: (10, 'test', '2026-11-14T09:00'))
+    monkeypatch.setattr(V.DQ, 'freshness', lambda role, text, now=None, **k: (10, 'test', '2026-11-14T09:00'))
 
 
 def test_rank_final_pearl_and_failure_domains(accurate):

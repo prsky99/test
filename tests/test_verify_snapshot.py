@@ -21,7 +21,7 @@ def save(rid, role='fx.rate', host=None, days_ago=0, accurate=True, monkeypatch=
 
 def test_snapshot_marks_verified_final_and_alternatives(monkeypatch):
     monkeypatch.setattr(V.DQ, 'accuracy', lambda *a, **k: (25, 'answer set test', []))
-    monkeypatch.setattr(V.DQ, 'freshness', lambda role, text, now=None: (10, 'test', '2026-11-14T09:00'))
+    monkeypatch.setattr(V.DQ, 'freshness', lambda role, text, now=None, **k: (10, 'test', '2026-11-14T09:00'))
     for rid in (1, 2):
         save(rid, days_ago=1)
         save(rid)
