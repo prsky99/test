@@ -151,6 +151,12 @@ def reported_page(rid, result):
                    '<a class="btn" href="/new/en/explore.html">Explore</a></div>')
 
 
+# 11-14 PM: providers learn about verification and Sponsored placements on our own pages, never by unsolicited
+# messages (charter section 1). One quiet line under the evidence; it does not change the listing.
+PROVIDER_NOTE = ('<p class="muted provider-note">Is this your agent? <a href="/methodology">See how it is verified</a>'
+                 ' · <a href="/advertise">Advertise in Sponsored</a></p>')
+
+
 def agent_page(rid, snapshot=None):
     snapshot = g.SNAPSHOT.read() if snapshot is None else snapshot
     agent = (snapshot or {}).get('catalog', {}).get(rid)
@@ -198,7 +204,7 @@ def agent_page(rid, snapshot=None):
     body = (g.heading(kind + (' · '+category if category else ''), title, agent.get('description') or description)
             + '<div class="row"><span class="badge">'+esc(kind)+'</span>'+('<span class="badge success">Free</span>' if agent.get('free') else '')
             + ('<span class="badge">Grade '+esc(agent['eval_grade'])+'</span>' if agent.get('eval_grade') else '')+'</div>'
-            + '<div class="grid two">'+''.join(sections)+'</div>')
+            + '<div class="grid two">'+''.join(sections)+'</div>' + PROVIDER_NOTE)
     structured = {'@context': 'https://schema.org', '@type': 'SoftwareApplication', 'name': title,
                   'applicationCategory': 'DeveloperApplication', 'operatingSystem': 'Web',
                   'description': agent.get('description') or description, 'url': g.ORIGIN+'/agent/'+str(rid),

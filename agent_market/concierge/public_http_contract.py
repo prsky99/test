@@ -19,13 +19,15 @@ PUBLIC_READS = frozenset(('/api/overview','/api/insights','/api/explore','/api/a
     '/api/test/presets','/robots.txt','/sitemap.xml','/llms.txt','/llms-full.txt',
     '/.well-known/agent-card.json','/.well-known/mcp.json','/.well-known/mcp/server.json',
     '/.well-known/security.txt','/security.txt','/openapi.json','/skill.md',
-    '/page-metadata.json', '/daily-home-metadata.json', '/.well-known/glama.json')) | EDGE_REDIRECTS | CARD_ALIASES  # 11-13/14: pearl_view
+    '/page-metadata.json', '/daily-home-metadata.json', '/.well-known/glama.json',
+    '/methodology.json')) | EDGE_REDIRECTS | CARD_ALIASES  # 11-13/14: pearl_view
 # Agent discovery documents the Cloudflare cache rule keeps at the edge (11-03). s-maxage lets the
 # edge hold them for ten minutes while browsers and agents still revalidate after 30 seconds;
 # with max-age alone the edge copy expired after 30 seconds (4 HITs in 24 cold requests, 11-04).
 EDGE_DOCUMENTS = frozenset(('/robots.txt','/sitemap.xml','/llms.txt','/llms-full.txt',
     '/.well-known/agent-card.json','/.well-known/mcp.json','/.well-known/mcp/server.json',
-    '/.well-known/security.txt','/security.txt','/openapi.json','/skill.md')) | EDGE_REDIRECTS | CARD_ALIASES
+    '/.well-known/security.txt','/security.txt','/openapi.json','/skill.md',
+    '/methodology.json')) | EDGE_REDIRECTS | CARD_ALIASES
 # Static discovery documents change rarely; the edge keeps them an hour so an expiry seldom
 # sends an agent to the origin (11-11 PM decision: llms.txt took 3.88 s from Korea on a MISS).
 # No purge on deploy: an edit may take up to an hour to reach the edge.
@@ -47,12 +49,15 @@ SNAPSHOT_CACHE = 'public, max-age=300, stale-while-revalidate=300'
 # readers poll with ETag; a minute (plus one stale) delays a new event by at most two minutes, and its signed
 # _next_cursor lives an hour. Credentialed requests stay no-store (_credentials), and 404s are never stored.
 AGENT_DETAIL_CACHE = 'public, max-age=300, stale-while-revalidate=300'
-FEED_READS = frozenset(('/api/feed/verified.json',))
+FEED_READS = frozenset(('/api/feed/verified.json',
+    # 11-14: necklace list and feed, Check-and-Route reads (snapshot files only; 1.2-6 s from Korea while no-store)
+    '/api/necklaces', '/api/feed/necklaces.json', '/api/verify', '/api/roles'))
 FEED_CACHE = 'public, max-age=60, stale-while-revalidate=60'
 # Public growth pages (11-10 PM approval): login-free, never personalized HTML/Markdown/JSON. Browsers
 # and the edge may keep them for five minutes and serve a stale copy while refreshing for ten.
 GROWTH_PAGES = frozenset(('/connect','/agents/tasks','/agents/best','/badges','/reports/state-of-ai-agents',
-    '/claude-plugins/marketplace.json','/reports/weekly'))  # 11-12 PM: the weekly issue list is the same for everyone
+    '/claude-plugins/marketplace.json','/reports/weekly',
+    '/methodology','/methodology/changelog','/advertise'))  # 11-14: method and advertiser pages (no-store went 1.2-6 s)  # 11-12 PM: the weekly issue list is the same for everyone
 GROWTH_PREFIXES = ('/agents/task/','/agents/best/','/agent/','/agents/compare/','/reports/state-of-ai-agents/',
     '/claude-plugins/','/agents/category/','/reports/weekly/')  # 11-11: category and weekly pages (user approved edge rule)
 # 11-12 (PM: A): the edge keeps growth, category and weekly pages an hour and may hand out its copy for a day

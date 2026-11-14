@@ -210,7 +210,7 @@ def sitemap_paths(snapshot=None):
     snapshot = SNAPSHOT.read() if snapshot is None else snapshot
     from .necklace_surface import sitemap_paths as necklace_paths  # 11-14 PM: offered necklaces come first
     from .methodology_page import sitemap_paths as method_paths  # 11-14 PM super-gap 1
-    paths = necklace_paths() + method_paths() + ['/connect']
+    paths = necklace_paths() + method_paths() + ['/connect', '/advertise']
     if fresh(snapshot) and snapshot['tasks']:
         paths.append('/agents/tasks')
         paths += ['/agents/task/'+t['slug'] for t in snapshot['tasks']]
@@ -658,4 +658,6 @@ def growth_router(store=None):
 
     from .methodology_page import methodology_router  # 11-14 PM super-gap 1: in the sitemap with these pages
     router.include_router(methodology_router())
+    from .advertise_page import advertise_router  # 11-14 PM: advertiser demand page
+    router.include_router(advertise_router())
     return router

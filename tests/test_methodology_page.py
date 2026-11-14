@@ -41,3 +41,13 @@ def test_routes_sitemap_and_llms(client):  # noqa: F811
 def test_a_missing_method_file_hides_the_page_instead_of_inventing_numbers(tmp_path):
     assert mp.method(tmp_path / 'none.json') is None
     assert mp.page_html(data={}) is None
+
+
+def test_method_advertise_necklace_and_check_reads_are_kept_at_the_edge(client):  # noqa: F811
+    """11-14: these answered no-store and took 1.2-6 s from Korea; they are the same for everyone."""
+    for path, policy in (('/methodology', 'public, max-age=21600'), ('/methodology/changelog', 'public, max-age=21600'),
+                         ('/advertise', 'public, max-age=21600'), ('/methodology.json', 'public, max-age=600'),
+                         ('/api/necklaces', 'public, max-age=60'), ('/api/feed/necklaces.json', 'public, max-age=60'),
+                         ('/api/roles', 'public, max-age=60')):
+        r = client.get(path, headers={'Accept': 'text/html'} if not path.endswith(('.json', 'necklaces', 'roles')) else {})
+        assert r.status_code == 200 and r.headers['cache-control'].startswith(policy), (path, r.headers['cache-control'])
