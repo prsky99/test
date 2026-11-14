@@ -45,3 +45,31 @@
 - 재생성·벡터 그래프 쪽은 원인이 아님: 탐색 문서 재생성은 끝났고(5d3d8f6a 423,252개, 대기열 0), 벡터 색인 매시간 기록(15·16·17·18시)에 튀는 값이 없습니다(half_a2a 시간당 65~82만 블록, 공용 그래프 검색 0·유지 읽기 26~28만 블록).
 - 18:2x 재현(공개 주소, 처음 보는 질의 → 같은 질의 다시): MCP search도 같은 추천 경로(step_search·semantic·ann·admission_loop)라 차가운 서버 1.28~3.38초, 데워진 0.68~2.84초. 큰 몫은 cpu 0.37~1.10·ann 0.45~0.78·admission_loop 0.16~0.91·semantic 0.10~0.45초입니다.
 - 결론: 회귀가 아니라 '처음 보는 질의 추천' 비용이 search에서도 보이게 된 것입니다. 줄이는 순서는 위 '추천(find_agents) 몫'과 같습니다(후보 벡터 미리 계산, admission_loop·registry 분석, 공용 그래프 삭제로 버퍼 경쟁 줄이기).
+
+## 저녁 탐색 악화 (user_slo 21:01·22:02, PM 22:2x)
+
+12건을 모두 적습니다(전체 = 공개 주소 전체, 원서버 = Server-Timing server, 나머지 = 첫 바이트 − TLS − 원서버, 엣지는 모두 LAX DYNAMIC).
+
+| 회차 | 질의 | 전체 | 원서버 | TLS | 나머지 | 원서버 큰 구간 |
+|---|---|---|---|---|---|---|
+| 21:01 | shipping tracking in korea 581 | 4.75 | 0.87 | 1.44 | 2.16 | ann 0.39·documents 0.22·projection 0.19 |
+| 21:01 | stock quotes with history 353 | 2.71 | 0.57 | 1.39 | 0.76 | ann 0.24·documents 0.17 |
+| 21:01 | news headlines quickly 518 | 2.03 | 0.77 | 0.49 | 0.77 | ann 0.57 |
+| 21:01 | 날씨 with history 163 | 1.88 | 0.79 | 0.50 | 0.58 | ann 0.26·documents 0.21·cards 0.18 |
+| 21:01 | send email in korea 423 | 3.55 | 0.99 | 0.48 | 1.76 | documents 0.45·ann 0.32 |
+| 21:01 | recipe nutrition for agents 584 | 1.68 | 0.72 | 0.47 | 0.48 | ann 0.47·projection 0.29 |
+| 22:02 | customer support with history 685 | 3.28 | **2.01** | 0.41 | 0.85 | **documents 1.17**·ann 0.62·projection 0.34 |
+| 22:02 | web scraping in real time 533 | 1.57 | 0.57 | 0.50 | 0.49 | ann 0.27 |
+| 22:02 | send email for my team 977 | 4.69 | **2.03** | 2.20 | 0.47 | **documents 0.86**·ann 0.69·cards 0.31 |
+| 22:02 | code review with history 936 | 5.16 | **2.61** | 0.47 | 1.47 | **documents 1.36**·admission 0.38 |
+| 22:02 | speech to text api 841 | 6.03 | 0.65 | 1.79 | 0.78 (본문 2.8초) | ann 0.35 |
+| 22:02 | sql database free 742 | 2.80 | 0.55 | 0.48 | 1.76 | ann 0.21·projection 0.20 |
+
+- 그 시각: 부하 21:01 2.69→2.55, 22:02 2.24→2.46(낮보다 낮음). 무거운 작업 칸 비어 있음. 탐색 문서 재생성은 18:30경 끝나 대기열 0, 최근 1시간 문서 갱신 269개뿐. 진행 중인 vacuum 없음.
+- **21:01은 경로 몫**: 원서버 0.57~0.99초로 평소, 넘친 시간은 TLS 1.39~1.44초와 엣지→터널 0.76~2.16초.
+- **22:02의 세 건은 원서버 몫**: 원서버 2.0~2.6초, 그중 documents(search_document)가 0.86~1.36초. 22:24 원서버 직접 재현(같은 문장, 숫자만 새로):
+  - customer support with history 2.05초(documents 1.27) ↔ customer support 0.53초(documents 0.19)
+  - send email for my team 1.62초(documents 0.79) ↔ send email 0.95초(documents 0.19)
+  - code review with history 3.05초(documents 1.54) ↔ code review 0.40초(documents 0.09)
+  → 'with history'·'for my team' 같은 성격 낱말이 붙으면 문서 읽기가 5~16배로 늘어납니다. 시스템이 나빠진 것이 아니라, 그 회차에 이런 질의가 6건 중 3건 뽑혔기 때문입니다. 이 낱말을 검색어가 아니라 조건으로 받는 것이 C 묶음(explore_search 등 정책 해시 파일)이라 11-16 밤 B+C 배포로 고칩니다. 그 전후로 같은 여섯 문장을 다시 재서 이 표에 붙입니다.
+- 함께 본 것(운영·SRE 참고): `health_checks` 표에 죽은 행 551,260개, 마지막 autovacuum이 11-13 09:22입니다(살아 있는 행 304만). 오늘 탐색 지연과의 직접 관계는 보이지 않았지만, 헬스 등급별 주기 배포 뒤에도 쌓이면 vacuum 설정을 볼 필요가 있습니다.
