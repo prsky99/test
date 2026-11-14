@@ -4459,7 +4459,7 @@
     {"file": "agent_market/owned_data_agents/dispatch.py", "sha256": "bc3ef41e16daa78230477c2b75c68cf58bd82f5eb3d092157f0f503413a3de64"},
     {"file": "agent_market/private_artifact_keys.py", "sha256": "2ddd625cdb26463804d131fbe72db70240ecba9012d9cc175a06c3c1421e8d32"},
     {"file": "agent_market/provider_claims.py", "sha256": "d32fd7daf886fe3547d4e5b45012ecff89a08ff66888a832a46752b068cd67fd"},
-    {"file": "agent_market/public_availability.py", "sha256": "ba2f738dcd0a4f9e5665f3c50a67f2e9c1d911e9c327542d72686f0b3498018a"},
+    {"file": "agent_market/public_availability.py", "sha256": "37281c46ffca03baeb130755a1529ed2e38b1dae988dafc5aa15138c9d84265b"},
     {"file": "agent_market/reliability_admission.py", "sha256": "75ee5012acd563569a09d38558a4edb797a42f666480256cbc6e2b2bb5a04f5b"},
     {"file": "agent_market/reliability_admission_service.py", "sha256": "de61020c09ec681045f0d0d747b210260a19ab233ed320667c87ba1729473ac6"},
     {"file": "agent_market/reliability_circuit.py", "sha256": "7e41cddc0473719761aa685acdc153841de297667bd52ed622fb4ec8dc6a4efa"},
