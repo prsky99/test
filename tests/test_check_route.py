@@ -81,3 +81,16 @@ def test_rest_and_mcp_surfaces_answer_from_the_snapshot(snap, client):  # noqa: 
     assert call('verify_agent', {'agent_id': 11})['structuredContent']['roles'][0]['verified_pearl'] is True
     assert call('best_for_role', {'role': 'papers.search.v1'})['structuredContent']['verified_pearls'] == []
     assert call('verify_agent', {'agent_id': 999})['structuredContent'] == {'found': False, 'text': 'We have not tested this agent yet.'}
+
+
+def test_check_reads_are_kept_at_the_edge_and_misses_are_not(snap, client):  # noqa: F811
+    """PM 11-14 11:1x: /api/roles/<role>/best answered no-store (BYPASS at the edge); found answers are kept a minute,
+    a 404 is never stored, and a request with credentials stays no-store."""
+    from agent_market.concierge.public_http_contract import role_best_path
+    for path in ('/api/roles/weather.forecast.v1/best', '/api/verify?agent_id=13', '/api/roles'):
+        r = client.get(path)
+        assert r.status_code == 200 and r.headers['cache-control'].startswith('public, max-age=60'), (path, r.headers['cache-control'])
+    assert 'public' not in client.get('/api/roles/nope.v1/best').headers['cache-control']
+    assert 'public' not in client.get('/api/verify?agent_id=999').headers['cache-control']
+    assert 'public' not in client.get('/api/roles/weather.forecast.v1/best', headers={'Authorization': 'Bearer x'}).headers['cache-control']
+    assert not role_best_path('/api/roles/weather.forecast.v1/best/x') and not role_best_path('/api/roles/../best')

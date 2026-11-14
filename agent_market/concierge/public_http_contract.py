@@ -5,6 +5,7 @@ only for the login-free public growth pages (GROWTH_PAGES, 11-10).
 """
 import hashlib
 import json
+import re
 
 from starlette.datastructures import Headers, MutableHeaders
 from .conditional_http import etag_matches
@@ -98,10 +99,22 @@ def agent_detail_path(path):
     return rest.isdigit() and rest.isascii() and len(rest) <= 12
 
 
+_ROLE_BEST = re.compile(r'/api/roles/[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*\.v[0-9]{1,3}/best')
+
+
+def role_best_path(path):
+    """/api/roles/<role>/best (Check-and-Route, snapshot file only): kept like the role list (PM 11-14 11:1x, was no-store)."""
+    return len(path) <= 120 and _ROLE_BEST.fullmatch(path) is not None
+
+
+def feed_path(path):
+    return path in FEED_READS or role_best_path(path)
+
+
 def shared_path(path):
     return (path in PUBLIC_READS or path.startswith('/api/workflows/templates/') or growth_path(path)
             or sitemap_part(path)  # 11-13: the sitemap parts are kept like /sitemap.xml
-            or path in FEED_READS or agent_detail_path(path))  # 11-13 PM 22:3x
+            or feed_path(path) or agent_detail_path(path))  # 11-13 PM 22:3x
 
 
 def _session_cookie(header):
@@ -165,7 +178,7 @@ class PublicHTTPContract:
                     if path in EDGE_DOCUMENTS or sitemap_part(path) else GROWTH_CACHE if growth_path(path)
                     else SNAPSHOT_CACHE if path in SNAPSHOT_READS
                     else AGENT_DETAIL_CACHE if agent_detail_path(path)
-                    else FEED_CACHE if path in FEED_READS
+                    else FEED_CACHE if feed_path(path)
                     else 'public, max-age=30, stale-while-revalidate=30')
                 if growth_path(path):  # the same URL answers HTML or Markdown by Accept
                     vary=[v.strip() for v in headers.get('vary','').split(',') if v.strip()]
