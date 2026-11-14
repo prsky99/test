@@ -26,6 +26,7 @@ from .registries import DEFAULT_CHAINS, Erc8004Crawler, WellKnownDiscoverer
 log = logging.getLogger("agent_market.collector")
 
 HISTORY_DAYS = 7
+PRUNE_SECONDS = 3600   # hourly, in time slices (store.prune_health); was daily in one DELETE until 11-15
 
 
 class CollectorAgent:
@@ -307,7 +308,7 @@ class CollectorAgent:
                     if stats.get("local_network_problem"):
                         any_outage = True
 
-                if prune and (time.time() - last_prune > 86400):
+                if prune and (time.time() - last_prune > PRUNE_SECONDS):
                     removed = self.store.prune_health(time.time() - HISTORY_DAYS * 86400)
                     log.info("pruned %d old health checks", removed)
                     last_prune = time.time()
