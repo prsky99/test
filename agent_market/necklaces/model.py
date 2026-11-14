@@ -26,6 +26,9 @@ import json
 import re
 from pathlib import Path
 
+from jsonschema import Draft202012Validator
+from jsonschema.exceptions import SchemaError
+
 from ..collector.usage import _DENY
 
 ROOT = Path(__file__).resolve().parent
@@ -131,6 +134,37 @@ def _member_errors(slot_id: str, idx: int, m: dict) -> list[str]:
     return errors
 
 
+# ---------------------------------------------------------------- input schema (PM F11, 11-14)
+INPUT_DIALECT = Draft202012Validator          # one explicit draft, never inferred from "$schema"
+_VALIDATORS: dict[str, Draft202012Validator] = {}
+
+
+def input_schema_errors(schema: dict) -> list[str]:
+    """Checked when a definition loads: a valid 2020-12 schema, closed to extra fields, no references."""
+    errors = []
+    if schema.get("additionalProperties") is not False:
+        errors.append("input_schema must set additionalProperties to false")
+    if schema.get("$schema") not in (None, "https://json-schema.org/draft/2020-12/schema"):
+        errors.append("input_schema must use JSON Schema 2020-12")
+    if '"$ref"' in json.dumps(schema) or '"$dynamicRef"' in json.dumps(schema):
+        errors.append("input_schema must not use references")
+    try:
+        input_validator(schema)
+    except SchemaError as exc:
+        errors.append(f"input_schema is not valid JSON Schema 2020-12: {exc.message}")
+    return errors
+
+
+def input_validator(schema: dict) -> Draft202012Validator:
+    """The checked validator for one schema, cached by its canonical text."""
+    key = json.dumps(schema, sort_keys=True, separators=(",", ":"))
+    validator = _VALIDATORS.get(key)
+    if validator is None:
+        INPUT_DIALECT.check_schema(schema)
+        validator = _VALIDATORS[key] = INPUT_DIALECT(schema)
+    return validator
+
+
 def validate(defn: dict, *, check_contracts: bool = True) -> list[str]:
     errors: list[str] = []
     slug = defn.get("slug")
@@ -146,6 +180,8 @@ def validate(defn: dict, *, check_contracts: bool = True) -> list[str]:
     schema = defn.get("input_schema")
     if not isinstance(schema, dict) or schema.get("type") != "object":
         errors.append("input_schema must be a JSON object schema")
+    else:
+        errors.extend(input_schema_errors(schema))
     budget = defn.get("budget_ms") or {}
     total = budget.get("total")
     if not isinstance(total, int) or not 0 < total <= MAX_TOTAL_MS:

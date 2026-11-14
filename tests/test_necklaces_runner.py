@@ -52,7 +52,7 @@ def test_all_leads_answer_stage_one_and_merge_marks_agreement():
     defn["slots"][0]["fanout"] = 2
     out = runner.Runner(caller_from(answers, calls)).run(defn, {"q": "lodash"})
     assert out["ok"] and out["completed_external_only"]
-    assert out["slots"]["papers"] == {"rank": 1, "kind": "external", "failed": False, "stage": 1}
+    assert out["slots"]["papers"] == {"rank": 1, "kind": "external", "failed": False, "stage": 1, "status": "answered"}
     items = {i["id"]: i for i in out["output"]["papers"]["items"]}
     assert items["CVE-2021-23337"]["agreed"] and not items["GHSA-29MW-WPGM-HMR9"]["agreed"]
     assert out["output"]["news"]["kev"] is True
@@ -72,7 +72,7 @@ def test_external_fallback_is_stage_two_and_agentvalcon_is_stage_three():
 def test_every_member_failing_is_stage_four_and_the_run_fails():
     answers = {1: "CVE-2020-28500", 3: Fail(), 4: Fail(), 11: Fail()}
     out = runner.Runner(caller_from(answers)).run(necklace(), {"q": "x"})
-    assert out["slots"]["news"] == {"rank": None, "kind": None, "failed": True, "stage": 4}
+    assert out["slots"]["news"] == {"rank": None, "kind": None, "failed": True, "stage": 4, "status": "failed"}
     assert not out["ok"] and out["failed_slot"] == "news"
     assert [a["resource_id"] for a in out["attempts"]["news"]] == [3, 4, 11]
 
@@ -228,3 +228,129 @@ def test_raw_answers_are_kept_on_attempts_for_self_tests():
     assert out["attempts"]["papers"][0]["raw"] == "CVE-2020-2"
     plain = runner.Runner(caller_from({1: "CVE-2020-28500", 3: "kev"})).run(necklace(), {"q": "x"})
     assert plain["attempts"]["papers"][0]["raw"] is None
+
+
+# ---------------------------------------------------------------- deadlines (PM F04, 11-14)
+def timed(defn, total=1000, slot=800):
+    defn["budget_ms"] = {"total": total, "slot": slot}
+    return defn
+
+
+def blocking_caller(answers, release, block=(), slow=None, calls=None):
+    """Members in ``block`` ignore their timeout and wait for ``release`` (a caller that does not cooperate);
+    ``slow`` maps a member to (seconds, then) where ``then`` is an answer or an exception."""
+    slow = slow or {}
+
+    def call(member, args, timeout):
+        rid = member.get("resource_id")
+        if calls is not None:
+            calls.append((rid, round(timeout, 2)))
+        if rid in block:
+            release.wait(5)
+            return answers.get(rid, "late answer")
+        if rid in slow:
+            seconds, then = slow[rid]
+            time.sleep(seconds)
+            if isinstance(then, Exception):
+                raise then
+            return then
+        value = answers.get(rid)
+        if value is None:
+            raise Fail()
+        return value
+    return call
+
+
+ANSWERS = {1: "CVE-2021-23337", 2: "CVE-2021-23337", 3: "listed in CISA KEV", 4: "listed in CISA KEV"}
+
+
+def test_a_caller_that_ignores_its_timeout_cannot_hold_the_run(monkeypatch):
+    monkeypatch.setattr(runner, "MIN_ATTEMPT_MS", 100)
+    release = threading.Event()
+    try:
+        started = time.monotonic()
+        out = runner.Runner(blocking_caller(ANSWERS, release, block={1})).run(timed(necklace()), {"q": "x"})
+        took = time.monotonic() - started
+    finally:
+        release.set()
+    assert took < 1.0                                   # slot budget 0.8s, total 1.0s
+    assert not out["ok"] and out["failed_slot"] == "papers"
+    assert out["slots"]["papers"]["status"] == "timeout"
+    assert [a["error_class"] for a in out["attempts"]["papers"]] == ["timeout", "deadline"]   # member 2 not sent
+    assert out["abandoned_calls"] == 1 and out["pending_at_return"] == 1
+    assert out["slots"]["news"]["status"] == "answered"
+
+
+def test_each_call_gets_the_time_left_in_its_slot(monkeypatch):
+    monkeypatch.setattr(runner, "MIN_ATTEMPT_MS", 100)
+    calls = []
+    caller = blocking_caller(ANSWERS, threading.Event(), slow={1: (0.3, Fail())}, calls=calls)
+    out = runner.Runner(caller).run(timed(necklace()), {"q": "x"})
+    timeouts = dict(calls)
+    assert timeouts[1] <= 0.8 and timeouts[2] <= 0.5          # member 2 starts after member 1 failed at 0.3s
+    assert out["ok"] and out["slots"]["papers"] == {"rank": 2, "kind": "external", "failed": False, "stage": 2,
+                                                    "status": "answered"}
+
+
+def test_a_slow_first_candidate_leaves_no_time_for_the_next(monkeypatch):
+    monkeypatch.setattr(runner, "MIN_ATTEMPT_MS", 300)
+    calls = []
+    caller = blocking_caller(ANSWERS, threading.Event(), slow={1: (0.6, Fail())}, calls=calls)
+    started = time.monotonic()
+    out = runner.Runner(caller).run(timed(necklace()), {"q": "x"})
+    assert time.monotonic() - started < 1.0
+    assert 2 not in dict(calls)                         # 0.2s left < 0.3s minimum: not sent
+    assert [a["error_class"] for a in out["attempts"]["papers"]][-1] == "deadline"
+    assert out["slots"]["papers"]["status"] == "timeout" and not out["ok"]
+
+
+def test_a_slow_optional_slot_returns_by_the_slot_deadline_and_the_run_succeeds(monkeypatch):
+    monkeypatch.setattr(runner, "MIN_ATTEMPT_MS", 100)
+    defn = timed(necklace())
+    defn["slots"][1]["required"] = False
+    release = threading.Event()
+    try:
+        started = time.monotonic()
+        out = runner.Runner(blocking_caller(ANSWERS, release, block={3})).run(defn, {"q": "x"})
+        took = time.monotonic() - started
+    finally:
+        release.set()
+    assert took < 1.0
+    assert out["ok"] and out["completed"] and out["failed_slot"] is None
+    assert out["slots"]["news"]["status"] == "timeout" and out["output"]["news"] == {"missing": True}
+
+
+def test_partial_fanout_keeps_the_answer_that_came_in_time(monkeypatch):
+    monkeypatch.setattr(runner, "MIN_ATTEMPT_MS", 100)
+    defn = timed(necklace())
+    defn["slots"][0]["fanout"] = 2
+    release = threading.Event()
+    try:
+        out = runner.Runner(blocking_caller(ANSWERS, release, block={2})).run(defn, {"q": "x"})
+    finally:
+        release.set()
+    assert out["ok"] and out["slots"]["papers"]["status"] == "partial" and out["slots"]["papers"]["stage"] == 1
+    assert sorted(a["error_class"] or "ok" for a in out["attempts"]["papers"]) == ["ok", "timeout"]
+    assert out["pending_at_return"] == 1
+
+
+def test_an_answer_after_the_deadline_is_late_and_never_counts():
+    ticks = iter([0.0, 2.0])
+    r = runner.Runner(lambda m, a, t: "CVE-2021-23337", clock=lambda: next(ticks))
+    attempt, canon = r._call(ext(1, "a.com"), 1, {"q": "x"}, "package.advisories.v1", 1.0)
+    assert canon is None and not attempt.ok and attempt.error_class == "late"
+
+
+def test_the_process_wide_cap_refuses_calls_instead_of_queueing(monkeypatch):
+    monkeypatch.setattr(runner, "MIN_ATTEMPT_MS", 100)
+    defn = timed(necklace())
+    defn["slots"] = defn["slots"][:1]
+    defn["slots"][0]["fanout"] = 2
+    calls = []
+    cap = threading.BoundedSemaphore(1)
+    caller = blocking_caller(ANSWERS, threading.Event(), slow={1: (0.1, "CVE-2021-23337")}, calls=calls)
+    out = runner.Runner(caller, inflight=cap).run(defn, {"q": "x"})
+    assert [rid for rid, _ in calls] == [1]
+    assert [a["error_class"] for a in out["attempts"]["papers"]].count("capacity") == 1
+    assert out["ok"]
+    assert cap.acquire(blocking=False)                  # released once the call ended

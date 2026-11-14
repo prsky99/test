@@ -372,9 +372,29 @@ def llms_section(base='https://agentconcierge.biz', snapshot=None, now=None):
     return ''.join(lines)
 
 
-# The workflow team's public run entry (runner over the registered-agent path); None until it is wired.
-# Signature: run(front, entry, arguments, source) -> {'ok': bool, 'output': ..., 'stages': {...}, 'error_code': str|None}
+# The workflow team's public run entry, injected at app assembly (create_front_app):
+#   necklace_surface.RUN = agent_market.necklaces.service.run_for_surface        (PM F05, 11-14)
+# Signature: run(front, entry, arguments, source, meta) -> {'ok', 'output', 'stages', 'error_code'}; meta is the
+# request's {ip, ua, qa, principal, internal_ips} so the run event can tell outside callers from our own checks.
 RUN = None
+
+
+def request_meta(front, request):
+    """The request facts a run event needs (never the body). Unknown pieces stay None: such a run is not external."""
+    if request is None:
+        return None
+    try:
+        ip = front.security.resolve_ip(request) if front is not None else None
+    except Exception:
+        ip = None
+    from .traffic import load_internal_ips
+    try:
+        internal_ips = frozenset(load_internal_ips())
+    except Exception:
+        internal_ips = frozenset()
+    headers = request.headers
+    return {'ip': ip, 'ua': headers.get('user-agent'), 'qa': headers.get('x-agentcon-qa'),
+            'principal': headers.get('x-agentcon-principal'), 'internal_ips': internal_ips}
 NOTICE_SENTENCE = ('Your input is sent to the agents listed in necklace_details; if one fails, the same input may go to a '
                    'listed alternate. No credentials or payments are sent. Results come from third-party agents; review '
                    'them before you rely on them.')
@@ -429,7 +449,7 @@ def details(slug, base='https://agentconcierge.biz', snapshot=None, now=None):
     return '\n'.join(lines), item
 
 
-def call(front, name, arguments, source='mcp', base='https://agentconcierge.biz', snapshot=None, now=None):
+def call(front, name, arguments, source='mcp', base='https://agentconcierge.biz', snapshot=None, now=None, meta=None):
     """(text, structured, is_error) for a necklace tool call; runs nothing unless the necklace is offered and RUN is wired."""
     entry = entry_for_tool(name, snapshot)
     if entry is None or not _time(entry.get('gate_passed_at')):
@@ -443,7 +463,7 @@ def call(front, name, arguments, source='mcp', base='https://agentconcierge.biz'
                 {'necklace': entry['slug'], 'ran': False, 'error_code': 'not_wired'}, True)
     if not isinstance(arguments, dict):
         return 'Arguments must be one JSON object.', {'necklace': entry['slug'], 'ran': False, 'error_code': 'bad_arguments'}, True
-    result = RUN(front, entry, arguments, source) or {}
+    result = RUN(front, entry, arguments, source, meta) or {}
     ok = bool(result.get('ok'))
     text = ('Ran necklace ' + entry['slug'] + '. ' if ok else 'Necklace ' + entry['slug'] + ' did not finish ('
             + str(result.get('error_code') or 'failed') + '). ') + json.dumps(result.get('output'), ensure_ascii=False)[:4000]
@@ -486,7 +506,7 @@ def parse_a2a(text):
     return (slug, value) if isinstance(value, dict) else (slug, 'invalid')
 
 
-def a2a_answer(front, text, base='https://agentconcierge.biz', snapshot=None, now=None):
+def a2a_answer(front, text, base='https://agentconcierge.biz', snapshot=None, now=None, meta=None):
     """(reply text, data) for an A2A 'run necklace' message, or None when it is not one."""
     wanted = parse_a2a(text)
     if wanted is None:
@@ -500,15 +520,42 @@ def a2a_answer(front, text, base='https://agentconcierge.biz', snapshot=None, no
         example = 'run necklace ' + slug + ' ' + json.dumps(example_arguments(entry.get('input_schema')), separators=(',', ':'))
         return 'Send: ' + example + ' (fill in the values).', {'intent': 'necklace', 'ok': False, 'error_code': 'needs_arguments',
                                                                'example': {'text': example}}
-    answer = call(front, tool_name(slug), arguments if isinstance(arguments, dict) else 'invalid', 'a2a', base, snapshot, now)
+    answer = call(front, tool_name(slug), arguments if isinstance(arguments, dict) else 'invalid', 'a2a', base, snapshot, now,
+                  meta)
     reply, data, failed = answer
     return reply, {'intent': 'necklace', 'ok': not failed, **data}
 
 
-def necklace_router():
-    from fastapi import APIRouter
+MAX_RUN_BODY = 16384
+
+
+def necklace_router(front=None):
+    from fastapi import APIRouter, Request
+    from fastapi.concurrency import run_in_threadpool
     from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
     router = APIRouter()
+
+    @router.post('/api/necklaces/{slug}/run', include_in_schema=False)
+    async def api_run(slug: str, request: Request):
+        """Web run (the page's Run button): one JSON object of inputs plus necklace_notice=necklace-v1 (the consent
+        checkbox, never stored). Same rules as MCP and A2A: nothing runs unless the necklace is offered."""
+        headers = {'Cache-Control': 'no-store'}
+        if front is not None and not front.limit.allow(front.security.resolve_ip(request)):
+            return JSONResponse({'ran': False, 'error_code': 'rate_limited'}, status_code=429, headers=headers)
+        raw = await request.body()
+        try:
+            arguments = json.loads(raw) if 0 < len(raw) <= MAX_RUN_BODY else None
+        except ValueError:
+            arguments = None
+        if not SLUG.fullmatch(slug or ''):
+            return JSONResponse({'ran': False, 'error_code': 'unknown_necklace'}, status_code=404, headers=headers)
+        answer = await run_in_threadpool(call, front, tool_name(slug), arguments if isinstance(arguments, dict) else 'invalid',
+                                         'web', front.base(request) if front is not None else 'https://agentconcierge.biz',
+                                         None, None, request_meta(front, request))
+        if answer is None:
+            return JSONResponse({'ran': False, 'error_code': 'unknown_necklace'}, status_code=404, headers=headers)
+        text, structured, failed = answer
+        return JSONResponse({**structured, 'text': text}, status_code=200, headers=headers)
 
     @router.get('/api/necklaces', include_in_schema=False)
     def api_list():

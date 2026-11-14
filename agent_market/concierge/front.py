@@ -3469,7 +3469,8 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             return {"jsonrpc": "2.0", "id": rid, "error": {"code": -32602, "message": "Provide a non-empty contextId of at most 200 characters."}}
         from . import necklace_surface
         necklace_reply = await run_in_threadpool(necklace_surface.a2a_answer, front,
-                                                 "\n".join(texts).replace("\x00", "")[:MAX_MESSAGE], front.base(request))
+                                                 "\n".join(texts).replace("\x00", "")[:MAX_MESSAGE], front.base(request),
+                                                 meta=necklace_surface.request_meta(front, request))
         if necklace_reply is not None:  # 11-14: "run necklace <slug> {...}" (A2A skill necklace-<slug>)
             text, payload = necklace_reply
             mid = str(uuid.uuid4())
@@ -3694,7 +3695,8 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
                 if found is None:
                     return {"jsonrpc": "2.0", "id": rid, "error": {"code": -32602, "message": "Unknown necklace."}}
                 return mcp_result(rid, {"content": [{"type": "text", "text": found[0]}], "structuredContent": found[1], "isError": False})
-            answer = await run_in_threadpool(necklace_surface.call, front, name, args, "mcp", front.base(request))
+            answer = await run_in_threadpool(necklace_surface.call, front, name, args, "mcp", front.base(request),
+                                             meta=necklace_surface.request_meta(front, request))
             if answer is not None:
                 text, structured, failed = answer
                 return mcp_result(rid, {"content": [{"type": "text", "text": text}], "structuredContent": structured, "isError": failed})
@@ -3951,8 +3953,10 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
     app.include_router(router)
     from .growth_pages import growth_router
     app.include_router(growth_router(front.store))
-    from .necklace_surface import necklace_router  # 11-14 PM: public surface of judged necklaces (read-only)
-    app.include_router(necklace_router())
+    from . import necklace_surface as _necklace_surface  # 11-14 PM: public surface of judged necklaces
+    from ..necklaces import service as _necklace_service
+    _necklace_surface.RUN = _necklace_service.run_for_surface  # PM F05: the one run entry for Web, MCP and A2A
+    app.include_router(_necklace_surface.necklace_router(front))
     from .check_route import check_router  # 11-14 PM super-gap 2: Check-and-Route REST from the verify snapshot
     app.include_router(check_router(front.store))
     from . import ad_slot as _ad_slot  # agent ad plan (A): facts for an offer come from our own records

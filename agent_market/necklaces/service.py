@@ -16,6 +16,8 @@ retest within 48 hours, fallback rules). This entry adds what belongs to the run
 from __future__ import annotations
 
 import json
+import math
+import os
 import re
 from pathlib import Path
 
@@ -38,37 +40,36 @@ class Refused(Exception):
         self.code = code
 
 
+def _finite(value, depth=0) -> bool:
+    """JSON numbers only: NaN and the infinities are refused anywhere in the input."""
+    if depth > 32:
+        return False
+    if isinstance(value, float):
+        return math.isfinite(value)
+    if isinstance(value, dict):
+        return all(isinstance(k, str) and _finite(v, depth + 1) for k, v in value.items())
+    if isinstance(value, list):
+        return all(_finite(v, depth + 1) for v in value)
+    return value is None or isinstance(value, (str, int, bool))
+
+
 def check_input(schema: dict, values) -> dict:
-    """The subset of JSON Schema the necklace inputs use: object, required, additionalProperties,
-    string (enum, pattern, minLength, maxLength), integer and number."""
-    if not isinstance(values, dict):
+    """Validate with the definition's JSON Schema 2020-12 validator (checked and cached when the
+    definition loads, PM F11). A refused input never reaches a member: run_for_surface checks this
+    before the runner exists."""
+    if not isinstance(values, dict) or not _finite(values):
         raise Refused("invalid_input")
-    props = schema.get("properties") or {}
-    for key in schema.get("required") or []:
-        if values.get(key) in (None, ""):
-            raise Refused("invalid_input")
-    if schema.get("additionalProperties") is False and set(values) - set(props):
+    try:
+        validator = model.input_validator(schema)
+    except Exception:
+        raise Refused("invalid_input") from None
+    if next(validator.iter_errors(values), None) is not None:
         raise Refused("invalid_input")
-    for key, value in values.items():
-        rule = props.get(key) or {}
-        kind = rule.get("type")
-        if kind == "string":
-            if not isinstance(value, str):
-                raise Refused("invalid_input")
-            if "enum" in rule and value not in rule["enum"]:
-                raise Refused("invalid_input")
-            if "pattern" in rule and not re.search(rule["pattern"], value):
-                raise Refused("invalid_input")
-            if len(value) < rule.get("minLength", 0) or len(value) > rule.get("maxLength", 10_000):
-                raise Refused("invalid_input")
-        elif kind == "integer" and (not isinstance(value, int) or isinstance(value, bool)):
-            raise Refused("invalid_input")
-        elif kind == "number" and (not isinstance(value, (int, float)) or isinstance(value, bool)):
-            raise Refused("invalid_input")
     return values
 
 
-def definition_for(entry: dict, definitions_dir: Path = model.DEFINITIONS) -> dict:
+def definition_for(entry: dict, definitions_dir: Path | None = None) -> dict:
+    definitions_dir = definitions_root() if definitions_dir is None else definitions_dir
     defn = next((d for d in model.load_valid(definitions_dir) if d["slug"] == entry.get("slug")), None)
     if defn is None:
         raise Refused("not_found")
@@ -77,10 +78,26 @@ def definition_for(entry: dict, definitions_dir: Path = model.DEFINITIONS) -> di
     return defn
 
 
+def data_root() -> Path:
+    """Run events live next to the snapshot the surface reads: <AGENTCON_PROJECT_ROOT>/gateway-data/necklaces
+    (a release runs from its own folder, so a relative path would scatter events per release)."""
+    project = os.environ.get("AGENTCON_PROJECT_ROOT")
+    return Path(project) / "gateway-data" / "necklaces" if project else DEFAULT_ROOT
+
+
+def definitions_root() -> Path:
+    """The reviewed definitions shipped with the code; NECKLACE_DEFINITIONS_DIR only for isolated tests."""
+    return Path(os.environ.get("NECKLACE_DEFINITIONS_DIR") or model.DEFINITIONS)
+
+
 def run_for_surface(front, entry: dict, arguments, source: str, meta: dict | None = None, *,
-                    root: Path = DEFAULT_ROOT, definitions_dir: Path = model.DEFINITIONS,
+                    root: Path | None = None, definitions_dir: Path | None = None,
                     caller=None, sensitive=None) -> dict:
-    """``meta`` = {ip, ua, qa, principal} of the request; without it the run counts as internal."""
+    """``meta`` = {ip, ua, qa, principal, internal_ips} of the request; without it the run counts as internal.
+
+    Wired at app assembly: ``necklace_surface.RUN = service.run_for_surface`` (PM F05, 11-14)."""
+    root = data_root() if root is None else Path(root)
+    definitions_dir = definitions_root() if definitions_dir is None else Path(definitions_dir)
     try:
         if source not in SOURCES:
             raise Refused("invalid_source")
@@ -120,4 +137,5 @@ def run_for_surface(front, entry: dict, arguments, source: str, meta: dict | Non
         pass   # the answer still goes back; a missing event only lowers the count
     return {"ok": result["ok"], "output": result["output"],
             "stages": {name: s["stage"] for name, s in result["slots"].items()},
+            "statuses": {name: s["status"] for name, s in result["slots"].items()},
             "error_code": None if result["ok"] else "slot_failed:" + str(result["failed_slot"])}

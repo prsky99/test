@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 from dataclasses import dataclass, field
@@ -51,6 +52,15 @@ class SlotResult:
     fanout: int = 1
     answers: list = field(default_factory=list)       # (member, canonical) pairs that passed
     attempts: list = field(default_factory=list)
+    abandoned: int = 0
+
+    @property
+    def status(self) -> str:
+        """answered, partial (answered while another call timed out), timeout or failed."""
+        timed = any(a.error_class in ("timeout", "late", "deadline") for a in self.attempts)
+        if self.answers:
+            return "partial" if timed else "answered"
+        return "timeout" if timed else "failed"
 
     @property
     def stage(self) -> int:
@@ -65,7 +75,7 @@ class SlotResult:
         ok = [a for a in self.attempts if a.ok]
         best = min(ok, key=lambda a: a.rank) if ok else None
         return {"rank": best.rank if best else None, "kind": best.kind if best else None,
-                "failed": not self.answers, "stage": self.stage}
+                "failed": not self.answers, "stage": self.stage, "status": self.status}
 
 
 # ---------------------------------------------------------------- argument mapping
@@ -184,13 +194,31 @@ def merge(contract: str, answers: list) -> dict:
 
 
 # ---------------------------------------------------------------- runner
+# Process-wide cap on member calls in flight, abandoned ones included (a caller that ignores its
+# timeout keeps its thread until it returns); a call over the cap is not sent (error "capacity").
+MAX_INFLIGHT = 32
+_INFLIGHT = threading.BoundedSemaphore(MAX_INFLIGHT)
+
+
 class Runner:
+    """One necklace run under an absolute deadline (PM F04, 11-14).
+
+    - absolute deadline = start + budget_ms.total; each slot also stops at start + budget_ms.slot
+    - every call gets what is left of its slot deadline as its timeout
+    - a call that ends after its slot deadline is "late" and never counts; a call still running at the
+      slot deadline is recorded as "timeout" and abandoned
+    - optional slots run under the same slot deadline; a slow optional slot never fails the run
+    - the executor is shut down without waiting (wait=False, cancel_futures=True); calls already running
+      keep their worker thread until they return, which the process-wide cap accounts for
+    """
+
     def __init__(self, caller, *, watch_state: dict | None = None, clock=time.monotonic, workers: int = 8,
-                 keep_raw: int = 0):
+                 keep_raw: int = 0, inflight=None):
         """``caller(member, args, timeout_s)`` returns the raw tool output or raises. ``keep_raw`` keeps that
         many characters of each raw answer on the attempt (self-tests only; public gold inputs)."""
         self.caller, self.watch_state, self.clock, self.workers = caller, watch_state or {}, clock, workers
         self.keep_raw = keep_raw
+        self.inflight = _INFLIGHT if inflight is None else inflight
 
     def _call(self, member, rank, values, contract, deadline):
         started = self.clock()
@@ -206,46 +234,101 @@ class Runner:
             canon, ok, error = None, False, (getattr(exc, "error_code", None) or getattr(exc, "code", None)
                                             or type(exc).__name__)
             kept = str(exc)[:self.keep_raw] if self.keep_raw else None
-        ms = int((self.clock() - started) * 1000)
+        finished = self.clock()
+        if finished > deadline:          # an answer after the deadline never counts
+            canon, ok, error = None, False, "late"
+        ms = int((finished - started) * 1000)
         return Attempt(member.get("resource_id"), member["tool"], member["kind"], rank, ok, ms, error, kept), canon
 
-    def run_slot(self, slug: str, slot: dict, values: dict, deadline: float) -> SlotResult:
-        result = SlotResult(slot["slot"], bool(slot.get("required", True)), max(1, slot.get("fanout", 1)))
-        chain = [m for m in runtime_chain(slot, slug, self.watch_state) if in_coverage(m, values)]
-        ranked = list(enumerate(chain, start=1))
-        externals = [(r, m) for r, m in ranked if m["kind"] == "external"]
-        fanout = max(1, slot.get("fanout", 1))
-        lead, rest = externals[:fanout], [x for x in ranked if x not in externals[:fanout]]
-        with ThreadPoolExecutor(max_workers=max(1, len(lead))) as pool:
-            futures = [pool.submit(self._call, m, r, values, slot["contract"], deadline) for r, m in lead]
-            for future in futures:
-                attempt, canon = future.result()
-                result.attempts.append(attempt)
-                if attempt.ok:
-                    result.answers.append((next(m for r, m in lead if r == attempt.rank), canon))
-        for rank, member in rest:      # externals first, then AgentValCon fallbacks (chain order)
-            if result.answers:
-                break
-            attempt, canon = self._call(member, rank, values, slot["contract"], deadline)
-            result.attempts.append(attempt)
-            if attempt.ok:
-                result.answers.append((member, canon))
-        return result
+    # -- scheduling helpers
+    def _submit(self, pool, st, rank, member, values, run_started):
+        if not self.inflight.acquire(blocking=False):
+            st["result"].attempts.append(Attempt(member.get("resource_id"), member["tool"], member["kind"], rank,
+                                                 False, 0, "capacity"))
+            return False
+        future = pool.submit(self._call, member, rank, values, st["slot"]["contract"], st["deadline"])
+        future.add_done_callback(lambda _f: self.inflight.release())   # also runs when cancelled
+        st["inflight"][future] = (rank, member)
+        return True
+
+    def _advance(self, pool, st, values, run_started):
+        """Start the next chain member of a slot that has no answer and nothing in flight."""
+        while st["queue"] and not st["inflight"] and not st["result"].answers:
+            rank, member = st["queue"].pop(0)
+            if (st["deadline"] - self.clock()) * 1000 < MIN_ATTEMPT_MS:
+                st["result"].attempts.append(Attempt(member.get("resource_id"), member["tool"], member["kind"],
+                                                     rank, False, 0, "deadline"))
+                st["queue"].clear()
+                return
+            self._submit(pool, st, rank, member, values, run_started)
+
+    @staticmethod
+    def _settled(st, now) -> bool:
+        if st["inflight"]:
+            return now >= st["deadline"]
+        return bool(st["result"].answers) or not st["queue"] or now >= st["deadline"]
+
+    def _abandon(self, st, now, run_started, reason="timeout"):
+        for future, (rank, member) in list(st["inflight"].items()):
+            st.setdefault("abandoned_futures", []).append(future)
+            st["result"].attempts.append(Attempt(member.get("resource_id"), member["tool"], member["kind"], rank,
+                                                 False, int((now - run_started) * 1000), reason))
+            st["result"].abandoned += 1
+        st["inflight"].clear()
 
     def run(self, defn: dict, values: dict) -> dict:
         started = self.clock()
-        deadline = started + defn["budget_ms"]["total"] / 1000
-        slots = defn["slots"]
-        results: dict[str, SlotResult] = {}
-        with ThreadPoolExecutor(max_workers=min(self.workers, len(slots))) as pool:
-            pending = {pool.submit(self.run_slot, defn["slug"], slot, values, deadline): slot["slot"] for slot in slots}
-            while pending:
-                done, _ = wait(pending, return_when=FIRST_COMPLETED)
+        total_s = defn["budget_ms"]["total"] / 1000
+        deadline = started + total_s
+        slot_deadline = started + min(total_s, defn["budget_ms"].get("slot", defn["budget_ms"]["total"]) / 1000)
+        pool = ThreadPoolExecutor(max_workers=self.workers)
+        states: dict[str, dict] = {}
+        try:
+            for slot in defn["slots"]:
+                chain = [m for m in runtime_chain(slot, defn["slug"], self.watch_state) if in_coverage(m, values)]
+                ranked = list(enumerate(chain, start=1))
+                fanout = max(1, slot.get("fanout", 1))
+                lead = [(r, m) for r, m in ranked if m["kind"] == "external"][:fanout]
+                st = {"slot": slot, "required": bool(slot.get("required", True)),
+                      "result": SlotResult(slot["slot"], bool(slot.get("required", True)), fanout),
+                      "queue": [x for x in ranked if x not in lead], "inflight": {},
+                      "deadline": min(deadline, slot_deadline)}
+                states[slot["slot"]] = st
+                for rank, member in lead:
+                    self._submit(pool, st, rank, member, values, started)
+                self._advance(pool, st, values, started)
+            while True:
+                now = self.clock()
+                for st in states.values():
+                    if st["inflight"] and now >= st["deadline"]:
+                        self._abandon(st, now, started)
+                    self._advance(pool, st, values, started)
+                if all(self._settled(st, now) for st in states.values()):
+                    break
+                waiting = {f: st for st in states.values() for f in st["inflight"]}
+                if not waiting or now >= deadline:
+                    for st in states.values():
+                        self._abandon(st, now, started)
+                    break
+                until = min(st["deadline"] for st in states.values() if st["inflight"])
+                done, _ = wait(list(waiting), timeout=max(0.0, min(until, deadline) - now),
+                               return_when=FIRST_COMPLETED)
                 for future in done:
-                    results[pending.pop(future)] = future.result()
+                    st = waiting[future]
+                    if future not in st["inflight"]:
+                        continue
+                    rank, member = st["inflight"].pop(future)
+                    attempt, canon = future.result()
+                    st["result"].attempts.append(attempt)
+                    if attempt.ok:
+                        st["result"].answers.append((member, canon))
+        finally:
+            still_running = sum(1 for st in states.values() for f in st.get("abandoned_futures", []) if not f.done())
+            pool.shutdown(wait=False, cancel_futures=True)
+        results = {name: st["result"] for name, st in states.items()}
         failed = [s.slot for s in results.values() if s.required and not s.answers]
-        output = {name: (merge(next(sl["contract"] for sl in slots if sl["slot"] == name), r.answers)
-                         if r.answers else {"missing": True}) for name, r in results.items()}
+        output = {name: (merge(states[name]["slot"]["contract"], r.answers) if r.answers else {"missing": True})
+                  for name, r in results.items()}
         return {
             "slug": defn["slug"], "version": defn["version"], "digest": model.digest(defn),
             "ok": not failed, "completed": not failed,
@@ -253,6 +336,8 @@ class Runner:
                 a.kind == "external" for r in results.values() for a in r.attempts if a.ok),
             "failed_slot": failed[0] if failed else None,
             "latency_ms": int((self.clock() - started) * 1000),
+            "abandoned_calls": sum(r.abandoned for r in results.values()),
+            "pending_at_return": still_running,
             "slots": {name: r.used() for name, r in results.items()},
             "attempts": {name: [a.__dict__ for a in r.attempts] for name, r in results.items()},
             "output": output,

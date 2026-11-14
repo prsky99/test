@@ -74,3 +74,54 @@ def test_credential_values_are_refused_with_the_default_checks(tmp_path):
     ok = service.run_for_surface(None, entry, {"q": "lodash"}, "mcp", None, root=tmp_path,
                                  definitions_dir=defs, caller=caller_from({1: "CVE-2020-28500", 3: "kev"}))
     assert ok["ok"]
+
+
+# ---------------------------------------------------------------- JSON Schema 2020-12 (PM F11, 11-14)
+RICH = {"type": "object", "additionalProperties": False, "required": ["q"],
+        "properties": {"q": {"type": "string", "minLength": 1},
+                       "n": {"type": "integer", "minimum": 1, "maximum": 10},
+                       "w": {"type": "number"},
+                       "tags": {"type": "array", "items": {"type": "string"}}}}
+
+
+def test_schema_rules_beyond_the_old_subset_are_enforced():
+    for bad in ({"q": "x", "n": -1}, {"q": "x", "n": 11}, {"q": "x", "n": True}, {"q": "x", "w": float("nan")},
+                {"q": "x", "w": float("inf")}, {"q": "x", "tags": "not-an-array"}, {"q": "x", "tags": [1]},
+                {"q": "x", "other": 1}, {"q": ""}, {"q": "x", "tags": [float("nan")]}):
+        try:
+            service.check_input(RICH, bad)
+        except service.Refused as exc:
+            assert exc.code == "invalid_input"
+        else:
+            raise AssertionError(bad)
+    assert service.check_input(RICH, {"q": "x", "n": 3, "w": 0.5, "tags": ["a"]})
+
+
+def test_refused_inputs_make_no_member_call(tmp_path):
+    defs = tmp_path / "defs"
+    defs.mkdir()
+    defn = necklace()
+    defn["input_schema"] = RICH
+    (defs / "topic-brief.json").write_text(json.dumps(defn))
+    entry = {"slug": "topic-brief", "version": 1, "definition_digest": model.digest(defn)}
+    calls = []
+    for bad in ({"q": "x", "n": -1}, {"q": "x", "w": float("nan")}, {"q": "x", "tags": "a"}):
+        out = service.run_for_surface(None, entry, bad, "mcp", None, root=tmp_path, definitions_dir=defs,
+                                      sensitive=lambda v: False, caller=caller_from({1: "x", 3: "y"}, calls))
+        assert out["error_code"] == "invalid_input"
+    assert calls == [] and not events(tmp_path)
+
+
+def test_definitions_with_open_or_broken_schemas_do_not_load():
+    defn = necklace()
+    defn["input_schema"] = {"type": "object", "properties": {"q": {"type": "string"}}}
+    assert "input_schema must set additionalProperties to false" in model.validate(defn, check_contracts=False)
+    defn["input_schema"] = {"type": "object", "additionalProperties": False, "properties": {"q": {"type": 7}}}
+    assert any(e.startswith("input_schema is not valid") for e in model.validate(defn, check_contracts=False))
+    defn["input_schema"] = {"type": "object", "additionalProperties": False, "properties": {"q": {"$ref": "https://x"}}}
+    assert "input_schema must not use references" in model.validate(defn, check_contracts=False)
+
+
+def test_shipped_definitions_have_checked_schemas():
+    for defn in model.load_all():
+        assert model.input_schema_errors(defn["input_schema"]) == [], defn["slug"]

@@ -26,7 +26,8 @@ def base():
     return {
         "slug": "topic-brief", "version": 1, "status": "candidate", "name": "Topic brief",
         "summary": "Two sources in one answer.",
-        "input_schema": {"type": "object", "properties": {"q": {"type": "string"}}, "required": ["q"]},
+        "input_schema": {"type": "object", "properties": {"q": {"type": "string"}}, "required": ["q"],
+                         "additionalProperties": False},
         "budget_ms": {"total": 5000, "slot": 3500},
         "slots": [
             {"slot": "papers", "contract": "x.v1", "required": True, "fanout": 1,
