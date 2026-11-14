@@ -13,6 +13,26 @@ from . import explore_documents as documents
 log = logging.getLogger("agent_market.explore_documents")
 
 
+_LOWERED = set()
+
+
+def background_priority():
+    """Run the calling thread at macOS utility QoS once (best effort; other systems and failures do nothing), so
+    document rebuilding yields the CPU to request threads in the same process."""
+    import sys
+    import threading
+    ident = threading.get_ident()
+    if ident in _LOWERED or sys.platform != 'darwin':
+        return
+    _LOWERED.add(ident)
+    try:
+        import ctypes
+        libc = ctypes.CDLL('/usr/lib/libSystem.B.dylib')
+        libc.pthread_set_qos_class_self_np(0x11, 0)   # QOS_CLASS_UTILITY
+    except Exception:
+        pass
+
+
 class Refresher:
     """One jobs-owned bounded batch; source changes cannot publish stale facts."""
 
@@ -20,6 +40,10 @@ class Refresher:
     # publishes them in one transaction; a commit per listing cost about 100 ms. The first
     # 25-per-5s setting capped the initial load at 300 per minute.
     BATCH, BUDGET = 200, 4.0
+    # PM 11-14 14:2x: a policy change rebuilds about 420k documents; they go at one steady pace all day and night
+    # (at most STEADY_BATCH per round of 5 s, 1,200 a minute, about 6 hours) on a low-priority thread. The pace never
+    # changes for measurement hours: a measurement must see what visitors see.
+    STEADY_BATCH = 100
     MAX_ATTEMPTS, PARK = 6, 7 * 86400
     # The stale-document scan reads every generation row (309k rows, 266 ms mean) even when
     # nothing changed; one scan per 5 s round cost 39,252 s of database time, the largest Explore
@@ -31,7 +55,7 @@ class Refresher:
     # does not run again while the queue still holds a full round; throughput is unchanged.
     SCAN_FILL = 6
 
-    def __init__(self, store, *, batch=BATCH, interval=5, budget=BUDGET, clock=time.monotonic):
+    def __init__(self, store, *, batch=STEADY_BATCH, interval=5, budget=BUDGET, clock=time.monotonic):
         self.store, self.batch, self.interval, self.budget, self.clock = (
             store,
             batch,
@@ -47,6 +71,7 @@ class Refresher:
         return self.clock() >= self.rest_until
 
     def run(self):
+        background_priority()
         from .application_store_resource_batches import resources
         from .concierge.discovery_contracts import contract_reads
 

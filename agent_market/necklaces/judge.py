@@ -180,6 +180,28 @@ def build_entry(defn: dict, approval: dict | None, summary: dict, now: float,
     return entry
 
 
+TESTING = ("qualifying", "trial")
+
+
+def testing_entry(defn: dict, summary: dict) -> dict | None:
+    """A necklace still before its gate, listed as "In testing" (F17, contract with growth 11-14).
+
+    Only what the listing needs: no pearls, input schema, tools or quality claims, so nothing can run it
+    or call it verified. Shown only once it has retest cases."""
+    if defn.get("status") not in TESTING:
+        return None
+    quality = summary.get("quality") or {}
+    passed, total = quality.get("success_7d"), quality.get("cases_7d")
+    if type(passed) is not int or type(total) is not int or not 0 <= passed <= total or total == 0:
+        return None
+    entry = {"slug": defn["slug"], "name": defn["name"], "version": defn["version"], "status": "testing",
+             "tests": {"passed": passed, "total": total}}
+    template_id = summary.get("template_id") or defn.get("template_id")
+    if type(template_id) is int:
+        entry["template_id"] = template_id
+    return entry
+
+
 EVENT_DAYS = 60
 
 
@@ -247,6 +269,11 @@ def snapshot(definitions: list[dict], approvals: dict[str, dict], root: Path, no
         entry["evidence"] = {"gate": evidence.latest_envelope("gate_result", f"{entry['slug']}-v{entry['version']}",
                                                               signing_dir)}
     events = record_events(entries, {} if judge_state is None else judge_state, now, signing_dir)
+    # Testing entries never make events or evidence: the first public event stays "launched".
+    for defn in definitions:
+        found = testing_entry(defn, load_summary(root, defn["slug"]))
+        if found is not None:
+            entries.append(found)
     return {"schema": SCHEMA, "generated_at": _iso(now), "judge_commit": judge_commit, "necklaces": entries,
             "events": events}
 

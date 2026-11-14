@@ -309,6 +309,45 @@ NON_US = [("SAP SE", "SAP", "DE"), ("Siemens Aktiengesellschaft", "Siemens", "DE
           ("Novo Nordisk A/S", "Novo Nordisk", "DK"), ("Telefonaktiebolaget LM Ericsson", "Ericsson", "SE")]
 
 
+NON_US_MORE = [("Barclays PLC", "Barclays", "GB"), ("Lloyds Banking Group plc", "Lloyds Banking Group", "GB"),
+               ("Rio Tinto plc", "Rio Tinto", "GB"), ("GSK plc", "GSK", "GB"), ("Diageo plc", "Diageo", "GB"),
+               ("BAE Systems plc", "BAE Systems", "GB"), ("Tesco PLC", "Tesco", "GB"), ("Prudential plc", "Prudential", "GB"),
+               ("UBS Group AG", "UBS", "CH"), ("Zurich Insurance Group AG", "Zurich Insurance", "CH"), ("ABB Ltd", "ABB", "CH"),
+               ("Deutsche Telekom AG", "Deutsche Telekom", "DE"), ("Bayer Aktiengesellschaft", "Bayer", "DE"),
+               ("Volkswagen Aktiengesellschaft", "Volkswagen", "DE"), ("Mercedes-Benz Group AG", "Mercedes-Benz", "DE"),
+               ("BNP Paribas", "BNP Paribas", "FR"), ("Sanofi", "Sanofi", "FR"), ("Airbus SE", "Airbus", "NL"),
+               ("Schneider Electric SE", "Schneider Electric", "FR"), ("Danone", "Danone", "FR"),
+               ("ING Groep N.V.", "ING", "NL"), ("Koninklijke Philips N.V.", "Philips", "NL"), ("Heineken N.V.", "Heineken", "NL"),
+               ("Iberdrola, S.A.", "Iberdrola", "ES"), ("Telefónica, S.A.", "Telefonica", "ES"), ("Enel S.p.A.", "Enel", "IT"),
+               ("Eni S.p.A.", "Eni", "IT"), ("UniCredit S.p.A.", "UniCredit", "IT"), ("Aktiebolaget Volvo", "Volvo", "SE"),
+               ("Accenture public limited company", "Accenture", "IE"), ("Medtronic public limited company", "Medtronic", "IE"),
+               ("CRH public limited company", "CRH", "IE"), ("Infosys Limited", "Infosys", "IN"), ("Wipro Limited", "Wipro", "IN"),
+               ("Spotify Technology S.A.", "Spotify", "LU"), ("ArcelorMittal", "ArcelorMittal", "LU"),
+               ("Anheuser-Busch InBev", "AB InBev", "BE"), ("Carlsberg A/S", "Carlsberg", "DK"),
+               ("Orsted A/S", "Orsted", "DK"), ("Kone Oyj", "Kone", "FI")]
+_SUFFIX = {"incorporated": "inc", "corporation": "corp", "company": "co", "limited": "ltd", "plc": "plc"}
+
+
+def name_key(name: str) -> str:
+    """Comparable company name: lower case, no punctuation, common legal-form words shortened."""
+    words = re.sub(r"[^a-z0-9 ]", " ", name.lower().replace("&", " and ")).split()
+    return " ".join(_SUFFIX.get(w, w) for w in words)
+
+
+def gleif_match(f: Fetcher, legal_name: str, country: str) -> str | None:
+    """The one active entity in COUNTRY whose legal name matches LEGAL_NAME after name_key; exact match first."""
+    found = gleif_exact(f, legal_name, country)
+    if found:
+        return found
+    out = f.json("https://api.gleif.org/api/v1/lei-records?page%5Bsize%5D=20&filter%5Bfulltext%5D=" + quote(legal_name)) or {}
+    key = name_key(legal_name)
+    hits = {r["id"] for r in out.get("data") or []
+            if name_key(r["attributes"]["entity"]["legalName"]["name"]) == key
+            and r["attributes"]["entity"]["legalAddress"]["country"] == country
+            and r["attributes"]["entity"].get("status") == "ACTIVE"}
+    return hits.pop() if len(hits) == 1 else None
+
+
 def gleif_exact(f: Fetcher, legal_name: str, country: str) -> str | None:
     """The LEI of the one active entity whose legal name equals LEGAL_NAME (case-insensitive) in COUNTRY."""
     out = f.json("https://api.gleif.org/api/v1/lei-records?page%5Bsize%5D=10&filter%5Bentity.legalName%5D="
@@ -344,14 +383,14 @@ def company_cases(f: Fetcher, us: int = 75) -> list[dict]:
         if row["cik_str"] in seen or not title:
             continue
         seen.add(row["cik_str"])
-        lei = gleif_exact(f, title, "US")
+        lei = gleif_match(f, title, "US")
         cases.append({"case_id": f"US:CIK{row['cik_str']}", "task_type": "same_role", "stratum": "us",
                       "input": {"name": typed_name(title), "country": "US"},
                       "truth": {"cik": str(row["cik_str"]), "ticker": row["ticker"], "lei": lei, "sec_title": title},
                       "truth_sources": [{"name": "SEC company tickers", "url": "https://www.sec.gov/files/company_tickers.json", "fetched_at": _now()},
                                         {"name": "GLEIF", "url": "https://api.gleif.org/api/v1/lei-records", "fetched_at": _now()}]})
-    for legal, common, country in NON_US:
-        lei = gleif_exact(f, legal, country)
+    for legal, common, country in NON_US + NON_US_MORE:
+        lei = gleif_match(f, legal, country)
         if lei and not any(c["truth"].get("lei") == lei for c in cases):
             cases.append({"case_id": f"{country}:{lei}", "task_type": "same_role", "stratum": "non_us",
                           "input": {"name": common, "country": country},
@@ -412,7 +451,34 @@ def topic_cases(f: Fetcher, per_topic: int = 10) -> list[dict]:
                                 "papers": papers, "paper_phrase": phrase},
                       "truth_sources": [{"name": "Wikipedia REST summary", "url": "https://en.wikipedia.org/api/rest_v1/", "fetched_at": _now()},
                                         {"name": "OpenAlex (title search, most cited)", "url": "https://api.openalex.org/works", "fetched_at": _now()}]})
+    return lei_strata(cases)
+
+
+def lei_strata(cases: list[dict]) -> list[dict]:
+    """Stratify by what a registry source can answer, so every split holds LEI cases (the ops gate counts
+    only cases the source can answer: GLEIF needs an LEI, SEC needs a CIK)."""
+    for case in cases:
+        case["stratum"] = "has_lei" if case["truth"].get("lei") else "cik_only"
     return cases
+
+
+def enrich_companies(f: Fetcher, cases: list[dict]) -> list[dict]:
+    """Add LEIs found by the normalized match and the extra non-US companies to saved raw cases."""
+    for case in cases:
+        if case["case_id"].startswith("US:") and not case["truth"].get("lei"):
+            case["truth"]["lei"] = gleif_match(f, case["truth"].get("sec_title") or case["input"]["name"], "US")
+    have = {c["truth"].get("lei") for c in cases}
+    for legal, common, country in NON_US + NON_US_MORE:
+        if any(c["truth"].get("legal_name") == legal for c in cases):
+            continue
+        lei = gleif_match(f, legal, country)
+        if lei and lei not in have:
+            have.add(lei)
+            cases.append({"case_id": f"{country}:{lei}", "task_type": "same_role", "stratum": "non_us",
+                          "input": {"name": common, "country": country},
+                          "truth": {"lei": lei, "legal_name": legal, "cik": None},
+                          "truth_sources": [{"name": "GLEIF", "url": f"https://api.gleif.org/api/v1/lei-records/{lei}", "fetched_at": _now()}]})
+    return lei_strata(cases)
 
 
 def split(cases: list[dict], per_split: int = PER_SPLIT) -> dict[str, list[dict]]:
