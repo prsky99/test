@@ -370,8 +370,13 @@ def _public_agent(value, resource=None, *, store=None, create_connections=True):
     if 'host' in result:result['host']='agentconcierge.biz' if gateway else ''
     # 'Available' means our gateway serves the recommended tool (11-12 PM): an MCP server whose chosen tool
     # is not on the gateway's tools/list (an action tool such as send_email) is not connectable through us.
-    available=bool(gateway) and value.get('tool_unlisted') is not True
+    # 11-15 user_slo 00:04 mcp/36513: a listing that requires the provider's own authorization is refused by the
+    # gateway for public callers (execution_policy.admit, x402 aside), so it is not connectable through us either.
+    needs_provider_auth=value.get('auth_required') is True and value.get('kind')!='x402'
+    available=bool(gateway) and value.get('tool_unlisted') is not True and not needs_provider_auth
     result['connection_available']=available
+    if needs_provider_auth:
+        result['connection_reason']='provider_authorization'
     if value.get('tool_unlisted') is True and isinstance(value.get('connection_note'),str):
         result['connection_note']=value['connection_note'][:600]
         if value.get('connection_reason') in ('action_tool','not_verified_read_only'):

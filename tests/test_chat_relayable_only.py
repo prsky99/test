@@ -14,6 +14,10 @@ def test_relayable_only_keeps_relayed_choices_and_the_honest_answer_when_none_is
     assert not relayable(action) and relayable(read) and relayable(agent)
     assert relayable_only([action, read, agent]) == [read, agent]
     assert relayable_only([action]) == [action]          # nothing relayed: the documentation-link answer stays
+    keyed = {'id': 4, 'kind': 'mcp', 'auth_required': True}                     # 11-15 mcp/36513: the gateway refuses it
+    paid_route = {'id': 5, 'kind': 'x402', 'auth_required': True}               # x402 is paid per call, not refused
+    assert not relayable(keyed) and relayable(paid_route)
+    assert relayable_only([keyed, read]) == [read]
 
 
 def _translator(add, now, name, tool, read_only, seconds):
