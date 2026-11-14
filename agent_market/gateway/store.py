@@ -2114,9 +2114,20 @@ class Store:
             "SELECT at, outcome, status_code, latency_ms, error, observed_price FROM health_checks WHERE resource_id=? ORDER BY at DESC LIMIT ?",
             (rid, limit))]
 
-    def prune_health(self, before: float) -> int:
-        with self.tx() as db:
-            return db.execute("DELETE FROM health_checks WHERE at<?", (before,)).rowcount
+    def prune_health(self, before: float, slice_seconds: float = 600, max_slices: int = 36) -> int:
+        """Delete health checks older than `before`, oldest first, in time slices of `slice_seconds`, each slice its
+        own short transaction, at most `max_slices` per call (the rest waits for the next call).
+
+        11-15 (PM): a daily single DELETE removed about 460,000 rows in one transaction; the collector now calls this
+        every hour, so a call normally removes one hour (six slices of a few thousand rows)."""
+        removed = 0
+        for _ in range(max_slices):
+            oldest = self.query("SELECT MIN(at) AS oldest FROM health_checks")[0]["oldest"]
+            if oldest is None or oldest >= before:
+                break
+            with self.tx() as db:
+                removed += db.execute("DELETE FROM health_checks WHERE at<?", (min(before, oldest + slice_seconds),)).rowcount
+        return removed
 
     def record_crawl_run(self, source: str, report: dict) -> None:
         with self.tx() as db:
