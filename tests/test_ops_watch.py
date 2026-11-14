@@ -37,6 +37,7 @@ def test_auto_watch_alerts_once_and_writes_handoff(tmp_path, monkeypatch):
     monkeypatch.setattr(ops_auto, 'error_ledger', lambda: None)  # tested in test_error_ledger.py
     monkeypatch.setattr(ops_auto, 'provenance', lambda: None)    # tested below and in test_provenance_check.py
     monkeypatch.setattr(ops_auto, 'ad_coin_ledger', lambda: None)  # tested below
+    monkeypatch.setattr(ops_auto, 'payment_flow', lambda: None)    # tested below
     monkeypatch.setattr(ops_auto, 'outside_load', lambda: None)    # tested below
     monkeypatch.setattr(ops_auto, 'stability_gate', lambda: None)  # tested in test_stability_gate.py
     monkeypatch.setattr(ops_auto, 'full_check', lambda: None)  # tested below
@@ -261,3 +262,22 @@ def test_busy_ignores_the_sleeping_reclaim_of_the_old_slot(monkeypatch):
     assert ops_auto.busy() is None
     ps.append('python -m scripts.service_deploy deploy frontend r1 --lock-owner x')
     assert ops_auto.busy() == 'tests_or_deploy_running'
+
+
+def test_payment_flow_runs_once_a_day_outside_the_measurement_minutes_and_alerts(tmp_path, monkeypatch):
+    import types
+    from datetime import datetime
+    ops_auto, board = _board(tmp_path, monkeypatch)
+    monkeypatch.setattr(ops_auto, 'PAYMENT_FLOW_STATE', tmp_path / 'pf.json')
+    at = lambda h, m, d=14: datetime(2026, 11, d, h, m).timestamp()
+    calls = []
+    fail = lambda c: calls.append(c) or types.SimpleNamespace(returncode=1, stdout='{"passed": 17, "total": 18}', stderr='')
+    assert ops_auto.payment_flow(clock=lambda: at(9, 30), run=fail) is None       # before 10:15
+    assert ops_auto.payment_flow(clock=lambda: at(10, 57), run=fail) is None      # measurement minutes
+    assert ops_auto.payment_flow(clock=lambda: at(11, 20), run=fail) == 'failed'
+    assert calls[0][-2:] == ['-m', 'scripts.ad_coin_payment_flow_report']
+    assert '자동 점검 [payment_flow]' in board.read_text()
+    assert ops_auto.payment_flow(clock=lambda: at(12, 20), run=fail) is None      # once a day
+    ok = lambda c: types.SimpleNamespace(returncode=0, stdout='{"passed": 18, "total": 18}', stderr='')
+    assert ops_auto.payment_flow(clock=lambda: at(10, 20, 15), run=ok) == 'clean'
+    assert '해결(자동' in [l for l in board.read_text().splitlines() if '[payment_flow]' in l][0]

@@ -37,7 +37,7 @@ PSQL = ['/opt/homebrew/opt/postgresql@18/bin/psql', '-h', str(ROOT / 'gateway-da
         '-d', 'agentcon_cutover_20261020_191757', '-Atc']
 TEAM = {'site': '운영·SRE', 'memory': '운영·SRE', 'disk': '운영·SRE', 'deploy_stuck': '운영·SRE',
         'deploy_lock': '잠금을 잡은 팀', 'long_tests': '시험을 돌린 팀', 'stale_handoffs': '받는 팀',
-        'ad_coin_ledger': 'AI AD Coin', 'vector_index_usage': '검색과 RAG', 'north_star': 'PM'}
+        'ad_coin_ledger': 'AI AD Coin', 'payment_flow': 'AI AD Coin', 'vector_index_usage': '검색과 RAG', 'north_star': 'PM'}
 ALERT_SYSTEM = (
     'You write operations alerts in Korean for the owner of the Agent Concierge website. '
     'Input is JSON describing detected anomalies. Write at most three short lines in plain Korean: what is wrong, '
@@ -501,6 +501,39 @@ def ad_coin_ledger(clock=time.time, run=None):
     return 'failed'
 
 
+PAYMENT_FLOW_STATE = ROOT / 'logs/ops/payment-flow-state.json'
+PAYMENT_FLOW_AFTER_MINUTE = 10 * 60 + 15     # daily after 10:15, inside :15-:50 (never the measurement minutes)
+
+
+def payment_flow(clock=time.time, run=None):
+    """Once a day: the AD Coin payment flow tests in the operations format (scripts.ad_coin_payment_flow_report,
+    PM 11-14): the booking flow and its six failure cases in a throwaway database, plus one USDC receipt read on
+    Base Sepolia (no wallet, no transfer). Its result file feeds the payment stability standard (1). A failure or a
+    run that could not finish is handed off on one board line (the error watch alert); a clean day closes it."""
+    local = datetime.fromtimestamp(clock())
+    day = local.strftime('%Y-%m-%d')
+    if local.hour * 60 + local.minute < PAYMENT_FLOW_AFTER_MINUTE or not 15 <= local.minute <= 50:
+        return None
+    state = json.loads(PAYMENT_FLOW_STATE.read_text()) if PAYMENT_FLOW_STATE.is_file() else {}
+    if state.get('day') == day:
+        return None
+    PAYMENT_FLOW_STATE.write_text(json.dumps({'day': day}))
+    command = ['nice', '-n', '10', str(ROOT / '.venv/bin/python'), '-m', 'scripts.ad_coin_payment_flow_report']
+    try:
+        done = (run or (lambda c: subprocess.run(c, cwd=ROOT, capture_output=True, text=True, timeout=900)))(command)
+    except subprocess.TimeoutExpired:
+        board_handoff('payment_flow', '결제 흐름 시험이 15분 안에 끝나지 않음(logs/ops/payment-flow-tests/)')
+        return 'timeout'
+    tail = (done.stdout or '').strip().splitlines()[-1:] or (done.stderr or '').strip().splitlines()[-1:] or ['']
+    if done.returncode == 0:
+        board_close('payment_flow', f'해결(자동 {now()[11:]} 결제 흐름 시험 전부 통과)')
+        append(ACTIONS, f'{now()} 결제 흐름 시험: 전부 통과')
+        return 'clean'
+    board_handoff('payment_flow', f'결제 흐름 시험 실패(종료 코드 {done.returncode}, logs/ops/payment-flow-tests/): {tail[0][:160]}')
+    append(ACTIONS, f'{now()} 결제 흐름 시험 실패: 종료 코드 {done.returncode}')
+    return 'failed'
+
+
 PROVENANCE_STATE = ROOT / 'logs/ops/provenance-state.json'
 PROVENANCE_AFTER_MINUTE = 6 * 60 + 30   # daily, before the 08:00 bundle deploy
 
@@ -678,6 +711,10 @@ def watch():
         provenance()
     except Exception as error:  # noqa: BLE001
         append(ACTIONS, f'{now()} 출처 대조 실패: {type(error).__name__}')
+    try:
+        payment_flow()
+    except Exception as error:  # noqa: BLE001
+        append(ACTIONS, f'{now()} 결제 흐름 시험 실패: {type(error).__name__}')
     try:
         orphan_clusters()
     except Exception as error:  # noqa: BLE001
