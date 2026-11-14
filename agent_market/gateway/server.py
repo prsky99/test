@@ -251,11 +251,12 @@ def _compose_app(
             from ..nvd_snapshot_schedule import NvdSnapshotRefresh
             from ..fallback_schedule import AirportIndexRefresh, FallbackWatchStep
             from ..necklace_schedule import NecklaceStep, RetestStep  # PM 11-14: necklace watch, judge, summary, retests
+            from ..graph_cap_schedule import GraphCapRefresh  # PM 11-15: daily graph-cap refresh (no-op before the column)
             scheduler = Scheduler(collector, service, config.rescan_interval, front.digest,
                                   front.workflows if service_role == 'legacy' else None,
                                   summaries=[HealthSummaries(store), Retention(store), WorkflowRetention(front.workflows),
                                              NvdSnapshotRefresh(), FallbackWatchStep(), AirportIndexRefresh(),
-                                             NecklaceStep(store), RetestStep()])
+                                             NecklaceStep(store), RetestStep(), GraphCapRefresh()])
             scheduler.start()
         try:
             yield
