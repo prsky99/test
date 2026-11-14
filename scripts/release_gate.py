@@ -218,7 +218,22 @@ def compare(before, after):
 CHAT_RECORDS = ROOT / 'logs' / 'ops' / 'chat-gate'
 
 
-def record_chat_check(release, active, before, after, broken, fixed):
+def first_picks(out):
+    """{case id: 'id kind name / tool'} of each case's first recommendation in an evaluation output (11-15: three
+    cases moved overnight and no record said which listing had answered them before)."""
+    try:
+        rows = json.loads(Path(out).read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return {}
+    picks = {}
+    for row in rows:
+        top = (row.get('top') or [None])[0]
+        picks[row['id']] = (f"{top.get('id')} {top.get('kind')} {str(top.get('name'))[:60]} / {str(top.get('tool'))[:60]}"
+                            if isinstance(top, dict) else (row.get('status') or 'no result'))
+    return picks
+
+
+def record_chat_check(release, active, before, after, broken, fixed, picks=None):
     """Keep each case's verdict (PM 11-13 23:3x): the active release went from 93 to 92 of 110 between two gates
     and no record said which case moved. A failed write never fails the gate."""
     try:
@@ -226,7 +241,8 @@ def record_chat_check(release, active, before, after, broken, fixed):
         stamp = time.strftime('%Y%m%d-%H%M%S')
         (CHAT_RECORDS / f'{stamp}-{release}.json').write_text(json.dumps(
             {'at': stamp, 'release': release, 'active': active, 'active_verdicts': before, 'release_verdicts': after,
-             'new_failures': broken, 'new_passes': fixed}, indent=1, sort_keys=True), encoding='utf-8')
+             'new_failures': broken, 'new_passes': fixed, 'active_first_picks': picks or {}}, indent=1, sort_keys=True),
+            encoding='utf-8')
     except OSError:
         pass
 
@@ -243,6 +259,7 @@ def chat_check(release, active=None, *, evaluate=evaluate):
         cases = Path(scratch) / 'cases.json'
         cases.write_text(json.dumps({'gate': chat_sample()}), encoding='utf-8')
         before = evaluate(active, cases, Path(scratch) / 'active.json')
+        picks = first_picks(Path(scratch) / 'active.json')
         after = evaluate(release, cases, Path(scratch) / 'release.json')
         broken, fixed = compare(before, after)
         if broken:
@@ -254,7 +271,7 @@ def chat_check(release, active=None, *, evaluate=evaluate):
             broken = [i for i in broken if not again.get(i, False) and still.get(i, False)]
     print(f'chat check: active {sum(before.values())}/{len(before)}, release {sum(after.values())}/{len(after)}; '
           f'new failures {len(broken)} {broken[:10]}, new passes {len(fixed)}')
-    record_chat_check(release, active, before, after, broken, fixed)
+    record_chat_check(release, active, before, after, broken, fixed, picks)
     if len(broken) - len(fixed) >= CHAT_MARGIN:
         print('chat check: FAILED (more new failures than passes; see scripts/evaluate_chat_answer_quality.py)')
         return 1

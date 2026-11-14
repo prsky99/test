@@ -112,3 +112,14 @@ def test_each_case_verdict_is_kept(monkeypatch, tmp_path):
     body = json.loads(record.read_text())
     assert body['active_verdicts'] == {'a': True, 'b': False} and body['release_verdicts'] == {'a': True, 'b': True}
     assert body['new_passes'] == ['b'] and body['active'] == 'old'
+
+
+def test_the_record_keeps_each_cases_first_pick(tmp_path):
+    """11-15: three cases moved overnight on the active release and no record said which listing had answered."""
+    import json
+    from scripts.release_gate import first_picks
+    out = tmp_path / 'active.json'
+    out.write_text(json.dumps([{'id': 'a', 'ok': True, 'top': [{'id': 7, 'kind': 'mcp', 'name': 'Embedder', 'tool': 'embed'}]},
+                               {'id': 'b', 'ok': False, 'top': [], 'status': 'no_match'}]))
+    assert first_picks(out) == {'a': '7 mcp Embedder / embed', 'b': 'no_match'}
+    assert first_picks(tmp_path / 'missing.json') == {}
