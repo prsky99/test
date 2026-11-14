@@ -89,9 +89,13 @@ def router_for(slots) -> APIRouter:
             mapped = SITE_CATEGORIES.get(category, category)
             shown = await run_in_threadpool(slots.cards, mapped, where) if mapped in slots.taxonomy else []
             if surface in SURFACES and any(card["id"] == campaign_id for card in shown):
+                from .sponsored_offer import public_endpoint
                 offer = await run_in_threadpool(approved_offer, slots.store, campaign_id)
-                target = offer["endpoint"] if offer else target
-                if not request.headers.get("x-agentcon-qa"):
+                # Only the approved offer's endpoint, and only while it still resolves to public addresses
+                # (check_public_url again at redirect time). The target never comes from the request.
+                if offer and await run_in_threadpool(public_endpoint, offer["endpoint"]):
+                    target = offer["endpoint"]
+                if target != "/advertise" and not request.headers.get("x-agentcon-qa"):
                     await run_in_threadpool(lambda: count_click(slots.store, campaign_id, category=mapped, region=where,
                                                                 surface=surface))
         except ContractError:

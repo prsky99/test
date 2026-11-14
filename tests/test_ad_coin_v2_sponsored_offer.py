@@ -98,6 +98,16 @@ from tests.test_ad_coin_v2_persistence import store  # noqa: E402,F401
 from tests.test_ad_coin_v2_p1 import p1_suite  # noqa: E402,F401
 
 
+@pytest.fixture(autouse=True)
+def _public_only(monkeypatch):
+    """No DNS in tests: hosts named internal.* or 10.* count as private, everything else as public."""
+    def check(url):
+        host = url.split('//', 1)[1].split('/', 1)[0]
+        if host.startswith(('internal.', '10.', '127.', 'localhost')):
+            raise ValueError('private')
+    monkeypatch.setattr(so, 'URL_CHECK', check)
+
+
 def test_offer_flow_submit_review_serve_and_click(p1_suite):  # noqa: F811
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
@@ -141,3 +151,36 @@ def test_offer_flow_submit_review_serve_and_click(p1_suite):  # noqa: F811
     assert [(r['surface'], int(r['clicks'])) for r in rows] == [('mcp', 1)]
     so.submit_offer(store, p1_suite.advertiser, campaign['id'], {**GOOD, 'price': 'Free'})        # a change re-reviews
     assert client.get('/api/ad-coin/v2/sponsored/offer', params={'category': 'web_search'}, headers=us).json() == {'sponsored': None}
+
+
+def test_redirect_targets_only_public_approved_endpoints(p1_suite, monkeypatch):  # noqa: F811
+    """PM 11-14: approval and every redirect pass check_public_url; the target never comes from the request."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from agent_market.ad_coin.v2.contracts import ContractError
+    from agent_market.ad_coin.v2.sponsored_http import router_for
+    from scripts.ad_coin_v2_migrate import migrate_agent_ads
+    from tests.test_ad_coin_v2_paid_bookings import operator
+    from tests.test_ad_coin_v2_p1 import _activate_campaign
+    from tests.test_ad_coin_v2_sponsored import book_today, slots_for
+    store = p1_suite.service.store
+    migrate_agent_ads(store)
+    campaign = _activate_campaign(p1_suite)
+    book_today(p1_suite, campaign)
+    op, access = operator(p1_suite), p1_suite.service.access
+    so.submit_offer(store, p1_suite.advertiser, campaign['id'], {**GOOD, 'endpoint': 'https://internal.example/x'})
+    with pytest.raises(ContractError) as error:                       # private at approval: refused
+        so.decide_offer(store, access, op, campaign['id'], approve=True)
+    assert error.value.code == 'endpoint_not_public'
+    so.submit_offer(store, p1_suite.advertiser, campaign['id'], GOOD)
+    so.decide_offer(store, access, op, campaign['id'], approve=True)
+    client = TestClient(_app := FastAPI())
+    _app.include_router(router_for(slots_for(p1_suite)))
+    url = '/api/ad-coin/v2/sponsored/click/%s?surface=rest&category=web_search' % campaign['id']
+    us = {'CF-IPCountry': 'US'}
+    hop = client.get(url + '&url=https://evil.example/&to=https://evil.example/&next=//evil.example', headers=us,
+                     follow_redirects=False)
+    assert hop.headers['location'] == GOOD['endpoint']                # request parameters never pick the target
+    monkeypatch.setattr(so, 'URL_CHECK', lambda u: (_ for _ in ()).throw(ValueError('now private')))
+    moved = client.get(url, headers=us, follow_redirects=False)       # the host turned private after approval
+    assert moved.headers['location'] == '/advertise'

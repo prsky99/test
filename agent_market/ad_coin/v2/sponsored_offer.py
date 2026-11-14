@@ -153,6 +153,23 @@ OFFER_STATEMENTS = (
     "PRIMARY KEY (day_ms, campaign_id, task_category, region, surface))",
 )
 SURFACES = ("explore", "chat", "mcp", "a2a", "rest")
+
+
+def _check_public_url(url):
+    from ...broker.discovery import check_public_url
+    check_public_url(url)
+
+
+URL_CHECK = _check_public_url    # resolves the host; private or internal addresses raise (tests replace it)
+
+
+def public_endpoint(url):
+    """True when the offer endpoint resolves only to public addresses (checked at approval and at every redirect)."""
+    try:
+        URL_CHECK(url)
+        return True
+    except Exception:
+        return False
 DAY_MS = 86_400_000
 
 
@@ -183,7 +200,9 @@ def decide_offer(store, access, principal, campaign_id, *, approve, reason="", n
         row = store.one("sponsored_offer_get", (campaign_id,))
         if row is None or row["state"] != "pending":
             raise ContractError("offer_not_pending", 409)
-        validate_offer(json.loads(row["offer_json"]))          # the screen again, in case the rules changed
+        offer = validate_offer(json.loads(row["offer_json"]))  # the screen again, in case the rules changed
+        if approve and not public_endpoint(offer["endpoint"]):
+            raise ContractError("endpoint_not_public", 422)    # check_public_url: no private or internal targets
         store.execute("sponsored_offer_decide", ("approved" if approve else "rejected", (reason or "").strip() or None,
                                                  now_ms, str(principal.id), campaign_id))
     return {"campaign_id": campaign_id, "state": "approved" if approve else "rejected"}
