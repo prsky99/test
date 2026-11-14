@@ -85,3 +85,30 @@ def test_an_agent_time_sample_carries_its_server_time_and_what_the_path_took(mon
         headers = {'cf-ray': 'x-SEA'}
     assert pfc.split(Untimed(), 2.4) == {'server_s': None, 'outside_s': None, 'edge': 'SEA -'}
     assert pfc.split(None, 2.4) is None
+
+
+def test_browser_load_time_is_navigation_timing_not_the_fixed_wait():
+    """PM 11-14: the verdict is loadEventEnd; the 1.2 s wait for the screen checks is not a load time."""
+    import inspect
+    from scripts import public_full_check as pfc
+    assert pfc.load_time(1.234, 2.9) == 1.23            # the browser's own navigation timing wins
+    assert pfc.load_time(None, 2.345) == 2.35 and pfc.load_time(0, 1.0) == 1.0   # wall time up to 'load' otherwise
+    src = inspect.getsource(pfc.part_browser)
+    measure, wait = src.index('nav = page.evaluate(NAV_LOAD_JS)'), src.index('page.wait_for_timeout(1200)')
+    assert measure < wait < src.index('took = load_time(nav, wall)')
+    assert "'old_with_wait_s'" in src and 'definition changed 11-14' in pfc.LOAD_DEFINITION
+    assert pfc.OLD_LOAD_UNTIL == '2026-11-21'
+
+
+def test_navigation_timing_in_a_real_browser():
+    import pytest
+    playwright = pytest.importorskip('playwright.sync_api')
+    from scripts import public_full_check as pfc
+    with playwright.sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content('<html><body>ok</body></html>')
+        page.goto('data:text/html,<p>ok</p>', wait_until='load')
+        nav = page.evaluate(pfc.NAV_LOAD_JS)
+        browser.close()
+    assert nav is None or 0 < nav < 5

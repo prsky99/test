@@ -339,9 +339,22 @@ def wait_text(page, pattern, timeout):
     raise TimeoutError(pattern)
 
 
+# 11-14 (PM): the browser load time is the page's own navigation timing (loadEventEnd from navigation start), not the
+# wall time that also held a fixed 1.2 s wait the check adds for its screen checks. For a week the old value (with
+# the wait) is kept beside it as a reference, marked with the definition change; no sample is dropped.
+LOAD_DEFINITION = 'navigation loadEventEnd (definition changed 11-14; was wall time incl. a 1.2 s fixed wait)'
+OLD_LOAD_UNTIL = '2026-11-21'
+NAV_LOAD_JS = "(() => { const n = performance.getEntriesByType('navigation')[0]; return n && n.loadEventEnd > 0 ? n.loadEventEnd / 1000 : null; })()"
+
+
+def load_time(nav_s, wall_s):
+    """The verdict value: navigation loadEventEnd when the browser gives one, else the wall time up to 'load'."""
+    return round(nav_s, 2) if isinstance(nav_s, (int, float)) and nav_s > 0 else round(wall_s, 2)
+
+
 def part_browser(run):
     from playwright.sync_api import sync_playwright
-    flows = []
+    flows, loads = [], []
     with sync_playwright() as p:
         browser = p.chromium.launch()
         for width, height in ((1280, 800), (375, 740)):
@@ -359,12 +372,19 @@ def part_browser(run):
                 t = time.time()
                 try:
                     page.goto(BASE + path, wait_until='load', timeout=20000)
-                    page.wait_for_timeout(1200)
+                    wall = time.time() - t
+                    nav = page.evaluate(NAV_LOAD_JS)
+                    page.wait_for_timeout(1200)   # screen checks below only; not part of the load time
                 except Exception as e:  # noqa: BLE001
                     run.ok('browser', f'{width} load {path}', False, type(e).__name__)
                     continue
-                took = round(time.time() - t, 2)
-                run.ok('browser', f'{width} load time {path}', took <= 4.0, f'{took}s', took)
+                took = load_time(nav, wall)
+                old_value = round(time.time() - t, 2)
+                ref = {'definition': LOAD_DEFINITION}
+                if datetime.now().strftime('%Y-%m-%d') <= OLD_LOAD_UNTIL:
+                    ref['old_with_wait_s'] = old_value
+                loads.append({'width': width, 'path': path, 'load_s': took, **ref})
+                run.ok('browser', f'{width} load time {path}', took <= 4.0, f'{took}s', took, ref)
                 broken = page.evaluate("[...document.images].filter(i=>i.complete&&i.naturalWidth===0&&i.offsetParent).map(i=>i.src).slice(0,3)")
                 hscroll = page.evaluate("document.documentElement.scrollWidth>innerWidth+1")
                 run.ok('browser', f'{width} console {path}', not errors, errors[:2])
@@ -431,7 +451,7 @@ def part_browser(run):
                 run.ok('browser', f'{width} test run', False, f'{type(e).__name__}: shown={shown} run_button={button} shot={shot}')
             ctx.close()
         browser.close()
-    return {'flows': flows}
+    return {'flows': flows, 'loads': loads, 'load_definition': LOAD_DEFINITION}
 
 
 def main():
