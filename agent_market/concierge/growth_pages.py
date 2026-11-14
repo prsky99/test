@@ -505,6 +505,35 @@ def registry_auth(path_fn=None):
     return line if AUTH_LINE.match(line) else None
 
 
+
+# Glama connector ownership (PM 11-14): the operator saves the public claim JSON Glama hands out as
+# public-pages/glama.json; it is served only when it is exactly that small document (a public token, not a secret).
+GLAMA_NAME = 'glama.json'
+GLAMA_SCHEMA = 'https://glama.ai/mcp/schemas/connector.json'
+GLAMA_CLAIM = re.compile(r'glama_claim_[A-Za-z0-9]{20,64}')
+
+
+def glama_claim(path_fn=None):
+    """{"$schema", "claim"} when public-pages/glama.json is exactly that, else None (size cap 1 KB)."""
+    folder = data_dir() if path_fn is None else path_fn()
+    if folder is None:
+        return None
+    try:
+        raw = (folder / GLAMA_NAME).read_bytes()
+    except OSError:
+        return None
+    if len(raw) > 1024:
+        return None
+    try:
+        value = json.loads(raw.decode('utf-8'))
+    except (UnicodeDecodeError, ValueError):
+        return None
+    if (not isinstance(value, dict) or set(value) != {'$schema', 'claim'} or value['$schema'] != GLAMA_SCHEMA
+            or not isinstance(value['claim'], str) or not GLAMA_CLAIM.fullmatch(value['claim'])):
+        return None
+    return {'$schema': GLAMA_SCHEMA, 'claim': value['claim']}
+
+
 # Search-console ownership files (11-10). The operator saves the file the console hands out under
 # public-pages/site-verification/; it is served at the site root only when its content matches the
 # format each console uses, so nothing else in that folder can be published this way.
@@ -541,7 +570,7 @@ def site_verification(name, path_fn=None):
 # ---------------------------------------------------------------- router
 def growth_router(store=None):
     from fastapi import APIRouter
-    from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
+    from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
     from starlette.concurrency import run_in_threadpool
     from .page_markdown import route_class
     router = APIRouter(route_class=route_class())  # Accept: text/markdown gets the Markdown view of each page
@@ -602,6 +631,13 @@ def growth_router(store=None):
     @router.get('/BingSiteAuth.xml', include_in_schema=False)
     def bing_verification():
         return verification('BingSiteAuth.xml')
+
+    @router.get('/.well-known/glama.json', include_in_schema=False)
+    def glama_ownership():
+        value = glama_claim()
+        if value is None:
+            return Response(status_code=404, headers={'Cache-Control': 'no-store'})
+        return JSONResponse(value)  # public, max-age=300 from public_http_contract (SNAPSHOT_READS)
 
     @router.get('/.well-known/mcp-registry-auth', include_in_schema=False)
     def mcp_registry_auth():
