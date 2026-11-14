@@ -8,8 +8,9 @@ The change (scripts.ad_coin_v2_migrate migrate-night-1115), ad_coin_v2 schema on
   - adc2_sponsored_impressions placement CHECK + 'mcp','a2a' (refused if any existing row would fail it)
   - adc2_paid_booking_events (F12 payment events)
 Refuses unless, right before:
-  1. the rehearsal command passed within 24 h against exactly the four releases active now
-     (logs/ops/db-rehearsal/passed.json; db_change_rehearsal's own check compares only frontend and jobs)
+  1. db_change_rehearsal check is 0 (four roles since e5689676) and the rehearsal command passed within 24 h
+     against exactly the four releases active now
+     (logs/ops/db-rehearsal/passed.json, compared here as well)
   2. that rehearsal's report: verdict passed, apply ok, four releases ok before and after, every rollback check true,
      no impression row failing the new CHECK
   3. no copy rehearsal is running
@@ -63,6 +64,10 @@ def reasons_before():
             reasons.append("rehearsal older than 24 h")
         if sorted(record["releases"]) != sorted(releases):
             reasons.append("active releases changed since the rehearsal: %s -> %s" % (record["releases"], releases))
+        from scripts.db_change_rehearsal import check   # four roles since e5689676 (운영·SRE, 11-15)
+        official = check(None, command)
+        if not official.get("ok"):
+            reasons.append("db_change_rehearsal check: %s" % official.get("reason"))
     try:
         with open(REPORT) as stream:
             report = json.load(stream)
