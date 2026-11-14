@@ -39,8 +39,8 @@ check("Response headers X-Audience and Link", r.headers.get("x-audience") == "ai
 html = http.get(f"{B}/", headers={"accept": "text/html"}).text
 check("GET / HTML (browser): public site", html.lstrip().lower().startswith("<!doctype html>") and ("AgentValCon" in html or "Agent Concierge" in html) and "ld+json" in html)
 robots = http.get(f"{B}/robots.txt").text
-check("robots.txt public/private scopes", robots.startswith("# Agent Concierge") and "Disallow: /customer/" in robots and "Allow: /" in robots and "admin" not in robots.lower())
-check("llms.txt", http.get(f"{B}/llms.txt").text.startswith("# Agent Concierge"))
+check("robots.txt public/private scopes", robots.startswith(("# AgentValCon", "# Agent Concierge")) and "Disallow: /customer/" in robots and "Allow: /" in robots and "admin" not in robots.lower())
+check("llms.txt", http.get(f"{B}/llms.txt").text.startswith(("# AgentValCon", "# Agent Concierge")))
 raw_card = http.get(f"{B}/.well-known/agent-card.json").json()
 check("Agent Card description first sentence", raw_card["description"].startswith("FOR AI AGENTS ONLY"))
 card = normalize_card(raw_card, f"{B}/.well-known/agent-card.json")  # Verify collector parser can read front card as A2A agent
