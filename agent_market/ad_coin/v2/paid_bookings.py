@@ -32,7 +32,7 @@ BASE_CHAIN_ID = 8453
 BASE_USDC = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
 USDC_UNITS = 1_000_000
 QUOTE_TTL_MS = 30 * 60_000
-SANCTIONS_MAX_AGE_S = 8 * 86400
+SANCTIONS_MAX_AGE_S = 2 * 86400   # 11-14: refreshed daily at 06:20; two missed days send every payment to review
 HOLDING = ("quoted", "confirming", "confirmed", "review", "served")   # states that take a placement
 
 STATEMENTS = (
@@ -245,6 +245,7 @@ class PaidBookings:
         if type(tx_hash) is not str or not _TX.match(tx_hash):
             raise ContractError("invalid_tx_hash", 422)
         tx_hash, now_ms = tx_hash.lower(), self._now(now_ms)
+        late = False
         with self.store.atomic():
             self.store.lock("paid_tx:" + tx_hash)
             row = self.store.one("paid_booking_get", (booking_id,))
@@ -253,14 +254,36 @@ class PaidBookings:
             used = self.store.one("paid_booking_by_tx", (tx_hash,))
             if used is not None and used["id"] != booking_id:
                 raise ContractError("payment_already_used", 409)
-            if row["state"] == "expired":
-                raise ContractError("quote_expired", 409)
-            if row["state"] not in ("quoted", "confirming"):
+            if row["state"] == "expired" or (row["state"] == "quoted" and now_ms > int(row["expires_ms"])):
+                late = True
+            elif row["state"] not in ("quoted", "confirming"):
                 return _view(row)
-            if row["state"] == "quoted" and now_ms > int(row["expires_ms"]):
-                raise ContractError("quote_expired", 409)
-            self.store.execute("paid_booking_attach_tx", (tx_hash, booking_id))
+            else:
+                self.store.execute("paid_booking_attach_tx", (tx_hash, booking_id))
+        if late:
+            return self._late(row, tx_hash, now_ms)
         return self._check(booking_id, now_ms)
+
+    def _late(self, row, tx_hash, now_ms):
+        """A payment sent after the quote expired (11-14). Money that reached the receiving address must never be
+        lost in an error: when the transfer is there, the booking goes to review (note late_payment) so an operator
+        confirms it if the placement is still free or returns it to the wallet that paid. No transfer: quote_expired."""
+        if not self._on_base():
+            raise ContractError("quote_expired", 409)
+        state, payer = verify_transfer(self.rpc, tx_hash, token=row["token"], pay_to=row["pay_to"],
+                                       amount_units=int(row["amount_units"]),
+                                       min_confirmations=self.config.min_confirmations)
+        if state in ("payment_failed", "payment_not_found") or payer is None:
+            raise ContractError("quote_expired", 409)
+        with self.store.atomic():
+            self.store.lock("paid_tx:" + tx_hash)
+            used = self.store.one("paid_booking_by_tx", (tx_hash,))
+            if used is not None and used["id"] != row["id"]:
+                raise ContractError("payment_already_used", 409)
+            self.store.execute("paid_booking_attach_tx", (tx_hash, row["id"]))
+            note = "late_payment" if state in ("confirmed", "pending") else "late_payment_" + state
+            self.store.execute("paid_booking_set_state", ("review", payer, self.krw_rate(), note, now_ms, row["id"]))
+            return _view(self.store.one("paid_booking_get", (row["id"],)))
 
     def _check(self, booking_id, now_ms):
         row = self.store.one("paid_booking_get", (booking_id,))
