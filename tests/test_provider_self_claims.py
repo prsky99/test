@@ -509,3 +509,14 @@ def test_registry_only_grows(tmp_path, monkeypatch):
     monkeypatch.setitem(P.SQL, "claims_due", "SELECT 1")
     with pytest.raises(SystemExit, match="claims_due"):
         P.add_to_registry()
+
+
+def test_sign_in_returns_to_the_claim_page_for_one_agent():
+    from agent_market.customer_navigation import DEFAULT, destination
+    assert destination("/customer/provider-claims") == "/customer/provider-claims"
+    assert destination("/customer/provider-claims?agent=12345") == "/customer/provider-claims?agent=12345"
+    for bad in ("/customer/provider-claims?agent=0", "/customer/provider-claims?agent=abc",
+                "/customer/provider-claims?agent=1&agent=2", "/customer/workspaces?agent=12",
+                "/customer/provider-claims?workspace=ws_" + "a" * 32 + "&agent=1", "https://evil.example/customer/provider-claims"):
+        assert destination(bad) == DEFAULT, bad
+    assert destination("/customer/workspaces?workspace=ws_" + "a" * 32).startswith("/customer/workspaces?workspace=")

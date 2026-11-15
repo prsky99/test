@@ -3,7 +3,7 @@ import re
 from urllib.parse import parse_qsl, urlencode, urlsplit
 
 DEFAULT = '/customer/workspaces'
-_PAGE = re.compile(r'/customer/(?:workspaces|workflows|organizations|plan|support|provider-connections|organizations/ws_[a-f0-9]{32}/(?:flows|build|connections))')
+_PAGE = re.compile(r'/customer/(?:workspaces|workflows|organizations|plan|support|provider-connections|provider-claims|organizations/ws_[a-f0-9]{32}/(?:flows|build|connections))')
 
 
 def destination(value):
@@ -19,8 +19,12 @@ def destination(value):
     if parsed.scheme or parsed.netloc or not _PAGE.fullmatch(parsed.path):
         return DEFAULT
     query = parse_qsl(parsed.query, keep_blank_values=True)
-    if query and (len(query) != 1 or query[0][0] != 'workspace'
-                  or not re.fullmatch(r'ws_[a-f0-9]{32}', query[0][1])):
+    # Provider claims (docs/PROVIDER_SELF_CLAIM.md): the agent page's "Are you the provider?" entry returns to the
+    # claim page for that one agent id after sign-in.
+    claim_agent = (parsed.path == '/customer/provider-claims' and len(query) == 1 and query[0][0] == 'agent'
+                   and re.fullmatch(r'[1-9][0-9]{0,11}', query[0][1]))
+    if query and not claim_agent and (len(query) != 1 or query[0][0] != 'workspace'
+                                      or not re.fullmatch(r'ws_[a-f0-9]{32}', query[0][1])):
         return DEFAULT
     if parsed.fragment and parsed.fragment not in ('account', 'detail', 'templates'):
         return DEFAULT
