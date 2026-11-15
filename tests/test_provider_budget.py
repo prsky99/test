@@ -341,3 +341,9 @@ def test_holdout_r4_openalex_reads_fit_on_11_17_only():
     """workflow cdccd97e: 29 OpenAlex reads left for topic-evidence-brief holdout-r4, granted for 11-17 alone."""
     assert pb.share_limit('reference_checks', 'openalex.org', day='20261117') == pb.domain_total('openalex.org') == 50
     assert pb.share_limit('reference_checks', 'openalex.org', day='20261118') == 10 * 50 // 60   # ordinary day
+
+
+def test_company_r5_sec_reads_fit_on_11_16_only():
+    """gold_company_r5 reads SEC up to 95 times on 11-16 after holdout-r4 took 90 of the usual 100."""
+    assert pb.share_limit('reference_checks', 'sec.gov', day='20261116') == 200
+    assert pb.share_limit('reference_checks', 'sec.gov', day='20261117') == 100
