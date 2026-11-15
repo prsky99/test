@@ -38,7 +38,7 @@ PSQL = ['/opt/homebrew/opt/postgresql@18/bin/psql', '-h', str(ROOT / 'gateway-da
 TEAM = {'site': '운영·SRE', 'memory': '운영·SRE', 'disk': '운영·SRE', 'deploy_stuck': '운영·SRE',
         'deploy_lock': '잠금을 잡은 팀', 'long_tests': '시험을 돌린 팀', 'stale_handoffs': '받는 팀',
         'ad_coin_ledger': 'AI AD Coin', 'payment_flow': 'AI AD Coin', 'adcoin_daemon': 'AI AD Coin',
-        'launchd_jobs': '운영·SRE', 'backup': '운영·SRE', 'core_down': '운영·SRE', 'vector_index_usage': '검색과 RAG', 'north_star': 'PM'}
+        'launchd_jobs': '운영·SRE', 'backup': '운영·SRE', 'core_down': '운영·SRE', 'vector_index_usage': '검색과 RAG', 'north_star': 'PM', 'revenue': 'PM'}
 ALERT_SYSTEM = (
     'You write operations alerts in Korean for the owner of the Agent Concierge website. '
     'Input is JSON describing detected anomalies. Write at most three short lines in plain Korean: what is wrong, '
@@ -229,6 +229,39 @@ def north_star(clock=time.time, run=None):
             f" | 엣지→원서버 넘김 {sum((record.get('edge_fallbacks') or {}).values())} (logs/ops/north-star.jsonl)")
     board_handoff('north_star', text)
     append(ACTIONS, f'{now()} 북극성: {text}')
+    return record
+
+
+REVENUE_STATE = ROOT / 'logs/ops/revenue-funnel-state.json'
+REVENUE_AFTER_HOUR = 8   # revenue review 11-15 (PM 10:57): one line every morning from 08:00, first on 11-16
+
+
+def revenue_funnel(clock=time.time, run=None):
+    """Once a day after 08:00: scripts/revenue_funnel.py (read-only counts through prod_ro_sql) appends
+    logs/ops/revenue-funnel.jsonl; the board line '자동 점검 [revenue]' shows the funnel for PM's own check."""
+    local = datetime.fromtimestamp(clock())
+    if local.hour < REVENUE_AFTER_HOUR:
+        return None
+    day = local.strftime('%Y-%m-%d')
+    state = json.loads(REVENUE_STATE.read_text()) if REVENUE_STATE.is_file() else {}
+    if state.get('day') == day:
+        return None
+    REVENUE_STATE.write_text(json.dumps({'day': day}))
+    run = run or (lambda: subprocess.run([str(ROOT / '.venv/bin/python'), '-m', 'scripts.revenue_funnel'],
+                                         capture_output=True, text=True, cwd=ROOT, timeout=120))
+    try:
+        done = run()
+        record = json.loads(done.stdout.strip().splitlines()[-1]) if done.returncode == 0 else None
+    except (subprocess.TimeoutExpired, ValueError, IndexError):
+        record = None
+    if record is None:
+        board_handoff('revenue', '매출 깔때기 집계(scripts/revenue_funnel.py)가 결과를 내지 못함 → 운영·SRE 확인')
+        append(ACTIONS, f'{now()} 매출 깔때기 집계 실패')
+        return 'failed'
+    from scripts.revenue_funnel import line
+    text = f"{day} {line(record)} (logs/ops/revenue-funnel.jsonl)"
+    board_handoff('revenue', text)
+    append(ACTIONS, f'{now()} 매출 깔때기: {text}')
     return record
 
 
@@ -746,6 +779,10 @@ def watch():
         north_star()
     except Exception as error:  # noqa: BLE001
         append(ACTIONS, f'{now()} 북극성 집계 실패: {type(error).__name__}')
+    try:
+        revenue_funnel()
+    except Exception as error:  # noqa: BLE001
+        append(ACTIONS, f'{now()} 매출 깔때기 집계 실패: {type(error).__name__}')
     try:
         vector_index_usage()
     except Exception as error:  # noqa: BLE001
