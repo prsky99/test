@@ -12,6 +12,214 @@
   "host": "api.aitwire.com"
  },
  {
+  "role": "topic.answer",
+  "id": 39422,
+  "tool": "web_search",
+  "host": "mosaiden.com",
+  "note": "PM 11-15 14:19 (na): keyless web search, grade A"
+ },
+ {
+  "role": "topic.answer",
+  "id": 44568,
+  "tool": "searxng_search",
+  "host": "onekivo.vercel.app",
+  "note": "PM 11-15 14:19 (na): keyless web search, grade A"
+ },
+ {
+  "role": "topic.answer",
+  "id": 263203,
+  "tool": "web_search",
+  "host": "tanod.dev",
+  "note": "PM 11-15 14:19 (na): keyless web search, grade A"
+ },
+ {
+  "role": "topic.answer",
+  "id": 52805,
+  "tool": "web_search",
+  "host": "agentpay.tools",
+  "note": "PM 11-15 14:19 (na): keyless web search, grade A"
+ },
+ {
+  "role": "topic.answer",
+  "id": 39539,
+  "tool": "web_search",
+  "host": "search.neurobird.com",
+  "note": "PM 11-15 14:19 (na): keyless web search, grade A"
+ },
+ {
+  "role": "topic.answer",
+  "id": 50103,
+  "tool": "search_web",
+  "host": "tools.rugslayer.com",
+  "note": "PM 11-15 14:19 (na): keyless web search, grade A"
+ },
+ {
+  "role": "topic.answer",
+  "id": 41945,
+  "tool": "web_search",
+  "host": "agent.wingmanprotocol.com",
+  "note": "PM 11-15 14:19 (na): keyless web search, grade A"
+ },
+ {
+  "role": "topic.answer",
+  "id": 255599,
+  "tool": "web_search",
+  "host": "prieco.net",
+  "note": "PM 11-15 14:19 (na): keyless web search, grade A"
+ },
+ {
+  "role": "topic.answer",
+  "id": 264189,
+  "tool": "web_answer",
+  "host": "api.finekot.com",
+  "grade": "B",
+  "note": "PM 11-15 14:19 (ga): grade B trial, never counted as a pearl until A"
+ },
+ {
+  "role": "topic.answer",
+  "id": 48842,
+  "tool": "check_grounding",
+  "host": "api.pcbgenerator.com",
+  "grade": "B",
+  "note": "PM 11-15 14:19 (ga): grade B trial, never counted as a pearl until A"
+ },
+ {
+  "role": "topic.answer",
+  "id": 42749,
+  "tool": "answer_question",
+  "host": "api.weblens.dev",
+  "grade": "B",
+  "note": "PM 11-15 14:19 (ga): grade B trial, never counted as a pearl until A"
+ },
+ {
+  "role": "topic.answer",
+  "id": 36484,
+  "tool": "answer_question",
+  "host": "app.atlasipholdingsllc.com",
+  "grade": "B",
+  "note": "PM 11-15 14:19 (ga): grade B trial, never counted as a pearl until A"
+ },
+ {
+  "role": "topic.answer",
+  "id": 432982,
+  "tool": "answer_question",
+  "host": "botwatercooler.com",
+  "grade": "B",
+  "note": "PM 11-15 14:19 (ga): grade B trial, never counted as a pearl until A"
+ },
+ {
+  "role": "topic.answer",
+  "id": 258257,
+  "tool": "answer_question",
+  "host": "forum-for-agents.forum-for-agents.workers.dev",
+  "grade": "B",
+  "note": "PM 11-15 14:19 (ga): grade B trial, never counted as a pearl until A"
+ },
+ {
+  "role": "topic.answer",
+  "id": 261399,
+  "tool": "answer_question",
+  "host": "forumforagents.com",
+  "grade": "B",
+  "note": "PM 11-15 14:19 (ga): grade B trial, never counted as a pearl until A"
+ },
+ {
+  "role": "topic.answer",
+  "id": 368845,
+  "tool": "answer_question",
+  "host": "fovub.com",
+  "grade": "B",
+  "note": "PM 11-15 14:19 (ga): grade B trial, never counted as a pearl until A"
+ },
+ {
+  "role": "topic.answer",
+  "id": 428517,
+  "tool": "answer_question",
+  "host": "ilitsociety.org",
+  "grade": "B",
+  "note": "PM 11-15 14:19 (ga): grade B trial, never counted as a pearl until A"
+ },
+ {
+  "role": "topic.answer",
+  "id": 58240,
+  "tool": "answer_question",
+  "host": "journeyed.org",
+  "grade": "B",
+  "note": "PM 11-15 14:19 (ga): grade B trial, never counted as a pearl until A"
+ },
+ {
+  "role": "topic.answer",
+  "id": 86337,
+  "tool": "answer_question",
+  "host": "kicorn.com",
+  "grade": "B",
+  "note": "PM 11-15 14:19 (ga): grade B trial, never counted as a pearl until A"
+ },
+ {
+  "role": "topic.answer",
+  "id": 47789,
+  "tool": "web_answer",
+  "host": "mcp.gapup.io",
+  "grade": "B",
+  "note": "PM 11-15 14:19 (ga): grade B trial, never counted as a pearl until A"
+ },
+ {
+  "role": "topic.answer",
+  "id": 35289,
+  "tool": "answer_question",
+  "host": "mnemosyne.tripnet.be",
+  "grade": "B",
+  "note": "PM 11-15 14:19 (ga): grade B trial, never counted as a pearl until A"
+ },
+ {
+  "role": "topic.answer",
+  "id": 39564,
+  "tool": "answer_question",
+  "host": "nikoladikic.com",
+  "grade": "B",
+  "note": "PM 11-15 14:19 (ga): grade B trial, never counted as a pearl until A"
+ },
+ {
+  "role": "topic.answer",
+  "id": 39606,
+  "tool": "answer_question",
+  "host": "northreach-agent-network.evictionx.chatgpt.site",
+  "grade": "B",
+  "note": "PM 11-15 14:19 (ga): grade B trial, never counted as a pearl until A"
+ },
+ {
+  "role": "topic.answer",
+  "id": 424265,
+  "tool": "answer_question",
+  "host": "wien-entruempelung.at",
+  "grade": "B",
+  "note": "PM 11-15 14:19 (ga): grade B trial, never counted as a pearl until A"
+ },
+ {
+  "role": "topic.answer",
+  "id": 41972,
+  "tool": "answer_question",
+  "host": "worthune.com",
+  "grade": "B",
+  "note": "PM 11-15 14:19 (ga): grade B trial, never counted as a pearl until A"
+ },
+ {
+  "role": "topic.answer",
+  "id": 38825,
+  "tool": "answer_question",
+  "host": "www.klarefi.com",
+  "grade": "B",
+  "note": "PM 11-15 14:19 (ga): grade B trial, never counted as a pearl until A"
+ },
+ {
+  "role": "topic.answer",
+  "id": 45907,
+  "tool": "answer_question",
+  "host": "yapperium.pages.dev",
+  "grade": "B",
+  "note": "PM 11-15 14:19 (ga): grade B trial, never counted as a pearl until A"
+ },
+ {
   "role": "timezone.time",
   "id": 86011,
   "tool": "timezone_by_coordinates",

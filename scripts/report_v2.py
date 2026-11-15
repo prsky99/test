@@ -1032,6 +1032,39 @@ def candidates_a():
         return None
 
 
+def resource_grades(ids):
+    """{resource id: eval_grade} for IDS, read only; None when the database cannot be read (nothing is split then)."""
+    ids = sorted({i for i in ids if isinstance(i, int)})
+    if not ids:
+        return {}
+    try:
+        import psycopg
+        dsn = (ROOT / 'gateway-data/postgres18/application.dsn').read_text().strip()
+        with psycopg.connect(dsn, autocommit=True, options='-c default_transaction_read_only=on -c statement_timeout=20000') as c:
+            return dict(c.execute('SELECT id, eval_grade FROM public.resources WHERE id = ANY(%s)', (ids,)).fetchall())
+    except Exception:
+        return None
+
+
+def grade_trials(versions, grades, now=None):
+    """PM 11-15 14:19 (ga): non-A members are tested but never counted as pearls (the pearl candidate stays active
+    grade A). 85+ marks a grade re-evaluation; 85+ on two different days while still not A is a case where the grade
+    misses real quality, listed for the PM."""
+    now = now or time.time()
+    out = {'rule': 'tested, not counted: a pearl candidate is active grade A; 85+ asks for a grade re-evaluation',
+           'versions': len(versions), 'reevaluate': [], 'passed_twice_not_a': []}
+    for v in versions:
+        if v['quality']['score'] < PASS_MARK:
+            continue
+        days = success_days(v['resource_id'], v['role'], v['tool'], now)
+        item = {'resource_id': v['resource_id'], 'grade': grades.get(v['resource_id']), 'role': v['role'],
+                'tool': v['tool'], 'score': v['quality']['score'], 'success_days': days}
+        out['reevaluate'].append(item)
+        if days >= CONFIRM_DAYS:
+            out['passed_twice_not_a'].append(item)
+    return out
+
+
 def write_board(line):
     lines = BOARD.read_text(encoding='utf-8').split('\n')
     at = [i for i, l in enumerate(lines) if l.startswith('## 넘기는 일')]
@@ -1046,6 +1079,10 @@ TARGETS = {'verified': 200, 'roles': 30}   # 11-28 (charter 0, PM 11-14); 12-26:
 def publish(board=True):
     migrate_names()
     versions = latest_versions()
+    grades = resource_grades(v['resource_id'] for v in versions)
+    trials = [v for v in versions if grades and not is_own_fallback(v['resource_id'])
+              and grades.get(v['resource_id']) not in (None, 'A')]
+    versions = [v for v in versions if not any(v is t for t in trials)]
     ranked = rank(versions)
     day = time.strftime('%Y-%m-%d')
     OUT.mkdir(parents=True, exist_ok=True)
@@ -1070,6 +1107,8 @@ def publish(board=True):
                                   'rank_rule': rank_rule(),
                                   'roles': ranked}, indent=1, ensure_ascii=False))
     official = summary(versions, ranked, candidates_a())
+    official['grade_trials'] = grade_trials(trials, grades or {}) if grades is not None else \
+        {'rule': 'grades unavailable: nothing split this time', 'versions': None}
     (OUT / 'final').mkdir(parents=True, exist_ok=True)
     write_replace(OUT / SUMMARY, json.dumps(official, indent=1, ensure_ascii=False))
     line = funnel_line(json.loads((OUT / SUMMARY).read_text())) + refusal_note()   # the board reads the file only
@@ -1233,7 +1272,9 @@ def build_queue(seed_file=ROOT / 'reports/pearls-2026-11-14/role_candidates_1115
         seeds = json.loads(Path(seed_file).read_text())
     except (OSError, ValueError):
         seeds = []
-    return retest_queue(versions) + new_queue(versions, catalog_candidates(), seeds)
+    terms = member_terms()
+    retests = [x for x in retest_queue(versions) if terms.get(x['id']) != 'prohibits']   # never call a member whose terms forbid it
+    return retests + new_queue(versions, catalog_candidates(), seeds, terms=terms)
 
 
 def run(queue):
