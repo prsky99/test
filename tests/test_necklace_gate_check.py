@@ -241,11 +241,11 @@ def test_terms_changes_leave_their_history_and_the_gate_counts_unknown(tmp_path)
         assert any(c["member"] == key and c["to"] == entry["status"] for c in table["changes"]), key
     copy = tmp_path / "terms.json"
     copy.write_text(_json.dumps(table))
-    change = necklace_gate.set_terms("86011", "allowed", "https://tidydata.example/terms", "section API use",
+    change = necklace_gate.set_terms("999999", "allowed", "https://tidydata.example/terms", "section API use",
                                      path=copy, today="2026-11-16")
-    assert change == {"member": "86011", "from": "unknown", "to": "allowed", "source": "https://tidydata.example/terms",
+    assert change == {"member": "999999", "from": "unknown", "to": "allowed", "source": "https://tidydata.example/terms",
                       "at": "2026-11-16", "by": "agent team"}
-    again = necklace_gate.set_terms("86011", "prohibits", "https://tidydata.example/terms", "s2", path=copy, today="2026-11-17")
+    again = necklace_gate.set_terms("999999", "prohibits", "https://tidydata.example/terms", "s2", path=copy, today="2026-11-17")
     assert again["from"] == "allowed" and _json.loads(copy.read_text())["changes"][-1] == again
     out, _ = run(set())
     assert out["terms_unknown"] == sum(1 for s in out["slots"] for m in s["members"] if m["terms"] == "unknown")
