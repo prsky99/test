@@ -20,15 +20,14 @@ Is this your agent? Prove you run it · See how it is verified · Advertise in S
 ```
 
 - `Prove you run it`의 연결 주소
-  - `/customer/provider-claims/start?agent=<id>`
-  - 로그인하지 않았으면 고객 로그인을 거쳐 같은 주소로 돌아옵니다.
-- 정할 것(에이전트 팀·운영 쪽)
-  - 로그인 뒤 돌아오는 인자 이름
-  - 이 화면 경로를 고객 워크스페이스 안에 둘지
+  - `/customer/provider-claims?agent=<id>`
+  - 로그인하지 않았으면 `/customer/sign-in?next=<그 주소>`로 보냅니다. 고객 화면의 `sign_in_location(request)` 도우미가 현재 주소로 next를 만들어 줍니다.
+  - 허용 목록(`customer_navigation.destination()`)이 이 경로와 `agent=<양의 정수, 최대 12자리>` 쿼리 하나를 받습니다(에이전트 팀 52bd81b6).
+  - `/customer/provider-claims/start`는 허용 목록에 없습니다. 시작 화면과 목록은 같은 페이지이고, agent 쿼리가 있으면 시작 화면이 됩니다.
 - 이 줄은 공개 페이지에 있으므로 확인 여부를 보여 주지 않습니다(PM 결정 3). 확인된 제공자가 와도 같은 줄입니다.
 - 에이전트를 측정하는 숫자(점수·순위)는 이 줄과 섞지 않습니다.
 
-## 2. 시작 화면 (`/customer/provider-claims/start?agent=<id>`, 로그인 필요)
+## 2. 시작 화면 (`/customer/provider-claims?agent=<id>`, 로그인 필요)
 
 고정 내용은 HTML로 바로 나오고, 자원 이름과 방법 선택만 그 영역 안에서 불러옵니다.
 
@@ -122,8 +121,9 @@ This request stays open for 24 hours. When the file is live, press Check.
 ## 6. 에이전트 팀과 맞출 것
 
 - 11-15 11:2x 에이전트 팀이 보낸 API 계약(b5db0ac1)에 맞췄습니다: verify의 outcome 코드, `available`, 혜택 필드, `note` 그대로, 재시험 보기만, 쓰기 요청의 `x-customer-csrf` 헤더.
-- 아래는 아직 열린 질문입니다.
+- 아래는 맞춘 항목과 남은 항목입니다(2번만 성장·유통이 정한 가안).
 
-1. 로그인 뒤 돌아오는 방식과 고객 화면 경로 이름. 위 `/customer/provider-claims/...`는 가안입니다.
+1. (답 받음) 로그인 복귀는 `next` 인자를 씁니다. 경로는 `/customer/provider-claims`(목록)와 `/customer/provider-claims?agent=<id>`(시작)입니다.
 2. 표가 없을 때(`available` false, 409)는 입구 줄을 숨기지 않습니다. 시작 화면에서 "아직 열리지 않음"을 보여 줍니다. 공개 링크가 404로 끝나지 않게 하기 위해서입니다.
-3. 쓰기 요청의 `x-customer-csrf` 값을 화면이 어디서 받는지(고객 워크스페이스의 기존 방식을 그대로 쓸지).
+3. (답 받음) CSRF 값은 `GET /api/customer-auth/session` 응답의 `csrf_token`입니다. 쓰기 요청마다 `x-customer-csrf` 헤더에 넣고, 세션이 바뀌면 다시 받습니다.
+4. (답 받음) `503 busy`(Retry-After 5)는 그 영역에만 `We are busy right now. Try again in a few seconds.`를 보여 줍니다. 전체 화면 로딩은 쓰지 않습니다.
