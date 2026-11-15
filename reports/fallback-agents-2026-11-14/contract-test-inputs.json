@@ -798,5 +798,39 @@
    null,
    {}
   ]
+ ],
+ "software-incident": [
+  [
+   {
+    "query": "CVE-2021-23337"
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "query": "lodash"
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "query": "!!!"
+   },
+   "invalid_input",
+   null,
+   {}
+  ],
+  [
+   {
+    "query": "nonexistent-product-zzz"
+   },
+   "not_found",
+   null,
+   {}
+  ]
  ]
 }
