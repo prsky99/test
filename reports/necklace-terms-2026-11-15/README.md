@@ -195,6 +195,17 @@ prohibits 2건은 정의에 넣지 않았습니다. 넣으면 그 멤버가 모�
 | GitHub 공개 API(릴리스·이슈, 비로그인) | **조건부 allowed** | docs.github.com GitHub Terms of Service H절 "API Terms": 남용·과도한 요청, 토큰 공유, 개인정보 판매 목적의 수집을 금지. 고처리량이나 GitHub 서비스를 재판매하는 결과가 되는 접근은 유료 구독 대상 | 목걸이 실행이 무료 이벤트인 지금은 허용. **목걸이 실행에 과금이 시작되면 "재판매" 여지가 있어 다시 판정**해야 함(PM 결정 필요). 비로그인 한도는 시간당 60회 |
 | 공식 MCP Registry(registry.modelcontextprotocol.io) | allowed | modelcontextprotocol.io/registry/about: 클라이언트와 집계 서비스용 REST API를 공식으로 제공하는 메타데이터 저장소 | 데이터는 CC0. 미리보기 단계라 깨지는 변경이나 데이터 초기화가 있을 수 있음(같은 페이지). 검증 레지스트리(E7)가 이미 씀 |
 
+## arxiv-search 채점 기준 눈 확인 (PM 16:12, 11-15 16시)
+
+- 처음 기준은 "주제어 낱말이 제목에 모두 들어 있음"이었습니다. topic-evidence-brief holdout-r1의 8건을 실제로 돌렸습니다(arXiv, 시험 몫).
+- 엉뚱한 통과 1건: "Population ageing"이 "Simulation for competition of languages with an **ageing** sexual **population**"(언어 경쟁 시뮬레이션)으로 통과했습니다. 낱말만 맞고 주제가 다릅니다.
+- 억울한 실패 1건: "Income distribution"은 제목이 "The Gompertz-Pareto Income Distribution"처럼 맞는데 실패했습니다. 정답 세트의 paper_phrase가 "income inequality"였기 때문입니다.
+- 바꾼 기준
+  - 정답 구나 입력 주제가 제목에 **구로 붙어서** 나와야 합니다.
+  - 두 낱말 구는 순서가 바뀐 것도 됩니다(ageing population). 하이픈과 복수형 s는 맞춰 줍니다.
+  - 흩어진 낱말은 세지 않습니다.
+- 바꾼 기준으로 다시 따지면 8건 중 7건 통과입니다. Population ageing은 이제 실패로 남고, Income distribution은 통과합니다. 나머지 6건(Entrepreneurship, Public transport, Populism, Universal basic income, Social capital, Subjective well-being)은 통과한 논문이 모두 주제에 맞습니다.
+
 ## 남은 것
 
 - 카탈로그 밖 자체 에이전트 133018·133019·133023(topic-evidence-brief, package-risk-audit)

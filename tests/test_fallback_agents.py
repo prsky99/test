@@ -2039,6 +2039,12 @@ def test_gold_judge_for_arxiv_search():
     assert not g.judge("arxiv-search", case, {"items": [{"title": "Transport of heat", "url": "https://arxiv.org/abs/1"}]})["pass"]
     assert not g.judge("arxiv-search", case, {"items": [{"title": "Public transport", "url": "http://x"}]})["pass"]
     assert not g.applies("arxiv-search", {"truth": {}})
+    ageing = {"input": {"topic": "Population ageing"}, "truth": {"paper_phrase": "population ageing"}}
+    loose = {"items": [{"title": "Simulation for competition of languages with an ageing sexual population", "url": "https://a/1"}]}
+    assert not g.judge("arxiv-search", ageing, loose)["pass"]                      # words apart: not the phrase
+    assert g.judge("arxiv-search", ageing, {"items": [{"title": "Ageing populations and pensions", "url": "https://a/2"}]})["pass"]
+    income = {"input": {"topic": "Income distribution"}, "truth": {"paper_phrase": "income inequality"}}
+    assert g.judge("arxiv-search", income, {"items": [{"title": "The Gompertz-Pareto Income Distribution", "url": "https://a/3"}]})["pass"]
 
 
 def test_mcp_registry_lookup_reads_latest_and_not_found_is_an_answer(tmp_path):
