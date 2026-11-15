@@ -110,7 +110,7 @@ def test_a_verdict_split_over_two_days_is_judged_on_both_parts(tmp_path, monkeyp
     contract_inputs.write_text(json.dumps({'gleif-lei': [[{'name': 'x'}, 'ok']]}))
     monkeypatch.setattr(gate, 'CONTRACT_INPUTS', contract_inputs)
     monkeypatch.setattr(gold_check, 'judge', lambda agent, case, result: {'pass': True})
-    monkeypatch.setattr(gold_check, 'role_task_check', lambda ids, agents, before_call=None: {ids[0]: {'passed': 1, 'cases': 1}})
+    monkeypatch.setattr(gold_check, 'role_task_check', lambda ids, agents, before_call=None: {ids[0]: {'passed': 1, 'cases': 1, 'rows': [{'case_id': 'lei-role', 'pass': True, 'why': []}]}})
     monkeypatch.setattr(gate, 'quality', lambda envelope: [])
     reserved = []
     monkeypatch.setattr(gate, 'reserve_calls', lambda ids, cases=None: reserved.append(cases) or {})
@@ -128,6 +128,7 @@ def test_a_verdict_split_over_two_days_is_judged_on_both_parts(tmp_path, monkeyp
     first = json.loads((tmp_path / 'out/verdict-holdout-r3-20261116-0820.json').read_text())['agents']['gleif-lei']
     assert first['answer_set'] == '2/2' and first['part'] == {'earlier_rows': 0, 'this_part': 2, 'complete': False}
     assert first['pass'] is False and 'held_out_cases' in first['missing'] and reserved == [2]
+    assert first['role_task_rows'] == [{'case_id': 'lei-role', 'pass': True, 'why': []}]   # which role task, and why
     part1 = tmp_path / 'part1.json'
     (tmp_path / 'out/verdict-holdout-r3-20261116-0820.json').rename(part1)
     capsys.readouterr()

@@ -204,7 +204,9 @@ def run(agent_ids, split, raw_path, agents=None, fill_from=None, exclude=frozens
                          and all(contract_rows) and roles['passed'] == roles['cases']),
                 'missing': [m for m, bad in (('held_out_cases', len(rows) < SUBSTITUTE_CASES),
                                              ('contract_inputs', not contract_rows)) if bad],
-                'rows': rows}
+                'rows': rows,
+                # each role task's case_id, pass and why (agent team 11-16: arxiv 2/3 had no record of which failed)
+                'role_task_rows': roles.get('rows') or []}
     return report
 
 
