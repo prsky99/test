@@ -26,7 +26,8 @@ class Descriptor:
 
 
 @pytest.fixture(autouse=True)
-def empty():
+def empty(monkeypatch):
+    monkeypatch.setattr(cache, 'ENABLED', True)
     cache.clear()
     yield
     cache.clear()
@@ -95,3 +96,15 @@ def test_discovery_uses_the_memory_and_publishing_forgets():
     from agent_market.application_store_vector import PostgresVectorIndex
     assert 'remembered_current_ids(index, ids, descriptor)' in inspect.getsource(discovery)
     assert 'forget(claim.resource_id)' in inspect.getsource(PostgresVectorIndex._after_publish)
+
+
+def test_off_by_default_every_call_reads_the_index_as_before(monkeypatch):
+    """PM 11-16 06:5x: shipped off until the copy measurement; off, nothing is remembered or timed."""
+    import importlib
+    assert importlib.reload(cache).ENABLED is False
+    index = Index({1, 3})
+    with capture() as values:
+        assert cache.current_ids(index, [1, 2, 3], Descriptor(), now=0) == {1, 3}
+        assert cache.current_ids(index, [1, 2, 3], Descriptor(), now=1) == {1, 3}
+    assert index.asked == [[1, 2, 3], [1, 2, 3]] and not cache._verdicts
+    assert not {'provenance_hit', 'provenance_miss'} & set(values['stages_ms'])

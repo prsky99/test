@@ -17,6 +17,9 @@ from collections import OrderedDict
 import threading
 import time
 
+# Off until the copy measurement before and after (PM 11-16 06:5x): the day bundle carries this module, and with
+# ENABLED false every call goes straight to index.current_ids, exactly as before. No agentcon.env key (11-14).
+ENABLED = False
 TTL = 120.0
 MAX_ENTRIES = 20000
 
@@ -36,6 +39,8 @@ def _database(index):
 
 def current_ids(index, ids, descriptor, *, now=None):
     """The subset of IDS whose vectors are current, as index.current_ids answers, from memory where fresh."""
+    if not ENABLED:
+        return index.current_ids(ids, descriptor)
     from .concierge.retrieval_metrics import add
     began = time.perf_counter()
     at = time.monotonic() if now is None else now
