@@ -28,7 +28,9 @@ def test_pages_load_one_stylesheet_and_one_deferred_script(client):  # noqa: F81
 def test_bundle_rejects_unknown_or_unsafe_names(client):  # noqa: F811
     for query in ('f=../../en-manifest', 'f=nope', 'f=', 'f=' + ','.join(['styles'] * 13)):
         assert client.get('/new/en/assets/bundle.css?' + query).status_code == 404
-    assert client.get('/new/en/assets/bundle.css?f=styles&v=old').headers['cache-control'].startswith('public, max-age=300')
+    # R07 (11-15): a version no release on disk has is answered but never stored (no older page + newer code pairing)
+    assert client.get('/new/en/assets/bundle.css?f=styles&v=old').headers['cache-control'] == 'no-store'
+    assert client.get('/new/en/assets/bundle.css?f=styles').headers['cache-control'].startswith('public, max-age=300')
 
 
 def test_legal_pages_with_relative_asset_links_are_bundled_too(client):  # noqa: F811
@@ -59,3 +61,15 @@ def test_bundle_css_points_images_at_the_same_versioned_address_as_the_page(clie
     assert "url('pearl.webp')" not in css and "url('pearl.webp?v=" in css
     if img:
         assert "pearl.webp?v=" + img[1] in css
+
+
+def test_an_older_page_listing_only_operating_still_gets_the_consent_code(client):
+    """R07 (11-15): the consent code moved to site-policy.js; HTML from before the move lists only operating."""
+    old = client.get('/new/en/assets/bundle.js?f=panels-bootstrap,operating,experience,pearl-ui,workflow-library&v=0123456789abcdef')
+    assert old.status_code == 200 and old.headers['cache-control'] == 'no-store'
+    body = old.text
+    assert 'function initCookieConsent' in body and body.index('function initCookieConsent') < body.index('FRONT_EVENT_CALLBACKS')
+    assert body.count('const COOKIE_STORAGE_KEY') == 1
+    from agent_market.concierge.pearl_view import with_requirements
+    assert with_requirements(['panels-bootstrap', 'site-policy', 'operating'], 'js') == ['panels-bootstrap', 'site-policy', 'operating']
+    assert with_requirements(['styles', 'operating'], 'css') == ['styles', 'operating']
