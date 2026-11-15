@@ -1606,7 +1606,18 @@ class FallbackAgents:
         if data["repository"]:
             parts.append(f"repository {data['repository']}")
         out = {"answer": ("; ".join(parts) + ".")[:8000], "url": "https://www.npmjs.com/package/" + package,
-               "source": "npm public registry"}
+               "source": "npm public registry",
+               # structured fields for the next step (workflow 11-15): repository_github feeds github-releases' repo
+               "latest_version": data["latest"], "maintainers": data["maintainers"], "deprecated": bool(data["deprecated"]),
+               "release_gap_days": [g for g in gaps if g >= 0][:4]}
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", data["latest_at"] or ""):
+            out["latest_date"] = data["latest_at"]
+        if data["repository"]:
+            out["repository"] = data["repository"]
+            gh = re.fullmatch(r"https://github\.com/([A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9._-]{1,100}?)(?:\.git)?/?",
+                              data["repository"])
+            if gh:
+                out["repository_github"] = gh.group(1)
         return out, cache, False, {"npm registry": as_of}
 
     def _github_releases(self, args, remaining):

@@ -2107,6 +2107,9 @@ def test_package_releases_reads_one_npm_document(tmp_path):
     assert out["answer"] == ("lodash (npm): latest 4.17.21 released 2021-02-20; 2 maintainers; not deprecated; 4 versions in all; "
                              "recent stable releases: 4.17.21 2021-02-20, 4.17.20 2020-08-13, 4.17.19 2020-07-08 (gaps 191, 36 days); "
                              "repository https://github.com/lodash/lodash.")
+    assert out["repository_github"] == "lodash/lodash" and out["repository"] == "https://github.com/lodash/lodash"
+    assert out["latest_version"] == "4.17.21" and out["latest_date"] == "2021-02-20" and out["maintainers"] == 2
+    assert out["deprecated"] is False and out["release_gap_days"] == [191, 36]
     with pytest.raises(FallbackUnavailable) as err:
         a.execute("package-releases", {"package": "requests", "ecosystem": "PyPI"})
     assert err.value.code == "source_unavailable" and len(calls) == 1
