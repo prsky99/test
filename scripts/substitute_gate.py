@@ -136,6 +136,29 @@ def remaining(agent_id, split, fill_from=None, exclude=frozenset(), prior=()):
 PACE_SECONDS = {'github-releases': 2.0}
 
 
+CALLS_A_CASE = 2   # the most reads one case makes on one host (wiki-grounding: title lookup + extract, 78caa6e4)
+
+
+def window_wait(limiter, need=CALLS_A_CASE):
+    """Seconds until LIMITER's request window has room for NEED more requests (0 when it has no window)."""
+    count, window = getattr(limiter, 'count', None), getattr(limiter, 'window', None)
+    if not window or not count:
+        return 0.0
+    if getattr(limiter, 'shared', None) is not None:
+        try:
+            sent = [float(t) for t in json.loads(limiter.shared.read_text() or '{}').get('sent') or []]
+        except (OSError, ValueError):
+            sent = []
+        now = limiter.wall()
+    else:
+        sent, now = list(limiter.sent), limiter.clock()
+    sent = sorted(t for t in sent if now - t < window)
+    over = len(sent) + need - count
+    if over <= 0:
+        return 0.0
+    return max(0.0, sent[min(over, len(sent)) - 1] + window - now) + 0.1
+
+
 def pace(agents, agent_id, sleep=time.sleep, longest=120.0):
     """Wait OUTSIDE the call budget until the agent's slow hosts may be called again (agent team 11-15: arXiv's 3 s
     spacing used up most of the 3.3 s call budget when cases ran back to back, so 4 timed out, and after a 503 the
@@ -144,7 +167,12 @@ def pace(agents, agent_id, sleep=time.sleep, longest=120.0):
     waits = [PACE_SECONDS.get(agent_id, 0.0)]
     for url in DOMAINS.get(agent_id) or []:
         limiter = (getattr(agents, 'limiters', None) or {}).get(urlsplit(url).hostname)
-        if limiter is None or limiter.spacing < 1.0:
+        if limiter is None:
+            continue
+        # 11-16 06:48 holdout-r4-wiki: wiki-grounding's two reads a case met Wikipedia's own 40-a-minute window
+        # (spacing 0.2 s, so it was skipped here) and 10 of 30 cases ended rate_limited in 0 ms without a call.
+        waits.append(window_wait(limiter))
+        if limiter.spacing < 1.0:
             continue
         waits.append(max(limiter.spacing + 0.2, limiter.resting()))
     if max(waits) > 0:

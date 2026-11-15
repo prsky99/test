@@ -186,3 +186,28 @@ def test_role_tasks_are_paced_like_the_cases(monkeypatch, tmp_path):
     monkeypatch.setattr(role_tasks, "load", lambda *a, **k: [] if a else tasks)
     gold_check.role_task_check(["arxiv-search"], Agents(), before_call=lambda a: calls.append("pace:" + a))
     assert calls == ["pace:arxiv-search", "call", "pace:arxiv-search", "call"]
+
+
+def test_pace_waits_for_room_in_a_hosts_request_window():
+    """11-16 06:48: wiki-grounding's two reads a case met Wikipedia's 40-a-minute window, which pace skipped (spacing
+    0.2 s), and 10 cases ended rate_limited with no call. Pace now waits until two more requests fit."""
+    from agent_market.fallback_agents.limits import HostLimiter
+    now = [1000.0]
+    limiter = HostLimiter(0.2, 40, 60.0, clock=lambda: now[0], sleep=lambda s: None)
+    limiter.sent = [970.0 + i * 0.5 for i in range(39)]          # 39 in the last 30 s
+    Agents = type('Agents', (), {'limiters': {'en.wikipedia.org': limiter}})
+    slept = []
+    old = gate.DOMAINS.get('wiki-grounding')
+    gate.DOMAINS['wiki-grounding'] = ['https://en.wikipedia.org/w/api.php']
+    try:
+        gate.pace(Agents(), 'wiki-grounding', sleep=slept.append)
+        assert slept and abs(slept[0] - 30.1) < 0.01                # the oldest of the 39 leaves the window at 1030
+        limiter.sent = limiter.sent[:20]
+        slept.clear()
+        gate.pace(Agents(), 'wiki-grounding', sleep=slept.append)
+        assert slept == [] or slept[0] == gate.PACE_SECONDS.get('wiki-grounding', 0.0)
+    finally:
+        if old is None:
+            gate.DOMAINS.pop('wiki-grounding', None)
+        else:
+            gate.DOMAINS['wiki-grounding'] = old
