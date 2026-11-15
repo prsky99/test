@@ -275,6 +275,43 @@ def answer_set_expiry(clock=time.time, gold=None, state_path=None):
     return found
 
 
+HOLIDAY_STATE = ROOT / 'logs/ops/holiday-truth-state.json'
+HOLIDAY_LOG = ROOT / 'logs/ops/holiday-truth.jsonl'
+HOLIDAY_AFTER_HOUR = 10   # workflow 11-15 (PM): one Nager.Date round a day inside the reference_checks share
+
+
+def holiday_truth(clock=time.time, build=None, state_path=None, log_path=None, gold=None):
+    """Once a day from 10:00 until the holidays-at-address set is written: necklaces.gold_holidays asks Nager.Date
+    for the countries it does not keep yet (10 a day within the ledger share) and writes the set at 90 cases. Every
+    run leaves one line (countries kept, cases, stopped by the share or not); a skipped day is caught up the next
+    day because the kept countries stay on disk."""
+    local = datetime.fromtimestamp(clock())
+    if local.hour < HOLIDAY_AFTER_HOUR:
+        return None
+    gold = Path(gold or ROOT / 'gateway-data/necklaces/gold')
+    if (gold / 'holidays-at-address' / 'manifest.json').is_file():
+        return 'done'
+    state_path, log_path = Path(state_path or HOLIDAY_STATE), Path(log_path or HOLIDAY_LOG)
+    day = local.strftime('%Y-%m-%d')
+    state = json.loads(state_path.read_text()) if state_path.is_file() else {}
+    if state.get('day') == day:
+        return None
+    state_path.write_text(json.dumps({'day': day}))
+    if build is None:
+        if str(ROOT) not in sys.path:      # the watch runs this file as a script: only scripts/ is on sys.path
+            sys.path.insert(0, str(ROOT))
+        from agent_market.necklaces.gold_holidays import build
+    try:
+        result = build(gold.parent)
+        line = {'at': now(), 'ok': True, 'countries_kept': result['countries_kept'], 'countries': result['countries'],
+                'cases': result['cases'], 'stopped': result.get('stopped'), 'written': 'manifest' in result}
+    except Exception as error:  # noqa: BLE001 - one line, then the next day tries again
+        line = {'at': now(), 'ok': False, 'error': type(error).__name__}
+    with log_path.open('a', encoding='utf-8') as handle:
+        handle.write(json.dumps(line, ensure_ascii=False) + '\n')
+    return line
+
+
 REVENUE_STATE = ROOT / 'logs/ops/revenue-funnel-state.json'
 REVENUE_AFTER_HOUR = 8   # revenue review 11-15 (PM 10:57): one line every morning from 08:00, first on 11-16
 REVENUE_EVERY = 2 * 3600 - 300   # PM 11-15 14:24: PM's own check reads the funnel every 2 hours, so a line every 2 hours
@@ -929,6 +966,10 @@ def watch():
         answer_set_expiry()
     except Exception as error:  # noqa: BLE001
         append(ACTIONS, f'{now()} 정답 세트 유효기간 확인 실패: {type(error).__name__}')
+    try:
+        holiday_truth()
+    except Exception as error:  # noqa: BLE001
+        append(ACTIONS, f'{now()} 공휴일 정답 받기 실패: {type(error).__name__}')
     try:
         revenue_funnel()
     except Exception as error:  # noqa: BLE001

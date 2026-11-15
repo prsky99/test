@@ -31,3 +31,25 @@ def test_expiring_sets_open_one_line_a_day_and_none_closes_it(tmp_path, monkeypa
     manifest(calm, "book-author-brief", "2027-02-23")
     assert ops_auto.answer_set_expiry(lambda: datetime(2026, 12, 15, 9, 0).timestamp(), calm, state) == []
     assert closed == ["answer_sets"]
+
+
+def test_holiday_truth_runs_once_a_day_logs_a_line_and_stops_when_written(tmp_path):
+    """PM 11-15: the daily Nager.Date round lives in the ops watch, not in a session's background job."""
+    runs = []
+
+    def build(root):
+        runs.append(root)
+        return {"countries_kept": 20, "countries": 53, "cases": 61, "stopped": "provider budget: system_share"}
+    gold, state, log = tmp_path / "gold", tmp_path / "state.json", tmp_path / "log.jsonl"
+    gold.mkdir()
+    morning = lambda: datetime(2026, 11, 16, 9, 30).timestamp()
+    assert ops_auto.holiday_truth(morning, build, state, log, gold) is None and runs == []      # before 10:00
+    day = lambda: datetime(2026, 11, 16, 10, 20).timestamp()
+    line = ops_auto.holiday_truth(day, build, state, log, gold)
+    assert line["cases"] == 61 and line["written"] is False and len(runs) == 1
+    assert ops_auto.holiday_truth(day, build, state, log, gold) is None and len(runs) == 1    # once a day
+    assert json.loads(log.read_text().splitlines()[0])["countries_kept"] == 20
+    (gold / "holidays-at-address").mkdir()
+    (gold / "holidays-at-address" / "manifest.json").write_text("{}")
+    later = lambda: datetime(2026, 11, 17, 10, 20).timestamp()
+    assert ops_auto.holiday_truth(later, build, state, log, gold) == "done" and len(runs) == 1
