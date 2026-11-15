@@ -42,9 +42,14 @@ MAPPINGS = {'dynamic': 'strict', '_source': {'enabled': False}, 'properties': {
 # Common task words; the new index answers them before it starts serving.
 WARM_WORDS = ('weather forecast translate news search github issues pdf crypto price email image generation '
               'research papers stock quotes maps documentation database sql calendar sms payment agent').split()
-LISTINGS = """SELECT r.id, f.name, f.description, r.kind, r.category,
-    (r.active=1 AND r.health_status IN ('healthy','reachable') AND COALESCE(r.eval_security,'') NOT IN ('quarantine','review')),
-    r.last_ok_at FROM public.resources r JOIN public.resources_fts f ON f.rowid=r.id"""
+ELIGIBLE = """(r.active=1 AND r.health_status IN ('healthy','reachable') AND COALESCE(r.eval_security,'') NOT IN ('quarantine','review'))"""
+FROM = "FROM public.resources r JOIN public.resources_fts f ON f.rowid=r.id"
+LISTINGS = f"SELECT r.id, f.name, f.description, r.kind, r.category, {ELIGIBLE}, r.last_ok_at {FROM}"
+# 11-15 16:4x: reading every listing's text took about 6 of the first update round's 8.8 s. The database computes a
+# short digest per listing instead (about 2 s for 427,935), and only changed listings are read in full.
+DIGESTS = (f"SELECT r.id::text, left(md5(concat_ws(chr(31), f.name, f.description, r.kind, r.category, {ELIGIBLE}::text, "
+           f"r.last_ok_at::text)), 16) {FROM}")
+CHANGED = LISTINGS + " WHERE r.id = ANY(%s)"
 
 
 class Client:
@@ -81,16 +86,13 @@ def digest(source):
     return hashlib.blake2b(json.dumps(source, sort_keys=True).encode(), digest_size=8).hexdigest()
 
 
-def rebuild(client, rows, *, now=time.time, hashes=None):
-    """Load ROWS into a new index; swap the alias only when the new index looks complete. HASHES, when given, is
-    filled with each listing's digest for the incremental rounds."""
+def rebuild(client, rows, *, now=time.time):
+    """Load ROWS into a new index; swap the alias only when the new index looks complete."""
     name = PREFIX + time.strftime('%Y%m%d%H%M%S', time.gmtime(now()))
     client.call('PUT', '/' + name, {'settings': SETTINGS, 'mappings': MAPPINGS})
     try:
         sent, batch = 0, []
         for action, source in documents(rows):
-            if hashes is not None:
-                hashes[action['index']['_id']] = digest(source)
             batch += [json.dumps(action), json.dumps(source)]
             if len(batch) >= 2 * BATCH:
                 sent += _bulk(client, name, batch); batch = []
@@ -152,20 +154,62 @@ class NeedFull(Exception):
     """The incremental round cannot be trusted; the caller builds a full index instead."""
 
 
-def update(client, index, rows, hashes):
+class RowSource:
+    """Listings as rows, digested here (tests, and any caller without the database's digest)."""
+    kind = 'py'
+
+    def __init__(self, rows_for):
+        self.rows_for = rows_for
+
+    def rows(self):
+        return self.rows_for()
+
+    def digests(self):
+        return {action['index']['_id']: digest(source) for action, source in documents(self.rows())}
+
+    def fetch(self, ids):
+        wanted = set(ids)
+        return [row for row in self.rows() if str(row[0]) in wanted]
+
+
+class SqlSource:
+    """Listings from the application database: digests computed there, full rows read only when asked."""
+    kind = 'md5-16'
+
+    def __init__(self, connection):
+        self.connection = connection
+
+    def rows(self):
+        cursor = self.connection.cursor(name=f'explore_opensearch_sync_{time.monotonic_ns()}')
+        cursor.itersize = 5000
+        cursor.execute(LISTINGS)
+        return cursor
+
+    def digests(self):
+        with self.connection.cursor() as cursor:
+            cursor.execute(DIGESTS)
+            return {rid: d for rid, d in cursor}
+
+    def fetch(self, ids):
+        if not ids:
+            return []
+        with self.connection.cursor() as cursor:
+            cursor.execute(CHANGED, ([int(i) for i in ids],))
+            return cursor.fetchall()
+
+
+def update(client, index, source, hashes):
     """Write the listings whose digest changed and delete the ones gone, into INDEX (the serving index). HASHES is
     the saved digest per id and is replaced in place only when the round succeeds."""
-    fresh, ops = {}, []                     # one op = its bulk lines (an index takes two, a delete one)
-    for action, source in documents(rows):
-        rid = action['index']['_id']
-        fresh[rid] = digest(source)
-        if hashes.get(rid) != fresh[rid]:
-            ops.append([json.dumps(action), json.dumps(source)])
-    changed = len(ops)
+    fresh = source.digests()
+    changed = [rid for rid, d in fresh.items() if hashes.get(rid) != d]
     gone = [rid for rid in hashes if rid not in fresh]
-    ops += [[json.dumps({'delete': {'_id': rid}})] for rid in gone]
-    if hashes and len(ops) > MAX_CHANGE * len(hashes):
-        raise NeedFull(f'{changed} changed and {len(gone)} gone of {len(hashes)}')
+    if hashes and len(changed) + len(gone) > MAX_CHANGE * len(hashes):
+        raise NeedFull(f'{len(changed)} changed and {len(gone)} gone of {len(hashes)}')
+    ops = [[json.dumps(action), json.dumps(doc)] for action, doc in documents(source.fetch(changed))]
+    if len(ops) != len(changed):
+        raise NeedFull(f'{len(changed)} changed but {len(ops)} read')
+    ops += [[json.dumps({'delete': {'_id': rid}})] for rid in gone]   # one op = its lines (index two, delete one)
     for start in range(0, len(ops), BATCH):
         _bulk(client, index, [line for op in ops[start:start + BATCH] for line in op])
     if ops:
@@ -174,7 +218,7 @@ def update(client, index, rows, hashes):
     if count != len(fresh):
         raise NeedFull(f'serving index holds {count}, listings {len(fresh)}')
     hashes.clear(); hashes.update(fresh)
-    return {'index': index, 'mode': 'update', 'count': count, 'upserted': changed, 'deleted': len(gone)}
+    return {'index': index, 'mode': 'update', 'count': count, 'upserted': len(changed), 'deleted': len(gone)}
 
 
 def load_state(path=None):
@@ -201,36 +245,35 @@ def full_due(state, now):
     return time.strftime('%Y-%m-%d', time.localtime(state.get('built_at') or 0)) != time.strftime('%Y-%m-%d', local)
 
 
-def sync_rows(client, rows_for, *, full=False, now=time.time, state_path=None):
-    """One round. ROWS_FOR() opens a fresh listing iterator (a full build after a failed update reads again)."""
+def sync_rows(client, source, *, full=False, now=time.time, state_path=None):
+    """One round. SOURCE is a RowSource/SqlSource, or a callable that opens a fresh listing iterator."""
+    source = source if hasattr(source, 'digests') else RowSource(source)
     state, at = load_state(state_path), now()
     serving = current_targets(client)
     reason = ('asked' if full else 'no saved state' if state is None else
               'serving index differs from the saved state' if serving != [state['index']] else
+              'digest kind changed' if state.get('digest', 'py') != source.kind else
               'nightly' if full_due(state, at) else None)
     if reason is None:
         try:
-            result = update(client, state['index'], rows_for(), state['hashes'])
+            result = update(client, state['index'], source, state['hashes'])
             save_state(state, state_path)
             return result
         except NeedFull as exc:
             reason = f'update refused: {exc}'
-    hashes = {}
-    result = rebuild(client, rows_for(), now=now, hashes=hashes)
-    save_state({'index': result['index'], 'built_at': at, 'hashes': hashes}, state_path)
+    result = rebuild(client, source.rows(), now=now)
+    save_state({'index': result['index'], 'built_at': at, 'digest': source.kind, 'hashes': source.digests()}, state_path)
     return {**result, 'mode': 'full', 'reason': reason}
 
 
 def run_once(client, full=False):
     started = time.time()
     with read_listings() as connection:
-        def rows_for():
-            cursor = connection.cursor(name=f'explore_opensearch_sync_{time.monotonic_ns()}')
-            cursor.itersize = 5000
-            cursor.execute(LISTINGS)
-            return cursor
+        # one snapshot for the round: the digests saved after a full build describe exactly the rows it indexed
+        import psycopg
+        connection.isolation_level = psycopg.IsolationLevel.REPEATABLE_READ
         with connection.transaction():
-            result = sync_rows(client, rows_for, full=full)
+            result = sync_rows(client, SqlSource(connection), full=full)
     result['seconds'] = round(time.time() - started, 1)
     return result
 

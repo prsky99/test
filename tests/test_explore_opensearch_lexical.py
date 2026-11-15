@@ -226,3 +226,27 @@ def test_update_batches_never_split_an_index_action_from_its_document(tmp_path, 
     out = sync.sync_rows(engine, lambda: later, now=lambda: 600, state_path=state)
     assert out == {'index': out['index'], 'mode': 'update', 'count': 118, 'upserted': 7, 'deleted': 2}
     assert engine.bulk_lines == [6, 6, 4]             # 3 ops a batch: 3 indexes, 3 indexes, 1 index + 2 deletes
+
+
+def test_sql_source_reads_digests_first_and_only_changed_rows_in_full():
+    """11-15: the first update round took 8.8 s, about 6 of them reading every listing's text."""
+    executed = []
+
+    class Cursor:
+        def __init__(self, rows): self.rows = rows
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def __iter__(self): return iter(self.rows)
+        def execute(self, sql, params=None): executed.append((sql, params))
+        def fetchall(self): return [(7, 'n7', 'd', 'mcp', None, True, 1.0)]
+
+    class Connection:
+        def cursor(self, name=None):
+            return Cursor([('7', 'abc'), ('8', 'def')])
+
+    source = sync.SqlSource(Connection())
+    assert source.digests() == {'7': 'abc', '8': 'def'}
+    assert source.fetch(['7']) == [(7, 'n7', 'd', 'mcp', None, True, 1.0)] and executed[-1][1] == ([7],)
+    assert source.fetch([]) == [] and len(executed) == 2
+    assert 'md5(' in sync.DIGESTS and sync.CHANGED.endswith('WHERE r.id = ANY(%s)')
+    assert sync.ELIGIBLE in sync.DIGESTS and sync.ELIGIBLE in sync.LISTINGS
