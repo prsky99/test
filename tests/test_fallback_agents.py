@@ -2233,3 +2233,38 @@ def test_suspended_owned_agent_answers_without_calling_its_source():
         called = client.post(path, json={"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {
             "name": "search_technology_news", "arguments": {"query": "ai", "limit": 1}}}).json()
         assert called["result"]["isError"] is True and "suspended" in called["result"]["content"][0]["text"]
+
+
+def test_sole_member_substitutes_are_probed_and_alert_at_once(tmp_path):
+    """PM 11-16 06:4x: a required slot whose only usable member is ours stops whole when it fails; one probe an hour,
+    an alert on the first failure, and a refused ledger reservation is 'unprobed', never a failure."""
+    from agent_market.fallback_agents import watch as w
+    from agent_market.fallback_agents.agents import FallbackUnavailable
+    defs = tmp_path / "defs"
+    defs.mkdir()
+    (defs / "x.json").write_text(json.dumps({"slug": "x", "status": "candidate", "slots": [
+        {"slot": "web", "required": True, "chain": [
+            {"kind": "external", "resource_id": 50972, "tool": "t"},                       # prohibits in the table
+            {"kind": "agentcon", "agent_id": "wiki-grounding", "tool": "t", "state": "planned"}]},
+        {"slot": "papers", "required": True, "chain": [
+            {"kind": "external", "resource_id": 999999, "tool": "t", "state": "active",
+             "terms": {"status": "allowed", "source": "https://x.test/terms"}},
+            {"kind": "agentcon", "agent_id": "arxiv-search", "tool": "t"}]},
+        {"slot": "news", "required": False, "chain": [{"kind": "agentcon", "agent_id": "gdelt-news", "tool": "t"}]}]}))
+    assert w.sole_members(defs) == {"wiki-grounding": ["x/web"]}
+    assert w.probe_input("wiki-grounding") is not None
+
+    class Down:
+        def execute(self, agent_id, arguments):
+            raise FallbackUnavailable("source_unavailable", "down")
+
+    class Busy:
+        def execute(self, agent_id, arguments):
+            raise FallbackUnavailable("rate_limited", "ledger")
+    assert w.probe("wiki-grounding", {"question": "q"}, make=Down) == "source_unavailable"
+    assert w.probe("wiki-grounding", {"question": "q"}, make=Busy) == "unprobed"
+    line = w.observe({}, tmp_path, 1_800_000_000.0, None, {"wiki-grounding": ("source_unavailable", ["x/web"])})
+    assert any(a["key"] == "sole_member_failing:wiki-grounding" for a in line["alerts"])
+    assert line["agents"]["wiki-grounding"]["probe"] == "source_unavailable"
+    line = w.observe({}, tmp_path, 1_800_000_000.0, None, {"wiki-grounding": ("ok", ["x/web"])})
+    assert not any(a["key"].startswith("sole_member") for a in line["alerts"])

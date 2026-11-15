@@ -108,8 +108,66 @@ def github_quota(fetch=None):
         return None
 
 
-def observe(state: dict, root: Path, now: float, quota) -> dict:
-    """One round; mutates ``state``; returns the observation line."""
+# ---------------------------------------------------------------- sole members (PM 11-16 06:4x)
+# A required necklace slot whose only usable member is one of ours stops whole when that agent fails, and an agent
+# with little traffic stays "idle" in the usage lines above. So every hour such an agent gets one live probe (a fresh
+# instance, no cache) with its first passing contract input, and a probe that fails alerts at once instead of after
+# FAIL_STREAK calls. Probes reserve in the shared ledger as 'fallback_watch'; a refused reservation is "unprobed",
+# never a failure.
+CONTRACT_INPUTS = Path(__file__).resolve().parents[2] / "reports" / "fallback-agents-2026-11-14" / "contract-test-inputs.json"
+DEFINITIONS = Path(__file__).resolve().parents[1] / "necklaces" / "definitions"
+LIVE_STATES = ("active", "provisional")
+
+
+def sole_members(definitions_dir=None) -> dict[str, list[str]]:
+    """{agent_id: ["slug/slot", ...]} for our agents that are the only usable member of a required slot of a necklace
+    that is public or a candidate (no usable external member, terms aside)."""
+    from ..necklaces import model
+    out: dict[str, list[str]] = {}
+    for path in sorted(Path(definitions_dir or DEFINITIONS).glob("*.json")):
+        try:
+            defn = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if defn.get("status") in ("retired", "archived"):
+            continue
+        for slot in defn.get("slots") or []:
+            if not slot.get("required", True):
+                continue
+            usable = [m for m in slot.get("chain") or [] if model.terms_status(m) in model.USABLE_TERMS]
+            externals = [m for m in usable if m.get("kind") == "external" and m.get("state", "active") in LIVE_STATES]
+            ours = [m["agent_id"] for m in usable if m.get("kind") == "agentcon" and isinstance(m.get("agent_id"), str)
+                    and m.get("state", "active") in LIVE_STATES + ("planned",)]
+            if ours and not externals:
+                for agent_id in ours:
+                    out.setdefault(agent_id, []).append(f"{defn.get('slug')}/{slot.get('slot')}")
+    return out
+
+
+def probe_input(agent_id: str, path=None) -> dict | None:
+    try:
+        cases = json.loads(Path(path or CONTRACT_INPUTS).read_text(encoding="utf-8")).get(agent_id) or []
+    except (OSError, ValueError):
+        return None
+    return next((dict(c[0]) for c in cases if isinstance(c, list) and len(c) > 1 and c[1] == "ok"), None)
+
+
+def probe(agent_id: str, arguments: dict, make=None) -> str:
+    """'ok', a failure code (source_unavailable, stale, ...) or 'unprobed' (the ledger refused or has no share)."""
+    from .agents import FallbackAgents, FallbackUnavailable
+    from .net import budget
+    try:
+        with budget("fallback_watch"):
+            (make or FallbackAgents)().execute(agent_id, arguments)
+        return "ok"
+    except FallbackUnavailable as exc:
+        return "unprobed" if exc.code == "rate_limited" else exc.code
+    except ValueError:            # 'fallback_watch' not in the ledger's SHARE yet
+        return "unprobed"
+
+
+def observe(state: dict, root: Path, now: float, quota, probes: dict | None = None) -> dict:
+    """One round; mutates ``state``; returns the observation line. PROBES: {agent_id: (result, ["slug/slot"])}."""
     agents = state.setdefault("agents", {})
     lines = usage_lines(root, now - 3600, now)
     by_agent: dict[str, list[dict]] = {}
@@ -132,6 +190,16 @@ def observe(state: dict, root: Path, now: float, quota) -> dict:
                             "rate_limited": codes["rate_limited"], "fail_streak": mark["fail_streak"]}
         if status == "failing":
             alerts.append(("source_failing:" + agent_id, f"{agent_id} failed {mark['fail_streak']} calls in a row"))
+        if agent_id in (probes or {}):
+            result, slots = probes[agent_id]
+            report[agent_id]["probe"] = result
+            if result in FAIL_CODES or result in ("not_found", "invalid_input"):
+                # its contract input should pass: any refusal means the only member of these slots is down
+                alerts.append(("sole_member_failing:" + agent_id,
+                               f"{agent_id} probe {result}; it is the only usable member of {', '.join(slots)}"))
+            elif result == "unprobed":
+                alerts.append(("sole_member_unprobed:" + agent_id,
+                               f"{agent_id} could not be probed (ledger); only member of {', '.join(slots)}"))
     snapshots = {}
     for name, (file, field, limit, readers) in SNAPSHOTS.items():
         age = snapshot_age(root, file, field, now)
@@ -210,7 +278,14 @@ class FallbackWatch:
             state = json.loads((folder / "state.json").read_text(encoding="utf-8"))
         except (OSError, ValueError):
             state = {}
-        line = observe(state, self.root, now, self.quota())
+        probes = {}
+        try:
+            for agent_id, slots in sole_members().items():
+                args = probe_input(agent_id)
+                probes[agent_id] = (probe(agent_id, args) if args else "no_probe_input", slots)
+        except Exception as exc:          # the watch itself must keep running
+            probes["_error"] = (type(exc).__name__, [])
+        line = observe(state, self.root, now, self.quota(), {k: v for k, v in probes.items() if k in SPECS})
         tmp = folder / "state.json.tmp"
         tmp.write_text(json.dumps(state, ensure_ascii=False, indent=1), encoding="utf-8")
         os.replace(tmp, folder / "state.json")
