@@ -283,11 +283,16 @@ def run_daily(defn: dict, *, root: Path = DEFAULT_ROOT, split: str, singles: boo
               base: str = BASE, system: str = "necklace_retest", limit: int = 30) -> dict:
     """One scheduled retest of one necklace through the public relay (same path as the CLI)."""
     import httpx
+    from .judge import load_substitutes
+    from .watch import load_json
+    # the same runtime chain as the public path: watch demotions and exclusions, ops-approved substitutes
+    watch_state = load_json(Path(root) / "watch" / "state.json", {})
+    watch_state["substitutes"] = load_substitutes(Path(root) / "approvals.json")
     pacer = RelayPacer()
     with httpx.Client(timeout=12, headers={"User-Agent": "AgentValCon-NecklaceRetest/1.0"}) as client:
         call = runner.budgeted_caller(gateway_caller(client, base, pacer), system, provider_url)
         return run_set(defn, load_cases(root, defn["slug"], split)[:limit], call, root=root, split=split,
-                       singles=singles, budget_s=budget_s, pacer=pacer)
+                       singles=singles, budget_s=budget_s, pacer=pacer, watch_state=watch_state)
 
 
 def main(argv: list[str] | None = None) -> int:

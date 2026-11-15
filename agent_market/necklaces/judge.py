@@ -70,6 +70,24 @@ def load_approvals(path: Path) -> dict[str, dict]:
     return latest
 
 
+def load_substitutes(path: Path) -> list[list[str]]:
+    """[agent_id, slot_role] of every AgentValCon substitute whose latest entry in approvals.json "substitutes" is
+    approved by ops (deploy/NECKLACE_GATE.md section 10). A revoked or held latest entry removes it."""
+    try:
+        raw = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    latest: dict[tuple, dict] = {}
+    for item in (raw.get("substitutes") if isinstance(raw, dict) else None) or []:
+        if not isinstance(item, dict) or not item.get("agent_id") or not item.get("slot_role"):
+            continue
+        key = (item["agent_id"], item["slot_role"])
+        current = latest.get(key)
+        if current is None or (_parse_time(item.get("at")) or 0) >= (_parse_time(current.get("at")) or 0):
+            latest[key] = item
+    return sorted([list(k) for k, v in latest.items() if v.get("state") == "approved"])
+
+
 def load_summary(root: Path, slug: str) -> dict:
     try:
         return json.loads((root / "results" / slug / "summary.json").read_text(encoding="utf-8"))
