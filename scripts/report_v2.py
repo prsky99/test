@@ -1367,6 +1367,8 @@ PRIORITY_ROLES = ('web.grounding.v1', 'papers.search.v1', 'news.search.v1',     
                   'github.repo.v1', 'package.risk.v1', 'package.releases.v1', 'github.releases.v1',
                   'mcp.registry.lookup.v1')
 PRIORITY_PICKS = 4
+# PM 11-15 16:42: what visitors ask most has a weak #1 (weather 59.9, FX 53.3) and many untested candidates (17, 36)
+PRIORITY_EXTRA = {'weather.forecast.v1': 8, 'fx.rate.v1': 8}
 
 
 TERMS_FILE = ROOT / 'agent_market/necklaces/member_terms.json'
@@ -1404,7 +1406,7 @@ def new_queue(versions, candidates, seeds=(), limit=NEW_A_DAY, per_host=3, prior
     order = {role: i for i, role in enumerate(priority)}
     roles = sorted(pools, key=lambda role: (order.get(role, len(order)), successes[role], role))
     while len(out) < limit and any(pools.values()):
-        for role in [r for r in roles for _ in range(PRIORITY_PICKS if r in priority else 1)]:
+        for role in [r for r in roles for _ in range(PRIORITY_EXTRA.get(r, PRIORITY_PICKS) if r in priority else 1)]:
             while pools[role]:
                 rid, tool, host = pools[role].pop(0)
                 domain = registrable(host) if host else None

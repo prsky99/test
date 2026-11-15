@@ -89,7 +89,7 @@ ROLES = {
     'dictionary.define.v1': {'tools': r'^(?:define|get_definition|define_word|lookup_word|dictionary\w*|word_definition|get_word|define_term)$',
                              'input': {'word': 'serendipity', 'term': 'serendipity', 'query': 'serendipity'},
                              'checks': [('word echoed', r'serendipity'), ('a definition', r'chance|accident|fortunate|luck|unexpected')]},
-    'translate.text.v1': {'tools': r'^(?:translate|translate_text|translation)$',
+    'translate.text.v1': {'tools': r'^(?:translate|translate_text|translation|translate_\w+_text|text_translate|translator|deepl_translate|google_translate|libre_translate|translate_to_\w+|translate\.text|translate_lines)$',
                           'input': {'text': 'Good morning', 'target': 'fr', 'target_language': 'fr', 'target_lang': 'fr', 'to': 'fr'},
                           'checks': [('French greeting', r'bonjour')]},
     'github.repo.v1': {'tools': r'^(?:get_repo|get_repository|repo_info|search_repositories|search_repos|github_repo\w*|get_github_repo)$',

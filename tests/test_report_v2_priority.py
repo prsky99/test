@@ -15,12 +15,12 @@ def test_priority_roles_follow_the_pm_order_and_others_come_after():
     assert not {'holiday.calendar.v1', 'book.search.v1', 'earthquake.feed.v1'} & set(V.PRIORITY_ROLES)
     candidates = [(role, i * 10 + n, 'tool', f'h{i}-{n}.example') for i, role in enumerate(
         ['holiday.calendar.v1', 'company.registry.v1', 'weather.forecast.v1', 'news.search.v1']) for n in range(6)]
-    out = V.new_queue([], candidates, limit=10, terms={})
+    out = V.new_queue([], candidates, limit=12, terms={})
     roles = [x['role'] for x in out]
     assert roles[:4] == ['news.search.v1'] * V.PRIORITY_PICKS
-    assert roles[4:8] == ['weather.forecast.v1'] * V.PRIORITY_PICKS
-    assert roles[8] == 'company.registry.v1'
-    assert 'holiday.calendar.v1' not in roles[:9]
+    assert roles[4:10] == ['weather.forecast.v1'] * 6          # all six (PRIORITY_EXTRA 8 a round)
+    assert roles[10] == 'company.registry.v1'
+    assert 'holiday.calendar.v1' not in roles[:11]
 
 
 def test_dns_mail_auth_and_tls_roles_have_tools_and_checked_tasks():
@@ -142,3 +142,15 @@ def test_provisional_members_follow_the_floor():
 def test_necklace_roles_read_the_definitions():
     roles = V.necklace_roles()
     assert 'topic-evidence-brief' in roles['web.grounding.v1'] and 'website-trust-brief' in roles['domain.lookup.v1']
+
+
+def test_weather_and_fx_get_more_picks_and_translation_names_are_wider():
+    import role_catalog
+    assert V.PRIORITY_EXTRA == {'weather.forecast.v1': 8, 'fx.rate.v1': 8}
+    candidates = [(role, i * 100 + n, 't', f'h{i}-{n}.example') for i, role in
+                  enumerate(('weather.forecast.v1', 'holiday.calendar.v1')) for n in range(12)]
+    out = V.new_queue([], candidates, limit=9, terms={})
+    assert [x['role'] for x in out] == ['weather.forecast.v1'] * 8 + ['holiday.calendar.v1']
+    for name in ('translate.text', 'translate_lines', 'translator', 'translate_english_text'):
+        assert role_catalog.roles_for_tool(name) == ['translate.text.v1'], name
+    assert role_catalog.roles_for_tool('translate_bra_size') == []
