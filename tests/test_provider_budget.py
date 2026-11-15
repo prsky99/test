@@ -327,3 +327,10 @@ def test_a_gate_day_lifts_a_declared_domain_and_live_calls_stop_at_80_percent(tm
     for _ in range(240):                                                          # 80% of 300
         assert pb.live_reserve('https://presend.pages.dev/x', now=now, directory=tmp_path, default_per_day=300) == (True, 'ok')
     assert pb.live_reserve('https://presend.pages.dev/x', now=now, directory=tmp_path, default_per_day=300) == (False, 'quota_exhausted')
+
+
+def test_fallback_watch_hourly_probes_fit_every_sole_member_domain():
+    """02900b54 probes a sole-member substitute once an hour (24 a day); sec.gov carries two of them (48)."""
+    from agent_market import provider_budget as b
+    assert b.share_limit('fallback_watch', 'gleif.org') >= 24
+    assert b.share_limit('fallback_watch', 'sec.gov') >= 48

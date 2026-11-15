@@ -44,6 +44,8 @@ SHARE = {
     'reference_checks': 10,  # answer-key references of the data-quality score (fx rate, versions, feeds; PM F15 11-14)
     'provider_claims': 6,    # provider self-claim checks: one GET when a provider presses Verify, one per origin on
                              # the 30-day recheck (docs/PROVIDER_SELF_CLAIM.md, agent team 11-15)
+    'fallback_watch': 30,    # hourly probe of each substitute that is a required slot's only usable member (24 a day per
+                             # domain; agent team 02900b54, PM 11-16 06:4x). sec.gov's two (48) fit its declared total: 300.
     'fingerprints': 6,       # pearl/necklace-member tools/list every 6 hours (4 a day + 2 for a manual refresh)
     'ad_blocklists': 4,      # AI AD Coin campaign review: URLhaus host list and OpenPhish feed, once a day each
                              # (+2 for a failed day); domain age reads use 'ad_review_rdap' by RDAP server
