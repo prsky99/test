@@ -19,7 +19,7 @@ def call(tmp_path, args, source="mcp", meta=None, answers=None, entry=None, sens
     defs, default_entry = setup(tmp_path)
     return service.run_for_surface(None, entry or default_entry, args, source, meta, root=tmp_path,
                                    definitions_dir=defs, sensitive=sensitive,
-                                   caller=caller_from(answers or {1: "CVE-2020-28500", 3: "kev"}))
+                                   caller=caller_from(answers or {1: "CVE-2020-28500", 3: "listed in CISA KEV"}))
 
 
 def events(tmp_path):
@@ -72,7 +72,7 @@ def test_credential_values_are_refused_with_the_default_checks(tmp_path):
                                       definitions_dir=defs, caller=caller_from({1: "x", 3: "y"}))
         assert out["error_code"] == "sensitive_input", value
     ok = service.run_for_surface(None, entry, {"q": "lodash"}, "mcp", None, root=tmp_path,
-                                 definitions_dir=defs, caller=caller_from({1: "CVE-2020-28500", 3: "kev"}))
+                                 definitions_dir=defs, caller=caller_from({1: "CVE-2020-28500", 3: "listed in CISA KEV"}))
     assert ok["ok"]
 
 
