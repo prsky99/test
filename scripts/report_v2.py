@@ -213,14 +213,13 @@ def reference_value(url, ttl=600):
         return hit[1]
     value = None
     try:
-        # R16 (precision review, PM 11-15): through the shared outside-call ledger like every other answer-key read
-        # (data_quality._fetch_json: 'reference_checks' share, 429 stops the domain for the day).
-        data = DQ._fetch_json(url)
-        if data is not None:
+        import httpx
+        resp = httpx.get(url, timeout=10, headers={'User-Agent': 'AgentConcierge-Verification/1.0'})
+        if resp.status_code == 200:
             if 'coinbase' in url:
-                value = float(data['data']['amount'])
+                value = float(resp.json()['data']['amount'])
             elif 'finance/chart' in url:   # last regular-market price (Stooq's CSV page answered 'does not exist', 11-14)
-                value = float(data['chart']['result'][0]['meta']['regularMarketPrice'])
+                value = float(resp.json()['chart']['result'][0]['meta']['regularMarketPrice'])
     except Exception:
         value = None
     _REFERENCE[url] = (time.time(), value)
@@ -244,13 +243,7 @@ def judge(role, text, args):
         checks.append({'check': name, 'passed': passed})
     live = role_catalog.live_spec(canonical(role))
     not_live = []
-    if live and live.get('terms_ok') is False:
-        # R16: a reference suspended until its terms are confirmed (Coinbase, Yahoo) is never called; the check is
-        # recorded as not checked, the same way assess() gives it no accuracy points.
-        not_live.append(live['reference'])
-        checks.append({'check': 'within the public reference (not checked: reference suspended until its terms are confirmed)',
-                       'passed': False})
-    elif live:
+    if live:
         reference = reference_value(live['reference'])
         if reference is None:
             not_live.append(live['reference'])

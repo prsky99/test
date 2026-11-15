@@ -2,8 +2,8 @@
 
 > Screen policy: `docs/FRONTEND_SCREEN_POLICY.md` (11-01). Fixed content renders directly in HTML, no full-screen loading, and loading appears only in the affected area when the user acts.
 
-The public frontend returns one relevant agent ranked by recent successful verification, recent
-activity, and quality grade. New protocol-unspecified requests default to A2A;
+The public frontend returns up to three relevant agents ranked by recent successful verification,
+recent activity, and quality grade. New protocol-unspecified requests default to A2A;
 explicit MCP/x402 requests and follow-up protocol context are preserved.
 Newest replies appear first. Home, Chat, and their
 metadata describe this behavior. The same selection path serves REST `/chat`,
@@ -32,8 +32,8 @@ unconfigured providers remain unavailable.
   changing features.
 - Do not display commercial terms or amounts in Chat, recommendation prose, or
   Calling details. Preserve truthful machine protocol fields for API compatibility.
-- Keep Chat concise: one agent, protocol, endpoint, representative tool, quality
-  grade, test report evidence, and recent activity confirmation. The detail drawer
+- Keep Chat concise: up to three agents, each with protocol, endpoint, representative tool,
+  quality grade, test report evidence, and recent activity confirmation. The detail drawer
   provides essential connection and input information. Hide raw JSON and session
   controls from Chat.
 
