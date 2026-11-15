@@ -143,7 +143,7 @@
     text('balance',coins(wallets.reduce((sum,w)=>sum+BigInt(w.value.available_atoms),0n).toString()));
   }
   function review(title,lines,action) {
-    state.review=action;text('review-title',title);
+    state.review=action;state.reviewFrom=document.activeElement;text('review-title',title);
     $('review-body').replaceChildren(...lines.map(line=>{const p=document.createElement('p');p.textContent=line;return p;}));
     $('review').hidden=false;$('review-title').focus();$('review').scrollIntoView({block:'center'});
   }
@@ -463,7 +463,16 @@
       'You can stop at any time. No purchase, click or quiz is required.'],()=>beginAd(offer));};
   $('decline-offer').onclick=()=>run($('decline-offer'),async()=>{await api('/offers/'+state.offer.id+'/decline',{method:'POST',body:{reason:'not_relevant'}});
     state.offer=null;$('offer-card').hidden=true;text('offer-status','Offer declined. Your recommendations are unchanged.');});
-  $('confirm-review').onclick=()=>run($('confirm-review'),async()=>{const action=state.review;if (!action) return;cancelReview();await action();});
+  // After a confirmed choice the review card closes, so focus goes back to the control that opened it, or to the
+  // notice that reports the result when that control was re-rendered (walkthrough 11-15: focus fell to the page).
+  function restoreFocus(from) {
+    const now=document.activeElement;
+    if (now&&now!==document.body&&!$('review').contains(now)&&now.offsetParent) return;   // the action moved focus itself
+    if (from&&from.isConnected&&from.offsetParent&&!$('review').contains(from)) {from.focus();return;}
+    const said=['notice','apply-status'].map($).find(n=>n&&n.offsetParent&&n.textContent.trim());
+    const target=said||$('connect');if (said) said.tabIndex=-1;target.focus();
+  }
+  $('confirm-review').onclick=()=>run($('confirm-review'),async()=>{const action=state.review, from=state.reviewFrom;if (!action) return;cancelReview();try {await action();} finally {restoreFocus(from);}});
   $('cancel-review').onclick=()=>{cancelReview();$('connect').focus();};
   $('stop-ad').onclick=()=>run($('stop-ad'),()=>closeAd(true),{quiet:true});
   $('check-outcome').onclick=()=>run($('check-outcome'),pollOutcome,{quiet:true});
@@ -471,14 +480,17 @@
   $('apply-form').addEventListener('submit',event=>{
     event.preventDefault();
     if (!account()) return;
-    const body={display_name:$('apply-name').value.trim(),listing_url:$('apply-listing').value.trim()};
-    if (!body.listing_url.startsWith('https://agentconcierge.biz/')) {text('apply-status','Use the page of your listing on agentconcierge.biz.');return;}
-    review('Send this advertiser application?',[body.display_name,body.listing_url,
-      'We check that this listing is yours and active. You can create campaigns once the application is approved.'],async()=>{
+    // 11-15 user decision: anyone can apply; a website or a listing with us is optional.
+    const body={display_name:$('apply-name').value.trim()}, url=$('apply-listing').value.trim();
+    if (url&&!url.startsWith('https://')) {text('apply-status','Use an https address, or leave the website empty.');return;}
+    if (url) body[url.startsWith('https://agentconcierge.biz/')?'listing_url':'website_url']=url;
+    review('Send this advertiser application?',[body.display_name,url||'No website given.',
+      'Most accounts open at once. If our ad rules flag something, a person checks it first and the status appears under Updates.'],async()=>{
       try {const {value}=await api('/advertiser-applications',{method:'POST',body});
-        text('apply-status',value.status==='approved'?'Your advertising account is open.':'Application received. We check your listing and open your account after review. This page shows the status under Advertising account.');
+        text('apply-status',value.status==='approved'?'Your advertising account is open. Choose New campaign to start.':'Application received. A person checks it first; the status appears under Updates.');
         $('apply-status').scrollIntoView({block:'center'});}
-      catch (error) {if (error.status===422) {text('apply-status','Check the name and the listing page, then try again.');return;}
+      catch (error) {if (error.code==='website_not_public') {text('apply-status','That website is not a public address. Use your public site, or leave it empty.');return;}
+        if (error.status===422) {text('apply-status','Check the name and the website, then try again.');return;}
         if (error.status===429) {text('apply-status','You have reached the number of applications for now.');return;} throw error;}
       await connect();});
   });
@@ -511,7 +523,7 @@
   function showPayment(value) {
     state.payment=value;$('pay-card').hidden=false;
     text('pay-amount',value.amount_usdc);text('pay-to',value.pay_to);text('pay-expiry',new Date(value.expires_ms).toLocaleTimeString('en-US',{timeZone:'UTC',timeStyle:'short'})+' UTC');
-    text('pay-status',value.state==='confirmed'?'Payment confirmed. Your placement is booked.':value.state==='confirming'?'Waiting for this transaction to be confirmed on Base. This usually takes under a minute; this page updates when you check again.':value.state==='review'?'Payment received. We are checking it and will confirm the booking shortly.':'Waiting for your payment.');
+    text('pay-status',value.state==='confirmed'?'Payment confirmed. Your placement is booked for '+new Date(value.day_ms).toISOString().slice(0,10)+' UTC.':value.state==='confirming'?'Waiting for this transaction to be confirmed on Base. This usually takes under a minute. Press Confirm payment again to check, or choose Show bookings later.':value.state==='review'?'Payment received. We are checking it and will confirm the booking shortly.':'Waiting for your payment.');
     $('pay-title').focus?.();
   }
   $('pay-usdc').onclick=()=>run($('pay-usdc'),async()=>{
@@ -526,8 +538,12 @@
     event.preventDefault();
     const adv=advertiser(), payment=state.payment;if (!adv||!payment) return;
     run(event.submitter,async()=>{
-      try {const {value}=await api('/advertisers/'+adv.id+'/paid-bookings/'+payment.id+'/payment',{method:'POST',body:{tx_hash:$('pay-tx').value.trim()}});showPayment(value);await loadBookings();}
+      let value;
+      try {({value}=await api('/advertisers/'+adv.id+'/paid-bookings/'+payment.id+'/payment',{method:'POST',body:{tx_hash:$('pay-tx').value.trim()}}));}
       catch (error) {if (error.status) {text('pay-status',payMessage(error));return;} throw error;}
+      showPayment(value);
+      // The payment is recorded; a failed refresh of the booking list must not replace its status line.
+      try {await loadBookings();} catch {text('notice','Your payment is recorded. Choose Show bookings to see the list.');}
     });
   });
   function showAdvertiserId() {const adv=advertiser();text('advertiser-id',adv?adv.id:'—');}

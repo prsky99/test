@@ -1,14 +1,19 @@
-"""Advertiser applications and operator approval (PM step 2, first criterion c: catalog providers only).
+"""Advertiser applications: open to anyone, approved automatically when the checks pass (user decision 11-15).
 
-A signed-in person applies with a display name and the AgentValCon catalog page of the agent or
-MCP server they provide. No new table: the application is a suspended advertiser record (id derived
-from the applicant and the listing) with the applicant's campaign memberships, and the name and
-listing are kept in the audit log ("advertiser_applied"). A platform operator checks the listing and
-approves (the advertiser becomes active and receives the welcome grant when the growth budget allows)
-or rejects (it stays suspended). Nothing here moves money; the welcome grant is the existing one.
+Until 11-15 only providers listed in our catalog could apply and an operator approved every application. The user
+decided advertisers are not limited "except where a problem can arise", so a signed-in person applies with a
+display name and, optionally, a website or a catalog page. The checks that stay:
+- the name: no hidden characters, no steering or imperative wording aimed at agents (the screen ads already pass);
+- the name: words of the classes we do not sell or that need a person (docs/AD_COIN_SALES_POLICY.md 5) hold it;
+- the website: a public address only (check_public_url, never a private or local one).
+An application that passes is approved at once (the welcome grant follows when the growth budget allows); one that
+is held waits for an operator, who sees why. Sanctions screening stays where money moves (each USDC payment).
+No new table: the application is a suspended advertiser record with the applicant's campaign memberships, and the
+name, addresses and flags are kept in the audit log ("advertiser_applied"). Nothing here moves money.
 """
 
 import re
+import unicodedata
 from uuid import NAMESPACE_URL, uuid5
 
 from .access import PLATFORM_OPERATORS_ID
@@ -16,12 +21,41 @@ from .contracts import ContractError
 from .identity import Kind
 from .ledger import MODEL_ASSET, identifier
 from .security_guards import AuditLogger
+from .sponsored_offer import screen_text
 
 APPLIED, APPROVED, REJECTED = "advertiser_applied", "advertiser_approved", "advertiser_rejected"
 APPLICANT_CAPABILITIES = ("campaign.edit", "campaign.read", "campaign.pause", "budget.approve", "reports.read")
 CATALOG = re.compile(r"https://agentconcierge\.biz/[A-Za-z0-9._~/%?=&-]{1,300}\Z")  # our catalog pages only
 _NAME = re.compile(r"[^\x00-\x1f\x7f]{2,80}\Z")
+_WEBSITE = re.compile(r"https://[A-Za-z0-9.-]{1,253}(:[0-9]{1,5})?(/[A-Za-z0-9._~/%?=&#+-]{0,300})?\Z")
 MAX_APPLICATIONS_PER_PERSON = 5
+AUTO_APPROVER = "auto-check"
+# Classes we do not sell, and claims a person must look at (docs/AD_COIN_SALES_POLICY.md 5), English and Korean.
+_HOLD = re.compile(
+    r"casino|gambl|betting|\bbet\b|lottery|poker|slot machine|porn|adult|xxx|escort|weapon|firearm|\bgun|ammo|"
+    r"\bdrugs?\b|cannabis|marijuana|\bcbd\b|vape|pharma|prescription|medical|clinic|therapy|diet pill|weight loss|"
+    r"election|campaign for|political|\bparty\b|loan|payday|forex|\bfx\b|crypto|token sale|\bico\b|airdrop|"
+    r"guaranteed|risk[- ]free|miracle|cure|"
+    r"카지노|도박|베팅|토토|복권|성인|무기|총기|마약|대마|의료|병원|치료|다이어트|선거|정치|정당|대출|외환|코인|가상자산|에어드랍|보장|무위험|기적",
+    re.I)
+
+
+def screen_application(name, website_url=None, *, check_url=None):
+    """Flags that hold an application for a person (empty: approve at once). Raises for a private website."""
+    flags = []
+    if any(unicodedata.category(c) in ("Cc", "Cf", "Co", "Cs") for c in name):
+        flags.append("name:hidden_characters")
+    flags += screen_text("name", unicodedata.normalize("NFKC", name))
+    if _HOLD.search(unicodedata.normalize("NFKC", name)):
+        flags.append("name:restricted_class")
+    if website_url is not None:
+        if check_url is None:
+            from ...broker.discovery import check_public_url as check_url
+        try:
+            check_url(website_url)
+        except Exception:
+            raise ContractError("website_not_public", 422) from None
+    return flags
 
 
 def _last(store, advertiser_id, event):
@@ -29,15 +63,21 @@ def _last(store, advertiser_id, event):
     return dict(row) if row else None
 
 
-def apply(access, principal, *, display_name, listing_url):
+def apply(access, principal, *, display_name, listing_url=None, website_url=None, economy=None, check_url=None):
+    """Applies, and approves at once when screen_application finds nothing (economy given: the welcome grant)."""
     if principal.kind != Kind.HUMAN or principal.owner_id is None:
         raise ContractError("human_workspace_required", 403)
     name = display_name.strip() if type(display_name) is str else ""
-    if not _NAME.match(name) or type(listing_url) is not str or not CATALOG.match(listing_url):
+    listing_url = listing_url.strip() if type(listing_url) is str and listing_url.strip() else None
+    website_url = website_url.strip() if type(website_url) is str and website_url.strip() else None
+    if (not _NAME.match(name) or (listing_url is not None and not CATALOG.match(listing_url))
+            or (website_url is not None and not _WEBSITE.match(website_url))):
         raise ContractError("invalid_application", 422)
+    flags = screen_application(name, website_url, check_url=check_url)
     store = access.store
+    key = listing_url or website_url or ("name:" + unicodedata.normalize("NFKC", name).casefold())
     advertiser_id = str(uuid5(NAMESPACE_URL, "https://agentconcierge.biz/ad-coin/applications/"
-                              + str(principal.id) + "/" + listing_url))
+                              + str(principal.id) + "/" + key))
     with store.atomic():
         store.lock("0:authority:" + str(principal.id))
         existing = store.one("advertiser_get", (advertiser_id,))
@@ -46,13 +86,33 @@ def apply(access, principal, *, display_name, listing_url):
         mine = int(store.one("applications_by_person", (str(principal.id), APPLIED))["n"])
         if mine >= MAX_APPLICATIONS_PER_PERSON:
             raise ContractError("application_limit_reached", 429)
-        access.provision_advertiser(advertiser_id, str(uuid5(NAMESPACE_URL, listing_url)))
+        # One commercial tenant per application (a listing no longer has to be unique to one applicant).
+        access.provision_advertiser(advertiser_id, str(uuid5(NAMESPACE_URL, "https://agentconcierge.biz/ad-coin/tenants/"
+                                                             + advertiser_id)))
         access.set_advertiser_status(advertiser_id, "suspended")
         for capability in APPLICANT_CAPABILITIES:
             access.grant(advertiser_id, str(principal.id), capability)
         AuditLogger.log(store, APPLIED, "succeeded", actor_principal_id=str(principal.id), target_id=advertiser_id,
-                        details={"display_name": name, "listing_url": listing_url})
-    return {"application_id": advertiser_id, "status": "pending", "replayed": False}
+                        details={"display_name": name, "listing_url": listing_url or "", "website_url": website_url or "",
+                                 "flags": flags})
+        if flags:
+            return {"application_id": advertiser_id, "status": "pending", "replayed": False, "held": True}
+        access.set_advertiser_status(advertiser_id, "active")
+        AuditLogger.log(store, APPROVED, "succeeded", actor_principal_id=str(principal.id), target_id=advertiser_id,
+                        details={"approved_by": AUTO_APPROVER})
+    reply = {"application_id": advertiser_id, "status": "approved", "replayed": False, "held": False}
+    if economy is not None:
+        reply["welcome"] = _welcome(economy, advertiser_id)
+    return reply
+
+
+def _welcome(economy, advertiser_id):
+    try:
+        return {"granted_atoms": economy.welcome_grant(advertiser_id)["atoms"]}
+    except ContractError as exc:
+        if exc.code != "insufficient_balance":
+            raise
+        return {"granted_atoms": "0", "note": "growth_budget_empty"}  # approved now, grant after issuance
 
 
 def status_of(store, advertiser_id):
@@ -77,7 +137,8 @@ def pending(access, principal, *, limit=50):
                 continue
             details = json.loads(applied["details_json"])
             items.append({"application_id": row["id"], "display_name": details.get("display_name", ""),
-                          "listing_url": details.get("listing_url", ""), "applied_ms": int(applied["timestamp_ms"])})
+                          "listing_url": details.get("listing_url", ""), "website_url": details.get("website_url", ""),
+                          "flags": list(details.get("flags", [])), "applied_ms": int(applied["timestamp_ms"])})
     return {"items": items}
 
 
@@ -96,12 +157,6 @@ def decide(access, economy, principal, application_id, *, approve, reason=""):
             return {"application_id": advertiser_id, "status": "rejected"}
         access.set_advertiser_status(advertiser_id, "active")
         AuditLogger.log(store, APPROVED, "succeeded", actor_principal_id=str(principal.id), target_id=advertiser_id)
-    try:
-        grant = economy.welcome_grant(advertiser_id)
-        welcome = {"granted_atoms": grant["atoms"]}
-    except ContractError as exc:
-        if exc.code != "insufficient_balance":
-            raise
-        welcome = {"granted_atoms": "0", "note": "growth_budget_empty"}  # approve now, grant after issuance
+    welcome = _welcome(economy, advertiser_id)
     return {"application_id": advertiser_id, "status": "approved", "welcome": welcome,
             "already_granted": store.one("journal_get", (MODEL_ASSET, "welcome:" + advertiser_id)) is not None}

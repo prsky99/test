@@ -40,7 +40,8 @@ def router_for(commercial, *, resolve_auth) -> APIRouter:
         async def call():
             ctx, body = await write_context(request)
             return await run_in_threadpool(lambda: applications.apply(
-                access, ctx.principal, display_name=body.get("display_name"), listing_url=body.get("listing_url")))
+                access, ctx.principal, display_name=body.get("display_name"), listing_url=body.get("listing_url"),
+                website_url=body.get("website_url"), economy=economy))
         return await respond(call)
 
     @router.get("/admin/applications")

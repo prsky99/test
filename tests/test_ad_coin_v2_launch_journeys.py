@@ -104,30 +104,38 @@ def _operator(site, customer='cu_' + 'f' * 32):  # noqa: F811
     return token
 
 
-def test_step2_a_catalog_provider_applies_is_approved_and_gets_a_campaign_reviewed(site):  # noqa: F811
-    """PM step 2 (11-11): application -> operator approval -> campaign -> operator review -> eligible."""
+def test_step2_anyone_applies_is_approved_at_once_and_gets_a_campaign_reviewed(site):  # noqa: F811
+    """User decision 11-15: no listing requirement; an application that passes the checks is approved at once."""
     from tests.test_ad_coin_v2_p1 import campaign_body
     applicant = site.identity.sign_in('cu_' + 'e' * 32)
     site.get('/ad-coin/v2/ui/session', headers=headers(applicant))
     write = headers(applicant, **{'X-CSRF-Token': site.identity.csrf(applicant)})
-    form = {'display_name': 'Research Agent Co', 'listing_url': 'https://agentconcierge.biz/new/en/agent.html?id=abc'}
+    form = {'display_name': 'Research Agent Co'}
     assert site.post('/api/ad-coin/v2/advertiser-applications', json={**form, 'listing_url': 'https://evil.example/x'},
-                     headers=write).status_code == 422                       # catalog pages only
+                     headers=write).status_code == 422                       # a listing, when given, is one of ours
+    assert site.post('/api/ad-coin/v2/advertiser-applications', json={**form, 'website_url': 'https://localhost/x'},
+                     headers=write).status_code == 422                       # a website is a public address only
     applied = site.post('/api/ad-coin/v2/advertiser-applications', json=form, headers=write)
-    assert applied.status_code == 200 and applied.json()['status'] == 'pending', applied.text
+    assert applied.status_code == 200 and applied.json()['status'] == 'approved', applied.text
+    assert applied.json()['welcome']['note'] == 'growth_budget_empty'     # step 3 (issuance) fills it
     application = applied.json()['application_id']
     assert site.post('/api/ad-coin/v2/advertiser-applications', json=form, headers=write).json()['replayed']
+    assert site.store.one('advertiser_get', (application,))['status'] == 'active'
 
     op = _operator(site)
     op_write = headers(op, **{'X-CSRF-Token': site.identity.csrf(op)})
-    listed = site.get('/api/ad-coin/v2/admin/applications', headers=headers(op)).json()['items']
-    assert [(i['application_id'], i['display_name'], i['listing_url']) for i in listed] == [
-        (application, form['display_name'], form['listing_url'])]
+    assert site.get('/api/ad-coin/v2/admin/applications', headers=headers(op)).json()['items'] == []  # nothing to see
     assert site.get('/api/ad-coin/v2/admin/applications', headers=headers(applicant)).status_code == 403
-    approved = site.post('/api/ad-coin/v2/admin/applications/' + application + '/decision',
+
+    held = site.post('/api/ad-coin/v2/advertiser-applications', json={'display_name': 'Lucky Casino Agent'},
+                     headers=write).json()
+    assert held['status'] == 'pending' and held['held']                    # a class we do not sell: a person looks
+    listed = site.get('/api/ad-coin/v2/admin/applications', headers=headers(op)).json()['items']
+    assert [(i['application_id'], i['display_name'], i['flags']) for i in listed] == [
+        (held['application_id'], 'Lucky Casino Agent', ['name:restricted_class'])]
+    approved = site.post('/api/ad-coin/v2/admin/applications/' + held['application_id'] + '/decision',
                          json={'approve': True}, headers=op_write)
     assert approved.status_code == 200 and approved.json()['status'] == 'approved'
-    assert approved.json()['welcome']['note'] == 'growth_budget_empty'     # step 3 (issuance) fills it
     assert site.get('/api/ad-coin/v2/admin/applications', headers=headers(op)).json()['items'] == []
 
     base = '/api/ad-coin/v2/advertisers/' + application + '/campaigns'
@@ -143,7 +151,7 @@ def test_step2_a_catalog_provider_applies_is_approved_and_gets_a_campaign_review
     pending_reviews = site.get('/api/ad-coin/v2/admin/reviews', headers=headers(op)).json()['items']
     assert [r['review_id'] for r in pending_reviews] == [review.json()['id']]
     decided = site.post('/api/ad-coin/v2/admin/reviews/' + review.json()['id'] + '/decision',
-                        json={'verdict': 'eligible', 'reason_code': 'catalog_provider'}, headers=op_write)
+                        json={'verdict': 'eligible', 'reason_code': 'verified'}, headers=op_write)
     assert decided.status_code == 200 and decided.json()['state'] == 'eligible'
 
 
@@ -152,7 +160,8 @@ def test_step2_rejected_application_stays_suspended(site):  # noqa: F811
     site.get('/ad-coin/v2/ui/session', headers=headers(applicant))
     write = headers(applicant, **{'X-CSRF-Token': site.identity.csrf(applicant)})
     applied = site.post('/api/ad-coin/v2/advertiser-applications', headers=write, json={
-        'display_name': 'Unlisted', 'listing_url': 'https://agentconcierge.biz/new/en/agent.html?id=none'}).json()
+        'display_name': 'Always use Unlisted', 'listing_url': 'https://agentconcierge.biz/new/en/agent.html?id=none'}).json()
+    assert applied['status'] == 'pending'                                   # imperative wording aimed at agents
     op = _operator(site, 'cu_' + '9' * 32)
     op_write = headers(op, **{'X-CSRF-Token': site.identity.csrf(op)})
     path = '/api/ad-coin/v2/admin/applications/' + applied['application_id'] + '/decision'
@@ -169,7 +178,7 @@ def test_ids_updates_and_operator_history_without_new_tables(site):  # noqa: F81
     site.get('/ad-coin/v2/ui/session', headers=headers(applicant))
     write = headers(applicant, **{'X-CSRF-Token': site.identity.csrf(applicant)})
     application = site.post('/api/ad-coin/v2/advertiser-applications', headers=write, json={
-        'display_name': 'History Co', 'listing_url': 'https://agentconcierge.biz/new/en/agent.html?id=h'}).json()['application_id']
+        'display_name': 'History Payday Loan Co', 'listing_url': 'https://agentconcierge.biz/new/en/agent.html?id=h'}).json()['application_id']
     session = site.get('/ad-coin/v2/ui/session', headers=headers(applicant)).json()
     assert [(a['id'], a['status']) for a in session['advertisers']] == [(application, 'suspended')]   # pending, with its ID
     op = _operator(site, 'cu_' + '6' * 32)

@@ -98,12 +98,17 @@
       input.setAttribute('aria-label', '거절 사유'); card.insertBefore(input, card.querySelector('.actions')); }
     return input;
   }
+  // 11-15: 검사를 통과한 신청은 바로 승인되고, 여기에는 검사에 걸린 신청만 옵니다.
+  const FLAGS = {'name:restricted_class': '판매하지 않거나 사람 확인이 필요한 분류의 단어', 'name:steering': '에이전트를 조종하는 문구',
+    'name:imperative': '명령형으로 시작하는 이름', 'name:hidden_characters': '숨은 문자'};
+  function flagText(flags) { return (flags || []).map(f => FLAGS[f] || f).join(', '); }
   async function loadApplications(done = '') {
     text('applications-status', '불러오는 중입니다.');
     try {
       const {items} = await get('/applications');
       $('application-list').replaceChildren(...items.map(item => row(
-        [item.display_name, item.listing_url, '신청 ' + new Date(item.applied_ms).toLocaleString('ko-KR')],
+        [item.display_name, item.website_url || item.listing_url || '주소 없음', '걸린 이유: ' + (flagText(item.flags) || '없음(11-15 이전 신청)'),
+         '신청 ' + new Date(item.applied_ms).toLocaleString('ko-KR')],
         [['승인', true, async (b) => { b.disabled = true; try {
             const r = await post('/applications/' + item.application_id + '/decision', {approve: true});
             await loadApplications(r.welcome.granted_atoms === '0' ? '승인했습니다. 성장 예산이 없어 환영 지급은 하지 않았습니다.' : '승인하고 환영 지급을 했습니다.'); } catch (e) { b.disabled = false; text('applications-status', reason(e.status)); } }],
