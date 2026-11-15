@@ -2286,7 +2286,14 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
         except Exception:
             pass
         for key,value in request.scope.get('agent_adoption_quota',{}).items():response.headers.setdefault(key,value)
-        response.headers.setdefault("Link", '</.well-known/agent-card.json>; rel="agent-card", </.well-known/mcp.json>; rel="mcp-manifest", </.well-known/agent-entry.json>; rel="agent-entry", </skill.md>; rel="agent-skill", </llms.txt>; rel="llms-txt", </llms-full.txt>; rel="llms-full", </sitemap.xml>; rel="sitemap"')
+        link = '</.well-known/agent-card.json>; rel="agent-card", </.well-known/mcp.json>; rel="mcp-manifest", </.well-known/agent-entry.json>; rel="agent-entry", </skill.md>; rel="agent-skill", </llms.txt>; rel="llms-txt", </llms-full.txt>; rel="llms-full", </sitemap.xml>; rel="sitemap"'
+        # PM 14:38 (11-15): shell pages (they send growth_pages.PAGE_CSP) also name their one stylesheet as a preload, so
+        # Cloudflare Early Hints can start it while the page itself is still on its way from LAX.
+        if response.headers.get('content-type', '').startswith('text/html') and 'link' not in response.headers:
+            from .growth_pages import PAGE_CSP, shell_preload
+            if response.headers.get('content-security-policy') == PAGE_CSP and shell_preload():
+                link += ', ' + shell_preload()
+        response.headers.setdefault("Link", link)
         return response
 
     async def guarded_request(request: Request, call_next, client_ip: str):

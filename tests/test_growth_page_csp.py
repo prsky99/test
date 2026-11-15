@@ -44,3 +44,13 @@ def test_shell_bundle_is_served_as_css_and_kept(client):  # noqa: F811
     r = client.get(url)
     assert r.status_code == 200 and r.headers['content-type'].startswith('text/css')
     assert 'immutable' in r.headers.get('cache-control', '') and len(r.content) > 1000
+
+
+def test_shell_pages_name_their_stylesheet_as_a_preload(client):  # noqa: F811
+    """PM 14:38: Cloudflare Early Hints sends only rel=preload links; the shell's one bundle is named, the agent links stay."""
+    r = client.get('/methodology', headers={'Accept': 'text/html'})
+    url = re.search(r'href="(/new/en/assets/bundle\.css\?[^"]+)"', r.text).group(1).replace('&amp;', '&')
+    link = r.headers['link']
+    assert '<' + url + '>; rel=preload; as=style' in link and 'rel="agent-card"' in link
+    other = client.get('/llms.txt')
+    assert 'rel=preload' not in other.headers.get('link', '')

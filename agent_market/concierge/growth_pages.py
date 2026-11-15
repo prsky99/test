@@ -261,6 +261,13 @@ def shell_assets():
     return _shell_assets['value']
 
 
+
+def shell_preload():
+    """The Link value naming the shell's bundled stylesheet as a preload, or '' if it is not bundled."""
+    import re as _re
+    found = _re.search(r'href="(/new/en/assets/bundle\.css\?[^"]+)"', shell_assets())
+    return '<' + found.group(1).replace('&amp;', '&') + '>; rel=preload; as=style' if found else ''
+
 def shell(*, title, description, canonical, body, structured=None, index=True):
     data = json.dumps(structured or {}, ensure_ascii=True).replace('<', '\\u003c')
     nav = ''.join('<a class="nav-tab" href="'+esc(href)+'">'+esc(label)+'</a>' for label, href in NAV)
