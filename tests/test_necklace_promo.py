@@ -54,3 +54,16 @@ def test_nothing_shows_while_no_necklace_is_offered(snapshot):  # noqa: F811
     for text in (ns.WHY, ns.WHY_SHORT):                       # plain reasons, no number, no instruction to the reader
         assert not any(ch.isdigit() for ch in text)
         assert not text.lower().startswith(('use ', 'always', 'you must', 'ignore'))
+
+
+def test_full_values_follow_the_conservative_ones_marked_estimated():
+    full = {**COMPARISON, 'without_full': {'calls': 9, 'tokens': 14200, 'seconds': 16.8, 'accuracy': 0.81,
+                                           'estimated': ['find_agents', 'tools_list']}}
+    line = ns.comparison_line({'comparison': full})
+    assert line.startswith(LINE[:-1]) and line.endswith(
+        ' Including finding the tools and merging the answers (estimated): 9 calls \u2192 1, about 14,200 \u2192 1,800 '
+        'tokens, 16.8 s \u2192 2.4 s.')
+    measured = {**full, 'without_full': {**full['without_full'], 'estimated': []}}
+    assert 'answers: 9 calls' in ns.comparison_line({'comparison': measured})
+    broken = {**full, 'without_full': {'calls': 9}}
+    assert ns.comparison_line({'comparison': broken}) == LINE                 # the conservative line stays

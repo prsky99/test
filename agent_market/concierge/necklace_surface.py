@@ -540,7 +540,13 @@ def comparison(entry):
             if type(v) not in (int, float) or v < 0 or (key == 'accuracy' and v > 1):
                 return None
         sides[side] = {key: row[key] for key in _SIDES}
-    return {'cases': cases, 'measured_at': at, **sides}
+    found = {'cases': cases, 'measured_at': at, **sides}
+    full = value.get('without_full')   # PM 15:14: the path without a necklace including finding tools and merging answers
+    if isinstance(full, dict) and all(type(full.get(k)) in (int, float) and full.get(k) >= 0 for k in _SIDES[:3]):
+        estimated = full.get('estimated')
+        if estimated is None or (isinstance(estimated, list) and all(isinstance(x, str) for x in estimated)):
+            found['without_full'] = {**{k: full[k] for k in _SIDES[:3]}, 'estimated': list(estimated or [])}
+    return found
 
 
 def comparison_line(entry):
@@ -555,7 +561,12 @@ def comparison_line(entry):
             'same agents itself: ' + num(wo['calls']) + ' calls \u2192 ' + num(w['calls']) + ', about ' + num(wo['tokens'])
             + ' \u2192 ' + num(w['tokens']) + ' tokens, ' + sec(wo['seconds']) + ' s \u2192 ' + sec(w['seconds']) + ' s, '
             + pct(wo['accuracy']) + ' \u2192 ' + pct(w['accuracy']) + ' correct (medians per case; tokens estimated from '
-            'text length; finding the tools and merging the answers are not counted on either side).')
+            'text length; finding the tools and merging the answers are not counted on either side).'
+            + (' Including finding the tools and merging the answers' + (' (estimated)' if found['without_full']['estimated'] else '')
+               + ': ' + num(found['without_full']['calls']) + ' calls \u2192 ' + num(w['calls']) + ', about '
+               + num(found['without_full']['tokens']) + ' \u2192 ' + num(w['tokens']) + ' tokens, '
+               + sec(found['without_full']['seconds']) + ' s \u2192 ' + sec(w['seconds']) + ' s.'
+               if found.get('without_full') else ''))
 
 
 # 11-15 user decision (PM 11:3x): necklaces run free for now. The judge marks it in the snapshot (pricing {"mode":
