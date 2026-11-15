@@ -253,6 +253,7 @@ class ExposedFirstRecommender:
     def __init__(self, recommender, store):
         self._recommender = recommender
         self._store = store
+        self._read_source = store   # the process store that owns the read pool (protocol_prefetch)
         self._cache = OrderedDict()
         self._lock = threading.Lock()
 
@@ -264,7 +265,9 @@ class ExposedFirstRecommender:
     def __copy__(self):
         # front.chat copies the recommender and binds the copy to a request store.
         from copy import copy
-        return ExposedFirstRecommender(copy(self._recommender), self._store)
+        clone = ExposedFirstRecommender(copy(self._recommender), self._store)
+        clone._read_source = self._read_source
+        return clone
 
     @property
     def store(self):
@@ -277,6 +280,12 @@ class ExposedFirstRecommender:
 
     def search(self, task, kind=None, auth_pref=None, limit=1, offset=0, exclude=None, hint=None, category=None):
         search = self._recommender.search
+        if kind in (None, '', 'auto', 'any'):
+            # A2A and MCP searched at once on a read-pool session; same merge and answer (P0 11-16).
+            from .protocol_prefetch import prefetching
+            fast = prefetching(self._recommender, self._read_source)
+            if fast is not None:
+                search = fast.search
         if type(limit) is not int or type(offset) is not int or not 1 <= limit <= 600:
             return search(task, kind, auth_pref, limit, offset, exclude, hint, category)
         wider = min(600 - min(offset, 599), limit + EXTRA)
