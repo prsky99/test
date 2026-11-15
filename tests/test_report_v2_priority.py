@@ -154,3 +154,23 @@ def test_weather_and_fx_get_more_picks_and_translation_names_are_wider():
     for name in ('translate.text', 'translate_lines', 'translator', 'translate_english_text'):
         assert role_catalog.roles_for_tool(name) == ['translate.text.v1'], name
     assert role_catalog.roles_for_tool('translate_bra_size') == []
+
+
+def test_old_verdicts_are_rejudged_from_the_new_budget_in_demand_order(monkeypatch):
+    v = lambda rid, role, score, ev='dq-2026-11-14b', outcome='succeeded': {
+        'resource_id': rid, 'role': role, 'tool': 't', 'outcome': outcome, 'evaluator_version': ev, 'quality': {'score': score},
+        'registrable_domain': f'd{rid}.example', 'host': f'd{rid}.example'}
+    versions = [v(1, 'holiday.calendar.v1', 90), v(2, 'web.grounding.v1', 60), v(3, 'web.grounding.v1', 80),
+                v(4, 'weather.forecast.v1', 70), v(5, 'papers.search.v1', 99, ev=V.EVALUATOR_VERSION),
+                v(6, 'papers.search.v1', 50, outcome='failed'), v('avc:x', 'papers.search.v1', 90), v(7, 'news.search.v1', 70)]
+    out = V.rejudge_queue(versions, already={(7, 'news.search.v1')}, terms={1: 'allowed'})
+    assert [x['id'] for x in out] == [3, 2, 4, 1] and {x['kind'] for x in out} == {'rejudge'}
+    assert len(V.rejudge_queue(versions, terms={}, limit=2)) == 2
+    share = V.current_evaluator_share(versions)
+    assert share == {'evaluator_version': V.EVALUATOR_VERSION, 'current': 1, 'of': 7}
+    monkeypatch.setattr(V, 'latest_versions', lambda: versions)
+    monkeypatch.setattr(V, 'retest_queue', lambda vs: [])
+    monkeypatch.setattr(V, 'catalog_candidates', lambda: [('news.search.v1', 100 + n, 't', f'n{n}.example') for n in range(90)])
+    monkeypatch.setattr(V, 'member_terms', lambda: {})
+    q = V.build_queue(seed_file='/nonexistent.json')
+    assert sum(x['kind'] == 'rejudge' for x in q) == 5 and sum(x['kind'] == 'new' for x in q) <= V.NEW_A_DAY - 5

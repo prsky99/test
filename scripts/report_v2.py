@@ -1244,6 +1244,7 @@ def publish(board=True):
                                   'roles': ranked}, indent=1, ensure_ascii=False))
     official = summary(versions, ranked, candidates_a())
     official['usable'] = usable_pearls(versions, ranked)
+    official['judged_by_current_evaluator'] = current_evaluator_share(versions + trials)
     official['grade_trials'] = grade_trials(trials, grades or {}) if grades is not None else \
         {'rule': 'grades unavailable: nothing split this time', 'versions': None}
     (OUT / 'final').mkdir(parents=True, exist_ok=True)
@@ -1432,7 +1433,32 @@ def build_queue(seed_file=ROOT / 'reports/pearls-2026-11-14/role_candidates_1115
         seeds = []
     terms = member_terms()
     retests = [x for x in retest_queue(versions) if terms.get(x['id']) != 'prohibits']   # never call a member whose terms forbid it
-    return retests + new_queue(versions, catalog_candidates(), seeds, terms=terms)
+    rejudge = rejudge_queue(versions, {(x['id'], canonical(x['role'])) for x in retests}, terms)
+    return retests + rejudge + new_queue(versions, catalog_candidates(), seeds, limit=NEW_A_DAY - len(rejudge), terms=terms)
+
+
+REJUDGE_A_DAY = 30   # PM 11-15 16:50: of the 80 new a day, until every succeeded version is judged by today's rules
+
+
+def rejudge_queue(versions, already=(), terms=None, limit=REJUDGE_A_DAY, priority=PRIORITY_ROLES):
+    """Succeeded outside versions still judged by an older evaluator and not retested today anyway (98 of 98 on 11-15:
+    no whole answer was kept before 09:58, so rescoring cannot judge them again). Demand order, best score first.
+    They take part of the new-test budget (kind 'rejudge'), so the daily total stays within 120."""
+    terms = member_terms() if terms is None else terms
+    order = {role: i for i, role in enumerate(priority)}
+    old = [v for v in versions if not is_own_fallback(v['resource_id']) and v.get('outcome') == 'succeeded'
+           and v.get('evaluator_version') != EVALUATOR_VERSION and (v['resource_id'], canonical(v['role'])) not in set(already)
+           and terms.get(v['resource_id']) != 'prohibits']
+    old.sort(key=lambda v: (order.get(canonical(v['role']), len(order)), -(v.get('quality') or {}).get('score', 0)))
+    return [{'role': canonical(v['role']), 'id': v['resource_id'], 'tool': v['tool'], 'kind': 'rejudge'} for v in old[:limit]]
+
+
+def current_evaluator_share(versions):
+    """How many outside versions in force were judged by today's evaluator (PM 11-15 16:50: how far the pearl numbers
+    can be trusted while older verdicts are being replaced)."""
+    outside = [v for v in versions if not is_own_fallback(v['resource_id'])]
+    current = sum(1 for v in outside if v.get('evaluator_version') == EVALUATOR_VERSION)
+    return {'evaluator_version': EVALUATOR_VERSION, 'current': current, 'of': len(outside)}
 
 
 def run(queue):
