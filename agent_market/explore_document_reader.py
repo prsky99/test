@@ -15,7 +15,9 @@ complete-contract path until jobs rebuilds it; it never serves stale facts.
 import json
 
 from . import explore_documents as documents
-from .concierge.retrieval_metrics import timed
+import time
+
+from .concierge.retrieval_metrics import add, timed
 from .postgres_capability_text import SEARCHABLE
 
 
@@ -86,6 +88,7 @@ def _read(store, ids, policy):
         AND """
         + SEARCHABLE
     ).format(sizes, sql.SQL(",").join(sql.SQL("r.{}").format(sql.Identifier(name)) for name in columns))
+    began = time.perf_counter()   # the statement and its fetch: doc_sql; documents minus it is decoding (P0 11-16)
     rows = store._execute(
         statement.as_string(),
         (16 * len(columns) + 256, json.dumps(ids), policy, documents.MAX_DOCUMENT_BYTES,
@@ -93,6 +96,7 @@ def _read(store, ids, policy):
         max_rows=len(ids),
         max_bytes=32 * 1024 * 1024,
     ).fetchall()
+    add('doc_sql', (time.perf_counter() - began) * 1000)
     found = {}
     for row in rows:
         value = dict(row)
@@ -130,6 +134,7 @@ def texts(store, ids):
 
 
 def _texts(store, ids, policy):
+    began = time.perf_counter()   # the statement and its fetch: doc_sql; documents minus it is decoding (P0 11-16)
     rows = store._execute(
         """SELECT r.id,d.document FROM resources r
         JOIN agentcon_search.explore_documents d ON d.resource_id=r.id
@@ -142,6 +147,7 @@ def _texts(store, ids, policy):
         max_rows=len(ids),
         max_bytes=32 * 1024 * 1024,
     ).fetchall()
+    add('doc_sql', (time.perf_counter() - began) * 1000)
     found = {}
     for rid, encoded in rows:
         try:

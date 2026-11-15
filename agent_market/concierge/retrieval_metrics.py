@@ -19,7 +19,9 @@ _STAGES = frozenset(('lexical', 'embedding', 'ann', 'expansion', 'projection', '
                      # (the interpreter lock stops all threads during one).
                      'gc', 'gc_all',
                      # Recommendation A2A/MCP head start outcome (protocol_prefetch, PM 11-15 19:5x)
-                     'prefetch_hit', 'prefetch_miss', 'prefetch_skip', 'prefetch_unused'))
+                     'prefetch_hit', 'prefetch_miss', 'prefetch_skip', 'prefetch_unused',
+                     # Explore document reads split into the statement and the rest (P0 11-16)
+                     'doc_sql'))
 
 
 _gc_state = threading.local()
