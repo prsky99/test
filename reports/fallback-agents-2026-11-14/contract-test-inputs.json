@@ -867,5 +867,39 @@
    null,
    {}
   ]
+ ],
+ "sec-company-profile": [
+  [
+   {
+    "title": "CIK 320193"
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "title": "Microsoft Corp"
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "title": "a|b"
+   },
+   "invalid_input",
+   null,
+   {}
+  ],
+  [
+   {
+    "title": "Qwzx Plorb Nonexistent Holdings"
+   },
+   "not_found",
+   "live",
+   {}
+  ]
  ]
 }

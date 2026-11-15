@@ -32,6 +32,7 @@ DOMAINS = {'nvd-cve': ['https://services.nvd.nist.gov/'], 'cisa-kev': ['https://
            'package-registry': ['https://registry.npmjs.org/', 'https://pypi.org/'], 'depsdev-package': ['https://api.deps.dev/'],
            'cve-org': ['https://cveawg.mitre.org/'], 'github-advisory': ['https://api.github.com/'],
            'gleif-lei': ['https://api.gleif.org/', 'https://query.wikidata.org/'], 'sec-edgar': ['https://data.sec.gov/'],
+           'sec-company-profile': ['https://data.sec.gov/'],
            'wikipedia-summary': ['https://en.wikipedia.org/'],
            # The other 20 (R30, agent team 11-15): one URL per registrable domain, since the ledger counts by domain
            # (www.sec.gov and data.sec.gov are both sec.gov). [] = no outside call (local data or computed).

@@ -31,6 +31,7 @@ from .catalog import SPECS, contract
 from .net import budget
 
 SLUG = {"gleif-lei": "company-due-diligence", "sec-edgar": "company-due-diligence",
+        "sec-company-profile": "company-due-diligence",     # v2 background seat (workflow 11-16)
         "wikipedia-summary": "topic-evidence-brief", "nvd-cve": "cve-incident-brief", "cve-org": "cve-incident-brief", "cisa-kev": "cve-incident-brief",
         "github-advisory": "package-risk-audit", "package-registry": "package-risk-audit",
         "depsdev-package": "package-risk-audit",
@@ -121,6 +122,15 @@ def judge(agent_id: str, case: dict, result: dict | None) -> dict:
         date, registrar = str(truth.get("registered") or ""), str(truth.get("registrar") or "")
         ok = bool(date) and date in text and (not registrar or registrar.lower() in text.lower())
         return {"pass": ok, "got": text[:200], "want": [date, registrar]}
+    if agent_id == "sec-company-profile":
+        # the profile names the right filer: "CIK <n>" in the summary and the SEC title as the answer's title
+        import re as _re
+        truth = case.get("truth") or {}
+        summary, title = str((result or {}).get("summary") or ""), str((result or {}).get("title") or "")
+        clean = lambda t: _re.sub(r"\s*/[A-Z]{2,3}/?$", "", t.strip()).casefold()
+        ok = (f"CIK {int(truth.get('cik') or 0)})" in summary and clean(title) == clean(str(truth.get("sec_title") or ""))
+              and "not an encyclopedia article" in summary)
+        return {"pass": ok, "got": [title, summary[:160]], "want": [truth.get("sec_title"), truth.get("cik")]}
     if agent_id == "wiki-grounding":
         # topic-evidence-brief truth: the topic's Wikipedia article is among the quoted sources
         want = (truth.get("wiki") or {}).get("title")
@@ -330,6 +340,9 @@ def case_arguments(agent_id: str, case: dict) -> dict:
     ``title``). One function for tuning runs and the ops gate (scripts.substitute_gate), so both call the agent
     the same way."""
     allowed = contract(SPECS[agent_id]["contract"])["input_schema"]["properties"]
+    if agent_id == "sec-company-profile":
+        # the background seat gets the registry step's CIK ("CIK {{slot.registry.cik}}"), as in the chain
+        return {"title": f"CIK {(case.get('truth') or {}).get('cik')}"}
     if agent_id == "usgs-quakes":
         # in the necklace it reads the place the location step resolved; alone it gets the truth point (workflow)
         truth = case["truth"]
@@ -355,6 +368,8 @@ def case_arguments(agent_id: str, case: dict) -> dict:
 
 def applies(agent_id: str, case: dict) -> bool:
     """False when the source cannot answer the case at all (no LEI for GLEIF, no CIK for SEC): no call is made."""
+    if agent_id == "sec-company-profile":
+        return bool((case.get("truth") or {}).get("cik"))
     if agent_id in ("gleif-lei", "sec-edgar"):
         return bool((case.get("truth") or {}).get("lei" if agent_id == "gleif-lei" else "cik"))
     if agent_id == "sec-filings":

@@ -70,7 +70,7 @@ def agents(tmp_path, routes, calls=None, clock=None, snapshot=None):
 
 # ------------------------------------------------------------------ catalog and contracts
 def test_tools_are_read_only_and_use_the_slot_contracts():
-    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard", "site-readiness", "wiki-grounding", "ecb-fx", "usgs-quakes", "tz-time", "airport-lookup", "wiktionary-define", "github-repo", "rdap-domain", "unit-convert", "wikidata-place", "wikidata-book", "gdelt-news", "census-geocode", "mcp-registry", "github-releases", "package-releases", "tls-certificate"}
+    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard", "site-readiness", "wiki-grounding", "ecb-fx", "usgs-quakes", "tz-time", "airport-lookup", "wiktionary-define", "github-repo", "rdap-domain", "unit-convert", "wikidata-place", "wikidata-book", "gdelt-news", "census-geocode", "mcp-registry", "github-releases", "package-releases", "tls-certificate", "sec-company-profile"}
     for agent_id, spec in SPECS.items():
         tool = tool_spec(agent_id)
         c = contract(spec["contract"])
@@ -2316,3 +2316,32 @@ def test_sole_member_substitutes_are_probed_and_alert_at_once(tmp_path):
     assert line["agents"]["wiki-grounding"]["probe"] == "source_unavailable"
     line = w.observe({}, tmp_path, 1_800_000_000.0, None, {"wiki-grounding": ("ok", ["x/web"])})
     assert not any(a["key"].startswith("sole_member") for a in line["alerts"])
+
+
+def test_sec_company_profile_describes_the_filer_from_its_registration(tmp_path):
+    """workflow 11-16 (company-due-diligence v2 background): encyclopedia.summary.v1 from SEC submissions, said to be
+    a filing profile and not an encyclopedia article; CIK, exact name or ticker; a shared name is not guessed."""
+    from agent_market.fallback_agents import gold_check as g
+    subs = {"cik": 320193, "name": "Apple Inc.", "sic": "3571", "sicDescription": "Electronic Computers",
+            "stateOfIncorporation": "CA", "stateOfIncorporationDescription": "CA", "tickers": ["AAPL"],
+            "exchanges": ["Nasdaq"], "addresses": {"business": {"city": "CUPERTINO", "stateOrCountryDescription": "CA"}}}
+    tickers = {str(i): {"cik_str": 900000 + i, "ticker": f"T{i}", "title": f"Filler Company {i} Inc"} for i in range(1200)}
+    tickers["a"] = {"cik_str": 320193, "ticker": "AAPL", "title": "Apple Inc."}
+    tickers["b"] = {"cik_str": 1, "ticker": "TWA", "title": "Twin Co"}
+    tickers["c"] = {"cik_str": 2, "ticker": "TWB", "title": "Twin Co"}
+    a, _ = agents(tmp_path, {"https://data.sec.gov/submissions/CIK0000320193.json": httpx.Response(200, json=subs),
+                             "https://www.sec.gov/files/company_tickers.json": httpx.Response(200, json=tickers)})
+    for title in ("CIK 320193", "0000320193", "Apple Inc.", "apple", "AAPL"):
+        out = a.execute("sec-company-profile", {"title": title})["result"]
+        assert out["title"] == "Apple Inc." and "(SEC CIK 320193)" in out["summary"], title
+    assert "Electronic Computers (SIC 3571)" in out["summary"] and "Cupertino, CA" in out["summary"]
+    assert out["summary"].endswith("Company profile from SEC EDGAR filings (not an encyclopedia article).")
+    assert "not an encyclopedia article" in out["source"]
+    for title, code in (("Twin Co", "not_found"), ("Nobody Here Corp", "not_found"), ("a|b", "invalid_input")):
+        with pytest.raises(FallbackUnavailable) as err:
+            a.execute("sec-company-profile", {"title": title})
+        assert err.value.code == code, title
+    case = {"truth": {"cik": "320193", "sec_title": "APPLE INC."}}
+    assert g.SLUG["sec-company-profile"] == "company-due-diligence" and g.applies("sec-company-profile", case)
+    assert g.case_arguments("sec-company-profile", case) == {"title": "CIK 320193"}
+    assert g.judge("sec-company-profile", case, out)["pass"]

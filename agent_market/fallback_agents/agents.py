@@ -44,10 +44,12 @@ MAX_AGE = {"nvd-cve": 6 * 3600, "cve-org": 24 * 3600, "cisa-kev": 24 * 3600, "gi
            "wiki-grounding": 24 * 3600, "ecb-fx": 26 * 3600, "usgs-quakes": 3600,
            "tz-time": 400 * 86400, "airport-lookup": 8 * 86400, "wiktionary-define": 7 * 86400,
            "github-repo": 24 * 3600, "rdap-domain": 7 * 86400, "unit-convert": 10 * 365 * 86400,
-           "wikidata-place": 7 * 86400, "wikidata-book": 7 * 86400, "gdelt-news": 6 * 3600, "census-geocode": 30 * 86400, "mcp-registry": 86400, "github-releases": 86400, "package-releases": 86400, "tls-certificate": 86400}  # rules age from the library release; update the pin at least yearly
+           "wikidata-place": 7 * 86400, "wikidata-book": 7 * 86400, "gdelt-news": 6 * 3600, "census-geocode": 30 * 86400, "mcp-registry": 86400, "github-releases": 86400, "package-releases": 86400, "tls-certificate": 86400,
+           "sec-company-profile": 24 * 3600}  # rules age from the library release; update the pin at least yearly
 TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "github-advisory": (3600, 6 * 3600),
        "epss": (6 * 3600, 48 * 3600), "package-registry": (3600, 6 * 3600), "depsdev-package": (6 * 3600, 24 * 3600),
        "gleif-lei": (6 * 3600, 24 * 3600), "sec-edgar": (6 * 3600, 24 * 3600), "sec-tickers": (6 * 3600, 24 * 3600),
+       "sec-company-profile": (6 * 3600, 24 * 3600),
        "wikipedia-summary": (6 * 3600, 24 * 3600), "arxiv-search": (24 * 3600, 48 * 3600),
        "worldbank-indicator": (6 * 3600, 24 * 3600), "sec-filings": (3600, 24 * 3600),
        "software-incident": (3600, 6 * 3600), "scorecard": (6 * 3600, 24 * 3600),
@@ -592,6 +594,69 @@ class FallbackAgents:
             return out, _now_iso(self.utc_now())
         (out, as_of), cache = self._cached(("sec-edgar", cik), TTL["sec-edgar"], live, remaining)
         if list_cache["age_seconds"] > cache["age_seconds"]:
+            cache = list_cache
+        return out, cache, False, {"SEC EDGAR": as_of}
+
+    def _sec_company_profile(self, args, remaining):
+        """encyclopedia.summary.v1 from SEC EDGAR submissions (workflow 11-16, company-due-diligence v2 background):
+        a one- or two-sentence company profile built from the filer's own registration (SIC industry, state of
+        incorporation, business address, tickers), said to be from SEC filings and not an encyclopedia article.
+        The title is "CIK 320193" (or the bare number), an exact SEC filer name (with or without its legal form) or
+        a listed ticker; a name shared by several filers is not guessed."""
+        title = " ".join(str(args.get("title") or "").split())
+        if not title or any(c in title for c in "|#<>[]{}"):
+            raise FallbackUnavailable("invalid_input", "Use a CIK, an SEC filer name or a ticker.")
+        cik, list_cache = None, None
+        m = re.fullmatch(r"(?:CIK[\s:#-]*)?0*([0-9]{1,10})", title, re.I)
+        if m:
+            cik = int(m[1])
+        else:
+            index, by_ticker, list_cache = self._sec_index(remaining)
+            for tier in (0, 1):
+                ciks = index[tier].get(name_keys(title)[tier]) or set()
+                if len(ciks) > 1:
+                    raise FallbackUnavailable("not_found", "Several SEC filers share this name; use the CIK.")
+                if ciks:
+                    cik = next(iter(ciks))
+                    break
+            if cik is None and re.fullmatch(r"[A-Za-z][A-Za-z0-9.\-]{0,9}", title) and title.upper() in by_ticker:
+                cik = by_ticker[title.upper()]
+            if cik is None:
+                raise FallbackUnavailable("not_found", "No SEC filer has this CIK, exact name or ticker.")
+
+        def live(rem):
+            raw = self._get_json(f"https://data.sec.gov/submissions/CIK{cik:010d}.json", rem, limit=8 * 1024 * 1024)
+            if int(raw.get("cik", -1)) != cik:
+                raise ValueError("CIK mismatch")
+            name = _text(raw.get("name"), 300)
+            if not name:
+                raise ValueError("no name")
+            facts = []
+            sic, sic_text = _text(raw.get("sic"), 8), _text(raw.get("sicDescription"), 200)
+            if sic_text:
+                facts.append(f"its SEC industry classification is {sic_text}" + (f" (SIC {sic})" if sic else ""))
+            state = _text(raw.get("stateOfIncorporationDescription") or raw.get("stateOfIncorporation"), 80)
+            if state:
+                facts.append(f"it is incorporated in {state}")
+            business = (raw.get("addresses") or {}).get("business") or {}
+            city = _text(business.get("city"), 120)
+            where = _text(business.get("stateOrCountryDescription") or business.get("stateOrCountry"), 80)
+            if city:
+                facts.append("its business address is in " + ", ".join(x for x in (city.title(), where) if x))
+            tickers = [_text(t, 12) for t in raw.get("tickers") or [] if isinstance(t, str)][:5]
+            exchanges = [_text(e, 20) for e in raw.get("exchanges") or [] if isinstance(e, str) and e][:5]
+            if tickers:
+                facts.append("it files under the ticker" + ("s " if len(tickers) > 1 else " ") + ", ".join(tickers)
+                             + (f" ({', '.join(exchanges)})" if exchanges else ""))
+            summary = f"{name} (SEC CIK {cik})"
+            summary += (": " + "; ".join(facts) + ".") if facts else " is an SEC EDGAR filer."
+            summary += " Company profile from SEC EDGAR filings (not an encyclopedia article)."
+            out = {"title": name, "summary": summary[:4000],
+                   "url": f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik:010d}",
+                   "source": "SEC EDGAR filings (company profile, not an encyclopedia article)"}
+            return out, _now_iso(self.utc_now())
+        (out, as_of), cache = self._cached(("sec-company-profile", cik), TTL["sec-company-profile"], live, remaining)
+        if list_cache is not None and list_cache["age_seconds"] > cache["age_seconds"]:
             cache = list_cache
         return out, cache, False, {"SEC EDGAR": as_of}
 
