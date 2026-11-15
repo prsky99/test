@@ -78,11 +78,13 @@ CONSUMERS = {
                                                       "period": "week", "min_magnitude": 4.5, "limit": 20},
                           ["usgs"], rid=178542, domain="augur-trade.com", pearl=True)]},
     "local-time": {
-        "slot": "local_time", "contract": "timezone.time.v1", "needs": {"timezone"},
+        # PM 13:58 (agent team plan): tz-time takes the hub's "lat,lon" in location and finds the zone itself, so no
+        # bridge step; near a zone boundary it may give several candidate zones, which the answer keeps as they are
+        "slot": "local_time", "contract": "timezone.time.v1", "needs": {"point"},
         "title": "Local time at", "what": "the current local time, UTC offset and daylight-saving state there (IANA tz)",
-        "chain": [_member("external", "get_current_time", {"timeZone": "{{slot.location.timezone}}"}, ["iana-tz"],
-                          rid=38614, domain="invokera.com", state="planned"),
-                  _member("agentcon", "get_local_time", {"timezone": "{{slot.location.timezone}}"}, ["iana-tz"],
+        "chain": [dict(_member("external", "get_current_time", {"timeZone": "{{slot.location.timezone}}"}, ["iana-tz"],
+                               rid=38614, domain="invokera.com", state="planned"), needs=("timezone",)),
+                  _member("agentcon", "get_local_time", {"location": "{{slot.location.point}}"}, ["iana-tz"],
                           agent_id="tz-time")]},
     "holidays": {
         "slot": "holidays", "contract": "holiday.calendar.v1", "needs": {"country_code"}, "year": True,
@@ -96,40 +98,11 @@ CONSUMERS = {
 }
 
 
-# A bridge sits between a hub and a consumer when the hub lacks a field the consumer reads (PM 13:42, 11-15): the
-# agent team builds an own agent that turns coordinates into a time zone (and country), so address and airport
-# hubs open local-time and holidays without an IP hub. The contract name is a proposal to settle with the agent
-# team; until its file and agent exist the stamp does not validate (the list says what it waits for).
-BRIDGES = {
-    "zone": {"slot": "zone", "contract": "timezone.at_point.v1", "needs": {"lat", "lon"},
-             "gives": {"timezone", "country_code"},
-             "chain": [_member("agentcon", "timezone_at_point", {"lat": "{{slot.location.lat}}",
-                                                                 "lon": "{{slot.location.lon}}"},
-                               ["timezone-boundaries"], agent_id="coords-timezone")]},
-}
-
-
-def _bridge_for(hub: dict, use: dict) -> dict | None:
-    for bridge in BRIDGES.values():
-        if bridge["needs"] <= hub["gives"] and use["needs"] <= hub["gives"] | bridge["gives"]:
-            return bridge
-    return None
-
-
-def _read_from_bridge(chain: list[dict], bridge: dict) -> list[dict]:
-    for member in chain:
-        for key, value in list(member["input_map"].items()):
-            for field in bridge["gives"]:
-                if value == "{{slot.location." + field + "}}":
-                    member["input_map"][key] = "{{slot." + bridge["slot"] + "." + field + "}}"
-    return chain
-
-
 def stamp(hub_key: str, consumer_key: str) -> dict | None:
-    """The candidate definition for HUB x CONSUMER (through a bridge when the hub lacks a field), or None."""
+    """The candidate definition for HUB x CONSUMER, or None when the hub does not give what the consumer reads. A
+    consumer member that reads a field the hub does not give (38614 needs an IANA zone) is left out of that stamp."""
     hub, use = HUBS[hub_key], CONSUMERS[consumer_key]
-    bridge = None if use["needs"] <= hub["gives"] else _bridge_for(hub, use)
-    if not use["needs"] <= hub["gives"] and bridge is None:
+    if not use["needs"] <= hub["gives"]:
         return None
     props = {hub["input"]: dict(hub["schema"])}
     required = [hub["input"]]
@@ -142,15 +115,12 @@ def stamp(hub_key: str, consumer_key: str) -> dict | None:
         helps["year"] = "The calendar year, for example 2026."
     location = {"slot": "location", "contract": hub["contract"], "required": True, "fanout": 1,
                 "chain": copy.deepcopy(hub["chain"])}
+    chain = []
+    for member in copy.deepcopy(use["chain"]):
+        if set(member.pop("needs", ())) <= hub["gives"]:
+            chain.append(member)
     second = {"slot": use["slot"], "contract": use["contract"], "required": True, "fanout": 1,
-              "depends_on": ["location"], "chain": copy.deepcopy(use["chain"])}
-    middle = None
-    if bridge is not None:
-        middle = {"slot": bridge["slot"], "contract": bridge["contract"], "required": True, "fanout": 1,
-                  "depends_on": ["location"], "chain": copy.deepcopy(bridge["chain"])}
-        second["chain"] = _read_from_bridge(second["chain"], bridge)
-        reads = {v for m in second["chain"] for v in m["input_map"].values() if isinstance(v, str)}
-        second["depends_on"] = [bridge["slot"]] + (["location"] if any("{{slot.location." in v for v in reads) else [])
+              "depends_on": ["location"], "chain": chain}
     slug = f"{consumer_key}-near-{hub_key}" if consumer_key == "quakes" else f"{consumer_key}-at-{hub_key}"
     lat, lon, country, zone = hub["point"]
     staged = {"slot.location.lat": lat, "slot.location.lon": lon, "slot.location.point": f"{lat:.6f},{lon:.6f}",
@@ -168,16 +138,14 @@ def stamp(hub_key: str, consumer_key: str) -> dict | None:
             "a run counts only when at least two verified pearls answered",
             "every statement keeps its source link"]},
         "answer_set": f"{slug}-v1",
-        "slots": [location] + ([middle] if middle else []) + [second],
+        "slots": [location, second],
         "notes": (f"Stamped from the location-hub template (necklaces.templates: hub {hub_key}, consumer {consumer_key}). "
                   + (f"Lead {', '.join(map(str, planned))} is planned until the verify snapshot lists it as a verified "
                      f"pearl for {use['contract']}; until then the gate check reports the slot as not ready. "
                      if planned else "")
                   + "Gold set and grader are made for this necklace before the gate."),
         "min_pearls_answered": 2,
-        "probe_input": {**example, **{k: v for k, v in staged.items() if k.split(".")[2] in use["needs"]},
-                        **({f"slot.{bridge['slot']}.{k.split('.')[2]}": v for k, v in staged.items()
-                            if k.split(".")[2] in bridge["gives"]} if bridge else {})},
+        "probe_input": {**example, **{k: v for k, v in staged.items() if k.split(".")[2] in use["needs"]}},
         "input_help": helps,
     }
 
@@ -189,12 +157,12 @@ def pairs() -> list[dict]:
         for consumer_key in CONSUMERS:
             defn = stamp(hub_key, consumer_key)
             row = {"hub": hub_key, "consumer": consumer_key, "stamps": defn is not None}
-            if defn and len(defn["slots"]) == 3:
-                row["bridge"] = defn["slots"][1]["contract"]
             if defn:
                 row["slug"] = defn["slug"]
                 row["waiting_for"] = [m["resource_id"] for s in defn["slots"] for m in s["chain"]
                                       if m["kind"] == "external" and m["state"] == "planned"]
+                if not any(m["kind"] == "external" for m in defn["slots"][1]["chain"]):
+                    row["note"] = "second step has our own agent only: no second pearl until one takes this input"
                 problems = model.validate(defn)
                 row["valid"] = not problems
                 if problems:

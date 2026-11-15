@@ -183,6 +183,31 @@
             "checked_at": "2026-11-15",
             "basis": "paragraph on free use: the free tool, the API without a key and a free key may not be used in production, for a team or for a business; that needs a paid plan"
           }
+        },
+        {
+          "kind": "agentcon",
+          "agent_id": "sec-filings",
+          "resource_id": null,
+          "tool": "list_sec_filings",
+          "registrable_domain": "agentconcierge.biz",
+          "upstream": [
+            "sec-edgar"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "planned",
+          "input_map": {
+            "cik": "{{slot.registry.cik}}",
+            "ticker": "{{slot.registry.ticker}}",
+            "company": "{{slot.registry.legal_name}}"
+          },
+          "coverage": {
+            "country": [
+              "US"
+            ]
+          }
         }
       ]
     },
@@ -225,7 +250,7 @@
       ]
     }
   ],
-  "notes": "v1, PM 11-15 decision: US SEC filers only (scope country US; other inputs get the scope notice and no call). Leads are verified pearls 241601 (encyclopedia.summary), 58997 (sec.filings) and 52559 (domain.lookup) by the 11-15 verify snapshot. registry runs on the ops-approved substitute sec-edgar; gleif-lei waits for v2 (non-US). Every external step runs after the identity step, so an unidentified company costs no pearl call. 11-15 (agent team terms check, reports/necklace-terms-2026-11-15): 58997's terms prohibit our use (free and keyless use is not for a business), so it never runs and the required filings slot is empty until the agent team's own EDGAR agent (sec.gov directly) joins it; until then this necklace stays a candidate and does not go to the gate (the gate check reports the slot as not ready).",
+  "notes": "v1, PM 11-15 decision: US SEC filers only (scope country US; other inputs get the scope notice and no call). Leads are verified pearls 241601 (encyclopedia.summary), 58997 (sec.filings) and 52559 (domain.lookup) by the 11-15 verify snapshot. registry runs on the ops-approved substitute sec-edgar; gleif-lei waits for v2 (non-US). Every external step runs after the identity step, so an unidentified company costs no pearl call. 11-15 (agent team terms check, reports/necklace-terms-2026-11-15): 58997's terms prohibit our use (free and keyless use is not for a business), so it never runs and the required filings slot is empty until the agent team's own EDGAR agent (sec.gov directly) joins it; until then this necklace stays a candidate and does not go to the gate (the gate check reports the slot as not ready). 11-15 13:5x: the agent team's sec-filings (SEC EDGAR directly, f88e98f3) fills the filings slot behind the prohibited 58997; it is planned until ops approves it as a substitute, and a company without an SEC registration is a normal answer (merged as no_us_sec_filings).",
   "scope": {
     "country": [
       "US"

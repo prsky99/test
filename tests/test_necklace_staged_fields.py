@@ -40,3 +40,34 @@ def test_a_reference_to_a_field_no_step_stages_is_named():
                                                                   "sic": "{{slot.registry.sic}}"}}]}]}
     problems = runner.slot_reference_problems(defn)
     assert len(problems) == 1 and "slot.registry.sic" in problems[0] and "own-edgar" in problems[0]
+
+
+def test_no_sec_registration_is_a_normal_filings_answer():
+    """PM 13:46: sec-filings answers 'No SEC EDGAR registration matches ...' for a company outside the SEC; the slot
+    answered (not a failure) and the merged answer says there are no US SEC filings."""
+    answer = {"answer": "No SEC EDGAR registration matches Allianz SE (searched by CIK, ticker and exact name).",
+              "source": "SEC EDGAR"}
+    canon = runner.normalize("sec.filings.v1", answer, {})
+    assert canon["no_us_sec_filings"] is True
+    merged = runner.merge("sec.filings.v1", [({"kind": "agentcon", "agent_id": "sec-filings"}, canon)])
+    assert merged["no_us_sec_filings"] is True and merged["note"].startswith("No US SEC filings")
+    filed = runner.normalize("sec.filings.v1", {"answer": "Matched SEC filer: Microsoft Corp (SEC CIK 789019); 10-K"}, {})
+    assert "no_us_sec_filings" not in filed
+    defn = model.load("agent_market/necklaces/definitions/company-due-diligence.json")
+    filings = next(s for s in defn["slots"] if s["slot"] == "filings")
+    seen = {}
+
+    def caller(member, args, timeout_s):
+        seen[member.get("agent_id") or member.get("resource_id")] = args
+        if member.get("agent_id") == "sec-edgar":
+            return {"legal_name": "Allianz SE", "cik": "1127508", "ticker": "AZSEY"}
+        if member.get("agent_id") == "sec-filings":
+            return answer
+        return {"title": "Allianz", "extract": "Allianz SE is a German insurer."}
+    state = {"substitutes": [["sec-edgar", "company.registry.v1"], ["sec-filings", "sec.filings.v1"],
+                             ["wikipedia-summary", "encyclopedia.summary.v1"]]}
+    out = runner.Runner(caller, watch_state=state).run(defn, {"name": "Allianz SE", "country": "US"})
+    assert 58997 not in seen                                            # prohibited: never called
+    assert seen["sec-filings"] == {"cik": "1127508", "ticker": "AZSEY", "company": "Allianz SE"}
+    assert out["slots"]["filings"]["status"] != "failed" and out["output"]["filings"]["no_us_sec_filings"] is True
+    assert [m.get("agent_id") for m in filings["chain"] if m["kind"] == "agentcon"] == ["sec-filings"]
