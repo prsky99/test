@@ -1257,6 +1257,29 @@ def test_sec_filings_identifiers_first_exact_names_only_and_no_registration_is_a
     assert abroad["url"] == "https://www.sec.gov/edgar/search/"
 
 
+def test_annual_facts_follow_every_concept_change():
+    """PM 11-15 13:46: a filer that stopped using a concept for each of the three values (MSFT's revenue moved from
+    Revenues to RevenueFromContract...; here net income and total assets move too, the assets with a switch from US
+    GAAP to IFRS) still gets all three for its newest year, each named by the concept it now uses."""
+    from agent_market.fallback_agents.agents import annual_facts
+
+    def fy(val, end, start=None, form="20-F", filed=None):
+        return {"val": val, "end": end, "start": start or end[:4] + "-01-01", "form": form, "fp": "FY",
+                "filed": filed or str(int(end[:4]) + 1) + "-03-01"}
+    raw = {"facts": {
+        "us-gaap": {"Revenues": {"units": {"USD": [fy(10e9, "2017-12-31", form="10-K")]}},
+                    "RevenueFromContractWithCustomerExcludingAssessedTax": {"units": {"USD": [fy(14e9, "2025-12-31")]}},
+                    "NetIncomeLoss": {"units": {"USD": [fy(1e9, "2018-12-31", form="10-K")]}},
+                    "ProfitLoss": {"units": {"USD": [fy(2e9, "2025-12-31")]}},
+                    "Assets": {"units": {"USD": [{**fy(30e9, "2019-12-31", form="10-K"), "start": None}]}}},
+        "ifrs-full": {"Assets": {"units": {"USD": [{**fy(41e9, "2025-12-31"), "start": None}]}}}}}
+    text = annual_facts(raw)
+    assert "20-F for the fiscal year ended 2025-12-31" in text
+    assert text.endswith("revenue USD 14.0 billion (US GAAP RevenueFromContractWithCustomerExcludingAssessedTax); "
+                         "net income USD 2.0 billion (US GAAP ProfitLoss); total assets USD 41.0 billion (IFRS Assets).")
+    assert "not reported" not in text
+
+
 def test_sec_filings_without_xbrl_facts_still_lists_filings(tmp_path):
     routes = sec_routes()
     routes["https://data.sec.gov/submissions/CIK0000789019.json"] = httpx.Response(200, json={
