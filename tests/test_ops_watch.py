@@ -270,6 +270,27 @@ def test_busy_ignores_the_sleeping_reclaim_of_the_old_slot(monkeypatch):
     assert ops_auto.busy() == 'tests_or_deploy_running'
 
 
+def test_busy_waits_only_for_this_projects_tests(monkeypatch):
+    """11-15: the freight TMS project's pytest and playwright put the full check off 18 times in a row."""
+    from types import SimpleNamespace
+    from scripts import ops_auto
+    monkeypatch.setattr(ops_auto.ops_watch, 'check_memory', lambda: 50)
+    cwd = {101: '/Users/u/workspace/driver_agent', 102: '/Users/u/workspace/A2A_Discovery', 103: ''}
+    monkeypatch.setattr(ops_auto, '_cwd', lambda pid: cwd[pid])
+    ps = ['  77 /Users/u/workspace/driver_agent/.venv/bin/python -m pytest tests/e2e',
+          ' 101 python -m pytest -q tests/test_x.py']
+    monkeypatch.setattr(ops_auto.subprocess, 'run', lambda *a, **k: SimpleNamespace(stdout='\n'.join(ps)))
+    assert ops_auto.busy() is None and len(ops_auto.OTHER_LOAD) == 2
+    ps.append(' 102 python -m pytest -q tests/test_y.py')                 # ours by working folder
+    assert ops_auto.busy() == 'tests_or_deploy_running'
+    ps[-1] = ' 103 python -m pytest -q tests/test_y.py'                  # folder unknown: keep waiting
+    assert ops_auto.busy() == 'tests_or_deploy_running'
+    ps[-1] = ' 9 .venv/bin/python -m scripts.pytest_slot tests/a.py  /private/tmp/claude-501/-Users-k-A2A-Discovery/wt'
+    assert ops_auto.busy() == 'tests_or_deploy_running'
+    ps[-1] = " 8 /bin/zsh -c source snap.sh && for i in 1 2 3; do .venv/bin/python -m scripts.pytest_slot $f; done"
+    assert ops_auto.busy() is None                                       # a shell retry loop is not a test
+
+
 def test_payment_flow_runs_once_a_day_outside_the_measurement_minutes_and_alerts(tmp_path, monkeypatch):
     import types
     from datetime import datetime

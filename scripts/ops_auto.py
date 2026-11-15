@@ -834,7 +834,8 @@ def full_check(clock=time.time, launch=None, free=None, window=None):
                '--what', 'public_full_check (ops_auto 2시간)', '--minutes', str(FULL_CHECK_MINUTES), '--'] + check
     (launch or subprocess.Popen)(command, cwd=ROOT, stdout=log, stderr=log, start_new_session=True, env=env)
     board_close('full_check_deferred', f'해결(자동 {now()[11:]} 빈 시간에 실행 시작' + (f', {deferred}번 미룬 뒤)' if deferred else ')'))
-    append(ACTIONS, f'{now()} public_full_check 시작' + (f' (미룸 {deferred}번 뒤)' if deferred else ''))
+    append(ACTIONS, f'{now()} public_full_check 시작' + (f' (미룸 {deferred}번 뒤)' if deferred else '')
+           + (f' (다른 프로젝트 시험 {len(OTHER_LOAD)}개 실행 중: 부하 있음)' if OTHER_LOAD else ''))
     return 'started'
 
 
@@ -1004,13 +1005,47 @@ def watch():
     return 0
 
 
+# 11-15 12:5x: three sessions' shells looping on 'pytest_slot ... refused' (waiting for the measurement hour to end)
+# held the full check itself off. A running test is its python process, which is listed on its own line.
+SHELL_WRAPPER = re.compile(r'^\S*/?(zsh|bash|sh) (-\S+ )*-c ')
+OURS = ('A2A_Discovery', 'A2A-Discovery')   # this project and its scratch worktrees
+OTHER_LOAD: list[str] = []                 # other projects' tests seen by the last busy() (noted, never waited on)
+
+
+def _cwd(pid):
+    out = subprocess.run(['lsof', '-a', '-p', str(pid), '-d', 'cwd', '-Fn'], capture_output=True, text=True).stdout
+    return next((line[1:] for line in out.splitlines() if line.startswith('n')), '')
+
+
+def _ours(pid, args):
+    """11-15: the freight TMS project on this Mac runs pytest and playwright for hours; matching the bare word
+    'pytest' put the full check off 18 times in a row. A test belongs to us when its command or working folder is
+    this project (or one of its scratch worktrees); a command naming another workspace is not ours."""
+    if any(mark in args for mark in OURS):
+        return True
+    if '/workspace/' in args:
+        return False
+    if not pid:
+        return True                                   # unknown: keep waiting, as before
+    folder = _cwd(pid)
+    return not folder or any(mark in folder for mark in OURS)
+
+
 def busy():
-    procs = subprocess.run(['ps', '-eo', 'args'], capture_output=True, text=True).stdout
+    procs = subprocess.run(['ps', '-axww', '-o', 'pid=,args='], capture_output=True, text=True).stdout
     # 11-13: 'service_deploy reclaim-standby --after 1800' only sleeps for 30 minutes after a deploy before it stops
     # the old slot; counting it as a deploy put every check off for half an hour after each switch.
-    procs = '\n'.join(line for line in procs.splitlines() if 'reclaim-standby' not in line)
-    if 'pytest' in procs or 'scripts.service_deploy' in procs or 'release_gate' in procs:
-        return 'tests_or_deploy_running'
+    OTHER_LOAD.clear()
+    for line in procs.splitlines():
+        if 'reclaim-standby' in line or not any(w in line for w in ('pytest', 'scripts.service_deploy', 'release_gate')):
+            continue
+        head, _, rest = line.strip().partition(' ')
+        pid, args = (int(head), rest) if head.isdigit() else (None, line)
+        if SHELL_WRAPPER.match(args):
+            continue      # a session's shell whose script mentions pytest (often a retry loop waiting for this check)
+        if _ours(pid, args):
+            return 'tests_or_deploy_running'
+        OTHER_LOAD.append(args[:80])
     if (ops_watch.check_memory() or 100) < 15:
         return 'memory_low'
     return None
