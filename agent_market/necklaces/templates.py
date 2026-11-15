@@ -119,6 +119,9 @@ def stamp(hub_key: str, consumer_key: str) -> dict | None:
     for member in copy.deepcopy(use["chain"]):
         if set(member.pop("needs", ())) <= hub["gives"]:
             chain.append(member)
+    for member in chain:      # tz-time narrows boundary candidates with a country code (agent team 84e4968c)
+        if member.get("agent_id") == "tz-time" and "country_code" in hub["gives"]:
+            member["input_map"]["location"] = "{{slot.location.point}},{{slot.location.country_code}}"
     second = {"slot": use["slot"], "contract": use["contract"], "required": True, "fanout": 1,
               "depends_on": ["location"], "chain": chain}
     slug = f"{consumer_key}-near-{hub_key}" if consumer_key == "quakes" else f"{consumer_key}-at-{hub_key}"

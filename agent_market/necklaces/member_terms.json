@@ -1,0 +1,53 @@
+{
+  "about": "Terms of use per necklace member, one place for every definition and template stamp (PM 13:53, 11-15). Key: an external member's resource_id, or agent:<agent_id> for our own agents outside the fallback catalogue. status allowed | silent | prohibits; source (https) and checked_at are required, basis names the clause. Written by the agent team (reports/necklace-terms-2026-11-15); a member missing here is unknown.",
+  "members": {
+    "37322": {
+      "status": "allowed",
+      "source": "https://datakoot.com/terms",
+      "checked_at": "2026-11-15",
+      "basis": "section 3 Acceptable use: automated agent access is expected and welcome within plan limits; no bulk resale as a competing dataset"
+    },
+    "38608": {
+      "status": "silent",
+      "source": "https://invokera.com/",
+      "checked_at": "2026-11-15",
+      "basis": "no terms link on the home page and /terms answers 404 (11-15); Invokera hosts an import of the Open Library API, whose own terms apply to the data"
+    },
+    "52559": {
+      "status": "allowed",
+      "source": "https://presend.pages.dev/api",
+      "checked_at": "2026-11-15",
+      "basis": "API page header: free endpoints with no key or signup, fair use only; heavy or automated traffic may be throttled"
+    },
+    "58997": {
+      "status": "prohibits",
+      "source": "https://filings.tools/terms",
+      "checked_at": "2026-11-15",
+      "basis": "paragraph on free use: the free tool, the API without a key and a free key may not be used in production, for a team or for a business; that needs a paid plan"
+    },
+    "132732": {
+      "status": "prohibits",
+      "source": "https://xfix.ai/terms/",
+      "checked_at": "2026-11-15",
+      "basis": "section What you may not do: using the service to build a competing audit product and republishing reports; a site-trust necklace is close enough to count (PM rule: unclear means prohibits)"
+    },
+    "178542": {
+      "status": "silent",
+      "source": "https://augur-trade.com/",
+      "checked_at": "2026-11-15",
+      "basis": "no terms link on the home page and /terms answers 404 (11-15); earthquake data is USGS public domain"
+    },
+    "241601": {
+      "status": "silent",
+      "source": "https://github.com/charleswei118/web2mcp",
+      "checked_at": "2026-11-15",
+      "basis": "hosted demo on a personal workers.dev address with no terms page; the code is MIT licensed; Wikipedia text it returns is CC BY-SA 4.0 and needs attribution"
+    },
+    "264482": {
+      "status": "allowed",
+      "source": "https://dmvtransit.com/mcp-server",
+      "checked_at": "2026-11-15",
+      "basis": "Limits section: keyless public MCP server for any MCP app, 120 requests a minute and 3,000 a day per network; addresses are geocoded through Google Maps or geocode.maps.co"
+    }
+  }
+}

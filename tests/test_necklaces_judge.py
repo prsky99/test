@@ -350,3 +350,15 @@ def test_reviewed_necklace_waits_for_its_leads_terms_and_prohibited_members_leav
     lead = slot["chain"][0]
     lead["terms"] = {"status": "prohibits", "source": "https://p.example/terms", "checked_at": "2026-11-19"}
     assert lead["resource_id"] not in [m.get("resource_id") for m in watch.runtime_chain(slot, defn["slug"], {})]
+
+
+def test_the_snapshot_says_how_far_a_run_can_fall_back():
+    """PM 13:53: a required slot without our own agent falls back to external members only (stage 4 on failure)."""
+    defn = live_defn()
+    running = {"slots": [dict(s, chain=[m for m in s["chain"] if m["kind"] == "external"]) for s in defn["slots"]]}
+    assert judge.fallback_depth(running)["depth"] == "external"
+    assert judge.fallback_depth({"slots": defn["slots"]})["depth"] in ("agentvalcon", "external")
+    from pathlib import Path
+    entry = judge.snapshot([defn], {defn["slug"]: approval(defn)}, Path("/nonexistent"), NOW,
+                           watch_state={"updated": judge._iso(NOW)}, judge_state={}, verified=BOTH)["necklaces"][0]
+    assert "fallback" in entry and entry["fallback"]["depth"] in ("agentvalcon", "external")

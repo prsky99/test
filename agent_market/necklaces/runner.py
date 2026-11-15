@@ -311,6 +311,10 @@ def norm_registry(raw, values):
 
 LAT_KEYS, LON_KEYS = ("lat", "latitude"), ("lon", "lng", "long", "longitude")
 PLACE_KEYS = ("address", "formatted_address", "display_name", "name", "place", "city")
+LATLON_TEXT = re.compile(r"\blat(?:itude)?\b[\"\s:=]*(-?\d{1,2}(?:\.\d+)?)[\"\s,;]+lon(?:gitude)?\b[\"\s:=]*"
+                         r"(-?\d{1,3}(?:\.\d+)?)", re.I)   # "lat 33.94 lon -118.41" (our airport-lookup sentence)
+COUNTRY_TEXT = re.compile(r"\bcountry code ([A-Z]{2})\b")
+ZONE_TEXT = re.compile(r"\btime zone (?!near\b)([A-Za-z_]+(?:/[A-Za-z0-9_+-]+)+)")
 POINT_TEXT = re.compile(r"(-?\d{1,2}\.\d{2,})\s*,\s*(-?\d{1,3}\.\d{2,})")
 
 
@@ -343,11 +347,11 @@ def norm_location(raw, values):
             name = next((str(node[k]) for k in node if str(k).lower() in PLACE_KEYS and isinstance(node[k], str)), "")
             break
     if not found:
-        match = POINT_TEXT.search(_text(raw))
+        match = LATLON_TEXT.search(_text(raw)) or POINT_TEXT.search(_text(raw))
         if not match:
             return None
         found, name = (float(match.group(1)), float(match.group(2))), ""
-        if not (-90 <= found[0] <= 90 and -180 <= found[1] <= 180):
+        if not (-90 <= found[0] <= 90 and -180 <= found[1] <= 180) or found == (0.0, 0.0):
             return None
     lat, lon = round(found[0], 6), round(found[1], 6)
     out = {"lat": lat, "lon": lon, "point": f"{lat:.6f},{lon:.6f}", "place": name[:300]}
@@ -364,6 +368,14 @@ def norm_location(raw, values):
             if "timezone" not in out and isinstance(item, str) and k in ("timezone", "time_zone", "tz", "timezone_id") \
                     and re.fullmatch(r"[A-Za-z_]+(/[A-Za-z0-9_+-]+)+", item.strip()):
                 out["timezone"] = item.strip()
+    # our own airport-lookup writes them in its sentence (its contract allows answer, url and source only; agent
+    # team 11-15): "country code US", "time zone America/Los_Angeles"; "time zone near a boundary: A or B" is
+    # never staged as one zone
+    text = _text(raw)
+    if "country_code" not in out and (match := COUNTRY_TEXT.search(text)):
+        out["country_code"] = match.group(1)
+    if "timezone" not in out and (match := ZONE_TEXT.search(text)):
+        out["timezone"] = match.group(1)
     return out
 
 

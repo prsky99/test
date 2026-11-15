@@ -163,11 +163,36 @@ TERMS_STATES = ("allowed", "silent", "prohibits", "unknown")
 USABLE_TERMS = ("allowed", "silent")
 
 
+TERMS_TABLE = Path(__file__).resolve().parent / "member_terms.json"
+_TERMS_CACHE: dict = {}
+
+
+def member_terms(member: dict) -> dict:
+    """The member's terms: its own terms field when a definition carries one, else the shared table (member_terms.json,
+    PM 13:53: one place for every definition and template stamp) by resource_id, or agent:<agent_id> for our own
+    agents outside the fallback catalogue."""
+    if member.get("terms"):
+        return member["terms"]
+    try:
+        stamp = TERMS_TABLE.stat().st_mtime
+    except OSError:
+        return {}
+    if _TERMS_CACHE.get("stamp") != stamp:
+        try:
+            _TERMS_CACHE.update(stamp=stamp, members=json.loads(TERMS_TABLE.read_text(encoding="utf-8"))["members"])
+        except (OSError, ValueError, KeyError):
+            _TERMS_CACHE.update(stamp=stamp, members={})
+    table = _TERMS_CACHE["members"]
+    key = str(member["resource_id"]) if member.get("kind") == "external" and member.get("resource_id") is not None \
+        else f"agent:{member.get('agent_id')}"
+    return table.get(key) or {}
+
+
 def terms_status(member: dict) -> str:
-    """A checked terms field on the member wins (external members, and our own registered agents outside the fallback
+    """A checked terms value for the member wins (external members, and our own registered agents outside the fallback
     catalogue, judged by their source's terms, PM 12:46); otherwise a catalogue fallback is allowed when all its
     sources name a licence; anything else is unknown."""
-    terms = member.get("terms") or {}
+    terms = member_terms(member)
     status = terms.get("status")
     if status in ("allowed", "silent", "prohibits") and str(terms.get("source", "")).startswith("https://"):
         return status

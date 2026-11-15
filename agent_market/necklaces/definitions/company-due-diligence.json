@@ -115,12 +115,6 @@
           "pearl": true,
           "input_map": {
             "query": "{{slot.registry.legal_name}}"
-          },
-          "terms": {
-            "status": "silent",
-            "source": "https://github.com/charleswei118/web2mcp",
-            "checked_at": "2026-11-15",
-            "basis": "hosted demo on a personal workers.dev address with no terms page; the code is MIT licensed; Wikipedia text it returns is CC BY-SA 4.0 and needs attribution"
           }
         },
         {
@@ -176,12 +170,6 @@
             "country": [
               "US"
             ]
-          },
-          "terms": {
-            "status": "prohibits",
-            "source": "https://filings.tools/terms",
-            "checked_at": "2026-11-15",
-            "basis": "paragraph on free use: the free tool, the API without a key and a free key may not be used in production, for a team or for a business; that needs a paid plan"
           }
         },
         {
@@ -236,12 +224,6 @@
           "pearl": true,
           "input_map": {
             "domain": "{{input.domain}}"
-          },
-          "terms": {
-            "status": "allowed",
-            "source": "https://presend.pages.dev/api",
-            "checked_at": "2026-11-15",
-            "basis": "API page header: free endpoints with no key or signup, fair use only; heavy or automated traffic may be throttled"
           }
         }
       ],

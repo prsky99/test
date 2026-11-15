@@ -215,6 +215,10 @@ def check(defn: dict, client, base: str = BASE, verified=None, substitutes=None,
     need = defn.get("min_pearls_answered") or 2
     always = [s["slot"] for s in slots if s["slot"] in seated_pearl_slots and not s.get("requires_input")]
     warnings = shared_domain_warnings(defn, state)
+    for slot in defn["slots"]:            # PM 13:53: no own fallback does not block the gate, it is shown
+        if slot.get("required", True) and not any(m.get("kind") == "agentcon" for m in runtime_chain(slot, defn["slug"], state)):
+            warnings.append(f"slot {slot['slot']}: no AgentValCon fallback can run (falls back to external members "
+                            f"only; when all fail the run stops, stage 4)")
     if any(s["required"] and not s["usable"] for s in slots):
         problems.append("a required slot has no member that can run")
     return {"slug": defn["slug"], "version": defn["version"], "definition_digest": model.digest(defn),

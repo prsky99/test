@@ -229,6 +229,15 @@ def example_fields(defn: dict) -> dict:
     return out
 
 
+def fallback_depth(running: dict) -> dict:
+    """How far a run can fall back (PM 13:53, charter stages): 'agentvalcon' when every required slot has one of our
+    own agents usable behind its external members, 'external' when some required slot can only fall back to other
+    external members (then a failure of all of them stops the run, stage 4). Shown on the public page."""
+    without = [s["slot"] for s in running["slots"] if s.get("required", True)
+               and not any(m.get("kind") == "agentcon" for m in s["chain"])]
+    return {"depth": "external" if without else "agentvalcon", "slots_without_own": without}
+
+
 def terms_hold(defn: dict, running: dict) -> str | None:
     """PM 12:27 (11-15): once a necklace's members were checked (terms_reviewed_at), it is not offered while the
     lead of a required slot has unknown terms. Before the check nothing holds on terms (it would stop every one)."""
@@ -287,6 +296,7 @@ def build_entry(defn: dict, approval: dict | None, summary: dict, now: float,
         "replaced_at": defn.get("replaced_at"),
     }
     entry["pearl_count"] = sum(1 for p in entry["pearls"] if p["pearl"])
+    entry["fallback"] = fallback_depth(running)
     if status == "retired":
         entry["replaced_by"] = defn.get("replaced_by")
         return entry

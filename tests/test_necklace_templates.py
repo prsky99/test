@@ -17,7 +17,10 @@ def test_local_time_reads_the_hub_point_and_keeps_boundary_candidates():
     stamped = templates.stamp("airport", "local-time")
     assert [s["slot"] for s in stamped["slots"]] == ["location", "local_time"]
     assert stamped["slots"][1]["chain"] == [m for m in stamped["slots"][1]["chain"] if m["kind"] == "agentcon"]
-    assert stamped["slots"][1]["chain"][0]["input_map"] == {"location": "{{slot.location.point}}"}
+    assert stamped["slots"][1]["chain"][0]["input_map"] == {
+        "location": "{{slot.location.point}},{{slot.location.country_code}}"}      # airport gives the country
+    assert templates.stamp("address", "local-time")["slots"][1]["chain"][0]["input_map"] == {
+        "location": "{{slot.location.point}}"}
     ip = templates.stamp("ip", "local-time")
     assert ip["slots"][1]["chain"][0]["resource_id"] == 38614          # an IP hub gives the zone, 38614 can read it
     assert templates.stamp("address", "holidays") is None              # no country code from a street geocoder
@@ -32,7 +35,7 @@ def test_local_time_reads_the_hub_point_and_keeps_boundary_candidates():
         return answer
     out = runner.Runner(caller, watch_state={"substitutes": [["tz-time", "timezone.time.v1"]]}).run(stamped, {"code": "IND"})
     text = str(out["output"]["local_time"])
-    assert seen["get_local_time"] == {"location": "39.717300,-86.294400"}
+    assert seen["get_local_time"] == {"location": "39.717300,-86.294400,US"}
     assert "America/Indiana/Indianapolis" in text and "America/Chicago" in text
 
 
@@ -56,3 +59,23 @@ def test_the_hub_stages_country_and_time_zone_for_consumers():
     assert airport["country_code"] == "US" and "timezone" not in airport
     assert runner.render(templates.CONSUMERS["holidays"]["chain"][1]["input_map"],
                          {"slot.location.country_code": "US", "year": 2026}) == {"country": "US", "year": 2026}
+
+
+def test_airport_lookup_sentence_gives_country_code_and_time_zone():
+    """Agent team 11-15: airport-lookup's contract allows only answer/url/source, so it writes 'country code US' and
+    'time zone America/Los_Angeles' in its sentence; a boundary answer gives no single zone."""
+    plain = {"answer": "Los Angeles International Airport (IATA LAX): Los Angeles, US (US-CA), large airport, "
+                       "lat 33.942501 lon -118.407997, country code US, time zone America/Los_Angeles", "source": "x"}
+    out = runner.normalize("airport.lookup.v1", plain, {})
+    assert (out["lat"], out["country_code"], out["timezone"]) == (33.942501, "US", "America/Los_Angeles")
+    edge = {"answer": "Airport, lat 41.5 lon -87.5, country code US, time zone near a boundary: America/Chicago or "
+                      "America/Indiana/Indianapolis", "source": "x"}
+    out = runner.normalize("airport.lookup.v1", edge, {})
+    assert out["country_code"] == "US" and "timezone" not in out
+
+
+def test_the_hub_reads_lat_lon_from_the_fallback_sentence():
+    """Without this the airport-lookup fallback answered but staged no point (found 11-15 while reading its answer)."""
+    out = runner.normalize("airport.lookup.v1", {"answer": "Kahului (IATA OGG): large airport, lat 20.896263 lon "
+                                                           "-156.431837, elevation 54 ft"}, {})
+    assert out["point"] == "20.896263,-156.431837"

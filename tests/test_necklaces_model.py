@@ -205,3 +205,21 @@ def test_our_own_registered_agents_take_their_terms_from_the_member():
     banned = {"kind": "agentcon", "agent_id": "usgs-quakes", "terms": {"status": "prohibits",
               "source": "https://x.example/", "checked_at": "2026-11-16"}}
     assert model.terms_status(banned) == "prohibits"          # a checked member value wins over the catalogue
+
+
+def test_terms_come_from_one_table_for_every_definition_and_stamp():
+    """PM 13:53: member_terms.json holds each member's terms once; stamps and definitions read the same value."""
+    from agent_market.necklaces import templates
+    assert model.terms_status({"kind": "external", "resource_id": 58997}) == "prohibits"
+    assert model.terms_status({"kind": "external", "resource_id": 37322}) == "allowed"
+    assert model.terms_status({"kind": "external", "resource_id": 999999999}) == "unknown"
+    quakes = next(s for s in templates.stamp("airport", "quakes")["slots"] if s["slot"] == "quakes")
+    assert model.terms_status(quakes["chain"][0]) == "allowed"            # 37322, never copied into the stamp
+    for defn in model.load_all():                                          # one source: no inline copies left
+        assert not any(m.get("terms") for s in defn["slots"] for m in s["chain"]), defn["slug"]
+
+
+def test_topic_background_leads_with_the_verified_encyclopedia_pearl():
+    defn = model.load("agent_market/necklaces/definitions/topic-evidence-brief.json")
+    background = next(s for s in defn["slots"] if s["slot"] == "background")
+    assert model.primary(background)["resource_id"] == 241601

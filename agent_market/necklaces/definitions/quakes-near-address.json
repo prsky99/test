@@ -55,12 +55,6 @@
           "pearl": true,
           "input_map": {
             "query": "{{input.address}}"
-          },
-          "terms": {
-            "status": "allowed",
-            "source": "https://dmvtransit.com/mcp-server",
-            "checked_at": "2026-11-15",
-            "basis": "Limits section: keyless public MCP server for any MCP app, 120 requests a minute and 3,000 a day per network; addresses are geocoded through Google Maps or geocode.maps.co"
           }
         },
         {
@@ -78,12 +72,6 @@
           "state": "active",
           "input_map": {
             "address": "{{input.address}}"
-          },
-          "terms": {
-            "status": "allowed",
-            "source": "https://datakoot.com/terms",
-            "checked_at": "2026-11-15",
-            "basis": "section 3 Acceptable use: automated agent access is expected and welcome within plan limits; no bulk resale as a competing dataset"
           }
         }
       ]
@@ -118,12 +106,6 @@
             "days": 7,
             "min_magnitude": 4.5,
             "limit": 20
-          },
-          "terms": {
-            "status": "allowed",
-            "source": "https://datakoot.com/terms",
-            "checked_at": "2026-11-15",
-            "basis": "section 3 Acceptable use: automated agent access is expected and welcome within plan limits; no bulk resale as a competing dataset"
           }
         },
         {
@@ -146,12 +128,6 @@
             "period": "week",
             "min_magnitude": 4.5,
             "limit": 20
-          },
-          "terms": {
-            "status": "silent",
-            "source": "https://augur-trade.com/",
-            "checked_at": "2026-11-15",
-            "basis": "no terms link on the home page and /terms answers 404 (11-15); earthquake data is USGS public domain"
           }
         }
       ]

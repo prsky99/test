@@ -53,12 +53,6 @@
           "pearl": true,
           "input_map": {
             "domain": "{{input.domain}}"
-          },
-          "terms": {
-            "status": "allowed",
-            "source": "https://presend.pages.dev/api",
-            "checked_at": "2026-11-15",
-            "basis": "API page header: free endpoints with no key or signup, fair use only; heavy or automated traffic may be throttled"
           }
         },
         {
@@ -103,12 +97,6 @@
           "pearl": true,
           "input_map": {
             "store_url": "https://{{input.domain}}"
-          },
-          "terms": {
-            "status": "prohibits",
-            "source": "https://xfix.ai/terms/",
-            "checked_at": "2026-11-15",
-            "basis": "section What you may not do: using the service to build a competing audit product and republishing reports; a site-trust necklace is close enough to count (PM rule: unclear means prohibits)"
           }
         },
         {

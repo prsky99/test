@@ -228,6 +228,25 @@
       "chain": [
         {
           "kind": "external",
+          "resource_id": 241601,
+          "tool": "wikipedia_search",
+          "registrable_domain": "cwei59969.workers.dev",
+          "upstream": [
+            "wikipedia"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "active",
+          "pearl": true,
+          "input_map": {
+            "query": "{{input.topic}}",
+            "limit": 3
+          }
+        },
+        {
+          "kind": "external",
           "resource_id": 47189,
           "tool": "wikipedia_get_summary",
           "registrable_domain": "caseyjhand.com",
@@ -353,5 +372,5 @@
   "replaces_templates": [
     38
   ],
-  "notes": "v1 candidate (workflow team 11-14). Primaries by failure domain: pipeworx.io owns web, nobleblocks.com papers, caseyjhand.com background, galactic.inc news. Both background externals read Wikipedia (one upstream); the AgentValCon fallback reads it too."
+  "notes": "v1 candidate (workflow team 11-14). Primaries by failure domain: pipeworx.io owns web, nobleblocks.com papers, caseyjhand.com background, galactic.inc news. Both background externals read Wikipedia (one upstream); the AgentValCon fallback reads it too. 11-15 (PM 13:53): background leads with verified pearl 241601 (wikipedia_search), 47189 and 143970 behind it, so the necklace has one verified pearl slot; papers.search or web.grounding brings the second."
 }

@@ -33,7 +33,7 @@ def company():
     defn = copy.deepcopy(shipped_company())
     for slot in defn["slots"]:
         for m in slot["chain"]:
-            m.pop("terms", None)
+            m["terms"] = {"status": "unknown"}       # a member value wins over member_terms.json (58997 prohibits)
     return defn
 
 
