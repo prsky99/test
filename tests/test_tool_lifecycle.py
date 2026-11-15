@@ -150,3 +150,20 @@ def test_job_writes_the_file_and_the_route_serves_it(tmp_path):
     empty = FastAPI()
     empty.include_router(S.router_for(R.SnapshotIndex(tmp_path / "none"), lifecycle_index=L.LifecycleIndex(tmp_path / "none")))
     assert TestClient(empty).get(L.PATH).status_code == 503
+
+
+def test_members_first_and_far_dates_are_not_read_again():
+    """PM 11-15 12:3x: members' and pearls' domains first, then recent or failing ones; a read date waits for 60 days."""
+    snapshot = listed(("io.github.a/plain", "plain.com"), ("io.github.a/member", "member.com"),
+                      ("io.github.a/failing", "failing.com"))
+    for item in snapshot["servers"]:
+        item["_meta"][R.META_KEY]["updated_at"] = R._iso(NOW - 90 * DAY)
+    rows = [row(9, "io.github.b/other", status="down", failing_since=NOW - DAY, host="api.failing.com")]
+    rank = L.priorities(snapshot, rows, [1], NOW)
+    assert rank == {"member.com": 0, "failing.com": 1, "plain.com": 2}
+    assert L.due({}, rank, NOW, rank) == ["member.com", "failing.com", "plain.com"]
+    far = {"checked_at": NOW, "expires": R._iso(NOW + 400 * DAY), "status": "ok"}
+    blank = {"checked_at": NOW, "expires": None, "status": "not_found"}
+    cache = {"member.com": far, "failing.com": blank}
+    assert L.due(cache, rank, NOW + 200 * DAY, rank) == ["plain.com", "failing.com"]   # 400-day date waits
+    assert "member.com" in L.due(cache, rank, NOW + 345 * DAY, rank)                  # within 60 days of expiry

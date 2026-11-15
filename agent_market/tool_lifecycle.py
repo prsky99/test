@@ -13,8 +13,9 @@ Once a day the jobs step writes ``gateway-data/registry/lifecycle.json``, served
 Public line (design section 4): no security finding goes here, and nothing from RDAP but the expiration date (no
 registrant data is read or kept). Sources: our catalog (one registered SELECT in id pages), the verified-registry
 snapshot, and RDAP servers found through the IANA bootstrap, reserved per RDAP server on the shared provider budget
-('lifecycle_rdap'). Expiry dates are kept 90 days; a domain within 60 days is read again every 7 days. Until a domain
-has been read it is counted under ``not_checked_yet``.
+('lifecycle_rdap', 50 a day per RDAP server, not raised). Members' and pearls' domains are read first. A read date is
+not read again until it is within 60 days (then every 7 days). Until a domain has been read it is counted under
+``not_checked_yet``.
 """
 from __future__ import annotations
 
@@ -200,21 +201,46 @@ def registrable_domains(snapshot: dict | None) -> dict[str, list[str]]:
     return out
 
 
-def due(cache: dict, domains, now: float) -> list[str]:
-    """Domains to read now: never read first, then near-expiry ones every 7 days, then any older than 90 days."""
+def priorities(snapshot: dict | None, rows, member_ids, now: float) -> dict[str, int]:
+    """Reading order (PM 11-15 12:3x): 0 = a domain behind a necklace member or pearl, 1 = a server listed or changed in
+    the last 30 days or a domain with an official server that is failing now, 2 = the rest."""
+    from .provider_budget import domain
+    members = set(member_ids)
+    rank: dict[str, int] = {}
+    failing = {domain(h) for r in rows if r.get("failing_since") is not None or r.get("health_status") in
+               ("down", "failing") for h in _hosts(r)}
+    for item in (snapshot or {}).get("servers") or []:
+        meta = item.get("_meta", {}).get(R.META_KEY, {})
+        if not meta.get("listed"):
+            continue
+        recent = now - R._ts(str(meta.get("updated_at"))) <= 30 * DAY
+        for remote in item["server"].get("remotes") or []:
+            d = domain(remote.get("url") or "")
+            level = 0 if item.get("_id") in members else 1 if recent or d in failing else 2
+            rank[d] = min(rank.get(d, 2), level)
+    return rank
+
+
+def due(cache: dict, domains, now: float, rank: dict[str, int] | None = None) -> list[str]:
+    """Domains to read now, never-read ones first and in RANK order (members and pearls, then recent or failing, then
+    the rest). A read expiry date is not read again until it is within 60 days (then every 7 days), which keeps the
+    per-server share for unread domains; an answer without a date is read again after 90 days."""
+    rank = rank or {}
+    order = sorted(domains, key=lambda d: (rank.get(d, 2), d))
     never, near, old = [], [], []
-    for d in sorted(domains):
+    for d in order:
         entry = cache.get(d)
         if not entry:
             never.append(d)
             continue
         age = now - float(entry.get("checked_at") or 0)
         expires = R._ts(entry["expires"]) if entry.get("expires") else None
-        if expires is not None and expires - now <= NEAR_S and age >= RECHECK_NEAR_S:
-            near.append(d)
+        if expires is not None:
+            if expires - now <= NEAR_S and age >= RECHECK_NEAR_S:
+                near.append(d)
         elif age >= KEEP_EXPIRY_S:
             old.append(d)
-    return never + near + old
+    return near + never + old
 
 
 def _bootstrap(state: dict, now: float, http, reserve) -> dict:
@@ -246,7 +272,7 @@ def expiration(raw: dict) -> str | None:
 
 
 def read_expiry(domains, state: dict, now: float, *, http, reserve, note, sleep=time.sleep,
-                limit: int = MAX_READS, check_public_url=None) -> dict:
+                limit: int = MAX_READS, check_public_url=None, rank: dict[str, int] | None = None) -> dict:
     """Read due domains through the per-RDAP-server budget. Updates STATE['domains']; returns counts.
     CHECK_PUBLIC_URL (default broker.discovery's) refuses an RDAP address that does not resolve to a public host."""
     if check_public_url is None:
@@ -259,7 +285,7 @@ def read_expiry(domains, state: dict, now: float, *, http, reserve, note, sleep=
     except Exception:  # noqa: BLE001 - no bootstrap today: nothing is read, earlier dates stay
         return {**counts, "bootstrap": "failed"}
     closed: set[str] = set()
-    for d in due(cache, domains, now):
+    for d in due(cache, domains, now, rank):
         if counts["read"] >= limit:
             break
         labels = d.split(".")
@@ -360,8 +386,10 @@ def run_job(store, now=None, folder: Path | None = None, *, http=None, reserve=N
         http = httpx.Client(timeout=10.0, follow_redirects=False,
                             headers={"user-agent": "AgentValCon-lifecycle/1 (+https://agentconcierge.biz/registry)"})
     try:
+        from .member_fingerprints import member_ids
+        rank = priorities(snapshot, rows, member_ids(), now)
         counts = read_expiry(registrable_domains(snapshot), state, now, http=http, reserve=reserve, note=note,
-                             sleep=sleep, check_public_url=check_public_url)
+                             sleep=sleep, check_public_url=check_public_url, rank=rank)
     finally:
         if own:
             http.close()
