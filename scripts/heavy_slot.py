@@ -277,6 +277,8 @@ def run(command, team, what, minutes, board=None, lock=None, now=None, load=None
 
     previous = {s: signal.signal(s, stop) for s in (signal.SIGTERM, signal.SIGHUP)}
     try:
+        if str(ROOT) not in sys.path:   # ops_auto imports this module with only scripts/ on the path (11-15: the
+            sys.path.insert(0, str(ROOT))   # afternoon real_task_score died here with No module named 'scripts')
         from scripts.pytest_env import clean_environment, is_test_command
         env = clean_environment() if is_test_command(command) else None   # R03: tests never get production pointers
         child = subprocess.Popen(command, preexec_fn=lambda: os.nice(10), env=env)
