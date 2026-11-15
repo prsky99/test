@@ -29,13 +29,13 @@ SKIPPED = frozenset(("usage_full_tools", "eval_info", "usage_changes", "content_
 # Without it every visitor search falls to the complete-contract path for the ~2 h 40 min jobs needs to
 # rebuild 416k documents. Keyed by the current hash, so any later policy change ends it by itself; jobs still
 # rebuilds every document under the new hash, after which the entry does nothing.
-# 11-13 (a05): selection.py lets a forward geocoding task never lead with a reverse geocoder; documents do not
-# depend on the chosen tool. 2,995 sampled listings built byte-identically with relay-frontend-20261113-r2
-# (40851c1a) and this code (5d3d8f6a). The 11-13 relay entry (40851c1a -> d1d9688a) is removed: tonight's
-# rebuild leaves no d1d9688a document that a 5d3d8f6a release would need.
+# 11-16 (B+C bundle): selection.py admission words (B), the clock and trait rules (C) and the graph cap reader leave
+# every document byte-identical: 2,995 sampled listings built with day15-frontend-20261115-r1 (5d3d8f6a) and this
+# code (1c7ba78b) gave the same sha256 for all 2,995. The a05 entry (5d3d8f6a -> 40851c1a) is replaced: the 11-14
+# rebuild left no 40851c1a document that this release would need.
 COMPATIBLE_POLICIES = {
-    "5d3d8f6a1d61faac5da83354fa3ebff7a61702a5b89c83a2824d2d3327b9c54c":
-        ("40851c1a2575526dae44743875407043c6abc5f431f98919692f59f4d6f6def5",),
+    "1c7ba78b411f6a09af1e72ff75d1b1e2fed43a28801b3e8956be45aac1c2b332":
+        ("5d3d8f6a1d61faac5da83354fa3ebff7a61702a5b89c83a2824d2d3327b9c54c",),
 }
 
 

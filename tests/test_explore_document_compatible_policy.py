@@ -31,3 +31,9 @@ def test_a_later_policy_change_ends_the_compatibility(monkeypatch):
     calls = []
     reader._each_policy(None, [1], lambda store, ids, policy: calls.append(policy) or {})
     assert calls == ['newer']
+
+
+def test_the_b_and_c_bundle_reads_the_day15_documents():
+    """11-16 B+C: 2,995 sampled documents byte-identical between 5d3d8f6a and this code's policy."""
+    current = reader.documents.policy_hash()
+    assert reader.accepted_policies() == (current, '5d3d8f6a1d61faac5da83354fa3ebff7a61702a5b89c83a2824d2d3327b9c54c')
