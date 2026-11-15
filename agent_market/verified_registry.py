@@ -43,6 +43,10 @@ HEADER_FIELDS = ("name", "description", "isRequired", "isSecret", "format", "def
 SELECT_PAGE = ("SELECT id, name, description, url, details, trial_info, eval_grade FROM resources WHERE id>? "
                "AND active=1 AND kind='mcp' AND source='mcp-registry' AND eval_grade='A' AND health_status='healthy' "
                "AND trial_ok=1 AND (auth_method IS NULL OR auth_method IN ('none','unknown')) ORDER BY id LIMIT 1000")
+# E6 lifecycle signals (tool_lifecycle.py): every official-registry MCP row, once a day, for unresponsive servers and
+# similar names. About 44,000 rows and 10 MB of details (11-15), read in id pages like the snapshot.
+SELECT_OFFICIAL = ("SELECT id, details, url, health_status, failing_since FROM resources WHERE id>? "
+                   "AND kind='mcp' AND source='mcp-registry' ORDER BY id LIMIT 1000")
 
 
 def data_dir() -> Path:
@@ -147,10 +151,10 @@ def entry(row: dict, now: float, fingerprints: dict | None = None, risky: frozen
     return {"server": server, "_meta": {META_KEY: verification}, "_id": row["id"]}
 
 
-def read_rows(store) -> list[dict]:
+def read_rows(store, sql: str = SELECT_PAGE) -> list[dict]:
     rows, after = [], 0
     while True:
-        page = [dict(r) for r in store.query(SELECT_PAGE, (after,))]
+        page = [dict(r) for r in store.query(sql, (after,))]
         rows.extend(page)
         if len(page) < PAGE_ROWS:
             return rows

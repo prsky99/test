@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse, Response
 
 from .broker.server import RateLimiter
 from . import tool_change_feed as F
+from . import tool_lifecycle as L
 from . import verified_registry as R
 
 BASE = "/registry/verified/v0.1"
@@ -24,11 +25,12 @@ CACHE = "public, max-age=300"
 
 
 def router_for(index: R.SnapshotIndex | None = None, feed_index: F.FeedIndex | None = None,
-               resolve_ip=None) -> APIRouter:
+               resolve_ip=None, lifecycle_index: L.LifecycleIndex | None = None) -> APIRouter:
     """RESOLVE_IP is the front's SecurityManager.resolve_ip (forwarded headers only from trusted proxies);
     without it the socket address is used, never a client-sent header."""
     index = index or R.default_index()
     feed_index = feed_index or F.default_index()
+    lifecycle_index = lifecycle_index or L.default_index()
     router = APIRouter()
     limiter = RateLimiter(60)
 
@@ -109,5 +111,17 @@ def router_for(index: R.SnapshotIndex | None = None, feed_index: F.FeedIndex | N
             return error(400, "Invalid cursor parameter")
         return JSONResponse(body, media_type="application/feed+json",
                             headers={**CORS, "Cache-Control": CACHE, "ETag": etag})
+
+    # E6: unresponsive servers, domains near expiry, similar names (one file a day, rules inside it).
+    @router.get(L.PATH, include_in_schema=False)
+    def lifecycle(request: Request):
+        if not limiter.allow(client(request)):
+            return error(429, "Too many requests", {"Retry-After": "60"})
+        current = lifecycle_index.current()
+        if current is None:
+            return error(503, "The lifecycle signals are preparing", {"Retry-After": "3600"})
+        if request.headers.get("if-none-match") == current.etag:
+            return Response(status_code=304, headers={**CORS, "Cache-Control": CACHE, "ETag": current.etag})
+        return reply(current.data, etag=current.etag)
 
     return router
