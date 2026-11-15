@@ -160,7 +160,7 @@ def test_events_and_held_at_follow_status_changes():
 
 def test_run_once_keeps_judge_state(tmp_path):
     judge.run_once(tmp_path)
-    assert json.loads((tmp_path / "judge_state.json").read_text()) == {"status": {}, "events": []}
+    assert json.loads((tmp_path / "judge_state.json").read_text()) == {"status": {}, "events": [], "gate_passed": {}}
     assert json.loads((tmp_path / "necklaces.json").read_text())["events"] == []
 
 
@@ -207,3 +207,26 @@ def test_testing_counts_must_be_sane():
     for quality in ({"cases_7d": 0, "success_7d": 0}, {"cases_7d": 3, "success_7d": 4}, {"cases_7d": "3", "success_7d": 1},
                     {"cases_7d": 3, "success_7d": True}, {}):
         assert judge.testing_entry(defn, {"quality": quality}) is None
+
+
+def test_the_last_passed_gate_survives_hold_revoke_and_change(tmp_path):
+    """PM R22: held, revoked or changed necklaces keep gate_passed_at so the surface shows the stop notice."""
+    defn = live_defn()
+    summary(tmp_path, "topic-brief")
+    state = {}
+    first = judge.snapshot([defn], {"topic-brief": approval(defn)}, tmp_path, NOW, watch_state={}, judge_state=state)
+    assert first["necklaces"][0]["status"] == "live" and first["necklaces"][0]["gate_passed_at"] == "2026-11-20T03:00:00Z"
+    for appr, reason in ((approval(defn, state="held"), "gate_held"), (approval(defn, state="revoked"), "approval_revoked"),
+                         (approval(defn, version=2), "approval_mismatch")):
+        entry = judge.snapshot([defn], {"topic-brief": appr}, tmp_path, NOW, watch_state={}, judge_state=state)["necklaces"][0]
+        assert (entry["status"], entry["held_reason"], entry["gate_passed_at"]) == ("held", reason, "2026-11-20T03:00:00Z")
+    never = dict(defn, slug="never-passed")
+    entry = judge.snapshot([never], {}, tmp_path, NOW, watch_state={}, judge_state=state)["necklaces"][0]
+    assert entry["gate_passed_at"] is None
+
+
+def test_every_held_reason_has_public_wording():
+    from agent_market.concierge import necklace_surface as ns
+    for reason in ("not_approved", "approval_revoked", "gate_held", "approval_mismatch", "security", "fingerprint_changed",
+                   "no_member", "quality_low", "stage4", "stale_retest", "delta_nonpositive", "manual"):
+        assert ns.REASONS[reason].endswith("."), reason
