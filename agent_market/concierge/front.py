@@ -3980,6 +3980,8 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
     from . import necklace_surface as _necklace_surface  # 11-14 PM: public surface of judged necklaces
     from ..necklaces import service as _necklace_service
     _necklace_surface.RUN = _necklace_service.run_for_surface  # PM F05: the one run entry for Web, MCP and A2A
+    from .necklace_orders import orders_router  # 11-15 plan 3.3: before /necklaces/{slug}, which would take /necklaces/request
+    app.include_router(orders_router(front))
     app.include_router(_necklace_surface.necklace_router(front))
     # Verified MCP registry, official v0.1 shape (docs/VERIFIED_REGISTRY.md): answers from its snapshot file only.
     from ..verified_registry_service import router_for as verified_registry_router

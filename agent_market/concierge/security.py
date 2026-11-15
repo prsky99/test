@@ -210,7 +210,8 @@ class SecurityManager:
         self._ip_inquiry_hits: dict[str, deque] = defaultdict(deque)
         self._feature_hits = {name:defaultdict(deque) for name in
             ('registration_inspect','registration_submit','contact_submit','privacy_request','gateway_connect',
-             'rum','workflow_event','workflow_webapp')}  # 11-11: page signals no longer use up the execution limit
+             'rum','workflow_event','workflow_webapp',
+             'necklace_request')}  # 11-11: page signals no longer use up the execution limit; 11-15 necklace requests
         self._target_domain_hits: dict[str, float] = {}  # domain -> last probe time
 
         # In-flight concurrency counters & FIFO wait queue (>=90% load backpressure)
