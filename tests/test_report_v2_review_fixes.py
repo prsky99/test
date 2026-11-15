@@ -311,3 +311,17 @@ def test_r18_second_day_candidates_are_retested_first_whatever_their_rank(monkey
     assert ids[:2] == [4, 3] and 2 in ids                      # second-day candidates first, best score first
     weekly = [d for d in range(7) if 1 in [c['id'] for c in V.retest_queue([], day=d, now=NOW)]]
     assert len(weekly) == 2                                     # a confirmed pearl twice a week
+
+
+def test_r11_a_carried_verdict_is_the_one_in_force_with_its_own_evaluator(monkeypatch):
+    """11-15 bump to dq-2026-11-15: carrying under the new label merged success days of two evaluators (F01)."""
+    monkeypatch.setattr(V.DQ, 'accuracy', lambda *a, **k: (25, 'answer set test', []))
+    V.save_version({'id': 71, 'role': 'fx.rate', 'tool': 'convert', 'outcome': 'succeeded', 'host': 'fx.example',
+                    'excerpt': '1 USD = 0.92 EUR', 'arguments': {}, 'latency_ms': 1, 'started': time.time()})
+    path = next(V.version_dir(71, 'fx.rate.v1').glob('*.json'))
+    (path.parent / 'scores').mkdir(exist_ok=True)
+    (path.parent / 'scores' / f'{path.stem}.old-eval.json').write_text(json.dumps(
+        {'outcome': 'failed', 'reason': 'unclean answer: error text', 'content_verdict': 'not run', 'evaluator_version': 'old-eval'}))
+    V.rescore()
+    v = V.latest_versions()[0]
+    assert v['outcome'] == 'failed' and v['evaluator_version'] == 'old-eval' and v['verdict_basis'].startswith('carried from old-eval')

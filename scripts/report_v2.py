@@ -45,7 +45,7 @@ BOARD = ROOT / 'logs/ops/status-board.md'
 RULES = 'v2-2026-11-14'
 # Evaluation rules version (current-state review 11-14 F01-F03, F10). Versions scored under different evaluator
 # versions never count together as repeated successes; rescoring writes a score file per version, never over a version.
-EVALUATOR_VERSION = 'dq-2026-11-14b'
+EVALUATOR_VERSION = 'dq-2026-11-15'
 from agent_market.necklaces import gate_rules  # noqa: E402  (운영·SRE 897baf3a: one source for the gate numbers)
 PASS_MARK = gate_rules.REPORT_SCORE
 
@@ -758,6 +758,21 @@ def import_fallbacks(folder=None):
     return done
 
 
+def previous_score(path):
+    """The newest score file of the version at PATH written by another evaluator ({} when none)."""
+    path = Path(path)
+    files = [p for p in (path.parent / 'scores').glob(f'{path.stem}.*.json')
+             if p.name != f'{path.stem}.{EVALUATOR_VERSION}.json'] if (path.parent / 'scores').exists() else []
+    for p in sorted(files, key=lambda p: p.stat().st_mtime, reverse=True):
+        try:
+            fields = json.loads(p.read_text())
+        except (OSError, ValueError):
+            continue
+        return {k: fields[k] for k in ('outcome', 'reason', 'data_quality', 'content_verdict', 'evaluator_version',
+                                       'answer_set', 'judgement') if k in fields}
+    return {}
+
+
 def rescore():
     """Score every stored version again with the current evaluator. The version files stay as they are; each result
     goes to <folder>/scores/<version>.<EVALUATOR_VERSION>.json (F10: no overwrite) and is signed when a key exists.
@@ -791,9 +806,11 @@ def rescore():
                                     else 'no answer source' if acc.get('source', '').startswith('none') else 'not accurate')
             v['verdict_basis'] = 'judged again on the whole answer kept at test time'
         else:
+            # The verdict in force is the newest earlier score file over the version. It is carried with its own
+            # evaluator label, so successes judged by different evaluators still never count together (F01).
+            v.update(previous_score(path))
             v['verdict_basis'] = (f"carried from {v.get('evaluator_version') or 'an earlier evaluator'}: the whole answer "
                                   'was not kept, so the verdict is not judged again (R11)')
-            v['evaluator_version'] = EVALUATOR_VERSION
             v.setdefault('answer_set', answer_set(v, case))
         folder = path.parent / 'scores'
         folder.mkdir(exist_ok=True)

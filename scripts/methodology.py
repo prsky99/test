@@ -84,8 +84,10 @@ def build():
                   'data_quality': DQ.WEIGHTS, 'evidence': DQ.EVIDENCE_WEIGHTS, 'report_text': DQ.WRITING_WEIGHT,
                   'latency_points': [{'up_to_ms': ms, 'points': p} for ms, p in DQ.LATENCY_STEPS],
                   'accuracy_rule': 'points only when the answer matches an answer set or a public reference at the same time; '
-                                   'no answer source means 0',
+                                   'no answer source means 0; expected words match as whole words, words the input already '
+                                   'gives are not asked for, and a task that asks for nothing beyond its input gives 0',
                   'clean_answer_failures': sorted(DQ.UNCLEAN),
+                  'clean_answer_review': sorted(DQ.REVIEW),
                   'completeness_rule': "the share of the role's required output present, times the share of non-blank values, "
                                        'times the items returned against the items asked for; a text answer by the share of '
                                        'its fact checks passed; an empty search with no error is complete, an empty or error '
@@ -97,7 +99,9 @@ def build():
                            'days_count_when': 'accurate and clean, on different KST days, under the same tool, endpoint, '
                                               'tool definition, evaluator version and answer set'},
         'final_pearl': {'rule': 'the top verified pearl of a role', 'one_place_per_registrable_domain_in_a_role': True,
-                        'reranked': 'daily'},
+                        'ranked_by': f'the pass rate of the role tasks given over the last {V.RECENT_DAYS} days, then the '
+                                     'latest score',
+                        'min_recent_pass_rate': V.PEARL_PASS_RATE, 'reranked': 'daily'},
         'necklace_gate': _gate(),
         'roles': roles,
         'limits': ['One call per test with one input; a role is judged on a small number of tasks.',
