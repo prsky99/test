@@ -23,7 +23,7 @@ LIMIT = 8
 QUERIES = {'docs.search.v1': 'machine learning', 'news.search.v1': 'technology'}
 
 
-TOOL_QUERIES = {'search_technical_docs': 'Kubernetes deployment rollout'}  # a library question, not a paper topic
+TOOL_QUERIES = {'search_technical_docs': 'AbortController fetch'}  # a web platform question: MDN only since PM 11-15 17:02
 
 
 def _sample(contract, now, tool=None):

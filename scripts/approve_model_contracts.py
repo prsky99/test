@@ -21,7 +21,7 @@ PAIRS = (
     ('agentconcierge-owned:research-papers', 'Research Papers', 'docs.search.v1', 'search_research_papers'),
     ('agentconcierge-owned:technical-docs', 'Technical Documentation', 'docs.search.v1', 'search_technical_docs'),
 )
-QUERIES = {'search_technical_docs': 'Kubernetes deployment rollout'}
+QUERIES = {'search_technical_docs': 'AbortController fetch'}  # MDN only since PM 11-15 17:02
 
 
 def main():

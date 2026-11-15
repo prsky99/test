@@ -203,14 +203,14 @@ def judge(agent_id: str, case: dict, result: dict | None) -> dict:
     if agent_id == "airport-lookup":
         # The airport's reference point within the case tolerance (5 km) of OurAirports, read from the answer's
         # "lat X lon Y" or structured lat/lon (workflow 11-15, the same truth quakes-near-airport grades with).
+        # One coordinate reader for the runner and the graders (PM 17:28, adapter types): signs and N/S/E/W alike.
         import math
-        import re as _re
+        from ..necklaces.adapter.types import Absent, coordinate
         text = json.dumps(result, ensure_ascii=False, default=str)
-        found = _re.search(r"\blat(?:itude)?\b[\"\s:=]*(-?\d+(?:\.\d+)?)[\"\s,;]+lon(?:gitude)?\b[\"\s:=]*"
-                           r"(-?\d+(?:\.\d+)?)", text, _re.I)
-        if not found:
+        try:
+            lat, lon = coordinate(text)
+        except Absent:
             return {"pass": False, "got": None, "want": [truth["lat"], truth["lon"]]}
-        lat, lon = float(found.group(1)), float(found.group(2))
         p1, p2 = math.radians(lat), math.radians(truth["lat"])
         a = math.sin((p2 - p1) / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(math.radians(truth["lon"] - lon) / 2) ** 2
         km = 6371.0 * 2 * math.asin(min(1.0, math.sqrt(a)))

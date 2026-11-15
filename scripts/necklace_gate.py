@@ -278,9 +278,36 @@ def set_terms(member: str, status: str, source: str, basis: str, by: str = "agen
     path = Path(path or model.TERMS_TABLE)
     data = json.loads(path.read_text(encoding="utf-8"))
     day = today or time.strftime("%Y-%m-%d")
-    before = (data["members"].get(member) or {}).get("status", "unknown")
-    data["members"][member] = {"status": status, "source": source, "checked_at": day, "basis": basis}
+    old = data["members"].get(member) or {}
+    before = old.get("status", "unknown")
+    # other fields of the row (declared_limit, set by set_limit) stay with a new verdict
+    data["members"][member] = {**{k: v for k, v in old.items() if k not in ("status", "source", "checked_at", "basis")},
+                               "status": status, "source": source, "checked_at": day, "basis": basis}
     change = {"member": member, "from": before, "to": status, "source": source, "at": day, "by": by}
+    data.setdefault("changes", []).append(change)
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return change
+
+
+def set_limit(member: str, domain: str, source: str, quote: str, per_day: int | None = None,
+              per_minute: int | None = None, by: str = "agent team", path=None, today=None) -> dict:
+    """A provider's published request limit on a member row (ops 11-15, PM 17:16): the ledger's day total for DOMAIN
+    becomes 20% of it (agent_market.provider_budget.domain_total). The member must already have a verdict; the
+    change is appended to the history like a verdict."""
+    if not source.startswith("https://") or not domain or not quote.strip() or not (per_day or per_minute) \
+            or any(v is not None and (not isinstance(v, int) or v <= 0) for v in (per_day, per_minute)):
+        raise ValueError("an https source, a domain, a short quote and a positive per_day or per_minute")
+    path = Path(path or model.TERMS_TABLE)
+    data = json.loads(path.read_text(encoding="utf-8"))
+    row = data["members"].get(member)
+    if not row:
+        raise ValueError(f"{member} has no terms verdict yet; record it with set-terms first")
+    limit = {"domain": domain, "source": source, "quote": quote.strip()[:200]}
+    limit.update({k: v for k, v in (("per_day", per_day), ("per_minute", per_minute)) if v})
+    before = row.get("declared_limit")
+    row["declared_limit"] = limit
+    change = {"member": member, "declared_limit_from": before, "declared_limit_to": limit, "source": source,
+              "at": today or time.strftime("%Y-%m-%d"), "by": by}
     data.setdefault("changes", []).append(change)
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return change
@@ -321,11 +348,23 @@ def main(argv=None) -> int:
     terms.add_argument("source", help="https URL of the terms read")
     terms.add_argument("basis", help="the clause, named not quoted")
     terms.add_argument("--by", default="agent team")
+    lim = sub.add_parser("set-limit", help="record a provider's published request limit on a member row")
+    lim.add_argument("member")
+    lim.add_argument("domain", help="registrable domain the limit applies to")
+    lim.add_argument("source", help="https URL that states the limit")
+    lim.add_argument("quote", help="the limit's words, short")
+    lim.add_argument("--per-day", type=int)
+    lim.add_argument("--per-minute", type=int)
+    lim.add_argument("--by", default="agent team")
     plan = sub.add_parser("schedule", help="gate days: necklaces with no shared provider domain together")
     plan.add_argument("slugs", nargs="*", help="default: every candidate and qualifying definition")
     args = parser.parse_args(argv)
     if args.command == "set-terms":
         print(json.dumps(set_terms(args.member, args.status, args.source, args.basis, by=args.by), ensure_ascii=False))
+        return 0
+    if args.command == "set-limit":
+        print(json.dumps(set_limit(args.member, args.domain, args.source, args.quote, args.per_day, args.per_minute,
+                                   by=args.by), ensure_ascii=False))
         return 0
     if args.command == "schedule":
         found = {d["slug"]: d for d in model.load_all()}

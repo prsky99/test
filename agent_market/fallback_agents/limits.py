@@ -163,7 +163,7 @@ def _table(clock, sleep) -> dict[str, HostLimiter]:
         "api.gleif.org": HostLimiter(1.0, 50, 60.0, clock, sleep),      # GLEIF: 60 per minute
         "www.sec.gov": HostLimiter(0.2, 300, 60.0, clock, sleep),       # SEC: at most 10 per second
         "data.sec.gov": HostLimiter(0.2, 300, 60.0, clock, sleep),
-        "en.wikipedia.org": HostLimiter(0.2, 300, 60.0, clock, sleep),
+        "en.wikipedia.org": HostLimiter(0.2, 40, 60.0, clock, sleep),  # Wikimedia: 200/min with a User-Agent; ours 20%
         "export.arxiv.org": HostLimiter(3.0, None, None, clock, sleep),  # arXiv: one request every 3 s
         "api.worldbank.org": HostLimiter(0.2, 300, 60.0, clock, sleep),
         "api.met.no": HostLimiter(0.2, 300, 60.0, clock, sleep),  # MET Norway: under 20 per second in total
@@ -171,11 +171,11 @@ def _table(clock, sleep) -> dict[str, HostLimiter]:
         "www.ecb.europa.eu": HostLimiter(2.0, 60, 3600.0, clock, sleep),
         "earthquake.usgs.gov": HostLimiter(1.0, 60, 3600.0, clock, sleep),
         "davidmegginson.github.io": HostLimiter(60.0, 4, 86400.0, clock, sleep),  # airport CSV: a few a day
-        "en.wiktionary.org": HostLimiter(0.2, 300, 60.0, clock, sleep),
+        "en.wiktionary.org": HostLimiter(0.2, 40, 60.0, clock, sleep),  # same Wikimedia API limits
         "data.iana.org": HostLimiter(10.0, 24, 86400.0, clock, sleep),
         "api.gdeltproject.org": HostLimiter(5.0, 200, 86400.0, clock, sleep),  # GDELT DOC API: one every 5 s (ours)
         "geocoding.geo.census.gov": HostLimiter(1.0, 600, 3600.0, clock, sleep),  # Census Geocoder: one a second (ours)
         "registry.modelcontextprotocol.io": HostLimiter(1.0, 600, 3600.0, clock, sleep),  # official MCP Registry
-        "www.wikidata.org": HostLimiter(0.2, 300, 60.0, clock, sleep),  # sequential requests only
+        "www.wikidata.org": HostLimiter(0.2, 40, 60.0, clock, sleep),  # sequential; Wikimedia API 200/min, ours 20%
         "query.wikidata.org": HostLimiter(0.5, 60, 60.0, clock, sleep),  # WDQS: few parallel, 60 s of query time a minute
     }

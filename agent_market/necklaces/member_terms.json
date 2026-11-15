@@ -5,7 +5,13 @@
       "status": "allowed",
       "source": "https://datakoot.com/terms",
       "checked_at": "2026-11-15",
-      "basis": "section 3 Acceptable use: automated agent access is expected and welcome within plan limits; no bulk resale as a competing dataset"
+      "basis": "section 3 Acceptable use: automated agent access is expected and welcome within plan limits; no bulk resale as a competing dataset",
+      "declared_limit": {
+        "domain": "datakoot.com",
+        "source": "https://datakoot.com/terms",
+        "quote": "The free tier allows 100 keyless calls per UTC day, counted per caller",
+        "per_day": 100
+      }
     },
     "38608": {
       "status": "silent",
@@ -47,7 +53,14 @@
       "status": "allowed",
       "source": "https://dmvtransit.com/mcp-server",
       "checked_at": "2026-11-15",
-      "basis": "Limits section: keyless public MCP server for any MCP app, 120 requests a minute and 3,000 a day per network; addresses are geocoded through Google Maps or geocode.maps.co"
+      "basis": "Limits section: keyless public MCP server for any MCP app, 120 requests a minute and 3,000 a day per network; addresses are geocoded through Google Maps or geocode.maps.co",
+      "declared_limit": {
+        "domain": "dmvtransit.com",
+        "source": "https://dmvtransit.com/mcp-server",
+        "quote": "Limits: 120 per minute and 3,000 per day per network",
+        "per_day": 3000,
+        "per_minute": 120
+      }
     },
     "367249": {
       "status": "allowed",
@@ -134,10 +147,22 @@
       "basis": "Section H API Terms: unauthenticated public reads allowed while necklace runs are free; re-judge when runs are charged (resale)"
     },
     "241694": {
-      "status": "prohibits",
-      "source": "https://upstash.com/trust/context7addendum.pdf",
+      "status": "allowed",
+      "source": "https://developer.mozilla.org/en-US/docs/MDN/Writing_guidelines/Attrib_copyright_license",
       "checked_at": "2026-11-15",
-      "basis": "Context7 Addendum section 2: license only for internal development, educational and evaluation use; section 4 no commercial redistribution"
+      "basis": "MDN only since PM 11-15 17:02 (Context7 path removed): MDN prose CC BY-SA 2.5 with Mozilla Contributors attribution and a link per page"
+    },
+    "agent:wikipedia-summary": {
+      "status": "allowed",
+      "source": "https://en.wikipedia.org/wiki/Wikipedia:Copyrights",
+      "checked_at": "2026-11-15",
+      "basis": "Wikipedia text CC BY-SA 4.0 with attribution; API use under the Wikimedia API rate limits (compliant User-Agent)",
+      "declared_limit": {
+        "domain": "wikipedia.org",
+        "source": "https://www.mediawiki.org/wiki/Wikimedia_APIs/Rate_limits",
+        "quote": "User-Agent only: unauthenticated bot requests with a compliant User-Agent header, 200 req/min; concurrent requests 3 or fewer",
+        "per_minute": 200
+      }
     }
   },
   "changes": [
@@ -322,6 +347,62 @@
       "from": "unknown",
       "to": "prohibits",
       "source": "https://upstash.com/trust/context7addendum.pdf",
+      "at": "2026-11-15",
+      "by": "agent team"
+    },
+    {
+      "member": "241694",
+      "from": "prohibits",
+      "to": "allowed",
+      "source": "https://developer.mozilla.org/en-US/docs/MDN/Writing_guidelines/Attrib_copyright_license",
+      "at": "2026-11-15",
+      "by": "agent team"
+    },
+    {
+      "member": "agent:wikipedia-summary",
+      "from": "unknown",
+      "to": "allowed",
+      "source": "https://en.wikipedia.org/wiki/Wikipedia:Copyrights",
+      "at": "2026-11-15",
+      "by": "agent team"
+    },
+    {
+      "member": "agent:wikipedia-summary",
+      "declared_limit_from": null,
+      "declared_limit_to": {
+        "domain": "wikipedia.org",
+        "source": "https://www.mediawiki.org/wiki/Wikimedia_APIs/Rate_limits",
+        "quote": "User-Agent only: unauthenticated bot requests with a compliant User-Agent header, 200 req/min; concurrent requests 3 or fewer",
+        "per_minute": 200
+      },
+      "source": "https://www.mediawiki.org/wiki/Wikimedia_APIs/Rate_limits",
+      "at": "2026-11-15",
+      "by": "agent team"
+    },
+    {
+      "member": "264482",
+      "declared_limit_from": null,
+      "declared_limit_to": {
+        "domain": "dmvtransit.com",
+        "source": "https://dmvtransit.com/mcp-server",
+        "quote": "Limits: 120 per minute and 3,000 per day per network",
+        "per_day": 3000,
+        "per_minute": 120
+      },
+      "source": "https://dmvtransit.com/mcp-server",
+      "at": "2026-11-15",
+      "by": "agent team"
+    },
+    {
+      "member": "37322",
+      "declared_limit_from": null,
+      "declared_limit_to": {
+        "domain": "datakoot.com",
+        "source": "https://datakoot.com/terms",
+        "quote": "The free tier allows 100 keyless calls per UTC day, counted per caller",
+        "per_day": 100
+      },
+      "source": "https://datakoot.com/terms",
       "at": "2026-11-15",
       "by": "agent team"
     }

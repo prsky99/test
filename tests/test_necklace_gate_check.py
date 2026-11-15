@@ -252,3 +252,24 @@ def test_terms_changes_leave_their_history_and_the_gate_counts_unknown(tmp_path)
     assert again["from"] == "allowed" and _json.loads(copy.read_text())["changes"][-1] == again
     out, _ = run(set())
     assert out["terms_unknown"] == sum(1 for s in out["slots"] for m in s["members"] if m["terms"] == "unknown")
+
+
+def test_set_limit_records_a_published_limit_and_set_terms_keeps_it(tmp_path):
+    """ops 11-15 (PM 17:16): a member row carries declared_limit for the ledger; a later verdict keeps it."""
+    import json
+    from scripts.necklace_gate import set_limit, set_terms
+    from agent_market import provider_budget
+    path = tmp_path / "terms.json"
+    path.write_text(json.dumps({"members": {}, "changes": []}))
+    import pytest
+    with pytest.raises(ValueError):
+        set_limit("37322", "datakoot.com", "https://datakoot.com/terms", "100 a day", per_day=100, path=path)
+    set_terms("37322", "allowed", "https://datakoot.com/terms", "s3", path=path, today="2026-11-15")
+    set_limit("37322", "datakoot.com", "https://datakoot.com/terms", "100 keyless calls per UTC day",
+              per_day=100, path=path, today="2026-11-15")
+    set_terms("37322", "allowed", "https://datakoot.com/terms", "s3 again", path=path, today="2026-11-16")
+    row = json.loads(path.read_text())["members"]["37322"]
+    assert row["basis"] == "s3 again" and row["declared_limit"]["per_day"] == 100
+    assert provider_budget.declared("datakoot.com", path) == {"per_day": 100}
+    with pytest.raises(ValueError):
+        set_limit("37322", "datakoot.com", "http://x", "q", per_day=1, path=path)
