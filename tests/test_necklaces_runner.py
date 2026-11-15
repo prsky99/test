@@ -176,8 +176,9 @@ class FakeBudget:
         self.reserved.append((url, system))
         return (True, "ok") if self.allow(url) else (False, "system_share")
 
-    def note(self, url, system, status):
+    def note(self, url, system, status, evidence=None):
         self.noted.append((url, system, status))
+        self.evidence = evidence
 
 
 def test_budget_wraps_external_calls_only_and_denial_moves_on():
@@ -190,6 +191,7 @@ def test_budget_wraps_external_calls_only_and_denial_moves_on():
     assert out["attempts"]["papers"][0]["error_class"] == "budget_system_share"
     assert out["slots"]["papers"]["stage"] == 2
     assert ("https://p3.example/3", "necklace_retest", 429) in budget.noted
+    assert budget.evidence is None             # a bare PROVIDER_429 carries no pause evidence: the ledger refuses it
     assert all(not url.endswith("/11") for url, _ in budget.reserved)   # AgentValCon fallback not counted
     assert out["slots"]["news"]["stage"] == 3
 

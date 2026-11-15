@@ -113,7 +113,7 @@ def get(url: str, *, limiters: dict, http=None, params=None, seconds: float, lim
                     github_observe(response.headers, system or "fallback_live")
                 if system:
                     from ..provider_budget import note
-                    note(url, system, response.status_code)
+                    note(url, system, response.status_code, evidence="provider_http")
             finally:
                 client.close()
     if response.status_code in (429, 503):

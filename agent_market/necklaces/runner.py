@@ -807,7 +807,9 @@ def budgeted_caller(caller, system: str, url_of, budget=None):
         except Exception as exc:
             code = str(getattr(exc, "status", "") or getattr(exc, "error_code", "") or "")
             if any(mark in code.upper() for mark in RATE_LIMITED):
-                budget.note(url, system, 429)
+                # only an error that carries the provider's own pause reaches the ledger as one; anything else
+                # (our relay, our engine) is refused and logged by the ledger's gatekeeper
+                budget.note(url, system, 429, evidence=getattr(exc, "pause_evidence", None))
             raise
     return call
 

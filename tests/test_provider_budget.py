@@ -39,7 +39,7 @@ def test_the_daily_total_and_each_system_share_hold_across_systems(tmp_path):
 def test_a_429_stops_every_system_on_that_domain_for_the_rest_of_the_day(tmp_path):
     now = at(14, 9)
     assert pb.reserve('https://a.example.com/', 'role_tests', now=now, directory=tmp_path)[0]
-    assert pb.note('https://a.example.com/', 'role_tests', 429, now=now, directory=tmp_path)
+    assert pb.note('https://a.example.com/', 'role_tests', 429, now=now, directory=tmp_path, evidence=pb.PROVIDER_HTTP)
     assert not pb.note('https://a.example.com/', 'role_tests', 200, now=now, directory=tmp_path)
     for system in ('necklace_retest', 'gate', 'pearl_batch', 'substitute_tests'):
         assert pb.reserve('https://b.example.com/', system, now=at(14, 23), directory=tmp_path) == (False, 'paused_429')
@@ -176,3 +176,25 @@ def test_rdap_reads_count_per_rdap_server_not_per_looked_up_domain(tmp_path):
     assert pb.reserve('https://rdap.identitydigital.services/rdap/domain/x.io', 'lifecycle_rdap', now=now,
                       directory=tmp_path) == (True, 'ok')
     assert pb.status(pb.today(now), tmp_path)['domains']['verisign.com']['by'] == {'lifecycle_rdap': 50}
+
+
+def test_a_pause_needs_evidence_that_the_provider_sent_the_429(tmp_path, caplog):
+    """The ledger's gatekeeper (PM 11:5x, 11-15): 11-14 05:11 and 11-15 11:42 our relay's own 429 paused providers."""
+    import json
+    now, url = at(15), 'https://filings.tools/mcp'
+    assert pb.note(url, 'gate', 429, now=now, directory=tmp_path) is False                     # no evidence
+    assert pb.note(url, 'gate', 429, now=now, directory=tmp_path, evidence={'origin': 'provider_rpc'}) is False
+    assert pb.note('https://agentconcierge.biz/api/gateway/mcp/58997', 'gate', 429, now=now, directory=tmp_path,
+                   evidence='provider_http') is False                                         # our own host
+    assert pb.reserve(url, 'gate', now=now, directory=tmp_path) == (True, 'ok')               # still open
+    entry = json.loads((tmp_path / f'{pb.today(now)}.json').read_text())['domains']['filings.tools']
+    assert entry['pause_refused']['count'] == 2 and entry['pause_refused']['last']['why'] == 'no_evidence'
+    assert 'refused' in caplog.text
+    assert pb.note(url, 'gate', 429, now=now, directory=tmp_path,
+                   evidence={'origin': 'provider_rpc', 'retry_after': 60, 'message': 'paused'}) is True
+    assert pb.reserve(url, 'gate', now=now, directory=tmp_path) == (False, 'paused_429')
+    entry = json.loads((tmp_path / f'{pb.today(now)}.json').read_text())['domains']['filings.tools']
+    assert entry['paused']['evidence'] == {'origin': 'provider_rpc', 'retry_after': 60, 'message': 'paused'}
+    other = 'https://api.example.org/x'
+    assert pb.note(other, 'reference_checks', 429, now=now, directory=tmp_path, evidence=pb.PROVIDER_HTTP) is True
+    assert pb.note(other, 'reference_checks', 200, now=now, directory=tmp_path) is False

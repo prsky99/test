@@ -105,11 +105,11 @@ def test_fetch_asks_the_ledger_first_and_reports_the_status():
             return b'{"ok": 1}'
     out = gold_r3.fetch("https://api.gleif.org/x", opener=lambda req, timeout: Resp(),
                         reserve=lambda url, system: (seen.append(("reserve", system)) or (True, None)),
-                        note=lambda url, system, code: seen.append(("note", code)))
+                        note=lambda url, system, code, evidence=None: seen.append(("note", code)))
     assert out == {"ok": 1} and seen == [("reserve", "adhoc"), ("note", 200)]
     try:
         gold_r3.fetch("https://api.gleif.org/x", opener=lambda req, timeout: Resp(),
-                      reserve=lambda url, system: (False, "domain total used"), note=lambda *a: None)
+                      reserve=lambda url, system: (False, "domain total used"), note=lambda *a, **kw: None)
     except RuntimeError as exc:
         assert "domain total used" in str(exc)
     else:

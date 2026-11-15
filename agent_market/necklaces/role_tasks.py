@@ -106,11 +106,11 @@ def _fetch_feed(get=None) -> dict:
     request = urllib.request.Request(KEV_FEED, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
     try:
         with urllib.request.urlopen(request, timeout=60) as response:
-            note(KEV_FEED, REFERENCE_SYSTEM, getattr(response, "status", 200))
+            note(KEV_FEED, REFERENCE_SYSTEM, getattr(response, "status", 200), evidence="provider_http")
             return json.loads(response.read().decode("utf-8"))
     except Exception as exc:
         if getattr(exc, "code", None):
-            note(KEV_FEED, REFERENCE_SYSTEM, exc.code)
+            note(KEV_FEED, REFERENCE_SYSTEM, exc.code, evidence="provider_http")
         raise
 
 

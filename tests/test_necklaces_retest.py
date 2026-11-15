@@ -111,7 +111,7 @@ def test_relay_throttle_is_not_a_provider_pause():
         def reserve(self, url, system, n=1):
             return True, "ok"
 
-        def note(self, url, system, status):
+        def note(self, url, system, status, evidence=None):
             noted.append(url)
 
     def client_with(resp):

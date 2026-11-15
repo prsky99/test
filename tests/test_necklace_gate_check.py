@@ -136,7 +136,7 @@ def test_our_relay_429_never_pauses_a_provider_in_the_ledger():
     class Paced(hx.BaseTransport):
         def handle_request(self, request):
             return hx.Response(429, json={"detail": "Too many agent executions: 10 tools/call or messages a minute"})
-    ledger = dict(reserve=lambda url, system: (True, None), note=lambda *a: noted.append(a),
+    ledger = dict(reserve=lambda url, system: (True, None), note=lambda *a, **kw: noted.append(a + (kw.get("evidence"),)),
                   pacer=type("P", (), {"wait_for": lambda self, n: None})())
     member = {"kind": "external", "resource_id": 1, "tool": "t", "registrable_domain": "a.com"}
     with hx.Client(transport=Paced()) as client:
@@ -150,3 +150,4 @@ def test_our_relay_429_never_pauses_a_provider_in_the_ledger():
     with hx.Client(transport=ProviderPause()) as client:
         necklace_gate.probe(client, "https://x.test", member, {}, **ledger)
     assert [n[2] for n in noted] == [429]                    # a real provider pause is still reported
+    assert noted[0][3]["origin"] == "provider_rpc" and noted[0][3]["retry_after"] == 60   # with its evidence

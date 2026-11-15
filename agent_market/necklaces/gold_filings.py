@@ -68,12 +68,12 @@ def fetch_text(url: str, reserve=None, note=None, opener=None) -> str:
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept-Encoding": "identity"})
     try:
         with (opener or urllib.request.urlopen)(request, timeout=120) as response:
-            note(url, SYSTEM, getattr(response, "status", 200))
+            note(url, SYSTEM, getattr(response, "status", 200), evidence="provider_http")
             return response.read().decode("latin-1")
     except Exception as exc:
         code = getattr(exc, "code", None)
         if code:
-            note(url, SYSTEM, code)
+            note(url, SYSTEM, code, evidence="provider_http")
         raise
 
 

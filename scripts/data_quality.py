@@ -360,7 +360,7 @@ def _fetch_json(url):
     if not ok:
         return None
     resp = httpx.get(url, timeout=10, headers={'User-Agent': UA})
-    provider_budget.note(url, 'reference_checks', resp.status_code)
+    provider_budget.note(url, 'reference_checks', resp.status_code, evidence='provider_http')
     if github:
         provider_budget.github_observe(resp.headers, 'reference_checks')
     return resp.json() if resp.status_code == 200 else None

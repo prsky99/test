@@ -133,7 +133,11 @@ def gateway_caller(client, base: str = BASE, pacer: RelayPacer | None = None, sl
             err = data.get("error") or {}
             detail = err.get("data") if isinstance(err.get("data"), dict) else {}
             if detail.get("retry_after") or "pause" in str(err.get("message", "")).lower():
-                raise _fail("PROVIDER_429", str(err.get("message")))   # the provider asked for a pause
+                error = _fail("PROVIDER_429", str(err.get("message")))   # the provider asked for a pause
+                # the ledger pauses a domain only with this evidence (provider_budget.pause_evidence)
+                error.pause_evidence = {"origin": "provider_rpc", "retry_after": detail.get("retry_after"),
+                                        "message": str(err.get("message") or "")}
+                raise error
             reason = (getattr(r, "headers", None) or {}).get("X-Execution-Error")
             ref = (getattr(r, "headers", None) or {}).get("X-Execution-Reference")
             raise _fail(f"relay_{r.status_code}", str(err.get("message") or data.get("detail") or f"HTTP {r.status_code}")
@@ -362,11 +366,11 @@ def _fetch_json(url: str):
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
     try:
         with urllib.request.urlopen(request, timeout=20) as response:
-            note(url, "reference_checks", getattr(response, "status", 200))
+            note(url, "reference_checks", getattr(response, "status", 200), evidence="provider_http")
             return json.loads(response.read().decode("utf-8"))
     except Exception as exc:                              # noqa: BLE001 - no reference means the case is not graded
         if getattr(exc, "code", None):
-            note(url, "reference_checks", exc.code)
+            note(url, "reference_checks", exc.code, evidence="provider_http")
         return None
 
 
@@ -523,10 +527,10 @@ def _fetch_robots(url: str):
         return None
     try:
         with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": USER_AGENT}), timeout=15) as r:
-            note(url, "reference_checks", getattr(r, "status", 200))
+            note(url, "reference_checks", getattr(r, "status", 200), evidence="provider_http")
             return 200, r.read(500_000).decode("utf-8", "replace")
     except urllib.error.HTTPError as exc:
-        note(url, "reference_checks", exc.code)
+        note(url, "reference_checks", exc.code, evidence="provider_http")
         return (exc.code, "") if exc.code in (404, 410) else None
     except Exception:                                     # noqa: BLE001 - unreadable: the case is not graded
         return None

@@ -174,7 +174,8 @@ def refresh(lookup, fetch, *, data: Path | None = None, root: Path = ROOT, now: 
     """Measure every member once. LOOKUP(rid) -> resource row; FETCH(url) -> full tool list (raises on failure)."""
     from . import provider_budget
     reserve = reserve or (lambda url: provider_budget.reserve(url, BUDGET_SYSTEM))
-    note = note or (lambda url, status: provider_budget.note(url, BUDGET_SYSTEM, status))
+    note = note or (lambda url, status: provider_budget.note(url, BUDGET_SYSTEM, status,
+                                                                     evidence=provider_budget.PROVIDER_HTTP))
     data = Path(data or DATA)
     path = data / "pearls.json"
     try:

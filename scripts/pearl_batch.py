@@ -114,7 +114,7 @@ class Pacer:
     def called(self, host, code=None, headers=None, a2a=False, url=None):
         if self.system and url and code is not None:
             from agent_market.provider_budget import note
-            note(url, self.system, code)
+            note(url, self.system, code, evidence="provider_http")
         self.state['calls'][host] = self.state['calls'].get(host, 0) + 1
         if a2a:
             self.state['a2a'][host] = self.state['a2a'].get(host, 0) + 1

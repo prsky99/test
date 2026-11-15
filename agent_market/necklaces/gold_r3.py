@@ -175,10 +175,10 @@ def fetch(url: str, *, opener=urllib.request.urlopen, reserve=None, note=None, t
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
     try:
         with opener(request, timeout=timeout) as response:
-            note(url, SYSTEM, getattr(response, "status", 200))
+            note(url, SYSTEM, getattr(response, "status", 200), evidence="provider_http")
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
-        note(url, SYSTEM, exc.code)
+        note(url, SYSTEM, exc.code, evidence="provider_http")
         raise
 
 

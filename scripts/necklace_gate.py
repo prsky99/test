@@ -81,7 +81,8 @@ def _note(note, target, response):
     error = (body or {}).get("error") if isinstance(body, dict) else None
     detail = (error or {}).get("data") if isinstance((error or {}).get("data"), dict) else {}
     if detail.get("retry_after") or "pause" in str((error or {}).get("message", "")).lower():
-        note(target, "gate", 429)
+        note(target, "gate", 429, evidence={"origin": "provider_rpc", "retry_after": detail.get("retry_after"),
+                                            "message": str((error or {}).get("message") or "")})
 
 
 def _answered(response) -> bool:

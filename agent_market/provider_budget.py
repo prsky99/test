@@ -17,12 +17,15 @@ Rules (deploy/PROVIDER_BUDGET.md)
 """
 import fcntl
 import json
+import logging
 import os
 import time
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
+
+log = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parents[1]
 # A release folder has no gateway-data of its own; services run from the repository root (launchd WorkingDirectory),
@@ -147,15 +150,49 @@ def reserve(url, system, n=1, now=None, directory=None):
         return True, 'ok'
 
 
-def note(url, system, status, now=None, directory=None):
-    """Record a provider answer. A 429 pauses the domain for every system for the rest of the day."""
+# Hosts whose answers are ours (relay, edge, fallbacks): a 429 from them is our own pace, never a provider's.
+OUR_DOMAINS = ('agentconcierge.biz',)
+PROVIDER_HTTP = 'provider_http'      # the status came on a response from the provider's own host, called directly
+PROVIDER_RPC = 'provider_rpc'        # our relay passed on the provider's own pause (JSON-RPC error with retry_after)
+
+
+def pause_evidence(url, evidence):
+    """(kept evidence, None) when a 429 may pause the domain, else (None, why). The ledger's gatekeeper (PM 11:5x,
+    11-15): twice (11-14 05:11, 11-15 11:42) our relay's own 429 was written as a provider's and paused providers
+    for every system for the day, so a pause now needs the caller to say where the 429 came from."""
+    origin = evidence if isinstance(evidence, str) else (evidence or {}).get('origin')
+    if domain(url) in OUR_DOMAINS:
+        return None, 'our_host'
+    if origin == PROVIDER_HTTP:
+        return {'origin': PROVIDER_HTTP}, None
+    if origin == PROVIDER_RPC and isinstance(evidence, dict):
+        retry = evidence.get('retry_after')
+        message = str(evidence.get('message') or '').strip()[:200]
+        if isinstance(retry, (int, float)) and not isinstance(retry, bool) or message:
+            return {'origin': PROVIDER_RPC, 'retry_after': retry, 'message': message}, None
+    return None, 'no_evidence'
+
+
+def note(url, system, status, now=None, directory=None, evidence=None):
+    """Record a provider answer. A 429 pauses the domain for every system for the rest of the day, but only with
+    evidence that the provider sent it (pause_evidence); a request without it is refused, recorded on the domain
+    as pause_refused and logged, and the domain stays open. Returns True when the domain was paused."""
     if status != 429:
         return False
     name = domain(url)
+    stamp = datetime.fromtimestamp(time.time() if now is None else now, KST).strftime('%H:%M:%S')
+    kept, why = pause_evidence(url, evidence)
     with _ledger(today(now), directory) as data:
         entry = data['domains'].setdefault(name, {'total': 0, 'by': {}})
-        entry['paused'] = {'at': datetime.fromtimestamp(time.time() if now is None else now, KST).strftime('%H:%M:%S'),
-                           'by': system}
+        if why:
+            refused = entry.setdefault('pause_refused', {'count': 0})
+            refused['count'] += 1
+            refused['last'] = {'at': stamp, 'by': system, 'why': why}
+        else:
+            entry['paused'] = {'at': stamp, 'by': system, 'evidence': kept}
+    if why:
+        log.warning('provider_budget: pause of %s by %s refused (%s)', name, system, why)
+        return False
     return True
 
 
