@@ -31,23 +31,23 @@ def test_prune_removes_only_older_rows_slice_by_slice(tmp_path):
     store = _store(tmp_path, times)
     calls = _count_tx(store)
     before = 1000 + 3600                                   # the first hour is old
-    assert store.prune_health(before, slice_seconds=600, max_slices=36) == 60
+    assert store.prune_health(before, slice_seconds=600, max_slices=36, pause=0) == 60
     assert len(calls) == 6                                 # six ten-minute slices, one transaction each
     left = [r['at'] for r in store.query('SELECT at FROM health_checks ORDER BY at')]
     assert left == [t for t in times if t >= before]
-    assert store.prune_health(before) == 0                 # nothing older left: no transaction
+    assert store.prune_health(before, pause=0) == 0                 # nothing older left: no transaction
 
 
 def test_a_backlog_is_spread_over_calls_by_the_slice_cap(tmp_path):
     store = _store(tmp_path, [60 * i for i in range(600)])   # ten hours
-    assert store.prune_health(60 * 600, slice_seconds=600, max_slices=3) == 30
+    assert store.prune_health(60 * 600, slice_seconds=600, max_slices=3, pause=0) == 30
     assert store.query('SELECT MIN(at) AS oldest FROM health_checks')[0]['oldest'] == 1800
-    assert store.prune_health(60 * 600, slice_seconds=600, max_slices=1000) == 570
+    assert store.prune_health(60 * 600, slice_seconds=600, max_slices=1000, pause=0) == 570
 
 
 def test_sparse_history_skips_empty_gaps(tmp_path):
     store = _store(tmp_path, [0, 10, 100_000, 200_000])
-    assert store.prune_health(150_000, slice_seconds=600, max_slices=2) == 3   # the gap costs no slice
+    assert store.prune_health(150_000, slice_seconds=600, max_slices=2, pause=0) == 3   # the gap costs no slice
 
 
 def test_collector_prunes_hourly():
@@ -92,8 +92,8 @@ try:
     raw = connect()
     raw.execute("INSERT INTO health_checks(resource_id,at,outcome,status_code,latency_ms) "
                 "SELECT 1, 1000 + 60*g, 'up', 200, 10 FROM generate_series(0, 119) g")
-    first = store.prune_health(1000 + 3600, slice_seconds=600, max_slices=2)
-    rest = store.prune_health(1000 + 3600)
+    first = store.prune_health(1000 + 3600, slice_seconds=600, max_slices=2, pause=0)
+    rest = store.prune_health(1000 + 3600, pause=0)
     left = raw.execute("SELECT COUNT(*), MIN(at) FROM health_checks").fetchone()
     print(json.dumps({'first': first, 'rest': rest, 'left': left[0], 'oldest': left[1]}))
     raw.close()

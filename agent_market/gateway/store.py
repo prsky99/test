@@ -2114,7 +2114,7 @@ class Store:
             "SELECT at, outcome, status_code, latency_ms, error, observed_price FROM health_checks WHERE resource_id=? ORDER BY at DESC LIMIT ?",
             (rid, limit))]
 
-    def prune_health(self, before: float, slice_seconds: float = 600, max_slices: int = 36) -> int:
+    def prune_health(self, before: float, slice_seconds: float = 600, max_slices: int = 36, pause: float = 0.2) -> int:
         """Delete health checks older than `before`, oldest first, in time slices of `slice_seconds`, each slice its
         own short transaction, at most `max_slices` per call (the rest waits for the next call).
 
@@ -2127,6 +2127,8 @@ class Store:
                 break
             with self.tx() as db:
                 removed += db.execute("DELETE FROM health_checks WHERE at<?", (min(before, oldest + slice_seconds),)).rowcount
+            if pause:   # 11-15 PM: let other writers take the single writer lock between slices
+                time.sleep(pause)
         return removed
 
     def record_crawl_run(self, source: str, report: dict) -> None:
