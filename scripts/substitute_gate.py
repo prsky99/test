@@ -32,7 +32,22 @@ DOMAINS = {'nvd-cve': ['https://services.nvd.nist.gov/'], 'cisa-kev': ['https://
            'package-registry': ['https://registry.npmjs.org/', 'https://pypi.org/'], 'depsdev-package': ['https://api.deps.dev/'],
            'cve-org': ['https://cveawg.mitre.org/'], 'github-advisory': ['https://api.github.com/'],
            'gleif-lei': ['https://api.gleif.org/', 'https://query.wikidata.org/'], 'sec-edgar': ['https://data.sec.gov/'],
-           'wikipedia-summary': ['https://en.wikipedia.org/']}
+           'wikipedia-summary': ['https://en.wikipedia.org/'],
+           # The other 20 (R30, agent team 11-15): one URL per registrable domain, since the ledger counts by domain
+           # (www.sec.gov and data.sec.gov are both sec.gov). [] = no outside call (local data or computed).
+           'sec-filings': ['https://data.sec.gov/'], 'software-incident': ['https://api.github.com/'],
+           'scorecard': ['https://api.scorecard.dev/'], 'arxiv-search': ['https://export.arxiv.org/'],
+           'wiki-grounding': ['https://en.wikipedia.org/'], 'wiktionary-define': ['https://en.wiktionary.org/'],
+           'wikidata-place': ['https://query.wikidata.org/'], 'wikidata-book': ['https://query.wikidata.org/'],
+           'worldbank-indicator': ['https://api.worldbank.org/'], 'met-weather': ['https://api.met.no/'],
+           'ecb-fx': ['https://www.ecb.europa.eu/'], 'usgs-quakes': ['https://earthquake.usgs.gov/'],
+           'github-repo': ['https://api.github.com/'],
+           # RDAP: the IANA bootstrap (cached a day) plus the registry's own RDAP server, which depends on the domain
+           # asked, so it is reserved per call by the ledger, not here.
+           'rdap-domain': ['https://data.iana.org/'],
+           # Each case reads the site it is asked about; those sites are reserved per call, not here.
+           'site-readiness': [],
+           'tz-time': [], 'airport-lookup': [], 'unit-convert': [], 'public-holidays': [], 'holiday-calendar': []}
 # Calls per case when an agent may call a source more than once (11-15 agent team, eefdb282: GLEIF search plus one
 # direct read of the top-level entity; Wikidata at most once). Reserved as CASES x this + EXTRA_CALLS.
 CALLS_PER_CASE = {'https://api.gleif.org/': 2}

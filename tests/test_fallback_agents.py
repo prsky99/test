@@ -1612,3 +1612,34 @@ def test_wikidata_book_names_the_author_and_year(tmp_path):
     with pytest.raises(FallbackUnavailable) as err:
         b2.execute("wikidata-book", {"title": "No author here"})
     assert err.value.code == "not_found"
+
+
+def test_host_limits_are_shared_across_processes(tmp_path):
+    """R30 (PM 11-15): two limiters on one shared file (as two processes would be) keep one spacing, one window
+    and one rest between them."""
+    from agent_market.fallback_agents.limits import HostLimiter, SourceBusy
+    clock = Clock()
+    path = tmp_path / "host-limits" / "api.gleif.org.json"
+    a = HostLimiter(1.0, 2, 60.0, clock, clock.sleep, shared=path, wall=clock)
+    b = HostLimiter(1.0, 2, 60.0, clock, clock.sleep, shared=path, wall=clock)
+    with a.slot(3.0):
+        pass
+    t0 = clock.t
+    with b.slot(3.0):          # the other "process" waits for the shared spacing
+        pass
+    assert clock.t - t0 == pytest.approx(1.0)
+    with pytest.raises(SourceBusy, match="allowance"):   # the window of 2 is used up by both together
+        with a.slot(3.0):
+            pass
+    clock.t += 61
+    with b.slot(3.0):
+        b.observed(429, {"retry-after": "120"})
+    with pytest.raises(SourceBusy, match="resting"):     # a 429 seen by one rests the other too
+        with a.slot(3.0):
+            pass
+    assert a.resting() == pytest.approx(120.0)
+
+
+def test_default_agents_share_host_limits_under_the_data_folder(tmp_path):
+    a = FallbackAgents(data_dir=tmp_path)
+    assert a.limiters["api.gleif.org"].shared == tmp_path / "host-limits" / "api.gleif.org.json"

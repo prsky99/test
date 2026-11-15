@@ -122,3 +122,13 @@ def test_a_verdict_split_over_two_days_is_judged_on_both_parts(tmp_path, monkeyp
     assert second['answer_set'] == '4/4' and second['part'] == {'earlier_rows': 2, 'this_part': 2, 'complete': True}
     assert second['pass'] is True and second['missing'] == [] and reserved == [2, 2]
     assert called == ['Co 0', 'Co 1', 'x', 'Co 2', 'Co 3', 'x']          # no case runs twice
+
+
+def test_every_fallback_agent_has_a_domain_entry():
+    """R30 (PM 11-15): the gate reserves calls for all 29 agents, one URL per registrable domain."""
+    from agent_market.fallback_agents.catalog import SPECS
+    from agent_market.provider_budget import domain
+    from scripts import substitute_gate as G
+    assert set(G.DOMAINS) == set(SPECS)
+    for agent_id, urls in G.DOMAINS.items():
+        assert len({domain(u) for u in urls}) == len(urls), agent_id
