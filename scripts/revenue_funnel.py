@@ -66,6 +66,16 @@ SELECT 'bookings', CASE WHEN advertiser_id = {HOUSE} THEN 'internal' ELSE 'exter
 
 UNITS = 1_000_000
 TRAFFIC = ROOT / 'logs/service-frontend/traffic'
+REVIEW_STATE = ROOT / 'logs/ops/adcoin-review-queue-state.json'   # written by ops_auto.review_queue every watch run
+
+
+def review_queue(path=None):
+    """Campaign reviews waiting for an operator and the longest wait in minutes, as the last watch run saw them."""
+    try:
+        state = json.loads(Path(path or REVIEW_STATE).read_text())
+        return {'pending': int(state.get('pending') or 0), 'oldest_minutes': int(state.get('oldest_minutes') or 0)}
+    except (OSError, ValueError, TypeError):
+        return {'pending': None, 'oldest_minutes': None}
 
 
 def registry_clients(clock=time.time, folder=None):
@@ -130,12 +140,14 @@ def line(record):
             f"토큰 재방문(하한) {record['returning']} → "
             f"소유 확인 {record['owners']} → 외부 신청 {ext['applications']} → 견적 {ext['quotes']} → "
             f"결제 {ext['paid']} → {ext['usdc_received']:.2f} USDC | 내부 신청 {own['applications']}·"
-            f"견적 {own['quotes']}·결제 {own['paid']}")
+            f"견적 {own['quotes']}·결제 {own['paid']}"
+            + (f" | 심사 대기 {waiting['pending']}(최장 {waiting['oldest_minutes']}분)"
+               if (waiting := record.get('reviews_waiting') or {}).get('pending') is not None else ""))
 
 
 def main(argv=None, clock=time.time, run=None, log=LOG):
     record = {'at': time.strftime('%Y-%m-%d %H:%M', time.localtime(clock())), **count(run),
-              'registry_clients': registry_clients(clock)}
+              'registry_clients': registry_clients(clock), 'reviews_waiting': review_queue()}
     Path(log).parent.mkdir(parents=True, exist_ok=True)
     with open(log, 'a') as handle:
         handle.write(json.dumps(record, ensure_ascii=False) + '\n')

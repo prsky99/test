@@ -38,7 +38,7 @@ PSQL = ['/opt/homebrew/opt/postgresql@18/bin/psql', '-h', str(ROOT / 'gateway-da
 TEAM = {'site': '운영·SRE', 'memory': '운영·SRE', 'disk': '운영·SRE', 'deploy_stuck': '운영·SRE',
         'deploy_lock': '잠금을 잡은 팀', 'long_tests': '시험을 돌린 팀', 'stale_handoffs': '받는 팀',
         'ad_coin_ledger': 'AI AD Coin', 'payment_flow': 'AI AD Coin', 'adcoin_daemon': 'AI AD Coin',
-        'launchd_jobs': '운영·SRE', 'backup': '운영·SRE', 'core_down': '운영·SRE', 'vector_index_usage': '검색과 RAG', 'north_star': 'PM', 'revenue': 'PM', 'fingerprints': '운영·SRE'}
+        'launchd_jobs': '운영·SRE', 'backup': '운영·SRE', 'core_down': '운영·SRE', 'vector_index_usage': '검색과 RAG', 'north_star': 'PM', 'revenue': 'PM', 'fingerprints': '운영·SRE', 'adcoin_review': 'PM'}
 ALERT_SYSTEM = (
     'You write operations alerts in Korean for the owner of the Agent Concierge website. '
     'Input is JSON describing detected anomalies. Write at most three short lines in plain Korean: what is wrong, '
@@ -268,6 +268,43 @@ def revenue_funnel(clock=time.time, run=None):
     board_handoff('revenue', text)
     append(ACTIONS, f'{now()} 매출 깔때기: {text}')
     return record
+
+
+REVIEW_STATE = ROOT / 'logs/ops/adcoin-review-queue-state.json'
+REVIEW_SQL = ROOT / 'deploy/ops/adcoin-review-queue.sql'
+
+
+def review_queue(clock=time.time, run=None):
+    """Every watch run (AI AD Coin, PM 11-15 12:4x, until campaign reviews are automatic): campaign reviews waiting
+    for an operator, read-only through prod_ro_sql (ids only, never ad text). One or more opens a board line for PM;
+    none closes it. adc2_reviews keeps no request time, so the longest wait is measured from when this watch first saw
+    each id (kept in REVIEW_STATE; an id that is no longer pending is dropped)."""
+    if run is None and os.environ.get('PYTEST_CURRENT_TEST'):
+        return None   # a test that runs the whole watch never reads the production database
+    at = clock()
+    run = run or (lambda: subprocess.run([str(ROOT / '.venv/bin/python'), '-m', 'scripts.prod_ro_sql', str(REVIEW_SQL)],
+                                         capture_output=True, text=True, cwd=ROOT, timeout=60))
+    try:
+        done = run()
+        line = [x for x in done.stdout.strip().splitlines() if '|' in x][-1] if done.returncode == 0 else None
+        count, _, ids = line.partition('|') if line else ('', '', '')
+        count = int(count)
+    except (subprocess.TimeoutExpired, ValueError, IndexError, OSError):
+        append(ACTIONS, f'{now()} 심사 대기 확인 실패(prod_ro_sql)')
+        return 'failed'
+    pending = [i for i in ids.split(',') if i]
+    try:
+        seen = json.loads(REVIEW_STATE.read_text()).get('first_seen') or {}
+    except (OSError, ValueError):
+        seen = {}
+    seen = {i: seen.get(i, at) for i in pending}
+    oldest = int((at - min(seen.values())) // 60) if seen else 0
+    REVIEW_STATE.write_text(json.dumps({'at': at, 'pending': count, 'oldest_minutes': oldest, 'first_seen': seen}))
+    if count:
+        board_handoff('adcoin_review', f'캠페인 심사 대기 {count}건, 가장 오래 {oldest}분 → 관리자 심사 화면에서 처리(AI AD Coin)')
+    else:
+        board_close('adcoin_review', '심사 대기 0건(' + now() + ')')
+    return {'pending': count, 'oldest_minutes': oldest}
 
 
 VECTOR_USAGE_STATE = ROOT / 'logs/ops/vector-index-usage-state.json'
@@ -788,6 +825,10 @@ def watch():
         revenue_funnel()
     except Exception as error:  # noqa: BLE001
         append(ACTIONS, f'{now()} 매출 깔때기 집계 실패: {type(error).__name__}')
+    try:
+        review_queue()
+    except Exception as error:  # noqa: BLE001
+        append(ACTIONS, f'{now()} 심사 대기 확인 실패: {type(error).__name__}')
     try:
         vector_index_usage()
     except Exception as error:  # noqa: BLE001

@@ -123,3 +123,34 @@ def test_registry_clients_come_from_the_frontend_traffic_files_without_our_own(t
     got = revenue_funnel.registry_clients(lambda: datetime(2026, 11, 16, 8, 5).timestamp(), tmp_path)
     assert got == {'day': '2026-11-14', 'total': 6, 'by_class': {'other': 4, 'ai_bot': 2},
                    'basis': 'sum_over_processes_upper_bound'}
+
+
+def test_campaign_reviews_waiting_open_a_line_for_pm_and_count_the_longest_wait(monkeypatch, tmp_path):
+    """AI AD Coin (PM 11-15 12:4x): until reviews are automatic, PM hears of a waiting review at the next watch."""
+    monkeypatch.setattr(ops_auto, 'REVIEW_STATE', tmp_path / 'review.json')
+    handed, closed = [], []
+    monkeypatch.setattr(ops_auto, 'board_handoff', lambda kind, text: handed.append((kind, text)))
+    monkeypatch.setattr(ops_auto, 'board_close', lambda kind, note: closed.append(kind))
+    out = {'text': 'pending_reviews|pending_review_ids\n2|r1,r2\n'}
+    run = lambda: types.SimpleNamespace(returncode=0, stdout=out['text'])                     # noqa: E731
+    t0 = datetime(2026, 11, 16, 10, 0).timestamp()
+    assert ops_auto.review_queue(clock=lambda: t0, run=run) == {'pending': 2, 'oldest_minutes': 0}
+    out['text'] = '1|r2\n'
+    assert ops_auto.review_queue(clock=lambda: t0 + 1800, run=run) == {'pending': 1, 'oldest_minutes': 30}
+    assert handed[-1] == ('adcoin_review', '캠페인 심사 대기 1건, 가장 오래 30분 → 관리자 심사 화면에서 처리(AI AD Coin)')
+    assert ops_auto.TEAM['adcoin_review'] == 'PM'
+    assert revenue_funnel.review_queue(tmp_path / 'review.json') == {'pending': 1, 'oldest_minutes': 30}
+    out['text'] = '0|\n'
+    assert ops_auto.review_queue(clock=lambda: t0 + 2400, run=run) == {'pending': 0, 'oldest_minutes': 0}
+    assert closed == ['adcoin_review'] and json.loads((tmp_path / 'review.json').read_text())['first_seen'] == {}
+    failing = lambda: types.SimpleNamespace(returncode=75, stdout='')                          # noqa: E731
+    monkeypatch.setattr(ops_auto, 'ACTIONS', tmp_path / 'actions.md')
+    assert ops_auto.review_queue(clock=lambda: t0, run=failing) == 'failed'
+    assert ops_auto.review_queue(clock=lambda: t0) is None   # inside a test, never the production database
+
+
+def test_the_board_line_carries_the_review_queue_within_150_characters():
+    record = revenue_funnel.parse(OUTPUT)
+    record['reviews_waiting'] = {'pending': 2, 'oldest_minutes': 45}
+    text = revenue_funnel.line(record)
+    assert text.endswith(' | 심사 대기 2(최장 45분)') and len('2026-11-15 ' + text) <= 150
