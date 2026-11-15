@@ -105,3 +105,16 @@ PM 결정: 안 C는 하지 않음. 안 A는 72시간 관찰(11-17 17시경까지
 4. 복구 시간 실측: 사본에서 위 정의로 `CREATE INDEX CONCURRENTLY` 다시 만들기(걸린 시간, 그동안 검색·쓰기 지연 기록).
 5. 네 역할(frontend·jobs·admin·execution) 운영 버전으로 사본 연결 검사(트리거 5개·쓰기·탐색).
 결과와 복구 시간은 이 파일에 적고 11-18 아침 PM에 넘깁니다.
+
+## 11-15 09:3x 안 A 선행 조건 (PM 정밀 검토)
+
+- 발견: `agent_market/postgres_ann.py` `available()`이 공용 그래프 `embeddings_cosine_hnsw`가 정확히 1개이고 정의가 맞는지 검사하고, 아니면 `VectorError('invalid_schema')`를 던졌습니다. 이 함수는 저장소를 열 때(application_store_postgres → application_store_vector)와 읽기 풀 새 세션에서 불립니다. 그대로 색인을 지우면 새 세션부터 탐색·추천이 실패하고, 네 역할이 다시 시작하지 못합니다. 위 '경로 점검'에서 놓친 구조 검사입니다.
+- 고침 d3dce39c(정책 해시 밖): 공용 색인이 있으면 예전 검사 그대로, 없으면 kind 칸과 종류별 그래프 셋(embeddings_half_a2a·mcp·x402)이 모두 유효·준비일 때만 통과. 실제 PG 시험: 종류 그래프를 만든 뒤 공용 색인을 지우고 새 연결로 저장소를 열어 검색(전체·종류별)이 되고, 종류 그래프 하나를 더 지우면 invalid_schema.
+- 공용 색인을 다시 만드는 경로: `install()`은 처음 만들 때만 쓰이고 configuration 표가 있으면 거절하므로 운영에서 다시 만들지 않습니다.
+- 그래프 상한과의 관계: 상한은 `embeddings_half_a2a_cap`·`embeddings_half_x402_cap`을 더할 뿐 공용 색인과 종류 그래프 셋의 이름·개수를 바꾸지 않아 `available()`과 01:46 재리허설에 영향 없음.
+
+### 고친 순서
+
+1. d3dce39c를 네 역할 모두에 배포: frontend·jobs는 오늘 밤 B+C 묶음, admin·execution은 활성 버전(align-*-20261113-r2) 위에 겹친 작은 묶음으로 11-16 낮(정책 해시 밖이라 낮 배포 가능).
+2. 11-17 밤 00:30 사본에서 '공용 색인 삭제 → 네 역할 운영 버전 연결(트리거 5개·쓰기·탐색·추천)' 리허설과 전후 측정, 다시 만들기 시간 실측.
+3. 11-18 아침 PM 승인 요청(안 A), 그 뒤 그래프 상한.
