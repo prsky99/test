@@ -114,6 +114,25 @@
       ],
       "chain": [
         {
+          "kind": "external",
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "resource_id": 38613,
+          "tool": "get_public_holidays",
+          "registrable_domain": "invokera.com",
+          "upstream": [
+            "unknown"
+          ],
+          "state": "active",
+          "pearl": false,
+          "input_map": {
+            "year": "{{input.year}}",
+            "countryCode": "{{slot.location.country_code}}"
+          }
+        },
+        {
           "kind": "agentcon",
           "tool": "get_holidays",
           "upstream": [
@@ -140,7 +159,8 @@
   "probe_input": {
     "address": "Tokyo Tower, Minato, Tokyo, Japan",
     "year": 2026,
-    "slot.location.point": "35.658600,139.745400"
+    "slot.location.point": "35.658600,139.745400",
+    "slot.location.country_code": "JP"
   },
   "input_help": {
     "address": "A street address, landmark or city, for example Tokyo Tower, Minato, Tokyo, Japan.",

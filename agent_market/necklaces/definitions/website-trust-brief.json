@@ -100,6 +100,24 @@
           }
         },
         {
+          "kind": "external",
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "resource_id": 267572,
+          "tool": "check_llms_txt",
+          "registrable_domain": "makerradar.io",
+          "upstream": [
+            "site-llms-txt"
+          ],
+          "state": "active",
+          "pearl": false,
+          "input_map": {
+            "url": "https://{{input.domain}}"
+          }
+        },
+        {
           "kind": "agentcon",
           "read_only_hint": true,
           "destructive_hint": false,
