@@ -1021,6 +1021,39 @@ def verified(versions):
                and success_days(v['resource_id'], v['role'], v['tool'], now) >= CONFIRM_DAYS)
 
 
+def usable_pearls(versions, ranked, terms=None, now=None):
+    """PM 11-15 14:32: pearls the workflow terms table lets a necklace run. The counts above keep their definition;
+    this says how many of them are usable (terms not 'prohibits') and, for a role whose final pearl is prohibited, who
+    the best usable member is and whether it would be a final pearl itself."""
+    terms = member_terms() if terms is None else terms
+    now = now or time.time()
+    banned = lambda rid: terms.get(rid) == 'prohibits'
+    # counted like verified(): one per latest version (a resource can be verified in two roles)
+    verified_items = [(v['resource_id'], v['role']) for v in versions if v['quality']['score'] >= PASS_MARK
+                      and success_days(v['resource_id'], v['role'], v['tool'], now) >= CONFIRM_DAYS]
+    finals = {role: r['final_pearl'] for role, r in ranked.items() if r.get('final_pearl')}
+    replaced = {}
+    for role, rid in finals.items():
+        if not banned(rid):
+            continue
+        best = next((m for m in sorted((m for m in ranked[role]['members'] if m.get('rank')), key=lambda m: m['rank'])
+                     if not banned(m['resource_id'])), None)
+        replaced[role] = {'prohibited': rid, 'usable_first': None if best is None else {
+            'resource_id': best['resource_id'], 'tool': best['tool'], 'rank': best['rank'], 'score': best['score'],
+            'best_recent_score': best['best_recent_score'], 'success_days': best['success_days'],
+            'final_pearl_by_itself': bool(best['best_recent_score'] >= PASS_MARK and best['recent_pass_rate'] >= PEARL_PASS_RATE
+                                          and not best['stale'] and best['success_days'] >= CONFIRM_DAYS)}}
+    usable_roles = [role for role, rid in finals.items() if not banned(rid)]
+    covered = usable_roles + [role for role, r in replaced.items() if (r['usable_first'] or {}).get('final_pearl_by_itself')]
+    return {'rule': "usable = the member's terms in agent_market/necklaces/member_terms.json are not 'prohibits' "
+                    "(allowed, silent or not yet checked)",
+            'verified_prohibited': [{'resource_id': rid, 'role': role} for rid, role in verified_items if banned(rid)],
+            'verified_usable': sum(1 for rid, _ in verified_items if not banned(rid)),
+            'final_prohibited': replaced,
+            'final_usable': len(usable_roles),
+            'roles_with_a_usable_final_pearl': len(covered)}
+
+
 def candidates_a():
     try:
         import psycopg
@@ -1107,6 +1140,7 @@ def publish(board=True):
                                   'rank_rule': rank_rule(),
                                   'roles': ranked}, indent=1, ensure_ascii=False))
     official = summary(versions, ranked, candidates_a())
+    official['usable'] = usable_pearls(versions, ranked)
     official['grade_trials'] = grade_trials(trials, grades or {}) if grades is not None else \
         {'rule': 'grades unavailable: nothing split this time', 'versions': None}
     (OUT / 'final').mkdir(parents=True, exist_ok=True)

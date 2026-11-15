@@ -79,3 +79,21 @@ def test_tool_names_that_were_left_out_now_reach_their_role():
     for name, role in want.items():
         assert role in role_catalog.roles_for_tool(name), name
     assert role_catalog.roles_for_tool('get_booking_link') == [] and role_catalog.roles_for_tool('list_books') == []
+
+
+def test_usable_pearls_leave_out_prohibited_members(monkeypatch):
+    monkeypatch.setattr(V, 'success_days', lambda rid, role, tool, now, ref=None: 2)
+    m = lambda rid, rank, score=90: {'resource_id': rid, 'tool': 't', 'rank': rank, 'score': score,
+                                     'best_recent_score': score, 'recent_pass_rate': 1.0, 'stale': False, 'success_days': 2}
+    ranked = {'a.v1': {'final_pearl': 1, 'members': [m(1, 1), m(2, 2)]},
+              'b.v1': {'final_pearl': 3, 'members': [m(3, 1), m(4, 2, 60)]},
+              'c.v1': {'final_pearl': 5, 'members': [m(5, 1)]}}
+    versions = [{'resource_id': i, 'role': r, 'tool': 't', 'quality': {'score': 90}} for i, r in
+                ((1, 'a.v1'), (3, 'b.v1'), (5, 'c.v1'))]
+    out = V.usable_pearls(versions, ranked, terms={1: 'prohibits', 3: 'prohibits', 5: 'allowed'})
+    assert out['verified_usable'] == 1 and [x['resource_id'] for x in out['verified_prohibited']] == [1, 3]
+    assert out['final_usable'] == 1
+    assert out['final_prohibited']['a.v1']['usable_first']['resource_id'] == 2
+    assert out['final_prohibited']['a.v1']['usable_first']['final_pearl_by_itself'] is True
+    assert out['final_prohibited']['b.v1']['usable_first']['final_pearl_by_itself'] is False
+    assert out['roles_with_a_usable_final_pearl'] == 2
