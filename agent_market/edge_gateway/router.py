@@ -34,12 +34,18 @@ def errors(function):
         try:
             return await function(*args, **kwargs)
         except EdgeError as exc:
-            if exc.status >= 500:
-                # 11-11 22:18: a public-prepare 503 left only the access line; the code
-                # (NOT_PROVISIONED, CAPACITY_EXCEEDED, ...) tells which limit refused it.
-                log.warning('Edge gateway %s refused: %s %s', function.__name__, exc.code, exc.status)
+            # 11-11 22:18: a public-prepare 503 left only the access line; the code
+            # (NOT_PROVISIONED, CAPACITY_EXCEEDED, ...) tells which limit refused it.
+            # 11-15 (PM 10:40): 4xx refusals are logged too, with the inner reason (UNSAFE_TOOL, ...) and a
+            # reference that also goes back in the body, so a team can find the cause of a 403 itself.
+            from ..concierge.execution_errors import reference, failure_code
+            ref = reference()
+            denied = getattr(exc, 'denied', None)
+            log.warning('Edge gateway %s refused: %s %s%s reference=%s', function.__name__, exc.code, exc.status,
+                        ' reason=' + failure_code(denied) if denied else '', ref)
             wait = getattr(exc, 'retry_after', None)   # PROVIDER_RATE_LIMITED: the provider's own Retry-After
-            return JSONResponse({'error_code': exc.code, 'message': 'The approved execution is unavailable.'},
+            return JSONResponse({'error_code': exc.code, 'message': 'The approved execution is unavailable.', 'reference': ref,
+                                 **({'reason_code': failure_code(denied)} if denied else {})},
                                 status_code=exc.status, headers={'Cache-Control': 'private, no-store',
                                                                  **({'Retry-After': str(wait)} if wait else {})})
         except Exception as exc:
@@ -262,8 +268,15 @@ def install(app, front):
             # JSON-RPC body (Worker AUTH_REQUIRED), so callers read "needs a key" (real tasks p02, p05,
             # a05). Nothing is prepared; the Origin gateway repeats the same check and answers -32602
             # "Review the tool inputs and try again." Every other refusal stays 403.
-            if exc.code != 'PROFILE_UNAVAILABLE' and getattr(exc, 'denied', None) != 'INVALID_INPUT':
+            # 11-15 (PM 10:40): a tool-level refusal (UNSAFE_TOOL, TOOL_UNAVAILABLE, ...) went back as a bare 403
+            # with no reason or reference, because the Worker answers with the code alone. It is handed to the
+            # Origin gateway too: nothing is prepared, the Origin gateway repeats admit_tool before any provider
+            # call and answers the JSON-RPC error with error_code and correlation_id, and logs the refusal.
+            denied = getattr(exc, 'denied', None)
+            if exc.code != 'PROFILE_UNAVAILABLE' and denied is None:
                 raise
+            if denied not in (None, 'INVALID_INPUT'):
+                log.warning('Edge public prepare: tool refused (%s); handed to the Origin gateway', denied)
             return JSONResponse({'backend': 'origin'}, headers={'Cache-Control': 'private, no-store'})
         backend = 'worker' if grant['stream_path'].startswith('/api/edge-') else 'origin'
         try:

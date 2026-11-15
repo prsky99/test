@@ -119,7 +119,8 @@ def test_inconsistent_full_and_compact_safety_metadata_cannot_get_hash_approval(
     response = bridge(edge, rid, {'tool': 'get_weather', 'arguments': {'city': 'Tokyo'}})
     # Inconsistent complete contracts may be refused during admission, before
     # the later schema-approval boundary. Neither path may contact the provider.
-    assert response.status_code in (403, 409) and not edge.calls
+    # 11-15: a tool-level refusal is handed to the Origin gateway, which refuses it again with a reason.
+    assert (response.status_code in (403, 409) or response.json() == {'backend': 'origin'}) and not edge.calls
 
 
 def test_full_schema_normalization_preserves_remote_compact_tool_order(edge, catalog, monkeypatch):
@@ -140,9 +141,10 @@ def test_mcp_admission_denies_before_dispatch(edge, catalog, monkeypatch, case):
     if case in ('auth', 'paid', 'quarantine'):
         with edge.store.tx() as db: db.execute('UPDATE resources SET ' + field + '=? WHERE id=?', (value, rid))
     response = bridge(edge, rid, {'tool': tools[0]['name'], 'arguments': {} if case == 'bad-args' else {'city': 'Tokyo'}})
-    if case == 'bad-args':
+    if case in ('bad-args', 'unsafe-tool'):
         # 11-11 real tasks p02/p05/a05: a schema mismatch is not a key or policy refusal. The Origin
         # gateway repeats the check and answers -32602; nothing is prepared or dispatched here.
+        # 11-15 (PM 10:40): a refused tool goes the same way, so the caller gets UNSAFE_TOOL and a reference.
         assert response.status_code == 200 and response.json() == {'backend': 'origin'}, response.text
         with transaction(edge.store, readonly=True) as db:
             assert db.execute("SELECT count(*) FROM edge_gateway_runs").fetchone()[0] == 0

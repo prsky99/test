@@ -281,10 +281,13 @@ def gateway_router(front,read_json_object):
     def resource(rid,kind):
         try:return gateway.resource(rid,kind)
         except ExecutionDenied as exc:
+            # 11-15 (PM 10:40): a refusal before execution carries a reference and is logged like the others
+            ref=reference()
+            record_failure(ref,rid,kind,exc.error_code,stage='admission',exception=exc)
             if exc.error_code=='POLICY_DENIED':
                 raise HTTPException(403,fields(exc.error_code)['error_message'],
-                                    headers={'X-Execution-Error':exc.error_code}) from exc
-            raise HTTPException(400,str(exc)) from exc
+                                    headers={'X-Execution-Error':exc.error_code,'X-Execution-Reference':ref}) from exc
+            raise HTTPException(400,str(exc),headers={'X-Execution-Error':exc.error_code,'X-Execution-Reference':ref}) from exc
 
     async def execute(rid,**kwargs):
         try:return await gateway.execute(rid,**kwargs)

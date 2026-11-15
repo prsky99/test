@@ -100,6 +100,8 @@ def test_shared_admission_denies_before_provider_contact(managed,entry,denial):
     if entry=='gateway' and denial in ('quarantined','security-review'):
         assert response.status_code==403
         assert response.json()['error_code']=='POLICY_DENIED'
+        # 11-15 (PM 10:40): a refusal before execution carries a reference the log line also has
+        assert response.headers['x-execution-reference'].startswith('ex_')
     else:
         assert response.status_code in (200,400)
     assert not calls
