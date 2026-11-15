@@ -931,10 +931,15 @@ class FallbackAgents:
                 for v in row.get("vulnerabilities") or []:
                     pkg = v.get("package") if isinstance(v, dict) else None
                     if isinstance(pkg, dict) and isinstance(pkg.get("name"), str):
-                        key = (str(pkg.get("ecosystem") or ""), pkg["name"])
-                        entry = packages.setdefault(key, {"ecosystem": _text(key[0], 40), "name": _text(key[1], 214)})
-                        if isinstance(v.get("first_patched_version"), str) and "first_patched_version" not in entry:
-                            entry["first_patched_version"] = _text(v["first_patched_version"], 64)
+                        # one entry per patched branch (log4j-core 2.15.0 and 2.12.2 alike); a package with no
+                        # patched version keeps one bare entry, dropped below once a patched branch is known
+                        patched = v.get("first_patched_version")
+                        patched = _text(patched, 64) if isinstance(patched, str) else None
+                        key = (str(pkg.get("ecosystem") or ""), pkg["name"], patched)
+                        entry = {"ecosystem": _text(key[0], 40), "name": _text(key[1], 214)}
+                        if patched:
+                            entry["first_patched_version"] = patched
+                        packages.setdefault(key, entry)
             title = _text(f"{row['ghsa_id']}: {row.get('summary') or ''}", 400)
             fixes = [f"{v['package'].get('name')}@{v['first_patched_version']}" for v in row.get("vulnerabilities") or []
                      if isinstance(v, dict) and isinstance(v.get("package"), dict) and isinstance(v.get("first_patched_version"), str)
@@ -992,7 +997,8 @@ class FallbackAgents:
         out = {"items": items[:20], "source": source}
         if cve:
             out["cve_id"] = cve
-            out["packages"] = list(packages.values())[:20]
+            patched_names = {k[:2] for k in packages if k[2]}
+            out["packages"] = [e for k, e in packages.items() if k[2] or k[:2] not in patched_names][:20]
         return out, cache, False, {"GitHub Advisory Database": as_of}
 
     def _scorecard(self, args, remaining):

@@ -2184,3 +2184,19 @@ def test_gold_judge_for_gdelt_news():
     assert not g.judge("gdelt-news", case, {"items": items[1:], "source": "x"})["pass"]                 # 2 items, none on topic
     old = [{**i, "published": day(20)} for i in items]
     assert not g.judge("gdelt-news", case, {"items": old, "source": "x"})["pass"]
+
+
+def test_software_incident_keeps_every_patched_branch(tmp_path):
+    """workflow 3737c5aa: the cve fix truth lists every patched branch of a package (log4j-core 2.15.0 and 2.12.2)."""
+    from agent_market.fallback_agents import gold_check as g
+    log4j = {"ecosystem": "maven", "name": "org.apache.logging.log4j:log4j-core"}
+    row = dict(GH_ROW, vulnerabilities=[{"package": log4j, "first_patched_version": "2.15.0"},
+                                        {"package": log4j, "first_patched_version": "2.12.2"},
+                                        {"package": log4j, "first_patched_version": None},
+                                        {"package": {"ecosystem": "maven", "name": "x:y"}, "first_patched_version": None}])
+    a, _ = agents(tmp_path, {"https://api.github.com/advisories": httpx.Response(200, json=[row])}, [])
+    out = a.execute("software-incident", {"query": "CVE-2021-44228"})["result"]
+    assert out["packages"] == [dict(log4j, first_patched_version="2.15.0"), dict(log4j, first_patched_version="2.12.2"),
+                               {"ecosystem": "maven", "name": "x:y"}]
+    truth = {"fixes": [dict(log4j, first_patched_version="2.15.0"), dict(log4j, first_patched_version="2.12.2")]}
+    assert g.judge("software-incident", {"input": {"cve_id": "CVE-2021-44228"}, "truth": truth}, out)["pass"]
