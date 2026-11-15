@@ -25,6 +25,7 @@ from .judge import DEFAULT_ROOT, _iso
 
 BASE = "https://agentconcierge.biz"
 QA = "necklace_retest"
+QA_GATE = "necklace_gate"           # gate rounds and the gate check (deploy/NECKLACE_GATE.md 3절)
 BUDGET_SECONDS = 35 * 60
 CONTRAST = {"package-risk-audit": "advisories", "cve-incident-brief": "record", "company-due-diligence": "background",
             "topic-evidence-brief": "papers"}
@@ -89,7 +90,10 @@ def gateway_caller(client, base: str = BASE, pacer: RelayPacer | None = None):
             detail = err.get("data") if isinstance(err.get("data"), dict) else {}
             if detail.get("retry_after") or "pause" in str(err.get("message", "")).lower():
                 raise _fail("PROVIDER_429", str(err.get("message")))   # the provider asked for a pause
-            raise _fail(f"relay_{r.status_code}", str(err.get("message") or f"HTTP {r.status_code}"))
+            reason = r.headers.get("X-Execution-Error")
+            ref = r.headers.get("X-Execution-Reference")
+            raise _fail(f"relay_{r.status_code}", str(err.get("message") or data.get("detail") or f"HTTP {r.status_code}")
+                        + (f" [{reason}]" if reason else "") + (f" ref {ref}" if ref else ""))
         return data["result"]
 
     def call(member, args, timeout_s):

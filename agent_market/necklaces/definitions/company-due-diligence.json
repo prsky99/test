@@ -214,5 +214,12 @@
     ]
   },
   "scope_notice": "This necklace covers companies that file with the US SEC (country US). For other companies, look up the legal entity by name in the GLEIF LEI search (https://search.gleif.org) or ask our Chat for an agent that covers that country.",
-  "min_pearls_answered": 2
+  "min_pearls_answered": 2,
+  "probe_input": {
+    "name": "Apple Inc",
+    "country": "US",
+    "domain": "apple.com",
+    "slot.registry.legal_name": "Apple Inc.",
+    "slot.registry.ticker": "AAPL"
+  }
 }
