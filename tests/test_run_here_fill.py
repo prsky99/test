@@ -53,6 +53,9 @@ UNCERTAIN = [
     ('weather in Seoul', ('city', 'units_system')),              # one placeholder stays: none filled
     ('send a note to me@example.com', ('domain',)),              # an e-mail address is never read as a domain
     ('translate this text into Korean', ('text',)),              # free text is never copied
+    ('try to php before you go', ('from', 'to')),                # lower-case words that are also codes
+    ('how to try in php', ('from', 'to')),
+    ('cad to rub conversion', ('from', 'to')),                   # lower-case pair without '/'
 ]
 
 

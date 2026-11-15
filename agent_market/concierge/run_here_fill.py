@@ -56,7 +56,10 @@ _DATE = re.compile(r'(?<!\d)(20\d\d-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01]))(?
 _DOI = re.compile(r'\b(10\.\d{4,9}/[^\s"<>]+[^\s"<>.,;)])')
 _GITHUB = re.compile(r'github\.com/([A-Za-z0-9-]{1,39})/([A-Za-z0-9_.-]{1,100})', re.I)
 _UPPER = re.compile(r'(?<![A-Za-z$])\$?([A-Z]{2,5})(?![A-Za-z])')
-_PAIR = re.compile(r'\b([A-Za-z]{3})\s*(?:/|to|->|→|into|in)\s*([A-Za-z]{3})\b')
+# 검색과 RAG 08:5x: lower-case codes overlap English words (try, php, cad, rub), so a lower-case pair counts only with
+# '/' (usd/krw); 'to', 'in', 'into' and arrows join upper-case codes only.
+_PAIR_SLASH = re.compile(r'(?<![A-Za-z])([A-Za-z]{3})\s*/\s*([A-Za-z]{3})(?![A-Za-z])')
+_PAIR_WORD = re.compile(r'(?<![A-Za-z])([A-Z]{3})\s*(?:to|->|→|into|in)\s*([A-Z]{3})(?![A-Za-z])')
 
 # Argument names by the kind of value they take (lower case, whole name).
 KINDS = {
@@ -84,7 +87,8 @@ def _one(values):
 
 
 def _currency_pair(task):
-    pairs = [(a.upper(), b.upper()) for a, b in _PAIR.findall(task) if a.upper() in CURRENCIES and b.upper() in CURRENCIES]
+    pairs = [(a.upper(), b.upper()) for a, b in _PAIR_SLASH.findall(task) + _PAIR_WORD.findall(task)
+             if a.upper() in CURRENCIES and b.upper() in CURRENCIES]
     return _one(pairs)
 
 
