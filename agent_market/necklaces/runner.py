@@ -104,31 +104,114 @@ def in_coverage(member: dict, values: dict) -> bool:
 
 # ---------------------------------------------------------------- normalizers
 ADVISORY_ID = re.compile(r"\b(GHSA(?:-[23456789cfghjmpqrvwx]{4}){3}|CVE-\d{4}-\d{4,}|PYSEC-\d{4}-\d+|OSV-\d{4}-\d+|RUSTSEC-\d{4}-\d{4}|GO-\d{4}-\d{4})\b", re.I)
-# A CVSS base score, never the CVSS version ("CVSS:3.1/AV:...", "cvssV3_1", "version": "3.1").
-SCORE_KEYS = ("baseScore", "base_score", "cvss_score", "cvssScore", "score")
+# ---------------------------------------------------------------- answer shape (PM R19, 11-15)
+# Every caller's answer goes through unwrap() first, so the public path (engine: MCP result or A2A parts) and the
+# retest path (relay: structuredContent or content list) hand the normalizers the same shape: the structured
+# value when there is one, JSON text parsed into a structure, and the plain text.
+ERROR_TEXT = re.compile(r"(rate.?limit|too many requests|temporar(il)?y unavailable|service unavailable|"
+                        r"internal (server )?error|bad gateway|gateway time-?out|timed? ?out|quota exceeded|"
+                        r"unauthori[sz]ed|forbidden|access denied|^\s*error\b|\berror:|exception|traceback|"
+                        r"execution is unavailable|try again later|not available right now)", re.I)
+ERROR_KEYS = ("error", "errors", "isError", "is_error", "error_code", "errorCode")
+
+
+def _parts_text(parts) -> str | None:
+    texts = [p.get("text") for p in parts if isinstance(p, dict) and isinstance(p.get("text"), str)]
+    return "\n".join(texts) if texts and len(texts) == len([p for p in parts if isinstance(p, dict)]) else None
+
+
+def unwrap(raw, depth: int = 0):
+    """Peel envelopes (JSON-RPC result, MCP structuredContent/content, A2A parts) and parse JSON text."""
+    if depth > 6:
+        return raw
+    if isinstance(raw, str):
+        text = raw.strip()
+        if text[:1] in "{[" and text[-1:] in "}]":
+            try:
+                return unwrap(json.loads(text), depth + 1)
+            except ValueError:
+                return raw
+        return raw
+    if isinstance(raw, dict):
+        if set(raw) >= {"jsonrpc", "result"}:
+            return unwrap(raw["result"], depth + 1)
+        if raw.get("structuredContent") not in (None, {}, []):
+            return unwrap(raw["structuredContent"], depth + 1)
+        if isinstance(raw.get("content"), list) and set(raw) <= {"content", "isError", "_meta", "structuredContent"}:
+            if raw.get("isError"):
+                return {"isError": True, "text": _parts_text(raw["content"]) or ""}
+            return unwrap(raw["content"], depth + 1)
+        if isinstance(raw.get("parts"), list) and set(raw) <= {"parts", "kind", "role", "messageId", "metadata"}:
+            return unwrap(raw["parts"], depth + 1)
+        return raw
+    if isinstance(raw, list) and raw and all(isinstance(p, dict) for p in raw):
+        data = [p["data"] for p in raw if p.get("kind") == "data" or (set(p) >= {"data"} and "text" not in p)]
+        if len(data) == 1:
+            return unwrap(data[0], depth + 1)
+        text = _parts_text(raw)
+        if text is not None:
+            return unwrap(text, depth + 1)
+    return raw
+
+
+def is_error(value) -> bool:
+    """An error or limit notice rather than an answer: a structure that only reports an error, or a short text
+    that reads like one. A long answer that mentions "error" somewhere stays an answer."""
+    if isinstance(value, dict):
+        flagged = value.get("isError") is True or value.get("is_error") is True
+        other = [k for k in value if k not in ERROR_KEYS and k not in ("text", "message", "status", "code", "detail")]
+        if flagged or (any(k in value for k in ("error", "errors", "error_code", "errorCode")) and not other):
+            return True
+        return False
+    if isinstance(value, str):
+        text = value.strip()
+        return not text or (len(text) <= 400 and bool(ERROR_TEXT.search(text)))
+    return value is None
+
+
+def _walk(node):
+    stack = [(node, ())]
+    while stack:
+        value, path = stack.pop(0)
+        yield value, path
+        if isinstance(value, dict):
+            stack.extend((v, path + (str(k).lower(),)) for k, v in value.items())
+        elif isinstance(value, list):
+            stack.extend((v, path) for v in value)
+
+
+# A CVSS base score, never the CVSS version ("CVSS:3.1/AV:...", "cvssV3_1", "version": "3.1"). "baseScore" and the
+# cvss-named keys are scores wherever they are; a plain "score" only under a cvss or metrics key.
+CVSS_KEYS = ("basescore", "base_score", "cvss_score", "cvssscore")
 CVSS_TEXT = re.compile(r"(?:base[ _-]?score|cvss[ _-]?score)\W{0,12}(\d{1,2}(?:\.\d)?)", re.I)
 CVSS_VECTOR = re.compile(r"cvss:\d\.\d/|cvssv\d_\d|\bv\d\.\d\b", re.I)
 
 
 def find_score(raw):
-    """The first numeric base score in a structured answer (depth-first), else one written in the text."""
-    stack = [raw]
-    while stack:
-        node = stack.pop(0)
-        if isinstance(node, dict):
-            for key in SCORE_KEYS:
-                value = node.get(key)
-                if isinstance(value, (int, float)) and not isinstance(value, bool) and 0 <= value <= 10:
-                    return float(value)
-            stack.extend(node.values())
-        elif isinstance(node, list):
-            stack.extend(node)
+    """The first numeric base score in a structured answer (breadth-first), else one written in the text."""
+    for value, path in _walk(raw):
+        if not isinstance(value, dict):
+            continue
+        under = any("cvss" in p or "metric" in p for p in path)
+        for key, item in value.items():
+            k = str(key).lower()
+            if (k in CVSS_KEYS or (k == "score" and under)) and isinstance(item, (int, float)) \
+                    and not isinstance(item, bool) and 0 <= item <= 10:
+                return float(item)
     text = CVSS_VECTOR.sub(" ", _text(raw))
     match = CVSS_TEXT.search(text)
     return float(match.group(1)) if match and 0 <= float(match.group(1)) <= 10 else None
+
+
 URL = re.compile(r"https://[^\s\"'<>)\]]+")
-KEV_YES = re.compile(r"(known exploited|\bkev\b|cisa kev|actively exploited|exploited in the wild)", re.I)
-KEV_NO = re.compile(r"(not (in|on|listed in) (the )?(cisa )?(kev|known exploited)|\"kev\"\s*:\s*false|\"in_kev\"\s*:\s*false)", re.I)
+CVE = re.compile(r"\bCVE-\d{4}-\d{4,}\b", re.I)
+KEV_KEYS = ("kev", "in_kev", "is_kev", "known_exploited", "knownexploited", "isknownexploited", "cisa_kev",
+            "exploited", "known_exploited_vulnerability")
+KEV_YES = re.compile(r"((is )?(listed |included )(in|on) (the )?(cisa('s)? )?(kev|known exploited vulnerabilities)|"
+                     r"known exploited vulnerabilit(y|ies) catalog(ue)?|actively exploited|exploited in the wild|"
+                     r"added to (the )?(cisa )?kev)", re.I)
+KEV_NO = re.compile(r"(not (listed |included )?(in|on) (the )?(cisa('s)? )?(kev|known exploited)|"
+                    r"no (known )?(active )?exploitation|not (known to be |been )?exploited|absent from (the )?kev)", re.I)
 
 
 def _text(raw) -> str:
@@ -136,14 +219,16 @@ def _text(raw) -> str:
 
 
 def norm_advisories(raw, values):
-    text = _text(raw)
-    if not text.strip():
+    if is_error(raw):
         return None
+    text = _text(raw)
     ids = sorted({m.group(1).upper() for m in ADVISORY_ID.finditer(text)})
     return {"items": [{"id": i} for i in ids], "urls": URL.findall(text)[:20]}
 
 
 def norm_record(raw, values):
+    if is_error(raw):
+        return None
     text = _text(raw)
     if values.get("cve_id", "").upper() not in text.upper():
         return None
@@ -151,24 +236,39 @@ def norm_record(raw, values):
 
 
 def norm_exploited(raw, values):
-    text = _text(raw)
-    if not text.strip():
+    """kev True or False, or None (cannot judge: the slot failed, contract_invalid) - never a guess."""
+    if is_error(raw):
         return None
-    structured = raw if isinstance(raw, dict) else {}
-    if isinstance(structured.get("kev"), bool):
-        kev = structured["kev"]
-    else:
-        kev = bool(KEV_YES.search(text)) and not KEV_NO.search(text)
-    return {"cve_id": values.get("cve_id"), "kev": kev}
+    wanted = (values.get("cve_id") or "").upper()
+    text = _text(raw)
+    named = {m.group(0).upper() for m in CVE.finditer(text)}
+    if wanted and named and wanted not in named:
+        return None                                  # an answer about another CVE
+    found = [x for node, _ in _walk(raw) if isinstance(node, dict)
+             for k, x in node.items() if str(k).lower() in KEV_KEYS and isinstance(x, bool)]
+    if found:
+        return {"cve_id": values.get("cve_id"), "kev": found[0]} if len(set(found)) == 1 else None
+    if isinstance(raw, str):
+        no, yes = bool(KEV_NO.search(text)), bool(KEV_YES.search(KEV_NO.sub(" ", text)))
+        if no != yes:
+            return {"cve_id": values.get("cve_id"), "kev": yes}
+    return None
 
 
 def norm_generic(raw, values):
+    if is_error(raw):
+        return None
     text = _text(raw)
     return {"text": text[:4000], "urls": URL.findall(text)[:20]} if text.strip() else None
 
 
 NORMALIZERS = {"package.advisories.v1": norm_advisories, "cve.record.v1": norm_record,
                "cve.exploited.v1": norm_exploited}
+
+
+def normalize(contract: str, raw, values):
+    """The one entry both the public runner and the retests use: unwrap, then the contract's normalizer."""
+    return NORMALIZERS.get(contract, norm_generic)(unwrap(raw), values)
 
 
 # ---------------------------------------------------------------- synthesis (merge-v1)
@@ -227,7 +327,7 @@ class Runner:
             return Attempt(member.get("resource_id"), member["tool"], member["kind"], rank, False, 0, "deadline"), None
         try:
             raw = self.caller(member, render(member.get("input_map") or {}, values), left)
-            canon = NORMALIZERS.get(contract, norm_generic)(raw, values)
+            canon = normalize(contract, raw, values)
             ok, error = canon is not None, None if canon is not None else "contract_invalid"
             kept = _text(raw)[:self.keep_raw] if self.keep_raw else None
         except Exception as exc:   # every failure of one member is that member's, never the run's

@@ -78,7 +78,7 @@ def test_every_member_failing_is_stage_four_and_the_run_fails():
 
 
 def test_an_empty_answer_is_not_a_success():
-    answers = {1: "   ", 2: "CVE-2020-28500", 3: "kev", 4: "x"}
+    answers = {1: "   ", 2: "CVE-2020-28500", 3: "listed in CISA KEV", 4: "x"}
     out = runner.Runner(caller_from(answers)).run(necklace(), {"q": "x"})
     assert out["attempts"]["papers"][0]["error_class"] == "contract_invalid"
     assert out["slots"]["papers"]["stage"] == 2
@@ -89,7 +89,7 @@ def test_watch_demotion_and_exclusion_change_the_order_not_the_digest():
     state = {"members": {"topic-brief|papers|1|search_items": {"demoted": True},
                          "topic-brief|news|3|search_items": {"excluded": True}}}
     calls = []
-    answers = {1: "CVE-1", 2: "CVE-2020-28500", 4: "known exploited", 3: "kev"}
+    answers = {1: "CVE-1", 2: "CVE-2020-28500", 4: "known exploited", 3: "listed in CISA KEV"}
     out = runner.Runner(caller_from(answers, calls), watch_state=state).run(defn, {"q": "x"})
     assert out["digest"] == model.digest(defn)
     assert [rid for rid, _ in calls if rid in (1, 2)] == [2]
@@ -100,12 +100,12 @@ def test_coverage_skips_members_outside_their_region():
     defn = necklace()
     defn["slots"][0]["chain"][0]["coverage"] = {"q": ["only-this"]}
     calls = []
-    runner.Runner(caller_from({2: "CVE-2020-28500", 3: "kev"}, calls)).run(defn, {"q": "x"})
+    runner.Runner(caller_from({2: "CVE-2020-28500", 3: "listed in CISA KEV"}, calls)).run(defn, {"q": "x"})
     assert 1 not in [rid for rid, _ in calls]
 
 
 def test_slots_run_in_parallel_under_the_deadline():
-    answers = {1: "CVE-2020-28500", 3: "kev"}
+    answers = {1: "CVE-2020-28500", 3: "listed in CISA KEV"}
     started = time.monotonic()
     out = runner.Runner(caller_from(answers, delay=0.3)).run(necklace(), {"q": "x"})
     assert time.monotonic() - started < 0.55 and out["ok"]
@@ -114,14 +114,14 @@ def test_slots_run_in_parallel_under_the_deadline():
 def test_deadline_stops_further_fallbacks():
     defn = necklace()
     defn["budget_ms"] = {"total": 700, "slot": 700}
-    answers = {1: Fail(), 2: Fail(), 3: "kev"}
+    answers = {1: Fail(), 2: Fail(), 3: "listed in CISA KEV"}
     out = runner.Runner(caller_from(answers, delay=0.2)).run(defn, {"q": "x"})
     classes = [a["error_class"] for a in out["attempts"]["papers"]]
     assert "deadline" in classes and out["slots"]["papers"]["stage"] == 4
 
 
 def test_run_event_has_no_input_or_output(tmp_path):
-    out = runner.Runner(caller_from({1: "CVE-2020-28500", 3: "kev"})).run(necklace(), {"q": "secret-topic"})
+    out = runner.Runner(caller_from({1: "CVE-2020-28500", 3: "listed in CISA KEV"})).run(necklace(), {"q": "secret-topic"})
     event = runner.run_event(out, "external", at=1_800_000_000)
     runner.append_event(tmp_path, event)
     text = (tmp_path / "runs" / "20270115.jsonl").read_text()
@@ -157,7 +157,7 @@ def test_our_runs_never_count_as_external():
 
 def test_daily_north_star_counts_external_clients_only(tmp_path):
     from agent_market.necklaces import daily
-    out = runner.Runner(caller_from({1: "CVE-2020-28500", 3: "kev"})).run(necklace(), {"q": "x"})
+    out = runner.Runner(caller_from({1: "CVE-2020-28500", 3: "listed in CISA KEV"})).run(necklace(), {"q": "x"})
     now = 1_800_000_000
     events = [runner.run_event(out, *runner.classify_source("public", ua="Mozilla/5.0 Chrome/120 Safari/537"), at=now)]
     events.append(runner.run_event(out, *runner.classify_source("retest"), at=now))
@@ -207,7 +207,7 @@ def test_stale_fallback_moves_to_the_next_member():
 
 def test_relay_throttle_does_not_pause_the_provider():
     budget = FakeBudget()
-    call = runner.budgeted_caller(caller_from({1: Fail("relay_throttled"), 2: "CVE-1", 3: "kev"}), "necklace_retest",
+    call = runner.budgeted_caller(caller_from({1: Fail("relay_throttled"), 2: "CVE-1", 3: "listed in CISA KEV"}), "necklace_retest",
                                   lambda m: f"https://p{m['resource_id']}.example/", budget)
     runner.Runner(call).run(necklace(), {"q": "x"})
     assert budget.noted == []
@@ -220,13 +220,60 @@ def test_cvss_score_is_never_the_cvss_version():
     assert runner.find_score("CVSS:3.1/AV:N/AC:L/PR:N base score 9.8 (critical)") == 9.8
     assert runner.find_score("cvssV3_1 vector only, no score") is None
     assert runner.find_score({"version": "3.1", "severity": "HIGH"}) is None
-    assert runner.norm_record({"id": "CVE-2021-44228", "score": 10.0}, {"cve_id": "CVE-2021-44228"})["cvss_score"] == 10.0
+    # a plain "score" counts only under a cvss or metrics key (PM R19)
+    assert runner.norm_record({"id": "CVE-2021-44228", "score": 10.0}, {"cve_id": "CVE-2021-44228"})["cvss_score"] is None
+    assert runner.norm_record({"id": "CVE-2021-44228", "cvss": {"score": 10.0}},
+                              {"cve_id": "CVE-2021-44228"})["cvss_score"] == 10.0
+
+
+# ---------------------------------------------------------------- answer shapes and error text (PM R19, 11-15)
+CVE_ASKED = {"cve_id": "CVE-2021-44228"}
+
+
+def test_pm_reproductions_of_r19():
+    # JSON in an MCP text part is read as structure: kev false stays false
+    assert runner.normalize("cve.exploited.v1", [{"type": "text", "text": '{"kev": false}'}], CVE_ASKED)["kev"] is False
+    # an outage notice is not "not exploited", it is no answer
+    assert runner.normalize("cve.exploited.v1", "Service temporarily unavailable", CVE_ASKED) is None
+    # a limit notice is not "no advisories"
+    assert runner.normalize("package.advisories.v1", "Error: rate limit exceeded", {"package": "x"}) is None
+
+
+def test_exploited_cannot_be_guessed():
+    for raw in ("kev", "The CVE is interesting.", {"note": "unknown"}, "Not listed in KEV but actively exploited"):
+        assert runner.normalize("cve.exploited.v1", raw, CVE_ASKED) is None, raw
+    assert runner.normalize("cve.exploited.v1", "CVE-2021-44228 is listed in the CISA KEV catalog", CVE_ASKED)["kev"] is True
+    assert runner.normalize("cve.exploited.v1", "CVE-2021-44228 is not in the CISA KEV", CVE_ASKED)["kev"] is False
+    assert runner.normalize("cve.exploited.v1", "CVE-2023-1111 is listed in KEV", CVE_ASKED) is None   # another CVE
+    assert runner.normalize("cve.exploited.v1", {"result": {"cisa_kev": True}}, CVE_ASKED)["kev"] is True
+    assert runner.normalize("cve.exploited.v1", {"a": {"kev": True}, "b": {"kev": False}}, CVE_ASKED) is None
+
+
+def test_every_caller_shape_reaches_the_normalizer_the_same_way():
+    data = {"kev": True, "cve_id": "CVE-2021-44228"}
+    shapes = [data, json.dumps(data), {"structuredContent": data, "content": []},
+              {"content": [{"type": "text", "text": json.dumps(data)}]}, [{"type": "text", "text": json.dumps(data)}],
+              {"jsonrpc": "2.0", "id": 1, "result": {"structuredContent": data}}, [{"kind": "data", "data": data}],
+              {"parts": [{"kind": "text", "text": json.dumps(data)}], "role": "agent"}]
+    assert all(runner.normalize("cve.exploited.v1", s, CVE_ASKED)["kev"] is True for s in shapes)
+    assert runner.normalize("cve.exploited.v1", {"content": [{"type": "text", "text": "boom"}], "isError": True},
+                            CVE_ASKED) is None
+
+
+def test_errors_are_failures_but_long_answers_mentioning_errors_are_not():
+    for raw in ({"error": "quota exceeded"}, {"error_code": "UPSTREAM", "message": "x"}, "Too Many Requests",
+                "502 Bad Gateway", "Internal Server Error", "", {"isError": True, "text": "x"}):
+        assert runner.normalize("package.advisories.v1", raw, {}) is None, raw
+        assert runner.normalize("topic.web.v1", raw, {}) is None, raw
+    long = "GHSA-29mw-wpgm-hmr9 fixes an error in parsing. " + "details " * 80
+    assert runner.normalize("package.advisories.v1", long, {})["items"] == [{"id": "GHSA-29MW-WPGM-HMR9"}]
+    assert runner.normalize("package.advisories.v1", {"vulns": []}, {}) == {"items": [], "urls": []}
 
 
 def test_raw_answers_are_kept_on_attempts_for_self_tests():
-    out = runner.Runner(caller_from({1: "CVE-2020-28500 raw", 3: "kev"}), keep_raw=10).run(necklace(), {"q": "x"})
+    out = runner.Runner(caller_from({1: "CVE-2020-28500 raw", 3: "listed in CISA KEV"}), keep_raw=10).run(necklace(), {"q": "x"})
     assert out["attempts"]["papers"][0]["raw"] == "CVE-2020-2"
-    plain = runner.Runner(caller_from({1: "CVE-2020-28500", 3: "kev"})).run(necklace(), {"q": "x"})
+    plain = runner.Runner(caller_from({1: "CVE-2020-28500", 3: "listed in CISA KEV"})).run(necklace(), {"q": "x"})
     assert plain["attempts"]["papers"][0]["raw"] is None
 
 
