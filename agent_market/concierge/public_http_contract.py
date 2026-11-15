@@ -9,6 +9,8 @@ import re
 
 from starlette.datastructures import Headers, MutableHeaders
 from .conditional_http import etag_matches
+
+TAGGED_HEADERS=('content-type','content-security-policy','cache-control','vary')  # in the computed ETag (11-15)
 from .security import _QUOTA_SINK, quota_headers
 from .sitemap_parts import is_part as sitemap_part
 
@@ -199,7 +201,11 @@ class PublicHTTPContract:
                         if name.lower() not in (v.lower() for v in vary):vary.append(name)
                     headers['vary']=', '.join(vary)
                 if status==200 and method=='GET':
-                    tag=headers.get('etag') or '"'+hashlib.sha256(body).hexdigest()[:24]+'"'
+                    # 11-15: the tag also covers the headers that change how a page renders or is kept. With the body
+                    # alone, a fix that only changed the CSP answered 304 and the edge kept the old blocking header.
+                    # A tag the route set itself (feeds) is left as it is.
+                    shape='\n'.join(k+':'+headers.get(k,'') for k in TAGGED_HEADERS).encode()
+                    tag=headers.get('etag') or '"'+hashlib.sha256(body+b'\n'+shape).hexdigest()[:24]+'"'
                     tag='W/'+tag if not tag.startswith('W/') else tag
                     headers['etag']=tag
                     if etag_matches(request.get('if-none-match'),tag):start['status']=304;body=b''
