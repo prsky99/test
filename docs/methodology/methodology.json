@@ -544,7 +544,8 @@
    },
    "answer_source": "answer set (withheld)",
    "checks": [
-    "expected facts appear in the answer"
+    "expected facts appear in the answer",
+    "same-time public reference: site_files"
    ],
    "freshness": "fixed facts (not time-bound)"
   }

@@ -390,6 +390,13 @@ def reference(kind, url):
     if key in _CACHE and time.time() - _CACHE[key][0] < 600:
         return _CACHE[key][1]
     value = None
+    if kind == 'site_files':                # the site's own robots.txt, llms.txt and sitemap.xml, read again now
+        try:
+            value = site_truth(url)
+        except Exception:
+            value = None
+        _CACHE[key] = (time.time(), value)
+        return value
     try:
         data = None if kind == 'temperature_c' else _fetch_json(url)
         if kind == 'temperature_c':
@@ -412,9 +419,91 @@ def reference(kind, url):
     return value
 
 
+SITE_BOTS = ('GPTBot', 'ClaudeBot', 'anthropic-ai', 'Google-Extended', 'PerplexityBot', 'CCBot')
+SITE_ALLOWED = re.compile(r'\b(?:allowed|allows|permitted|accessible|can crawl|not blocked)\b', re.I)
+SITE_BLOCKED = re.compile(r'\b(?:blocked|disallowed|denied|not allowed|forbidden|cannot crawl)\b', re.I)
+FILE_ABSENT = re.compile(r'\b(?:not found|missing|absent|not present|no such|does not exist|404|not served|none)\b|\bno\b', re.I)
+FILE_PRESENT = re.compile(r'\b(?:present|found|exists|available|served|detected|yes|true)\b', re.I)
+FILE_NONE_BEFORE = re.compile(r'\b(?:no|without|missing|lacks|lacking)\s+(?:an?\s+|the\s+)?$', re.I)
+UNREADABLE = re.compile(r'could not (?:be )?read|unreadable|unavailable|timed? ?out|error|redirects off', re.I)
+
+
+def site_truth(domain):
+    """The grader's own read of DOMAIN (ops 11-15 request): three GETs at most through the website-readiness agent's
+    public-address and same-site redirect checks, counted in the shared ledger as reference_checks."""
+    from agent_market.fallback_agents import gold_check
+    from agent_market.fallback_agents.net import budget
+    with budget('reference_checks'):
+        return gold_check.site_truth(str(domain).strip().lower())
+
+
+def _signals(text):
+    """The 'signals' object of a structured readiness answer (our site-readiness envelope), else None."""
+    try:
+        data = json.loads(text or '')
+    except (TypeError, ValueError):
+        return None
+    stack = [data]
+    while stack:
+        item = stack.pop()
+        if isinstance(item, dict):
+            if isinstance(item.get('signals'), dict) and ('ai_crawlers' in item['signals'] or 'robots_txt' in item['signals']):
+                return item['signals']
+            stack.extend(item.values())
+        elif isinstance(item, list):
+            stack.extend(item)
+    return None
+
+
+def _claim(text, name, yes, no, width=60, before=None):
+    """True/False/None: what TEXT says right after NAME (first mention with a verdict word within WIDTH); BEFORE is a
+    negation that may stand just ahead of the name ("no llms.txt")."""
+    for m in re.finditer(re.escape(name), text or '', re.I):
+        if before is not None and before.search((text or '')[max(0, m.start() - 14):m.start()]):
+            return False
+        window = (text or '')[m.end():m.end() + width]
+        hit_no, hit_yes = no.search(window), yes.search(window)
+        if hit_no and (not hit_yes or hit_no.start() <= hit_yes.start()):
+            return False
+        if hit_yes:
+            return True
+    return None
+
+
+def site_files_match(truth, text, domain):
+    """website.ai_readiness against the site at grading time. A structured answer is judged by the agent team's
+    gold_check.judge_site; a text answer must make at least one checkable claim (a crawler's allowed/blocked verdict
+    for the site root, or llms.txt / sitemap.xml present or absent) and no claim the grader's read contradicts."""
+    from urllib.robotparser import RobotFileParser
+    from agent_market.fallback_agents import gold_check
+    signals = _signals(text)
+    if signals is not None:
+        return bool(gold_check.judge_site({'input': {'domain': domain}}, {'signals': signals}, truth).get('pass'))
+    robots = truth.get('robots')
+    if robots is None and not str(truth.get('robots_note') or '').startswith('HTTP 4'):
+        return _claim(text, 'robots.txt', UNREADABLE, re.compile(r'(?!x)x')) is True
+    right = wrong = 0
+    if robots is not None:
+        parser = RobotFileParser()
+        parser.parse(robots.splitlines())
+        for bot in SITE_BOTS:
+            said = _claim(text, bot, SITE_ALLOWED, SITE_BLOCKED)
+            if said is not None:
+                ok = said == parser.can_fetch(bot, f'https://{domain}/')
+                right, wrong = right + ok, wrong + (not ok)
+    for name, key in (('llms.txt', 'llms_txt'), ('sitemap.xml', 'sitemap_xml')):
+        said = _claim(text, name, FILE_PRESENT, FILE_ABSENT, width=40, before=FILE_NONE_BEFORE)
+        if said is not None and truth.get(key) is not None:
+            ok = said == truth[key]
+            right, wrong = right + ok, wrong + (not ok)
+    return right >= 1 and wrong == 0
+
+
 def dynamic_match(kind, ref, text, case_input=None, tolerance=None):
     if ref is None:
         return None
+    if kind == 'site_files':
+        return site_files_match(ref, text, str((case_input or {}).get('domain') or '').strip().lower())
     if kind == 'rate':
         amount = float((case_input or {}).get('amount') or 1)
         tol = tolerance or 0.02
