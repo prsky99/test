@@ -497,7 +497,9 @@ def page_response(value, *, public=False, page=None, noindex=None):
         # 11-14 PM plan 1: the daily home payload (3.4 KB, on every page) is the home page's own ld+json and
         # description; other pages ask /daily-home-metadata.json when Home is opened (daily_metadata_runtime).
         value = DAILY_HOME_JSON.sub('', value, count=1)
-    value = strip_comments(critical_css(split_panels(versioned(bundled(prerender_segmented(value)))), page))
+    # R79 comments go before split_panels, so the panels.js copy of an inactive panel is the markup the page
+    # would have carried (panel split tests; the shared panels.js no longer ships the comments either).
+    value = critical_css(split_panels(strip_comments(versioned(bundled(prerender_segmented(value))))), page)
     if os.environ.get('MAIN_SPONSORED', '0') == '1':  # 11-11 Sponsored on main Explore and Chat; off by default
         value = re.sub(r'<body\b', '<body data-sponsored="on"', value, count=1)
     # 11-11 (PM decision A): the same bytes for every visitor, so the edge may keep a page for 60 seconds.

@@ -421,3 +421,21 @@ def test_clearing_fills_a_missing_krw_rate_or_refuses(audited):
     service.krw_rate = lambda: '1391.0'
     assert service.operator_decide(access, op, q['id'], action='clear', reason='rate came back')['state'] == 'confirmed'
     assert row(store, q['id'])['krw_rate'] == '1391.0'
+
+
+def test_reconciliation_notices_a_changed_receive_address_without_writing_it(tmp_path):
+    from scripts.ad_coin_paid_reconcile import address_change, reconcile
+    state = tmp_path / 'receive-address.json'
+    finding, first = address_change(PAY_TO, state)
+    assert finding is None and PAY_TO[2:] not in str(first)                  # a short hash, never the address
+    state.write_text(__import__('json').dumps(first))
+    assert address_change(PAY_TO, state)[0] is None
+    finding, _ = address_change('0x' + '5' * 40, state)
+    assert finding['kind'] == 'receive_address_changed' and finding['from'] == first['sha']
+    booking = {'id': 'b1', 'state': 'confirmed', 'confirmed_ms': NOW, 'tx_hash': None, 'amount_units': 1,
+               'pay_to': '0x' + '5' * 40, 'krw_rate': '1', 'day_ms': 0, 'token': '0x' + '3' * 40, 'payer': PAYER,
+               'campaign_id': 'c', 'task_category': 'research', 'region': 'US'}
+    _, findings = reconcile([booking], receipts={}, transfers=[], impressions={}, last_blocks={},
+                            export_rows=[{'booking_id': 'b1', 'amount_usdc': '0.000001', 'tx_hash': ''}],
+                            day_ms=NOW - NOW % 86_400_000, pay_to=PAY_TO)
+    assert 'booking_to_other_receive_address' in [f['kind'] for f in findings]

@@ -166,6 +166,7 @@ def test_agent_payments_http_routes(store):  # noqa: F811
     vault = KeyVault()
     router = create_live_ad_coin_v2_router(
         store,
+        include_unused_routes=True,
         key_vault=vault,
         taxonomy=DEFAULT_TAXONOMY,
         regions=DEFAULT_REGIONS,
@@ -261,8 +262,12 @@ def test_agent_payments_http_routes(store):  # noqa: F811
             "result_digest": "sha256:" + "c" * 64,
         },
     )
-    assert res_settle.status_code == 200, res_settle.text
-    assert res_settle.json()["status"] == "settled"
+    assert res_settle.status_code == 403, res_settle.text          # R38: a signed-in user cannot settle
+    bad = client.post("/api/ad-coin/v2/agent-payments/executions/hold", headers={**headers, "Content-Type": "application/json"},
+                      content=b"{not json")
+    assert bad.status_code == 400
+    assert client.post("/api/ad-coin/v2/agent-payments/executions/hold", headers=headers,
+                       json={"provider_id": provider_id}).status_code == 422          # missing fields: 422, not 5xx
 
     # 5. Revoke Mandate
     res_revoke = client.post(
@@ -271,3 +276,17 @@ def test_agent_payments_http_routes(store):  # noqa: F811
     )
     assert res_revoke.status_code == 200
     assert res_revoke.json()["revoked_at"] is not None
+
+
+def test_production_router_leaves_the_unused_routes_out(store):  # noqa: F811
+    """R38 (PM 11-15): no screen or agent uses agent payments, ad relay or the advertiser platform yet."""
+    store.migrate_model()
+
+    def client(**kw):
+        app = FastAPI()
+        app.include_router(create_live_ad_coin_v2_router(store, key_vault=KeyVault(), **kw))
+        return TestClient(app)
+    off, on = client(), client(include_unused_routes=True)
+    for path in ('/api/ad-coin/v2/agent-payments/mandates', '/api/ad-coin/v2/relays/partners'):
+        assert off.get(path).status_code == 404, path
+        assert on.get(path).status_code in (401, 403), path

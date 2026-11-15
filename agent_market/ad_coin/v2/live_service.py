@@ -92,8 +92,13 @@ def create_live_ad_coin_v2_router(
     app_store: Any | None = None,
     customer_identity: Any | None = None,
     mtls_verifier: Any | None = None,
+    include_unused_routes: bool = False,
 ) -> Any:
-    """Create and return FastAPI APIRouter configured with live persistent auth and workspace."""
+    """Create and return FastAPI APIRouter configured with live persistent auth and workspace.
+
+    include_unused_routes mounts the agent-payment, ad-relay and advertiser-platform routes, which no screen or
+    agent uses yet; production leaves them out (PM 11-15 R38: an unused route is only attack surface). Their own
+    tests turn them on."""
     if store is None and app_store is not None:
         store = store_from_application(app_store)
         key_vault = key_vault or default_key_vault()  # production path: keys shared by every process
@@ -116,13 +121,13 @@ def create_live_ad_coin_v2_router(
     from .sponsored_http import router_for as sponsored_router
 
     slots = SponsoredSlots(commercial.store, taxonomy=commercial.taxonomy, regions=commercial.regions)
-    sponsored_routes = sponsored_router(slots)
     # Agent ads (A), 11-14: the one Sponsored offer on MCP and A2A answers. The organic side (concierge/ad_slot.py)
     # calls this provider after the answer is final; the call is a memory lookup, the timer reads the database.
     from ...concierge import ad_slot
     from .sponsored_agent import AgentOfferProvider
 
     agent_offers = AgentOfferProvider(slots)
+    sponsored_routes = sponsored_router(slots, offers=agent_offers.offer)   # R39: no DB or DNS per request
     sponsored_routes.add_event_handler("startup", agent_offers.start)
     sponsored_routes.add_event_handler("shutdown", agent_offers.stop)
     ad_slot.register(agent_offers)
@@ -137,33 +142,34 @@ def create_live_ad_coin_v2_router(
         commercial, SponsoredBookings(commercial.store, commercial.ledger, taxonomy=commercial.taxonomy,
                                       regions=commercial.regions, access=commercial.access),
         resolve_auth=resolver))
-    from .agent_payments import AgentPaymentGateway
-    from .agent_payment_http import router_for as agent_payment_router
+    if include_unused_routes:
+        from .agent_payments import AgentPaymentGateway
+        from .agent_payment_http import router_for as agent_payment_router
 
-    payment_gateway = AgentPaymentGateway(
-        commercial.store, commercial.ledger, commercial.access
-    )
-    base_router.include_router(
-        agent_payment_router(payment_gateway, resolve_auth=resolver)
-    )
-    from .ad_relay import AdRelayGateway
-    from .ad_relay_http import router_for as ad_relay_router
+        payment_gateway = AgentPaymentGateway(
+            commercial.store, commercial.ledger, commercial.access
+        )
+        base_router.include_router(
+            agent_payment_router(payment_gateway, resolve_auth=resolver)
+        )
+        from .ad_relay import AdRelayGateway
+        from .ad_relay_http import router_for as ad_relay_router
 
-    relay_gateway = AdRelayGateway(
-        commercial.store, commercial.ledger, commercial.access
-    )
-    base_router.include_router(
-        ad_relay_router(relay_gateway, resolve_auth=resolver)
-    )
-    from .advertiser_platform import AdvertiserPlatformGateway
-    from .advertiser_platform_http import router_for as advertiser_platform_router
+        relay_gateway = AdRelayGateway(
+            commercial.store, commercial.ledger, commercial.access
+        )
+        base_router.include_router(
+            ad_relay_router(relay_gateway, resolve_auth=resolver)
+        )
+        from .advertiser_platform import AdvertiserPlatformGateway
+        from .advertiser_platform_http import router_for as advertiser_platform_router
 
-    platform_gateway = AdvertiserPlatformGateway(
-        commercial.store, commercial.ledger, commercial.access
-    )
-    base_router.include_router(
-        advertiser_platform_router(platform_gateway, resolve_auth=resolver)
-    )
+        platform_gateway = AdvertiserPlatformGateway(
+            commercial.store, commercial.ledger, commercial.access
+        )
+        base_router.include_router(
+            advertiser_platform_router(platform_gateway, resolve_auth=resolver)
+        )
     from .admin_http import router_for as admin_router
 
     base_router.include_router(admin_router(commercial, resolve_auth=resolver))

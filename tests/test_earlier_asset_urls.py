@@ -71,11 +71,12 @@ def test_a_file_the_new_release_dropped_is_served_only_by_its_old_digest(deploye
     assert client.get('/new/en/assets/gone.js?v=0000000000000000').status_code == 404
 
 
-def test_an_unknown_digest_gets_the_current_bytes_briefly(deployed):
+def test_an_unknown_digest_gets_the_current_bytes_never_stored(deployed):
     client, _, new = deployed
     r = client.get('/new/en/assets/bundle.js?f=app&v=0123456789abcdef')
     assert r.content == pearl_view.bundle_body(['app'], 'js', new)
-    assert r.headers['cache-control'] == 'public, max-age=300, stale-while-revalidate=86400'
+    # R07 (89c6da86): content no release on disk has is not stored, so the edge cannot pair an older page with it
+    assert r.headers['cache-control'] == 'no-store'
 
 
 def test_no_path_escapes_an_earlier_release(deployed):

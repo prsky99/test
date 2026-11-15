@@ -27,8 +27,6 @@ ALLOWED_IMPORTERS = {
         'ad_coin.v2.live_service.is_v2_enabled',
         'ad_coin.v2.live_service.create_live_ad_coin_v2_router',
     },
-    # 11-14 growth /advertise page: reads only whether USDC payments are switched on (wording on the page)
-    'agent_market/concierge/advertise_page.py': {'ad_coin.v2.paid_bookings.enabled'},
 }
 SQL_KEYWORDS = {'ON', 'OR', 'SET', 'SKIP'}   # "INSERT OR", "DO UPDATE SET", "FOR UPDATE SKIP", "ON CONFLICT"
 
@@ -57,6 +55,9 @@ def test_only_the_frontend_wiring_imports_advertising_code():
     assert set(importers) <= set(ALLOWED_IMPORTERS), sorted(set(importers) - set(ALLOWED_IMPORTERS))
     for relative, names in importers.items():
         assert names <= ALLOWED_IMPORTERS[relative], (relative, sorted(names - ALLOWED_IMPORTERS[relative]))
+    # 11-15 R39: an exception nobody uses any more is removed, so the list never grows stale
+    for relative, allowed in ALLOWED_IMPORTERS.items():
+        assert allowed <= importers.get(relative, set()), (relative, sorted(allowed - importers.get(relative, set())))
 
 
 def test_main_application_sql_never_names_an_advertising_table():

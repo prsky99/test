@@ -10,6 +10,8 @@ For one UTC day (default yesterday) it matches five records against each other:
                 to a booking; an unmatched one is money in without a booking (refund by hand or attach it)
   4. served     a booking placed that day and settled served must have impressions that day (any placement)
   5. KRW        every received payment has a KRW rate, and the monthly export lists it with its KRW value
+  6. address    the receive address file has not changed since the last run (only a short hash is kept, in
+                logs/ops/payment-reconcile/receive-address.json), and every payment of the day went to it (R39)
 Writes logs/ops/payment-reconcile/<day>.json {ok, day, counts, findings}. Exit 1 when there is any finding.
 """
 import argparse
@@ -33,7 +35,21 @@ def _units(value):
     return "%d.%06d" % divmod(int(value), 1_000_000)
 
 
-def reconcile(bookings, *, receipts, transfers, impressions, last_blocks, export_rows, day_ms):
+def address_change(pay_to, state_file):
+    """(finding or None, new state): compares a short hash of the receive address with the last run's."""
+    import hashlib
+    digest = hashlib.sha256((pay_to or "").lower().encode()).hexdigest()[:12] if pay_to else None
+    try:
+        previous = json.loads(Path(state_file).read_text()).get("sha")
+    except (OSError, ValueError):
+        previous = None
+    finding = None
+    if previous and digest and previous != digest:
+        finding = {"kind": "receive_address_changed", "booking_id": None, "from": previous, "to": digest}
+    return finding, {"sha": digest}
+
+
+def reconcile(bookings, *, receipts, transfers, impressions, last_blocks, export_rows, day_ms, pay_to=None):
     """Pure check. bookings: dict rows; receipts: tx -> receipt|None|'unavailable'; transfers: [(tx, from, units)]
     into the receive address that day; impressions: (day, campaign, category, region) -> served count;
     last_blocks: booking id -> block hash recorded; export_rows: rows of the monthly CSV. Returns (counts, findings)."""
@@ -49,6 +65,8 @@ def reconcile(bookings, *, receipts, transfers, impressions, last_blocks, export
     for b in bookings:
         received = b["state"] in RECEIVED and b["confirmed_ms"] is not None and \
             day_ms <= int(b["confirmed_ms"]) < day_ms + DAY_MS
+        if received and pay_to and normalize(b["pay_to"] or "") != normalize(pay_to):
+            find("booking_to_other_receive_address", b)
         if received:
             counts["received"] += 1
             counts["received_units"] += int(b["amount_units"])
@@ -169,7 +187,12 @@ def main(argv=None):
                 except Exception:
                     receipts[b["tx_hash"].lower()] = "unavailable"
         pay_to = pay_to_from_file(os.path.join(ROOT, "gateway-data/usdc-receive-address.txt"))
+        changed, address_state = address_change(pay_to, OUT / "receive-address.json")
+        if changed:
+            findings_extra.append(changed)
         if pay_to:
+            OUT.mkdir(parents=True, exist_ok=True)
+            (OUT / "receive-address.json").write_text(json.dumps(address_state))
             first, last = block_at(rpc, day_ms // 1000), block_at(rpc, (day_ms + DAY_MS) // 1000) - 1
             transfers = transfers_to(rpc, BASE_USDC, pay_to, first, last)
         else:
@@ -177,7 +200,8 @@ def main(argv=None):
     except Exception as error:   # recorded, never hidden
         findings_extra.append({"kind": "chain_unreadable", "booking_id": None, "error": type(error).__name__})
     counts, findings = reconcile(bookings, receipts=receipts, transfers=transfers, impressions=impressions,
-                                 last_blocks=last_blocks, export_rows=export_rows, day_ms=day_ms)
+                                 last_blocks=last_blocks, export_rows=export_rows, day_ms=day_ms,
+                                 pay_to=locals().get("pay_to"))
     findings += findings_extra
     counts["received_usdc"] = _units(counts.pop("received_units"))
     result = {"day": day, "at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "ok": not findings,
