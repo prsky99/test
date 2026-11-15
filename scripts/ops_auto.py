@@ -908,7 +908,10 @@ def busy():
 
 
 def query(sql):
-    return subprocess.run(PSQL + [sql], capture_output=True, text=True).stdout.strip()
+    """Counts for the test-report summary. The session is read-only (11-15 PM audit: the watch never writes the
+    production database), with a short statement and lock limit."""
+    env = {**os.environ, 'PGOPTIONS': '-c default_transaction_read_only=on -c statement_timeout=15000 -c lock_timeout=1000'}
+    return subprocess.run(PSQL + [sql], capture_output=True, text=True, env=env).stdout.strip()
 
 
 def test_reports():
