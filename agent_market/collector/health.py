@@ -38,7 +38,8 @@ from ..observation_guards import GuardError
 
 log = logging.getLogger("agent_market.collector.health")
 
-USER_AGENT = "agent-collector/0.1 (+health check; no payment is made)"
+USER_AGENT = ("AgentValCon-collector/1.0 (+https://agentconcierge.biz/; contact@agentconcierge.biz; "
+              "health check, no payment is made)")
 MCP_DISCOVER = {
     "jsonrpc": "2.0", "id": 1, "method": "server/discover",
     "params": {},
@@ -202,8 +203,12 @@ class HealthChecker:
 
     def _check_x402(self, http: httpx.Client, resource: dict) -> CheckResult:
         method = (resource.get("method") or "GET").upper()
-        kwargs = {"json": {}} if method in ("POST", "PUT", "PATCH") else {}
-        with http.stream(method if method in ("GET", "POST", "PUT", "PATCH") else "GET", resource["url"], **kwargs) as resp:
+        # R69(PM 11-15): PUT·PATCH는 남의 자원을 바꾸는 요청이라 보내지 않는다. 그런 자원은 GET으로만 살아 있는지 본다
+        # (405 등이면 '살아 있음, 결제 조건 확인 불가'로 남는다).
+        if method not in ("GET", "POST"):
+            method = "GET"
+        kwargs = {"json": {}} if method == "POST" else {}
+        with http.stream(method, resource["url"], **kwargs) as resp:
             body = self._read(resp)
         code = resp.status_code
         if code == 402:

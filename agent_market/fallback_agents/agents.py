@@ -80,7 +80,8 @@ class FallbackAgents:
         self.data_dir = root
         self.snapshot = snapshot or Snapshot(root / "nvd-cve.sqlite3")
         self.usage_dir = Path(usage_dir) if usage_dir else root / "usage"
-        self.limiters = limiters or make_limiters(clock=clock)
+        # Host pacing shared by every process on this machine (frontend, jobs, execution): R30, PM 11-15.
+        self.limiters = limiters or make_limiters(clock=clock, shared_dir=root / "host-limits", wall=wall)
         self.budget = budget
         self.lock = threading.Lock()
         self.cache: OrderedDict = OrderedDict()

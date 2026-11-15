@@ -248,7 +248,12 @@ def run(definitions: list[dict], root: Path, logs: Path, now: float | None = Non
             alerts.append({"at": stamp, "slug": slug, "alert": "hold", "reason": summary["held_reason"]})
     write_atomic(stage_path, stage_state)
     logs.mkdir(parents=True, exist_ok=True)
-    (logs / f"{names[0]}.md").write_text("# 목걸이 점검 " + day.strftime("%Y-%m-%d") + "\n\n" +
+    statuses = [d.get("status") for d in definitions]
+    head = (f"목걸이 {len(lines)}개 집계, 경보 {len(alerts)}건. 정의 {len(definitions)}개("
+            + ", ".join(f"{k} {statuses.count(k)}" for k in sorted(set(statuses), key=str)) + ").")
+    if not lines:
+        head += " 시험 중·공개·보류 목걸이가 없어 집계할 것이 없습니다(정상)."
+    (logs / f"{names[0]}.md").write_text("# 목걸이 점검 " + day.strftime("%Y-%m-%d") + "\n\n" + head + "\n\n" +
                                          "".join(f"- {line}\n" for line in lines), encoding="utf-8")
     if alerts:
         with (logs / "alerts.jsonl").open("a", encoding="utf-8") as handle:
