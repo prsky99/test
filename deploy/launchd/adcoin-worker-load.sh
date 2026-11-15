@@ -6,32 +6,45 @@
 # longer than ExitTimeOut, asks launchd again every 30 s, retries the bootstrap, and whenever it gives up says
 # plainly that the daemon is down and how to run again, with its own exit code:
 #   0 running   3 the old job never finished unloading   4 bootstrap kept failing   5 not running after bootstrap
+# 11-15 11:28 (PM): in a session where `sleep` returned at once, the 120-poll wait passed in 3 s and the script said
+# the daemon was down. Every wait is now measured on the wall clock (date +%s), so an early-returning sleep only
+# makes the loop poll more often, never shortens the wait.
 set -uo pipefail
 L=${1:?label}; P=${2:?plist}
 LAUNCHCTL=${LAUNCHCTL:-launchctl}   # replaceable for tests
 WAIT=${INSTALL_WAIT_SECONDS:-120}; SETTLE=${INSTALL_SETTLE_SECONDS:-15}; RETRY=${INSTALL_RETRY_SECONDS:-5}
-POLL=${INSTALL_POLL_SECONDS:-1}
+POLL=${INSTALL_POLL_SECONDS:-1}; REBOOTOUT=${INSTALL_REBOOTOUT_SECONDS:-30}
+SLEEP=${INSTALL_SLEEP:-sleep}      # replaceable for tests (an instant sleep reproduces 11:28)
 TRIES=${INSTALL_BOOTSTRAP_TRIES:-3}; RERUN=${RERUN:-the same install command}
 DOMAIN="gui/$(id -u)"
 listed() { "$LAUNCHCTL" list | grep -q "[[:space:]]$L\$"; }
+now() { date +%s; }
+pause() {   # wait $1 seconds of wall-clock time, even if sleep comes back early
+  [ "$1" -gt 0 ] || return 0
+  local end=$(( $(now) + $1 ))
+  "$SLEEP" "$1" 2>/dev/null || true
+  while [ "$(now)" -le "$end" ]; do "$SLEEP" 1 2>/dev/null || true; done   # -le: at least $1 whole seconds
+}
 down() {
   echo "!! 데몬이 지금 꺼져 있습니다 (the AD Coin worker daemon is NOT running now)."
   echo "!! 1분 뒤 같은 명령을 다시 실행하세요: $RERUN"
 }
 "$LAUNCHCTL" bootout "$DOMAIN/$L" 2>/dev/null || true
-waited=0
-while listed && [ "$waited" -lt "$WAIT" ]; do
-  sleep "$POLL"; waited=$((waited + 1))
-  if [ $((waited % 30)) -eq 0 ]; then "$LAUNCHCTL" bootout "$DOMAIN/$L" 2>/dev/null || true; fi
+start=$(now); again=$((start + REBOOTOUT))
+while listed; do
+  t=$(now)
+  if [ "$t" -gt $((start + WAIT)) ]; then break; fi   # date +%s counts whole seconds: -gt guarantees a full WAIT
+  if [ "$t" -ge "$again" ]; then "$LAUNCHCTL" bootout "$DOMAIN/$L" 2>/dev/null || true; again=$((t + REBOOTOUT)); fi
+  pause "$POLL"
 done
 if listed; then
-  echo "previous $L is still loaded after ${WAIT}s"; down; exit 3
+  echo "previous $L is still loaded after $(( $(now) - start ))s (limit ${WAIT}s)"; down; exit 3
 fi
 tries=1
 until "$LAUNCHCTL" bootstrap "$DOMAIN" "$P"; do
   if [ "$tries" -ge "$TRIES" ]; then echo "bootstrap failed ${TRIES} times"; down; exit 4; fi
-  echo "bootstrap failed; trying again in ${RETRY}s"; sleep "$RETRY"; tries=$((tries + 1))
+  echo "bootstrap failed; trying again in ${RETRY}s"; pause "$RETRY"; tries=$((tries + 1))
 done
-sleep "$SETTLE"
+pause "$SETTLE"
 if ! listed; then echo "$L is not running after the bootstrap"; down; exit 5; fi
 exit 0
