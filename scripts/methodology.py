@@ -16,7 +16,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / 'scripts'))
 
 OUT = ROOT / 'docs/methodology/methodology.json'
-VERSION = 'v1'
+VERSION = 'v1.1'  # 11-15: retest rules say what runs (gate_rules c0e7fadd)
 
 
 def _gate():

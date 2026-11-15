@@ -12,7 +12,7 @@ from tests.test_pearl_frontend import client  # noqa: F401 - fixture
 
 def test_the_page_shows_the_generated_numbers_and_no_promise_words():
     data = mp.method()
-    assert data and data['version'] == 'v1'
+    assert data and data['version'] == 'v1.1'   # 11-15: retest rules say what runs
     value = mp.page_html(data=data)
     text = re.sub(r'<[^>]+>', ' ', value)
     for expected in ('scores 85 or more on 2 different days', 'Score (out of 100)', 'Tests per day', '120',
@@ -23,7 +23,7 @@ def test_the_page_shows_the_generated_numbers_and_no_promise_words():
     for word in ('guaranteed', 'Guaranteed', '#1', ' best '):
         assert word not in text, word
     ld = json.loads(re.search(r'application/ld\+json">(.*?)</script>', value, re.S)[1])
-    assert ld['@type'] == 'TechArticle' and ld['version'] == 'v1' and ld['encoding']['contentUrl'].endswith('/methodology.json')
+    assert ld['@type'] == 'TechArticle' and ld['version'] == 'v1.1' and ld['encoding']['contentUrl'].endswith('/methodology.json')
 
 
 def test_routes_sitemap_and_llms(client):  # noqa: F811
@@ -74,6 +74,6 @@ def test_gate_section_tells_rules_from_what_has_run(tmp_path, monkeypatch):
     page = mp.page_html(data=data, log=[])
     text = re.sub(r'<[^>]+>', ' ', page)
     assert 'immediate hold' not in text and 'keeps passing its retests' not in text
-    assert 'held at the next daily check below' in text and 'gate pass rate (first opening)' in text
+    assert 'retest · hold below at next daily check' in text and 'retest · pass rate' not in text
     assert 'No necklace is offered yet' in text
     assert "each server's tool" not in page and 'records what changed' in page

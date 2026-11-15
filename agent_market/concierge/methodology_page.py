@@ -135,11 +135,9 @@ def page_html(base='https://agentconcierge.biz', data=None, log=None):
             yield prefix, ', '.join(str(v).replace('_', ' ') for v in value)
         else:
             yield prefix, value
-    # 11-15 (workflow team, from code): 0.95 is the gate's pass rate and is not enforced at retest; the 0.8 hold is
-    # written by the 05:20 daily summary and applied by the judge at its next hourly run, not at once.
-    shown = {'retest · pass rate': 'gate pass rate (first opening)',
-             'retest · immediate hold below': 'retest · held at the next daily check below'}
-    gate_rows = [[esc(shown.get(k, k)), esc(v)] for k, v in flat('', gate)]
+    # 11-15 (workflow team, from code, c0e7fadd): the retest keys now say what runs (a hold below 0.8 at the next daily
+    # check, 48 hours, delta <= 0); 0.95 is only the gate's. Method v1.1.
+    gate_rows = [[esc(k), esc(v)] for k, v in flat('', gate)]
     try:
         from .necklace_surface import live
         offered_now = len(live())

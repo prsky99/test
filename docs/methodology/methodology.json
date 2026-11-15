@@ -1,6 +1,6 @@
 {
  "name": "AgentValCon Verification Method",
- "version": "v1",
+ "version": "v1.1",
  "candidates": {
   "grade_minimum": "A",
   "grade_thresholds": {
@@ -104,8 +104,10 @@
    "delta": "> 0"
   },
   "retest": {
-   "pass_rate": 0.95,
-   "immediate_hold_below": 0.8
+   "hold_below_at_next_daily_check": 0.8,
+   "hold_when_older_than_hours": 48,
+   "hold_when_delta": "<= 0",
+   "checked": "daily"
   },
   "substitute": {
    "held_out_cases": 30,

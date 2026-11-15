@@ -1,10 +1,19 @@
 [
-  {
-    "version": "v1",
-    "date": "2026-11-14",
-    "changes": [
-      "First public version: candidates, how a test runs, the score out of 100, verified and final pearls, the necklace gate, 32 roles and limits.",
-      "Necklace gate values come from the gate's own constants (agent_market/necklaces/gate_rules); held-out answer sets stay withheld."
-    ]
-  }
+ {
+  "version": "v1.1",
+  "date": "2026-11-15",
+  "changes": [
+   "Retest rules say what runs: after its gate, a necklace is held at the next daily check when a day’s retest success is below 0.8, a retest is older than 48 hours, or its delta is 0 or less.",
+   "The retest pass rate of 0.95 is removed: 0.95 is the gate’s rate for the first opening, and retests do not enforce it.",
+   "The page opens with what we measure: real read-only calls judged against known facts, tool-list and answer hashes, and the last successful check."
+  ]
+ },
+ {
+  "version": "v1",
+  "date": "2026-11-14",
+  "changes": [
+   "First public version: candidates, how a test runs, the score out of 100, verified and final pearls, the necklace gate, 32 roles and limits.",
+   "Necklace gate values come from the gate's own constants (agent_market/necklaces/gate_rules); held-out answer sets stay withheld."
+  ]
+ }
 ]
