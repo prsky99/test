@@ -239,7 +239,8 @@ def notice(slug: str, snapshot: dict, base: str = BASE) -> dict:
              f"body {json.dumps(run['http']['json'], ensure_ascii=False)}.",
              measured or "Not measured yet against calling the agents directly; the numbers appear on the necklace "
                          "page once they are.",
-             *([full_line(entry.get("comparison"))] if value and full_line(entry.get("comparison")) else []),
+             *([full_line(entry.get("comparison"))] if value and full_line(entry.get("comparison"))
+               and "Including finding" not in (measured or "") else []),     # growth 4737338c says it in the line
              "Scope and limits: " + " ".join(limits or ["no limits stated beyond the input form."])]
     steps = [f"{p.get('role') or 'step'}: {_n(p['alternates']['external'], 'other agent')}, {p['alternates']['agentcon']} of ours"
              for p in pearls if p.get("alternates")]
