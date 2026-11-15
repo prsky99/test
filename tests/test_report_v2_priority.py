@@ -8,14 +8,16 @@ import role_tool_test as RT  # noqa: E402
 
 
 def test_priority_roles_follow_the_pm_order_and_others_come_after():
-    assert V.PRIORITY_ROLES[:3] == ('website.ai_readiness.v1', 'web.grounding.v1', 'timezone.time.v1')
+    # PM 11-15 16:07: due diligence, topic brief, CVE, package risk, new necklaces, then website/time/holiday
+    assert V.PRIORITY_ROLES[:3] == ('company.registry.v1', 'encyclopedia.summary.v1', 'sec.filings.v1')
+    assert V.PRIORITY_ROLES[-3:] == ('website.ai_readiness.v1', 'timezone.time.v1', 'holiday.calendar.v1')
     candidates = [(role, i * 10 + n, 'tool', f'h{i}-{n}.example') for i, role in enumerate(
-        ['weather.forecast.v1', 'news.search.v1', 'holiday.calendar.v1', 'website.ai_readiness.v1']) for n in range(6)]
+        ['weather.forecast.v1', 'holiday.calendar.v1', 'website.ai_readiness.v1', 'company.registry.v1']) for n in range(6)]
     out = V.new_queue([], candidates, limit=10, terms={})
     roles = [x['role'] for x in out]
-    assert roles[:4] == ['website.ai_readiness.v1'] * V.PRIORITY_PICKS
-    assert roles[4:8] == ['holiday.calendar.v1'] * V.PRIORITY_PICKS
-    assert roles[8:10] == ['news.search.v1', 'news.search.v1'] or roles[8] == 'news.search.v1'
+    assert roles[:4] == ['company.registry.v1'] * V.PRIORITY_PICKS
+    assert roles[4:8] == ['website.ai_readiness.v1'] * V.PRIORITY_PICKS
+    assert roles[8] == 'holiday.calendar.v1'
     assert 'weather.forecast.v1' not in roles[:9]
 
 

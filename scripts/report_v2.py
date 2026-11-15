@@ -45,7 +45,7 @@ BOARD = ROOT / 'logs/ops/status-board.md'
 RULES = 'v2-2026-11-14'
 # Evaluation rules version (current-state review 11-14 F01-F03, F10). Versions scored under different evaluator
 # versions never count together as repeated successes; rescoring writes a score file per version, never over a version.
-EVALUATOR_VERSION = 'dq-2026-11-15c'
+EVALUATOR_VERSION = 'dq-2026-11-15d'
 from agent_market.necklaces import gate_rules  # noqa: E402  (운영·SRE 897baf3a: one source for the gate numbers)
 PASS_MARK = gate_rules.REPORT_SCORE
 
@@ -265,13 +265,20 @@ SAMPLE_BOUND = {'react named', 'domain echoed', 'Paris', 'address or coordinates
                 'topic echoed'}
 
 
+def absence_case(case):
+    """A case whose right answer is that no record exists (sec-none-*, 운영·SRE 11-15 16:1x): it forbids record
+    patterns (must_not_match), so the role's default checks, which look for a record (a form type, a company),
+    are not asked of it; its answer set is the whole judgement."""
+    return bool(((case or {}).get('expect') or {}).get('must_not_match'))
+
+
 def judge(role, text, args, case=None, structured=None):
     checks = []
     rules = CHECKS.get(role) or [(name, lambda t, a, _p=pattern: _has(_p, t))
                                  for name, pattern in role_catalog.default_checks(canonical(role))]
     if case:
         from agent_market.necklaces import role_tasks
-        rules = [(name, rule) for name, rule in rules if name not in SAMPLE_BOUND]
+        rules = [] if absence_case(case) else [(name, rule) for name, rule in rules if name not in SAMPLE_BOUND]
         rules.append((f"answer set {case['case_id']}",
                       lambda t, a, _c=case: role_tasks.score(_c, t, structured)[0]))
     for name, rule in rules:
@@ -1339,9 +1346,13 @@ def catalog_candidates():
 # PM 11-15 13:53: the roles whose next pearl opens a necklace, in this order (workflow readiness table). Earlier in
 # the tuple = earlier in every round; each gets PRIORITY_PICKS a round, the other roles one each after them.
 # PM 14:22: web.grounding second (Pipeworx 50972 left topic-evidence-brief's required web seat on terms).
-PRIORITY_ROLES = ('website.ai_readiness.v1', 'web.grounding.v1', 'timezone.time.v1', 'holiday.calendar.v1',
-                  'company.registry.v1', 'sec.filings.v1', 'papers.search.v1', 'cve.exploited.v1', 'cve.record.v1',
-                  'package.advisories.v1', 'package.health.v1', 'news.search.v1')
+# PM 11-15 16:07: demand order from the outside survey (reports/necklace-demand-2026-11-15), replacing 13:53's.
+PRIORITY_ROLES = ('company.registry.v1', 'encyclopedia.summary.v1', 'sec.filings.v1', 'domain.lookup.v1',   # 1 due diligence
+                  'web.grounding.v1', 'papers.search.v1',                                              # 2 topic brief
+                  'cve.exploited.v1', 'cve.record.v1',                                                 # 3 CVE brief
+                  'package.advisories.v1', 'package.health.v1',                                        # 4 package risk
+                  'github.repo.v1', 'package.risk.v1', 'news.search.v1',                               # 5 new necklaces
+                  'website.ai_readiness.v1', 'timezone.time.v1', 'holiday.calendar.v1')                # 6 after
 PRIORITY_PICKS = 4
 
 

@@ -47,4 +47,16 @@ def test_contract_shaped_answers_are_judged_as_text():
 
 
 def test_the_evaluator_version_moved():
-    assert V.EVALUATOR_VERSION == 'dq-2026-11-15c'
+    assert V.EVALUATOR_VERSION == 'dq-2026-11-15d'
+
+
+def test_no_record_case_is_judged_on_its_answer_set_alone():
+    case = next(c for c in V.role_tasks_rag() if c['case_id'] == 'sec-none-nongshim')
+    answer = ("No SEC EDGAR registration matches (company Nongshim Co., Ltd., query Nongshim): the company has no SEC "
+              "filings under a listed ticker, CIK or this exact name.")
+    j = V.judge('sec.filings', answer, case['input'], case)
+    assert [c['check'] for c in j['checks']] == ['answer set sec-none-nongshim'] and j['passed'] == j['total'] == 1
+    made_up = V.judge('sec.filings', 'Nongshim CIK 1234567 filed a 10-K, accession 0001234567-26-000001.', case['input'], case)
+    assert made_up['passed'] == 0
+    record = next(c for c in V.role_tasks_rag() if c['case_id'] == 'sec-aapl-latest-10k')
+    assert not V.absence_case(record) and V.absence_case(case)
