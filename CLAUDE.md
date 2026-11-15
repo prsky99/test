@@ -21,8 +21,8 @@
   - `registries.py`: ERC-8004·well-known 수집
   - `server.py`: 조회 API :8300
 - `agent_market/gateway/`: 게이트웨이 :8200
-  - `store.py`: SQLite·FTS5
-  - `classify.py`: 14개 카테고리 분류
+  - `store.py`: 저장소(운영은 PostgreSQL 18 + pgvector, SQLite·FTS5는 시험·로컬용)
+  - `classify.py`: 20개 카테고리 분류
   - `ranking.py`, `service.py`
   - `dashboard.*`: 관리 화면 `/admin/ui`
   - `sns.py`
@@ -37,23 +37,28 @@
 
 ## 실행·테스트
 ```bash
-.venv-tests/bin/python -m pytest -q    # 전부 통과해야 커밋
-COLLECTOR_DB=gateway-data/collector.sqlite3 .venv/bin/python -m agent_market.collector.server
-GATEWAY_DB=gateway-data/collector.sqlite3 .venv/bin/python -m agent_market.gateway.server
+.venv/bin/python -m scripts.pytest_slot tests/test_a.py tests/test_b.py   # 바뀐 부분의 시험 파일만(파일 이름 필수)
+.venv/bin/python -m scripts.heavy_slot --team <팀> --what "full pytest" --minutes 20 -- <명령>   # 넓은 시험은 이것으로만
+./agentcon status   # 운영 네 역할(frontend·admin·jobs·execution)의 활성 버전과 상태
 ```
-- 시험은 `.venv-tests`로 돌린다. `.venv`에는 pytest가 없다(11-02 확인).
-  - 정적 검사: `.venv-tests/bin/python -m pyflakes agent_market tests` (11-02 설치, `requirements-dev.txt`). 경고 약 3,700건은 대부분 쓰지 않는 import다. 정의되지 않은 이름은 `tests/test_pyflakes_undefined_names.py`가 막는다.
-- frontend 릴리스는 배포 전에 `.venv-tests/bin/python -m scripts.release_gate <release>`로 사본 시험을 한다(`deploy/DEPLOY.md`).
-- 이 맥은 운영 서버이기도 하다. 큰 테스트(전체 pytest, playwright)는 낮은 우선순위로 돌린다(사용자 결정 2026-11-02).
-  - 예: `nice -n 10 .venv-tests/bin/python -m pytest -q`
+- 시험은 `scripts.pytest_slot`으로만 돌린다(11-12 결정). 이름 없는 `pytest`는 돌리지 않는다.
+  - 파일 여러 개·디렉터리·전체 pytest·playwright 같은 넓은 시험은 `scripts.heavy_slot`으로만 돌린다(현황판 무거운 작업 최대 2개).
+  - 전체 pytest는 하루 1번, 밤에만 돌린다(현황판 규칙). 커밋 전에는 바뀐 부분의 시험 파일만 돌린다.
   - 11-01에 여러 세션이 테스트를 동시에 돌려 CPU를 300% 쓰자, 탐색 서버 시간이 0.96초에서 2.59초(중앙값)로 늘었다.
+- 시험이 운영에 닿지 않게 한다(11-15 사고: 시험이 운영 설정을 물려받아 운영 DB에 정리 작업을 실행).
+  - `tests/conftest.py`의 보호 장치(7517957f)가 들어 있는 작업본에서만 시험한다.
+  - 운영 설정(`APPLICATION_*`, DSN, 키 파일 경로)을 export한 셸에서 시험을 돌리지 않는다.
+  - 시험 순서에 따라 결과가 달라지는 실패는 운영에 닿았다는 신호일 수 있으니 바로 원인을 본다.
+- 정적 검사: `.venv-tests/bin/python -m pyflakes agent_market tests` (11-02 설치, `requirements-dev.txt`). 경고 약 3,700건은 대부분 쓰지 않는 import다. 정의되지 않은 이름은 `tests/test_pyflakes_undefined_names.py`가 막는다.
+- frontend 릴리스는 배포 전에 `.venv-tests/bin/python -m scripts.release_gate <release>`로 사본 시험을 한다(`deploy/DEPLOY.md`).
+- 운영 서비스는 launchd와 `./agentcon`으로 관리한다(PostgreSQL 18, 네 역할).
+  - 이 맥에서 `agent_market.collector.server`나 `gateway.server`를 SQLite 파일로 직접 띄우지 않는다. 두 번째 수집기가 떠서 남의 서버 호출이 중복된다.
+  - 프로세스를 직접 kill하지 않는다. `pkill -f`는 쓰지 않는다(자기 셸까지 죽인다). 멈춤·재시작·되돌리기는 배포 잠금을 확인하고 `./agentcon`으로 한다.
 - 수집 DB `gateway-data/`와 스냅샷 `exports/`는 git에 넣지 않는다.
-- 실행 중인 수집기 끄기: `for p in $(ps -eo pid,args | grep "[p]ython -m agent_market" | awk '{print $1}'); do kill $p; done`
-  - `pkill -f`는 쓰지 않는다. 자기 셸까지 죽인다.
 
 ## 규칙 버전 (바꾸면 올리기, 올리면 시작할 때 다시 처리됨)
 - `gateway/classify.py` `VERSION`: 전체 재분류
-  - 지금 5
+  - 지금 10(11-15 코드 확인. 올릴 때는 코드의 값을 먼저 읽는다)
   - agent_infra 정확도 회귀 테스트: `tests/test_classify_agent_infra.py`, 판정 데이터 `tests/data/agent_infra_labels.json`
 - `collector/evaluation.py`
   - `VERSION`: MCP 재평가, 지금 5
@@ -63,7 +68,7 @@ GATEWAY_DB=gateway-data/collector.sqlite3 .venv/bin/python -m agent_market.gatew
 ## 지켜야 할 것
 - 사용자 화면은 `docs/FRONTEND_SCREEN_POLICY.md`를 따른다(11-01 사용자 결정).
   - 고정 내용은 HTML로 바로 보인다.
-  - 전체 화면 로딩, 가운데 팝업은 쓰지 않는다.
+  - 전체 화면 로딩과 화면을 덮는 팝업은 쓰지 않는다. 진행 표시는 가운데에 작게 두는 것이 맞다(정책 문서).
   - 로딩은 해당 영역에만 표시하고, 데이터는 사용자가 누를 때 불러온다.
   - 독립 요청은 병렬로 보낸다.
 - 남의 서버에 자격 증명·결제를 보내지 않는다.
@@ -94,7 +99,7 @@ GATEWAY_DB=gateway-data/collector.sqlite3 .venv/bin/python -m agent_market.gatew
     - 하지 않는 것: 선충전 잔액, AD Coin 판매·전환, 고객 자산 보관, 환전, 송금 대행, 자동 송금, ETH 등 다른 코인으로의 전환.
     - 서버는 받기만 한다. 받는 지갑의 개인키는 서버에 두지 않는다. 환불 송금은 사용자가 직접 한다.
     - 무료 안전장치를 둔다: 제재 주소 대조, 결제마다 원화 환산과 거래 해시 기록(월별로 내보내기).
-    - 결제 스위치는 사용자 승인 뒤에만 켠다. 출시 가격은 하루 1칸 5 USDC다.
+    - 결제 스위치는 11-14 사용자 결정으로 켜져 있다(관문 없이 지금 운영하며 문제를 바로 처리, 헌장 0절). 끄거나 조건을 바꾸는 것은 사용자 결정이다. 출시 가격은 하루 1칸 5 USDC다.
     - 법률·세무 자문과 신고는 수익이 커진 뒤에 한다(사용자 결정). 정기 세금 신고용 기록은 처음부터 남긴다.
   - AD Coin은 무상 크레딧이자 내부 관리 단위다. 유료(USDC) 장부와 섞지 않는다. AD Coin으로 생긴 수익은 성장을 위해 언제든 쓸 수 있다.
   - 경계(헌장 1절): AD Coin을 돈이나 코인을 받고 팔거나, 돈으로 바꾸거나, 법정화폐와 교환하는 경로는 만들지 않는다. 광고 상품을 USDC로 파는 것은 이 경계 밖이다(11-11).
@@ -110,7 +115,7 @@ GATEWAY_DB=gateway-data/collector.sqlite3 .venv/bin/python -m agent_market.gatew
 - 일이 느려도 멈추지 않는다(11-10). 팀은 과제를 끝내면 다음 과제를 스스로 골라, 목표를 향해 조금씩이라도 계속 진행한다.
 - 배포는 상시 승인이다(사용자 결정 2026-11-10 "배포에 대해서는 무조건 승인함").
   - 범위: frontend·admin·jobs·execution
-  - 조건: 게이트를 통과하고 활성 판 위에 겹쳐 만든 릴리스면 묻지 않고 배포한 뒤 결과를 보고한다.
+  - 조건: 게이트를 통과하고, 활성 버전의 커밋을 기준(`--base`)으로 그 위에 커밋을 얹어 패키징한 릴리스면 묻지 않고 배포한 뒤 결과를 보고한다. 작업본 파일을 운영 버전에 덮어쓰는 방식은 쓰지 않는다(`deploy/DEPLOY.md` "운영 = git").
   - 팀 세션이 운영 배포를 막히면 총괄 PM 세션이 base와 diff를 확인하고 대신 배포한다.
   - 계속 먼저 묻는 것: DB 스키마·함수 변경, DB 재시작, 데이터 삭제, 외부 게시, 지출, 게이트 실패 배포.
 - 개발 브랜치: `claude/hopeful-darwin-i3qj6n`
@@ -144,7 +149,7 @@ GATEWAY_DB=gateway-data/collector.sqlite3 .venv/bin/python -m agent_market.gatew
 ## 토큰 절약 작업 방식
 `docs/claude/global-CLAUDE.md`의 6가지 규칙을 따른다(사용자 전역 `~/.claude/CLAUDE.md`와 같은 내용). 이 프로젝트에서 덧붙일 것:
 - 작업 기록은 `WORKLOG.md`. 압축 뒤에는 이것부터 보고, 작업이 끝나면 몇 줄 갱신한다.
-- 테스트는 바뀐 부분의 테스트 파일 먼저, 커밋 전에 전체 `pytest -q | tail -3`을 한 번.
+- 테스트는 바뀐 부분의 테스트 파일만 `scripts.pytest_slot`으로. 전체 pytest는 하루 1번 밤에 `scripts.heavy_slot`으로만.
 - 수집 DB 조회는 집계(`count`, `group by`)로 보고, 행 덤프는 scratchpad 파일로.
 
 ## Compact instructions
