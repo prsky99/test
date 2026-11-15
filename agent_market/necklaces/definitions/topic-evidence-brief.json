@@ -347,6 +347,44 @@
           }
         },
         {
+          "kind": "external",
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "resource_id": 32841,
+          "tool": "search_news",
+          "registrable_domain": "analyticslegends.ai",
+          "upstream": [
+            "unknown"
+          ],
+          "state": "active",
+          "pearl": false,
+          "input_map": {
+            "query": "{{input.topic}}",
+            "limit": 5
+          }
+        },
+        {
+          "kind": "agentcon",
+          "agent_id": "gdelt-news",
+          "resource_id": null,
+          "tool": "search_news_gdelt",
+          "registrable_domain": "agentconcierge.biz",
+          "upstream": [
+            "gdelt"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "planned",
+          "input_map": {
+            "query": "{{input.topic}}",
+            "limit": 5
+          }
+        },
+        {
           "kind": "agentcon",
           "agent_id": "technology-news",
           "resource_id": 133018,
