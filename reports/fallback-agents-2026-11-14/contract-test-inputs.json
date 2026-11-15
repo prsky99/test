@@ -236,5 +236,79 @@
    null,
    {}
   ]
+ ],
+ "package-registry": [
+  [
+   {
+    "ecosystem": "npm",
+    "package": "express"
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "ecosystem": "npm",
+    "package": "lodash"
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "ecosystem": "maven",
+    "package": "junit"
+   },
+   "invalid_input",
+   null,
+   {}
+  ],
+  [
+   {
+    "ecosystem": "npm"
+   },
+   "invalid_input",
+   null,
+   {}
+  ]
+ ],
+ "depsdev-package": [
+  [
+   {
+    "ecosystem": "npm",
+    "package": "express"
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "ecosystem": "npm",
+    "package": "lodash"
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "ecosystem": "maven",
+    "package": "junit"
+   },
+   "invalid_input",
+   null,
+   {}
+  ],
+  [
+   {
+    "ecosystem": "npm"
+   },
+   "invalid_input",
+   null,
+   {}
+  ]
  ]
 }
