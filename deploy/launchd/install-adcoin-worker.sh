@@ -32,6 +32,9 @@ spec = {'Label': L,
 with open(P, 'wb') as f: plistlib.dump(spec, f)
 os.chmod(P, 0o600)
 PY
+# 11-15: pin the daemon's release so the post-deploy prune never removes the folder it runs from
+"$ROOT/.venv/bin/python" -c 'import sys; sys.path.insert(0, sys.argv[1]); from scripts.adcoin_worker_env import pin_release; pin_release(sys.argv[2], sys.argv[3]); print("pinned", sys.argv[3])' \
+  "$ROOT" "$ROOT/gateway-data/services/pinned-releases.txt" "$REL"
 LAUNCHCTL=${LAUNCHCTL:-launchctl}   # replaceable for tests
 WAIT=${INSTALL_WAIT_SECONDS:-30}; SETTLE=${INSTALL_SETTLE_SECONDS:-15}; RETRY=${INSTALL_RETRY_SECONDS:-5}
 # 11-10: bootstrap right after bootout failed with "Bootstrap failed: 5: Input/output error" because the

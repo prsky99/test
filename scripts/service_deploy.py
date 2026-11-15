@@ -505,8 +505,14 @@ class Deployment:
                 descriptor = os.open(destination, os.O_CREAT | os.O_WRONLY | os.O_TRUNC | getattr(os, 'O_NOFOLLOW', 0), 0o600)
                 with os.fdopen(descriptor, 'wb') as stream:
                     stream.write(data)
-        for file in directory.glob(self.prefix + '.*.plist'):
-            if file.name not in wanted and not file.is_symlink():
+        # Only the plists this tool writes (role x slot) are removed. 11-15: a prefix glob removed every other job
+        # under the same prefix, so the AD Coin worker daemon's plist (deploy/launchd/install-adcoin-worker.sh,
+        # label <prefix>.adcoin-worker) vanished after every deploy and launchd would not start it after a reboot.
+        managed = {self.label(role, slot) + '.plist' for role in ('frontend', 'admin', 'jobs', 'execution', 'proxy')
+                   for slot in (PORTS[role] if role in PORTS else ('main',))}
+        for name in sorted(managed - wanted):
+            file = directory / name
+            if file.exists() and not file.is_symlink():
                 file.unlink()
 
     def readiness(self, role, slot):

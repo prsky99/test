@@ -36,3 +36,29 @@ def daemon_environment(release_dir, env_text, env_file=None):
     """Plist environment: the settings as written now, and the file the daemon re-reads when it changes."""
     extra = {"AD_COIN_RUNTIME_ENV_FILE": env_file} if env_file else {}
     return {**BASE, "PYTHONPATH": release_dir, **extra, **paid_settings(env_text)}
+
+
+PIN_TAG = '# adcoin-worker daemon (install-adcoin-worker.sh)'
+
+
+def pin_release(path, release):
+    """Keep the daemon's release folder out of the post-deploy prune (gateway-data/services/pinned-releases.txt).
+
+    11-15 PM: the daemon runs from a release folder that only a running process protected. The line written here
+    replaces the one an earlier install wrote, so only the release the daemon runs now stays pinned."""
+    import os
+    import tempfile
+    if not release or any(c in release for c in '/# \n'):
+        raise ValueError('invalid release name')
+    try:
+        with open(path, encoding='utf-8') as fh:
+            lines = fh.read().splitlines()
+    except FileNotFoundError:
+        lines = []
+    lines = [line for line in lines if not line.rstrip().endswith(PIN_TAG)] + [f'{release}  {PIN_TAG}']
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(os.path.abspath(path)), prefix='.pinned-')
+    with os.fdopen(fd, 'w', encoding='utf-8') as fh:
+        fh.write('\n'.join(lines) + '\n')
+    os.chmod(tmp, 0o644)
+    os.replace(tmp, path)
+    return lines
