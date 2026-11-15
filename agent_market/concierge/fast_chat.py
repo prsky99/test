@@ -434,6 +434,32 @@ def without_traits(task):
     return (rest, list(dict.fromkeys(dropped))) if rest else (task, [])
 
 
+CLOCK_RETRY_BEFORE = 3.5  # seconds into a request after which the clock-tool search does not start
+# A request for the time somewhere (real-task p13): "what time is it in New York", "current time in Seoul".
+CLOCK_TASK = re.compile(r"""\bwhat\s+time\s+is\s+it\b|\b(?:current|local)\s+time\b|\btime\s*zones?\b|\btimezones?\b
+  |\btime\s+(?:right\s+)?now\s+in\b|\bworld\s+clock\b""", re.I | re.X)
+# A listing that tells the time says so; "point-in-time data" or "real-time prices" does not (p13 FinzData 67762).
+CLOCK_WORDS = re.compile(r"""\b(?:current|local)\s+time\b|\btime\s*zones?\b|\btimezones?\b|\btime\s+differences?\b
+  |\bworld\s+clock\b|\biana\b|\b(?:get|convert)_(?:current_)?time(?:zone)?\b|\bzeitzonen?\b""", re.I | re.X)
+CLOCK_QUERY = 'current time in a city and time zone conversion'
+
+
+def clock_named(item):
+    """True when the listing's own name, description or tools say they tell the time or convert time zones."""
+    text = ' '.join([str(item.get('name') or ''), str(item.get('description') or '')] +
+                    [str(s.get('name') or '') + ' ' + str(s.get('description') or '') for s in item.get('tools_schema') or []] +
+                    [str(t) for t in item.get('tools') or []])
+    return bool(CLOCK_WORDS.search(text))
+
+
+def clock_first(items):
+    """The first listing that tells the time leads; ITEMS unchanged when the first already does or none does."""
+    if not items or clock_named(items[0]):
+        return items
+    best = next((i for i, item in enumerate(items) if clock_named(item)), None)
+    return items if best is None else [items[best]] + items[:best] + items[best + 1:]
+
+
 def relayable(item):
     """False for an MCP recommendation whose chosen tool is left out of the gateway's tools/list (an action tool or
     one not verified read-only), or for a listing that needs the provider's own authorization (the gateway refuses
@@ -867,6 +893,8 @@ class FastConcierge(Concierge):
                 if found:
                     items = [{**item, 'unverified': dropped} for item in found]
         items = relayable_only(items)
+        if offset == 0 and CLOCK_TASK.search(str(task or '')):
+            items = self._clock_first(task, items, protocol, excluded, started, step)
         if not items:
             if persist:
                 with self.book.batch():
@@ -961,6 +989,21 @@ class FastConcierge(Concierge):
                       **({'request_parts':parts} if parts else {}),
                       'continuation_plan':continuation_plan,
                       'next_steps':next_steps,'recommendations':items})
+
+    def _clock_first(self, task, items, protocol, excluded, started, step):
+        """Real-task p13 (11-13~15): "What time is it in New York and in Seoul right now?" led with a market-data
+        agent whose text says "point-in-time". A clock question is answered by a listing that tells the time: one
+        already admitted leads; with none, one search by the clock capability itself, relayed and passing the
+        request's conditions, while the request is young enough."""
+        if any(clock_named(item) for item in items):
+            return clock_first(items)
+        if time.monotonic() - started >= CLOCK_RETRY_BEFORE:
+            return items
+        step('relay')
+        found = [item for item in self.rec.search(CLOCK_QUERY, kind=protocol, limit=RELAY_WIDEN,
+                                                  exclude=excluded | {item.get('id') for item in items})
+                 if relayable(item) and clock_named(item)]
+        return self._condition_admit(task, found)[:3] or items
 
     def _condition_admit(self, task, items):
         from .task_conditions import requested, assess
