@@ -40,3 +40,12 @@ def test_a_clock_question_is_answered_by_a_listing_that_tells_the_time(catalog):
     front.concierge.rec.search = market_first
     recs = ask(client, 'What time is it in New York and in Seoul right now?')['data']['recommendations']
     assert recs and recs[0]['id'] == clock and market not in [r['id'] for r in recs][:1]
+
+
+def test_a_clock_question_searches_the_clock_capability_and_conversion_asks_for_conversion():
+    """11-15 B+C copy check p13: the question's own words found a bounty checker; a search per place used the time."""
+    from agent_market.concierge.fast_chat import clock_query, CLOCK_QUERY, CONVERT_QUERY
+    assert CLOCK_TASK.search('time difference between London and Tokyo') and CLOCK_TASK.search('convert 3pm New York time to Seoul time')
+    assert clock_query('What time is it in New York and in Seoul right now?') == CLOCK_QUERY
+    assert clock_query('timezone conversion New York Seoul') == CONVERT_QUERY
+    assert clock_query('time difference between London and Tokyo') == CONVERT_QUERY

@@ -468,11 +468,19 @@ def without_traits(task):
 CLOCK_RETRY_BEFORE = 3.5  # seconds into a request after which the clock-tool search does not start
 # A request for the time somewhere (real-task p13): "what time is it in New York", "current time in Seoul".
 CLOCK_TASK = re.compile(r"""\bwhat\s+time\s+is\s+it\b|\b(?:current|local)\s+time\b|\btime\s*zones?\b|\btimezones?\b
-  |\btime\s+(?:right\s+)?now\s+in\b|\bworld\s+clock\b""", re.I | re.X)
+  |\btime\s+(?:right\s+)?now\s+in\b|\bworld\s+clock\b|\btime\s+differences?\b
+  |\bconvert\b[^.?]{0,40}\btime\b""", re.I | re.X)
 # A listing that tells the time says so; "point-in-time data" or "real-time prices" does not (p13 FinzData 67762).
 CLOCK_WORDS = re.compile(r"""\b(?:current|local)\s+time\b|\btime\s*zones?\b|\btimezones?\b|\btime\s+differences?\b
   |\bworld\s+clock\b|\biana\b|\b(?:get|convert)_(?:current_)?time(?:zone)?\b|\bzeitzonen?\b""", re.I | re.X)
 CLOCK_QUERY = 'current time in a city and time zone conversion'
+CONVERT_QUERY = 'convert time between time zones'
+CONVERSION = re.compile(r'\bconver(?:t|sion|ting)\b|\bdifferences?\b|\bbetween\b', re.I)
+
+
+def clock_query(task):
+    """The catalog search text for a clock question: conversion when it asks to convert, else the current time."""
+    return CONVERT_QUERY if CONVERSION.search(str(task or '')) else CLOCK_QUERY
 
 
 def clock_named(item):
@@ -797,12 +805,16 @@ class FastConcierge(Concierge):
         circuit_excluded = self.book.global_failing_resources()
         excluded = visitor_excluded | circuit_excluded
         step('search')
+        # A clock question searches the clock capability itself: the places are the tool's input, and its own words
+        # ("What time is it in New York and in Seoul right now?") found a bounty checker and a world-numbers agent, then
+        # spent the request on one search per place (11-15 B+C copy check, real task p13: 4.3-5.7 s, still wrong).
+        clock = offset == 0 and bool(CLOCK_TASK.search(str(task or '')))
         if offset == 0:
             # Rank ten, then let the tool closest in meaning lead (stage 2, 11-04): the right listing was
             # in the first ten for 93% of answered cases but first for 85%.
             items = semantic_first(getattr(self.rec, 'rag_engine', None), task,
-                                   self.rec.search(retrieval_text(task), kind=protocol, limit=SEMANTIC_SHORTLIST,
-                                                   exclude=excluded))
+                                   self.rec.search(clock_query(task) if clock else retrieval_text(task), kind=protocol,
+                                                   limit=SEMANTIC_SHORTLIST, exclude=excluded))
             # A tool that needs a paid plan or the caller's own account, or whose recent calls through our
             # gateway only failed, follows the others, and one whose calls succeeded leads; the meaning
             # order holds within each group (11-11 PM: extract_invoice_data first; real tasks p10, a05).
@@ -880,7 +892,7 @@ class FastConcierge(Concierge):
                 if found:
                     items.append({**found[0], 'request_part': part[:120]})
                     parts.append(part[:120])
-        elif items and offset == 0:
+        elif items and offset == 0 and not clock:
             step('cover')
             items, parts = self._cover_parts(task, items, protocol, excluded)
         if not items and offset == 0 and not late():
@@ -1031,7 +1043,7 @@ class FastConcierge(Concierge):
         if time.monotonic() - started >= CLOCK_RETRY_BEFORE:
             return items
         step('relay')
-        found = [item for item in self.rec.search(CLOCK_QUERY, kind=protocol, limit=RELAY_WIDEN,
+        found = [item for item in self.rec.search(clock_query(task), kind=protocol, limit=RELAY_WIDEN,
                                                   exclude=excluded | {item.get('id') for item in items})
                  if relayable(item) and clock_named(item)]
         return self._condition_admit(task, found)[:3] or items
