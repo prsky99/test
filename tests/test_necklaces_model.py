@@ -223,3 +223,12 @@ def test_topic_background_leads_with_the_verified_encyclopedia_pearl():
     defn = model.load("agent_market/necklaces/definitions/topic-evidence-brief.json")
     background = next(s for s in defn["slots"] if s["slot"] == "background")
     assert model.primary(background)["resource_id"] == 241601
+
+
+def test_scope_notice_fits_what_the_page_shows():
+    """Growth bb9ead9a shows the notice on the page and in the MCP tool, and hides one over 600 characters."""
+    defn = base()
+    defn["scope_notice"] = "x" * 601
+    assert any("600 characters" in e for e in model.validate(defn, check_contracts=False))
+    defn["scope_notice"] = "National public holidays only."
+    assert not any("scope_notice" in e for e in model.validate(defn, check_contracts=False))

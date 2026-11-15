@@ -266,6 +266,9 @@ def scope_errors(defn: dict) -> list[str]:
             errors.append("scope maps required input names to lists of accepted values")
         if not isinstance(defn.get("scope_notice"), str) or not defn["scope_notice"].strip():
             errors.append("a scoped necklace needs a scope_notice for out-of-scope input")
+    notice = defn.get("scope_notice")
+    if notice is not None and (not isinstance(notice, str) or len(" ".join(notice.split())) > 600):
+        errors.append("scope_notice is one text of at most 600 characters (the page and MCP tool show it, growth 11-15)")
     need = defn.get("min_pearls_answered")
     if need is not None and (type(need) is not int or need < 2):
         errors.append("min_pearls_answered is a whole number of at least 2")
