@@ -45,6 +45,8 @@ SHARE = {
     'provider_claims': 6,    # provider self-claim checks: one GET when a provider presses Verify, one per origin on
                              # the 30-day recheck (docs/PROVIDER_SELF_CLAIM.md, agent team 11-15)
     'fingerprints': 6,       # pearl/necklace-member tools/list every 6 hours (4 a day + 2 for a manual refresh)
+    'ad_blocklists': 4,      # AI AD Coin campaign review: URLhaus host list and OpenPhish feed, once a day each
+                             # (+2 for a failed day); domain age reads use 'lifecycle_rdap' by RDAP server
     'lifecycle_rdap': 50,    # E6 domain expiry reads (docs/VERIFIED_REGISTRY.md): reserve with the RDAP server's
                              # own URL, so the count is per RDAP server (rdap.verisign.com -> verisign.com covers
                              # .com and .net together), not per looked-up domain; the IANA bootstrap file counts too

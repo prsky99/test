@@ -198,3 +198,13 @@ def test_a_pause_needs_evidence_that_the_provider_sent_the_429(tmp_path, caplog)
     other = 'https://api.example.org/x'
     assert pb.note(other, 'reference_checks', 429, now=now, directory=tmp_path, evidence=pb.PROVIDER_HTTP) is True
     assert pb.note(other, 'reference_checks', 200, now=now, directory=tmp_path) is False
+
+
+def test_ad_review_blocklists_have_four_a_day_per_feed_host(tmp_path):
+    """AI AD Coin (11-15): two read-only feed downloads a day; a retry fits, a loop does not."""
+    now = at(14)
+    assert all(pb.reserve('https://urlhaus.abuse.ch/downloads/hostfile/', 'ad_blocklists', now=now, directory=tmp_path)[0]
+               for _ in range(4))
+    assert pb.reserve('https://urlhaus.abuse.ch/downloads/hostfile/', 'ad_blocklists', now=now,
+                      directory=tmp_path) == (False, 'system_share')
+    assert pb.reserve('https://openphish.com/feed.txt', 'ad_blocklists', now=now, directory=tmp_path) == (True, 'ok')
