@@ -1054,6 +1054,98 @@ def usable_pearls(versions, ranked, terms=None, now=None):
             'roles_with_a_usable_final_pearl': len(covered)}
 
 
+DEFINITIONS = ROOT / 'agent_market/necklaces/definitions'
+PROVISIONAL = 'final/provisional_members.json'
+PROVISIONAL_MIN = 70     # PM 11-15 16:03 (user instruction d4670360): the floor for a provisional necklace member
+
+
+def necklace_roles(folder=DEFINITIONS):
+    """{role: [necklace ids]} for the roles the necklace definitions use."""
+    out = {}
+    for path in sorted(Path(folder).glob('*.json')):
+        for role in sorted(set(re.findall(r'"([a-z_]+(?:\.[a-z_]+)+\.v\d+)"', path.read_text()))):
+            out.setdefault(canonical(role), []).append(path.stem)
+    return out
+
+
+def resource_status(ids):
+    """{resource id: (active, eval_grade, health_status)} for IDS, read only; None when the database cannot be read."""
+    ids = sorted({i for i in ids if isinstance(i, int)})
+    if not ids:
+        return {}
+    try:
+        import psycopg
+        dsn = (ROOT / 'gateway-data/postgres18/application.dsn').read_text().strip()
+        with psycopg.connect(dsn, autocommit=True, options='-c default_transaction_read_only=on -c statement_timeout=20000') as c:
+            rows = c.execute('SELECT id, active, eval_grade, health_status FROM public.resources WHERE id = ANY(%s)',
+                             (ids,)).fetchall()
+        return {r[0]: (r[1], r[2], r[3]) for r in rows}
+    except Exception:
+        return None
+
+
+def provisional_members(status, terms=None, roles=None, now=None, versions=None):
+    """PM 11-15 16:03: members a necklace may use until a pearl is found, per role the necklace definitions use.
+
+    Floor: active now, read-only (every tested tool passed is_relay_safe_tool), terms not prohibits, and at least one
+    role-task version in the last 7 days that succeeded, met the accuracy check and scored PROVISIONAL_MIN or more.
+    Our own fallbacks (avc:) are listed apart. STATUS None means activity could not be read: nobody is listed then."""
+    now = now or time.time()
+    terms = member_terms() if terms is None else terms
+    roles = necklace_roles() if roles is None else roles
+    if versions is None:
+        versions = []
+        for path in (OUT / 'reports').glob('*/*/*.json') if (OUT / 'reports').exists() else []:
+            try:
+                versions.append(load_version(path))
+            except (OSError, ValueError):
+                continue
+    best = {}
+    for v in versions:
+        role = canonical(v.get('role') or '')
+        dq = v.get('data_quality') or {}
+        score = (v.get('quality') or {}).get('score') or 0
+        tested = float(v.get('tested') or 0)
+        if role not in roles or v.get('outcome') != 'succeeded' or not (dq.get('accuracy') or {}).get('points') \
+                or (dq.get('clean') or {}).get('points', 1) <= 0 or score < PROVISIONAL_MIN \
+                or not (now - 7 * DAY <= tested <= now + 300):
+            continue
+        key = (v['resource_id'], role, v.get('tool'))
+        b = best.setdefault(key, {'resource_id': v['resource_id'], 'role': role, 'tool': v.get('tool'),
+                                  'best_score': 0, 'best_day': None, 'latest_day': None, 'passes': 0, 'cases': set()})
+        b['passes'] += 1
+        b['cases'].add(v.get('case_id'))
+        if score > b['best_score']:
+            b['best_score'], b['best_day'] = round(score, 1), kst_day(tested)
+        b['latest_day'] = max(filter(None, (b['latest_day'], kst_day(tested))))
+    out = {'generated': time.strftime('%Y-%m-%d %H:%M'), 'source': 'scripts/report_v2.py provisional_members',
+           'rule': f'active now, read-only tool, terms not prohibits, one role-task pass with {PROVISIONAL_MIN}+ '
+                   'and the accuracy check met in the last 7 days (PM 11-15 16:03)',
+           'status_read': status is not None, 'roles': {}}
+    for role, necklaces in sorted(roles.items()):
+        members, own, left_out = [], [], []
+        for b in sorted((b for b in best.values() if b['role'] == role), key=lambda b: (-b['best_score'], str(b['resource_id']))):
+            row = {k: b[k] for k in ('resource_id', 'tool', 'best_score', 'best_day', 'latest_day', 'passes')}
+            row['cases'] = sorted(c for c in b['cases'] if c)
+            rid = b['resource_id']
+            if is_own_fallback(rid):
+                own.append(row); continue
+            row['terms'] = terms.get(rid, 'unknown')
+            st = (status or {}).get(rid)
+            row['grade'] = st[1] if st else None
+            if status is None:
+                row['why_out'] = 'activity not read'
+            elif not st or st[0] != 1:
+                row['why_out'] = 'not active'
+            elif row['terms'] == 'prohibits':
+                row['why_out'] = 'terms prohibit'
+            (left_out if row.get('why_out') else members).append(row)
+        out['roles'][role] = {'necklaces': necklaces, 'members': members, 'own_fallbacks': own, 'left_out': left_out}
+    out['roles_with_a_member'] = sum(1 for r in out['roles'].values() if r['members'])
+    out['roles_without'] = sorted(role for role, r in out['roles'].items() if not r['members'])
+    return out
+
+
 def candidates_a():
     try:
         import psycopg
@@ -1145,6 +1237,12 @@ def publish(board=True):
         {'rule': 'grades unavailable: nothing split this time', 'versions': None}
     (OUT / 'final').mkdir(parents=True, exist_ok=True)
     write_replace(OUT / SUMMARY, json.dumps(official, indent=1, ensure_ascii=False))
+    try:
+        found = provisional_members(None)                       # first pass only gathers the ids to read
+        ids = {m['resource_id'] for r in found['roles'].values() for m in r['left_out']}
+        write_replace(OUT / PROVISIONAL, json.dumps(provisional_members(resource_status(ids)), indent=1, ensure_ascii=False))
+    except Exception as e:                                       # the pearl numbers above never wait on this list
+        print('provisional members not written:', e)
     line = funnel_line(json.loads((OUT / SUMMARY).read_text())) + refusal_note()   # the board reads the file only
     if board:
         write_board(line)

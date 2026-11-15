@@ -1,0 +1,531 @@
+{
+ "generated": "2026-11-15 16:07 KST",
+ "source": "agent_messages (concierge replies paired with asks), read-only",
+ "dropped": {
+  "our script text": 1423,
+  "probe/handshake": 149,
+  "internal mark": 166,
+  "measurement suffix": 155
+ },
+ "kept": 1307,
+ "d7": {
+  "days": 7,
+  "asks": 182,
+  "clients": 170,
+  "topics": [
+   {
+    "topic": "(other)",
+    "asks": 47,
+    "clients": 46,
+    "chat_rest": 34,
+    "a2a": 13,
+    "mcp": 0,
+    "no_match": 5
+   },
+   {
+    "topic": "(agent outreach / handshake)",
+    "asks": 31,
+    "clients": 30,
+    "chat_rest": 0,
+    "a2a": 31,
+    "mcp": 0,
+    "no_match": 3
+   },
+   {
+    "topic": "(greeting / empty)",
+    "asks": 12,
+    "clients": 12,
+    "chat_rest": 0,
+    "a2a": 11,
+    "mcp": 1,
+    "no_match": 0
+   },
+   {
+    "topic": "agents / workflow / a2a",
+    "asks": 14,
+    "clients": 10,
+    "chat_rest": 0,
+    "a2a": 14,
+    "mcp": 0,
+    "no_match": 3
+   },
+   {
+    "topic": "research papers",
+    "asks": 10,
+    "clients": 10,
+    "chat_rest": 2,
+    "a2a": 8,
+    "mcp": 0,
+    "no_match": 0
+   },
+   {
+    "topic": "pdf / document",
+    "asks": 10,
+    "clients": 10,
+    "chat_rest": 6,
+    "a2a": 3,
+    "mcp": 1,
+    "no_match": 1
+   },
+   {
+    "topic": "translation",
+    "asks": 7,
+    "clients": 7,
+    "chat_rest": 7,
+    "a2a": 0,
+    "mcp": 0,
+    "no_match": 0
+   },
+   {
+    "topic": "weather",
+    "asks": 6,
+    "clients": 6,
+    "chat_rest": 4,
+    "a2a": 2,
+    "mcp": 0,
+    "no_match": 0
+   },
+   {
+    "topic": "website uptime / monitoring",
+    "asks": 5,
+    "clients": 5,
+    "chat_rest": 4,
+    "a2a": 1,
+    "mcp": 0,
+    "no_match": 0
+   },
+   {
+    "topic": "github / code",
+    "asks": 6,
+    "clients": 4,
+    "chat_rest": 2,
+    "a2a": 4,
+    "mcp": 0,
+    "no_match": 0
+   },
+   {
+    "topic": "news",
+    "asks": 4,
+    "clients": 4,
+    "chat_rest": 4,
+    "a2a": 0,
+    "mcp": 0,
+    "no_match": 1
+   },
+   {
+    "topic": "currency / fx",
+    "asks": 4,
+    "clients": 4,
+    "chat_rest": 4,
+    "a2a": 0,
+    "mcp": 0,
+    "no_match": 0
+   },
+   {
+    "topic": "dns / domain / email auth",
+    "asks": 4,
+    "clients": 4,
+    "chat_rest": 4,
+    "a2a": 0,
+    "mcp": 0,
+    "no_match": 0
+   },
+   {
+    "topic": "video / youtube",
+    "asks": 3,
+    "clients": 3,
+    "chat_rest": 3,
+    "a2a": 0,
+    "mcp": 0,
+    "no_match": 0
+   },
+   {
+    "topic": "email send",
+    "asks": 3,
+    "clients": 3,
+    "chat_rest": 3,
+    "a2a": 0,
+    "mcp": 0,
+    "no_match": 0
+   },
+   {
+    "topic": "image generation",
+    "asks": 2,
+    "clients": 2,
+    "chat_rest": 2,
+    "a2a": 0,
+    "mcp": 0,
+    "no_match": 0
+   },
+   {
+    "topic": "maps / places",
+    "asks": 2,
+    "clients": 2,
+    "chat_rest": 2,
+    "a2a": 0,
+    "mcp": 0,
+    "no_match": 0
+   },
+   {
+    "topic": "calendar / scheduling",
+    "asks": 2,
+    "clients": 2,
+    "chat_rest": 1,
+    "a2a": 1,
+    "mcp": 0,
+    "no_match": 0
+   },
+   {
+    "topic": "travel / flights",
+    "asks": 2,
+    "clients": 2,
+    "chat_rest": 2,
+    "a2a": 0,
+    "mcp": 0,
+    "no_match": 0
+   },
+   {
+    "topic": "company lookup",
+    "asks": 2,
+    "clients": 2,
+    "chat_rest": 1,
+    "a2a": 1,
+    "mcp": 0,
+    "no_match": 0
+   },
+   {
+    "topic": "payments",
+    "asks": 2,
+    "clients": 2,
+    "chat_rest": 0,
+    "a2a": 2,
+    "mcp": 0,
+    "no_match": 1
+   },
+   {
+    "topic": "web search",
+    "asks": 2,
+    "clients": 2,
+    "chat_rest": 0,
+    "a2a": 2,
+    "mcp": 0,
+    "no_match": 0
+   },
+   {
+    "topic": "database / sql",
+    "asks": 1,
+    "clients": 1,
+    "chat_rest": 1,
+    "a2a": 0,
+    "mcp": 0,
+    "no_match": 1
+   },
+   {
+    "topic": "security / cve",
+    "asks": 1,
+    "clients": 1,
+    "chat_rest": 1,
+    "a2a": 0,
+    "mcp": 0,
+    "no_match": 0
+   }
+  ]
+ },
+ "d30": {
+  "days": 30,
+  "asks": 1307,
+  "clients": 1209,
+  "topics": [
+   {
+    "topic": "(other)",
+    "asks": 333,
+    "clients": 303,
+    "chat_rest": 313,
+    "a2a": 20,
+    "mcp": 0,
+    "no_match": 50
+   },
+   {
+    "topic": "(greeting / empty)",
+    "asks": 123,
+    "clients": 123,
+    "chat_rest": 106,
+    "a2a": 16,
+    "mcp": 1,
+    "no_match": 1
+   },
+   {
+    "topic": "translation",
+    "asks": 93,
+    "clients": 87,
+    "chat_rest": 92,
+    "a2a": 0,
+    "mcp": 1,
+    "no_match": 1
+   },
+   {
+    "topic": "pdf / document",
+    "asks": 81,
+    "clients": 81,
+    "chat_rest": 76,
+    "a2a": 4,
+    "mcp": 1,
+    "no_match": 4
+   },
+   {
+    "topic": "weather",
+    "asks": 76,
+    "clients": 75,
+    "chat_rest": 72,
+    "a2a": 4,
+    "mcp": 0,
+    "no_match": 7
+   },
+   {
+    "topic": "website uptime / monitoring",
+    "asks": 60,
+    "clients": 60,
+    "chat_rest": 57,
+    "a2a": 2,
+    "mcp": 1,
+    "no_match": 40
+   },
+   {
+    "topic": "research papers",
+    "asks": 59,
+    "clients": 57,
+    "chat_rest": 45,
+    "a2a": 13,
+    "mcp": 1,
+    "no_match": 0
+   },
+   {
+    "topic": "email send",
+    "asks": 55,
+    "clients": 55,
+    "chat_rest": 55,
+    "a2a": 0,
+    "mcp": 0,
+    "no_match": 1
+   },
+   {
+    "topic": "github / code",
+    "asks": 52,
+    "clients": 50,
+    "chat_rest": 48,
+    "a2a": 4,
+    "mcp": 0,
+    "no_match": 8
+   },
+   {
+    "topic": "image generation",
+    "asks": 46,
+    "clients": 46,
+    "chat_rest": 46,
+    "a2a": 0,
+    "mcp": 0,
+    "no_match": 34
+   },
+   {
+    "topic": "agents / workflow / a2a",
+    "asks": 44,
+    "clients": 40,
+    "chat_rest": 30,
+    "a2a": 14,
+    "mcp": 0,
+    "no_match": 8
+   },
+   {
+    "topic": "database / sql",
+    "asks": 38,
+    "clients": 38,
+    "chat_rest": 38,
+    "a2a": 0,
+    "mcp": 0,
+    "no_match": 35
+   },
+   {
+    "topic": "crypto price",
+    "asks": 34,
+    "clients": 34,
+    "chat_rest": 34,
+    "a2a": 0,
+    "mcp": 0,
+    "no_match": 0
+   },
+   {
+    "topic": "(agent outreach / handshake)",
+    "asks": 31,
+    "clients": 30,
+    "chat_rest": 0,
+    "a2a": 31,
+    "mcp": 0,
+    "no_match": 3
+   },
+   {
+    "topic": "dns / domain / email auth",
+    "asks": 28,
+    "clients": 28,
+    "chat_rest": 28,
+    "a2a": 0,
+    "mcp": 0,
+    "no_match": 14
+   },
+   {
+    "topic": "stock / finance data",
+    "asks": 27,
+    "clients": 26,
+    "chat_rest": 26,
+    "a2a": 0,
+    "mcp": 1,
+    "no_match": 2
+   },
+   {
+    "topic": "news",
+    "asks": 28,
+    "clients": 25,
+    "chat_rest": 28,
+    "a2a": 0,
+    "mcp": 0,
+    "no_match": 3
+   },
+   {
+    "topic": "travel / flights",
+    "asks": 22,
+    "clients": 22,
+    "chat_rest": 22,
+    "a2a": 0,
+    "mcp": 0,
+    "no_match": 6
+   },
+   {
+    "topic": "web search",
+    "asks": 15,
+    "clients": 15,
+    "chat_rest": 13,
+    "a2a": 2,
+    "mcp": 0,
+    "no_match": 0
+   },
+   {
+    "topic": "payments",
+    "asks": 15,
+    "clients": 15,
+    "chat_rest": 13,
+    "a2a": 2,
+    "mcp": 0,
+    "no_match": 1
+   },
+   {
+    "topic": "currency / fx",
+    "asks": 15,
+    "clients": 14,
+    "chat_rest": 15,
+    "a2a": 0,
+    "mcp": 0,
+    "no_match": 0
+   },
+   {
+    "topic": "maps / places",
+    "asks": 10,
+    "clients": 10,
+    "chat_rest": 10,
+    "a2a": 0,
+    "mcp": 0,
+    "no_match": 0
+   },
+   {
+    "topic": "video / youtube",
+    "asks": 9,
+    "clients": 9,
+    "chat_rest": 9,
+    "a2a": 0,
+    "mcp": 0,
+    "no_match": 0
+   },
+   {
+    "topic": "web page summarize / scrape",
+    "asks": 7,
+    "clients": 7,
+    "chat_rest": 7,
+    "a2a": 0,
+    "mcp": 0,
+    "no_match": 0
+   },
+   {
+    "topic": "calendar / scheduling",
+    "asks": 3,
+    "clients": 3,
+    "chat_rest": 2,
+    "a2a": 1,
+    "mcp": 0,
+    "no_match": 0
+   },
+   {
+    "topic": "company lookup",
+    "asks": 2,
+    "clients": 2,
+    "chat_rest": 1,
+    "a2a": 1,
+    "mcp": 0,
+    "no_match": 0
+   },
+   {
+    "topic": "security / cve",
+    "asks": 1,
+    "clients": 1,
+    "chat_rest": 1,
+    "a2a": 0,
+    "mcp": 0,
+    "no_match": 0
+   }
+  ]
+ },
+ "combos": [
+  {
+   "combo": "research papers -> news",
+   "sessions": 2,
+   "clients": 2
+  },
+  {
+   "combo": "translation -> news",
+   "sessions": 1,
+   "clients": 1
+  },
+  {
+   "combo": "agents / workflow / a2a -> payments",
+   "sessions": 1,
+   "clients": 1
+  },
+  {
+   "combo": "news -> stock / finance data",
+   "sessions": 1,
+   "clients": 1
+  },
+  {
+   "combo": "translation -> news -> currency / fx",
+   "sessions": 1,
+   "clients": 1
+  },
+  {
+   "combo": "research papers -> news -> weather",
+   "sessions": 1,
+   "clients": 1
+  },
+  {
+   "combo": "weather -> research papers -> pdf / document",
+   "sessions": 1,
+   "clients": 1
+  },
+  {
+   "combo": "research papers -> pdf / document",
+   "sessions": 1,
+   "clients": 1
+  },
+  {
+   "combo": "weather -> research papers",
+   "sessions": 1,
+   "clients": 1
+  }
+ ]
+}

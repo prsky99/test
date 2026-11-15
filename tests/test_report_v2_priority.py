@@ -97,3 +97,27 @@ def test_usable_pearls_leave_out_prohibited_members(monkeypatch):
     assert out['final_prohibited']['a.v1']['usable_first']['final_pearl_by_itself'] is True
     assert out['final_prohibited']['b.v1']['usable_first']['final_pearl_by_itself'] is False
     assert out['roles_with_a_usable_final_pearl'] == 2
+
+
+def test_provisional_members_follow_the_floor():
+    now = 1_800_000_000
+    def v(rid, score, ago=1, outcome='succeeded', acc=10, role='news.search.v1'):
+        return {'resource_id': rid, 'role': role, 'tool': 't', 'outcome': outcome, 'tested': now - ago * V.DAY,
+                'case_id': 'c', 'quality': {'score': score}, 'data_quality': {'accuracy': {'points': acc}, 'clean': {'points': 5}}}
+    versions = [v(1, 72), v(2, 69), v(3, 90, ago=8), v(4, 95, acc=0), v(5, 88), v(6, 80), v(7, 99, outcome='failed'),
+                v('avc:news', 90), v(8, 91, role='weather.forecast.v1')]
+    status = {1: (1, 'A', 'healthy'), 5: (1, 'B', 'healthy'), 6: (0, 'A', 'down')}
+    out = V.provisional_members(status, terms={5: 'prohibits'}, roles={'news.search.v1': ['topic-evidence-brief']},
+                                now=now, versions=versions)
+    role = out['roles']['news.search.v1']
+    assert [m['resource_id'] for m in role['members']] == [1]
+    assert {m['resource_id']: m['why_out'] for m in role['left_out']} == {5: 'terms prohibit', 6: 'not active'}
+    assert [m['resource_id'] for m in role['own_fallbacks']] == ['avc:news']
+    assert list(out['roles']) == ['news.search.v1'] and out['roles_with_a_member'] == 1
+    assert V.provisional_members(None, terms={}, roles={'news.search.v1': []}, now=now,
+                                 versions=versions)['roles']['news.search.v1']['members'] == []
+
+
+def test_necklace_roles_read_the_definitions():
+    roles = V.necklace_roles()
+    assert 'topic-evidence-brief' in roles['web.grounding.v1'] and 'website-trust-brief' in roles['domain.lookup.v1']
