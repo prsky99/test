@@ -3,7 +3,7 @@
 지금은 광고 원장 쓰기(`biz.agentconcierge.opsauto.housead`, 09:10)와 백업(`biz.agentconcierge.backup`, 04:30)이 여러 세션이 함께 고치는 작업본의 코드를 그대로 실행합니다. 누가 작업본을 고치는 중이면 그 코드가 원장과 백업에 쓰입니다.
 - 바뀐 뒤: 두 작업은 `gateway-data/ops-code/current`의 코드를 실행합니다. 이 폴더는 `scripts.ops_code install <커밋>`이 한 커밋에서 만듭니다. 데이터(gateway-data, logs, exports, .venv)는 링크로 지금과 같은 곳을 씁니다.
 - 코드를 바꾸려면 운영·SRE가 `.venv/bin/python -m scripts.ops_code install <커밋>`을 실행합니다. 다음 실행부터 새 코드를 씁니다. 되돌리기는 `.venv/bin/python -m scripts.ops_code rollback`입니다.
-- 11-15 09:55에 첫 폴더를 설치했습니다(커밋 0dc4e0dc). 아래 plist를 바꾸기 전에는 아무 작업도 이 폴더를 쓰지 않습니다.
+- 11-15 09:56에 폴더를 설치했습니다(커밋 0b19a3db, 백업 기준 폴더 수정 e7fd3009 포함, `status`로 확인). 아래 plist를 바꾸기 전에는 아무 작업도 이 폴더를 쓰지 않습니다.
 - 시험: `tests/test_ops_code.py`
 
 ## 사용자가 할 일 (터미널, 한 번, 09:10·04:30 실행 시각을 피해서)
