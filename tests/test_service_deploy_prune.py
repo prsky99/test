@@ -135,6 +135,7 @@ def test_deploy_commands_prune_only_after_success(monkeypatch, capsys, argv, exp
     Recorder.calls, Recorder.fail = [], False
     monkeypatch.setattr(service_deploy, 'Deployment', Recorder)
     monkeypatch.setattr(service_deploy_module(), 'check_board_lock', lambda *a, **k: None)
+    _no_release_checks(monkeypatch)
     monkeypatch.setattr('sys.argv', ['service_deploy', *argv, '--lock-owner', '운영·SRE'])
     service_deploy.main()
     assert Recorder.calls == expected
@@ -146,10 +147,20 @@ def test_a_failed_deploy_deletes_nothing(monkeypatch):
     Recorder.calls, Recorder.fail = [], True
     monkeypatch.setattr(service_deploy, 'Deployment', Recorder)
     monkeypatch.setattr(service_deploy_module(), 'check_board_lock', lambda *a, **k: None)
+    _no_release_checks(monkeypatch)
     monkeypatch.setattr('sys.argv', ['service_deploy', 'deploy', 'admin', 'x-r1', '--lock-owner', '운영·SRE'])
     with pytest.raises(RuntimeError):
         service_deploy.main()
     assert Recorder.calls == [('deploy', 'admin', 'x-r1')]
+
+
+def _no_release_checks(monkeypatch):
+    """The R54 checks (policy hash, SQL list, gate) have their own tests (test_service_deploy_r54.py)."""
+    module = service_deploy_module()
+    monkeypatch.setattr(module, 'check_policy_hash', lambda *a, **k: None)
+    monkeypatch.setattr(module, 'check_sql_list', lambda *a, **k: None)
+    monkeypatch.setattr(module, 'release_gate', lambda *a, **k: None)
+    monkeypatch.setattr(Recorder, 'release_commit', lambda self, release: None, raising=False)
 
 
 def service_deploy_module():

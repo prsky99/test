@@ -355,7 +355,26 @@ def main(argv=None):
     if code == 0 and not args.skip_chat and role == 'frontend':
         code = chat_check(args.release)
     print(f'release gate {args.release}: ' + ('passed' if code == 0 else f'FAILED (pytest exit {code})'))
+    if code == 0 and not args.tests and not args.skip_chat:
+        record_pass(args.release)
     return code
+
+
+def record_pass(release, now=None):
+    """A full pass of the role's tests is recorded with the release commit, so a deploy within 24 hours of the same
+    commit reuses it (scripts/service_deploy.release_gate, R54 11-15) instead of running the tests again."""
+    import time
+    try:
+        commit = json.loads((RELEASES / release / 'release.json').read_text()).get('commit')
+    except (OSError, ValueError):
+        return None
+    # beside the releases' project (RELEASES is <root>/gateway-data/services/releases), so a test that points RELEASES
+    # at a temporary folder never writes into the real logs
+    record = RELEASES.parents[2] / 'logs/ops/release-gates' / (release + '.json')
+    record.parent.mkdir(parents=True, exist_ok=True)
+    record.write_text(json.dumps({'release': release, 'commit': commit, 'passed': True,
+                                  'at': time.time() if now is None else now}))
+    return record
 
 
 if __name__ == '__main__':

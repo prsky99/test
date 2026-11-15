@@ -1091,6 +1091,16 @@ class Deployment:
             self.persist(state)
             return self.status()
 
+    def rollback_worker(self, role):
+        """Run the worker's previous release again (R54, 11-15: workers had no rollback command). The previous
+        release was built on an older base, so the base check is skipped for it."""
+        if role not in ('jobs', 'execution'):
+            raise ValueError('worker_role_required')
+        previous = self.state()['services'][role].get('previous_release')
+        if not previous:
+            raise ValueError('previous_release_unavailable')
+        return self.deploy_worker(role, previous, force_base=True)
+
     def restart_web(self, role='all'):
         """Start each web role's active release again in its other slot and switch to it.
 
@@ -1270,11 +1280,24 @@ class Deployment:
             return None
 
 
-def release_gate(root, release, runner=subprocess.run):
-    """Refuse a frontend release whose copy fails the opening-path tests (DEPLOY.md, 11-02).
+GATE_RECORDS = 'logs/ops/release-gates'
+GATE_REUSE_SECONDS = 24 * 3600
 
-    Runs before the deployment lock is taken. Its output goes to stderr; stdout stays the JSON result.
-    """
+
+def release_gate(root, release, runner=subprocess.run, now=None, commit=None):
+    """Refuse a release whose copy fails its role's tests (DEPLOY.md, 11-02; every role since 11-15 R54).
+
+    A passing run is recorded in logs/ops/release-gates/<release>.json with the release commit; a deploy within
+    24 hours of a pass of the same commit reuses it instead of running the tests again (the runners gate first,
+    then deploy). Runs before the deployment lock is taken. Its output goes to stderr; stdout stays the JSON."""
+    now = time.time() if now is None else now
+    record = Path(root) / GATE_RECORDS / (release + '.json')
+    try:
+        done = json.loads(record.read_text())
+        if done.get('passed') and done.get('commit') == commit and now - done.get('at', 0) < GATE_REUSE_SECONDS:
+            return {'reused': done['at']}
+    except (OSError, ValueError, AttributeError):
+        pass
     python = Path(root) / '.venv-tests' / 'bin' / 'python'
     if not python.is_file():
         raise SystemExit('release_gate_unavailable: .venv-tests is missing (emergency only: --skip-gate)')
@@ -1282,6 +1305,81 @@ def release_gate(root, release, runner=subprocess.run):
                     stdout=sys.stderr, stderr=sys.stderr)
     if result.returncode:
         raise SystemExit('release_gate_failed: %s (see the test output above)' % release)
+    record.parent.mkdir(parents=True, exist_ok=True)
+    record.write_text(json.dumps({'release': release, 'commit': commit, 'passed': True, 'at': now}))
+    return {'ran': now}
+
+
+# Precision review R54 (11-15): rules that lived only in one-off runners are now the deploy tool's own.
+POLICY_ROLES = ('frontend', 'jobs')   # the roles whose explore documents follow explore_documents.policy_hash()
+POLICY_NIGHT = (30, 90)               # 00:30-01:30: a changed hash regenerates documents for hours (11-14 day deploy)
+OVERRIDES = 'logs/ops/deploy-overrides.md'
+
+
+def active_release(manager, role):
+    service = manager.state()['services'][role]
+    if 'slots' in service:
+        slot = service['slots'][service['active']]
+        return slot['release'] if isinstance(slot, dict) else slot
+    return service['release']
+
+
+def release_policy_hash(manager, release):
+    """policy_hash() computed with the release's own code and environment, or None when it cannot be read."""
+    path = manager.path(release)
+    python = path / '.venv' / 'bin' / 'python'
+    try:
+        out = subprocess.run([str(python), '-B', '-c', 'from agent_market.explore_documents import policy_hash; '
+                              'print(policy_hash())'], cwd=str(path), env={**os.environ, 'PYTHONPATH': str(path)},
+                             capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    value = out.stdout.strip().splitlines()[-1] if out.returncode == 0 and out.stdout.strip() else ''
+    return value or None
+
+
+def check_policy_hash(manager, role, release, now=None, hasher=release_policy_hash):
+    """Refuse a frontend or jobs release that changes the policy hash outside 00:30-01:30."""
+    if role not in POLICY_ROLES:
+        return None
+    active = active_release(manager, role)
+    before, after = hasher(manager, active), hasher(manager, release)
+    if not before or not after:
+        raise SystemExit('policy_hash_unreadable: %s %s' % (active if not before else '', release if not after else ''))
+    local = time.localtime(now)
+    minute = local.tm_hour * 60 + local.tm_min
+    if before != after and not POLICY_NIGHT[0] <= minute < POLICY_NIGHT[1]:
+        raise SystemExit('policy_hash_changes_outside_night: %s %s -> %s %s; deploy it 00:30-01:30'
+                         % (active, before[:12], release, after[:12]))
+    return {'active': before[:12], 'release': after[:12], 'changed': before != after}
+
+
+def check_sql_list(manager, role, release):
+    """Refuse a release whose registered SQL list lost a statement the active release has (10-30 r14: a
+    regenerated list dropped a statement and the frontend failed to start). Added statements are reported."""
+    def statements(name):
+        try:
+            data = json.loads((manager.path(name) / 'agent_market/application_store_sql.json').read_text())
+        except (OSError, ValueError):
+            return None
+        return {json.dumps(item, sort_keys=True): item.get('name') for item in data.get('statements', [])}
+    before, after = statements(active_release(manager, role)), statements(release)
+    if before is None or after is None:
+        return {'compared': False}
+    removed = sorted(name for key, name in before.items() if key not in after)
+    if removed:
+        raise SystemExit('sql_statements_removed: %d, e.g. %s' % (len(removed), ', '.join(map(str, removed[:5]))))
+    return {'compared': True, 'added': sorted(str(name) for key, name in after.items() if key not in before)}
+
+
+def log_override(root, owner, command, release, flags):
+    """Every use of an emergency option is written down (R54): who, when, which release, which options."""
+    if not flags:
+        return
+    path = Path(root) / OVERRIDES
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open('a', encoding='utf-8') as fh:
+        fh.write('- %s %s %s %s %s\n' % (time.strftime('%Y-%m-%d %H:%M'), owner, command, release, ' '.join(flags)))
 
 
 # 11-11: teams started deploys while another team held the status-board deploy lock (one stopped at the
@@ -1440,6 +1538,10 @@ def main():
     deploy.add_argument('--lock-owner', required=True, help='your team; the status board lock section must hold your line only')
     deploy.add_argument('--take-stale-lock', action='store_true', help="take over another team's stale lock line (pid gone or older than 60 minutes)")
     rollback = commands.add_parser('rollback'); rollback.add_argument('role', choices=PORTS)
+    rollback.add_argument('--lock-owner', required=True, help='your team; the status board lock section must hold your line only')
+    worker_rollback = commands.add_parser('worker-rollback', help="run a worker's previous release again")
+    worker_rollback.add_argument('role', choices=('jobs', 'execution'))
+    worker_rollback.add_argument('--lock-owner', required=True, help='your team; the status board lock section must hold your line only')
     commands.add_parser('status')
     reclaim = commands.add_parser('reclaim-standby', help='stop previous web slots retained longer than --min-age')
     reclaim.add_argument('--after', type=int, default=0, help='wait this many seconds first')
@@ -1452,31 +1554,49 @@ def main():
     recovery.add_argument('--worker', choices=('jobs', 'execution'))
     recovery.add_argument('--release')
     commands.add_parser('start')
-    commands.add_parser('stop')
+    stop = commands.add_parser('stop')
+    stop.add_argument('--lock-owner', required=True, help='your team; the status board lock section must hold your line only')
     restart = commands.add_parser('restart'); restart.add_argument('role', nargs='?', choices=('all', 'frontend', 'admin'), default='all')
+    restart.add_argument('--lock-owner', required=True, help='your team; the status board lock section must hold your line only')
     cutover = commands.add_parser('cutover'); cutover.add_argument('release'); cutover.add_argument('--legacy-pid', type=int, required=True)
     worker = commands.add_parser('worker-deploy'); worker.add_argument('role', choices=('jobs', 'execution')); worker.add_argument('release')
     worker.add_argument('--no-prune', action='store_true', help='keep old releases after a successful deploy')
     worker.add_argument('--force-base', action='store_true', help='deploy although the release was built on a release that is no longer active')
     worker.add_argument('--lock-owner', required=True, help='your team; the status board lock section must hold your line only')
     worker.add_argument('--take-stale-lock', action='store_true', help="take over another team's stale lock line (pid gone or older than 60 minutes)")
+    worker.add_argument('--skip-gate', action='store_true', help='emergency only: deploy a worker release without scripts.release_gate')
     args = parser.parse_args()
     manager = Deployment(args.root)
     if args.command == 'package':
+        if not args.from_tree and not args.base:   # R54: a commit package names the release it was overlaid on
+            raise SystemExit('package_base_required: --base <the active release this commit was built on>')
         with manager.lock():
             result = manager.package(args.release, args.base, None if args.from_tree else args.commit)
-    elif args.command == 'deploy':
+    elif args.command in ('deploy', 'worker-deploy'):
         check_board_lock(args.root, args.lock_owner, args.take_stale_lock)
-        forced = {'force_base': True} if args.force_base else {}
+        log_override(args.root, args.lock_owner, args.command + ' ' + args.role, args.release,
+                     [f for f, on in (('--force-base', args.force_base), ('--skip-gate', args.skip_gate),
+                                      ('--take-stale-lock', args.take_stale_lock)) if on])
         if not args.force_base:
-            manager.check_base(args.role, args.release)  # before the gate's minute of tests; deploy checks again
-        if args.role == 'frontend' and not args.skip_gate:
-            release_gate(args.root, args.release)
-        result = manager.deploy(args.role, args.release, **forced)
+            manager.check_base(args.role, args.release)  # before the gate's minutes of tests; deploy checks again
+        checks = {'policy_hash': check_policy_hash(manager, args.role, args.release),
+                  'sql_list': check_sql_list(manager, args.role, args.release)}
+        if not args.skip_gate:
+            checks['gate'] = release_gate(args.root, args.release, commit=manager.release_commit(args.release))
+        forced = {'force_base': True} if args.force_base else {}
+        if args.command == 'deploy':
+            result = manager.deploy(args.role, args.release, **forced)
+        else:
+            result = manager.deploy_worker(args.role, args.release, **forced)
+        result['checks'] = checks
         if not args.no_prune:
             result['pruned'] = manager.prune_after_deploy()
     elif args.command == 'rollback':
+        check_board_lock(args.root, args.lock_owner)
         result = manager.rollback(args.role)
+    elif args.command == 'worker-rollback':
+        check_board_lock(args.root, args.lock_owner)
+        result = manager.rollback_worker(args.role)
     elif args.command == 'reclaim-standby':
         time.sleep(max(0, args.after))
         result = manager.reclaim_standby(args.min_age)
@@ -1488,16 +1608,13 @@ def main():
         result = manager.install_schema()
     elif args.command == 'cutover':
         result = manager.cutover(args.release, args.legacy_pid)
-    elif args.command == 'worker-deploy':
-        check_board_lock(args.root, args.lock_owner, args.take_stale_lock)
-        result = manager.deploy_worker(args.role, args.release, **({'force_base': True} if args.force_base else {}))
-        if not args.no_prune:
-            result['pruned'] = manager.prune_after_deploy()
     elif args.command == 'restart':
+        check_board_lock(args.root, args.lock_owner)
         result = manager.restart_web(args.role)
     elif args.command == 'start':
         result = manager.managed_start()
     elif args.command == 'stop':
+        check_board_lock(args.root, args.lock_owner)
         result = manager.managed_stop()
     else:
         result = manager.status()

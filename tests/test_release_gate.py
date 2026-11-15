@@ -34,14 +34,17 @@ def test_frontend_deploy_refuses_a_failing_gate(tmp_path):
 
     service_deploy.release_gate(tmp_path, 'r1', runner(0))
     assert calls == [([str(python), '-m', 'scripts.release_gate', 'r1'], str(tmp_path))]
-    with pytest.raises(SystemExit, match='release_gate_failed: r1'):
-        service_deploy.release_gate(tmp_path, 'r1', runner(1))
+    with pytest.raises(SystemExit, match='release_gate_failed: r2'):   # r1 just passed and would be reused (R54)
+        service_deploy.release_gate(tmp_path, 'r2', runner(1))
 
 
-def test_deploy_command_runs_the_gate_only_for_frontend(monkeypatch):
+def test_deploy_command_runs_the_gate_for_every_role(monkeypatch):
+    """11-15 R54: admin, jobs and execution deploys are gated too (frontend only until then)."""
     from scripts import service_deploy
     gated, deployed = [], []
-    monkeypatch.setattr(service_deploy, 'release_gate', lambda root, release: gated.append(release))
+    monkeypatch.setattr(service_deploy, 'release_gate', lambda root, release, **k: gated.append(release))
+    monkeypatch.setattr(service_deploy, 'check_policy_hash', lambda *a, **k: None)
+    monkeypatch.setattr(service_deploy, 'check_sql_list', lambda *a, **k: None)
 
     class Manager:
         def __init__(self, root):
@@ -57,13 +60,16 @@ def test_deploy_command_runs_the_gate_only_for_frontend(monkeypatch):
         def prune_after_deploy(self):  # every verified deploy prunes old releases since 5a4677e3
             return {}
 
+        def release_commit(self, release):
+            return None
+
     monkeypatch.setattr(service_deploy, 'Deployment', Manager)
     for argv in (['deploy', 'frontend', 'f1'], ['deploy', 'admin', 'a1'], ['deploy', 'frontend', 'f2', '--skip-gate']):
         from scripts import service_deploy as _sd
         monkeypatch.setattr(_sd, 'check_board_lock', lambda *a, **k: None)
         monkeypatch.setattr('sys.argv', ['service_deploy', *argv, '--lock-owner', '운영·SRE'])
         service_deploy.main()
-    assert gated == ['f1'] and deployed == [('frontend', 'f1'), ('admin', 'a1'), ('frontend', 'f2')]
+    assert gated == ['f1', 'a1'] and deployed == [('frontend', 'f1'), ('admin', 'a1'), ('frontend', 'f2')]
 
 
 def test_each_role_gets_its_own_test_list(tmp_path, monkeypatch):
