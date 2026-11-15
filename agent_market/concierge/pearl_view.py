@@ -110,6 +110,22 @@ def bundle_body(names, kind, root=None, compact=True):
 # content, the same bytes are looked up in the earlier releases beside this one
 # (gateway-data/services/releases/<name>/new), so that page still gets its own CSS and JS, not the new ones.
 EARLIER_RELEASES = 8
+# R07 (11-15): during a deploy switch the edge can still hand out the older HTML while the origin already serves the
+# newer files. When code moves from one bundled file to another, the file it left requires the file it went to, so
+# an older page that lists only the old file still gets a working set. Add an entry whenever code moves between
+# bundled files (docs/FRONTEND_SCREEN_POLICY.md, 'Moving code between bundled files').
+BUNDLE_REQUIRES = {'js': {'operating': ('site-policy',)}}
+
+
+def with_requirements(names, kind):
+    """NAMES with every required part placed right before the first part that needs it (once)."""
+    out = []
+    for name in names:
+        for need in BUNDLE_REQUIRES.get(kind, {}).get(name, ()):
+            if need not in names and need not in out:
+                out.append(need)
+        out.append(name)
+    return out
 EARLIER_SUFFIXES = ('.css', '.js', '.svg', '.png', '.webp', '.json', '.zip')
 _earlier = collections.OrderedDict()
 _earlier_lock = threading.Lock()
@@ -685,7 +701,7 @@ def install(app, front, *, workspace_access_enabled=False, workspace_link_enable
             names = request.query_params.get('f', '').split(',')
             if not 0 < len(names) <= BUNDLE_MAX:
                 raise HTTPException(404, 'Asset not found.')
-            body, wanted = bundle_body(names, kind), request.query_params.get('v')
+            body, wanted = bundle_body(with_requirements(names, kind), kind), request.query_params.get('v')
             if wanted and (body is None or asset_version(body) != wanted):
                 body = earlier_asset((kind, tuple(names)), wanted,
                                      lambda root: (bundle_body(names, kind, root),
@@ -693,8 +709,10 @@ def install(app, front, *, workspace_access_enabled=False, workspace_link_enable
             if body is None:
                 raise HTTPException(404, 'Asset not found.')
             version = asset_version(body)
+            # R07: a versioned URL whose content no release on disk has is answered with today's files but never
+            # stored, so the edge cannot pair an older page with newer code for a day.
             cache = ('public, max-age=31536000, immutable' if wanted == version
-                     else 'public, max-age=300, stale-while-revalidate=86400')
+                     else 'no-store' if wanted else 'public, max-age=300, stale-while-revalidate=86400')
             media = 'text/css; charset=utf-8' if kind == 'css' else 'text/javascript; charset=utf-8'
             return Response(body, media_type=media, headers={'X-Content-Type-Options': 'nosniff', 'Cache-Control': cache,
                                                              'ETag': '"' + version + '"'})
@@ -708,8 +726,8 @@ def install(app, front, *, workspace_access_enabled=False, workspace_link_enable
         version=asset_version(body)
         # Public static files carry no visitor data. A URL naming this exact content is
         # immutable; an unversioned URL is kept briefly and revalidated by ETag.
-        cache=('public, max-age=31536000, immutable' if request.query_params.get('v')==version
-               else 'public, max-age=300, stale-while-revalidate=86400')
+        cache=('public, max-age=31536000, immutable' if wanted==version
+               else 'no-store' if wanted else 'public, max-age=300, stale-while-revalidate=86400')  # R07 as above
         headers={'X-Content-Type-Options':'nosniff','Cache-Control':cache,'ETag':'"'+version+'"'}
         tags=[tag.strip().removeprefix('W/') for tag in request.headers.get('if-none-match','').split(',')]
         if headers['ETag'] in tags or '*' in tags:return Response(status_code=304,headers=headers)
