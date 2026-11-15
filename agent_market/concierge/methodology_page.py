@@ -166,6 +166,9 @@ def sitemap_paths():
 def methodology_router():
     from fastapi import APIRouter
     from fastapi.responses import HTMLResponse, JSONResponse
+    from .growth_pages import PAGE_CSP
+    # 11-15 F17 audit: the growth-page CSP lets the page load its own stylesheets (the default CSP blocked them).
+    PAGE_HEADERS = {'Content-Security-Policy': PAGE_CSP}
     router = APIRouter()
 
     @router.get('/methodology', include_in_schema=False)
@@ -174,7 +177,7 @@ def methodology_router():
         if value is None:
             return HTMLResponse('<!doctype html><title>Method not available</title><p>The method file is not available.</p>',
                                 status_code=503, headers={'Cache-Control': 'no-store'})
-        return HTMLResponse(value)
+        return HTMLResponse(value, headers=PAGE_HEADERS)
 
     @router.get('/methodology.json', include_in_schema=False)
     def machine():
@@ -185,6 +188,6 @@ def methodology_router():
 
     @router.get('/methodology/changelog', include_in_schema=False)
     def log():
-        return HTMLResponse(changelog_html())
+        return HTMLResponse(changelog_html(), headers=PAGE_HEADERS)
 
     return router

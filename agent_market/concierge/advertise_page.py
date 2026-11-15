@@ -121,6 +121,9 @@ def advertise_router():
 
     @router.get('/advertise', include_in_schema=False)
     def advertise():
-        return HTMLResponse(page_html())
+        # 11-15 F17 audit: without the growth-page CSP the default one (style-src 'unsafe-inline' only) blocked the
+        # page's own stylesheets, so the page showed unstyled in production.
+        from .growth_pages import PAGE_CSP
+        return HTMLResponse(page_html(), headers={'Content-Security-Policy': PAGE_CSP})
 
     return router
