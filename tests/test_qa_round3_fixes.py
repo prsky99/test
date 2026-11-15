@@ -207,7 +207,9 @@ def test_public_status_json_has_only_public_facts(catalog):
     value = client.get('/status.json').json()
     assert value['status'] == 'unknown' and value['availability']['observation_count'] == 0
     assert value['availability']['availability_percent'] is None and value['limits_per_minute']['read'] == 120
-    assert set(value) == {'service', 'status', 'checked_at', 'catalog_snapshot', 'interfaces', 'limits_per_minute', 'availability', 'recent_incidents'}
+    # 11-15 E7: the verified registry line (address, listed count, snapshot time) is public too; None before a snapshot.
+    assert set(value) == {'service', 'status', 'checked_at', 'catalog_snapshot', 'interfaces', 'limits_per_minute', 'availability',
+                          'recent_incidents', 'verified_registry'}
     assert '/status.json' in client.get('/llms.txt').text
 
 

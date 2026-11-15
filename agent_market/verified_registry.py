@@ -34,6 +34,7 @@ FRESH_S = 7 * 86400
 KEEP_REMOVED_S = 30 * 86400
 DEFAULT_LIMIT, MAX_LIMIT = 30, 100
 PAGE_ROWS = 1000
+_FORGES = {"github.com": "github", "gitlab.com": "gitlab"}   # the official entries name these sources
 HEADER_FIELDS = ("name", "description", "isRequired", "isSecret", "format", "default", "choices")
 
 # One registered statement (application_store_sql.json); the id page keeps every read under the store's row cap.
@@ -70,15 +71,34 @@ def _public_https(url) -> bool:
             and "." in host and not re.fullmatch(r"[0-9.]+|\[.*\]", host) and host not in ("localhost",))
 
 
-def entry(row: dict, now: float, fingerprints: dict | None = None, risky: frozenset = frozenset()) -> dict | None:
+def exclusion_reason(row: dict, now: float, risky: frozenset = frozenset()) -> str:
+    """Why a catalog row that the SELECT returned is not listed (shown in the change feed, never security details)."""
+    details = _json(row.get("details")) or {}
+    trial = _json(row.get("trial_info")) or {}
+    if row.get("id") in risky:
+        return "definition_risk"
+    try:
+        if now - float(trial.get("at")) > FRESH_S:
+            return "no_recent_success"
+    except (TypeError, ValueError):
+        return "no_recent_success"
+    remotes = [r for r in details.get("remotes") or [] if isinstance(r, dict)]
+    if remotes and all(any(isinstance(h, dict) and h.get("isRequired") is True for h in r.get("headers") or [])
+                       for r in remotes):
+        return "requires_credentials"
+    return "entry_not_valid"
+
+
+def entry(row: dict, now: float, fingerprints: dict | None = None, risky: frozenset = frozenset(),
+          risk_checked: bool = False) -> dict | None:
     """The registry entry for one catalog row, or None when it does not meet the listing rules."""
     details = _json(row.get("details")) or {}
     trial = _json(row.get("trial_info")) or {}
     name = details.get("registry_name")
     if not isinstance(name, str) or not 3 <= len(name) <= 200 or not NAME.fullmatch(name) or name.endswith("/by-name"):
         return None
-    if name in risky:
-        return None
+    if row.get("id") in risky:
+        return None   # a definition risk signal in the last 30 days
     description = " ".join(str(row.get("description") or "").split())
     version = str(details.get("version") or "").strip()
     if not 1 <= len(description) <= 100 or not version or len(version) > 255:
@@ -104,7 +124,10 @@ def entry(row: dict, now: float, fingerprints: dict | None = None, risky: frozen
         return None
     server = {"$schema": SCHEMA_URL, "name": name, "description": description, "version": version, "remotes": remotes}
     repo = details.get("repository")
-    if isinstance(repo, dict) and isinstance(repo.get("url"), str) and repo["url"].startswith("https://"):
+    if isinstance(repo, str):   # the collector keeps the official repository object as its URL
+        repo = {"url": repo, "source": _FORGES.get((urlsplit(repo).hostname or "").lower())}
+    if isinstance(repo, dict) and isinstance(repo.get("url"), str) and repo["url"].startswith("https://") \
+            and isinstance(repo.get("source"), str):
         server["repository"] = {k: repo[k] for k in ("url", "source", "id", "subfolder") if isinstance(repo.get(k), str)}
     if isinstance(details.get("website"), str) and details["website"].startswith("https://"):
         server["websiteUrl"] = details["website"]
@@ -113,9 +136,10 @@ def entry(row: dict, now: float, fingerprints: dict | None = None, risky: frozen
                     "checked_without_headers": True, "evidence": f"{SITE}/agent/{row['id']}"}
     if isinstance(trial.get("tool"), str):
         verification["checked_tool"] = trial["tool"][:100]
+    verification["definition_risk_check"] = "clear" if risk_checked else "not_checked_yet"
     if fp.get("server_fp"):
         verification.update(tools_fingerprint="sha256:" + fp["server_fp"], fingerprint_version=fp.get("version"),
-                            fingerprint_unchanged_since=fp.get("unchanged_since"))
+                            fingerprint_as_of=fp.get("as_of"))
     return {"server": server, "_meta": {META_KEY: verification}, "_id": row["id"]}
 
 
@@ -130,12 +154,15 @@ def read_rows(store) -> list[dict]:
 
 
 def build_snapshot(rows, now: float, previous: dict | None = None, fingerprints: dict | None = None,
-                   risky=frozenset()) -> dict:
+                   risky=frozenset(), risk_checked: bool = False) -> dict:
     """Entries keyed by name (one verified version each), plus servers that dropped out in the last 30 days."""
-    items = {}
+    items, reasons = {}, {}
     for row in rows:
-        item = entry(row, now, fingerprints, frozenset(risky))
+        item = entry(row, now, fingerprints, frozenset(risky), risk_checked)
         if item is None:
+            name = (_json(row.get("details")) or {}).get("registry_name")
+            if isinstance(name, str):
+                reasons[name] = exclusion_reason(row, now, frozenset(risky))
             continue
         name = item["server"]["name"]
         if name not in items or item["_meta"][META_KEY]["last_success_at"] > items[name]["_meta"][META_KEY]["last_success_at"]:
@@ -146,22 +173,29 @@ def build_snapshot(rows, now: float, previous: dict | None = None, fingerprints:
         before = old.get(name)
         same = before and before.get("server") == item["server"] and before.get("_meta", {}).get(META_KEY, {}).get("listed")
         item["_meta"][META_KEY]["updated_at"] = before["_meta"][META_KEY].get("updated_at", stamp) if same else stamp
-    removed = []
+    removed, events = [], []
+    for name, item in items.items():
+        before = old.get(name)
+        if previous is not None and (before is None or not before.get("_meta", {}).get(META_KEY, {}).get("listed")):
+            events.append({"at": stamp, "event": "listed", "name": name, "version": item["server"]["version"]})
     for name, before in old.items():
         if name in items:
             continue
         meta = before.get("_meta", {}).get(META_KEY, {})
         gone_at = meta.get("removed_at") or stamp
+        if meta.get("listed"):   # dropped in this snapshot: the most useful signal for an allowlist (PM 11-15)
+            events.append({"at": stamp, "event": "delisted", "name": name, "version": before["server"]["version"],
+                           "reason": reasons.get(name, "left_catalog_criteria")})
         if now - _ts(gone_at) <= KEEP_REMOVED_S:
             removed.append({"server": before["server"], "_meta": {META_KEY: {
                 "listed": False, "removed_at": gone_at, "updated_at": meta.get("removed_at") and meta.get("updated_at") or stamp,
-                "reason": meta.get("reason") or "no_longer_meets_listing_rules"}}, "_id": before.get("_id")})
+                "reason": meta.get("reason") or reasons.get(name, "left_catalog_criteria")}}, "_id": before.get("_id")})
     servers = sorted(list(items.values()) + removed, key=lambda i: i["server"]["name"])
     for item in servers:
         item["_meta"][META_KEY]["snapshot"] = stamp
         item["_meta"][META_KEY]["notice"] = NOTICE
     return {"profile": "agentvalcon-verified-registry-v1", "generated": stamp, "listed": len(items),
-            "servers": servers}
+            "servers": servers, "events": events}
 
 
 def _ts(iso: str) -> float:
@@ -192,30 +226,53 @@ def run_job(store, now=None, folder: Path | None = None) -> dict:
         previous = json.loads((folder / "verified.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         previous = None
-    fingerprints, risky = load_fingerprints()
-    snapshot = build_snapshot(read_rows(store), now, previous, fingerprints, risky)
+    fingerprints, risky, risk_checked = load_fingerprints(now)
+    snapshot = build_snapshot(read_rows(store), now, previous, fingerprints, risky, risk_checked)
+    write_events(snapshot.pop("events"), folder, now)
     write_snapshot(snapshot, folder)
     return {"listed": snapshot["listed"], "entries": len(snapshot["servers"])}
 
 
-def load_fingerprints() -> tuple[dict, frozenset]:
-    """Server fingerprints and recent risk signals from the operations fingerprint records (fingerprint-v1), when
-    they exist. Missing records leave the fields empty; usage hashes are never substituted (different definition)."""
+def write_events(events: list[dict], folder: Path, now: float) -> int:
+    """Listing changes for the tool-change feed (E5): one line per listed or delisted server, by local date.
+    The first snapshot has no previous one and writes nothing (it is not news that 7,000 servers exist)."""
+    if not events:
+        return 0
+    path = Path(folder) / ("events-" + time.strftime("%Y%m%d", time.localtime(now)) + ".jsonl")
+    with path.open("a", encoding="utf-8") as fh:
+        for event in events:
+            fh.write(json.dumps(event, ensure_ascii=False, sort_keys=True) + "\n")
+    return len(events)
+
+
+def load_fingerprints(now=None) -> tuple[dict, frozenset, bool]:
+    """(fingerprints by resource id, resource ids with a risk signal in 30 days, risk_check_available).
+
+    Sources are the operations fingerprint records (reports/tool-fingerprint-design-2026-11-14 4):
+    ``changes-<date>.jsonl`` (one line per definition change: resource_id, server_fp, classification
+    dynamic|general|risk) and ``pearls.json`` (pearl and member baselines). Until the change log is being written (a
+    file from the last two days exists) the risk condition cannot be checked: entries then say
+    ``definition_risk_check: not_checked_yet`` instead of claiming it. Usage hashes are never substituted."""
     base = Path(os.environ.get("FINGERPRINT_DATA", "gateway-data/fingerprints"))
+    now = time.time() if now is None else now
     out, risky = {}, set()
     try:
         pearls = json.loads((base / "pearls.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         pearls = {}
-    for rid, value in (pearls.get("resources") or {}).items() if isinstance(pearls, dict) else []:
-        if isinstance(value, dict) and value.get("last_server_fp"):
+    baselines = pearls.get("pearls") if isinstance(pearls, dict) else None
+    for rid, value in (baselines or {}).items():
+        if isinstance(value, dict) and isinstance(value.get("server_fp"), str):
             try:
-                out[int(rid)] = {"server_fp": value["last_server_fp"], "version": value.get("version", "fingerprint-v1"),
-                                 "unchanged_since": value.get("unchanged_since")}
+                out[int(rid)] = {"server_fp": value["server_fp"], "version": pearls.get("version", "fingerprint-v1"),
+                                 "as_of": pearls.get("generated")}
             except ValueError:
                 continue
-    since = time.time() - 30 * 86400
-    for path in sorted(base.glob("changes-*.jsonl"))[-31:]:
+    files = sorted(base.glob("changes-*.jsonl"))
+    recent_names = {"changes-" + time.strftime("%Y%m%d", time.localtime(now - d * 86400)) + ".jsonl" for d in (0, 1)}
+    available = any(path.name in recent_names for path in files)
+    since = now - 30 * 86400
+    for path in files[-31:]:
         try:
             lines = path.read_text(encoding="utf-8").splitlines()
         except OSError:
@@ -223,12 +280,16 @@ def load_fingerprints() -> tuple[dict, frozenset]:
         for raw in lines:
             try:
                 row = json.loads(raw)
-            except ValueError:
+                rid = int(row.get("resource_id"))
+            except (ValueError, TypeError, AttributeError):
                 continue
-            if isinstance(row, dict) and row.get("risk") and isinstance(row.get("registry_name"), str) \
-                    and _ts(str(row.get("at"))) >= since:
-                risky.add(row["registry_name"])
-    return out, frozenset(risky)
+            at = _ts(str(row.get("at"))) if isinstance(row.get("at"), str) else float(row.get("at") or 0)
+            if row.get("classification") == "risk" and at >= since:
+                risky.add(rid)
+            if isinstance(row.get("server_fp"), str):
+                out[rid] = {"server_fp": row["server_fp"], "version": "fingerprint-v1",
+                            "as_of": row.get("at") if isinstance(row.get("at"), str) else _iso(at)}
+    return out, frozenset(risky), available
 
 
 # ---------------------------------------------------------------- answering (frontend, memory only)
@@ -254,6 +315,31 @@ class SnapshotIndex:
                 self.etag = '"' + hashlib.sha256(raw).hexdigest()[:32] + '"'
                 self._mtime = mtime
             return self
+
+
+_DEFAULT: SnapshotIndex | None = None
+_DEFAULT_LOCK = threading.Lock()
+
+
+def default_index() -> SnapshotIndex:
+    """One index per process, shared by the routes and /status.json (the snapshot is held in memory once)."""
+    global _DEFAULT
+    with _DEFAULT_LOCK:
+        if _DEFAULT is None:
+            _DEFAULT = SnapshotIndex()
+        return _DEFAULT
+
+
+def status_line(base: str, index: SnapshotIndex | None = None) -> dict | None:
+    """The /status.json line: registry address, listed servers and snapshot time (None before the first snapshot)."""
+    try:
+        current = (index or default_index()).current()
+    except (OSError, ValueError):
+        return None
+    if current is None or not current.snapshot:
+        return None
+    return {"url": base.rstrip("/") + "/registry/verified", "spec": "MCP Registry API v0.1",
+            "listed": current.snapshot.get("listed"), "snapshot": current.snapshot.get("generated")}
 
 
 def public(item: dict) -> dict:
@@ -312,14 +398,14 @@ def list_page(index: SnapshotIndex, *, cursor=None, limit=None, search=None, ver
             return {"servers": out, "metadata": {"nextCursor": encode_cursor(last), "count": len(out)}}
         out.append(public(item))
         last = name
-    return {"servers": out, "metadata": {"nextCursor": None, "count": len(out)}}
+    return {"servers": out, "metadata": {"count": len(out)}}   # the last page has no nextCursor (a string when present)
 
 
 def versions(index: SnapshotIndex, name: str) -> dict | None:
     item = index.by_name.get(name)
     if item is None or not item["_meta"][META_KEY].get("listed"):
         return None
-    return {"servers": [public(item)], "metadata": {"nextCursor": None, "count": 1}}
+    return {"servers": [public(item)], "metadata": {"count": 1}}
 
 
 def version(index: SnapshotIndex, name: str, wanted: str) -> dict | None:

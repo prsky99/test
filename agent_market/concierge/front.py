@@ -2536,6 +2536,10 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
         front.book.record_hit(fingerprint(ip, request.headers.get("user-agent")), request.headers.get("user-agent"), request.url.path)
         return agent_card(front.base(request))
 
+    def _verified_registry_status(base):
+        from ..verified_registry import status_line
+        return status_line(base)
+
     @router.get("/status.json", include_in_schema=False)
     def status_json(request: Request):
         """Machine-readable public status: availability, the dated catalog snapshot and request limits."""
@@ -2556,6 +2560,8 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             'interfaces': {'chat': base + '/chat', 'mcp': base + '/mcp', 'a2a': base + '/a2a',
                            'explore': base + '/api/explore', 'agent_card': base + '/.well-known/agent-card.json'},
             'limits_per_minute': {'read': 120, 'chat': CHAT_PER_MINUTE},
+            # E7 (docs/VERIFIED_REGISTRY.md): listed servers and the snapshot time, from the in-memory snapshot
+            'verified_registry': _verified_registry_status(base),
         })
 
     @router.get("/.well-known/mcp.json", include_in_schema=False)

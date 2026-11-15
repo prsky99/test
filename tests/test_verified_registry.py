@@ -41,9 +41,9 @@ def test_listing_rules_and_entry_shape(tmp_path):
             row(6, "io.github.example/private", remotes=[{"type": "streamable-http", "url": "https://127.0.0.1/mcp"}]),
             row(7, "io.github.example/risky"),
             row(8, "io.github.example/by-name")]
-    snap = R.build_snapshot(rows, NOW, risky={"io.github.example/risky"},
+    snap = R.build_snapshot(rows, NOW, risky={7}, risk_checked=True,
                             fingerprints={1: {"server_fp": "ab" * 32, "version": "fingerprint-v1",
-                                              "unchanged_since": "2026-11-10T00:00:00Z"}})
+                                              "as_of": "2026-11-14T04:21:40+0900"}})
     assert snap["listed"] == 2
     assert [s["server"]["name"] for s in snap["servers"]] == ["io.github.example/optional", "io.github.example/weather"]
     assert snap["servers"][0]["server"]["remotes"][0]["headers"] == [
@@ -57,6 +57,9 @@ def test_listing_rules_and_entry_shape(tmp_path):
     meta = item["_meta"][R.META_KEY]
     assert meta["listed"] and meta["checked_tool"] == "get_forecast" and meta["grade"] == "A" and meta["checked_without_headers"]
     assert meta["tools_fingerprint"] == "sha256:" + "ab" * 32 and "arguments" not in json.dumps(meta)
+    assert meta["definition_risk_check"] == "clear"
+    unchecked = R.build_snapshot([row(1, "io.github.example/weather")], NOW)["servers"][0]["_meta"][R.META_KEY]
+    assert unchecked["definition_risk_check"] == "not_checked_yet" and "tools_fingerprint" not in unchecked
     assert meta["evidence"] == "https://agentconcierge.biz/agent/1" and "Not affiliated" in meta["notice"]
     assert "io.modelcontextprotocol.registry/official" not in item["_meta"]   # never invented
 
@@ -75,7 +78,7 @@ def test_routes_follow_the_v01_shape_with_cors_and_cursor(tmp_path):
     second = client.get(S.BASE + "/servers", params={"limit": 2, "cursor": body["metadata"]["nextCursor"]}).json()
     assert [s["server"]["name"] for s in second["servers"]] == names[2:4]
     last = client.get(S.BASE + "/servers", params={"limit": 2, "cursor": second["metadata"]["nextCursor"]}).json()
-    assert [s["server"]["name"] for s in last["servers"]] == names[4:] and last["metadata"]["nextCursor"] is None
+    assert [s["server"]["name"] for s in last["servers"]] == names[4:] and "nextCursor" not in last["metadata"]
     bad = client.get(S.BASE + "/servers", params={"cursor": "%%%"})
     assert bad.status_code == 400 and bad.json()["detail"] == "Invalid cursor parameter"
     assert [s["server"]["name"] for s in client.get(S.BASE + "/servers", params={"search": "S03"}).json()["servers"]] == [names[3]]
@@ -172,6 +175,7 @@ def test_mounted_in_the_public_front_with_its_own_headers(tmp_path, monkeypatch)
     from agent_market.gateway.store import Store
     snapshot_dir(tmp_path / "registry", [row(1, "io.github.example/weather")])
     monkeypatch.setenv("VERIFIED_REGISTRY_DATA", str(tmp_path / "registry"))
+    monkeypatch.setattr(R, "_DEFAULT", None)   # the process-wide index reads the folder set above
     store = Store(str(tmp_path / "front.db"))
     clear_front_caches()
     front = Front(store)
@@ -183,7 +187,124 @@ def test_mounted_in_the_public_front_with_its_own_headers(tmp_path, monkeypatch)
         assert listed.headers["cache-control"] == "public, max-age=300, stale-while-revalidate=300"
         assert client.get("/registry/verified/v0.1/servers/io.github.example%2Fweather/versions/latest").status_code == 200
         assert client.options("/registry/verified/v0.1/servers").status_code == 204
+        line = client.get("/status.json").json()["verified_registry"]
+        assert line["listed"] == 1 and line["url"].endswith("/registry/verified") and line["snapshot"]
     finally:
         client.close()
         front.book.close()
         store._db.close()
+
+
+def test_fingerprint_records_by_resource_id_and_risk_check_availability(tmp_path, monkeypatch):
+    monkeypatch.setenv("FINGERPRINT_DATA", str(tmp_path))
+    (tmp_path / "pearls.json").write_text(json.dumps({"version": "fingerprint-v1", "generated": "2026-11-14T04:21:40+0900",
+                                                      "pearls": {"33328": {"server_fp": "aa" * 32, "tools": {}}}}))
+    fps, risky, available = R.load_fingerprints(NOW)
+    assert fps[33328]["server_fp"] == "aa" * 32 and risky == frozenset() and available is False   # no change log yet
+    today = time.strftime("%Y%m%d", time.localtime(NOW))
+    (tmp_path / f"changes-{today}.jsonl").write_text("\n".join(json.dumps(r) for r in (
+        {"at": R._iso(NOW - 600), "resource_id": 5, "server_fp": "bb" * 32, "classification": "risk"},
+        {"at": R._iso(NOW - 300), "resource_id": 6, "server_fp": "cc" * 32, "classification": "dynamic"})))
+    fps, risky, available = R.load_fingerprints(NOW)
+    assert available and risky == frozenset({5}) and fps[6]["server_fp"] == "cc" * 32
+
+
+def test_a_server_that_falls_below_the_rules_leaves_the_next_snapshot_and_the_change_log_says_why(tmp_path):
+    """PM 11-15: 'delisted' is the most useful signal for an organization's allowlist."""
+    rows = [row(1, "io.github.example/stays"), row(2, "io.github.example/stale"), row(3, "io.github.example/risky"),
+            row(4, "io.github.example/gone")]
+    first = R.build_snapshot(rows, NOW)
+    assert first["listed"] == 4 and first["events"] == []          # the first snapshot is not news
+    later = NOW + 8 * 86400
+    rows2 = [row(1, "io.github.example/stays", at=later - 60), row(2, "io.github.example/stale"),   # 8 days old now
+             row(3, "io.github.example/risky", at=later - 60), row(5, "io.github.example/new", at=later - 60)]
+    second = R.build_snapshot(rows2, later, first, risky={3}, risk_checked=True)
+    listed = [s["server"]["name"] for s in second["servers"] if s["_meta"][R.META_KEY]["listed"]]
+    assert listed == ["io.github.example/new", "io.github.example/stays"]
+    events = {e["name"]: e for e in second["events"]}
+    assert events["io.github.example/stale"]["reason"] == "no_recent_success"
+    assert events["io.github.example/risky"]["reason"] == "definition_risk"
+    assert events["io.github.example/gone"]["reason"] == "left_catalog_criteria"   # no longer returned by the query
+    assert events["io.github.example/new"]["event"] == "listed"
+    assert {e["event"] for n, e in events.items() if n != "io.github.example/new"} == {"delisted"}
+    gone = {s["server"]["name"]: s["_meta"][R.META_KEY] for s in second["servers"] if not s["_meta"][R.META_KEY]["listed"]}
+    assert gone["io.github.example/risky"]["reason"] == "definition_risk"
+    third = R.build_snapshot(rows2, later + 3600, second, risky={3}, risk_checked=True)
+    assert third["events"] == []                                     # each change is logged once
+
+
+def test_job_writes_listing_events_beside_the_snapshot(tmp_path, monkeypatch):
+    monkeypatch.setenv("FINGERPRINT_DATA", str(tmp_path / "fp"))
+
+    class Store:
+        def __init__(self, rows):
+            self.rows = rows
+
+        def query(self, sql, params):
+            return [r for r in self.rows if r["id"] > params[0]][:1000]
+    noon = time.mktime((2026, 11, 15, 12, 30, 0, 0, 0, -1))
+    assert R.run_job(Store([row(1, "io.github.example/a", at=noon - 60), row(2, "io.github.example/b", at=noon - 60)]),
+                     now=noon, folder=tmp_path)["listed"] == 2
+    later = noon + 3600
+    R.run_job(Store([row(1, "io.github.example/a", at=later - 60)]), now=later, folder=tmp_path)
+    lines = [json.loads(x) for x in (tmp_path / ("events-" + time.strftime("%Y%m%d", time.localtime(later)) + ".jsonl"))
+             .read_text().splitlines()]
+    assert lines == [{"at": R._iso(later), "event": "delisted", "name": "io.github.example/b", "version": "1.2.0",
+                      "reason": "left_catalog_criteria"}]
+    assert "events" not in json.loads((tmp_path / "verified.json").read_text())
+
+
+def _openapi():
+    """tests/data/mcp-registry-openapi-2025-12-01.json: docs/reference/api/openapi.yaml of modelcontextprotocol/registry
+    (OpenAPI 3.1, info.version 2025-12-01), converted to JSON without changes."""
+    from pathlib import Path
+    return json.loads((Path(__file__).parent / "data" / "mcp-registry-openapi-2025-12-01.json").read_text())
+
+
+def _validator(doc, schema):
+    import jsonschema
+    root = {**schema, "components": doc["components"]}
+    return jsonschema.Draft202012Validator(root)
+
+
+def test_responses_validate_against_the_official_openapi_document(tmp_path):
+    doc = _openapi()
+    names = [f"io.github.example/s{i:02d}" for i in range(3)]
+    snapshot_dir(tmp_path, [row(i + 1, n) for i, n in enumerate(names)] + [
+        row(9, "io.github.example/optional", remotes=[{"type": "sse", "url": "https://o.example.com/sse",
+                                                       "headers": [{"name": "X-Key", "isSecret": True, "description": "Optional"}]}])])
+    app = FastAPI()
+    app.include_router(S.router_for(R.SnapshotIndex(tmp_path)))
+    client = TestClient(app)
+    paths = doc["paths"]
+
+    def check(path_key, status, response):
+        schema = paths[path_key]["get"]["responses"][str(status)]["content"]["application/json"]["schema"]
+        errors = list(_validator(doc, schema).iter_errors(response.json()))
+        assert not errors, [e.message for e in errors][:3]
+
+    page = client.get(S.BASE + "/servers", params={"limit": 2, "version": "latest"})
+    check("/v0.1/servers", 200, page)
+    check("/v0.1/servers", 200, client.get(S.BASE + "/servers", params={"cursor": page.json()["metadata"]["nextCursor"]}))
+    check("/v0.1/servers", 200, client.get(S.BASE + "/servers", params={"search": "s01"}))
+    check("/v0.1/servers/{serverName}/versions", 200, client.get(S.BASE + "/servers/io.github.example%2Fs01/versions"))
+    check("/v0.1/servers/{serverName}/versions/{version}", 200,
+          client.get(S.BASE + "/servers/io.github.example%2Foptional/versions/latest"))
+    check("/v0.1/servers/{serverName}/versions", 404, client.get(S.BASE + "/servers/io.github.example%2Fnone/versions"))
+    check("/v0.1/servers/{serverName}/versions/{version}", 404,
+          client.get(S.BASE + "/servers/io.github.example%2Fnone/versions/latest"))
+    bad = client.get(S.BASE + "/servers", params={"cursor": "!!"})
+    assert bad.status_code == 400 and bad.json()["error"] == "Invalid cursor parameter"
+
+
+def test_repository_kept_as_a_url_becomes_the_official_object():
+    """11-15 comparison with the official registry: our collector keeps repository as its URL; the entry must carry
+    {url, source} like the official one (6 of 7 compared servers lacked it before this fix)."""
+    r = row(1, "io.github.example/weather")
+    details = json.loads(r["details"])
+    details["repository"] = "https://github.com/example/weather"
+    r["details"] = json.dumps(details)
+    assert R.entry(r, NOW)["server"]["repository"] == {"url": "https://github.com/example/weather", "source": "github"}
+    details["repository"] = "https://git.example.org/x/y"            # unknown forge: no source, so left out
+    r["details"] = json.dumps(details)
+    assert "repository" not in R.entry(r, NOW)["server"]

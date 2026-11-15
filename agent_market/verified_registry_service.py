@@ -22,7 +22,7 @@ CACHE = "public, max-age=300"
 
 
 def router_for(index: R.SnapshotIndex | None = None) -> APIRouter:
-    index = index or R.SnapshotIndex()
+    index = index or R.default_index()
     router = APIRouter()
     limiter = RateLimiter(60)
 
@@ -36,7 +36,8 @@ def router_for(index: R.SnapshotIndex | None = None) -> APIRouter:
         return JSONResponse(data, status_code=status, headers=headers)
 
     def error(status, message, extra=None):
-        return JSONResponse({"title": message, "status": status, "detail": message},
+        # The official API answers {"error": "..."}; title/status/detail add the usual problem fields beside it.
+        return JSONResponse({"error": message, "title": message, "status": status, "detail": message},
                             status_code=status, headers={**CORS, "Cache-Control": "no-store", **(extra or {})})
 
     def guard(request: Request):
