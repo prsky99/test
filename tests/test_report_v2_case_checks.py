@@ -47,7 +47,7 @@ def test_contract_shaped_answers_are_judged_as_text():
 
 
 def test_the_evaluator_version_moved():
-    assert V.EVALUATOR_VERSION == 'dq-2026-11-15d'
+    assert V.EVALUATOR_VERSION == 'dq-2026-11-15e'
 
 
 def test_no_record_case_is_judged_on_its_answer_set_alone():
@@ -60,3 +60,15 @@ def test_no_record_case_is_judged_on_its_answer_set_alone():
     assert made_up['passed'] == 0
     record = next(c for c in V.role_tasks_rag() if c['case_id'] == 'sec-aapl-latest-10k')
     assert not V.absence_case(record) and V.absence_case(case)
+
+
+def test_fx_reference_follows_frankfurter_to_its_new_host_and_weather_reads_daily_temperatures():
+    """11-15 PM 16:42: the weather #1 scored 59.9 and the FX #1 53.3 on accuracy 0. api.frankfurter.app answers 301 to
+    frankfurter.dev (the reference read does not follow redirects), and temp_max_c / temp_min_c were not read."""
+    from agent_market.necklaces import role_tasks
+    import data_quality as DQ
+    fx = [c for c in role_tasks.load() if c['contract'] == 'fx.rate.v1']
+    assert fx and all(c['expect']['dynamic']['rate'].startswith('https://api.frankfurter.dev/v1/latest?') for c in fx)
+    daily = '{"daily_forecast": [{"date": "2026-11-15", "temp_max_c": 7.8, "temp_min_c": 0.7}]}'
+    assert DQ.dynamic_match('temperature_c', 1.5, daily, None, 3)
+    assert not DQ.dynamic_match('temperature_c', 15.0, daily, None, 3)

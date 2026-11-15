@@ -1355,11 +1355,14 @@ def catalog_candidates():
 # PM 11-15 13:53: the roles whose next pearl opens a necklace, in this order (workflow readiness table). Earlier in
 # the tuple = earlier in every round; each gets PRIORITY_PICKS a round, the other roles one each after them.
 # PM 14:22: web.grounding second (Pipeworx 50972 left topic-evidence-brief's required web seat on terms).
-# PM 11-15 16:13: demand order from both sources (our records first, reports/necklace-demand-2026-11-15),
-# replacing 16:07's. Book, holiday and earthquake roles are left to the general order.
+# PM 11-15 16:13 and 16:42: demand order from our records (reports/necklace-demand-2026-11-15, correction): the
+# topic brief first, then what visitors ask most (weather 38, translation 33 in 30 days) where the #1 is weak,
+# then website and domain checks, then the roles only outside sources ask for. Book, holiday and earthquake roles
+# are left to the general order.
 PRIORITY_ROLES = ('web.grounding.v1', 'papers.search.v1', 'news.search.v1',                             # 1 topic brief
-                  'website.ai_readiness.v1', 'dns.mail_auth.v1', 'domain.lookup.v1', 'tls.certificate.v1',  # 2 site/domain
-                  'company.registry.v1', 'encyclopedia.summary.v1', 'sec.filings.v1',                     # 3 outside only
+                  'weather.forecast.v1', 'fx.rate.v1', 'translate.text.v1',                             # 2 asked most
+                  'website.ai_readiness.v1', 'dns.mail_auth.v1', 'domain.lookup.v1', 'tls.certificate.v1',  # 3 site/domain
+                  'company.registry.v1', 'encyclopedia.summary.v1', 'sec.filings.v1',                     # 4 outside only
                   'cve.exploited.v1', 'cve.record.v1', 'package.advisories.v1', 'package.health.v1',
                   'github.repo.v1', 'package.risk.v1', 'package.releases.v1', 'github.releases.v1',
                   'mcp.registry.lookup.v1')

@@ -10,16 +10,17 @@ import role_tool_test as RT  # noqa: E402
 def test_priority_roles_follow_the_pm_order_and_others_come_after():
     # PM 11-15 16:13: topic brief, website and domain checks, then the roles only outside sources ask for
     assert V.PRIORITY_ROLES[:3] == ('web.grounding.v1', 'papers.search.v1', 'news.search.v1')
-    assert V.PRIORITY_ROLES[3:7] == ('website.ai_readiness.v1', 'dns.mail_auth.v1', 'domain.lookup.v1', 'tls.certificate.v1')
+    assert V.PRIORITY_ROLES[3:6] == ('weather.forecast.v1', 'fx.rate.v1', 'translate.text.v1')   # PM 16:42
+    assert V.PRIORITY_ROLES[6:10] == ('website.ai_readiness.v1', 'dns.mail_auth.v1', 'domain.lookup.v1', 'tls.certificate.v1')
     assert not {'holiday.calendar.v1', 'book.search.v1', 'earthquake.feed.v1'} & set(V.PRIORITY_ROLES)
     candidates = [(role, i * 10 + n, 'tool', f'h{i}-{n}.example') for i, role in enumerate(
-        ['weather.forecast.v1', 'company.registry.v1', 'website.ai_readiness.v1', 'news.search.v1']) for n in range(6)]
+        ['holiday.calendar.v1', 'company.registry.v1', 'weather.forecast.v1', 'news.search.v1']) for n in range(6)]
     out = V.new_queue([], candidates, limit=10, terms={})
     roles = [x['role'] for x in out]
     assert roles[:4] == ['news.search.v1'] * V.PRIORITY_PICKS
-    assert roles[4:8] == ['website.ai_readiness.v1'] * V.PRIORITY_PICKS
+    assert roles[4:8] == ['weather.forecast.v1'] * V.PRIORITY_PICKS
     assert roles[8] == 'company.registry.v1'
-    assert 'weather.forecast.v1' not in roles[:9]
+    assert 'holiday.calendar.v1' not in roles[:9]
 
 
 def test_dns_mail_auth_and_tls_roles_have_tools_and_checked_tasks():

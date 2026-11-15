@@ -548,7 +548,11 @@ def dynamic_match(kind, ref, text, case_input=None, tolerance=None):
         tol = tolerance or 3
         temps = [float(m[1]) if (m[2] or 'c').lower() == 'c' else (float(m[1]) - 32) * 5 / 9
                  for m in re.finditer(r'(-?\d+(?:\.\d+)?)\s*°?\s*([CF])?\b', text or '') if '°' in m[0] or m[2]]
-        temps += [float(m[1]) for m in re.finditer(r'"?temp(?:erature)?(?:_2m|_c)?"?\s*[:=]\s*(-?\d+(?:\.\d+)?)', text or '', re.I)]
+        # JSON fields such as temp_c, temperature_2m and a day's temp_max_c / temp_min_c (11-15: the weather #1
+        # answered temp_max_c 7.8, temp_min_c 0.7 and was read as having no temperature at all)
+        temps += [float(m[1]) for m in re.finditer(
+            r'"?temp(?:erature)?(?:_2m)?(?:_(?:max|min|high|low|now|current))?(?:_c)?"?\s*[:=]\s*(-?\d+(?:\.\d+)?)',
+            text or '', re.I)]
         return any(abs(t - ref) <= tol for t in temps)
     if kind == 'latest_version':
         return ref in (text or '')
