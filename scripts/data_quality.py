@@ -10,6 +10,7 @@ import datetime as dt
 import json
 import re
 import time
+from pathlib import Path
 
 # Points of each data-quality item (methodology v1 reads these; change them here only).
 WEIGHTS = {'accuracy': 25, 'freshness': 10, 'completeness': 10, 'clean': 10, 'consistency': 5}
@@ -280,6 +281,32 @@ def _empty_search(data):
     return True
 
 
+_CONTRACTS = {}
+
+
+def contract_output(role):
+    """(properties, required) of the workflow contract's output_schema for ROLE; (set(), set()) when there is none."""
+    if role not in _CONTRACTS:
+        path = Path(__file__).resolve().parents[1] / 'agent_market/necklaces/contracts' / f'{role}.json'
+        try:
+            schema = json.loads(path.read_text()).get('output_schema') or {}
+            _CONTRACTS[role] = (set((schema.get('properties') or {}).keys()), set(schema.get('required') or []))
+        except (OSError, ValueError, AttributeError):
+            _CONTRACTS[role] = (set(), set())
+    return _CONTRACTS[role]
+
+
+def contract_text_answer(role, data):
+    """True when DATA has the contract's text shape (its required keys, e.g. answer and source) and the contract has
+    no property for the role's own required fields."""
+    props, required = contract_output(role)
+    fields = [f for f in REQUIRED_OUTPUT.get(role, ()) if f != 'items']
+    if not required or not isinstance(data, dict) or any(f in props for f in fields):
+        return False
+    inner = data.get('result') if isinstance(data.get('result'), dict) else data
+    return all(k in inner for k in required)
+
+
 def completeness(text, structured=None, role=None, args=None):
     """(points of 10, blank fields, fields, detail) against the role's required output."""
     required = REQUIRED_OUTPUT.get(role)
@@ -314,6 +341,10 @@ def completeness(text, structured=None, role=None, args=None):
         share = len(found) / len(fields)
         points = round(WEIGHTS['completeness'] * share * (1 - blank_share) * count_share, 1)
         missing = [f for f in fields if f not in found]
+        if missing and contract_text_answer(role, data):
+            # The workflow contract itself allows only answer/url/source (airport, book, domain, sec.filings): the
+            # role's fields cannot appear as keys, so the answer text is judged like a text answer (ops 11-15 14:2x).
+            return None, len(BLANK_TEXT.findall(text or '')), len(fields), 'contract text answer (answer, source): role checks'
         return points, blanks, len(fields), ('missing ' + ', '.join(missing)) if missing else 'required output present'
     # A text answer has no paths: the caller judges it by the role's own fact checks (report_v2.judge).
     return None, len(BLANK_TEXT.findall(text or '')), len([f for f in required if f != 'items']), 'text answer: role checks'

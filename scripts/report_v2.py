@@ -45,7 +45,7 @@ BOARD = ROOT / 'logs/ops/status-board.md'
 RULES = 'v2-2026-11-14'
 # Evaluation rules version (current-state review 11-14 F01-F03, F10). Versions scored under different evaluator
 # versions never count together as repeated successes; rescoring writes a score file per version, never over a version.
-EVALUATOR_VERSION = 'dq-2026-11-15b'
+EVALUATOR_VERSION = 'dq-2026-11-15c'
 from agent_market.necklaces import gate_rules  # noqa: E402  (운영·SRE 897baf3a: one source for the gate numbers)
 PASS_MARK = gate_rules.REPORT_SCORE
 
@@ -255,10 +255,25 @@ def within_reference(text, reference, tolerance):
     return any(abs(n - reference) <= tolerance * reference for n in numbers if n > 0)
 
 
-def judge(role, text, args):
+# Default checks written for the role catalog's own sample input (ICN, Pride and Prejudice, python.org, Apple, New
+# York...). When the version ran a role task (case), these never judge it: the case's own expectation takes their
+# place (ops/PM 11-15 14:2x, an LAX answer was checked for "Incheon").
+SAMPLE_BOUND = {'react named', 'domain echoed', 'Paris', 'address or coordinates', 'author', 'bitcoin named',
+                'AAPL named', 'latitude 38.89', 'longitude -77.03', '8.8.8.8 echoed', 'Google or AS15169', 'zone named',
+                'word echoed', 'a definition', 'French greeting', 'Independence Day', 'Thanksgiving',
+                'Apple or CIK 320193', 'Incheon', '16.09', 'repository echoed', 'both currencies', 'company echoed',
+                'topic echoed'}
+
+
+def judge(role, text, args, case=None, structured=None):
     checks = []
     rules = CHECKS.get(role) or [(name, lambda t, a, _p=pattern: _has(_p, t))
                                  for name, pattern in role_catalog.default_checks(canonical(role))]
+    if case:
+        from agent_market.necklaces import role_tasks
+        rules = [(name, rule) for name, rule in rules if name not in SAMPLE_BOUND]
+        rules.append((f"answer set {case['case_id']}",
+                      lambda t, a, _c=case: role_tasks.score(_c, t, structured)[0]))
     for name, rule in rules:
         try:
             passed = bool(rule(text or '', args or {}))
@@ -581,7 +596,7 @@ def save_version(result, now=None):
              'tested': tested, 'attempt_id': aid}
         case = result.get('case')
         text = result.get('full_text') or r['excerpt']
-        r['judgement'] = judge(short(r['role']), text, r['arguments']) if r['outcome'] == 'succeeded' else \
+        r['judgement'] = judge(short(r['role']), text, r['arguments'], case, result.get('structured')) if r['outcome'] == 'succeeded' else \
             {'rules': RULES, 'checks': [], 'passed': 0, 'total': 0}
         if case:
             r['case_id'] = case['case_id']
@@ -821,7 +836,7 @@ def rescore():
             if v.get('outcome') == 'failed' and str(v.get('reason', '')).startswith('unclean answer'):
                 v['outcome'], v['reason'] = 'succeeded', None       # judged again below
             if v['outcome'] == 'succeeded':
-                v['judgement'] = judge(short(v['role']), text, v.get('arguments'))
+                v['judgement'] = judge(short(v['role']), text, v.get('arguments'), case, structured)
             assess(v, text, structured, case)
             v['answer_set'] = answer_set(v, case)
             acc = (v.get('data_quality') or {}).get('accuracy', {})
