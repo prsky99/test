@@ -78,3 +78,39 @@ def test_cards_that_need_provider_authorization_are_not_connectable_for_a2a_and_
                             create_connections=False)
         assert card['connection_available'] is available, kind
         assert (card.get('connection_reason') == 'provider_authorization') is (not available)
+
+
+def _ocr(add, now, name, tool, description, read_only, seconds):
+    spec = {'name': tool, 'description': description,
+            'inputSchema': {'type': 'object', 'properties': {'image_url': {'type': 'string'}}, 'required': ['image_url']},
+            'annotations': {'readOnlyHint': read_only}}
+    return add(name, report_at=now - seconds, description=f'{name}: {description}', category='document_processing',
+               usage_guide=json.dumps({'tools': [spec]}))
+
+
+def test_capability_only_splits_the_met_requirement_from_the_subject():
+    from agent_market.concierge.fast_chat import capability_only
+    lead = {'task_fit': {'matched': ['ocr'], 'unknown': [], 'violated': []}, 'matched_terms': ['invoice', 'ocr']}
+    assert capability_only(lead) == (['ocr'], ['invoice'])
+    assert capability_only({**lead, 'matched_terms': ['ocr']}) == ([], [])          # nothing else was asked
+    assert capability_only({**lead, 'task_fit': {'matched': ['pdf_input']}}) == ([], [])   # a condition, not a word
+    assert capability_only({}) == ([], [])
+
+
+def test_an_unrelayed_lead_is_replaced_by_a_relayed_tool_with_its_capability(catalog):
+    """PM 11-16 02:2x: user_slo 02:07 'invoice ocr today' recommended InvoiceOracle invoice_ocr (mcp/56920), which the
+    gateway does not relay, while relayed OCR tools exist (42449 ocr_image)."""
+    _, front, client, add, now = catalog
+    unrelayed = _ocr(add, now, 'Invoice Oracle', 'invoice_ocr',
+                     'OCR extraction for scanned invoices, then store them in the archive', False, 1)
+    relayed = _ocr(add, now, 'Doc Convert', 'ocr_image', 'OCR: extract the text of an image or scanned page', True, 300)
+    search = front.concierge.rec.search
+
+    def strict(task, *args, **kwargs):          # the production search requires 'invoice' as a subject word
+        found = search(task, *args, **kwargs)
+        return [item for item in found if item['id'] != relayed] if 'invoice' in str(task) else found
+    front.concierge.rec.search = strict
+    recs = ask(client, 'invoice ocr')['data']['recommendations']
+    assert recs and recs[0]['id'] == relayed and unrelayed not in [r['id'] for r in recs]
+    assert recs[0]['unverified'] == ['invoice']
+    assert 'not confirmed (unverified): invoice' in recs[0]['reason']['text']

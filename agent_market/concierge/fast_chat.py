@@ -510,6 +510,23 @@ def relayable(item):
     return not (item.get('auth_required') is True and item.get('kind') != 'x402')
 
 
+# A requirement word alone is no capability phrase for the catalog search ('ocr' finds nothing): the phrase it asks
+# for, measured on the public find_agents (11-16 02:4x: 'ocr image to text' -> 42400 image-ocr, relayed; 'ocr text
+# extraction' and 'extract text with ocr' found only unrelayed or wrong tools). Add a word only after measuring it.
+CAPABILITY_QUERY = {'ocr': 'ocr image to text'}
+
+
+def capability_only(item):
+    """(capability words, other request words) of a lead the gateway does not relay: the capability is the task
+    requirement its tool met ('ocr'), the rest the request's other matched words ('invoice'). ([], []) when the
+    lead met no such requirement or matched nothing else, so there is nothing to search more widely by."""
+    fit = (item or {}).get('task_fit') or {}
+    capability = [str(key).lower() for key in fit.get('matched') or [] if str(key).lower() in CAPABILITY_QUERY]
+    rest = [str(term).lower() for term in (item or {}).get('matched_terms') or []
+            if isinstance(term, str) and str(term).lower() not in capability]
+    return (capability, rest) if capability and rest else ([], [])
+
+
 def relayable_only(items):
     """PM 11-14: a tool the relay policy will not run is not recommended while a relayed one is admitted; later
     re-orders (subject_first, condition_first) could otherwise move it back to first. When none is relayed, the
@@ -935,6 +952,22 @@ class FastConcierge(Concierge):
                 found = self._condition_admit(task, found)[:3]
                 if found:
                     items = [{**item, 'unverified': dropped} for item in found]
+        if offset == 0 and items and not any(relayable(item) for item in items) and \
+                time.monotonic() - started < TRAIT_RETRY_BEFORE:
+            # PM 11-16 02:2x (user_slo 02:07 mcp/56920): "invoice ocr" admitted only InvoiceOracle, whose invoice_ocr
+            # the gateway does not relay, while relayed OCR tools exist (42449 ocr_image). The searches above keep the
+            # subject word, so they find the same listing. Search once by the capability the lead was chosen for,
+            # keep relayed tools that state it, and say plainly which of the request's words are not confirmed.
+            capability, rest = capability_only(items[0])
+            if capability and rest:
+                step('relay')
+                found = [item for item in self.rec.search(' '.join(CAPABILITY_QUERY[word] for word in capability), kind=protocol,
+                                                          limit=RELAY_WIDEN,
+                                                          exclude=excluded | {item.get('id') for item in items})
+                         if relayable(item) and states_every_word(item, capability)]
+                found = self._condition_admit(task, found)[:3]
+                if found:
+                    items = [{**item, 'unverified': rest} for item in found]
         items = relayable_only(items)
         if offset == 0 and CLOCK_TASK.search(str(task or '')):
             items = self._clock_first(task, items, protocol, excluded, started, step)
