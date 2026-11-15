@@ -237,9 +237,11 @@ def test_census_geocoder_substitute_tests_get_thirty_a_day(tmp_path):
     assert pb.reserve(url, 'substitute_tests', now=now, directory=tmp_path) == (False, 'system_share')
 
 
-def test_a_day_plan_keeps_calls_for_the_gate_first(tmp_path):
+def test_a_day_plan_keeps_calls_for_the_gate_first(tmp_path, monkeypatch):
     """PM 11-15 16:03: gate > substitute tests > pearl and role tests > necklace retests, on the planned domains."""
     import json as _json
+    monkeypatch.setattr(pb, 'TERMS_PATH', tmp_path / 'no-terms.json')     # no published limits: the default 60
+    pb._declared_cache.update(mtime=None, map={})
     now = at(9)
     (tmp_path / f'plan-{pb.today(now)}.json').write_text(_json.dumps({'holds': {'wikipedia.org': {'gate': 34, 'substitute_tests': 10}}}))
     url = 'https://en.wikipedia.org/api/rest_v1/page/summary/X'
@@ -299,8 +301,29 @@ def test_a_declared_limit_lifts_the_day_total_to_a_fifth_of_it(tmp_path):
                                                        'source': 'https://www.mediawiki.org/wiki/Wikimedia_APIs/Rate_limits'}},
         'x': {'status': 'silent', 'declared_limit': {'domain': 'nosource.dev', 'per_day': 9000}}}}))
     assert pb.domain_total('dmvtransit.com', terms) == 600            # 20% of 3,000
-    assert pb.domain_total('datakoot.com', terms) == 60               # 20 is below the default; 60 stays under 100
+    assert pb.domain_total('datakoot.com', terms) == 20               # PM 17:24: 20% on a day without a gate
     assert pb.domain_total('wikipedia.org', terms) == 1000            # 200 a minute: the cap
     assert pb.domain_total('nosource.dev', terms) == 60               # no source, not counted
     assert pb.domain_total('presend.pages.dev', terms) == 60          # nothing published
     assert pb.domain_total('sec.gov', terms) == 600                   # the earlier fixed table still wins
+
+
+def test_a_gate_day_lifts_a_declared_domain_and_live_calls_stop_at_80_percent(tmp_path, monkeypatch):
+    """PM 11-15 17:24: datakoot publishes 100 a day; tests get 20, a gate day 60, live necklace calls up to 80."""
+    import json as _json
+    terms = tmp_path / 'member_terms.json'
+    terms.write_text(_json.dumps({'members': {'37322': {'declared_limit': {'domain': 'datakoot.com', 'per_day': 100,
+                                                                             'source': 'https://datakoot.com/terms'}}}}))
+    monkeypatch.setattr(pb, 'TERMS_PATH', terms)
+    pb._declared_cache.update(mtime=None, map={})
+    url, now = 'https://datakoot.com/mcp', at(9)
+    assert pb.reserve(url, 'necklace_retest', n=21, now=now, directory=tmp_path) == (False, 'domain_daily_total')
+    (tmp_path / f'plan-{pb.today(now)}.json').write_text(_json.dumps({'holds': {'datakoot.com': {'gate': 60}}}))
+    assert pb.reserve(url, 'gate', n=60, now=now, directory=tmp_path) == (True, 'ok')
+    for _ in range(20):
+        assert pb.live_reserve(url, now=now, directory=tmp_path) == (True, 'ok')
+    assert pb.live_reserve(url, now=now, directory=tmp_path) == (False, 'quota_exhausted')   # 60 + 20 = 80
+    assert pb.live_reserve('https://cwei59969.workers.dev/mcp', now=now, directory=tmp_path) == (True, 'ok')
+    for _ in range(240):                                                          # 80% of 300
+        assert pb.live_reserve('https://presend.pages.dev/x', now=now, directory=tmp_path, default_per_day=300) == (True, 'ok')
+    assert pb.live_reserve('https://presend.pages.dev/x', now=now, directory=tmp_path, default_per_day=300) == (False, 'quota_exhausted')

@@ -113,17 +113,50 @@ def declared(name, path=None):
     return _declared_cache['map'].get(name)
 
 
-def domain_total(name, path=None):
-    if name in DOMAIN_TOTAL:
-        return DOMAIN_TOTAL[name]
+def published_per_day(name, path=None):
     limit = declared(name, path)
     if not limit:
-        return DAILY_TOTAL
-    per_day = limit.get('per_day') or (limit['per_minute'] * 1440 if limit.get('per_minute') else None)
+        return None
+    return limit.get('per_day') or (limit['per_minute'] * 1440 if limit.get('per_minute') else None)
+
+
+def domain_total(name, path=None, day=None, directory=None):
+    """Our tests' day total on NAME. PM 17:24: on a declared domain it is 20% of the published limit (at most
+    DECLARED_CAP); on a day whose plan holds gate calls there, it rises to those holds, never above the limit."""
+    if name in DOMAIN_TOTAL:
+        return DOMAIN_TOTAL[name]
+    per_day = published_per_day(name, path)
     if not per_day:
         return DAILY_TOTAL
-    total = max(DAILY_TOTAL, min(int(per_day * SHARE_OF_DECLARED), DECLARED_CAP))
+    total = min(int(per_day * SHARE_OF_DECLARED), DECLARED_CAP)
+    held = sum((plan(day, directory).get(name) or {}).values()) if day else 0
+    total = max(total, held)
+    limit = declared(name, path) or {}
     return min(total, limit['per_day']) if limit.get('per_day') else total
+
+
+LIVE_SHARE = 0.8   # PM 17:24: live necklace calls may use a declared provider up to 80% of its day limit
+
+
+def live_reserve(url, now=None, directory=None, path=None, default_per_day=None):
+    """Count one live necklace call to URL's domain. Refused once our calls of the day (tests and live together) would
+    pass 80% of the day limit: the provider's published limit, else DEFAULT_PER_DAY when given (PM 17:32: the public
+    run's own cap per undeclared domain, limits.DOMAIN_PER_DAY). The runner then moves the slot to its next member and
+    records 'quota_exhausted' (not a failure). Without either limit the call is counted and allowed. One call holds the
+    ledger's file lock: about 0.2-0.6 ms (11-15 17:1x, under load 16), exact across processes."""
+    name = domain(url)
+    if not name:
+        return False, 'no_domain'
+    per_day = published_per_day(name, path) or default_per_day
+    with _ledger(today(now), directory) as data:
+        entry = data['domains'].setdefault(name, {'total': 0, 'by': {}})
+        if entry.get('paused'):
+            return False, 'paused_429'
+        if per_day and entry['total'] + 1 > int(per_day * LIVE_SHARE):
+            return False, 'quota_exhausted'
+        entry['total'] += 1
+        entry['by']['necklace_live'] = entry['by'].get('necklace_live', 0) + 1
+        return True, 'ok'
 
 
 # One-day grants (dated, so they end by themselves). 11-15 PM 16:4x / workflow 9da8aa94: the package-risk-audit
@@ -138,11 +171,12 @@ ONE_DAY = {'20261116': {('reference_checks', 'npmjs.org'): 30, ('reference_check
 ONE_NIGHT_GITHUB = {'20261116': {'reference_checks': 10}, '20261117': {'reference_checks': 10}}
 
 
-def share_limit(system, name, day=None):
+def share_limit(system, name, day=None, directory=None):
     base = ONE_DAY.get(day or '', {}).get((system, name)) or SHARE_OVERRIDE.get((system, name), SHARE[system])
+    total = domain_total(name, day=day, directory=directory)
     if system == 'gate':
-        return domain_total(name)
-    return base * domain_total(name) // DAILY_TOTAL
+        return total
+    return max(1, base * total // DAILY_TOTAL) if base else 0
 
 
 # Hosting platforms give each tenant its own subdomain; the tenant, not the platform, is the provider.
@@ -238,11 +272,11 @@ def reserve(url, system, n=1, now=None, directory=None):
         if entry.get('paused'):
             return False, 'paused_429'
         used = entry['by'].get(system, 0)
-        if entry['total'] + n > domain_total(name):
+        if entry['total'] + n > domain_total(name, day=today(now), directory=directory):
             return False, 'domain_daily_total'
-        if entry['total'] + n + held_for_others(entry, plan(today(now), directory).get(name, {}), system) > domain_total(name):
+        if entry['total'] + n + held_for_others(entry, plan(today(now), directory).get(name, {}), system) > domain_total(name, day=today(now), directory=directory):
             return False, 'held_for_higher_priority'
-        if used + n > share_limit(system, name, today(now)):
+        if used + n > share_limit(system, name, today(now), directory):
             return False, 'system_share'
         entry['total'] += n
         entry['by'][system] = used + n
