@@ -214,15 +214,31 @@ class PostgresClaimDB:
         self._local = threading.local()
 
     def _open(self):
-        connection = self.factory()
+        """A new connection, or ClaimError busy (503) at once when none can be had: the caller never waits."""
+        try:
+            connection = self.factory()
+        except Exception as exc:
+            raise ClaimError("busy", 503) from exc
         try:
             connection.autocommit = True
             connection.execute("SET search_path TO " + SCHEMA)
-            connection.execute("SET statement_timeout = 2000")
-        except Exception:
+            connection.execute("SET statement_timeout = 2000")   # PM 11-15: at most 5 s a statement
+            connection.execute("SET lock_timeout = 1000")        # PM 11-15: at most 1 s waiting for a row lock
+        except Exception as exc:
             connection.close()
-            raise
+            raise ClaimError("busy", 503) from exc
         return connection
+
+    @contextmanager
+    def _held(self):
+        """One connection per process at a time; another request gets 503 busy instead of queueing a thread
+        (the same thread re-enters, so statements inside a transaction run)."""
+        if not self._lock.acquire(blocking=False):
+            raise ClaimError("busy", 503)
+        try:
+            yield
+        finally:
+            self._lock.release()
 
     def ready(self) -> bool:
         if self._ready:
@@ -236,13 +252,16 @@ class PostgresClaimDB:
         try:
             row = self.one("schema_get")
             self._ready = row is not None and int(row["version"]) == SCHEMA_VERSION
+        except ClaimError:
+            self._checked = None   # busy: not a verdict on the schema; look again on the next use
+            raise
         except Exception:
             self._ready = False
         return self._ready
 
     @contextmanager
     def tx(self):
-        with self._lock:
+        with self._held():
             connection = self._open()
             try:
                 with connection.transaction():
@@ -259,7 +278,7 @@ class PostgresClaimDB:
         text = SQL[name]
         if registered_digests().get(name) != hashlib.sha256(" ".join(text.split()).encode()).hexdigest():
             raise RuntimeError("unregistered_sql: " + name)
-        with self._lock:
+        with self._held():
             current = getattr(self._local, "connection", None)
             connection = current or self._open()
             try:
@@ -364,10 +383,24 @@ class ProviderSelfClaims:
 
     # -- plumbing
     def available(self) -> bool:
+        """False while the schema is missing; ClaimError busy (503) when no connection can be had right now."""
         try:
             return bool(self.db.ready())
+        except ClaimError:
+            raise
         except Exception:
             return False
+
+    def _after_check(self, write):
+        """The record after an outside check must not be lost to a busy moment, or the claim would stay 'checking':
+        three tries 0.2 s apart (at most 0.4 s of waiting), then busy."""
+        for attempt in range(3):
+            try:
+                return write()
+            except ClaimError as exc:
+                if exc.code != "busy" or attempt == 2:
+                    raise
+                time.sleep(0.2)
 
     def _need(self):
         if not self.available():
@@ -470,13 +503,16 @@ class ProviderSelfClaims:
                 raise ClaimError("claim_changed", 409)
         outcome, status_code, ms = self._check(claim)   # no database transaction is held during the request
         done = self.clock()
-        with self.db.tx() as db:
-            db.run("check_insert", (claim_id, customer_id, claim["origin"], done, "user", outcome, status_code, ms))
-            if outcome == "verified":
-                db.run("claim_verified", (done, done + VALID_S, done + VALID_S - RECHECK_BEFORE_S, claim_id,
-                                          claim["revision"] + 1))
-            else:
-                db.run("claim_transition", ("pending", outcome, claim_id, claim["revision"] + 1, "checking"))
+
+        def record():
+            with self.db.tx() as db:
+                db.run("check_insert", (claim_id, customer_id, claim["origin"], done, "user", outcome, status_code, ms))
+                if outcome == "verified":
+                    db.run("claim_verified", (done, done + VALID_S, done + VALID_S - RECHECK_BEFORE_S, claim_id,
+                                              claim["revision"] + 1))
+                else:
+                    db.run("claim_transition", ("pending", outcome, claim_id, claim["revision"] + 1, "checking"))
+        self._after_check(record)
         return {"claim_id": claim_id, "status": "verified" if outcome == "verified" else "pending", "outcome": outcome}
 
     def _check(self, claim) -> tuple[str, int | None, int]:
@@ -749,15 +785,27 @@ class ProviderSelfClaims:
 
 
 def main(argv=None) -> int:
-    """python -m agent_market.provider_self_claims --write-sql-registry   (after changing SQL; reviewed in git)"""
+    """python -m agent_market.provider_self_claims --write-sql-registry   (adds new statements only; reviewed in git)"""
     import argparse
     parser = argparse.ArgumentParser(description="Write the claims schema's registered SQL digests.")
     parser.add_argument("--write-sql-registry", action="store_true", required=True)
     parser.parse_args(argv)
-    SQL_REGISTRY.write_text(json.dumps({"profile": "provider-claims-sql-v1", "statements": sql_digests()},
-                                       indent=1, sort_keys=True) + "\n", encoding="utf-8")
-    print(len(SQL), "statements")
+    print(json.dumps(add_to_registry()))
     return 0
+
+
+def add_to_registry() -> dict:
+    """Add statements the registry does not have yet, one entry each (PM 11-15: never rebuilt as a whole). A
+    statement whose text changed keeps its old entry and is refused: register the new text under a new name."""
+    current = registered_digests()
+    changed = sorted(n for n, d in sql_digests().items() if n in current and current[n] != d)
+    if changed:
+        raise SystemExit("statement text changed; register it under a new name instead: " + ", ".join(changed))
+    added = {n: d for n, d in sql_digests().items() if n not in current}
+    if added:
+        SQL_REGISTRY.write_text(json.dumps({"profile": "provider-claims-sql-v1", "statements": {**current, **added}},
+                                           indent=1, sort_keys=True) + "\n", encoding="utf-8")
+    return {"added": sorted(added), "registered": len(current) + len(added)}
 
 
 if __name__ == "__main__":

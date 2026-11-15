@@ -424,3 +424,88 @@ def test_recommendations_are_read_shown_and_never_applied(tmp_path):
     for bad in (("x", "applied", "r"), (req["request_id"], "approve", "r"), (req["request_id"], "held", "")):
         with pytest.raises(ValueError):
             append(*bad, path=svc.recommendations_file)
+
+
+def test_a_busy_connection_answers_503_at_once_and_never_queues(monkeypatch):
+    import threading
+    from contextlib import contextmanager
+
+    class Connection:
+        autocommit = False
+
+        def execute(self, sql, args=()):
+            pass
+
+        def cursor(self, row_factory=None):
+            class C:
+                rowcount = 0
+
+                def execute(self, sql, args):
+                    pass
+
+                def fetchone(self):
+                    return {"version": 1}
+            return C()
+
+        @contextmanager
+        def transaction(self):
+            yield self
+
+        def close(self):
+            pass
+
+    db = P.PostgresClaimDB(Connection)
+    holding, release = threading.Event(), threading.Event()
+
+    def hold():
+        with db.tx():
+            holding.set()
+            release.wait(5)
+    worker = threading.Thread(target=hold)
+    worker.start()
+    holding.wait(5)
+    import time as _t
+    started = _t.monotonic()
+    with pytest.raises(P.ClaimError) as err:
+        db.one("schema_get")
+    assert (err.value.code, err.value.status) == ("busy", 503) and _t.monotonic() - started < 0.1
+    release.set()
+    worker.join(5)
+    assert db.one("schema_get") == {"version": 1}      # free again
+    broken = P.PostgresClaimDB(lambda: (_ for _ in ()).throw(OSError("too many connections")))
+    with pytest.raises(P.ClaimError) as err:
+        broken.one("schema_get")
+    assert err.value.code == "busy"
+
+
+def test_busy_maps_to_503_with_retry_after(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from agent_market import provider_self_claims_service as S
+
+    class Busy:
+        backend = "postgres"
+
+        def ready(self):
+            raise P.ClaimError("busy", 503)
+    svc = P.ProviderSelfClaims(Busy(), RESOURCES.get, public_check=lambda url: True)
+    monkeypatch.setattr(S, "customer_actor", lambda request, identity, csrf=False: SimpleNamespace(customer_id="c"))
+    app = FastAPI()
+    app.include_router(S.router_for(identity=None, service=svc))
+    client = TestClient(app)
+    for response in (client.get(S.BASE), client.post(S.BASE, json={"resource_id": 1, "method": "well_known"})):
+        assert response.status_code == 503 and response.headers["retry-after"] == "5"
+        assert response.json()["detail"] == {"code": "busy"}
+    assert S.recheck_job(SimpleNamespace(backend="sqlite", resource=RESOURCES.get), now=0) in (
+        {"available": False}, {"skipped": "measurement_window"})
+
+
+def test_registry_only_grows(tmp_path, monkeypatch):
+    monkeypatch.setattr(P, "SQL_REGISTRY", tmp_path / "reg.json")
+    assert P.add_to_registry()["registered"] == len(P.SQL)
+    monkeypatch.setitem(P.SQL, "extra_count", "SELECT count(*) AS n FROM provider_self_claims")
+    assert P.add_to_registry() == {"added": ["extra_count"], "registered": len(P.SQL)}
+    monkeypatch.setitem(P.SQL, "claims_due", "SELECT 1")
+    with pytest.raises(SystemExit, match="claims_due"):
+        P.add_to_registry()

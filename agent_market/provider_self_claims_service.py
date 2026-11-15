@@ -46,7 +46,10 @@ def recheck_job(store, limit: int = 20, now=None) -> dict:
     from .necklaces.watch import in_quiet_window
     if in_quiet_window(_time.time() if now is None else now):
         return {"skipped": "measurement_window"}
-    return service_for(store).recheck_due(limit)
+    try:
+        return service_for(store).recheck_due(limit)
+    except ClaimError as exc:   # busy: the next run picks the due claims up
+        return {"skipped": exc.code}
 
 
 def router_for(identity, store=None, service: ProviderSelfClaims | None = None):
@@ -66,7 +69,8 @@ def router_for(identity, store=None, service: ProviderSelfClaims | None = None):
         try:
             return fn(*args)
         except ClaimError as exc:
-            raise HTTPException(exc.status, {"code": exc.code}) from None
+            retry = {"Retry-After": "5"} if exc.status == 503 else None
+            raise HTTPException(exc.status, {"code": exc.code}, headers=retry) from None
 
     async def body(request, keys, optional=()):
         try:
@@ -82,7 +86,7 @@ def router_for(identity, store=None, service: ProviderSelfClaims | None = None):
 
     @router.get(BASE)
     def listing(request: Request):
-        return answer(claims.claims(customer(request)))
+        return answer(call(claims.claims, customer(request)))
 
     @router.post(BASE)
     async def prepare(request: Request):
