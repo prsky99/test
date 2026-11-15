@@ -278,3 +278,8 @@ def test_snapshot_carries_example_input_and_help_for_the_surface():
     assert entry["example_input"] == {"q": "lodash"} and entry["input_help"] == {"q": "A package name."}
     plain = judge.build_entry(live_defn(), approval(live_defn()), {}, NOW, verified=BOTH)
     assert "example_input" not in plain and "input_help" not in plain
+
+
+def test_every_entry_says_runs_are_free_for_now():
+    entry = judge.build_entry(live_defn(), approval(live_defn()), {}, NOW, verified=BOTH)
+    assert entry["pricing"] == {"mode": "free"}

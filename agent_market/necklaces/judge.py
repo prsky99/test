@@ -174,6 +174,9 @@ def watch_hold(slug: str, watch_state: dict | None, approval: dict | None) -> st
     return hold.get("reason") or "manual"
 
 
+PRICING_MODE = "free"      # user decision 11-15: free while users grow; per-run billing comes later, if at all
+
+
 def example_fields(defn: dict) -> dict:
     """F17 (growth, PM 11-15 11:22): example_input = the input fields of the definition's public probe_input (staged
     slot values left out); input_help = the definition's optional per-field help, schema fields only."""
@@ -209,6 +212,8 @@ def build_entry(defn: dict, approval: dict | None, summary: dict, now: float,
         "pearls": pearls(running, verified),
         "input_schema": defn["input_schema"],
         **example_fields(defn),
+        # PM 11-15 (user decision): necklace runs are a free event for now; the surface words it (growth team)
+        "pricing": {"mode": PRICING_MODE},
         "completion": summary.get("completion"),
         "quality": summary.get("quality"),
         "cost": summary.get("cost"),
