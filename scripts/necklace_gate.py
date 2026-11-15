@@ -217,7 +217,14 @@ def main(argv=None) -> int:
     one = sub.add_parser("check", help="relay admission per member and pearl seats (no answer-set calls)")
     one.add_argument("slug")
     one.add_argument("--base", default=BASE)
+    sub.add_parser("terms", help="terms-of-use status of every member of every definition (PM 13:0x)")
     args = parser.parse_args(argv)
+    if args.command == "terms":
+        report = model.terms_report(model.load_all())
+        print(json.dumps({k: v for k, v in report.items() if k != "rows"}, ensure_ascii=False))
+        for row in report["rows"]:
+            print(f"{row['terms']:9} {row['slug']:22} {row['slot']:12} {row['kind']:8} {row['id']} {row['tool']}")
+        return 0
     defn = next((d for d in model.load_valid() if d["slug"] == args.slug), None)
     if defn is None:
         parser.error(f"unknown necklace {args.slug}")

@@ -139,7 +139,44 @@ def _member_errors(slot_id: str, idx: int, m: dict) -> list[str]:
         errors.append(f"{where}: upstream must list the data sources (use [\"unknown\"] if not known)")
     if not isinstance(m.get("input_map"), dict):
         errors.append(f"{where}: input_map must map tool arguments from the necklace input")
+    terms = m.get("terms")
+    if terms is not None and (not isinstance(terms, dict) or terms.get("status") not in TERMS_STATES
+                              or (terms["status"] == "confirmed" and not str(terms.get("source", "")).startswith("https://"))):
+        errors.append(f"{where}: terms is {{status: confirmed|unknown, source: https URL when confirmed, checked_at}}")
     return errors
+
+
+# Terms of use per member (PM 13:0x, 11-15): a member's terms are 'confirmed' when someone read the provider's terms
+# (an https source and the day it was checked) or, for an AgentValCon fallback, when every public source in its
+# catalogue entry names its licence or terms; anything else is 'unknown'. Counted first; the PM decides how unknown
+# closes (holding every unknown member today would stop every necklace).
+TERMS_STATES = ("confirmed", "unknown")
+
+
+def terms_status(member: dict) -> str:
+    if member.get("kind") == "agentcon":
+        from ..fallback_agents.catalog import SPECS
+        sources = (SPECS.get(member.get("agent_id")) or {}).get("sources") or []
+        return "confirmed" if sources and all(s.get("license") or s.get("terms") for s in sources) else "unknown"
+    terms = member.get("terms") or {}
+    return "confirmed" if terms.get("status") == "confirmed" and str(terms.get("source", "")).startswith("https://") \
+        else "unknown"
+
+
+def terms_report(definitions: list[dict]) -> dict:
+    """Every chain member of every definition with its terms status, and the counts."""
+    rows = []
+    for defn in definitions:
+        for slot in defn.get("slots") or []:
+            for m in slot.get("chain") or []:
+                rows.append({"slug": defn["slug"], "slot": slot["slot"], "kind": m.get("kind"),
+                             "id": m.get("resource_id") or m.get("agent_id"), "tool": m.get("tool"),
+                             "terms": terms_status(m)})
+    distinct = {(r["kind"], r["id"]): r["terms"] for r in rows}
+    count = lambda items: {s: sum(1 for x in items if x == s) for s in TERMS_STATES}
+    return {"members": count([r["terms"] for r in rows]), "distinct": count(list(distinct.values())),
+            "by_kind": {k: count([r["terms"] for r in rows if r["kind"] == k]) for k in ("external", "agentcon")},
+            "rows": rows}
 
 
 # ---------------------------------------------------------------- input schema (PM F11, 11-14)

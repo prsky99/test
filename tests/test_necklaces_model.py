@@ -177,3 +177,17 @@ def test_a_necklace_stays_small_three_required_slots_and_three_stages():
     for i in range(1, len(names)):
         defn["slots"][i]["depends_on"] = [names[i - 1]]
     assert any("at most 3 stages" in e for e in model.validate(defn, check_contracts=False))
+
+
+def test_terms_of_use_status_per_member():
+    """PM 13:0x (11-15): a terms field per member; fallbacks are confirmed by the licences in their catalogue."""
+    member = ext(1, "a.example")
+    assert model.terms_status(member) == "unknown"
+    confirmed = dict(member, terms={"status": "confirmed", "source": "https://a.example/terms", "checked_at": "2026-11-15"})
+    assert model.terms_status(confirmed) == "confirmed" and not model._member_errors("s", 0, confirmed)
+    assert model._member_errors("s", 0, dict(member, terms={"status": "confirmed"}))      # no source
+    assert model._member_errors("s", 0, dict(member, terms={"status": "maybe"}))
+    assert model.terms_status({"kind": "agentcon", "agent_id": "usgs-quakes"}) == "confirmed"
+    assert model.terms_status({"kind": "agentcon", "agent_id": "not-a-fallback"}) == "unknown"
+    report = model.terms_report(model.load_all())
+    assert sum(report["members"].values()) == len(report["rows"])
