@@ -1059,7 +1059,10 @@ class FallbackAgents:
                     signals[name] = {"present": None, "note": "not read: time budget"}
                     continue
                 body, why = self._site_get(base + path, rem, domain)
-                entry = {"present": body is not None, **({"note": why} if why else {})}
+                # absent only when the site says so (404/410); a refused budget, a time-out or a 5xx is unknown
+                gone = bool(why) and re.match(r"HTTP 4(04|10)\b", why) is not None
+                entry = {"present": True if body is not None else (False if gone else None),
+                         **({"note": why if gone else "not read: " + why} if why else {})}
                 if body is not None and name == "llms_txt":
                     title = next((ln.lstrip("# ").strip() for ln in body.splitlines() if ln.startswith("#")), "")
                     entry.update(bytes=len(body.encode("utf-8")), title=_text(title, 120),

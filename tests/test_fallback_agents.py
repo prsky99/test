@@ -1379,7 +1379,8 @@ def test_site_readiness_refuses_off_site_redirects_and_non_public_names(tmp_path
     a, _ = agents(tmp_path, routes, calls)
     out = a.execute("site-readiness", {"domain": "example.org"})["result"]
     assert out["signals"]["robots_txt"] == {"present": False, "note": "redirects off the site"}
-    assert out["signals"]["llms_txt"] == {"present": False, "note": "HTTP 406"}
+    assert out["signals"]["llms_txt"] == {"present": None, "note": "not read: HTTP 406"}   # unknown, not absent (ops 11-15)
+    assert out["signals"]["sitemap_xml"] == {"present": False, "note": "HTTP 404"}
     assert not any("evil" in c for c in calls)
     for bad in ("localhost", "10.0.0.1", "intranet", "printer.local", "example.org:8443"):
         with pytest.raises(FallbackUnavailable) as err:
