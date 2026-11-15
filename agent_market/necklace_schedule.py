@@ -10,12 +10,13 @@ NecklaceStep runs inside the jobs scheduler (gateway/server.py, same place as Fa
 - every run appends one line to logs/ops/necklace-watch/runs-<day>.jsonl, also with nothing to watch
   ("definitions": 0), so "did not run" and "nothing to do" are told apart
 
-RetestStep starts the daily retests (watch design section 4): trial necklaces from 01:15 (done by 02:25,
-before the 02:30 report batch), live necklaces from 03:10 (done by 03:48, before the 03:50 window). Each
-runs 30 held-out cases, r1 and r2 on alternate days, with the single-pearl baseline on Mondays, through the
-public relay under the shared provider budget. A necklace runs at most once a day (retest/started-<day>.json),
-the run is a background thread so the scheduler never waits, and every window leaves a line in
-runs-<day>.jsonl, also with no targets.
+RetestStep starts the daily retests (watch design section 4): trial necklaces from 01:15 (done by 02:25, before
+the 02:30 report batch), 30 held-out cases, r1 and r2 on alternate days. Live necklaces (PM 11:4x decisions 1-3)
+retest in their own hour between 06 and 22 (:15 to :50): 5 cases a day walking one held-out set of 30 in 6 days,
+the whole 30 again that day when one of the 5 fails, with member answers shared between necklaces inside the
+retests only. The single-pearl baseline runs on Mondays. Everything goes through the public relay under the shared
+provider budget. A necklace runs at most once a day (retest/started-<day>.json), the run is a background thread
+so the scheduler never waits, and every trial window leaves a line in runs-<day>.jsonl, also with no targets.
 Each part logs and swallows its own failure; a failing part never stops the scheduler.
 """
 import threading
@@ -114,8 +115,19 @@ class NecklaceStep:
 
 
 # kind: (status, start HHMM, last start HHMM, finish by HHMM)
-WINDOWS = {"trial": ("trial", 115, 145, 225), "live": ("live", 310, 320, 348)}
+WINDOWS = {"trial": ("trial", 115, 145, 225)}
 MIN_LEFT_S = 60
+# PM 11:4x (11-15) decision 3: each live necklace gets its own hour, daytime allowed, starting :15-:25 and done by
+# :50, so the :55-:10 measurement window and 03:50-05:10 stay free; our relay calls keep to 2 edge slots
+# (retest.RELAY_CONCURRENCY). Its 5 sample cases a day (decision 1) fit in that hour.
+LIVE_HOURS = tuple(range(6, 23))
+LIVE_START, LIVE_LAST, LIVE_END = 15, 25, 50
+
+
+def live_hour(slug: str) -> int:
+    """The hour a live necklace retests in, the same every day (spread by a hash of its slug)."""
+    import zlib
+    return LIVE_HOURS[zlib.crc32(slug.encode("utf-8")) % len(LIVE_HOURS)]
 
 
 def _hhmm(now):
@@ -137,27 +149,37 @@ class RetestStep:
         self._run, self.background = run, background
         self.last = {}            # kind -> day already handled by this process
         self.thread = None
+        from .necklaces.retest import SharedMemberCache
+        self.shared = SharedMemberCache()         # retests only, across necklaces (PM 11:4x decision 2)
 
     def run_due(self, force_kind=None):
         now = self.clock()
         day = time.strftime("%Y%m%d", time.localtime(now))
+        local = time.localtime(now)
         kind = force_kind or next((k for k, (_, start, last, _end) in WINDOWS.items() if start <= _hhmm(now) <= last), None)
-        if kind is None or self.last.get(kind) == day or (self.thread is not None and self.thread.is_alive()):
+        if kind is None and local.tm_hour in LIVE_HOURS and LIVE_START <= local.tm_min <= LIVE_LAST:
+            kind = "live"
+        mark = f"live-{local.tm_hour}" if kind == "live" else kind
+        if kind is None or self.last.get(mark) == day or (self.thread is not None and self.thread.is_alive()):
             return None
-        self.last[kind] = day
+        self.last[mark] = day
         try:
             from .necklaces import model
-            status = WINDOWS[kind][0]
             started = self._started(day)
-            targets = [d for d in model.load_valid(self.definitions_dir)
-                       if d["status"] == status and d["slug"] not in started]
+            if kind == "live":
+                targets = [d for d in model.load_valid(self.definitions_dir) if d["status"] == "live"
+                           and d["slug"] not in started and (force_kind or live_hour(d["slug"]) == local.tm_hour)]
+            else:
+                targets = [d for d in model.load_valid(self.definitions_dir)
+                           if d["status"] == WINDOWS[kind][0] and d["slug"] not in started]
         except Exception as exc:
             line = {"step": "retest", "kind": kind, "ok": False, "error": type(exc).__name__}
             _append(self.logs, line, now)
             return {"necklace_retest": line}
         if not targets:
             line = {"step": "retest", "kind": kind, "ok": True, "targets": 0}
-            _append(self.logs, line, now)
+            if kind != "live":                     # 17 live hours a day: an empty one leaves no line
+                _append(self.logs, line, now)
             return {"necklace_retest": line}
         for defn in targets:
             started[defn["slug"]] = {"kind": kind, "at": time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime(now))}
@@ -172,8 +194,14 @@ class RetestStep:
     def _work(self, kind, targets, started_at):
         from .necklaces import retest
         run = self._run or retest.run_daily
-        finish = _at(started_at, WINDOWS[kind][3])
-        split = retest.daily_split(started_at)
+        if kind == "live":
+            finish = _at(started_at, time.localtime(started_at).tm_hour * 100 + LIVE_END)
+            split, first = retest.sample_window(started_at)
+            extra = {"sample": (first, retest.SAMPLE_PER_DAY)}
+        else:
+            finish = _at(started_at, WINDOWS[kind][3])
+            split, extra = retest.daily_split(started_at), {}
+        extra["shared_cache"] = self.shared
         singles = time.localtime(started_at).tm_wday == 0
         results, ok = [], True
         for defn in targets:
@@ -182,7 +210,7 @@ class RetestStep:
                 results.append({"slug": defn["slug"], "skipped": "no_time"})
                 continue
             try:
-                results.append(run(defn, root=self.root, split=split, singles=singles, budget_s=left))
+                results.append(run(defn, root=self.root, split=split, singles=singles, budget_s=left, **extra))
             except Exception as exc:
                 ok = False
                 results.append({"slug": defn["slug"], "error": type(exc).__name__})

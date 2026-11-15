@@ -151,3 +151,21 @@ def test_our_relay_429_never_pauses_a_provider_in_the_ledger():
         necklace_gate.probe(client, "https://x.test", member, {}, **ledger)
     assert [n[2] for n in noted] == [429]                    # a real provider pause is still reported
     assert noted[0][3]["origin"] == "provider_rpc" and noted[0][3]["retry_after"] == 60   # with its evidence
+
+
+def test_gate_days_keep_provider_domains_apart():
+    """PM 11:4x decision 4: necklaces sharing a provider domain go on different days, at most five a day."""
+    defs = {d["slug"]: d for d in model.load_all()}
+    days = necklace_gate.gate_days([defs[s] for s in ("quakes-near-address", "book-author-brief",
+                                                      "website-trust-brief", "company-due-diligence")], ordered=True)
+    assert [d["slug"] for d in days[0]] == ["quakes-near-address", "book-author-brief", "website-trust-brief"]   # 11-17
+    assert [d["slug"] for d in days[1]] == ["company-due-diligence"]
+    for day in days:
+        seen = set()
+        for d in day:
+            mine = {m["registrable_domain"] for s in d["slots"] for m in s["chain"] if m.get("kind") == "external"}
+            assert not mine & seen
+            seen |= mine
+        assert len(day) <= 5
+    company_day = next(day for day in days if any(d["slug"] == "company-due-diligence" for d in day))
+    assert not {"book-author-brief", "website-trust-brief"} & {d["slug"] for d in company_day}   # shared pearls

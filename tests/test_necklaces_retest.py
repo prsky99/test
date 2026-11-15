@@ -343,3 +343,57 @@ def test_wrong_answers_fail_every_grader():
     assert not retest.grade_background(US_CASE, {"text": "Apple"})                         # an echo, not a description
     assert not retest.grade_background(US_CASE, {"text": "Banana Republic is an American clothing and accessories retailer"})
     assert not retest.grade_company_task(US_CASE, {"r": "CIK 320193 Apple " + "x" * 80})   # no filing
+
+
+def _package_set(tmp_path, versions):
+    import copy
+    defn = copy.deepcopy(next(d for d in model.load_valid() if d["slug"] == "package-risk-audit"))
+    for slot in defn["slots"]:
+        for m in slot["chain"]:
+            m["state"] = "active"
+    folder = tmp_path / "gold" / "package-risk-audit"
+    folder.mkdir(parents=True)
+    rows = [{"case_id": f"p{i}", "input": {"package": f"pkg{i}", "ecosystem": "npm"},
+             "truth": {"advisories": [], "latest_version": v}} for i, v in enumerate(versions)]
+    (folder / "holdout-r1.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+    (folder / "manifest.json").write_text(json.dumps({"valid_until": "2999-01-01"}))
+    return defn
+
+
+def test_live_retest_runs_five_cases_and_the_whole_set_after_one_failure(tmp_path, monkeypatch):
+    """PM 11:4x decision 1: 5 sample cases a day; one failure reruns all 30 that day."""
+    defn = _package_set(tmp_path, ["9.9.9"] * 30)
+    asked = []
+
+    class Engine:
+        store = None
+        answer = "9.9.9"
+
+        def _call_registered(self, node, args):
+            asked.append(args.get("package") or args.get("name"))
+            return {"vulns": [], "version": self.answer}
+    monkeypatch.setattr(retest.runner, "budgeted_caller", lambda caller, system, url_of, budget=None: caller)
+    engine = Engine()
+    out = retest.run_daily(defn, root=tmp_path, split="holdout-r1", singles=False, budget_s=300, path="engine",
+                           engine=engine, sample=(10, 5))
+    assert out["cases"] == 5 and out["passed"] == 5 and out["sample"] == [10, 5] and not out.get("escalated")
+    engine.answer = "0.0.1"                       # every answer now wrong: the sample fails, the whole set runs
+    out = retest.run_daily(defn, root=tmp_path, split="holdout-r1", singles=False, budget_s=300, path="engine",
+                           engine=engine, sample=(10, 5))
+    assert out["escalated"] is True and out["sample_result"]["cases"] == 5 and out["cases"] == 30
+
+
+def test_shared_cache_answers_once_per_member_and_input_inside_retests():
+    """PM 11:4x decision 2: retest-only sharing, marked on the case line, error answers not kept."""
+    cache, calls = retest.SharedMemberCache(clock=lambda: 0), []
+
+    def caller(member, args, timeout_s):
+        calls.append(args["q"])
+        return {"error": "rate"} if args["q"] == "bad" else {"ok": args["q"]}
+    shared = cache.wrap(caller)
+    member = {"kind": "external", "resource_id": 7, "tool": "t"}
+    assert shared(member, {"q": "a"}, 5) == shared(member, {"q": "a"}, 5) == {"ok": "a"}
+    shared(member, {"q": "bad"}, 5)
+    shared(member, {"q": "bad"}, 5)
+    shared({"kind": "agentcon", "agent_id": "x", "tool": "t"}, {"q": "a"}, 5)
+    assert calls == ["a", "bad", "bad", "a"] and cache.take_hits() == 1 and cache.take_hits() == 0

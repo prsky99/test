@@ -692,7 +692,8 @@ def load_cases(root: Path, slug: str, split: str) -> list[dict]:
 
 def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT, split: str = "tuning",
             singles: bool = False, budget_s: float = BUDGET_SECONDS, watch_state: dict | None = None,
-            clock=time.monotonic, now=time.time, pacer: RelayPacer | None = None) -> dict:
+            clock=time.monotonic, now=time.time, pacer: RelayPacer | None = None,
+            shared_cache: SharedMemberCache | None = None) -> dict:
     started = clock()
     day = time.strftime("%Y%m%d", time.localtime(now()))
     lines, details = [], []
@@ -714,14 +715,17 @@ def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT,
         verdict = grade(defn, case, result["output"])
         at = _iso(now())
         ours = not_measured(result["attempts"])
+        if ours and not verdict["ok"] and shared_cache is not None:
+            shared_cache.take_hits()            # the shared count belongs to this case, not the next one
         if ours and not verdict["ok"]:           # our budget, pace or edge, or a provider pause: not a failure (R23)
             lines.append({"type": "excluded", "slug": defn["slug"], "version": defn["version"],
                           "case_id": case["case_id"], "set": split, "at": at, "why": ours})
             details.append({"case_id": case["case_id"], "excluded": ours, "attempts": result["attempts"]})
             excluded += 1
             continue
+        shared = shared_cache.take_hits() if shared_cache is not None else 0
         lines.append({"type": "case", "slug": defn["slug"], "version": defn["version"], "case_id": case["case_id"],
-                      "set": split, "at": at, "ok": verdict["ok"], "completed": result["completed"],
+                      "set": split, "at": at, "ok": verdict["ok"], "completed": result["completed"], "shared": shared,
                       "completed_external_only": result["completed_external_only"],
                       "latency_ms": result["latency_ms"], "slots": result["slots"], "graded": verdict["slots"]})
         for slot, attempts in result["attempts"].items():
@@ -763,6 +767,55 @@ def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT,
             "stopped_by_budget": done + excluded < len(cases), "seconds": round(clock() - started, 1)}
 
 
+# PM 11:4x (11-15) decision 1: a live necklace retests 5 held-out cases a day and walks one held-out set of 30 in
+# 6 days (r1, then r2 the next 6 days); one failure among the 5 reruns the whole 30 that day. The gate is not cut.
+SAMPLE_PER_DAY = 5
+SAMPLE_DAYS = 6
+
+
+def sample_window(now: float) -> tuple[str, int]:
+    """(split, first case index) of today's 5 live retest cases."""
+    day = int(now // 86400)
+    cycle, step = divmod(day, SAMPLE_DAYS)
+    return ("holdout-r1" if cycle % 2 == 0 else "holdout-r2"), step * SAMPLE_PER_DAY
+
+
+class SharedMemberCache:
+    """Member answers shared between necklaces inside the scheduled retests only (PM 11:4x decision 2): the same
+    member called with the same arguments within ten minutes answers once. It never serves public runs and is apart
+    from the public result cache (necklaces.limits); every case line says how many answers it shared ("shared"),
+    and error answers are not kept."""
+
+    TTL_S = 600
+
+    def __init__(self, clock=time.monotonic):
+        self.clock, self.lock, self.store, self.hits = clock, threading.Lock(), {}, 0
+
+    def wrap(self, caller):
+        def call(member, args, timeout_s):
+            if member.get("kind") != "external":
+                return caller(member, args, timeout_s)
+            key = (member.get("resource_id"), member.get("tool"), json.dumps(args, sort_keys=True, default=str))
+            with self.lock:
+                kept = self.store.get(key)
+                if kept and self.clock() - kept[0] < self.TTL_S:
+                    self.hits += 1
+                    return kept[1]
+            answer = caller(member, args, timeout_s)
+            if not runner.is_error(runner.unwrap(answer)):
+                with self.lock:
+                    if len(self.store) > 2000:
+                        self.store.clear()
+                    self.store[key] = (self.clock(), answer)
+            return answer
+        return call
+
+    def take_hits(self) -> int:
+        with self.lock:
+            hits, self.hits = self.hits, 0
+        return hits
+
+
 def daily_split(now: float) -> str:
     """The daily retest walks the 60 held-out cases in two days: r1 on even days, r2 on odd days."""
     return "holdout-r1" if int(now // 86400) % 2 == 0 else "holdout-r2"
@@ -780,7 +833,7 @@ def open_engine():
 
 def run_daily(defn: dict, *, root: Path = DEFAULT_ROOT, split: str, singles: bool, budget_s: float,
               base: str = BASE, system: str = "necklace_retest", limit: int = 30, path: str = "relay",
-              engine=None) -> dict:
+              engine=None, sample: tuple[int, int] | None = None, shared_cache: SharedMemberCache | None = None) -> dict:
     """One scheduled retest of one necklace. path "relay" goes through the public relay (daily retests, self-tests);
     path "engine" calls through the same registered-agent engine as public runs (PM R26: one gate round takes the path
     users take, so the gate does not pass a path that public runs never use)."""
@@ -794,14 +847,30 @@ def run_daily(defn: dict, *, root: Path = DEFAULT_ROOT, split: str, singles: boo
         cases = load_cases(root, defn["slug"], split)[:limit]
     except GoldSetInvalid as exc:          # not run: no case line, so the judge holds it after 48 hours
         return {"slug": defn["slug"], "split": split, "cases": 0, "passed": 0, "not_run": str(exc), "path": path}
+    started = time.monotonic()
+
+    def measure(base_caller, pacer=None):
+        source = shared_cache.wrap(base_caller) if shared_cache is not None else base_caller
+        call = runner.budgeted_caller(source, system, provider_url)
+        if sample is None:
+            return run_set(defn, cases, call, root=root, split=split, singles=singles, budget_s=budget_s,
+                           pacer=pacer, watch_state=watch_state, shared_cache=shared_cache)
+        first, count = sample
+        part = run_set(defn, cases[first:first + count], call, root=root, split=split, singles=singles,
+                       budget_s=budget_s, pacer=pacer, watch_state=watch_state, shared_cache=shared_cache)
+        if part["passed"] >= part["cases"]:
+            return dict(part, sample=[first, count])
+        left = budget_s - (time.monotonic() - started)    # one failure: the whole set again (decision 1)
+        whole = run_set(defn, cases, call, root=root, split=split, singles=False, budget_s=max(left, 0),
+                        pacer=pacer, watch_state=watch_state, shared_cache=shared_cache)
+        return dict(whole, sample=[first, count], sample_result=part, escalated=True)
+
     if path == "engine":
         close = None
         if engine is None:
             engine, close = open_engine()
         try:
-            call = runner.budgeted_caller(runner.engine_caller(engine), system, provider_url)
-            out = run_set(defn, cases, call, root=root, split=split, singles=singles, budget_s=budget_s,
-                          watch_state=watch_state)
+            out = measure(runner.engine_caller(engine))
         finally:
             if close:
                 close()
@@ -809,9 +878,7 @@ def run_daily(defn: dict, *, root: Path = DEFAULT_ROOT, split: str, singles: boo
     import httpx
     pacer = RelayPacer()
     with httpx.Client(timeout=12, headers={"User-Agent": "AgentValCon-NecklaceRetest/1.0"}) as client:
-        call = runner.budgeted_caller(gateway_caller(client, base, pacer), system, provider_url)
-        out = run_set(defn, cases, call, root=root, split=split, singles=singles, budget_s=budget_s, pacer=pacer,
-                      watch_state=watch_state)
+        out = measure(gateway_caller(client, base, pacer), pacer)
     return dict(out, path="relay")
 
 

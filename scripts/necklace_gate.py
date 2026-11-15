@@ -211,6 +211,28 @@ def check(defn: dict, client, base: str = BASE, verified=None, substitutes=None,
             "problems": problems, "ok": not problems and len(always) >= need}
 
 
+GATE_PER_DAY = (3, 5)       # PM 11:4x decision 4: 3 to 5 necklaces a day
+
+
+def gate_days(definitions: list[dict], per_day: int = GATE_PER_DAY[1], ordered: bool = False) -> list[list[dict]]:
+    """Gate days (PM 11:4x decision 4): necklaces whose external members share no registrable domain go the same
+    day, at most PER_DAY a day, so one provider's daily ledger share is not split between gate rounds. The
+    necklaces with the most domains are placed first (or in the given order, ORDERED, when the PM fixed which go
+    first); each goes to the first day it fits."""
+    def domains(defn):
+        return {m["registrable_domain"] for s in defn["slots"] for m in s["chain"]
+                if m.get("kind") == "external" and m.get("registrable_domain")}
+    days: list[list[dict]] = []
+    for defn in (definitions if ordered else sorted(definitions, key=lambda d: (-len(domains(d)), d["slug"]))):
+        mine = domains(defn)
+        day = next((d for d in days if len(d) < per_day and not mine & set().union(*(domains(x) for x in d))), None)
+        if day is None:
+            days.append([defn])
+        else:
+            day.append(defn)
+    return days
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
@@ -218,7 +240,17 @@ def main(argv=None) -> int:
     one.add_argument("slug")
     one.add_argument("--base", default=BASE)
     sub.add_parser("terms", help="terms-of-use status of every member of every definition (PM 13:0x)")
+    plan = sub.add_parser("schedule", help="gate days: necklaces with no shared provider domain together")
+    plan.add_argument("slugs", nargs="*", help="default: every candidate and qualifying definition")
     args = parser.parse_args(argv)
+    if args.command == "schedule":
+        found = {d["slug"]: d for d in model.load_all()}
+        defs = ([found[s] for s in args.slugs] if args.slugs else
+                [d for d in found.values() if d.get("status") in ("candidate", "qualifying")])
+        for n, day in enumerate(gate_days(defs, ordered=bool(args.slugs)), start=1):
+            note = "" if len(day) >= GATE_PER_DAY[0] else f" (fewer than {GATE_PER_DAY[0]}: domains overlap)"
+            print(f"day {n}: " + ", ".join(d["slug"] for d in day) + note)
+        return 0
     if args.command == "terms":
         report = model.terms_report(model.load_all())
         print(json.dumps({k: v for k, v in report.items() if k != "rows"}, ensure_ascii=False))
