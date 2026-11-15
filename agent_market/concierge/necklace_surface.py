@@ -269,6 +269,54 @@ def feed(base='https://agentconcierge.biz', snapshot=None):
             'items': items}
 
 
+# F17 (PM 11-15): what a person or an agent reads when a run does not finish; the code stays in the text for agents.
+MESSAGES = {
+    'consent_required': 'Tick the box to confirm you read where your input goes, then run it again.',
+    'invalid_input': 'Some fields are missing or not in the expected form. Check the hints under each field.',
+    'sensitive_input': 'Your input looked like a key, password or personal data, so nothing was sent. Remove it and try again.',
+    'rate_limited': 'Too many runs in a short time. Wait a minute and try again.',
+    'definition_changed': 'This necklace changed a moment ago. Reload the page and run it again.',
+    'not_found': 'This necklace cannot run now.',
+    'invalid_source': 'This necklace cannot run from here.',
+    'our_capacity': 'Our gateway is busy right now, so nothing was sent to the agents. Try again in a minute.',
+    'bad_arguments': 'Send one JSON object with the input fields.',
+}
+
+
+def message(code):
+    """One plain sentence for a run outcome code (slot_failed:<step> names the step)."""
+    if not code:
+        return None
+    if str(code).startswith('slot_failed:'):
+        step = str(code).split(':', 1)[1] or 'one'
+        return ('No agent for the ' + step + ' step gave a usable answer, so the result is incomplete. '
+                'The steps that answered are shown.')
+    return MESSAGES.get(code, 'It did not finish (' + str(code) + '). Try again later.')
+
+
+def example_input(entry):
+    """The judge's example input (example_input in the snapshot), limited to fields of the input schema; or None."""
+    example = entry.get('example_input')
+    props = ((entry.get('input_schema') or {}).get('properties') or {})
+    if not isinstance(example, dict):
+        return None
+    value = {k: v for k, v in example.items() if k in props and isinstance(v, (str, int, float)) and str(v).strip()}
+    return value or None
+
+
+def field_hint(name, prop, required):
+    """A short English hint from the schema (snapshot input_help wins when the judge gives one)."""
+    parts = ['Required.' if required else 'Optional.']
+    pattern = prop.get('pattern') or ''
+    if pattern == '^[A-Z]{2}$':
+        parts.append('Two capital letters (country code).')
+    elif 'a-z0-9' in pattern and name in ('domain', 'website'):
+        parts.append('A domain name without https://.')
+    elif isinstance(prop.get('maxLength'), int):
+        parts.append('Up to ' + str(prop['maxLength']) + ' characters.')
+    return ' '.join(parts)
+
+
 VERIFIED_CASES = 110   # PM 11-14 (workflow 98fe294c): "Verified 95%" only after 110 cumulative retests
 VERIFIED_FAILURES = 1  # with at most one failure (Wilson lower bound 95%); before that only n/N
 
@@ -298,8 +346,102 @@ def _pct(value):
     return str(round(value * 100)) + '%' if isinstance(value, (int, float)) else None
 
 
-def page(slug, base='https://agentconcierge.biz', snapshot=None, now=None):
-    """(status, html or redirect target): 200 page, 404 None, or 301 to the replacement after the notice period."""
+def _value_html(value, esc, depth=0):
+    """Third-party answer data as plain text (quoted material, never markup): dicts as lists of fields, at most three
+    levels and ten items per level; https addresses become links that pass no referrer."""
+    if depth > 2:
+        return '…'
+    if isinstance(value, dict):
+        rows = [(k, v) for k, v in value.items() if k not in ('material', 'attribution') and v not in (None, '', [], {})][:10]
+        return '<dl class="evidence-list">' + ''.join('<dt>' + esc(str(k).replace('_', ' ')) + '</dt><dd>'
+                                                    + _value_html(v, esc, depth + 1) + '</dd>' for k, v in rows) + '</dl>'
+    if isinstance(value, list):
+        return '<ul>' + ''.join('<li>' + _value_html(v, esc, depth + 1) + '</li>' for v in value[:10]) + '</ul>'
+    text = str(value)[:600]
+    if re.fullmatch(r'https://[^\s<>"]{1,600}', text):
+        return '<a href="' + esc(text) + '" rel="nofollow noopener noreferrer ugc">' + esc(text) + '</a>'
+    found = re.fullmatch(r'(external|agentcon):(\d{1,12})', text)
+    if found:   # a source of a step: the agent card that answered
+        return '<a href="/agent/' + found[2] + '">' + ('agent ' if found[1] == 'external' else 'AgentValCon fallback ') + found[2] + '</a>'
+    return esc(text)
+
+
+def run_form(entry, esc, values=None):
+    """The page's run form: one field per input, a hint from the schema, the example as placeholder, the consent box.
+    A plain POST to /necklaces/<slug>/run, so it works without scripts (the growth-page CSP allows form-action 'self')."""
+    schema = entry.get('input_schema') or {}
+    props = schema.get('properties') or {}
+    required = set(schema.get('required') or [])
+    example = example_input(entry) or {}
+    helps = entry.get('input_help') if isinstance(entry.get('input_help'), dict) else {}
+    fields = []
+    for name, prop in list(props.items())[:8]:
+        if not isinstance(prop, dict):
+            continue
+        fid = 'nk-' + re.sub(r'[^a-z0-9-]', '-', name.lower())
+        hint = str(helps.get(name) or field_hint(name, prop, name in required))[:200]
+        attrs = (' required' if name in required else '') + (
+            ' maxlength="' + str(int(prop['maxLength'])) + '"' if isinstance(prop.get('maxLength'), int) else '')
+        current = (values or {}).get(name)
+        fields.append('<div class="field"><label class="field-label" for="' + fid + '">' + esc(name.replace('_', ' ').capitalize())
+                      + '</label><input class="input" type="text" id="' + fid + '" name="' + esc(name) + '"' + attrs
+                      + ' aria-describedby="' + fid + '-hint"'
+                      + (' value="' + esc(current) + '"' if current else '')
+                      + (' placeholder="' + esc(example[name]) + '"' if name in example else '') + '>'
+                      + '<p class="caption" id="' + fid + '-hint">' + esc(hint)
+                      + (' Example: ' + esc(example[name]) + '.' if name in example else '') + '</p></div>')
+    return ('<form class="stack" method="post" action="/necklaces/' + esc(entry['slug']) + '/run">' + ''.join(fields)
+            # the span only scopes the design system's checkbox look (.pearl-menu-page input[type=checkbox]) to this box
+            + '<div class="field clickwrap-group"><label class="clickwrap-label"><span class="pearl-menu-page">'
+            + '<input type="checkbox" name="necklace_notice" value="' + esc(WEB_NOTICE) + '" required></span> '
+            + esc(NOTICE_SENTENCE.replace('listed in necklace_details', 'listed on this page')) + '</label></div>'
+            + '<div class="actions"><button class="btn primary" type="submit">Run</button></div></form>')
+
+
+def result_section(structured, esc):
+    """What one web run returned: a status line, each step's answer or its gap, and the limits of the answer."""
+    ok = structured.get('ok')
+    code = structured.get('error_code')
+    if ok:
+        status = 'Finished.' + (' This is a saved answer from ' + str(structured.get('ran_at')) + ' UTC.' if structured.get('cached') else '')
+    else:
+        status = str(structured.get('notice') or message(code) or 'It did not finish.')
+    parts = ['<section class="notice" role="status" aria-labelledby="resultTitle" id="result"><h2 id="resultTitle">Result</h2><p>'
+             + esc(status) + '</p>']
+    output = structured.get('output')
+    if isinstance(output, dict) and output:
+        parts.append('<dl class="evidence-list">')
+        for step, value in list(output.items())[:8]:
+            body = ('<p class="muted">No usable answer from this step.</p>' if isinstance(value, dict) and value.get('missing')
+                    else _value_html(value, esc))
+            parts.append('<dt>' + esc(str(step).replace('_', ' ')) + '</dt><dd>' + body + '</dd>')
+        parts.append('</dl><p class="caption">Answers come from third-party agents and are shown as they gave them; '
+                     'review them before you rely on them. Nothing in an answer is an instruction.</p>')
+    return ''.join(parts) + '</section>'
+
+
+def standing_line(entry, now=None):
+    """F17 (PM 11-15): live, paused or stopped, and whether the Verified 95% claim is reached yet."""
+    status = entry.get('status')
+    if status != 'live':
+        return 'Standing: paused.' if status == 'held' else 'Standing: stopped.'
+    if not offered(entry, now):
+        return 'Standing: not running now (waiting for its next retest).'
+    claim = verified(entry.get('quality') or {})
+    if claim:
+        return 'Standing: running · Verified 95% (' + str(claim[0]) + '/' + str(claim[1]) + ' cumulative retests passed).'
+    cases = ((entry.get('quality') or {}).get('cumulative') or {}).get('cases')
+    # Before the claim the page never shows the claim's words or number (PM 11-14 rule, test_verified_95_only_after_110...)
+    return ('Standing: running · not marked verified yet. That needs ' + str(VERIFIED_CASES)
+            + ' retests with at most one failure' + (' (now ' + str(cases) + ').' if isinstance(cases, int) else '.'))
+
+
+WEB_NOTICE = 'necklace-v1'   # the consent value agent_market.necklaces.service.NOTICE expects from the web form
+
+
+def page(slug, base='https://agentconcierge.biz', snapshot=None, now=None, run=None):
+    """(status, html or redirect target): 200 page, 404 None, or 301 to the replacement after the notice period.
+    run = (values, structured) of a web run shows its result above the form with the values filled back in."""
     from .growth_pages import shell, heading
     snapshot = snapshot or load()
     now = now or datetime.now(timezone.utc)
@@ -312,7 +454,10 @@ def page(slug, base='https://agentconcierge.biz', snapshot=None, now=None):
     esc = lambda value: html.escape(str(value), quote=True)
     item = public_item(entry, base, now)
     runs = offered(entry, now)
-    parts = [heading('Necklace · Agent Value Gateway', entry.get('name') or slug, entry.get('summary') or '')]
+    parts = [heading('Necklace · Agent Value Gateway', entry.get('name') or slug, entry.get('summary') or ''),
+             '<p class="muted necklace-standing">' + esc(standing_line(entry, now)) + '</p>']
+    if run is not None:
+        parts.append(result_section(run[1], esc))
     found = notice(entry, base, snapshot)
     if found:
         title, text, data = found
@@ -371,10 +516,13 @@ def page(slug, base='https://agentconcierge.biz', snapshot=None, now=None):
                                + (' · verified pearl' if p.get('verified_pearl') else '') + '</li>' for p in item['pearls'])
                      + '</ul></section>')
     if runs:
-        parts.append('<section aria-labelledby="runTitle"><h2 id="runTitle">Run it</h2>'
-                     '<p>MCP: call <code>' + esc(item['mcp_tool']) + '</code> on <code>' + esc(base) + '/mcp</code>. '
-                     'A2A: skill <code>' + esc(item['a2a_skill']) + '</code>. '
-                     'Your input is sent to the agents listed above; no keys, passwords or payments are sent.</p></section>')
+        example = example_input(entry)
+        parts.insert(2 + (run is not None), '<section aria-labelledby="runTitle"><h2 id="runTitle">Run it</h2>'
+                     + run_form(entry, esc, run[0] if run is not None else None)
+                     + '<p class="caption">From an agent: MCP tool <code>' + esc(item['mcp_tool']) + '</code> on <code>' + esc(base)
+                     + '/mcp</code>, or A2A skill <code>' + esc(item['a2a_skill']) + '</code>'
+                     + ('; example arguments <code>' + esc(json.dumps(example, separators=(',', ':'))) + '</code>' if example else '')
+                     + '.</p></section>')
     structured = {'@context': 'https://schema.org', '@type': 'SoftwareApplication', 'name': entry.get('name') or slug,
                   'applicationCategory': 'AI agent workflow', 'description': entry.get('summary') or '',
                   'url': base + '/necklaces/' + slug,
@@ -389,6 +537,17 @@ def sitemap_paths(snapshot=None, now=None):
     return ['/necklaces/' + e['slug'] for e in live(snapshot, now)]
 
 
+def _input_note(entry):
+    """'. Input: name (required), ...; example {...}' for llms.txt, so an agent knows the fields before it calls (F17)."""
+    schema = entry.get('input_schema') or {}
+    props, required = schema.get('properties') or {}, set(schema.get('required') or [])
+    if not props:
+        return ''
+    example = example_input(entry)
+    return ('. Input: ' + ', '.join(k + (' (required)' if k in required else '') for k in list(props)[:8])
+            + ('; example `' + json.dumps(example, separators=(',', ':')) + '`' if example else ''))
+
+
 def llms_section(base='https://agentconcierge.biz', snapshot=None, now=None):
     rows = live(snapshot, now)
     if not rows:
@@ -399,7 +558,7 @@ def llms_section(base='https://agentconcierge.biz', snapshot=None, now=None):
         lines.append('- ' + (e.get('name') or e['slug']) + ': ' + (e.get('summary') or '')
                      + (' Better than the best single agent by ' + str(round(q['delta_pp'], 1)) + ' points.' if isinstance(q.get('delta_pp'), (int, float)) else '')
                      + ' MCP tool `' + tool_name(e['slug']) + '`, A2A skill `' + skill_id(e['slug']) + '`, page `'
-                     + base + '/necklaces/' + e['slug'] + '`\n')
+                     + base + '/necklaces/' + e['slug'] + '`' + _input_note(e) + '\n')
     lines.append('- Changes (live, paused, stopped): `' + base + '/api/feed/necklaces.json`\n')
     return ''.join(lines)
 
@@ -445,6 +604,8 @@ def tools(snapshot=None, now=None):
                     else ' Recent tests: ' + str(window[0]) + '/' + str(window[1]) + ' passed.' if window else '')
         out.append({'name': tool_name(e['slug']), 'title': e.get('name') or e['slug'],
                     'description': ('Necklace (a workflow of tested agents, ' + str(sum(1 for p in e.get('pearls') or [] if isinstance(p, dict) and p.get('pearl') is True)) + ' verified pearls): ' + (e.get('summary') or '') + evidence
+                                    + (' Example arguments: ' + json.dumps(example_input(e), separators=(',', ':')) + '.'
+                                       if example_input(e) else '')
                                     + ' ' + NOTICE_SENTENCE),
                     'inputSchema': e.get('input_schema') or {'type': 'object'},
                     'annotations': {'readOnlyHint': False, 'destructiveHint': False, 'idempotentHint': False,
@@ -495,7 +656,8 @@ def call(front, name, arguments, source='mcp', base='https://agentconcierge.biz'
         return ('Necklace ' + entry['slug'] + ' cannot run here yet; open ' + base + '/necklaces/' + entry['slug'] + '.',
                 {'necklace': entry['slug'], 'ran': False, 'error_code': 'not_wired'}, True)
     if not isinstance(arguments, dict):
-        return 'Arguments must be one JSON object.', {'necklace': entry['slug'], 'ran': False, 'error_code': 'bad_arguments'}, True
+        return (MESSAGES['bad_arguments'] + ' Necklace ' + entry['slug'] + ' did not run (bad_arguments).',
+                {'necklace': entry['slug'], 'ran': False, 'error_code': 'bad_arguments'}, True)
     result = RUN(front, entry, arguments, source, meta) or {}
     ok = bool(result.get('ok'))
     refused = result.get('error_code') in REFUSED      # nothing was run (input, consent, scope, limits)
@@ -503,7 +665,8 @@ def call(front, name, arguments, source='mcp', base='https://agentconcierge.biz'
         text = 'Ran necklace ' + entry['slug'] + '. ' + (
             '(Saved answer from ' + str(result.get('ran_at')) + ' UTC.) ' if result.get('cached') else '')
     else:
-        text = ((str(result['notice']) + ' ') if result.get('notice') else '') + 'Necklace ' + entry['slug'] + (
+        lead = str(result['notice']) if result.get('notice') else (message(result.get('error_code')) or '')
+        text = (lead + ' ' if lead else '') + 'Necklace ' + entry['slug'] + (
             ' did not run (' if refused else ' did not finish (') + str(result.get('error_code') or 'failed') + '). '
     text += json.dumps(result.get('output'), ensure_ascii=False)[:4000]
     return text, {'necklace': entry['slug'], 'ran': not refused, 'ok': ok, 'stages': result.get('stages'),
@@ -519,16 +682,18 @@ REFUSED = {'invalid_input', 'consent_required', 'sensitive_input', 'rate_limited
 A2A_RUN = re.compile(r'^\s*run\s+necklace\s+([a-z][a-z0-9-]{0,39})\b(.*)$', re.I | re.S)
 
 
-def example_arguments(schema):
+def example_arguments(schema, example=None):
     props = (schema or {}).get('properties') or {}
-    return {k: '<' + k + '>' for k in ((schema or {}).get('required') or list(props)[:2]) if isinstance(k, str)}
+    keys = [k for k in ((schema or {}).get('required') or list(props)[:2]) if isinstance(k, str)]
+    return {k: (example or {}).get(k, '<' + k + '>') for k in keys}
 
 
 def skills(base='https://agentconcierge.biz', snapshot=None, now=None):
     """A2A card skills for offered necklaces (none while nothing is live)."""
     out = []
     for e in live(snapshot, now):
-        example = 'run necklace ' + e['slug'] + ' ' + json.dumps(example_arguments(e.get('input_schema')), separators=(',', ':'))
+        example = 'run necklace ' + e['slug'] + ' ' + json.dumps(example_arguments(e.get('input_schema'), example_input(e)),
+                                                                   separators=(',', ':'))
         out.append({'id': skill_id(e['slug']), 'name': e.get('name') or e['slug'],
                     'description': 'Necklace (a workflow of tested agents, ' + str(sum(1 for p in e.get('pearls') or [] if isinstance(p, dict) and p.get('pearl') is True)) + ' verified pearls): ' + (e.get('summary') or '') + ' Send: ' + example
                                    + ' ' + NOTICE_SENTENCE + ' Details: ' + base + '/necklaces/' + e['slug'],
@@ -562,7 +727,8 @@ def a2a_answer(front, text, base='https://agentconcierge.biz', snapshot=None, no
         return 'There is no necklace named ' + slug + '. See ' + base + '/api/necklaces', {'intent': 'necklace', 'ok': False,
                                                                                               'error_code': 'unknown_necklace'}
     if arguments is None and offered(entry, now):
-        example = 'run necklace ' + slug + ' ' + json.dumps(example_arguments(entry.get('input_schema')), separators=(',', ':'))
+        example = 'run necklace ' + slug + ' ' + json.dumps(example_arguments(entry.get('input_schema'), example_input(entry)),
+                                                            separators=(',', ':'))
         return 'Send: ' + example + ' (fill in the values).', {'intent': 'necklace', 'ok': False, 'error_code': 'needs_arguments',
                                                                'example': {'text': example}}
     answer = call(front, tool_name(slug), arguments if isinstance(arguments, dict) else 'invalid', 'a2a', base, snapshot, now,
@@ -601,6 +767,32 @@ def necklace_router(front=None):
             return JSONResponse({'ran': False, 'error_code': 'unknown_necklace'}, status_code=404, headers=headers)
         text, structured, failed = answer
         return JSONResponse({**structured, 'text': text}, status_code=200, headers=headers)
+
+    @router.post('/necklaces/{slug}/run', include_in_schema=False)
+    async def form_run(slug: str, request: Request):
+        """The page form (F17, PM 11-15): the same rules as /api/necklaces/<slug>/run, answered with the page and its result."""
+        from urllib.parse import parse_qsl
+        from .growth_pages import PAGE_CSP
+        headers = {'Cache-Control': 'no-store', 'Content-Security-Policy': PAGE_CSP}
+        entry = by_slug(slug) if SLUG.fullmatch(slug or '') else None
+        if entry is None:
+            return RedirectResponse('/necklaces/' + (slug if SLUG.fullmatch(slug or '') else ''), status_code=303)
+        props = (entry.get('input_schema') or {}).get('properties') or {}
+        raw = await request.body()
+        form = dict(parse_qsl(raw.decode('utf-8', 'replace'), keep_blank_values=False)) if 0 < len(raw) <= MAX_RUN_BODY else {}
+        values = {k: v.strip() for k, v in form.items() if k in props and v.strip()}
+        if front is not None and not front.limit.allow(front.security.resolve_ip(request)):
+            structured = {'ran': False, 'ok': False, 'error_code': 'rate_limited'}
+        else:
+            arguments = dict(values, **({'necklace_notice': form['necklace_notice']} if form.get('necklace_notice') else {}))
+            answer = await run_in_threadpool(call, front, tool_name(slug), arguments, 'web',
+                                             front.base(request) if front is not None else 'https://agentconcierge.biz',
+                                             None, None, request_meta(front, request))
+            structured = answer[1] if answer else {'ran': False, 'ok': False, 'error_code': 'not_found'}
+        status, value = page(slug, run=(values, structured))
+        if status != 200:
+            return RedirectResponse('/necklaces/' + slug, status_code=303)
+        return HTMLResponse(value, headers=headers)
 
     @router.get('/api/necklaces', include_in_schema=False)
     def api_list():
