@@ -189,6 +189,11 @@ def pearls(defn: dict, verified: set | None = None) -> list[dict]:
         externals = model.live_members(slot, "external")
         agentcon = model.live_members(slot, "agentcon")
         fanout = slot.get("fanout", 1)
+        # PM 11-16 06:5x (growth): outside members that can run in this step now and count (verified pearl or
+        # provisional) -- the running chain already lacks members whose terms prohibit us or the watch excluded
+        from .members import COUNTED
+        usable = {"external_usable": sum(1 for m in externals if m.get("standing") in COUNTED),
+                  "external_listed": len(externals)}
         leads, rest = externals[:fanout], externals[fanout:]
         ordered = model.live_members(slot)
         if any("standing" in m for m in ordered) and ordered and ordered[0].get("kind") == "agentcon":
@@ -201,7 +206,7 @@ def pearls(defn: dict, verified: set | None = None) -> list[dict]:
             lead = agentcon[0]
             out.append({"resource_id": lead.get("resource_id"), "agent_id": lead.get("agent_id"), "role": slot["slot"],
                         "tool": lead["tool"], "kind": "agentcon", "required": bool(slot.get("required", True)),
-                        "pearl": False, "standing": lead.get("standing"),
+                        "pearl": False, "standing": lead.get("standing"), **usable,
                         "alternates": [a for a in alternates if not (a["kind"] == "agentcon"
                                                                      and a.get("agent_id") == lead.get("agent_id"))]})
         for lead in leads:
@@ -209,7 +214,7 @@ def pearls(defn: dict, verified: set | None = None) -> list[dict]:
             # PM 16:03 item 4: verified_pearl or provisional per member (necklaces.members); None = not counted
             out.append({"resource_id": lead["resource_id"], "role": slot["slot"], "tool": lead["tool"],
                         "kind": "external", "required": bool(slot.get("required", True)),
-                        "pearl": pearl, "standing": lead.get("standing", "verified_pearl" if pearl else None),
+                        "pearl": pearl, "standing": lead.get("standing", "verified_pearl" if pearl else None), **usable,
                         "alternates": alternates})
     return out
 

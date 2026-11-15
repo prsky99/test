@@ -147,3 +147,14 @@ def test_our_own_data_agent_prohibited_by_the_terms_table_is_never_called():
     from agent_market.necklaces.watch import runtime_definition
     runner.Runner(caller).run(runtime_definition(defn, {}), {"q": "lodash"})
     assert 133018 not in called
+
+
+def test_each_step_says_how_many_outside_members_can_run_and_count():
+    """PM 11-16 06:5x (growth): pearls[i] carries external_usable (outside members in the running chain with a
+    counted standing) and external_listed (outside members in the running chain)."""
+    defn = base()
+    block = {"external": {"1|x.v1": "verified_pearl"}, "own": {}}
+    running = dict(defn, slots=[dict(s, chain=runtime_chain(s, defn["slug"], {"standing": block})) for s in defn["slots"]])
+    by_role = {p["role"]: p for p in judge.pearls(running, {(1, "x.v1")})}
+    assert (by_role["papers"]["external_usable"], by_role["papers"]["external_listed"]) == (1, 2)
+    assert (by_role["news"]["external_usable"], by_role["news"]["external_listed"]) == (0, 2)
