@@ -74,6 +74,18 @@ def _fail(code: str, message: str = ""):
 RELAY_CONCURRENCY = 2
 _RELAY_SLOTS = threading.BoundedSemaphore(RELAY_CONCURRENCY)
 CAPACITY = "our_capacity"      # the edge's CAPACITY_EXCEEDED: our side, never the member's failure
+# PM R23 (11-15): failures that say nothing about the member - our own budget or pace, our edge, the provider asking for
+# a pause - leave a run "not measured" instead of failed, for the necklace and for every single baseline alike.
+NOT_MEASURED = (CAPACITY, "relay_throttled", "PROVIDER_429")
+
+
+def not_measured(attempts: dict) -> str | None:
+    for slot_attempts in attempts.values():
+        for a in slot_attempts:
+            code = a.get("error_class") or ""
+            if code in NOT_MEASURED or code.startswith("budget_"):
+                return code
+    return None
 
 
 def capacity_exceeded(status: int, headers, data: dict) -> bool:
@@ -384,11 +396,11 @@ def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT,
         result = runner.Runner(caller, watch_state=watch_state, keep_raw=2000).run(defn, case["input"])
         verdict = grade(defn, case, result["output"])
         at = _iso(now())
-        ours = any(a["error_class"] == CAPACITY for attempts in result["attempts"].values() for a in attempts)
-        if ours and not verdict["ok"]:           # PM 11-15: the edge was full; not the necklace's or a member's failure
+        ours = not_measured(result["attempts"])
+        if ours and not verdict["ok"]:           # our budget, pace or edge, or a provider pause: not a failure (R23)
             lines.append({"type": "excluded", "slug": defn["slug"], "version": defn["version"],
-                          "case_id": case["case_id"], "set": split, "at": at, "why": CAPACITY})
-            details.append({"case_id": case["case_id"], "excluded": CAPACITY, "attempts": result["attempts"]})
+                          "case_id": case["case_id"], "set": split, "at": at, "why": ours})
+            details.append({"case_id": case["case_id"], "excluded": ours, "attempts": result["attempts"]})
             excluded += 1
             continue
         lines.append({"type": "case", "slug": defn["slug"], "version": defn["version"], "case_id": case["case_id"],
@@ -399,7 +411,7 @@ def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT,
             for a in attempts:
                 lines.append({"type": "member", "slug": defn["slug"], "version": defn["version"], "slot": slot,
                               "resource_id": a["resource_id"], "tool": a["tool"], "kind": a["kind"], "at": at,
-                              "ok": None if a["error_class"] == CAPACITY else a["ok"],
+                              "ok": None if not_measured({slot: [a]}) else a["ok"],
                               "contract_valid": a["error_class"] != "contract_invalid",
                               "latency_ms": a["ms"], "error_class": a["error_class"]})
         details.append({"case_id": case["case_id"], "verdict": verdict, "output": result["output"],
@@ -412,8 +424,8 @@ def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT,
                 out = runner.Runner(caller).run(one, case["input"])
                 task = TASK_GRADERS.get(defn["slug"])
                 ok = task(case, out["output"]) if task else GRADERS[contrast](case, out["output"].get(contrast))
-                if not ok and any(a["error_class"] == CAPACITY for att in out["attempts"].values() for a in att):
-                    ok = None                             # not measured: our edge was full
+                if not ok and not_measured(out["attempts"]):
+                    ok = None                             # not measured (R23): never a failure of the single member
                 lines.append({"type": "single", "slug": defn["slug"], "resource_id": member.get("resource_id"),
                               "agent_id": member.get("agent_id"), "kind": member["kind"], "tool": member["tool"],
                               "case_id": case["case_id"], "at": at, "ok": ok})

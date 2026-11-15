@@ -85,20 +85,43 @@ def day_stages(cases: list[dict]) -> tuple[dict[str, int], dict[str, int]]:
     return stages, failed
 
 
-def summarize(slug: str, today: list[dict], window: list[dict], singles: list[dict], runs: list[dict]) -> dict:
+MIN_PAIRS = 10       # paired cases a member needs before its rate counts in the delta
+
+
+def paired_delta(slug: str, cases: list[dict], singles: list[dict]) -> dict | None:
+    """PM R23: the delta compares the necklace and each single member on the same cases on the same day, both measured
+    (ok not None), and takes the member closest to the necklace (the best single). None until a member has MIN_PAIRS."""
+    necklace = {(r["case_id"], r.get("at", "")[:10]): bool(r["ok"]) for r in cases
+                if r.get("type") == "case" and r.get("slug") == slug and r.get("ok") is not None}
+    pairs: dict[tuple, list[tuple[bool, bool]]] = {}
+    for r in singles:
+        key = (r.get("case_id"), r.get("at", "")[:10])
+        if r.get("slug") == slug and r.get("type") == "single" and r.get("ok") is not None and key in necklace:
+            member = (r.get("resource_id") or r.get("agent_id"), r.get("tool"))
+            pairs.setdefault(member, []).append((necklace[key], bool(r["ok"])))
+    rows = []
+    for member, got in pairs.items():
+        if len(got) >= MIN_PAIRS:
+            mine, theirs = sum(a for a, _ in got) / len(got), sum(b for _, b in got) / len(got)
+            rows.append((mine - theirs, len(got), mine, theirs, member))
+    if not rows:
+        return None
+    delta, n, mine, theirs, member = min(rows, key=lambda r: (r[0], -r[1]))
+    return {"delta_pp": round(delta * 100, 1), "pairs": n, "necklace_rate": mine, "best_single_rate": theirs,
+            "best_single_member": list(member)}
+
+
+def summarize(slug: str, today: list[dict], window: list[dict], singles: list[dict], runs: list[dict],
+              pair_cases: list[dict] | None = None) -> dict:
     cases_today = [r for r in today if r.get("type") == "case" and r.get("slug") == slug]
     cases_week = [r for r in window if r.get("type") == "case" and r.get("slug") == slug]
     ok_today = sum(1 for r in cases_today if r.get("ok"))
     ok_week = sum(1 for r in cases_week if r.get("ok"))
     success_today = ok_today / len(cases_today) if cases_today else None
-    by_member: dict[tuple, list[bool]] = {}
-    for r in singles:
-        if r.get("slug") == slug and r.get("type") == "single":
-            if r.get("ok") is not None:            # None: not measured (our edge was full, PM 11-15)
-                by_member.setdefault((r.get("resource_id"), r.get("tool")), []).append(bool(r.get("ok")))
-    best_single = max((sum(v) / len(v) for v in by_member.values() if v), default=None)
     week_rate = ok_week / len(cases_week) if cases_week else None
-    delta = round((week_rate - best_single) * 100, 1) if week_rate is not None and best_single is not None else None
+    paired = paired_delta(slug, window if pair_cases is None else pair_cases, singles)
+    best_single = paired["best_single_rate"] if paired else None
+    delta = paired["delta_pp"] if paired else None
     latencies = [r["latency_ms"] for r in cases_week if isinstance(r.get("latency_ms"), (int, float))]
     slot_counts: dict[str, list[int]] = {}
     fallback_uses = agentcon_uses = slot_total = 0
@@ -123,6 +146,9 @@ def summarize(slug: str, today: list[dict], window: list[dict], singles: list[di
             "cases_7d": len(cases_week), "success_7d": ok_week, "success_rate": week_rate,
             "lower_bound": wilson_lower(ok_week, len(cases_week)),
             "best_single_rate": best_single, "delta_pp": delta,
+            "delta_pairs": paired["pairs"] if paired else 0,
+            "delta_necklace_rate": paired["necklace_rate"] if paired else None,
+            "delta_member": paired["best_single_member"] if paired else None,
             "baseline_at": max((r.get("at", "") for r in singles if r.get("slug") == slug), default=None),
             # The judge holds a necklace whose last retest is older than 48 hours, so this is
             # the latest case in the window, not only today's.
@@ -196,8 +222,9 @@ def run(definitions: list[dict], root: Path, logs: Path, now: float | None = Non
     names = days_back(day, WINDOW_DAYS)
     today = read_lines(root / "retest" / f"{names[0]}.jsonl")
     window = [r for name in names for r in read_lines(root / "retest" / f"{name}.jsonl")]
-    singles = [r for name in days_back(day, 14) for r in read_lines(root / "retest" / f"{name}.jsonl")
-               if r.get("type") == "single"]
+    fortnight = [r for name in days_back(day, 14) for r in read_lines(root / "retest" / f"{name}.jsonl")]
+    singles = [r for r in fortnight if r.get("type") == "single"]
+    pair_cases = [r for r in fortnight if r.get("type") == "case"]
     runs = [r for name in names for r in read_lines(root / "runs" / f"{name}.jsonl")]
     lines, alerts = [], []
     stage_path = root / "watch" / "stages.json"
@@ -210,7 +237,7 @@ def run(definitions: list[dict], root: Path, logs: Path, now: float | None = Non
         if defn.get("status") not in ("qualifying", "trial", "live", "held"):
             continue
         slug = defn["slug"]
-        summary = summarize(slug, today, window, singles, runs)
+        summary = summarize(slug, today, window, singles, runs, pair_cases)
         previous = {}
         try:
             previous = json.loads((root / "results" / slug / "summary.json").read_text(encoding="utf-8"))

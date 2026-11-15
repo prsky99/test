@@ -37,7 +37,7 @@ def test_wilson_and_percentile():
 def test_summary_digest_and_stage_two_alert(tmp_path):
     rows = [case(i, latency=1000 + i * 10) for i in range(29)] + [case(29, ok=False, rank=2)]
     singles = [{"type": "single", "slug": "topic-brief", "resource_id": 1, "tool": "t", "case_id": f"c{i}",
-                "at": "2026-11-17T03:00:00Z", "ok": i < 24} for i in range(30)]
+                "at": "2026-11-20T03:21:00Z", "ok": i < 24} for i in range(30)]
     write(tmp_path / "retest" / f"{DAY}.jsonl", rows + singles)
     write(tmp_path / "runs" / f"{DAY}.jsonl", [{"slug": "topic-brief", "source": "external", "outcome": "succeeded"},
                                                {"slug": "topic-brief", "source": "qa", "outcome": "succeeded"}])
@@ -124,3 +124,40 @@ def test_digest_has_a_body_with_nothing_to_summarize(tmp_path):
     text = (tmp_path / "logs" / f"{DAY}.md").read_text()
     assert result == {"necklaces": 0, "alerts": 0, "digest": str(tmp_path / "logs" / f"{DAY}.md")}
     assert "목걸이 0개 집계, 경보 0건. 정의 2개(candidate 2)." in text and "집계할 것이 없습니다(정상)" in text
+
+
+# ---------------------------------------------------------------- R23: the delta is paired and never inflated
+def test_delta_needs_the_same_cases_on_the_same_day():
+    cases = [case(i) for i in range(12)]
+    other_day = [{"type": "single", "slug": "topic-brief", "resource_id": 1, "tool": "t", "case_id": f"c{i}",
+                  "at": "2026-11-17T03:00:00Z", "ok": False} for i in range(12)]
+    assert daily.paired_delta("topic-brief", cases, other_day) is None            # no pairs: no delta, no claim
+    same_day = [dict(r, at="2026-11-20T03:21:00Z") for r in other_day[:9]]
+    assert daily.paired_delta("topic-brief", cases, same_day) is None             # fewer than MIN_PAIRS
+
+
+def test_all_correct_members_give_no_delta_even_when_our_budget_refused_some_singles(tmp_path):
+    """PM R23 reproduction: with every member always right the delta must be about 0 (it was +13.3 when budget
+    refusals counted as single failures)."""
+    from agent_market.necklaces import model, retest, runner
+    import copy
+    defn = copy.deepcopy(next(d for d in model.load_valid() if d["slug"] == "package-risk-audit"))
+    for slot in defn["slots"]:                  # every member counts here (the shipped health slot waits for members)
+        for m in slot["chain"]:
+            m["state"] = "active"
+    cases = [{"case_id": f"p{i}", "input": {"package": f"pkg{i}", "ecosystem": "npm"},
+              "truth": {"advisories": [], "latest_version": "9.9.9"}} for i in range(15)]
+    calls = {"n": 0}
+
+    def caller(member, args, timeout):
+        calls["n"] += 1
+        if calls["n"] % 4 == 0:
+            raise runner.BudgetDenied("domain_total")          # our ledger said no: says nothing about the member
+        return {"vulns": [], "version": "9.9.9", "latest": "9.9.9"}
+    out = retest.run_set(defn, cases, caller, root=tmp_path, split="tuning", singles=True)
+    lines = [json.loads(x) for x in next((tmp_path / "retest").glob("*.jsonl")).read_text().splitlines()]
+    singles = [x for x in lines if x["type"] == "single"]
+    assert any(x["ok"] is None for x in singles) and not any(x["ok"] is False for x in singles)
+    paired = daily.paired_delta("package-risk-audit", lines, singles)
+    assert out["passed"] + out["excluded"] == 15
+    assert paired is not None and paired["delta_pp"] == 0.0
