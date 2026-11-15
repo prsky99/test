@@ -488,3 +488,16 @@ def test_a_later_stage_may_use_what_is_left_of_the_run(monkeypatch):
     caller = blocking_caller(answers, threading.Event(), slow={5: (0.6, "10-K 2025")})
     out = runner.Runner(caller).run(defn, {"q": "apple"})
     assert out["slots"]["filings"]["status"] == "answered" and out["latency_ms"] < 1500
+
+
+def test_package_releases_hands_the_github_repository_to_the_next_stage():
+    """agent team 11-15: package.releases.v1 -> {{slot.<slot>.repository_github}} for github.releases.v1."""
+    from agent_market.necklaces.runner import norm_package_releases, staged_fields
+    ours = {"answer": "left-pad (npm): latest 1.3.0 ...", "latest_version": "1.3.0", "latest_date": "2018-04-09",
+            "repository": "https://github.com/left-pad/left-pad", "repository_github": "left-pad/left-pad"}
+    assert norm_package_releases(ours, {}) == {"latest_version": "1.3.0", "latest_date": "2018-04-09",
+                                               "repository_github": "left-pad/left-pad", "text": ours["answer"]}
+    npm = {"name": "lodash", "version": "4.17.21", "repository": {"type": "git", "url": "git+https://github.com/lodash/lodash.git"}}
+    assert norm_package_releases(npm, {})["repository_github"] == "lodash/lodash"
+    assert norm_package_releases({"name": "x"}, {}) is None
+    assert set(norm_package_releases(ours, {})) <= staged_fields("package.releases.v1")

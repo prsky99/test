@@ -311,6 +311,43 @@ def norm_registry(raw, values):
     return out
 
 
+GITHUB_REPO = re.compile(r"github\.com[/:]([A-Za-z0-9][A-Za-z0-9-]{0,38})/([A-Za-z0-9._-]{1,100}?)(?:\.git)?(?:[/#?].*)?$")
+OWNER_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9._-]{1,100}")
+
+
+def norm_package_releases(raw, values):
+    """package.releases.v1 (agent team 11-15): latest version and date, and the GitHub repository as owner/name for
+    the next stage ({{slot.<slot>.repository_github}} -> github.releases.v1). The repository is read from
+    repository_github, else from a github.com repository URL (also npm's repository.url); an answer with neither a
+    version nor a repository fails the slot."""
+    if is_error(raw) or not isinstance(raw, (dict, list)):
+        return None
+    out: dict = {}
+    for node, _ in _walk(raw):
+        if not isinstance(node, dict):
+            continue
+        for key, item in node.items():
+            k = str(key).lower()
+            if k == "repository_github" and isinstance(item, str) and OWNER_NAME.fullmatch(item.strip()):
+                out["repository_github"] = item.strip().removesuffix(".git")
+            elif k in ("repository", "url", "repository_url") and isinstance(item, str) and "repository_github" not in out:
+                found = GITHUB_REPO.search(item.strip())
+                if found:
+                    out.setdefault("repository_from_url", f"{found.group(1)}/{found.group(2)}")
+            elif k in ("latest_version", "version") and isinstance(item, str) and item.strip() and "latest_version" not in out:
+                out["latest_version"] = item.strip()
+            elif k in ("latest_date", "released") and isinstance(item, str) and re.match(r"\d{4}-\d{2}-\d{2}", item):
+                out.setdefault("latest_date", item[:10])
+            elif k == "answer" and isinstance(item, str) and item.strip():
+                out.setdefault("text", item.strip())
+    found = out.pop("repository_from_url", None)
+    if found and "repository_github" not in out:
+        out["repository_github"] = found
+    if not out.get("latest_version") and not out.get("repository_github"):
+        return None
+    return out
+
+
 LAT_KEYS, LON_KEYS = ("lat", "latitude"), ("lon", "lng", "long", "longitude")
 PLACE_KEYS = ("address", "formatted_address", "display_name", "name", "place", "city")
 LATLON_TEXT = re.compile(r"\blat(?:itude)?\b[\"\s:=]*(-?\d{1,2}(?:\.\d+)?)[\"\s,;]+lon(?:gitude)?\b[\"\s:=]*"
@@ -507,7 +544,8 @@ def norm_book(raw, values):
 NORMALIZERS = {"package.advisories.v1": norm_advisories, "cve.record.v1": norm_record,
                "cve.exploited.v1": norm_exploited, "company.registry.v1": norm_registry,
                "geocode.address.v1": norm_location, "airport.lookup.v1": norm_location,
-               "ip.lookup.v1": norm_location, "earthquake.feed.v1": norm_quakes, "book.search.v1": norm_book, "sec.filings.v1": norm_filings}
+               "ip.lookup.v1": norm_location, "earthquake.feed.v1": norm_quakes, "book.search.v1": norm_book, "sec.filings.v1": norm_filings,
+               "package.releases.v1": norm_package_releases}
 
 
 # What a later stage can read ({{slot.<slot>.<field>}}): the scalar fields of each normalizer's answer (Runner.run
@@ -517,7 +555,8 @@ STAGED_FIELDS = {norm_advisories: set(), norm_record: {"cve_id", "cvss_score"}, 
                  norm_generic: {"text"}, norm_registry: {"cik", "ticker", "lei", "legal_name"},
                  norm_location: {"lat", "lon", "point", "place", "country_code", "timezone"},
                  norm_quakes: {"count"}, norm_book: {"author", "year", "title", "text"},
-                 norm_filings: {"text"}}
+                 norm_filings: {"text"},
+                 norm_package_releases: {"latest_version", "latest_date", "repository_github", "text"}}
 
 
 def staged_fields(contract: str) -> set:
