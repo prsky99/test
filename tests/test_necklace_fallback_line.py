@@ -31,8 +31,23 @@ def test_agentvalcon_depth_has_no_slot_list():
 def test_missing_or_malformed_values_show_nothing():
     for value in (None, 'external', {'depth': 'internal'}, {'depth': 'external', 'slots_without_own': []},
                   {'depth': 'agentvalcon', 'slots_without_own': ['location']},
-                  {'depth': 'external', 'slots_without_own': ['<b>x</b>']}, {'depth': 'external', 'slots_without_own': 'location'}):
+                  {'depth': 'external', 'slots_without_own': ['<b>x</b>']}, {'depth': 'external', 'slots_without_own': 'location'},
+                  {'depth': 'agentvalcon', 'slots_without_own': [], 'own_coverage': {'location': {'country': ['us']}}},
+                  {'depth': 'agentvalcon', 'slots_without_own': [], 'own_coverage': {'location': {'country': []}}},
+                  {'depth': 'agentvalcon', 'slots_without_own': [], 'own_coverage': {'location': {'region': ['US']}}},
+                  {'depth': 'external', 'slots_without_own': ['location'], 'own_coverage': {'location': {'country': ['US']}}}):
         assert ns.fallback_line({'fallback': value}) is None, value
         assert 'fallback' not in ns.public_item({**ENTRY, 'fallback': value}), value
     status, page = ns.page('quakes-near-address', snapshot=snapshot(None))
     assert status == 200 and 'necklace-fallback' not in page
+
+
+def test_partial_own_backup_names_its_limit():
+    value = {'depth': 'agentvalcon', 'slots_without_own': [], 'own_coverage': {'location': {'country': ['US']}}}
+    line = ns.fallback_line({'fallback': value})
+    assert line.endswith('for every step. Our backup is partial: for location it takes U.S. inputs only.')
+    assert ns.public_item({**ENTRY, 'fallback': value})['fallback'] == value
+    mixed = {'depth': 'external', 'slots_without_own': ['quakes'], 'own_coverage': {'location': {'country': ['US', 'CA']}}}
+    assert ns.fallback_line({'fallback': mixed}).endswith(
+        'the run stops. Our backup is partial: for location it takes U.S. and CA inputs only.')
+    assert ns.fallback({'fallback': {**value, 'own_coverage': {}}}) == {'depth': 'agentvalcon', 'slots_without_own': []}

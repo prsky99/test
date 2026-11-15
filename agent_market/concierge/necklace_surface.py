@@ -454,17 +454,48 @@ def fallback(entry):
         return None
     if (value['depth'] == 'external') != bool(slots):
         return None
-    return {'depth': value['depth'], 'slots_without_own': list(slots)}
+    found = {'depth': value['depth'], 'slots_without_own': list(slots)}
+    # Our own backup that takes only some inputs (workflow 0944b61f): {slot: {'country': ['US', ...]}}. A malformed
+    # limit hides the whole line, so the page never claims more cover than the snapshot gives.
+    coverage = value.get('own_coverage')
+    if coverage in (None, {}):
+        return found
+    if not isinstance(coverage, dict) or len(coverage) > 20:
+        return None
+    for slot, limit in coverage.items():
+        if (not isinstance(slot, str) or not FALLBACK_SLOT.fullmatch(slot) or slot in slots
+                or not isinstance(limit, dict) or set(limit) != {'country'}):
+            return None
+        countries = limit['country']
+        if (not isinstance(countries, list) or not 1 <= len(countries) <= 10
+                or not all(isinstance(c, str) and COUNTRY.fullmatch(c) for c in countries)):
+            return None
+    found['own_coverage'] = {slot: {'country': list(limit['country'])} for slot, limit in coverage.items()}
+    return found
+
+
+COUNTRY = re.compile(r'[A-Z]{2}')
+COUNTRY_NAMES = {'US': 'U.S.', 'GB': 'U.K.'}
+
+
+def _coverage_sentence(coverage):
+    parts = []
+    for slot, limit in coverage.items():
+        names = [COUNTRY_NAMES.get(c, c) for c in limit['country']]
+        parts.append('for ' + slot + ' it takes ' + (' and '.join(names) if len(names) < 3 else ', '.join(names))
+                     + ' inputs only')
+    return ' Our backup is partial: ' + '; '.join(parts) + '.'
 
 
 def fallback_line(entry):
     found = fallback(entry)
     if not found:
         return None
+    limits = _coverage_sentence(found['own_coverage']) if found.get('own_coverage') else ''
     if found['depth'] == 'agentvalcon':
-        return 'Fallback: if a provider fails, other providers are tried, then an AgentValCon backup, for every step.'
+        return 'Fallback: if a provider fails, other providers are tried, then an AgentValCon backup, for every step.' + limits
     return ('Fallback: other providers only for ' + ', '.join(found['slots_without_own'])
-            + ' (no AgentValCon backup yet). If they all fail, the run stops.')
+            + ' (no AgentValCon backup yet). If they all fail, the run stops.' + limits)
 
 
 # 11-15 user decision (PM 11:3x): necklaces run free for now. The judge marks it in the snapshot (pricing {"mode":
