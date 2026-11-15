@@ -605,13 +605,41 @@ def site_excluded(case, now: float | None = None) -> str | None:
     return None if robots_reference(case["truth"]["domain"], now) is not None else "reference_unavailable"
 
 
+# ---------------------------------------------------------------- holidays-at-address (workflow 11-15)
+ISO_DAY = re.compile(r"(?<!\d)(20\d\d-[01]\d-[0-3]\d)(?!\d)")
+
+
+def grade_holidays(case, slot_out) -> bool:
+    """The country's national public holidays of the year: at least 80 % of the truth's dates (Nager.Date, global
+    and Public), and not many more than it (observed and substitute days differ between sources, so a little slack)."""
+    if not slot_out:
+        return False
+    truth = set(case["truth"]["holidays"])
+    found = {d for d in ISO_DAY.findall(_text(slot_out)) if d.startswith(str(case["truth"]["year"]))}
+    if not truth or not found:
+        return False
+    return len(truth & found) >= 0.8 * len(truth) and len(found - truth) <= max(3, len(truth) // 2)
+
+
+def grade_holidays_task(case, output) -> bool:
+    """holidays-at-address as one task: where the place is and its country's holidays; a geocoder alone gives no
+    holidays, and holiday-calendar alone cannot read an address."""
+    output = output or {}
+    location = output.get("location") if "location" in output else output
+    holidays = output.get("holidays") if "holidays" in output else output
+    return grade_location(case, location) and grade_holidays(case, holidays)
+
+
+GRADERS["holidays"] = grade_holidays
 GRADERS["registration"] = grade_registration
 GRADERS["crawlers"] = grade_crawlers
 TASK_EXCLUDE["website-trust-brief"] = site_excluded
 
 TASK_GRADERS = {"company-due-diligence": grade_company_task, "quakes-near-address": grade_quakes_task,
                 "quakes-near-airport": grade_quakes_task,
-                "book-author-brief": grade_book_task, "website-trust-brief": grade_site_task}
+                "book-author-brief": grade_book_task, "website-trust-brief": grade_site_task,
+                "holidays-at-address": grade_holidays_task}
+CONTRAST["holidays-at-address"] = "holidays"
 CONTRAST["book-author-brief"] = "author"
 CONTRAST["website-trust-brief"] = "crawlers"
 

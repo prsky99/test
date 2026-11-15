@@ -1,0 +1,149 @@
+{
+  "slug": "holidays-at-address",
+  "version": 1,
+  "status": "candidate",
+  "name": "Public holidays at an address",
+  "summary": "Where the address is and that country's public holidays in the year asked, in one answer: the place is resolved first, then the second step reads it.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "address": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 300
+      },
+      "year": {
+        "type": "integer",
+        "minimum": 1975,
+        "maximum": 2100
+      }
+    },
+    "required": [
+      "address",
+      "year"
+    ],
+    "additionalProperties": false
+  },
+  "budget_ms": {
+    "total": 5000,
+    "slot": 2500
+  },
+  "synthesis": {
+    "kind": "merge-v1",
+    "rules": [
+      "the location step resolves the input once; the second step reads only what it staged",
+      "a run counts only when at least two verified pearls answered",
+      "every statement keeps its source link"
+    ]
+  },
+  "answer_set": "holidays-at-address-v1",
+  "slots": [
+    {
+      "slot": "location",
+      "contract": "geocode.address.v1",
+      "required": true,
+      "fanout": 1,
+      "chain": [
+        {
+          "kind": "external",
+          "tool": "geocode_address",
+          "upstream": [
+            "google-maps"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "active",
+          "input_map": {
+            "query": "{{input.address}}"
+          },
+          "resource_id": 264482,
+          "registrable_domain": "dmvtransit.com",
+          "pearl": true
+        },
+        {
+          "kind": "external",
+          "tool": "geocode",
+          "upstream": [
+            "us-census"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "active",
+          "input_map": {
+            "address": "{{input.address}}"
+          },
+          "resource_id": 37322,
+          "registrable_domain": "datakoot.com"
+        },
+        {
+          "kind": "agentcon",
+          "tool": "geocode_us_address",
+          "upstream": [
+            "us-census"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "planned",
+          "input_map": {
+            "address": "{{input.address}}"
+          },
+          "agent_id": "census-geocode",
+          "resource_id": null,
+          "registrable_domain": "agentconcierge.biz",
+          "coverage": {
+            "country": [
+              "US"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "slot": "holidays",
+      "contract": "holiday.calendar.v1",
+      "required": true,
+      "fanout": 1,
+      "depends_on": [
+        "location"
+      ],
+      "chain": [
+        {
+          "kind": "agentcon",
+          "tool": "get_holidays",
+          "upstream": [
+            "python-holidays"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "planned",
+          "input_map": {
+            "country": "{{slot.location.point}}",
+            "year": "{{input.year}}"
+          },
+          "agent_id": "holiday-calendar",
+          "resource_id": null,
+          "registrable_domain": "agentconcierge.biz"
+        }
+      ]
+    }
+  ],
+  "notes": "v1 candidate stamped from the location-hub template (address x holidays, workflow 11-15) once the agent team's country grid arrived (c378a302): holiday-calendar takes the hub's \"lat,lon\" in country and finds the country itself. Leads: verified pearl 264482 (geocode.address); the holidays step has our own holiday-calendar only (38613 needs an ISO code a street geocoder does not give), so the necklace has one verified pearl slot until a holiday pearl takes a point. Graded whole (retest.grade_holidays_task): coordinates within 5 km and 80 % of Nager.Date's national holidays. Gold: gold_holidays, built over days within the reference_checks share for date.nager.at.",
+  "min_pearls_answered": 2,
+  "probe_input": {
+    "address": "Tokyo Tower, Minato, Tokyo, Japan",
+    "year": 2026,
+    "slot.location.point": "35.658600,139.745400"
+  },
+  "input_help": {
+    "address": "A street address, landmark or city, for example Tokyo Tower, Minato, Tokyo, Japan.",
+    "year": "The calendar year, for example 2026."
+  }
+}
