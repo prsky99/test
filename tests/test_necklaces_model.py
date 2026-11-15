@@ -198,8 +198,10 @@ def test_terms_of_use_status_per_member():
 
 def test_our_own_registered_agents_take_their_terms_from_the_member():
     """PM 12:46: 133018, 133019 and 133023 are judged by their source's terms written on the member."""
-    own_agent = {"kind": "agentcon", "agent_id": "owned-news", "resource_id": 133018, "tool": "t"}
+    own_agent = {"kind": "agentcon", "agent_id": "owned-news", "resource_id": 999133018, "tool": "t"}   # not in the table
     assert model.terms_status(own_agent) == "unknown"
+    # PM 17:02: the shared table's verdict on our own data agent counts (133018 Hacker News: prohibits, 05d2bc0f)
+    assert model.terms_status(dict(own_agent, resource_id=133018)) == "prohibits"
     checked = dict(own_agent, terms={"status": "silent", "source": "https://source.example/", "checked_at": "2026-11-16"})
     assert model.terms_status(checked) == "silent"
     banned = {"kind": "agentcon", "agent_id": "usgs-quakes", "terms": {"status": "prohibits",

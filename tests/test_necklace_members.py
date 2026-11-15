@@ -124,3 +124,26 @@ def test_our_provisional_member_leads_before_an_external_one_that_passes_neither
     lead = next(p for p in judge.pearls(running, set()) if p["role"] == "news")
     assert (lead["kind"], lead["agent_id"], lead["standing"]) == ("agentcon", "owned2", "provisional")
     assert [a.get("resource_id") for a in lead["alternates"]] == [3, 4]
+
+
+def test_our_own_data_agent_prohibited_by_the_terms_table_is_never_called():
+    """PM 17:02: 133018 (our Hacker News data agent, kind agentcon with a resource_id) is prohibits in the terms
+    table; the chain drops it and the runner never calls it."""
+    from agent_market.necklaces import runner
+    hn = {"kind": "agentcon", "resource_id": 133018, "tool": "search_technology_news", "read_only_hint": True,
+          "destructive_hint": False, "state": "active", "registrable_domain": "agentconcierge.biz", "upstream": ["hn"],
+          "input_map": {"query": "{{input.q}}"}}
+    assert model.terms_status(hn) == "prohibits"
+    crossref = dict(hn, resource_id=133019, tool="search_research_papers")
+    assert model.terms_status(crossref) == "allowed"
+    defn = base()
+    defn["slots"][1]["chain"] = [hn]
+    assert runtime_chain(defn["slots"][1], defn["slug"], {}) == []
+    called = []
+
+    def caller(member, args, timeout_s):
+        called.append(member.get("resource_id") or member.get("agent_id"))
+        return {"items": [{"title": "x"}]}
+    from agent_market.necklaces.watch import runtime_definition
+    runner.Runner(caller).run(runtime_definition(defn, {}), {"q": "lodash"})
+    assert 133018 not in called

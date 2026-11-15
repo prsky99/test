@@ -187,9 +187,11 @@ def member_terms(member: dict) -> dict:
         except (OSError, ValueError, KeyError):
             _TERMS_CACHE.update(stamp=stamp, members={})
     table = _TERMS_CACHE["members"]
-    key = str(member["resource_id"]) if member.get("kind") == "external" and member.get("resource_id") is not None \
-        else f"agent:{member.get('agent_id')}"
-    return table.get(key) or {}
+    # PM 17:02: our own registered data agents (kind agentcon with a catalogue resource_id, e.g. 133018) are judged by
+    # their resource row too; before, only external members were looked up by id, so 133018's "prohibits" read as unknown
+    if member.get("resource_id") is not None and str(member["resource_id"]) in table:
+        return table[str(member["resource_id"])]
+    return table.get(f"agent:{member.get('agent_id')}") or {}
 
 
 def terms_status(member: dict) -> str:
