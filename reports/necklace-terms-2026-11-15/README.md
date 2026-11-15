@@ -250,3 +250,45 @@ prohibits 2건은 정의에 넣지 않았습니다. 넣으면 그 멤버가 모�
 - **PM 결정 필요**: 241694는 MDN 질의만 남기고 Context7 경로를 끄면 MDN(CC BY-SA 2.5)만으로 allowed가 됩니다. 133018은 대체 원천(GDELT 등)으로 바꾸거나 내려야 합니다. 둘 다 지금 추천에 노출 중입니다.
 - 133018은 topic-evidence-brief 뉴스 자리의 멤버입니다. prohibits가 되어 실행 사슬에서 빠지고(watch.runtime_chain), 그 자리는 다른 멤버와 gdelt-news 대체가 받습니다.
 - 도구 정의(`tool_spec`: 이름·설명·입출력 스키마)에는 license가 들어가지 않습니다. 그래서 계약 승인(`scripts.approve_model_contracts`)은 다시 할 필요가 없습니다.
+
+### PM 결정 반영 (17:02 → 17:1x)
+
+- **241694 technical-docs → MDN 전용.** Context7 경로를 코드에서 없앴습니다(호출 함수·상수 삭제, MDN 외 호스트는 거부). 모든 질의가 MDN으로 갑니다. 답의 출처는 "MDN Web Docs by Mozilla Contributors, CC BY-SA 2.5"이고, 항목마다 그 문서 주소가 붙습니다(CC BY-SA 저작자 표시). 약관 표는 allowed로 바꿨습니다(MDN 근거).
+  - 웹 표준 밖의 질의(예: Kubernetes)는 이제 MDN에서 찾지 못하면 빈 결과가 나옵니다. 지어낸 답은 내지 않습니다.
+  - 도구 설명과 출력 열거값(`source`: MDN Web Docs, Context7)은 **이번에는 그대로 둡니다.** 바꾸면 등록된 도구 해시와 달라져, `activation.install`로 등록값을 새로 쓰기 전까지 에이전트가 SCHEMA_CHANGED로 멈춥니다. 2단계(설명에서 Context7 삭제)는 등록값 갱신과 함께 해야 합니다(PM 실행).
+- **133018 technology-news → 중단.** 공개 MCP 주소는 tools/call에 원천을 부르지 않고 "suspended"로 답합니다. tools/list는 그대로라 등록 해시는 변하지 않습니다.
+  - 게이트웨이 안의 실행 경로(dispatch.py)와 추천에서 빼는 것은 운영 DB의 `resources.active`를 끄는 쓰기가 필요합니다. dispatch.py는 연구·뉴스 어댑터 지문과 등록 SQL 파일 해시에 들어 있어 손대지 않았습니다. PM에 넘깁니다.
+- **지문 정정.** 05d2bc0f에서 `owned_data_agents/catalog.py`에 license 칸을 넣었는데, 이 파일은 연구·뉴스 어댑터 구현 지문(`owned_capability_adapter.IMPLEMENTATION`)에 통째로 들어갑니다. 그대로 배포됐다면 research-papers·technology-news 계약 증거가 무효가 됐을 것입니다. catalog.py를 운영 frontend와 같은 내용으로 되돌리고, 라이선스는 지문 밖 새 파일 `owned_data_agents/source_terms.py`(LICENSES, SUSPENDED)로 옮겼습니다.
+- docs.py와 docs 어댑터 문구는 technical-docs 지문에 들어가므로, 배포 뒤 `scripts.approve_model_contracts` 재실행이 필요합니다(technical-docs 한 쌍).
+
+## 유료 제공 판정 (PM 17:10 지시 3, 특급 진주 대비)
+
+나중에 특급 진주(단일 자체 에이전트)를 일정 사용량 이후 유료로 돌릴 때, 원천이 막지 않는지 미리 가립니다. 기준은 위 표에서 이미 읽은 근거이고, 새로 읽지 않은 것은 "재확인"으로 둡니다. 애매하면 유료는 막는 쪽으로 둡니다(PM 규칙).
+
+- **유료 가능**: 라이선스가 상업 이용을 허용(공공 영역, CC0, CC BY, CC BY-SA, ODbL, MIT 등). 표시 의무는 지킴.
+- **과금 시 재판정**: 지금 무료 제공이라 허용이지만, 약관이 "무료·공개"를 전제로 하거나 재판매·재배포를 막는 문구가 있음.
+- **유료 불가(무료 전용)**: 약관이 없거나(silent) 금지. 유료 진주의 재료로 쓰지 않음.
+
+| 원천·멤버 | 지금 판정 | 유료 제공 | 근거와 조건 |
+|---|---|---|---|
+| USGS, 미국 인구조사국 지오코더, SEC EDGAR, NVD, CISA KEV | allowed | 유료 가능 | 미국 정부 자료(공공 영역). SEC는 초당 10회·User-Agent 규칙 |
+| GDELT | allowed | 유료 가능 | "학술·상업·정부 용도에 제한 없이", 재배포 허용, 출처 표시 |
+| Crossref | allowed | 유료 가능 | 사실 정보·CC0. 초록은 쓰지 않음 |
+| World Bank, OSV(npm=GitHub Advisory), DB-IP Lite, MET Norway, deps.dev | allowed | 유료 가능 | CC BY 4.0, 출처 표시 |
+| GLEIF, Wikidata | allowed | 유료 가능 | CC0 |
+| Wikipedia, Wiktionary, MDN | allowed | 유료 가능(조건) | CC BY-SA: 출처 표시 + 그 글을 고친 결과물은 같은 라이선스. 유료 진주가 이 글을 고쳐 내면 그 부분은 CC BY-SA로 공개해야 함 |
+| 시간대 경계(timezone-boundary-builder) | allowed | 유료 가능(조건) | ODbL: 출처 표시, 자료 자체를 고쳐 배포하면 같은 라이선스 |
+| OurAirports, IANA tz, python-holidays, timezonefinder, OpenSSF Scorecard | allowed | 유료 가능 | 공공 영역·MIT·CDLA-Permissive |
+| 웹사이트 자신의 TLS 인증서 | allowed | 유료 가능 | 제3자 약관 없음 |
+| **GitHub 공개 API**(214845, github-releases 등) | 조건부 allowed | **과금 시 재판정** | API Terms: GitHub 서비스 재판매가 되는 접근은 유료 구독 대상(기록대로) |
+| **npm 공개 레지스트리**(133021, package-registry 등) | allowed | **과금 시 재판정** | Open-Source Terms가 Acceptable Use·복제 정책 안의 이용을 전제. 유료 재제공 문구는 아직 안 읽음 |
+| **공식 MCP Registry** | allowed | **과금 시 재판정** | 집계 서비스용 API로 공식 제공. 유료 재제공에 대한 문구는 아직 안 읽음 |
+| **37322 Datakoot** | allowed | **과금 시 재판정** | "요금제 한도 안"의 자동 접근 허용, 경쟁 데이터셋으로 재판매 금지 |
+| **264482 DMV Transit, 52559 Presend, 367249 Fixlane** | allowed | **과금 시 재판정** | 셋 다 "무료 공개 서버·공정 사용"을 근거로 허용함. 유료 제공은 그 전제를 벗어남 |
+| CVE.org, FIRST EPSS, ECB, arXiv, RDAP 서버들 | allowed | 재확인 | 상업 이용 조항을 이번에 다시 읽지 않음. 유료 진주에 쓰기 전에 읽음 |
+| silent 멤버(38608, 178542, 241601, 39577, 37259, 241082, 86011, 47189) | silent | **유료 불가** | 약관 없음. 무료 목걸이의 임시 멤버로만 씀 |
+| 58997, 132732, 50972, 133018(Hacker News), Context7, OSM Nominatim | prohibits | **유료 불가** | 금지 |
+| PyPI, Cloudflare 1.1.1.1, Google Public DNS | 판정 전 | 판정 전 | 11-16에 읽을 때 유료 칸도 함께 판정 |
+
+- GitHub처럼 과금 시 재판정이 필요한 원천은 npm, MCP Registry, Datakoot, DMV Transit, Presend, Fixlane입니다(GitHub 포함 7곳).
+- member_terms.json에는 유료 칸이 없습니다. `set-terms`(워크플로우 파일)에 `--paid yes|reconsider|no` 같은 칸을 더해야 기계가 읽을 수 있습니다. 손으로 고치지 않으려고 이번에는 이 표에만 적었습니다.

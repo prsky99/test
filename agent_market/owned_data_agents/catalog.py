@@ -34,8 +34,6 @@ SPECS = {
         'name': 'Technology News', 'tool': 'search_technology_news',
         'description': 'Find recent Hacker News stories matching public technology keywords.',
         'source_name': 'Hacker News Search by Algolia', 'source_url': 'https://hn.algolia.com/api',
-        # No license found for reusing Hacker News data (agent team 11-15): left empty, never invented
-        'license': None,
         'ttl': 60, 'max_stale': 900,
         'input': obj({'query': QUERY, 'limit': LIMIT}),
         'data': obj({'query': text(160), 'items': array(obj({'title': text(), 'url': text(2000),
@@ -45,8 +43,6 @@ SPECS = {
         'name': 'Research Papers', 'tool': 'search_research_papers',
         'description': 'Search Crossref bibliographic records with DOI source links.',
         'source_name': 'Crossref', 'source_url': 'https://www.crossref.org/documentation/retrieve-metadata/rest-api/',
-        'license': ('Bibliographic metadata: facts not subject to copyright; Crossref-generated data CC0 '
-                    '(https://www.crossref.org/documentation/retrieve-metadata/)'),
         'ttl': 300, 'max_stale': 3600,
         'input': obj({'query': {**QUERY, 'maxLength': 500}, 'limit': LIMIT}),
         'data': obj({'query': text(500), 'items': array(obj({'title': text(), 'url': text(2000),
@@ -57,7 +53,6 @@ SPECS = {
         'name': 'Country Profile', 'tool': 'get_country_profile',
         'description': 'Retrieve a country name, capital and region from the World Bank.',
         'source_name': 'World Bank', 'source_url': 'https://data.worldbank.org/',
-        'license': 'CC BY 4.0 (https://datacatalog.worldbank.org/public-licenses#cc-by)',
         'ttl': 86400, 'max_stale': 604800,
         'input': obj({'country_code': COUNTRY}),
         'data': obj({'country_code': COUNTRY, 'name': text(), 'capital': text(),
@@ -67,8 +62,6 @@ SPECS = {
         'name': 'Package Metadata', 'tool': 'get_package_metadata',
         'description': 'Retrieve the current npm package version and public description.',
         'source_name': 'npm public registry', 'source_url': 'https://registry.npmjs.org/',
-        'license': ('npm Open-Source Terms (https://docs.npmjs.com/policies/open-source-terms); '
-                    'metadata as published by package authors'),
         'ttl': 120, 'max_stale': 3600,
         'input': obj({'package': PACKAGE}),
         'data': obj({'package': PACKAGE, 'version': VERSION, 'description': text(),
@@ -78,7 +71,6 @@ SPECS = {
         'name': 'Economic Indicators', 'tool': 'get_economic_indicators',
         'description': 'Retrieve the latest available World Bank annual indicator observations.',
         'source_name': 'World Bank World Development Indicators', 'source_url': 'https://data.worldbank.org/',
-        'license': 'CC BY 4.0 (https://datacatalog.worldbank.org/public-licenses#cc-by)',
         'ttl': 3600, 'max_stale': 604800,
         'input': obj({'country_code': COUNTRY, 'indicator': {'enum': list(INDICATORS)}, 'limit': LIMIT}),
         'data': obj({'country_code': COUNTRY, 'indicator': text(100), 'indicator_name': text(),
@@ -89,8 +81,6 @@ SPECS = {
         'name': 'Package Security Advisories', 'tool': 'check_package_advisories',
         'description': 'Query published OSV advisories for an exact npm package version.',
         'source_name': 'OSV', 'source_url': 'https://osv.dev/',
-        'license': ('Each advisory under its source\'s license as listed by OSV; npm advisories from the GitHub '
-                    'Advisory Database are CC BY 4.0 (https://google.github.io/osv.dev/data/)'),
         'ttl': 300, 'max_stale': 3600,
         'category': 'security',
         'input': obj({'package': PACKAGE, 'version': VERSION, 'limit': LIMIT}),
@@ -104,9 +94,6 @@ SPECS = {
         'name': 'GitHub Issues and Pull Requests', 'tool': 'search_github_issues',
         'description': 'Search public GitHub issues and pull requests by keywords, with an optional repository, type and state.',
         'source_name': 'GitHub Search API', 'source_url': 'https://docs.github.com/en/rest/search/search#search-issues-and-pull-requests',
-        'license': ('Public issue metadata under the GitHub Terms of Service, API Terms '
-                    '(https://docs.github.com/en/site-policy/github-terms/github-terms-of-service#h-api-terms); '
-                    'each issue\'s text stays with its author'),
         # Unauthenticated search allows ten requests a minute: answers stay fresh for ten
         # minutes and the same query may use an explicitly aged cache for up to six hours.
         'ttl': 600, 'max_stale': 21600,

@@ -1,4 +1,5 @@
-"""Technical Documentation (QA 19): MDN for web topics, Context7 otherwise, kept outside the research/news digest."""
+"""Technical Documentation (QA 19), kept outside the research/news digest. MDN only since PM 11-15 17:02: Context7's
+Addendum allows internal development, educational and evaluation use only, so it is never called."""
 from datetime import datetime, timezone
 import json
 from types import SimpleNamespace
@@ -26,20 +27,10 @@ def mdn(request):
 
 
 def context7(calls):
+    """Context7 is no longer called (PM 11-15): any request to it is recorded and fails."""
     def handle(request):
-        calls.append(request.url.path)
-        assert request.url.host == 'context7.com'
-        if request.url.path == '/api/v1/search':
-            return httpx.Response(200, json={'results': [
-                {'id': '/grafana/rollout-operator', 'title': 'Rollout Operator', 'state': 'finalized', 'totalSnippets': 900},
-                {'id': '/kubernetes/website', 'title': 'Kubernetes', 'state': 'finalized', 'totalSnippets': 25000},
-                {'id': '/websites/kubernetes_io', 'title': 'Kubernetes', 'state': 'finalized', 'totalSnippets': 30000}]})
-        calls.append(request.url.params['topic'])
-        return httpx.Response(200, json={'snippets': [
-            {'codeTitle': 'Check rollout status', 'codeDescription': 'Watch a Deployment rollout.',
-             'websiteUrl': 'https://kubernetes.io/docs/concepts/workloads/controllers/deployment/', 'generationDate': '2026-10-20T04:18:14Z'},
-            {'codeTitle': 'Unknown', 'websiteUrl': 'https://kubernetes.io/x'},
-            {'codeTitle': 'Repo fixture', 'codeId': 'https://github.com/kubernetes/website/blob/main/a.md#_snippet_1'}]})
+        calls.append(request.url.host + request.url.path)
+        return httpx.Response(500)
     return handle
 
 
@@ -51,56 +42,21 @@ def test_web_topics_use_mdn_and_keep_only_mdn_links():
     assert [item['url'] for item in data['items']] == ['https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Grid_layout']
 
 
-def test_other_topics_use_the_named_context7_documentation_site():
+def test_every_topic_goes_to_mdn_and_context7_is_never_called():
     calls = []
-    core, http = agent(context7(calls))
+    def handle(request):
+        calls.append(request.url.host)
+        return httpx.Response(200, json={'documents': [
+            {'mdn_url': '/en-US/docs/Web/API/AbortController', 'title': 'AbortController', 'summary': 'Aborts.'}]})
+    core, http = agent(handle)
     with http:
-        data = core.execute({'query': 'Kubernetes deployment rollout', 'limit': 3})['data']
-        again = core.execute({'query': 'kubernetes  deployment rollout', 'limit': 3})
-    assert data['source'] == 'Context7' and data['items'][0]['library'] == 'Kubernetes'
-    assert data['items'][0]['indexed_at'] == '2026-10-20'
-    # Titles keep their product so a follow-up step that searches a title still names Kubernetes.
-    assert [item['title'] for item in data['items']] == ['Kubernetes: Check rollout status', 'Kubernetes: Repo fixture']
-    assert data['items'][1]['url'] == 'https://github.com/kubernetes/website/blob/main/a.md'
-    # Kubernetes has a pinned official site: no library search call at all.
-    assert calls == ['/api/v1/websites/kubernetes_io', 'Kubernetes deployment rollout']
-    assert again['cache']['status'] == 'fresh_cache'
-
-
-def test_unpinned_topics_search_and_prefer_the_named_documentation_site(monkeypatch):
-    monkeypatch.setattr(docs, 'official_library', lambda query: None)
-    calls = []
-    core, http = agent(context7(calls))
-    with http:
-        data = core.execute({'query': 'Kubernetes deployment rollout', 'limit': 3})['data']
-    assert data['items'][0]['library'] == 'Kubernetes'
-    # The query names Kubernetes, so the Kubernetes documentation site is read, not the first search hit.
-    assert calls == ['/api/v1/search', '/api/v1/websites/kubernetes_io', 'Kubernetes deployment rollout']
-
-
-def test_official_sites_win_for_names_search_ranks_poorly():
-    """QA 19: "Django" found django-filter; the earliest named product picks its official site."""
-    assert docs.official_library('Django model forms validation')['id'] == '/websites/djangoproject_en'
-    assert docs.official_library('docker compose healthcheck')['id'] == '/websites/docker_compose'
-    assert docs.official_library('Docker build cache')['id'] == '/websites/docker_reference'
-    assert docs.official_library('Deploy React on Kubernetes')['id'] == '/websites/react_dev'
-    assert docs.official_library('Kubernetes: Check rollout status')['id'] == '/websites/kubernetes_io'
-    # Other packages that merely contain a pinned name keep the search path.
-    assert docs.official_library('react-router loaders') is None
-    assert docs.official_library('django-filter FilterSet') is None
-    assert docs.official_library('pandas merge') is None
-
-
-def test_context7_daily_allowance_fails_closed(monkeypatch, caplog):
-    monkeypatch.setattr(docs, 'CONTEXT7_DAILY_CALLS', 1)
-    core, http = agent(context7([]))
-    with http, caplog.at_level('WARNING', logger=docs.__name__):
-        core.execute({'query': 'Kubernetes deployment rollout', 'limit': 3})
-        for query in ('Kubernetes rollback history', 'Kubernetes pod probes'):
-            with pytest.raises(DataUnavailable):
-                core.execute({'query': query, 'limit': 3})
-    # One warning a day for operators watching the shared anonymous allowance, not one per refusal.
-    assert [r.getMessage() for r in caplog.records].count('Context7 daily allowance used up: 1 calls on 2026-10-31') == 1
+        out = core.execute({'query': 'Kubernetes deployment rollout', 'limit': 3})
+    assert calls == ['developer.mozilla.org'] and out['data']['source'] == 'MDN Web Docs'
+    assert out['source'] == {'name': 'MDN Web Docs by Mozilla Contributors, CC BY-SA 2.5',
+                             'url': 'https://developer.mozilla.org/'}
+    assert not hasattr(docs, 'official_library') and not hasattr(docs.DocsAgent, '_context7')
+    with pytest.raises(DataUnavailable):
+        core._get('context7.com', '/api/v1/search', {'query': 'x'})
 
 
 def test_private_text_is_rejected_before_networking():
@@ -128,17 +84,18 @@ def test_adapter_projects_into_docs_contract():
     assert adapters.arguments(res, 'docs.search.v1', 'search_technical_docs', supplied, expected=current) == \
         {'query': 'Kubernetes deployment rollout', 'limit': 2}
     retrieved = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
-    output = {'agent': docs.ID, 'source': {'name': 'MDN Web Docs and Context7', 'url': 'https://developer.mozilla.org/'},
+    output = {'agent': docs.ID, 'source': {'name': docs.SPEC['source_name'], 'url': 'https://developer.mozilla.org/'},
               'retrieved_at': retrieved, 'cache': {'status': 'live', 'age_seconds': 0},
-              'data': {'query': supplied['query'], 'source': 'Context7', 'partial': False, 'items': [
-                  {'title': 'Check rollout status', 'url': 'https://kubernetes.io/docs/a/', 'summary': 'Watch it.',
-                   'library': 'Kubernetes', 'indexed_at': '2026-10-20'},
-                  {'title': 'Second', 'url': 'https://kubernetes.io/docs/b/', 'summary': '', 'library': 'Kubernetes', 'indexed_at': ''}]}}
+              'data': {'query': supplied['query'], 'source': 'MDN Web Docs', 'partial': False, 'items': [
+                  {'title': 'AbortController', 'url': 'https://developer.mozilla.org/en-US/docs/Web/API/AbortController',
+                   'summary': 'Aborts requests.', 'library': 'MDN Web Docs', 'indexed_at': ''},
+                  {'title': 'Second', 'url': 'https://developer.mozilla.org/en-US/docs/Web/b', 'summary': '',
+                   'library': 'MDN Web Docs', 'indexed_at': ''}]}}
     value = adapters.normalize(res, 'docs.search.v1', 'search_technical_docs', supplied, output, expected=current)
     validate('docs.search.v1', supplied, value)
-    assert value['items'][0]['version'] == 'Indexed 2026-10-20'
-    assert value['items'][1]['excerpt'] == 'Documentation page from Kubernetes.'
-    assert value['items'][1]['version'] == 'Current Kubernetes page'
+    assert value['items'][0]['version'] == 'Current MDN Web Docs page'
+    assert value['items'][1]['excerpt'] == 'Documentation page from MDN Web Docs.'
+    assert 'Context7' not in current['input_notice'] and 'CC BY-SA 2.5' in current['input_notice']
     with pytest.raises(ValueError):
         adapters.arguments(res, 'docs.search.v1', 'search_technical_docs', supplied, expected={**current, 'implementation_hash': 'x'})
 
@@ -174,7 +131,7 @@ def test_mcp_route_serves_the_docs_tool(monkeypatch):
     from agent_market.owned_data_agents.service import create_app
     calls = []
     monkeypatch.setattr(docs, 'engine', lambda: SimpleNamespace(execute=lambda arguments: calls.append(arguments) or {
-        'agent': docs.ID, 'source': {'name': 'MDN Web Docs and Context7', 'url': 'https://developer.mozilla.org/'},
+        'agent': docs.ID, 'source': {'name': docs.SPEC['source_name'], 'url': 'https://developer.mozilla.org/'},
         'retrieved_at': '2026-10-31T08:00:00Z', 'cache': {'status': 'live', 'age_seconds': 0},
         'data': {'query': arguments['query'], 'source': 'MDN Web Docs', 'items': [], 'partial': False}}))
     with TestClient(create_app(enabled=True)) as client:
@@ -235,8 +192,8 @@ def test_saved_documentation_workflow_runs_through_local_execution(customer_flow
     http.close()
     assert run['status'] == 'succeeded', [(s.get('status'), s.get('error_code'), s.get('error'), s.get('input')) for s in run['steps']]
     first = run['steps'][0]['output']['items'][0]
-    assert first['url'].startswith('https://kubernetes.io/docs/') and first['version'] == 'Indexed 2026-10-20'
-    assert calls[:2] == ['/api/v1/websites/kubernetes_io', 'Kubernetes deployment rollout']
+    assert first['url'] == 'https://developer.mozilla.org/en-US/docs/Web/API/AbortController'
+    assert first['version'] == 'Current MDN Web Docs page' and calls == []   # Context7 never called
 
 
 def test_reverifier_keeps_docs_execution_evidence_current(customer_flow, monkeypatch):  # noqa: F811
@@ -258,7 +215,7 @@ def test_reverifier_keeps_docs_execution_evidence_current(customer_flow, monkeyp
     later = clock.time() + INTERVAL + 60
     report = ContractReverifier(x.w.store, x.w.rt.proxy, clock=lambda: later).run()
     http.close()
-    assert report['succeeded'] >= 1 and len(calls) > before
+    assert report['succeeded'] >= 1 and calls == [] and before == 0
     ready = registry.projection(x.w.store.resource(rid))['connection_readiness']
     assert ready['verified_callable'] and ready['verified_at'] > later - INTERVAL - 120
 

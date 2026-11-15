@@ -30,8 +30,8 @@ def profile(resource, contract, tool):
     if len(found) != 1 or {k: found[0].get(k) for k in expected} != expected:
         raise ValueError('The first-party documentation schema changed.')
     return {'id': PROFILE, 'schema_hash': digest(expected), 'implementation_hash': IMPLEMENTATION,
-        'input_notice': 'English technical documentation: MDN Web Docs for web platform topics, Context7 for libraries '
-                        'and products. Queries use at most 160 characters; each call returns up to five pages.'}
+        'input_notice': 'English technical documentation from MDN Web Docs (web platform topics; Mozilla Contributors, '
+                        'CC BY-SA 2.5). Queries use at most 160 characters; each call returns up to five pages.'}
 
 
 def arguments(resource, contract, tool, supplied, *, expected=None):

@@ -1,4 +1,8 @@
-"""First-party technical documentation search: MDN for web platform topics, Context7 otherwise.
+"""First-party technical documentation search over MDN Web Docs.
+
+Context7 is no longer called (PM 11-15 17:02): its Addendum (section 2) licenses output for internal development,
+educational and evaluation use only. The tool definition (description and output enum) is unchanged until the
+registration is refreshed (activation.install); every query goes to MDN, whose prose is CC BY-SA 2.5.
 
 Kept apart from catalog.py/engine.py/dispatch.py on purpose: those files are part of the
 reviewed research and news adapter digest, and editing them would invalidate every saved
@@ -11,7 +15,6 @@ import logging
 import re
 import threading
 import time
-from urllib.parse import quote
 
 from ..concierge.execution_policy import validate_arguments
 from ..concierge.http_security import bounded_client, outbound_operation
@@ -25,14 +28,10 @@ SPEC = {
     'description': ('Search current technical documentation pages: MDN Web Docs for web platform topics '
                     '(HTML, CSS, JavaScript, Web APIs) and Context7-indexed library and product documentation '
                     'for everything else.'),
-    'source_name': 'MDN Web Docs and Context7', 'source_url': 'https://developer.mozilla.org/',
-    # MDN prose is CC BY-SA 2.5; the Context7 Addendum (section 2) licenses its output for internal development,
-    # educational and evaluation use only (agent team 11-15, reported to the PM)
-    'license': ('MDN Web Docs: CC BY-SA 2.5, Mozilla Contributors '
-                '(https://developer.mozilla.org/en-US/docs/MDN/Writing_guidelines/Attrib_copyright_license); '
-                'Context7: internal development, educational and evaluation use only '
-                '(https://upstash.com/trust/context7addendum.pdf)'),
-    # Documentation changes slowly and Context7 allows about 200 anonymous calls a day.
+    # Every answer names the license with the source (CC BY-SA 2.5 attribution: Mozilla Contributors, and each item
+    # links to its page); the license address is in source_terms.LICENSES.
+    'source_name': 'MDN Web Docs by Mozilla Contributors, CC BY-SA 2.5', 'source_url': 'https://developer.mozilla.org/',
+    # Documentation changes slowly.
     'ttl': 86400, 'max_stale': 604800,
     'category': 'dev_tools',
     'input': obj({'query': {'type': 'string', 'minLength': 2, 'maxLength': 160},
@@ -46,38 +45,9 @@ SPEC = {
 WEB = re.compile(r'\b(?:html|css|javascript|js|dom|web ?apis?|fetch|xmlhttprequest|websockets?|service ?workers?|'
                  r'web ?assembly|wasm|svg|canvas|webgl|webgpu|indexeddb|local ?storage|cors|mdn|aria|'
                  r'abortcontroller|promise|async ?function|event ?listener|http headers?|content-security-policy)\b', re.I)
-LIBRARY_ID = re.compile(r'(?:/[A-Za-z0-9._-]{1,100}){1,4}')
 UNSAFE = re.compile(r'https?://|<[^>]*>|\b(?:Bearer|Basic)\s|\b(?:api[_-]?key|token|password)\s*[:=]|'
                     r'[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|/(?:Users|home)/', re.I)
-CONTEXT7_DAILY_CALLS = 90  # per process; the anonymous limit is shared by frontend and execution
-# Official documentation sites for names that full-sentence search ranks poorly ("Django"
-# returned django-filter). Checked against Context7 on 2026-10-31; the earliest name in the
-# query wins, and the direct lookup also saves one search call.
-OFFICIAL = (
-    (r'docker[ -]?compose', '/websites/docker_compose', 'Docker Compose'),
-    (r'django', '/websites/djangoproject_en', 'Django'),
-    (r'flask', '/websites/flask_palletsprojects_en_stable', 'Flask'),
-    (r'react', '/websites/react_dev', 'React'),
-    (r'vue(?:\.?js)?', '/websites/vuejs', 'Vue.js'),
-    (r'next\.?js', '/websites/nextjs', 'Next.js'),
-    (r'kubernetes|k8s', '/websites/kubernetes_io', 'Kubernetes'),
-    (r'docker', '/websites/docker_reference', 'Docker'),
-    (r'fastapi', '/websites/fastapi_tiangolo', 'FastAPI'),
-    (r'postgres(?:ql)?', '/websites/postgresql', 'PostgreSQL'),
-    (r'tailwind(?:\s?css)?', '/websites/tailwindcss', 'Tailwind CSS'),
-    (r'typescript', '/websites/typescriptlang', 'TypeScript'),
-)
-OFFICIAL_NAME = re.compile('|'.join('(?P<n%d>(?<![\\w.-])(?:%s)(?![\\w-]))' % (i, pattern) for i, (pattern, _, _) in enumerate(OFFICIAL)), re.I)
 log = logging.getLogger(__name__)
-
-
-def official_library(query):
-    """The named product's official documentation, or None (the earliest name in the query)."""
-    found = OFFICIAL_NAME.search(query)
-    if not found:
-        return None
-    _, library, title = OFFICIAL[int(found.lastgroup[1:])]
-    return {'id': library, 'title': title}
 
 
 def tool_spec():
@@ -99,7 +69,6 @@ class DocsAgent:
         self.utc_now = utc_now or (lambda: datetime.now(timezone.utc))
         self.entries, self.failed_until = OrderedDict(), OrderedDict()
         self.lock = threading.Lock()
-        self.calls_day, self.calls = None, 0
 
     def execute(self, arguments):
         spec = tool_spec()
@@ -119,7 +88,7 @@ class DocsAgent:
                 return self._stale_or_fail(entry, age)
             try:
                 with outbound_operation(min(5.5, budget.remaining())):
-                    data = (self._mdn if WEB.search(query) else self._context7)(query, arguments['limit'])
+                    data = self._mdn(query, arguments['limit'])
                 from .english import normalize
                 data = normalize(data, None)
                 output = {'agent': ID, 'source': {'name': SPEC['source_name'], 'url': SPEC['source_url']},
@@ -152,19 +121,8 @@ class DocsAgent:
         raise DataUnavailable('Current source data is unavailable. No replacement data was generated.')
 
     def _get(self, host, path, params):
-        if host == 'context7.com':
-            with self.lock:
-                today = self.utc_now().date()
-                if self.calls_day != today:
-                    self.calls_day, self.calls = today, 0
-                if self.calls >= CONTEXT7_DAILY_CALLS:
-                    if self.calls == CONTEXT7_DAILY_CALLS:
-                        self.calls += 1  # warn once a day, not on every refused call
-                        log.warning('Context7 daily allowance used up: %d calls on %s', CONTEXT7_DAILY_CALLS, today)
-                    raise DataUnavailable('The daily documentation search allowance is used up.')
-                self.calls += 1
-                if self.calls % 25 == 0:
-                    log.info('Context7 calls today: %d of %d', self.calls, CONTEXT7_DAILY_CALLS)
+        if host != 'developer.mozilla.org':   # MDN only (PM 11-15)
+            raise DataUnavailable('Source unavailable.')
         client = bounded_client(self.http, timeout=4, limit=524288,
             headers={'User-Agent': 'AgentConcierge-DataAgents/1.0 (+https://agentconcierge.biz)',
                      'Accept': 'application/json'})
@@ -193,58 +151,6 @@ class DocsAgent:
             seen.add(url)
         return {'query': query, 'source': 'MDN Web Docs', 'items': items[:limit],
                 'partial': len(items) < min(limit, len(rows))}
-
-    def _context7(self, query, limit):
-        library = official_library(query)
-        if library is None:
-            library = self._search_library(query)
-        if library is None:
-            return {'query': query, 'source': 'Context7', 'items': [], 'partial': False}
-        return self._snippets(query, limit, library)
-
-    def _search_library(self, query):
-        found = self._get('context7.com', '/api/v1/search', {'query': query})
-        libraries = [row for row in (found.get('results') or [])[:10] if isinstance(row, dict)
-                     and type(row.get('id')) is str and LIBRARY_ID.fullmatch(row['id'])
-                     and row.get('state') == 'finalized' and (row.get('totalSnippets') or 0) > 0]
-        if not libraries:
-            return None
-        # Full-sentence search ranks partial matches ("rollout-operator" for a Kubernetes
-        # rollout question) first; prefer a library the query names, then the largest index.
-        words = set(re.findall(r'[a-z0-9.+#-]+', query.casefold()))
-        named = [row for row in libraries if clean(row.get('title'), 200).casefold() in words
-                 or set(re.findall(r'[a-z0-9.+#-]+', clean(row.get('title'), 200).casefold())) <= words]
-        # Published documentation sites beat source repositories, whose snippets are often test fixtures.
-        return max(named, key=lambda row: (row['id'].startswith('/websites/'), row.get('totalSnippets') or 0)) if named else libraries[0]
-
-    def _snippets(self, query, limit, library):
-        raw = self._get('context7.com', '/api/v1' + quote(library['id'], safe='/._-'),
-                        {'type': 'json', 'topic': query, 'tokens': 2000})
-        rows = raw.get('snippets')
-        if type(rows) is not list:
-            raise ValueError('Invalid source')
-        name = clean(library.get('title'), 200) or 'Context7 library'
-        items, seen = [], set()
-        for row in rows[:30]:
-            if not isinstance(row, dict):
-                continue
-            source = row.get('codeId') if type(row.get('codeId')) is str and row['codeId'].startswith('https://github.com/') \
-                and '/blob/_contextdev_/' not in row['codeId'] else None
-            url = public_link(row.get('websiteUrl')) or public_link(source.split('#')[0] if source else None)
-            title = clean(row.get('codeTitle')) or clean(row.get('pageTitle'))
-            if not url or not title or title == 'Unknown' or (url, title) in seen or url in {i['url'] for i in items}:
-                continue
-            indexed = clean(row.get('generationDate'), 40)[:10]
-            # A follow-up step may search this title alone; keep the product it belongs to.
-            if name.casefold() not in title.casefold():
-                title = clean(name + ': ' + title)
-            items.append({'title': title, 'url': url,
-                          'summary': clean(row.get('codeDescription')) or 'Documentation section from ' + name + '.',
-                          'library': name, 'indexed_at': indexed if re.fullmatch(r'\d{4}-\d{2}-\d{2}', indexed) else ''})
-            seen.add((url, title))
-            if len(items) == limit:
-                break
-        return {'query': query, 'source': 'Context7', 'items': items, 'partial': False}
 
 
 _engine = None

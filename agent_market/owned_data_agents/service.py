@@ -98,6 +98,10 @@ def router_for(*, enabled=False, engine=None):
             elif method == 'tools/call':
                 if set(params) != {'name', 'arguments'} or params['name'] != spec['tool']:
                     raise ValueError()
+                from .source_terms import SUSPENDED
+                if agent_id in SUSPENDED:   # PM 11-15 17:02: answer without calling the source
+                    return JSONResponse({'jsonrpc': '2.0', 'id': identity, 'result': {
+                        'isError': True, 'content': [{'type': 'text', 'text': SUSPENDED[agent_id]}]}}, headers=headers)
                 output = await run_in_threadpool(execute, params['arguments'])
                 result = {'content': [{'type': 'text', 'text': display_text(output)}],
                           'structuredContent': output, 'isError': False}

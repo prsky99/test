@@ -2203,14 +2203,33 @@ def test_software_incident_keeps_every_patched_branch(tmp_path):
 
 
 def test_owned_data_agents_name_a_source_license_or_leave_it_empty():
-    """PM 11-15 16:52: each owned data agent spec carries its source license (name and https address) or None when
-    no license was found; the tool definitions do not change, so the contract approvals stay valid."""
-    from agent_market.owned_data_agents.catalog import SPECS, tool_spec
+    """PM 11-15 16:52/17:02: each owned data agent has its source license (name and https address) or None when no
+    license was found, kept in source_terms.py so the research/news adapter digest does not move."""
+    from agent_market.owned_data_agents.catalog import SPECS
     from agent_market.owned_data_agents import docs
-    specs = {**SPECS, docs.ID: docs.SPEC}
-    assert len(specs) == 8
-    for agent_id, spec in specs.items():
-        assert "license" in spec, agent_id
-        assert spec["license"] is None or "(https://" in spec["license"], agent_id
-    assert specs["technology-news"]["license"] is None
-    assert all("license" not in str(tool_spec(a)) or a == "package-metadata" for a in SPECS)   # npm data has a license field
+    from agent_market.owned_data_agents.source_terms import LICENSES, SUSPENDED
+    assert set(LICENSES) == set(SPECS) | {docs.ID} and len(LICENSES) == 8
+    for agent_id, value in LICENSES.items():
+        assert value is None or "(https://" in value, agent_id
+    assert LICENSES["technology-news"] is None and "technology-news" in SUSPENDED
+    assert "Context7" not in LICENSES["technical-docs"]
+    assert all("license" not in spec for spec in SPECS.values()) and "license" not in docs.SPEC
+
+
+def test_suspended_owned_agent_answers_without_calling_its_source():
+    """PM 11-15 17:02: technology-news (Hacker News, terms prohibit) is down; tools/list is unchanged."""
+    from fastapi.testclient import TestClient
+    from agent_market.owned_data_agents.catalog import tool_spec
+    from agent_market.owned_data_agents.engine import DataAgents
+    from agent_market.owned_data_agents.service import create_app
+
+    class NoCalls(DataAgents):
+        def execute(self, agent_id, arguments):
+            raise AssertionError("the source must not be called")
+    with TestClient(create_app(enabled=True, engine=NoCalls())) as client:
+        path = "/api/owned-data-agents/technology-news/mcp"
+        listed = client.post(path, json={"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}).json()
+        assert listed["result"]["tools"] == [tool_spec("technology-news")]
+        called = client.post(path, json={"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {
+            "name": "search_technology_news", "arguments": {"query": "ai", "limit": 1}}}).json()
+        assert called["result"]["isError"] is True and "suspended" in called["result"]["content"][0]["text"]
