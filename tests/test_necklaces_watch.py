@@ -106,10 +106,11 @@ def test_watch_hold_is_released_only_by_a_later_approval():
     approval = {"slug": "topic-brief", "version": 1, "definition_digest": model.digest(defn),
                 "state": "approved", "at": "2026-11-20T03:00:00Z"}
     summary = {"quality": {"delta_pp": 5, "tested_at": judge._iso(time.time() - 60)}}
-    held = judge.build_entry(defn, approval, summary, time.time(), state)
+    both = {(1, "x.v1"), (3, "y.v1")}
+    held = judge.build_entry(defn, approval, summary, time.time(), state, verified=both)
     assert held["status"] == "held" and held["held_reason"] == "security"
     again = dict(approval, at="2026-11-20T06:00:00Z")
-    assert judge.build_entry(defn, again, summary, time.time(), state)["status"] == "live"
+    assert judge.build_entry(defn, again, summary, time.time(), state, verified=both)["status"] == "live"
 
 
 def test_quiet_windows():
