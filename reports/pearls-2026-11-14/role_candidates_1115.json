@@ -1,5 +1,35 @@
 [
  {
+  "role": "cve.exploited.v1",
+  "id": 44420,
+  "tool": "cve_kev_lookup",
+  "host": "data.cybermax-tools.workers.dev"
+ },
+ {
+  "role": "cve.exploited.v1",
+  "id": 34792,
+  "tool": "check_cve",
+  "host": "cve.openkrill.app"
+ },
+ {
+  "role": "sec.filings.v1",
+  "id": 272753,
+  "tool": "get_filings",
+  "host": "mcp.getfilings.ai"
+ },
+ {
+  "role": "package.health.v1",
+  "id": 56136,
+  "tool": "package_health",
+  "host": "dephealth.dsh.sh"
+ },
+ {
+  "role": "package.health.v1",
+  "id": 267005,
+  "tool": "package_info",
+  "host": "api.wiscolabs.dev"
+ },
+ {
   "role": "web.grounding.v1",
   "id": 41945,
   "tool": "research",
