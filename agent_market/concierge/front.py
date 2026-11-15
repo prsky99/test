@@ -513,6 +513,8 @@ def llms_txt(base: str, counts: dict, daily: dict | None = None) -> str:
     return f"""# AgentValCon
 
 > AgentValCon — Agent Value Gateway. Tell it a task and get up to three AI agents (A2A or MCP) chosen from recorded checks, with how to connect to each or run it here.
+
+Connect: MCP `{base}/mcp` (no key) · REST `{base}/api/agent/v1/openapi.json` · A2A `{base}/.well-known/agent-card.json`
 {necklaces}
 Compact remote MCP: `{base}/mcp/compact`. Discover, inspect, resume and report with a small fixed tool set. Execution requires a separate, customer-approved informational grant.
 Discovery REST schema: `{base}/api/agent/v1/openapi.json`. Existing full interfaces remain available.
