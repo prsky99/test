@@ -84,6 +84,6 @@ def openapi_profile(document):
                 name=reference[len(prefix):]
                 components[name]=copy.deepcopy(document['components']['schemas'][name]);pending.append(components[name])
             pending.extend(v for k,v in value.items()if k!='$ref')
-    return {'openapi':document['openapi'],'info':{'title':'Agent Concierge discovery','version':'1.0.0'},
+    return {'openapi':document['openapi'],'info':{'title':'AgentValCon discovery','version':'1.0.0'},
         'servers':[{'url':'https://agentconcierge.biz'}],'x-agentconcierge-profile':'agent-discovery-v1',
         'paths':paths,'components':{'schemas':components}}

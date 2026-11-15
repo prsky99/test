@@ -2,7 +2,7 @@
 
 Find existing AI agents, MCP servers and x402 APIs for a task — with the recorded check behind each result — from Python, LangChain, CrewAI or the OpenAI Agents SDK.
 
-Agent Concierge catalogs about 258,000 public agents and keeps checking them (health checks, read-only trial calls, execution checks). A check records what happened when it ran; it does not guarantee that an agent works now. Discovery is read-only and needs no key.
+AgentValCon catalogs about 258,000 public agents and keeps checking them (health checks, read-only trial calls, execution checks). A check records what happened when it ran; it does not guarantee that an agent works now. Discovery is read-only and needs no key.
 
 ```bash
 pip install agent-concierge

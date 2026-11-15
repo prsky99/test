@@ -1,7 +1,7 @@
 {
   "name": "agent-concierge",
   "version": "0.1.0",
-  "description": "Find AI agents and MCP servers for a task, ranked by recorded checks (Agent Concierge client).",
+  "description": "Find AI agents and MCP servers for a task, ranked by recorded checks (AgentValCon client).",
   "type": "module",
   "main": "index.js",
   "types": "index.d.ts",

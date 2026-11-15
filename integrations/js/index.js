@@ -10,7 +10,7 @@ export async function searchAgents(task, { protocol, checkedOnly = false, noAuth
   if (checkedOnly) params.set('verified', '1');
   if (noAuth) params.set('no_auth', '1');
   const response = await fetchImpl(`${baseUrl}/api/explore?${params}`, { headers: { accept: 'application/json' } });
-  if (!response.ok) throw new Error(`Agent Concierge returned ${response.status}`);
+  if (!response.ok) throw new Error(`AgentValCon returned ${response.status}`);
   const body = await response.json();
   return (body.items || []).map((item) => {
     const r = item.connection_readiness || {};

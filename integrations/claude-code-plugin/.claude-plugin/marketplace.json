@@ -1,7 +1,7 @@
 {
   "name": "agent-concierge",
   "owner": {
-    "name": "Agent Concierge",
+    "name": "AgentValCon",
     "url": "https://agentconcierge.biz"
   },
   "plugins": [
@@ -12,6 +12,6 @@
     }
   ],
   "metadata": {
-    "description": "Agent Concierge: find AI agents and MCP servers for a task, ranked by recorded checks."
+    "description": "AgentValCon: find AI agents and MCP servers for a task, ranked by recorded checks."
   }
 }

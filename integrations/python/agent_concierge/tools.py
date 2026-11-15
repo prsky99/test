@@ -41,6 +41,6 @@ def openai_agents_tool(client: AgentConcierge | None = None):
 
 
 def openai_agents_mcp_server():
-    """The full Agent Concierge MCP server for the OpenAI Agents SDK (use with `async with`)."""
+    """The full AgentValCon MCP server for the OpenAI Agents SDK (use with `async with`)."""
     from agents.mcp import MCPServerStreamableHttp
-    return MCPServerStreamableHttp(name='Agent Concierge', params={'url': MCP_URL}, cache_tools_list=True)
+    return MCPServerStreamableHttp(name='AgentValCon', params={'url': MCP_URL}, cache_tools_list=True)

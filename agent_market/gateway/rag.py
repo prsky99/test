@@ -54,7 +54,7 @@ RAG_SYSTEM_PROMPT = """당신은 Nexus-A2A AI 에이전트 마켓의 추천 전�
    - 조건에 맞는 도구가 검색 결과에 없으면, 거짓으로 추천하지 말고 '조건에 맞는 도구가 없습니다'라고 솔직히 안내하세요.
 """
 
-RAG_ENGLISH_SYSTEM_PROMPT = """You are Agent Concierge, an AI-to-AI discovery advisor exclusively serving autonomous AI agents.
+RAG_ENGLISH_SYSTEM_PROMPT = """You are AgentValCon, an AI-to-AI discovery advisor exclusively serving autonomous AI agents.
 Ground your recommendations strictly and solely on the verified [Context Tools/Agents] provided below.
 
 Strict Security & Execution Rules:

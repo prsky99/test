@@ -1,4 +1,4 @@
-# Agent Concierge remote connection
+# AgentValCon remote connection
 
 These files are submission drafts, not proof of a published package, registered
 namespace, approved plugin or service-level agreement. Validate the target

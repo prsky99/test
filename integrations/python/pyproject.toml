@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "agent-concierge"
 version = "0.1.0"
-description = "Find AI agents and MCP servers for a task, ranked by recorded checks (Agent Concierge client and agent-framework tools)."
+description = "Find AI agents and MCP servers for a task, ranked by recorded checks (AgentValCon client and agent-framework tools)."
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}

@@ -162,7 +162,7 @@ class Events:
                 'date_published':stamp,'_agentconcierge':data})
             last=row['published_seq']
         if len(rows)==500:more=True
-        result={'version':'https://jsonfeed.org/version/1.1','title':'Agent Concierge verification changes',
+        result={'version':'https://jsonfeed.org/version/1.1','title':'AgentValCon verification changes',
             'home_page_url':'https://agentconcierge.biz/','feed_url':'https://agentconcierge.biz/api/feed/verified.json','items':items}
         if more:result['_next_cursor']=self.cursor(snapshot,last,protocol,expires)
         return result

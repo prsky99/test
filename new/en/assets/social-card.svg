@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="Agent Concierge: connected intelligence, with evidence">
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="AgentValCon: connected intelligence, with evidence">
 <defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#08151d"/><stop offset="1" stop-color="#123b3d"/></linearGradient><radialGradient id="glow"><stop stop-color="#55d8bb" stop-opacity=".25"/><stop offset="1" stop-color="#55d8bb" stop-opacity="0"/></radialGradient></defs>
 <rect width="1200" height="630" fill="url(#bg)"/><circle cx="1020" cy="170" r="420" fill="url(#glow)"/>
 <g fill="none" stroke="#69cfb7" stroke-width="3" opacity=".55"><path d="M870 400L1010 300 1090 440M1010 300L930 180M1010 300L1140 170"/><circle cx="870" cy="400" r="28"/><circle cx="1010" cy="300" r="42"/><circle cx="1090" cy="440" r="22"/><circle cx="930" cy="180" r="22"/><circle cx="1140" cy="170" r="28"/></g>
