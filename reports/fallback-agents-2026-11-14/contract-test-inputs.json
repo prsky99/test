@@ -310,5 +310,91 @@
    null,
    {}
   ]
+ ],
+ "airport-lookup": [
+  [
+   {
+    "code": "LAX"
+   },
+   "ok",
+   "snapshot",
+   {
+    "url": "https://ourairports.com/airports/KLAX/"
+   }
+  ],
+  [
+   {
+    "code": "ICN"
+   },
+   "ok",
+   "snapshot",
+   {
+    "url": "https://ourairports.com/airports/RKSI/"
+   }
+  ],
+  [
+   {
+    "code": ""
+   },
+   "invalid_input",
+   null,
+   {}
+  ],
+  [
+   {
+    "code": "QQ"
+   },
+   "not_found",
+   null,
+   {}
+  ]
+ ],
+ "tz-time": [
+  [
+   {
+    "timezone": "Asia/Seoul"
+   },
+   "ok",
+   "snapshot",
+   {
+    "url": "https://www.iana.org/time-zones"
+   }
+  ],
+  [
+   {
+    "location": "37.5665,126.9780"
+   },
+   "ok",
+   "snapshot",
+   {
+    "url": "https://github.com/evansiroky/timezone-boundary-builder"
+   }
+  ],
+  [
+   {
+    "city": "Atlantis"
+   },
+   "not_found",
+   null,
+   {}
+  ]
+ ],
+ "sec-filings": [
+  [
+   {
+    "ticker": "MSFT"
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "cik": "12ab"
+   },
+   "invalid_input",
+   null,
+   {}
+  ]
  ]
 }
