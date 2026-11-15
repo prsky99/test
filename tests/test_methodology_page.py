@@ -64,3 +64,16 @@ def test_what_we_measure_comes_first_with_its_source():
     for item in ('Real calls.', 'Changes to its tools.', 'Last success.'):
         assert page.index(item) > first
     assert mp.TREND_STUDY in page and '9,695' in page
+
+
+def test_gate_section_tells_rules_from_what_has_run(tmp_path, monkeypatch):
+    """11-15 (workflow team, from code): 0.95 is the gate's rate, the 0.8 hold comes at the next daily check, and while
+    nothing is offered the page says the retest rules have not been applied to a live necklace."""
+    monkeypatch.setenv('AGENTCON_PROJECT_ROOT', str(tmp_path))      # no snapshot: nothing offered
+    data = mp.method()
+    page = mp.page_html(data=data, log=[])
+    text = re.sub(r'<[^>]+>', ' ', page)
+    assert 'immediate hold' not in text and 'keeps passing its retests' not in text
+    assert 'held at the next daily check below' in text and 'gate pass rate (first opening)' in text
+    assert 'No necklace is offered yet' in text
+    assert "each server's tool" not in page and 'records what changed' in page

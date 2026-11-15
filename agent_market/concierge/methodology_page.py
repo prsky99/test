@@ -78,10 +78,13 @@ def page_html(base='https://agentconcierge.biz', data=None, log=None):
                  '2026</a>). So we record what happens when an agent is called:</p><ul>'
                  '<li><strong>Real calls.</strong> A read-only test call to the agent&#39;s own tool with fixed inputs, '
                  'and its answer judged against known facts (sections 2 and 3).</li>'
-                 # 11-15 PM 12:0x: only what runs today, in the PM's words (ops checked the production DB). The necklace
-                 # hold on a fingerprint change (necklaces/watch.py) is not claimed until it runs and the PM confirms it.
-                 '<li><strong>Changes to its tools.</strong> Our daily survey keeps a hash of each server&#39;s tool '
-                 'list, and pearl test reports keep a hash of the answer.</li>'
+                 # 11-15 PM 12:1x: only what runs today, checked in code (collector/capabilities.py:171-181, a2a.py:714-732,
+                 # store.py:1934; scripts/report_v2.py:629). Not "each server": ops found hashes on 26,804 of 43,075
+                 # active MCP servers. The necklace hold on a fingerprint change (necklaces/watch.py) is not claimed
+                 # until it runs and the PM confirms it.
+                 '<li><strong>Changes to its tools.</strong> When our collector reads a server&#39;s tool list or an '
+                 'agent card, it keeps a hash of it and records what changed; pearl test reports keep a hash of the '
+                 'answer they judged.</li>'
                  '<li><strong>Last success.</strong> Every recommendation shows when the agent last passed a check.</li></ul>'
                  '</section>')
     cand = data.get('candidates') or {}
@@ -132,10 +135,23 @@ def page_html(base='https://agentconcierge.biz', data=None, log=None):
             yield prefix, ', '.join(str(v).replace('_', ' ') for v in value)
         else:
             yield prefix, value
-    gate_rows = [[esc(k), esc(v)] for k, v in flat('', gate)]
+    # 11-15 (workflow team, from code): 0.95 is the gate's pass rate and is not enforced at retest; the 0.8 hold is
+    # written by the 05:20 daily summary and applied by the judge at its next hourly run, not at once.
+    shown = {'retest · pass rate': 'gate pass rate (first opening)',
+             'retest · immediate hold below': 'retest · held at the next daily check below'}
+    gate_rows = [[esc(shown.get(k, k)), esc(v)] for k, v in flat('', gate)]
+    try:
+        from .necklace_surface import live
+        offered_now = len(live())
+    except Exception:
+        offered_now = None
     parts.append('<section aria-labelledby="mGate"><h2 id="mGate">5. Necklace gate</h2>'
-                 '<p>A necklace (a workflow of pearls) is offered only after it passes this gate and keeps passing its retests. '
-                 'Its page shows its own recent results.</p>' + _table(['Item', 'Value'], gate_rows) + '</section>')
+                 '<p>A necklace (a workflow of pearls) is offered only after it passes this gate. After that, a day&#39;s '
+                 'retest success below 0.8, a retest older than 48 hours, or a delta of 0 or less holds it at the next '
+                 'daily check. Its page shows its own recent results.</p>'
+                 + ('<p class="muted">No necklace is offered yet, so these retest rules have not been applied to a live '
+                    'one.</p>' if offered_now == 0 else '')
+                 + _table(['Item', 'Value'], gate_rows) + '</section>')
     roles = [r for r in data.get('roles') or [] if isinstance(r, dict)]
     parts.append('<section aria-labelledby="mRoles"><h2 id="mRoles">6. Roles (' + str(len(roles)) + ')</h2>'
                  '<p>Each role has example inputs and checks. Answer sets are withheld so that they cannot be tuned to.</p>'
