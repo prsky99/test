@@ -1,5 +1,5 @@
 {
-  "about": "Terms of use per necklace member, one place for every definition and template stamp (PM 13:53, 11-15). Key: an external member's resource_id, or agent:<agent_id> for our own agents outside the fallback catalogue. status allowed | silent | prohibits; source (https) and checked_at are required, basis names the clause. Written by the agent team (reports/necklace-terms-2026-11-15); a member missing here is unknown.",
+  "about": "Terms of use per necklace member, one place for every definition and template stamp (PM 13:53, 11-15). Key: an external member's resource_id, or agent:<agent_id> for our own agents outside the fallback catalogue. status allowed | silent | prohibits; source (https) and checked_at are required, basis names the clause. Written by the agent team (reports/necklace-terms-2026-11-15); a member missing here is unknown. Every change appends to changes (member, from, to, source, at, by): use `python -m scripts.necklace_gate set-terms`.",
   "members": {
     "37322": {
       "status": "allowed",
@@ -49,5 +49,71 @@
       "checked_at": "2026-11-15",
       "basis": "Limits section: keyless public MCP server for any MCP app, 120 requests a minute and 3,000 a day per network; addresses are geocoded through Google Maps or geocode.maps.co"
     }
-  }
+  },
+  "changes": [
+    {
+      "member": "37322",
+      "from": "unknown",
+      "to": "allowed",
+      "source": "https://datakoot.com/terms",
+      "at": "2026-11-15",
+      "by": "agent team (reports/necklace-terms-2026-11-15)"
+    },
+    {
+      "member": "38608",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://invokera.com/",
+      "at": "2026-11-15",
+      "by": "agent team (reports/necklace-terms-2026-11-15)"
+    },
+    {
+      "member": "52559",
+      "from": "unknown",
+      "to": "allowed",
+      "source": "https://presend.pages.dev/api",
+      "at": "2026-11-15",
+      "by": "agent team (reports/necklace-terms-2026-11-15)"
+    },
+    {
+      "member": "58997",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://filings.tools/terms",
+      "at": "2026-11-15",
+      "by": "agent team (reports/necklace-terms-2026-11-15)"
+    },
+    {
+      "member": "132732",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://xfix.ai/terms/",
+      "at": "2026-11-15",
+      "by": "agent team (reports/necklace-terms-2026-11-15)"
+    },
+    {
+      "member": "178542",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://augur-trade.com/",
+      "at": "2026-11-15",
+      "by": "agent team (reports/necklace-terms-2026-11-15)"
+    },
+    {
+      "member": "241601",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://github.com/charleswei118/web2mcp",
+      "at": "2026-11-15",
+      "by": "agent team (reports/necklace-terms-2026-11-15)"
+    },
+    {
+      "member": "264482",
+      "from": "unknown",
+      "to": "allowed",
+      "source": "https://dmvtransit.com/mcp-server",
+      "at": "2026-11-15",
+      "by": "agent team (reports/necklace-terms-2026-11-15)"
+    }
+  ]
 }

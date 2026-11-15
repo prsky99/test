@@ -226,6 +226,7 @@ def check(defn: dict, client, base: str = BASE, verified=None, substitutes=None,
             "pearls": {"seated_pearl_slots": seated_pearl_slots, "in_every_run": always, "needed_per_run": need,
                        "met_in_every_run": len(always) >= need,
                        "met_when_optional_inputs_given": len(seated_pearl_slots) >= need},
+            "terms_unknown": sum(1 for s in slots for m in s["members"] if m.get("terms") == "unknown"),
             "problems": problems, "warnings": warnings, "ok": not problems and len(always) >= need}
 
 
@@ -248,6 +249,22 @@ def shared_domain_warnings(defn: dict, state: dict | None = None) -> list[str]:
                 out.append(f"slots {a} and {b} rest only on external members of {next(iter(shared))} "
                            f"(one failure domain)")
     return out
+
+
+def set_terms(member: str, status: str, source: str, basis: str, by: str = "agent team", path=None, today=None) -> dict:
+    """One terms verdict into member_terms.json, appending what changed (PM 14:12): the table is outside the
+    definition digest, so its own history says who changed which member from what to what, on which source."""
+    if status not in ("allowed", "silent", "prohibits") or not source.startswith("https://"):
+        raise ValueError("status allowed|silent|prohibits and an https source")
+    path = Path(path or model.TERMS_TABLE)
+    data = json.loads(path.read_text(encoding="utf-8"))
+    day = today or time.strftime("%Y-%m-%d")
+    before = (data["members"].get(member) or {}).get("status", "unknown")
+    data["members"][member] = {"status": status, "source": source, "checked_at": day, "basis": basis}
+    change = {"member": member, "from": before, "to": status, "source": source, "at": day, "by": by}
+    data.setdefault("changes", []).append(change)
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return change
 
 
 GATE_PER_DAY = (3, 5)       # PM 11:4x decision 4: 3 to 5 necklaces a day
@@ -279,9 +296,18 @@ def main(argv=None) -> int:
     one.add_argument("slug")
     one.add_argument("--base", default=BASE)
     sub.add_parser("terms", help="terms-of-use status of every member of every definition (PM 13:0x)")
+    terms = sub.add_parser("set-terms", help="record one member's terms verdict in member_terms.json (with history)")
+    terms.add_argument("member", help="external resource_id, or agent:<agent_id>")
+    terms.add_argument("status", choices=("allowed", "silent", "prohibits"))
+    terms.add_argument("source", help="https URL of the terms read")
+    terms.add_argument("basis", help="the clause, named not quoted")
+    terms.add_argument("--by", default="agent team")
     plan = sub.add_parser("schedule", help="gate days: necklaces with no shared provider domain together")
     plan.add_argument("slugs", nargs="*", help="default: every candidate and qualifying definition")
     args = parser.parse_args(argv)
+    if args.command == "set-terms":
+        print(json.dumps(set_terms(args.member, args.status, args.source, args.basis, by=args.by), ensure_ascii=False))
+        return 0
     if args.command == "schedule":
         found = {d["slug"]: d for d in model.load_all()}
         defs = ([found[s] for s in args.slugs] if args.slugs else
@@ -306,7 +332,7 @@ def main(argv=None) -> int:
     path = OUT / f"check-{args.slug}-v{defn['version']}-{time.strftime('%Y%m%d-%H%M')}.json"
     path.write_text(json.dumps(result, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     print(json.dumps({"file": str(path), "ok": result["ok"], "pearls": result["pearls"],
-                      "warnings": result.get("warnings") or [],
+                      "warnings": result.get("warnings") or [], "terms_unknown": result.get("terms_unknown"),
                       "denied": [(s["slot"], m["id"], m.get("error_code"), m.get("reference")) for s in result["slots"]
                                  for m in s["members"] if m.get("relay") == "denied"]}, ensure_ascii=False))
     return 0 if result["ok"] else 1

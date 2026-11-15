@@ -230,3 +230,22 @@ def test_invokera_necklaces_go_on_different_days_and_one_domain_is_a_warning():
     assert necklace_gate.shared_domain_warnings(both) == [
         "slots a and b rest only on external members of invokera.com (one failure domain)"]
     assert necklace_gate.shared_domain_warnings(book) == []
+
+
+def test_terms_changes_leave_their_history_and_the_gate_counts_unknown(tmp_path):
+    """PM 14:12: member_terms.json is outside the digest, so every change records member, from, to, source and day;
+    the gate check keeps showing how many members of a necklace still have unknown terms."""
+    import json as _json
+    table = _json.loads(model.TERMS_TABLE.read_text())
+    for key, entry in table["members"].items():            # every verdict has its change record
+        assert any(c["member"] == key and c["to"] == entry["status"] for c in table["changes"]), key
+    copy = tmp_path / "terms.json"
+    copy.write_text(_json.dumps(table))
+    change = necklace_gate.set_terms("86011", "allowed", "https://tidydata.example/terms", "section API use",
+                                     path=copy, today="2026-11-16")
+    assert change == {"member": "86011", "from": "unknown", "to": "allowed", "source": "https://tidydata.example/terms",
+                      "at": "2026-11-16", "by": "agent team"}
+    again = necklace_gate.set_terms("86011", "prohibits", "https://tidydata.example/terms", "s2", path=copy, today="2026-11-17")
+    assert again["from"] == "allowed" and _json.loads(copy.read_text())["changes"][-1] == again
+    out, _ = run(set())
+    assert out["terms_unknown"] == sum(1 for s in out["slots"] for m in s["members"] if m["terms"] == "unknown")
