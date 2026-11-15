@@ -500,7 +500,7 @@ def llms_txt(base: str, counts: dict, daily: dict | None = None) -> str:
                                       'Ads for agents: MCP and A2A answers may end with one offer in a separate `sponsored` field (`ads=none` leaves it out); REST answers carry none, call `' + base + '/api/ad-coin/v2/sponsored/offer?category=<site category>&surface=rest` for it. Every placement: `' + base + '/ads/library`.\n')
     return f"""# AgentValCon
 
-> AgentValCon — Agent Value Gateway. Discover up to three relevant AI agents using recorded evidence. Public pages and machine interfaces support A2A, MCP and x402.
+> AgentValCon — Agent Value Gateway. Discover up to three relevant AI agents using recorded evidence. Public pages and machine interfaces support A2A and MCP. x402 listings come from earlier records: new x402 collection is paused until paid tests are possible, their grade is at most B, and they appear only when x402 is chosen explicitly.
 {necklaces}
 Compact remote MCP: `{base}/mcp/compact`. Discover, inspect, resume and report with a small fixed tool set. Execution requires a separate, customer-approved informational grant.
 Discovery REST schema: `{base}/api/agent/v1/openapi.json`. Existing full interfaces remain available.
@@ -510,7 +510,6 @@ POST requests under /api/ accept an optional `Idempotency-Key` (8-128 characters
 
 ## Service overview
 Read `{base}/new/en/about.html` for the service overview, value, principles and vision.
-The About navigation item follows List Your Agent. The AgentValCon logo opens the Home overview.
 
 ## Public pages and live examples
 - Explore: `{base}/new/en/explore.html`
