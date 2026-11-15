@@ -600,9 +600,12 @@ def usage(day_data):
             'mcp_client_names_probe': sum(1 for n in names if PROBE_NAME.search(n)),
             'external_distinct_clients': sum(v for k, v in dist.items() if k.split('|')[1] in external),
             # Ad demand (11-15 PM): people on the advertiser pages, and how many came from the agent-page note.
-            'advertise_human_requests': req.get('advertise|browser', 0),
-            'advertise_human_visitors': dist.get('advertise|browser', 0),
-            'advertise_from_agent_page_human': req.get('advertise_from_agent_page|browser', 0),
+            # None while the day has no advertise entry at all (days before the counter shipped read as unknown, not 0).
+            **({'advertise_human_requests': req.get('advertise|browser', 0),
+                'advertise_human_visitors': dist.get('advertise|browser', 0),
+                'advertise_from_agent_page_human': req.get('advertise_from_agent_page|browser', 0)}
+               if any(k.startswith('advertise|') for k in req) else
+               {'advertise_human_requests': None, 'advertise_human_visitors': None, 'advertise_from_agent_page_human': None}),
             'protocol_errors': sum(day_data['errors'].values()),
             # 405/404 that the protocol itself prescribes (GET SSE, DELETE session, optional discovery files) apart
             # from the rest (11-14 PM): only protocol_errors_other is worth fixing.

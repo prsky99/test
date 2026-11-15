@@ -45,6 +45,8 @@ def test_usage_reads_the_advertise_counts():
            'distinct': {'advertise|browser': 3}, 'rpc': {}, 'mcp_clients': {}, 'errors': {}}
     row = usage(day)
     assert (row['advertise_human_requests'], row['advertise_human_visitors'], row['advertise_from_agent_page_human']) == (5, 3, 2)
+    before = usage({**day, 'requests': {'home|browser': 4}, 'distinct': {}})    # a day before the counter shipped
+    assert before['advertise_human_requests'] is None and before['advertise_from_agent_page_human'] is None
 
 
 def test_the_real_middleware_counts_a_note_click_and_keeps_one_cache_policy(catalog, tmp_path, monkeypatch):  # noqa: F811

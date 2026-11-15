@@ -284,3 +284,24 @@ def test_the_build_start_writes_the_usage_line_before_the_snapshot_finishes(tmp_
     job.run()            # the first slice only plans and starts; the snapshot is far from done
     assert job.steps is not None
     assert [json.loads(l)['day'] for l in (root / 'growth' / 'usage-daily.jsonl').read_text().splitlines()] == ['2026-11-12']
+
+
+def test_the_usage_line_comes_thirty_minutes_after_utc_midnight_outside_the_build_window(tmp_path):
+    """11-15 PM (revenue review 3.3): the build window is 03-07 KST = 18-22 UTC of the day before, so the finished day's
+    line used to wait a day and a half. due() now writes it once per UTC day after 00:30 UTC, whatever the hour in Seoul."""
+    import json
+    from datetime import datetime, timezone
+    from agent_market.concierge.task_pages_job import TaskPagesRefresher
+    root = tmp_path / 'logs'
+    _traffic_day(root, '2026-11-14', 'Cursor')
+    now = [datetime(2026, 11, 15, 0, 20, tzinfo=timezone.utc).timestamp()]     # 09:20 KST: too early
+    job = TaskPagesRefresher(None, out=root / 'service-frontend' / 'public-pages' / 'task-pages.json',
+                             clock=lambda: now[0], categories=[])
+    target = root / 'growth' / 'usage-daily.jsonl'
+    assert job.due() is False and not target.exists()
+    now[0] = datetime(2026, 11, 15, 0, 31, tzinfo=timezone.utc).timestamp()     # 09:31 KST, outside 03-07 KST
+    assert job.due() is False                                                   # the build itself still waits
+    assert [json.loads(line)['day'] for line in target.read_text().splitlines()] == ['2026-11-14']
+    now[0] = datetime(2026, 11, 15, 5, tzinfo=timezone.utc).timestamp()
+    job.due()
+    assert len(target.read_text().splitlines()) == 1                            # once per UTC day

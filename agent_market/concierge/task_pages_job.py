@@ -24,6 +24,7 @@ from .task_catalog import Assembler, plan, write
 log = logging.getLogger(__name__)
 ZONE = ZoneInfo('Asia/Seoul')
 USAGE_BACKFILL_DAYS = 7     # finished UTC days the usage file is checked for
+USAGE_AFTER_MINUTES = 30    # after UTC midnight: every frontend process has flushed the finished day by then
 
 
 def write_usage_lines(logs, today, days, traffic):
@@ -107,6 +108,7 @@ class TaskPagesRefresher:
         self.position = 0
         self.assembler = None
         self.attempted_day = None
+        self.usage_day = None   # the UTC day whose usage check already ran (11-15)
         self.retry_at = 0.
         self.notice = None   # {'urls': [...], 'pages': {...}, 'attempts': n} waiting to be sent
         self.submit = None   # injectable for tests; defaults to indexnow.submit
@@ -118,7 +120,16 @@ class TaskPagesRefresher:
             return float('inf')
 
     def due(self):
-        if self.out is None or self.clock() < self.retry_at:
+        if self.out is None:
+            return False
+        # 11-15 PM (revenue review 3.3): the usage line of a finished UTC day is written once UTC midnight is 30 minutes
+        # past, whatever the build window. The build starts at 03:00 KST = 18:00 UTC of the day before, so the line
+        # for a day used to wait a day and a half (11-14 and 11-15 looked missing on 11-15).
+        utc = datetime.fromtimestamp(self.clock(), timezone.utc)
+        if self.usage_day != utc.date() and utc.hour * 60 + utc.minute >= USAGE_AFTER_MINUTES:
+            self.usage_day = utc.date()
+            self.record_usage()
+        if self.clock() < self.retry_at:
             return False
         if self.notice is not None:
             return True
