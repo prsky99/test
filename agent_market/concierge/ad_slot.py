@@ -8,8 +8,8 @@ until it does, nothing is attached. Rules:
   so an ad cannot change what was found or its order;
 - the offer goes into a separate `sponsored` list (at most one item) after the results, and its text line, labelled
   "Sponsored:", comes after the organic text;
-- `ads: "none"` (tool argument, A2A data part or query) or the header `Prefer: ads=none` / `X-Ads: none` leaves the
-  slot empty; the provider is then not called at all (nothing is counted);
+- the slot is always offered (user decision 11-15: there is no free opt-out; ad-free answers will be a paid monthly
+  subscription once usage grows). An `ads` argument or header is ignored and removed before the organic tools run;
 - a provider error, a slow provider or a malformed offer leaves the slot empty; the organic answer never fails.
 The offer's fields are the AD Coin team's schema (agent_market/ad_coin/v2/sponsored_offer.py, agent_block); this module
 only checks the label, caps sizes and strips control characters, so that an offer cannot pose as an instruction line.
@@ -27,16 +27,13 @@ FACT_NOTE = 'Measured by AgentValCon; advertising cannot change it.'
 FACT_SECONDS = 600
 _FACTS = {}
 LABEL = 'Sponsored'
-OPT_OUT = 'none'
 DESCRIPTION_LINE = ('Ads: at most one offer labelled "Sponsored" may follow the results in a separate `sponsored` field; '
-                    'it never changes the results. Send ads="none" to leave it out.')
-ADS_ARGUMENT = {'ads': {'type': 'string', 'enum': [OPT_OUT],
-                        'description': 'Send "none" to leave out the Sponsored offer that may follow the results.'}}
+                    'it never changes the results.')
 MAX_LINE = 400
 MAX_FIELD = 2000
 SLOW_SECONDS = 0.05      # the provider is an in-memory lookup; a slower call is noted, never retried
 _CONTROL = re.compile(r'[\x00-\x1f\x7f  ]+')
-_STATS = {'calls': 0, 'filled': 0, 'errors': 0, 'slow': 0, 'opted_out': 0}
+_STATS = {'calls': 0, 'filled': 0, 'errors': 0, 'slow': 0}
 
 
 def register(provider):
@@ -68,19 +65,9 @@ def _header(headers, name):
         return ''
 
 
-def opted_out(arguments=None, headers=None, query=None):
-    values = [(arguments or {}).get('ads') if isinstance(arguments, dict) else None,
-              (query or {}).get('ads') if query is not None else None]
-    if any(isinstance(v, str) and v.strip().lower() == OPT_OUT for v in values):
-        return True
-    prefer = _header(headers, 'prefer').lower()
-    if any(part.strip().replace(' ', '') == 'ads=none' for part in prefer.split(',')):
-        return True
-    return any(_header(headers, name).strip().lower() == OPT_OUT for name in ('ads', 'x-ads'))
-
-
 def strip_option(arguments):
-    """Arguments without `ads`, so the organic tools see exactly what they saw before this slot existed."""
+    """Arguments without `ads` (an old opt-out an agent may still send; ignored since 11-15), so the organic tools see
+    exactly what they saw before this slot existed and the request never fails on it."""
     return {k: v for k, v in arguments.items() if k != 'ads'} if isinstance(arguments, dict) and 'ads' in arguments else arguments
 
 
@@ -197,18 +184,15 @@ def line(item):
     return text[:MAX_LINE]
 
 
-def fill(ctx, opted):
-    """[offer] or [] for the answer; [] without calling the provider when the caller opted out."""
-    if opted:
-        _STATS['opted_out'] += 1
-        return []
+def fill(ctx):
+    """[offer] or [] for the answer."""
     found = offer(ctx)
     return [found] if found else []
 
 
-def attach_mcp(result, ctx, opted):
+def attach_mcp(result, ctx):
     """An MCP tools/call result with the slot after the organic content; unchanged when there is no offer."""
-    items = fill(ctx, opted)
+    items = fill(ctx)
     if not items or not isinstance(result, dict) or result.get('isError'):
         return result
     structured = result.get('structuredContent')
@@ -219,9 +203,9 @@ def attach_mcp(result, ctx, opted):
     return out
 
 
-def attach_a2a(text, payload, ctx, opted):
+def attach_a2a(text, payload, ctx):
     """(text, payload) of an A2A answer with the slot after the organic text and data; unchanged without an offer."""
-    items = fill(ctx, opted)
+    items = fill(ctx)
     if not items:
         return text, payload
     return (text + '\n\n' + line(items[0]) if text else line(items[0])), {**payload, 'sponsored': items}

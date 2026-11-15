@@ -48,8 +48,9 @@ def test_nothing_is_attached_until_a_provider_is_registered(client):  # noqa: F8
 
 
 def test_offer_follows_the_results_and_the_organic_answer_is_unchanged(client, provider):  # noqa: F811
-    plain = call(client, 'find_agents', {'task': 'research sources', 'ads': 'none'})
-    assert 'sponsored' not in plain['structuredContent'] and provider == []          # opted out: provider not called
+    ad_slot.register(None)
+    plain = call(client, 'find_agents', {'task': 'research sources'})                  # the same answer with no ad side
+    ad_slot.register(lambda ctx: (provider.append(ctx), dict(OFFER))[1])
     with_ad = call(client, 'find_agents', {'task': 'research sources'})
     organic = {k: v for k, v in with_ad['structuredContent'].items() if k not in ('sponsored', 'text')}
     assert organic == {k: v for k, v in plain['structuredContent'].items() if k != 'text'}
@@ -69,10 +70,11 @@ def test_offer_follows_the_results_and_the_organic_answer_is_unchanged(client, p
     assert 'recommendations' not in ctx and 'visitor' not in ctx
 
 
-def test_opt_out_by_header_and_measurement_requests_are_not_counted(client, provider):  # noqa: F811
-    for headers in ({'Prefer': 'ads=none'}, {'X-Ads': 'none'}, {'Ads': 'none'}):
-        assert 'sponsored' not in call(client, 'search', {'task': 'research sources'}, headers)['structuredContent']
-    assert provider == []
+def test_ads_are_always_shown_and_measurement_requests_are_not_counted(client, provider):  # noqa: F811
+    """User 11-15: no free opt-out; an `ads` argument or opt-out header is ignored and never fails the request."""
+    for args, headers in (({'ads': 'none'}, None), ({}, {'Prefer': 'ads=none'}), ({}, {'X-Ads': 'none'}), ({}, {'Ads': 'none'})):
+        assert call(client, 'search', {'task': 'research sources', **args}, headers)['structuredContent']['sponsored']
+    assert len(provider) == 4 and all('ads' not in str(ctx.get('task')) for ctx in provider)
     call(client, 'search', {'task': 'research sources'}, {'X-Agentcon-QA': '1', 'CF-IPCountry': 'us'})
     assert provider[-1]['counted'] is False and provider[-1]['region'] == 'US'
 
@@ -81,7 +83,7 @@ def test_best_for_role_gets_the_slot_with_the_role_field(snap, client, provider)
     r = call(client, 'best_for_role', {'role': 'weather.forecast.v1'})
     assert r['structuredContent']['verified_pearls'][0]['agent_id'] == 11 and r['structuredContent']['sponsored']
     assert provider[-1]['role'] == 'weather.forecast.v1' and provider[-1]['role_field'] == 'travel'
-    assert 'sponsored' not in call(client, 'best_for_role', {'role': 'weather.forecast.v1', 'ads': 'none'})['structuredContent']
+    assert call(client, 'best_for_role', {'role': 'weather.forecast.v1', 'ads': 'none'})['structuredContent']['sponsored']
     assert 'sponsored' not in call(client, 'verify_agent', {'agent_id': 11})['structuredContent']   # no ad on a single-agent check
 
 
@@ -94,11 +96,11 @@ def test_a_failing_slow_or_unlabelled_provider_leaves_the_slot_empty(client):  #
     ad_slot.register(None)
 
 
-def test_tools_say_where_the_slot_is_and_how_to_leave_it_out(client):  # noqa: F811
+def test_tools_say_where_the_slot_is_and_offer_no_opt_out(client):  # noqa: F811
     tools = {t['name']: t for t in client.post('/mcp', json={'jsonrpc': '2.0', 'id': 1, 'method': 'tools/list'}).json()['result']['tools']}
     for name in ('search', 'find_agents', 'best_for_role'):
-        assert ad_slot.DESCRIPTION_LINE in tools[name]['description']
-        assert tools[name]['inputSchema']['properties']['ads']['enum'] == ['none']
+        assert ad_slot.DESCRIPTION_LINE in tools[name]['description'] and 'ads="none"' not in tools[name]['description']
+        assert 'ads' not in tools[name]['inputSchema'].get('properties', {})          # no opt-out (user 11-15)
         assert tools[name]['outputSchema']['properties']['sponsored']['maxItems'] == 1
     assert 'ads' not in tools['verify_agent']['inputSchema']['properties']
 
@@ -123,15 +125,15 @@ def test_a2a_answer_gets_the_slot_after_the_text_and_data(client, provider, monk
     text, data = send()
     assert text['text'].rstrip().splitlines()[-1].startswith('Sponsored: Acme Weather') and data['data']['sponsored']
     assert provider[-1]['surface'] == 'a2a' and provider[-1]['categories'] == ['web_search']
-    text, data = send({'ads': 'none'})
-    assert 'Sponsored:' not in text['text'] and 'sponsored' not in data['data'] and len(provider) == 1
+    text, data = send({'ads': 'none'})                                                  # ignored (user 11-15)
+    assert 'Sponsored:' in text['text'] and data['data']['sponsored'] and len(provider) == 2
 
 
 def test_rest_agents_are_told_where_the_offer_is(client):  # noqa: F811
     """PM 11-14 decision (a): edge-cached REST answers carry no ad; openapi and llms.txt point REST agents to the offer route."""
     spec = client.get('/openapi.json').json()
     assert spec['info']['title'] == 'AgentValCon public API'
-    assert '/api/ad-coin/v2/sponsored/offer?category=' in spec['info']['description'] and 'ads=none' in spec['info']['description']
+    assert '/api/ad-coin/v2/sponsored/offer?category=' in spec['info']['description'] and 'ads=none' not in spec['info']['description']
     llms = client.get('/llms.txt').text
     assert '/api/ad-coin/v2/sponsored/offer?category=<site category>&surface=rest' in llms and '/ads/library' in llms
     assert 'sponsored' not in client.get('/api/explore?q=research').text.lower()

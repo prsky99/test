@@ -158,13 +158,11 @@ def mcp_tools():
     from .mcp_tasks import TOOL as RUN_WORKFLOW
     TOOLS.append({**copy.deepcopy(RUN_WORKFLOW), 'outputSchema': copy.deepcopy(TOOLS[-1]['outputSchema'])})
     # Agent ad plan (A), PM 11-14: search, find_agents and best_for_role may end with one labelled Sponsored offer in a
-    # separate field (ad_slot.py, filled by the ad side only); the description says so and how to leave it out.
+    # separate field (ad_slot.py, filled by the ad side only); the description says so (always on, user 11-15).
     from . import ad_slot
     for tool in TOOLS:
         if tool['name'] in ('search', 'find_agents', 'best_for_role'):
             tool['description'] = tool['description'].rstrip() + ' ' + ad_slot.DESCRIPTION_LINE
-            tool['inputSchema'] = {**tool['inputSchema'],
-                                   'properties': {**tool['inputSchema'].get('properties', {}), **ad_slot.ADS_ARGUMENT}}
             tool['outputSchema'] = {**tool['outputSchema'], 'properties': {
                 **tool['outputSchema'].get('properties', {}),
                 'sponsored': {'type': 'array', 'maxItems': 1, 'items': {'type': 'object'},

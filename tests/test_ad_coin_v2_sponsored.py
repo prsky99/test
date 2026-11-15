@@ -150,7 +150,7 @@ def test_http_reads_the_region_from_the_country_header_and_is_private():
     hit = client.get('/api/ad-coin/v2/sponsored', params={'category': 'research', 'placement': 'chat', 'limit': 1},
                      headers={'CF-IPCountry': 'us'})
     assert hit.status_code == 200 and len(hit.json()['cards']) == 1
-    assert 'private' in hit.headers['cache-control'] and hit.headers['vary'] == 'CF-IPCountry, Prefer, Ads, X-Ads'
+    assert 'private' in hit.headers['cache-control'] and hit.headers['vary'] == 'CF-IPCountry'
     none = client.get('/api/ad-coin/v2/sponsored', params={'category': 'research'})   # no country: no cards
     assert none.status_code == 200 and none.json()['cards'] == []
 

@@ -46,10 +46,9 @@ def test_hidden_characters_length_unknown_fields_and_endpoint_rules():
     assert 'unknown_field:rank_boost' in error.value.problems
 
 
-def test_agents_can_opt_out_with_ads_none():
-    assert so.wants_ads({}, {}) and so.wants_ads({'ads': 'some'}, {})
-    assert not so.wants_ads({'ads': 'none'}, {}) and not so.wants_ads({}, {'Ads': 'NONE'})
-    assert not so.wants_ads({}, {'X-Ads': 'none'})
+def test_there_is_no_free_opt_out():
+    """User 11-15: ads are always shown; ad-free answers will be a paid subscription later."""
+    assert not hasattr(so, 'wants_ads') and so.VARY == 'CF-IPCountry'
 
 
 def test_sensitive_topics_carry_no_ad():
@@ -72,7 +71,7 @@ def test_the_agent_block_labels_the_ad_and_shows_low_facts_as_they_are():
     assert all(empty['facts'][k] is None for k in so.FACT_KEYS)
 
 
-def test_sponsored_api_skips_sensitive_topics_and_honours_ads_none(p1_suite):  # noqa: F811
+def test_sponsored_api_skips_sensitive_topics_and_ignores_ads_none(p1_suite):  # noqa: F811
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
     from agent_market.ad_coin.v2.sponsored_http import router_for
@@ -86,11 +85,13 @@ def test_sponsored_api_skips_sensitive_topics_and_honours_ads_none(p1_suite):  #
     us = {'CF-IPCountry': 'US'}
     shown = client.get('/api/ad-coin/v2/sponsored', params={'category': 'web_search'}, headers=us).json()['cards']
     assert len(shown) == 1 and 'research' in shown[0]['why']
-    for params, headers in (({'category': 'health_science'}, us), ({'category': 'web_search', 'ads': 'none'}, us),
-                            ({'category': 'web_search'}, {**us, 'X-Ads': 'none'}),
+    for params, headers in (({'category': 'web_search', 'ads': 'none'}, us), ({'category': 'web_search'}, {**us, 'X-Ads': 'none'}),
+                            ({'category': 'web_search'}, {**us, 'Prefer': 'ads=none'})):   # ignored (user 11-15)
+        assert len(client.get('/api/ad-coin/v2/sponsored', params=params, headers=headers).json()['cards']) == 1
+    for params, headers in (({'category': 'health_science'}, us),
                             ({'category': 'web_search', 'q': 'what dosage is safe for my child'}, us)):
         assert client.get('/api/ad-coin/v2/sponsored', params=params, headers=headers).json()['cards'] == []
-    assert sum(slots._served.values()) == 1                     # only the first request was an ad shown
+    assert sum(slots._served.values()) == 4                     # every request with an ad shown, opt-outs included
 
 
 from tests.test_ad_coin_postgres import cluster  # noqa: E402,F401
@@ -140,7 +141,7 @@ def test_offer_flow_submit_review_serve_and_click(p1_suite):  # noqa: F811
     assert block['text'] == 'Sponsored: ' + GOOD['line'] and block['offer']['endpoint'] == GOOD['endpoint']
     assert block['click_url'].startswith('/api/ad-coin/v2/sponsored/click/' + campaign['id'])
     assert client.get('/api/ad-coin/v2/sponsored/offer', params={'category': 'web_search', 'ads': 'none'},
-                      headers=us).json()['sponsored'] is None
+                      headers=us).json()['sponsored']['text'] == block['text']        # ads=none is ignored (11-15)
     hop = client.get(block['click_url'], headers=us, follow_redirects=False)
     assert hop.status_code == 302 and hop.headers['location'] == GOOD['endpoint']
     client.get(block['click_url'], headers={**us, 'X-Agentcon-QA': 'check'}, follow_redirects=False)   # not counted
@@ -371,7 +372,7 @@ def test_live_router_without_agent_ad_tables_serves_empty_and_logs_nothing(store
                            {'category': 'web_search', 'ads': 'none'}, {'category': 'health_science'}):
                 empty = client.get('/api/ad-coin/v2/sponsored/offer', params=params, headers=us)
                 assert empty.status_code == 200 and empty.json()['sponsored'] is None, (params, empty.text)   # PM: no 5xx
-                assert empty.json()['reason'] in ('no_offer', 'ads_none', 'sensitive_topic')
+                assert empty.json()['reason'] in ('no_offer', 'sensitive_topic')
             hop = client.get('/api/ad-coin/v2/sponsored/click/c1?surface=mcp&category=web_search', headers=us,
                              follow_redirects=False)
             assert hop.status_code == 302 and hop.headers['location'] == '/advertise'
@@ -461,10 +462,8 @@ def test_ads_library_shows_the_approved_text_not_a_draft_and_skips_cancelled_boo
     assert entries(store, NOW) == []
 
 
-def test_rest_accepts_prefer_ads_none_and_varies_on_every_opt_out_header():
-    """R39: REST honours Prefer: ads=none like MCP and A2A, and caches vary on every header that changes the answer."""
-    assert not so.wants_ads({}, {'Prefer': 'return=minimal, ads=none'}) and so.wants_ads({}, {'Prefer': 'return=minimal'})
-    assert so.VARY == 'CF-IPCountry, Prefer, Ads, X-Ads'
+def test_sponsored_answers_vary_only_on_the_country():
+    assert so.VARY == 'CF-IPCountry'                       # opt-out headers no longer change the answer (11-15)
 
 
 def test_qa_header_counts_only_when_signed_once_a_key_exists():
@@ -513,4 +512,4 @@ def test_clicks_count_once_per_address_and_minute_and_resolve_no_dns(p1_suite, m
     assert int(counted['clicks']) == 2                                   # two addresses, not four requests
     offer = client.get('/api/ad-coin/v2/sponsored/offer', params={'category': 'web_search'},
                        headers={'CF-IPCountry': 'US', 'Prefer': 'ads=none'}).json()
-    assert offer == {'sponsored': None, 'reason': 'ads_none'}
+    assert offer['sponsored']['advertiser'] and 'reason' not in offer             # Prefer: ads=none is ignored

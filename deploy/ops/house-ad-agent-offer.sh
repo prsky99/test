@@ -5,7 +5,7 @@
 # Then:
 #   bash deploy/ops/house-ad-agent-offer.sh            # check: shows the offer, the exact agent line, writes nothing
 #   bash deploy/ops/house-ad-agent-offer.sh apply      # submits and approves it (database write, user approval)
-#   bash deploy/ops/house-ad-agent-offer.sh verify     # public check: MCP, A2A, REST carry it; ads=none removes it;
+#   bash deploy/ops/house-ad-agent-offer.sh verify     # public check: MCP, A2A, REST carry it, also with ads=none;
 #                                                       # organic results are the same with and without it
 # The ad is paid with free AD Coin only (the house bookings). Results: logs/ops/house-ad/offer-<time>.json and
 # logs/ops/house-offer-verify/<time>.json. Ads show only on days the AgentValCon campaign is booked.

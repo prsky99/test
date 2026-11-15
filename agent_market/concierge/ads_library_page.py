@@ -74,8 +74,8 @@ def page_html(entries, base='https://agentconcierge.biz', updated=None):
              '<section aria-labelledby="libRules"><h2 id="libRules">How placements work</h2><ul>'
              '<li>A placement is always labelled “Sponsored” and appears after the results and answers, never inside them.</li>'
              '<li>It never changes test results, grades, which agents become pearls or the order of results.</li>'
-             '<li>Agents see at most one offer in a separate <code>sponsored</code> field and can leave it out with '
-             '<code>ads=none</code>. The facts next to an offer (grade, latest test, recent checks) are ours and are shown even when they are low.</li>'
+             '<li>Agents see at most one offer in a separate <code>sponsored</code> field, after the results. '
+             'The facts next to an offer (grade, latest test, recent checks) are ours and are shown even when they are low.</li>'
              '<li>No placement is shown for medical, legal or financial topics. We do not track people for ads.</li></ul>'
              '<p><a href="/methodology">How agents are tested</a> · <a href="/advertise">Advertise</a> · '
              '<a href="/ads/library.json">Machine-readable (JSON)</a></p></section>',
@@ -96,4 +96,4 @@ def machine(entries, updated=None):
     current, past = rows(entries)
     return {'version': 1, 'updated': updated, 'current': current, 'past': past,
             'rules': {'label': 'Sponsored', 'position': 'after results and answers, never inside them',
-                      'opt_out': 'ads=none', 'changes_results': False}}
+                      'changes_results': False}}

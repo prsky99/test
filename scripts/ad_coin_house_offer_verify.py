@@ -1,10 +1,13 @@
 """Public check of the agent offer after approval (PM 11-15): MCP, A2A and REST, with and without ads=none. Read-only.
 
+Ads are always shown (user 11-15): an agent that sends ads=none still gets the offer; ad-free answers will be a paid
+subscription later.
+
   .venv/bin/python -m scripts.ad_coin_house_offer_verify [--base https://agentconcierge.biz] [--advertiser AgentValCon]
 
 For each surface: the answer carries one `sponsored` item labelled "Sponsored" from the advertiser (text starting
-"Sponsored: "), the same request with ads=none carries none, and the organic results (recommendation ids in order)
-are the same with and without the ad (neutrality). Every request goes on a new connection and carries
+"Sponsored: "), the same request with ads=none carries it too (the old opt-out is ignored), and the organic results
+(recommendation ids in order) are the same with and without the ads parameter (neutrality). Every request goes on a new connection and carries
 X-Agentcon-QA, so nothing is counted as a view or a click. The region is wherever this machine is (Cloudflare's
 country header); the advertiser must be booked there today in the task's category.
 Writes logs/ops/house-offer-verify/<time>.json; exit 1 when any check fails.
@@ -43,7 +46,7 @@ def rest_parts(body):
 
 
 def judge(name, with_ad, without_ad, advertiser):
-    """One surface: (organic ids, sponsored items) with the ad allowed and with ads=none."""
+    """One surface: (organic ids, sponsored items) without and with an ads=none request (which must be ignored)."""
     organic_on, ads_on = with_ad
     organic_off, ads_off = without_ad
     item = ads_on[0] if len(ads_on) == 1 else {}
@@ -51,7 +54,7 @@ def judge(name, with_ad, without_ad, advertiser):
               "labelled": item.get("label") == "Sponsored" and str(item.get("text", "")).startswith("Sponsored: "),
               "advertiser": item.get("advertiser") == advertiser and item.get("paid_by", advertiser) == advertiser,
               "facts_independent": (item.get("facts") or {}).get("independent") is True if name != "rest" else True,
-              "ads_none_empty": ads_off == []}
+              "ads_none_ignored": len(ads_off) == 1 and ads_off[0].get("advertiser") == item.get("advertiser")}
     if organic_on is not None:
         checks["organic_same_with_and_without_ad"] = organic_on == organic_off and bool(organic_on)
     return {"surface": name, "ok": all(checks.values()), "checks": checks,

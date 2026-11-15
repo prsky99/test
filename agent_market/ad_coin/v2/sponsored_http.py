@@ -41,9 +41,10 @@ def router_for(slots, offers=None) -> APIRouter:
             # replay) and not our own measurements (X-Agentcon-QA, 11-12 PM). A forged QA header only lowers
             # the sender's own count.
             counted = request.headers.get("early-data", "") != "1" and not qa
-            from .sponsored_offer import sensitive, wants_ads
-            if not wants_ads(dict(request.query_params), dict(request.headers)) or sensitive(text=q[:500]):
-                # ads=none, or an advice-seeking task (q is only read here, never stored or logged): no ad
+            from .sponsored_offer import sensitive
+            if sensitive(text=q[:500]):
+                # an advice-seeking task (q is only read here, never stored or logged): no ad. There is no opt-out:
+                # ads are always shown (user 11-15); an `ads` parameter or header is ignored.
                 return JSONResponse({"label": "Sponsored", "reward": None, "placement": placement, "cards": []},
                                     headers={"Cache-Control": "private, max-age=60", "Vary": VARY,
                                              "X-Robots-Tag": "noindex"})
@@ -63,15 +64,13 @@ def router_for(slots, offers=None) -> APIRouter:
         """Agent ads (A): the one `sponsored` object for MCP, A2A and REST answers, after the organic results.
         Facts (grade, report, health) are attached by the response surface; this route never reads them."""
         from .sponsored import SITE_CATEGORIES
-        from .sponsored_offer import SURFACES, agent_block, approved_offer, sensitive, wants_ads
+        from .sponsored_offer import SURFACES, agent_block, approved_offer, sensitive
         headers = {"Cache-Control": "private, max-age=60", "Vary": VARY, "X-Robots-Tag": "noindex"}
         try:
             if surface not in SURFACES:
                 raise ContractError("unsupported_surface", 422)
             where = region_of(request, region)
             # Always 200: no ad is a normal answer, never an outage (PM 11-14). reason says why the slot is empty.
-            if not wants_ads(dict(request.query_params), dict(request.headers)):
-                return JSONResponse({"sponsored": None, "reason": "ads_none"}, headers=headers)
             if sensitive(category, q[:500]):
                 return JSONResponse({"sponsored": None, "reason": "sensitive_topic"}, headers=headers)
             mapped = SITE_CATEGORIES.get(category, category)

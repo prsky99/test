@@ -18,7 +18,7 @@ _PUBLIC = frozenset(('/', '/chat', '/me', '/unsubscribe', '/a2a', '/mcp',
 # agent that wants the one labelled offer asks the ad route itself (listed when the AD Coin router is mounted).
 SPONSORED_OFFER = '/api/ad-coin/v2/sponsored/offer'
 ADS_NOTE = ('Ads: REST answers carry no ads. For the one offer labelled Sponsored for a task category, call GET '
-            + SPONSORED_OFFER + '?category=<site category>&surface=rest; ads=none or the header Ads: none returns null. '
+            + SPONSORED_OFFER + '?category=<site category>&surface=rest. '
             'An offer never changes results, grades or their order.')
 _DOCUMENTED = ('/api/agent/v1/entry', '/api/agent/v1/openapi.json', '/api/agent/v1/badge/{resource_id}.svg')
 

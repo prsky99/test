@@ -25,8 +25,9 @@ def test_current_and_past_rows_with_payer_dates_text_and_reason():
     t = text(page)
     for expected in ('Running and booked (1)', 'Past placements (1)', 'Acme Inc.', '2026-11-19 to 2026-11-19',
                      'research · US', 'explore, chat, mcp', 'Sponsored: Free 100 calls a day.', 'Booked for the research',
-                     'Free trial', '100 calls a day', 'ads=none', 'never inside them'):
+                     'Free trial', '100 calls a day', 'never inside them'):
         assert expected in t, expected
+    assert 'ads=none' not in t                                   # no opt-out: ads are always shown (user 11-15)
     assert '<b>Old</b>' not in page and '&lt;b&gt;Old&lt;/b&gt;' in page
     assert 'href="/methodology"' in page and 'href="/advertise"' in page and 'No id' not in t
     for word in ('guaranteed', '#1', ' best '):

@@ -497,7 +497,7 @@ def llms_txt(base: str, counts: dict, daily: dict | None = None) -> str:
     from .necklace_surface import llms_section  # 11-14 PM: necklaces first; empty until one is live
     necklaces = llms_section(base) + ('\nHow agents are tested and scored: `' + base + '/methodology` (machine-readable `' + base + '/methodology.json`).\n'
                                       'Sponsored placements for providers (labelled, never change results): `' + base + '/advertise`.\n'
-                                      'Ads for agents: MCP and A2A answers may end with one offer in a separate `sponsored` field (`ads=none` leaves it out); REST answers carry none, call `' + base + '/api/ad-coin/v2/sponsored/offer?category=<site category>&surface=rest` for it. Every placement: `' + base + '/ads/library`.\n')
+                                      'Ads for agents: MCP and A2A answers may end with one offer in a separate `sponsored` field; REST answers carry none, call `' + base + '/api/ad-coin/v2/sponsored/offer?category=<site category>&surface=rest` for it. Every placement: `' + base + '/ads/library`.\n')
     return f"""# AgentValCon
 
 > AgentValCon — Agent Value Gateway. Discover up to three relevant AI agents using recorded evidence. Public pages and machine interfaces support A2A and MCP. x402 listings come from earlier records: new x402 collection is paused until paid tests are possible, their grade is at most B, and they appear only when x402 is chosen explicitly.
@@ -3514,8 +3514,7 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
                        if method == "SendMessage" else
                        {"kind": "message", "role": "agent", "messageId": mid, "contextId": ctx, "parts": parts_out})
             return JSONResponse({"jsonrpc": "2.0", "id": rid, "result": message})
-        from . import ad_slot  # agent ad plan (A): opt-out read here, the slot filled after the answer is final
-        a2a_ads_opted = ad_slot.opted_out(data, request.headers, request.query_params)
+        from . import ad_slot  # agent ad plan (A): the slot is filled after the answer is final (always on, 11-15)
         data = ad_slot.strip_option(data)
         try:
             v, reply = await run_in_threadpool(front.chat, request, "a2a", "\n".join(texts).replace("\x00", "")[:MAX_MESSAGE], data, token,
@@ -3538,8 +3537,7 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
         reply_text = reply.text
         if ad_slot.registered() and isinstance(reply.data.get('recommendations'), list) and reply.data['recommendations']:
             reply_text, payload = await run_in_threadpool(ad_slot.attach_a2a, reply_text, payload,
-                                                           ad_slot.context('a2a', 'message', reply.data, request.headers),
-                                                           a2a_ads_opted)
+                                                           ad_slot.context('a2a', 'message', reply.data, request.headers))
         mid = str(uuid.uuid4())
         if method == "SendMessage":
             result = {"message": {"role": "ROLE_AGENT", "messageId": mid, "contextId": ctx,
@@ -3669,8 +3667,7 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             return {"jsonrpc": "2.0", "id": rid, "error": {"code": -32602, "message": "Provide a tool name and object arguments."}}
         args = params.get("arguments") if isinstance(params, dict) and isinstance(params.get("arguments"), dict) else {}
         from . import ad_slot  # agent ad plan (A), PM 11-14: a labelled offer after the results, never inside them
-        ads_opted = ad_slot.opted_out(args, request.headers)
-        args = ad_slot.strip_option(args)
+        args = ad_slot.strip_option(args)   # an old `ads` argument is ignored (ads always on, 11-15)
         if name in ("verify_agent", "best_for_role"):  # 11-14 PM super-gap 2: answers from the verify snapshot only
             from . import check_route
             if name == "verify_agent":
@@ -3686,7 +3683,7 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             answer = {"content": [{"type": "text", "text": found[0]}], "structuredContent": found[1], "isError": False}
             if name == "best_for_role" and ad_slot.registered():
                 answer = await run_in_threadpool(ad_slot.attach_mcp, answer,
-                                                 ad_slot.context("mcp", name, found[1], request.headers), ads_opted)
+                                                 ad_slot.context("mcp", name, found[1], request.headers))
             return mcp_result(rid, answer)
         if isinstance(name, str) and name.startswith("necklace_"):
             from . import necklace_surface
@@ -3738,7 +3735,7 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             answer={'content':[{'type':'text','text':reply.text}],
                     'structuredContent':structured,'isError':reply.data.get('status')=='task_context_required'}
             if name in ('search','find_agents') and ad_slot.registered():
-                answer=await run_in_threadpool(ad_slot.attach_mcp,answer,ad_slot.context('mcp',name,structured,request.headers),ads_opted)
+                answer=await run_in_threadpool(ad_slot.attach_mcp,answer,ad_slot.context('mcp',name,structured,request.headers))
             return mcp_result(rid,answer)
         message, data = "", {}
         if name == "hello":

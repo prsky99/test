@@ -5,7 +5,8 @@ never inside them. The advertiser fills fixed fields only; one free line of at m
 instruction and injection screen. We attach independent facts (grade, latest test report score, link and
 signature, data time, 7-day health) that ads cannot change, and show them even when they are low.
 
-This module holds the schema, the screen, the opt-out, the sensitive-topic rule and the "why shown" line. It never
+This module holds the schema, the screen, the sensitive-topic rule and the "why shown" line (no opt-out: ads are
+always shown, user 11-15). It never
 reads or writes judging data: facts come from a reader the response surface passes in (tests/test_ad_neutrality.py).
 """
 import json
@@ -141,18 +142,7 @@ def validate_offer(raw):
     return offer
 
 
-def wants_ads(params=None, headers=None):
-    """An agent opts out with ads=none (query or body parameter), the header `Ads: none` / `X-Ads: none`, or
-    `Prefer: ads=none` (R39, as the MCP and A2A surfaces accept)."""
-    params, headers = params or {}, {k.lower(): v for k, v in (headers or {}).items()}
-    values = [params.get("ads"), headers.get("ads"), headers.get("x-ads")]
-    if any(isinstance(v, str) and v.strip().lower() == "none" for v in values):
-        return False
-    prefer = headers.get("prefer") if isinstance(headers.get("prefer"), str) else ""
-    return not any(part.strip().replace(" ", "").lower() == "ads=none" for part in prefer.split(","))
-
-
-VARY = "CF-IPCountry, Prefer, Ads, X-Ads"     # every header that changes a Sponsored answer (R39)
+VARY = "CF-IPCountry"     # the only header that changes a Sponsored answer (ads always on, user 11-15)
 
 
 def sensitive(site_category="", text=""):

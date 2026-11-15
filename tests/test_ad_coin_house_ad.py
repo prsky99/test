@@ -284,11 +284,11 @@ def test_offer_verifier_judges_each_surface():
     ad = {'label': 'Sponsored', 'text': 'Sponsored: AgentValCon finds ...', 'advertiser': 'AgentValCon',
           'paid_by': 'AgentValCon', 'facts': {'independent': True, 'grade': None}}
     body = lambda ads: {'result': {'structuredContent': {'recommendations': [{'id': 1}, {'id': 2}], 'sponsored': ads}}}
-    good = judge('mcp', mcp_parts(body([ad])), mcp_parts(body([])), 'AgentValCon')
-    assert good['ok'] and good['checks']['organic_same_with_and_without_ad']
-    leak = judge('mcp', mcp_parts(body([ad])), mcp_parts(body([ad])), 'AgentValCon')      # ads=none ignored
-    assert not leak['ok'] and not leak['checks']['ads_none_empty']
-    moved = judge('mcp', mcp_parts(body([ad])), ([ '2', '1'], []), 'AgentValCon')          # the ad changed the order
+    good = judge('mcp', mcp_parts(body([ad])), mcp_parts(body([ad])), 'AgentValCon')       # ads=none is ignored (11-15)
+    assert good['ok'] and good['checks']['organic_same_with_and_without_ad'] and good['checks']['ads_none_ignored']
+    dropped = judge('mcp', mcp_parts(body([ad])), mcp_parts(body([])), 'AgentValCon')     # an opt-out that still works
+    assert not dropped['ok'] and not dropped['checks']['ads_none_ignored']
+    moved = judge('mcp', mcp_parts(body([ad])), (['2', '1'], [ad]), 'AgentValCon')         # the ad changed the order
     assert not moved['checks']['organic_same_with_and_without_ad']
-    other = judge('rest', rest_parts({'sponsored': {**ad, 'advertiser': 'Someone'}}), rest_parts({'sponsored': None}), 'AgentValCon')
+    other = judge('rest', rest_parts({'sponsored': {**ad, 'advertiser': 'Someone'}}), rest_parts({'sponsored': ad}), 'AgentValCon')
     assert not other['checks']['advertiser']

@@ -88,8 +88,8 @@ def page_html(base='https://agentconcierge.biz', rows=None, usdc=None):
                  '<li>One line of up to 120 characters that describes the offer. Lines that address or instruct the agent, '
                  'claim a rank or carry links are refused.</li></ul>'
                  '<p>Next to your offer we show our own facts about the endpoint: its grade, its latest test score with the '
-                 'report link and signature, and its recent checks, even when they are low. Agents can leave every offer out '
-                 'with <code>ads=none</code>. Every placement is listed in the public <a href="/ads/library">ad library</a>.</p>'
+                 'report link and signature, and its recent checks, even when they are low. '
+                 'Every placement is listed in the public <a href="/ads/library">ad library</a>.</p>'
                  '</section>')
     parts.append('<section aria-labelledby="adTrust"><h2 id="adTrust">What an ad never changes</h2><ul>'
                  '<li>Test results, scores and grades of any agent.</li>'

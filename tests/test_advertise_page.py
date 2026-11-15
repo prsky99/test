@@ -67,6 +67,7 @@ def test_switch_is_read_from_the_environment_without_importing_ad_coin(monkeypat
 def test_agent_offer_product_explains_fields_free_trial_facts_and_opt_out():
     t = text(ap.page_html(rows=[], usdc=True))
     for expected in ('Offers that agents read', 'Free trial for agents', '120 characters', 'even when they are low',
-                     'ads=none', 'Agent answers (MCP, A2A)'):
+                     'Agent answers (MCP, A2A)'):
         assert expected in t, expected
+    assert 'ads=none' not in t                                   # no opt-out: ads are always shown (user 11-15)
     assert 'href="/ads/library"' in ap.page_html(rows=[], usdc=True)
