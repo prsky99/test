@@ -326,6 +326,65 @@ def holiday_truth(clock=time.time, run=None, state_path=None, log_path=None, gol
     return line
 
 
+GOLD_STATE = ROOT / 'logs/ops/gold-builds-state.json'
+GOLD_LOG = ROOT / 'logs/ops/gold-builds.jsonl'
+GOLD_TIMEOUT_S = 240
+# workflow 11-15 (PM 16:42): resumable answer-set builders run here, not in a session. Each runs once an hour, through
+# the shared ledger as reference_checks, until its split is in the slug's manifest. (module, slug, split)
+GOLD_BUILDS = (('agent_market.necklaces.gold_repos', 'package-risk-audit', 'holdout-v2-activity'),
+               ('agent_market.necklaces.gold_topics_r3', 'topic-evidence-brief', 'holdout-r3'),
+               ('agent_market.necklaces.gold_cve_fixes', 'cve-incident-brief', 'holdout-v2-fix'))
+
+
+def gold_quiet(local) -> bool:
+    """No builder starts in the 00:30 deploy and 01:45 rehearsal stretch (00:00-02:14, memory is tight then), in the
+    03:50-05:10 rehearsal window, or from :55 to :10 (hourly public measurement)."""
+    minutes = local.hour * 60 + local.minute
+    return minutes < 2 * 60 + 15 or 3 * 60 + 50 <= minutes < 5 * 60 + 10 or local.minute >= 55 or local.minute < 10
+
+
+def gold_builds(clock=time.time, run=None, state_path=None, log_path=None, gold=None, builds=GOLD_BUILDS):
+    """One round of each unfinished answer-set builder an hour (the app's Python, a subprocess with a timeout). Every
+    round leaves one line with the builder's own result (done, left, stopped by the share, written) or the error."""
+    local = datetime.fromtimestamp(clock())
+    if gold_quiet(local):
+        return None
+    gold = Path(gold or ROOT / 'gateway-data/necklaces/gold')
+    state_path, log_path = Path(state_path or GOLD_STATE), Path(log_path or GOLD_LOG)
+    state = json.loads(state_path.read_text()) if state_path.is_file() else {}
+    hour = local.strftime('%Y-%m-%dT%H')
+    lines = []
+    for module, slug, split in builds:
+        manifest = gold / slug / 'manifest.json'
+        try:
+            if split in (json.loads(manifest.read_text()).get('files') or {}):
+                continue
+        except (OSError, ValueError):
+            pass
+        if state.get(module) == hour:
+            continue
+        state[module] = hour
+        go = run or (lambda m: subprocess.run([str(ROOT / '.venv/bin/python'), '-m', m], capture_output=True,
+                                              text=True, cwd=ROOT, timeout=GOLD_TIMEOUT_S))
+        try:
+            done = go(module)
+            result = json.loads(done.stdout.strip().splitlines()[-1]) if done.returncode == 0 else None
+            reason = None if result else f'exit {done.returncode}: {(done.stderr or "").strip().splitlines()[-1:]}'
+        except (subprocess.TimeoutExpired, ValueError, IndexError) as error:
+            result, reason = None, type(error).__name__
+        line = {'at': now(), 'builder': module.rsplit('.', 1)[-1], 'slug': slug, 'split': split, 'ok': bool(result),
+                **({'result': result} if result else {'error': str(reason)[:300]})}
+        if not result:
+            append(ACTIONS, f'{now()} 정답 세트 빌더 실패({line["builder"]}): {str(reason)[:120]}')
+        lines.append(line)
+    state_path.write_text(json.dumps(state))
+    if lines:
+        with log_path.open('a', encoding='utf-8') as handle:
+            for line in lines:
+                handle.write(json.dumps(line, ensure_ascii=False) + '\n')
+    return lines
+
+
 REVENUE_STATE = ROOT / 'logs/ops/revenue-funnel-state.json'
 REVENUE_AFTER_HOUR = 8   # revenue review 11-15 (PM 10:57): one line every morning from 08:00, first on 11-16
 REVENUE_EVERY = 2 * 3600 - 300   # PM 11-15 14:24: PM's own check reads the funnel every 2 hours, so a line every 2 hours
@@ -987,6 +1046,10 @@ def watch():
         holiday_truth()
     except Exception as error:  # noqa: BLE001
         append(ACTIONS, f'{now()} 공휴일 정답 받기 실패: {type(error).__name__}')
+    try:
+        gold_builds()
+    except Exception as error:  # noqa: BLE001
+        append(ACTIONS, f'{now()} 정답 세트 빌더 확인 실패: {type(error).__name__}')
     try:
         revenue_funnel()
     except Exception as error:  # noqa: BLE001

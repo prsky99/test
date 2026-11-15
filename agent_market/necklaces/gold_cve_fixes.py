@@ -24,6 +24,7 @@ SLUG = "cve-incident-brief"
 SPLIT = "holdout-v2-fix"
 SOURCES = ("tuning", "holdout-r1", "holdout-r2")
 ADVISORIES = "https://api.github.com/advisories?type=reviewed&cve_id={cve}"
+ENOUGH = 30          # the split is written as soon as 30 cases have fixes, and again as more come
 FIRST = ("GitHub_M", "snyk", "DSF", "redhat", None, "CISA-ADP", "VulnCheck", "mitre", "hackerone")
 
 
@@ -77,7 +78,7 @@ def step(root: Path = DEFAULT_ROOT, get=fetch_json) -> dict:
     left = [c["case_id"] for c in all_cases if c["input"]["cve_id"] not in progress]
     out = {"asked": len(progress), "with_fixes": sum(1 for r in progress.values() if r["fixes"]), "left": len(left),
            "stopped": stopped}
-    if not left:
+    if not left or out["with_fixes"] >= ENOUGH:     # ops 11-15: 50 of 90 on 11-17, open-source CVEs asked first
         out["written"] = write_split(root, all_cases, progress)
     return out
 
