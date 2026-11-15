@@ -548,5 +548,39 @@
    null,
    {}
   ]
+ ],
+ "census-geocode": [
+  [
+   {
+    "address": "1600 Pennsylvania Ave NW, Washington, DC 20500"
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "query": "350 Fifth Avenue, New York, NY 10118"
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "address": "Tokyo Tower, Minato, Tokyo, Japan"
+   },
+   "not_found",
+   null,
+   {}
+  ],
+  [
+   {
+    "address": "abc"
+   },
+   "invalid_input",
+   null,
+   {}
+  ]
  ]
 }

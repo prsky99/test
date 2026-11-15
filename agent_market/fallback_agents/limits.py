@@ -174,6 +174,7 @@ def _table(clock, sleep) -> dict[str, HostLimiter]:
         "en.wiktionary.org": HostLimiter(0.2, 300, 60.0, clock, sleep),
         "data.iana.org": HostLimiter(10.0, 24, 86400.0, clock, sleep),
         "api.gdeltproject.org": HostLimiter(5.0, 200, 86400.0, clock, sleep),  # GDELT DOC API: one every 5 s (ours)
+        "geocoding.geo.census.gov": HostLimiter(1.0, 600, 3600.0, clock, sleep),  # Census Geocoder: one a second (ours)
         "www.wikidata.org": HostLimiter(0.2, 300, 60.0, clock, sleep),  # sequential requests only
         "query.wikidata.org": HostLimiter(0.5, 60, 60.0, clock, sleep),  # WDQS: few parallel, 60 s of query time a minute
     }

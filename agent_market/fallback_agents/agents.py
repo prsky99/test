@@ -44,7 +44,7 @@ MAX_AGE = {"nvd-cve": 6 * 3600, "cve-org": 24 * 3600, "cisa-kev": 24 * 3600, "gi
            "wiki-grounding": 24 * 3600, "ecb-fx": 26 * 3600, "usgs-quakes": 3600,
            "tz-time": 400 * 86400, "airport-lookup": 8 * 86400, "wiktionary-define": 7 * 86400,
            "github-repo": 24 * 3600, "rdap-domain": 7 * 86400, "unit-convert": 10 * 365 * 86400,
-           "wikidata-place": 7 * 86400, "wikidata-book": 7 * 86400, "gdelt-news": 6 * 3600}  # rules age from the library release; update the pin at least yearly
+           "wikidata-place": 7 * 86400, "wikidata-book": 7 * 86400, "gdelt-news": 6 * 3600, "census-geocode": 30 * 86400}  # rules age from the library release; update the pin at least yearly
 TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "github-advisory": (3600, 6 * 3600),
        "epss": (6 * 3600, 48 * 3600), "package-registry": (3600, 6 * 3600), "depsdev-package": (6 * 3600, 24 * 3600),
        "gleif-lei": (6 * 3600, 24 * 3600), "sec-edgar": (6 * 3600, 24 * 3600), "sec-tickers": (6 * 3600, 24 * 3600),
@@ -55,7 +55,7 @@ TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "githu
        "usgs-quakes": (300, 3600), "wiktionary-define": (86400, 7 * 86400), "github-repo": (6 * 3600, 24 * 3600),
        "rdap-domain": (6 * 3600, 7 * 86400), "rdap-bootstrap": (86400, 7 * 86400),
        "wikidata-place": (86400, 7 * 86400), "wikidata-book": (86400, 7 * 86400),
-       "gdelt-news": (3600, 6 * 3600)}  # (serve from cache without asking, longest a cached copy may serve)
+       "gdelt-news": (3600, 6 * 3600), "census-geocode": (7 * 86400, 30 * 86400)}  # (serve from cache without asking, longest a cached copy may serve)
 KEV_TTL, KEV_MAX_STALE = 3600, 24 * 3600
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 PACKAGE = re.compile(r"(?:@[a-z0-9][a-z0-9._~-]*/)?[A-Za-z0-9][A-Za-z0-9._~-]*")
@@ -1345,6 +1345,37 @@ class FallbackAgents:
             return f", time zone {found['zone']}"
         return ", time zone near a boundary: " + " or ".join(found["candidates"][:4])
 
+    def _census_geocode(self, args, remaining):
+        """geocode.address.v1 for U.S. addresses (PM 11-15 14:25): the address string is the only thing sent. An
+        address that is plainly not in the United States is not sent; it and a no-match answer not_found, so a
+        necklace moves on to its next member."""
+        address = " ".join(str(args.get("address") or args.get("query") or "").split())
+        if not 5 <= len(address) <= 300:
+            raise FallbackUnavailable("invalid_input", "Give a street address of 5 to 300 characters.")
+        if not address.isascii() or NON_US.search(address):
+            raise FallbackUnavailable("not_found", "This substitute covers U.S. addresses only.")
+
+        def live(rem):
+            raw = self._get_json("https://geocoding.geo.census.gov/geocoder/locations/onelineaddress", rem,
+                                 params={"address": address, "benchmark": "Public_AR_Current", "format": "json"},
+                                 limit=512 * 1024)
+            matches = ((raw.get("result") or {}).get("addressMatches") or [])
+            rows = []
+            for m in matches[:3]:
+                xy = (m or {}).get("coordinates") or {}
+                if isinstance(xy.get("x"), (int, float)) and isinstance(xy.get("y"), (int, float)):
+                    rows.append((_text(m.get("matchedAddress"), 300), float(xy["y"]), float(xy["x"])))
+            return rows, _now_iso(self.utc_now())
+        (rows, as_of), cache = self._cached(("census-geocode", address.lower()), TTL["census-geocode"], live, remaining)
+        if not rows:
+            raise FallbackUnavailable("not_found", "No U.S. Census Geocoder match; this substitute covers U.S. addresses only.")
+        name, lat, lon = rows[0]
+        more = f" ({len(rows) - 1} other candidate{'s' if len(rows) > 2 else ''} matched)" if len(rows) > 1 else ""
+        out = {"answer": f"{name}: lat {lat:.6f} lon {lon:.6f}, country code US{more}.",
+               "url": "https://geocoding.geo.census.gov/geocoder/",
+               "source": "U.S. Census Bureau Geocoder (public domain), benchmark Public_AR_Current"}
+        return out, cache, False, {"Census Geocoder": as_of}
+
     def _gdelt_news(self, args, remaining):
         """news.search.v1 from the GDELT DOC 2.0 API (PM 11-15 13:52): article titles, outlet, date and link for a
         topic in the last 7 days; never the article text. GDELT allows unrestricted use with a citation and link."""
@@ -1766,6 +1797,12 @@ def tiered_match(rows, wanted, keys_of, preferred):
         return best[0]
     return None
 
+
+# An address that names another country is not sent to the U.S. Census Geocoder (it covers U.S. addresses only).
+NON_US = re.compile(r"(?i),\s*(japan|china|korea|south korea|india|germany|france|spain|italy|united kingdom|uk|england|"
+                    r"canada|mexico|brazil|australia|russia|netherlands|switzerland|sweden|norway|poland|turkey|"
+                    r"indonesia|thailand|vietnam|philippines|singapore|taiwan|argentina|chile|colombia|peru|egypt|"
+                    r"nigeria|south africa|kenya|israel|saudi arabia|united arab emirates|uae)\s*\.?$")
 
 # Concepts read from XBRL company facts for the latest annual report, first match wins (US GAAP, then IFRS).
 ANNUAL_FORMS = ("10-K", "20-F", "40-F")

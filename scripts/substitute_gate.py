@@ -40,6 +40,7 @@ DOMAINS = {'nvd-cve': ['https://services.nvd.nist.gov/'], 'cisa-kev': ['https://
            'wiki-grounding': ['https://en.wikipedia.org/'], 'wiktionary-define': ['https://en.wiktionary.org/'],
            'wikidata-place': ['https://query.wikidata.org/'], 'wikidata-book': ['https://query.wikidata.org/'],
            'gdelt-news': ['https://api.gdeltproject.org/'],
+           'census-geocode': ['https://geocoding.geo.census.gov/'],
            'worldbank-indicator': ['https://api.worldbank.org/'], 'met-weather': ['https://api.met.no/'],
            'ecb-fx': ['https://www.ecb.europa.eu/'], 'usgs-quakes': ['https://earthquake.usgs.gov/'],
            'github-repo': ['https://api.github.com/'],

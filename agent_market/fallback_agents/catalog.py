@@ -129,6 +129,10 @@ NIST = {"name": "NIST Special Publication 811 conversion factors", "url": "https
         "license": "U.S. Government work, public domain in the United States",
         "notice": "Computed on our server from exact SI definitions; US customary units (US gallon, avoirdupois pound)."}
 
+CENSUS_GEOCODER = {"name": "U.S. Census Bureau Geocoder", "url": "https://geocoding.geo.census.gov/geocoder/",
+                   "license": "U.S. Government work, public domain; the Census Geocoder offers programmatic REST access",
+                   "notice": "U.S. addresses only; an address outside the United States is not sent."}
+
 GDELT = {"name": "The GDELT Project, DOC 2.0 API", "url": "https://www.gdeltproject.org/",
          "license": "GDELT terms of use: datasets are available for unlimited and unrestricted use, redistribution "
                     "must cite the GDELT Project with a link (https://www.gdeltproject.org/about.html#termsofuse)",
@@ -325,6 +329,13 @@ SPECS = {
                        "index and a time-zone boundary grid; read-only.",
         "sources": [OURAIRPORTS, TZ_BOUNDARIES],
         "rate": "no network calls per request; the index is refreshed once a day",
+    },
+    "census-geocode": {
+        "name": "AgentValCon U.S. Address Geocoder", "tool": "geocode_us_address", "contract": "geocode.address.v1",
+        "description": "Find the coordinates of a United States street address with the U.S. Census Bureau Geocoder: "
+                       "matched address, latitude and longitude, country code US. U.S. addresses only; read-only.",
+        "sources": [CENSUS_GEOCODER],
+        "rate": "one request a second; the same address cached 7 days",
     },
     "gdelt-news": {
         "name": "AgentValCon GDELT News", "tool": "search_news_gdelt", "contract": "news.search.v1",

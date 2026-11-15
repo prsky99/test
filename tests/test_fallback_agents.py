@@ -70,7 +70,7 @@ def agents(tmp_path, routes, calls=None, clock=None, snapshot=None):
 
 # ------------------------------------------------------------------ catalog and contracts
 def test_tools_are_read_only_and_use_the_slot_contracts():
-    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard", "site-readiness", "wiki-grounding", "ecb-fx", "usgs-quakes", "tz-time", "airport-lookup", "wiktionary-define", "github-repo", "rdap-domain", "unit-convert", "wikidata-place", "wikidata-book", "gdelt-news"}
+    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard", "site-readiness", "wiki-grounding", "ecb-fx", "usgs-quakes", "tz-time", "airport-lookup", "wiktionary-define", "github-repo", "rdap-domain", "unit-convert", "wikidata-place", "wikidata-book", "gdelt-news", "census-geocode"}
     for agent_id, spec in SPECS.items():
         tool = tool_spec(agent_id)
         c = contract(spec["contract"])
@@ -1953,3 +1953,23 @@ def test_gold_judges_for_rdap_wiki_grounding_and_sec_filings():
     assert not g.judge("sec-filings", company, {"answer": "No SEC EDGAR registration matches (company Rand)."})["pass"]
     assert g.applies("sec-filings", company) and not g.applies("sec-filings", {"truth": {"cik": None}})
     assert not g.applies("rdap-domain", {"truth": {}}) and g.applies("wiki-grounding", topic)
+
+
+def test_census_geocode_answers_us_addresses_and_does_not_send_others(tmp_path):
+    """PM 11-15 14:25: U.S. addresses only, the address string the only thing sent; others answer not_found."""
+    calls = []
+    hit = {"result": {"addressMatches": [{"matchedAddress": "1600 PENNSYLVANIA AVE NW, WASHINGTON, DC, 20500",
+                                          "coordinates": {"x": -77.0365, "y": 38.8977}}]}}
+    a, _ = agents(tmp_path, {"https://geocoding.geo.census.gov/geocoder/locations/onelineaddress": httpx.Response(200, json=hit)}, calls)
+    out = a.execute("census-geocode", {"address": "1600 Pennsylvania Ave NW, Washington, DC 20500"})["result"]
+    assert out["answer"] == "1600 PENNSYLVANIA AVE NW, WASHINGTON, DC, 20500: lat 38.897700 lon -77.036500, country code US."
+    assert "address=1600" in calls[0] and "benchmark=Public_AR_Current" in calls[0]
+    for address in ("Tokyo Tower, Minato, Tokyo, Japan", "서울특별시 중구 세종대로 110"):
+        with pytest.raises(FallbackUnavailable) as err:
+            a.execute("census-geocode", {"address": address})
+        assert err.value.code == "not_found" and "U.S. addresses only" in str(err.value)
+    assert len(calls) == 1                                                     # neither was sent
+    miss, _ = agents(tmp_path / "m", {"https://geocoding.geo.census.gov/": httpx.Response(200, json={"result": {"addressMatches": []}})})
+    with pytest.raises(FallbackUnavailable) as err:
+        miss.execute("census-geocode", {"address": "1 Nowhere Road, Atlantis"})
+    assert err.value.code == "not_found"
