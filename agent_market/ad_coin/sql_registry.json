@@ -1570,6 +1570,10 @@
    "sha256": "f629c704060f1f64dd41a0b138181b8d57c48916a59a0afa808ba739509f09e2"
   },
   {
+   "sql": "SELECT COUNT(*) AS n FROM adc2_paid_bookings WHERE advertiser_id=? AND (state='confirming' OR (state='quoted' AND expires_ms>=?))",
+   "sha256": "7a119d44cc6eb649bdf56ae2a7ceb5032cffa51c8465adf8227dd205a85d780b"
+  },
+  {
    "sql": "SELECT COUNT(*) AS n FROM adc2_paid_bookings WHERE day_ms=? AND task_category=? AND region=? AND state IN ('quoted','confirming','confirmed','review','served')",
    "sha256": "8da3c52164a24b25759ac625f66e013481c1f8868c9639c9d8c7bcebbe212cb7"
   },
@@ -1846,8 +1850,16 @@
    "sha256": "457861c7cce5ba4ec919185c1e8d3b26e2a2ed04eccf35c913999a8049383ef8"
   },
   {
+   "sql": "SELECT id FROM adc2_paid_bookings WHERE amount_units=? AND quoted_ms>=? LIMIT 1",
+   "sha256": "b4242ff8ca98309183c13a75ee1c9d0b3af2e5c32fd7dd12e3365bdf829ea552"
+  },
+  {
    "sql": "SELECT id FROM adc2_paid_bookings WHERE amount_units=? AND state IN ('quoted','confirming','review') AND expires_ms>=? LIMIT 1",
    "sha256": "65820829cba6057845d2a140fec8af13359696d7b1f460bc575536ba7bae5c67"
+  },
+  {
+   "sql": "SELECT id FROM adc2_paid_bookings WHERE refund_tx_hash=?",
+   "sha256": "071c1c4ea9f6ed8c6d2a90543cc22448bc4ed9005105876bdf6d8ffde8845b37"
   },
   {
    "sql": "SELECT id FROM adc2_paid_bookings WHERE state='confirming' ORDER BY quoted_ms LIMIT ?",
@@ -2302,8 +2314,16 @@
    "sha256": "612adf3faa77bf07da5ed7b1fe21fd2f02d0b9ab26764c660385acbca21dfd11"
   },
   {
+   "sql": "UPDATE adc2_paid_bookings SET krw_rate=? WHERE id=? AND krw_rate IS NULL",
+   "sha256": "ef28a04c5a1bd193fec8ed3b7042e11ce7b155089d6a2f8bc544cb1e0e6b154b"
+  },
+  {
    "sql": "UPDATE adc2_paid_bookings SET state='expired' WHERE state='quoted' AND expires_ms<?",
    "sha256": "55c04f6f50db851fa03c9399cbfe2cd0734500b511667bfca6ad4d0fefa1003c"
+  },
+  {
+   "sql": "UPDATE adc2_paid_bookings SET state='expired',tx_hash=NULL,note='no_payment_seen' WHERE state='confirming' AND payer IS NULL AND expires_ms<?",
+   "sha256": "a54da511c133d3246f81909c91695885d2fadf1995fcfdfe7204fdd5ea485442"
   },
   {
    "sql": "UPDATE adc2_paid_bookings SET state='review',note=? WHERE id=? AND state IN ('confirmed','served')",
@@ -2324,6 +2344,10 @@
   {
    "sql": "UPDATE adc2_paid_bookings SET tx_hash=? WHERE id=? AND tx_hash IS NULL",
    "sha256": "a259dfca7537272d612d727cca8d0dde2546468031fda830e278e8d135470a44"
+  },
+  {
+   "sql": "UPDATE adc2_paid_bookings SET tx_hash=?,payer=NULL WHERE id=? AND state='confirming' AND tx_hash=?",
+   "sha256": "318576a54a7a90a4cd8871d682ba573ffa137245cd1616777d0001a1f2953c4d"
   },
   {
    "sql": "UPDATE adc2_paid_bookings SET tx_hash=NULL,state='quoted',note=? WHERE id=?",

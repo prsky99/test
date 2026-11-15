@@ -92,7 +92,7 @@ def router_for(commercial, bookings, *, resolve_auth) -> APIRouter:
             body = await body_of(request)
             return await run_in_threadpool(lambda: bookings.operator_decide(
                 access, ctx.principal, booking_id, action=body.get("action"), refund_tx_hash=body.get("refund_tx_hash"),
-                reason=body.get("reason")))
+                reason=body.get("reason"), sanctions_ack=body.get("sanctions_ack") is True))
         return await respond(call)
 
     @router.get("/admin/paid-bookings/export")

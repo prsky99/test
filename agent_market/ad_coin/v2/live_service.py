@@ -170,12 +170,11 @@ def create_live_ad_coin_v2_router(
     from .paid_bookings import enabled as paid_enabled
 
     if paid_enabled():  # USDC paid bookings (11-11): off by default, on only after the user's approval
-        from ...chain import RPC
-        from .paid_bookings import DEFAULT_OFAC_LIST, PaidBookings, PaidConfig, Sanctions
+        from .paid_bookings import DEFAULT_OFAC_LIST, PaidBookings, PaidConfig, Sanctions, default_rpc
         from .paid_bookings_http import router_for as paid_router
 
         paid_config = PaidConfig.from_env()
-        paid_rpc = RPC(os.environ.get("AD_COIN_PAID_RPC_URL", "https://mainnet.base.org"))
+        paid_rpc = default_rpc()   # R36: 4 s, one retry, two public nodes must agree
         base_router.include_router(paid_router(commercial, PaidBookings(
             commercial.store, paid_config, rpc=paid_rpc,
             sanctions=Sanctions(os.environ.get("AD_COIN_OFAC_LIST", DEFAULT_OFAC_LIST)),

@@ -9,7 +9,7 @@ EVM-format label), because a payer on Base uses the same address format.
 
 The file is replaced atomically, and only when the new list is plausible: at least MIN_ADDRESSES
 entries and not more than MAX_DROP smaller than the current file. Otherwise the old file stays and
-the command exits 1; when the file grows older than 8 days, payments go to staff review on their own.
+the command exits 1; when the file grows older than 2 days (paid_bookings.SANCTIONS_MAX_AGE_S), payments go to staff review on their own.
 """
 import argparse
 import json

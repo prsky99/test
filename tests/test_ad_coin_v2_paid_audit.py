@@ -33,11 +33,11 @@ def row(store, booking_id):
         return store.one('paid_booking_get', (booking_id,))
 
 
-def paid(world, *, amount_delta=0, **send):  # noqa: F811
+def paid(world, *, amount_delta=0, late=False, **send):  # noqa: F811
     suite, service, rpc, _ = world
     q = quote(world)
     tx = rpc.send(int(q['amount_units']) + amount_delta, **send)
-    return q, tx, service.submit(suite.advertiser, q['id'], tx, now_ms=LATER)
+    return q, tx, service.submit(suite.advertiser, q['id'], tx, now_ms=NOW + 31 * 60_000 if late else LATER)
 
 
 def test_a_confirmed_payment_records_its_block_and_the_watch_follows_it_to_finalized(audited):
@@ -94,15 +94,18 @@ def test_rpc_outage_never_confirms_never_reorgs_and_never_raises(audited):
     assert paid_audit.watch(service, now_ms=LATER + 8000)['rpc_unavailable'] == 1
     assert row(store, q['id'])['state'] == 'confirmed' and len(events(store, q['id'])) == 1
     q2 = quote(audited, region='KR')
-    tx2 = rpc.txs and None
     rpc.down = False
     tx2 = rpc.send(int(q2['amount_units']))
     rpc.down = True
-    assert service.submit(suite.advertiser, q2['id'], tx2, now_ms=LATER)['state'] == 'confirming'   # waits, no error
-    assert service.recheck(now_ms=LATER) == 0
+    service._network_ok = False
+    with pytest.raises(ContractError) as error:                       # not attached while the chain cannot be read
+        service.submit(suite.advertiser, q2['id'], tx2, now_ms=LATER)
+    assert error.value.code == 'payment_not_seen_yet' and error.value.status < 500
+    assert row(store, q2['id'])['tx_hash'] is None and service.recheck(now_ms=LATER) == 0
     rpc.down = False
-    service.recheck(now_ms=LATER)
-    assert row(store, q2['id'])['state'] == 'confirmed' and events(store, q2['id'])[0]['kind'] == 'receipt'
+    service._network_ok = False
+    assert service.submit(suite.advertiser, q2['id'], tx2, now_ms=LATER)['state'] == 'confirmed'
+    assert events(store, q2['id'])[0]['kind'] == 'receipt'
 
 
 def test_concurrent_confirmations_write_once_and_never_overwrite_an_operator(audited):
@@ -138,8 +141,10 @@ def test_late_payment_mismatch_and_duplicate_transactions(audited):
     assert events(store, late['id'])[0]['kind'] == 'receipt'
     wrong = quote(audited, region='KR')
     wrong_tx = rpc.send(int(wrong['amount_units']) - 1)
-    assert service.submit(suite.advertiser, wrong['id'], wrong_tx, now_ms=LATER)['state'] == 'review'
-    assert row(store, wrong['id'])['note'] == 'amount_mismatch' and events(store, wrong['id'])[0]['kind'] == 'receipt'
+    with pytest.raises(ContractError) as error:                       # R32: another amount is never attached
+        service.submit(suite.advertiser, wrong['id'], wrong_tx, now_ms=LATER)
+    assert error.value.code == 'amount_mismatch' and row(store, wrong['id'])['tx_hash'] is None
+    assert events(store, wrong['id']) == []
     another = quote(audited, region='US', day=NOW - NOW % 86_400_000 + 2 * 86_400_000)
     with pytest.raises(ContractError) as error:
         service.submit(suite.advertiser, another['id'], tx, now_ms=LATER)      # the same payment for a second booking
@@ -150,8 +155,11 @@ def test_review_is_resolved_only_by_an_operator_with_a_reason_and_leaves_an_audi
     from agent_market.ad_coin.sql_registry import unchecked
     suite, service, rpc, _ = audited
     store, access, op = suite.service.store, suite.service.access, operator(suite)
-    q, tx, got = paid(audited, amount_delta=+1)
-    assert got['state'] == 'review'
+    q, tx, got = paid(audited, sender='0x' + '9' * 40)                                  # on the sanctions list
+    assert got['state'] == 'review' and row(store, q['id'])['note'] == 'sanctions_match'
+    assert events(store, q['id'], 'receipt')[0]['detail'].count('"sanctions": "match"') == 1
+    queued = service.operator_queue(access, op)['items'][0]
+    assert (queued['received_usdc'], queued['quoted_usdc'], queued['sanctions']) == (q['amount_usdc'], q['amount_usdc'], 'match')
     with pytest.raises(ContractError) as error:
         service.operator_decide(access, op, q['id'], action='clear')                    # no reason
     assert error.value.code == 'invalid_reason'
@@ -161,15 +169,22 @@ def test_review_is_resolved_only_by_an_operator_with_a_reason_and_leaves_an_audi
     if stranger is not None:
         with pytest.raises(ContractError):
             service.operator_decide(access, stranger, q['id'], action='clear', reason='looks fine')
-    assert service.operator_decide(access, op, q['id'], action='clear', reason='overpaid by 1 unit, accepted')['state'] == 'confirmed'
+    with pytest.raises(ContractError) as error:                       # R35: screened again, needs an explicit ack
+        service.operator_decide(access, op, q['id'], action='clear', reason='looks fine to me')
+    assert error.value.code == 'sanctions_review_required'
+    with pytest.raises(ContractError) as error:
+        service.operator_decide(access, op, q['id'], action='clear', reason='short', sanctions_ack=True)
+    assert error.value.code == 'sanctions_review_required'
+    why = 'false match: address checked by hand, accepted'
+    assert service.operator_decide(access, op, q['id'], action='clear', reason=why, sanctions_ack=True)['state'] == 'confirmed'
     decided = events(store, q['id'], 'operator')[-1]
     assert (decided['kind'], decided['from_state'], decided['to_state'], decided['reason']) == (
-        'operator', 'review', 'confirmed', 'overpaid by 1 unit, accepted')
+        'operator', 'review', 'confirmed', why) and '"sanctions": "match"' in decided['detail']
     assert decided['actor'] == 'operator:' + str(op.id)
     with unchecked(), store.atomic():
         audit = store.database.all("SELECT event_type, actor_principal_id, details_json FROM adc2_audit_log "
                                    "WHERE target_id=? AND event_type='paid_booking_clear'", (q['id'],))
-    assert len(audit) == 1 and 'overpaid by 1 unit' in audit[0]['details_json']
+    assert len(audit) == 1 and 'false match' in audit[0]['details_json']
     with pytest.raises(ContractError) as error:                                         # already decided
         service.operator_decide(access, op, q['id'], action='clear', reason='again')
     assert error.value.code == 'paid_booking_state_changed'
@@ -182,19 +197,24 @@ def test_review_is_resolved_only_by_an_operator_with_a_reason_and_leaves_an_audi
     ('not on chain', 'refund_not_found'),
     ('failed transaction', 'refund_failed'),
     ('rpc down', 'refund_unverifiable'),
+    ('from another wallet', 'refund_not_from_receiving_wallet'),
+    ('before the payment', 'refund_before_payment'),
 ])
 def test_a_wrong_refund_record_is_refused_and_the_booking_stays_refund_due(audited, case, code):
     suite, service, rpc, _ = audited
     store, access, op = suite.service.store, suite.service.access, operator(suite)
-    q, tx, _ = paid(audited, amount_delta=-1)
-    service.operator_decide(access, op, q['id'], action='refund', reason='underpaid, return it')
-    amount = int(q['amount_units']) - 1
+    q, tx, _ = paid(audited, late=True)                                   # late: review
+    cap = service.operator_decide(access, op, q['id'], action='refund', reason='the day was taken, return it')
+    amount = int(q['amount_units'])
+    assert cap['refund_cap_usdc'] == q['amount_usdc']                     # R31: the cap is what arrived
     refund = {'the payment itself': lambda: tx,
-              'to another wallet': lambda: rpc.send(amount, sender=PAY_TO, to='0x' + '7' * 40),
-              'more than paid': lambda: rpc.send(amount + 1, sender=PAY_TO, to=PAYER),
+              'to another wallet': lambda: rpc.send(amount, sender=PAY_TO, to='0x' + '7' * 40, block=95),
+              'more than paid': lambda: rpc.send(amount + 1, sender=PAY_TO, to=PAYER, block=95),
               'not on chain': lambda: '0x' + 'c' * 64,
-              'failed transaction': lambda: rpc.send(amount, sender=PAY_TO, to=PAYER, status='0x0'),
-              'rpc down': lambda: rpc.send(amount, sender=PAY_TO, to=PAYER)}[case]()
+              'failed transaction': lambda: rpc.send(amount, sender=PAY_TO, to=PAYER, status='0x0', block=95),
+              'rpc down': lambda: rpc.send(amount, sender=PAY_TO, to=PAYER, block=95),
+              'from another wallet': lambda: rpc.send(amount, sender='0x' + '6' * 40, to=PAYER, block=95),
+              'before the payment': lambda: rpc.send(amount, sender=PAY_TO, to=PAYER, block=80)}[case]()
     service._network_ok = False
     rpc.down = case == 'rpc down'
     with pytest.raises(ContractError) as error:
@@ -202,18 +222,23 @@ def test_a_wrong_refund_record_is_refused_and_the_booking_stays_refund_due(audit
     assert error.value.code == code and error.value.status < 500
     rpc.down = False
     assert row(store, q['id'])['state'] == 'refund_due'
-    good = rpc.send(amount, sender=PAY_TO, to=PAYER)
+    good = rpc.send(amount, sender=PAY_TO, to=PAYER, block=95)
     assert service.operator_decide(access, op, q['id'], action='refunded', refund_tx_hash=good,
                                    reason='refund sent by the owner')['state'] == 'refunded'
-    assert events(store, q['id'], 'operator')[-1]['detail'] in (
-        '{"action": "refunded", "refund_units": %d}' % amount, '{"action": "refund"}')
+    other = quote(audited, region='KR')
+    rpc_tx = rpc.send(int(other['amount_units']))
+    service.submit(suite.advertiser, other['id'], rpc_tx, now_ms=NOW + 31 * 60_000)
+    service.operator_decide(access, op, other['id'], action='refund', reason='the day was taken, return it')
+    with pytest.raises(ContractError) as error:                          # one refund transaction, one booking
+        service.operator_decide(access, op, other['id'], action='refunded', refund_tx_hash=good, reason='refund sent')
+    assert error.value.code == 'refund_tx_already_used'
     assert '{"action": "refunded", "refund_units": %d}' % amount in [e['detail'] for e in events(store, q['id'], 'operator')]
 
 
 def test_before_the_events_table_payments_and_decisions_still_work(world):  # noqa: F811
     suite, service, rpc, _ = world
     store, access, op = suite.service.store, suite.service.access, operator(suite)
-    q, tx, got = paid(world, amount_delta=+2)
+    q, tx, got = paid(world, late=True)
     assert got['state'] == 'review'
     assert paid_audit.watch(service, now_ms=LATER + 9000)['checked'] == 0
     assert service.recheck(now_ms=LATER) == 0
@@ -322,3 +347,93 @@ def test_a_failing_finality_watch_is_logged_and_never_stops_confirmations(audite
     caplog.set_level(logging.INFO)
     assert service.recheck(now_ms=LATER) == 1                                 # confirmed anyway
     assert any('Paid finality watch failed' in r.getMessage() for r in caplog.records)
+
+
+def test_tail_amounts_are_not_reused_within_seven_days_and_open_bookings_are_capped(audited, monkeypatch):
+    """R32/R34: a tail any booking of the last 7 days used is never quoted again; five open bookings per advertiser."""
+    from agent_market.ad_coin.v2 import paid_bookings as pb
+    suite, service, rpc, _ = audited
+    first = quote(audited)
+    tails = iter([int(first['amount_units']) - service.config.price_units - 1, 4242])
+    monkeypatch.setattr(pb.secrets, 'randbelow', lambda n: next(tails))
+    second = quote(audited, region='KR')
+    assert second['amount_units'] != first['amount_units'] and int(second['amount_units']) == service.config.price_units + 4243
+    monkeypatch.undo()
+    today = NOW - NOW % 86_400_000
+    for days in (2, 3, 4):                                    # five open quotes in all, on days with room
+        quote(audited, region='US', day=today + days * 86_400_000)
+    with pytest.raises(ContractError) as error:
+        quote(audited, region='KR', day=today + 5 * 86_400_000)
+    assert (error.value.code, error.value.status) == ('too_many_open_bookings', 409)
+
+
+def test_a_confirming_booking_whose_sender_never_appeared_is_released_after_an_hour(audited):
+    from agent_market.ad_coin.sql_registry import unchecked
+    suite, service, rpc, _ = audited
+    store = suite.service.store
+    q = quote(audited)
+    ghost = '0x' + 'e' * 64
+    with unchecked(), store.atomic():                        # a confirming row from before R32 with no sender seen
+        store._connection().execute("UPDATE adc2_paid_bookings SET state='confirming', tx_hash=? WHERE id=?", (ghost, q['id']))
+    service.recheck(now_ms=int(q['expires_ms']) + 30 * 60_000)
+    assert row(store, q['id'])['state'] == 'confirming'
+    service.recheck(now_ms=int(q['expires_ms']) + 61 * 60_000)
+    released = row(store, q['id'])
+    assert (released['state'], released['tx_hash'], released['note']) == ('expired', None, 'no_payment_seen')
+
+
+def test_a_confirming_payment_the_chain_never_showed_can_be_replaced(audited):
+    from agent_market.ad_coin.sql_registry import unchecked
+    suite, service, rpc, _ = audited
+    store = suite.service.store
+    q = quote(audited)
+    ghost = '0x' + 'f' * 64
+    with unchecked(), store.atomic():
+        store._connection().execute("UPDATE adc2_paid_bookings SET state='confirming', tx_hash=? WHERE id=?", (ghost, q['id']))
+    real = rpc.send(int(q['amount_units']))
+    assert service.submit(suite.advertiser, q['id'], real, now_ms=LATER)['state'] == 'confirmed'
+    assert row(store, q['id'])['tx_hash'] == real
+    q2 = quote(audited, region='KR')
+    shown = rpc.send(int(q2['amount_units']))
+    rpc.head = 91
+    service.submit(suite.advertiser, q2['id'], shown, now_ms=LATER)                 # confirming, sender seen
+    with pytest.raises(ContractError) as error:
+        service.submit(suite.advertiser, q2['id'], rpc.send(int(q2['amount_units'])), now_ms=LATER)
+    assert error.value.code == 'payment_already_submitted'
+
+
+def test_a_receipt_counts_only_when_two_public_nodes_agree():
+    from agent_market.ad_coin.v2.paid_bookings import AgreeingRPC
+
+    class Node:
+        def __init__(self, block_hash=None, fail=False):
+            self.block_hash, self.fail = block_hash, fail
+
+        def receipt(self, tx):
+            if self.fail:
+                raise RuntimeError('down')
+            return None if self.block_hash is None else {'blockHash': self.block_hash, 'status': '0x1'}
+
+        def block_number(self):
+            return 7
+    assert AgreeingRPC(Node('0xaa'), Node('0xAA')).receipt('t')['blockHash'] == '0xaa'
+    assert AgreeingRPC(Node('0xaa'), Node('0xbb')).receipt('t') is None
+    assert AgreeingRPC(Node('0xaa'), Node(None)).receipt('t') is None
+    assert AgreeingRPC(Node(None), Node('0xaa')).receipt('t') is None
+    with pytest.raises(RuntimeError):
+        AgreeingRPC(Node('0xaa'), Node(fail=True)).receipt('t')     # verify_transfer reads this as 'not yet'
+    assert AgreeingRPC(Node(), Node()).block_number() == 7
+
+
+def test_clearing_fills_a_missing_krw_rate_or_refuses(audited):
+    suite, service, rpc, _ = audited
+    store, access, op = suite.service.store, suite.service.access, operator(suite)
+    service.krw_rate = lambda: None
+    q, tx, got = paid(audited)
+    assert got['state'] == 'review' and row(store, q['id'])['note'] == 'krw_rate_unavailable'
+    with pytest.raises(ContractError) as error:
+        service.operator_decide(access, op, q['id'], action='clear', reason='rate came back')
+    assert error.value.code == 'krw_rate_unavailable'
+    service.krw_rate = lambda: '1391.0'
+    assert service.operator_decide(access, op, q['id'], action='clear', reason='rate came back')['state'] == 'confirmed'
+    assert row(store, q['id'])['krw_rate'] == '1391.0'

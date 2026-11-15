@@ -145,13 +145,19 @@
     try {
       const {items} = await get('/paid-bookings');
       $('paid-list').replaceChildren(...items.map(item => {
+        const SCREEN = {clear: '해당 없음', match: '제재 목록에 있음', unavailable: '확인 불가'};
         const lines = [item.amount_usdc + ' USDC · ' + (item.state === 'review' ? '검토' : '환불 필요') +
-          (item.note ? ' · ' + (NOTES[item.note] || item.note) : ''), '송금자 ' + (item.payer || '—'), '거래 ' + (item.tx_hash || '—')];
+          (item.note ? ' · ' + (NOTES[item.note] || item.note) : ''),
+          '받은 금액 ' + (item.received_usdc || '확인 필요') + ' / 견적 ' + (item.quoted_usdc || item.amount_usdc) + ' USDC' +
+          (item.refund_cap_usdc ? ' · 환불 상한 ' + item.refund_cap_usdc : ''),
+          '송금자 ' + (item.payer || '—') + ' · 제재 대조 ' + (SCREEN[item.sanctions] || '—'), '거래 ' + (item.tx_hash || '—')];
         const decide = (body, okText) => async (b, card) => {
           const why = paidReason(card);
           if (why.value.trim().length < 3) { why.focus(); text('paid-status', '처리 사유를 3자 이상 적으세요.'); return; }
+          const ack = card.querySelector('input[name="sanctions-ack"]');
           b.disabled = true; try {
-          await post('/paid-bookings/' + item.id + '/decision', {...body, reason: why.value.trim()}); await loadPaid(okText); }
+          await post('/paid-bookings/' + item.id + '/decision',
+            {...body, reason: why.value.trim(), sanctions_ack: !!(ack && ack.checked)}); await loadPaid(okText); }
           catch (e) { b.disabled = false; text('paid-status', reason(e.status)); } };
         const actions = item.state === 'review'
           ? [['확정', true, decide({action: 'clear'}, '확정했습니다.')], ['환불 필요', false, decide({action: 'refund'}, '환불 필요로 옮겼습니다.')]]
@@ -161,6 +167,13 @@
               await decide({action: 'refunded', refund_tx_hash: input.value.trim()}, '환불을 기록했습니다.')(b, card); }]];
         const card = row(lines, actions);
         paidReason(card);
+        if (item.state === 'review' && item.sanctions && item.sanctions !== 'clear') {
+          // R35: clearing a sender that is not 'clear' needs this tick and a reason of at least 20 characters.
+          const label = document.createElement('label'); const box = document.createElement('input');
+          box.type = 'checkbox'; box.name = 'sanctions-ack';
+          label.append(box, ' 제재 대조 결과를 직접 확인했고 사유를 20자 이상 적었습니다');
+          card.insertBefore(label, card.querySelector('.actions'));
+        }
         return card;
       }));
       text('paid-status', done || (items.length ? '' : '검토·환불할 결제가 없습니다.'));
