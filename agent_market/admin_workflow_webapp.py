@@ -22,7 +22,7 @@ def build_admin_package(config, deployment, single_html=False):
     run_anchor = '<button id="runAppBtn"'
     if index.count(run_anchor) != 1:
         raise ValueError('The workflow application layout is unavailable.')
-    index = index.replace(run_anchor, '<div id="workflowInputs"></div><p class="input-notice">Application inputs are sent to Agent Concierge only when you select Run Workflow.</p>' + run_anchor, 1)
+    index = index.replace(run_anchor, '<div id="workflowInputs"></div><p class="input-notice">Application inputs are sent to AgentValCon only when you select Run Workflow.</p>' + run_anchor, 1)
     index = index.replace('<div id="stepsContainer"></div>', '<p id="appNotice" role="status" aria-live="polite"></p><div id="stepsContainer"></div>')
     css = files['assets/styles.css'] + '\nlabel{display:block;margin:14px 0}input,select{box-sizing:border-box;display:block;width:100%;max-width:650px;padding:10px;margin-top:6px;border:1px solid #8391a6;border-radius:8px;background:Canvas;color:CanvasText;font:inherit}input:focus-visible,select:focus-visible{outline:3px solid #6366f1;outline-offset:3px}.input-notice,footer{font-size:.85rem;opacity:.8}.fallback-badge{font-size:.8rem;border:1px solid #8391a6;border-radius:8px;padding:4px 8px}pre{max-height:480px;overflow:auto}button:disabled{cursor:default;opacity:.65}#appNotice button{font-size:.9rem;padding:6px 10px}\n'
     manifest = json.loads(files['app-manifest.json'])
@@ -30,7 +30,7 @@ def build_admin_package(config, deployment, single_html=False):
                     app_id=deployment['app_id'], publish_key=deployment['publish_key'],
                     allowed_origins=deployment['allowed_origins'], input_fields=deployment['input_fields'],
                     limits={'starts_per_minute':deployment['minute_limit'],'starts_per_day':deployment['day_limit']})
-    readme = f'''# Agent Concierge registered workflow app
+    readme = f'''# AgentValCon registered workflow app
 
 Extract and deploy this folder to your own HTTP(S) server or any subdirectory.
 Keep index.html and assets/ together. No build tool or provider credential is required.

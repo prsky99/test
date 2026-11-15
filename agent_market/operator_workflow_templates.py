@@ -196,7 +196,7 @@ def definitions(base_url="https://agentconcierge.biz"):
                 "trigger_type": "manual",
                 "is_active": 1,
                 "is_template": 0,
-                "author": "Agent Concierge Operations",
+                "author": "AgentValCon Operations",
                 "rating_avg": 0,
                 "tags": "operator-provided,read-only," + slug,
                 "nodes": [trigger, *nodes],

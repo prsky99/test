@@ -22,7 +22,7 @@ PROFILE = 'first-party-public-guides-v1'
 
 class PlatformGuideAgent:
     tool_name = TOOL
-    server_name = 'Agent Concierge Public Guides'
+    server_name = 'AgentValCon Public Guides'
 
     def tools(self):
         contract = CONTRACTS['docs.search.v1']

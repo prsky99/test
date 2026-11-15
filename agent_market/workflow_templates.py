@@ -53,7 +53,7 @@ def definitions():
         trigger={'id':'start','type':'trigger','kind':'trigger','name':'Manual Trigger','position':{'x':60,'y':160},'data':{}}
         result.append({'seed_key':VERSION+':'+key,'name':name,'description':description,'category':category,
                        'trigger_type':'manual','tags':'catalog-workflow,read-only,'+key,'is_template':1,'is_active':1,
-                       'author':'Agent Concierge','rating_avg':0,'nodes':[trigger]+nodes,
+                       'author':'AgentValCon','rating_avg':0,'nodes':[trigger]+nodes,
                        'edges':[{'id':'start-first','source':'start','target':nodes[0]['id']},
                                 {'id':'first-second','source':nodes[0]['id'],'target':nodes[1]['id']}]})
     return deepcopy(result)

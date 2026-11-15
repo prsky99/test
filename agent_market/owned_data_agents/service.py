@@ -82,7 +82,7 @@ def router_for(*, enabled=False, engine=None):
                 raise ValueError()
             if method == 'server/discover' and params == {}:
                 result = {'protocolVersion':'2026-07-28','capabilities':{'tools':{}},
-                          'serverInfo':{'name':'Agent Concierge '+spec['name'],'version':'1.0.0'},
+                          'serverInfo':{'name':'AgentValCon '+spec['name'],'version':'1.0.0'},
                           'ttlMs':60000,'cacheScope':'public'}
             elif method == 'initialize':
                 requested = params.get('protocolVersion')
@@ -90,7 +90,7 @@ def router_for(*, enabled=False, engine=None):
                     raise ValueError()
                 supported = ('2024-11-05','2025-03-26','2025-06-18','2025-11-25')
                 result = {'protocolVersion': requested if requested in supported else supported[-1], 'capabilities': {'tools': {}},
-                          'serverInfo': {'name': 'Agent Concierge ' + spec['name'], 'version': '1.0.0'}}
+                          'serverInfo': {'name': 'AgentValCon ' + spec['name'], 'version': '1.0.0'}}
             elif method == 'tools/list' and params == {}:
                 result = {'tools': [declared]}
                 if modern:

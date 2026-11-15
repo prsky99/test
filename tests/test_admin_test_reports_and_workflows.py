@@ -330,7 +330,7 @@ def test_workflow_templates_hub_and_filtering(client):
     assert data["total"] >= 3
     for t in data["workflows"]:
         assert t["is_template"] == 1
-        assert t["author"] == "Agent Concierge"
+        assert t["author"] == "AgentValCon"
         assert t["rating_avg"] == 0.0
 
     # Filter by category

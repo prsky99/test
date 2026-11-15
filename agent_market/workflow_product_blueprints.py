@@ -58,7 +58,7 @@ def definitions(primary_id, alternate_id, primary_io, alternate_io):
         'edges':[{'source':'search','target':'response'}]})
     for product in products:
         product['workflow']={'name':product['name'],'description':product['description'],'category':'dev_tools',
-            'trigger_type':'manual','is_active':1,'is_template':0,'author':'Agent Concierge',
+            'trigger_type':'manual','is_active':1,'is_template':0,'author':'AgentValCon',
             'tags':'workflow-product-candidate,'+product['slug'],'nodes':product.pop('nodes'),'edges':product.pop('edges')}
     return products
 

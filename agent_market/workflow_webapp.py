@@ -55,13 +55,13 @@ def build_package(config):
 <script nonce="{nonce}" src="assets/agentconcierge-sdk.js" defer></script>
 <script nonce="{nonce}" src="assets/app.js" defer></script>
 </head><body><main><h1>{title}</h1><p>{description}</p>
-<p>Workflow execution is processed by Agent Concierge. An internet connection is required.</p>
+<p>Workflow execution is processed by AgentValCon. An internet connection is required.</p>
 <button id="runAppBtn" type="button" aria-busy="false"><svg data-run-ready width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg><svg data-run-spinner class="app-run-spinner" hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a10 10 0 1 0 10 10"/></svg><span data-run-label>Run Workflow</span></button>
 <button id="cancelAppBtn" type="button" disabled>Stop</button>
 <p id="appStatus" role="status" aria-live="polite">Ready</p><div id="stepsContainer"></div>
 <script type="application/json" id="wfData" nonce="{nonce}">{public_config}</script>
 </main><footer><a href="{GATEWAY}/#privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a> · <a href="{GATEWAY}/#tos" target="_blank" rel="noopener noreferrer">Terms of Service</a></footer></body></html>'''
-    readme = f'''# Agent Concierge workflow web app
+    readme = f'''# AgentValCon workflow web app
 
 Deploy this folder on any static HTTP(S) server. No application server, package
 installation, build step, platform credential or provider API key is needed.

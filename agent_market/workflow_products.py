@@ -234,7 +234,7 @@ class Products:
                 self.runtime.fallback.current_pair({'workflow_id':workflow['id'],'policy_revision':policy['revision'],'policy':policy},pair)
         except (ValueError,KeyError,TypeError):return None
         result={k:workflow.get(k) for k in ('id','name','description','category','trigger_type','is_active','is_template')}
-        result.update(author='Agent Concierge',tags='verified-workflow-product',nodes=[],edges=deepcopy(workflow['edges']))
+        result.update(author='AgentValCon',tags='verified-workflow-product',nodes=[],edges=deepcopy(workflow['edges']))
         for n in workflow['nodes']:
             node={k:n[k] for k in ('id','name','type','kind','resource_id','position') if k in n}
             node['data']={'input':deepcopy(n.get('data',{}).get('input',{}))} if n.get('type')=='agent' else {}

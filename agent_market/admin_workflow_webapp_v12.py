@@ -41,7 +41,7 @@ def build_admin_package_v12(config, deployment, single_html=False):
                     allowed_origins=deployment['allowed_origins'], expires=deployment['expires'],
                     inputs='fixed-reviewed-literals', per_run_authorization=True,
                     limits={'starts_per_minute': deployment['minute_limit'], 'starts_per_day': deployment['day_limit']})
-    readme = '''# Agent Concierge reviewed workflow app — SDK 1.2
+    readme = '''# AgentValCon reviewed workflow app — SDK 1.2
 
 Deploy index.html and assets/ together on the exact HTTP(S) origin reviewed by the
 administrator. Subdirectory hosting is supported. Use HTTPS in production.

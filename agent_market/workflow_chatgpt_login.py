@@ -37,14 +37,14 @@ def login_attempt(root, redirect_uri, host, expected_email):
 def callback_handler(root, pending, outcome):
     """Redirect completed callbacks to a page without one-use query credentials."""
     class Handler(BaseHTTPRequestHandler):
-        server_version='Agent Concierge'
+        server_version='AgentValCon'
         sys_version=''
 
         def log_message(self,*args):pass
 
         def page(self, success, status=None):
-            message=('ChatGPT connection verified. Return to Agent Concierge.' if success else
-                     'The connection could not be verified. Return to Agent Concierge.')
+            message=('ChatGPT connection verified. Return to AgentValCon.' if success else
+                     'The connection could not be verified. Return to AgentValCon.')
             title='Connection verified' if success else 'Connection unavailable'
             body=('<!doctype html><html lang="en"><title>'+title+'</title><p>'+message+'</p></html>').encode()
             self.send_response(status if status is not None else (200 if success else 400))

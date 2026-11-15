@@ -17,7 +17,7 @@ CSS = '''
 *{box-sizing:border-box}[hidden]{display:none!important}body{margin:0;background:var(--bg);color:var(--text);line-height:1.6}main{max-width:940px;margin:auto;padding:40px 22px}header{margin-bottom:28px}a{color:var(--accent);overflow-wrap:anywhere}.brand{display:inline-flex;align-items:center;gap:10px;font-weight:650;text-decoration:none}svg{flex:none}h1{font-size:clamp(1.7rem,5vw,2.2rem);line-height:1.2;margin:28px 0 12px}h2{font-size:1.2rem;margin:0 0 14px}h3{font-size:1rem;margin:16px 0 8px}p{margin:10px 0}.muted,footer{color:var(--muted)}section{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:24px;margin:20px 0}button{font:inherit;border:1px solid var(--line);background:var(--surface);color:var(--text);border-radius:10px;padding:11px 16px;cursor:pointer;display:inline-flex;align-items:center;gap:8px}button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-text)}button:disabled{opacity:.55;cursor:default}button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(--accent);outline-offset:4px}label{display:flex;gap:12px;align-items:flex-start;margin:16px 0}input[type=checkbox]{margin-top:7px;width:18px;height:18px;flex:none}.actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:20px}#appStatus{font-weight:600}#inputReview,#stepsContainer,#appStatus,#appNotice{overflow-wrap:anywhere}pre{white-space:pre-wrap;max-height:360px;overflow:auto}article{border-top:1px solid var(--line);margin-top:16px;padding-top:4px}footer{border-top:1px solid var(--line);padding:22px 0;font-size:.9rem}footer a{margin-right:16px}@media(max-width:500px){main{padding:24px 16px}section{padding:18px}.actions button{width:100%;justify-content:center}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto;transition:none;animation:none}}
 '''
 
-README = '''# Agent Concierge connected app — SDK 1.3
+README = '''# AgentValCon connected app — SDK 1.3
 
 Deploy index.html and assets/ together on an exact HTTP(S) origin reviewed by the
 administrator. Subdirectory hosting is supported. Use HTTPS in production.
@@ -105,14 +105,14 @@ def build_admin_package_v13(config, deployment, single_html=False):
     index = '''<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer">
 <meta http-equiv="Content-Security-Policy" content="__CSP__"><meta name="robots" content="noindex, nofollow">
-<title>News to Documentation — Agent Concierge</title>
+<title>News to Documentation — AgentValCon</title>
 <meta name="description" content="Review a fixed news search and separately authorize its checked first title to be shared with one documentation agent for one run.">
-<meta property="og:type" content="website"><meta property="og:site_name" content="Agent Concierge">
-<meta property="og:title" content="News to Documentation — Agent Concierge"><meta property="og:description" content="Review exact search inputs and the title-sharing rule before one connected run.">
-<meta name="twitter:card" content="summary"><meta name="twitter:title" content="News to Documentation — Agent Concierge"><meta name="twitter:description" content="Review exact search inputs and the title-sharing rule before one connected run.">
+<meta property="og:type" content="website"><meta property="og:site_name" content="AgentValCon">
+<meta property="og:title" content="News to Documentation — AgentValCon"><meta property="og:description" content="Review exact search inputs and the title-sharing rule before one connected run.">
+<meta name="twitter:card" content="summary"><meta name="twitter:title" content="News to Documentation — AgentValCon"><meta name="twitter:description" content="Review exact search inputs and the title-sharing rule before one connected run.">
 <meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#101827" media="(prefers-color-scheme: dark)">
 <link rel="stylesheet" href="assets/styles.css"></head><body><main>
-<header><a class="brand" href="https://agentconcierge.biz/" aria-label="Agent Concierge home"><svg class="lucide lucide-link" focusable="false" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Agent Concierge</a>
+<header><a class="brand" href="https://agentconcierge.biz/" aria-label="AgentValCon home"><svg class="lucide lucide-link" focusable="false" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>AgentValCon</a>
 <h1>News to documentation</h1><p>One news search, followed by one documentation search using its checked first result title.</p><p class="muted">The future title is unknown before the news call. Results do not establish factual accuracy or expert quality.</p></header>
 <section aria-labelledby="reviewTitle"><h2 id="reviewTitle">Review before each run</h2><p>Preparation does not call agents. Review exact news inputs, recipients, fixed documentation settings and the title-sharing rule.</p>
 <button id="prepareAppBtn" type="button">Review run inputs</button><div id="inputReview" aria-live="polite"></div>

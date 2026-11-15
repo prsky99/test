@@ -221,7 +221,7 @@ class LoginAttempt:
             'redirect_uri':self.redirect_uri,'scope':' '.join(sorted(SCOPES)),'resource':API,
             'state':self.state,'nonce':self.nonce,'code_challenge_method':'S256',
             'code_challenge':base64.urlsafe_b64encode(hashlib.sha256(self.verifier.encode()).digest()).decode().rstrip('=')}
-        if self.client_id=='dynamic_agent_client':args['agent_name_hint']='Agent Concierge'
+        if self.client_id=='dynamic_agent_client':args['agent_name_hint']='AgentValCon'
         return AUTH+'/api/accounts/authorize?'+urlencode(args)
 
     def complete(self, client, query):

@@ -36,7 +36,7 @@ class ApprovedDocument:
 
 class ApprovedCorpusAgent(PlatformGuideAgent):
     tool_name = 'search_approved_documents'
-    server_name = 'Agent Concierge Document Search'
+    server_name = 'AgentValCon Document Search'
 
     def __init__(self, documents):
         if (type(documents) is not tuple or not 1 <= len(documents) <= 500

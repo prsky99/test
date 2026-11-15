@@ -55,7 +55,7 @@ def definitions(base_url='https://agentconcierge.biz'):
                    'position': {'x': 60, 'y': 160}, 'data': {}}
         result.append({'seed_key': VERSION + ':' + key, 'name': name, 'description': description,
             'category': category, 'trigger_type': 'manual', 'tags': 'owned-data,read-only,' + key,
-            'is_template': 1, 'is_active': 1, 'author': 'Agent Concierge',
+            'is_template': 1, 'is_active': 1, 'author': 'AgentValCon',
             'nodes': [trigger, *nodes], 'edges': [
                 {'id': 'start-first', 'source': 'start', 'target': nodes[0]['id']},
                 {'id': 'first-second', 'source': nodes[0]['id'], 'target': nodes[1]['id']}]})
