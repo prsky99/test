@@ -434,3 +434,28 @@ def test_the_operator_sees_the_exact_agent_line_before_approving(p1_suite):  # n
     assert submitted['preview'].startswith('Sponsored: Research assistant AI') and GOOD['line'] in submitted['preview']
     [pending] = so.pending_offers(store, p1_suite.service.access, operator(p1_suite))['items']
     assert pending['advertiser_name_ok'] and pending['preview'] == submitted['preview']
+
+
+def test_ads_library_shows_the_approved_text_not_a_draft_and_skips_cancelled_bookings(p1_suite):  # noqa: F811
+    """R37: only an approved revision's text is shown; a coin booking cancelled before its day was not shown."""
+    from agent_market.ad_coin.sql_registry import unchecked
+    from agent_market.ad_coin.v2.ads_library import entries
+    from tests.test_ad_coin_v2_p1 import _activate_campaign
+    from tests.test_ad_coin_v2_sponsored import NOW, book_today
+    store = p1_suite.service.store
+    campaign = _activate_campaign(p1_suite)
+    book_today(p1_suite, campaign)
+    [before] = entries(store, NOW)
+    approved_text = before['text']
+
+    def run(sql):
+        with unchecked(), store.atomic():
+            store._connection().execute(sql, (campaign['id'],))
+    run("UPDATE adc2_sponsored_bookings SET state='refunded' WHERE campaign_id=?")      # cancelled before its day
+    assert entries(store, NOW) == []
+    run("UPDATE adc2_sponsored_bookings SET state='booked' WHERE campaign_id=?")
+    run("UPDATE adc2_campaigns SET approval_status='invalidated' WHERE id=?")         # approval withdrawn
+    [after] = entries(store, NOW)
+    assert after['text'] == approved_text                                               # the reviewed revision's text
+    run("UPDATE adc2_reviews SET state='rejected' WHERE campaign_id=?")                 # no eligible review at all
+    assert entries(store, NOW) == []

@@ -1658,12 +1658,12 @@
    "sha256": "ddf02ceae123fc052ecda54cbee91a150427f5431cc876aedaaeec383f3b1324"
   },
   {
-   "sql": "SELECT b.campaign_id,b.day_ms,b.task_category,b.region,b.state,r.payload_json FROM adc2_paid_bookings b JOIN adc2_campaigns c ON c.id=b.campaign_id JOIN adc2_campaign_revisions r ON r.id=c.current_revision_id WHERE b.day_ms>=? AND b.state IN ('confirmed','served','refunded','refund_due') ORDER BY b.day_ms DESC,b.id LIMIT ?",
-   "sha256": "dbfb6a8897a9f0f119523424dc1d7981093a48acac8ff9dd5e08afe2ecc9b8d2"
+   "sql": "SELECT b.campaign_id,b.day_ms,b.task_category,b.region,b.state,COALESCE(CASE WHEN c.approval_status='approved' THEN r.payload_json END,(SELECT r2.payload_json FROM adc2_reviews v JOIN adc2_campaign_revisions r2 ON r2.id=v.revision_id WHERE v.campaign_id=c.id AND v.state='eligible' ORDER BY r2.starts_ms DESC,v.id DESC LIMIT 1)) AS payload_json FROM adc2_paid_bookings b JOIN adc2_campaigns c ON c.id=b.campaign_id JOIN adc2_campaign_revisions r ON r.id=c.current_revision_id WHERE b.day_ms>=? AND b.state IN ('confirmed','served','refunded','refund_due') ORDER BY b.day_ms DESC,b.id LIMIT ?",
+   "sha256": "ca556bc365c90de2ff0c71c6136eab01a2ab1881d837d66894762b79681fc3c0"
   },
   {
-   "sql": "SELECT b.campaign_id,b.day_ms,b.task_category,b.region,b.state,r.payload_json FROM adc2_sponsored_bookings b JOIN adc2_campaigns c ON c.id=b.campaign_id JOIN adc2_campaign_revisions r ON r.id=c.current_revision_id WHERE b.day_ms>=? ORDER BY b.day_ms DESC,b.id LIMIT ?",
-   "sha256": "8c9e550fa5fe5b739003f473223f7944bbdcaab3c038ef943167014fc9a2c912"
+   "sql": "SELECT b.campaign_id,b.day_ms,b.task_category,b.region,b.state,COALESCE(CASE WHEN c.approval_status='approved' THEN r.payload_json END,(SELECT r2.payload_json FROM adc2_reviews v JOIN adc2_campaign_revisions r2 ON r2.id=v.revision_id WHERE v.campaign_id=c.id AND v.state='eligible' ORDER BY r2.starts_ms DESC,v.id DESC LIMIT 1)) AS payload_json FROM adc2_sponsored_bookings b JOIN adc2_campaigns c ON c.id=b.campaign_id JOIN adc2_campaign_revisions r ON r.id=c.current_revision_id WHERE b.day_ms>=? AND b.state<>'refunded' ORDER BY b.day_ms DESC,b.id LIMIT ?",
+   "sha256": "03e1bc6a48a50aa227ef846a0de227eec94526427581bb637d9296d1bc863caa"
   },
   {
    "sql": "SELECT body FROM ad_coin_receipts WHERE user_ref=? ORDER BY created_at DESC LIMIT ?",

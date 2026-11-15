@@ -2,7 +2,8 @@
 
 The data side for agent_market/concierge/ads_library_page.py (renderer, organic side): every Sponsored placement of
 the last 180 days, coin bookings and confirmed USDC bookings alike, one row per campaign, task category and region
-with its first and last day, state, the exact text, why it was shown, where it appeared and the approved agent offer.
+with its first and last day, state, the text of the approved revision (what was shown, not a draft under review; R37),
+why it was shown, where it appeared and the approved agent offer. Bookings cancelled before their day are left out.
 Read from the database at most once a minute in this process (the edge keeps the page 10 minutes).
 """
 import json
@@ -41,6 +42,8 @@ def entries(store, now_ms=None):
             offers = {r["campaign_id"]: json.loads(r["offer_json"]) for r in store.all("sponsored_offers_approved", (ROW_LIMIT,))}
     groups = {}
     for row in rows:
+        if row["payload_json"] is None:      # R37: no approved revision, so nothing was ever shown
+            continue
         key = (row["campaign_id"], row["task_category"], row["region"])
         group = groups.setdefault(key, {"days": [], "states": set(), "payload": row["payload_json"]})
         group["days"].append(int(row["day_ms"]))
