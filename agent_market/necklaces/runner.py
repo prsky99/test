@@ -397,10 +397,55 @@ def norm_quakes(raw, values):
     return out
 
 
+AUTHOR_KEYS = ("author_name", "author", "authors", "author_names", "creator")
+YEAR_KEYS = ("first_publish_year", "first_published", "publication_year", "year", "published", "publish_year",
+             "publication_date", "date")
+AUTHOR_TEXT = re.compile(r"\bauthor(?:s|ed)?(?: by)?[:\s]+([A-Z][^,;.()\n]{2,80})")
+YEAR_TEXT = re.compile(r"\b(1[5-9]\d\d|20[0-2]\d)\b")
+
+
+def norm_book(raw, values):
+    """book.search.v1: the best match's title, first author and first publication year, so a later stage reads
+    {{slot.book.author}}. Structured answers (Open Library docs) first, then 'author X' in text (the Wikidata
+    fallback writes 'author George Orwell; published 1949'). No author fails the slot."""
+    if is_error(raw):
+        return None
+    out: dict = {}
+    for node, _ in _walk(raw):
+        if not isinstance(node, dict):
+            continue
+        for key, item in node.items():
+            k = str(key).lower()
+            if "author" not in out and k in AUTHOR_KEYS:
+                first = item[0] if isinstance(item, list) and item else item
+                if isinstance(first, dict):
+                    first = first.get("name")
+                if isinstance(first, str) and first.strip():
+                    out["author"] = first.strip()[:200]
+            if "year" not in out and k in YEAR_KEYS:
+                match = YEAR_TEXT.search(str(item))
+                if match:
+                    out["year"] = int(match.group(1))
+            if "title" not in out and k == "title" and isinstance(item, str) and item.strip():
+                out["title"] = item.strip()[:300]
+        if "author" in out:
+            break
+    text = _text(raw)
+    if "author" not in out:
+        match = AUTHOR_TEXT.search(text)
+        if not match:
+            return None
+        out["author"] = match.group(1).strip()
+    if "year" not in out and (match := re.search(r"\bpublished\D{0,20}(1[5-9]\d\d|20[0-2]\d)", text, re.I)):
+        out["year"] = int(match.group(1))
+    out["text"] = text[:2000]
+    return out
+
+
 NORMALIZERS = {"package.advisories.v1": norm_advisories, "cve.record.v1": norm_record,
                "cve.exploited.v1": norm_exploited, "company.registry.v1": norm_registry,
                "geocode.address.v1": norm_location, "airport.lookup.v1": norm_location,
-               "ip.lookup.v1": norm_location, "earthquake.feed.v1": norm_quakes}
+               "ip.lookup.v1": norm_location, "earthquake.feed.v1": norm_quakes, "book.search.v1": norm_book}
 
 
 def normalize(contract: str, raw, values):

@@ -1,0 +1,140 @@
+{
+  "slug": "book-author-brief",
+  "version": 1,
+  "status": "candidate",
+  "name": "Book and author brief",
+  "summary": "Who wrote a book and when it first came out, with an encyclopedia note on the author including the author's birth year: the book is matched first, then its author is looked up by name.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "title": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 200
+      }
+    },
+    "required": [
+      "title"
+    ],
+    "additionalProperties": false
+  },
+  "budget_ms": {
+    "total": 5000,
+    "slot": 2500
+  },
+  "synthesis": {
+    "kind": "merge-v1",
+    "rules": [
+      "the book step names the author; the encyclopedia step looks that author up",
+      "a run counts only when at least two verified pearls answered (the book search and the encyclopedia)",
+      "the first publication year comes from the book record; the birth year from the author's encyclopedia entry",
+      "every statement keeps its source link"
+    ]
+  },
+  "answer_set": "book-author-brief-v1",
+  "slots": [
+    {
+      "slot": "book",
+      "contract": "book.search.v1",
+      "required": true,
+      "fanout": 1,
+      "chain": [
+        {
+          "kind": "external",
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "resource_id": 38608,
+          "tool": "search_books",
+          "registrable_domain": "invokera.com",
+          "upstream": [
+            "open-library"
+          ],
+          "state": "active",
+          "pearl": true,
+          "input_map": {
+            "q": "{{input.title}}",
+            "limit": 3,
+            "fields": "title,author_name,first_publish_year,key"
+          }
+        },
+        {
+          "kind": "agentcon",
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "agent_id": "wikidata-book",
+          "resource_id": null,
+          "tool": "find_written_work",
+          "registrable_domain": "agentconcierge.biz",
+          "upstream": [
+            "wikidata"
+          ],
+          "state": "planned",
+          "input_map": {
+            "title": "{{input.title}}"
+          }
+        }
+      ]
+    },
+    {
+      "slot": "author",
+      "contract": "encyclopedia.summary.v1",
+      "required": true,
+      "fanout": 1,
+      "depends_on": [
+        "book"
+      ],
+      "chain": [
+        {
+          "kind": "external",
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "resource_id": 241601,
+          "tool": "wikipedia_search",
+          "registrable_domain": "cwei59969.workers.dev",
+          "upstream": [
+            "wikipedia"
+          ],
+          "state": "active",
+          "pearl": true,
+          "input_map": {
+            "query": "{{slot.book.author}}",
+            "limit": 3
+          }
+        },
+        {
+          "kind": "agentcon",
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "agent_id": "wikipedia-summary",
+          "resource_id": null,
+          "tool": "get_wikipedia_summary",
+          "registrable_domain": "agentconcierge.biz",
+          "upstream": [
+            "wikipedia"
+          ],
+          "state": "planned",
+          "input_map": {
+            "title": "{{slot.book.author}}"
+          }
+        }
+      ]
+    }
+  ],
+  "notes": "v1 candidate (100-necklace plan 7-2, workflow 11-15). Leads are verified pearls 38608 (book.search, Open Library) and 241601 (encyclopedia.summary); both passed the relay check at 11:41-11:46. Fallbacks wikidata-book and wikipedia-summary are planned until ops approves them for these slots. The task is graded whole (retest.grade_book_task): author, first publication year within one year, and the author's birth year, which neither a book search nor the book's own encyclopedia entry gives alone.",
+  "min_pearls_answered": 2,
+  "probe_input": {
+    "title": "Nineteen Eighty-Four",
+    "slot.book.author": "George Orwell"
+  },
+  "input_help": {
+    "title": "The book's title, for example Nineteen Eighty-Four."
+  }
+}

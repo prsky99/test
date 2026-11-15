@@ -459,7 +459,50 @@ GRADERS["location"] = grade_location
 GRADERS["quakes"] = grade_quakes
 TASK_EXCLUDE["quakes-near-address"] = quakes_excluded
 
-TASK_GRADERS = {"company-due-diligence": grade_company_task, "quakes-near-address": grade_quakes_task}
+# ---------------------------------------------------------------- book-author-brief (workflow 11-15)
+def _surname(case) -> str:
+    return case["truth"]["author"].split()[-1].lower()
+
+
+def _named(text: str, word: str) -> bool:
+    return re.search(r"(?<![a-z])" + re.escape(word) + r"(?![a-z])", text) is not None
+
+
+def grade_book(case, slot_out) -> bool:
+    """The book's author (by surname) and its first publication year, within one year (editions and translations
+    shift it)."""
+    if not slot_out:
+        return False
+    text = _text(slot_out)
+    years = {int(y) for y in re.findall(r"(?<!\d)(1[5-9]\d\d|20[0-2]\d)(?!\d)", text)}
+    return _named(text, _surname(case)) and any(abs(y - case["truth"]["year"]) <= 1 for y in years)
+
+
+def grade_author(case, slot_out) -> bool:
+    """An encyclopedia note on the author: the surname and the author's birth year."""
+    if not slot_out:
+        return False
+    text = _text(slot_out)
+    return _named(text, _surname(case)) and re.search(r"(?<!\d)" + str(case["truth"]["birth_year"]) + r"(?!\d)",
+                                                      text) is not None
+
+
+def grade_book_task(case, output) -> bool:
+    """book-author-brief as one task, for the necklace and every single member alike: the book part (author, first
+    year) read from the book step when there is one, and the author's birth year from the author step. A book
+    search alone has no birth year; the book's own encyclopedia entry has the year but not the author's birth."""
+    output = output or {}
+    book = output.get("book") if "book" in output else output
+    author = output.get("author") if "author" in output else output
+    return grade_book(case, book) and grade_author(case, author)
+
+
+GRADERS["book"] = grade_book
+GRADERS["author"] = grade_author
+
+TASK_GRADERS = {"company-due-diligence": grade_company_task, "quakes-near-address": grade_quakes_task,
+                "book-author-brief": grade_book_task}
+CONTRAST["book-author-brief"] = "author"
 
 
 def grade(defn: dict, case: dict, output: dict) -> dict:
@@ -482,7 +525,7 @@ def requests_per_case(defn: dict) -> int:
     return 2 * sum(min(slot.get("fanout", 1), len(model.live_members(slot, "external"))) for slot in defn["slots"])
 
 
-SINGLE_FROM_INPUT = {"legal_name": "name", "point": "address"}      # a single agent gets what the person typed instead of a staged value
+SINGLE_FROM_INPUT = {"legal_name": "name", "point": "address", "author": "title"}      # a single agent gets what the person typed instead of a staged value
 
 
 def single_definition(defn: dict, slot_name: str, member: dict) -> dict:

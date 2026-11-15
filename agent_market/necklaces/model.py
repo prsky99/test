@@ -31,6 +31,10 @@ from jsonschema.exceptions import SchemaError
 
 from ..collector.usage import _DENY
 
+# The collector's action pattern reads "book" as booking; a read verb followed by the noun "books" is a book lookup
+# (38608 search_books, a verified pearl). Kept to this one noun; the member still needs readOnlyHint=true.
+READ_NOUNS = re.compile(r"^(search|find|get|list|lookup)_books?$")
+
 ROOT = Path(__file__).resolve().parent
 DEFINITIONS = ROOT / "definitions"
 CONTRACTS = ROOT / "contracts"
@@ -106,7 +110,7 @@ def _member_errors(slot_id: str, idx: int, m: dict) -> list[str]:
     tool = m.get("tool")
     if not isinstance(tool, str) or not tool:
         errors.append(f"{where}: tool is required")
-    elif _DENY.search(tool):
+    elif _DENY.search(tool) and not READ_NOUNS.match(tool):
         errors.append(f"{where}: tool {tool!r} looks like an action, write or payment tool")
     if kind == "external":
         if not isinstance(m.get("resource_id"), int):
