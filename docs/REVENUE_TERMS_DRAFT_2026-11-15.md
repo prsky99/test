@@ -42,16 +42,16 @@
 
 **새 문구**
 > **Passes.** A pass adds features to your account for 30 days.
-> - A provider pass costs 10 USDC and is available to accounts that have proved they run an agent. It gives alerts when your agent goes down, changes its tool fingerprint or changes grade, statistics on how often it is recommended, and an export of its test records.
+> - A provider pass costs 10 USDC and is available to accounts that have proved they run an agent. It gives alerts when your agent goes down, changes its tool fingerprint or changes grade, shown in your account and in an alert feed you can read with your pass, statistics on how often it is recommended, and an export of its test records. We do not send these alerts by email.
 > - A developer pass costs 20 USDC. It gives an API key with higher limits, answers without the Sponsored offer, and bulk access to the signed feed.
 >
-> A pass is paid once in USDC on Base for the exact amount quoted. It does not renew by itself, and there is no stored balance. A pass belongs to the account that bought it and cannot be resold or transferred. A developer key may be shared only within your organisation, and changes to a key can take up to one minute to apply everywhere.
+> A pass is paid once in USDC on Base for the exact amount quoted. It does not renew by itself, and there is no stored balance. Before a pass ends you may buy the next 30 days of the same kind, one at a time. A pass belongs to the account that bought it and cannot be resold or transferred. A developer key may be shared only within your organisation, and changes to a key can take up to one minute to apply everywhere. Prices may change for future passes; a pass you bought keeps its price.
 >
 > A pass never changes recommendations, grades, scores, rankings or the order of retests.
 >
-> We refund a pass to the wallet that paid if you ask within 7 days and have barely used it, or for the days a feature was unavailable for reasons on our side.
+> Once a pass has started it is not refunded. If a feature of your pass is unavailable for reasons on our side, we add those days to your pass. If we close a pass feature before you could use it at all, we refund the pass to the wallet that paid.
 
-- "barely used"의 기준은 PM이 정한다. 제안: 개발자 키 호출 100회 미만, 제공자 내보내기 0회.
+- PM 11:4x 결정 4(쓰기 시작한 이용권은 환불 없음, 우리 쪽 사유로 못 쓴 날은 연장, 송금 환불은 예외로만)에 맞춘 문구다. 이전 초안의 "7일 안 거의 안 썼으면 환불"은 뺐다.
 
 ## B. 작업 공간 광고 약관 9항 "Paid Sponsored placements" (계획 표가 열릴 때)
 
@@ -62,6 +62,14 @@
 > Paid Sponsored placements are paid in USDC on Base at booking, either one day at a time or as a plan. A plan is several placements that we suggest from the budget, categories and regions you give. You pay a booking or a plan once, for its exact quoted amount, before it is confirmed. There is no stored balance and no top-up, and any part of your budget that a plan does not use is not charged. The price is 5 USDC per placement per day unless the quote says otherwise. Payments are not converted into coins, and coins cannot be bought. Refunds are made only for platform-side failures (for example, we reject or suspend the campaign or the Sponsored area is unavailable for more than one hour that day), for the placements affected, to the wallet that paid. We may decline payments from wallets on public sanctions lists.
 
 - 효력 줄: "Term 9 applies from <반영일>."
+
+### B-2. 작업 공간 약관 1항·7항 (환영 코인을 첫 USDC 결제 뒤로, PM 11:5x ①, 다음 frontend 묶음)
+동작은 이미 바뀌었다(환영 지급과 첫 예약 지원은 첫 USDC 결제가 확인된 공개 신청 광고주에게만). 지금 문구는 "for example", "may"라 어긋나지는 않지만, 사실에 맞게 고친다. 이 두 항은 시험(`test_public_terms_match_the_approved_clauses_word_for_word`)이 승인 원문과 글자 단위로 대조하므로, PM 확정 뒤 원문 보고서와 함께 고친다.
+
+| 항 | 지금 | 바꿀 문구 |
+|---|---|---|
+| 1. What coins are | "...grants to advertisers, for example when an account is approved or when a listed agent passes verification." | "...grants to advertisers, for example after your first USDC payment is confirmed or when a listed agent passes verification." |
+| 7. First booking support | "A new advertiser's first one-day booking may be paid from the platform's growth budget instead of your balance, once per advertiser and while that support is available." | "Once your first USDC payment is confirmed, your first one-day booking with coins may be paid from the platform's growth budget instead of your balance, once per advertiser and while that support is available." |
 
 ## C. 광고 안내 `/ad-coin/v2/advertise` 환불 문단 (계획 표가 열릴 때)
 
@@ -75,14 +83,14 @@
 
 | 절 | 지금 | 바꿀 내용 |
 |---|---|---|
-| 4. 광고주 계정 | 카탈로그 제공자만, 운영자가 모든 신청 승인 | 누구나 신청한다. 이름만 필수이고, 웹사이트(공개 주소만)나 목록 주소는 선택이다. 아래 검사를 통과하면 바로 승인하고, 걸린 건만 운영자가 본다. 검사: 숨은 문자, 에이전트 조종·명령형 문구, 판매하지 않거나 사람 확인이 필요한 분류의 단어. 제재 대조는 USDC 결제마다 한다. (구현 bea8fd8f) |
-| 2. 판매 상품 | 하루 1칸 5 USDC 단건 | 단건 5 USDC는 기준 단가로 그대로 둔다. 맞춤 계획: 예산·분야·지역을 받아 계획 2~3개를 제안하고, 고른 계획을 한 번 결제한다. 최소 10 USDC(2칸), 남는 예산은 받지 않는다. 묶음 할인은 처음엔 없다(설정값, PM 결정). |
+| 4. 광고주 계정 | 카탈로그 제공자만, 운영자가 모든 신청 승인 | 누구나 신청한다. 환영 코인과 첫 예약 지원은 첫 USDC 결제가 확인된 광고주(또는 소유 확인 제공자)에게만 준다(PM 11:5x ①). 이름만 필수이고, 웹사이트(공개 주소만)나 목록 주소는 선택이다. 아래 검사를 통과하면 바로 승인하고, 걸린 건만 운영자가 본다. 검사: 숨은 문자, 에이전트 조종·명령형 문구, 판매하지 않거나 사람 확인이 필요한 분류의 단어. 제재 대조는 USDC 결제마다 한다. (구현 bea8fd8f) |
+| 2. 판매 상품 | 하루 1칸 5 USDC 단건 | 단건 5 USDC는 기준 단가로 그대로 둔다(실질 최소 5 USDC). 맞춤 계획: 예산·분야·지역을 받아 계획 2~3개를 제안하고, 고른 계획을 한 번 결제한다. 최소 10 USDC(2칸), 남는 예산은 받지 않는다. 묶음 할인은 처음엔 없다(PM 11:5x, 첫 계획 결제 10건 뒤 PM이 정함, 단계 설정은 코드에 있음). |
 | 2. 판매 상품(새 줄) | 없음 | 이용권: 제공자 10 USDC, 개발자 20 USDC, 30일, 결제 1건 = 이용권 1장(`docs/USDC_PASS_DESIGN.md`). |
 | 7. 무효 노출과 환불 | 예약 단위 | 계획은 날짜 자리 단위로 환불하고, 나머지 자리는 그대로 나간다. 환불 송금은 사용자가 직접 하고, 운영자가 기록한다. |
 | 6. 노출 규칙 | 광고는 유기 결과·점수·순위를 바꾸지 않음 | 그대로 둔다. 에이전트 응답의 광고 칸은 항상 나간다(11-15). 개발자 이용권만 비운다. |
 
 ## PM이 확정할 것
 1. A-1 문구, 그리고 반영을 다음 frontend 묶음에 넣을지
-2. A-2의 "barely used" 기준과 7일 기한
-3. B·C 문구(계획 표가 열릴 때 반영)
-4. D의 묶음 할인 없음 유지 여부
+2. A-2 문구(PM 11:4x 결정 4·5·6 반영: 환불 없음·연장, 메일 없음, 대기 1장)
+3. B·B-2·C 문구(B-2는 다음 frontend 묶음, B·C는 계획 표가 열릴 때)
+4. D: 묶음 할인 없음(PM 11:5x 결정 1, 첫 계획 결제 10건 뒤 재검토)
