@@ -257,3 +257,11 @@ def test_without_a_plan_the_ledger_is_first_come(tmp_path):
     now = at(9)
     assert pb.plan(pb.today(now), tmp_path) == {}
     assert pb.reserve('https://en.wikipedia.org/x', 'necklace_retest', n=35, now=now, directory=tmp_path) == (True, 'ok')
+
+
+def test_npm_registry_substitute_tests_get_thirty_a_day(tmp_path):
+    """11-15 PM 16:12: package-releases reads registry.npmjs.org; the domain total stays 60."""
+    now = at(14)
+    url = 'https://registry.npmjs.org/lodash'
+    assert pb.reserve(url, 'substitute_tests', n=30, now=now, directory=tmp_path) == (True, 'ok')
+    assert pb.reserve(url, 'substitute_tests', now=now, directory=tmp_path) == (False, 'system_share')
