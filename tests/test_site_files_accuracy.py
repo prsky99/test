@@ -59,3 +59,15 @@ def test_no_reference_when_the_grader_cannot_read(monkeypatch):
     assert DQ.reference('site_files', 'python.org') is None
     points, source, _ = DQ.accuracy(case(), ours(), None, role_tasks=role_tasks)
     assert points == 0 and 'live reference unavailable' in source
+
+
+def test_our_own_ledger_refusal_is_no_reference_not_an_unreadable_site(monkeypatch):
+    from agent_market.fallback_agents import gold_check
+    monkeypatch.setattr(gold_check, 'site_truth', lambda domain: {
+        'robots': None, 'robots_note': 'could not read: Shared test budget refused the call (domain_share).',
+        'llms_txt': None, 'sitemap_xml': None})
+    assert DQ.site_truth('python.org') is None
+    DQ._CACHE.clear()
+    monkeypatch.setattr(DQ, 'site_truth', lambda domain: None)
+    points, source, _ = DQ.accuracy(case(), ours(), None, role_tasks=role_tasks)
+    assert points == 0 and 'live reference unavailable' in source

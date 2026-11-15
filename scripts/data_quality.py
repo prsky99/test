@@ -465,7 +465,12 @@ def site_truth(domain):
     from agent_market.fallback_agents import gold_check
     from agent_market.fallback_agents.net import budget
     with budget('reference_checks'):
-        return gold_check.site_truth(str(domain).strip().lower())
+        truth = gold_check.site_truth(str(domain).strip().lower())
+    # Our own ledger saying no is not a fact about the site: no reference, so nothing is judged (not "unreadable").
+    if any('budget refused' in str(truth.get(k) or '') or 'allowance refused' in str(truth.get(k) or '')
+           for k in ('robots_note',)):
+        return None
+    return truth
 
 
 def _signals(text):
