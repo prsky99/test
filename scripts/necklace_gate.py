@@ -342,6 +342,48 @@ def gate_days(definitions: list[dict], per_day: int = GATE_PER_DAY[1], ordered: 
     return days
 
 
+def split_rounds(root: Path, slug: str, split: str, seed: str) -> dict:
+    """Section 9 'split': the gate's 60 held-out cases into two rounds of 30 by a seed, each stratum halved, so neither
+    the builders nor ops choose which case lands in which round. Writes <split>-g1/-g2.jsonl beside the set and
+    registers both in its manifest (derived_from, seed, sha256); the round runner reads them like any answer set."""
+    import hashlib
+    folder = Path(root) / "gold" / slug
+    manifest_path = folder / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    entry = (manifest.get("files") or {}).get(split)
+    if not entry:
+        raise SystemExit(f"{split} is not in {manifest_path}")
+    lines = [line for line in (folder / f"{split}.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+    if hashlib.sha256(("\n".join(lines) + "\n").encode()).hexdigest() != entry.get("sha256") and \
+            hashlib.sha256("\n".join(lines).encode()).hexdigest() != entry.get("sha256"):
+        raise SystemExit(f"{split}.jsonl does not match the sha256 in the manifest")
+    if len(lines) != 60:
+        raise SystemExit(f"{split} has {len(lines)} cases; the gate takes 60 (deploy/NECKLACE_GATE.md 8.2)")
+    cases = [json.loads(line) for line in lines]
+    key = lambda c: hashlib.sha256(f"{seed}:{c.get('case_id') or c.get('id')}".encode()).hexdigest()  # noqa: E731
+    strata: dict = {}
+    for line, case in sorted(zip(lines, cases), key=lambda pair: key(pair[1])):
+        strata.setdefault(case.get("stratum") or case.get("kind") or "all", []).append(line)
+    rounds = ([], [])
+    for name in sorted(strata):              # alternate inside each stratum; an odd stratum's extra goes to the shorter
+        first = 0 if len(rounds[0]) <= len(rounds[1]) else 1
+        for i, line in enumerate(strata[name]):
+            rounds[(i + first) % 2].append(line)
+    out = {}
+    for n, part in enumerate(rounds, start=1):
+        name = f"{split}-g{n}"
+        text = "\n".join(part) + "\n"
+        (folder / f"{name}.jsonl").write_text(text, encoding="utf-8")
+        manifest["files"][name] = {"cases": len(part), "derived_from": split, "seed": seed, "round": n,
+                                   "sha256": hashlib.sha256(text.encode()).hexdigest(),
+                                   "for": f"launch gate round {n} (ops, scripts.necklace_gate split)"}
+        out[name] = len(part)
+    tmp = manifest_path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(manifest, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    tmp.replace(manifest_path)
+    return out
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
@@ -363,6 +405,10 @@ def main(argv=None) -> int:
     lim.add_argument("--per-day", type=int)
     lim.add_argument("--per-minute", type=int)
     lim.add_argument("--by", default="agent team")
+    cut = sub.add_parser("split", help="the 60 held-out cases into two seeded rounds of 30 (section 9)")
+    cut.add_argument("slug")
+    cut.add_argument("split", help="the 60-case answer set, e.g. holdout-r4")
+    cut.add_argument("--seed", required=True, help="written down before the split; e.g. the date and slug")
     plan = sub.add_parser("schedule", help="gate days: necklaces with no shared provider domain together")
     plan.add_argument("slugs", nargs="*", help="default: every candidate and qualifying definition")
     args = parser.parse_args(argv)
@@ -372,6 +418,9 @@ def main(argv=None) -> int:
     if args.command == "set-limit":
         print(json.dumps(set_limit(args.member, args.domain, args.source, args.quote, args.per_day, args.per_minute,
                                    by=args.by), ensure_ascii=False))
+        return 0
+    if args.command == "split":
+        print(json.dumps(split_rounds(judge.DEFAULT_ROOT, args.slug, args.split, args.seed), ensure_ascii=False))
         return 0
     if args.command == "schedule":
         found = {d["slug"]: d for d in model.load_all()}
