@@ -20,7 +20,7 @@ from agent_market.concierge import necklace_surface
 from agent_market.concierge.front import Front, clear_front_caches, create_front_app
 from agent_market.concierge.proxy import McpProxy
 from agent_market.gateway.store import Store
-from agent_market.necklaces import model, service
+from agent_market.necklaces import limits, model, service
 
 TOOL = {'name': 'lookup', 'description': 'Look up public security advisories',
         'inputSchema': {'type': 'object', 'properties': {'query': {'type': 'string', 'maxLength': 200}},
@@ -131,6 +131,7 @@ def entry(defn, ids, now, **extra):
 
 @pytest.fixture
 def site(tmp_path):
+    limits.reset()          # counts and cached answers of earlier tests in this process
     servers = [McpServer('GHSA-29mw-wpgm-hmr9 CVE-2021-23337'), McpServer('CVE-2021-23337'),
                McpServer('CVE-2021-23337 is listed in CISA KEV'), McpServer('listed in CISA KEV')]
     store = Store(str(tmp_path / 'site.sqlite3'))
@@ -208,20 +209,25 @@ def test_one_eligible_necklace_completes_on_web_mcp_and_a2a(site):
     assert necklace_surface.RUN is service.run_for_surface
 
     web = client.post('/api/necklaces/advisory-brief/run', json={'q': 'lodash', 'necklace_notice': 'necklace-v1'}).json()
+    assert web['cached'] is False
     assert web['ran'] is True and web['ok'] is True, web
     assert web['stages'] == {'advisories': 1, 'exploited': 1}
     assert web['output']['exploited']['kev'] is True
 
-    tool = mcp(client, 'necklace_advisory_brief', {'q': 'lodash'})
+    tool = mcp(client, 'necklace_advisory_brief', {'q': 'minimist'})
     assert tool['isError'] is False and tool['structuredContent']['ok'] is True
 
-    text, reply = a2a(client, 'run necklace advisory-brief {"q": "lodash"}')
+    text, reply = a2a(client, 'run necklace advisory-brief {"q": "express"}')
     assert reply['ok'] is True and text.startswith('Ran necklace advisory-brief.')
 
     assert [len(s.calls) for s in servers] == [3, 0, 3, 0]          # leads answered; alternates never needed
-    assert all(c == {'query': 'lodash'} for s in servers for c in s.calls)
+    assert sorted(c['query'] for c in servers[0].calls) == ['express', 'lodash', 'minimist']
+
+    again = mcp(client, 'necklace_advisory_brief', {'q': 'lodash'})  # same input within 10 minutes: cached, no call
+    assert again['structuredContent']['ok'] is True and [len(s.calls) for s in servers] == [3, 0, 3, 0]
     runs = events(data)
-    assert [e['surface'] for e in runs] == ['web', 'mcp', 'a2a']
+    assert [e['surface'] for e in runs] == ['web', 'mcp', 'a2a', 'mcp']
+    assert [bool(e.get('cached')) for e in runs] == [False, False, False, True]
     assert all(e['outcome'] == 'succeeded' and e['origin'] == 'public' for e in runs)
     assert 'lodash' not in json.dumps(runs)                          # body-free events
 
