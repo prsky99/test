@@ -39,7 +39,7 @@ TEAM = {'site': '운영·SRE', 'memory': '운영·SRE', 'disk': '운영·SRE', '
         'deploy_lock': '잠금을 잡은 팀', 'long_tests': '시험을 돌린 팀', 'stale_handoffs': '받는 팀',
         'ad_coin_ledger': 'AI AD Coin', 'payment_flow': 'AI AD Coin', 'adcoin_daemon': 'AI AD Coin',
         'launchd_jobs': '운영·SRE', 'backup': '운영·SRE', 'core_down': '운영·SRE', 'vector_index_usage': '검색과 RAG', 'north_star': 'PM', 'revenue': 'PM', 'fingerprints': '운영·SRE', 'adcoin_review': 'PM',
-        'answer_sets': '워크플로우'}
+        'answer_sets': '워크플로우', 'adcoin_refunds': 'PM'}
 ALERT_SYSTEM = (
     'You write operations alerts in Korean for the owner of the Agent Concierge website. '
     'Input is JSON describing detected anomalies. Write at most three short lines in plain Korean: what is wrong, '
@@ -343,6 +343,32 @@ def review_queue(clock=time.time, run=None):
     else:
         board_close('adcoin_review', '심사 대기 0건(' + now() + ')')
     return {'pending': count, 'oldest_minutes': oldest}
+
+
+REFUNDS_SQL = ROOT / 'deploy/ops/adcoin-refunds-due.sql'
+
+
+def refunds_due(run=None):
+    """Every watch run (AI AD Coin, PM 11-15 12:5x): USDC refunds the user has to send by hand (an operator takedown
+    turns a paid placement into refund_due). Counts and the total only, read-only through prod_ro_sql; payer addresses
+    are never read here. One or more opens a board line for PM; none closes it."""
+    if run is None and os.environ.get('PYTEST_CURRENT_TEST'):
+        return None   # a test that runs the whole watch never reads the production database
+    run = run or (lambda: subprocess.run([str(ROOT / '.venv/bin/python'), '-m', 'scripts.prod_ro_sql', str(REFUNDS_SQL)],
+                                         capture_output=True, text=True, cwd=ROOT, timeout=60))
+    try:
+        done = run()
+        line = [x for x in done.stdout.strip().splitlines() if '|' in x][-1] if done.returncode == 0 else None
+        count, units, ok_format = (int(v) for v in line.split('|')[:3])
+    except (subprocess.TimeoutExpired, ValueError, IndexError, OSError, AttributeError):
+        append(ACTIONS, f'{now()} 환불 대기 확인 실패(prod_ro_sql)')
+        return 'failed'
+    if count:
+        board_handoff('adcoin_refunds', f'USDC 환불 대상 {count}건, 합계 {units / 1_000_000:.2f} USDC, 받을 주소 형식 맞음 '
+                                        f'{ok_format}건(주소는 운영자 화면의 USDC 결제 대기열에서만), 사유는 운영자 화면 → 사용자가 직접 송금')
+    else:
+        board_close('adcoin_refunds', '환불 대상 0건(' + now() + ')')
+    return {'refunds_due': count, 'usdc': units / 1_000_000, 'payer_format_ok': ok_format}
 
 
 VECTOR_USAGE_STATE = ROOT / 'logs/ops/vector-index-usage-state.json'
@@ -908,6 +934,10 @@ def watch():
         review_queue()
     except Exception as error:  # noqa: BLE001
         append(ACTIONS, f'{now()} 심사 대기 확인 실패: {type(error).__name__}')
+    try:
+        refunds_due()
+    except Exception as error:  # noqa: BLE001
+        append(ACTIONS, f'{now()} 환불 대기 확인 실패: {type(error).__name__}')
     try:
         vector_index_usage()
     except Exception as error:  # noqa: BLE001

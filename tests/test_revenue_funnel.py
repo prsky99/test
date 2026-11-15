@@ -154,3 +154,20 @@ def test_the_board_line_carries_the_review_queue_within_150_characters():
     record['reviews_waiting'] = {'pending': 2, 'oldest_minutes': 45}
     text = revenue_funnel.line(record)
     assert text.endswith(' | 심사 대기 2(최장 45분)') and len('2026-11-15 ' + text) <= 150
+
+
+def test_refunds_due_open_a_line_for_pm_with_counts_only(monkeypatch, tmp_path):
+    """AI AD Coin (PM 11-15 12:5x): a takedown makes refunds the user sends by hand; PM hears at the next watch."""
+    handed, closed = [], []
+    monkeypatch.setattr(ops_auto, 'board_handoff', lambda kind, text: handed.append((kind, text)))
+    monkeypatch.setattr(ops_auto, 'board_close', lambda kind, note: closed.append(kind))
+    monkeypatch.setattr(ops_auto, 'ACTIONS', tmp_path / 'actions.md')
+    out = {'text': 'refunds_due|refund_units|payer_format_ok\n2|10000000|1\n'}
+    run = lambda: types.SimpleNamespace(returncode=0, stdout=out['text'])                      # noqa: E731
+    assert ops_auto.refunds_due(run) == {'refunds_due': 2, 'usdc': 10.0, 'payer_format_ok': 1}
+    assert handed[-1][0] == 'adcoin_refunds' and handed[-1][1].startswith('USDC 환불 대상 2건, 합계 10.00 USDC, 받을 주소 형식 맞음 1건')
+    assert '0x' not in handed[-1][1] and ops_auto.TEAM['adcoin_refunds'] == 'PM'
+    out['text'] = '0|0|0\n'
+    assert ops_auto.refunds_due(run)['refunds_due'] == 0 and closed == ['adcoin_refunds']
+    assert ops_auto.refunds_due(lambda: types.SimpleNamespace(returncode=75, stdout='')) == 'failed'
+    assert ops_auto.refunds_due() is None   # inside a test, never the production database
