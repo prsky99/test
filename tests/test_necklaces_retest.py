@@ -1,4 +1,5 @@
 import json
+import time
 
 from agent_market.necklaces import model, retest, runner
 from tests.test_necklaces_runner import Fail, caller_from
@@ -230,13 +231,12 @@ def test_singles_are_every_lead_pearl_and_our_substitute_on_the_whole_task():
     defn = next(d for d in model.load_valid() if d["slug"] == "company-due-diligence")
     approved = {"substitutes": [["sec-edgar", "company.registry.v1"]]}      # ops-approved 11-15 (approvals.json)
     members = retest.single_members(defn, "background", approved)
+    # 58997's terms prohibit our use (agent team 11-15): it is never measured alone either
     assert sorted((s, m.get("resource_id") or m.get("agent_id")) for s, m in members) == [
-        ("background", 241601), ("domain", 52559), ("filings", 58997), ("registry", "sec-edgar")]
+        ("background", 241601), ("domain", 52559), ("registry", "sec-edgar")]
     assert ("registry", "sec-edgar") not in [(s, m.get("agent_id")) for s, m in retest.single_members(defn, "background")]
     one = retest.single_definition(defn, "background", next(m for s, m in members if s == "background"))
     assert one["slots"][0]["chain"][0]["input_map"] == {"query": "{{input.name}}"} and "depends_on" not in one["slots"][0]
-    filings = retest.single_definition(defn, "filings", next(m for s, m in members if s == "filings"))
-    assert filings["slots"][0]["chain"][0]["input_map"] == {}             # a name alone gives that agent no ticker
 
 
 def test_the_shipped_company_definition_has_three_verified_pearl_leads():
@@ -397,3 +397,68 @@ def test_shared_cache_answers_once_per_member_and_input_inside_retests():
     shared(member, {"q": "bad"}, 5)
     shared({"kind": "agentcon", "agent_id": "x", "tool": "t"}, {"q": "a"}, 5)
     assert calls == ["a", "bad", "bad", "a"] and cache.take_hits() == 1 and cache.take_hits() == 0
+
+
+def test_two_necklaces_escalating_on_one_provider_stay_inside_its_share_and_defer(tmp_path, monkeypatch):
+    """PM 12:50: whole-set reruns on the same day never pass a provider's share; one that would not fit is deferred
+    (no case cut short). The real ledger counts in a temporary folder."""
+    from agent_market import provider_budget as pb
+    monkeypatch.setattr(pb, "DIR", tmp_path / "ledger")
+    defn = _package_set(tmp_path, ["9.9.9"] * 30)
+    calls = []
+
+    class Engine:
+        store = None
+
+        def _call_registered(self, node, args):
+            calls.append(node["resource_id"])
+            return {"vulns": [], "version": "0.0.1"}            # always wrong: every sample fails
+    lead_domains = {m["registrable_domain"] for s in defn["slots"] for m in model.live_members(s, "external")[:1]}
+    first = retest.run_daily(defn, root=tmp_path, split="holdout-r1", singles=False, budget_s=600, path="engine",
+                             engine=Engine(), sample=(0, 5))
+    assert first["escalated"] is True and first["cases"] == 30           # 5 + 30 = 35 = the necklace_retest share
+    second = retest.run_daily(defn, root=tmp_path, split="holdout-r1", singles=False, budget_s=600, path="engine",
+                              engine=Engine(), sample=(5, 5))
+    assert second.get("deferred", {}).get("why") == "provider_share" or second["cases"] == 0
+    ledger = pb.status(directory=tmp_path / "ledger")["domains"]
+    for name in lead_domains:
+        assert ledger[pb.domain(f"https://{name}/")]["by"].get("necklace_retest", 0) <= pb.share_limit("necklace_retest", name)
+    again = retest.run_daily(defn, root=tmp_path, split="holdout-r1", singles=False, budget_s=600, path="engine",
+                             engine=Engine(), require_room=True)
+    assert again["deferred"]["why"] == "provider_share" and again["cases"] == 0     # still no room today
+
+
+def test_ledger_room_reads_share_total_and_pauses():
+    from agent_market import provider_budget as pb
+    defn = {"slots": [{"slot": "s", "fanout": 1, "chain": [{"kind": "external", "state": "active", "resource_id": 1,
+                                                          "tool": "t", "registrable_domain": "a.example"}]}]}
+    used = lambda n, paused=False: (lambda: {"domains": {"a.example": {"total": n, "by": {"necklace_retest": n},
+                                                                       **({"paused": {"at": "x"}} if paused else {})}}})
+    assert retest.ledger_room(defn, 30, status=used(0)) == {}
+    assert retest.ledger_room(defn, 30, status=used(10)) == {"a.example": [30, pb.share_limit("necklace_retest", "a.example") - 10]}
+    assert retest.ledger_room(defn, 1, status=used(0, paused=True)) == {"a.example": [1, 0]}
+
+
+def test_relay_calls_never_hold_more_than_two_edge_slots():
+    """PM 12:50: however many necklaces retest, our relay requests share one process-wide pair of slots."""
+    import threading as th
+    now, peak, lock = [0], [0], th.Lock()
+
+    class Client:
+        def post(self, url, json, headers, timeout):
+            with lock:
+                now[0] += 1
+                peak[0] = max(peak[0], now[0])
+            time.sleep(0.02)
+            with lock:
+                now[0] -= 1
+            return type("R", (), {"status_code": 200, "headers": {}, "json": lambda self: {"result": {"ok": 1}}})()
+    pacer = type("P", (), {"take": lambda self: True})()
+    call = retest.gateway_caller(Client(), "https://x.test", pacer)
+    member = {"kind": "external", "resource_id": 1, "tool": "t", "registrable_domain": "a.example"}
+    workers = [th.Thread(target=lambda: call(member, {}, 5)) for _ in range(8)]
+    for w in workers:
+        w.start()
+    for w in workers:
+        w.join()
+    assert 1 <= peak[0] <= retest.RELAY_CONCURRENCY == 2

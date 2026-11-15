@@ -22,8 +22,19 @@ class Relay(httpx.BaseTransport):
         return httpx.Response(200, json={"jsonrpc": "2.0", "id": 1, "result": {"content": [{"type": "text", "text": "ok"}]}})
 
 
-def company():
+def shipped_company():
     return next(d for d in model.load_valid() if d["slug"] == "company-due-diligence")
+
+
+def company():
+    """company-due-diligence as it was before the 11-15 terms check (58997 runnable): these tests are about the
+    relay, the shipped definition's prohibited filings member is tested below."""
+    import copy
+    defn = copy.deepcopy(shipped_company())
+    for slot in defn["slots"]:
+        for m in slot["chain"]:
+            m.pop("terms", None)
+    return defn
 
 
 VERIFIED = {(241601, "encyclopedia.summary.v1"), (58997, "sec.filings.v1"), (52559, "domain.lookup.v1")}
@@ -91,7 +102,7 @@ def test_our_substitutes_hold_their_seat_without_the_relay():
     out, _ = run(set())
     registry = next(s for s in out["slots"] if s["slot"] == "registry")
     assert registry["members"][0] == {"rank": 1, "kind": "agentcon", "tool": "find_sec_company", "id": "sec-edgar",
-                                      "substitute_approved": True, "seat_eligible": True}
+                                      "terms": "allowed", "substitute_approved": True, "seat_eligible": True}
 
 
 def test_admitted_rows_carry_empty_reason_fields_and_a_full_edge_is_not_a_denial(monkeypatch):
@@ -169,3 +180,36 @@ def test_gate_days_keep_provider_domains_apart():
         assert len(day) <= 5
     company_day = next(day for day in days if any(d["slug"] == "company-due-diligence" for d in day))
     assert not {"book-author-brief", "website-trust-brief"} & {d["slug"] for d in company_day}   # shared pearls
+
+
+
+def test_a_slot_whose_only_member_is_prohibited_is_not_ready_and_never_called():
+    """PM 12:46 (11-15): 58997's terms prohibit our use; the filings slot stays required and empty, the gate says
+    it is not ready and why, and nothing is sent to filings.tools."""
+    relay = Relay(set())
+    ledger = dict(reserve=lambda url, system: (True, None), note=lambda *a, **kw: None,
+                  pacer=type("P", (), {"wait_for": lambda self, n: None})())
+    with httpx.Client(transport=relay) as client:
+        out = necklace_gate.check(shipped_company(), client, "https://example.test", verified=VERIFIED,
+                                  substitutes=APPROVED, prints=prints(), now=NOW,
+                                  probe_fn=lambda c, b, m, a: necklace_gate.probe(c, b, m, a, **ledger))
+    assert 58997 not in {rid for rid, *_ in relay.seen}
+    filings = next(s for s in out["slots"] if s["slot"] == "filings")
+    assert filings["usable"] is False and filings["terms_prohibited"] == [58997] and filings["members"] == []
+    assert any(p.startswith("slot filings: not ready") and "terms prohibit 58997" in p for p in out["problems"])
+    assert out["ok"] is False
+
+
+def test_a_prohibited_member_is_never_seated_even_if_a_chain_kept_it(monkeypatch):
+    """PM 12:46 point 3: a prohibited member as a lead fails the gate (second lock behind runtime_chain)."""
+    defn = company()
+    defn["slots"][1]["chain"][0]["terms"] = {"status": "prohibits", "source": "https://x.example/terms",
+                                             "checked_at": "2026-11-15"}
+    monkeypatch.setattr(necklace_gate, "runtime_chain", lambda slot, slug, state: slot["chain"])
+    relay = Relay(set())
+    with httpx.Client(transport=relay) as client:
+        out = necklace_gate.check(defn, client, "https://example.test", verified=VERIFIED, substitutes=APPROVED,
+                                  prints=prints(), now=NOW, probe_fn=lambda *a: {"relay": "admitted"})
+    background = next(s for s in out["slots"] if s["slot"] == "background")
+    assert background["members"][0]["seat_eligible"] is False and background["members"][0]["why"] == "terms_prohibits"
+    assert any("terms prohibit our use" in p for p in out["problems"]) and out["ok"] is False

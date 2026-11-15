@@ -103,6 +103,12 @@
           "pearl": true,
           "input_map": {
             "store_url": "https://{{input.domain}}"
+          },
+          "terms": {
+            "status": "prohibits",
+            "source": "https://xfix.ai/terms/",
+            "checked_at": "2026-11-15",
+            "basis": "section What you may not do: using the service to build a competing audit product and republishing reports; a site-trust necklace is close enough to count (PM rule: unclear means prohibits)"
           }
         },
         {
@@ -126,7 +132,7 @@
       ]
     }
   ],
-  "notes": "v1 candidate (100-necklace plan 7-2, workflow 11-15). Leads are verified pearls 52559 (domain.lookup, RDAP) and 132732 (website.ai_readiness, xfix.ai); both passed the relay check at 11:41-11:46. 132732 answered in 12.6 s through the relay, so the crawlers slot gets the whole 5 s budget and may need a longer one after the tuning round. Fallbacks rdap-domain and site-readiness are planned until ops approves them. The task is graded whole (retest.grade_site_task): the RDAP registration date and a crawler verdict that agrees with robots.txt read when the case is graded.",
+  "notes": "v1 candidate (100-necklace plan 7-2, workflow 11-15). Leads are verified pearls 52559 (domain.lookup, RDAP) and 132732 (website.ai_readiness, xfix.ai); both passed the relay check at 11:41-11:46. 132732 answered in 12.6 s through the relay, so the crawlers slot gets the whole 5 s budget and may need a longer one after the tuning round. Fallbacks rdap-domain and site-readiness are planned until ops approves them. The task is graded whole (retest.grade_site_task): the RDAP registration date and a crawler verdict that agrees with robots.txt read when the case is graded. 11-15 (agent team terms check): 132732's terms prohibit a competing audit product, so it never runs and our own site-readiness leads the crawlers slot once ops approves it as a substitute.",
   "min_pearls_answered": 2,
   "probe_input": {
     "domain": "python.org"

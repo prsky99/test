@@ -193,3 +193,15 @@ def test_terms_of_use_status_per_member():
     assert model.terms_status({"kind": "agentcon", "agent_id": "not-a-fallback"}) == "unknown"
     report = model.terms_report(model.load_all())
     assert sum(report["members"].values()) == len(report["rows"])
+
+
+
+def test_our_own_registered_agents_take_their_terms_from_the_member():
+    """PM 12:46: 133018, 133019 and 133023 are judged by their source's terms written on the member."""
+    own_agent = {"kind": "agentcon", "agent_id": "owned-news", "resource_id": 133018, "tool": "t"}
+    assert model.terms_status(own_agent) == "unknown"
+    checked = dict(own_agent, terms={"status": "silent", "source": "https://source.example/", "checked_at": "2026-11-16"})
+    assert model.terms_status(checked) == "silent"
+    banned = {"kind": "agentcon", "agent_id": "usgs-quakes", "terms": {"status": "prohibits",
+              "source": "https://x.example/", "checked_at": "2026-11-16"}}
+    assert model.terms_status(banned) == "prohibits"          # a checked member value wins over the catalogue

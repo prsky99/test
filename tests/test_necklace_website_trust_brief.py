@@ -63,15 +63,18 @@ def test_task_needs_both_parts(monkeypatch):
 
 
 def test_run_sends_the_url_and_the_domain():
+    """132732's terms prohibit our use (agent team 11-15): it is never called; site-readiness leads once approved.
+    A template inside text still fills a URL (test_inner_template_fills_a_url)."""
     seen = {}
 
     def caller(member, args, timeout_s):
         seen[member["tool"]] = args
         return WHOIS if member["tool"] == "whois_lookup" else XFIX_PASS
     defn = model.load("agent_market/necklaces/definitions/website-trust-brief.json")
-    runner.Runner(caller).run(defn, {"domain": "python.org"})
-    assert seen["check_store_ai_readiness"] == {"store_url": "https://python.org"}
-    assert seen["whois_lookup"] == {"domain": "python.org"}
+    approved = {"substitutes": [["site-readiness", "website.ai_readiness.v1"]]}
+    runner.Runner(caller, watch_state=approved).run(defn, {"domain": "python.org"})
+    assert "check_store_ai_readiness" not in seen
+    assert seen["check_site_files"] == {"domain": "python.org"} and seen["whois_lookup"] == {"domain": "python.org"}
 
 
 def test_gold_builder_reads_the_rdap_registration_event():

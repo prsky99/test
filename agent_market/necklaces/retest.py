@@ -816,6 +816,28 @@ class SharedMemberCache:
         return hits
 
 
+def ledger_room(defn: dict, cases: int, system: str = "necklace_retest", status=None) -> dict:
+    """{domain: [needed, left]} for every lead's provider domain that has not enough of SYSTEM's share left today
+    for CASES cases (one call per lead per case; a paused domain has none). The ledger refuses calls past the share
+    anyway; this says beforehand that a whole-set rerun would be cut short, so it is deferred instead (PM 12:50)."""
+    from .. import provider_budget as pb
+    data = (status or pb.status)()
+    need: dict[str, int] = {}
+    for slot in defn["slots"]:
+        for member in model.live_members(slot, "external")[:slot.get("fanout", 1)]:
+            name = pb.domain(provider_url(member))
+            if name:
+                need[name] = need.get(name, 0) + cases
+    short = {}
+    for name, n in need.items():
+        entry = (data.get("domains") or {}).get(name) or {"total": 0, "by": {}}
+        left = 0 if entry.get("paused") else min(pb.share_limit(system, name) - (entry.get("by") or {}).get(system, 0),
+                                                 pb.domain_total(name) - entry.get("total", 0))
+        if left < n:
+            short[name] = [n, max(left, 0)]
+    return short
+
+
 def daily_split(now: float) -> str:
     """The daily retest walks the 60 held-out cases in two days: r1 on even days, r2 on odd days."""
     return "holdout-r1" if int(now // 86400) % 2 == 0 else "holdout-r2"
@@ -833,7 +855,8 @@ def open_engine():
 
 def run_daily(defn: dict, *, root: Path = DEFAULT_ROOT, split: str, singles: bool, budget_s: float,
               base: str = BASE, system: str = "necklace_retest", limit: int = 30, path: str = "relay",
-              engine=None, sample: tuple[int, int] | None = None, shared_cache: SharedMemberCache | None = None) -> dict:
+              engine=None, sample: tuple[int, int] | None = None, shared_cache: SharedMemberCache | None = None,
+              require_room: bool = False, room=ledger_room) -> dict:
     """One scheduled retest of one necklace. path "relay" goes through the public relay (daily retests, self-tests);
     path "engine" calls through the same registered-agent engine as public runs (PM R26: one gate round takes the path
     users take, so the gate does not pass a path that public runs never use)."""
@@ -848,6 +871,11 @@ def run_daily(defn: dict, *, root: Path = DEFAULT_ROOT, split: str, singles: boo
     except GoldSetInvalid as exc:          # not run: no case line, so the judge holds it after 48 hours
         return {"slug": defn["slug"], "split": split, "cases": 0, "passed": 0, "not_run": str(exc), "path": path}
     started = time.monotonic()
+    if require_room:                           # a deferred whole-set rerun starts only when it fits (PM 12:50)
+        short = room(defn, len(cases), system)
+        if short:
+            return {"slug": defn["slug"], "split": split, "cases": 0, "passed": 0, "path": path,
+                    "deferred": {"why": "provider_share", "short": short}}
 
     def measure(base_caller, pacer=None):
         source = shared_cache.wrap(base_caller) if shared_cache is not None else base_caller
@@ -860,6 +888,9 @@ def run_daily(defn: dict, *, root: Path = DEFAULT_ROOT, split: str, singles: boo
                        budget_s=budget_s, pacer=pacer, watch_state=watch_state, shared_cache=shared_cache)
         if part["passed"] >= part["cases"]:
             return dict(part, sample=[first, count])
+        short = room(defn, len(cases), system)
+        if short:              # the whole set would be cut short by today's provider share: next free hour
+            return dict(part, sample=[first, count], deferred={"why": "provider_share", "short": short})
         left = budget_s - (time.monotonic() - started)    # one failure: the whole set again (decision 1)
         whole = run_set(defn, cases, call, root=root, split=split, singles=False, budget_s=max(left, 0),
                         pacer=pacer, watch_state=watch_state, shared_cache=shared_cache)

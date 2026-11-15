@@ -167,8 +167,12 @@ class RetestStep:
             from .necklaces import model
             started = self._started(day)
             if kind == "live":
-                targets = [d for d in model.load_valid(self.definitions_dir) if d["status"] == "live"
+                every = model.load_valid(self.definitions_dir)
+                targets = [d for d in every if d["status"] == "live"
                            and d["slug"] not in started and (force_kind or live_hour(d["slug"]) == local.tm_hour)]
+                waiting = self._deferred()          # whole-set reruns put off for want of provider share
+                targets += [d for d in every if d["status"] == "live" and d["slug"] in waiting
+                            and d not in targets and waiting[d["slug"]].get("tried") != f"{day}-{local.tm_hour}"]
             else:
                 targets = [d for d in model.load_valid(self.definitions_dir)
                            if d["status"] == WINDOWS[kind][0] and d["slug"] not in started]
@@ -194,6 +198,7 @@ class RetestStep:
     def _work(self, kind, targets, started_at):
         from .necklaces import retest
         run = self._run or retest.run_daily
+        waiting = self._deferred() if kind == "live" else {}
         if kind == "live":
             finish = _at(started_at, time.localtime(started_at).tm_hour * 100 + LIVE_END)
             split, first = retest.sample_window(started_at)
@@ -210,7 +215,19 @@ class RetestStep:
                 results.append({"slug": defn["slug"], "skipped": "no_time"})
                 continue
             try:
-                results.append(run(defn, root=self.root, split=split, singles=singles, budget_s=left, **extra))
+                if defn["slug"] in waiting:         # the put-off whole set, when today's share has room for it
+                    stamp = time.localtime(started_at)
+                    self._defer(defn["slug"], waiting[defn["slug"]]["split"],
+                                tried=f"{time.strftime('%Y%m%d', stamp)}-{stamp.tm_hour}")
+                    out = run(defn, root=self.root, split=waiting[defn["slug"]]["split"], singles=False,
+                              budget_s=left, shared_cache=self.shared, require_room=True)
+                else:
+                    out = run(defn, root=self.root, split=split, singles=singles, budget_s=left, **extra)
+                if out.get("deferred") and defn["slug"] not in waiting:
+                    self._defer(defn["slug"], split)
+                elif defn["slug"] in waiting and not out.get("deferred"):
+                    self._undefer(defn["slug"])
+                results.append(out)
             except Exception as exc:
                 ok = False
                 results.append({"slug": defn["slug"], "error": type(exc).__name__})
@@ -219,6 +236,28 @@ class RetestStep:
                 "results": results}
         _append(self.logs, line, self.clock())
         return line
+
+    def _deferred(self) -> dict:
+        try:
+            return json.loads((self.root / "retest" / "deferred.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+
+    def _defer(self, slug, split, tried=None):
+        from .necklaces.judge import write_atomic
+        waiting = self._deferred()
+        entry = waiting.get(slug) or {"split": split,
+                                      "since": time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime(self.clock()))}
+        if tried:
+            entry["tried"] = tried
+        waiting[slug] = entry
+        write_atomic(self.root / "retest" / "deferred.json", waiting)
+
+    def _undefer(self, slug):
+        from .necklaces.judge import write_atomic
+        waiting = self._deferred()
+        if waiting.pop(slug, None) is not None:
+            write_atomic(self.root / "retest" / "deferred.json", waiting)
 
     def _started(self, day):
         try:

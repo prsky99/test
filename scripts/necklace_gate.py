@@ -161,7 +161,8 @@ def check(defn: dict, client, base: str = BASE, verified=None, substitutes=None,
     prints = load_json(FINGERPRINTS, {}) if prints is None else prints
     state = {"substitutes": judge.load_substitutes(Path("gateway-data/necklaces/approvals.json"))
              if substitutes is None else substitutes}
-    slots, seated_pearl_slots, problems = [], [], model.validate(defn)
+    from agent_market.necklaces.runner import slot_reference_problems
+    slots, seated_pearl_slots, problems = [], [], model.validate(defn) + slot_reference_problems(defn)
     if verified is None:     # PM 13:0x: no snapshot, older than 72 hours or another evaluator version
         problems.append("verified pearls not judged (verify snapshot missing, older than 72 hours or graded with "
                         "another evaluator version)")
@@ -171,8 +172,11 @@ def check(defn: dict, client, base: str = BASE, verified=None, substitutes=None,
         rows = []
         for rank, member in enumerate(chain, start=1):
             row = {"rank": rank, "kind": member["kind"], "tool": member["tool"],
-                   "id": member.get("resource_id") or member.get("agent_id")}
-            if member["kind"] == "external":
+                   "id": member.get("resource_id") or member.get("agent_id"), "terms": model.terms_status(member)}
+            if row["terms"] == "prohibits":     # never called (runtime_chain drops it); kept here as a second lock
+                row.update(relay="not_checked", why="terms_prohibits", **{SEATED: False})
+                problems.append(f"slot {slot['slot']}: member {row['id']} terms prohibit our use")
+            elif member["kind"] == "external":
                 row["verified_pearl"] = bool(verified) and (member["resource_id"], slot["contract"]) in verified
                 args = render(member.get("input_map") or {}, sample) if sample else None
                 row.update(probe_fn(client, base, member, args))
@@ -192,13 +196,22 @@ def check(defn: dict, client, base: str = BASE, verified=None, substitutes=None,
             rows.append(row)
         seated = [r for r in rows if r[SEATED]]
         lead = next((r for r in seated if r["kind"] == "external"), None)
+        prohibited = [m.get("resource_id") or m.get("agent_id") for m in slot["chain"]
+                      if model.terms_status(m) == "prohibits"]
+        waiting = [m["agent_id"] for m in slot["chain"]
+                   if m.get("kind") == "agentcon" and m.get("state") == "planned" and m not in chain
+                   and not any(x.get("agent_id") == m["agent_id"] for x in chain)]
+        if slot.get("required", True) and not seated:   # PM 12:46: say exactly why the slot is not ready
+            why = [f"terms prohibit {', '.join(map(str, prohibited))}"] if prohibited else []
+            why += [f"{', '.join(waiting)} not approved as a substitute yet"] if waiting else []
+            problems.append(f"slot {slot['slot']}: not ready, no member can run" + (f" ({'; '.join(why)})" if why else ""))
         if lead and lead.get("verified_pearl"):
             seated_pearl_slots.append(slot["slot"])
         slots.append({"slot": slot["slot"], "contract": slot["contract"], "required": slot.get("required", True),
                       "depends_on": slot.get("depends_on"), "requires_input": slot.get("requires_input"),
                       "members": rows, "seated_lead": lead["id"] if lead else None,
                       "seated_lead_is_pearl": bool(lead and lead.get("verified_pearl")),
-                      "usable": bool(seated)})
+                      "terms_prohibited": prohibited, "usable": bool(seated)})
     need = defn.get("min_pearls_answered") or 2
     always = [s["slot"] for s in slots if s["slot"] in seated_pearl_slots and not s.get("requires_input")]
     if any(s["required"] and not s["usable"] for s in slots):

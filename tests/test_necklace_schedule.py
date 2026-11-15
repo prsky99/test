@@ -167,3 +167,25 @@ def test_recent_kev_refresh_runs_once_a_day_after_0620(tmp_path):
     now[0] = at(6, 21)
     assert step.run_due()["role_tasks"]["ok"] is True and step.run_due() is None and calls == [1]
     assert lines(tmp_path)[-1]["step"] == "role_tasks_recent_kev"
+
+
+def test_a_deferred_whole_set_runs_in_a_later_free_hour_and_then_leaves_the_list(tmp_path):
+    """PM 12:50: a whole-set rerun without provider room waits for the next free live hour."""
+    from agent_market.necklace_schedule import LIVE_HOURS, live_hour
+    defs = setup(tmp_path, statused("live-brief", "live"))
+    hour = live_hour("live-brief")
+    later = LIVE_HOURS[(LIVE_HOURS.index(hour) + 1) % len(LIVE_HOURS)]
+    now, calls, answers = [at(hour, 16)], [], [{"deferred": {"why": "provider_share"}}]
+
+    def run(defn, **kw):
+        calls.append((kw.get("sample"), kw.get("require_room")))
+        out = answers.pop(0) if answers else {"cases": 30, "passed": 30}
+        return {"slug": defn["slug"], **out}
+    s = RetestStep(root=tmp_path / "data", logs=tmp_path / "logs", definitions_dir=defs, clock=lambda: now[0], run=run,
+                   background=False)
+    s.run_due()
+    assert json.loads((tmp_path / "data" / "retest" / "deferred.json").read_text())["live-brief"]["split"]
+    now[0] = at(later, 16)
+    s.run_due()
+    assert calls[-1] == (None, True)
+    assert json.loads((tmp_path / "data" / "retest" / "deferred.json").read_text()) == {}

@@ -350,7 +350,21 @@ def norm_location(raw, values):
         if not (-90 <= found[0] <= 90 and -180 <= found[1] <= 180):
             return None
     lat, lon = round(found[0], 6), round(found[1], 6)
-    return {"lat": lat, "lon": lon, "point": f"{lat:.6f},{lon:.6f}", "place": name[:300]}
+    out = {"lat": lat, "lon": lon, "point": f"{lat:.6f},{lon:.6f}", "place": name[:300]}
+    # later location-hub consumers (holiday.calendar needs a country, timezone.time an IANA zone): staged when the
+    # answer gives them (IP lookups and airports do; a street geocoder usually does not)
+    for node, _ in _walk(raw):
+        if not isinstance(node, dict):
+            continue
+        for key, item in node.items():
+            k = str(key).lower()
+            if "country_code" not in out and isinstance(item, str) and re.fullmatch(r"[A-Za-z]{2}", item.strip()) \
+                    and k in ("country_code", "countrycode", "country_iso", "iso_country", "country"):
+                out["country_code"] = item.strip().upper()
+            if "timezone" not in out and isinstance(item, str) and k in ("timezone", "time_zone", "tz", "timezone_id") \
+                    and re.fullmatch(r"[A-Za-z_]+(/[A-Za-z0-9_+-]+)+", item.strip()):
+                out["timezone"] = item.strip()
+    return out
 
 
 MAG_KEYS = ("mag", "magnitude")
@@ -454,6 +468,37 @@ NORMALIZERS = {"package.advisories.v1": norm_advisories, "cve.record.v1": norm_r
                "cve.exploited.v1": norm_exploited, "company.registry.v1": norm_registry,
                "geocode.address.v1": norm_location, "airport.lookup.v1": norm_location,
                "ip.lookup.v1": norm_location, "earthquake.feed.v1": norm_quakes, "book.search.v1": norm_book}
+
+
+# What a later stage can read ({{slot.<slot>.<field>}}): the scalar fields of each normalizer's answer (Runner.run
+# stages str, int and float values, never lists, dicts or booleans). The gate checks every slot reference against
+# this (PM 12:58, 11-15); tests keep it equal to what the normalizers return.
+STAGED_FIELDS = {norm_advisories: set(), norm_record: {"cve_id", "cvss_score"}, norm_exploited: {"cve_id"},
+                 norm_generic: {"text"}, norm_registry: {"cik", "ticker", "lei", "legal_name"},
+                 norm_location: {"lat", "lon", "point", "place", "country_code", "timezone"},
+                 norm_quakes: {"count"}, norm_book: {"author", "year", "title", "text"}}
+
+
+def staged_fields(contract: str) -> set:
+    return STAGED_FIELDS[NORMALIZERS.get(contract, norm_generic)]
+
+
+def slot_reference_problems(defn: dict) -> list[str]:
+    """Every {{slot.X.Y}} a member reads must be a field the X step's normalizer stages (PM 12:58)."""
+    contracts = {s["slot"]: s.get("contract") for s in defn.get("slots") or []}
+    problems = []
+    for slot in defn.get("slots") or []:
+        for m in slot.get("chain") or []:
+            for value in (m.get("input_map") or {}).values():
+                for kind, ref in INNER_TEMPLATE.findall(value if isinstance(value, str) else ""):
+                    if kind != "slot":
+                        continue
+                    source, _, field = ref.partition(".")
+                    if source in contracts and field not in staged_fields(contracts[source] or ""):
+                        problems.append(f"slot {slot['slot']}: member {m.get('resource_id') or m.get('agent_id')} "
+                                        f"reads slot.{ref}, which the {source} step never stages "
+                                        f"(it stages {', '.join(sorted(staged_fields(contracts[source]))) or 'nothing'})")
+    return problems
 
 
 def normalize(contract: str, raw, values):

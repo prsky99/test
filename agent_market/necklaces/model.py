@@ -164,14 +164,17 @@ USABLE_TERMS = ("allowed", "silent")
 
 
 def terms_status(member: dict) -> str:
-    if member.get("kind") == "agentcon":
-        from ..fallback_agents.catalog import SPECS
-        sources = (SPECS.get(member.get("agent_id")) or {}).get("sources") or []
-        return "allowed" if sources and all(s.get("license") or s.get("terms") for s in sources) else "unknown"
+    """A checked terms field on the member wins (external members, and our own registered agents outside the fallback
+    catalogue, judged by their source's terms, PM 12:46); otherwise a catalogue fallback is allowed when all its
+    sources name a licence; anything else is unknown."""
     terms = member.get("terms") or {}
     status = terms.get("status")
     if status in ("allowed", "silent", "prohibits") and str(terms.get("source", "")).startswith("https://"):
         return status
+    if member.get("kind") == "agentcon":
+        from ..fallback_agents.catalog import SPECS
+        sources = (SPECS.get(member.get("agent_id")) or {}).get("sources") or []
+        return "allowed" if sources and all(s.get("license") or s.get("terms") for s in sources) else "unknown"
     return "unknown"
 
 
