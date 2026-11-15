@@ -419,6 +419,35 @@ def norm_quakes(raw, values):
     return out
 
 
+ZONE_KEYS = ("timezone", "time_zone", "timezoneid", "timezone_id", "tz", "zone", "iana")
+IANA_TEXT = re.compile(r"\b((?:Africa|America|Antarctica|Asia|Atlantic|Australia|Europe|Indian|Pacific)/[A-Za-z_]+"
+                       r"(?:/[A-Za-z_]+)?)\b")
+
+
+def norm_zone(raw, values):
+    """The coordinates-to-time-zone bridge (proposed contract timezone.at_point.v1, PM 13:42): the IANA zone, and the
+    country code when the answer gives one, so a later stage reads {{slot.zone.timezone}} or .country_code."""
+    if is_error(raw):
+        return None
+    out: dict = {}
+    for node, _ in _walk(raw):
+        if not isinstance(node, dict):
+            continue
+        for key, item in node.items():
+            k = str(key).lower()
+            if "timezone" not in out and k in ZONE_KEYS and isinstance(item, str) and IANA_TEXT.fullmatch(item.strip()):
+                out["timezone"] = item.strip()
+            if "country_code" not in out and k in ("country_code", "countrycode", "country") and isinstance(item, str) \
+                    and re.fullmatch(r"[A-Za-z]{2}", item.strip()):
+                out["country_code"] = item.strip().upper()
+    if "timezone" not in out:
+        match = IANA_TEXT.search(_text(raw))
+        if not match:
+            return None
+        out["timezone"] = match.group(1)
+    return out
+
+
 AUTHOR_KEYS = ("author_name", "author", "authors", "author_names", "creator")
 YEAR_KEYS = ("first_publish_year", "first_published", "publication_year", "year", "published", "publish_year",
              "publication_date", "date")
@@ -467,7 +496,8 @@ def norm_book(raw, values):
 NORMALIZERS = {"package.advisories.v1": norm_advisories, "cve.record.v1": norm_record,
                "cve.exploited.v1": norm_exploited, "company.registry.v1": norm_registry,
                "geocode.address.v1": norm_location, "airport.lookup.v1": norm_location,
-               "ip.lookup.v1": norm_location, "earthquake.feed.v1": norm_quakes, "book.search.v1": norm_book}
+               "ip.lookup.v1": norm_location, "earthquake.feed.v1": norm_quakes, "book.search.v1": norm_book,
+               "timezone.at_point.v1": norm_zone}
 
 
 # What a later stage can read ({{slot.<slot>.<field>}}): the scalar fields of each normalizer's answer (Runner.run
@@ -476,7 +506,8 @@ NORMALIZERS = {"package.advisories.v1": norm_advisories, "cve.record.v1": norm_r
 STAGED_FIELDS = {norm_advisories: set(), norm_record: {"cve_id", "cvss_score"}, norm_exploited: {"cve_id"},
                  norm_generic: {"text"}, norm_registry: {"cik", "ticker", "lei", "legal_name"},
                  norm_location: {"lat", "lon", "point", "place", "country_code", "timezone"},
-                 norm_quakes: {"count"}, norm_book: {"author", "year", "title", "text"}}
+                 norm_quakes: {"count"}, norm_book: {"author", "year", "title", "text"},
+                 norm_zone: {"timezone", "country_code"}}
 
 
 def staged_fields(contract: str) -> set:

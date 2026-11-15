@@ -11,9 +11,20 @@ def test_address_x_quakes_stamps_the_shipped_definition_members():
     assert len(stamped["slots"]) <= model.MAX_REQUIRED_SLOTS
 
 
-def test_a_hub_that_does_not_give_the_field_does_not_stamp():
-    assert templates.stamp("address", "local-time") is None          # a geocoder gives no time zone
-    assert templates.stamp("address", "holidays") is None            # nor a country code
+def test_a_hub_without_the_field_goes_through_the_time_zone_bridge():
+    """PM 13:42: a geocoder gives no time zone or country; the coordinates-to-time-zone bridge (own agent, contract
+    name to settle with the agent team) sits between, so address and airport hubs open local-time and holidays."""
+    stamped = templates.stamp("address", "local-time")
+    assert [s["slot"] for s in stamped["slots"]] == ["location", "zone", "local_time"]
+    assert stamped["slots"][2]["depends_on"] == ["zone"]
+    assert stamped["slots"][2]["chain"][0]["input_map"] == {"timeZone": "{{slot.zone.timezone}}"}
+    assert any("timezone.at_point.v1 has no file" in w for w in
+               next(r for r in templates.pairs() if (r["hub"], r["consumer"]) == ("address", "holidays"))["why"])
+    assert runner.slot_reference_problems(stamped) == []
+    assert runner.normalize("timezone.at_point.v1", {"timezone": "Asia/Tokyo", "country_code": "jp"}, {}) == {
+        "timezone": "Asia/Tokyo", "country_code": "JP"}
+    assert runner.normalize("timezone.at_point.v1", "The zone is Europe/Paris.", {})["timezone"] == "Europe/Paris"
+    assert runner.normalize("timezone.at_point.v1", {"note": "ocean"}, {}) is None
 
 
 def test_waiting_leads_are_planned_and_the_ip_hub_needs_a_rule():

@@ -139,3 +139,18 @@ def test_gold_builder_reads_wikidata_coordinates():
     assert {c["stratum"] for c in cases} == {"asia-pacific", "americas-west", "mediterranean-himalaya", "stable"}
     assert len({c["case_id"] for c in cases}) == len(cases)
     json.dumps(cases)
+
+
+
+def test_airport_cases_come_from_ourairports_and_grade_like_addresses():
+    csv_text = ("id,ident,type,name,latitude_deg,longitude_deg,iso_country,iata_code\n"
+                "1,RJAA,large_airport,Narita International Airport,35.764702,140.386002,JP,NRT\n"
+                "2,XXXX,heliport,Fake,1,1,JP,HND\n"
+                "3,KLAX,large_airport,Los Angeles International Airport,33.942501,-118.407997,US,LAX\n")
+    cases, dropped = gold_places.airport_cases(csv_text)
+    assert {c["input"]["code"] for c in cases} == {"NRT", "LAX"} and "HND" in dropped     # heliport rows ignored
+    nrt = next(c for c in cases if c["input"]["code"] == "NRT")
+    assert nrt["truth"]["tolerance_km"] == 5 and nrt["stratum"] == "asia-pacific"
+    assert retest.TASK_GRADERS["quakes-near-airport"] is retest.grade_quakes_task
+    defn = model.load("agent_market/necklaces/definitions/quakes-near-airport.json")
+    assert model.validate(defn) == [] and runner.slot_reference_problems(defn) == []

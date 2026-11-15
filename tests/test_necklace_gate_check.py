@@ -213,3 +213,20 @@ def test_a_prohibited_member_is_never_seated_even_if_a_chain_kept_it(monkeypatch
     background = next(s for s in out["slots"] if s["slot"] == "background")
     assert background["members"][0]["seat_eligible"] is False and background["members"][0]["why"] == "terms_prohibits"
     assert any("terms prohibit our use" in p for p in out["problems"]) and out["ok"] is False
+
+
+def test_invokera_necklaces_go_on_different_days_and_one_domain_is_a_warning():
+    """PM 13:42: 38608 (book), 38613 (holidays) and 38614 (time) share invokera.com."""
+    from agent_market.necklaces import templates
+    book = next(d for d in model.load_all() if d["slug"] == "book-author-brief")
+    holidays = templates.stamp("airport", "holidays")
+    days = necklace_gate.gate_days([book, holidays], ordered=True)
+    assert [[d["slug"] for d in day] for day in days] == [["book-author-brief"], ["holidays-at-airport"]]
+    both = {"slug": "x", "slots": [
+        {"slot": "a", "required": True, "chain": [{"kind": "external", "state": "active", "resource_id": 38614,
+                                                   "tool": "t", "registrable_domain": "invokera.com"}]},
+        {"slot": "b", "required": True, "chain": [{"kind": "external", "state": "active", "resource_id": 38613,
+                                                   "tool": "t", "registrable_domain": "invokera.com"}]}]}
+    assert necklace_gate.shared_domain_warnings(both) == [
+        "slots a and b rest only on external members of invokera.com (one failure domain)"]
+    assert necklace_gate.shared_domain_warnings(book) == []

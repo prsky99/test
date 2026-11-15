@@ -25,7 +25,7 @@ from .judge import DEFAULT_ROOT
 SLUG = "quakes-near-address"
 ANSWER_SET = "quakes-near-address-v1"
 RADIUS_KM, DAYS, MIN_MAGNITUDE = 1000, 7, 4.5
-TOLERANCE_KM = {"landmark": 3, "city": 25}
+TOLERANCE_KM = {"landmark": 3, "city": 25, "airport": 5}
 WIKIDATA = "https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&props=claims&sites=enwiki&titles="
 
 # (address as a person types it, English Wikipedia title, kind, stratum)
@@ -163,6 +163,66 @@ def place_cases(f: Fetcher) -> list[dict]:
     return cases
 
 
+# quakes-near-airport (PM 13:42): the airport's reference point from OurAirports (public domain), one download of
+# airports.csv through the shared ledger as reference_checks; the quakes part is the same live USGS reference.
+AIRPORT_SLUG = "quakes-near-airport"
+OURAIRPORTS = "https://davidmegginson.github.io/ourairports-data/airports.csv"
+AIRPORTS = {
+    "asia-pacific": ["NRT", "HND", "KIX", "CTS", "FUK", "OKA", "SDJ", "TPE", "KHH", "MNL", "CEB", "DVO", "CGK", "DPS",
+                     "SUB", "AKL", "CHC", "WLG", "NAN", "POM", "ICN", "PUS", "GUM", "HKG", "KUL"],
+    "americas-west": ["SFO", "LAX", "SEA", "PDX", "ANC", "FAI", "HNL", "OGG", "MEX", "GDL", "ACA", "GUA", "SAL", "MGA",
+                      "SJO", "BOG", "UIO", "LIM", "SCL", "MDZ", "YVR", "SLC", "LAS", "SAN", "SJC"],
+    "mediterranean-himalaya": ["IST", "ADB", "ATH", "HER", "FCO", "CTA", "NAP", "IKA", "KTM", "ISB", "KBL", "TAS", "ALA",
+                               "FRU", "LIS", "ALG", "EVN", "TBS", "TLV", "LXA", "CTU", "KMG", "SKG", "SOF", "OTP"],
+    "stable": ["CDG", "FRA", "LHR", "AMS", "SVO", "ARN", "HEL", "WAW", "SYD", "MEL", "PER", "CPT", "JNB", "NBO", "LOS",
+               "GRU", "EZE", "ORD", "YYZ", "JFK", "MIA", "DFW", "ATL", "DXB", "SIN"],
+}
+
+
+def airport_cases(csv_text: str) -> tuple[list[dict], list[str]]:
+    import csv
+    import io
+    wanted = {code: stratum for stratum, codes in AIRPORTS.items() for code in codes}
+    found = {}
+    for row in csv.DictReader(io.StringIO(csv_text)):
+        code = (row.get("iata_code") or "").strip()
+        if code in wanted and code not in found and row.get("type") in ("large_airport", "medium_airport"):
+            try:
+                found[code] = (round(float(row["latitude_deg"]), 6), round(float(row["longitude_deg"]), 6),
+                               row.get("name") or "", row.get("ident") or "", row.get("iso_country") or "")
+            except (KeyError, ValueError):
+                continue
+    cases = []
+    for code, stratum in wanted.items():
+        if code not in found:
+            continue
+        lat, lon, name, ident, country = found[code]
+        cases.append({"case_id": "airport:" + code, "task_type": "whole_task", "stratum": stratum,
+                      "input": {"code": code},
+                      "truth": {"lat": lat, "lon": lon, "name": name, "icao": ident, "country": country,
+                                "kind": "airport", "tolerance_km": TOLERANCE_KM["airport"], "radius_km": RADIUS_KM,
+                                "days": DAYS, "min_magnitude": MIN_MAGNITUDE},
+                      "truth_sources": [{"name": "OurAirports airports.csv (public domain)", "url": OURAIRPORTS,
+                                         "fetched_at": _now()},
+                                        {"name": "USGS FDSN event service, asked when the case is graded",
+                                         "url": "https://earthquake.usgs.gov/fdsnws/event/1/"}]})
+    return cases, sorted(set(wanted) - set(found))
+
+
+def build_airports(root: Path = DEFAULT_ROOT, get=None, raw_dir: Path | None = None) -> dict:
+    from .gold_filings import fetch_text
+    raw = (get or fetch_text)(OURAIRPORTS)
+    text = raw.encode("latin-1", "replace").decode("utf-8", "replace") if get is None else raw   # fetch_text reads latin-1
+    cases, dropped = airport_cases(text)
+    if raw_dir:
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        (raw_dir / "airport-cases.json").write_text(json.dumps({"cases": cases, "dropped": dropped}, ensure_ascii=False))
+    manifest = write_set(Path(root), AIRPORT_SLUG, split(cases),
+                         {"answer_set": "quakes-near-airport-v1", "built_from": len(cases),
+                          "listed": sum(len(v) for v in AIRPORTS.values())})
+    return {"manifest": manifest, "dropped": dropped}
+
+
 def build(root: Path = DEFAULT_ROOT, fetcher: Fetcher | None = None, raw_dir: Path | None = None) -> dict:
     f = fetcher or Fetcher(spacing={"www.wikidata.org": 1.0})
     cases = place_cases(f)
@@ -179,7 +239,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--root", type=Path, default=DEFAULT_ROOT)
     parser.add_argument("--raw-dir", type=Path)
+    parser.add_argument("--airports", action="store_true", help="build quakes-near-airport from OurAirports instead")
     args = parser.parse_args(argv)
+    if args.airports:
+        print(json.dumps(build_airports(args.root, raw_dir=args.raw_dir), ensure_ascii=False))
+        return 0
     print(json.dumps(build(args.root, raw_dir=args.raw_dir), ensure_ascii=False))
     return 0
 

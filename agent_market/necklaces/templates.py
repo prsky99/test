@@ -40,7 +40,8 @@ HUBS = {
     "address": {
         "input": "address", "schema": {"type": "string", "minLength": 3, "maxLength": 300},
         "help": "A street address, landmark or city, for example Tokyo Tower, Minato, Tokyo, Japan.",
-        "example": "Tokyo Tower, Minato, Tokyo, Japan", "contract": "geocode.address.v1",
+        "example": "Tokyo Tower, Minato, Tokyo, Japan", "point": (35.6586, 139.7454, "JP", "Asia/Tokyo"),
+        "contract": "geocode.address.v1",
         "gives": {"lat", "lon", "point"},
         "chain": [_member("external", "geocode_address", {"query": "{{input.address}}"}, ["google-maps"], rid=264482,
                           domain="dmvtransit.com", pearl=True),
@@ -49,6 +50,7 @@ HUBS = {
     "ip": {
         "input": "ip", "schema": {"type": "string", "pattern": r"^(\d{1,3}\.){3}\d{1,3}$|^[0-9a-fA-F:]{3,39}$"},
         "help": "A public IPv4 or IPv6 address, for example 8.8.8.8.", "example": "8.8.8.8",
+        "point": (37.422, -122.085, "US", "America/Los_Angeles"),
         "contract": "ip.lookup.v1", "gives": {"lat", "lon", "point", "country_code", "timezone"},
         "chain": [_member("external", "lookup_ip", {"ip": "{{input.ip}}"}, ["ipai"], rid=241082, domain="ipipai.com",
                           pearl=True),
@@ -57,6 +59,7 @@ HUBS = {
     "airport": {
         "input": "code", "schema": {"type": "string", "pattern": "^[A-Za-z]{3,4}$"},
         "help": "An airport's IATA or ICAO code, for example LAX.", "example": "LAX",
+        "point": (33.9425, -118.408, "US", "America/Los_Angeles"),
         "contract": "airport.lookup.v1", "gives": {"lat", "lon", "point", "country_code"},
         "chain": [_member("external", "airport_info", {"code": "{{input.code}}"}, ["ourairports"], rid=86011,
                           domain="tidydata.workers.dev", pearl=True),
@@ -93,10 +96,40 @@ CONSUMERS = {
 }
 
 
+# A bridge sits between a hub and a consumer when the hub lacks a field the consumer reads (PM 13:42, 11-15): the
+# agent team builds an own agent that turns coordinates into a time zone (and country), so address and airport
+# hubs open local-time and holidays without an IP hub. The contract name is a proposal to settle with the agent
+# team; until its file and agent exist the stamp does not validate (the list says what it waits for).
+BRIDGES = {
+    "zone": {"slot": "zone", "contract": "timezone.at_point.v1", "needs": {"lat", "lon"},
+             "gives": {"timezone", "country_code"},
+             "chain": [_member("agentcon", "timezone_at_point", {"lat": "{{slot.location.lat}}",
+                                                                 "lon": "{{slot.location.lon}}"},
+                               ["timezone-boundaries"], agent_id="coords-timezone")]},
+}
+
+
+def _bridge_for(hub: dict, use: dict) -> dict | None:
+    for bridge in BRIDGES.values():
+        if bridge["needs"] <= hub["gives"] and use["needs"] <= hub["gives"] | bridge["gives"]:
+            return bridge
+    return None
+
+
+def _read_from_bridge(chain: list[dict], bridge: dict) -> list[dict]:
+    for member in chain:
+        for key, value in list(member["input_map"].items()):
+            for field in bridge["gives"]:
+                if value == "{{slot.location." + field + "}}":
+                    member["input_map"][key] = "{{slot." + bridge["slot"] + "." + field + "}}"
+    return chain
+
+
 def stamp(hub_key: str, consumer_key: str) -> dict | None:
-    """The candidate definition for HUB x CONSUMER, or None when the hub does not give what the consumer reads."""
+    """The candidate definition for HUB x CONSUMER (through a bridge when the hub lacks a field), or None."""
     hub, use = HUBS[hub_key], CONSUMERS[consumer_key]
-    if not use["needs"] <= hub["gives"]:
+    bridge = None if use["needs"] <= hub["gives"] else _bridge_for(hub, use)
+    if not use["needs"] <= hub["gives"] and bridge is None:
         return None
     props = {hub["input"]: dict(hub["schema"])}
     required = [hub["input"]]
@@ -111,9 +144,17 @@ def stamp(hub_key: str, consumer_key: str) -> dict | None:
                 "chain": copy.deepcopy(hub["chain"])}
     second = {"slot": use["slot"], "contract": use["contract"], "required": True, "fanout": 1,
               "depends_on": ["location"], "chain": copy.deepcopy(use["chain"])}
+    middle = None
+    if bridge is not None:
+        middle = {"slot": bridge["slot"], "contract": bridge["contract"], "required": True, "fanout": 1,
+                  "depends_on": ["location"], "chain": copy.deepcopy(bridge["chain"])}
+        second["chain"] = _read_from_bridge(second["chain"], bridge)
+        reads = {v for m in second["chain"] for v in m["input_map"].values() if isinstance(v, str)}
+        second["depends_on"] = [bridge["slot"]] + (["location"] if any("{{slot.location." in v for v in reads) else [])
     slug = f"{consumer_key}-near-{hub_key}" if consumer_key == "quakes" else f"{consumer_key}-at-{hub_key}"
-    staged = {"slot.location.lat": 35.6586, "slot.location.lon": 139.7454, "slot.location.point": "35.658600,139.745400",
-              "slot.location.country_code": "US", "slot.location.timezone": "America/Los_Angeles"}
+    lat, lon, country, zone = hub["point"]
+    staged = {"slot.location.lat": lat, "slot.location.lon": lon, "slot.location.point": f"{lat:.6f},{lon:.6f}",
+              "slot.location.country_code": country, "slot.location.timezone": zone}
     planned = [m["resource_id"] for m in second["chain"] if m["kind"] == "external" and m["state"] == "planned"]
     return {
         "slug": slug, "version": 1, "status": "candidate",
@@ -127,14 +168,16 @@ def stamp(hub_key: str, consumer_key: str) -> dict | None:
             "a run counts only when at least two verified pearls answered",
             "every statement keeps its source link"]},
         "answer_set": f"{slug}-v1",
-        "slots": [location, second],
+        "slots": [location] + ([middle] if middle else []) + [second],
         "notes": (f"Stamped from the location-hub template (necklaces.templates: hub {hub_key}, consumer {consumer_key}). "
                   + (f"Lead {', '.join(map(str, planned))} is planned until the verify snapshot lists it as a verified "
                      f"pearl for {use['contract']}; until then the gate check reports the slot as not ready. "
                      if planned else "")
                   + "Gold set and grader are made for this necklace before the gate."),
         "min_pearls_answered": 2,
-        "probe_input": {**example, **{k: v for k, v in staged.items() if k.split(".")[2] in use["needs"]}},
+        "probe_input": {**example, **{k: v for k, v in staged.items() if k.split(".")[2] in use["needs"]},
+                        **({f"slot.{bridge['slot']}.{k.split('.')[2]}": v for k, v in staged.items()
+                            if k.split(".")[2] in bridge["gives"]} if bridge else {})},
         "input_help": helps,
     }
 
@@ -146,6 +189,8 @@ def pairs() -> list[dict]:
         for consumer_key in CONSUMERS:
             defn = stamp(hub_key, consumer_key)
             row = {"hub": hub_key, "consumer": consumer_key, "stamps": defn is not None}
+            if defn and len(defn["slots"]) == 3:
+                row["bridge"] = defn["slots"][1]["contract"]
             if defn:
                 row["slug"] = defn["slug"]
                 row["waiting_for"] = [m["resource_id"] for s in defn["slots"] for m in s["chain"]

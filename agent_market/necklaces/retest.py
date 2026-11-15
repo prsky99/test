@@ -29,7 +29,7 @@ QA = "necklace_retest"
 QA_GATE = "necklace_gate"           # gate rounds and the gate check (deploy/NECKLACE_GATE.md 3절)
 BUDGET_SECONDS = 35 * 60
 CONTRAST = {"package-risk-audit": "advisories", "cve-incident-brief": "record", "company-due-diligence": "background",
-            "topic-evidence-brief": "papers", "quakes-near-address": "quakes"}
+            "topic-evidence-brief": "papers", "quakes-near-address": "quakes", "quakes-near-airport": "quakes"}
 
 
 # ---------------------------------------------------------------- public relay caller
@@ -462,6 +462,7 @@ def quakes_excluded(case, now: float | None = None) -> str | None:
 GRADERS["location"] = grade_location
 GRADERS["quakes"] = grade_quakes
 TASK_EXCLUDE["quakes-near-address"] = quakes_excluded
+TASK_EXCLUDE["quakes-near-airport"] = quakes_excluded
 
 # ---------------------------------------------------------------- book-author-brief (workflow 11-15)
 def _surname(case) -> str:
@@ -609,6 +610,7 @@ GRADERS["crawlers"] = grade_crawlers
 TASK_EXCLUDE["website-trust-brief"] = site_excluded
 
 TASK_GRADERS = {"company-due-diligence": grade_company_task, "quakes-near-address": grade_quakes_task,
+                "quakes-near-airport": grade_quakes_task,
                 "book-author-brief": grade_book_task, "website-trust-brief": grade_site_task}
 CONTRAST["book-author-brief"] = "author"
 CONTRAST["website-trust-brief"] = "crawlers"

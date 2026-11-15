@@ -214,6 +214,7 @@ def check(defn: dict, client, base: str = BASE, verified=None, substitutes=None,
                       "terms_prohibited": prohibited, "usable": bool(seated)})
     need = defn.get("min_pearls_answered") or 2
     always = [s["slot"] for s in slots if s["slot"] in seated_pearl_slots and not s.get("requires_input")]
+    warnings = shared_domain_warnings(defn, state)
     if any(s["required"] and not s["usable"] for s in slots):
         problems.append("a required slot has no member that can run")
     return {"slug": defn["slug"], "version": defn["version"], "definition_digest": model.digest(defn),
@@ -221,7 +222,28 @@ def check(defn: dict, client, base: str = BASE, verified=None, substitutes=None,
             "pearls": {"seated_pearl_slots": seated_pearl_slots, "in_every_run": always, "needed_per_run": need,
                        "met_in_every_run": len(always) >= need,
                        "met_when_optional_inputs_given": len(seated_pearl_slots) >= need},
-            "problems": problems, "ok": not problems and len(always) >= need}
+            "problems": problems, "warnings": warnings, "ok": not problems and len(always) >= need}
+
+
+def shared_domain_warnings(defn: dict, state: dict | None = None) -> list[str]:
+    """PM 13:42 (11-15): two required slots whose external members all sit on one provider domain fail together;
+    the gate shows it as a warning (invokera.com holds 38608 book, 38613 holidays and 38614 time)."""
+    state = state or {}
+    externals = {}
+    for slot in defn["slots"]:
+        if slot.get("required", True):
+            domains = {m.get("registrable_domain") for m in runtime_chain(slot, defn["slug"], state)
+                       if m.get("kind") == "external"}
+            if domains:
+                externals[slot["slot"]] = domains
+    names, out = list(externals), []
+    for i, a in enumerate(names):
+        for b in names[i + 1:]:
+            shared = externals[a] | externals[b]
+            if len(shared) == 1:
+                out.append(f"slots {a} and {b} rest only on external members of {next(iter(shared))} "
+                           f"(one failure domain)")
+    return out
 
 
 GATE_PER_DAY = (3, 5)       # PM 11:4x decision 4: 3 to 5 necklaces a day
@@ -280,6 +302,7 @@ def main(argv=None) -> int:
     path = OUT / f"check-{args.slug}-v{defn['version']}-{time.strftime('%Y%m%d-%H%M')}.json"
     path.write_text(json.dumps(result, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     print(json.dumps({"file": str(path), "ok": result["ok"], "pearls": result["pearls"],
+                      "warnings": result.get("warnings") or [],
                       "denied": [(s["slot"], m["id"], m.get("error_code"), m.get("reference")) for s in result["slots"]
                                  for m in s["members"] if m.get("relay") == "denied"]}, ensure_ascii=False))
     return 0 if result["ok"] else 1
