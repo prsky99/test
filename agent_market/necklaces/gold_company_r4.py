@@ -107,6 +107,7 @@ def build(root: Path = DEFAULT_ROOT, get=fetch_text, today: date | None = None, 
                      "(the necklace's scope: US SEC filers); nothing else filtered",
         "truth_sources": ["SEC company_tickers.json (CIK, ticker, EDGAR name)",
                           "SEC EDGAR submissions (latest 10-K or 10-Q)"],
+        "same_source_kind": "official",
         "same_source_rule": "official register (PM 11-16 07:05): the answer key is SEC, the official register, "
                             "fetched by this builder from SEC itself; our substitutes sec-edgar and sec-filings read SEC too. "
                             "Such cases are not counted as failures; the case line says same_source_official "

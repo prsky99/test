@@ -144,6 +144,7 @@ def write_split(root: Path, progress: dict, todo, split: str = SPLIT,
     manifest.setdefault("files", {})[split] = {"cases": len(cases), "strata": strata,
                                                "sha256": hashlib.sha256(text.encode()).hexdigest(), "for": purpose,
                                                "selection": "not filtered by any source's coverage (PM 11-16 06:5x)",
+                                               "same_source_kind": "secondary",
                                                "same_source_rule": "secondary index (PM 11-16 07:05): a papers answer from "
                                                                    "a member whose upstream is this case's papers source "
                                                                    "(OpenAlex, Crossref) is marked same_source; the gate "
