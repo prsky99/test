@@ -163,6 +163,12 @@
         "quote": "User-Agent only: unauthenticated bot requests with a compliant User-Agent header, 200 req/min; concurrent requests 3 or fewer",
         "per_minute": 200
       }
+    },
+    "276982": {
+      "status": "prohibits",
+      "source": "https://ceadigital.io/terms",
+      "checked_at": "2026-11-16",
+      "basis": "Site terms cover custom builds only, nothing on API/MCP automated use; the service sells paid keys ($29-$249/mo) and gates free MCP calls as freemium samples, so a free production use is not granted (PM rule: paid plan needed for business use -> prohibits)"
     }
   },
   "changes": [
@@ -404,6 +410,14 @@
       },
       "source": "https://datakoot.com/terms",
       "at": "2026-11-15",
+      "by": "agent team"
+    },
+    {
+      "member": "276982",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://ceadigital.io/terms",
+      "at": "2026-11-16",
       "by": "agent team"
     }
   ]
