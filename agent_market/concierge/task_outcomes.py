@@ -123,12 +123,12 @@ def record(rid, output, *, tool=None, now=None):
 
 
 def count(rid, outcome, *, tool=None, now=None):
-    """Add one already classified OUTCOME ('succeeded', 'failed' or 'needs_key') to the 7-day counts. Never raises.
+    """Add one already classified OUTCOME ('succeeded', 'failed', 'needs_key' or 'timeout') to the 7-day counts. Never raises.
 
     The edge Worker runs provider calls itself and reports only the outcome (11-14: real tasks a02 and p03 failed
     at the edge and were recommended again, because nothing reached these counts)."""
     try:
-        if outcome not in ('succeeded', 'failed', 'needs_key'):
+        if outcome not in ('succeeded', 'failed', 'needs_key', 'timeout'):
             return None
         hub = _hub()
         if hub is None or type(rid) is not int:
@@ -182,10 +182,14 @@ def standing(counts, tool=None):
             return 0  # other tools were called; nothing is known about this one
     good = int(counts.get('succeeded') or 0)
     keys = int(counts.get('needs_key') or 0)
-    bad = int(counts.get('failed') or 0) + keys
+    timeouts = int(counts.get('timeout') or 0)
+    failed = int(counts.get('failed') or 0)
+    bad = failed + keys + timeouts
     # A paywall is not a passing failure: once the answers asking for a key or payment are as many as the successes,
     # the listing follows (11-16: one call counted as success before PAYWALL existed kept p13's lead at +1).
-    if good == 0 and bad >= 1 or keys and keys >= good:
+    # A timeout follows the same rule together with the failures (PM 11-16 04:3x); with no timeout counted, failures
+    # alone keep the earlier rule.
+    if good == 0 and bad >= 1 or keys and keys >= good or timeouts and timeouts + failed >= good:
         return -1
     if good > 0 and good >= bad:
         return 1

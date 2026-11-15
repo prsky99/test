@@ -328,3 +328,19 @@ def test_a_worker_finish_reaches_recommendation_order_once(machine_edge,monkeypa
     edge.service.finish(plan['run_id'],binding['attempt_id'],'failed',outcome_code='PROVIDER_AUTH_REQUIRED')
     edge.service.finish(plan['run_id'],binding['attempt_id'],'failed',outcome_code='PROVIDER_AUTH_REQUIRED')   # lost ack retry
     assert counted==[(rid,'needs_key')]
+
+
+def test_a_worker_timeout_counts_as_timeout_once(machine_edge,monkeypatch):
+    """PM 11-16 04:3x: real task p14's SimplyScan timed out at the edge, left no count and was recommended again."""
+    from agent_market.edge_gateway import machine
+    from agent_market.concierge import task_outcomes
+    counted=[]
+    monkeypatch.setattr(task_outcomes,'count',lambda rid,outcome,**k:counted.append((rid,outcome)))
+    edge,rid=machine_edge
+    edge.service.config=replace(edge.service.config,direct_result_delivery=True)
+    monkeypatch.setattr(edge.front.proxy,'execute',lambda *a,**k:pytest.fail('No Provider execution'))
+    plan=machine.execute(edge.front,rid,'get_weather',{'city':'Tokyo'},principal='synthetic-visitor',idempotency_key='timed-out',prepare_only=True)
+    binding=edge.service.claim(plan['access_token'],ORIGIN,plan['run_id'],plan['input'],'worker')
+    edge.service.finish(plan['run_id'],binding['attempt_id'],'outcome_unknown')
+    edge.service.finish(plan['run_id'],binding['attempt_id'],'outcome_unknown')   # lost ack retry
+    assert counted==[(rid,'timeout')]

@@ -50,3 +50,13 @@ def test_a_paywall_as_often_as_success_puts_the_listing_last():
     assert standing({'succeeded': 5, 'needs_key': 1}) == 1
     assert standing({'succeeded': 1, 'failed': 1}) == 1
     assert standing({'succeeded': 2}) == 1
+
+
+def test_timeouts_with_failures_as_many_as_successes_put_the_listing_last():
+    """PM 11-16 04:3x: an edge timeout (real task p14, SimplyScan) did not finish the task for the user."""
+    from agent_market.concierge.task_outcomes import standing
+    assert standing({'timeout': 1}) == -1
+    assert standing({'succeeded': 1, 'timeout': 1}) == -1
+    assert standing({'succeeded': 2, 'timeout': 1}) == 1
+    assert standing({'succeeded': 2, 'timeout': 1, 'failed': 1}) == -1
+    assert standing({'tools': {'check_ssl': {'succeeded': 1, 'timeout': 1}}}, 'check_ssl') == -1

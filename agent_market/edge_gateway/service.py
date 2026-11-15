@@ -292,11 +292,13 @@ class Service:
     def count_outcome(row):
         """Recommendation order reads recent task outcomes (concierge.task_outcomes); a run the Worker finished
         counts once, at its first finish, like a call through ManagedGateway. A provider that asks for its own key
-        counts as needs_key; an unknown outcome (timeout) is not counted."""
+        counts as needs_key. An unknown outcome (the Worker's time limit passed) counts as timeout (PM 11-16 04:3x: for
+        the user the task did not finish; real task p14's SimplyScan timed out at the edge, left no count and stayed
+        recommendable); it is kept apart from failed because our own limit may be the cause."""
         from ..concierge.task_outcomes import count
         state, code = row.get('state'), row.get('error_code')
         outcome = ('succeeded' if state == 'succeeded' else 'needs_key' if code == 'PROVIDER_AUTH_REQUIRED'
-                   else 'failed' if state == 'failed' else None)
+                   else 'failed' if state == 'failed' else 'timeout' if state == 'outcome_unknown' else None)
         if outcome is not None:
             count(row.get('resource_id'), outcome, tool=row.get('tool') if isinstance(row.get('tool'), str) else None)
 
