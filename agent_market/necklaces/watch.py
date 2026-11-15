@@ -150,12 +150,13 @@ def _usable(member: dict, slot: dict, approved: set, own: dict | None = None) ->
     state = member.get("state", "active")
     if state == "active":
         return member
-    if state == "planned" and member.get("kind") == "agentcon" and (member.get("agent_id"), slot.get("contract")) in approved:
+    contract = model.member_contract(slot, member)
+    if state == "planned" and member.get("kind") == "agentcon" and (member.get("agent_id"), contract) in approved:
         return dict(member, state="active", substitute_approved=True, substitute_state="approved")
     # PM 16:03 (user instruction d4670360): an own substitute ops marked "provisional" (passed the 30-case gate)
     # runs as a provisional member before its full approval
     if (state == "planned" and member.get("kind") == "agentcon"
-            and (own or {}).get(f"{member.get('agent_id')}|{slot.get('contract')}") == "provisional"):
+            and (own or {}).get(f"{member.get('agent_id')}|{contract}") == "provisional"):
         return dict(member, state="active", substitute_state="provisional")
     return None
 
@@ -172,7 +173,7 @@ def runtime_chain(slot: dict, slug: str, state: dict) -> list[dict]:
              and not marks.get(member_key(slug, slot["slot"], m), {}).get("excluded")
              and model.terms_status(m) != "prohibits"]          # terms forbid automated use (PM 12:27)
     if block is not None:   # PM 16:03: each member says its standing; a verified pearl leads, provisional next
-        chain = [dict(m, standing=standing_rules.standing(m, slot.get("contract"), block)) for m in chain]
+        chain = [dict(m, standing=standing_rules.standing(m, model.member_contract(slot, m), block)) for m in chain]
     rank = {"verified_pearl": 0, "provisional": 1}
     out = []
     if block is not None:

@@ -185,7 +185,8 @@ def check(defn: dict, client, base: str = BASE, verified=None, substitutes=None,
                 row.update(relay="not_checked", why="terms_prohibits", **{SEATED: False})
                 problems.append(f"slot {slot['slot']}: member {row['id']} terms prohibit our use")
             elif member["kind"] == "external":
-                row["verified_pearl"] = bool(verified) and (member["resource_id"], slot["contract"]) in verified
+                row["verified_pearl"] = bool(verified) and (member["resource_id"],
+                                                             member.get("contract") or slot["contract"]) in verified
                 args = render(member.get("input_map") or {}, sample) if sample else None
                 row.update(probe_fn(client, base, member, args))
                 # the same closed fingerprint verdict as the watch (PM 12:0x): unknown or stale is not judged

@@ -668,7 +668,8 @@ NORMALIZERS = {"package.advisories.v1": norm_advisories, "cve.record.v1": norm_r
                "geocode.address.v1": norm_location, "airport.lookup.v1": norm_location,
                "ip.lookup.v1": norm_location, "earthquake.feed.v1": norm_quakes, "book.search.v1": norm_book, "sec.filings.v1": norm_filings,
                "package.releases.v1": norm_package_releases,
-               "encyclopedia.summary.v1": norm_encyclopedia}
+               "encyclopedia.summary.v1": norm_encyclopedia,
+               "company.profile.v1": norm_encyclopedia}     # same fields as the encyclopedia contract, same identity check
 
 
 # What a later stage can read ({{slot.<slot>.<field>}}): the scalar fields of each normalizer's answer (Runner.run
@@ -814,7 +815,8 @@ class Runner:
             st["result"].attempts.append(Attempt(member.get("resource_id"), member["tool"], member["kind"], rank,
                                                  False, 0, "capacity"))
             return False
-        future = pool.submit(self._call, member, rank, st.get("values", values), st["slot"]["contract"], st["deadline"])
+        contract = member.get("contract") or st["slot"]["contract"]     # PM 11-16: a member may answer another contract
+        future = pool.submit(self._call, member, rank, st.get("values", values), contract, st["deadline"])
         future.add_done_callback(lambda _f: self.inflight.release())   # also runs when cancelled
         st["inflight"][future] = (rank, member)
         if "hedge_at" not in st and max(1, st["slot"].get("fanout", 1)) == 1:

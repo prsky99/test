@@ -113,7 +113,8 @@ def upgrades(definitions: list[dict], block: dict, roles: dict | None = None) ->
         if defn.get("status") == "retired":
             continue
         for slot in defn["slots"]:
-            ranks = [(m, standing(m, slot["contract"], block)) for m in slot["chain"] if m.get("kind") == "external"]
+            ranks = [(m, standing(m, m.get("contract") or slot["contract"], block)) for m in slot["chain"]
+                     if m.get("kind") == "external"]
             pearls = [m for m, s in ranks if s == "verified_pearl"]
             provisional = [m for m, s in ranks if s == "provisional"]
             first = next((m for m in slot["chain"] if m.get("kind") == "external" and m.get("state", "active") == "active"),

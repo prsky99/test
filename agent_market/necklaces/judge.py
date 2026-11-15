@@ -210,7 +210,7 @@ def pearls(defn: dict, verified: set | None = None) -> list[dict]:
                         "alternates": [a for a in alternates if not (a["kind"] == "agentcon"
                                                                      and a.get("agent_id") == lead.get("agent_id"))]})
         for lead in leads:
-            pearl = bool(verified) and (lead["resource_id"], slot["contract"]) in verified
+            pearl = bool(verified) and (lead["resource_id"], lead.get("contract") or slot["contract"]) in verified
             # PM 16:03 item 4: verified_pearl or provisional per member (necklaces.members); None = not counted
             out.append({"resource_id": lead["resource_id"], "role": slot["slot"], "tool": lead["tool"],
                         "kind": "external", "required": bool(slot.get("required", True)),
@@ -504,10 +504,11 @@ def _member_standing(m: dict, slot: dict, block: dict | None) -> dict:
         return {}
     state = None
     if m.get("kind") == "agentcon":
-        state = (block.get("own") or {}).get(f"{m.get('agent_id')}|{slot.get('contract')}")
+        state = (block.get("own") or {}).get(f"{m.get('agent_id')}|{m.get('contract') or slot.get('contract')}")
     member = dict(m, state="active", substitute_state=state) if state and m.get("state") == "planned" else \
         dict(m, substitute_state=state)
-    return {"substitute_state": state, "standing": standing_rules.standing(member, slot.get("contract"), block)}
+    return {"substitute_state": state,
+            "standing": standing_rules.standing(member, m.get("contract") or slot.get("contract"), block)}
 
 
 def write_atomic(path: Path, payload: dict) -> int:

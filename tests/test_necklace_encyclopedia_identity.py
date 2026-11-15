@@ -89,3 +89,36 @@ def test_no_article_about_the_company_is_not_found_not_another_company():
     assert out["slots"]["background"]["status"] == "not_found" and not out["slots"]["background"]["failed"]
     assert "Bart" not in str(out["output"])
     assert out["failed_slot"] != "background"
+
+
+def test_the_profile_member_answers_its_own_contract_when_no_article_is_about_the_company():
+    """PM 11-16: background also accepts company.profile.v1; sec-company-profile runs once ops approved it for that
+    contract, gets 'CIK <n>' and passes the identity check by its CIK."""
+    defn = model.load(DEFN)
+    state = {"substitutes": STATE["substitutes"] + [["sec-company-profile", "company.profile.v1"]]}
+    seen = {}
+
+    def caller(member, args, timeout_s):
+        key = member.get("agent_id") or member.get("resource_id")
+        seen[key] = args
+        if key == "sec-edgar":
+            return {"legal_name": "Kodiak Sciences Inc.", "cik": "1468748", "ticker": "KOD"}
+        if key == "sec-filings":
+            return {"answer": "2026-11-06 10-Q (accession 0001468748-26-000050)"}
+        if key == "sec-company-profile":
+            return {"title": "Kodiak Sciences Inc.", "cik": "1468748", "source": "SEC EDGAR filings",
+                    "summary": "Kodiak Sciences Inc. (SEC CIK 1468748): Pharmaceutical Preparations. Company profile "
+                               "from SEC EDGAR filings (not an encyclopedia article)."}
+        return [entry("Bart the Bear", "Kodiak bear actor")]
+    out = runner.Runner(caller, watch_state=state).run(defn, {"name": "Kodiak Sciences Inc", "country": "US"})
+    assert seen["sec-company-profile"] == {"company": "CIK 1468748"}
+    assert out["slots"]["background"]["status"] == "answered"
+    assert "not an encyclopedia article" in out["output"]["background"]["answers"][0]["text"]
+
+
+def test_a_member_contract_the_slot_does_not_accept_is_refused():
+    defn = model.load(DEFN)
+    assert [e for e in model.validate(defn) if "background" in e] == []
+    bg = next(s for s in defn["slots"] if s["slot"] == "background")
+    bg["also_contracts"] = []
+    assert any("does not accept" in e for e in model.validate(defn))

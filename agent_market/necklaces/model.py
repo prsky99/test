@@ -107,6 +107,13 @@ def is_parallel(defn: dict) -> bool:
     return all(not slot.get("depends_on") for slot in defn.get("slots") or [])
 
 
+def member_contract(slot: dict, member: dict) -> str | None:
+    """The contract a member answers (PM 11-16): its own "contract" when the slot also accepts another contract
+    (slot "also_contracts", e.g. company background takes encyclopedia.summary.v1 and company.profile.v1), else
+    the slot's."""
+    return member.get("contract") or slot.get("contract")
+
+
 def _member_errors(slot_id: str, idx: int, m: dict) -> list[str]:
     where = f"slot {slot_id} member {idx}"
     errors = []
@@ -368,6 +375,17 @@ def validate(defn: dict, *, check_contracts: bool = True) -> list[str]:
         if not isinstance(chain, list) or not chain:
             errors.append(f"slot {sid}: chain must be a non-empty list")
             continue
+        also = slot.get("also_contracts") or []
+        if not isinstance(also, list) or not all(isinstance(c, str) and c for c in also):
+            errors.append(f"slot {sid}: also_contracts must be a list of contract ids")
+            also = []
+        for extra in also:
+            if check_contracts and load_contract(extra) is None:
+                errors.append(f"slot {sid}: contract {extra} has no file in contracts/")
+        for idx, m in enumerate(chain):
+            if isinstance(m, dict) and m.get("contract") not in (None, contract) and m.get("contract") not in also:
+                errors.append(f"slot {sid}: member {idx} answers {m.get('contract')}, which the slot does not accept "
+                              "(add it to also_contracts)")
         kinds = [m.get("kind") for m in chain]
         if "agentcon" in kinds and "external" in kinds[kinds.index("agentcon"):]:
             errors.append(f"slot {sid}: AgentValCon fallback members must come after every external member")
