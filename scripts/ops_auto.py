@@ -681,6 +681,54 @@ def stability_gate(clock=time.time):
     return result['open']
 
 
+REALERT_SECONDS = 1800
+
+
+def signature(kind, value):
+    """What makes an alert of KIND the same alert (11-15 PM: plist_missing turning into not_running was held back
+    because only the kind was compared). Counters that grow every run (minutes held, sizes) are left out."""
+    if isinstance(value, dict) and 'problems' in value:
+        return sorted(map(str, value.get('problems') or []))
+    if kind == 'launchd_jobs':
+        return sorted((item.get('label'), item.get('status')) for item in value or [])
+    if kind == 'site':
+        return sorted((item.get('url'), str(item.get('status'))) for item in value or [])
+    if kind == 'deploy_lock':
+        return (value or {}).get('line')
+    if kind in ('core_down',):
+        return sorted(value or [])
+    if kind in ('long_tests', 'deploy_stuck'):
+        return sorted(str(item.get('pid')) for item in value or [])
+    return None   # memory, swap, disk, stale_handoffs: the kind alone
+
+
+def is_down(kind, value):
+    """A service is off: alerted every run, never held back, and written to the desktop file."""
+    if kind == 'core_down':
+        return bool(value)
+    return isinstance(value, dict) and 'not_running' in (value.get('problems') or [])
+
+
+def select_fresh(anomalies, state, now):
+    """(fresh, state): an anomaly is alerted when it is new, when its signature changed (it got worse or
+    different), when it means a service is down, or when REALERT_SECONDS passed since its last alert. Cleared
+    kinds leave the state so they alert again when they come back. Old states held a bare time per kind."""
+    new_state, fresh = {}, {}
+    for kind, value in anomalies.items():
+        before = state.get(kind)
+        if not isinstance(before, dict):
+            before = {'at': before or 0, 'sig': None} if before else None
+        sig = json.loads(json.dumps(signature(kind, value)))   # as stored: tuples become lists
+        due = (before is None or is_down(kind, value) or sig != before.get('sig')
+               or now - before.get('at', 0) > REALERT_SECONDS)
+        if due:
+            fresh[kind] = value
+            new_state[kind] = {'at': now, 'sig': sig}
+        else:
+            new_state[kind] = before
+    return fresh, new_state
+
+
 def watch():
     try:
         board_snapshot()
@@ -746,22 +794,19 @@ def watch():
                                        capture_output=True, text=True, cwd=ROOT).stdout or '{}')
     anomalies = record.get('anomalies') or {}
     state = json.loads(STATE.read_text()) if STATE.is_file() else {}
-    fresh = {k: v for k, v in anomalies.items() if time.time() - state.get(k, 0) > 1800}
-    for kind in list(state):
-        if kind not in anomalies:
-            state.pop(kind)  # cleared: alert again if it comes back
+    fresh, state = select_fresh(anomalies, state, time.time())
     if not fresh:
         STATE.write_text(json.dumps(state))
         return 0
     wording = ops_llm.ask(ALERT_SYSTEM, json.dumps(fresh, ensure_ascii=False), 'watch_alert', max_tokens=400)
     text = ' / '.join(line.strip() for line in (wording or '').splitlines() if line.strip()) or \
         ', '.join(f'{k}: {json.dumps(v, ensure_ascii=False)[:120]}' for k, v in fresh.items())
-    urgent = any(k in fresh for k in ('site', 'memory', 'disk', 'core_down', 'backup'))
+    urgent = any(k in fresh for k in ('site', 'memory', 'disk', 'core_down', 'backup')) or \
+        any(is_down(k, v) for k, v in fresh.items())
     if urgent:
         prepend_desktop(f'{now()} [운영 이상] {text}')
     for kind in fresh:
         board_handoff(kind, text)
-        state[kind] = time.time()
     append(ACTIONS, f'{now()} {",".join(fresh)} → 현황판 넘기는 일{" + 바탕화면" if urgent else ""}: {text[:200]}')
     STATE.write_text(json.dumps(state))
     return 0

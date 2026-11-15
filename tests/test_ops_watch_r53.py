@@ -80,3 +80,44 @@ def test_watch_stale_check_alerts_once_an_hour(tmp_path):
     assert '40분째 멈춤' in run().stdout
     assert run().stdout == ''                                                     # once an hour
     assert len((tmp_path / 'logs/ops/pm-escalations.md').read_text().splitlines()) == 1
+
+
+def test_a_worse_or_different_alert_is_not_held_back(monkeypatch):
+    """11-15 PM: adcoin_daemon went from plist_missing to not_running and no alert went out (kind-only hold)."""
+    import json as _json
+    import sys
+    sys.path.insert(0, str(ROOT / 'scripts'))
+    import ops_auto
+    t0 = 1000.0
+    fresh, state = ops_auto.select_fresh({'adcoin_daemon': {'problems': ['plist_missing']}}, {}, t0)
+    assert list(fresh) == ['adcoin_daemon']
+    state = _json.loads(_json.dumps(state))                                           # as written to the file
+    fresh, state = ops_auto.select_fresh({'adcoin_daemon': {'problems': ['plist_missing']}}, state, t0 + 600)
+    assert fresh == {}                                                                # same alert: held
+    fresh, state = ops_auto.select_fresh({'adcoin_daemon': {'problems': ['not_running', 'plist_missing']}}, state, t0 + 1200)
+    assert list(fresh) == ['adcoin_daemon']                                           # worse: at once
+    fresh, state = ops_auto.select_fresh({'adcoin_daemon': {'problems': ['not_running', 'plist_missing']}}, state, t0 + 1800)
+    assert list(fresh) == ['adcoin_daemon']                                           # a service down: every run
+    assert ops_auto.is_down('adcoin_daemon', {'problems': ['not_running']})
+    assert ops_auto.is_down('core_down', ['redis']) and not ops_auto.is_down('backup', {'problems': ['offsite_failed']})
+
+
+def test_growing_counters_do_not_re_alert_but_a_new_holder_or_url_does():
+    import json as _json
+    import ops_auto
+    lock = {'deploy_lock': {'held_minutes': 45, 'line': '운영·SRE 11-15 09:10 pid=1 frontend r1'}}
+    fresh, state = ops_auto.select_fresh(lock, {}, 0)
+    later = {'deploy_lock': {'held_minutes': 55, 'line': '운영·SRE 11-15 09:10 pid=1 frontend r1'}}
+    assert ops_auto.select_fresh(later, _json.loads(_json.dumps(state)), 600)[0] == {}
+    other = {'deploy_lock': {'held_minutes': 41, 'line': '검색과 RAG 11-15 10:00 pid=2 jobs r9'}}
+    assert list(ops_auto.select_fresh(other, state, 700)[0]) == ['deploy_lock']
+    site = {'site': [{'url': 'https://a/', 'status': 503}]}
+    fresh, state = ops_auto.select_fresh(site, {}, 0)
+    state = _json.loads(_json.dumps(state))
+    assert ops_auto.select_fresh(site, state, 600)[0] == {}
+    jobs = {'launchd_jobs': [{'label': 'biz.agentconcierge.backup', 'status': 3, 'pid': None}]}
+    fresh, state = ops_auto.select_fresh(jobs, {}, 0)
+    assert ops_auto.select_fresh(jobs, _json.loads(_json.dumps(state)), 600)[0] == {}
+    assert ops_auto.select_fresh({'memory': {'free_percent': 9}}, {'memory': 0.0 + 500}, 900)[0] == {}   # old file format
+    assert list(ops_auto.select_fresh({'memory': {'free_percent': 9}}, {'memory': 500}, 500 + 1801)[0]) == ['memory']
+    assert ops_auto.select_fresh({}, {'memory': {'at': 1, 'sig': None}}, 2) == ({}, {})      # cleared: forgotten
