@@ -249,6 +249,24 @@ INLINE_SCRIPT = re.compile(r'<script\b([^>]*)>(.*?)</script>', re.S | re.I)
 DATA_TYPE = re.compile(r'\btype\s*=\s*["\']?(application/(?:ld\+)?json|text/plain|text/template)', re.I)
 
 
+_RAW_BLOCK = re.compile(r'(<(script|style|textarea|pre)\b[^>]*>.*?</\2\s*>)', re.S | re.I)
+_COMMENT = re.compile(r'<!--.*?-->', re.S)
+
+
+def strip_comments(value):
+    """HTML comments are notes for us, not for readers (R79, 11-15: 68 on every page). Text inside script, style,
+    textarea and pre is left as it is, so inline script hashes and preformatted text do not change."""
+    parts = _RAW_BLOCK.split(value)
+    out = []
+    i = 0
+    while i < len(parts):
+        out.append(_COMMENT.sub('', parts[i]))
+        if i + 1 < len(parts):
+            out.append(parts[i + 1])   # the raw block itself
+        i += 3                         # text, block, tag name
+    return ''.join(out)
+
+
 def inline_script_hashes(value):
     """Base64 sha256 of every inline script the browser runs (data blocks are not run), in page order."""
     out = []
@@ -479,7 +497,7 @@ def page_response(value, *, public=False, page=None, noindex=None):
         # 11-14 PM plan 1: the daily home payload (3.4 KB, on every page) is the home page's own ld+json and
         # description; other pages ask /daily-home-metadata.json when Home is opened (daily_metadata_runtime).
         value = DAILY_HOME_JSON.sub('', value, count=1)
-    value = critical_css(split_panels(versioned(bundled(prerender_segmented(value)))), page)
+    value = strip_comments(critical_css(split_panels(versioned(bundled(prerender_segmented(value)))), page))
     if os.environ.get('MAIN_SPONSORED', '0') == '1':  # 11-11 Sponsored on main Explore and Chat; off by default
         value = re.sub(r'<body\b', '<body data-sponsored="on"', value, count=1)
     # 11-11 (PM decision A): the same bytes for every visitor, so the edge may keep a page for 60 seconds.
