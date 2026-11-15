@@ -1152,13 +1152,27 @@ def catalog_candidates():
 # first (several a round), still one per registrable domain in a role and 3 per host.
 # PM 11-15 13:53: the roles whose next pearl opens a necklace, in this order (workflow readiness table). Earlier in
 # the tuple = earlier in every round; each gets PRIORITY_PICKS a round, the other roles one each after them.
-PRIORITY_ROLES = ('website.ai_readiness.v1', 'timezone.time.v1', 'holiday.calendar.v1', 'company.registry.v1',
-                  'sec.filings.v1', 'papers.search.v1', 'web.grounding.v1', 'cve.exploited.v1', 'cve.record.v1',
+# PM 14:22: web.grounding second (Pipeworx 50972 left topic-evidence-brief's required web seat on terms).
+PRIORITY_ROLES = ('website.ai_readiness.v1', 'web.grounding.v1', 'timezone.time.v1', 'holiday.calendar.v1',
+                  'company.registry.v1', 'sec.filings.v1', 'papers.search.v1', 'cve.exploited.v1', 'cve.record.v1',
                   'package.advisories.v1', 'package.health.v1', 'news.search.v1')
 PRIORITY_PICKS = 4
 
 
-def new_queue(versions, candidates, seeds=(), limit=NEW_A_DAY, per_host=3, priority=PRIORITY_ROLES):
+TERMS_FILE = ROOT / 'agent_market/necklaces/member_terms.json'
+TERMS_RANK = {'allowed': 0, 'silent': 1}     # PM 14:22: allowed or silent terms first, unknown after, prohibits never
+
+
+def member_terms(path=TERMS_FILE):
+    """{resource id: terms status} from the workflow team's terms table ({} when it cannot be read)."""
+    try:
+        members = json.loads(Path(path).read_text()).get('members') or {}
+        return {int(k): str((v or {}).get('status')) for k, v in members.items() if str(k).isdigit()}
+    except (OSError, ValueError, AttributeError):
+        return {}
+
+
+def new_queue(versions, candidates, seeds=(), limit=NEW_A_DAY, per_host=3, priority=PRIORITY_ROLES, terms=None):
     """Untested members, priority roles first (PRIORITY_PICKS a round each), then roles with the fewest successes,
     one per registrable domain in a role, 3 per host."""
     # A stored skip for our own reason (before R08 such skips were saved) never counts as tested.
@@ -1172,6 +1186,10 @@ def new_queue(versions, candidates, seeds=(), limit=NEW_A_DAY, per_host=3, prior
         pools[canonical(seed['role'])].append((seed['id'], seed['tool'], seed.get('host')))
     for role, rid, tool, host in candidates:
         pools[role].append((rid, tool, host))
+    terms = member_terms() if terms is None else terms
+    for role in pools:      # stable: seeds stay ahead of catalog members with the same terms status
+        pools[role] = sorted((m for m in pools[role] if terms.get(m[0]) != 'prohibits'),
+                             key=lambda m: TERMS_RANK.get(terms.get(m[0]), 2))
     hosts, out = Counter(), []
     order = {role: i for i, role in enumerate(priority)}
     roles = sorted(pools, key=lambda role: (order.get(role, len(order)), successes[role], role))

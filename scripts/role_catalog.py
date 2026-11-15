@@ -16,7 +16,7 @@ ROLES = {
     'cve.exploited.v1': {'tools': r'^(?:kev\w*|get_kev\w*|cisa_kev\w*|cve_kev\w*|check_kev|is_exploited)$'},
     'cve.record.v1': {'tools': r'^(?:get_cve|cve_lookup|lookup_cve|cve_details|search_cve\w*|cve_search|nvd\w*)$'},
     'company.registry.v1': {'tools': r'^(?:lookup_company|search_company|company_profile|get_company\w*|company_register_search|verify_business|corporate_kyb\w*|lei_lookup|get_lei\w*)$'},
-    'web.grounding.v1': {'tools': r'^(?:ask\w*grounded|grounded_answer|answer_question|web_answer|search_and_answer|ask_web)$'},
+    'web.grounding.v1': {'tools': r'^(?:ask\w*grounded|grounded_answer|answer_question|web_answer|search_and_answer|ask_web|\w+_web_grounding|\w+_grounding)$'},
     'country.indicator.v1': {'tools': r'^(?:\w*country_indicator\w*|get_indicator|world_bank\w*|worldbank\w*|get_gdp|country_stats|get_country_data|get_country_stats)$'},
     'fx.rate.v1': {'tools': r'^(?:convert|convert_currency|currency_convert\w*|fx_get_rate|get_exchange_rates?|get_rates?|exchange_rate|get_fx_rate|fx_rate)$'},
     'weather.forecast.v1': {'tools': r'^(?:get_forecast|weather_forecast|get_weather|forecast|weather|current_weather|get_weather_forecast)$'},
