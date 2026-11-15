@@ -1,56 +1,52 @@
-# 무료 서버 + 무료 도메인에 게이트웨이 올리기
+# 배포와 운영
 
-**권장 구성:** Oracle Cloud Always Free VM + DuckDNS 무료 도메인 + Caddy 자동 HTTPS. 비용은 0원입니다.
-(2026-09 조사 기준: Render·Koyeb 무료 플랜은 유휴 시 잠들고 디스크가 없어 이 서비스에 맞지 않습니다. Fly.io·AWS·Hugging Face Docker는 더 이상 영구 무료가 아닙니다.)
+이 문서는 두 부분입니다. **현재 운영(맥)**이 지금 쓰는 방식입니다. 맨 아래 **옛 방식(보관)**은 2026-09 무료 서버안으로, 지금은 쓰지 않습니다(정밀 검토 R59, 11-15 운영·SRE).
 
-가입은 본인 인증과 카드 확인이 필요해 직접 하셔야 합니다. 가입만 끝나면 나머지는 명령 한 줄입니다.
+## 현재 운영(맥) 한눈에 (2026-11-15)
 
-## 1. 수익 지갑 만들기 (본인 PC)
-```bash
-git clone -b claude/hopeful-darwin-i3qj6n https://github.com/prsky99/test.git && cd test
-python3.11 -m venv .venv
-.venv/bin/python -m pip install --require-hashes -r requirements-build.lock
-.venv/bin/python -m pip install --no-cache-dir --require-hashes --no-build-isolation -r requirements-runtime.lock
-.venv/bin/python -m pip uninstall --yes setuptools wheel packaging
-.venv/bin/python -m agent_market.wallet create ~/gateway-wallet.json   # 출력되는 0x... 주소를 적어 두기
-```
-keystore 파일과 비밀번호는 따로 백업하세요. 서버에는 **주소만** 넣습니다.
+- **서비스**: 운영 맥 한 대에서 launchd로 돕니다. 웹 역할 frontend·admin은 a/b 두 칸을 번갈아 쓰고, jobs·execution은 한 칸(main)입니다. 앞에 caddy 프록시가 있고, 공개는 Cloudflare 터널(cloudflared)입니다. DB는 같은 맥의 PostgreSQL 18(소켓 `gateway-data/postgres18/run`, 포트 55432)입니다.
+- **배포 단위**: 커밋 하나로 릴리스를 만들고(`./agentcon package <릴리스> --commit <커밋> --base <활성 릴리스>`), 배포 도구가 확인한 뒤 바꿉니다. 운영 중인 버전·배포 잠금·배포 대기는 `logs/ops/status-board.md`가 기준입니다.
+- **실행기 틀**: `deploy/ops/deploy-runner.sh <역할> <릴리스> <커밋> <기준> [시작 시각] [마감]`. 기다리는 동안은 '## 배포 대기'에 [예약] 줄만 쓰고, 배포 순간에만 그 시각으로 잠금 줄을 씁니다(`deploy/ops/runner-lock.sh`).
+- **배포 도구가 스스로 막는 것(R54, 11-15)**
+  - 운영 버전과 기준 버전이 다르면 거부(`release_base_mismatch`), 다른 팀 잠금이 있거나 자기 잠금 줄이 60분보다 오래되면 거부
+  - frontend·jobs의 정책 해시(`explore_documents.policy_hash()`)가 바뀌면 00:30~01:30 밖에서 거부
+  - 운영 버전에 있던 등록 SQL이 새 릴리스에서 빠지면 거부(10-30 r14 시작 실패)
+  - 네 역할 모두 `scripts.release_gate` 통과가 필요(같은 커밋 24시간 안 통과 기록은 재사용). 실측: frontend 약 277초(Chat 비교 포함), jobs 약 29초
+  - `package --commit`은 `--base` 필수. 패키징한 릴리스는 배포되거나 48시간이 지날 때까지 자동 정리에서 보호(R60)
+  - `rollback`·`restart`·`stop`도 `--lock-owner <팀>`과 현황판 잠금 줄 필요. 워커 되돌리기는 `./agentcon worker-rollback jobs|execution --lock-owner <팀>`
+  - `--force-base`·`--skip-gate`·`--take-stale-lock` 사용은 `logs/ops/deploy-overrides.md`에 남음
+- **사용자가 직접 하는 것**: DB 구조·설정 변경과 재시작, launchd 작업 설치·교체, 시스템 설정, 외부 게시·지출. 명령과 되돌리는 방법은 `deploy/ops/user-*.md`에 준비합니다.
+- **운영 작업 코드**: launchd 운영 작업은 차례로 작업본 대신 커밋으로 만든 `gateway-data/ops-code/current`를 실행하게 옮깁니다(R05, `scripts/ops_code.py`). 광고 원장·백업용 plist는 `deploy/launchd/ops-pinned/`에 있고, 교체는 사용자 단계입니다(`deploy/ops/user-launchd-ops-code-20261115.md`).
+- **감시**: 10분 감시(`scripts/ops_watch.py` → `scripts/ops_auto.py`)가 사이트·메모리·스왑·디스크·launchd 작업·백업·핵심 프로세스·DB 연결 수를 봅니다. 같은 경보가 6번 넘게 닫히지 않으면 바탕화면 알림 파일과 `logs/ops/pm-escalations.md`로 격상합니다.
 
-## 2. 무료 서버 (Oracle Cloud Always Free)
-1. https://signup.cloud.oracle.com 가입 (카드 확인 필요, 과금 없음. 선불·가상 카드는 거절됨)
-2. Compute → Instances → Create: 이미지 **Ubuntu 24.04**, Shape **VM.Standard.E2.1.Micro** (Always Free), SSH 키 등록
-3. 인스턴스의 서브넷 → Security List → Ingress Rule 추가: TCP **80**, **443** (소스 0.0.0.0/0)
-4. 공인 IP 확인
+### launchd 작업 목록 (11-15 09:5x 이 맥 기준, driveragent 프로젝트 제외)
 
-> 주의: Oracle은 7일간 CPU·네트워크 사용률이 매우 낮은 무료 인스턴스를 회수할 수 있습니다. 계정을 Pay-As-You-Go로 전환하면(Always Free 자원은 계속 무료) 회수 대상에서 빠집니다. 예산 알림을 $1로 설정해 두세요.
-> Oracle 가입이 안 되면 Google Cloud e2-micro(us-central1 등 미국 3개 리전)에서 같은 절차로 하면 됩니다.
+| launchd 작업 | 설치 | 주기 | 실행 코드 | 하는 일 |
+|---|---|---|---|---|
+| `biz.agentconcierge.498590e0b3.adcoin-worker` | 예 | 상시(KeepAlive) | 릴리스 폴더(배포 도구가 씀) | 서비스 adcoin-worker |
+| `biz.agentconcierge.498590e0b3.admin.b` | 예 | 상시(KeepAlive) | 릴리스 폴더(배포 도구가 씀) | 서비스 admin.b |
+| `biz.agentconcierge.498590e0b3.execution.main` | 예 | 상시(KeepAlive) | 릴리스 폴더(배포 도구가 씀) | 서비스 execution.main |
+| `biz.agentconcierge.498590e0b3.frontend.b` | 예 | 상시(KeepAlive) | 릴리스 폴더(배포 도구가 씀) | 서비스 frontend.b |
+| `biz.agentconcierge.498590e0b3.jobs.main` | 예 | 상시(KeepAlive) | 릴리스 폴더(배포 도구가 씀) | 서비스 jobs.main |
+| `biz.agentconcierge.498590e0b3.proxy.main` | 예 | 상시(KeepAlive) | caddy 실행 파일(설정은 배포 도구가 씀) | 프록시(caddy) |
+| `biz.agentconcierge.backup` | 예 | 매일 04:30 | 작업본 | 매일 DB·상태 백업(맥미니 복사) |
+| `biz.agentconcierge.opensearch` | 예 | 상시(KeepAlive) | Homebrew 실행 파일(작업 폴더만 저장소) | OpenSearch |
+| `biz.agentconcierge.opensearch-sync` | 예 | 상시(KeepAlive) | 작업본 | OpenSearch 동기화 |
+| `biz.agentconcierge.opsauto.edgewarm` | 아니오(저장소에만) | 매일 06:50 | 작업본 | 엣지 데우기 |
+| `biz.agentconcierge.opsauto.housead` | 예 | 매일 09:10 | 작업본 | 자사 광고 매일 예약(원장 쓰기) |
+| `biz.agentconcierge.opsauto.netpath` | 예 | 60초마다 | 작업본 | 1분 경로 측정(net_path) |
+| `biz.agentconcierge.opsauto.ofac` | 아니오(저장소에만) | 매일 06:20 | 작업본 | OFAC 제재 주소 갱신(R06) |
+| `biz.agentconcierge.opsauto.paidreconcile` | 아니오(저장소에만) | 매일 09:20 | 작업본 | USDC 결제 매일 대조 |
+| `biz.agentconcierge.opsauto.pearltests` | 예 | 매일 09:12 | 작업본 | 진주 매일 시험 |
+| `biz.agentconcierge.opsauto.testreports` | 예 | 매일 02:30 | 작업본 | 시험 보고서 배치 |
+| `biz.agentconcierge.opsauto.watch` | 예 | 600초마다 | 작업본 | 10분 감시(ops_watch → ops_auto) |
+| `biz.agentconcierge.opsauto.watchstale` | 아니오(저장소에만) | 300초마다 | 작업본 | 감시 정지 25분 알림(R53) |
+| `biz.agentconcierge.postgres18` | 예 | 상시(KeepAlive) | Homebrew 실행 파일(작업 폴더만 저장소) | 운영 PostgreSQL 18 |
 
-## 3. 무료 도메인 (DuckDNS)
-1. https://www.duckdns.org 에서 GitHub/Google로 로그인
-2. 서브도메인 생성 (예: `myagentgw` → `myagentgw.duckdns.org`), 화면의 **token** 복사
+- '실행 코드'가 작업본인 운영 작업은 R05 순서대로 커밋 폴더로 옮깁니다(광고 원장·백업 먼저).
+- 저장소에만 있고 설치되지 않은 것: `opsauto.ofac`·`opsauto.watchstale`(11-15 새로, 사용자 설치 대기), `opsauto.edgewarm`·`opsauto.paidreconcile`(설치 여부를 담당 팀이 확인할 것).
 
-## 4. 서버에 올리기
-```bash
-ssh ubuntu@<공인 IP>
-git clone -b claude/hopeful-darwin-i3qj6n https://github.com/prsky99/test.git && cd test/deploy
-cp gateway.env.example gateway.env && nano gateway.env   # DOMAIN, ADMIN_TOKEN, DUCKDNS_* 입력 (GATEWAY_WALLET은 유료 정책일 때만)
-sudo bash setup.sh
-```
-끝나면 `https://<서브도메인>.duckdns.org/.well-known/agent.json` 이 열립니다. 첫 전체 수집은 몇 분 걸리고, 이후 연속 수집과 매시간 헬스체크가 자동으로 돕니다 (`COLLECTOR.md` 참고).
-
-## 운영
-```bash
-cd ~/test/deploy
-sudo docker compose logs -f gateway                      # 로그
-curl -s localhost:8200/health                            # 상태
-curl -s -H "Authorization: Bearer $ADMIN_TOKEN" localhost:8200/admin/report   # 수익·수락률·수수료 (서버 안에서만)
-git pull && sudo docker compose up -d --build            # 업데이트
-sudo docker compose cp gateway:/data/gateway.sqlite3 ./backup.sqlite3          # 백업
-```
-- 관리자 API(`/admin/*`)는 외부에서 막혀 있고 서버 안(localhost)에서만 됩니다.
-- 기본은 **무료 정책**(`GATEWAY_FREE=1`)입니다. 모든 소개와 재소개가 무료이고 결제는 일어나지 않습니다.
-- 나중에 유료로 바꾸려면 `GATEWAY_FREE=0`, `NETWORK=base`로 바꾸고 `docker compose up -d`.
-- 에이전트들이 찾아오게 하려면 게이트웨이 주소를 알려야 합니다 (예: 자체 agent card를 x402/MCP/A2A 디렉터리에 등록).
+## 현재 운영(맥) — 세부 규칙 (날짜순)
 
 ## 맥 운영 DB 매일 백업 (agentconcierge.biz)
 - launchd 작업 `biz.agentconcierge.backup`(원본 `deploy/launchd/biz.agentconcierge.backup.plist`)이 매일 04:30에 `.venv/bin/python -m scripts.scheduled_backup`을 낮은 우선순위로 실행합니다.
@@ -91,7 +87,7 @@ sudo docker compose cp gateway:/data/gateway.sqlite3 ./backup.sqlite3          #
 의존성 프로필과 선택형 Claude SDK/레거시 SQLite 벡터 설치는 [의존성 관리 안내](DEPENDENCY_MAINTENANCE.md)를 참고하세요.
 
 ## frontend 릴리스 배포 전 점검 (2026-11-02)
-릴리스는 활성 릴리스에 파일을 얹어 만들기 때문에, 작업본에서 시험이 통과해도 릴리스가 맞다는 보장은 없다. 배포 전에 릴리스 사본에서 첫 화면 경로 시험을 돌린다(약 40초, `nice -n 10`).
+릴리스는 활성 릴리스에 파일을 얹어 만들기 때문에, 작업본에서 시험이 통과해도 릴리스가 맞다는 보장은 없다. 배포 전에 릴리스 사본에서 첫 화면 경로 시험을 돌린다(약 40초(11-02 당시. 11-15 실측은 frontend 약 277초·jobs 약 29초), `nice -n 10`).
 
 ```bash
 .venv-tests/bin/python -m scripts.release_gate <release>
@@ -99,8 +95,8 @@ sudo docker compose cp gateway:/data/gateway.sqlite3 ./backup.sqlite3          #
 
 - 마지막 줄이 `passed`일 때만 배포한다.
 - 11-02부터 `./agentcon deploy frontend <release>`가 이 점검을 먼저 자동으로 돌린다. 배포 잠금을 잡기 전에 돌고, 실패하면 배포하지 않는다(`release_gate_failed`).
-  - 긴급할 때만 `--skip-gate`를 붙인다. 롤백(`./agentcon rollback frontend`)은 점검하지 않는다.
-  - admin 배포는 점검하지 않는다.
+  - 긴급할 때만 `--skip-gate`를 붙인다. 롤백(`./agentcon rollback frontend --lock-owner <팀>`)은 점검하지 않는다.
+  - 11-15(R54)부터 admin·jobs·execution 배포도 점검한다. 같은 커밋이 24시간 안에 전체 점검을 통과한 기록(`logs/ops/release-gates/`)이 있으면 다시 돌지 않는다.
 - 시험 목록은 `scripts/release_gate.py`의 `TESTS`에 있다.
   - 묶음 읽기, 실행 엔진 선택, 읽기 전용 경로, 공개·워크스페이스 첫 화면 브라우저 시험이 들어 있다.
 - 11-02 07:01 장애 버전 `batch-reads-frontend-20261101-r5`는 이 점검에서 실패로 걸린다(gzip 시험).
@@ -239,3 +235,59 @@ macOS의 bash 3.2는 사용자 터미널의 UTF-8 로케일(ko_KR.UTF-8)에서 `
    - 쓰기 단계는 임시 클러스터나 사본에서 리허설한다.
 4. `tests/test_shell_scripts_braced_vars.py`가 통과해야 커밋한다. 이 시험은 저장소의 모든 셸 스크립트에서 `$이름` 바로 뒤에 비ASCII 글자가 붙은 곳과 `bash -n` 실패를 찾는다.
 5. 넘기는 메시지에 명령 한 줄과 함께 3번 dry-run의 출력 끝 몇 줄을 붙인다.
+
+## 옛 방식 (보관) — 2026-09 무료 서버안, 지금은 쓰지 않음
+
+### 무료 서버 + 무료 도메인에 게이트웨이 올리기
+
+**권장 구성:** Oracle Cloud Always Free VM + DuckDNS 무료 도메인 + Caddy 자동 HTTPS. 비용은 0원입니다.
+(2026-09 조사 기준: Render·Koyeb 무료 플랜은 유휴 시 잠들고 디스크가 없어 이 서비스에 맞지 않습니다. Fly.io·AWS·Hugging Face Docker는 더 이상 영구 무료가 아닙니다.)
+
+가입은 본인 인증과 카드 확인이 필요해 직접 하셔야 합니다. 가입만 끝나면 나머지는 명령 한 줄입니다.
+
+### 1. 수익 지갑 만들기 (본인 PC)
+```bash
+git clone -b claude/hopeful-darwin-i3qj6n https://github.com/prsky99/test.git && cd test
+python3.11 -m venv .venv
+.venv/bin/python -m pip install --require-hashes -r requirements-build.lock
+.venv/bin/python -m pip install --no-cache-dir --require-hashes --no-build-isolation -r requirements-runtime.lock
+.venv/bin/python -m pip uninstall --yes setuptools wheel packaging
+.venv/bin/python -m agent_market.wallet create ~/gateway-wallet.json   # 출력되는 0x... 주소를 적어 두기
+```
+keystore 파일과 비밀번호는 따로 백업하세요. 서버에는 **주소만** 넣습니다.
+
+### 2. 무료 서버 (Oracle Cloud Always Free)
+1. https://signup.cloud.oracle.com 가입 (카드 확인 필요, 과금 없음. 선불·가상 카드는 거절됨)
+2. Compute → Instances → Create: 이미지 **Ubuntu 24.04**, Shape **VM.Standard.E2.1.Micro** (Always Free), SSH 키 등록
+3. 인스턴스의 서브넷 → Security List → Ingress Rule 추가: TCP **80**, **443** (소스 0.0.0.0/0)
+4. 공인 IP 확인
+
+> 주의: Oracle은 7일간 CPU·네트워크 사용률이 매우 낮은 무료 인스턴스를 회수할 수 있습니다. 계정을 Pay-As-You-Go로 전환하면(Always Free 자원은 계속 무료) 회수 대상에서 빠집니다. 예산 알림을 $1로 설정해 두세요.
+> Oracle 가입이 안 되면 Google Cloud e2-micro(us-central1 등 미국 3개 리전)에서 같은 절차로 하면 됩니다.
+
+### 3. 무료 도메인 (DuckDNS)
+1. https://www.duckdns.org 에서 GitHub/Google로 로그인
+2. 서브도메인 생성 (예: `myagentgw` → `myagentgw.duckdns.org`), 화면의 **token** 복사
+
+### 4. 서버에 올리기
+```bash
+ssh ubuntu@<공인 IP>
+git clone -b claude/hopeful-darwin-i3qj6n https://github.com/prsky99/test.git && cd test/deploy
+cp gateway.env.example gateway.env && nano gateway.env   # DOMAIN, ADMIN_TOKEN, DUCKDNS_* 입력 (GATEWAY_WALLET은 유료 정책일 때만)
+sudo bash setup.sh
+```
+끝나면 `https://<서브도메인>.duckdns.org/.well-known/agent.json` 이 열립니다. 첫 전체 수집은 몇 분 걸리고, 이후 연속 수집과 매시간 헬스체크가 자동으로 돕니다 (`COLLECTOR.md` 참고).
+
+### 운영
+```bash
+cd ~/test/deploy
+sudo docker compose logs -f gateway                      # 로그
+curl -s localhost:8200/health                            # 상태
+curl -s -H "Authorization: Bearer $ADMIN_TOKEN" localhost:8200/admin/report   # 수익·수락률·수수료 (서버 안에서만)
+git pull && sudo docker compose up -d --build            # 업데이트
+sudo docker compose cp gateway:/data/gateway.sqlite3 ./backup.sqlite3          # 백업
+```
+- 관리자 API(`/admin/*`)는 외부에서 막혀 있고 서버 안(localhost)에서만 됩니다.
+- 기본은 **무료 정책**(`GATEWAY_FREE=1`)입니다. 모든 소개와 재소개가 무료이고 결제는 일어나지 않습니다.
+- 나중에 유료로 바꾸려면 `GATEWAY_FREE=0`, `NETWORK=base`로 바꾸고 `docker compose up -d`.
+- 에이전트들이 찾아오게 하려면 게이트웨이 주소를 알려야 합니다 (예: 자체 agent card를 x402/MCP/A2A 디렉터리에 등록).

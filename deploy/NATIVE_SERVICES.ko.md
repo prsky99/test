@@ -5,21 +5,21 @@
 ## 일상적인 변경 반영
 
 ```bash
-./agentcon restart frontend
-./agentcon restart admin
+./agentcon restart frontend --lock-owner <팀>
+./agentcon restart admin --lock-owner <팀>
 ```
 
 각 명령은 현재 작업 폴더를 새 배포본으로 보존하고 반대편 슬롯을 준비한다. 내부 준비 확인과 화면·정적 자산·인증 경계 점검을 통과해야 Caddy 연결이 바뀐다. 작업 폴더를 수정하는 것만으로 실행 중인 서비스가 변경되지 않는다.
 
 ```bash
-./agentcon restart
+./agentcon restart --lock-owner <팀>
 ```
 
 인자 없는 restart는 프론트앤드와 어드민을 순서대로 교체한다. **수집·평가·헬스 및 실행 worker는 재시작하지 않는다.** 기존 슬롯은 진행 중 요청을 완료하고 즉시 복귀할 수 있도록 보존한다. 다음 배포에서 해당 슬롯을 재사용한다.
 
 ```bash
-./agentcon rollback frontend
-./agentcon rollback admin
+./agentcon rollback frontend --lock-owner <팀>
+./agentcon rollback admin --lock-owner <팀>
 ./agentcon status
 ```
 
@@ -44,7 +44,7 @@ worker 교체는 해당 역할의 진행 중 작업을 마무리하고 소유권
 
 ```bash
 ./agentcon start
-./agentcon stop
+./agentcon stop --lock-owner <팀>
 ```
 
 `start`는 기록된 활성 배포본과 worker를 복구한다. `stop`은 프록시·웹·worker를 모두 정지하는 **전체 서비스 중단 명령**이다. 소스 반영에는 `stop`을 사용하지 않는다.

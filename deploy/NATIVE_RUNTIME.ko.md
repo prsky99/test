@@ -47,7 +47,7 @@ ALLOW_PRIVATE_AGENT_URLS=0
 환경변수와 바인딩은 실행 중인 프로세스에 소급 적용되지 않는다. `check`가 성공하면 운영자가 평소 재시작 명령을 실행한다.
 
 ```sh
-./agentcon restart
+./agentcon restart --lock-owner <팀>
 ```
 
 `restart`는 기존 서버를 중지하기 전에 사전 검사를 실행한다. 제안 설정이 잘못됐다면 현재 서버를 계속 실행한 채 실패한다. 사전 검사 성공이 새 앱의 완전한 readiness나 공개 연결 성공을 보장하는 것은 아니므로 아래 확인을 이어서 수행한다.
