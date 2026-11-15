@@ -166,3 +166,16 @@ def test_an_approved_offer_is_withdrawn_when_its_resource_is_quarantined(p1_suit
     assert auto_review.recheck_offers(p1_suite.service, app_store=quarantined) == 1
     with store.atomic():
         assert store.one("sponsored_offer_get", (campaign["id"],))["state"] == "rejected"
+
+
+def test_a_pass_stops_taking_items_when_its_time_is_up_and_says_auto_review(p1_suite):  # noqa: F811
+    first, review = _pending_review(p1_suite)
+    ticks = iter([0, 0, 1000, 1000, 1000, 1000])
+    done = auto_review.run(p1_suite.service, budget_s=60, clock=lambda: next(ticks, 1000))
+    assert done["approved_reviews"] == 1 and done["out_of_time"] == 1
+    with p1_suite.service.store.atomic():
+        row = p1_suite.service.store.one("audit_by_target_event", (review, auto_review.APPROVED_REVIEW))
+    assert row and json.loads(row["details_json"])["by"] == "auto_review"
+    late, _ = _pending_review(p1_suite)
+    stopped = auto_review.run(p1_suite.service, budget_s=60, clock=iter([0, 1000, 1000, 1000]).__next__)
+    assert stopped["approved_reviews"] == 0 and stopped["out_of_time"] == 1 and _state(p1_suite, late) == "in_review"

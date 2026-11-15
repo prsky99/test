@@ -44,7 +44,11 @@ class WorkerDaemon:
         sponsored_settled = SponsoredBookings(self.store, self.workers.ledger, taxonomy=(), regions=()).settle_due(
             now_ms=now_ms)
         sponsored_settled += self.paid_cycle(now_ms)
-        auto_reviewed = self.auto_review_cycle(now_ms)
+        try:                                  # isolated: a failing review never stops payments or settlement
+            auto_reviewed = self.auto_review_cycle(now_ms)
+        except Exception:
+            logger.warning("Automatic review failed; it runs again in 10 minutes", exc_info=True)
+            auto_reviewed = 0
         reports_published = self.workers.publish_reports(now_ms=now_ms)  # due advertiser report revisions
         pruned = self.prune_if_due(now_ms)
 
@@ -145,7 +149,7 @@ class WorkerDaemon:
         done = auto_review.run(self.commercial, app_store=self.app_store)
         if any(done.values()):
             logger.info("Automatic review: %s", " ".join("%s=%d" % kv for kv in sorted(done.items())))
-        return sum(v for k, v in done.items() if k != "errors")
+        return sum(v for k, v in done.items() if k not in ("errors", "out_of_time"))
 
     PRUNE_INTERVAL_MS = 3_600_000  # retention deletes run at most once an hour
 

@@ -40,6 +40,9 @@ AUTO_PRINCIPAL = str(uuid5(NAMESPACE_URL, BASE + "auto-review"))
 AUTO_OWNER = str(uuid5(NAMESPACE_URL, BASE + "auto-review/owner"))
 REASON_PASSED = "auto_checks_passed"
 HELD_REVIEW, HELD_OFFER, TAKEDOWN = "review_held", "offer_held", "advertiser_takedown"
+APPROVED_REVIEW, APPROVED_OFFER, WITHDRAWN_OFFER = "review_auto_approved", "offer_auto_approved", "offer_withdrawn"
+BY = "auto_review"                    # every automatic decision says so in the audit log (PM 13:1x)
+TIME_BUDGET_S = 60                    # one pass stops taking new items after this long (PM 13:1x)
 MIN_DOMAIN_AGE_DAYS = 30
 ROOT = Path(__file__).resolve().parents[3]
 # A release folder has no gateway-data of its own; the worker runs from the repository root (as provider_budget).
@@ -246,7 +249,7 @@ def _hold_once(store, event, target, flags):
         if last and json.loads(last["details_json"] or "{}").get("flags") == flags:
             return False
         AuditLogger.log(store, event, "succeeded", actor_principal_id=AUTO_PRINCIPAL, target_id=target,
-                        details={"flags": flags})
+                        details={"flags": flags, "by": BY})
     return True
 
 
@@ -259,23 +262,40 @@ def flags_of(store, event, target):
         return []
 
 
-def run(commercial, *, limit=20, screen=None, app_store=None):
+def _approved(store, event, target):
+    with store.atomic():
+        AuditLogger.log(store, event, "succeeded", actor_principal_id=AUTO_PRINCIPAL, target_id=target,
+                        details={"by": BY, "reason": REASON_PASSED})
+
+
+def run(commercial, *, limit=20, screen=None, app_store=None, budget_s=TIME_BUDGET_S, clock=time.monotonic):
     """One pass over pending reviews and offers, then the recheck of approved offers. Returns counts; never raises
     for one bad item. app_store: the application catalog store (registered reads only)."""
     from . import operator_review
     from .sponsored_offer import campaign_name, decide_offer
     store, access = commercial.store, commercial.access
     me = principal(access)
-    done = {"approved_reviews": 0, "held_reviews": 0, "approved_offers": 0, "held_offers": 0, "errors": 0}
+    done = {"approved_reviews": 0, "held_reviews": 0, "approved_offers": 0, "held_offers": 0, "errors": 0,
+            "out_of_time": 0}
+    deadline = clock() + budget_s
+
+    def out_of_time():
+        if clock() > deadline:
+            done["out_of_time"] = 1                      # the rest waits for the next pass
+            return True
+        return False
     with store.atomic():
         reviews = list(store.all("reviews_pending_for_operator", (limit,)))
     for row in reviews:
+        if out_of_time():
+            break
         try:
             flags = screen_campaign(json.loads(row["payload_json"]))
             if flags:
                 done["held_reviews"] += _hold_once(store, HELD_REVIEW, row["id"], flags)
                 continue
             operator_review.decide(commercial, me, row["id"], verdict="eligible", reason_code=REASON_PASSED)
+            _approved(store, APPROVED_REVIEW, row["id"])
             done["approved_reviews"] += 1
         except Exception:
             done["errors"] += 1
@@ -284,6 +304,8 @@ def run(commercial, *, limit=20, screen=None, app_store=None):
         offers = list(store.all("sponsored_offers_pending", (limit,))) if store.one("sponsored_offers_table")["present"] else []
     blocklist = load_blocklist()
     for row in offers:
+        if out_of_time():
+            break
         try:
             with store.atomic():
                 name = campaign_name(store, store.one("campaign_get", (row["campaign_id"],)) or {})
@@ -293,12 +315,13 @@ def run(commercial, *, limit=20, screen=None, app_store=None):
                 done["held_offers"] += _hold_once(store, HELD_OFFER, row["campaign_id"], flags)
                 continue
             decide_offer(store, access, me, row["campaign_id"], approve=True)
+            _approved(store, APPROVED_OFFER, row["campaign_id"])
             done["approved_offers"] += 1
         except Exception:
             done["errors"] += 1
             logger.warning("Automatic review of offer %s failed; it is tried again", row["campaign_id"], exc_info=True)
     try:
-        done["withdrawn_offers"] = recheck_offers(commercial, app_store=app_store, limit=200)
+        done["withdrawn_offers"] = 0 if out_of_time() else recheck_offers(commercial, app_store=app_store, limit=200)
     except Exception:
         done["errors"] += 1
         logger.warning("Approved-offer recheck failed; it runs again next pass", exc_info=True)
@@ -328,8 +351,8 @@ def recheck_offers(commercial, *, app_store=None, limit=200, now_ms=None):
             changed = store.execute("sponsored_offer_withdraw", ("auto: " + why, now_ms, AUTO_PRINCIPAL,
                                                                  row["campaign_id"])).rowcount or 0
             if changed:
-                AuditLogger.log(store, "offer_withdrawn", "succeeded", actor_principal_id=AUTO_PRINCIPAL,
-                                target_id=row["campaign_id"], details={"reason": why})
+                AuditLogger.log(store, WITHDRAWN_OFFER, "succeeded", actor_principal_id=AUTO_PRINCIPAL,
+                                target_id=row["campaign_id"], details={"reason": why, "by": BY})
         withdrawn += changed
     return withdrawn
 

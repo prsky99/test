@@ -125,3 +125,11 @@ def test_auto_review_stays_off_unless_switched_on_and_skips_the_measurement_wind
     at = time.mktime(time.strptime("2026-11-15 13:20", "%Y-%m-%d %H:%M")) * 1000
     assert daemon.auto_review_cycle(int(at)) == 1 and calls == [None]
     assert daemon.auto_review_cycle(int(at) + 60_000) == 0                         # every 10 minutes
+
+
+def test_a_failing_auto_review_never_stops_the_rest_of_the_cycle(store, monkeypatch):  # noqa: F811
+    store.migrate_model()
+    daemon = WorkerDaemon(store, vault=KeyVault())
+    monkeypatch.setattr(daemon, "auto_review_cycle", lambda now_ms: (_ for _ in ()).throw(RuntimeError("boom")))
+    summary = daemon.run_cycle()
+    assert summary["auto_reviewed"] == 0 and "processed_outbox" in summary
