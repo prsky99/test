@@ -93,9 +93,13 @@ def router_for(store, *, clock=None):
 
     @router.get("/ads/library", response_class=HTMLResponse)
     async def library_page():
+        # The page links the growth shell's stylesheets, so it sends the growth-page CSP; without one the default
+        # policy (style-src 'unsafe-inline' only) blocked them and the page showed unstyled (PM 11-15, as 73170eb5).
         from ...concierge.ads_library_page import page_html
+        from ...concierge.growth_pages import PAGE_CSP
         found, updated = await run_in_threadpool(current)
-        return HTMLResponse(page_html(found, updated=updated), headers=headers)
+        return HTMLResponse(page_html(found, updated=updated),
+                            headers={**headers, "Content-Security-Policy": PAGE_CSP})
 
     @router.get("/ads/library.json")
     async def library_json():
