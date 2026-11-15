@@ -396,5 +396,73 @@
    null,
    {}
   ]
+ ],
+ "wikidata-book": [
+  [
+   {
+    "title": "Pride and Prejudice"
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "query": "Nineteen Eighty-Four"
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "title": "A"
+   },
+   "invalid_input",
+   null,
+   {}
+  ],
+  [
+   {
+    "title": ""
+   },
+   "invalid_input",
+   null,
+   {}
+  ]
+ ],
+ "site-readiness": [
+  [
+   {
+    "domain": "example.com"
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "domain": "wikipedia.org"
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "domain": "localhost"
+   },
+   "invalid_input",
+   null,
+   {}
+  ],
+  [
+   {
+    "domain": "10.0.0.1"
+   },
+   "invalid_input",
+   null,
+   {}
+  ]
  ]
 }
