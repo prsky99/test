@@ -40,24 +40,6 @@
       "chain": [
         {
           "kind": "external",
-          "resource_id": 50972,
-          "tool": "ask_pipeworx_grounded",
-          "registrable_domain": "pipeworx.io",
-          "upstream": [
-            "brave-search"
-          ],
-          "read_only_hint": true,
-          "destructive_hint": false,
-          "idempotent_hint": true,
-          "resend_safe": true,
-          "pearl": true,
-          "state": "active",
-          "input_map": {
-            "question": "{{input.topic}}"
-          }
-        },
-        {
-          "kind": "external",
           "resource_id": 276982,
           "tool": "agent_clean_web_grounding",
           "registrable_domain": "ceadigital.io",
