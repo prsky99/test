@@ -193,7 +193,15 @@ SPECS = {
                        "release time on PyPI; read-only.",
         "sources": [NPM, PYPI],
         "rate": "5 requests per second per registry, cached 1 hour",
+    },    "package-releases": {
+        "name": "AgentValCon Package Release History", "tool": "get_package_releases", "contract": "package.releases.v1",
+        "description": "Get the release history of one npm package from the public npm registry: latest version and "
+                       "date, maintainer count, deprecation, the gaps between its recent releases and its repository; "
+                       "read-only. PyPI follows once its terms are read.",
+        "sources": [NPM, PYPI],
+        "rate": "one request a package; cached 6 hours",
     },
+
     "depsdev-package": {
         "name": "AgentValCon deps.dev Package Health", "tool": "get_package_scorecard",
         "contract": "package.health.v1",

@@ -70,7 +70,7 @@ def agents(tmp_path, routes, calls=None, clock=None, snapshot=None):
 
 # ------------------------------------------------------------------ catalog and contracts
 def test_tools_are_read_only_and_use_the_slot_contracts():
-    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard", "site-readiness", "wiki-grounding", "ecb-fx", "usgs-quakes", "tz-time", "airport-lookup", "wiktionary-define", "github-repo", "rdap-domain", "unit-convert", "wikidata-place", "wikidata-book", "gdelt-news", "census-geocode", "mcp-registry", "github-releases"}
+    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard", "site-readiness", "wiki-grounding", "ecb-fx", "usgs-quakes", "tz-time", "airport-lookup", "wiktionary-define", "github-repo", "rdap-domain", "unit-convert", "wikidata-place", "wikidata-book", "gdelt-news", "census-geocode", "mcp-registry", "github-releases", "package-releases"}
     for agent_id, spec in SPECS.items():
         tool = tool_spec(agent_id)
         c = contract(spec["contract"])
@@ -2084,3 +2084,21 @@ def test_github_releases_lists_tags_gaps_and_open_issues(tmp_path):
     with pytest.raises(FallbackUnavailable) as err:
         a.execute("github-releases", {"repo": "not a repo"})
     assert err.value.code == "invalid_input"
+
+
+def test_package_releases_reads_one_npm_document(tmp_path):
+    """PM 11-15 16:12: latest and its date, maintainers, deprecation, stable release gaps, repository."""
+    doc = {"dist-tags": {"latest": "4.17.21"}, "maintainers": [{"name": "a"}, {"name": "b"}],
+           "repository": {"type": "git", "url": "git+https://github.com/lodash/lodash.git"},
+           "versions": {"4.17.21": {}, "4.17.20": {}, "4.17.19": {}, "5.0.0-beta.1": {}},
+           "time": {"created": "2012-04-23T00:00:00Z", "4.17.21": "2021-02-20T15:42:16Z", "4.17.20": "2020-08-13T16:53:54Z",
+                    "4.17.19": "2020-07-08T17:14:40Z", "5.0.0-beta.1": "2021-03-01T00:00:00Z"}}
+    calls = []
+    a, _ = agents(tmp_path, {"https://registry.npmjs.org/lodash": httpx.Response(200, json=doc)}, calls)
+    out = a.execute("package-releases", {"package": "lodash", "ecosystem": "npm"})["result"]
+    assert out["answer"] == ("lodash (npm): latest 4.17.21 released 2021-02-20; 2 maintainers; not deprecated; 4 versions in all; "
+                             "recent stable releases: 4.17.21 2021-02-20, 4.17.20 2020-08-13, 4.17.19 2020-07-08 (gaps 191, 36 days); "
+                             "repository https://github.com/lodash/lodash.")
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("package-releases", {"package": "requests", "ecosystem": "PyPI"})
+    assert err.value.code == "source_unavailable" and len(calls) == 1

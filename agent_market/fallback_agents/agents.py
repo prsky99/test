@@ -44,7 +44,7 @@ MAX_AGE = {"nvd-cve": 6 * 3600, "cve-org": 24 * 3600, "cisa-kev": 24 * 3600, "gi
            "wiki-grounding": 24 * 3600, "ecb-fx": 26 * 3600, "usgs-quakes": 3600,
            "tz-time": 400 * 86400, "airport-lookup": 8 * 86400, "wiktionary-define": 7 * 86400,
            "github-repo": 24 * 3600, "rdap-domain": 7 * 86400, "unit-convert": 10 * 365 * 86400,
-           "wikidata-place": 7 * 86400, "wikidata-book": 7 * 86400, "gdelt-news": 6 * 3600, "census-geocode": 30 * 86400, "mcp-registry": 86400, "github-releases": 86400}  # rules age from the library release; update the pin at least yearly
+           "wikidata-place": 7 * 86400, "wikidata-book": 7 * 86400, "gdelt-news": 6 * 3600, "census-geocode": 30 * 86400, "mcp-registry": 86400, "github-releases": 86400, "package-releases": 86400}  # rules age from the library release; update the pin at least yearly
 TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "github-advisory": (3600, 6 * 3600),
        "epss": (6 * 3600, 48 * 3600), "package-registry": (3600, 6 * 3600), "depsdev-package": (6 * 3600, 24 * 3600),
        "gleif-lei": (6 * 3600, 24 * 3600), "sec-edgar": (6 * 3600, 24 * 3600), "sec-tickers": (6 * 3600, 24 * 3600),
@@ -56,7 +56,8 @@ TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "githu
        "rdap-domain": (6 * 3600, 7 * 86400), "rdap-bootstrap": (86400, 7 * 86400),
        "wikidata-place": (86400, 7 * 86400), "wikidata-book": (86400, 7 * 86400),
        "gdelt-news": (3600, 6 * 3600), "census-geocode": (7 * 86400, 30 * 86400),
-       "mcp-registry": (3600, 6 * 3600), "github-releases": (3600, 24 * 3600)}  # (serve from cache without asking, longest a cached copy may serve)
+       "mcp-registry": (3600, 6 * 3600), "github-releases": (3600, 24 * 3600),
+       "package-releases": (6 * 3600, 24 * 3600)}  # (serve from cache without asking, longest a cached copy may serve)
 KEV_TTL, KEV_MAX_STALE = 3600, 24 * 3600
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 PACKAGE = re.compile(r"(?:@[a-z0-9][a-z0-9._~-]*/)?[A-Za-z0-9][A-Za-z0-9._~-]*")
@@ -1563,6 +1564,50 @@ class FallbackAgents:
                     "source": "GitHub REST API"}, _text(raw.get("pushed_at"), 40) or None
         (out, as_of), cache = self._cached(("github-repo", repo.lower()), TTL["github-repo"], live, remaining)
         return out, cache, False, {"GitHub (last push)": as_of}
+
+    def _package_releases(self, args, remaining):
+        """package.releases.v1 (PM 11-15 16:12): one npm registry document; PyPI waits for its terms (11-16)."""
+        package, ecosystem = str(args.get("package") or ""), args.get("ecosystem")
+        if not PACKAGE.fullmatch(package) or len(package) > 214:
+            raise FallbackUnavailable("invalid_input", "Use a valid package name.")
+        if ecosystem != "npm":
+            raise FallbackUnavailable("source_unavailable", "PyPI release history is not offered yet; use npm.")
+        from urllib.parse import quote as _quote
+
+        def live(rem):
+            raw = self._get_json("https://registry.npmjs.org/" + _quote(package, safe="@"), rem, limit=24 * 1024 * 1024)
+            times = raw.get("time") or {}
+            versions = raw.get("versions") or {}
+            latest = ((raw.get("dist-tags") or {}).get("latest")) or ""
+            stable = sorted(((t[:10], v) for v, t in times.items() if v in versions and isinstance(t, str)
+                             and not re.search(r"-(?:alpha|beta|rc|next|canary|dev|pre)", v)), reverse=True)
+            info = versions.get(latest) or {}
+            return {"latest": _text(latest, 64), "latest_at": _text(times.get(latest), 20)[:10],
+                    "maintainers": len([m for m in raw.get("maintainers") or [] if isinstance(m, dict)]),
+                    "deprecated": _text(info.get("deprecated"), 200) if info.get("deprecated") else "",
+                    "recent": stable[:6], "count": len(versions),
+                    "repository": repository_url(raw.get("repository") or info.get("repository"))}, _now_iso(self.utc_now())
+        (data, as_of), cache = self._cached(("package-releases", package.lower()), TTL["package-releases"], live, remaining)
+        if not data["latest"]:
+            raise FallbackUnavailable("not_found", "The npm registry lists no released version for this package.")
+        gaps = []
+        for (a, _), (b, _) in zip(data["recent"], data["recent"][1:]):
+            try:
+                gaps.append((datetime.fromisoformat(a) - datetime.fromisoformat(b)).days)
+            except ValueError:
+                pass
+        parts = [f"{package} (npm): latest {data['latest']} released {data['latest_at'] or 'date not listed'}",
+                 f"{data['maintainers']} maintainer{'s' if data['maintainers'] != 1 else ''}",
+                 f"deprecated: {data['deprecated']}" if data["deprecated"] else "not deprecated",
+                 f"{data['count']} versions in all"]
+        if data["recent"]:
+            parts.append("recent stable releases: " + ", ".join(f"{v} {d}" for d, v in data["recent"][:5])
+                         + (f" (gaps {', '.join(str(g) for g in gaps[:4])} days)" if gaps else ""))
+        if data["repository"]:
+            parts.append(f"repository {data['repository']}")
+        out = {"answer": ("; ".join(parts) + ".")[:8000], "url": "https://www.npmjs.com/package/" + package,
+               "source": "npm public registry"}
+        return out, cache, False, {"npm registry": as_of}
 
     def _github_releases(self, args, remaining):
         """github.releases.v1 (PM 11-15 16:12). Allowed by GitHub's terms while necklace runs are free (section H puts

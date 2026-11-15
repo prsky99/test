@@ -43,6 +43,7 @@ DOMAINS = {'nvd-cve': ['https://services.nvd.nist.gov/'], 'cisa-kev': ['https://
            'census-geocode': ['https://geocoding.geo.census.gov/'],
            'mcp-registry': ['https://registry.modelcontextprotocol.io/'],
            'github-releases': ['https://api.github.com/'],
+           'package-releases': ['https://registry.npmjs.org/'],
            'worldbank-indicator': ['https://api.worldbank.org/'], 'met-weather': ['https://api.met.no/'],
            'ecb-fx': ['https://www.ecb.europa.eu/'], 'usgs-quakes': ['https://earthquake.usgs.gov/'],
            'github-repo': ['https://api.github.com/'],

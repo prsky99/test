@@ -726,5 +726,43 @@
    null,
    {}
   ]
+ ],
+ "package-releases": [
+  [
+   {
+    "package": "lodash",
+    "ecosystem": "npm"
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "package": "express",
+    "ecosystem": "npm"
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "package": "Bad Name",
+    "ecosystem": "npm"
+   },
+   "invalid_input",
+   null,
+   {}
+  ],
+  [
+   {
+    "package": "requests",
+    "ecosystem": "PyPI"
+   },
+   "source_unavailable",
+   null,
+   {}
+  ]
  ]
 }
