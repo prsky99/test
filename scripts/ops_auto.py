@@ -264,7 +264,7 @@ def revenue_funnel(clock=time.time, run=None):
         append(ACTIONS, f'{now()} 매출 깔때기 집계 실패')
         return 'failed'
     from revenue_funnel import line   # the watch runs this file as a script with scripts/ on sys.path (11-15 11:15)
-    text = f"{day} {line(record)} (revenue-funnel.jsonl)"
+    text = f"{day} {line(record)}"   # 150 characters on the board; the record is logs/ops/revenue-funnel.jsonl
     board_handoff('revenue', text)
     append(ACTIONS, f'{now()} 매출 깔때기: {text}')
     return record

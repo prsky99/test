@@ -7,7 +7,7 @@ import pytest
 
 from scripts import ops_auto, prod_ro_sql, revenue_funnel
 
-OUTPUT = ['clients|2828|3|126|126', 'channel|a2a|285', 'channel|mcp|576', 'channel|rest|1967',
+OUTPUT = ['clients|2828|3|126|126|185', 'channel|a2a|285', 'channel|mcp|576', 'channel|rest|1967',
           'owners|0|0|0', 'control|1|1', 'applications|internal|1|0', 'applications|external|2|1',
           'advertisers|internal|1', 'bookings|external|2|1|1|1|5000000|0', 'bookings|internal|3|0|0|0|0|0']
 
@@ -38,16 +38,17 @@ def test_the_output_becomes_one_record_and_one_board_line():
     assert own == {'applications': 1, 'applications_24h': 0, 'advertisers_active': 1, 'quotes': 3, 'quotes_24h': 0,
                    'paid': 0, 'paid_24h': 0, 'usdc_received': 0.0, 'refunded': 0}   # kept apart, never dropped
     text = revenue_funnel.line(record)
-    assert text == ('클라이언트 2828(새 126) → 재방문 3 → 소유 확인 1 → 외부 신청 2 → 견적 2 → 결제 1 → 5.00 USDC'
-                    ' | 내부 신청 1·견적 3·결제 0')
-    assert len('2026-11-15 ' + text + ' (revenue-funnel.jsonl)') <= 150   # ops_auto.board_handoff keeps 150
+    assert text == ('토큰 받은 클라이언트 2828(새 126) → 다시 들고 옴 185 → 토큰 재방문(하한) 3 → 소유 확인 1 → 외부 신청 2'
+                    ' → 견적 2 → 결제 1 → 5.00 USDC | 내부 신청 1·견적 3·결제 0')
+    assert len('2026-11-15 ' + text) <= 150   # ops_auto.board_handoff keeps 150
+    assert record['reidentified'] == 185 and record['returning_basis'] == 'credential_lower_bound'
 
 
 def test_the_internal_rule_is_the_ad_coin_demand_rule():
     sql = open('deploy/ops/adcoin-demand-counts.sql').read()
     for value in (revenue_funnel.HOUSE, revenue_funnel.PLATFORM):
         assert value.strip("'") in sql
-    empty = revenue_funnel.parse(['clients|5|0|1|1', 'owners|0|0|0', 'control|0|0', 'advertisers|internal|1'])
+    empty = revenue_funnel.parse(['clients|5|0|1|1|0', 'owners|0|0|0', 'control|0|0', 'advertisers|internal|1'])
     assert empty['external']['applications'] == 0 and empty['external']['paid'] == 0 and empty['internal']['advertisers_active'] == 1
 
 
@@ -79,7 +80,7 @@ def test_ops_auto_writes_the_board_line_once_a_morning(monkeypatch, tmp_path):
     assert ops_auto.revenue_funnel(clock=at(2026, 11, 16, 7, 55), run=run) is None          # before 08:00
     assert ops_auto.revenue_funnel(clock=at(2026, 11, 16, 8, 5), run=run) == record
     assert ops_auto.revenue_funnel(clock=at(2026, 11, 16, 9, 5), run=run) is None           # once a day
-    assert handed[0][0] == 'revenue' and handed[0][1].startswith('2026-11-16 클라이언트 2828(새 126)')
+    assert handed[0][0] == 'revenue' and handed[0][1].startswith('2026-11-16 토큰 받은 클라이언트 2828(새 126)')
     assert ops_auto.TEAM['revenue'] == 'PM'
     failed = lambda: types.SimpleNamespace(returncode=75, stdout='')                       # noqa: E731
     assert ops_auto.revenue_funnel(clock=at(2026, 11, 17, 8, 5), run=failed) == 'failed'

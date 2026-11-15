@@ -3,8 +3,14 @@
     .venv/bin/python -m scripts.revenue_funnel           # count now, append to logs/ops/revenue-funnel.jsonl, print it
 
 Counts only, through scripts.prod_ro_sql (one read-only connection, every statement checked first):
-  clients        identified agent clients (agent_visitors, our 'admin-test' channel left out), by channel
-  returning      clients seen on two or more different days (visit_days >= 2)
+  clients        identified agent clients (agent_visitors, our 'admin-test' channel left out), by channel; every
+                 client row is created with a visitor credential, so this is also 'clients that got one' (rows of
+                 drive-bys that barely talked are pruned after a while)
+  reidentified   clients identified again after the first request (they sent the credential or an issued A2A
+                 context back): last_seen later than first_seen
+  returning      clients seen again on another day by that credential (visit_days >= 2). A LOWER BOUND (PM 11-15
+                 11:5x): a client without the credential cannot be followed across days, because the fingerprint
+                 salt changes every UTC day (concierge/memory.py) and is kept that way
   new_24h        clients first seen in the last 24 hours; active_24h: seen in the last 24 hours
   owners         provider ownership verified: owner claims by host (shown, hidden) and provider control claims
   applications   advertiser applications (AD Coin v2 audit 'advertiser_applied'); advertisers: active accounts
@@ -30,7 +36,7 @@ PLATFORM = "'00b5f2da-301b-5c5c-8dfa-6ea4ba186b37'"   # the platform script prin
 
 SQL = f"""
 SELECT 'clients', count(*), count(*) FILTER (WHERE visit_days >= 2), count(*) FILTER (WHERE first_seen >= {DAY}),
-       count(*) FILTER (WHERE last_seen >= {DAY})
+       count(*) FILTER (WHERE last_seen >= {DAY}), count(*) FILTER (WHERE last_seen > first_seen + 1)
   FROM public.agent_visitors WHERE channel IS DISTINCT FROM 'admin-test';
 SELECT 'channel', coalesce(channel, 'none'), count(*) FROM public.agent_visitors
  WHERE channel IS DISTINCT FROM 'admin-test' GROUP BY 2 ORDER BY 2;
@@ -66,10 +72,11 @@ def parse(lines):
     channels = {row[1]: int(row[2]) for row in rows if row[0] == 'channel'}
     split = {kind: {row[1]: [int(value) for value in row[2:]] for row in rows if row[0] == kind}
              for kind in ('applications', 'advertisers', 'bookings')}
-    clients, returning, new, active = first['clients']
+    clients, returning, new, active, reidentified = first['clients']
     shown, hidden, owners_new = first['owners']
     control, control_new = first['control']
-    record = {'clients': clients, 'clients_by_channel': channels, 'returning': returning, 'new_24h': new,
+    record = {'clients': clients, 'clients_by_channel': channels, 'reidentified': reidentified,
+              'returning': returning, 'returning_basis': 'credential_lower_bound', 'new_24h': new,
               'active_24h': active, 'owners': shown + control, 'owner_hosts': shown, 'owner_hosts_hidden': hidden,
               'control_claims': control, 'owners_24h': owners_new + control_new}
     for side in ('external', 'internal'):
@@ -98,7 +105,8 @@ def line(record):
     """The board text (Korean, for the site owner). The board keeps 150 characters (ops_auto.board_handoff), so the
     line carries the external funnel and the internal counts only; everything else is in the jsonl record."""
     ext, own = record['external'], record['internal']
-    return (f"클라이언트 {record['clients']}(새 {record['new_24h']}) → 재방문 {record['returning']} → "
+    return (f"토큰 받은 클라이언트 {record['clients']}(새 {record['new_24h']}) → 다시 들고 옴 {record['reidentified']} → "
+            f"토큰 재방문(하한) {record['returning']} → "
             f"소유 확인 {record['owners']} → 외부 신청 {ext['applications']} → 견적 {ext['quotes']} → "
             f"결제 {ext['paid']} → {ext['usdc_received']:.2f} USDC | 내부 신청 {own['applications']}·"
             f"견적 {own['quotes']}·결제 {own['paid']}")
