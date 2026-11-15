@@ -35,7 +35,9 @@ SLUG = {"gleif-lei": "company-due-diligence", "sec-edgar": "company-due-diligenc
         "github-advisory": "package-risk-audit", "package-registry": "package-risk-audit",
         "depsdev-package": "package-risk-audit",
         "airport-lookup": "quakes-near-airport",   # workflow 11-15 (PM 13:58): OurAirports truth, gold_places
-        "wikidata-book": "book-author-brief", "site-readiness": "website-trust-brief"}   # ops 11-15 14:0x
+        "wikidata-book": "book-author-brief", "site-readiness": "website-trust-brief",   # ops 11-15 14:0x
+        "rdap-domain": "website-trust-brief", "wiki-grounding": "topic-evidence-brief",
+        "sec-filings": "company-due-diligence"}                                          # ops 11-15 14:2x
 BANDS = (0.01, 0.1, 0.5)
 
 
@@ -105,6 +107,25 @@ def judge(agent_id: str, case: dict, result: dict | None) -> dict:
         return {"pass": ok, "got": text[:200], "want": [author, year]}
     if agent_id == "site-readiness":
         return judge_site(case, result)
+    if agent_id == "rdap-domain":
+        # website-trust-brief truth (an RDAP registration event): the registration date and the registrar
+        text = str((result or {}).get("answer") or "")
+        date, registrar = str(truth.get("registered") or ""), str(truth.get("registrar") or "")
+        ok = bool(date) and date in text and (not registrar or registrar.lower() in text.lower())
+        return {"pass": ok, "got": text[:200], "want": [date, registrar]}
+    if agent_id == "wiki-grounding":
+        # topic-evidence-brief truth: the topic's Wikipedia article is among the quoted sources
+        want = (truth.get("wiki") or {}).get("title")
+        sources = [str(u) for u in (result or {}).get("sources") or []]
+        from urllib.parse import unquote
+        link = "https://en.wikipedia.org/wiki/" + str(want or "").replace(" ", "_")
+        ok = bool(want) and any(unquote(u.split("#")[0]).replace(" ", "_") == link for u in sources)
+        return {"pass": ok, "got": sources[:5], "want": link}
+    if agent_id == "sec-filings":
+        # company-due-diligence truth (EDGAR CIK): the filer the answer matched is that CIK
+        want = str(truth.get("cik") or "").lstrip("0")
+        text = str((result or {}).get("answer") or "")
+        return {"pass": bool(want) and f"(SEC CIK {want})" in text, "got": text[:160], "want": want}
     if agent_id == "wikipedia-summary":
         want = (truth.get("wiki") or {}).get("title")
         return {"pass": bool(want) and (result or {}).get("title") == want, "got": (result or {}).get("title"), "want": want}
@@ -237,6 +258,10 @@ def case_arguments(agent_id: str, case: dict) -> dict:
     arguments = {k: v for k, v in case["input"].items() if k in allowed}
     if "title" in allowed and "title" not in arguments and case["input"].get("topic"):
         arguments["title"] = case["input"]["topic"]
+    if "question" in allowed and "question" not in arguments and case["input"].get("topic"):
+        arguments["question"] = f"What is {case['input']['topic']}?"        # web.grounding.v1 takes a question
+    if "company" in allowed and "company" not in arguments and case["input"].get("name"):
+        arguments["company"] = case["input"]["name"]                       # sec.filings.v1: the company name only
     return arguments
 
 
@@ -244,6 +269,12 @@ def applies(agent_id: str, case: dict) -> bool:
     """False when the source cannot answer the case at all (no LEI for GLEIF, no CIK for SEC): no call is made."""
     if agent_id in ("gleif-lei", "sec-edgar"):
         return bool((case.get("truth") or {}).get("lei" if agent_id == "gleif-lei" else "cik"))
+    if agent_id == "sec-filings":
+        return bool((case.get("truth") or {}).get("cik"))
+    if agent_id == "rdap-domain":
+        return bool((case.get("truth") or {}).get("registered"))
+    if agent_id == "wiki-grounding":
+        return bool(((case.get("truth") or {}).get("wiki") or {}).get("title"))
     if agent_id == "site-readiness":   # every site applies; an unreadable robots.txt is graded in judge_site
         return bool((case.get("input") or {}).get("domain"))
     return True

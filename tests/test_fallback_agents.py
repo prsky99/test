@@ -1886,3 +1886,70 @@ def test_usgs_quakes_near_a_point_filters_the_feed_by_distance_and_days(tmp_path
     assert len(calls) == 1                                              # one feed, filtered on our side
     with pytest.raises(FallbackUnavailable):
         a.execute("usgs-quakes", {"lat": 35.0})
+
+
+def write_country_grid(path, step=10.0):
+    """A tiny country grid: KR at 30-40N 120-130E, a KR|KP border cell at 40-50N 120-130E, a disputed IN|PK|CN cell
+    at 30-40N 70-80E, sea elsewhere."""
+    import json as _json
+    import struct
+    import zlib
+    from array import array
+    rows, cols = round(180 / step), round(360 / step)
+    zones = ["", "KR", "KP", "IN", "PK", "CN"]
+    sets = [["KP", "KR"], ["CN", "IN", "PK"]]
+    body = bytearray()
+    for r in range(rows):
+        runs = [(0, 0)]
+        if r == 4:
+            runs = [(0, 0), (30, 32768), (31, 0)]
+        if r == 5:
+            runs = [(0, 0), (25, 32769), (26, 0), (30, 1), (31, 0)]
+        body += struct.pack("<I", len(runs)) + array("H", [c for c, _ in runs]).tobytes() + array("H", [v for _, v in runs]).tobytes()
+    header = {"format": "avc-country-grid-1", "step": step, "rows": rows, "cols": cols, "zones": zones, "sets": sets,
+              "disputed": [1], "countries": {}}
+    raw = _json.dumps(header).encode()
+    path.write_bytes(b"AVCTZ1\n" + struct.pack("<I", len(raw)) + raw + zlib.compress(bytes(body)))
+
+
+def test_holiday_calendar_takes_a_point_through_the_country_grid(tmp_path):
+    """PM 11-15 13:58: an address hub gives coordinates only; one country inside it, none near a border, at sea or in
+    a disputed area."""
+    write_country_grid(tmp_path / "country-grid.bin")
+    a, _ = agents(tmp_path, {})
+    seoul = a.execute("holiday-calendar", {"country": "37.5665,126.9780", "year": 2026})["result"]["answer"]
+    assert seoul.startswith("National public holidays in South Korea, 2026") or "Korea" in seoul[:60]
+    assert "2026-03-01" in seoul
+    for point, words in (("45.0,125.0", "border (KP, KR)"), ("35.0,75.0", "disputed area (CN, IN, PK)"),
+                         ("0.0,0.0", "at sea")):
+        with pytest.raises(FallbackUnavailable) as err:
+            a.execute("holiday-calendar", {"country": point, "year": 2026})
+        assert err.value.code == "not_found" and words in str(err.value)
+    assert "2026-03-01" in a.execute("holiday-calendar", {"country": "45.0,125.0,KR", "year": 2026})["result"]["answer"]
+    empty, _ = agents(tmp_path / "none", {})
+    with pytest.raises(FallbackUnavailable) as err:
+        empty.execute("holiday-calendar", {"country": "37.5,127.0"})
+    assert err.value.code == "source_unavailable"
+
+
+def test_gold_judges_for_rdap_wiki_grounding_and_sec_filings():
+    """ops 11-15 14:2x: the three substitutes the gate could not run."""
+    from agent_market.fallback_agents import gold_check as g
+    assert g.SLUG["rdap-domain"] == "website-trust-brief" and g.SLUG["wiki-grounding"] == "topic-evidence-brief"
+    assert g.SLUG["sec-filings"] == "company-due-diligence"
+    rdap = {"truth": {"registered": "2013-06-18", "registrar": "MarkMonitor Inc."}}
+    good = {"answer": "doordash.com: registered 2013-06-18; expires 2027-06-18; registrar MarkMonitor Inc.; status x."}
+    assert g.judge("rdap-domain", rdap, good)["pass"]
+    assert not g.judge("rdap-domain", rdap, {"answer": "doordash.com: registered 2013-06-19; registrar MarkMonitor Inc."})["pass"]
+    topic = {"input": {"topic": "Machine learning"}, "truth": {"wiki": {"title": "Machine learning"}}}
+    assert g.case_arguments("wiki-grounding", topic) == {"question": "What is Machine learning?"}
+    assert g.judge("wiki-grounding", topic, {"sources": ["https://en.wikipedia.org/wiki/Machine_learning"]})["pass"]
+    assert g.judge("wiki-grounding", {"truth": {"wiki": {"title": "C++"}}},
+                   {"sources": ["https://en.wikipedia.org/wiki/C%2B%2B"]})["pass"]
+    assert not g.judge("wiki-grounding", topic, {"sources": ["https://en.wikipedia.org/wiki/Deep_learning"]})["pass"]
+    company = {"input": {"name": "Rand Capital Corp", "country": "US"}, "truth": {"cik": "81955"}}
+    assert g.case_arguments("sec-filings", company) == {"company": "Rand Capital Corp"}
+    assert g.judge("sec-filings", company, {"answer": "Matched SEC filer: RAND CAPITAL CORP (SEC CIK 81955), by exact company name."})["pass"]
+    assert not g.judge("sec-filings", company, {"answer": "No SEC EDGAR registration matches (company Rand)."})["pass"]
+    assert g.applies("sec-filings", company) and not g.applies("sec-filings", {"truth": {"cik": None}})
+    assert not g.applies("rdap-domain", {"truth": {}}) and g.applies("wiki-grounding", topic)

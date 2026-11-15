@@ -99,6 +99,11 @@ TZDB = {"name": "IANA Time Zone Database (system zoneinfo)", "url": "https://www
         "license": "Public domain (tz code and data, https://github.com/eggert/tz/blob/main/LICENSE)",
         "notice": "Computed on our server from the installed tz data; cities are matched to zone names only."}
 
+COUNTRY_BORDERS = {"name": "Natural Earth 1:10m Admin 0 countries and disputed areas", "url": "https://www.naturalearthdata.com/",
+                   "license": "Public domain (https://www.naturalearthdata.com/about/terms-of-use/)",
+                   "notice": "A precomputed 0.02-degree grid; within about 2 km of a border or in a disputed area no "
+                             "single country is given."}
+
 TZ_BOUNDARIES = {"name": "timezone-boundary-builder time zone boundaries (via timezonefinder)",
                  "url": "https://github.com/evansiroky/timezone-boundary-builder",
                  "license": "ODbL 1.0 (https://opendatacommons.org/licenses/odbl/), data from OpenStreetMap "
@@ -246,9 +251,10 @@ SPECS = {
     },
     "holiday-calendar": {
         "name": "AgentValCon National Holiday Calendar", "tool": "get_holidays", "contract": "holiday.calendar.v1",
-        "description": "List the national public holidays of one country (ISO code or English name) for a year, "
-                       "with dates. National public holidays only: no festivals or local events; read-only.",
-        "sources": [HOLIDAYS],
+        "description": "List the national public holidays of one country (ISO code, English name, or a point "
+                       "\"lat,lon\" placed in a country by a precomputed map grid) for a year, with dates. National public "
+                       "holidays only: no festivals or local events; read-only.",
+        "sources": [HOLIDAYS, COUNTRY_BORDERS],
         "rate": "no network calls; rules ship with the pinned library version",
     },
     "sec-filings": {

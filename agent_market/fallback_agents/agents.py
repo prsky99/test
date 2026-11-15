@@ -91,6 +91,7 @@ class FallbackAgents:
         self.weather: OrderedDict = OrderedDict()  # (lat, lon) -> dict(value, as_of, expires, last_modified, at)
         self.airports = None
         self.tz_grid = None
+        self.country_grid = None
 
     # ---------------------------------------------------------------- public
     def execute(self, agent_id: str, arguments: dict) -> dict:
@@ -789,8 +790,31 @@ class FallbackAgents:
         out = {"items": items[:limit], "source": f"holidays {version} (MIT): national public holidays only"}
         return out, cache, len(items) > limit, as_of
 
+    def _country_at(self, lat, lon) -> str:
+        """The country grid's single answer for a point (PM 11-15 13:58), or FallbackUnavailable when the grid is not
+        built, the point is at sea, near a border or in a disputed area (never one country there)."""
+        from .country_grid import CountryGrid
+        if self.country_grid is None:
+            self.country_grid = CountryGrid(self.data_dir / "country-grid.bin")
+        try:
+            found = self.country_grid.lookup(lat, lon)
+        except (OSError, ValueError) as exc:
+            raise FallbackUnavailable("source_unavailable", "The country grid is not built on this server yet.") from exc
+        if found["country"]:
+            return found["country"]
+        if found["disputed"]:
+            raise FallbackUnavailable("not_found", "The point is in a disputed area (" + ", ".join(found["candidates"])
+                                      + "); give the country code.")
+        if found["candidates"]:
+            raise FallbackUnavailable("not_found", "The point is within about 2 km of a border (" +
+                                      ", ".join(found["candidates"]) + "); give the country code.")
+        raise FallbackUnavailable("not_found", "The point is not in any country (at sea).")
+
     def _holiday_calendar(self, args, remaining):
         place = next((args.get(k) for k in ("country_code", "countryCode", "country") if args.get(k)), "")
+        point = parse_point(str(place)) if isinstance(place, str) else None
+        if point:   # an address hub gives coordinates only: the country comes from the country grid
+            place = point[2] or self._country_at(point[0], point[1])
         year = args.get("year")
         if year is not None and not isinstance(year, int):
             raise FallbackUnavailable("invalid_input", "Use a year as a number.")

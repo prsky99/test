@@ -395,6 +395,22 @@
    "invalid_input",
    null,
    {}
+  ],
+  [
+   {
+    "company": "Apple Inc."
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "cik": "CIK0000320193"
+   },
+   "ok",
+   "live",
+   {}
   ]
  ],
  "wikidata-book": [
@@ -459,6 +475,74 @@
   [
    {
     "domain": "10.0.0.1"
+   },
+   "invalid_input",
+   null,
+   {}
+  ]
+ ],
+ "rdap-domain": [
+  [
+   {
+    "domain": "example.com"
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "domain": "wikipedia.org"
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "domain": "localhost"
+   },
+   "invalid_input",
+   null,
+   {}
+  ],
+  [
+   {
+    "domain": "not a domain"
+   },
+   "invalid_input",
+   null,
+   {}
+  ]
+ ],
+ "wiki-grounding": [
+  [
+   {
+    "question": "What is photosynthesis?"
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "question": "Who wrote Pride and Prejudice?"
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "question": "hi"
+   },
+   "invalid_input",
+   null,
+   {}
+  ],
+  [
+   {
+    "question": ""
    },
    "invalid_input",
    null,
