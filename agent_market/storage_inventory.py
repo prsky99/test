@@ -21,6 +21,9 @@ LIMITS = {'files': 1024, 'directories': 256, 'directory_entries': 1024, 'depth':
           'resolution_steps': 4096, 'analysis_string_bytes': 16 * 1024 * 1024,
           'total_resolution_steps': 100000, 'total_analysis_string_bytes': 64 * 1024 * 1024}
 NAME = re.compile(r'[A-Za-z_][A-Za-z0-9_]*(?:\.py)?\Z')
+# Folders that hold no Python and whose names an outside format fixes (11-15, PM): a Claude Code plugin skill is
+# named by its folder (skills/<name>/SKILL.md, lowercase with hyphens), so it cannot become an identifier.
+NON_PYTHON_DIRS = frozenset(('agent_market/concierge/claude_plugin/skills/find-agent',))
 SQL_START = re.compile(r'(?is)^\s*(?:SELECT|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|PRAGMA|BEGIN|COMMIT|ROLLBACK|SAVEPOINT|RELEASE|WITH|EXPLAIN|REINDEX|VACUUM|REPLACE|ANALYZE|ATTACH|DETACH|END)\b')
 FEATURES = {
     'sql.pragma': r'\bPRAGMA\b',
@@ -397,6 +400,8 @@ def scan():
                 if stat.S_ISLNK(info.st_mode): issues.add('excluded_source_symlink'); exact = False
                 continue
             if not NAME.fullmatch(name):
+                if stat.S_ISDIR(info.st_mode) and path in NON_PYTHON_DIRS:
+                    continue
                 issues.add('unrecognized_source_name'); exact = False; continue
             if stat.S_ISDIR(info.st_mode):
                 try: child = os.open(name, flags, dir_fd=directory_fd)
