@@ -37,7 +37,9 @@ SLUG = {"gleif-lei": "company-due-diligence", "sec-edgar": "company-due-diligenc
         "airport-lookup": "quakes-near-airport",   # workflow 11-15 (PM 13:58): OurAirports truth, gold_places
         "wikidata-book": "book-author-brief", "site-readiness": "website-trust-brief",   # ops 11-15 14:0x
         "rdap-domain": "website-trust-brief", "wiki-grounding": "topic-evidence-brief",
-        "sec-filings": "company-due-diligence"}                                          # ops 11-15 14:2x
+        "sec-filings": "company-due-diligence",                                          # ops 11-15 14:2x
+        # one 30-case set is enough for a substitute verdict; the quake truth is the place, the quakes are live
+        "usgs-quakes": "quakes-near-address"}                                            # workflow 11-15
 BANDS = (0.01, 0.1, 0.5)
 
 
@@ -129,6 +131,13 @@ def judge(agent_id: str, case: dict, result: dict | None) -> dict:
     if agent_id == "wikipedia-summary":
         want = (truth.get("wiki") or {}).get("title")
         return {"pass": bool(want) and (result or {}).get("title") == want, "got": (result or {}).get("title"), "want": want}
+    if agent_id == "usgs-quakes":
+        # the quake part of quakes-near-address: events against USGS asked when graded (retest.grade_quakes: none
+        # beyond the radius, the strongest sure event present); not graded when USGS cannot be read
+        from agent_market.necklaces import retest
+        if retest.quakes_reference(truth) is None:
+            return {"pass": None, "applicable": False, "why": "reference_unavailable"}
+        return {"pass": retest.grade_quakes(case, result)}
     if agent_id == "airport-lookup":
         # The airport's reference point within the case tolerance (5 km) of OurAirports, read from the answer's
         # "lat X lon Y" or structured lat/lon (workflow 11-15, the same truth quakes-near-airport grades with).
@@ -255,6 +264,11 @@ def case_arguments(agent_id: str, case: dict) -> dict:
     ``title``). One function for tuning runs and the ops gate (scripts.substitute_gate), so both call the agent
     the same way."""
     allowed = contract(SPECS[agent_id]["contract"])["input_schema"]["properties"]
+    if agent_id == "usgs-quakes":
+        # in the necklace it reads the place the location step resolved; alone it gets the truth point (workflow)
+        truth = case["truth"]
+        return {"lat": truth["lat"], "lon": truth["lon"], "radius_km": truth["radius_km"], "days": truth["days"],
+                "min_magnitude": truth["min_magnitude"], "limit": 20}
     arguments = {k: v for k, v in case["input"].items() if k in allowed}
     if "title" in allowed and "title" not in arguments and case["input"].get("topic"):
         arguments["title"] = case["input"]["topic"]

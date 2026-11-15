@@ -23,7 +23,7 @@ def test_local_time_reads_the_hub_point_and_keeps_boundary_candidates():
         "location": "{{slot.location.point}}"}
     ip = templates.stamp("ip", "local-time")
     assert ip["slots"][1]["chain"][0]["resource_id"] == 38614          # an IP hub gives the zone, 38614 can read it
-    assert templates.stamp("address", "holidays") is None              # no country code from a street geocoder
+    assert templates.stamp("address", "holidays") is not None          # holiday-calendar finds the country itself
     answer = {"answer": "Near a time-zone boundary: candidates America/Indiana/Indianapolis or America/Chicago; "
                         "local time 09:15 or 08:15", "source": "IANA tz"}
     seen = {}
@@ -58,7 +58,7 @@ def test_the_hub_stages_country_and_time_zone_for_consumers():
     airport = runner.normalize("airport.lookup.v1", {"iata": "LAX", "lat": 33.94, "lon": -118.41, "country": "US"}, {})
     assert airport["country_code"] == "US" and "timezone" not in airport
     assert runner.render(templates.CONSUMERS["holidays"]["chain"][1]["input_map"],
-                         {"slot.location.country_code": "US", "year": 2026}) == {"country": "US", "year": 2026}
+                         {"slot.location.point": "39.7,-86.3", "year": 2026}) == {"country": "39.7,-86.3", "year": 2026}
 
 
 def test_airport_lookup_sentence_gives_country_code_and_time_zone():
@@ -79,3 +79,15 @@ def test_the_hub_reads_lat_lon_from_the_fallback_sentence():
     out = runner.normalize("airport.lookup.v1", {"answer": "Kahului (IATA OGG): large airport, lat 20.896263 lon "
                                                            "-156.431837, elevation 54 ft"}, {})
     assert out["point"] == "20.896263,-156.431837"
+
+
+def test_address_opens_holidays_through_the_point_and_airport_passes_its_code():
+    """Agent team 7dac5775: holiday-calendar takes "lat,lon" in country; a hub that gives an ISO code passes that."""
+    address = templates.stamp("address", "holidays")
+    member = address["slots"][1]["chain"]
+    assert [m.get("agent_id") for m in member] == ["holiday-calendar"]                # 38613 needs a code
+    assert member[0]["input_map"] == {"country": "{{slot.location.point}}", "year": "{{input.year}}"}
+    airport = templates.stamp("airport", "holidays")["slots"][1]["chain"]
+    assert airport[0]["resource_id"] == 38613
+    assert airport[1]["input_map"]["country"] == "{{slot.location.country_code}}"
+    assert model.validate(address) == [] and runner.slot_reference_problems(address) == []

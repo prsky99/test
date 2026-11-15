@@ -202,3 +202,21 @@ def test_our_usgs_feed_answers_in_a_sentence_and_ends_the_quake_chain():
         defn = model.load(f"agent_market/necklaces/definitions/{slug}.json")
         quakes = next(s for s in defn["slots"] if s["slot"] == "quakes")
         assert quakes["chain"][-1]["agent_id"] == "usgs-quakes" and model.validate(defn) == []
+
+
+def test_usgs_quakes_substitute_is_judged_like_the_necklace_quake_part(monkeypatch):
+    """Substitute gate for usgs-quakes (agent team 11-15): called with the case's truth point, judged by
+    retest.grade_quakes against USGS at grading time; no USGS answer means not graded."""
+    from agent_market.fallback_agents import gold_check
+    assert gold_check.SLUG["usgs-quakes"] == "quakes-near-address"
+    assert gold_check.case_arguments("usgs-quakes", CASE) == {"lat": TOKYO["lat"], "lon": TOKYO["lon"],
+                                                              "radius_km": 1000, "days": 7, "min_magnitude": 4.5,
+                                                              "limit": 20}
+    monkeypatch.setattr(retest, "quakes_reference", lambda truth, now=None, get=None: [])
+    sentence = {"answer": "No earthquake of magnitude 4.5 or more within 1000 km of 35.6586,139.7454 in the USGS "
+                          "feed for the week."}
+    assert gold_check.judge("usgs-quakes", CASE, sentence)["pass"] is True
+    far = {"answer": "1 earthquake ...: M6.0 2026-11-15 01:00 UTC, Chile, 17000 km away, lat -33.4 lon -70.6."}
+    assert gold_check.judge("usgs-quakes", CASE, far)["pass"] is False
+    monkeypatch.setattr(retest, "quakes_reference", lambda truth, now=None, get=None: None)
+    assert gold_check.judge("usgs-quakes", CASE, sentence)["pass"] is None

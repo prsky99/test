@@ -91,12 +91,14 @@ CONSUMERS = {
                   _member("agentcon", "get_local_time", {"location": "{{slot.location.point}}"}, ["iana-tz"],
                           agent_id="tz-time")]},
     "holidays": {
-        "slot": "holidays", "contract": "holiday.calendar.v1", "needs": {"country_code"}, "year": True,
+        # holiday-calendar takes "lat,lon" in country and finds the country itself (agent team 7dac5775), so an
+        # address hub opens holidays; 38613 needs an ISO code and joins only from hubs that give one
+        "slot": "holidays", "contract": "holiday.calendar.v1", "needs": {"point"}, "year": True,
         "title": "Public holidays at", "what": "that country's public holidays in the year asked",
-        "chain": [_member("external", "get_public_holidays", {"countryCode": "{{slot.location.country_code}}",
-                                                              "year": "{{input.year}}"}, ["nager-date"],
-                          rid=38613, domain="invokera.com", state="planned"),
-                  _member("agentcon", "get_holidays", {"country": "{{slot.location.country_code}}",
+        "chain": [dict(_member("external", "get_public_holidays", {"countryCode": "{{slot.location.country_code}}",
+                                                                   "year": "{{input.year}}"}, ["nager-date"],
+                               rid=38613, domain="invokera.com", state="planned"), needs=("country_code",)),
+                  _member("agentcon", "get_holidays", {"country": "{{slot.location.point}}",
                                                        "year": "{{input.year}}"}, ["python-holidays"],
                           agent_id="holiday-calendar")]},
 }
@@ -126,6 +128,8 @@ def stamp(hub_key: str, consumer_key: str) -> dict | None:
     for member in chain:      # tz-time narrows boundary candidates with a country code (agent team 84e4968c)
         if member.get("agent_id") == "tz-time" and "country_code" in hub["gives"]:
             member["input_map"]["location"] = "{{slot.location.point}},{{slot.location.country_code}}"
+        if member.get("agent_id") == "holiday-calendar" and "country_code" in hub["gives"]:
+            member["input_map"]["country"] = "{{slot.location.country_code}}"     # the hub's own ISO code first
     second = {"slot": use["slot"], "contract": use["contract"], "required": True, "fanout": 1,
               "depends_on": ["location"], "chain": chain}
     slug = f"{consumer_key}-near-{hub_key}" if consumer_key == "quakes" else f"{consumer_key}-at-{hub_key}"
