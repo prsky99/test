@@ -9,11 +9,11 @@ import role_tool_test as RT  # noqa: E402
 
 def test_priority_roles_follow_the_pm_order_and_others_come_after():
     # PM 11-16 06:5x, today only: the necklace steps with no outside member first (undo 11-17 morning)
-    assert V.PRIORITY_ROLES[:3] == ('sec.filings.v1', 'cve.exploited.v1', 'package.health.v1')
+    assert V.PRIORITY_ROLES[:4] == ('sec.filings.v1', 'cve.exploited.v1', 'package.health.v1', 'website.ai_readiness.v1')
     # PM 11-15 16:13: topic brief, website and domain checks, then the roles only outside sources ask for
-    assert V.PRIORITY_ROLES[3:6] == ('web.grounding.v1', 'papers.search.v1', 'news.search.v1')
-    assert V.PRIORITY_ROLES[6:9] == ('weather.forecast.v1', 'fx.rate.v1', 'translate.text.v1')   # PM 16:42
-    assert V.PRIORITY_ROLES[9:13] == ('website.ai_readiness.v1', 'dns.mail_auth.v1', 'domain.lookup.v1', 'tls.certificate.v1')
+    assert V.PRIORITY_ROLES[4:7] == ('web.grounding.v1', 'papers.search.v1', 'news.search.v1')
+    assert V.PRIORITY_ROLES[7:10] == ('weather.forecast.v1', 'fx.rate.v1', 'translate.text.v1')   # PM 16:42
+    assert V.PRIORITY_ROLES[10:13] == ('dns.mail_auth.v1', 'domain.lookup.v1', 'tls.certificate.v1')
     assert len(V.PRIORITY_ROLES) == len(set(V.PRIORITY_ROLES))
     assert not {'holiday.calendar.v1', 'book.search.v1', 'earthquake.feed.v1'} & set(V.PRIORITY_ROLES)
     candidates = [(role, i * 10 + n, 'tool', f'h{i}-{n}.example') for i, role in enumerate(

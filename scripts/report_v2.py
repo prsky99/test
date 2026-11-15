@@ -1361,11 +1361,12 @@ def catalog_candidates():
 # then website and domain checks, then the roles only outside sources ask for. Book, holiday and earthquake roles
 # are left to the general order.
 # PM 11-16 06:5x, today only (undo 11-17 morning): the three necklace steps with no outside member go first so the
-# 09:12 run tests their seeds (272753, 34792, 56136, 267005); rejudge 30 and the daily 80 stay.
-PRIORITY_ROLES = ('sec.filings.v1', 'cve.exploited.v1', 'package.health.v1',                             # 0 empty steps (11-16)
+# 09:12 run tests their seeds (272753, 34792, 56136, 267005); rejudge 30 and the daily 80 stay. website.ai_readiness
+# too (PM 06:5x): package.health first had used augur-trade.com's three host places before robots_check (178541).
+PRIORITY_ROLES = ('sec.filings.v1', 'cve.exploited.v1', 'package.health.v1', 'website.ai_readiness.v1',  # 0 empty steps (11-16)
                   'web.grounding.v1', 'papers.search.v1', 'news.search.v1',                             # 1 topic brief
                   'weather.forecast.v1', 'fx.rate.v1', 'translate.text.v1',                             # 2 asked most
-                  'website.ai_readiness.v1', 'dns.mail_auth.v1', 'domain.lookup.v1', 'tls.certificate.v1',  # 3 site/domain
+                  'dns.mail_auth.v1', 'domain.lookup.v1', 'tls.certificate.v1',                           # 3 site/domain
                   'company.registry.v1', 'encyclopedia.summary.v1',                                       # 4 outside only
                   'cve.record.v1', 'package.advisories.v1',
                   'github.repo.v1', 'package.risk.v1', 'package.releases.v1', 'github.releases.v1',
