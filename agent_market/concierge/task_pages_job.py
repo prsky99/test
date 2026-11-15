@@ -168,6 +168,11 @@ class TaskPagesRefresher:
             except Exception:  # the check API falls back to indexed key lookups
                 log.exception('Task page snapshot URL keys failed')
             try:
+                from .operated_by import add_operators   # 11-15 PM 16:48: /agent/<id> says when we operate it
+                log.info('Task page snapshot: %d agents operated by us', add_operators(self.front.store, snapshot))
+            except Exception:
+                log.exception('Task page snapshot operators failed')
+            try:
                 write(str(self.out), snapshot)
             except (OSError, ValueError):
                 log.exception('Task page snapshot was not written')

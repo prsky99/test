@@ -473,6 +473,10 @@ class Front:
             gateway=gateway_agent_url(resource['id'],resource['kind'])
             text=project(text,gateway,bindings(resource));data=project(data,gateway,bindings(resource))
             suggested=project(suggested,gateway,bindings(resource))
+        # 11-15 PM 16:48: a recommended listing we operate says so in the answer itself (rank untouched).
+        from .operated_by import line as operated_line, operated
+        owned=[str(r.get('name') or 'This agent')+': '+operated_line(operated(r)) for r in targets.values() if operated(r)]
+        if owned and isinstance(text,str):text=text.rstrip()+'\n'+'\n'.join(owned)
         return replace(reply,text=public_metadata(text),data=public_metadata(data),suggested=public_metadata(suggested))
 
 

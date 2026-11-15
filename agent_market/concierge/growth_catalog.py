@@ -159,6 +159,13 @@ PROVIDER_NOTE = ('<p class="muted provider-note">Is this your agent? <a href="/m
                  ' · <a href="/advertise?from=agent-page">Advertise in Sponsored</a></p>')
 
 
+def operator_note(agent):
+    """11-15 PM 16:48: a listing AgentValCon operates says so on its page, with its data source; rank untouched."""
+    from .operated_by import clean, line
+    found = clean(agent)
+    return '<p class="agent-operator">' + esc(line(found)) + '</p>' if found else ''
+
+
 def agent_page(rid, snapshot=None):
     snapshot = g.SNAPSHOT.read() if snapshot is None else snapshot
     agent = (snapshot or {}).get('catalog', {}).get(rid)
@@ -206,6 +213,7 @@ def agent_page(rid, snapshot=None):
     body = (g.heading(kind + (' · '+category if category else ''), title, agent.get('description') or description)
             + '<div class="row"><span class="badge">'+esc(kind)+'</span>'+('<span class="badge success">Free</span>' if agent.get('free') else '')
             + ('<span class="badge">Grade '+esc(agent['eval_grade'])+'</span>' if agent.get('eval_grade') else '')+'</div>'
+            + operator_note(agent)
             + '<div class="grid two">'+''.join(sections)+'</div>' + PROVIDER_NOTE)
     structured = {'@context': 'https://schema.org', '@type': 'SoftwareApplication', 'name': title,
                   'applicationCategory': 'DeveloperApplication', 'operatingSystem': 'Web',
@@ -516,7 +524,9 @@ def _render_basic(store, rid):
         rows.append(('Connection address', str(agent['url'])[:300]))
     description = (f'{name}: {kind} {noun} listed in AgentValCon. No recorded evidence yet; '
                    'see its current status and connection address.')
+    from .operated_by import operated
     body = (g.heading(kind + (' · ' + category if category else ''), name, agent.get('description') or description)
+            + operator_note(operated(store.resource(rid)) or {})
             + '<div class="grid two">'
             '<section class="card stack" aria-labelledby="basic-h"><h2 id="basic-h">Listing</h2>'
             + ''.join('<div class="history-row"><span class="caption">'+esc(k)+'</span><span>'+esc(v)+'</span></div>' for k, v in rows)

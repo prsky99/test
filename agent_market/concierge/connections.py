@@ -411,4 +411,8 @@ def _public_agent(value, resource=None, *, store=None, create_connections=True):
         if step:
             result['run_here']=step
         result['mcp_config']=mcp_config(result.get('display_name') or result.get('name'),gateway)
+    # 11-15 PM 16:48: our own listings say so (operator and data source); ranking is untouched.
+    from .operated_by import operated
+    owned=operated(resource) or operated(value)
+    if owned:result.update(owned)
     return result

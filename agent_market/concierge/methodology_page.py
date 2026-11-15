@@ -94,7 +94,12 @@ def page_html(base='https://agentconcierge.biz', data=None, log=None):
     parts.append('<section aria-labelledby="mCandidates"><h2 id="mCandidates">1. Who is tested</h2>'
                  '<p>An agent is a candidate when its grade is ' + esc(cand.get('grade_minimum', '')) + ' or higher and it is '
                  + esc(', '.join(cand.get('also_required') or [])) + '.</p>'
-                 + _table(['Grade', 'Score from'], [[esc(g), esc(s)] for g, s in thresholds.items()]) + '</section>')
+                 + _table(['Grade', 'Score from'], [[esc(g), esc(s)] for g, s in thresholds.items()])
+                 # 11-15 PM 16:48: our own data agents are tested and ranked like the rest, and say whose they are
+                 + '<p class="operated-note">Some listed agents are operated by AgentValCon itself (data agents over public '
+                   'sources). They are tested and ranked by the same checks as every other agent, never moved up or down for '
+                   'being ours, and every card, page and answer that shows one says &quot;Operated by AgentValCon&quot; with '
+                   'the source its data comes from.</p></section>')
     rt = data.get('role_test') or {}
     labels = [('calls_per_test', 'Calls per test'), ('read_only_tools_only', 'Read-only tools only'),
               ('no_credentials_or_payment', 'No credentials or payment sent'), ('tests_per_day', 'Tests per day'),

@@ -2033,6 +2033,8 @@ function agentCardHtml(r) {
   if (r.eval_grade) meta.push(`<span class="chip">Grade ${esc(r.eval_grade)} (${Math.round(r.eval_score || 0)})</span>`);
   if (r.connection_readiness?.verified_callable === true) meta.push(`<span class="chip" style="color:var(--ok);display:inline-flex;align-items:center;gap:3px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>Execution checked</span></span>`);
   if (r.kind !== "x402" && r.auth_required === 0) meta.push(`<span class="chip">Zero Account</span>`);
+  // 11-15: a listing AgentValCon operates says so, with its data source (rank untouched)
+  if (r.operated_by === "AgentValCon") meta.push(`<span class="chip chip-operator" title="${esc(r.data_source ? "Data from " + r.data_source.name + " under its own terms" : "Operated by AgentValCon")}">Operated by AgentValCon</span>`);
   if (hasReport) meta.push(`<span class="chip chip-report" title="Recorded Report Available" style="display:inline-flex;align-items:center;gap:3px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/></svg><span>Report available</span></span>`);
 
   return `
@@ -3569,6 +3571,9 @@ function appendChatBubble(role, contentText, data, requestNote=null) {
       chatWhy(item) + chatProof(item) +
       '<div class="chat-endpoint"><span class="chat-field-label">' + chatIcon('plug') + 'Endpoint:</span>' + gatewayLink(gwUrl) + '</div>' +
       '<dl class="chat-evidence">' +
+        (item.operated_by === 'AgentValCon'   // 11-15: a listing we operate says so (rank untouched)
+          ? '<div><dt class="chat-field-label">' + chatIcon('shield-check') + 'Operated by:</dt><dd>AgentValCon' +
+            (item.data_source && typeof item.data_source.name === 'string' ? ' · data from ' + esc(item.data_source.name.slice(0,100)) + ' under its own terms' : '') + '</dd></div>' : '') +
         (typeof item.access_note === 'string' && item.access_note
           ? '<div><dt class="chat-field-label">' + chatIcon('shield-check') + 'Access:</dt><dd>' + esc(item.access_note.slice(0,160)) + '</dd></div>' : '') +
         (item.task_verification?.status === 'verified' && item.task_verification?.tool === item.tools?.[0]
@@ -4094,6 +4099,7 @@ function renderDrawerAgent(a, statusType) {
     <h3 style="margin:8px 0 2px 0;font-size:18px">${esc(a.name)}</h3>
     <div style="font-size:12.5px;color:var(--accent);margin-bottom:10px;word-break:break-all">${gatewayLink(gwUrl)}</div>
     <p style="font-size:13.5px;color:var(--text-muted);line-height:1.6;margin:0 0 14px 0">${esc(a.description || "No description provided.")}</p>
+    ${a.operated_by === "AgentValCon" ? `<p class="caption agent-operator">Operated by AgentValCon${a.data_source && /^https:\/\//.test(a.data_source.url || "") ? `, with data from <a href="${esc(a.data_source.url)}" rel="noopener">${esc(a.data_source.name)}</a> under its own terms` : ""}. Ranked by the same checks as every other agent.</p>` : ""}
 
     <div style="display:flex;gap:8px;margin:12px 0 16px 0;flex-wrap:wrap;align-items:center">
       <button class="btn primary" id="drawerTestBtn" ${testUnavailable ? 'disabled aria-disabled="true"' : ''} data-id="${esc(a.id)}" data-ac-click="66779e3952ae" style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;font-size:13.5px;font-weight:700">

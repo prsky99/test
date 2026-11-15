@@ -348,6 +348,8 @@ def _card(store, registry, resource, verified):
         }
         item["capability_contracts"] = []
     item.update(_card_report_metadata(store, resource))
+    from .operated_by import operated   # 11-15 PM 16:48: our own listings say so; ranking is untouched
+    item.update(operated(resource) or {})
     return item
 
 
