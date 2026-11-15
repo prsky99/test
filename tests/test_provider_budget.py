@@ -227,3 +227,11 @@ def test_gdelt_substitute_tests_get_thirty_a_day_within_the_total_of_sixty(tmp_p
     assert pb.reserve(url, 'substitute_tests', n=30, now=now, directory=tmp_path) == (True, 'ok')
     assert pb.reserve(url, 'substitute_tests', now=now, directory=tmp_path) == (False, 'system_share')
     assert pb.domain_total('gdeltproject.org') == 60
+
+
+def test_census_geocoder_substitute_tests_get_thirty_a_day(tmp_path):
+    """11-15 PM 14:25: the US-address substitute's gate set; geocoding.geo.census.gov counts as census.gov."""
+    now = at(14)
+    url = 'https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=x&benchmark=Public_AR_Current&format=json'
+    assert pb.reserve(url, 'substitute_tests', n=30, now=now, directory=tmp_path) == (True, 'ok')
+    assert pb.reserve(url, 'substitute_tests', now=now, directory=tmp_path) == (False, 'system_share')
