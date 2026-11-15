@@ -25,6 +25,7 @@ What it is
 - AgentValCon finds AI agents and MCP servers for a task and tests them with real read-only calls; the ones that pass on two different days are "verified pearls".
 - A necklace joins tested agents into one workflow that answers in one call. `{NECKLACE}` joins `{STEPS}` agents.
   - Company due diligence: SEC identity (CIK, ticker), latest SEC filings, an encyclopedia summary and, with a website, its domain registration.
+- The MCP server identifier (serverInfo.name, what clients use to tell servers apart) is `agent-concierge`; the name people read is AgentValCon. Say so once, so nobody thinks it is a different server (PM 17:20: the identifier stays, changing it could break existing connections).
 - Try it without a key or sign-up:
   - Page: https://agentconcierge.biz/necklaces/{SLUG}
   - MCP: https://agentconcierge.biz/mcp (tool `{TOOL}`)
@@ -33,8 +34,9 @@ What it is
 One real call (run it on the posting day and paste the real result, never an edited one)
 - Input: `{INPUT}` (for company due diligence: `{"name": "<a US-listed company>", "country": "US"}`)
 - Answer: `{ANSWER}` (first lines, plus the step list the answer shows)
+- Time: the time that call actually took that day, measured from the posting machine, as it is (PM 17:20). No "fast" without that number.
 
-Why one call
+Why one call (our own measurement always comes first; the outside figure only when we have none)
 - Our own measurement, if the necklace page shows it: "Measured on N cases (date), against an agent calling the same agents itself: …" — copy the line from the necklace page as it is.
 - If there is no measurement yet, cite the outside number only:
   - MCP-Universe (Luo et al., arXiv 2508.14704, Aug 2025) tested models on 231 tasks against 11 real MCP servers.
