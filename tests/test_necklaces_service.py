@@ -164,3 +164,35 @@ def test_a_full_gateway_is_our_capacity_not_a_failed_step(tmp_path):
     assert events(tmp_path)[0]["our_capacity"] is True
     mixed = call(tmp_path / "m", {"q": "x"}, answers={1: "CVE-2020-28500", 3: Full(), 4: Fail(), 11: Full()})
     assert mixed["error_code"] == "slot_failed:news"           # a real member failure stays the step's failure
+
+
+def test_web_form_text_becomes_the_schema_type_before_the_check():
+    schema = {"type": "object", "properties": {"n": {"type": "integer", "minimum": 1}, "w": {"type": "number"},
+                                               "flag": {"type": "boolean"}, "q": {"type": "string"}}}
+    out = service.form_values(schema, {"n": " 3 ", "w": "0.5", "flag": "on", "q": "12"})
+    assert out == {"n": 3, "w": 0.5, "flag": True, "q": "12"}                     # strings stay strings
+    kept = service.form_values(schema, {"n": "3.5", "w": "nan", "flag": "maybe"})
+    assert kept == {"n": "3.5", "w": "nan", "flag": "maybe"}                       # not clean: left for the check
+    for bad in (kept, {"n": "0"}):
+        try:
+            service.check_input({**schema, "additionalProperties": False}, service.form_values(schema, bad))
+        except service.Refused:
+            pass
+        else:
+            raise AssertionError(bad)
+
+
+def test_only_web_input_is_converted(tmp_path):
+    defs = tmp_path / "defs"
+    defs.mkdir()
+    defn = necklace()
+    defn["input_schema"] = {"type": "object", "properties": {"q": {"type": "string"}, "n": {"type": "integer"}},
+                            "required": ["q"], "additionalProperties": False}
+    (defs / "topic-brief.json").write_text(json.dumps(defn))
+    entry = {"slug": "topic-brief", "version": 1, "definition_digest": model.digest(defn)}
+    kw = dict(root=tmp_path, definitions_dir=defs, sensitive=lambda v: False,
+              caller=caller_from({1: "CVE-2020-28500", 3: "listed in CISA KEV"}))
+    web = service.run_for_surface(None, entry, {"q": "x", "n": "2", "necklace_notice": "necklace-v1"}, "web", None, **kw)
+    assert web["ok"]
+    mcp = service.run_for_surface(None, entry, {"q": "y", "n": "2"}, "mcp", None, **kw)
+    assert mcp["error_code"] == "invalid_input"                                    # agents send JSON types

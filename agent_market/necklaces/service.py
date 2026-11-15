@@ -55,6 +55,31 @@ def _finite(value, depth=0) -> bool:
     return value is None or isinstance(value, (str, int, bool))
 
 
+INTEGER = re.compile(r"-?\d{1,18}")
+NUMBER = re.compile(r"-?(\d{1,18}(\.\d{1,12})?|\.\d{1,12})([eE][-+]?\d{1,3})?")
+
+
+def form_values(schema: dict, values: dict) -> dict:
+    """A web form sends every field as text (PM 11-15 11:4x): turn text into the schema's integer, number or boolean
+    before the JSON Schema check. Text that is not a clean value of that type stays text, so the check refuses it."""
+    props = (schema or {}).get("properties") or {}
+    out = dict(values)
+    for key, value in values.items():
+        kind = (props.get(key) or {}).get("type")
+        if not isinstance(value, str):
+            continue
+        text = value.strip()
+        if kind == "integer" and INTEGER.fullmatch(text):
+            out[key] = int(text)
+        elif kind == "number" and NUMBER.fullmatch(text):
+            number = float(text)
+            if math.isfinite(number):
+                out[key] = int(number) if number.is_integer() and "." not in text and "e" not in text.lower() else number
+        elif kind == "boolean" and text.lower() in ("true", "on", "1", "yes", "false", "off", "0", "no"):
+            out[key] = text.lower() in ("true", "on", "1", "yes")
+    return out
+
+
 def check_input(schema: dict, values) -> dict:
     """Validate with the definition's JSON Schema 2020-12 validator (checked and cached when the
     definition loads, PM F11). A refused input never reaches a member: run_for_surface checks this
@@ -124,6 +149,8 @@ def run_for_surface(front, entry: dict, arguments, source: str, meta: dict | Non
         notice = values.pop("necklace_notice", None)
         if source == "web" and notice != NOTICE:
             raise Refused("consent_required")
+        if source == "web":
+            values = form_values(defn["input_schema"], values)
         check_input(defn["input_schema"], values)
         for key, allowed in (defn.get("scope") or {}).items():       # PM 11-15: out of scope -> notice, no call
             if values.get(key) not in allowed:
