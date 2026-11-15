@@ -327,12 +327,18 @@ def stale_pair_target(left, right, snapshot=None):
     """A comparison link from a page the edge still keeps (6 h, served stale up to a day) may name a pair that is no
     longer neighbours in today's snapshot (11-14 15:34 check: /agents/compare/43107-vs-224153, 404). While both
     agents are listed, that link goes to the first agent's page, which lists its current comparisons; a temporary
-    redirect, since the pair may return. Only pairs of listed agents qualify, so no new pages appear for any pair."""
+    redirect, since the pair may return. Only pairs of listed agents qualify, so no new pages appear for any pair.
+    11-16 PM 04:2x (03:53 check: 42345-vs-81928, 48329-vs-284185, 404): one of the two had left today's snapshot (no
+    recorded evidence any more), so the old link had nowhere to go. Now the agent still listed takes it; with neither
+    listed it stays 404, so an arbitrary pair of numbers never redirects. No comparison page appears for any new pair."""
     snapshot = g.SNAPSHOT.read() if snapshot is None else snapshot
     if not snapshot or left >= right:
         return None
     catalog = snapshot.get('catalog') or {}
-    return '/agent/' + str(left) if catalog.get(left) and catalog.get(right) else None
+    for rid in (left, right):
+        if catalog.get(rid):
+            return '/agent/' + str(rid)
+    return None
 
 
 def compare_page(left, right, snapshot=None):

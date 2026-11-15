@@ -271,7 +271,10 @@ def test_comparisons_exist_only_for_published_neighbours(client):
     # Not neighbours today: no page of its own; a link from an older cached page goes to the first agent (11-14).
     moved = c.get('/agents/compare/100-vs-104', follow_redirects=False)
     assert moved.status_code == 302 and moved.headers['location'] == '/agent/100'
-    assert c.get('/agents/compare/100-vs-400', follow_redirects=False).status_code == 404  # 400 is not listed
+    # 400 is not listed (left the snapshot): the agent still listed takes the old link (11-16, 03:53 check 404s)
+    gone = c.get('/agents/compare/100-vs-400', follow_redirects=False)
+    assert gone.status_code == 302 and gone.headers['location'] == '/agent/100'
+    assert c.get('/agents/compare/400-vs-401', follow_redirects=False).status_code == 404  # neither is listed
     assert c.get('/agents/compare/101-vs-100', follow_redirects=False).status_code == 404  # only the canonical order
 
 
