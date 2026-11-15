@@ -30,10 +30,28 @@ OUT = Path("logs/ops/necklace-gate")
 SEATED = "seat_eligible"
 
 
-def _post(client, url, method, params):
-    return client.post(url, json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params},
-                       headers={"Content-Type": "application/json", "Accept": "application/json",
-                                "MCP-Protocol-Version": "2025-06-18", "X-Agentcon-QA": QA_GATE}, timeout=15)
+class OurCapacity(Exception):
+    """The edge answered CAPACITY_EXCEEDED twice: our side was full, the member is not judged (PM 11-15 10:40)."""
+
+
+def _post(client, url, method, params, sleep=time.sleep):
+    """One relay request inside our own concurrency cap (2 of the edge's 4 slots), retried once when the edge is full."""
+    from agent_market.necklaces.retest import _RELAY_SLOTS, capacity_exceeded
+    for attempt in (1, 2):
+        with _RELAY_SLOTS:
+            response = client.post(url, json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params},
+                                   headers={"Content-Type": "application/json", "Accept": "application/json",
+                                            "MCP-Protocol-Version": "2025-06-18", "X-Agentcon-QA": QA_GATE},
+                                   timeout=15)
+        try:
+            body = response.json()
+        except ValueError:
+            body = {}
+        if not capacity_exceeded(response.status_code, response.headers, body if isinstance(body, dict) else {}):
+            return response
+        if attempt == 1:
+            sleep(0.3)
+    raise OurCapacity(method)
 
 
 def _denial(response) -> dict:
@@ -73,19 +91,23 @@ def probe(client, base: str, member: dict, args: dict | None = None, reserve=Non
     if not ok:
         return {"relay": "not_checked", "why": f"provider budget: {why}"}
     started = time.monotonic()
-    first = _post(client, url, "initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
-                                              "clientInfo": {"name": "necklace-gate", "version": "1"}})
-    note(target, "gate", first.status_code)
-    if not _answered(first):
-        return {"relay": "denied", "stage": "initialize", **_denial(first)}
-    if args is None:
-        return {"relay": "admitted", "stage": "initialize", "tools_call": "not_checked"}
-    call = _post(client, url, "tools/call", {"name": member["tool"], "arguments": args})
+    empty = {"http_status": None, "error_code": None, "reference": None, "message": ""}   # filled when the relay refuses
+    try:
+        first = _post(client, url, "initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
+                                                  "clientInfo": {"name": "necklace-gate", "version": "1"}})
+        note(target, "gate", first.status_code)
+        if not _answered(first):
+            return {"relay": "denied", "stage": "initialize", **_denial(first)}
+        if args is None:
+            return {"relay": "admitted", "stage": "initialize", "tools_call": "not_checked", **empty}
+        call = _post(client, url, "tools/call", {"name": member["tool"], "arguments": args})
+    except OurCapacity as exc:
+        return {"relay": "our_capacity", "stage": str(exc), **dict(empty, error_code="CAPACITY_EXCEEDED")}
     note(target, "gate", call.status_code)
     ms = int((time.monotonic() - started) * 1000)
     if not _answered(call):
         return {"relay": "denied", "stage": "tools/call", "ms": ms, **_denial(call)}
-    return {"relay": "admitted", "stage": "tools/call", "ms": ms}
+    return {"relay": "admitted", "stage": "tools/call", "ms": ms, **empty, "http_status": call.status_code}
 
 
 def check(defn: dict, client, base: str = BASE, verified=None, substitutes=None, probe_fn=probe) -> dict:
@@ -105,6 +127,8 @@ def check(defn: dict, client, base: str = BASE, verified=None, substitutes=None,
                 args = render(member.get("input_map") or {}, sample) if sample else None
                 row.update(probe_fn(client, base, member, args))
                 row[SEATED] = row["relay"] == "admitted" and row.get("tools_call") != "not_checked"
+                if row["relay"] == "our_capacity":
+                    problems.append(f"slot {slot['slot']}: member {row['id']} not judged, our edge was full (check again)")
             else:
                 row["substitute_approved"] = bool(member.get("substitute_approved"))
                 row[SEATED] = True                       # runs in-process on our host, not through the relay

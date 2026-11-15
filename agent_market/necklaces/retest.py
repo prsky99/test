@@ -17,6 +17,7 @@ import argparse
 import copy
 import json
 import re
+import threading
 import time
 from pathlib import Path
 
@@ -69,20 +70,51 @@ def _fail(code: str, message: str = ""):
     return error
 
 
-def gateway_caller(client, base: str = BASE, pacer: RelayPacer | None = None):
+# PM 11-15 10:40: the edge runs 4 executions at once; our own tests use at most 2 so outside runs keep a slot.
+RELAY_CONCURRENCY = 2
+_RELAY_SLOTS = threading.BoundedSemaphore(RELAY_CONCURRENCY)
+CAPACITY = "our_capacity"      # the edge's CAPACITY_EXCEEDED: our side, never the member's failure
+
+
+def capacity_exceeded(status: int, headers, data: dict) -> bool:
+    error = (data or {}).get("error") or {}
+    detail = error.get("data") if isinstance(error.get("data"), dict) else {}
+    text = str(error.get("message") or (data or {}).get("detail") or "")
+    return (status == 503 or headers.get("X-Execution-Error") == "CAPACITY_EXCEEDED"
+            or detail.get("error_code") == "CAPACITY_EXCEEDED" or "execution is unavailable" in text.lower())
+
+
+def gateway_caller(client, base: str = BASE, pacer: RelayPacer | None = None, slots=None, sleep=time.sleep):
     pacer = pacer or RelayPacer()
+    slots = _RELAY_SLOTS if slots is None else slots
+
+    def post(url, method, params, timeout_s):
+        started = time.monotonic()
+        if not slots.acquire(timeout=max(0.0, timeout_s)):
+            raise _fail(CAPACITY, f"no free relay slot of {RELAY_CONCURRENCY}")
+        try:
+            return client.post(url, json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params},
+                               headers={"Content-Type": "application/json", "Accept": "application/json",
+                                        "MCP-Protocol-Version": "2025-06-18", "X-Agentcon-QA": QA},
+                               timeout=max(0.5, timeout_s - (time.monotonic() - started)))
+        finally:
+            slots.release()
 
     def rpc(url, method, params, timeout_s=12.0):
-        if not pacer.take():
-            raise _fail("relay_throttled", "local relay pace reached")
-        r = client.post(url, json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params},
-                        headers={"Content-Type": "application/json", "Accept": "application/json",
-                                 "MCP-Protocol-Version": "2025-06-18", "X-Agentcon-QA": QA},
-                        timeout=max(0.5, timeout_s))
-        try:
-            data = r.json()
-        except ValueError:
-            data = {}
+        started = time.monotonic()
+        for attempt in (1, 2):                       # one retry when the edge is full, then it is our capacity
+            if not pacer.take():
+                raise _fail("relay_throttled", "local relay pace reached")
+            r = post(url, method, params, timeout_s - (time.monotonic() - started))
+            try:
+                data = r.json()
+            except ValueError:
+                data = {}
+            if not capacity_exceeded(r.status_code, getattr(r, "headers", None) or {}, data if isinstance(data, dict) else {}):
+                break
+            if attempt == 2 or timeout_s - (time.monotonic() - started) < 1.0:
+                raise _fail(CAPACITY, "edge execution slots full (CAPACITY_EXCEEDED)")
+            sleep(0.3)
         if r.status_code == 429:
             raise _fail("relay_throttled", "our relay rate limit")      # not the provider's pause
         if "result" not in data:
@@ -90,8 +122,8 @@ def gateway_caller(client, base: str = BASE, pacer: RelayPacer | None = None):
             detail = err.get("data") if isinstance(err.get("data"), dict) else {}
             if detail.get("retry_after") or "pause" in str(err.get("message", "")).lower():
                 raise _fail("PROVIDER_429", str(err.get("message")))   # the provider asked for a pause
-            reason = r.headers.get("X-Execution-Error")
-            ref = r.headers.get("X-Execution-Reference")
+            reason = (getattr(r, "headers", None) or {}).get("X-Execution-Error")
+            ref = (getattr(r, "headers", None) or {}).get("X-Execution-Reference")
             raise _fail(f"relay_{r.status_code}", str(err.get("message") or data.get("detail") or f"HTTP {r.status_code}")
                         + (f" [{reason}]" if reason else "") + (f" ref {ref}" if ref else ""))
         return data["result"]
@@ -352,6 +384,13 @@ def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT,
         result = runner.Runner(caller, watch_state=watch_state, keep_raw=2000).run(defn, case["input"])
         verdict = grade(defn, case, result["output"])
         at = _iso(now())
+        ours = any(a["error_class"] == CAPACITY for attempts in result["attempts"].values() for a in attempts)
+        if ours and not verdict["ok"]:           # PM 11-15: the edge was full; not the necklace's or a member's failure
+            lines.append({"type": "excluded", "slug": defn["slug"], "version": defn["version"],
+                          "case_id": case["case_id"], "set": split, "at": at, "why": CAPACITY})
+            details.append({"case_id": case["case_id"], "excluded": CAPACITY, "attempts": result["attempts"]})
+            excluded += 1
+            continue
         lines.append({"type": "case", "slug": defn["slug"], "version": defn["version"], "case_id": case["case_id"],
                       "set": split, "at": at, "ok": verdict["ok"], "completed": result["completed"],
                       "completed_external_only": result["completed_external_only"],
@@ -360,7 +399,8 @@ def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT,
             for a in attempts:
                 lines.append({"type": "member", "slug": defn["slug"], "version": defn["version"], "slot": slot,
                               "resource_id": a["resource_id"], "tool": a["tool"], "kind": a["kind"], "at": at,
-                              "ok": a["ok"], "contract_valid": a["error_class"] != "contract_invalid",
+                              "ok": None if a["error_class"] == CAPACITY else a["ok"],
+                              "contract_valid": a["error_class"] != "contract_invalid",
                               "latency_ms": a["ms"], "error_class": a["error_class"]})
         details.append({"case_id": case["case_id"], "verdict": verdict, "output": result["output"],
                         "slots": result["slots"], "attempts": result["attempts"]})
@@ -372,6 +412,8 @@ def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT,
                 out = runner.Runner(caller).run(one, case["input"])
                 task = TASK_GRADERS.get(defn["slug"])
                 ok = task(case, out["output"]) if task else GRADERS[contrast](case, out["output"].get(contrast))
+                if not ok and any(a["error_class"] == CAPACITY for att in out["attempts"].values() for a in att):
+                    ok = None                             # not measured: our edge was full
                 lines.append({"type": "single", "slug": defn["slug"], "resource_id": member.get("resource_id"),
                               "agent_id": member.get("agent_id"), "kind": member["kind"], "tool": member["tool"],
                               "case_id": case["case_id"], "at": at, "ok": ok})

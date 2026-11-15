@@ -6,14 +6,16 @@ from scripts import necklace_gate
 
 
 class Relay(httpx.BaseTransport):
-    def __init__(self, denied):
-        self.denied, self.seen = denied, []
+    def __init__(self, denied, full=()):
+        self.denied, self.full, self.seen = denied, set(full), []
 
     def handle_request(self, request):
         import json
         rid = int(request.url.path.rsplit("/", 1)[1])
         body = json.loads(request.content)
         self.seen.append((rid, request.headers.get("X-Agentcon-QA"), body["method"], body.get("params", {}).get("arguments")))
+        if rid in self.full:
+            return httpx.Response(503, json={"detail": "busy"}, headers={"X-Execution-Error": "CAPACITY_EXCEEDED"})
         if rid in self.denied and body["method"] == "tools/call":     # the relay admits initialize, refuses the tool
             return httpx.Response(403, json={"detail": "This connection is not allowed."},
                                   headers={"X-Execution-Error": "POLICY_DENIED", "X-Execution-Reference": f"ref-{rid}"})
@@ -28,8 +30,8 @@ VERIFIED = {(241601, "encyclopedia.summary.v1"), (58997, "sec.filings.v1"), (525
 APPROVED = [["sec-edgar", "company.registry.v1"]]
 
 
-def run(denied):
-    relay = Relay(denied)
+def run(denied, full=()):
+    relay = Relay(denied, full)
     ledger = dict(reserve=lambda url, system: (True, None), note=lambda *a: None)
     with httpx.Client(transport=relay) as client:
         out = necklace_gate.check(company(), client, "https://example.test", verified=VERIFIED, substitutes=APPROVED,
@@ -63,3 +65,14 @@ def test_our_substitutes_hold_their_seat_without_the_relay():
     registry = next(s for s in out["slots"] if s["slot"] == "registry")
     assert registry["members"][0] == {"rank": 1, "kind": "agentcon", "tool": "find_sec_company", "id": "sec-edgar",
                                       "substitute_approved": True, "seat_eligible": True}
+
+
+def test_admitted_rows_carry_empty_reason_fields_and_a_full_edge_is_not_a_denial(monkeypatch):
+    monkeypatch.setattr(necklace_gate.time, "sleep", lambda s: None)
+    out, relay = run(set(), full={52559})
+    background = next(s for s in out["slots"] if s["slot"] == "background")["members"][0]
+    assert (background["error_code"], background["reference"]) == (None, None)
+    domain = next(s for s in out["slots"] if s["slot"] == "domain")["members"][0]
+    assert (domain["relay"], domain["error_code"], domain["seat_eligible"]) == ("our_capacity", "CAPACITY_EXCEEDED", False)
+    assert [r for r in relay.seen if r[0] == 52559].__len__() == 2                 # retried once
+    assert any("our edge was full" in p for p in out["problems"])

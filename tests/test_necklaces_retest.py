@@ -245,3 +245,51 @@ def test_the_shipped_company_definition_has_three_verified_pearl_leads():
     domains = [m["registrable_domain"] for s in defn["slots"] for m in s["chain"] if m["kind"] == "external"]
     assert len(domains) == len(set(domains))                    # no provider in two steps
     assert defn["scope"] == {"country": ["US"]} and defn["min_pearls_answered"] == 2
+
+
+# ---------------------------------------------------------------- relay concurrency and edge capacity (PM 11-15 10:40)
+class Full:
+    def __init__(self, replies):
+        self.replies, self.calls = list(replies), 0
+
+    def post(self, url, json, headers, timeout):
+        self.calls += 1
+        status, body, extra = self.replies.pop(0)
+        resp = type("R", (), {"status_code": status, "headers": extra, "json": lambda self_: body})()
+        return resp
+
+
+def test_a_full_edge_is_retried_once_then_counted_as_our_capacity():
+    import threading
+    ok_result = {"jsonrpc": "2.0", "id": 1, "result": {"structuredContent": {"kev": True}}}
+    full = (503, {"detail": "busy"}, {"X-Execution-Error": "CAPACITY_EXCEEDED"})
+    client = Full([full, (200, ok_result, {}), full, (200, ok_result, {})])
+    pacer = retest.RelayPacer(per_minute=100)
+    call = retest.gateway_caller(client, "https://x.test", pacer, slots=threading.BoundedSemaphore(2), sleep=lambda s: None)
+    member = {"kind": "external", "resource_id": 1, "tool": "t"}
+    assert call(member, {}, 10) == {"kev": True} and client.calls == 4
+    client = Full([full, full])
+    call = retest.gateway_caller(client, "https://x.test", pacer, slots=threading.BoundedSemaphore(2), sleep=lambda s: None)
+    try:
+        call(member, {}, 10)
+    except Exception as exc:
+        assert exc.error_code == "our_capacity"
+    else:
+        raise AssertionError("no capacity error")
+    unavailable = (200, {"jsonrpc": "2.0", "id": 1, "error": {"message": "The execution is unavailable."}}, {})
+    assert retest.capacity_exceeded(*unavailable[:1], {}, unavailable[1])
+
+
+def test_our_capacity_is_not_a_failure_of_the_case_or_the_member(tmp_path):
+    defn = runner_defn = next(d for d in model.load_valid() if d["slug"] == "package-risk-audit")
+
+    def caller(member, args, timeout):
+        error = Exception("edge full")
+        error.error_code = "our_capacity"
+        raise error
+    cases = [{"case_id": "c1", "input": {"package": "lodash", "ecosystem": "npm"}, "truth": {}}]
+    out = retest.run_set(runner_defn, cases, caller, root=tmp_path)
+    assert out["excluded"] == 1 and out["passed"] == 0 and out["cases"] == 0
+    lines = [json.loads(x) for x in next((tmp_path / "retest").glob("*.jsonl")).read_text().splitlines()]
+    assert [x["type"] for x in lines] == ["excluded"] and lines[0]["why"] == "our_capacity"
+    assert defn["slug"] == "package-risk-audit"

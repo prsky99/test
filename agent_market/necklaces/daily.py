@@ -94,7 +94,8 @@ def summarize(slug: str, today: list[dict], window: list[dict], singles: list[di
     by_member: dict[tuple, list[bool]] = {}
     for r in singles:
         if r.get("slug") == slug and r.get("type") == "single":
-            by_member.setdefault((r.get("resource_id"), r.get("tool")), []).append(bool(r.get("ok")))
+            if r.get("ok") is not None:            # None: not measured (our edge was full, PM 11-15)
+                by_member.setdefault((r.get("resource_id"), r.get("tool")), []).append(bool(r.get("ok")))
     best_single = max((sum(v) / len(v) for v in by_member.values() if v), default=None)
     week_rate = ok_week / len(cases_week) if cases_week else None
     delta = round((week_rate - best_single) * 100, 1) if week_rate is not None and best_single is not None else None
