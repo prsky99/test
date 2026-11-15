@@ -19,12 +19,13 @@ from ..provider_rest import BOOK as REST, RateLimited
 from ..gateway import constraints as cons
 from ..gateway.store import Store
 from ..observation_guards import GuardError
-from . import evaluation, usage
+from . import evaluation, trial_safety, usage
 from .percentile_cache import score_percentile as cached_percentile
 
 log = logging.getLogger("agent_market.collector.capabilities")
 
-USER_AGENT = "agent-collector/0.1 (+capability survey; no payment is made)"
+USER_AGENT = ("AgentValCon-collector/1.0 (+https://agentconcierge.biz/; contact@agentconcierge.biz; "
+              "capability survey, no payment is made)")
 HEADERS = {"accept": "application/json, text/event-stream", "content-type": "application/json", "user-agent": USER_AGENT}
 INIT = {"jsonrpc": "2.0", "id": 1, "method": "initialize",
         "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "agent-collector", "version": "0.1"}}}
@@ -169,7 +170,7 @@ class CapabilityProber:
             stale = not last or time.time() - last.get("at", 0) > self.trial_max_age
             if not stale and usage.tools_hash(tools) == resource.get("usage_tools_hash"):
                 return None
-            return usage.pick_trial(tools, resource.get("category"))
+            return trial_safety.pick_trial(tools, resource.get("category"))  # R69: 수집기 전용 읽기 전용 판정
         return decide
 
     def _record_usage(self, r: dict, probed: dict) -> tuple[bool, dict | None, dict | None, dict | None]:

@@ -32,7 +32,8 @@ from .capabilities import HEADERS, INIT, parse_jsonrpc
 
 log = logging.getLogger("agent_market.collector.auth")
 
-USER_AGENT = "agent-collector/0.1 (+auth method discovery; no credentials are sent)"
+USER_AGENT = ("AgentValCon-collector/1.0 (+https://agentconcierge.biz/; contact@agentconcierge.biz; "
+              "auth method discovery, no credentials are sent)")
 MAX_JSON = 256 * 1024
 _URL = re.compile(r"https?://[^\s\"'<>)\]]+")
 _KEYWORDS_API_KEY = re.compile(r"\b(api[ _-]?key|apikey|x-api-key|access key|personal access token|pat)\b", re.I)
