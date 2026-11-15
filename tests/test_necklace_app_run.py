@@ -225,6 +225,8 @@ def test_one_eligible_necklace_completes_on_web_mcp_and_a2a(site):
 
     again = mcp(client, 'necklace_advisory_brief', {'q': 'lodash'})  # same input within 10 minutes: cached, no call
     assert again['structuredContent']['ok'] is True and [len(s.calls) for s in servers] == [3, 0, 3, 0]
+    assert again['structuredContent']['cached'] is True and again['structuredContent']['ran_at'] == web['ran_at']
+    assert 'Saved answer from ' + web['ran_at'] in again['content'][0]['text']
     runs = events(data)
     assert [e['surface'] for e in runs] == ['web', 'mcp', 'a2a', 'mcp']
     assert [bool(e.get('cached')) for e in runs] == [False, False, False, True]

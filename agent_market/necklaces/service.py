@@ -19,6 +19,7 @@ import json
 import math
 import os
 import re
+import time
 from pathlib import Path
 
 from . import limits, model, runner
@@ -131,6 +132,7 @@ def run_for_surface(front, entry: dict, arguments, source: str, meta: dict | Non
             caller = runner.engine_caller(front.workflows)
         caller = (limits.DOMAINS if domains is None else domains).wrap(caller)
         result = runner.Runner(caller, watch_state=watch_state).run(defn, values)
+        result["ran_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())   # when the members answered
         cache.put(cache_key, result)
     if meta is None:
         source_class, origin = runner.classify_source(None)
@@ -151,4 +153,5 @@ def run_for_surface(front, entry: dict, arguments, source: str, meta: dict | Non
             "stages": {name: s["stage"] for name, s in result["slots"].items()},
             "statuses": {name: s["status"] for name, s in result["slots"].items()},
             "cached": bool(result.get("cached")),
+            "ran_at": result.get("ran_at"),           # a cached answer keeps the time of the run that produced it
             "error_code": None if result["ok"] else "slot_failed:" + str(result["failed_slot"])}
