@@ -42,6 +42,14 @@ TEAM_WORDS = (('운영·SRE', '운영·SRE'), ('ops 11-', '운영·SRE'), ('검�
               ('오류 감시', '오류 감시'))
 
 
+def machine() -> dict:
+    """1-minute load and swap use (PM 16:59: the Mac is short of memory at night; keep both around the run)."""
+    import os
+    out = subprocess.run(['sysctl', '-n', 'vm.swapusage'], capture_output=True, text=True).stdout
+    used = re.search(r'used = ([\d.]+)M', out)
+    return {'load_1': round(os.getloadavg()[0], 2), 'swap_used_mb': float(used.group(1)) if used else None}
+
+
 def failures(xml_path: Path) -> tuple[int, list[str]]:
     """(tests run, failing ids 'tests/file.py::name') from JUnit XML."""
     root = ET.parse(xml_path).getroot()
@@ -125,12 +133,14 @@ def run(now=None) -> int:
     cmd = ['nice', '-n', '10', str(ROOT / '.venv-tests/bin/python'), '-m', 'pytest', '-q', '-p', 'no:cacheprovider',
            f'--junitxml={xml}', 'tests']
     started = time.time()
+    before = machine()
     try:
         done = subprocess.run(cmd, cwd=ROOT, env=clean_environment(), capture_output=True, text=True, timeout=TIMEOUT_S)
         tail = (done.stdout or '').strip().splitlines()[-1:] or ['']
     except subprocess.TimeoutExpired:
         tail = ['timeout']
     seconds = round(time.time() - started)
+    after = machine()
     if not xml.is_file():
         line = {'at': time.strftime('%Y-%m-%d %H:%M'), 'day': day, 'ok': False, 'error': tail[0][:200], 'seconds': seconds}
         with LOG.open('a') as out:
@@ -142,7 +152,7 @@ def run(now=None) -> int:
     state = update_state(failing, day, state)
     record = {'at': time.strftime('%Y-%m-%d %H:%M'), 'day': day, 'ok': True, 'head': head, 'dirty_files': dirty,
               'tests': total, 'failed': len(failing), 'failing': failing, 'seconds': seconds, 'summary': tail[0][:200],
-              'teams_before': teams_before}
+              'teams_before': teams_before, 'machine_before': before, 'machine_after': after}
     result = report(record, state)
     state['teams'] = result['teams']
     STATE.write_text(json.dumps(state, ensure_ascii=False, indent=1))

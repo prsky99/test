@@ -42,6 +42,7 @@ def slots(now=None):
 BUSY = 75          # EX_TEMPFAIL: try again later
 NIGHT_ONLY = 77    # EX_NOPERM: this kind of work runs only 00:00-08:00 (PM decision 11-12)
 DAY_MAX_MINUTES = 30
+EVENING_FROM, EVENING_MAX_MINUTES = 22, 60   # PM 11-15 16:59: the night full pytest starts at 22:40 (50 minutes)
 # 11-12 12:23 PM decision: copy restores and rehearsals only at night; in the day only gates of 30 minutes or less
 # (a full copy restore beside the production database at 10:44 left 92 public checks failing at load 4.9).
 NIGHT_ONLY_WORDS = re.compile(r'restore|rehears|pg_restore|db_change_rehearsal|복원|리허설', re.IGNORECASE)
@@ -53,8 +54,9 @@ def night_only(what, command, minutes, now=None):
         return None
     if NIGHT_ONLY_WORDS.search(' '.join([what, *command])):
         return 'copy restores and rehearsals run only 00:00-08:00'
-    if minutes > DAY_MAX_MINUTES:
-        return f'daytime work must be {DAY_MAX_MINUTES} minutes or less (estimate {minutes})'
+    limit = EVENING_MAX_MINUTES if (now or datetime.now()).hour >= EVENING_FROM else DAY_MAX_MINUTES
+    if minutes > limit:
+        return f'daytime work must be {limit} minutes or less (estimate {minutes})'
     return None
 
 

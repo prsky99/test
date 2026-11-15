@@ -1005,11 +1005,11 @@ CLOSE_WHEN_CLEAR = ('fingerprints', 'backup', 'necklace_checks', 'launchd_jobs',
 
 
 NIGHT_TESTS_STATE = ROOT / 'logs/ops/night-tests-start.json'
-NIGHT_TESTS_FROM, NIGHT_TESTS_UNTIL = 515, 540   # PM 11-15 16:52: after the 03:50-05:10 real-task window, before 06:00
+NIGHT_TESTS_FROM, NIGHT_TESTS_UNTIL = 2240, 2252   # PM 11-15 16:59: 22:40 (two watch rounds), clear of 00:30 deploys and :55
 
 
 def night_tests(clock=time.time, launch=None):
-    """Once a night between 05:15 and 05:40: start the full pytest (scripts/night_tests.py run) as one heavy_slot job,
+    """Once a night from 22:40: start the full pytest (scripts/night_tests.py run) as one heavy_slot job,
     detached, so the watch never waits for it. heavy_slot refuses it in a reserved window (11-17 05:00-06:00
     PostgreSQL 18.7) and the day is skipped. The run itself writes the failures by team to the board."""
     local = datetime.fromtimestamp(clock())
@@ -1020,14 +1020,21 @@ def night_tests(clock=time.time, launch=None):
     state = json.loads(NIGHT_TESTS_STATE.read_text()) if NIGHT_TESTS_STATE.is_file() else {}
     if state.get('day') == day:
         return None
-    NIGHT_TESTS_STATE.write_text(json.dumps({'day': day, 'at': now()}))
     cmd = [str(ROOT / '.venv/bin/python'), '-m', 'scripts.heavy_slot', '--team', '운영·SRE', '--what', 'night full pytest',
            '--minutes', '50', '--', str(ROOT / '.venv/bin/python'), '-m', 'scripts.night_tests', 'run']
     if launch is None:
         log = open(ROOT / 'logs/ops/night-tests.out', 'a')
-        subprocess.Popen(cmd, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+        proc = subprocess.Popen(cmd, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+        try:
+            refused = proc.wait(timeout=8) == 75      # heavy_slot said no (load, a full slot, a reserved window)
+        except subprocess.TimeoutExpired:
+            refused = False                           # it is running
     else:
-        launch(cmd)
+        refused = launch(cmd) == 75
+    if refused:
+        append(ACTIONS, f'{now()} 밤 전체 시험 미룸(heavy_slot 거부, 다음 회차에 다시)')
+        return 'refused'
+    NIGHT_TESTS_STATE.write_text(json.dumps({'day': day, 'at': now()}))
     append(ACTIONS, f'{now()} 밤 전체 시험 시작(heavy_slot)')
     return 'started'
 

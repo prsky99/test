@@ -50,7 +50,14 @@ def test_the_watch_starts_it_once_between_0515_and_0540(tmp_path, monkeypatch):
     monkeypatch.setattr(ops_auto, 'ACTIONS', tmp_path / 'a.md')
     started = []
     at = lambda h, m: (lambda: datetime(2026, 11, 16, h, m).timestamp())   # noqa: E731
-    assert ops_auto.night_tests(clock=at(5, 0), launch=started.append) is None
-    assert ops_auto.night_tests(clock=at(5, 20), launch=started.append) == 'started'
-    assert ops_auto.night_tests(clock=at(5, 30), launch=started.append) is None      # once a night
+    assert ops_auto.night_tests(clock=at(22, 30), launch=started.append) is None
+    assert ops_auto.night_tests(clock=at(22, 40), launch=lambda cmd: 75) == 'refused'    # heavy_slot said no
+    assert ops_auto.night_tests(clock=at(22, 50), launch=lambda cmd: started.append(cmd)) == 'started'
+    assert ops_auto.night_tests(clock=at(22, 51), launch=started.append) is None      # once a night
     assert len(started) == 1 and 'scripts.heavy_slot' in started[0] and started[0][-1] == 'run'
+
+
+def test_an_evening_run_may_take_an_hour_but_the_day_stays_30_minutes():
+    from scripts import heavy_slot
+    assert heavy_slot.night_only('night full pytest', [], 50, datetime(2026, 11, 15, 22, 40)) is None
+    assert '30 minutes' in heavy_slot.night_only('night full pytest', [], 50, datetime(2026, 11, 15, 15, 0))

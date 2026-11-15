@@ -173,6 +173,16 @@ def trace():
         return None
 
 
+def heavy_running():
+    """The heavy jobs on the status board while this run measured (scripts/heavy_slot), as short names; [] when none."""
+    try:
+        import heavy_slot
+        lines = heavy_slot.BOARD.read_text(encoding='utf-8').split('\n')
+        return [line.split(' pid=')[0][-80:] for _, line, ok in heavy_slot.entries(lines) if ok]
+    except Exception:  # noqa: BLE001 - a reference value never fails the measurement
+        return None
+
+
 def check_explore(n=6):
     rows = []
     for query in unseen(n):
@@ -389,6 +399,7 @@ def main():
     record['recommend'], record['connect'] = check_recommend_and_connect()
     record['pages'] = check_pages()
     record['load_1_end'] = round(os.getloadavg()[0], 2)
+    record['heavy_running'] = heavy_running()   # PM 11-15 16:59: the 22:40 night pytest, gates and rebuilds beside it
     record['breaches'] = breaches(record)
     # 11-14 (user, via PM): the same samples judged against the final and the interim target, none left out.
     record['interim_targets'] = INTERIM
