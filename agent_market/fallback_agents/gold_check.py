@@ -128,6 +128,9 @@ def judge(agent_id: str, case: dict, result: dict | None) -> dict:
         # company-due-diligence truth (EDGAR CIK): the filer the answer matched is that CIK
         want = str(truth.get("cik") or "").lstrip("0")
         text = str((result or {}).get("answer") or "")
+        if truth.get("sec_registered") is False:     # holdout-r3-sec: no registration is the right answer (workflow)
+            return {"pass": "no sec edgar registration" in text.lower() and "(SEC CIK" not in text,
+                    "got": text[:160], "want": "no registration"}
         return {"pass": bool(want) and f"(SEC CIK {want})" in text, "got": text[:160], "want": want}
     if agent_id == "wikipedia-summary":
         want = (truth.get("wiki") or {}).get("title")
@@ -287,7 +290,8 @@ def applies(agent_id: str, case: dict) -> bool:
     if agent_id in ("gleif-lei", "sec-edgar"):
         return bool((case.get("truth") or {}).get("lei" if agent_id == "gleif-lei" else "cik"))
     if agent_id == "sec-filings":
-        return bool((case.get("truth") or {}).get("cik"))
+        truth = case.get("truth") or {}
+        return bool(truth.get("cik")) or truth.get("sec_registered") is False
     if agent_id == "census-geocode":                     # US addresses only (its coverage)
         return (case.get("truth") or {}).get("country") == "US" or str(case["input"].get("address", "")).endswith("USA")
     if agent_id == "rdap-domain":
