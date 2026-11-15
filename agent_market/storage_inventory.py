@@ -24,6 +24,9 @@ NAME = re.compile(r'[A-Za-z_][A-Za-z0-9_]*(?:\.py)?\Z')
 # Folders that hold no Python and whose names an outside format fixes (11-15, PM): a Claude Code plugin skill is
 # named by its folder (skills/<name>/SKILL.md, lowercase with hyphens), so it cannot become an identifier.
 NON_PYTHON_DIRS = frozenset(('agent_market/concierge/claude_plugin/skills/find-agent',))
+# Forge build output (AI AD Coin, 11-15): contracts/.gitignore keeps these out of git, so a release copy never has
+# them; a working tree that built the contracts does (out/<Name>.sol/...). Passed over whole, by exact path only.
+BUILD_OUTPUT_DIRS = frozenset('agent_market/ad_coin/v2/contracts/' + name for name in ('out', 'cache', 'broadcast'))
 SQL_START = re.compile(r'(?is)^\s*(?:SELECT|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|PRAGMA|BEGIN|COMMIT|ROLLBACK|SAVEPOINT|RELEASE|WITH|EXPLAIN|REINDEX|VACUUM|REPLACE|ANALYZE|ATTACH|DETACH|END)\b')
 FEATURES = {
     'sql.pragma': r'\bPRAGMA\b',
@@ -398,6 +401,8 @@ def scan():
             except OSError: issues.add('source_unavailable'); exact = False; continue
             if not stat.S_ISDIR(info.st_mode) and not name.endswith('.py'):
                 if stat.S_ISLNK(info.st_mode): issues.add('excluded_source_symlink'); exact = False
+                continue
+            if stat.S_ISDIR(info.st_mode) and path in BUILD_OUTPUT_DIRS:
                 continue
             if not NAME.fullmatch(name):
                 if stat.S_ISDIR(info.st_mode) and path in NON_PYTHON_DIRS:
