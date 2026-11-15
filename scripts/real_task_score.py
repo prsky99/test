@@ -154,8 +154,13 @@ def arguments_for(schema, sample, task_text):
             continue
         kind = (props.get(key) or {}).get('type')
         if kind in (None, 'string'):
+            # A value already given to another field is not this field's value (11-16 a09: pkgxray's required
+            # version got the package name, {"name": "express", "version": "express"}, and the call failed on our
+            # argument); with every sample string used, the field stays empty as an agent with nothing to put leaves it.
             strings = [v for v in sample.values() if isinstance(v, str)]
-            args[key] = strings[0] if strings else task_text
+            unused = [v for v in strings if v not in args.values()]
+            if unused or not strings:
+                args[key] = unused[0] if unused else task_text
         elif kind in ('integer', 'number'):
             nums = [v for v in sample.values() if isinstance(v, (int, float))]
             if nums:

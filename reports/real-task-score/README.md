@@ -9,6 +9,7 @@
   3. `check` 패턴으로 채점합니다.
 - 결제·자격 증명은 보내지 않습니다. 이름이 쓰기 동작(create, delete, send …)인 도구는 부르지 않고, 게이트웨이도 등록된 정보 조회 도구만 허용합니다.
 - 실행: 하루 2번(밤 04~05시, 오후 15~17시) `ops_auto watch`가 heavy_slot으로 낮은 우선순위로 시작합니다(11-12 PM). 결과는 `reports/real-task-score/<날짜>.json`, `logs/ops/real-task-score.jsonl`에 남고, 아래 '최신 점수'가 실행마다 자동으로 바뀝니다.
+- 채점기 변경 기록(점수가 바뀌면 `summary.scorer_commit`으로 제품 변화와 나눕니다): 11-16 04:3x, 과제 예시의 값 하나는 도구의 한 칸에만 넣습니다. 그전에는 남은 값이 없으면 이미 쓴 값을 다른 필수 칸에도 넣었습니다(a09: pkgxray `{"name": "express", "version": "express"}` → 우리 인자 탓 실패). 다음 실행부터 scorer_commit이 바뀝니다.
 
 
 <!-- latest:start -->

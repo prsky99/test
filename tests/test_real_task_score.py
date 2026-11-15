@@ -199,3 +199,13 @@ def test_a_required_enum_field_never_keeps_a_value_outside_its_list():
 
 def test_the_report_names_the_scorer_commit():
     assert rts.scorer_commit() is None or len(rts.scorer_commit().split('+')[0]) == 8
+
+
+def test_a_sample_value_fills_one_field_only():
+    """11-16 a09: pkgxray's required version got the package name and the call failed on our own argument."""
+    from scripts import real_task_score as rts
+    schema = {'type': 'object', 'required': ['name', 'version'],
+              'properties': {'name': {'type': 'string'}, 'version': {'type': 'string'}}}
+    assert rts.arguments_for(schema, {'package': 'express'}, 'npm package metadata') == {'name': 'express'}
+    assert rts.arguments_for({'type': 'object', 'required': ['q'], 'properties': {'q': {'type': 'string'}}},
+                             {}, 'weather in Seoul') == {'q': 'weather in Seoul'}
