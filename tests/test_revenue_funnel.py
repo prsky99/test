@@ -99,3 +99,12 @@ def test_a_daily_report_line_is_replaced_and_never_escalates(monkeypatch, tmp_pa
     assert text.count('자동 점검 [revenue]') == 1 and '2026-11-09 클라이언트 9' in text
     assert '같은 경고' not in [row for row in text.splitlines() if '[revenue]' in row][0]
     assert escalated == ['disk'] and '같은 경고 9회째' in text
+
+
+def test_no_test_can_write_the_real_ops_state_files():
+    """conftest.isolated_ops_state (11-15): the ops watch's board, logs and state files point into a temporary folder."""
+    from pathlib import Path
+    real = ops_auto.ROOT / 'logs'
+    for key in ('REVENUE_STATE', 'NORTH_STAR_STATE', 'VECTOR_USAGE_STATE', 'STATE', 'ACTIONS', 'BOARD', 'ESCALATIONS'):
+        assert real not in Path(getattr(ops_auto, key)).parents, key
+    assert ops_auto.AGENTCON_ENV.name == 'agentcon.env'   # an input it only reads stays where it is

@@ -46,6 +46,7 @@ def test_auto_watch_alerts_once_and_writes_handoff(tmp_path, monkeypatch):
     monkeypatch.setattr(ops_auto, 'revenue_funnel', lambda: None)       # test_revenue_funnel.py
     monkeypatch.setattr(ops_auto, 'north_star', lambda: None)           # test_north_star.py
     monkeypatch.setattr(ops_auto, 'vector_index_usage', lambda: None)   # its own test
+    monkeypatch.setattr(ops_auto, 'stale_handoffs', lambda: None)       # test_board_stale.py; it read the real board
     ops_auto.watch()
     ops_auto.watch()  # same anomaly within 30 minutes: no second alert
     assert board.read_text().count('자동 점검') == 1

@@ -118,6 +118,32 @@ def isolated_provider_budget(monkeypatch, tmp_path_factory):
     monkeypatch.setattr(provider_budget, 'DIR', tmp_path_factory.mktemp('provider-budget'))
 
 
+# 11-15 11:01: a watch test ran ops_auto.watch() and wrote today's date into the real once-a-day state files under
+# logs/ops (the 11:05 watch skipped the revenue line and the vector-index hour). Every file the ops watch writes
+# (its board, logs and state) points into a temporary folder for every test that loaded these modules; inputs the
+# watch only reads (agentcon.env, release folders, the PG pid file, backups) stay as they are. A test that sets one
+# of these itself still wins (its monkeypatch runs after this one).
+_OPS_WRITES = {'ops_auto': None,   # every logs/ops and gateway-data path in ops_auto except the ones below
+               'ops_watch': ('BOARD', 'OUT')}
+_OPS_READS = ('AGENTCON_ENV',)
+
+
+@pytest.fixture(autouse=True)
+def isolated_ops_state(monkeypatch, tmp_path_factory):
+    import sys
+    from pathlib import Path
+    folder = None
+    for short, only in _OPS_WRITES.items():
+        for module in {sys.modules.get(short), sys.modules.get('scripts.' + short)} - {None}:
+            for key, value in list(vars(module).items()):
+                if (not isinstance(value, Path) or key in _OPS_READS or (only is not None and key not in only)
+                        or not any(part in str(value) for part in ('/logs/', '/gateway-data/'))):
+                    continue
+                folder = folder or tmp_path_factory.mktemp('ops-state')
+                monkeypatch.setattr(module, key, folder / short / key / value.name)
+                (folder / short / key).mkdir(parents=True, exist_ok=True)
+
+
 # Precision review R03 (11-15): every value that points at a production store or service (the same list as
 # scripts/pytest_env.PRODUCTION_POINTERS, tests/test_pytest_env.py checks it). Cleared when this conftest is
 # imported, before any test module is collected (the shell that started pytest may hold them), and restored after
