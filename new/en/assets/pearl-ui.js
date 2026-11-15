@@ -303,9 +303,9 @@
   const q = (selector, root=document) => root.querySelector(selector);
   const all = (selector, root=document) => [...root.querySelectorAll(selector)];
   // 11-15: the page's preload hint carries the content-addressed pearl URL (pearl_view adds ?v=), so a step image
-// reuses the file the stylesheet already fetched instead of loading it a second time without the version.
-function pearlSource(){const hint=document.querySelector('link[rel="preload"][as="image"][href*="/assets/pearl.webp"]');return hint?hint.getAttribute('href'):'/new/en/assets/pearl.webp';}
-function element(tag, className, value) {
+  // reuses the file the stylesheet already fetched instead of loading it a second time without the version.
+  function pearlSource(){const hint=document.querySelector('link[rel="preload"][as="image"][href*="/assets/pearl.webp"]');return hint?hint.getAttribute('href'):'/new/en/assets/pearl.webp';}
+  function element(tag, className, value) {
     const node=document.createElement(tag);
     if(className)node.className=className;
     if(value!==undefined)node.textContent=value;
