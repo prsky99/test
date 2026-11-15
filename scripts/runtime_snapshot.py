@@ -17,6 +17,46 @@ from scripts.agentcon_config import read_settings
 from agent_market.application_runtime import _ABSENT_PASSFILE, _private_bytes, _connect
 
 
+# Precision review R51 (11-15): state that lives outside the database and the source tree. Relative to the project
+# root; a missing path is listed, never an error (some appear later, such as the signing folder from 11-17).
+STATE_PATHS = ('gateway-data/necklaces', 'gateway-data/fingerprints', 'exports/pearls', 'gateway-data/ofac',
+               'gateway-data/web-bot-auth', 'gateway-data/web-bot-signer.env', 'gateway-data/sponsored.env',
+               'gateway-data/house-ad.env', 'gateway-data/edge-gateway.env', 'gateway-data/edge-gateway.json',
+               'gateway-data/edge-gateway.worker-secrets.json', 'gateway-data/services/state.json',
+               'gateway-data/services/pinned-releases.txt', 'gateway-data/signing', 'logs/ops/status-board.md',
+               'logs/ops/user-slo.jsonl', 'logs/ops/error-ledger-known.json', 'logs/ops/error-ledger-windows.json',
+               'logs/ops/necklace-gate')
+
+
+def copy_state(root, destination, paths=STATE_PATHS):
+    """Archive the state files into destination/state.tar.gz (owner-only) and return each file's sha256.
+    Symbolic links are skipped and listed; an unreadable file fails the snapshot (exit non-zero)."""
+    root = Path(root)
+    archive = destination / 'state.tar.gz'
+    files, missing, skipped = {}, [], []
+    with tarfile.open(archive, 'w:gz') as tar:
+        os.chmod(archive, 0o600)
+        for name in paths:
+            path = root / name
+            if not path.exists() and not path.is_symlink():
+                missing.append(name)
+                continue
+            items = [path] if not path.is_dir() or path.is_symlink() else sorted(
+                p for p in path.rglob('*') if p.is_file() or p.is_symlink())
+            for item in items:
+                relative = str(item.relative_to(root))
+                if item.is_symlink():
+                    skipped.append(relative)
+                    continue
+                data = item.read_bytes()
+                files[relative] = hashlib.sha256(data).hexdigest()
+                info = tarfile.TarInfo(relative)
+                info.size, info.mtime, info.mode = len(data), int(item.stat().st_mtime), 0o600
+                import io
+                tar.addfile(info, io.BytesIO(data))
+    return {'files': files, 'missing': missing, 'skipped_symlinks': skipped}
+
+
 def copy_key_directory(source, target):
     """Copy every regular file of a private key directory (owner-only, 0600) and return their digests.
     No directory configured means nothing to copy; a key that cannot be read privately fails the snapshot."""
@@ -106,8 +146,9 @@ def snapshot(destination, settings_file, resume=False):
     # 11-10: AI AD Coin v2 keys (owner link, ledger signing). Losing owner-link.key would show every site
     # user as a new v2 account with no balance; they are as critical as workflow.key.
     keys = copy_key_directory(settings.get('AD_COIN_V2_KEY_DIR'), destination / 'ad_coin_v2_keys')
+    state = copy_state(root, destination)
     files = {}
-    for item in (target, archive):
+    for item in (target, archive, destination / 'state.tar.gz'):
         digest = hashlib.sha256()
         with item.open('rb') as stream:
             for chunk in iter(lambda: stream.read(1024 * 1024), b''):
@@ -116,7 +157,8 @@ def snapshot(destination, settings_file, resume=False):
     manifest = {'created': began, 'finished': time.time(), 'postgres_version': db[0],
                 'database_bytes': db[1], 'catalog_resources_at_baseline': resources,
                 'dump_catalog_checked': True, 'restore_rehearsed': False, 'files': files,
-                'ad_coin_v2_keys': keys}
+                'ad_coin_v2_keys': keys, 'state_files': state['files'], 'state_missing': state['missing'],
+                'state_skipped_symlinks': state['skipped_symlinks']}
     (destination / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
     return manifest
 

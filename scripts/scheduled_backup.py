@@ -117,6 +117,16 @@ def run(root, settings_file, keep=7, limit=19, attempts=6, wait=300, copy_to=Non
     return result
 
 
+def exit_code(result, copy_to):
+    """0 only when the snapshot and, if asked for, the offsite copy both succeeded (precision review R51, 11-15:
+    a failed or skipped copy used to end with 0 while the local snapshot alone existed)."""
+    if result.get('status') != 'ok':
+        return 2
+    if copy_to and (result.get('offsite') or {}).get('status') != 'ok':
+        return 3
+    return 0
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', default='gateway-data/backups/daily')
@@ -140,5 +150,4 @@ if __name__ == '__main__':
                           'error': f'{type(error).__name__} at {where.name}:{where.lineno}'}), flush=True)
         raise SystemExit(1) from None
     print(json.dumps({'started': started, **result}), flush=True)
-    if result['status'] != 'ok':
-        raise SystemExit(2)
+    raise SystemExit(exit_code(result, args.copy_to))
