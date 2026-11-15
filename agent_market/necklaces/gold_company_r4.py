@@ -56,13 +56,14 @@ def _latest_us_periodic(submissions: dict) -> dict | None:
     return None
 
 
-def build_cases(root: Path, get=fetch_text, today: date | None = None, sleep=time.sleep, limit_calls: int = 95):
+def build_cases(root: Path, get=fetch_text, today: date | None = None, sleep=time.sleep, limit_calls: int = 95,
+                seed: str = "r4", prefix: str = "US4"):
     today = today or date.today()
     valid_until = (today + timedelta(days=VALID_DAYS)).isoformat()
     seen_ids, seen_ciks = earlier_ids(root)
     rows = list(json.loads(get(TICKERS)).values())
     order = sorted({int(r["cik_str"]): r for r in rows}.values(),
-                   key=lambda r: hashlib.sha256(f"r4:{int(r['cik_str'])}".encode()).hexdigest())
+                   key=lambda r: hashlib.sha256(f"{seed}:{int(r['cik_str'])}".encode()).hexdigest())
     cases, skipped, calls = [], {"seen": 0, "not_us_periodic": 0}, 1
     for row in order:
         if len(cases) >= CASES or calls >= limit_calls:
@@ -79,7 +80,7 @@ def build_cases(root: Path, get=fetch_text, today: date | None = None, sleep=tim
             skipped["not_us_periodic"] += 1
             continue
         title = sub.get("name") or row.get("title") or ""
-        cases.append({"case_id": f"US4:CIK{cik}", "task_type": "same_role", "stratum": "us_filer",
+        cases.append({"case_id": f"{prefix}:CIK{cik}", "task_type": "same_role", "stratum": "us_filer",
                       "input": {"name": typed(title), "country": "US"},
                       "truth": {"cik": str(cik), "ticker": row.get("ticker"), "sec_title": title, "lei": None,
                                 "sec_registered": True,

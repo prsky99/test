@@ -243,9 +243,30 @@ def company_words(case) -> set[str]:
     return {w for n in names if n for w in name_key(n).split() if len(w) > 2 and w not in LEGAL_WORDS}
 
 
+def grade_company_background(case, slot_out, background: dict) -> bool:
+    """A company with an English Wikipedia article: the answer is that article (its title) naming the company. A company
+    without one: "No encyclopedia article found" (not_found), or our SEC profile that says it is from SEC EDGAR; an
+    encyclopedia answer is then about another company and fails."""
+    if isinstance(slot_out, dict) and slot_out.get("not_found"):
+        return not background["wiki_article"]
+    if not slot_out or (isinstance(slot_out, dict) and slot_out.get("missing")):
+        return False
+    text = _text(slot_out)
+    words = company_words(case)
+    named = [w for w in words if re.search(r"\b" + re.escape(w) + r"\b", text)]
+    names_it = len(named) >= min(2, len(words)) and len(re.sub(r"[^a-z]", "", text)) >= 60
+    if not background["wiki_article"]:
+        return names_it and "sec edgar" in text and "wikipedia" not in text
+    title = (background.get("title") or "").lower()
+    return names_it and (not title or title in text)
+
+
 def grade_background(case, slot_out) -> bool:
     """The encyclopedia answer is about the topic: its title, or two words of its short description. For a company
     case (no wiki truth): it names the company by one of its distinctive words."""
+    background = case["truth"].get("background")
+    if background is not None:          # holdout-r5 on (PM 11-16 ②(b)): the set says whether an article exists
+        return grade_company_background(case, slot_out, background)
     if not slot_out or slot_out.get("missing"):
         return False
     if "wiki" not in case["truth"]:
