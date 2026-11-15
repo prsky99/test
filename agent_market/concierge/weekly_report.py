@@ -222,8 +222,8 @@ def weekly_page(week=None, path_fn=None):
     structured = {'@context': 'https://schema.org', '@type': 'Report', 'name': title, 'description': description,
                   'url': g.ORIGIN + '/reports/weekly/' + week, 'datePublished': issue['captured_at'],
                   'temporalCoverage': issue['window_start'] + '/' + issue['captured_at'],
-                  'publisher': {'@type': 'Organization', 'name': 'Agent Concierge', 'url': g.ORIGIN + '/'}}
-    return g.shell(title=title + ' | Agent Concierge', description=description, canonical=g.ORIGIN + '/reports/weekly/' + week,
+                  'publisher': {'@type': 'Organization', 'name': 'AgentValCon', 'url': g.ORIGIN + '/'}}
+    return g.shell(title=title + ' | AgentValCon', description=description, canonical=g.ORIGIN + '/reports/weekly/' + week,
                    body=g.heading('Weekly report · ' + week, title,
                                   'Agents with a recorded execution check this week, and how the set of agents with evidence changed.')
                    + '<div class="stack">' + body + '</div>', structured=structured, index=True)
@@ -236,7 +236,7 @@ def weekly_index(path_fn=None):
     items = ''.join('<li><a href="/reports/weekly/' + w + '">' + w + '</a></li>' for w in published)
     body = (g.heading('Weekly report', 'Weekly agent evidence', 'One issue per week, published every Monday from recorded checks.')
             + '<section class="card stack"><h2>Issues</h2><ul>' + items + '</ul></section>')
-    return g.shell(title='Weekly agent evidence | Agent Concierge', description='Weekly issues listing agents with recorded execution checks.',
+    return g.shell(title='Weekly agent evidence | AgentValCon', description='Weekly issues listing agents with recorded execution checks.',
                    canonical=g.ORIGIN + '/reports/weekly', body=body,
                    structured={'@context': 'https://schema.org', '@type': 'CollectionPage', 'name': 'Weekly agent evidence',
                                'url': g.ORIGIN + '/reports/weekly'}, index=True)

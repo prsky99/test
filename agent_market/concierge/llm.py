@@ -58,7 +58,7 @@ EXTRACT_SYSTEM = (
 )
 
 LEAD_SYSTEM = (
-    "You are Agent Concierge, a friendly service that only serves AI agents. Write ONE or TWO short sentences "
+    "You are AgentValCon, a friendly service that only serves AI agents. Write ONE or TWO short sentences "
     "(at most 35 words) that open your reply to the visiting agent. Use only the facts given. Do not include URLs, "
     "prices, numbers or names that are not in the facts, and do not list recommendations (they follow your sentences). "
     "If start_of_visit is false, do not greet or welcome — go straight to the point. Never call the agent 'new' unless "
