@@ -413,3 +413,35 @@ def test_after_three_deferrals_the_full_check_keeps_a_measurement_window_others_
     assert text.count('측정 전용: 전수 점검') == 1 and '- 11-15 12:50~13:10 측정 전용: 전수 점검(운영·SRE) 실행 중' in text
     assert hs.reserved(_dt(2026, 11, 15, 13, 10), board, 'release_gate x') is None    # quiet ends with the check
     assert _json.loads((tmp_path / 'fc.json').read_text())['deferred'] == 0
+
+
+def test_a_necklace_check_that_did_not_run_is_named(tmp_path):
+    """PM 11-15 14:57 (user: do not forget the checks): the absence of a due check, not its result."""
+    import json as _json
+    import zlib
+    from datetime import datetime as dt
+    from scripts import ops_watch
+    logs, root = tmp_path / 'logs', tmp_path / 'root'
+    logs.mkdir()
+    (root / 'retest').mkdir(parents=True)
+    at = lambda h, m: dt(2026, 11, 16, h, m).timestamp()                            # noqa: E731
+    stamp = lambda h, m: dt(2026, 11, 16, h, m).astimezone().strftime('%Y-%m-%dT%H:%M:%S%z')  # noqa: E731
+    rows = [{'at': stamp(1, 15), 'step': 'retest', 'kind': 'trial', 'targets': 0}, {'at': stamp(9, 20), 'definitions': 4}]
+    (logs / 'runs-20261116.jsonl').write_text('\n'.join(_json.dumps(r) for r in rows) + '\n')
+    (logs / '20261116.md').write_text('digest')
+    check = lambda h, m, **kw: ops_watch.check_necklace_runs(now=at(h, m), logs=logs, root=root,  # noqa: E731
+                                                             registry=tmp_path / 'none', drills=tmp_path / 'none', **kw)
+    assert check(10, 30)['problems'] == []
+    assert check(11, 0)['problems'] == ['necklace_watch_missed']                     # 100 minutes after 09:20
+    assert 'necklace_watch_missed' not in check(4, 30)['problems']                   # the 03:50-05:10 quiet window
+    (logs / '20261116.md').unlink()
+    assert 'necklace_daily_summary_missed' in check(10, 30)['problems']
+    slug = next(s for s in (f'n{i}' for i in range(99)) if 6 + zlib.crc32(s.encode()) % 17 == 9)  # live hour 09
+    (root / 'necklaces.json').write_text(_json.dumps({'necklaces': [{'slug': slug, 'status': 'live'}]}))
+    assert f'live_retest_missed:{slug}' in check(10, 30)['problems']
+    (root / 'retest' / 'started-20261116.json').write_text(_json.dumps({slug: {'kind': 'live'}}))
+    assert not any(p.startswith('live_retest') for p in check(10, 30)['problems'])
+    reg = tmp_path / 'registry.jsonl'
+    reg.write_text(_json.dumps({'at': stamp(6, 0), 'step': 'verified_registry'}) + '\n')
+    assert 'verified_registry_missed' in ops_watch.check_necklace_runs(now=at(10, 30), logs=logs, root=root,
+                                                                       registry=reg, drills=tmp_path / 'x')['problems']

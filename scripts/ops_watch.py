@@ -368,6 +368,86 @@ def check_fingerprints(path=None, now=None):
     return {'generated': generated, 'age_hours': age, 'problems': problems}
 
 
+NECKLACE_LOGS = ROOT / 'logs/ops/necklace-watch'
+NECKLACE_ROOT = ROOT / 'gateway-data/necklaces'
+REGISTRY_LOG = ROOT / 'logs/ops/registry-job.jsonl'
+DRILL_LOG = ROOT / 'logs/ops/necklace-watch/drills.jsonl'   # the workflow team's weekly fallback drill (when it exists)
+LIVE_HOURS = tuple(range(6, 23))                             # agent_market.necklace_schedule.LIVE_HOURS
+
+
+def _quiet(local):
+    """The jobs steps skip :55-:10 and 03:50-05:10 (necklace_schedule), so an hour may hold no run then."""
+    hhmm = local.hour * 100 + local.minute
+    return 350 <= hhmm <= 530
+
+
+def _lines(path):
+    try:
+        return [json.loads(line) for line in Path(path).read_text(encoding='utf-8').splitlines() if line.strip()]
+    except (OSError, ValueError):
+        return []
+
+
+def _at(row):
+    try:
+        return datetime.strptime(row['at'], '%Y-%m-%dT%H:%M:%S%z').timestamp()
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def check_necklace_runs(now=None, logs=None, root=None, registry=None, drills=None):
+    """PM 11-15 14:57 (user: "do not forget the checks"): a necklace check that was due and did not run. Not the
+    checks' results: their absence. Each jobs step leaves a line even with nothing to do (necklace_schedule), so a
+    missing line is a missing run:
+    - hourly necklace watch (:20, outside the quiet windows): no line for 90 minutes
+    - daily summary (from 05:20): no <day>.md by 06:30
+    - trial retests (01:15-02:25): no trial line by 02:40
+    - live retests: a live necklace not in retest/started-<day>.json after the end (:50) of its own hour
+    - verified registry snapshot (hourly) and E6 lifecycle (daily), once their first line exists
+    - the weekly fallback drill, once its log exists: no line for 8 days"""
+    import zlib
+    now = now or time.time()
+    local = datetime.fromtimestamp(now)
+    logs, root = Path(logs or NECKLACE_LOGS), Path(root or NECKLACE_ROOT)
+    day = local.strftime('%Y%m%d')
+    rows = _lines(logs / f'runs-{day}.jsonl') + _lines(logs / f"runs-{datetime.fromtimestamp(now - 86400):%Y%m%d}.jsonl")
+    problems = []
+    watch = [t for r in rows if 'step' not in r and (t := _at(r))]
+    last_watch = max(watch) if watch else None
+    if not _quiet(local) and (last_watch is None or now - last_watch > 90 * 60):
+        problems.append('necklace_watch_missed')
+    if local.hour * 100 + local.minute >= 630 and not (logs / f'{day}.md').is_file():
+        problems.append('necklace_daily_summary_missed')
+    today = [r for r in rows if r.get('at', '').startswith(local.strftime('%Y-%m-%d'))]
+    if local.hour * 100 + local.minute >= 240 and not any(r.get('kind') == 'trial' for r in today):
+        problems.append('necklace_trial_retest_missed')
+    try:
+        live = [n['slug'] for n in json.loads((root / 'necklaces.json').read_text()).get('necklaces') or []
+                if n.get('status') == 'live' and n.get('slug')]
+    except (OSError, ValueError, AttributeError):
+        live = []
+    try:
+        started = json.loads((root / 'retest' / f'started-{day}.json').read_text())
+    except (OSError, ValueError):
+        started = {}
+    for slug in live:
+        hour = LIVE_HOURS[zlib.crc32(slug.encode('utf-8')) % len(LIVE_HOURS)]
+        if (local.hour, local.minute) > (hour, 50) and slug not in started:
+            problems.append(f'live_retest_missed:{slug}')
+    reg = _lines(registry or REGISTRY_LOG)
+    for step, hours in (('verified_registry', 2), ('tool_lifecycle', 26)):
+        times = [t for r in reg if (r.get('step') or 'verified_registry') == step and (t := datetime.strptime(
+            r['at'], '%Y-%m-%dT%H:%M:%S%z').timestamp() if r.get('at') else None)]
+        if times and now - max(times) > hours * 3600:
+            problems.append(f'{step}_missed')
+    drill = _lines(drills or DRILL_LOG)
+    times = [t for r in drill if (t := _at(r))]
+    if times and now - max(times) > 8 * 86400:
+        problems.append('fallback_drill_missed')
+    return {'last_watch': datetime.fromtimestamp(last_watch).strftime('%m-%d %H:%M') if last_watch else None,
+            'live': len(live), 'problems': problems}
+
+
 def check_backup(root=None, log=None, now=None):
     """The newest complete snapshot's age and the last backup run's offsite result; problems listed."""
     root, log, now = Path(root or BACKUPS), Path(log or BACKUP_LOG), now or time.time()
@@ -461,12 +541,15 @@ def main():
     fingerprints = check_fingerprints()
     if fingerprints['problems']:
         anomalies['fingerprints'] = fingerprints
+    necklace_runs = check_necklace_runs()
+    if necklace_runs['problems']:
+        anomalies['necklace_checks'] = necklace_runs
     down = check_core(jobs) if jobs else []
     if down:
         anomalies['core_down'] = down
     record = {'at': datetime.now().strftime('%Y-%m-%d %H:%M'), 'memory_free_percent': free,
               'swap': swap, 'top_memory': top_memory(), 'adcoin_daemon': daemon,
-              'db_connections': db_connections(), 'launchd': jobs, 'backup': backup, 'fingerprints': fingerprints,
+              'db_connections': db_connections(), 'launchd': jobs, 'backup': backup, 'fingerprints': fingerprints, 'necklace_runs': necklace_runs,
               'anomalies': anomalies}
     if site_path:  # recorded, not alerted: the second fresh connection got 200 (see check_site)
         record['site_path'] = site_path
