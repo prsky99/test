@@ -168,6 +168,25 @@ def input_validator(schema: dict) -> Draft202012Validator:
 SLOT_TEMPLATE = re.compile(r"\{\{slot\.([a-z_][a-z0-9_]*)\.([a-z_][a-z0-9_]*)\}\}")
 
 
+def scope_errors(defn: dict) -> list[str]:
+    """``scope`` limits which inputs a necklace version accepts (PM 11-15); out-of-scope input gets ``scope_notice``
+    and no call. ``min_pearls_answered`` is how many verified-pearl steps must answer for a run to count."""
+    errors = []
+    scope = defn.get("scope")
+    props = set(((defn.get("input_schema") or {}).get("properties") or {}))
+    required = set((defn.get("input_schema") or {}).get("required") or [])
+    if scope is not None:
+        if not isinstance(scope, dict) or not scope or any(k not in props or k not in required or not isinstance(v, list)
+                                                            or not v for k, v in scope.items()):
+            errors.append("scope maps required input names to lists of accepted values")
+        if not isinstance(defn.get("scope_notice"), str) or not defn["scope_notice"].strip():
+            errors.append("a scoped necklace needs a scope_notice for out-of-scope input")
+    need = defn.get("min_pearls_answered")
+    if need is not None and (type(need) is not int or need < 2):
+        errors.append("min_pearls_answered is a whole number of at least 2")
+    return errors
+
+
 def stage_errors(defn: dict) -> list[str]:
     """Staged slots (runner: ``depends_on``, ``requires_input``, ``{{slot.<slot>.<field>}}`` templates): a slot reads
     only slots it depends on (earlier ones, checked in validate), and an input-dependent step is optional and names
@@ -274,6 +293,7 @@ def validate(defn: dict, *, check_contracts: bool = True) -> list[str]:
     if required < 2 and not single_fanout:
         errors.append("a necklace needs two required slots, or one slot fanning out to two or more pearls")
     errors.extend(stage_errors(defn))
+    errors.extend(scope_errors(defn))
     return errors
 
 

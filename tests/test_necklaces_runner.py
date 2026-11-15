@@ -455,3 +455,15 @@ def test_stage_rules_are_validated():
     bad = staged()
     bad["slots"][3]["required"] = True
     assert any("requires_input is for optional slots" in e for e in model.validate(bad, check_contracts=False))
+
+
+def test_a_run_counts_only_when_enough_pearl_steps_answered():
+    defn = necklace()
+    defn["min_pearls_answered"] = 2
+    for slot in defn["slots"]:
+        for m in slot["chain"]:
+            m["pearl"] = m["kind"] == "external" and m["resource_id"] in (1, 3)
+    both = runner.Runner(caller_from({1: "CVE-2020-28500", 3: "listed in CISA KEV"})).run(defn, {"q": "x"})
+    assert both["ok"] and both["pearls_answered"] == 2
+    one = runner.Runner(caller_from({1: "CVE-2020-28500", 4: "listed in CISA KEV"})).run(defn, {"q": "x"})
+    assert not one["ok"] and one["failed_slot"] == "pearls_answered" and one["pearls_answered"] == 1

@@ -110,6 +110,10 @@ def run_for_surface(front, entry: dict, arguments, source: str, meta: dict | Non
         if source == "web" and notice != NOTICE:
             raise Refused("consent_required")
         check_input(defn["input_schema"], values)
+        for key, allowed in (defn.get("scope") or {}).items():       # PM 11-15: out of scope -> notice, no call
+            if values.get(key) not in allowed:
+                return {"ok": False, "output": None, "stages": {}, "error_code": "out_of_scope",
+                        "notice": defn.get("scope_notice")}
         if sensitive is None:
             from ..workflows import sensitive
         if sensitive(values) or TOKEN.search(json.dumps(values, ensure_ascii=False)):

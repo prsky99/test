@@ -3,7 +3,7 @@
   "version": 1,
   "status": "candidate",
   "name": "Company due diligence",
-  "summary": "Who a company is and what it has filed: its registered identity (SEC CIK and ticker, or LEI), an encyclopedia summary, its latest SEC filings when it files with the SEC, and its domain registration when you give its website.",
+  "summary": "Who a US-listed company is and what it has filed: its SEC identity (CIK and ticker), its latest SEC filings and an encyclopedia summary, plus its domain registration when you give its website. US SEC filers only in this version.",
   "input_schema": {
     "type": "object",
     "properties": {
@@ -22,7 +22,8 @@
       }
     },
     "required": [
-      "name"
+      "name",
+      "country"
     ],
     "additionalProperties": false
   },
@@ -33,8 +34,9 @@
   "synthesis": {
     "kind": "merge-v1",
     "rules": [
-      "identity comes from the registry step; a later step uses its ticker",
-      "filings are listed only for SEC filers; non-US companies are identified by LEI",
+      "identity comes from the registry step; every later step uses it (legal name, ticker)",
+      "a run counts only when at least two verified pearls answered (PM 11-15: per run, not per definition)",
+      "filings are the SEC filer's latest, with form and filing date",
       "every statement keeps its source link"
     ]
   },
@@ -112,7 +114,7 @@
           "state": "active",
           "pearl": true,
           "input_map": {
-            "query": "{{input.name}}"
+            "query": "{{slot.registry.legal_name}}"
           }
         },
         {
@@ -130,15 +132,18 @@
           "resend_safe": true,
           "state": "planned",
           "input_map": {
-            "title": "{{input.name}}"
+            "title": "{{slot.registry.legal_name}}"
           }
         }
+      ],
+      "depends_on": [
+        "registry"
       ]
     },
     {
       "slot": "filings",
       "contract": "sec.filings.v1",
-      "required": false,
+      "required": true,
       "fanout": 1,
       "depends_on": [
         "registry"
@@ -196,8 +201,18 @@
             "domain": "{{input.domain}}"
           }
         }
+      ],
+      "depends_on": [
+        "registry"
       ]
     }
   ],
-  "notes": "Draft (PM 11-15 09:5x, option c). Leads are verified pearls 241601 (encyclopedia.summary), 58997 (sec.filings) and 52559 (domain.lookup) by the 11-15 verify snapshot. registry runs on AgentValCon substitutes only: sec-edgar is ops-approved for company.registry.v1 (11-15 08:50), gleif-lei waits for its re-verdict on holdout-r3."
+  "notes": "v1, PM 11-15 decision: US SEC filers only (scope country US; other inputs get the scope notice and no call). Leads are verified pearls 241601 (encyclopedia.summary), 58997 (sec.filings) and 52559 (domain.lookup) by the 11-15 verify snapshot. registry runs on the ops-approved substitute sec-edgar; gleif-lei waits for v2 (non-US). Every external step runs after the identity step, so an unidentified company costs no pearl call.",
+  "scope": {
+    "country": [
+      "US"
+    ]
+  },
+  "scope_notice": "This necklace covers companies that file with the US SEC (country US). For other companies, look up the legal entity by name in the GLEIF LEI search (https://search.gleif.org) or ask our Chat for an agent that covers that country.",
+  "min_pearls_answered": 2
 }

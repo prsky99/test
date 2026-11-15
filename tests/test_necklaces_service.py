@@ -136,3 +136,19 @@ def test_definitions_with_open_or_broken_schemas_do_not_load():
 def test_shipped_definitions_have_checked_schemas():
     for defn in model.load_all():
         assert model.input_schema_errors(defn["input_schema"]) == [], defn["slug"]
+
+
+def test_out_of_scope_input_gets_the_notice_and_calls_nobody(tmp_path):
+    defs = tmp_path / "defs"
+    defs.mkdir()
+    defn = necklace()
+    defn["input_schema"] = {"type": "object", "properties": {"q": {"type": "string"}, "country": {"type": "string"}},
+                            "required": ["q", "country"], "additionalProperties": False}
+    defn["scope"], defn["scope_notice"] = {"country": ["US"]}, "US SEC filers only. Try GLEIF for others."
+    (defs / "topic-brief.json").write_text(json.dumps(defn))
+    entry = {"slug": "topic-brief", "version": 1, "definition_digest": model.digest(defn)}
+    calls = []
+    out = service.run_for_surface(None, entry, {"q": "x", "country": "JP"}, "mcp", None, root=tmp_path,
+                                  definitions_dir=defs, sensitive=lambda v: False,
+                                  caller=caller_from({1: "x", 3: "y"}, calls))
+    assert out["error_code"] == "out_of_scope" and out["notice"].startswith("US SEC filers only") and calls == []

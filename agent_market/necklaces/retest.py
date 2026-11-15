@@ -205,21 +205,61 @@ GRADERS = {"advisories": grade_advisories, "health": grade_health, "record": gra
            "background": grade_background, "web": grade_web}
 
 
+FILING = re.compile(r'"form"\s*:\s*"(?P<form>10-K|10-Q|20-F|40-F)"(?P<rest>[^{}]*)', re.I)   # _text lower-cases
+FILING_DATE = re.compile(r'"filing_?date"\s*:\s*"(\d{4}-\d{2}-\d{2})"', re.I)
+ACCESSION = re.compile(r'"accession(?:_?number)?"\s*:\s*"([0-9-]{18,20})"', re.I)
+
+
+def grade_filings(case, slot_out) -> bool:
+    """The latest periodic filing (PM 11-15 decision 2): the truth's 10-K/10-Q/20-F/40-F or any later periodic filing,
+    read from the structured answer (form, filingDate, accession)."""
+    truth = case["truth"].get("filings")
+    if not truth or not slot_out or (isinstance(slot_out, dict) and slot_out.get("missing")):
+        return False
+    text = _text(slot_out).replace('\\"', '"')
+    for match in FILING.finditer(text):
+        dated = FILING_DATE.search(match["rest"])
+        acc = ACCESSION.search(match["rest"])
+        if acc and acc.group(1).replace("-", "") == truth["accession"].replace("-", ""):
+            return True
+        if dated and dated.group(1) > truth["date"]:
+            return True
+    return False
+
+
 def grade_company_task(case, output) -> bool:
-    """company-due-diligence as one task, for the necklace and for each single pearl alike (the delta compares the same
-    task on the same case): the answer must carry the company's official identifier (the truth's SEC CIK or GLEIF
-    LEI) and name the company."""
+    """company-due-diligence as one task, for the necklace and for every single member alike (the delta compares the
+    same task on the same case; PM 11-15 decision 2): it passes only with all three parts, which no one agent gives -
+    the truth's SEC CIK, the company's latest periodic filing (or a later one) and a description naming the company."""
     text = _text(output or {})
-    ids = [i for i in (case["truth"].get("cik"), case["truth"].get("lei")) if i]
-    has_id = any(re.search(r"\b0*" + re.escape(i.lower()) + r"\b", text) for i in ids)
-    return has_id and grade_background(case, {"text": text})
+    cik = case["truth"].get("cik")
+    has_cik = bool(cik) and re.search(r"\b0*" + re.escape(str(int(cik))) + r"\b", text) is not None
+    return has_cik and grade_filings(case, output) and grade_background(case, {"text": text})
+
+
+def company_excluded(case, today: str | None = None) -> str | None:
+    """Cases outside v1's task are not graded: no filings truth (no periodic filing in the indexed quarters) or a
+    truth past its validity (rebuild with necklaces.gold_filings)."""
+    truth = case["truth"].get("filings")
+    if case.get("input", {}).get("country") != "US" or not truth:
+        return "out_of_task"
+    today = today or time.strftime("%Y-%m-%d", time.gmtime())
+    return "truth_expired" if today > truth.get("valid_until", "") else None
+
+
+TASK_EXCLUDE = {"company-due-diligence": company_excluded}
+GRADERS["filings"] = grade_filings
 
 
 TASK_GRADERS = {"company-due-diligence": grade_company_task}
 
 
 def grade(defn: dict, case: dict, output: dict) -> dict:
-    """Pass per slot; the case passes when every required slot passes (optional slots are reported only)."""
+    """Pass per slot; the case passes when every required slot passes (optional slots are reported only). A case outside
+    the necklace's task gets ok None and why (it is counted apart, never as a pass or a failure)."""
+    why = (TASK_EXCLUDE.get(defn["slug"]) or (lambda c: None))(case)
+    if why:
+        return {"slots": {}, "ok": None, "excluded": why}
     per = {}
     for slot in defn["slots"]:
         grader = GRADERS.get(slot["slot"])
@@ -234,19 +274,55 @@ def requests_per_case(defn: dict) -> int:
     return 2 * sum(min(slot.get("fanout", 1), len(model.live_members(slot, "external"))) for slot in defn["slots"])
 
 
+SINGLE_FROM_INPUT = {"legal_name": "name"}      # a single agent gets what the person typed instead of a staged value
+
+
 def single_definition(defn: dict, slot_name: str, member: dict) -> dict:
-    """The necklace reduced to one slot answered by one member (no fallbacks): the single baseline."""
+    """The necklace reduced to one slot answered by one member (no fallbacks, no stages): the single baseline. A staged
+    template reads the typed input where one stands for it (legal name -> name); other staged values are absent, as
+    they would be for a person using that agent alone."""
     single = copy.deepcopy(defn)
     slot = next(s for s in single["slots"] if s["slot"] == slot_name)
+    member = copy.deepcopy(member)
+    for key, value in list((member.get("input_map") or {}).items()):
+        found = model.SLOT_TEMPLATE.fullmatch(value) if isinstance(value, str) else None
+        if found:
+            if found.group(2) in SINGLE_FROM_INPUT:
+                member["input_map"][key] = "{{input." + SINGLE_FROM_INPUT[found.group(2)] + "}}"
+            else:
+                del member["input_map"][key]
     slot["chain"], slot["fanout"], slot["required"] = [dict(member, state="active")], 1, True
+    for key in ("depends_on", "requires_input"):
+        slot.pop(key, None)
+    single.pop("min_pearls_answered", None)
     single["slots"] = [slot]
     return single
+
+
+def single_members(defn: dict, contrast: str, watch_state: dict | None = None) -> list[tuple[str, dict]]:
+    """Members measured alone. With a whole-task grader (company-due-diligence, PM 11-15 decision 2): every lead pearl
+    of every slot and the AgentValCon substitutes in the run chain, so the delta is not owed to our own substitute.
+    Otherwise the external members of the contrast slot, as before."""
+    if defn["slug"] not in TASK_GRADERS:
+        slot = next(s for s in defn["slots"] if s["slot"] == contrast)
+        return [(contrast, m) for m in model.live_members(slot, "external")]
+    from .watch import runtime_chain
+    out = []
+    for slot in defn["slots"]:
+        chain = runtime_chain(slot, defn["slug"], watch_state or {})
+        leads = [m for m in chain if m["kind"] == "external"][:slot.get("fanout", 1)]
+        out += [(slot["slot"], m) for m in leads + [m for m in chain if m["kind"] == "agentcon"]]
+    return out
 
 
 # ---------------------------------------------------------------- run
 def load_cases(root: Path, slug: str, split: str) -> list[dict]:
     path = Path(root) / "gold" / slug / f"{split}.jsonl"
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    cases = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    if slug == "company-due-diligence":
+        from .gold_filings import attach
+        cases = attach(root, cases)
+    return cases
 
 
 def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT, split: str = "tuning",
@@ -255,11 +331,18 @@ def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT,
     started = clock()
     day = time.strftime("%Y%m%d", time.localtime(now()))
     lines, details = [], []
-    done = passed = 0
+    done = passed = excluded = 0
     contrast = CONTRAST.get(defn["slug"])
+    exclude = TASK_EXCLUDE.get(defn["slug"]) or (lambda c: None)
     for case in cases:
         if clock() - started > budget_s:
             break
+        why = exclude(case)
+        if why:                         # outside the task: not run, not graded, counted apart (no provider call)
+            lines.append({"type": "excluded", "slug": defn["slug"], "version": defn["version"],
+                          "case_id": case["case_id"], "set": split, "at": _iso(now()), "why": why})
+            excluded += 1
+            continue
         if pacer is not None:
             pacer.wait_for(requests_per_case(defn))
         result = runner.Runner(caller, watch_state=watch_state, keep_raw=2000).run(defn, case["input"])
@@ -278,18 +361,18 @@ def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT,
         details.append({"case_id": case["case_id"], "verdict": verdict, "output": result["output"],
                         "slots": result["slots"], "attempts": result["attempts"]})
         if singles and contrast:
-            slot = next(s for s in defn["slots"] if s["slot"] == contrast)
-            for member in model.live_members(slot, "external"):
-                one = single_definition(defn, contrast, member)
-                if pacer is not None:
+            for slot_name, member in single_members(defn, contrast, watch_state):
+                one = single_definition(defn, slot_name, member)
+                if pacer is not None and member["kind"] == "external":
                     pacer.wait_for(2)
                 out = runner.Runner(caller).run(one, case["input"])
                 task = TASK_GRADERS.get(defn["slug"])
                 ok = task(case, out["output"]) if task else GRADERS[contrast](case, out["output"].get(contrast))
-                lines.append({"type": "single", "slug": defn["slug"], "resource_id": member["resource_id"],
-                              "tool": member["tool"], "case_id": case["case_id"], "at": at, "ok": ok})
+                lines.append({"type": "single", "slug": defn["slug"], "resource_id": member.get("resource_id"),
+                              "agent_id": member.get("agent_id"), "kind": member["kind"], "tool": member["tool"],
+                              "case_id": case["case_id"], "at": at, "ok": ok})
         done += 1
-        passed += verdict["ok"]
+        passed += bool(verdict["ok"])
     retest = Path(root) / "retest" / f"{day}.jsonl"
     retest.parent.mkdir(parents=True, exist_ok=True)
     with retest.open("a", encoding="utf-8") as handle:
@@ -300,7 +383,8 @@ def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT,
     with review.open("a", encoding="utf-8") as handle:
         for line in details:
             handle.write(json.dumps(line, ensure_ascii=False, sort_keys=True, default=str) + "\n")
-    return {"slug": defn["slug"], "split": split, "cases": done, "passed": passed, "of": len(cases),
+    return {"slug": defn["slug"], "split": split, "cases": done, "passed": passed, "excluded": excluded,
+            "of": len(cases),
             "stopped_by_budget": done < len(cases), "seconds": round(clock() - started, 1)}
 
 

@@ -37,7 +37,7 @@ def test_run_set_writes_daily_lines_and_single_baselines(tmp_path):
     clock = iter(range(0, 1000, 1))
     out = retest.run_set(defn, cases, caller_from(answers), root=tmp_path, singles=True,
                          clock=lambda: next(clock), now=lambda: 1_800_000_000)
-    assert out == {"slug": "package-risk-audit", "split": "tuning", "cases": 2, "passed": 2, "of": 2,
+    assert out == {"slug": "package-risk-audit", "split": "tuning", "cases": 2, "passed": 2, "excluded": 0, "of": 2,
                    "stopped_by_budget": False, "seconds": out["seconds"]}
     lines = [json.loads(l) for l in (tmp_path / "retest" / "20270115.jsonl").read_text().splitlines()]
     kinds = {l["type"] for l in lines}
@@ -166,11 +166,22 @@ def test_topic_graders():
     assert retest.grade_web(case, {"answer": "see https://example.org"}) and not retest.grade_web(case, {"answer": "x"})
 
 
-# ---------------------------------------------------------------- company-due-diligence task (PM 11-15 option c)
+# ---------------------------------------------------------------- company-due-diligence v1 task (PM 11-15 decisions)
+FILING = {"form": "10-K", "date": "2026-11-03", "accession": "0000320193-26-000026", "valid_until": "2099-01-01"}
 US_CASE = {"case_id": "US:CIK320193", "input": {"name": "Apple Inc", "country": "US"},
-           "truth": {"cik": "320193", "ticker": "AAPL", "lei": "HWUPKR0MPOU8FGXBT394", "sec_title": "Apple Inc."}}
+           "truth": {"cik": "320193", "ticker": "AAPL", "lei": "HWUPKR0MPOU8FGXBT394", "sec_title": "Apple Inc.",
+                     "filings": FILING}}
 JP_CASE = {"case_id": "JP:x", "input": {"name": "Toyota", "country": "JP"},
            "truth": {"lei": "5493006W3QUS5LMH6R84", "legal_name": "TOYOTA MOTOR CORPORATION", "cik": None}}
+PEARL_FILINGS = {"text": json.dumps({"company": {"cik": 320193, "ticker": "AAPL"}, "filings": [
+    {"form": "8-K", "filingDate": "2026-11-09", "accession": "0001140361-26-042798"},
+    {"form": "10-K", "filingDate": "2026-11-03", "accession": "0000320193-26-000026"}]})}
+
+
+def necklace_output(filings=PEARL_FILINGS):
+    return {"registry": {"answers": [{"legal_name": "Apple Inc.", "cik": "320193", "ticker": "AAPL"}]},
+            "background": {"answers": [{"text": "Apple Inc. is an American technology company"}]},
+            "filings": {"answers": [filings]}}
 
 
 def test_company_background_names_the_company():
@@ -179,14 +190,50 @@ def test_company_background_names_the_company():
     assert retest.grade_background(JP_CASE, {"text": "Toyota Motor Corporation is a Japanese automaker"})
 
 
-def test_the_company_task_needs_an_official_id_and_the_company():
-    necklace_out = {"registry": {"answers": [{"legal_name": "Apple Inc.", "cik": "320193", "ticker": "AAPL"}]},
-                    "background": {"answers": [{"text": "Apple Inc. is an American technology company"}]}}
-    assert retest.grade_company_task(US_CASE, necklace_out)
-    single = {"background": {"answers": [{"text": "Apple Inc. (NASDAQ: AAPL) is an American technology company"}]}}
-    assert not retest.grade_company_task(US_CASE, single)        # a summary alone has no CIK or LEI
-    assert retest.grade_company_task(JP_CASE, {"r": "TOYOTA MOTOR CORPORATION, LEI 5493006W3QUS5LMH6R84"})
-    assert not retest.grade_company_task(US_CASE, {"r": "CIK 3201930, Apple"})               # no partial match
+def test_filings_pass_with_the_truth_or_a_later_periodic_filing_only():
+    assert retest.grade_filings(US_CASE, {"answers": [PEARL_FILINGS]})
+    later = {"text": json.dumps({"filings": [{"form": "10-Q", "filingDate": "2027-01-30", "accession": "x" * 18}]})}
+    assert retest.grade_filings(US_CASE, later)
+    older = {"text": json.dumps({"filings": [{"form": "10-Q", "filingDate": "2026-08-01", "accession": "1" * 18}]})}
+    assert not retest.grade_filings(US_CASE, older)
+    current_report = {"text": json.dumps({"filings": [{"form": "8-K", "filingDate": "2026-12-01"}]})}
+    assert not retest.grade_filings(US_CASE, current_report)              # only periodic forms count
+
+
+def test_the_task_needs_cik_filing_and_description_together():
+    assert retest.grade_company_task(US_CASE, necklace_output())
+    sec_edgar_alone = {"registry": {"answers": [{"legal_name": "Apple Inc.", "cik": "320193", "ticker": "AAPL"}]}}
+    assert not retest.grade_company_task(US_CASE, sec_edgar_alone)       # our substitute alone has no filing
+    encyclopedia_alone = {"background": {"answers": [{"text": "Apple Inc. (NASDAQ: AAPL) is a technology company"}]}}
+    assert not retest.grade_company_task(US_CASE, encyclopedia_alone)
+    assert not retest.grade_company_task(US_CASE, {"filings": {"answers": [PEARL_FILINGS]}})   # no description
+    defn = next(d for d in model.load_valid() if d["slug"] == "company-due-diligence")
+    assert retest.grade(defn, US_CASE, necklace_output())["ok"] is True
+
+
+def test_cases_outside_the_task_are_not_run_or_graded(tmp_path):
+    defn = next(d for d in model.load_valid() if d["slug"] == "company-due-diligence")
+    assert retest.company_excluded(JP_CASE) == "out_of_task"
+    no_truth = {**US_CASE, "truth": {k: v for k, v in US_CASE["truth"].items() if k != "filings"}}
+    assert retest.company_excluded(no_truth) == "out_of_task"
+    expired = {**US_CASE, "truth": {**US_CASE["truth"], "filings": {**FILING, "valid_until": "2026-01-01"}}}
+    assert retest.company_excluded(expired) == "truth_expired"
+    calls = []
+    out = retest.run_set(defn, [JP_CASE, expired], lambda m, a, t: calls.append(m) or {}, root=tmp_path)
+    assert calls == [] and out["excluded"] == 2 and out["passed"] == 0
+
+
+def test_singles_are_every_lead_pearl_and_our_substitute_on_the_whole_task():
+    defn = next(d for d in model.load_valid() if d["slug"] == "company-due-diligence")
+    approved = {"substitutes": [["sec-edgar", "company.registry.v1"]]}      # ops-approved 11-15 (approvals.json)
+    members = retest.single_members(defn, "background", approved)
+    assert sorted((s, m.get("resource_id") or m.get("agent_id")) for s, m in members) == [
+        ("background", 241601), ("domain", 52559), ("filings", 58997), ("registry", "sec-edgar")]
+    assert ("registry", "sec-edgar") not in [(s, m.get("agent_id")) for s, m in retest.single_members(defn, "background")]
+    one = retest.single_definition(defn, "background", next(m for s, m in members if s == "background"))
+    assert one["slots"][0]["chain"][0]["input_map"] == {"query": "{{input.name}}"} and "depends_on" not in one["slots"][0]
+    filings = retest.single_definition(defn, "filings", next(m for s, m in members if s == "filings"))
+    assert filings["slots"][0]["chain"][0]["input_map"] == {}             # a name alone gives that agent no ticker
 
 
 def test_the_shipped_company_definition_has_three_verified_pearl_leads():
@@ -197,4 +244,4 @@ def test_the_shipped_company_definition_has_three_verified_pearl_leads():
     assert sorted(p["resource_id"] for p in leads if p["pearl"]) == [52559, 58997, 241601]
     domains = [m["registrable_domain"] for s in defn["slots"] for m in s["chain"] if m["kind"] == "external"]
     assert len(domains) == len(set(domains))                    # no provider in two steps
-    assert retest.CONTRAST["company-due-diligence"] == "background"
+    assert defn["scope"] == {"country": ["US"]} and defn["min_pearls_answered"] == 2

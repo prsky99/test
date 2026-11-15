@@ -498,13 +498,22 @@ def call(front, name, arguments, source='mcp', base='https://agentconcierge.biz'
         return 'Arguments must be one JSON object.', {'necklace': entry['slug'], 'ran': False, 'error_code': 'bad_arguments'}, True
     result = RUN(front, entry, arguments, source, meta) or {}
     ok = bool(result.get('ok'))
-    text = ('Ran necklace ' + entry['slug'] + '. ' + ('(Saved answer from ' + str(result.get('ran_at')) + ' UTC.) '
-                                                    if result.get('cached') else '')
-            if ok else 'Necklace ' + entry['slug'] + ' did not finish ('
-            + str(result.get('error_code') or 'failed') + '). ') + json.dumps(result.get('output'), ensure_ascii=False)[:4000]
-    return text, {'necklace': entry['slug'], 'ran': True, 'ok': ok, 'stages': result.get('stages'),
+    refused = result.get('error_code') in REFUSED      # nothing was run (input, consent, scope, limits)
+    if ok:
+        text = 'Ran necklace ' + entry['slug'] + '. ' + (
+            '(Saved answer from ' + str(result.get('ran_at')) + ' UTC.) ' if result.get('cached') else '')
+    else:
+        text = ((str(result['notice']) + ' ') if result.get('notice') else '') + 'Necklace ' + entry['slug'] + (
+            ' did not run (' if refused else ' did not finish (') + str(result.get('error_code') or 'failed') + '). '
+    text += json.dumps(result.get('output'), ensure_ascii=False)[:4000]
+    return text, {'necklace': entry['slug'], 'ran': not refused, 'ok': ok, 'stages': result.get('stages'),
                   'error_code': result.get('error_code'), 'output': result.get('output'),
-                  'cached': bool(result.get('cached')), 'ran_at': result.get('ran_at')}, not ok
+                  'cached': bool(result.get('cached')), 'ran_at': result.get('ran_at'),
+                  **({'notice': result['notice']} if result.get('notice') else {})}, not ok
+
+
+REFUSED = {'invalid_input', 'consent_required', 'sensitive_input', 'rate_limited', 'out_of_scope', 'definition_changed',
+           'not_found', 'invalid_source'}
 
 
 A2A_RUN = re.compile(r'^\s*run\s+necklace\s+([a-z][a-z0-9-]{0,39})\b(.*)$', re.I | re.S)
