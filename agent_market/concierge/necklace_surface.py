@@ -193,6 +193,8 @@ def public_item(entry, base='https://agentconcierge.biz', now=None):
             'completion': {k: completion.get(k) for k in ('runs', 'completed', 'completed_external_only', 'since', 'retested_at')
                            if completion.get(k) is not None},
             'cost': {k: cost.get(k) for k in ('usdc_per_run', 'p50_ms', 'p95_ms') if cost.get(k) is not None}}
+    if fallback(entry):
+        item['fallback'] = fallback(entry)
     found = notice(entry, base)
     if found:
         item['notice'] = {'title': found[0], 'text': found[1], **found[2]}
@@ -436,6 +438,35 @@ def standing_line(entry, now=None):
             + ' retests with at most one failure' + (' (now ' + str(cases) + ').' if isinstance(cases, int) else '.'))
 
 
+# PM 13:53 decision 3 (11-15): how far a run can fall back, from the judge's snapshot (workflow team): "agentvalcon" when
+# every required slot ends in one of our own agents, "external" when some slot has outside members only. Shown as the
+# snapshot says, with no promise; an entry without a well-formed value shows nothing.
+FALLBACK_SLOT = re.compile(r'[a-z0-9][a-z0-9_-]{0,39}')
+
+
+def fallback(entry):
+    """{'depth': ..., 'slots_without_own': [...]} or None."""
+    value = entry.get('fallback') if isinstance(entry, dict) else None
+    if not isinstance(value, dict) or value.get('depth') not in ('agentvalcon', 'external'):
+        return None
+    slots = value.get('slots_without_own') or []
+    if not isinstance(slots, list) or not all(isinstance(x, str) and FALLBACK_SLOT.fullmatch(x) for x in slots):
+        return None
+    if (value['depth'] == 'external') != bool(slots):
+        return None
+    return {'depth': value['depth'], 'slots_without_own': list(slots)}
+
+
+def fallback_line(entry):
+    found = fallback(entry)
+    if not found:
+        return None
+    if found['depth'] == 'agentvalcon':
+        return 'Fallback: if a provider fails, other providers are tried, then an AgentValCon backup, for every step.'
+    return ('Fallback: other providers only for ' + ', '.join(found['slots_without_own'])
+            + ' (no AgentValCon backup yet). If they all fail, the run stops.')
+
+
 # 11-15 user decision (PM 11:3x): necklaces run free for now. The judge marks it in the snapshot (pricing {"mode":
 # "free"}, workflow c5c0595f); the words state the fact and promise no end date, only that a charge is announced first.
 FREE_NOW = 'Free to run for now. If that changes, we will say so on this page first.'
@@ -466,6 +497,7 @@ def page(slug, base='https://agentconcierge.biz', snapshot=None, now=None, run=N
     runs = offered(entry, now)
     parts = [heading('Necklace · Agent Value Gateway', entry.get('name') or slug, entry.get('summary') or ''),
              '<p class="muted necklace-standing">' + esc(standing_line(entry, now)) + '</p>'
+             + ('<p class="muted necklace-fallback">' + esc(fallback_line(entry)) + '</p>' if fallback_line(entry) else '')
              + ('<p class="necklace-free">' + esc(FREE_NOW) + '</p>' if free_now(entry) and offered(entry, now) else '')]
     if run is not None:
         parts.append(result_section(run[1], esc))
