@@ -16,6 +16,7 @@ import argparse
 import json
 import sys
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -78,7 +79,8 @@ def main(argv=None):
             body = page.locator('body').inner_text()
             check(f'necklace page {width}px: standing says running', 'Standing: running' in body, body[:200])
             check(f'necklace page {width}px: a label per step',
-                  page.locator('.necklace-member').count() == len((item or {}).get('pearls') or []), page.locator('.necklace-member').count())
+                  bool(item) and page.locator('.necklace-member').count() == len(item.get('pearls') or []) > 0,
+                  page.locator('.necklace-member').count())
             check(f'necklace page {width}px: steps sentence', 'This necklace joins' in body, '')
             check(f'necklace page {width}px: why paragraph', page.locator('.necklace-why').count() == 1, '')
             if item and item.get('fallback'):
@@ -93,9 +95,13 @@ def main(argv=None):
             page.screenshot(path=str(out / f'necklace-{width}.png'), full_page=True)
             context.close()
         browser.close()
-    with urllib.request.urlopen(urllib.request.Request(args.base + '/necklaces/request',
-                                                       headers={'accept': 'text/html'}), timeout=30) as r:
-        check('/necklaces/request 200', r.status == 200, r.status)
+    try:
+        with urllib.request.urlopen(urllib.request.Request(args.base + '/necklaces/request', headers={
+                'accept': 'text/html', 'user-agent': 'agentvalcon-launch-check/1.0'}), timeout=30) as r:
+            status = r.status
+    except urllib.error.HTTPError as error:
+        status = error.code
+    check('/necklaces/request 200', status == 200, status)
     print(f'{sum(results)}/{len(results)} checks passed; screenshots in {out}')
     return 0 if all(results) else 1
 
