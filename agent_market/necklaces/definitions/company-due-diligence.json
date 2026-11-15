@@ -251,5 +251,6 @@
     "name": "The company's name as the SEC lists it, for example Apple Inc.",
     "country": "US. This version covers US SEC filers only.",
     "domain": "Optional. The company's website domain without https://, for example apple.com."
-  }
+  },
+  "demand": "Outside rank 2 (Edgar Tools 269k, Companies House UK 33.4k, OpenRegistry 19.2k visits); our records: company lookups 2 in 30 days (reports/necklace-demand-2026-11-15)."
 }

@@ -371,5 +371,6 @@
   "replaces_templates": [
     38
   ],
-  "notes": "v1 candidate (workflow team 11-14). Primaries by failure domain: pipeworx.io owns web, nobleblocks.com papers, caseyjhand.com background, galactic.inc news. Both background externals read Wikipedia (one upstream); the AgentValCon fallback reads it too. 11-15 (PM 13:53): background leads with verified pearl 241601 (wikipedia_search), 47189 and 143970 behind it, so the necklace has one verified pearl slot; papers.search or web.grounding brings the second."
+  "notes": "v1 candidate (workflow team 11-14). Primaries by failure domain: pipeworx.io owns web, nobleblocks.com papers, caseyjhand.com background, galactic.inc news. Both background externals read Wikipedia (one upstream); the AgentValCon fallback reads it too. 11-15 (PM 13:53): background leads with verified pearl 241601 (wikipedia_search), 47189 and 143970 behind it, so the necklace has one verified pearl slot; papers.search or web.grounding brings the second.",
+  "demand": "Strong in both: outside rank 3 (Fetch 203k, Firecrawl 170k, Perplexity 54.1k visits); our 30-day external queries after the correction: papers 26, news 16, the only repeated chain papers -> news (reports/necklace-demand-2026-11-15)."
 }

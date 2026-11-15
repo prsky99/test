@@ -165,5 +165,6 @@
   },
   "input_help": {
     "code": "An airport's IATA or ICAO code, for example LAX."
-  }
+  },
+  "demand": "Weak: no large outside evidence (rank 15); our records: airports and earthquakes 0 in 30 days (reports/necklace-demand-2026-11-15)."
 }

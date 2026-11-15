@@ -254,5 +254,6 @@
     55,
     62
   ],
-  "notes": "v1 candidate (workflow team 11-14). PM 11-14 super-gap: first gate together with cve-incident-brief, with the agent team's package-registry and depsdev-package; the former 133021 (npm only) leaves the chain."
+  "notes": "v1 candidate (workflow team 11-14). PM 11-14 super-gap: first gate together with cve-incident-brief, with the agent team's package-registry and depsdev-package; the former 133021 (npm only) leaves the chain.",
+  "demand": "Outside rank 5 (TrendsMCP npm 26.1k, MCP Hub Security 34.8k visits); our records: GitHub, code and packages 20 after the correction, mostly issues and repositories (reports/necklace-demand-2026-11-15)."
 }

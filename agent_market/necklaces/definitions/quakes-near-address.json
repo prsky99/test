@@ -189,5 +189,6 @@
   },
   "input_help": {
     "address": "A street address, landmark or city, for example Tokyo Tower, Minato, Tokyo, Japan."
-  }
+  },
+  "demand": "Weak: no large outside evidence (rank 15); our records: earthquakes 0 in 30 days; kept because it was ready for its gate (reports/necklace-demand-2026-11-15)."
 }

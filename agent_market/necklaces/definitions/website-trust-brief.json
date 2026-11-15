@@ -145,5 +145,6 @@
   },
   "input_help": {
     "domain": "The website's domain without https://, for example python.org."
-  }
+  },
+  "demand": "Weak: no outside directory evidence (rank 14); our records after removing automatic repeats: website monitoring 10, DNS and mail authentication 7 in 30 days (reports/necklace-demand-2026-11-15)."
 }
