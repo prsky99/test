@@ -270,28 +270,29 @@ def test_retention_change_is_requested_then_applied_through_review(dash, browser
         page.goto(ORIGIN + '/admin/next#/system/t03')
         card = page.locator('section', has=page.get_by_role('heading', name='보존 기간 설정'))
         row = card.locator('.adm-switch', has_text='security_events')
-        expect(row).to_contain_text('자동 정리 안 함')
+        current = row.locator('strong')  # the row's setting line; the select's options also say '자동 정리 안 함'
+        expect(current).to_contain_text('90일 보존')  # code default since 7611479a (11-11 user decision, 90 days)
         expect(row.locator('select option')).to_have_count(5)  # 30-day floor: off, 30, 90, 180, 365
-        row.locator('select').select_option('90')
+        row.locator('select').select_option('180')
         row.get_by_role('button', name='변경 요청').click()
         dialog = page.locator('dialog.adm-dialog')
-        dialog.locator('textarea').fill('보안 이벤트 90일 보존')
+        dialog.locator('textarea').fill('보안 이벤트 180일 보존')
         dialog.get_by_role('button', name='승인 요청', exact=True).click()
         expect(dialog.locator('.adm-status')).to_contain_text('확인 항목')
         dialog.locator('#adm-ack').check()
         dialog.get_by_role('button', name='승인 요청', exact=True).click()
         expect(page.locator('.adm-toast')).to_contain_text('보존 기간 변경 요청')
-        expect(row).to_contain_text('자동 정리 안 함')  # not applied yet
+        expect(current).to_contain_text('90일 보존')  # not applied yet
         page.goto(ORIGIN + '/admin/next#/security/s01')
         review = page.locator('.adm-reviews li').first
-        expect(review).to_contain_text('security_events → 90일 보존')
+        expect(review).to_contain_text('security_events → 180일 보존')
         review.get_by_role('button', name='검토 후 적용').click()
         dialog.locator('textarea').fill('백업 확인 후 단독 검토')
         dialog.locator('#adm-ack').check()
         dialog.get_by_role('button', name='적용', exact=True).click()
         expect(page.locator('.adm-reviews li').first).to_contain_text('적용됨')
         page.goto(ORIGIN + '/admin/next#/system/t03')
-        expect(page.locator('.adm-switch', has_text='security_events')).to_contain_text('90일 보존')
+        expect(page.locator('.adm-switch', has_text='security_events').locator('strong')).to_contain_text('180일 보존')
         page.screenshot(path=str(SHOTS / 'next-retention-policy.png'), full_page=True)
         assert not errors and not external
     finally:
