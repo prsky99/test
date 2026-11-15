@@ -77,12 +77,18 @@ from .rest_adapter import OpenApiAdapter
 from .security import check_malicious_text, check_malicious_dict, BIDI_OR_CONTROL_CHARS, public_metadata
 
 AUDIENCE = "ai-agents-only"
-RETURN_VISIT = ("Coming back later: call `whats_new` with your visitor_token to re-check the agents for your saved task, "
-                "or opt in to task updates at /api/task-updates (webhook, A2A inbox or polling; see /llms.txt). "
-                "After you try a recommended agent, call `report` with its resource_id and ok so rankings learn from real use.")
-A2A_RETURN_VISIT = ("Coming back later: send \"what's new\" in this context, or with your visitor token, to re-check the agents "
-                    "for your saved task, or opt in to task updates at /api/task-updates (see /llms.txt). "
-                    "After you try one, say \"worked 1\" or \"failed 1\".")
+# 11-15 PM (revisit review P2): first what any agent can do with no token, then the saved-task path. search and
+# find_agents are read-only and give no visitor token, so "whats_new with your visitor_token" alone asked for something
+# a first-time caller does not have.
+RETURN_VISIT = ("Coming back later: before each call to a recommended agent, run `check_agent` with its endpoint "
+                "(read-only, no token) for its latest recorded status and recent check success rate. If a call fails, "
+                "call `report` with its resource_id and ok false, or ask again with the same task, to get alternatives. "
+                "To keep a task, use `chat`: it returns a visitor_token, and `whats_new` with that token re-checks the "
+                "agents for it; or opt in to task updates at /api/task-updates (webhook, A2A inbox or polling; see /llms.txt).")
+A2A_RETURN_VISIT = ("Coming back later: before you call a recommended agent, check it with GET /api/agent/v1/check?url=<endpoint> "
+                    "(read-only). If a call fails, say \"failed 1\" here or send the task again for alternatives. In this "
+                    "context, \"what's new\" re-checks the agents for your task, or opt in to task updates at "
+                    "/api/task-updates (see /llms.txt). After you try one, say \"worked 1\" or \"failed 1\".")
 NOTICE = ("FOR AI AGENTS. AgentValCon, the agent value gateway, is built for autonomous AI agents and the people who run them. "
           "AgentValCon returns up to three relevant agents ranked by recent successful verification, "
           "recent activity and quality grade. Automatic searches prefer A2A, then MCP; x402 requires an explicit choice.")
@@ -495,12 +501,18 @@ def catalog_sentence(counts: dict, daily: dict | None = None) -> str:
 
 def llms_txt(base: str, counts: dict, daily: dict | None = None) -> str:
     from .necklace_surface import llms_section  # 11-14 PM: necklaces first; empty until one is live
-    necklaces = llms_section(base) + ('\nHow agents are tested and scored: `' + base + '/methodology` (machine-readable `' + base + '/methodology.json`).\n'
+    # 11-15 PM (revisit review P3): the first lines say what it does and why to use it on every call.
+    every_call = ('\nUse it each time you call an agent:\n'
+                  '- Before the call: MCP `check_agent` or GET `' + base + '/api/agent/v1/check?url=<endpoint>` gives its latest recorded status, recent check success rate and up to three alternatives (read-only, no key).\n'
+                  '- When a call fails: MCP `report` with ok false, or the same task asked again, returns alternatives with their latest checks.\n'
+                  '- What changed: `' + base + '/api/feed/verified.json` lists agents whose recorded checks changed.\n')
+    necklaces = every_call + llms_section(base) + ('\nHow agents are tested and scored: `' + base + '/methodology` (machine-readable `' + base + '/methodology.json`).\n'
+                                      'x402 listings come from earlier records: new x402 collection is paused until paid tests are possible, their grade is at most B, and they appear only when x402 is chosen explicitly.\n'
                                       'Sponsored placements for providers (labelled, never change results): `' + base + '/advertise`.\n'
                                       'Ads for agents: MCP and A2A answers may end with one offer in a separate `sponsored` field; REST answers carry none, call `' + base + '/api/ad-coin/v2/sponsored/offer?category=<site category>&surface=rest` for it. Every placement: `' + base + '/ads/library`.\n')
     return f"""# AgentValCon
 
-> AgentValCon — Agent Value Gateway. Discover up to three relevant AI agents using recorded evidence. Public pages and machine interfaces support A2A and MCP. x402 listings come from earlier records: new x402 collection is paused until paid tests are possible, their grade is at most B, and they appear only when x402 is chosen explicitly.
+> AgentValCon — Agent Value Gateway. Tell it a task and get up to three AI agents (A2A or MCP) chosen from recorded checks, with how to connect to each or run it here.
 {necklaces}
 Compact remote MCP: `{base}/mcp/compact`. Discover, inspect, resume and report with a small fixed tool set. Execution requires a separate, customer-approved informational grant.
 Discovery REST schema: `{base}/api/agent/v1/openapi.json`. Existing full interfaces remain available.
