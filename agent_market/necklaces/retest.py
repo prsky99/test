@@ -500,9 +500,114 @@ def grade_book_task(case, output) -> bool:
 GRADERS["book"] = grade_book
 GRADERS["author"] = grade_author
 
+
+# ---------------------------------------------------------------- website-trust-brief (workflow 11-15)
+# Crawlers both readiness answers speak about (search and AI-search agents, plus the AI training agents the
+# fallback lists). A clear case is all allowed or all blocked; anything between is "mixed" and any verdict passes
+# that speaks about crawler access, because feeds check different agent lists.
+CRAWLERS = ("GPTBot", "OAI-SearchBot", "ChatGPT-User", "ClaudeBot", "anthropic-ai", "Google-Extended", "PerplexityBot",
+            "CCBot", "Googlebot", "Bingbot")
+BLOCKED_WORDS = ("block", "disallow", "not allowed", "denied", "fail", "cannot fetch", "can't fetch", "restricted")
+ALLOWED_WORDS = ("pass", "allowed", "may fetch", "can fetch", "accessible", "permitted", "no restrictions")
+_ROBOTS_REFERENCE: dict = {}
+
+
+def _fetch_robots(url: str):
+    """(status, text) of a robots.txt through the shared ledger as reference_checks; None when it cannot be read."""
+    import urllib.error
+    import urllib.request
+    from ..provider_budget import note, reserve
+    from .gold import USER_AGENT
+    ok, _why = reserve(url, "reference_checks")
+    if not ok:
+        return None
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": USER_AGENT}), timeout=15) as r:
+            note(url, "reference_checks", getattr(r, "status", 200))
+            return 200, r.read(500_000).decode("utf-8", "replace")
+    except urllib.error.HTTPError as exc:
+        note(url, "reference_checks", exc.code)
+        return (exc.code, "") if exc.code in (404, 410) else None
+    except Exception:                                     # noqa: BLE001 - unreadable: the case is not graded
+        return None
+
+
+def robots_reference(domain: str, now: float | None = None, get=_fetch_robots) -> str | None:
+    """'allowed', 'blocked' or 'mixed' for the home page under today's robots.txt (cached ten minutes); a missing
+    robots.txt allows everything; None when it cannot be read (5xx, timeout, budget)."""
+    from urllib.robotparser import RobotFileParser
+    now = time.time() if now is None else now
+    key = (domain, int(now // REFERENCE_SECONDS))
+    if key not in _ROBOTS_REFERENCE:
+        got = get(f"https://{domain}/robots.txt")
+        if got is None:
+            return None
+        status, text = got
+        if status != 200:
+            verdict = "allowed"
+        else:
+            parser = RobotFileParser()
+            parser.parse(text.splitlines())
+            blocked = [bot for bot in CRAWLERS if not parser.can_fetch(bot, f"https://{domain}/")]
+            verdict = "allowed" if not blocked else "blocked" if len(blocked) == len(CRAWLERS) else "mixed"
+        if len(_ROBOTS_REFERENCE) > 500:
+            _ROBOTS_REFERENCE.clear()
+        _ROBOTS_REFERENCE[key] = verdict
+    return _ROBOTS_REFERENCE[key]
+
+
+def grade_registration(case, slot_out) -> bool:
+    """The RDAP registration date, to the day (one day of slack for time zones)."""
+    from datetime import date, timedelta
+    if not slot_out:
+        return False
+    text, truth = _text(slot_out), date.fromisoformat(case["truth"]["registered"])
+    return any(str(truth + timedelta(days=d)) in text for d in (-1, 0, 1))
+
+
+def grade_crawlers(case, slot_out, now: float | None = None, reference: str | None = None) -> bool:
+    """A crawler verdict that agrees with robots.txt read now: all allowed must be said as allowed (and no named
+    crawler said blocked), all blocked as blocked; a mixed file needs only a word about crawler access."""
+    if not slot_out:
+        return False
+    text = _text(slot_out)
+    if not re.search(r"crawl|robots|bot\b|bots\b|" + "|".join(b.lower() for b in CRAWLERS), text):
+        return False
+    verdict = reference or robots_reference(case["truth"]["domain"], now)
+    if verdict is None:
+        return False
+    said_blocked = any(w in text for w in BLOCKED_WORDS)
+    positive = re.sub(r"disallow\w*|not allowed|not permitted|inaccessible", " ", text)   # "disallowed" is no 'allowed'
+    said_allowed = any(w in positive for w in ALLOWED_WORDS)
+    if verdict == "allowed":
+        return said_allowed and not any(re.search(re.escape(b.lower()) + r"\W{1,6}(blocked|disallowed)", text)
+                                        for b in CRAWLERS)
+    if verdict == "blocked":
+        return said_blocked
+    return said_blocked or said_allowed
+
+
+def grade_site_task(case, output) -> bool:
+    """website-trust-brief as one task, for the necklace and every single member alike: the registration date and a
+    crawler verdict. A domain lookup says nothing about crawlers; a readiness check gives no registration date."""
+    output = output or {}
+    registration_part = output.get("registration") if "registration" in output else output
+    crawlers_part = output.get("crawlers") if "crawlers" in output else output
+    return grade_registration(case, registration_part) and grade_crawlers(case, crawlers_part)
+
+
+def site_excluded(case, now: float | None = None) -> str | None:
+    return None if robots_reference(case["truth"]["domain"], now) is not None else "reference_unavailable"
+
+
+GRADERS["registration"] = grade_registration
+GRADERS["crawlers"] = grade_crawlers
+TASK_EXCLUDE["website-trust-brief"] = site_excluded
+
 TASK_GRADERS = {"company-due-diligence": grade_company_task, "quakes-near-address": grade_quakes_task,
-                "book-author-brief": grade_book_task}
+                "book-author-brief": grade_book_task, "website-trust-brief": grade_site_task}
 CONTRAST["book-author-brief"] = "author"
+CONTRAST["website-trust-brief"] = "crawlers"
 
 
 def grade(defn: dict, case: dict, output: dict) -> dict:

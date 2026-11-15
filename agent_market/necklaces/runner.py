@@ -88,6 +88,7 @@ class SlotResult:
 
 # ---------------------------------------------------------------- argument mapping
 TEMPLATE = re.compile(r"^\{\{(input|slot)\.([a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*)?)\}\}$")
+INNER_TEMPLATE = re.compile(r"\{\{(input|slot)\.([a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*)?)\}\}")
 
 
 def render(input_map: dict, values: dict) -> dict:
@@ -100,6 +101,13 @@ def render(input_map: dict, values: dict) -> dict:
             name = match.group(2) if match.group(1) == "input" else "slot." + match.group(2)
             if values.get(name) not in (None, ""):
                 args[key] = values[name]
+        elif isinstance(value, str) and INNER_TEMPLATE.search(value):
+            # a template inside text ("https://{{input.domain}}"): filled as text, left out when a value is absent
+            parts = [(m, m.group(2) if m.group(1) == "input" else "slot." + m.group(2))
+                     for m in INNER_TEMPLATE.finditer(value)]
+            if all(values.get(name) not in (None, "") for _, name in parts):
+                args[key] = INNER_TEMPLATE.sub(lambda m: str(values[m.group(2) if m.group(1) == "input"
+                                                                    else "slot." + m.group(2)]), value)
         else:
             args[key] = value
     return args

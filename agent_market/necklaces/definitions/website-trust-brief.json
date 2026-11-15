@@ -1,0 +1,131 @@
+{
+  "slug": "website-trust-brief",
+  "version": 1,
+  "status": "candidate",
+  "name": "Website trust brief",
+  "summary": "How long a website's domain has been registered (registration date and registrar from RDAP) and whether AI crawlers may read its home page under its robots.txt, in one answer.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "domain": {
+        "type": "string",
+        "pattern": "^(?=.{4,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}$"
+      }
+    },
+    "required": [
+      "domain"
+    ],
+    "additionalProperties": false
+  },
+  "budget_ms": {
+    "total": 5000,
+    "slot": 5000
+  },
+  "synthesis": {
+    "kind": "merge-v1",
+    "rules": [
+      "registration comes from RDAP; crawler access from the site's robots.txt as checked today",
+      "a run counts only when at least two verified pearls answered (the domain lookup and the readiness check)",
+      "every statement keeps its source link"
+    ]
+  },
+  "answer_set": "website-trust-brief-v1",
+  "slots": [
+    {
+      "slot": "registration",
+      "contract": "domain.lookup.v1",
+      "required": true,
+      "fanout": 1,
+      "chain": [
+        {
+          "kind": "external",
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "resource_id": 52559,
+          "tool": "whois_lookup",
+          "registrable_domain": "presend.pages.dev",
+          "upstream": [
+            "rdap"
+          ],
+          "state": "active",
+          "pearl": true,
+          "input_map": {
+            "domain": "{{input.domain}}"
+          }
+        },
+        {
+          "kind": "agentcon",
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "agent_id": "rdap-domain",
+          "resource_id": null,
+          "tool": "lookup_domain",
+          "registrable_domain": "agentconcierge.biz",
+          "upstream": [
+            "rdap"
+          ],
+          "state": "planned",
+          "input_map": {
+            "domain": "{{input.domain}}"
+          }
+        }
+      ]
+    },
+    {
+      "slot": "crawlers",
+      "contract": "website.ai_readiness.v1",
+      "required": true,
+      "fanout": 1,
+      "chain": [
+        {
+          "kind": "external",
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "resource_id": 132732,
+          "tool": "check_store_ai_readiness",
+          "registrable_domain": "xfix.ai",
+          "upstream": [
+            "site-robots"
+          ],
+          "state": "active",
+          "pearl": true,
+          "input_map": {
+            "store_url": "https://{{input.domain}}"
+          }
+        },
+        {
+          "kind": "agentcon",
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "agent_id": "site-readiness",
+          "resource_id": null,
+          "tool": "check_site_files",
+          "registrable_domain": "agentconcierge.biz",
+          "upstream": [
+            "site-robots"
+          ],
+          "state": "planned",
+          "input_map": {
+            "domain": "{{input.domain}}"
+          }
+        }
+      ]
+    }
+  ],
+  "notes": "v1 candidate (100-necklace plan 7-2, workflow 11-15). Leads are verified pearls 52559 (domain.lookup, RDAP) and 132732 (website.ai_readiness, xfix.ai); both passed the relay check at 11:41-11:46. 132732 answered in 12.6 s through the relay, so the crawlers slot gets the whole 5 s budget and may need a longer one after the tuning round. Fallbacks rdap-domain and site-readiness are planned until ops approves them. The task is graded whole (retest.grade_site_task): the RDAP registration date and a crawler verdict that agrees with robots.txt read when the case is graded.",
+  "min_pearls_answered": 2,
+  "probe_input": {
+    "domain": "python.org"
+  },
+  "input_help": {
+    "domain": "The website's domain without https://, for example python.org."
+  }
+}
