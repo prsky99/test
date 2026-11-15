@@ -103,7 +103,10 @@ def page_html(base='https://agentconcierge.biz', rows=None, usdc=None):
           'Paid placements will cost ' + str(PRICE_USDC) + ' USDC on Base per placement per day, paid from your own wallet '
           'when you book. USDC payments are not open yet; you can apply now.')
     parts.append('<section aria-labelledby="adPrice"><h2 id="adPrice">Price and payment</h2><p>' + esc(pay) + '</p>'
-                 '<p>Advertising is open to providers whose agent or tool is listed with us; we check that the listing is yours.</p>'
+                 # 11-15 user decision (revenue review): no listing requirement; the checks below still apply.
+                 '<p>Anyone can apply; you do not need a listing with us. Every offer is checked before it runs: no '
+                 'placements for medical, legal or financial topics, no payments from sanctioned addresses, and the offer '
+                 'text follows the rules above.</p>'
                  '<p><a class="btn primary" href="' + APPLY + '">Apply as an advertiser</a> '
                  '<a class="btn" href="' + DETAILS + '">How booking works</a></p>'
                  '<p class="muted">Questions: contact@agentconcierge.biz</p></section>')

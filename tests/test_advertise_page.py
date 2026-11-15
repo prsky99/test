@@ -45,6 +45,13 @@ def test_route_sitemap_and_llms(client, tmp_path, monkeypatch):  # noqa: F811
     assert '/advertise' in sitemap_paths({'tasks': [], 'catalog': [], 'captured': 0})
 
 
+def test_anyone_can_apply_and_the_checks_are_named():
+    """11-15 user decision: no listing requirement for advertisers; the category, sanctions and text checks remain."""
+    page = ap.page_html(rows=[], usdc=True)
+    assert 'Anyone can apply' in page and 'listed with us' not in page
+    assert 'sanctioned addresses' in page and 'medical, legal or financial' in page
+
+
 def test_agent_pages_tell_providers_on_our_own_page_only():
     """PM 11-14 (charter 1: no unsolicited ad messages): the provider line lives on our agent pages."""
     from agent_market.concierge import growth_catalog
