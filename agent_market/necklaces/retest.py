@@ -169,20 +169,29 @@ def _text(value) -> str:
     return json.dumps(value, ensure_ascii=False, default=str).lower()
 
 
+def _token(value: str, text: str) -> bool:
+    """VALUE as a whole token of TEXT (not inside a longer number, version or id)."""
+    return re.search(r"(?<![\w.])" + re.escape(value.lower()) + r"(?![\w]|\.\d)", text) is not None
+
+
 def grade_advisories(case, slot_out) -> bool:
+    """PM R25: a clean version passes only with no advisory listed; otherwise 90% of the truth's advisories must be
+    found and at least half of what was listed must be true (a dump of every id does not pass)."""
     if not slot_out or slot_out.get("missing"):
         return False
     found = {i["id"].upper() for i in slot_out.get("items", [])}
     truth = case["truth"]["advisories"]
     if not truth:
-        return True                       # a clean version: nothing to miss
+        return not found                  # a clean version: listing anything is a wrong answer
+    known = {x.upper() for adv in truth for x in adv["ids"]}
     hit = sum(1 for adv in truth if {x.upper() for x in adv["ids"]} & found)
-    return hit / len(truth) >= 0.9
+    return hit / len(truth) >= 0.9 and len(found & known) >= len(found) / 2
 
 
 def grade_health(case, slot_out) -> bool:
+    """The registry's latest version as a whole version token (1.2 does not match 1.2.3)."""
     latest = case["truth"].get("latest_version")
-    return bool(slot_out) and not slot_out.get("missing") and bool(latest) and latest.lower() in _text(slot_out)
+    return bool(slot_out) and not slot_out.get("missing") and bool(latest) and _token(latest, _text(slot_out))
 
 
 def grade_record(case, slot_out) -> bool:
@@ -202,8 +211,9 @@ def grade_registry(case, slot_out) -> bool:
     if not slot_out or slot_out.get("missing"):
         return False
     text = _text(slot_out)
-    ids = [case["truth"].get("lei"), case["truth"].get("cik")]
-    return any(i and i.lower() in text for i in ids)
+    cik, lei = case["truth"].get("cik"), case["truth"].get("lei")
+    return bool((cik and re.search(r"(?<!\d)0*" + re.escape(str(int(cik))) + r"(?!\d)", text))
+                or (lei and _token(lei, text)))
 
 
 STOP = {"the", "of", "and", "a", "an", "in", "for", "to", "or", "by", "on", "with"}
@@ -236,7 +246,11 @@ def grade_background(case, slot_out) -> bool:
         return False
     if "wiki" not in case["truth"]:
         text = _text(slot_out)
-        return any(re.search(r"\b" + re.escape(w) + r"\b", text) for w in company_words(case))
+        words = company_words(case)
+        named = [w for w in words if re.search(r"\b" + re.escape(w) + r"\b", text)]
+        # R25: a description, not an echo of the name: at least two distinctive words of the name (all when it has
+        # fewer) and some text beyond them
+        return len(named) >= min(2, len(words)) and len(re.sub(r"[^a-z]", "", text)) >= 60
     text, wiki = _text(slot_out), case["truth"]["wiki"]
     if wiki["title"].lower() in text:
         return True
@@ -245,7 +259,18 @@ def grade_background(case, slot_out) -> bool:
 
 
 def grade_web(case, slot_out) -> bool:
-    return bool(slot_out) and not slot_out.get("missing") and "https://" in _text(slot_out)
+    """R25: a grounded answer about the topic: an https link and the topic named (its title, or two words of its
+    short description); a bare link no longer passes."""
+    if not slot_out or slot_out.get("missing") or "https://" not in _text(slot_out):
+        return False
+    wiki = (case["truth"] or {}).get("wiki")
+    if not wiki:
+        return False
+    text = _text(slot_out)
+    if wiki["title"].lower() in text:
+        return True
+    words = {w for w in (wiki.get("description") or "").lower().split() if w not in STOP and len(w) > 2}
+    return len([w for w in words if w in text]) >= 2
 
 
 GRADERS = {"advisories": grade_advisories, "health": grade_health, "record": grade_record,

@@ -37,7 +37,8 @@ def test_run_set_writes_daily_lines_and_single_baselines(tmp_path):
     clock = iter(range(0, 1000, 1))
     out = retest.run_set(defn, cases, caller_from(answers), root=tmp_path, singles=True,
                          clock=lambda: next(clock), now=lambda: 1_800_000_000)
-    assert out == {"slug": "package-risk-audit", "split": "tuning", "cases": 2, "passed": 2, "excluded": 0, "of": 2,
+    # c2 is a clean version, but 367249 lists an advisory for it: a wrong answer since R25 (passed 1 of 2)
+    assert out == {"slug": "package-risk-audit", "split": "tuning", "cases": 2, "passed": 1, "excluded": 0, "of": 2,
                    "stopped_by_budget": False, "seconds": out["seconds"]}
     lines = [json.loads(l) for l in (tmp_path / "retest" / "20270115.jsonl").read_text().splitlines()]
     kinds = {l["type"] for l in lines}
@@ -163,7 +164,9 @@ def test_topic_graders():
     assert retest.grade_background(case, {"text": "CRISPR gene editing is a gene editing method"})
     assert retest.grade_background(case, {"text": "a method for gene editing"})
     assert not retest.grade_background(case, {"text": "a recipe for bread"})
-    assert retest.grade_web(case, {"answer": "see https://example.org"}) and not retest.grade_web(case, {"answer": "x"})
+    assert retest.grade_web(case, {"answer": "CRISPR gene editing, see https://example.org"})
+    assert not retest.grade_web(case, {"answer": "see https://example.org"})       # R25: a bare link is not grounding
+    assert not retest.grade_web(case, {"answer": "CRISPR gene editing"})             # and no link is no grounding
 
 
 # ---------------------------------------------------------------- company-due-diligence v1 task (PM 11-15 decisions)
@@ -180,14 +183,14 @@ PEARL_FILINGS = {"text": json.dumps({"company": {"cik": 320193, "ticker": "AAPL"
 
 def necklace_output(filings=PEARL_FILINGS):
     return {"registry": {"answers": [{"legal_name": "Apple Inc.", "cik": "320193", "ticker": "AAPL"}]},
-            "background": {"answers": [{"text": "Apple Inc. is an American technology company"}]},
+            "background": {"answers": [{"text": "Apple Inc. is an American multinational technology company that designs consumer electronics"}]},
             "filings": {"answers": [filings]}}
 
 
 def test_company_background_names_the_company():
-    assert retest.grade_background(US_CASE, {"text": "Apple Inc. is an American technology company"})
+    assert retest.grade_background(US_CASE, {"text": "Apple Inc. is an American multinational technology company that designs consumer electronics"})
     assert not retest.grade_background(US_CASE, {"text": "Inc. is a legal form"})          # legal words do not count
-    assert retest.grade_background(JP_CASE, {"text": "Toyota Motor Corporation is a Japanese automaker"})
+    assert retest.grade_background(JP_CASE, {"text": "Toyota Motor Corporation is a Japanese multinational automotive manufacturer in Aichi"})
 
 
 def test_filings_pass_with_the_truth_or_a_later_periodic_filing_only():
@@ -319,3 +322,23 @@ def test_a_gate_round_can_take_the_public_engine_path(tmp_path, monkeypatch):
     out = retest.run_daily(defn, root=tmp_path, split="tuning", singles=False, budget_s=60, path="engine",
                            engine=Engine())
     assert out["path"] == "engine" and out["passed"] == 1 and seen
+
+
+# ---------------------------------------------------------------- R25: every grader fails a wrong answer
+def test_wrong_answers_fail_every_grader():
+    clean = {"truth": {"advisories": [], "latest_version": "4.17.21"}}
+    assert retest.grade_advisories(clean, {"items": []})
+    assert not retest.grade_advisories(clean, {"items": [{"id": "CVE-2099-0001"}]})     # anything listed is wrong
+    vulnerable = {"truth": {"advisories": [{"ids": ["CVE-2021-23337", "GHSA-35JH-R3H4-6JHM"]}]}}
+    assert retest.grade_advisories(vulnerable, {"items": [{"id": "GHSA-35JH-R3H4-6JHM"}]})
+    dump = {"items": [{"id": "CVE-2021-23337"}] + [{"id": f"CVE-2099-{i:04d}"} for i in range(5)]}
+    assert not retest.grade_advisories(vulnerable, dump)                                  # a dump of ids
+    assert retest.grade_health(clean, {"text": "latest 4.17.21"})
+    assert not retest.grade_health(clean, {"text": "latest 4.17.210"})
+    assert not retest.grade_health({"truth": {"latest_version": "1.2"}}, {"text": "1.2.3"})
+    registry = {"truth": {"cik": "1750", "lei": None}}
+    assert retest.grade_registry(registry, {"cik": "0000001750"})
+    assert not retest.grade_registry(registry, {"cik": "17501"})                          # not inside another number
+    assert not retest.grade_background(US_CASE, {"text": "Apple"})                         # an echo, not a description
+    assert not retest.grade_background(US_CASE, {"text": "Banana Republic is an American clothing and accessories retailer"})
+    assert not retest.grade_company_task(US_CASE, {"r": "CIK 320193 Apple " + "x" * 80})   # no filing
