@@ -1,10 +1,26 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "biz.agentconcierge/agent-concierge",
-  "title": "Agent Concierge",
-  "description": "Find AI agents, MCP servers and x402 APIs for a task, ranked by recorded checks and quality.",
-  "version": "1.0.0",
+  "title": "AgentValCon — Agent Value Gateway",
+  "description": "Find AI agents and MCP servers for a task, ranked by recorded checks. Check one before you call.",
+  "version": "1.1.0",
   "websiteUrl": "https://agentconcierge.biz/connect",
+  "icons": [
+    {
+      "src": "https://agentconcierge.biz/logo.svg",
+      "mimeType": "image/svg+xml",
+      "sizes": [
+        "any"
+      ]
+    },
+    {
+      "src": "https://agentconcierge.biz/new/en/assets/pearl.png",
+      "mimeType": "image/png",
+      "sizes": [
+        "1254x1254"
+      ]
+    }
+  ],
   "remotes": [
     {
       "type": "streamable-http",

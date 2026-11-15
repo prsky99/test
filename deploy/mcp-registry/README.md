@@ -76,3 +76,9 @@ DNS 방식으로 하려면 Cloudflare에서 apex TXT `v=MCPv1; k=ed25519; p=<PUB
 - 도메인 확인은 HTTP 방식으로 했다. 공개 키 파일은 `logs/service-frontend/public-pages/mcp-registry-auth`(git 제외)에 두었고, 응답은 200 text/plain이다.
 - 개인 키는 `~/.mcp-registry/key.pem`(권한 600, 저장소 밖)에 있다. 새 버전을 게시할 때 다시 쓴다. 잃어버리면 새 키로 확인 파일을 바꾸면 된다.
 - 다음 버전: `server.json`의 `version`을 올리고, 3절의 login 단계부터 다시 한다.
+
+## 5. 1.1.0 초안 (2026-11-15 12:2x, 성장·유통, 게시는 사용자 승인 뒤)
+- 바꾼 것: title "Agent Concierge" → "AgentValCon — Agent Value Gateway"(지금 브랜드, serverInfo.title과 같음), description에서 수집을 멈춘 x402를 빼고 "Find AI agents and MCP servers for a task, ranked by recorded checks. Check one before you call."(96자), icons 2개(`/logo.svg` any, `/new/en/assets/pearl.png` 1254x1254), version 1.1.0(서버 serverInfo.version도 1.1.0으로 함께 올림).
+- 2025-12-11 공식 스키마로 로컬 검증: 오류 0.
+- 이유: 공식 Registry는 다른 클라이언트·집계자가 원천으로 가져간다(https://modelcontextprotocol.io/registry/registry-aggregators). 등재 정보가 11-09 그대로라 옛 브랜드와 멈춘 x402를 보여 주고 있었다. 게시 정책은 불법·악성·스팸·동작 안 하는 서버만 내리며 광고 금지 조항은 없다(https://modelcontextprotocol.io/registry/moderation-policy).
+- 게시 순서: 서버(serverInfo 1.1.0)가 먼저 배포된 뒤, 3절의 login부터 사용자가 실행한다.

@@ -3633,7 +3633,7 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
                 "protocolVersion": asked if asked in MCP_VERSIONS else MCP_VERSIONS[0],
                 "supportedVersions": list(MCP_VERSIONS),
                 "capabilities": {"tools": {"listChanged": False}, "tasks": mcp_tasks.CAPABILITY},
-                "serverInfo": {"name": "agent-concierge", "title": "AgentValCon — Agent Value Gateway", "version": "1.0.0"},
+                "serverInfo": {"name": "agent-concierge", "title": "AgentValCon — Agent Value Gateway", "version": "1.1.0"},
                 "instructions": instructions}))
 
         if method == "initialize":
@@ -3652,7 +3652,7 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             return JSONResponse(mcp_result(rid, {
                 "protocolVersion": asked if asked in MCP_VERSIONS else MCP_VERSIONS[0],
                 "capabilities": {"tools": {"listChanged": False}, "tasks": mcp_tasks.CAPABILITY},
-                "serverInfo": {"name": "agent-concierge", "title": "AgentValCon — Agent Value Gateway", "version": "1.0.0"},
+                "serverInfo": {"name": "agent-concierge", "title": "AgentValCon — Agent Value Gateway", "version": "1.1.0"},
                 "instructions": instructions}), headers={"Mcp-Session-Id": sid})
         if isinstance(method, str) and method.startswith("notifications/"):
             return Response(status_code=202)
