@@ -458,7 +458,8 @@ def call(front, name, arguments, source='mcp', base='https://agentconcierge.biz'
     text = ('Ran necklace ' + entry['slug'] + '. ' if ok else 'Necklace ' + entry['slug'] + ' did not finish ('
             + str(result.get('error_code') or 'failed') + '). ') + json.dumps(result.get('output'), ensure_ascii=False)[:4000]
     return text, {'necklace': entry['slug'], 'ran': True, 'ok': ok, 'stages': result.get('stages'),
-                  'error_code': result.get('error_code'), 'output': result.get('output')}, not ok
+                  'error_code': result.get('error_code'), 'output': result.get('output'),
+                  'cached': bool(result.get('cached'))}, not ok
 
 
 A2A_RUN = re.compile(r'^\s*run\s+necklace\s+([a-z][a-z0-9-]{0,39})\b(.*)$', re.I | re.S)

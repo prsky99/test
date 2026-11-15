@@ -1,7 +1,17 @@
 import json
 
-from agent_market.necklaces import model, service
+from agent_market.necklaces import limits, model, service
 from tests.test_necklaces_runner import Fail, caller_from, necklace
+
+
+import pytest  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _fresh_limits():
+    limits.reset()
+    yield
+    limits.reset()
 
 
 def setup(tmp_path):
@@ -19,7 +29,8 @@ def call(tmp_path, args, source="mcp", meta=None, answers=None, entry=None, sens
     defs, default_entry = setup(tmp_path)
     return service.run_for_surface(None, entry or default_entry, args, source, meta, root=tmp_path,
                                    definitions_dir=defs, sensitive=sensitive,
-                                   caller=caller_from(answers or {1: "CVE-2020-28500", 3: "listed in CISA KEV"}))
+                                   caller=caller_from(answers or {1: "CVE-2020-28500", 3: "listed in CISA KEV"}),
+                                   limiter=limits.RunLimiter(), cache=limits.ResultCache(), domains=limits.DomainCap())
 
 
 def events(tmp_path):

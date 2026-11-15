@@ -21,7 +21,7 @@ import os
 import re
 from pathlib import Path
 
-from . import model, runner
+from . import limits, model, runner
 from .judge import DEFAULT_ROOT
 
 NOTICE = "necklace-v1"
@@ -92,7 +92,7 @@ def definitions_root() -> Path:
 
 def run_for_surface(front, entry: dict, arguments, source: str, meta: dict | None = None, *,
                     root: Path | None = None, definitions_dir: Path | None = None,
-                    caller=None, sensitive=None) -> dict:
+                    caller=None, sensitive=None, limiter=None, cache=None, domains=None) -> dict:
     """``meta`` = {ip, ua, qa, principal, internal_ips} of the request; without it the run counts as internal.
 
     Wired at app assembly: ``necklace_surface.RUN = service.run_for_surface`` (PM F05, 11-14)."""
@@ -113,15 +113,25 @@ def run_for_surface(front, entry: dict, arguments, source: str, meta: dict | Non
             from ..workflows import sensitive
         if sensitive(values) or TOKEN.search(json.dumps(values, ensure_ascii=False)):
             raise Refused("sensitive_input")
-    except Refused as exc:
+        # PM R21: per client, per necklace and total run limits before anything is sent
+        (limits.LIMITER if limiter is None else limiter).admit(defn["slug"], (meta or {}).get("ip"))
+    except (Refused, limits.Refused) as exc:
         return {"ok": False, "output": None, "stages": {}, "error_code": exc.code}
+    cache = limits.CACHE if cache is None else cache
+    cache_key = cache.key(defn["slug"], defn["version"], model.digest(defn), values)
+    cached = cache.get(cache_key)
     try:
         watch_state = json.loads((Path(root) / "watch" / "state.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         watch_state = {}
-    if caller is None:
-        caller = runner.engine_caller(front.workflows)
-    result = runner.Runner(caller, watch_state=watch_state).run(defn, values)
+    if cached is not None:
+        result = dict(cached, latency_ms=0, cached=True)
+    else:
+        if caller is None:
+            caller = runner.engine_caller(front.workflows)
+        caller = (limits.DOMAINS if domains is None else domains).wrap(caller)
+        result = runner.Runner(caller, watch_state=watch_state).run(defn, values)
+        cache.put(cache_key, result)
     if meta is None:
         source_class, origin = runner.classify_source(None)
     else:
@@ -131,6 +141,8 @@ def run_for_surface(front, entry: dict, arguments, source: str, meta: dict | Non
             internal_principals=meta.get("internal_principals") or frozenset())
     event = runner.run_event(result, source_class, origin)
     event["surface"] = source
+    if result.get("cached"):
+        event["cached"] = True          # served from the short result cache: no member was called
     try:
         runner.append_event(root, event)
     except OSError:
@@ -138,4 +150,5 @@ def run_for_surface(front, entry: dict, arguments, source: str, meta: dict | Non
     return {"ok": result["ok"], "output": result["output"],
             "stages": {name: s["stage"] for name, s in result["slots"].items()},
             "statuses": {name: s["status"] for name, s in result["slots"].items()},
+            "cached": bool(result.get("cached")),
             "error_code": None if result["ok"] else "slot_failed:" + str(result["failed_slot"])}
