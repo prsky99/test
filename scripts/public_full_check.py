@@ -143,6 +143,13 @@ def split(r, took):
     floor = path_floor()
     if floor:
         ref.update(floor)
+    if not os.environ.get('PYTEST_CURRENT_TEST'):   # no outside call inside a test
+        try:   # PM 11-15 14:38: the edge alone at this moment, with connect/TLS/total and colo (scripts/net_path)
+            sys.path.insert(0, str(Path(__file__).resolve().parent))
+            import net_path
+            ref['trace'] = net_path.trace_now()
+        except Exception:  # noqa: BLE001 - reference only
+            ref['trace'] = None
     return ref
 
 

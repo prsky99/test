@@ -108,6 +108,13 @@ def curl(url, body=False, host=None):
     return result
 
 
+def trace_now():
+    """The edge alone at this moment (PM 11-15 14:38): a new connection to /cdn-cgi/trace with its connect, TLS and
+    total times and the colo that answered. Put next to a user_slo or full-check sample it splits the sample time
+    into the Korea-to-edge path and our share. Reference only: no sample is dropped and no verdict changes."""
+    return curl(f'https://{HOST}/cdn-cgi/trace', True)
+
+
 def tunnel():
     code, out = run(['curl', '-s', '-m', '2', METRICS], 3)
     if code != 0 or not out:

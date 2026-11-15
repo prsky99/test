@@ -162,6 +162,17 @@ def colo(response):
     return ray.rsplit('-', 1)[-1] if '-' in ray else None
 
 
+def trace():
+    """/cdn-cgi/trace right after a sample (scripts/net_path.trace_now); None when it cannot run or inside a test."""
+    if os.environ.get('PYTEST_CURRENT_TEST'):
+        return None
+    try:
+        import net_path
+        return net_path.trace_now()
+    except Exception:  # noqa: BLE001 - a reference value never fails the measurement
+        return None
+
+
 def check_explore(n=6):
     rows = []
     for query in unseen(n):
@@ -173,7 +184,7 @@ def check_explore(n=6):
             except ValueError:
                 pass
         rows.append({'q': query, 's': took, 'status': getattr(response, 'status_code', error), 'total': total,
-                     'colo': colo(response), 'cache': cache(response), **phases(response)})
+                     'colo': colo(response), 'cache': cache(response), **phases(response), 'trace': trace()})
     bad = [r for r in rows if r['s'] > TARGET['explore_s'] or r['status'] != 200 or not r['total']]
     return {'samples': rows, 'max_s': max(r['s'] for r in rows), 'ok': not bad, 'bad': bad}
 
@@ -320,7 +331,7 @@ def check_recommend_and_connect(n=2):
         available = first_card_available(result[1] if result else None)
         wanted = recommended_tool(result[1] if result else None)
         rec.append({'task': task, 's': took, 'answered': bool(text), 'error': error,
-                    **phases(result[0] if result else None)})
+                    **phases(result[0] if result else None), 'trace': trace()})
         endpoint = connection_route(text)
         if not endpoint:
             # No gateway path for the first recommendation (or no recommendation): a failed connection (PM 11-12).
@@ -366,7 +377,7 @@ def check_pages():
     for path in ('/new/en/explore.html', '/new/en/chat.html', '/'):
         took, response, error = timed(lambda: on_fresh(lambda c: c.get(BASE + path, headers={'Accept': 'text/html'})))
         rows.append({'path': path, 's': took, 'status': getattr(response, 'status_code', error), 'colo': colo(response),
-                     'cache': cache(response), **phases(response)})  # 11-11 PM: edge state and legs next to the time
+                     'cache': cache(response), **phases(response), 'trace': trace()})  # 11-11 PM: edge state and legs
     bad = [r for r in rows if r['s'] > TARGET['page_s'] or r['status'] != 200]
     return {'samples': rows, 'ok': not bad, 'bad': bad}
 
