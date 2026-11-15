@@ -173,3 +173,38 @@ def test_failing_fallback_is_demoted_after_two_hours_and_restored_after_six():
     for h in range(8, 14):
         hour(h)
     assert order() == ["fb1", "fb2"]
+
+
+def test_a_new_problem_after_a_re_approval_holds_again(tmp_path):
+    """PM R20 reproduction: hold (1000) -> re-approval (2000) -> new security problem (3000) must hold."""
+    defn = trial()
+    defn["status"] = "live"
+    iso = lambda t: judge._iso(NOW + t)
+    state, rows = {}, healthy_rows()
+    rows[2] = row(readOnlyHint=False)
+    watch.observe([defn], lambda rid: rows.get(rid), {}, state, NOW + 1000)
+    approval = {"slug": "topic-brief", "version": 1, "definition_digest": model.digest(defn), "state": "approved",
+                "at": iso(2000)}
+    rows[2] = row()
+    rows[4] = row(destructiveHint=True)
+    watch.observe([defn], lambda rid: rows.get(rid), {}, state, NOW + 3000, approvals={"topic-brief": approval})
+    hold = state["holds"]["topic-brief"]
+    assert hold["since"] == iso(3000) and not hold.get("released")
+    assert [e["since"] for e in hold["events"]] == [iso(1000), iso(3000)]
+    assert hold["events"][0]["released_by"] == "approval " + iso(2000)
+    assert judge.watch_hold("topic-brief", state, approval) == "security"
+
+
+def test_a_second_problem_on_an_open_hold_moves_since_forward():
+    defn = trial()
+    state, rows = {}, healthy_rows()
+    rows[2] = row(readOnlyHint=False)
+    watch.observe([defn], lambda rid: rows.get(rid), {}, state, NOW)
+    watch.observe([defn], lambda rid: rows.get(rid), {}, state, NOW + 3600)
+    assert len(state["holds"]["topic-brief"]["events"]) == 1          # the same problem is one event
+    rows[4] = row(destructiveHint=True)
+    watch.observe([defn], lambda rid: rows.get(rid), {}, state, NOW + 7200)
+    hold = state["holds"]["topic-brief"]
+    assert len(hold["events"]) == 2 and hold["since"] == judge._iso(NOW + 7200)
+    approval_between = {"state": "approved", "at": judge._iso(NOW + 3600)}
+    assert judge.watch_hold("topic-brief", state, approval_between) == "security"
