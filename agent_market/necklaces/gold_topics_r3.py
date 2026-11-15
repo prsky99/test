@@ -27,7 +27,7 @@ WIKI = "https://en.wikipedia.org/w/api.php?"
 # 11-16 (PM 06:5x): OpenAlex now allows about 100 keyless searches a day (the ledger keeps 50), so the papers truth
 # may come from Crossref instead (bibliographic metadata CC0; sorted by citation count). Each case names its source.
 CROSSREF = ("https://api.crossref.org/works?query.title=%s&filter=type:journal-article&sort=is-referenced-by-count"
-            "&order=desc&rows=%d&select=DOI,title")
+            "&order=desc&rows=%d&select=DOI,title&mailto=contact@agentconcierge.biz")   # Crossref's polite pool (ops 11-16)
 PAPER_SOURCES = {"openalex": {"name": "OpenAlex (title search, most cited)", "url": "https://api.openalex.org/works"},
                  "crossref": {"name": "Crossref (title search, most referenced)", "url": "https://api.crossref.org/works"}}
 OPENALEX = ("https://api.openalex.org/works?per-page=%d&sort=cited_by_count:desc&select=doi,title,publication_year"
