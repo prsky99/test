@@ -16,7 +16,8 @@ from threading import Event, Lock, Thread
 import time
 
 from .sponsored import DAY_MS, SITE_CATEGORIES
-from .sponsored_offer import AGENT_PLACEMENTS, OfferError, agent_block, public_endpoint, sensitive, validate_offer
+from .sponsored_offer import (AGENT_PLACEMENTS, OfferError, advertiser_name_ok, agent_block, public_endpoint, sensitive,
+                              validate_offer)
 
 logger = logging.getLogger(__name__)
 REFRESH_SECONDS = 30
@@ -114,8 +115,8 @@ class AgentOfferProvider:
             return None
         for card in self.slots.cards(category, region, rebuild=False):
             offer = self._offers.get(card["id"])
-            if offer is None:
-                continue
+            if offer is None or not advertiser_name_ok(card["advertiser"]):
+                continue                                 # R33: a name that fails the screen never reaches agents
             block = agent_block(card, offer, category=category, region=region)
             block["click_url"] = "/api/ad-coin/v2/sponsored/click/%s?surface=%s&category=%s" % (card["id"], surface, site)
             if ctx.get("counted") and self._counting:
