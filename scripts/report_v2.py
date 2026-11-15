@@ -213,13 +213,14 @@ def reference_value(url, ttl=600):
         return hit[1]
     value = None
     try:
-        import httpx
-        resp = httpx.get(url, timeout=10, headers={'User-Agent': 'AgentConcierge-Verification/1.0'})
-        if resp.status_code == 200:
+        # R16 (precision review, PM 11-15): through the shared outside-call ledger like every other answer-key read
+        # (data_quality._fetch_json: 'reference_checks' share, 429 stops the domain for the day).
+        data = DQ._fetch_json(url)
+        if data is not None:
             if 'coinbase' in url:
-                value = float(resp.json()['data']['amount'])
+                value = float(data['data']['amount'])
             elif 'finance/chart' in url:   # last regular-market price (Stooq's CSV page answered 'does not exist', 11-14)
-                value = float(resp.json()['chart']['result'][0]['meta']['regularMarketPrice'])
+                value = float(data['chart']['result'][0]['meta']['regularMarketPrice'])
     except Exception:
         value = None
     _REFERENCE[url] = (time.time(), value)
@@ -243,7 +244,13 @@ def judge(role, text, args):
         checks.append({'check': name, 'passed': passed})
     live = role_catalog.live_spec(canonical(role))
     not_live = []
-    if live:
+    if live and live.get('terms_ok') is False:
+        # R16: a reference suspended until its terms are confirmed (Coinbase, Yahoo) is never called; the check is
+        # recorded as not checked, the same way assess() gives it no accuracy points.
+        not_live.append(live['reference'])
+        checks.append({'check': 'within the public reference (not checked: reference suspended until its terms are confirmed)',
+                       'passed': False})
+    elif live:
         reference = reference_value(live['reference'])
         if reference is None:
             not_live.append(live['reference'])
@@ -1014,7 +1021,8 @@ def build_queue(seed_file=ROOT / 'reports/pearls-2026-11-14/role_candidates_1115
 
 
 def run(queue):
-    """Role tests for QUEUE within today's limits: 80 new + 40 retests, 120 in all, 60 after refusals pass 5%."""
+    """Role tests for QUEUE within today's limits: 80 new + 40 retests, 120 in all, 60 after refusals pass 5%.
+    Returns today's own errors: tests our code could not run and results it could not store (R15)."""
     import httpx
     import pearl_batch as PB
     from role_tool_test import resources, test_one
@@ -1022,6 +1030,7 @@ def run(queue):
     for key in ('role_tests', 'refusals', 'new_tests', 'retests'):
         pacer.state.setdefault(key, 0)
     found = resources({c['id'] for c in queue})
+    errors = {'our_errors': 0, 'save_errors': 0}
     with httpx.Client(follow_redirects=False) as http:
         for candidate in queue:
             tests = pacer.state['role_tests']
@@ -1041,6 +1050,7 @@ def run(queue):
                 print(f"role test skipped, our error: {candidate['id']} {candidate['role']} {type(error).__name__}",
                       file=sys.stderr)
                 pacer.state['our_errors'] = int(pacer.state.get('our_errors', 0)) + 1
+                errors['our_errors'] += 1
                 pacer.save()
                 continue                        # not the provider's failure: no version is stored
             if not (result.get('outcome') == 'skipped' and 'limit' in str(result.get('reason'))):
@@ -1051,7 +1061,25 @@ def run(queue):
             pacer.save()
             if our_side_skip(result):
                 continue                        # R08: not stored; the candidate stays in tomorrow's queue
+            if not save_once_more(result):      # R15: one candidate's storage error never stops the day's run
+                errors['save_errors'] += 1
+                pacer.state['save_errors'] = int(pacer.state.get('save_errors', 0)) + 1
+                pacer.save()
+    return errors
+
+
+def save_once_more(result, wait=1.0):
+    """save_version with one retry (it is idempotent by attempt_id); False, logged, when both fail (R15)."""
+    for attempt in (1, 2):
+        try:
             save_version(result)
+            return True
+        except Exception as error:
+            print(f"role test not stored ({attempt}/2): {result.get('id')} {result.get('role')} {type(error).__name__}",
+                  file=sys.stderr)
+            if attempt == 1:
+                time.sleep(wait)
+    return False
 
 
 def main(argv=None):

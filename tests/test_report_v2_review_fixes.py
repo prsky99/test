@@ -156,3 +156,49 @@ def test_r08_our_side_skips_are_not_stored_and_failures_come_back(monkeypatch, t
     V.save_version({**base, 'started': NOW - 30 * 3600 + 60})                           # two in a row: wait two days
     assert V.retest_queue(V.latest_versions(), day=1, now=NOW) == []
     assert [c['id'] for c in V.retest_queue(V.latest_versions(), day=1, now=NOW + 24 * 3600)] == [42]
+
+
+def test_r15_one_storage_error_never_stops_the_run(monkeypatch, tmp_path):
+    """Precision review R15: a candidate whose result cannot be stored is retried once and then skipped."""
+    import pearl_batch as PB
+    import role_tool_test as RT
+    monkeypatch.setattr(PB, 'STATE_DIR', tmp_path / 'state')
+    monkeypatch.setattr(V, 'quiet_now', lambda: True)
+    monkeypatch.setattr(V.time, 'sleep', lambda seconds: None)
+    monkeypatch.setattr(RT, 'resources', lambda ids: {})
+    monkeypatch.setattr(RT, 'test_one', lambda http, c, r, p: {**c, 'tool': 'convert', 'host': 'fx.example',
+                                                              'outcome': 'failed', 'reason': 'HTTP 500', 'started': time.time()})
+    real, tries = V.save_version, []
+
+    def flaky(result, **k):
+        tries.append(result['id'])
+        if result['id'] == 51:
+            raise OSError('disk')
+        return real(result, **k)
+    monkeypatch.setattr(V, 'save_version', flaky)
+    errors = V.run([{'id': 51, 'role': 'fx.rate', 'kind': 'new'}, {'id': 52, 'role': 'fx.rate', 'kind': 'new'}])
+    assert errors == {'our_errors': 0, 'save_errors': 1} and tries == [51, 51, 52]
+    assert V.version_dir(52, 'fx.rate.v1').exists() and not V.version_dir(51, 'fx.rate.v1').exists()
+
+
+def test_r15_a_failed_daily_stage_is_retried_and_said(monkeypatch, out):
+    import pearl_daily as PD
+    monkeypatch.setattr(PD.V, 'OUT', out)            # pearl_daily imports report_v2 by its plain name: another module
+    said, calls = [], []
+    monkeypatch.setattr(PD, 'RETRY_WAIT', 0)
+    monkeypatch.setattr(PD, 'alert', said.append)
+    monkeypatch.setitem(__import__('sys').modules, 'health_tiers', type('M', (), {'main': staticmethod(lambda: None)}))
+    monkeypatch.setitem(__import__('sys').modules, 'verify_snapshot', type('M', (), {'main': staticmethod(lambda: None)}))
+    monkeypatch.setattr(PD.V, 'import_fallbacks', lambda: 0)
+
+    def queue():
+        calls.append('queue')
+        if len(calls) == 1:
+            raise RuntimeError('first try')
+        return []
+    monkeypatch.setattr(PD.V, 'build_queue', queue)
+    monkeypatch.setattr(PD.V, 'run', lambda q: {'our_errors': 0, 'save_errors': 0})
+    monkeypatch.setattr(PD.V, 'publish', lambda board: (_ for _ in ()).throw(OSError('board')))
+    assert PD.main([]) == 1 and calls == ['queue', 'queue']
+    assert said and 'publish OSError' in said[0] and '전날 결과' in said[0]
+    assert not list(out.glob('done-*'))
