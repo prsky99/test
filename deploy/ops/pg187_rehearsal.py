@@ -48,7 +48,7 @@ def say(step, **fields):
 
 
 def run(cmd, env=None, check=True, timeout=300):
-    done = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=timeout)
+    done = subprocess.run(cmd, env=env, capture_output=True, text=True, errors='replace', timeout=timeout)
     if check and done.returncode:
         raise RuntimeError(f"{Path(cmd[0]).name} failed ({done.returncode}): {(done.stderr or done.stdout)[-400:]}")
     return done
@@ -206,6 +206,8 @@ def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('--root', required=True, type=Path)
     parser.add_argument('--keep', action='store_true', help='leave the scratch clusters in place')
+    parser.add_argument('--prepare-only', action='store_true',
+                        help='pour and relocate the bottles and check the paths; start no cluster (light, any hour)')
     args = parser.parse_args(argv)
     root = args.root.resolve()
     if str(root).startswith(BREW) or (root / 'hb').resolve() == Path(BREW):
@@ -220,6 +222,8 @@ def main(argv=None):
     results['pour'] = say('pour', kegs={k: v.name for k, v in kegs.items()}, relocated_files=fixed, links=links)
     pg_config = run([str(new_keg / 'bin/pg_config'), '--version', '--pkglibdir', '--sharedir']).stdout.split('\n')
     results['paths'] = say('paths', pg_config=pg_config[:3], expected_pkglibdir=str(hb / 'lib/postgresql@18'))
+    if args.prepare_only:
+        return 0 if pg_config[1] == str(hb / 'lib/postgresql@18') else 1
 
     # 2) 18.7 alone
     new = Cluster(new_keg / 'bin', root / 'data187', root / 's187', root / 'server187.log')
