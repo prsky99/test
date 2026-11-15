@@ -421,6 +421,33 @@ def _subject_words(terms, item):
     return sum(1 for t in terms if _term_in(t, text))
 
 
+def _tools_text(item):
+    return ' '.join(str(s.get('name') or '') + ' ' + str(s.get('description') or '')
+                    for s in item.get('tools_schema') or []).lower()
+
+
+def mentioned_only_last(task, items):
+    """A listing whose own text names a subject word that none of its tools does ("weather" in a city newsletter's
+    description, tools list_cities and get_city: MailerDot 342017, 11-14 find_agents "get current weather for a
+    city") moves behind the candidates whose tools say that word. Listings without known tools never move."""
+    from .selection import _term_in
+    terms = [t for t in search_terms(task) if t not in GENERIC_SUBJECT_TERMS]
+    if len(items) < 2 or not terms:
+        return items
+    tools = [_tools_text(item) for item in items]
+    sayers = {t: [i for i, text in enumerate(tools) if text and _term_in(t, text)] for t in terms}
+    order = list(range(len(items)))
+    for i, item in enumerate(items):
+        if not tools[i]:
+            continue
+        own = ' '.join([str(item.get('name') or ''), str(item.get('description') or '')]).lower()
+        behind = [j for t in terms if _term_in(t, own) and i not in sayers[t] for j in sayers[t]]
+        if behind and max(behind) > i:
+            order.remove(i)
+            order.insert(order.index(max(behind)) + 1, i)
+    return [items[i] for i in order]
+
+
 SEMANTIC_SHORTLIST = 10
 RELAY_WIDEN = 30          # candidates read once more when none of the admitted ones is relayed by the gateway
 RELAY_WIDEN_BEFORE = 2.5  # seconds into a request after which that wider read does not start (recommend: 5 s interim)
@@ -932,7 +959,7 @@ class FastConcierge(Concierge):
                 message += ' ' + no_match_data['cross_protocol_hint']['message']
             return Reply(message, 'find', no_match_data)
         # Among the admitted candidates, the ones whose own words name the task's subject lead (11-04 review A-1).
-        items = subject_first(task, items)
+        items = mentioned_only_last(task, subject_first(task, items))
         step('prepare')
         from .recommendation_evidence import evidence
         from .selection import capability_terms
