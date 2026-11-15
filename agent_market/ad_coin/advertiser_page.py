@@ -1,6 +1,6 @@
 """Advertiser console page (English, signed-in invited customers).
 
-It uses the Agent Concierge "Pearl Connection" design system as it is: the shared
+It uses the AgentValCon "Pearl Connection" design system as it is: the shared
 stylesheets and app.js under /new/en/assets, the workspace shell (ws-top header,
 ws-sidebar, ws-main, page-heading) and the shared components (card, field, btn,
 badge, data-table, note, tabs, pearl steps). No page-local styles.
@@ -47,7 +47,7 @@ PAGE = """<!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex, noarchive">
 <meta name="referrer" content="no-referrer">
-<title>Advertising | Agent Concierge</title>
+<title>Advertising | AgentValCon</title>
 <link rel="icon" href="/new/en/assets/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/new/en/assets/styles.css">
 <link rel="stylesheet" href="/new/en/assets/necklace.css">
@@ -59,7 +59,7 @@ PAGE = """<!doctype html>
 <a class="sr-only skip-link" href="#main">Skip to content</a>
 <header class="ws-top">
 <div class="container header-inner">
-<a class="brand" href="/new/en/index.html"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>Agent Concierge</a>
+<a class="brand" href="/new/en/index.html"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>AgentValCon</a>
 <a class="small mobile-hidden" href="/new/en/explore.html">Back to discovery</a>
 <div class="header-actions">
 {sun}<button class="theme-toggle" type="button" data-action="theme" aria-label="Toggle dark theme" aria-pressed="false"></button>{moon}

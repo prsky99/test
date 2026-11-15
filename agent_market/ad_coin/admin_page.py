@@ -1,6 +1,6 @@
 """AI AD Coin operator console (Korean: the admin side stays Korean; admin token).
 
-It uses the Agent Concierge "Pearl Connection" design system as it is (shared files
+It uses the AgentValCon "Pearl Connection" design system as it is (shared files
 under /new/en/assets, the workspace shell and shared components; no page-local
 styles). The admin console's own stylesheet lives on the private admin host, so this
 page uses the public files, which carry the same pearl tokens. Fixed text renders at
@@ -24,7 +24,7 @@ PAGE = """<!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex, noarchive">
 <meta name="referrer" content="no-referrer">
-<title>AI AD Coin 운영 | Agent Concierge</title>
+<title>AI AD Coin 운영 | AgentValCon</title>
 <link rel="icon" href="/new/en/assets/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/new/en/assets/styles.css">
 <link rel="stylesheet" href="/new/en/assets/necklace.css">
@@ -36,7 +36,7 @@ PAGE = """<!doctype html>
 <a class="sr-only skip-link" href="#main">본문으로 건너뛰기</a>
 <header class="ws-top">
 <div class="container header-inner">
-<a class="brand" href="/new/en/index.html"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>Agent Concierge</a>
+<a class="brand" href="/new/en/index.html"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>AgentValCon</a>
 <span class="small mobile-hidden">AI AD Coin 운영</span>
 <div class="header-actions">
 {sun}<button class="theme-toggle" type="button" data-action="theme" aria-label="어두운 테마 전환" aria-pressed="false"></button>{moon}
