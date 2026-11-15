@@ -28,7 +28,7 @@ def test_report_identity_private_rows_historical_target_and_source_preservation(
     for hidden in [old,raw,'Upstream Provider Target','private runtime value','private-person','private-author','synthetic-secret-marker','Wrong protocol']:assert hidden not in response.text
     assert 'https://docs.example/guide' in response.text and 'https://sources.example/current' in response.text
     assert report['agent_url']==gateway_agent_url(rid,'mcp') and report['wire_scope']=='historical-sanitized'
-    assert report['author']=='Agent Concierge'
+    assert report['author']=='AgentValCon'  # R64 (11-15): public brand
     assert dict(store.query('SELECT * FROM agent_test_reports WHERE id=?',(report_id,))[0])==original
     assert store.resource(rid)==original_resource
 

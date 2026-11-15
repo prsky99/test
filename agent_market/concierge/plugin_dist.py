@@ -1,4 +1,4 @@
-"""Self-hosted Claude Code marketplace for the Agent Concierge plugin (11-10, no GitHub).
+"""Self-hosted Claude Code marketplace for the AgentValCon plugin (11-10, no GitHub).
 
     /plugin marketplace add https://agentconcierge.biz/claude-plugins/marketplace.json
     /plugin install agent-concierge@agent-concierge
@@ -46,8 +46,8 @@ def archive():
 
 def marketplace():
     _, sha = archive()
-    return {'name': NAME, 'owner': {'name': 'Agent Concierge', 'url': ORIGIN},
-            'metadata': {'description': 'Agent Concierge: ' + DESCRIPTION[0].lower() + DESCRIPTION[1:]},
+    return {'name': NAME, 'owner': {'name': 'AgentValCon', 'url': ORIGIN},
+            'metadata': {'description': 'AgentValCon: ' + DESCRIPTION[0].lower() + DESCRIPTION[1:]},
             'plugins': [{'name': NAME, 'description': DESCRIPTION, 'version': version(),
                          'source': {'source': 'archive', 'url': f'{ORIGIN}/claude-plugins/{zip_name()}', 'sha256': sha}}]}
 

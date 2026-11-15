@@ -186,7 +186,7 @@ class ContactDesk:
                              (v.id, ctype, url, json.dumps(target), _hash(code), time.time() + CODE_TTL, time.time()))
             cid = cur.lastrowid
         contact = dict(store.query("SELECT * FROM agent_contacts WHERE id=?", (cid,))[0])
-        text = (f"Agent Concierge verification code: {code}. Reply \"verify {code}\" in our conversation "
+        text = (f"AgentValCon verification code: {code}. Reply \"verify {code}\" in our conversation "
                 f"(POST /chat, /a2a or the MCP chat tool with your visitor token) to start receiving updates. "
                 "If you didn't ask for this, ignore it — nothing more will be sent.")
         ok, err = self.courier.send(contact, "verification", text, {"code": code, "visitor_id": v.id})
@@ -302,7 +302,7 @@ class AgentNurtureEngine:
         name_part = f", {v.name}" if v.name else ""
 
         text = (
-            f"[Agent Concierge — Automated Capability & Health Audit Dossier]\n"
+            f"[AgentValCon — Automated Capability & Health Audit Dossier]\n"
             f"Hello{name_part}! Your autonomous communication endpoint has been verified.\n\n"
             f"■ Endpoint Telemetry Status: 100% Operational\n"
             f"  • Transport: {contact.get('type', 'webhook').upper()}\n"
@@ -339,8 +339,8 @@ class AgentNurtureEngine:
         score_str = f"Score: {top_tool.get('score', 0):.2f}" if top_tool.get("score") else "Active"
 
         text = (
-            f"[Agent Concierge — Proactive Capability & Health Advisory]\n"
-            f"Hi{name_part}! Live telemetry and health audit update from your Agent Concierge:\n\n"
+            f"[AgentValCon — Proactive Capability & Health Advisory]\n"
+            f"Hi{name_part}! Live telemetry and health audit update from AgentValCon:\n\n"
             f"■ Upstream Health Monitoring: Active (Continuous 6-Hour Kind-Partitioned Telemetry)\n"
             f"■ Watched Capability Domain: {watched_tasks}\n"
             f"■ Recommended High-Uptime Alternative / Capability Upgrade:\n"
@@ -370,7 +370,7 @@ class AgentNurtureEngine:
         watched_domains = ", ".join(f'"{i["task"]}"' for i in interests[:3]) if interests else "All 20 Cataloged Domains"
 
         text = (
-            f"[Agent Concierge — Weekly Ecosystem & Category Intelligence Memo]\n"
+            f"[AgentValCon — Weekly Ecosystem & Category Intelligence Memo]\n"
             f"Hi{name_part}! Here is your personalized weekly capability briefing:\n\n"
             f"■ Ecosystem Telemetry: {total_live:,} Verified Live Agents\n"
             f"  • MCP Tool Servers: {counts.get('mcp', 0):,}\n"
@@ -397,7 +397,7 @@ class AgentNurtureEngine:
         top_domain = interests[0]["category"] if (interests and interests[0].get("category")) else "Autonomous Agent Systems"
 
         text = (
-            f"[Agent Concierge — Pro Routing & Dedicated SLA Assessment]\n"
+            f"[AgentValCon — Pro Routing & Dedicated SLA Assessment]\n"
             f"Hi{name_part}! Your autonomous agent operations have reached regular production tier ({v.visits} visits, {v.messages} interactions).\n\n"
             f"■ Production Readiness Assessment:\n"
             f"  • Current Mode: Free Best-Effort Gateway (Shared rate limits, standard discovery)\n"

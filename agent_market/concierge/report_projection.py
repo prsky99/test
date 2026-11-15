@@ -106,7 +106,7 @@ def public_report(report,resource,store=None):
     result=private_data(public_metadata(project(result,gateway,bound)))
     current = measured_report(report,subject,store,time.time())
     result['evidence_label'] = 'Current execution evidence' if current else 'Connection check only; no task execution verified' if report.get('evidence_scope') == 'transport' else 'Historical document; no current execution verified'
-    result.update(agent_url=gateway,author='Agent Concierge',wire_scope='historical-sanitized',
+    result.update(agent_url=gateway,author='AgentValCon',wire_scope='historical-sanitized',
                   published_at=report.get('created_at'),execution_measured=current,
                   execution_verified=bool(current and report.get('is_success') == 1),
                   verification_state='current_execution' if current else 'historical_record')
