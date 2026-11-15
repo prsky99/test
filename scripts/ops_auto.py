@@ -278,15 +278,19 @@ def answer_set_expiry(clock=time.time, gold=None, state_path=None):
 HOLIDAY_STATE = ROOT / 'logs/ops/holiday-truth-state.json'
 HOLIDAY_LOG = ROOT / 'logs/ops/holiday-truth.jsonl'
 HOLIDAY_AFTER_HOUR = 10   # workflow 11-15 (PM): one Nager.Date round a day inside the reference_checks share
+HOLIDAY_TRIES = 3
+HOLIDAY_TIMEOUT_S = 180
 
 
-def holiday_truth(clock=time.time, build=None, state_path=None, log_path=None, gold=None):
-    """Once a day from 10:00 until the holidays-at-address set is written: necklaces.gold_holidays asks Nager.Date
-    for the countries it does not keep yet (10 a day within the ledger share) and writes the set at 90 cases. Every
-    run leaves one line (countries kept, cases, stopped by the share or not); a skipped day is caught up the next
-    day because the kept countries stay on disk."""
+def holiday_truth(clock=time.time, run=None, state_path=None, log_path=None, gold=None):
+    """Once a day from 10:00, outside the :55-:10 measurement window, until the holidays-at-address set is written:
+    necklaces.gold_holidays in the app's Python (a subprocess with a timeout: the watch's own Python lacks the app's
+    packages, ops review 11-15) asks Nager.Date for the countries it does not keep yet and writes the set at 90 cases.
+    Every try leaves one line (countries kept, cases, stopped by the share, written, or the error). The day counts as
+    done only on a result (stopped by the share included); an error is tried again next round, at most 3 a day; a
+    skipped day is caught up the next day because kept countries stay on disk."""
     local = datetime.fromtimestamp(clock())
-    if local.hour < HOLIDAY_AFTER_HOUR:
+    if local.hour < HOLIDAY_AFTER_HOUR or local.minute >= 55 or local.minute < 10:
         return None
     gold = Path(gold or ROOT / 'gateway-data/necklaces/gold')
     if (gold / 'holidays-at-address' / 'manifest.json').is_file():
@@ -294,19 +298,29 @@ def holiday_truth(clock=time.time, build=None, state_path=None, log_path=None, g
     state_path, log_path = Path(state_path or HOLIDAY_STATE), Path(log_path or HOLIDAY_LOG)
     day = local.strftime('%Y-%m-%d')
     state = json.loads(state_path.read_text()) if state_path.is_file() else {}
-    if state.get('day') == day:
+    if state.get('day') != day:
+        state = {'day': day, 'tries': 0, 'done': False}
+    if state.get('done') or state.get('tries', 0) >= HOLIDAY_TRIES:
         return None
-    state_path.write_text(json.dumps({'day': day}))
-    if build is None:
-        if str(ROOT) not in sys.path:      # the watch runs this file as a script: only scripts/ is on sys.path
-            sys.path.insert(0, str(ROOT))
-        from agent_market.necklaces.gold_holidays import build
+    run = run or (lambda: subprocess.run([str(ROOT / '.venv/bin/python'), '-m', 'agent_market.necklaces.gold_holidays'],
+                                         capture_output=True, text=True, cwd=ROOT, timeout=HOLIDAY_TIMEOUT_S))
+    state['tries'] = state.get('tries', 0) + 1
     try:
-        result = build(gold.parent)
-        line = {'at': now(), 'ok': True, 'countries_kept': result['countries_kept'], 'countries': result['countries'],
-                'cases': result['cases'], 'stopped': result.get('stopped'), 'written': 'manifest' in result}
-    except Exception as error:  # noqa: BLE001 - one line, then the next day tries again
-        line = {'at': now(), 'ok': False, 'error': type(error).__name__}
+        done = run()
+        result = json.loads(done.stdout.strip().splitlines()[-1]) if done.returncode == 0 else None
+    except (subprocess.TimeoutExpired, ValueError, IndexError) as error:
+        result, reason = None, type(error).__name__
+    else:
+        reason = None if result else f'exit {done.returncode}: {(done.stderr or "").strip().splitlines()[-1:]}'
+    if result:
+        state['done'] = True
+        line = {'at': now(), 'ok': True, 'try': state['tries'], 'countries_kept': result.get('countries_kept'),
+                'countries': result.get('countries'), 'cases': result.get('cases'), 'stopped': result.get('stopped'),
+                'written': 'manifest' in result}
+    else:
+        line = {'at': now(), 'ok': False, 'try': state['tries'], 'error': str(reason)[:300]}
+        append(ACTIONS, f'{now()} 공휴일 정답 받기 실패({state["tries"]}/{HOLIDAY_TRIES}): {str(reason)[:120]}')
+    state_path.write_text(json.dumps(state))
     with log_path.open('a', encoding='utf-8') as handle:
         handle.write(json.dumps(line, ensure_ascii=False) + '\n')
     return line
