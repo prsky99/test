@@ -43,10 +43,20 @@ HEADLESS = re.compile(r'Headless|PhantomJS|Puppeteer|Playwright', re.I)
 BROWSER = re.compile(r'^Mozilla/5\.0 .*(Chrome|Safari|Firefox|Edg)/', re.I)
 
 
+# 11-15 PM (ad demand): the advertiser pages, counted like the other entries. The operator screen and the
+# page assets are not demand. ADVERTISE_FROM is the one fixed value the agent-page note adds to its link
+# (?from=agent-page); any other value is ignored, so the query never carries an agent or a visitor.
+ADVERTISE_PATHS = frozenset(('/advertise', '/ads/library', '/ads/library.json', '/ad-coin/v2'))
+ADVERTISE_SKIP = ('/ad-coin/v2/admin', '/ad-coin/v2/assets/')
+ADVERTISE_FROM = 'agent-page'
+
+
 def entry_of(method, path):
     """Short entry name for a request path, or None for paths not worth counting (assets, probes)."""
     if path.startswith('/new/en/assets/') or path.startswith('/assets/'):
         return None
+    if path in ADVERTISE_PATHS or (path.startswith('/ad-coin/v2/') and not path.startswith(ADVERTISE_SKIP)):
+        return 'advertise'
     if path == '/':
         return 'home'
     if path.startswith('/new/en/') and path.endswith('.html'):
@@ -321,7 +331,7 @@ class Traffic:
         self.recommended = {}          # salted client digest -> surfaces that recommended to it today (memory only)
 
     def observe(self, method, path, status, ip, ua, body=None, headers=None, response_headers=None, cause=None,
-                gateway=None):
+                gateway=None, source=None):
         entry = entry_of(method, path)
         if entry is None:
             return
@@ -334,6 +344,12 @@ class Traffic:
                 self._write_locked()
                 self._reset(today)
             self.requests[key] += 1
+            if entry == 'advertise' and source == ADVERTISE_FROM and path == '/advertise':
+                # Clicks on the provider note under agent pages: a separate entry with the same client classes.
+                self.requests['advertise_from_agent_page|' + client] += 1
+                note = self.distinct['advertise_from_agent_page|' + client]
+                if len(note) < 50_000:
+                    note.add(digest)
             if entry == 'home' and method in ('GET', 'HEAD'):
                 # 11-14 (PM, search C): "/" answers JSON to Accept */* and to no Accept; before changing that,
                 # count who sends what and what they got (kinds only, never the raw header).
@@ -583,6 +599,10 @@ def usage(day_data):
             'mcp_client_names_real': sum(1 for n in names if not PROBE_NAME.search(n)),
             'mcp_client_names_probe': sum(1 for n in names if PROBE_NAME.search(n)),
             'external_distinct_clients': sum(v for k, v in dist.items() if k.split('|')[1] in external),
+            # Ad demand (11-15 PM): people on the advertiser pages, and how many came from the agent-page note.
+            'advertise_human_requests': req.get('advertise|browser', 0),
+            'advertise_human_visitors': dist.get('advertise|browser', 0),
+            'advertise_from_agent_page_human': req.get('advertise_from_agent_page|browser', 0),
             'protocol_errors': sum(day_data['errors'].values()),
             # 405/404 that the protocol itself prescribes (GET SSE, DELETE session, optional discovery files) apart
             # from the rest (11-14 PM): only protocol_errors_other is worth fixing.

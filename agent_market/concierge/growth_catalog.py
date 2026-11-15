@@ -153,8 +153,10 @@ def reported_page(rid, result):
 
 # 11-14 PM: providers learn about verification and Sponsored placements on our own pages, never by unsolicited
 # messages (charter section 1). One quiet line under the evidence; it does not change the listing.
+# 11-15 PM: the same line on listing pages without evidence; the link carries one fixed value so the traffic count
+# can tell note clicks apart (no agent id, nothing about the visitor).
 PROVIDER_NOTE = ('<p class="muted provider-note">Is this your agent? <a href="/methodology">See how it is verified</a>'
-                 ' · <a href="/advertise">Advertise in Sponsored</a></p>')
+                 ' · <a href="/advertise?from=agent-page">Advertise in Sponsored</a></p>')
 
 
 def agent_page(rid, snapshot=None):
@@ -524,7 +526,7 @@ def _render_basic(store, rid):
             '<p>Open the listing in Explore for the connection details, or ask AgentValCon from your MCP client '
             'to compare it with alternatives that already have recorded evidence.</p>'
             '<div class="actions"><a class="btn primary" href="/new/en/explore.html#explore?q='+esc(quote(name))+'">Open in Explore</a>'
-            '<a class="btn" href="/agents/best">Agents with evidence</a></div></section></div>')
+            '<a class="btn" href="/agents/best">Agents with evidence</a></div></section></div>' + PROVIDER_NOTE)
     return g.shell(title=name + ' | AgentValCon', description=description, canonical=g.ORIGIN + '/agent/' + str(rid),
                    body=body, index=False)
 

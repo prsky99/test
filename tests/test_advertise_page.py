@@ -49,7 +49,7 @@ def test_agent_pages_tell_providers_on_our_own_page_only():
     """PM 11-14 (charter 1: no unsolicited ad messages): the provider line lives on our agent pages."""
     from agent_market.concierge import growth_catalog
     note = growth_catalog.PROVIDER_NOTE
-    assert 'href="/methodology"' in note and 'href="/advertise"' in note and 'Is this your agent?' in note
+    assert 'href="/methodology"' in note and 'href="/advertise?from=agent-page"' in note and 'Is this your agent?' in note
     import inspect
     assert 'PROVIDER_NOTE' in inspect.getsource(growth_catalog.agent_page)
 

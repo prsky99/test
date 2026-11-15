@@ -2267,7 +2267,8 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             recorder().observe(request.method, request.url.path, response.status_code, client_ip,
                                request.headers.get('user-agent', ''), getattr(request, '_body', None),
                                request.headers, response.headers,
-                               cause=request.scope.get('traffic_cause'), gateway=request.scope.get('traffic_gateway'))
+                               cause=request.scope.get('traffic_cause'), gateway=request.scope.get('traffic_gateway'),
+                               source=request.query_params.get('from'))
         except Exception:
             pass
         for key,value in request.scope.get('agent_adoption_quota',{}).items():response.headers.setdefault(key,value)
