@@ -359,3 +359,33 @@ def test_db_connections_per_role_by_socket_pairs():
                    'processes': {'frontend': 1, 'admin': 1, 'adcoin_daemon': 1}, 'other': 1}
     assert w._service_role('/r/releases/jobs15-jobs-20261115-r1/.venv/bin/python -B x') == 'jobs'
     assert w.db_connections('', [], 100) == {'total': 0, 'roles': {}, 'processes': {}, 'other': 0}
+
+
+def test_after_three_deferrals_the_full_check_keeps_a_measurement_window_others_must_wait_for(tmp_path, monkeypatch):
+    """PM 11-15 12:24: put off seven times on a busy day, the check never ran; now it takes the next turn."""
+    import json as _json
+    from datetime import datetime as _dt
+    from scripts import heavy_slot as hs
+    ops_auto, board = _board(tmp_path, monkeypatch)
+    board.write_text(board.read_text() + '\n## 리허설 전용 시간 (설명)\n\n## 배포 잠금\n(비어 있음)\n')
+    monkeypatch.setattr(ops_auto, 'FULL_CHECK_STATE', tmp_path / 'fc.json')
+    reasons = ['tests_or_deploy_running'] * 3 + [None]
+    monkeypatch.setattr(ops_auto, 'busy', lambda: reasons.pop(0))
+    launched = []
+    t0 = _dt(2026, 11, 15, 12, 20).timestamp()
+    run = lambda t: ops_auto.full_check(clock=lambda: t, launch=lambda *a, **k: launched.append(a), free=True,  # noqa: E731
+                                        window=None if False else '')
+    assert run(t0) == 'deferred' and run(t0 + 600) == 'deferred'
+    assert '측정 전용' not in board.read_text()                       # two deferrals: nothing kept yet
+    assert run(t0 + 1200) == 'deferred'                               # the third keeps the window
+    text = board.read_text()
+    assert '## 측정 전용 시간' in text and '- 11-15 12:40~13:40 측정 전용: 전수 점검(운영·SRE) 3번 밀림' in text
+    inside = _dt(2026, 11, 15, 12, 45)
+    assert 'reserved for the public measurement' in hs.reserved(inside, board, 'release_gate x')
+    assert 'reserved for the public measurement' in hs.reserved(inside, board)          # pytest_slot's small runs
+    assert hs.reserved(inside, board, 'public_full_check (ops_auto 2시간)') is None     # the check itself goes ahead
+    assert run(t0 + 1800) == 'started' and launched
+    text = board.read_text()
+    assert text.count('측정 전용: 전수 점검') == 1 and '- 11-15 12:50~13:10 측정 전용: 전수 점검(운영·SRE) 실행 중' in text
+    assert hs.reserved(_dt(2026, 11, 15, 13, 10), board, 'release_gate x') is None    # quiet ends with the check
+    assert _json.loads((tmp_path / 'fc.json').read_text())['deferred'] == 0

@@ -38,7 +38,8 @@ PSQL = ['/opt/homebrew/opt/postgresql@18/bin/psql', '-h', str(ROOT / 'gateway-da
 TEAM = {'site': '운영·SRE', 'memory': '운영·SRE', 'disk': '운영·SRE', 'deploy_stuck': '운영·SRE',
         'deploy_lock': '잠금을 잡은 팀', 'long_tests': '시험을 돌린 팀', 'stale_handoffs': '받는 팀',
         'ad_coin_ledger': 'AI AD Coin', 'payment_flow': 'AI AD Coin', 'adcoin_daemon': 'AI AD Coin',
-        'launchd_jobs': '운영·SRE', 'backup': '운영·SRE', 'core_down': '운영·SRE', 'vector_index_usage': '검색과 RAG', 'north_star': 'PM', 'revenue': 'PM', 'fingerprints': '운영·SRE', 'adcoin_review': 'PM'}
+        'launchd_jobs': '운영·SRE', 'backup': '운영·SRE', 'core_down': '운영·SRE', 'vector_index_usage': '검색과 RAG', 'north_star': 'PM', 'revenue': 'PM', 'fingerprints': '운영·SRE', 'adcoin_review': 'PM',
+        'answer_sets': '워크플로우'}
 ALERT_SYSTEM = (
     'You write operations alerts in Korean for the owner of the Agent Concierge website. '
     'Input is JSON describing detected anomalies. Write at most three short lines in plain Korean: what is wrong, '
@@ -235,6 +236,44 @@ def north_star(clock=time.time, run=None):
     board_handoff('north_star', text)
     append(ACTIONS, f'{now()} 북극성: {text}')
     return record
+
+
+ANSWER_SET_STATE = ROOT / 'logs/ops/answer-set-expiry-state.json'
+ANSWER_SET_WARN_DAYS = 14   # PM 12:27 (11-15): a board line 14 days before an answer set expires, never a silent hold
+
+
+def answer_set_expiry(clock=time.time, gold=None, state_path=None):
+    """Once a day: open the '자동 점검 [answer_sets]' line when a necklace answer set (gold/<slug>/manifest.json
+    valid_until) expires within 14 days, has expired or has no validity; close it when none does. Without a valid
+    set no retest or gate round runs and the necklace is held 48 hours later, so the line comes first."""
+    from datetime import timedelta
+    gold = Path(gold or ROOT / 'gateway-data/necklaces/gold')
+    state_path = Path(state_path or ANSWER_SET_STATE)
+    local = datetime.fromtimestamp(clock())
+    day = local.strftime('%Y-%m-%d')
+    state = json.loads(state_path.read_text()) if state_path.is_file() else {}
+    if state.get('day') == day:
+        return None
+    state_path.write_text(json.dumps({'day': day}))
+    soon = (local + timedelta(days=ANSWER_SET_WARN_DAYS)).strftime('%Y-%m-%d')
+    found = []
+    for path in sorted(gold.glob('*/manifest.json')):
+        try:
+            until = json.loads(path.read_text()).get('valid_until')
+        except (OSError, ValueError):
+            until = None
+        if not until:
+            found.append(f'{path.parent.name} 유효기간 없음')
+        elif until < day:
+            found.append(f'{path.parent.name} {until} 만료됨')
+        elif until <= soon:
+            found.append(f'{path.parent.name} {until} 만료')
+    if found:
+        board_handoff('answer_sets', '정답 세트 다시 만들기(만료되면 재시험·관문이 멈추고 48시간 뒤 보류): '
+                      + ', '.join(found))
+    else:
+        board_close('answer_sets', f'해결 {day}: 14일 안에 만료되는 정답 세트 없음')
+    return found
 
 
 REVENUE_STATE = ROOT / 'logs/ops/revenue-funnel-state.json'
@@ -691,6 +730,36 @@ TEST_PYTHON = ROOT / '.venv-tests/bin/python'   # the browser part needs playwri
 
 
 FULL_CHECK_OVERLAPS_KEPT = 12  # the reasons of the last two hours of deferrals travel with the run's record
+# PM 11-15 12:24: on a busy day the check was put off seven times and never ran. After this many deferrals in a row it
+# keeps a measurement window on the board (heavy_slot.MEASURE): work already running goes on, but no new heavy run or
+# pytest_slot run starts until the check has started and finished; the one daytime heavy slot rule is unchanged.
+FULL_CHECK_PRIORITY_AFTER = 3
+FULL_CHECK_HOLD_MINUTES = 60          # how long the window waits for running work to end before it lapses
+
+
+def keep_measurement_window(start, minutes, note, board=None):
+    """Write (or move) today's full-check line under '## 측정 전용 시간', creating the section above the rehearsal one.
+    Older full-check lines are dropped."""
+    import heavy_slot
+    board = Path(board or BOARD)   # this module's board (tests point it at a temporary file), the same file as heavy_slot's
+    if not board.is_file():
+        return False
+    end = start + timedelta(minutes=minutes)
+    if end.date() != start.date():
+        end = start.replace(hour=23, minute=59)
+    line = f'- {start:%m-%d %H:%M}~{end:%H:%M} 측정 전용: {note}'
+    with heavy_slot.board_lock():
+        rows = board.read_text(encoding='utf-8').split('\n')
+        rows = [r for r in rows if not (r.startswith('- ') and '측정 전용: 전수 점검' in r)]
+        at = next((i for i, r in enumerate(rows) if r.startswith(heavy_slot.MEASURE)), None)
+        if at is None:
+            before = next((i for i, r in enumerate(rows) if r.startswith(heavy_slot.RESERVED)), len(rows))
+            rows[before:before] = [heavy_slot.MEASURE + ' (PM 11-15 12:24, heavy_slot·pytest_slot이 확인: 이 시간엔 전수 점검만 시작, '
+                                   '다른 무거운 작업·시험은 exit 75, 운영 감시가 씀)', '']
+            at = before
+        rows.insert(at + 1, line)
+        board.write_text('\n'.join(rows), encoding='utf-8')
+    return line
 
 
 def full_check(clock=time.time, launch=None, free=None, window=None):
@@ -714,6 +783,10 @@ def full_check(clock=time.time, launch=None, free=None, window=None):
     deferred = int(state.get('deferred') or 0)
     overlaps = list(state.get('overlaps') or [])
     why = reason or (None if free else '무거운 작업 칸이 모두 참') or (window and '매시 측정 시간(:55~:10)')
+    if why and deferred + 1 >= FULL_CHECK_PRIORITY_AFTER and clock() >= state.get('held_until', 0):
+        keep_measurement_window(datetime.fromtimestamp(clock()), FULL_CHECK_HOLD_MINUTES,
+                                f'전수 점검(운영·SRE) {deferred + 1}번 밀림 → 진행 중인 작업이 끝나면 먼저 실행')
+        state['held_until'] = clock() + FULL_CHECK_HOLD_MINUTES * 60
     if why:
         state['deferred'] = deferred + 1
         state['overlaps'] = (overlaps + [f'{datetime.fromtimestamp(clock()):%H:%M} {why}'])[-FULL_CHECK_OVERLAPS_KEPT:]
@@ -723,6 +796,9 @@ def full_check(clock=time.time, launch=None, free=None, window=None):
         append(ACTIONS, f'{now()} public_full_check 미룸: {why}')
         return 'deferred'
     FULL_CHECK_STATE.write_text(json.dumps({'started': clock(), 'deferred': 0}))
+    if clock() < state.get('held_until', 0):   # keep the quiet until the check is done, then the window lapses
+        keep_measurement_window(datetime.fromtimestamp(clock()), FULL_CHECK_MINUTES + 5,
+                                f'전수 점검(운영·SRE) 실행 중({deferred}번 밀린 뒤)')
     log = (ROOT / 'logs/ops/public-full-check.out').open('a')
     check = [str(TEST_PYTHON), str(ROOT / 'scripts/public_full_check.py')]
     env = dict(os.environ)
@@ -821,6 +897,10 @@ def watch():
         north_star()
     except Exception as error:  # noqa: BLE001
         append(ACTIONS, f'{now()} 북극성 집계 실패: {type(error).__name__}')
+    try:
+        answer_set_expiry()
+    except Exception as error:  # noqa: BLE001
+        append(ACTIONS, f'{now()} 정답 세트 유효기간 확인 실패: {type(error).__name__}')
     try:
         revenue_funnel()
     except Exception as error:  # noqa: BLE001

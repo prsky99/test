@@ -7,7 +7,8 @@ suite for ten minutes in the daytime outside heavy_slot. This wrapper never runs
 - no argument, or a path that does not exist: nothing runs (exit 2)
 - more than SMALL files, or a directory: the run goes through scripts.heavy_slot (one heavy job at a time)
 - always at nice 10 with .venv-tests
-- nothing runs inside a window reserved for copy rehearsals on the status board (exit 75)
+- nothing runs inside a window reserved for copy rehearsals or the public measurement on the status board, nor in the
+  hourly measurement window (:55-:10, 08:00-24:00) (exit 75)
 """
 import argparse
 import subprocess
@@ -44,9 +45,11 @@ def main(argv=None):
     except SystemExit as stop:
         print(stop, file=sys.stderr)
         return 2
-    from scripts.heavy_slot import reserved, BUSY
-    reason = reserved()
-    if reason:   # PM 11-14 03:4x: small runs wait too while a copy rehearsal has the night window
+    from scripts.heavy_slot import reserved, measurement_window, BUSY
+    # PM 11-14 03:4x: small runs wait too while a copy rehearsal has the night window; PM 11-15 12:24: and in the
+    # hourly measurement window (:55-:10 in the day) and a window kept for the public full check
+    reason = reserved() or measurement_window()
+    if reason:
         print(f'pytest_slot: refused ({reason}); nothing runs, try again later', file=sys.stderr)
         return BUSY
     from scripts.pytest_env import clean_environment

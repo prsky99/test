@@ -77,22 +77,28 @@ def measurement_window(now=None):
 # PM 11-14 03:4x: a night window may be kept for copy rehearsals only. Lines under RESERVED on the board,
 # '- MM-DD HH:MM~HH:MM <note>', make every other heavy run (and pytest_slot's small runs) wait (exit 75).
 RESERVED = '## 리허설 전용 시간'
+# PM 11-15 12:24: the public full check was put off seven times in one busy day (tests and gates all day), so it never
+# ran. Lines under MEASURE ('- MM-DD HH:MM~HH:MM <note>', written by ops_auto.full_check after three deferrals) keep a
+# window for the public measurement: only it may start then; other heavy runs and pytest_slot's small runs wait.
+MEASURE = '## 측정 전용 시간'
+MEASURE_WORDS = re.compile(r'public_full_check|user_slo')
 _RESERVED_LINE = re.compile(r'^- (\d{2})-(\d{2}) (\d{1,2}):(\d{2})~(\d{1,2}):(\d{2})')
 
 
-def reserved(now=None, board=None):
-    """The reason non-rehearsal work may not start now (a reserved window on the board), or None."""
+def reserved(now=None, board=None, what=''):
+    """The reason work described by WHAT may not start now (a reserved window on the board), or None. A copy-rehearsal
+    window lets rehearsals through; a measurement window lets the public measurement through."""
     now = now or datetime.now()
     try:
         lines = Path(board or BOARD).read_text(encoding='utf-8').split('\n')
     except OSError:
         return None
-    inside = False
+    section = None
     for line in lines:
         if line.startswith('## '):
-            inside = line.startswith(RESERVED)
+            section = RESERVED if line.startswith(RESERVED) else MEASURE if line.startswith(MEASURE) else None
             continue
-        match = _RESERVED_LINE.match(line) if inside else None
+        match = _RESERVED_LINE.match(line) if section else None
         if not match:
             continue
         month, day, h1, m1, h2, m2 = map(int, match.groups())
@@ -101,8 +107,12 @@ def reserved(now=None, board=None):
             end = now.replace(month=month, day=day, hour=h2, minute=m2, second=0, microsecond=0)
         except ValueError:
             continue
-        if start <= now < end:
+        if not start <= now < end:
+            continue
+        if section == RESERVED and not NIGHT_ONLY_WORDS.search(what):
             return f'reserved for copy rehearsals: {line[2:].strip()}'
+        if section == MEASURE and not MEASURE_WORDS.search(what):
+            return f'reserved for the public measurement: {line[2:].strip()}'
     return None
 
 
@@ -227,9 +237,7 @@ def run(command, team, what, minutes, board=None, lock=None, now=None):
     if reason:
         print(f'heavy_slot: refused ({reason}); nothing runs', file=sys.stderr)
         return NIGHT_ONLY
-    reason = measurement_window(now)
-    if reason is None and not NIGHT_ONLY_WORDS.search(' '.join([what, *command])):
-        reason = reserved(now, board)
+    reason = measurement_window(now) or reserved(now, board, ' '.join([what, *command]))
     if reason:
         print(f'heavy_slot: refused ({reason}); nothing runs, try again later', file=sys.stderr)
         return BUSY
