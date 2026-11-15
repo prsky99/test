@@ -41,7 +41,8 @@ SLUG = {"gleif-lei": "company-due-diligence", "sec-edgar": "company-due-diligenc
         # one 30-case set is enough for a substitute verdict; the quake truth is the place, the quakes are live
         "usgs-quakes": "quakes-near-address",                                            # workflow 11-15
         "census-geocode": "quakes-near-address",   # split us-street: US street addresses (gold_places --us-streets)
-        "arxiv-search": "topic-evidence-brief"}    # PM 11-15 16:07: the paper phrase in a returned title
+        "arxiv-search": "topic-evidence-brief",    # PM 11-15 16:07: the paper phrase in a returned title
+        "package-releases": "package-risk-audit"}  # workflow 11-15 (meta seat of package-risk-audit v2)
 BANDS = (0.01, 0.1, 0.5)
 
 
@@ -182,7 +183,7 @@ def judge(agent_id: str, case: dict, result: dict | None) -> dict:
         km = 6371.0 * 2 * math.asin(min(1.0, math.sqrt(a)))
         return {"pass": km <= truth.get("tolerance_km", 5), "km": round(km, 2), "got": [lat, lon],
                 "want": [truth["lat"], truth["lon"]]}
-    if agent_id in ("package-registry", "depsdev-package"):
+    if agent_id in ("package-registry", "depsdev-package", "package-releases"):
         # Gold truth is the registry's latest version at build time; a release since then shows as a miss
         # and is listed, not hidden.
         return {"pass": result.get("latest_version") == truth.get("latest_version"),
@@ -318,6 +319,8 @@ def applies(agent_id: str, case: dict) -> bool:
         return bool(truth.get("cik")) or truth.get("sec_registered") is False
     if agent_id == "arxiv-search":
         return bool((case.get("truth") or {}).get("paper_phrase"))
+    if agent_id == "package-releases":   # npm only until PyPI's terms are read (11-16)
+        return (case.get("input") or {}).get("ecosystem") == "npm"
     if agent_id == "census-geocode":                     # US addresses only (its coverage)
         return (case.get("truth") or {}).get("country") == "US" or str(case["input"].get("address", "")).endswith("USA")
     if agent_id == "rdap-domain":

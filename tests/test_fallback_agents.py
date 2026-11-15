@@ -2113,3 +2113,14 @@ def test_package_releases_reads_one_npm_document(tmp_path):
     with pytest.raises(FallbackUnavailable) as err:
         a.execute("package-releases", {"package": "requests", "ecosystem": "PyPI"})
     assert err.value.code == "source_unavailable" and len(calls) == 1
+
+
+def test_gold_judge_for_package_releases():
+    """workflow 11-15: package-risk-audit v2 meta seat; the truth's latest version, npm cases only for now."""
+    from agent_market.fallback_agents import gold_check as g
+    case = {"input": {"ecosystem": "npm", "package": "lodash", "version": "4.17.21"}, "truth": {"latest_version": "4.18.1"}}
+    assert g.SLUG["package-releases"] == "package-risk-audit" and g.applies("package-releases", case)
+    assert g.case_arguments("package-releases", case) == {"ecosystem": "npm", "package": "lodash"}
+    assert g.judge("package-releases", case, {"latest_version": "4.18.1", "answer": "x", "source": "npm"})["pass"]
+    assert not g.judge("package-releases", case, {"latest_version": "4.17.21", "answer": "x", "source": "npm"})["pass"]
+    assert not g.applies("package-releases", {"input": {"ecosystem": "PyPI"}})
