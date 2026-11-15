@@ -16,6 +16,7 @@ def test_the_page_states_criteria_leaving_reasons_and_the_disclaimer(client):  #
         assert code in text, code
     assert 'MCP Registry URL' in text and 'Registry only' in text and rp.GITHUB_DOC in r.text
     assert 'chat.mcp.gallery' not in r.text   # not described until its official documentation confirms it
+    assert rp.CHANGES in r.text and 'every remote endpoint requires a header' in text
 
 
 def test_methodology_links_to_the_registry():

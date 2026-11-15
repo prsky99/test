@@ -10,11 +10,14 @@ BASE = 'https://agentconcierge.biz/registry/verified'
 GITHUB_DOC = 'https://docs.github.com/en/copilot/how-tos/administer-copilot/manage-mcp-usage/configure-mcp-server-access'
 DISCLAIMER = ('Checked by AgentValCon with keyless read-only tool calls. Not affiliated with or endorsed by the MCP '
               "Registry; server names and texts are the publishers' own.")
+# Matched with verified_registry.exclusion_reason by the agent team (11-15).
 REASONS = [('no_recent_success', 'no successful keyless tool call in the last 7 days'),
-           ('definition_risk', 'a risk signal in its tool definitions'),
-           ('requires_credentials', 'it now requires an authentication header'),
-           ('entry_not_valid', 'its registry entry no longer passes the format checks'),
-           ('left_catalog_criteria', 'its grade or health fell below the listing criteria')]
+           ('definition_risk', 'a risk signal in its tool definitions in the last 30 days'),
+           ('requires_credentials', 'every remote endpoint requires a header such as an API key'),
+           ('entry_not_valid', 'its name, description (1 to 100 characters) or version does not fit the official '
+                               'format, or it has no public HTTPS remote endpoint'),
+           ('left_catalog_criteria', 'no longer grade A and healthy, or no longer in the official registry')]
+CHANGES = BASE + '/v0.1/x/biz.agentconcierge/changes'
 
 
 def page_html(base='https://agentconcierge.biz'):
@@ -36,8 +39,10 @@ def page_html(base='https://agentconcierge.biz'):
                  'No risk signal in its tool definitions in the last 30 days. Until that check runs, entries say '
                  '&quot;not checked yet&quot;.']) + '</section>',
              '<section aria-labelledby="rOut"><h2 id="rOut">When a server leaves</h2><p>A server that no longer meets the '
-             'criteria is left out of the next snapshot (snapshots are made every hour), and the change feed records '
-             'why:</p>' + li(['<code>' + esc(code) + '</code>: ' + esc(text) for code, text in REASONS]) + '</section>',
+             'criteria is left out of the next snapshot (snapshots are made every hour), and the changes feed records '
+             'why:</p>' + li(['<code>' + esc(code) + '</code>: ' + esc(text) for code, text in REASONS])
+             + '<p>Changes feed (JSON Feed 1.1): <a href="' + esc(CHANGES) + '"><code>' + esc(CHANGES) + '</code></a>. '
+             'Listings, delistings with a reason, and tool-definition changes (names only).</p></section>',
              '<section aria-labelledby="rSame"><h2 id="rSame">What stays the publisher&#39;s</h2><p>Server names, '
              'descriptions, versions and addresses are the publishers&#39; own text from the official registry. Our facts '
              'are only under <code>_meta</code> &quot;biz.agentconcierge/verification&quot;: the last successful call, '
