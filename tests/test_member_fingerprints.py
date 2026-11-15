@@ -56,7 +56,10 @@ def test_the_first_measure_keeps_the_qualified_baseline_and_both_readers_see_it(
     e = entry()
     assert e['baseline'] == e['current'] == e['last_server_fp'] == server_fp(tools()) and e['classification'] == 'same'
     assert e['unchanged_since'] == '2026-11-14T04:21:40+0900'
-    assert fingerprint_status(saved, 501) == 'same' and calls == ['https://weather.example/mcp']
+    assert fingerprint_status(saved, 501, at(10)) == 'same' and calls == ['https://weather.example/mcp']
+    # the watch is closed (PM 12:0x): the skipped A2A row is unknown, a reading older than 24 h is stale
+    assert fingerprint_status(saved, 502, at(10)) == 'unknown'
+    assert fingerprint_status(saved, 501, at(10) + 25 * 3600) == 'stale'
     monkeypatch.setenv('FINGERPRINT_DATA', str(data))
     from agent_market.verified_registry import load_fingerprints
     assert load_fingerprints()[0][501]['server_fp'] == e['current']
@@ -69,12 +72,12 @@ def test_a_number_in_a_description_is_dynamic_and_a_new_text_is_a_change_with_it
     run(16)
     e = entry()
     assert e['classification'] == 'dynamic' and e['unchanged_since'] == '2026-11-14T04:21:40+0900'
-    assert fingerprint_status({'resources': {'501': e}}, 501) == 'dynamic'
+    assert fingerprint_status({'resources': {'501': e}}, 501, at(16)) == 'dynamic'
     state['tools'] = tools('Hourly forecast and alerts')
     run(22)
     e = entry()
     assert e['classification'] == 'general' and e['unchanged_since'].startswith('2026-11-16T22:15')
-    assert fingerprint_status({'resources': {'501': e}}, 501) == 'changed'
+    assert fingerprint_status({'resources': {'501': e}}, 501, at(22)) == 'changed'
     lines = [json.loads(x) for x in (data / 'changes-20261116.jsonl').read_text().splitlines()]
     assert [x['classification'] for x in lines] == ['dynamic', 'general']
     assert lines[-1]['changed'] == [{'name': 'get_weather'}] and 'description' not in json.dumps(lines)   # names only
@@ -88,7 +91,7 @@ def test_a_new_writing_tool_or_a_flipped_hint_is_a_risk(site):
     run(16)
     e = entry()
     assert e['classification'] == 'risk' and e['risk'] == ['new_unsafe_tool:delete_city']
-    assert fingerprint_status({'resources': {'501': e}}, 501) == 'risk'
+    assert fingerprint_status({'resources': {'501': e}}, 501, at(16)) == 'risk'
     state['tools'] = [{**WEATHER, 'annotations': {'readOnlyHint': False}}]
     run(22)
     assert 'annotation_flip:get_weather' in entry()['risk']

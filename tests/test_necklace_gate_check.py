@@ -30,14 +30,40 @@ VERIFIED = {(241601, "encyclopedia.summary.v1"), (58997, "sec.filings.v1"), (525
 APPROVED = [["sec-edgar", "company.registry.v1"]]
 
 
-def run(denied, full=()):
+NOW = 1_800_000_000.0
+
+
+def prints(**override):
+    """The fingerprint file as ops writes it (resources[rid], measured now), every member unchanged."""
+    import time as _t
+    at = _t.strftime("%Y-%m-%dT%H:%M:%SZ", _t.gmtime(NOW))
+    resources = {str(rid): {"baseline": "a", "current": "a", "measured_at": at} for rid in (52559, 58997, 241601)}
+    resources.update(override)
+    return {"resources": resources}
+
+
+def run(denied, full=(), fingerprints=None):
     relay = Relay(denied, full)
     ledger = dict(reserve=lambda url, system: (True, None), note=lambda *a: None,
                   pacer=type("P", (), {"wait_for": lambda self, n: None})())
     with httpx.Client(transport=relay) as client:
         out = necklace_gate.check(company(), client, "https://example.test", verified=VERIFIED, substitutes=APPROVED,
-                                  probe_fn=lambda c, b, m, a: necklace_gate.probe(c, b, m, a, **ledger))
+                                  probe_fn=lambda c, b, m, a: necklace_gate.probe(c, b, m, a, **ledger),
+                                  prints=prints() if fingerprints is None else fingerprints, now=NOW)
     return out, relay
+
+
+def test_gate_does_not_judge_a_member_without_a_fresh_fingerprint():
+    """PM 12:0x (11-15): the same closed verdict as the watch; the old file shape (pearls[rid]) reads as unknown."""
+    out, _ = run(set(), fingerprints={"pearls": {"58997": {"server_fp": "x"}}})
+    assert out["ok"] is False
+    assert any("not judged (fingerprint unknown)" in p for p in out["problems"])
+    out, _ = run(set(), fingerprints=prints(**{"58997": {"baseline": "a", "current": "b", "measured_at": "2027-01-15T08:00:00Z"}}))
+    filings = next(s for s in out["slots"] if s["slot"] == "filings")["members"][0]
+    assert (filings["fingerprint"], filings["seat_eligible"]) == ("changed", False)
+    old = prints(**{"241601": {"baseline": "a", "current": "a", "measured_at": "2026-01-01T00:00:00Z"}})
+    out, _ = run(set(), fingerprints=old)
+    assert any("241601 not judged (fingerprint stale)" in p for p in out["problems"])
 
 
 def test_every_external_member_is_probed_with_the_gate_label():

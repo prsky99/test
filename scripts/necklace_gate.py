@@ -150,8 +150,14 @@ def probe(client, base: str, member: dict, args: dict | None = None, reserve=Non
     return {"relay": "admitted", "stage": "tools/call", "ms": ms, **empty, "http_status": call.status_code}
 
 
-def check(defn: dict, client, base: str = BASE, verified=None, substitutes=None, probe_fn=probe) -> dict:
+FINGERPRINTS = Path("gateway-data/fingerprints/pearls.json")
+
+
+def check(defn: dict, client, base: str = BASE, verified=None, substitutes=None, probe_fn=probe, prints=None,
+          now=None) -> dict:
+    from agent_market.necklaces.watch import PASSING_PRINTS, fingerprint_status, load_json
     verified = judge.verified_pearls() if verified is None else verified
+    prints = load_json(FINGERPRINTS, {}) if prints is None else prints
     state = {"substitutes": judge.load_substitutes(Path("gateway-data/necklaces/approvals.json"))
              if substitutes is None else substitutes}
     slots, seated_pearl_slots, problems = [], [], model.validate(defn)
@@ -166,9 +172,16 @@ def check(defn: dict, client, base: str = BASE, verified=None, substitutes=None,
                 row["verified_pearl"] = bool(verified) and (member["resource_id"], slot["contract"]) in verified
                 args = render(member.get("input_map") or {}, sample) if sample else None
                 row.update(probe_fn(client, base, member, args))
-                row[SEATED] = row["relay"] == "admitted" and row.get("tools_call") != "not_checked"
+                # the same closed fingerprint verdict as the watch (PM 12:0x): unknown or stale is not judged
+                row["fingerprint"] = fingerprint_status(prints, member["resource_id"], now)
+                row[SEATED] = row["relay"] == "admitted" and row.get("tools_call") != "not_checked" \
+                    and row["fingerprint"] in PASSING_PRINTS
                 if row["relay"] in ("our_capacity", "throttled"):
                     problems.append(f"slot {slot['slot']}: member {row['id']} not judged ({row['relay']}, check again)")
+                if row["fingerprint"] in ("unknown", "stale"):
+                    problems.append(f"slot {slot['slot']}: member {row['id']} not judged (fingerprint {row['fingerprint']})")
+                elif row["fingerprint"] not in PASSING_PRINTS:
+                    problems.append(f"slot {slot['slot']}: member {row['id']} fingerprint {row['fingerprint']}")
             else:
                 row["substitute_approved"] = bool(member.get("substitute_approved"))
                 row[SEATED] = True                       # runs in-process on our host, not through the relay

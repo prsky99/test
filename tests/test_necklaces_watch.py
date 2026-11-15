@@ -23,10 +23,20 @@ def trial():
     return defn
 
 
+def fresh(prints=None, ids=range(1, 21), at=NOW):
+    """A fingerprint file as ops writes it (resources[rid], measured now) with every member unchanged; entries in
+    PRINTS override. The watch is closed: a member missing from the file holds the necklace (PM 12:0x, 11-15)."""
+    stamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(at))
+    resources = {str(i): {"baseline": "a", "current": "a", "measured_at": stamp} for i in ids}
+    for rid, entry in ((prints or {}).get("resources") or {}).items():
+        resources[rid] = dict(resources.get(rid, {"measured_at": stamp}), **entry)
+    return {"resources": resources}
+
+
 def run(defn, rows, prints=None, state=None, hours=1):
     state = {} if state is None else state
     for h in range(hours):
-        watch.observe([defn], lambda rid: rows.get(rid), prints or {}, state, NOW + h * 3600)
+        watch.observe([defn], lambda rid: rows.get(rid), fresh(prints), state, NOW + h * 3600)
     return state
 
 
@@ -137,7 +147,9 @@ def test_task_writes_state_and_daily_lines(tmp_path):
         slot["contract"] = "package.advisories.v1"
     (defs / "topic-brief.json").write_text(json.dumps(defn))
     clock = lambda: time.mktime((2026, 11, 20, 10, 25, 0, 0, 0, -1))
-    task = watch.NecklaceWatch(FakeStore(healthy_rows()), root=tmp_path, fingerprints=tmp_path / "none.json",
+    prints = tmp_path / "pearls.json"
+    prints.write_text(json.dumps(fresh(at=clock())))
+    task = watch.NecklaceWatch(FakeStore(healthy_rows()), root=tmp_path, fingerprints=prints,
                                definitions_dir=defs, clock=clock)
     assert task.due()
     result = task.run()
@@ -159,7 +171,7 @@ def test_failing_fallback_is_demoted_after_two_hours_and_restored_after_six():
     state, rows = {}, healthy_rows()
 
     def hour(h):
-        watch.observe([defn], lambda rid: rows.get(rid), {}, state, NOW + h * 3600,
+        watch.observe([defn], lambda rid: rows.get(rid), fresh(), state, NOW + h * 3600,
                       fallback_spec=spec, fallback_health=lambda a: status[a])
     hour(0)
     order = lambda: [m.get("agent_id") for m in watch.runtime_chain(slot, "topic-brief", state) if m["kind"] == "agentcon"]
@@ -183,12 +195,12 @@ def test_a_new_problem_after_a_re_approval_holds_again(tmp_path):
     iso = lambda t: judge._iso(NOW + t)
     state, rows = {}, healthy_rows()
     rows[2] = row(readOnlyHint=False)
-    watch.observe([defn], lambda rid: rows.get(rid), {}, state, NOW + 1000)
+    watch.observe([defn], lambda rid: rows.get(rid), fresh(), state, NOW + 1000)
     approval = {"slug": "topic-brief", "version": 1, "definition_digest": model.digest(defn), "state": "approved",
                 "at": iso(2000)}
     rows[2] = row()
     rows[4] = row(destructiveHint=True)
-    watch.observe([defn], lambda rid: rows.get(rid), {}, state, NOW + 3000, approvals={"topic-brief": approval})
+    watch.observe([defn], lambda rid: rows.get(rid), fresh(), state, NOW + 3000, approvals={"topic-brief": approval})
     hold = state["holds"]["topic-brief"]
     assert hold["since"] == iso(3000) and not hold.get("released")
     assert [e["since"] for e in hold["events"]] == [iso(1000), iso(3000)]
@@ -200,11 +212,11 @@ def test_a_second_problem_on_an_open_hold_moves_since_forward():
     defn = trial()
     state, rows = {}, healthy_rows()
     rows[2] = row(readOnlyHint=False)
-    watch.observe([defn], lambda rid: rows.get(rid), {}, state, NOW)
-    watch.observe([defn], lambda rid: rows.get(rid), {}, state, NOW + 3600)
+    watch.observe([defn], lambda rid: rows.get(rid), fresh(), state, NOW)
+    watch.observe([defn], lambda rid: rows.get(rid), fresh(), state, NOW + 3600)
     assert len(state["holds"]["topic-brief"]["events"]) == 1          # the same problem is one event
     rows[4] = row(destructiveHint=True)
-    watch.observe([defn], lambda rid: rows.get(rid), {}, state, NOW + 7200)
+    watch.observe([defn], lambda rid: rows.get(rid), fresh(), state, NOW + 7200)
     hold = state["holds"]["topic-brief"]
     assert len(hold["events"]) == 2 and hold["since"] == judge._iso(NOW + 7200)
     approval_between = {"state": "approved", "at": judge._iso(NOW + 3600)}
@@ -234,3 +246,31 @@ def test_ops_approved_substitutes_join_the_runtime_chain(tmp_path):
     alternates = judge.pearls(watch.runtime_definition(defn, state))[0]["alternates"]
     assert [a.get("agent_id") for a in alternates if a["kind"] == "agentcon"] == ["fb1"]
     assert slot["chain"][2]["state"] == "planned"                      # the definition itself is unchanged
+
+
+def test_fingerprint_verdict_is_closed():
+    """PM 12:0x (11-15): the watch read resources[rid] while the file held pearls[rid], so every member read 'same'."""
+    at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(NOW))
+    old = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(NOW - 25 * 3600))
+    same = {"baseline": "a", "current": "a", "measured_at": at}
+    assert watch.fingerprint_status({"resources": {"1": same}}, 1, NOW) == "same"
+    assert watch.fingerprint_status({"resources": {"1": same}}, 2, NOW) == "unknown"
+    assert watch.fingerprint_status({"pearls": {"1": {"server_fp": "x", "tools": {}}}}, 1, NOW) == "unknown"
+    assert watch.fingerprint_status({}, 1, NOW) == "unknown"
+    assert watch.fingerprint_status({"resources": {"1": dict(same, measured_at=old)}}, 1, NOW) == "stale"
+    assert watch.fingerprint_status({"resources": {"1": {"baseline": "a", "current": "a"}}}, 1, NOW) == "stale"
+    assert watch.fingerprint_status({"generated": at, "resources": {"1": {"baseline": "a", "current": "a"}}}, 1, NOW) == "same"
+    assert watch.fingerprint_status({"resources": {"1": dict(same, measured_at=old, risk=["x"])}}, 1, NOW) == "risk"
+    assert watch.fingerprint_status({"resources": {"1": dict(same, current="b")}}, 1, NOW) == "changed"
+
+
+def test_unknown_or_stale_fingerprint_holds_the_necklace_but_keeps_the_member():
+    defn, rows = trial(), healthy_rows()
+    state = {}
+    watch.observe([defn], lambda rid: rows.get(rid), {"pearls": {}}, state, NOW)
+    assert state["holds"]["topic-brief"]["reason"] == "fingerprint_unverified"
+    assert not any(m.get("excluded") for m in state["members"].values())
+    state = {}
+    stale = fresh(at=NOW - 30 * 3600)
+    watch.observe([defn], lambda rid: rows.get(rid), stale, state, NOW)
+    assert "stale" in state["holds"]["topic-brief"]["detail"]

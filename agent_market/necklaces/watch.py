@@ -93,15 +93,33 @@ def annotation_problem(row: dict, member: dict) -> str | None:
     return None
 
 
-def fingerprint_status(prints: dict, rid) -> str:
-    """'risk', 'changed', 'dynamic' or 'same' from the ops fingerprint file (unknown counts as same)."""
-    entry = (prints.get("resources") or prints).get(str(rid)) if isinstance(prints, dict) else None
-    if not isinstance(entry, dict):
-        return "same"
+FINGERPRINT_MAX_AGE = 24 * 3600
+PASSING_PRINTS = ("same", "dynamic")
+
+
+def fingerprint_status(prints: dict, rid, now: float | None = None) -> str:
+    """'risk', 'changed', 'dynamic', 'same', 'unknown' or 'stale' from the ops fingerprint file, which ops writes as
+    resources[rid] = {baseline, current, risk, classification, measured_at, unchanged_since} (PM 12:0x, 11-15).
+
+    Closed, not open: a member missing from the file is 'unknown' and a reading older than 24 hours, or with no time
+    at all, is 'stale'. Neither passes: a necklace is held and the gate does not judge. Until 11-15 the watch read
+    resources[rid] while the file held pearls[rid], so every member read as 'same' and a changed tool would have gone
+    unseen."""
+    from .judge import _parse_time
+    resources = prints.get("resources") if isinstance(prints, dict) else None
+    entry = resources.get(str(rid)) if isinstance(resources, dict) else None
+    if not isinstance(entry, dict) or not entry.get("baseline"):
+        return "unknown"
     if entry.get("risk"):
-        return "risk"
+        return "risk"                                   # a risk signal holds even on an old reading
+    measured = _parse_time(entry.get("measured_at") or prints.get("generated"))
+    now = time.time() if now is None else now
+    if not measured or now - measured > FINGERPRINT_MAX_AGE:
+        return "stale"
     baseline, current = entry.get("baseline"), entry.get("current")
-    if baseline and current and baseline != current:
+    if not current:
+        return "unknown"
+    if baseline != current:
         return "dynamic" if entry.get("classification") == "dynamic" else "changed"
     return "same"
 
@@ -283,7 +301,7 @@ def observe(definitions: list[dict], fetch, prints: dict, state: dict, now: floa
                 row = fetch(m["resource_id"])
                 ok = healthy(row)
                 problem = annotation_problem(row or {}, m) if row else None
-                print_state = fingerprint_status(prints, m["resource_id"]) if m.get("kind") == "external" else "same"
+                print_state = fingerprint_status(prints, m["resource_id"], now) if m.get("kind") == "external" else "same"
                 mark["fail_streak"], mark["ok_streak"] = (0, mark["ok_streak"] + 1) if ok else (mark["fail_streak"] + 1, 0)
                 action = None
                 if row is not None and int(row.get("active") or 0) != 1:
@@ -301,6 +319,10 @@ def observe(definitions: list[dict], fetch, prints: dict, state: dict, now: floa
                         _hold(state, slug, "fingerprint_changed", f"{m['resource_id']}: definition changed", now)
                         # PM 11-14: retest only that member the same day; a pass goes to ops for re-approval.
                         _retest_request(state, now, slug, slot["slot"], m)
+                elif print_state in ("unknown", "stale"):
+                    # nothing to compare against: not the member's fault, so it stays in the chain, but the
+                    # necklace does not run on a definition nobody checked (PM 12:0x); ops re-approves after refresh
+                    _hold(state, slug, "fingerprint_unverified", f"{m['resource_id']}: fingerprint {print_state}", now)
                 if not mark.get("excluded"):
                     if key in called and mark["fail_streak"] >= DEMOTE_AFTER and not mark.get("demoted"):
                         mark["demoted"], action = True, "demoted"
