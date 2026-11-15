@@ -39,7 +39,8 @@ REASONS = {
     'approval_mismatch': 'It changed since it passed our gate, so it waits for a new review.',
     'not_approved': 'It is waiting for our operators to approve it again.',
     'fingerprint_changed': 'One of its agents changed its tools, so it waits for a retest.',
-    'pearls_unverified': 'Fewer than two of its agents are verified pearls in our latest tests.',
+    'pearls_unverified': 'Our latest member tests could not be read.',
+    'members_unqualified': 'Fewer than two of its agents passed our member tests lately.',
 }
 
 
@@ -100,8 +101,10 @@ def offered(entry, now=None):
     quality = entry.get('quality') or {}
     tested = _time(quality.get('tested_at'))
     delta = quality.get('delta_pp')
-    verified_pearls = sum(1 for p in pearls if p.get('pearl') is True)   # PM R29: counted by the judge from the verify snapshot
-    return (bool(_time(entry.get('gate_passed_at'))) and verified_pearls >= 2 and all(map(_alternates_ok, pearls))
+    # PM 16:03 (user instruction d4670360): two members that answer, verified pearls or provisional ones, as the judge
+    # marks them (standing); two verified pearls is the aim, not the condition. The answer gate below is unchanged.
+    members = sum(1 for p in pearls if member_status(p) in MEMBER_LABELS)
+    return (bool(_time(entry.get('gate_passed_at'))) and members >= 2 and all(map(_alternates_ok, pearls))
             and isinstance(delta, (int, float)) and delta > 0
             and tested is not None and now - tested <= timedelta(hours=FRESH_HOURS))
 
@@ -173,6 +176,33 @@ def agent_line(entry, base='https://agentconcierge.biz', snapshot=None):
             + '); try again after its next retest.')
 
 
+# PM 16:03 (user instruction d4670360): a necklace may start with a provisional member and swap in a pearl later.
+# Each step says which it is; a provisional member never reads as a pearl.
+MEMBER_LABELS = {'verified_pearl': 'Verified pearl', 'provisional': 'Under verification'}
+NOT_COUNTED = 'Not passing our member tests now'
+PROVISIONAL_NOTE = ('Under verification: the agent passed our tests for this step but has not yet passed its second '
+                    'check on a different day. When a verified pearl is available for the step, it takes the place.')
+
+
+def member_status(pearl):
+    """'verified_pearl', 'provisional' or None from the judge's snapshot (standing; a snapshot without it: the pearl
+    flag, which means a verified pearl only). Any other value counts as None and never reads as a pearl."""
+    if not isinstance(pearl, dict):
+        return None
+    if 'standing' in pearl:
+        return pearl['standing'] if pearl['standing'] in MEMBER_LABELS else None
+    return 'verified_pearl' if pearl.get('pearl') is True else None
+
+
+def members_phrase(entry):
+    """'2 verified pearls' or '1 verified pearl and 1 agent under verification' (agents read it in tool descriptions)."""
+    standings = [member_status(p) for p in entry.get('pearls') or [] if isinstance(p, dict)]
+    pearls, provisional = standings.count('verified_pearl'), standings.count('provisional')
+    parts = ([str(pearls) + ' verified pearl' + ('s' if pearls != 1 else '')] if pearls else []) + (
+        [str(provisional) + ' agent' + ('s' if provisional != 1 else '') + ' under verification'] if provisional else [])
+    return ' and '.join(parts) or 'no member passing our tests now'
+
+
 def public_item(entry, base='https://agentconcierge.biz', now=None):
     """The /api/necklaces entry: what a person or an agent needs to choose and run it; no internal fields."""
     quality, cost, completion = entry.get('quality') or {}, entry.get('cost') or {}, entry.get('completion') or {}
@@ -180,9 +210,11 @@ def public_item(entry, base='https://agentconcierge.biz', now=None):
             'status': entry.get('status'), 'offered': offered(entry, now),
             'url': base + '/necklaces/' + entry['slug'], 'mcp_tool': tool_name(entry['slug']),
             'a2a_skill': skill_id(entry['slug']), 'input_schema': entry.get('input_schema'),
-            'pearls': [{'agent_id': p.get('resource_id'), 'role': p.get('role'), 'tool': p.get('tool'),
-                        'verified_pearl': p.get('pearl') is True,
-                        'card': base + '/agent/' + str(p.get('resource_id')),
+            'pearls': [{'agent_id': p.get('resource_id') if p.get('resource_id') is not None else p.get('agent_id'),
+                        'role': p.get('role'), 'tool': p.get('tool'), 'kind': p.get('kind') or 'external',
+                        'verified_pearl': member_status(p) == 'verified_pearl', 'standing': member_status(p),
+                        # an AgentValCon lead (kind agentcon) has no catalog resource, so no catalog card
+                        'card': base + '/agent/' + str(p['resource_id']) if p.get('resource_id') is not None else None,
                         'alternates': {'external': sum(1 for a in p.get('alternates') or [] if a.get('kind') == 'external'),
                                        'agentcon': sum(1 for a in p.get('alternates') or [] if a.get('kind') == 'agentcon')}}
                        for p in entry.get('pearls') or [] if isinstance(p, dict)],
@@ -569,6 +601,23 @@ def comparison_line(entry):
                if found.get('without_full') else ''))
 
 
+WHY_PLACEHOLDER = '<div data-necklace-why></div>'
+
+
+def why_card(snapshot=None, now=None):
+    """Home and Workflows (PM 16:03): the reason, up to three offered necklaces and the request link, rendered into the
+    pages' placeholder by pearl_view; '' while none is offered, so the pages never show a necklace that is not there."""
+    rows = live(snapshot, now)
+    if not rows:
+        return ''
+    esc = lambda value: html.escape(str(value), quote=True)
+    links = ''.join('<li><a href="/necklaces/' + esc(e['slug']) + '">' + esc(e.get('name') or e['slug']) + '</a></li>'
+                    for e in rows[:3])
+    return ('<section class="card necklace-why-card" aria-label="Necklaces"><h3>Necklaces: tested agents in one call</h3>'
+            '<p>' + esc(WHY) + '</p><ul>' + links + '</ul><div class="actions"><a class="btn" href="/necklaces/request">'
+            'Request a necklace</a></div></section>')
+
+
 # 11-15 user decision (PM 11:3x): necklaces run free for now. The judge marks it in the snapshot (pricing {"mode":
 # "free"}, workflow c5c0595f); the words state the fact and promise no end date, only that a charge is announced first.
 FREE_NOW = 'Free to run for now. If that changes, we will say so on this page first.'
@@ -660,10 +709,14 @@ def page(slug, base='https://agentconcierge.biz', snapshot=None, now=None, run=N
                      + ''.join('<dt>' + esc(k) + '</dt><dd>' + esc(v) + '</dd>' for k, v in guarantee) + '</dl></section>')
     if item['pearls']:
         parts.append('<section aria-labelledby="pearlsTitle"><h2 id="pearlsTitle">Agents used</h2><ul class="pearl-list">'
-                     + ''.join('<li><a href="/agent/' + esc(p['agent_id']) + '">' + esc(p.get('role') or 'step') + '</a>'
+                     + ''.join(('<li><a href="/agent/' + esc(p['card'].rsplit('/', 1)[1]) + '">' + esc(p.get('role') or 'step') + '</a>'
+                                if p.get('card') else '<li>' + esc(p.get('role') or 'step') + ' · AgentValCon agent')
                                + (' · ' + esc(p['tool']) if p.get('tool') else '')
-                               + (' · verified pearl' if p.get('verified_pearl') else '') + '</li>' for p in item['pearls'])
-                     + '</ul></section>')
+                               + ' · <span class="necklace-member necklace-member-' + esc(p['standing'] or 'none') + '">'
+                               + esc(MEMBER_LABELS.get(p['standing'], NOT_COUNTED)) + '</span></li>' for p in item['pearls'])
+                     + '</ul>' + ('<p class="muted necklace-provisional-note">' + esc(PROVISIONAL_NOTE) + '</p>'
+                                  if any(p['standing'] == 'provisional' for p in item['pearls']) else '')
+                     + '</section>')
     if runs:
         example = example_input(entry)
         parts.insert(2 + (run is not None), '<section aria-labelledby="runTitle"><h2 id="runTitle">Run it</h2>'
@@ -675,7 +728,7 @@ def page(slug, base='https://agentconcierge.biz', snapshot=None, now=None, run=N
     structured = {'@context': 'https://schema.org', '@type': 'SoftwareApplication', 'name': entry.get('name') or slug,
                   'applicationCategory': 'AI agent workflow', 'description': entry.get('summary') or '',
                   'url': base + '/necklaces/' + slug,
-                  'isBasedOn': [base + '/agent/' + str(p['agent_id']) for p in item['pearls']],
+                  'isBasedOn': [p['card'] for p in item['pearls'] if p.get('card')],
                   'publisher': {'@type': 'Organization', 'name': 'AgentValCon', 'url': base + '/'}}
     return 200, shell(title=(entry.get('name') or slug) + ' — Necklace | AgentValCon',
                       description=entry.get('summary') or '', canonical=base + '/necklaces/' + slug,
@@ -753,7 +806,7 @@ def tools(snapshot=None, now=None):
         evidence = (' Verified 95%: ' + str(claim[0]) + '/' + str(claim[1]) + ' cumulative retests passed.' if claim
                     else ' Recent tests: ' + str(window[0]) + '/' + str(window[1]) + ' passed.' if window else '')
         out.append({'name': tool_name(e['slug']), 'title': e.get('name') or e['slug'],
-                    'description': ('Necklace (a workflow of tested agents, ' + str(sum(1 for p in e.get('pearls') or [] if isinstance(p, dict) and p.get('pearl') is True)) + ' verified pearls): ' + (e.get('summary') or '') + ' ' + WHY_SHORT + evidence
+                    'description': ('Necklace (a workflow of tested agents: ' + members_phrase(e) + '): ' + (e.get('summary') or '') + ' ' + WHY_SHORT + evidence
                                     + (' ' + comparison_line(e) if comparison_line(e) else '')
                                     + (' Scope: ' + scope_notice(e) if scope_notice(e) else '')
                                     + (' Example arguments: ' + json.dumps(example_input(e), separators=(',', ':')) + '.'
@@ -791,7 +844,8 @@ def details(slug, base='https://agentconcierge.biz', snapshot=None, now=None):
         lines.append(item['notice']['text'])
     for p in item['pearls']:
         lines.append('- ' + (p.get('role') or 'step') + ': ' + ('verified pearl ' if p.get('verified_pearl') else 'agent ')
-                     + str(p['agent_id']) + ' (' + p['card'] + '), alternates '
+                     + str(p['agent_id']) + ('' if p.get('verified_pearl') else ' (under verification)' if p.get('standing') else ' (not passing our member tests now)')
+                     + ' (' + (p['card'] or 'AgentValCon agent') + '), alternates '
                      + str(p['alternates']['external']) + ' external + ' + str(p['alternates']['agentcon']) + ' AgentValCon')
     return '\n'.join(lines), item
 
@@ -848,7 +902,7 @@ def skills(base='https://agentconcierge.biz', snapshot=None, now=None):
         example = 'run necklace ' + e['slug'] + ' ' + json.dumps(example_arguments(e.get('input_schema'), example_input(e)),
                                                                    separators=(',', ':'))
         out.append({'id': skill_id(e['slug']), 'name': e.get('name') or e['slug'],
-                    'description': 'Necklace (a workflow of tested agents, ' + str(sum(1 for p in e.get('pearls') or [] if isinstance(p, dict) and p.get('pearl') is True)) + ' verified pearls): ' + (e.get('summary') or '') + ' ' + WHY_SHORT
+                    'description': 'Necklace (a workflow of tested agents: ' + members_phrase(e) + '): ' + (e.get('summary') or '') + ' ' + WHY_SHORT
                                    + (' ' + comparison_line(e) if comparison_line(e) else '')
                                    + (' ' + FREE_NOW.replace('on this page', 'on its page') if free_now(e) else '') + ' Send: ' + example
                                    + ' ' + NOTICE_SENTENCE + ' Details: ' + base + '/necklaces/' + e['slug'],

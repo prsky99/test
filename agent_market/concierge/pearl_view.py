@@ -28,6 +28,7 @@ def public_page_available():
 
 
 _asset_versions = {'at': None, 'map': {}}
+WHY_SLOT = '<div data-necklace-why></div>'   # placeholder in index.html and workflows.html
 ASSET_REFERENCE = re.compile(r'((?:href|src)="/new/en/assets/)([A-Za-z0-9_./-]+?)(?:\?v=[^"]*)?"')
 
 
@@ -688,6 +689,9 @@ def install(app, front, *, workspace_access_enabled=False, workspace_link_enable
                      else daily_home_text(home_metadata_payload(value, snapshot), snapshot))
         if filename in ('test.html', 'workflows.html'):
             value = current_fixed_content(value, filename)
+        if WHY_SLOT in value:   # 11-15 PM 16:03: the necklace card appears only while a necklace is offered
+            from .necklace_surface import why_card
+            value = value.replace(WHY_SLOT, why_card() or WHY_SLOT)
         live = filename in manifest['live_pages']
         if filename in NOTICE_PAGES:
             from .public_http_contract import _credentials
