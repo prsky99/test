@@ -67,7 +67,7 @@ FEED_CACHE = 'public, max-age=60, stale-while-revalidate=60'
 # and the edge may keep them for five minutes and serve a stale copy while refreshing for ten.
 GROWTH_PAGES = frozenset(('/connect','/agents/tasks','/agents/best','/badges','/reports/state-of-ai-agents',
     '/claude-plugins/marketplace.json','/reports/weekly',
-    '/methodology','/methodology/changelog','/advertise'))  # 11-14: method and advertiser pages (no-store went 1.2-6 s)  # 11-12 PM: the weekly issue list is the same for everyone
+    '/methodology','/methodology/changelog','/advertise','/privacy','/terms'))  # 11-14: method and advertiser pages (no-store went 1.2-6 s)  # 11-12 PM: the weekly issue list is the same for everyone
 GROWTH_PREFIXES = ('/agents/task/','/agents/best/','/agent/','/agents/compare/','/reports/state-of-ai-agents/',
     '/claude-plugins/','/agents/category/','/reports/weekly/',  # 11-11: category and weekly pages (user approved edge rule)
     '/necklaces/')  # 11-15 R78: necklace pages, kept briefly (NECKLACE_CACHE) so a pause or replacement shows within minutes
@@ -86,7 +86,7 @@ GROWTH_EDGE_HEADER = 'cloudflare-cdn-cache-control'
 # 11-15 R78: a necklace page carries its pause or replacement notice, so it is kept five minutes (plus five stale):
 # a notice reaches every reader within about ten minutes. The method pages follow /methodology.json (ten minutes).
 NECKLACE_CACHE = 'public, max-age=300, stale-while-revalidate=300'
-METHOD_PAGES = frozenset(('/methodology', '/methodology/changelog'))
+METHOD_PAGES = frozenset(('/methodology', '/methodology/changelog', '/privacy', '/terms'))  # 11-15 E12: policy pages too
 ANALYTICS_COOKIES = ('_ga','_gid','_gcl')
 TITLES = {400:'Bad request',401:'Authentication required',403:'Forbidden',404:'Not found',
     405:'Method not allowed',408:'Request timed out',409:'Conflict',413:'Payload too large',

@@ -28,8 +28,11 @@ def tools():
             'error_type':{'enum':['timeout','http_5xx','auth_error','schema_mismatch','rate_limit']},
             'protocol':{'enum':['auto','any','a2a','mcp','x402']}},('resource_id','ok'))),
     ]
-    return [{'name':name,'description':description,'inputSchema':schema,
-             'annotations':{'readOnlyHint':name in ('describe','resume'),
+    # E12 (PM 11-15): every tool carries a title for the Claude Connectors Directory, top level and in annotations.
+    titles={'discover':'Discover agents for a task','describe':'Describe one listing','execute':'Run an authorized search',
+            'resume':'Revalidate the previous task','report':'Report a call outcome'}
+    return [{'name':name,'title':titles.get(name,name),'description':description,'inputSchema':schema,
+             'annotations':{'title':titles.get(name,name),'readOnlyHint':name in ('describe','resume'),
                  'destructiveHint':name=='execute','idempotentHint':name in ('describe','resume'),
                  'openWorldHint':name=='execute'},
              'outputSchema':{'type':'object','properties':{

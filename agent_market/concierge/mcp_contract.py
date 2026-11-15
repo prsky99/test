@@ -149,6 +149,11 @@ def mcp_tools():
             'idempotentHint': read_only,
             'openWorldHint': external or name == 'subscribe',
         }
+        # E12 (PM 11-15): the Claude Connectors Directory asks every tool for a title and a read-only or destructive
+        # hint (claude.com/docs/connectors/building/submission). Top level for current MCP, in annotations for older.
+        if name in TITLES:
+            tool.setdefault('title', TITLES[name])
+            tool['annotations']['title'] = tool['title']
         # Catalog lookup tools never write conversation state; chat/hello remain stateful.
         tool['outputSchema'] = {
             'type': 'object',
@@ -186,10 +191,19 @@ def mcp_tools():
                               'description': 'At most one offer labelled Sponsored, after and apart from the results.'}}}
     # PM 11-14 04:5x (Glama TDQS): the legacy contact command is no longer listed; tools/call still answers it
     # (front.py counts each call as hidden_tool|subscribe) so a caller that already uses it keeps working.
+    for tool in TOOLS:   # E12: the tools added above carry a top-level title; older clients read annotations.title
+        if tool.get('title'):
+            tool.setdefault('annotations', {}).setdefault('title', tool['title'])
     return [tool for tool in TOOLS if tool['name'] not in HIDDEN]
 
 
 HIDDEN = frozenset(('subscribe',))
+TITLES = {'hello': 'Start a session', 'chat': 'Ask about a task', 'search': 'Browse agents for a task',
+          'find_agents': 'Find agents to connect', 'check_agent': 'Check an agent before calling',
+          'whats_new': 'Re-check a saved task', 'subscribe': 'Register a contact (legacy)',
+          'verify_contact': 'Confirm a contact code', 'call': 'Run a listed tool here', 'report': 'Report a call outcome',
+          'credit': 'Read workspace credits', 'adapt_rest': 'Call a REST API from its OpenAPI document',
+          'search_workflows': 'Browse published workflows', 'workflow_details': 'Read one workflow'}
 
 
 def discovery_arguments(arguments):

@@ -235,7 +235,7 @@ NAV = [('Agent Status', '/new/en/agent-status.html'), ('Learn', '/new/en/learn.h
 FOOTER = [('Connect a client', '/connect'), ('Task pages', '/agents/tasks'), ('Rankings', '/agents/best'),
           ('State of AI Agents', '/reports/state-of-ai-agents'), ('Badges', '/badges'), ('Explore', '/new/en/explore.html'),
           ('Chat', '/new/en/chat.html'), ('About', '/new/en/about.html'), ('llms.txt', '/llms.txt'),
-          ('Terms of Service', '/#tos'), ('Privacy Policy', '/#privacy')]
+          ('Terms of Service', '/terms'), ('Privacy Policy', '/privacy')]  # 11-15 E12: pages that need no script
 
 
 def shell(*, title, description, canonical, body, structured=None, index=True):
@@ -660,4 +660,6 @@ def growth_router(store=None):
     router.include_router(methodology_router())
     from .advertise_page import advertise_router  # 11-14 PM: advertiser demand page
     router.include_router(advertise_router())
+    from .legal_pages import legal_router  # 11-15 E12: /privacy and /terms for the Connectors Directory listing
+    router.include_router(legal_router())
     return router

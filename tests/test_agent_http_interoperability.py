@@ -108,7 +108,8 @@ def test_tool_hints_schemas_and_continuation_are_truthful(catalog):
     tools = mcp_tools()
     for tool in tools:
         Draft202012Validator.check_schema(tool['outputSchema'])
-        assert set(tool['annotations']) == {'readOnlyHint', 'destructiveHint', 'idempotentHint', 'openWorldHint'}
+        # 11-15 E12: annotations.title (an MCP ToolAnnotations field) is allowed beside the four hints
+        assert set(tool['annotations']) - {'title'} == {'readOnlyHint', 'destructiveHint', 'idempotentHint', 'openWorldHint'}
     by_name = {t['name']: t for t in tools}
     assert by_name['search']['annotations']['readOnlyHint']  # Stateless catalog lookup.
     # call relays only tools classified read-only (PM 11-14 04:1x); adapt_rest can send POST/PUT/DELETE.
