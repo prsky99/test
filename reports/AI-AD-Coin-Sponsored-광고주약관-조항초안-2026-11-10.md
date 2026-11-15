@@ -8,9 +8,12 @@
 
 ## 승인받을 문구 (영어, 공개용)
 
+> 개정 2026-11-15: 1항과 7항을 고쳤다. 환영 코인과 첫 예약 지원은 첫 USDC 결제가 확인된 광고주에게만 준다(공개 신청 악용 방지, 4b3aa836). 확정자: PM(12:4x). 근거: 사용자 11-15 결정 5번 "약관은 매출 증대에 맞게 상황에 따라 변경". 대조: `docs/REVENUE_TERMS_DRAFT_2026-11-15.md` B-2.
+
+
 > ### Sponsored placements paid with coins
 >
-> **1. What coins are.** Coins are platform credits that Agent Concierge grants to advertisers, for example when an account is approved or when a listed agent passes verification. Coins have no cash value. They cannot be bought, sold, cashed out, exchanged for money or cryptocurrency, or transferred to another account. Agent Concierge does not sell coins.
+> **1. What coins are.** Coins are platform credits that Agent Concierge grants to advertisers, for example after your first USDC payment is confirmed or when a listed agent passes verification. Coins have no cash value. They cannot be bought, sold, cashed out, exchanged for money or cryptocurrency, or transferred to another account. Agent Concierge does not sell coins.
 >
 > **2. What you can book.** You can book a Sponsored placement for one day (UTC) for an approved, active campaign, for one task category and one broad region. Each task category and region has a limited number of placements per day. Bookings open from tomorrow up to 30 days ahead.
 >
@@ -22,19 +25,19 @@
 >
 > **6. When coins are returned.** If we cannot show your placement for reasons on our side, for example we reject or suspend the campaign, or the Sponsored area is unavailable for more than one hour that day, all coins for that day are returned to your balance. If you pause or end the campaign yourself, coins are not returned.
 >
-> **7. First booking support.** A new advertiser's first one-day booking may be paid from the platform's growth budget instead of your balance, once per advertiser and while that support is available.
+> **7. First booking support.** Once your first USDC payment is confirmed, your first one-day booking with coins may be paid from the platform's growth budget instead of your balance, once per advertiser and while that support is available.
 >
 > **8. Records.** Every booking, cancellation and return is recorded in your coin history.
 
 ## 한국어 대조 (사용자 검토용, 공개하지 않음)
 
-1. **코인이란:** 플랫폼이 광고주에게 주는 크레딧이다(계정 승인, 등록 에이전트 검증 통과 등). 현금 가치가 없다. 사고팔기, 현금화, 돈이나 가상자산으로 교환, 다른 계정으로 이전이 모두 안 된다. 플랫폼은 코인을 팔지 않는다.
+1. **코인이란:** 플랫폼이 광고주에게 주는 크레딧이다(첫 USDC 결제 확인, 등록 에이전트 검증 통과 등). 현금 가치가 없다. 사고팔기, 현금화, 돈이나 가상자산으로 교환, 다른 계정으로 이전이 모두 안 된다. 플랫폼은 코인을 팔지 않는다.
 2. **예약 대상:** 승인된 활성 캠페인을 하루(UTC) 단위로, 작업 분류 하나와 넓은 지역 하나에 예약한다. (분류, 지역)마다 하루 칸 수가 정해져 있다. 내일부터 30일 안까지 예약할 수 있다.
 3. **가격:** 확정하기 전에 가격을 보여 주고, 확정할 때 잔액에서 뺀다. 지금 가격은 하루 1칸 50코인이다. 앞으로의 예약 가격은 바뀔 수 있지만, 확정한 예약은 그 가격을 유지한다.
 4. **표시 방식:** "Sponsored" 라벨을 붙이고 추천 결과 옆에만 보인다. 추천이나 순위에는 영향이 없다. 노출 수나 클릭 수는 보장하지 않는다.
 5. **취소:** 시작 전날(UTC)까지 취소하면 전액 돌려준다. 당일에는 취소할 수 없다.
 6. **반환:** 플랫폼 사정(반려, 정지, 그날 Sponsored 영역이 1시간 넘게 멈춤)이면 그날 몫을 전액 돌려준다. 광고주가 스스로 멈추거나 끝내면 돌려주지 않는다.
-7. **첫 예약 지원:** 새 광고주의 첫 하루 예약은 광고주 잔액 대신 성장 예산으로 낼 수 있다. 광고주당 1번이고, 지원 재원이 있을 때만 된다.
+7. **첫 예약 지원:** 첫 USDC 결제가 확인된 뒤, 코인으로 하는 첫 하루 예약은 광고주 잔액 대신 성장 예산으로 낼 수 있다. 광고주당 1번이고, 지원 재원이 있을 때만 된다.
    - 한 달 상한(성장 예산의 10%)은 운영 규칙이라 약관에 숫자를 넣지 않았다.
 8. **기록:** 예약, 취소, 반환은 모두 코인 내역에 남는다.
 

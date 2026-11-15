@@ -206,7 +206,8 @@ def test_http_booking_needs_authority_csrf_and_an_idempotency_key(p1_suite):  # 
 
 
 def test_public_terms_match_the_approved_clauses_word_for_word():
-    """The eight clauses the user approved (11-10) and term 9 (USDC, 11-11) appear unchanged in the English workspace."""
+    """The eight clauses the user approved (11-10) and term 9 (USDC, 11-11) appear unchanged in the English workspace.
+    Terms 1 and 7 were revised 11-15 in the source report itself (PM 12:4x under the user's decision 5 of 11-15)."""
     import html as htmllib
     import re
     from pathlib import Path
