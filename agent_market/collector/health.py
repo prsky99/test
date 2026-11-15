@@ -416,8 +416,16 @@ class HealthChecker:
             return r.get("host") or urlparse(r["url"]).hostname or r["url"]
 
         with self._claim_lock:
-            due = [r for r in self.store.due_for_check(time.time(), limit * 2, per_host=self.per_host_cap, kind=kind)
-                   if host(r) not in self._busy_hosts][:limit]
+            try:
+                picked = self.store.due_for_check(time.time(), limit * 2, per_host=self.per_host_cap, kind=kind)
+            except Exception as exc:
+                # 11-15 08:40, 11:22, 17:16: the due pick passed the 5 s statement timeout under load and the
+                # whole round logged a traceback. The pick writes nothing, so the round is skipped; the loop idles.
+                if getattr(exc, "code", None) != "statement_failed":
+                    raise
+                log.warning("health: due pick timed out under load (kind=%s); round skipped", kind)
+                return {"checked": 0, "accepted": 0, "stale": 0, "skipped": "statement_timeout"}
+            due = [r for r in picked if host(r) not in self._busy_hosts][:limit]
             claimed = {host(r) for r in due}
             self._busy_hosts |= claimed
             if due:  # 결과를 기록하기 전까지 다른 묶음이 다시 고르지 않게. 프로세스가 죽어도 LEASE 뒤에 다시 점검됨

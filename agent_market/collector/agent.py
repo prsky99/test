@@ -195,8 +195,12 @@ class CollectorAgent:
             if self.store is not None:
                 try:  # Paid x402 API quality evaluation (unassessed or older than 24h)
                     stats["checked"] += self.store.evaluate_x402_batch(limit=1000)
-                except Exception:
-                    log.exception("x402 evaluation error")
+                except Exception as exc:
+                    # 11-15 01:02, 11:50: its read passed the 5 s statement timeout under load; the next round retries.
+                    if getattr(exc, "code", None) == "statement_failed":
+                        log.warning("x402 evaluation timed out under load; next round retries")
+                    else:
+                        log.exception("x402 evaluation error")
                 try:  # Apply quality policy to existing evaluations without network calls
                     stats["checked"] += self.store.quality_policy_batch(limit=500)
                 except Exception:
