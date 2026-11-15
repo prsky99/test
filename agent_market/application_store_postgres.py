@@ -37,6 +37,18 @@ log = logging.getLogger(__name__)
 RECONNECT_BACKOFF = 1.0
 
 
+def log_statement_canceled(sql):
+    """Name the statement a statement timeout cancelled (SQLSTATE 57014).
+
+    11-15 21:50 an A2A request took 12.45 s on the server while a frontend connection hit the 5 s timeout, and
+    nothing said which statement it was: callers turn the error into 'statement_failed' and many fall back
+    silently. The line carries the registered SQL's digest and its first words, never parameters, and the
+    thread name so a request thread can be told from a background round."""
+    text = ' '.join(str(sql).split())
+    log.warning('Statement cancelled by statement timeout: sql=%s thread=%s %s',
+                hashlib.sha256(text.encode()).hexdigest()[:12], threading.current_thread().name, text[:90])
+
+
 def _normalized(sql):
     # Resolve formatting-only variants of a registered statement. Literal and
     # identifier bytes remain exact; comments deliberately retain exact bytes.
@@ -478,6 +490,8 @@ class PostgresApplicationStore(PostgresCollectorMixin, PostgresFinanceMixin, Pos
                 if not isinstance(cleanup, Exception): raise
                 raise ApplicationStoreError('connection_unusable') from None
             if not isinstance(error, Exception): raise
+            if getattr(error, 'sqlstate', None) == '57014':
+                log_statement_canceled(sql)
             raise ApplicationStoreError('statement_failed') from None
 
     def _initialize(self):
