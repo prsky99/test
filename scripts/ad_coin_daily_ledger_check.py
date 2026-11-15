@@ -5,14 +5,15 @@
 Runs LedgerReconciler (double-entry zero sum per asset, no negative non-clearing account, campaign budget
 conservation, wallets and receipts) plus the platform holdings, and writes
 logs/ops/ad-coin-ledger/<UTC day>.json. Exit 1 when anything is off, so a scheduler can alert.
-One database connection, no writes.
+One database connection, no writes: every connection is made by the application's own validated connector and then
+set to default_transaction_read_only=on (PM 12:4x audit), so even a write the code did not mean to make is refused by
+PostgreSQL. (Inherited PGOPTIONS is refused by the application runtime, so the setting is applied per connection.)
 """
 import argparse
 import json
 import os
 import sys
 import time
-import types
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,7 +29,19 @@ def check(store):
             "ok": report.status == "clean" and not report.issues}
 
 
-def main(argv=None):
+def read_only_connector(connect=None):
+    """The application's connector, then a read-only session on each connection it opens."""
+    if connect is None:
+        from agent_market.application_runtime import _connect as connect
+
+    def opened(dsn):
+        connection = connect(dsn)
+        connection.execute("SET default_transaction_read_only = on")
+        return connection
+    return opened
+
+
+def main(argv=None, connect=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--dsn-file", required=True)
     parser.add_argument("--key-file", required=True)
@@ -36,8 +49,11 @@ def main(argv=None):
     args = parser.parse_args(argv)
     os.environ["AD_COIN_V2_POOL_MAXIMUM"] = "1"
     from agent_market.ad_coin.v2.live_service import store_from_application
-    from scripts.ad_coin_v2_migrate import _connect
-    runtime = _connect(types.SimpleNamespace(dsn_file=args.dsn_file, key_file=args.key_file))
+    from agent_market.application_runtime import open_runtime_storage
+    runtime = open_runtime_storage(":memory:", values={
+        "APPLICATION_STORE_BACKEND": "postgresql", "APPLICATION_POSTGRES_DSN_FILE": args.dsn_file,
+        "APPLICATION_WORKFLOW_KEY_FILE": args.key_file}, connector=read_only_connector(connect))
+    runtime.store._admin_read_pool = None  # one connection only (prod connection budget)
     try:
         result = check(store_from_application(runtime.store))
     except Exception as error:  # report, never hide
