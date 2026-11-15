@@ -7,12 +7,14 @@ Answers come from the snapshot file in memory (verified_registry.SnapshotIndex);
 """
 from __future__ import annotations
 
+import hashlib
 import re
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response
 
 from .broker.server import RateLimiter
+from . import tool_change_feed as F
 from . import verified_registry as R
 
 BASE = "/registry/verified/v0.1"
@@ -21,8 +23,9 @@ CORS = {"Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET
 CACHE = "public, max-age=300"
 
 
-def router_for(index: R.SnapshotIndex | None = None) -> APIRouter:
+def router_for(index: R.SnapshotIndex | None = None, feed_index: F.FeedIndex | None = None) -> APIRouter:
     index = index or R.default_index()
+    feed_index = feed_index or F.default_index()
     router = APIRouter()
     limiter = RateLimiter(60)
 
@@ -83,5 +86,23 @@ def router_for(index: R.SnapshotIndex | None = None) -> APIRouter:
         if found is None:
             return error(404, "Server not found")
         return reply(found, etag=snapshot.etag)
+
+    # E5: listing and tool-definition changes (JSON Feed 1.1). "x/<namespace>/" keeps it apart from the v0.1 paths.
+    @router.get(F.FEED_PATH, include_in_schema=False)
+    def changes(request: Request, cursor: str | None = None):
+        if not limiter.allow(client(request)):
+            return error(429, "Too many requests", {"Retry-After": "60"})
+        current = feed_index.current()
+        if current is None:
+            return error(503, "The change feed is preparing", {"Retry-After": "300"})
+        etag = current.etag[:-1] + "-" + hashlib.sha256((cursor or "").encode()).hexdigest()[:8] + '"'
+        if request.headers.get("if-none-match") == etag:
+            return Response(status_code=304, headers={**CORS, "Cache-Control": CACHE, "ETag": etag})
+        try:
+            body = F.page(current, cursor)
+        except R.InvalidCursor:
+            return error(400, "Invalid cursor parameter")
+        return JSONResponse(body, media_type="application/feed+json",
+                            headers={**CORS, "Cache-Control": CACHE, "ETag": etag})
 
     return router

@@ -32,6 +32,7 @@ SITE = "https://agentconcierge.biz"
 NAME = re.compile(r"^[a-zA-Z0-9.-]+/[a-zA-Z0-9._-]+$")
 FRESH_S = 7 * 86400
 KEEP_REMOVED_S = 30 * 86400
+MEMBER_CHECK_S = 7 * 86400   # a member measured this recently counts as risk-checked before the survey log exists
 DEFAULT_LIMIT, MAX_LIMIT = 30, 100
 PAGE_ROWS = 1000
 _FORGES = {"github.com": "github", "gitlab.com": "gitlab"}   # the official entries name these sources
@@ -136,7 +137,7 @@ def entry(row: dict, now: float, fingerprints: dict | None = None, risky: frozen
                     "checked_without_headers": True, "evidence": f"{SITE}/agent/{row['id']}"}
     if isinstance(trial.get("tool"), str):
         verification["checked_tool"] = trial["tool"][:100]
-    verification["definition_risk_check"] = "clear" if risk_checked else "not_checked_yet"
+    verification["definition_risk_check"] = "clear" if risk_checked or fp.get("checked") else "not_checked_yet"
     if fp.get("server_fp"):
         verification.update(tools_fingerprint="sha256:" + fp["server_fp"], fingerprint_version=fp.get("version"),
                             fingerprint_as_of=fp.get("as_of"))
@@ -199,10 +200,12 @@ def build_snapshot(rows, now: float, previous: dict | None = None, fingerprints:
 
 
 def _ts(iso: str) -> float:
+    """Seconds for an ISO time: ours end in Z, the fingerprint records carry a local offset (+0900)."""
     try:
-        return datetime.strptime(iso, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp()
+        at = datetime.fromisoformat(iso)
     except (TypeError, ValueError):
         return 0.0
+    return (at if at.tzinfo else at.replace(tzinfo=timezone.utc)).timestamp()
 
 
 def write_snapshot(snapshot: dict, folder: Path | None = None) -> Path:
@@ -230,7 +233,9 @@ def run_job(store, now=None, folder: Path | None = None) -> dict:
     snapshot = build_snapshot(read_rows(store), now, previous, fingerprints, risky, risk_checked)
     write_events(snapshot.pop("events"), folder, now)
     write_snapshot(snapshot, folder)
-    return {"listed": snapshot["listed"], "entries": len(snapshot["servers"])}
+    from .tool_change_feed import refresh as refresh_feed
+    changes = refresh_feed(snapshot, folder, now)   # E5, from the events just written and the fingerprint log
+    return {"listed": snapshot["listed"], "entries": len(snapshot["servers"]), "changes": changes}
 
 
 def write_events(events: list[dict], folder: Path, now: float) -> int:
@@ -249,9 +254,11 @@ def load_fingerprints(now=None) -> tuple[dict, frozenset, bool]:
     """(fingerprints by resource id, resource ids with a risk signal in 30 days, risk_check_available).
 
     Sources are the operations fingerprint records (reports/tool-fingerprint-design-2026-11-14 4):
-    ``changes-<date>.jsonl`` (one line per definition change: resource_id, server_fp, classification
-    dynamic|general|risk) and ``pearls.json`` (pearl and member baselines). Until the change log is being written (a
-    file from the last two days exists) the risk condition cannot be checked: entries then say
+    ``changes-<date>.jsonl`` (one line per definition change: resource_id, source survey|health|retest|gate,
+    server_fp, classification dynamic|general|risk) and ``pearls.json`` (``resources[rid]``: members measured every
+    6 hours, with current/measured_at; ``pearls[rid].server_fp``: older baselines). The whole catalog is covered only
+    once the collector's survey writes the log (a 'survey' line in the last two days, from 11-19); before that only a
+    member measured in the last 7 days counts as checked (its entry gets ``checked``), and every other entry says
     ``definition_risk_check: not_checked_yet`` instead of claiming it. Usage hashes are never substituted."""
     base = Path(os.environ.get("FINGERPRINT_DATA", "gateway-data/fingerprints"))
     now = time.time() if now is None else now
@@ -260,17 +267,31 @@ def load_fingerprints(now=None) -> tuple[dict, frozenset, bool]:
         pearls = json.loads((base / "pearls.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         pearls = {}
-    baselines = pearls.get("pearls") if isinstance(pearls, dict) else None
-    for rid, value in (baselines or {}).items():
+    if not isinstance(pearls, dict):
+        pearls = {}
+    version = pearls.get("version") or "fingerprint-v1"
+    for rid, value in (pearls.get("pearls") or {}).items():
         if isinstance(value, dict) and isinstance(value.get("server_fp"), str):
             try:
-                out[int(rid)] = {"server_fp": value["server_fp"], "version": pearls.get("version", "fingerprint-v1"),
-                                 "as_of": pearls.get("generated")}
+                out[int(rid)] = {"server_fp": value["server_fp"], "version": version, "as_of": pearls.get("generated")}
             except ValueError:
                 continue
+    for rid, value in (pearls.get("resources") or {}).items():   # members, measured every 6 hours
+        fp = value.get("current") or value.get("last_server_fp") if isinstance(value, dict) else None
+        if not isinstance(fp, str):
+            continue
+        try:
+            rid = int(rid)
+        except ValueError:
+            continue
+        measured = _ts(str(value.get("measured_at")))
+        out[rid] = {"server_fp": fp, "version": value.get("version") or version, "as_of": value.get("measured_at"),
+                    "checked": now - measured <= MEMBER_CHECK_S and not value.get("error")}
+        if value.get("classification") == "risk" or value.get("risk"):
+            risky.add(rid)
     files = sorted(base.glob("changes-*.jsonl"))
     recent_names = {"changes-" + time.strftime("%Y%m%d", time.localtime(now - d * 86400)) + ".jsonl" for d in (0, 1)}
-    available = any(path.name in recent_names for path in files)
+    available = False
     since = now - 30 * 86400
     for path in files[-31:]:
         try:
@@ -284,6 +305,8 @@ def load_fingerprints(now=None) -> tuple[dict, frozenset, bool]:
             except (ValueError, TypeError, AttributeError):
                 continue
             at = _ts(str(row.get("at"))) if isinstance(row.get("at"), str) else float(row.get("at") or 0)
+            if row.get("source") == "survey" and path.name in recent_names:
+                available = True   # the collector's survey covers the whole catalog
             if row.get("classification") == "risk" and at >= since:
                 risky.add(rid)
             if isinstance(row.get("server_fp"), str):

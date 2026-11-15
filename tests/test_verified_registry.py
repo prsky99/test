@@ -202,11 +202,36 @@ def test_fingerprint_records_by_resource_id_and_risk_check_availability(tmp_path
     fps, risky, available = R.load_fingerprints(NOW)
     assert fps[33328]["server_fp"] == "aa" * 32 and risky == frozenset() and available is False   # no change log yet
     today = time.strftime("%Y%m%d", time.localtime(NOW))
+    local = time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime(NOW - 600))   # how operations write 'at' (+0900)
     (tmp_path / f"changes-{today}.jsonl").write_text("\n".join(json.dumps(r) for r in (
-        {"at": R._iso(NOW - 600), "resource_id": 5, "server_fp": "bb" * 32, "classification": "risk"},
-        {"at": R._iso(NOW - 300), "resource_id": 6, "server_fp": "cc" * 32, "classification": "dynamic"})))
+        {"at": local, "source": "health", "resource_id": 5, "server_fp": "bb" * 32, "classification": "risk"},
+        {"at": R._iso(NOW - 300), "source": "health", "resource_id": 6, "server_fp": "cc" * 32,
+         "classification": "dynamic"})))
     fps, risky, available = R.load_fingerprints(NOW)
-    assert available and risky == frozenset({5}) and fps[6]["server_fp"] == "cc" * 32
+    assert risky == frozenset({5}) and fps[6]["server_fp"] == "cc" * 32
+    assert available is False          # member checks alone do not cover the catalog
+    with (tmp_path / f"changes-{today}.jsonl").open("a") as fh:
+        fh.write("\n" + json.dumps({"at": local, "source": "survey", "resource_id": 7, "server_fp": "dd" * 32,
+                                    "classification": "general"}))
+    assert R.load_fingerprints(NOW)[2] is True
+
+
+def test_members_measured_recently_are_risk_checked_before_the_survey_log(tmp_path, monkeypatch):
+    """Operations' member file (resources[rid], every 6 hours) covers members only, so only they say 'clear'."""
+    monkeypatch.setenv("FINGERPRINT_DATA", str(tmp_path))
+    measured = time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime(NOW - 3600))
+    (tmp_path / "pearls.json").write_text(json.dumps({"version": "fingerprint-v1", "resources": {
+        "1": {"current": "ee" * 32, "measured_at": measured, "classification": "same", "risk": []},
+        "3": {"current": "ff" * 32, "measured_at": measured, "classification": "risk", "risk": ["hint_flipped"]}}}))
+    fps, risky, available = R.load_fingerprints(NOW)
+    assert fps[1]["checked"] and risky == frozenset({3}) and available is False
+    snap = R.build_snapshot([row(1, "io.github.example/member"), row(2, "io.github.example/other"),
+                             row(3, "io.github.example/risky")], NOW, None, fps, risky, available)
+    meta = {s["server"]["name"]: s["_meta"][R.META_KEY] for s in snap["servers"]}
+    assert meta["io.github.example/member"]["definition_risk_check"] == "clear"
+    assert meta["io.github.example/member"]["tools_fingerprint"] == "sha256:" + "ee" * 32
+    assert meta["io.github.example/other"]["definition_risk_check"] == "not_checked_yet"
+    assert "io.github.example/risky" not in meta
 
 
 def test_a_server_that_falls_below_the_rules_leaves_the_next_snapshot_and_the_change_log_says_why(tmp_path):
