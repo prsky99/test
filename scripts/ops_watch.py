@@ -18,7 +18,8 @@ Prints one JSON line and appends it to logs/ops/watch.jsonl. "anomalies" lists o
 Every run also records production database connections per role (11-15 PM, no database session: the client side
 of each Unix socket is matched to a backend of the production postmaster with lsof), to learn the daytime peak.
 Precision review R53 (11-15) adds, every run:
-- launchd_jobs: biz.agentconcierge.* launchd jobs (not the driveragent project) whose last exit status is not 0
+- launchd_jobs: biz.agentconcierge.* launchd jobs (not the driveragent project) whose last exit status is not 0 and that are
+  not running now
 - backup: the newest complete daily snapshot older than 26 hours, or the last backup run's offsite copy not ok
 - core_down: PostgreSQL, Redis, OpenSearch, cloudflared, jobs or execution not running
 - site checks run first and stop after SITE_BUDGET seconds (the rest is recorded as not checked)
@@ -346,7 +347,9 @@ def check_launchd(text=None):
         except ValueError:
             continue
         jobs[label] = {'pid': int(pid) if pid.isdigit() else None, 'status': status}
-    bad = [{'label': label, **job} for label, job in sorted(jobs.items()) if job['status'] != 0]
+    # A job that is running now is not failing: its status is the previous instance's last exit (11-15 20:2x PM: the
+    # opensearch-sync 16:46 kickstart -k left -15 on a healthy PID 79724, raised four times as launchd_jobs).
+    bad = [{'label': label, **job} for label, job in sorted(jobs.items()) if job['status'] != 0 and job['pid'] is None]
     return jobs, bad
 
 

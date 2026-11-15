@@ -11,7 +11,8 @@ ROOT = Path(__file__).resolve().parents[1]
 LIST = '\n'.join(['PID\tStatus\tLabel', '1350\t0\tbiz.agentconcierge.postgres18', '19100\t0\tbiz.agentconcierge.opensearch',
                   '39026\t0\tbiz.agentconcierge.498590e0b3.jobs.main', '-\t0\tbiz.agentconcierge.498590e0b3.execution.main',
                   '-\t3\tbiz.agentconcierge.backup', '-\t-9\tbiz.agentconcierge.opsauto.housead',
-                  '-\t1\tbiz.agentconcierge.driveragent.app', '77\t0\tcom.apple.x'])
+                  '-\t1\tbiz.agentconcierge.driveragent.app', '77\t0\tcom.apple.x',
+                  '79724\t-15\tbiz.agentconcierge.opensearch-sync'])
 
 
 def test_launchd_jobs_with_a_non_zero_exit_are_listed():
@@ -19,6 +20,7 @@ def test_launchd_jobs_with_a_non_zero_exit_are_listed():
     assert 'biz.agentconcierge.driveragent.app' not in jobs and 'com.apple.x' not in jobs
     assert [b['label'] for b in bad] == ['biz.agentconcierge.backup', 'biz.agentconcierge.opsauto.housead']
     assert jobs['biz.agentconcierge.postgres18'] == {'pid': 1350, 'status': 0}
+    assert jobs['biz.agentconcierge.opensearch-sync'] == {'pid': 79724, 'status': -15}   # running: not listed as bad
 
 
 def test_core_services_down_by_launchd_pid_and_process_list():
