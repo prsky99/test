@@ -922,6 +922,24 @@ def test_arxiv_agent_ranks_title_matches_and_keeps_ids(tmp_path):
     assert "Thank you to arXiv" in env["sources"][0]["notice"]
 
 
+def test_arxiv_agent_puts_the_topic_phrase_in_titles_first(tmp_path):
+    """holdout-r3 11-16 (28/30): papers that only mention both words came first; one request now also asks for
+    titles carrying the phrase, and those rank first (plural s and two-word order aside)."""
+    feed = b"""<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom">
+<entry><id>http://arxiv.org/abs/2311.00001v1</id><published>2023-11-01T00:00:00Z</published>
+<title>Causal Models of Human Migration due to Climate Change</title></entry>
+<entry><id>http://arxiv.org/abs/2401.00002v1</id><published>2024-01-01T00:00:00Z</published>
+<title>Forecasting climate migrations in South Asia</title></entry>
+<entry><id>http://arxiv.org/abs/2402.00003v1</id><published>2024-02-01T00:00:00Z</published>
+<title>Migration climate corridors and trees</title></entry></feed>"""
+    calls = []
+    a, _ = agents(tmp_path, {"https://export.arxiv.org/api/query": httpx.Response(
+        200, content=feed, headers={"content-type": "application/atom+xml"})}, calls)
+    items = a.execute("arxiv-search", {"query": "Climate migration", "limit": 3})["result"]["items"]
+    assert {i["id"] for i in items[:2]} == {"arXiv:2401.00002", "arXiv:2402.00003"}   # phrase titles before the rest
+    assert "ti%3A%22climate+migration%22+OR+%28all%3Aclimate+AND+all%3Amigration%29" in calls[0]
+
+
 def test_arxiv_feed_with_a_dtd_is_refused(tmp_path):
     from agent_market.fallback_agents.agents import arxiv_entries
     with pytest.raises(ValueError):
@@ -1423,6 +1441,36 @@ def test_wiki_grounding_quotes_the_best_sentences_with_links(tmp_path):
     assert search_terms("What is the capital city of South Korea?") == "South Korea"
     assert out["source"].startswith("Wikipedia (CC BY-SA 4.0")
     assert "gsrsearch=Who+created+the+Python+programming+language" in calls[0] and "maxlag=5" in calls[0]
+    assert len(calls) == 1                     # a question that is not "what is X" has no title to try first
+
+
+def test_wiki_grounding_quotes_the_subjects_own_article_first(tmp_path):
+    """holdout-r3 11-16 (28/30): search ranked "Intrusion detection system" above "Anomaly detection"; the article
+    titled as the subject (redirects followed, never a disambiguation page) is quoted first."""
+    from agent_market.fallback_agents.agents import subject_title
+    calls = []
+    side = [{"index": 1, "pageid": 1, "title": "Intrusion detection system", "fullurl": "https://en.wikipedia.org/wiki/Intrusion_detection_system",
+             "extract": "Anomaly-based detection finds deviations; anomaly detection of traffic relies on models of anomaly detection."},
+            {"index": 2, "pageid": 2, "title": "Anomaly detection", "fullurl": "https://en.wikipedia.org/wiki/Anomaly_detection",
+             "extract": "In data analysis, anomaly detection is the identification of rare items."}]
+    own = [{"pageid": 2, "title": "Anomaly detection", "fullurl": "https://en.wikipedia.org/wiki/Anomaly_detection",
+            "extract": "In data analysis, anomaly detection is the identification of rare items."}]
+
+    def handler(request):
+        calls.append(str(request.url))
+        return httpx.Response(200, json={"query": {"pages": own if "titles=" in str(request.url) else side}})
+    a, _ = agents(tmp_path, {"https://en.wikipedia.org/w/api.php": handler})
+    out = a.execute("wiki-grounding", {"question": "What is anomaly detection?"})["result"]
+    assert out["sources"][0] == "https://en.wikipedia.org/wiki/Anomaly_detection"
+    assert "titles=Anomaly+detection" in calls[0] and "redirects=1" in calls[0]
+    assert subject_title("Optogenetics") == "Optogenetics" and subject_title("Who was Ada Lovelace?") == "Ada Lovelace"
+    assert subject_title("Who created the Python programming language?") is None
+    # a disambiguation page is never the subject's article: then search order and sentence scores decide as before
+    own[0] = dict(own[0], pageprops={"disambiguation": ""})
+    del side[1]                                  # search alone found only the side article (the real gate case)
+    a, _ = agents(tmp_path, {"https://en.wikipedia.org/w/api.php": handler})
+    out = a.execute("wiki-grounding", {"question": "What is anomaly detection?"})["result"]
+    assert out["sources"][0] == "https://en.wikipedia.org/wiki/Intrusion_detection_system"
 
 
 def test_wiki_grounding_without_a_match_is_not_found(tmp_path):

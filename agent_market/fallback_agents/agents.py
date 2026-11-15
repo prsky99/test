@@ -630,19 +630,37 @@ class FallbackAgents:
         if not terms or len(terms) > 12:
             raise FallbackUnavailable("invalid_input", "Use 1 to 12 plain keywords.")
 
+        # 11-16 gate (holdout-r3 28/30): "teacher AND burnout" anywhere ranked papers that only mention both words.
+        # One request (arXiv asks for 3 s between calls, longer than a call's budget) that also takes titles carrying
+        # the phrase itself; those go first below.
+        phrase = " ".join(words) if 2 <= len(words) <= 4 and len(terms) >= 2 else None
+        search = " AND ".join("all:" + t for t in terms)
+        if phrase:
+            search = f'ti:"{phrase}" OR ({search})'
+
         def live(rem):
             response = get("https://export.arxiv.org/api/query", limiters=self.limiters, http=self.http,
                            seconds=max(0.1, rem() - 0.1), limit=2 * 1024 * 1024, accept="application/atom+xml",
-                           params={"search_query": " AND ".join("all:" + t for t in terms),
-                                   "start": 0, "max_results": 50})
+                           params={"search_query": search, "start": 0, "max_results": 50})
             return arxiv_entries(response.content), _now_iso(self.utc_now())
         (entries, as_of), cache = self._cached(("arxiv-search", " ".join(terms)), TTL["arxiv-search"], live, remaining)
         # The API's own order does not favor title matches: rank by query words in the title, then by fewer
         # extra title words, then by the API order.
+        def stem(w):
+            return w[:-1] if len(w) > 3 and w.endswith("s") else w
+        wanted = [stem(w) for w in words]
+
+        def has_phrase(title_words):
+            """The query's words side by side in the title (plural s aside; two words in either order)."""
+            stems, n = [stem(w) for w in title_words], len(wanted)
+            spans = {tuple(stems[i:i + n]) for i in range(len(stems) - n + 1)}
+            return tuple(wanted) in spans or (n == 2 and tuple(reversed(wanted)) in spans)
+
         def rank(pair):
             title_words = re.findall(r"[a-z0-9]+", pair[1]["title"].lower())
             hit = sum(w in set(title_words) for w in set(words))
-            return (-hit, len([w for w in title_words if w not in set(words)]), pair[0])
+            return (not (phrase and has_phrase(title_words)), -hit,
+                    len([w for w in title_words if w not in set(words)]), pair[0])
         ranked = sorted(enumerate(entries), key=rank)
         items, seen = [], set()
         for _, item in ranked:
@@ -1125,7 +1143,22 @@ class FallbackAgents:
         if not words:
             raise FallbackUnavailable("invalid_input", "Ask a factual question with some content words.")
 
+        subject = subject_title(question)
+
         def live(rem):
+            # 11-16 gate (holdout-r3 28/30): search ranked side articles ("Intrusion detection system" for "Anomaly
+            # detection") above the subject's own article. The article titled exactly as the subject (after
+            # redirects, never a disambiguation page) is read first and quoted first.
+            exact = None
+            if subject:
+                found = self._get_json("https://en.wikipedia.org/w/api.php", rem, limit=256 * 1024, params={
+                    "action": "query", "titles": subject, "prop": "extracts|info|pageprops", "exintro": 1,
+                    "explaintext": 1, "inprop": "url", "ppprop": "disambiguation", "redirects": 1,
+                    "format": "json", "formatversion": 2, "maxlag": 5})
+                exact = next((p for p in (found.get("query") or {}).get("pages") or []
+                              if isinstance(p, dict) and not p.get("missing") and p.get("extract")
+                              and "disambiguation" not in (p.get("pageprops") or {})
+                              and str(p.get("fullurl", "")).startswith("https://en.wikipedia.org/wiki/")), None)
             raw = self._get_json("https://en.wikipedia.org/w/api.php", rem, limit=512 * 1024, params={
                 "action": "query", "generator": "search", "gsrsearch": search_terms(question), "gsrlimit": 3,
                 "prop": "extracts|info", "exintro": 1, "explaintext": 1, "inprop": "url", "redirects": 1,
@@ -1133,6 +1166,8 @@ class FallbackAgents:
             pages = sorted((p for p in (raw.get("query") or {}).get("pages") or []
                             if isinstance(p, dict) and p.get("extract") and str(p.get("fullurl", "")).startswith(
                                 "https://en.wikipedia.org/wiki/")), key=lambda p: p.get("index", 99))
+            if exact is not None:
+                pages = [dict(exact, exact=True)] + [p for p in pages if p.get("pageid") != exact.get("pageid")][:2]
             if not pages:
                 raise FallbackUnavailable("not_found", "Wikipedia has no article matching this question.")
             return pages, max((_text(p.get("touched"), 40) for p in pages), default=None)
@@ -1154,6 +1189,11 @@ class FallbackAgents:
             raise FallbackUnavailable("not_found", "No Wikipedia lead sentence matches this question.")
         scored.sort(key=lambda x: x[:3])
         best = scored[:3]
+        own = [x for x in scored if x[4].get("exact")]
+        if own and not any(x[4].get("exact") for x in best):
+            best = [min(own, key=lambda x: x[2])] + best[:2]       # the subject's own article is always quoted
+        elif own:
+            best = sorted(best, key=lambda x: not x[4].get("exact"))   # and quoted first
         quotes = " ".join(f"{s[3]} [{s[4]['title']}]" for s in best)
         sources = list(dict.fromkeys(s[4]["fullurl"] for s in best))
         answer = (f"From Wikipedia (quoted, not generated): {quotes}")[:4000]
@@ -2275,6 +2315,22 @@ ANSWER_CUES = (  # (question pattern, sentence pattern) for extractive answers
     (r"\bcapital\b", r"\bcapital\b"),
     (r"\bwhere\b", r"\b(?:located|lies|situated|in|on)\s+(?:the\s+)?[A-Z][a-z]+"),
 )
+SUBJECT = re.compile(r"^(?P<lead>(?:what|who)\s+(?:is|are|was|were)\s+(?:an?\s+|the\s+)?|(?:tell me about|explain|define)\s+)?"
+                     r"(?P<s>[^?]{2,120}?)\s*(?P<q>\?)?$", re.I)
+
+
+def subject_title(question: str) -> str | None:
+    """The page title to try first: "What is anomaly detection?" -> "Anomaly detection"; a short bare topic stays
+    itself. Longer questions (more than 6 words left) have no single subject."""
+    m = SUBJECT.match(" ".join(question.split()))
+    if not m or (m["q"] and not m["lead"]):      # "Who created X?" is a question, not a title
+        return None
+    subject = m["s"].strip(" .")
+    if not subject or len(subject.split()) > 6:
+        return None
+    return subject[0].upper() + subject[1:]
+
+
 def search_terms(question: str) -> str:
     """Wikipedia search text: the question itself, except "capital (city) of X" searches X (the full question
     ranks "Capital punishment in X" first)."""
