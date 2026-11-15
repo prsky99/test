@@ -39,6 +39,7 @@ REASONS = {
     'approval_mismatch': 'It changed since it passed our gate, so it waits for a new review.',
     'not_approved': 'It is waiting for our operators to approve it again.',
     'fingerprint_changed': 'One of its agents changed its tools, so it waits for a retest.',
+    'pearls_unverified': 'Fewer than two of its agents are verified pearls in our latest tests.',
 }
 
 
@@ -99,7 +100,8 @@ def offered(entry, now=None):
     quality = entry.get('quality') or {}
     tested = _time(quality.get('tested_at'))
     delta = quality.get('delta_pp')
-    return (bool(_time(entry.get('gate_passed_at'))) and len(pearls) >= 2 and all(map(_alternates_ok, pearls))
+    verified_pearls = sum(1 for p in pearls if p.get('pearl') is True)   # PM R29: counted by the judge from the verify snapshot
+    return (bool(_time(entry.get('gate_passed_at'))) and verified_pearls >= 2 and all(map(_alternates_ok, pearls))
             and isinstance(delta, (int, float)) and delta > 0
             and tested is not None and now - tested <= timedelta(hours=FRESH_HOURS))
 
@@ -179,6 +181,7 @@ def public_item(entry, base='https://agentconcierge.biz', now=None):
             'url': base + '/necklaces/' + entry['slug'], 'mcp_tool': tool_name(entry['slug']),
             'a2a_skill': skill_id(entry['slug']), 'input_schema': entry.get('input_schema'),
             'pearls': [{'agent_id': p.get('resource_id'), 'role': p.get('role'), 'tool': p.get('tool'),
+                        'verified_pearl': p.get('pearl') is True,
                         'card': base + '/agent/' + str(p.get('resource_id')),
                         'alternates': {'external': sum(1 for a in p.get('alternates') or [] if a.get('kind') == 'external'),
                                        'agentcon': sum(1 for a in p.get('alternates') or [] if a.get('kind') == 'agentcon')}}
@@ -239,7 +242,7 @@ def feed(base='https://agentconcierge.biz', snapshot=None):
                                     'replaced_by': event.get('replaced_by')}})
     return {'version': 'https://jsonfeed.org/version/1.1', 'title': 'AgentValCon necklaces',
             'home_page_url': base + '/new/en/workflows.html', 'feed_url': base + '/api/feed/necklaces.json',
-            'description': 'Necklaces (workflows of verified agents) that went live, paused, resumed or stopped.',
+            'description': 'Necklaces (workflows of tested agents and verified pearls) that went live, paused, resumed or stopped.',
             'items': items}
 
 
@@ -339,9 +342,10 @@ def page(slug, base='https://agentconcierge.biz', snapshot=None, now=None):
                      '<p class="muted">Each step has alternates that are tried in order when an agent fails.</p><dl class="evidence-list">'
                      + ''.join('<dt>' + esc(k) + '</dt><dd>' + esc(v) + '</dd>' for k, v in guarantee) + '</dl></section>')
     if item['pearls']:
-        parts.append('<section aria-labelledby="pearlsTitle"><h2 id="pearlsTitle">Pearls used</h2><ul class="pearl-list">'
+        parts.append('<section aria-labelledby="pearlsTitle"><h2 id="pearlsTitle">Agents used</h2><ul class="pearl-list">'
                      + ''.join('<li><a href="/agent/' + esc(p['agent_id']) + '">' + esc(p.get('role') or 'step') + '</a>'
-                               + (' · ' + esc(p['tool']) if p.get('tool') else '') + '</li>' for p in item['pearls'])
+                               + (' · ' + esc(p['tool']) if p.get('tool') else '')
+                               + (' · verified pearl' if p.get('verified_pearl') else '') + '</li>' for p in item['pearls'])
                      + '</ul></section>')
     if runs:
         parts.append('<section aria-labelledby="runTitle"><h2 id="runTitle">Run it</h2>'
@@ -397,7 +401,7 @@ def tools(snapshot=None, now=None):
         evidence = (' Verified 95%: ' + str(claim[0]) + '/' + str(claim[1]) + ' cumulative retests passed.' if claim
                     else ' Recent tests: ' + str(window[0]) + '/' + str(window[1]) + ' passed.' if window else '')
         out.append({'name': tool_name(e['slug']), 'title': e.get('name') or e['slug'],
-                    'description': ('Necklace (a workflow of verified agents): ' + (e.get('summary') or '') + evidence
+                    'description': ('Necklace (a workflow of tested agents, ' + str(sum(1 for p in e.get('pearls') or [] if isinstance(p, dict) and p.get('pearl') is True)) + ' verified pearls): ' + (e.get('summary') or '') + evidence
                                     + ' ' + NOTICE_SENTENCE),
                     'inputSchema': e.get('input_schema') or {'type': 'object'},
                     'annotations': {'readOnlyHint': False, 'destructiveHint': False, 'idempotentHint': False,
@@ -429,7 +433,8 @@ def details(slug, base='https://agentconcierge.biz', snapshot=None, now=None):
     if 'notice' in item:
         lines.append(item['notice']['text'])
     for p in item['pearls']:
-        lines.append('- ' + (p.get('role') or 'step') + ': agent ' + str(p['agent_id']) + ' (' + p['card'] + '), alternates '
+        lines.append('- ' + (p.get('role') or 'step') + ': ' + ('verified pearl ' if p.get('verified_pearl') else 'agent ')
+                     + str(p['agent_id']) + ' (' + p['card'] + '), alternates '
                      + str(p['alternates']['external']) + ' external + ' + str(p['alternates']['agentcon']) + ' AgentValCon')
     return '\n'.join(lines), item
 
@@ -470,7 +475,7 @@ def skills(base='https://agentconcierge.biz', snapshot=None, now=None):
     for e in live(snapshot, now):
         example = 'run necklace ' + e['slug'] + ' ' + json.dumps(example_arguments(e.get('input_schema')), separators=(',', ':'))
         out.append({'id': skill_id(e['slug']), 'name': e.get('name') or e['slug'],
-                    'description': 'Necklace (a workflow of verified agents): ' + (e.get('summary') or '') + ' Send: ' + example
+                    'description': 'Necklace (a workflow of tested agents, ' + str(sum(1 for p in e.get('pearls') or [] if isinstance(p, dict) and p.get('pearl') is True)) + ' verified pearls): ' + (e.get('summary') or '') + ' Send: ' + example
                                    + ' ' + NOTICE_SENTENCE + ' Details: ' + base + '/necklaces/' + e['slug'],
                     'tags': ['necklace', 'workflow'], 'examples': [example]})
     return out
