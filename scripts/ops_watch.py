@@ -17,6 +17,11 @@ Prints one JSON line and appends it to logs/ops/watch.jsonl. "anomalies" lists o
   frontend release, so it needs a reinstall (11-14 PM). Every run records its state and release.
 Every run also records production database connections per role (11-15 PM, no database session: the client side
 of each Unix socket is matched to a backend of the production postmaster with lsof), to learn the daytime peak.
+Precision review R53 (11-15) adds, every run:
+- launchd_jobs: biz.agentconcierge.* launchd jobs (not the driveragent project) whose last exit status is not 0
+- backup: the newest complete daily snapshot older than 26 hours, or the last backup run's offsite copy not ok
+- core_down: PostgreSQL, Redis, OpenSearch, cloudflared, jobs or execution not running
+- site checks run first and stop after SITE_BUDGET seconds (the rest is recorded as not checked)
 Exit code 0 always; the caller reads "anomalies".
 """
 import json
@@ -82,13 +87,20 @@ def nearest_path_record(at=None, window=150):
     return best[1] if best else None
 
 
-def check_site(retry_wait=2.0):
+SITE_BUDGET = 45   # seconds for all site checks together (R53: a hung check must not hold the whole watch)
+
+
+def check_site(retry_wait=2.0, budget=SITE_BUDGET, clock=time.monotonic):
     """Returns (bad, path). A failure that a second fresh connection answers with 200 within 8 s goes to path:
     the site answered, the stall was one connection from this Mac (11-12 16:12: llms.txt 8.5 s while the
     net-path probe saw TLS 1.4 s and a 5 s TCP stall to Cloudflare LAX, gateway and origin clean).
     Both tries are kept; only a failure on both counts as a site anomaly."""
     bad, path = [], []
+    deadline = clock() + budget
     for url in URLS:
+        if clock() >= deadline:
+            bad.append({'url': url, 'status': 'not_checked', 'reason': 'site_budget_exceeded'})
+            continue
         code, took = fetch(url)
         if code == 200 and took <= 8:
             continue
@@ -310,6 +322,88 @@ def db_connections(ps_text=None, sockets=None, postmaster=None):
     return {'total': total, 'roles': roles, 'processes': processes, 'other': total - sum(roles.values())}
 
 
+LAUNCHD_PREFIX = 'biz.agentconcierge.'
+BACKUPS = ROOT / 'gateway-data/backups/daily'
+BACKUP_LOG = ROOT / 'logs/services/biz.agentconcierge.backup.log'
+BACKUP_MAX_HOURS = 26
+
+
+def check_launchd(text=None):
+    """(jobs, bad): every biz.agentconcierge.* launchd job with its PID and last exit status (driveragent excluded)."""
+    if text is None:
+        try:
+            text = subprocess.run(['launchctl', 'list'], capture_output=True, text=True, timeout=10).stdout
+        except (OSError, subprocess.SubprocessError):
+            return {}, []
+    jobs = {}
+    for line in text.splitlines():
+        parts = line.split('\t')
+        if len(parts) != 3 or not parts[2].startswith(LAUNCHD_PREFIX) or '.driveragent.' in parts[2]:
+            continue
+        pid, status, label = parts
+        try:
+            status = int(status)
+        except ValueError:
+            continue
+        jobs[label] = {'pid': int(pid) if pid.isdigit() else None, 'status': status}
+    bad = [{'label': label, **job} for label, job in sorted(jobs.items()) if job['status'] != 0]
+    return jobs, bad
+
+
+def check_backup(root=None, log=None, now=None):
+    """The newest complete snapshot's age and the last backup run's offsite result; problems listed."""
+    root, log, now = Path(root or BACKUPS), Path(log or BACKUP_LOG), now or time.time()
+    newest = None
+    for path in sorted(root.glob('snapshot-*')) if root.is_dir() else []:
+        try:
+            manifest = json.loads((path / 'manifest.json').read_text())
+        except (OSError, ValueError):
+            continue
+        newest = {'snapshot': path.name, 'finished': manifest.get('finished')}
+    last = None
+    try:
+        for line in log.read_text().splitlines()[-20:]:
+            try:
+                last = json.loads(line)
+            except ValueError:
+                continue
+    except OSError:
+        pass
+    problems = []
+    age = round((now - newest['finished']) / 3600, 1) if newest and newest.get('finished') else None
+    if age is None or age > BACKUP_MAX_HOURS:
+        problems.append('snapshot_older_than_%dh' % BACKUP_MAX_HOURS)
+    offsite = ((last or {}).get('offsite') or {}).get('status')
+    if last is not None and last.get('status') != 'ok':
+        problems.append('last_run_' + str(last.get('status')))
+    elif last is not None and offsite != 'ok':
+        problems.append('offsite_' + str(offsite))
+    return {'newest': (newest or {}).get('snapshot'), 'age_hours': age, 'last_run': (last or {}).get('started'),
+            'offsite': offsite, 'problems': problems}
+
+
+CORE = {'postgres': 'biz.agentconcierge.postgres18', 'opensearch': 'biz.agentconcierge.opensearch',
+        'jobs': '.jobs.main', 'execution': '.execution.main'}
+CORE_PROCESSES = {'redis': 'redis-server', 'cloudflared': 'cloudflared'}
+
+
+def check_core(jobs, ps_text=None):
+    """Core services that are not running: launchd jobs without a PID, processes not in the process list."""
+    if ps_text is None:
+        try:
+            ps_text = subprocess.run(['ps', '-Ao', 'comm='], capture_output=True, text=True, timeout=10).stdout
+        except (OSError, subprocess.SubprocessError):
+            ps_text = ''
+    down = []
+    for name, label in CORE.items():
+        found = [job for key, job in jobs.items() if key == label or key.endswith(label)]
+        if not found or not any(job['pid'] for job in found):
+            down.append(name)
+    names = [line.strip().rsplit('/', 1)[-1] for line in ps_text.splitlines()]
+    down += [name for name, command in CORE_PROCESSES.items() if not any(n.startswith(command) for n in names)]
+    return down
+
+
 def main():
     anomalies = {}
     site, site_path = check_site()
@@ -340,9 +434,18 @@ def main():
     daemon = check_adcoin_daemon()
     if daemon['problems']:
         anomalies['adcoin_daemon'] = daemon
+    jobs, failed_jobs = check_launchd()
+    if failed_jobs:
+        anomalies['launchd_jobs'] = failed_jobs
+    backup = check_backup()
+    if backup['problems']:
+        anomalies['backup'] = backup
+    down = check_core(jobs) if jobs else []
+    if down:
+        anomalies['core_down'] = down
     record = {'at': datetime.now().strftime('%Y-%m-%d %H:%M'), 'memory_free_percent': free,
               'swap': swap, 'top_memory': top_memory(), 'adcoin_daemon': daemon,
-              'db_connections': db_connections(), 'anomalies': anomalies}
+              'db_connections': db_connections(), 'launchd': jobs, 'backup': backup, 'anomalies': anomalies}
     if site_path:  # recorded, not alerted: the second fresh connection got 200 (see check_site)
         record['site_path'] = site_path
     OUT.parent.mkdir(parents=True, exist_ok=True)

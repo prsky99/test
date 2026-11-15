@@ -37,7 +37,8 @@ PSQL = ['/opt/homebrew/opt/postgresql@18/bin/psql', '-h', str(ROOT / 'gateway-da
         '-d', 'agentcon_cutover_20261020_191757', '-Atc']
 TEAM = {'site': '운영·SRE', 'memory': '운영·SRE', 'disk': '운영·SRE', 'deploy_stuck': '운영·SRE',
         'deploy_lock': '잠금을 잡은 팀', 'long_tests': '시험을 돌린 팀', 'stale_handoffs': '받는 팀',
-        'ad_coin_ledger': 'AI AD Coin', 'payment_flow': 'AI AD Coin', 'adcoin_daemon': 'AI AD Coin', 'vector_index_usage': '검색과 RAG', 'north_star': 'PM'}
+        'ad_coin_ledger': 'AI AD Coin', 'payment_flow': 'AI AD Coin', 'adcoin_daemon': 'AI AD Coin',
+        'launchd_jobs': '운영·SRE', 'backup': '운영·SRE', 'core_down': '운영·SRE', 'vector_index_usage': '검색과 RAG', 'north_star': 'PM'}
 ALERT_SYSTEM = (
     'You write operations alerts in Korean for the owner of the Agent Concierge website. '
     'Input is JSON describing detected anomalies. Write at most three short lines in plain Korean: what is wrong, '
@@ -61,6 +62,18 @@ def append(path, line):
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open('a') as fh:
         fh.write(line + '\n')
+
+
+ESCALATE_AFTER = 6
+ESCALATIONS = ROOT / 'logs/ops/pm-escalations.md'
+
+
+def escalate(kind, text):
+    """An alert still open after ESCALATE_AFTER repeats (11-15: one stayed open 86 times) goes to the desktop file
+    and to logs/ops/pm-escalations.md, which the PM heartbeat reads; launchd cannot message a session itself."""
+    line = f'{now()} [격상 {kind}] {text}'
+    prepend_desktop(line)
+    append(ESCALATIONS, '- ' + line)
 
 
 def board_handoff(kind, text):
@@ -88,6 +101,8 @@ def board_handoff(kind, text):
             count = int(seen.group(1)) + 1 if seen else 2
             first = seen.group(2) if seen else rows[open_at].split('|')[3].strip()[:16]
         note = f' (같은 경고 {count}회째, 처음 {first})' if count > 1 else ''
+        if count == ESCALATE_AFTER + 1:   # R53 (11-15): an alert nobody closed after 6 repeats goes to people
+            escalate(kind, f'{TEAM.get(kind, "운영·SRE")} | {text[:150]}{note}')
         row = f'{tag} {TEAM.get(kind, "운영·SRE")} | {now()} {text[:150]}{note} | 대기 |'
         if open_at is None:
             rows.append(row)
@@ -741,7 +756,7 @@ def watch():
     wording = ops_llm.ask(ALERT_SYSTEM, json.dumps(fresh, ensure_ascii=False), 'watch_alert', max_tokens=400)
     text = ' / '.join(line.strip() for line in (wording or '').splitlines() if line.strip()) or \
         ', '.join(f'{k}: {json.dumps(v, ensure_ascii=False)[:120]}' for k, v in fresh.items())
-    urgent = any(k in fresh for k in ('site', 'memory', 'disk'))
+    urgent = any(k in fresh for k in ('site', 'memory', 'disk', 'core_down', 'backup'))
     if urgent:
         prepend_desktop(f'{now()} [운영 이상] {text}')
     for kind in fresh:
