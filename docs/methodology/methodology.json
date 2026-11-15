@@ -469,6 +469,11 @@
    "field": "reference",
    "example_input": {
     "city": "New York",
+    "lat": 40.7128,
+    "latitude": 40.7128,
+    "lng": -74.006,
+    "lon": -74.006,
+    "longitude": -74.006,
     "timezone": "America/New_York"
    },
    "answer_source": "answer set (withheld)",

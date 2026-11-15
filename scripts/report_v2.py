@@ -1150,7 +1150,11 @@ def catalog_candidates():
 
 # PM 11-15 09:5x: the first necklace candidate's four roles have no verified pearl yet; their untested candidates go
 # first (several a round), still one per registrable domain in a role and 3 per host.
-PRIORITY_ROLES = ('package.advisories.v1', 'cve.record.v1', 'cve.exploited.v1', 'package.health.v1')
+# PM 11-15 13:53: the roles whose next pearl opens a necklace, in this order (workflow readiness table). Earlier in
+# the tuple = earlier in every round; each gets PRIORITY_PICKS a round, the other roles one each after them.
+PRIORITY_ROLES = ('website.ai_readiness.v1', 'timezone.time.v1', 'holiday.calendar.v1', 'company.registry.v1',
+                  'sec.filings.v1', 'papers.search.v1', 'web.grounding.v1', 'cve.exploited.v1', 'cve.record.v1',
+                  'package.advisories.v1', 'package.health.v1', 'news.search.v1')
 PRIORITY_PICKS = 4
 
 
@@ -1169,7 +1173,8 @@ def new_queue(versions, candidates, seeds=(), limit=NEW_A_DAY, per_host=3, prior
     for role, rid, tool, host in candidates:
         pools[role].append((rid, tool, host))
     hosts, out = Counter(), []
-    roles = sorted(pools, key=lambda role: (role not in priority, successes[role], role))
+    order = {role: i for i, role in enumerate(priority)}
+    roles = sorted(pools, key=lambda role: (order.get(role, len(order)), successes[role], role))
     while len(out) < limit and any(pools.values()):
         for role in [r for r in roles for _ in range(PRIORITY_PICKS if r in priority else 1)]:
             while pools[role]:

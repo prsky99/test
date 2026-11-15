@@ -1,5 +1,35 @@
 [
  {
+  "role": "timezone.time",
+  "id": 86011,
+  "tool": "timezone_by_coordinates",
+  "host": "tidydata-api.tidydata.workers.dev"
+ },
+ {
+  "role": "timezone.time",
+  "id": 58267,
+  "tool": "get_timezone",
+  "host": "geo.memoryapi.org"
+ },
+ {
+  "role": "timezone.time",
+  "id": 39225,
+  "tool": "v1_timezone",
+  "host": "mcpfax-utility.bowling-anthony.workers.dev"
+ },
+ {
+  "role": "timezone.time",
+  "id": 433014,
+  "tool": "time_zone_at_point",
+  "host": "mcp.fitztoppicks.com"
+ },
+ {
+  "role": "timezone.time",
+  "id": 64880,
+  "tool": "timezone",
+  "host": "geo402.alogos.xyz"
+ },
+ {
   "role": "papers.search",
   "id": 130450,
   "tool": "fetch_arxiv_research_digest"
