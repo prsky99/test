@@ -1041,7 +1041,12 @@ def engine_caller(engine, fallbacks=None):
                 from .. import fallback_agents as lib
             return lib.slot_output(lib.run(member["agent_id"], args))
         node = {"resource_id": member["resource_id"], "kind": "mcp", "data": {"tool": member["tool"]}}
-        return engine._call_registered(node, args)
+        from ..concierge.proxy import REUSE_HANDSHAKE     # PM 11-16: a necklace member call reuses the handshake
+        token = REUSE_HANDSHAKE.set(True)
+        try:
+            return engine._call_registered(node, args)
+        finally:
+            REUSE_HANDSHAKE.reset(token)
     return call
 
 

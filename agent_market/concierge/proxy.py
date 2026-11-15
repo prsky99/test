@@ -30,6 +30,9 @@ DEFAULT_TIMEOUT = 15.0
 # 11-15 (workflow team, PM 10:54): a necklace slot has a deadline; a caller may pass the time it has left, and
 # this one call then waits at most that long (never longer than the 15 s default, never under 0.5 s).
 _CALL_TIMEOUT = contextvars.ContextVar('mcp_proxy_call_timeout', default=None)
+# PM 11-16 08:1x: handshake reuse is for necklace runs only (runner.engine_caller sets it around a member call);
+# user workflows keep a handshake before every call, which their preflight fallback and kill-switch checks rely on.
+REUSE_HANDSHAKE = contextvars.ContextVar('mcp_proxy_reuse_handshake', default=False)
 
 
 def _seconds():
@@ -198,7 +201,35 @@ class McpProxy:
 
         return exec_res
 
+    # PM 11-16 08:1x (workflow): a provider's discovery handshake (server/discover, tools/list) is reused for a short
+    # while, so a necklace call costs one round trip instead of three. The key carries the resource's pinned schema
+    # hashes, so a fingerprint refresh that changes them misses at once (approved substitutes stay bound to the
+    # fingerprint); the reused tool list still goes through every pin check below. Any failed call on a reused
+    # handshake drops it, so the next call handshakes again; the failed call itself is never re-sent.
+    # Only the stateless discovery path is kept: a server that needs an initialize session handshakes every call.
+    HANDSHAKE_TTL = 300.0
+
+    def _handshakes(self) -> dict:
+        found = self.__dict__.get('_handshake_cache')
+        if found is None:
+            found = self.__dict__.setdefault('_handshake_cache', {})
+        return found
+
+    @staticmethod
+    def _handshake_key(res: dict) -> tuple:
+        return (res.get('id'), res.get('url'), res.get('usage_tools_hash'), res.get('usage_full_hash'))
+
     def _execute_mcp(self, res: dict[str, Any], tool_name: str, arguments: dict[str, Any], *, public=False, observed=None) -> dict[str, Any]:
+        state: dict = {}
+        out = self._execute_mcp_once(res, tool_name, arguments, public=public, observed=observed,
+                                     reuse=REUSE_HANDSHAKE.get(), state=state)
+        if state.get('reused') and not out.get('ok'):
+            # the call is not sent again (it reached the provider; the tool may have run): the next call handshakes
+            self._handshakes().pop(self._handshake_key(res), None)
+        return out
+
+    def _execute_mcp_once(self, res: dict[str, Any], tool_name: str, arguments: dict[str, Any], *, public=False,
+                          observed=None, reuse=False, state: dict | None = None) -> dict[str, Any]:
         from ..owned_data_agents import docs
         if docs.is_docs(res):
             # Kept outside resolve_local, whose module is part of the reviewed research/news digest.
@@ -252,23 +283,39 @@ class McpProxy:
                 raise ValueError('Invalid MCP protocol response')
             return data
 
+        key = self._handshake_key(res)
+        cached = self._handshakes().get(key) if reuse else None
+        if cached and time.monotonic() - cached['at'] > self.HANDSHAKE_TTL:
+            self._handshakes().pop(key, None)
+            cached = None
+        state = {} if state is None else state
+        state['reused'] = bool(cached)
+        discovered = None
+
         try:
+            if cached:
+                remote_tools = list(cached['tools'])
+                if cached.get('pv'):
+                    headers["mcp-protocol-version"] = cached['pv']
             # Remote Handshake & Hash Pinning Check (Anti-Rug-Pull)
-            try:
-                disc_resp = client.post(url, json={"jsonrpc": "2.0", "id": 1, "method": "server/discover", "params": {}}, headers=headers, timeout=_timeout())
-                disc_data = decoded(disc_resp, 1)
-                if isinstance(disc_data.get("result"), dict) and disc_data["result"]:
-                    pv = disc_data["result"].get("protocolVersion")
-                    if pv:
-                        headers["mcp-protocol-version"] = str(pv)
-                    listed = decoded(client.post(url, json={"jsonrpc": "2.0", "id": 2, "method": "tools/list",
-                                                                  "params": {"_meta": {"io.modelcontextprotocol/protocolVersion": str(pv or "2026-07-28")}}},
-                                                       headers=headers, timeout=_timeout()), 2)
-                    remote_tools = (listed.get("result") or {}).get("tools")
-            except RateLimited:
-                raise   # never follow a 429 with the initialize handshake
-            except Exception:
-                log.debug('Optional MCP discovery unavailable; checking registered tools.')
+            if not cached:
+                try:
+                    disc_resp = client.post(url, json={"jsonrpc": "2.0", "id": 1, "method": "server/discover", "params": {}}, headers=headers, timeout=_timeout())
+                    disc_data = decoded(disc_resp, 1)
+                    if isinstance(disc_data.get("result"), dict) and disc_data["result"]:
+                        pv = disc_data["result"].get("protocolVersion")
+                        if pv:
+                            headers["mcp-protocol-version"] = str(pv)
+                        listed = decoded(client.post(url, json={"jsonrpc": "2.0", "id": 2, "method": "tools/list",
+                                                                      "params": {"_meta": {"io.modelcontextprotocol/protocolVersion": str(pv or "2026-07-28")}}},
+                                                           headers=headers, timeout=_timeout()), 2)
+                        remote_tools = (listed.get("result") or {}).get("tools")
+                        if isinstance(remote_tools, list):
+                            discovered = {'tools': list(remote_tools), 'pv': str(pv) if pv else None}
+                except RateLimited:
+                    raise   # never follow a 429 with the initialize handshake
+                except Exception:
+                    log.debug('Optional MCP discovery unavailable; checking registered tools.')
 
             if remote_tools is None:
                 init_resp = client.post(url, json=INIT, headers=HEADERS, timeout=_timeout())
@@ -326,6 +373,8 @@ class McpProxy:
             fresh=self.store.resource(resource_id)
             if not fresh or not fresh.get('active') or version_parts(fresh)!=version_parts(res):
                 return {'ok':False,'error':'The approved connection changed during discovery.','error_code':'SCHEMA_CHANGED'}
+            if discovered and REUSE_HANDSHAKE.get():   # every pin check passed on a fresh discovery: reuse it a while
+                self._handshakes()[key] = dict(discovered, at=time.monotonic())
             call_body = usage.jsonrpc_call(tool_name, arguments)
             provider_dispatch()
             call_resp = client.post(url, json=call_body, headers=headers,
