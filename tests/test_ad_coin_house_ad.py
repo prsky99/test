@@ -252,3 +252,43 @@ def test_rebrand_keep_booked_leaves_existing_bookings_and_new_days_carry_agentva
     assert [c['advertiser'] for c in slots.response('research', 'KR', 'explore', 2, False)['cards']] == ['AgentValCon']
     assert _count_booked(store, new_day) == 5 and _clean(store)['ok']
     assert house.rebrand(commercial, now_ms=now_ms, keep_booked=True)['stopped'] == 'already_AgentValCon'
+
+
+def test_house_agent_offer_waits_for_its_campaign_and_tables_then_is_approved(store, monkeypatch):  # noqa: F811
+    """PM 11-15: rebrand --keep-booked -> migrate-night-1115 -> the house agent offer (AgentValCon, free coins)."""
+    from agent_market.ad_coin.v2 import sponsored_offer as so
+    from scripts.ad_coin_v2_migrate import migrate_agent_ads
+    monkeypatch.setattr(so, 'URL_CHECK', lambda url: None)                 # no DNS in tests
+    monkeypatch.setattr(house, 'HOUSE_NAME', house.LEGACY_HOUSE_NAME)
+    commercial, now_ms = _daily_world(store)
+    monkeypatch.setattr(house, 'HOUSE_NAME', 'AgentValCon')
+    first = house.house_offer(commercial, check=True, now_ms=now_ms)
+    assert first['stopped'].startswith('agentvalcon_campaign_missing') and not first['written']
+    assert first['preview'].startswith('Sponsored: AgentValCon') and first['checks']['line_characters'] <= 120
+    assert first['checks']['name_passes_screen'] and 'no USDC' in first['checks']['paid_with']
+    rebranded = house.rebrand(commercial, check=True, now_ms=now_ms, keep_booked=True)
+    assert rebranded['top_up_planned_coins'] == '0.000000' or rebranded['top_up_planned_atoms'] == str(int(house.SPONSORED_ONLY))
+    house.rebrand(commercial, now_ms=now_ms, keep_booked=True)
+    assert house.house_offer(commercial, check=True, now_ms=now_ms)['stopped'].startswith('offer_tables_missing')
+    migrate_agent_ads(store)
+    plan = house.house_offer(commercial, check=True, now_ms=now_ms)
+    assert plan.get('stopped') is None and plan['plan'].startswith('submit the offer') and not plan['written']
+    done = house.house_offer(commercial, now_ms=now_ms)
+    assert done['written'] and done['state'] == 'approved'
+    assert so.approved_offer(store, done['campaign_id'])['line'] == house.HOUSE_OFFER['line']
+    assert house.house_offer(commercial, now_ms=now_ms)['stopped'] == 'already_approved'
+
+
+def test_offer_verifier_judges_each_surface():
+    from scripts.ad_coin_house_offer_verify import judge, mcp_parts, rest_parts
+    ad = {'label': 'Sponsored', 'text': 'Sponsored: AgentValCon finds ...', 'advertiser': 'AgentValCon',
+          'paid_by': 'AgentValCon', 'facts': {'independent': True, 'grade': None}}
+    body = lambda ads: {'result': {'structuredContent': {'recommendations': [{'id': 1}, {'id': 2}], 'sponsored': ads}}}
+    good = judge('mcp', mcp_parts(body([ad])), mcp_parts(body([])), 'AgentValCon')
+    assert good['ok'] and good['checks']['organic_same_with_and_without_ad']
+    leak = judge('mcp', mcp_parts(body([ad])), mcp_parts(body([ad])), 'AgentValCon')      # ads=none ignored
+    assert not leak['ok'] and not leak['checks']['ads_none_empty']
+    moved = judge('mcp', mcp_parts(body([ad])), ([ '2', '1'], []), 'AgentValCon')          # the ad changed the order
+    assert not moved['checks']['organic_same_with_and_without_ad']
+    other = judge('rest', rest_parts({'sponsored': {**ad, 'advertiser': 'Someone'}}), rest_parts({'sponsored': None}), 'AgentValCon')
+    assert not other['checks']['advertiser']

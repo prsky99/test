@@ -314,15 +314,21 @@ def rebrand(commercial, *, name=HOUSE_NAME, text=HOUSE_TEXT, category="research"
         if len(active) != 1:
             out["stopped"] = "house_campaign_not_single"
             return out
+        with store.atomic():
+            balance = int(store.one("account_get", (row["available_account"],))["balance_atoms"])
+        from agent_market.ad_coin.v2.points import ATOMS_PER_COIN
+        top_up = max(0, int(SPONSORED_ONLY) - balance)
+        # PM 11-15: the free-coin grant is a ledger write, so its size is shown before anyone applies it
+        out["top_up_planned_atoms"] = str(top_up)
+        out["top_up_planned_coins"] = "%d.%06d" % divmod(top_up, ATOMS_PER_COIN)     # 1 coin = 10^6 atoms
+        out["house_balance_atoms"] = str(balance)
         if check:
             out["plan"] = "launch '%s'; existing bookings stay on the old campaign" % name
             return out
-        with store.atomic():
-            balance = int(store.one("account_get", (row["available_account"],))["balance_atoms"])
-        if balance < int(SPONSORED_ONLY):
+        if top_up:
             from agent_market.ad_coin.v2.economy import CoinEconomy
             out["top_up"] = CoinEconomy(store, commercial.ledger, commercial.access).operator_grant(
-                _principal(), account_id=row["available_account"], amount_atoms=int(SPONSORED_ONLY) - balance,
+                _principal(), account_id=row["available_account"], amount_atoms=top_up,
                 reason="house ad campaign " + name,
                 request_id=uuid5(NAMESPACE_URL, BASE + "house-keep-booked/" + name + "/" + active[0]["id"]).hex)
         client, headers = _client(commercial)
@@ -375,6 +381,53 @@ def rebrand(commercial, *, name=HOUSE_NAME, text=HOUSE_TEXT, category="research"
                                 headers=headers(**{"If-Match": etag(current)})), "pause old campaign")
     out.update({"written": True, "new_campaign": {"id": new["id"], "state": new["state"], "name": name},
                 "moved": moved, "old_campaign": {"id": old["id"], "state": paused["state"]}})
+    return out
+
+
+# 11-15 PM: the house ad as an agent offer (MCP, A2A, REST). Paid with free coins only (the house bookings); the
+# independent facts next to it are filled from our records at serving and are never edited for our own ad.
+HOUSE_OFFER = {"tool": "AgentValCon MCP", "endpoint": "https://agentconcierge.biz/mcp", "price": "Free",
+               "free_trial": "No key needed to search agents or read test reports", "sla": "",
+               "line": "Finds MCP servers and A2A agents for a task and shows each one's latest test report."}
+
+
+def house_offer(commercial, *, check=False, now_ms=None):
+    """Submit and approve the house agent offer on the AgentValCon campaign. Order (PM 11-15): rebrand --keep-booked,
+    then migrate-night-1115 (the offer tables), then this. check shows everything and writes nothing."""
+    from agent_market.ad_coin.v2 import sponsored_offer as so
+    store = commercial.store
+    advertiser, row, _ = _house(store)
+    with store.atomic():
+        active = [c for c in store.all("ui_campaigns", (advertiser, "")) if c["state"] == "active"] if row else []
+        tables = bool(store.one("sponsored_offers_table")["present"])
+    branded = [c for c in active if _name(c) == HOUSE_NAME]
+    offer = so.validate_offer(HOUSE_OFFER)
+    out = {"advertiser_id": advertiser, "written": False, "offer": offer,
+           "preview": so.preview_line(HOUSE_NAME, offer, category="research", region="<region>"),
+           "checks": {"advertiser_and_paid_by": HOUSE_NAME, "name_passes_screen": so.advertiser_name_ok(HOUSE_NAME),
+                      "line_characters": len(offer["line"]), "endpoint_public": so.public_endpoint(offer["endpoint"]),
+                      "offer_tables": tables, "paid_with": "AD Coin free credit (house bookings), no USDC",
+                      "facts": "filled at serving from our records for the endpoint, unedited (null when unknown)"}}
+    if len(branded) != 1:
+        out["stopped"] = "agentvalcon_campaign_missing: run rebrand --keep-booked first"
+        return out
+    campaign_id = branded[0]["id"]
+    out["campaign_id"] = campaign_id
+    if not tables:
+        out["stopped"] = "offer_tables_missing: migrate-night-1115 first"
+        return out
+    if so.approved_offer(store, campaign_id) == offer:
+        out["stopped"] = "already_approved"
+        return out
+    if not out["checks"]["endpoint_public"]:
+        out["stopped"] = "endpoint_not_public"
+        return out
+    if check:
+        out["plan"] = "submit the offer above for campaign %s, then approve it as the platform operator" % campaign_id
+        return out
+    so.submit_offer(store, advertiser, campaign_id, HOUSE_OFFER, now_ms=now_ms)
+    decided = so.decide_offer(store, commercial.access, _principal(), campaign_id, approve=True, now_ms=now_ms)
+    out.update({"written": True, "state": decided["state"]})
     return out
 
 
@@ -444,7 +497,7 @@ def _switch_on(root):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("action", choices=("plan", "run", "book-regions", "cancel-regions", "daily", "rebrand"))
+    parser.add_argument("action", choices=("plan", "run", "book-regions", "cancel-regions", "daily", "rebrand", "offer"))
     parser.add_argument("--regions", default="KR,JP,GB,DE")
     parser.add_argument("--check", action="store_true", help="book-regions / cancel-regions: show the plan, write nothing")
     parser.add_argument("--issue-coins", type=int)
@@ -463,7 +516,7 @@ def main(argv=None):
         print(__doc__)
         return 0
     regions = [r.strip().upper() for r in args.regions.split(",") if r.strip()]
-    if args.action in ("daily", "rebrand"):
+    if args.action in ("daily", "rebrand", "offer"):
         args.day = args.day or "auto"            # these derive their days themselves
         regions = [r.strip().upper() for r in (args.regions if args.regions != "KR,JP,GB,DE" else ",".join(DAILY_REGIONS)).split(",")]
     if not (args.day and args.dsn_file and args.key_file and args.key_dir) or (args.action == "run" and not args.issue_coins):
@@ -478,7 +531,9 @@ def main(argv=None):
     runtime = _connect(args)
     try:
         commercial, _, _ = build_live_service(store_from_application(runtime.store), key_vault=default_key_vault())
-        if args.action == "rebrand":
+        if args.action == "offer":
+            result = house_offer(commercial, check=args.check)
+        elif args.action == "rebrand":
             result = rebrand(commercial, category=args.category, check=args.check, keep_booked=args.keep_booked)
         elif args.action == "daily":
             from scripts.ad_coin_daily_ledger_check import check as ledger_check
