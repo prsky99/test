@@ -45,6 +45,16 @@ def normalized_fp(tools: list[dict]) -> str:
                       if isinstance(t, dict) and isinstance(t.get("name"), str)])
 
 
+def field_fps(tools: list[dict]) -> dict:
+    """Per tool, a short hash of its description and of its input schema, so a later change names the field that moved
+    (design section 4: field names only, never the provider's text)."""
+    import hashlib
+    from .capability_registry import canonical
+    short = lambda v: hashlib.sha256(canonical(v).encode()).hexdigest()[:16]   # noqa: E731
+    return {t["name"]: {"description": short(t.get("description")), "inputSchema": short(t.get("inputSchema"))}
+            for t in tools if isinstance(t, dict) and isinstance(t.get("name"), str)}
+
+
 def hints(tools: list[dict]) -> dict:
     out = {}
     for t in tools:
@@ -131,13 +141,15 @@ def entry_for(previous: dict, old_pearl: dict, tools: list[dict], now: float) ->
              "baseline_normalized": base_norm or (norm if current == baseline else None),
              "current": current, "last_server_fp": current, "measured_at": _iso(now), "unchanged_since": unchanged_since,
              "classification": classification, "risk": found, "normalized_same": bool(base_norm and base_norm == norm),
-             "tools": tool_fps, "hints": hints(tools), "version": VERSION}
+             "tools": tool_fps, "fields": field_fps(tools), "hints": hints(tools), "version": VERSION}
     change = None
     if (last and last != current) or set(found) - set(previous.get("risk") or []):
         change = {"at": _iso(now), "source": "health", "server_fp": current, "prev_server_fp": last,
                   "normalized_same": entry["normalized_same"],
                   "added": sorted(set(tool_fps) - set(before_tools)), "removed": sorted(set(before_tools) - set(tool_fps)),
-                  "changed": [{"name": n} for n in sorted(set(tool_fps) & set(before_tools)) if tool_fps[n] != before_tools[n]],
+                  "changed": [{"name": n, "fields": sorted(k for k, v in entry["fields"][n].items()
+                                                           if (previous.get("fields") or {}).get(n, {}).get(k) not in (None, v))}
+                              for n in sorted(set(tool_fps) & set(before_tools)) if tool_fps[n] != before_tools[n]],
                   "risk": found, "classification": classification}
     return entry, change
 

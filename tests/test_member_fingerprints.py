@@ -80,7 +80,8 @@ def test_a_number_in_a_description_is_dynamic_and_a_new_text_is_a_change_with_it
     assert fingerprint_status({'resources': {'501': e}}, 501, at(22)) == 'changed'
     lines = [json.loads(x) for x in (data / 'changes-20261116.jsonl').read_text().splitlines()]
     assert [x['classification'] for x in lines] == ['dynamic', 'general']
-    assert lines[-1]['changed'] == [{'name': 'get_weather'}] and 'description' not in json.dumps(lines)   # names only
+    assert lines[-1]['changed'] == [{'name': 'get_weather', 'fields': ['description']}]   # the field, not its text
+    assert 'Hourly' not in json.dumps(lines) and 'Forecast' not in json.dumps(lines)
 
 
 def test_a_new_writing_tool_or_a_flipped_hint_is_a_risk(site):
