@@ -49,7 +49,8 @@ def main(argv=None):
     if reason:   # PM 11-14 03:4x: small runs wait too while a copy rehearsal has the night window
         print(f'pytest_slot: refused ({reason}); nothing runs, try again later', file=sys.stderr)
         return BUSY
-    return subprocess.run(cmd, cwd=ROOT).returncode
+    from scripts.pytest_env import clean_environment
+    return subprocess.run(cmd, cwd=ROOT, env=clean_environment()).returncode   # R03: no production pointers
 
 
 if __name__ == '__main__':

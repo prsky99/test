@@ -118,7 +118,23 @@ def isolated_provider_budget(monkeypatch, tmp_path_factory):
     monkeypatch.setattr(provider_budget, 'DIR', tmp_path_factory.mktemp('provider-budget'))
 
 
-_PRODUCTION_POINTERS = ('APPLICATION_', 'AGENTCON_PROJECT_ROOT', 'GATEWAY_DB', 'COLLECTOR_DB')
+# Precision review R03 (11-15): every value that points at a production store or service (the same list as
+# scripts/pytest_env.PRODUCTION_POINTERS, tests/test_pytest_env.py checks it). Cleared when this conftest is
+# imported, before any test module is collected (the shell that started pytest may hold them), and restored after
+# every test below, whoever set them. Redis gets its own database number; production keeps 0.
+_PRODUCTION_POINTERS = ('APPLICATION_', 'AGENTCON_PROJECT_ROOT', 'AGENTCON_TESTS_MAY_USE_PRODUCTION', 'GATEWAY_DB',
+                        'COLLECTOR_DB', 'AD_COIN_', 'AGENT_EDGE_', 'AGENT_PRIVATE_', 'PG', 'REDIS_')
+_TEST_REDIS_DB = '15'
+
+
+def _clear_production_pointers():
+    import os
+    for key in [k for k in os.environ if k.startswith(_PRODUCTION_POINTERS)]:
+        del os.environ[key]
+    os.environ['REDIS_DB'] = _TEST_REDIS_DB
+
+
+_clear_production_pointers()
 
 
 @pytest.fixture(autouse=True)

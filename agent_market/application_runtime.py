@@ -82,6 +82,23 @@ class RuntimeStorage:
             self.closed = True
 
 
+# 11-15 (precision review R03): tests reached the production database through inherited settings. While pytest runs
+# (PYTEST_CURRENT_TEST, inherited by the subprocesses a test starts) a connection to the production server is refused
+# unless the test sets the explicit allow variable.
+PRODUCTION_SOCKET_SUFFIX = '/gateway-data/postgres18/run'
+PRODUCTION_PORT = '55432'
+TESTS_MAY_USE_PRODUCTION = 'AGENTCON_TESTS_MAY_USE_PRODUCTION'
+
+
+def refuse_production_in_tests(options, environ=None):
+    environ = os.environ if environ is None else environ
+    if 'PYTEST_CURRENT_TEST' not in environ or environ.get(TESTS_MAY_USE_PRODUCTION) == '1':
+        return
+    host = str(options.get('host') or '').rstrip('/')
+    if host.endswith(PRODUCTION_SOCKET_SUFFIX) or str(options.get('port') or '') == PRODUCTION_PORT:
+        raise RuntimeStorageError('production_storage_in_tests')
+
+
 def _connect(dsn):
     if any(os.environ.get(name) for name in ('PGSERVICE','PGHOST','PGHOSTADDR','PGPORT','PGDATABASE',
             'PGUSER','PGPASSWORD','PGOPTIONS','PGSSLMODE','PGSSLROOTCERT','PGSSLCERT','PGSSLKEY',
@@ -90,6 +107,7 @@ def _connect(dsn):
     import psycopg
     from psycopg.conninfo import conninfo_to_dict
     options = conninfo_to_dict(dsn)
+    refuse_production_in_tests(options)
     allowed = {'host', 'hostaddr', 'port', 'dbname', 'user', 'password', 'sslrootcert', 'sslcert', 'sslkey'}
     if (set(options) - allowed or not all(options.get(name) for name in ('host', 'dbname', 'user'))
             or any(type(value) is not str or '\0' in value for value in options.values())):

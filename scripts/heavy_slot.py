@@ -250,7 +250,9 @@ def run(command, team, what, minutes, board=None, lock=None, now=None):
 
     previous = {s: signal.signal(s, stop) for s in (signal.SIGTERM, signal.SIGHUP)}
     try:
-        child = subprocess.Popen(command, preexec_fn=lambda: os.nice(10))
+        from scripts.pytest_env import clean_environment, is_test_command
+        env = clean_environment() if is_test_command(command) else None   # R03: tests never get production pointers
+        child = subprocess.Popen(command, preexec_fn=lambda: os.nice(10), env=env)
         return child.wait()
     except KeyboardInterrupt:
         if child and child.poll() is None:

@@ -87,13 +87,14 @@ class RedisHub:
         self,
         host: str | None = None,
         port: int | None = None,
-        db: int = 0,
+        db: int | None = None,
         socket_timeout: float = 0.25,
         socket_connect_timeout: float = 0.25,
     ) -> None:
         self.host = host or os.environ.get("REDIS_HOST", "127.0.0.1")
         self.port = int(port or os.environ.get("REDIS_PORT", 6379))
-        self.db = db
+        # REDIS_DB (11-15 R03): tests use their own database number on the shared server; production keeps 0
+        self.db = int(os.environ.get("REDIS_DB", 0)) if db is None else db
         self.socket_timeout = socket_timeout
         self.socket_connect_timeout = socket_connect_timeout
 

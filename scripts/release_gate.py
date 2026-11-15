@@ -323,7 +323,8 @@ def copy_release(release, into):
 def run(release, tests, python):
     with tempfile.TemporaryDirectory(prefix='release-gate-') as scratch:
         copy = copy_release(release, Path(scratch).resolve())
-        env = {**os.environ, 'PYTHONPATH': str(copy)}
+        from scripts.pytest_env import clean_environment
+        env = {**clean_environment(), 'PYTHONPATH': str(copy)}   # R03: no production pointers in tests
         where = subprocess.run([python, '-c', 'import agent_market; print(agent_market.__file__)'],
                                cwd=copy, env=env, capture_output=True, text=True, check=True).stdout.strip()
         if not str(Path(where).resolve()).startswith(str(copy)):
