@@ -1,0 +1,184 @@
+# USDC 이용권 설계 (AI AD Coin, 2026-11-15 초안, PM 검토용)
+
+PM 과제(11-15): USDC로 사는 "이용권"을 설계한다. 이 문서는 설계만 하고 구현은 하지 않는다. 판매 여부와 가격은 사용자 결정이다.
+`docs/AD_FREE_SUBSCRIPTION_DESIGN.md`(광고 제거 구독 메모, 11-15)는 이 문서의 개발자 이용권에 합쳤다.
+
+## 0. 한 줄 요약
+- 이용권 1장 = USDC on Base 결제 1건 = 30일. 자동 갱신, 선충전, 잔액, 보관은 없다. 서버는 받기만 하고 개인키를 두지 않는다.
+- 두 종류다.
+  - 제공자 이용권: 알림과 분석
+  - 개발자 이용권: API 키, 높은 호출 한도, 광고 없는 결과
+- 결제는 지금 운영 중인 USDC 광고 예약(`paid_bookings.py`)의 견적·확인 경로를 그대로 쓴다.
+  - 견적: 고유 끝자리 금액
+  - 확인: 체인 확정, 제재 주소 대조
+  - 기록: 원화 환산, 거래 해시, 월별 내보내기
+- 기능 스위치는 기본 꺼짐이다. 표가 없으면 켜도 꺼진 채(409, 빈 목록)로 둔다.
+
+## 1. 지켜야 할 원칙 (기존 사용자 결정에서)
+| 원칙 | 이용권에서의 뜻 |
+|---|---|
+| 결제 1건 = 상품 1건 (11-11) | 결제 1건이 이용권 1장이다. 여러 달을 한 번에 사는 묶음은 없다(선충전처럼 됨). |
+| 선충전·잔액·보관·환전·자동 송금 없음 | 남은 기간을 돈이나 코인으로 돌려주거나 옮기지 않는다. 자동 인출(구독 결제 승인)도 없다. |
+| 서버는 받기만 한다, 개인키 없음 | 받는 주소는 광고 예약과 같은 주소 하나다. 서명 검증(공개키 복원)만 하고 서명은 하지 않는다. |
+| 환불 송금은 사용자가 직접 | 운영자가 환불 tx를 기록하면 그 이용권은 끝난다. |
+| AD Coin과 섞지 않음 (헌장 1절) | AD Coin으로 이용권을 살 수 없고, 이용권을 AD Coin으로 바꿀 수 없다. 장부도 따로 둔다. |
+| 법정화폐 거래 없음 | 가격은 USDC로만 표시한다. 원화 환산은 기록용이다. |
+| 광고는 항상 나감 (11-15) | 광고 없는 결과는 개발자 이용권으로만 준다. 무료로 끄는 길은 없다. |
+| 돈으로 품질을 사지 못함 (PM 11-15 결정 4) | 이용권은 등급·순위·점수·재시험 순서·추천 결과에 영향을 주지 않는다. |
+| 응답 시간 정책 | 요청 경로에 실시간 DB 조회를 새로 넣지 않는다. 키 확인은 메모리에서 한다(6절). |
+
+## 2. 두 종류의 이용권
+### 2.1 제공자 이용권 (provider)
+- 대상: 제공자 소유 확인(`docs/PROVIDER_SELF_CLAIM.md`)이 `verified`인 고객만 살 수 있다. 확인이 없으면 견적을 내지 않는다(`claim_required`).
+- 주는 것(읽기 전용, 자기 자원만):
+  - 알림: 헬스 상태 변화(up↔down), 등급 변화, 새 시험 보고서, 정정 요청 결정, 확인 만료 7일 전. 1단계는 계정 화면의 알림 목록과 하루 1통 요약 메일이다. 메일 발송은 첫 출시 전에 사용자 승인을 받는다. 웹후크는 2단계로 미룬다(외부 주소 호출이라 `check_public_url`과 호출 예산이 필요함).
+  - 분석: 자기 자원이 탐색·추천·Chat·MCP/A2A 응답에 나온 횟수(일별 집계), 상세 페이지 열람 수, "연결" 버튼 수, 실패한 시험 호출 사유 분포.
+- 주지 않는 것: 다른 고객의 질의 원문과 실행 기록, 이용자 개인정보, 다른 제공자의 수치. 공개 "확인됨"·"후원" 표시도 없다(PM 결정 3).
+- 확인이 중간에 `lapsed`되면 이용권 기간은 계속 흐르되 알림·분석 화면은 "확인 다시 하기"만 보인다. 기간을 늘려 주지 않는다. 환불은 6절을 따른다.
+
+### 2.2 개발자 이용권 (developer)
+- 대상: 계정이 있는 누구나(에이전트를 만드는 개발자, 우리 MCP·A2A·REST를 많이 부르는 쪽)
+- 주는 것
+  - API 키 1개(재발급 가능, 한 번에 유효한 키는 1개)
+  - 높은 호출 한도
+    - 지금 공개 한도: Chat 60/분, 방문자 토큰 규칙
+    - 이용권 한도: 숫자는 사용자 결정. 제안: 분당 600, 하루 20,000
+  - 광고 없는 결과: MCP·A2A·REST 응답의 `sponsored` 칸을 비운다. 유기 결과는 이용권 여부와 상관없이 같다(중립). 민감 주제는 지금도 광고가 없다.
+- 키를 보내지 않거나 기간이 끝난 키면 지금과 똑같이 공개 한도와 광고가 적용된다. 오류를 내지 않고 조용히 일반 요청으로 처리하고, 응답 헤더 `X-Pass: expired`만 붙인다.
+- 키 공유: 약관에서 한 조직 안의 공유만 허용한다. 한도가 키 단위라 공유해도 한도는 늘지 않는다.
+
+## 3. 결제 흐름 (광고 예약과 같은 엔진)
+1. 고객이 종류를 고르고 "Pay in USDC"를 누른다. 서버가 견적을 만든다.
+   - 금액: 가격 + 고유 끝자리(0.000001~0.009999)
+   - 받는 주소, Base 체인 ID, USDC 토큰 주소
+   - 기한: 30분
+2. 고객이 자기 지갑에서 그 금액을 보내고 tx 해시를 붙여 넣는다.
+3. 서버가 확인한다. 기존 `PaidBookings._check`와 같은 규칙이다.
+   - 영수증 status 1인지, 체인·토큰·받는 주소가 맞는지
+   - Transfer 금액이 견적과 정확히 같은지
+   - 확정 3블록이 지났는지
+4. 보낸 주소를 제재 목록과 대조한다. 목록이 맞거나, 없거나, 낡았으면(2일) `review`로 보낸다.
+5. 확정되면 `active`가 되고 원화 환율을 적는다.
+   - 시작 시각: 확정 시각
+   - 끝 시각: 시작 + 30일
+   - 개발자 이용권이면 이때 키를 한 번만 보여 준다.
+- 끝자리 겹침 방지
+  - 받는 주소가 광고 예약과 같으므로, 끝자리는 두 표를 합쳐 7일 안에 쓰이지 않은 값으로 고른다(지금 R32 규칙을 두 표로 넓힘).
+  - 같은 tx 해시는 두 표를 통틀어 한 번만 쓸 수 있다. 제출 때 두 표를 다 확인하고, 각 표의 UNIQUE 제약으로도 막는다.
+- 금액이 다르거나 늦게 온 결제는 붙이지 않는다. 지금처럼 매일 대사(`scripts/ad_coin_paid_reconcile.py`)에 나오고, 운영자가 환불을 정한다.
+- 미리 사기(갱신): 기간이 남았을 때 새로 사면, 새 이용권은 지금 것이 끝나는 시각에 시작한다. 대기 중인 이용권은 종류별로 1장까지만 허용한다(선충전처럼 쌓이지 않게). 2장째 견적은 `pass_already_queued`로 거부한다.
+
+## 4. 무엇에 묶이나
+| 묶는 대상 | 제공자 | 개발자 | 이유 |
+|---|---|---|---|
+| 계정(`customer_id`) | 필수 | 필수 | 화면·재발급·환불 기록의 주인 |
+| 소유 확인(`claim_id`) | 필수 | - | 자기 자원만 보게 함 |
+| 결제 지갑 주소(`payer`) | 기록 | 기록 + 키 복구 수단 | 환불 받을 곳, 계정을 잃었을 때 본인 증명 |
+| API 키 | - | 필수(해시만 저장) | 에이전트가 쓰기 쉬움. MCP·A2A·REST에 같은 헤더를 씀 |
+
+- 키
+  - 생성: 32바이트 난수. 형식은 `avc_pass_` + base32이고, 저장값은 `sha256(key)`와 마지막 4자다.
+  - 원문은 확정 응답에서 한 번만 보여 준다.
+  - 요청 헤더: `Authorization: Bearer avc_pass_…`. A2A·MCP 클라이언트가 이 헤더를 못 넣으면 `X-Pass-Key`도 받는다.
+  - 쿼리 문자열로는 받지 않는다(로그·캐시에 남음).
+- 재발급
+  - 로그인한 계정 주인이 하면 옛 키는 바로 끊긴다(메모리 반영까지 최대 60초).
+  - 계정을 잃었을 때: 결제 지갑으로 서명한 문장(EIP-191, 이용권 ID와 10분짜리 nonce 포함)을 내면 운영자 검토 뒤 새 키를 준다. 1단계에서는 운영자 수동 처리로 둔다.
+- 서명 주소만으로 쓰는 방식(요청마다 서명)은 에이전트 구현 부담과 서명 검증 비용 때문에 1단계에 넣지 않는다.
+
+## 5. 표와 등록 SQL
+- 자기 스키마 `usdc_passes`에 둔다(제공자 확인 `provider_claims`와 같은 방식).
+  - 공용 카탈로그(`application_store_sql.json`)에 새 표를 먼저 올리면, 표를 만들기 전까지 frontend가 시작하지 못한다.
+  - 그래서 모듈 자체 SQL 목록(`agent_market/ad_coin/usdc_passes_sql.json`)에 있는 문장만 보낸다.
+  - 이 목록을 카탈로그 밖에 두는 것은 provider_claims와 같은 PM 결정 사항이다.
+- 트리거·함수는 만들지 않는다(public 트리거 5개 불변식).
+- 앱은 표를 만들지 않는다. 표가 없으면 기능이 꺼진 채로 5분마다 다시 본다.
+
+```sql
+CREATE SCHEMA IF NOT EXISTS usdc_passes;
+CREATE TABLE IF NOT EXISTS usdc_passes.passes(
+  id TEXT PRIMARY KEY, kind TEXT NOT NULL CHECK (kind IN ('provider','developer')),
+  customer_id TEXT NOT NULL, claim_id TEXT,                      -- provider면 필수(앱에서 검사)
+  state TEXT NOT NULL CHECK (state IN ('quoted','confirming','queued','active','expired','review','refund_due','refunded','cancelled')),
+  amount_units BIGINT NOT NULL CHECK (amount_units > 0), pay_to TEXT NOT NULL, chain_id BIGINT NOT NULL, token TEXT NOT NULL,
+  tx_hash TEXT UNIQUE, payer TEXT, krw_rate TEXT, note TEXT,
+  quoted_ms BIGINT NOT NULL, quote_expires_ms BIGINT NOT NULL, confirmed_ms BIGINT,
+  starts_ms BIGINT, ends_ms BIGINT, refund_tx_hash TEXT UNIQUE);
+CREATE INDEX IF NOT EXISTS passes_customer ON usdc_passes.passes(customer_id, kind, state);
+CREATE INDEX IF NOT EXISTS passes_state ON usdc_passes.passes(state, quote_expires_ms);
+CREATE INDEX IF NOT EXISTS passes_amount ON usdc_passes.passes(amount_units, quoted_ms);   -- 끝자리 겹침 검사
+
+CREATE TABLE IF NOT EXISTS usdc_passes.pass_keys(
+  key_hash TEXT PRIMARY KEY, pass_id TEXT NOT NULL REFERENCES usdc_passes.passes(id),
+  last4 TEXT NOT NULL, created_ms BIGINT NOT NULL, revoked_ms BIGINT);
+CREATE UNIQUE INDEX IF NOT EXISTS pass_keys_live ON usdc_passes.pass_keys(pass_id) WHERE revoked_ms IS NULL;
+
+CREATE TABLE IF NOT EXISTS usdc_passes.pass_events(               -- 추가만 하는 감사 기록, 5년 보존(지우지 않음)
+  id TEXT PRIMARY KEY, pass_id TEXT NOT NULL, at_ms BIGINT NOT NULL, kind TEXT NOT NULL,
+  from_state TEXT, to_state TEXT, actor TEXT NOT NULL, reason TEXT, tx_hash TEXT, detail TEXT);
+CREATE INDEX IF NOT EXISTS pass_events_pass ON usdc_passes.pass_events(pass_id, at_ms);
+```
+
+- 이름 붙은 SQL(초안)
+  - 견적: `pass_insert`, `pass_get`, `pass_open_for_customer`, `pass_tail_used`
+    - `pass_tail_used`는 `ad_coin_v2.adc2_paid_bookings`와 `usdc_passes.passes`를 UNION으로 함께 본다.
+  - 제출: `pass_tx_used`(두 표 확인), `pass_set_state`, `pass_set_confirmed`
+  - 키: `key_insert`, `key_revoke`, `keys_active`(메모리 갱신용, `ends_ms > now`인 active 이용권의 살아 있는 키)
+  - 작업자: `passes_expire_quotes`, `passes_confirming`, `passes_activate_queued`, `passes_expire_ended`
+  - 운영: `passes_review`, `pass_decide`, `passes_export_month`
+  - 감사: `pass_event_insert`, `pass_events_of`
+- DB 변경 절차(CLAUDE.md, `deploy/DATABASE_OPERATIONS.md`)
+  - `deploy/db-changes/usdc-passes-v1.sql`과 복구 SQL `usdc-passes-v1-rollback.sql`(행이 0일 때만 DROP SCHEMA)을 준비한다.
+  - `scripts.db_change_rehearsal run`으로 네 역할(frontend·admin·jobs·execution)의 운영 커밋이 붙는지 확인한다.
+  - 사용자 승인을 받고, 실행 직전 `check`가 0인지 확인한다. 애플리케이션 DB 역할로 실행해 앱이 표를 소유하게 한다.
+- 연결: 기능 전용 연결을 프로세스당 1개 쓰고 문장마다 2초 제한을 둔다. 운영 max_connections 48 예산 안에서 provider_claims와 같은 몫으로 잡는다.
+
+## 6. 요청 경로, 만료, 환불
+- 요청 경로(개발자 이용권)
+  - front 프로세스가 60초마다 `keys_active`로 `{key_hash: (pass_id, ends_ms, limits)}`를 메모리에 다시 읽는다. 요청 때는 `sha256` 한 번과 사전 조회만 한다(DB·DNS 없음, R39와 같은 원칙).
+  - 키가 끊기거나 만료가 반영되기까지 최대 60초 걸린다. 이 지연은 약관과 화면에 적는다.
+  - 한도는 키 단위 토큰 버킷(프로세스 메모리)이다. 프로세스가 여러 개면 프로세스 수로 나눈 값을 쓴다(지금 공개 한도와 같은 방식).
+  - 광고 칸: `ad_slot.fill(ctx)`에 `pass_active`를 넘겨 비운다. `/ads/library`와 광고 집계에는 "이용권으로 비운 횟수"만 따로 센다.
+- 만료
+  - 작업자(jobs)가 5분마다 `ends_ms`가 지난 active를 expired로 바꾸고, 같은 종류의 queued 이용권을 active로 올린다.
+  - 7일 전과 1일 전에 계정 화면에 안내를 띄운다. 메일은 2.1 알림 승인에 따른다.
+- 환불
+  - 원칙: 환불은 운영자 판단과 사용자의 직접 송금으로만 한다. 운영자가 "환불 필요"(refund_due)를 적으면 이용권은 바로 멈춘다.
+  - 사용자가 지갑에서 보낸 뒤 환불 tx를 기록하면 refunded가 된다. 기록할 때 기존 `_verify_refund`처럼 체인에서 금액과 받는 사람을 확인한다.
+  - 정책 초안(사용자 결정): 확정 뒤 7일 안이고 사용 기록이 적으면 전액, 그 뒤는 환불하지 않음. 우리 쪽 장애로 쓰지 못한 날은 다음 이용권 시작을 늦추지 않고 그만큼 일할 환불한다.
+  - 금액이 틀린 결제, 늦은 결제, 제재 대조에 걸린 결제는 이용권을 열지 않고 review로 보낸다. 판단은 운영자가 한다.
+
+## 7. 원화 환산과 거래 기록
+- 확정 때 환율(지금 `upbit_krw_rate`, 실패하면 `krw_rate_unavailable`로 적고 운영자가 채움)과 tx 해시, 보낸 주소를 적는다.
+- 월별 내보내기(`/admin/paid-bookings/export`)에 `kind` 열(booking·provider_pass·developer_pass)을 더해 한 파일로 낸다. 정기 세금 신고용 기록은 처음부터 남긴다(사용자 결정 11-11).
+- 감사 기록 `pass_events`는 5년 보존하고 지우지 않는다(광고 예약 `adc2_paid_booking_events`와 같음).
+
+## 8. 켜고 끄기
+- 스위치: `USDC_PASS_ENABLED`(기본 0)와 `USDC_PASS_KINDS`(예: `developer` 또는 `provider,developer`)
+  - `agentcon.env`는 허용 목록(`ALLOWED_KEYS`)에 있는 키만 받는다. 키를 먼저 허용 목록에 올리는 것은 운영·SRE와 맞춘다(11-14 04:34 사고).
+  - 켜는 것은 사용자 결정이다.
+- 꺼지면 새 견적만 막는다. 이미 산 이용권은 끝까지 효력이 있고, 확인 중인 결제도 계속 확인한다. 돈을 받은 뒤 혜택을 끊지 않는다.
+- 표가 없으면 스위치가 켜져 있어도 꺼진 것과 같다(견적 409, 목록 빈 값).
+
+## 9. 나눌 경계 (구현할 때)
+| 팀 | 맡을 것 |
+|---|---|
+| AI AD Coin | `agent_market/ad_coin/usdc_passes.py`(견적·확인·작업자·감사, `PaidBookings`의 확인 함수 공유), SQL 목록, 고객 API `/api/customer/passes`, 운영 API, 대사·내보내기 확장, 시험 |
+| 성장·유통 | 계정 화면 "Passes"(견적·tx 입력·키 한 번 보기·만료 안내), 개발자 문서의 키 사용법. 공개 문구는 영어, 디자인 시스템과 화면 정책을 따름 |
+| 에이전트 팀 | 제공자 이용권의 알림·분석 데이터(자기 자원 집계, 읽기 전용), front 요청 경로의 키 확인과 한도(front.py는 공유 파일이라 자기 hunk만) |
+| 운영·SRE | DB 변경 리허설·실행 준비, `agentcon.env` 허용 목록, 작업자 일정(jobs), 연결 예산, 깔때기 줄에 이용권 수 |
+
+## 10. 사용자 결정이 필요한 것
+1. 판매할지와 언제 열지
+   - 제안: 개발자 이용권은 Chat·MCP 이용률 지표가 기준을 넘은 뒤 연다.
+   - 제안: 제공자 이용권은 소유 확인 고객이 10명을 넘은 뒤 연다.
+2. 가격(종류별, USDC)
+   - 비교 기준: 광고 1칸 하루 5 USDC
+3. 개발자 한도 숫자(분당·하루)
+4. 환불 정책 문구(6절 초안)와 약관·처리방침 조항: 키 공유, 60초 반영 지연, 혜택 범위
+5. 제공자 알림 메일 발송 여부(외부 발송)
+6. 대기 이용권 1장 허용 여부(3절)
+
+## 11. 열린 문제
+- 목걸이(워크플로우) 호출당 결제(무료 할당 뒤 402)는 별도 과제다(11-19, 워크플로우 팀과 판단). 이용권으로 목걸이 호출 한도를 늘려 줄지는 그 결정 뒤에 본다.
+- 이용권 결제와 광고 예약이 한 주소를 쓰므로, 매일 대사 보고서에 두 표를 함께 보여 준다.
