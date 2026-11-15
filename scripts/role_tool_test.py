@@ -31,21 +31,21 @@ import pearl_batch as PB  # noqa: E402
 
 
 def public_https(url):
-    """https to a public address only (the same check as build_probed_report_drafts, which reads argv on import)."""
-    import ipaddress
-    import socket
+    """https to a global address only: the project check (broker.discovery.check_public_url, ip.is_global, so
+    100.64.0.0/10 is refused too; R16, PM 11-15). Connections are checked again at connect time by public_client."""
     from urllib.parse import urlsplit
+    from agent_market.broker.discovery import DiscoveryError, check_public_url
     try:
-        parts = urlsplit(url)
-        if parts.scheme != 'https' or not parts.hostname:
+        if urlsplit(url).scheme != 'https':
             return False
-        for info in socket.getaddrinfo(parts.hostname, parts.port or 443, proto=socket.IPPROTO_TCP):
-            ip = ipaddress.ip_address(info[4][0])
-            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
-                return False
+        check_public_url(url)
         return True
-    except (OSError, ValueError):
+    except (DiscoveryError, ValueError):
         return False
+
+
+# initialize, the initialized notification, tools/list and tools/call (R16: the ledger used to count one).
+MCP_TEST_CALLS = 4
 
 UA = 'AgentConcierge-Verification/1.0'
 EXCERPT = 1000  # v2 reports judge the content on this excerpt (PM pearl audit 11-14)
@@ -283,7 +283,7 @@ def test_one(http, candidate, resource, pacer):
     if resource.get('kind') != 'mcp' or not public_https(url):
         return {**out, 'outcome': 'skipped', 'reason': 'not a public https MCP endpoint'}
     host = out['host']
-    if not pacer.allowed(host, url=url):
+    if not pacer.allowed(host, url=url, n=MCP_TEST_CALLS):
         return {**out, 'outcome': 'skipped', 'reason': 'provider limit for today'}
     pacer.wait(host)
     started = time.monotonic()
@@ -358,7 +358,8 @@ def main(argv=None):
     pacer = PB.Pacer(state_dir=PB.STATE_DIR, system='role_tests')
     found = resources({c['id'] for c in candidates})
     results = []
-    with httpx.Client(follow_redirects=False) as http:
+    from agent_market.broker.discovery import public_client
+    with public_client() as http:   # connections only to global addresses, checked at connect time (DNS rebinding)
         for candidate in candidates[:PB.DAILY_LIMIT]:
             one = test_one(http, candidate, found.get(candidate['id'], {}), pacer)
             results.append({k: v for k, v in one.items() if k not in ('full_text', 'structured', 'case')})

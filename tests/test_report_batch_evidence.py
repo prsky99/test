@@ -118,3 +118,25 @@ def test_a_trial_that_answered_with_failure_or_nothing_is_not_evidence(monkeypat
     for sample in ('{"count": 122, "destinations": [{"slug": "london"}]}', '1 newest incident: Git flaw',
                    '{"total_matching":16,"returned":1,"signals":[{"id":"s-001"}]}', '{"answer": "Found 1 asset", "facts": []}'):
         assert not builder.empty_or_refused(sample), sample
+
+
+def test_probe_http_follows_redirects_only_to_public_https_and_reads_through_the_public_client(monkeypatch, tmp_path):
+    """R16 (PM 11-15): probes use the project's public-only client and re-check every redirect target."""
+    import httpx
+    builder = _load_builder(monkeypatch, tmp_path / 'drafts')
+    seen = []
+
+    def handler(request):
+        seen.append(str(request.url))
+        if request.url.host == 'start.example':
+            return httpx.Response(302, headers={'location': 'https://inner.example/card'})
+        return httpx.Response(200, json={'name': 'card'})
+    monkeypatch.setattr(builder, '_client', httpx.Client(transport=httpx.MockTransport(handler)))
+    monkeypatch.setattr(builder, 'public_https', lambda url: not url.startswith('https://inner.example'))
+    blocked = builder.http('GET', 'https://start.example/card')
+    assert blocked['err'] == 'BlockedDestination' and seen == ['https://start.example/card']
+    monkeypatch.setattr(builder, 'public_https', lambda url: url.startswith('https://'))
+    seen.clear()
+    ok = builder.http('GET', 'https://start.example/card')
+    assert ok['code'] == 200 and json.loads(ok['raw']) == {'name': 'card'} and seen[-1] == 'https://inner.example/card'
+    assert builder.PROBE_CALLS == {'mcp': 3, 'a2a': 3, 'x402': 3}

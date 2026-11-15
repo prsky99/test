@@ -7,6 +7,7 @@ Usage: build_probed_report_drafts.py [per_kind] [out_dir]
 """
 import base64, ipaddress, json, os, random, socket, sys, time, urllib.request, urllib.error
 from urllib.parse import urlsplit
+import httpx
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from report_pipeline_common import (
@@ -29,38 +30,56 @@ PB_KIND_LIMITS = {'mcp': 25, 'a2a': 5}   # PM 11-14 06:1x: 30 a day in all (pear
 
 
 def public_https(url):
+    """https to a global address only: the project check (broker.discovery.check_public_url, ip.is_global), so
+    100.64.0.0/10 and other non-global ranges are refused too (R16, PM 11-15)."""
+    from agent_market.broker.discovery import DiscoveryError, check_public_url
     try:
-        p = urlsplit(url)
-        if p.scheme != 'https' or not p.hostname: return False
-        for info in socket.getaddrinfo(p.hostname, p.port or 443, proto=socket.IPPROTO_TCP):
-            ip = ipaddress.ip_address(info[4][0])
-            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast: return False
+        if urlsplit(url).scheme != 'https':
+            return False
+        check_public_url(url)
         return True
-    except Exception:
+    except (DiscoveryError, ValueError):
         return False
 
 
-class SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
-    """Re-validate destination URL and IP on HTTP redirects to prevent SSRF and DNS rebinding."""
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        if not public_https(newurl):
-            raise urllib.error.HTTPError(newurl, code, f'Redirect to non-public/disallowed destination blocked: {newurl}', headers, fp)
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
+# Requests one probe makes, reserved together in the shared ledger (R16: the ledger used to count one).
+PROBE_CALLS = {'mcp': 3, 'a2a': 3, 'x402': 3}   # mcp: initialize, initialized, tools/list; a2a and x402: 1 + 2 retries
+MAX_REDIRECTS = 3
+_client = None
 
 
-_safe_opener = urllib.request.build_opener(SafeRedirectHandler)
+def _public_client():
+    """One shared client whose connections go only to global addresses, checked at connect time
+    (broker.discovery.public_client: closes the DNS-rebinding gap of checking first and connecting later)."""
+    global _client
+    if _client is None:
+        from agent_market.broker.discovery import public_client
+        _client = public_client()
+    return _client
 
 
 def http(method, url, body=None, headers=None, timeout=15):
     h = {'User-Agent': UA, 'Accept': 'application/json, text/event-stream'}
     h.update(headers or {})
-    req = urllib.request.Request(url, data=body, method=method, headers=h)
     t0 = time.time()
     try:
-        r = _safe_opener.open(req, timeout=timeout)
-        code, hdrs, raw = r.status, r.headers, r.read(200000)
-    except urllib.error.HTTPError as e:
-        code, hdrs, raw = e.code, e.headers, e.read(200000)
+        for _ in range(MAX_REDIRECTS + 1):
+            if not public_https(url):
+                return dict(code=None, ms=(time.time() - t0) * 1000, hdrs={}, raw=b'', err='BlockedDestination')
+            with _public_client().stream(method, url, content=body, headers=h, timeout=timeout) as r:
+                raw = b''
+                for chunk in r.iter_bytes():
+                    raw += chunk
+                    if len(raw) >= 200000:
+                        raw = raw[:200000]
+                        break
+                code, hdrs = r.status_code, r.headers
+            if code in (301, 302, 303, 307, 308) and hdrs.get('location'):
+                url = str(httpx.URL(url).join(hdrs['location']))
+                if code == 303 or (code in (301, 302) and method == 'POST'):
+                    method, body = 'GET', None
+                continue
+            break
     except Exception as e:
         return dict(code=None, ms=(time.time() - t0) * 1000, hdrs={}, raw=b'', err=type(e).__name__)
     return dict(code=code, ms=(time.time() - t0) * 1000, hdrs=hdrs, raw=raw, err=None)
@@ -677,7 +696,7 @@ def main():
                 continue
 
             host = PB.host_of(res['url'])
-            if not pacer.allowed(host, url=res['url']):
+            if not pacer.allowed(host, url=res['url'], n=PROBE_CALLS[kind]):
                 summary.append((res['id'], 'SKIP_PROVIDER_LIMIT', host))
                 continue
             pacer.wait(host)
@@ -707,12 +726,16 @@ def main():
                          'handshake_ms': p['ms'], 'ms': trial['latency_ms'], 't0': trial['started'], 't1': trial['finished'],
                          'request': 'initialize, tools/list and one read-only tools/call recorded by the catalog collector'}
                     scope = 'execution'
-            if scope not in PUBLISHABLE_SCOPES and kind == 'a2a' and pacer.allowed(host, a2a=True, url=res['url']):
-                pacer.wait(host)
+            # R16: the task goes to the card's own endpoint, which may be another provider; pace and count that one.
+            task_url = str(_dict(p.get('data')).get('url') or '')
+            task_host = PB.host_of(task_url)
+            if (scope not in PUBLISHABLE_SCOPES and kind == 'a2a' and public_https(task_url)
+                    and pacer.allowed(task_host, a2a=True, url=task_url)):
+                pacer.wait(task_host)
                 task = probe_a2a_task(full_res, p.get('data'))
                 if task is not None:
-                    pacer.called(host, task['code'], {'Retry-After': task['retry_after']} if task.get('retry_after') else None, a2a=True,
-                                 url=res['url'])
+                    pacer.called(task_host, task['code'], {'Retry-After': task['retry_after']} if task.get('retry_after') else None,
+                                 a2a=True, url=task_url)
                     if task['ok']:
                         safe_record_evidence(registry, ver, scope='execution', outcome='succeeded', started=task['t0'], finished=task['t1'])
                         p, scope = task, 'execution'

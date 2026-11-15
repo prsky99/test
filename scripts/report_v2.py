@@ -48,6 +48,14 @@ RULES = 'v2-2026-11-14'
 EVALUATOR_VERSION = 'dq-2026-11-14b'
 from agent_market.necklaces import gate_rules  # noqa: E402  (운영·SRE 897baf3a: one source for the gate numbers)
 PASS_MARK = gate_rules.REPORT_SCORE
+
+
+def rank_rule():
+    """The ranking rule in words, from the weights and pass mark the scoring code applies (R81, 11-15)."""
+    return (f'quality score out of {sum(DQ.WEIGHTS.values()) + sum(DQ.EVIDENCE_WEIGHTS.values()) + DQ.WRITING_WEIGHT} '
+            f'(data quality {sum(DQ.WEIGHTS.values())} + evidence {sum(DQ.EVIDENCE_WEIGHTS.values())} '
+            f'+ report text {DQ.WRITING_WEIGHT}), one place per registrable domain; '
+            f'#1 at {PASS_MARK}+ is the final pearl, #2-#3 are external fallbacks')
 CONFIRM_DAYS = 2            # PM 11-14: a final pearl needs successes on two different days; before that it is provisional
 DAY = 86400
 ROLE_DAILY_LIMIT = 120      # PM 11-14 (charter 0): 80 new candidates + 40 retests a day; 60 when refusals pass 5%
@@ -205,13 +213,14 @@ def reference_value(url, ttl=600):
         return hit[1]
     value = None
     try:
-        import httpx
-        resp = httpx.get(url, timeout=10, headers={'User-Agent': 'AgentConcierge-Verification/1.0'})
-        if resp.status_code == 200:
+        # R16 (precision review, PM 11-15): through the shared outside-call ledger like every other answer-key read
+        # (data_quality._fetch_json: 'reference_checks' share, 429 stops the domain for the day).
+        data = DQ._fetch_json(url)
+        if data is not None:
             if 'coinbase' in url:
-                value = float(resp.json()['data']['amount'])
+                value = float(data['data']['amount'])
             elif 'finance/chart' in url:   # last regular-market price (Stooq's CSV page answered 'does not exist', 11-14)
-                value = float(resp.json()['chart']['result'][0]['meta']['regularMarketPrice'])
+                value = float(data['chart']['result'][0]['meta']['regularMarketPrice'])
     except Exception:
         value = None
     _REFERENCE[url] = (time.time(), value)
@@ -235,7 +244,13 @@ def judge(role, text, args):
         checks.append({'check': name, 'passed': passed})
     live = role_catalog.live_spec(canonical(role))
     not_live = []
-    if live:
+    if live and live.get('terms_ok') is False:
+        # R16: a reference suspended until its terms are confirmed (Coinbase, Yahoo) is never called; the check is
+        # recorded as not checked, the same way assess() gives it no accuracy points.
+        not_live.append(live['reference'])
+        checks.append({'check': 'within the public reference (not checked: reference suspended until its terms are confirmed)',
+                       'passed': False})
+    elif live:
         reference = reference_value(live['reference'])
         if reference is None:
             not_live.append(live['reference'])
@@ -884,8 +899,7 @@ def publish(board=True):
             m.update(known.get(m['resource_id'], {}))
             m.setdefault('coverage', 'not stated')
     GROUPS.write_text(json.dumps({'generated': time.strftime('%Y-%m-%d %H:%M'), 'source': 'scripts/report_v2.py (role task test v2)',
-                                  'rank_rule': 'quality score (evidence 60 + writing 40), one place per registrable domain; '
-                                               '#1 at 85+ is the final pearl, #2-#3 are external fallbacks',
+                                  'rank_rule': rank_rule(),
                                   'roles': ranked}, indent=1, ensure_ascii=False))
     official = summary(versions, ranked, candidates_a())
     (OUT / 'final').mkdir(parents=True, exist_ok=True)

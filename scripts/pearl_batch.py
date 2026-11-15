@@ -89,7 +89,9 @@ class Pacer:
     def room(self):
         return max(0, DAILY_LIMIT - int(self.state['reports']))
 
-    def allowed(self, host, a2a=False, url=None):
+    def allowed(self, host, a2a=False, url=None, n=1):
+        """N is the number of HTTP requests the test will make (R16: an MCP test is initialize, the initialized
+        notification, tools/list and tools/call, not one request)."""
         if not host or host in self.state['blocked']:
             return False
         if self.state['calls'].get(host, 0) >= PER_HOST_DAY:
@@ -98,7 +100,7 @@ class Pacer:
             return False
         if self.system and url:
             from agent_market.provider_budget import reserve
-            ok, why = reserve(url, self.system)
+            ok, why = reserve(url, self.system, n=n)
             if not ok:
                 self.state.setdefault('budget_refused', {})[host] = why
                 return False

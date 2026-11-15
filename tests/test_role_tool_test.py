@@ -105,3 +105,14 @@ def test_a_parameter_the_catalog_input_cannot_fill_never_recurses():
     odd = {'name': 'odd', 'required': ['domain', 'zzqx'], 'params': {'domain': {'type': 'string'}, 'zzqx': {'type': 'object'}}}
     args, why = role_arguments(odd, 'domain.lookup', None)                   # nothing fills zzqx: a reason, no crash
     assert args is None and why.startswith('missing_args') and 'zzqx' in why   # recorded as skipped(missing_args)
+
+
+def test_public_https_uses_the_project_check_and_refuses_shared_address_space(monkeypatch):
+    """R16 (PM 11-15): the project check (ip.is_global) refuses 100.64.0.0/10, which the old private-range test let through."""
+    import socket
+    from scripts import role_tool_test as RT
+    answers = {'cgnat.example': '100.64.1.2', 'public.example': '93.184.216.34'}
+    monkeypatch.setattr(socket, 'getaddrinfo', lambda host, port, *a, **k: [(2, 1, 6, '', (answers[host], port))])
+    assert not RT.public_https('https://cgnat.example/mcp')
+    assert RT.public_https('https://public.example/mcp')
+    assert not RT.public_https('http://public.example/mcp')

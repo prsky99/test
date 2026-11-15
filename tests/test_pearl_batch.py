@@ -95,3 +95,13 @@ def test_shared_provider_ledger(tmp_path, monkeypatch):
     other = PB.Pacer(day='x', state_dir=None, system='pearl_batch')
     other.called('h.other.com', 429, url='https://h.other.com/mcp')
     assert not pacer.allowed('x.other.com', url='https://x.other.com/mcp')   # paused for every system
+
+
+def test_pacer_reserves_every_request_of_a_test(tmp_path, monkeypatch):
+    """R16 (PM 11-15): one MCP test is several requests; the shared ledger is charged all of them."""
+    seen = []
+    import agent_market.provider_budget as budget
+    monkeypatch.setattr(budget, 'reserve', lambda url, system, n=1, **kw: seen.append((url, system, n)) or (True, 'ok'))
+    pacer = PB.Pacer(state_dir=None, system='role_tests')
+    assert pacer.allowed('example.org', url='https://mcp.example.org/mcp', n=4)
+    assert seen == [('https://mcp.example.org/mcp', 'role_tests', 4)]

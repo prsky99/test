@@ -153,6 +153,10 @@ def test_catalog_roles_have_checks_and_names():
 
 
 def test_moving_prices_are_judged_by_range_format_and_time(monkeypatch):
+    # The range rule itself, as if the reference's terms were confirmed (the real Coinbase and Yahoo references are
+    # suspended: see the next test).
+    real = V.role_catalog.live_spec
+    monkeypatch.setattr(V.role_catalog, 'live_spec', lambda role: {**(real(role) or {}), 'terms_ok': True} if real(role) else None)
     monkeypatch.setattr(V, 'reference_value', lambda url, ttl=600: 100000.0)
     ok = V.judge('crypto.price.v1', 'BTC price 101,250.50 USD, updated 2026-11-15T09:12Z', {})
     assert ok['passed'] == ok['total'] == 4
@@ -161,6 +165,15 @@ def test_moving_prices_are_judged_by_range_format_and_time(monkeypatch):
     monkeypatch.setattr(V, 'reference_value', lambda url, ttl=600: None)
     unknown = V.judge('stock.quote.v1', 'AAPL last 231.40 USD as of 16:00', {})
     assert unknown['passed'] == 3 and unknown['not_checked_live']  # no reference: not passed, said so
+
+
+def test_a_suspended_reference_is_never_called(monkeypatch):
+    """R16 (PM 11-15): Coinbase and Yahoo terms are not confirmed, so judging never calls them."""
+    called = []
+    monkeypatch.setattr(V, 'reference_value', lambda url, ttl=600: called.append(url) or 100000.0)
+    out = V.judge('crypto.price.v1', 'BTC price 101,250.50 USD, updated 2026-11-15T09:12Z', {})
+    assert called == [] and out['not_checked_live']
+    assert any('suspended' in c['check'] and not c['passed'] for c in out['checks'])
 
 
 
