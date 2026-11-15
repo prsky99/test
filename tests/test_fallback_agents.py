@@ -2083,6 +2083,8 @@ def test_github_releases_lists_tags_gaps_and_open_issues(tmp_path):
                              "v3.0.0rc1 2026-09-01 (pre-release). Gaps between them: 30, 29 days. "
                              "Newest open issues: #7001 Timeouts ignored (2026-11-14).")
     assert len(calls) == 2
+    assert out["latest_tag"] == "v2.32.3" and out["latest_date"] == "2026-10-30" and out["release_gap_days"] == [30, 29]
+    assert out["open_issues"] == [{"number": 7001, "title": "Timeouts ignored", "date": "2026-11-14"}] and out["repo"] == "psf/requests"
     empty, _ = agents(tmp_path / "e", {"https://api.github.com/repos/a/b/releases": httpx.Response(200, json=[]),
                                        "https://api.github.com/repos/a/b/issues": httpx.Response(200, json=[])})
     assert empty.execute("github-releases", {"repo": "a/b"})["result"]["answer"] == \

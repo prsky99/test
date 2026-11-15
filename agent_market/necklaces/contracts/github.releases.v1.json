@@ -4,8 +4,14 @@
   "input_schema": {
     "type": "object",
     "properties": {
-      "repo": {"type": "string", "maxLength": 300},
-      "repository": {"type": "string", "maxLength": 300}
+      "repo": {
+        "type": "string",
+        "maxLength": 300
+      },
+      "repository": {
+        "type": "string",
+        "maxLength": 300
+      }
     },
     "required": [],
     "additionalProperties": false
@@ -13,11 +19,68 @@
   "output_schema": {
     "type": "object",
     "properties": {
-      "answer": {"type": "string", "maxLength": 8000},
-      "url": {"type": "string", "pattern": "^https://", "maxLength": 2000},
-      "source": {"type": "string"}
+      "answer": {
+        "type": "string",
+        "maxLength": 8000
+      },
+      "url": {
+        "type": "string",
+        "pattern": "^https://",
+        "maxLength": 2000
+      },
+      "source": {
+        "type": "string"
+      },
+      "repo": {
+        "type": "string",
+        "maxLength": 200
+      },
+      "latest_tag": {
+        "type": "string",
+        "maxLength": 80
+      },
+      "latest_date": {
+        "type": "string",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+      },
+      "release_gap_days": {
+        "type": "array",
+        "items": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxItems": 4
+      },
+      "open_issues": {
+        "type": "array",
+        "maxItems": 5,
+        "items": {
+          "type": "object",
+          "properties": {
+            "number": {
+              "type": "integer"
+            },
+            "title": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "date": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          "required": [
+            "number",
+            "title"
+          ],
+          "additionalProperties": false
+        }
+      }
     },
-    "required": ["answer", "source"],
+    "required": [
+      "answer",
+      "source"
+    ],
     "additionalProperties": false
   },
   "rules": [
@@ -26,7 +89,11 @@
     "read-only lookup; no account, payment or write"
   ],
   "test_inputs": [
-    {"repo": "psf/requests"},
-    {"repository": "https://github.com/expressjs/express"}
+    {
+      "repo": "psf/requests"
+    },
+    {
+      "repository": "https://github.com/expressjs/express"
+    }
   ]
 }

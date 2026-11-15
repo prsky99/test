@@ -1636,9 +1636,9 @@ class FallbackAgents:
                                for i in issues[:5]]}, _now_iso(self.utc_now())
         (data, as_of), cache = self._cached(("github-releases", repo.lower()), TTL["github-releases"], live, remaining)
         rels = [r for r in data["releases"] if r[1]]
+        gaps = []
         if rels:
             text = "; ".join(f"{tag} {day}" + (" (pre-release)" if pre else "") for tag, day, pre in rels)
-            gaps = []
             for (_, a, _), (_, b, _) in zip(rels, rels[1:]):
                 try:
                     gaps.append((datetime.fromisoformat(a) - datetime.fromisoformat(b)).days)
@@ -1652,7 +1652,15 @@ class FallbackAgents:
             head += " Newest open issues: " + "; ".join(f"#{n} {title} ({day})" for n, title, day in data["issues"]) + "."
         else:
             head += " No open issues."
-        out = {"answer": head[:8000], "url": f"https://github.com/{repo}/releases", "source": "GitHub REST API (no token)"}
+        out = {"answer": head[:8000], "url": f"https://github.com/{repo}/releases", "source": "GitHub REST API (no token)",
+               "repo": repo,   # structured fields beside the sentence, so a later step can take them (workflow 11-15)
+               "open_issues": [{"number": n, "title": t, **({"date": d} if re.fullmatch(r"\d{4}-\d{2}-\d{2}", d or "") else {})}
+                               for n, t, d in data["issues"] if isinstance(n, int)]}
+        if rels:
+            out["latest_tag"] = rels[0][0]
+            if re.fullmatch(r"\d{4}-\d{2}-\d{2}", rels[0][1]):
+                out["latest_date"] = rels[0][1]
+            out["release_gap_days"] = [g for g in gaps if g >= 0][:4]
         return out, cache, False, {"GitHub REST API": as_of}
 
     def _rdap_domain(self, args, remaining):
