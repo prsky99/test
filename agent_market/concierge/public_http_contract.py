@@ -21,19 +21,24 @@ PUBLIC_READS = frozenset(('/api/overview','/api/insights','/api/explore','/api/a
     '/.well-known/agent-card.json','/.well-known/mcp.json','/.well-known/mcp/server.json',
     '/.well-known/security.txt','/security.txt','/openapi.json','/api/agent/v1/openapi.json','/skill.md',
     '/page-metadata.json', '/daily-home-metadata.json', '/.well-known/glama.json',
-    '/methodology.json', '/ads/library', '/ads/library.json')) | EDGE_REDIRECTS | CARD_ALIASES  # 11-13/14: pearl_view; 11-14 ad library
+    '/methodology.json', '/ads/library', '/ads/library.json',
+    # 11-15 R78: discovery copies, logo and status reads that answered no-store
+    '/.well-known/skill.md', '/.well-known/agent-entry.json', '/logo.svg', '/status.json', '/api/pearl/status', '/api/pearl/access',
+    )) | EDGE_REDIRECTS | CARD_ALIASES  # 11-13/14: pearl_view; 11-14 ad library
 # Agent discovery documents the Cloudflare cache rule keeps at the edge (11-03). s-maxage lets the
 # edge hold them for ten minutes while browsers and agents still revalidate after 30 seconds;
 # with max-age alone the edge copy expired after 30 seconds (4 HITs in 24 cold requests, 11-04).
 EDGE_DOCUMENTS = frozenset(('/robots.txt','/sitemap.xml','/llms.txt','/llms-full.txt',
     '/.well-known/agent-card.json','/.well-known/mcp.json','/.well-known/mcp/server.json',
     '/.well-known/security.txt','/security.txt','/openapi.json','/api/agent/v1/openapi.json','/skill.md',
-    '/methodology.json', '/ads/library', '/ads/library.json')) | EDGE_REDIRECTS | CARD_ALIASES  # 11-14 ad library: 10 minutes
+    '/methodology.json', '/ads/library', '/ads/library.json',
+    '/.well-known/skill.md', '/.well-known/agent-entry.json', '/logo.svg')) | EDGE_REDIRECTS | CARD_ALIASES  # 11-14 ad library: 10 minutes
 # Static discovery documents change rarely; the edge keeps them an hour so an expiry seldom
 # sends an agent to the origin (11-11 PM decision: llms.txt took 3.88 s from Korea on a MISS).
 # No purge on deploy: an edit may take up to an hour to reach the edge.
 DISCOVERY_DOCUMENTS = frozenset(('/llms.txt','/llms-full.txt','/skill.md','/.well-known/agent-card.json',
-    '/.well-known/mcp.json','/.well-known/mcp/server.json','/openapi.json','/api/agent/v1/openapi.json','/page-metadata.json')) | EDGE_REDIRECTS | CARD_ALIASES
+    '/.well-known/mcp.json','/.well-known/mcp/server.json','/openapi.json','/api/agent/v1/openapi.json','/page-metadata.json',
+    '/.well-known/skill.md','/.well-known/agent-entry.json','/logo.svg')) | EDGE_REDIRECTS | CARD_ALIASES  # 11-15 R78: same as /skill.md
 # 11-12: no s-maxage. Cloudflare reads s-maxage as proxy-revalidate and never hands out a stale copy, so the
 # swr part never worked; max-age now sets the edge time, and browsers and agents keep the same time.
 DISCOVERY_CACHE = 'public, max-age=3600, stale-while-revalidate=3600'
@@ -52,7 +57,9 @@ SNAPSHOT_CACHE = 'public, max-age=300, stale-while-revalidate=300'
 AGENT_DETAIL_CACHE = 'public, max-age=300, stale-while-revalidate=300'
 FEED_READS = frozenset(('/api/feed/verified.json',
     # 11-14: necklace list and feed, Check-and-Route reads (snapshot files only; 1.2-6 s from Korea while no-store)
-    '/api/necklaces', '/api/feed/necklaces.json', '/api/verify', '/api/roles'))
+    '/api/necklaces', '/api/feed/necklaces.json', '/api/verify', '/api/roles',
+    # 11-15 R78: catalog status (the origin keeps it 15 s), service status and the workspace link switch
+    '/status.json', '/api/pearl/status', '/api/pearl/access'))
 FEED_CACHE = 'public, max-age=60, stale-while-revalidate=60'
 # Public growth pages (11-10 PM approval): login-free, never personalized HTML/Markdown/JSON. Browsers
 # and the edge may keep them for five minutes and serve a stale copy while refreshing for ten.
@@ -60,13 +67,18 @@ GROWTH_PAGES = frozenset(('/connect','/agents/tasks','/agents/best','/badges','/
     '/claude-plugins/marketplace.json','/reports/weekly',
     '/methodology','/methodology/changelog','/advertise'))  # 11-14: method and advertiser pages (no-store went 1.2-6 s)  # 11-12 PM: the weekly issue list is the same for everyone
 GROWTH_PREFIXES = ('/agents/task/','/agents/best/','/agent/','/agents/compare/','/reports/state-of-ai-agents/',
-    '/claude-plugins/','/agents/category/','/reports/weekly/')  # 11-11: category and weekly pages (user approved edge rule)
+    '/claude-plugins/','/agents/category/','/reports/weekly/',  # 11-11: category and weekly pages (user approved edge rule)
+    '/necklaces/')  # 11-15 R78: necklace pages, kept briefly (NECKLACE_CACHE) so a pause or replacement shows within minutes
 # 11-12 (PM: A): the edge keeps growth, category and weekly pages an hour and may hand out its copy for a day
 # past that while it refreshes; the pages change with the daily snapshot and carry no Sponsored slot.
 # No s-maxage (it turns stale-while-revalidate off at Cloudflare, see pearl_view.PUBLIC_PAGE_CACHE).
 # 11-14 PM: the growth pages come from the once-a-day task snapshot, so the edge keeps them six hours (a stale copy
 # of a page the new snapshot dropped can show for up to that long; the sitemap, kept 10 minutes, drops it first).
 GROWTH_CACHE = 'public, max-age=21600, stale-while-revalidate=86400'
+# 11-15 R78: a necklace page carries its pause or replacement notice, so it is kept five minutes (plus five stale):
+# a notice reaches every reader within about ten minutes. The method pages follow /methodology.json (ten minutes).
+NECKLACE_CACHE = 'public, max-age=300, stale-while-revalidate=300'
+METHOD_PAGES = frozenset(('/methodology', '/methodology/changelog'))
 ANALYTICS_COOKIES = ('_ga','_gid','_gcl')
 TITLES = {400:'Bad request',401:'Authentication required',403:'Forbidden',404:'Not found',
     405:'Method not allowed',408:'Request timed out',409:'Conflict',413:'Payload too large',
@@ -175,7 +187,8 @@ class PublicHTTPContract:
             if cache and (status in (200,304) or status==301 and path in EDGE_REDIRECTS) and 'set-cookie' not in headers:
                 headers['cache-control']=(DISCOVERY_CACHE if path in DISCOVERY_DOCUMENTS
                     else EDGE_DOCUMENT_CACHE
-                    if path in EDGE_DOCUMENTS or sitemap_part(path) else GROWTH_CACHE if growth_path(path)
+                    if path in EDGE_DOCUMENTS or sitemap_part(path) or path in METHOD_PAGES
+                    else NECKLACE_CACHE if path.startswith('/necklaces/') else GROWTH_CACHE if growth_path(path)
                     else SNAPSHOT_CACHE if path in SNAPSHOT_READS
                     else AGENT_DETAIL_CACHE if agent_detail_path(path)
                     else FEED_CACHE if feed_path(path)
