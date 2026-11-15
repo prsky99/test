@@ -885,13 +885,18 @@ class FastConcierge(Concierge):
             # its subject ("remote software engineering jobs", "restaurants near Times Square")
             # those subject words appear in almost none of the retrieved candidates; search
             # again with the words the candidates share (pseudo-relevance feedback).
-            narrowed = capability_focus(self.store, getattr(self.rec, 'rag_engine', None), retrieval_text(task), protocol)
+            # Sub-stages name where the fallback time goes (PM 11-16 06:4x: a2a step_narrow 1.1 s in 7 of 10);
+            # Server-Timing names only, nothing else changes.
+            from .retrieval_metrics import stage as timed
+            with timed('narrow_focus'):
+                narrowed = capability_focus(self.store, getattr(self.rec, 'rag_engine', None), retrieval_text(task), protocol)
             if narrowed:
                 step('narrow')
                 # Fewer words admit more listings; keep only those whose chosen tool says every one
                 # of them as a word ("directions" is not "directory").
-                items = [item for item in self.rec.search(narrowed, kind=protocol, limit=3, offset=offset, exclude=excluded)
-                         if states_every_word(item, narrowed.split())]
+                with timed('narrow_search'):
+                    found = self.rec.search(narrowed, kind=protocol, limit=3, offset=offset, exclude=excluded)
+                items = [item for item in found if states_every_word(item, narrowed.split())]
                 if items:
                     focus = focus or narrowed
         parts = []
@@ -901,11 +906,13 @@ class FastConcierge(Concierge):
         if not items and not late():
             # "weather data, a translator and a stock price feed": one match for each named capability.
             from .chat_guidance import separate_requests
+            from .retrieval_metrics import stage as timed
             step('split')
             for part in separate_requests(task):
                 # Rank like the part asked alone: a limit of one stops at the first focused listing.
-                found = self.rec.search(part_text(part), kind=protocol, limit=3, offset=0,
-                                        exclude=excluded | {item['id'] for item in items})
+                with timed('split_search'):
+                    found = self.rec.search(part_text(part), kind=protocol, limit=3, offset=0,
+                                            exclude=excluded | {item['id'] for item in items})
                 if found:
                     items.append({**found[0], 'request_part': part[:120]})
                     parts.append(part[:120])
@@ -915,12 +922,15 @@ class FastConcierge(Concierge):
         if not items and offset == 0 and not late():
             # Last: the words the listings closest in meaning share, when the request's own words
             # never appear in them ("emotion analysis" -> listings that say "sentiment"; stage 2, 11-05).
-            shared = neighbor_focus(self.store, getattr(self.rec, 'rag_engine', None), task, protocol)
+            from .retrieval_metrics import stage as timed
+            with timed('neighbor_focus'):
+                shared = neighbor_focus(self.store, getattr(self.rec, 'rag_engine', None), task, protocol)
             if shared:
                 step('narrow')
-                ranked, closeness = semantic_rank(getattr(self.rec, 'rag_engine', None), task,
-                                                  self.rec.search(shared + ' for ' + task, kind=protocol,
-                                                                  limit=SEMANTIC_SHORTLIST, exclude=excluded))
+                with timed('neighbor_search'):
+                    shortlist = self.rec.search(shared + ' for ' + task, kind=protocol,
+                                                limit=SEMANTIC_SHORTLIST, exclude=excluded)
+                ranked, closeness = semantic_rank(getattr(self.rec, 'rag_engine', None), task, shortlist)
                 # Words the request never said need a clearly close tool; below the bar, no answer
                 # is more accurate than a guess (tuning chose 0.73: 39 answers, 95% right).
                 if ranked and closeness is not None and closeness >= NEIGHBOR_CLOSENESS:

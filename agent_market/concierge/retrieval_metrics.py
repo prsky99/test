@@ -21,7 +21,11 @@ _STAGES = frozenset(('lexical', 'embedding', 'ann', 'expansion', 'projection', '
                      # Recommendation A2A/MCP head start outcome (protocol_prefetch, PM 11-15 19:5x)
                      'prefetch_hit', 'prefetch_miss', 'prefetch_skip', 'prefetch_unused',
                      # Explore document reads split into the statement and the rest (P0 11-16)
-                     'doc_sql'))
+                     'doc_sql',
+                     # Chat fallbacks split into their focus words and their search (PM 11-16 06:4x)
+                     'narrow_focus', 'narrow_search', 'split_search', 'neighbor_focus', 'neighbor_search',
+                     # Vector provenance check cache (PM 11-16 06:4x): hits and misses of current_ids
+                     'provenance_hit', 'provenance_miss'))
 
 
 _gc_state = threading.local()

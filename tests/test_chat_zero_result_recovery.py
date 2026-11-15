@@ -115,3 +115,43 @@ def test_no_second_retrieval_without_an_enabled_engine(monkeypatch):
 def test_capability_terms_keep_the_capability_a_boundary_would_drop(task, terms):
     from agent_market.concierge.selection import capability_terms
     assert capability_terms(task) == terms
+
+
+class _NoFailures:
+    def failed_resources(self, visitor):
+        return set()
+
+    def global_failing_resources(self):
+        return set()
+
+
+class _EmptyRec:
+    rag_engine = None
+
+    def __init__(self):
+        self.calls = []
+
+    def search(self, text, kind=None, limit=3, offset=0, exclude=None):
+        self.calls.append(text)
+        return []
+
+
+@pytest.mark.parametrize('task, named', [
+    ('find remote software engineering jobs', {'narrow_focus', 'narrow_search', 'neighbor_focus', 'neighbor_search'}),
+    ('translate a pdf and email it', {'split_search', 'neighbor_focus', 'neighbor_search'}),
+])
+def test_fallback_searches_are_named_in_server_timing_and_run_as_before(monkeypatch, task, named):
+    """PM 11-16 06:4x: step_narrow (a2a, 1.1 s in 7 of 10) is split into its focus words and its search. Only
+    Server-Timing names are added; the searches and their order are the ones the request ran before."""
+    from agent_market.concierge.retrieval_metrics import capture
+    monkeypatch.setattr(fc, 'capability_focus', lambda *a, **k: 'jobs')
+    monkeypatch.setattr(fc, 'neighbor_focus', lambda *a, **k: 'remote jobs')
+    monkeypatch.setattr(fc, 'unknown_words', lambda *a, **k: [])
+    bot = fc.FastConcierge.__new__(fc.FastConcierge)
+    bot.store, bot.rec, bot.book = object(), _EmptyRec(), _NoFailures()
+    with capture() as values:
+        bot._recommend_unobserved(None, task, persist=False)
+    assert named <= set(values['stages_ms'])
+    assert bot.rec.calls[-1] == 'remote jobs for ' + task         # the neighbor search is still the last one
+    if 'narrow_search' in named:
+        assert bot.rec.calls[:2] == [task, 'jobs']
