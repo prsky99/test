@@ -46,7 +46,7 @@ TOPICS = [(t, k or t.lower(), "stem") for t, k in [
 def used_topics(root: Path, split: str = SPLIT) -> set[str]:
     out = set()
     for path in (Path(root) / "gold" / SLUG).glob("*.jsonl"):
-        if path.stem == split:
+        if path.stem == split or path.stem.startswith(split + "-"):   # its own parts (holdout-r4-wiki) are not "seen"
             continue
         for line in path.read_text(encoding="utf-8").splitlines():
             if line.strip():

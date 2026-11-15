@@ -336,7 +336,9 @@ GOLD_TIMEOUT_S = 230
 # the shared ledger as reference_checks, until its split is in the slug's manifest. (module, slug, split)
 GOLD_BUILDS = (('agent_market.necklaces.gold_repos', 'package-risk-audit', 'holdout-v2-activity'),
                ('agent_market.necklaces.gold_topics_r3', 'topic-evidence-brief', 'holdout-r3'),
-               ('agent_market.necklaces.gold_cve_fixes', 'cve-incident-brief', 'holdout-v2-fix'))
+               ('agent_market.necklaces.gold_cve_fixes', 'cve-incident-brief', 'holdout-v2-fix'),
+               # PM 11-16 07:0x: topic holdout-r4's OpenAlex part (its Wikipedia part, holdout-r4-wiki, is written)
+               ('agent_market.necklaces.gold_topics_r4', 'topic-evidence-brief', 'holdout-r4'))
 
 
 def gold_quiet(local) -> bool:

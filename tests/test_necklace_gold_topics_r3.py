@@ -73,3 +73,30 @@ def test_r4_is_a_fresh_unfiltered_sample_with_its_own_progress(tmp_path):
     entry = json.loads((folder / "manifest.json").read_text())["files"]["holdout-r4"]
     assert "not filtered" in entry["selection"] and entry["truth_sources"]
     assert (folder / "r4-progress.json").exists() and not (folder / "r3-progress.json").exists()
+
+
+def test_the_wikipedia_part_of_r4_is_written_from_the_batch_alone(tmp_path):
+    """PM 11-16 07:0x: holdout-r4-wiki (truth: Wikipedia only) is written as soon as the batch is in; the OpenAlex
+    part keeps going afterwards and does not count r4-wiki's topics as seen."""
+    from agent_market.necklaces import gold_repos, gold_topics_r4 as r4
+    folder = setup(tmp_path)
+    calls = []
+
+    def get(url):
+        calls.append(url)
+        if "wikipedia.org" in url:
+            return 200, {"query": {"pages": [{"title": t, "description": "d", "fullurl": "https://en.wikipedia.org/wiki/x"}
+                                             for t, _, _ in r4.TOPICS]}}
+        raise gold_repos.Budget("system_share")                         # no OpenAlex today
+    r4.step(tmp_path, get=get)
+    out = r4.wiki_split(tmp_path)
+    assert out["cases"] == len(r4.TOPICS)
+    case = json.loads((folder / "holdout-r4-wiki.jsonl").read_text().splitlines()[0])
+    assert case["truth"]["wiki"]["title"] and case["truth"]["paper_phrase"] and "papers" not in case["truth"]
+    entry = json.loads((folder / "manifest.json").read_text())["files"]["holdout-r4-wiki"]
+    assert entry["same_topics_as"] == "holdout-r4" and "Wikipedia only" in entry["selection"]
+
+    def openalex(url):
+        return 200, {"results": [{"doi": f"10.1/{i}", "title": f"P {i}"} for i in range(3)]}
+    later = r4.step(tmp_path, get=openalex)
+    assert later["written"]["cases"] == len(r4.TOPICS)                 # r4-wiki's topics were not treated as seen
