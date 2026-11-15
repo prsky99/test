@@ -44,4 +44,4 @@ def test_policy_pages_make_no_value_promises_and_carry_no_build_notes():
         words = visible(text).lower()
         for phrase in ('investment', 'guaranteed return', 'profit', 'interest rate', 'design layout preview'):
             assert phrase not in words, (name, phrase)
-    assert 'Updated November 10, 2026' in PAGES['terms.html']
+    assert 'Updated November 15, 2026' in PAGES['terms.html']   # 11-15: open advertising and USDC payments (PM 12:4x)
