@@ -1776,6 +1776,27 @@ def run(agent_id: str, arguments: dict) -> dict:
     return _DEFAULT.execute(agent_id, arguments)
 
 
+class SlotAnswer(dict):
+    """A slot's contract-shaped answer. The envelope's attribution rides along as an attribute, not a key, so the
+    slot normalizer sees exactly the contract fields while the runner can still carry sources and licenses into
+    the necklace output (precision review R29, PM 11-15)."""
+    attribution: dict | None = None
+
+
+def attribution(envelope: dict) -> dict:
+    """Who answered and under which terms: agent, sources (name, URL, license, notice), retrieval time, cache state
+    and data freshness, plus per-field sources when the answer mixes them."""
+    out = {"agent": envelope.get("agent"), "tool": envelope.get("tool"),
+           "sources": [dict(s) for s in envelope.get("sources") or []],
+           "retrieved_at": envelope.get("retrieved_at"), "cache": dict(envelope.get("cache") or {}),
+           "freshness": dict(envelope.get("freshness") or {}), "partial": bool(envelope.get("partial"))}
+    if envelope.get("field_sources"):
+        out["field_sources"] = envelope["field_sources"]
+    return out
+
+
 def slot_output(envelope: dict) -> dict:
-    """The contract-shaped part a slot keeps."""
-    return envelope["result"]
+    """The contract-shaped part a slot keeps, carrying the envelope's attribution (see SlotAnswer)."""
+    out = SlotAnswer(envelope["result"])
+    out.attribution = attribution(envelope)
+    return out
