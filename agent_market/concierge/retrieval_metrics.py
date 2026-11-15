@@ -17,7 +17,9 @@ _STAGES = frozenset(('lexical', 'embedding', 'ann', 'expansion', 'projection', '
                      # Garbage collection (PM 11-13 20:2x: registry 1,538 ms in one request, 68 ms when replayed):
                      # gc = passes run by this request's own thread, gc_all = every pass in the process meanwhile
                      # (the interpreter lock stops all threads during one).
-                     'gc', 'gc_all'))
+                     'gc', 'gc_all',
+                     # Recommendation A2A/MCP head start outcome (protocol_prefetch, PM 11-15 19:5x)
+                     'prefetch_hit', 'prefetch_miss', 'prefetch_skip', 'prefetch_unused'))
 
 
 _gc_state = threading.local()

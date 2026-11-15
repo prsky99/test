@@ -13,12 +13,16 @@ per-request copy.
 Bounds: one prefetch at a time per process (as Explore and Chat parts), only when the read pool has a free session,
 so the database connection budget is unchanged (frontend at most 1 + read pool 6 + interactive 4). A prefetch that
 fails, does not match the later call's arguments, or is not needed (the first protocol filled the answer) is
-dropped and the loop searches in turn as before.
+dropped and the loop searches in turn as before. Server-Timing names the outcome (PM 19:5x): prefetch_hit (its
+duration is how long the in-turn loop waited for the head start), prefetch_miss, prefetch_skip, prefetch_unused.
 """
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from contextvars import copy_context
 from copy import copy
+
+from .retrieval_metrics import add
 
 _slot = threading.BoundedSemaphore(1)
 _executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='recommend-prefetch')
@@ -75,6 +79,7 @@ def prefetching(recommender, source):
         key = _key(task, auth_pref, limit, offset, exclude, hint, category)
         early = pending.pop(kind, None)
         if early is not None and early[0] == key:
+            waited = time.perf_counter()
             try:
                 found, early_tiers = early[1].result()
             except Exception:
@@ -82,17 +87,32 @@ def prefetching(recommender, source):
             if isinstance(found, list) and len(early_tiers) == len(found):
                 if tiers is not None:
                     tiers.extend(early_tiers)
+                add('prefetch_hit', (time.perf_counter() - waited) * 1000)
                 return found
+        if early is not None:
+            add('prefetch_miss', 0)   # other arguments or a failed head start: searched again in turn
         if kind == order[0] and not pending:
             arguments = {'task': task, 'auth_pref': auth_pref, 'limit': limit, 'offset': offset,
                          'exclude': set(exclude) if exclude else exclude, 'hint': hint, 'category': category}
             for protocol in order[1:]:
                 future = start(protocol, arguments)
                 if future is None:
+                    add('prefetch_skip', 0)   # another prefetch running or no free read-pool session
                     break
                 pending[protocol] = (key, future)
         return original(task, kind=kind, auth_pref=auth_pref, limit=limit, offset=offset, exclude=exclude,
                         hint=hint, category=category, tiers=tiers)
 
+    search = fast.search
+
+    def search_once(*args, **kwargs):
+        try:
+            return search(*args, **kwargs)
+        finally:
+            if pending:
+                add('prefetch_unused', 0)   # the first protocol filled the answer; the head start is dropped
+                pending.clear()
+
     fast._search_protocol = search_protocol
+    fast.search = search_once
     return fast

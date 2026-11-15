@@ -141,3 +141,18 @@ def test_exposed_first_uses_the_process_store_after_a_request_store_is_bound():
         assert called == [source]
     finally:
         protocol_prefetch.prefetching = original
+
+
+def outcome(rec, source):
+    from agent_market.concierge.retrieval_metrics import capture
+    with capture() as values:
+        prefetching(rec, source).search('weather forecast', kind=None, limit=4)
+    return {name for name in values['stages_ms'] if name.startswith('prefetch_')}
+
+
+def test_server_timing_names_the_prefetch_outcome():
+    assert outcome(Rec(), Source(free=6)) == {'prefetch_hit'}
+    assert outcome(Rec(), Source(free=0)) == {'prefetch_skip'}
+    assert outcome(Rec(fail={('mcp', True)}), Source(free=6)) == {'prefetch_miss'}
+    filled = {'a2a': [(1, True), (2, True), (6, True), (7, True)], 'mcp': TABLE['mcp']}
+    assert outcome(Rec(table=filled), Source(free=6)) == {'prefetch_unused'}   # A2A filled the four
