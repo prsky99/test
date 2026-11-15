@@ -923,10 +923,18 @@ class FallbackAgents:
                 raise ValueError("unexpected advisory list")
             return raw[:20], _now_iso(self.utc_now())
         (rows, as_of), cache = self._cached(("software-incident", query.lower()), TTL["software-incident"], live, remaining)
-        items = []
+        items, packages = [], {}
         for row in rows:
             if not isinstance(row, dict) or not isinstance(row.get("ghsa_id"), str) or row.get("withdrawn_at"):
                 continue
+            if cve:   # structured fields for the fix seat (workflow 11-15): every affected package and its first fix
+                for v in row.get("vulnerabilities") or []:
+                    pkg = v.get("package") if isinstance(v, dict) else None
+                    if isinstance(pkg, dict) and isinstance(pkg.get("name"), str):
+                        key = (str(pkg.get("ecosystem") or ""), pkg["name"])
+                        entry = packages.setdefault(key, {"ecosystem": _text(key[0], 40), "name": _text(key[1], 214)})
+                        if isinstance(v.get("first_patched_version"), str) and "first_patched_version" not in entry:
+                            entry["first_patched_version"] = _text(v["first_patched_version"], 64)
             title = _text(f"{row['ghsa_id']}: {row.get('summary') or ''}", 400)
             fixes = [f"{v['package'].get('name')}@{v['first_patched_version']}" for v in row.get("vulnerabilities") or []
                      if isinstance(v, dict) and isinstance(v.get("package"), dict) and isinstance(v.get("first_patched_version"), str)
@@ -981,7 +989,11 @@ class FallbackAgents:
         if not items:
             raise FallbackUnavailable("not_found", "No reviewed advisory or NVD product record for this name; use a CVE id, "
                                                    "an exact package name or the program's product name.")
-        return {"items": items[:20], "source": source}, cache, False, {"GitHub Advisory Database": as_of}
+        out = {"items": items[:20], "source": source}
+        if cve:
+            out["cve_id"] = cve
+            out["packages"] = list(packages.values())[:20]
+        return out, cache, False, {"GitHub Advisory Database": as_of}
 
     def _scorecard(self, args, remaining):
         repo = next((str(args[k]) for k in ("repo", "repository") if args.get(k)), "")

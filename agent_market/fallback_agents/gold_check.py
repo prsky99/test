@@ -42,7 +42,9 @@ SLUG = {"gleif-lei": "company-due-diligence", "sec-edgar": "company-due-diligenc
         "usgs-quakes": "quakes-near-address",                                            # workflow 11-15
         "census-geocode": "quakes-near-address",   # split us-street: US street addresses (gold_places --us-streets)
         "arxiv-search": "topic-evidence-brief",    # PM 11-15 16:07: the paper phrase in a returned title
-        "package-releases": "package-risk-audit"}  # workflow 11-15 (meta seat of package-risk-audit v2)
+        "package-releases": "package-risk-audit",  # workflow 11-15 (meta seat of package-risk-audit v2)
+        "software-incident": "cve-incident-brief",  # cve v2 fix seat; needs truth.fixes (first patched versions)
+        "github-releases": "package-risk-audit"}    # split holdout-v2-activity (gold_repos.py, workflow 9da8aa94)
 BANDS = (0.01, 0.1, 0.5)
 
 
@@ -126,6 +128,19 @@ def judge(agent_id: str, case: dict, result: dict | None) -> dict:
         link = "https://en.wikipedia.org/wiki/" + str(want or "").replace(" ", "_")
         ok = bool(want) and any(unquote(u.split("#")[0]).replace(" ", "_") == link for u in sources)
         return {"pass": ok, "got": sources[:5], "want": link}
+    if agent_id == "software-incident":
+        # every first patched version the truth names must be among the answer's packages (same name, same version)
+        got = {(str(p.get("name")).lower(), p.get("first_patched_version")) for p in (result or {}).get("packages") or []
+               if isinstance(p, dict)}
+        want = [(str(f.get("name")).lower(), f.get("first_patched_version")) for f in truth.get("fixes") or []]
+        return {"pass": bool(want) and all(w in got for w in want), "got": sorted(map(str, got))[:10], "want": want}
+    if agent_id == "github-releases":
+        # gold_repos truth: the latest GitHub release tag, or no releases at all (github_releases false)
+        if truth.get("github_releases") is False or not truth.get("latest_release_tag"):
+            ok = not (result or {}).get("latest_tag") and "no GitHub releases" in str((result or {}).get("answer") or "")
+            return {"pass": ok, "got": (result or {}).get("latest_tag"), "want": None}
+        return {"pass": (result or {}).get("latest_tag") == truth["latest_release_tag"],
+                "got": (result or {}).get("latest_tag"), "want": truth["latest_release_tag"]}
     if agent_id == "arxiv-search":
         # topic-evidence-brief truth gives a paper phrase (its papers are OpenAlex's most cited, which arXiv does not
         # hold): a returned paper with an https link must carry the phrase, or the asked topic, as a phrase in its
@@ -305,6 +320,12 @@ def case_arguments(agent_id: str, case: dict) -> dict:
     arguments = {k: v for k, v in case["input"].items() if k in allowed}
     if "title" in allowed and "title" not in arguments and case["input"].get("topic"):
         arguments["title"] = case["input"]["topic"]
+    if agent_id == "software-incident" and case["input"].get("cve_id"):
+        arguments = {"query": case["input"]["cve_id"]}                       # software.incident.v1 takes a query
+    if agent_id == "github-releases":
+        # the seat's input is the repository the package step found (gold_repos truth); nothing else is given
+        repo = (case.get("truth") or {}).get("repository_github")
+        arguments = {"repo": repo} if repo else {}
     if agent_id == "arxiv-search" and "query" not in arguments and case["input"].get("topic"):
         arguments["query"] = case["input"]["topic"]                         # papers.search.v1 takes a query
     if "question" in allowed and "question" not in arguments and case["input"].get("topic"):
@@ -323,6 +344,10 @@ def applies(agent_id: str, case: dict) -> bool:
         return bool(truth.get("cik")) or truth.get("sec_registered") is False
     if agent_id == "arxiv-search":
         return bool((case.get("truth") or {}).get("paper_phrase"))
+    if agent_id == "software-incident":
+        return (case.get("truth") or {}).get("fixes") is not None
+    if agent_id == "github-releases":
+        return bool((case.get("truth") or {}).get("repository_github"))
     if agent_id == "package-releases":   # npm only until PyPI's terms are read (11-16)
         return (case.get("input") or {}).get("ecosystem") == "npm"
     if agent_id == "census-geocode":                     # US addresses only (its coverage)

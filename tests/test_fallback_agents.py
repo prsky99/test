@@ -1302,6 +1302,8 @@ def test_software_incident_by_cve_shows_fixed_versions_as_data(tmp_path):
                                "fixed_version": "4.17.21", "url": "https://github.com/advisories/GHSA-35jh-r3h4-6jhm",
                                "published": "2021-02-15T17:20:12Z"}
     assert "cve_id=CVE-2021-23337" in calls[0]
+    assert a.execute("software-incident", {"query": "CVE-2021-23337"})["result"]["packages"] == [
+        {"ecosystem": "npm", "name": "lodash", "first_patched_version": "4.17.21"}]          # structured (workflow 11-15)
 
 
 def test_software_incident_falls_back_to_the_nvd_record_and_states_its_coverage(tmp_path):
@@ -2143,3 +2145,25 @@ def test_tls_certificate_refuses_names_that_reach_private_addresses(tmp_path):
         with pytest.raises(FallbackUnavailable) as err:
             a.execute("tls-certificate", {"domain": bad})
         assert err.value.code == "invalid_input"
+
+
+def test_gold_judges_for_software_incident_and_github_releases():
+    """workflow 11-15: the fix seat compares first patched versions; the activity seat the latest release tag."""
+    from agent_market.fallback_agents import gold_check as g
+    cve = {"input": {"cve_id": "CVE-2021-23337"},
+           "truth": {"fixes": [{"ecosystem": "npm", "name": "lodash", "first_patched_version": "4.17.21"}]}}
+    assert g.SLUG["software-incident"] == "cve-incident-brief" and g.applies("software-incident", cve)
+    assert g.case_arguments("software-incident", cve) == {"query": "CVE-2021-23337"}
+    good = {"items": [], "cve_id": "CVE-2021-23337", "packages": [{"ecosystem": "npm", "name": "lodash", "first_patched_version": "4.17.21"}]}
+    assert g.judge("software-incident", cve, good)["pass"]
+    assert not g.judge("software-incident", cve, {**good, "packages": [{"name": "lodash", "first_patched_version": "4.17.20"}]})["pass"]
+    assert not g.applies("software-incident", {"input": {"cve_id": "CVE-1"}, "truth": {"kev": True}})
+    repo = {"input": {"package": "lodash", "ecosystem": "npm"},
+            "truth": {"repository_github": "lodash/lodash", "latest_release_tag": "4.18.1", "github_releases": True}}
+    assert g.case_arguments("github-releases", repo) == {"repo": "lodash/lodash"} and g.applies("github-releases", repo)
+    assert g.judge("github-releases", repo, {"answer": "x", "latest_tag": "4.18.1"})["pass"]
+    assert not g.judge("github-releases", repo, {"answer": "x", "latest_tag": "4.17.0"})["pass"]
+    none = {"input": {}, "truth": {"repository_github": "a/b", "latest_release_tag": None, "github_releases": False}}
+    assert g.judge("github-releases", none, {"answer": "a/b: no GitHub releases published (tags may still exist)."})["pass"]
+    assert not g.judge("github-releases", none, {"answer": "a/b: recent releases", "latest_tag": "v1"})["pass"]
+    assert not g.applies("github-releases", {"input": {}, "truth": {"repository_github": None}})

@@ -50,6 +50,35 @@
       },
       "source": {
         "type": "string"
+      },
+      "cve_id": {
+        "type": "string",
+        "pattern": "^CVE-\\d{4}-\\d{4,}$"
+      },
+      "packages": {
+        "type": "array",
+        "maxItems": 20,
+        "items": {
+          "type": "object",
+          "properties": {
+            "ecosystem": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "name": {
+              "type": "string",
+              "maxLength": 214
+            },
+            "first_patched_version": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "additionalProperties": false
+        }
       }
     },
     "required": [
