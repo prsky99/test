@@ -119,7 +119,7 @@ def test_public_app_counts_requests_through_the_real_middleware(catalog, tmp_pat
 def test_middleware_hook_is_present_and_guarded():
     from pathlib import Path
     src = (Path(__file__).resolve().parents[1] / 'agent_market/concierge/front.py').read_text()
-    hook = src.split("# 11-09 outside-traffic plan stage 0", 1)[1][:800]   # 11-12: the call also passes the gateway outcome
+    hook = src.split("# 11-09 outside-traffic plan stage 0", 1)[1][:1200]  # 11-12 gateway outcome, 11-15 Explore topics
     assert 'recorder().observe(request.method, request.url.path, response.status_code, client_ip,' in hook
     assert 'except Exception:\n            pass' in hook
 
@@ -240,3 +240,22 @@ def test_disputed_names_are_counted_apart_so_a_day_reads_both_ways():
     row = traffic.real_calls(day)
     assert row['mcp_tool_calls_real_by_name'] == 2 and row['mcp_tool_calls_disputed'] == 6
     assert set(traffic._classes()['_probe_evidence']) == set(traffic._classes()['probe_disputed'])
+
+
+def test_explore_topics_keep_the_category_and_client_class_only(tmp_path):
+    """PM 11-15 16:33: Explore demand by catalog category, with no query, address or user agent stored."""
+    from agent_market.concierge.traffic import Traffic, load_day
+    t = Traffic(tmp_path, clock=lambda: 1794729600.0)
+    browser = 'Mozilla/5.0 (Macintosh) AppleWebKit/605 Safari/605.1'
+    t.explore_topic('weather forecast for Seoul 06236', '203.0.113.9', browser)
+    t.explore_topic('weather forecast', '203.0.113.10', 'python-httpx/0.27')
+    t.explore_topic('', '203.0.113.9', browser)
+    t.explore_topic('weather forecast', '203.0.113.9', browser, offset='45')          # a later page is not a search
+    t.explore_topic('weather forecast', '203.0.113.9', 'agentcon-user-slo')          # our own measurement
+    t.explore_topic('weather forecast', '203.0.113.9', browser, qa='user_slo')
+    t.observe('GET', '/api/explore', 200, '203.0.113.9', browser)
+    t.flush()
+    day = load_day(tmp_path, t.day)
+    assert day['explore_topics'] == {'travel_maps_weather|browser': 1, 'travel_maps_weather|script': 1, 'browse|browser': 1}
+    text = ''.join(p.read_text() for p in tmp_path.glob('*.json'))
+    assert 'Seoul' not in text and '06236' not in text and '203.0.113' not in text and 'Safari' not in text

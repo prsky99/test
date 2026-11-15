@@ -2283,6 +2283,9 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
                                request.headers, response.headers,
                                cause=request.scope.get('traffic_cause'), gateway=request.scope.get('traffic_gateway'),
                                source=request.query_params.get('from'))
+            if request.url.path == '/api/explore' and response.status_code == 200:
+                recorder().explore_topic(request.query_params.get('q', ''), client_ip, request.headers.get('user-agent', ''),
+                                         request.headers.get('x-agentcon-qa'), request.query_params.get('offset'))
         except Exception:
             pass
         for key,value in request.scope.get('agent_adoption_quota',{}).items():response.headers.setdefault(key,value)

@@ -331,6 +331,7 @@ class Traffic:
         self.funnel_sets = defaultdict(set)  # "recommend|class" clients, "connect|class" / "execute|class" (client, agent) pairs
         self.home_accept = Counter()   # "class|accept kind|served kind" for GET / (11-14 PM, search C)
         self.recommended = {}          # salted client digest -> surfaces that recommended to it today (memory only)
+        self.explore_topics = Counter()   # "category|client" -> first-page Explore searches (11-15 PM: demand, no text)
 
     def observe(self, method, path, status, ip, ua, body=None, headers=None, response_headers=None, cause=None,
                 gateway=None, source=None):
@@ -461,6 +462,32 @@ class Traffic:
             if len(follow) < 50_000:
                 follow.add(pair)
 
+    def explore_topic(self, query, ip, ua, qa=None, offset=None):
+        """Count one first-page Explore search by the catalog category its words fall in (PM 11-15 16:33).
+
+        Only the category name (gateway.classify, 20 fixed names, 'other', or 'browse' for an empty query) and the
+        client class are kept; the query, the address and the user agent are not stored. Our own measurements
+        (internal) are not counted."""
+        if offset not in (None, '', '0'):
+            return
+        client, _ = client_of(ip, ua, self.internal_ips, qa)
+        if client == 'internal':
+            return
+        text = ' '.join(str(query or '').split())[:500]
+        if text:
+            from agent_market.gateway.classify import classify
+            category = classify(text)
+        else:
+            category = 'browse'
+        if not NAME.fullmatch(category):
+            return
+        with self.lock:
+            today = self._today()
+            if today != self.day:
+                self._write_locked()
+                self._reset(today)
+            self.explore_topics[category + '|' + client] += 1
+
     def note(self, key):
         """Count one internal event of the day in the funnel section, such as 'edge_fallback|handshake' (11-12 PM:
         how often the Edge gateway hands a call to the Origin gateway). Keys are fixed names, never request data."""
@@ -504,7 +531,8 @@ class Traffic:
                 'home_accept': dict(self.home_accept), 'mcp_calls': dict(self.mcp_calls.most_common(300)),
                 'mcp_call_tools': dict(self.mcp_call_tools.most_common(600)),
                 'mcp_call_inputs': {n: len(v) for n, v in self.mcp_call_inputs.items()},
-                'mcp_call_minutes': {n: len(v) for n, v in self.mcp_call_minutes.items()}}
+                'mcp_call_minutes': {n: len(v) for n, v in self.mcp_call_minutes.items()},
+                'explore_topics': dict(self.explore_topics)}
 
     def _write_locked(self):
         self.flushed = self.clock()
@@ -567,7 +595,8 @@ EXTERNAL = ('browser', 'ai_bot', 'verifier', 'script', 'headless', 'other')
 def load_day(root, day):
     merged = {'requests': Counter(), 'status': Counter(), 'distinct': Counter(), 'bots': Counter(), 'mcp_clients': Counter(),
               'rpc': Counter(), 'errors': Counter(), 'bot_errors': Counter(), 'mcp_calls': Counter(),
-              'mcp_call_tools': Counter(), 'mcp_call_inputs': Counter(), 'mcp_call_minutes': Counter()}
+              'mcp_call_tools': Counter(), 'mcp_call_inputs': Counter(), 'mcp_call_minutes': Counter(),
+              'explore_topics': Counter()}
     for path in sorted(Path(root).glob(day + '.*.json')):
         try:
             data = json.loads(path.read_text())
