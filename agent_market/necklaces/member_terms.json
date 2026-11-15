@@ -48,6 +48,48 @@
       "source": "https://dmvtransit.com/mcp-server",
       "checked_at": "2026-11-15",
       "basis": "Limits section: keyless public MCP server for any MCP app, 120 requests a minute and 3,000 a day per network; addresses are geocoded through Google Maps or geocode.maps.co"
+    },
+    "367249": {
+      "status": "allowed",
+      "source": "https://fixlane.poparecon.com/terms",
+      "checked_at": "2026-11-15",
+      "basis": "terms page: the service is free, public and read-only"
+    },
+    "50972": {
+      "status": "prohibits",
+      "source": "https://pipeworx.io/terms",
+      "checked_at": "2026-11-15",
+      "basis": "Acceptable use: no reselling or redistributing access without permission; licence-restricted sources pass their terms through; accounts and metered sources (PM rule: unclear means prohibits)"
+    },
+    "39577": {
+      "status": "silent",
+      "source": "https://www.nobleblocks.com/terms",
+      "checked_at": "2026-11-15",
+      "basis": "terms cover user content and research conduct; nothing on automated calls or reuse of answers"
+    },
+    "37259": {
+      "status": "silent",
+      "source": "https://cve-security.com/",
+      "checked_at": "2026-11-15",
+      "basis": "no terms link on the home page and /terms answers 404 (11-15); CVE data comes from public CVE and NVD records"
+    },
+    "241082": {
+      "status": "silent",
+      "source": "https://ipipai.com/",
+      "checked_at": "2026-11-15",
+      "basis": "no terms link on the home page and /terms answers 404 (11-15); the IP data source and its licence are not stated"
+    },
+    "86011": {
+      "status": "silent",
+      "source": "https://developers.tidydata.workers.dev/",
+      "checked_at": "2026-11-15",
+      "basis": "no terms link on the developer page and /terms answers 404 (11-15); airport data is OurAirports, public domain"
+    },
+    "47189": {
+      "status": "silent",
+      "source": "https://github.com/cyanheads/wikipedia-mcp-server",
+      "checked_at": "2026-11-15",
+      "basis": "no terms page for the hosted server (/terms answers 404, 11-15); Wikipedia text is CC BY-SA 4.0 and needs attribution"
     }
   },
   "changes": [
@@ -114,6 +156,62 @@
       "source": "https://dmvtransit.com/mcp-server",
       "at": "2026-11-15",
       "by": "agent team (reports/necklace-terms-2026-11-15)"
+    },
+    {
+      "member": "367249",
+      "from": "unknown",
+      "to": "allowed",
+      "source": "https://fixlane.poparecon.com/terms",
+      "at": "2026-11-15",
+      "by": "agent team"
+    },
+    {
+      "member": "50972",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://pipeworx.io/terms",
+      "at": "2026-11-15",
+      "by": "agent team"
+    },
+    {
+      "member": "39577",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://www.nobleblocks.com/terms",
+      "at": "2026-11-15",
+      "by": "agent team"
+    },
+    {
+      "member": "37259",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://cve-security.com/",
+      "at": "2026-11-15",
+      "by": "agent team"
+    },
+    {
+      "member": "241082",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://ipipai.com/",
+      "at": "2026-11-15",
+      "by": "agent team"
+    },
+    {
+      "member": "86011",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://developers.tidydata.workers.dev/",
+      "at": "2026-11-15",
+      "by": "agent team"
+    },
+    {
+      "member": "47189",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://github.com/cyanheads/wikipedia-mcp-server",
+      "at": "2026-11-15",
+      "by": "agent team"
     }
   ]
 }

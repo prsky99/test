@@ -141,6 +141,21 @@ prohibits 2건은 정의에 넣지 않았습니다. 넣으면 그 멤버가 모�
   - 운영 밖 3.12 venv에서 build와 check 두 명령을 돌리고(약 2분, 무거운 작업 칸), 대조 숫자를 이 절에 새로 적습니다.
   - 운영 배포에는 이 파일 하나만 필요합니다. 경로는 FallbackAgents의 data_dir, 즉 `gateway-data/fallback-agents/tz-grid.bin`입니다. 파일이 없으면 tz-time의 좌표 질문은 source_unavailable(목걸이는 다음 멤버로 넘어감)이 되고, airport-lookup은 시간대만 빼고 답합니다.
 
+## 약관 2차 (PM 13:53 ③, 11-15 14:1x): 7곳, member_terms.json에 set-terms로 기록(이력 포함)
+
+| 멤버 | 판정 | 근거 |
+|---|---|---|
+| 367249 Fixlane | allowed | fixlane.poparecon.com/terms: 무료·공개·읽기 전용 서비스라고 밝힘 |
+| 50972 Pipeworx(Brave Search 중계) | **prohibits** | pipeworx.io/terms 허용 사용 조항: 허가 없이 서비스 접근을 재판매·재배포하는 것을 금지함. 라이선스가 걸린 원천은 그 조건이 이용자에게 넘어오고, 계정과 과금이 있음(애매하면 prohibits) |
+| 39577 NobleBlocks | silent | 약관은 이용자 글과 연구 윤리만 다루고, 자동 호출이나 답 재사용에 대한 말은 없음 |
+| 37259 cve-security.com | silent | 약관 링크 없음, /terms 404. 자료는 공개 CVE·NVD |
+| 241082 IPIPAI | silent | 약관 링크 없음, /terms 404. IP 자료의 출처·라이선스를 밝히지 않음 |
+| 86011 TidyData | silent | 약관 링크 없음, /terms 404. 공항 자료는 OurAirports(공공 영역) |
+| 47189 Wikipedia MCP(caseyjhand) | silent | 호스팅 서버 약관 없음(/terms 404). Wikipedia 글은 CC BY-SA 4.0이라 출처 표시가 필요 |
+
+- 50972는 topic-evidence-brief의 web·news 자리 멤버입니다. 빠지면 그 자리는 자체 대체(wiki-grounding)나 다른 멤버가 선두가 됩니다. 정의 반영은 워크플로우가 합니다.
+- 241082(ip 허브 선두)는 silent입니다. 다만 IP 자료의 원천 라이선스를 알 수 없으므로, 자체 ip.lookup(DB-IP Lite, CC BY 4.0)이 생기면 그쪽을 선두로 두기를 권합니다.
+
 ## 남은 것
 
 - 카탈로그 밖 자체 에이전트 133018·133019·133023(topic-evidence-brief, package-risk-audit)
