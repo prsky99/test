@@ -140,6 +140,10 @@ def split(r, took):
     m = re.search(r'(?:^|,)\s*server;dur=([\d.]+)', r.headers.get('server-timing', ''))
     server = round(float(m.group(1)) / 1000, 2) if m else None
     ref = {'server_s': server, 'outside_s': round(took - server, 2) if server is not None else None, 'edge': edge(r)}
+    # PM 11-15 22:2x: 21:52 A2A server 12.45 s could not be split afterwards; keep the request's own segments.
+    segments = re.findall(r'([A-Za-z_][\w-]*);dur=([\d.]+)', r.headers.get('server-timing', ''))
+    if segments:
+        ref['timing'] = {name: round(float(ms)) for name, ms in segments[:12]}
     floor = path_floor()
     if floor:
         ref.update(floor)
