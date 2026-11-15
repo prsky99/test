@@ -5,6 +5,7 @@ from agent_market.necklaces import judge, model
 from tests.test_necklaces_model import base
 
 NOW = time.time()
+BOTH = {(1, "x.v1"), (3, "y.v1")}      # both leads of base() are verified pearls for their slot roles
 
 
 def live_defn():
@@ -31,7 +32,7 @@ def summary(tmp_path, slug, **kw):
 
 
 def entry(defn, appr, tmp_path):
-    return judge.build_entry(defn, appr, judge.load_summary(tmp_path, defn["slug"]), NOW)
+    return judge.build_entry(defn, appr, judge.load_summary(tmp_path, defn["slug"]), NOW, verified=BOTH)
 
 
 def test_live_needs_both_keys(tmp_path):
@@ -100,7 +101,7 @@ def test_snapshot_file_is_written_atomically_with_schema(tmp_path):
     (tmp_path / "approvals.json").write_text(json.dumps({"approvals": [
         approval(defn, at="2026-11-19T00:00:00Z", state="held"), approval(defn)]}))
     approvals = judge.load_approvals(tmp_path / "approvals.json")
-    payload = judge.snapshot([defn], approvals, tmp_path, now=NOW, judge_commit="abc1234")
+    payload = judge.snapshot([defn], approvals, tmp_path, now=NOW, judge_commit="abc1234", verified=BOTH)
     judge.write_atomic(tmp_path / "necklaces.json", payload)
     written = json.loads((tmp_path / "necklaces.json").read_text())
     assert written["schema"] == "agentcon-necklaces-v1"
@@ -214,19 +215,56 @@ def test_the_last_passed_gate_survives_hold_revoke_and_change(tmp_path):
     defn = live_defn()
     summary(tmp_path, "topic-brief")
     state = {}
-    first = judge.snapshot([defn], {"topic-brief": approval(defn)}, tmp_path, NOW, watch_state={}, judge_state=state)
+    first = judge.snapshot([defn], {"topic-brief": approval(defn)}, tmp_path, NOW, watch_state={}, judge_state=state, verified=BOTH)
     assert first["necklaces"][0]["status"] == "live" and first["necklaces"][0]["gate_passed_at"] == "2026-11-20T03:00:00Z"
     for appr, reason in ((approval(defn, state="held"), "gate_held"), (approval(defn, state="revoked"), "approval_revoked"),
                          (approval(defn, version=2), "approval_mismatch")):
-        entry = judge.snapshot([defn], {"topic-brief": appr}, tmp_path, NOW, watch_state={}, judge_state=state)["necklaces"][0]
+        entry = judge.snapshot([defn], {"topic-brief": appr}, tmp_path, NOW, watch_state={}, judge_state=state, verified=BOTH)["necklaces"][0]
         assert (entry["status"], entry["held_reason"], entry["gate_passed_at"]) == ("held", reason, "2026-11-20T03:00:00Z")
     never = dict(defn, slug="never-passed")
-    entry = judge.snapshot([never], {}, tmp_path, NOW, watch_state={}, judge_state=state)["necklaces"][0]
+    entry = judge.snapshot([never], {}, tmp_path, NOW, watch_state={}, judge_state=state, verified=BOTH)["necklaces"][0]
     assert entry["gate_passed_at"] is None
 
 
 def test_every_held_reason_has_public_wording():
     from agent_market.concierge import necklace_surface as ns
     for reason in ("not_approved", "approval_revoked", "gate_held", "approval_mismatch", "security", "fingerprint_changed",
-                   "no_member", "quality_low", "stage4", "stale_retest", "delta_nonpositive", "manual"):
+                   "no_member", "quality_low", "stage4", "stale_retest", "delta_nonpositive", "manual", "pearls_unverified"):
         assert ns.REASONS[reason].endswith("."), reason
+
+
+def test_pearls_are_counted_from_the_verify_snapshot(tmp_path):
+    """PM R29: a member is a pearl only when the search team's verify snapshot says so for the slot's role."""
+    snap = tmp_path / "verify.json"
+    snap.write_text(json.dumps({"agents": {
+        "1": {"roles": [{"role": "x.v1", "verified_pearl": True}]},
+        "3": {"roles": [{"role": "other.v1", "verified_pearl": True}, {"role": "y.v1", "verified_pearl": False}]}}}))
+    verified = judge.verified_pearls(snap)
+    assert verified == {(1, "x.v1"), (3, "other.v1")}
+    defn = live_defn()
+    summary(tmp_path, "topic-brief")
+    entry = judge.snapshot([defn], {"topic-brief": approval(defn)}, tmp_path, NOW, watch_state={}, judge_state={},
+                           verified=verified)["necklaces"][0]
+    assert [p["pearl"] for p in entry["pearls"]] == [True, False] and entry["pearl_count"] == 1
+    assert (entry["status"], entry["held_reason"]) == ("held", "pearls_unverified")
+    both = verified | {(3, "y.v1")}
+    entry = judge.snapshot([defn], {"topic-brief": approval(defn)}, tmp_path, NOW, watch_state={}, judge_state={},
+                           verified=both)["necklaces"][0]
+    assert entry["pearl_count"] == 2 and entry["status"] == "live"
+    assert judge.verified_pearls(tmp_path / "missing.json") is None
+
+
+def test_the_surface_offers_and_says_verified_pearl_only_from_the_judged_count(tmp_path):
+    from agent_market.concierge import necklace_surface as ns
+    defn = live_defn()
+    summary(tmp_path, "topic-brief", quality={"cases_7d": 30, "success_rate": 0.97, "best_single_rate": 0.8,
+                                              "delta_pp": 17.0, "tested_at": judge._iso(time.time() - 60)})
+    snap = judge.snapshot([defn], {"topic-brief": approval(defn)}, tmp_path, time.time(), watch_state={},
+                          judge_state={}, verified=BOTH)
+    entry = snap["necklaces"][0]
+    assert ns.offered(entry) is True
+    one = dict(entry, pearls=[dict(entry["pearls"][0]), dict(entry["pearls"][1], pearl=False)], status="live")
+    assert ns.offered(one) is False
+    text, item = ns.details("topic-brief", snapshot=dict(snap, necklaces=[one]))
+    assert "verified pearl 1" in text and "agent 3" in text
+    assert [p["verified_pearl"] for p in item["pearls"]] == [True, False]

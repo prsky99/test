@@ -93,8 +93,30 @@ def approval_state(defn: dict, approval: dict | None) -> tuple[bool, str | None]
     return True, None
 
 
-def pearls(defn: dict) -> list[dict]:
-    """One entry per pearl called first: the fan-out members of each slot, with the rest as alternates."""
+def verify_snapshot_path() -> Path:
+    """The search team's snapshot next to gateway-data: services run from the project root (launchd WorkingDirectory)."""
+    project = os.environ.get("AGENTCON_PROJECT_ROOT")
+    return (Path(project) if project else Path(".")) / "exports" / "pearls" / "verify-snapshot.json"
+
+
+def verified_pearls(path: Path | None = None) -> set[tuple[int, str]] | None:
+    """(agent id, role) pairs that are verified pearls in the search team's verify snapshot (PM R29), or None when
+    the snapshot is missing or unreadable (then no member is called a pearl)."""
+    try:
+        data = json.loads(Path(path or verify_snapshot_path()).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    out = set()
+    for agent_id, agent in (data.get("agents") or {}).items():
+        for role in (agent or {}).get("roles") or []:
+            if isinstance(role, dict) and role.get("verified_pearl") is True and str(agent_id).isdigit():
+                out.add((int(agent_id), role.get("role")))
+    return out
+
+
+def pearls(defn: dict, verified: set | None = None) -> list[dict]:
+    """One entry per member called first: the fan-out members of each slot, with the rest as alternates. ``pearl``
+    is true only when the verify snapshot lists that agent as a verified pearl for the slot's role (contract id)."""
     out = []
     for slot in defn["slots"]:
         externals = model.live_members(slot, "external")
@@ -106,7 +128,8 @@ def pearls(defn: dict) -> list[dict]:
                         "kind": "agentcon"} for m in agentcon[:model.MAX_AGENTCON]]
         for lead in leads:
             out.append({"resource_id": lead["resource_id"], "role": slot["slot"], "tool": lead["tool"],
-                        "required": bool(slot.get("required", True)), "pearl": bool(lead.get("pearl")),
+                        "required": bool(slot.get("required", True)),
+                        "pearl": bool(verified) and (lead["resource_id"], slot["contract"]) in verified,
                         "alternates": alternates})
     return out
 
@@ -134,7 +157,7 @@ def watch_hold(slug: str, watch_state: dict | None, approval: dict | None) -> st
 
 
 def build_entry(defn: dict, approval: dict | None, summary: dict, now: float,
-                watch_state: dict | None = None) -> dict | None:
+                watch_state: dict | None = None, verified: set | None = None) -> dict | None:
     status = defn["status"]
     if status not in PUBLIC:
         return None
@@ -150,7 +173,7 @@ def build_entry(defn: dict, approval: dict | None, summary: dict, now: float,
         "status": status,
         "held_reason": None,
         "gate_passed_at": None,
-        "pearls": pearls(running),
+        "pearls": pearls(running, verified),
         "input_schema": defn["input_schema"],
         "completion": summary.get("completion"),
         "quality": summary.get("quality"),
@@ -159,6 +182,7 @@ def build_entry(defn: dict, approval: dict | None, summary: dict, now: float,
         "replaces_templates": list(defn.get("replaces_templates") or []),
         "replaced_at": defn.get("replaced_at"),
     }
+    entry["pearl_count"] = sum(1 for p in entry["pearls"] if p["pearl"])
     if status == "retired":
         entry["replaced_by"] = defn.get("replaced_by")
         return entry
@@ -173,6 +197,7 @@ def build_entry(defn: dict, approval: dict | None, summary: dict, now: float,
     reason = (reason
               or watch_hold(defn["slug"], watch_state, approval)
               or ("no_member" if len(entry["pearls"]) < 2 else None)
+              or ("pearls_unverified" if entry["pearl_count"] < 2 else None)
               or summary.get("held_reason")
               or _quality_hold(entry, now))
     if reason:
@@ -251,7 +276,7 @@ def record_events(entries: list[dict], judge_state: dict, now: float, signing_di
 
 def snapshot(definitions: list[dict], approvals: dict[str, dict], root: Path, now: float | None = None,
              judge_commit: str | None = None, watch_state: dict | None = None,
-             judge_state: dict | None = None) -> dict:
+             judge_state: dict | None = None, verified: set | None = None) -> dict:
     now = time.time() if now is None else now
     if watch_state is None:
         try:
@@ -262,8 +287,10 @@ def snapshot(definitions: list[dict], approvals: dict[str, dict], root: Path, no
     # PM R22: the last passed gate stays on the entry when ops holds, revokes or the definition changes, so the
     # surface keeps the page and the tool answer with the stop notice instead of a 404 / "Unknown necklace".
     passed = {} if judge_state is None else judge_state.setdefault("gate_passed", {})
+    verified = verified_pearls() if verified is None else verified
     for defn in definitions:
-        entry = build_entry(defn, approvals.get(defn["slug"]), load_summary(root, defn["slug"]), now, watch_state)
+        entry = build_entry(defn, approvals.get(defn["slug"]), load_summary(root, defn["slug"]), now, watch_state,
+                            verified)
         if entry is not None:
             if entry.get("gate_passed_at"):
                 passed[defn["slug"]] = entry["gate_passed_at"]
