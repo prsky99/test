@@ -35,24 +35,8 @@ PY
 # 11-15: pin the daemon's release so the post-deploy prune never removes the folder it runs from
 "$ROOT/.venv/bin/python" -c 'import sys; sys.path.insert(0, sys.argv[1]); from scripts.adcoin_worker_env import pin_release; pin_release(sys.argv[2], sys.argv[3]); print("pinned", sys.argv[3])' \
   "$ROOT" "$ROOT/gateway-data/services/pinned-releases.txt" "$REL"
-LAUNCHCTL=${LAUNCHCTL:-launchctl}   # replaceable for tests
-WAIT=${INSTALL_WAIT_SECONDS:-30}; SETTLE=${INSTALL_SETTLE_SECONDS:-15}; RETRY=${INSTALL_RETRY_SECONDS:-5}
-# 11-10: bootstrap right after bootout failed with "Bootstrap failed: 5: Input/output error" because the
-# previous job had not finished unloading. Wait until the label leaves the list (at most WAIT seconds).
-"$LAUNCHCTL" bootout "gui/$(id -u)/$L" 2>/dev/null || true
-for _ in $(seq 1 "$WAIT"); do
-  "$LAUNCHCTL" list | grep -q "[[:space:]]$L\$" || break
-  sleep 1
-done
-if "$LAUNCHCTL" list | grep -q "[[:space:]]$L\$"; then
-  echo "previous $L is still loaded after ${WAIT}s; not installing"; exit 1
-fi
-if ! "$LAUNCHCTL" bootstrap "gui/$(id -u)" "$P"; then
-  echo "bootstrap failed; trying once more in ${RETRY}s"
-  sleep "$RETRY"
-  "$LAUNCHCTL" bootstrap "gui/$(id -u)" "$P"
-fi
-sleep "$SETTLE"
-"$LAUNCHCTL" list | grep "[[:space:]]$L\$" || { echo "not running"; exit 1; }
+# 11-15: the bootout/bootstrap step lives in adcoin-worker-load.sh (longer wait, retries, and a plain "daemon is
+# down, run again" message with its own exit code when it gives up)
+RERUN="bash deploy/launchd/install-adcoin-worker.sh $REL" bash "$ROOT/deploy/launchd/adcoin-worker-load.sh" "$L" "$P" || exit $?
 tail -5 "$ROOT/logs/services/$L.log" || true
 echo "installed $L from $REL"

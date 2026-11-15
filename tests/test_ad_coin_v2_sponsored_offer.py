@@ -459,3 +459,58 @@ def test_ads_library_shows_the_approved_text_not_a_draft_and_skips_cancelled_boo
     assert after['text'] == approved_text                                               # the reviewed revision's text
     run("UPDATE adc2_reviews SET state='rejected' WHERE campaign_id=?")                 # no eligible review at all
     assert entries(store, NOW) == []
+
+
+def test_rest_accepts_prefer_ads_none_and_varies_on_every_opt_out_header():
+    """R39: REST honours Prefer: ads=none like MCP and A2A, and caches vary on every header that changes the answer."""
+    assert not so.wants_ads({}, {'Prefer': 'return=minimal, ads=none'}) and so.wants_ads({}, {'Prefer': 'return=minimal'})
+    assert so.VARY == 'CF-IPCountry, Prefer, Ads, X-Ads'
+
+
+def test_qa_header_counts_only_when_signed_once_a_key_exists():
+    from agent_market.ad_coin.v2 import qa_header as qa
+    key = b'k' * 32
+    assert qa.is_qa('public_full_check', key=None) and not qa.is_qa('', key=None)        # legacy, before the key
+    good = qa.sign(key, now=1_800_000_000)
+    assert qa.is_qa(good, key=key, now=1_800_000_000) and qa.is_qa(good, key=key, now=1_800_000_000 + 119)
+    assert not qa.is_qa(good, key=key, now=1_800_000_000 + 4 * 60)                       # too old
+    assert not qa.is_qa('public_full_check', key=key, now=1_800_000_000)                  # free text no longer counts
+    assert not qa.is_qa(good[:-1] + ('0' if good[-1] != '0' else '1'), key=key, now=1_800_000_000)
+
+
+def test_clicks_count_once_per_address_and_minute_and_resolve_no_dns(p1_suite, monkeypatch):  # noqa: F811
+    """R39: the redirect target and its public check come from the provider's memory; one counted click per address,
+    campaign and minute."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from agent_market.ad_coin.sql_registry import unchecked
+    from agent_market.ad_coin.v2.sponsored_agent import AgentOfferProvider
+    from agent_market.ad_coin.v2.sponsored_http import router_for
+    from scripts.ad_coin_v2_migrate import migrate_agent_ads
+    from tests.test_ad_coin_v2_paid_bookings import operator
+    from tests.test_ad_coin_v2_p1 import _activate_campaign
+    from tests.test_ad_coin_v2_sponsored import NOW, book_today, slots_for
+    store = p1_suite.service.store
+    migrate_agent_ads(store)
+    campaign = _activate_campaign(p1_suite)
+    book_today(p1_suite, campaign)
+    so.submit_offer(store, p1_suite.advertiser, campaign['id'], GOOD)
+    so.decide_offer(store, p1_suite.service.access, operator(p1_suite), campaign['id'], approve=True)
+    slots = slots_for(p1_suite)
+    provider = AgentOfferProvider(slots, clock=lambda: NOW / 1000, url_check=lambda u: True)
+    provider.refresh()
+    monkeypatch.setattr(so, 'URL_CHECK', lambda u: (_ for _ in ()).throw(AssertionError('DNS on the request path')))
+    app = FastAPI()
+    app.include_router(router_for(slots, offers=provider.offer))
+    client = TestClient(app)
+    url = '/api/ad-coin/v2/sponsored/click/%s?surface=rest&category=web_search' % campaign['id']
+    one = {'CF-IPCountry': 'US', 'CF-Connecting-IP': '203.0.113.7'}
+    for _ in range(3):
+        assert client.get(url, headers=one, follow_redirects=False).headers['location'] == GOOD['endpoint']
+    client.get(url, headers={**one, 'CF-Connecting-IP': '198.51.100.9'}, follow_redirects=False)
+    with unchecked(), store.atomic():
+        [counted] = store.database.all("SELECT clicks FROM adc2_sponsored_clicks")
+    assert int(counted['clicks']) == 2                                   # two addresses, not four requests
+    offer = client.get('/api/ad-coin/v2/sponsored/offer', params={'category': 'web_search'},
+                       headers={'CF-IPCountry': 'US', 'Prefer': 'ads=none'}).json()
+    assert offer == {'sponsored': None, 'reason': 'ads_none'}

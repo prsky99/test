@@ -142,10 +142,17 @@ def validate_offer(raw):
 
 
 def wants_ads(params=None, headers=None):
-    """An agent opts out with ads=none (query or body parameter) or the header `Ads: none` / `X-Ads: none`."""
+    """An agent opts out with ads=none (query or body parameter), the header `Ads: none` / `X-Ads: none`, or
+    `Prefer: ads=none` (R39, as the MCP and A2A surfaces accept)."""
     params, headers = params or {}, {k.lower(): v for k, v in (headers or {}).items()}
     values = [params.get("ads"), headers.get("ads"), headers.get("x-ads")]
-    return not any(isinstance(v, str) and v.strip().lower() == "none" for v in values)
+    if any(isinstance(v, str) and v.strip().lower() == "none" for v in values):
+        return False
+    prefer = headers.get("prefer") if isinstance(headers.get("prefer"), str) else ""
+    return not any(part.strip().replace(" ", "").lower() == "ads=none" for part in prefer.split(","))
+
+
+VARY = "CF-IPCountry, Prefer, Ads, X-Ads"     # every header that changes a Sponsored answer (R39)
 
 
 def sensitive(site_category="", text=""):
