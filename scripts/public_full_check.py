@@ -173,7 +173,7 @@ def part_pages(run, c):
                       err or (r.status_code if r is not None else ''), took):
             continue
         run.ok('pages', f'time {path}', took <= SLOW_OK.get(path, PAGE_S), f'{took}s ({edge(r)})', took,
-               ref=path_floor() if took > SLOW_OK.get(path, PAGE_S) else None)
+               ref=split(r, took) if took > SLOW_OK.get(path, PAGE_S) else None)   # 11-15 PM: server time too
         if 'html' not in r.headers.get('content-type', ''):
             continue
         body = r.text
@@ -214,7 +214,7 @@ def part_api(run, c):
     for path in gets:
         took, r, err = timed(c, 'GET', BASE + path)
         run.ok('api', f'GET {path}', r is not None and r.status_code == 200, err or getattr(r, 'status_code', ''), took)
-        run.ok('api', f'time {path}', took <= API_S, f'{took}s ({edge(r)})', took)
+        run.ok('api', f'time {path}', took <= API_S, f'{took}s ({edge(r)})', took, ref=split(r, took) if took > API_S else None)
     templates = []
     try:
         _, r, _ = timed(c, 'GET', BASE + '/api/workflows/templates')
@@ -462,6 +462,10 @@ def main():
     started = time.time()
     with client() as c:
         for part in args.parts.split(','):
+            # 11-15 PM 14:24: when each part ran and the 1-minute load around it, so a slow sample can be laid
+            # against the check's own load (the browser part runs Chromium) and other work on this Mac
+            extra.setdefault('parts', {})[part] = {'start': datetime.now().strftime('%H:%M:%S'),
+                                                   'load_start': round(os.getloadavg()[0], 2)}
             try:
                 if part == 'pages':
                     extra['pages'] = part_pages(run, c)
@@ -473,6 +477,7 @@ def main():
                     extra['browser'] = part_browser(run)
             except Exception as e:  # noqa: BLE001 - a crashed part is a failure, never a silent pass
                 run.ok(part, f'{part} part crashed', False, f'{type(e).__name__}: {e}')
+            extra['parts'][part].update(end=datetime.now().strftime('%H:%M:%S'), load_end=round(os.getloadavg()[0], 2))
     context = {}
     try:   # set by ops_auto when the run went ahead after deferrals: what it overlapped and the load (11-12 PM)
         context = json.loads(os.environ.get('AGENTCON_RUN_CONTEXT') or '{}')

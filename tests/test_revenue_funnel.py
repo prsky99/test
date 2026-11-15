@@ -79,7 +79,8 @@ def test_ops_auto_writes_the_board_line_once_a_morning(monkeypatch, tmp_path):
     at = lambda *t: (lambda: datetime(*t).timestamp())                                     # noqa: E731
     assert ops_auto.revenue_funnel(clock=at(2026, 11, 16, 7, 55), run=run) is None          # before 08:00
     assert ops_auto.revenue_funnel(clock=at(2026, 11, 16, 8, 5), run=run) == record
-    assert ops_auto.revenue_funnel(clock=at(2026, 11, 16, 9, 5), run=run) is None           # once a day
+    assert ops_auto.revenue_funnel(clock=at(2026, 11, 16, 9, 5), run=run) is None           # every 2 hours
+    assert ops_auto.revenue_funnel(clock=at(2026, 11, 16, 10, 2), run=run) == record      # PM 14:24: 4+ lines a day
     assert handed[0][0] == 'revenue' and handed[0][1].startswith('2026-11-16 토큰 받은 클라이언트 2828(새 126)')
     assert ops_auto.TEAM['revenue'] == 'PM'
     failed = lambda: types.SimpleNamespace(returncode=75, stdout='')                       # noqa: E731

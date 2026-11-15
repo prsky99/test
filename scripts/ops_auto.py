@@ -277,19 +277,21 @@ def answer_set_expiry(clock=time.time, gold=None, state_path=None):
 
 REVENUE_STATE = ROOT / 'logs/ops/revenue-funnel-state.json'
 REVENUE_AFTER_HOUR = 8   # revenue review 11-15 (PM 10:57): one line every morning from 08:00, first on 11-16
+REVENUE_EVERY = 2 * 3600 - 300   # PM 11-15 14:24: PM's own check reads the funnel every 2 hours, so a line every 2 hours
 
 
 def revenue_funnel(clock=time.time, run=None):
-    """Once a day after 08:00: scripts/revenue_funnel.py (read-only counts through prod_ro_sql) appends
-    logs/ops/revenue-funnel.jsonl; the board line '자동 점검 [revenue]' shows the funnel for PM's own check."""
+    """Every 2 hours from 08:00 (PM 11-15 14:24, was once a day): scripts/revenue_funnel.py (read-only counts through
+    prod_ro_sql) appends logs/ops/revenue-funnel.jsonl; the board line '자동 점검 [revenue]' shows the funnel for PM's
+    own check (a report line: replaced, never escalated)."""
     local = datetime.fromtimestamp(clock())
     if local.hour < REVENUE_AFTER_HOUR:
         return None
     day = local.strftime('%Y-%m-%d')
     state = json.loads(REVENUE_STATE.read_text()) if REVENUE_STATE.is_file() else {}
-    if state.get('day') == day:
+    if clock() - float(state.get('at') or 0) < REVENUE_EVERY:
         return None
-    REVENUE_STATE.write_text(json.dumps({'day': day}))
+    REVENUE_STATE.write_text(json.dumps({'day': day, 'at': clock()}))
     run = run or (lambda: subprocess.run([str(ROOT / '.venv/bin/python'), '-m', 'scripts.revenue_funnel'],
                                          capture_output=True, text=True, cwd=ROOT, timeout=120))
     try:
