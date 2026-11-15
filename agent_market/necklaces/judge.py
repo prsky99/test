@@ -309,6 +309,10 @@ def build_entry(defn: dict, approval: dict | None, summary: dict, now: float,
     approved, reason = approval_state(defn, approval)
     if approved:
         entry["gate_passed_at"] = _iso(_parse_time(approval.get("at")))
+    # plan 3.1 (PM 11-15): measured value only for a necklace that passed the gate, with its cases and dates
+    entry["value"] = summary.get("value") if entry["gate_passed_at"] else None
+    from .value import comparison                      # growth's display form (design note 11-15)
+    entry["comparison"] = comparison(entry["value"])
     if status == "held":
         entry["held_reason"] = summary.get("held_reason") or "manual"
         return entry

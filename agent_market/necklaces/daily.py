@@ -167,6 +167,11 @@ def summarize(slug: str, today: list[dict], window: list[dict], singles: list[di
         "external_runs": {"total": north["external_runs"], "succeeded": north["succeeded"], "cached": north["cached"],
                           "our_capacity": north["our_capacity"], "duplicates": north["duplicates"]},
     }
+    from .value import summarize as value_summary   # plan 3.1: medians of the week's paired cases
+    value = value_summary([r.get("value") for r in cases_week])
+    if value:
+        value.update(since=min(r.get("at", "") for r in cases_week), until=max(r.get("at", "") for r in cases_week))
+    summary["value"] = value
     if success_today is not None and success_today < HOLD_SUCCESS:
         summary["held_reason"] = "quality_low"
     return summary
@@ -223,6 +228,7 @@ def run(definitions: list[dict], root: Path, logs: Path, now: float | None = Non
     today = read_lines(root / "retest" / f"{names[0]}.jsonl")
     window = [r for name in names for r in read_lines(root / "retest" / f"{name}.jsonl")]
     fortnight = [r for name in days_back(day, 14) for r in read_lines(root / "retest" / f"{name}.jsonl")]
+    fortnight_all = fortnight
     singles = [r for r in fortnight if r.get("type") == "single"]
     pair_cases = [r for r in fortnight if r.get("type") == "case"]
     runs = [r for name in names for r in read_lines(root / "runs" / f"{name}.jsonl")]
@@ -274,6 +280,23 @@ def run(definitions: list[dict], root: Path, logs: Path, now: float | None = Non
             alerts.append({"at": stamp, "slug": slug, "alert": "completion_below_95", "value": c["completed"] / c["runs"]})
         if summary.get("held_reason"):
             alerts.append({"at": stamp, "slug": slug, "alert": "hold", "reason": summary["held_reason"]})
+        drills = [r for r in fortnight_all if r.get("type") == "drill" and r.get("slug") == slug]
+        last = max((r.get("at", "") for r in drills), default=None)
+        week = [r for r in drills if r.get("at", "") >= (datetime.fromtimestamp(now, timezone.utc)
+                                                         - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")]
+        summary["drill"] = {"last": last, "cases_7d": len(week), "passed_7d": sum(1 for r in week if r.get("ok"))}
+        write_atomic(root / "results" / slug / "summary.json", summary)
+        # plan 3.4: a week without a drill shows, counted from the first day this necklace was seen in trial or live
+        # (a necklace that has not reached its first drill day is not missing one)
+        watched = stage_state.setdefault("drill:" + slug, {"since": stamp}) if defn.get("status") in ("trial", "live") \
+            else stage_state.pop("drill:" + slug, None)
+        watched_since = (watched or {}).get("since") or stamp
+        due = watched_since <= (datetime.fromtimestamp(now, timezone.utc) - timedelta(days=8)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        if watched and due and not week:
+            alerts.append({"at": stamp, "slug": slug, "alert": "drill_missing", "last": last, "watched_since": watched_since})
+        elif week and summary["drill"]["passed_7d"] < len(week):
+            alerts.append({"at": stamp, "slug": slug, "alert": "drill_failed", "passed": summary["drill"]["passed_7d"],
+                           "cases": len(week)})
     write_atomic(stage_path, stage_state)
     logs.mkdir(parents=True, exist_ok=True)
     statuses = [d.get("status") for d in definitions]

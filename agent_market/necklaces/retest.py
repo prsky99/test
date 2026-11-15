@@ -723,7 +723,7 @@ def load_cases(root: Path, slug: str, split: str) -> list[dict]:
 def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT, split: str = "tuning",
             singles: bool = False, budget_s: float = BUDGET_SECONDS, watch_state: dict | None = None,
             clock=time.monotonic, now=time.time, pacer: RelayPacer | None = None,
-            shared_cache: SharedMemberCache | None = None) -> dict:
+            shared_cache: SharedMemberCache | None = None, drill: bool = False) -> dict:
     started = clock()
     day = time.strftime("%Y%m%d", time.localtime(now()))
     lines, details = [], []
@@ -754,8 +754,18 @@ def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT,
             excluded += 1
             continue
         shared = shared_cache.take_hits() if shared_cache is not None else 0
+        if drill:          # fallback drill: its own line, never part of quality, tested_at or the value proof
+            lines.append({"type": "drill", "slug": defn["slug"], "version": defn["version"], "case_id": case["case_id"],
+                          "set": split, "at": at, "ok": verdict["ok"], "completed": result["completed"],
+                          "dropped": (watch_state or {}).get("drill_dropped") or [], "slots": result["slots"]})
+            details.append({"case_id": case["case_id"], "drill": True, "verdict": verdict, "slots": result["slots"]})
+            done += 1
+            passed += bool(verdict["ok"])
+            continue
+        from .value import measure                 # plan 3.1: the two paths on this same case (R23 pairing)
         lines.append({"type": "case", "slug": defn["slug"], "version": defn["version"], "case_id": case["case_id"],
                       "set": split, "at": at, "ok": verdict["ok"], "completed": result["completed"], "shared": shared,
+                      "value": measure(defn, case["input"], result, verdict["ok"]),
                       "completed_external_only": result["completed_external_only"],
                       "latency_ms": result["latency_ms"], "slots": result["slots"], "graded": verdict["slots"]})
         for slot, attempts in result["attempts"].items():
@@ -868,6 +878,26 @@ def ledger_room(defn: dict, cases: int, system: str = "necklace_retest", status=
     return short
 
 
+DRILL_WEEKDAY = 2          # Wednesday (plan 3.4, PM 11-15): one fallback drill a week per live or trial necklace
+
+
+def drill_state(defn: dict, watch_state: dict) -> dict:
+    """The runtime state with every slot's lead left out (marked excluded for this run only), so the run must finish
+    on the external alternates and our own substitutes (plan 3.4). The real watch state is not touched."""
+    from .watch import member_key, runtime_chain
+    state = copy.deepcopy(watch_state)
+    marks = state.setdefault("members", {})
+    dropped = []
+    for slot in defn["slots"]:
+        chain = runtime_chain(slot, defn["slug"], state)
+        lead = next((m for m in chain if m.get("kind") == "external"), None)
+        if lead is not None:
+            marks.setdefault(member_key(defn["slug"], slot["slot"], lead), {})["excluded"] = True
+            dropped.append({"slot": slot["slot"], "resource_id": lead.get("resource_id")})
+    state["drill_dropped"] = dropped
+    return state
+
+
 def daily_split(now: float) -> str:
     """The daily retest walks the 60 held-out cases in two days: r1 on even days, r2 on odd days."""
     return "holdout-r1" if int(now // 86400) % 2 == 0 else "holdout-r2"
@@ -886,7 +916,7 @@ def open_engine():
 def run_daily(defn: dict, *, root: Path = DEFAULT_ROOT, split: str, singles: bool, budget_s: float,
               base: str = BASE, system: str = "necklace_retest", limit: int = 30, path: str = "relay",
               engine=None, sample: tuple[int, int] | None = None, shared_cache: SharedMemberCache | None = None,
-              require_room: bool = False, room=ledger_room) -> dict:
+              require_room: bool = False, room=ledger_room, drill: bool = False) -> dict:
     """One scheduled retest of one necklace. path "relay" goes through the public relay (daily retests, self-tests);
     path "engine" calls through the same registered-agent engine as public runs (PM R26: one gate round takes the path
     users take, so the gate does not pass a path that public runs never use)."""
@@ -895,6 +925,8 @@ def run_daily(defn: dict, *, root: Path = DEFAULT_ROOT, split: str, singles: boo
     # the same runtime chain as the public path: watch demotions and exclusions, ops-approved substitutes
     watch_state = load_json(Path(root) / "watch" / "state.json", {})
     watch_state["substitutes"] = load_substitutes(Path(root) / "approvals.json")
+    if drill:
+        watch_state = drill_state(defn, watch_state)
     from .gold import GoldSetInvalid
     try:
         cases = load_cases(root, defn["slug"], split)[:limit]
@@ -908,8 +940,13 @@ def run_daily(defn: dict, *, root: Path = DEFAULT_ROOT, split: str, singles: boo
                     "deferred": {"why": "provider_share", "short": short}}
 
     def measure(base_caller, pacer=None):
-        source = shared_cache.wrap(base_caller) if shared_cache is not None else base_caller
+        source = shared_cache.wrap(base_caller) if shared_cache is not None and not drill else base_caller
         call = runner.budgeted_caller(source, system, provider_url)
+        if drill:            # the drill runs its sample once: no whole-set rerun, no single baseline
+            first, count = sample or (0, SAMPLE_PER_DAY)
+            return dict(run_set(defn, cases[first:first + count], call, root=root, split=split, singles=False,
+                                budget_s=budget_s, pacer=pacer, watch_state=watch_state, drill=True), drill=True,
+                        dropped=watch_state.get("drill_dropped"))
         if sample is None:
             return run_set(defn, cases, call, root=root, split=split, singles=singles, budget_s=budget_s,
                            pacer=pacer, watch_state=watch_state, shared_cache=shared_cache)

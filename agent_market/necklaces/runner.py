@@ -46,6 +46,8 @@ class Attempt:
     ms: int
     error_class: str | None = None
     raw: str | None = None
+    chars_in: int = 0           # characters of the arguments sent (value proof, necklaces.value)
+    chars_out: int = 0          # characters of the answer received
 
 
 @dataclass
@@ -614,8 +616,11 @@ class Runner:
         left = deadline - started
         if left * 1000 < MIN_ATTEMPT_MS:
             return Attempt(member.get("resource_id"), member["tool"], member["kind"], rank, False, 0, "deadline"), None
+        args = render(member.get("input_map") or {}, values)
+        chars_in, chars_out = len(_text(args)), 0
         try:
-            raw = self.caller(member, render(member.get("input_map") or {}, values), left)
+            raw = self.caller(member, args, left)
+            chars_out = len(_text(raw))
             canon = normalize(contract, raw, values)
             credit = getattr(raw, "attribution", None)   # AgentValCon fallback sources and licenses (R29)
             if canon is not None and isinstance(credit, dict):
@@ -630,7 +635,8 @@ class Runner:
         if finished > deadline:          # an answer after the deadline never counts
             canon, ok, error = None, False, "late"
         ms = int((finished - started) * 1000)
-        return Attempt(member.get("resource_id"), member["tool"], member["kind"], rank, ok, ms, error, kept), canon
+        return Attempt(member.get("resource_id"), member["tool"], member["kind"], rank, ok, ms, error, kept,
+                       chars_in, chars_out), canon
 
     # -- scheduling helpers
     def _submit(self, pool, st, rank, member, values, run_started):

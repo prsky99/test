@@ -184,6 +184,9 @@ class RetestStep:
             line = {"step": "retest", "kind": kind, "ok": True, "targets": 0}
             if kind != "live":                     # 17 live hours a day: an empty one leaves no line
                 _append(self.logs, line, now)
+                from .necklaces import retest as _retest
+                if local.tm_wday == _retest.DRILL_WEEKDAY:      # a drill day with nothing to drill still says so
+                    _drill_log(self.logs, {"kind": kind, "ok": True, "targets": 0}, now)
             return {"necklace_retest": line}
         for defn in targets:
             started[defn["slug"]] = {"kind": kind, "at": time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime(now))}
@@ -223,6 +226,17 @@ class RetestStep:
                               budget_s=left, shared_cache=self.shared, require_room=True)
                 else:
                     out = run(defn, root=self.root, split=split, singles=singles, budget_s=left, **extra)
+                    if time.localtime(started_at).tm_wday == retest.DRILL_WEEKDAY and self.clock() < finish - MIN_LEFT_S:
+                        # plan 3.4: the weekly fallback drill, leads left out, after the day's retest
+                        drill = run(defn, root=self.root, split=split, singles=False,
+                                    budget_s=finish - self.clock(), sample=extra.get("sample") or (0, retest.SAMPLE_PER_DAY),
+                                    drill=True)
+                        out = dict(out, drill={k: drill.get(k) for k in ("cases", "passed", "dropped", "not_run")})
+                        _drill_log(self.logs, {"kind": kind, "slug": defn["slug"],
+                                               "ok": bool(drill.get("cases")) and drill.get("passed") == drill.get("cases"),
+                                               "cases": drill.get("cases"), "passed": drill.get("passed"),
+                                               "dropped": drill.get("dropped"), "not_run": drill.get("not_run")},
+                                   self.clock())
                 if out.get("deferred") and defn["slug"] not in waiting:
                     self._defer(defn["slug"], split)
                 elif defn["slug"] in waiting and not out.get("deferred"):
@@ -268,6 +282,18 @@ class RetestStep:
     def _write_started(self, day, started):
         from .necklaces.judge import write_atomic
         write_atomic(self.root / "retest" / f"started-{day}.json", started)
+
+
+def _drill_log(logs, line, now):
+    """One line per fallback drill in logs/ops/necklace-watch/drills.jsonl, also on a drill day with nothing to drill
+    (ops fcc77e15 raises fallback_drill_missed when the last line is over 8 days old)."""
+    line = {"at": time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime(now)), **line}
+    try:
+        Path(logs).mkdir(parents=True, exist_ok=True)
+        with (Path(logs) / "drills.jsonl").open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(line, ensure_ascii=False, sort_keys=True) + "\n")
+    except OSError as exc:
+        log.warning("necklace drill line not written: %s", type(exc).__name__)
 
 
 def _append(logs, line, now):
