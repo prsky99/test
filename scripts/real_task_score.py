@@ -115,11 +115,15 @@ def rpc(client, url, method, params=None, rid=1):
         time.sleep(min(float(r.headers.get('Retry-After') or 60), 90))
         pace(url)
         r = client.post(url, json=body, headers=headers)
+    rpc.last_timing = r.headers.get('server-timing', '')
     try:
         data = r.json()
     except ValueError:
         data = {'error': {'code': r.status_code, 'message': r.text[:200]}}
     return r.status_code, data
+
+
+rpc.last_timing = ''
 
 
 def recommend(client, task):
@@ -245,6 +249,10 @@ def score_task(client, task):
     t0 = time.monotonic()
     status, recs = recommend(client, task['task'])
     row['recommend_s'] = round(time.monotonic() - t0, 2)
+    # What find_agents answered, kept with the row (PM 11-16 04:3x: at 04:11 p14 and a09 led with other agents than
+    # every run before and after, and nothing showed what the list was): ids in order and the server's own timing.
+    row['shortlist'] = [[r.get('id'), r.get('kind')] for r in recs[:10] if isinstance(r, dict)]
+    row['recommend_timing'] = (rpc.last_timing or '')[:600]
     if not recs:
         row.update(outcome='no_recommendation', detail='find_agents status %s, no agents' % status)
         return row

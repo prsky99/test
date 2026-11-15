@@ -209,3 +209,15 @@ def test_a_sample_value_fills_one_field_only():
     assert rts.arguments_for(schema, {'package': 'express'}, 'npm package metadata') == {'name': 'express'}
     assert rts.arguments_for({'type': 'object', 'required': ['q'], 'properties': {'q': {'type': 'string'}}},
                              {}, 'weather in Seoul') == {'q': 'weather in Seoul'}
+
+
+def test_a_row_keeps_what_find_agents_answered(monkeypatch):
+    """PM 11-16 04:3x: a lead that changed for one run (p14, a09 at 04:11) left nothing to compare with."""
+    from scripts import real_task_score as rts
+    monkeypatch.setattr(rts, 'recommend', lambda client, task: (200,
+                        [{'id': 56799, 'kind': 'mcp', 'name': 'SimplyScan'}, {'id': 167478, 'kind': 'mcp'}]))
+    monkeypatch.setattr(rts.rpc, 'last_timing', 'server;dur=3380, step_search;dur=2620')
+    row = rts.score_task(None, {'id': 'p14', 'who': 'person', 'task': 'SSL expiry', 'needs': 'ssl certificate',
+                                'free_check': False})
+    assert row['shortlist'] == [[56799, 'mcp'], [167478, 'mcp']]
+    assert row['recommend_timing'].startswith('server;dur=3380')
