@@ -154,3 +154,75 @@ def test_rebuild_keeps_serving_index_when_the_new_build_is_short():
 def test_sync_refuses_a_non_loopback_engine():
     with pytest.raises(ValueError):
         sync.Client('http://10.1.2.3:9200')
+
+
+class DocEngine(FakeEngine):
+    """FakeEngine that keeps document ids, so updates and deletes can be counted."""
+    def __init__(self, serving=None):
+        super().__init__(serving)
+        self.docs = {name: set(range(1, 101)) for name in self.indices}
+        self.bulk_lines = []
+
+    def call(self, method, path, body=None, ndjson=False):
+        name = path.strip('/').split('/')[0]
+        if path.endswith('/_bulk'):
+            self.calls.append((method, path))
+            lines = body.decode().strip().split('\n')
+            self.bulk_lines.append(len(lines))
+            docs, items, i = self.docs.setdefault(name, set()), [], 0
+            while i < len(lines):
+                action = json.loads(lines[i])
+                if 'delete' in action:
+                    rid = int(action['delete']['_id'])
+                    items.append({'delete': {'status': 200 if rid in docs else 404}}); docs.discard(rid); i += 1
+                else:
+                    docs.add(int(action['index']['_id'])); items.append({'index': {'status': 201}}); i += 2
+            self.indices[name] = len(docs)
+            return {'errors': any(x['delete']['status'] == 404 for x in items if 'delete' in x), 'items': items}
+        if method == 'PUT' and path.count('/') == 1:
+            self.docs[name] = set()
+        return super().call(method, path, body, ndjson)
+
+
+def test_rounds_update_only_changed_listings_and_build_in_full_at_night(tmp_path, monkeypatch):
+    import time as _time
+    state = tmp_path / 'state.json'
+    engine = DocEngine()
+    day = _time.mktime((2026, 11, 15, 15, 0, 0, 0, 0, -1))
+    first = sync.sync_rows(engine, lambda: rows(120), now=lambda: day, state_path=state)
+    assert first['mode'] == 'full' and first['reason'] == 'no saved state' and engine.alias == [first['index']]
+    # 3 listings change, 2 are gone, 1 is new: one small bulk into the serving index, no new index, no swap
+    changed = [(i, f'n{i}', 'd', 'mcp', None, i not in (5, 6, 7), 1.0) for i in range(3, 121)] + [(121, 'new', 'd', 'mcp', None, True, 1.0)]
+    puts = sum(1 for m, p in engine.calls if m == 'PUT' and p.count('/') == 1)
+    second = sync.sync_rows(engine, lambda: changed, now=lambda: day + 600, state_path=state)
+    assert second == {'index': first['index'], 'mode': 'update', 'count': 119, 'upserted': 4, 'deleted': 2}
+    assert engine.alias == [first['index']] and sum(1 for m, p in engine.calls if m == 'PUT' and p.count('/') == 1) == puts
+    assert sync.sync_rows(engine, lambda: changed, now=lambda: day + 1200, state_path=state)['upserted'] == 0
+    # 03:20-03:45 once a night: a full build, then updates again
+    night = _time.mktime((2026, 11, 16, 3, 25, 0, 0, 0, -1))
+    assert sync.sync_rows(engine, lambda: changed, now=lambda: night, state_path=state)['reason'] == 'nightly'
+    assert sync.sync_rows(engine, lambda: changed, now=lambda: night + 600, state_path=state)['mode'] == 'update'
+
+
+def test_a_large_change_or_a_foreign_alias_builds_in_full(tmp_path):
+    state = tmp_path / 'state.json'
+    engine = DocEngine()
+    sync.sync_rows(engine, lambda: rows(120), now=lambda: 0, state_path=state)
+    moved = [(i, f'x{i}', 'd', 'mcp', None, True, 1.0) for i in range(1, 121)]
+    out = sync.sync_rows(engine, lambda: moved, now=lambda: 600, state_path=state)
+    assert out['mode'] == 'full' and out['reason'].startswith('update refused')
+    engine.alias[:] = ['agentcon-lexical-someone-else']; engine.indices['agentcon-lexical-someone-else'] = 120
+    engine.docs['agentcon-lexical-someone-else'] = set(range(1, 121))
+    assert sync.sync_rows(engine, lambda: moved, now=lambda: 1200, state_path=state)['reason'] == 'serving index differs from the saved state'
+
+
+def test_update_batches_never_split_an_index_action_from_its_document(tmp_path, monkeypatch):
+    monkeypatch.setattr(sync, 'BATCH', 3)
+    state = tmp_path / 'state.json'
+    engine = DocEngine()
+    sync.sync_rows(engine, lambda: rows(120), now=lambda: 0, state_path=state)
+    engine.bulk_lines.clear()
+    later = [(i, f'n{i}' + ('!' if i <= 7 else ''), 'd', 'mcp', None, True, 1.0) for i in range(1, 119)]
+    out = sync.sync_rows(engine, lambda: later, now=lambda: 600, state_path=state)
+    assert out == {'index': out['index'], 'mode': 'update', 'count': 118, 'upserted': 7, 'deleted': 2}
+    assert engine.bulk_lines == [6, 6, 4]             # 3 ops a batch: 3 indexes, 3 indexes, 1 index + 2 deletes

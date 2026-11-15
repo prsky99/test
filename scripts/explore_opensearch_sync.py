@@ -1,10 +1,17 @@
-"""Rebuild the local OpenSearch lexical index for Explore and swap its alias atomically.
+"""Keep the local OpenSearch lexical index for Explore in step with the listings.
 
-Reads listings read-only from the application PostgreSQL (one connection), builds a new index,
-checks it, points the alias at it and removes older builds. A failed build never replaces the
-serving index. Usage: explore_opensearch_sync.py [--loop SECONDS] [--url http://127.0.0.1:9200]
+Reads listings read-only from the application PostgreSQL (one connection). A full build makes a new index, checks
+it, warms it, points the alias at it and removes older builds; a failed build never replaces the serving index.
+Between full builds (11-15 운영·SRE 16:4x: a full build every 10.5 minutes took 26-70 s of CPU and left an empty
+page cache just before user_slo's 15:09 measurement, 6.72 s), each round writes only the listings whose indexed
+fields changed (about 150 in 10 minutes) and deletes the ones gone, into the serving index; the index and its caches
+stay. One full build a night (FULL_HOUR, minutes :20-:45, away from the hourly :55-:10 measurement), or when the
+saved state does not match the serving index or a round changes more than MAX_CHANGE of it.
+Usage: explore_opensearch_sync.py [--loop SECONDS] [--full] [--url http://127.0.0.1:9200]
 """
 import argparse
+import hashlib
+import os
 import ipaddress
 import json
 import sys
@@ -19,6 +26,9 @@ ALIAS = 'agentcon-lexical'
 PREFIX = ALIAS + '-'
 BATCH = 4000
 MIN_RATIO = 0.9
+STATE = ROOT / 'gateway-data/opensearch/lexical-state.json'   # serving index name and a digest per listing
+FULL_HOUR, FULL_MINUTES = 3, (20, 45)
+MAX_CHANGE = 0.2
 # The index is small (~170 MB) and rebuilt every few minutes: preload its files into the page
 # cache when it opens, so the first searches after an alias swap do not read from disk.
 SETTINGS = {'number_of_shards': 1, 'number_of_replicas': 0, 'refresh_interval': '-1',
@@ -67,13 +77,20 @@ def current_targets(client):
         raise
 
 
-def rebuild(client, rows, *, now=time.time):
-    """Load ROWS into a new index; swap the alias only when the new index looks complete."""
+def digest(source):
+    return hashlib.blake2b(json.dumps(source, sort_keys=True).encode(), digest_size=8).hexdigest()
+
+
+def rebuild(client, rows, *, now=time.time, hashes=None):
+    """Load ROWS into a new index; swap the alias only when the new index looks complete. HASHES, when given, is
+    filled with each listing's digest for the incremental rounds."""
     name = PREFIX + time.strftime('%Y%m%d%H%M%S', time.gmtime(now()))
     client.call('PUT', '/' + name, {'settings': SETTINGS, 'mappings': MAPPINGS})
     try:
         sent, batch = 0, []
         for action, source in documents(rows):
+            if hashes is not None:
+                hashes[action['index']['_id']] = digest(source)
             batch += [json.dumps(action), json.dumps(source)]
             if len(batch) >= 2 * BATCH:
                 sent += _bulk(client, name, batch); batch = []
@@ -109,7 +126,11 @@ def warm(client, name):
 def _bulk(client, name, lines):
     result = client.call('POST', f'/{name}/_bulk', ('\n'.join(lines) + '\n').encode(), ndjson=True)
     if result.get('errors'):
-        raise RuntimeError('bulk indexing reported errors')
+        # a delete that finds nothing is not an error for us (the listing is gone either way)
+        bad = [item for item in result.get('items') or [] for op, r in item.items()
+               if r.get('error') and not (op == 'delete' and r.get('status') == 404)]
+        if bad or not result.get('items'):
+            raise RuntimeError('bulk indexing reported errors')
     return len(lines) // 2
 
 
@@ -127,13 +148,89 @@ def read_listings():
     return connection
 
 
-def run_once(client):
+class NeedFull(Exception):
+    """The incremental round cannot be trusted; the caller builds a full index instead."""
+
+
+def update(client, index, rows, hashes):
+    """Write the listings whose digest changed and delete the ones gone, into INDEX (the serving index). HASHES is
+    the saved digest per id and is replaced in place only when the round succeeds."""
+    fresh, ops = {}, []                     # one op = its bulk lines (an index takes two, a delete one)
+    for action, source in documents(rows):
+        rid = action['index']['_id']
+        fresh[rid] = digest(source)
+        if hashes.get(rid) != fresh[rid]:
+            ops.append([json.dumps(action), json.dumps(source)])
+    changed = len(ops)
+    gone = [rid for rid in hashes if rid not in fresh]
+    ops += [[json.dumps({'delete': {'_id': rid}})] for rid in gone]
+    if hashes and len(ops) > MAX_CHANGE * len(hashes):
+        raise NeedFull(f'{changed} changed and {len(gone)} gone of {len(hashes)}')
+    for start in range(0, len(ops), BATCH):
+        _bulk(client, index, [line for op in ops[start:start + BATCH] for line in op])
+    if ops:
+        client.call('POST', f'/{index}/_refresh')
+    count = client.call('GET', f'/{index}/_count')['count']
+    if count != len(fresh):
+        raise NeedFull(f'serving index holds {count}, listings {len(fresh)}')
+    hashes.clear(); hashes.update(fresh)
+    return {'index': index, 'mode': 'update', 'count': count, 'upserted': changed, 'deleted': len(gone)}
+
+
+def load_state(path=None):
+    try:
+        state = json.loads(Path(path or STATE).read_text())
+        return state if isinstance(state.get('hashes'), dict) and state.get('index') else None
+    except (OSError, ValueError, AttributeError):
+        return None
+
+
+def save_state(state, path=None):
+    path = Path(path or STATE)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix('.tmp')
+    tmp.write_text(json.dumps(state))
+    os.replace(tmp, path)
+
+
+def full_due(state, now):
+    """A full build once a night: FULL_HOUR, minutes FULL_MINUTES, when none was built that local day."""
+    local = time.localtime(now)
+    if local.tm_hour != FULL_HOUR or not FULL_MINUTES[0] <= local.tm_min <= FULL_MINUTES[1]:
+        return False
+    return time.strftime('%Y-%m-%d', time.localtime(state.get('built_at') or 0)) != time.strftime('%Y-%m-%d', local)
+
+
+def sync_rows(client, rows_for, *, full=False, now=time.time, state_path=None):
+    """One round. ROWS_FOR() opens a fresh listing iterator (a full build after a failed update reads again)."""
+    state, at = load_state(state_path), now()
+    serving = current_targets(client)
+    reason = ('asked' if full else 'no saved state' if state is None else
+              'serving index differs from the saved state' if serving != [state['index']] else
+              'nightly' if full_due(state, at) else None)
+    if reason is None:
+        try:
+            result = update(client, state['index'], rows_for(), state['hashes'])
+            save_state(state, state_path)
+            return result
+        except NeedFull as exc:
+            reason = f'update refused: {exc}'
+    hashes = {}
+    result = rebuild(client, rows_for(), now=now, hashes=hashes)
+    save_state({'index': result['index'], 'built_at': at, 'hashes': hashes}, state_path)
+    return {**result, 'mode': 'full', 'reason': reason}
+
+
+def run_once(client, full=False):
     started = time.time()
     with read_listings() as connection:
-        with connection.transaction(), connection.cursor(name='explore_opensearch_sync') as cursor:
+        def rows_for():
+            cursor = connection.cursor(name=f'explore_opensearch_sync_{time.monotonic_ns()}')
             cursor.itersize = 5000
             cursor.execute(LISTINGS)
-            result = rebuild(client, cursor)
+            return cursor
+        with connection.transaction():
+            result = sync_rows(client, rows_for, full=full)
     result['seconds'] = round(time.time() - started, 1)
     return result
 
@@ -141,12 +238,15 @@ def run_once(client):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--url', default='http://127.0.0.1:9200')
-    parser.add_argument('--loop', type=int, default=0, help='seconds between rebuilds; 0 runs once')
+    parser.add_argument('--loop', type=int, default=0, help='seconds between rounds; 0 runs once')
+    parser.add_argument('--full', action='store_true', help='build a full new index this (first) round')
     args = parser.parse_args(argv)
     client = Client(args.url)
+    full = args.full
     while True:
         try:
-            print(json.dumps({'at': time.strftime('%Y-%m-%dT%H:%M:%S'), **run_once(client)}), flush=True)
+            print(json.dumps({'at': time.strftime('%Y-%m-%dT%H:%M:%S'), **run_once(client, full)}), flush=True)
+            full = False
         except Exception as exc:
             print(json.dumps({'at': time.strftime('%Y-%m-%dT%H:%M:%S'), 'error': f'{type(exc).__name__}: {exc}'[:300]}), flush=True)
             if not args.loop:
