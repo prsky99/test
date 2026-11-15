@@ -70,7 +70,7 @@ def agents(tmp_path, routes, calls=None, clock=None, snapshot=None):
 
 # ------------------------------------------------------------------ catalog and contracts
 def test_tools_are_read_only_and_use_the_slot_contracts():
-    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard", "site-readiness", "wiki-grounding", "ecb-fx", "usgs-quakes", "tz-time", "airport-lookup", "wiktionary-define", "github-repo", "rdap-domain", "unit-convert", "wikidata-place", "wikidata-book", "gdelt-news", "census-geocode"}
+    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard", "site-readiness", "wiki-grounding", "ecb-fx", "usgs-quakes", "tz-time", "airport-lookup", "wiktionary-define", "github-repo", "rdap-domain", "unit-convert", "wikidata-place", "wikidata-book", "gdelt-news", "census-geocode", "mcp-registry"}
     for agent_id, spec in SPECS.items():
         tool = tool_spec(agent_id)
         c = contract(spec["contract"])
@@ -2039,3 +2039,25 @@ def test_gold_judge_for_arxiv_search():
     assert not g.judge("arxiv-search", case, {"items": [{"title": "Transport of heat", "url": "https://arxiv.org/abs/1"}]})["pass"]
     assert not g.judge("arxiv-search", case, {"items": [{"title": "Public transport", "url": "http://x"}]})["pass"]
     assert not g.applies("arxiv-search", {"truth": {}})
+
+
+def test_mcp_registry_lookup_reads_latest_and_not_found_is_an_answer(tmp_path):
+    """PM 11-15 16:12: name -> latest entry; a missing name is listed false, not an error."""
+    entry = {"server": {"name": "biz.agentconcierge/agent-concierge", "version": "1.0.0", "websiteUrl": "https://agentconcierge.biz",
+                        "remotes": [{"type": "streamable-http", "url": "https://agentconcierge.biz/mcp"}]},
+             "_meta": {"io.modelcontextprotocol.registry/official": {"status": "active", "publishedAt": "2026-11-09T12:48:24Z"}}}
+    base = "https://registry.modelcontextprotocol.io/v0.1/servers"
+    routes = {base + "/biz.agentconcierge%2Fagent-concierge/versions/latest": httpx.Response(200, json=entry),
+              base + "?": httpx.Response(200, json={"servers": [entry]})}
+    calls = []
+    a, _ = agents(tmp_path, routes, calls)
+    out = a.execute("mcp-registry", {"name": "biz.agentconcierge/agent-concierge"})["result"]
+    assert out["listed"] and out["version"] == "1.0.0" and out["status"] == "active"
+    assert out["published_at"] == "2026-11-09T12:48:24Z" and out["remotes"] == ["https://agentconcierge.biz/mcp"]
+    missing = a.execute("mcp-registry", {"name": "io.github.nobody/nothing"})["result"]
+    assert missing["listed"] is False and "no entry" in missing["source"]
+    found = a.execute("mcp-registry", {"query": "biz.agentconcierge/agent-concierge"})["result"]
+    assert found["listed"] and "search=biz.agentconcierge" in calls[-1]
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("mcp-registry", {"name": "not a name"})
+    assert err.value.code == "invalid_input"

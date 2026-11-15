@@ -129,6 +129,10 @@ NIST = {"name": "NIST Special Publication 811 conversion factors", "url": "https
         "license": "U.S. Government work, public domain in the United States",
         "notice": "Computed on our server from exact SI definitions; US customary units (US gallon, avoirdupois pound)."}
 
+MCP_REGISTRY = {"name": "Official MCP Registry (Model Context Protocol)", "url": "https://registry.modelcontextprotocol.io/",
+                "license": "CC0 1.0 metadata; REST API for clients and aggregators (modelcontextprotocol.io/registry/about)",
+                "notice": "The registry is in preview: entries can change or be reset. Listing is not an endorsement."}
+
 CENSUS_GEOCODER = {"name": "U.S. Census Bureau Geocoder", "url": "https://geocoding.geo.census.gov/geocoder/",
                    "license": "U.S. Government work, public domain; the Census Geocoder offers programmatic REST access",
                    "notice": "U.S. addresses only; an address outside the United States is not sent."}
@@ -329,6 +333,13 @@ SPECS = {
                        "index and a time-zone boundary grid; read-only.",
         "sources": [OURAIRPORTS, TZ_BOUNDARIES],
         "rate": "no network calls per request; the index is refreshed once a day",
+    },
+    "mcp-registry": {
+        "name": "AgentValCon MCP Registry Lookup", "tool": "lookup_mcp_registry", "contract": "mcp.registry.lookup.v1",
+        "description": "Check whether an MCP server is in the official MCP Registry by its registry name or a search "
+                       "phrase: listed or not, version, status, release time, repository and remote endpoints; read-only.",
+        "sources": [MCP_REGISTRY],
+        "rate": "one request a second; the same name cached 1 hour",
     },
     "census-geocode": {
         "name": "AgentValCon U.S. Address Geocoder", "tool": "geocode_us_address", "contract": "geocode.address.v1",

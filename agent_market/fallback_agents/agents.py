@@ -44,7 +44,7 @@ MAX_AGE = {"nvd-cve": 6 * 3600, "cve-org": 24 * 3600, "cisa-kev": 24 * 3600, "gi
            "wiki-grounding": 24 * 3600, "ecb-fx": 26 * 3600, "usgs-quakes": 3600,
            "tz-time": 400 * 86400, "airport-lookup": 8 * 86400, "wiktionary-define": 7 * 86400,
            "github-repo": 24 * 3600, "rdap-domain": 7 * 86400, "unit-convert": 10 * 365 * 86400,
-           "wikidata-place": 7 * 86400, "wikidata-book": 7 * 86400, "gdelt-news": 6 * 3600, "census-geocode": 30 * 86400}  # rules age from the library release; update the pin at least yearly
+           "wikidata-place": 7 * 86400, "wikidata-book": 7 * 86400, "gdelt-news": 6 * 3600, "census-geocode": 30 * 86400, "mcp-registry": 86400}  # rules age from the library release; update the pin at least yearly
 TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "github-advisory": (3600, 6 * 3600),
        "epss": (6 * 3600, 48 * 3600), "package-registry": (3600, 6 * 3600), "depsdev-package": (6 * 3600, 24 * 3600),
        "gleif-lei": (6 * 3600, 24 * 3600), "sec-edgar": (6 * 3600, 24 * 3600), "sec-tickers": (6 * 3600, 24 * 3600),
@@ -55,7 +55,8 @@ TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "githu
        "usgs-quakes": (300, 3600), "wiktionary-define": (86400, 7 * 86400), "github-repo": (6 * 3600, 24 * 3600),
        "rdap-domain": (6 * 3600, 7 * 86400), "rdap-bootstrap": (86400, 7 * 86400),
        "wikidata-place": (86400, 7 * 86400), "wikidata-book": (86400, 7 * 86400),
-       "gdelt-news": (3600, 6 * 3600), "census-geocode": (7 * 86400, 30 * 86400)}  # (serve from cache without asking, longest a cached copy may serve)
+       "gdelt-news": (3600, 6 * 3600), "census-geocode": (7 * 86400, 30 * 86400),
+       "mcp-registry": (3600, 6 * 3600)}  # (serve from cache without asking, longest a cached copy may serve)
 KEV_TTL, KEV_MAX_STALE = 3600, 24 * 3600
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 PACKAGE = re.compile(r"(?:@[a-z0-9][a-z0-9._~-]*/)?[A-Za-z0-9][A-Za-z0-9._~-]*")
@@ -1369,6 +1370,57 @@ class FallbackAgents:
             return f", time zone {found['zone']}"
         return ", time zone near a boundary: " + " or ".join(found["candidates"][:4])
 
+    def _mcp_registry(self, args, remaining):
+        """mcp.registry.lookup.v1 (PM 11-15 16:12): an exact registry name reads its latest version; a phrase searches.
+        Not found is a normal answer (listed false): the registry is in preview and entries can be reset."""
+        from urllib.parse import quote as _quote
+        base = "https://registry.modelcontextprotocol.io/v0.1/servers"
+        name = str(args.get("name") or "").strip()
+        query = " ".join(str(args.get("query") or "").split())
+        if name and not REGISTRY_NAME.fullmatch(name):
+            raise FallbackUnavailable("invalid_input", "Use a registry name such as io.github.owner/server.")
+        if not name and not 2 <= len(query) <= 200:
+            raise FallbackUnavailable("invalid_input", "Give a registry name or a search phrase.")
+
+        def live(rem):
+            if name:
+                try:
+                    raw = self._get_json(f"{base}/{_quote(name, safe='')}/versions/latest", rem, limit=512 * 1024)
+                except FallbackUnavailable:
+                    return None, _now_iso(self.utc_now())          # 404: not in the registry
+                return raw, _now_iso(self.utc_now())
+            raw = self._get_json(base, rem, params={"search": query, "limit": 10}, limit=1024 * 1024)
+            rows = [r for r in raw.get("servers") or [] if isinstance(r, dict) and isinstance(r.get("server"), dict)]
+            exact = [r for r in rows if r["server"].get("name", "").lower() == query.lower()]
+            pick = exact[0] if exact else (rows[0] if len(rows) == 1 else None)
+            return pick, _now_iso(self.utc_now())
+        (raw, as_of), cache = self._cached(("mcp-registry", name.lower() or "q:" + query.lower()), TTL["mcp-registry"],
+                                           live, remaining)
+        if not raw:
+            return ({"listed": False, "url": "https://registry.modelcontextprotocol.io/",
+                     "source": "Official MCP Registry (preview; CC0): no entry with this " + ("name" if name else "search phrase")},
+                    cache, False, {"Official MCP Registry": as_of})
+        server = raw.get("server") or {}
+        meta = (raw.get("_meta") or {}).get("io.modelcontextprotocol.registry/official") or {}
+        out = {"listed": True, "name": _text(server.get("name"), 200), "version": _text(server.get("version"), 255),
+               "url": f"{base}/{_quote(str(server.get('name')), safe='')}/versions/latest",
+               "source": "Official MCP Registry (preview; CC0)"}
+        if meta.get("status"):
+            out["status"] = _text(meta["status"], 40)
+        if meta.get("publishedAt"):
+            out["published_at"] = _text(meta["publishedAt"], 40)
+        repo = server.get("repository")
+        repo_url = repo.get("url") if isinstance(repo, dict) else repo
+        if isinstance(repo_url, str) and repo_url.startswith("https://"):
+            out["repository"] = repo_url[:2000]
+        if isinstance(server.get("websiteUrl"), str) and server["websiteUrl"].startswith("https://"):
+            out["website"] = server["websiteUrl"][:2000]
+        remotes = [r.get("url") for r in server.get("remotes") or [] if isinstance(r, dict)
+                   and isinstance(r.get("url"), str) and r["url"].startswith("https://")]
+        if remotes:
+            out["remotes"] = remotes[:10]
+        return out, cache, False, {"Official MCP Registry": as_of}
+
     def _census_geocode(self, args, remaining):
         """geocode.address.v1 for U.S. addresses (PM 11-15 14:25): the address string is the only thing sent. An
         address that is plainly not in the United States is not sent; it and a no-match answer not_found, so a
@@ -1824,6 +1876,8 @@ def tiered_match(rows, wanted, keys_of, preferred):
         return best[0]
     return None
 
+
+REGISTRY_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9.-]*/[A-Za-z0-9._-]{1,150}")
 
 STREET_TYPES = {"avenue": "ave", "ave": "ave", "av": "ave", "street": "st", "st": "st", "drive": "dr", "dr": "dr",
                 "boulevard": "blvd", "blvd": "blvd", "road": "rd", "rd": "rd", "parkway": "pkwy", "pkwy": "pkwy",

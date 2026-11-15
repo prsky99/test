@@ -658,5 +658,39 @@
    null,
    {}
   ]
+ ],
+ "mcp-registry": [
+  [
+   {
+    "name": "biz.agentconcierge/agent-concierge"
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "name": "io.github.nobody-here/not-a-server"
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "name": "not a name"
+   },
+   "invalid_input",
+   null,
+   {}
+  ],
+  [
+   {
+    "query": "x"
+   },
+   "invalid_input",
+   null,
+   {}
+  ]
  ]
 }

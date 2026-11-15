@@ -1,0 +1,39 @@
+{
+  "id": "mcp.registry.lookup.v1",
+  "role": "Whether an MCP server is listed in the official MCP Registry, with its published version, status, publish time, repository and remote endpoints (proposed by the agent team 11-15 for mcp-server-trust-check)",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "name": {"type": "string", "minLength": 3, "maxLength": 200},
+      "query": {"type": "string", "minLength": 2, "maxLength": 200}
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "listed": {"type": "boolean"},
+      "name": {"type": "string", "maxLength": 200},
+      "version": {"type": "string", "maxLength": 255},
+      "status": {"type": "string", "maxLength": 40},
+      "published_at": {"type": "string", "maxLength": 40},
+      "repository": {"type": "string", "pattern": "^https://", "maxLength": 2000},
+      "website": {"type": "string", "pattern": "^https://", "maxLength": 2000},
+      "remotes": {"type": "array", "items": {"type": "string", "pattern": "^https://", "maxLength": 2000}, "maxItems": 10},
+      "url": {"type": "string", "pattern": "^https://", "maxLength": 2000},
+      "source": {"type": "string"}
+    },
+    "required": ["listed", "source"],
+    "additionalProperties": false
+  },
+  "rules": [
+    "a listed server names its version and publish time",
+    "not found in the registry is a normal answer: listed false",
+    "read-only lookup; no account, payment or write"
+  ],
+  "test_inputs": [
+    {"name": "biz.agentconcierge/agent-concierge"},
+    {"query": "agent concierge"}
+  ]
+}
