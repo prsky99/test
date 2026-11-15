@@ -6,9 +6,10 @@ step after that, without touching the production database:
 
 - ``classify``: which of three a request is, with the reason:
   existing (a necklace with every role it needs; offered now, or still in its tests -> building),
-  buildable (two or three roles, each with a final pearl; roles whose pearl is still provisional -> reviewing),
-  cannot_build (needs writes, payments or messages; one role is enough, so the single pearl is the answer; a role has
-  no verified agent; more than three roles, the required-slot cap; or no known role, which a person reads).
+  buildable (three to five roles, each with a pearl; two roles or a provisional pearl -> reviewing),
+  cannot_build (needs writes, payments or messages; data behind a login; price comparison; people or social lookups;
+  one role is enough, so the single pearl is the answer; a role has no verified agent; more than five roles, the
+  required-slot cap; or no known role, which a person reads).
 - ``notice``: the bundle for the finished notice on the status page: the necklace address, how to run it (HTTP, MCP,
   A2A), the measured value (judge snapshot ``comparison``, only after the gate), scope and limits, and fallback depth.
   Everything comes from the same snapshot the pages read (necklace_surface), so the notice and the page agree.
@@ -27,7 +28,7 @@ from .judge import DEFAULT_ROOT
 DEFINITIONS = Path(__file__).resolve().parent / "definitions"
 ROLE_GROUPS = Path("reports/pearls-2026-11-14/role_groups.json")
 BASE = "https://agentconcierge.biz"
-MAX_ROLES = 3                                   # runner MAX_REQUIRED_SLOTS
+MAX_ROLES = 5                                   # model.MAX_REQUIRED_SLOTS
 
 # Words that name what a role does, matched as whole words in the request (lower case). Kept narrow: a request
 # that matches nothing goes to a person, which is better than a wrong "we cannot".
@@ -67,6 +68,13 @@ ROLE_WORDS = {
 }
 _ROLE_RE = {role: re.compile(r"\b(?:" + words + r")\b", re.I) for role, words in ROLE_WORDS.items()}
 # Writes, payments and messages: never built (read-only members only, project rule).
+# Kinds we do not build (PM 16:07, demand report section 4), besides writes and single calls: data behind a login
+# or inside a company, price comparison, and looking up people or social accounts.
+PRIVATE = re.compile(r"\b(?:my (?:inbox|email|account|calendar|drive|files|crm|slack|company's|bank)|our (?:internal|crm|"
+                     r"database|intranet|jira|confluence)|internal (?:data|wiki|docs|tickets)|log ?in to|behind a login)\b", re.I)
+PRICES = re.compile(r"\b(?:compare prices|price comparison|cheapest|lowest price|best price|best deal)\b", re.I)
+PEOPLE = re.compile(r"\b(?:linkedin|instagram|facebook|tiktok|twitter|x\.com|social media (?:profile|account)s?|"
+                    r"find (?:a|this) person|who is (?:this|the) person|phone number of|home address of|people search)\b", re.I)
 WRITES = re.compile(r"\b(?:send (?:an? )?(?:email|e-mail|sms|message|text)|post (?:to|on)|tweet|publish|pay|payments?|"
                     r"buy|purchase|place an order|book (?:a|the) (?:flight|hotel|table|room)|transfer (?:money|funds)|"
                     r"trade|sell|delete|sign up|create an account|submit (?:a|the) form|register me)\b", re.I)
@@ -79,8 +87,12 @@ ANSWERS = {
     "needs_writes_or_payments": "We cannot build this: it needs an agent to send, buy, pay, post or change something, and our necklaces only read.",
     "one_agent_enough": "One tested agent already does this, so a necklace would add nothing: {card}.",
     "no_verified_agent_for": "We cannot build this yet: we have no verified agent for {missing}. We keep testing agents and will say so here if that changes.",
-    "too_many_parts": "We cannot build this as one necklace: it needs {count} different kinds of agent and a necklace holds at most 3.",
+    "too_many_parts": "We cannot build this as one necklace: it needs {count} different kinds of agent and a necklace holds at most 5.",
     "needs_review": "A person on our team is reading this request; we will answer here.",
+    "needs_login": "We cannot build this: it needs data behind a login or inside an organization, and our necklaces only use public sources.",
+    "price_comparison": "We do not build price comparisons: prices change by the minute and by seller, so a tested answer would not stay right.",
+    "people_lookup": "We do not build lookups of people or social media accounts.",
+    "two_roles": "This joins two kinds of agent ({roles_text}); we build necklaces that join three or more, each adding to the answer. We are checking what a third step would add and will answer here.",
 }
 ROLE_NAMES = {role: role.rsplit(".v", 1)[0].replace(".", " ").replace("_", " ") for role in ROLE_WORDS}
 
@@ -164,6 +176,9 @@ def classify(request: dict, definitions: list[dict], snapshot: dict, roles: dict
                 **console(status, answer)}
     if WRITES.search(text):
         return out("cannot_build", "cannot_build", "needs_writes_or_payments")
+    for rx, reason in ((PRIVATE, "needs_login"), (PRICES, "price_comparison"), (PEOPLE, "people_lookup")):
+        if rx.search(text):
+            return out("cannot_build", "cannot_build", reason)
     if not found:
         return out("cannot_build", "reviewing", "needs_review")
     covering = [d for d in definitions if set(found) <= {s["contract"] for s in d["slots"]}]
@@ -192,6 +207,9 @@ def classify(request: dict, definitions: list[dict], snapshot: dict, roles: dict
         role = found[0]
         pearl = final[role] or provisional[role]
         return out("cannot_build", "cannot_build", "one_agent_enough", pearl=pearl, card=f"{base}/agent/{pearl}")
+    if len(found) == 2:          # PM 16:09: new necklaces join three or more roles; a person looks for the third
+        return out("buildable", "reviewing", "two_roles", pearls={r: final[r] or provisional[r] for r in found},
+                   roles_text=", ".join(ROLE_NAMES[r] for r in found))
     pending = [r for r in found if not final[r]]
     if pending:
         return out("buildable", "reviewing", "reviewing", pearls={r: final[r] or provisional[r] for r in found},

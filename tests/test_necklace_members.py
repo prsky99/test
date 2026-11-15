@@ -87,9 +87,10 @@ def test_upgrade_lines_name_slots_a_pearl_can_lead(tmp_path):
 def test_demand_is_warned_not_refused():
     defn = base()
     assert model.validate(defn, check_contracts=False) == []
-    assert model.warnings(defn) and "demand is empty" in model.warnings(defn)[0]
+    found = model.warnings(defn)
+    assert any("demand is empty" in w for w in found) and any("2 required roles" in w for w in found)
     defn["demand"] = "Top 5 topic in our query log, week of 11-09 (search and RAG)"
-    assert model.warnings(defn) == [] and model.digest(defn) == model.digest(base())
+    assert not any("demand" in w for w in model.warnings(defn)) and model.digest(defn) == model.digest(base())
 
 
 def test_members_json_tells_approved_and_provisional_apart():
@@ -103,3 +104,9 @@ def test_members_json_tells_approved_and_provisional_apart():
     mine = by[("news", own.get("resource_id") or own["agent_id"])]
     assert mine["substitute_state"] == "provisional" and mine["standing"] == "provisional"
     assert "standing" not in judge.members([defn])["members"][0]
+
+
+def test_member_rules_are_numbers_for_the_methodology_page():
+    got = members.rules({"verified_rule": {"min_score": 85, "successes_on_different_days": 2}})
+    assert got["verified_pearl"] == {"min_score": 85, "successes_on_different_days": 2}
+    assert got["provisional"]["min_score"] == members.PROVISIONAL["min_score"] and got["provisional"]["within_days"] == 7

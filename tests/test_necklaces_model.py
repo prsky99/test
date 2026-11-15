@@ -157,12 +157,12 @@ def test_roles_without_fallback_are_optional_with_two_externals_only():
     assert errors(defn) == []
 
 
-def test_a_necklace_stays_small_three_required_slots_and_three_stages():
-    """PM E8 (11-15): focused bundles of three modules or fewer pass more often; templates inherit the cap."""
+def test_a_necklace_stays_within_five_required_slots_and_three_stages():
+    """PM E8 (11-15), raised 16:09 (user instruction: 3+ agents): at most 5 required slots, still 3 stages."""
     import copy
     defn = base()
     template = copy.deepcopy(defn["slots"][0])
-    for n in range(len(defn["slots"]), 4):
+    for n in range(len(defn["slots"]), model.MAX_REQUIRED_SLOTS + 1):
         extra = copy.deepcopy(template)
         extra["slot"] = f"extra_{n}"
         for i, m in enumerate(extra["chain"]):
@@ -170,7 +170,7 @@ def test_a_necklace_stays_small_three_required_slots_and_three_stages():
                 m["resource_id"] = 900 + 10 * n + i
             m["registrable_domain"] = f"d{n}{i}.example"
         defn["slots"].append(extra)
-    assert any("at most 3 required slots" in e for e in model.validate(defn, check_contracts=False))
+    assert any("at most 5 required slots" in e for e in model.validate(defn, check_contracts=False))
     defn["slots"][-1]["required"] = False
     assert not any("required slots" in e for e in model.validate(defn, check_contracts=False))
     names = [s["slot"] for s in defn["slots"]]

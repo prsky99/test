@@ -51,8 +51,12 @@ MAX_TOTAL_MS = 5000
 # roles get no AgentValCon fallback; they may only be optional slots with at least two external members.
 # PM E8 (11-15, growth experiments 2026-11-15 E8): skills of three modules or fewer passed more often than larger
 # ones (SkillsBench 33.9 % -> 50.5 %), so every necklace, and every one stamped from a template, stays small.
-MAX_REQUIRED_SLOTS = 3
+# PM 16:09 (user instruction): necklaces join 3 or more agents of different roles, hard to build as one agent.
+# Required slots up to 5; stages stay 3: slots of one stage are called in parallel and the whole run has
+# MAX_TOTAL_MS (5 s, the complex-answer target), so a 4th sequential stage would leave about 1.2 s per stage.
+MAX_REQUIRED_SLOTS = 5
 MAX_STAGES = 3
+MIN_REQUIRED_ROLES = 3        # fewer is a warning, not an error (the 2-slot necklaces already near their gate)
 NO_FALLBACK_ROLES = ("crypto.price.v1", "ip.lookup.v1", "stock.quote.v1")
 # Fields that describe where a definition is in its lifecycle. They do not change
 # what runs, so they are left out of the digest that the ops approval binds to.
@@ -280,6 +284,10 @@ def warnings(defn: dict) -> list[str]:
     """Not errors (the definition still loads and runs). PM 16:03 (user instruction d4670360): necklaces are built
     from what people ask for; ``demand`` is one line of evidence (our query log's topic rank or an outside source)."""
     found = []
+    roles = {slot.get("contract") for slot in defn.get("slots") or [] if slot.get("required", True)}
+    if len(roles) < MIN_REQUIRED_ROLES:
+        found.append(f"{len(roles)} required roles: a new necklace joins at least {MIN_REQUIRED_ROLES} agents of different "
+                     "roles (user instruction 11-15 16:08), each step adding to the answer")
     demand = defn.get("demand")
     if not isinstance(demand, str) or not demand.strip():
         found.append("demand is empty: add one line of evidence that people ask for this (our query log's topic rank "

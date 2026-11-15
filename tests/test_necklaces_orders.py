@@ -43,11 +43,13 @@ def test_existing_necklace_in_tests_answers_building_and_live_answers_its_addres
     assert out["console_status"] == "resolved" and out["admin_response"].startswith("Live: A necklace already")
 
 
-def test_buildable_from_final_pearls_and_reviewing_while_one_is_provisional():
-    out = orders.classify(req("Earthquakes near a street address"), DEFS, {}, ROLES)
-    assert (out["class"], out["status"]) == ("buildable", "building")
-    assert out["pearls"] == {"earthquake.feed.v1": 178542, "geocode.address.v1": 264482}
-    out = orders.classify(req("Local time zone at an airport code"), DEFS, {}, ROLES)
+def test_buildable_from_three_pearls_and_reviewing_with_two_roles_or_a_provisional_one():
+    out = orders.classify(req("Earthquakes near a street address and the nearest airport"), DEFS, {}, ROLES)
+    assert (out["class"], out["status"], out["reason"]) == ("buildable", "building", "buildable")
+    assert out["pearls"] == {"airport.lookup.v1": 86011, "earthquake.feed.v1": 178542, "geocode.address.v1": 264482}
+    out = orders.classify(req("Earthquakes near a street address"), DEFS, {}, ROLES)       # PM 16:09: 3+ roles
+    assert (out["class"], out["status"], out["reason"]) == ("buildable", "reviewing", "two_roles")
+    out = orders.classify(req("Local time zone and earthquakes at an airport code"), DEFS, {}, ROLES)
     assert (out["class"], out["status"], out["pending_roles"]) == ("buildable", "reviewing", ["timezone.time.v1"])
 
 
@@ -56,7 +58,10 @@ def test_buildable_from_final_pearls_and_reviewing_while_one_is_provisional():
     ("Buy the cheapest flight and pay with my card", "needs_writes_or_payments"),
     ("Weather forecast and public holidays for a city", "no_verified_agent_for"),
     ("Find a book by its title", "one_agent_enough"),
-    ("Book, wikipedia note, earthquakes and a street address", "too_many_parts"),
+    ("Book, wikipedia note, earthquakes, a street address, an airport code and the weather", "too_many_parts"),
+    ("Summarise the tickets in our internal Jira", "needs_login"),
+    ("Find the cheapest price for a laptop across shops", "price_comparison"),
+    ("Look up this person's LinkedIn profile", "people_lookup"),
     ("Summarise the vibe of my favourite band", "needs_review"),
 ])
 def test_cannot_build_says_why(task, reason):

@@ -64,7 +64,18 @@ def load(verify_path: Path | None = None, approvals_path: Path | None = None, no
         snapshot = None          # stale or another evaluator version: no external member is counted (closed)
     return {"external": external_standing(snapshot, now),
             "own": load_substitute_states(Path(approvals_path or (_project() / DEFAULT_ROOT / "approvals.json"))),
-            "snapshot_generated": (snapshot or {}).get("generated"), "rule": dict(PROVISIONAL)}
+            "snapshot_generated": (snapshot or {}).get("generated"), "rule": dict(PROVISIONAL),
+            "verified_rule": (snapshot or {}).get("verified_rule")}
+
+
+def rules(block: dict | None) -> dict:
+    """The two member bars as numbers, for the judge snapshot and the methodology page (growth 11-15): verified from
+    the verify snapshot's own verified_rule (scripts/report_v2 PASS_MARK, CONFIRM_DAYS), provisional from PROVISIONAL."""
+    verified = (block or {}).get("verified_rule") or {}
+    return {"verified_pearl": {"min_score": verified.get("min_score"),
+                               "successes_on_different_days": verified.get("successes_on_different_days")},
+            "provisional": {"min_score": PROVISIONAL["min_score"], "within_days": PROVISIONAL["days"],
+                            "reports": 1, "own_substitute": "passed a 30-case held-out gate"}}
 
 
 def read_only(member: dict) -> bool:

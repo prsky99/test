@@ -341,6 +341,8 @@ def build_entry(defn: dict, approval: dict | None, summary: dict, now: float,
     entry["value"] = summary.get("value") if entry["gate_passed_at"] else None
     from .value import comparison                      # growth's display form (design note 11-15)
     entry["comparison"] = comparison(entry["value"])
+    if entry["comparison"]:     # PM 16:09: more steps, more calls and merging on the path without the necklace
+        entry["comparison"]["slots"] = sum(1 for s in defn["slots"] if s.get("required", True))
     if status == "held":
         entry["held_reason"] = summary.get("held_reason") or "manual"
         return entry
@@ -464,8 +466,9 @@ def snapshot(definitions: list[dict], approvals: dict[str, dict], root: Path, no
         found = testing_entry(defn, load_summary(root, defn["slug"]))
         if found is not None:
             entries.append(found)
+    from .members import rules as member_rules
     return {"schema": SCHEMA, "generated_at": _iso(now), "judge_commit": judge_commit, "necklaces": entries,
-            "events": events}
+            "events": events, "member_rules": member_rules((watch_state or {}).get("standing"))}
 
 
 def members(definitions: list[dict], now: float | None = None, standing: dict | None = None) -> dict:
