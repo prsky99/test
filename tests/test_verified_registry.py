@@ -333,3 +333,62 @@ def test_repository_kept_as_a_url_becomes_the_official_object():
     details["repository"] = "https://git.example.org/x/y"            # unknown forge: no source, so left out
     r["details"] = json.dumps(details)
     assert "repository" not in R.entry(r, NOW)["server"]
+
+
+def test_contract_with_the_member_fingerprint_writer(tmp_path, monkeypatch):
+    """Operations review 11-15: the member step's latest reading (resources[rid]) wins over the 11-14 baseline,
+    with its own measure time, and a change line it writes in the same run does not override it."""
+    from datetime import datetime
+    from agent_market import member_fingerprints as mf
+    from agent_market.tool_fingerprint import server_fp
+    weather = {"name": "get_weather", "description": "Forecast", "inputSchema": {"type": "object"}}
+    old_tools, new_tools = [weather], [{**weather, "description": "Hourly forecast and alerts"}]
+    (tmp_path / "pearls.json").write_text(json.dumps({"generated": "2026-11-14T04:21:40+0900", "pearls": {
+        "1": {"server_fp": server_fp(old_tools), "baseline_at": "2026-11-14T04:21:40+0900", "tools": {}}}}))
+    state = {"tools": old_tools}
+    rows = {1: {"id": 1, "kind": "mcp", "url": "https://1.example.com/mcp"}}
+
+    def run(ts):
+        mf.refresh(rows.get, lambda url: state["tools"], data=tmp_path, now=ts, ids=[1], reserve=lambda u: (True, "ok"),
+                   note=lambda u, s: None, sleep=lambda s: None)
+    first, second = datetime(2026, 11, 16, 10, 15).timestamp(), datetime(2026, 11, 16, 16, 15).timestamp()
+    run(first)
+    state["tools"] = new_tools
+    run(second)
+    monkeypatch.setenv("FINGERPRINT_DATA", str(tmp_path))
+    fps, risky, available = R.load_fingerprints(second + 60)
+    assert fps[1]["server_fp"] == server_fp(new_tools) and fps[1]["as_of"].startswith("2026-11-16T16:15")
+    assert fps[1]["checked"] and risky == frozenset() and available is False
+    snap = R.build_snapshot([row(1, "io.github.example/member", at=second)], second + 60, None, fps, risky, available)
+    meta = snap["servers"][0]["_meta"][R.META_KEY]
+    assert meta["tools_fingerprint"] == "sha256:" + server_fp(new_tools)
+    assert meta["tools_unchanged_since"].startswith("2026-11-16T16:15") and meta["definition_risk_check"] == "clear"
+
+
+def test_snapshot_write_uses_a_unique_temp_file_and_cleans_up(tmp_path, monkeypatch):
+    R.write_snapshot({"servers": [], "listed": 0}, tmp_path)
+    before = (tmp_path / "verified.json").read_bytes()
+    (tmp_path / ".verified.json.tmp").write_text("someone else's")       # an old fixed name is never touched
+
+    def boom(src, dst):
+        raise OSError("disk full")
+    monkeypatch.setattr(R.os, "replace", boom)
+    with pytest.raises(OSError):
+        R.write_snapshot({"servers": [], "listed": 1}, tmp_path)
+    assert (tmp_path / "verified.json").read_bytes() == before
+    assert sorted(p.name for p in tmp_path.iterdir()) == [".verified.json.tmp", "verified.json"]
+    assert (tmp_path / ".verified.json.tmp").read_text() == "someone else's"
+
+
+def test_rate_limit_ignores_a_client_sent_ip_header(tmp_path):
+    snapshot_dir(tmp_path, [row(1, "io.github.example/a")])
+    app = FastAPI()
+    app.include_router(S.router_for(R.SnapshotIndex(tmp_path)))
+    client = TestClient(app)
+    codes = [client.get(S.BASE + "/servers", headers={"cf-connecting-ip": f"203.0.113.{i}"}).status_code
+             for i in range(61)]
+    assert codes[:60] == [200] * 60 and codes[60] == 429       # a new header value per request is the same client
+    seen = []
+    app2 = FastAPI()
+    app2.include_router(S.router_for(R.SnapshotIndex(tmp_path), resolve_ip=lambda request: seen.append(1) or "198.51.100.7"))
+    assert TestClient(app2).get(S.BASE + "/servers").status_code == 200 and seen == [1]

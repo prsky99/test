@@ -172,9 +172,7 @@ def build_feed(snapshot: dict | None, registry_dir: Path, fp_dir: Path, now: flo
 def write_feed(feed: dict, folder: Path) -> Path:
     folder = Path(folder)
     folder.mkdir(parents=True, exist_ok=True)
-    tmp = folder / ("." + FILE + ".tmp")
-    tmp.write_text(json.dumps(feed, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    os.replace(tmp, folder / FILE)
+    R.replace_atomic(folder / FILE, json.dumps(feed, ensure_ascii=False, separators=(",", ":")))
     return folder / FILE
 
 

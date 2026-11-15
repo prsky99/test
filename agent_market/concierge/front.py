@@ -3976,7 +3976,7 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
     app.include_router(_necklace_surface.necklace_router(front))
     # Verified MCP registry, official v0.1 shape (docs/VERIFIED_REGISTRY.md): answers from its snapshot file only.
     from ..verified_registry_service import router_for as verified_registry_router
-    app.include_router(verified_registry_router())
+    app.include_router(verified_registry_router(resolve_ip=front.security.resolve_ip))
     from .check_route import check_router  # 11-14 PM super-gap 2: Check-and-Route REST from the verify snapshot
     app.include_router(check_router(front.store))
     from . import ad_slot as _ad_slot  # agent ad plan (A): facts for an offer come from our own records

@@ -23,14 +23,19 @@ CORS = {"Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET
 CACHE = "public, max-age=300"
 
 
-def router_for(index: R.SnapshotIndex | None = None, feed_index: F.FeedIndex | None = None) -> APIRouter:
+def router_for(index: R.SnapshotIndex | None = None, feed_index: F.FeedIndex | None = None,
+               resolve_ip=None) -> APIRouter:
+    """RESOLVE_IP is the front's SecurityManager.resolve_ip (forwarded headers only from trusted proxies);
+    without it the socket address is used, never a client-sent header."""
     index = index or R.default_index()
     feed_index = feed_index or F.default_index()
     router = APIRouter()
     limiter = RateLimiter(60)
 
     def client(request: Request) -> str:
-        return request.headers.get("cf-connecting-ip") or (request.client.host if request.client else "unknown")
+        if resolve_ip is not None:
+            return resolve_ip(request)
+        return request.client.host if request.client else "unknown"
 
     def reply(data, status=200, etag=None):
         headers = {**CORS, "Cache-Control": CACHE if status == 200 else "no-store"}

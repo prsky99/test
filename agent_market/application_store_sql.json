@@ -4477,7 +4477,7 @@
     {"file": "agent_market/report_creation.py", "sha256": "fb5bf9b6d1a225a85ee9876d7e6ec81a896420a228c3783e7f3223f661693258"},
     {"file": "agent_market/shadow_ledger.py", "sha256": "5f581c0db11f562c9815745b681906ddcc6c5046325c0b90e97218f98b997ea2"},
     {"file": "agent_market/stripe_sandbox.py", "sha256": "69ae92dece97ec3bc1d0eb0f633c3253a36adc1431913f9a89eede35d5cfa36c"},
-    {"file": "agent_market/verified_registry.py", "sha256": "b105609507d4aefffa33d02ef2db14d41e2becaf8ef47f06c8ee22714fe6bfba"},
+    {"file": "agent_market/verified_registry.py", "sha256": "9ec9fa1543517fbee32bf46aa2cbaea8c9c04b24cdff3c139587b13d425375a9"},
     {"file": "agent_market/workflow_apps.py", "sha256": "d6e1349f22c7473f32848defc7218c3fe180b9ef270ec4f2e35f3a9a737820b5"},
     {"file": "agent_market/workflow_apps_v12.py", "sha256": "20105f0132c712fb510444476648819f4542d54cff0ed75213dca73ee7ef5ada"},
     {"file": "agent_market/workflow_automation_service.py", "sha256": "42a7150a085e27bd2076f284eda2023fc0d3f2c174dd4c42b47df4281f028efd"},

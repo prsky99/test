@@ -18,6 +18,7 @@ import binascii
 import json
 import os
 import re
+import tempfile
 import threading
 import time
 from datetime import datetime, timezone
@@ -141,6 +142,8 @@ def entry(row: dict, now: float, fingerprints: dict | None = None, risky: frozen
     if fp.get("server_fp"):
         verification.update(tools_fingerprint="sha256:" + fp["server_fp"], fingerprint_version=fp.get("version"),
                             fingerprint_as_of=fp.get("as_of"))
+        if fp.get("unchanged_since"):
+            verification["tools_unchanged_since"] = fp["unchanged_since"]
     return {"server": server, "_meta": {META_KEY: verification}, "_id": row["id"]}
 
 
@@ -212,10 +215,23 @@ def write_snapshot(snapshot: dict, folder: Path | None = None) -> Path:
     folder = Path(folder or data_dir())
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / "verified.json"
-    tmp = folder / ".verified.json.tmp"
-    tmp.write_text(json.dumps(snapshot, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    os.replace(tmp, path)
+    replace_atomic(path, json.dumps(snapshot, ensure_ascii=False, separators=(",", ":")))
     return path
+
+
+def replace_atomic(path: Path, text: str) -> None:
+    """Write beside PATH under a unique name and swap it in, so a manual run and the jobs step never share a temp file."""
+    handle, tmp = tempfile.mkstemp(dir=str(path.parent), prefix="." + path.name + ".")
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8") as out:
+            out.write(text)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 def run_job(store, now=None, folder: Path | None = None) -> dict:
@@ -270,10 +286,11 @@ def load_fingerprints(now=None) -> tuple[dict, frozenset, bool]:
     if not isinstance(pearls, dict):
         pearls = {}
     version = pearls.get("version") or "fingerprint-v1"
-    for rid, value in (pearls.get("pearls") or {}).items():
+    for rid, value in (pearls.get("pearls") or {}).items():   # old baselines (11-14), kept by operations as they were
         if isinstance(value, dict) and isinstance(value.get("server_fp"), str):
             try:
-                out[int(rid)] = {"server_fp": value["server_fp"], "version": version, "as_of": pearls.get("generated")}
+                out[int(rid)] = {"server_fp": value["server_fp"], "version": version,
+                                 "as_of": value.get("baseline_at") or pearls.get("generated")}
             except ValueError:
                 continue
     for rid, value in (pearls.get("resources") or {}).items():   # members, measured every 6 hours
@@ -286,7 +303,8 @@ def load_fingerprints(now=None) -> tuple[dict, frozenset, bool]:
             continue
         measured = _ts(str(value.get("measured_at")))
         out[rid] = {"server_fp": fp, "version": value.get("version") or version, "as_of": value.get("measured_at"),
-                    "checked": now - measured <= MEMBER_CHECK_S and not value.get("error")}
+                    "checked": now - measured <= MEMBER_CHECK_S and not value.get("error"), "measured": measured,
+                    "unchanged_since": value.get("unchanged_since"), "classification": value.get("classification")}
         if value.get("classification") == "risk" or value.get("risk"):
             risky.add(rid)
     files = sorted(base.glob("changes-*.jsonl"))
@@ -309,8 +327,9 @@ def load_fingerprints(now=None) -> tuple[dict, frozenset, bool]:
                 available = True   # the collector's survey covers the whole catalog
             if row.get("classification") == "risk" and at >= since:
                 risky.add(rid)
-            if isinstance(row.get("server_fp"), str):
-                out[rid] = {"server_fp": row["server_fp"], "version": "fingerprint-v1",
+            if isinstance(row.get("server_fp"), str) and at > out.get(rid, {}).get("measured", 0.0):
+                # a change line is newer than an old baseline, but never than the member's own later measure
+                out[rid] = {"server_fp": row["server_fp"], "version": "fingerprint-v1", "measured": at,
                             "as_of": row.get("at") if isinstance(row.get("at"), str) else _iso(at)}
     return out, frozenset(risky), available
 
