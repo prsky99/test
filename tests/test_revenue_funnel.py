@@ -38,9 +38,9 @@ def test_the_output_becomes_one_record_and_one_board_line():
     assert own == {'applications': 1, 'applications_24h': 0, 'advertisers_active': 1, 'quotes': 3, 'quotes_24h': 0,
                    'paid': 0, 'paid_24h': 0, 'usdc_received': 0.0, 'refunded': 0}   # kept apart, never dropped
     text = revenue_funnel.line(record)
-    assert text.startswith('식별 클라이언트 2828(24시간 새로 126·활동 126) → 서로 다른 날 2번 이상 3 → 제공자 소유 확인 1')
-    assert '[외부] 광고주 신청 2(활성 0) → 견적 2 → 결제 1 → 수령 5.00 USDC' in text
-    assert '[내부] 신청 1·활성 1·견적 3·결제 0·0.00 USDC' in text
+    assert text == ('클라이언트 2828(새 126) → 재방문 3 → 소유 확인 1 → 외부 신청 2 → 견적 2 → 결제 1 → 5.00 USDC'
+                    ' | 내부 신청 1·견적 3·결제 0')
+    assert len('2026-11-15 ' + text + ' (revenue-funnel.jsonl)') <= 150   # ops_auto.board_handoff keeps 150
 
 
 def test_the_internal_rule_is_the_ad_coin_demand_rule():
@@ -67,6 +67,8 @@ def test_each_run_appends_one_dated_line(tmp_path, capsys):
 
 
 def test_ops_auto_writes_the_board_line_once_a_morning(monkeypatch, tmp_path):
+    import sys
+    monkeypatch.setitem(sys.modules, 'scripts.revenue_funnel', None)   # launchd runs ops_auto.py as a script: no 'scripts.' package
     monkeypatch.setattr(ops_auto, 'REVENUE_STATE', tmp_path / 'state.json')
     monkeypatch.setattr(ops_auto, 'ACTIONS', tmp_path / 'actions.log')
     handed = []
@@ -77,8 +79,23 @@ def test_ops_auto_writes_the_board_line_once_a_morning(monkeypatch, tmp_path):
     assert ops_auto.revenue_funnel(clock=at(2026, 11, 16, 7, 55), run=run) is None          # before 08:00
     assert ops_auto.revenue_funnel(clock=at(2026, 11, 16, 8, 5), run=run) == record
     assert ops_auto.revenue_funnel(clock=at(2026, 11, 16, 9, 5), run=run) is None           # once a day
-    assert handed[0][0] == 'revenue' and handed[0][1].startswith('2026-11-16 식별 클라이언트 2828')
+    assert handed[0][0] == 'revenue' and handed[0][1].startswith('2026-11-16 클라이언트 2828(새 126)')
     assert ops_auto.TEAM['revenue'] == 'PM'
     failed = lambda: types.SimpleNamespace(returncode=75, stdout='')                       # noqa: E731
     assert ops_auto.revenue_funnel(clock=at(2026, 11, 17, 8, 5), run=failed) == 'failed'
     assert handed[-1] == ('revenue', '매출 깔때기 집계(scripts/revenue_funnel.py)가 결과를 내지 못함 → 운영·SRE 확인')
+
+
+def test_a_daily_report_line_is_replaced_and_never_escalates(monkeypatch, tmp_path):
+    board = tmp_path / 'board.md'
+    board.write_text('## 넘기는 일\n| 보낸 팀 | 받는 팀 | 내용 | 상태 |\n|---|---|---|---|\n\n## PM 결정 대기\n')
+    monkeypatch.setattr(ops_auto, 'BOARD', board)
+    escalated = []
+    monkeypatch.setattr(ops_auto, 'escalate', lambda kind, text: escalated.append(kind))
+    for day in range(1, 10):
+        ops_auto.board_handoff('revenue', f'2026-11-{day:02d} 클라이언트 {day}')
+        ops_auto.board_handoff('disk', f'disk full {day}')   # an alert still counts its repeats
+    text = board.read_text()
+    assert text.count('자동 점검 [revenue]') == 1 and '2026-11-09 클라이언트 9' in text
+    assert '같은 경고' not in [row for row in text.splitlines() if '[revenue]' in row][0]
+    assert escalated == ['disk'] and '같은 경고 9회째' in text

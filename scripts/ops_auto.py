@@ -76,6 +76,11 @@ def escalate(kind, text):
     append(ESCALATIONS, '- ' + line)
 
 
+# Daily report lines, not alerts (11-15): a new day's line replaces the text and is never counted as a repeat, so it
+# never escalates (R53 counts repeats of alerts nobody closed).
+REPORT_KINDS = frozenset({'north_star', 'revenue'})
+
+
 def board_handoff(kind, text):
     """One open line per kind in the board's handoff section (11-11 PM): a repeat refreshes that line.
 
@@ -96,7 +101,7 @@ def board_handoff(kind, text):
         rows = table.rstrip('\n').split('\n')
         open_at = next((i for i, row in enumerate(rows) if row.startswith(tag) and row.rstrip().endswith('| 대기 |')), None)
         count, first = 1, now()
-        if open_at is not None:
+        if open_at is not None and kind not in REPORT_KINDS:
             seen = re.search(r'\(같은 경고 (\d+)회째, 처음 ([\d-]+ [\d:]+)\)', rows[open_at])
             count = int(seen.group(1)) + 1 if seen else 2
             first = seen.group(2) if seen else rows[open_at].split('|')[3].strip()[:16]
@@ -258,8 +263,8 @@ def revenue_funnel(clock=time.time, run=None):
         board_handoff('revenue', '매출 깔때기 집계(scripts/revenue_funnel.py)가 결과를 내지 못함 → 운영·SRE 확인')
         append(ACTIONS, f'{now()} 매출 깔때기 집계 실패')
         return 'failed'
-    from scripts.revenue_funnel import line
-    text = f"{day} {line(record)} (logs/ops/revenue-funnel.jsonl)"
+    from revenue_funnel import line   # the watch runs this file as a script with scripts/ on sys.path (11-15 11:15)
+    text = f"{day} {line(record)} (revenue-funnel.jsonl)"
     board_handoff('revenue', text)
     append(ACTIONS, f'{now()} 매출 깔때기: {text}')
     return record

@@ -95,15 +95,13 @@ def count(run=None):
 
 
 def line(record):
-    """The board text (Korean, for the site owner)."""
+    """The board text (Korean, for the site owner). The board keeps 150 characters (ops_auto.board_handoff), so the
+    line carries the external funnel and the internal counts only; everything else is in the jsonl record."""
     ext, own = record['external'], record['internal']
-    return (f"식별 클라이언트 {record['clients']}(24시간 새로 {record['new_24h']}·활동 {record['active_24h']}) → "
-            f"서로 다른 날 2번 이상 {record['returning']} → 제공자 소유 확인 {record['owners']} → "
-            f"[외부] 광고주 신청 {ext['applications']}(활성 {ext['advertisers_active']}) → 견적 {ext['quotes']} → "
-            f"결제 {ext['paid']} → 수령 {ext['usdc_received']:.2f} USDC"
-            f" | 24시간 외부: 신청 {ext['applications_24h']}·견적 {ext['quotes_24h']}·결제 {ext['paid_24h']}"
-            f" | [내부] 신청 {own['applications']}·활성 {own['advertisers_active']}·견적 {own['quotes']}·"
-            f"결제 {own['paid']}·{own['usdc_received']:.2f} USDC")
+    return (f"클라이언트 {record['clients']}(새 {record['new_24h']}) → 재방문 {record['returning']} → "
+            f"소유 확인 {record['owners']} → 외부 신청 {ext['applications']} → 견적 {ext['quotes']} → "
+            f"결제 {ext['paid']} → {ext['usdc_received']:.2f} USDC | 내부 신청 {own['applications']}·"
+            f"견적 {own['quotes']}·결제 {own['paid']}")
 
 
 def main(argv=None, clock=time.time, run=None, log=LOG):
