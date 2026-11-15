@@ -58,8 +58,98 @@ def kev_flag(structured):
     return walk(structured) if structured is not None else None
 
 
-def load(path: Path = FILE) -> list[dict]:
+# ---------------------------------------------------------------- rotating recent KEV case (search team, PM 11-15 10:24)
+# cve.exploited needs one CVE added to CISA KEV in the last 30 days, replaced weekly, so a stale copy of the catalog that
+# does not know recent additions fails accuracy. The case changes every week, so it lives with the run data (not in git)
+# and load() adds it to the fixed cases of FILE for every reader.
+KEV_FEED = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
+RECENT_DAYS = 30
+REFRESH_DAYS = 7
+REFERENCE_SYSTEM = "reference_checks"
+
+
+def recent_kev_path() -> Path:
+    import os
+    project = os.environ.get("AGENTCON_PROJECT_ROOT")
+    base = Path(project) if project else Path(__file__).resolve().parents[2]
+    return base / "gateway-data" / "necklaces" / "role_tasks" / "recent-kev.jsonl"
+
+
+def recent_kev_case(feed: dict, today: str) -> dict | None:
+    """The newest KEV addition within RECENT_DAYS of today as a role-task case, or None."""
+    from datetime import date, timedelta
+    floor = (date.fromisoformat(today) - timedelta(days=RECENT_DAYS)).isoformat()
+    rows = [v for v in feed.get("vulnerabilities") or []
+            if isinstance(v, dict) and re.fullmatch(r"CVE-\d{4}-\d{4,}", str(v.get("cveID", "")))
+            and floor <= str(v.get("dateAdded", "")) <= today]
+    if not rows:
+        return None
+    newest = max(rows, key=lambda v: (v["dateAdded"], v["cveID"]))
+    cve = newest["cveID"]
+    return {"case_id": "kev-recent-" + cve.lower(), "contract": "cve.exploited.v1", "role": "cve.exploited.v1",
+            "task_type": "role_test", "rotating": "weekly-recent-kev",
+            "expect": {"kev": True, "kev_date_added": newest["dateAdded"]}, "input": {"cve_id": cve},
+            "note": f"added to KEV within {RECENT_DAYS} days of {today}; replaced weekly",
+            "truth_sources": [{"checked_on": today, "name": "CISA KEV",
+                               "url": "https://www.cisa.gov/known-exploited-vulnerabilities-catalog"}]}
+
+
+def _fetch_feed(get=None) -> dict:
+    if get is not None:
+        return get(KEV_FEED)
+    import urllib.request
+    from ..provider_budget import note, reserve
+    from .gold import USER_AGENT
+    ok, why = reserve(KEV_FEED, REFERENCE_SYSTEM)
+    if not ok:
+        raise RuntimeError(f"provider budget: {why}")
+    request = urllib.request.Request(KEV_FEED, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            note(KEV_FEED, REFERENCE_SYSTEM, getattr(response, "status", 200))
+            return json.loads(response.read().decode("utf-8"))
+    except Exception as exc:
+        if getattr(exc, "code", None):
+            note(KEV_FEED, REFERENCE_SYSTEM, exc.code)
+        raise
+
+
+def refresh_recent_kev(today: str | None = None, path: Path | None = None, get=None, force: bool = False) -> dict:
+    """Replace the rotating case when it is missing or older than REFRESH_DAYS (one KEV feed download through the
+    shared ledger). Nothing is written when the feed has no addition in the last RECENT_DAYS."""
+    import time
+    today = today or time.strftime("%Y-%m-%d", time.gmtime())
+    path = path or recent_kev_path()
+    current = load_plain(path) if path.exists() else []
+    checked = max((s.get("checked_on", "") for c in current for s in c.get("truth_sources") or []), default="")
+    from datetime import date
+    if not force and checked and (date.fromisoformat(today) - date.fromisoformat(checked)).days < REFRESH_DAYS:
+        return {"refreshed": False, "case_id": current[0]["case_id"] if current else None, "checked_on": checked}
+    case = recent_kev_case(_fetch_feed(get), today)
+    if case is None:
+        return {"refreshed": False, "why": f"no KEV addition in the last {RECENT_DAYS} days"}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(case, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
+    tmp.replace(path)
+    return {"refreshed": True, "case_id": case["case_id"], "kev_date_added": case["expect"]["kev_date_added"]}
+
+
+def load_plain(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def load(path: Path = FILE) -> list[dict]:
+    """The cases of PATH; for the fixed v1 file also the rotating recent-KEV case when one exists."""
+    cases = load_plain(path)
+    if path == FILE:
+        recent = recent_kev_path()
+        if recent.exists():
+            try:
+                cases += [c for c in load_plain(recent) if c.get("rotating") == "weekly-recent-kev"]
+            except (OSError, ValueError):
+                pass
+    return cases
 
 
 def by_role(path: Path = FILE) -> dict[str, list[dict]]:

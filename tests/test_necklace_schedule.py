@@ -133,3 +133,14 @@ def test_mondays_add_the_single_baseline_and_late_targets_are_skipped(tmp_path):
 def test_daily_split_alternates():
     from agent_market.necklaces import retest
     assert {retest.daily_split(at(12, 0)), retest.daily_split(at(12, 0) + 86400)} == {"holdout-r1", "holdout-r2"}
+
+
+def test_recent_kev_refresh_runs_once_a_day_after_0620(tmp_path):
+    from agent_market.necklace_schedule import RoleTaskRefresh
+    now, calls = [at(6, 0)], []
+    step = RoleTaskRefresh(clock=lambda: now[0], refresh=lambda: calls.append(1) or {"refreshed": False},
+                           logs=tmp_path / "logs")
+    assert step.run_due() is None
+    now[0] = at(6, 21)
+    assert step.run_due()["role_tasks"]["ok"] is True and step.run_due() is None and calls == [1]
+    assert lines(tmp_path)[-1]["step"] == "role_tasks_recent_kev"

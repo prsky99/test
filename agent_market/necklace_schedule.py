@@ -212,3 +212,31 @@ def _append(logs, line, now):
             handle.write(json.dumps(line, ensure_ascii=False, sort_keys=True) + "\n")
     except OSError as exc:
         log.warning("necklace run line not written: %s", type(exc).__name__)
+
+
+class RoleTaskRefresh:
+    """Once a day from 06:20 (after the 03:50-05:10 window): replace the weekly recent-KEV role-task case when it is a
+    week old (necklaces.role_tasks.refresh_recent_kev; one CISA feed download through the shared ledger)."""
+
+    def __init__(self, clock=time.time, refresh=None, logs=Path("logs/ops/necklace-watch")):
+        self.clock, self._refresh, self.logs = clock, refresh, Path(logs)
+        self.last_day = None
+
+    def run_due(self):
+        now = self.clock()
+        local = time.localtime(now)
+        day = time.strftime("%Y%m%d", local)
+        if self.last_day == day or local.tm_hour * 100 + local.tm_min < 620:
+            return None
+        self.last_day = day
+        try:
+            if self._refresh is None:
+                from .necklaces.role_tasks import refresh_recent_kev
+                self._refresh = refresh_recent_kev
+            result = self._refresh()
+            line = {"step": "role_tasks_recent_kev", "ok": True, **result}
+        except Exception as exc:
+            line = {"step": "role_tasks_recent_kev", "ok": False, "error": type(exc).__name__}
+            log.warning("recent KEV role task refresh failed: %s", type(exc).__name__)
+        _append(self.logs, line, now)
+        return {"role_tasks": line}
