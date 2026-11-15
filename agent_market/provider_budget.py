@@ -168,7 +168,9 @@ ONE_DAY = {'20261116': {('reference_checks', 'npmjs.org'): 30, ('reference_check
                         ('reference_checks', 'openalex.org'): 40},
             # workflow 3737c5aa: cve-incident-brief fix answer set, one GitHub advisory read a CVE. The day total of
             # 60 per domain stays (PM 16:25), so 50 of the 90 asked; the open-source records are read first.
-            '20261117': {('reference_checks', 'github.com'): 50}}
+            '20261117': {('reference_checks', 'github.com'): 50,
+                         # workflow cdccd97e: topic-evidence-brief holdout-r4, the 29 OpenAlex reads left of 41 topics
+                         ('reference_checks', 'openalex.org'): 30}}
 # GitHub's hourly reference_checks share on those days, in the night hours only (00-07 KST), when live answers are few.
 ONE_NIGHT_GITHUB = {'20261116': {'reference_checks': 10}, '20261117': {'reference_checks': 10}}
 

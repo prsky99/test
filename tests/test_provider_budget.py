@@ -335,3 +335,9 @@ def test_fallback_watch_hourly_probes_fit_every_sole_member_domain():
     from agent_market import provider_budget as b
     assert b.share_limit('fallback_watch', 'gleif.org') >= 24
     assert b.share_limit('fallback_watch', 'sec.gov') >= 48
+
+
+def test_holdout_r4_openalex_reads_fit_on_11_17_only():
+    """workflow cdccd97e: 29 OpenAlex reads left for topic-evidence-brief holdout-r4, granted for 11-17 alone."""
+    assert pb.share_limit('reference_checks', 'openalex.org', day='20261117') >= 29
+    assert pb.share_limit('reference_checks', 'openalex.org', day='20261118') == pb.SHARE['reference_checks']
