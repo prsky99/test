@@ -347,3 +347,11 @@ def test_company_r5_sec_reads_fit_on_11_16_only():
     """gold_company_r5 reads SEC up to 95 times on 11-16 after holdout-r4 took 90 of the usual 100."""
     assert pb.share_limit('reference_checks', 'sec.gov', day='20261116') == 200
     assert pb.share_limit('reference_checks', 'sec.gov', day='20261117') == 100
+
+
+def test_wikidata_truth_source_terms_are_recorded_and_keep_the_default_total():
+    """PM 11-16: Wikidata as a truth source is written down with its license and limits; no daily number is
+    published, so its day total stays the default."""
+    terms = pb.TRUTH_SOURCE_TERMS['wikidata.org']
+    assert terms['license'].startswith('CC0') and terms['license_url'].startswith('https://www.wikidata.org/')
+    assert 'wikidata.org' not in pb.DOMAIN_TOTAL and pb.domain_total('wikidata.org') == pb.DAILY_TOTAL

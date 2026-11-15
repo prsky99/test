@@ -74,6 +74,20 @@ SHARE_OVERRIDE = {('substitute_tests', d): 30 for d in ('gleif.org', 'sec.gov', 
 # $1 per 1,000 requests" (help.openalex.org/api/searching), so about 100 of our searches a day. The older "100,000 a
 # day" no longer appears there (checked 11-16). Half of that, as for every declared domain (PM 11-15 11:40 decision 5).
 DOMAIN_TOTAL = {'sec.gov': 600, 'arxiv.org': 600, 'met.no': 600, 'openalex.org': 50}
+# Truth sources of our answer sets: terms and published limits, checked at the source (PM 11-16 07:5x, workflow
+# gold_company_r5 used Wikidata to mark which companies have an English Wikipedia article). No daily number is
+# published for these, so their day total stays DAILY_TOTAL.
+TRUTH_SOURCE_TERMS = {
+    'wikidata.org': {
+        'license': 'CC0 (structured data: main, Property, Lexeme, EntitySchema namespaces)',
+        'license_url': 'https://www.wikidata.org/wiki/Wikidata:Licensing',
+        'limits': 'query.wikidata.org: 60 s query deadline; 60 s of processing time each 60 s per user agent + IP; '
+                  '30 error queries a minute; 5 parallel queries per IP; 429 with Retry-After; no daily cap stated',
+        'limits_url': 'https://www.mediawiki.org/wiki/Wikidata_Query_Service/User_Manual',
+        'user_agent': 'required (Wikimedia User-Agent policy); ours names AgentValCon and the contact mail',
+        'checked': '2026-11-16',
+    },
+}
 DOMAIN_LIMIT_SOURCE = {   # domain -> (published limit, its daily half, where it is published)
     'sec.gov': ('10 requests/second', 432000, 'https://www.sec.gov/os/accessing-edgar-data'),
     'arxiv.org': ('1 request every 3 seconds', 14400, 'https://info.arxiv.org/help/api/tou.html'),
