@@ -111,3 +111,48 @@ def test_one_official_pearl_count_excludes_own_fallbacks_and_names_its_rules(mon
     assert s['rules']['evaluator_version'] == V.EVALUATOR_VERSION and 'avc:' in s['rules']['excluded']
     line = V.funnel_line(json.loads(json.dumps(s)))
     assert 'final/summary.json' in line and 'v2 보고서 1(' in line and V.EVALUATOR_VERSION in line
+
+
+def test_r04_tests_never_sign_into_the_production_folder(monkeypatch):
+    """Precision review R04: a test run points at a temporary folder, and the production folder is refused."""
+    import os
+    assert V.signing_dir() != V.PRODUCTION_SIGNING and os.environ.get('AGENTCON_SIGNING_DIR')
+    assert not V.signing_allowed(V.PRODUCTION_SIGNING)
+    monkeypatch.delenv('AGENTCON_SIGNING_DIR')
+    assert V.signing_dir() == V.PRODUCTION_SIGNING and V.signing_key() is None   # refused under pytest
+
+
+def test_r09_results_without_a_start_time_are_separate_attempts():
+    """Precision review R09: two connection failures without 'started' were one attempt id; only the first was stored."""
+    base = {'id': 21, 'role': 'fx.rate', 'tool': 'convert', 'outcome': 'failed', 'host': 'fx.example', 'reason': 'connect'}
+    first = V.save_version(dict(base), now=NOW)
+    second = V.save_version(dict(base), now=NOW + 60)
+    assert first['attempt_id'] != second['attempt_id']
+    assert len(list(V.version_dir(21, 'fx.rate.v1').glob('*.json'))) == 2
+
+
+def test_r09_a_provisional_pearl_needs_one_success_day(monkeypatch):
+    monkeypatch.setattr(V, 'success_days', lambda *a, **k: 0)
+    v = {'resource_id': 31, 'role': 'fx.rate.v1', 'tool': 'convert', 'outcome': 'succeeded', 'registrable_domain': 'fx.example',
+         'quality': {'score': 90}, 'domain': 'finance', 'tested': NOW, 'data_quality': {'accuracy': {'points': 25}}}
+    assert V.rank([v])['fx.rate.v1']['provisional_pearl'] is None
+
+
+def test_r08_our_side_skips_are_not_stored_and_failures_come_back(monkeypatch, tmp_path):
+    """Precision review R08: a provider-limit skip stays in the queue; a failure is retried after 1, 2 then 4 days."""
+    import pearl_batch as PB
+    import role_tool_test as RT
+    monkeypatch.setattr(PB, 'STATE_DIR', tmp_path / 'state')
+    monkeypatch.setattr(V, 'quiet_now', lambda: True)
+    monkeypatch.setattr(RT, 'resources', lambda ids: {})
+    monkeypatch.setattr(RT, 'test_one', lambda http, c, r, p: {**c, 'host': 'fx.example', 'outcome': 'skipped',
+                                                              'reason': 'provider limit for today', 'started': time.time()})
+    V.run([{'id': 41, 'role': 'fx.rate', 'kind': 'new'}])
+    assert not V.version_dir(41, 'fx.rate.v1').exists()
+    base = {'id': 42, 'role': 'fx.rate', 'tool': 'convert', 'outcome': 'failed', 'host': 'fx.example', 'reason': 'HTTP 500'}
+    V.save_version({**base, 'started': NOW - 30 * 3600})
+    latest = V.latest_versions()
+    assert [c['id'] for c in V.retest_queue(latest, day=1, now=NOW)] == [42]            # one failure: back after a day
+    V.save_version({**base, 'started': NOW - 30 * 3600 + 60})                           # two in a row: wait two days
+    assert V.retest_queue(V.latest_versions(), day=1, now=NOW) == []
+    assert [c['id'] for c in V.retest_queue(V.latest_versions(), day=1, now=NOW + 24 * 3600)] == [42]

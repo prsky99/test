@@ -24,6 +24,22 @@ OUT = ROOT / 'exports/pearls'
 GROUPS = ROOT / 'reports/pearls-2026-11-14/role_groups.json'
 RAG_TASKS = ROOT / 'agent_market/necklaces/role_tasks/role-tasks-rag-v1.jsonl'
 SIGNING = ROOT / 'gateway-data/signing'        # 운영·SRE deploy/EVIDENCE_SIGNING.md: keys doc, <keyid>.pem, envelopes/
+PRODUCTION_SIGNING = SIGNING
+
+
+def signing_dir():
+    """Where keys and envelopes live: SIGNING, or AGENTCON_SIGNING_DIR while SIGNING is the default (tests/conftest.py
+    points every test run at a temporary folder; precision review R04, 11-15)."""
+    import os
+    if SIGNING == PRODUCTION_SIGNING and os.environ.get('AGENTCON_SIGNING_DIR'):
+        return Path(os.environ['AGENTCON_SIGNING_DIR'])
+    return SIGNING
+
+
+def signing_allowed(folder):
+    """Never sign into the production evidence folder from a test run (R04: from 11-17 the key exists)."""
+    import os
+    return not (os.environ.get('PYTEST_CURRENT_TEST') and Path(folder).resolve() == PRODUCTION_SIGNING.resolve())
 METHODOLOGY_VERSION = 'v1'
 BOARD = ROOT / 'logs/ops/status-board.md'
 RULES = 'v2-2026-11-14'
@@ -445,11 +461,13 @@ def success_days(rid, role, tool, now, extra=None, ref=None):
     return len(days)
 
 
-def attempt_id(result):
-    """An immutable id of one test attempt (F10): the same attempt imported twice is the same id."""
+def attempt_id(result, now=None):
+    """An immutable id of one test attempt (F10): the same attempt imported twice is the same id. A result without a
+    start time uses the save time (R09), so two such failures are two attempts."""
     import hashlib
+    started = result.get('started') or (time.time() if now is None else now)
     basis = {'id': result.get('id'), 'role': canonical(result.get('role')), 'tool': result.get('tool'),
-             'started': repr(float(result.get('started') or 0)), 'endpoint': result.get('endpoint'),
+             'started': repr(float(started)), 'endpoint': result.get('endpoint'),
              'arguments': result.get('arguments')}
     return result.get('attempt_id') or hashlib.sha256(json.dumps(basis, sort_keys=True, default=str).encode()).hexdigest()[:24]
 
@@ -505,7 +523,7 @@ def save_version(result, now=None):
     """One more immutable version for (resource, role); earlier versions stay and the same attempt is stored once."""
     now = time.time() if now is None else now
     tested = float(result.get('started') or now)
-    aid = attempt_id(result)
+    aid = attempt_id(result, now)
     folder = version_dir(result['id'], result['role'])
     folder.mkdir(parents=True, exist_ok=True)
     with folder_lock(folder):
@@ -552,14 +570,17 @@ def signing_key(now=None):
     """The private key of the newest key valid now whose PEM file exists (11-17 운영 키); None when there is none."""
     from datetime import datetime, timezone
     from agent_market import evidence_signing as ES
+    folder = signing_dir()
+    if not signing_allowed(folder):
+        return None
     try:
-        doc = json.loads((SIGNING / 'agentvalcon-keys.json').read_text())
+        doc = json.loads((folder / 'agentvalcon-keys.json').read_text())
     except (OSError, ValueError):
         return None
     when = datetime.fromtimestamp(now or time.time(), timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
     revoked = {r.get('keyid') for r in doc.get('revoked', [])}
     for key in sorted(doc.get('keys', []), key=lambda k: k.get('not_before', ''), reverse=True):
-        path = SIGNING / f"{key.get('keyid')}.pem"
+        path = folder / f"{key.get('keyid')}.pem"
         if key.get('keyid') in revoked or not (key.get('not_before', '') <= when <= key.get('not_after', '')) or not path.exists():
             continue
         try:
@@ -621,14 +642,19 @@ def sign_version(r, case, name=None):
     if key is None:
         return None
     from agent_market import evidence_signing as ES
-    folder = SIGNING / 'envelopes' / 'test_report' / str(r['resource_id']) / r['role']
+    if not signing_allowed(signing_dir()):
+        return None
+    folder = signing_dir() / 'envelopes' / 'test_report' / str(r['resource_id']) / r['role']
     folder.mkdir(parents=True, exist_ok=True)
     earlier = sorted((p for p in folder.glob('*.json') if p.stem.isdigit()), key=lambda p: int(p.stem))
     previous = json.loads(earlier[-1].read_text()) if earlier else None
     envelope = ES.sign_chained(evidence_for(r, case), key, previous=previous)
     path = folder / f"{r.get('version')}.json"
     write_new(path, json.dumps(envelope, indent=1))
-    return str(path.relative_to(ROOT))
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return str(path)                     # a test's temporary signing folder
 
 
 def import_fallbacks(folder=None):
@@ -737,7 +763,7 @@ def rank(versions):
         good = bool(top and top['score'] >= PASS_MARK)
         out[role] = {'domain': domain_of(role), 'members': ranked,
                      'final_pearl': top['resource_id'] if good and top['success_days'] >= CONFIRM_DAYS else None,
-                     'provisional_pearl': top['resource_id'] if good and top['success_days'] < CONFIRM_DAYS else None,
+                     'provisional_pearl': top['resource_id'] if good and 1 <= top['success_days'] < CONFIRM_DAYS else None,
                      'fallbacks': [e['resource_id'] for e in ranked if e['rank'] in (2, 3)],
                      'needs_agentcon_fallback': len([e for e in ranked if e['rank'] and e['rank'] >= 2]) <= 1}
     return out
@@ -870,16 +896,50 @@ def publish(board=True):
     return line
 
 
-def retest_queue(versions, day=None, limit=RETEST_A_DAY):
-    """Top members of each role again: ranks 1-2 every day, 3-5 every other day (PM 11-14: 40 a day)."""
+# Precision review R08 (11-15): a skip for our own reason is not a test of the provider; it is not stored and the
+# candidate stays in the queue. A failed member is tried again after 1, 2 and then 4 days instead of leaving for good.
+OUR_SIDE_SKIPS = ('provider limit for today',)
+FAILURE_BACKOFF_DAYS = (1, 2, 4)
+
+
+def our_side_skip(result):
+    return result.get('outcome') == 'skipped' and str(result.get('reason') or '') in OUR_SIDE_SKIPS
+
+
+def failures_in_a_row(rid, role, tool):
+    count = 0
+    for v in sorted(versions_of(rid, role), key=lambda v: float(v.get('tested') or 0), reverse=True):
+        if v.get('tool') != tool:
+            continue
+        if v.get('outcome') == 'succeeded':
+            break
+        count += 1
+    return count
+
+
+def failure_due(v, now):
+    """A failed latest version comes back after 1, 2, then 4 days (by failures in a row)."""
+    if v.get('outcome') == 'succeeded' or is_own_fallback(v['resource_id']):
+        return False
+    streak = failures_in_a_row(v['resource_id'], v['role'], v['tool'])
+    wait = FAILURE_BACKOFF_DAYS[min(max(streak, 1), len(FAILURE_BACKOFF_DAYS)) - 1]
+    return now - float(v.get('tested') or 0) >= wait * DAY - 3600       # an hour's slack for the daily start time
+
+
+def retest_queue(versions, day=None, limit=RETEST_A_DAY, now=None):
+    """Top members of each role again: ranks 1-2 every day, 3-5 every other day (PM 11-14: 40 a day); then failed
+    members whose backoff has passed (R08)."""
     day = int(time.strftime('%j')) if day is None else day
+    now = time.time() if now is None else now
     out = []
     for role, entry in sorted(rank(versions).items()):
         for m in entry['members']:
             if m['rank'] and (m['rank'] <= 2 or (m['rank'] <= 5 and _parity(m['resource_id'], day) == 0)):
                 out.append({'role': role, 'id': m['resource_id'], 'tool': m['tool'], 'kind': 'retest', 'rank': m['rank']})
     out.sort(key=lambda c: c['rank'])
-    return out[:limit]
+    failed = [{'role': v['role'], 'id': v['resource_id'], 'tool': v['tool'], 'kind': 'retest', 'rank': None, 'after_failure': True}
+              for v in sorted(versions, key=lambda v: float(v.get('tested') or 0)) if failure_due(v, now)]
+    return (out + failed)[:limit]
 
 
 def catalog_candidates():
@@ -905,7 +965,8 @@ def catalog_candidates():
 
 def new_queue(versions, candidates, seeds=(), limit=NEW_A_DAY, per_host=3):
     """Untested members, roles with the fewest successes first, one per registrable domain in a role, 3 per host."""
-    tested = {(v['resource_id'], v['tool']) for v in versions}
+    # A stored skip for our own reason (before R08 such skips were saved) never counts as tested.
+    tested = {(v['resource_id'], v['tool']) for v in versions if not our_side_skip(v)}
     successes = Counter(v['role'] for v in versions if v['outcome'] == 'succeeded')
     taken_domains = defaultdict(set)
     for v in versions:
@@ -981,6 +1042,8 @@ def run(queue):
             if result.get('http') in (403, 429) or str(result.get('reason', '')).endswith(('HTTP 429', 'HTTP 403')):
                 pacer.state['refusals'] += 1
             pacer.save()
+            if our_side_skip(result):
+                continue                        # R08: not stored; the candidate stays in tomorrow's queue
             save_version(result)
 
 

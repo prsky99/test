@@ -133,3 +133,12 @@ def _no_production_storage_leak():
         if key not in before:
             del os.environ[key]
     os.environ.update(before)
+
+
+
+# Precision review R04 (11-15): from 11-17 the production signing key exists; no test may sign into
+# gateway-data/signing. Every run gets its own temporary signing folder (scripts.report_v2.signing_dir), and
+# report_v2 also refuses the production folder while pytest runs.
+import os as _os
+import tempfile as _tempfile
+_os.environ['AGENTCON_SIGNING_DIR'] = _tempfile.mkdtemp(prefix='agentcon-test-signing-')

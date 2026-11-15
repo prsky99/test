@@ -275,7 +275,10 @@ def mcp_session(http, url):
 
 
 def test_one(http, candidate, resource, pacer):
-    out = {**candidate, 'host': PB.host_of(resource.get('url')), 'endpoint': resource.get('url'), 'at': time.strftime('%Y-%m-%d %H:%M')}
+    # Every outcome carries its start time (precision review R09: without it every failure of a resource and role had
+    # the same attempt id, so only the first was ever stored).
+    out = {**candidate, 'host': PB.host_of(resource.get('url')), 'endpoint': resource.get('url'), 'at': time.strftime('%Y-%m-%d %H:%M'),
+           'started': time.time()}
     url = str(resource.get('url') or '')
     if resource.get('kind') != 'mcp' or not public_https(url):
         return {**out, 'outcome': 'skipped', 'reason': 'not a public https MCP endpoint'}
