@@ -295,3 +295,49 @@ def test_an_unknown_kind_never_reaches_the_shared_graph():
     calls = []
     assert postgres_ann.kind_graph_search(object(), 'workflow', lambda *a: calls.append(a) or []) == []
     assert calls == []
+
+
+def test_the_store_opens_without_the_shared_graph_once_the_kind_graphs_are_valid():
+    """11-15 PM (plan A precondition): available() required embeddings_cosine_hnsw, so dropping it would have stopped
+    every store open and every new read-pool session. Valid kind graphs now suffice; a missing kind graph still fails."""
+    import psycopg
+    from scripts.rehearse_storage_adapter_postgres import _private_cluster,PORT
+    from scripts import embeddings_kind_indexes as kinds
+    from agent_market.storage_adapter import open_store
+    from agent_market.legacy_vector_index import ModelDescriptor, VectorError
+    from agent_market.postgres_ann import install,nearest,available
+    binary=Path('/opt/homebrew/opt/postgresql@18/bin')
+    if not (binary/'initdb').is_file():pytest.skip('PostgreSQL 18 fixture tools unavailable')
+    with _private_cluster({name:str(binary/name) for name in ('initdb','pg_ctl')}) as cluster:
+        dsn=dict(host=cluster['socket'],port=PORT,dbname='postgres',user='postgres',autocommit=True)
+        with psycopg.connect(**dsn) as conn:
+            conn.execute('CREATE EXTENSION vector')
+            store=open_store('postgresql',connection=conn,initialize=True,workflow_key=b'k'*32)
+            descriptor=ModelDescriptor('synthetic-ann',revision='fixture-v1')
+            index=store._vector_index
+            rows=[]
+            for n,kind in enumerate(('a2a','mcp','x402')):
+                vector=[0.]*768;vector[0]=1.;vector[n+1]=0.1
+                rid=store.upsert_resource({'key':'fixture:drop:%d'%n,'source':'fixture','kind':kind,'name':'Drop %d'%n,
+                    'url':'https://drop%d.example/a'%n,'description':'Synthetic','category':'research','networks':[],'details':{}},now=10)
+                index.ensure_jobs(descriptor,limit=1,resource_ids=(rid,))
+                claim=index.claim_batch(descriptor,limit=1,resource_ids=(rid,))[0]
+                assert index.publish(claim,vector,descriptor)=='indexed'
+                rows.append(rid)
+            install(store)
+            with store.tx():store._execute("UPDATE resources SET health_status='healthy'")
+            kinds.migrate(conn)
+            conn.execute('DROP INDEX agentcon_search.embeddings_cosine_hnsw')
+            store.close()
+        # A fresh connection, as a restarted role or a new read-pool session would open it.
+        with psycopg.connect(**dsn) as conn:
+            store=open_store('postgresql',connection=conn,workflow_key=b'k'*32)
+            assert available(store) is True and store._vector_index.ann_enabled
+            blob=struct.pack('<768f',*([1.]+[0.]*767))
+            with store.tx(readonly=True):
+                assert sorted(nearest(store,blob,descriptor))==sorted(rows)
+                assert nearest(store,blob,descriptor,kind='mcp')==[rows[1]]
+            conn.execute('DROP INDEX agentcon_search.embeddings_half_mcp')
+            with pytest.raises(VectorError):
+                available(store)
+            store.close()
