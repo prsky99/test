@@ -108,8 +108,10 @@ def test_pages_use_the_shared_design_system_and_english_only(client, path):
     c, folder = client
     write(folder, snapshot())
     text = c.get(path).text
-    for asset in ('styles.css', 'necklace.css', 'pearl-live.css', 'app.js'):
-        assert '/new/en/assets/'+asset in text
+    bundle = re.search(r'/new/en/assets/bundle\.css\?f=([a-z,-]+)&amp;v=[0-9a-f]{16}', text)
+    assert bundle and bundle.group(1) == 'operating,styles,necklace,pearl-live'   # one stylesheet, same files and order
+    assert re.search(r'/new/en/assets/app\.js\?v=[0-9a-f]{16}', text)
+    assert text.count('rel="stylesheet"') == 1
     assert 'pearl-header' in text and 'main-wrap' in text and 'global-footer' in text
     assert '<style' not in text and ' style=' not in text  # no page-only styles
     assert not re.search(r'[ㄱ-힣]', text)  # public pages are English only

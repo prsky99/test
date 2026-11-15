@@ -23,7 +23,7 @@ def style_src(response):
 def test_shell_pages_allow_their_own_stylesheets(client, path):  # noqa: F811
     r = client.get(path, headers={'Accept': 'text/html'})
     assert r.status_code == 200
-    assert '/new/en/assets/styles.css' in r.text
+    assert re.search(r'/new/en/assets/bundle\.css\?f=[a-z,-]*\bstyles\b', r.text)   # one bundle (PM 14:38)
     assert "'self'" in style_src(r), (path, r.headers.get('content-security-policy'))
 
 
@@ -32,6 +32,15 @@ def test_necklace_page_allows_its_stylesheets_and_script(client, tmp_path, monke
     (tmp_path / 'gateway-data/necklaces/necklaces.json').write_text(json.dumps(snapshot))
     monkeypatch.setenv('AGENTCON_PROJECT_ROOT', str(tmp_path))
     r = client.get('/necklaces/paper-digest', headers={'Accept': 'text/html'})
-    assert r.status_code == 200 and '/new/en/assets/necklace.css' in r.text
+    assert r.status_code == 200 and re.search(r'/new/en/assets/bundle\.css\?f=[a-z,-]*\bnecklace\b', r.text)
     assert "'self'" in style_src(r)
     assert "script-src 'self'" in r.headers['content-security-policy']   # app.js (theme button) runs
+
+
+def test_shell_bundle_is_served_as_css_and_kept(client):  # noqa: F811
+    """PM 14:38: the shell's one stylesheet is the content-addressed bundle; the browser and the edge may keep it."""
+    page = client.get('/methodology', headers={'Accept': 'text/html'}).text
+    url = re.search(r'href="(/new/en/assets/bundle\.css\?[^"]+)"', page).group(1).replace('&amp;', '&')
+    r = client.get(url)
+    assert r.status_code == 200 and r.headers['content-type'].startswith('text/css')
+    assert 'immutable' in r.headers.get('cache-control', '') and len(r.content) > 1000

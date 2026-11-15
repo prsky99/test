@@ -23,7 +23,7 @@ def test_ad_library_page_allows_its_stylesheets_and_json_is_unchanged(store):  #
     app.include_router(router_for(store))
     client = TestClient(app)
     page = client.get('/ads/library')
-    assert page.status_code == 200 and '/new/en/assets/styles.css' in page.text
+    assert page.status_code == 200 and re.search(r'/new/en/assets/bundle\.css\?f=[a-z,-]*\bstyles\b', page.text)  # shell bundle (11-15)
     assert page.headers['content-security-policy'] == PAGE_CSP and "'self'" in style_src(page)
     assert page.headers['cache-control'] == 'public, max-age=600'
     data = client.get('/ads/library.json')

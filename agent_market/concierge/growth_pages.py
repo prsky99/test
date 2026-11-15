@@ -238,6 +238,29 @@ FOOTER = [('Connect a client', '/connect'), ('Task pages', '/agents/tasks'), ('R
           ('Terms of Service', '/new/en/terms.html'), ('Privacy Policy', '/new/en/privacy.html')]  # 11-15: the full policy pages
 
 
+# PM 14:38 (11-15): from Korea every new request pays the LAX round trip, so the shell asks for one stylesheet and one
+# script, both content-addressed (pearl_view.bundled/versioned, the same helpers the /new/en pages use): 4 render-blocking
+# stylesheets became one immutable bundle, and app.js gets ?v= so repeat visits keep it. Same files, same order.
+SHELL_ASSETS = ('<link rel="stylesheet" href="/new/en/assets/operating.css"><link rel="stylesheet" href="/new/en/assets/styles.css">'
+                '<link rel="stylesheet" href="/new/en/assets/necklace.css"><link rel="stylesheet" href="/new/en/assets/pearl-live.css">'
+                '<script src="/new/en/assets/app.js" defer></script>')
+_shell_assets = {'at': 0.0, 'value': None}
+
+
+def shell_assets():
+    """The shell's asset tags, rebuilt at most once a minute (a deploy restarts the process anyway)."""
+    import time
+    now = time.monotonic()
+    if _shell_assets['value'] is None or now - _shell_assets['at'] > 60:
+        from .pearl_view import bundled, versioned
+        try:
+            value = versioned(bundled(SHELL_ASSETS + '</head>'))[:-len('</head>')].replace('\n', '')
+        except Exception:
+            value = SHELL_ASSETS
+        _shell_assets.update(at=now, value=value)
+    return _shell_assets['value']
+
+
 def shell(*, title, description, canonical, body, structured=None, index=True):
     data = json.dumps(structured or {}, ensure_ascii=True).replace('<', '\\u003c')
     nav = ''.join('<a class="nav-tab" href="'+esc(href)+'">'+esc(label)+'</a>' for label, href in NAV)
@@ -253,9 +276,7 @@ def shell(*, title, description, canonical, body, structured=None, index=True):
             '<meta name="twitter:card" content="summary_large_image">'
             '<link rel="icon" type="image/svg+xml" href="/new/en/assets/favicon.svg">'
             '<link rel="agent-card" href="/.well-known/agent-card.json"><link rel="alternate" type="text/markdown" href="/llms.txt">'
-            '<link rel="stylesheet" href="/new/en/assets/operating.css"><link rel="stylesheet" href="/new/en/assets/styles.css">'
-            '<link rel="stylesheet" href="/new/en/assets/necklace.css"><link rel="stylesheet" href="/new/en/assets/pearl-live.css">'
-            '<script src="/new/en/assets/app.js" defer></script>'
+            + shell_assets() +
             '<script type="application/ld+json">'+data+'</script></head>'
             '<body><a href="#mainContent" class="skip-link">Skip to main content</a>'
             '<header class="top-nav pearl-header"><a href="/" class="brand-box" aria-label="AgentValCon Home">'
