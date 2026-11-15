@@ -195,6 +195,8 @@ def public_item(entry, base='https://agentconcierge.biz', now=None):
             'cost': {k: cost.get(k) for k in ('usdc_per_run', 'p50_ms', 'p95_ms') if cost.get(k) is not None}}
     if fallback(entry):
         item['fallback'] = fallback(entry)
+    if scope_notice(entry):
+        item['scope_notice'] = scope_notice(entry)
     found = notice(entry, base)
     if found:
         item['notice'] = {'title': found[0], 'text': found[1], **found[2]}
@@ -498,6 +500,16 @@ def fallback_line(entry):
             + ' (no AgentValCon backup yet). If they all fail, the run stops.' + limits)
 
 
+def scope_notice(entry):
+    """The definition's scope sentence (workflow 36b92e0d), or None. It is the same text the runner uses to refuse an
+    input outside the scope; pages, /api/necklaces and the MCP tool show it before a run, as written."""
+    value = entry.get('scope_notice') if isinstance(entry, dict) else None
+    if not isinstance(value, str):
+        return None
+    value = ' '.join(value.split())
+    return value if 1 <= len(value) <= 600 else None
+
+
 # 11-15 user decision (PM 11:3x): necklaces run free for now. The judge marks it in the snapshot (pricing {"mode":
 # "free"}, workflow c5c0595f); the words state the fact and promise no end date, only that a charge is announced first.
 FREE_NOW = 'Free to run for now. If that changes, we will say so on this page first.'
@@ -528,6 +540,7 @@ def page(slug, base='https://agentconcierge.biz', snapshot=None, now=None, run=N
     runs = offered(entry, now)
     parts = [heading('Necklace · Agent Value Gateway', entry.get('name') or slug, entry.get('summary') or ''),
              '<p class="muted necklace-standing">' + esc(standing_line(entry, now)) + '</p>'
+             + ('<p class="necklace-scope"><strong>Scope:</strong> ' + esc(scope_notice(entry)) + '</p>' if scope_notice(entry) else '')
              + ('<p class="muted necklace-fallback">' + esc(fallback_line(entry)) + '</p>' if fallback_line(entry) else '')
              + ('<p class="necklace-free">' + esc(FREE_NOW) + '</p>' if free_now(entry) and offered(entry, now) else '')]
     if run is not None:
@@ -678,6 +691,7 @@ def tools(snapshot=None, now=None):
                     else ' Recent tests: ' + str(window[0]) + '/' + str(window[1]) + ' passed.' if window else '')
         out.append({'name': tool_name(e['slug']), 'title': e.get('name') or e['slug'],
                     'description': ('Necklace (a workflow of tested agents, ' + str(sum(1 for p in e.get('pearls') or [] if isinstance(p, dict) and p.get('pearl') is True)) + ' verified pearls): ' + (e.get('summary') or '') + evidence
+                                    + (' Scope: ' + scope_notice(e) if scope_notice(e) else '')
                                     + (' Example arguments: ' + json.dumps(example_input(e), separators=(',', ':')) + '.'
                                        if example_input(e) else '')
                                     + (' ' + FREE_NOW.replace('on this page', 'on its page') if free_now(e) else '')

@@ -51,3 +51,20 @@ def test_partial_own_backup_names_its_limit():
     assert ns.fallback_line({'fallback': mixed}).endswith(
         'the run stops. Our backup is partial: for location it takes U.S. and CA inputs only.')
     assert ns.fallback({'fallback': {**value, 'own_coverage': {}}}) == {'depth': 'agentvalcon', 'slots_without_own': []}
+
+
+SCOPE = ('National public holidays only: regional (state or province) holidays are not included. A place in an overseas '
+         "territory is answered with the holidays of the country it belongs to, which can differ from the territory's own.")
+
+
+def test_scope_notice_is_shown_before_a_run():
+    """Workflow 36b92e0d: the definition's scope sentence, until now used only to refuse, is also shown up front."""
+    status, page = ns.page('quakes-near-address', snapshot={'schema': ns.SCHEMA, 'events': [],
+                                                           'necklaces': [{**ENTRY, 'scope_notice': SCOPE}]})
+    assert status == 200 and '<p class="necklace-scope"><strong>Scope:</strong> National public holidays only' in page
+    assert "territory&#x27;s own." in page                      # escaped as text
+    assert ns.public_item({**ENTRY, 'scope_notice': SCOPE})['scope_notice'] == SCOPE
+    for value in (None, '', '   ', 7, 'x' * 601):
+        assert ns.scope_notice({'scope_notice': value}) is None
+        assert 'scope_notice' not in ns.public_item({**ENTRY, 'scope_notice': value})
+    assert 'necklace-scope' not in ns.page('quakes-near-address', snapshot=snapshot(None))[1]
