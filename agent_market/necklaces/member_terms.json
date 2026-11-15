@@ -175,6 +175,60 @@
       "source": "https://pipeworx.io/terms",
       "checked_at": "2026-11-16",
       "basis": "Same provider and terms as 50972 (gateway.pipeworx.io): acceptable use forbids reselling or redistributing access without permission; metered sources (PM rule: unclear means prohibits)"
+    },
+    "38613": {
+      "status": "silent",
+      "source": "https://invokera.com/",
+      "checked_at": "2026-11-16",
+      "basis": "No terms page: /terms, /tos and /legal answer 404 and the home page and /docs link none (11-16); docs say no API key is required; same host as 38608"
+    },
+    "267572": {
+      "status": "allowed",
+      "source": "https://makerradar.io/developers",
+      "checked_at": "2026-11-16",
+      "basis": "Terms of Service section 5 Acceptable use leaves automated access to the developer crawling policy, which allows API and MCP calls without a key, quoting, summaries and AI input"
+    },
+    "40800": {
+      "status": "allowed",
+      "source": "https://siliconfloor.com/terms",
+      "checked_at": "2026-11-16",
+      "basis": "Access and acceptable use: free, no account or key within rate limits; no resale, rebranding or republishing of the Service; figures may be quoted with source and link (Intellectual property)"
+    },
+    "41945": {
+      "status": "allowed",
+      "source": "https://wingmanprotocol.com/terms",
+      "checked_at": "2026-11-16",
+      "basis": "Acceptable use bans rate abuse and violating third-party terms; no paid plan required ('Start free. Never subscribe.' pricing); free tier 20 calls a day; outputs not restricted",
+      "declared_limit": {
+        "domain": "wingmanprotocol.com",
+        "source": "https://wingmanprotocol.com/pricing",
+        "quote": "free daily limit: 20 calls a day",
+        "per_day": 20
+      }
+    },
+    "220838": {
+      "status": "allowed",
+      "source": "https://webknox.com/terms",
+      "checked_at": "2026-11-16",
+      "basis": "s4 allows showing answers to your users; s5 keep sources visible; free plan usable in commercial products with the 'Answer by WebKnox' credit (pricing FAQ); no reselling access, no bulk download. Re-judge when necklace runs are charged",
+      "declared_limit": {
+        "domain": "webknox.com",
+        "source": "https://webknox.com/docs/mcp",
+        "quote": "Without an account, each person gets 10 answers with a card a day",
+        "per_day": 10
+      }
+    },
+    "46086": {
+      "status": "silent",
+      "source": "https://agent-evidence.thx93.dev",
+      "checked_at": "2026-11-16",
+      "basis": "No terms page (/terms, /tos, /legal 404); the evidence tool is x402 pay-per-request (0.01 USDC), free only preview/sample - unusable under our no-spend rule"
+    },
+    "36279": {
+      "status": "prohibits",
+      "source": "https://aitwire.com/terms",
+      "checked_at": "2026-11-16",
+      "basis": "s13(a) licence only to Customer for its own business; s19(b) lists Service outputs as confidential; s11(f) no exploiting the Service except as expressly permitted - showing results to third parties is not granted"
     }
   },
   "changes": [
@@ -433,6 +487,88 @@
       "source": "https://pipeworx.io/terms",
       "at": "2026-11-16",
       "by": "워크플로우"
+    },
+    {
+      "member": "38613",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://invokera.com/",
+      "at": "2026-11-16",
+      "by": "워크플로우"
+    },
+    {
+      "member": "267572",
+      "from": "unknown",
+      "to": "allowed",
+      "source": "https://makerradar.io/developers",
+      "at": "2026-11-16",
+      "by": "워크플로우"
+    },
+    {
+      "member": "40800",
+      "from": "unknown",
+      "to": "allowed",
+      "source": "https://siliconfloor.com/terms",
+      "at": "2026-11-16",
+      "by": "워크플로우"
+    },
+    {
+      "member": "41945",
+      "from": "unknown",
+      "to": "allowed",
+      "source": "https://wingmanprotocol.com/terms",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "41945",
+      "declared_limit_from": null,
+      "declared_limit_to": {
+        "domain": "wingmanprotocol.com",
+        "source": "https://wingmanprotocol.com/pricing",
+        "quote": "free daily limit: 20 calls a day",
+        "per_day": 20
+      },
+      "source": "https://wingmanprotocol.com/pricing",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "220838",
+      "from": "unknown",
+      "to": "allowed",
+      "source": "https://webknox.com/terms",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "220838",
+      "declared_limit_from": null,
+      "declared_limit_to": {
+        "domain": "webknox.com",
+        "source": "https://webknox.com/docs/mcp",
+        "quote": "Without an account, each person gets 10 answers with a card a day",
+        "per_day": 10
+      },
+      "source": "https://webknox.com/docs/mcp",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "46086",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://agent-evidence.thx93.dev",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "36279",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://aitwire.com/terms",
+      "at": "2026-11-16",
+      "by": "agent team"
     }
   ]
 }
