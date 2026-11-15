@@ -467,3 +467,15 @@ def test_a_run_counts_only_when_enough_pearl_steps_answered():
     assert both["ok"] and both["pearls_answered"] == 2
     one = runner.Runner(caller_from({1: "CVE-2020-28500", 4: "listed in CISA KEV"})).run(defn, {"q": "x"})
     assert not one["ok"] and one["failed_slot"] == "pearls_answered" and one["pearls_answered"] == 1
+
+
+def test_a_later_stage_may_use_what_is_left_of_the_run(monkeypatch):
+    """11-15 self-test: relay calls in the second stage overran a per-slot cap although the run had time left."""
+    monkeypatch.setattr(runner, "MIN_ATTEMPT_MS", 50)
+    defn = staged()
+    defn["budget_ms"] = {"total": 1500, "slot": 400}
+    answers = {1: {"legal_name": "Apple Inc.", "identifiers": {"SEC CIK": "320193", "ticker": "AAPL"}},
+               3: "listed in CISA KEV"}
+    caller = blocking_caller(answers, threading.Event(), slow={5: (0.6, "10-K 2025")})
+    out = runner.Runner(caller).run(defn, {"q": "apple"})
+    assert out["slots"]["filings"]["status"] == "answered" and out["latency_ms"] < 1500

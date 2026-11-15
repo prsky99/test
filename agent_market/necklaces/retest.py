@@ -385,7 +385,7 @@ def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT,
             handle.write(json.dumps(line, ensure_ascii=False, sort_keys=True, default=str) + "\n")
     return {"slug": defn["slug"], "split": split, "cases": done, "passed": passed, "excluded": excluded,
             "of": len(cases),
-            "stopped_by_budget": done < len(cases), "seconds": round(clock() - started, 1)}
+            "stopped_by_budget": done + excluded < len(cases), "seconds": round(clock() - started, 1)}
 
 
 def daily_split(now: float) -> str:

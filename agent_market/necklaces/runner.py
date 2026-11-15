@@ -448,7 +448,6 @@ class Runner:
         pool = ThreadPoolExecutor(max_workers=self.workers)
         states: dict[str, dict] = {}
         try:
-            slot_s = slot_deadline - started
             for slot in defn["slots"]:
                 chain = [m for m in runtime_chain(slot, defn["slug"], self.watch_state) if in_coverage(m, values)]
                 ranked = list(enumerate(chain, start=1))
@@ -478,7 +477,9 @@ class Runner:
                                         if isinstance(item, (str, int, float)) and not isinstance(item, bool):
                                             staged[f"slot.{up['slot']['slot']}.{key}"] = item
                                 st["values"] = staged
-                                st["deadline"] = min(deadline, now + slot_s)
+                                # a later stage gets what is left of the run: the slot budget is a per-stage cap
+                                # only in the first stage (11-15 self-test: relay calls overran a 2.5 s stage cap)
+                                st["deadline"] = deadline
                                 self._start(pool, st, staged, started)
                 for st in states.values():
                     if st["inflight"] and now >= st["deadline"]:
