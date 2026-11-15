@@ -56,7 +56,7 @@ MAX_STAGES = 3
 NO_FALLBACK_ROLES = ("crypto.price.v1", "ip.lookup.v1", "stock.quote.v1")
 # Fields that describe where a definition is in its lifecycle. They do not change
 # what runs, so they are left out of the digest that the ops approval binds to.
-NON_MATERIAL = ("status", "notes", "replaced_by")
+NON_MATERIAL = ("status", "notes", "replaced_by", "demand")    # demand: why we build it, not what runs
 
 
 class DefinitionError(ValueError):
@@ -255,7 +255,8 @@ SLOT_TEMPLATE = re.compile(r"\{\{slot\.([a-z_][a-z0-9_]*)\.([a-z_][a-z0-9_]*)\}\
 
 def scope_errors(defn: dict) -> list[str]:
     """``scope`` limits which inputs a necklace version accepts (PM 11-15); out-of-scope input gets ``scope_notice``
-    and no call. ``min_pearls_answered`` is how many verified-pearl steps must answer for a run to count."""
+    and no call. ``min_pearls_answered`` is how many steps must be answered by a counted member (a verified pearl or a
+    provisional member, necklaces.members; PM 16:03) for a run to count."""
     errors = []
     scope = defn.get("scope")
     props = set(((defn.get("input_schema") or {}).get("properties") or {}))
@@ -273,6 +274,19 @@ def scope_errors(defn: dict) -> list[str]:
     if need is not None and (type(need) is not int or need < 2):
         errors.append("min_pearls_answered is a whole number of at least 2")
     return errors
+
+
+def warnings(defn: dict) -> list[str]:
+    """Not errors (the definition still loads and runs). PM 16:03 (user instruction d4670360): necklaces are built
+    from what people ask for; ``demand`` is one line of evidence (our query log's topic rank or an outside source)."""
+    found = []
+    demand = defn.get("demand")
+    if not isinstance(demand, str) or not demand.strip():
+        found.append("demand is empty: add one line of evidence that people ask for this (our query log's topic rank "
+                     "or an outside source)")
+    elif len(demand) > 400:
+        found.append("demand is one line (at most 400 characters)")
+    return found
 
 
 def stage_errors(defn: dict) -> list[str]:

@@ -144,29 +144,41 @@ def healthy(row: dict | None) -> bool:
     return bool(row) and int(row.get("active") or 0) == 1 and row.get("health_status") == "healthy"
 
 
-def _usable(member: dict, slot: dict, approved: set) -> dict | None:
+def _usable(member: dict, slot: dict, approved: set, own: dict | None = None) -> dict | None:
     """The member as it runs: active ones as they are; a planned AgentValCon fallback only once ops approved it as a
     substitute for this slot's role (approvals.json "substitutes", copied into the watch state every hour)."""
     state = member.get("state", "active")
     if state == "active":
         return member
     if state == "planned" and member.get("kind") == "agentcon" and (member.get("agent_id"), slot.get("contract")) in approved:
-        return dict(member, state="active", substitute_approved=True)
+        return dict(member, state="active", substitute_approved=True, substitute_state="approved")
+    # PM 16:03 (user instruction d4670360): an own substitute ops marked "provisional" (passed the 30-case gate)
+    # runs as a provisional member before its full approval
+    if (state == "planned" and member.get("kind") == "agentcon"
+            and (own or {}).get(f"{member.get('agent_id')}|{slot.get('contract')}") == "provisional"):
+        return dict(member, state="active", substitute_state="provisional")
     return None
 
 
 def runtime_chain(slot: dict, slug: str, state: dict) -> list[dict]:
     """The approved chain in its current order: excluded members dropped, demoted
     members moved behind the other members of their kind (externals stay before AgentValCon fallbacks)."""
+    from . import members as standing_rules
     marks = state.get("members", {})
     approved = {tuple(x) for x in state.get("substitutes") or [] if isinstance(x, (list, tuple)) and len(x) == 2}
-    usable = [_usable(m, slot, approved) for m in slot["chain"]]
+    block = state.get("standing") if isinstance(state.get("standing"), dict) else None
+    usable = [_usable(m, slot, approved, (block or {}).get("own") or {}) for m in slot["chain"]]
     chain = [m for m in usable if m is not None
              and not marks.get(member_key(slug, slot["slot"], m), {}).get("excluded")
              and model.terms_status(m) != "prohibits"]          # terms forbid automated use (PM 12:27)
+    if block is not None:   # PM 16:03: each member says its standing; a verified pearl leads, provisional next
+        chain = [dict(m, standing=standing_rules.standing(m, slot.get("contract"), block)) for m in chain]
+    rank = {"verified_pearl": 0, "provisional": 1}
     out = []
     for kind in ("external", "agentcon"):
         group = [m for m in chain if m.get("kind") == kind]
+        if block is not None:
+            group.sort(key=lambda m: rank.get(m.get("standing"), 2))      # stable: chain order within a standing
         keep = [m for m in group if not marks.get(member_key(slug, slot["slot"], m), {}).get("demoted")]
         out += keep + [m for m in group if m not in keep]
     return out
@@ -367,6 +379,30 @@ def observe(definitions: list[dict], fetch, prints: dict, state: dict, now: floa
     return lines
 
 
+UPGRADES = Path("logs/ops/necklace-watch/upgrades.jsonl")
+
+
+def upgrade_lines(definitions: list[dict], block: dict, now: float, path: Path | None = None) -> list[dict]:
+    """One line per slot whose provisional member can give way to a verified pearl, when the pearl snapshot changes
+    (in_chain true: it leads from now on; false: the pearl is not in the chain yet, a definition change and gate)."""
+    from . import members as standing_rules
+    try:
+        roles = json.loads(Path("reports/pearls-2026-11-14/role_groups.json").read_text(encoding="utf-8")).get("roles")
+    except (OSError, ValueError):
+        roles = None
+    found = standing_rules.upgrades(definitions, block, roles)
+    target = Path(path or UPGRADES)
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with target.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps({"at": time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime(now)),
+                                     "snapshot": block.get("snapshot_generated"), "slots": found},
+                                    ensure_ascii=False, sort_keys=True) + "\n")
+    except OSError:
+        pass
+    return found
+
+
 class NecklaceWatch:
     """jobs maintenance-slot task: ``due()`` then ``run()`` (same shape as the insights refresher)."""
 
@@ -390,6 +426,11 @@ class NecklaceWatch:
         state = load_json(state_path, {})
         from .judge import load_approvals, load_substitutes
         state["substitutes"] = load_substitutes(self.root / "approvals.json")
+        from . import members as standing_rules
+        before = (state.get("standing") or {}).get("snapshot_generated")
+        state["standing"] = standing_rules.load(now=now)
+        if state["standing"].get("snapshot_generated") != before:     # PM 16:03 item 5: a new pearl snapshot
+            upgrade_lines(definitions, state["standing"], now)
         lines = observe(definitions, self.store.resource, load_json(self.fingerprints, {}), state, now,
                         approvals=load_approvals(self.root / "approvals.json"))
         from .judge import write_atomic

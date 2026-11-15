@@ -1,0 +1,105 @@
+"""PM 16:03 (user instruction d4670360): provisional members, standing order and upgrade lines."""
+import json
+import time
+
+from agent_market.necklaces import judge, members, model
+from agent_market.necklaces.watch import runtime_chain, upgrade_lines
+from tests.test_necklaces_model import base
+
+NOW = time.time()
+
+
+def iso(days_ago):
+    return time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime(NOW - days_ago * 86400))
+
+
+def snapshot():
+    return {"agents": {
+        "1": {"roles": [{"role": "x.v1", "outcome": "succeeded", "score": 92, "verified_pearl": True, "tested_at": iso(1)}]},
+        "2": {"roles": [{"role": "x.v1", "outcome": "succeeded", "score": 79.2, "tested_at": iso(2)}]},
+        "3": {"roles": [{"role": "y.v1", "outcome": "succeeded", "score": 69.9, "tested_at": iso(1)}]},
+        "4": {"roles": [{"role": "y.v1", "outcome": "succeeded", "score": 80, "tested_at": iso(8)}]},
+        "5": {"roles": [{"role": "y.v1", "outcome": "failed", "score": 90, "tested_at": iso(1)}]}}}
+
+
+def test_the_bar_for_a_provisional_external_member():
+    found = members.external_standing(snapshot(), NOW)
+    assert found == {"1|x.v1": "verified_pearl", "2|x.v1": "provisional"}       # 69.9, 8 days old, failed: not
+    assert members.PROVISIONAL == {"min_score": 70.0, "days": 7}
+
+
+def test_standing_needs_read_only_active_and_terms_not_prohibiting():
+    block = {"external": {"1|x.v1": "provisional"}, "own": {}}
+    m = {"kind": "external", "resource_id": 1, "tool": "t", "read_only_hint": True, "destructive_hint": False}
+    assert members.standing(m, "x.v1", block) == "provisional"
+    assert members.standing(dict(m, read_only_hint=False), "x.v1", block) is None
+    assert members.standing(dict(m, destructive_hint=True), "x.v1", block) is None
+    assert members.standing(dict(m, state="planned"), "x.v1", block) is None
+    assert members.standing(m, "x.v1", None) is None
+
+
+def test_a_pearl_leads_a_provisional_member_and_an_unranked_one_goes_last():
+    defn = base()
+    slot = defn["slots"][0]                     # chain 1, 2, own 10
+    block = {"external": {"2|x.v1": "verified_pearl", "1|x.v1": "provisional"}, "own": {}}
+    chain = runtime_chain(slot, defn["slug"], {"standing": block})
+    assert [m.get("resource_id") for m in chain if m["kind"] == "external"] == [2, 1]
+    assert [m.get("standing") for m in chain if m["kind"] == "external"] == ["verified_pearl", "provisional"]
+    block = {"external": {"2|x.v1": "provisional"}, "own": {}}
+    chain = runtime_chain(slot, defn["slug"], {"standing": block})
+    assert [m.get("resource_id") for m in chain if m["kind"] == "external"] == [2, 1]     # unranked 1 after
+    assert [m.get("resource_id") for m in runtime_chain(slot, defn["slug"], {}) if m["kind"] == "external"] == [1, 2]
+
+
+def test_a_provisional_own_substitute_runs_and_counts(tmp_path):
+    defn = base()
+    slot = defn["slots"][1]
+    own = next(m for m in slot["chain"] if m["kind"] == "agentcon")
+    own["state"] = "planned"
+    approvals = tmp_path / "approvals.json"
+    approvals.write_text(json.dumps({"substitutes": [
+        {"agent_id": own["agent_id"], "slot_role": "y.v1", "state": "provisional", "at": "2026-11-15T16:30:00+0900"}]}))
+    states = judge.load_substitute_states(approvals)
+    assert states == {f"{own['agent_id']}|y.v1": "provisional"}
+    chain = runtime_chain(slot, defn["slug"], {"standing": {"external": {}, "own": states}})
+    mine = next(m for m in chain if m["kind"] == "agentcon")
+    assert mine["substitute_state"] == "provisional" and mine["standing"] == "provisional" and members.counted(mine)
+    assert not any(m["kind"] == "agentcon" for m in runtime_chain(slot, defn["slug"], {"standing": {"external": {}}}))
+
+
+def test_counted_falls_back_to_the_pearl_flag_without_standing():
+    assert members.counted({"pearl": True}) and not members.counted({})
+    assert not members.counted({"pearl": True, "standing": None})
+
+
+def test_upgrade_lines_name_slots_a_pearl_can_lead(tmp_path):
+    defn = base()
+    block = {"external": {"2|x.v1": "verified_pearl", "3|y.v1": "provisional"}, "own": {}}
+    roles = {"y.v1": {"final_pearl": 99}}
+    found = members.upgrades([defn], block, roles)
+    assert {(f["slot"], f["pearl"], f["in_chain"]) for f in found} == {("papers", 2, True), ("news", 99, False)}
+    path = tmp_path / "upgrades.jsonl"
+    upgrade_lines([defn], dict(block, snapshot_generated="g1"), NOW, path)
+    line = json.loads(path.read_text())
+    assert line["snapshot"] == "g1" and "at" in line
+
+
+def test_demand_is_warned_not_refused():
+    defn = base()
+    assert model.validate(defn, check_contracts=False) == []
+    assert model.warnings(defn) and "demand is empty" in model.warnings(defn)[0]
+    defn["demand"] = "Top 5 topic in our query log, week of 11-09 (search and RAG)"
+    assert model.warnings(defn) == [] and model.digest(defn) == model.digest(base())
+
+
+def test_members_json_tells_approved_and_provisional_apart():
+    defn = base()
+    own = next(m for m in defn["slots"][1]["chain"] if m["kind"] == "agentcon")
+    own["state"] = "planned"
+    block = {"external": {"1|x.v1": "verified_pearl"}, "own": {f"{own['agent_id']}|y.v1": "provisional"}}
+    rows = judge.members([defn], standing=block)["members"]
+    by = {(r["slot"], r["resource_id"] or r["agent_id"]): r for r in rows}
+    assert by[("papers", 1)]["standing"] == "verified_pearl" and by[("papers", 2)]["standing"] is None
+    mine = by[("news", own.get("resource_id") or own["agent_id"])]
+    assert mine["substitute_state"] == "provisional" and mine["standing"] == "provisional"
+    assert "standing" not in judge.members([defn])["members"][0]

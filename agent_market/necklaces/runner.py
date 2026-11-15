@@ -778,10 +778,11 @@ class Runner:
             pool.shutdown(wait=False, cancel_futures=True)
         results = {name: st["result"] for name, st in states.items()}
         failed = [s.slot for s in results.values() if s.required and not s.answers]
-        # PM 11-15: a run counts only when enough verified-pearl steps answered (per run, not per definition); a run
-        # answered by one pearl and our own substitutes is not given out as the necklace's result
+        # PM 11-15, changed 16:03 (user instruction d4670360): a run counts only when enough steps were answered by
+        # a counted member, a verified pearl or a provisional member (necklaces.members); per run, not per definition
+        from .members import counted
         need = defn.get("min_pearls_answered")
-        pearls_answered = sum(1 for r in results.values() if any(m.get("pearl") for m, _ in r.answers))
+        pearls_answered = sum(1 for r in results.values() if any(counted(m) for m, _ in r.answers))
         if need and not failed and pearls_answered < need:
             failed.append("pearls_answered")
         output = {name: (merge(states[name]["slot"]["contract"], r.answers) if r.answers else {"missing": True})

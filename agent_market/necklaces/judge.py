@@ -96,6 +96,24 @@ def load_substitutes(path: Path) -> list[list[str]]:
     return sorted([list(k) for k, v in latest.items() if v.get("state") == "approved"])
 
 
+def load_substitute_states(path: Path) -> dict[str, str]:
+    """{"<agent_id>|<slot_role>": "approved" | "provisional"} from the latest entry of each substitute in
+    approvals.json (ops 11-15: "provisional" = passed the 30-case gate only, PM 16:03 provisional members)."""
+    try:
+        raw = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    latest: dict[tuple, dict] = {}
+    for item in (raw.get("substitutes") if isinstance(raw, dict) else None) or []:
+        if not isinstance(item, dict) or not item.get("agent_id") or not item.get("slot_role"):
+            continue
+        key = (item["agent_id"], item["slot_role"])
+        current = latest.get(key)
+        if current is None or (_parse_time(item.get("at")) or 0) >= (_parse_time(current.get("at")) or 0):
+            latest[key] = item
+    return {f"{a}|{r}": v["state"] for (a, r), v in latest.items() if v.get("state") in ("approved", "provisional")}
+
+
 def load_summary(root: Path, slug: str) -> dict:
     try:
         return json.loads((root / "results" / slug / "summary.json").read_text(encoding="utf-8"))
@@ -178,13 +196,21 @@ def pearls(defn: dict, verified: set | None = None) -> list[dict]:
         agentcon = model.live_members(slot, "agentcon")
         fanout = slot.get("fanout", 1)
         leads, rest = externals[:fanout], externals[fanout:]
-        alternates = [{"resource_id": m["resource_id"], "tool": m["tool"], "kind": "external"} for m in rest]
+        alternates = [{"resource_id": m["resource_id"], "tool": m["tool"], "kind": "external",
+                       "standing": m.get("standing")} for m in rest]
         alternates += [{"resource_id": m.get("resource_id"), "agent_id": m.get("agent_id"), "tool": m["tool"],
-                        "kind": "agentcon"} for m in agentcon[:model.MAX_AGENTCON]]
+                        "kind": "agentcon", "standing": m.get("standing")} for m in agentcon[:model.MAX_AGENTCON]]
+        if not leads and agentcon:      # PM 16:03: a step with no external member runs on its own provisional one
+            lead = agentcon[0]
+            out.append({"resource_id": lead.get("resource_id"), "agent_id": lead.get("agent_id"), "role": slot["slot"],
+                        "tool": lead["tool"], "kind": "agentcon", "required": bool(slot.get("required", True)),
+                        "pearl": False, "standing": lead.get("standing"), "alternates": alternates[1:]})
         for lead in leads:
+            pearl = bool(verified) and (lead["resource_id"], slot["contract"]) in verified
+            # PM 16:03 item 4: verified_pearl or provisional per member (necklaces.members); None = not counted
             out.append({"resource_id": lead["resource_id"], "role": slot["slot"], "tool": lead["tool"],
-                        "required": bool(slot.get("required", True)),
-                        "pearl": bool(verified) and (lead["resource_id"], slot["contract"]) in verified,
+                        "kind": "external", "required": bool(slot.get("required", True)),
+                        "pearl": pearl, "standing": lead.get("standing", "verified_pearl" if pearl else None),
                         "alternates": alternates})
     return out
 
@@ -302,6 +328,8 @@ def build_entry(defn: dict, approval: dict | None, summary: dict, now: float,
         "replaced_at": defn.get("replaced_at"),
     }
     entry["pearl_count"] = sum(1 for p in entry["pearls"] if p["pearl"])
+    from .members import COUNTED
+    entry["member_count"] = sum(1 for p in entry["pearls"] if p.get("standing") in COUNTED)   # pearls + provisional
     entry["fallback"] = fallback_depth(running)
     if status == "retired":
         entry["replaced_by"] = defn.get("replaced_by")
@@ -323,7 +351,11 @@ def build_entry(defn: dict, approval: dict | None, summary: dict, now: float,
               or watch_problem
               or watch_hold(defn["slug"], watch_state, approval)
               or ("no_member" if len(entry["pearls"]) < 2 else None)
-              or ("pearls_unverified" if entry["pearl_count"] < 2 else None)
+              # PM 16:03 (user instruction d4670360): two verified pearls are no longer the condition; two counted
+              # members (verified pearl or provisional) are. No pearl snapshot at all still holds (nothing judged).
+              or ("pearls_unverified" if not verified else None)
+              or ("members_unqualified" if entry["member_count"] < max(2, defn.get("min_pearls_answered") or 2)
+                  else None)
               or summary.get("held_reason")
               or _quality_hold(entry, now))
     if reason:
@@ -436,7 +468,7 @@ def snapshot(definitions: list[dict], approvals: dict[str, dict], root: Path, no
             "events": events}
 
 
-def members(definitions: list[dict], now: float | None = None) -> dict:
+def members(definitions: list[dict], now: float | None = None, standing: dict | None = None) -> dict:
     """Every chain member of every necklace in a non-retired state, for the ops fingerprint
     watch (reports/tool-fingerprint-design-2026-11-14, section 3) and the hourly necklace watch."""
     rows = []
@@ -449,10 +481,24 @@ def members(definitions: list[dict], now: float | None = None) -> dict:
                              "slot": slot["slot"], "required": bool(slot.get("required", True)), "rank": rank,
                              "kind": m["kind"], "resource_id": m.get("resource_id"), "agent_id": m.get("agent_id"),
                              "tool": m["tool"], "state": m.get("state", "active"),
-                             "registrable_domain": m.get("registrable_domain"), "pearl": bool(m.get("pearl"))})
+                             "registrable_domain": m.get("registrable_domain"), "pearl": bool(m.get("pearl")),
+                             # PM 16:03 / ops 11-15: approved and provisional members told apart
+                             **_member_standing(m, slot, standing)})
     resource_ids = sorted({r["resource_id"] for r in rows if isinstance(r["resource_id"], int)})
     return {"schema": "agentcon-necklace-members-v1", "generated_at": _iso(time.time() if now is None else now),
             "resource_ids": resource_ids, "members": rows}
+
+
+def _member_standing(m: dict, slot: dict, block: dict | None) -> dict:
+    from . import members as standing_rules
+    if block is None:
+        return {}
+    state = None
+    if m.get("kind") == "agentcon":
+        state = (block.get("own") or {}).get(f"{m.get('agent_id')}|{slot.get('contract')}")
+    member = dict(m, state="active", substitute_state=state) if state and m.get("state") == "planned" else \
+        dict(m, substitute_state=state)
+    return {"substitute_state": state, "standing": standing_rules.standing(member, slot.get("contract"), block)}
 
 
 def write_atomic(path: Path, payload: dict) -> int:
@@ -494,7 +540,8 @@ def run_once(root: Path = DEFAULT_ROOT, definitions_dir: Path = model.DEFINITION
                        judge_state=judge_state)
     write_atomic(root / "judge_state.json", judge_state)
     size = write_atomic(root / "necklaces.json", payload)
-    member_list = members(definitions)
+    from . import members as standing_rules
+    member_list = members(definitions, standing=standing_rules.load())
     write_atomic(root / "members.json", member_list)
     return {"written": str(root / "necklaces.json"), "bytes": size, "member_resources": len(member_list["resource_ids"]),
             "entries": {e["slug"]: e["status"] for e in payload["necklaces"]}}

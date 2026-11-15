@@ -248,7 +248,7 @@ def test_pearls_are_counted_from_the_verify_snapshot(tmp_path):
     entry = judge.snapshot([defn], {"topic-brief": approval(defn)}, tmp_path, NOW, watch_state={}, judge_state={},
                            verified=verified)["necklaces"][0]
     assert [p["pearl"] for p in entry["pearls"]] == [True, False] and entry["pearl_count"] == 1
-    assert (entry["status"], entry["held_reason"]) == ("held", "pearls_unverified")
+    assert (entry["status"], entry["held_reason"]) == ("held", "members_unqualified")     # PM 16:03: 1 counted member
     both = verified | {(3, "y.v1")}
     entry = judge.snapshot([defn], {"topic-brief": approval(defn)}, tmp_path, NOW, watch_state={}, judge_state={},
                            verified=both)["necklaces"][0]
@@ -265,7 +265,8 @@ def test_the_surface_offers_and_says_verified_pearl_only_from_the_judged_count(t
                           judge_state={}, verified=BOTH)
     entry = snap["necklaces"][0]
     assert ns.offered(entry) is True
-    one = dict(entry, pearls=[dict(entry["pearls"][0]), dict(entry["pearls"][1], pearl=False)], status="live")
+    one = dict(entry, pearls=[dict(entry["pearls"][0]), dict(entry["pearls"][1], pearl=False, standing=None)],
+               status="live")
     assert ns.offered(one) is False
     text, item = ns.details("topic-brief", snapshot=dict(snap, necklaces=[one]))
     assert "verified pearl 1" in text and "agent 3" in text
@@ -362,3 +363,23 @@ def test_the_snapshot_says_how_far_a_run_can_fall_back():
     entry = judge.snapshot([defn], {defn["slug"]: approval(defn)}, Path("/nonexistent"), NOW,
                            watch_state={"updated": judge._iso(NOW)}, judge_state={}, verified=BOTH)["necklaces"][0]
     assert "fallback" in entry and entry["fallback"]["depth"] in ("agentvalcon", "external")
+
+
+def test_a_provisional_member_counts_toward_publishing(tmp_path):
+    """PM 16:03 (user instruction d4670360): two counted members (verified pearl or provisional) are the condition,
+    not two verified pearls; the snapshot says each member's standing."""
+    defn = live_defn()
+    summary(tmp_path, "topic-brief")
+    verified = {(1, "x.v1")}
+    block = {"external": {"1|x.v1": "verified_pearl", "3|y.v1": "provisional"}, "own": {}}
+    entry = judge.snapshot([defn], {"topic-brief": approval(defn)}, tmp_path, NOW, watch_state={"standing": block},
+                           judge_state={}, verified=verified)["necklaces"][0]
+    assert [p["standing"] for p in entry["pearls"]] == ["verified_pearl", "provisional"]
+    assert entry["pearl_count"] == 1 and entry["member_count"] == 2 and entry["status"] == "live"
+    entry = judge.snapshot([defn], {"topic-brief": approval(defn)}, tmp_path, NOW,
+                           watch_state={"standing": dict(block, external={"1|x.v1": "verified_pearl"})},
+                           judge_state={}, verified=verified)["necklaces"][0]
+    assert (entry["status"], entry["held_reason"]) == ("held", "members_unqualified")
+    entry = judge.snapshot([defn], {"topic-brief": approval(defn)}, tmp_path, NOW, watch_state={"standing": block},
+                           judge_state={}, verified=set())["necklaces"][0]
+    assert (entry["status"], entry["held_reason"]) == ("held", "pearls_unverified")       # nothing judged at all

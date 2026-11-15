@@ -83,7 +83,9 @@ def test_every_external_member_is_probed_with_the_gate_label():
     assert {qa for _, qa, *_ in relay.seen} == {"necklace_gate"}
     calls = {rid: args for rid, _, method, args in relay.seen if method == "tools/call"}
     assert calls == {241601: {"query": "Apple Inc."}, 58997: {"ticker": "AAPL"}, 52559: {"domain": "apple.com"}}
-    assert out["pearls"]["in_every_run"] == ["background", "filings"] and out["ok"] is True
+    # PM 16:03: an approved own substitute counts as a provisional member, so registry counts too
+    assert out["pearls"]["in_every_run"] == ["registry", "background", "filings"] and out["ok"] is True
+    assert out["pearls"]["seated_pearl_slots"] == ["background", "filings", "domain"]
 
 
 def test_a_relay_denied_pearl_loses_its_seat_with_the_reason():
@@ -93,8 +95,8 @@ def test_a_relay_denied_pearl_loses_its_seat_with_the_reason():
     assert (member["relay"], member["stage"], member["error_code"], member["reference"], member["seat_eligible"]) == (
         "denied", "tools/call", "POLICY_DENIED", "ref-58997", False)
     assert filings["usable"] is False and filings["seated_lead"] is None
-    assert out["pearls"]["in_every_run"] == ["background"] and out["pearls"]["met_in_every_run"] is False
-    assert out["pearls"]["met_when_optional_inputs_given"] is True          # background + domain
+    assert out["pearls"]["in_every_run"] == ["registry", "background"] and out["pearls"]["met_in_every_run"] is True
+    assert out["pearls"]["met_when_optional_inputs_given"] is True
     assert "a required slot has no member that can run" in out["problems"] and out["ok"] is False
 
 
@@ -102,7 +104,8 @@ def test_our_substitutes_hold_their_seat_without_the_relay():
     out, _ = run(set())
     registry = next(s for s in out["slots"] if s["slot"] == "registry")
     assert registry["members"][0] == {"rank": 1, "kind": "agentcon", "tool": "find_sec_company", "id": "sec-edgar",
-                                      "terms": "allowed", "substitute_approved": True, "seat_eligible": True}
+                                      "terms": "allowed", "substitute_approved": True, "seat_eligible": True,
+                                      "standing": "provisional", "substitute_state": "approved"}
 
 
 def test_admitted_rows_carry_empty_reason_fields_and_a_full_edge_is_not_a_denial(monkeypatch):

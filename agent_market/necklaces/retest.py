@@ -925,6 +925,8 @@ def run_daily(defn: dict, *, root: Path = DEFAULT_ROOT, split: str, singles: boo
     # the same runtime chain as the public path: watch demotions and exclusions, ops-approved substitutes
     watch_state = load_json(Path(root) / "watch" / "state.json", {})
     watch_state["substitutes"] = load_substitutes(Path(root) / "approvals.json")
+    from . import members as standing_rules          # PM 16:03: provisional members and their standing
+    watch_state["standing"] = standing_rules.load()
     if drill:
         watch_state = drill_state(defn, watch_state)
     from .gold import GoldSetInvalid

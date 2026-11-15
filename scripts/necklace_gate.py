@@ -155,14 +155,21 @@ FINGERPRINTS = Path("gateway-data/fingerprints/pearls.json")
 
 
 def check(defn: dict, client, base: str = BASE, verified=None, substitutes=None, probe_fn=probe, prints=None,
-          now=None) -> dict:
+          now=None, standing=None) -> dict:
     from agent_market.necklaces.watch import PASSING_PRINTS, fingerprint_status, load_json
+    given_verified = verified
     verified = judge.verified_pearls() if verified is None else verified
     prints = load_json(FINGERPRINTS, {}) if prints is None else prints
     state = {"substitutes": judge.load_substitutes(Path("gateway-data/necklaces/approvals.json"))
              if substitutes is None else substitutes}
+    from agent_market.necklaces import members as standing_rules     # PM 16:03: pearls and provisional members
+    if standing is None and (given_verified is not None or substitutes is not None):
+        # the caller gave pearls or substitutes (tests, a dry run): standing from those only, no files read
+        standing = {"external": {f"{rid}|{role}": "verified_pearl" for rid, role in (verified or set())},
+                    "own": {f"{a}|{r}": "approved" for a, r in state["substitutes"]}}
+    state["standing"] = standing_rules.load(now=now) if standing is None else standing
     from agent_market.necklaces.runner import slot_reference_problems
-    slots, seated_pearl_slots, problems = [], [], model.validate(defn) + slot_reference_problems(defn)
+    slots, seated_pearl_slots, counted_slots, problems = [], [], [], model.validate(defn) + slot_reference_problems(defn)
     if verified is None:     # PM 13:0x: no snapshot, older than 72 hours or another evaluator version
         problems.append("verified pearls not judged (verify snapshot missing, older than 72 hours or graded with "
                         "another evaluator version)")
@@ -172,7 +179,8 @@ def check(defn: dict, client, base: str = BASE, verified=None, substitutes=None,
         rows = []
         for rank, member in enumerate(chain, start=1):
             row = {"rank": rank, "kind": member["kind"], "tool": member["tool"],
-                   "id": member.get("resource_id") or member.get("agent_id"), "terms": model.terms_status(member)}
+                   "id": member.get("resource_id") or member.get("agent_id"), "terms": model.terms_status(member),
+                   "standing": member.get("standing"), "substitute_state": member.get("substitute_state")}
             if row["terms"] == "prohibits":     # never called (runtime_chain drops it); kept here as a second lock
                 row.update(relay="not_checked", why="terms_prohibits", **{SEATED: False})
                 problems.append(f"slot {slot['slot']}: member {row['id']} terms prohibit our use")
@@ -207,14 +215,19 @@ def check(defn: dict, client, base: str = BASE, verified=None, substitutes=None,
             problems.append(f"slot {slot['slot']}: not ready, no member can run" + (f" ({'; '.join(why)})" if why else ""))
         if lead and lead.get("verified_pearl"):
             seated_pearl_slots.append(slot["slot"])
+        best = lead or next((r for r in seated if r["kind"] == "agentcon"), None)
+        if best and best.get("standing") in standing_rules.COUNTED:
+            counted_slots.append(slot["slot"])
         slots.append({"slot": slot["slot"], "contract": slot["contract"], "required": slot.get("required", True),
                       "depends_on": slot.get("depends_on"), "requires_input": slot.get("requires_input"),
                       "members": rows, "seated_lead": lead["id"] if lead else None,
                       "seated_lead_is_pearl": bool(lead and lead.get("verified_pearl")),
+                      "seated_standing": best.get("standing") if best else None,
                       "terms_prohibited": prohibited, "usable": bool(seated)})
     need = defn.get("min_pearls_answered") or 2
-    always = [s["slot"] for s in slots if s["slot"] in seated_pearl_slots and not s.get("requires_input")]
-    warnings = shared_domain_warnings(defn, state)
+    # PM 16:03 (user instruction d4670360): counted = a verified pearl or a provisional member answers the step
+    always = [s["slot"] for s in slots if s["slot"] in counted_slots and not s.get("requires_input")]
+    warnings = model.warnings(defn) + shared_domain_warnings(defn, state)
     for slot in defn["slots"]:            # PM 14:25: an own fallback that covers part of the inputs is said
         for m in runtime_chain(slot, defn["slug"], state):
             if m.get("kind") == "agentcon" and m.get("coverage"):
@@ -228,9 +241,10 @@ def check(defn: dict, client, base: str = BASE, verified=None, substitutes=None,
         problems.append("a required slot has no member that can run")
     return {"slug": defn["slug"], "version": defn["version"], "definition_digest": model.digest(defn),
             "checked_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "base": base, "slots": slots,
-            "pearls": {"seated_pearl_slots": seated_pearl_slots, "in_every_run": always, "needed_per_run": need,
+            "pearls": {"seated_pearl_slots": seated_pearl_slots, "counted_slots": counted_slots,
+                       "in_every_run": always, "needed_per_run": need,
                        "met_in_every_run": len(always) >= need,
-                       "met_when_optional_inputs_given": len(seated_pearl_slots) >= need},
+                       "met_when_optional_inputs_given": len(counted_slots) >= need},
             "terms_unknown": sum(1 for s in slots for m in s["members"] if m.get("terms") == "unknown"),
             "problems": problems, "warnings": warnings, "ok": not problems and len(always) >= need}
 
