@@ -184,6 +184,35 @@ PROVISIONAL_NOTE = ('Under verification: the agent passed our tests for this ste
                     'check on a different day. When a verified pearl is available for the step, it takes the place.')
 
 
+# PM 11-16 06:5x: a required step with no usable outside member runs on our own agent alone; the page and the agent
+# texts say so per step, from the judge's snapshot (never a hard-coded list), and the note goes away by itself once an
+# outside member that passes our tests is attached.
+EXTERNAL_PENDING = 'Runs on our own agent; external alternative being added.'
+
+
+def usable_external(pearl):
+    """Outside members this step can fall to: the judge's external_usable when given, else the lead and alternates of
+    kind external whose standing counts (or, in a snapshot without standing, every external one)."""
+    if not isinstance(pearl, dict):
+        return 0
+    given = pearl.get('external_usable')
+    if type(given) is int and given >= 0:
+        return given
+    members = [pearl] + [a for a in pearl.get('alternates') or [] if isinstance(a, dict)]
+    external = [m for m in members if m.get('kind', 'external' if m is pearl else None) == 'external']
+    if any('standing' in m for m in members):
+        return sum(1 for m in external if m.get('standing') in MEMBER_LABELS)
+    return len(external)
+
+
+def external_pending(pearl):
+    return isinstance(pearl, dict) and pearl.get('required', True) is not False and usable_external(pearl) == 0
+
+
+def pending_roles(entry):
+    return [str(p.get('role') or 'step') for p in entry.get('pearls') or [] if external_pending(p)]
+
+
 def member_status(pearl):
     """'verified_pearl', 'provisional' or None from the judge's snapshot (standing; a snapshot without it: the pearl
     flag, which means a verified pearl only). Any other value counts as None and never reads as a pearl."""
@@ -227,6 +256,15 @@ def member_rules_text(snapshot=None):
                                   'its page says which kind leads each step.')
 
 
+def pending_sentence(entry):
+    """'' or one sentence naming the steps that run on our own agent alone (PM 11-16 06:5x)."""
+    roles = pending_roles(entry)
+    if not roles:
+        return ''
+    return ('The ' + ', '.join(roles) + (' steps run' if len(roles) > 1 else ' step runs')
+            + ' on our own agent; an external alternative is being added.')
+
+
 def members_phrase(entry):
     """'2 verified pearls' or '1 verified pearl and 1 agent under verification' (agents read it in tool descriptions)."""
     standings = [member_status(p) for p in entry.get('pearls') or [] if isinstance(p, dict)]
@@ -248,6 +286,7 @@ def public_item(entry, base='https://agentconcierge.biz', now=None):
                         'verified_pearl': member_status(p) == 'verified_pearl', 'standing': member_status(p),
                         # an AgentValCon lead (kind agentcon) has no catalog resource, so no catalog card
                         'card': base + '/agent/' + str(p['resource_id']) if p.get('resource_id') is not None else None,
+                        'external_usable': usable_external(p), 'external_pending': external_pending(p),
                         'alternates': {'external': sum(1 for a in p.get('alternates') or [] if a.get('kind') == 'external'),
                                        'agentcon': sum(1 for a in p.get('alternates') or [] if a.get('kind') == 'agentcon')}}
                        for p in entry.get('pearls') or [] if isinstance(p, dict)],
@@ -763,7 +802,9 @@ def page(slug, base='https://agentconcierge.biz', snapshot=None, now=None, run=N
                                 if p.get('card') else '<li>' + esc(p.get('role') or 'step') + ' · AgentValCon agent')
                                + (' · ' + esc(p['tool']) if p.get('tool') else '')
                                + ' · <span class="necklace-member necklace-member-' + esc(p['standing'] or 'none') + '">'
-                               + esc(MEMBER_LABELS.get(p['standing'], NOT_COUNTED)) + '</span></li>' for p in item['pearls'])
+                               + esc(MEMBER_LABELS.get(p['standing'], NOT_COUNTED)) + '</span>'
+                               + (' · <span class="necklace-external-pending">' + esc(EXTERNAL_PENDING) + '</span>'
+                                  if p.get('external_pending') else '') + '</li>' for p in item['pearls'])
                      + '</ul>' + ('<p class="muted necklace-provisional-note">' + esc(PROVISIONAL_NOTE) + '</p>'
                                   if any(p['standing'] == 'provisional' for p in item['pearls']) else '')
                      + '</section>')
@@ -811,7 +852,8 @@ def llms_section(base='https://agentconcierge.biz', snapshot=None, now=None):
                      + (' Better than the best single agent by ' + str(round(q['delta_pp'], 1)) + ' points.' if isinstance(q.get('delta_pp'), (int, float)) else '')
                      + ' MCP tool `' + tool_name(e['slug']) + '`, A2A skill `' + skill_id(e['slug']) + '`, page `'
                      + base + '/necklaces/' + e['slug'] + '`' + _input_note(e) + ('. Free to run for now' if free_now(e) else '')
-                     + ('. ' + comparison_line(e) if comparison_line(e) else '') + '\n')
+                     + ('. ' + comparison_line(e) if comparison_line(e) else '')
+                     + (' ' + pending_sentence(e) if pending_sentence(e) else '') + '\n')
     lines.append('- Changes (live, paused, stopped): `' + base + '/api/feed/necklaces.json`\n')
     return ''.join(lines)
 
@@ -858,6 +900,7 @@ def tools(snapshot=None, now=None):
         out.append({'name': tool_name(e['slug']), 'title': e.get('name') or e['slug'],
                     'description': ('Necklace (a workflow of tested agents: ' + members_phrase(e) + '): ' + (e.get('summary') or '') + ' ' + WHY_SHORT + evidence
                                     + (' ' + comparison_line(e) if comparison_line(e) else '')
+                                    + (' ' + pending_sentence(e) if pending_sentence(e) else '')
                                     + (' Scope: ' + scope_notice(e) if scope_notice(e) else '')
                                     + (' Example arguments: ' + json.dumps(example_input(e), separators=(',', ':')) + '.'
                                        if example_input(e) else '')
@@ -896,7 +939,8 @@ def details(slug, base='https://agentconcierge.biz', snapshot=None, now=None):
         lines.append('- ' + (p.get('role') or 'step') + ': ' + ('verified pearl ' if p.get('verified_pearl') else 'agent ')
                      + str(p['agent_id']) + ('' if p.get('verified_pearl') else ' (under verification)' if p.get('standing') else ' (not passing our member tests now)')
                      + ' (' + (p['card'] or 'AgentValCon agent') + '), alternates '
-                     + str(p['alternates']['external']) + ' external + ' + str(p['alternates']['agentcon']) + ' AgentValCon')
+                     + str(p['alternates']['external']) + ' external + ' + str(p['alternates']['agentcon']) + ' AgentValCon'
+                     + ('; ' + EXTERNAL_PENDING[0].lower() + EXTERNAL_PENDING[1:-1] if p.get('external_pending') else ''))
     return '\n'.join(lines), item
 
 
@@ -954,6 +998,7 @@ def skills(base='https://agentconcierge.biz', snapshot=None, now=None):
         out.append({'id': skill_id(e['slug']), 'name': e.get('name') or e['slug'],
                     'description': 'Necklace (a workflow of tested agents: ' + members_phrase(e) + '): ' + (e.get('summary') or '') + ' ' + WHY_SHORT
                                    + (' ' + comparison_line(e) if comparison_line(e) else '')
+                                   + (' ' + pending_sentence(e) if pending_sentence(e) else '')
                                    + (' ' + FREE_NOW.replace('on this page', 'on its page') if free_now(e) else '') + ' Send: ' + example
                                    + ' ' + NOTICE_SENTENCE + ' Details: ' + base + '/necklaces/' + e['slug'],
                     'tags': ['necklace', 'workflow'], 'examples': [example]})
