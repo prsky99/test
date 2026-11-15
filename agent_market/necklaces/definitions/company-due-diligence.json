@@ -134,6 +134,24 @@
           "input_map": {
             "title": "{{slot.registry.search_name}}"
           }
+        },
+        {
+          "kind": "agentcon",
+          "agent_id": "sec-company-profile",
+          "resource_id": null,
+          "tool": "get_sec_company_profile",
+          "registrable_domain": "agentconcierge.biz",
+          "upstream": [
+            "sec-edgar"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "planned",
+          "input_map": {
+            "title": "CIK {{slot.registry.cik}}"
+          }
         }
       ],
       "depends_on": [
@@ -232,7 +250,7 @@
       ]
     }
   ],
-  "notes": "v1, PM 11-15 decision: US SEC filers only (scope country US; other inputs get the scope notice and no call). Leads are verified pearls 241601 (encyclopedia.summary), 58997 (sec.filings) and 52559 (domain.lookup) by the 11-15 verify snapshot. registry runs on the ops-approved substitute sec-edgar; gleif-lei waits for v2 (non-US). Every external step runs after the identity step, so an unidentified company costs no pearl call. 11-15 (agent team terms check, reports/necklace-terms-2026-11-15): 58997's terms prohibit our use (free and keyless use is not for a business), so it never runs and the required filings slot is empty until the agent team's own EDGAR agent (sec.gov directly) joins it; until then this necklace stays a candidate and does not go to the gate (the gate check reports the slot as not ready). 11-15 13:5x: the agent team's sec-filings (SEC EDGAR directly, f88e98f3) fills the filings slot behind the prohibited 58997; it is planned until ops approves it as a substitute, and a company without an SEC registration is a normal answer (merged as no_us_sec_filings). 11-16 v2 (PM, after gate round 1 failed: 20/30 with the filings grader fixed): the background step searches the company's name without legal forms (slot.registry.search_name) and keeps only the encyclopedia entries about the registry's company (runner.norm_encyclopedia: ticker, CIK, or a title that is the company's name); an answer about other companies or an empty one is discarded and the next member is asked; when no member has an article about the company the step answers 'No encyclopedia article found' (not_found), which the answer set's wiki_article field makes the right answer for such companies. The step stays required.",
+  "notes": "v1, PM 11-15 decision: US SEC filers only (scope country US; other inputs get the scope notice and no call). Leads are verified pearls 241601 (encyclopedia.summary), 58997 (sec.filings) and 52559 (domain.lookup) by the 11-15 verify snapshot. registry runs on the ops-approved substitute sec-edgar; gleif-lei waits for v2 (non-US). Every external step runs after the identity step, so an unidentified company costs no pearl call. 11-15 (agent team terms check, reports/necklace-terms-2026-11-15): 58997's terms prohibit our use (free and keyless use is not for a business), so it never runs and the required filings slot is empty until the agent team's own EDGAR agent (sec.gov directly) joins it; until then this necklace stays a candidate and does not go to the gate (the gate check reports the slot as not ready). 11-15 13:5x: the agent team's sec-filings (SEC EDGAR directly, f88e98f3) fills the filings slot behind the prohibited 58997; it is planned until ops approves it as a substitute, and a company without an SEC registration is a normal answer (merged as no_us_sec_filings). 11-16 v2 (PM, after gate round 1 failed: 20/30 with the filings grader fixed): the background step searches the company's name without legal forms (slot.registry.search_name) and keeps only the encyclopedia entries about the registry's company (runner.norm_encyclopedia: ticker, CIK, or a title that is the company's name); an answer about other companies or an empty one is discarded and the next member is asked; when no member has an article about the company the step answers 'No encyclopedia article found' (not_found), which the answer set's wiki_article field makes the right answer for such companies. The step stays required. The last background member is the agent team's sec-company-profile (0ff22150): a profile from SEC EDGAR submissions that says it is from SEC filings, not an encyclopedia article (PM 11-16 condition); planned until ops approves it as a substitute.",
   "scope": {
     "country": [
       "US"
