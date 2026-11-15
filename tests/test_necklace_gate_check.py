@@ -241,7 +241,8 @@ def test_terms_changes_leave_their_history_and_the_gate_counts_unknown(tmp_path)
     import json as _json
     table = _json.loads(model.TERMS_TABLE.read_text())
     for key, entry in table["members"].items():            # every verdict has its change record
-        assert any(c["member"] == key and c["to"] == entry["status"] for c in table["changes"]), key
+        # set-limit records (declared_limit_from/to, ops 11-15) carry no status, so only status changes are matched
+        assert any(c["member"] == key and c.get("to") == entry["status"] for c in table["changes"]), key
     copy = tmp_path / "terms.json"
     copy.write_text(_json.dumps(table))
     change = necklace_gate.set_terms("999999", "allowed", "https://tidydata.example/terms", "section API use",
