@@ -51,3 +51,25 @@ def test_a_topic_with_too_few_papers_is_left_out(tmp_path):
     get, _ = fake(papers=2)
     out = r3.step(tmp_path, get)
     assert out["written"]["cases"] == 0 and len(out["dropped"]) == len(r3.TOPICS) - 1
+
+
+def test_r4_is_a_fresh_unfiltered_sample_with_its_own_progress(tmp_path):
+    """PM 11-16 06:5x: holdout-r4 shares no topic with r1-r3 and is not filtered by a source's coverage."""
+    from agent_market.necklaces import gold, gold_topics_r4 as r4
+    old = {t for t, _, _ in gold.TOPICS} | {t for t, _, _ in r3.TOPICS}
+    assert len(r4.TOPICS) >= 35 and not old & {t for t, _, _ in r4.TOPICS}
+    folder = setup(tmp_path)
+    (folder / "holdout-r3.jsonl").write_text(json.dumps({"case_id": "topic:" + r4.TOPICS[0][0]}) + "\n")
+    calls = []
+
+    def get(url):
+        calls.append(url)
+        if "wikipedia.org" in url:
+            return 200, {"query": {"pages": [{"title": t, "description": "d", "fullurl": "https://en.wikipedia.org/wiki/x"}
+                                             for t, _, _ in r4.TOPICS]}}
+        return 200, {"results": [{"doi": f"10.1/{i}", "title": f"P {i}"} for i in range(3)]}
+    out = r4.step(tmp_path, get=get)
+    assert out["written"]["cases"] == len(r4.TOPICS) - 1                  # the topic r3 already holds is left out
+    entry = json.loads((folder / "manifest.json").read_text())["files"]["holdout-r4"]
+    assert "not filtered" in entry["selection"] and entry["truth_sources"]
+    assert (folder / "r4-progress.json").exists() and not (folder / "r3-progress.json").exists()

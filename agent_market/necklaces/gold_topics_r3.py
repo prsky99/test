@@ -43,10 +43,10 @@ TOPICS = [(t, k or t.lower(), "stem") for t, k in [
     ("Urban heat island", None), ("Vaccine hesitancy", None), ("Food waste", None), ("Digital literacy", None)]]
 
 
-def used_topics(root: Path) -> set[str]:
+def used_topics(root: Path, split: str = SPLIT) -> set[str]:
     out = set()
     for path in (Path(root) / "gold" / SLUG).glob("*.jsonl"):
-        if path.stem == SPLIT:
+        if path.stem == split:
             continue
         for line in path.read_text(encoding="utf-8").splitlines():
             if line.strip():
@@ -54,12 +54,15 @@ def used_topics(root: Path) -> set[str]:
     return out
 
 
-def step(root: Path = DEFAULT_ROOT, get=fetch_json) -> dict:
+def step(root: Path = DEFAULT_ROOT, get=fetch_json, split: str = SPLIT, topics=None, progress_name: str = "r3-progress.json",
+         purpose: str = "arxiv-search re-verdict and the necklace gate (11-15)") -> dict:
+    """One resumable round for SPLIT (holdout-r3 by default; holdout-r4 from gold_topics_r4 with its own topics)."""
+    topics = TOPICS if topics is None else topics
     folder = Path(root) / "gold" / SLUG
-    progress_path = folder / "r3-progress.json"
+    progress_path = folder / progress_name
     progress = json.loads(progress_path.read_text(encoding="utf-8")) if progress_path.exists() else {}
-    seen = used_topics(root)
-    todo = [(t, p, s) for t, p, s in TOPICS if "topic:" + t not in seen]
+    seen = used_topics(root, split)
+    todo = [(t, p, s) for t, p, s in topics if "topic:" + t not in seen]
     stopped = None
     try:
         if "wiki" not in progress:
@@ -99,11 +102,12 @@ def step(root: Path = DEFAULT_ROOT, get=fetch_json) -> dict:
     out = {"done": sum(1 for r in rows.values() if "papers" in r), "left": len(left),
            "dropped": {t: r["dropped"] for t, r in rows.items() if "dropped" in r}, "stopped": stopped}
     if not left and "wiki" in progress:
-        out["written"] = write_split(root, progress, todo)
+        out["written"] = write_split(root, progress, todo, split, purpose)
     return out
 
 
-def write_split(root: Path, progress: dict, todo) -> dict:
+def write_split(root: Path, progress: dict, todo, split: str = SPLIT,
+                purpose: str = "arxiv-search re-verdict and the necklace gate (11-15)") -> dict:
     cases = []
     for title, _, _ in todo:
         row = (progress.get("topics") or {}).get(title) or {}
@@ -119,15 +123,17 @@ def write_split(root: Path, progress: dict, todo) -> dict:
                                          "fetched_at": row["at"]}]})
     folder = Path(root) / "gold" / SLUG
     text = "".join(json.dumps(c, ensure_ascii=False, sort_keys=True) + "\n" for c in cases)
-    (folder / f"{SPLIT}.jsonl").write_text(text, encoding="utf-8")
+    (folder / f"{split}.jsonl").write_text(text, encoding="utf-8")
     manifest_path = folder / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     strata: dict[str, int] = {}
     for c in cases:
         strata[c["stratum"]] = strata.get(c["stratum"], 0) + 1
-    manifest.setdefault("files", {})[SPLIT] = {"cases": len(cases), "strata": strata,
-                                               "sha256": hashlib.sha256(text.encode()).hexdigest(),
-                                               "for": "arxiv-search re-verdict and the necklace gate (11-15)"}
+    manifest.setdefault("files", {})[split] = {"cases": len(cases), "strata": strata,
+                                               "sha256": hashlib.sha256(text.encode()).hexdigest(), "for": purpose,
+                                               "selection": "not filtered by any source's coverage (PM 11-16 06:5x)",
+                                               "truth_sources": ["Wikipedia action API (title, description, page)",
+                                                                 "OpenAlex works, title search, most cited"]}
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return {"cases": len(cases), "strata": strata}
 
