@@ -727,7 +727,7 @@ def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT,
     started = clock()
     day = time.strftime("%Y%m%d", time.localtime(now()))
     lines, details = [], []
-    done = passed = excluded = reused = 0
+    done = passed = excluded = reused = same_passed = 0
     contrast = CONTRAST.get(defn["slug"])
     exclude = TASK_EXCLUDE.get(defn["slug"]) or (lambda c: None)
     for case in cases:
@@ -765,8 +765,12 @@ def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT,
             passed += bool(verdict["ok"])
             continue
         from .value import measure                 # plan 3.1: the two paths on this same case (R23 pairing)
+        twin = same_source(defn, case, result)
+        if twin and verdict["ok"]:
+            same_passed += 1
         lines.append({"type": "case", "slug": defn["slug"], "version": defn["version"], "case_id": case["case_id"],
                       "set": split, "at": at, "ok": verdict["ok"], "completed": result["completed"], "shared": shared,
+                      **({"same_source": twin} if twin else {}),
                       "value": measure(defn, case["input"], result, verdict["ok"]),
                       "completed_external_only": result["completed_external_only"],
                       "latency_ms": result["latency_ms"], "slots": result["slots"], "graded": verdict["slots"]})
@@ -811,7 +815,9 @@ def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT,
     return {"slug": defn["slug"], "split": split, "cases": done, "passed": passed, "excluded": excluded,
             "of": len(cases),
             "stopped_by_budget": done + excluded < len(cases), "seconds": round(clock() - started, 1),
-            "single_answers_reused": reused}
+            "single_answers_reused": reused,
+            # PM 11-16: cases that passed with an answer from the answer key's own source, and the pass count without them
+            "same_source_passed": same_passed, "passed_strict": passed - same_passed}
 
 
 # PM 11:4x (11-15) decision 1: a live necklace retests 5 held-out cases a day and walks one held-out set of 30 in
@@ -825,6 +831,30 @@ def sample_window(now: float) -> tuple[str, int]:
     day = int(now // 86400)
     cycle, step = divmod(day, SAMPLE_DAYS)
     return ("holdout-r1" if cycle % 2 == 0 else "holdout-r2"), step * SAMPLE_PER_DAY
+
+
+# PM 11-16 07:0x: a step whose answer and answer key come from one source grades itself. In these steps a case that
+# passed with such an answer is marked same_source, and the gate must also pass with those cases counted as failures.
+SAME_SOURCE_STEPS = {"topic-evidence-brief": ("papers",)}
+SOURCE_WORDS = ("openalex", "crossref", "arxiv")
+
+
+def same_source(defn: dict, case: dict, result: dict) -> list[str]:
+    """Steps of SAME_SOURCE_STEPS answered by a member whose upstream is the source of this case's answer key."""
+    keys = {w for src in case.get("truth_sources") or [] for w in SOURCE_WORDS if w in str(src.get("name", "")).lower()}
+    out = []
+    for slot in defn["slots"]:
+        if slot["slot"] not in SAME_SOURCE_STEPS.get(defn["slug"], ()) or not keys:
+            continue
+        for a in (result.get("attempts") or {}).get(slot["slot"], []):
+            if not a.get("ok"):
+                continue
+            member = next((m for m in slot["chain"] if (m.get("resource_id") is not None and m.get("resource_id") == a.get("resource_id"))
+                           or (m.get("resource_id") is None and m.get("tool") == a.get("tool"))), None)
+            if member and keys & {str(u).lower() for u in member.get("upstream") or []}:
+                out.append(slot["slot"])
+                break
+    return out
 
 
 class CaseAnswers:

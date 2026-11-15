@@ -50,7 +50,8 @@ def test_run_set_writes_daily_lines_and_single_baselines(tmp_path):
                          clock=lambda: next(clock), now=lambda: 1_800_000_000)
     # c2 is a clean version, but 367249 lists an advisory for it: a wrong answer since R25 (passed 1 of 2)
     assert out == {"slug": "package-risk-audit", "split": "tuning", "cases": 2, "passed": 1, "excluded": 0, "of": 2,
-                   "stopped_by_budget": False, "seconds": out["seconds"], "single_answers_reused": out["single_answers_reused"]}
+                   "stopped_by_budget": False, "seconds": out["seconds"], "single_answers_reused": out["single_answers_reused"],
+                   "same_source_passed": 0, "passed_strict": 1}
     lines = [json.loads(l) for l in (tmp_path / "retest" / "20270115.jsonl").read_text().splitlines()]
     kinds = {l["type"] for l in lines}
     assert kinds == {"case", "member", "single"}
@@ -522,3 +523,22 @@ def test_the_relay_gate_run_uses_the_watch_state_and_any_manifest_split(tmp_path
     state = retest.gate_watch_state(tmp_path)
     assert state["standing"] == {"external": {}, "own": {}}          # members.load, stubbed by the fixture
     assert state["substitutes"] == []                                  # only approved ones; provisional comes via standing
+
+
+def test_a_papers_answer_from_the_answer_keys_own_source_is_marked_and_not_counted_strictly():
+    """PM 11-16 07:0x: in topic-evidence-brief's papers step, an answer by an OpenAlex-based member graded against an
+    OpenAlex answer key is same_source; the strict pass count leaves such cases out."""
+    defn = {"slug": "topic-evidence-brief", "slots": [
+        {"slot": "papers", "chain": [{"kind": "external", "resource_id": 34807, "tool": "search_papers", "upstream": ["unknown"]},
+                                     {"kind": "external", "resource_id": 47151, "tool": "openalex_search_entities",
+                                      "upstream": ["openalex"]}]},
+        {"slot": "background", "chain": [{"kind": "external", "resource_id": 241601, "tool": "w", "upstream": ["openalex"]}]}]}
+    case = {"truth_sources": [{"name": "Wikipedia (action API, description)"}, {"name": "OpenAlex (title search, most cited)"}]}
+    lead = {"attempts": {"papers": [{"resource_id": 34807, "tool": "search_papers", "ok": True}],
+                         "background": [{"resource_id": 241601, "tool": "w", "ok": True}]}}
+    assert retest.same_source(defn, case, lead) == []                     # background is not a same-source step
+    fell_back = {"attempts": {"papers": [{"resource_id": 34807, "tool": "search_papers", "ok": False},
+                                         {"resource_id": 47151, "tool": "openalex_search_entities", "ok": True}]}}
+    assert retest.same_source(defn, case, fell_back) == ["papers"]
+    crossref_key = {"truth_sources": [{"name": "Crossref (title search, most referenced)"}]}
+    assert retest.same_source(defn, crossref_key, fell_back) == []
