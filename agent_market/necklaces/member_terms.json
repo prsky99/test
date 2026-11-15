@@ -229,6 +229,60 @@
       "source": "https://aitwire.com/terms",
       "checked_at": "2026-11-16",
       "basis": "s13(a) licence only to Customer for its own business; s19(b) lists Service outputs as confidential; s11(f) no exploiting the Service except as expressly permitted - showing results to third parties is not granted"
+    },
+    "286623": {
+      "status": "allowed",
+      "source": "https://threatist.io/terms",
+      "checked_at": "2026-11-16",
+      "basis": "Section 3 Using the data: commercial use free with credit and link; section 4 forbids selling or licensing the data as such or publishing a copy of the database; section 5: no key, 1,000 a day per address"
+    },
+    "44420": {
+      "status": "allowed",
+      "source": "https://cybermaxtools.com/terms",
+      "checked_at": "2026-11-16",
+      "basis": "Ownership: free tools may be used for personal and commercial purposes; the data FAQ says the underlying data is public domain or openly licensed; no key or sign-up"
+    },
+    "267005": {
+      "status": "allowed",
+      "source": "https://wiscolabs.dev/terms.html",
+      "checked_at": "2026-11-16",
+      "basis": "Acceptable use: individual answers may be used in your own tools, products and agents; no bulk copying of the dataset to republish or resell; free in beta, no key"
+    },
+    "34792": {
+      "status": "silent",
+      "source": "https://tools.openkrill.app/terms",
+      "checked_at": "2026-11-16",
+      "basis": "Fair use and Payments: free within limits, no key or sign-up; no clause on commercial use or redistribution of outputs; data from third parties"
+    },
+    "272753": {
+      "status": "silent",
+      "source": "https://getfilings.ai/",
+      "checked_at": "2026-11-16",
+      "basis": "No terms page (/terms, /legal, /tos 404); read-only MCP door with no authentication or account; reads are free unless the agent asks for the x402 offer"
+    },
+    "56136": {
+      "status": "silent",
+      "source": "https://dephealth.dsh.sh/",
+      "checked_at": "2026-11-16",
+      "basis": "No terms page (/terms, /tos, /legal 404); the page says free, no key, no account; upstream sources keep their own terms"
+    },
+    "178541": {
+      "status": "silent",
+      "source": "https://augur-trade.com/",
+      "checked_at": "2026-11-16",
+      "basis": "Same provider as 178542 (augur-trade.com), recorded silent on 11-15"
+    },
+    "164610": {
+      "status": "prohibits",
+      "source": "https://sec-edgar-api.kidriahx.workers.dev/openapi.yaml",
+      "checked_at": "2026-11-16",
+      "basis": "No terms (/terms 404); the API spec declares a RapidAPI key and no free tier is stated (PM rule: unclear or paid means prohibits)"
+    },
+    "36142": {
+      "status": "prohibits",
+      "source": "https://api.agentfilings.com/",
+      "checked_at": "2026-11-16",
+      "basis": "No terms; data endpoints are paid per call over x402 (0.01-0.05 USDC) or a 19 USD monthly plan (PM rule: paid means prohibits)"
     }
   },
   "changes": [
@@ -593,6 +647,78 @@
       "source": "https://webknox.com/terms",
       "at": "2026-11-16",
       "by": "검색과 RAG via 워크플로우"
+    },
+    {
+      "member": "286623",
+      "from": "unknown",
+      "to": "allowed",
+      "source": "https://threatist.io/terms",
+      "at": "2026-11-16",
+      "by": "워크플로우"
+    },
+    {
+      "member": "44420",
+      "from": "unknown",
+      "to": "allowed",
+      "source": "https://cybermaxtools.com/terms",
+      "at": "2026-11-16",
+      "by": "워크플로우"
+    },
+    {
+      "member": "267005",
+      "from": "unknown",
+      "to": "allowed",
+      "source": "https://wiscolabs.dev/terms.html",
+      "at": "2026-11-16",
+      "by": "워크플로우"
+    },
+    {
+      "member": "34792",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://tools.openkrill.app/terms",
+      "at": "2026-11-16",
+      "by": "워크플로우"
+    },
+    {
+      "member": "272753",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://getfilings.ai/",
+      "at": "2026-11-16",
+      "by": "워크플로우"
+    },
+    {
+      "member": "56136",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://dephealth.dsh.sh/",
+      "at": "2026-11-16",
+      "by": "워크플로우"
+    },
+    {
+      "member": "178541",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://augur-trade.com/",
+      "at": "2026-11-16",
+      "by": "워크플로우"
+    },
+    {
+      "member": "164610",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://sec-edgar-api.kidriahx.workers.dev/openapi.yaml",
+      "at": "2026-11-16",
+      "by": "워크플로우"
+    },
+    {
+      "member": "36142",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://api.agentfilings.com/",
+      "at": "2026-11-16",
+      "by": "워크플로우"
     }
   ]
 }
