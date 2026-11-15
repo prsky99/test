@@ -39,6 +39,8 @@ SHARE = {
     'gate': DAILY_TOTAL,     # necklace launch gate rounds: whatever is left of the total
     'adhoc': 2,              # one-off checks by a team (reproduce a failure)
     'reference_checks': 10,  # answer-key references of the data-quality score (fx rate, versions, feeds; PM F15 11-14)
+    'provider_claims': 6,    # provider self-claim checks: one GET when a provider presses Verify, one per origin on
+                             # the 30-day recheck (docs/PROVIDER_SELF_CLAIM.md, agent team 11-15)
 }
 # PM 11-14 06:4x (decision 3): public-data institutions with stated rate limits that the agents' own per-host pacing
 # keeps (agent_market/fallback_agents/limits.py) take more substitute tests a day; the domain total stays DAILY_TOTAL.

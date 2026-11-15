@@ -135,3 +135,13 @@ def test_answer_key_references_count_in_the_ledger_and_stop_after_a_429(monkeypa
     for i in range(9):
         dq._fetch_json(f'https://registry.npmjs.org/p{i}/latest')
     assert dq._fetch_json('https://registry.npmjs.org/one-more/latest') is None   # share of 10 used
+
+
+def test_provider_self_claim_checks_have_six_a_domain_and_keep_the_total(tmp_path):
+    """Agent team 11-15 (docs/PROVIDER_SELF_CLAIM.md): Verify and the 30-day recheck use 'provider_claims'."""
+    url, now = 'https://provider.example/.well-known/agentvalcon.json', at(14)
+    assert pb.SHARE['provider_claims'] == 6 and pb.DAILY_TOTAL == 60
+    assert all(pb.reserve(url, 'provider_claims', now=now, directory=tmp_path)[0] for _ in range(6))
+    assert pb.reserve(url, 'provider_claims', now=now, directory=tmp_path) == (False, 'system_share')
+    assert pb.reserve(url, 'gate', n=54, now=now, directory=tmp_path) == (True, 'ok')        # 60 - 6
+    assert pb.reserve(url, 'gate', now=now, directory=tmp_path) == (False, 'domain_daily_total')
