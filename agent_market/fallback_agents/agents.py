@@ -824,6 +824,11 @@ class FallbackAgents:
                   f"festivals and events are not included): {lines}.")[:8000]
         out = {"answer": answer, "url": "https://github.com/vacanza/holidays",
                "source": f"holidays {version} (MIT): national public holidays only"}
+        if point and self.country_grid is not None and not point[2]:
+            header = self.country_grid.header
+            as_of = {**(as_of if isinstance(as_of, dict) else {"holidays": as_of}),
+                     "country grid built": header.get("built")}
+            cache = {**cache, "age_seconds": max(int(cache.get("age_seconds") or 0), self._grid_age(header))}
         return out, cache, False, as_of
 
     def _sec_filings(self, args, remaining):
@@ -1245,6 +1250,14 @@ class FallbackAgents:
                "source": "USGS Earthquake Hazards Program (U.S. Public Domain)"}
         return out, cache, False, {"USGS feed generated": as_of}
 
+    def _grid_age(self, header: dict) -> int:
+        """Seconds since a prebuilt grid was made (its header's "built"), 0 when it does not say."""
+        try:
+            built = datetime.strptime(str(header.get("built")), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+        except ValueError:
+            return 0
+        return max(0, int(self.wall() - built.timestamp()))
+
     def _zone_at(self, lat, lon, country=None):
         """The time-zone grid's answer for a point (PM 11-15 13:52): {"zone", "candidates", "boundary", ...}."""
         from .tz_grid import TzGrid
@@ -1298,9 +1311,11 @@ class FallbackAgents:
         out = {"answer": answer[:8000], "url": "https://github.com/evansiroky/timezone-boundary-builder",
                "source": f"IANA Time Zone Database {version or '(version unknown)'} (public domain); time zone "
                          f"boundaries: timezone-boundary-builder, ODbL 1.0, OpenStreetMap contributors"}
-        built = self.tz_grid.header.get("boundary_data") if self.tz_grid else None
-        return out, {"status": "snapshot", "age_seconds": 0}, False, {"IANA tz database": version,
-                                                                       "time zone boundaries": built}
+        header = self.tz_grid.header if self.tz_grid else {}
+        # the grid's build date is the data date: an old grid shows its age and turns stale past MAX_AGE (PM 14:57)
+        return out, {"status": "snapshot", "age_seconds": self._grid_age(header)}, False, {
+            "IANA tz database": version, "time zone boundaries": header.get("boundary_data"),
+            "time zone grid built": header.get("built")}
 
     def _airport_lookup(self, args, remaining):
         from .airports import AirportIndex
@@ -1338,8 +1353,10 @@ class FallbackAgents:
         out = {"answer": "; ".join(parts)[:8000], "url": "https://ourairports.com/airports/" + rows[0]["ident"] + "/",
                "source": "OurAirports (public domain)"}
         age = int(max(0, self.wall() - float(data.get("fetched_at") or 0)))
-        return out, {"status": "snapshot", "age_seconds": age}, False, \
-            {"OurAirports": data.get("source_last_modified") or None}
+        as_of = {"OurAirports": data.get("source_last_modified") or None}
+        if self.tz_grid is not None and any(", time zone " in p for p in parts):
+            as_of["time zone grid built"] = self.tz_grid.header.get("built")
+        return out, {"status": "snapshot", "age_seconds": age}, False, as_of
 
     def _airport_zone(self, rec) -> str:
         """", time zone Region/City" from the grid with the airport's country; near a boundary without one zone,

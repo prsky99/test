@@ -1986,3 +1986,43 @@ def test_census_geocode_drops_a_match_on_another_street():
     assert same_street("116 5th Ave N, Nashville, TN, USA", "116 5TH AVE N, NASHVILLE, TN, 37219")
     assert not same_street("24 Beacon St, Boston", "42 BEACON ST, BOSTON, MA, 02133")
     assert same_street("1600 Pennsylvania Avenue NW, Washington, DC 20500", "1600 PENNSYLVANIA AVE NW, WASHINGTON, DC, 20500")
+
+
+def test_an_old_grid_reports_its_age_and_turns_stale(tmp_path):
+    """PM 11-15 14:57: a grid's build date is its data date; past MAX_AGE the slot moves on with 'stale'."""
+    import json as _json
+    import struct
+    from datetime import datetime, timezone
+    write_tz_grid(tmp_path / "tz-grid.bin")
+    raw = (tmp_path / "tz-grid.bin").read_bytes()
+    size = struct.unpack_from("<I", raw, 7)[0]
+    header = _json.loads(raw[11:11 + size])
+    now = datetime(2026, 11, 15, tzinfo=timezone.utc)
+
+    def with_built(days):
+        h = _json.dumps({**header, "built": datetime.fromtimestamp(now.timestamp() - days * 86400, timezone.utc)
+                         .strftime("%Y-%m-%dT%H:%M:%SZ")}).encode()
+        (tmp_path / "tz-grid.bin").write_bytes(raw[:7] + struct.pack("<I", len(h)) + h + raw[11 + size:])
+        clock = Clock()
+        return FallbackAgents(http=client({}), data_dir=tmp_path, clock=clock, wall=lambda: now.timestamp(),
+                              utc_now=lambda: now, limiters=limiters(clock, clock.sleep))
+    env = with_built(30).execute("tz-time", {"location": "37.5,127.0"})
+    assert env["freshness"]["age_seconds"] == 30 * 86400 and env["freshness"]["data_as_of"]["time zone grid built"]
+    with pytest.raises(FallbackUnavailable) as err:
+        with_built(500).execute("tz-time", {"location": "37.5,127.0"})
+    assert err.value.code == "stale"
+
+
+def test_freshness_lists_every_local_data_file_with_its_age(tmp_path):
+    """PM 11-15 14:57: the ops watch reads each file's own date, limit and renewal; missing or old is stale."""
+    import json as _json
+    from agent_market.fallback_agents import freshness
+    now = 1.8e9
+    (tmp_path / "airports.json").write_text(_json.dumps({"fetched_at": now - 2 * 86400, "airports": {}}))
+    write_tz_grid(tmp_path / "tz-grid.bin")
+    rows = {r["file"]: r for r in freshness.report(tmp_path, now=now)}
+    assert rows["airports.json"]["age_days"] == 2.0 and not rows["airports.json"]["stale"]
+    assert rows["country-grid.bin"] == {**rows["country-grid.bin"], "present": False, "stale": True}
+    assert rows["tz-grid.bin"]["present"] and rows["tz-grid.bin"]["date_kind"] == "file time"   # the test grid has no built
+    old = freshness.report(tmp_path, now=now + 10 * 86400)
+    assert next(r for r in old if r["file"] == "airports.json")["stale"]
