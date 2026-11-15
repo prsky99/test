@@ -80,6 +80,7 @@ def test_a_number_in_a_description_is_dynamic_and_a_new_text_is_a_change_with_it
     assert fingerprint_status({'resources': {'501': e}}, 501, at(22)) == 'changed'
     lines = [json.loads(x) for x in (data / 'changes-20261116.jsonl').read_text().splitlines()]
     assert [x['classification'] for x in lines] == ['dynamic', 'general']
+    assert [x['fields_known'] for x in lines] == [True, True]   # the 10:00 measure already kept field hashes
     assert lines[-1]['changed'] == [{'name': 'get_weather', 'fields': ['description']}]   # the field, not its text
     assert 'Hourly' not in json.dumps(lines) and 'Forecast' not in json.dumps(lines)
 
@@ -123,3 +124,16 @@ def test_the_step_waits_six_hours_and_skips_the_measurement_windows(tmp_path, mo
     assert step.run_due() is None                                    # :55-:10 measurement window
     clock[0] = datetime(2026, 11, 16, 17, 20).timestamp()
     assert step.run_due() is not None and len(ran) == 2
+
+
+def test_a_first_comparison_against_the_11_14_file_says_its_fields_are_unknown(site):
+    data, state, run, entry, _, _ = site
+    from agent_market.tool_fingerprint import tool_fp
+    old = json.loads((data / 'pearls.json').read_text())
+    old['pearls']['501']['tools'] = {'get_weather': tool_fp(tools()[0])}   # as the 11-14 file kept them: hashes only
+    (data / 'pearls.json').write_text(json.dumps(old))
+    state['tools'] = tools('Hourly forecast and alerts')   # changed since the 11-14 baseline, measured for the first time
+    run(10)
+    line = json.loads((data / 'changes-20261116.jsonl').read_text().splitlines()[-1])
+    assert line['classification'] == 'general' and line['fields_known'] is False
+    assert line['changed'] == [{'name': 'get_weather', 'fields': []}]

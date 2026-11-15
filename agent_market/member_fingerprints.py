@@ -150,7 +150,10 @@ def entry_for(previous: dict, old_pearl: dict, tools: list[dict], now: float) ->
                   "changed": [{"name": n, "fields": sorted(k for k, v in entry["fields"][n].items()
                                                            if (previous.get("fields") or {}).get(n, {}).get(k) not in (None, v))}
                               for n in sorted(set(tool_fps) & set(before_tools)) if tool_fps[n] != before_tools[n]],
-                  "risk": found, "classification": classification}
+                  "risk": found, "classification": classification,
+                  # whether the last measure had field hashes: false on a first comparison (fields cannot be told
+                  # apart then), so the change feed can say 'unknown' instead of reading an empty list as notes only
+                  "fields_known": bool(previous.get("fields"))}
     return entry, change
 
 
