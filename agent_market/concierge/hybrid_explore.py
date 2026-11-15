@@ -77,10 +77,30 @@ def _words(query):
     return [w for w in re.findall(r"[^\s,;]+", str(query or "")) if w]
 
 
+# Traits a request adds to a capability (C bundle, 11-15): who it is for, how much at once, past records, output
+# format. They are never required search words (11-14 22:02: "code review with history" read documents for 1.5 s
+# against 0.1 s without it); the answer names them as unverified. Place, language and price stay conditions, and a
+# bare "history" stays a word ("price history" is a capability).
+TRAIT_PHRASES = re.compile(r"""\bwith\s+(?:full\s+|complete\s+)?history\b|\bfor\s+(?:my\s+|our\s+|the\s+)?teams?\b
+    |\bfor\s+(?:ai\s+)?agents?\b|\bsmall\s+business(?:es)?\b|\bin\s+bulk\b|\bbatch(?:es|ed)?\b
+    |\b(?:as|in)\s+(?:json|csv)\b|\b(?:json|csv)\s+(?:output|format|response)\b""", re.I | re.X)
+
+
+def trait_terms(query):
+    """(query without trait phrases, the phrases removed, lower case, in order)."""
+    removed = [' '.join(m.group(0).lower().split()) for m in TRAIT_PHRASES.finditer(str(query or ''))]
+    if not removed:
+        return query, []
+    rest = ' '.join(TRAIT_PHRASES.sub(' ', str(query)).split())
+    return (rest, list(dict.fromkeys(removed))) if rest else (query, [])
+
+
 def cleaned_query(query):
-    """The query without numbers, delivery words and function words, or None when nothing changes.
+    """The query without numbers, trait phrases, delivery words and function words, or None when nothing changes.
     "to" between two content words names a direction and stays ("speech to text" is not
     "text to speech", 11-11)."""
+    original = _words(query)
+    query = trait_terms(query)[0]
     # When or for whom (PM 11-14 03:2x): the same list Chat removes from its catalog search (selection.QUALIFIER_PHRASES).
     # "crypto price for my team" searched "crypto price team", found nothing and relaxed, reading documents twice.
     from .selection import QUALIFIER_PHRASES
@@ -91,7 +111,7 @@ def cleaned_query(query):
         return word.casefold() not in STOPWORDS
     kept = [w for i, w in enumerate(words) if content(w) or (
         w.casefold() == 'to' and 0 < i < len(words) - 1 and content(words[i - 1]) and content(words[i + 1]))]
-    return " ".join(kept) if kept and kept != _words(query) else None
+    return " ".join(kept) if kept and kept != original else None
 
 
 def relaxed_queries(query):
@@ -127,9 +147,12 @@ def scoped_explore(source, engine, query, kind, category, verified, no_auth, lim
     either, the closest listings by meaning are shown, marked match="near" (11-11 PM: never an empty
     page; say plainly that nothing matched exactly). The answer names relaxed_query and match."""
     started = time.monotonic()
+    traits = trait_terms(query)[1]
     cleaned = cleaned_query(query)
     searched = cleaned or query
     result = _scoped_explore(source, engine, searched, kind, category, verified, no_auth, limit)
+    if traits:
+        result = {**result, "unverified_terms": traits}
     if result.get("items") or not str(searched or "").strip():
         if cleaned and result.get("items"):
             return {**result, "relaxed_query": cleaned, "match": "exact"}

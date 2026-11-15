@@ -4,13 +4,14 @@ from agent_market.concierge import hybrid_explore as hx
 
 def test_numbers_and_delivery_words_are_removed_before_the_first_search():
     assert hx.cleaned_query('book flights json output 981') == 'book flights'
-    # PM 11-14 03:2x: "small business" is one of the Chat qualifiers (selection.QUALIFIER_PHRASES), dropped before the
-    # first search like the delivery words; real conditions (history, korea, free) still stay.
+    # C bundle (11-15): 'small business' says who it is for, not what it does; it is named unverified instead.
     assert hx.cleaned_query('legal contract review small business 180') == 'legal contract review'
     # Function words go first; real conditions stay (11-11 PM review).
     assert hx.cleaned_query('speech to text in korea') == 'speech to text korea'  # "to" keeps the direction
     assert hx.cleaned_query('how to convert pdf') == 'convert pdf'
-    assert hx.cleaned_query('shipping tracking with history') == 'shipping tracking history'
+    # C bundle (11-15, changes the 11-11 rule): 'with history' as a required word read documents 5-16x longer and
+    # rarely matches a listing's own words; it leaves the first search and is named unverified.
+    assert hx.cleaned_query('shipping tracking with history') == 'shipping tracking'
     assert hx.cleaned_query('weather forecast') is None  # nothing to remove
 
 
@@ -102,6 +103,20 @@ def test_explore_drops_the_chat_qualifiers_before_the_first_search():
     assert cleaned_query('crypto price for my team 261') == 'crypto price'
     assert cleaned_query('image generation small business 12') == 'image generation'
     assert cleaned_query('book flights in real time') == 'book flights'
-    assert cleaned_query('code review with history 974') == 'code review history'
+    assert cleaned_query('code review with history 974') == 'code review'  # C bundle: a trait
     assert cleaned_query('speech to text in korea') == 'speech to text korea'
     assert cleaned_query('small business') is None          # nothing else to search for
+
+
+def test_trait_phrases_are_never_required_search_words():
+    """C bundle (11-15): 'with history' and 'for my team' multiplied the document read 5-16x (11-14 22:02);
+    they leave the first search and are named unverified. Place, language and price stay; bare 'history' stays."""
+    from agent_market.concierge.hybrid_explore import cleaned_query, trait_terms
+    assert cleaned_query('code review with history 936') == 'code review'
+    assert cleaned_query('crypto price for my team') == 'crypto price'
+    assert cleaned_query('translate pdf for agents') == 'translate pdf'
+    assert cleaned_query('crypto price json output') == 'crypto price'
+    assert trait_terms('send email for my team')[1] == ['for my team']
+    assert cleaned_query('stock price history') is None                      # a capability, not a trait
+    assert cleaned_query('speech to text in korea') == 'speech to text korea'  # a place stays a condition
+    assert 'free' in cleaned_query('free weather api')
