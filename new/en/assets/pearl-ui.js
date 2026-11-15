@@ -302,7 +302,10 @@
   if (typeof switchTab !== 'function') return;  // working pages only: this wraps operating.js (11-14 bundle split)
   const q = (selector, root=document) => root.querySelector(selector);
   const all = (selector, root=document) => [...root.querySelectorAll(selector)];
-  function element(tag, className, value) {
+  // 11-15: the page's preload hint carries the content-addressed pearl URL (pearl_view adds ?v=), so a step image
+// reuses the file the stylesheet already fetched instead of loading it a second time without the version.
+function pearlSource(){const hint=document.querySelector('link[rel="preload"][as="image"][href*="/assets/pearl.webp"]');return hint?hint.getAttribute('href'):'/new/en/assets/pearl.webp';}
+function element(tag, className, value) {
     const node=document.createElement(tag);
     if(className)node.className=className;
     if(value!==undefined)node.textContent=value;
@@ -426,7 +429,7 @@
       });
       const pearl=element('button','ux-workflow-pearl');pearl.type='button';pearl.setAttribute('aria-label','Review '+(node.name||'workflow step')+' input');
       if(node.type==='trigger')pearl.append(element('span','ux-trigger-mark','Start'));
-      else{const image=element('img','');image.src='/new/en/assets/pearl.webp';image.alt='';image.width=86;image.height=86;pearl.append(image);}
+      else{const image=element('img','');image.src=pearlSource();image.alt='';image.width=86;image.height=86;pearl.append(image);}
       pearl.addEventListener('click',()=>edit.click());
       text.append(edit);item.append(number,pearl,text);inputs.append(item);
       const row=element('li',''),body=element('div','');body.append(element('h4','',node.name||'Workflow step'),element('p','',protocol==='trigger'?'Starts this workflow.':'Review the request and connection before running.'));row.append(body);details.append(row);
