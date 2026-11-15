@@ -2272,6 +2272,12 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
                             and response.headers.get("location") == "/customer/sign-in"
                             and response.headers.get("cache-control") == "public, max-age=86400"
                             and "set-cookie" not in response.headers)
+        # 11-16 PM 04:3x: the customer sign-in page and its stylesheet are the same bytes for everyone (customer_sign_in_cache).
+        from ..customer_sign_in_cache import BROWSER_CACHE as SIGN_IN_CACHE, CSS_PATH as SIGN_IN_CSS
+        static = static or (request.method in ("GET", "HEAD") and response.status_code == 200
+                            and (request.url.path == "/customer/sign-in" or SIGN_IN_CSS.fullmatch(request.url.path))
+                            and response.headers.get("cache-control") in (SIGN_IN_CACHE, "public, max-age=31536000, immutable")
+                            and "set-cookie" not in response.headers)
         for k, val in SECURITY_HEADERS.items():
             if static and k == "Cache-Control":
                 continue

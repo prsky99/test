@@ -54,6 +54,8 @@ def customer_entry_guard(identity):
     """Authenticate the customer surface before endpoint field validation."""
     def guard(request: Request):
         path = request.url.path
+        if re.fullmatch(r'/customer/assets/sign-in\.[0-9a-f]{16}\.css', path):   # the sign-in page's own stylesheet
+            return
         if path in ('/customer/sign-in', '/api/customer-auth/options', '/api/customer-auth/status',
                     '/api/customer-auth/begin', '/api/customer-auth/callback', '/api/customer-auth/github/callback'):
             return
@@ -108,10 +110,6 @@ def router_for(store, key, config=None, http=None, *, identity=None, github_conf
     @router.get('/api/customer-auth/options')
     def options():
         return response(**core.options())
-
-    @router.get('/customer/sign-in')
-    def sign_in(request: Request):
-        return sign_in_page(destination(request.query_params.get('next')))
 
     @router.get('/customer/workspaces')
     def customer_workspaces(request: Request):
@@ -279,4 +277,8 @@ def router_for(store, key, config=None, http=None, *, identity=None, github_conf
         # Wherever the customer API is served, its opening reads can share one round trip (11-01).
         from .customer_batch import router_for as batch
         router.include_router(batch())
+        # 11-16 PM 04:3x: the sign-in page and its one stylesheet, the same bytes for everyone so the edge may keep
+        # them (customer_sign_in_cache). A plain route: WorkspaceRoute would mark them no-store.
+        from .customer_sign_in_cache import router as sign_in_router
+        router.include_router(sign_in_router(lambda next_value=None: sign_in_page(destination(next_value))))
     return router
