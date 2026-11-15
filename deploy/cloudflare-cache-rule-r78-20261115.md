@@ -28,9 +28,17 @@
 - `/skill.md`, `/security.txt`, `/claude-plugins/marketplace.json`은 R78 목록에는 없었지만 같은 상태(공개 헤더인데 DYNAMIC)라 함께 넣었다.
 - `/logo.svg`는 확장자 기본 캐시로 이미 HIT라 넣지 않았다.
 
-## 2. 넣지 않은 것 (뒤에 할 일)
-- `/necklaces/*`: 지금 공개 목걸이가 없어 404·`no-store`다. 넣어도 효과가 없다. 화면이 `Accept` 헤더에 따라 다른 형식을 주는지 확인한 뒤, 첫 공개(11-21) 전에 맞는 규칙에 넣는다. Cloudflare 무료 플랜은 `Vary: Accept`를 캐시 키에 넣지 않는다.
-- `/privacy`, `/terms`, `/registry`, `/registry/verified/v0.1/*`: 아직 운영에 없다(404). 배포 뒤 같은 확인을 하고 넣는다.
+## 2. 두 번째 변경 (11-15 12:48): 목걸이·레지스트리 경로
+- 근거: 성장·유통의 확인(11-15, 로컬 앱에서 Accept 4가지·Origin 2가지로 같은 요청을 두 번씩 비교). `/necklaces/<slug>`, `/registry`, `/registry/verified/v0.1/*`는 Accept 협상이 없고 요청마다 달라지는 값(nonce·토큰·폼 값)이 없다. 레지스트리의 CORS는 Origin과 관계없이 `*`다. 목걸이 실행 폼의 제출은 POST라 규칙 대상이 아니다.
+- 바꾼 것: 경로 집합에 `"/registry"`를 더하고, `starts_with(http.request.uri.path, "/necklaces/")`와 `starts_with(http.request.uri.path, "/registry/verified/v0.1/")`를 더했다. 식은 892자가 됐다.
+- 지금 식(892자):
+```
+(http.host eq "agentconcierge.biz" and http.request.method in {"GET" "HEAD"} and (http.request.uri.path in {"/api/insights" "/api/feed/verified.json" "/advertise" "/methodology" "/methodology.json" "/methodology/changelog" "/api/necklaces" "/api/feed/necklaces.json" "/api/verify" "/api/roles" "/.well-known/glama.json" "/.well-known/skill.md" "/.well-known/agent-entry.json" "/skill.md" "/status.json" "/api/pearl/status" "/api/pearl/access" "/ads/library" "/ads/library.json" "/api/agent/v1/openapi.json" "/security.txt" "/claude-plugins/marketplace.json" "/registry"} or starts_with(http.request.uri.path, "/api/agents/") or starts_with(http.request.uri.path, "/api/roles/") or starts_with(http.request.uri.path, "/necklaces/") or starts_with(http.request.uri.path, "/registry/verified/v0.1/")) and http.cookie eq "" and not any(lower(http.request.headers.names[*])[*] eq "authorization"))
+```
+- 확인(12:49): 세 경로는 아직 운영에 없어 404·`no-store`이고 `cf-cache-status`가 DYNAMIC에서 BYPASS로 바뀌었다(규칙에 걸리지만 원서버가 `no-store`라 남지 않음). 기존 경로 `/ads/library` HIT, `/api/roles` REVALIDATED, `/api/pearl/status` EXPIRED 뒤 200.
+- **남은 확인**: 목걸이 첫 공개와 레지스트리 배포 뒤, 200 응답이 두 번째 요청에서 HIT인지 본다(목걸이 5분, 레지스트리 5분 보관).
+- 넣지 않은 것: `/privacy`, `/terms`는 전문 페이지로 보내는 301이라 넣지 않았다.
+- 이 변경만 되돌리려면 1절의 "바꾼 뒤(761자)" 식을 넣는다.
 
 ## 3. 적용 뒤 확인 (11-15 12:41, 공개 주소·새 연결, 한국에서 측정)
 - 11개 경로 모두 두 번째 요청이 `cf-cache-status: HIT`. 응답 시간 0.71~0.83초(`/claude-plugins/marketplace.json`만 2.27초).
