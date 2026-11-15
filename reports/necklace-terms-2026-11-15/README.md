@@ -90,6 +90,27 @@ prohibits 2건은 정의에 넣지 않았습니다. 넣으면 그 멤버가 모�
  "coverage": {"country": ["US"]}}
 ```
 
+## PM 13:42 과제 세 가지의 원천 판정 (11-15)
+
+| 과제 | 원천 | 판정 | 근거 위치 | 조건 |
+|---|---|---|---|---|
+| 1 좌표 → 시간대 | timezone-boundary-builder 경계 자료(github.com/evansiroky/timezone-boundary-builder README "Licenses") | allowed | 코드는 MIT, 내보낸 자료는 ODbL 1.0 | 답에 "time zone boundaries © timezone-boundary-builder / OpenStreetMap contributors, ODbL" 표시 |
+| 1 계산 라이브러리 | timezonefinder(pypi.org/project/timezonefinder) | allowed | MIT | 의존성 추가는 PM 승인 대상(아래) |
+| 2 ip.lookup | DB-IP IP to City Lite(db-ip.com/db/lite.php, /db/download/ip-to-city-lite) | allowed | "licensed under a Creative Commons Attribution 4.0 International License", 앱에서 쓸 수 있고 DB-IP.com 출처 표시가 조건 | 출처 표시. Lite에는 시간대 칸이 없어 시간대는 과제 1에 기댐. 월 1회 갱신. 내려받기 약관(db-ip.com/tos.php)은 11-16에 읽음(오늘 도메인 몫 다 씀) |
+| 3 일반 뉴스 | GDELT(gdeltproject.org/about.html "Terms of use", "Redistributing GDELT") | allowed | 모든 데이터셋은 학술·상업·정부 용도에 제한 없이 쓸 수 있고, 재배포·재게시할 수 있음 | 쓸 때마다 GDELT Project 인용과 gdeltproject.org 링크. 기사 본문은 각 언론사 것이라 제목·매체·날짜·URL만 냄 |
+
+### 과제 1의 막힌 점(PM 결정 필요)
+
+- 운영 venv는 Python 3.11.18입니다.
+- timezonefinder 최신판 9.2.0은 Python 3.12 이상을 요구합니다.
+- 3.11에서 쓸 수 있는 8.1.0은 새 의존성 3개(numpy, h3, flatbuffers)가 필요합니다. 배포 파일도 소스(28MB)뿐이라 설치 때 C 확장을 빌드합니다.
+- 선택지
+  - (가) 8.1.0과 의존성 3개 추가: 경계에서도 정확합니다. 운영·SRE 잠금 파일 반영이 필요합니다(holidays 때와 같은 절차).
+  - (나) 의존성 없이 미리 만든 격자표: 개발 때만 timezonefinder로 0.05° 격자를 만들어 gateway-data에 둡니다(수 MB 예상). 실행 때는 표만 읽습니다. 시간대 경계 근처 수 km는 틀릴 수 있습니다.
+  - (다) Python 3.12 전환 뒤 9.2.0: 운영 전체 영향이 커서 이 과제만으로는 권하지 않습니다.
+- 권장은 (가)입니다. 승인 전에는 구현을 시작하지 않고 과제 2를 먼저 진행합니다.
+- 연결 방식(새 계약 없음): 기존 자체 대체 tz-time(timezone.time.v1)이 `location`에 "위도,경도"를 받으면 시간대를 계산합니다. 그러면 주소·공항 허브의 `{{slot.location.point}}`를 local-time 자리에 그대로 넘길 수 있습니다. airport-lookup 답에도 timezone을 넣어 norm_location이 허브 칸으로 올리게 합니다.
+
 ## 남은 것
 
 - 카탈로그 밖 자체 에이전트 133018·133019·133023(topic-evidence-brief, package-risk-audit)
