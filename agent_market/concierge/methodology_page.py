@@ -55,6 +55,10 @@ def _yes(value):
     return 'yes' if value is True else 'no' if value is False else esc(value)
 
 
+TREND_STUDY = ('https://www.trendaisecurity.com/en/resources-insights/research/'
+               'stars-dont-save-you-popularity-is-not-security-in-the-mcp-ecosystem')
+
+
 def page_html(base='https://agentconcierge.biz', data=None, log=None):
     """The /methodology page, or None when the method file is missing."""
     from .growth_pages import shell, heading
@@ -66,6 +70,18 @@ def page_html(base='https://agentconcierge.biz', data=None, log=None):
     parts = [heading('Method · ' + str(version), data.get('name') or 'Verification method',
                      'How we test agents, when an agent becomes a pearl, and how a necklace passes its gate. '
                      'Every number below is read from the code that scores agents.')]
+    # E10 (PM 11-15, growth experiments 1.2): what a badge does not tell, and what we record instead, first.
+    parts.append('<section aria-labelledby="mMeasure"><h2 id="mMeasure">What we measure</h2>'
+                 '<p>Stars, downloads and directory badges do not tell you whether an agent works or is safe. A study of '
+                 '9,695 MCP servers found as many problems in servers with a verified mark as in the rest, and no link '
+                 'between problems and star counts (<a href="' + TREND_STUDY + '" rel="noopener">Trend Micro, June '
+                 '2026</a>). So we record what happens when an agent is called:</p><ul>'
+                 '<li><strong>Real calls.</strong> A read-only test call to the agent&#39;s own tool with fixed inputs, '
+                 'and its answer judged against known facts (sections 2 and 3).</li>'
+                 '<li><strong>Changes to its tools.</strong> We keep a fingerprint of its tool list and answers; when it '
+                 'changes, a necklace that uses the agent stops until it is retested.</li>'
+                 '<li><strong>Last success.</strong> Every recommendation shows when the agent last passed a check.</li></ul>'
+                 '</section>')
     cand = data.get('candidates') or {}
     thresholds = cand.get('grade_thresholds') or {}
     parts.append('<section aria-labelledby="mCandidates"><h2 id="mCandidates">1. Who is tested</h2>'

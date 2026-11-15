@@ -47,8 +47,20 @@ def test_method_advertise_necklace_and_check_reads_are_kept_at_the_edge(client):
     """11-14: these answered no-store and took 1.2-6 s from Korea; they are the same for everyone."""
     # 11-15 R78: the method pages follow /methodology.json (ten minutes); the advertiser page stays a growth page
     for path, policy in (('/methodology', 'public, max-age=600'), ('/methodology/changelog', 'public, max-age=600'),
-                         ('/advertise', 'public, max-age=21600'), ('/methodology.json', 'public, max-age=600'),
+                         ('/advertise', 'public, max-age=300'), ('/methodology.json', 'public, max-age=600'),  # 11-15: browser 5 min, edge 6 h
                          ('/api/necklaces', 'public, max-age=60'), ('/api/feed/necklaces.json', 'public, max-age=60'),
                          ('/api/roles', 'public, max-age=60')):
         r = client.get(path, headers={'Accept': 'text/html'} if not path.endswith(('.json', 'necklaces', 'roles')) else {})
         assert r.status_code == 200 and r.headers['cache-control'].startswith(policy), (path, r.headers['cache-control'])
+    assert client.get('/advertise', headers={'Accept': 'text/html'}).headers['cloudflare-cdn-cache-control'].startswith(
+        'public, max-age=21600')
+
+
+def test_what_we_measure_comes_first_with_its_source():
+    """E10 (PM 11-15): the page opens with what a badge does not tell and the three things we record."""
+    page = mp.page_html(data={'version': 'v1', 'name': 'Verification method v1'}, log=[])
+    first = page.index('What we measure')
+    assert first < page.index('1. Who is tested')
+    for item in ('Real calls.', 'Changes to its tools.', 'Last success.'):
+        assert page.index(item) > first
+    assert mp.TREND_STUDY in page and '9,695' in page
