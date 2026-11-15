@@ -249,6 +249,7 @@ def test_advertiser_platform_gateway_stages(store):  # noqa: F811
     vault = KeyVault()
     router = create_live_ad_coin_v2_router(
         store,
+        include_unused_routes=True,
         mtls_verifier=MOCK_TLS,
         key_vault=vault,
         taxonomy=DEFAULT_TAXONOMY,
@@ -318,6 +319,7 @@ def test_advertiser_platform_gateway_experiments(store):  # noqa: F811
     vault = KeyVault()
     router = create_live_ad_coin_v2_router(
         store,
+        include_unused_routes=True,
         mtls_verifier=MOCK_TLS,
         key_vault=vault,
         taxonomy=DEFAULT_TAXONOMY,
@@ -419,6 +421,7 @@ def test_advertiser_platform_conversions_and_analytics(store):  # noqa: F811
     vault = KeyVault()
     router = create_live_ad_coin_v2_router(
         store,
+        include_unused_routes=True,
         mtls_verifier=MOCK_TLS,
         key_vault=vault,
         taxonomy=DEFAULT_TAXONOMY,
@@ -535,6 +538,7 @@ def test_advertiser_platform_http_routes(store):  # noqa: F811
     vault = KeyVault()
     router = create_live_ad_coin_v2_router(
         store,
+        include_unused_routes=True,
         mtls_verifier=MOCK_TLS,
         key_vault=vault,
         taxonomy=DEFAULT_TAXONOMY,
