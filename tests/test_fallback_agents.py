@@ -1250,6 +1250,7 @@ def test_sec_filings_identifiers_first_exact_names_only_and_no_registration_is_a
     by_both = a.execute("sec-filings", {"ticker": "MSFT", "company": "Apple Inc."})["result"]["answer"]
     assert "MICROSOFT CORP (SEC CIK 789019), by ticker MSFT" in by_both                    # identifier wins
     assert "by exact company name" in a.execute("sec-filings", {"company": "Microsoft Corporation"})["result"]["answer"]
+    assert "by company name without its legal form" in a.execute("sec-filings", {"company": "Microsoft"})["result"]["answer"]
     none = a.execute("sec-filings", {"company": "Microsoft Holdings"})["result"]               # near name: not guessed
     assert none["answer"].startswith("No SEC EDGAR registration matches (company Microsoft Holdings)")
     abroad = a.execute("sec-filings", {"ticker": "ZZZZ", "company": "Allianz SE"})["result"]

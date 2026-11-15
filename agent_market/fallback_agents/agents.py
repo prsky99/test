@@ -842,12 +842,16 @@ class FallbackAgents:
                 cik, matched = by_ticker[ticker], f"ticker {ticker}"
             for key in ("company", "query"):
                 name = str(args.get(key) or "").strip()
-                if cik is None and name:
-                    ciks = index[0].get(name_keys(name)[0]) or set()   # exact name only: no near-name guesses
+                # the exact name, then the same name without its legal form ("Union Electric" = "UNION ELECTRIC CO",
+                # ops gate 11-15); never the loose tier that also drops Holding or Group: no near-name guesses
+                for tier, how in ((0, "exact company name"), (1, "company name without its legal form")):
+                    if cik is not None or not name:
+                        break
+                    ciks = index[tier].get(name_keys(name)[tier]) or set()
                     if len(ciks) > 1:
                         raise FallbackUnavailable("not_found", "Several SEC companies share this name; use the ticker or CIK.")
                     if ciks:
-                        cik, matched = next(iter(ciks)), "exact company name"
+                        cik, matched = next(iter(ciks)), how
             if cik is None:
                 asked = ", ".join(f"{k} {str(args.get(k)).strip()[:120]}" for k in ("ticker", "company", "query")
                                   if str(args.get(k) or "").strip()) or "no identifier"
