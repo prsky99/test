@@ -32,7 +32,8 @@ APPROVED = [["sec-edgar", "company.registry.v1"]]
 
 def run(denied, full=()):
     relay = Relay(denied, full)
-    ledger = dict(reserve=lambda url, system: (True, None), note=lambda *a: None)
+    ledger = dict(reserve=lambda url, system: (True, None), note=lambda *a: None,
+                  pacer=type("P", (), {"wait_for": lambda self, n: None})())
     with httpx.Client(transport=relay) as client:
         out = necklace_gate.check(company(), client, "https://example.test", verified=VERIFIED, substitutes=APPROVED,
                                   probe_fn=lambda c, b, m, a: necklace_gate.probe(c, b, m, a, **ledger))
@@ -75,4 +76,51 @@ def test_admitted_rows_carry_empty_reason_fields_and_a_full_edge_is_not_a_denial
     domain = next(s for s in out["slots"] if s["slot"] == "domain")["members"][0]
     assert (domain["relay"], domain["error_code"], domain["seat_eligible"]) == ("our_capacity", "CAPACITY_EXCEEDED", False)
     assert [r for r in relay.seen if r[0] == 52559].__len__() == 2                 # retried once
-    assert any("our edge was full" in p for p in out["problems"])
+    assert any("not judged (our_capacity" in p for p in out["problems"])
+
+
+def test_our_relay_pace_and_a_provider_failure_are_not_denials():
+    import httpx as hx
+
+    class Paced(hx.BaseTransport):
+        def handle_request(self, request):
+            import json as js
+            if js.loads(request.content)["method"] == "initialize":
+                return hx.Response(200, json={"jsonrpc": "2.0", "id": 1, "result": {}})
+            return hx.Response(429, json={"detail": "Too many agent executions"})
+    ledger = dict(reserve=lambda url, system: (True, None), note=lambda *a: None,
+                  pacer=type("P", (), {"wait_for": lambda self, n: None})())
+    member = {"kind": "external", "resource_id": 1, "tool": "t", "registrable_domain": "a.com"}
+    with hx.Client(transport=Paced()) as client:
+        assert necklace_gate.probe(client, "https://x.test", member, {}, **ledger)["relay"] == "throttled"
+
+    class Unconfirmed(hx.BaseTransport):
+        def handle_request(self, request):
+            return hx.Response(200, json={"jsonrpc": "2.0", "id": 1,
+                                          "error": {"code": -32000, "message": "The execution outcome is unconfirmed."}})
+    with hx.Client(transport=Unconfirmed()) as client:
+        assert necklace_gate.probe(client, "https://x.test", member, {}, **ledger)["relay"] == "failed"
+
+
+def test_our_relay_429_never_pauses_a_provider_in_the_ledger():
+    """11-15 11:42 incident: the check wrote our relay's 429 to the ledger and paused four providers for the day."""
+    import httpx as hx
+    noted = []
+
+    class Paced(hx.BaseTransport):
+        def handle_request(self, request):
+            return hx.Response(429, json={"detail": "Too many agent executions: 10 tools/call or messages a minute"})
+    ledger = dict(reserve=lambda url, system: (True, None), note=lambda *a: noted.append(a),
+                  pacer=type("P", (), {"wait_for": lambda self, n: None})())
+    member = {"kind": "external", "resource_id": 1, "tool": "t", "registrable_domain": "a.com"}
+    with hx.Client(transport=Paced()) as client:
+        assert necklace_gate.probe(client, "https://x.test", member, {}, **ledger)["relay"] == "throttled"
+    assert noted == []
+
+    class ProviderPause(hx.BaseTransport):
+        def handle_request(self, request):
+            return hx.Response(200, json={"jsonrpc": "2.0", "id": 1,
+                                          "error": {"message": "provider asked to pause", "data": {"retry_after": 60}}})
+    with hx.Client(transport=ProviderPause()) as client:
+        necklace_gate.probe(client, "https://x.test", member, {}, **ledger)
+    assert [n[2] for n in noted] == [429]                    # a real provider pause is still reported

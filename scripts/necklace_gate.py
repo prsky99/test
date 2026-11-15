@@ -70,6 +70,20 @@ def _denial(response) -> dict:
             "reference": response.headers.get("X-Execution-Reference"), "message": str(message or "")[:300]}
 
 
+def _note(note, target, response):
+    """Tell the shared ledger only what the provider said. Our relay's HTTP 429 is our own pace (10 agent requests a
+    minute per address) and must never pause a provider for every system (11-14 05:11 and 11-15 11:42 incidents); a
+    provider's pause comes back as a JSON-RPC error with retry_after, as in necklaces.retest.gateway_caller."""
+    try:
+        body = response.json()
+    except ValueError:
+        body = {}
+    error = (body or {}).get("error") if isinstance(body, dict) else None
+    detail = (error or {}).get("data") if isinstance((error or {}).get("data"), dict) else {}
+    if detail.get("retry_after") or "pause" in str((error or {}).get("message", "")).lower():
+        note(target, "gate", 429)
+
+
 def _answered(response) -> bool:
     try:
         body = response.json()
@@ -79,34 +93,60 @@ def _answered(response) -> bool:
     return 200 <= response.status_code < 300 and isinstance(result, dict) and not result.get("isError")
 
 
-def probe(client, base: str, member: dict, args: dict | None = None, reserve=None, note=None) -> dict:
+_PACER = None
+
+
+def _pace(pacer, requests: int):
+    """Our relay allows 10 agent requests a minute per address; the check keeps under it (RelayPacer, 9 a minute)
+    so its own pace is never read as a member's answer (11-15 11:41: five members got our 429 and were misread)."""
+    global _PACER
+    if pacer is None:
+        from agent_market.necklaces.retest import RelayPacer
+        _PACER = _PACER or RelayPacer()
+        pacer = _PACER
+    pacer.wait_for(requests)
+    return pacer
+
+
+def _state(response) -> str:
+    """denied = our execution policy refused the tool (403); throttled = our relay's own pace (429); failed = the call
+    ran and the provider did not give an answer (error result, unconfirmed outcome, 5xx)."""
+    if response.status_code == 403:
+        return "denied"
+    if response.status_code == 429:
+        return "throttled"
+    return "failed"
+
+
+def probe(client, base: str, member: dict, args: dict | None = None, reserve=None, note=None, pacer=None) -> dict:
     """The relay's answer for one member: initialize, then (with probe arguments) one read-only tools/call, because the
     relay admits a connection and refuses the tool later (11-15: 58997 passed initialize, every call got 403)."""
     url = f"{base}/api/gateway/mcp/{member['resource_id']}"
     if reserve is None or note is None:
-        from agent_market.provider_budget import note as _note, reserve as _reserve
-        reserve, note = reserve or _reserve, note or _note
+        from agent_market.provider_budget import note as _ledger_note, reserve as _reserve
+        reserve, note = reserve or _reserve, note or _ledger_note
     target = provider_url(member)
     ok, why = reserve(target, "gate")
     if not ok:
         return {"relay": "not_checked", "why": f"provider budget: {why}"}
     started = time.monotonic()
     empty = {"http_status": None, "error_code": None, "reference": None, "message": ""}   # filled when the relay refuses
+    pacer = _pace(pacer, 2 if args is not None else 1)
     try:
         first = _post(client, url, "initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
                                                   "clientInfo": {"name": "necklace-gate", "version": "1"}})
-        note(target, "gate", first.status_code)
+        _note(note, target, first)
         if not _answered(first):
-            return {"relay": "denied", "stage": "initialize", **_denial(first)}
+            return {"relay": _state(first), "stage": "initialize", **_denial(first)}
         if args is None:
             return {"relay": "admitted", "stage": "initialize", "tools_call": "not_checked", **empty}
         call = _post(client, url, "tools/call", {"name": member["tool"], "arguments": args})
     except OurCapacity as exc:
         return {"relay": "our_capacity", "stage": str(exc), **dict(empty, error_code="CAPACITY_EXCEEDED")}
-    note(target, "gate", call.status_code)
+    _note(note, target, call)
     ms = int((time.monotonic() - started) * 1000)
     if not _answered(call):
-        return {"relay": "denied", "stage": "tools/call", "ms": ms, **_denial(call)}
+        return {"relay": _state(call), "stage": "tools/call", "ms": ms, **_denial(call)}
     return {"relay": "admitted", "stage": "tools/call", "ms": ms, **empty, "http_status": call.status_code}
 
 
@@ -127,8 +167,8 @@ def check(defn: dict, client, base: str = BASE, verified=None, substitutes=None,
                 args = render(member.get("input_map") or {}, sample) if sample else None
                 row.update(probe_fn(client, base, member, args))
                 row[SEATED] = row["relay"] == "admitted" and row.get("tools_call") != "not_checked"
-                if row["relay"] == "our_capacity":
-                    problems.append(f"slot {slot['slot']}: member {row['id']} not judged, our edge was full (check again)")
+                if row["relay"] in ("our_capacity", "throttled"):
+                    problems.append(f"slot {slot['slot']}: member {row['id']} not judged ({row['relay']}, check again)")
             else:
                 row["substitute_approved"] = bool(member.get("substitute_approved"))
                 row[SEATED] = True                       # runs in-process on our host, not through the relay
