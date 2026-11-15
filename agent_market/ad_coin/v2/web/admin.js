@@ -111,7 +111,7 @@
          '신청 ' + new Date(item.applied_ms).toLocaleString('ko-KR')],
         [['승인', true, async (b) => { b.disabled = true; try {
             const r = await post('/applications/' + item.application_id + '/decision', {approve: true});
-            await loadApplications(r.welcome.granted_atoms === '0' ? '승인했습니다. 성장 예산이 없어 환영 지급은 하지 않았습니다.' : '승인하고 환영 지급을 했습니다.'); } catch (e) { b.disabled = false; text('applications-status', reason(e.status)); } }],
+            await loadApplications('승인했습니다. 환영 코인은 첫 USDC 결제가 확인되면 지급됩니다.'); } catch (e) { b.disabled = false; text('applications-status', reason(e.status)); } }],
          ['거절', false, async (b, card) => { const input = reasonField(card);
             if (input.value.trim().length < 3) { input.focus(); text('applications-status', '거절 사유를 3자 이상 적으세요.'); return; }
             b.disabled = true; try { await post('/applications/' + item.application_id + '/decision', {approve: false, reason: input.value.trim()});

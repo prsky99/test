@@ -117,7 +117,7 @@ def test_step2_anyone_applies_is_approved_at_once_and_gets_a_campaign_reviewed(s
                      headers=write).status_code == 422                       # a website is a public address only
     applied = site.post('/api/ad-coin/v2/advertiser-applications', json=form, headers=write)
     assert applied.status_code == 200 and applied.json()['status'] == 'approved', applied.text
-    assert applied.json()['welcome']['note'] == 'growth_budget_empty'     # step 3 (issuance) fills it
+    assert applied.json()['welcome']['note'] == 'after_first_usdc_payment'     # step 3 (issuance) fills it
     application = applied.json()['application_id']
     assert site.post('/api/ad-coin/v2/advertiser-applications', json=form, headers=write).json()['replayed']
     assert site.store.one('advertiser_get', (application,))['status'] == 'active'

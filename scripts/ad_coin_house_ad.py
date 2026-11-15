@@ -72,6 +72,7 @@ def run(commercial, *, month, issue_atoms, day, category="research", region="US"
     from agent_market.ad_coin.v2 import advertiser_applications as applications
     from agent_market.ad_coin.v2 import operator_review
     from agent_market.ad_coin.v2.access import COMMERCIAL_CAPABILITIES, HUMAN_CAPABILITIES, OPERATOR_CAPABILITY
+    from agent_market.ad_coin.v2.contracts import ContractError
     from agent_market.ad_coin.v2.commercial import date_text, etag
     from agent_market.ad_coin.v2.contracts import canonical_bytes
     from agent_market.ad_coin.v2.economy import CoinEconomy
@@ -91,6 +92,16 @@ def run(commercial, *, month, issue_atoms, day, category="research", region="US"
     advertiser = applied["application_id"]
     if applications.status_of(store, advertiser) == "pending":
         out["application"] = applications.decide(access, economy, me, advertiser, approve=True)
+    elif not applied.get("replayed"):           # 11-15: an application that passes the checks is approved at once
+        out["application"] = {"application_id": advertiser, "status": applied["status"]}
+    # PM 11:5x: approval no longer brings the welcome grant (open sign-up); our own house advertiser gets it here,
+    # by the operator script, once (idempotent key welcome:<advertiser>).
+    try:
+        out["welcome"] = economy.welcome_grant(advertiser)
+    except ContractError as exc:
+        if exc.code != "insufficient_balance":
+            raise
+        out["welcome"] = {"granted_atoms": "0", "note": "growth_budget_empty"}
     for capability in sorted(COMMERCIAL_CAPABILITIES):
         access.grant(advertiser, SCRIPT_PRINCIPAL, capability)
 

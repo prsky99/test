@@ -34,6 +34,8 @@ from .receipts import ReceiptSigner
 from .reports import report_view
 from .workers import ModelWorkers
 
+SPONSORED_MARKER_ATOMS = 2   # the budget of a Sponsored-only campaign (web/app.js SPONSORED_ONLY_ATOMS)
+
 PUBLIC_READS = frozenset(("getCapabilities", "getAsset", "getReceiptKeys"))
 
 READS = frozenset(
@@ -1313,6 +1315,24 @@ class Commercial:
         )
         return self._campaign_view(self._update(campaign, approval_status="approved"))
 
+    def _cover_sponsored_marker(self, advertiser, campaign, revision):
+        """A Sponsored-only campaign carries a 2-atom marker budget (it is never offered for rewarded views). An
+        advertiser who pays in USDC may hold no coins at all (no welcome grant before a first USDC payment, PM 11:5x),
+        so the platform covers the marker: from the growth budget, or by issuing those few atoms when it is empty
+        (PM 11:4x g). Paid placements never depend on the coin budget. Idempotent per campaign."""
+        from . import points
+        need = int(revision["total_atoms"])
+        if need > SPONSORED_MARKER_ATOMS:
+            return
+        short = need - int(self.ledger.account(advertiser["available_account"])["balance_atoms"])
+        if short <= 0:
+            return
+        points.ensure_platform_accounts(self.ledger)
+        if int(self.ledger.account(points.GROWTH_ACCOUNT)["balance_atoms"]) < short:
+            points.issue(self.ledger, short, reason="sponsored-marker:" + campaign["id"])
+        self.ledger.post("sponsored_marker:" + campaign["id"],
+                         [(points.GROWTH_ACCOUNT, str(-short)), (advertiser["available_account"], str(short))], kind="grant")
+
     def _activate(self, campaign, advertiser, locked_guard_ids, now_ms):
         if not self.store.one("commercial_control_locked")["model_activation_enabled"]:
             raise ContractError("model_activation_disabled", 503)
@@ -1358,6 +1378,7 @@ class Commercial:
         ) != (advertiser["id"], "campaign_available", MODEL_ASSET):
             raise ContractError("campaign_funding_account_mismatch", 503)
         if not campaign["funded"]:
+            self._cover_sponsored_marker(advertiser, campaign, revision)
             self.ledger.post(
                 "campaign_funding:" + campaign["id"] + ":" + MODEL_ASSET,
                 [

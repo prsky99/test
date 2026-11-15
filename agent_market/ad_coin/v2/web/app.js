@@ -18,7 +18,7 @@
     $('offer-card').hidden=true;$('creative-card').hidden=true;$('outcome').hidden=true;
     $('preferences-fields').disabled=true;$('receive-offers').checked=false;
     document.querySelectorAll('input[name=context]').forEach(node=>node.checked=false);
-    $('campaigns').replaceChildren();$('reports').replaceChildren();$('campaign-form').hidden=true;$('booking-form').hidden=true;$('pay-card').hidden=true;state.payment=null;$('bookings').replaceChildren();state.booking=null;
+    $('campaigns').replaceChildren();$('reports').replaceChildren();$('campaign-form').hidden=true;$('booking-form').hidden=true;$('plan-form').hidden=true;$('pay-card').hidden=true;state.payment=null;$('bookings').replaceChildren();state.booking=null;
     options('advertiser',[''],()=> 'Open your workspace first');
     $('region').value='';$('offers-limit').value=10;$('ads-limit').value=3;$('campaign-limit').value=1;$('time-limit').value=90;
   }
@@ -135,6 +135,10 @@
     options('advertiser',value.advertisers.map(a=>a.id),id=>{const a=value.advertisers.find(x=>x.id===id);return a.label+(a.status==='active'?'':' · application under review');});
     if (!value.advertisers.length) options('advertiser',[''],()=> 'Advertising access is not enabled');
     showAdvertiserId();
+    // PM 11:4x f: once an account is open the application form folds into one line, so booking comes first.
+    const open=value.advertisers.filter(a=>a.status==='active');
+    $('apply-form').hidden=open.length>0;$('apply-summary').hidden=!open.length;
+    text('apply-summary-text',open.map(a=>a.label+' · approved').join(', '));
   }
   async function refreshWallet() {
     if (!account()) return;
@@ -307,6 +311,36 @@
     options('booking-region',state.session.regions);
     options('booking-day',Array.from({length:30},(_,i)=>utcDay(i+1)),d=>new Date(d+'T00:00:00Z').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',timeZone:'UTC'})+' (UTC)');
     $('booking-form').hidden=false;$('booking-day').focus();
+    // Custom plans (11-15) show only once their tables exist; the check runs when the advertiser opens booking.
+    $('open-plan').hidden=true;const adv=advertiser();
+    if (adv) api('/advertisers/'+adv.id+'/paid-plans').then(({value})=>{$('open-plan').hidden=!value.open;}).catch(()=>{});
+  }
+  function checks(id,values,checked,label=v=>v) {
+    $(id).replaceChildren(...values.map(v=>{const l=document.createElement('label');l.className='check';const i=document.createElement('input');
+      i.type='checkbox';i.value=v;i.checked=v===checked;l.append(i,label(v));return l;}));
+  }
+  function picked(id) {return [...$(id).querySelectorAll('input:checked')].map(i=>i.value);}
+  function openPlan() {
+    const campaign=state.booking;if (!campaign) return;
+    text('plan-campaign',campaign.name);$('plan-options').replaceChildren();
+    checks('plan-categories',state.session.categories,$('booking-category').value,v=>v.replaceAll('_',' '));
+    checks('plan-regions',state.session.regions,$('booking-region').value);
+    $('booking-form').hidden=true;$('plan-form').hidden=false;$('plan-budget').focus();
+  }
+  function planCard(plan) {
+    const card=document.createElement('article');card.className='card';
+    const h=document.createElement('h3');h.textContent=plan.title+' · '+plan.total_usdc+' USDC';
+    const p=document.createElement('p');p.textContent=plan.detail;
+    const d=document.createElement('p');d.className='caption';
+    d.textContent=plan.placements+' placements, '+plan.first_day+' to '+plan.last_day+' UTC · '+plan.audiences.map(a=>a.replaceAll('_',' ')).join(', ')+
+      ' · '+plan.unit_usdc+' USDC each'+(plan.discount_bps?' ('+plan.discount_bps/100+'% off)':'');
+    const b=document.createElement('button');b.type='button';b.className='btn primary';b.textContent='Choose this plan';
+    b.setAttribute('aria-label','Choose '+plan.title+', '+plan.total_usdc+' USDC');
+    b.onclick=()=>run(b,async()=>{const adv=advertiser(), campaign=state.booking;if (!adv||!campaign) return;
+      try {const {value}=await api('/advertisers/'+adv.id+'/paid-plans',{method:'POST',body:{campaign_id:campaign.id,items:plan.items}});
+        $('plan-form').hidden=true;showPayment(value);}
+      catch (error) {if (error.status) {text('notice',payMessage(error));return;} throw error;}});
+    const a=document.createElement('div');a.className='actions';a.append(b);card.append(h,p,d,a);return card;
   }
   function bookingLine(item) {
     return new Date(item.day_ms).toISOString().slice(0,10)+' UTC · '+item.task_category.replaceAll('_',' ')+' · '+item.region+' · '+coins(item.price_atoms)+' coins · '+item.state;
@@ -487,13 +521,15 @@
     review('Send this advertiser application?',[body.display_name,url||'No website given.',
       'Most accounts open at once. If our ad rules flag something, a person checks it first and the status appears under Updates.'],async()=>{
       try {const {value}=await api('/advertiser-applications',{method:'POST',body});
-        text('apply-status',value.status==='approved'?'Your advertising account is open. Choose New campaign to start.':'Application received. A person checks it first; the status appears under Updates.');
+        const said=value.status==='approved'?'Your advertising account is open. Choose New campaign to start.':'Application received. A person checks it first; the status appears under Updates.';
+        text('apply-status',said);text('notice',said);   // the form folds once the account is open (f)
         $('apply-status').scrollIntoView({block:'center'});}
       catch (error) {if (error.code==='website_not_public') {text('apply-status','That website is not a public address. Use your public site, or leave it empty.');return;}
         if (error.status===422) {text('apply-status','Check the name and the website, then try again.');return;}
         if (error.status===429) {text('apply-status','You have reached the number of applications for now.');return;} throw error;}
       await connect();});
   });
+  $('show-apply').onclick=()=>{$('apply-form').hidden=false;$('apply-name').focus();};
   $('use-points').onclick=()=>{if (!account()) return;$('exchange-form').hidden=false;$('exchange-credits').focus();};
   $('cancel-exchange').onclick=()=>{$('exchange-form').hidden=true;};
   $('exchange-form').addEventListener('submit',event=>{
@@ -517,13 +553,18 @@
     if (error.status===404) return 'Paid placements are not available yet. You can book with coins.';
     return ({payment_not_found:'No USDC on Base arrived at this address in that transaction. Check the network, token and address, then try another transaction hash.',
       payment_failed:'That transaction failed on chain. Send the amount again and use the new transaction hash.',
-      payment_already_used:'That transaction already paid another booking.',quote_expired:'This quote has expired. Start the payment again for a new amount.',
+      payment_already_used:'That transaction already paid another booking.',plans_not_open:'Plans are not open yet. You can book single days now.',
+      budget_below_minimum:'A plan starts at 10 USDC (two placements). For one placement, use Pay 5 USDC.',budget_too_large:'That budget is more than one plan can hold. Try a smaller amount.',
+      invalid_budget:'Enter the budget in USDC, for example 25 or 25.50.',no_free_days:'No free days are left for these audiences in the next 30 days. Choose other categories or regions.',
+      too_many_open_plans:'You have unpaid plans waiting. Pay or let them expire first.',invalid_plan:'This plan changed. Show plans again.',quote_expired:'This quote has expired. Start the payment again for a new amount.',
       invalid_tx_hash:'A transaction hash starts with 0x and has 64 more characters.',sponsored_day_full:'That day is full for this category and region. Choose another day.'})[error.code]||message(error);
   }
   function showPayment(value) {
     state.payment=value;$('pay-card').hidden=false;
     text('pay-amount',value.amount_usdc);text('pay-to',value.pay_to);text('pay-expiry',new Date(value.expires_ms).toLocaleTimeString('en-US',{timeZone:'UTC',timeStyle:'short'})+' UTC');
-    text('pay-status',value.state==='confirmed'?'Payment confirmed. Your placement is booked for '+new Date(value.day_ms).toISOString().slice(0,10)+' UTC.':value.state==='confirming'?'Waiting for this transaction to be confirmed on Base. This usually takes under a minute. Press Confirm payment again to check, or choose Show bookings later.':value.state==='review'?'Payment received. We are checking it and will confirm the booking shortly.':'Waiting for your payment.');
+    const booked=value.items?value.placements+' placements are booked, '+value.items[0].day+' to '+value.items[value.items.length-1].day+' UTC.':
+      'Your placement is booked for '+new Date(value.day_ms).toISOString().slice(0,10)+' UTC.';
+    text('pay-status',value.state==='confirmed'?'Payment confirmed. '+booked:value.state==='confirming'?'Waiting for this transaction to be confirmed on Base. This usually takes under a minute. Press Confirm payment again to check, or choose Show bookings later.':value.state==='review'?'Payment received. We are checking it and will confirm the booking shortly.':'Waiting for your payment.');
     $('pay-title').focus?.();
   }
   $('pay-usdc').onclick=()=>run($('pay-usdc'),async()=>{
@@ -539,7 +580,8 @@
     const adv=advertiser(), payment=state.payment;if (!adv||!payment) return;
     run(event.submitter,async()=>{
       let value;
-      try {({value}=await api('/advertisers/'+adv.id+'/paid-bookings/'+payment.id+'/payment',{method:'POST',body:{tx_hash:$('pay-tx').value.trim()}}));}
+      const path=payment.items?'/paid-plans/':'/paid-bookings/';   // a plan is paid once for all its placements
+      try {({value}=await api('/advertisers/'+adv.id+path+payment.id+'/payment',{method:'POST',body:{tx_hash:$('pay-tx').value.trim()}}));}
       catch (error) {if (error.status) {text('pay-status',payMessage(error));return;} throw error;}
       showPayment(value);
       // The payment is recorded; a failed refresh of the booking list must not replace its status line.
@@ -565,12 +607,27 @@
     for (const id of ['total-budget','daily-budget','gross-reward']) $(id).disabled=only;});
   $('load-bookings').onclick=()=>run($('load-bookings'),loadBookings);
   $('cancel-booking-form').onclick=()=>{$('booking-form').hidden=true;state.booking=null;};
+  $('open-plan').onclick=openPlan;
+  $('cancel-plan-form').onclick=()=>{$('plan-form').hidden=true;$('booking-form').hidden=false;$('open-plan').focus();};
+  $('plan-form').addEventListener('submit',event=>{
+    event.preventDefault();
+    const adv=advertiser(), campaign=state.booking;if (!adv||!campaign) return;
+    const body={campaign_id:campaign.id,budget_usdc:$('plan-budget').value.trim(),task_categories:picked('plan-categories'),regions:picked('plan-regions')};
+    if (!body.task_categories.length||!body.regions.length) {text('notice','Choose at least one category and one region.');return;}
+    run(event.submitter,async()=>{
+      try {const {value}=await api('/advertisers/'+adv.id+'/paid-plans/options',{method:'POST',body});
+        const note=document.createElement('p');note.className='caption';note.textContent=value.note;
+        $('plan-options').replaceChildren(note,...value.plans.map(planCard));
+        $('plan-options').querySelector('button')?.focus();}
+      catch (error) {if (error.status) {text('notice',payMessage(error));return;} throw error;}
+    });
+  });
   $('booking-form').addEventListener('submit',event=>{
     event.preventDefault();
     const campaign=state.booking, adv=advertiser();if (!campaign||!adv) return;
     const body={campaign_id:campaign.id,day:$('booking-day').value,task_category:$('booking-category').value,region:$('booking-region').value};
     review('Book this Sponsored placement?',[campaign.name,body.day+' UTC · '+body.task_category.replaceAll('_',' ')+' · '+body.region,
-      'Price: 50 coins, deducted from your coin balance when you confirm. A new advertiser\u2019s first booking may be paid from the platform\u2019s growth budget instead.',
+      'Price: 50 coins, deducted from your coin balance when you confirm. After your first USDC payment, your first coin booking may be paid from the platform\u2019s growth budget instead.',
       'You can cancel until the day before it starts and get all coins back. If you pause the campaign yourself, coins are not returned.',
       'Coins have no cash value. See \u201cSponsored placement terms\u201d below.'],async()=>{
       const {value}=await api('/advertisers/'+adv.id+'/sponsored-bookings',{method:'POST',body});

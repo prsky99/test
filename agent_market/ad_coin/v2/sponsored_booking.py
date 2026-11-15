@@ -65,8 +65,14 @@ class SponsoredBookings:
         return int(row["balance_atoms"]) if row else 0
 
     def _support_allowed(self, advertiser_id, now_ms):
-        """First booking per advertiser, within this month's share of the growth budget."""
+        """First booking per advertiser, within this month's share of the growth budget. PM 11:5x: anyone can now
+        sign up, so an advertiser that came through the open application gets the support only once it received the
+        welcome grant (a confirmed USDC payment, or a provider the operator granted after proof of ownership); our own
+        house advertiser and accounts set up by an operator are unchanged."""
         if self.store.one("journal_get", (MODEL_ASSET, "sponsored_support:" + advertiser_id)):
+            return False
+        if (self.store.one("audit_by_target_event", (advertiser_id, "advertiser_applied")) is not None
+                and self.store.one("journal_get", (MODEL_ASSET, "welcome:" + advertiser_id)) is None):
             return False
         spent = -int(self.store.one("sponsored_support_month_total",
                                     (MODEL_ASSET, GROWTH_ACCOUNT, month_start_ms(now_ms)))["total"])

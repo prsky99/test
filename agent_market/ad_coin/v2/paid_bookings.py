@@ -460,6 +460,11 @@ class PaidBookings:
                     changed += 1
             except ContractError:
                 changed += 1
+        try:                                            # custom plans (11-15): their payments, once the tables exist
+            from .paid_plans import PaidPlans
+            changed += PaidPlans(self).recheck(now_ms=now_ms, limit=limit)
+        except Exception:
+            logger.warning("Paid plan recheck failed; it runs again with the next recheck", exc_info=True)
         from .paid_audit import watch
         try:
             watched = watch(self, now_ms=now_ms, limit=limit)
@@ -621,13 +626,21 @@ class PaidBookings:
         import datetime
         start = datetime.datetime.strptime(month + "-01", "%Y-%m-%d").replace(tzinfo=datetime.timezone.utc)
         end = (start.replace(day=28) + datetime.timedelta(days=4)).replace(day=1)
+        span = (int(start.timestamp() * 1000), int(end.timestamp() * 1000))
         with self.store.atomic():
-            rows = self.store.all("paid_bookings_month", (int(start.timestamp() * 1000), int(end.timestamp() * 1000)))
+            # A plan's placements carry no tx of their own (the plan row does): one line per payment, never per
+            # placement, so a plan is not counted once for each of its days (custom plans, 11-15).
+            rows = [r for r in self.store.all("paid_bookings_month", span) if r["tx_hash"] is not None]
             received = {r["id"]: received_units(self.store, r) for r in rows}
+            if self.store.one("paid_plans_table")["present"]:
+                for plan in self.store.all("paid_plans_month", span):
+                    rows.append(plan)
+                    received[plan["id"]] = None
+            rows.sort(key=lambda r: (int(r["confirmed_ms"]), r["id"]))
         out = io.StringIO()
         writer = csv.writer(out)
         writer.writerow(["confirmed_utc", "booking_id", "state", "amount_usdc", "payer", "tx_hash", "krw_per_usdc",
-                         "amount_krw", "refund_tx_hash", "received_usdc"])
+                         "amount_krw", "refund_tx_hash", "received_usdc", "kind"])
         for r in rows:
             rate = r["krw_rate"]
             got = received[r["id"]]
@@ -636,5 +649,5 @@ class PaidBookings:
             writer.writerow([datetime.datetime.fromtimestamp(int(r["confirmed_ms"]) / 1000, datetime.timezone.utc)
                              .strftime("%Y-%m-%d %H:%M:%S"), r["id"], r["state"], _usdc(r["amount_units"]),
                              r["payer"], r["tx_hash"], rate or "", krw, r["refund_tx_hash"] or "",
-                             _usdc(got) if got is not None else ""])
+                             _usdc(got) if got is not None else "", "plan" if "items" in r.keys() else "booking"])
         return out.getvalue()

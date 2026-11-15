@@ -14,6 +14,17 @@ from .identity import authorize
 def router_for(commercial, bookings, *, resolve_auth) -> APIRouter:
     router = APIRouter(prefix="/api/ad-coin/v2")
     store, access = commercial.store, commercial.access
+    from .advertiser_applications import welcome_after_payment
+    from .economy import CoinEconomy
+    economy = CoinEconomy(store, commercial.ledger, access)
+
+    def paid_then_welcome(advertiser, result):
+        """PM 11:5x: the welcome grant follows the first confirmed USDC payment; never blocks the answer."""
+        try:
+            welcome_after_payment(store, economy, advertiser)
+        except Exception:                                   # the grant is retried on the next visit
+            pass
+        return result
 
     def authority(principal, advertiser_id, operation):
         try:
@@ -67,7 +78,8 @@ def router_for(commercial, bookings, *, resolve_auth) -> APIRouter:
             ctx = await context(request, write=True)
             body = await body_of(request)
             advertiser = await run_in_threadpool(authority, ctx.principal, advertiser_id, "activateCampaign")
-            return await run_in_threadpool(lambda: bookings.submit(advertiser, booking_id, body.get("tx_hash")))
+            return await run_in_threadpool(lambda: paid_then_welcome(
+                advertiser, bookings.submit(advertiser, booking_id, body.get("tx_hash"))))
         return await respond(call)
 
     @router.get(base)
@@ -75,7 +87,52 @@ def router_for(commercial, bookings, *, resolve_auth) -> APIRouter:
         async def call():
             ctx = await context(request, write=False)
             advertiser = await run_in_threadpool(authority, ctx.principal, advertiser_id, "getCampaign")
-            return await run_in_threadpool(bookings.list_for, advertiser)
+            return await run_in_threadpool(lambda: paid_then_welcome(advertiser, bookings.list_for(advertiser)))
+        return await respond(call)
+
+    # Custom plans (user decision 11-15): the advertiser names a budget and audiences, picks a proposed plan and pays
+    # it once. Proposals work before the plan tables exist; quoting needs them (409 plans_not_open until then).
+    from .paid_plans import PaidPlans
+    plans = PaidPlans(bookings)
+    plans_base = "/advertisers/{advertiser_id}/paid-plans"
+
+    @router.post(plans_base + "/options")
+    async def plan_options(advertiser_id: str, request: Request):
+        async def call():
+            ctx = await context(request, write=True)
+            body = await body_of(request)
+            advertiser = await run_in_threadpool(authority, ctx.principal, advertiser_id, "activateCampaign")
+            return await run_in_threadpool(lambda: plans.options(
+                advertiser, campaign_id=str(body.get("campaign_id", "")), budget_usdc=body.get("budget_usdc"),
+                categories=body.get("task_categories"), regions=body.get("regions")))
+        return await respond(call)
+
+    @router.post(plans_base)
+    async def plan_quote(advertiser_id: str, request: Request):
+        async def call():
+            ctx = await context(request, write=True)
+            body = await body_of(request)
+            advertiser = await run_in_threadpool(authority, ctx.principal, advertiser_id, "activateCampaign")
+            return await run_in_threadpool(lambda: plans.quote(
+                advertiser, campaign_id=str(body.get("campaign_id", "")), items=body.get("items")))
+        return await respond(call)
+
+    @router.post(plans_base + "/{plan_id}/payment")
+    async def plan_payment(advertiser_id: str, plan_id: str, request: Request):
+        async def call():
+            ctx = await context(request, write=True)
+            body = await body_of(request)
+            advertiser = await run_in_threadpool(authority, ctx.principal, advertiser_id, "activateCampaign")
+            return await run_in_threadpool(lambda: paid_then_welcome(
+                advertiser, plans.submit(advertiser, plan_id, body.get("tx_hash"))))
+        return await respond(call)
+
+    @router.get(plans_base)
+    async def plan_listing(advertiser_id: str, request: Request):
+        async def call():
+            ctx = await context(request, write=False)
+            advertiser = await run_in_threadpool(authority, ctx.principal, advertiser_id, "getCampaign")
+            return await run_in_threadpool(plans.list, advertiser)
         return await respond(call)
 
     @router.get("/admin/paid-bookings")

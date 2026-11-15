@@ -6,8 +6,10 @@ display name and, optionally, a website or a catalog page. The checks that stay:
 - the name: no hidden characters, no steering or imperative wording aimed at agents (the screen ads already pass);
 - the name: words of the classes we do not sell or that need a person (docs/AD_COIN_SALES_POLICY.md 5) hold it;
 - the website: a public address only (check_public_url, never a private or local one).
-An application that passes is approved at once (the welcome grant follows when the growth budget allows); one that
-is held waits for an operator, who sees why. Sanctions screening stays where money moves (each USDC payment).
+An application that passes is approved at once; one that is held waits for an operator, who sees why. Sanctions
+screening stays where money moves (each USDC payment). PM 11:5x: approval no longer brings the welcome grant, so
+free coins cannot buy ads for anyone who signs up. The grant goes to an advertiser whose first USDC payment is
+confirmed (welcome_after_payment) and, later, to a provider who proved ownership; others book with USDC only.
 No new table: the application is a suspended advertiser record with the applicant's campaign memberships, and the
 name, addresses and flags are kept in the audit log ("advertiser_applied"). Nothing here moves money.
 """
@@ -64,7 +66,7 @@ def _last(store, advertiser_id, event):
 
 
 def apply(access, principal, *, display_name, listing_url=None, website_url=None, economy=None, check_url=None):
-    """Applies, and approves at once when screen_application finds nothing (economy given: the welcome grant)."""
+    """Applies, and approves at once when screen_application finds nothing (no coins: see welcome_after_payment)."""
     if principal.kind != Kind.HUMAN or principal.owner_id is None:
         raise ContractError("human_workspace_required", 403)
     name = display_name.strip() if type(display_name) is str else ""
@@ -100,19 +102,32 @@ def apply(access, principal, *, display_name, listing_url=None, website_url=None
         access.set_advertiser_status(advertiser_id, "active")
         AuditLogger.log(store, APPROVED, "succeeded", actor_principal_id=str(principal.id), target_id=advertiser_id,
                         details={"approved_by": AUTO_APPROVER})
-    reply = {"application_id": advertiser_id, "status": "approved", "replayed": False, "held": False}
-    if economy is not None:
-        reply["welcome"] = _welcome(economy, advertiser_id)
-    return reply
+    return {"application_id": advertiser_id, "status": "approved", "replayed": False, "held": False,
+            "welcome": WELCOME_LATER}
 
 
-def _welcome(economy, advertiser_id):
+WELCOME_LATER = {"granted_atoms": "0", "note": "after_first_usdc_payment"}
+
+
+def welcome_after_payment(store, economy, advertiser_id):
+    """The welcome grant, once, for an advertiser with a confirmed USDC payment (PM 11:5x). Called where paid
+    bookings and plans are submitted or listed, so a payment the worker confirmed is noticed on the next visit.
+    Returns the grant, or None (already granted, nothing paid yet, or the growth budget is empty: tried again later)."""
+    from .ledger import MODEL_ASSET as asset
+    with store.atomic():
+        if store.one("journal_get", (asset, "welcome:" + advertiser_id)) is not None:
+            return None
+        if not store.one("paid_bookings_table")["present"]:
+            return None
+        paid = any(r["state"] in ("confirmed", "served") for r in store.all("paid_bookings_by_advertiser", (advertiser_id,)))
+    if not paid:
+        return None
     try:
-        return {"granted_atoms": economy.welcome_grant(advertiser_id)["atoms"]}
+        return economy.welcome_grant(advertiser_id)
     except ContractError as exc:
         if exc.code != "insufficient_balance":
             raise
-        return {"granted_atoms": "0", "note": "growth_budget_empty"}  # approved now, grant after issuance
+        return None
 
 
 def status_of(store, advertiser_id):
@@ -157,6 +172,6 @@ def decide(access, economy, principal, application_id, *, approve, reason=""):
             return {"application_id": advertiser_id, "status": "rejected"}
         access.set_advertiser_status(advertiser_id, "active")
         AuditLogger.log(store, APPROVED, "succeeded", actor_principal_id=str(principal.id), target_id=advertiser_id)
-    welcome = _welcome(economy, advertiser_id)
+    welcome = WELCOME_LATER          # PM 11:5x: coins come after a first USDC payment, not with approval
     return {"application_id": advertiser_id, "status": "approved", "welcome": welcome,
             "already_granted": store.one("journal_get", (MODEL_ASSET, "welcome:" + advertiser_id)) is not None}

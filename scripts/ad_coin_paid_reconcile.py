@@ -49,20 +49,23 @@ def address_change(pay_to, state_file):
     return finding, {"sha": digest}
 
 
-def reconcile(bookings, *, receipts, transfers, impressions, last_blocks, export_rows, day_ms, pay_to=None):
+def reconcile(bookings, *, receipts, transfers, impressions, last_blocks, export_rows, day_ms, pay_to=None, plans=()):
     """Pure check. bookings: dict rows; receipts: tx -> receipt|None|'unavailable'; transfers: [(tx, from, units)]
     into the receive address that day; impressions: (day, campaign, category, region) -> served count;
-    last_blocks: booking id -> block hash recorded; export_rows: rows of the monthly CSV. Returns (counts, findings)."""
+    last_blocks: booking id -> block hash recorded; export_rows: rows of the monthly CSV; plans: custom plan rows
+    (11-15), each one payment for several placements. A plan's placements carry no tx: the plan row is checked as
+    the payment and the placements only as placements. Returns (counts, findings)."""
     from agent_market.chain import normalize, transfers_in
     findings, counts = [], {"bookings": len(bookings), "received": 0, "placed": 0, "transfers_in": len(transfers),
                             "received_units": 0}
-    by_tx = {(b["tx_hash"] or "").lower(): b for b in bookings if b["tx_hash"]}
+    payments = [b for b in bookings if b["tx_hash"]] + list(plans)
+    by_tx = {(b["tx_hash"] or "").lower(): b for b in payments if b["tx_hash"]}
     exported = {r["booking_id"]: r for r in export_rows}
 
     def find(kind, booking=None, **detail):
         findings.append({"kind": kind, "booking_id": booking["id"] if booking else None, **detail})
 
-    for b in bookings:
+    for b in payments:
         received = b["state"] in RECEIVED and b["confirmed_ms"] is not None and \
             day_ms <= int(b["confirmed_ms"]) < day_ms + DAY_MS
         if received and pay_to and normalize(b["pay_to"] or "") != normalize(pay_to):
@@ -93,6 +96,11 @@ def reconcile(bookings, *, receipts, transfers, impressions, last_blocks, export
                 find("missing_from_monthly_export", b)
             elif row["amount_usdc"] != _units(b["amount_units"]) or (row["tx_hash"] or "") != (b["tx_hash"] or ""):
                 find("export_differs", b)
+    for b in bookings:
+        if (not b["tx_hash"] and b["state"] in RECEIVED and b["confirmed_ms"] is not None
+                and day_ms <= int(b["confirmed_ms"]) < day_ms + DAY_MS and pay_to
+                and normalize(b["pay_to"] or "") != normalize(pay_to)):
+            find("booking_to_other_receive_address", b)     # a plan's placement: its payment is checked on the plan
         if int(b["day_ms"]) == day_ms and b["state"] in ("served", "confirmed"):
             counts["placed"] += 1
             if b["state"] == "served" and not impressions.get((day_ms, b["campaign_id"], b["task_category"], b["region"])):
@@ -170,17 +178,22 @@ def main(argv=None):
                         last_blocks[b["id"]] = r["block_hash"]
             month_start = datetime.datetime.fromtimestamp(day_ms / 1000, datetime.timezone.utc).replace(day=1)
             month_end = (month_start.replace(day=28) + datetime.timedelta(days=4)).replace(day=1)
-            month_rows = [dict(r) for r in store.all("paid_bookings_month", (int(month_start.timestamp() * 1000),
-                                                                             int(month_end.timestamp() * 1000)))]
+            month_span = (int(month_start.timestamp() * 1000), int(month_end.timestamp() * 1000))
+            month_rows = [dict(r) for r in store.all("paid_bookings_month", month_span)]
+            plans, month_plans = [], []
+            if db.one("SELECT to_regclass('adc2_paid_plans') IS NOT NULL AS present")["present"]:
+                plans = [dict(r) for r in db.all("SELECT * FROM adc2_paid_plans WHERE confirmed_ms>=? AND confirmed_ms<?",
+                                                 (day_ms, day_ms + DAY_MS))]
+                month_plans = [dict(r) for r in store.all("paid_plans_month", month_span)]
     finally:
         runtime.close()
-    export_rows = _export(month_rows)
+    export_rows = _export(month_rows, month_plans)
     rpc = RPC(args.rpc)
     findings_extra, receipts, transfers = [], {}, []
     try:
         if rpc.chain_id() != BASE_CHAIN_ID:
             raise RuntimeError("not Base mainnet")
-        for b in bookings:
+        for b in bookings + plans:
             if b["tx_hash"]:
                 try:
                     receipts[b["tx_hash"].lower()] = rpc.receipt(b["tx_hash"])
@@ -201,7 +214,7 @@ def main(argv=None):
         findings_extra.append({"kind": "chain_unreadable", "booking_id": None, "error": type(error).__name__})
     counts, findings = reconcile(bookings, receipts=receipts, transfers=transfers, impressions=impressions,
                                  last_blocks=last_blocks, export_rows=export_rows, day_ms=day_ms,
-                                 pay_to=locals().get("pay_to"))
+                                 pay_to=locals().get("pay_to"), plans=plans)
     findings += findings_extra
     counts["received_usdc"] = _units(counts.pop("received_units"))
     result = {"day": day, "at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "ok": not findings,
@@ -212,7 +225,7 @@ def main(argv=None):
     return 0 if result["ok"] else 1
 
 
-def _export(month_rows):
+def _export(month_rows, month_plans=()):
     """The monthly export as the operator downloads it (same code path), parsed back into rows."""
     from agent_market.ad_coin.v2.paid_bookings import PaidBookings
 
@@ -222,15 +235,18 @@ def _export(month_rows):
             return nullcontext()
 
         def all(self, name, args):
-            return month_rows
+            return month_plans if name == "paid_plans_month" else month_rows
+
+        def one(self, name, args=()):     # only the plan table question; receipt events are not read here
+            return {"present": name == "paid_plans_table" and bool(month_plans)}
 
     class _Access:
         def require_operator(self, principal):
             return None
     text = PaidBookings.monthly_csv(type("S", (), {"store": _Store()})(), _Access(), None,
-                                    datetime.datetime.fromtimestamp(int(month_rows[0]["confirmed_ms"]) / 1000,
+                                    datetime.datetime.fromtimestamp(int((list(month_rows) + list(month_plans))[0]["confirmed_ms"]) / 1000,
                                                                     datetime.timezone.utc).strftime("%Y-%m")) \
-        if month_rows else "confirmed_utc,booking_id,state,amount_usdc,payer,tx_hash,krw_per_usdc,amount_krw,refund_tx_hash\n"
+        if month_rows or month_plans else "confirmed_utc,booking_id,state,amount_usdc,payer,tx_hash,krw_per_usdc,amount_krw,refund_tx_hash\n"
     return list(csv.DictReader(io.StringIO(text)))
 
 

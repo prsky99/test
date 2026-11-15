@@ -73,7 +73,7 @@ def _connect(args):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument('action', choices=('plan', 'status', 'migrate', 'public-status', 'drop-public', 'migrate-paid', 'migrate-impressions', 'migrate-usdc', 'migrate-agent-ads', 'migrate-paid-events', 'migrate-night-1115'))
+    parser.add_argument('action', choices=('plan', 'status', 'migrate', 'public-status', 'drop-public', 'migrate-paid', 'migrate-impressions', 'migrate-usdc', 'migrate-agent-ads', 'migrate-paid-events', 'migrate-night-1115', 'migrate-paid-plans'))
     parser.add_argument('--dsn-file')
     parser.add_argument('--key-file')
     parser.add_argument('--i-have-approval', action='store_true',
@@ -84,14 +84,14 @@ def main(argv=None):
         return 0
     if not (args.dsn_file and args.key_file):
         parser.error(args.action + ' needs --dsn-file and --key-file')
-    if args.action in ('migrate', 'drop-public', 'migrate-paid', 'migrate-impressions', 'migrate-usdc', 'migrate-agent-ads', 'migrate-paid-events', 'migrate-night-1115') and not args.i_have_approval:
+    if args.action in ('migrate', 'drop-public', 'migrate-paid', 'migrate-impressions', 'migrate-usdc', 'migrate-agent-ads', 'migrate-paid-events', 'migrate-night-1115', 'migrate-paid-plans') and not args.i_have_approval:
         parser.error(args.action + ' changes the production database; pass --i-have-approval only after approval')
     from agent_market.ad_coin.v2.live_service import store_from_application
     runtime = _connect(args)
     try:
         import os
         os.environ['AD_COIN_V2_POOL_MAXIMUM'] = '1'
-        if args.action in ('migrate', 'drop-public', 'migrate-paid', 'migrate-impressions', 'migrate-usdc', 'migrate-agent-ads', 'migrate-paid-events', 'migrate-night-1115'):
+        if args.action in ('migrate', 'drop-public', 'migrate-paid', 'migrate-impressions', 'migrate-usdc', 'migrate-agent-ads', 'migrate-paid-events', 'migrate-night-1115', 'migrate-paid-plans'):
             preflight(runtime.store)  # stop before touching anything if the application is not healthy
         if args.action == 'migrate-paid':
             result = migrate_paid(store_from_application(runtime.store))
@@ -101,6 +101,8 @@ def main(argv=None):
             result = migrate_agent_ads(store_from_application(runtime.store))
         elif args.action == 'migrate-paid-events':
             result = migrate_paid_events(store_from_application(runtime.store))
+        elif args.action == 'migrate-paid-plans':
+            result = migrate_paid_plans(store_from_application(runtime.store))
         elif args.action == 'migrate-night-1115':     # one rehearsal and one approval (PM 11-14): both changes
             v2 = store_from_application(runtime.store)
             result = {**migrate_agent_ads(v2), **migrate_paid_events(v2)}
@@ -111,7 +113,7 @@ def main(argv=None):
             result = public_leftovers(store_from_application(runtime.store), drop=args.action == 'drop-public')
         else:
             result = run(store_from_application(runtime.store), args.action)
-        if args.action in ('migrate', 'drop-public', 'migrate-paid', 'migrate-impressions', 'migrate-usdc', 'migrate-agent-ads', 'migrate-paid-events', 'migrate-night-1115'):
+        if args.action in ('migrate', 'drop-public', 'migrate-paid', 'migrate-impressions', 'migrate-usdc', 'migrate-agent-ads', 'migrate-paid-events', 'migrate-night-1115', 'migrate-paid-plans'):
             preflight(runtime.store)  # the application must still start afterwards
         print(json.dumps(result, sort_keys=True))
     finally:
@@ -209,6 +211,19 @@ def migrate_paid_events(store):
             store._connection().execute(statement)
         found = store.database.one("SELECT to_regclass('adc2_paid_booking_events') IS NOT NULL AS present")
     return {'paid_events_table': bool(found['present'])}
+
+
+def migrate_paid_plans(store):
+    """Create adc2_paid_plans and adc2_paid_plan_items (custom plans, user decision 11-15). Idempotent; needs
+    adc2_paid_bookings (migrate-paid). Rollback while both are empty: deploy/ad_coin/rollback-paid-plans-2026-11-15.sql."""
+    from agent_market.ad_coin.sql_registry import unchecked
+    from agent_market.ad_coin.v2.paid_plans import PLAN_STATEMENTS
+    with unchecked(), store.atomic(require_ready=False):
+        for statement in PLAN_STATEMENTS:
+            store._connection().execute(statement)
+        found = store.database.one("SELECT to_regclass('adc2_paid_plans') IS NOT NULL AND "
+                                   "to_regclass('adc2_paid_plan_items') IS NOT NULL AS present")
+    return {'paid_plans_tables': bool(found['present'])}
 
 
 # Rows a v2 migration itself writes; anything beyond these means real data and blocks the drop.

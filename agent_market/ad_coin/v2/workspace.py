@@ -58,10 +58,16 @@ def bootstrap(service, principal):
             except ContractError:
                 continue
             row = store.one("advertiser_get", (key,))
+            # PM 11:4x e: the account list shows the advertiser's name (from its application), not a number.
+            applied = store.one("audit_by_target_event", (key, "advertiser_applied"))
+            try:
+                name = str(json.loads(applied["details_json"]).get("display_name", ""))[:80] if applied else ""
+            except (TypeError, ValueError):
+                name = ""
             advertisers.append(
                 {
                     "id": key,
-                    "label": "Advertising account " + str(len(advertisers) + 1),
+                    "label": name or "Advertising account " + str(len(advertisers) + 1),
                     "capabilities": caps,
                     "status": row["status"] if row else "suspended",  # suspended = application pending
                 }
