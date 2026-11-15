@@ -39,6 +39,11 @@ GAP = 0.45          # seconds between requests: stay well under our own per-IP l
 PAGE_S = 1.0        # page target (CLAUDE.md response-time policy, 11-11 19시: 1초)
 RECOMMEND_S = 2.0   # recommendation target (11-11 19시: 2초)
 API_S = 3.0
+# The explore API is judged by the explore target, not the page target (PM 11-16 04:3x): the 03:53 check failed
+# 'send email 232' at 1.45 s against PAGE_S 1.0. Final 2 s fails the check; the interim 3 s (11-14) is noted beside it,
+# the same targets user_slo uses (explore_s).
+EXPLORE_S = 2.0
+EXPLORE_INTERIM_S = 3.0
 NAV = ['/', '/new/en/explore.html', '/new/en/chat.html', '/new/en/test.html', '/new/en/workflows.html',
        '/new/en/learn.html', '/new/en/agent-status.html', '/new/en/list-agent.html', '/new/en/about.html',
        '/new/en/privacy.html', '/new/en/terms.html', '/new/en/cookies.html', '/new/en/accessibility.html',
@@ -207,6 +212,13 @@ def part_pages(run, c):
     return {'pages_checked': len(picked), 'links_checked': min(40, len(unchecked)), 'sitemap_pages': len(pages)}
 
 
+def explore_detail(q, took):
+    """Over the final explore target, say whether the sample is still within the interim one."""
+    if took is None or took <= EXPLORE_S:
+        return f'{q}: {took}s'
+    return f"{q}: {took}s > {EXPLORE_S}s ({'within' if took <= EXPLORE_INTERIM_S else 'over'} interim {EXPLORE_INTERIM_S}s)"
+
+
 def part_api(run, c):
     q = random.choice(['weather forecast', 'translate text', 'currency rates', 'github issues', 'pdf to text',
                        'stock price', 'send email', 'web search', 'image generation', 'speech to text'])
@@ -214,7 +226,7 @@ def part_api(run, c):
     took, r, err = timed(c, 'GET', BASE + '/api/explore', params={'q': q})
     data = r.json() if r is not None and r.status_code == 200 else {}
     run.ok('api', 'explore status', r is not None and r.status_code == 200, err or getattr(r, 'status_code', ''), took)
-    run.ok('api', 'explore time', took <= PAGE_S, f'{q}: {took}s', took)
+    run.ok('api', 'explore time', took <= EXPLORE_S, explore_detail(q, took), took)
     run.ok('api', 'explore results', (data.get('total') or 0) > 0, f'{q}: 0 results')
     items = data.get('items') or data.get('results') or []
     rid = next((i.get('id') or i.get('rid') for i in items if i.get('id') or i.get('rid')), None)
