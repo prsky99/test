@@ -8,8 +8,8 @@ import pytest
 from scripts import ops_auto, prod_ro_sql, revenue_funnel
 
 OUTPUT = ['clients|2828|3|126|126', 'channel|a2a|285', 'channel|mcp|576', 'channel|rest|1967',
-          'owners|0|0|0', 'control|1|1', 'applications|1|0', 'advertisers|1',
-          'bookings|2|1|1|1|5000000|0']
+          'owners|0|0|0', 'control|1|1', 'applications|internal|1|0', 'applications|external|2|1',
+          'advertisers|internal|1', 'bookings|external|2|1|1|1|5000000|0', 'bookings|internal|3|0|0|0|0|0']
 
 
 def fake_run(lines, code=0):
@@ -32,11 +32,23 @@ def test_the_counts_pass_the_read_only_check_and_read_no_secret_or_personal_colu
 def test_the_output_becomes_one_record_and_one_board_line():
     record = revenue_funnel.count(fake_run(OUTPUT))
     assert record['clients'] == 2828 and record['returning'] == 3 and record['clients_by_channel']['rest'] == 1967
-    assert record['owners'] == 1 and record['applications'] == 1 and record['quotes'] == 2 and record['paid'] == 1
-    assert record['usdc_received'] == 5.0 and record['paid_24h'] == 1
+    ext, own = record['external'], record['internal']
+    assert record['owners'] == 1 and ext['applications'] == 2 and ext['quotes'] == 2 and ext['paid'] == 1
+    assert ext['usdc_received'] == 5.0 and ext['paid_24h'] == 1 and ext['advertisers_active'] == 0
+    assert own == {'applications': 1, 'applications_24h': 0, 'advertisers_active': 1, 'quotes': 3, 'quotes_24h': 0,
+                   'paid': 0, 'paid_24h': 0, 'usdc_received': 0.0, 'refunded': 0}   # kept apart, never dropped
     text = revenue_funnel.line(record)
     assert text.startswith('식별 클라이언트 2828(24시간 새로 126·활동 126) → 서로 다른 날 2번 이상 3 → 제공자 소유 확인 1')
-    assert '견적 2 → 결제 1 → 수령 5.00 USDC' in text
+    assert '[외부] 광고주 신청 2(활성 0) → 견적 2 → 결제 1 → 수령 5.00 USDC' in text
+    assert '[내부] 신청 1·활성 1·견적 3·결제 0·0.00 USDC' in text
+
+
+def test_the_internal_rule_is_the_ad_coin_demand_rule():
+    sql = open('deploy/ops/adcoin-demand-counts.sql').read()
+    for value in (revenue_funnel.HOUSE, revenue_funnel.PLATFORM):
+        assert value.strip("'") in sql
+    empty = revenue_funnel.parse(['clients|5|0|1|1', 'owners|0|0|0', 'control|0|0', 'advertisers|internal|1'])
+    assert empty['external']['applications'] == 0 and empty['external']['paid'] == 0 and empty['internal']['advertisers_active'] == 1
 
 
 def test_a_refused_read_raises_and_writes_nothing(tmp_path):

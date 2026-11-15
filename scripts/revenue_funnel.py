@@ -10,6 +10,9 @@ Counts only, through scripts.prod_ro_sql (one read-only connection, every statem
   applications   advertiser applications (AD Coin v2 audit 'advertiser_applied'); advertisers: active accounts
   quotes / paid  USDC paid bookings quoted, and received (confirmed, served, review, refund_due, refunded)
   usdc_received  the amount of the received bookings, in USDC (refunds are counted apart, not subtracted)
+Advertiser applications, advertisers, quotes, payments and USDC are each split external / internal by the rule of
+deploy/ops/adcoin-demand-counts.sql (PM 11-15 11:06): internal is our house advertiser account or the platform
+script principal. Revenue is judged on the external numbers only; internal ones are kept, never dropped.
 Every count also has its last-24-hours part where the table has a time. No row, name or address is read.
 """
 import io
@@ -22,6 +25,8 @@ ROOT = Path(__file__).resolve().parents[1]
 LOG = ROOT / 'logs/ops/revenue-funnel.jsonl'
 RECEIVED = "('confirmed','served','review','refund_due','refunded')"   # scripts/ad_coin_paid_reconcile.RECEIVED
 DAY = 'extract(epoch from now()) - 86400'
+HOUSE = "'8087756b-11c5-52aa-892d-a5ce4e01ee7c'"      # our house advertiser (deploy/ops/adcoin-demand-counts.sql)
+PLATFORM = "'00b5f2da-301b-5c5c-8dfa-6ea4ba186b37'"   # the platform script principal (same file)
 
 SQL = f"""
 SELECT 'clients', count(*), count(*) FILTER (WHERE visit_days >= 2), count(*) FILTER (WHERE first_seen >= {DAY}),
@@ -36,15 +41,18 @@ SELECT 'owners', count(*) FILTER (WHERE verified_at IS NOT NULL AND NOT coalesce
 SELECT 'control', count(*) FILTER (WHERE verified IS NOT NULL AND revoked IS NULL),
        count(*) FILTER (WHERE verified >= {DAY})
   FROM public.provider_control_claims;
-SELECT 'applications', count(*), count(*) FILTER (WHERE timestamp_ms >= ({DAY}) * 1000)
-  FROM ad_coin_v2.adc2_audit_log WHERE event_type = 'advertiser_applied';
-SELECT 'advertisers', count(*) FILTER (WHERE status = 'active') FROM ad_coin_v2.adc2_advertisers;
-SELECT 'bookings', count(*), count(*) FILTER (WHERE quoted_ms >= ({DAY}) * 1000),
+SELECT 'applications', CASE WHEN actor_principal_id = {PLATFORM} OR target_id = {HOUSE} THEN 'internal' ELSE 'external' END,
+       count(*), count(*) FILTER (WHERE timestamp_ms >= ({DAY}) * 1000)
+  FROM ad_coin_v2.adc2_audit_log WHERE event_type = 'advertiser_applied' GROUP BY 2;
+SELECT 'advertisers', CASE WHEN id = {HOUSE} THEN 'internal' ELSE 'external' END, count(*)
+  FROM ad_coin_v2.adc2_advertisers WHERE status = 'active' GROUP BY 2;
+SELECT 'bookings', CASE WHEN advertiser_id = {HOUSE} THEN 'internal' ELSE 'external' END,
+       count(*), count(*) FILTER (WHERE quoted_ms >= ({DAY}) * 1000),
        count(*) FILTER (WHERE state IN {RECEIVED}),
        count(*) FILTER (WHERE state IN {RECEIVED} AND confirmed_ms >= ({DAY}) * 1000),
        coalesce(sum(amount_units) FILTER (WHERE state IN {RECEIVED}), 0),
        count(*) FILTER (WHERE state = 'refunded')
-  FROM ad_coin_v2.adc2_paid_bookings
+  FROM ad_coin_v2.adc2_paid_bookings GROUP BY 2
 """
 
 UNITS = 1_000_000   # agent_market.ad_coin.v2.paid_bookings.USDC_UNITS
@@ -53,19 +61,25 @@ UNITS = 1_000_000   # agent_market.ad_coin.v2.paid_bookings.USDC_UNITS
 def parse(lines):
     """The prod_ro_sql output ('|'-separated rows, each led by its key) as one record."""
     rows = [line.split('|') for line in lines if line.strip()]
-    first = {row[0]: [int(value) for value in row[1:]] for row in rows if row[0] != 'channel'}
+    first = {row[0]: [int(value) for value in row[1:]] for row in rows
+             if row[0] in ('clients', 'owners', 'control')}
     channels = {row[1]: int(row[2]) for row in rows if row[0] == 'channel'}
+    split = {kind: {row[1]: [int(value) for value in row[2:]] for row in rows if row[0] == kind}
+             for kind in ('applications', 'advertisers', 'bookings')}
     clients, returning, new, active = first['clients']
     shown, hidden, owners_new = first['owners']
     control, control_new = first['control']
-    applied, applied_new = first['applications']
-    quotes, quotes_new, paid, paid_new, units, refunded = first['bookings']
-    return {'clients': clients, 'clients_by_channel': channels, 'returning': returning, 'new_24h': new,
-            'active_24h': active, 'owners': shown + control, 'owner_hosts': shown, 'owner_hosts_hidden': hidden,
-            'control_claims': control, 'owners_24h': owners_new + control_new,
-            'applications': applied, 'applications_24h': applied_new, 'advertisers_active': first['advertisers'][0],
-            'quotes': quotes, 'quotes_24h': quotes_new, 'paid': paid, 'paid_24h': paid_new,
-            'usdc_received': units / UNITS, 'refunded': refunded}
+    record = {'clients': clients, 'clients_by_channel': channels, 'returning': returning, 'new_24h': new,
+              'active_24h': active, 'owners': shown + control, 'owner_hosts': shown, 'owner_hosts_hidden': hidden,
+              'control_claims': control, 'owners_24h': owners_new + control_new}
+    for side in ('external', 'internal'):
+        applied, applied_new = split['applications'].get(side, [0, 0])
+        quotes, quotes_new, paid, paid_new, units, refunded = split['bookings'].get(side, [0, 0, 0, 0, 0, 0])
+        record[side] = {'applications': applied, 'applications_24h': applied_new,
+                        'advertisers_active': split['advertisers'].get(side, [0])[0],
+                        'quotes': quotes, 'quotes_24h': quotes_new, 'paid': paid, 'paid_24h': paid_new,
+                        'usdc_received': units / UNITS, 'refunded': refunded}
+    return record
 
 
 def count(run=None):
@@ -82,11 +96,14 @@ def count(run=None):
 
 def line(record):
     """The board text (Korean, for the site owner)."""
+    ext, own = record['external'], record['internal']
     return (f"식별 클라이언트 {record['clients']}(24시간 새로 {record['new_24h']}·활동 {record['active_24h']}) → "
             f"서로 다른 날 2번 이상 {record['returning']} → 제공자 소유 확인 {record['owners']} → "
-            f"광고주 신청 {record['applications']}(활성 광고주 {record['advertisers_active']}) → "
-            f"견적 {record['quotes']} → 결제 {record['paid']} → 수령 {record['usdc_received']:.2f} USDC"
-            f" | 24시간: 신청 {record['applications_24h']}·견적 {record['quotes_24h']}·결제 {record['paid_24h']}")
+            f"[외부] 광고주 신청 {ext['applications']}(활성 {ext['advertisers_active']}) → 견적 {ext['quotes']} → "
+            f"결제 {ext['paid']} → 수령 {ext['usdc_received']:.2f} USDC"
+            f" | 24시간 외부: 신청 {ext['applications_24h']}·견적 {ext['quotes_24h']}·결제 {ext['paid_24h']}"
+            f" | [내부] 신청 {own['applications']}·활성 {own['advertisers_active']}·견적 {own['quotes']}·"
+            f"결제 {own['paid']}·{own['usdc_received']:.2f} USDC")
 
 
 def main(argv=None, clock=time.time, run=None, log=LOG):
