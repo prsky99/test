@@ -209,3 +209,28 @@ def test_a_second_problem_on_an_open_hold_moves_since_forward():
     assert len(hold["events"]) == 2 and hold["since"] == judge._iso(NOW + 7200)
     approval_between = {"state": "approved", "at": judge._iso(NOW + 3600)}
     assert judge.watch_hold("topic-brief", state, approval_between) == "security"
+
+
+def test_ops_approved_substitutes_join_the_runtime_chain(tmp_path):
+    """approvals.json "substitutes" (deploy/NECKLACE_GATE.md 10): a planned AgentValCon fallback runs only once ops
+    approved it for the slot's role; the latest entry per agent and role wins."""
+    approvals = tmp_path / "approvals.json"
+    approvals.write_text(json.dumps({"approvals": [], "substitutes": [
+        {"agent_id": "fb1", "slot_role": "x.v1", "state": "approved", "at": "2026-11-15T08:00:00+0900"},
+        {"agent_id": "fb2", "slot_role": "x.v1", "state": "approved", "at": "2026-11-15T08:00:00+0900"},
+        {"agent_id": "fb2", "slot_role": "x.v1", "state": "revoked", "at": "2026-11-15T09:00:00+0900"},
+        {"agent_id": "fb3", "slot_role": "other.v1", "state": "approved", "at": "2026-11-15T08:00:00+0900"}]}))
+    assert judge.load_substitutes(approvals) == [["fb1", "x.v1"], ["fb3", "other.v1"]]
+    defn = trial()
+    slot = defn["slots"][0]
+    slot["chain"] = [ext(1, "a.com"), ext(2, "b.com"),
+                     dict(own(None, agent_id="fb1"), resource_id=None, tool="t1", state="planned"),
+                     dict(own(None, agent_id="fb2"), resource_id=None, tool="t2", state="planned")]
+    state = {"substitutes": judge.load_substitutes(approvals)}
+    chain = watch.runtime_chain(slot, "topic-brief", state)
+    assert [m.get("agent_id") or m["resource_id"] for m in chain] == [1, 2, "fb1"]
+    assert chain[-1]["state"] == "active" and chain[-1]["substitute_approved"] is True
+    assert [m.get("agent_id") or m["resource_id"] for m in watch.runtime_chain(slot, "topic-brief", {})] == [1, 2]
+    alternates = judge.pearls(watch.runtime_definition(defn, state))[0]["alternates"]
+    assert [a.get("agent_id") for a in alternates if a["kind"] == "agentcon"] == ["fb1"]
+    assert slot["chain"][2]["state"] == "planned"                      # the definition itself is unchanged

@@ -110,11 +110,24 @@ def healthy(row: dict | None) -> bool:
     return bool(row) and int(row.get("active") or 0) == 1 and row.get("health_status") == "healthy"
 
 
+def _usable(member: dict, slot: dict, approved: set) -> dict | None:
+    """The member as it runs: active ones as they are; a planned AgentValCon fallback only once ops approved it as a
+    substitute for this slot's role (approvals.json "substitutes", copied into the watch state every hour)."""
+    state = member.get("state", "active")
+    if state == "active":
+        return member
+    if state == "planned" and member.get("kind") == "agentcon" and (member.get("agent_id"), slot.get("contract")) in approved:
+        return dict(member, state="active", substitute_approved=True)
+    return None
+
+
 def runtime_chain(slot: dict, slug: str, state: dict) -> list[dict]:
     """The approved chain in its current order: excluded members dropped, demoted
     members moved behind the other members of their kind (externals stay before AgentValCon fallbacks)."""
     marks = state.get("members", {})
-    chain = [m for m in slot["chain"] if m.get("state", "active") == "active"
+    approved = {tuple(x) for x in state.get("substitutes") or [] if isinstance(x, (list, tuple)) and len(x) == 2}
+    usable = [_usable(m, slot, approved) for m in slot["chain"]]
+    chain = [m for m in usable if m is not None
              and not marks.get(member_key(slug, slot["slot"], m), {}).get("excluded")]
     out = []
     for kind in ("external", "agentcon"):
@@ -329,7 +342,8 @@ class NecklaceWatch:
         definitions = model.load_valid(self.definitions_dir)
         state_path = self.root / "watch" / "state.json"
         state = load_json(state_path, {})
-        from .judge import load_approvals
+        from .judge import load_approvals, load_substitutes
+        state["substitutes"] = load_substitutes(self.root / "approvals.json")
         lines = observe(definitions, self.store.resource, load_json(self.fingerprints, {}), state, now,
                         approvals=load_approvals(self.root / "approvals.json"))
         from .judge import write_atomic
