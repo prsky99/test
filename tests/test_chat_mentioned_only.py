@@ -27,3 +27,13 @@ def test_nothing_moves_without_known_tools_or_a_candidate_whose_tools_say_it():
     no_tools = {'id': 9, 'name': 'Sky', 'description': 'weather'}
     assert ids(mentioned_only_last('get current weather for a city', [MAILER, no_tools])) == [2, 9]
     assert ids(mentioned_only_last('city newsletter', [MAILER, FACE])) == [2, 1]
+
+
+def test_only_the_capability_words_count():
+    """11-15 B+C copy check a10: 'article' alone moved the Wikipedia tool behind a crypto news feed."""
+    wiki = _listing(4, 'Faceabot Wikipedia', 'Search and read Wikipedia: summaries and full articles',
+                    [('wiki_search', 'Searches Wikipedia and returns matching page titles')])
+    news = _listing(5, 'Cryptowisser News', 'Latest crypto news, stories and articles',
+                    [('latest-news', 'Get the latest crypto news and articles')])
+    task = 'Search Wikipedia and return the summary of an article'
+    assert [item['id'] for item in mentioned_only_last(task, [wiki, news])] == [4, 5]

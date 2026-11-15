@@ -422,8 +422,12 @@ def mentioned_only_last(task, items):
     """A listing whose own text names a subject word that none of its tools does ("weather" in a city newsletter's
     description, tools list_cities and get_city: MailerDot 342017, 11-14 find_agents "get current weather for a
     city") moves behind the candidates whose tools say that word. Listings without known tools never move."""
-    from .selection import _term_in
-    terms = [t for t in search_terms(task) if t not in GENERIC_SUBJECT_TERMS]
+    from .selection import _term_in, capability_terms
+    from .discovery import normalize_task
+    # Only the capability words (weather, wikipedia), not every subject word: "Search Wikipedia and return the summary
+    # of an article" moved Faceabot Wikipedia, whose tools say wikipedia but not article, behind a crypto news feed
+    # whose tools say articles (11-15 B+C copy check, real task a10).
+    terms = [t for t in capability_terms(normalize_task(retrieval_text(task))) if t not in GENERIC_SUBJECT_TERMS]
     if len(items) < 2 or not terms:
         return items
     tools = [_tools_text(item) for item in items]
