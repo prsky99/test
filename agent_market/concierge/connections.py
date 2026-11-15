@@ -318,12 +318,18 @@ def file_url_note(schemas, name=None, description=None):
     return None
 
 
-def run_here(rid, tool):
+def run_here(rid, tool, task=None):
     """Our /mcp `call` tool runs a recommended informational tool in the same session (11-12 PM): an MCP host
-    cannot add a new server during a conversation, so this is the only way to run it without a config change."""
+    cannot add a new server during a conversation, so this is the only way to run it without a config change.
+    PM 11-16 08:2x (B1): with TASK, placeholders the task makes certain are filled in (run_here_fill), so one call
+    gives a result; otherwise they stay placeholders."""
     if type(rid) is not int or not isinstance(tool, dict) or not isinstance(tool.get('name'), str) or not tool['name']:
         return None
-    return {'tool': 'call', 'arguments': {'resource_id': rid, 'tool': tool['name'], 'arguments': example_arguments(tool)}}
+    arguments = example_arguments(tool)
+    if task:
+        from .run_here_fill import fill
+        arguments = fill(task, tool, arguments)
+    return {'tool': 'call', 'arguments': {'resource_id': rid, 'tool': tool['name'], 'arguments': arguments}}
 
 
 def mcp_config(name, endpoint):
