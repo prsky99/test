@@ -249,3 +249,34 @@ def test_r10_accuracy_asks_for_facts_beyond_the_input_as_whole_words():
     assert DQ.accuracy(news, f'Breach at X, published {today} https://example.com/a', None,
                        role_tasks=RT)[0] == DQ.WEIGHTS['accuracy']
     assert DQ.accuracy(news, 'Old story, published 2019-01-02 https://example.com/a', None, role_tasks=RT)[0] == 0
+
+
+def test_r12_nested_scores_and_negated_kev_are_read():
+    """Precision review R12: a nested CVSS score and "KEV: Not listed" scored 0 although right."""
+    from agent_market.necklaces import role_tasks as RT
+    record = {'case_id': 'r', 'input': {'cve': 'CVE-2021-44228'}, 'expect': {'numeric': {'cvss_score': {'equals': 10.0}}}}
+    assert RT.score(record, '', {'metrics': {'cvssMetricV31': [{'cvssData': {'baseScore': 10.0}}]}})[0]
+    assert RT.score(record, 'Log4Shell, CVSS 10.0 (critical)')[0]
+    assert not RT.score(record, 'CVSS:3.1/AV:N/AC:L')[0]                     # a vector string is not a score
+    kev = {'case_id': 'k', 'input': {'cve': 'CVE-2024-3094'}, 'expect': {'kev': False}}
+    for text in ('KEV: Not listed', 'not in the CISA KEV catalog', '"in_kev": false', 'KEV status: not listed'):
+        assert RT.score(kev, text)[0], text
+    assert not RT.score(kev, 'Listed in CISA KEV (known exploited)')[0]
+
+
+def test_r12_a_member_is_ranked_on_its_recent_tasks_not_one_days_case(monkeypatch):
+    monkeypatch.setattr(V, 'success_days', lambda *a, **k: 2)
+    def version(rid, case, score, accurate, days_ago, domain='x.example'):
+        return {'resource_id': rid, 'role': 'cve.record.v1', 'tool': 'lookup', 'case_id': case, 'evaluator_version': 'e',
+                'outcome': 'succeeded', 'registrable_domain': domain, 'domain': 'security', 'tested': NOW - days_ago * V.DAY,
+                'quality': {'score': score}, 'data_quality': {'accuracy': {'points': 25 if accurate else 0}}}
+    steady = [version(1, 'a', 90, True, 2), version(1, 'b', 91, True, 1), version(1, 'c', 60, False, 0)]
+    lucky = [version(2, 'a', 50, False, 2), version(2, 'b', 55, False, 1), version(2, 'c', 95, True, 0)]
+    steady = [{**v, 'registrable_domain': 's.example'} for v in steady]
+    lucky = [{**v, 'registrable_domain': 'l.example'} for v in lucky]
+    stored = {1: steady, 2: lucky}
+    monkeypatch.setattr(V, 'versions_of', lambda rid, role: stored[rid])
+    monkeypatch.setattr(V.time, 'time', lambda: NOW)
+    role = V.rank([steady[-1], lucky[-1]])['cve.record.v1']
+    assert [m['resource_id'] for m in role['members']] == [1, 2]
+    assert role['final_pearl'] == 1 and role['members'][0]['recent_pass_rate'] == 0.67

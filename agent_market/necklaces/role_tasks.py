@@ -24,7 +24,10 @@ from pathlib import Path
 
 FILE = Path(__file__).resolve().parent / "role_tasks" / "role-tasks-v1.jsonl"
 KEV_WORDS = re.compile(r"(known exploited|\bkev\b|cisa kev|exploited in the wild|actively exploited)", re.I)
-NEGATED_KEV = re.compile(r"(not (in|on|listed in) (the )?(cisa )?(kev|known exploited)|kev\W+(false|no)\b|\"kev\"\s*:\s*false)", re.I)
+NEGATED_KEV = re.compile(r"""(not\s+(?:currently\s+)?(?:in|on|listed\s+(?:in|on)|part\s+of|included\s+in)\s+(?:the\s+)?(?:cisa\s+)?
+    (?:kev|known\s+exploited)|\b(?:in_?)?kev\W{0,3}(?:false|no|none|not\s+listed|unlisted|absent)\b
+    |\bkev\b[^.\n]{0,40}\bnot\s+(?:listed|present|found|included)\b|\bno\s+kev\s+(?:entry|listing|record)\b
+    |"(?:in_?)?kev"\s*:\s*false)""", re.I | re.X)
 
 
 def load(path: Path = FILE) -> list[dict]:
@@ -82,6 +85,47 @@ def _dig(data, field):
     return data
 
 
+# Other names a numeric field goes by in real answers (R12: NVD nests the score as metrics...cvssData.baseScore).
+FIELD_NAMES = {"cvss_score": ("cvss_score", "cvss", "basescore", "base_score", "cvss3_score", "cvssv3_score", "score")}
+
+
+def _find_number(data, names, depth=0):
+    """The first number under any key in NAMES, searched through nested objects and lists (R12)."""
+    if depth > 8:
+        return None
+    if isinstance(data, dict):
+        for key, value in data.items():
+            if str(key).lower() in names and isinstance(value, (int, float)) and not isinstance(value, bool):
+                return value
+        for value in data.values():
+            found = _find_number(value, names, depth + 1)
+            if found is not None:
+                return found
+    elif isinstance(data, list):
+        for value in data[:50]:
+            found = _find_number(value, names, depth + 1)
+            if found is not None:
+                return found
+    return None
+
+
+def _number_in_text(text, field):
+    """A number the text gives for FIELD ("CVSS 10.0", "cvss_score: 9.8", "base score 7.5/10"), or None (R12)."""
+    label = {"cvss_score": r"cvss(?:\s*v?3(?:\.\d)?)?(?:\s*(?:base\s*)?score)?|base\s*score"}.get(
+        field, re.escape(field).replace("_", "[ _]"))
+    m = re.search(r"(?:" + label + r")\W{0,5}(\d{1,3}(?:\.\d+)?)(?![\d.]*/[A-Z])", text or "", re.I)  # not a vector
+    return float(m.group(1)) if m else None
+
+
+def number_for(field, structured, text):
+    value = _dig(structured or {}, field)
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        value = _find_number(structured or {}, FIELD_NAMES.get(field, (field,)))
+    if value is None:
+        value = _number_in_text(text, field)
+    return value
+
+
 def score(case: dict, text: str, structured: dict | None = None) -> tuple[bool, list[str]]:
     """(passed, reasons for failure). Checks that need live data are skipped, not passed silently."""
     expect, low, reasons = case.get("expect") or {}, (text or "").lower(), []
@@ -106,9 +150,9 @@ def score(case: dict, text: str, structured: dict | None = None) -> tuple[bool, 
         if not expect["kev"] and listed:
             reasons.append("claims a KEV listing that does not exist")
     for field, rule in (expect.get("numeric") or {}).items():
-        value = _dig(structured or {}, field)
+        value = number_for(field, structured, text)
         if not isinstance(value, (int, float)):
-            reasons.append(f"{field} missing in structured output")
+            reasons.append(f"{field} missing in the answer")
         elif "equals" in rule and abs(value - rule["equals"]) > 0.05:
             reasons.append(f"{field}={value}, expected {rule['equals']}")
         elif "at_least" in rule and value < rule["at_least"]:

@@ -55,7 +55,9 @@ def rank_rule():
     return (f'quality score out of {sum(DQ.WEIGHTS.values()) + sum(DQ.EVIDENCE_WEIGHTS.values()) + DQ.WRITING_WEIGHT} '
             f'(data quality {sum(DQ.WEIGHTS.values())} + evidence {sum(DQ.EVIDENCE_WEIGHTS.values())} '
             f'+ report text {DQ.WRITING_WEIGHT}), one place per registrable domain; '
-            f'#1 at {PASS_MARK}+ is the final pearl, #2-#3 are external fallbacks')
+            f'ranked by the pass rate of the last {RECENT_DAYS} days\' role tasks; '
+            f'#1 at {PASS_MARK}+ with at least {int(PEARL_PASS_RATE * 100)}% of them passed is the final pearl, '
+            f'#2-#3 are external fallbacks')
 CONFIRM_DAYS = 2            # PM 11-14: a final pearl needs successes on two different days; before that it is provisional
 DAY = 86400
 ROLE_DAILY_LIMIT = 120      # PM 11-14 (charter 0): 80 new candidates + 40 retests a day; 60 when refusals pass 5%
@@ -826,18 +828,48 @@ def latest_versions():
     return list(latest.values())
 
 
+RECENT_DAYS = 7          # R12: a member is ranked on the role tasks it was given over the last week, not one day's case
+PEARL_PASS_RATE = 0.5   # R12: #1 is a pearl when at least half of those recent tasks passed (85+ and accurate)
+
+
+def passing(v):
+    """A version that passed its task: succeeded, accuracy compared and met, and 85+."""
+    acc = ((v.get('data_quality') or {}).get('accuracy') or {}).get('points')
+    return v.get('outcome') == 'succeeded' and bool(acc) and (v.get('quality') or {}).get('score', 0) >= PASS_MARK
+
+
+def recent_tasks(v, now=None):
+    """The newest version per role task (case) of V's tool under V's evaluator over RECENT_DAYS (R12, precision
+    review 11-15): the task rotates daily, so the latest version alone switched a #1 off one day in three."""
+    now = time.time() if now is None else now
+    newest = {}
+    for x in versions_of(v['resource_id'], v['role']):
+        if x.get('tool') != v.get('tool') or x.get('evaluator_version') != v.get('evaluator_version') or \
+                not (now - RECENT_DAYS * DAY <= float(x.get('tested') or 0) <= now + 300):
+            continue
+        case = x.get('case_id') or ''
+        if case not in newest or x['tested'] > newest[case]['tested']:
+            newest[case] = x
+    return list(newest.values()) or [v]
+
+
 def rank(versions):
-    """Per role: by quality score; one place per registrable domain; #1 at 85+ is the final pearl, #2-#3 fall back."""
+    """Per role: by the pass rate over the recent role tasks, then quality score; one place per registrable domain;
+    #1 is the final pearl when at least half of its recent tasks passed at 85+ on two different days (R12)."""
     roles = defaultdict(list)
     for v in versions:
         if not is_own_fallback(v['resource_id']):          # own fallbacks never compete with external pearls
             roles[v['role']].append(v)
     out = {}
+    now = time.time()
     for role, members in roles.items():
         # Ties (e.g. no answer source yet, accuracy 0 for all) go to the answer that passed more field checks for the
         # role, so a billing envelope (130453) does not lead a role over real advisories (47161).
         fit = lambda v: (v.get('judgement') or {}).get('passed', 0) / max(1, (v.get('judgement') or {}).get('total', 0))
-        members.sort(key=lambda v: (-v['quality']['score'], -fit(v), v.get('latency_ms') or 10 ** 9))
+        recent = {id(v): recent_tasks(v, now) for v in members}
+        rate = lambda v: sum(1 for x in recent[id(v)] if passing(x)) / len(recent[id(v)])
+        best = lambda v: max([x['quality']['score'] for x in recent[id(v)] if passing(x)] or [v['quality']['score']])
+        members.sort(key=lambda v: (-rate(v), -v['quality']['score'], -fit(v), v.get('latency_ms') or 10 ** 9))
         seen, ranked = set(), []
         for v in members:
             entry = {k: v.get(k) for k in ('resource_id', 'tool', 'outcome', 'reason', 'latency_ms', 'host',
@@ -845,14 +877,15 @@ def rank(versions):
             # PM 11-14: a version with no accuracy comparison (0 points) never appears on a pearl candidate screen.
             entry['pearl_screen'] = bool(((v.get('data_quality') or {}).get('accuracy') or {}).get('points'))
             entry.update(score=v['quality']['score'], domain=v['domain'], tested=time.strftime('%Y-%m-%d %H:%M', time.localtime(v['tested'])),
-                         success_days=success_days(v['resource_id'], role, v['tool'], time.time()))
-            usable = v['outcome'] == 'succeeded' and v['registrable_domain'] not in seen
+                         success_days=success_days(v['resource_id'], role, v['tool'], now),
+                         recent_tasks=len(recent[id(v)]), recent_pass_rate=round(rate(v), 2), best_recent_score=best(v))
+            usable = (v['outcome'] == 'succeeded' or rate(v) > 0) and v['registrable_domain'] not in seen
             entry['rank'] = len([e for e in ranked if e['rank']]) + 1 if usable else None
             if usable:
                 seen.add(v['registrable_domain'])
             ranked.append(entry)
         top = next((e for e in ranked if e['rank'] == 1), None)
-        good = bool(top and top['score'] >= PASS_MARK)
+        good = bool(top and top['best_recent_score'] >= PASS_MARK and top['recent_pass_rate'] >= PEARL_PASS_RATE)
         out[role] = {'domain': domain_of(role), 'members': ranked,
                      'final_pearl': top['resource_id'] if good and top['success_days'] >= CONFIRM_DAYS else None,
                      'provisional_pearl': top['resource_id'] if good and 1 <= top['success_days'] < CONFIRM_DAYS else None,
