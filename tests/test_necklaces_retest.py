@@ -215,6 +215,18 @@ def test_filings_pass_with_the_truth_or_a_later_periodic_filing_only():
     assert not retest.grade_filings(US_CASE, current_report)              # only periodic forms count
 
 
+def test_filings_read_from_a_sentence_answer():
+    """Gate round 1 (11-16): sec-filings answers in a sentence; the grader read only structured fields (0/30)."""
+    def said(sentence):
+        return {"answers": [{"text": json.dumps({"answer": sentence, "source": "SEC EDGAR"})}]}
+    assert retest.grade_filings(US_CASE, said("Recent filings: 2026-11-09 8-K (accession 0001140361-26-042798); "
+                                              "2026-11-03 10-K (accession 0000320193-26-000026)."))
+    assert retest.grade_filings(US_CASE, said("2027-01-30 10-Q (accession 0000320193-27-000001)"))      # later
+    assert not retest.grade_filings(US_CASE, said("2026-08-01 10-Q (accession 0000320193-26-000011)"))  # older
+    assert not retest.grade_filings(US_CASE, said("2026-12-01 8-K (accession 0000320193-26-000099)"))   # not periodic
+    assert not retest.grade_filings(US_CASE, said("10-K for the fiscal year ended 2026-09-30, filed 2026-11-03"))
+
+
 def test_the_task_needs_cik_filing_and_description_together():
     assert retest.grade_company_task(US_CASE, necklace_output())
     sec_edgar_alone = {"registry": {"answers": [{"legal_name": "Apple Inc.", "cik": "320193", "ticker": "AAPL"}]}}

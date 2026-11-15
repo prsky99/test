@@ -285,11 +285,15 @@ GRADERS = {"advisories": grade_advisories, "health": grade_health, "record": gra
 FILING = re.compile(r'"form"\s*:\s*"(?P<form>10-K|10-Q|20-F|40-F)"(?P<rest>[^{}]*)', re.I)   # _text lower-cases
 FILING_DATE = re.compile(r'"filing_?date"\s*:\s*"(\d{4}-\d{2}-\d{2})"', re.I)
 ACCESSION = re.compile(r'"accession(?:_?number)?"\s*:\s*"([0-9-]{18,20})"', re.I)
+# 11-16 (PM, fixed after seeing gate round 1): our sec-filings answers in a sentence,
+# "2026-11-04 10-Q (accession 0001692115-26-000123)"; the same rule reads that form too.
+FILING_SENTENCE = re.compile(r'(\d{4}-\d{2}-\d{2})\s+(10-k|10-q|20-f|40-f)\s*\(accession(?: number)?\s+([0-9-]{18,20})\)',
+                             re.I)
 
 
 def grade_filings(case, slot_out) -> bool:
     """The latest periodic filing (PM 11-15 decision 2): the truth's 10-K/10-Q/20-F/40-F or any later periodic filing,
-    read from the structured answer (form, filingDate, accession)."""
+    read from the structured answer (form, filingDate, accession) or from a sentence "<date> <form> (accession <n>)"."""
     truth = case["truth"].get("filings")
     if not truth or not slot_out or (isinstance(slot_out, dict) and slot_out.get("missing")):
         return False
@@ -300,6 +304,9 @@ def grade_filings(case, slot_out) -> bool:
         if acc and acc.group(1).replace("-", "") == truth["accession"].replace("-", ""):
             return True
         if dated and dated.group(1) > truth["date"]:
+            return True
+    for filed, _form, accession in FILING_SENTENCE.findall(text):
+        if accession.replace("-", "") == truth["accession"].replace("-", "") or filed > truth["date"]:
             return True
     return False
 
