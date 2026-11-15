@@ -1059,6 +1059,23 @@ def select_fresh(anomalies, state, now):
     return fresh, new_state
 
 
+def watch_record(stdout, stderr, code, handoff=None):
+    """The watch round's record, or None when ops_watch.py gave none (11-15 16:23-18:26 it died on an import and the
+    empty output read as 'no anomalies' for two hours: no watch.jsonl line, alert state wiped). A missing record
+    never clears or closes anything; it opens the 'watch_broken' board line with the last error line instead."""
+    try:
+        record = json.loads(stdout or '')
+    except ValueError:
+        record = None
+    if isinstance(record, dict) and 'anomalies' in record:
+        board_close('watch_broken', f'해결(자동 {now()[11:]} 감시 기록 다시 남음)')
+        return record
+    last = next((line.strip() for line in reversed((stderr or '').splitlines()) if line.strip()), '')
+    append(ACTIONS, f'{now()} ops_watch 실패(종료 {code}): {last[:160]}')
+    (handoff or board_handoff)('watch_broken', f'감시(ops_watch) 기록 없음, 종료 {code}: {last[:120]} — 운영·SRE가 바로 고침')
+    return None
+
+
 def watch():
     try:
         board_snapshot()
@@ -1148,8 +1165,10 @@ def watch():
         stability_gate()
     except (Exception, SystemExit) as error:  # noqa: BLE001
         append(ACTIONS, f'{now()} 안정성 관문 판정 실패: {type(error).__name__}')
-    record = json.loads(subprocess.run([sys.executable, str(ROOT / 'scripts/ops_watch.py')],
-                                       capture_output=True, text=True, cwd=ROOT).stdout or '{}')
+    done = subprocess.run([sys.executable, str(ROOT / 'scripts/ops_watch.py')], capture_output=True, text=True, cwd=ROOT)
+    record = watch_record(done.stdout, done.stderr, done.returncode)
+    if record is None:
+        return 1
     anomalies = record.get('anomalies') or {}
     state = json.loads(STATE.read_text()) if STATE.is_file() else {}
     before = dict(state)

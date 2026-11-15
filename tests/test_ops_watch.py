@@ -509,3 +509,18 @@ def test_a_failing_step_is_named_and_the_round_continues(monkeypatch):
     assert ops_watch.step('boom', lambda: 1 / 0, 'default') == 'default'
     assert ops_watch.step('fine', lambda: 7, None) == 7
     assert ops_watch.STEP_ERRORS == ['boom: ZeroDivisionError: division by zero']
+
+
+def test_ops_auto_never_reads_a_missing_watch_record_as_clear(monkeypatch):
+    """11-15 16:23-18:26: ops_watch died and ops_auto parsed '' as {} (no anomalies) for two hours."""
+    import sys as _sys
+    _sys.path.insert(0, str(ops_watch.ROOT / 'scripts'))
+    import ops_auto
+    actions, opened, closed = [], [], []
+    monkeypatch.setattr(ops_auto, 'append', lambda path, text: actions.append(text))
+    monkeypatch.setattr(ops_auto, 'board_close', lambda kind, note: closed.append(kind))
+    tail = "Traceback...\nModuleNotFoundError: No module named 'agent_market'\n"
+    assert ops_auto.watch_record('', tail, 1, handoff=lambda k, t: opened.append((k, t))) is None
+    assert opened[0][0] == 'watch_broken' and 'agent_market' in opened[0][1] and 'agent_market' in actions[0]
+    assert ops_auto.watch_record('{"anomalies": {}}', '', 0, handoff=lambda k, t: opened.append(k)) == {'anomalies': {}}
+    assert closed == ['watch_broken'] and len(opened) == 1
