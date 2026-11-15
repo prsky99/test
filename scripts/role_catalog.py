@@ -15,7 +15,10 @@ ROLES = {
     'package.health.v1': {'tools': r'^(?:get_package\w*|package_info|lookup_package|lookup_npm_package|npm_package\w*|pypi_package\w*|package_metadata|get_package_profile|depsdev\w*)$'},
     'cve.exploited.v1': {'tools': r'^(?:kev\w*|get_kev\w*|cisa_kev\w*|cve_kev\w*|check_kev|is_exploited|latest_kev)$'},
     'cve.record.v1': {'tools': r'^(?:get_cve|cve_lookup|lookup_cve|cve_details|search_cve\w*|cve_search|nvd\w*|osv_get_vulnerabilit\w*|get_vulnerability)$'},
-    'company.registry.v1': {'tools': r'^(?:lookup_company|search_company|company_profile|get_company\w*|company_register_search|verify_business|corporate_kyb\w*|lei_lookup|get_lei\w*|resolve_company|find_company|company_search|company_info)$'},
+    'company.registry.v1': {'tools': r'^(?:lookup_company|search_company|get_company(?!_profile|_overview)\w*|company_register_search|verify_business|corporate_kyb\w*|lei_lookup|get_lei\w*|resolve_company|find_company|company_search|company_info)$'},
+    # company.profile.v1 (PM 11-16, 53a620cc): one company's filing-based profile, input 'company'; profile names leave
+    # company.registry.v1 so one member is not queued under both roles
+    'company.profile.v1': {'tools': r'^(?:\w*company_profile|get_company_overview|company_overview|sec_company\w*)$'},
     'web.grounding.v1': {'tools': r'^(?:ask\w*grounded|grounded_answer|answer_question|web_answer|search_and_answer|ask_web|\w+_web_grounding|\w+_grounding)$'},
     'country.indicator.v1': {'tools': r'^(?:\w*country_indicator\w*|get_indicator|world_bank\w*|worldbank\w*|get_gdp|country_stats|get_country_data|get_country_stats|get_indicators|search_indicators|get_economic_indicators)$'},
     'fx.rate.v1': {'tools': r'^(?:convert|convert_currency|currency_convert\w*|fx_get_rate|get_exchange_rates?|get_rates?|exchange_rate|get_fx_rate|fx_rate)$'},

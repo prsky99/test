@@ -178,3 +178,12 @@ def test_old_verdicts_are_rejudged_from_the_new_budget_in_demand_order(monkeypat
     monkeypatch.setattr(V, 'member_terms', lambda: {})
     q = V.build_queue(seed_file='/nonexistent.json')
     assert sum(x['kind'] == 'rejudge' for x in q) == 5 and sum(x['kind'] == 'new' for x in q) <= V.NEW_A_DAY - 5
+
+
+def test_company_profile_names_reach_their_own_role_only():
+    """PM 11-16: company.profile.v1 is its own contract; a profile tool is queued under it, not also as a registry."""
+    import role_catalog
+    for name in ('get_sec_company_profile', 'company_profile', 'get_company_profile', 'company_overview'):
+        assert role_catalog.roles_for_tool(name) == ['company.profile.v1'], name
+    for name in ('get_company', 'get_company_info', 'resolve_company', 'lookup_company'):
+        assert role_catalog.roles_for_tool(name) == ['company.registry.v1'], name
