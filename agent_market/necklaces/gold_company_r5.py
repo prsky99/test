@@ -82,21 +82,108 @@ def title_articles(names: dict[str, str], get=fetch_json) -> dict[str, dict]:
     return out
 
 
+def item_ciks(items: list[str], get=fetch_json) -> dict[str, set]:
+    """Wikidata item -> the SEC CIKs it carries (P5531), for items found by search."""
+    if not items:
+        return {}
+    query = ("SELECT ?item ?cik WHERE { VALUES ?item { " + " ".join(f"wd:{i}" for i in sorted(set(items))) + " } "
+             "OPTIONAL { ?item wdt:P5531 ?cik . } }")
+    _, body = get(SPARQL + urlencode({"format": "json", "query": query}))
+    out: dict[str, set] = {}
+    for row in ((body or {}).get("results") or {}).get("bindings") or []:
+        item = row["item"]["value"].rsplit("/", 1)[-1]
+        out.setdefault(item, set())
+        if row.get("cik"):
+            out[item].add(str(int(row["cik"]["value"])))
+    return out
+
+
+def search_articles(names: dict[str, str], get=fetch_json, per: int = 3) -> dict[str, dict]:
+    """CIK -> {"title", "url"} by Wikipedia search (11-16: EDGAR's upper-case names miss exact titles, and Wikidata
+    lacks many CIKs). A hit is a standard page whose title is the company's name (same distinctive words, case
+    ignored) with a company description, whose Wikidata item does not carry a different CIK (one SPARQL call)."""
+    hits: dict[str, list[str]] = {}
+    for cik, name in names.items():
+        query = search_name(name)
+        if not query:
+            continue
+        _, body = get(WIKI + urlencode({"action": "query", "format": "json", "formatversion": 2, "list": "search",
+                                        "srsearch": query, "srlimit": per, "srnamespace": 0}))
+        hits[cik] = [r["title"] for r in ((body or {}).get("query") or {}).get("search") or []]
+    titles = sorted({t for ts in hits.values() for t in ts})
+    pages: dict[str, dict] = {}
+    for start in range(0, len(titles), 50):
+        _, body = get(WIKI + urlencode({"action": "query", "format": "json", "formatversion": 2,
+                                        "prop": "description|info|pageprops", "inprop": "url",
+                                        "titles": "|".join(titles[start:start + 50])}))
+        for page in ((body or {}).get("query") or {}).get("pages") or []:
+            if not page.get("missing") and "disambiguation" not in (page.get("pageprops") or {}):
+                pages[page["title"]] = page
+    chosen = {}
+    for cik, ts in hits.items():
+        for title in ts:
+            page = pages.get(title)
+            if not page:
+                continue
+            same = sorted(set(name_words(title.split(" (")[0]))) == sorted(set(name_words(names[cik])))
+            if same and COMPANY_WORDS.search(str(page.get("description") or "").lower()):
+                chosen[cik] = page
+                break
+    items = item_ciks([p["pageprops"]["wikibase_item"] for p in chosen.values()
+                       if (p.get("pageprops") or {}).get("wikibase_item")], get)
+    out = {}
+    for cik, page in chosen.items():
+        carried = items.get((page.get("pageprops") or {}).get("wikibase_item"), set())
+        if carried and cik not in carried:
+            continue                                   # the page is another SEC filer's
+        out[cik] = {"title": page["title"], "url": page.get("fullurl")}
+    return out
+
+
+def refresh_background(root: Path = DEFAULT_ROOT, get=fetch_json) -> dict:
+    """Redo truth.background on the written split without new SEC calls (11-16: the first build missed articles)."""
+    folder = Path(root) / "gold" / SLUG
+    path = folder / f"{SPLIT}.jsonl"
+    cases = [json.loads(x) for x in path.read_text(encoding="utf-8").splitlines() if x.strip()]
+    for case in cases:
+        case["truth_sources"] = [s for s in case["truth_sources"] if not s["name"].startswith("Wikidata")]
+    info = add_background(cases, get)
+    text = "".join(json.dumps(c, ensure_ascii=False, sort_keys=True) + "\n" for c in cases)
+    path.write_text(text, encoding="utf-8")
+    manifest_path = folder / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    entry = manifest["files"][SPLIT]
+    entry.update(sha256=hashlib.sha256(text.encode()).hexdigest(), background=info, strata=_strata(cases))
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return info
+
+
 def add_background(cases: list[dict], get=fetch_json) -> dict:
     ciks = [c["truth"]["cik"] for c in cases]
     by_cik = wikidata_articles(ciks, get)
     rest = {c["truth"]["cik"]: c["truth"]["sec_title"] for c in cases if c["truth"]["cik"] not in by_cik}
     by_title = title_articles(rest, get)
+    by_search = search_articles({c: n for c, n in rest.items() if c not in by_title}, get)
     at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     for case in cases:
         cik = case["truth"]["cik"]
-        found, how = (by_cik.get(cik), "wikidata_cik") if cik in by_cik else (by_title.get(cik), "title")
+        found, how = ((by_cik.get(cik), "wikidata_cik") if cik in by_cik else
+                      (by_title.get(cik), "title") if cik in by_title else (by_search.get(cik), "search"))
         case["truth"]["background"] = {"wiki_article": bool(found), "title": (found or {}).get("title"),
                                        "url": (found or {}).get("url"), "matched_by": how if found else None}
+        # both gate rounds get companies with and without an article in the same share (the split halves strata)
+        case["stratum"] = "us_filer_wiki" if found else "us_filer_no_wiki"
         case["truth_sources"].append({"name": "Wikidata (SEC CIK, P5531) and English Wikipedia", "url": SPARQL.rstrip("?"),
                                       "fetched_at": at})
-    return {"wikidata_cik": len(by_cik), "title": len(by_title),
+    return {"wikidata_cik": len(by_cik), "title": len(by_title), "search": len(by_search),
             "no_article": sum(1 for c in cases if not c["truth"]["background"]["wiki_article"])}
+
+
+def _strata(cases: list[dict]) -> dict:
+    out: dict[str, int] = {}
+    for c in cases:
+        out[c["stratum"]] = out.get(c["stratum"], 0) + 1
+    return out
 
 
 def build(root: Path = DEFAULT_ROOT, get=fetch_text, get_json=fetch_json, today: date | None = None,
@@ -111,14 +198,15 @@ def build(root: Path = DEFAULT_ROOT, get=fetch_text, get_json=fetch_json, today:
     manifest_path = folder / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest.setdefault("files", {})[SPLIT] = {
-        "cases": len(cases), "strata": {"us_filer": len(cases)}, "sha256": hashlib.sha256(text.encode()).hexdigest(),
+        "cases": len(cases), "strata": _strata(cases), "sha256": hashlib.sha256(text.encode()).hexdigest(),
         "for": "company-due-diligence v2 launch gate, rounds 1 and 2 (30 + 30; PM 11-16 after holdout-r4 round 1 failed)",
         "selection": "SEC ticker list in sha256('r5:'+CIK) order, unseen CIKs, latest periodic 10-K or 10-Q "
                      "(the necklace's scope: US SEC filers); nothing else filtered, so small filers keep their share",
         "truth_sources": ["SEC company_tickers.json (CIK, ticker, EDGAR name)",
                           "SEC EDGAR submissions (latest 10-K or 10-Q)",
-                          "Wikidata P5531 (SEC CIK) to English Wikipedia; else a Wikipedia title lookup"],
-        "background": {k: info[k] for k in ("wikidata_cik", "title", "no_article")},
+                          "Wikidata P5531 (SEC CIK, CC0) to English Wikipedia; else a Wikipedia title lookup, then "
+                          "a Wikipedia search whose page's Wikidata item carries no other CIK"],
+        "background": {k: info[k] for k in ("wikidata_cik", "title", "search", "no_article")},
         "background_rule": "truth.background.wiki_article false: 'No encyclopedia article found' (not_found) is the "
                            "right answer and any other company's article is wrong (PM 11-16 ②(b))",
         "same_source_kind": "official",
@@ -133,8 +221,10 @@ def build(root: Path = DEFAULT_ROOT, get=fetch_text, get_json=fetch_json, today:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--root", type=Path, default=DEFAULT_ROOT)
+    parser.add_argument("--refresh-background", action="store_true", help="redo truth.background only (no SEC calls)")
     args = parser.parse_args(argv)
-    print(json.dumps(build(args.root), ensure_ascii=False))
+    out = refresh_background(args.root) if args.refresh_background else build(args.root)
+    print(json.dumps(out, ensure_ascii=False))
     return 0
 
 

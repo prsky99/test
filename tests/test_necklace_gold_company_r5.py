@@ -26,7 +26,9 @@ def test_sixty_unseen_cases_with_the_article_truth(tmp_path):
     (folder / "holdout-r4.jsonl").write_text(json.dumps({"case_id": "US4:CIK2", "truth": {"cik": "2"}}) + "\n")
     get_json, seen = fake_json(mapped=(3,), titled=("ACME 4",))
     out = r5.build(tmp_path, get=fake(), get_json=get_json, sleep=lambda s: None)
-    assert out["written"] and out["cases"] == 60 and len(seen) == 2          # one Wikidata and one Wikipedia call
+    assert out["written"] and out["cases"] == 60
+    searched = sum("list=search" in u for u in seen)
+    assert searched == 60 - out["wikidata_cik"] - out["title"]             # only companies not found otherwise
     cases = {c["truth"]["cik"]: c for c in map(json.loads, (folder / "holdout-r5.jsonl").read_text().splitlines())}
     assert "2" not in cases and "5" not in cases                              # r4's and r1's CIKs are left out
     assert all(c["case_id"].startswith("US5:CIK") for c in cases.values())
@@ -67,3 +69,24 @@ def test_not_found_is_right_only_without_an_article():
                                 "Company profile from SEC EDGAR filings (not an encyclopedia article)."}]}
     assert retest.grade_background(CASE, sec)
     assert not retest.grade_background(CASE, {"missing": True})
+
+
+def test_search_finds_upper_case_names_and_refuses_another_filers_page():
+    """11-16: 'TTM TECHNOLOGIES INC' misses the exact title 'TTM Technologies'; search finds it. A page whose Wikidata
+    item carries another CIK is another filer's page."""
+    def get(url):
+        if "list=search" in url:
+            if "TTM" in url:
+                return 200, {"query": {"search": [{"title": "TTM Technologies"}]}}
+            return 200, {"query": {"search": [{"title": "Helios Technologies"}]}}
+        if "query.wikidata.org" in url:
+            return 200, {"results": {"bindings": [
+                {"item": {"value": "http://www.wikidata.org/entity/Q1"}},
+                {"item": {"value": "http://www.wikidata.org/entity/Q2"}, "cik": {"value": "0000099999"}}]}}
+        return 200, {"query": {"pages": [
+            {"title": "TTM Technologies", "description": "American printed circuit board manufacturer",
+             "fullurl": "https://en.wikipedia.org/wiki/TTM_Technologies", "pageprops": {"wikibase_item": "Q1"}},
+            {"title": "Helios Technologies", "description": "American industrial company",
+             "fullurl": "https://en.wikipedia.org/wiki/Helios_Technologies", "pageprops": {"wikibase_item": "Q2"}}]}}
+    out = r5.search_articles({"1116942": "TTM TECHNOLOGIES INC", "1024795": "HELIOS TECHNOLOGIES, INC."}, get)
+    assert out == {"1116942": {"title": "TTM Technologies", "url": "https://en.wikipedia.org/wiki/TTM_Technologies"}}
