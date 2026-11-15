@@ -56,7 +56,9 @@ SHARE = {
 # PM 11-14 06:4x (decision 3): public-data institutions with stated rate limits that the agents' own per-host pacing
 # keeps (agent_market/fallback_agents/limits.py) take more substitute tests a day; the domain total stays DAILY_TOTAL.
 SHARE_OVERRIDE = {('substitute_tests', d): 30 for d in ('gleif.org', 'sec.gov', 'nist.gov', 'cisa.gov', 'wikipedia.org',
-                                                         'wikidata.org', 'wiktionary.org')}
+                                                         'wikidata.org', 'wiktionary.org', 'gdeltproject.org')}
+# 11-15 (PM 13:52, agent team): GDELT DOC API news substitute; no published daily number, the API answers 'limit
+# requests to one every 5 seconds', which the agent's host pacing keeps. The domain total stays DAILY_TOTAL.
 # PM 11-15 11:40 (necklace-100 plan, decision 5): commercial providers keep DAILY_TOTAL; a public-data institution
 # whose own published rate limit was checked (source below, 11-15 by 운영·SRE) may take more, at most half of that
 # limit, by registrable domain. Each system's share on such a domain grows by the same factor (total / DAILY_TOTAL).

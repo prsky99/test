@@ -218,3 +218,12 @@ def test_ad_review_domain_age_has_its_own_ten_beside_the_daily_lifecycle_fifty(t
     assert pb.reserve(url, 'lifecycle_rdap', now=now, directory=tmp_path) == (False, 'system_share')
     assert pb.reserve(url, 'ad_review_rdap', n=10, now=now, directory=tmp_path) == (True, 'ok')
     assert pb.reserve(url, 'gate', now=now, directory=tmp_path) == (False, 'domain_daily_total')
+
+
+def test_gdelt_substitute_tests_get_thirty_a_day_within_the_total_of_sixty(tmp_path):
+    """11-15 PM 13:52: the GDELT news substitute's gate set and contract inputs; the domain total stays 60."""
+    now = at(14)
+    url = 'https://api.gdeltproject.org/api/v2/doc/doc?query=x&mode=artlist&format=json'
+    assert pb.reserve(url, 'substitute_tests', n=30, now=now, directory=tmp_path) == (True, 'ok')
+    assert pb.reserve(url, 'substitute_tests', now=now, directory=tmp_path) == (False, 'system_share')
+    assert pb.domain_total('gdeltproject.org') == 60
