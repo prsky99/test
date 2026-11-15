@@ -451,3 +451,26 @@ def test_background_priority_leaves_the_main_thread_alone(monkeypatch):
     worker = threading.Thread(target=refresher.background_priority)
     worker.start(); worker.join()
     assert calls == [(False, 0x11)]
+
+
+def test_a_command_line_rebuild_lowers_its_main_thread(monkeypatch):
+    """PM 11-15 20:5x: scripts/explore_search_documents.py refresh runs rounds on its main thread on the production
+    Mac; it asks for the lowered QoS explicitly, so it still yields the CPU as before 3d81047b."""
+    import sys
+    import threading
+    import ctypes
+    import agent_market.explore_document_refresher as refresher
+    monkeypatch.setattr(sys, 'platform', 'darwin')
+    monkeypatch.setattr(refresher, '_LOWERED', set())
+    calls = []
+
+    class Libc:
+        def pthread_set_qos_class_self_np(self, qos, relative):
+            calls.append((threading.current_thread() is threading.main_thread(), qos))
+    monkeypatch.setattr(ctypes, 'CDLL', lambda path: Libc())
+    refresher.background_priority(main_thread=True)
+    refresher.background_priority(main_thread=True)   # once per thread
+    assert calls == [(True, 0x11)]
+    source = Path(__file__).resolve().parents[1].joinpath('scripts/explore_search_documents.py').read_text()
+    refresh = source.split('args.action == "refresh"', 1)[1]
+    assert refresh.index('background_priority(main_thread=True)') < refresh.index('.Refresher(')

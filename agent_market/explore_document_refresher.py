@@ -16,17 +16,20 @@ log = logging.getLogger("agent_market.explore_documents")
 _LOWERED = set()
 
 
-def background_priority():
+def background_priority(*, main_thread=False):
     """Run the calling thread at macOS utility QoS once (best effort; other systems and failures do nothing), so
     document rebuilding yields the CPU to request threads in the same process.
 
-    Never the main thread (11-15 PM 20:3x): jobs runs rounds on its pool threads, so the main thread only reaches
-    here in tests, where the lowered QoS stayed for the rest of the pytest process and stretched time.sleep(0.02)
-    to about 150 ms, failing later timing tests (test_request_timing after test_explore_documents_postgres)."""
+    The main thread only when MAIN_THREAD is asked (11-15 PM 20:3x, 20:5x): jobs runs rounds on its pool threads,
+    and a round on a test's main thread lowered it for the rest of the pytest process (time.sleep(0.02) took about
+    150 ms and test_request_timing failed after test_explore_documents_postgres). A command line process that
+    rebuilds documents by hand (scripts/explore_search_documents.py refresh) asks for it, so it still yields the CPU
+    to the request threads of the production Mac as before."""
     import sys
     import threading
     ident = threading.get_ident()
-    if ident in _LOWERED or sys.platform != 'darwin' or threading.current_thread() is threading.main_thread():
+    if (ident in _LOWERED or sys.platform != 'darwin'
+            or (threading.current_thread() is threading.main_thread() and not main_thread)):
         return
     _LOWERED.add(ident)
     try:

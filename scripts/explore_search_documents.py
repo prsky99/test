@@ -42,6 +42,9 @@ def main():
         if args.action == "install":
             result = documents.install(store)
         elif args.action == "refresh":
+            # Rebuilding by hand on the production Mac yields the CPU to request threads, as the jobs pool thread does.
+            from agent_market.explore_document_refresher import background_priority
+            background_priority(main_thread=True)
             worker = documents.Refresher(store, batch=args.batch, interval=0)
             results = []
             for _ in range(args.rounds):
