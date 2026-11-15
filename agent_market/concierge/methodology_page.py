@@ -141,14 +141,16 @@ def page_html(base='https://agentconcierge.biz', data=None, log=None):
     # check, 48 hours, delta <= 0); 0.95 is only the gate's. Method v1.1.
     gate_rows = [[esc(k), esc(v)] for k, v in flat('', gate)]
     try:
-        from .necklace_surface import live
+        from .necklace_surface import live, member_rules_text
         offered_now = len(live())
+        members = member_rules_text()
     except Exception:
-        offered_now = None
+        offered_now, members = None, None
     parts.append('<section aria-labelledby="mGate"><h2 id="mGate">5. Necklace gate</h2>'
                  '<p>A necklace (a workflow of pearls) is offered only after it passes this gate. After that, a day&#39;s '
                  'retest success below 0.8, a retest older than 48 hours, or a delta of 0 or less holds it at the next '
                  'daily check. Its page shows its own recent results.</p>'
+                 + ('<p class="necklace-member-rules">' + members + '</p>' if members else '')
                  + ('<p class="muted">No necklace is offered yet, so these retest rules have not been applied to a live '
                     'one.</p>' if offered_now == 0 else '')
                  + _table(['Item', 'Value'], gate_rows) + '</section>')

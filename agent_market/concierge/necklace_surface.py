@@ -194,6 +194,39 @@ def member_status(pearl):
     return 'verified_pearl' if pearl.get('pearl') is True else None
 
 
+def _rule_number(value):
+    return value if type(value) in (int, float) and value >= 0 else None
+
+
+def member_rules_text(snapshot=None):
+    """The methodology's member paragraph (PM 16:03), worded from the judge's snapshot member_rules (workflow f9ba1876):
+    its numbers are the judge's, never a copy. A rule whose numbers are missing or null is left out; no rules, None."""
+    rules = (snapshot or load()).get('member_rules')
+    if not isinstance(rules, dict):
+        return None
+    sentences = []
+    verified = rules.get('verified_pearl') if isinstance(rules.get('verified_pearl'), dict) else {}
+    score, days = _rule_number(verified.get('min_score')), _rule_number(verified.get('successes_on_different_days'))
+    if score is not None and days is not None:
+        sentences.append('A step is led by a verified pearl when its agent scored at least ' + format(score, 'g')
+                         + ' in our test reports on ' + format(days, 'g') + ' different days.')
+    provisional = rules.get('provisional') if isinstance(rules.get('provisional'), dict) else {}
+    p_score, within, reports = (_rule_number(provisional.get('min_score')), _rule_number(provisional.get('within_days')),
+                                _rule_number(provisional.get('reports')))
+    own = provisional.get('own_substitute')
+    if p_score is not None and within is not None and reports is not None:
+        sentences.append('Until a pearl is available, a step may be led by a provisional member: an agent that scored '
+                         'at least ' + format(p_score, 'g') + ' in ' + ('a test report' if reports == 1 else
+                                                                       format(reports, 'g') + ' test reports')
+                         + ' within the last ' + format(within, 'g') + ' days'
+                         + (', or our own substitute that ' + html.escape(' '.join(own.split())[:200], quote=True) if isinstance(own, str) and own.strip() else '')
+                         + '. A pearl takes its place when one is verified.')
+    if not sentences:
+        return None
+    return ' '.join(sentences) + (' Either way, the necklace&#39;s answers pass the same gate before it is offered, and '
+                                  'its page says which kind leads each step.')
+
+
 def members_phrase(entry):
     """'2 verified pearls' or '1 verified pearl and 1 agent under verification' (agents read it in tool descriptions)."""
     standings = [member_status(p) for p in entry.get('pearls') or [] if isinstance(p, dict)]
@@ -573,6 +606,8 @@ def comparison(entry):
                 return None
         sides[side] = {key: row[key] for key in _SIDES}
     found = {'cases': cases, 'measured_at': at, **sides}
+    if type(value.get('slots')) is int and value['slots'] >= 2:
+        found['slots'] = value['slots']
     full = value.get('without_full')   # PM 15:14: the path without a necklace including finding tools and merging answers
     if isinstance(full, dict) and all(type(full.get(k)) in (int, float) and full.get(k) >= 0 for k in _SIDES[:3]):
         estimated = full.get('estimated')
@@ -590,7 +625,7 @@ def comparison_line(entry):
     sec = lambda v: format(round(v, 1), 'g')
     pct = lambda v: str(round(v * 100)) + '%'
     return ('Measured on ' + str(found['cases']) + ' cases (' + found['measured_at'] + '), against an agent calling the '
-            'same agents itself: ' + num(wo['calls']) + ' calls \u2192 ' + num(w['calls']) + ', about ' + num(wo['tokens'])
+            'same ' + (str(found['slots']) + ' ' if found.get('slots') else '') + 'agents itself: ' + num(wo['calls']) + ' calls \u2192 ' + num(w['calls']) + ', about ' + num(wo['tokens'])
             + ' \u2192 ' + num(w['tokens']) + ' tokens, ' + sec(wo['seconds']) + ' s \u2192 ' + sec(w['seconds']) + ' s, '
             + pct(wo['accuracy']) + ' \u2192 ' + pct(w['accuracy']) + ' correct (medians per case; tokens estimated from '
             'text length; finding the tools and merging the answers are not counted on either side).'
