@@ -126,12 +126,23 @@ def _tools_for_uncached(resource):
         return []
 
 
+# Provider patterns reviewed one by one (PM 11-15 10:40), each an exact string with the length its own
+# quantifier allows. Review rule: anchored ^...$, a single bounded character class (no nested repetition,
+# backreferences or alternatives), and a worst-case 10,000-character input checked in under 50 ms
+# (tests/test_execution_policy_reviewed_patterns.py). A string not listed here stays unsupported.
+REVIEWED_BOUNDED_PATTERNS = {
+    r'^[A-Za-z]{2}$': 2,                 # country code (38613 get_public_holidays)
+    r'^[A-Za-z0-9.-]{1,13}$': 13,        # stock ticker (58997 list_filings)
+    r'^[\w.+#\- ]{1,40}$': 40,           # language or license name (136184 search_repos)
+}
+
+
 def _offline_validator(encoded):
     schema=json.loads(encoded)
     # Reviewed finite profile: a short category token with an optional dotted
     # suffix. No nested repetition, backreferences or overlapping alternatives.
     # Every other provider-supplied pattern remains unsupported.
-    reviewed_patterns={r'^[a-z][a-z-]*(\.[A-Za-z-]+)?$':30}
+    reviewed_patterns={r'^[a-z][a-z-]*(\.[A-Za-z-]+)?$':30, **REVIEWED_BOUNDED_PATTERNS}
     def bounded(value, depth=0, schema_node=True):
         if depth>15:
             raise ExecutionDenied('The registered schema exceeds the validation limit.')
@@ -140,6 +151,8 @@ def _offline_validator(encoded):
                 raise ExecutionDenied('This schema requires unsupported pattern or reference validation.')
             if schema_node and 'pattern' in value:
                 pattern=value['pattern'];maximum=value.get('maxLength')
+                if maximum is None and pattern in REVIEWED_BOUNDED_PATTERNS:
+                    maximum=REVIEWED_BOUNDED_PATTERNS[pattern]   # the pattern's own {m,n} is the length limit
                 if (type(pattern) is not str or pattern not in reviewed_patterns or value.get('type')!='string'
                         or type(maximum) is not int or not 1<=maximum<=reviewed_patterns[pattern]):
                     raise ExecutionDenied('This schema requires unsupported pattern or reference validation.')
