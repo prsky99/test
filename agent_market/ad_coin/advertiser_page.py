@@ -244,7 +244,7 @@ function session(){if(csrf)return Promise.resolve();return fetch('/api/customer-
 function call(path,body){return (body?session():Promise.resolve()).then(function(){var init={method:body?'POST':'GET',credentials:'same-origin',headers:{}};
   if(body){init.headers['Content-Type']='application/json';init.headers['X-Customer-CSRF']=csrf;init.body=JSON.stringify(body)}
   return fetch(API+path,init).then(function(r){return r.json().catch(function(){return {}}).then(function(d){
-    if(r.status===401||d.error==='customer_session_required'){location.href='/new/en/sign-in.html';throw new Error('Sign in to continue.')}
+    if(r.status===401||d.error==='customer_session_required'){location.href='/customer/sign-in?next='+encodeURIComponent(location.pathname+location.search);throw new Error('Sign in to continue.')}
     if(!r.ok)throw new Error(d.message||d.error||'Request failed');return d})})})}
 function busy(button,promise){button.setAttribute('aria-busy','true');button.disabled=true;
   return promise.then(function(v){button.removeAttribute('aria-busy');button.disabled=false;return v},function(e){button.removeAttribute('aria-busy');button.disabled=false;throw e})}
