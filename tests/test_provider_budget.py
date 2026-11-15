@@ -278,6 +278,10 @@ def test_one_day_grants_end_by_themselves(tmp_path):
     assert pb.reserve(npm, 'reference_checks', n=27, now=d16, directory=tmp_path) == (True, 'ok')
     assert pb.reserve(npm, 'reference_checks', n=27, now=d17, directory=tmp_path) == (False, 'system_share')
     assert pb.github_share('reference_checks', d16) == 10
-    assert pb.github_share('reference_checks', d16_day) == 2 and pb.github_share('reference_checks', d17) == 2
+    assert pb.github_share('reference_checks', d16_day) == 2
     assert pb.github_reserve('reference_checks', n=10, now=d16, directory=tmp_path) == (True, 'ok')
     assert pb.reserve('https://api.openalex.org/works?search=x', 'reference_checks', n=39, now=d16, directory=tmp_path) == (True, 'ok')
+    gh = 'https://api.github.com/advisories?cve_id=CVE-2024-1'
+    assert pb.reserve(gh, 'reference_checks', n=50, now=d17, directory=tmp_path) == (True, 'ok')
+    assert pb.reserve(gh, 'reference_checks', now=d17, directory=tmp_path) == (False, 'system_share')
+    assert pb.github_share('reference_checks', d17) == 10

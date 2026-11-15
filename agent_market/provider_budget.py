@@ -83,9 +83,12 @@ def domain_total(name):
 # activity answer set needs 27 npm packages x (registry.npmjs.org 1 + api.github.com 1) once.
 ONE_DAY = {'20261116': {('reference_checks', 'npmjs.org'): 30, ('reference_checks', 'github.com'): 30,
                         # workflow 0555a3b5: topic-evidence-brief holdout-r3, one OpenAlex read a topic (39 topics)
-                        ('reference_checks', 'openalex.org'): 40}}
+                        ('reference_checks', 'openalex.org'): 40},
+            # workflow 3737c5aa: cve-incident-brief fix answer set, one GitHub advisory read a CVE. The day total of
+            # 60 per domain stays (PM 16:25), so 50 of the 90 asked; the open-source records are read first.
+            '20261117': {('reference_checks', 'github.com'): 50}}
 # GitHub's hourly reference_checks share on those days, in the night hours only (00-07 KST), when live answers are few.
-ONE_NIGHT_GITHUB = {'20261116': {'reference_checks': 10}}
+ONE_NIGHT_GITHUB = {'20261116': {'reference_checks': 10}, '20261117': {'reference_checks': 10}}
 
 
 def share_limit(system, name, day=None):
