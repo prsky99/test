@@ -100,3 +100,9 @@ def test_the_wikipedia_part_of_r4_is_written_from_the_batch_alone(tmp_path):
         return 200, {"results": [{"doi": f"10.1/{i}", "title": f"P {i}"} for i in range(3)]}
     later = r4.step(tmp_path, get=openalex)
     assert later["written"]["cases"] == len(r4.TOPICS)                 # r4-wiki's topics were not treated as seen
+
+
+def test_r5_shares_no_topic_with_any_earlier_set():
+    from agent_market.necklaces import gold, gold_topics_r4 as r4, gold_topics_r5 as r5
+    old = {t for t, _, _ in gold.TOPICS} | {t for t, _, _ in r3.TOPICS} | {t for t, _, _ in r4.TOPICS}
+    assert len(r5.TOPICS) >= 35 and not old & {t for t, _, _ in r5.TOPICS}
