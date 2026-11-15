@@ -212,6 +212,51 @@ def input_mismatch(task, item):
     return any(FILE_INPUT.search(text(name, spec)) for name, spec in properties.items())
 
 
+# A task that asks for the latest or current state names no exact version or id, so a tool that cannot run without one
+# leaves the caller nothing to pass (11-16 real task a09: pkgxray's check_npm_package_metadata requires an exact
+# published version, "tags such as latest ... are not" accepted, and led "npm package metadata (latest version)").
+# Narrow on purpose (PM 11-16 04:4x): the task must ask for the latest, the field must be required with no default and
+# no accepted 'latest', and the task must not write such a value itself. Only version fields: a caller always knows
+# today's date (weather, holidays and rates tools require one), and an id is often a name the task already gives
+# ("current bitcoin price" fills coin_id with bitcoin), so neither is a missing value by its field name alone.
+LATEST_TASK = re.compile(r'\b(?:latest|newest|current(?:ly)?|most\s+recent|up[\s-]to[\s-]date)\b|최신|현재', re.I)
+EXACT_FIELDS = (
+    (re.compile(r'^(?:version|ver|release|release[_-]?version|package[_-]?version)$', re.I),
+     re.compile(r'(?<![\w.])v?\d+\.\d+(?:\.\d+)?(?:[-+][\w.]+)?(?![\w.])')),
+)
+LATEST_ACCEPTED = re.compile(r'\b(?:latest|current|newest)\b|\b(?:omit|optional|defaults?\s+to)\b', re.I)
+LATEST_REFUSED = re.compile(r"""\b(?:not|no|never|without)\b[^.]{0,40}\blatest\b
+  | \blatest\b[^.]{0,60}\b(?:are|is)\s+not\b | \bexact\b""", re.I | re.X)
+
+
+def missing_value(task, item):
+    """True when a latest-or-current task gets a tool that requires an exact version the task does not give."""
+    if not isinstance(item, dict) or not isinstance(task, str) or not LATEST_TASK.search(task):
+        return False
+    chosen = (item.get('tools') or [''])[0] or ''
+    tool = next((t for t in item.get('tools_schema') or () if isinstance(t, dict) and t.get('name') == chosen), None)
+    if tool is None:
+        return False
+    schema = tool.get('inputSchema') if isinstance(tool.get('inputSchema'), dict) else {}
+    params = schema.get('properties') if isinstance(schema.get('properties'), dict) else tool.get('parameters')
+    required = schema.get('required') if isinstance(schema.get('required'), list) else tool.get('required')
+    if not isinstance(params, dict) or not isinstance(required, list):
+        return False
+    for name in required:
+        spec = params.get(name) if isinstance(params.get(name), dict) else {}
+        for field, value in EXACT_FIELDS:
+            if not field.match(str(name)) or value.search(task) or 'default' in spec:
+                continue
+            enum = spec.get('enum') if isinstance(spec.get('enum'), list) else []
+            if any(str(e).lower() in ('latest', 'current', 'newest') for e in enum):
+                continue
+            words = str(spec.get('description') or '')
+            if LATEST_ACCEPTED.search(words) and not LATEST_REFUSED.search(words):
+                continue
+            return True
+    return False
+
+
 def wrong_direction(task, item, descriptions=None):
     """True when the selected tool does the task the other way round."""
     if not isinstance(item, dict) or not isinstance(task, str):
@@ -309,7 +354,7 @@ class ExposedFirstRecommender:
                     item['access_note'] = note
                 item['task_standing'] = score
                 if (wrong_direction(task, item, texts) or region_mismatch(task, item, texts, self.regions(item))
-                        or input_mismatch(task, item)):
+                        or input_mismatch(task, item) or missing_value(task, item)):
                     item['task_standing'] = min(score, -1)
                     item['direction_mismatch'] = True
                 if not self.tool_listed(item, chosen):

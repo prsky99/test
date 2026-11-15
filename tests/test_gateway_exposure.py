@@ -256,3 +256,38 @@ def test_an_unrelayed_tool_gets_an_honest_note_with_the_provider_source_never_it
     brief = FastConcierge._brief({**first, 'url': 'https://agentconcierge.biz/api/gateway/mcp/7', 'description': 'Mail tools',
                                  'active_checked_at': 1794400000})
     assert 'Connection: This tool performs an action' in brief
+
+
+def _version_tool(description, **spec):
+    return {'id': 320937, 'kind': 'mcp', 'tools': ['check_npm_package_metadata'], 'tools_schema': [{
+        'name': 'check_npm_package_metadata', 'required': ['name', 'version'],
+        'parameters': {'name': {'type': 'string', 'description': 'Public npm package name.'},
+                       'version': {'type': 'string', 'description': description, **spec}}}]}
+
+
+def test_a_latest_task_puts_a_tool_that_needs_an_exact_version_behind():
+    """11-16 real task a09: pkgxray requires an exact published version and led 'npm package metadata (latest version)'."""
+    from agent_market.concierge.gateway_exposure import missing_value
+    exact = _version_tool('Exact published npm version, such as 4.21.0. Tags such as latest and version ranges '
+                          'such as ^4.0.0 are not.')
+    assert missing_value('Need a tool to get npm package metadata (latest version)', exact)
+    assert missing_value('express 최신 버전 메타데이터', exact)
+
+
+def test_the_missing_value_rule_stays_narrow():
+    """PM 11-16 04:4x: a task that writes the version, a tool with a default or 'latest', and a task that asks for no
+    latest state keep their order; dates and ids are not judged by field name."""
+    from agent_market.concierge.gateway_exposure import missing_value
+    exact = _version_tool('Exact published npm version, such as 4.21.0.')
+    assert not missing_value('Known vulnerabilities in requests 2.31.0, latest advisories', exact)
+    assert not missing_value('npm package metadata for express', exact)
+    assert not missing_value('npm package metadata (latest version)', _version_tool('Package version.', default='latest'))
+    assert not missing_value('npm package metadata (latest version)', _version_tool('Version, or latest when omitted.'))
+    assert not missing_value('npm package metadata (latest version)',
+                             _version_tool('Package version.', enum=['latest', 'next']))
+    dated = {'tools': ['forecast'], 'tools_schema': [{'name': 'forecast', 'required': ['date', 'coin_id'],
+             'parameters': {'date': {'type': 'string'}, 'coin_id': {'type': 'string'}}}]}
+    assert not missing_value('current bitcoin price today', dated)
+    optional = {'tools': ['meta'], 'tools_schema': [{'name': 'meta', 'inputSchema': {
+        'type': 'object', 'required': ['name'], 'properties': {'name': {'type': 'string'}, 'version': {'type': 'string'}}}}]}
+    assert not missing_value('npm package metadata (latest version)', optional)
