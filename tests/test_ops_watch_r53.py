@@ -141,3 +141,19 @@ def test_a_fingerprint_file_older_than_twelve_hours_is_an_alert(tmp_path):
     path.write_text('not json')
     assert ops_watch.check_fingerprints(path, now)['problems'] == ['fingerprint_file_unreadable']
     assert ops_watch.check_fingerprints(tmp_path / 'missing.json', now)['problems'] == ['fingerprint_file_unreadable']
+
+
+def test_pearl_snapshot_alerts_on_another_evaluator_or_none(tmp_path):
+    """PM 11-15 16:17: the snapshot lacked evaluator_version for six hours and the necklace judge counted nobody."""
+    import json
+    from scripts import ops_watch
+    now = 1_794_729_366.0                                   # 2026-11-15 16:16 +0900
+    path = tmp_path / 'verify-snapshot.json'
+    path.write_text(json.dumps({'generated': '2026-11-15T16:16:06+0900', 'evaluator_version': 'dq-2026-11-15d'}))
+    assert ops_watch.check_verify_snapshot(path, now, 'dq-2026-11-15d')['problems'] == []
+    assert ops_watch.check_verify_snapshot(path, now, 'dq-2026-11-15e')['problems'] == ['snapshot_evaluator_version']
+    path.write_text(json.dumps({'generated': '2026-11-15T10:22:00+0900'}))
+    assert ops_watch.check_verify_snapshot(path, now, 'dq-2026-11-15d')['problems'] == ['snapshot_evaluator_version']
+    assert ops_watch.check_verify_snapshot(tmp_path / 'missing.json', now)['problems'] == ['verify_snapshot_unreadable']
+    from scripts import ops_auto
+    assert ops_auto.TEAM['pearl_snapshot'] == '검색과 RAG'

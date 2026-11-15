@@ -368,6 +368,22 @@ def check_fingerprints(path=None, now=None):
     return {'generated': generated, 'age_hours': age, 'problems': problems}
 
 
+def check_verify_snapshot(path=None, now=None, official=None):
+    """The pearl snapshot the necklace judge trusts (PM 11-15 16:17): on 11-15 it lacked evaluator_version from 10:22
+    until 16:16, so the judge counted no pearl and no provisional member and nobody was told. The judge's own rule
+    (agent_market.necklaces.judge.snapshot_problem): older than its limit, or graded by another evaluator than the
+    official one in scripts/report_v2.py."""
+    from agent_market.necklaces.judge import snapshot_problem, verify_snapshot_path
+    path = Path(path) if path else ROOT / verify_snapshot_path()
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return {'generated': None, 'evaluator_version': None, 'problems': ['verify_snapshot_unreadable']}
+    problem = snapshot_problem(data, now, official) if official else snapshot_problem(data, now)
+    return {'generated': data.get('generated'), 'evaluator_version': data.get('evaluator_version'),
+            'problems': [problem] if problem else []}
+
+
 NECKLACE_LOGS = ROOT / 'logs/ops/necklace-watch'
 NECKLACE_ROOT = ROOT / 'gateway-data/necklaces'
 REGISTRY_LOG = ROOT / 'logs/ops/registry-job.jsonl'
@@ -560,6 +576,9 @@ def main():
     fingerprints = check_fingerprints()
     if fingerprints['problems']:
         anomalies['fingerprints'] = fingerprints
+    pearl_snapshot = check_verify_snapshot()
+    if pearl_snapshot['problems']:
+        anomalies['pearl_snapshot'] = pearl_snapshot
     necklace_runs = check_necklace_runs()
     if necklace_runs['problems']:
         anomalies['necklace_checks'] = necklace_runs
@@ -568,7 +587,7 @@ def main():
         anomalies['core_down'] = down
     record = {'at': datetime.now().strftime('%Y-%m-%d %H:%M'), 'memory_free_percent': free,
               'swap': swap, 'top_memory': top_memory(), 'adcoin_daemon': daemon,
-              'db_connections': db_connections(), 'launchd': jobs, 'backup': backup, 'fingerprints': fingerprints, 'necklace_runs': necklace_runs,
+              'db_connections': db_connections(), 'launchd': jobs, 'backup': backup, 'fingerprints': fingerprints, 'pearl_snapshot': pearl_snapshot, 'necklace_runs': necklace_runs,
               'substitutes': substitute_states(),
               'anomalies': anomalies}
     if site_path:  # recorded, not alerted: the second fresh connection got 200 (see check_site)
