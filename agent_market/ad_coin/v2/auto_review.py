@@ -7,10 +7,14 @@ for days. The worker now reviews what is pending:
   needs a person (docs/AD_COIN_SALES_POLICY.md 5); otherwise it stays pending with the reasons recorded;
 - an agent offer (the Sponsored line agents read, with its https endpoint) is approved when its text passes the same
   screen, its endpoint resolves only to public addresses (check_public_url), the endpoint's registrable domain is at
-  least 30 days old (RDAP, the shared lifecycle_rdap budget, cached for 30 days) and it is on no blocklist. Until a
-  blocklist source we may use for free and commercially is settled (OpenPhish's free feed forbids commercial use;
-  URLhaus needs an account and a paid plan for it, 11-15), the blocklist check reports "blocklist_unavailable" and
-  the offer waits for a person, as PM ruled for anything a check cannot clear.
+  least 30 days old (RDAP, the shared lifecycle_rdap budget, cached for 30 days) and, our own evidence first (PM 12:5x),
+  the endpoint is a resource of our catalog that passed our keyless test call in the last 7 days and is not under
+  security review or quarantine. An endpoint outside the catalog waits for a person. A blocklist is checked only once
+  a source we may use for free and commercially is confirmed from its terms (OpenPhish's free feed forbids commercial
+  use; URLhaus needs an account and a paid plan for it, 11-15). An approved offer is withdrawn on its own when its
+  resource is later quarantined, put under review or fails three checks in a row (recheck_offers).
+The worker daemon runs one pass every 10 minutes when AD_COIN_AUTO_REVIEW_ENABLED is on (off by default; PM switches
+it in the daemon's runtime settings file), outside the hourly measurement window; it runs from the deployed release.
 Approved work is decided through the operator paths (operator_review.decide, sponsored_offer.decide_offer) by an
 in-process system principal with no credentials; every decision and every hold is in the audit log. An operator can
 take an advertiser down at any time (takedown): the advertiser is suspended, its running campaigns pause and its
@@ -169,8 +173,49 @@ def _get_json(url):
         return response.json()
 
 
-def screen_offer(offer, *, advertiser_name, blocklist=None, age_days=None, public=None):
-    """Flags for an agent offer: its text, its endpoint (public, not blocklisted, domain old enough)."""
+CATALOG_TRIAL_DAYS = 7
+WITHDRAW_AFTER_FAILURES = 3
+_RESOURCE_BY_URL = "SELECT id, name, kind, source, url FROM resources WHERE url=? OR key=?"   # registered (dashboard)
+
+
+def catalog_facts(app_store, endpoint):
+    """Our catalog's record of the endpoint (two registered reads), or None when it is not in the catalog."""
+    if app_store is None or not endpoint:
+        return None
+    for url in dict.fromkeys((endpoint, endpoint.rstrip("/"), endpoint.rstrip("/") + "/")):
+        rows = app_store.query(_RESOURCE_BY_URL, (url, url))
+        if rows:
+            return app_store.resource(int(dict(rows[0])["id"]))
+    return None
+
+
+def catalog_flags(facts, *, now=None):
+    """Flags from our own evidence (PM 12:5x): in the catalog, a keyless test call passed within 7 days, not under
+    security review or quarantine."""
+    now = time.time() if now is None else now
+    if not facts:
+        return ["endpoint:not_in_catalog"]
+    flags = []
+    if (facts.get("eval_security") or "") in ("quarantine", "review"):
+        flags.append("endpoint:security_" + facts["eval_security"])
+    try:
+        trial = json.loads(facts.get("trial_info") or "null") or {}
+    except (TypeError, ValueError):
+        trial = {}
+    try:
+        at = float(trial.get("at")) if trial.get("at") is not None else None
+    except (TypeError, ValueError):
+        at = None
+    if at is not None and at > 1e12:
+        at = at / 1000                                   # milliseconds
+    if not (trial.get("ok") is True and at is not None and now - at <= CATALOG_TRIAL_DAYS * 86400):
+        flags.append("endpoint:no_recent_test_success")
+    return flags
+
+
+def screen_offer(offer, *, advertiser_name, blocklist=None, age_days=None, public=None, catalog=None):
+    """Flags for an agent offer: its text, its endpoint (public, in our catalog with a recent test success, domain old
+    enough, on no confirmed blocklist)."""
     from urllib.parse import urlsplit
     from .sponsored_offer import advertiser_name_ok, public_endpoint
     flags = [] if advertiser_name_ok(advertiser_name) else ["advertiser_name"]
@@ -183,10 +228,9 @@ def screen_offer(offer, *, advertiser_name, blocklist=None, age_days=None, publi
     if not (public or public_endpoint)(endpoint):
         flags.append("endpoint:not_public")
     hosts, fresh = blocklist if blocklist is not None else load_blocklist()
-    if not fresh:
-        flags.append("endpoint:blocklist_unavailable")
-    elif _listed(host, hosts):
+    if fresh and _listed(host, hosts):               # only a confirmed source counts (PM 12:5x); none yet
         flags.append("endpoint:blocklisted")
+    flags += catalog(endpoint) if catalog is not None else ["endpoint:not_in_catalog"]
     age = (age_days or domain_age_days)(endpoint)
     if age is None:
         flags.append("endpoint:domain_age_unknown")
@@ -215,8 +259,9 @@ def flags_of(store, event, target):
         return []
 
 
-def run(commercial, *, limit=20, screen=None):
-    """One pass over pending reviews and offers. Returns counts; never raises for one bad item."""
+def run(commercial, *, limit=20, screen=None, app_store=None):
+    """One pass over pending reviews and offers, then the recheck of approved offers. Returns counts; never raises
+    for one bad item. app_store: the application catalog store (registered reads only)."""
     from . import operator_review
     from .sponsored_offer import campaign_name, decide_offer
     store, access = commercial.store, commercial.access
@@ -242,7 +287,8 @@ def run(commercial, *, limit=20, screen=None):
         try:
             with store.atomic():
                 name = campaign_name(store, store.one("campaign_get", (row["campaign_id"],)) or {})
-            flags = (screen or screen_offer)(json.loads(row["offer_json"]), advertiser_name=name, blocklist=blocklist)
+            flags = (screen or screen_offer)(json.loads(row["offer_json"]), advertiser_name=name, blocklist=blocklist,
+                                             catalog=lambda url: catalog_flags(catalog_facts(app_store, url)))
             if flags:
                 done["held_offers"] += _hold_once(store, HELD_OFFER, row["campaign_id"], flags)
                 continue
@@ -251,7 +297,41 @@ def run(commercial, *, limit=20, screen=None):
         except Exception:
             done["errors"] += 1
             logger.warning("Automatic review of offer %s failed; it is tried again", row["campaign_id"], exc_info=True)
+    try:
+        done["withdrawn_offers"] = recheck_offers(commercial, app_store=app_store, limit=200)
+    except Exception:
+        done["errors"] += 1
+        logger.warning("Approved-offer recheck failed; it runs again next pass", exc_info=True)
     return done
+
+
+def recheck_offers(commercial, *, app_store=None, limit=200, now_ms=None):
+    """Withdraw approved offers whose catalog resource is now quarantined, under security review or failing its
+    checks (PM 12:5x). An offer outside the catalog was approved by a person and is left to them."""
+    store = commercial.store
+    now_ms = int(time.time() * 1000) if now_ms is None else int(now_ms)
+    with store.atomic():
+        if not store.one("sponsored_offers_table")["present"]:
+            return 0
+        rows = list(store.all("sponsored_offers_approved", (limit,)))
+    withdrawn = 0
+    for row in rows:
+        facts = catalog_facts(app_store, str(json.loads(row["offer_json"]).get("endpoint", "")))
+        if facts is None:
+            continue
+        security = facts.get("eval_security") or ""
+        why = ("security_" + security if security in ("quarantine", "review")
+               else "failing_checks" if int(facts.get("consecutive_failures") or 0) >= WITHDRAW_AFTER_FAILURES else None)
+        if why is None:
+            continue
+        with store.atomic():
+            changed = store.execute("sponsored_offer_withdraw", ("auto: " + why, now_ms, AUTO_PRINCIPAL,
+                                                                 row["campaign_id"])).rowcount or 0
+            if changed:
+                AuditLogger.log(store, "offer_withdrawn", "succeeded", actor_principal_id=AUTO_PRINCIPAL,
+                                target_id=row["campaign_id"], details={"reason": why})
+        withdrawn += changed
+    return withdrawn
 
 
 def takedown(commercial, operator, advertiser_id, *, reason, now_ms=None):
@@ -275,7 +355,18 @@ def takedown(commercial, operator, advertiser_id, *, reason, now_ms=None):
             if store.one("sponsored_offers_table")["present"]:
                 withdrawn += store.execute("sponsored_offer_withdraw", (reason.strip(), now_ms, str(operator.id),
                                                                         campaign["id"])).rowcount or 0
+        # Paid placements from today on can no longer run for a platform-side reason: their refunds are due now
+        # (the user sends refunds by hand; the operations watch tells PM the count and total, PM 12:5x).
+        refunds, refund_units = [], 0
+        if store.one("paid_bookings_table")["present"]:
+            today = now_ms - now_ms % 86_400_000
+            for booking in store.all("paid_bookings_by_advertiser", (advertiser_id,)):
+                if booking["state"] == "confirmed" and int(booking["day_ms"]) >= today:
+                    if store.execute("paid_booking_operator_set", ("refund_due", None, booking["id"], "confirmed")).rowcount:
+                        refunds.append(booking["id"])
+                        refund_units += int(booking["amount_units"])
         AuditLogger.log(store, TAKEDOWN, "succeeded", actor_principal_id=str(operator.id), target_id=advertiser_id,
-                        details={"reason": reason.strip(), "paused": paused, "offers_withdrawn": withdrawn})
+                        details={"reason": reason.strip(), "paused": paused, "offers_withdrawn": withdrawn,
+                                 "refunds_due": refunds, "refund_units": str(refund_units)})
     return {"advertiser_id": advertiser_id, "status": "suspended", "paused_campaigns": paused,
-            "offers_withdrawn": withdrawn}
+            "offers_withdrawn": withdrawn, "refunds_due": len(refunds), "refund_units": str(refund_units)}

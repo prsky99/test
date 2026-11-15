@@ -8,7 +8,7 @@ switch on later needs no reinstall. Values are never printed; the caller logs ke
 """
 import re
 
-PASSED = re.compile(r"(AD_COIN_PAID_[A-Z0-9_]+|AD_COIN_OFAC_LIST)\Z")
+PASSED = re.compile(r"(AD_COIN_PAID_[A-Z0-9_]+|AD_COIN_OFAC_LIST|AD_COIN_AUTO_REVIEW_ENABLED)\Z")   # 11-15: auto review switch
 BASE = {"PATH": "/opt/homebrew/bin:/usr/bin:/bin", "PYTHONUNBUFFERED": "1", "AD_COIN_V2_ENABLED": "1"}
 
 

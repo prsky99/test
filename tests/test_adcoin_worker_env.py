@@ -53,3 +53,8 @@ def test_daemon_follows_the_switch_in_the_env_file_without_a_reinstall(tmp_path,
     os.utime(path, (2, 2))
     assert daemon.paid_cycle(0) == 0
     assert 'AD_COIN_PAID_BOOKING_ENABLED' not in os.environ and daemon.paid is None
+
+
+def test_the_auto_review_switch_is_carried_too():
+    from scripts.adcoin_worker_env import paid_settings
+    assert paid_settings("AD_COIN_AUTO_REVIEW_ENABLED=1\nOTHER=1\n") == {"AD_COIN_AUTO_REVIEW_ENABLED": "1"}

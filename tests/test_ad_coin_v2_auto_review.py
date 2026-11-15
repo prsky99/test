@@ -9,7 +9,7 @@ from agent_market.ad_coin.v2.commercial import etag
 from tests.test_ad_coin_postgres import cluster  # noqa: F401
 from tests.test_ad_coin_v2_persistence import store  # noqa: F401
 from tests.test_ad_coin_v2_p1 import _activate_campaign, campaign_body, p1_suite  # noqa: F401
-from tests.test_ad_coin_v2_paid_bookings import operator
+from tests.test_ad_coin_v2_paid_bookings import _no_operator_file, operator, world  # noqa: F401
 
 
 def _pending_review(suite, **changes):
@@ -51,19 +51,52 @@ def test_clean_campaigns_are_approved_and_flagged_ones_wait_with_their_reasons(p
     assert again["held_reviews"] == 0 and again["approved_reviews"] == 0
 
 
-def test_offer_screen_needs_a_public_old_unlisted_endpoint():
+def test_offer_screen_needs_our_catalog_evidence_and_a_public_old_endpoint():
+    """PM 12:5x: our own evidence first; a blocklist counts only once a source is confirmed from its terms."""
     offer = {"tool": "find_papers", "endpoint": "https://papers.example/mcp", "line": "Finds papers by topic."}
-    fine = dict(advertiser_name="Paper Finder", public=lambda url: True, age_days=lambda url: 400)
-    assert auto_review.screen_offer(offer, blocklist=({"evil.example"}, True), **fine) == []
-    assert auto_review.screen_offer(offer, blocklist=(set(), False), **fine) == ["endpoint:blocklist_unavailable"]
-    assert "endpoint:blocklisted" in auto_review.screen_offer(offer, blocklist=({"example"}, True), **fine) or \
-        "endpoint:blocklisted" in auto_review.screen_offer(offer, blocklist=({"papers.example"}, True), **fine)
-    young = {**fine, "age_days": lambda url: 3}
-    assert auto_review.screen_offer(offer, blocklist=(set(), True), **young) == ["endpoint:young_domain"]
-    unknown = {**fine, "age_days": lambda url: None}
-    assert auto_review.screen_offer(offer, blocklist=(set(), True), **unknown) == ["endpoint:domain_age_unknown"]
-    private = {**fine, "public": lambda url: False}
-    assert "endpoint:not_public" in auto_review.screen_offer(offer, blocklist=(set(), True), **private)
+    fine = dict(advertiser_name="Paper Finder", public=lambda url: True, age_days=lambda url: 400,
+                catalog=lambda url: [], blocklist=(set(), False))
+    assert auto_review.screen_offer(offer, **fine) == []                   # no blocklist source yet: not a hold
+    assert auto_review.screen_offer(offer, **{**fine, "blocklist": ({"papers.example"}, True)}) == ["endpoint:blocklisted"]
+    assert auto_review.screen_offer(offer, **{**fine, "catalog": None}) == ["endpoint:not_in_catalog"]
+    assert auto_review.screen_offer(offer, **{**fine, "age_days": lambda url: 3}) == ["endpoint:young_domain"]
+    assert auto_review.screen_offer(offer, **{**fine, "age_days": lambda url: None}) == ["endpoint:domain_age_unknown"]
+    assert "endpoint:not_public" in auto_review.screen_offer(offer, **{**fine, "public": lambda url: False})
+
+
+def test_catalog_flags_need_a_recent_keyless_test_success_and_no_security_hold():
+    now = time.time()
+    ok = {"trial_info": json.dumps({"ok": True, "at": now - 86400}), "eval_security": "ok"}
+    assert auto_review.catalog_flags(ok, now=now) == []
+    assert auto_review.catalog_flags(None, now=now) == ["endpoint:not_in_catalog"]
+    old = {**ok, "trial_info": json.dumps({"ok": True, "at": now - 9 * 86400})}
+    assert auto_review.catalog_flags(old, now=now) == ["endpoint:no_recent_test_success"]
+    failed = {**ok, "trial_info": json.dumps({"ok": False, "at": now})}
+    assert auto_review.catalog_flags(failed, now=now) == ["endpoint:no_recent_test_success"]
+    millis = {**ok, "trial_info": json.dumps({"ok": True, "at": (now - 3600) * 1000})}
+    assert auto_review.catalog_flags(millis, now=now) == []
+    assert auto_review.catalog_flags({**ok, "eval_security": "quarantine"}, now=now) == ["endpoint:security_quarantine"]
+
+
+class _Catalog:
+    """The two registered catalog reads the review uses."""
+
+    def __init__(self, rows):
+        self.rows = rows
+
+    def query(self, sql, params):
+        assert sql == auto_review._RESOURCE_BY_URL
+        return [{"id": rid} for rid, r in self.rows.items() if r["url"] in params]
+
+    def resource(self, rid):
+        return self.rows.get(rid)
+
+
+def test_catalog_facts_use_only_the_registered_reads():
+    catalog = _Catalog({7: {"url": "https://papers.example/mcp", "eval_security": "ok"}})
+    assert auto_review.catalog_facts(catalog, "https://papers.example/mcp/")["eval_security"] == "ok"
+    assert auto_review.catalog_facts(catalog, "https://other.example/mcp") is None
+    assert auto_review.catalog_facts(None, "https://papers.example/mcp") is None
 
 
 def test_blocklist_files_must_be_settled_and_fresh(tmp_path):
@@ -104,3 +137,32 @@ def test_operator_takedown_stops_everything_an_advertiser_shows(p1_suite):  # no
     with p1_suite.service.store.atomic():
         assert p1_suite.service.store.one("advertiser_get", (p1_suite.advertiser,))["status"] == "suspended"
     assert etag  # noqa: B018 - imported for parity with the campaign helpers
+
+
+def test_takedown_marks_todays_and_later_usdc_placements_refund_due(world):  # noqa: F811
+    from tests.test_ad_coin_v2_paid_bookings import NOW, quote
+    suite, service, rpc, _ = world
+    q = quote(world)
+    service.submit(suite.advertiser, q["id"], rpc.send(int(q["amount_units"])), now_ms=NOW + 60_000)
+    done = auto_review.takedown(suite.service, operator(suite), suite.advertiser, reason="phishing report", now_ms=NOW)
+    assert done["refunds_due"] == 1 and done["refund_units"] == q["amount_units"]
+    with suite.service.store.atomic():
+        assert suite.service.store.one("paid_booking_get", (q["id"],))["state"] == "refund_due"
+
+
+def test_an_approved_offer_is_withdrawn_when_its_resource_is_quarantined(p1_suite, monkeypatch):  # noqa: F811
+    from agent_market.ad_coin.v2 import sponsored_offer
+    from scripts.ad_coin_v2_migrate import migrate_agent_ads
+    migrate_agent_ads(p1_suite.service.store)
+    monkeypatch.setattr(sponsored_offer, "URL_CHECK", lambda url: None)    # no DNS in tests
+    campaign = _activate_campaign(p1_suite)
+    store = p1_suite.service.store
+    sponsored_offer.submit_offer(store, p1_suite.advertiser, campaign["id"], {
+        "tool": "find_papers", "endpoint": "https://papers.example/mcp", "line": "Finds papers by topic."})
+    sponsored_offer.decide_offer(store, p1_suite.service.access, operator(p1_suite), campaign["id"], approve=True)
+    healthy = _Catalog({7: {"url": "https://papers.example/mcp", "eval_security": "ok", "consecutive_failures": 0}})
+    assert auto_review.recheck_offers(p1_suite.service, app_store=healthy) == 0
+    quarantined = _Catalog({7: {"url": "https://papers.example/mcp", "eval_security": "quarantine"}})
+    assert auto_review.recheck_offers(p1_suite.service, app_store=quarantined) == 1
+    with store.atomic():
+        assert store.one("sponsored_offer_get", (campaign["id"],))["state"] == "rejected"

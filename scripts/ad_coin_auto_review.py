@@ -1,14 +1,15 @@
 """Automatic review of pending AI AD Coin campaigns and agent offers (PM 11-15 12:4x); one pass, then exit.
 
 Approves what passes the checks (agent_market/ad_coin/v2/auto_review.py), leaves the rest pending with its reasons for
-the operator, and writes one summary line. Run by the operations watch every 10 minutes:
+the operator, and writes one summary line. In production the AD Coin worker daemon runs the same pass every 10 minutes
+from the deployed release (PM 13:1x); this script is a hand tool for copies and tests, never a scheduled job, and a
+production run is announced to PM first:
 
     .venv/bin/python -m scripts.ad_coin_auto_review --dsn-file <APPLICATION_POSTGRES_DSN_FILE> \
         --key-file <APPLICATION_WORKFLOW_KEY_FILE> --key-dir <AD_COIN_V2_KEY_DIR> [--check]
 
---check reviews nothing and prints what is pending. It writes the production database (review decisions, audit rows),
-so the watch runs it only with --i-have-approval, which PM's 12:4x decision gives for this job. Exit 0 on a pass with no
-errors, 1 when an item failed (it is tried again next time), 2 on bad arguments.
+--check reviews nothing and prints what is pending. Deciding writes the database (review decisions, audit rows), so it
+needs --i-have-approval for that one run. Exit 0 on a pass with no errors, 1 when an item failed, 2 on bad arguments.
 """
 import argparse
 import json
@@ -29,7 +30,7 @@ def main(argv=None):
     parser.add_argument("--i-have-approval", action="store_true")
     args = parser.parse_args(argv)
     if not args.check and not args.i_have_approval:
-        parser.error("deciding writes the production ledger; pass --i-have-approval (PM 12:4x) or --check")
+        parser.error("deciding writes the ledger; pass --i-have-approval for this one run, or --check")
     os.environ["AD_COIN_V2_KEY_DIR"] = args.key_dir
     from agent_market.ad_coin.v2 import auto_review
     from agent_market.ad_coin.v2.live_service import build_live_service, default_key_vault, store_from_application
@@ -44,7 +45,7 @@ def main(argv=None):
                 offers = len(store.all("sponsored_offers_pending", (50,))) if store.one("sponsored_offers_table")["present"] else 0
             result = {"pending_reviews": reviews, "pending_offers": offers, "decided": False}
         else:
-            result = auto_review.run(commercial)
+            result = auto_review.run(commercial, app_store=runtime.store)
     finally:
         runtime.close()
     result["at_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())

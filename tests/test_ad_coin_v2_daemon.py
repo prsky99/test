@@ -105,3 +105,23 @@ def test_daemon_cycle_publishes_due_advertiser_reports(store, monkeypatch):  # n
     monkeypatch.setattr(daemon.workers, "publish_reports", lambda **kw: calls.append(kw) or 2)
     assert daemon.run_cycle(now_ms=1_800_000_000_000)["reports_published"] == 2
     assert calls == [{"now_ms": 1_800_000_000_000}]
+
+
+def test_auto_review_stays_off_unless_switched_on_and_skips_the_measurement_window(store, monkeypatch):  # noqa: F811
+    """PM 11-15 13:1x: the daemon runs automatic review from the deployed release, off by default."""
+    from agent_market.ad_coin.v2 import auto_review
+    store.migrate_model()
+    daemon = WorkerDaemon(store, vault=KeyVault())
+    monkeypatch.delenv("AD_COIN_AUTO_REVIEW_ENABLED", raising=False)
+    monkeypatch.setattr(auto_review, "run", lambda *a, **k: (_ for _ in ()).throw(AssertionError("ran while off")))
+    assert daemon.auto_review_cycle(int(time.time() * 1000)) == 0
+    monkeypatch.setenv("AD_COIN_AUTO_REVIEW_ENABLED", "1")
+    at = time.mktime(time.strptime("2026-11-15 13:58", "%Y-%m-%d %H:%M")) * 1000   # inside :55-:10
+    assert daemon.auto_review_cycle(int(at)) == 0
+    calls = []
+    monkeypatch.setattr(auto_review, "run", lambda commercial, app_store=None: calls.append(app_store) or
+                        {"approved_reviews": 1, "held_reviews": 0, "errors": 0})
+    daemon.commercial = object()
+    at = time.mktime(time.strptime("2026-11-15 13:20", "%Y-%m-%d %H:%M")) * 1000
+    assert daemon.auto_review_cycle(int(at)) == 1 and calls == [None]
+    assert daemon.auto_review_cycle(int(at) + 60_000) == 0                         # every 10 minutes

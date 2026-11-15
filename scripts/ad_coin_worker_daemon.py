@@ -24,8 +24,10 @@ logger = logging.getLogger("ad_coin_daemon")
 
 
 class WorkerDaemon:
-    def __init__(self, store: ModelStore, vault: KeyVault | None = None, credit_grant=None):
+    def __init__(self, store: ModelStore, vault: KeyVault | None = None, credit_grant=None, app_store=None):
         self.store = store
+        self.app_store = app_store          # the application catalog store: registered reads for auto review (11-15)
+        self.commercial = None
         self.vault = vault or KeyVault()
         signer = ReceiptSigner(self.store, {self.vault.kid: self.vault.get_signing_key()})
         self.workers = ModelWorkers(self.store, receipt_signer=signer, credit_grant=credit_grant)
@@ -42,6 +44,7 @@ class WorkerDaemon:
         sponsored_settled = SponsoredBookings(self.store, self.workers.ledger, taxonomy=(), regions=()).settle_due(
             now_ms=now_ms)
         sponsored_settled += self.paid_cycle(now_ms)
+        auto_reviewed = self.auto_review_cycle(now_ms)
         reports_published = self.workers.publish_reports(now_ms=now_ms)  # due advertiser report revisions
         pruned = self.prune_if_due(now_ms)
 
@@ -54,9 +57,10 @@ class WorkerDaemon:
             "sponsored_settled": sponsored_settled,
             "reports_published": reports_published,
             "pruned": pruned,
+            "auto_reviewed": auto_reviewed,
         }
         if any([reclaimed_leases, processed_outbox, signed_receipts, stale_attention, sponsored_settled,
-                reports_published, pruned]):
+                reports_published, pruned, auto_reviewed]):
             logger.info("Cycle completed with activity: %s", cycle_summary)
         return cycle_summary
 
@@ -117,6 +121,31 @@ class WorkerDaemon:
                                      sanctions=Sanctions(os.environ.get("AD_COIN_OFAC_LIST", DEFAULT_OFAC_LIST)),
                                      taxonomy=(), regions=())
         return self.paid.recheck(now_ms=now_ms) + self.paid.settle_due(now_ms=now_ms)
+
+    AUTO_REVIEW_INTERVAL_MS = 600_000   # automatic campaign and offer review: every 10 minutes (PM 11-15 13:1x)
+
+    def auto_review_cycle(self, now_ms: int) -> int:
+        """Automatic review of pending campaigns and offers, and the recheck of approved offers, when
+        AD_COIN_AUTO_REVIEW_ENABLED is on in the runtime settings file (off by default; PM switches it). Runs from the
+        deployed release, never in the hourly public measurement window (:55-:10)."""
+        import os
+        self.reload_paid_settings()          # the same runtime settings file carries this switch
+        if os.environ.get("AD_COIN_AUTO_REVIEW_ENABLED", "0") not in ("1", "true", "True"):
+            return 0
+        if now_ms - getattr(self, "_last_auto_review_ms", 0) < self.AUTO_REVIEW_INTERVAL_MS:
+            return 0
+        minute = time.localtime(now_ms / 1000).tm_min
+        if minute >= 55 or minute < 10:
+            return 0
+        self._last_auto_review_ms = now_ms
+        from agent_market.ad_coin.v2 import auto_review
+        if self.commercial is None:
+            from agent_market.ad_coin.v2.live_service import build_live_service
+            self.commercial, _, _ = build_live_service(self.store, key_vault=self.vault)
+        done = auto_review.run(self.commercial, app_store=self.app_store)
+        if any(done.values()):
+            logger.info("Automatic review: %s", " ".join("%s=%d" % kv for kv in sorted(done.items())))
+        return sum(v for k, v in done.items() if k != "errors")
 
     PRUNE_INTERVAL_MS = 3_600_000  # retention deletes run at most once an hour
 
@@ -193,7 +222,7 @@ def main(argv=None):
         if args.health:
             print(json.dumps({"status": "ready" if store.attach() else "unready"}))
             return 0
-        daemon = WorkerDaemon(store, vault, credit_grant=grant)
+        daemon = WorkerDaemon(store, vault, credit_grant=grant, app_store=runtime.store)
         if args.once:
             print(json.dumps(daemon.run_cycle(), indent=2))
         else:
