@@ -182,3 +182,26 @@ CREATE INDEX IF NOT EXISTS pass_events_pass ON usdc_passes.pass_events(pass_id, 
 ## 11. 열린 문제
 - 목걸이(워크플로우) 호출당 결제(무료 할당 뒤 402)는 별도 과제다(11-19, 워크플로우 팀과 판단). 이용권으로 목걸이 호출 한도를 늘려 줄지는 그 결정 뒤에 본다.
 - 이용권 결제와 광고 예약이 한 주소를 쓰므로, 매일 대사 보고서에 두 표를 함께 보여 준다.
+
+## 부록. 목걸이 호출당 과금에 `agent_market/payments.py`를 쓸 수 있나 (AI AD Coin 판단, 11-15)
+워크플로우 팀 설계(`reports/necklace-billing-design-2026-11-15/README.md`, 212549e8)를 읽고 판단했다.
+
+**결론: 쓸 수 있다.** `PaymentVerifier.verify(tx, sig, body, price)`를 검증 핵심으로 쓰고, 아래 6가지를 바깥에 더한다.
+- 그대로 맞는 점
+  - 받기만 하고 상태가 없다(개인키 없음, 보관 없음).
+  - 영수증 status·받는 주소·USDC 토큰·송금자 1명·금액 하한·확인 블록 수를 본다.
+  - 송금 지갑의 서명을 요청 본문에 묶는다(EIP-712에 체인 ID와 토큰 포함). 남의 tx 해시를 가로채 쓰는 것을 막는다.
+  - `eth_account`는 `requirements.txt`에 있다.
+
+| # | 보탤 것 | 이유 |
+|---|---|---|
+| 1 | **tx 해시 한 번만: 모든 USDC 표를 통틀어 확인**(`adc2_paid_bookings`, `usdc_passes.passes`, `necklace_payments`) | 받는 주소가 같으면, 광고 예약에 쓴 5.00x USDC tx를 그 지갑 주인이 서명만 해서 목걸이 실행값으로 다시 쓸 수 있다(금액이 가격 이상이므로 통과함). 받는 주소를 따로 쓰는 방법도 있지만 지갑 관리가 사용자 몫이라 공용 확인 함수 하나(`tx_used_anywhere`)를 권장한다. |
+| 2 | RPC는 `paid_bookings.default_rpc()`(두 공개 노드 일치, 호출당 4초)를 넘긴다 | `PaymentVerifier`가 받는 `chain.RPC`의 기본 제한 시간은 20초이고 노드 하나만 본다. 요청 경로에는 길고, 노드 하나의 말로 확정하게 된다(R36). 인터페이스(receipt·block_number·chain_id)가 같아 바로 넘길 수 있다. |
+| 3 | 제재 주소 대조는 `paid_bookings.Sanctions`를 같이 쓴다 | verifier에는 없다. 목록이 없거나 낡았으면(2일) 실행하지 않고 `refund_candidate`로 적는다. |
+| 4 | 오류 문장은 영어로 바꿔 내보낸다 | verifier의 일부 메시지가 한국어다. 에이전트가 읽는 응답은 영어 규칙이라, `error_code`에 영어 문장을 붙이는 표를 목걸이 쪽에 둔다(본문 문자열을 그대로 내보내지 않음). |
+| 5 | MCP·A2A는 "본문 전체"가 아니라 정규화한 실행 인자에 서명하게 한다 | JSON-RPC는 다시 보낼 때 `id`가 바뀌어 본문 바이트가 달라진다. 그러면 서명이 깨져 재시도(설계 4절)가 안 된다. `{"necklace","version","input"}`을 정렬한 JSON으로 정해 세 표면에 같게 쓴다. |
+| 6 | 원화 환율은 10분 캐시로 기록한다 | 실행마다 업비트를 부르면 응답 시간에 외부 호출이 하나 더 붙는다. 확정 시각과 캐시된 환율을 같이 적는다. |
+
+- 금액이 가격보다 많으면 받은 금액을 그대로 기록한다. 가격의 2배를 넘으면 `refund_candidate`로 표시한다(잔액을 만들지 않으므로 남는 돈을 다음 실행에 쓰지 않는다).
+- 확인 블록 수: 광고 예약은 3이다. 0.005 USDC 실행은 1로 두고, 재조직이 생기면 대사에서 잡는다(워크플로우 설계 9절과 같음).
+- 같은 받는 주소를 쓰면, 매일 대사(`scripts/ad_coin_paid_reconcile.py`)가 세 표를 함께 보도록 넓힌다. 이것은 AI AD Coin이 맡는다.
