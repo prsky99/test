@@ -58,6 +58,7 @@ TOPICS = [  # (topic, role or None, pattern)
  ('stock / finance data', None, r'stock|ticker|nasdaq|earnings|market data|sec filing|10-k'),
  ('translation', None, r'translat|korean|japanese|spanish|french'),
  ('email send', None, r'e-?mail|smtp|newsletter|transactional'),
+ ('calendar / scheduling', 'holiday.calendar.v1', r'calendar|schedul|meeting|holiday|event'),
  ('website uptime / monitoring', None, r'website is up|uptime|monitor|status page|down\b|alert'),
  ('web page summarize / scrape', 'web.grounding.v1', r'summari[sz]e (a )?(web|page|url|article)|scrap|crawl|web page|extract .*url|read (a|this) (url|page)'),
  ('pdf / document', None, r'\bpdf\b|document|docx'),
@@ -69,7 +70,6 @@ TOPICS = [  # (topic, role or None, pattern)
  ('security / cve', 'cve.record.v1', r'\bcve\b|vulnerab|exploit|security scan|kev'),
  ('dns / domain / email auth', 'domain.lookup.v1', r'\bdns\b|domain|whois|\bspf\b|dkim|dmarc|ssl cert'),
  ('image generation', None, r'image|picture|photo|draw|logo'),
- ('calendar / scheduling', 'holiday.calendar.v1', r'calendar|schedul|meeting|holiday|event'),
  ('jobs', None, r'\bjobs?\b|hiring|career|resume'),
  ('travel / flights', 'airport.lookup.v1', r'flight|airport|hotel|travel|booking'),
  ('time / timezone', 'timezone.time.v1', r'time ?zone|current time|what time'),
@@ -89,11 +89,33 @@ def topic(t):
         if re.search(pat, t): return name
     if re.fullmatch(r'\W*(hi|hello|hey|help|what can you do\W*|thanks?.*|ok|test.*|ping)\W*', t) or len(t) < 3: return '(greeting / empty)'
     return '(other)'
+BURST_MIN, BURST_SECONDS = 5, 600
+def bursts(rows):
+    """Correction 11-15 16:33 (PM): scripted repeats are not demand. A text (case and spacing folded) that comes 5+
+    times in the window is a repeated text; an ask of a repeated text is a scripted repeat when another ask of a
+    repeated text (the same one or another) came from another visitor within 10 minutes. That is the 10-26..10-30
+    shape: a set of four texts seconds apart, a new visitor each time, the set run again hours later."""
+    key = lambda r: re.sub(r'\s+', ' ', r['text'].lower()).strip()
+    count = collections.Counter(key(r) for r in rows)
+    rep = sorted((r for r in rows if key(r) and count[key(r)] >= BURST_MIN), key=lambda r: r['at'])
+    out, lo = set(), 0
+    for i, r in enumerate(rep):
+        while rep[lo]['at'] < r['at'] - BURST_SECONDS: lo += 1
+        hi = i
+        while hi + 1 < len(rep) and rep[hi + 1]['at'] <= r['at'] + BURST_SECONDS: hi += 1
+        if any(rep[k]['v'] != r['v'] for k in range(lo, hi + 1) if k != i):
+            out.add(id(r))
+    return out
 kept, dropped = [], collections.Counter()
 for r in reps:
     w = why_out(r)
     if w: dropped[w] += 1
     else: r['topic'] = topic(r['text']); kept.append(r)
+burst_ids = bursts(kept)
+burst_by_topic = collections.Counter(r['topic'] for r in kept if id(r) in burst_ids)
+burst_by_topic_7 = collections.Counter(r['topic'] for r in kept if id(r) in burst_ids and r['at'] > NOW - 7*86400)
+dropped['scripted repeat (repeated texts from other visitors within 10 min)'] = len(burst_ids)
+kept = [r for r in kept if id(r) not in burst_ids]
 def table(days):
     rs = [r for r in kept if r['at'] > NOW - days*86400]
     c = collections.defaultdict(lambda: dict(n=0, v=set(), ch=collections.Counter(), zero=0))
@@ -122,9 +144,9 @@ for v, rs in seqs.items():
     close(sess)
 outcome_fail = None
 res = {'generated': time.strftime('%Y-%m-%d %H:%M KST'), 'source': 'agent_messages (concierge replies paired with asks), read-only',
-       'dropped': dict(dropped), 'kept': len(kept), 'd7': table(7), 'd30': table(30),
+       'dropped': dict(dropped), 'kept': len(kept), 'repeats_by_topic_30d': dict(burst_by_topic), 'repeats_by_topic_7d': dict(burst_by_topic_7), 'd7': table(7), 'd30': table(30),
        'combos': [{'combo': k, 'sessions': n, 'clients': len(combo_clients[k])} for k, n in combos.most_common(25)]}
-(S/'demand_table.json').write_text(json.dumps(res, indent=1, ensure_ascii=False))
+(S/'demand_table_corrected.json').write_text(json.dumps(res, indent=1, ensure_ascii=False))
 for d in ('d7', 'd30'):
     t = res[d]; print(f"== {t['days']}d asks {t['asks']} clients {t['clients']}")
     for x in t['topics'][:22]: print(f"{x['topic']:30} {x['asks']:4} {x['clients']:4}  rest {x['chat_rest']:3} a2a {x['a2a']:3} mcp {x['mcp']:3}  no_match {x['no_match']}")
