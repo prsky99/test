@@ -20,6 +20,9 @@ Advertiser applications, advertisers, quotes, payments and USDC are each split e
 deploy/ops/adcoin-demand-counts.sql (PM 11-15 11:06): internal is our house advertiser account or the platform
 script principal. Revenue is judged on the external numbers only; internal ones are kept, never dropped.
 Every count also has its last-24-hours part where the table has a time. No row, name or address is read.
+registry_clients: distinct clients of the verified MCP registry (/registry/verified/, E7) on the last full UTC day, from
+the frontend's traffic files (logs/service-frontend/traffic/<day>.<pid>.json, 'distinct' registry|<class>, our own
+'internal' left out). Each process salts its own digests, so the sum over processes is an upper bound.
 """
 import io
 import json
@@ -61,7 +64,25 @@ SELECT 'bookings', CASE WHEN advertiser_id = {HOUSE} THEN 'internal' ELSE 'exter
   FROM ad_coin_v2.adc2_paid_bookings GROUP BY 2
 """
 
-UNITS = 1_000_000   # agent_market.ad_coin.v2.paid_bookings.USDC_UNITS
+UNITS = 1_000_000
+TRAFFIC = ROOT / 'logs/service-frontend/traffic'
+
+
+def registry_clients(clock=time.time, folder=None):
+    """Distinct registry clients on the last full UTC day, by client class (upper bound: summed over processes)."""
+    import datetime as _dt
+    day = (_dt.datetime.fromtimestamp(clock(), _dt.timezone.utc) - _dt.timedelta(days=1)).strftime('%Y-%m-%d')
+    by = {}
+    for path in sorted(Path(folder or TRAFFIC).glob(day + '.*.json')):
+        try:
+            distinct = json.loads(path.read_text()).get('distinct') or {}
+        except (OSError, ValueError):
+            continue
+        for key, value in distinct.items():
+            entry, _, cls = key.partition('|')
+            if entry == 'registry' and cls != 'internal' and isinstance(value, int):
+                by[cls] = by.get(cls, 0) + value
+    return {'day': day, 'total': sum(by.values()), 'by_class': by, 'basis': 'sum_over_processes_upper_bound'}   # agent_market.ad_coin.v2.paid_bookings.USDC_UNITS
 
 
 def parse(lines):
@@ -113,7 +134,8 @@ def line(record):
 
 
 def main(argv=None, clock=time.time, run=None, log=LOG):
-    record = {'at': time.strftime('%Y-%m-%d %H:%M', time.localtime(clock())), **count(run)}
+    record = {'at': time.strftime('%Y-%m-%d %H:%M', time.localtime(clock())), **count(run),
+              'registry_clients': registry_clients(clock)}
     Path(log).parent.mkdir(parents=True, exist_ok=True)
     with open(log, 'a') as handle:
         handle.write(json.dumps(record, ensure_ascii=False) + '\n')

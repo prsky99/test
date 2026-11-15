@@ -71,6 +71,8 @@ def entry_of(method, path):
         return 'agent_api'
     if path.startswith('/api/gateway/'):
         return 'gateway'
+    if path.startswith('/registry/verified/'):   # 11-15 E7: the verified MCP registry (distinct clients a day)
+        return 'registry'
     if path.startswith('/api/explore'):
         return 'explore'
     if path in ('/llms.txt', '/llms-full.txt', '/skill.md'):

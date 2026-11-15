@@ -109,3 +109,17 @@ def test_no_test_can_write_the_real_ops_state_files():
     for key in ('REVENUE_STATE', 'NORTH_STAR_STATE', 'VECTOR_USAGE_STATE', 'STATE', 'ACTIONS', 'BOARD', 'ESCALATIONS'):
         assert real not in Path(getattr(ops_auto, key)).parents, key
     assert ops_auto.AGENTCON_ENV.name == 'agentcon.env'   # an input it only reads stays where it is
+
+
+def test_registry_clients_come_from_the_frontend_traffic_files_without_our_own(tmp_path):
+    """E7 (PM 5-2 4): distinct registry clients a day; each process salts its own digests, so the sum is an upper bound."""
+    from agent_market.concierge.traffic import entry_of
+    assert entry_of('GET', '/registry/verified/v0.1/servers') == 'registry'
+    # 08:05 KST on 11-16 is 23:05 UTC on 11-15: the last full UTC day is 11-14 (09:00 KST 11-14 to 09:00 KST 11-15)
+    (tmp_path / '2026-11-14.111.json').write_text(json.dumps({'distinct': {'registry|other': 3, 'registry|internal': 9,
+                                                                            'mcp|other': 50}}))
+    (tmp_path / '2026-11-14.222.json').write_text(json.dumps({'distinct': {'registry|other': 1, 'registry|ai_bot': 2}}))
+    (tmp_path / '2026-11-15.111.json').write_text(json.dumps({'distinct': {'registry|other': 40}}))   # UTC day not over
+    got = revenue_funnel.registry_clients(lambda: datetime(2026, 11, 16, 8, 5).timestamp(), tmp_path)
+    assert got == {'day': '2026-11-14', 'total': 6, 'by_class': {'other': 4, 'ai_bot': 2},
+                   'basis': 'sum_over_processes_upper_bound'}
