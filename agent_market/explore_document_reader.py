@@ -33,8 +33,12 @@ SKIPPED = frozenset(("usage_full_tools", "eval_info", "usage_changes", "content_
 # every document byte-identical: 2,995 sampled listings built with day15-frontend-20261115-r1 (5d3d8f6a) and this
 # code (1c7ba78b) gave the same sha256 for all 2,995. The a05 entry (5d3d8f6a -> 40851c1a) is replaced: the 11-14
 # rebuild left no 40851c1a document that this release would need.
+# With 97ac9a54 (execution_policy: three reviewed bounded patterns, 운영·SRE 11-15) the hash is 8e4768d8. That change
+# is not byte-identical for 181 resources (396 tools whose schemas use those patterns): their previous documents say
+# the tools are not supported, which is what production does today, until jobs rebuilds them under 8e4768d8 (about
+# six hours); every other sampled document (2,995) is identical.
 COMPATIBLE_POLICIES = {
-    "1c7ba78b411f6a09af1e72ff75d1b1e2fed43a28801b3e8956be45aac1c2b332":
+    "8e4768d8c461651542fad4ee3b0313d1e3ef9cf0562fc2b580de728fac588510":
         ("5d3d8f6a1d61faac5da83354fa3ebff7a61702a5b89c83a2824d2d3327b9c54c",),
 }
 
