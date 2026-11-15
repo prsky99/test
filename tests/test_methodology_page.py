@@ -45,7 +45,8 @@ def test_a_missing_method_file_hides_the_page_instead_of_inventing_numbers(tmp_p
 
 def test_method_advertise_necklace_and_check_reads_are_kept_at_the_edge(client):  # noqa: F811
     """11-14: these answered no-store and took 1.2-6 s from Korea; they are the same for everyone."""
-    for path, policy in (('/methodology', 'public, max-age=21600'), ('/methodology/changelog', 'public, max-age=21600'),
+    # 11-15 R78: the method pages follow /methodology.json (ten minutes); the advertiser page stays a growth page
+    for path, policy in (('/methodology', 'public, max-age=600'), ('/methodology/changelog', 'public, max-age=600'),
                          ('/advertise', 'public, max-age=21600'), ('/methodology.json', 'public, max-age=600'),
                          ('/api/necklaces', 'public, max-age=60'), ('/api/feed/necklaces.json', 'public, max-age=60'),
                          ('/api/roles', 'public, max-age=60')):
