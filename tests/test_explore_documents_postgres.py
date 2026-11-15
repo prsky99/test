@@ -429,3 +429,25 @@ def test_unchanged_sources_move_only_the_generation_and_a_changed_one_is_rebuilt
             with store.tx(readonly=True):
                 assert doc.read(store, [ids[0]])[ids[0]]["name"] == "Renamed meanwhile"
             store.close()
+
+
+def test_background_priority_leaves_the_main_thread_alone(monkeypatch):
+    """11-15 PM 20:3x: a Refresher round on the pytest main thread lowered it to utility QoS for the rest of the
+    process (time.sleep(0.02) took about 150 ms and test_request_timing failed after this file). Jobs runs rounds on
+    pool threads, which are still lowered once."""
+    import sys
+    import threading
+    import agent_market.explore_document_refresher as refresher
+    monkeypatch.setattr(sys, 'platform', 'darwin')
+    monkeypatch.setattr(refresher, '_LOWERED', set())
+    calls = []
+    import ctypes
+
+    class Libc:
+        def pthread_set_qos_class_self_np(self, qos, relative):
+            calls.append((threading.current_thread() is threading.main_thread(), qos))
+    monkeypatch.setattr(ctypes, 'CDLL', lambda path: Libc())
+    refresher.background_priority()
+    worker = threading.Thread(target=refresher.background_priority)
+    worker.start(); worker.join()
+    assert calls == [(False, 0x11)]
