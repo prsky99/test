@@ -186,6 +186,15 @@ prohibits 2건은 정의에 넣지 않았습니다. 넣으면 그 멤버가 모�
 - 연결: holiday-calendar가 `country`에 "위도,경도"를 받습니다. 국경·분쟁·바다면 not_found에 후보를 담고, 파일이 없으면 source_unavailable입니다.
 - 다시 만들기: Natural Earth 새 판(연 1회 안팎)이 나오면 build와 check를 다시 돌리고 이 절의 숫자를 새로 적습니다.
 
+## PM 16:07 새 목걸이 원천 판정 (11-15 16시)
+
+| 원천 | 판정 | 근거 위치 | 조건과 비고 |
+|---|---|---|---|
+| npm 공개 레지스트리(registry.npmjs.org) | allowed | docs.npmjs.com/policies/open-source-terms "Use of npm Open Source": 공개 API로 패키지를 검색·내려받기 허용 | "Acceptable Use"와 복제·크롤러 정책 안에서. 자체 대체 package-registry가 이미 씀 |
+| PyPI | **판정 전** | policies.python.org의 PyPI 이용 약관이 HTTP 429로 답함(11-15 16시, 장부에 기록) | 11-16에 다시 읽음 |
+| GitHub 공개 API(릴리스·이슈, 비로그인) | **조건부 allowed** | docs.github.com GitHub Terms of Service H절 "API Terms": 남용·과도한 요청, 토큰 공유, 개인정보 판매 목적의 수집을 금지. 고처리량이나 GitHub 서비스를 재판매하는 결과가 되는 접근은 유료 구독 대상 | 목걸이 실행이 무료 이벤트인 지금은 허용. **목걸이 실행에 과금이 시작되면 "재판매" 여지가 있어 다시 판정**해야 함(PM 결정 필요). 비로그인 한도는 시간당 60회 |
+| 공식 MCP Registry(registry.modelcontextprotocol.io) | allowed | modelcontextprotocol.io/registry/about: 클라이언트와 집계 서비스용 REST API를 공식으로 제공하는 메타데이터 저장소 | 데이터는 CC0. 미리보기 단계라 깨지는 변경이나 데이터 초기화가 있을 수 있음(같은 페이지). 검증 레지스트리(E7)가 이미 씀 |
+
 ## 남은 것
 
 - 카탈로그 밖 자체 에이전트 133018·133019·133023(topic-evidence-brief, package-risk-audit)

@@ -2026,3 +2026,16 @@ def test_freshness_lists_every_local_data_file_with_its_age(tmp_path):
     assert rows["tz-grid.bin"]["present"] and rows["tz-grid.bin"]["date_kind"] == "file time"   # the test grid has no built
     old = freshness.report(tmp_path, now=now + 10 * 86400)
     assert next(r for r in old if r["file"] == "airports.json")["stale"]
+
+
+def test_gold_judge_for_arxiv_search():
+    """PM 11-15 16:07: topic-evidence-brief papers seat; the truth's paper phrase in a returned title."""
+    from agent_market.fallback_agents import gold_check as g
+    case = {"input": {"topic": "Public transport"}, "truth": {"paper_phrase": "public transport"}}
+    assert g.SLUG["arxiv-search"] == "topic-evidence-brief" and g.applies("arxiv-search", case)
+    assert g.case_arguments("arxiv-search", case) == {"query": "Public transport"}
+    good = {"items": [{"title": "Demand models for public transport networks", "url": "https://arxiv.org/abs/2401.1"}]}
+    assert g.judge("arxiv-search", case, good)["pass"]
+    assert not g.judge("arxiv-search", case, {"items": [{"title": "Transport of heat", "url": "https://arxiv.org/abs/1"}]})["pass"]
+    assert not g.judge("arxiv-search", case, {"items": [{"title": "Public transport", "url": "http://x"}]})["pass"]
+    assert not g.applies("arxiv-search", {"truth": {}})

@@ -582,5 +582,81 @@
    null,
    {}
   ]
+ ],
+ "github-advisory": [
+  [
+   {
+    "package": "lodash",
+    "ecosystem": "npm",
+    "version": "4.17.20"
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "package": "requests",
+    "ecosystem": "PyPI",
+    "version": "2.31.0"
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "package": "lodash",
+    "ecosystem": "npm",
+    "version": "not a version!"
+   },
+   "invalid_input",
+   null,
+   {}
+  ],
+  [
+   {
+    "package": "Bad Name",
+    "ecosystem": "npm"
+   },
+   "invalid_input",
+   null,
+   {}
+  ]
+ ],
+ "arxiv-search": [
+  [
+   {
+    "query": "graph neural networks"
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "query": "public transport",
+    "limit": 5
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "query": "w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w10 w11 w12"
+   },
+   "invalid_input",
+   null,
+   {}
+  ],
+  [
+   {
+    "query": "!!"
+   },
+   "invalid_input",
+   null,
+   {}
+  ]
  ]
 }

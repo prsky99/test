@@ -40,7 +40,8 @@ SLUG = {"gleif-lei": "company-due-diligence", "sec-edgar": "company-due-diligenc
         "sec-filings": "company-due-diligence",                                          # ops 11-15 14:2x
         # one 30-case set is enough for a substitute verdict; the quake truth is the place, the quakes are live
         "usgs-quakes": "quakes-near-address",                                            # workflow 11-15
-        "census-geocode": "quakes-near-address"}   # split us-street: US street addresses (gold_places --us-streets)
+        "census-geocode": "quakes-near-address",   # split us-street: US street addresses (gold_places --us-streets)
+        "arxiv-search": "topic-evidence-brief"}    # PM 11-15 16:07: the paper phrase in a returned title
 BANDS = (0.01, 0.1, 0.5)
 
 
@@ -124,6 +125,15 @@ def judge(agent_id: str, case: dict, result: dict | None) -> dict:
         link = "https://en.wikipedia.org/wiki/" + str(want or "").replace(" ", "_")
         ok = bool(want) and any(unquote(u.split("#")[0]).replace(" ", "_") == link for u in sources)
         return {"pass": ok, "got": sources[:5], "want": link}
+    if agent_id == "arxiv-search":
+        # topic-evidence-brief truth gives a paper phrase (its papers are OpenAlex's most cited, which arXiv does not
+        # hold): at least one returned paper must carry every word of the phrase in its title, with an https link
+        import re as _re
+        words = [w for w in _re.findall(r"[a-z0-9]+", str(truth.get("paper_phrase") or "").lower()) if len(w) > 2]
+        items = [i for i in (result or {}).get("items") or [] if isinstance(i, dict)]
+        hits = [i for i in items if str(i.get("url") or "").startswith("https://")
+                and words and all(w in _re.findall(r"[a-z0-9]+", str(i.get("title") or "").lower()) for w in words)]
+        return {"pass": bool(hits), "got": [i.get("title") for i in items[:5]], "want": words}
     if agent_id == "sec-filings":
         # company-due-diligence truth (EDGAR CIK): the filer the answer matched is that CIK
         want = str(truth.get("cik") or "").lstrip("0")
@@ -278,6 +288,8 @@ def case_arguments(agent_id: str, case: dict) -> dict:
     arguments = {k: v for k, v in case["input"].items() if k in allowed}
     if "title" in allowed and "title" not in arguments and case["input"].get("topic"):
         arguments["title"] = case["input"]["topic"]
+    if agent_id == "arxiv-search" and "query" not in arguments and case["input"].get("topic"):
+        arguments["query"] = case["input"]["topic"]                         # papers.search.v1 takes a query
     if "question" in allowed and "question" not in arguments and case["input"].get("topic"):
         arguments["question"] = f"What is {case['input']['topic']}?"        # web.grounding.v1 takes a question
     if "company" in allowed and "company" not in arguments and case["input"].get("name"):
@@ -292,6 +304,8 @@ def applies(agent_id: str, case: dict) -> bool:
     if agent_id == "sec-filings":
         truth = case.get("truth") or {}
         return bool(truth.get("cik")) or truth.get("sec_registered") is False
+    if agent_id == "arxiv-search":
+        return bool((case.get("truth") or {}).get("paper_phrase"))
     if agent_id == "census-geocode":                     # US addresses only (its coverage)
         return (case.get("truth") or {}).get("country") == "US" or str(case["input"].get("address", "")).endswith("USA")
     if agent_id == "rdap-domain":
