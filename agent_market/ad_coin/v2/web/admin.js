@@ -179,6 +179,28 @@
       text('paid-status', done || (items.length ? '' : '검토·환불할 결제가 없습니다.'));
     } catch (e) { text('paid-status', e.status === 404 ? 'USDC 결제가 꺼져 있습니다.' : reason(e.status)); }
   }
+  // R33: the exact line agents will read is shown before an operator approves an offer.
+  async function loadOffers(done = '') {
+    text('offers-status', '불러오는 중입니다.');
+    try {
+      const {items} = await get('/sponsored-offers');
+      $('offer-list').replaceChildren(...items.map(item => {
+        const lines = ['에이전트가 읽을 줄: ' + item.preview, '광고주 이름 ' + item.advertiser +
+          (item.advertiser_name_ok ? '' : ' · 이름이 검사를 통과하지 못해 승인할 수 없음'),
+          '주소 ' + item.offer.endpoint + ' · 도구 ' + (item.offer.tool || '—')];
+        const decide = (approve, okText) => async (b, card) => {
+          const why = reasonField(card);
+          if (!approve && why.value.trim().length < 3) { why.focus(); text('offers-status', '거절 사유를 3자 이상 적으세요.'); return; }
+          b.disabled = true;
+          try { await post('/sponsored-offers/' + item.campaign_id + '/decision', {approve, reason: why.value.trim()});
+            await loadOffers(okText); }
+          catch (e) { b.disabled = false; text('offers-status', reason(e.status)); } };
+        return row(lines, [['승인', true, decide(true, '승인했습니다.')], ['거절', false, decide(false, '거절했습니다.')]]);
+      }));
+      text('offers-status', done || (items.length ? '' : '심사할 제안이 없습니다.'));
+    } catch (e) { text('offers-status', reason(e.status)); }
+  }
+  $('load-offers').addEventListener('click', () => loadOffers());
   $('load-paid').addEventListener('click', () => loadPaid());
   $('export-paid').addEventListener('click', () => {
     const month = $('paid-month').value.trim();

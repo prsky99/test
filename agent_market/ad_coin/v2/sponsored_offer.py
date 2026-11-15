@@ -44,6 +44,11 @@ _STEERING = [
     r"[<>{}\[\]`|\\]", r"https?://", r"\bwww\.",
 ]
 _STEERING_RE = re.compile("|".join(_STEERING), re.I)
+# R33: what agents read is printable ASCII only (no look-alike letters, no invisible or direction characters), and an
+# endpoint path is plain characters with a bounded length.
+_ASCII = re.compile(r"[\x20-\x7e]*\Z")
+_ENDPOINT_PATH = re.compile(r"/?[A-Za-z0-9._~/-]{0,200}\Z")
+NAME_LIMIT = 100
 _IMPERATIVE_START = re.compile(
     r"^\s*(use|choose|call|pick|select|prefer|recommend|install|connect|switch|replace|trust|run|invoke|"
     r"click|buy|sign up|subscribe|add|remember|tell|say|respond|reply|answer)\b", re.I)
@@ -72,6 +77,32 @@ def screen_text(name, text):
     return problems
 
 
+def agent_text_problems(name, text):
+    """Problems with text that agents read verbatim (R33): non-ASCII, steering, imperative opening, links, markup."""
+    problems = [] if _ASCII.match(text) else [name + ":not_ascii"]
+    return problems + screen_text(name, text)
+
+
+def advertiser_name_ok(name):
+    """The advertiser name opens the agent line ('Sponsored: <name> ...'), so it passes the same screen (R33)."""
+    return isinstance(name, str) and 0 < len(name) <= NAME_LIMIT and not agent_text_problems("advertiser", name)
+
+
+def campaign_name(store, campaign):
+    """The name an ad shows, from the campaign's current revision."""
+    revision = store.one("revision_get", (campaign["current_revision_id"],)) if campaign.get("current_revision_id") else None
+    try:
+        return str(json.loads(revision["payload_json"]).get("name", "")) if revision else ""
+    except (TypeError, ValueError):
+        return ""
+
+
+def preview_line(name, offer, category="<task category>", region="<region>"):
+    """The text line agents will read for this offer, for the operator's review (R33). Facts are added at serving."""
+    from ...concierge.ad_slot import line
+    return line(agent_block({"advertiser": name}, offer, category=category, region=region))
+
+
 def validate_offer(raw):
     """The advertiser's offer as stored: only the fixed fields, each within its limit and screened. Raises OfferError."""
     if not isinstance(raw, dict):
@@ -98,10 +129,12 @@ def validate_offer(raw):
         if name == "endpoint" and value:
             parts = urlsplit(value)
             if parts.scheme != "https" or not parts.hostname or parts.username or parts.password or parts.query \
-                    or parts.fragment:
+                    or parts.fragment or not _ASCII.match(value):
                 problems.append("endpoint:https_url_required")
+            elif not _ENDPOINT_PATH.match(parts.path or ""):
+                problems.append("endpoint:path_characters")
         elif value:
-            problems += screen_text(name, value)
+            problems += agent_text_problems(name, value)
         offer[name] = value
     if problems:
         raise OfferError(problems)
@@ -202,8 +235,11 @@ def submit_offer(store, advertiser_id, campaign_id, raw, *, now_ms=None):
         campaign = store.one("campaign_get", (campaign_id,))
         if campaign is None or campaign["advertiser_id"] != advertiser_id:
             raise ContractError("unknown_resource", 404)
+        name = campaign_name(store, campaign)
+        if not advertiser_name_ok(name):
+            raise ContractError("offer_refused:advertiser_name", 422)   # R33: the name opens the agent line
         store.execute("sponsored_offer_upsert", (campaign_id, advertiser_id, json.dumps(offer, sort_keys=True), now_ms))
-    return {"campaign_id": campaign_id, "state": "pending", "offer": offer}
+    return {"campaign_id": campaign_id, "state": "pending", "offer": offer, "preview": preview_line(name, offer)}
 
 
 def decide_offer(store, access, principal, campaign_id, *, approve, reason="", now_ms=None):
@@ -218,6 +254,8 @@ def decide_offer(store, access, principal, campaign_id, *, approve, reason="", n
         if row is None or row["state"] != "pending":
             raise ContractError("offer_not_pending", 409)
         offer = validate_offer(json.loads(row["offer_json"]))  # the screen again, in case the rules changed
+        if approve and not advertiser_name_ok(campaign_name(store, store.one("campaign_get", (campaign_id,)) or {})):
+            raise ContractError("offer_refused:advertiser_name", 422)
         if approve and not public_endpoint(offer["endpoint"]):
             raise ContractError("endpoint_not_public", 422)    # check_public_url: no private or internal targets
         store.execute("sponsored_offer_decide", ("approved" if approve else "rejected", (reason or "").strip() or None,
@@ -231,8 +269,15 @@ def pending_offers(store, access, principal, limit=50):
         if not store.one("sponsored_offers_table")["present"]:
             return {"items": [], "available": False}      # nothing can be pending before the tables exist
         rows = store.all("sponsored_offers_pending", (limit,))
-    return {"items": [{"campaign_id": r["campaign_id"], "advertiser_id": r["advertiser_id"],
-                       "offer": json.loads(r["offer_json"]), "submitted_ms": int(r["submitted_ms"])} for r in rows]}
+        items = []
+        for r in rows:
+            offer = json.loads(r["offer_json"])
+            name = campaign_name(store, store.one("campaign_get", (r["campaign_id"],)) or {})
+            items.append({"campaign_id": r["campaign_id"], "advertiser_id": r["advertiser_id"], "offer": offer,
+                          "submitted_ms": int(r["submitted_ms"]), "advertiser": name,
+                          "advertiser_name_ok": advertiser_name_ok(name),
+                          "preview": preview_line(name, offer)})   # R33: the exact line agents will read
+    return {"items": items}
 
 
 def approved_offer(store, campaign_id):

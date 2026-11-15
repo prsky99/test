@@ -67,9 +67,16 @@
 <div id="review-list" class="stack" aria-live="polite"></div>
 <p id="reviews-status" role="status" aria-live="polite"></p>
 </section>
+<section class="card" id="offers" aria-labelledby="offers-h">
+<h2 id="offers-h">에이전트 광고 제안 심사</h2>
+<p>MCP·A2A 답변 뒤에 붙을 "Sponsored" 한 줄을 그대로 보여 줍니다. 광고주 이름과 문구가 에이전트에게 지시하거나 공식·검증을 사칭하지 않는지, 주소가 광고주 것인지 보고 승인합니다. 거절에는 사유를 적습니다.</p>
+<div class="actions"><button id="load-offers" type="button" class="btn">제안 대기 불러오기</button></div>
+<div id="offer-list" class="stack" aria-live="polite"></div>
+<p id="offers-status" role="status" aria-live="polite"></p>
+</section>
 <section class="card" id="paid" aria-labelledby="paid-h">
 <h2 id="paid-h">USDC 결제 검토·환불</h2>
-<p>금액이 다르거나, 제재 목록 확인이 안 되거나, 시세를 못 받은 결제가 여기에 옵니다. 확인되면 "확정", 플랫폼 사정이면 "환불 필요"를 누르세요. 환불 송금은 지갑에서 직접 한 뒤 거래 해시를 적고 "환불함"을 누릅니다. 이 화면은 돈을 보내지 않습니다.</p>
+<p>견적이 만료된 뒤 들어왔거나, 제재 목록 대조가 "해당 없음"이 아니거나, 시세를 못 받은 결제가 여기에 옵니다. 견적과 금액이 다른 송금은 예약에 붙지 않고 매일 대사에 "예약 없는 입금"으로 나옵니다. 확인되면 "확정", 플랫폼 사정이면 "환불 필요"를 누르세요. 환불 송금은 지갑에서 직접 한 뒤 거래 해시를 적고 "환불함"을 누릅니다. 이 화면은 돈을 보내지 않습니다.</p>
 <div class="actions"><button id="load-paid" type="button" class="btn">결제 대기열 불러오기</button></div>
 <div class="grid"><label class="field">월별 내보내기(YYYY-MM)<input id="paid-month" inputmode="numeric" maxlength="7" placeholder="2026-11"></label></div>
 <div class="actions"><button id="export-paid" type="button" class="btn">CSV 받기</button></div>
