@@ -401,3 +401,26 @@ def test_postgres_db_opens_short_connections_sends_registered_sql_and_stays_off_
 def test_sql_registry_matches_the_code():
     """After changing SQL: python -m agent_market.provider_self_claims --write-sql-registry (reviewed in git)."""
     assert P.registered_digests() == P.sql_digests() and len(P.sql_digests()) == len(P.SQL)
+
+
+def test_recommendations_are_read_shown_and_never_applied(tmp_path):
+    from scripts.provider_correction_recommend import append
+    holder = {}
+    svc, _, _ = service(tmp_path, well_known(holder))
+    svc.recommendations_file = tmp_path / "recs.jsonl"
+    holder["claim"] = svc.prepare("cust-1", 1, "well_known")
+    svc.verify("cust-1", holder["claim"]["claim_id"])
+    req = svc.request_correction("cust-1", 1, "name", "Alpha Agent")
+    assert [c["review"] for c in svc.benefits("cust-1", 1)["corrections"]] == ["waiting"]
+    append(req["request_id"], "held", "  Need the provider's docs page.  ", path=svc.recommendations_file)
+    append(req["request_id"], "applied", "Matches the card name.", path=svc.recommendations_file)   # latest wins
+    shown = svc.benefits("cust-1", 1)["corrections"][0]
+    assert shown["review"] == "recommendation_ready" and "recommendation" not in shown   # requester never sees it
+    assert shown["status"] == "open"                                                       # nothing recorded
+    [waiting] = svc.waiting_corrections()
+    assert waiting["recommendation"]["recommendation"] == "applied" and waiting["recommendation"]["reason"]
+    svc.decide_correction(req["request_id"], "applied", "staff:1")                         # the admin panel's job
+    assert svc.benefits("cust-1", 1)["corrections"][0]["review"] == "decided"
+    for bad in (("x", "applied", "r"), (req["request_id"], "approve", "r"), (req["request_id"], "held", "")):
+        with pytest.raises(ValueError):
+            append(*bad, path=svc.recommendations_file)

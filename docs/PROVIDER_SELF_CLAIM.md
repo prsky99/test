@@ -138,6 +138,10 @@ CREATE TABLE IF NOT EXISTS provider_correction_requests(
 3. 공개 "확인됨" 표시는 1단계에 두지 않습니다. 진주의 '검증'과 섞여 품질 보증처럼 읽힐 수 있기 때문입니다. 확인 여부는 제공자 본인 화면과 운영 화면에만 보입니다.
 4. 재시험은 대기열 위치 보기만 줍니다. 요청 기능은 호출 예산과 악용 가능성을 본 뒤 정합니다. **돈을 내면 재시험이 빨라지는 길은 어떤 단계에서도 만들지 않습니다.**
 5. 정정 요청은 에이전트 팀이 검토하고, 48시간 안에 채택·반려·보류를 적습니다. 자동 반영은 없습니다. 운영·SRE는 대기 건수만 매일 깔때기 줄에 넣습니다. 상태 값에 보류(`held`)를 더합니다.
+   - 기록 경로(PM 11-15 11:2x): 에이전트 팀은 요청마다 권고(채택·반려·보류와 한 줄 이유)를 48시간 안에 git 밖 파일 `gateway-data/provider-claims/recommendations.jsonl`에 적습니다(`scripts/provider_correction_recommend.py`, 요청 목록은 `scripts.prod_ro_sql` 읽기). 운영 DB 기록은 직원 로그인으로 admin 검토 칸에서 누르는 사람(지금은 사용자)이 합니다. 파일을 DB에 자동 반영하는 길은 만들지 않습니다.
+   - 요청자 화면에는 `waiting`, `recommendation_ready`(검토 중, 권고 준비됨), `decided`만 보이고 권고 내용은 보이지 않습니다.
+   - admin 검토 칸(한국어, 11-19 묶음)은 요청 원문·권고·버튼 세 가지만 둡니다. `ProviderSelfClaims.waiting_corrections()`가 권고를 붙여 줍니다.
+   - 운영 PG 연결은 상시 연결 없이 쓸 때 열고 닫으며, 자기 SQL 목록(`agent_market/provider_self_claims_sql.json`)에 있는 문장만 보냅니다(운영·SRE 11-15 검토, 7c76dbe4). 이 목록을 공용 카탈로그 밖에 두는 것은 PM 결정 사항입니다.
 
 구현 순서
 - 코드와 시험은 지금 시작합니다. 표가 없으면 기능이 꺼진 채로 둡니다(운영에 실려도 409나 빈 응답). AD Coin의 migrate 전 처리와 같은 방식입니다.

@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import secrets
 import sqlite3
@@ -49,6 +50,8 @@ MAX_LIVE_CLAIMS = 20           # per customer
 MAX_CHECKS_A_DAY = 10          # user-started checks per customer
 ORIGIN_GAP_S = 60.0            # at most one check a minute per origin
 MAX_OPEN_CORRECTIONS = 5
+# Outside git; the agent team appends, the admin panel reads. PROVIDER_CLAIMS_DATA points every role at one folder.
+RECOMMENDATIONS = Path(os.environ.get("PROVIDER_CLAIMS_DATA", "gateway-data/provider-claims")) / "recommendations.jsonl"
 RESPONSE_LIMIT = 4096
 TIMEOUT_S = 8.0
 BUDGET_SYSTEM = "provider_claims"
@@ -348,13 +351,15 @@ def marker_nonce(value, depth=0) -> list[str]:
 # ---------------------------------------------------------------- service
 class ProviderSelfClaims:
     def __init__(self, db, resources, *, http=None, clock=time.time, reserve=None, reports_dir="exports/pearls/reports",
-                 retest_file="exports/pearls/retest-queue.json", public_check=None):
+                 retest_file="exports/pearls/retest-queue.json", public_check=None,
+                 recommendations_file=RECOMMENDATIONS):
         """``resources(rid)`` returns the catalog row (the application store's registered lookup); ``reserve(url)``
         asks the shared outside-call ledger; ``http`` is a client from broker.discovery.public_client."""
         self.db, self.resources, self.clock = db, resources, clock
         self._http = http
         self._reserve = reserve
         self.reports_dir, self.retest_file = Path(reports_dir), Path(retest_file)
+        self.recommendations_file = Path(recommendations_file)
         self._public_check = public_check
 
     # -- plumbing
@@ -612,7 +617,7 @@ class ProviderSelfClaims:
                                                         "last_status_code", "last_error", "consecutive_failures")},
                 "capability_error": resource.get("cap_error"), "last_trial": trial,
                 "test_reports": self.test_reports(resource_id), "retest_queue": self.retest_position(resource_id),
-                "corrections": self.db.all("corrections_for_resource", (customer_id, resource_id)),
+                "corrections": self.with_review(self.db.all("corrections_for_resource", (customer_id, resource_id))),
                 "note": "Read only: grades, ranks and test results are never changed by a provider claim."}
 
     def test_reports(self, resource_id: int, limit: int = 10) -> list[dict]:
@@ -669,8 +674,40 @@ class ProviderSelfClaims:
         return {"request_id": request_id, "status": "open"}
 
     def waiting_corrections(self, limit: int = 100) -> list[dict]:
+        """For the admin review panel: open and held requests, each with the agent team's recommendation if any."""
         self._need()
-        return self.db.all("corrections_waiting", (limit,))
+        recs = self.recommendations()
+        return [dict(row, recommendation=recs.get(row["id"])) for row in self.db.all("corrections_waiting", (limit,))]
+
+    def recommendations(self) -> dict:
+        """The agent team's latest recommendation per request (PM decision 11-15 11:2x). The file is outside git and
+        outside the database; it is only ever read here and shown, never applied: a staff member records the decision
+        in the admin panel."""
+        out = {}
+        try:
+            lines = self.recommendations_file.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            return out
+        for raw in lines:
+            try:
+                row = json.loads(raw)
+            except ValueError:
+                continue
+            if isinstance(row, dict) and isinstance(row.get("request_id"), str) and row.get("recommendation") in \
+                    ("applied", "declined", "held"):
+                out[row["request_id"]] = {k: row.get(k) for k in ("recommendation", "reason", "at", "by")}
+        return out
+
+    def with_review(self, rows: list[dict]) -> list[dict]:
+        """The requester sees 'waiting', 'recommendation_ready' (reviewed within 48 h, the record not yet made) or
+        'decided'; never the recommendation itself before a staff member records the decision."""
+        recs = self.recommendations()
+        out = []
+        for row in rows:
+            review = "decided" if row.get("status") in ("applied", "declined") else \
+                ("recommendation_ready" if row.get("id") in recs else "waiting")
+            out.append(dict(row, review=review))
+        return out
 
     def decide_correction(self, request_id: str, status: str, by: str, note: str = "") -> bool:
         self._need()
