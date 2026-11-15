@@ -96,7 +96,20 @@ def available(store):
             raise VectorError('invalid_schema')
         column=store._execute("SELECT format_type(atttypid,atttypmod) FROM pg_attribute WHERE attrelid='agentcon_search.embeddings'::regclass AND attname='embedding' AND NOT attisdropped").fetchone()
         indexes=store._execute("SELECT indexdef FROM pg_indexes WHERE schemaname='agentcon_search' AND indexname='embeddings_cosine_hnsw'").fetchall()
-        if not column or column[0]!='vector(768)' or len(indexes)!=1 or 'USING hnsw (embedding vector_cosine_ops)' not in indexes[0][0]:
+        if not column or column[0]!='vector(768)':
+            raise VectorError('invalid_schema')
+        if indexes:
+            if len(indexes)!=1 or 'USING hnsw (embedding vector_cosine_ops)' not in indexes[0][0]:
+                raise VectorError('invalid_schema')
+            return True
+        # 11-15 plan A: the shared graph may be dropped once the per-kind graphs serve every search. Without it
+        # the schema is valid only when the kind column and all three kind graphs are valid and ready.
+        kind_column=store._execute("SELECT 1 FROM pg_attribute WHERE attrelid='agentcon_search.embeddings'::regclass AND attname='kind' AND NOT attisdropped").fetchall()
+        names=','.join("'%s'" % name for name in sorted(KIND_INDEXES.values()))   # fixed constants, not input
+        ready={name for (name,) in store._execute('''SELECT c.relname FROM pg_index i JOIN pg_class c ON c.oid=i.indexrelid
+            JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='agentcon_search' AND c.relname IN ('''+names+''')
+            AND i.indisvalid AND i.indisready''').fetchall()}
+        if not kind_column or ready!=set(KIND_INDEXES.values()):
             raise VectorError('invalid_schema')
         return True
 
