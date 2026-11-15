@@ -1051,17 +1051,35 @@ def failure_due(v, now):
     return now - float(v.get('tested') or 0) >= wait * DAY - 3600       # an hour's slack for the daily start time
 
 
+CONFIRMED_RETEST_DAYS = (0, 3)   # R18: a confirmed pearl is tested again twice a week, by its own weekday offset
+
+
 def retest_queue(versions, day=None, limit=RETEST_A_DAY, now=None):
-    """Top members of each role again: ranks 1-2 every day, 3-5 every other day (PM 11-14: 40 a day); then failed
-    members whose backoff has passed (R08)."""
+    """Today's retests, most useful first (R18, precision review 11-15: 40 a day capped confirmations at about 40):
+    1. any member at 85+ with one success day, whatever its rank (the second day confirms it), best score first;
+    2. ranks 1-2 every day and 3-5 every other day, while not confirmed;
+    3. confirmed members twice a week;
+    4. failed members whose backoff has passed (R08)."""
+    import zlib
     day = int(time.strftime('%j')) if day is None else day
     now = time.time() if now is None else now
-    out = []
+    second, ranked, confirmed = [], [], []
     for role, entry in sorted(rank(versions).items()):
         for m in entry['members']:
-            if m['rank'] and (m['rank'] <= 2 or (m['rank'] <= 5 and _parity(m['resource_id'], day) == 0)):
-                out.append({'role': role, 'id': m['resource_id'], 'tool': m['tool'], 'kind': 'retest', 'rank': m['rank']})
-    out.sort(key=lambda c: c['rank'])
+            if not m['rank']:
+                continue
+            c = {'role': role, 'id': m['resource_id'], 'tool': m['tool'], 'kind': 'retest', 'rank': m['rank']}
+            days = m.get('success_days') or 0
+            if days >= CONFIRM_DAYS:
+                number = m['resource_id'] if isinstance(m['resource_id'], int) else zlib.crc32(str(m['resource_id']).encode())
+                if (day + number) % 7 in CONFIRMED_RETEST_DAYS:
+                    confirmed.append(c)
+            elif days == CONFIRM_DAYS - 1 and (m.get('best_recent_score') or m.get('score') or 0) >= PASS_MARK:
+                second.append((-(m.get('best_recent_score') or m.get('score') or 0), m['rank'], c))
+            elif m['rank'] <= 2 or (m['rank'] <= 5 and _parity(m['resource_id'], day) == 0):
+                ranked.append(c)
+    out = [c for _, _, c in sorted(second, key=lambda t: (t[0], t[1]))] + sorted(ranked, key=lambda c: c['rank']) + \
+        sorted(confirmed, key=lambda c: c['rank'])
     failed = [{'role': v['role'], 'id': v['resource_id'], 'tool': v['tool'], 'kind': 'retest', 'rank': None, 'after_failure': True}
               for v in sorted(versions, key=lambda v: float(v.get('tested') or 0)) if failure_due(v, now)]
     return (out + failed)[:limit]

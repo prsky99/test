@@ -296,3 +296,18 @@ def test_r13_clean_fails_only_what_is_certainly_not_an_answer_and_retrieval_time
     assert DQ.freshness('fx.rate.v1', f'Retrieved on {stamp}', now)[0] == 0
     assert DQ.freshness('fx.rate.v1', f'Rate as of {stamp}', now)[0] == 10
     assert DQ.freshness('timezone.time.v1', f'Retrieved on {stamp}', now, args={'tz': 'Asia/Seoul'})[0] == 0
+
+
+def test_r18_second_day_candidates_are_retested_first_whatever_their_rank(monkeypatch):
+    """Precision review R18: 40 retests a day went to ranks 1-5 every day; an 85+ member at rank 7 never got its
+    second day, and confirmed pearls took slots daily."""
+    def member(rid, rank, score, days):
+        return {'resource_id': rid, 'tool': 't', 'rank': rank, 'score': score, 'best_recent_score': score, 'success_days': days}
+    roles = {'fx.rate.v1': {'members': [member(1, 1, 95, 2), member(2, 2, 70, 0), member(3, 7, 88, 1), member(4, 3, 90, 1)]}}
+    monkeypatch.setattr(V, 'rank', lambda versions: roles)
+    monkeypatch.setattr(V, 'failure_due', lambda v, now: False)
+    queue = V.retest_queue([], day=0, now=NOW)
+    ids = [c['id'] for c in queue]
+    assert ids[:2] == [4, 3] and 2 in ids                      # second-day candidates first, best score first
+    weekly = [d for d in range(7) if 1 in [c['id'] for c in V.retest_queue([], day=d, now=NOW)]]
+    assert len(weekly) == 2                                     # a confirmed pearl twice a week
