@@ -49,6 +49,10 @@ MAX_EXTERNAL = 6
 MAX_TOTAL_MS = 5000
 # PM decision 11-14 (agent team survey): no keyless free source allows commercial redistribution, so these
 # roles get no AgentValCon fallback; they may only be optional slots with at least two external members.
+# PM E8 (11-15, growth experiments 2026-11-15 E8): skills of three modules or fewer passed more often than larger
+# ones (SkillsBench 33.9 % -> 50.5 %), so every necklace, and every one stamped from a template, stays small.
+MAX_REQUIRED_SLOTS = 3
+MAX_STAGES = 3
 NO_FALLBACK_ROLES = ("crypto.price.v1", "ip.lookup.v1", "stock.quote.v1")
 # Fields that describe where a definition is in its lifecycle. They do not change
 # what runs, so they are left out of the digest that the ops approval binds to.
@@ -293,6 +297,14 @@ def validate(defn: dict, *, check_contracts: bool = True) -> list[str]:
         for dep in slot.get("depends_on") or []:
             if dep not in seen_slots:
                 errors.append(f"slot {sid}: depends_on {dep!r} must name an earlier slot")
+    if required > MAX_REQUIRED_SLOTS:
+        errors.append(f"a necklace has at most {MAX_REQUIRED_SLOTS} required slots (focused bundles, PM E8 11-15)")
+    depth: dict[str, int] = {}
+    for slot in slots:
+        if isinstance(slot.get("slot"), str):
+            depth[slot["slot"]] = 1 + max((depth.get(d, 0) for d in slot.get("depends_on") or []), default=0)
+    if depth and max(depth.values()) > MAX_STAGES:
+        errors.append(f"a necklace runs in at most {MAX_STAGES} stages (depends_on depth, PM E8 11-15)")
     single_fanout = len(slots) == 1 and isinstance(slots[0].get("fanout", 1), int) and slots[0].get("fanout", 1) >= 2
     if required < 2 and not single_fanout:
         errors.append("a necklace needs two required slots, or one slot fanning out to two or more pearls")
