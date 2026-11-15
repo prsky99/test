@@ -224,3 +224,31 @@ def test_rebrand_moves_future_bookings_to_an_agentvalcon_campaign(store, monkeyp
     assert house.rebrand(commercial, now_ms=now_ms)['stopped'] == 'already_AgentValCon'
     again = house.daily(commercial, enabled=True, ledger_check=_clean, now_ms=now_ms)
     assert again['stopped'] is None and all(not r['written'] for r in again['results'])
+
+
+def test_rebrand_keep_booked_leaves_existing_bookings_and_new_days_carry_agentvalcon(store, monkeypatch):  # noqa: F811
+    """11-15 PM: bookings already made stay as they are (no cancel, no move, no pause); the AgentValCon campaign is
+    launched and every new day the daily job books goes to it."""
+    monkeypatch.setattr(house, 'HOUSE_NAME', house.LEGACY_HOUSE_NAME)
+    commercial, now_ms = _daily_world(store)                          # legacy-named house ad
+    house.daily(commercial, enabled=True, ledger_check=_clean, now_ms=now_ms)   # D+1, D+2 booked on it
+    monkeypatch.undo()
+    before = {d: _count_booked(store, d) for d in (house._utc_day(now_ms - now_ms % DAY_MS + k * DAY_MS) for k in (1, 2))}
+    legacy = house.daily(commercial, enabled=True, ledger_check=_clean, now_ms=now_ms)
+    assert legacy['note'].startswith("house campaign still named 'Agent Concierge'")
+    assert house.rebrand(commercial, check=True, now_ms=now_ms, keep_booked=True)['plan'].startswith("launch 'AgentValCon'")
+    done = house.rebrand(commercial, now_ms=now_ms, keep_booked=True)
+    assert done['written'] and done['new_campaign']['name'] == 'AgentValCon'
+    assert done['old_campaign_kept']['name'] == 'Agent Concierge' and 'moved' not in done
+    assert {d: _count_booked(store, d) for d in before} == before        # nothing cancelled or moved
+    advertiser, _, target = house._house(store)
+    assert target == done['new_campaign']['id']                          # new bookings go to AgentValCon
+    later = now_ms + DAY_MS                                              # the next daily run books D+3 on it
+    nxt = house.daily(commercial, enabled=True, ledger_check=_clean, now_ms=later)
+    assert nxt['stopped'] is None and nxt['campaign_name'] == 'AgentValCon' and 'note' not in nxt
+    new_day = house._utc_day(later - later % DAY_MS + 2 * DAY_MS)
+    day_clock = (later - later % DAY_MS + 2 * DAY_MS + 3_600_000) / 1000
+    slots = SponsoredSlots(store, taxonomy={'research', 'coding'}, regions=set(house.DAILY_REGIONS), clock=lambda: day_clock)
+    assert [c['advertiser'] for c in slots.response('research', 'KR', 'explore', 2, False)['cards']] == ['AgentValCon']
+    assert _count_booked(store, new_day) == 5 and _clean(store)['ok']
+    assert house.rebrand(commercial, now_ms=now_ms, keep_booked=True)['stopped'] == 'already_AgentValCon'

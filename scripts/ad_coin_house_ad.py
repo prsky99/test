@@ -146,14 +146,32 @@ def run(commercial, *, month, issue_atoms, day, category="research", region="US"
     return out
 
 
+def _name(campaign):
+    try:
+        return json.loads(campaign["payload_json"]).get("name", "")
+    except (KeyError, TypeError, ValueError):
+        return ""
+
+
+def _target(active):
+    """The campaign new house bookings go to: the active one named HOUSE_NAME (11-15 PM: new bookings carry the
+    AgentValCon name while bookings already made on the old Agent Concierge campaign run out untouched), else the
+    only active one; None when that is ambiguous."""
+    branded = [c for c in active if _name(c) == HOUSE_NAME]
+    if len(branded) == 1:
+        return branded[0]
+    return active[0] if len(active) == 1 else None
+
+
 def _house(store):
-    """The house advertiser (same id the application step derives) and its active campaign, or (id, None)."""
+    """The house advertiser (same id the application step derives) and the campaign new bookings go to, or None."""
     advertiser = str(uuid5(NAMESPACE_URL, "https://agentconcierge.biz/ad-coin/applications/"
                            + SCRIPT_PRINCIPAL + "/" + HOUSE_LISTING))
     with store.atomic():
         row = store.one("advertiser_get", (advertiser,))
         campaigns = [c for c in store.all("ui_campaigns", (advertiser, "")) if c["state"] == "active"] if row else []
-    return advertiser, row, (campaigns[0]["id"] if campaigns else None)
+    target = _target(campaigns)
+    return advertiser, row, (target["id"] if target else None)
 
 
 def _house_bookings(store, advertiser, *, day_ms=None, category=None, region=None, states=("booked", "served")):
@@ -271,11 +289,14 @@ def _launch_campaign(commercial, client, headers, advertiser, *, name, text, cat
                               headers=headers(**{"If-Match": etag(campaign)})), "activate")
 
 
-def rebrand(commercial, *, name=HOUSE_NAME, text=HOUSE_TEXT, category="research", check=False, now_ms=None):
+def rebrand(commercial, *, name=HOUSE_NAME, text=HOUSE_TEXT, category="research", check=False, now_ms=None,
+            keep_booked=False):
     """11-14 PM: show the house ad as AgentValCon. Approved campaigns cannot be revised, so: launch a new
     campaign, move every future house booking (day after today) to it (cancel, then book the same day and
     region), then pause the old campaign. Today's card stops at the pause (the day cannot be rebooked).
-    Idempotent: when the only active house campaign already has `name`, nothing is written."""
+    keep_booked (11-15 PM: do not touch bookings already made): only launch the new campaign; bookings already
+    made on the old one run out as they are, and the daily job books every new day on the new one (_target).
+    Idempotent: when an active house campaign already has `name`, nothing is written."""
     from agent_market.ad_coin.v2.commercial import etag
     from agent_market.ad_coin.v2.sponsored_booking import SponsoredBookings
     store = commercial.store
@@ -286,6 +307,30 @@ def rebrand(commercial, *, name=HOUSE_NAME, text=HOUSE_TEXT, category="research"
         active = [c for c in store.all("ui_campaigns", (advertiser, "")) if c["state"] == "active"] if row else []
     names = {c["id"]: json.loads(c["payload_json"]).get("name", "") for c in active}
     out = {"advertiser_id": advertiser, "active_before": names, "written": False}
+    if name in names.values():
+        out["stopped"] = "already_" + name
+        return out
+    if keep_booked:
+        if len(active) != 1:
+            out["stopped"] = "house_campaign_not_single"
+            return out
+        if check:
+            out["plan"] = "launch '%s'; existing bookings stay on the old campaign" % name
+            return out
+        with store.atomic():
+            balance = int(store.one("account_get", (row["available_account"],))["balance_atoms"])
+        if balance < int(SPONSORED_ONLY):
+            from agent_market.ad_coin.v2.economy import CoinEconomy
+            out["top_up"] = CoinEconomy(store, commercial.ledger, commercial.access).operator_grant(
+                _principal(), account_id=row["available_account"], amount_atoms=int(SPONSORED_ONLY) - balance,
+                reason="house ad campaign " + name,
+                request_id=uuid5(NAMESPACE_URL, BASE + "house-keep-booked/" + name + "/" + active[0]["id"]).hex)
+        client, headers = _client(commercial)
+        new = _launch_campaign(commercial, client, headers, advertiser, name=name, text=text, category=category,
+                               region="US", now_ms=now_ms)
+        out.update({"written": True, "new_campaign": {"id": new["id"], "state": new["state"], "name": name},
+                    "old_campaign_kept": {"id": active[0]["id"], "name": names[active[0]["id"]]}})
+        return out
     if len(active) != 1:
         out["stopped"] = "house_campaign_not_single"
         return out
@@ -362,12 +407,16 @@ def daily(commercial, *, enabled, ledger_check, regions=DAILY_REGIONS, category=
            "days_left": growth // per_day if per_day else None, "stopped": None, "alert": False, "results": []}
     if not enabled:
         out["stopped"] = "switch_off"
-    elif len(active) != 1:
+    elif _target(active) is None:
         out["stopped"], out["alert"] = "house_campaign_not_single", True
     elif not ledger_check(store).get("ok"):
         out["stopped"], out["alert"] = "ledger_not_clean", True
     elif growth < DAILY_RESERVE_DAYS * per_day:
         out["stopped"], out["alert"] = "growth_budget_low", True
+    target = _target(active)
+    out["campaign_name"] = _name(target) if target else None
+    if target is not None and _name(target) != HOUSE_NAME:
+        out["note"] = "house campaign still named %r: run rebrand --keep-booked" % _name(target)
     if out["stopped"]:
         if out["stopped"] != "house_campaign_not_single":
             out["results"] = [book_regions(commercial, day=d, regions=regions, category=category, check=True,
@@ -407,6 +456,8 @@ def main(argv=None):
     parser.add_argument("--key-file")
     parser.add_argument("--key-dir")
     parser.add_argument("--i-have-approval", action="store_true")
+    parser.add_argument("--keep-booked", action="store_true",
+                        help="rebrand: only launch the AgentValCon campaign; bookings already made stay as they are")
     args = parser.parse_args(argv)
     if args.action == "plan":
         print(__doc__)
@@ -428,7 +479,7 @@ def main(argv=None):
     try:
         commercial, _, _ = build_live_service(store_from_application(runtime.store), key_vault=default_key_vault())
         if args.action == "rebrand":
-            result = rebrand(commercial, category=args.category, check=args.check)
+            result = rebrand(commercial, category=args.category, check=args.check, keep_booked=args.keep_booked)
         elif args.action == "daily":
             from scripts.ad_coin_daily_ledger_check import check as ledger_check
             root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
