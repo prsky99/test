@@ -90,7 +90,7 @@ def _refund_path(world, booking_id):
     service.operator_decide(access, op, booking_id, action='refund', reason='operator review: refund')
     row = _row(suite, booking_id)
     paid_units = rpc.txs[row['tx_hash']]['amount']                                   # what actually arrived
-    refund_tx = rpc.send(paid_units, sender=PAY_TO, to=row['payer'])                  # the owner sends it by hand
+    refund_tx = rpc.send(paid_units, sender=PAY_TO, to=row['payer'], block=95)        # the owner sends it by hand
     service.operator_decide(access, op, booking_id, action='refunded', refund_tx_hash=refund_tx, reason='refund sent')
     texts = [i['text'] for i in updates(suite.service.store, suite.advertiser)['items'] if i['kind'] == 'payment']
     return {'operator': 'refund -> refund_due -> refunded (user sends USDC by hand, records the hash)',
@@ -98,14 +98,20 @@ def _refund_path(world, booking_id):
 
 
 @pytest.mark.parametrize('case,amount_delta,note', [('underpaid', -1, 'amount_mismatch'), ('overpaid', +1, 'amount_mismatch')])
-def test_wrong_amount_goes_to_review_and_can_be_refunded(world, case, amount_delta, note):
+def test_wrong_amount_is_refused_and_left_for_the_reconciliation(world, case, amount_delta, note):
+    # R32 (11-15): only an exact payment is attached; the money of a wrong one is listed by the daily reconciliation
+    # as a receipt without a booking and returned by hand.
+    from scripts.ad_coin_paid_reconcile import reconcile
     suite, service, rpc, _ = world
     q = quote(world)
-    got = service.submit(suite.advertiser, q['id'], rpc.send(int(q['amount_units']) + amount_delta), now_ms=NOW + 60_000)
+    tx = rpc.send(int(q['amount_units']) + amount_delta)
+    with pytest.raises(ContractError) as error:
+        service.submit(suite.advertiser, q['id'], tx, now_ms=NOW + 60_000)
     row = _row(suite, q['id'])
-    refund = _refund_path(world, q['id'])
-    _record(case + ' payment goes to review', ('review', note, 'refunded'), (got['state'], row['note'], refund['final_state']),
-            row, PAID_STATES['review'], refund)
+    _, findings = reconcile([row], receipts={}, transfers=[(tx, PAYER, int(q['amount_units']) + amount_delta)],
+                            impressions={}, last_blocks={}, export_rows=[], day_ms=NOW - NOW % 86_400_000)
+    _record(case + ' payment is refused, not attached, and reconciled', (note, 'quoted', None, ['receipt_without_booking']),
+            (error.value.code, row['state'], row['tx_hash'], [f['kind'] for f in findings]), row, 'quote stays open')
 
 
 def test_other_token_is_not_a_payment(world):

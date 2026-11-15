@@ -123,12 +123,17 @@ def test_exact_payment_confirms_once_and_records_krw(world):
     assert row['payer'] == PAYER and row['krw_rate'] == '1380.5'
 
 
-def test_short_or_wrong_amount_goes_to_operator_review(world):
+def test_short_or_wrong_amount_is_refused_and_never_attached(world):
+    # R32: only a payment of exactly the quoted amount is attached; any other amount is refused and the money shows
+    # in the daily reconciliation as a receipt without a booking (refunded by hand).
     suite, service, rpc, _ = world
     q = quote(world)
     tx = rpc.send(5_000_000)                                          # the price without the quote's tail
-    assert service.submit(suite.advertiser, q['id'], tx, now_ms=NOW + 60_000)['state'] == 'review'
-    assert suite.service.store.one('paid_booking_get', (q['id'],))['note'] == 'amount_mismatch'
+    with pytest.raises(ContractError) as error:
+        service.submit(suite.advertiser, q['id'], tx, now_ms=NOW + 60_000)
+    assert error.value.code == 'amount_mismatch'
+    row = suite.service.store.one('paid_booking_get', (q['id'],))
+    assert (row['state'], row['tx_hash']) == ('quoted', None)
 
 
 def test_other_token_recipient_or_failed_transfer_leaves_the_quote_open(world):
@@ -190,12 +195,12 @@ def test_operator_clears_reviews_records_refunds_and_exports_a_month(world):
     suite, service, rpc, _ = world
     access, op = suite.service.access, operator(suite)
     q = quote(world)
-    service.submit(suite.advertiser, q['id'], rpc.send(5_000_000), now_ms=NOW + 60_000)       # review
+    service.submit(suite.advertiser, q['id'], rpc.send(int(q['amount_units'])), now_ms=NOW + 31 * 60_000)  # late: review
     assert [i['id'] for i in service.operator_queue(access, op)['items']] == [q['id']]
     assert service.operator_decide(access, op, q['id'], action='refund', reason='paid without a quote match')['state'] == 'refund_due'
     with pytest.raises(ContractError):
         service.operator_decide(access, op, q['id'], action='refunded', refund_tx_hash='nope', reason='refund sent')
-    refund = rpc.send(5_000_000, sender=PAY_TO, to=PAYER)
+    refund = rpc.send(int(q['amount_units']), sender=PAY_TO, to=PAYER, block=95)
     assert service.operator_decide(access, op, q['id'], action='refunded', refund_tx_hash=refund,
                                    reason='refund sent by the owner')['state'] == 'refunded'
     good = quote(world, region='KR')
@@ -331,10 +336,11 @@ def test_other_network_rpc_never_confirms(world):
         service.check_network()
     q = quote(world)
     tx = rpc.send(int(q['amount_units']))
-    assert service.submit(suite.advertiser, q['id'], tx, now_ms=NOW + 60_000)['state'] == 'confirming'
+    with pytest.raises(ContractError) as error:                                 # not attached on another network
+        service.submit(suite.advertiser, q['id'], tx, now_ms=NOW + 60_000)
+    assert error.value.code == 'payment_not_seen_yet'
     rpc.chain_id = lambda: paid.BASE_CHAIN_ID
-    assert service.recheck(now_ms=NOW + 120_000) is not None
-    assert suite.service.store.one('paid_booking_get', (q['id'],))['state'] == 'confirmed'
+    assert service.submit(suite.advertiser, q['id'], tx, now_ms=NOW + 120_000)['state'] == 'confirmed'
 
 
 def test_gateway_data_paths_resolve_from_a_release_folder(tmp_path, monkeypatch):

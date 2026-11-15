@@ -104,8 +104,8 @@ class WorkerDaemon:
             return 0                      # misconfigured: keep the other work running, wait for a settings change
         if self.paid is None:
             import os
-            from agent_market.ad_coin.v2.paid_bookings import DEFAULT_OFAC_LIST, PaidBookings, PaidConfig, Sanctions
-            from agent_market.chain import RPC
+            from agent_market.ad_coin.v2.paid_bookings import (DEFAULT_OFAC_LIST, PaidBookings, PaidConfig, Sanctions,
+                                                               default_rpc)
             try:
                 config = PaidConfig.from_env()
             except RuntimeError as error:
@@ -113,7 +113,7 @@ class WorkerDaemon:
                 logger.error("Paid bookings are on but not configured: %s", error)
                 return 0
             self.paid = PaidBookings(self.store, config,
-                                     rpc=RPC(os.environ.get("AD_COIN_PAID_RPC_URL", "https://mainnet.base.org")),
+                                     rpc=default_rpc(),   # R36: two public nodes must agree
                                      sanctions=Sanctions(os.environ.get("AD_COIN_OFAC_LIST", DEFAULT_OFAC_LIST)),
                                      taxonomy=(), regions=())
         return self.paid.recheck(now_ms=now_ms) + self.paid.settle_due(now_ms=now_ms)
