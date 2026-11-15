@@ -33,7 +33,8 @@ from .net import budget
 SLUG = {"gleif-lei": "company-due-diligence", "sec-edgar": "company-due-diligence",
         "wikipedia-summary": "topic-evidence-brief", "nvd-cve": "cve-incident-brief", "cve-org": "cve-incident-brief", "cisa-kev": "cve-incident-brief",
         "github-advisory": "package-risk-audit", "package-registry": "package-risk-audit",
-        "depsdev-package": "package-risk-audit"}
+        "depsdev-package": "package-risk-audit",
+        "airport-lookup": "quakes-near-airport"}   # workflow 11-15 (PM 13:58): OurAirports truth, gold_places
 BANDS = (0.01, 0.1, 0.5)
 
 
@@ -98,6 +99,22 @@ def judge(agent_id: str, case: dict, result: dict | None) -> dict:
     if agent_id == "wikipedia-summary":
         want = (truth.get("wiki") or {}).get("title")
         return {"pass": bool(want) and (result or {}).get("title") == want, "got": (result or {}).get("title"), "want": want}
+    if agent_id == "airport-lookup":
+        # The airport's reference point within the case tolerance (5 km) of OurAirports, read from the answer's
+        # "lat X lon Y" or structured lat/lon (workflow 11-15, the same truth quakes-near-airport grades with).
+        import math
+        import re as _re
+        text = json.dumps(result, ensure_ascii=False, default=str)
+        found = _re.search(r"\blat(?:itude)?\b[\"\s:=]*(-?\d+(?:\.\d+)?)[\"\s,;]+lon(?:gitude)?\b[\"\s:=]*"
+                           r"(-?\d+(?:\.\d+)?)", text, _re.I)
+        if not found:
+            return {"pass": False, "got": None, "want": [truth["lat"], truth["lon"]]}
+        lat, lon = float(found.group(1)), float(found.group(2))
+        p1, p2 = math.radians(lat), math.radians(truth["lat"])
+        a = math.sin((p2 - p1) / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(math.radians(truth["lon"] - lon) / 2) ** 2
+        km = 6371.0 * 2 * math.asin(min(1.0, math.sqrt(a)))
+        return {"pass": km <= truth.get("tolerance_km", 5), "km": round(km, 2), "got": [lat, lon],
+                "want": [truth["lat"], truth["lon"]]}
     if agent_id in ("package-registry", "depsdev-package"):
         # Gold truth is the registry's latest version at build time; a release since then shows as a miss
         # and is listed, not hidden.

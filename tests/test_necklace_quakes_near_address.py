@@ -154,3 +154,16 @@ def test_airport_cases_come_from_ourairports_and_grade_like_addresses():
     assert retest.TASK_GRADERS["quakes-near-airport"] is retest.grade_quakes_task
     defn = model.load("agent_market/necklaces/definitions/quakes-near-airport.json")
     assert model.validate(defn) == [] and runner.slot_reference_problems(defn) == []
+
+
+def test_airport_lookup_substitute_is_judged_on_the_airport_point():
+    """Substitute gate for airport-lookup (PM 13:58): its answer's 'lat X lon Y' within 5 km of OurAirports; a lost
+    sign (the first rule's bug, 11-15 13:49) is 4,878 km off and fails."""
+    from agent_market.fallback_agents.gold_check import SLUG, judge
+    case = {"truth": {"lat": 20.896263, "lon": -156.431837, "tolerance_km": 5}}
+    text = {"answer": "Kahului International Airport (IATA OGG): lat 20.896263 lon -156.431837, elevation 54 ft"}
+    assert SLUG["airport-lookup"] == "quakes-near-airport"
+    assert judge("airport-lookup", case, text)["pass"] is True
+    assert judge("airport-lookup", case, {"answer": "lat 20.896263 lon 156.431837"})["pass"] is False
+    assert judge("airport-lookup", case, {"latitude": 20.93, "longitude": -156.44})["pass"] is True
+    assert judge("airport-lookup", case, {"answer": "no such airport"})["pass"] is False
