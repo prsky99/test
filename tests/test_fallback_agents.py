@@ -2200,3 +2200,17 @@ def test_software_incident_keeps_every_patched_branch(tmp_path):
                                {"ecosystem": "maven", "name": "x:y"}]
     truth = {"fixes": [dict(log4j, first_patched_version="2.15.0"), dict(log4j, first_patched_version="2.12.2")]}
     assert g.judge("software-incident", {"input": {"cve_id": "CVE-2021-44228"}, "truth": truth}, out)["pass"]
+
+
+def test_owned_data_agents_name_a_source_license_or_leave_it_empty():
+    """PM 11-15 16:52: each owned data agent spec carries its source license (name and https address) or None when
+    no license was found; the tool definitions do not change, so the contract approvals stay valid."""
+    from agent_market.owned_data_agents.catalog import SPECS, tool_spec
+    from agent_market.owned_data_agents import docs
+    specs = {**SPECS, docs.ID: docs.SPEC}
+    assert len(specs) == 8
+    for agent_id, spec in specs.items():
+        assert "license" in spec, agent_id
+        assert spec["license"] is None or "(https://" in spec["license"], agent_id
+    assert specs["technology-news"]["license"] is None
+    assert all("license" not in str(tool_spec(a)) or a == "package-metadata" for a in SPECS)   # npm data has a license field

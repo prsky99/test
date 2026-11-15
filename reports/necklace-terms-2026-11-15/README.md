@@ -231,3 +231,22 @@ prohibits 2건은 정의에 넣지 않았습니다. 넣으면 그 멤버가 모�
   - 원천 약관은 R16과 같은 기준으로 공개 차례가 올 때 봅니다.
 - 나머지 외부 멤버 23개(cve-incident-brief, package-risk-audit, topic-evidence-brief)도 공개 차례가 올 때 봅니다.
 - silent 3개(38608·178542·241601)는 도메인당 하루 읽기 몫을 다 써서 /legal 같은 다른 주소는 아직 못 봤습니다. 다음 날 한 번 더 확인합니다.
+
+## 자체 데이터 에이전트 8개의 원천 라이선스 (PM 16:52, 11-15 16:5x)
+
+성장·유통이 추천 카드마다 "Operated by AgentValCon"과 자료 출처를 붙였습니다(7b1dcba9). 라이선스 이름이 없어 스펙(`owned_data_agents/catalog.py`, `docs.py`)에 `license` 칸을 넣었습니다. 모양은 대체 에이전트 catalog와 같은 "이름 (근거 주소)" 문자열이고, 확인하지 못하면 None입니다. 판정은 `set-terms`로 member_terms.json에 기록했습니다.
+
+| id | 에이전트 | 원천 | 판정 | 근거 | license 칸 |
+|---|---|---|---|---|---|
+| 133018 | technology-news | Hacker News Search by Algolia | **prohibits** | ycombinator.com/legal 이용약관 Commercial Use·Site Content: YC 허락 없는 게시·복제·배포 금지. hn.algolia.com에는 자료 라이선스가 없음 | None(확인 못 함) |
+| 133019 | research-papers | Crossref | allowed | retrieve-metadata Licensing: 서지 메타데이터는 저작권 대상이 아닌 사실, Crossref 생성 자료는 CC0. 초록은 출판사 저작권(우리 답에 없음) | 사실·CC0 |
+| 133020 | country-profile | World Bank | allowed | CC BY 4.0(기존 판정과 같음) | CC BY 4.0 |
+| 133021 | package-metadata | npm 공개 레지스트리 | allowed | npm Open-Source Terms(기존 판정) | npm Open-Source Terms |
+| 133022 | economic-indicators | World Bank WDI | allowed | CC BY 4.0 | CC BY 4.0 |
+| 133023 | package-advisories | OSV | allowed | osv.dev/data: 원천마다 라이선스. npm 권고는 GitHub Advisory Database(CC BY 4.0). OSV 전체의 단일 라이선스는 없음 | 원천별, npm은 CC BY 4.0 |
+| 214845 | github-issues | GitHub Search API | allowed(조건부) | GitHub 서비스 약관 H절 API Terms(기존 판정). 목걸이 과금이 시작되면 재판정 | GitHub ToS API Terms |
+| 241694 | technical-docs | MDN + Context7 | **prohibits** | Context7 부속 약관(2025-08) 2절: 내부 개발·교육·평가 목적으로만 이용 허락, 4절: 상업적 재배포 금지. MDN 부분은 CC BY-SA 2.5(Mozilla Contributors 표시, 같은 라이선스) | MDN CC BY-SA 2.5 + Context7 내부용 한정 |
+
+- **PM 결정 필요**: 241694는 MDN 질의만 남기고 Context7 경로를 끄면 MDN(CC BY-SA 2.5)만으로 allowed가 됩니다. 133018은 대체 원천(GDELT 등)으로 바꾸거나 내려야 합니다. 둘 다 지금 추천에 노출 중입니다.
+- 133018은 topic-evidence-brief 뉴스 자리의 멤버입니다. prohibits가 되어 실행 사슬에서 빠지고(watch.runtime_chain), 그 자리는 다른 멤버와 gdelt-news 대체가 받습니다.
+- 도구 정의(`tool_spec`: 이름·설명·입출력 스키마)에는 license가 들어가지 않습니다. 그래서 계약 승인(`scripts.approve_model_contracts`)은 다시 할 필요가 없습니다.

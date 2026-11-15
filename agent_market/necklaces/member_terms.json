@@ -90,6 +90,54 @@
       "source": "https://github.com/cyanheads/wikipedia-mcp-server",
       "checked_at": "2026-11-15",
       "basis": "no terms page for the hosted server (/terms answers 404, 11-15); Wikipedia text is CC BY-SA 4.0 and needs attribution"
+    },
+    "133018": {
+      "status": "prohibits",
+      "source": "https://www.ycombinator.com/legal/",
+      "checked_at": "2026-11-15",
+      "basis": "YC Terms of Use, Commercial Use and Site Content: no display, copying or redistribution without YC authorization; hn.algolia.com states no data license"
+    },
+    "133019": {
+      "status": "allowed",
+      "source": "https://www.crossref.org/documentation/retrieve-metadata/",
+      "checked_at": "2026-11-15",
+      "basis": "Licensing: bibliographic metadata are facts not subject to copyright, Crossref data CC0; abstracts excluded (not returned)"
+    },
+    "133020": {
+      "status": "allowed",
+      "source": "https://datacatalog.worldbank.org/public-licenses",
+      "checked_at": "2026-11-15",
+      "basis": "CC BY 4.0 with attribution to the World Bank"
+    },
+    "133021": {
+      "status": "allowed",
+      "source": "https://docs.npmjs.com/policies/open-source-terms",
+      "checked_at": "2026-11-15",
+      "basis": "Use of npm Open Source: public API search and download allowed under Acceptable Use"
+    },
+    "133022": {
+      "status": "allowed",
+      "source": "https://datacatalog.worldbank.org/public-licenses",
+      "checked_at": "2026-11-15",
+      "basis": "CC BY 4.0 with attribution to the World Bank"
+    },
+    "133023": {
+      "status": "allowed",
+      "source": "https://google.github.io/osv.dev/data/",
+      "checked_at": "2026-11-15",
+      "basis": "Current data sources: per-source licenses; npm advisories come from the GitHub Advisory Database, CC BY 4.0"
+    },
+    "214845": {
+      "status": "allowed",
+      "source": "https://docs.github.com/en/site-policy/github-terms/github-terms-of-service",
+      "checked_at": "2026-11-15",
+      "basis": "Section H API Terms: unauthenticated public reads allowed while necklace runs are free; re-judge when runs are charged (resale)"
+    },
+    "241694": {
+      "status": "prohibits",
+      "source": "https://upstash.com/trust/context7addendum.pdf",
+      "checked_at": "2026-11-15",
+      "basis": "Context7 Addendum section 2: license only for internal development, educational and evaluation use; section 4 no commercial redistribution"
     }
   },
   "changes": [
@@ -210,6 +258,70 @@
       "from": "unknown",
       "to": "silent",
       "source": "https://github.com/cyanheads/wikipedia-mcp-server",
+      "at": "2026-11-15",
+      "by": "agent team"
+    },
+    {
+      "member": "133018",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://www.ycombinator.com/legal/",
+      "at": "2026-11-15",
+      "by": "agent team"
+    },
+    {
+      "member": "133019",
+      "from": "unknown",
+      "to": "allowed",
+      "source": "https://www.crossref.org/documentation/retrieve-metadata/",
+      "at": "2026-11-15",
+      "by": "agent team"
+    },
+    {
+      "member": "133020",
+      "from": "unknown",
+      "to": "allowed",
+      "source": "https://datacatalog.worldbank.org/public-licenses",
+      "at": "2026-11-15",
+      "by": "agent team"
+    },
+    {
+      "member": "133021",
+      "from": "unknown",
+      "to": "allowed",
+      "source": "https://docs.npmjs.com/policies/open-source-terms",
+      "at": "2026-11-15",
+      "by": "agent team"
+    },
+    {
+      "member": "133022",
+      "from": "unknown",
+      "to": "allowed",
+      "source": "https://datacatalog.worldbank.org/public-licenses",
+      "at": "2026-11-15",
+      "by": "agent team"
+    },
+    {
+      "member": "133023",
+      "from": "unknown",
+      "to": "allowed",
+      "source": "https://google.github.io/osv.dev/data/",
+      "at": "2026-11-15",
+      "by": "agent team"
+    },
+    {
+      "member": "214845",
+      "from": "unknown",
+      "to": "allowed",
+      "source": "https://docs.github.com/en/site-policy/github-terms/github-terms-of-service",
+      "at": "2026-11-15",
+      "by": "agent team"
+    },
+    {
+      "member": "241694",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://upstash.com/trust/context7addendum.pdf",
       "at": "2026-11-15",
       "by": "agent team"
     }

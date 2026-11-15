@@ -26,6 +26,12 @@ SPEC = {
                     '(HTML, CSS, JavaScript, Web APIs) and Context7-indexed library and product documentation '
                     'for everything else.'),
     'source_name': 'MDN Web Docs and Context7', 'source_url': 'https://developer.mozilla.org/',
+    # MDN prose is CC BY-SA 2.5; the Context7 Addendum (section 2) licenses its output for internal development,
+    # educational and evaluation use only (agent team 11-15, reported to the PM)
+    'license': ('MDN Web Docs: CC BY-SA 2.5, Mozilla Contributors '
+                '(https://developer.mozilla.org/en-US/docs/MDN/Writing_guidelines/Attrib_copyright_license); '
+                'Context7: internal development, educational and evaluation use only '
+                '(https://upstash.com/trust/context7addendum.pdf)'),
     # Documentation changes slowly and Context7 allows about 200 anonymous calls a day.
     'ttl': 86400, 'max_stale': 604800,
     'category': 'dev_tools',
