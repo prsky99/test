@@ -35,7 +35,8 @@ from .auth_discovery import asks_for_key, compact, instructions
 
 log = logging.getLogger("agent_market.collector.a2a")
 
-USER_AGENT = "agent-collector/0.1 (+A2A agent survey; no credentials or payments are sent)"
+USER_AGENT = ("AgentValCon-collector/1.0 (+https://agentconcierge.biz/; contact@agentconcierge.biz; "
+              "A2A agent survey, no credentials or payments are sent)")
 DUE_TIMEOUT_BACKOFF = 300  # seconds to wait after a timed-out due pick (11-10)
 MAX_CARD = 512 * 1024
 CARD_PATHS = ("/.well-known/agent-card.json", "/.well-known/agent.json")
@@ -47,7 +48,9 @@ _ACTION = re.compile(
     r"\b(buy|sell|order|purchase|pay|payment|checkout|charge|transfer|send|wire|withdraw|deposit|book|reserve|cancel|"
     r"delete|remove|post|publish|tweet|email|e-mail|sms|text me|call me|dial|trade|swap|mint|stake|bridge|bet|deploy|"
     r"execute|run|sign|approve|register|sign up|subscribe|unsubscribe|invite|apply|submit|upload|vote|claim|redeem|"
-    r"hire|schedule|create (an )?account|reset|update my|change my)\b", re.I)
+    r"hire|schedule|create (an )?account|reset|update my|change my|"
+    # R69(PM 11-15): 무엇을 만들거나 바꾸거나 시작하는 예시도 시험 질문으로 쓰지 않는다.
+    r"create|add|write|update|start|open)\b", re.I)
 _PII = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+|\+?\d[\d\s().-]{8,}\d|\b0x[a-fA-F0-9]{40}\b")
 
 
