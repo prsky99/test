@@ -162,3 +162,17 @@ def test_public_institutions_with_a_checked_published_limit_take_ten_times_and_s
     assert pb.reserve('https://api.example.com/', 'necklace_retest', n=36, now=now, directory=tmp_path) == \
         (False, 'system_share')                                            # commercial providers keep 35 / 60
     assert pb.share_limit('necklace_retest', 'example.com') == 35 and pb.domain_total('example.com') == 60
+
+
+def test_rdap_reads_count_per_rdap_server_not_per_looked_up_domain(tmp_path):
+    """Agent team E6 (11-15): .com and .net expiry reads both go to Verisign's RDAP server and share its 50."""
+    now = at(14)
+    assert pb.reserve('https://rdap.verisign.com/com/v1/domain/example.com', 'lifecycle_rdap', n=30, now=now,
+                      directory=tmp_path) == (True, 'ok')
+    assert pb.reserve('https://rdap.verisign.com/net/v1/domain/example.net', 'lifecycle_rdap', n=20, now=now,
+                      directory=tmp_path) == (True, 'ok')
+    assert pb.reserve('https://rdap.verisign.com/com/v1/domain/other.com', 'lifecycle_rdap', now=now,
+                      directory=tmp_path) == (False, 'system_share')
+    assert pb.reserve('https://rdap.identitydigital.services/rdap/domain/x.io', 'lifecycle_rdap', now=now,
+                      directory=tmp_path) == (True, 'ok')
+    assert pb.status(pb.today(now), tmp_path)['domains']['verisign.com']['by'] == {'lifecycle_rdap': 50}

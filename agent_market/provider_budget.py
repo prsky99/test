@@ -41,6 +41,9 @@ SHARE = {
     'reference_checks': 10,  # answer-key references of the data-quality score (fx rate, versions, feeds; PM F15 11-14)
     'provider_claims': 6,    # provider self-claim checks: one GET when a provider presses Verify, one per origin on
                              # the 30-day recheck (docs/PROVIDER_SELF_CLAIM.md, agent team 11-15)
+    'lifecycle_rdap': 50,    # E6 domain expiry reads (docs/VERIFIED_REGISTRY.md): reserve with the RDAP server's
+                             # own URL, so the count is per RDAP server (rdap.verisign.com -> verisign.com covers
+                             # .com and .net together), not per looked-up domain; the IANA bootstrap file counts too
 }
 # PM 11-14 06:4x (decision 3): public-data institutions with stated rate limits that the agents' own per-host pacing
 # keeps (agent_market/fallback_agents/limits.py) take more substitute tests a day; the domain total stays DAILY_TOTAL.
