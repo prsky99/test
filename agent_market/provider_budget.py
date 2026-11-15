@@ -75,8 +75,55 @@ DOMAIN_LIMIT_SOURCE = {   # domain -> (published limit, its daily half, where it
 }
 
 
-def domain_total(name):
-    return DOMAIN_TOTAL.get(name, DAILY_TOTAL)
+# PM 11-15 17:16 (user: revenue is the mission; internal rules that block it are fixed): 60 a day is our default. Where
+# a provider publishes its limit, our day total is SHARE_OF_DECLARED of it (never above the limit itself, never below
+# the default, at most DECLARED_CAP). The limits come from the agent team's terms table: a member's
+# "declared_limit": {"domain", "per_day" | "per_minute", "source", "quote"}. A 429 or Retry-After still pauses the
+# domain for the day at once (note()).
+SHARE_OF_DECLARED = 0.2
+DECLARED_CAP = 1000
+TERMS_PATH = Path(__file__).resolve().parent / 'necklaces' / 'member_terms.json'
+_declared_cache = {'mtime': None, 'map': {}}
+
+
+def declared(name, path=None):
+    """{'per_day', 'per_minute'} a provider publishes for registrable domain NAME (the strictest of its members)."""
+    path = Path(path or TERMS_PATH)
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        return None
+    if path != TERMS_PATH or _declared_cache['mtime'] != mtime:
+        found = {}
+        try:
+            members = (json.loads(path.read_text(encoding='utf-8')).get('members') or {}).values()
+        except (OSError, ValueError, AttributeError):
+            members = []
+        for row in members:
+            limit = row.get('declared_limit') if isinstance(row, dict) else None
+            if not isinstance(limit, dict) or not limit.get('domain') or not limit.get('source'):
+                continue
+            entry = found.setdefault(limit['domain'], {})
+            for key in ('per_day', 'per_minute'):
+                if isinstance(limit.get(key), int) and limit[key] > 0:
+                    entry[key] = min(entry.get(key, limit[key]), limit[key])
+        if path != TERMS_PATH:
+            return found.get(name)
+        _declared_cache.update(mtime=mtime, map=found)
+    return _declared_cache['map'].get(name)
+
+
+def domain_total(name, path=None):
+    if name in DOMAIN_TOTAL:
+        return DOMAIN_TOTAL[name]
+    limit = declared(name, path)
+    if not limit:
+        return DAILY_TOTAL
+    per_day = limit.get('per_day') or (limit['per_minute'] * 1440 if limit.get('per_minute') else None)
+    if not per_day:
+        return DAILY_TOTAL
+    total = max(DAILY_TOTAL, min(int(per_day * SHARE_OF_DECLARED), DECLARED_CAP))
+    return min(total, limit['per_day']) if limit.get('per_day') else total
 
 
 # One-day grants (dated, so they end by themselves). 11-15 PM 16:4x / workflow 9da8aa94: the package-risk-audit

@@ -285,3 +285,22 @@ def test_one_day_grants_end_by_themselves(tmp_path):
     assert pb.reserve(gh, 'reference_checks', n=50, now=d17, directory=tmp_path) == (True, 'ok')
     assert pb.reserve(gh, 'reference_checks', now=d17, directory=tmp_path) == (False, 'system_share')
     assert pb.github_share('reference_checks', d17) == 10
+
+
+def test_a_declared_limit_lifts_the_day_total_to_a_fifth_of_it(tmp_path):
+    """PM 11-15 17:16: 60 is our default; a published limit counts at 20%, never above it, at most 1000 a day."""
+    import json as _json
+    terms = tmp_path / 'member_terms.json'
+    terms.write_text(_json.dumps({'members': {
+        '264482': {'status': 'allowed', 'declared_limit': {'domain': 'dmvtransit.com', 'per_minute': 120, 'per_day': 3000,
+                                                            'source': 'https://dmvtransit.com/mcp-server'}},
+        '37322': {'status': 'allowed', 'declared_limit': {'domain': 'datakoot.com', 'per_day': 100, 'source': 'https://datakoot.com/terms'}},
+        'w': {'status': 'allowed', 'declared_limit': {'domain': 'wikipedia.org', 'per_minute': 200,
+                                                       'source': 'https://www.mediawiki.org/wiki/Wikimedia_APIs/Rate_limits'}},
+        'x': {'status': 'silent', 'declared_limit': {'domain': 'nosource.dev', 'per_day': 9000}}}}))
+    assert pb.domain_total('dmvtransit.com', terms) == 600            # 20% of 3,000
+    assert pb.domain_total('datakoot.com', terms) == 60               # 20 is below the default; 60 stays under 100
+    assert pb.domain_total('wikipedia.org', terms) == 1000            # 200 a minute: the cap
+    assert pb.domain_total('nosource.dev', terms) == 60               # no source, not counted
+    assert pb.domain_total('presend.pages.dev', terms) == 60          # nothing published
+    assert pb.domain_total('sec.gov', terms) == 600                   # the earlier fixed table still wins
