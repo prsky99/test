@@ -436,6 +436,15 @@ def standing_line(entry, now=None):
             + ' retests with at most one failure' + (' (now ' + str(cases) + ').' if isinstance(cases, int) else '.'))
 
 
+# 11-15 user decision (PM 11:3x): necklaces run free for now. The judge marks it in the snapshot (free_event: true);
+# the words state the fact and promise no end date, only that a charge is announced first.
+FREE_NOW = 'Free to run for now. If that changes, we will say so on this page first.'
+
+
+def free_now(entry):
+    return isinstance(entry, dict) and entry.get('free_event') is True
+
+
 WEB_NOTICE = 'necklace-v1'   # the consent value agent_market.necklaces.service.NOTICE expects from the web form
 
 
@@ -455,7 +464,8 @@ def page(slug, base='https://agentconcierge.biz', snapshot=None, now=None, run=N
     item = public_item(entry, base, now)
     runs = offered(entry, now)
     parts = [heading('Necklace · Agent Value Gateway', entry.get('name') or slug, entry.get('summary') or ''),
-             '<p class="muted necklace-standing">' + esc(standing_line(entry, now)) + '</p>']
+             '<p class="muted necklace-standing">' + esc(standing_line(entry, now)) + '</p>'
+             + ('<p class="necklace-free">' + esc(FREE_NOW) + '</p>' if free_now(entry) and offered(entry, now) else '')]
     if run is not None:
         parts.append(result_section(run[1], esc))
     found = notice(entry, base, snapshot)
@@ -558,7 +568,7 @@ def llms_section(base='https://agentconcierge.biz', snapshot=None, now=None):
         lines.append('- ' + (e.get('name') or e['slug']) + ': ' + (e.get('summary') or '')
                      + (' Better than the best single agent by ' + str(round(q['delta_pp'], 1)) + ' points.' if isinstance(q.get('delta_pp'), (int, float)) else '')
                      + ' MCP tool `' + tool_name(e['slug']) + '`, A2A skill `' + skill_id(e['slug']) + '`, page `'
-                     + base + '/necklaces/' + e['slug'] + '`' + _input_note(e) + '\n')
+                     + base + '/necklaces/' + e['slug'] + '`' + _input_note(e) + ('. Free to run for now' if free_now(e) else '') + '\n')
     lines.append('- Changes (live, paused, stopped): `' + base + '/api/feed/necklaces.json`\n')
     return ''.join(lines)
 
@@ -606,6 +616,7 @@ def tools(snapshot=None, now=None):
                     'description': ('Necklace (a workflow of tested agents, ' + str(sum(1 for p in e.get('pearls') or [] if isinstance(p, dict) and p.get('pearl') is True)) + ' verified pearls): ' + (e.get('summary') or '') + evidence
                                     + (' Example arguments: ' + json.dumps(example_input(e), separators=(',', ':')) + '.'
                                        if example_input(e) else '')
+                                    + (' ' + FREE_NOW.replace('on this page', 'on its page') if free_now(e) else '')
                                     + ' ' + NOTICE_SENTENCE),
                     'inputSchema': e.get('input_schema') or {'type': 'object'},
                     'annotations': {'readOnlyHint': False, 'destructiveHint': False, 'idempotentHint': False,
@@ -695,7 +706,8 @@ def skills(base='https://agentconcierge.biz', snapshot=None, now=None):
         example = 'run necklace ' + e['slug'] + ' ' + json.dumps(example_arguments(e.get('input_schema'), example_input(e)),
                                                                    separators=(',', ':'))
         out.append({'id': skill_id(e['slug']), 'name': e.get('name') or e['slug'],
-                    'description': 'Necklace (a workflow of tested agents, ' + str(sum(1 for p in e.get('pearls') or [] if isinstance(p, dict) and p.get('pearl') is True)) + ' verified pearls): ' + (e.get('summary') or '') + ' Send: ' + example
+                    'description': 'Necklace (a workflow of tested agents, ' + str(sum(1 for p in e.get('pearls') or [] if isinstance(p, dict) and p.get('pearl') is True)) + ' verified pearls): ' + (e.get('summary') or '')
+                                   + (' ' + FREE_NOW.replace('on this page', 'on its page') if free_now(e) else '') + ' Send: ' + example
                                    + ' ' + NOTICE_SENTENCE + ' Details: ' + base + '/necklaces/' + e['slug'],
                     'tags': ['necklace', 'workflow'], 'examples': [example]})
     return out
