@@ -70,7 +70,7 @@ def agents(tmp_path, routes, calls=None, clock=None, snapshot=None):
 
 # ------------------------------------------------------------------ catalog and contracts
 def test_tools_are_read_only_and_use_the_slot_contracts():
-    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard", "site-readiness", "wiki-grounding", "ecb-fx", "usgs-quakes", "tz-time", "airport-lookup", "wiktionary-define", "github-repo", "rdap-domain", "unit-convert", "wikidata-place", "wikidata-book", "gdelt-news", "census-geocode", "mcp-registry"}
+    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard", "site-readiness", "wiki-grounding", "ecb-fx", "usgs-quakes", "tz-time", "airport-lookup", "wiktionary-define", "github-repo", "rdap-domain", "unit-convert", "wikidata-place", "wikidata-book", "gdelt-news", "census-geocode", "mcp-registry", "github-releases"}
     for agent_id, spec in SPECS.items():
         tool = tool_spec(agent_id)
         c = contract(spec["contract"])
@@ -2060,4 +2060,27 @@ def test_mcp_registry_lookup_reads_latest_and_not_found_is_an_answer(tmp_path):
     assert found["listed"] and "search=biz.agentconcierge" in calls[-1]
     with pytest.raises(FallbackUnavailable) as err:
         a.execute("mcp-registry", {"name": "not a name"})
+    assert err.value.code == "invalid_input"
+
+
+def test_github_releases_lists_tags_gaps_and_open_issues(tmp_path):
+    """PM 11-15 16:12: releases and issues, two calls, issues without pull requests, no made-up release."""
+    rel = [{"tag_name": "v2.32.3", "published_at": "2026-10-30T10:00:00Z"}, {"tag_name": "v2.32.2", "published_at": "2026-09-30T10:00:00Z"},
+           {"tag_name": "v3.0.0rc1", "published_at": "2026-09-01T00:00:00Z", "prerelease": True}, {"tag_name": "draft", "draft": True}]
+    iss = [{"number": 7001, "title": "Timeouts ignored", "created_at": "2026-11-14T01:00:00Z"},
+           {"number": 7000, "title": "Bump deps", "created_at": "2026-11-13T01:00:00Z", "pull_request": {}}]
+    calls = []
+    a, _ = agents(tmp_path, {"https://api.github.com/repos/psf/requests/releases": httpx.Response(200, json=rel),
+                             "https://api.github.com/repos/psf/requests/issues": httpx.Response(200, json=iss)}, calls)
+    out = a.execute("github-releases", {"repository": "https://github.com/psf/requests"})["result"]
+    assert out["answer"] == ("psf/requests: recent releases (newest first): v2.32.3 2026-10-30; v2.32.2 2026-09-30; "
+                             "v3.0.0rc1 2026-09-01 (pre-release). Gaps between them: 30, 29 days. "
+                             "Newest open issues: #7001 Timeouts ignored (2026-11-14).")
+    assert len(calls) == 2
+    empty, _ = agents(tmp_path / "e", {"https://api.github.com/repos/a/b/releases": httpx.Response(200, json=[]),
+                                       "https://api.github.com/repos/a/b/issues": httpx.Response(200, json=[])})
+    assert empty.execute("github-releases", {"repo": "a/b"})["result"]["answer"] == \
+        "a/b: no GitHub releases published (tags may still exist). No open issues."
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("github-releases", {"repo": "not a repo"})
     assert err.value.code == "invalid_input"

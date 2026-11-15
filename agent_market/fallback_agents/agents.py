@@ -44,7 +44,7 @@ MAX_AGE = {"nvd-cve": 6 * 3600, "cve-org": 24 * 3600, "cisa-kev": 24 * 3600, "gi
            "wiki-grounding": 24 * 3600, "ecb-fx": 26 * 3600, "usgs-quakes": 3600,
            "tz-time": 400 * 86400, "airport-lookup": 8 * 86400, "wiktionary-define": 7 * 86400,
            "github-repo": 24 * 3600, "rdap-domain": 7 * 86400, "unit-convert": 10 * 365 * 86400,
-           "wikidata-place": 7 * 86400, "wikidata-book": 7 * 86400, "gdelt-news": 6 * 3600, "census-geocode": 30 * 86400, "mcp-registry": 86400}  # rules age from the library release; update the pin at least yearly
+           "wikidata-place": 7 * 86400, "wikidata-book": 7 * 86400, "gdelt-news": 6 * 3600, "census-geocode": 30 * 86400, "mcp-registry": 86400, "github-releases": 86400}  # rules age from the library release; update the pin at least yearly
 TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "github-advisory": (3600, 6 * 3600),
        "epss": (6 * 3600, 48 * 3600), "package-registry": (3600, 6 * 3600), "depsdev-package": (6 * 3600, 24 * 3600),
        "gleif-lei": (6 * 3600, 24 * 3600), "sec-edgar": (6 * 3600, 24 * 3600), "sec-tickers": (6 * 3600, 24 * 3600),
@@ -56,7 +56,7 @@ TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "githu
        "rdap-domain": (6 * 3600, 7 * 86400), "rdap-bootstrap": (86400, 7 * 86400),
        "wikidata-place": (86400, 7 * 86400), "wikidata-book": (86400, 7 * 86400),
        "gdelt-news": (3600, 6 * 3600), "census-geocode": (7 * 86400, 30 * 86400),
-       "mcp-registry": (3600, 6 * 3600)}  # (serve from cache without asking, longest a cached copy may serve)
+       "mcp-registry": (3600, 6 * 3600), "github-releases": (3600, 24 * 3600)}  # (serve from cache without asking, longest a cached copy may serve)
 KEV_TTL, KEV_MAX_STALE = 3600, 24 * 3600
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 PACKAGE = re.compile(r"(?:@[a-z0-9][a-z0-9._~-]*/)?[A-Za-z0-9][A-Za-z0-9._~-]*")
@@ -1563,6 +1563,52 @@ class FallbackAgents:
                     "source": "GitHub REST API"}, _text(raw.get("pushed_at"), 40) or None
         (out, as_of), cache = self._cached(("github-repo", repo.lower()), TTL["github-repo"], live, remaining)
         return out, cache, False, {"GitHub (last push)": as_of}
+
+    def _github_releases(self, args, remaining):
+        """github.releases.v1 (PM 11-15 16:12). Allowed by GitHub's terms while necklace runs are free (section H puts
+        resale-like or high-throughput access under a subscription: judged again if runs are ever charged). Two calls a
+        repository inside the shared unauthenticated allowance; when it is used up the answer is rate_limited, never
+        a made-up release."""
+        repo = next((str(args[k]).strip() for k in ("repo", "repository") if args.get(k)), "")
+        repo = re.sub(r"^(?:https?://)?github\.com/", "", repo).strip("/").removesuffix(".git")
+        if not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})/[A-Za-z0-9._-]{1,100}", repo):
+            raise FallbackUnavailable("invalid_input", "Use a GitHub repository as owner/name.")
+
+        def live(rem):
+            def list_of(path, params):
+                response = get(f"https://api.github.com/repos/{repo}/{path}", limiters=self.limiters, http=self.http,
+                               params=params, seconds=max(0.1, rem() - 0.1), limit=1024 * 1024, ok=(200, 404))
+                if response.status_code == 404:
+                    raise FallbackUnavailable("not_found", "No public GitHub repository with this name.")
+                raw = json.loads(response.content)
+                return raw if isinstance(raw, list) else []
+            releases = [r for r in list_of("releases", {"per_page": 5}) if isinstance(r, dict) and not r.get("draft")]
+            issues = [i for i in list_of("issues", {"state": "open", "sort": "created", "direction": "desc",
+                                                     "per_page": 10}) if isinstance(i, dict) and "pull_request" not in i]
+            return {"releases": [(_text(r.get("tag_name"), 80), _text(r.get("published_at"), 20)[:10],
+                                  bool(r.get("prerelease"))) for r in releases[:5]],
+                    "issues": [(i.get("number"), _text(i.get("title"), 160), _text(i.get("created_at"), 20)[:10])
+                               for i in issues[:5]]}, _now_iso(self.utc_now())
+        (data, as_of), cache = self._cached(("github-releases", repo.lower()), TTL["github-releases"], live, remaining)
+        rels = [r for r in data["releases"] if r[1]]
+        if rels:
+            text = "; ".join(f"{tag} {day}" + (" (pre-release)" if pre else "") for tag, day, pre in rels)
+            gaps = []
+            for (_, a, _), (_, b, _) in zip(rels, rels[1:]):
+                try:
+                    gaps.append((datetime.fromisoformat(a) - datetime.fromisoformat(b)).days)
+                except ValueError:
+                    pass
+            gap = f" Gaps between them: {', '.join(str(g) for g in gaps)} days." if gaps else ""
+            head = f"{repo}: recent releases (newest first): {text}.{gap}"
+        else:
+            head = f"{repo}: no GitHub releases published (tags may still exist)."
+        if data["issues"]:
+            head += " Newest open issues: " + "; ".join(f"#{n} {title} ({day})" for n, title, day in data["issues"]) + "."
+        else:
+            head += " No open issues."
+        out = {"answer": head[:8000], "url": f"https://github.com/{repo}/releases", "source": "GitHub REST API (no token)"}
+        return out, cache, False, {"GitHub REST API": as_of}
 
     def _rdap_domain(self, args, remaining):
         from .net import site_host

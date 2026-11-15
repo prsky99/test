@@ -692,5 +692,39 @@
    null,
    {}
   ]
+ ],
+ "github-releases": [
+  [
+   {
+    "repo": "psf/requests"
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "repository": "https://github.com/expressjs/express"
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "repo": "not a repo"
+   },
+   "invalid_input",
+   null,
+   {}
+  ],
+  [
+   {
+    "repo": "nobody-x9/nothing-here-x9"
+   },
+   "not_found",
+   null,
+   {}
+  ]
  ]
 }

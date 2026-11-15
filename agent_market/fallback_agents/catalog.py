@@ -368,7 +368,14 @@ SPECS = {
                        "forks, open issues, default branch, read-only status and latest activity time; read-only.",
         "sources": [GITHUB_REPO],
         "rate": "shares the 50-per-hour GitHub allowance, cached 6 hours",
+    },    "github-releases": {
+        "name": "AgentValCon GitHub Releases and Issues", "tool": "list_github_releases", "contract": "github.releases.v1",
+        "description": "List the recent releases (tag and date, with the gap between them) and the newest open issues "
+                       "of one public GitHub repository, from the GitHub REST API without a token; read-only.",
+        "sources": [GITHUB_REPO],
+        "rate": "two requests a repository, inside the shared unauthenticated 60 an hour; cached 1 hour",
     },
+
     "rdap-domain": {
         "name": "AgentValCon Domain Registration (RDAP)", "tool": "lookup_domain", "contract": "domain.lookup.v1",
         "description": "Look up one domain's registration through the registry's own RDAP server: registrar, "
