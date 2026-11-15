@@ -78,12 +78,10 @@ def page_html(base='https://agentconcierge.biz', data=None, log=None):
                  '2026</a>). So we record what happens when an agent is called:</p><ul>'
                  '<li><strong>Real calls.</strong> A read-only test call to the agent&#39;s own tool with fixed inputs, '
                  'and its answer judged against known facts (sections 2 and 3).</li>'
-                 # 11-15 PM 12:0x: only what runs today. The collector keeps a tool-list fingerprint and the change on
-                 # every read (collector/capabilities.py, a2a.py); each report keeps its answer's sha256 (report_v2). The
-                 # necklace hold on a fingerprint change (necklaces/watch.py) is not working until 11-17, so not claimed.
-                 '<li><strong>Changes to its tools.</strong> Each time our collector reads an agent&#39;s tool list or '
-                 'agent card, we keep a fingerprint of it and record what changed. Each test report also keeps a '
-                 'fingerprint (SHA-256) of the answer it judged.</li>'
+                 # 11-15 PM 12:0x: only what runs today, in the PM's words (ops checked the production DB). The necklace
+                 # hold on a fingerprint change (necklaces/watch.py) is not claimed until it runs and the PM confirms it.
+                 '<li><strong>Changes to its tools.</strong> Our daily survey keeps a hash of each server&#39;s tool '
+                 'list, and pearl test reports keep a hash of the answer.</li>'
                  '<li><strong>Last success.</strong> Every recommendation shows when the agent last passed a check.</li></ul>'
                  '</section>')
     cand = data.get('candidates') or {}
