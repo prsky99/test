@@ -79,6 +79,20 @@ def definition_for(entry: dict, definitions_dir: Path | None = None) -> dict:
     return defn
 
 
+OUR_CAPACITY = "our_capacity"
+# Our side was full: the edge's in-flight limit (CAPACITY_EXCEEDED, after 3be2317c only when the origin could not take
+# it either), the runner's process-wide cap (capacity) or the relay cap of our own tests (our_capacity).
+CAPACITY_CODES = ("CAPACITY_EXCEEDED", "capacity", "our_capacity")
+
+
+def capacity_failure(result: dict) -> bool:
+    """True when a required step failed and every failed call of the failing steps hit our own capacity."""
+    failed = [name for name, slot in result.get("slots", {}).items() if slot.get("failed")]
+    attempts = [a for name in failed for a in result.get("attempts", {}).get(name, []) if not a.get("ok")]
+    codes = [a.get("error_class") for a in attempts if a.get("error_class") not in ("deadline", "not_needed")]
+    return bool(codes) and all(code in CAPACITY_CODES for code in codes)
+
+
 def data_root() -> Path:
     """Run events live next to the snapshot the surface reads: <AGENTCON_PROJECT_ROOT>/gateway-data/necklaces
     (a release runs from its own folder, so a relative path would scatter events per release)."""
@@ -147,15 +161,20 @@ def run_for_surface(front, entry: dict, arguments, source: str, meta: dict | Non
             internal_principals=meta.get("internal_principals") or frozenset())
     event = runner.run_event(result, source_class, origin)
     event["surface"] = source
+    if not result["ok"] and capacity_failure(result):
+        event["our_capacity"] = True     # the north star counts this apart from the members' failures
     if result.get("cached"):
         event["cached"] = True          # served from the short result cache: no member was called
     try:
         runner.append_event(root, event)
     except OSError:
         pass   # the answer still goes back; a missing event only lowers the count
+    error_code = None if result["ok"] else "slot_failed:" + str(result["failed_slot"])
+    if not result["ok"] and capacity_failure(result):
+        error_code = OUR_CAPACITY           # our side was full; not the members' failure (PM 11-15 11:22)
     return {"ok": result["ok"], "output": result["output"],
             "stages": {name: s["stage"] for name, s in result["slots"].items()},
             "statuses": {name: s["status"] for name, s in result["slots"].items()},
             "cached": bool(result.get("cached")),
             "ran_at": result.get("ran_at"),           # a cached answer keeps the time of the run that produced it
-            "error_code": None if result["ok"] else "slot_failed:" + str(result["failed_slot"])}
+            "error_code": error_code}

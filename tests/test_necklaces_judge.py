@@ -268,3 +268,13 @@ def test_the_surface_offers_and_says_verified_pearl_only_from_the_judged_count(t
     text, item = ns.details("topic-brief", snapshot=dict(snap, necklaces=[one]))
     assert "verified pearl 1" in text and "agent 3" in text
     assert [p["verified_pearl"] for p in item["pearls"]] == [True, False]
+
+
+def test_snapshot_carries_example_input_and_help_for_the_surface():
+    defn = live_defn()
+    defn["probe_input"] = {"q": "lodash", "slot.papers.ticker": "X", "flag": True}
+    defn["input_help"] = {"q": "A package name.", "other": "not a field"}
+    entry = judge.build_entry(defn, approval(defn), {}, NOW, verified=BOTH)
+    assert entry["example_input"] == {"q": "lodash"} and entry["input_help"] == {"q": "A package name."}
+    plain = judge.build_entry(live_defn(), approval(live_defn()), {}, NOW, verified=BOTH)
+    assert "example_input" not in plain and "input_help" not in plain

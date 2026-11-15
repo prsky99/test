@@ -221,5 +221,10 @@
     "domain": "apple.com",
     "slot.registry.legal_name": "Apple Inc.",
     "slot.registry.ticker": "AAPL"
+  },
+  "input_help": {
+    "name": "The company's name as the SEC lists it, for example Apple Inc.",
+    "country": "US. This version covers US SEC filers only.",
+    "domain": "Optional. The company's website domain without https://, for example apple.com."
   }
 }

@@ -174,6 +174,21 @@ def watch_hold(slug: str, watch_state: dict | None, approval: dict | None) -> st
     return hold.get("reason") or "manual"
 
 
+def example_fields(defn: dict) -> dict:
+    """F17 (growth, PM 11-15 11:22): example_input = the input fields of the definition's public probe_input (staged
+    slot values left out); input_help = the definition's optional per-field help, schema fields only."""
+    props = set((defn.get("input_schema") or {}).get("properties") or {})
+    out = {}
+    example = {k: v for k, v in (defn.get("probe_input") or {}).items()
+               if k in props and isinstance(v, (str, int, float)) and not isinstance(v, bool)}
+    if example:
+        out["example_input"] = example
+    helps = {k: str(v)[:200] for k, v in (defn.get("input_help") or {}).items() if k in props and str(v).strip()}
+    if helps:
+        out["input_help"] = helps
+    return out
+
+
 def build_entry(defn: dict, approval: dict | None, summary: dict, now: float,
                 watch_state: dict | None = None, verified: set | None = None) -> dict | None:
     status = defn["status"]
@@ -193,6 +208,7 @@ def build_entry(defn: dict, approval: dict | None, summary: dict, now: float,
         "gate_passed_at": None,
         "pearls": pearls(running, verified),
         "input_schema": defn["input_schema"],
+        **example_fields(defn),
         "completion": summary.get("completion"),
         "quality": summary.get("quality"),
         "cost": summary.get("cost"),

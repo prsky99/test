@@ -255,3 +255,24 @@ def test_held_stale_and_no_consent_make_no_member_call(site):
     assert bad['structuredContent']['error_code'] == 'invalid_input'
     assert calls(servers) == 0
     assert not (data / 'runs').exists()
+
+
+def test_the_page_form_follows_the_same_rules(site):
+    """5d25bec9 review (PM 11-15 11:22): the page form checks consent and input on the server, keeps the limits, calls
+    nobody when held, stale or refused, and shows only the visitor's own values."""
+    client, servers, data = site
+    form = {'q': 'lodash', 'necklace_notice': 'necklace-v1'}
+    for slug in ('held-brief', 'stale-brief'):
+        r = client.post(f'/necklaces/{slug}/run', data=form)
+        assert r.status_code == 200 and 'no-store' in r.headers['cache-control']
+    r = client.post('/necklaces/advisory-brief/run', data={'q': 'lodash'})               # no consent box
+    assert 'Tick the box' in r.text
+    r = client.post('/necklaces/advisory-brief/run', data={'q': '', 'necklace_notice': 'necklace-v1'})   # invalid
+    assert 'not in the expected form' in r.text
+    r = client.post('/necklaces/advisory-brief/run', data={'q': 'x' * 121, 'necklace_notice': 'necklace-v1'})
+    assert 'not in the expected form' in r.text
+    assert calls(servers) == 0 and not (data / 'runs').exists()
+    first = client.post('/necklaces/advisory-brief/run', data={'q': 'alpha-secret-term', 'necklace_notice': 'necklace-v1'})
+    assert 'Finished.' in first.text and calls(servers) == 2
+    other = client.post('/necklaces/advisory-brief/run', data={'q': 'beta', 'necklace_notice': 'necklace-v1'})
+    assert 'alpha-secret-term' not in other.text and 'beta' in other.text           # no one else's input on the page

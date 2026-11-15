@@ -152,3 +152,15 @@ def test_out_of_scope_input_gets_the_notice_and_calls_nobody(tmp_path):
                                   definitions_dir=defs, sensitive=lambda v: False,
                                   caller=caller_from({1: "x", 3: "y"}, calls))
     assert out["error_code"] == "out_of_scope" and out["notice"].startswith("US SEC filers only") and calls == []
+
+
+def test_a_full_gateway_is_our_capacity_not_a_failed_step(tmp_path):
+    """PM 11-15 11:22: when every failed call of the failing step hit our own capacity, the run says so."""
+    class Full(Exception):
+        error_code = "CAPACITY_EXCEEDED"
+    answers = {1: "CVE-2020-28500", 3: Full(), 4: Full(), 11: Full()}
+    out = call(tmp_path, {"q": "x"}, answers=answers)
+    assert not out["ok"] and out["error_code"] == "our_capacity"
+    assert events(tmp_path)[0]["our_capacity"] is True
+    mixed = call(tmp_path / "m", {"q": "x"}, answers={1: "CVE-2020-28500", 3: Full(), 4: Fail(), 11: Full()})
+    assert mixed["error_code"] == "slot_failed:news"           # a real member failure stays the step's failure
