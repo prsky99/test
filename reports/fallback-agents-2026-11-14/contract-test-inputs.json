@@ -832,5 +832,40 @@
    null,
    {}
   ]
+ ],
+ "gdelt-news": [
+  [
+   {
+    "query": "climate change"
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "query": "semiconductor export controls",
+    "limit": 5
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "query": "x"
+   },
+   "invalid_input",
+   null,
+   {}
+  ],
+  [
+   {
+    "query": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   },
+   "invalid_input",
+   null,
+   {}
+  ]
  ]
 }

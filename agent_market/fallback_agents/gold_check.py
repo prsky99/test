@@ -44,7 +44,8 @@ SLUG = {"gleif-lei": "company-due-diligence", "sec-edgar": "company-due-diligenc
         "arxiv-search": "topic-evidence-brief",    # PM 11-15 16:07: the paper phrase in a returned title
         "package-releases": "package-risk-audit",  # workflow 11-15 (meta seat of package-risk-audit v2)
         "software-incident": "cve-incident-brief",  # cve v2 fix seat; needs truth.fixes (first patched versions)
-        "github-releases": "package-risk-audit"}    # split holdout-v2-activity (gold_repos.py, workflow 9da8aa94)
+        "github-releases": "package-risk-audit",    # split holdout-v2-activity (gold_repos.py, workflow 9da8aa94)
+        "gdelt-news": "topic-evidence-brief"}       # news seat (workflow 36fe030f): judged on the answer itself
 BANDS = (0.01, 0.1, 0.5)
 
 
@@ -128,6 +129,23 @@ def judge(agent_id: str, case: dict, result: dict | None) -> dict:
         link = "https://en.wikipedia.org/wiki/" + str(want or "").replace(" ", "_")
         ok = bool(want) and any(unquote(u.split("#")[0]).replace(" ", "_") == link for u in sources)
         return {"pass": ok, "got": sources[:5], "want": link}
+    if agent_id == "gdelt-news":
+        # News has no fixed truth: at least 3 items with an https link and a date in the last 8 days, and at least one
+        # title carrying a word of the topic (4 letters or more); judged at grading time against the clock
+        import re as _re
+        from datetime import datetime as _dt, timezone as _tz
+        words = {w for w in _re.findall(r"[a-z0-9]+", str((case.get("input") or {}).get("topic") or "").lower()) if len(w) >= 4}
+        now = _dt.now(_tz.utc)
+        fresh = []
+        for item in (result or {}).get("items") or []:
+            try:
+                when = _dt.strptime(str(item.get("published")), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=_tz.utc)
+            except ValueError:
+                continue
+            if str(item.get("url") or "").startswith("https://") and (now - when).days <= 8:
+                fresh.append(item)
+        on_topic = [i for i in fresh if words & set(_re.findall(r"[a-z0-9]+", str(i.get("title") or "").lower()))]
+        return {"pass": len(fresh) >= 3 and bool(on_topic), "fresh": len(fresh), "on_topic": len(on_topic)}
     if agent_id == "software-incident":
         # every first patched version the truth names must be among the answer's packages (same name, same version)
         got = {(str(p.get("name")).lower(), p.get("first_patched_version")) for p in (result or {}).get("packages") or []
@@ -326,7 +344,7 @@ def case_arguments(agent_id: str, case: dict) -> dict:
         # the seat's input is the repository the package step found (gold_repos truth); nothing else is given
         repo = (case.get("truth") or {}).get("repository_github")
         arguments = {"repo": repo} if repo else {}
-    if agent_id == "arxiv-search" and "query" not in arguments and case["input"].get("topic"):
+    if agent_id in ("arxiv-search", "gdelt-news") and "query" not in arguments and case["input"].get("topic"):
         arguments["query"] = case["input"]["topic"]                         # papers.search.v1 takes a query
     if "question" in allowed and "question" not in arguments and case["input"].get("topic"):
         arguments["question"] = f"What is {case['input']['topic']}?"        # web.grounding.v1 takes a question
@@ -346,6 +364,8 @@ def applies(agent_id: str, case: dict) -> bool:
         return bool((case.get("truth") or {}).get("paper_phrase"))
     if agent_id == "software-incident":
         return (case.get("truth") or {}).get("fixes") is not None
+    if agent_id == "gdelt-news":
+        return bool((case.get("input") or {}).get("topic"))
     if agent_id == "github-releases":
         return bool((case.get("truth") or {}).get("repository_github"))
     if agent_id == "package-releases":   # npm only until PyPI's terms are read (11-16)

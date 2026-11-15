@@ -2167,3 +2167,20 @@ def test_gold_judges_for_software_incident_and_github_releases():
     assert g.judge("github-releases", none, {"answer": "a/b: no GitHub releases published (tags may still exist)."})["pass"]
     assert not g.judge("github-releases", none, {"answer": "a/b: recent releases", "latest_tag": "v1"})["pass"]
     assert not g.applies("github-releases", {"input": {}, "truth": {"repository_github": None}})
+
+
+def test_gold_judge_for_gdelt_news():
+    """workflow 11-15 (36fe030f): news seat; fresh, linked and on-topic items, judged against the clock."""
+    from datetime import datetime, timedelta, timezone
+    from agent_market.fallback_agents import gold_check as g
+    case = {"input": {"topic": "Wind power"}, "truth": {}}
+    assert g.SLUG["gdelt-news"] == "topic-evidence-brief" and g.applies("gdelt-news", case)
+    assert g.case_arguments("gdelt-news", case) == {"query": "Wind power"}
+    day = lambda n: (datetime.now(timezone.utc) - timedelta(days=n)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    items = [{"title": "Offshore wind power auction", "url": "https://n/1", "published": day(1)},
+             {"title": "Grid news", "url": "https://n/2", "published": day(2)},
+             {"title": "Energy prices", "url": "https://n/3", "published": day(3)}]
+    assert g.judge("gdelt-news", case, {"items": items, "source": "x"})["pass"]
+    assert not g.judge("gdelt-news", case, {"items": items[1:], "source": "x"})["pass"]                 # 2 items, none on topic
+    old = [{**i, "published": day(20)} for i in items]
+    assert not g.judge("gdelt-news", case, {"items": old, "source": "x"})["pass"]
