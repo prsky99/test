@@ -15,6 +15,15 @@ from collections import defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def method_version():
+    """The published method version (docs/methodology/methodology.json), so the verify answers name the method the
+    page shows (11-15: v1.1); 'v1' when the file cannot be read."""
+    try:
+        return json.loads((ROOT / 'docs/methodology/methodology.json').read_text(encoding='utf-8')).get('version') or 'v1'
+    except (OSError, ValueError):
+        return 'v1'
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / 'scripts'))
 
@@ -91,7 +100,7 @@ def build(versions=None, facts=None, necklaces=None, now=None):
             'better_alternatives': better, 'necklaces': roles.get(role, {}).get('necklaces', []),
         })
     import data_quality as DQ
-    return {'generated': time.strftime('%Y-%m-%dT%H:%M:%S%z', time.localtime(now)), 'methodology': 'v1',
+    return {'generated': time.strftime('%Y-%m-%dT%H:%M:%S%z', time.localtime(now)), 'methodology': method_version(),
             'verified_rule': {'min_score': V.PASS_MARK, 'successes_on_different_days': V.CONFIRM_DAYS,
                               'accuracy_required': True, 'weights': DQ.WEIGHTS},
             'roles': roles, 'agents': dict(agents)}
