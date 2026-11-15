@@ -7,7 +7,7 @@ for days. The worker now reviews what is pending:
   needs a person (docs/AD_COIN_SALES_POLICY.md 5); otherwise it stays pending with the reasons recorded;
 - an agent offer (the Sponsored line agents read, with its https endpoint) is approved when its text passes the same
   screen, its endpoint resolves only to public addresses (check_public_url), the endpoint's registrable domain is at
-  least 30 days old (RDAP, the shared lifecycle_rdap budget, cached for 30 days) and, our own evidence first (PM 12:5x),
+  least 30 days old (RDAP, its own ad_review_rdap budget share, cached for 30 days) and, our own evidence first (PM 12:5x),
   the endpoint is a resource of our catalog that passed our keyless test call in the last 7 days and is not under
   security review or quarantine. An endpoint outside the catalog waits for a person. A blocklist is checked only once
   a source we may use for free and commercially is confirmed from its terms (OpenPhish's free feed forbids commercial
@@ -137,7 +137,7 @@ def domain_age_days(url, *, now=None, fetch=None, cache_dir=None):
             if now - float(table.get("_checked_at", 0)) > 7 * 86400:
                 raise ValueError("stale")
         except (OSError, ValueError):
-            ok, _ = reserve(RDAP_BOOTSTRAP, "lifecycle_rdap")
+            ok, _ = reserve(RDAP_BOOTSTRAP, "ad_review_rdap")
             if not ok:
                 return None
             table = {**fetch(RDAP_BOOTSTRAP), "_checked_at": now}
@@ -148,7 +148,7 @@ def domain_age_days(url, *, now=None, fetch=None, cache_dir=None):
         if not server:
             return None
         lookup = server.rstrip("/") + "/domain/" + name
-        ok, _ = reserve(lookup, "lifecycle_rdap")              # counted per RDAP server, shared with E6
+        ok, _ = reserve(lookup, "ad_review_rdap")              # counted per RDAP server; E6 has its own share
         if not ok:
             return None
         events = fetch(lookup).get("events", [])

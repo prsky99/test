@@ -110,7 +110,7 @@ def test_blocklist_files_must_be_settled_and_fresh(tmp_path):
     assert auto_review.load_blocklist(tmp_path)[1] is False                # stale lists count as no list
 
 
-def test_rdap_age_is_cached_and_counted_on_the_shared_budget(tmp_path, monkeypatch):
+def test_rdap_age_is_cached_and_counted_on_its_own_budget_share(tmp_path, monkeypatch):
     from agent_market import provider_budget
     monkeypatch.setattr(provider_budget, "DIR", tmp_path / "budget")     # never the real shared ledger
     calls = []
@@ -125,6 +125,8 @@ def test_rdap_age_is_cached_and_counted_on_the_shared_budget(tmp_path, monkeypat
     assert age > 365 * 5 and calls[-1] == "https://rdap.registry.example/domain/papers.example"
     again = auto_review.domain_age_days("https://papers.example/x", now=now, fetch=fetch, cache_dir=tmp_path / "rdap")
     assert again == age and len(calls) == 2                                # served from the 30-day cache
+    used = provider_budget.status(directory=tmp_path / "budget")["domains"]
+    assert {by for entry in used.values() for by in entry["by"]} == {"ad_review_rdap"}   # never E6's share
 
 
 def test_operator_takedown_stops_everything_an_advertiser_shows(p1_suite):  # noqa: F811
