@@ -100,7 +100,6 @@ def values(task):
     if not isinstance(task, str) or not task.strip():
         return {}
     task = task[:2000]
-    out = {}
     urls = _URL.findall(task)
     rest = _URL.sub(' ', task)
     domains = [d.lower() for d in _DOMAIN.findall(rest)] + [re.sub(r'^https?://', '', u, flags=re.I).split('/')[0].lower()
