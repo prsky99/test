@@ -1,5 +1,5 @@
 #!/bin/bash
-# 11-15 사용자 실행 launchd 4건을 한 번에 설치한다(운영·SRE, PM 10:0x 지시).
+# 11-15 사용자 실행 launchd 5건을 한 번에 설치한다(운영·SRE, PM 10:0x 지시; 12:4x 시험 보고서 일괄 실행 고정 폴더 추가).
 #   bash deploy/ops/user-launchd-install-20261115.sh --dry-run   # 무엇을 할지 보기만 함(바꾸는 것 없음)
 #   bash deploy/ops/user-launchd-install-20261115.sh             # 설치
 # 건마다: 미리 확인(파일·실행 대상) -> 이미 같은 내용으로 올라 있으면 건너뜀 -> 설치 -> 확인 출력.
@@ -24,6 +24,7 @@ ITEMS=(
   "biz.agentconcierge.opsauto.watchstale|deploy/launchd/ops/biz.agentconcierge.opsauto.watchstale.plist|new|deploy/ops/watch-stale-check.sh"
   "biz.agentconcierge.opsauto.housead|deploy/launchd/ops-pinned/biz.agentconcierge.opsauto.housead.plist|replace|gateway-data/ops-code/current/deploy/ops/house-ad-daily.sh"
   "biz.agentconcierge.backup|deploy/launchd/ops-pinned/biz.agentconcierge.backup.plist|replace|gateway-data/ops-code/current/scripts/scheduled_backup.py"
+  "biz.agentconcierge.opsauto.testreports|deploy/launchd/ops-pinned/biz.agentconcierge.opsauto.testreports.plist|replace|gateway-data/ops-code/current/scripts/batch_report_runner.py"
   "biz.agentconcierge.opsauto.paidreconcile|deploy/launchd/ops/biz.agentconcierge.opsauto.paidreconcile.plist|new|deploy/ops/payment-reconcile-daily.sh"
 )
 

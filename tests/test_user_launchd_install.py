@@ -6,7 +6,8 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / 'deploy/ops/user-launchd-install-20261115.sh'
 LABELS = ['biz.agentconcierge.opsauto.ofac', 'biz.agentconcierge.opsauto.watchstale',
-          'biz.agentconcierge.opsauto.housead', 'biz.agentconcierge.backup', 'biz.agentconcierge.opsauto.paidreconcile']
+          'biz.agentconcierge.opsauto.housead', 'biz.agentconcierge.backup', 'biz.agentconcierge.opsauto.testreports',
+          'biz.agentconcierge.opsauto.paidreconcile']
 FAKE = '''#!/bin/bash
 # fake launchctl: a loaded job is a file named after its label in $FAKE_STATE
 cmd=$1; shift
@@ -20,7 +21,8 @@ exit 1
 '''
 
 
-def setup(tmp_path, old=('biz.agentconcierge.opsauto.housead', 'biz.agentconcierge.backup')):
+def setup(tmp_path, old=('biz.agentconcierge.opsauto.housead', 'biz.agentconcierge.backup',
+                         'biz.agentconcierge.opsauto.testreports')):
     state, agents = tmp_path / 'state', tmp_path / 'agents'
     state.mkdir()
     agents.mkdir()
@@ -40,7 +42,7 @@ def run(env, *args, **extra):
     return subprocess.run(['/bin/bash', str(SCRIPT), *args], env={**env, **extra}, capture_output=True, text=True)
 
 
-def test_installs_all_five_and_keeps_the_replaced_plists(tmp_path):
+def test_installs_all_six_and_keeps_the_replaced_plists(tmp_path):
     env, state, agents = setup(tmp_path)
     r = run(env)
     assert r.returncode == 0, r.stdout + r.stderr
@@ -50,18 +52,20 @@ def test_installs_all_five_and_keeps_the_replaced_plists(tmp_path):
                       if (p / (label + '.plist')).exists())
         assert (agents / (label + '.plist')).read_bytes() == (source / (label + '.plist')).read_bytes()
     assert sorted(p.name for p in (tmp_path / 'backup').iterdir()) == [
-        'biz.agentconcierge.backup.plist', 'biz.agentconcierge.opsauto.housead.plist']
-    assert '모두 끝났습니다(5건 확인)' in r.stdout and 'agentconcierge-ofac-daily-refresh' in r.stdout
+        'biz.agentconcierge.backup.plist', 'biz.agentconcierge.opsauto.housead.plist',
+        'biz.agentconcierge.opsauto.testreports.plist']
+    assert '모두 끝났습니다(6건 확인)' in r.stdout and 'agentconcierge-ofac-daily-refresh' in r.stdout
     again = run(env)
-    assert again.returncode == 0 and again.stdout.count('건너뜀') == 5
+    assert again.returncode == 0 and again.stdout.count('건너뜀') == 6
 
 
 def test_dry_run_changes_nothing_even_in_a_busy_minute(tmp_path):
     env, state, agents = setup(tmp_path)
     r = run(env, '--dry-run', INSTALL_NOW='09:57')
     assert r.returncode == 0 and '피하는 시간' in r.stdout and '미리 보기 끝' in r.stdout
-    assert sorted(os.listdir(state)) == ['biz.agentconcierge.backup', 'biz.agentconcierge.opsauto.housead']
-    assert len(os.listdir(agents)) == 2 and not (tmp_path / 'backup').exists()
+    assert sorted(os.listdir(state)) == ['biz.agentconcierge.backup', 'biz.agentconcierge.opsauto.housead',
+                                         'biz.agentconcierge.opsauto.testreports']
+    assert len(os.listdir(agents)) == 3 and not (tmp_path / 'backup').exists()
 
 
 def test_a_busy_time_refuses_to_install(tmp_path):
