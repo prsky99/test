@@ -136,10 +136,9 @@ def summarize(slug: str, today: list[dict], window: list[dict], singles: list[di
             if (used or {}).get("kind") == "agentcon":
                 agentcon_uses += 1
     stages, failed = day_stages(cases_today)
-    # North star: external clients only. Our own runs carry an internal origin and are never counted.
-    from .runner import OUR_ORIGINS
-    external = [r for r in runs if r.get("slug") == slug and r.get("source") == "external"
-                and r.get("origin") not in OUR_ORIGINS]
+    # North star: external clients only; our own runs, cached answers and duplicates are counted apart (F09).
+    from .north_star import count as north_count       # one counting rule for the summary and the board
+    north = north_count(runs, slug)
     summary = {
         "quality": {
             "cases_today": len(cases_today), "success_today": success_today,
@@ -165,7 +164,8 @@ def summarize(slug: str, today: list[dict], window: list[dict], singles: list[di
         # 3 an AgentValCon fallback ran, 4 the slot failed even after every fallback.
         "stage": {"slots": stages, "failed": failed, "max": max(stages.values(), default=1)},
         "agentvalcon_fallback_rate": agentcon_uses / slot_total if slot_total else None,
-        "external_runs": {"total": len(external), "succeeded": sum(1 for r in external if r.get("outcome") == "succeeded")},
+        "external_runs": {"total": north["external_runs"], "succeeded": north["succeeded"], "cached": north["cached"],
+                          "our_capacity": north["our_capacity"], "duplicates": north["duplicates"]},
     }
     if success_today is not None and success_today < HOLD_SUCCESS:
         summary["held_reason"] = "quality_low"

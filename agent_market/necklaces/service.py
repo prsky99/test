@@ -20,6 +20,7 @@ import math
 import os
 import re
 import time
+import uuid
 from pathlib import Path
 
 from . import limits, model, runner
@@ -161,6 +162,7 @@ def run_for_surface(front, entry: dict, arguments, source: str, meta: dict | Non
             internal_principals=meta.get("internal_principals") or frozenset())
     event = runner.run_event(result, source_class, origin)
     event["surface"] = source
+    event["run_id"] = uuid.uuid4().hex      # one run counts once in the north star, however often a file is read
     if not result["ok"] and capacity_failure(result):
         event["our_capacity"] = True     # the north star counts this apart from the members' failures
     if result.get("cached"):

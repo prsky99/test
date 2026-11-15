@@ -27,6 +27,7 @@ TRAFFIC = ROOT / 'logs/service-frontend/traffic'
 OUT = ROOT / 'logs/ops/north-star.jsonl'
 DSN = ROOT / 'gateway-data/postgres18/application.dsn'
 INTERNAL_PRINCIPALS = ROOT / 'gateway-data/ops/internal-edge-principals.txt'
+NECKLACES = ROOT / 'gateway-data/necklaces'
 CLASSES = ('external', 'internal', 'probe', 'outreach', 'crawler')
 # Client classes of the older day files (traffic.client_of) and the funnel class they stand for.
 OLD_CLASS = {'internal': 'internal', 'ai_bot': 'crawler', 'verifier': 'probe', 'browser': 'external',
@@ -140,7 +141,7 @@ def edge_runs(day, dsn_file=DSN, principals_file=INTERNAL_PRINCIPALS, connect=No
     return {cls: {**v, 'pairs': len(v['pairs'])} for cls, v in out.items()}
 
 
-def build(day, files=None, edge=None):
+def build(day, files=None, edge=None, necklaces=None):
     files = day_files(day) if files is None else files
     recorded = any('funnel' in data for data in files)
     by = from_funnel(files) if recorded else from_older_counters(files)
@@ -154,7 +155,13 @@ def build(day, files=None, edge=None):
     fallbacks = Counter()
     for data in files:
         fallbacks.update({k.split('|', 1)[1]: v for k, v in (data.get('funnel') or {}).items() if k.startswith('edge_fallback|')})
+    from agent_market.necklaces.north_star import day_metric
+    necklace = day_metric(NECKLACES, day) if necklaces is None else necklaces
     return {'day': day, 'at': time.strftime('%Y-%m-%d %H:%M'), 'north_star': north,
+            # F09 (PM 11-14/15): the charter's north star, successful necklace runs by outside clients, from the run
+            # events with the same counting rule as the necklace daily summary. 'north_star' above stays the execution
+            # pairs (auxiliary) until PM and ops switch the board line to this one.
+            'north_star_v2': necklace['value'], 'necklace': necklace,
             'edge_fallbacks': dict(fallbacks),   # Edge -> Origin gateway hand-offs by reason (handshake, rate)
             'basis': 'recorded' if recorded else 'approx', 'processes': len(files),
             'breaks_at': breaks, 'funnel': external, 'edge': edge,

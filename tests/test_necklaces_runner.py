@@ -165,7 +165,7 @@ def test_daily_north_star_counts_external_clients_only(tmp_path):
     forged = runner.run_event(out, "external", at=now, origin="gate")    # an internal origin can never be external
     events.append(forged)
     summary = daily.summarize("topic-brief", [], [], [], events)
-    assert summary["external_runs"] == {"total": 1, "succeeded": 1}
+    assert {k: summary["external_runs"][k] for k in ("total", "succeeded")} == {"total": 1, "succeeded": 1}
 
 
 class FakeBudget:

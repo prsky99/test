@@ -45,7 +45,8 @@ def test_summary_digest_and_stage_two_alert(tmp_path):
     summary = json.loads((tmp_path / "results" / "topic-brief" / "summary.json").read_text())
     q = summary["quality"]
     assert q["success_rate"] == 29 / 30 and q["best_single_rate"] == 0.8 and q["delta_pp"] == 16.7
-    assert summary["fallback"]["papers"] == 1 / 30 and summary["external_runs"] == {"total": 1, "succeeded": 1}
+    assert summary["fallback"]["papers"] == 1 / 30 and summary["external_runs"] == {"total": 1, "succeeded": 1, "cached": 0,
+                                                                        "our_capacity": 0, "duplicates": 0}
     assert "held_reason" not in summary and result["alerts"] == 1  # stage 2 on papers
     line = (tmp_path / "logs" / f"{DAY}.md").read_text()
     assert "topic-brief v1 | trial | 2단계 | 7일 완주율 100%" in line and "AgentValCon 사용률 0%" in line
