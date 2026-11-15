@@ -1123,41 +1123,93 @@ class FallbackAgents:
         return out, cache, False, {"ECB": day}
 
     def _usgs_quakes(self, args, remaining):
+        """earthquake.feed.v1 from the USGS real-time GeoJSON feeds (USGS asks automated applications to use them).
+        With lat/lon (or near "lat,lon") and radius_km the feed is filtered by distance on our side, so a point
+        query costs no extra request (PM 11-15 13:53, workflow 0aac4347)."""
+        import math
         floor = next((args[k] for k in ("min_magnitude", "minmagnitude", "magnitude") if args.get(k) is not None), 4.5)
         if not isinstance(floor, (int, float)) or not 0 <= floor <= 10:
             raise FallbackUnavailable("invalid_input", "Use a minimum magnitude from 0 to 10.")
         floor = max(4.5, float(floor))  # the feeds start at 4.5; a lower minimum is answered from 4.5
+        lat, lon = args.get("lat"), args.get("lon")
+        if args.get("near") and lat is None and lon is None:
+            point = parse_point(args["near"])
+            if not point:
+                raise FallbackUnavailable("invalid_input", "near is \"lat,lon\".")
+            lat, lon = point[0], point[1]
+        if (lat is None) != (lon is None):
+            raise FallbackUnavailable("invalid_input", "Give both lat and lon.")
+        if lat is not None and not (isinstance(lat, (int, float)) and isinstance(lon, (int, float))
+                                    and -90 <= lat <= 90 and -180 <= lon <= 180):
+            raise FallbackUnavailable("invalid_input", "lat is -90..90 and lon -180..180.")
+        radius = float(args.get("radius_km") or 1000)
+        if not 1 <= radius <= 2000:
+            raise FallbackUnavailable("invalid_input", "radius_km is 1 to 2000.")
+        days = args.get("days") or {"hour": 1 / 24, "day": 1, "week": 7, "month": 30}.get(args.get("period") or "", None)
+        if days is not None and not (isinstance(days, (int, float)) and 0 < days <= 30):
+            raise FallbackUnavailable("invalid_input", "days is 1 to 30.")
+        limit = int(args.get("limit") or 15)
 
         def feed(period):
             def live(rem):
                 raw = self._get_json(f"https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_{period}.geojson",
-                                     rem, limit=2 * 1024 * 1024)
+                                     rem, limit=4 * 1024 * 1024)
                 rows = []
                 for f in raw.get("features") or []:
                     p = (f or {}).get("properties") or {}
+                    xyz = ((f or {}).get("geometry") or {}).get("coordinates") or []
                     if isinstance(p.get("mag"), (int, float)) and isinstance(p.get("time"), int):
+                        where = (float(xyz[1]), float(xyz[0])) if len(xyz) >= 2 and all(
+                            isinstance(v, (int, float)) for v in xyz[:2]) else None
                         rows.append((float(p["mag"]), p["time"], _text(p.get("place"), 160), bool(p.get("tsunami")),
-                                     _text(p.get("url"), 300)))
+                                     _text(p.get("url"), 300), where))
                 generated = (raw.get("metadata") or {}).get("generated")
                 when = datetime.fromtimestamp(generated / 1000, timezone.utc) if isinstance(generated, int) else self.utc_now()
                 return rows, _now_iso(when)
             return self._cached(("usgs-quakes", period), TTL["usgs-quakes"], live, remaining)
-        (rows, as_of), cache = feed("week")
-        period = "past 7 days"
-        hits = [r for r in rows if r[0] >= floor]
-        if not hits and remaining() > 1.0:
-            (rows, as_of), cache = feed("month")
-            period, hits = "past 30 days", [r for r in rows if r[0] >= floor]
+
+        def km(a, b):
+            p1, p2 = math.radians(a[0]), math.radians(b[0])
+            h = math.sin((p2 - p1) / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(math.radians(b[1] - a[1]) / 2) ** 2
+            return 6371.0 * 2 * math.asin(min(1.0, math.sqrt(h)))
+        now_ms = self.utc_now().timestamp() * 1000
+
+        def pick(rows, span_days):
+            out = []
+            for r in rows:
+                if r[0] < floor or (span_days is not None and now_ms - r[1] > span_days * 86400000):
+                    continue
+                if lat is not None:
+                    if r[5] is None:
+                        continue
+                    d = km((lat, lon), r[5])
+                    if d > radius:
+                        continue
+                    r = r[:6] + (d,)
+                out.append(r)
+            return out
+        if days is not None:
+            (rows, as_of), cache = feed("week" if days <= 7 else "month")
+            period = f"past {days * 24:g} hours" if days < 1 else f"past {days:g} day{'s' if days != 1 else ''}"
+            hits = pick(rows, days)
+        else:
+            (rows, as_of), cache = feed("week")
+            period, hits = "past 7 days", pick(rows, None)
+            if not hits and remaining() > 1.0:
+                (rows, as_of), cache = feed("month")
+                period, hits = "past 30 days", pick(rows, None)
         hits.sort(key=lambda r: -r[1])
+        area = f" within {radius:g} km of {lat:.4f},{lon:.4f}" if lat is not None else ""
         if not hits:
-            answer = f"No earthquake of magnitude {floor:g} or more in the USGS feed for the {period}."
+            answer = f"No earthquake of magnitude {floor:g} or more{area} in the USGS feed for the {period}."
         else:
             lines = "; ".join(
-                f"M{m:.1f} {datetime.fromtimestamp(t / 1000, timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC, {place}"
-                + (" (tsunami flag)" if tsunami else "") for m, t, place, tsunami, _ in hits[:15])
-            answer = (f"{len(hits)} earthquake{'s' if len(hits) != 1 else ''} of magnitude {floor:g} or more in the "
-                      f"{period} (USGS, newest first): "
-                      f"{lines}.")
+                f"M{r[0]:.1f} {datetime.fromtimestamp(r[1] / 1000, timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC, {r[2]}"
+                + (f", {r[6]:.0f} km away" if len(r) > 6 else "")
+                + (f", lat {r[5][0]:.3f} lon {r[5][1]:.3f}" if r[5] else "")
+                + (" (tsunami flag)" if r[3] else "") for r in hits[:limit])
+            answer = (f"{len(hits)} earthquake{'s' if len(hits) != 1 else ''} of magnitude {floor:g} or more{area} "
+                      f"in the {period} (USGS, newest first): {lines}.")
         out = {"answer": answer[:8000], "url": "https://earthquake.usgs.gov/earthquakes/map/",
                "source": "USGS Earthquake Hazards Program (U.S. Public Domain)"}
         return out, cache, False, {"USGS feed generated": as_of}

@@ -1856,3 +1856,33 @@ def test_gold_slugs_and_judges_for_book_and_site_substitutes():
     absent = {"robots": None, "robots_note": "HTTP 404", "llms_txt": False, "sitemap_xml": False}
     assert not g.judge_site(site, answer, absent)["pass"]                              # it said present
     assert g.applies("site-readiness", site) and not g.applies("site-readiness", {"input": {}})
+
+
+def test_usgs_quakes_near_a_point_filters_the_feed_by_distance_and_days(tmp_path):
+    """PM 11-15 13:53: lat/lon/radius_km/days from the same USGS feed, no extra request (workflow 0aac4347)."""
+    from datetime import datetime, timezone
+    now = datetime(2026, 11, 15, 12, 0, tzinfo=timezone.utc)
+    ms = lambda days_ago: int((now.timestamp() - days_ago * 86400) * 1000)
+
+    def at(mag, t, place, lat, lon):
+        return {"properties": {"mag": mag, "time": t, "place": place, "tsunami": 0, "url": "https://e/x"},
+                "geometry": {"type": "Point", "coordinates": [lon, lat, 10.0]}}
+    week = {"metadata": {"generated": ms(0)}, "features": [
+        at(5.1, ms(1), "near Tokyo", 35.7, 139.8), at(4.9, ms(6), "Izu", 34.6, 139.4),
+        at(6.0, ms(2), "Chile", -33.4, -70.6)]}
+    calls = []
+    clock = Clock()
+    a = FallbackAgents(http=client({"https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_week.geojson":
+                                    httpx.Response(200, json=week)}, calls), data_dir=tmp_path, clock=clock,
+                       utc_now=lambda: now, limiters=limiters(clock, clock.sleep))
+    tokyo = a.execute("usgs-quakes", {"lat": 35.68, "lon": 139.76, "radius_km": 1000, "days": 7, "min_magnitude": 4.5})
+    answer = tokyo["result"]["answer"]
+    assert answer.startswith("2 earthquakes of magnitude 4.5 or more within 1000 km of 35.6800,139.7600 in the past 7 days")
+    assert "near Tokyo, 4 km away, lat 35.700 lon 139.800" in answer and "Chile" not in answer
+    short = a.execute("usgs-quakes", {"near": "35.68,139.76", "radius_km": 500, "days": 3})["result"]["answer"]
+    assert short.startswith("1 earthquake") and "Izu" not in short
+    none = a.execute("usgs-quakes", {"lat": 0.0, "lon": 0.0, "radius_km": 100, "days": 7})["result"]["answer"]
+    assert none.startswith("No earthquake of magnitude 4.5 or more within 100 km of 0.0000,0.0000")
+    assert len(calls) == 1                                              # one feed, filtered on our side
+    with pytest.raises(FallbackUnavailable):
+        a.execute("usgs-quakes", {"lat": 35.0})

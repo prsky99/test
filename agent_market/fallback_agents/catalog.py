@@ -297,8 +297,9 @@ SPECS = {
     },
     "usgs-quakes": {
         "name": "AgentValCon USGS Recent Earthquakes", "tool": "list_recent_earthquakes", "contract": "earthquake.feed.v1",
-        "description": "List recent earthquakes of magnitude 4.5 or more worldwide (optionally a higher minimum) from the "
-                       "USGS real-time feeds: magnitude, time, place and tsunami flag; read-only.",
+        "description": "List recent earthquakes of magnitude 4.5 or more worldwide or within a radius of a point "
+                       "(lat and lon, or near \"lat,lon\"), for the last days asked (up to 30), from the USGS real-time "
+                       "feeds: magnitude, time, place, distance, coordinates and tsunami flag; read-only.",
         "sources": [USGS],
         "rate": "one feed request per 5 minutes at most (USGS updates the feeds every minute)",
     },
