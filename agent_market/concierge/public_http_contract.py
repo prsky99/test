@@ -63,6 +63,10 @@ FEED_READS = frozenset(('/api/feed/verified.json',
     # 11-15 R78: catalog status (the origin keeps it 15 s), service status and the workspace link switch
     '/status.json', '/api/pearl/status', '/api/pearl/access'))
 FEED_CACHE = 'public, max-age=60, stale-while-revalidate=60'
+# 11-15 E7: the verified MCP registry (official v0.1 shape) answers from an hourly snapshot; organizations' clients poll
+# it, so five minutes (plus five stale) at the edge. Its CORS headers come from the route and pass through unchanged.
+REGISTRY_PREFIX = '/registry/verified/v0.1/'
+REGISTRY_CACHE = 'public, max-age=300, stale-while-revalidate=300'
 # Public growth pages (11-10 PM approval): login-free, never personalized HTML/Markdown/JSON. Browsers
 # and the edge may keep them for five minutes and serve a stale copy while refreshing for ten.
 GROWTH_PAGES = frozenset(('/connect','/agents/tasks','/agents/best','/badges','/reports/state-of-ai-agents',
@@ -131,8 +135,12 @@ def feed_path(path):
     return path in FEED_READS or role_best_path(path)
 
 
+def registry_path(path):
+    return path.startswith(REGISTRY_PREFIX) and len(path) <= 512
+
+
 def shared_path(path):
-    return (path in PUBLIC_READS or path.startswith('/api/workflows/templates/') or growth_path(path)
+    return (path in PUBLIC_READS or path.startswith('/api/workflows/templates/') or growth_path(path) or registry_path(path)
             or sitemap_part(path)  # 11-13: the sitemap parts are kept like /sitemap.xml
             or feed_path(path) or agent_detail_path(path))  # 11-13 PM 22:3x
 
@@ -200,6 +208,7 @@ class PublicHTTPContract:
                     else SNAPSHOT_CACHE if path in SNAPSHOT_READS
                     else AGENT_DETAIL_CACHE if agent_detail_path(path)
                     else FEED_CACHE if feed_path(path)
+                    else REGISTRY_CACHE if registry_path(path)
                     else 'public, max-age=30, stale-while-revalidate=30')
                 if headers['cache-control']==GROWTH_CACHE:
                     headers['cache-control']=GROWTH_BROWSER_CACHE
