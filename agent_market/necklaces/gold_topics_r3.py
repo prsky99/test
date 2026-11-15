@@ -24,6 +24,12 @@ SLUG = "topic-evidence-brief"
 SPLIT = "holdout-r3"
 PER_TOPIC = 10
 WIKI = "https://en.wikipedia.org/w/api.php?"
+# 11-16 (PM 06:5x): OpenAlex now allows about 100 keyless searches a day (the ledger keeps 50), so the papers truth
+# may come from Crossref instead (bibliographic metadata CC0; sorted by citation count). Each case names its source.
+CROSSREF = ("https://api.crossref.org/works?query.title=%s&filter=type:journal-article&sort=is-referenced-by-count"
+            "&order=desc&rows=%d&select=DOI,title")
+PAPER_SOURCES = {"openalex": {"name": "OpenAlex (title search, most cited)", "url": "https://api.openalex.org/works"},
+                 "crossref": {"name": "Crossref (title search, most referenced)", "url": "https://api.crossref.org/works"}}
 OPENALEX = ("https://api.openalex.org/works?per-page=%d&sort=cited_by_count:desc&select=doi,title,publication_year"
             "&filter=type:article,title.search:%s")
 
@@ -55,7 +61,7 @@ def used_topics(root: Path, split: str = SPLIT) -> set[str]:
 
 
 def step(root: Path = DEFAULT_ROOT, get=fetch_json, split: str = SPLIT, topics=None, progress_name: str = "r3-progress.json",
-         purpose: str = "arxiv-search re-verdict and the necklace gate (11-15)") -> dict:
+         purpose: str = "arxiv-search re-verdict and the necklace gate (11-15)", papers_source: str = "openalex") -> dict:
     """One resumable round for SPLIT (holdout-r3 by default; holdout-r4 from gold_topics_r4 with its own topics)."""
     topics = TOPICS if topics is None else topics
     folder = Path(root) / "gold" / SLUG
@@ -86,13 +92,19 @@ def step(root: Path = DEFAULT_ROOT, get=fetch_json, split: str = SPLIT, topics=N
             if not progress["wiki"].get(title):
                 row["dropped"] = "no standard Wikipedia page"
                 continue
-            _, works = get(OPENALEX % (PER_TOPIC, quote(phrase)))
-            papers = [{"doi": (w.get("doi") or "").replace("https://doi.org/", "").lower(), "title": w.get("title")}
-                      for w in (works or {}).get("results") or [] if w.get("doi") and w.get("title")]
+            if papers_source == "crossref":
+                _, body = get(CROSSREF % (quote(phrase), PER_TOPIC))
+                papers = [{"doi": (w.get("DOI") or "").lower(), "title": (w.get("title") or [None])[0]}
+                          for w in ((body or {}).get("message") or {}).get("items") or []
+                          if w.get("DOI") and (w.get("title") or [None])[0]]
+            else:
+                _, works = get(OPENALEX % (PER_TOPIC, quote(phrase)))
+                papers = [{"doi": (w.get("doi") or "").replace("https://doi.org/", "").lower(), "title": w.get("title")}
+                          for w in (works or {}).get("results") or [] if w.get("doi") and w.get("title")]
             if len(papers) < 3:
-                row["dropped"] = "fewer than 3 papers in OpenAlex"
+                row["dropped"] = f"fewer than 3 papers in {PAPER_SOURCES[papers_source]['name']}"
                 continue
-            row.update(papers=papers, phrase=phrase, stratum=stratum, at=_now())
+            row.update(papers=papers, phrase=phrase, stratum=stratum, at=_now(), papers_source=papers_source)
     except Budget as exc:
         stopped = str(exc)
     folder.mkdir(parents=True, exist_ok=True)
@@ -119,7 +131,7 @@ def write_split(root: Path, progress: dict, todo, split: str = SPLIT,
                       "truth": {"wiki": wiki, "papers": row["papers"], "paper_phrase": row["phrase"]},
                       "truth_sources": [{"name": "Wikipedia (action API, description)", "url": WIKI.rstrip("?"),
                                          "fetched_at": progress["wiki_at"]},
-                                        {"name": "OpenAlex (title search, most cited)", "url": "https://api.openalex.org/works",
+                                        {**PAPER_SOURCES[row.get("papers_source", "openalex")],
                                          "fetched_at": row["at"]}]})
     folder = Path(root) / "gold" / SLUG
     text = "".join(json.dumps(c, ensure_ascii=False, sort_keys=True) + "\n" for c in cases)
@@ -132,8 +144,9 @@ def write_split(root: Path, progress: dict, todo, split: str = SPLIT,
     manifest.setdefault("files", {})[split] = {"cases": len(cases), "strata": strata,
                                                "sha256": hashlib.sha256(text.encode()).hexdigest(), "for": purpose,
                                                "selection": "not filtered by any source's coverage (PM 11-16 06:5x)",
-                                               "truth_sources": ["Wikipedia action API (title, description, page)",
-                                                                 "OpenAlex works, title search, most cited"]}
+                                               "truth_sources": ["Wikipedia action API (title, description, page)"] + sorted(
+                                                   {PAPER_SOURCES[(progress.get("topics") or {}).get(c["case_id"][6:], {})
+                                                                  .get("papers_source", "openalex")]["name"] for c in cases})}
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return {"cases": len(cases), "strata": strata}
 

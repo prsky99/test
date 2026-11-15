@@ -106,3 +106,24 @@ def test_r5_shares_no_topic_with_any_earlier_set():
     from agent_market.necklaces import gold, gold_topics_r4 as r4, gold_topics_r5 as r5
     old = {t for t, _, _ in gold.TOPICS} | {t for t, _, _ in r3.TOPICS} | {t for t, _, _ in r4.TOPICS}
     assert len(r5.TOPICS) >= 35 and not old & {t for t, _, _ in r5.TOPICS}
+
+
+def test_papers_can_come_from_crossref_and_each_case_names_its_source(tmp_path):
+    """11-16: OpenAlex allows about 100 keyless searches a day, so the rest of a set may take Crossref's most
+    referenced articles; each case and the manifest say which source its papers came from."""
+    folder = setup(tmp_path)
+    calls = []
+
+    def get(url):
+        calls.append(url)
+        if "wikipedia.org" in url:
+            return 200, {"query": {"pages": [{"title": t, "description": "d", "fullurl": "https://en.wikipedia.org/wiki/x"}
+                                             for t, _, _ in r3.TOPICS]}}
+        assert "api.crossref.org" in url and "sort=is-referenced-by-count" in url
+        return 200, {"message": {"items": [{"DOI": f"10.1/{i}", "title": [f"P {i}"]} for i in range(3)]}}
+    out = r3.step(tmp_path, get, papers_source="crossref")
+    case = json.loads((folder / "holdout-r3.jsonl").read_text().splitlines()[0])
+    assert case["truth"]["papers"][0] == {"doi": "10.1/0", "title": "P 0"}
+    assert any(s["name"].startswith("Crossref") for s in case["truth_sources"])
+    assert any(s.startswith("Crossref") for s in json.loads((folder / "manifest.json").read_text())["files"]["holdout-r3"]["truth_sources"])
+    assert out["written"]["cases"] == len(r3.TOPICS) - 1

@@ -30,8 +30,8 @@ TOPICS = [(t, k or t.lower(), "stem") for t, k in [
     ("Quiet quitting", None), ("Platform cooperative", None), ("Loss aversion", None)]]
 
 
-def step(root: Path = DEFAULT_ROOT, get=None) -> dict:
-    kwargs = {} if get is None else {"get": get}
+def step(root: Path = DEFAULT_ROOT, get=None, papers_source: str = "openalex") -> dict:
+    kwargs = {"papers_source": papers_source} if get is None else {"get": get, "papers_source": papers_source}
     return _step(root, split=SPLIT, topics=TOPICS, progress_name="r5-progress.json",
                  purpose="topic-evidence-brief launch gate round 2 (11-16)", **kwargs)
 
@@ -39,8 +39,9 @@ def step(root: Path = DEFAULT_ROOT, get=None) -> dict:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--root", type=Path, default=DEFAULT_ROOT)
+    parser.add_argument("--papers-source", choices=("openalex", "crossref"), default="openalex")
     args = parser.parse_args(argv)
-    print(json.dumps(step(args.root), ensure_ascii=False))
+    print(json.dumps(step(args.root, papers_source=args.papers_source), ensure_ascii=False))
     return 0
 
 
