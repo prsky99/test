@@ -16,3 +16,12 @@ def test_the_document_states_the_same_numbers():
     text = DOC.read_text(encoding='utf-8')
     for phrase in ('57/60', '28/30', '4시간', '29/30', '5초', '95%'):
         assert phrase in text, phrase
+
+
+def test_published_retest_rules_are_the_ones_that_run():
+    """Growth 11-15: the machine page said retest pass_rate 0.95 and an immediate hold, neither of which runs."""
+    from agent_market.necklaces import daily, judge
+    retest = g.summary()['retest']
+    assert 'pass_rate' not in retest and 'immediate_hold_below' not in retest
+    assert retest['hold_below_at_next_daily_check'] == daily.HOLD_SUCCESS == g.IMMEDIATE_HOLD_BELOW
+    assert retest['hold_when_older_than_hours'] == judge.STALE_HOURS

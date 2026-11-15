@@ -15,7 +15,12 @@ COMPLETION = 0.95          # completion rate over the 60 runs
 P95_MS = 5000              # p95 latency, public address, new connection, no samples dropped
 DELTA = '> 0'              # necklace success minus the best single pearl, overall and same-role tasks
 
-# Daily retest and hold (section 7): a day under 95% is rerun once; immediate hold below this rate.
+# Daily retest and hold (section 7). What runs today (workflow 11-15, checked against the code for the growth
+# team's methodology page): necklaces.daily sets quality_low when a day's retest success is below
+# IMMEDIATE_HOLD_BELOW and the judge holds the necklace at its next run (once a day, not the moment a retest ends);
+# the judge also holds when the last retest is older than judge.STALE_HOURS or the delta is 0 or less.
+# RETEST_PASS_RATE is the document's target; the "rerun a day under 95% once" step is not built, so it is not
+# published as a retest rule.
 RETEST_PASS_RATE = 0.95
 IMMEDIATE_HOLD_BELOW = 0.80
 
@@ -28,11 +33,19 @@ SUBSTITUTE_PASS = 29
 REPORT_SCORE = 85
 
 
+def _retest_rules() -> dict:
+    """The retest rules as they run (daily summary, then the judge), read from the code that applies them."""
+    from .daily import HOLD_SUCCESS
+    from .judge import STALE_HOURS
+    return {'hold_below_at_next_daily_check': HOLD_SUCCESS, 'hold_when_older_than_hours': STALE_HOURS,
+            'hold_when_delta': '<= 0', 'checked': 'daily'}
+
+
 def summary():
     """The public, numeric part of the gate (for the methodology page)."""
     return {'necklace': {'held_out_cases': TOTAL, 'pass_total': TOTAL_PASS, 'rounds': TOTAL // ROUND,
                          'cases_per_round': ROUND, 'pass_per_round': ROUND_PASS, 'round_gap_hours': ROUND_GAP_HOURS,
                          'completion': COMPLETION, 'p95_ms': P95_MS, 'delta': DELTA},
-            'retest': {'pass_rate': RETEST_PASS_RATE, 'immediate_hold_below': IMMEDIATE_HOLD_BELOW},
+            'retest': _retest_rules(),
             'substitute': {'held_out_cases': SUBSTITUTE_CASES, 'pass': SUBSTITUTE_PASS},
             'report_v2': {'score': REPORT_SCORE, 'musts': ['accuracy_check', 'clean_answer']}}
