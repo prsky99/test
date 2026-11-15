@@ -92,16 +92,20 @@
     }
     return card;
   }
-  function reasonField(card) {
+  function reasonField(card, label = '거절 사유') {
     let input = card.querySelector('input');
-    if (!input) { input = document.createElement('input'); input.maxLength = 200; input.placeholder = '거절 사유(3자 이상)';
-      input.setAttribute('aria-label', '거절 사유'); card.insertBefore(input, card.querySelector('.actions')); }
+    if (!input) { input = document.createElement('input'); input.maxLength = 200; input.placeholder = label + '(3자 이상)';
+      input.setAttribute('aria-label', label); card.insertBefore(input, card.querySelector('.actions')); }
     return input;
   }
   // 11-15: 검사를 통과한 신청은 바로 승인되고, 여기에는 검사에 걸린 신청만 옵니다.
-  const FLAGS = {'name:restricted_class': '판매하지 않거나 사람 확인이 필요한 분류의 단어', 'name:steering': '에이전트를 조종하는 문구',
-    'name:imperative': '명령형으로 시작하는 이름', 'name:hidden_characters': '숨은 문자'};
-  function flagText(flags) { return (flags || []).map(f => FLAGS[f] || f).join(', '); }
+  const FLAGS = {restricted_class: '판매하지 않거나 사람 확인이 필요한 분류의 단어', steering: '에이전트를 조종하는 문구',
+    imperative: '명령형으로 시작', hidden_characters: '숨은 문자', https_url_required: 'https 주소 아님',
+    not_public: '공개 주소 아님', blocklisted: '차단 목록에 있음', blocklist_unavailable: '차단 목록 없음(출처 미정)',
+    young_domain: '등록 30일 미만 도메인', domain_age_unknown: '도메인 등록일 모름', advertiser_name: '광고주 이름 검사 불통과'};
+  // 11-15: 검사를 통과한 신청·캠페인·제안은 자동으로 승인되고, 여기에는 걸린 것만 이유와 함께 옵니다.
+  function flagText(flags) { return (flags || []).map(f => { const [field, why] = f.includes(':') ? f.split(':') : ['', f];
+    return (field ? field + ' ' : '') + (FLAGS[why] || why); }).join(', '); }
   async function loadApplications(done = '') {
     text('applications-status', '불러오는 중입니다.');
     try {
@@ -124,7 +128,8 @@
     try {
       const {items} = await get('/reviews');
       $('review-list').replaceChildren(...items.map(item => row(
-        [item.name, item.text, '분류 ' + item.task_categories.join(', ') + ' · 지역 ' + item.regions.join(', ')],
+        [item.name, item.text, '분류 ' + item.task_categories.join(', ') + ' · 지역 ' + item.regions.join(', '),
+         '자동 심사에서 걸린 이유: ' + (flagText(item.auto_flags) || '아직 자동 심사 전')],
         [['통과', true, async (b) => { b.disabled = true; try {
             await post('/reviews/' + item.review_id + '/decision', {verdict: 'eligible', reason_code: 'operator_checked'});
             await loadReviews('통과시켰습니다.'); } catch (e) { b.disabled = false; text('reviews-status', reason(e.status)); } }],
@@ -192,7 +197,8 @@
       $('offer-list').replaceChildren(...items.map(item => {
         const lines = ['에이전트가 읽을 줄: ' + item.preview, '광고주 이름 ' + item.advertiser +
           (item.advertiser_name_ok ? '' : ' · 이름이 검사를 통과하지 못해 승인할 수 없음'),
-          '주소 ' + item.offer.endpoint + ' · 도구 ' + (item.offer.tool || '—')];
+          '주소 ' + item.offer.endpoint + ' · 도구 ' + (item.offer.tool || '—'),
+          '자동 심사에서 걸린 이유: ' + (flagText(item.auto_flags) || '아직 자동 심사 전')];
         const decide = (approve, okText) => async (b, card) => {
           const why = reasonField(card);
           if (!approve && why.value.trim().length < 3) { why.focus(); text('offers-status', '거절 사유를 3자 이상 적으세요.'); return; }
@@ -223,7 +229,12 @@
       const day = ms => new Date(ms).toISOString().slice(0, 10);
       const block = (title, lines) => row([title, ...(lines.length ? lines : ['없음'])], []);
       $('one-list').replaceChildren(
-        block('상태 ' + (h.status === 'active' ? '활성' : '정지·대기') + ' · 코인 잔액 ' + h.coin_balance, []),
+        row(['상태 ' + (h.status === 'active' ? '활성' : '정지·대기') + ' · 코인 잔액 ' + h.coin_balance],
+          h.status === 'active' ? [['광고 내리기', false, async (b, card) => { const input = reasonField(card, '내리는 사유');
+            if (input.value.trim().length < 3) { input.focus(); text('one-status', '내리는 사유를 3자 이상 적으세요.'); return; }
+            b.disabled = true; try { const r = await post('/advertisers/' + id + '/takedown', {reason: input.value.trim()});
+              text('one-status', '내렸습니다. 광고주 정지, 캠페인 ' + r.paused_campaigns.length + '개 정지, 제안 ' + r.offers_withdrawn + '개 회수.');
+              await loadOne(); } catch (e) { b.disabled = false; text('one-status', reason(e.status)); } }]] : []),
         block('기록(최근 90일)', h.events.map(e => new Date(e.at_ms).toLocaleString('ko-KR') + ' · ' + (KO[e.event] || e.event))),
         block('캠페인', h.campaigns.map(c => c.name + ' · ' + c.state + ' · ' + c.approval)),
         block('코인 예약', h.coin_bookings.map(b => day(b.day_ms) + ' · ' + b.category + '/' + b.region + ' · ' + b.coins + '코인 · ' + b.state + ' · ' + b.id)),

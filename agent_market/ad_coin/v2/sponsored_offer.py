@@ -260,6 +260,11 @@ def decide_offer(store, access, principal, campaign_id, *, approve, reason="", n
     return {"campaign_id": campaign_id, "state": "approved" if approve else "rejected"}
 
 
+def _held(store, campaign_id):
+    from .auto_review import HELD_OFFER, flags_of
+    return flags_of(store, HELD_OFFER, campaign_id)
+
+
 def pending_offers(store, access, principal, limit=50):
     access.require_operator(principal)
     with store.atomic():
@@ -273,6 +278,7 @@ def pending_offers(store, access, principal, limit=50):
             items.append({"campaign_id": r["campaign_id"], "advertiser_id": r["advertiser_id"], "offer": offer,
                           "submitted_ms": int(r["submitted_ms"]), "advertiser": name,
                           "advertiser_name_ok": advertiser_name_ok(name),
+                          "auto_flags": _held(store, r["campaign_id"]),     # why the automatic review held it
                           "preview": preview_line(name, offer)})   # R33: the exact line agents will read
     return {"items": items}
 

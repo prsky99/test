@@ -2490,6 +2490,10 @@
    "sha256": "f2c571f080eb2a11f406ea6725a0a457feaf1637bc2c8d9299105054cebb46d2"
   },
   {
+   "sql": "UPDATE adc2_sponsored_offers SET state='rejected',reason=?,decided_ms=?,decided_by=? WHERE campaign_id=? AND state='approved'",
+   "sha256": "bb062144dd4bc5b579dc052deb0c826794fdb7ed6c4dbf48fce970c76beb1ddd"
+  },
+  {
    "sql": "UPDATE adc2_sponsored_offers SET state=?,reason=?,decided_ms=?,decided_by=? WHERE campaign_id=? AND state='pending'",
    "sha256": "22a092990379ffe0c01489af0dd03d56ed74bafb69eea93b523ace5b7ab3d3e4"
   },

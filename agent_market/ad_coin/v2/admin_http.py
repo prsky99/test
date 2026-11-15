@@ -111,6 +111,16 @@ def router_for(
                 reason_code=body.get("reason_code")))
         return await respond(call)
 
+    @router.post("/advertisers/{advertiser_id}/takedown")
+    async def takedown(request: Request, advertiser_id: str):
+        """11-15: stop everything an advertiser shows (suspend, pause, withdraw offers), with a reason."""
+        async def call():
+            ctx, body = await operator_write(request)
+            from .auto_review import takedown as take
+            return await run_in_threadpool(lambda: take(commercial, ctx.principal, advertiser_id,
+                                                        reason=body.get("reason")))
+        return await respond(call)
+
     @router.get("/advertisers/{advertiser_id}/history")
     async def advertiser_history(advertiser_id: str, request: Request):
         from .advertiser_history import history

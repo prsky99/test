@@ -20,15 +20,18 @@ _REASON = re.compile(r"[a-z][a-z0-9_]{0,63}\Z")
 
 def pending_reviews(commercial, principal, *, limit=50):
     commercial.access.require_operator(principal)
+    from .auto_review import HELD_REVIEW, flags_of
     with commercial.store.atomic():
         rows = commercial.store.all("reviews_pending_for_operator", (limit,))
+        held = {row["id"]: flags_of(commercial.store, HELD_REVIEW, row["id"]) for row in rows}
     items = []
     for row in rows:
         payload = json.loads(row["payload_json"])
         items.append({"review_id": row["id"], "campaign_id": row["campaign_id"], "advertiser_id": row["advertiser_id"],
                       "name": str(payload.get("name", ""))[:100], "text": str(payload.get("creative_text", ""))[:2000],
                       "task_categories": list(payload.get("task_categories", ()))[:20],
-                      "regions": list(payload.get("regions", ()))[:20]})
+                      "regions": list(payload.get("regions", ()))[:20],
+                      "auto_flags": held.get(row["id"], [])})      # why the automatic review held it (11-15)
     return {"items": items}
 
 
