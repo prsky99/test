@@ -99,6 +99,13 @@ TZDB = {"name": "IANA Time Zone Database (system zoneinfo)", "url": "https://www
         "license": "Public domain (tz code and data, https://github.com/eggert/tz/blob/main/LICENSE)",
         "notice": "Computed on our server from the installed tz data; cities are matched to zone names only."}
 
+TZ_BOUNDARIES = {"name": "timezone-boundary-builder time zone boundaries (via timezonefinder)",
+                 "url": "https://github.com/evansiroky/timezone-boundary-builder",
+                 "license": "ODbL 1.0 (https://opendatacommons.org/licenses/odbl/), data from OpenStreetMap "
+                            "contributors; timezonefinder (MIT) builds the grid",
+                 "notice": "A precomputed 0.02-degree grid; within about 2 km of a zone boundary the answer gives the "
+                           "candidate zones instead of one."}
+
 OURAIRPORTS = {"name": "OurAirports", "url": "https://ourairports.com/data/",
                "license": "Public domain (\"All data is released to the Public Domain\", https://ourairports.com/data/)",
                "notice": "Community-maintained data, refreshed daily into a local index; airports without an IATA "
@@ -292,16 +299,19 @@ SPECS = {
     },
     "tz-time": {
         "name": "AgentValCon Local Time", "tool": "get_local_time", "contract": "timezone.time.v1",
-        "description": "Give the current local time, UTC offset and abbreviation for an IANA time zone or a city that "
-                       "names a zone (for example New York or Seoul), from the IANA tz database; read-only.",
-        "sources": [TZDB],
+        "description": "Give the current local time, UTC offset and abbreviation for an IANA time zone, a city that "
+                       "names a zone (for example New York or Seoul) or a coordinate pair \"lat,lon\" (optionally "
+                       "\"lat,lon,CC\" with a country code), from the IANA tz database and a time-zone boundary "
+                       "grid; near a boundary it lists the candidate zones; read-only.",
+        "sources": [TZDB, TZ_BOUNDARIES],
         "rate": "no network calls",
     },
     "airport-lookup": {
         "name": "AgentValCon Airport Lookup", "tool": "lookup_airport", "contract": "airport.lookup.v1",
-        "description": "Look up an airport by IATA or ICAO code, or by part of its name: name, city, country, "
-                       "region, type, codes, coordinates and elevation, from a daily OurAirports index; read-only.",
-        "sources": [OURAIRPORTS],
+        "description": "Look up an airport by IATA or ICAO code, or by part of its name: name, city, country code, "
+                       "region, type, codes, coordinates, elevation and IANA time zone, from a daily OurAirports "
+                       "index and a time-zone boundary grid; read-only.",
+        "sources": [OURAIRPORTS, TZ_BOUNDARIES],
         "rate": "no network calls per request; the index is refreshed once a day",
     },
     "wiktionary-define": {

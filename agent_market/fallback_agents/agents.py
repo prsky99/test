@@ -28,6 +28,7 @@ import jsonschema
 from .catalog import SPECS, contract
 from .limits import SourceBusy, limiters as make_limiters
 from .net import SourceError, get
+from .tz_grid import parse_point
 from .nvd_store import CVE_ID, Snapshot, _text, record as nvd_record
 from .versions import in_range
 
@@ -88,6 +89,7 @@ class FallbackAgents:
         self.kev = None  # (monotonic fetched, wall fetched, {cve: dateAdded}, catalogVersion)
         self.weather: OrderedDict = OrderedDict()  # (lat, lon) -> dict(value, as_of, expires, last_modified, at)
         self.airports = None
+        self.tz_grid = None
 
     # ---------------------------------------------------------------- public
     def execute(self, agent_id: str, arguments: dict) -> dict:
@@ -1159,9 +1161,22 @@ class FallbackAgents:
                "source": "USGS Earthquake Hazards Program (U.S. Public Domain)"}
         return out, cache, False, {"USGS feed generated": as_of}
 
+    def _zone_at(self, lat, lon, country=None):
+        """The time-zone grid's answer for a point (PM 11-15 13:52): {"zone", "candidates", "boundary", ...}."""
+        from .tz_grid import TzGrid
+        if self.tz_grid is None:
+            self.tz_grid = TzGrid(self.data_dir / "tz-grid.bin")
+        try:
+            return self.tz_grid.lookup(lat, lon, country)
+        except (OSError, ValueError) as exc:
+            raise FallbackUnavailable("source_unavailable", "The time-zone grid is not built on this server yet.") from exc
+
     def _tz_time(self, args, remaining):
         import zoneinfo
         wanted = next((str(args[k]).strip() for k in ("timezone", "tz", "city", "location") if args.get(k)), "")
+        point = parse_point(wanted)
+        if point:
+            return self._tz_time_at(*point)
         zone = tz_zone(wanted)
         if not zone:
             raise FallbackUnavailable("not_found", "Use an IANA time zone (Region/City) or a city that names a zone.")
@@ -1173,6 +1188,35 @@ class FallbackAgents:
         out = {"answer": answer, "url": "https://www.iana.org/time-zones",
                "source": f"IANA Time Zone Database {version or '(version unknown)'} (public domain)"}
         return out, {"status": "snapshot", "age_seconds": 0}, False, {"IANA tz database": version}
+
+    def _tz_time_at(self, lat, lon, country):
+        import zoneinfo
+        found = self._zone_at(lat, lon, country)
+        version = tz_version()
+
+        def clock(zone):
+            now = self.utc_now().astimezone(zoneinfo.ZoneInfo(zone))
+            offset = now.strftime("%z")
+            return (f"{now.strftime('%Y-%m-%d %H:%M:%S')} {now.tzname()} (UTC{offset[:3]}:{offset[3:]}), daylight "
+                    f"saving time {'in effect' if now.dst() else 'not in effect'}")
+        where = f"{lat:.4f},{lon:.4f}"
+        usable = [z for z in found["candidates"] if tz_zone(z) == z]
+        if found["zone"] and tz_zone(found["zone"]) == found["zone"]:
+            note = (" The point is near a time zone boundary; the country code " + country + " chose the zone."
+                    if found["narrowed_by_country"] else "")
+            answer = f"Time zone at {where}: {found['zone']}. Local time in {found['zone']}: {clock(found['zone'])}.{note}"
+        elif usable:
+            answer = (f"The point {where} is near a time zone boundary (within about 2 km); candidate zones: "
+                      + "; ".join(f"{z}: {clock(z)}" for z in usable[:4]) + ". Give a country code or an exact zone "
+                      "to choose one.")
+        else:
+            raise FallbackUnavailable("not_found", "No IANA time zone is known for this point.")
+        out = {"answer": answer[:8000], "url": "https://github.com/evansiroky/timezone-boundary-builder",
+               "source": f"IANA Time Zone Database {version or '(version unknown)'} (public domain); time zone "
+                         f"boundaries: timezone-boundary-builder, ODbL 1.0, OpenStreetMap contributors"}
+        built = self.tz_grid.header.get("boundary_data") if self.tz_grid else None
+        return out, {"status": "snapshot", "age_seconds": 0}, False, {"IANA tz database": version,
+                                                                       "time zone boundaries": built}
 
     def _airport_lookup(self, args, remaining):
         from .airports import AirportIndex
@@ -1201,15 +1245,28 @@ class FallbackAgents:
         for r in rows:
             codes = ", ".join(c for c in (f"IATA {r['iata_code']}" if r["iata_code"] else "",
                                          f"ICAO {r['icao_code']}" if r["icao_code"] else "") if c)
-            parts.append(f"{r['name']} ({codes}): {r['municipality'] or 'city not listed'}, {r['iso_country']} "
-                         f"({r['iso_region']}), {r['type'].replace('_', ' ')}, lat {r['latitude_deg']} lon "
+            # the location hub reads "country code XX" and "time zone Region/City" from these fixed phrases
+            zone_text = self._airport_zone(r)
+            parts.append(f"{r['name']} ({codes}): {r['municipality'] or 'city not listed'}, country code "
+                         f"{r['iso_country']} ({r['iso_region']}), {r['type'].replace('_', ' ')}, lat {r['latitude_deg']} lon "
                          f"{r['longitude_deg']}, elevation {r['elevation_ft'] or '?'} ft, scheduled service "
-                         f"{r['scheduled_service'] or 'unknown'}")
+                         f"{r['scheduled_service'] or 'unknown'}{zone_text}")
         out = {"answer": "; ".join(parts)[:8000], "url": "https://ourairports.com/airports/" + rows[0]["ident"] + "/",
                "source": "OurAirports (public domain)"}
         age = int(max(0, self.wall() - float(data.get("fetched_at") or 0)))
         return out, {"status": "snapshot", "age_seconds": age}, False, \
             {"OurAirports": data.get("source_last_modified") or None}
+
+    def _airport_zone(self, rec) -> str:
+        """", time zone Region/City" from the grid with the airport's country; near a boundary without one zone,
+        ", time zone near a boundary: A or B"; nothing when the grid is not built (the lookup still answers)."""
+        try:
+            found = self._zone_at(float(rec["latitude_deg"]), float(rec["longitude_deg"]), rec.get("iso_country") or None)
+        except (FallbackUnavailable, KeyError, TypeError, ValueError):
+            return ""
+        if found["zone"]:
+            return f", time zone {found['zone']}"
+        return ", time zone near a boundary: " + " or ".join(found["candidates"][:4])
 
     def _wiktionary_define(self, args, remaining):
         word = next((" ".join(str(args[k]).split()) for k in ("word", "term", "query") if args.get(k)), "")

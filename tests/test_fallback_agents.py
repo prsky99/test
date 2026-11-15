@@ -1524,13 +1524,77 @@ def test_airport_index_keeps_coded_open_airports_and_answers_offline(tmp_path):
         200, text=AIRPORT_CSV, headers={"last-modified": "Fri, 13 Nov 2026 02:53:52 GMT"})}, calls), now=lambda: 1.8e9)
     a, _ = agents(tmp_path, {}, calls)
     env = a.execute("airport-lookup", {"code": "icn"})
-    assert env["result"]["answer"].startswith("Incheon International Airport (IATA ICN, ICAO RKSI): Seoul, KR (KR-28), large airport")
+    assert env["result"]["answer"].startswith("Incheon International Airport (IATA ICN, ICAO RKSI): Seoul, country code KR "
+                                              "(KR-28), large airport")
+    assert "time zone" not in env["result"]["answer"]          # no grid on this server: the lookup still answers
     assert env["result"]["url"] == "https://ourairports.com/airports/RKSI/" and len(calls) == 1
     assert env["freshness"]["data_as_of"] == {"OurAirports": "Fri, 13 Nov 2026 02:53:52 GMT"}
     assert "Incheon" in a.execute("airport-lookup", {"query": "incheon"})["result"]["answer"]
     with pytest.raises(FallbackUnavailable) as err:
         a.execute("airport-lookup", {"code": "ZZZ"})
     assert err.value.code == "not_found"
+
+
+def write_tz_grid(path, step=10.0):
+    """A tiny grid in the reader's format: Asia/Seoul at 30-40N 120-130E, a Europe/Zurich|Europe/Berlin boundary
+    cell at 40-50N 0-10E, Etc/GMT elsewhere."""
+    import json as _json
+    import struct
+    import zlib
+    from array import array
+    rows, cols = round(180 / step), round(360 / step)
+    zones = ["Etc/GMT", "Asia/Seoul", "Europe/Zurich", "Europe/Berlin"]
+    sets = [["Europe/Berlin", "Europe/Zurich"]]
+    body = bytearray()
+    for r in range(rows):
+        runs = [(0, 0)]
+        if r == 4:          # row r spans 90-10r .. 90-10(r+1): 50..40N
+            runs = [(0, 0), (18, 32768), (19, 0)]
+        if r == 5:          # 40..30N
+            runs = [(0, 0), (30, 1), (31, 0)]
+        body += struct.pack("<I", len(runs)) + array("H", [c for c, _ in runs]).tobytes() + array("H", [v for _, v in runs]).tobytes()
+    header = {"format": "avc-tz-grid-1", "step": step, "rows": rows, "cols": cols, "zones": zones, "sets": sets,
+              "countries": {"Asia/Seoul": ["KR"], "Europe/Zurich": ["CH", "DE", "LI"], "Europe/Berlin": ["DE", "DK", "NO", "SE", "SJ"],
+                            "Etc/GMT": []}, "boundary_data": "test"}
+    raw = _json.dumps(header).encode()
+    path.write_bytes(b"AVCTZ1\n" + struct.pack("<I", len(raw)) + raw + zlib.compress(bytes(body)))
+
+
+def test_tz_time_takes_a_point_and_lists_candidates_near_a_boundary(tmp_path):
+    """PM 11-15 13:52: lat,lon in; one zone where the grid is sure, the candidates near a boundary, a country code
+    narrows them; no network call."""
+    from datetime import datetime, timezone
+    write_tz_grid(tmp_path / "tz-grid.bin")
+    calls = []
+    clock = Clock()
+    a = FallbackAgents(http=client({}, calls), data_dir=tmp_path, clock=clock,
+                       utc_now=lambda: datetime(2026, 11, 13, 21, 0, tzinfo=timezone.utc), limiters=limiters(clock, clock.sleep))
+    seoul = a.execute("tz-time", {"location": "37.5665,126.9780"})["result"]
+    assert seoul["answer"].startswith("Time zone at 37.5665,126.9780: Asia/Seoul. Local time in Asia/Seoul: "
+                                      "2026-11-14 06:00:00 KST (UTC+09:00)")
+    assert "ODbL" in seoul["source"] and calls == []
+    near = a.execute("tz-time", {"location": "47.5,7.6"})["result"]["answer"]
+    assert near.startswith("The point 47.5000,7.6000 is near a time zone boundary (within about 2 km); candidate zones: "
+                           "Europe/Berlin: ") and "Europe/Zurich: " in near
+    swiss = a.execute("tz-time", {"location": "47.5,7.6,CH"})["result"]["answer"]
+    assert swiss.startswith("Time zone at 47.5000,7.6000: Europe/Zurich.") and "the country code CH chose the zone" in swiss
+    assert "candidate zones" in a.execute("tz-time", {"location": "47.5,7.6,DE"})["result"]["answer"]   # both fit DE
+    assert a.execute("tz-time", {"timezone": "Asia/Seoul"})["result"]["answer"].startswith("Local time in Asia/Seoul")
+    empty = FallbackAgents(http=client({}, calls), data_dir=tmp_path / "none", clock=clock, limiters=limiters(clock, clock.sleep))
+    with pytest.raises(FallbackUnavailable) as err:
+        empty.execute("tz-time", {"location": "37.5,127.0"})
+    assert err.value.code == "source_unavailable"
+
+
+def test_airport_lookup_names_the_time_zone_from_the_grid(tmp_path):
+    from agent_market.fallback_agents.airports import sync
+    calls = []
+    sync(tmp_path / "airports.json", http=client({"https://davidmegginson.github.io/": httpx.Response(
+        200, text=AIRPORT_CSV, headers={"last-modified": "Fri, 13 Nov 2026 02:53:52 GMT"})}, calls), now=lambda: 1.8e9)
+    write_tz_grid(tmp_path / "tz-grid.bin")
+    a, _ = agents(tmp_path, {}, calls)
+    answer = a.execute("airport-lookup", {"code": "ICN"})["result"]["answer"]
+    assert "country code KR (KR-28)" in answer and answer.split(";")[0].endswith(", time zone Asia/Seoul")
 
 
 def test_airport_lookup_without_an_index_fails_closed(tmp_path):

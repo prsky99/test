@@ -111,6 +111,29 @@ prohibits 2건은 정의에 넣지 않았습니다. 넣으면 그 멤버가 모�
 - 권장은 (가)입니다. 승인 전에는 구현을 시작하지 않고 과제 2를 먼저 진행합니다.
 - 연결 방식(새 계약 없음): 기존 자체 대체 tz-time(timezone.time.v1)이 `location`에 "위도,경도"를 받으면 시간대를 계산합니다. 그러면 주소·공항 허브의 `{{slot.location.point}}`를 local-time 자리에 그대로 넘길 수 있습니다. airport-lookup 답에도 timezone을 넣어 norm_location이 허브 칸으로 올리게 합니다.
 
+### 과제 1 결과: 좌표 → 시간대 격자표 (PM 13:52 결정 (나), 11-15)
+
+- 만드는 법(운영 밖)
+  - 별도 Python 3.12 venv에 timezonefinder 9.2.0(경계 자료 timezonefinder-data 4.2026.6)을 설치합니다.
+  - `scripts/build_tz_grid.py build`로 만듭니다(일꾼 4개, 무거운 작업 칸, 103초).
+  - 운영 코드는 timezonefinder를 import하지 않고, 결과 파일만 읽습니다(`agent_market/fallback_agents/tz_grid.py`, 의존성 없음).
+- 결과 파일: `gateway-data/fallback-agents/tz-grid.bin`(git 밖), **0.8MB**(목표 30MB 이하)
+  - 0.02° 격자(약 2km), 1억 6,200만 칸, 시간대 443개
+  - 경계 칸 760,506개(**0.47%**), 후보 묶음 2,040개
+  - 출처 표기(ODbL, timezone-boundary-builder, OpenStreetMap 기여자, timezonefinder MIT)는 파일 머리와 답의 source에 들어갑니다.
+- 정확도(timezonefinder와 대조, `build_tz_grid.py check`)
+  - 무작위 10만 점: 정답 99,577, 경계 표시 421(모두 후보에 정답 있음), **단정 오류 2(0.002%)**
+    - 30.82,-105.31: Denver를 Ciudad_Juarez로 답함(미국·멕시코 강 국경)
+    - 40.05,68.86: Dushanbe를 Tashkent로 답함
+    - 둘 다 국경 바로 옆이고, 같은 UTC 차이의 이웃 시간대입니다.
+  - OurAirports 대형·중형 공항 5,066곳: 정답 5,043, 경계 표시 23, **단정 오류 0**
+    - 공항 나라 코드로 좁히면 23곳 중 17곳이 단정 답이 되고 모두 정답입니다. 6곳은 후보로 남습니다.
+- 연결(새 계약 없음)
+  - tz-time(timezone.time.v1)이 "위도,경도" 또는 "위도,경도,나라코드"를 받습니다.
+  - 경계 칸에서는 후보마다 현지 시각을 담아 답하고 "near a time zone boundary"라고 적습니다. 외부 호출은 없습니다.
+  - airport-lookup 답에 `country code XX`와 `time zone Region/City`(경계면 `time zone near a boundary: A or B`)를 고정 표현으로 넣습니다. 워크플로우가 norm_location에서 읽습니다.
+- 다시 만들기: timezonefinder-data가 새로 나오면(경계 자료 갱신) 같은 두 명령을 다시 돌립니다. 운영 배포에는 이 파일 하나만 필요합니다.
+
 ## 남은 것
 
 - 카탈로그 밖 자체 에이전트 133018·133019·133023(topic-evidence-brief, package-risk-audit)
