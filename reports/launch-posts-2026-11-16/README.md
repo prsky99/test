@@ -1,0 +1,157 @@
+# 첫 목걸이 공개 게시 준비 (성장·유통, PM 11-15 17:12 지시, 게시는 사용자 확인 뒤)
+
+- 문턱: 사용자 결정 11-15(919e9d01)으로 커뮤니티 게시는 "첫 목걸이 공개" 뒤에 한다.
+- 어느 목걸이가 먼저 공개될지는 11-16 관문에 달렸다. 아래 `{NECKLACE}`·`{SLUG}`·`{INPUT}`·`{ANSWER}`·`{STEPS}`를 공개된 목걸이로 바꿔 쓴다.
+- 1순위 후보는 회사 실사(company-due-diligence)다. 예시는 그 목걸이로 적었다.
+- 각 채널의 규칙은 11-15 17:2x에 원문을 읽고 정리했다(읽기만 함). 원문을 못 읽은 곳은 그렇다고 적었다.
+
+## 0. 가장 먼저 알아 둘 것: 사람이 직접 써야 하는 곳
+
+| 채널 | 규칙 원문 | 우리에게 주는 뜻 |
+|---|---|---|
+| Hacker News (Show HN) | 뉴스 가이드라인에 "생성되거나 AI가 편집한 글을 올리지 않는다, HN은 사람 사이의 대화"가 있음 (news.ycombinator.com/newsguidelines.html) | **아래 초안을 그대로 올리면 규칙 위반.** 사용자가 사실 목록을 보고 직접 써야 함. 이 문서는 HN용으로 구성과 사실만 준다 |
+| dev.to | AI를 도운 글은 AI 사용을 밝혀야 하고, **자기 회사를 포함해 어떤 사업도 홍보할 수 없음** (dev.to/guidelines-for-ai-assisted-articles-on-dev) | 서비스를 소개하는 글은 사람이 직접 쓴 기술 글이어야 함. 사실 목록만 준다 |
+| Reddit (r/mcp, r/AI_Agents) | **원문을 읽지 못함**: 이 세션의 도구가 reddit.com을 모두 거부했고, 우회하지 않음 | 게시 전에 사용자가 r/mcp/about/rules와 사이드바·플레어를 직접 확인해야 함. 아래 초안은 일반 관례(만든 사람임을 밝힘, 본문 있는 글, 맞는 플레어)에 맞춘 것 |
+| Product Hunt | 업보트를 요청하지 않음, 경품을 업보트 조건으로 걸지 않음, 대량 DM 금지, 계정 하나는 실제 사람 한 명 (help.producthunt.com 출시 안내 5번) | 계정 생성은 사용자만 할 수 있는 일. 초안 문구는 써도 됨(AI 금지 조항은 읽은 페이지에 없음) |
+| Lobsters | 초대 가입이고, 가입 70일 안에는 자기 홍보와 [show] 태그를 쓸 수 없음 | 첫 게시에는 맞지 않아 뺀다 |
+
+규칙 충돌 보고(PM 17:12 3번 방식):
+- **HN·dev.to의 "AI가 쓴 글 금지"가 막는 것: 우리 쪽에서 완성 글을 넘기는 방식.**
+- 이것은 남의 규칙이라 우리가 고칠 수 없다. 사람이 직접 쓰는 것으로만 풀린다.
+
+## 1. 모든 채널에 공통으로 쓰는 사실 (영어, 잰 값과 출처만)
+
+What it is
+- AgentValCon finds AI agents and MCP servers for a task and tests them with real read-only calls; the ones that pass on two different days are "verified pearls".
+- A necklace joins tested agents into one workflow that answers in one call. `{NECKLACE}` joins `{STEPS}` agents.
+  - Company due diligence: SEC identity (CIK, ticker), latest SEC filings, an encyclopedia summary and, with a website, its domain registration.
+- Try it without a key or sign-up:
+  - Page: https://agentconcierge.biz/necklaces/{SLUG}
+  - MCP: https://agentconcierge.biz/mcp (tool `{TOOL}`)
+  - A2A skill: `{SKILL}`
+
+One real call (run it on the posting day and paste the real result, never an edited one)
+- Input: `{INPUT}` (for company due diligence: `{"name": "<a US-listed company>", "country": "US"}`)
+- Answer: `{ANSWER}` (first lines, plus the step list the answer shows)
+
+Why one call
+- Our own measurement, if the necklace page shows it: "Measured on N cases (date), against an agent calling the same agents itself: …" — copy the line from the necklace page as it is.
+- If there is no measurement yet, cite the outside number only:
+  - MCP-Universe (Luo et al., arXiv 2508.14704, Aug 2025) tested models on 231 tasks against 11 real MCP servers.
+  - The best model in that paper, GPT-5, succeeded on 43.72% of them.
+  - Do not call these tasks "multi-step" as if quoting; the paper's wording is long-horizon real-server tasks.
+
+Limits (say them, do not hide them)
+- `{NECKLACE}` covers what its page says. For company due diligence: US SEC filers only in this version.
+- Some steps may be led by an agent under verification rather than a verified pearl; the page says which, step by step.
+- Some results carry a "Sponsored" line (an ad), marked as such.
+- Run from Korea by a small team. From Korea a new connection to our edge (Los Angeles) takes about 0.8 s before any work.
+- Free for now. If that changes, the necklace page says so first.
+- No public source repository.
+
+Ask for a necklace
+- https://agentconcierge.biz/necklaces/request — no contact details taken; the answer appears on the request's status page.
+
+## 2. 채널별 준비
+
+### 2.1 Hacker News — Show HN (사용자가 직접 씀)
+- 제목 형식: `Show HN: <이름> – <무엇을 하는지>`.
+  - 과장·대문자·느낌표를 쓰지 않는다.
+  - "best"나 불필요한 숫자를 넣지 않는다.
+- 링크는 가입 없이 바로 써 볼 수 있는 주소로 한다(목걸이 페이지). 소개용 랜딩 페이지는 해당되지 않는다.
+- 본문·첫 댓글에 넣을 순서(사용자가 자기 말로):
+  1. 무엇을 만들었는지
+  2. 1절의 실제 호출 한 번
+  3. 왜 한 번 호출인지
+  4. 한계
+  5. 주문 링크
+- 하지 않는 것:
+  - 업보트·댓글을 요청하지 않는다(어느 채널에서도).
+  - 삭제 후 다시 올리지 않는다.
+  - 자동으로 게시하지 않는다.
+- 당일 댓글에는 만든 사람이 직접 답한다.
+
+### 2.2 Reddit — r/mcp (규칙 원문 확인 뒤 게시)
+- 확인할 것:
+  - 자기 홍보 규칙
+  - 출시 글 허용 여부
+  - 플레어(Showcase 등)
+  - 주간 스레드가 있는지
+- 초안(영어, 규칙과 맞으면 그대로 써도 됨. AI 금지 조항이 있으면 사용자가 다시 씀):
+
+```
+Title: I made a free MCP tool that runs several tested agents in one call ({NECKLACE})
+
+I'm the maker. AgentValCon tests MCP servers and A2A agents with real read-only calls, and when
+a few of them do a job better together than alone, it joins them into a "necklace": one MCP tool
+call instead of finding, calling and merging several servers yourself.
+
+The first one is {NECKLACE}: {one-line summary}. It joins {STEPS} agents.
+Example call (no key): tool `{TOOL}` on https://agentconcierge.biz/mcp
+Input: {INPUT}
+Answer (first lines): {ANSWER}
+
+Why one call: {measured line from the necklace page, or the MCP-Universe figure with its citation}.
+
+Limits: {scope}; some steps may be led by an agent still under verification (the page shows which);
+some results carry a labelled Sponsored line; run from Korea; free for now.
+
+If you need a necklace we don't have: https://agentconcierge.biz/necklaces/request
+Feedback on what failed is the most useful thing for me.
+```
+
+### 2.3 Reddit — r/AI_Agents 주간 프로젝트 스레드 (규칙 원문 확인 뒤)
+- "Weekly Thread: Project Display"가 반복해서 올라오는 것만 확인했다(미러 검색 결과, 규칙 원문은 못 봄). 별도 글보다 그 스레드에 댓글로 다는 것이 안전하다(추정).
+- 2.2 초안의 첫 두 단락, 예시, 한계만 줄여서 쓴다.
+
+### 2.4 Product Hunt (사용자 계정 필요)
+- 태그라인(60자 안): `Tested AI agents joined into one call` (37자)
+- 설명:
+  - 1절의 What it is 첫 두 줄
+  - 한계 세 가지(범위, 검증 중 멤버, 무료·Sponsored 표시)
+- 만든 사람의 첫 댓글: 2.2 본문을 사용자 말로 줄인다.
+- 공유 문구는 "써 보고 의견 주세요"로 한다. 업보트 요청과 경품은 하지 않는다.
+
+### 2.5 dev.to (사용자가 직접 쓰는 기술 글)
+- 출시 공지가 아니라 기술 글로 쓴다.
+  - 주제 예: "How we decide an MCP server is a verified pearl: real read-only calls, two different days, and what failed"
+- 서비스 소개는 그 안에서 한 단락만 한다.
+- 근거 자료:
+  - 방법론 https://agentconcierge.biz/methodology (v1.2)
+  - 변경 기록 /methodology/changelog
+  - 목걸이 페이지의 잰 값
+- 태그는 `mcp`, `ai`.
+
+## 3. 런칭 글을 막았던 세 가지의 지금 상태 (11-15 17:1x, 공개 주소·새 연결로 잼)
+
+| 11-10에 고쳐야 했던 것 | 지금 | 근거 |
+|---|---|---|
+| ClaudeBot 차단 | **풀림** | robots.txt에서 ClaudeBot은 고객 전용 경로(/customer/, /api/customer-, /api/workspace-)만 막힘. ClaudeBot UA로 /, /llms.txt, /agent/358211 모두 200(0.8~3.3초). 오늘 원서버에 Claude 계열 봇 요청 기록은 0건(엣지 캐시가 답했을 수 있음) |
+| MCP·A2A 첫 호출 실패 | **성공** | 새 클라이언트로 MCP initialize 200(1.28초) → tools/list 16개(1.15초) → find_agents 결과 있음(2.49초). A2A agent-card 200(0.83초), message/send 정상 메시지(4.81초). serverInfo.name은 아직 `agent-concierge`(식별자. 표시 이름은 AgentValCon) |
+| 페이지 속도 | **차선 목표는 통과, 최종 목표는 아님** | 17:03 user_slo: 페이지는 차선 목표(3초) 3/3, 최종 목표(1초) 1/3. Explore 중앙값 2.44초(차선 4/6). 추천 중앙값 5.79초(차선 0/2) |
+
+참고:
+- 한국에서 잰 값이다. 같은 시각 Cloudflare 자체 응답(/cdn-cgi/trace)의 중앙값은 0.79초다. 새 연결 하나에 드는 시간이 이만큼이라는 뜻이다(11-15 분석 growth-edge-latency-split-1115.md).
+- 추천이 5초를 넘는 것은 게시 전에 담당 팀이 볼 일이다. 게시 글의 첫 경험은 목걸이 호출과 find_agents라, 둘 다 5초 안에 답이 와야 한다.
+
+## 4. GitHub 비공개 결정(11-10)이 막는 유입 (사용자 판단 자료)
+
+방문 수는 Similarweb 공개 개요 페이지의 "Total Visits Last 3 Months" 반올림 추정치다(11-15 읽음).
+- 페이지는 "October 2026" 기준이다.
+- 3개월 합계인지 마지막 달 값인지는 문구만으로 확정할 수 없다.
+
+| 디렉터리 | 방문 규모 | GitHub이 막는가 | 지금 우리 상태 |
+|---|---|---|---|
+| mcpmarket.com | 1.7M | **예**: 제출 양식에 GitHub 저장소 URL이 필수 | 못 냄 |
+| zplatform.ai | 확인 안 됨(숫자 칸 빈칸) | **간접**: 공식 Registry에 더해 GitHub 별·npm/PyPI 내려받기 수로 상위 250개를 고름 | 목록에 없음. GitHub·패키지 지표가 없어 들기 어려움(추정) |
+| mcpservers.org | 765.8K | 아니요(Website 링크로 대신) | 옛 이름으로 있음, 갱신 예정 |
+| glama.ai | 337.2K | 아니요(공식 Registry 연동) | 옛 이름으로 있음 |
+| mcp.so | 286.7K | 아니요(원격은 엔드포인트만) | 계정 필요라 사용자 몫 |
+| smithery.ai | 237.5K | 해당 없음(10-31 등록 종료) | 못 냄 |
+| pulsemcp.com | 125.7K | 아니요(재개 뒤 공식 Registry 자동) | 제출 중지 |
+
+정리:
+- GitHub 결정 때문에 **직접** 못 내는 곳은 mcpmarket 한 곳이다. 확인한 디렉터리 가운데 방문 규모가 가장 크다(1.7M, 위 단서 붙음).
+- **간접적으로** 불리한 곳은 zplatform이다(GitHub·패키지 지표로 순위를 매김).
+- awesome 목록 PR(11-10 금지)은 이번에 재지 않았다.
+- 나머지 디렉터리는 GitHub 없이 갈 수 있다.
