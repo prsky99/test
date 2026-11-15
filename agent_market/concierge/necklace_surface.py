@@ -608,6 +608,7 @@ def necklace_router(front=None):
             return HTMLResponse('<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Necklace not found | AgentValCon'
                                 '</title></head><body><p>No such necklace. <a href="/new/en/workflows.html">Workflows</a></p></body></html>',
                                 status_code=404, headers={'Cache-Control': 'no-store'})
-        return HTMLResponse(value)
+        from .growth_pages import PAGE_CSP   # 11-15 F17 audit: the default CSP blocked the page's stylesheets
+        return HTMLResponse(value, headers={'Content-Security-Policy': PAGE_CSP})
 
     return router
