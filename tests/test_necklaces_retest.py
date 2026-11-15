@@ -542,3 +542,16 @@ def test_a_papers_answer_from_the_answer_keys_own_source_is_marked_and_not_count
     assert retest.same_source(defn, case, fell_back) == ["papers"]
     crossref_key = {"truth_sources": [{"name": "Crossref (title search, most referenced)"}]}
     assert retest.same_source(defn, crossref_key, fell_back) == []
+
+
+def test_an_answer_from_the_official_register_is_marked_but_not_a_failure():
+    """PM 11-16 07:05: SEC is the official register; an answer by our SEC substitute is same_source_official."""
+    defn = {"slug": "company-due-diligence", "slots": [
+        {"slot": "registry", "chain": [{"kind": "agentcon", "agent_id": "sec-edgar", "resource_id": None,
+                                        "tool": "find_sec_company", "upstream": ["sec-edgar"]}]},
+        {"slot": "background", "chain": [{"kind": "external", "resource_id": 241601, "tool": "w", "upstream": ["unknown"]}]}]}
+    case = {"truth_sources": [{"name": "SEC company_tickers.json"}, {"name": "SEC EDGAR submissions"}]}
+    result = {"attempts": {"registry": [{"resource_id": None, "tool": "find_sec_company", "ok": True}],
+                           "background": [{"resource_id": 241601, "tool": "w", "ok": True}]}}
+    assert retest.same_source_official(defn, case, result) == ["registry"]
+    assert retest.same_source(defn, case, result) == []                   # no strict count for an official register

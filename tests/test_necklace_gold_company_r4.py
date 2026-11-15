@@ -35,7 +35,7 @@ def test_sixty_unseen_us_filers_with_sec_truth(tmp_path):
     assert first["truth"]["filings"]["form"] == "10-Q" and first["input"]["country"] == "US"
     assert first["input"]["name"].endswith("Corp") and first["truth"]["ticker"].startswith("T")
     entry = json.loads((folder / "manifest.json").read_text())["files"]["holdout-r4"]
-    assert "same_source_note" in entry and "10-K or 10-Q" in entry["selection"]
+    assert "official register" in entry["same_source_rule"] and "10-K or 10-Q" in entry["selection"]
 
 
 def test_too_few_cases_writes_nothing(tmp_path):

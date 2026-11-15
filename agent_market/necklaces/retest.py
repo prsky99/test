@@ -771,6 +771,7 @@ def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT,
         lines.append({"type": "case", "slug": defn["slug"], "version": defn["version"], "case_id": case["case_id"],
                       "set": split, "at": at, "ok": verdict["ok"], "completed": result["completed"], "shared": shared,
                       **({"same_source": twin} if twin else {}),
+                      **({"same_source_official": official} if (official := same_source_official(defn, case, result)) else {}),
                       "value": measure(defn, case["input"], result, verdict["ok"]),
                       "completed_external_only": result["completed_external_only"],
                       "latency_ms": result["latency_ms"], "slots": result["slots"], "graded": verdict["slots"]})
@@ -837,6 +838,28 @@ def sample_window(now: float) -> tuple[str, int]:
 # passed with such an answer is marked same_source, and the gate must also pass with those cases counted as failures.
 SAME_SOURCE_STEPS = {"topic-evidence-brief": ("papers",)}
 SOURCE_WORDS = ("openalex", "crossref", "arxiv")
+# PM 11-16 07:05: when the answer key is an official register (SEC), the same source is not a failure; the case line
+# says same_source_official so the verdict shows it. Secondary indexes (above) take the strict count.
+OFFICIAL_STEPS = {"company-due-diligence": ("registry", "filings")}
+OFFICIAL_WORDS = {"sec": ("sec-edgar", "sec")}
+
+
+def same_source_official(defn: dict, case: dict, result: dict) -> list[str]:
+    names = " ".join(str(src.get("name", "")).lower() for src in case.get("truth_sources") or [])
+    ups = {u for word, tags in OFFICIAL_WORDS.items() if word in names.split() or f"{word} " in names for u in tags}
+    out = []
+    for slot in defn["slots"]:
+        if slot["slot"] not in OFFICIAL_STEPS.get(defn["slug"], ()) or not ups:
+            continue
+        for a in (result.get("attempts") or {}).get(slot["slot"], []):
+            if not a.get("ok"):
+                continue
+            member = next((m for m in slot["chain"] if (m.get("resource_id") is not None and m.get("resource_id") == a.get("resource_id"))
+                           or (m.get("resource_id") is None and m.get("tool") == a.get("tool"))), None)
+            if member and ups & {str(u).lower() for u in member.get("upstream") or []}:
+                out.append(slot["slot"])
+                break
+    return out
 
 
 def same_source(defn: dict, case: dict, result: dict) -> list[str]:
