@@ -156,6 +156,16 @@ prohibits 2건은 정의에 넣지 않았습니다. 넣으면 그 멤버가 모�
 - 50972는 topic-evidence-brief의 web·news 자리 멤버입니다. 빠지면 그 자리는 자체 대체(wiki-grounding)나 다른 멤버가 선두가 됩니다. 정의 반영은 워크플로우가 합니다.
 - 241082(ip 허브 선두)는 silent입니다. 다만 IP 자료의 원천 라이선스를 알 수 없으므로, 자체 ip.lookup(DB-IP Lite, CC BY 4.0)이 생기면 그쪽을 선두로 두기를 권합니다.
 
+## PM 13:53 ④ 판정: 좌표 지진과 geocode (11-15 14:2x)
+
+| 원천 | 판정 | 근거 위치 | 비고 |
+|---|---|---|---|
+| USGS 지진(earthquake.usgs.gov) | allowed | 미국 정부 자료(usgs.gov/policies-and-notices). FDSN 이벤트 API 안내 머리에 "자동 애플리케이션은 실시간 GeoJSON 피드를 쓰라"고 함 | 기존 usgs-quakes가 이미 피드를 씁니다. 좌표·반경·기간은 받은 피드를 우리 쪽에서 거르면 되므로 호출이 늘지 않습니다. **계약 earthquake.feed.v1 입력에 lat·lon·radius_km·days가 없어(additionalProperties false) 워크플로우의 계약 변경이 먼저입니다** |
+| 미국 인구조사국 지오코더(geocoding.geo.census.gov) | allowed | 지오코더 첫 페이지: 대화형과 프로그램(REST) 접근을 제공한다고 밝힘. 정부 공개 자료 | 미국 주소만. 키 없음. 37322 Datakoot의 geocode도 이 원천입니다 |
+| OSM Nominatim(operations.osmfoundation.org/policies/nominatim) | **prohibits** | 사용 정책: 플랫폼이 범용 지오코딩·주소 찾기로 제공하는 것 금지, 지오코딩이 주 기능인 서비스의 결과 재판매 금지, 앱의 주기적 요청은 대량 지오코딩으로 보고 강하게 말림, 상업 앱은 다른 제공자를 쓰라고 함 | 만들지 않습니다 |
+
+- 결론: geocode 자체 대체는 미국 주소에 한해 인구조사국 지오코더로 만들 수 있습니다. 미국 밖 주소를 키 없이 허용하는 원천은 찾지 못했습니다. 구현 여부는 PM이 정합니다.
+
 ## 남은 것
 
 - 카탈로그 밖 자체 에이전트 133018·133019·133023(topic-evidence-brief, package-risk-audit)
