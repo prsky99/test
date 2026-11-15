@@ -33,7 +33,10 @@ STATE = ROOT / 'logs/ops/watch-alert-state.json'
 REPORTS = ROOT / 'logs/ops/test-reports'
 BOARD_HISTORY = ROOT / 'logs/ops/status-board-history'
 BOARD_KEEP_SECONDS = 14 * 86400
-PSQL = ['/opt/homebrew/opt/postgresql@18/bin/psql', '-h', str(ROOT / 'gateway-data/postgres18/run'), '-p', '55432',
+# Resolve the gateway-data link: from gateway-data/ops-code/current the joined socket path passes the 103 byte limit
+# and psql printed nothing (11-16 02:30).
+PSQL = ['/opt/homebrew/opt/postgresql@18/bin/psql', '-h', os.path.realpath(ROOT / 'gateway-data') + '/postgres18/run',
+        '-p', '55432',
         '-d', 'agentcon_cutover_20261020_191757', '-Atc']
 TEAM = {'site': '운영·SRE', 'memory': '운영·SRE', 'disk': '운영·SRE', 'deploy_stuck': '운영·SRE',
         'deploy_lock': '잠금을 잡은 팀', 'long_tests': '시험을 돌린 팀', 'stale_handoffs': '받는 팀',

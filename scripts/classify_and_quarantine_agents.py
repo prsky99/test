@@ -77,7 +77,9 @@ def main():
     args = parser.parse_args()
 
     conn = psycopg.connect(
-        host=str(Path(__file__).resolve().parents[1] / 'gateway-data/postgres18/run'),
+        # The project's real socket folder: from gateway-data/ops-code/<commit> the joined path passes the 103 byte
+        # Unix socket limit (11-16 02:30 batch failed), so the gateway-data link is resolved first.
+        host=os.path.realpath(Path(__file__).resolve().parents[1] / 'gateway-data') + '/postgres18/run',
         port=55432,
         dbname='agentcon_cutover_20261020_191757',
         user=getpass.getuser()

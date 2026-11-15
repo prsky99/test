@@ -20,7 +20,8 @@ from report_pipeline_common import (
     compute_aqef_score_and_grade, synthesize_workflow_recommendation, HANGUL, PRIVATE, probe_evidence_scope
 )
 
-PG_HOST = str(Path(__file__).resolve().parents[1] / 'gateway-data/postgres18/run')
+# Resolve the gateway-data link: under gateway-data/ops-code/<commit> the joined socket path passes 103 bytes (11-16).
+PG_HOST = os.path.realpath(Path(__file__).resolve().parents[1] / 'gateway-data') + '/postgres18/run'
 PG_PORT = 55432
 PG_DB = 'agentcon_cutover_20261020_191757'
 PG_USER = getpass.getuser()
