@@ -329,25 +329,6 @@
         },
         {
           "kind": "external",
-          "resource_id": 50972,
-          "tool": "news_search",
-          "registrable_domain": "pipeworx.io",
-          "upstream": [
-            "brave-search"
-          ],
-          "read_only_hint": true,
-          "destructive_hint": false,
-          "idempotent_hint": true,
-          "resend_safe": true,
-          "pearl": false,
-          "state": "active",
-          "input_map": {
-            "q": "{{input.topic}}",
-            "count": 5
-          }
-        },
-        {
-          "kind": "external",
           "read_only_hint": true,
           "destructive_hint": false,
           "idempotent_hint": true,
@@ -383,26 +364,6 @@
             "query": "{{input.topic}}",
             "limit": 5
           }
-        },
-        {
-          "kind": "agentcon",
-          "agent_id": "technology-news",
-          "resource_id": 133018,
-          "tool": "search_technology_news",
-          "registrable_domain": "agentconcierge.biz",
-          "upstream": [
-            "hacker-news"
-          ],
-          "read_only_hint": true,
-          "destructive_hint": false,
-          "idempotent_hint": true,
-          "resend_safe": true,
-          "state": "active",
-          "input_map": {
-            "query": "{{input.topic}}",
-            "limit": 5
-          },
-          "note": "Existing owned agent 133018 (Hacker News, technology topics)."
         }
       ]
     }
