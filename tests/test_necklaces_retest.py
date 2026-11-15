@@ -164,3 +164,37 @@ def test_topic_graders():
     assert retest.grade_background(case, {"text": "a method for gene editing"})
     assert not retest.grade_background(case, {"text": "a recipe for bread"})
     assert retest.grade_web(case, {"answer": "see https://example.org"}) and not retest.grade_web(case, {"answer": "x"})
+
+
+# ---------------------------------------------------------------- company-due-diligence task (PM 11-15 option c)
+US_CASE = {"case_id": "US:CIK320193", "input": {"name": "Apple Inc", "country": "US"},
+           "truth": {"cik": "320193", "ticker": "AAPL", "lei": "HWUPKR0MPOU8FGXBT394", "sec_title": "Apple Inc."}}
+JP_CASE = {"case_id": "JP:x", "input": {"name": "Toyota", "country": "JP"},
+           "truth": {"lei": "5493006W3QUS5LMH6R84", "legal_name": "TOYOTA MOTOR CORPORATION", "cik": None}}
+
+
+def test_company_background_names_the_company():
+    assert retest.grade_background(US_CASE, {"text": "Apple Inc. is an American technology company"})
+    assert not retest.grade_background(US_CASE, {"text": "Inc. is a legal form"})          # legal words do not count
+    assert retest.grade_background(JP_CASE, {"text": "Toyota Motor Corporation is a Japanese automaker"})
+
+
+def test_the_company_task_needs_an_official_id_and_the_company():
+    necklace_out = {"registry": {"answers": [{"legal_name": "Apple Inc.", "cik": "320193", "ticker": "AAPL"}]},
+                    "background": {"answers": [{"text": "Apple Inc. is an American technology company"}]}}
+    assert retest.grade_company_task(US_CASE, necklace_out)
+    single = {"background": {"answers": [{"text": "Apple Inc. (NASDAQ: AAPL) is an American technology company"}]}}
+    assert not retest.grade_company_task(US_CASE, single)        # a summary alone has no CIK or LEI
+    assert retest.grade_company_task(JP_CASE, {"r": "TOYOTA MOTOR CORPORATION, LEI 5493006W3QUS5LMH6R84"})
+    assert not retest.grade_company_task(US_CASE, {"r": "CIK 3201930, Apple"})               # no partial match
+
+
+def test_the_shipped_company_definition_has_three_verified_pearl_leads():
+    from agent_market.necklaces import judge
+    defn = next(d for d in model.load_valid() if d["slug"] == "company-due-diligence")
+    verified = {(241601, "encyclopedia.summary.v1"), (58997, "sec.filings.v1"), (52559, "domain.lookup.v1")}
+    leads = judge.pearls(defn, verified)
+    assert sorted(p["resource_id"] for p in leads if p["pearl"]) == [52559, 58997, 241601]
+    domains = [m["registrable_domain"] for s in defn["slots"] for m in s["chain"] if m["kind"] == "external"]
+    assert len(domains) == len(set(domains))                    # no provider in two steps
+    assert retest.CONTRAST["company-due-diligence"] == "background"

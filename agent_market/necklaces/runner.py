@@ -53,10 +53,13 @@ class SlotResult:
     answers: list = field(default_factory=list)       # (member, canonical) pairs that passed
     attempts: list = field(default_factory=list)
     abandoned: int = 0
+    skipped: str | None = None          # input_absent (optional step not asked for) or upstream_failed
 
     @property
     def status(self) -> str:
-        """answered, partial (answered while another call timed out), timeout or failed."""
+        """answered, partial (answered while another call timed out), timeout, failed or skipped."""
+        if self.skipped:
+            return "skipped"
         timed = any(a.error_class in ("timeout", "late", "deadline") for a in self.attempts)
         if self.answers:
             return "partial" if timed else "answered"
@@ -64,6 +67,8 @@ class SlotResult:
 
     @property
     def stage(self) -> int:
+        if self.skipped == "input_absent":
+            return 0                    # nothing was asked of this step
         if not self.answers:
             return 4
         used = [a for a in self.attempts if a.ok]
@@ -79,17 +84,19 @@ class SlotResult:
 
 
 # ---------------------------------------------------------------- argument mapping
-TEMPLATE = re.compile(r"^\{\{input\.([a-z_][a-z0-9_]*)\}\}$")
+TEMPLATE = re.compile(r"^\{\{(input|slot)\.([a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*)?)\}\}$")
 
 
 def render(input_map: dict, values: dict) -> dict:
-    """Fill ``{{input.x}}`` templates; an argument whose input is absent is left out."""
+    """Fill ``{{input.x}}`` and ``{{slot.<slot>.<field>}}`` templates (a later stage reads an earlier slot's answer,
+    a slot's depends_on, see Runner.run); an argument whose value is absent is left out."""
     args = {}
     for key, value in input_map.items():
         match = TEMPLATE.match(value) if isinstance(value, str) else None
         if match:
-            if values.get(match.group(1)) not in (None, ""):
-                args[key] = values[match.group(1)]
+            name = match.group(2) if match.group(1) == "input" else "slot." + match.group(2)
+            if values.get(name) not in (None, ""):
+                args[key] = values[name]
         else:
             args[key] = value
     return args
@@ -262,8 +269,37 @@ def norm_generic(raw, values):
     return {"text": text[:4000], "urls": URL.findall(text)[:20]} if text.strip() else None
 
 
+REGISTRY_KEYS = {"cik": ("sec cik", "cik", "cik_str", "sec_cik"), "ticker": ("ticker", "tickers", "symbol"),
+                 "lei": ("lei",), "legal_name": ("legal_name", "legalname", "name", "entity_name")}
+
+
+def norm_registry(raw, values):
+    """company.registry.v1: legal name and identifiers (SEC CIK, ticker, LEI) from a structured answer. A later stage
+    reads them ({{slot.registry.ticker}}); an answer without a name or any identifier fails the slot."""
+    if is_error(raw) or not isinstance(raw, (dict, list)):
+        return None
+    out: dict = {}
+    for node, _ in _walk(raw):
+        if not isinstance(node, dict):
+            continue
+        for key, item in node.items():
+            k = str(key).lower()
+            for name, names in REGISTRY_KEYS.items():
+                if name not in out and k in names and isinstance(item, (str, int)) and str(item).strip():
+                    out[name] = str(item).strip()
+    if "ticker" in out:
+        out["ticker"] = re.split(r"[,\s]+", out["ticker"])[0]
+    if "cik" in out and not re.fullmatch(r"\d{1,10}", out["cik"]):
+        del out["cik"]
+    if "lei" in out and not re.fullmatch(r"[A-Z0-9]{18}\d{2}", out["lei"]):
+        del out["lei"]
+    if not out.get("legal_name") and not any(out.get(k) for k in ("cik", "lei", "ticker")):
+        return None
+    return out
+
+
 NORMALIZERS = {"package.advisories.v1": norm_advisories, "cve.record.v1": norm_record,
-               "cve.exploited.v1": norm_exploited}
+               "cve.exploited.v1": norm_exploited, "company.registry.v1": norm_registry}
 
 
 def normalize(contract: str, raw, values):
@@ -361,7 +397,7 @@ class Runner:
             st["result"].attempts.append(Attempt(member.get("resource_id"), member["tool"], member["kind"], rank,
                                                  False, 0, "capacity"))
             return False
-        future = pool.submit(self._call, member, rank, values, st["slot"]["contract"], st["deadline"])
+        future = pool.submit(self._call, member, rank, st.get("values", values), st["slot"]["contract"], st["deadline"])
         future.add_done_callback(lambda _f: self.inflight.release())   # also runs when cancelled
         st["inflight"][future] = (rank, member)
         return True
@@ -377,8 +413,21 @@ class Runner:
                 return
             self._submit(pool, st, rank, member, values, run_started)
 
+    def _start(self, pool, st, values, run_started):
+        st["started"] = True
+        fanout = max(1, st["slot"].get("fanout", 1))
+        lead = [(r, m) for r, m in st["ranked"] if m["kind"] == "external"][:fanout]
+        st["queue"] = [x for x in st["ranked"] if x not in lead]
+        for rank, member in lead:
+            self._submit(pool, st, rank, member, values, run_started)
+        self._advance(pool, st, values, run_started)
+
     @staticmethod
     def _settled(st, now) -> bool:
+        if st["result"].skipped:
+            return True
+        if st["after"] and not st.get("started"):
+            return now >= st["deadline"]
         if st["inflight"]:
             return now >= st["deadline"]
         return bool(st["result"].answers) or not st["queue"] or now >= st["deadline"]
@@ -399,25 +448,42 @@ class Runner:
         pool = ThreadPoolExecutor(max_workers=self.workers)
         states: dict[str, dict] = {}
         try:
+            slot_s = slot_deadline - started
             for slot in defn["slots"]:
                 chain = [m for m in runtime_chain(slot, defn["slug"], self.watch_state) if in_coverage(m, values)]
                 ranked = list(enumerate(chain, start=1))
                 fanout = max(1, slot.get("fanout", 1))
-                lead = [(r, m) for r, m in ranked if m["kind"] == "external"][:fanout]
                 st = {"slot": slot, "required": bool(slot.get("required", True)),
                       "result": SlotResult(slot["slot"], bool(slot.get("required", True)), fanout),
-                      "queue": [x for x in ranked if x not in lead], "inflight": {},
-                      "deadline": min(deadline, slot_deadline)}
+                      "ranked": ranked, "queue": [], "inflight": {}, "deadline": min(deadline, slot_deadline),
+                      "after": list(slot.get("depends_on") or []), "values": values}
                 states[slot["slot"]] = st
-                for rank, member in lead:
-                    self._submit(pool, st, rank, member, values, started)
-                self._advance(pool, st, values, started)
+                missing = [k for k in slot.get("requires_input") or [] if values.get(k) in (None, "")]
+                if missing:
+                    st["result"].skipped = "input_absent"          # an optional step the input does not ask for
+                elif not st["after"]:
+                    self._start(pool, st, values, started)
             while True:
                 now = self.clock()
+                for st in states.values():                         # later stages start once their inputs settled
+                    if st["after"] and not st["result"].skipped and not st.get("started"):
+                        ups = [states[name] for name in st["after"]]
+                        if all(self._settled(up, now) and up.get("started", True) for up in ups):
+                            if not all(up["result"].answers for up in ups):
+                                st["result"].skipped = "upstream_failed"
+                            else:
+                                staged = dict(values)
+                                for up in ups:
+                                    for key, item in (up["result"].answers[0][1] or {}).items():
+                                        if isinstance(item, (str, int, float)) and not isinstance(item, bool):
+                                            staged[f"slot.{up['slot']['slot']}.{key}"] = item
+                                st["values"] = staged
+                                st["deadline"] = min(deadline, now + slot_s)
+                                self._start(pool, st, staged, started)
                 for st in states.values():
                     if st["inflight"] and now >= st["deadline"]:
                         self._abandon(st, now, started)
-                    self._advance(pool, st, values, started)
+                    self._advance(pool, st, st["values"], started)
                 if all(self._settled(st, now) for st in states.values()):
                     break
                 waiting = {f: st for st in states.values() for f in st["inflight"]}

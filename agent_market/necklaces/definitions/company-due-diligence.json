@@ -1,0 +1,203 @@
+{
+  "slug": "company-due-diligence",
+  "version": 1,
+  "status": "candidate",
+  "name": "Company due diligence",
+  "summary": "Who a company is and what it has filed: its registered identity (SEC CIK and ticker, or LEI), an encyclopedia summary, its latest SEC filings when it files with the SEC, and its domain registration when you give its website.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 200
+      },
+      "country": {
+        "type": "string",
+        "pattern": "^[A-Z]{2}$"
+      },
+      "domain": {
+        "type": "string",
+        "pattern": "^(?=.{4,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}$"
+      }
+    },
+    "required": [
+      "name"
+    ],
+    "additionalProperties": false
+  },
+  "budget_ms": {
+    "total": 5000,
+    "slot": 2500
+  },
+  "synthesis": {
+    "kind": "merge-v1",
+    "rules": [
+      "identity comes from the registry step; a later step uses its ticker",
+      "filings are listed only for SEC filers; non-US companies are identified by LEI",
+      "every statement keeps its source link"
+    ]
+  },
+  "answer_set": "company-due-diligence-v1",
+  "slots": [
+    {
+      "slot": "registry",
+      "contract": "company.registry.v1",
+      "required": true,
+      "fanout": 1,
+      "chain": [
+        {
+          "kind": "agentcon",
+          "agent_id": "sec-edgar",
+          "resource_id": null,
+          "tool": "find_sec_company",
+          "registrable_domain": "agentconcierge.biz",
+          "upstream": [
+            "sec-edgar"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "planned",
+          "input_map": {
+            "name": "{{input.name}}",
+            "country": "{{input.country}}"
+          },
+          "coverage": {
+            "country": [
+              "US"
+            ]
+          }
+        },
+        {
+          "kind": "agentcon",
+          "agent_id": "gleif-lei",
+          "resource_id": null,
+          "tool": "find_lei_record",
+          "registrable_domain": "agentconcierge.biz",
+          "upstream": [
+            "gleif"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "planned",
+          "input_map": {
+            "name": "{{input.name}}",
+            "country": "{{input.country}}"
+          }
+        }
+      ]
+    },
+    {
+      "slot": "background",
+      "contract": "encyclopedia.summary.v1",
+      "required": true,
+      "fanout": 1,
+      "chain": [
+        {
+          "kind": "external",
+          "resource_id": 241601,
+          "tool": "wikipedia_search",
+          "registrable_domain": "cwei59969.workers.dev",
+          "upstream": [
+            "wikipedia"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "active",
+          "pearl": true,
+          "input_map": {
+            "query": "{{input.name}}"
+          }
+        },
+        {
+          "kind": "agentcon",
+          "agent_id": "wikipedia-summary",
+          "resource_id": null,
+          "tool": "get_wikipedia_summary",
+          "registrable_domain": "agentconcierge.biz",
+          "upstream": [
+            "wikipedia"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "planned",
+          "input_map": {
+            "title": "{{input.name}}"
+          }
+        }
+      ]
+    },
+    {
+      "slot": "filings",
+      "contract": "sec.filings.v1",
+      "required": false,
+      "fanout": 1,
+      "depends_on": [
+        "registry"
+      ],
+      "chain": [
+        {
+          "kind": "external",
+          "resource_id": 58997,
+          "tool": "list_filings",
+          "registrable_domain": "filings.tools",
+          "upstream": [
+            "sec-edgar"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "active",
+          "pearl": true,
+          "input_map": {
+            "ticker": "{{slot.registry.ticker}}"
+          },
+          "coverage": {
+            "country": [
+              "US"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "slot": "domain",
+      "contract": "domain.lookup.v1",
+      "required": false,
+      "fanout": 1,
+      "requires_input": [
+        "domain"
+      ],
+      "chain": [
+        {
+          "kind": "external",
+          "resource_id": 52559,
+          "tool": "whois_lookup",
+          "registrable_domain": "presend.pages.dev",
+          "upstream": [
+            "rdap"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "active",
+          "pearl": true,
+          "input_map": {
+            "domain": "{{input.domain}}"
+          }
+        }
+      ]
+    }
+  ],
+  "notes": "Draft (PM 11-15 09:5x, option c). Leads are verified pearls 241601 (encyclopedia.summary), 58997 (sec.filings) and 52559 (domain.lookup) by the 11-15 verify snapshot. registry runs on AgentValCon substitutes only: sec-edgar is ops-approved for company.registry.v1 (11-15 08:50), gleif-lei waits for its re-verdict on holdout-r3."
+}

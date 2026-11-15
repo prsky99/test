@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import re
 import time
 from pathlib import Path
 
@@ -25,7 +26,7 @@ from .judge import DEFAULT_ROOT, _iso
 BASE = "https://agentconcierge.biz"
 QA = "necklace_retest"
 BUDGET_SECONDS = 35 * 60
-CONTRAST = {"package-risk-audit": "advisories", "cve-incident-brief": "record", "company-due-diligence": "registry",
+CONTRAST = {"package-risk-audit": "advisories", "cve-incident-brief": "record", "company-due-diligence": "background",
             "topic-evidence-brief": "papers"}
 
 
@@ -169,10 +170,25 @@ def grade_papers(case, slot_out) -> bool:
                for p in case["truth"]["papers"])
 
 
+LEGAL_WORDS = {"inc", "corp", "co", "ltd", "plc", "ag", "se", "sa", "nv", "spa", "asa", "ab", "oyj", "group", "holdings",
+               "holding", "company", "corporation", "limited", "incorporated", "the", "and"}
+
+
+def company_words(case) -> set[str]:
+    """Distinctive words of the company's typed and legal names (legal forms and short words left out)."""
+    from .gold import name_key
+    names = [case["input"].get("name"), case["truth"].get("legal_name"), case["truth"].get("sec_title")]
+    return {w for n in names if n for w in name_key(n).split() if len(w) > 2 and w not in LEGAL_WORDS}
+
+
 def grade_background(case, slot_out) -> bool:
-    """The encyclopedia answer is about the topic: its title, or two words of its short description."""
+    """The encyclopedia answer is about the topic: its title, or two words of its short description. For a company
+    case (no wiki truth): it names the company by one of its distinctive words."""
     if not slot_out or slot_out.get("missing"):
         return False
+    if "wiki" not in case["truth"]:
+        text = _text(slot_out)
+        return any(re.search(r"\b" + re.escape(w) + r"\b", text) for w in company_words(case))
     text, wiki = _text(slot_out), case["truth"]["wiki"]
     if wiki["title"].lower() in text:
         return True
@@ -187,6 +203,19 @@ def grade_web(case, slot_out) -> bool:
 GRADERS = {"advisories": grade_advisories, "health": grade_health, "record": grade_record,
            "exploited": grade_exploited, "registry": grade_registry, "papers": grade_papers,
            "background": grade_background, "web": grade_web}
+
+
+def grade_company_task(case, output) -> bool:
+    """company-due-diligence as one task, for the necklace and for each single pearl alike (the delta compares the same
+    task on the same case): the answer must carry the company's official identifier (the truth's SEC CIK or GLEIF
+    LEI) and name the company."""
+    text = _text(output or {})
+    ids = [i for i in (case["truth"].get("cik"), case["truth"].get("lei")) if i]
+    has_id = any(re.search(r"\b0*" + re.escape(i.lower()) + r"\b", text) for i in ids)
+    return has_id and grade_background(case, {"text": text})
+
+
+TASK_GRADERS = {"company-due-diligence": grade_company_task}
 
 
 def grade(defn: dict, case: dict, output: dict) -> dict:
@@ -255,9 +284,10 @@ def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT,
                 if pacer is not None:
                     pacer.wait_for(2)
                 out = runner.Runner(caller).run(one, case["input"])
+                task = TASK_GRADERS.get(defn["slug"])
+                ok = task(case, out["output"]) if task else GRADERS[contrast](case, out["output"].get(contrast))
                 lines.append({"type": "single", "slug": defn["slug"], "resource_id": member["resource_id"],
-                              "tool": member["tool"], "case_id": case["case_id"], "at": at,
-                              "ok": GRADERS[contrast](case, out["output"].get(contrast))})
+                              "tool": member["tool"], "case_id": case["case_id"], "at": at, "ok": ok})
         done += 1
         passed += verdict["ok"]
     retest = Path(root) / "retest" / f"{day}.jsonl"

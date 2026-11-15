@@ -165,6 +165,29 @@ def input_validator(schema: dict) -> Draft202012Validator:
     return validator
 
 
+SLOT_TEMPLATE = re.compile(r"\{\{slot\.([a-z_][a-z0-9_]*)\.([a-z_][a-z0-9_]*)\}\}")
+
+
+def stage_errors(defn: dict) -> list[str]:
+    """Staged slots (runner: ``depends_on``, ``requires_input``, ``{{slot.<slot>.<field>}}`` templates): a slot reads
+    only slots it depends on (earlier ones, checked in validate), and an input-dependent step is optional and names
+    schema inputs."""
+    errors = []
+    props = set(((defn.get("input_schema") or {}).get("properties") or {}))
+    for slot in defn.get("slots") or []:
+        name = slot.get("slot")
+        after = slot.get("depends_on") or []
+        needs = slot.get("requires_input") or []
+        if needs and (slot.get("required", True) or any(n not in props for n in needs)):
+            errors.append(f"slot {name}: requires_input is for optional slots and names input_schema properties")
+        for member in slot.get("chain") or []:
+            for value in (member.get("input_map") or {}).values():
+                for ref, _field in SLOT_TEMPLATE.findall(value if isinstance(value, str) else ""):
+                    if ref not in after:
+                        errors.append(f"slot {name}: a template reads slot {ref}, which is not in its depends_on")
+    return errors
+
+
 def validate(defn: dict, *, check_contracts: bool = True) -> list[str]:
     errors: list[str] = []
     slug = defn.get("slug")
@@ -250,6 +273,7 @@ def validate(defn: dict, *, check_contracts: bool = True) -> list[str]:
     single_fanout = len(slots) == 1 and isinstance(slots[0].get("fanout", 1), int) and slots[0].get("fanout", 1) >= 2
     if required < 2 and not single_fanout:
         errors.append("a necklace needs two required slots, or one slot fanning out to two or more pearls")
+    errors.extend(stage_errors(defn))
     return errors
 
 
