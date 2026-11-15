@@ -600,7 +600,8 @@ class WorkflowRuntime:
         elif version:registry.record(version,scope='execution',outcome='succeeded',started=started,finished=time.time(),operation_ref=attempt.id if attempt else None)
         return result
 
-    def _call_registered(self,node,args,binding=None):
+    def _call_registered(self,node,args,binding=None,*,timeout=None):
+        # timeout: seconds the caller has left (necklace slot deadline, 11-15); the MCP call waits at most that long
         from .execution_authority import require_enabled
         require_enabled(self.store,'workflow');require_enabled(self.store,'invoke')
         data=node.get('data',{});rid=node.get('resource_id') or data.get('resource_id')
@@ -672,7 +673,7 @@ class WorkflowRuntime:
             except ExecutionDenied as exc:raise WorkflowError(str(exc),error_code=exc.error_code) from exc
         from .edge_gateway.native import execute as edge_execute
         result=None if data.get('credential_refs') else edge_execute(self.store,resource,{'tool':tool,'arguments':args},courier=self.courier)
-        if result is None:result=self.proxy.execute(rid,tool,args)
+        if result is None:result=self.proxy.execute(rid,tool,args,**({'timeout':timeout} if timeout is not None else {}))
         if not isinstance(result,dict) or not result.get('ok'):
             fault=failure_fields(result.get('error_code') if isinstance(result,dict) else None)
             raise WorkflowError(fault['error_message'],error_code=fault['error_code'],

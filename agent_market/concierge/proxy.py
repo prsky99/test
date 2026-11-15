@@ -6,6 +6,7 @@ against the gateway's pinned baseline hash before execution.
 Integrates with Clearinghouse for zero-trust A402 virtual escrow and SLA verification.
 """
 
+import contextvars
 import json
 import logging
 import time
@@ -25,6 +26,29 @@ from ..observability import journal_for, current_attempt, attempt_scope, provide
 log = logging.getLogger("agent_market.concierge.proxy")
 
 
+DEFAULT_TIMEOUT = 15.0
+# 11-15 (workflow team, PM 10:54): a necklace slot has a deadline; a caller may pass the time it has left, and
+# this one call then waits at most that long (never longer than the 15 s default, never under 0.5 s).
+_CALL_TIMEOUT = contextvars.ContextVar('mcp_proxy_call_timeout', default=None)
+
+
+def _seconds():
+    value = _CALL_TIMEOUT.get()
+    return DEFAULT_TIMEOUT if value is None else value
+
+
+def _timeout():
+    seconds = _seconds()
+    return httpx.Timeout(seconds, connect=min(5.0, seconds))
+
+
+def call_timeout(value):
+    """The bounded per-call limit for VALUE seconds left (None keeps the default)."""
+    if value is None:
+        return None
+    return max(0.5, min(DEFAULT_TIMEOUT, float(value)))
+
+
 class McpProxy:
     def __init__(self, store: Store, allow_private: bool = False, http: httpx.Client | None = None,
                  clearinghouse: Clearinghouse | None = None):
@@ -35,10 +59,19 @@ class McpProxy:
         self.clearinghouse = clearinghouse or Clearinghouse(store)
 
     def _client(self, public=False) -> httpx.Client:
-        return bounded_client(self._http, allow_private=self.allow_private and not public, timeout=15.0)
+        return bounded_client(self._http, allow_private=self.allow_private and not public, timeout=_seconds())
 
     def execute(self, resource_id: int, tool_name: str, arguments: dict[str, Any] | None = None,
-                account_id: str | None = None, payment: dict[str, Any] | None = None, *, public=False) -> dict[str, Any]:
+                account_id: str | None = None, payment: dict[str, Any] | None = None, *, public=False,
+                timeout: float | None = None) -> dict[str, Any]:
+        token = _CALL_TIMEOUT.set(call_timeout(timeout)) if timeout is not None else None
+        try:
+            return self._execute_timed(resource_id, tool_name, arguments, account_id, payment, public=public)
+        finally:
+            if token is not None:
+                _CALL_TIMEOUT.reset(token)
+
+    def _execute_timed(self, resource_id, tool_name, arguments, account_id, payment, *, public=False):
         if current_attempt(self.store):
             return self._execute_recorded(resource_id,tool_name,arguments,account_id,payment,public=public)
         operation=self.journal.begin('execution','legacy',resource_id=resource_id)
@@ -222,7 +255,7 @@ class McpProxy:
         try:
             # Remote Handshake & Hash Pinning Check (Anti-Rug-Pull)
             try:
-                disc_resp = client.post(url, json={"jsonrpc": "2.0", "id": 1, "method": "server/discover", "params": {}}, headers=headers)
+                disc_resp = client.post(url, json={"jsonrpc": "2.0", "id": 1, "method": "server/discover", "params": {}}, headers=headers, timeout=_timeout())
                 disc_data = decoded(disc_resp, 1)
                 if isinstance(disc_data.get("result"), dict) and disc_data["result"]:
                     pv = disc_data["result"].get("protocolVersion")
@@ -230,7 +263,7 @@ class McpProxy:
                         headers["mcp-protocol-version"] = str(pv)
                     listed = decoded(client.post(url, json={"jsonrpc": "2.0", "id": 2, "method": "tools/list",
                                                                   "params": {"_meta": {"io.modelcontextprotocol/protocolVersion": str(pv or "2026-07-28")}}},
-                                                       headers=headers), 2)
+                                                       headers=headers, timeout=_timeout()), 2)
                     remote_tools = (listed.get("result") or {}).get("tools")
             except RateLimited:
                 raise   # never follow a 429 with the initialize handshake
@@ -238,7 +271,7 @@ class McpProxy:
                 log.debug('Optional MCP discovery unavailable; checking registered tools.')
 
             if remote_tools is None:
-                init_resp = client.post(url, json=INIT, headers=HEADERS)
+                init_resp = client.post(url, json=INIT, headers=HEADERS, timeout=_timeout())
                 init_data = decoded(init_resp, INIT['id'])
                 init_res = init_data.get("result")
                 if not isinstance(init_res, dict):
@@ -249,8 +282,8 @@ class McpProxy:
                 if pv := init_res.get("protocolVersion"):
                     headers["mcp-protocol-version"] = str(pv)
 
-                client.post(url, json={"jsonrpc": "2.0", "method": "notifications/initialized"}, headers=headers)
-                listed = decoded(client.post(url, json={"jsonrpc": "2.0", "id": 2, "method": "tools/list"}, headers=headers), 2)
+                client.post(url, json={"jsonrpc": "2.0", "method": "notifications/initialized"}, headers=headers, timeout=_timeout())
+                listed = decoded(client.post(url, json={"jsonrpc": "2.0", "id": 2, "method": "tools/list"}, headers=headers, timeout=_timeout()), 2)
                 remote_tools = (listed.get("result") or {}).get("tools")
 
             if not isinstance(remote_tools, list):
@@ -296,7 +329,7 @@ class McpProxy:
             call_body = usage.jsonrpc_call(tool_name, arguments)
             provider_dispatch()
             call_resp = client.post(url, json=call_body, headers=headers,
-                                    timeout=httpx.Timeout(15.0, connect=5.0))
+                                    timeout=_timeout())
             elapsed_ms = int((time.monotonic() - started) * 1000)
             call_data = decoded(call_resp, call_body['id'])
             err = call_data.get("error")
@@ -368,7 +401,7 @@ class McpProxy:
 
         started = time.monotonic()
         try:
-            req_kwargs: dict[str, Any] = {"headers": headers, "timeout": httpx.Timeout(15.0, connect=5.0)}
+            req_kwargs: dict[str, Any] = {"headers": headers, "timeout": _timeout()}
             if method in ("POST", "PUT", "PATCH"):
                 req_kwargs["json"] = arguments
             else:
