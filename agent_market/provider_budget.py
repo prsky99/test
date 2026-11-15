@@ -81,7 +81,9 @@ def domain_total(name):
 
 # One-day grants (dated, so they end by themselves). 11-15 PM 16:4x / workflow 9da8aa94: the package-risk-audit
 # activity answer set needs 27 npm packages x (registry.npmjs.org 1 + api.github.com 1) once.
-ONE_DAY = {'20261116': {('reference_checks', 'npmjs.org'): 30, ('reference_checks', 'github.com'): 30}}
+ONE_DAY = {'20261116': {('reference_checks', 'npmjs.org'): 30, ('reference_checks', 'github.com'): 30,
+                        # workflow 0555a3b5: topic-evidence-brief holdout-r3, one OpenAlex read a topic (39 topics)
+                        ('reference_checks', 'openalex.org'): 40}}
 # GitHub's hourly reference_checks share on those days, in the night hours only (00-07 KST), when live answers are few.
 ONE_NIGHT_GITHUB = {'20261116': {'reference_checks': 10}}
 
