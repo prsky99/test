@@ -174,34 +174,52 @@ class SqliteClaimDB:
         return [dict(r) for r in self._db.execute(SQL[name], args).fetchall()]
 
 
+SQL_REGISTRY = Path(__file__).with_name("provider_self_claims_sql.json")
+
+
+def sql_digests() -> dict:
+    return {name: hashlib.sha256(" ".join(text.split()).encode()).hexdigest() for name, text in sorted(SQL.items())}
+
+
+def registered_digests() -> dict:
+    try:
+        data = json.loads(SQL_REGISTRY.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data.get("statements") if isinstance(data, dict) and isinstance(data.get("statements"), dict) else {}
+
+
 class PostgresClaimDB:
-    """Production: one dedicated connection to the application database, pinned to SCHEMA (never public), with a
-    2-second statement limit. Attaches on first use; while the schema is missing or of another version the feature
-    stays off and the check is repeated at most every 5 minutes. Only the statements in SQL are ever sent."""
+    """Production, inside SCHEMA (never public), on the application database.
+
+    - No standing connection (connection budget: max_connections 48, application pools 45): every transaction or
+      single read opens one connection, pins search_path and a 2-second statement limit, and closes it at the end.
+      At most one is open per process at a time.
+    - Only registered statements: each statement's digest must match agent_market/provider_self_claims_sql.json
+      (checked again before every statement); a registry that does not match the code keeps the feature off. This is
+      the claims schema's own list, like AI AD Coin's sql_registry.json, kept out of the application catalog whose
+      start-up check would stop the frontend until the tables exist.
+    - Attaches on first use. While the schema is missing (or of another version) the feature stays off and the check
+      (one short connection) is repeated at most every 5 minutes, only when someone uses the feature."""
     backend = "postgres"
     RETRY_S = 300.0
 
     def __init__(self, factory, clock=time.monotonic):
         self.factory, self.clock = factory, clock
-        self._conn, self._lock = None, threading.RLock()
-        self._ready, self._checked, self._depth = False, None, 0
+        self._lock = threading.RLock()
+        self._ready, self._checked = False, None
+        self._local = threading.local()
 
-    def _connection(self):
-        if self._conn is None or self._conn.closed:
-            connection = self.factory()
+    def _open(self):
+        connection = self.factory()
+        try:
             connection.autocommit = True
             connection.execute("SET search_path TO " + SCHEMA)
             connection.execute("SET statement_timeout = 2000")
-            self._conn = connection
-        return self._conn
-
-    def _drop(self):
-        try:
-            if self._conn is not None:
-                self._conn.close()
         except Exception:
-            pass
-        self._conn = None
+            connection.close()
+            raise
+        return connection
 
     def ready(self) -> bool:
         if self._ready:
@@ -210,6 +228,8 @@ class PostgresClaimDB:
         if self._checked is not None and now - self._checked < self.RETRY_S:
             return False
         self._checked = now
+        if registered_digests() != sql_digests():
+            return False
         try:
             row = self.one("schema_get")
             self._ready = row is not None and int(row["version"]) == SCHEMA_VERSION
@@ -220,40 +240,46 @@ class PostgresClaimDB:
     @contextmanager
     def tx(self):
         with self._lock:
-            connection = self._connection()
+            connection = self._open()
             try:
                 with connection.transaction():
-                    self._depth += 1
+                    self._local.connection = connection
                     try:
                         yield self
                     finally:
-                        self._depth -= 1
-            except Exception:
-                if self._conn is not None and self._conn.broken:
-                    self._drop()
-                raise
+                        self._local.connection = None
+            finally:
+                connection.close()
 
-    def _execute(self, name, args):
+    def _execute(self, name, args, fetch):
         from psycopg.rows import dict_row
+        text = SQL[name]
+        if registered_digests().get(name) != hashlib.sha256(" ".join(text.split()).encode()).hexdigest():
+            raise RuntimeError("unregistered_sql: " + name)
         with self._lock:
+            current = getattr(self._local, "connection", None)
+            connection = current or self._open()
             try:
-                cursor = self._connection().cursor(row_factory=dict_row)
-                cursor.execute(SQL[name].replace("?", "%s"), tuple(args))
-                return cursor
-            except Exception:
-                if self._depth == 0:
-                    self._drop()
-                raise
+                cursor = connection.cursor(row_factory=dict_row)
+                cursor.execute(text.replace("?", "%s"), tuple(args))
+                if fetch == "one":
+                    row = cursor.fetchone()
+                    return dict(row) if row is not None else None
+                if fetch == "all":
+                    return [dict(r) for r in cursor.fetchall()]
+                return cursor.rowcount
+            finally:
+                if current is None:
+                    connection.close()
 
     def run(self, name, args=()):
-        return self._execute(name, args).rowcount
+        return self._execute(name, args, "run")
 
     def one(self, name, args=()):
-        row = self._execute(name, args).fetchone()
-        return dict(row) if row is not None else None
+        return self._execute(name, args, "one")
 
     def all(self, name, args=()):
-        return [dict(r) for r in self._execute(name, args).fetchall()]
+        return self._execute(name, args, "all")
 
 
 def postgres_schema_statements() -> list[str]:
@@ -683,3 +709,19 @@ class ProviderSelfClaims:
                                                     claim["revision"]))
                     counts["lapsed" if state == "lapsed" else "retry"] += 1
         return {"available": True, **counts}
+
+
+def main(argv=None) -> int:
+    """python -m agent_market.provider_self_claims --write-sql-registry   (after changing SQL; reviewed in git)"""
+    import argparse
+    parser = argparse.ArgumentParser(description="Write the claims schema's registered SQL digests.")
+    parser.add_argument("--write-sql-registry", action="store_true", required=True)
+    parser.parse_args(argv)
+    SQL_REGISTRY.write_text(json.dumps({"profile": "provider-claims-sql-v1", "statements": sql_digests()},
+                                       indent=1, sort_keys=True) + "\n", encoding="utf-8")
+    print(len(SQL), "statements")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

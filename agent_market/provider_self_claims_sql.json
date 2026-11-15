@@ -1,0 +1,26 @@
+{
+ "profile": "provider-claims-sql-v1",
+ "statements": {
+  "check_insert": "c2337ae32a09b23f2bfe243411d82c8df7afb0fd18d1dfee1eb14753600bb7f7",
+  "checks_customer_since": "8eacf727c38c5a1501ca093d2b79c4d9cade54136d7509cec202415544136a0a",
+  "checks_origin_last": "debf14f1ac2c3cf753d7670acda54d308957cc169b617c334ac8cb5ad4f01f7b",
+  "claim_get": "4ae0280c8b5ecb1bb4716f055f8bef8b61dd9d8bc71910e272cb1a1d08a2a07d",
+  "claim_get_any": "18df0c61dae01f3578fd6a8c6cd70e7641be5df47d910eac0f9c42d1c6b481db",
+  "claim_insert": "62015f25fd660b070e15169e50b37181d03a31f22f709cb4bcf6b5395a0883cb",
+  "claim_live_for_scope": "e3def24d2cadfbd40183766e19f3357a09b0a549d966252c85ed18c3a54a4df3",
+  "claim_recheck_failed": "854d2431e6f6e577b5b6adc89813820141fc9e4d5a2dbbd4ded3e67458661c08",
+  "claim_transition": "7202715d9a4273eee1d83b452d21fc5d1ccec9d34a1ad66af056518016e88b89",
+  "claim_verified": "0c20387b103d448c8652ac6f4b3296d99bc724eff15cc73940be453125881360",
+  "claims_due": "5c73c3e3889adcc69b14ebe4b47461d707863baeb853a25b9a3488befd374ebd",
+  "claims_expire_pending": "45a268c8dd2c26e2aa959ac5309f627da3bd2ee95cd63a2001ad794501f41fc9",
+  "claims_for_customer": "c0e0de438207a4ad14ad49345750caeb73aa4aed8ba7b829af28917f9caac80d",
+  "claims_live_count": "abe3bfce30eaff750ca1d41fd37270d5b206c9af1fb1fb4023af0ff072ff78e7",
+  "claims_verified_for_customer": "667115a8598cbfe1e782966bfa8f0dca4dbc607013c2bf170c78aed4c96275f3",
+  "correction_decide": "e8f751e3ada97a3ce0571204b398c5fd938b395b175730979a1433d1c6c25727",
+  "correction_insert": "b1a9bd48df35e0b1bbdd865b4f1574799b72ead82cf2a2a64f959737717b5306",
+  "corrections_for_resource": "be7e3d6908794b0963484c83356cf5847dee1ab8d106faa43e213ff47ec19ef0",
+  "corrections_open_count": "92bcd1f90c5367a3227f359d5c80478f4762fa8515d224ed6db331d34aaa4b51",
+  "corrections_waiting": "7d1e7ce971ab53675ef1fefc17046cb42f35298af65ecde6f1ba1d4fee6516bb",
+  "schema_get": "0be50e7b3e6f7aad0b16c8ff33ac4e24b7fae894d94269db7d321010c7299c92"
+ }
+}

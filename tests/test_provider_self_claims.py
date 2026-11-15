@@ -336,9 +336,9 @@ def test_recheck_job_stays_out_of_measurement_windows():
     assert S.recheck_job(store, now=open_) == {"available": False}
 
 
-def test_postgres_db_pins_its_schema_sends_named_sql_and_stays_off_while_missing():
+def test_postgres_db_opens_short_connections_sends_registered_sql_and_stays_off_while_missing(monkeypatch):
     from contextlib import contextmanager
-    sent = []
+    sent, opened, closed = [], [], []
 
     class Cursor:
         def __init__(self, rows):
@@ -356,7 +356,10 @@ def test_postgres_db_pins_its_schema_sends_named_sql_and_stays_off_while_missing
             return self.rows
 
     class Connection:
-        closed, broken, autocommit = False, False, False
+        autocommit = False
+
+        def __init__(self):
+            opened.append(self)
 
         def execute(self, sql, args=()):
             sent.append((sql, args))
@@ -369,18 +372,32 @@ def test_postgres_db_pins_its_schema_sends_named_sql_and_stays_off_while_missing
             yield self
 
         def close(self):
-            self.closed = True
+            closed.append(self)
 
     state = {"missing": True}
     clock = Clock()
     db = P.PostgresClaimDB(Connection, clock=clock)
     assert db.ready() is False
     assert ("SET search_path TO provider_claims", ()) in sent and ("SET statement_timeout = 2000", ()) in sent
+    assert len(opened) == len(closed) == 1          # no standing connection, even while off
     state["missing"] = False
-    assert db.ready() is False                 # checked again only after RETRY_S
+    assert db.ready() is False and len(opened) == 1  # checked again only after RETRY_S, without a connection
     clock.t += P.PostgresClaimDB.RETRY_S + 1
     assert db.ready() is True
     sent.clear()
     with db.tx():
         db.run("claims_expire_pending", (5.0,))
-    assert sent == [(P.SQL["claims_expire_pending"].replace("?", "%s"), (5.0,))]
+        db.one("claims_live_count", ("c",))
+    assert len(opened) == len(closed) == 3           # one connection for the whole transaction, closed after
+    assert [q for q, _ in sent if not q.startswith("SET")] == [
+        P.SQL["claims_expire_pending"].replace("?", "%s"), P.SQL["claims_live_count"].replace("?", "%s")]
+    monkeypatch.setitem(P.SQL, "claims_live_count", "SELECT 1")   # code changed without updating the registry
+    with pytest.raises(RuntimeError, match="unregistered_sql"):
+        db.one("claims_live_count", ("c",))
+    db2 = P.PostgresClaimDB(Connection, clock=clock)
+    assert db2.ready() is False                       # a registry that does not match the code keeps it off
+
+
+def test_sql_registry_matches_the_code():
+    """After changing SQL: python -m agent_market.provider_self_claims --write-sql-registry (reviewed in git)."""
+    assert P.registered_digests() == P.sql_digests() and len(P.sql_digests()) == len(P.SQL)
