@@ -215,7 +215,7 @@ def check(defn: dict, client, base: str = BASE, verified=None, substitutes=None,
             problems.append(f"slot {slot['slot']}: not ready, no member can run" + (f" ({'; '.join(why)})" if why else ""))
         if lead and lead.get("verified_pearl"):
             seated_pearl_slots.append(slot["slot"])
-        best = lead or next((r for r in seated if r["kind"] == "agentcon"), None)
+        best = seated[0] if seated else None        # the runtime order: pearl, provisional (ours too), the rest
         if best and best.get("standing") in standing_rules.COUNTED:
             counted_slots.append(slot["slot"])
         slots.append({"slot": slot["slot"], "contract": slot["contract"], "required": slot.get("required", True),

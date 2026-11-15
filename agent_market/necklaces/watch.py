@@ -175,10 +175,17 @@ def runtime_chain(slot: dict, slug: str, state: dict) -> list[dict]:
         chain = [dict(m, standing=standing_rules.standing(m, slot.get("contract"), block)) for m in chain]
     rank = {"verified_pearl": 0, "provisional": 1}
     out = []
+    if block is not None:
+        # PM 16:03: a step with no pearl runs on a provisional member, our own included, before members that pass
+        # neither bar; within a standing externals stay before our own and demoted members go last
+        for level in (0, 1, 2):
+            for kind in ("external", "agentcon"):
+                group = [m for m in chain if m.get("kind") == kind and rank.get(m.get("standing"), 2) == level]
+                keep = [m for m in group if not marks.get(member_key(slug, slot["slot"], m), {}).get("demoted")]
+                out += keep + [m for m in group if m not in keep]
+        return out
     for kind in ("external", "agentcon"):
         group = [m for m in chain if m.get("kind") == kind]
-        if block is not None:
-            group.sort(key=lambda m: rank.get(m.get("standing"), 2))      # stable: chain order within a standing
         keep = [m for m in group if not marks.get(member_key(slug, slot["slot"], m), {}).get("demoted")]
         out += keep + [m for m in group if m not in keep]
     return out

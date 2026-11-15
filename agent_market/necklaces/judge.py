@@ -196,15 +196,20 @@ def pearls(defn: dict, verified: set | None = None) -> list[dict]:
         agentcon = model.live_members(slot, "agentcon")
         fanout = slot.get("fanout", 1)
         leads, rest = externals[:fanout], externals[fanout:]
+        ordered = model.live_members(slot)
+        if any("standing" in m for m in ordered) and ordered and ordered[0].get("kind") == "agentcon":
+            leads, rest = [], externals      # PM 16:03: our provisional member leads a step no external one qualifies for
         alternates = [{"resource_id": m["resource_id"], "tool": m["tool"], "kind": "external",
                        "standing": m.get("standing")} for m in rest]
         alternates += [{"resource_id": m.get("resource_id"), "agent_id": m.get("agent_id"), "tool": m["tool"],
                         "kind": "agentcon", "standing": m.get("standing")} for m in agentcon[:model.MAX_AGENTCON]]
-        if not leads and agentcon:      # PM 16:03: a step with no external member runs on its own provisional one
+        if not leads and agentcon:      # PM 16:03: our own provisional member leads (no qualifying external member)
             lead = agentcon[0]
             out.append({"resource_id": lead.get("resource_id"), "agent_id": lead.get("agent_id"), "role": slot["slot"],
                         "tool": lead["tool"], "kind": "agentcon", "required": bool(slot.get("required", True)),
-                        "pearl": False, "standing": lead.get("standing"), "alternates": alternates[1:]})
+                        "pearl": False, "standing": lead.get("standing"),
+                        "alternates": [a for a in alternates if not (a["kind"] == "agentcon"
+                                                                     and a.get("agent_id") == lead.get("agent_id"))]})
         for lead in leads:
             pearl = bool(verified) and (lead["resource_id"], slot["contract"]) in verified
             # PM 16:03 item 4: verified_pearl or provisional per member (necklaces.members); None = not counted

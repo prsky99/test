@@ -110,3 +110,17 @@ def test_member_rules_are_numbers_for_the_methodology_page():
     got = members.rules({"verified_rule": {"min_score": 85, "successes_on_different_days": 2}})
     assert got["verified_pearl"] == {"min_score": 85, "successes_on_different_days": 2}
     assert got["provisional"]["min_score"] == members.PROVISIONAL["min_score"] and got["provisional"]["within_days"] == 7
+
+
+def test_our_provisional_member_leads_before_an_external_one_that_passes_neither_bar():
+    defn = base()
+    slot = defn["slots"][1]                     # chain 3, 4, own owned2
+    block = {"external": {}, "own": {"owned2|y.v1": "provisional"}}
+    own = next(m for m in slot["chain"] if m["kind"] == "agentcon")
+    own["state"] = "planned"
+    chain = runtime_chain(slot, defn["slug"], {"standing": block})
+    assert [m.get("agent_id") or m.get("resource_id") for m in chain] == ["owned2", 3, 4]
+    running = dict(defn, slots=[dict(s, chain=runtime_chain(s, defn["slug"], {"standing": block})) for s in defn["slots"]])
+    lead = next(p for p in judge.pearls(running, set()) if p["role"] == "news")
+    assert (lead["kind"], lead["agent_id"], lead["standing"]) == ("agentcon", "owned2", "provisional")
+    assert [a.get("resource_id") for a in lead["alternates"]] == [3, 4]
