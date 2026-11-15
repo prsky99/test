@@ -110,3 +110,17 @@ GitHub 무인증 REST 한도는 이 맥 IP 하나에 시간당 60번(core)이다
 - 시스템 이름은 `provider_claims`이고, 몫은 도메인당 하루 6회다. 도메인 하루 합계 60은 그대로다.
 - 제공자가 "확인"을 누를 때 GET 1회, 30일마다 다시 확인할 때 origin마다 GET 1회를 쓴다.
 - 몫을 다 썼거나 그날 429를 준 도메인이면 부르지 않고, 확인은 '장부 거절'로 끝난다.
+
+## 공개 데이터 기관의 하루 합계 (PM 11-15 11:40 결정 5, 목걸이 100개 계획)
+
+상업 제공자는 도메인당 하루 60회를 그대로 지킨다. 공개 데이터 기관은 그 기관이 공개한 요청 한도를 운영·SRE가 원문에서 확인한 경우에만 늘린다. 늘린 값은 그 한도를 하루로 환산한 값의 절반 이하다. 각 시스템 몫도 같은 비율(합계 ÷ 60)로 늘어난다(`provider_budget.DOMAIN_TOTAL`, `DOMAIN_LIMIT_SOURCE`).
+
+| 도메인 | 하루 합계 | 공개 한도(원문) | 하루 환산의 절반 | 출처(11-15 확인) |
+|---|---|---|---|---|
+| sec.gov | 600 | 10 requests/second | 432,000 | https://www.sec.gov/os/accessing-edgar-data |
+| arxiv.org | 600 | one request every three seconds | 14,400 | https://info.arxiv.org/help/api/tou.html |
+| met.no | 600 | total traffic below 20 requests/second | 864,000 | https://api.met.no/doc/TermsOfService |
+
+- 600이면 목걸이 재시험 몫은 350, 대체 에이전트 시험 몫은 50(sec.gov는 기존 30의 10배인 300)이다.
+- NVD(nist.gov)와 GLEIF(gleif.org)는 공식 페이지에서 숫자 한도를 확인하지 못해 60을 유지한다. 한도 문서를 확인하면 같은 방식으로 추가한다.
+- 기관별 간격(초당 요청 수)은 `fallback_agents/limits.py`의 호스트 간격이 지킨다. 하루 합계를 늘려도 순간 속도는 바뀌지 않는다.

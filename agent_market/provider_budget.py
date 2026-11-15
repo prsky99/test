@@ -46,6 +46,29 @@ SHARE = {
 # keeps (agent_market/fallback_agents/limits.py) take more substitute tests a day; the domain total stays DAILY_TOTAL.
 SHARE_OVERRIDE = {('substitute_tests', d): 30 for d in ('gleif.org', 'sec.gov', 'nist.gov', 'cisa.gov', 'wikipedia.org',
                                                          'wikidata.org', 'wiktionary.org')}
+# PM 11-15 11:40 (necklace-100 plan, decision 5): commercial providers keep DAILY_TOTAL; a public-data institution
+# whose own published rate limit was checked (source below, 11-15 by 운영·SRE) may take more, at most half of that
+# limit, by registrable domain. Each system's share on such a domain grows by the same factor (total / DAILY_TOTAL).
+# NVD and GLEIF are not listed: their pages did not show a number we could check (11-15).
+DOMAIN_TOTAL = {'sec.gov': 600, 'arxiv.org': 600, 'met.no': 600}
+DOMAIN_LIMIT_SOURCE = {   # domain -> (published limit, its daily half, where it is published)
+    'sec.gov': ('10 requests/second', 432000, 'https://www.sec.gov/os/accessing-edgar-data'),
+    'arxiv.org': ('1 request every 3 seconds', 14400, 'https://info.arxiv.org/help/api/tou.html'),
+    'met.no': ('total traffic below 20 requests/second', 864000, 'https://api.met.no/doc/TermsOfService'),
+}
+
+
+def domain_total(name):
+    return DOMAIN_TOTAL.get(name, DAILY_TOTAL)
+
+
+def share_limit(system, name):
+    base = SHARE_OVERRIDE.get((system, name), SHARE[system])
+    if system == 'gate':
+        return domain_total(name)
+    return base * domain_total(name) // DAILY_TOTAL
+
+
 # Hosting platforms give each tenant its own subdomain; the tenant, not the platform, is the provider.
 SHARED_SUFFIXES = (
     'vercel.app', 'netlify.app', 'pages.dev', 'workers.dev', 'github.io', 'herokuapp.com', 'onrender.com', 'fly.dev',
@@ -111,9 +134,9 @@ def reserve(url, system, n=1, now=None, directory=None):
         if entry.get('paused'):
             return False, 'paused_429'
         used = entry['by'].get(system, 0)
-        if entry['total'] + n > DAILY_TOTAL:
+        if entry['total'] + n > domain_total(name):
             return False, 'domain_daily_total'
-        if used + n > SHARE_OVERRIDE.get((system, name), SHARE[system]):
+        if used + n > share_limit(system, name):
             return False, 'system_share'
         entry['total'] += n
         entry['by'][system] = used + n

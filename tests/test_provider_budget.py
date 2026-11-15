@@ -103,14 +103,13 @@ def test_fallback_github_calls_go_through_the_shared_allowance(tmp_path, monkeyp
 def test_public_data_institutions_take_30_substitute_tests_and_keep_the_domain_total(tmp_path):
     """PM 11-14 decision 3: 30 substitute tests a day for listed public-data domains; others stay at 5; total 60."""
     now = at(14)
-    assert pb.reserve('https://data.sec.gov/submissions', 'substitute_tests', n=20, now=now, directory=tmp_path)[0]
-    assert pb.reserve('https://www.sec.gov/files/x.json', 'substitute_tests', n=10, now=now, directory=tmp_path)[0]
-    assert pb.reserve('https://www.sec.gov/y', 'substitute_tests', now=now, directory=tmp_path) == (False, 'system_share')
+    assert pb.reserve('https://api.gleif.org/a', 'substitute_tests', n=20, now=now, directory=tmp_path)[0]
+    assert pb.reserve('https://api.gleif.org/b', 'substitute_tests', n=10, now=now, directory=tmp_path)[0]
+    assert pb.reserve('https://api.gleif.org/c', 'substitute_tests', now=now, directory=tmp_path) == (False, 'system_share')
     assert pb.reserve('https://api.example.com/', 'substitute_tests', n=6, now=now, directory=tmp_path) == \
         (False, 'system_share')
-    assert pb.reserve('https://api.gleif.org/x', 'necklace_retest', n=35, now=now, directory=tmp_path)[0]
-    assert pb.reserve('https://api.gleif.org/x', 'substitute_tests', n=26, now=now, directory=tmp_path) == \
-        (False, 'domain_daily_total')
+    assert pb.reserve('https://api.gleif.org/x', 'necklace_retest', n=30, now=now, directory=tmp_path)[0]   # 30 + 30 = 60
+    assert pb.reserve('https://api.gleif.org/x', 'gate', now=now, directory=tmp_path) == (False, 'domain_daily_total')
     assert ('substitute_tests', 'github.com') not in pb.SHARE_OVERRIDE
 
 
@@ -145,3 +144,21 @@ def test_provider_self_claim_checks_have_six_a_domain_and_keep_the_total(tmp_pat
     assert pb.reserve(url, 'provider_claims', now=now, directory=tmp_path) == (False, 'system_share')
     assert pb.reserve(url, 'gate', n=54, now=now, directory=tmp_path) == (True, 'ok')        # 60 - 6
     assert pb.reserve(url, 'gate', now=now, directory=tmp_path) == (False, 'domain_daily_total')
+
+
+def test_public_institutions_with_a_checked_published_limit_take_ten_times_and_stay_under_half(tmp_path):
+    """PM 11-15 11:40 decision 5: only domains whose published limit was checked, at most half of it, source kept."""
+    now = at(14)
+    for name, total in pb.DOMAIN_TOTAL.items():
+        limit_text, daily_half, url = pb.DOMAIN_LIMIT_SOURCE[name]
+        assert total <= daily_half and url.startswith('https://') and limit_text
+    assert set(pb.DOMAIN_TOTAL) == {'sec.gov', 'arxiv.org', 'met.no'}       # NVD, GLEIF: no number we could check
+    assert pb.reserve('https://data.sec.gov/x', 'necklace_retest', n=350, now=now, directory=tmp_path) == (True, 'ok')
+    assert pb.reserve('https://www.sec.gov/y', 'necklace_retest', now=now, directory=tmp_path) == (False, 'system_share')
+    assert pb.reserve('https://www.sec.gov/z', 'substitute_tests', n=250, now=now, directory=tmp_path) == (True, 'ok')
+    assert pb.reserve('https://www.sec.gov/z', 'gate', now=now, directory=tmp_path) == (False, 'domain_daily_total')
+    assert pb.reserve('https://export.arxiv.org/api', 'pearl_batch', n=30, now=now, directory=tmp_path)[0]
+    assert pb.reserve('https://api.met.no/x', 'role_tests', n=50, now=now, directory=tmp_path)[0]
+    assert pb.reserve('https://api.example.com/', 'necklace_retest', n=36, now=now, directory=tmp_path) == \
+        (False, 'system_share')                                            # commercial providers keep 35 / 60
+    assert pb.share_limit('necklace_retest', 'example.com') == 35 and pb.domain_total('example.com') == 60
