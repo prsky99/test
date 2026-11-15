@@ -32,6 +32,12 @@ SUBSTITUTE_PASS = 29
 # musts (accuracy against an answer set or public reference, clean answer).
 REPORT_SCORE = 85
 
+# The evaluator version the pearl reports are graded with now. It lives here, in code every release ships, so the
+# judge of a deployed release compares the verify snapshot with its own version (PM 16:29, "production = git"; before
+# this the judge read scripts/report_v2.py under AGENTCON_PROJECT_ROOT, the working tree). scripts/report_v2 takes
+# it from here. Raising it is a change paired with a jobs deploy, and the snapshot is regenerated with it.
+EVALUATOR_VERSION = 'dq-2026-11-15d'
+
 
 def _retest_rules() -> dict:
     """The retest rules as they run (daily summary, then the judge), read from the code that applies them."""

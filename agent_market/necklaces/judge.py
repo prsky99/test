@@ -21,7 +21,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import subprocess
 import tempfile
 import time
@@ -144,15 +143,10 @@ def verify_snapshot_path() -> Path:
 
 
 def official_evaluator_version() -> str | None:
-    """The evaluator version the pearl reports are graded with now (scripts/report_v2.EVALUATOR_VERSION), read as
-    text so the judge does not import the report tool; None when it cannot be read."""
-    project = os.environ.get("AGENTCON_PROJECT_ROOT")
-    try:
-        text = ((Path(project) if project else Path(".")) / "scripts" / "report_v2.py").read_text(encoding="utf-8")
-    except OSError:
-        return None
-    found = re.search(r"^EVALUATOR_VERSION\s*=\s*['\"]([^'\"]+)['\"]", text, re.M)
-    return found.group(1) if found else None
+    """The evaluator version the pearl reports are graded with now, from this release's own code
+    (gate_rules.EVALUATOR_VERSION; PM 16:29: never the working tree under AGENTCON_PROJECT_ROOT)."""
+    from .gate_rules import EVALUATOR_VERSION
+    return EVALUATOR_VERSION or None
 
 
 def snapshot_problem(data: dict, now: float | None = None, official: str | None = None) -> str | None:

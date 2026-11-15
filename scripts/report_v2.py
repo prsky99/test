@@ -45,8 +45,8 @@ BOARD = ROOT / 'logs/ops/status-board.md'
 RULES = 'v2-2026-11-14'
 # Evaluation rules version (current-state review 11-14 F01-F03, F10). Versions scored under different evaluator
 # versions never count together as repeated successes; rescoring writes a score file per version, never over a version.
-EVALUATOR_VERSION = 'dq-2026-11-15d'
 from agent_market.necklaces import gate_rules  # noqa: E402  (운영·SRE 897baf3a: one source for the gate numbers)
+EVALUATOR_VERSION = gate_rules.EVALUATOR_VERSION   # PM 16:29: kept in agent_market so the deployed judge reads its own
 PASS_MARK = gate_rules.REPORT_SCORE
 
 

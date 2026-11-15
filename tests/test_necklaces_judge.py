@@ -383,3 +383,23 @@ def test_a_provisional_member_counts_toward_publishing(tmp_path):
     entry = judge.snapshot([defn], {"topic-brief": approval(defn)}, tmp_path, NOW, watch_state={"standing": block},
                            judge_state={}, verified=set())["necklaces"][0]
     assert (entry["status"], entry["held_reason"]) == ("held", "pearls_unverified")       # nothing judged at all
+
+
+def test_the_official_version_comes_from_the_release_code_not_the_working_tree(tmp_path, monkeypatch):
+    """PM 16:29: a deployed judge compares with its own release's version even when the working tree's differs."""
+    from agent_market.necklaces import gate_rules
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scripts" / "report_v2.py").write_text("EVALUATOR_VERSION = 'dq-working-tree-only'\n")
+    monkeypatch.setenv("AGENTCON_PROJECT_ROOT", str(tmp_path))
+    assert judge.official_evaluator_version() == gate_rules.EVALUATOR_VERSION
+    snap = {"generated": judge._iso(NOW), "evaluator_version": "dq-working-tree-only", "agents": {}}
+    assert judge.snapshot_problem(snap, NOW) == "snapshot_evaluator_version"
+
+
+def test_the_report_tool_grades_with_the_same_version():
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    import report_v2
+    from agent_market.necklaces import gate_rules
+    assert report_v2.EVALUATOR_VERSION == gate_rules.EVALUATOR_VERSION
