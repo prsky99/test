@@ -61,7 +61,14 @@ ALIASES = {
     # Korean grammatical aliases (escaped Unicode)
     '\uc870\ud68c': 'lookup', '\uc870\ud68c\ud574': 'lookup', '\uc870\ud68c\ud560': 'lookup',
     '\ubb34\ub8cc': 'free', '\uc720\ub8cc': 'paid',
+    # 11-16 (PM 02:5x): '\uc774\uba54\uc77c \ubcf4\ub0b4\uae30' kept only 'email', so a report-link tool led; the verb and
+    # customer support are capability words too.
+    '\ubcf4\ub0b4\uae30': 'send', '\ubcf4\ub0b4\uc918': 'send', '\ubc1c\uc1a1': 'send',
+    '\uace0\uac1d \uc9c0\uc6d0': 'customer support', '\uace0\uac1d\uc9c0\uc6d0': 'customer support', '\uace0\uac1d \uc0c1\ub2f4': 'customer support',
 }
+# 'support' is filler in "supports PDF" but the capability in "customer support" (11-16: 'customer support' kept only
+# 'customer', so a procurement tool whose listing says customer led).
+SUPPORT_CAPABILITY = re.compile(r'\b(?:customer|technical|tech|user|it|help\s*desk)\s+support\b')
 FILLER = set('find recommend recommendation recommendations best highest high quality reliable verified recent latest please need want looking look help show only ones one another alternative options option use using get give tell done accomplish trying without free paid cheap price pricing prices cost costs budget money key keys account accounts auth authentication no required any capable capability capabilities api apis agent agents tool tools server servers mcp a2a x402 for an to me can you i am is the my it its this that and or of in on a with do does which what how'.split())
 FILLER.update('fast faster fastest quick quickly low lower lowest latency accurate accuracy highly top rated ratings grade grades report reports tested evaluation regular returning tier tiers subscription basic premium plan plans very really would could should will provide provides providing supports support current today tomorrow week days easy simple'.split())
 # Prepositions and connectives carry no capability; they only dilute relevance.
@@ -86,7 +93,8 @@ def search_terms(task):
     words = re.findall(r'[a-z][a-z0-9_-]*', text.lower())
     if 'equity' in words or 'equities' in words:
         words.append('stock')
-    filtered = [word for word in query_terms(' '.join(words), limit=1024) if word not in FILLER]
+    keep = {'support'} if SUPPORT_CAPABILITY.search(' '.join(words)) else set()
+    filtered = [word for word in query_terms(' '.join(words), limit=1024) if word not in FILLER or word in keep]
     if set(filtered).intersection({'convert', 'conversion'}) and set(filtered).intersection(UNIT_NAMES) and 'unit' not in filtered:
         filtered.append('unit')
     if re.search(r'\b(?:bitcoin|btc|ethereum|eth|stocks?|shares|equit(?:y|ies))\b',text)and re.search(r'\b(?:price|quote)s?\b',text):
