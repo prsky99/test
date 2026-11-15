@@ -1,6 +1,6 @@
 # 외부 추천 뒤 게이트웨이 연결 0건 원인 (성장·유통, PM 11-16 08:2x)
 
-- 측정: 11-16 08:24~08:5x
+- 측정: 11-16 08:24~08:26
 - 자료
   - 공개 주소에서 MCP find_agents와 A2A message/send를 직접 호출
   - traffic 기록(logs/service-frontend/traffic/2026-11-15*.json)
