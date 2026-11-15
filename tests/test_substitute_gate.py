@@ -132,7 +132,9 @@ def test_a_verdict_split_over_two_days_is_judged_on_both_parts(tmp_path, monkeyp
     (tmp_path / 'out/verdict-holdout-r3-20261116-0820.json').rename(part1)
     capsys.readouterr()
     assert gate.main(['gleif-lei', '--split', 'holdout-r3', '--limit', '2', '--continue-from', str(part1)]) == 0
-    second = json.loads((tmp_path / 'out/verdict-holdout-r3-20261116-0820.json').read_text())['agents']['gleif-lei']
+    # the first part's raw file still holds 0820, so this run in the same minute writes 0820-2 and replaces nothing
+    assert (tmp_path / 'out/raw-holdout-r3-20261116-0820.jsonl').exists()
+    second = json.loads((tmp_path / 'out/verdict-holdout-r3-20261116-0820-2.json').read_text())['agents']['gleif-lei']
     assert second['answer_set'] == '4/4' and second['part'] == {'earlier_rows': 2, 'this_part': 2, 'complete': True}
     assert second['pass'] is True and second['missing'] == [] and reserved == [2, 2]
     assert called == ['Co 0', 'Co 1', 'x', 'Co 2', 'Co 3', 'x']          # no case runs twice

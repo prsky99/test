@@ -229,6 +229,12 @@ def main(argv=None):
         return 75
     stamp = time.strftime('%Y%m%d-%H%M')
     OUT.mkdir(parents=True, exist_ok=True)
+    # Two gates started in the same minute shared both names, and the second verdict replaced the first
+    # (11-16 06:33 wiki-grounding, then arxiv-search). A taken stamp gets the next free suffix for both files.
+    n = 1
+    while (OUT / f'raw-{args.split}-{stamp}.jsonl').exists() or (OUT / f'verdict-{args.split}-{stamp}.json').exists():
+        n += 1
+        stamp = time.strftime('%Y%m%d-%H%M') + f'-{n}'
     want = {a: SUBSTITUTE_CASES - len(previous.get(a, [])) for a in args.agents}
     if args.limit:
         want = {a: min(n, args.limit) for a, n in want.items()}
