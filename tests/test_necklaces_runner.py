@@ -401,3 +401,57 @@ def test_the_process_wide_cap_refuses_calls_instead_of_queueing(monkeypatch):
     assert [a["error_class"] for a in out["attempts"]["papers"]].count("capacity") == 1
     assert out["ok"]
     assert cap.acquire(blocking=False)                  # released once the call ended
+
+
+# ---------------------------------------------------------------- staged slots (company-due-diligence, PM 11-15)
+def staged():
+    defn = necklace()
+    defn["input_schema"]["properties"]["domain"] = {"type": "string"}
+    defn["slots"][0]["contract"] = "company.registry.v1"
+    defn["slots"].append({"slot": "filings", "contract": "x.v1", "required": False, "fanout": 1,
+                          "depends_on": ["papers"],
+                          "chain": [ext(5, "e.com", input_map={"ticker": "{{slot.papers.ticker}}"})]})
+    defn["slots"].append({"slot": "whois", "contract": "x.v1", "required": False, "fanout": 1,
+                          "requires_input": ["domain"],
+                          "chain": [ext(6, "f.com", input_map={"domain": "{{input.domain}}"})]})
+    return defn
+
+
+def test_a_later_stage_reads_the_earlier_slot_and_absent_inputs_skip_a_step():
+    calls = []
+    answers = {1: {"legal_name": "Apple Inc.", "identifiers": {"SEC CIK": "320193", "ticker": "AAPL, AAPL.MX"}},
+               3: "listed in CISA KEV", 5: "10-K 2025"}
+    out = runner.Runner(caller_from(answers, calls)).run(staged(), {"q": "apple"})
+    assert out["ok"] and out["output"]["papers"]["answers"][0]["ticker"] == "AAPL"
+    assert (5, {"ticker": "AAPL"}) in calls and 6 not in [rid for rid, _ in calls]
+    assert out["slots"]["filings"]["status"] == "answered"
+    assert (out["slots"]["whois"]["status"], out["slots"]["whois"]["stage"]) == ("skipped", 0)
+    with_domain = runner.Runner(caller_from({**answers, 6: "registrar"}, [])).run(staged(), {"q": "a", "domain": "a.com"})
+    assert with_domain["slots"]["whois"]["status"] == "answered"
+
+
+def test_a_failed_upstream_skips_the_dependent_step():
+    calls = []
+    out = runner.Runner(caller_from({3: "listed in CISA KEV", 5: "10-K"}, calls)).run(staged(), {"q": "x"})
+    assert out["slots"]["filings"]["status"] == "skipped" and 5 not in [rid for rid, _ in calls]
+    assert out["failed_slot"] == "papers"
+
+
+def test_registry_answers_are_read_as_identifiers():
+    sec = {"legal_name": "Apple Inc.", "identifiers": {"SEC CIK": "320193", "ticker": "AAPL"}, "source": "SEC EDGAR"}
+    assert runner.normalize("company.registry.v1", sec, {}) == {"legal_name": "Apple Inc.", "cik": "320193", "ticker": "AAPL"}
+    lei = {"legal_name": "TOYOTA MOTOR CORPORATION", "lei": "5493006W3QUS5LMH6R84"}
+    assert runner.normalize("company.registry.v1", lei, {})["lei"] == "5493006W3QUS5LMH6R84"
+    assert runner.normalize("company.registry.v1", "Apple is a company", {}) is None
+    assert runner.normalize("company.registry.v1", {"error": "not found"}, {}) is None
+
+
+def test_stage_rules_are_validated():
+    defn = staged()
+    assert [e for e in model.validate(defn, check_contracts=False) if "slot filings" in e or "slot whois" in e] == []
+    bad = staged()
+    bad["slots"][2]["depends_on"] = []
+    assert any("not in its depends_on" in e for e in model.validate(bad, check_contracts=False))
+    bad = staged()
+    bad["slots"][3]["required"] = True
+    assert any("requires_input is for optional slots" in e for e in model.validate(bad, check_contracts=False))
