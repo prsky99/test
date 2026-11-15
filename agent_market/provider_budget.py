@@ -79,8 +79,15 @@ def domain_total(name):
     return DOMAIN_TOTAL.get(name, DAILY_TOTAL)
 
 
-def share_limit(system, name):
-    base = SHARE_OVERRIDE.get((system, name), SHARE[system])
+# One-day grants (dated, so they end by themselves). 11-15 PM 16:4x / workflow 9da8aa94: the package-risk-audit
+# activity answer set needs 27 npm packages x (registry.npmjs.org 1 + api.github.com 1) once.
+ONE_DAY = {'20261116': {('reference_checks', 'npmjs.org'): 30, ('reference_checks', 'github.com'): 30}}
+# GitHub's hourly reference_checks share on those days, in the night hours only (00-07 KST), when live answers are few.
+ONE_NIGHT_GITHUB = {'20261116': {'reference_checks': 10}}
+
+
+def share_limit(system, name, day=None):
+    base = ONE_DAY.get(day or '', {}).get((system, name)) or SHARE_OVERRIDE.get((system, name), SHARE[system])
     if system == 'gate':
         return domain_total(name)
     return base * domain_total(name) // DAILY_TOTAL
@@ -183,7 +190,7 @@ def reserve(url, system, n=1, now=None, directory=None):
             return False, 'domain_daily_total'
         if entry['total'] + n + held_for_others(entry, plan(today(now), directory).get(name, {}), system) > domain_total(name):
             return False, 'held_for_higher_priority'
-        if used + n > share_limit(system, name):
+        if used + n > share_limit(system, name, today(now)):
             return False, 'system_share'
         entry['total'] += n
         entry['by'][system] = used + n
@@ -253,6 +260,12 @@ GITHUB_SHARE = {
 }
 
 
+def github_share(system, now=None):
+    stamp = hour(now)
+    night = ONE_NIGHT_GITHUB.get(stamp[:8], {}).get(system) if int(stamp[8:]) < 8 else None
+    return night or GITHUB_SHARE[system]
+
+
 def hour(now=None):
     return datetime.fromtimestamp(time.time() if now is None else now, KST).strftime('%Y%m%d%H')
 
@@ -270,7 +283,7 @@ def github_reserve(system, n=1, now=None, directory=None):
             why = 'github_floor'
         elif entry['total'] + n > GITHUB_HOURLY - GITHUB_FLOOR:
             why = 'github_hourly_total'
-        elif entry['by'].get(system, 0) + n > GITHUB_SHARE[system]:
+        elif entry['by'].get(system, 0) + n > github_share(system, now):
             why = 'system_share'
         if why:
             entry['refused'][system] = entry['refused'].get(system, 0) + n

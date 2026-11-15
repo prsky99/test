@@ -265,3 +265,18 @@ def test_npm_registry_substitute_tests_get_thirty_a_day(tmp_path):
     url = 'https://registry.npmjs.org/lodash'
     assert pb.reserve(url, 'substitute_tests', n=30, now=now, directory=tmp_path) == (True, 'ok')
     assert pb.reserve(url, 'substitute_tests', now=now, directory=tmp_path) == (False, 'system_share')
+
+
+def test_one_day_grants_end_by_themselves(tmp_path):
+    """11-15: the package-risk-audit activity answer set gets npm and GitHub reference reads on 11-16 only."""
+    from datetime import datetime, timezone, timedelta
+    kst = timezone(timedelta(hours=9))
+    d16 = datetime(2026, 11, 16, 3, 0, tzinfo=kst).timestamp()
+    d16_day = datetime(2026, 11, 16, 14, 0, tzinfo=kst).timestamp()
+    d17 = datetime(2026, 11, 17, 3, 0, tzinfo=kst).timestamp()
+    npm = 'https://registry.npmjs.org/lodash'
+    assert pb.reserve(npm, 'reference_checks', n=27, now=d16, directory=tmp_path) == (True, 'ok')
+    assert pb.reserve(npm, 'reference_checks', n=27, now=d17, directory=tmp_path) == (False, 'system_share')
+    assert pb.github_share('reference_checks', d16) == 10
+    assert pb.github_share('reference_checks', d16_day) == 2 and pb.github_share('reference_checks', d17) == 2
+    assert pb.github_reserve('reference_checks', n=10, now=d16, directory=tmp_path) == (True, 'ok')
