@@ -152,10 +152,23 @@ def load(path: Path = FILE) -> list[dict]:
     return cases
 
 
-def by_role(path: Path = FILE) -> dict[str, list[dict]]:
+def current(case: dict, today: str | None = None) -> bool:
+    """False once a case's facts may be out of date: "valid_until" (YYYY-MM-DD, KST day) has passed. A case built on
+    the latest SEC filing (PM 11-15 13:46) stops being asked before the next periodic report can replace it."""
+    until = case.get("valid_until")
+    if not until:
+        return True
+    if today is None:
+        from datetime import datetime, timedelta, timezone
+        today = (datetime.now(timezone.utc) + timedelta(hours=9)).strftime("%Y-%m-%d")
+    return str(today) <= str(until)
+
+
+def by_role(path: Path = FILE, today: str | None = None) -> dict[str, list[dict]]:
     out: dict[str, list[dict]] = {}
     for case in load(path):
-        out.setdefault(case["role"], []).append(case)
+        if current(case, today):
+            out.setdefault(case["role"], []).append(case)
     return out
 
 
@@ -192,6 +205,7 @@ def fact_checks(case: dict) -> int:
     count += 1 if any(not _echo(case, w, groups) for w in expect.get("must_include_any") or []) else 0
     count += 1 if "kev" in expect else 0
     count += len(expect.get("numeric") or {})
+    count += 1 if expect.get("must_not_match") else 0
     return count
 
 
@@ -262,6 +276,11 @@ def score(case: dict, text: str, structured: dict | None = None) -> tuple[bool, 
         reasons.append("none of " + ", ".join(anyof))
     if expect.get("must_include_https_url") and "https://" not in low:
         reasons.append("no https link")
+    # A "no such record" answer (PM 11-15 13:46: a company with no SEC registration) fails when it still names a
+    # record, such as another company's accession number or CIK.
+    for pattern in expect.get("must_not_match") or []:
+        if re.search(pattern, text or "", re.I):
+            reasons.append(f"names a record that does not exist ({pattern})")
     if "kev" in expect:
         listed = bool(KEV_WORDS.search(text or "") or KEV_TRUE.search(text or "")) and not NEGATED_KEV.search(text or "")
         flag = kev_flag(structured)
