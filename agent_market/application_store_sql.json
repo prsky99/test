@@ -4418,7 +4418,7 @@
     {"file": "agent_market/concierge/clearinghouse.py", "sha256": "35060b247884f5f9b7ad00b5e2cc7b742419bb90fc45115c814797afd591b992"},
     {"file": "agent_market/concierge/conditional_http.py", "sha256": "bd3e5c7b0919a55a6c2e25b4b9ddb82099a2396ba41e54390c4a107dc764da64"},
     {"file": "agent_market/concierge/discovery_state.py", "sha256": "4625837c5fd0db1df23df6d39b20877808cd5b1770e5715709d4a4f7a347592c"},
-    {"file": "agent_market/concierge/fast_chat.py", "sha256": "c8b2cc97be0e85803a4e8b5e3b4eefea9f39d8afe37ab997afc2e34de21d3963"},
+    {"file": "agent_market/concierge/fast_chat.py", "sha256": "1d0374337bac7b1bb343dab4f9633df0e1f68148bc5d70c205a2db16a5231838"},
     {"file": "agent_market/concierge/front.py", "sha256": "5300e15a61a2ef324ee5ef3c59703709ae6b5307411a2b8c4db59204ba6b94e5"},
     {"file": "agent_market/concierge/inertia.py", "sha256": "74df2147a8ac1ca70380722a54e998a39543f2a03e43136aa5e295a98f59756e"},
     {"file": "agent_market/concierge/memory.py", "sha256": "9463cb817376e80abf0ba8107f492e32b6edb9f8a29cf1964bad9b4cfce94aba"},
