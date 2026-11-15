@@ -1072,3 +1072,13 @@
     if(!validateEndpoint(input)){event.preventDefault();event.stopImmediatePropagation();input.focus();}
   },true);
 })();
+
+/* R80 (11-15): a clickable block marked role="button" answers Enter and Space like a button. */
+(() => {
+  document.addEventListener('keydown', event => {
+    const target = event.target instanceof Element ? event.target.closest('[role="button"][data-ac-click]') : null;
+    if (!target || target !== event.target || !['Enter', ' '].includes(event.key) || event.repeat) return;
+    event.preventDefault();
+    target.click();
+  });
+})();

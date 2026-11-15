@@ -863,21 +863,21 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
             Connect to a verified agent using its public protocol and endpoint.
           </p>
           <div style="display:flex;flex-direction:column;gap:8px">
-            <div style="background:var(--chip);padding:8px 12px;border-radius:8px;border:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;cursor:pointer" data-ac-click="648d4dd5905a" title="Explore MCP Tool Servers">
+            <div style="background:var(--chip);padding:8px 12px;border-radius:8px;border:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;cursor:pointer" data-ac-click="648d4dd5905a" role="button" tabindex="0" title="Explore MCP Tool Servers">
               <div>
                 <b style="color:var(--k-mcp);font-size:12.5px">Model Context Protocol (MCP)</b>
                 <div style="font-size:11.5px;color:var(--text-dim)">Streamable JSON-RPC 2.0 at <code>/mcp</code></div>
               </div>
               <span class="kind-badge k-mcp" style="display:inline-flex;align-items:center;gap:4px">Explore <svg width="12" height="12" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></span>
             </div>
-            <div style="background:var(--chip);padding:8px 12px;border-radius:8px;border:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;cursor:pointer" data-ac-click="363d5688c432" title="Explore A2A Agents">
+            <div style="background:var(--chip);padding:8px 12px;border-radius:8px;border:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;cursor:pointer" data-ac-click="363d5688c432" role="button" tabindex="0" title="Explore A2A Agents">
               <div>
                 <b style="color:var(--k-a2a);font-size:12.5px">Agent-to-Agent (A2A)</b>
                 <div style="font-size:11.5px;color:var(--text-dim)">Autonomously discover peers at <code>/.well-known/agent-card.json</code></div>
               </div>
               <span class="kind-badge k-a2a" style="display:inline-flex;align-items:center;gap:4px">Explore <svg width="12" height="12" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></span>
             </div>
-            <div style="background:var(--chip);padding:8px 12px;border-radius:8px;border:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;cursor:pointer" data-ac-click="b51a990235b8" title="Explore x402 APIs">
+            <div style="background:var(--chip);padding:8px 12px;border-radius:8px;border:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;cursor:pointer" data-ac-click="b51a990235b8" role="button" tabindex="0" title="Explore x402 APIs">
               <div>
                 <b style="color:var(--k-x402);font-size:12.5px">x402 APIs</b>
                 <div style="font-size:11.5px;color:var(--text-dim)">Discover compatible agent endpoints</div>
@@ -1487,7 +1487,7 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
         </div><div>
           <label for="tbAgentSelect" style="font-size:12px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:6px">Selected agent</label>
           <div style="display:flex;gap:8px;margin-bottom:8px">
-            <input type="search" id="tbAgentSearch" class="input" placeholder="Search registered agents by name or capability" style="flex:1;font-size:12.5px;padding:6px 10px" data-ac-input="3aee48c9cacf">
+            <input type="search" id="tbAgentSearch" aria-label="Search registered agents" class="input" placeholder="Search registered agents by name or capability" style="flex:1;font-size:12.5px;padding:6px 10px" data-ac-input="3aee48c9cacf">
           </div>
           <select id="tbAgentSelect" class="select" style="width:100%;font-size:13px;padding:8px 10px" data-ac-change="18a1633a7baa">
             <!-- Populated via JS -->
@@ -1567,7 +1567,7 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
         <!-- Timeout & Execution Button -->
         
-      <details class="ux-test-options"><summary>Advanced options</summary><input type="text" id="tbCustomToolInput" class="input" placeholder="Custom tool name" style="flex:1;font-size:12.5px" data-ac-input="cd3e0adef8f9"><div style="display:flex;align-items:center;gap:6px">
+      <details class="ux-test-options"><summary>Advanced options</summary><input type="text" id="tbCustomToolInput" aria-label="Custom tool name" class="input" placeholder="Custom tool name" style="flex:1;font-size:12.5px" data-ac-input="cd3e0adef8f9"><div style="display:flex;align-items:center;gap:6px">
             <label for="tbTimeoutSelect" style="font-size:12px;color:var(--text-muted);font-weight:600">Timeout:</label>
             <select id="tbTimeoutSelect" class="select" style="font-size:12px;padding:5px 8px">
               <option value="5.0">5s (Fast)</option>
@@ -1873,7 +1873,7 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
             <p class="muted" style="margin:2px 0 0;font-size:12px;color:var(--text-muted)">Choose a published template to review its steps, run it, or download a deployable ZIP web app package.</p>
           </div>
           <div style="display:flex;gap:8px;align-items:center">
-            <input type="text" id="frontTmplSearchInput" placeholder="Search templates by title or tags..." style="width:240px;font-size:12px" class="input" data-ac-input="8d2815d72363">
+            <input type="text" id="frontTmplSearchInput" aria-label="Search templates" placeholder="Search templates by title or tags..." style="width:240px;font-size:12px" class="input" data-ac-input="8d2815d72363">
           </div>
         </div>
         <div id="frontTmplCategoryFilters" style="display:flex;gap:6px;flex-wrap:wrap">
@@ -1966,7 +1966,7 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
             </button>
           </div>
           <div style="display:flex;gap:8px">
-            <input id="regAutoUrl" class="input" type="url" placeholder="https://agentconcierge.biz or /.well-known/agent-card.json" style="flex:1">
+            <input id="regAutoUrl" aria-label="Agent endpoint or agent card URL" class="input" type="url" placeholder="https://agentconcierge.biz or /.well-known/agent-card.json" style="flex:1">
             <button class="btn primary" id="regInspectBtn">
               <svg width="14" height="14" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
               <span>Auto Detect</span>
@@ -2095,7 +2095,7 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
         <p style="font-size:12.5px;color:var(--text-muted);margin:0 0 10px 0">
           Paste raw JSON for an A2A Agent Card (<code>agent-card.json</code>), an MCP server manifest, or an OpenAPI definition. Fields and parameters will be extracted and populated into the agent listing form immediately.
         </p>
-        <textarea id="regJsonInput" class="textarea" placeholder="{\n  &quot;name&quot;: &quot;Custom Data Transformer A2A&quot;,\n  &quot;description&quot;: &quot;Performs specialized analytics and schema validation...&quot;,\n  &quot;url&quot;: &quot;https://agentconcierge.biz/examples/transformer-agent&quot;,\n  &quot;skills&quot;: [&quot;clean_csv_stream&quot;, &quot;validate_schema&quot;, &quot;normalize_encodings&quot;]\n}" style="width:100%;height:180px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px"></textarea>
+        <textarea id="regJsonInput" aria-label="Agent card JSON" class="textarea" placeholder="{\n  &quot;name&quot;: &quot;Custom Data Transformer A2A&quot;,\n  &quot;description&quot;: &quot;Performs specialized analytics and schema validation...&quot;,\n  &quot;url&quot;: &quot;https://agentconcierge.biz/examples/transformer-agent&quot;,\n  &quot;skills&quot;: [&quot;clean_csv_stream&quot;, &quot;validate_schema&quot;, &quot;normalize_encodings&quot;]\n}" style="width:100%;height:180px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px"></textarea>
         <div id="regJsonError" style="color:var(--bad);font-size:12px;margin-top:6px" class="hidden"></div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;gap:8px">
           <button type="button" class="btn sm" id="regJsonSampleBtn" style="font-size:12px">Load Sample A2A Card</button>
