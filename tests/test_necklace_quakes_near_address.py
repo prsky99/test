@@ -167,3 +167,19 @@ def test_airport_lookup_substitute_is_judged_on_the_airport_point():
     assert judge("airport-lookup", case, {"answer": "lat 20.896263 lon 156.431837"})["pass"] is False
     assert judge("airport-lookup", case, {"latitude": 20.93, "longitude": -156.44})["pass"] is True
     assert judge("airport-lookup", case, {"answer": "no such airport"})["pass"] is False
+
+
+def test_the_quake_contract_takes_the_point_search_both_feeds_use():
+    """Agent team 11-15: usgs-quakes can join the quakes slot once the contract has the point-search fields; the
+    magnitude is a number (the definitions send 4.5)."""
+    import json as _json
+    from jsonschema import Draft202012Validator
+    schema = _json.loads(open("agent_market/necklaces/contracts/earthquake.feed.v1.json").read())["input_schema"]
+    check = Draft202012Validator(schema)
+    defn = model.load("agent_market/necklaces/definitions/quakes-near-address.json")
+    quakes = next(s for s in defn["slots"] if s["slot"] == "quakes")
+    staged = {"slot.location.lat": 35.6586, "slot.location.lon": 139.7454, "slot.location.point": "35.658600,139.745400"}
+    for member in quakes["chain"]:
+        assert not list(check.iter_errors(runner.render(member["input_map"], staged))), member["resource_id"]
+    assert list(check.iter_errors({"radius_km": 5000})) and list(check.iter_errors({"near": "Tokyo"}))
+    assert not list(check.iter_errors({"min_magnitude": 5}))                          # the pearl tests' input

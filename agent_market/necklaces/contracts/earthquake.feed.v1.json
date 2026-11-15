@@ -1,17 +1,62 @@
 {
   "id": "earthquake.feed.v1",
-  "role": "earthquake feed (default role from the pearl tests; input keys are alternatives, a member uses the ones it accepts)",
+  "role": "earthquake feed (default role from the pearl tests; input keys are alternatives, a member uses the ones it accepts); optional search around a point (lat/lon or near \"lat,lon\", radius_km, days or period, limit) for the location hub (workflow 11-15)",
   "input_schema": {
     "type": "object",
     "properties": {
       "min_magnitude": {
-        "type": "integer"
+        "type": "number",
+        "minimum": 0,
+        "maximum": 10
       },
       "minmagnitude": {
-        "type": "integer"
+        "type": "number",
+        "minimum": 0,
+        "maximum": 10
       },
       "magnitude": {
-        "type": "integer"
+        "type": "number",
+        "minimum": 0,
+        "maximum": 10
+      },
+      "lat": {
+        "type": "number",
+        "minimum": -90,
+        "maximum": 90
+      },
+      "lon": {
+        "type": "number",
+        "minimum": -180,
+        "maximum": 180
+      },
+      "radius_km": {
+        "type": "number",
+        "minimum": 1,
+        "maximum": 2000
+      },
+      "days": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 30
+      },
+      "period": {
+        "type": "string",
+        "enum": [
+          "hour",
+          "day",
+          "week",
+          "month"
+        ]
+      },
+      "limit": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 50
+      },
+      "near": {
+        "type": "string",
+        "pattern": "^-?\\d{1,2}(\\.\\d+)?,-?\\d{1,3}(\\.\\d+)?$",
+        "maxLength": 40
       }
     },
     "required": [],
