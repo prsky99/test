@@ -1374,6 +1374,9 @@ class FallbackAgents:
                     rows.append((_text(m.get("matchedAddress"), 300), float(xy["y"]), float(xy["x"])))
             return rows, _now_iso(self.utc_now())
         (rows, as_of), cache = self._cached(("census-geocode", address.lower()), TTL["census-geocode"], live, remaining)
+        # the Census matcher is fuzzy: keep only a match with the same house number and street type ("2301 N Highland
+        # Ave" must not become "2301 HIGHLAND DR", 8 km away; workflow us-street check 11-15)
+        rows = [r for r in rows if same_street(address, r[0])]
         if not rows:
             raise FallbackUnavailable("not_found", "No U.S. Census Geocoder match; this substitute covers U.S. addresses only.")
         name, lat, lon = rows[0]
@@ -1803,6 +1806,25 @@ def tiered_match(rows, wanted, keys_of, preferred):
             raise FallbackUnavailable("not_found", "Several records share this name; add the country or the full legal name.")
         return best[0]
     return None
+
+
+STREET_TYPES = {"avenue": "ave", "ave": "ave", "av": "ave", "street": "st", "st": "st", "drive": "dr", "dr": "dr",
+                "boulevard": "blvd", "blvd": "blvd", "road": "rd", "rd": "rd", "parkway": "pkwy", "pkwy": "pkwy",
+                "place": "pl", "pl": "pl", "plaza": "plz", "plz": "plz", "lane": "ln", "ln": "ln", "court": "ct",
+                "ct": "ct", "way": "way", "highway": "hwy", "hwy": "hwy", "circle": "cir", "cir": "cir",
+                "terrace": "ter", "ter": "ter", "square": "sq", "sq": "sq", "trail": "trl", "trl": "trl"}
+
+
+def same_street(asked: str, matched: str) -> bool:
+    """The house number and, when both name one, the street type of the first address part agree."""
+    def parts(text):
+        words = re.findall(r"[a-z0-9]+", text.split(",")[0].lower())
+        number = words[0] if words and words[0].isdigit() else None
+        kinds = [STREET_TYPES[w] for w in words[1:] if w in STREET_TYPES]
+        return number, kinds[-1] if kinds else None
+    n1, t1 = parts(asked)
+    n2, t2 = parts(matched)
+    return (n1 is None or n1 == n2) and (t1 is None or t2 is None or t1 == t2)
 
 
 # An address that names another country is not sent to the U.S. Census Geocoder (it covers U.S. addresses only).

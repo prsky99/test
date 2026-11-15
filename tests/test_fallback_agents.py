@@ -1975,3 +1975,13 @@ def test_census_geocode_answers_us_addresses_and_does_not_send_others(tmp_path):
     with pytest.raises(FallbackUnavailable) as err:
         miss.execute("census-geocode", {"address": "1 Nowhere Road, Atlantis"})
     assert err.value.code == "not_found"
+
+
+def test_census_geocode_drops_a_match_on_another_street():
+    """workflow us-street check 11-15: the Census matcher turned 2301 N Highland Ave into 2301 Highland Dr."""
+    from agent_market.fallback_agents.agents import same_street
+    assert not same_street("2301 N Highland Ave, Los Angeles, CA, USA", "2301 HIGHLAND DR, LOS ANGELES, CA, 90016")
+    assert same_street("2301 N Highland Ave, Los Angeles, CA, USA", "2301 N HIGHLAND AVE, LOS ANGELES, CA, 90068")
+    assert same_street("116 5th Ave N, Nashville, TN, USA", "116 5TH AVE N, NASHVILLE, TN, 37219")
+    assert not same_street("24 Beacon St, Boston", "42 BEACON ST, BOSTON, MA, 02133")
+    assert same_street("1600 Pennsylvania Avenue NW, Washington, DC 20500", "1600 PENNSYLVANIA AVE NW, WASHINGTON, DC, 20500")
