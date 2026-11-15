@@ -61,6 +61,8 @@ def fetch_json(url: str, reserve=None, note=None, github_reserve=None, opener=No
         note(url, SYSTEM, exc.code, evidence="provider_http")
         if exc.code == 404:
             return 404, None
+        if exc.code == 429:          # the provider asks us to stop: the ledger pauses its domain; resume another day
+            raise Budget("provider_429") from None
         raise
 
 

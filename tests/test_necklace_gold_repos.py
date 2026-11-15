@@ -61,3 +61,17 @@ def test_npm_repository_forms():
     assert gold_repos.repo_of({"repository": "npm/cli"}) == "npm/cli"
     assert gold_repos.repo_of({"repository": "https://gitlab.com/x/y"}) is None
     assert gold_repos.repo_of({}) is None
+
+
+def test_a_429_stops_the_round_and_keeps_the_progress(tmp_path):
+    import io
+    import urllib.error
+    calls = []
+
+    def opener(request, timeout):
+        raise urllib.error.HTTPError(request.full_url, 429, "Too Many Requests", {}, io.BytesIO(b""))
+    import pytest
+    with pytest.raises(gold_repos.Budget) as stopped:
+        gold_repos.fetch_json("https://api.crossref.org/works?x", reserve=lambda u, s: (True, "ok"),
+                              note=lambda *a, **k: calls.append(a), opener=opener)
+    assert str(stopped.value) == "provider_429" and calls[0][2] == 429
