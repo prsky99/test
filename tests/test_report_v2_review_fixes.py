@@ -202,3 +202,27 @@ def test_r15_a_failed_daily_stage_is_retried_and_said(monkeypatch, out):
     assert PD.main([]) == 1 and calls == ['queue', 'queue']
     assert said and 'publish OSError' in said[0] and '전날 결과' in said[0]
     assert not list(out.glob('done-*'))
+
+
+def test_r11_rescore_judges_the_kept_answer_and_never_flips_a_verdict_from_the_excerpt(monkeypatch):
+    """Precision review R11: 158 of 280 versions were judged again on the 1,000-character excerpt, both ways."""
+    verdict = {'points': 25}
+    monkeypatch.setattr(V.DQ, 'accuracy', lambda *a, **k: (verdict['points'], 'answer set test', []))
+    common = {'role': 'fx.rate', 'tool': 'convert', 'outcome': 'succeeded', 'host': 'fx.example',
+              'arguments': {'from': 'USD', 'to': 'EUR'}, 'latency_ms': 300}
+    kept = V.save_version({**common, 'id': 61, 'excerpt': 'x' * 1000, 'full_text': 'x' * 1500 + ' 1 USD = 0.92 EUR',
+                           'structured': {'base': 'USD', 'target': 'EUR', 'rate': 0.92}, 'started': time.time()})
+    old = V.save_version({**common, 'id': 62, 'excerpt': '1 USD = 0.92 EUR', 'started': time.time()})
+    folder = V.version_dir(61, 'fx.rate.v1')
+    answer = folder / kept['answer_file']
+    assert answer.exists() and json.loads(answer.read_text())['full_text'].endswith('0.92 EUR') and 'answer_file' not in old
+    verdict['points'] = 0                                    # the new evaluator finds the answer not accurate
+    assert V.rescore() == 2
+    by_id = {v['resource_id']: v for v in V.latest_versions()}
+    assert by_id[61]['content_verdict'] == 'not accurate' and by_id[61]['verdict_basis'].startswith('judged again')
+    assert by_id[62]['content_verdict'] == 'accurate' and by_id[62]['verdict_basis'].startswith('carried')
+    assert by_id[62]['evaluator_version'] == V.EVALUATOR_VERSION
+    answer.write_text(answer.read_text().replace('0.92', '9.99'))   # a changed answer file is not trusted
+    verdict['points'] = 25
+    V.rescore()
+    assert {v['resource_id']: v for v in V.latest_versions()}[61]['verdict_basis'].startswith('carried')

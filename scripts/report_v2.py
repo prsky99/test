@@ -576,9 +576,68 @@ def save_version(result, now=None):
         r['quality'] = quality(r, days)
         stamp = time.strftime('%Y%m%d-%H%M%S', time.localtime(tested))
         name = f"{stamp}-{re.sub(r'[^A-Za-z0-9_.-]', '_', r['tool'])[:60]}-{aid[:12]}"
+        keep_answer(r, folder, name, result)
         r['signed_report'] = sign_version(r, case, name)
         write_new(folder / f'{name}.json', json.dumps(r, indent=1, ensure_ascii=False))
     return r
+
+
+ANSWERS = 'answers'
+
+
+def keep_answer(r, folder, name, result):
+    """R11 (precision review): the whole answer the test judged (text up to role_tool_test's 20,000 characters and the
+    structured content) is kept beside the version, so a later evaluator judges the same answer, not the 1,000-character
+    excerpt. Immutable like the version; the version records its file and sha256."""
+    import hashlib
+    if not (result.get('full_text') or result.get('structured')):
+        return
+    body = json.dumps({'full_text': result.get('full_text') or '', 'structured': result.get('structured')},
+                      ensure_ascii=False, sort_keys=True).encode()
+    (folder / ANSWERS).mkdir(exist_ok=True)
+    try:
+        write_new(folder / ANSWERS / f'{name}.json', body.decode())
+    except FileExistsError:
+        pass
+    r['answer_file'] = f'{ANSWERS}/{name}.json'
+    r['answer_sha256'] = hashlib.sha256(body).hexdigest()
+
+
+def stored_answer(path, v):
+    """(full text, structured) kept for the version at PATH, or None when none was kept or it no longer matches."""
+    import hashlib
+    if not v.get('answer_file'):
+        return None
+    try:
+        body = (Path(path).parent / v['answer_file']).read_bytes()
+    except OSError:
+        return None
+    if hashlib.sha256(body).hexdigest() != v.get('answer_sha256'):
+        return None
+    answer = json.loads(body)
+    return answer.get('full_text') or '', answer.get('structured')
+
+
+def sign_score(v, path, fields):
+    """R11: a score file is signed like a version (EVIDENCE_SIGNING.md): what was judged (the version file's and the
+    kept answer's sha256), by which evaluator, and the verdict. None without a key."""
+    import hashlib
+    key = signing_key()
+    if key is None or not signing_allowed(signing_dir()):
+        return None
+    from agent_market import evidence_signing as ES
+    evidence = {'type': 'test_score', 'report': Path(path).stem, 'resource_id': v['resource_id'], 'role': v['role'],
+                'tool': v.get('tool'), 'report_sha256': hashlib.sha256(Path(path).read_bytes()).hexdigest(),
+                'answer_sha256': v.get('answer_sha256'),
+                **{k: fields.get(k) for k in ('evaluator_version', 'outcome', 'content_verdict', 'verdict_basis', 'quality')}}
+    folder = signing_dir() / 'envelopes' / 'test_score' / str(v['resource_id']) / v['role']
+    folder.mkdir(parents=True, exist_ok=True)
+    out = folder / f'{Path(path).stem}.{EVALUATOR_VERSION}.json'
+    write_replace(out, json.dumps(ES.sign(evidence, key), indent=1))
+    try:
+        return str(out.relative_to(ROOT))
+    except ValueError:
+        return str(out)
 
 
 def signing_key(now=None):
@@ -697,8 +756,13 @@ def import_fallbacks(folder=None):
 
 
 def rescore():
-    """Score every stored version again with the current evaluator, from the stored excerpt. The version files stay
-    as they are; each result goes to <folder>/scores/<version>.<EVALUATOR_VERSION>.json (F10: no overwrite)."""
+    """Score every stored version again with the current evaluator. The version files stay as they are; each result
+    goes to <folder>/scores/<version>.<EVALUATOR_VERSION>.json (F10: no overwrite) and is signed when a key exists.
+
+    R11 (precision review, 11-15): a version is judged again only from the whole answer kept at test time
+    (answers/<version>.json, sha256 checked). Without it (versions stored before R11, 158 of 280 on 11-15) the stored
+    verdict is carried unchanged under the current evaluator and says so (verdict_basis); a 1,000-character excerpt
+    never turns a failure into a success or a success into a failure again."""
     from agent_market.necklaces import role_tasks
     every = role_tasks.load() + (role_tasks.load(RAG_TASKS) if RAG_TASKS.exists() else [])
     cases = {c['case_id']: c for c in every}
@@ -708,28 +772,41 @@ def rescore():
             v = json.loads(path.read_text())
         except (OSError, ValueError):
             continue
-        if v.get('outcome') == 'failed' and str(v.get('reason', '')).startswith('unclean answer'):
-            v['outcome'], v['reason'] = 'succeeded', None       # judged again below
         case = cases.get(v.get('case_id'))
         v['role'] = canonical(v['role'])
-        assess(v, v.get('excerpt') or '', None, case)
-        v['answer_set'] = answer_set(v, case)
-        acc = (v.get('data_quality') or {}).get('accuracy', {})
-        v['content_verdict'] = ('not run' if v['outcome'] != 'succeeded' else 'accurate' if acc.get('points')
-                                else 'no answer source' if acc.get('source', '').startswith('none') else 'not accurate')
+        answer = stored_answer(path, v)
+        if answer is not None:
+            text, structured = answer
+            if v.get('outcome') == 'failed' and str(v.get('reason', '')).startswith('unclean answer'):
+                v['outcome'], v['reason'] = 'succeeded', None       # judged again below
+            if v['outcome'] == 'succeeded':
+                v['judgement'] = judge(short(v['role']), text, v.get('arguments'))
+            assess(v, text, structured, case)
+            v['answer_set'] = answer_set(v, case)
+            acc = (v.get('data_quality') or {}).get('accuracy', {})
+            v['content_verdict'] = ('not run' if v['outcome'] != 'succeeded' else 'accurate' if acc.get('points')
+                                    else 'no answer source' if acc.get('source', '').startswith('none') else 'not accurate')
+            v['verdict_basis'] = 'judged again on the whole answer kept at test time'
+        else:
+            v['verdict_basis'] = (f"carried from {v.get('evaluator_version') or 'an earlier evaluator'}: the whole answer "
+                                  'was not kept, so the verdict is not judged again (R11)')
+            v['evaluator_version'] = EVALUATOR_VERSION
+            v.setdefault('answer_set', answer_set(v, case))
         folder = path.parent / 'scores'
         folder.mkdir(exist_ok=True)
-        fields = {k: v[k] for k in ('outcome', 'reason', 'data_quality', 'content_verdict', 'evaluator_version', 'answer_set')}
+        fields = {k: v.get(k) for k in ('outcome', 'reason', 'data_quality', 'content_verdict', 'evaluator_version',
+                                         'answer_set', 'judgement', 'verdict_basis')}
         write_replace(folder / f'{path.stem}.{EVALUATOR_VERSION}.json', json.dumps(fields, indent=1, ensure_ascii=False))
         judged.append(path)
     now = time.time()
     for path in judged:                         # repetition reads every version under the same evaluator
         v = load_version(path)
         v['quality'] = quality(v, success_days(v['resource_id'], v['role'], v['tool'], now, ref=v))
-        v['rescored'] = time.strftime('%Y-%m-%d %H:%M') + ' (judged on the stored excerpt)'
+        v['rescored'] = time.strftime('%Y-%m-%d %H:%M')
         score = path.parent / 'scores' / f'{path.stem}.{EVALUATOR_VERSION}.json'
         fields = json.loads(score.read_text())
         fields.update(quality=v['quality'], rescored=v['rescored'])
+        fields['signed_score'] = sign_score(v, path, fields)
         write_replace(score, json.dumps(fields, indent=1, ensure_ascii=False))
     return len(judged)
 
