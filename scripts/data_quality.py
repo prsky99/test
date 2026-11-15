@@ -443,9 +443,20 @@ def accuracy(case, text, structured, live=None, live_value=None, role_tasks=None
         dynamic_ok = all(ok for _, _, ok in checks) if checks else None
         if checks and any(ok is None for _, _, ok in checks):
             return 0, f"answer set {case['case_id']} (live reference unavailable)", reasons
-        if not static_keys and not checks:
+        if not static_keys and not checks and not expect.get('published_within_days'):
             return 0, f"answer set {case['case_id']} (live-only expectation not checkable)", reasons
-        good = passed and (dynamic_ok is not False)
+        dated = None
+        if expect.get('published_within_days'):
+            dated = published_within(text, structured, expect['published_within_days'])
+            if not dated:
+                reasons = reasons + [f"no item published within {expect['published_within_days']} days"]
+        facts = (role_tasks.fact_checks(case) if role_tasks and hasattr(role_tasks, 'fact_checks') else 1) + len(checks) + \
+            (1 if expect.get('kev_date_added') else 0) + (1 if dated is not None else 0)
+        if not facts:
+            # R10 (precision review 11-15): only the input's own words or a bare link were expected; repeating the
+            # input is not an accurate answer.
+            return 0, f"answer set {case['case_id']} (not checkable: it asks for nothing beyond the input)", reasons
+        good = passed and (dynamic_ok is not False) and dated is not False
         source = f"answer set {case['case_id']}" + (f" + live {', '.join(k for k, _, _ in checks)}" if checks else '')
         return (WEIGHTS['accuracy'] if good else 0), source, reasons + [f'{k} off the reference' for k, _, ok in checks if ok is False]
     if live:
@@ -456,6 +467,20 @@ def accuracy(case, text, structured, live=None, live_value=None, role_tasks=None
         ok = any(abs(n - live_value) <= live['tolerance'] * live_value for n in _numbers(text) if n > 0)
         return (WEIGHTS['accuracy'] if ok else 0), f"public reference {live['reference']} = {live_value:g}", [] if ok else ['off the reference']
     return 0, 'none (no answer set or public reference yet)', []
+
+
+def published_within(text, structured, days, now=None):
+    """True when the answer names an item published within DAYS (and not in the future), by a 'published' label in the
+    text or a published-like key in the structured content; False otherwise (R10: a news answer needs dated items)."""
+    now = now or time.time()
+    found = [(kinds, when) for kinds, when in labelled_dates(text, now)]
+    if structured is not None:
+        _keyed_dates(structured, now, found)
+    now_dt = dt.datetime.fromtimestamp(now)
+    for kinds, when in found:
+        if 'published' in kinds and dt.timedelta(days=-1) <= now_dt - when <= dt.timedelta(days=days):
+            return True
+    return False
 
 
 def latency_points(ms):

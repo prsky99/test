@@ -226,3 +226,26 @@ def test_r11_rescore_judges_the_kept_answer_and_never_flips_a_verdict_from_the_e
     verdict['points'] = 25
     V.rescore()
     assert {v['resource_id']: v for v in V.latest_versions()}[61]['verdict_basis'].startswith('carried')
+
+
+def test_r10_accuracy_asks_for_facts_beyond_the_input_as_whole_words():
+    """Precision review R10: "MIT" matched inside "commits"; an answer repeating its input scored 25; one link passed news."""
+    from agent_market.necklaces import role_tasks as RT
+    lic = {'case_id': 'lic', 'role': 'package.license.v1', 'input': {'name': 'left-pad'}, 'expect': {'must_include_any': ['MIT']}}
+    assert DQ.accuracy(lic, '42 commits since 2016', None, role_tasks=RT)[0] == 0
+    assert DQ.accuracy(lic, 'License: MIT', None, role_tasks=RT)[0] == DQ.WEIGHTS['accuracy']
+    site = {'case_id': 'site', 'role': 'website.ai_readiness.v1', 'input': {'url': 'python.org'},
+            'expect': {'must_include_any': ['python.org']}}
+    echo = DQ.accuracy(site, 'python.org looks fine', None, role_tasks=RT)
+    assert echo[0] == 0 and 'nothing beyond the input' in echo[1]
+    cve = {'case_id': 'cve', 'role': 'cve.record.v1', 'input': {'cve': 'CVE-2023-4863'},
+           'expect': {'must_include_all': ['CVE-2023-4863'], 'must_include_any': ['libwebp', 'WebP']}}
+    assert DQ.accuracy(cve, 'CVE-2023-4863: details unavailable', None, role_tasks=RT)[0] == 0
+    assert DQ.accuracy(cve, 'CVE-2023-4863 heap overflow in libwebp', None, role_tasks=RT)[0] == DQ.WEIGHTS['accuracy']
+    news = {'case_id': 'news', 'role': 'news.search.v1', 'input': {'q': 'cybersecurity', 'limit': 5},
+            'expect': {'must_include_https_url': True, 'published_within_days': 14}}
+    today = time.strftime('%Y-%m-%d')
+    assert DQ.accuracy(news, 'See https://example.com/a', None, role_tasks=RT)[0] == 0
+    assert DQ.accuracy(news, f'Breach at X, published {today} https://example.com/a', None,
+                       role_tasks=RT)[0] == DQ.WEIGHTS['accuracy']
+    assert DQ.accuracy(news, 'Old story, published 2019-01-02 https://example.com/a', None, role_tasks=RT)[0] == 0
