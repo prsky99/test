@@ -111,7 +111,10 @@ def held_out(agent_id, split, fill_from=None, exclude=frozenset()):
     never called."""
     from agent_market.fallback_agents.gold_check import SLUG, applies
     cases = []
-    for name in [split] + ([fill_from] if fill_from else []):
+    # 11-15 PM 14:34: a re-judgement after a fix skips the cases already seen, so it may need two fill rounds
+    # ('holdout-r2,holdout-r3'); fill_from is one split name or several separated by commas, used in that order.
+    fills = [f for f in (fill_from or '').split(',') if f]
+    for name in [split] + fills:
         path = ROOT / 'gateway-data/necklaces/gold' / SLUG[agent_id] / f'{name}.jsonl'
         rows = [json.loads(line) for line in path.read_text(encoding='utf-8').splitlines() if line.strip()]
         cases += [dict(c, split=name) for c in rows if applies(agent_id, c) and (agent_id, c['case_id']) not in exclude]
@@ -182,7 +185,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('agents', nargs='+')
     parser.add_argument('--split', default='holdout-r1')
-    parser.add_argument('--fill-from', default=None, help='take more answerable cases from this split (e.g. holdout-r2)')
+    parser.add_argument('--fill-from', default=None, help='take more answerable cases from this split, or several comma-separated in order (e.g. holdout-r2,holdout-r3)')
     parser.add_argument('--exclude-raw', nargs='*', default=[], help='skip cases already run in these gate raw files')
     parser.add_argument('--limit', type=int, default=None, help='run at most this many cases now (a part of a verdict)')
     parser.add_argument('--continue-from', default=None, help='an earlier part verdict: judge its rows and these together')

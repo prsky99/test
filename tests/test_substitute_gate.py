@@ -22,6 +22,20 @@ def test_held_out_takes_answerable_cases_and_fills_from_the_next_round(tmp_path,
     assert gate.held_out('gleif-lei', 'holdout-r1', 'holdout-r2') == []     # no LEI anywhere: nothing to call
 
 
+def test_a_re_judgement_skips_seen_cases_and_fills_from_two_rounds(tmp_path, monkeypatch):
+    """PM 11-15 14:34: after a fix the cases already seen are left out; the rest comes from rounds 2 and 3 in order."""
+    monkeypatch.setattr(gate, 'ROOT', tmp_path)
+    case = lambda i: {'case_id': f'c{i}', 'input': {}, 'truth': {'cik': str(i), 'lei': None}}
+    write(tmp_path, 'company-due-diligence', 'holdout-r1', [case(i) for i in range(20)])
+    write(tmp_path, 'company-due-diligence', 'holdout-r2', [case(100 + i) for i in range(10)])
+    write(tmp_path, 'company-due-diligence', 'holdout-r3', [case(200 + i) for i in range(25)])
+    seen = frozenset(('sec-filings', f'c{i}') for i in list(range(15)) + [100, 101, 102])
+    cases = gate.held_out('sec-filings', 'holdout-r1', 'holdout-r2,holdout-r3', exclude=seen)
+    splits = [c['split'] for c in cases]
+    assert len(cases) == 30 and splits.count('holdout-r1') == 5 and splits.count('holdout-r2') == 7
+    assert splits.count('holdout-r3') == 18 and not any(('sec-filings', c['case_id']) in seen for c in cases)
+
+
 def test_a_source_short_of_cases_is_not_called(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(gate, 'ROOT', tmp_path)
     monkeypatch.setattr(gate, 'OUT', tmp_path / 'out')
