@@ -740,7 +740,7 @@ class FastConcierge(Concierge):
         return Reply(message, 'find_workflow', result)
 
     @staticmethod
-    def _brief(item, first=True):
+    def _brief(item, first=True, step=None):
         kind = item['kind']
         name = agent_display_name(item)
         call = {'mcp':'initialize → tools/list → tools/call',
@@ -754,7 +754,9 @@ class FastConcierge(Concierge):
             # 11-12 PM: an MCP host cannot add a server mid-conversation; our /mcp `call` tool runs the
             # recommended informational tool in the same session, and a person can paste the config line.
             from .connections import run_here, mcp_config, gateway_agent_url
-            step = run_here(item.get('id'), (item.get('tools_schema') or [None])[0])
+            # PM 11-16 08:2x (B1): the find listing passes the run_here it already filled from the task, so the
+            # line and continuation_plan.run_here carry the same arguments
+            step = step or run_here(item.get('id'), (item.get('tools_schema') or [None])[0])
             if step:
                 # growth plan 7 item 3 (PM 11-14): the line to run it comes right under the name, before the details
                 lines.insert(1, 'Run here: call ' + json.dumps(step['arguments'], separators=(',', ':')))
@@ -1061,12 +1063,17 @@ class FastConcierge(Concierge):
         # The first listing that our gateway runs is offered as a `call` in this session (11-12 PM).
         from .connections import run_here
         runnable = next((item for item in items[:1] if item.get('kind') == 'mcp' and item.get('tool_unlisted') is not True), None)
-        here = run_here(runnable.get('id'), (runnable.get('tools_schema') or [None])[0]) if runnable else None
+        here = run_here(runnable.get('id'), (runnable.get('tools_schema') or [None])[0], task) if runnable else None
         if here:
             # next_steps stay follow-up listings (their own contract and safety gates, test_b2a_retention);
             # running the recommended tool here is a continuation of this answer.
             continuation_plan['run_here'] = here
-        return Reply(lead+'\n\n'.join(str(i+1)+'. '+self._brief(item, first=i == 0) for i,item in enumerate(items)),'find',
+            if runnable.get('run_here') and runnable['run_here'] != here:
+                # the card carries the same filled call as the line (B1); a copy, so a cached listing never keeps
+                # one request's values
+                runnable = {**runnable, 'run_here': here}
+                items = [runnable] + list(items[1:])
+        return Reply(lead+'\n\n'.join(str(i+1)+'. '+self._brief(item, first=i == 0, step=here if i == 0 and item is runnable else None) for i,item in enumerate(items)),'find',
                      {**({'status':'needs_choice','confidence':'low'} if unsure else {}),
                       'task':task,'watch_task':' '.join(search_terms(task))[:160],'protocol':protocol,
                       'category':items[0]['category'],'revalidate_after_sec':3600,

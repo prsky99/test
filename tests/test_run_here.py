@@ -53,3 +53,16 @@ def test_find_agents_over_mcp_offers_the_same_run_here(catalog):
     assert 'Run here: call {"resource_id":%d,"tool":"forecast","arguments":{"city":"<city>"}}' % rid in result['content'][0]['text']
     top = result['structuredContent']['recommendations'][0]
     assert top['run_here']['arguments']['resource_id'] == rid and top['gateway_ready'] is top['connection_available'] is True
+
+
+def test_a_task_that_names_the_city_fills_the_line_the_card_and_the_plan_alike(catalog):
+    """PM 11-16 08:2x (B1): the find listing fills Run here from the task once; the text line, the card and
+    continuation_plan carry the same arguments, and the next request with another city is not answered from the first."""
+    store, front, client, add, now = catalog
+    rid = add('Weather', report_at=now - 1)
+    for city in ('Seoul', 'Tokyo'):
+        body = ask(client, f'find an MCP weather forecast API for {city}')
+        expected = {'resource_id': rid, 'tool': 'forecast', 'arguments': {'city': city}}
+        assert 'Run here: call ' + json.dumps(expected, separators=(',', ':')) in body['reply']
+        assert chosen(body)['run_here']['arguments'] == expected
+        assert body['data']['continuation_plan']['run_here']['arguments'] == expected

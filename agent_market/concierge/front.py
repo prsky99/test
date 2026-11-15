@@ -449,6 +449,15 @@ class Front:
             if key in data:
                 if isinstance(data[key],list):data[key]=[agent(item) for item in data[key]]
                 else:invalid=True
+        # PM 11-16 08:2x (B1): the card is projected again here without the task; it carries the same call that
+        # fast_chat filled from the task (continuation_plan.run_here), for the same listing and tool only.
+        plan=(data.get('continuation_plan') or {}).get('run_here') if isinstance(data.get('continuation_plan'),dict) else None
+        cards=data.get('recommendations') if isinstance(data.get('recommendations'),list) else []
+        if isinstance(plan,dict) and cards and isinstance(cards[0],dict) and isinstance(cards[0].get('run_here'),dict):
+            mine=cards[0]['run_here'].get('arguments') or {};filled=plan.get('arguments') or {}
+            if (isinstance(mine,dict) and isinstance(filled,dict) and mine.get('resource_id')==filled.get('resource_id')
+                    and mine.get('tool')==filled.get('tool')):
+                cards[0]={**cards[0],'run_here':plan}
         if isinstance(data.get('next_steps'), list):
             from .protocols import search_protocols
             from .discovery_state import execution_state
