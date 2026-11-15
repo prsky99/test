@@ -57,7 +57,7 @@ def _latest_us_periodic(submissions: dict) -> dict | None:
 
 
 def build_cases(root: Path, get=fetch_text, today: date | None = None, sleep=time.sleep, limit_calls: int = 95,
-                seed: str = "r4", prefix: str = "US4"):
+                seed: str = "r4", prefix: str = "US4", count: int = CASES):
     today = today or date.today()
     valid_until = (today + timedelta(days=VALID_DAYS)).isoformat()
     seen_ids, seen_ciks = earlier_ids(root)
@@ -66,7 +66,7 @@ def build_cases(root: Path, get=fetch_text, today: date | None = None, sleep=tim
                    key=lambda r: hashlib.sha256(f"{seed}:{int(r['cik_str'])}".encode()).hexdigest())
     cases, skipped, calls = [], {"seen": 0, "not_us_periodic": 0}, 1
     for row in order:
-        if len(cases) >= CASES or calls >= limit_calls:
+        if len(cases) >= count or calls >= limit_calls:
             break
         cik = int(row["cik_str"])
         if str(cik) in seen_ciks or f"US:CIK{cik}" in seen_ids:
