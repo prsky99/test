@@ -26,7 +26,7 @@ import re
 import time
 import urllib.error
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import quote, urlparse
 
@@ -508,6 +508,49 @@ def split(cases: list[dict], per_split: int = PER_SPLIT) -> dict[str, list[dict]
     return out
 
 
+# Every answer set has a validity (PM 13:0x, 11-15): 100 days as company-due-diligence's filings, shorter where the
+# truth moves fast (package versions and advisories, CVE records). A set without a valid_until, or past it, is not
+# used: no retest and no gate round runs on it (retest.load_cases), so a necklace is held after 48 hours without a
+# retest rather than graded on old truth. Rotating role cases (KEV) keep their own cycle in role_tasks.
+DEFAULT_VALID_DAYS = 100
+VALID_DAYS = {"package-risk-audit": 30, "cve-incident-brief": 30}
+
+
+class GoldSetInvalid(Exception):
+    """The answer set has no validity or is past it."""
+
+
+def valid_until(slug: str, created: datetime) -> str:
+    return (created + timedelta(days=VALID_DAYS.get(slug, DEFAULT_VALID_DAYS))).strftime("%Y-%m-%d")
+
+
+def validity_problem(root: Path, slug: str, today: str | None = None) -> str | None:
+    """None when the set may be used today (UTC date), else why not."""
+    try:
+        manifest = json.loads((Path(root) / "gold" / slug / "manifest.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return "manifest_missing"
+    until = manifest.get("valid_until")
+    if not isinstance(until, str) or len(until) != 10:
+        return "validity_missing"
+    today = today or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return "answer_set_expired" if today > until else None
+
+
+def stamp_validity(root: Path) -> dict:
+    """Give every manifest without one a valid_until from its created_at (sets built before 11-15); the split files
+    and their sha256 stay as they are."""
+    out = {}
+    for path in sorted((Path(root) / "gold").glob("*/manifest.json")):
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        if not manifest.get("valid_until") and manifest.get("created_at"):
+            created = datetime.strptime(manifest["created_at"][:10], "%Y-%m-%d")
+            manifest["valid_until"] = valid_until(path.parent.name, created)
+            path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        out[path.parent.name] = manifest.get("valid_until")
+    return out
+
+
 def write_set(root: Path, slug: str, parts: dict[str, list[dict]], meta: dict) -> dict:
     folder = root / "gold" / slug
     folder.mkdir(parents=True, exist_ok=True)
@@ -519,7 +562,8 @@ def write_set(root: Path, slug: str, parts: dict[str, list[dict]], meta: dict) -
         for r in rows:
             strata[r["stratum"]] = strata.get(r["stratum"], 0) + 1
         files[name] = {"cases": len(rows), "strata": strata, "sha256": hashlib.sha256(text.encode()).hexdigest()}
-    manifest = dict(meta, slug=slug, created_at=_now(), seed=SEED, files=files)
+    manifest = dict(meta, slug=slug, created_at=_now(), seed=SEED, files=files,
+                    valid_until=valid_until(slug, datetime.now(timezone.utc)))
     (folder / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return manifest
 
@@ -578,8 +622,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--root", type=Path, default=Path("gateway-data/necklaces"))
     parser.add_argument("--raw", type=Path, default=None, help="also keep the unsplit cases here")
     parser.add_argument("--resplit", action="store_true", help="re-split saved raw cases from --raw, no network")
+    parser.add_argument("--stamp-validity", action="store_true",
+                        help="give manifests without valid_until one from created_at, no network")
     parser.add_argument("slugs", nargs="*", default=["package-risk-audit", "cve-incident-brief"])
     args = parser.parse_args(argv)
+    if args.stamp_validity:
+        print(json.dumps(stamp_validity(args.root), ensure_ascii=False, indent=1))
+        return 0
     if args.resplit:
         if not args.raw:
             parser.error("--resplit needs --raw")

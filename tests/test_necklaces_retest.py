@@ -310,6 +310,7 @@ def test_a_gate_round_can_take_the_public_engine_path(tmp_path, monkeypatch):
     case = {"case_id": "p1", "input": {"package": "lodash", "ecosystem": "npm"},
             "truth": {"advisories": [], "latest_version": "9.9.9"}}
     (folder / "tuning.jsonl").write_text(json.dumps(case) + "\n")
+    (folder / "manifest.json").write_text(json.dumps({"valid_until": "2999-01-01"}))   # a set must be valid (PM 13:0x)
     seen = []
 
     class Engine:

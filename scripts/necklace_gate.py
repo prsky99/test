@@ -162,6 +162,9 @@ def check(defn: dict, client, base: str = BASE, verified=None, substitutes=None,
     state = {"substitutes": judge.load_substitutes(Path("gateway-data/necklaces/approvals.json"))
              if substitutes is None else substitutes}
     slots, seated_pearl_slots, problems = [], [], model.validate(defn)
+    if verified is None:     # PM 13:0x: no snapshot, older than 72 hours or another evaluator version
+        problems.append("verified pearls not judged (verify snapshot missing, older than 72 hours or graded with "
+                        "another evaluator version)")
     sample = defn.get("probe_input")          # a public example input, staged values as slot.<slot>.<field>
     for slot in defn["slots"]:
         chain = runtime_chain(slot, defn["slug"], state)

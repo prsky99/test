@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import tempfile
 import time
@@ -32,6 +33,9 @@ from . import model
 SCHEMA = "agentcon-necklaces-v1"
 MAX_BYTES = 1_000_000
 STALE_HOURS = 48
+# Closed verdicts (PM 13:0x, 11-15): information we cannot read or trust holds, it does not pass.
+WATCH_STALE_HOURS = 3      # the watch runs hourly at :20; 03:20 -> 05:20 jumps the 03:50-05:10 window
+SNAPSHOT_MAX_HOURS = 72    # verified pearls from an older verify snapshot are not trusted
 DEFAULT_ROOT = Path("gateway-data/necklaces")
 PUBLIC = ("live", "held", "retired")
 
@@ -117,12 +121,41 @@ def verify_snapshot_path() -> Path:
     return (Path(project) if project else Path(".")) / "exports" / "pearls" / "verify-snapshot.json"
 
 
-def verified_pearls(path: Path | None = None) -> set[tuple[int, str]] | None:
+def official_evaluator_version() -> str | None:
+    """The evaluator version the pearl reports are graded with now (scripts/report_v2.EVALUATOR_VERSION), read as
+    text so the judge does not import the report tool; None when it cannot be read."""
+    project = os.environ.get("AGENTCON_PROJECT_ROOT")
+    try:
+        text = ((Path(project) if project else Path(".")) / "scripts" / "report_v2.py").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    found = re.search(r"^EVALUATOR_VERSION\s*=\s*['\"]([^'\"]+)['\"]", text, re.M)
+    return found.group(1) if found else None
+
+
+def snapshot_problem(data: dict, now: float | None = None, official: str | None = None) -> str | None:
+    """Why a verify snapshot is not trusted (PM 13:0x): older than SNAPSHOT_MAX_HOURS, without a time, or graded
+    with another evaluator version than the official one (or either version unknown)."""
+    generated = _parse_time(str(data.get("generated") or "").replace("+0900", "+09:00"))
+    now = time.time() if now is None else now
+    if generated is None or now - generated > SNAPSHOT_MAX_HOURS * 3600:
+        return "snapshot_stale"
+    official = official_evaluator_version() if official is None else official
+    if not official or data.get("evaluator_version") != official:
+        return "snapshot_evaluator_version"
+    return None
+
+
+def verified_pearls(path: Path | None = None, now: float | None = None,
+                    official: str | None = None) -> set[tuple[int, str]] | None:
     """(agent id, role) pairs that are verified pearls in the search team's verify snapshot (PM R29), or None when
-    the snapshot is missing or unreadable (then no member is called a pearl)."""
+    the snapshot is missing, unreadable, older than 72 hours or graded with another evaluator version (then no
+    member is called a pearl: the gate does not judge and a public necklace is held as pearls_unverified)."""
     try:
         data = json.loads(Path(path or verify_snapshot_path()).read_text(encoding="utf-8"))
     except (OSError, ValueError):
+        return None
+    if snapshot_problem(data, now, official):
         return None
     out = set()
     for agent_id, agent in (data.get("agents") or {}).items():
@@ -192,8 +225,24 @@ def example_fields(defn: dict) -> dict:
     return out
 
 
+def load_watch_state(root: Path, now: float) -> tuple[dict, str | None]:
+    """The hourly watch's state and, when it cannot be trusted, why (PM 13:0x): a missing or broken file, or one
+    not updated for WATCH_STALE_HOURS, holds every public necklace instead of reading as 'no holds'."""
+    try:
+        state = json.loads((Path(root) / "watch" / "state.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}, "watch_state_missing"
+    if not isinstance(state, dict):
+        return {}, "watch_state_missing"
+    updated = _parse_time(state.get("updated"))
+    if updated is None or now - updated > WATCH_STALE_HOURS * 3600:
+        return state, "watch_state_stale"
+    return state, None
+
+
 def build_entry(defn: dict, approval: dict | None, summary: dict, now: float,
-                watch_state: dict | None = None, verified: set | None = None) -> dict | None:
+                watch_state: dict | None = None, verified: set | None = None,
+                watch_problem: str | None = None) -> dict | None:
     status = defn["status"]
     if status not in PUBLIC:
         return None
@@ -234,6 +283,7 @@ def build_entry(defn: dict, approval: dict | None, summary: dict, now: float,
     # The surface contract needs at least two pearls; summary holds come from the
     # daily retest (security, completion_low, quality_low and the like).
     reason = (reason
+              or watch_problem
               or watch_hold(defn["slug"], watch_state, approval)
               or ("no_member" if len(entry["pearls"]) < 2 else None)
               or ("pearls_unverified" if entry["pearl_count"] < 2 else None)
@@ -317,11 +367,9 @@ def snapshot(definitions: list[dict], approvals: dict[str, dict], root: Path, no
              judge_commit: str | None = None, watch_state: dict | None = None,
              judge_state: dict | None = None, verified: set | None = None) -> dict:
     now = time.time() if now is None else now
+    watch_problem = None
     if watch_state is None:
-        try:
-            watch_state = json.loads((root / "watch" / "state.json").read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            watch_state = {}
+        watch_state, watch_problem = load_watch_state(root, now)
     entries = []
     # PM R22: the last passed gate stays on the entry when ops holds, revokes or the definition changes, so the
     # surface keeps the page and the tool answer with the stop notice instead of a 404 / "Unknown necklace".
@@ -329,7 +377,7 @@ def snapshot(definitions: list[dict], approvals: dict[str, dict], root: Path, no
     verified = verified_pearls() if verified is None else verified
     for defn in definitions:
         entry = build_entry(defn, approvals.get(defn["slug"]), load_summary(root, defn["slug"]), now, watch_state,
-                            verified)
+                            verified, watch_problem)
         if entry is not None:
             if entry.get("gate_passed_at"):
                 passed[defn["slug"]] = entry["gate_passed_at"]

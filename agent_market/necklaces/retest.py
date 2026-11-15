@@ -677,6 +677,11 @@ def single_members(defn: dict, contrast: str, watch_state: dict | None = None) -
 
 # ---------------------------------------------------------------- run
 def load_cases(root: Path, slug: str, split: str) -> list[dict]:
+    """The split's cases; GoldSetInvalid when the answer set has no validity or is past it (PM 13:0x)."""
+    from .gold import GoldSetInvalid, validity_problem
+    why = validity_problem(root, slug)
+    if why:
+        raise GoldSetInvalid(f"{slug}: {why}")
     path = Path(root) / "gold" / slug / f"{split}.jsonl"
     cases = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
     if slug == "company-due-diligence":
@@ -784,7 +789,11 @@ def run_daily(defn: dict, *, root: Path = DEFAULT_ROOT, split: str, singles: boo
     # the same runtime chain as the public path: watch demotions and exclusions, ops-approved substitutes
     watch_state = load_json(Path(root) / "watch" / "state.json", {})
     watch_state["substitutes"] = load_substitutes(Path(root) / "approvals.json")
-    cases = load_cases(root, defn["slug"], split)[:limit]
+    from .gold import GoldSetInvalid
+    try:
+        cases = load_cases(root, defn["slug"], split)[:limit]
+    except GoldSetInvalid as exc:          # not run: no case line, so the judge holds it after 48 hours
+        return {"slug": defn["slug"], "split": split, "cases": 0, "passed": 0, "not_run": str(exc), "path": path}
     if path == "engine":
         close = None
         if engine is None:

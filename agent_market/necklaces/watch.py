@@ -124,6 +124,22 @@ def fingerprint_status(prints: dict, rid, now: float | None = None) -> str:
     return "same"
 
 
+HEALTH_MAX_AGE = 24 * 3600     # PM 13:0x (11-15): members are probed every 0.1-12 h today (health_n_24h 2-6)
+
+
+def health_state(row: dict | None, now: float | None = None) -> str:
+    """'missing' (no row), 'unknown' (no probe time or one older than 24 hours), 'healthy' or 'unhealthy'.
+    Closed: a health status nobody measured lately is not taken as healthy (PM 13:0x)."""
+    from .judge import _parse_time
+    if not row:
+        return "missing"
+    probed = _parse_time(row.get("probed_at"))
+    now = time.time() if now is None else now
+    if probed is None or now - probed > HEALTH_MAX_AGE:
+        return "unknown"
+    return "healthy" if healthy(row) else "unhealthy"
+
+
 def healthy(row: dict | None) -> bool:
     return bool(row) and int(row.get("active") or 0) == 1 and row.get("health_status") == "healthy"
 
@@ -299,11 +315,18 @@ def observe(definitions: list[dict], fetch, prints: dict, state: dict, now: floa
                 key = member_key(slug, slot["slot"], m)
                 mark = marks.setdefault(key, {"fail_streak": 0, "ok_streak": 0})
                 row = fetch(m["resource_id"])
-                ok = healthy(row)
+                health = health_state(row, now)
+                ok = health == "healthy"
                 problem = annotation_problem(row or {}, m) if row else None
                 print_state = fingerprint_status(prints, m["resource_id"], now) if m.get("kind") == "external" else "same"
                 mark["fail_streak"], mark["ok_streak"] = (0, mark["ok_streak"] + 1) if ok else (mark["fail_streak"] + 1, 0)
                 action = None
+                if row is None and not mark.get("excluded"):
+                    # gone from the catalogue: nothing to check its tools against, so it leaves the chain; a slot
+                    # left empty holds the necklace below (no_member)
+                    mark["excluded"], action = True, "excluded_missing"
+                if health == "unknown" and key in called and slot.get("required", True):
+                    _hold(state, slug, "health_unknown", f"{m['resource_id']}: no health probe in 24 h", now)
                 if row is not None and int(row.get("active") or 0) != 1:
                     if not mark.get("excluded"):
                         mark["excluded"], action = True, "excluded_inactive"
@@ -330,7 +353,7 @@ def observe(definitions: list[dict], fetch, prints: dict, state: dict, now: floa
                         mark["demoted"], action = False, "restored"
                 mark["last"] = _now_iso(now)
                 lines.append({"at": _now_iso(now), "slug": slug, "slot": slot["slot"], "resource_id": m["resource_id"],
-                              "tool": m["tool"], "kind": m["kind"], "healthy": ok,
+                              "tool": m["tool"], "kind": m["kind"], "healthy": ok, "health": health,
                               "health_status": (row or {}).get("health_status"), "fingerprint": print_state,
                               "problem": problem, "fail_streak": mark["fail_streak"], "action": action})
             if slot.get("required", True) and not runtime_chain(slot, slug, state):

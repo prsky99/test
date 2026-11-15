@@ -178,3 +178,23 @@ def test_company_names_compare_after_normalizing_legal_forms():
     assert gold.name_key("AT&T Inc.") == "at and t inc"
     cases = [{"truth": {"lei": "X"}}, {"truth": {"lei": None, "cik": "1"}}]
     assert [c["stratum"] for c in gold.lei_strata(cases)] == ["has_lei", "cik_only"]
+
+
+def test_answer_sets_have_a_validity_and_are_not_used_past_it(tmp_path):
+    """PM 13:0x (11-15): no valid_until, or past it, means no retest and no gate round on that set."""
+    import json as _json
+    import pytest
+    from agent_market.necklaces import gold as g, retest
+    folder = tmp_path / "gold" / "cve-incident-brief"
+    folder.mkdir(parents=True)
+    (folder / "tuning.jsonl").write_text(_json.dumps({"case_id": "c1", "input": {}, "truth": {}}) + "\n")
+    (folder / "manifest.json").write_text(_json.dumps({"created_at": "2026-11-13T22:00:19Z", "files": {}}))
+    assert g.validity_problem(tmp_path, "cve-incident-brief", "2026-11-15") == "validity_missing"
+    with pytest.raises(g.GoldSetInvalid):
+        retest.load_cases(tmp_path, "cve-incident-brief", "tuning")
+    assert g.stamp_validity(tmp_path) == {"cve-incident-brief": "2026-12-13"}           # 30 days for CVE truth
+    assert g.validity_problem(tmp_path, "cve-incident-brief", "2026-12-13") is None
+    assert g.validity_problem(tmp_path, "cve-incident-brief", "2026-12-14") == "answer_set_expired"
+    assert g.validity_problem(tmp_path, "missing-set") == "manifest_missing"
+    written = g.write_set(tmp_path, "book-author-brief", {"tuning": []}, {"answer_set": "x"})
+    assert written["valid_until"] > written["created_at"][:10]

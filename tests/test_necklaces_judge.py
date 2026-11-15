@@ -101,6 +101,8 @@ def test_snapshot_file_is_written_atomically_with_schema(tmp_path):
     (tmp_path / "approvals.json").write_text(json.dumps({"approvals": [
         approval(defn, at="2026-11-19T00:00:00Z", state="held"), approval(defn)]}))
     approvals = judge.load_approvals(tmp_path / "approvals.json")
+    (tmp_path / "watch").mkdir()
+    (tmp_path / "watch" / "state.json").write_text(json.dumps({"updated": judge._iso(NOW), "holds": {}}))
     payload = judge.snapshot([defn], approvals, tmp_path, now=NOW, judge_commit="abc1234", verified=BOTH)
     judge.write_atomic(tmp_path / "necklaces.json", payload)
     written = json.loads((tmp_path / "necklaces.json").read_text())
@@ -236,10 +238,10 @@ def test_every_held_reason_has_public_wording():
 def test_pearls_are_counted_from_the_verify_snapshot(tmp_path):
     """PM R29: a member is a pearl only when the search team's verify snapshot says so for the slot's role."""
     snap = tmp_path / "verify.json"
-    snap.write_text(json.dumps({"agents": {
+    snap.write_text(json.dumps({"generated": judge._iso(NOW), "evaluator_version": "dq-test", "agents": {
         "1": {"roles": [{"role": "x.v1", "verified_pearl": True}]},
         "3": {"roles": [{"role": "other.v1", "verified_pearl": True}, {"role": "y.v1", "verified_pearl": False}]}}}))
-    verified = judge.verified_pearls(snap)
+    verified = judge.verified_pearls(snap, now=NOW, official="dq-test")
     assert verified == {(1, "x.v1"), (3, "other.v1")}
     defn = live_defn()
     summary(tmp_path, "topic-brief")
@@ -283,3 +285,38 @@ def test_snapshot_carries_example_input_and_help_for_the_surface():
 def test_every_entry_says_runs_are_free_for_now():
     entry = judge.build_entry(live_defn(), approval(live_defn()), {}, NOW, verified=BOTH)
     assert entry["pricing"] == {"mode": "free"}
+
+
+
+def test_untrusted_inputs_hold_instead_of_passing(tmp_path):
+    """PM 13:0x (11-15): a missing, broken or stale watch state holds every public necklace; a verify snapshot older
+    than 72 hours or graded with another evaluator version counts no pearl."""
+    defn = live_defn()
+    summary(tmp_path, defn["slug"])
+    approvals = {defn["slug"]: approval(defn)}
+    entry = judge.snapshot([defn], approvals, tmp_path, NOW, judge_state={}, verified=BOTH)["necklaces"][0]
+    assert (entry["status"], entry["held_reason"]) == ("held", "watch_state_missing")
+    (tmp_path / "watch").mkdir()
+    (tmp_path / "watch" / "state.json").write_text("{broken")
+    assert judge.load_watch_state(tmp_path, NOW)[1] == "watch_state_missing"
+    (tmp_path / "watch" / "state.json").write_text(json.dumps({"updated": judge._iso(NOW - 4 * 3600)}))
+    assert judge.load_watch_state(tmp_path, NOW)[1] == "watch_state_stale"
+    (tmp_path / "watch" / "state.json").write_text(json.dumps({"updated": judge._iso(NOW - 3600)}))
+    entry = judge.snapshot([defn], approvals, tmp_path, NOW, judge_state={}, verified=BOTH)["necklaces"][0]
+    assert entry["status"] == "live"
+    snap = tmp_path / "verify.json"
+    body = {"generated": judge._iso(NOW), "evaluator_version": "dq-test",
+            "agents": {"1": {"roles": [{"role": "x.v1", "verified_pearl": True}]}}}
+    snap.write_text(json.dumps(body))
+    assert judge.verified_pearls(snap, now=NOW, official="dq-test") == {(1, "x.v1")}
+    assert judge.verified_pearls(snap, now=NOW + 73 * 3600, official="dq-test") is None
+    assert judge.verified_pearls(snap, now=NOW, official="dq-newer") is None
+    snap.write_text(json.dumps(dict(body, evaluator_version=None)))
+    assert judge.verified_pearls(snap, now=NOW, official="dq-test") is None
+    snap.write_text(json.dumps(dict(body, generated="2026-11-15T10:22:09+0900")))       # the snapshot's own format
+    assert judge.snapshot_problem(json.loads(snap.read_text()), judge._parse_time("2026-11-15T12:00:00+09:00"),
+                                  "dq-test") is None
+
+
+def test_official_evaluator_version_is_read_from_the_report_tool():
+    assert judge.official_evaluator_version().startswith("dq-")

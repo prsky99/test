@@ -13,8 +13,9 @@ def tools(name="search_items", **ann):
     return json.dumps([{"name": name, "annotations": annotations}])
 
 
-def row(health="healthy", active=1, **ann):
-    return {"active": active, "health_status": health, "usage_full_tools": tools(**ann)}
+def row(health="healthy", active=1, probed_at=NOW, **ann):
+    """A catalogue row probed now (the watch takes a probe older than 24 hours as unknown health, PM 13:0x)."""
+    return {"active": active, "health_status": health, "probed_at": probed_at, "usage_full_tools": tools(**ann)}
 
 
 def trial():
@@ -274,3 +275,20 @@ def test_unknown_or_stale_fingerprint_holds_the_necklace_but_keeps_the_member():
     stale = fresh(at=NOW - 30 * 3600)
     watch.observe([defn], lambda rid: rows.get(rid), stale, state, NOW)
     assert "stale" in state["holds"]["topic-brief"]["detail"]
+
+
+def test_a_member_gone_from_the_catalogue_leaves_and_stale_health_holds():
+    """PM 13:0x (11-15): a missing row is excluded at once (no tools to check); a called member of a required slot
+    without a health probe in 24 hours holds the necklace."""
+    defn, rows = trial(), healthy_rows()
+    called = lead(defn, {})
+    gone = {rid: r for rid, r in rows.items() if rid != called}
+    state = run(defn, gone)
+    key = next(k for k in state["members"] if k.endswith(f"|{called}|search_items"))
+    assert state["members"][key]["excluded"] is True
+    assert called not in [m["resource_id"] for m in watch.runtime_chain(defn["slots"][0], "topic-brief", state)]
+    stale = {**rows, called: row(probed_at=NOW - 25 * 3600)}
+    state = run(defn, stale)
+    assert state["holds"]["topic-brief"]["reason"] == "health_unknown"
+    assert watch.health_state(None, NOW) == "missing" and watch.health_state(row(), NOW) == "healthy"
+    assert watch.health_state(row(probed_at=None), NOW) == "unknown"

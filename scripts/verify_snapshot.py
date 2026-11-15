@@ -101,6 +101,9 @@ def build(versions=None, facts=None, necklaces=None, now=None):
         })
     import data_quality as DQ
     return {'generated': time.strftime('%Y-%m-%dT%H:%M:%S%z', time.localtime(now)), 'methodology': method_version(),
+            # the necklace judge trusts the verified pearls only when they were graded with the official evaluator
+            # version and the snapshot is under 72 hours old (PM 13:0x, 11-15)
+            'evaluator_version': V.EVALUATOR_VERSION,
             'verified_rule': {'min_score': V.PASS_MARK, 'successes_on_different_days': V.CONFIRM_DAYS,
                               'accuracy_required': True, 'weights': DQ.WEIGHTS},
             'roles': roles, 'agents': dict(agents)}
