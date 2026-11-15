@@ -34,17 +34,24 @@ LONG = re.compile(r'\b(' + '|'.join(MONTHS) + r')[a-z]*\.? (\d{1,2}),? ((?:19|20
 EPOCH = re.compile(r'(?<![\d.])(1[6-9]\d{8}|1[6-9]\d{11})(?![\d.])')
 CLOCK = re.compile(r'\b([01]?\d|2[0-3]):([0-5]\d)\b')
 
+# R13 (precision review 11-15): only what is certainly not an answer fails it; a word that may be legitimate content
+# ("todo" in Spanish, "truncated": false, an incident that quotes "500 Internal Server Error") goes to review instead.
 UNCLEAN = {
     'demo or placeholder': re.compile(r'\[demo\]|\bdemo (?:mode|data|response|backend)\b|\bsample (?:data|response|output)\b|'
-                                      r'\bmock(?:ed)? (?:data|response)\b|\bplaceholder\b|lorem ipsum|\bexample\.(?:com|org)\b|'
-                                      r'\bTODO\b|<your[_ -]', re.I),
-    'error text': re.compile(r'^\W*(?:error|exception)\b|"error"\s*:\s*(?:"|\{)|\btraceback\b|internal server error|'
-                             r'stack trace|\bundefined is not\b|\bnull pointer\b', re.I | re.M),
+                                      r'\bmock(?:ed)? (?:data|response)\b|\bplaceholder\b|lorem ipsum|<your[_ -]', re.I),
+    'error text': re.compile(r'^\W*(?:error|exception)\b(?!"?\s*:\s*(?:null|false|""|\[\]|\{\}))|^\W*(?:\d{3}\s+)?internal server error|"error"\s*:\s*(?:"|\{)|'
+                             r'^\W*traceback\b|\bundefined is not\b|\bnull pointer\b', re.I),
     'payment demand': re.compile(r'payment required|\bx402\b|upgrade (?:your )?plan|subscribe to (?:continue|access)|'
                                  r'api key (?:is )?required|insufficient (?:credits|balance)|purchase credits', re.I),
-    'cut answer': re.compile(r'(?:\.\.\.|…)\s*$|\btruncated\b', re.I),
-    'broken encoding': re.compile(r'�|Ã[©¨¼¶¤]|â€[™œ\x9d“”]'),
+    'broken encoding': re.compile(r'\ufffd|Ã[©¨¼¶¤]|â€[™œ\x9d“”]'),
 }
+REVIEW = {   # flagged for a person, not failed (R13)
+    'placeholder word': re.compile(r'(?-i:\bTODO\b)|\bexample\.(?:com|org)\b'),
+    'cut answer': re.compile(r'(?:\.\.\.|…)\s*$|(?<!not )\btruncated\b(?!"?\s*[:=]\s*(?:false|0|no)\b)', re.I),
+    'error text inside the answer': re.compile(r'\btraceback\b|internal server error|stack trace', re.I),
+}
+# Roles whose answers report errors as their subject (an incident or a vulnerability record): error words are content.
+ERROR_SUBJECT_ROLES = {'software.incident.v1', 'cve.record.v1', 'cve.exploited.v1', 'package.advisories.v1'}
 BLANK_TEXT = re.compile(r':\s*(?:null|""|\[\]|\{\}|"n/?a"|"unknown"|"none")\s*[,}]|\bN/A\b', re.I)
 
 
@@ -96,7 +103,10 @@ TZ_NAME = re.compile(r'\b((?:Africa|America|Antarctica|Asia|Atlantic|Australia|E
 
 def _label_kinds(before):
     kinds = [kind for kind, pattern in LABELS.items() if re.search(r'\b(?:' + pattern + r')\W{0,12}$', before, re.I)]
-    return ['retrieved'] if 'retrieved' in kinds else kinds
+    # R13: "Retrieved on 2026-11-15", "fetched at ..." are retrieval times too (the connector word matched "on" alone).
+    if re.search(r'\b(?:' + LABELS['retrieved'] + r')\W{0,3}(?:on|at|as of|in)?\W{0,12}$', before, re.I):
+        return ['retrieved']
+    return kinds
 
 
 def labelled_dates(text, now=None):
@@ -136,11 +146,12 @@ def _clock(text, structured, args, now):
     except Exception:
         return 0, 'a clock time of now in the named zone (unknown zone: unconfirmed)', None
     stamps = []
+    retrieval = lambda m: _label_kinds((text or '')[max(0, m.start() - 40):m.start()]) == ['retrieved']   # R13
     for m in ISO.finditer(text or ''):
-        if m[4] is not None:
+        if m[4] is not None and not retrieval(m):
             stamps.append((int(m[4]), int(m[5])))
     if not stamps:
-        stamps = [(int(m[1]), int(m[2])) for m in CLOCK.finditer(text or '')]
+        stamps = [(int(m[1]), int(m[2])) for m in CLOCK.finditer(text or '') if not retrieval(m)]
     if not stamps:
         return 0, 'a clock time of now (no time stated)', None
     minutes = actual.hour * 60 + actual.minute
@@ -307,8 +318,21 @@ def completeness(text, structured=None, role=None, args=None):
     return None, len(BLANK_TEXT.findall(text or '')), len([f for f in required if f != 'items']), 'text answer: role checks'
 
 
-def clean_issues(text):
-    return [name for name, pattern in UNCLEAN.items() if pattern.search(text or '')]
+def clean_issues(text, role=None):
+    """Issues that fail an answer: it is not an answer (R13: certain cases only)."""
+    issues = [name for name, pattern in UNCLEAN.items() if pattern.search(text or '')]
+    if role in ERROR_SUBJECT_ROLES and 'error text' in issues and not re.match(r'^\W*(?:error|exception)\b|^\W*traceback',
+                                                                               text or '', re.I):
+        issues.remove('error text')              # "error": {...} inside an advisory or incident record is its content
+    return issues
+
+
+def clean_review(text, role=None):
+    """Issues a person should look at; they do not fail the answer (R13)."""
+    found = [name for name, pattern in REVIEW.items() if pattern.search(text or '')]
+    if role in ERROR_SUBJECT_ROLES:
+        found = [name for name in found if name != 'error text inside the answer']
+    return found
 
 
 def _numbers(text):

@@ -280,3 +280,19 @@ def test_r12_a_member_is_ranked_on_its_recent_tasks_not_one_days_case(monkeypatc
     role = V.rank([steady[-1], lucky[-1]])['cve.record.v1']
     assert [m['resource_id'] for m in role['members']] == [1, 2]
     assert role['final_pearl'] == 1 and role['members'][0]['recent_pass_rate'] == 0.67
+
+
+def test_r13_clean_fails_only_what_is_certainly_not_an_answer_and_retrieval_times_do_not_count():
+    """Precision review R13: "truncated": false, Spanish "todo" and a quoted 500 error failed answers; "Retrieved on
+    <now>" gave full freshness."""
+    assert DQ.clean_issues('{"truncated": false, "items": [1]}') == [] and DQ.clean_issues('Lista: todo el día') == []
+    assert DQ.clean_issues('The API returned 500 Internal Server Error to users', role='software.incident.v1') == []
+    assert DQ.clean_review('The API returned 500 Internal Server Error') == ['error text inside the answer']
+    assert DQ.clean_issues('{"error": null, "rate": 0.92}') == []
+    assert DQ.clean_issues('Error: upstream timeout') == ['error text'] and DQ.clean_issues('{"error": "bad key"}')
+    assert DQ.clean_review('TODO: fill in') == ['placeholder word'] and DQ.clean_issues('TODO: fill in') == []
+    now = NOW
+    stamp = time.strftime('%Y-%m-%dT%H:%M', time.localtime(now))
+    assert DQ.freshness('fx.rate.v1', f'Retrieved on {stamp}', now)[0] == 0
+    assert DQ.freshness('fx.rate.v1', f'Rate as of {stamp}', now)[0] == 10
+    assert DQ.freshness('timezone.time.v1', f'Retrieved on {stamp}', now, args={'tz': 'Asia/Seoul'})[0] == 0

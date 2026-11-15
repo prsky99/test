@@ -357,7 +357,8 @@ def assess(r, text, structured, case):
     if r['outcome'] != 'succeeded':
         r['data_quality'] = {}
         return
-    issues = DQ.clean_issues(text)
+    issues = DQ.clean_issues(text, role=r['role'])
+    review = DQ.clean_review(text, role=r['role'])
     live = role_catalog.live_spec(r['role'])
     from agent_market.necklaces import role_tasks
     acc_points, source, reasons = DQ.accuracy(case, text, structured, live=live,
@@ -373,7 +374,7 @@ def assess(r, text, structured, case):
     r['data_quality'] = {'accuracy': {'points': acc_points, 'source': source, 'reasons': reasons},
                          'freshness': {'points': fresh_points, 'rule': rule, 'newest': newest},
                          'completeness': {'points': comp_points, 'blanks': blanks, 'fields': fields, 'detail': comp_detail},
-                         'clean': {'points': 0 if issues else DQ.WEIGHTS['clean'], 'issues': issues}}
+                         'clean': {'points': 0 if issues else DQ.WEIGHTS['clean'], 'issues': issues, 'review': review}}
     r['data_quality']['consistency'] = {'points': consistency_points(r, time.time())}
     r['evaluator_version'] = EVALUATOR_VERSION
     if issues:
