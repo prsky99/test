@@ -69,7 +69,8 @@ CASE_ROLE = {'papers.search': 'papers.search.v1', 'encyclopedia.summary': 'encyc
              'company.lookup': 'company.registry.v1', 'topic.answer': 'web.grounding.v1',
              'software.incident': 'software.incident.v1', 'website.ai_readiness': 'website.ai_readiness.v1',
              'country.indicator': 'country.indicator.v1', 'fx.rate': 'fx.rate.v1', 'weather.forecast': 'weather.forecast.v1',
-             'events.search': 'events.search.v1'}
+             'events.search': 'events.search.v1', 'dns.mail_auth': 'dns.mail_auth.v1',
+             'tls.certificate': 'tls.certificate.v1'}
 
 
 SHORT = {contract: short for short, contract in CASE_ROLE.items()}
@@ -83,7 +84,10 @@ ROLE_DOMAIN_V1 = {'domain.lookup.v1': 'internet', 'place.search.v1': 'travel', '
                   'translate.text.v1': 'language', 'github.repo.v1': 'developer', 'holiday.calendar.v1': 'reference',
                   'sec.filings.v1': 'business', 'airport.lookup.v1': 'travel', 'unit.convert.v1': 'reference',
                   'earthquake.feed.v1': 'science', 'cve.record.v1': 'security', 'software.incident.v1': 'security',
-                  'website.ai_readiness.v1': 'internet', 'web.grounding.v1': 'reference'}
+                  'website.ai_readiness.v1': 'internet', 'web.grounding.v1': 'reference',
+                  'dns.mail_auth.v1': 'internet', 'tls.certificate.v1': 'internet',
+                  'package.releases.v1': 'developer', 'github.releases.v1': 'developer',
+                  'mcp.registry.lookup.v1': 'developer'}
 
 
 def is_own_fallback(rid):
@@ -262,7 +266,7 @@ SAMPLE_BOUND = {'react named', 'domain echoed', 'Paris', 'address or coordinates
                 'AAPL named', 'latitude 38.89', 'longitude -77.03', '8.8.8.8 echoed', 'Google or AS15169', 'zone named',
                 'word echoed', 'a definition', 'French greeting', 'Independence Day', 'Thanksgiving',
                 'Apple or CIK 320193', 'Incheon', '16.09', 'repository echoed', 'both currencies', 'company echoed',
-                'topic echoed'}
+                'topic echoed', 'lodash named', 'requests named', 'agent concierge named'}
 
 
 def absence_case(case):
@@ -1250,6 +1254,11 @@ def publish(board=True):
         write_replace(OUT / PROVISIONAL, json.dumps(provisional_members(resource_status(ids)), indent=1, ensure_ascii=False))
     except Exception as e:                                       # the pearl numbers above never wait on this list
         print('provisional members not written:', e)
+    try:                     # the necklace judge trusts the snapshot only under the official evaluator (16:1x, 워크플로우)
+        import verify_snapshot
+        verify_snapshot.main()
+    except Exception as e:
+        print('verify snapshot not written:', e)
     line = funnel_line(json.loads((OUT / SUMMARY).read_text())) + refusal_note()   # the board reads the file only
     if board:
         write_board(line)
@@ -1346,13 +1355,14 @@ def catalog_candidates():
 # PM 11-15 13:53: the roles whose next pearl opens a necklace, in this order (workflow readiness table). Earlier in
 # the tuple = earlier in every round; each gets PRIORITY_PICKS a round, the other roles one each after them.
 # PM 14:22: web.grounding second (Pipeworx 50972 left topic-evidence-brief's required web seat on terms).
-# PM 11-15 16:07: demand order from the outside survey (reports/necklace-demand-2026-11-15), replacing 13:53's.
-PRIORITY_ROLES = ('company.registry.v1', 'encyclopedia.summary.v1', 'sec.filings.v1', 'domain.lookup.v1',   # 1 due diligence
-                  'web.grounding.v1', 'papers.search.v1',                                              # 2 topic brief
-                  'cve.exploited.v1', 'cve.record.v1',                                                 # 3 CVE brief
-                  'package.advisories.v1', 'package.health.v1',                                        # 4 package risk
-                  'github.repo.v1', 'package.risk.v1', 'news.search.v1',                               # 5 new necklaces
-                  'website.ai_readiness.v1', 'timezone.time.v1', 'holiday.calendar.v1')                # 6 after
+# PM 11-15 16:13: demand order from both sources (our records first, reports/necklace-demand-2026-11-15),
+# replacing 16:07's. Book, holiday and earthquake roles are left to the general order.
+PRIORITY_ROLES = ('web.grounding.v1', 'papers.search.v1', 'news.search.v1',                             # 1 topic brief
+                  'website.ai_readiness.v1', 'dns.mail_auth.v1', 'domain.lookup.v1', 'tls.certificate.v1',  # 2 site/domain
+                  'company.registry.v1', 'encyclopedia.summary.v1', 'sec.filings.v1',                     # 3 outside only
+                  'cve.exploited.v1', 'cve.record.v1', 'package.advisories.v1', 'package.health.v1',
+                  'github.repo.v1', 'package.risk.v1', 'package.releases.v1', 'github.releases.v1',
+                  'mcp.registry.lookup.v1')
 PRIORITY_PICKS = 4
 
 

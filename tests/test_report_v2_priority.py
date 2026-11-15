@@ -8,17 +8,35 @@ import role_tool_test as RT  # noqa: E402
 
 
 def test_priority_roles_follow_the_pm_order_and_others_come_after():
-    # PM 11-15 16:07: due diligence, topic brief, CVE, package risk, new necklaces, then website/time/holiday
-    assert V.PRIORITY_ROLES[:3] == ('company.registry.v1', 'encyclopedia.summary.v1', 'sec.filings.v1')
-    assert V.PRIORITY_ROLES[-3:] == ('website.ai_readiness.v1', 'timezone.time.v1', 'holiday.calendar.v1')
+    # PM 11-15 16:13: topic brief, website and domain checks, then the roles only outside sources ask for
+    assert V.PRIORITY_ROLES[:3] == ('web.grounding.v1', 'papers.search.v1', 'news.search.v1')
+    assert V.PRIORITY_ROLES[3:7] == ('website.ai_readiness.v1', 'dns.mail_auth.v1', 'domain.lookup.v1', 'tls.certificate.v1')
+    assert not {'holiday.calendar.v1', 'book.search.v1', 'earthquake.feed.v1'} & set(V.PRIORITY_ROLES)
     candidates = [(role, i * 10 + n, 'tool', f'h{i}-{n}.example') for i, role in enumerate(
-        ['weather.forecast.v1', 'holiday.calendar.v1', 'website.ai_readiness.v1', 'company.registry.v1']) for n in range(6)]
+        ['weather.forecast.v1', 'company.registry.v1', 'website.ai_readiness.v1', 'news.search.v1']) for n in range(6)]
     out = V.new_queue([], candidates, limit=10, terms={})
     roles = [x['role'] for x in out]
-    assert roles[:4] == ['company.registry.v1'] * V.PRIORITY_PICKS
+    assert roles[:4] == ['news.search.v1'] * V.PRIORITY_PICKS
     assert roles[4:8] == ['website.ai_readiness.v1'] * V.PRIORITY_PICKS
-    assert roles[8] == 'holiday.calendar.v1'
+    assert roles[8] == 'company.registry.v1'
     assert 'weather.forecast.v1' not in roles[:9]
+
+
+def test_dns_mail_auth_and_tls_roles_have_tools_and_checked_tasks():
+    import role_catalog
+    from agent_market.necklaces import role_tasks as RT
+    for name in ('check_dmarc', 'spf_check', 'dns_lookup', 'dossier_dkim'):
+        assert role_catalog.roles_for_tool(name) == ['dns.mail_auth.v1'], name
+    for name in ('check_tls_certificate', 'ssl_check', 'get_certificate'):
+        assert role_catalog.roles_for_tool(name) == ['tls.certificate.v1'], name
+    assert role_catalog.roles_for_tool('birth-certificate') == []
+    cases = {c['case_id']: c for c in V.role_tasks_rag()}
+    assert RT.score(cases['dns-mail-python-org'], 'v=DMARC1; p=none; pct=100')[0]
+    assert not RT.score(cases['dns-mail-github-com'], 'github.com has an SPF record')[0]
+    assert RT.score(cases['tls-python-org'], 'Issuer: GlobalSign Atlas R3 DV TLS CA 2025 Q4')[0]
+    assert all(c['truth_sources'][0]['confirmed'] and RT.fact_checks(c) for k, c in cases.items()
+               if k.startswith(('dns-mail-', 'tls-')))
+    assert V.short('dns.mail_auth.v1') == 'dns.mail_auth' and V.domain_of('tls.certificate.v1') == 'internet'
 
 
 def test_timezone_case_gives_coordinates_to_point_tools_and_names_to_the_rest():

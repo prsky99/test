@@ -1,0 +1,62 @@
+{
+  "id": "dns.mail_auth.v1",
+  "role": "DNS and mail authentication lookup: SPF, DKIM, DMARC and other DNS records of a domain (PM 11-15 16:13; input keys are alternatives, a member uses the ones it accepts)",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "domain": {
+        "type": "string",
+        "maxLength": 500
+      },
+      "record_type": {
+        "type": "string",
+        "maxLength": 20
+      },
+      "type": {
+        "type": "string",
+        "maxLength": 20
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "answer": {
+        "type": "string",
+        "maxLength": 8000
+      },
+      "url": {
+        "type": "string",
+        "pattern": "^https://",
+        "maxLength": 2000
+      },
+      "source": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "answer",
+      "source"
+    ],
+    "additionalProperties": false
+  },
+  "rules": [
+    "domain echoed: python\\.org",
+    "an SPF or DMARC record: v=spf1|v=dmarc1|\\bspf\\b|\\bdmarc\\b",
+    "read-only lookup; no account, payment or write"
+  ],
+  "test_inputs": [
+    {
+      "domain": "python.org",
+      "record_type": "TXT",
+      "type": "TXT"
+    },
+    {
+      "domain": "github.com",
+      "record_type": "TXT",
+      "type": "TXT"
+    }
+  ]
+}

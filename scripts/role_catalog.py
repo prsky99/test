@@ -26,6 +26,32 @@ ROLES = {
     'package.risk.v1': {'tools': r'^(?:\w*openssf_scorecard\w*|scorecard|get_scorecard|repo_scorecard)$',
                         'input': {'repo': 'github.com/facebook/react', 'repository': 'github.com/facebook/react', 'package': 'react', 'ecosystem': 'npm'},
                         'checks': [('react named', r'react'), ('a score', r'score')]},
+    # PM 11-15 16:13: website and domain checks (demand: website monitoring 60, DNS and mail auth 28 in our records)
+    'dns.mail_auth.v1': {'tools': r'^(?:dns_lookup|dns-lookup|lookup_dns|check_dns|dns_records|get_dns_records|domain_dns|'
+                                  r'check_spf|spf_check|check_dmarc|dmarc_check|check_dkim|dkim_check|check_email_auth\w*|'
+                                  r'email_auth\w*|dossier_(?:dns|spf|dmarc|dkim))$',
+                         'input': {'domain': 'python.org', 'record_type': 'TXT', 'type': 'TXT'},
+                         'checks': [('domain echoed', r'python\.org'), ('an SPF or DMARC record', r'v=spf1|v=dmarc1|\bspf\b|\bdmarc\b')]},
+    'tls.certificate.v1': {'tools': r'^(?:check_ssl|ssl_check|ssl-cert|ssl_cert\w*|check_certificate|check_tls_certificate|'
+                                    r'verify_certificate|get_certificate|get_ssl_certificate|check_tls_configuration|tls_check|'
+                                    r'dossier_tls)$',
+                           'input': {'domain': 'python.org', 'host': 'python.org', 'hostname': 'python.org', 'url': 'https://python.org'},
+                           'checks': [('domain echoed', r'python\.org'),
+                                      ('issuer or expiry', r'issuer|expir|not ?after|valid (?:until|to)|globalsign|sectigo|digicert|let.?s encrypt')]},
+    # Contracts the agent team proposed for the library-usage necklace (PM 11-15 16:12: ab205afc, a36293e8)
+    'package.releases.v1': {'tools': r'^(?:get_package_releases|package_releases|npm_releases|get_package_versions|'
+                                     r'package_versions|list_package_versions|get_latest_version|latest_version|'
+                                     r'get_package_changelog|package_changelog)$',
+                            'input': {'package': 'lodash', 'ecosystem': 'npm'},
+                            'checks': [('lodash named', r'lodash'), ('a version', r'\b\d+\.\d+\.\d+\b')]},
+    'github.releases.v1': {'tools': r'^(?:github_releases|get_github_releases|list_github_releases|list_releases|get_releases|'
+                                    r'get_latest_release|latest_release|repo_releases|get_repo_releases)$',
+                           'input': {'repo': 'psf/requests', 'repository': 'https://github.com/psf/requests'},
+                           'checks': [('requests named', r'requests'), ('a version', r'\bv?\d+\.\d+(?:\.\d+)?\b')]},
+    'mcp.registry.lookup.v1': {'tools': r'^(?:search_mcp_servers|search_mcp_registry|mcp_registry\w*|find_mcp_servers|'
+                                        r'get_mcp_server|lookup_mcp_server|registry_search)$',
+                               'input': {'name': 'biz.agentconcierge/agent-concierge', 'query': 'agent concierge'},
+                               'checks': [('agent concierge named', r'agent.?concierge')]},
     # RAG default-check roles (11-14): public answers, checked with fields and words
     'domain.lookup.v1': {'tools': r'^(?:whois\w*|lookup_domain|domain_lookup|domain_info|get_domain_info|rdap\w*|domain_whois)$',
                          'input': {'domain': 'python.org'},

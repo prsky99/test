@@ -1,0 +1,63 @@
+{
+  "id": "tls.certificate.v1",
+  "role": "TLS certificate check: issuer, validity dates and chain of a host (PM 11-15 16:13; input keys are alternatives, a member uses the ones it accepts)",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "domain": {
+        "type": "string",
+        "maxLength": 500
+      },
+      "host": {
+        "type": "string",
+        "maxLength": 500
+      },
+      "hostname": {
+        "type": "string",
+        "maxLength": 500
+      },
+      "url": {
+        "type": "string",
+        "pattern": "^https://",
+        "maxLength": 2000
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "answer": {
+        "type": "string",
+        "maxLength": 8000
+      },
+      "url": {
+        "type": "string",
+        "pattern": "^https://",
+        "maxLength": 2000
+      },
+      "source": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "answer",
+      "source"
+    ],
+    "additionalProperties": false
+  },
+  "rules": [
+    "domain echoed: python\\.org",
+    "issuer or expiry: issuer|expir|not ?after|valid (?:until|to)|globalsign|sectigo|digicert|let.?s encrypt",
+    "read-only lookup; no account, payment or write"
+  ],
+  "test_inputs": [
+    {
+      "domain": "python.org",
+      "host": "python.org",
+      "hostname": "python.org",
+      "url": "https://python.org"
+    }
+  ]
+}

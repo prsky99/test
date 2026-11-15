@@ -230,6 +230,20 @@
    "freshness": "fixed facts (not time-bound)"
   },
   {
+   "role": "dns.mail_auth.v1",
+   "field": "internet",
+   "example_input": {
+    "domain": "python.org",
+    "record_type": "TXT",
+    "type": "TXT"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer"
+   ],
+   "freshness": "fixed facts (not time-bound)"
+  },
+  {
    "role": "domain.lookup.v1",
    "field": "internet",
    "example_input": {
@@ -309,6 +323,19 @@
    "freshness": "fixed facts (not time-bound)"
   },
   {
+   "role": "github.releases.v1",
+   "field": "developer",
+   "example_input": {
+    "repo": "psf/requests",
+    "repository": "https://github.com/psf/requests"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer"
+   ],
+   "freshness": "fixed facts (not time-bound)"
+  },
+  {
    "role": "github.repo.v1",
    "field": "developer",
    "example_input": {
@@ -338,6 +365,19 @@
    "field": "internet",
    "example_input": {
     "ip": "8.8.8.8"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer"
+   ],
+   "freshness": "fixed facts (not time-bound)"
+  },
+  {
+   "role": "mcp.registry.lookup.v1",
+   "field": "developer",
+   "example_input": {
+    "name": "biz.agentconcierge/agent-concierge",
+    "query": "agent concierge"
    },
    "answer_source": "answer set (withheld)",
    "checks": [
@@ -383,6 +423,19 @@
    "checks": [
     "expected facts appear in the answer",
     "same-time public reference: latest_version"
+   ],
+   "freshness": "fixed facts (not time-bound)"
+  },
+  {
+   "role": "package.releases.v1",
+   "field": "developer",
+   "example_input": {
+    "ecosystem": "npm",
+    "package": "lodash"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer"
    ],
    "freshness": "fixed facts (not time-bound)"
   },
@@ -481,6 +534,21 @@
     "same-time public reference: clock_tz"
    ],
    "freshness": "clock time within 5 minutes of now"
+  },
+  {
+   "role": "tls.certificate.v1",
+   "field": "internet",
+   "example_input": {
+    "domain": "python.org",
+    "host": "python.org",
+    "hostname": "python.org",
+    "url": "https://python.org"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer"
+   ],
+   "freshness": "fixed facts (not time-bound)"
   },
   {
    "role": "translate.text.v1",
