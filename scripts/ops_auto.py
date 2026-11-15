@@ -328,7 +328,7 @@ def holiday_truth(clock=time.time, run=None, state_path=None, log_path=None, gol
 
 GOLD_STATE = ROOT / 'logs/ops/gold-builds-state.json'
 GOLD_LOG = ROOT / 'logs/ops/gold-builds.jsonl'
-GOLD_TIMEOUT_S = 240
+GOLD_TIMEOUT_S = 230
 # workflow 11-15 (PM 16:42): resumable answer-set builders run here, not in a session. Each runs once an hour, through
 # the shared ledger as reference_checks, until its split is in the slug's manifest. (module, slug, split)
 GOLD_BUILDS = (('agent_market.necklaces.gold_repos', 'package-risk-audit', 'holdout-v2-activity'),
@@ -338,14 +338,16 @@ GOLD_BUILDS = (('agent_market.necklaces.gold_repos', 'package-risk-audit', 'hold
 
 def gold_quiet(local) -> bool:
     """No builder starts in the 00:30 deploy and 01:45 rehearsal stretch (00:00-02:14, memory is tight then), in the
-    03:50-05:10 rehearsal window, or from :55 to :10 (hourly public measurement)."""
+    03:50-05:10 rehearsal window, or from :50 to :10: a round lasts at most GOLD_TIMEOUT_S (4 minutes), so one
+    started before :50 ends before the hourly public measurement at :55 (ops review 11-15)."""
     minutes = local.hour * 60 + local.minute
-    return minutes < 2 * 60 + 15 or 3 * 60 + 50 <= minutes < 5 * 60 + 10 or local.minute >= 55 or local.minute < 10
+    return minutes < 2 * 60 + 15 or 3 * 60 + 50 <= minutes < 5 * 60 + 10 or local.minute >= 50 or local.minute < 10
 
 
 def gold_builds(clock=time.time, run=None, state_path=None, log_path=None, gold=None, builds=GOLD_BUILDS):
-    """One round of each unfinished answer-set builder an hour (the app's Python, a subprocess with a timeout). Every
-    round leaves one line with the builder's own result (done, left, stopped by the share, written) or the error."""
+    """One builder per watch round (ops review 11-15: the watch stays within 4 minutes), each unfinished one at most
+    once an hour, taking turns (the app's Python, a subprocess with a timeout). Every round leaves one line with the
+    builder's own result (done, left, stopped by the share, written) or the error."""
     local = datetime.fromtimestamp(clock())
     if gold_quiet(local):
         return None
@@ -377,6 +379,7 @@ def gold_builds(clock=time.time, run=None, state_path=None, log_path=None, gold=
         if not result:
             append(ACTIONS, f'{now()} 정답 세트 빌더 실패({line["builder"]}): {str(reason)[:120]}')
         lines.append(line)
+        break                                   # one builder per round; the next one runs ten minutes later
     state_path.write_text(json.dumps(state))
     if lines:
         with log_path.open('a', encoding='utf-8') as handle:
