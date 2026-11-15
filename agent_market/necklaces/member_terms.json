@@ -195,34 +195,34 @@
       "basis": "Access and acceptable use: free, no account or key within rate limits; no resale, rebranding or republishing of the Service; figures may be quoted with source and link (Intellectual property)"
     },
     "41945": {
-      "status": "allowed",
-      "source": "https://wingmanprotocol.com/terms",
-      "checked_at": "2026-11-16",
-      "basis": "Acceptable use bans rate abuse and violating third-party terms; no paid plan required ('Start free. Never subscribe.' pricing); free tier 20 calls a day; outputs not restricted",
       "declared_limit": {
         "domain": "wingmanprotocol.com",
         "source": "https://wingmanprotocol.com/pricing",
         "quote": "free daily limit: 20 calls a day",
         "per_day": 20
-      }
+      },
+      "status": "allowed",
+      "source": "https://wingmanprotocol.com/terms",
+      "checked_at": "2026-11-16",
+      "basis": "Terms in force 2026-10-29 describe a service for autonomous software agents and their operators; no clause forbids relaying outputs or business use (read by search and RAG 11-16)"
     },
     "220838": {
-      "status": "allowed",
-      "source": "https://webknox.com/terms",
-      "checked_at": "2026-11-16",
-      "basis": "s4 allows showing answers to your users; s5 keep sources visible; free plan usable in commercial products with the 'Answer by WebKnox' credit (pricing FAQ); no reselling access, no bulk download. Re-judge when necklace runs are charged",
       "declared_limit": {
         "domain": "webknox.com",
         "source": "https://webknox.com/docs/mcp",
         "quote": "Without an account, each person gets 10 answers with a card a day",
         "per_day": 10
-      }
+      },
+      "status": "prohibits",
+      "source": "https://webknox.com/terms",
+      "checked_at": "2026-11-16",
+      "basis": "Section 4 forbids passing on API access and offering answers as one's own data feed, which a relaying necklace does (read by search and RAG 11-16)"
     },
     "46086": {
-      "status": "silent",
-      "source": "https://agent-evidence.thx93.dev",
+      "status": "prohibits",
+      "source": "https://agent-evidence.thx93.dev/",
       "checked_at": "2026-11-16",
-      "basis": "No terms page (/terms, /tos, /legal 404); the evidence tool is x402 pay-per-request (0.01 USDC), free only preview/sample - unusable under our no-spend rule"
+      "basis": "No terms page; calls are paid per request over x402 (0.01 USDC), so no free business use (PM rule: unclear or paid means prohibits; read by search and RAG 11-16)"
     },
     "36279": {
       "status": "prohibits",
@@ -569,6 +569,30 @@
       "source": "https://aitwire.com/terms",
       "at": "2026-11-16",
       "by": "agent team"
+    },
+    {
+      "member": "41945",
+      "from": "allowed",
+      "to": "allowed",
+      "source": "https://wingmanprotocol.com/terms",
+      "at": "2026-11-16",
+      "by": "검색과 RAG via 워크플로우"
+    },
+    {
+      "member": "46086",
+      "from": "silent",
+      "to": "prohibits",
+      "source": "https://agent-evidence.thx93.dev/",
+      "at": "2026-11-16",
+      "by": "검색과 RAG via 워크플로우"
+    },
+    {
+      "member": "220838",
+      "from": "allowed",
+      "to": "prohibits",
+      "source": "https://webknox.com/terms",
+      "at": "2026-11-16",
+      "by": "검색과 RAG via 워크플로우"
     }
   ]
 }
