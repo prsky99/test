@@ -121,3 +121,23 @@ def test_growing_counters_do_not_re_alert_but_a_new_holder_or_url_does():
     assert ops_auto.select_fresh({'memory': {'free_percent': 9}}, {'memory': 0.0 + 500}, 900)[0] == {}   # old file format
     assert list(ops_auto.select_fresh({'memory': {'free_percent': 9}}, {'memory': 500}, 500 + 1801)[0]) == ['memory']
     assert ops_auto.select_fresh({}, {'memory': {'at': 1, 'sig': None}}, 2) == ({}, {})      # cleared: forgotten
+
+
+def test_a_fingerprint_file_older_than_twelve_hours_is_an_alert(tmp_path):
+    """PM 11-15 11:5x: the members' fingerprint file sat unchanged from 11-14 04:21 with nobody told."""
+    import json
+    from datetime import datetime
+    from scripts import ops_watch, ops_auto
+    path = tmp_path / 'pearls.json'
+    path.write_text(json.dumps({'generated': '2026-11-14T04:21:40+0900', 'pearls': {}}))
+    now = datetime.fromisoformat('2026-11-14T15:21:40+09:00').timestamp()
+    assert ops_watch.check_fingerprints(path, now) == {'generated': '2026-11-14T04:21:40+0900', 'age_hours': 11.0,
+                                                       'problems': []}
+    late = ops_watch.check_fingerprints(path, now + 2 * 3600)
+    assert late['problems'] == ['fingerprints_older_than_12h'] and late['age_hours'] == 13.0
+    later = ops_watch.check_fingerprints(path, now + 30 * 3600)
+    assert ops_auto.signature('fingerprints', late) == ops_auto.signature('fingerprints', later)   # one alert, not one a run
+    assert ops_auto.TEAM['fingerprints'] == '운영·SRE'
+    path.write_text('not json')
+    assert ops_watch.check_fingerprints(path, now)['problems'] == ['fingerprint_file_unreadable']
+    assert ops_watch.check_fingerprints(tmp_path / 'missing.json', now)['problems'] == ['fingerprint_file_unreadable']

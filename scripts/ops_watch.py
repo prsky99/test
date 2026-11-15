@@ -350,6 +350,24 @@ def check_launchd(text=None):
     return jobs, bad
 
 
+FINGERPRINTS = ROOT / 'gateway-data/fingerprints/pearls.json'
+FINGERPRINT_MAX_HOURS = 12   # PM 11-15 11:5x: the members' file is refreshed every 6 hours; 12 hours old is a fault
+
+
+def check_fingerprints(path=None, now=None):
+    """Age of the pearl/necklace-member fingerprint file (its 'generated' time). On 11-15 it was found unchanged since
+    11-14 04:21, so the necklace watch and the gate read two-day-old definitions without anyone noticing."""
+    path, now = Path(path or FINGERPRINTS), now or time.time()
+    try:
+        generated = json.loads(path.read_text()).get('generated')
+        at = datetime.strptime(generated, '%Y-%m-%dT%H:%M:%S%z').timestamp()
+    except (OSError, ValueError, TypeError, AttributeError):
+        return {'generated': None, 'age_hours': None, 'problems': ['fingerprint_file_unreadable']}
+    age = round((now - at) / 3600, 1)
+    problems = ['fingerprints_older_than_%dh' % FINGERPRINT_MAX_HOURS] if age > FINGERPRINT_MAX_HOURS else []
+    return {'generated': generated, 'age_hours': age, 'problems': problems}
+
+
 def check_backup(root=None, log=None, now=None):
     """The newest complete snapshot's age and the last backup run's offsite result; problems listed."""
     root, log, now = Path(root or BACKUPS), Path(log or BACKUP_LOG), now or time.time()
@@ -440,12 +458,16 @@ def main():
     backup = check_backup()
     if backup['problems']:
         anomalies['backup'] = backup
+    fingerprints = check_fingerprints()
+    if fingerprints['problems']:
+        anomalies['fingerprints'] = fingerprints
     down = check_core(jobs) if jobs else []
     if down:
         anomalies['core_down'] = down
     record = {'at': datetime.now().strftime('%Y-%m-%d %H:%M'), 'memory_free_percent': free,
               'swap': swap, 'top_memory': top_memory(), 'adcoin_daemon': daemon,
-              'db_connections': db_connections(), 'launchd': jobs, 'backup': backup, 'anomalies': anomalies}
+              'db_connections': db_connections(), 'launchd': jobs, 'backup': backup, 'fingerprints': fingerprints,
+              'anomalies': anomalies}
     if site_path:  # recorded, not alerted: the second fresh connection got 200 (see check_site)
         record['site_path'] = site_path
     OUT.parent.mkdir(parents=True, exist_ok=True)
