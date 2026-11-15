@@ -6,18 +6,6 @@
   "host": "agent.wingmanprotocol.com"
  },
  {
-  "role": "web.grounding.v1",
-  "id": 46086,
-  "tool": "research_evidence",
-  "host": "agent-evidence.thx93.dev"
- },
- {
-  "role": "web.grounding.v1",
-  "id": 220838,
-  "tool": "ask_webknox",
-  "host": "mcp.webknox.com"
- },
- {
   "role": "topic.answer",
   "id": 276982,
   "tool": "agent_clean_web_grounding",
