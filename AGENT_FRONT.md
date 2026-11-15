@@ -62,34 +62,42 @@ discovery arguments remain accepted for transport compatibility. An irrelevant o
 an empty result: return `status: no_match` with an empty array instead. Explicit
 session, contact, and notification commands remain separate from discovery.
 
-### 여기서 바로 실행 (11-12, PM 배정, 성장·유통 깔때기 분석 ②④)
-- MCP 호스트(데스크톱·IDE)는 대화 중에 새 서버를 붙이지 못한다. 그래서 우리 /mcp의 `call` 도구가 추천 도구를 같은 세션에서 실행하는 길이다(익명, 정보형 도구만, 게이트웨이 경유).
-- 게이트웨이가 중계하는 MCP 추천 카드에는 아래 두 칸이 붙는다(`connections._public_agent`).
-  - `run_here`: `{"tool":"call","arguments":{"resource_id":…,"tool":…,"arguments":{필수 칸 예시}}}`
-  - `mcp_config`: `{"mcpServers":{"<이름>":{"type":"http","url":"<게이트웨이 주소>"}}}`
-- 답 텍스트의 1위 항목에는 `Run here: call {...}`와 `MCP config: {...}` 줄이 붙는다(find_agents·Chat 공통, `fast_chat._brief`).
-- `continuation_plan.run_here`도 같은 값이다. `next_steps`는 지금처럼 다음에 쓸 다른 목록만 담는다(follow_up_query·안전 관문 계약, test_b2a_retention).
-- 필수 칸 예시(`example_arguments`)
-  - enum 첫 값이나 default를 쓴다. 짧고 평범한 값일 때만 쓰며, URL은 쓰지 않는다.
-  - 없으면 타입별 값(integer는 minimum 또는 1, boolean은 false)을, 그것도 없으면 `<칸 이름>` 자리표시를 쓴다.
-  - 제공자의 examples 문자열은 자유 문장이라 옮기지 않는다.
-  - connect_steps의 tools/call 예시 arguments도 같은 값으로 채운다.
-- `gateway_ready`와 `connection_available`은 같은 뜻이다. 우리 게이트웨이로 지금 쓸 수 있으면 참이다. 고른 도구가 게이트웨이 목록에 있어야 하고, 등록 정보를 읽은 경우에는 그 준비 상태도 반영한다. 작업형 도구(01982678)는 둘 다 False이고 `run_here`가 없다.
-- 호출 주소는 늘 숨긴다는 응답 경계 원칙은 그대로다. 예시와 설정 조각에 들어가는 주소는 게이트웨이 주소뿐이다.
+### Run here (11-12)
+- MCP hosts (desktop apps, IDEs) cannot attach a new server in the middle of a conversation, so the `call` tool of
+  our /mcp runs a recommended tool in the same session (anonymous, informational tools only, through the gateway).
+- MCP recommendation cards the gateway relays carry two fields (`connections._public_agent`):
+  - `run_here`: `{"tool":"call","arguments":{"resource_id":…,"tool":…,"arguments":{example required fields}}}`
+  - `mcp_config`: `{"mcpServers":{"<name>":{"type":"http","url":"<gateway address>"}}}`
+- The first item of the answer text carries `Run here: call {...}` and `MCP config: {...}` lines (find_agents and
+  Chat alike, `fast_chat._brief`).
+- `continuation_plan.run_here` holds the same value; `next_steps` still holds only the other lists to use next
+  (follow_up_query and the safety-gate contract, test_b2a_retention).
+- Example required fields (`example_arguments`)
+  - The first enum value or the default, only when it is a short plain value and never a URL.
+  - Otherwise a value by type (integer: minimum or 1; boolean: false), and failing that a `<field name>` placeholder.
+  - The provider's free-text examples are not copied.
+  - The tools/call example arguments in connect_steps use the same values.
+- `gateway_ready` and `connection_available` mean the same: usable now through our gateway. The chosen tool must be in
+  the gateway's list, and when the registration was read its readiness counts too. Action tools (01982678) are False
+  for both and carry no `run_here`.
+- The response boundary still hides every call address; the only address in examples and settings is the gateway's.
 
-### 게이트웨이가 중계하지 않는 도구 (11-12, PM 결정 (나-1)(다))
-- `connection_available`은 "우리 게이트웨이로 그 과제의 도구를 실제로 쓸 수 있음"을 뜻한다.
-  - 추천한 도구가 게이트웨이 tools/list에 없으면 False다. 메일 보내기(`send_email`·`email_send`) 같은 작업형 도구는 `safe_registered_tool`에 걸려 게이트웨이가 내놓지 않는다.
-  - 판정: `gateway_exposure`가 이런 항목에 `tool_unlisted`를 붙이고, `connections._public_agent`가 False로 둔다.
-- 이런 추천의 카드에는 `connection_note`가 붙는다. 답 텍스트에는 `Connection:` 줄이 들어간다(영어 공개 문구).
-  - 문장: "This tool performs an action, so the Agent Concierge gateway does not relay it. Connect through the provider's own documentation: <website 또는 repository>"
-  - 출처 URL이 없으면 "Connect through the provider (<이름>) directly."로 끝난다.
-- 제공자의 호출 주소(바인딩)는 늘 숨긴다. 응답 경계의 `project()`가 게이트웨이 주소로 바꾸는 원칙은 그대로다.
-  - 안내에 쓰는 URL은 `details.website`, 없으면 `details.repository`다.
-  - https만 쓰고, 쿼리·`@`가 있거나 바인딩과 같은 주소는 쓰지 않는다.
-- 순위: 같은 과제에 게이트웨이가 중계하는 대안이 있으면 그 대안이 앞선다(11-11 `tool_unlisted` 순위 보정).
-- 측정: user_slo connect는 답이 준 연결 경로를 그대로 따른다. 이런 추천은 연결 미달로 남는다(표본 제외 없음).
-- 품질: 실제 과제 성공률에서 '직접 연결 필요'로 답한 작업형 과제는 성공으로 세지 않는다.
+### Tools the gateway does not relay (11-12)
+- `connection_available` means "the tool for this task can really be used through our gateway".
+  - A recommended tool missing from the gateway's tools/list is False. Action tools such as sending mail (`send_email`,
+    `email_send`) are held back by `safe_registered_tool`, so the gateway does not offer them.
+  - `gateway_exposure` marks such items `tool_unlisted`, and `connections._public_agent` sets False.
+- Such cards carry a `connection_note`, and the answer text a `Connection:` line (public English wording):
+  - "This tool performs an action, so the AgentValCon gateway does not relay it. Connect through the provider's own
+    documentation: <website or repository>"
+  - Without a source URL it ends "Connect through the provider (<name>) directly."
+- The provider's call address (binding) is always hidden; the response boundary (`project()`) still swaps it for the
+  gateway address.
+  - The URL in the note is `details.website`, else `details.repository`: https only, no query or `@`, never the binding.
+- Ranking: when a relayed alternative exists for the same task, it comes first (11-11 `tool_unlisted` correction).
+- Measurement: user_slo connect follows the connection path the answer gave; such recommendations stay as not
+  connected (no samples are dropped).
+- Quality: in the real task success rate, an action task answered with "connect directly" is not counted as a success.
 
 ### Price fields (11-12)
 

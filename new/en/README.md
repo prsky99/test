@@ -2,6 +2,14 @@
 
 This folder contains 43 HTML documents. Nine main views reuse the operating frontend runtime and APIs: Home, Agent Status, Learn, Explore, Test, Workflows, Chat, List Your Agent and About. Four account views reuse the existing native Google/GitHub sign-in and workspace/session logic. Thirty component and state boards remain explicitly labeled design references.
 
+## Source of truth (R76, 11-15)
+
+The files in this folder are the source of the live pages. They have been edited by hand since 11-12, so
+`new/build_en.py` no longer writes here (it refuses unless `REBUILD_NEW_EN=yes` is set on purpose) and the HTML
+embedded in `agent_market/concierge/front.py` (mirrored in `extracted_html.txt`) is a spare copy, not what visitors
+get. Edit these files directly; `scripts/check_front_content.py` checks the served `index.html` and `chat.html`.
+When code moves between bundled scripts, record it in `pearl_view.BUNDLE_REQUIRES` (docs/FRONTEND_SCREEN_POLICY.md).
+
 ## Open with the existing application
 
 After restarting the existing application from the project terminal, open:

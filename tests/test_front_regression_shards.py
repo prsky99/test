@@ -25,7 +25,8 @@ def test_content_inventory_includes_publication_and_generator(tmp_path, monkeypa
 
 def test_content_check_rejects_non_english_published_asset(tmp_path, monkeypatch):
     for name in ('agent_market/concierge/front.py', 'extracted_html.txt', 'AGENT_FRONT.md',
-                 'agent_market/edge_gateway/sdk.js','agent_market/edge_gateway/router.py','agent_market/edge_gateway/service.py'):
+                 'agent_market/edge_gateway/sdk.js','agent_market/edge_gateway/router.py','agent_market/edge_gateway/service.py',
+                 'new/en/index.html', 'new/en/chat.html'):  # R76 (11-15): the content checks read the served pages
         target = tmp_path / name
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text((content_check.ROOT / name).read_text())

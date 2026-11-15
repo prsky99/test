@@ -1,4 +1,9 @@
-"""Build the English Pearl Connection frontend with the operating frontend runtime."""
+"""Build the English Pearl Connection frontend with the operating frontend runtime.
+
+RETIRED for the live pages (R76, 11-15): new/en is the source since 11-12 and has been edited by hand since; running
+this into new/en would undo those edits, so build() refuses that output unless REBUILD_NEW_EN=yes is set on purpose.
+Building into another folder (tests do) still works.
+"""
 import ast
 import hashlib
 import json
@@ -304,6 +309,10 @@ def _build():
 
 def build():
     global OUT
+    import os
+    if Path(OUT).resolve() == (Path(__file__).resolve().parent / 'en').resolve() and os.environ.get('REBUILD_NEW_EN') != 'yes':
+        raise SystemExit('new/en is the source of the live pages (R76, 11-15): edit new/en directly. '
+                         'Rebuilding would undo the edits made since 11-12; set REBUILD_NEW_EN=yes only on purpose.')
     with staged_publication(ROOT) as output:
         previous = OUT
         try:

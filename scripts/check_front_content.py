@@ -80,20 +80,25 @@ def check():
                 and any(isinstance(t, ast.Name) and t.id == 'HTML' for t in n.targets))
     if html != (ROOT / 'extracted_html.txt').read_text():
         errors.append('The embedded HTML and extracted_html.txt are out of sync')
-    chat = html.split('<section id="secChat"', 1)[1].split('</section>', 1)[0]
+    # R76 (11-15): the pages people get are new/en/*.html (edited by hand since 11-12; new/build_en.py is retired), so
+    # the content checks read the served Home and Chat pages, not the spare HTML embedded in front.py.
+    served = {name: (ROOT / 'new/en' / name).read_text() for name in ('index.html', 'chat.html')}
+    chat = served['chat.html'].split('<section id="secChat"', 1)[1].split('</section>', 1)[0]
     parser = ChatText()
     parser.feed(chat)
     if COMMERCIAL.search(' '.join(parser.text)):
-        errors.append('Commercial language in the Chat section')
-    for removed in ('chatVisitorTokenDisplay', 'chatOutput', 'chatCallingSpecCode', 'Global Protocol Runtime:'):
-        if removed in html:
-            errors.append(f'Removed private/development presentation found: {removed}')
+        errors.append('Commercial language in the Chat section (new/en/chat.html)')
+    for name, page in served.items():
+        for removed in ('chatVisitorTokenDisplay', 'chatOutput', 'chatCallingSpecCode', 'Global Protocol Runtime:'):
+            if removed in page:
+                errors.append(f'Removed private/development presentation found in new/en/{name}: {removed}')
     for required in ('id="homeRecommendationIntro"', 'One task. Three relevant agents.',
                      'name="page:overview:target-action" content="find-up-to-three-verified-agents"',
-                     'name="page:chat:target-action" content="three-recent-verified-recommendations-a2a-then-mcp"',
                      'latest successful test report'):
-        if required not in html:
-            errors.append(f'Missing current discovery content: {required}')
+        if required not in served['index.html']:
+            errors.append(f'Missing current discovery content in new/en/index.html: {required}')
+    if 'name="page:chat:target-action" content="three-recent-verified-recommendations-a2a-then-mcp"' not in served['chat.html']:
+        errors.append('Missing current discovery content in new/en/chat.html: page:chat:target-action')
     return len(paths), errors
 
 
