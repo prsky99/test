@@ -166,6 +166,26 @@ prohibits 2건은 정의에 넣지 않았습니다. 넣으면 그 멤버가 모�
 
 - 결론: geocode 자체 대체는 미국 주소에 한해 인구조사국 지오코더로 만들 수 있습니다. 미국 밖 주소를 키 없이 허용하는 원천은 찾지 못했습니다. 구현 여부는 PM이 정합니다.
 
+### 나라 경계 격자 (PM 13:58, 11-15 14:4x)
+
+- 원천: Natural Earth 1:10m Admin 0 countries와 disputed areas(공공 영역, naciscdn.org에서 받음, 장부 adhoc 2회). 판정은 allowed입니다(Natural Earth 이용 조건: 공공 영역, 출처 표시는 권장).
+- 만드는 법: 운영 밖 3.12 venv(shapely, pyshp)에서 `scripts/build_country_grid.py build`(무거운 작업 칸, 329초)
+- 결과: `gateway-data/fallback-agents/country-grid.bin` 0.86MB(git 밖), 나라 240개, 국경 칸 0.54%, 분쟁 칸 0.17%
+- 단정하지 않는 곳
+  - 분쟁 지역 층의 모든 영역과, ISO 코드가 없는 나라 다각형 13곳(Somaliland, N. Cyprus, Siachen 등)은 관리국과 주장국을 후보로만 둡니다.
+  - 국경 2km 안도 후보로만 둡니다.
+  - 해안 칸(나라 하나와 바다)은 그 나라로 답합니다. 바다 칸이어도 약 6km 안에 나라가 하나뿐이면 그 나라로 답합니다(Natural Earth 해안선이 거칠어서).
+- 대조(`build_country_grid.py check`)
+  - 무작위 육지 2만 점(Natural Earth 기준): 정답 19,783, 후보 75(모두 후보에 정답 있음), 분쟁 미단정 142, **단정 오류 0**
+  - 대형·중형 공항 5,066곳(OurAirports 나라 코드 기준): 정답 4,948(97.7%), 후보 84, 후보에 없음 20(대부분 프랑스령 폴리네시아·몰디브의 작은 환초), **단정 차이 14**
+- 단정 차이 14건은 모두 영토 표기 방식입니다.
+  - Natural Earth가 해외 영토를 본국으로 적음: RE·GF·GP·MQ→FR(9건), BQ→NL(3건), CC·CX→AU(2건)
+  - Åland는 Natural Earth가 AX로 따로 적음
+  - 서사하라 표기의 공항 1곳(MA-0003)은 Natural Earth상 모로코 영역 안에 있음
+- **한계**: 해외 영토의 지점은 본국 나라 코드로 답합니다. 그래서 공휴일 목걸이는 본국 공휴일을 냅니다(예: Réunion → 프랑스 공휴일). 더 나누려면 Natural Earth map units 층으로 다시 만들어야 합니다.
+- 연결: holiday-calendar가 `country`에 "위도,경도"를 받습니다. 국경·분쟁·바다면 not_found에 후보를 담고, 파일이 없으면 source_unavailable입니다.
+- 다시 만들기: Natural Earth 새 판(연 1회 안팎)이 나오면 build와 check를 다시 돌리고 이 절의 숫자를 새로 적습니다.
+
 ## 남은 것
 
 - 카탈로그 밖 자체 에이전트 133018·133019·133023(topic-evidence-brief, package-risk-audit)

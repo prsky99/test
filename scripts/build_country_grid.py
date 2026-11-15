@@ -79,7 +79,11 @@ def _values(polys, areas, lats, lons):
             continue
         inside = shapely.contains_xy(geom, lons[mask], lats[mask])
         idx = np.flatnonzero(mask)[inside]
-        out.flat[idx] = code if code else ("DISPUTED", "?" + str(name))
+        if code:
+            out.flat[idx] = code
+        else:   # one by one: assigning a tuple to many cells of an object array would spread its items over them
+            for i in idx:
+                out.flat[i] = ("DISPUTED", "?" + str(name))
     for geom, codes, name in areas:
         x0, y0, x1, y1 = geom.bounds
         mask = (lons >= x0) & (lons <= x1) & (lats >= y0) & (lats <= y1)

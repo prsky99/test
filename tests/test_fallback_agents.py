@@ -1899,14 +1899,14 @@ def write_country_grid(path, step=10.0):
     from array import array
     rows, cols = round(180 / step), round(360 / step)
     zones = ["", "KR", "KP", "IN", "PK", "CN"]
-    sets = [["KP", "KR"], ["CN", "IN", "PK"]]
+    sets = [["KP", "KR"], ["CN", "IN", "PK"], ["KR"]]
     body = bytearray()
     for r in range(rows):
         runs = [(0, 0)]
         if r == 4:
             runs = [(0, 0), (30, 32768), (31, 0)]
         if r == 5:
-            runs = [(0, 0), (25, 32769), (26, 0), (30, 1), (31, 0)]
+            runs = [(0, 0), (25, 32769), (26, 0), (30, 1), (31, 32770), (32, 0)]   # 130-140E: a KR coast cell
         body += struct.pack("<I", len(runs)) + array("H", [c for c, _ in runs]).tobytes() + array("H", [v for _, v in runs]).tobytes()
     header = {"format": "avc-country-grid-1", "step": step, "rows": rows, "cols": cols, "zones": zones, "sets": sets,
               "disputed": [1], "countries": {}}
@@ -1928,6 +1928,7 @@ def test_holiday_calendar_takes_a_point_through_the_country_grid(tmp_path):
             a.execute("holiday-calendar", {"country": point, "year": 2026})
         assert err.value.code == "not_found" and words in str(err.value)
     assert "2026-03-01" in a.execute("holiday-calendar", {"country": "45.0,125.0,KR", "year": 2026})["result"]["answer"]
+    assert "2026-03-01" in a.execute("holiday-calendar", {"country": "35.0,135.0", "year": 2026})["result"]["answer"]  # coast
     empty, _ = agents(tmp_path / "none", {})
     with pytest.raises(FallbackUnavailable) as err:
         empty.execute("holiday-calendar", {"country": "37.5,127.0"})
