@@ -53,6 +53,12 @@
           "pearl": true,
           "input_map": {
             "domain": "{{input.domain}}"
+          },
+          "terms": {
+            "status": "allowed",
+            "source": "https://presend.pages.dev/api",
+            "checked_at": "2026-11-15",
+            "basis": "API page header: free endpoints with no key or signup, fair use only; heavy or automated traffic may be throttled"
           }
         },
         {

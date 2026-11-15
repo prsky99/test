@@ -57,6 +57,12 @@
             "q": "{{input.title}}",
             "limit": 3,
             "fields": "title,author_name,first_publish_year,key"
+          },
+          "terms": {
+            "status": "silent",
+            "source": "https://invokera.com/",
+            "checked_at": "2026-11-15",
+            "basis": "no terms link on the home page and /terms answers 404 (11-15); Invokera hosts an import of the Open Library API, whose own terms apply to the data"
           }
         },
         {
@@ -105,6 +111,12 @@
           "input_map": {
             "query": "{{slot.book.author}}",
             "limit": 3
+          },
+          "terms": {
+            "status": "silent",
+            "source": "https://github.com/charleswei118/web2mcp",
+            "checked_at": "2026-11-15",
+            "basis": "hosted demo on a personal workers.dev address with no terms page; the code is MIT licensed; Wikipedia text it returns is CC BY-SA 4.0 and needs attribution"
           }
         },
         {
