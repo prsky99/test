@@ -512,6 +512,11 @@ def engine_caller(engine, fallbacks=None):
     resource_id run in-process through agent_market.fallback_agents (PM path A)."""
     def call(member, args, timeout_s):
         if member.get("kind") == "agentcon" and not isinstance(member.get("resource_id"), int):
+            # The operators' execution switches stop our in-process fallbacks too, exactly as they stop the
+            # registered-agent path (workflows._call_registered); without a readable switch nothing runs (R30, PM 11-15).
+            from ..execution_authority import require_enabled
+            require_enabled(getattr(engine, "store", None), "workflow")
+            require_enabled(getattr(engine, "store", None), "invoke")
             lib = fallbacks
             if lib is None:
                 from .. import fallback_agents as lib
