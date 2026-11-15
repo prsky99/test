@@ -107,12 +107,15 @@ def definition_item(row: dict, names: dict) -> dict | None:
     added = sorted(n for n in row.get("added") or [] if isinstance(n, str))
     removed = sorted(n for n in row.get("removed") or [] if isinstance(n, str))
     changed = []
+    known = row.get("fields_known") is not False   # False: the earlier reading kept no field hashes (first compare)
     for c in row.get("changed") or []:
         if not isinstance(c, dict) or not isinstance(c.get("name"), str):
             continue
         fields = sorted(f for f in c.get("fields") or [] if f in FIELDS)
         if fields:
             changed.append({"tool": c["name"], "fields": fields})
+        elif not known:
+            changed.append({"tool": c["name"], "fields": ["unknown"]})
     if classification == "general" and not (added or removed or changed):
         return None   # only annotations or the output schema moved
     at = _at(row.get("at"))

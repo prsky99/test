@@ -121,3 +121,15 @@ def test_preparing_and_job_writes_the_feed(tmp_path, monkeypatch):
     stamp = (tmp_path / F.FILE).read_bytes()
     R.run_job(Store(), now=noon + 3600, folder=tmp_path)
     assert (tmp_path / F.FILE).read_bytes() == stamp      # an unchanged feed keeps its bytes and so its ETag
+
+
+def test_fields_unknown_only_when_the_writer_says_so(tmp_path):
+    """Operations 11-15: the first compare against the 11-14 file has no field hashes, so changed[].fields is empty.
+    With fields_known false the tool is published as changed with fields ['unknown']; with fields known, an empty
+    list means only annotations or the output schema moved, which stays out."""
+    unknown = change(1, changed=[{"name": "get", "fields": []}])
+    unknown["fields_known"] = False
+    quiet = change(1, at=NOW - 300, prev="cc", cur="dd", changed=[{"name": "get", "fields": []}])
+    snapshot, reg, fp = setup(tmp_path, [unknown, quiet])
+    items = F.build_feed(snapshot, reg, fp, NOW)["items"]
+    assert len(items) == 1 and items[0]["_agentvalcon"]["changed"] == [{"tool": "get", "fields": ["unknown"]}]
