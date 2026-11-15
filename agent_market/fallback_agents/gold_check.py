@@ -192,8 +192,10 @@ def judge(agent_id: str, case: dict, result: dict | None) -> dict:
     raise ValueError(agent_id)
 
 
-def role_task_check(agent_ids, agents: FallbackAgents | None = None) -> dict:
-    """Run the workflow team's fixed role tasks (role_tasks/role-tasks-v1.jsonl) for each agent's contract."""
+def role_task_check(agent_ids, agents: FallbackAgents | None = None, before_call=None) -> dict:
+    """Run the workflow team's fixed role tasks (role_tasks/role-tasks-v1.jsonl) for each agent's contract.
+    BEFORE_CALL(agent_id), when given, runs before each call outside its budget (the gate's pacing, ops 11-15:
+    arxiv-search's role tasks failed 0/3 when they ran right after the cases)."""
     from ..necklaces import role_tasks
     from urllib.parse import urlsplit
     from .net import get
@@ -207,6 +209,8 @@ def role_task_check(agent_ids, agents: FallbackAgents | None = None) -> dict:
             if case["contract"] != SPECS[agent_id]["contract"]:
                 continue
             try:
+                if before_call:
+                    before_call(agent_id)
                 result = agents.execute(agent_id, case["input"])["result"]
             except FallbackUnavailable as exc:
                 rows.append({"case_id": case["case_id"], "pass": False, "error": exc.code})

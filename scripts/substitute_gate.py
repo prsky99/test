@@ -131,18 +131,23 @@ def remaining(agent_id, split, fill_from=None, exclude=frozenset(), prior=()):
     return [c for c in held_out(agent_id, split, fill_from, exclude) if c['case_id'] not in done]
 
 
+# A floor between cases for agents that call one shared allowance several times a case (ops 11-15: github-releases
+# makes two calls a case inside GitHub's unauthenticated 60 an hour, so cases are kept 2 s apart).
+PACE_SECONDS = {'github-releases': 2.0}
+
+
 def pace(agents, agent_id, sleep=time.sleep, longest=120.0):
     """Wait OUTSIDE the call budget until the agent's slow hosts may be called again (agent team 11-15: arXiv's 3 s
     spacing used up most of the 3.3 s call budget when cases ran back to back, so 4 timed out, and after a 503 the
     next cases met a resting host). Only hosts spaced 1 s or more; a rest after 429/503 is waited for, at most LONGEST."""
     from urllib.parse import urlsplit
-    waits = []
+    waits = [PACE_SECONDS.get(agent_id, 0.0)]
     for url in DOMAINS.get(agent_id) or []:
         limiter = (getattr(agents, 'limiters', None) or {}).get(urlsplit(url).hostname)
         if limiter is None or limiter.spacing < 1.0:
             continue
         waits.append(max(limiter.spacing + 0.2, limiter.resting()))
-    if waits:
+    if max(waits) > 0:
         sleep(min(longest, max(waits)))
 
 
@@ -186,7 +191,7 @@ def run(agent_ids, split, raw_path, agents=None, fill_from=None, exclude=frozens
                     contract_rows.append(expect == 'ok')
                 except FallbackUnavailable as exc:
                     contract_rows.append(expect == exc.code)
-            roles = role_task_check([agent_id], agents)[agent_id]
+            roles = role_task_check([agent_id], agents, before_call=lambda a: pace(agents, a, sleep))[agent_id]
             part_rows, rows = rows, prior + rows
             passed = sum(r['pass'] for r in rows)
             dirty = [r['case_id'] for r in rows if r['data_quality']]

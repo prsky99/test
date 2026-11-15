@@ -62,7 +62,7 @@ def test_run_maps_gold_inputs_like_the_tuning_runs(tmp_path, monkeypatch):
     contract_inputs.write_text('{}')
     monkeypatch.setattr(gate, 'CONTRACT_INPUTS', contract_inputs)
     monkeypatch.setattr(gold_check, 'judge', lambda agent, case, result: {'pass': True})
-    monkeypatch.setattr(gold_check, 'role_task_check', lambda ids, agents: {ids[0]: {'passed': 0, 'cases': 0}})
+    monkeypatch.setattr(gold_check, 'role_task_check', lambda ids, agents, before_call=None: {ids[0]: {'passed': 0, 'cases': 0}})
     calls = []
 
     class Agents:
@@ -110,7 +110,7 @@ def test_a_verdict_split_over_two_days_is_judged_on_both_parts(tmp_path, monkeyp
     contract_inputs.write_text(json.dumps({'gleif-lei': [[{'name': 'x'}, 'ok']]}))
     monkeypatch.setattr(gate, 'CONTRACT_INPUTS', contract_inputs)
     monkeypatch.setattr(gold_check, 'judge', lambda agent, case, result: {'pass': True})
-    monkeypatch.setattr(gold_check, 'role_task_check', lambda ids, agents: {ids[0]: {'passed': 1, 'cases': 1}})
+    monkeypatch.setattr(gold_check, 'role_task_check', lambda ids, agents, before_call=None: {ids[0]: {'passed': 1, 'cases': 1}})
     monkeypatch.setattr(gate, 'quality', lambda envelope: [])
     reserved = []
     monkeypatch.setattr(gate, 'reserve_calls', lambda ids, cases=None: reserved.append(cases) or {})
@@ -164,3 +164,22 @@ def test_pace_waits_outside_the_call_budget_for_slow_hosts():
     assert 59 <= slept[-1] <= 60.1
     gate.pace(a, "wikipedia-summary", slept.append)          # fast hosts are not paced
     assert len(slept) == 2
+    gate.pace(a, "github-releases", slept.append)            # ops 11-15: 2 s between cases at least
+    assert slept[-1] == 2.0
+
+
+def test_role_tasks_are_paced_like_the_cases(monkeypatch, tmp_path):
+    """ops 11-15 16:25: arxiv-search role tasks 0/3 right after the cases; each call now waits like the cases do."""
+    from agent_market.fallback_agents import gold_check
+    from agent_market.necklaces import role_tasks
+    calls = []
+
+    class Agents:
+        def execute(self, agent_id, arguments):
+            calls.append("call")
+            raise gold_check.FallbackUnavailable("not_found", "x")
+    tasks = [{"case_id": f"t{i}", "contract": "papers.search.v1", "input": {"query": "x"}} for i in range(2)]
+    monkeypatch.setattr(role_tasks, "FILE", str(tmp_path / "role-tasks-v1.jsonl"))
+    monkeypatch.setattr(role_tasks, "load", lambda *a, **k: [] if a else tasks)
+    gold_check.role_task_check(["arxiv-search"], Agents(), before_call=lambda a: calls.append("pace:" + a))
+    assert calls == ["pace:arxiv-search", "call", "pace:arxiv-search", "call"]
