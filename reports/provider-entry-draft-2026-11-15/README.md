@@ -76,9 +76,10 @@ This request stays open for 24 hours. When the file is live, press Check.
 | 칸 | 내용 |
 |---|---|
 | 목록 | 에이전트 이름, 방법, 범위(origin 또는 자원 하나), 상태, 만료일. 상태 문구: `Waiting for your file` / `Verified until <date>` / `Lapsed: the last two checks failed` / `Expired: not checked within 24 hours` / `Withdrawn` |
-| 에이전트 하나 열기 | 시험 기록(헬스 상태, 최근 오류 코드, 마지막 시험 호출, 시험 보고서 v2 점수와 실패 사유), 재시험 대기열 위치와 예상 시각, 정정 요청 |
+| 에이전트 하나 열기 | `GET BASE/resources/{rid}` 응답을 칸별로 보여 줍니다: `health`(헬스 상태·최근 오류 코드), `last_trial`(마지막 시험 호출), `test_reports`(시험 보고서 v2의 outcome·reason·score), `retest_queue`(`Position <position> of <of>` 보기만, 요청 버튼 없음), `corrections`(정정 요청과 상태), `note`(응답 문장을 고치지 않고 그대로) |
 | 정정 요청 폼 | Field(name, description, category), proposed text(1,000자), evidence URL(선택). 보낸 뒤 상태: `Received` / `Under review` / `Decided` (권고 내용은 보이지 않음, PM 결정 5) |
-| 안내 | `Verification never changes grades, ranks or test results, and paying never moves a retest.` |
+| 안내 | 서버 응답의 `note`를 그대로 보여 줍니다. 화면 쪽에서 따로 쓰는 문장은 없습니다 |
+| 열리기 전 | `GET BASE`의 `available`이 false면(표 생성 승인 전) 목록 대신 `Provider verification is not open yet.` 한 줄만 보여 줍니다 |
 
 ## 5. 사유 코드 → 화면 문장 (영어)
 
@@ -102,11 +103,27 @@ This request stays open for 24 hours. When the file is live, press Check.
 | `resource_moved` | The agent's address moved off this site, so it is no longer covered. |
 | `busy` | We are busy right now. Try again in a few seconds. |
 | `rate_limited` | Too many requests. Wait a minute. |
-| 그 밖의 확인 실패 | The value we found did not match. Copy it again exactly, then press Check. |
+| `not_verified_for_resource` | Verify this agent first to see its test record. |
 
-## 6. 에이전트 팀과 맞출 것 (설계 문서가 굳으면 이 초안을 고침)
+확인(`verify`) 응답이 `{"status": "pending", "outcome": <코드>}`일 때 보여 주는 문장입니다.
+
+| outcome | 문장 |
+|---|---|
+| `http_status` | The file did not answer with HTTP 200. Check the address and that there is no redirect. |
+| `invalid_body` | The file is not exactly the JSON shown above. Copy it again without extra fields. |
+| `value_mismatch` | The value we found does not match this request. Copy it again exactly, then press Check. |
+| `response_too_large` | The answer was larger than 4 KiB. Serve only the JSON shown above. |
+| `not_public_address` | The address did not resolve to a public internet address. |
+| `call_budget_refused` | We have checked this domain enough for today. Try again tomorrow. |
+| `resource_moved` | The agent's address moved off this site, so it is no longer covered. |
+| `request_failed` | We could not reach the file or the agent. Check that it is live, then press Check again. |
+| 그 밖의 코드 | The check did not pass (<code>). Press Check again after you fix it. |
+
+## 6. 에이전트 팀과 맞출 것
+
+- 11-15 11:2x 에이전트 팀이 보낸 API 계약(b5db0ac1)에 맞췄습니다: verify의 outcome 코드, `available`, 혜택 필드, `note` 그대로, 재시험 보기만, 쓰기 요청의 `x-customer-csrf` 헤더.
+- 아래는 아직 열린 질문입니다.
 
 1. 로그인 뒤 돌아오는 방식과 고객 화면 경로 이름. 위 `/customer/provider-claims/...`는 가안입니다.
-2. 확인 실패의 세부 사유 코드 목록. 위 5절에 없는 코드가 나오면 문장을 더합니다.
-3. 혜택 응답(`benefits`)의 필드 이름. 시험 기록·대기열 위치·정정 상태를 화면 칸에 맞춥니다.
-4. 표가 없을 때(409)는 입구 줄을 숨기지 않습니다. 시작 화면에서 "아직 열리지 않음"을 보여 줍니다. 공개 링크가 404로 끝나지 않게 하기 위해서입니다.
+2. 표가 없을 때(`available` false, 409)는 입구 줄을 숨기지 않습니다. 시작 화면에서 "아직 열리지 않음"을 보여 줍니다. 공개 링크가 404로 끝나지 않게 하기 위해서입니다.
+3. 쓰기 요청의 `x-customer-csrf` 값을 화면이 어디서 받는지(고객 워크스페이스의 기존 방식을 그대로 쓸지).
