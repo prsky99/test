@@ -232,12 +232,29 @@ def release(board, token):
     return False
 
 
-def run(command, team, what, minutes, board=None, lock=None, now=None):
+LOAD_MAX = 6.0   # PM 11-15 16:38: same as pytest_slot.LOAD_MAX - in the day nothing heavy starts above this load
+
+
+def day_load(now=None, load=None, what=''):
+    """Why heavy work may not start now because this Mac is busy (08:00-24:00 only), or None. The public measurement
+    itself is never held back. Inside a test the real load is not read (only an injected one)."""
+    now = now or datetime.now()
+    if now.hour < 8 or MEASURE_WORDS.search(what or ''):
+        return None
+    if load is None:
+        if os.environ.get('PYTEST_CURRENT_TEST'):
+            return None
+        load = os.getloadavg()[0]
+    return f'load {load:.1f} >= {LOAD_MAX} in the day: the public site needs the CPU' if load >= LOAD_MAX else None
+
+
+def run(command, team, what, minutes, board=None, lock=None, now=None, load=None):
     reason = night_only(what, command, minutes, now)
     if reason:
         print(f'heavy_slot: refused ({reason}); nothing runs', file=sys.stderr)
         return NIGHT_ONLY
-    reason = measurement_window(now) or reserved(now, board, ' '.join([what, *command]))
+    reason = (measurement_window(now) or reserved(now, board, ' '.join([what, *command]))
+              or day_load(now, load, ' '.join([what, *command])))
     if reason:
         print(f'heavy_slot: refused ({reason}); nothing runs, try again later', file=sys.stderr)
         return BUSY

@@ -148,3 +148,14 @@ def test_a_window_reserved_for_copy_rehearsals_refuses_other_heavy_work(tmp_path
     assert not out.exists()
     assert hs.run(probe, '운영·SRE', 'db_change_rehearsal due index', 5, board=board, lock=tmp_path / 'lock', now=inside) == 0
     assert out.exists()
+
+
+def test_heavy_work_waits_for_load_in_the_day_but_not_the_measurement():
+    """PM 11-15 16:38: gates, rescoring and report rebuilds wait too while this Mac is busy in the day."""
+    from datetime import datetime
+    from scripts import heavy_slot
+    day, night = datetime(2026, 11, 16, 14, 20), datetime(2026, 11, 16, 3, 0)
+    assert 'load 7.0' in heavy_slot.day_load(day, 7.0, 'substitute gate')
+    assert heavy_slot.day_load(day, 2.0, 'substitute gate') is None
+    assert heavy_slot.day_load(night, 9.0, 'substitute gate') is None
+    assert heavy_slot.day_load(day, 9.0, 'public_full_check') is None
