@@ -79,7 +79,9 @@ def test_an_agent_time_sample_carries_its_server_time_and_what_the_path_took(mon
     class Timed:
         headers = {'server-timing': 'server;dur=2320, step_search;dur=1527', 'cf-ray': 'x-LAX', 'cf-cache-status': 'DYNAMIC'}
     monkeypatch.setattr(pfc, 'path_floor', lambda: None)
-    assert pfc.split(Timed(), 3.54) == {'server_s': 2.32, 'outside_s': 1.22, 'edge': 'LAX DYNAMIC'}
+    # PM 11-15 22:2x: the request's own segments stay, so a 12 s server time can be split afterwards
+    assert pfc.split(Timed(), 3.54) == {'server_s': 2.32, 'outside_s': 1.22, 'edge': 'LAX DYNAMIC',
+                                        'timing': {'server': 2320, 'step_search': 1527}}
 
     class Untimed:
         headers = {'cf-ray': 'x-SEA'}
