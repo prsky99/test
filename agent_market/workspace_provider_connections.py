@@ -394,7 +394,7 @@ class ProviderConnections:
                 client_id=public_origin+'/api/customer-provider-oauth/clients/'+str(rid)+'.json'
             if not client_id and metadata['registration_endpoint']:
                 response=self._request('POST',metadata['registration_endpoint'],json={
-                    'client_name':'Agent Concierge','redirect_uris':[callback],
+                    'client_name':'AgentValCon','redirect_uris':[callback],
                     'grant_types':['authorization_code'],'response_types':['code'],'token_endpoint_auth_method':'none'})
                 registration=obj(response.json())
                 client_id=registration.get('client_id')

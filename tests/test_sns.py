@@ -63,7 +63,7 @@ def test_write_like_reply_delete(w):
     _, c = w
     key = published(c, "A2A Agent Card makes integration easier #A2A #review", rating=5)["key"]
     mine = next(p for p in feed(c, tab="latest", role="developer")["items"] if p["key"] == key)
-    assert mine["protocol"] == "a2a" and mine["rating"] == 5 and "review" in mine["tags"] and mine["author"]["name"]=="Agent Concierge"
+    assert mine["protocol"] == "a2a" and mine["rating"] == 5 and "review" in mine["tags"] and mine["author"]["name"]=="AgentValCon"
     assert c.post("/admin/api/sns/like", json={"key": key, "client": "me"}, headers=H).json() == {"liked": True, "likes": 1}
     assert c.post("/admin/api/sns/like", json={"key": key, "client": "me"}, headers=H).json() == {"liked": False, "likes": 0}
     c.post("/admin/api/sns/like", json={"key": "c:x402-dream", "client": "me"}, headers=H)  # 커뮤니티 글에도 좋아요

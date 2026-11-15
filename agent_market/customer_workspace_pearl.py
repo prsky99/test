@@ -61,12 +61,12 @@ def pearl_response(response, nonce, section="overview", workspace=None, auth=Fal
         + '</details>' + nav_link(*nav[5])
         + '<a class="workspace-back" href="/new/en/index.html">Back to discovery</a></aside>')
     header = (
-        '<header class="workspace-topbar"><button type="button" id="workspace-menu" aria-label="Open workspace navigation" aria-expanded="false" aria-controls="workspace-navigation"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button><a class="workspace-brand" href="/" aria-label="Agent Concierge Home"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span><span>Agent Concierge</span></a><div class="workspace-header-actions"><button type="button" id="workspace-theme" class="theme-toggle" aria-label="Toggle dark theme" aria-pressed="false">'
+        '<header class="workspace-topbar"><button type="button" id="workspace-menu" aria-label="Open workspace navigation" aria-expanded="false" aria-controls="workspace-navigation"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button><a class="workspace-brand" href="/" aria-label="AgentValCon Home"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span><span>AgentValCon</span></a><div class="workspace-header-actions"><button type="button" id="workspace-theme" class="theme-toggle" aria-label="Toggle dark theme" aria-pressed="false">'
         + '</button><a href="/customer/organizations#account">'
         + icon("account")
         + '<span>Account</span></a><button type="button" id="workspace-signout" hidden>Sign out</button></div></header>' 
     )
-    footer = '<footer class="workspace-footer"><nav aria-label="Service information"><a href="/new/en/index.html#tos">Terms of Service</a><a href="/new/en/index.html#privacy">Privacy Policy</a><a href="/new/en/index.html#accessibility">Accessibility</a><a href="/new/en/index.html#contact">Contact</a></nav><span>© 2026 Agent Concierge</span></footer>'
+    footer = '<footer class="workspace-footer"><nav aria-label="Service information"><a href="/new/en/index.html#tos">Terms of Service</a><a href="/new/en/index.html#privacy">Privacy Policy</a><a href="/new/en/index.html#accessibility">Accessibility</a><a href="/new/en/index.html#contact">Contact</a></nav><span>© 2026 AgentValCon</span></footer>'
     skin = (
         '<style nonce="'
         + nonce

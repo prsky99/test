@@ -112,7 +112,7 @@ def router_for(core):
             raise HTTPException(404)
         site=public_origin()
         return response(client_id=site+'/api/customer-provider-oauth/clients/'+str(rid)+'.json',
-                        client_name='Agent Concierge',client_uri=site,
+                        client_name='AgentValCon',client_uri=site,
                         redirect_uris=[site+'/api/customer-provider-oauth/'+str(rid)+'/callback'],
                         grant_types=['authorization_code'],response_types=['code'],token_endpoint_auth_method='none')
 

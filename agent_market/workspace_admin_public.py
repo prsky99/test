@@ -386,7 +386,7 @@ class PublicChanges:
                     result = sns.create_post(
                         self.store,
                         fields["body"],
-                        "Agent Concierge",
+                        "AgentValCon",
                         fields["role"],
                         "staff:" + str(payload["requester"]),
                         fields["protocol"],
@@ -407,7 +407,7 @@ class PublicChanges:
                 )
                 if action in ("create", "create_public"):
                     target = self.store.create_workflow(
-                        {**fields, "author": "Agent Concierge"}
+                        {**fields, "author": "AgentValCon"}
                     )
                 elif not self.store.update_workflow(target, fields):
                     raise ValueError("정의를 저장하지 못했습니다.")

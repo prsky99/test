@@ -116,7 +116,7 @@ def test_original_sns_path_requests_review_before_publication_and_archiving(revi
     row = world.store.query(
         "SELECT author,body FROM sns_posts ORDER BY id DESC LIMIT 1"
     )[0]
-    assert row["author"] == "Agent Concierge" and "Private staff name" not in str(row)
+    assert row["author"] == "AgentValCon" and "Private staff name" not in str(row)
     assert act(c, h, response.json()["review"], acknowledge=True).status_code == 409
     remove = send(c, h, "sns", "delete", target=key["key"])
     assert remove.status_code == 202

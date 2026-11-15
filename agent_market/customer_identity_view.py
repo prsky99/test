@@ -51,10 +51,10 @@ def _page(title, description, content, script, *, section="account"):
     policy = ("default-src 'none'; script-src 'nonce-" + nonce + "'; style-src 'nonce-" + nonce
               + "'; connect-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'")
     html = ('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-            '<meta name="robots" content="noindex,nofollow"><title>' + title + ' | Agent Concierge</title>'
+            '<meta name="robots" content="noindex,nofollow"><title>' + title + ' | AgentValCon</title>'
             '<meta name="description" content="' + description + '"><style nonce="' + nonce + '">' + STYLE + '</style></head><body><main>'
-            '<a class="brand" href="/" aria-label="Agent Concierge Home">' + WORKSPACE_ICON + 'Agent Concierge</a>' + content
-            + '<footer><a href="/#privacy">Privacy</a><a href="/#tos">Terms</a><a href="/">Back to discovery</a></footer></main>'
+            '<a class="brand" href="/" aria-label="AgentValCon Home">' + WORKSPACE_ICON + 'AgentValCon</a>' + content
+            + '<footer><a href="/new/en/privacy.html">Privacy</a><a href="/new/en/terms.html">Terms</a><a href="/">Back to discovery</a></footer></main>'
             '<script nonce="' + nonce + '">' + script + '</script></body></html>')
     return pearl_response(HTMLResponse(html, headers={**no_store(), 'Content-Security-Policy': policy, 'X-Frame-Options': 'DENY',
                                       'X-Content-Type-Options': 'nosniff', 'X-Robots-Tag': 'noindex,noarchive'}),nonce,section=section,workspace=None,auth='Sign in' in title,loading=title in ('Your workspaces','Your workflows'))
@@ -112,7 +112,7 @@ window.addEventListener('pageshow',event=>{if(event.persisted)location.reload();
 load();
 '''
     script = script.replace('RETURN_DESTINATION', json.dumps(return_to))
-    return _page('Sign in or create an account', 'Sign in or create your Agent Concierge account with Google or GitHub to manage workspaces and invitations.', content, script)
+    return _page('Sign in or create an account', 'Sign in or create your AgentValCon account with Google or GitHub to manage workspaces and invitations.', content, script)
 
 
 def workspaces_page():
@@ -153,7 +153,7 @@ button.addEventListener('click',async()=>{
 window.addEventListener('pageshow',event=>{if(event.persisted){clear();location.reload();}});
 load();
 '''
-    return _page('Your workspaces', 'Manage your signed-in Agent Concierge workspace access and invitations, or sign out of your account.', content, script, section='overview')
+    return _page('Your workspaces', 'Manage your signed-in AgentValCon workspace access and invitations, or sign out of your account.', content, script, section='overview')
 
 
 def workflows_page():

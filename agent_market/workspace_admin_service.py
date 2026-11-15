@@ -105,7 +105,7 @@ def router_for(identity, access, *, core=None, public=False):
                 value=core._case(db,identity,current.customer_id)
                 records=rows(db,'case_public_messages',(identity,));messages=records[:200][::-1]
                 for item in messages:
-                    item['author']='Agent Concierge support' if item['author'].startswith('staff:') else 'You'
+                    item['author']='AgentValCon support' if item['author'].startswith('staff:') else 'You'
                 return {'case':public_case(value),'messages':messages,'messages_truncated':len(records)>200}
 
         def create(current,value):
