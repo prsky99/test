@@ -45,3 +45,16 @@ def test_exit_code_is_non_zero_when_the_offsite_copy_did_not_happen():
     assert scheduled_backup.exit_code({'status': 'ok', 'offsite': {'status': 'failed'}}, '/Volumes/x/b') == 3
     assert scheduled_backup.exit_code({'status': 'ok', 'offsite': {'status': 'skipped'}}, '/Volumes/x/b') == 3
     assert scheduled_backup.exit_code({'status': 'skipped'}, '/Volumes/x/b') == 2
+
+
+def test_the_snapshot_root_is_the_project_also_from_the_ops_code_folder(tmp_path, monkeypatch):
+    """R05: the backup job runs in gateway-data/ops-code/current, whose gateway-data links to the project's."""
+    import inspect
+    project = tmp_path / 'project'
+    (project / 'gateway-data/ops-code/c1').mkdir(parents=True)
+    os.symlink(project / 'gateway-data', project / 'gateway-data/ops-code/c1/gateway-data')
+    source = inspect.getsource(runtime_snapshot.snapshot)
+    assert "root = Path(os.path.realpath(Path.cwd() / 'gateway-data')).parent" in source
+    for cwd in (project, project / 'gateway-data/ops-code/c1'):
+        monkeypatch.chdir(cwd)
+        assert runtime_snapshot.Path(os.path.realpath(runtime_snapshot.Path.cwd() / 'gateway-data')).parent == project.resolve()

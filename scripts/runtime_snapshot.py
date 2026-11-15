@@ -119,7 +119,9 @@ def snapshot(destination, settings_file, resume=False):
     result = subprocess.run([restore, '--list', str(target)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if result.returncode or b'TOC Entries' not in result.stdout:
         raise RuntimeError('database_dump_catalog_invalid')
-    root = Path.cwd()
+    # The project root, also when the backup job runs from gateway-data/ops-code/current (R05): that folder links
+    # gateway-data to the project's, and holds only agent_market, scripts and deploy/ops of one commit.
+    root = Path(os.path.realpath(Path.cwd() / 'gateway-data')).parent
     archive = destination / 'source.tar.gz'
     source_paths = ['agent_market', 'scripts', 'deploy', 'new', 'agentcon', 'AGENTS.md',
                     'extracted_html.txt', 'pyproject.toml', 'requirements.txt', 'requirements-dev.txt']
