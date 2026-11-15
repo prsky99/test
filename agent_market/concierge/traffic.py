@@ -422,6 +422,14 @@ class Traffic:
             self.funnel['recommend|' + surface + '|' + cls + '|all'] += 1
             if ok:
                 self.funnel['recommend|' + surface + '|' + cls + '|ok'] += 1
+            # PM 11-16 08:2x: what the request was for (task, liveness, outreach, ...); only the class is kept.
+            from .ask_intent import request_intent
+            kind = request_intent(surface, body)
+            self.funnel['ask|' + surface + '|' + cls + '|' + kind] += 1
+            if kind == 'task':
+                asked = self.funnel_sets['recommend_task|' + cls]
+                if len(asked) < 50_000:
+                    asked.add(digest)
             bucket = self.funnel_sets['recommend|' + cls]
             if len(bucket) < 50_000:
                 bucket.add(digest)

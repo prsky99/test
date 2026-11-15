@@ -230,9 +230,19 @@ def north_star(clock=time.time, run=None):
         return 'failed'
     funnel = record.get('funnel') or {}
     show = lambda value: '?' if value is None else value   # noqa: E731 - approx days have no pair counts
+    recommend = funnel.get('recommend') or {}
+    if record.get('denominator') == 'task':
+        # PM 11-16 08:2x: the denominator is the outside requests that carry a task; the rest are named beside it.
+        names = {'liveness': '생존 확인', 'outreach': '홍보·권유', 'security': '보안 점검', 'fixture': '감시 정형문',
+                 'command': '명령', 'empty': '빈 질의'}
+        others = ', '.join(f'{names.get(k, k)} {v}' for k, v in sorted((recommend.get('intents') or {}).items(),
+                                                                    key=lambda kv: -kv[1]) if k != 'task' and v)
+        first = (f"과제가 있는 외부 질의 {recommend.get('task_requests')}"
+                 f"(외부 추천 전체 {show(recommend.get('requests'))}{': ' + others if others else ''})")
+    else:
+        first = f"외부 추천 요청 {show(recommend.get('requests'))}"
     text = (f"{record['day']} 성공 실행 쌍 {record['north_star']}"
-            f"({'근사' if record.get('basis') == 'approx' else '기록'}) | 외부 추천 요청 "
-            f"{show((funnel.get('recommend') or {}).get('requests'))} → 게이트웨이 연결 쌍 "
+            f"({'근사' if record.get('basis') == 'approx' else '기록'}) | {first} → 게이트웨이 연결 쌍 "
             f"{show((funnel.get('connect') or {}).get('pairs'))} → 성공 실행 쌍 {record['north_star']}"
             f" | 끊긴 단계 {record.get('breaks_at') or '없음'}"
             f" | 엣지→원서버 넘김 {sum((record.get('edge_fallbacks') or {}).values())} (logs/ops/north-star.jsonl)")

@@ -14,6 +14,9 @@ Sources: the frontend's anonymous day files (logs/service-frontend/traffic/<day>
 within one process, so a day with a deploy switch may count a pair twice — 'processes' says how many there were)
 and edge_gateway_runs (one read-only connection). Before the frontend records the funnel (39140d17 and later),
 the day files have no 'funnel' section; the line is then built from their older counters and says 'approx'.
+From 11-16 (PM 08:2x) the funnel also says what each recommendation request was for ('ask|surface|class|intent':
+task, liveness, outreach, security, fixture, command, empty; agent_market/concierge/ask_intent.py). The first stage
+is then the outside requests that carry a task ('denominator': 'task'); the others are shown under 'intents'.
 """
 import argparse
 import json
@@ -71,6 +74,15 @@ def from_funnel(files):
                 block['surfaces'][parts[1]] = block['surfaces'].get(parts[1], 0) + value
             elif parts[3] == 'ok':
                 block['ok'] += value
+        elif parts[0] == 'ask' and len(parts) == 4 and parts[2] in by:
+            # PM 11-16 08:2x: what each recommendation request was for; 'task' is the denominator.
+            intents = by[parts[2]]['recommend'].setdefault('intents', {})
+            intents[parts[3]] = intents.get(parts[3], 0) + value
+    for cls in CLASSES:
+        block = by[cls]['recommend']
+        if 'intents' in block:
+            block['task_requests'] = block['intents'].get('task', 0)
+            block['task_clients'] = distinct.get('recommend_task|' + cls, 0)
     return by
 
 
@@ -149,7 +161,10 @@ def build(day, files=None, edge=None, necklaces=None):
     external = by['external']
     origin_pairs = external['execute']['pairs']
     north = (origin_pairs or 0) + edge['external']['pairs']
-    stages = (('recommend', external['recommend']['requests']), ('connect', external['connect']['pairs']
+    # PM 11-16 08:2x: from the day the frontend records what requests were for, the first stage is the outside
+    # requests that carry a task; liveness, outreach, security, fixture and command requests stay in 'intents'.
+    asked = external['recommend'].get('task_requests', external['recommend']['requests'])
+    stages = (('recommend', asked), ('connect', external['connect']['pairs']
               if recorded else external['connect']['ok']), ('execute', north))
     breaks = next((name for name, value in stages if not value), None)
     fallbacks = Counter()
@@ -164,6 +179,7 @@ def build(day, files=None, edge=None, necklaces=None):
             'north_star_v2': necklace['value'], 'necklace': necklace,
             'edge_fallbacks': dict(fallbacks),   # Edge -> Origin gateway hand-offs by reason (handshake, rate)
             'basis': 'recorded' if recorded else 'approx', 'processes': len(files),
+            'denominator': 'task' if 'task_requests' in external['recommend'] else 'all',
             'breaks_at': breaks, 'funnel': external, 'edge': edge,
             'excluded': {cls: by[cls] for cls in ('internal', 'probe', 'outreach', 'crawler')}}
 

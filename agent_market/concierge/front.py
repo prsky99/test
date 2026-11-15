@@ -112,6 +112,18 @@ LIVE_TTL = 300
 EMAIL_REGEX = re.compile(r"^[a-zA-Z0-9_.+-]+@(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$")
 
 
+_LOOPBACK = frozenset({'127.0.0.1', '::1'})
+
+
+def _ours(request, ip) -> bool:
+    """Our own measurement: the X-Agentcon-QA header or our own server's public address (traffic internal-ips.txt).
+    Loopback is left out here: test clients and requests without an edge address resolve to it."""
+    if request.headers.get('x-agentcon-qa'):
+        return True
+    from . import traffic as day_traffic
+    return bool(ip) and ip not in _LOOPBACK and ip in day_traffic.recorder().internal_ips
+
+
 def _token_from(request: Request, body_token: str | None = None) -> str | None:
     t = request.headers.get("x-visitor-token")
     auth = request.headers.get("authorization") or ""
@@ -316,8 +328,10 @@ class Front:
         if context_id and context_id.startswith('ctx_') and not context_owner:
             raise HTTPException(400, 'This conversation context is unavailable. Start without a contextId.')
         v = token_visitor or context_visitor
-        # Our own measurements (X-Agentcon-QA) are kept apart in visitor counts; nothing else about the agent is stored.
-        stored_ua = 'internal' if request.headers.get('x-agentcon-qa') else ua
+        # Our own measurements (X-Agentcon-QA, or sent from our own server address) are kept apart in visitor counts;
+        # nothing else about the agent is stored. PM 11-16 08:2x: a test sent from this server without the header was
+        # stored as an outside visitor (the traffic counts already set the address apart).
+        stored_ua = 'internal' if _ours(request, ip) else ua
         if v is not None:
             self.book.touch(v, channel, stored_ua, fp)
         elif create:
@@ -368,7 +382,7 @@ class Front:
             ip = self.security.resolve_ip(request)
             self.book.record_hit(fingerprint(ip, request.headers.get("user-agent")), request.headers.get("user-agent"), request.url.path)
         else:
-            self.book.touch(v, "rest", 'internal' if request.headers.get('x-agentcon-qa') else request.headers.get("user-agent"),
+            self.book.touch(v, "rest", 'internal' if _ours(request, self.security.resolve_ip(request)) else request.headers.get("user-agent"),
                             fingerprint(self.security.resolve_ip(request), request.headers.get("user-agent")))
         reply = self.concierge.greeting(v)
         counts = self.live_counts()
