@@ -246,7 +246,6 @@ def answer_set_expiry(clock=time.time, gold=None, state_path=None):
     """Once a day: open the '자동 점검 [answer_sets]' line when a necklace answer set (gold/<slug>/manifest.json
     valid_until) expires within 14 days, has expired or has no validity; close it when none does. Without a valid
     set no retest or gate round runs and the necklace is held 48 hours later, so the line comes first."""
-    from datetime import timedelta
     gold = Path(gold or ROOT / 'gateway-data/necklaces/gold')
     state_path = Path(state_path or ANSWER_SET_STATE)
     local = datetime.fromtimestamp(clock())
