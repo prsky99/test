@@ -235,7 +235,7 @@ NAV = [('Agent Status', '/new/en/agent-status.html'), ('Learn', '/new/en/learn.h
 FOOTER = [('Connect a client', '/connect'), ('Task pages', '/agents/tasks'), ('Rankings', '/agents/best'),
           ('State of AI Agents', '/reports/state-of-ai-agents'), ('Badges', '/badges'), ('Explore', '/new/en/explore.html'),
           ('Chat', '/new/en/chat.html'), ('About', '/new/en/about.html'), ('llms.txt', '/llms.txt'),
-          ('Terms of Service', '/terms'), ('Privacy Policy', '/privacy')]  # 11-15 E12: pages that need no script
+          ('Terms of Service', '/new/en/terms.html'), ('Privacy Policy', '/new/en/privacy.html')]  # 11-15: the full policy pages
 
 
 def shell(*, title, description, canonical, body, structured=None, index=True):
