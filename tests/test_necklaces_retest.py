@@ -1,8 +1,18 @@
 import json
 import time
 
+import pytest
+
 from agent_market.necklaces import model, retest, runner
 from tests.test_necklaces_runner import Fail, caller_from
+
+
+@pytest.fixture(autouse=True)
+def no_real_standing(monkeypatch):
+    """11-16: run_daily reads the real verify snapshot and approvals.json for the member standing; once our own
+    substitutes were provisional there, a test's chain led with a real own agent. Tests use an empty standing."""
+    from agent_market.necklaces import members
+    monkeypatch.setattr(members, "load", lambda *a, **k: {"external": {}, "own": {}})
 
 
 def pkg_case(case_id, ids, latest="4.17.21"):
@@ -300,6 +310,8 @@ def test_our_capacity_is_not_a_failure_of_the_case_or_the_member(tmp_path):
 
 def test_a_gate_round_can_take_the_public_engine_path(tmp_path, monkeypatch):
     """PM R26: one gate round runs through the registered-agent engine that public runs use, not the relay."""
+    # 11-16: terms in the real table changed (276982 prohibits); this test is about the run path, not terms
+    monkeypatch.setattr(model, "terms_status", lambda member: "allowed")
     import copy
     defn = copy.deepcopy(next(d for d in model.load_valid() if d["slug"] == "package-risk-audit"))
     for slot in defn["slots"]:
@@ -362,6 +374,8 @@ def _package_set(tmp_path, versions):
 
 def test_live_retest_runs_five_cases_and_the_whole_set_after_one_failure(tmp_path, monkeypatch):
     """PM 11:4x decision 1: 5 sample cases a day; one failure reruns all 30 that day."""
+    # 11-16: terms in the real table changed (276982 prohibits); this test is about the run path, not terms
+    monkeypatch.setattr(model, "terms_status", lambda member: "allowed")
     defn = _package_set(tmp_path, ["9.9.9"] * 30)
     asked = []
 
@@ -402,6 +416,8 @@ def test_shared_cache_answers_once_per_member_and_input_inside_retests():
 def test_two_necklaces_escalating_on_one_provider_stay_inside_its_share_and_defer(tmp_path, monkeypatch):
     """PM 12:50: whole-set reruns on the same day never pass a provider's share; one that would not fit is deferred
     (no case cut short). The real ledger counts in a temporary folder."""
+    # 11-16: terms in the real table changed (276982 prohibits); this test is about the run path, not terms
+    monkeypatch.setattr(model, "terms_status", lambda member: "allowed")
     from agent_market import provider_budget as pb
     monkeypatch.setattr(pb, "DIR", tmp_path / "ledger")
     defn = _package_set(tmp_path, ["9.9.9"] * 30)
@@ -491,3 +507,18 @@ def test_a_gate_single_reuses_the_answer_the_member_gave_in_the_same_case(tmp_pa
     retest.run_set(defn, cases[:1], counting, root=tmp_path / "x", singles=False, clock=lambda: next(clock),
                    now=lambda: 1_800_000_000)
     assert calls.count(367249) == 1
+
+
+def test_the_relay_gate_run_uses_the_watch_state_and_any_manifest_split(tmp_path, monkeypatch):
+    """11-16: a gate round on holdout-r4 through the CLI gets the standing and provisional substitutes."""
+    import pytest
+    folder = tmp_path / "gold" / "topic-evidence-brief"
+    folder.mkdir(parents=True)
+    (folder / "manifest.json").write_text(json.dumps({"files": {"holdout-r4": {}}}))
+    with pytest.raises(SystemExit):
+        retest.main(["topic-evidence-brief", "--split", "holdout-r9", "--root", str(tmp_path)])
+    (tmp_path / "approvals.json").write_text(json.dumps({"substitutes": [
+        {"agent_id": "wiki-grounding", "slot_role": "web.grounding.v1", "state": "provisional", "at": "2026-11-16T06:50:00+0900"}]}))
+    state = retest.gate_watch_state(tmp_path)
+    assert state["standing"] == {"external": {}, "own": {}}          # members.load, stubbed by the fixture
+    assert state["substitutes"] == []                                  # only approved ones; provisional comes via standing

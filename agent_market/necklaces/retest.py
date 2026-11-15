@@ -1022,10 +1022,23 @@ def run_daily(defn: dict, *, root: Path = DEFAULT_ROOT, split: str, singles: boo
     return dict(out, path="relay")
 
 
+def gate_watch_state(root: Path) -> dict:
+    """The state a relay run uses (11-16): the hourly watch's marks, approved substitutes and the member standing, as
+    run_daily builds it, so a provisional own substitute runs and pearls lead (b7745b98) on the relay path too."""
+    from .judge import load_substitutes
+    from .watch import load_json
+    from . import members as standing_rules
+    state = load_json(Path(root) / "watch" / "state.json", {})
+    state["substitutes"] = load_substitutes(Path(root) / "approvals.json")
+    state["standing"] = standing_rules.load()
+    return state
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run a necklace on its gold set through the public relay.")
     parser.add_argument("slug")
-    parser.add_argument("--split", default="tuning", choices=("tuning", "holdout-r1", "holdout-r2"))
+    # 11-16 (PM 06:5x): any answer set in the slug's manifest (holdout-r4, holdout-r5 for the topic gate)
+    parser.add_argument("--split", default="tuning")
     parser.add_argument("--limit", type=int, default=30)
     parser.add_argument("--singles", action="store_true", help="also run the single baseline (weekly)")
     parser.add_argument("--activate-planned", action="store_true",
@@ -1036,6 +1049,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--path", default="relay", choices=("relay", "engine"),
                         help="engine: the public run path on the operating store (ops, one gate round; PM R26)")
     args = parser.parse_args(argv)
+    manifest = Path(args.root) / "gold" / args.slug / "manifest.json"
+    known = set((json.loads(manifest.read_text(encoding="utf-8")).get("files") or {})) if manifest.exists() else set()
+    if args.split not in known | {"tuning", "holdout-r1", "holdout-r2"}:
+        parser.error(f"--split {args.split} is not in {manifest}")
     defn = next(d for d in model.load_valid() if d["slug"] == args.slug)
     if args.activate_planned:
         for slot in defn["slots"]:
@@ -1052,7 +1069,8 @@ def main(argv: list[str] | None = None) -> int:
     with httpx.Client(timeout=12, headers={"User-Agent": "AgentValCon-NecklaceRetest/1.0"}) as client:
         call = runner.budgeted_caller(gateway_caller(client, args.base, pacer), args.system, provider_url)
         result = run_set(defn, load_cases(args.root, args.slug, args.split)[:args.limit], call,
-                         root=args.root, split=args.split, singles=args.singles, pacer=pacer)
+                         root=args.root, split=args.split, singles=args.singles, pacer=pacer,
+                         watch_state=gate_watch_state(args.root))
     print(json.dumps(result, ensure_ascii=False))
     return 0
 
