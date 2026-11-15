@@ -30,6 +30,34 @@ NEGATED_KEV = re.compile(r"""(not\s+(?:currently\s+)?(?:in|on|listed\s+(?:in|on)
     |"(?:in_?)?kev"\s*:\s*false)""", re.I | re.X)
 
 
+# A KEV flag under its usual key names (11-15 PM: mcp/37141 answered "in_kev": true and scored "KEV listing not
+# reported", since \bkev\b never matches inside in_kev).
+KEV_KEYS = ("kev", "in_kev", "is_kev", "kev_listed", "in_cisa_kev", "cisa_kev", "known_exploited", "knownexploited")
+KEV_TRUE = re.compile(r'"?(?:in_|is_)?(?:cisa_)?kev(?:_listed)?"?\s*[:=]\s*true\b|"known_?exploited"\s*:\s*true\b', re.I)
+
+
+def kev_flag(structured):
+    """The boolean a structured answer gives for a KEV listing under any KEV_KEYS name, nested; None when absent."""
+    def walk(data, depth=0):
+        if depth > 6:
+            return None
+        if isinstance(data, dict):
+            for key, value in data.items():
+                if str(key).lower() in KEV_KEYS and isinstance(value, bool):
+                    return value
+            for value in data.values():
+                found = walk(value, depth + 1)
+                if found is not None:
+                    return found
+        elif isinstance(data, list):
+            for value in data[:50]:
+                found = walk(value, depth + 1)
+                if found is not None:
+                    return found
+        return None
+    return walk(structured) if structured is not None else None
+
+
 def load(path: Path = FILE) -> list[dict]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
@@ -86,7 +114,9 @@ def _dig(data, field):
 
 
 # Other names a numeric field goes by in real answers (R12: NVD nests the score as metrics...cvssData.baseScore).
-FIELD_NAMES = {"cvss_score": ("cvss_score", "cvss", "basescore", "base_score", "cvss3_score", "cvssv3_score", "score")}
+FIELD_NAMES = {"cvss_score": ("cvss_score", "cvss", "basescore", "base_score", "cvss3_score", "cvssv3_score", "cvss_v3",
+                              "cvss3", "cvss_v31", "score"),
+               "epss": ("epss", "epss_score", "epss_probability")}
 
 
 def _find_number(data, names, depth=0):
@@ -111,7 +141,8 @@ def _find_number(data, names, depth=0):
 
 def _number_in_text(text, field):
     """A number the text gives for FIELD ("CVSS 10.0", "cvss_score: 9.8", "base score 7.5/10"), or None (R12)."""
-    label = {"cvss_score": r"cvss(?:\s*v?3(?:\.\d)?)?(?:\s*(?:base\s*)?score)?|base\s*score"}.get(
+    label = {"cvss_score": r"cvss(?:[\s_]*v?3(?:\.\d)?)?(?:[\s_]*(?:base[\s_]*)?score)?|base[\s_]*score",
+             "epss": r"epss(?:[\s_]*(?:score|probability))?"}.get(
         field, re.escape(field).replace("_", "[ _]"))
     m = re.search(r"(?:" + label + r")\W{0,5}(\d{1,3}(?:\.\d+)?)(?![\d.]*/[A-Z])", text or "", re.I)  # not a vector
     return float(m.group(1)) if m else None
@@ -142,9 +173,10 @@ def score(case: dict, text: str, structured: dict | None = None) -> tuple[bool, 
     if expect.get("must_include_https_url") and "https://" not in low:
         reasons.append("no https link")
     if "kev" in expect:
-        listed = bool(KEV_WORDS.search(text or "")) and not NEGATED_KEV.search(text or "")
-        if structured is not None and isinstance(_dig(structured, "kev"), bool):
-            listed = _dig(structured, "kev")
+        listed = bool(KEV_WORDS.search(text or "") or KEV_TRUE.search(text or "")) and not NEGATED_KEV.search(text or "")
+        flag = kev_flag(structured)
+        if flag is not None:
+            listed = flag
         if expect["kev"] and not listed:
             reasons.append("KEV listing not reported")
         if not expect["kev"] and listed:

@@ -23,7 +23,8 @@ FRESHNESS = {
     'news.search.v1': ('age', 7), 'software.incident.v1': ('age', 7),
     'fx.rate.v1': ('age', 2), 'crypto.price.v1': ('age', 2), 'stock.quote.v1': ('age', 2),
     'weather.forecast.v1': ('future',), 'events.search.v1': ('future',),
-    'cve.exploited.v1': ('age', 1), 'cve.record.v1': ('age', 1),
+    # 11-15 PM: a CVE record and a KEV listing are fixed records (published once, rarely changed); a one-day observed-time
+    # rule gave every right answer 0 freshness, so they are fixed facts like the package advisories.
     'earthquake.feed.v1': ('age', 30), 'timezone.time.v1': ('now', 5),
 }
 DYNAMIC_ROLES = set(FRESHNESS)          # answers change over time; consistency is about format, not equality

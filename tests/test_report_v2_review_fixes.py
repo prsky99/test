@@ -325,3 +325,24 @@ def test_r11_a_carried_verdict_is_the_one_in_force_with_its_own_evaluator(monkey
     V.rescore()
     v = V.latest_versions()[0]
     assert v['outcome'] == 'failed' and v['evaluator_version'] == 'old-eval' and v['verdict_basis'].startswith('carried from old-eval')
+
+
+def test_pm_1115_the_first_necklace_roles_get_new_candidates_first():
+    """PM 11-15 09:5x: package.advisories, cve.record, cve.exploited and package.health have no verified pearl."""
+    candidates = [('fx.rate.v1', 1, 't', 'a.example'), ('package.health.v1', 2, 't', 'b.example'),
+                  ('package.health.v1', 3, 't', 'c.example'), ('package.health.v1', 4, 't', 'c.example'),
+                  ('cve.record.v1', 5, 't', 'd.example')]
+    queue = V.new_queue([], candidates, limit=10)
+    assert [c['id'] for c in queue][:3] == [5, 2, 3] and 4 not in [c['id'] for c in queue]   # one per domain still
+
+
+def test_pm_1115_kev_flags_and_scores_are_read_under_their_usual_names():
+    """PM 11-15: mcp/37141 answered "in_kev": true with "cvss_v3": 8.8 and scored 0 accuracy."""
+    from agent_market.necklaces import role_tasks as RT
+    case = {'case_id': 'kev', 'input': {'cve_id': 'CVE-2023-4863'}, 'expect': {'kev': True}}
+    answer = '{"cve_id":"CVE-2023-4863","in_kev":true,"kev_date_added":"2023-09-13"}'
+    assert RT.score(case, answer)[0] and RT.score(case, answer, json.loads(answer))[0]
+    assert not RT.score(case, '{"in_kev": false}', {'in_kev': False})[0]
+    assert RT.number_for('epss', None, '{"epss_score":0.9997}') == 0.9997
+    assert RT.number_for('cvss_score', {'cvss_v3': 8.8}, '') == 8.8
+    assert DQ.freshness('cve.record.v1', 'CVE-2023-4863 heap overflow', NOW)[:2] == (10, 'fixed facts')

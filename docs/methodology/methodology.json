@@ -76,7 +76,7 @@
   ],
   "completeness_rule": "the share of the role's required output present, times the share of non-blank values, times the items returned against the items asked for; a text answer by the share of its fact checks passed; an empty search with no error is complete, an empty or error answer is not",
   "freshness_rule": "only the role's own kind of time counts (published, observed, valid, or a clock in the named zone); retrieval times and unlabelled dates do not",
-  "evaluator_version": "dq-2026-11-15"
+  "evaluator_version": "dq-2026-11-15b"
  },
  "verified_pearl": {
   "min_score": 85,
@@ -199,7 +199,7 @@
     "numeric fields match",
     "KEV listing stated correctly"
    ],
-   "freshness": "data time within 1 days"
+   "freshness": "fixed facts (not time-bound)"
   },
   {
    "role": "cve.record.v1",
@@ -212,7 +212,7 @@
     "expected facts appear in the answer",
     "numeric fields match"
    ],
-   "freshness": "data time within 1 days"
+   "freshness": "fixed facts (not time-bound)"
   },
   {
    "role": "dictionary.define.v1",

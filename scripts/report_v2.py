@@ -45,7 +45,7 @@ BOARD = ROOT / 'logs/ops/status-board.md'
 RULES = 'v2-2026-11-14'
 # Evaluation rules version (current-state review 11-14 F01-F03, F10). Versions scored under different evaluator
 # versions never count together as repeated successes; rescoring writes a score file per version, never over a version.
-EVALUATOR_VERSION = 'dq-2026-11-15'
+EVALUATOR_VERSION = 'dq-2026-11-15b'
 from agent_market.necklaces import gate_rules  # noqa: E402  (운영·SRE 897baf3a: one source for the gate numbers)
 PASS_MARK = gate_rules.REPORT_SCORE
 
@@ -1123,8 +1123,15 @@ def catalog_candidates():
     return found
 
 
-def new_queue(versions, candidates, seeds=(), limit=NEW_A_DAY, per_host=3):
-    """Untested members, roles with the fewest successes first, one per registrable domain in a role, 3 per host."""
+# PM 11-15 09:5x: the first necklace candidate's four roles have no verified pearl yet; their untested candidates go
+# first (several a round), still one per registrable domain in a role and 3 per host.
+PRIORITY_ROLES = ('package.advisories.v1', 'cve.record.v1', 'cve.exploited.v1', 'package.health.v1')
+PRIORITY_PICKS = 4
+
+
+def new_queue(versions, candidates, seeds=(), limit=NEW_A_DAY, per_host=3, priority=PRIORITY_ROLES):
+    """Untested members, priority roles first (PRIORITY_PICKS a round each), then roles with the fewest successes,
+    one per registrable domain in a role, 3 per host."""
     # A stored skip for our own reason (before R08 such skips were saved) never counts as tested.
     tested = {(v['resource_id'], v['tool']) for v in versions if not our_side_skip(v)}
     successes = Counter(v['role'] for v in versions if v['outcome'] == 'succeeded')
@@ -1137,9 +1144,9 @@ def new_queue(versions, candidates, seeds=(), limit=NEW_A_DAY, per_host=3):
     for role, rid, tool, host in candidates:
         pools[role].append((rid, tool, host))
     hosts, out = Counter(), []
-    roles = sorted(pools, key=lambda role: (successes[role], role))
+    roles = sorted(pools, key=lambda role: (role not in priority, successes[role], role))
     while len(out) < limit and any(pools.values()):
-        for role in roles:
+        for role in [r for r in roles for _ in range(PRIORITY_PICKS if r in priority else 1)]:
             while pools[role]:
                 rid, tool, host = pools[role].pop(0)
                 domain = registrable(host) if host else None
