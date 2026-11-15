@@ -61,6 +61,8 @@ class PostgresVectorIndex(VectorIndex):
         if self.ann_enabled:
             from .postgres_ann import publish
             publish(self.store, claim, blob, descriptor, vector_hash)
+        from .vector_provenance_cache import forget
+        forget(claim.resource_id)   # a remembered verdict about this listing is stale now (11-16)
 
     def kind_of(self, resource_id):
         with self.read_snapshot():

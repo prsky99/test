@@ -246,7 +246,10 @@ def candidates(
                     (literal, descriptor.digest, kind, kind, category, category, literal),
                 ).fetchall()
             ids = kind_graph_search(store, kind, run)
-            current = index.current_ids(ids, descriptor)
+            # Provenance verdicts are remembered for up to 120 s (PM 11-16 06:4x); quarantine stays live in the
+            # ANN statement above.
+            from ..vector_provenance_cache import current_ids as remembered_current_ids
+            current = remembered_current_ids(index, ids, descriptor)
             dense = [rid for rid in ids if rid in current]
     count('dense_candidates', len(dense))
     # Index-time generated requests add recall only; every candidate still passes the
