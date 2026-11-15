@@ -153,7 +153,7 @@ def test_public_institutions_with_a_checked_published_limit_take_ten_times_and_s
     for name, total in pb.DOMAIN_TOTAL.items():
         limit_text, daily_half, url = pb.DOMAIN_LIMIT_SOURCE[name]
         assert total <= daily_half and url.startswith('https://') and limit_text
-    assert set(pb.DOMAIN_TOTAL) == {'sec.gov', 'arxiv.org', 'met.no'}       # NVD, GLEIF: no number we could check
+    assert set(pb.DOMAIN_TOTAL) == {'sec.gov', 'arxiv.org', 'met.no', 'openalex.org'}   # NVD, GLEIF: no number we could check
     assert pb.reserve('https://data.sec.gov/x', 'necklace_retest', n=350, now=now, directory=tmp_path) == (True, 'ok')
     assert pb.reserve('https://www.sec.gov/y', 'necklace_retest', now=now, directory=tmp_path) == (False, 'system_share')
     assert pb.reserve('https://www.sec.gov/z', 'substitute_tests', n=250, now=now, directory=tmp_path) == (True, 'ok')
@@ -339,5 +339,5 @@ def test_fallback_watch_hourly_probes_fit_every_sole_member_domain():
 
 def test_holdout_r4_openalex_reads_fit_on_11_17_only():
     """workflow cdccd97e: 29 OpenAlex reads left for topic-evidence-brief holdout-r4, granted for 11-17 alone."""
-    assert pb.share_limit('reference_checks', 'openalex.org', day='20261117') >= 29
-    assert pb.share_limit('reference_checks', 'openalex.org', day='20261118') == pb.SHARE['reference_checks']
+    assert pb.share_limit('reference_checks', 'openalex.org', day='20261117') == pb.domain_total('openalex.org') == 50
+    assert pb.share_limit('reference_checks', 'openalex.org', day='20261118') == 10 * 50 // 60   # ordinary day

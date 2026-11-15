@@ -69,11 +69,16 @@ SHARE_OVERRIDE = {('substitute_tests', d): 30 for d in ('gleif.org', 'sec.gov', 
 # whose own published rate limit was checked (source below, 11-15 by 운영·SRE) may take more, at most half of that
 # limit, by registrable domain. Each system's share on such a domain grows by the same factor (total / DAILY_TOTAL).
 # NVD and GLEIF are not listed: their pages did not show a number we could check (11-15).
-DOMAIN_TOTAL = {'sec.gov': 600, 'arxiv.org': 600, 'met.no': 600}
+# PM 11-16 06:5x (topic-evidence-brief launch): OpenAlex publishes its keyless allowance as money, not calls --
+# "Without a key you get $0.10/day" (help.openalex.org/access/example-costs) and title/filter searches "cost the same
+# $1 per 1,000 requests" (help.openalex.org/api/searching), so about 100 of our searches a day. The older "100,000 a
+# day" no longer appears there (checked 11-16). Half of that, as for every declared domain (PM 11-15 11:40 decision 5).
+DOMAIN_TOTAL = {'sec.gov': 600, 'arxiv.org': 600, 'met.no': 600, 'openalex.org': 50}
 DOMAIN_LIMIT_SOURCE = {   # domain -> (published limit, its daily half, where it is published)
     'sec.gov': ('10 requests/second', 432000, 'https://www.sec.gov/os/accessing-edgar-data'),
     'arxiv.org': ('1 request every 3 seconds', 14400, 'https://info.arxiv.org/help/api/tou.html'),
     'met.no': ('total traffic below 20 requests/second', 864000, 'https://api.met.no/doc/TermsOfService'),
+    'openalex.org': ('$0.10 a day without a key; searches $1 per 1,000', 50, 'https://help.openalex.org/access/example-costs/'),
 }
 
 
@@ -165,12 +170,12 @@ def live_reserve(url, now=None, directory=None, path=None, default_per_day=None)
 # activity answer set needs 27 npm packages x (registry.npmjs.org 1 + api.github.com 1) once.
 ONE_DAY = {'20261116': {('reference_checks', 'npmjs.org'): 30, ('reference_checks', 'github.com'): 30,
                         # workflow 0555a3b5: topic-evidence-brief holdout-r3, one OpenAlex read a topic (39 topics)
-                        ('reference_checks', 'openalex.org'): 40},
+                        ('reference_checks', 'openalex.org'): 60},   # PM 06:5x: all of the 50 (60 x 50 // 60)
             # workflow 3737c5aa: cve-incident-brief fix answer set, one GitHub advisory read a CVE. The day total of
             # 60 per domain stays (PM 16:25), so 50 of the 90 asked; the open-source records are read first.
             '20261117': {('reference_checks', 'github.com'): 50,
                          # workflow cdccd97e: topic-evidence-brief holdout-r4, the 29 OpenAlex reads left of 41 topics
-                         ('reference_checks', 'openalex.org'): 30}}
+                         ('reference_checks', 'openalex.org'): 60}}   # holdout-r4 rest and r5 (PM 06:5x)
 # GitHub's hourly reference_checks share on those days, in the night hours only (00-07 KST), when live answers are few.
 ONE_NIGHT_GITHUB = {'20261116': {'reference_checks': 10}, '20261117': {'reference_checks': 10}}
 
