@@ -390,11 +390,36 @@ def _fetch_json(url):
         ok, _why = provider_budget.github_reserve('reference_checks')
     if not ok:
         return None
-    resp = httpx.get(url, timeout=10, headers={'User-Agent': UA})
+    try:
+        resp = httpx.get(url, timeout=10, headers={'User-Agent': UA})
+    except httpx.HTTPError as exc:
+        note_reference_failure(url, None, type(exc).__name__)
+        raise
     provider_budget.note(url, 'reference_checks', resp.status_code, evidence='provider_http')
     if github:
         provider_budget.github_observe(resp.headers, 'reference_checks')
+    if resp.status_code != 200:
+        note_reference_failure(url, resp.status_code, resp.headers.get('location'))
     return resp.json() if resp.status_code == 200 else None
+
+
+REFERENCE_FAILURES = Path(__file__).resolve().parents[1] / 'logs/ops/reference-failures.jsonl'
+
+
+def note_reference_failure(url, status, detail=None, path=None):
+    """PM 11-15 16:45: a reference that moved (301, as api.frankfurter.app did) or failed is written down for the ops
+    watch, instead of quietly giving every answer of that role accuracy 0. Redirects are still not followed."""
+    import os
+    if path is None and os.environ.get('PYTEST_CURRENT_TEST'):
+        return                                   # tests never write into the operations log
+    try:
+        target = Path(path or REFERENCE_FAILURES)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with target.open('a', encoding='utf-8') as fh:
+            fh.write(json.dumps({'at': time.time(), 'url': url[:300], 'status': status,
+                                 'detail': str(detail or '')[:300]}) + '\n')
+    except OSError:
+        pass
 
 
 def _met_temperature(url):

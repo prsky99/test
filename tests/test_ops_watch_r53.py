@@ -157,3 +157,27 @@ def test_pearl_snapshot_alerts_on_another_evaluator_or_none(tmp_path):
     assert ops_watch.check_verify_snapshot(tmp_path / 'missing.json', now)['problems'] == ['verify_snapshot_unreadable']
     from scripts import ops_auto
     assert ops_auto.TEAM['pearl_snapshot'] == '검색과 RAG'
+
+
+def test_reference_sources_that_moved_or_failed_raise_an_alert(tmp_path):
+    """PM 11-15 16:45: a 301 from an answer-key reference is alerted, not turned silently into accuracy 0."""
+    import json
+    import sys
+    from pathlib import Path
+    from scripts import ops_watch
+    sys.path.insert(0, str(Path(ops_watch.__file__).resolve().parent))
+    import data_quality as DQ
+    log = tmp_path / 'reference-failures.jsonl'
+    now = 1_794_729_366.0
+    DQ.note_reference_failure('https://api.frankfurter.app/latest?from=USD&to=JPY', 301,
+                              'https://api.frankfurter.dev/v1/latest?from=USD&to=JPY', path=log)
+    DQ.note_reference_failure('https://api.met.no/x', None, 'ConnectTimeout', path=log)
+    rows = [json.loads(x) for x in log.read_text().splitlines()]
+    rows[0]['at'] = rows[1]['at'] = now - 60
+    rows.append({'at': now - 2 * 86400, 'url': 'https://old.example/x', 'status': 404})
+    log.write_text('\n'.join(json.dumps(r) for r in rows) + '\n')
+    out = ops_watch.check_reference_failures(log, now)
+    assert out['problems'] == ['api.frankfurter.app 301', 'api.met.no ConnectTimeout']
+    assert ops_watch.check_reference_failures(tmp_path / 'none.jsonl', now)['problems'] == []
+    from scripts import ops_auto
+    assert ops_auto.TEAM['reference_sources'] == '검색과 RAG'

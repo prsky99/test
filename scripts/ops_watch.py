@@ -384,6 +384,26 @@ def check_verify_snapshot(path=None, now=None, official=None):
             'problems': [problem] if problem else []}
 
 
+REFERENCE_FAILURES = ROOT / 'logs/ops/reference-failures.jsonl'
+
+
+def check_reference_failures(path=None, now=None, hours=24):
+    """Answer-key references that did not answer 200 in the last day (PM 11-15 16:45): on 11-15 api.frankfurter.app
+    had moved (301) and every FX answer scored accuracy 0 without anyone being told. Grouped by host and status."""
+    path, now = Path(path or REFERENCE_FAILURES), now or time.time()
+    seen = {}
+    for row in _lines(path):
+        try:
+            if now - float(row.get('at') or 0) > hours * 3600:
+                continue
+        except (TypeError, ValueError):
+            continue
+        from urllib.parse import urlsplit
+        key = f"{urlsplit(str(row.get('url') or '')).hostname} {row.get('status') or row.get('detail') or 'error'}"
+        seen[key] = seen.get(key, 0) + 1
+    return {'failures': seen, 'problems': sorted(seen)}
+
+
 NECKLACE_LOGS = ROOT / 'logs/ops/necklace-watch'
 NECKLACE_ROOT = ROOT / 'gateway-data/necklaces'
 REGISTRY_LOG = ROOT / 'logs/ops/registry-job.jsonl'
@@ -579,6 +599,9 @@ def main():
     pearl_snapshot = check_verify_snapshot()
     if pearl_snapshot['problems']:
         anomalies['pearl_snapshot'] = pearl_snapshot
+    references = check_reference_failures()
+    if references['problems']:
+        anomalies['reference_sources'] = references
     necklace_runs = check_necklace_runs()
     if necklace_runs['problems']:
         anomalies['necklace_checks'] = necklace_runs
