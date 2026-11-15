@@ -10,8 +10,17 @@ from .contracts import ContractError
 from .http import _error
 
 
-def router_for(slots) -> APIRouter:
+CLICK_DEDUP_SECONDS = 60
+CLICK_MEMORY = 20_000
+
+
+def router_for(slots, offers=None) -> APIRouter:
+    """offers: campaign id -> approved offer from memory (AgentOfferProvider, whose refresh already ran
+    check_public_url), so the offer and click routes read no database and resolve no DNS per request (R39)."""
+    from .qa_header import is_qa
+    from .sponsored_offer import VARY
     router = APIRouter(prefix="/api/ad-coin/v2")
+    recent_clicks = {}
     # Served counts are written every minute and once more at shutdown (11-12 PM), so a slot that goes down at
     # deploy keeps nothing in memory. Handlers may run more than once through nested routers; both are idempotent.
     if hasattr(slots, "start_timer"):
@@ -26,7 +35,7 @@ def router_for(slots) -> APIRouter:
         try:
             # The country comes from Cloudflare (CF-IPCountry). ?region= only steers our own measurement requests
             # (X-Agentcon-QA), which are never counted, so it cannot be used to inflate or redirect counts (11-12 PM).
-            qa = bool(request.headers.get("x-agentcon-qa"))
+            qa = is_qa(request.headers.get("x-agentcon-qa"))
             region = ((region if qa and region else "") or request.headers.get("cf-ipcountry", "")).upper()[:2]
             # Answer every request, but count only real visitors: not Early-Data: 1 (RFC 8470, may be a TLS 0-RTT
             # replay) and not our own measurements (X-Agentcon-QA, 11-12 PM). A forged QA header only lowers
@@ -36,16 +45,16 @@ def router_for(slots) -> APIRouter:
             if not wants_ads(dict(request.query_params), dict(request.headers)) or sensitive(text=q[:500]):
                 # ads=none, or an advice-seeking task (q is only read here, never stored or logged): no ad
                 return JSONResponse({"label": "Sponsored", "reward": None, "placement": placement, "cards": []},
-                                    headers={"Cache-Control": "private, max-age=60", "Vary": "CF-IPCountry",
+                                    headers={"Cache-Control": "private, max-age=60", "Vary": VARY,
                                              "X-Robots-Tag": "noindex"})
             body = await run_in_threadpool(slots.response, category, region, placement, limit, counted)
-            return JSONResponse(body, headers={"Cache-Control": "private, max-age=60", "Vary": "CF-IPCountry",
+            return JSONResponse(body, headers={"Cache-Control": "private, max-age=60", "Vary": VARY,
                                                "X-Robots-Tag": "noindex"})
         except ContractError as exc:
             return JSONResponse(_error(exc.code, exc.status, str(uuid4())), status_code=exc.status)
 
     def region_of(request, region):
-        qa = bool(request.headers.get("x-agentcon-qa"))
+        qa = is_qa(request.headers.get("x-agentcon-qa"))
         return ((region if qa and region else "") or request.headers.get("cf-ipcountry", "")).upper()[:2]
 
     @router.get("/sponsored/offer")
@@ -55,7 +64,7 @@ def router_for(slots) -> APIRouter:
         Facts (grade, report, health) are attached by the response surface; this route never reads them."""
         from .sponsored import SITE_CATEGORIES
         from .sponsored_offer import SURFACES, agent_block, approved_offer, sensitive, wants_ads
-        headers = {"Cache-Control": "private, max-age=60", "Vary": "CF-IPCountry", "X-Robots-Tag": "noindex"}
+        headers = {"Cache-Control": "private, max-age=60", "Vary": VARY, "X-Robots-Tag": "noindex"}
         try:
             if surface not in SURFACES:
                 raise ContractError("unsupported_surface", 422)
@@ -70,7 +79,7 @@ def router_for(slots) -> APIRouter:
                 return JSONResponse({"sponsored": None, "reason": "no_offer"}, headers=headers)
             body = await run_in_threadpool(slots.response, category, where, "explore", 2, False)
             for card in body["cards"]:
-                offer = await run_in_threadpool(approved_offer, slots.store, card["id"])
+                offer = offers(card["id"]) if offers else await run_in_threadpool(approved_offer, slots.store, card["id"])
                 if offer:
                     block = agent_block(card, offer, category=mapped, region=where)
                     block["click_url"] = "/api/ad-coin/v2/sponsored/click/%s?surface=%s&category=%s" % (
@@ -79,6 +88,23 @@ def router_for(slots) -> APIRouter:
             return JSONResponse({"sponsored": None, "reason": "no_offer"}, headers=headers)
         except ContractError as exc:
             return JSONResponse(_error(exc.code, exc.status, str(uuid4())), status_code=exc.status)
+
+    def first_click(request, campaign_id):
+        """One counted click per address and campaign a minute (R39); the address is kept hashed, in memory only."""
+        import hashlib
+        import time as _time
+        address = request.headers.get("cf-connecting-ip") or (request.client.host if request.client else "")
+        minute = int(_time.time() // CLICK_DEDUP_SECONDS)
+        key = (hashlib.sha256((address + "|" + str(minute)).encode()).hexdigest()[:16], campaign_id, minute)
+        if key in recent_clicks:
+            return False
+        if len(recent_clicks) >= CLICK_MEMORY:
+            for old in [k for k in recent_clicks if k[2] < minute]:
+                recent_clicks.pop(old, None)
+            if len(recent_clicks) >= CLICK_MEMORY:
+                recent_clicks.clear()
+        recent_clicks[key] = True
+        return True
 
     @router.get("/sponsored/click/{campaign_id}")
     async def sponsored_click(campaign_id: str, request: Request, surface: str = "explore", category: str = "",
@@ -95,12 +121,18 @@ def router_for(slots) -> APIRouter:
             shown = await run_in_threadpool(slots.cards, mapped, where) if mapped in slots.taxonomy else []
             if surface in SURFACES and any(card["id"] == campaign_id for card in shown):
                 from .sponsored_offer import public_endpoint
-                offer = await run_in_threadpool(approved_offer, slots.store, campaign_id)
-                # Only the approved offer's endpoint, and only while it still resolves to public addresses
-                # (check_public_url again at redirect time). The target never comes from the request.
-                if offer and await run_in_threadpool(public_endpoint, offer["endpoint"]):
+                # Only the approved offer's endpoint, and only while it resolves to public addresses. With the
+                # provider that check ran at its last refresh (at most 30 s ago); the target never comes from the
+                # request.
+                if offers:
+                    offer = offers(campaign_id)
+                else:
+                    offer = await run_in_threadpool(approved_offer, slots.store, campaign_id)
+                    offer = offer if offer and await run_in_threadpool(public_endpoint, offer["endpoint"]) else None
+                if offer:
                     target = offer["endpoint"]
-                if target != "/advertise" and not request.headers.get("x-agentcon-qa"):
+                if target != "/advertise" and not is_qa(request.headers.get("x-agentcon-qa")) \
+                        and first_click(request, campaign_id):
                     await run_in_threadpool(lambda: count_click(slots.store, campaign_id, category=mapped, region=where,
                                                                 surface=surface))
         except ContractError:

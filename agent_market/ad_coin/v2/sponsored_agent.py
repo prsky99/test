@@ -100,6 +100,10 @@ class AgentOfferProvider:
         logger.info("Agent offer served counts flushed at shutdown: %d", written)
         return written
 
+    def offer(self, campaign_id):
+        """The approved offer with a public endpoint as of the last refresh, or None (memory only)."""
+        return self._offers.get(campaign_id)
+
     # ---- request path: memory only ----
     def __call__(self, ctx):
         surface = ctx.get("surface")
