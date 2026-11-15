@@ -77,7 +77,8 @@ def contracts(connect,factory):
         client=TestClient(create_front_app(front))
         first=client.get('/api/feed/verified.json?protocol=mcp')
         assert first.status_code==200
-        assert client.get('/api/feed/verified.json?protocol=mcp',headers={'If-None-Match':'W/'+first.headers['etag']}).status_code==304
+        # the public cache layer hands out a weak validator (W/"..."); a client sends it back as it got it
+        assert client.get('/api/feed/verified.json?protocol=mcp',headers={'If-None-Match':first.headers['etag']}).status_code==304
         category=client.get('/agents/category/dev_tools')
         assert category.status_code==200 and 'Documentation library' in category.text
         assert 'adoption-0.example' not in category.text
