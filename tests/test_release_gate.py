@@ -45,6 +45,7 @@ def test_deploy_command_runs_the_gate_for_every_role(monkeypatch):
     monkeypatch.setattr(service_deploy, 'release_gate', lambda root, release, **k: gated.append(release))
     monkeypatch.setattr(service_deploy, 'check_policy_hash', lambda *a, **k: None)
     monkeypatch.setattr(service_deploy, 'check_sql_list', lambda *a, **k: None)
+    monkeypatch.setattr(service_deploy, 'unpin_packaged', lambda *a, **k: None)
 
     class Manager:
         def __init__(self, root):
@@ -62,6 +63,8 @@ def test_deploy_command_runs_the_gate_for_every_role(monkeypatch):
 
         def release_commit(self, release):
             return None
+
+        directory = None
 
     monkeypatch.setattr(service_deploy, 'Deployment', Manager)
     for argv in (['deploy', 'frontend', 'f1'], ['deploy', 'admin', 'a1'], ['deploy', 'frontend', 'f2', '--skip-gate']):

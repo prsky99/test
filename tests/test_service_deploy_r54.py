@@ -138,3 +138,21 @@ def test_a_full_gate_pass_from_the_runner_is_reused_by_the_deploy(tmp_path, monk
     never = lambda *a, **k: (_ for _ in ()).throw(AssertionError('ran the tests again'))
     assert sd.release_gate(tmp_path, 'fe-r2', never, now=5000.0 + 600, commit='c9') == {'reused': 5000.0}
     assert gate.record_pass('missing-release') is None
+
+
+def test_a_packaged_release_protects_itself_until_deployed_or_48_hours(tmp_path):
+    """R60 (11-15): 11-12 the post-deploy prune removed releases still waiting for their turn."""
+    (tmp_path / 'pinned-releases.txt').write_text('align-admin-20261113-r2\nday15-fe  # adcoin-worker daemon\n')
+    sd.pin_packaged(tmp_path, 'fe-r5', now=1000)
+    sd.pin_packaged(tmp_path, 'jobs-r3', now=2000)
+    sd.pin_packaged(tmp_path, 'fe-r5', now=3000)                       # packaged again: one line, new time
+    lines = (tmp_path / 'pinned-releases.txt').read_text().splitlines()
+    assert lines[:2] == ['align-admin-20261113-r2', 'day15-fe  # adcoin-worker daemon']
+    assert [l.split()[0] for l in lines if sd.PACKAGED_TAG in l] == ['jobs-r3', 'fe-r5']
+    manager = SimpleNamespace(directory=tmp_path, root=tmp_path)
+    assert sd.Deployment.waiting_releases(manager, {'fe-r5', 'jobs-r3', 'x'}) == {'fe-r5', 'jobs-r3'}
+    sd.unpin_packaged(tmp_path, 'fe-r5', now=3100)                     # deployed
+    assert [l.split()[0] for l in (tmp_path / 'pinned-releases.txt').read_text().splitlines()
+            if sd.PACKAGED_TAG in l] == ['jobs-r3']
+    sd.unpin_packaged(tmp_path, now=2000 + 49 * 3600)                    # older than 48 h: expires
+    assert (tmp_path / 'pinned-releases.txt').read_text().splitlines() == lines[:2]

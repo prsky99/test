@@ -160,6 +160,8 @@ def _no_release_checks(monkeypatch):
     monkeypatch.setattr(module, 'check_policy_hash', lambda *a, **k: None)
     monkeypatch.setattr(module, 'check_sql_list', lambda *a, **k: None)
     monkeypatch.setattr(module, 'release_gate', lambda *a, **k: None)
+    monkeypatch.setattr(module, 'unpin_packaged', lambda *a, **k: None)
+    monkeypatch.setattr(Recorder, 'directory', None, raising=False)
     monkeypatch.setattr(Recorder, 'release_commit', lambda self, release: None, raising=False)
 
 

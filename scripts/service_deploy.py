@@ -1284,6 +1284,47 @@ GATE_RECORDS = 'logs/ops/release-gates'
 GATE_REUSE_SECONDS = 24 * 3600
 
 
+PACKAGED_TAG = '# packaged, waiting for its deploy (R60)'
+PACKAGED_PIN_HOURS = 48
+_PACKAGED_AT = re.compile(r'at=(\d+)')
+
+
+def _rewrite_pins(directory, keep, add=None):
+    path = Path(directory) / 'pinned-releases.txt'
+    try:
+        lines = path.read_text(encoding='utf-8').splitlines()
+    except OSError:
+        lines = []
+    lines = [line for line in lines if keep(line)] + ([add] if add else [])
+    temporary = path.with_name('.pinned-releases.%d' % os.getpid())
+    temporary.write_text('\n'.join(lines) + ('\n' if lines else ''), encoding='utf-8')
+    os.replace(temporary, path)
+    return lines
+
+
+def _expired_or(release, now):
+    """A keep() that drops this tool's packaged pins older than PACKAGED_PIN_HOURS and, if given, RELEASE's own."""
+    def keep(line):
+        if PACKAGED_TAG not in line:
+            return True
+        name = line.split('#', 1)[0].strip()
+        stamp = _PACKAGED_AT.search(line)
+        expired = not stamp or now - int(stamp.group(1)) > PACKAGED_PIN_HOURS * 3600
+        return not expired and name != release
+    return keep
+
+
+def pin_packaged(directory, release, now=None):
+    """Precision review R60 (11-15): a packaged release protects itself from the post-deploy prune until it is
+    deployed or 48 hours pass (11-12 the prune removed two releases still waiting for their turn)."""
+    now = int(time.time() if now is None else now)
+    return _rewrite_pins(directory, _expired_or(release, now), '%s  %s at=%d' % (release, PACKAGED_TAG, now))
+
+
+def unpin_packaged(directory, release=None, now=None):
+    return _rewrite_pins(directory, _expired_or(release, int(time.time() if now is None else now)))
+
+
 def release_gate(root, release, runner=subprocess.run, now=None, commit=None):
     """Refuse a release whose copy fails its role's tests (DEPLOY.md, 11-02; every role since 11-15 R54).
 
@@ -1572,6 +1613,7 @@ def main():
             raise SystemExit('package_base_required: --base <the active release this commit was built on>')
         with manager.lock():
             result = manager.package(args.release, args.base, None if args.from_tree else args.commit)
+            pin_packaged(manager.directory, args.release)
     elif args.command in ('deploy', 'worker-deploy'):
         check_board_lock(args.root, args.lock_owner, args.take_stale_lock)
         log_override(args.root, args.lock_owner, args.command + ' ' + args.role, args.release,
@@ -1589,6 +1631,7 @@ def main():
         else:
             result = manager.deploy_worker(args.role, args.release, **forced)
         result['checks'] = checks
+        unpin_packaged(manager.directory, args.release)   # deployed: its own pin is no longer needed (R60)
         if not args.no_prune:
             result['pruned'] = manager.prune_after_deploy()
     elif args.command == 'rollback':
