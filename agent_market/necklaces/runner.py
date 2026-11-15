@@ -31,6 +31,9 @@ from . import model
 from .watch import runtime_chain
 
 MIN_ATTEMPT_MS = 600
+# PM R26 (11-15): a slow or stuck lead must not use the whole slot. When a single-lead slot has no answer after this
+# share of its remaining time, the next member of the chain starts too (the lead keeps running); the first answer wins.
+LEAD_SHARE = 0.5
 
 
 @dataclass
@@ -400,7 +403,22 @@ class Runner:
         future = pool.submit(self._call, member, rank, st.get("values", values), st["slot"]["contract"], st["deadline"])
         future.add_done_callback(lambda _f: self.inflight.release())   # also runs when cancelled
         st["inflight"][future] = (rank, member)
+        if "hedge_at" not in st and max(1, st["slot"].get("fanout", 1)) == 1:
+            now = self.clock()
+            st["hedge_at"] = now + LEAD_SHARE * max(0.0, st["deadline"] - now)
         return True
+
+    def _hedge(self, pool, st, now, run_started):
+        """R26: start the next member next to a lead that has not answered by hedge_at (once per slot)."""
+        if (st.get("hedged") or not st["inflight"] or st["result"].answers or not st["queue"]
+                or now < st.get("hedge_at", float("inf"))):
+            return
+        st["hedged"] = True
+        rank, member = st["queue"].pop(0)
+        if (st["deadline"] - now) * 1000 < MIN_ATTEMPT_MS:
+            st["queue"].insert(0, (rank, member))
+            return
+        self._submit(pool, st, rank, member, st["values"], run_started)
 
     def _advance(self, pool, st, values, run_started):
         """Start the next chain member of a slot that has no answer and nothing in flight."""
@@ -429,7 +447,8 @@ class Runner:
         if st["after"] and not st.get("started"):
             return now >= st["deadline"]
         if st["inflight"]:
-            return now >= st["deadline"]
+            fanout = max(1, st["slot"].get("fanout", 1))
+            return now >= st["deadline"] or len(st["result"].answers) >= fanout   # answered: the rest is not needed
         return bool(st["result"].answers) or not st["queue"] or now >= st["deadline"]
 
     def _abandon(self, st, now, run_started, reason="timeout"):
@@ -485,14 +504,20 @@ class Runner:
                     if st["inflight"] and now >= st["deadline"]:
                         self._abandon(st, now, started)
                     self._advance(pool, st, st["values"], started)
+                    self._hedge(pool, st, now, started)
                 if all(self._settled(st, now) for st in states.values()):
+                    for st in states.values():       # an answered slot does not wait for its slower second call
+                        if st["inflight"]:
+                            self._abandon(st, now, started, "not_needed")
                     break
                 waiting = {f: st for st in states.values() for f in st["inflight"]}
                 if not waiting or now >= deadline:
                     for st in states.values():
                         self._abandon(st, now, started)
                     break
-                until = min(st["deadline"] for st in states.values() if st["inflight"])
+                until = min([st["deadline"] for st in states.values() if st["inflight"]]
+                            + [st["hedge_at"] for st in states.values() if st["inflight"] and not st.get("hedged")
+                               and st["queue"] and not st["result"].answers and "hedge_at" in st])
                 done, _ = wait(list(waiting), timeout=max(0.0, min(until, deadline) - now),
                                return_when=FIRST_COMPLETED)
                 for future in done:

@@ -451,20 +451,47 @@ def daily_split(now: float) -> str:
     return "holdout-r1" if int(now // 86400) % 2 == 0 else "holdout-r2"
 
 
+def open_engine():
+    """The public run path's workflow engine on the operating store (ops runs this with the operating settings):
+    registered-agent guards, McpProxy and the in-process AgentValCon fallbacks, exactly as run_for_surface uses them."""
+    from ..application_runtime import open_runtime_storage
+    from ..concierge.proxy import McpProxy
+    from ..workflows import runtime_for
+    storage = open_runtime_storage(None)
+    return runtime_for(storage.store, McpProxy(storage.store)), storage.close
+
+
 def run_daily(defn: dict, *, root: Path = DEFAULT_ROOT, split: str, singles: bool, budget_s: float,
-              base: str = BASE, system: str = "necklace_retest", limit: int = 30) -> dict:
-    """One scheduled retest of one necklace through the public relay (same path as the CLI)."""
-    import httpx
+              base: str = BASE, system: str = "necklace_retest", limit: int = 30, path: str = "relay",
+              engine=None) -> dict:
+    """One scheduled retest of one necklace. path "relay" goes through the public relay (daily retests, self-tests);
+    path "engine" calls through the same registered-agent engine as public runs (PM R26: one gate round takes the path
+    users take, so the gate does not pass a path that public runs never use)."""
     from .judge import load_substitutes
     from .watch import load_json
     # the same runtime chain as the public path: watch demotions and exclusions, ops-approved substitutes
     watch_state = load_json(Path(root) / "watch" / "state.json", {})
     watch_state["substitutes"] = load_substitutes(Path(root) / "approvals.json")
+    cases = load_cases(root, defn["slug"], split)[:limit]
+    if path == "engine":
+        close = None
+        if engine is None:
+            engine, close = open_engine()
+        try:
+            call = runner.budgeted_caller(runner.engine_caller(engine), system, provider_url)
+            out = run_set(defn, cases, call, root=root, split=split, singles=singles, budget_s=budget_s,
+                          watch_state=watch_state)
+        finally:
+            if close:
+                close()
+        return dict(out, path="engine")
+    import httpx
     pacer = RelayPacer()
     with httpx.Client(timeout=12, headers={"User-Agent": "AgentValCon-NecklaceRetest/1.0"}) as client:
         call = runner.budgeted_caller(gateway_caller(client, base, pacer), system, provider_url)
-        return run_set(defn, load_cases(root, defn["slug"], split)[:limit], call, root=root, split=split,
-                       singles=singles, budget_s=budget_s, pacer=pacer, watch_state=watch_state)
+        out = run_set(defn, cases, call, root=root, split=split, singles=singles, budget_s=budget_s, pacer=pacer,
+                      watch_state=watch_state)
+    return dict(out, path="relay")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -478,6 +505,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--root", type=Path, default=DEFAULT_ROOT)
     parser.add_argument("--base", default=BASE)
     parser.add_argument("--system", default="necklace_retest", choices=("necklace_retest", "gate", "adhoc"))
+    parser.add_argument("--path", default="relay", choices=("relay", "engine"),
+                        help="engine: the public run path on the operating store (ops, one gate round; PM R26)")
     args = parser.parse_args(argv)
     defn = next(d for d in model.load_valid() if d["slug"] == args.slug)
     if args.activate_planned:
@@ -485,6 +514,11 @@ def main(argv: list[str] | None = None) -> int:
             for m in slot["chain"]:
                 if m["kind"] == "agentcon" and m.get("state") == "planned":
                     m["state"] = "active"
+    if args.path == "engine":
+        print(json.dumps(run_daily(defn, root=args.root, split=args.split, singles=args.singles,
+                                   budget_s=BUDGET_SECONDS, system=args.system, limit=args.limit, path="engine"),
+                         ensure_ascii=False))
+        return 0
     import httpx
     pacer = RelayPacer()
     with httpx.Client(timeout=12, headers={"User-Agent": "AgentValCon-NecklaceRetest/1.0"}) as client:

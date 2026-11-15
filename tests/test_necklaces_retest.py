@@ -293,3 +293,29 @@ def test_our_capacity_is_not_a_failure_of_the_case_or_the_member(tmp_path):
     lines = [json.loads(x) for x in next((tmp_path / "retest").glob("*.jsonl")).read_text().splitlines()]
     assert [x["type"] for x in lines] == ["excluded"] and lines[0]["why"] == "our_capacity"
     assert defn["slug"] == "package-risk-audit"
+
+
+def test_a_gate_round_can_take_the_public_engine_path(tmp_path, monkeypatch):
+    """PM R26: one gate round runs through the registered-agent engine that public runs use, not the relay."""
+    import copy
+    defn = copy.deepcopy(next(d for d in model.load_valid() if d["slug"] == "package-risk-audit"))
+    for slot in defn["slots"]:
+        for m in slot["chain"]:
+            m["state"] = "active"
+    folder = tmp_path / "gold" / "package-risk-audit"
+    folder.mkdir(parents=True)
+    case = {"case_id": "p1", "input": {"package": "lodash", "ecosystem": "npm"},
+            "truth": {"advisories": [], "latest_version": "9.9.9"}}
+    (folder / "tuning.jsonl").write_text(json.dumps(case) + "\n")
+    seen = []
+
+    class Engine:
+        store = None
+
+        def _call_registered(self, node, args):
+            seen.append(node["resource_id"])
+            return {"vulns": [], "version": "9.9.9"}
+    monkeypatch.setattr(retest.runner, "budgeted_caller", lambda caller, system, url_of, budget=None: caller)
+    out = retest.run_daily(defn, root=tmp_path, split="tuning", singles=False, budget_s=60, path="engine",
+                           engine=Engine())
+    assert out["path"] == "engine" and out["passed"] == 1 and seen

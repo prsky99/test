@@ -316,15 +316,15 @@ def test_a_caller_that_ignores_its_timeout_cannot_hold_the_run(monkeypatch):
     release = threading.Event()
     try:
         started = time.monotonic()
-        out = runner.Runner(blocking_caller(ANSWERS, release, block={1})).run(timed(necklace()), {"q": "x"})
+        out = runner.Runner(blocking_caller(ANSWERS, release, block={1, 2})).run(timed(necklace()), {"q": "x"})
         took = time.monotonic() - started
     finally:
         release.set()
     assert took < 1.0                                   # slot budget 0.8s, total 1.0s
     assert not out["ok"] and out["failed_slot"] == "papers"
     assert out["slots"]["papers"]["status"] == "timeout"
-    assert [a["error_class"] for a in out["attempts"]["papers"]] == ["timeout", "deadline"]   # member 2 not sent
-    assert out["abandoned_calls"] == 1 and out["pending_at_return"] == 1
+    assert sorted(a["error_class"] for a in out["attempts"]["papers"]) == ["deadline", "timeout", "timeout"]
+    assert out["abandoned_calls"] == 2 and out["pending_at_return"] == 2       # the lead and its hedge
     assert out["slots"]["news"]["status"] == "answered"
 
 
@@ -339,16 +339,23 @@ def test_each_call_gets_the_time_left_in_its_slot(monkeypatch):
                                                     "status": "answered"}
 
 
-def test_a_slow_first_candidate_leaves_no_time_for_the_next(monkeypatch):
+def test_a_slow_lead_gets_the_next_member_beside_it_before_the_slot_runs_out(monkeypatch):
+    """PM R26: a lead that has not answered by half of the slot time is joined by the next member; first answer wins."""
     monkeypatch.setattr(runner, "MIN_ATTEMPT_MS", 300)
     calls = []
-    caller = blocking_caller(ANSWERS, threading.Event(), slow={1: (0.6, Fail())}, calls=calls)
+    caller = blocking_caller(ANSWERS, threading.Event(), slow={1: (0.7, Fail())}, calls=calls)
     started = time.monotonic()
     out = runner.Runner(caller).run(timed(necklace()), {"q": "x"})
-    assert time.monotonic() - started < 1.0
-    assert 2 not in dict(calls)                         # 0.2s left < 0.3s minimum: not sent
-    assert [a["error_class"] for a in out["attempts"]["papers"]][-1] == "deadline"
-    assert out["slots"]["papers"]["status"] == "timeout" and not out["ok"]
+    assert time.monotonic() - started < 0.7                 # answered by member 2 without waiting for the lead
+    assert out["ok"] and out["slots"]["papers"]["rank"] == 2 and out["slots"]["papers"]["stage"] == 2
+    assert 0.3 <= dict(calls)[2] <= 0.45                     # started at about half of the 0.8 s slot
+    assert "not_needed" in [a["error_class"] for a in out["attempts"]["papers"]]
+
+
+def test_a_fast_lead_never_starts_a_second_call(monkeypatch):
+    calls = []
+    out = runner.Runner(blocking_caller(ANSWERS, threading.Event(), calls=calls)).run(timed(necklace()), {"q": "x"})
+    assert out["ok"] and sorted(rid for rid, _ in calls) == [1, 3]
 
 
 def test_a_slow_optional_slot_returns_by_the_slot_deadline_and_the_run_succeeds(monkeypatch):
@@ -358,7 +365,7 @@ def test_a_slow_optional_slot_returns_by_the_slot_deadline_and_the_run_succeeds(
     release = threading.Event()
     try:
         started = time.monotonic()
-        out = runner.Runner(blocking_caller(ANSWERS, release, block={3})).run(defn, {"q": "x"})
+        out = runner.Runner(blocking_caller(ANSWERS, release, block={3, 4})).run(defn, {"q": "x"})
         took = time.monotonic() - started
     finally:
         release.set()
