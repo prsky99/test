@@ -63,6 +63,12 @@ FEED_READS = frozenset(('/api/feed/verified.json',
     # 11-15 R78: catalog status (the origin keeps it 15 s), service status and the workspace link switch
     '/status.json', '/api/pearl/status', '/api/pearl/access'))
 FEED_CACHE = 'public, max-age=60, stale-while-revalidate=60'
+# 11-15 PM 22:2x: our own pages read these in the background (Home and Agent Status). With stale-while-revalidate in the
+# browser, a page opened 60-120 s after another one was answered from the cache and Chrome sent a background
+# revalidation that it then cancelled (net::ERR_ABORTED in every full check since the R78 headers went live at 17:4x).
+# Browsers keep them a plain minute; the edge keeps the stale window through Cloudflare-CDN-Cache-Control.
+PAGE_STATUS_READS = frozenset(('/status.json', '/api/pearl/status', '/api/pearl/access'))
+PAGE_STATUS_BROWSER_CACHE = 'public, max-age=60'
 # 11-15 E7: the verified MCP registry (official v0.1 shape) answers from an hourly snapshot; organizations' clients poll
 # it, so five minutes (plus five stale) at the edge. Its CORS headers come from the route and pass through unchanged.
 REGISTRY_PREFIX = '/registry/verified/v0.1/'
@@ -213,6 +219,9 @@ class PublicHTTPContract:
                 if headers['cache-control']==GROWTH_CACHE:
                     headers['cache-control']=GROWTH_BROWSER_CACHE
                     headers[GROWTH_EDGE_HEADER]=GROWTH_CACHE
+                elif headers['cache-control']==FEED_CACHE and path in PAGE_STATUS_READS:
+                    headers['cache-control']=PAGE_STATUS_BROWSER_CACHE
+                    headers[GROWTH_EDGE_HEADER]=FEED_CACHE
                 if growth_path(path):  # the same URL answers HTML or Markdown by Accept
                     vary=[v.strip() for v in headers.get('vary','').split(',') if v.strip()]
                     for name in ('Accept','Accept-Encoding'):
