@@ -329,4 +329,6 @@ def public_router_for(front, *, workspace_access_enabled=False):
     # Provider self-service claims (docs/PROVIDER_SELF_CLAIM.md): off until operators create their schema.
     from .provider_self_claims_service import router_for as provider_claims
     router.include_router(provider_claims(platform.identity, front.store))
+    from .customer_provider_claims_view import provider_claims_page_router
+    router.include_router(provider_claims_page_router())
     return router
