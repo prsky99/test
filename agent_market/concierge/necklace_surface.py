@@ -586,6 +586,21 @@ WHY_SHORT = 'One call instead of finding, calling and merging several agents you
 _SIDES = ('calls', 'tokens', 'seconds', 'accuracy')
 
 
+def steps_count(entry):
+    """How many agents this necklace joins (PM 16:21: say the real number, never more): the judge's comparison.slots,
+    else the required members; None when neither is known."""
+    value = (entry.get('comparison') or {}).get('slots') if isinstance(entry.get('comparison'), dict) else None
+    if type(value) is int and value >= 1:
+        return value
+    required = [p for p in entry.get('pearls') or [] if isinstance(p, dict) and p.get('required', True)]
+    return len(required) or None
+
+
+def steps_sentence(entry):
+    n = steps_count(entry)
+    return 'This necklace joins ' + str(n) + ' agents in one call.' if n and n >= 2 else ''
+
+
 def comparison(entry):
     """The measured pair from the judge's snapshot (plan 3.1): same cases, same day, the necklace against an agent that
     calls the member tools itself. None unless every value is a plain number; worse values are shown as they are."""
@@ -686,7 +701,7 @@ def page(slug, base='https://agentconcierge.biz', snapshot=None, now=None, run=N
              + ('<p class="necklace-scope"><strong>Scope:</strong> ' + esc(scope_notice(entry)) + '</p>' if scope_notice(entry) else '')
              + ('<p class="muted necklace-fallback">' + esc(fallback_line(entry)) + '</p>' if fallback_line(entry) else '')
              + ('<p class="necklace-free">' + esc(FREE_NOW) + '</p>' if free_now(entry) and offered(entry, now) else '')
-             + (('<p class="necklace-why">' + esc(WHY) + '</p>'
+             + (('<p class="necklace-why">' + esc(WHY) + (' ' + esc(steps_sentence(entry)) if steps_sentence(entry) else '') + '</p>'
                  + ('<p class="muted necklace-measured">' + esc(comparison_line(entry)) + '</p>' if comparison_line(entry) else ''))
                 if offered(entry, now) else '')]
     if run is not None:

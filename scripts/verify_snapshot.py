@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def method_version():
     """The published method version (docs/methodology/methodology.json), so the verify answers name the method the
-    page shows (11-15: v1.1); 'v1' when the file cannot be read."""
+    page shows (11-15: v1.2); 'v1' when the file cannot be read."""
     try:
         return json.loads((ROOT / 'docs/methodology/methodology.json').read_text(encoding='utf-8')).get('version') or 'v1'
     except (OSError, ValueError):

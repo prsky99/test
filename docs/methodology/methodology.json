@@ -1,6 +1,6 @@
 {
  "name": "AgentValCon Verification Method",
- "version": "v1.1",
+ "version": "v1.2",
  "candidates": {
   "grade_minimum": "A",
   "grade_thresholds": {

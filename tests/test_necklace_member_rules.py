@@ -29,3 +29,14 @@ def test_comparison_names_the_number_of_steps():
              'with': {'calls': 1, 'tokens': 1800, 'seconds': 2.4, 'accuracy': 0.96},
              'without': {'calls': 7, 'tokens': 9400, 'seconds': 11.2, 'accuracy': 0.81}}
     assert 'against an agent calling the same 3 agents itself' in ns.comparison_line({'comparison': value})
+
+
+def test_page_says_the_real_number_of_agents():
+    from tests.test_necklace_surface import NOW, necklace
+    entry = necklace('trip-brief')
+    snap = {'schema': ns.SCHEMA, 'necklaces': [entry], 'events': []}
+    status, page = ns.page('trip-brief', snapshot=snap, now=NOW)
+    assert 'This necklace joins 2 agents in one call.' in page            # two required members, no more is claimed
+    snap['necklaces'][0] = {**entry, 'comparison': {'slots': 3}}
+    assert 'This necklace joins 3 agents in one call.' in ns.page('trip-brief', snapshot=snap, now=NOW)[1]
+    assert ns.steps_sentence({'pearls': [{'required': True}]}) == ''

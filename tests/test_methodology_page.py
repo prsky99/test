@@ -12,7 +12,7 @@ from tests.test_pearl_frontend import client  # noqa: F401 - fixture
 
 def test_the_page_shows_the_generated_numbers_and_no_promise_words():
     data = mp.method()
-    assert data and data['version'] == 'v1.1'   # 11-15: retest rules say what runs
+    assert data and data['version'] == 'v1.2'   # 11-15: provisional members (v1.1: retest rules say what runs)
     value = mp.page_html(data=data)
     text = re.sub(r'<[^>]+>', ' ', value)
     for expected in ('scores 85 or more on 2 different days', 'Score (out of 100)', 'Tests per day', '120',
@@ -23,7 +23,7 @@ def test_the_page_shows_the_generated_numbers_and_no_promise_words():
     for word in ('guaranteed', 'Guaranteed', '#1', ' best '):
         assert word not in text, word
     ld = json.loads(re.search(r'application/ld\+json">(.*?)</script>', value, re.S)[1])
-    assert ld['@type'] == 'TechArticle' and ld['version'] == 'v1.1' and ld['encoding']['contentUrl'].endswith('/methodology.json')
+    assert ld['@type'] == 'TechArticle' and ld['version'] == 'v1.2' and ld['encoding']['contentUrl'].endswith('/methodology.json')
 
 
 def test_routes_sitemap_and_llms(client):  # noqa: F811

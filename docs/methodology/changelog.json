@@ -1,5 +1,16 @@
 [
  {
+  "version": "v1.2",
+  "date": "2026-11-15",
+  "changes": [
+   "A necklace may open with provisional members: a step can be led by an agent that is not a verified pearl yet, so useful necklaces open without waiting for every pearl.",
+   "A verified pearl scored at least the report threshold on two different days; a provisional member scored at least the provisional threshold in one report within the last seven days, or is our own substitute that passed its held-out gate. The numbers come from the judge and are shown in section 5.",
+   "A verified pearl takes the place of a provisional member once it is verified.",
+   "The answer gate does not change: a necklace opens only after its answers pass the same gate as before.",
+   "Each necklace page says, step by step, whether a verified pearl or a member under verification leads it."
+  ]
+ },
+ {
   "version": "v1.1",
   "date": "2026-11-15",
   "changes": [
