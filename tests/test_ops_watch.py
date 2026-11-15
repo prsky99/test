@@ -445,3 +445,14 @@ def test_a_necklace_check_that_did_not_run_is_named(tmp_path):
     reg.write_text(_json.dumps({'at': stamp(6, 0), 'step': 'verified_registry'}) + '\n')
     assert 'verified_registry_missed' in ops_watch.check_necklace_runs(now=at(10, 30), logs=logs, root=root,
                                                                        registry=reg, drills=tmp_path / 'x')['problems']
+
+
+def test_substitute_states_tell_formal_from_provisional(tmp_path):
+    import json as _json
+    from scripts import ops_watch
+    f = tmp_path / 'approvals.json'
+    f.write_text(_json.dumps({'substitutes': [
+        {'agent_id': 'a', 'slot_role': 'r1', 'state': 'provisional', 'at': '2026-11-15T16:00:00+0900'},
+        {'agent_id': 'a', 'slot_role': 'r1', 'state': 'approved', 'at': '2026-11-16T09:00:00+0900'},
+        {'agent_id': 'b', 'slot_role': 'r2', 'state': 'provisional', 'at': '2026-11-15T16:10:00+0900'}]}))
+    assert ops_watch.substitute_states(f) == {'approved': ['a'], 'provisional': ['b']}

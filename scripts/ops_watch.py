@@ -448,6 +448,25 @@ def check_necklace_runs(now=None, logs=None, root=None, registry=None, drills=No
             'live': len(live), 'problems': problems}
 
 
+def substitute_states(path=None):
+    """Latest state of each AgentValCon substitute in approvals.json (PM 11-15 16:03): approved (formal: gate 30 and
+    report v2 >= 85) and provisional (gate 30 only; may sit as a temporary member). Recorded, never alerted."""
+    try:
+        rows = json.loads(Path(path or NECKLACE_ROOT / 'approvals.json').read_text()).get('substitutes') or []
+    except (OSError, ValueError, AttributeError):
+        return None
+    latest = {}
+    for row in rows:
+        if isinstance(row, dict) and row.get('agent_id'):
+            key = (row['agent_id'], row.get('slot_role'))
+            if key not in latest or str(row.get('at')) >= str(latest[key].get('at')):
+                latest[key] = row
+    out = {}
+    for (agent, _), row in sorted(latest.items()):
+        out.setdefault(row.get('state') or 'unknown', []).append(agent)
+    return out
+
+
 def check_backup(root=None, log=None, now=None):
     """The newest complete snapshot's age and the last backup run's offsite result; problems listed."""
     root, log, now = Path(root or BACKUPS), Path(log or BACKUP_LOG), now or time.time()
@@ -550,6 +569,7 @@ def main():
     record = {'at': datetime.now().strftime('%Y-%m-%d %H:%M'), 'memory_free_percent': free,
               'swap': swap, 'top_memory': top_memory(), 'adcoin_daemon': daemon,
               'db_connections': db_connections(), 'launchd': jobs, 'backup': backup, 'fingerprints': fingerprints, 'necklace_runs': necklace_runs,
+              'substitutes': substitute_states(),
               'anomalies': anomalies}
     if site_path:  # recorded, not alerted: the second fresh connection got 200 (see check_site)
         record['site_path'] = site_path

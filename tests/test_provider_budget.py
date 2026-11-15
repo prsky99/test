@@ -235,3 +235,25 @@ def test_census_geocoder_substitute_tests_get_thirty_a_day(tmp_path):
     url = 'https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=x&benchmark=Public_AR_Current&format=json'
     assert pb.reserve(url, 'substitute_tests', n=30, now=now, directory=tmp_path) == (True, 'ok')
     assert pb.reserve(url, 'substitute_tests', now=now, directory=tmp_path) == (False, 'system_share')
+
+
+def test_a_day_plan_keeps_calls_for_the_gate_first(tmp_path):
+    """PM 11-15 16:03: gate > substitute tests > pearl and role tests > necklace retests, on the planned domains."""
+    import json as _json
+    now = at(9)
+    (tmp_path / f'plan-{pb.today(now)}.json').write_text(_json.dumps({'holds': {'wikipedia.org': {'gate': 34, 'substitute_tests': 10}}}))
+    url = 'https://en.wikipedia.org/api/rest_v1/page/summary/X'
+    assert pb.reserve(url, 'necklace_retest', n=16, now=now, directory=tmp_path) == (True, 'ok')       # 60-44 left
+    assert pb.reserve(url, 'necklace_retest', now=now, directory=tmp_path) == (False, 'held_for_higher_priority')
+    assert pb.reserve(url, 'role_tests', now=now, directory=tmp_path) == (False, 'held_for_higher_priority')
+    assert pb.reserve(url, 'substitute_tests', n=10, now=now, directory=tmp_path) == (True, 'ok')     # its own hold
+    assert pb.reserve(url, 'gate', n=34, now=now, directory=tmp_path) == (True, 'ok')
+    other = 'https://query.wikidata.org/sparql'                                                     # not planned
+    assert pb.reserve(other, 'necklace_retest', n=35, now=now, directory=tmp_path) == (True, 'ok')
+    assert pb.reserve(url, 'gate', now=now, directory=tmp_path) == (False, 'domain_daily_total')
+
+
+def test_without_a_plan_the_ledger_is_first_come(tmp_path):
+    now = at(9)
+    assert pb.plan(pb.today(now), tmp_path) == {}
+    assert pb.reserve('https://en.wikipedia.org/x', 'necklace_retest', n=35, now=now, directory=tmp_path) == (True, 'ok')

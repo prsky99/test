@@ -138,6 +138,34 @@ def _ledger(day, directory=None):
             fcntl.flock(lock, fcntl.LOCK_UN)
 
 
+# PM 11-15 16:03 (user: revenue first, gates do not wait): on a day plan, calls planned for a higher-priority use
+# are kept for it. gate (necklace launch rounds and substitute gate rounds) > substitute_tests (approval work) >
+# pearl and role tests, answer-key references and the rest > necklace_retest. A plan is
+# <ledger dir>/plan-<day>.json {"holds": {domain: {system: calls}}}; a system may not take what a higher one still
+# needs of its hold that day. With no plan the ledger behaves as before (first come, first served).
+PRIORITY = {'gate': 0, 'substitute_tests': 1, 'necklace_retest': 3}
+DEFAULT_PRIORITY = 2
+
+
+def priority(system):
+    return PRIORITY.get(system, DEFAULT_PRIORITY)
+
+
+def plan(day=None, directory=None):
+    path = Path(directory or DIR) / f'plan-{day or today()}.json'
+    try:
+        holds = json.loads(path.read_text()).get('holds') or {}
+    except (OSError, ValueError, AttributeError):
+        return {}
+    return {d: {s: int(n) for s, n in (v or {}).items() if s in SHARE} for d, v in holds.items() if isinstance(v, dict)}
+
+
+def held_for_others(entry, holds, system):
+    """Calls on this domain still kept today for systems above SYSTEM (what they planned minus what they used)."""
+    mine = priority(system)
+    return sum(max(0, n - entry['by'].get(s, 0)) for s, n in holds.items() if priority(s) < mine)
+
+
 def reserve(url, system, n=1, now=None, directory=None):
     """Count N calls of SYSTEM to URL's domain if today's limits allow them. Returns (ok, reason)."""
     if system not in SHARE:
@@ -152,6 +180,8 @@ def reserve(url, system, n=1, now=None, directory=None):
         used = entry['by'].get(system, 0)
         if entry['total'] + n > domain_total(name):
             return False, 'domain_daily_total'
+        if entry['total'] + n + held_for_others(entry, plan(today(now), directory).get(name, {}), system) > domain_total(name):
+            return False, 'held_for_higher_priority'
         if used + n > share_limit(system, name):
             return False, 'system_share'
         entry['total'] += n
