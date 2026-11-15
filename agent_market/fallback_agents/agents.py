@@ -800,27 +800,35 @@ class FallbackAgents:
         return out, cache, False, as_of
 
     def _sec_filings(self, args, remaining):
-        cik = None
+        """PM 11-15 12:55: identifiers first (CIK, then ticker), a name only when it matches one SEC filer exactly;
+        a company with no SEC registration gets a normal answer that says so, not an error."""
+        cik, matched = None, None
         raw_cik = str(args.get("cik") or "").strip()
         if raw_cik:
             if not re.fullmatch(r"(?:CIK)?0*[0-9]{1,10}", raw_cik, re.I):
                 raise FallbackUnavailable("invalid_input", "Use a numeric SEC CIK.")
-            cik = int(re.sub(r"\D", "", raw_cik))
+            cik, matched = int(re.sub(r"\D", "", raw_cik)), "CIK"
         if cik is None:
-            index, by_ticker, _ = self._sec_index(remaining)
+            index, by_ticker, list_cache = self._sec_index(remaining)
             ticker = str(args.get("ticker") or "").strip().upper()
-            if ticker and re.fullmatch(r"[A-Z0-9.\-]{1,10}", ticker):
-                cik = by_ticker.get(ticker)
+            if ticker and re.fullmatch(r"[A-Z0-9.\-]{1,10}", ticker) and ticker in by_ticker:
+                cik, matched = by_ticker[ticker], f"ticker {ticker}"
             for key in ("company", "query"):
-                if cik is None and args.get(key):
-                    try:
-                        cik = sec_lookup(index, str(args[key]))
-                    except FallbackUnavailable as exc:
-                        if "Several" in str(exc):
-                            raise
-                        cik = None
+                name = str(args.get(key) or "").strip()
+                if cik is None and name:
+                    ciks = index[0].get(name_keys(name)[0]) or set()   # exact name only: no near-name guesses
+                    if len(ciks) > 1:
+                        raise FallbackUnavailable("not_found", "Several SEC companies share this name; use the ticker or CIK.")
+                    if ciks:
+                        cik, matched = next(iter(ciks)), "exact company name"
             if cik is None:
-                raise FallbackUnavailable("not_found", "No SEC filer matches; use a ticker, CIK or the exact company name.")
+                asked = ", ".join(f"{k} {str(args.get(k)).strip()[:120]}" for k in ("ticker", "company", "query")
+                                  if str(args.get(k) or "").strip()) or "no identifier"
+                out = {"answer": (f"No SEC EDGAR registration matches ({asked}): the company has no SEC filings "
+                                  f"under a listed ticker, CIK or this exact name. Companies outside the U.S. "
+                                  f"securities markets usually have none.")[:8000],
+                       "url": "https://www.sec.gov/edgar/search/", "source": "SEC EDGAR (company ticker list)"}
+                return out, list_cache, False, {"SEC EDGAR company ticker list": None}
 
         def live(rem):
             raw = self._get_json(f"https://data.sec.gov/submissions/CIK{cik:010d}.json", rem, limit=8 * 1024 * 1024)
@@ -839,12 +847,22 @@ class FallbackAgents:
             name = _text(raw.get("name"), 200)
             lines = "; ".join(f"{d} {f}" for d, f, _, _ in rows[:10])
             key = "; ".join(f"{d} {f} (accession {a})" for d, f, a, _ in main) or "none in the latest list"
-            answer = (f"{name} (SEC CIK {cik}) recent EDGAR filings: {lines}. Periodic and current reports "
-                      f"(10-K, 10-Q, 8-K and foreign equivalents): {key}.")[:8000]
-            out = {"answer": answer, "url": f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik:010d}",
-                   "source": "SEC EDGAR"}
+            answer = (f"Matched SEC filer: {name} (SEC CIK {cik}). Recent EDGAR filings: {lines}. "
+                      f"Periodic and current reports (10-K, 10-Q, 8-K and foreign equivalents): {key}.")
+            facts = None
+            facts_url = f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik:010d}.json"
+            try:   # PM 11-15 12:46: the summary facts of the latest annual report, from XBRL company facts
+                facts = annual_facts(self._get_json(facts_url, rem, limit=40 * 1024 * 1024), facts_url)
+            except (FallbackUnavailable, SourceError, ValueError):
+                facts = None   # a filer without XBRL facts (404) or a slow facts file still gets its filing list
+            if facts:
+                answer += " " + facts
+            out = {"answer": answer[:8000], "url": f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik:010d}",
+                   "source": "SEC EDGAR (submissions" + (" and XBRL company facts)" if facts else ")")}
             return out, rows[0][0] or None
         (out, as_of), cache = self._cached(("sec-filings", cik), TTL["sec-filings"], live, remaining)
+        # how this request found the filer is not part of the cached answer (one filer, many ways to ask)
+        out = {**out, "answer": out["answer"].replace(f"(SEC CIK {cik}).", f"(SEC CIK {cik}), by {matched}.", 1)[:8000]}
         return out, cache, False, {"SEC EDGAR (latest filing date)": as_of}
 
     def _software_incident(self, args, remaining):
@@ -1560,6 +1578,66 @@ def tiered_match(rows, wanted, keys_of, preferred):
             raise FallbackUnavailable("not_found", "Several records share this name; add the country or the full legal name.")
         return best[0]
     return None
+
+
+# Concepts read from XBRL company facts for the latest annual report, first match wins (US GAAP, then IFRS).
+ANNUAL_FORMS = ("10-K", "20-F", "40-F")
+FACT_CONCEPTS = (
+    ("revenue", (("us-gaap", "Revenues"), ("us-gaap", "RevenueFromContractWithCustomerExcludingAssessedTax"),
+                 ("us-gaap", "SalesRevenueNet"), ("ifrs-full", "Revenue"))),
+    ("net income", (("us-gaap", "NetIncomeLoss"), ("us-gaap", "ProfitLoss"), ("ifrs-full", "ProfitLoss"))),
+    ("total assets", (("us-gaap", "Assets"), ("ifrs-full", "Assets"))),
+)
+
+
+def _money(value: float, unit: str) -> str:
+    size = abs(value)
+    for limit, word in ((1e12, "trillion"), (1e9, "billion"), (1e6, "million")):
+        if size >= limit:
+            return f"{unit} {value / limit:,.1f} {word}"
+    return f"{unit} {value:,.0f}"
+
+
+def annual_facts(raw: dict, url: str = "") -> str | None:
+    """One sentence with revenue, net income and total assets as reported in the latest annual report (10-K, 20-F
+    or 40-F) in EDGAR's XBRL company facts. Each value names its standard (US GAAP or IFRS), concept and currency;
+    the fiscal year end, form, filing date and the facts URL are stated; a value not reported stays empty (PM 12:55)."""
+    facts = raw.get("facts") if isinstance(raw, dict) else None
+    if not isinstance(facts, dict):
+        return None
+    found, latest = {}, None
+    for label, concepts in FACT_CONCEPTS:
+        best = None   # the newest year across the concepts (a filer may stop using one), earlier concept on a tie
+        for rank, (taxonomy, concept) in enumerate(concepts):
+            units = ((facts.get(taxonomy) or {}).get(concept) or {}).get("units") or {}
+            rows = [(u, r) for u, items in units.items() if isinstance(items, list) for r in items
+                    if isinstance(r, dict) and r.get("form") in ANNUAL_FORMS and r.get("fp") == "FY"
+                    and isinstance(r.get("val"), (int, float)) and isinstance(r.get("end"), str)
+                    and isinstance(r.get("filed"), str)
+                    and (label == "total assets" or str(r.get("start") or "") < r["end"])]
+            if not rows:
+                continue
+            unit, row = max(rows, key=lambda x: (x[1]["end"], x[1]["filed"]))
+            if best is None or (row["end"], row["filed"], -rank) > (best[0]["end"], best[0]["filed"], -best[4]):
+                best = (row, unit, taxonomy, concept, rank)
+        if best:
+            found[label] = best[:4]
+            if latest is None or (best[0]["end"], best[0]["filed"]) > (latest["end"], latest["filed"]):
+                latest = best[0]
+    if not found or latest is None:
+        return None
+    parts = []
+    for label, _ in FACT_CONCEPTS:
+        hit = found.get(label)
+        if hit and hit[0]["end"] == latest["end"]:
+            row, unit, taxonomy, concept = hit
+            standard = "US GAAP" if taxonomy == "us-gaap" else "IFRS"
+            parts.append(f"{label} {_money(float(row['val']), _text(unit, 10))} ({standard} {concept})")
+        else:
+            parts.append(f"{label} not reported for that year")
+    where = f" ({url})" if url else ""
+    return (f"Latest annual report facts from EDGAR XBRL company facts{where}: {_text(latest.get('form'), 10)} for "
+            f"the fiscal year ended {latest['end'][:10]}, filed {latest['filed'][:10]}; {'; '.join(parts)}.")
 
 
 def sec_lookup(index, name: str) -> int:

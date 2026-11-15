@@ -1197,12 +1197,75 @@ def test_sec_filings_resolves_ticker_and_lists_periodic_reports(tmp_path):
     a, _ = agents(tmp_path, routes)
     env = a.execute("sec-filings", {"ticker": "msft"})
     answer = env["result"]["answer"]
-    assert answer.startswith("MICROSOFT CORP (SEC CIK 789019) recent EDGAR filings: 2026-11-12 4; 2026-10-29 8-K")
+    assert answer.startswith("Matched SEC filer: MICROSOFT CORP (SEC CIK 789019), by ticker MSFT. Recent EDGAR filings: "
+                             "2026-11-12 4; 2026-10-29 8-K")
     assert "2026-07-30 10-K (accession a4)" in answer and env["freshness"]["data_as_of"] == {"SEC EDGAR (latest filing date)": "2026-11-12"}
-    assert a.execute("sec-filings", {"cik": "CIK0000789019"})["result"]["answer"] == answer
+    assert a.execute("sec-filings", {"cik": "CIK0000789019"})["result"]["answer"] == answer.replace("by ticker MSFT", "by CIK")
     with pytest.raises(FallbackUnavailable) as err:
         a.execute("sec-filings", {"cik": "12ab"})
     assert err.value.code == "invalid_input"
+
+
+def test_sec_filings_adds_the_latest_annual_report_facts(tmp_path):
+    """PM 11-15 12:46: the filings seat answers company lookup -> recent filings -> the annual report's facts."""
+    from agent_market.fallback_agents.agents import annual_facts
+    routes = sec_routes()
+    routes["https://data.sec.gov/submissions/CIK0000789019.json"] = httpx.Response(200, json={
+        "cik": "0000789019", "name": "MICROSOFT CORP", "filings": {"recent": {
+            "form": ["10-K"], "filingDate": ["2026-07-30"], "accessionNumber": ["a4"], "primaryDocument": ["10k.htm"]}}})
+
+    def fy(val, end, start="2025-07-01", form="10-K", filed="2026-07-30"):
+        return {"val": val, "end": end, "start": start, "form": form, "fp": "FY", "filed": filed}
+    routes["https://data.sec.gov/api/xbrl/companyfacts/CIK0000789019.json"] = httpx.Response(200, json={"facts": {
+        "us-gaap": {
+            "Revenues": {"units": {"USD": [fy(93_580_000_000, "2015-06-30", "2014-07-01", filed="2015-07-31")]}},  # stopped
+            "RevenueFromContractWithCustomerExcludingAssessedTax": {"units": {"USD": [
+                fy(245_122_000_000, "2025-06-30", "2024-07-01", filed="2025-07-30"), fy(281_724_000_000, "2026-06-30"),
+                {**fy(70_000_000_000, "2026-03-31", "2026-01-01"), "fp": "Q3", "form": "10-Q"}]}},
+            "NetIncomeLoss": {"units": {"USD": [fy(101_832_000_000, "2026-06-30")]}},
+            "Assets": {"units": {"USD": [{**fy(619_003_000_000, "2026-06-30"), "start": None}]}}}}})
+    a, _ = agents(tmp_path, routes)
+    env = a.execute("sec-filings", {"ticker": "MSFT"})
+    answer = env["result"]["answer"]
+    assert ("Latest annual report facts from EDGAR XBRL company facts "
+            "(https://data.sec.gov/api/xbrl/companyfacts/CIK0000789019.json): 10-K for the fiscal year ended 2026-06-30, "
+            "filed 2026-07-30; revenue USD 281.7 billion (US GAAP RevenueFromContractWithCustomerExcludingAssessedTax); "
+            "net income USD 101.8 billion (US GAAP NetIncomeLoss); total assets USD 619.0 billion (US GAAP Assets).") in answer
+    assert env["result"]["source"] == "SEC EDGAR (submissions and XBRL company facts)"
+    ifrs = {"facts": {"ifrs-full": {"Revenue": {"units": {"EUR": [fy(28_262_000_000, "2025-12-31", "2025-01-01", "20-F")]}},
+                                    "ProfitLoss": {"units": {"EUR": [fy(7_571_000_000, "2025-12-31", "2025-01-01", "20-F")]}}}}}
+    assert annual_facts(ifrs).endswith("revenue EUR 28.3 billion (IFRS Revenue); net income EUR 7.6 billion "
+                                       "(IFRS ProfitLoss); total assets not reported for that year.")   # never made up
+    assert annual_facts({"facts": {}}) is None and annual_facts({}) is None
+
+
+def test_sec_filings_identifiers_first_exact_names_only_and_no_registration_is_an_answer(tmp_path):
+    """PM 11-15 12:55: CIK, then ticker, then an exact name; a near name is not guessed; no SEC registration is a
+    normal answer (a non-U.S. company), not an error."""
+    routes = sec_routes()
+    routes["https://data.sec.gov/submissions/CIK0000789019.json"] = httpx.Response(200, json={
+        "cik": "0000789019", "name": "MICROSOFT CORP", "filings": {"recent": {
+            "form": ["8-K"], "filingDate": ["2026-10-29"], "accessionNumber": ["a2"], "primaryDocument": ["8k.htm"]}}})
+    a, _ = agents(tmp_path, routes)
+    by_both = a.execute("sec-filings", {"ticker": "MSFT", "company": "Apple Inc."})["result"]["answer"]
+    assert "MICROSOFT CORP (SEC CIK 789019), by ticker MSFT" in by_both                    # identifier wins
+    assert "by exact company name" in a.execute("sec-filings", {"company": "Microsoft Corporation"})["result"]["answer"]
+    none = a.execute("sec-filings", {"company": "Microsoft Holdings"})["result"]               # near name: not guessed
+    assert none["answer"].startswith("No SEC EDGAR registration matches (company Microsoft Holdings)")
+    abroad = a.execute("sec-filings", {"ticker": "ZZZZ", "company": "Allianz SE"})["result"]
+    assert abroad["answer"].startswith("No SEC EDGAR registration matches (ticker ZZZZ, company Allianz SE)")
+    assert abroad["url"] == "https://www.sec.gov/edgar/search/"
+
+
+def test_sec_filings_without_xbrl_facts_still_lists_filings(tmp_path):
+    routes = sec_routes()
+    routes["https://data.sec.gov/submissions/CIK0000789019.json"] = httpx.Response(200, json={
+        "cik": "0000789019", "name": "MICROSOFT CORP", "filings": {"recent": {
+            "form": ["8-K"], "filingDate": ["2026-10-29"], "accessionNumber": ["a2"], "primaryDocument": ["8k.htm"]}}})
+    routes["https://data.sec.gov/api/xbrl/companyfacts/CIK0000789019.json"] = httpx.Response(404, json={})
+    a, _ = agents(tmp_path, routes)
+    env = a.execute("sec-filings", {"cik": "789019"})
+    assert "Latest annual report facts" not in env["result"]["answer"] and env["result"]["source"] == "SEC EDGAR (submissions)"
 
 
 def test_software_incident_by_cve_shows_fixed_versions_as_data(tmp_path):

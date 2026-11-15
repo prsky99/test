@@ -242,9 +242,10 @@ SPECS = {
     "sec-filings": {
         "name": "AgentValCon SEC EDGAR Filings", "tool": "list_sec_filings", "contract": "sec.filings.v1",
         "description": "List the recent EDGAR filings (form type and date) of one SEC filer by ticker, CIK or exact "
-                       "company name, with the periodic and current reports picked out; read-only.",
+                       "company name, with the periodic and current reports picked out and the revenue, net income "
+                       "and total assets of its latest annual report from XBRL company facts; read-only.",
         "sources": [SEC],
-        "rate": "at most 5 requests per second (SEC allows 10); cached 1 hour",
+        "rate": "at most 5 requests per second (SEC allows 10); two requests a filer, cached 1 hour",
     },
     "software-incident": {
         "name": "AgentValCon Advisory Fix Lookup", "tool": "find_fix_guidance", "contract": "software.incident.v1",

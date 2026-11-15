@@ -45,6 +45,51 @@ prohibits 2건은 정의에 넣지 않았습니다. 넣으면 그 멤버가 모�
             "basis": "section What you may not do: using the service to build a competing audit product and republishing reports; a site-trust necklace is close enough to count (PM rule: unclear means prohibits)"}}
 ```
 
+## PM 12:46 결정 반영
+
+- prohibits 2건은 멤버에서 뺍니다(정의 반영은 워크플로우). 유료 플랜이 있어야 사업용으로 쓸 수 있는 곳은 지출 0이라 모두 prohibits입니다.
+- website-trust-brief의 crawlers 자리는 자체 site-readiness가 선두입니다.
+- company-due-diligence의 filings 자리는 필수로 둡니다. 멤버는 SEC EDGAR를 직접 읽는 자체 대체 `sec-filings`(list_sec_filings, 계약 sec.filings.v1)로 채웁니다.
+
+### SEC EDGAR 판정: allowed (11-15 확인)
+
+| 읽은 페이지 | 근거 위치 | 내용 |
+|---|---|---|
+| https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data (`/os/accessing-edgar-data`가 이 주소로 넘어감) | "Fair access" 문단 | 최대 초당 10회, 필요한 것만 받기, User-Agent에 회사 이름과 연락 메일을 밝히기. 밝히지 않은 봇이나 정책 밖의 자동 도구는 제한함 |
+| https://www.sec.gov/about/privacy-information | 사이트 보안 문단과 배포 문단 | 초당 10회를 넘으면 그 IP를 잠시 제한함. sec.gov의 정보는 공개 정보라 SEC 허가 없이 복사·재배포할 수 있음(SEC 출처 표시를 권함) |
+
+- 우리 쪽 준수
+  - User-Agent `AgentValCon-FallbackAgents/1.0 (+https://agentconcierge.biz; contact@agentconcierge.biz)`(catalog.USER_AGENT)
+  - 호스트당 초당 5회 이하(HostLimiter, 프로세스 사이 공용)
+  - 회사 하나에 2번 요청(submissions, companyfacts), 1시간 캐시
+  - 시험·보고서 호출은 장부의 sec.gov 600 안(substitute_tests 30)에서 씁니다.
+  - 응답의 source에 SEC EDGAR를 적고, 카탈로그 고지에 "Not endorsed by the SEC"를 둡니다.
+- 출력: 최근 공시 목록(형식·날짜·접수 번호), 그리고 최신 연차 보고서(10-K·20-F·40-F)의 매출·순이익·총자산입니다. 이 값은 XBRL companyfacts에서 제출자가 보고한 값 그대로 가져옵니다.
+- EDGAR 전문 검색(efts)은 쓰지 않습니다. 회사 하나의 공시 목록과 연차 사실이면 실사 자리에 충분하고, 요청 수를 늘리지 않기 위해서입니다.
+
+### sec-filings 확장과 실제 호출 (11-15 13:4x)
+
+- PM 12:55 조건 반영
+  - 회사는 CIK → ticker → 정확히 일치하는 이름 순서로 찾습니다. 비슷한 이름은 추측하지 않습니다.
+  - 답 첫머리에 "Matched SEC filer: 정식 이름 (SEC CIK n), by …"를 적습니다. 합성 단계가 registry 답과 대조할 수 있습니다.
+  - SEC 등록이 없는 회사에는 "No SEC EDGAR registration matches …"를 정상 답으로 돌려줍니다. 오류로 세지 않습니다.
+  - XBRL 값마다 회계 기준(US GAAP/IFRS)과 개념 이름, 통화를 적습니다. 연차 보고서 형식, 회계연도 끝, 제출일, companyfacts 주소도 적습니다. 그 해에 없는 값은 "not reported for that year"로 두고 지어내지 않습니다.
+- 실제 호출: 공용 장부 sec.gov의 substitute_tests 몫에 예약하고 8번 불렀습니다.
+  - MSFT: 10-K, FY 2026-06-30, 매출 USD 331.8 billion, 순이익 133.7 billion, 총자산 758.4 billion, 0.8초
+  - SAP: 20-F IFRS, FY 2025-12-31, 매출 EUR 36.8 billion, 순이익 7.3 billion, 총자산 70.4 billion, 0.8초
+  - Allianz SE: SEC 등록 없음(정상 답)
+  - 첫 실행에서 MSFT 매출이 비었습니다. 쓰지 않게 된 개념(Revenues)의 옛 연도에서 멈췄기 때문입니다. 개념 전체에서 최신 연도를 고르도록 고친 뒤 다시 확인했습니다.
+- 워크플로우가 filings 자리에 넣을 멤버(58997 자리 대신)
+
+```json
+{"kind": "agentcon", "agent_id": "sec-filings", "resource_id": null, "tool": "list_sec_filings",
+ "registrable_domain": "agentconcierge.biz", "upstream": ["sec-edgar"], "read_only_hint": true,
+ "destructive_hint": false, "idempotent_hint": true, "resend_safe": true, "state": "planned",
+ "input_map": {"cik": "{{slot.registry.cik}}", "ticker": "{{slot.registry.ticker}}",
+               "company": "{{slot.registry.legal_name}}"},
+ "coverage": {"country": ["US"]}}
+```
+
 ## 남은 것
 
 - 카탈로그 밖 자체 에이전트 133018·133019·133023(topic-evidence-brief, package-risk-audit)
