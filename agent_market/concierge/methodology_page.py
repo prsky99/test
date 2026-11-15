@@ -86,6 +86,8 @@ def page_html(base='https://agentconcierge.biz', data=None, log=None):
                  'agent card, it keeps a hash of it and records what changed; pearl test reports keep a hash of the '
                  'answer they judged.</li>'
                  '<li><strong>Last success.</strong> Every recommendation shows when the agent last passed a check.</li></ul>'
+                 '<p>Remote MCP servers that pass these checks are listed in our <a href="/registry">verified MCP '
+                 'registry</a>, which organizations can use as their Copilot registry.</p>'
                  '</section>')
     cand = data.get('candidates') or {}
     thresholds = cand.get('grade_thresholds') or {}

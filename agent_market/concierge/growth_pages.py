@@ -662,4 +662,6 @@ def growth_router(store=None):
     router.include_router(advertise_router())
     from .legal_pages import legal_router  # 11-15 E12: /privacy and /terms for the Connectors Directory listing
     router.include_router(legal_router())
+    from .registry_page import registry_router  # 11-15 E7: what the verified registry lists (ships with it, 11-18)
+    router.include_router(registry_router())
     return router
