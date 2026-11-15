@@ -183,3 +183,22 @@ def test_the_quake_contract_takes_the_point_search_both_feeds_use():
         assert not list(check.iter_errors(runner.render(member["input_map"], staged))), member["resource_id"]
     assert list(check.iter_errors({"radius_km": 5000})) and list(check.iter_errors({"near": "Tokyo"}))
     assert not list(check.iter_errors({"min_magnitude": 5}))                          # the pearl tests' input
+
+
+def test_our_usgs_feed_answers_in_a_sentence_and_ends_the_quake_chain():
+    """Agent team 82d1a98d: usgs-quakes answers 'M5.1 2026-11-15 03:12 UTC, place, 4 km away, lat X lon Y; ...' or
+    'No earthquake of magnitude ...' (a normal answer); both necklaces end their quakes chain with it."""
+    answer = {"answer": "2 earthquakes of magnitude 4.5 or more within 1000 km of 35.6800,139.7600 in the past 7 days "
+                        "(USGS, newest first): M5.1 2026-11-15 03:12 UTC, 10 km SE of Hachijo-jima, Japan, 4 km away, "
+                        "lat 35.700 lon 139.800; M4.7 2026-11-13 21:05 UTC, near Tokyo, 30 km away, lat 35.9 lon 140.1 "
+                        "(tsunami flag).", "source": "USGS"}
+    out = runner.normalize("earthquake.feed.v1", answer, {})
+    assert [(e["mag"], e["lat"], e["time"]) for e in out["events"]] == [(5.1, 35.7, "2026-11-15T03:12:00Z"),
+                                                                        (4.7, 35.9, "2026-11-13T21:05:00Z")]
+    none = runner.normalize("earthquake.feed.v1", {"answer": "No earthquake of magnitude 4.5 or more within 1000 km "
+                                                             "of 1,2 in the USGS feed for the week."}, {})
+    assert none == {"events": [], "count": 0}
+    for slug in ("quakes-near-address", "quakes-near-airport"):
+        defn = model.load(f"agent_market/necklaces/definitions/{slug}.json")
+        quakes = next(s for s in defn["slots"] if s["slot"] == "quakes")
+        assert quakes["chain"][-1]["agent_id"] == "usgs-quakes" and model.validate(defn) == []

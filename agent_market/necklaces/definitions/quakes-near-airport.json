@@ -128,11 +128,34 @@
           "resource_id": 178542,
           "registrable_domain": "augur-trade.com",
           "pearl": true
+        },
+        {
+          "kind": "agentcon",
+          "agent_id": "usgs-quakes",
+          "resource_id": null,
+          "tool": "list_recent_earthquakes",
+          "registrable_domain": "agentconcierge.biz",
+          "upstream": [
+            "usgs"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "planned",
+          "input_map": {
+            "lat": "{{slot.location.lat}}",
+            "lon": "{{slot.location.lon}}",
+            "radius_km": 1000,
+            "days": 7,
+            "min_magnitude": 4.5,
+            "limit": 20
+          }
         }
       ]
     }
   ],
-  "notes": "v1 candidate stamped from the location-hub template (necklaces.templates airport x quakes, workflow 11-15). Leads are verified pearls 86011 (airport.lookup, OurAirports data) and 37322, 178542 (earthquake.feed); all passed the relay check at 11:41-11:46. airport-lookup (our OurAirports fallback) is planned until ops approves it for this slot. Graded whole like quakes-near-address (retest.grade_quakes_task): the airport's coordinates within 5 km of OurAirports and the strongest nearby quake USGS surely has.",
+  "notes": "v1 candidate stamped from the location-hub template (necklaces.templates airport x quakes, workflow 11-15). Leads are verified pearls 86011 (airport.lookup, OurAirports data) and 37322, 178542 (earthquake.feed); all passed the relay check at 11:41-11:46. airport-lookup (our OurAirports fallback) is planned until ops approves it for this slot. Graded whole like quakes-near-address (retest.grade_quakes_task): the airport's coordinates within 5 km of OurAirports and the strongest nearby quake USGS surely has. 11-15: usgs-quakes (our USGS feed filtered by distance, agent team 82d1a98d) ends the quakes chain, planned until ops approves it.",
   "min_pearls_answered": 2,
   "probe_input": {
     "code": "LAX",

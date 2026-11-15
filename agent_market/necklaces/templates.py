@@ -76,7 +76,11 @@ CONSUMERS = {
                           ["usgs"], rid=37322, domain="datakoot.com", pearl=True),
                   _member("external", "earthquakes", {"near": "{{slot.location.point}}", "radius_km": 1000,
                                                       "period": "week", "min_magnitude": 4.5, "limit": 20},
-                          ["usgs"], rid=178542, domain="augur-trade.com", pearl=True)]},
+                          ["usgs"], rid=178542, domain="augur-trade.com", pearl=True),
+                  _member("agentcon", "list_recent_earthquakes", {"lat": "{{slot.location.lat}}",
+                                                                  "lon": "{{slot.location.lon}}", "radius_km": 1000,
+                                                                  "days": 7, "min_magnitude": 4.5, "limit": 20},
+                          ["usgs"], agent_id="usgs-quakes")]},
     "local-time": {
         # PM 13:58 (agent team plan): tz-time takes the hub's "lat,lon" in location and finds the zone itself, so no
         # bridge step; near a zone boundary it may give several candidate zones, which the answer keeps as they are

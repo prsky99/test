@@ -381,6 +381,10 @@ def norm_location(raw, values):
 
 MAG_KEYS = ("mag", "magnitude")
 TIME_KEYS = ("time", "origin_time", "datetime", "date", "utc_time")
+QUAKE_TEXT = re.compile(r"\bM(?P<mag>\d+(?:\.\d+)?) (?P<when>\d{4}-\d{2}-\d{2} \d{2}:\d{2}) UTC, (?P<place>[^;]*?)"
+                        r"(?:, \d+ km away)?(?:, lat (?P<lat>-?\d+(?:\.\d+)?) lon (?P<lon>-?\d+(?:\.\d+)?))?"
+                        r"(?: \(tsunami flag\))?(?=;|\.?\"?$|\.\s|\.\"|\Z)")
+QUAKE_NONE_TEXT = re.compile(r"\bNo earthquake of magnitude", re.I)
 CENTER_KEYS = ("center", "centre", "near", "origin", "location", "query", "search", "criteria")
 
 
@@ -423,6 +427,16 @@ def norm_quakes(raw, values):
         seen.add(key)
         events.append({"mag": mag, "lat": where[0], "lon": where[1], "time": when, "url": url,
                        "place": str(props.get("place") or "")[:200]})
+    if not events:                     # our usgs-quakes answers in a sentence (agent team 82d1a98d)
+        text = _text(raw)
+        said_none = said_none or QUAKE_NONE_TEXT.search(text) is not None
+        for match in QUAKE_TEXT.finditer(text):
+            if match.group("lat") is None:
+                continue
+            day, clock = match.group("when").split()
+            events.append({"mag": float(match.group("mag")), "lat": float(match.group("lat")),
+                           "lon": float(match.group("lon")), "time": f"{day}T{clock}:00Z", "url": None,
+                           "place": match.group("place").strip()[:200]})
     if not events and not said_none:
         return None
     out = {"events": events[:100], "count": len(events)}
