@@ -230,14 +230,14 @@ US_BUILDINGS = [
     ("Thomas Jefferson Building", "Washington, DC"), ("Empire State Building", "New York, NY"),
     ("Chrysler Building", "New York, NY"), ("Flatiron Building", "New York, NY"),
     ("Metropolitan Museum of Art", "New York, NY"), ("Solomon R. Guggenheim Museum", "New York, NY"),
-    ("Madison Square Garden", "New York, NY"), ("Willis Tower", "Chicago, IL"), ("Wrigley Field", "Chicago, IL"),
+    ("Madison Square Garden", "New York, NY 10001"), ("Willis Tower", "Chicago, IL"), ("Wrigley Field", "Chicago, IL"),
     ("Art Institute of Chicago", "Chicago, IL"), ("Space Needle", "Seattle, WA"), ("Seattle Central Library", "Seattle, WA"),
     ("Transamerica Pyramid", "San Francisco, CA"), ("Coit Tower", "San Francisco, CA"),
     ("Griffith Observatory", "Los Angeles, CA"), ("Walt Disney Concert Hall", "Los Angeles, CA"),
-    ("Dodger Stadium", "Los Angeles, CA"), ("Hollywood Bowl", "Los Angeles, CA"), ("Getty Center", "Los Angeles, CA"),
-    ("Fenway Park", "Boston, MA"), ("Massachusetts State House", "Boston, MA"), ("Independence Hall", "Philadelphia, PA"),
-    ("Philadelphia Museum of Art", "Philadelphia, PA"), ("Gateway Arch", "St. Louis, MO"), ("Graceland", "Memphis, TN"),
-    ("Ryman Auditorium", "Nashville, TN"), ("Texas State Capitol", "Austin, TX"), ("Reunion Tower", "Dallas, TX"),
+    ("Dodger Stadium", "Los Angeles, CA"), ("Hollywood Bowl", "Los Angeles, CA 90068"), ("Getty Center", "Los Angeles, CA"),
+    ("Fenway Park", "Boston, MA"), ("Massachusetts State House", "Boston, MA 02133"), ("Independence Hall", "Philadelphia, PA"),
+    ("Philadelphia Museum of Art", "Philadelphia, PA 19130"), ("Gateway Arch", "St. Louis, MO"), ("Graceland", "Memphis, TN"),
+    ("Texas State Capitol", "Austin, TX"), ("Reunion Tower", "Dallas, TX"),
     ("Colorado State Capitol", "Denver, CO"), ("Bellagio (resort)", "Las Vegas, NV"), ("ʻIolani Palace", "Honolulu, HI"),
     ("Mall of America", "Bloomington, MN"), ("Lambeau Field", "Green Bay, WI"),
     ("Rock and Roll Hall of Fame", "Cleveland, OH"), ("Biltmore Estate", "Asheville, NC"), ("Georgia Aquarium", "Atlanta, GA"),
@@ -247,6 +247,9 @@ US_BUILDINGS = [
 ]
 
 
+# 11-15 tuning round (agent team, 23 of 28): Ryman Auditorium left out (its Wikidata point sits at Opryland, not at
+# 116 5th Ave N), ZIP codes added where the Census matched another street of the same name (State House 02133) or
+# found none (Madison Square Garden, Philadelphia Museum of Art, Hollywood Bowl with the street written out).
 # Street addresses typed by the workflow team where Wikidata has none (P6375 on 12 of 45 on 11-15); the truth point is
 # still the building's Wikidata P625, and the tuning round shows any address that lands farther than the tolerance.
 TYPED_STREETS = {
@@ -255,10 +258,10 @@ TYPED_STREETS = {
     "Willis Tower": "233 S Wacker Dr", "Wrigley Field": "1060 W Addison St", "Space Needle": "400 Broad St",
     "Transamerica Pyramid": "600 Montgomery St", "Coit Tower": "1 Telegraph Hill Blvd",
     "Griffith Observatory": "2800 E Observatory Rd", "Walt Disney Concert Hall": "111 S Grand Ave",
-    "Dodger Stadium": "1000 Vin Scully Ave", "Hollywood Bowl": "2301 N Highland Ave", "Getty Center": "1200 Getty Center Dr",
+    "Dodger Stadium": "1000 Vin Scully Ave", "Hollywood Bowl": "2301 North Highland Avenue", "Getty Center": "1200 Getty Center Dr",
     "Fenway Park": "4 Jersey St", "Massachusetts State House": "24 Beacon St", "Independence Hall": "520 Chestnut St",
-    "Philadelphia Museum of Art": "2600 Benjamin Franklin Pkwy", "Graceland": "3764 Elvis Presley Blvd",
-    "Ryman Auditorium": "116 5th Ave N", "Reunion Tower": "300 Reunion Blvd E", "Colorado State Capitol": "200 E Colfax Ave",
+    "Philadelphia Museum of Art": "2600 Benjamin Franklin Parkway", "Graceland": "3764 Elvis Presley Blvd",
+    "Reunion Tower": "300 Reunion Blvd E", "Colorado State Capitol": "200 E Colfax Ave",
     "Bellagio (resort)": "3600 S Las Vegas Blvd", "ʻIolani Palace": "364 S King St", "Mall of America": "60 E Broadway",
     "Lambeau Field": "1265 Lombardi Ave", "Rock and Roll Hall of Fame": "1100 E 9th St",
     "Georgia Aquarium": "225 Baltimore Ave NW", "Texas State Capitol": "1100 Congress Ave",
