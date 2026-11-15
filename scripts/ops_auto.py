@@ -939,6 +939,9 @@ def is_down(kind, value):
     return isinstance(value, dict) and 'not_running' in (value.get('problems') or [])
 
 
+CLOSE_WHEN_CLEAR = ('fingerprints', 'backup', 'necklace_checks', 'launchd_jobs', 'core_down', 'memory', 'disk', 'swap')
+
+
 def select_fresh(anomalies, state, now):
     """(fresh, state): an anomaly is alerted when it is new, when its signature changed (it got worse or
     different), when it means a service is down, or when REALERT_SECONDS passed since its last alert. Cleared
@@ -1044,7 +1047,13 @@ def watch():
                                        capture_output=True, text=True, cwd=ROOT).stdout or '{}')
     anomalies = record.get('anomalies') or {}
     state = json.loads(STATE.read_text()) if STATE.is_file() else {}
+    before = dict(state)
     fresh, state = select_fresh(anomalies, state, time.time())
+    # 11-15 16:2x (PM): a state check that comes back clean closes its own open board line, so a fixed alarm
+    # (the 34-hour fingerprint line stayed '대기' after the 16:16 refresh) never needs a person to close it.
+    for kind in CLOSE_WHEN_CLEAR:
+        if kind in before and kind not in anomalies:
+            board_close(kind, f'해결(자동 {now()[11:]} 이상 없음)')
     if not fresh:
         STATE.write_text(json.dumps(state))
         return 0

@@ -34,6 +34,33 @@ def command(tests, team='운영·SRE', minutes=15, root=ROOT):
             '--what', f'pytest {len(tests)} targets', '--minutes', str(minutes), '--', *run]
 
 
+DAY_SMALL_RUNS = 2   # PM 11-15 16:26: small runs had no limit; five teams at once slowed explore in the afternoon
+LOAD_MAX = 6.0       # 1-minute load on this 8-core Mac above which no new test starts in the day (08:00-24:00)
+
+
+def day_busy(now=None, load=None, running=None):
+    """Why a small run may not start now in the day, or None. Night (00:00-08:00) keeps the old rule."""
+    import os
+    from datetime import datetime
+    now = now or datetime.now()
+    if now.hour < 8:
+        return None
+    load = os.getloadavg()[0] if load is None else load
+    if load >= LOAD_MAX:
+        return f'load {load:.1f} >= {LOAD_MAX} in the day: the public site needs the CPU'
+    running = small_runs() if running is None else running
+    if running >= DAY_SMALL_RUNS:
+        return f'{running} small test runs already running (day limit {DAY_SMALL_RUNS})'
+    return None
+
+
+def small_runs(root=ROOT):
+    """pytest processes this wrapper started for this project (other projects and shells do not count)."""
+    marker = str(Path(root) / '.venv-tests/bin/python') + ' -m pytest -q -p no:cacheprovider'
+    out = subprocess.run(['ps', '-axww', '-o', 'args='], capture_output=True, text=True).stdout
+    return sum(1 for line in out.splitlines() if marker in line)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('--team', default='운영·SRE')
@@ -48,7 +75,7 @@ def main(argv=None):
     from scripts.heavy_slot import reserved, measurement_window, BUSY
     # PM 11-14 03:4x: small runs wait too while a copy rehearsal has the night window; PM 11-15 12:24: and in the
     # hourly measurement window (:55-:10 in the day) and a window kept for the public full check
-    reason = reserved() or measurement_window()
+    reason = reserved() or measurement_window() or (None if cmd[0] != 'nice' else day_busy())
     if reason:
         print(f'pytest_slot: refused ({reason}); nothing runs, try again later', file=sys.stderr)
         return BUSY

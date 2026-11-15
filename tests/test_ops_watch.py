@@ -456,3 +456,25 @@ def test_substitute_states_tell_formal_from_provisional(tmp_path):
         {'agent_id': 'a', 'slot_role': 'r1', 'state': 'approved', 'at': '2026-11-16T09:00:00+0900'},
         {'agent_id': 'b', 'slot_role': 'r2', 'state': 'provisional', 'at': '2026-11-15T16:10:00+0900'}]}))
     assert ops_watch.substitute_states(f) == {'approved': ['a'], 'provisional': ['b']}
+
+
+def test_a_cleared_state_check_closes_its_board_line(tmp_path, monkeypatch):
+    """11-15: the fingerprint line stayed '대기' after the alarm cleared; the next clean watch closes it."""
+    import json as _json
+    import subprocess
+    from scripts import ops_auto
+    board = tmp_path / 'board.md'
+    board.write_text('## 넘기는 일\n| 보낸 팀 | 받는 팀 | 내용 | 상태 |\n|---|---|---|---|\n'
+                     '| 자동 점검 [fingerprints] | 운영·SRE | 지문 35시간 | 대기 |\n\n## PM 결정 대기\n')
+    state = tmp_path / 's.json'
+    state.write_text(_json.dumps({'fingerprints': {'at': 1, 'sig': None}}))
+    for name, value in (('BOARD', board), ('ACTIONS', tmp_path / 'a.md'), ('STATE', state), ('DESKTOP', tmp_path / 'd.txt')):
+        monkeypatch.setattr(ops_auto, name, value)
+    monkeypatch.setattr(subprocess, 'run', lambda *a, **k: subprocess.CompletedProcess(a, 0, _json.dumps({'anomalies': {}}), ''))
+    for name in ('error_ledger', 'provenance', 'ad_coin_ledger', 'payment_flow', 'outside_load', 'stability_gate', 'full_check',
+                 'revenue_funnel', 'north_star', 'vector_index_usage', 'stale_handoffs', 'holiday_truth', 'answer_set_expiry'):
+        if hasattr(ops_auto, name):
+            monkeypatch.setattr(ops_auto, name, lambda: None)
+    ops_auto.watch()
+    row = next(l for l in board.read_text().splitlines() if '[fingerprints]' in l)
+    assert '해결(자동' in row and not row.rstrip().endswith('| 대기 |')

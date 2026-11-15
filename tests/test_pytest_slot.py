@@ -33,3 +33,14 @@ def test_small_runs_wait_inside_a_window_reserved_for_rehearsals(monkeypatch, ca
     monkeypatch.setattr(pytest_slot.subprocess, 'run', lambda *a, **k: ran.append(a))
     assert pytest_slot.main(['tests/test_pytest_slot.py']) == heavy_slot.BUSY
     assert not ran and 'reserved for copy rehearsals' in capsys.readouterr().err
+
+
+def test_day_runs_wait_for_load_and_for_two_runs_already_going():
+    """PM 11-15 16:26: small runs had no limit in the day; explore slowed while five teams tested at once."""
+    from datetime import datetime
+    from scripts import pytest_slot
+    day, night = datetime(2026, 11, 16, 14, 20), datetime(2026, 11, 16, 3, 0)
+    assert pytest_slot.day_busy(day, load=2.0, running=1) is None
+    assert 'load 6.5' in pytest_slot.day_busy(day, load=6.5, running=0)
+    assert '2 small test runs' in pytest_slot.day_busy(day, load=2.0, running=2)
+    assert pytest_slot.day_busy(night, load=9.0, running=5) is None
