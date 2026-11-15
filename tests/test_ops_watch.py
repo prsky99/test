@@ -49,6 +49,7 @@ def test_auto_watch_alerts_once_and_writes_handoff(tmp_path, monkeypatch):
     monkeypatch.setattr(ops_auto, 'stale_handoffs', lambda: None)       # test_board_stale.py; it read the real board
     # workflow 11-15 (ops review): the holiday round calls date.nager.at and writes under the real gold folder
     monkeypatch.setattr(ops_auto, 'holiday_truth', lambda: None)        # test_ops_auto_answer_sets.py
+    monkeypatch.setattr(ops_auto, 'night_tests', lambda: None)          # test_night_tests.py; starts the full suite
     monkeypatch.setattr(ops_auto, 'answer_set_expiry', lambda: None)    # same file; reads the real gold folder
     monkeypatch.setattr(ops_auto, 'gold_builds', lambda: None)          # test_ops_auto_gold_builds.py; calls npm, GitHub, OpenAlex
     ops_auto.watch()
@@ -473,7 +474,7 @@ def test_a_cleared_state_check_closes_its_board_line(tmp_path, monkeypatch):
         monkeypatch.setattr(ops_auto, name, value)
     monkeypatch.setattr(subprocess, 'run', lambda *a, **k: subprocess.CompletedProcess(a, 0, _json.dumps({'anomalies': {}}), ''))
     for name in ('error_ledger', 'provenance', 'ad_coin_ledger', 'payment_flow', 'outside_load', 'stability_gate', 'full_check',
-                 'revenue_funnel', 'north_star', 'vector_index_usage', 'stale_handoffs', 'holiday_truth', 'answer_set_expiry', 'gold_builds'):
+                 'revenue_funnel', 'north_star', 'vector_index_usage', 'stale_handoffs', 'holiday_truth', 'answer_set_expiry', 'gold_builds', 'night_tests'):
         if hasattr(ops_auto, name):
             monkeypatch.setattr(ops_auto, name, lambda: None)
     ops_auto.watch()

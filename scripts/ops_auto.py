@@ -1004,6 +1004,34 @@ def is_down(kind, value):
 CLOSE_WHEN_CLEAR = ('fingerprints', 'backup', 'necklace_checks', 'launchd_jobs', 'core_down', 'memory', 'disk', 'swap')
 
 
+NIGHT_TESTS_STATE = ROOT / 'logs/ops/night-tests-start.json'
+NIGHT_TESTS_FROM, NIGHT_TESTS_UNTIL = 515, 540   # PM 11-15 16:52: after the 03:50-05:10 real-task window, before 06:00
+
+
+def night_tests(clock=time.time, launch=None):
+    """Once a night between 05:15 and 05:40: start the full pytest (scripts/night_tests.py run) as one heavy_slot job,
+    detached, so the watch never waits for it. heavy_slot refuses it in a reserved window (11-17 05:00-06:00
+    PostgreSQL 18.7) and the day is skipped. The run itself writes the failures by team to the board."""
+    local = datetime.fromtimestamp(clock())
+    hhmm = local.hour * 100 + local.minute
+    if not NIGHT_TESTS_FROM <= hhmm <= NIGHT_TESTS_UNTIL:
+        return None
+    day = local.strftime('%Y-%m-%d')
+    state = json.loads(NIGHT_TESTS_STATE.read_text()) if NIGHT_TESTS_STATE.is_file() else {}
+    if state.get('day') == day:
+        return None
+    NIGHT_TESTS_STATE.write_text(json.dumps({'day': day, 'at': now()}))
+    cmd = [str(ROOT / '.venv/bin/python'), '-m', 'scripts.heavy_slot', '--team', '운영·SRE', '--what', 'night full pytest',
+           '--minutes', '50', '--', str(ROOT / '.venv/bin/python'), '-m', 'scripts.night_tests', 'run']
+    if launch is None:
+        log = open(ROOT / 'logs/ops/night-tests.out', 'a')
+        subprocess.Popen(cmd, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+    else:
+        launch(cmd)
+    append(ACTIONS, f'{now()} 밤 전체 시험 시작(heavy_slot)')
+    return 'started'
+
+
 def select_fresh(anomalies, state, now):
     """(fresh, state): an anomaly is alerted when it is new, when its signature changed (it got worse or
     different), when it means a service is down, or when REALERT_SECONDS passed since its last alert. Cleared
@@ -1045,6 +1073,10 @@ def watch():
         answer_set_expiry()
     except Exception as error:  # noqa: BLE001
         append(ACTIONS, f'{now()} 정답 세트 유효기간 확인 실패: {type(error).__name__}')
+    try:
+        night_tests()
+    except Exception as error:  # noqa: BLE001
+        append(ACTIONS, f'{now()} 밤 전체 시험 시작 실패: {type(error).__name__}')
     try:
         holiday_truth()
     except Exception as error:  # noqa: BLE001
