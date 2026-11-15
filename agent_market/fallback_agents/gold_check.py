@@ -34,7 +34,8 @@ SLUG = {"gleif-lei": "company-due-diligence", "sec-edgar": "company-due-diligenc
         "wikipedia-summary": "topic-evidence-brief", "nvd-cve": "cve-incident-brief", "cve-org": "cve-incident-brief", "cisa-kev": "cve-incident-brief",
         "github-advisory": "package-risk-audit", "package-registry": "package-risk-audit",
         "depsdev-package": "package-risk-audit",
-        "airport-lookup": "quakes-near-airport"}   # workflow 11-15 (PM 13:58): OurAirports truth, gold_places
+        "airport-lookup": "quakes-near-airport",   # workflow 11-15 (PM 13:58): OurAirports truth, gold_places
+        "wikidata-book": "book-author-brief", "site-readiness": "website-trust-brief"}   # ops 11-15 14:0x
 BANDS = (0.01, 0.1, 0.5)
 
 
@@ -96,6 +97,14 @@ def judge(agent_id: str, case: dict, result: dict | None) -> dict:
             return {"pass": None, "applicable": False}
         got = ((result or {}).get("identifiers") or {}).get(field)
         return {"pass": got == want, "applicable": True, "got": got, "want": want}
+    if agent_id == "wikidata-book":
+        # book-author-brief truth (Wikidata P50 and P577): the answer names the author and the publication year
+        text = str((result or {}).get("answer") or "").lower()
+        author, year = str(truth.get("author") or ""), truth.get("year")
+        ok = bool(author) and author.lower() in text and (year is None or str(year) in text)
+        return {"pass": ok, "got": text[:200], "want": [author, year]}
+    if agent_id == "site-readiness":
+        return judge_site(case, result)
     if agent_id == "wikipedia-summary":
         want = (truth.get("wiki") or {}).get("title")
         return {"pass": bool(want) and (result or {}).get("title") == want, "got": (result or {}).get("title"), "want": want}
@@ -166,6 +175,59 @@ def budget_system(split: str) -> str:
     return "gate" if split.startswith("holdout") else "substitute_tests"
 
 
+def site_truth(domain: str, agents: FallbackAgents | None = None) -> dict:
+    """What the website serves at grading time, read again by the grader (ops 11-15): robots.txt text (None when it
+    could not be read, with the reason), and whether llms.txt and sitemap.xml are served (None when unknown). A fresh
+    reader with no cache, through the same public-address and same-site redirect checks as the agent."""
+    reader = agents or FallbackAgents()
+    left = lambda: 20.0
+    base = f"https://{domain}"
+    robots, why = reader._site_get(base + "/robots.txt", left, domain)
+    out = {"robots": robots, "robots_note": why}
+    for name, path in (("llms_txt", "/llms.txt"), ("sitemap_xml", "/sitemap.xml")):
+        body, note = reader._site_get(base + path, left, domain)
+        if body is not None:
+            out[name] = True if name == "llms_txt" else ("<sitemapindex" in body[:2000] or "<urlset" in body[:2000])
+        else:
+            out[name] = False if note and note.startswith("HTTP 4") else None
+    return out
+
+
+def judge_site(case: dict, result: dict | None, truth: dict | None = None) -> dict:
+    """website.ai_readiness.v1 against the site itself at grading time (website-trust-brief, ops 11-15).
+
+    - robots.txt present must agree with the grader's read. When the grader cannot read it either (5xx, time-out,
+      redirect off the site), the case passes only if the agent also says it could not read it (the case still
+      counts: telling "unreadable" apart from "absent" is part of the task).
+    - every crawler the agent lists (GPTBot, ClaudeBot, anthropic-ai, Google-Extended, PerplexityBot, CCBot) must have
+      the grader's allowed/blocked verdict for the site root, by urllib.robotparser on the grader's copy.
+    - llms.txt and sitemap.xml presence must agree where both sides know it (the agent's None, a file robots.txt
+      kept it from reading, and the grader's None are not compared)."""
+    from urllib.robotparser import RobotFileParser
+    signals = (result or {}).get("signals") or {}
+    domain = case["input"]["domain"].strip().lower()
+    truth = truth if truth is not None else site_truth(domain)
+    problems = []
+    agent_robots = (signals.get("robots_txt") or {}).get("present")
+    if truth["robots"] is None and not str(truth.get("robots_note") or "").startswith("HTTP 4"):
+        ok = agent_robots is False and str((signals.get("robots_txt") or {}).get("note") or "") != ""
+        return {"pass": ok, "got": signals.get("robots_txt"), "want": {"robots_txt": "unreadable"}}
+    if bool(agent_robots) != (truth["robots"] is not None):
+        problems.append("robots_txt")
+    if truth["robots"] is not None:
+        parser = RobotFileParser()
+        parser.parse(truth["robots"].splitlines())
+        for bot, verdict in (signals.get("ai_crawlers") or {}).items():
+            want = "allowed" if parser.can_fetch(bot, f"https://{domain}/") else "blocked"
+            if not str(verdict).startswith(want):
+                problems.append(bot)
+    for name in ("llms_txt", "sitemap_xml"):
+        got = (signals.get(name) or {}).get("present")
+        if got is not None and truth.get(name) is not None and bool(got) != truth[name]:
+            problems.append(name)
+    return {"pass": not problems and bool(signals), "problems": problems}
+
+
 def case_arguments(agent_id: str, case: dict) -> dict:
     """The tool arguments for a gold case: the case input cut to the slot contract's fields, with the necklace
     names mapped to the contract's (topic-evidence-brief gives ``topic``; encyclopedia.summary.v1 takes
@@ -182,6 +244,8 @@ def applies(agent_id: str, case: dict) -> bool:
     """False when the source cannot answer the case at all (no LEI for GLEIF, no CIK for SEC): no call is made."""
     if agent_id in ("gleif-lei", "sec-edgar"):
         return bool((case.get("truth") or {}).get("lei" if agent_id == "gleif-lei" else "cik"))
+    if agent_id == "site-readiness":   # every site applies; an unreadable robots.txt is graded in judge_site
+        return bool((case.get("input") or {}).get("domain"))
     return True
 
 

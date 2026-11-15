@@ -132,7 +132,14 @@ prohibits 2건은 정의에 넣지 않았습니다. 넣으면 그 멤버가 모�
   - tz-time(timezone.time.v1)이 "위도,경도" 또는 "위도,경도,나라코드"를 받습니다.
   - 경계 칸에서는 후보마다 현지 시각을 담아 답하고 "near a time zone boundary"라고 적습니다. 외부 호출은 없습니다.
   - airport-lookup 답에 `country code XX`와 `time zone Region/City`(경계면 `time zone near a boundary: A or B`)를 고정 표현으로 넣습니다. 워크플로우가 norm_location에서 읽습니다.
-- 다시 만들기: timezonefinder-data가 새로 나오면(경계 자료 갱신) 같은 두 명령을 다시 돌립니다. 운영 배포에는 이 파일 하나만 필요합니다.
+- **한계(PM 13:58: 숫자 그대로)**
+  - 무작위 10만 점 중 단정 오류는 2건(0.002%)입니다. 둘 다 국경 바로 옆이고 같은 UTC 차이의 이웃 시간대입니다.
+  - 경계 칸(0.47%)에서는 시간대를 하나로 정하지 않습니다. 나라 코드가 없으면 후보만 냅니다.
+  - 칸 크기는 약 2km입니다. 그보다 작은 섬이나 고립 영토는 놓칠 수 있습니다.
+- **다시 만드는 주기**
+  - timezonefinder-data(경계 자료)나 tzdata의 새 판이 나올 때 다시 만듭니다. 대개 연 몇 번입니다.
+  - 운영 밖 3.12 venv에서 build와 check 두 명령을 돌리고(약 2분, 무거운 작업 칸), 대조 숫자를 이 절에 새로 적습니다.
+  - 운영 배포에는 이 파일 하나만 필요합니다. 경로는 FallbackAgents의 data_dir, 즉 `gateway-data/fallback-agents/tz-grid.bin`입니다. 파일이 없으면 tz-time의 좌표 질문은 source_unavailable(목걸이는 다음 멤버로 넘어감)이 되고, airport-lookup은 시간대만 빼고 답합니다.
 
 ## 남은 것
 

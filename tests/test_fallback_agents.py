@@ -70,7 +70,7 @@ def agents(tmp_path, routes, calls=None, clock=None, snapshot=None):
 
 # ------------------------------------------------------------------ catalog and contracts
 def test_tools_are_read_only_and_use_the_slot_contracts():
-    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard", "site-readiness", "wiki-grounding", "ecb-fx", "usgs-quakes", "tz-time", "airport-lookup", "wiktionary-define", "github-repo", "rdap-domain", "unit-convert", "wikidata-place", "wikidata-book"}
+    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard", "site-readiness", "wiki-grounding", "ecb-fx", "usgs-quakes", "tz-time", "airport-lookup", "wiktionary-define", "github-repo", "rdap-domain", "unit-convert", "wikidata-place", "wikidata-book", "gdelt-news"}
     for agent_id, spec in SPECS.items():
         tool = tool_spec(agent_id)
         c = contract(spec["contract"])
@@ -1535,6 +1535,40 @@ def test_airport_index_keeps_coded_open_airports_and_answers_offline(tmp_path):
     assert err.value.code == "not_found"
 
 
+def test_gdelt_news_lists_titles_outlets_dates_and_links_only(tmp_path):
+    """PM 11-15 13:52: topic -> article list from GDELT (title, outlet, date, URL), cited, no article text."""
+    calls = []
+    art = lambda i, url: {"url": url, "title": f"Story {i}", "seendate": f"202611{14 - i:02d}T080000Z",
+                          "domain": f"news{i}.example", "language": "English", "socialimage": "x"}
+    routes = {"https://api.gdeltproject.org/api/v2/doc/doc": httpx.Response(200, json={"articles": [
+        art(1, "https://news1.example/a"), art(2, "http://insecure.example/b"), art(3, "https://news3.example/c")]})}
+    a, _ = agents(tmp_path, routes, calls)
+    env = a.execute("gdelt-news", {"query": "solar storm", "limit": 5})
+    items = env["result"]["items"]
+    assert items == [{"title": "Story 1 (news1.example)", "url": "https://news1.example/a", "published": "2026-11-13T08:00:00Z"},
+                     {"title": "Story 3 (news3.example)", "url": "https://news3.example/c", "published": "2026-11-11T08:00:00Z"}]
+    assert "GDELT Project (https://www.gdeltproject.org/)" in env["result"]["source"]
+    assert "mode=artlist" in str(calls[0]) and "timespan=7d" in str(calls[0])
+    a.execute("gdelt-news", {"query": "Solar  storm"})                  # same topic: from the cache
+    assert len(calls) == 1
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("gdelt-news", {"query": "x"})
+    assert err.value.code == "invalid_input"
+
+
+def test_gdelt_news_plain_text_answers_are_not_news(tmp_path):
+    routes = {"https://api.gdeltproject.org/api/v2/doc/doc": httpx.Response(200, text="The specified phrase is too short.")}
+    a, _ = agents(tmp_path, routes)
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("gdelt-news", {"query": "ai chips"})
+    assert err.value.code == "invalid_input"
+    empty = {"https://api.gdeltproject.org/api/v2/doc/doc": httpx.Response(200, json={})}
+    a, _ = agents(tmp_path / "e", empty)
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("gdelt-news", {"query": "nothing here today"})
+    assert err.value.code == "not_found"
+
+
 def write_tz_grid(path, step=10.0):
     """A tiny grid in the reader's format: Asia/Seoul at 30-40N 120-130E, a Europe/Zurich|Europe/Berlin boundary
     cell at 40-50N 0-10E, Etc/GMT elsewhere."""
@@ -1793,3 +1827,32 @@ def test_host_limits_are_shared_across_processes(tmp_path):
 def test_default_agents_share_host_limits_under_the_data_folder(tmp_path):
     a = FallbackAgents(data_dir=tmp_path)
     assert a.limiters["api.gleif.org"].shared == tmp_path / "host-limits" / "api.gleif.org.json"
+
+
+# ------------------------------------------------------------------ gate grading for book and site substitutes (ops 11-15)
+def test_gold_slugs_and_judges_for_book_and_site_substitutes():
+    from agent_market.fallback_agents import gold_check as g
+    assert g.SLUG["wikidata-book"] == "book-author-brief" and g.SLUG["site-readiness"] == "website-trust-brief"
+    case = {"truth": {"author": "Virginia Woolf", "year": 1927}}
+    good = {"answer": "To the Lighthouse (1927 novel), author Virginia Woolf (born 1882)."}
+    assert g.judge("wikidata-book", case, good)["pass"]
+    assert not g.judge("wikidata-book", case, {"answer": "To the Lighthouse, author Virginia Woolf, published 1928."})["pass"]
+    assert not g.judge("wikidata-book", case, None)["pass"]
+    site = {"input": {"domain": "example.com"}}
+    robots = "User-agent: GPTBot\nDisallow: /\n\nUser-agent: *\nAllow: /\n"
+    truth = {"robots": robots, "robots_note": None, "llms_txt": False, "sitemap_xml": True}
+    answer = {"domain": "example.com", "signals": {"robots_txt": {"present": True},
+              "ai_crawlers": {"GPTBot": "blocked", "ClaudeBot": "allowed (by the * rule)"},
+              "llms_txt": {"present": False}, "sitemap_xml": {"present": True}}, "source": "x"}
+    assert g.judge_site(site, answer, truth)["pass"]
+    wrong = {**answer, "signals": {**answer["signals"], "ai_crawlers": {"GPTBot": "allowed"}}}
+    assert g.judge_site(site, wrong, truth)["problems"] == ["GPTBot"]
+    unknown = {**answer, "signals": {**answer["signals"], "llms_txt": {"present": None, "note": "not read"}}}
+    assert g.judge_site(site, unknown, {**truth, "llms_txt": True})["pass"]          # the agent's unknown is not graded
+    down = {"robots": None, "robots_note": "could not read: timed out", "llms_txt": None, "sitemap_xml": None}
+    said = {"domain": "example.com", "signals": {"robots_txt": {"present": False, "note": "could not read: timed out"}},
+            "source": "x"}
+    assert g.judge_site(site, said, down)["pass"] and not g.judge_site(site, answer, down)["pass"]
+    absent = {"robots": None, "robots_note": "HTTP 404", "llms_txt": False, "sitemap_xml": False}
+    assert not g.judge_site(site, answer, absent)["pass"]                              # it said present
+    assert g.applies("site-readiness", site) and not g.applies("site-readiness", {"input": {}})

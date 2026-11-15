@@ -124,6 +124,11 @@ NIST = {"name": "NIST Special Publication 811 conversion factors", "url": "https
         "license": "U.S. Government work, public domain in the United States",
         "notice": "Computed on our server from exact SI definitions; US customary units (US gallon, avoirdupois pound)."}
 
+GDELT = {"name": "The GDELT Project, DOC 2.0 API", "url": "https://www.gdeltproject.org/",
+         "license": "GDELT terms of use: datasets are available for unlimited and unrestricted use, redistribution "
+                    "must cite the GDELT Project with a link (https://www.gdeltproject.org/about.html#termsofuse)",
+         "notice": "Titles, outlets, dates and links only; the articles belong to their publishers."}
+
 WIKIDATA = {"name": "Wikidata, Wikimedia Foundation", "url": "https://www.wikidata.org/",
             "license": "CC0 1.0 (structured data, https://www.wikidata.org/wiki/Wikidata:Licensing)",
             "notice": "Community-edited data; the first matching item with the needed property is chosen and named with its Q-id."}
@@ -313,6 +318,13 @@ SPECS = {
                        "index and a time-zone boundary grid; read-only.",
         "sources": [OURAIRPORTS, TZ_BOUNDARIES],
         "rate": "no network calls per request; the index is refreshed once a day",
+    },
+    "gdelt-news": {
+        "name": "AgentValCon GDELT News", "tool": "search_news_gdelt", "contract": "news.search.v1",
+        "description": "List recent news articles on a topic from the last 7 days in GDELT: title, outlet, date "
+                       "and link (never the article text), newest first; read-only.",
+        "sources": [GDELT],
+        "rate": "one request every 5 seconds; the same topic cached 1 hour",
     },
     "wiktionary-define": {
         "name": "AgentValCon Wiktionary Definition", "tool": "define_word", "contract": "dictionary.define.v1",

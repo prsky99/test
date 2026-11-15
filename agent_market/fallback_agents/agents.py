@@ -44,7 +44,7 @@ MAX_AGE = {"nvd-cve": 6 * 3600, "cve-org": 24 * 3600, "cisa-kev": 24 * 3600, "gi
            "wiki-grounding": 24 * 3600, "ecb-fx": 26 * 3600, "usgs-quakes": 3600,
            "tz-time": 400 * 86400, "airport-lookup": 8 * 86400, "wiktionary-define": 7 * 86400,
            "github-repo": 24 * 3600, "rdap-domain": 7 * 86400, "unit-convert": 10 * 365 * 86400,
-           "wikidata-place": 7 * 86400, "wikidata-book": 7 * 86400}  # rules age from the library release; update the pin at least yearly
+           "wikidata-place": 7 * 86400, "wikidata-book": 7 * 86400, "gdelt-news": 6 * 3600}  # rules age from the library release; update the pin at least yearly
 TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "github-advisory": (3600, 6 * 3600),
        "epss": (6 * 3600, 48 * 3600), "package-registry": (3600, 6 * 3600), "depsdev-package": (6 * 3600, 24 * 3600),
        "gleif-lei": (6 * 3600, 24 * 3600), "sec-edgar": (6 * 3600, 24 * 3600), "sec-tickers": (6 * 3600, 24 * 3600),
@@ -54,7 +54,8 @@ TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "githu
        "site-readiness": (6 * 3600, 24 * 3600), "wiki-grounding": (6 * 3600, 24 * 3600), "ecb-fx": (3600, 26 * 3600),
        "usgs-quakes": (300, 3600), "wiktionary-define": (86400, 7 * 86400), "github-repo": (6 * 3600, 24 * 3600),
        "rdap-domain": (6 * 3600, 7 * 86400), "rdap-bootstrap": (86400, 7 * 86400),
-       "wikidata-place": (86400, 7 * 86400), "wikidata-book": (86400, 7 * 86400)}  # (serve from cache without asking, longest a cached copy may serve)
+       "wikidata-place": (86400, 7 * 86400), "wikidata-book": (86400, 7 * 86400),
+       "gdelt-news": (3600, 6 * 3600)}  # (serve from cache without asking, longest a cached copy may serve)
 KEV_TTL, KEV_MAX_STALE = 3600, 24 * 3600
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 PACKAGE = re.compile(r"(?:@[a-z0-9][a-z0-9._~-]*/)?[A-Za-z0-9][A-Za-z0-9._~-]*")
@@ -1267,6 +1268,59 @@ class FallbackAgents:
         if found["zone"]:
             return f", time zone {found['zone']}"
         return ", time zone near a boundary: " + " or ".join(found["candidates"][:4])
+
+    def _gdelt_news(self, args, remaining):
+        """news.search.v1 from the GDELT DOC 2.0 API (PM 11-15 13:52): article titles, outlet, date and link for a
+        topic in the last 7 days; never the article text. GDELT allows unrestricted use with a citation and link."""
+        query = " ".join(str(args.get("query") or "").split())
+        if not 2 <= len(query) <= 300 or any(c in query for c in "<>{}\\"):
+            raise FallbackUnavailable("invalid_input", "Use a topic of 2 to 300 characters.")
+        try:
+            limit = max(1, min(20, int(args.get("limit") or 10)))
+        except (TypeError, ValueError):
+            raise FallbackUnavailable("invalid_input", "limit is a number from 1 to 20.") from None
+        # GDELT treats bare words as AND; a phrase with spaces is quoted only when the caller quoted it
+        terms = query if len(query.split()) == 1 or '"' in query else " ".join(w for w in query.split() if len(w) > 2) or query
+
+        def live(rem):
+            response = get("https://api.gdeltproject.org/api/v2/doc/doc", limiters=self.limiters, http=self.http,
+                           params={"query": terms, "mode": "artlist", "format": "json", "maxrecords": 20,
+                                   "timespan": "7d", "sort": "datedesc"},
+                           seconds=max(0.1, rem() - 0.1), limit=2 * 1024 * 1024)
+            text = response.content.decode("utf-8", "replace").strip()
+            if not text.startswith("{"):
+                # GDELT answers plain text for a query it rejects (too short, bad operator) or when it is busy
+                if re.search(r"(?i)limit requests|too many", text):
+                    raise SourceBusy("GDELT asked us to slow down.")
+                raise FallbackUnavailable("invalid_input", "GDELT did not accept this topic; use plain words.")
+            raw = json.loads(text)
+            rows = []
+            for art in raw.get("articles") or []:
+                if not isinstance(art, dict):
+                    continue
+                url, title = str(art.get("url") or ""), _text(art.get("title"), 300)
+                if not url.startswith("https://") or not title:
+                    continue
+                seen = str(art.get("seendate") or "")
+                published = (f"{seen[:4]}-{seen[4:6]}-{seen[6:8]}T{seen[9:11]}:{seen[11:13]}:{seen[13:15]}Z"
+                             if re.fullmatch(r"\d{8}T\d{6}Z", seen) else "")
+                rows.append({"title": title, "url": url[:2000], "published": published,
+                             "outlet": _text(art.get("domain"), 100), "language": _text(art.get("language"), 40)})
+            return rows, _now_iso(self.utc_now())
+        (rows, as_of), cache = self._cached(("gdelt-news", terms.lower()), TTL["gdelt-news"], live, remaining)
+        if not rows:
+            raise FallbackUnavailable("not_found", "GDELT has no articles on this topic in the last 7 days.")
+        items = []
+        for r in rows[:limit]:
+            title = r["title"] + (f" ({r['outlet']})" if r["outlet"] else "")
+            item = {"title": title[:4000], "url": r["url"]}
+            if r["published"]:
+                item["published"] = r["published"]
+            items.append(item)
+        out = {"items": items,
+               "source": "The GDELT Project (https://www.gdeltproject.org/), DOC 2.0 API, articles seen in the last "
+                         "7 days; titles and links only, the articles belong to their publishers"}
+        return out, cache, False, {"GDELT DOC API": as_of}
 
     def _wiktionary_define(self, args, remaining):
         word = next((" ".join(str(args[k]).split()) for k in ("word", "term", "query") if args.get(k)), "")
