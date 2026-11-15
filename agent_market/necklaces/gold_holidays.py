@@ -27,6 +27,68 @@ TERRITORIES = {"GU", "PR", "VI", "AS", "MP", "NC", "PF", "RE", "GF", "GP", "MQ",
                "CW", "AW", "SX", "CC", "CX", "NF", "HK", "MO", "GI", "IM", "JE", "GG", "FO", "GL", "AX", "PS", "EH", "XK"}
 
 
+# Official calendars (PM 11-15): where a government calendar is easy to read, it is the truth and the difference
+# with Nager.Date is kept (nager-<year>/official-<cc>.json); first JP (Cabinet Office CSV) and US (5 U.S.C. 6103).
+JP_OFFICIAL = "https://www8.cao.go.jp/chosei/shukujitsu/syukujitsu.csv"
+
+
+def _nth(year, month, weekday, n):
+    from datetime import date, timedelta
+    first = date(year, month, 1)
+    day = first + timedelta(days=(weekday - first.weekday()) % 7 + 7 * (n - 1))
+    return day
+
+
+def _last(year, month, weekday):
+    from datetime import date, timedelta
+    day = date(year, month + 1, 1) - timedelta(days=1)
+    return day - timedelta(days=(day.weekday() - weekday) % 7)
+
+
+def _observed(day):
+    from datetime import timedelta
+    return day - timedelta(days=1) if day.weekday() == 5 else day + timedelta(days=1) if day.weekday() == 6 else day
+
+
+def us_federal(year: int, get=None) -> list[str]:
+    """The eleven legal public holidays of 5 U.S.C. 6103, with the federal observed-day rule (Saturday -> Friday,
+    Sunday -> Monday)."""
+    from datetime import date
+    days = [_observed(date(year, 1, 1)), _nth(year, 1, 0, 3), _nth(year, 2, 0, 3), _last(year, 5, 0),
+            _observed(date(year, 6, 19)), _observed(date(year, 7, 4)), _nth(year, 9, 0, 1), _nth(year, 10, 0, 2),
+            _observed(date(year, 11, 11)), _nth(year, 11, 3, 4), _observed(date(year, 12, 25))]
+    return sorted(d.isoformat() for d in days if d.year == year)
+
+
+def jp_cabinet_office(year: int, get=fetch_text) -> list[str]:
+    """The Cabinet Office's list of national holidays (syukujitsu.csv: 'YYYY/M/D,name' per line)."""
+    import re
+    out = []
+    for y, m, d in re.findall(r"(\d{4})/(\d{1,2})/(\d{1,2})", get(JP_OFFICIAL)):
+        if int(y) == year:
+            out.append(f"{y}-{int(m):02d}-{int(d):02d}")
+    return sorted(set(out))
+
+
+OFFICIAL = {"JP": jp_cabinet_office, "US": us_federal}
+
+
+def official_check(root: Path, cc: str, nager: list[str], year: int = YEAR, get=fetch_text) -> dict | None:
+    """The official list for CC when there is one, kept with its difference from Nager.Date."""
+    if cc not in OFFICIAL:
+        return None
+    path = Path(root) / "gold" / "raw" / f"nager-{year}" / f"official-{cc}.json"
+    if path.exists():
+        return json.loads(path.read_text(encoding="utf-8"))
+    official = OFFICIAL[cc](year, get)
+    if not official:
+        return None
+    row = {"country": cc, "official": official, "missing_in_nager": sorted(set(official) - set(nager)),
+           "extra_in_nager": sorted(set(nager) - set(official)), "checked_at": _now()}
+    path.write_text(json.dumps(row, ensure_ascii=False, indent=1), encoding="utf-8")
+    return row
+
+
 def places(root: Path) -> list[dict]:
     raw = Path(root) / "gold" / "raw" / "airports-20261115" / "airport-cases.json"
     rows = json.loads(raw.read_text(encoding="utf-8"))["cases"]
@@ -62,6 +124,15 @@ def build(root: Path = DEFAULT_ROOT, get=fetch_text, year: int = YEAR) -> dict:
     rows = places(root)
     countries = sorted({r["truth"]["country"] for r in rows}, key=lambda c: -sum(r["truth"]["country"] == c for r in rows))
     fetched = fetch_missing(root, countries, year, get)
+    checks = {}
+    for cc in list(fetched["kept"]):
+        try:
+            row = official_check(root, cc, fetched["kept"][cc], year, get)
+        except Exception:                      # noqa: BLE001 - no official reading today: Nager stays the truth
+            row = None
+        if row:
+            checks[cc] = row
+            fetched["kept"][cc] = row["official"]            # the government's own calendar is the truth
     cases = []
     for r in rows:
         cc = r["truth"]["country"]
@@ -74,10 +145,13 @@ def build(root: Path = DEFAULT_ROOT, get=fetch_text, year: int = YEAR) -> dict:
                                 "country_code": cc, "year": year, "holidays": fetched["kept"][cc]},
                       "truth_sources": [{"name": "OurAirports airports.csv (public domain)",
                                          "url": "https://davidmegginson.github.io/ourairports-data/airports.csv"},
-                                        {"name": "Nager.Date public holidays (global, Public)",
+                                        {"name": ("official calendar (checked against Nager.Date)" if cc in checks
+                                                  else "Nager.Date public holidays (global, Public)"),
                                          "url": NAGER.format(year=year, cc=cc), "fetched_at": _now()}]})
     out = {"cases": len(cases), "countries_kept": len(fetched["kept"]), "countries": len(countries),
-           "stopped": fetched["stopped"]}
+           "stopped": fetched["stopped"],
+           "official": {cc: {"missing_in_nager": r["missing_in_nager"], "extra_in_nager": r["extra_in_nager"]}
+                        for cc, r in checks.items()}}
     if len(cases) >= NEEDED:
         out["manifest"] = write_set(Path(root), SLUG, split(cases),
                                     {"answer_set": ANSWER_SET, "built_from": len(cases), "year": year})

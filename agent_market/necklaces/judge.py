@@ -297,6 +297,8 @@ def build_entry(defn: dict, approval: dict | None, summary: dict, now: float,
         "cost": summary.get("cost"),
         "stage": summary.get("stage"),
         "replaces_templates": list(defn.get("replaces_templates") or []),
+        # what the necklace covers, for the page (PM 11-15: national holidays only, territories as their country)
+        "scope_notice": defn.get("scope_notice"),
         "replaced_at": defn.get("replaced_at"),
     }
     entry["pearl_count"] = sum(1 for p in entry["pearls"] if p["pearl"])

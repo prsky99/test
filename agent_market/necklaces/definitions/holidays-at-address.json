@@ -145,5 +145,6 @@
   "input_help": {
     "address": "A street address, landmark or city, for example Tokyo Tower, Minato, Tokyo, Japan.",
     "year": "The calendar year, for example 2026."
-  }
+  },
+  "scope_notice": "National public holidays only: regional (state or province) holidays are not included. A place in an overseas territory is answered with the holidays of the country it belongs to, which can differ from the territory's own."
 }
