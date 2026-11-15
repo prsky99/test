@@ -93,6 +93,8 @@ TESTS = (
     'tests/test_lite_pages_browser.py',  # 11-14: about, agent-status and learn run without operating.js
     'tests/test_site_policy_browser.py::test_consent_banner_choices_and_return_visits',  # 11-14: consent on all nine pages
     'tests/test_site_policy_browser.py::test_notifications_dialog_on_pages_without_operating_links_to_the_home_settings',
+    'tests/test_html_csp_allows_own_styles.py',  # 11-15: pages that link our stylesheets carry style-src 'self'
+    'tests/test_growth_page_csp.py',  # 11-15: /advertise, /methodology and necklace pages with data
 )
 # Each role runs the tests for the code it serves. jobs releases run the collector, health checks,
 # crawler and evaluation without the typed execution engine, so the opening-path list above
