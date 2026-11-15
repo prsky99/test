@@ -380,3 +380,20 @@ def test_ten_mcp_tasks_from_one_address_pass_and_the_eleventh_execution_is_limit
     eleventh=rpc(client,path,'tools/call',{'name':'get_weather','arguments':{'city':'Tokyo'}})
     assert eleventh.status_code==429 and eleventh.headers['retry-after']=='60'
     assert rpc(client,path,'tools/list').status_code==200   # connection calls still answer
+
+
+def test_the_origin_gateway_keeps_its_own_four_execution_slots(managed):
+    """11-15 (PM 10:46): calls handed over from a full edge run here under these slots, never past them."""
+    from agent_market.concierge import managed_gateway
+    store,front,client,_,rid,calls,remote=managed
+    taken=0
+    while managed_gateway._slots.acquire(blocking=False):taken+=1
+    try:
+        assert taken==4
+        response=rpc(client,f'/api/gateway/mcp/{rid}','tools/call',{'name':'get_weather','arguments':{'city':'Tokyo'}})
+        assert response.status_code==503 and response.headers['retry-after']=='5'
+        assert not calls
+    finally:
+        for _ in range(taken):managed_gateway._slots.release()
+    response=rpc(client,f'/api/gateway/mcp/{rid}','tools/call',{'name':'get_weather','arguments':{'city':'Tokyo'}})
+    assert response.status_code==200 and len(calls)>=1

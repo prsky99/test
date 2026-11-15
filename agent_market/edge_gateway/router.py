@@ -288,8 +288,16 @@ def install(app, front):
             # for the rate gate above. 11-14 (PM 04:5x): provider handshake failures carry PROVIDER_UNAVAILABLE (502)
             # apart from our own UNAVAILABLE (503); both are handed over. A provider that answered 429 is not called
             # again through the Origin gateway: PROVIDER_RATE_LIMITED goes back with its Retry-After.
-            if exc.code not in ('UNAVAILABLE', 'PROVIDER_UNAVAILABLE'):
+            # 11-15 (PM 10:46): the edge in-flight limit (max_inflight) answered CAPACITY_EXCEEDED 503 and the Worker
+            # passed "The execution is unavailable" to the caller (241601, 10:13-10:25). Nothing is claimed when it
+            # refuses, so the request goes to the Origin gateway, which runs it under its own slots (a busy Origin
+            # answers 503 with Retry-After). The Worker holds no grant, so the call is not run twice.
+            if exc.code not in ('UNAVAILABLE', 'PROVIDER_UNAVAILABLE', 'CAPACITY_EXCEEDED'):
                 raise
+            if exc.code == 'CAPACITY_EXCEEDED':
+                log.warning('Edge public prepare: the edge in-flight limit is full; handed to the Origin gateway')
+                fallback('capacity')
+                return JSONResponse({'backend': 'origin'}, headers={'Cache-Control': 'private, no-store'})
             log.info('Edge public prepare: the provider handshake failed; handed to the Origin gateway')
             fallback('handshake')
             return JSONResponse({'backend': 'origin'}, headers={'Cache-Control': 'private, no-store'})

@@ -108,3 +108,24 @@ def test_an_unreachable_provider_handshake_hands_the_call_to_the_origin_gateway(
     assert response.status_code == 200 and response.json() == {'backend': 'origin'}
     assert 'tools/call' not in seen and not edge.calls
     assert recorder.snapshot()['funnel'] == {'edge_fallback|handshake': 1}   # PM 11-12: how often it happens
+
+
+def test_a_full_edge_in_flight_limit_hands_the_call_to_the_origin_gateway_once(edge, catalog, monkeypatch):
+    """11-15 (PM 10:46): CAPACITY_EXCEEDED went to the caller as "The execution is unavailable" (241601)."""
+    from dataclasses import replace
+    from agent_market.concierge import traffic
+    from agent_market.edge_gateway.state import transaction
+    enable(edge, monkeypatch); rid = mcp_resource(edge, catalog)
+    edge.service.config = replace(edge.service.config, max_inflight=0)   # every slot is taken
+    recorder = traffic.Traffic(root=None)
+    monkeypatch.setattr(traffic, 'recorder', lambda: recorder)
+    value = {'tool': 'get_weather', 'arguments': {'city': 'Tokyo'}}
+    first = bridge(edge, rid, value)
+    again = bridge(edge, rid, value)   # the same idempotency key, as a client retry sends it
+    assert first.status_code == again.status_code == 200
+    assert first.json() == again.json() == {'backend': 'origin'}
+    with transaction(edge.store, readonly=True) as db:   # nothing was claimed or dispatched at the edge
+        assert db.execute("SELECT count(*) FROM edge_gateway_runs WHERE state='dispatch_reserved'").fetchone()[0] == 0
+        assert db.execute("SELECT count(*) FROM edge_gateway_runs").fetchone()[0] <= 1   # one prepared row, reused
+    assert not edge.calls
+    assert recorder.snapshot()['funnel'] == {'edge_fallback|capacity': 2}
