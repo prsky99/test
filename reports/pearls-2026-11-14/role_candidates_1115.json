@@ -36,6 +36,78 @@
  },
  {
   "role": "news.search",
+  "id": 58662,
+  "tool": "search_articles",
+  "host": "newsflash.sh"
+ },
+ {
+  "role": "news.search",
+  "id": 39551,
+  "tool": "news",
+  "host": "mcp.newsmcp.com"
+ },
+ {
+  "role": "news.search",
+  "id": 34231,
+  "tool": "search_news",
+  "host": "thinkpattern.ai"
+ },
+ {
+  "role": "news.search",
+  "id": 58492,
+  "tool": "search_news",
+  "host": "pure.report"
+ },
+ {
+  "role": "news.search",
+  "id": 268473,
+  "tool": "news_search",
+  "host": "ukdata.reliness.co.uk"
+ },
+ {
+  "role": "news.search",
+  "id": 47018,
+  "tool": "search_news",
+  "host": "heliumtrades.com"
+ },
+ {
+  "role": "news.search",
+  "id": 47122,
+  "tool": "gdelt_search_articles",
+  "host": "gdelt.caseyjhand.com"
+ },
+ {
+  "role": "news.search",
+  "id": 143968,
+  "tool": "news_search",
+  "host": "faceabot.com"
+ },
+ {
+  "role": "news.search",
+  "id": 263203,
+  "tool": "news_search",
+  "host": "tanod.dev"
+ },
+ {
+  "role": "news.search",
+  "id": 365534,
+  "tool": "search_news",
+  "host": "raydn.us"
+ },
+ {
+  "role": "news.search",
+  "id": 420553,
+  "tool": "search_news",
+  "host": "mcp.polymath.news"
+ },
+ {
+  "role": "news.search",
+  "id": 281854,
+  "tool": "todays_top_stories",
+  "host": "mcp.nwsppr.ai"
+ },
+ {
+  "role": "news.search",
   "id": 50972,
   "tool": "news_search"
  },
