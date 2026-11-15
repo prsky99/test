@@ -871,7 +871,7 @@
  "sec-company-profile": [
   [
    {
-    "title": "CIK 320193"
+    "company": "CIK 320193"
    },
    "ok",
    "live",
@@ -879,7 +879,7 @@
   ],
   [
    {
-    "title": "Microsoft Corp"
+    "company": "Microsoft Corp"
    },
    "ok",
    "live",
@@ -887,7 +887,7 @@
   ],
   [
    {
-    "title": "a|b"
+    "company": "a|b"
    },
    "invalid_input",
    null,
@@ -895,7 +895,7 @@
   ],
   [
    {
-    "title": "Qwzx Plorb Nonexistent Holdings"
+    "company": "Qwzx Plorb Nonexistent Holdings"
    },
    "not_found",
    "live",

@@ -231,7 +231,7 @@ SPECS = {
         "rate": "at most 5 requests per second (SEC allows 10); ticker list cached 24 hours",
     },
     "sec-company-profile": {
-        "name": "AgentValCon SEC Company Profile", "tool": "get_sec_company_profile", "contract": "encyclopedia.summary.v1",
+        "name": "AgentValCon SEC Company Profile", "tool": "get_sec_company_profile", "contract": "company.profile.v1",
         "description": "Describe one SEC filer from its own EDGAR registration, by CIK (\"CIK 320193\"), exact filer "
                        "name or ticker: SIC industry, state of incorporation, business address and tickers in one or "
                        "two sentences. A company profile from SEC filings, not an encyclopedia article; read-only.",

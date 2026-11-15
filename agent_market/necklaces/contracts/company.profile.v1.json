@@ -1,0 +1,36 @@
+{
+  "id": "company.profile.v1",
+  "role": "Short profile of one registered company from its own regulatory filings, not an encyclopedia article (PM 11-16: company profiles are judged apart from encyclopedia.summary.v1, so the two kinds of role task do not mix)",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "company": {"type": "string", "minLength": 1, "maxLength": 300}
+    },
+    "required": ["company"],
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "title": {"type": "string", "maxLength": 300},
+      "summary": {"type": "string", "maxLength": 4000},
+      "cik": {"type": "string", "pattern": "^[0-9]{1,10}$"},
+      "industry": {"type": "string", "maxLength": 300},
+      "tickers": {"type": "array", "items": {"type": "string", "maxLength": 12}, "maxItems": 5},
+      "url": {"type": "string", "pattern": "^https://", "maxLength": 2000},
+      "source": {"type": "string"}
+    },
+    "required": ["title", "summary", "source"],
+    "additionalProperties": false
+  },
+  "rules": [
+    "the profile is about the requested company: an identifier (CIK, exact registered name or ticker) resolves to one filer",
+    "the summary says the profile comes from filings and is not an encyclopedia article",
+    "a name shared by several filers, or no filer, is not_found, never a guess",
+    "read-only lookup; no account, payment or write"
+  ],
+  "test_inputs": [
+    {"company": "CIK 320193"},
+    {"company": "Microsoft Corp"}
+  ]
+}

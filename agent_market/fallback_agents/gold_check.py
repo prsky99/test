@@ -342,7 +342,7 @@ def case_arguments(agent_id: str, case: dict) -> dict:
     allowed = contract(SPECS[agent_id]["contract"])["input_schema"]["properties"]
     if agent_id == "sec-company-profile":
         # the background seat gets the registry step's CIK ("CIK {{slot.registry.cik}}"), as in the chain
-        return {"title": f"CIK {(case.get('truth') or {}).get('cik')}"}
+        return {"company": f"CIK {(case.get('truth') or {}).get('cik')}"}
     if agent_id == "usgs-quakes":
         # in the necklace it reads the place the location step resolved; alone it gets the truth point (workflow)
         truth = case["truth"]

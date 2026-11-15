@@ -598,12 +598,13 @@ class FallbackAgents:
         return out, cache, False, {"SEC EDGAR": as_of}
 
     def _sec_company_profile(self, args, remaining):
-        """encyclopedia.summary.v1 from SEC EDGAR submissions (workflow 11-16, company-due-diligence v2 background):
+        """company.profile.v1 from SEC EDGAR submissions (workflow 11-16, company-due-diligence v2 background; PM 11-16:
+        its own contract, judged apart from encyclopedia.summary.v1):
         a one- or two-sentence company profile built from the filer's own registration (SIC industry, state of
         incorporation, business address, tickers), said to be from SEC filings and not an encyclopedia article.
-        The title is "CIK 320193" (or the bare number), an exact SEC filer name (with or without its legal form) or
-        a listed ticker; a name shared by several filers is not guessed."""
-        title = " ".join(str(args.get("title") or "").split())
+        The company is "CIK 320193" (or the bare number), an exact SEC filer name (with or without its legal form)
+        or a listed ticker; a name shared by several filers is not guessed."""
+        title = " ".join(str(args.get("company") or "").split())
         if not title or any(c in title for c in "|#<>[]{}"):
             raise FallbackUnavailable("invalid_input", "Use a CIK, an SEC filer name or a ticker.")
         cik, list_cache = None, None
@@ -651,9 +652,13 @@ class FallbackAgents:
             summary = f"{name} (SEC CIK {cik})"
             summary += (": " + "; ".join(facts) + ".") if facts else " is an SEC EDGAR filer."
             summary += " Company profile from SEC EDGAR filings (not an encyclopedia article)."
-            out = {"title": name, "summary": summary[:4000],
+            out = {"title": name, "summary": summary[:4000], "cik": str(cik),
                    "url": f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik:010d}",
                    "source": "SEC EDGAR filings (company profile, not an encyclopedia article)"}
+            if sic_text:
+                out["industry"] = sic_text
+            if tickers:
+                out["tickers"] = tickers
             return out, _now_iso(self.utc_now())
         (out, as_of), cache = self._cached(("sec-company-profile", cik), TTL["sec-company-profile"], live, remaining)
         if list_cache is not None and list_cache["age_seconds"] > cache["age_seconds"]:
