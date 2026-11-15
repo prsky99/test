@@ -245,7 +245,10 @@ def first_card_available(body):
 def failure_reason(entry, card):
     """Why a connect sample failed, recorded beside the verdict (PM 11-13 decision 2: nothing is excluded).
 
-    policy_blocked: the gateway does not relay the recommended tool because the tool itself acts (send_email);
+    policy_blocked_action: the gateway does not relay the recommended tool because the tool itself acts (send_email),
+    and Chat had no relayed tool to put first (relayable_only), so the honest answer links the provider's docs. Still a
+    failed connection: the reason only shows the cause, the count and verdict are unchanged (PM 11-16 02:5x, renamed
+    from policy_blocked; records before 11-16 03:00 say policy_blocked);
     unverified_tool: a read tool the gateway has not verified as read-only (fixable on our side);
     unrelayed: not relayed, from a card that predates the reason field; connect_failed: the connection itself failed;
     no_gateway_endpoint / no_recommendation as before. None for a passing sample."""
@@ -255,7 +258,7 @@ def failure_reason(entry, card):
         return entry['error']
     reason = (card or {}).get('connection_reason')
     if reason == 'action_tool':
-        return 'policy_blocked'
+        return 'policy_blocked_action'
     if reason == 'not_verified_read_only':
         return 'unverified_tool'
     failure = entry.get('failure') or {}

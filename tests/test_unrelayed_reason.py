@@ -20,11 +20,11 @@ def test_unrelayed_reason_and_note():
 def test_user_slo_failure_reason():
     from scripts.user_slo import failure_reason
     blocked = {'tools': 0, 'error': None, 'connection_available': False}
-    assert failure_reason(blocked, {'connection_reason': 'action_tool'}) == 'policy_blocked'
+    assert failure_reason(blocked, {'connection_reason': 'action_tool'}) == 'policy_blocked_action'
     assert failure_reason(blocked, {'connection_reason': 'not_verified_read_only'}) == 'unverified_tool'
     assert failure_reason(blocked, {}) == 'unrelayed'
     assert failure_reason({'tools': 0, 'error': 'timeout', 'connection_available': True}, {}) == 'connect_failed'
     assert failure_reason({'tools': 1, 'error': 'tool_unlisted', 'connection_available': False},
-                          {'connection_reason': 'action_tool'}) == 'policy_blocked'
+                          {'connection_reason': 'action_tool'}) == 'policy_blocked_action'
     assert failure_reason({'tools': 0, 'error': 'no_gateway_endpoint'}, None) == 'no_gateway_endpoint'
     assert failure_reason({'tools': 3, 'error': None, 'connection_available': True}, {}) is None
