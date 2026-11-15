@@ -130,7 +130,23 @@ def remaining(agent_id, split, fill_from=None, exclude=frozenset(), prior=()):
     return [c for c in held_out(agent_id, split, fill_from, exclude) if c['case_id'] not in done]
 
 
-def run(agent_ids, split, raw_path, agents=None, fill_from=None, exclude=frozenset(), limit=None, previous=None):
+def pace(agents, agent_id, sleep=time.sleep, longest=120.0):
+    """Wait OUTSIDE the call budget until the agent's slow hosts may be called again (agent team 11-15: arXiv's 3 s
+    spacing used up most of the 3.3 s call budget when cases ran back to back, so 4 timed out, and after a 503 the
+    next cases met a resting host). Only hosts spaced 1 s or more; a rest after 429/503 is waited for, at most LONGEST."""
+    from urllib.parse import urlsplit
+    waits = []
+    for url in DOMAINS.get(agent_id) or []:
+        limiter = (getattr(agents, 'limiters', None) or {}).get(urlsplit(url).hostname)
+        if limiter is None or limiter.spacing < 1.0:
+            continue
+        waits.append(max(limiter.spacing + 0.2, limiter.resting()))
+    if waits:
+        sleep(min(longest, max(waits)))
+
+
+def run(agent_ids, split, raw_path, agents=None, fill_from=None, exclude=frozenset(), limit=None, previous=None,
+        sleep=time.sleep):
     """With limit, one part of a verdict split over days (11-15 PM: GLEIF 15 cases a day, 2 calls each); with
     previous (the rows of the earlier parts per agent) the verdict is judged on every part's rows together."""
     from agent_market.fallback_agents.agents import FallbackAgents, FallbackUnavailable
@@ -145,6 +161,7 @@ def run(agent_ids, split, raw_path, agents=None, fill_from=None, exclude=frozens
                 cases = cases[:limit]
             rows = []
             for case in cases:
+                pace(agents, agent_id, sleep)
                 started, envelope, code = time.monotonic(), None, None
                 try:
                     # The same mapping as the tuning runs (11-15: cutting to the contract fields dropped 'topic',
@@ -162,6 +179,7 @@ def run(agent_ids, split, raw_path, agents=None, fill_from=None, exclude=frozens
             contract_rows = []
             inputs = json.loads(CONTRACT_INPUTS.read_text()).get(agent_id) or []
             for arguments, expect, *_ in inputs:
+                pace(agents, agent_id, sleep)
                 try:
                     agents.execute(agent_id, arguments)
                     contract_rows.append(expect == 'ok')

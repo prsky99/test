@@ -146,3 +146,21 @@ def test_every_fallback_agent_has_a_domain_entry():
     assert set(G.DOMAINS) == set(SPECS)
     for agent_id, urls in G.DOMAINS.items():
         assert len({domain(u) for u in urls}) == len(urls), agent_id
+
+
+def test_pace_waits_outside_the_call_budget_for_slow_hosts():
+    """Agent team 11-15: arXiv's 3 s spacing ate the 3.3 s budget when gate cases ran back to back."""
+    import scripts.substitute_gate as gate
+    from agent_market.fallback_agents.limits import limiters
+
+    class Agents:
+        def __init__(self):
+            self.limiters = limiters()
+    a, slept = Agents(), []
+    gate.pace(a, "arxiv-search", slept.append)
+    assert slept == [3.2]                                   # arXiv spacing 3 s + 0.2
+    a.limiters["export.arxiv.org"].rest_until = a.limiters["export.arxiv.org"].clock() + 60   # after a 503
+    gate.pace(a, "arxiv-search", slept.append)
+    assert 59 <= slept[-1] <= 60.1
+    gate.pace(a, "wikipedia-summary", slept.append)          # fast hosts are not paced
+    assert len(slept) == 2
