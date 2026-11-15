@@ -79,12 +79,17 @@
 | 재시험 대기열 위치 | `report_v2`의 재시험 대기열에서의 순서와 예상 시각 | 순서 앞당기기 |
 
 - 다른 고객의 실행 기록이나 사용자 질의는 보여 주지 않습니다. 제공자 자원의 공개 시험 결과만 보여 줍니다.
-- 공개 페이지의 "제공자 확인됨" 표시는 1단계에 넣지 않습니다(아래 결정 3).
+- 공개 페이지의 "제공자 확인됨" 표시는 두지 않습니다(PM 결정 3). 확인 여부는 제공자 본인 화면과 운영 화면에만 보입니다.
 - 유료 이용권(알림·분석, AI AD Coin 설계)은 이 확인을 전제로 나중에 붙습니다.
 
 ## 6. 표와 등록 SQL
 
-새 표 3개를 운영 PG `public` 스키마에 둡니다. **트리거와 함수는 만들지 않습니다**(public 트리거 5개 불변식). 운영 DB 구조 변경이므로 절차 대상입니다: `scripts.db_change_rehearsal run` → 복구 SQL → 사용자 승인 → `check` 0 확인 뒤 실행.
+**구현에서 바뀐 점(11-15): public이 아니라 자기 스키마 `provider_claims`에 둡니다.**
+- 이유: 애플리케이션 저장소는 시작할 때 공용 카탈로그(`application_store_sql.json`)에 적힌 모든 표가 운영에 있는지 검사합니다. 새 표를 카탈로그에 먼저 올리면, 표를 만들기 전까지 frontend가 시작하지 못합니다(schema_profile_mismatch). AD Coin v2와 같은 방식입니다.
+- 앱은 표를 만들지 않습니다. 처음 쓸 때 `provider_claim_schema` 버전을 읽어 붙고, 없으면 기능이 꺼진 채(목록은 빈 값, 쓰기는 409)로 5분마다 다시 봅니다.
+- 연결은 이 기능 전용으로 프로세스당 1개입니다. 스키마를 `provider_claims`로 고정하고, 문장마다 2초 제한을 겁니다. 모듈의 이름 붙은 SQL(`SQL`)만 보냅니다.
+- 트리거와 함수는 만들지 않습니다. 운영 DB 구조 변경이므로 절차 대상입니다: `scripts.db_change_rehearsal run --sql deploy/db-changes/provider-claims-v1.sql` → 복구 SQL `deploy/db-changes/provider-claims-v1-rollback.sql` → 사용자 승인 → `check` 0 확인 뒤 실행. 애플리케이션의 DB 역할로 실행해야 앱이 스키마와 표를 소유합니다.
+- 아래 표 정의는 설계 때 초안입니다. 실제 정의는 `agent_market/provider_self_claims.py`의 `DDL`과 위 SQL 파일입니다(시험이 둘을 대조함).
 
 ```sql
 CREATE TABLE IF NOT EXISTS provider_self_claims(
@@ -108,30 +113,36 @@ CREATE TABLE IF NOT EXISTS provider_self_claim_checks(   -- 확인 요청마다 
 CREATE TABLE IF NOT EXISTS provider_correction_requests(
   id TEXT PRIMARY KEY, claim_id TEXT NOT NULL, resource_id BIGINT NOT NULL,
   field TEXT NOT NULL CHECK (field IN ('name','description','category')),
-  proposed TEXT NOT NULL, evidence_url TEXT, status TEXT NOT NULL CHECK (status IN ('open','applied','declined')),
+  proposed TEXT NOT NULL, evidence_url TEXT, status TEXT NOT NULL CHECK (status IN ('open','applied','declined','held')),
   created DOUBLE PRECISION NOT NULL, decided_at DOUBLE PRECISION, decided_by TEXT);
 ```
 
-- 모든 질의는 정확한 본문으로 `agent_market/application_store_sql.json`에 등록합니다(운영 PG는 등록된 SQL만 실행). 예상 질의는 약 14개입니다(준비·확인 상태 전이 CAS, 목록, 범위 계산, 다시 확인 대상, 정정 요청 쓰기·목록).
+- 질의는 공용 카탈로그에 넣지 않고 모듈의 이름 붙은 `SQL` 목록(21개)만 씁니다. 자원 조회는 이미 등록된 `store.resource(rid)` 하나만 씁니다.
+- 정정 요청의 결정(채택·반려·보류)은 운영 DB 쓰기입니다. 팀 세션은 운영 DB에 직접 쓰지 않으므로, 검토 화면(직원 로그인)이나 PM이 정하는 경로로 기록합니다(열린 문제).
 - 운영자용 `provider_control_claims`(0건)를 넓혀 쓰지 않는 이유가 있습니다. 그 표는 직원 세션·워크스페이스 개정·HMAC 묶음에 맞춰져 있어, 고객 주체를 섞으면 검증 경로가 둘로 갈립니다. 확인 전송 코드(엄격한 JSON 대조, 4KiB, 리다이렉트 없음)는 같은 함수로 공유합니다.
 
 ## 7. 나눌 경계
 
 | 팀 | 맡을 것 |
 |---|---|
-| 에이전트 팀 | 백엔드 모듈(`agent_market/provider_self_claims.py`), 고객 API(`/api/customer/provider-claims` 준비·확인·철회·목록·혜택 조회·정정 요청), 확인 전송(A·C, 2단계 B), 범위 계산, 시험 |
+| 에이전트 팀 | 백엔드 모듈(`agent_market/provider_self_claims.py`), 고객 API(`/api/customer/provider-claims` 준비·확인·철회·목록·혜택 조회·정정 요청), 확인 전송(A·C, 2단계 B), 범위 계산, 시험, **정정 요청 검토(48시간 안에 채택·반려·보류)** |
 | 성장·유통 | 에이전트 페이지의 "이 에이전트의 제공자입니까" 입구(11-19 묶음), 계정 화면 "내 에이전트"(안내문·확인 버튼·혜택 화면). 공개 문구는 영어. 디자인 시스템과 화면 정책(영역별 로딩, 팝업 없음)을 따름 |
-| 운영·SRE | `provider_budget`의 `provider_claims` 몫, jobs의 다시 확인 단계, 공유 호스트 목록, DB 변경 리허설과 실행 준비, 정정 요청 검토 화면(admin, 한국어) |
+| 운영·SRE | `provider_budget`의 `provider_claims` 몫, jobs의 다시 확인 단계, 공유 호스트 목록, DB 변경 리허설과 실행 준비, 정정 요청 대기 건수를 깔때기 줄에 |
 | 검색과 RAG | 재시험 대기열 위치 조회 함수(읽기 전용), 수집기가 저장하는 카드·도구 정보에서 확인 표시 지우기 |
 | AI AD Coin | 나중에 유료 이용권이 이 확인을 전제로 붙음 |
 
-## 8. PM이 정할 것
+## 8. PM 결정 (11-15 11:0x)
 
-1. 1단계 방법: A(well-known) + C(프로토콜 안 표시)로 시작하고, B(DNS TXT)는 dnspython 의존성 절차 뒤 2단계로 넣을지.
-2. 대기 유효 시간 24시간, 확인 유효 30일, 연속 실패 2회면 `lapsed`라는 값.
-3. 공개 페이지에 "Provider verified control" 표시를 둘지. 둔다면 순위·추천에는 쓰지 않는다는 문구를 함께 넣습니다.
-4. 재시험은 "대기열 위치 보기"만인지, 확인된 제공자에게 주 1회 "재시험 요청"을 줄지. 요청을 주면 공용 장부 몫이 더 필요합니다.
-5. 정정 요청을 검토하는 사람과 응답 기한(제안: 운영·SRE, 7일).
+1. 1단계 방법은 A(well-known 파일) + C(프로토콜 안 표시)입니다. B(DNS TXT)는 2단계입니다.
+2. 대기 24시간, 확인 30일, 연속 2회 실패 시 `lapsed`를 그대로 씁니다.
+3. 공개 "확인됨" 표시는 1단계에 두지 않습니다. 진주의 '검증'과 섞여 품질 보증처럼 읽힐 수 있기 때문입니다. 확인 여부는 제공자 본인 화면과 운영 화면에만 보입니다.
+4. 재시험은 대기열 위치 보기만 줍니다. 요청 기능은 호출 예산과 악용 가능성을 본 뒤 정합니다. **돈을 내면 재시험이 빨라지는 길은 어떤 단계에서도 만들지 않습니다.**
+5. 정정 요청은 에이전트 팀이 검토하고, 48시간 안에 채택·반려·보류를 적습니다. 자동 반영은 없습니다. 운영·SRE는 대기 건수만 매일 깔때기 줄에 넣습니다. 상태 값에 보류(`held`)를 더합니다.
+
+구현 순서
+- 코드와 시험은 지금 시작합니다. 표가 없으면 기능이 꺼진 채로 둡니다(운영에 실려도 409나 빈 응답). AD Coin의 migrate 전 처리와 같은 방식입니다.
+- 표 3개는 11-16 아침 묶음에 넣지 않습니다. 운영·SRE와 리허설을 11-17 밤에 하고, 통과하면 PM이 11-18에 사용자 승인을 요청합니다. 화면은 성장·유통이 11-19 묶음에 맞춥니다.
+- 공용 장부의 새 몫 `provider_claims`(도메인당 하루 6회)는 운영·SRE 장부 담당과 맞춥니다.
 
 ## 9. 일정 (PM 승인 뒤)
 

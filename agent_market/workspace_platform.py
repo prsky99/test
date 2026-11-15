@@ -326,4 +326,7 @@ def public_router_for(front, *, workspace_access_enabled=False):
     router.include_router(typed_releases(platform.typed_releases, admin=False))
     from .customer_authoring_service import router_for as authoring
     router.include_router(authoring(platform))
+    # Provider self-service claims (docs/PROVIDER_SELF_CLAIM.md): off until operators create their schema.
+    from .provider_self_claims_service import router_for as provider_claims
+    router.include_router(provider_claims(platform.identity, front.store))
     return router
