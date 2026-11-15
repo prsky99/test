@@ -35,6 +35,16 @@ EMPTY = re.compile(r"""\b(?:none|nothing)\s+(?:matched|was\s+found|found)\b
   | \b(?:returned|found)\s+(?:0|no|zero)\s+(?:results?|matches|items|records)\b""", re.I | re.X)
 EMPTY_COUNTS = ('returned', 'total_matches', 'total_results', 'result_count', 'match_count')
 
+# An answer that only offers the work for sale did not do it (11-16 real tasks p13 and a13: ArgonautWorks Bounty
+# Signal listed "machine-buyable" endpoints and its /.well-known/x402 for a time question; Agent Revenue Network
+# answered "Discovery did not execute or charge them" with x402 instructions for a JSON Schema check). The scorer
+# counted both as paid, these counts as successes, so both led the next recommendation for a task that free tools do.
+# A bare "x402" is not enough: a directory of x402 services answers with that word and did its task.
+PAYWALL = re.compile(r"""/\.well-known/x402\b | \bx402\s+(?:payment|execution|instructions?|checkout)\b
+  | \bpay\w*\s+(?:via|with|over|through)\s+x402\b | \bpayment\s+required\b | \bmachine[\s-]buyable\b
+  | \bdid\s+not\s+(?:execute|run)\b[^.]{0,40}\bcharg | "discoveryOnly"\s*:\s*true
+  | \b(?:paid|pro|premium|team|enterprise)\s+(?:tier|plan|subscription)\s+(?:is\s+)?required\b""", re.I | re.X)
+
 
 def _empty_json(value):
     """A JSON answer whose own count fields say nothing was found and whose lists are all empty."""
@@ -70,7 +80,7 @@ def classify(output):
         return 'needs_key' if NEEDS_KEY.search(text) else 'failed'
     if not text.strip():
         return 'failed'
-    if NEEDS_KEY.search(text[:600]):
+    if NEEDS_KEY.search(text[:600]) or PAYWALL.search(text[:1000]):
         return 'needs_key'
     try:
         value = json.loads(text.strip().split('\n')[0])
@@ -171,8 +181,11 @@ def standing(counts, tool=None):
         elif tools:
             return 0  # other tools were called; nothing is known about this one
     good = int(counts.get('succeeded') or 0)
-    bad = int(counts.get('failed') or 0) + int(counts.get('needs_key') or 0)
-    if good == 0 and bad >= 1:
+    keys = int(counts.get('needs_key') or 0)
+    bad = int(counts.get('failed') or 0) + keys
+    # A paywall is not a passing failure: once the answers asking for a key or payment are as many as the successes,
+    # the listing follows (11-16: one call counted as success before PAYWALL existed kept p13's lead at +1).
+    if good == 0 and bad >= 1 or keys and keys >= good:
         return -1
     if good > 0 and good >= bad:
         return 1
