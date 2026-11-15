@@ -60,6 +60,10 @@ _UPPER = re.compile(r'(?<![A-Za-z$])\$?([A-Z]{2,5})(?![A-Za-z])')
 # '/' (usd/krw); 'to', 'in', 'into' and arrows join upper-case codes only.
 _PAIR_SLASH = re.compile(r'(?<![A-Za-z])([A-Za-z]{3})\s*/\s*([A-Za-z]{3})(?![A-Za-z])')
 _PAIR_WORD = re.compile(r'(?<![A-Za-z])([A-Z]{3})\s*(?:to|->|→|into|in)\s*([A-Z]{3})(?![A-Za-z])')
+# PM 08:4x: lower-case codes joined by a word count too when the task is about money ('exchange', 'rate', 'currency').
+# 'convert' is left out: it is also used for files ('try to php before you convert the file').
+_PAIR_WORD_ANY = re.compile(r'(?<![A-Za-z])([A-Za-z]{3})\s*(?:to|->|→|into|in)\s*([A-Za-z]{3})(?![A-Za-z])')
+_MONEY = re.compile(r'\b(?:exchange|fx|forex|rates?|currenc(?:y|ies))\b', re.I)
 
 # Argument names by the kind of value they take (lower case, whole name).
 KINDS = {
@@ -87,7 +91,8 @@ def _one(values):
 
 
 def _currency_pair(task):
-    pairs = [(a.upper(), b.upper()) for a, b in _PAIR_SLASH.findall(task) + _PAIR_WORD.findall(task)
+    joined = _PAIR_WORD_ANY.findall(task) if _MONEY.search(task) else _PAIR_WORD.findall(task)
+    pairs = [(a.upper(), b.upper()) for a, b in _PAIR_SLASH.findall(task) + joined
              if a.upper() in CURRENCIES and b.upper() in CURRENCIES]
     return _one(pairs)
 

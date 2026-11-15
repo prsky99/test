@@ -30,6 +30,7 @@ CERTAIN = [
     ('holidays on 2026-12-25', ('date',), {'date': '2026-12-25'}),
     ('exchange rate USD to KRW', ('from', 'to'), {'from': 'USD', 'to': 'KRW'}),
     ('convert eur/jpy now', ('base', 'target'), {'base': 'EUR', 'target': 'JPY'}),
+    ('exchange rate usd to krw', ('from', 'to'), {'from': 'USD', 'to': 'KRW'}),   # lower case with money words
     ('stock quote for NVDA', ('symbol',), {'symbol': 'NVDA'}),
     ('bitcoin price', ('ids',), {'ids': 'bitcoin'}),
     ('price of ETH', ('symbol',), {'symbol': 'ETH'}),
@@ -55,7 +56,8 @@ UNCERTAIN = [
     ('translate this text into Korean', ('text',)),              # free text is never copied
     ('try to php before you go', ('from', 'to')),                # lower-case words that are also codes
     ('how to try in php', ('from', 'to')),
-    ('cad to rub conversion', ('from', 'to')),                   # lower-case pair without '/'
+    ('usd to krw', ('from', 'to')),                              # lower case without money words
+    ('try to php before you convert the file', ('from', 'to')),  # 'convert' is not a money word (files)
 ]
 
 
